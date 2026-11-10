@@ -40,6 +40,10 @@ class CoreFingerprint(NamedTuple):
 
     entries: tuple[FingerprintEntry, ...]
     digest: str
+    #: ``(path, sha256 of its bytes)`` of every RACY entry — one whose mtime is not older than the walk's
+    #: start by :data:`fingerprint.RACY_WINDOW_NS` (RT-CORE-CACHE-SAME-TICK-REWRITE): a same-size rewrite
+    #: inside one file-time tick keeps the triple, so the digest covers its bytes too.
+    racy: tuple[tuple[str, str], ...] = ()
 
     @property
     def count(self) -> int:

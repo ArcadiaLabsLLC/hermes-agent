@@ -80,7 +80,7 @@ ask one question per decision, and hand back an installed sheet.
 
 **Where the rulings live.** Citations of the form **§13.n** are owner decisions
 recorded once, in the launcher companion
-`docs/mission_control/planned/console-character-authoring-architecture.md` §13.
+`EterniaLauncher/docs/mission_control/subsystems/console-character-authoring-architecture.md` §13.
 This file carries the operative half only and never restates the reasoning — if
 the two ever disagree, the register is right.
 
@@ -110,6 +110,7 @@ not the slug** (`20260824-140756-cd645a` vs `anime-girl`).
 | `rows --draft <id> [--only a,b]` | One generation per **row strip** — never per frame. | `rows` |
 | `reroll-row --draft <id> --row <key> [--note …]` | Re-draws one strip. **Auto-approved, and there is no undo.** | `rows` |
 | `thumb --draft <id> (--row <key> [--frame n] \| --direction <d>) [--attempt n] [--scale n]` | Writes a card-size QA crop of ONE frame of a row, or of ONE turnaround direction REFERENCE. Both arms carry the same two budget booleans; a reference is one pose, so `--frame` does not apply to it and is refused rather than ignored. | **any** |
+| `cells --draft <id> --row <key>` | Writes an APPROVED row's registered cells — what compose packs for that row (same extraction, shared scale, palette lock once every direction is approved) — as `frames × frameW` by `frameH`, and names the path. Read-only on the draft; refuses a row with no approved strip. | any |
 | `compose --draft <id> [--accept-handedness <row>:<basis>,…]` | Composes, validates, installs; advances to `composed`. | `rows` |
 | `auto --draft <id> [--through turnaround\|approve-direction\|rows\|compose]` | **The whole pipeline in ONE process**: turnaround → approve every direction → generate the rows that are missing → compose and install, printing a receipt as each stage lands (`--json` = one compact object per LINE; the last line is always the summary). **Only for an operator's explicit "drive it all the way" ask** — it auto-approves the turnaround, which is the last moment a reference can change. It stops on a handedness refusal and has no way to override one; it resumes rather than restarts (a stage whose work already exists is skipped, with the reason on the summary), so it is also the one-command repair after `reopen`; and it writes the same per-attempt history, so crops and `reopen` behave exactly as after a hand-driven run. **One command is still many stage changes: emit a `CHARSHEET-QA:` line for every receipt line it printed**, plus the `MEDIA:` lines. | `turnaround` or `rows` |
 | `reopen --draft <id>` | Back to `rows` for fixes. Installed sheet untouched. | `composed` |

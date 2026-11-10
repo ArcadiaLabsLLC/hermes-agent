@@ -83,21 +83,12 @@ def all_runs() -> list[dict[str, Any]]:
     return [dict(run) for run in _read_runs()["runs"].values() if isinstance(run, dict)]
 
 
-def latest_runs(workspace_id: str | None, slot: str, *, project_id: str | None = None) -> dict[str, dict[str, Any]]:
-    """``step_id -> the newest run of that step`` for one slot on this machine.
-
-    A Project's slot (``project_id``) counts every run of it, whichever workspace (or the Project's own
-    verb, ``workspace_id`` None) started it — the checkout is one per Project per machine.
-    """
+def latest_runs(workspace_id: str | None, slot: str) -> dict[str, dict[str, Any]]:
+    """``step_id -> the newest run of that step`` for one slot of ``workspace_id`` on this machine."""
 
     newest: dict[str, dict[str, Any]] = {}
     for run in all_runs():
-        if run.get("slot") != slot:
-            continue
-        if project_id is not None:
-            if run.get("project_id") != project_id:
-                continue
-        elif run.get("workspace_id") != workspace_id or run.get("project_id"):
+        if run.get("slot") != slot or run.get("workspace_id") != workspace_id:
             continue
         held = newest.get(str(run.get("step_id")))
         if held is None or (stamp_epoch(run.get("issued_at")) or 0.0) >= (stamp_epoch(held.get("issued_at")) or 0.0):

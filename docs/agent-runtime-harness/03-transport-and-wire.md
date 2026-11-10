@@ -390,7 +390,10 @@ the device it just created with the token riding that one `hello_ok` and never
 again. Every credential failure on this lane — no id, unknown id, revoked row,
 wrong proof, wrong code — collapses into ONE `bad_proof` rejection, so a peer
 that has proven nothing cannot enumerate device ids by watching the reason
-change.
+change. The one exception is said only AFTER a proof verifies: a `channel` credential (the owner's
+own external gateway, [09](09-multi-device-runtime.md) § Channel credentials) is rejected
+`external_access_off` while the namespace's external-access switch is off — not an auth failure,
+so it charges nothing.
 
 **Neither door accepts the other's credential**, in both directions: the root
 token is refused on the gateway lane, a pairing code is refused on loopback.
@@ -705,7 +708,7 @@ a server constructed without them is byte-identical to the one that shipped:
   fingerprint pinned by the client).
 * ``authenticator`` — ``None`` means the per-root token, i.e. the code that was
   inline here before the seam existed. The gateway lane injects a per-DEVICE
-  check (``serve_gateway_auth.py``), which is the only way a connection ever
+  check (``serve_gateway_auth/``), which is the only way a connection ever
   gets a ``device_id``/``device_tier`` stamp, which is in turn the only way
   ``call_authorization`` mints a ``device`` caller.
 
@@ -811,7 +814,10 @@ PRESENCE says this runtime understands `--service` at all — a hermes predating
 the flag carries no `service` key anywhere, which is the launcher's membership
 gate for falling back to the stdio-pipe transport — and its VALUE says whether
 this process is running as one. The same fact, plus `starter_pid` (the parent at
-BOOT; a detached service is reparented the moment its starter exits), rides all
+BOOT; a detached service is reparented the moment its starter exits, and `null`
+on POSIX when the parent at boot only ADOPTED the process — a subreaper such as
+`systemd --user`, or init — told by the session: `agent_runtime.serve_starter`,
+RT-SERVE-STARTER-PID-NOT-THE-SUBREAPER), rides all
 three greeting frames as top-level keys beside `pid` and `boot_id`, and the
 registry row. The contract integer did not move: an added key on an existing
 block is the set-plus-integer rule these manifests already use.
@@ -938,6 +944,12 @@ for. Additive under the same rule as `tiers`: no existing request or result
 shape moved, so the integer holds, and a manifest with NO `params` block reads
 as "a runtime that predates R-C8" — the launcher falls back to the eleven keys
 it knew — rather than as "no params".
+
+**`input_mode` on `runtime.chat.message` (RT-CHAT-TURN-INPUT-MODE, 2026-11-03).** `typed` | `voice`, how the operator
+made the message; any other word refuses `input_mode_invalid` at the door. Absent means typed and lowers to no flag;
+given, it lowers to `--input-mode <mode>`, the write-ahead turn record stores `input_mode`, and the operator's row in
+`persona chat history` and the operator conversation history carries it, so a spoken turn stays spoken across a
+restart (`agent_runtime/chat_turn.py::_input_mode`).
 
 **`images` on `runtime.chat.message` (RT-OPERATOR-CHAT-SEND-PERSONA, 2026-10-18).**
 `[{media_type: image/png|image/jpeg, data_b64}]`, at most 4, each at most 5 MiB
@@ -1394,6 +1406,16 @@ never parks the harness pointer" (the launcher plan's R-B). Both verbs share
 one implementation with the argv CLI (`agent_runtime/scope_activation.py`);
 neither joins `PEER_METHOD_ALLOWLIST`.
 
+`runtime.workspace.assign_realm` (`console` tier; RT-WORKSPACE-REALM-ASSIGN-VERB) homes a realm-less
+workspace: params exactly `workspace_id`, `realm_id`; the answer is the workspace row (`realm_id` now set)
+plus `assigned` (false when that realm already owned it whole; a missing forward entry is healed and
+answers true). It writes the workspace's `realm_id` back-reference, then the realm's `workspace_ids`
+forward entry (lifting a delete-ledger entry for it), under one lock
+(`agent_runtime/workspace_create.py::assign_workspace_realm`). Refusals ride `error.data.reason`:
+`invalid_request` (-32602), `workspace_not_found` / `realm_not_found` (4001), `workspace_archived` and
+`workspace_owned_by_other_realm` (4090, with `owner_realm_id` — owned means the workspace's `realm_id` or
+any realm's `workspace_ids` names another realm; it is never moved).
+
 ## 5. Attachment receipts
 
 `log_stream_attach` (`agent_runtime/stream/build_policy.py::log_stream_denied`) writes ONE line per attachment to the
@@ -1405,7 +1427,7 @@ existed the log named none of them:
 |---|---|---|
 | socket/stdio op lane | `subscribe` / `stream_lane` | `serve.py` |
 | RPC office lane | `runtime.office.subscribe` / `office_patch` | `serve_office_subscriptions.py:902` |
-| argv CLI | `harness_stream` / `cli_stream` | `runtime_commands.py:669-670` |
+| argv CLI | `harness_stream` / `cli_stream` | `runtime_commands.py:607-608` |
 
 `op` is the call as the client made it, `purpose` is what the attachment is FOR
 — neither implies the other. `pid` rides LAST here and on both build families
@@ -1783,16 +1805,20 @@ omit the module and never advertise the methods.
 
 | Method | Input beyond scope | Result | Typed refusals |
 |---|---|---|---|
-| `runtime.work.capabilities` | `observe?` (true: words only, no create/promote/move — then `missing` / `move_pending` say what a full call would do) | `owners[] {owner, workspace_id, kind, label, operations}` (one `kind: workspace` owner per workspace, then the `kind: personal` board — the operator's machine-local brain, never promoted; `workspace_id: personal`), `board_kinds[]` (`workspace`, `personal`, `agent`), `personal_board {state: present \| created \| missing (observe) \| unavailable (+ `reason`)}`, `default_brain {ws: {state: present \| created \| moved (+ `into`) \| absent \| unavailable (+ `reason`) \| remote (+ `clone_url`) \| remote_pending_declare (+ `clone_url`, `slot`) \| remote_refused (+ `reason`, `retry_after`)}}` (`present`/`created` carry `reason: needs_git_account` while no GitHub credential answers), `limitations[]`, `chat_scopes`, `execution_identity_guard`, `observe[]` (the operations taking `observe: true`) | `scope_denied`, `work_unavailable` |
+| `runtime.work.capabilities` | `observe?` (true: words only, no create/promote — then `missing` says what a full call would do) | `owners[] {owner, workspace_id, kind, label, operations}` (one `kind: workspace` owner per workspace, then the `kind: personal` board — the operator's machine-local brain, never promoted; `workspace_id: personal`), `board_kinds[]` (`workspace`, `personal`, `agent`), `personal_board {state: present \| created \| missing (observe) \| unavailable (+ `reason`)}`, `default_brain {ws: {state: present \| created \| unavailable (+ `reason`) \| remote (+ `clone_url`) \| remote_pending_declare (+ `clone_url`, `slot`) \| remote_refused (+ `reason`, `retry_after`)}}` (`present`/`created` carry `reason: needs_git_account` while no GitHub credential answers), `limitations[]`, `chat_scopes`, `execution_identity_guard`, `observe[]` (the operations taking `observe: true`) | `scope_denied`, `work_unavailable` |
 | `runtime.work.context` | `client_scope`, `conversation` | `scopes`, `agent_profile`, `assignee`, `can_start` | `invalid_request`, `work_owner_changed` |
-| `runtime.work.list` | `kind?` (`workspace` / `personal` must match the owner; `agent` needs no `owner` and answers the AGENT VIEW: `assignee` (or the operator conversation's instance) → `{kind: agent, assignee, assignees[], owners[] {owner, workspace_id, kind, label, boards[] …, stale} or {…, boards: [], refused}, read_at, stale}` — the rows assigned to the instance or its persona across its workspace's boards and the personal board; every workspace for a runtime-global instance or a bare persona id), `slot?`, `project_id?` (with `slot`, the Project's board of that name; alone, every board the Project answers for), `status?` (`READY` / `BLOCKED` / `DEFERRED` / `NEEDS PLAN` / `TAKEN`), `assignee?` (`persona:<token>`), `view?` (`all` / `conversation`), `stale_ok?`, `observe?` (true: read the existing worktrees as they are — no normalization, sync, fetch or write; a board with no worktree has `readable: false` and no queues; `stale` unless every worktree is at its local tip) | `boards[] {slot, label, brain_dir, project_id, project_name, projects[] {project_id, project_name}, project_default, checkout, bound_here, local, is_default, default_branch, committed_at, readable, queues[] {note, program, title, rows[]}}` — one board per live slot of the workspace's own document and of EVERY Project it holds, keyed `(project_id, slot)` (`project_id` null for the workspace's own; `projects` every Project a merged board answers for — two Projects naming one checkout, or one clone URL when not both bound here, are one board; `project_default` the Project's boards-category choice; `checkout` THIS machine's path, as `slots.show` discloses), grouped per brain, then per domain (one queue note each; `program` from its frontmatter; every row carries `slot`, `project_id` and `program`), `projects[] {project_id, project_name, slots[]}` — EVERY Project the workspace holds, in its order, with its live slot names (`slots: []` for a Project that has no folder slot and so lists no board; narrowed by `project_id?`, never by `slot?`; RT-WORK-LIST-SLOTLESS-PROJECTS), `cursor: null`, `read_at`, `stale` | `work_owner_changed`, `fetch_failed` (unless `stale_ok`) |
-| `runtime.work.inspect` | `kind?` (must match the owner), `slot`, `project_id?` (every row-addressed verb below takes it too: absent = the workspace's own board of that name, else the one board of that name; two Projects' boards of one name refuse `slot_ambiguous`), `task_id`, `observe?` (as `list`; an unread board refuses `no_brain`) | `task` or null; `ending {commit, at, subject, body}` (the deleting commit) when null | `work_owner_changed`, `slot_unbound` |
-| `runtime.work.start` | `request_id`, `title` (≤160), `body?` (≤50,000), `slot?`, `note?`, `assignee?`, `conversation?` | `task`, `disposition: accepted`, `receipt` — a minted `WORK-<6>` row; a non-empty body is its brief note | `invalid_request`, `no_brain`, `slot_unbound`, `assignee_unknown`, `push_contended`, the git reasons |
+| `runtime.work.list` | `kind?` (`workspace` / `personal` must match the owner; `agent` needs no `owner` and answers the AGENT VIEW: `assignee` (or the operator conversation's instance) → `{kind: agent, assignee, assignees[], owners[] {owner, workspace_id, kind, label, boards[] …, stale} or {…, boards: [], refused}, read_at, stale}` — the rows assigned to the instance or its persona across its workspace's boards and the personal board; every workspace for a runtime-global instance or a bare persona id), `slot?`, `status?` (`READY` / `BLOCKED` / `DEFERRED` / `NEEDS PLAN` / `TAKEN`), `group?` (a row group slug `[a-z0-9][a-z0-9.-]*`, exact match: only the rows whose `group:` segment names it; each row carries `group`, null when it names none), `assignee?` (`persona:<token>`), `view?` (`all` / `conversation`), `stale_ok?`, `observe?` (true: read the existing worktrees as they are — no normalization, sync, fetch or write; a board with no worktree has `readable: false` and no queues; `stale` unless every worktree is at its local tip) | `boards[] {slot, label, brain_dir, board_default, checkout, bound_here, local, is_default, default_branch, committed_at, readable, refused, queues[] {note, program, title, rows[]}}` — one board per live slot of the workspace's slot document, keyed by its slot (`board_default` the workspace's `boards`-category slot, listed first; `checkout` THIS machine's path, as `slots.show` discloses; the workspace absorbed Projects, RT-WS-ABSORB-RETIRE-PROJECT), grouped per brain, then per domain (one queue note each; `program` from its frontmatter; every row carries `slot` and `program`), `cursor: null`, `read_at`, `stale`. A board whose sync refuses (a git reason: `fetch_failed` without `stale_ok`, `index_locked`, `worktree_failed` …) is listed with `readable: false`, no queues and `refused: {reason, detail}` (null on every readable board) while every other board reads as usual — one board never fails the list (RT-WORK-LIST-ONE-BOARD-REFUSAL). A slot whose checkout holds no brain is read from hermes's worktree of it when that holds one, so a brain `create_brain` just made lists at once (RT-WORK-LIST-READS-CREATED-BRAIN) | `work_owner_changed` |
+| `runtime.work.inspect` | `kind?` (must match the owner), `slot`, `task_id`, `observe?` (as `list`; an unread board refuses `no_brain`) | `task` or null; `ending {commit, at, subject, body}` (the deleting commit) when null | `work_owner_changed`, `slot_unbound` |
+| `runtime.work.start` | `request_id`, `title` (≤160), `body?` (≤50,000), `slot?`, `note?`, `assignee?`, `group?` (a slug, written as the row's first segment after its lead), `conversation?` | `task`, `disposition: accepted`, `receipt` — a minted `WORK-<6>` row, `READY <date>`; a non-empty body is its brief note. Start never claims, from a conversation or anywhere: the conversation's instance is the default `assignee` only, and `runtime.work.claim` or a batch takes the row (`RT-WORK-START-NEVER-CLAIMS`) | `invalid_request`, `no_brain`, `slot_unbound`, `assignee_unknown`, `push_contended`, the git reasons |
 | `runtime.work.assign` | `request_id`, `slot`, `task_id`, `assignee` (or null to clear) | `task`, `receipt` | `row_gone`, `assignee_unknown`, git reasons |
-| `runtime.work.claim` | `request_id`, `slot`, `task_id`, `who?` (`persona:<instance_id>`, default the context's assignee) | `task`, `receipt` | `row_gone`, `already_taken`, `assignee_unknown`, git reasons |
+| `runtime.work.claim` | `request_id`, `slot`, `task_id`, `who?` (`persona:<instance_id>`, default the context's assignee) | `task`, `receipt`, `parent_task` — null for a row with no `group:`; for a subtask `{group, task_id, task_status, checked}`: the task that owns the group (its slug or a dotted prefix) in any brain the workspace's boards read, or `task_id: null, checked: false` with a `detail` when none is visible and the claim went through unchecked (`agent_runtime/work/store.py::parent_task`, launcher plan `QUEUE_TASKS_AND_SUBTASKS_2026-11-09` D3) | `row_gone`, `already_taken`, `assignee_unknown`, `task_not_ready` (a subtask whose task is DEFERRED, BLOCKED or NEEDS PLAN; `detail` names the task, `task_id` / `task_status` ride beside it), git reasons |
 | `runtime.work.release` | `request_id`, `slot`, `task_id`, `status?` | `task`, `receipt` | `row_gone`, `not_claimant`, git reasons |
 | `runtime.work.set_status` | `request_id`, `slot`, `task_id`, `status` (a full status segment) | `task`, `receipt` | `row_gone`, `grammar_invalid`, `not_claimant`, git reasons |
+| `runtime.work.move` | `request_id`, `slot`, `task_id`, `to` (`READY` / `BLOCKED` / `DEFERRED` / `NEEDS PLAN`), `reason?` (the status body; `BLOCKED` needs one starting with a blocked-reason word), `revision?` (the card's `revision`, from `list` or `inspect`), `line?` (the row's raw line as a board drew it off the user's checkout, which never holds `revision`; one trailing CR is ignored; RT-WORK-MOVE-LINE-GUARD) | `task`, `receipt`, `unchanged` — the Work board's drag between status columns: the serve dates the status, a TAKEN row is released, a drop on the row's own column with nothing to change is `unchanged: true` with `receipt: null` and no commit (`agent_runtime/work/store.py::move`) | `row_gone`, `row_changed` (with `task`, the row as it is now: a stale `revision`, or a `line` hermes's worktree row does not read), `grammar_invalid`, `invalid_request`, git reasons |
+| `runtime.work.answer` | `request_id`, `slot`, `task_id`, `answer` (≤900, one line; backticks, `*` and `·` become `-`), `line` (required: the row's raw line as the board drew it; one trailing CR is ignored) | `task`, `receipt` — the owner answers an owner decision from its pill (RT-WORK-ANSWER-VERB, launcher `MC-BOARD-ANSWER-FROM-PILL`): ONE write puts `RULED <date>: owner — <answer>` before the status, replaces `BLOCKED <date>: owner decision — …` with `READY <date>` and drops its `Recommend:` (`agent_runtime/work/store.py::answer`, `agent_runtime/work_store/grammar.py::_answer`) | `row_gone`, `row_changed` (with `task`, the row as it is now), `invalid_request` (no `line`, an empty answer, or a row not BLOCKED on an owner decision), `not_claimant`, git reasons |
+| `runtime.work.pull` | `request_id?`, `slot` | `slot`, `pulled`, `behind`, `head`, `receipt` — fast-forwards the slot's OWN checkout (the user's repo) to its upstream, only when clean, and rewrites `brain_paths.json` with the new `behind`; the remote check never moves a slot checkout, this is the user's ask (`agent_runtime/brain_remote.py::pull_checkout`) | `slot_unbound`, `not_a_repo`, `remote_missing` (no upstream), `fetch_failed`, `worktree_dirty`, `remote_diverged` |
 | `runtime.work.done` | `request_id`, `slot`, `task_id`, `result` (≤4,000, one paragraph) | `ending`, `receipt` — the row is deleted; the commit body carries the result | `row_gone`, `not_claimant`, git reasons |
+| `runtime.work.close` | `request_id`, `slot`, `task_id`, `line` (required, as `answer`), `words?` (≤300; default `done`), `result?` (≤4,000, one line in the archive) | `ending` (`outcome: CLOSED`, `words`, `result`, `archive_note`, `commit`), `receipt` — the owner marks a row done themselves (RT-WORK-OWNER-CLOSE-VERB, launcher `MC-BOARD-MARK-DONE-FROM-PILL`): ONE write archives the row to its queue's month file with `CLOSED <date>: owner — <words>` and an optional `result:`, as `scripts/work_row.py close --owner` does; a claimed row closes too (the operator's override) (`agent_runtime/work/store.py::close`) | `row_gone`, `row_changed` (with `task`), `invalid_request`, `grammar_invalid` (the close breaks the task rules), `not_claimant` (a non-operator caller on a claimed row), git reasons |
 | `runtime.work.create_brain` | `request_id`, `slot?` (omitted: the default brain), `promote?` (`true`: promote the default brain to a private GitHub remote now, ignoring the automatic path's back-off — doc 06 § The todo board) | `board`, `receipt`, `promotion?` (`{outcome: promoted \| already, url, declaration}`) | `slot_unbound`, git reasons; with `promote`: `needs_git_account`, `remote_exists`, `git_host_unsupported`, `token_scope`, `host_unreachable`, `remote_diverged`, `url_mismatch` |
 | `runtime.work.lend_skills` | `request_id`, `slot`, `task_id`, `skills` (non-empty list of slugs), `mode?` (`lend` default: the union with the row's set; `revoke`: the difference) | `task`, `receipt` — the row's `skills:` segment rewritten (removed when empty); a write verb (RULED 2026-10-18) | `invalid_request`, `skills_not_loadable` (+ `rejected_skills {slug: reason}`; nothing written), `row_gone`, `not_claimant`, git reasons |
 
@@ -1804,8 +1830,15 @@ another claimant holds; a paired device writes as `device:<id>` and may not borr
 The git reasons are `slot_unbound`, `git_unavailable`, `machine_identity_unavailable`, `worktree_failed`,
 `remote_missing`, `fetch_failed`, `branch_missing`, `worktree_dirty`, `index_corrupt` (hermes's worktree
 index stayed unreadable after the writer moved it aside once and retried the reset — `work.index_healed`
-logs each move), `note_missing`, `grammar_invalid`, `commit_failed`, `push_refused`, `push_contended` —
+logs each move), `index_locked` (hermes's worktree `index.lock` is held by a live git; one older than
+300 s — longer than any writer git call — is moved aside once, logged `work.index_lock_healed`; the detail
+names the lock file), `note_missing`, `grammar_invalid`, `commit_failed`, `push_refused`, `push_contended` —
 one per failure branch of the plan's §5 step table.
+A local board's write moves its branch THROUGH the worktree that has it checked out (the user's checkout,
+or the default brain's own directory): a `merge --ff-only` there, so its HEAD, index and files move together
+and every unrelated local change stays; a change in the fast-forward's way, or the branch mid-rebase, is
+`worktree_dirty` naming that checkout, with the branch unmoved. A branch no worktree holds moves by
+compare-and-swap `update-ref` (`agent_runtime/work_store/checked_out.py`, RT-CREATE-BRAIN-MOVES-CHECKED-OUT-BRANCH).
 Every write logs one receipt line `work.row_<op>` (`agent_runtime/work_store/receipts.py`); the serve log
 is the receipt log.
 
@@ -1855,9 +1888,9 @@ refusal shape are Work's; replies carry `version: 1`, `install_id`, `owner`.
 
 | Method | Input beyond scope | Result | Typed refusals |
 |---|---|---|---|
-| `runtime.batch.plan` | none | `plan {id: BATCH-<6>, lanes[], landing, budget, asks[]}` — writes nothing | `plan_refused` (`nothing_ready`, `mixed_assignees`) |
-| `runtime.batch.start` | `batch_id` (the plan's id), `personas?` | `batch` | `idempotency_conflict` (the board moved), `persona_unresolved`, `not_owner_machine`, git reasons |
-| `runtime.batch.status` | `batch_id?` | `batches[] {…, lanes[], landing, marks {slot/ID: who \| status \| gone}}`, `automation`, `machine` | `batch_missing` |
+| `runtime.batch.plan` | `rows?` (`[[slot, note, id]]`: plan ONLY those rows — the Work board's chosen set, `RT-BATCH-PLAN-ROWS`; omitted: every READY row) | `plan {id: BATCH-<6>, lanes[], landing, budget, asks[]}` — writes nothing; the id is still the lanes' rows' hash | `plan_refused` (`nothing_ready`, `mixed_assignees`), `invalid_request` (a ref that is not a READY, unclaimed row of the workspace, named in `detail`) |
+| `runtime.batch.start` | `batch_id` (the plan's id), `personas?`, `rows?` (the same set `plan` was given: start re-plans it to detect a moved board) | `batch` | `idempotency_conflict` (the board moved), `persona_unresolved`, `not_owner_machine`, git reasons |
+| `runtime.batch.status` | `batch_id?` | `batches[] {…, lanes[], landing, marks {slot/ID: who \| status \| gone}}`, `automation`, `machine` — each lane (and `landing`) carries `worktrees` (absolute paths, from its RUNNING line), `claimed_at` / `running_at` / `settled_at` (the manifest lines' `at`; null before that state) and `usage` (its run's turn record's `provider_usage` totals `{input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, total_tokens, cost_usd, priced}`, priced at read time by `turn_audit`'s pricer — `cost_usd` null and `priced: false` when it could not; `usage` null with no record) (`RT-BATCH-LANE-WORKTREES-AND-USAGE`); `rows` is what the lane CLAIMED (empty before its CLAIMED line) and `planned_rows` the plan's exact refs (`[slot, note, id]`) while the lane is still `PLANNED`, empty after — a Stop of a started wave reviews `planned_rows` for PLANNED lanes and `rows` for the rest (`RT-BATCH-PLANNED-STOP-SCOPE`); `execution` is the owner machine executor’s current queued/running/settled/stopped state or null when unconfirmed, independent of manifest `state`; `session_id`, `persona_id` and `turn_work_id` identify only the recorded attempt and existing conversation (RT-BATCH-LIVE-EXECUTION-READ) | `batch_missing` |
 | `runtime.batch.stop` | `batch_id`, `lane?` (omitted: abort the batch) | `batch` | `state_transition_invalid`, `batch_missing` |
 | `runtime.batch.land` | `batch_id`, `persona?` | `batch` | `state_transition_invalid`, `landing_in_progress`, `not_owner_machine` |
 | `runtime.batch.approve` | `batch_id` | `batch` (`LANDED`, `landing_sha`) | `state_transition_invalid`, `not_owner_machine`, `landing_in_progress`, `gate_not_green` (no green code-run gate receipt for the landing HEAD), `push_contended` (the tip moved since the merge: land again), `worktree_dirty`, `push_refused` |
@@ -2025,16 +2058,31 @@ longer registers, and another process's record once that process is dead.
 `agent_runtime/serve_rpc/console_suggestions.py` advertises contract 1 through the
 existing authenticated Console method lane. `runtime.console_suggestions.settings`
 owns `get`, `set`, `subscribe`, `unsubscribe`; `runtime.operator.conversation.suggestions`
-owns `read`, `subscribe`, `unsubscribe`, `dismiss`. Each family pushes `.changed`
+owns `read`, `subscribe`, `unsubscribe`, `dismiss`, `request`. Each family pushes `.changed`
 notifications through the existing connection. The Launcher uses the same notification
 dispatcher on local serve and paired LAN routes; an older manifest has no capability.
 
 Settings require `install_id`; writes use `expected_revision` and only changed fields:
-`enabled`, `max_context_messages`, `cooldown_seconds`, `auxiliary_override` (null resets
+`mode` (`off`, `manual`, `auto`), legacy `enabled`, `max_context_messages`,
+`cooldown_seconds`, `auxiliary_override` (null resets
 provider/model/base_url while preserving the host's other task policy). The sole writer
 is `hermes_cli.plugins_state.update_plugin_configuration`, with managed-key enforcement
 and atomic config locking. Defaults are false / 4 / 3. Missing, malformed or invalid
 configuration never enables generation; invalid optional tuning remains repairable.
+With no saved mode, legacy enabled false/absent maps to Off and true maps to Auto,
+without writing on read. A mode write also sets the legacy flag true only for Auto,
+so an older runtime cannot turn Manual into background generation. The response's
+`enabled` projects any non-Off mode for observation and guarded insertion.
+
+Manual observation and source/turn notifications invalidate display state but never
+enqueue generation or read suggestion context. `request` requires the exact subject,
+`expected_policy_epoch`, Manual policy and this connection's live chat subscription.
+It returns contract 1, `accepted` and `policy_epoch`; normal `.changed` snapshots carry
+generating (queued or running) and terminal results. The existing bounded scheduler, cooldown,
+auxiliary route and durable per-source attempt receipt own the work. Duplicate clicks
+share the existing pending/running work or receipt. Queue tickets capture the policy
+epoch and trigger kind; changing mode before dispatch refuses that ticket, and changing
+policy during inference discards the result through the existing epoch fence.
 
 Chat methods use the existing exact operator subject: install, workspace (nullable),
 persona, instance, session and client_scope. Native membership and account ownership
@@ -2053,3 +2101,11 @@ Subscription replies establish sequence zero; client buffers pre-ack pushes and 
 the newest complete snapshot. Coalesced notifications intentionally permit sequence gaps:
 each is a complete state, not a delta. Reconnect creates a fresh authorized subscription.
 Use always performs a fresh exact-source read before the existing draft owner inserts.
+
+### Work completion archive
+
+`runtime.work.capabilities.guarded_row_edits: true` permits optional `expected_raw` and exact `note` on `set_status` and `assign`. The writer compares the full row revision again on every replay and refuses any claimed row, even for the operator. A stale note/revision answers `row_changed`; a claimed row answers `already_taken`. Clients must require the capability before using these fields. Legacy calls retain their existing behavior. This guard neither starts nor releases execution.
+
+`guarded_task_edits: true` additionally permits `runtime.work.edit`: the normal owner envelope plus `request_id`, `slot`, `task_id`, exact `note`, required `expected_raw`, `title` and full `body`. It returns `task` and `receipt`. The same replay and unclaimed-row guards apply. Title and a content-addressed brief pointer change in one Git commit, so a brief-only edit also changes the guarded row revision. Earlier brief files remain intact. Task identity, status and assignment are preserved; this operation does not claim or run work.
+
+Native Work and batch completions use the existing writer’s `Op.CLOSE`: one commit removes the live row and appends its immutable monthly archive outcome with a result summary (up to 300 characters); the full result remains in the commit body (up to 4000 characters). `runtime.work.inspect` returns archive `ending` fields `outcome`, `date`, `commit`, `result`, `archive_note` and available Git provenance. A historical deletion with no archive is explicitly `outcome: "unrecorded"`; absence never implies Done. Delivery uses the first recorded valid commit, otherwise the closing commit (`here` in the archive).

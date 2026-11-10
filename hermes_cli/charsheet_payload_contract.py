@@ -511,6 +511,44 @@ def _list_kind(probes: list[dict], drafts: list[tuple[str, str, str]]) -> tuple[
     }, documents
 
 
+def _cells_kind(probes: list[dict], drafts: list[tuple[str, str, str]]) -> tuple[dict, dict]:
+    """An approved row's registered cells (``RT-CHARS-CELLS-PAYLOAD-CONTRACT-KIND``).
+
+    ``cells`` reads only an APPROVED row whose strip SEGMENTS, and the shared drafts' 8 px solid
+    strip extracts no frame -- so this kind starts its own draft per probe (``<slug>-cells``),
+    proposes a strip drawn by the fake draftsman's own drawing (poses on the magenta key, one
+    slot per frame) and approves it. Its own drafts, so the kinds above read exactly the state
+    they always read; and it runs after ``list``, which therefore never lists them. No direction
+    reference is approved, so the probe answers ``paletteLocked: false`` -- the key, not the value,
+    is what is recorded.
+    """
+    from agent.charsheet import draft as charsheet_draft
+    from agent.charsheet.fake_draftsman import strip_image
+    from hermes_cli.harness_parts.characters.commands import _cmd_characters_cells
+
+    documents = []
+    with tempfile.TemporaryDirectory(prefix="hermes-payload-contract-cells-") as tmp:
+        for probe in probes:
+            draft = charsheet_draft.CharacterDraft.create(
+                concept="payload contract probe",
+                slug=f"{probe['slug']}-cells",
+                display_name=probe["display_name"],
+                spec=probe["spec"],
+            )
+            row = probe["spec"].authored_rows()[0]
+            strip = Path(tmp) / f"{probe['slug']}-cells.png"
+            facing = row.direction or "s"
+            strip_image([(facing, tick, row.frames) for tick in range(row.frames)]).save(strip)
+            draft.store.propose(charsheet_draft.row_item(row.key), strip)
+            draft.store.approve(charsheet_draft.row_item(row.key))
+            documents.append(_emit(_cmd_characters_cells, draft=draft.id, row=row.key))
+    return {
+        "argv": "harness characters cells --draft <id> --row <key> --json",
+        "producer": "agent/charsheet/draft/cells.py::RowCells.row_cells",
+        "object_path": "",
+    }, {"default": documents}
+
+
 #: Every READ payload kind, in the order the launcher meets them. One entry is
 #: one probe function returning ``(metadata, {mode: [documents]})`` -- the raw
 #: answers, so that a second reader of the same probe run (the flag inventory
@@ -521,6 +559,8 @@ _KINDS = (
     ("thumb", _thumb_kind),
     ("status", _status_kind),
     ("list", _list_kind),
+    # Last: it starts drafts of its own, which ``list`` must not see.
+    ("cells", _cells_kind),
 )
 
 

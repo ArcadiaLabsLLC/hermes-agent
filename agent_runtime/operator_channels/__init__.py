@@ -100,7 +100,6 @@ from .instances import (
     _trace_entry_key,
     _trace_entry_sort_key,
     channel_identity,
-    is_dormant_channel,
     is_newborn_channel,
 )
 from .summary import (

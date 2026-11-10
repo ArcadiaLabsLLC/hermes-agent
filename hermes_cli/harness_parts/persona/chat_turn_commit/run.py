@@ -53,6 +53,7 @@ from agent_runtime.skill_root_freshness import TurnRootRegistries
 from agent_runtime.tool_turn_history import persist_tool_turn_actual
 from hermes_cli.flag_binding import list_flag_or_empty
 from agent_runtime.transport_dispatch_evidence import begin_turn_attempts
+from agent_runtime.turn_attendance import attended_for_requester
 from ..chat_admission import (
     _prewarm_constructions_overlapped,
     _registry_probe_rounds,
@@ -476,6 +477,8 @@ class _RunPhases:
                 MISSION_CHAT_TURN_PHASES_KEY: self.turn_phases.snapshot(),
                 # D2.04: stored once, here; every later persist merges it forward.
                 **({"retry_of": self.retry_of} if self.retry_of else {}),
+                # RT-CHAT-TURN-INPUT-MODE: a spoken turn stays spoken across a restart.
+                **({"input_mode": self.args.input_mode} if getattr(self.args, "input_mode", None) else {}),
             },
         )
         # C1h-bis: the turn's START, published the moment its row is real and
@@ -628,6 +631,7 @@ class _RunPhases:
                 ),
                 user_image_paths=getattr(self, "user_image_paths", ()),
                 relay_sender_marker=self.relay_sender_marker,
+                attended=attended_for_requester(getattr(args, "requested_by", None)),
                 root_chat_session_id=self.session_id,
                 client_message_id=self.client_message_id,
                 runtime_registry=self.runtime_registry,
@@ -655,6 +659,7 @@ class _RunPhases:
                                   or getattr(self.instance, "reasoning_effort", None)),
                 surface_prompt=getattr(args, "surface_prompt", "") or "",
                 max_wall_seconds=relay_wall_seconds,
+                qa_turn_overrides=getattr(self, "qa_turn_overrides", None),
                 # C8: the legacy `chat.delta` lane is RETIRED (ruling 0 — one
                 # wire shape per token). Deltas ride the v2 `segment.delta` frame
                 # only; the emitter runs every frame inside the captured request
@@ -744,6 +749,9 @@ class _RunPhases:
             if "resident_actor_reused" in _profile_timing
             else None,
         )
+        # Which construction the flag reports (RT-TURN-AGENT-INIT-COLD-ALWAYS-TRUE): a turn with no
+        # resident registry reads cold every time, and says so here.
+        turn_phases.label("agent_init_source", _agent_init_source(_profile_timing))
         turn_phases.count(
             "builds_overlapped",
             _snapshot_builds_overlapped(
@@ -804,17 +812,17 @@ class _RunPhases:
         watch = getattr(self, "worktree_watch", None)
         if watch is not None:
             watch.finish()
-        # RT-PROJECT-CHAT-TURN-LOGS: a chat shared into a Project appends this turn's lines to its
+        # RT-PROJECT-CHAT-TURN-LOGS: a chat shared into a workspace appends this turn's lines to its
         # turn log, off this thread; never raises, a failure retries from its cursor next turn.
         try:
-            from agent_runtime.project_chat_export import export_after_turn
+            from agent_runtime.workspace_chat_export import export_after_turn
 
             export_after_turn(self.session_db, self.session_id,
                               persona_instance_id=getattr(self.instance, "id", None))
         except Exception as exc:
             import logging
 
-            logging.getLogger(__name__).warning("project_chat.export_hook_failed: %s", type(exc).__name__)
+            logging.getLogger(__name__).warning("workspace_chat.export_hook_failed: %s", type(exc).__name__)
         try:
             persist_prompt_observability_context(prompt_context)
         except Exception as persist_exc:
@@ -822,3 +830,14 @@ class _RunPhases:
                 **prompt_context,
                 "observability_persist_error": safe_assignment_text(type(persist_exc).__name__, limit=80),
             }
+
+
+def _agent_init_source(profile_timing: dict) -> str | None:
+    """``agent_init_source`` off the runner's timing; ``None`` (absent) when it reported nothing."""
+
+    if "resident_actor_reused" not in profile_timing:
+        return None
+    if profile_timing.get("resident_actor_reused"):
+        return "resident"
+    # MUTATION: return "constructed" here and test_mission_chat_turn_phase_attribution's no-registry turn reddens.
+    return "constructed_no_registry" if profile_timing.get("resident_registry_absent") else "constructed"

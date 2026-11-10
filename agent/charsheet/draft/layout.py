@@ -72,6 +72,8 @@ PALETTE_FILENAME = "palette.json"
 PALETTE_OPS_KEY = "palette_ops"
 REVISIONS_DIRNAME = "revisions"
 THUMBS_DIRNAME = "thumbs"
+#: ``characters cells``: an approved row's registered frameW×frameH cells (``cells.py``).
+CELLS_DIRNAME = "cells"
 
 # QA crops: 2x is what made a one-pixel seam legible in a chat card during the
 # 2026-08-24 run, so it is the default. What bounds a crop is not a scale

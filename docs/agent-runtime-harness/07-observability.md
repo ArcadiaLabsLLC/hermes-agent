@@ -247,6 +247,13 @@ read-only, from `agent.log` and its rotations: builds (led / shadow), total and 
 line written before these fields existed), worker fallbacks, and the distinct turns
 affected (`agent_runtime/snapshot_build_census.py::census_builds`).
 
+On a QA serve both observe verbs take `--qa-namespace-root <QA folder>/hermes-namespaces/stagec-…`
+(RT-OBSERVE-QA-LANE-NAMESPACE-REFUSED): `--namespace stagec-*` is refused from outside the launcher
+(only the signed-in account's namespace is reachable there), so the verbs read the lane's FOLDER
+instead, resolving no namespace: its `profiles/base/logs/agent.log` and its `agent-runtime` store,
+read only, QA namespaces only (`hermes_cli/harness_parts/observe_commands.py::qa_namespace_paths`).
+That is the QA recipe for a perf row whose read is an observe verb; never grep `agent.log` by hand.
+
 `hermes harness observe turn-timing --since 2h [--json] [--log PATH] [--launcher-log PATH]
 [--baseline PATH]` joins, read-only and per turn on the client message id, the turn record's
 `phases` (cut into consecutive segments: anchor -> write-ahead -> agent ready -> request sent ->
@@ -451,7 +458,7 @@ durable record through this key — by construction, not by scrubbing.
 Persisted at `<store>/mission_chat_turns/<safe_session_key>.json`
 (`mission_chat_turns/storage.py:33-48`) with `sort_keys=True` (`mission_chat_turns/storage.py:352`), so the on-disk order is
 alphabetical and **nothing may depend on ordering** — the join contract is the
-key names and their meaning (`mission_chat_phases.py:147-153`). A "phase" more
+key names and their meaning (`mission_chat_phases.py:157-163`). A "phase" more
 than 24 h after the anchor is rejected on READ as corrupt; the writer cannot
 produce one (`:208-213`). The emitter's own `ttft_ms` keeps its meaning: it is
 constructed only after replay checks, native history load, turn-context build
@@ -566,7 +573,9 @@ a secret VALUE in place (an assignment, a bearer/header credential, a signed URL
 a token shape) and keeps every word around it; `has_secret_value` is the test a
 lane asks before refusing an opaque id or a label (a scrubbed id is a wrong id);
 `mask_local_paths` shortens an absolute path to a root-relative label or
-`…/<name>`; `scrub_display_text` is the two together. No lane withholds a field
+`…/<name>`, once — a path already shortened by another lane (`…/a/b/c`) is not cut again,
+and a generated-tree path (`/doc/…`, `/runtime/…`, `/ref/…`) is a label it keeps as written,
+as the operator tool target does; `scrub_display_text` is the two together. No lane withholds a field
 because a word like "token" or "password" appears in it, and none drops a field
 for a slash (2026-10-16, plan `docs/agent-runtime-harness/archive/redaction-one-value-redactor-2026-10-15.md`).
 Observe mode (`HERMES_REDACTION_MODE=observe`) marks `would_redact` where the value

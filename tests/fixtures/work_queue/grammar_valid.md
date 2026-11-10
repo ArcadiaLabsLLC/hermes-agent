@@ -32,3 +32,4 @@ queues. -->
 - **`FX-SKILLS` — Lent-skills row** · assignee: persona:alice · skills: `git-workflow`, `eternia/qa` · READY 2026-10-19
 - **`FX-REQUIRES` — Host-bound row** · READY 2026-10-26 · REQUIRES windows, macos
 - **`FX-TAKEN-PLACED` — Placed-claim row** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-mc on box-1 as nekwo in wt-w1027a-mc**
+- **`FX-GROUP` — Grouped row** · group: companion-templates · READY 2026-11-01

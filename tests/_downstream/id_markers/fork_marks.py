@@ -18,6 +18,7 @@ from tests._downstream.id_markers.reasons import (
     _CHILDREN_DIE_WITH_THE_TEST,
     _CLAUDE_HOME_TMP,
     _CREDENTIALS_FILE,
+    _FORK_LIVE_GUARD_ENSURE,
     _FORK_LIVE_SYSTEM_GUARD,
     _FORK_MANAGED_PYTHON,
     _fork_replaces,
@@ -161,6 +162,12 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "test_dashboard_tui_flag_is_accepted_not_rejected": (
         pytest.mark.xfail(reason=_FORK_LIVE_SYSTEM_GUARD, strict=True),
     ),
+    # FH-HERMES-CLI-GATEWAY-UPDATE-REDS-REMAINDER: the guard is right to refuse (a broken
+    # update fence would start a real gateway against the developer's HOME).
+    "tests/hermes_cli/test_gateway_runtime_ensure.py::"
+    "test_public_ensure_json_deadline_and_invalid_invocation": (
+        pytest.mark.xfail(reason=_FORK_LIVE_GUARD_ENSURE, strict=True),
+    ),
     "tests/hermes_cli/test_gateway_windows.py::"
     "test_build_gateway_argv_keeps_venv_console_python_for_uv_venv": (
         pytest.mark.xfail(reason=_FORK_MANAGED_PYTHON, strict=True),
@@ -231,6 +238,18 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     },
     "tests/test_live_system_guard_self_test.py::"
     "test_subprocess_run_gateway_status_passes_through": (_LOOKALIKE,),
+    # The same fork arm refuses the host start first, with its own message, so upstream's
+    # "REAL hermes gateway runtime" match fails off Windows too (seen red on Linux main, lane
+    # w1101h-h); on win32 the v0.22.4 upstream-red row already xfails it.
+    **({} if _WIN else {
+        "tests/test_live_system_guard_self_test.py::"
+        "test_host_gateway_start_blocked_but_container_exec_allowed": (
+            _fork_replaces(
+                "_live_system_guard backend-spawn arm (tests/conftest.py)",
+                "tests/test_live_system_guard_downstream.py",
+            ),
+        ),
+    }),
     # An argless SessionDB() must resolve through the profile scope; the hermetic
     # DEFAULT_DB_PATH pin (set only once hermes_state is imported) beat it whenever an
     # earlier test in the process imported it (tests/_downstream/state_db_scope.py).
@@ -361,15 +380,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/gateway/test_session_policy_downstream.py",
         ),
     ),
-    # Same branch: a session narrowed to toolsets=['terminal'] keeps the eternia-harness
-    # default-on plugin toolset "skills" (skill_search), as on the v0.21.6 row above.
-    "tests/gateway/test_canonical_session_inventory.py::"
-    "test_created_session_snapshot_carries_inventory_for_frozen_toolsets": (
-        _fork_replaces(
-            "plugins/eternia-harness skill_search toolset 'skills' (a default-on plugin toolset)",
-            "tests/agent_runtime/test_chat_lane_toolsets.py",
-        ),
-    ),
     # Same branch: upstream's test drives a completion into a CLOSING session and expects the
     # claim to reach _run_prompt_submit (whose admission refuses and refunds). The fork fences a
     # closing session at the claim itself (d5aae459f2d); dropping the fence reds
@@ -441,6 +451,108 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/tools/test_subprocess_stdin_guard.py",
         )
     },
+    # FH-W1108C-WAVE-END-REDS (first Linux whole-tree run, 2026-11-08): upstream files red on
+    # every host for a fork reason, each seen red alone on main.
+    # The eternia-lens plugin's ``lens`` toolset is a default-on plugin toolset (owner 2026-10-29:
+    # id-mark whatever plugin toolset stays on by default), so a profile-default session carries it.
+    **{
+        node: (
+            _fork_replaces(
+                "plugins/eternia-lens toolset 'lens' (a default-on plugin toolset)",
+                "tests/hermes_cli/test_plugin_toolset_defaults_downstream.py",
+            ),
+        )
+        for node in (
+            "tests/gateway/test_session_policy_coding_posture.py::"
+            "test_profile_default_outside_a_workspace_or_without_focus",
+            "tests/gateway/test_session_policy_coding_posture.py::test_an_explicit_pick_wins_over_the_posture",
+            "tests/gateway/test_session_policy_coding_posture.py::"
+            "test_a_project_file_written_mid_session_does_not_switch_toolsets",
+            "tests/gateway/test_session_policy_coding_posture.py::"
+            "test_tool_sources_and_picks_keep_their_toolsets_in_a_workspace",
+            "tests/gateway/test_session_policy_coding_posture.py::"
+            "test_only_session_create_opts_into_the_workspace_posture",
+            "tests/gateway/test_session_policy_coding_posture.py::"
+            "test_a_following_session_takes_a_profile_coding_context_change",
+            "tests/gateway/test_follow_profile_followups.py::"
+            "test_follow_session_runs_the_profiles_current_toolsets_and_a_frozen_one_does_not",
+            "tests/gateway/test_desktop_process_verbs.py::"
+            "test_desktop_process_kill_stop_and_mcp_reload_reach_only_this_session",
+        )
+    },
+    # The lens tools defer, so the probe's no-tools request carries the bridge (as on the
+    # test_local_session_recovery row above). Two real daemon boots: 22 s alone, past the fork's
+    # --timeout=30 under the prepush's -j 8 (a pytest-timeout kill is no xfail).
+    "tests/gateway/test_local_session_lineage.py::test_real_local_lineage_survives_cold_daemon": (
+        _fork_replaces(
+            "plugins/eternia-lens toolset 'lens' (a default-on plugin toolset whose deferred tools add the bridge)",
+            "tests/hermes_cli/test_plugin_toolset_defaults_downstream.py",
+        ),
+        pytest.mark.timeout(90),
+    ),
+    # The FH-DEFER-PR-128649-SHARED-TLS carry: with no TLS setting, resolve_httpx_verify hands
+    # one shared truststore context instead of ``True`` (the probe's urllib call keeps
+    # upstream's no-context shape: hermes_cli.models._custom_provider_ssl_context's seam).
+    **{
+        f"tests/agent/test_custom_provider_ca_probes.py::test_probe_policy_edges[False-{case}]": (
+            _fork_replaces(
+                "agent.ssl_verify.resolve_httpx_verify shared default context (PR #128649 carry)",
+                "tests/agent/test_ssl_verify.py",
+            ),
+        )
+        for case in ("no-url", "unmatched", "missing-ca", "config-error")
+    },
+    # The fork's tool_call bridge admits an in-scope EAGER tool (tool_search_downstream
+    # admit_direct_in_resolve), so a reachable core tool is dispatched, not told "call it directly".
+    **{
+        f"tests/tools/test_managed_worker_tool_diagnostics.py::"
+        f"test_core_tool_guidance_follows_the_session[{case}-Call it directly]": (
+            _fork_replaces(
+                "tools.tool_search_downstream eager admission on the tool_call bridge",
+                "tests/tools/test_tool_search_downstream.py",
+            ),
+        )
+        for case in ("clarify-toolsets1", "delegate_task-toolsets2")
+    },
+    # noninteractive_git_env's r-plugins seam reads the user's line endings with one cached
+    # ``git config`` spawn, which the test's patched Popen answers as its fake git.
+    "tests/test_windows_subprocess_no_window_flags.py::"
+    "test_bounded_git_probe_nonzero_returncode_returns_empty": (
+        _fork_replaces(
+            "hermes_cli.git_line_endings.user_line_ending_overrides (a cached `git config` spawn)",
+            "tests/hermes_cli/test_git_line_endings_downstream.py",
+        ),
+    ),
+    # The live-system guard's backend-spawn arm refuses a real `hermes serve` / `gateway ensure`.
+    "tests/gateway/test_command_discovery.py::test_ordinary_daemon_discovery_matches_legacy_extensions": (
+        _fork_replaces(
+            "_live_system_guard backend-spawn arm (a real `hermes serve --isolated`)",
+            "tests/test_live_system_guard_backend_arm_downstream.py",
+        ),
+    ),
+    "tests/gateway/test_multiplex_cold_profile_sidebar_mutation.py::"
+    "test_cold_profile_archive_unarchive_while_another_profile_is_attached": (
+        pytest.mark.xfail(reason=_FORK_LIVE_GUARD_ENSURE, strict=True),
+    ),
+    **({} if _WIN else {
+        # On win32 upstream_reds.py already xfails it with the same cause.
+        "tests/hermes_cli/test_isolated_serve_ledger_marker.py::"
+        "test_isolated_serve_ledger_row_is_marked_and_ordinary_serve_is_not": (
+            _fork_replaces(
+                "_live_system_guard backend-spawn arm (a real `hermes serve` on a tmp home)",
+                "tests/test_live_system_guard_backend_arm_downstream.py",
+            ),
+        ),
+        # The fork's bundled plugins change the stock prompt surface (skill_search, tool_search's
+        # schema); the snapshot is upstream-owned, so regenerating it is an [up-fp] raise. On win32
+        # upstream_reds_v0217.py already xfails it.
+        "tests/ci/test_prompt_surface.py::test_committed_prompt_surface_is_current": (
+            _fork_replaces(
+                "bundled plugins' prompt and tool schemas (eternia-harness skill_search, tool_search)",
+                "tests/agent_runtime/test_prompt_surface_downstream.py",
+            ),
+        ),
+    }),
 }
 
 if _WIN:

@@ -52,8 +52,8 @@ def test_capabilities_lists_one_owner_per_workspace_and_creates_the_default_brai
     owner = next(row for row in caps["owners"] if row["workspace_id"] == work.ws)
     assert owner == {"owner": WorkScope(caps["install_id"], work.ws).owner, "workspace_id": work.ws,
                      "kind": "workspace", "label": "Desk",
-                     "operations": ["inspect", "start", "assign", "claim", "release", "set_status", "done",
-                                    "create_brain", "lend_skills"]}
+                     "operations": ["inspect", "start", "edit", "assign", "claim", "release", "set_status", "move", "answer", "pull",
+                                    "done", "close", "create_brain", "lend_skills"]}
     assert len({row["owner"] for row in caps["owners"]}) == len(caps["owners"])
     assert caps["default_brain"][work.ws] == {"state": "created", "reason": "needs_git_account"}
     assert (paths.default_brain_dir(work.ws) / ".git").is_dir()
@@ -88,6 +88,109 @@ def test_claim_release_set_status_done_through_the_writer(work):
     assert rows_of(call(work, "list")) == []
 
 
+def test_move_drops_a_card_on_a_status_column(work):
+    """RT-WORK-MOVE-ROW-COLUMN. Mutations: drop the RELEASE apply in ``store.move`` -> the TAKEN card stays
+    TAKEN after a drop on DEFERRED, red; drop the revision check -> the stale drop writes, red; drop the
+    ``unchanged`` early answer -> a same-column drop commits, red."""
+    alice = mint_free_floating("alice")
+    task = start(work)["task"]
+    where = {"slot": "brain", "task_id": task["id"]}
+    same = call(work, "move", request_id="m0", to="READY", **where)
+    assert same["unchanged"] is True and same["receipt"] is None
+    blocked = call(work, "move", request_id="m1", to="BLOCKED", reason="backend — `RT-X` first",
+                   revision=task["revision"], **where)
+    assert blocked["unchanged"] is False and blocked["task"]["status"] == "BLOCKED"
+    assert blocked["task"]["status_body"] == "backend — `RT-X` first"
+    with pytest.raises(WorkRefused) as stale:
+        call(work, "move", request_id="m2", to="READY", revision=task["revision"], **where)
+    assert stale.value.reason is Reason.ROW_CHANGED and stale.value.data["task"]["status"] == "BLOCKED"
+    call(work, "claim", request_id="c1", who=f"persona:{alice.id}", **where)
+    moved = call(work, "move", request_id="m3", to="DEFERRED", **where)["task"]
+    assert moved["status"] == "DEFERRED" and moved["taken"] is None
+    for bad, reason in (({"to": "TAKEN"}, Reason.INVALID), ({"to": "BLOCKED"}, Reason.GRAMMAR_INVALID),
+                        ({"to": "BLOCKED", "reason": "because"}, Reason.GRAMMAR_INVALID)):
+        with pytest.raises(WorkRefused) as refused:
+            call(work, "move", request_id="m9", **bad, **where)
+        assert refused.value.reason is reason
+
+
+def test_move_guards_on_the_line_the_board_drew(work):
+    """RT-WORK-MOVE-LINE-GUARD: a board reading the user's checkout holds the row's raw line, not ``revision``.
+    Mutation: drop the ``line`` check in ``store.move`` -> the stale-line drop writes BLOCKED, red."""
+    task = start(work)["task"]
+    where = {"slot": "brain", "task_id": task["id"]}
+    with pytest.raises(WorkRefused) as stale:
+        call(work, "move", request_id="l0", to="DEFERRED", line=task["raw"].replace("READY", "BLOCKED"), **where)
+    assert stale.value.reason is Reason.ROW_CHANGED and stale.value.data["task"]["raw"] == task["raw"]
+    assert rows_of(call(work, "list"))[0]["status"] == "READY"
+    moved = call(work, "move", request_id="l1", to="DEFERRED", line=task["raw"] + "\r", **where)
+    assert moved["unchanged"] is False and moved["task"]["status"] == "DEFERRED"
+    with pytest.raises(WorkRefused) as behind:
+        call(work, "move", request_id="l2", to="READY", line=task["raw"], **where)
+    assert behind.value.reason is Reason.ROW_CHANGED and behind.value.data["task"]["status"] == "DEFERRED"
+    with pytest.raises(WorkRefused) as bad:
+        call(work, "move", request_id="l3", to="READY", line=7, **where)
+    assert bad.value.reason is Reason.INVALID
+
+
+def _owner_decision(work, request_id="q0"):
+    task = start(work)["task"]
+    where = {"slot": "brain", "task_id": task["id"]}
+    asked = call(work, "set_status", request_id=request_id,
+                 status="BLOCKED 2026-11-08: owner decision — ship it? · Recommend: yes", **where)["task"]
+    return asked, where
+
+
+def test_answer_rules_an_owner_decision_and_readies_the_row(work):
+    """RT-WORK-ANSWER-VERB. Mutations: drop the RULED segment in ``grammar._answer`` -> no ruling on the row, red;
+    drop the owner-decision check -> answering a READY row writes, red; drop the gate in ``store._guarded_write``
+    -> the stale-line answer writes, red."""
+    asked, where = _owner_decision(work)
+    with pytest.raises(WorkRefused) as stale:
+        call(work, "answer", request_id="a0", answer="yes", line=asked["raw"].replace("ship", "drop"), **where)
+    assert stale.value.reason is Reason.ROW_CHANGED and stale.value.data["task"]["raw"] == asked["raw"]
+    with pytest.raises(WorkRefused) as unguarded:
+        call(work, "answer", request_id="a1", answer="yes", **where)
+    assert unguarded.value.reason is Reason.INVALID
+    answered = call(work, "answer", request_id="a2", answer="yes, ship `it` today", line=asked["raw"] + "\r",
+                    **where)["task"]
+    assert answered["status"] == "READY" and answered["recommend"] is None
+    day = answered["status_date"]
+    assert answered["rulings"] == [f"RULED {day}: owner — yes, ship -it- today"]
+    assert answered["raw"].endswith(f" · RULED {day}: owner — yes, ship -it- today · READY {day}")
+    with pytest.raises(WorkRefused) as ready:
+        call(work, "answer", request_id="a3", answer="no", line=answered["raw"], **where)
+    assert ready.value.reason is Reason.INVALID and "owner decision" in ready.value.detail
+
+
+def test_close_archives_a_row_with_the_owners_outcome(work):
+    """RT-WORK-OWNER-CLOSE-VERB. Mutations: write ``DONE`` for ``CLOSED`` in ``store.close`` -> the outcome reads
+    DONE here, red; drop the gate in ``store._guarded_write`` -> the stale-line close archives, red."""
+    alice = mint_free_floating("alice")
+    task = start(work)["task"]
+    where = {"slot": "brain", "task_id": task["id"]}
+    claimed = call(work, "claim", request_id="c1", who=f"persona:{alice.id}", **where)["task"]
+    with pytest.raises(WorkRefused) as stale:
+        call(work, "close", request_id="x0", line=task["raw"], **where)
+    assert stale.value.reason is Reason.ROW_CHANGED and stale.value.data["task"]["status"] == "TAKEN"
+    closed = call(work, "close", request_id="x1", line=claimed["raw"], result="Done by hand.", **where)
+    ending = closed["ending"]
+    assert ending["outcome"] == "CLOSED" and ending["words"] == "done" and ending["result"] == "Done by hand."
+    assert ending["archive_note"].endswith(f"-{ending['date'][:7]}.md") and closed["receipt"]["commit"]
+    assert rows_of(call(work, "list")) == []
+    assert call(work, "inspect", slot="brain", task_id=task["id"])["ending"]["outcome"] == "CLOSED"
+    other = start(work, request_id="request-2", title="Other")["task"]
+    worded = call(work, "close", request_id="x2", slot="brain", task_id=other["id"], line=other["raw"],
+                  words="not needed any more")["ending"]
+    assert worded["words"] == "not needed any more" and worded["result"] in ("", None)
+
+
+def test_pull_refuses_an_unbound_slot(work):
+    with pytest.raises(WorkRefused) as refused:
+        call(work, "pull", request_id="p1", slot="nowhere")
+    assert refused.value.reason is Reason.SLOT_UNBOUND
+
+
 def test_operator_reference_is_the_assignee(work, monkeypatch):
     from agent_runtime import operator_conversation
 
@@ -98,9 +201,11 @@ def test_operator_reference_is_the_assignee(work, monkeypatch):
     assert context["assignee"] == "persona:pi_alice_01" and context["can_start"] is True
 
 
-def test_start_from_an_operator_conversation_assigns_and_takes_the_row_there(work, monkeypatch):
-    """RT-WORK-START-CONVERSATION-LINK. Mutation: drop ``or here`` from ``start``'s assignee default
-    -> the row has no assignee, no TAKEN mark, and ``in_conversation`` is False."""
+def test_start_from_a_conversation_assigns_and_never_claims(work, monkeypatch):
+    """RT-WORK-START-NEVER-CLAIMS (owner ruling 2026-11-02: adding a task never claims it, from a chat
+    or anywhere). Mutations: restore ``taken_by = here`` in ``start`` (and its mark in ``_start_row``)
+    -> the line carries ``**TAKEN`` and the task is TAKEN, red; drop ``or here`` from the assignee
+    default -> the row has no assignee, red."""
     from agent_runtime import operator_conversation
 
     alice, bob = mint_free_floating("alice"), mint_free_floating("bob")
@@ -108,11 +213,19 @@ def test_start_from_an_operator_conversation_assigns_and_takes_the_row_there(wor
     reference = {"kind": "operator", "workspace_id": work.ws, "persona_id": "alice",
                  "persona_instance_id": alice.id, "session_id": "s1"}
     task = start(work, "v1", conversation=reference)["task"]
-    assert task["assignee"] == f"persona:{alice.id}" and task["status"] == "TAKEN"
-    assert task["taken"]["persona_instance_id"] == alice.id and task["in_conversation"] is True
+    assert task["assignee"] == f"persona:{alice.id}" and task["status"] == "READY"
+    assert task["taken"] is None and task["in_conversation"] is False
+    line = call(work, "inspect", slot="brain", task_id=task["id"])["task"]["raw"]
+    assert f"assignee: persona:{alice.id}" in line and " · READY " in line and "**TAKEN" not in line
+    # Nothing runs it: the conversation's view holds only rows taken there.
+    assert rows_of(call(work, "list", view="conversation", conversation=reference)) == []
+    # Taking it is its own explicit choice.
+    claimed = call(work, "claim", request_id="v1c", slot="brain", task_id=task["id"],
+                   conversation=reference)["task"]
+    assert claimed["status"] == "TAKEN" and claimed["in_conversation"] is True
     listed = rows_of(call(work, "list", view="conversation", conversation=reference))
     assert [row["id"] for row in listed] == [task["id"]]
-    # Started here but handed to someone else: assigned, not taken in this conversation.
+    # Started here but handed to someone else: assigned, not taken.
     other = start(work, "v2", title="Hand off", conversation=reference, assignee=f"persona:{bob.id}")["task"]
     assert other["assignee"] == f"persona:{bob.id}" and other["status"] == "READY"
     assert other["taken"] is None and other["in_conversation"] is False
@@ -136,7 +249,7 @@ def test_inspect_of_a_gone_row_carries_its_ending(work):
     assert call(work, "inspect", **where)["task"]["id"] == task_id
     call(work, "done", request_id="d1", result="Nothing left.", **where)
     gone = call(work, "inspect", **where)
-    assert gone["task"] is None and gone["ending"]["subject"].startswith(f"work: delete {task_id} operator")
+    assert gone["task"] is None and gone["ending"]["subject"].startswith(f"work: close {task_id} operator")
 
 
 def test_list_filters_slot_status_assignee(work):
@@ -314,3 +427,61 @@ def test_an_agents_todo_is_a_view_over_every_board_it_can_see(work):
     with pytest.raises(WorkRefused) as no_one:
         service.execute("list", {**work.scope, "kind": "agent"}, STDIO_OWNER)
     assert no_one.value.reason is Reason.INVALID
+
+
+def test_list_reads_a_notes_commit_time_once_not_once_per_row(work, monkeypatch):
+    # RT-WORK-LIST-OWNER-SIZE-5S: a `git log` per ROW was ~5 s on a 622-row board; every row of a
+    # note shares the note's commit time, so the list asks once per note (plus the board's own).
+    from agent_runtime.work_store.writer import Writer
+
+    ids = [start(work, f"q{n}", title=f"Row {n}")["task"]["id"] for n in range(4)]
+    asked = []
+    real = Writer.note_committed_at
+    monkeypatch.setattr(Writer, "note_committed_at", lambda self, note: asked.append(note) or real(self, note))
+    listed = call(work, "list")
+    (board,) = listed["boards"]
+    (queue,) = board["queues"]
+    assert [row["id"] for row in queue["rows"]] == ids
+    assert sorted(asked) == sorted([board["brain_dir"], queue["note"]])
+    inspected = call(work, "inspect", slot="brain", task_id=ids[0])["task"]
+    assert {row["updated_at"] for row in queue["rows"]} == {inspected["updated_at"]} != {None}
+    assert queue["rows"][0]["revision"] == next(
+        row for row in rows_of(call(work, "list", status="READY")) if row["id"] == ids[0])["revision"]
+
+
+def _commit_row(work, line):
+    """Append ``line`` to the default brain's work queue as one commit in the brain itself (a teammate's push)."""
+    import subprocess
+
+    root = paths.default_brain_dir(work.ws)
+    subprocess.run(["git", "-C", str(root), "checkout", "-q", "--", "."], check=True, capture_output=True)
+    note = root / "Work_Brain" / "20 — Active Initiatives" / "work-queue.md"
+    note.write_text(note.read_text(encoding="utf-8").rstrip("\n") + "\n" + line + "\n", encoding="utf-8", newline="\n")
+    for args in (["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t.invalid", "commit", "-q", "-m", "row"]):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+
+def test_claim_refuses_a_subtask_whose_task_is_not_ready(work):
+    """RT-QUEUE-TASKS-GRAMMAR (launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3). KILLING MUTATIONS: drop the
+    ``task.status is not Status.READY`` raise in ``store.parent_task`` -> the DEFERRED task's subtask is claimed,
+    red; drop the ``gate`` call in ``_row_write`` -> the same, red."""
+    alice = mint_free_floating("alice")
+    sub = start(work, request_id="sub", group="pills.hermes")["task"]["id"]
+    where = {"slot": "brain", "task_id": sub}
+    lone = call(work, "claim", request_id="c0", who=f"persona:{alice.id}", **where)
+    assert lone["task"]["status"] == "TAKEN"
+    assert lone["parent_task"]["checked"] is False and "no visible brain has a task for `pills.hermes`" in (
+        lone["parent_task"]["detail"])
+    call(work, "release", request_id="r0", **where)
+    _commit_row(work, "- **`TASK-PILLS` — Pills on the board** · task: pills · DEFERRED 2026-11-09: after release")
+    with pytest.raises(WorkRefused) as refused:
+        call(work, "claim", request_id="c1", who=f"persona:{alice.id}", **where)
+    assert refused.value.reason is Reason.TASK_NOT_READY and "`TASK-PILLS`" in refused.value.detail
+    assert refused.value.data == {"task_id": "TASK-PILLS", "task_status": "DEFERRED"}
+    call(work, "set_status", request_id="s1", status="READY 2026-11-09", slot="brain", task_id="TASK-PILLS")
+    claimed = call(work, "claim", request_id="c2", who=f"persona:{alice.id}", **where)
+    assert claimed["task"]["status"] == "TAKEN"
+    assert claimed["parent_task"] == {"group": "pills.hermes", "task_id": "TASK-PILLS", "task_status": "READY",
+                                      "checked": True}
+    task = call(work, "claim", request_id="c3", who=f"persona:{alice.id}", slot="brain", task_id="TASK-PILLS")
+    assert task["parent_task"] is None, "a task row is not a subtask"

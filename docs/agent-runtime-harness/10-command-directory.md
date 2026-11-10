@@ -148,10 +148,13 @@ read the transcript and runtime state. A provider refusal is not a successful tu
 reaches the agent as a `FILE:<path>` line it reads with `read_file`.
 Do not blindly retry an outcome-unknown response; see [chat error handling](05-chat-turn-lane.md).
 
-Read the transcript (**READ**) or steer an in-flight turn (**EXECUTE**):
+Read the transcript (**READ**), one tool call's full input and result — a turn element
+carries a head-cut copy; `tool-io` joins its `tool_call_id` to the whole SessionDB record
+(**READ**) — or steer an in-flight turn (**EXECUTE**):
 
 ```bash
 hermes harness persona chat history --session-id SESSION_ID --json
+hermes harness persona chat tool-io --session-id SESSION_ID --tool-call-id TOOL_CALL_ID --json
 hermes harness mission-chat steer --session-id SESSION_ID --client-message-id UNIQUE_REQUEST_ID --message "Limit this to inspection; do not edit." --json
 ```
 
@@ -194,21 +197,19 @@ state, not append patches; preserve unrelated contents. Read back with
 method-only since 2026-10-02 — `runtime.level.set` / `.clear`, `runtime.map.set`
 / `.clear` / `.list`, called by the launcher's level/map authoring.
 
-## A Project's repo slots — READ, then WRITE
+## A workspace's repo slots — READ, then WRITE
 
 ```bash
-hermes harness project list --json
-hermes harness project show PROJECT_ID --json
-hermes harness project declare PROJECT_ID --slots-file slots.json --name "NAME" --json
-hermes harness project slot bind PROJECT_ID SLOT /abs/checkout --json
+hermes harness workspace slots show WORKSPACE_ID --json
+hermes harness workspace slots declare WORKSPACE_ID --slots-file slots.json --json
+hermes harness workspace slots bind WORKSPACE_ID SLOT /abs/checkout --json
 ```
 
-- Repo slots are declared on Projects; a workspace reads the slots of the Projects
-  connected to it. `project list` names each Project's slots and its workspaces.
-- `declare` REPLACES the slot set (a name left out is tombstoned) and creates the Project.
-- `slot clone` / `slot env-set` / `recipe show|set|run-step` are the rest of the
-  `runtime.project.*` verbs; `workspace slots …` on a migrated workspace answers
-  `slot_migrated` naming the Project.
+- Repo slots are declared on the workspace's own slot document (the workspace absorbed
+  Projects, RT-WS-ABSORB-RETIRE-PROJECT).
+- `declare` REPLACES the slot set (a name left out is tombstoned).
+- `slots clone` / `slots env-set` / `slots report` are the rest of the
+  `runtime.workspace.slots.*` verbs.
 
 ## Diagnose the connection and runtime — READ
 

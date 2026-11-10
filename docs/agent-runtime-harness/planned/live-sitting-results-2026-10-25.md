@@ -412,3 +412,38 @@ for a no-op `runtime.lens.list` from the same client — Python start, imports a
 it, so the revert's own server-side cost is ~30 ms (on a loaded box). The `realm sync status` CLI over
 the argv lane read 5.6 s, the cold-start cost the 10-02 measurement named. The slowness the owner saw
 was the argv CLI cold start; the method lane retires it, and nothing in the revert needs cutting.
+
+## 2026-11-06 — lane w1106a-live-c (Eternia QA lane serve, Linux nekwo-ubuntu24)
+
+Setup: the machine install at `193e65d661`. The serve is the one an Eternia QA launch started in lane namespace `stagec-smoke-lane-b42e33bd19`; providers come from the `stagec-smoke` QA pool, and the default model is `claude-haiku-4-5-20251001`. Every `runtime.*` call below went over that serve's loopback socket as a `local_console` caller: a hello with the lane root's serve token, through `agent_runtime.serve_socket.client.ServeSocketClient`. No store file was written by hand except one, which the realm item below names. The owner's serve and home were not touched.
+
+### RT-LENS-ARTIFACT-LIVE-PROOF — DONE
+
+- Feed: `python -m http.server 18766` serving `{"cpu": 97}`.
+- Monitor `w1106a_lens_report`: an `http_json` feed with `allow_private_network: true`; a threshold rule `cpu_hot` above 90, recovery 80, `window_ms: 0`; `automation {level: investigate, when: urgent, daily_turn_cap: 1}`; `persona_id: profile_base`. Preview read `available 97.0 200`. Then create, seal (revision 1) and enable at 09:56:09Z.
+- (1) The Episode `0fd213b2…` opened within one poll. `runtime.lens.receipt` read `outcome: forged`, `tool_admission: read_only`, session `persona_chat_personainst_profile_base_e3c20e889b48`, about 8 s from start to finish, and `files: [{name: report.md, size_bytes: 1733, sha256: 8d490b20…}]`.
+- (2) `runtime.lens.artifact {episode_id, name: report.md}` returned `text/markdown`, 1733 bytes, sha256 `8d490b20…`. Its content equals the Episode chat's assistant row byte for byte (the same sha256 over the row text).
+- (3) In Eternia's Mission Control › Lens, the Receipts section and the Episode receipt dialog read "report.md · 1.7 KiB · Open". The file's Open had no QA control, so Eternia `46504adef7` added `lens.receipt.open_file.<id>` (row `QA-LENS-RECEIPT-FILE-OPEN-NO-CONTROL`). Pressed on that build, it opens the "report.md" dialog showing the reply. The dialog shows the markdown as raw text (`**Finding:**`); that is filed Eternia-side.
+- The monitor was then paused and retired, and the feed server stopped.
+
+### RT-REALM-LEVEL-REVERT-S4 — DONE (edit / status / revert)
+
+- The lane's realm `realm_default` publishes to `realm_sync/local`, which had no `origin`, so publish committed locally and answered `sync_remote_unreachable` (the baseline was not moved). The lane added ONE thing by hand: a bare git repo in its own lane folder as that local repo's `origin`, standing in for a realm remote.
+- `runtime.level.set ws_default` `{"version":1,…,"tiles":[1]}` (sha `cded0d1a…`), then publish answered `published`. Status read the top-level `levels {publishable 1, unpublished 0}` and `store_drift.levels` all 0.
+- Edit: `level.set` `…"tiles":[2]` (sha `0d0087bb…`). Status read `levels.unpublished 1` and `store_drift.levels.levels_changed 1`, with the item `{family: level, container: ws_default, item_key: ws_default, kind: changed}`.
+- Revert: `runtime.realm.sync.revert {items: ["level:ws_default:ws_default"]}`. The dry run and then the real call both read `reverted 1, refused 0, outcome reverted_to_upstream`. `level.get` reads sha `cded0d1a…` again, the published bytes, and status is back to `unpublished 0` with drift 0.
+- Seen: the revert's `store_drift_after` carries only `boards` and `office`. The level that was just reverted is not counted there, so a caller reading the answer alone cannot see that it is clean. Filed as `RT-REVERT-DRIFT-AFTER-OMITS-FAMILIES`. Also seen: realm `state` reads `in_sync` while `store_drift.levels.levels_changed` is 1, because `state` is the git ahead/behind and not the store drift.
+
+### RT-LOCAL-AI-METHODS-LIVE — summarize half DONE; HF parity left
+
+- `runtime.text.summarize {task: message_digest, locale: de, max_bullets: 4}` on a 4-line window answered three German bullets, `model claude-haiku-4-5-20251001`, `provider anthropic`, `truncated false`.
+- An over-cap window (8 lines of 7,900 characters plus one short line, more than the 60,000-character input cap) answered two bullets that include the newest line's decision, `truncated true`.
+- Not run: summarize against local llama, because no local llama model is this lane's main model. Also not run: the Hugging Face fp32 vector-parity check, which needs a download the owner has not approved.
+
+### RT-SAFETY-BLOCK-LIVE-READ — not runnable on Linux
+
+`tools/self_repo_guard.py::guard_active` is `os.name == "nt"`: the self-repo git guard does not block anything on POSIX. A "self-repo-blocked" turn on this box would really rewrite the hermes checkout the QA serve runs from, which is the machine install, so it was not sent. The read needs a Windows serve; a QA serve there is fine per the 2026-11-06 ruling.
+
+### Turn-record field seen on the way
+
+`phases.agent_init_cold` reads `true` on every turn of one chat, warm turns included, even though those turns read `tool_defs_cached_ms` and `system_prompt_restore_ms`. Either the flag means something narrower than its name, or it is stuck. Detail is in Eternia `docs/stages/qa-reboot/live/2026-11-06/OPER-PREP-COST-RETAKE/w1106a-live-c/README.md`.

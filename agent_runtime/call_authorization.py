@@ -51,7 +51,7 @@ asked.
 
 **Stage A5 is that new caller, and the promise held: it is an edit to this file
 and not an architecture change.** A paired device (gateway plan Stage 1,
-``serve_gateway_auth.py``) arrives as :data:`CALLER_DEVICE` carrying the tier its
+``serve_gateway_auth``) arrives as :data:`CALLER_DEVICE` carrying the tier its
 record holds, and :func:`authorize_call` compares that stored word against the
 verb's declared tier. Everything A3 grandfathered is grandfathered still —
 ``_CONSOLE_KINDS`` was not touched — because a device's authority was added
@@ -99,6 +99,10 @@ __all__ = [
     "TIER_READ",
     "TRANSPORT_GATEWAY",
     "UNKNOWN_CALLER",
+    "CHANNEL_METHOD_ALLOWLIST",
+    "DEVICE_KIND_CHANNEL",
+    "DEVICE_KIND_DEVICE",
+    "DEVICE_KINDS",
     "CallAuthorization",
     "RpcCaller",
     "authorize_call",
@@ -298,21 +302,41 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         # its checkout paths, its environment, its own accounting row. A paired console
         # device may read a workspace's slots; it never binds the operator's disk.
         "runtime.workspace.slot.bind",
-        "runtime.project.slot.bind",
-        "runtime.project.slot.env.set",
-        "runtime.project.report",
-        "runtime.project.chat.fold",
         "runtime.workspace.slot.env.set",
         "runtime.workspace.slots.report",
+        "runtime.workspace.chat.fold",
         # Phase B (row H11): Clone and a recipe command step SPAWN on this machine.
         "runtime.workspace.slot.clone",
         "runtime.workspace.recipe.run_step",
-        "runtime.project.slot.clone",
-        "runtime.project.recipe.run_step",
         # p10-messaging §2.4: a platform bot token is a secret of THIS runtime; a paired device
         # holding ``console`` may bind chats and allow operators, never write or clear the token.
         "runtime.messaging.credential.set",
         "runtime.messaging.credential.clear",
+    }
+)
+
+#: **What a paired device row IS** (``RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL``, plan
+#: ``planned/external-gateway-namespace-access-2026-11-05.md`` §2 D1, owner ruling C 2026-11-05).
+#: ``device`` is a person's screen (every row written before the rule reads as one); ``channel``
+#: is the owner's own external gateway — a bot process that relays a platform's messages to the
+#: persona instances it was bound to at pairing. A channel holds ``console`` (a chat turn runs
+#: tools; ``serve_rpc/chat.py`` says why nothing lower is honest), and its KIND narrows it twice:
+#: to :data:`CHANNEL_METHOD_ALLOWLIST`, and (``agent_runtime.gateway_channel``) to its bound
+#: instances. Scope narrows WHICH agent, never what the agent may do.
+DEVICE_KIND_DEVICE = "device"
+DEVICE_KIND_CHANNEL = "channel"
+DEVICE_KINDS: tuple[str, ...] = (DEVICE_KIND_DEVICE, DEVICE_KIND_CHANNEL)
+
+#: **Exactly what a ``channel`` credential may call** — the chat verbs, and nothing else: no
+#: read verb either (a bot has no business with the office core, another instance's history or
+#: the subscribe lanes), so the arm sits before the read-tier opening for the peer arm's reason.
+#: A membership test: a future verb joins only by an edit here.
+CHANNEL_METHOD_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "runtime.channel.message",
+        "runtime.chat.message",
+        "runtime.chat.steer",
+        "runtime.persona.instance.open_chat",
     }
 )
 
@@ -359,6 +383,10 @@ class RpcCaller:
     #: fixed at the pairing ceremony, read off the authenticated connection,
     #: never off anything the request carries.
     device_tier: str | None = None
+    #: Set only for :data:`CALLER_DEVICE`: the row's :data:`DEVICE_KINDS` word, and — for a
+    #: ``channel`` — the persona instance ids it was bound to at pairing (TRUST, off the row).
+    device_kind: str | None = None
+    bound_instances: tuple[str, ...] = ()
     #: Set only for :data:`CALLER_PEER`. The OTHER install's id, as its row in
     #: ``gateway/peers.json`` names it — so a refusal can say which paired
     #: install was turned away, which is the fact an operator auditing a
@@ -386,6 +414,9 @@ class RpcCaller:
             payload["device_id"] = self.device_id
         if self.device_tier is not None:
             payload["device_tier"] = self.device_tier
+        if self.device_kind == DEVICE_KIND_CHANNEL:
+            payload["device_kind"] = self.device_kind
+            payload["bound_instances"] = list(self.bound_instances)
         if self.peer_install_id is not None:
             payload["peer_install_id"] = self.peer_install_id
         return payload
@@ -473,12 +504,19 @@ def caller_for_connection(connection: Any) -> RpcCaller:
             peer_install_id=peer_install_id,
         )
     if device_id is not None and device_tier is not None:
+        # An unrecognised kind word reads as ``channel`` — the NARROWER one — never as a plain
+        # device: least privilege, ``_decode_device``'s rule for an unknown tier.
+        kind = getattr(connection, "device_kind", None) or DEVICE_KIND_DEVICE
+        kind = kind if kind in DEVICE_KINDS else DEVICE_KIND_CHANNEL
+        bound = getattr(connection, "bound_instances", None) or ()
         return RpcCaller(
             kind=CALLER_DEVICE,
             connection_key=key,
             transport=transport,
             device_id=device_id,
             device_tier=device_tier,
+            device_kind=kind,
+            bound_instances=tuple(str(item) for item in bound if isinstance(item, str) and item),
         )
     if transport == TRANSPORT_GATEWAY:
         return RpcCaller(kind=CALLER_UNKNOWN, connection_key=key, transport=transport)
@@ -531,6 +569,30 @@ class CallAuthorization:
         that is what a client branches on."""
 
         return {"reason": self.reason, "tier": self.tier, "caller": self.caller_kind}
+
+
+def _channel_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization | None:
+    """The channel arm (RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL), ``None`` for any other caller.
+
+    Asked BEFORE the read opening, for the peer arm's reason — a bot answered after it would
+    inherit the whole read surface. Which INSTANCE a chat verb names is
+    ``gateway_channel.channel_target_refusal``'s, at dispatch.
+    """
+
+    # ``kind`` first: a caller that is no device need not carry ``device_kind`` at all.
+    if resolved.kind != CALLER_DEVICE or resolved.device_kind != DEVICE_KIND_CHANNEL:
+        return None
+    admitted = bool(name) and name in CHANNEL_METHOD_ALLOWLIST and resolved.device_tier == TIER_CONSOLE
+    return CallAuthorization(
+        ok=admitted,
+        reason="channel_allowlisted" if admitted else REASON_SCOPE_DENIED,
+        tier=tier,
+        caller_kind=resolved.kind,
+        detail=None if admitted else (
+            f"{name or 'this call'} is not a chat verb; a channel credential may only relay "
+            "chat turns to the persona instances it is bound to"
+        ),
+    )
 
 
 def authorize_call(
@@ -619,11 +681,9 @@ def authorize_call(
     # ``console`` device compares equal and returns), which is the bug the
     # comment on :data:`LOCAL_CONSOLE_METHODS` records.
     #
-    # A caller with no method name is NOT restricted here, and that is not a
-    # hole: the CLI mirror (Stage A4) asks "may the console run a console verb"
-    # with no method in it, and it is already the machine owner. Every caller
-    # this set exists to refuse arrives through :func:`serve_rpc.handle_request`,
-    # which passes the name unconditionally.
+    # No method name is NOT a hole: the CLI mirror (Stage A4) asks with none and is
+    # already the machine owner; every caller this set refuses arrives through
+    # :func:`serve_rpc.handle_request`, which passes the name unconditionally.
     if name and name in LOCAL_CONSOLE_METHODS and resolved.kind not in _CONSOLE_KINDS:
         return CallAuthorization(
             ok=False,
@@ -635,6 +695,8 @@ def authorize_call(
                 f"a {resolved.kind} caller is refused however it is paired"
             ),
         )
+    if (channel := _channel_arm(resolved, name, normalized)) is not None:
+        return channel
     if resolved.kind == CALLER_PEER:
         if name and name in PEER_METHOD_ALLOWLIST:
             return CallAuthorization(

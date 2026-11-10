@@ -10,7 +10,7 @@ disagreed, the code won and the correction is filed below in the same commit.
 2026-08-25.
 **Origin:** owner ask on the 2026-08-24 authoring run; slice **A3** of the
 launcher-side plan `EterniaLauncher/docs/spatial/CHARA_CONSOLE_AUTHORING_QA_PLAN_2026-08-24.md`,
-shaped by `docs/mission_control/planned/console-character-authoring-architecture.md` §12 step 7.
+shaped by `EterniaLauncher/docs/mission_control/subsystems/console-character-authoring-architecture.md` §12 step 7.
 Both live in the launcher repo; this file is the hermes half.
 
 ## The ask

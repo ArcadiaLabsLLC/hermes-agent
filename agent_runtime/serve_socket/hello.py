@@ -207,6 +207,10 @@ class HelloAuthOutcome:
     #: connection cannot be stamped with a device whose proof did not verify.
     device_id: str | None = None
     device_tier: str | None = None
+    #: The device row's kind and, for a ``channel``, its bound persona instances — TRUST off the
+    #: row, stamped beside the tier (RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL).
+    device_kind: str | None = None
+    bound_instances: tuple[str, ...] = ()
     #: A credential MINTED by this handshake — the pairing ceremony's second
     #: half, and the only frame in this lane that ever carries a secret. It
     #: exists because a code that cannot be redeemed by the party it was printed

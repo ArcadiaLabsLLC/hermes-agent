@@ -240,6 +240,10 @@ class LensPoller:
         return nearest
 
     def _enabled(self, store: LensStore) -> list[tuple[str, dict[str, Any]]]:
+        """The monitors this PC runs: ENABLED in its own store, which only the operator's
+        ``runtime.lens.enable`` sets. A recipe that reaches the store any other way (a shared
+        workspace's, a persona's proposal) is a DRAFT until then (RT-LENS-SHARED-RECIPES-OPT-IN)."""
+
         out = []
         for row in store.monitors(states=(MonitorState.ENABLED,)):
             if row["sealed"] is not None:

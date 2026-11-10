@@ -236,7 +236,8 @@ def test_v2_consumers_see_an_unchanged_payload_minus_catalog(monkeypatch):
     ]
     assert len(rows) == 1, "no credential row was inspected — the shape check would be vacuous"
     for provider in payload["providers"]:
-        assert set(provider) == {"id", "credentials"}
+        # `credential_source` (RT-PROVIDER-SOURCE-SET-METHOD): additive — null off the table.
+        assert set(provider) - {"credential_source"} == {"id", "credentials"}
     for credential in rows:
         assert set(credential) - {"token_preview"} == {
             "index",

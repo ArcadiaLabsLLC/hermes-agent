@@ -267,8 +267,11 @@ fi
 # Pre-building the bytecode cache once here (instead of each subprocess
 # compiling on first import) avoids redundant work across ~2000 processes.
 # Uses git to list tracked .py files (skips venv, node_modules, etc).
+fork_bytecode_precompile "$@"  # fork (FH-PREPUSH-GATES-COLD-BYTECODE-DEADLINE): the narrowed pass, scripts/_fork_test_env.sh
+if [ "${_fork_precompile_owned:-0}" != 1 ]; then
 echo "▶ pre-compiling bytecode cache"
 "$PYTHON" -m compileall -q -j 0 -- $(git ls-files '*.py') >/dev/null 2>&1 || true
+fi
 
 echo "▶ launching test runner"
 exec env -i \

@@ -172,6 +172,14 @@ def _add_persona_chat_and_model_verbs(persona_subs) -> None:
     persona_chat_history.add_argument("--before", default=None, help="Opaque cursor returned by the previous page")
     persona_chat_history.add_argument("--json", action="store_true")
     persona_chat_history.set_defaults(func=runtime_commands._cmd_persona_chat_history)
+    persona_chat_tool_io = persona_chat_subs.add_parser(
+        "tool-io", help="Read one tool call's full redacted input and result (the transcript keeps a head-cut copy)"
+    )
+    persona_chat_tool_io.add_argument("--session-id", dest="session_id", required=True)
+    persona_chat_tool_io.add_argument("--tool-call-id", dest="tool_call_id", required=True, help="The tool element's tool_call_id")
+    persona_chat_tool_io.add_argument("--offset", type=int, default=0, help="Window start; pass the previous answer's next_offset")
+    persona_chat_tool_io.add_argument("--json", action="store_true")
+    persona_chat_tool_io.set_defaults(func=runtime_commands._cmd_persona_chat_tool_io)
     chat_head = persona_subs.add_parser("chat-head", help="Where each agent's chats live (its own profile's state.db)")
     chat_head_subs = chat_head.add_subparsers(dest="persona_chat_head_command", required=True)
     migrate = chat_head_subs.add_parser(
@@ -234,7 +242,6 @@ def _add_persona_instance_lifecycle_verbs(persona_instance_subs) -> None:
     persona_instance_create.add_argument("--client-message-id", default=None)
     persona_instance_create.add_argument("--display-name", default=None)
     persona_instance_create.add_argument("--session-id", default=None)
-    persona_instance_create.add_argument("--kill-active", action="store_true", help="Retired: accepted and ignored")
     persona_instance_create.add_argument("--add-instance", action="store_true", help="Create an additional placement-backed instance instead of targeting the primary placement")
     persona_instance_create.add_argument("--placement-id", default=None, help="Scene itemId for an additional placement-backed instance; must end in the deliberate-placement shape <persona-token>_agent_<hex8>")
     persona_instance_create.add_argument("--workspace-id", "--workspace", dest="workspace_id", default=None, help="Mission Control workspace the placement belongs to (scope-provenance pointer; only meaningful with --add-instance)")
@@ -252,13 +259,18 @@ def _add_persona_instance_lifecycle_verbs(persona_instance_subs) -> None:
     persona_instance_open.add_argument("--session-id", default=None)
     persona_instance_open.add_argument("--new-session", action="store_true", help="Mint and select a fresh server-owned chat session for the target instance")
     persona_instance_open.add_argument("--idempotency-key", default=None, help="Stable retry key required with --new-session")
-    persona_instance_open.add_argument("--kill-active", action="store_true", help="Retired: accepted and ignored")
     persona_instance_open.add_argument("--add-instance", action="store_true", help="Open the chat on an additional placement-backed instance")
     persona_instance_open.add_argument("--placement-id", default=None, help="Scene itemId for an additional placement-backed instance; must end in the deliberate-placement shape <persona-token>_agent_<hex8>")
     persona_instance_open.add_argument("--workspace-id", "--workspace", dest="workspace_id", default=None, help="Mission Control workspace the placement belongs to (scope-provenance pointer; only meaningful with --add-instance)")
     persona_instance_open.add_argument("--realm-id", dest="realm_id", default=None, help="Mission Control realm the placement belongs to (scope-provenance pointer; only meaningful with --add-instance)")
     persona_instance_open.add_argument("--display-name", default=None, help="Authoritative name for a deliberately placed additional instance; ignored unless --add-instance")
     persona_instance_open.add_argument("--requested-by", default="cli")
+    # Correlation-id plan P2: the gesture token, on the door the launcher's
+    # add-instance placement still takes (its method lane pins the minting
+    # keys closed). Rides ``persona_instance.chat_opened`` and its paired row;
+    # absent → both byte-identical. Not on ``--new-session``: that branch is a
+    # chat-root mint with no placement gesture behind it.
+    persona_instance_open.add_argument("--correlation-id", dest="correlation_id", default=None)
     _add_coordinator_permission_args(persona_instance_open)
     persona_instance_open.add_argument("--json", action="store_true")
     persona_instance_open.set_defaults(func=chat_open._cmd_persona_instance_open_chat)
@@ -392,6 +404,11 @@ def add_mission_chat(subs) -> None:
     mission_chat_message.add_argument("--persona", dest="persona_id", required=True)
     mission_chat_message.add_argument("--persona-instance-id", default=None)
     mission_chat_message.add_argument("--session-id", default=None)
+    # The owning account's client-scope digest (RT-CHAT-MESSAGE-MINT-UNSCOPED): a send that names
+    # no session and MINTS one stamps it on the new root, so the chat lists under that account
+    # (`launcher.agent_chat.list` filters on it). Lowered from `runtime.chat.message`'s
+    # `client_scope`, which the door has already validated.
+    mission_chat_message.add_argument("--client-scope", dest="client_scope", default=None, help="The owning account's client-scope digest (64 hex) a chat this send MINTS is stamped with; ignored when continuing an existing thread")
     # store_true (absent → False) is deliberate on THIS lane: False is now an
     # explicit "continue the target's current default thread", so the operator
     # console and any bare CLI send keep threading exactly as before (that
@@ -428,6 +445,7 @@ def add_mission_chat(subs) -> None:
     mission_chat_message.add_argument("--requested-by", default="cli")
     mission_chat_message.add_argument("--client-message-id", default=None)
     mission_chat_message.add_argument("--idempotency-key", default=None)
+    mission_chat_message.add_argument("--input-mode", dest="input_mode", choices=("typed", "voice"), default=None, help="How the operator made this message (typed | voice; absent = typed); recorded on the turn and carried on its history row")
     mission_chat_message.add_argument("--retry-of", dest="retry_of", default=None, help="client_message_id of the interrupted or budget-exhausted turn of this chat that this send re-runs (recorded as the turn's lineage; any other target is refused chat_turn_retry_target_invalid)")
     mission_chat_message.add_argument("--image", dest="images", action="append", default=None, help="A pasted image stored by runtime.chat.message, by reference (sha256:<hex>.png|.jpg); repeatable, at most 4; sent to a vision-capable model as an image part, refused vision_unsupported otherwise")
     mission_chat_message.add_argument("--file", dest="files", action="append", default=None, help="A reviewed file stored by runtime.chat.message, by reference (sha256:<hex>.<ext>); repeatable, at most 8 (limits.files); staged for the agent as a FILE:<path> line it reads with read_file, never inlined")
@@ -442,6 +460,10 @@ def add_mission_chat(subs) -> None:
     mission_chat_message.add_argument("--compression-threshold-tokens", type=int, default=None, help="One-turn native-compression proof seam; overrides the compressor token threshold without changing profile config")
     mission_chat_message.add_argument("--compression-protect-first-n", type=int, default=None, help="One-turn native-compression proof seam; override protected head messages")
     mission_chat_message.add_argument("--compression-protect-last-n", type=int, default=None, help="One-turn native-compression proof seam; override protected tail messages")
+    # QA-only seams (agent_runtime.qa_turn_overrides): refused outside a QA namespace under a QA provider pool.
+    mission_chat_message.add_argument("--qa-checkpoint-after-seconds", type=float, default=None, help="QA only (a stagec-* namespace under HERMES_QA_PROVIDER_POOL; refused elsewhere): open this turn's wall-budget checkpoint this many seconds in (1-600)")
+    mission_chat_message.add_argument("--qa-max-iterations", type=int, default=None, help="QA only (refused outside a QA provider pool): this turn's tool-iteration limit (1-90; default 90)")
+    mission_chat_message.add_argument("--qa-silence-seconds", type=float, default=None, help="QA only (refused outside a QA provider pool): wait this many seconds before the first provider call, a model silence the turn heartbeat beats through (0-300)")
     mission_chat_message.add_argument("--relay-chain", default=None, help="Comma-separated canonical persona ids already on the agent-relay chain (envelope provenance for chained agent_chat_send hops)")
     mission_chat_message.add_argument("--relay-deadline-epoch", type=float, default=None, help="Absolute unix-epoch deadline shared by every hop on the relay chain")
     # Sender provenance, not guard logic: the sender's chat-root session id

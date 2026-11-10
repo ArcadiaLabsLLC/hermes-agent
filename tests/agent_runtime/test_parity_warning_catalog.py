@@ -69,22 +69,6 @@ PRODUCIBLE = {
     "persona_chat_history.non_iso_timestamp": _runtime_on(
         persona_chat_history=[{"session_id": "s1", "persona_id": "alice", "created_at": "not-a-timestamp"}]
     ),
-    "persona_chat_history.live_mission_shadow": _runtime_on(
-        generated_at=_NOW.isoformat(),
-        persona_chat_history=[
-            {
-                "session_id": "chat",
-                "persona_id": "alice",
-                "updated_at": (_NOW - timedelta(hours=1)).isoformat(),
-            },
-            {
-                "session_id": "mission",
-                "persona_id": "alice",
-                "kind": "mission",
-                "updated_at": _NOW.isoformat(),
-            },
-        ],
-    ),
     "operator_channels_missing": {
         "persona_instance_runtime": {"enabled": True},
         "persona_instances": {},

@@ -43,6 +43,7 @@ unsigned flood cannot grow the store; W13). A refused POST never moves a rule.
 from __future__ import annotations
 
 import base64
+import errno
 import hashlib
 import hmac
 import ipaddress
@@ -327,8 +328,10 @@ class IngressListener:
 # --- the serve's one listener ------------------------------------------------------
 
 #: ``armed``: a serve owns the door (set at boot, cleared with its liveness event);
-#: ``listener``: the bound listener, present only while armed AND a route exists.
-_ACTIVE: dict[str, Any] = {"listener": None, "armed": False}
+#: ``listener``: the bound listener, present only while armed AND a route exists;
+#: ``bind_error``: the last bind that failed (:func:`_bind_failure`), cleared by a good bind
+#: or by the door closing — served on the listener state so a reader can say why it is off.
+_ACTIVE: dict[str, Any] = {"listener": None, "armed": False, "bind_error": None}
 _ACTIVE_LOCK = threading.Lock()
 
 
@@ -341,6 +344,34 @@ def listener_bound_since() -> datetime | None:
 
     listener = active_listener()
     return None if listener is None else listener.bound_since
+
+
+def _bind_failure(error: OSError, host: str, port: int) -> dict[str, Any]:
+    """The wire form of a failed bind: a closed reason, the address and when — never a
+    stack, a message or a path (the OS text can name local files)."""
+
+    if error.errno in (errno.EADDRINUSE, getattr(errno, "WSAEADDRINUSE", None)):
+        reason = "address_in_use"
+    elif error.errno in (errno.EACCES, errno.EPERM, getattr(errno, "WSAEACCES", None)):
+        reason = "permission_denied"
+    else:
+        reason = "other"
+    return {"reason": reason, "host": host, "port": port,
+            "errno": error.errno if isinstance(error.errno, int) else None,
+            "at_ms": int(datetime.now(UTC).timestamp() * 1000)}
+
+
+def _start_listener(listener: IngressListener) -> IngressListener | None:
+    """Start ``listener`` under ``_ACTIVE_LOCK``; record or clear ``bind_error``. None on failure (logged)."""
+
+    try:
+        started = listener.start()
+    except OSError as error:
+        _ACTIVE["bind_error"] = _bind_failure(error, listener.host, listener.port)
+        logger.warning("lens ingress did not bind %s:%s", listener.host, listener.port, exc_info=True)
+        return None
+    _ACTIVE["bind_error"] = None
+    return started
 
 
 def sync_ingress(store: LensStore | None = None) -> IngressListener | None:
@@ -357,13 +388,11 @@ def sync_ingress(store: LensStore | None = None) -> IngressListener | None:
         wanted = bool((store or LensStore()).routes())
         current = _ACTIVE["listener"]
         if wanted and current is None:
-            try:
-                _ACTIVE["listener"] = IngressListener().start()
-            except OSError:
-                logger.warning("lens ingress did not bind %s:%s", *ingress_address(), exc_info=True)
-        elif not wanted and current is not None:
-            _ACTIVE["listener"] = None
-            current.stop()
+            _ACTIVE["listener"] = _start_listener(IngressListener())
+        elif not wanted:
+            _ACTIVE["listener"], _ACTIVE["bind_error"] = None, None
+            if current is not None:
+                current.stop()
         return _ACTIVE["listener"]
 
 
@@ -383,7 +412,7 @@ def start_lens_ingress(*, stop_event: threading.Event) -> IngressListener | None
         stop_event.wait()
         with _ACTIVE_LOCK:
             current = _ACTIVE["listener"]
-            _ACTIVE["listener"], _ACTIVE["armed"] = None, False
+            _ACTIVE["listener"], _ACTIVE["armed"], _ACTIVE["bind_error"] = None, False, None
         if current is not None:
             current.stop()
 
@@ -416,19 +445,21 @@ def bind_ingress(host: Any, port: Any) -> dict[str, Any]:
         current = _ACTIVE["listener"]
         if current is not None:
             current.stop()
-            moved = IngressListener(*address)
-            try:
-                _ACTIVE["listener"] = moved.start()
-            except OSError:
-                _ACTIVE["listener"] = None
-                logger.warning("lens ingress did not bind %s:%s", *address, exc_info=True)
+        if current is not None or (_ACTIVE["armed"] and _ACTIVE["bind_error"] is not None):
+            # A door that failed to bind is retried on the new address: moving off a held port recovers it.
+            _ACTIVE["listener"] = _start_listener(IngressListener(*address))
     return ingress_state()
 
 
 def ingress_state() -> dict[str, Any]:
+    """The listener's state. ``bind_error`` (additive, RT-LENS-LISTENER-BIND-ERROR-ON-READ) is
+    None, or — while a route wants the door but the last bind failed —
+    ``{reason: address_in_use | permission_denied | other, host, port, errno, at_ms}``."""
+
     listener = active_listener()
     host, port = listener.address if listener is not None else ingress_address()
     since = None if listener is None else listener.bound_since
     return {"host": host, "port": port, "listening": listener is not None,
             "bound_since_ms": None if since is None else int(since.timestamp() * 1000),
-            "url_base": route_url("", (host, port)), "maximum_body_bytes": MAXIMUM_BODY_BYTES}
+            "url_base": route_url("", (host, port)), "maximum_body_bytes": MAXIMUM_BODY_BYTES,
+            "bind_error": None if listener is not None else _ACTIVE["bind_error"]}

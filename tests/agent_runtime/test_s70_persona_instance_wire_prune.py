@@ -8,13 +8,14 @@ but the two properties that make the cut safe:
 1. **The two alias removals lost no information.** ``current_work_assignment_id``
    and ``attached_task_id`` were byte-identical duplicates of the canonical key
    beside them. The ledger recorded ``attached_task_id`` as writer-less; it was
-   not at the time (2026-08-09). Since RT-TASK-BOUND-MISSION-LANES
-   ``current_task_id`` is stored-only, always null on a live row, and leaves the
-   wire with ``RT-TASK-BOUND-WIRE-PRUNE``; until then the only honest
-   justification for the alias cut is that the value still ships under the
-   canonical name. That is what ``test_the_alias_cut_kept_the_value``
-   asserts, and it is the assertion that would have caught cutting a field that
-   merely *looked* like a duplicate.
+   not at the time (2026-08-09). The only honest justification for an alias cut
+   is that the value still ships under the canonical name. That is what
+   ``test_the_alias_cut_kept_the_value`` asserts, and it is the assertion that
+   would have caught cutting a field that merely *looked* like a duplicate. The
+   canonical ``current_task_id`` itself left the wire later, with
+   ``RT-TASK-BOUND-WIRE-PRUNE`` (stored-only and always null on a live row since
+   RT-TASK-BOUND-MISSION-LANES; the launcher decodes it no more) —
+   ``test_current_task_id_left_both_lanes`` pins that.
 
 2. **Both projection lanes moved together.** The full snapshot row and the
    incremental ``state_patches`` row are separate producers of the same shape,
@@ -110,17 +111,28 @@ def test_the_alias_cut_kept_the_value():
     stay green.
     """
 
-    row = persona_instance_summary(
-        _instance(current_task_id="task_live", current_assignment_id="assign_live")
-    )
-    assert row["current_task_id"] == "task_live"
+    row = persona_instance_summary(_instance(current_assignment_id="assign_live"))
     assert row["current_assignment_id"] == "assign_live"
+
+
+def test_current_task_id_left_both_lanes():
+    """RT-TASK-BOUND-WIRE-PRUNE: neither the snapshot row nor a patch carries it.
+
+    KILLING MUTATION: put ``"current_task_id": instance.current_task_id`` back in
+    ``persona_instance_summary`` -> red here (and the patch-lane parity test stays
+    green only because both lanes moved together).
+    """
+
+    instance = _instance(current_task_id="task_stored")
+    assert "current_task_id" not in persona_instance_summary(instance)
+    assert "current_task_id" not in state_patches._persona_instance_wire_row(instance, None)
+    assert state_patches._PERSONA_INSTANCE_STORE_TO_WIRE["current_task_id"] == ()
 
 
 def test_the_patch_lane_projects_no_key_the_snapshot_row_lacks():
     """The incremental lane may never carry a key the full rebuild dropped."""
 
-    instance = _instance(current_task_id="task_live")
+    instance = _instance(current_assignment_id="assign_live")
     snapshot_keys = set(persona_instance_summary(instance))
     patch_keys = set(state_patches._persona_instance_wire_row(instance, None))
     extra = patch_keys - snapshot_keys
@@ -152,7 +164,7 @@ def test_the_orphan_hold_still_protects_a_row_with_live_pointers():
     """
 
     row = persona_instance_summary(
-        _instance(id="personainst_orphan", persona_id="ghost", role="ghost", current_task_id="task_live")
+        _instance(id="personainst_orphan", persona_id="ghost", role="ghost", current_assignment_id="assign_live")
     )
     result = classify_orphan_persona_instances(
         [row],

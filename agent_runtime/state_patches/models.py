@@ -95,7 +95,9 @@ _PERSONA_INSTANCE_STORE_TO_WIRE: dict[str, tuple[str, ...]] = {
     # projecting it would ADD a key the full rebuild no longer has — the launcher
     # folds whatever wire fields arrive with no allowlist, so the two lanes would
     # disagree about the row's shape after the first incremental update.
-    "current_task_id": ("current_task_id",),
+    # RT-TASK-BOUND-WIRE-PRUNE: ``current_task_id`` left both lanes together — a
+    # store write to it projects no wire field.
+    "current_task_id": (),
     "display_name": ("display_name", "agent_profile_display_name"),
     "current_chat_goal": ("current_chat_goal",),
     "skill_overrides": ("skill_overrides", "skills"),

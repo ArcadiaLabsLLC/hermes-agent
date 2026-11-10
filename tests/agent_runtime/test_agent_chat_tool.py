@@ -218,13 +218,14 @@ def test_happy_path_returns_compact_reply_without_observability(monkeypatch):
 
 def test_failed_target_turn_surfaces_typed_error(monkeypatch):
     def fake_handler(args):
-        _reply(args, {"ok": False, "error": "unknown persona pm2"})
+        _reply(args, {"ok": False, "error": "the target turn failed"})
         return 2
 
     monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
-    data = json.loads(agent_chat_send(persona_id="pm2", message="hi"))
+    # A configured teammate: an unknown one is now refused before the handler (``addressing``).
+    data = json.loads(agent_chat_send(persona_id="dev", message="hi"))
     assert data["ok"] is False
-    assert data["error"] == "unknown persona pm2"
+    assert data["error"] == "the target turn failed"
     assert data["exit_code"] == 2
 
 

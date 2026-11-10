@@ -52,7 +52,7 @@ class BoardSource:
 
     def _writer(self, ref: RowRef, workspace_id: str) -> Any:
         view = self._view(workspace_id, slot=ref.slot)
-        board = boards_store.pick(view.boards, ref.slot, ref.project_id)
+        board = boards_store.pick(view.boards, ref.slot)
         writer = view.writers.get(board.key) if board is not None else None
         if writer is None:
             raise WorkRefused(Reason.SLOT_UNBOUND, ref.slot)
@@ -72,7 +72,8 @@ class BoardSource:
         return boards_store.rows(workspace_id, status=status, slot=slot, assignee=assignee, read_roots=view.read_roots)
 
     def ready(self, workspace_id: str) -> list[Row]:
-        return [row for row in self.rows(workspace_id, status=Status.READY) if row.taken is None]
+        """READY, untaken rows — never a subtask of a parked task (``boards_store.claimable``)."""
+        return boards_store.claimable(self.rows(workspace_id))
 
     def claim(self, ref: RowRef, who: Claimant, request_id: str) -> Receipt:
         return self._apply(ref, Op.CLAIM, who, request_id, {})
@@ -91,9 +92,10 @@ class BoardSource:
         self._apply(ref, Op.SET_STATUS, who, f"{rid}:status", {"status": status})
         return self._apply(ref, Op.RELEASE, who, f"{rid}:release", {})
 
-    def done(self, ref: RowRef, who: Claimant, result: str) -> Receipt:
+    def done(self, ref: RowRef, who: Claimant, result: str, *, commit: str = "here") -> Receipt:
         text = " ".join(str(result or "done").split())[:4000]
-        return self._apply(ref, Op.DELETE, who, _derived_id("done", ref, who.who), {"result": text})
+        return self._apply(ref, Op.CLOSE, who, _derived_id("done", ref, who.who),
+                           {"outcome": "DONE", "commit": commit, "result": text})
 
     def append(self, board: Board, row: Row, request_id: str) -> Receipt:
         if board.workspace_id != self.workspace_id:

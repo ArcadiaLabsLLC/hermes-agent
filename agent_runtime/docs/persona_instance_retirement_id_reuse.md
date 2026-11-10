@@ -51,7 +51,7 @@ deferral. It means a legitimately re-created row is never refused by its own
 history — whatever path creates it — so if an un-retire/re-placement verb ever
 lands and writes a live row first, the tombstone stops being load-bearing on its
 own. Pinned by
-`tests/agent_runtime/test_persona_assignments.py` (the live-row-wins case
+`tests/agent_runtime/test_persona_assignments_retire.py` (the live-row-wins case
 asserts both facts hold at once and that the LIVE one decides).
 
 ## If you are the one shipping the un-retire verb

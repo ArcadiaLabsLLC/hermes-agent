@@ -20,7 +20,10 @@
    queued for the lane's turn by the executor.
 
 The plan id is ``BATCH-<6 base32>`` of the lanes' rows, so planning the same board twice gives the same
-id and ``start`` can tell the board moved (``idempotency_conflict``).
+id and ``start`` can tell the board moved (``idempotency_conflict``). An id whose wave already ENDED
+(``ended``: ABORTED or LANDED) is never handed out again: the next generation of the same rows gets a fresh
+id, so a stopped task run again starts a new wave instead of replaying the ended one
+(COMP-WORK-RUN-AGAIN-REUSES-ABORTED-WAVE).
 """
 
 from __future__ import annotations
@@ -29,7 +32,7 @@ import base64
 import hashlib
 import json
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import PurePosixPath
@@ -327,8 +330,10 @@ def _landing_brief(lane_ids: Sequence[str], gates: Mapping[str, tuple[str, ...] 
 # ── the plan ───────────────────────────────────────────────────────────────
 
 
-def _plan_id(workspace_id: str, lanes: Sequence[Lane]) -> str:
-    key = [workspace_id, [[lane.id, [[r.slot, r.note, r.id] for r in lane.rows]] for lane in lanes]]
+def _plan_id(workspace_id: str, lanes: Sequence[Lane], generation: int = 0) -> str:
+    key: list[Any] = [workspace_id, [[lane.id, [[r.slot, r.note, r.id] for r in lane.rows]] for lane in lanes]]
+    if generation:
+        key.append(generation)
     digest = hashlib.sha256(json.dumps(key, sort_keys=True).encode("utf-8")).digest()
     return "BATCH-" + base64.b32encode(digest).decode("ascii")[:6]
 
@@ -349,8 +354,10 @@ def plan(
     slot_roles: Mapping[str, str] | None = None,
     budget: Budget | None = None,
     slot_gates: Mapping[str, tuple[str, ...] | None] | None = None,
+    ended: Collection[str] = (),
 ) -> Plan:
-    """The batch for ``rows`` (the source's ``ready``): thick lanes, sequenced, one landing. Writes nothing."""
+    """The batch for ``rows`` (the source's ``ready``): thick lanes, sequenced, one landing. Writes nothing.
+    ``ended``: the workspace's batch ids whose wave is over; the plan never takes one of them."""
 
     budget = budget or Budget()
     by_domain: dict[Domain, list[Row]] = {}
@@ -376,4 +383,7 @@ def plan(
     landing = Lane(id=LANDING_ID, kind=LaneKind.LANDING, domain=None, rows=(), persona=lanes[0].persona,
                    brief=_landing_brief([lane.id for lane in lanes], gates), after=tuple(lane.id for lane in lanes),
                    gates=gates)
-    return Plan(_plan_id(workspace_id, lanes), workspace_id, tuple(lanes), landing, budget)
+    generation = 0
+    while (plan_id := _plan_id(workspace_id, lanes, generation)) in ended:
+        generation += 1
+    return Plan(plan_id, workspace_id, tuple(lanes), landing, budget)

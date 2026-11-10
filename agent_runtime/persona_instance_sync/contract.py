@@ -47,6 +47,9 @@ PROJECTION_RELATIVE_PATH = "store/persona_instances.yaml"
 #:   resolves to never travels — it is each machine's own ``roots.<slot>``.
 #:   ``recall_shared_projects`` (RT-PROJECT-CHAT-RECALL-ACROSS-STORES) rides the same
 #:   clock: a choice about the agent, portable, never a store or a path.
+#:   ``slot_context_files`` (RT-SLOT-CONTEXT-FILE-PICKS) is the same kind of choice
+#:   (which of CLAUDE.md / AGENTS.md load per slot) and travels; its sibling
+#:   ``slot_context_custom`` is a local PATH and is LOCAL_ONLY below.
 #: - ``model_override_issued_at`` is a supersession CLOCK and travels WITH the
 #:   four override fields it orders, or a stale local write silently wins on the
 #:   receiver (``StaleModelOverrideWrite``).
@@ -67,12 +70,80 @@ PERSONA_INSTANCE_ALLOWED_KEYS: frozenset[str] = frozenset(
         "reasoning_effort",
         "recall_shared_projects",
         "skill_overrides",
+        "slot_context_files",
         "slots_issued_at",
         "spawned_by",
         "steered_by",
         "workspace_id",
     }
 )
+
+#: A field's NEXT spelling → the spelling this edition stores and publishes. Read at the pull door
+#: and the store decoder, never written: an edition that publishes the new spelling is read here as
+#: the old fact (plan ``docs/agent-runtime-harness/planned/recall-field-rename-mixed-editions-2026-11-06.md``
+#: S1, ``RT-WS-RECALL-RENAME-S1-ALIAS``). Publishing keeps the old spelling until S3.
+PERSONA_INSTANCE_KEY_ALIASES: dict[str, str] = {"recall_shared_workspaces": "recall_shared_projects"}
+
+
+def canonical_instance_body(body: Any) -> Any:
+    """``body`` with each :data:`PERSONA_INSTANCE_KEY_ALIASES` spelling read as its canonical key.
+
+    A body carrying BOTH spellings with different values is returned unchanged, so the alias stays
+    outside the allowlist and the door refuses it ``unexpected_key`` — two answers for one fact.
+    A non-mapping is returned as is (the door refuses it)."""
+
+    if not isinstance(body, dict) or not any(alias in body for alias in PERSONA_INSTANCE_KEY_ALIASES):
+        return body
+    canonical = dict(body)
+    for alias, key in PERSONA_INSTANCE_KEY_ALIASES.items():
+        if alias not in canonical:
+            continue
+        if key in canonical and canonical[key] != canonical[alias]:
+            return body
+        canonical[key] = canonical.pop(alias)
+    return canonical
+
+
+#: A ``PersonaInstance`` FIELD → the key the projection PUBLISHES for it (plan S2,
+#: ``RT-WS-RECALL-RENAME-S2-FIELD``): the field took the workspace name, the wire keeps the Project
+#: edition's until S3 flips this map, so an older member reads the same bytes and the hash does not move.
+#: :data:`PERSONA_INSTANCE_ALLOWED_KEYS` is spelled in PUBLISHED keys.
+PERSONA_INSTANCE_PUBLISHED_KEYS: dict[str, str] = {"recall_shared_workspaces": "recall_shared_projects"}
+_FIELD_FOR_PUBLISHED_KEY: dict[str, str] = {key: field for field, key in PERSONA_INSTANCE_PUBLISHED_KEYS.items()}
+
+
+def published_key(field_name: str) -> str:
+    """The key the projection publishes for ``PersonaInstance`` field *field_name*."""
+
+    return PERSONA_INSTANCE_PUBLISHED_KEYS.get(field_name, field_name)
+
+
+def instance_field(key: str) -> str:
+    """The ``PersonaInstance`` field a published key *key* lands on."""
+
+    return _FIELD_FOR_PUBLISHED_KEY.get(key, key)
+
+
+#: The travelling surface in FIELD names — what an applier sets on a record.
+PERSONA_INSTANCE_TRAVEL_FIELDS: frozenset[str] = frozenset(instance_field(key) for key in PERSONA_INSTANCE_ALLOWED_KEYS)
+
+
+def stored_instance_body(raw: Any) -> Any:
+    """A stored instance row read into FIELD names, whichever edition wrote it.
+
+    An S1-or-older edition stored ``recall_shared_projects``; this one writes
+    ``recall_shared_workspaces``. A row carrying both (never written by either) keeps the field's own
+    spelling. A non-mapping is returned as is."""
+
+    if not isinstance(raw, dict) or not any(key in raw for key in _FIELD_FOR_PUBLISHED_KEY):
+        return raw
+    body = dict(raw)
+    for key, field_name in _FIELD_FOR_PUBLISHED_KEY.items():
+        if key in body:
+            value = body.pop(key)
+            body.setdefault(field_name, value)
+    return body
+
 
 #: Never travels, and RE-DERIVED locally by the mint (plan §1.3).
 #:
@@ -109,12 +180,14 @@ PERSONA_INSTANCE_LOCAL_ONLY_KEYS: frozenset[str] = frozenset(
         "current_assignment_id",
         "current_chat_goal",
         "current_task_id",
+        "display_name_custom",
         "goal_id",
         "last_heartbeat_at",
         "returned_to",
         "schema_version",
         "session_id",
         "skill_manifest_hash",
+        "slot_context_custom",
         "token_budget_used",
     }
 )

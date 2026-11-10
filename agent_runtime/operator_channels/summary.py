@@ -15,11 +15,9 @@ from .instances import (
     _operator_conversation_relationships,
     _source_instance_ids_conflict,
     channel_identity,
-    is_dormant_channel,
     is_newborn_channel,
 )
 from .vocabulary import (
-    FLOW_MESSAGE_KINDS,
     OPERATOR_CHANNELS_SCHEMA_VERSION,
     _display_name_from_history,
     _safe_instance_id,
@@ -251,7 +249,6 @@ class _OperatorChannelBuilder:
             persona_id=identity.persona_id,
             persona_instance_id=identity.canonical_id,
             session_id=identity.session_id,
-            task_id=identity.task_id,
             goal_id=identity.goal_id,
             title=first_present_text(
                 identity.history.get("title") if identity.history else None,
@@ -326,7 +323,6 @@ class _OperatorChannelBuilder:
             "persona_id": identity.persona_id,
             "persona_instance_id": identity.canonical_id,
             "session_id": identity.session_id,
-            "task_id": identity.task_id,
             "goal_id": identity.goal_id,
             "display_name": first_present_text(
                 getattr(canonical, "display_name", None) if canonical is not None else None,
@@ -350,12 +346,13 @@ class _OperatorChannelBuilder:
 def _emptiness_warnings(
     identity: ChannelIdentity, messages: list[Any], omitted_history_session_ids: set[str]
 ) -> list[dict[str, Any]]:
-    """``session_without_history`` and ``trace_empty``, evaluated AFTER the conversation.
+    """``session_without_history``, evaluated AFTER the conversation; a newborn
+    (:func:`instances.is_newborn_channel`) raises none.
 
-    A channel whose goal turns already flow as canonical messages is not an
-    empty channel, even when the legacy trace lane happens to be null; a
-    newborn and a dormant channel (:func:`instances.is_newborn_channel`,
-    :func:`instances.is_dormant_channel`) raise neither warning.
+    ``trace_empty`` retired with RT-TASK-BOUND-WIRE-PRUNE: once a channel's task id
+    left the wire it could fire only for a channel with no history, no trace and no
+    messages, which is a newborn (a session) or a dormant instance (none) — both
+    exempt — so the arm and ``is_dormant_channel`` were unreachable.
     """
 
     newborn = is_newborn_channel(identity, messages)
@@ -374,20 +371,6 @@ def _emptiness_warnings(
                 "code": "session_without_history",
                 "detail": "operator channel has a session id but no curated chat history row",
                 "entity_id": identity.session_id,
-            }
-        )
-    has_flow_messages = any(message.get("kind") in FLOW_MESSAGE_KINDS for message in messages)
-    if (
-        identity.trace is None
-        and not has_flow_messages
-        and (identity.history is None or identity.task_id)
-        and not is_dormant_channel(identity, messages)
-        and not newborn
-    ):
-        warnings.append(
-            {
-                "code": "trace_empty",
-                "detail": "operator channel has no tool/progress trace rows",
             }
         )
     return warnings

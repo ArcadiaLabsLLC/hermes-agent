@@ -56,7 +56,8 @@ def test_every_defect_fixture_row_is_a_defect() -> None:
     assert not clean, clean
 
 
-@pytest.mark.parametrize("name", ["grammar_valid.md", "grammar_defects.md"])
+@pytest.mark.parametrize("name", ["grammar_valid.md", "grammar_defects.md", "grammar_tasks.md",
+                                  "grammar_task_defects.md"])
 def test_the_twin_agrees_with_the_lint_on_every_fixture_row(name: str) -> None:
     rows = _rows(name)
     disagree = [row.raw for row in rows if bool(grammar.row_defects(row.raw)) != bool(lint_defects(row.raw))]
@@ -193,3 +194,138 @@ def test_a_lane_claim_from_2026_10_27_must_name_its_machine() -> None:
     assert placeless.value.reason is Reason.GRAMMAR_INVALID
     assert grammar.apply(line, Op.CLAIM, who="persona:pi_alice_01", date="2026-10-27", payload={}).endswith(
         "**TAKEN 2026-10-27 persona:pi_alice_01**")
+
+
+def test_group_names_the_feature_and_is_not_a_status() -> None:
+    """RT-QUEUE-ROW-GROUP-GRAMMAR (launcher plan QUEUE_ROW_GROUPS_2026-11-01 §S2). KILLING MUTATION: allow
+    uppercase in ``GROUP`` (``[A-Za-z0-9]``) -> ``group: Companion`` parses clean here and in the lint, red."""
+
+    from agent_runtime.work import store
+
+    line = "- **`RT-G` — row** · group: companion-templates · plan `docs/x/planned/p.md` · READY 2026-11-02"
+    row = grammar.parse_row(line, slot="s", note="n", line_no=1)
+    assert row.group == "companion-templates" and row.status is Status.READY and row.defects == ()
+    assert row.pointers == ("docs/x/planned/p.md",), "a group is never a pointer"
+    assert store.project(row, None, program=None)["group"] == "companion-templates"
+    for bad in ("group:", "group: Companion", "group: `a`", "group: a · group: b"):
+        parsed = grammar.parse_row(f"- **`RT-G` — x** · {bad} · READY 2026-11-02", slot="s", note="n", line_no=1)
+        assert parsed.defects and all("group" in d for d in parsed.defects), (bad, parsed.defects)
+        assert lint_defects(parsed.raw) == list(parsed.defects), bad
+    # Op.SET_GROUP: insert first after the lead, replace, remove; a bad slug is refused.
+    bare = "- **`RT-H` — row** · `agent_runtime/x.py` · READY 2026-11-02"
+    grouped = grammar.apply(bare, Op.SET_GROUP, who="operator", date=DATE, payload={"group": "eternia-lens"})
+    assert grouped == "- **`RT-H` — row** · group: eternia-lens · `agent_runtime/x.py` · READY 2026-11-02"
+    moved = grammar.apply(grouped, Op.SET_GROUP, who="operator", date=DATE, payload={"group": "git-course"})
+    assert moved.count("group:") == 1 and grammar.parse_row(moved, slot="s", note="n", line_no=1).group == "git-course"
+    assert grammar.apply(moved, Op.SET_GROUP, who="operator", date=DATE, payload={"group": None}) == bare
+    with pytest.raises(WorkRefused) as refused:
+        grammar.apply(bare, Op.SET_GROUP, who="operator", date=DATE, payload={"group": "Upper"})
+    assert refused.value.reason is Reason.INVALID
+    # runtime.work.list ``group?``: exact match keeps only the feature's rows; a bad slug is refused.
+    rows = [grammar.parse_row(text, slot="s", note="n", line_no=i) for i, text in enumerate((line, bare, moved))]
+    keep = store._row_filter({"group": "git-course"}, None)
+    assert [r.ref.id for r in rows if keep(r)] == ["RT-H"]
+    assert all(store._row_filter({}, None)(r) for r in rows)
+    with pytest.raises(WorkRefused):
+        store._row_filter({"group": "Companion"}, None)
+    # runtime.work.start ``group?``: the minted row carries it first after its lead.
+    started = store._start_row("WORK-ABCDEF", "t", None, None, "2026-11-02", group="eternia-lens")
+    assert started == "- **`WORK-ABCDEF` — t** · group: eternia-lens · READY 2026-11-02"
+    assert grammar.parse_row(started, slot="s", note="n", line_no=1).defects == ()
+
+
+def test_task_names_the_slug_and_never_sits_beside_a_group() -> None:
+    """RT-QUEUE-TASKS-GRAMMAR (launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D1). KILLING MUTATIONS: drop the
+    ``task=`` read in ``parse_row`` -> ``row.task`` is None, red; drop the task-beside-group arm of
+    ``_task_defects`` -> the grouped task row parses clean, red."""
+
+    line = "- **`TASK-PILLS` — Pills on the board** · task: board-pills · READY 2026-11-09"
+    row = grammar.parse_row(line, slot="s", note="n", line_no=1)
+    assert (row.task, row.group, row.defects, row.pointers) == ("board-pills", None, (), ())
+    sub = grammar.parse_row("- **`RT-S` — sub** · group: board-pills.hermes · READY 2026-11-09", slot="s", note="n",
+                            line_no=2)
+    assert (sub.task, sub.group) == (None, "board-pills.hermes")
+    for bad in ("task:", "task: Pills", "task: `a`", "task: a · task: b", "task: a · group: a"):
+        parsed = grammar.parse_row(f"- **`RT-T` — x** · {bad} · READY 2026-11-09", slot="s", note="n", line_no=1)
+        assert parsed.defects and all(d.startswith("BAD TASK") for d in parsed.defects), (bad, parsed.defects)
+        assert lint_defects(parsed.raw) == list(parsed.defects), bad
+
+
+# ── the closed-row archive (RT-QUEUE-ARCHIVE-GRAMMAR) ─────────────────────────
+
+
+@pytest.mark.parametrize("name", ["archive_valid.md", "archive_defects.md", "archive_live_overlap.md"])
+def test_the_twin_agrees_with_the_lint_on_every_archive_fixture_row(name: str) -> None:
+    rows = _rows(name)
+    assert rows and all(grammar.is_queue_archive((FIXTURES / name).read_text(encoding="utf-8")) for _ in rows[:1])
+    words = [row.raw for row in rows
+             if list(row.defects) != lint_defects(row.raw, archived=True)]
+    assert not words, words
+
+
+def test_an_archived_row_carries_its_outcome_and_records() -> None:
+    by_id = {row.ref.id: row for row in _rows("archive_valid.md")}
+    assert all(row.defects == () for row in by_id.values()), {i: r.defects for i, r in by_id.items() if r.defects}
+    assert by_id["FX-ARCH-DONE-HERE"].outcome == grammar.Outcome(grammar.OutcomeKind.DONE, "2026-11-02", commit="here")
+    assert by_id["FX-ARCH-CLOSED"].outcome.words == '"drop it, the dock covers it"'
+    assert by_id["FX-ARCH-RESULT"].result.startswith("red recorded:")
+    assert by_id["FX-ARCH-REVIEW"].review == "owner looked 2026-11-03"
+    assert by_id["FX-ARCH-RULED"].rulings == ("RULED 2026-11-01: one archive per queue",)
+
+
+def test_close_archives_the_row() -> None:
+    """The rendered line equals the launcher's fixture line. Mutation: keep the claim mark in ``_close_line`` -> red."""
+    live = ("- **`FX-ARCH-RULED` — Ruled row kept whole** · group: queue-row-archive · `tool/queue/queue_grammar.dart`"
+            " · RULED 2026-11-01: one archive per queue · REQUIRES linux · READY 2026-11-01"
+            " · **TAKEN 2026-11-02 w1102a-x on box-1 as nekwo in wt-x**")
+    fixture = next(row.raw for row in _rows("archive_valid.md") if row.ref.id == "FX-ARCH-RULED")
+    closed = grammar.apply(live, Op.CLOSE, who="w1102a-x", date="2026-11-02",
+                           payload={"outcome": "DONE", "commit": "3f9c2a1"})
+    assert closed == fixture
+    asked = "- **`RT-A` — ask** · BLOCKED 2026-10-18: owner decision — A or B? · Recommend: A · `x.py`"
+    owner = grammar.apply(asked, Op.CLOSE, who="operator", date="2026-11-03",
+                          payload={"outcome": "CLOSED", "words": '"drop it"', "result": "folded into `RT-B`"})
+    assert owner == "- **`RT-A` — ask** · CLOSED 2026-11-03: owner — \"drop it\" · `x.py` · result: folded into -RT-B-"
+    assert grammar.row_defects(owner, archived=True) == []
+    assert any("CLOSED ROW LIVE" in d for d in grammar.row_defects(closed))  # an outcome on a live row
+    for bad in ({"outcome": "DONE", "commit": "XYZ"}, {"outcome": "SHIPPED"}, {"outcome": "CLOSED"}):
+        with pytest.raises(WorkRefused):
+            grammar.apply(live, Op.CLOSE, who="w", date="2026-11-02", payload=bad)
+
+
+def test_archive_note_for_names_the_month_file() -> None:
+    assert grammar.archive_note_for("Harness_Brain/20 — Active Initiatives/runtime-queue.md", "2026-11-03") == (
+        "Harness_Brain/80 — Archive/Queues/runtime-queue-2026-11.md")
+    assert grammar.archive_note_for("Work_Brain/20 — Active Initiatives/work-queue.md", "2026-12-01") == (
+        "Work_Brain/80 — Archive/Queues/work-queue-2026-12.md")
+
+
+def test_a_claim_account_with_a_space_still_names_its_machine() -> None:
+    """RT-WORK-GRAMMAR-CLAIM-ACCOUNT-SPACES. KILLING MUTATION: put ``as (\\S+)`` back in
+    ``CLAIM_WHO`` → the machine reads None and the row carries "names no machine"."""
+
+    line = ("- **`A-1` — x** · READY 2026-11-02 · **TAKEN 2026-11-02 profile-final-acceptance on "
+            "MUltiversalLabsInc as Maximus Shaban in profile-final-acceptance**")
+    row = grammar.parse_row(line, slot="s", note="n", line_no=1)
+    assert row.taken.machine == "MUltiversalLabsInc" and row.defects == ()
+    who = grammar.CLAIM_WHO.match(row.taken.who)
+    assert who.groups() == ("profile-final-acceptance", "MUltiversalLabsInc", "Maximus Shaban",
+                            "profile-final-acceptance")
+    assert grammar.CLAIM_WHO.match("w1 on box-1 as Maximus Shaban").group(3) == "Maximus Shaban"
+
+
+def test_a_claim_mark_quoted_in_the_title_or_a_code_span_is_not_the_rows_claim() -> None:
+    """KILLING MUTATIONS: read the claim with ``TAKEN.search(line)`` in ``claim_mark`` (no scan
+    mask) → the quoted mark reads as the row's claim and ``taken is None`` reds; put ``(.*?)`` back
+    in ``TITLE`` → the title is cut at the quoted stars and the title assertion reds."""
+
+    quoted = "**TAKEN 2026-11-02 lane-q on box-q as A B in wt-q**"
+    in_title = f"- **`A-2` — the mark `{quoted}` trips it** · READY 2026-11-06"
+    assert grammar.parse_row(in_title, slot="s", note="n", line_no=1).title == f"the mark `{quoted}` trips it"
+    for line in (in_title, f"- **`A-2` — a title** · `{quoted}` · READY 2026-11-06"):
+        row = grammar.parse_row(line, slot="s", note="n", line_no=1)
+        assert row.taken is None and row.defects == (), line
+        claimed = grammar.apply(line, grammar.Op.CLAIM, who="w1 on box-1 as nekwo in wt", date="2026-11-06", payload={})
+        assert grammar.parse_row(claimed, slot="s", note="n", line_no=1).taken.who == "w1 on box-1 as nekwo in wt"
+        released = grammar.apply(claimed, grammar.Op.RELEASE, who="w1", date="2026-11-06", payload={})
+        assert released == line

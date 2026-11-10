@@ -79,9 +79,16 @@ __all__ = [
 OPEN_CHAT_METHOD = "runtime.persona.instance.open_chat"
 OPEN_CHAT_METHOD_PARAMS = (
     "persona_id", "persona_instance_id", "session_id", "new_session",
-    "kill_active", "idempotency_key", "client_message_id", "requested_by",
+    "idempotency_key", "client_message_id", "requested_by",
     "correlation_id", "install_id", "client_scope",
 )
+
+#: The refusal a ``kill_active`` key earns on every chat-open lane (RT-KILL-ACTIVE-REFUSE): it
+#: killed nothing since the mission lane went, and the launcher stopped sending it.
+KILL_ACTIVE_RETIRED = "kill_active_retired"
+KILL_ACTIVE_RETIRED_MESSAGE = (
+    "kill_active is retired: nothing is killed on open; stop a turn in flight with "
+    "runtime.operator.conversation.stop")
 
 CREATE_CONVERSATION_METHOD = "runtime.agent.conversation.create"
 CREATE_CONVERSATION_METHOD_PARAMS = (
@@ -242,9 +249,11 @@ def perform_persona_instance_open_chat(
     """The method lane's door onto ``harness persona instance open-chat``.
 
     Params: ``persona_id`` (required); ``persona_instance_id``, ``session_id``,
-    ``new_session``, ``kill_active``, ``idempotency_key`` (alias
+    ``new_session``, ``idempotency_key`` (alias
     ``client_message_id``), ``title``, ``requested_by``, ``correlation_id`` (all
-    optional).
+    optional). ``kill_active`` is retired and REFUSED ``-32602``
+    ``kill_active_retired`` (RT-KILL-ACTIVE-REFUSE): the lane ignores unknown
+    params by contract, so the refusal is explicit.
 
     Result: the CLI's own success row, verbatim — including the two keys the
     launcher's bridge reads (``session_id`` and ``persona_instance_id``), plus
@@ -267,7 +276,7 @@ def perform_persona_instance_open_chat(
     **What this door deliberately cannot reach.** ``--add-instance`` and its
     ``placement_id`` / ``display_name`` / ``workspace_id`` / ``realm_id``
     companions, and the coordinator-budget arm that only ``--add-instance`` with a
-    ``coordinator:`` requester can open (``kill_active`` is accepted and ignored). MINTING a
+    ``coordinator:`` requester can open. MINTING a
     placement over the method lane is ``runtime.agent.create``'s job and it does
     the whole of it (roster row, chat root and placement together, with a
     reservation); a second minting door here would be exactly the two-lanes-one-
@@ -284,6 +293,9 @@ def perform_persona_instance_open_chat(
 
     if not isinstance(params, dict):
         params = {}
+    if "kill_active" in params:
+        return PersonaOpenChatOutcome(refusal=PersonaOpenChatRefusal(
+            code=ERR_INVALID_PARAMS, message=KILL_ACTIVE_RETIRED_MESSAGE, data={"reason": KILL_ACTIVE_RETIRED}))
 
     try:
         verify_instance_install(params)

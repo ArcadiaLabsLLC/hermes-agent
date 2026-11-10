@@ -41,7 +41,7 @@ _STUDIO_TOOL = {
     "description": "List Studio projects.",
     "parameters": {"type": "object", "properties": {}},
 }
-#: The Launcher's eight refusals and the JSON-RPC code each carries.
+#: The Launcher's typed refusals and the JSON-RPC code each carries.
 _LAUNCHER_REFUSALS = {
     "unknown_function": -32601,
     "invalid_arguments": -32602,
@@ -51,6 +51,12 @@ _LAUNCHER_REFUSALS = {
     "confirmation_declined": -32004,
     "unavailable": -32005,
     "failed": -32006,
+    "script_scope_expired": -32007,
+    "script_operation_denied": -32008,
+    "not_for_outside_agents": -32009,
+    "in_flight": -32010,
+    "account_changed": -32011,
+    "unmigrated": -32012,
 }
 
 
@@ -381,6 +387,50 @@ def test_an_unlisted_launcher_word_is_still_handed_to_the_model():
     laf.refresh_app_function_tools(link)
     result = _call("launcher_navigation_open", {}, link)
     assert result["refusal"] == "rate_limited" and result["retry"] == answers.RETRY_LATER
+
+
+def test_an_unmigrated_press_is_final_and_points_at_the_function():
+    # RT-UNMIGRATED-REFUSAL-UNKNOWN: a real Haiku turn heard "a reason this
+    # runtime does not know" + retry later for a control with no door yet.
+    launcher = _TypedLauncher(refusals={"launcher.navigation.open": ("unmigrated", -32012)})
+    link = laf.LauncherLink(launcher, laf.ORIGIN_LOCAL)
+    laf.refresh_app_function_tools(link)
+    result = _call("launcher_navigation_open", {"page": "library"}, link)
+    assert (result["refusal"], result["retry"]) == ("unmigrated", answers.RETRY_NEVER)
+    assert "app function" in result["detail"] and "does not know" not in result["detail"]
+
+
+def test_the_map_knows_every_word_eternia_sends():
+    # RT-LAUNCHER-REFUSALS-MISSING-ETERNIA-WORDS: five of Eternia's words fell
+    # to "a reason this runtime does not know" + retry later.
+    assert set(_LAUNCHER_REFUSALS) == set(answers.LAUNCHER_REFUSALS)
+
+
+@pytest.mark.parametrize("name,retry", [
+    ("script_scope_expired", answers.RETRY_NEVER),
+    ("script_operation_denied", answers.RETRY_NEVER),
+    ("not_for_outside_agents", answers.RETRY_NEVER),
+    ("in_flight", answers.RETRY_LATER),
+    ("account_changed", answers.RETRY_LATER),
+])
+def test_each_new_eternia_word_has_its_own_reading(name, retry):
+    meaning = answers.LAUNCHER_REFUSALS[name]
+    assert meaning.retry == retry
+    assert "does not know" not in meaning.detail
+
+
+def test_no_refusal_detail_says_the_launcher():
+    for table in (answers.LAUNCHER_REFUSALS, answers.RUNTIME_REFUSALS):
+        for name, meaning in table.items():
+            assert "Launcher" not in meaning.detail, name
+
+
+def test_the_unknown_reason_names_eternia_not_the_launcher():
+    launcher = _TypedLauncher(refusals={"launcher.navigation.open": ("rate_limited", -32099)})
+    link = laf.LauncherLink(launcher, laf.ORIGIN_LOCAL)
+    laf.refresh_app_function_tools(link)
+    detail = _call("launcher_navigation_open", {}, link)["detail"]
+    assert detail.startswith("Eternia refused") and "Launcher" not in detail
 
 
 def test_no_launcher_on_the_turn_is_a_typed_refusal():

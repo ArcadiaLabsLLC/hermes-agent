@@ -24,6 +24,7 @@ Baseline: ``tests/fixtures/ladder_routing_grandfathered.json`` (one row per
 from __future__ import annotations
 
 import ast
+from functools import cache
 
 from scripts import god_file_probe as probe
 
@@ -32,7 +33,9 @@ import pytest
 pytestmark = pytest.mark.gate
 
 
+@cache
 def _drift() -> probe.Drift:
+    """Once per process: three tests read the same whole-tree census (FH-PREPUSH-TOUCHED-BUDGET-VS-NAME-CENSUS)."""
     return probe.compare_numbers("W0-G5 ladder routing", probe.ladder_live(), probe.ladder_fixture())
 
 

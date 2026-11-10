@@ -347,6 +347,9 @@ def _sidecar_for(payload: dict, key: CoreFingerprint, stamp: str) -> dict:
         "runtime_root": str(_runtime_root_for_sidecar(parity)),
         "generated_at": payload.get("generated_at"),
     }
+    if key.racy:
+        # RT-CORE-CACHE-SAME-TICK-REWRITE: the inputs stat'd inside one file-time tick of the walk, by content.
+        sidecar["racy"] = [list(pair) for pair in key.racy]
     return sidecar
 
 

@@ -365,7 +365,7 @@ def register_serve_instance(
     fact, and the launcher's fallback condition. ``starter_pid`` is the pid that
     STARTED the process (its parent at boot, computed by the caller like
     ``hermes_home`` above), not its parent now: a detached service is reparented
-    the moment its starter exits, so a value read later names somebody else.
+    the moment its starter exits, so a later read names somebody else; an adopter is ``None``.
 
     ``hermes_home`` follows the same additive-null rule and is likewise ALWAYS
     written — see the module docstring for what it does and does not mean. The

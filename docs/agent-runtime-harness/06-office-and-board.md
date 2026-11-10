@@ -1319,11 +1319,19 @@ twin calls. The ack is `{"card": _card_row(card, full=True)}` built from the
 card the STORE returned (`agent_runtime/board_store/rows.py`, which the CLI
 shares); a refusal is translated by `BOARD_WRITE_ERRORS` and is terminal;
 `expect_revision` and `idempotency_key` pass through unchanged; the honoured
-keys ride the manifest's `params` block (`BOARD_METHOD_PARAMS`). There is no
-`board_card` fold yet: a fold needs its producer inside `board_lock`. The
-launcher still sends all six as argv capabilities
-(`board/mission_board_write.dart`) until its RPC-first row lands. Board writes are named in the uncovered list
-(`patch_coverage.py:33`), so a board batch demotes to a full core by design.
+keys ride the manifest's `params` block (`BOARD_METHOD_PARAMS`). Card writes
+fold as `board_card` rows produced inside `board_lock`
+(`agent_runtime/board_store/patches.py`, plan
+[`board-card-fold-2026-10-15.md`](planned/board-card-fold-2026-10-15.md)):
+create / edit / move and a move's column rebalance under the `board_card`
+entity, archive (a `remove`) and restore (a `created` upsert) under the
+`board_card_lifecycle` token, whose client mirrors the board row's
+`archived_card_ids`. A write no row can express — a cut or short card list, a
+row over the value budget, a no-tombstone archive, a flip of a realm-bound
+board's `unpublished` — emits the accounted `refresh`. Conflict resolve and the
+board-def writes stay uncovered (`patch_coverage.py`), so those batches demote
+to a full core. The launcher still sends all six as argv capabilities
+(`board/mission_board_write.dart`) until its RPC-first row lands.
 One asymmetry worth knowing: the board DOES send `expect_revision`
 (`mission_board_write.dart`, sourced from `card.revision` at
 `mission_board_card_panel.dart`), while the office's argv arms deliberately

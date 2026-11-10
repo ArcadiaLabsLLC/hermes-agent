@@ -89,6 +89,22 @@ def _bad_proof() -> Any:
     return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
 
 
+def _channel_switch_off(kind: str) -> bool:
+    """RT-EXTERNAL-GATEWAY-SWITCH-GATE: a channel credential only while the switch names us."""
+
+    from agent_runtime.call_authorization import DEVICE_KIND_CHANNEL
+    from agent_runtime.gateway_channel import external_access_on
+
+    return kind == DEVICE_KIND_CHANNEL and not external_access_on()
+
+
+def _external_access_off() -> Any:
+    from agent_runtime.serve_socket.hello import HelloAuthOutcome
+    from agent_runtime.serve_socket.vocabulary import REJECT_EXTERNAL_ACCESS_OFF
+
+    return HelloAuthOutcome(ok=False, reject_reason=REJECT_EXTERNAL_ACCESS_OFF)
+
+
 def _redeem_device_pairing_code(store_root: Any, message: dict[str, Any], nonce: str, port: int) -> Any:
     """A phone that has just been shown eight characters on the operator's terminal.
 
@@ -112,10 +128,19 @@ def _redeem_device_pairing_code(store_root: Any, message: dict[str, Any], nonce:
     )
     if not isinstance(outcome, DeviceCredential):
         return _bad_proof()
+    if _channel_switch_off(outcome.kind):
+        # The code is spent and the switch is off: the row is revoked in the same breath, so no
+        # live credential exists that nobody holds — the owner re-pairs once the switch is on.
+        from agent_runtime.serve_gateway_auth import revoke_device
+
+        revoke_device(store_root, outcome.device_id)
+        return _external_access_off()
     return HelloAuthOutcome(
         ok=True,
         device_id=outcome.device_id,
         device_tier=outcome.tier,
+        device_kind=outcome.kind,
+        bound_instances=outcome.bound_instances,
         issued_token=outcome.token,
     )
 
@@ -229,11 +254,17 @@ def _verify_device_proof(store_root: Any, message: dict[str, Any], nonce: str, p
     )
     if not auth.ok or auth.record is None:
         return _bad_proof()
+    # After the proof, never before it (the revocation arm's anti-probing order): only a holder
+    # of the credential learns the switch is off.
+    if _channel_switch_off(auth.record.kind):
+        return _external_access_off()
     note_device_seen(store_root, auth.record.device_id)
     return HelloAuthOutcome(
         ok=True,
         device_id=auth.record.device_id,
         device_tier=auth.record.tier,
+        device_kind=auth.record.kind,
+        bound_instances=auth.record.bound_instances,
     )
 
 

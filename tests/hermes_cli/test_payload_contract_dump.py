@@ -122,4 +122,4 @@ def test_the_schema_string_is_the_one_the_launcher_reader_requires(document):
     breaks the other. Pinned here so a bump is a deliberate two-repo act.
     """
     assert document["schema"] == "charsheet_payload_contract/v1"
-    assert sorted(document["payloads"]) == ["list", "sprite", "status", "thumb"]
+    assert sorted(document["payloads"]) == ["cells", "list", "sprite", "status", "thumb"]

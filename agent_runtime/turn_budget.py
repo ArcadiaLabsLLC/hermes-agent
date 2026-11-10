@@ -104,9 +104,16 @@ class TurnWallBudget:
     deadline_epoch: float
     shared: bool = False
     relay_chain: tuple[str, ...] = ()
+    #: QA-only (``agent_runtime.qa_turn_overrides``): open the checkpoint this many seconds into the
+    #: window instead of at ``total - reserve``. ``None`` — every real turn — keeps the reserve rule.
+    checkpoint_after_seconds: float | None = None
 
     @property
     def reserve_seconds(self) -> float:
+        after = _positive_seconds(self.checkpoint_after_seconds)
+        # MUTATION: drop this branch and test_qa_turn_overrides' early-checkpoint row reddens.
+        if after is not None and after < self.total_seconds:
+            return self.total_seconds - after
         return checkpoint_reserve_seconds(self.total_seconds)
 
     @property

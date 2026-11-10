@@ -8,6 +8,7 @@ import json
 
 from agent_runtime.gateway_endpoints import SOURCE_CONFIG, SOURCE_LIVE, listener_endpoint
 from agent_runtime.root_observability import attach_root_observability
+from hermes_cli.flag_binding import list_flag_or_empty
 from hermes_cli.harness_support import (
     _list_envelope,
     _object_envelope,
@@ -40,6 +41,13 @@ def cmd_gateway_pair(args) -> int:
     root = paths.store_root()
     tier = str(getattr(args, "tier", None) or "console")
     name = getattr(args, "name", None)
+    kind = str(getattr(args, "kind", None) or "device")
+    # Iterated into the pairing entry: absent and empty both bind nothing.
+    instances = list_flag_or_empty(args, "instances")
+    client_scope = getattr(args, "client_scope", None) or None
+    refused = _channel_pair_refusal(kind, args)
+    if refused is not None:
+        return refused
 
     # ENSURE, not read, and for both of these. `pair` is a write verb — it is
     # already minting a credential channel — and an operator must be able to run
@@ -76,7 +84,8 @@ def cmd_gateway_pair(args) -> int:
     if failure:
         return failure
 
-    code = mint_pairing_code(root, tier=tier, name=name)
+    code = mint_pairing_code(root, tier=tier, name=name, kind=kind, bound_instances=instances,
+                             client_scope=client_scope)
     if isinstance(code, StoreRefusal):
         # R-D14: a pairing.json this machine cannot write is not the network's
         # fault, and the refusal now says which file to fix.
@@ -104,6 +113,9 @@ def cmd_gateway_pair(args) -> int:
         "expires_in_seconds": code.expires_in_seconds(),
         "tier": code.tier,
         "device_name": code.name,
+        # ``device_kind``: the envelope's own ``kind`` is ``gateway_pairing``.
+        "device_kind": kind,
+        **({"bound_instances": instances, "client_scope": client_scope} if kind == "channel" else {}),
         "install_id": identity.install_id,
         "cert_fingerprint": certificate.fingerprint,
         "endpoint": endpoint,
@@ -128,6 +140,25 @@ def cmd_gateway_pair(args) -> int:
     envelope = attach_root_observability(_object_envelope("gateway_pairing", row))
     _print_stage42(envelope, args=args, default_output="json")
     return 0
+
+
+def _channel_pair_refusal(kind: str, args):
+    """A channel code is minted only while the external-access switch names this namespace (D5)."""
+
+    from agent_runtime.gateway_channel import REASON_EXTERNAL_ACCESS_OFF, external_access_on
+
+    if kind != "channel" or external_access_on():
+        return None
+    return emit_harness_error(
+        RuntimeError(REASON_EXTERNAL_ACCESS_OFF),
+        reason=REASON_EXTERNAL_ACCESS_OFF,
+        args=args,
+        code="invalid_payload",
+        message=(
+            "a channel credential is honoured only while \"Allow agent use outside the launcher\" "
+            "names this namespace (namespace-active.json); turn it on, then pair"
+        ),
+    )
 
 
 def cmd_gateway_devices_list(args) -> int:

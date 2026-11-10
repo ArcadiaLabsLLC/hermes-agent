@@ -474,6 +474,26 @@ def _cmd_persona_chat_history(args) -> int:
     return 0 if data.get("ok") is not False else 2
 
 
+def _cmd_persona_chat_tool_io(args) -> int:
+    """One tool call's full input and result, joined by ``tool_call_id`` — see
+    :func:`agent_runtime.chat_verbs.history.persona_chat_tool_io`."""
+
+    from agent_runtime.chat_verbs.history import persona_chat_tool_io
+
+    data = persona_chat_tool_io(args.session_id, args.tool_call_id, offset=getattr(args, "offset", 0))
+    if getattr(args, "json", False):
+        print(emit_json(data))
+    else:
+        for kind in ("tool_input", "tool_result"):
+            half = data.get(kind) or {}
+            if half.get("ok"):
+                more = f" (more from --offset {half['next_offset']})" if half.get("next_offset") is not None else ""
+                print(f"{kind} [{half.get('total_chars')} chars]{more}:\n{half.get('text') or ''}")
+            else:
+                print(f"{kind}: unavailable ({half.get('error_kind') or 'error'})")
+    return 0 if data.get("ok") else 2
+
+
 #: The ONE value ``parity.frame_source`` can now carry, and the reason it still
 #: rides the envelope at all.
 #:

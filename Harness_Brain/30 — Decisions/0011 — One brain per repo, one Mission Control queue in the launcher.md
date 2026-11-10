@@ -41,6 +41,25 @@ Identical in the launcher, this repo and the backend; do not diverge.
   skills to whoever works the row; each slug is a code span of `[A-Za-z0-9_./-]+`; at most one such
   segment; a segment opening `skills:` in any other shape is a defect. The launcher's twin is ADR 0025
   "Amendment 2026-10-19".
+- **Group (amendment 2026-11-02, twin of launcher ADR 0025's 2026-11-01 amendment):** an optional segment
+  `group: <slug>` names the feature a row belongs to, the same slug in all three brains; the slug is bare
+  (no code span) `[a-z0-9][a-z0-9.-]*`, written first after the bold lead. At most one such segment; a
+  segment opening `group:` empty or in any other shape is a defect. A row citing a `planned/` doc carries
+  one; the rows that predate the rule are a shrink-only ceiling (`GROUP_MISSING_CEILING` in the lint). The
+  Work engine reads it as `Row.group`, serves it on every `runtime.work.list` row, filters by `group?`,
+  writes it from `runtime.work.start`'s `group?` and re-files a row with `Op.SET_GROUP`. Plan:
+  `EterniaLauncher/docs/mission_control/subsystems/QUEUE_ROW_GROUPS_2026-11-01.md`.
+- **Task (amendment 2026-11-09, `RT-QUEUE-TASKS-GRAMMAR`, twin of launcher ADR 0025's 2026-11-09 amendment):**
+  `task: <slug>` (same slug shape) makes the row the TASK of that slug, the plain-English parent of every row
+  whose `group:` is the slug or a dotted `<slug>.<sub>`; a task row carries no `group:`, and an empty,
+  malformed or second `task:`, or one beside a `group:`, is `BAD TASK`. Every row is a task or a subtask; across
+  this vault and the sibling brains checked out beside it the lint names `TWO TASKS`, `GROUP HAS NO TASK`
+  (only with both siblings visible), `ROW HAS NO TASK` and `TASK TITLE` (a code span, path or row ID in the
+  title, or over 100 characters) — `agent_runtime/work_store/tasks.py::task_defects`, the no-task pair under
+  the shrink-only `TASK_DEFECT_CEILING` (0). `runtime.work.claim` refuses a subtask whose task is not READY
+  (`task_not_ready`); `scripts/work_row.py close` archives a task with its last subtask and sets a BLOCKED task
+  READY when a close wakes one of its subtasks. Plan:
+  `EterniaLauncher/docs/mission_control/subsystems/QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md` D1–D4, D7.
 - **Claim place (amendment 2026-10-27, twin of launcher ADR 0025's 2026-10-26 amendment):** a lane claim is
   `**TAKEN <date> <lane> on <machine> as <git account> in <worktree>**`; one dated 2026-10-27 or later with no
   `on <machine>` is a defect. Persona claims and earlier marks are exempt.
@@ -48,6 +67,20 @@ Identical in the launcher, this repo and the backend; do not diverge.
   `REQUIRES <host>[, <host>…]` (host `windows` | `macos` | `linux`, each once) names the OS a row must be
   worked on — a record like RULED, never a status. An unknown or repeated host, no host, or a second
   `REQUIRES` segment is a defect.
+- **Closing ARCHIVES (amendment 2026-11-03, `RT-QUEUE-ARCHIVE-GRAMMAR`; launcher plan
+  `EterniaLauncher/docs/mission_control/subsystems/QUEUE_CLOSED_ROW_ARCHIVE_2026-11-02.md` D1–D6):** a closed row
+  is moved, never deleted, to `Harness_Brain/80 — Archive/Queues/<queue stem>-<YYYY-MM>.md` (`type:
+  queue-archive`, `queue:`, `program:`, `month:` frontmatter and one banner line; the month is the outcome's
+  date), as the live line with its `**TAKEN …**` mark removed and its status (with any `Recommend:` after it)
+  replaced by ONE outcome: `DONE <date> <commit>`, `REFUTED <date> <commit>` (`<commit>` 7–40 lowercase hex,
+  or `here` when the delivery is the close commit) or `CLOSED <date>: owner — <the owner's words>`; then at
+  most one `result: <line ≤ 300>` and one `review: <words>`. An outcome on a live row is `CLOSED ROW LIVE`; a
+  status or claim on an archived row `ARCHIVE ROW OPEN`; zero, two or a malformed outcome `BAD OUTCOME`; an
+  ID both live and archived `ARCHIVED ROW LIVE`. The close is `scripts/work_row.py close <ID> --done <sha>`
+  (or `--refuted <sha>` / `--owner "<words>"`), one queue-only commit after the delivery; the Work engine's
+  writer has `Op.CLOSE`. The lint parses the current and previous month in full and ID-scans every month; the
+  row guard refuses a row that left the live queues without an archive line (from 2026-11-04; a note
+  before), an archived row still live, and an outcome sha that is not an ancestor of the pushed head.
 - **Engine-minted IDs (amendment 2026-10-18, Work W1):** a row the Work engine appends is `WORK-<6>` —
   `WORK-` plus six base32 characters (`[A-Z2-7]{6}`), minted by the engine, unique within the brain like
   any ID. Lane rows keep their domain prefixes; nothing existing is renumbered.

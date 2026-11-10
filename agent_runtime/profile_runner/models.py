@@ -89,6 +89,10 @@ class AgentRunRequest:
     skip_memory: bool = True
     max_iterations: int = 90
     max_wall_seconds: float | None = None
+    # QA-only seams (``agent_runtime.qa_turn_overrides``, admitted by the caller): the checkpoint's
+    # early opening and a wait before the first provider call. ``None`` on every real turn.
+    qa_checkpoint_after_seconds: float | None = None
+    qa_silence_seconds: float | None = None
     max_api_calls: int | None = None
     max_total_tokens: int | None = None
     system_message: str | None = None

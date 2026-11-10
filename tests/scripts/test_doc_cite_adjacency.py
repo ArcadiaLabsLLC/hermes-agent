@@ -707,3 +707,19 @@ def test_arm_1_did_not_widen_what_arm_2_judges():
         assert probe.PATH_MENTION.search(f"`{token}`") is None, token
         assert probe.FOREIGN_CITE.search(f"`{token}`") is not None, token
     assert probe.CITE.search("`store.py:5`") is not None
+
+
+# FH-PREPUSH-DOC-CITE-OVER-BUDGET: a slashed token is answered from a suffix index, not a scan of
+# every tracked path. KILLING MUTATIONS: start the suffixes at component 2 (``range(2, …)``) -> the
+# longest proper suffix is lost and ``a/pkg/models.py`` no longer finds ``x/a/pkg/models.py``;
+# drop the ``is paths`` identity check -> the second set is answered from the first set's index.
+@pytest.mark.parametrize("token", [
+    "pkg/models.py", "a/pkg/models.py", "x/a/pkg/models.py", "/a/pkg/models.py", "pkg/", "models.py/x",
+    "b/models.py", "deep/er/still/f.py", "er/still/f.py",
+])
+def test_a_slashed_token_resolves_to_every_path_it_ends_on_a_component_boundary(token):
+    paths = {"a/pkg/models.py", "x/a/pkg/models.py", "b/models.py", "deep/er/still/f.py", "top.py"}
+    scan = [token] if token in paths else sorted(path for path in paths if path.endswith("/" + token))
+    assert probe.resolve_candidates(token, paths, {}) == scan
+    other = {"z/b/models.py", "q1.py", "q2.py", "q3.py", "q4.py"}  # as many paths: only identity tells them apart
+    assert probe.resolve_candidates("b/models.py", other, {}) == ["z/b/models.py"]

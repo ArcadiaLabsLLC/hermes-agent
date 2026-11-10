@@ -90,3 +90,54 @@ def test_an_emitter_dropped_without_finish_stops_its_heartbeat(monkeypatch):
     time.sleep(0.1)
     assert [f["type"] for f in frames[settled:]] == []
     assert not any(f["type"] == "turn.end" for f in frames)  # finish() was never called
+
+
+def test_quiet_gap_beats_reach_the_serve_request_lane(monkeypatch):
+    """RT-TURN-PROGRESS-BEATS-NOT-REACHING-LAUNCHER: a turn quiet between frames (a long
+    reasoning wait) still puts ``turn.progress`` on the serve's per-request frame lane,
+    tagged with the request id, from the heartbeat thread, until ``turn.end``."""
+    import contextvars
+    import functools
+    import json
+    import sys
+    from hermes_cli.harness_parts.persona import chat_events
+    from hermes_cli.harness_parts.serve.frames import _LineFrameProxy, _request_id
+
+    class _Sink:
+        def __init__(self):
+            self.frames = []
+
+        def emit(self, frame):
+            self.frames.append(frame)
+
+    sink = _Sink()
+    monkeypatch.setattr(sys, "stdout", _LineFrameProxy(sink, "stdout"))
+    monkeypatch.setattr(chat_events, "ToolHeartbeat", functools.partial(ToolHeartbeat, interval=0.02))
+    beats = threading.Event()
+
+    def handler():  # the serve worker: request id bound, then the turn runs on it
+        _request_id.set("req-quiet")
+        emitter = chat_events._ChatProtocolV2Emitter(turn_id="quiet-gap", client_message_id="quiet-gap")
+        emitter.delta("thinking about it")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and sum(
+            1 for f in sink.frames if '"turn.progress"' in f["line"]) < 3:
+            time.sleep(0.01)
+        beats.set()
+        emitter.finish(state="completed")
+
+    worker = threading.Thread(target=lambda: contextvars.Context().run(handler))
+    worker.start()
+    worker.join(10)
+    assert beats.is_set()
+    lines = [(f["id"], f["event"], json.loads(f["line"])) for f in sink.frames]
+    assert {rid for rid, _, _ in lines} == {"req-quiet"}
+    assert {event for _, event, _ in lines} == {"stdout"}
+    progress = [frame for _, _, frame in lines if frame["type"] == "turn.progress"]
+    assert len(progress) >= 3
+    assert all(frame["turn_id"] == "quiet-gap" and frame["protocol_version"] == 2 for frame in progress)
+    elapsed = [frame["elapsed_ms"] for frame in progress]
+    assert elapsed == sorted(elapsed)
+    seqs = [frame["frame_seq"] for _, _, frame in lines]
+    assert seqs == sorted(seqs) and len(set(seqs)) == len(seqs)
+    assert lines[-1][2]["type"] == "turn.end"

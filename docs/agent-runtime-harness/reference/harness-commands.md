@@ -54,19 +54,6 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness workspace slots env-set](#hermes-harness-workspace-slots-env-set)
 - [hermes harness workspace slots report](#hermes-harness-workspace-slots-report)
 - [hermes harness workspace slots clone](#hermes-harness-workspace-slots-clone)
-- [hermes harness project](#hermes-harness-project)
-- [hermes harness project list](#hermes-harness-project-list)
-- [hermes harness project show](#hermes-harness-project-show)
-- [hermes harness project report](#hermes-harness-project-report)
-- [hermes harness project declare](#hermes-harness-project-declare)
-- [hermes harness project slot](#hermes-harness-project-slot)
-- [hermes harness project slot bind](#hermes-harness-project-slot-bind)
-- [hermes harness project slot clone](#hermes-harness-project-slot-clone)
-- [hermes harness project slot env-set](#hermes-harness-project-slot-env-set)
-- [hermes harness project recipe](#hermes-harness-project-recipe)
-- [hermes harness project recipe show](#hermes-harness-project-recipe-show)
-- [hermes harness project recipe set](#hermes-harness-project-recipe-set)
-- [hermes harness project recipe run-step](#hermes-harness-project-recipe-run-step)
 - [hermes harness realm](#hermes-harness-realm)
 - [hermes harness realm list](#hermes-harness-realm-list)
 - [hermes harness realm show](#hermes-harness-realm-show)
@@ -144,6 +131,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona chat](#hermes-harness-persona-chat)
 - [hermes harness persona chat delete](#hermes-harness-persona-chat-delete)
 - [hermes harness persona chat history](#hermes-harness-persona-chat-history)
+- [hermes harness persona chat tool-io](#hermes-harness-persona-chat-tool-io)
 - [hermes harness persona chat-head](#hermes-harness-persona-chat-head)
 - [hermes harness persona chat-head migrate](#hermes-harness-persona-chat-head-migrate)
 - [hermes harness persona set-model](#hermes-harness-persona-set-model)
@@ -223,6 +211,7 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness characters migrate-home](#hermes-harness-characters-migrate-home)
 - [hermes harness characters status](#hermes-harness-characters-status)
 - [hermes harness characters thumb](#hermes-harness-characters-thumb)
+- [hermes harness characters cells](#hermes-harness-characters-cells)
 - [hermes harness characters base](#hermes-harness-characters-base)
 - [hermes harness characters turnaround](#hermes-harness-characters-turnaround)
 - [hermes harness characters reroll-direction](#hermes-harness-characters-reroll-direction)
@@ -241,10 +230,10 @@ before changing state. Alias paths share the canonical command's flags.
 
 ```text
 usage: hermes harness [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color] [--fields FIELDS]
-                      {execution-identity,auth,init,roots,gateway,workspace,project,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,conversation,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters} ...
+                      {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,conversation,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters} ...
 
 positional arguments:
-  {execution-identity,auth,init,roots,gateway,workspace,project,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,conversation,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters}
+  {execution-identity,auth,init,roots,gateway,workspace,realm,flow,checkpoint,skills,prompt-context,board,office,level,map,persona,mission-chat,status,providers,usage,doctor,health,verify,config,migrate,conversation,observe,contracts,worktree,persona-instance,query,agent,install-harness-skills,snapshot,stream,serve,work,builds,pets,characters}
     execution-identity  Identify this Hermes installation without starting a service
     auth                Connect a provider without a terminal prompt
     init                Initialize the harness store
@@ -252,7 +241,6 @@ positional arguments:
     gateway             This runtime root's remote-gateway install identity — the name and id a
                         phone's install picker shows
     workspace           Manage Harness workspaces
-    project             Projects: the repo slots a workspace's agents work in
     realm               Manage Harness realms
     flow                Operator flow-graph documents: ingest the Launcher's authored agent map
                         whole and set the referenced instances' steering relations
@@ -537,8 +525,9 @@ options:
 
 ```text
 usage: hermes harness gateway pair [-h] [--name NAME] [--tier {console,read}]
-                                   [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                   [--fields FIELDS]
+                                   [--kind {device,channel}] [--instance INSTANCES]
+                                   [--client-scope CLIENT_SCOPE] [-o {json,table,yaml,wide}]
+                                   [--json] [-q] [--no-color] [--fields FIELDS]
 
 options:
   -h, --help            show this help message and exit
@@ -546,6 +535,14 @@ options:
   --tier {console,read}
                         What the paired device may do. console: run console verbs (create/retire
                         agents). read: view only.
+  --kind {device,channel}
+                        device: a person's screen. channel: your own external gateway (a bot), which
+                        may only relay chat turns to the --instance agents
+  --instance INSTANCES  A persona instance id a channel credential is bound to (repeatable; required
+                        with --kind channel)
+  --client-scope CLIENT_SCOPE
+                        The owning account's client-scope digest (64 hex; --kind channel only): the
+                        channel's conversations list under that account
   -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
@@ -1118,278 +1115,6 @@ options:
   -q, --quiet
   --no-color
   --fields FIELDS
-```
-
-## hermes harness project
-
-```text
-usage: hermes harness project [-h] {list,show,report,declare,slot,recipe} ...
-
-positional arguments:
-  {list,show,report,declare,slot,recipe}
-    list                Every Project with its slots and the workspaces it is connected to
-    show                The Project record, its realms and this machine's fill (read-only)
-    report              Re-probe this machine's fill of the Project's slots
-    declare             Replace the Project's declared slots (missing names are tombstoned); creates
-                        the Project
-    slot                One slot on THIS machine: bind, clone, environment fill
-    recipe              The setup recipe of the Project's slots
-
-options:
-  -h, --help            show this help message and exit
-```
-
-## hermes harness project list
-
-```text
-usage: hermes harness project list [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                   [--fields FIELDS]
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-```
-
-## hermes harness project show
-
-```text
-usage: hermes harness project show [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                   [--fields FIELDS]
-                                   project_id
-
-positional arguments:
-  project_id
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-```
-
-## hermes harness project report
-
-```text
-usage: hermes harness project report [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                     [--fields FIELDS]
-                                     project_id
-
-positional arguments:
-  project_id
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-```
-
-## hermes harness project declare
-
-```text
-usage: hermes harness project declare [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                      [--fields FIELDS] --slots-file SLOTS_FILE [--name NAME]
-                                      [--issued-at ISSUED_AT]
-                                      project_id
-
-positional arguments:
-  project_id
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --slots-file SLOTS_FILE
-                        JSON list of {name, repo, toolchain, context}
-  --name NAME           The Project's display name
-  --issued-at ISSUED_AT
-                        ISO-8601 issue time; an older declaration is refused
-```
-
-## hermes harness project slot
-
-```text
-usage: hermes harness project slot [-h] {bind,clone,env-set} ...
-
-positional arguments:
-  {bind,clone,env-set}
-    bind                Bind a declared slot to a local checkout on THIS machine
-    clone               Clone a declared slot into a path on THIS machine, then bind it
-    env-set             Replace this machine's environment fill for a slot (secrets belong in .env)
-
-options:
-  -h, --help            show this help message and exit
-```
-
-## hermes harness project slot bind
-
-```text
-usage: hermes harness project slot bind [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                        [--fields FIELDS] [--issued-at ISSUED_AT]
-                                        project_id slot path
-
-positional arguments:
-  project_id
-  slot
-  path                  Absolute path to the checkout on this machine
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --issued-at ISSUED_AT
-```
-
-## hermes harness project slot clone
-
-```text
-usage: hermes harness project slot clone [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                         [--fields FIELDS] [--issued-at ISSUED_AT]
-                                         project_id slot dest_path
-
-positional arguments:
-  project_id
-  slot
-  dest_path             Absolute path the checkout lands at (absent or an empty directory)
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --issued-at ISSUED_AT
-```
-
-## hermes harness project slot env-set
-
-```text
-usage: hermes harness project slot env-set [-h] [-o {json,table,yaml,wide}] [--json] [-q]
-                                           [--no-color] [--fields FIELDS] [--env ENV]
-                                           [--keep ENV_KEEP] [--tool-path TOOL_PATH]
-                                           [--path-prepend PATH_PREPEND] [--dotenv DOTENV]
-                                           [--venv VENV] [--issued-at ISSUED_AT]
-                                           project_id slot
-
-positional arguments:
-  project_id
-  slot
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --env ENV             KEY=VALUE (repeatable)
-  --keep ENV_KEEP       Keep this key's stored value (repeatable)
-  --tool-path TOOL_PATH
-                        TOOL=PATH (repeatable)
-  --path-prepend PATH_PREPEND
-                        Directory put in front of PATH (repeatable)
-  --dotenv DOTENV       The .env file, relative to the checkout
-  --venv VENV           A virtualenv whose bin/Scripts directory is prepended
-  --issued-at ISSUED_AT
-```
-
-## hermes harness project recipe
-
-```text
-usage: hermes harness project recipe [-h] {show,set,run-step} ...
-
-positional arguments:
-  {show,set,run-step}
-    show               Every slot's setup recipe and its last runs (read-only)
-    set                Replace one slot's owner steps
-    run-step           Run ONE owner command step of a slot on THIS machine and wait
-
-options:
-  -h, --help           show this help message and exit
-```
-
-## hermes harness project recipe show
-
-```text
-usage: hermes harness project recipe show [-h] [-o {json,table,yaml,wide}] [--json] [-q]
-                                          [--no-color] [--fields FIELDS]
-                                          project_id
-
-positional arguments:
-  project_id
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-```
-
-## hermes harness project recipe set
-
-```text
-usage: hermes harness project recipe set [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                         [--fields FIELDS] --steps-file STEPS_FILE
-                                         --revision REVISION
-                                         [--persona-instance-id PERSONA_INSTANCE_ID]
-                                         [--issued-at ISSUED_AT]
-                                         project_id slot
-
-positional arguments:
-  project_id
-  slot
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --steps-file STEPS_FILE
-                        JSON list of owner steps
-  --revision REVISION   The recipe revision this edit replaces
-  --persona-instance-id PERSONA_INSTANCE_ID
-  --issued-at ISSUED_AT
-```
-
-## hermes harness project recipe run-step
-
-```text
-usage: hermes harness project recipe run-step [-h] [-o {json,table,yaml,wide}] [--json] [-q]
-                                              [--no-color] [--fields FIELDS] [--issued-at ISSUED_AT]
-                                              project_id slot step_id
-
-positional arguments:
-  project_id
-  slot
-  step_id
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output {json,table,yaml,wide}
-  --json                Alias for -o json
-  -q, --quiet
-  --no-color
-  --fields FIELDS
-  --issued-at ISSUED_AT
 ```
 
 ## hermes harness realm
@@ -2847,15 +2572,17 @@ options:
 ## hermes harness persona chat
 
 ```text
-usage: hermes harness persona chat [-h] {delete,history} ...
+usage: hermes harness persona chat [-h] {delete,history,tool-io} ...
 
 positional arguments:
-  {delete,history}
-    delete          Delete a persona chat session and clear active persona bindings
-    history         Page a persona chat session's complete redaction-safe transcript
+  {delete,history,tool-io}
+    delete              Delete a persona chat session and clear active persona bindings
+    history             Page a persona chat session's complete redaction-safe transcript
+    tool-io             Read one tool call's full redacted input and result (the transcript keeps a
+                        head-cut copy)
 
 options:
-  -h, --help        show this help message and exit
+  -h, --help            show this help message and exit
 ```
 
 ## hermes harness persona chat delete
@@ -2885,6 +2612,21 @@ options:
   --session-id SESSION_ID
   --limit LIMIT         Page size (clamped 1..40)
   --before BEFORE       Opaque cursor returned by the previous page
+  --json
+```
+
+## hermes harness persona chat tool-io
+
+```text
+usage: hermes harness persona chat tool-io [-h] --session-id SESSION_ID --tool-call-id TOOL_CALL_ID
+                                           [--offset OFFSET] [--json]
+
+options:
+  -h, --help            show this help message and exit
+  --session-id SESSION_ID
+  --tool-call-id TOOL_CALL_ID
+                        The tool element's tool_call_id
+  --offset OFFSET       Window start; pass the previous answer's next_offset
   --json
 ```
 
@@ -3021,8 +2763,8 @@ usage: hermes harness persona instance create [-h] --persona PERSONA_ID --title 
                                               [--coordinator-may-kill-others]
                                               [--client-message-id CLIENT_MESSAGE_ID]
                                               [--display-name DISPLAY_NAME]
-                                              [--session-id SESSION_ID] [--kill-active]
-                                              [--add-instance] [--placement-id PLACEMENT_ID]
+                                              [--session-id SESSION_ID] [--add-instance]
+                                              [--placement-id PLACEMENT_ID]
                                               [--workspace-id WORKSPACE_ID] [--realm-id REALM_ID]
                                               [--json]
 
@@ -3047,7 +2789,6 @@ options:
   --client-message-id CLIENT_MESSAGE_ID
   --display-name DISPLAY_NAME
   --session-id SESSION_ID
-  --kill-active         Retired: accepted and ignored
   --add-instance        Create an additional placement-backed instance instead of targeting the
                         primary placement
   --placement-id PLACEMENT_ID
@@ -3067,11 +2808,12 @@ options:
 usage: hermes harness persona instance open-chat [-h] --persona PERSONA_ID
                                                  [--persona-instance-id PERSONA_INSTANCE_ID]
                                                  [--session-id SESSION_ID] [--new-session]
-                                                 [--idempotency-key IDEMPOTENCY_KEY] [--kill-active]
+                                                 [--idempotency-key IDEMPOTENCY_KEY]
                                                  [--add-instance] [--placement-id PLACEMENT_ID]
                                                  [--workspace-id WORKSPACE_ID] [--realm-id REALM_ID]
                                                  [--display-name DISPLAY_NAME]
                                                  [--requested-by REQUESTED_BY]
+                                                 [--correlation-id CORRELATION_ID]
                                                  [--coordinator-id COORDINATOR_ID]
                                                  [--coordinator-max-spawns COORDINATOR_MAX_SPAWNS]
                                                  [--coordinator-spawns-used COORDINATOR_SPAWNS_USED]
@@ -3088,7 +2830,6 @@ options:
   --new-session         Mint and select a fresh server-owned chat session for the target instance
   --idempotency-key IDEMPOTENCY_KEY
                         Stable retry key required with --new-session
-  --kill-active         Retired: accepted and ignored
   --add-instance        Open the chat on an additional placement-backed instance
   --placement-id PLACEMENT_ID
                         Scene itemId for an additional placement-backed instance; must end in the
@@ -3102,6 +2843,7 @@ options:
                         Authoritative name for a deliberately placed additional instance; ignored
                         unless --add-instance
   --requested-by REQUESTED_BY
+  --correlation-id CORRELATION_ID
   --coordinator-id COORDINATOR_ID
                         Coordinator persona id when --requested-by is coordinator; coordinator:<id>
                         carries it inline
@@ -3428,12 +3170,16 @@ usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--agents-file AGENTS_FILE] [--intent-hint INTENT_HINT]
                                            [--requested-by REQUESTED_BY]
                                            [--client-message-id CLIENT_MESSAGE_ID]
-                                           [--idempotency-key IDEMPOTENCY_KEY] [--retry-of RETRY_OF]
+                                           [--idempotency-key IDEMPOTENCY_KEY]
+                                           [--input-mode {typed,voice}] [--retry-of RETRY_OF]
                                            [--image IMAGES] [--file FILES] [--skill SKILLS]
                                            [--stream] [--max-seconds MAX_SECONDS]
                                            [--compression-threshold-tokens COMPRESSION_THRESHOLD_TOKENS]
                                            [--compression-protect-first-n COMPRESSION_PROTECT_FIRST_N]
                                            [--compression-protect-last-n COMPRESSION_PROTECT_LAST_N]
+                                           [--qa-checkpoint-after-seconds QA_CHECKPOINT_AFTER_SECONDS]
+                                           [--qa-max-iterations QA_MAX_ITERATIONS]
+                                           [--qa-silence-seconds QA_SILENCE_SECONDS]
                                            [--relay-chain RELAY_CHAIN]
                                            [--relay-deadline-epoch RELAY_DEADLINE_EPOCH]
                                            [--requested-by-session REQUESTED_BY_SESSION]
@@ -3465,6 +3211,9 @@ options:
   --requested-by REQUESTED_BY
   --client-message-id CLIENT_MESSAGE_ID
   --idempotency-key IDEMPOTENCY_KEY
+  --input-mode {typed,voice}
+                        How the operator made this message (typed | voice; absent = typed); recorded
+                        on the turn and carried on its history row
   --retry-of RETRY_OF   client_message_id of the interrupted or budget-exhausted turn of this chat
                         that this send re-runs (recorded as the turn's lineage; any other target is
                         refused chat_turn_retry_target_invalid)
@@ -3490,6 +3239,17 @@ options:
                         One-turn native-compression proof seam; override protected head messages
   --compression-protect-last-n COMPRESSION_PROTECT_LAST_N
                         One-turn native-compression proof seam; override protected tail messages
+  --qa-checkpoint-after-seconds QA_CHECKPOINT_AFTER_SECONDS
+                        QA only (a stagec-* namespace under HERMES_QA_PROVIDER_POOL; refused
+                        elsewhere): open this turn's wall-budget checkpoint this many seconds in
+                        (1-600)
+  --qa-max-iterations QA_MAX_ITERATIONS
+                        QA only (refused outside a QA provider pool): this turn's tool-iteration
+                        limit (1-90; default 90)
+  --qa-silence-seconds QA_SILENCE_SECONDS
+                        QA only (refused outside a QA provider pool): wait this many seconds before
+                        the first provider call, a model silence the turn heartbeat beats through
+                        (0-300)
   --relay-chain RELAY_CHAIN
                         Comma-separated canonical persona ids already on the agent-relay chain
                         (envelope provenance for chained agent_chat_send hops)
@@ -3795,12 +3555,18 @@ options:
 ## hermes harness observe snapshot-builds
 
 ```text
-usage: hermes harness observe snapshot-builds [-h] [--since SINCE] [--log LOG] [--json]
+usage: hermes harness observe snapshot-builds [-h] [--since SINCE] [--log LOG]
+                                              [--qa-namespace-root QA_NAMESPACE_ROOT] [--json]
 
 options:
-  -h, --help     show this help message and exit
-  --since SINCE  Window back from now: 90s, 30m, 2h, 1d (default 1h)
-  --log LOG      agent.log to read (default <HERMES_HOME>/logs/agent.log, rotations included)
+  -h, --help            show this help message and exit
+  --since SINCE         Window back from now: 90s, 30m, 2h, 1d (default 1h)
+  --log LOG             agent.log to read (default <HERMES_HOME>/logs/agent.log, rotations included)
+  --qa-namespace-root QA_NAMESPACE_ROOT
+                        A QA lane namespace's folder (<QA folder>/hermes-namespaces/stagec-*) to
+                        read instead of this process's: its profiles/base/logs/agent.log and its
+                        agent-runtime store, read only; no namespace is resolved, so it works from
+                        outside the launcher
   --json
 ```
 
@@ -3809,8 +3575,9 @@ options:
 ```text
 usage: hermes harness observe turn-timing [-h] [--since SINCE] [--log LOG]
                                           [--launcher-log LAUNCHER_LOG] [--baseline BASELINE]
-                                          [--json] [--check] [--last LAST] [--from FROM_TIME]
-                                          [--to TO_TIME] [--budgets BUDGETS]
+                                          [--qa-namespace-root QA_NAMESPACE_ROOT] [--json] [--check]
+                                          [--last LAST] [--from FROM_TIME] [--to TO_TIME]
+                                          [--budgets BUDGETS]
 
 options:
   -h, --help            show this help message and exit
@@ -3819,6 +3586,11 @@ options:
   --launcher-log LAUNCHER_LOG
                         Launcher diag log (default: newest <temp>/eternia_launcher_diag*.log)
   --baseline BASELINE   Baseline JSON (default tests/fixtures/turn_timing_baseline.json)
+  --qa-namespace-root QA_NAMESPACE_ROOT
+                        A QA lane namespace's folder (<QA folder>/hermes-namespaces/stagec-*) to
+                        read instead of this process's: its profiles/base/logs/agent.log and its
+                        agent-runtime store, read only; no namespace is resolved, so it works from
+                        outside the launcher
   --json
   --check               Judge the last N turns' receipts against
                         agent_runtime/turn_latency_budgets.json; exit 1 on any FAIL
@@ -4348,10 +4120,10 @@ options:
 
 ```text
 usage: hermes harness characters [-h]
-                                 {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,recolour,add-state,sprite,payload-contract} ...
+                                 {start,list,backfill-home,migrate-home,status,thumb,cells,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,recolour,add-state,sprite,payload-contract} ...
 
 positional arguments:
-  {start,list,backfill-home,migrate-home,status,thumb,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,recolour,add-state,sprite,payload-contract}
+  {start,list,backfill-home,migrate-home,status,thumb,cells,base,turnaround,reroll-direction,approve-direction,rows,reroll-row,compose,auto,reopen,recolour,add-state,sprite,payload-contract}
     start               Create a character draft at stage 'turnaround' (offline; generates nothing)
     list                List character drafts and installed characters
     backfill-home       Record `hermes_home` on library drafts that carry no home, and on no others.
@@ -4376,6 +4148,11 @@ positional arguments:
     status              Full draft state: stage, spec, per-item QA history
     thumb               Write a card-size QA crop of ONE FRAME of one row attempt (chroma keyed out,
                         NEAREST upscale on a flat dark backdrop) and return its path
+    cells               Write an APPROVED row's registered frameW x frameH cells as one strip
+                        (frames x frameW by frameH) and return its path: the cells compose packs for
+                        that row (same extraction, shared scale over every approved row, palette
+                        lock once every direction is approved), where status's approvedPath is the
+                        raw roll
     base                Set or replace the draft's base identity image
     turnaround          Generate the authored direction references (stage 'turnaround')
     reroll-direction    Re-generate ONE direction reference, with an optional operator note
@@ -4522,6 +4299,18 @@ options:
                         says square: true. Both budget booleans are weighed on the padded output.
                         Use it for a hero card; take the bare crop for a compare pair, whose panes
                         align on today's shapes
+  --json
+```
+
+## hermes harness characters cells
+
+```text
+usage: hermes harness characters cells [-h] --draft DRAFT --row ROW [--json]
+
+options:
+  -h, --help     show this help message and exit
+  --draft DRAFT
+  --row ROW      An authored row key with an approved strip, e.g. walk-e
   --json
 ```
 

@@ -10,6 +10,7 @@ from .chat_lane_skill_index import chat_lane_index_skills
 from .mcp_admission import LANE_MISSION_CHAT
 from .model_api_mode import turn_api_mode
 from .launcher_invocation import launcher_invocation
+from .turn_attendance import attended_turn
 from .models import AgentPersona
 from .mission_chat_clarify import MissionChatClarifyCapture
 from .mission_chat_prompts import (
@@ -32,6 +33,20 @@ from .tool_permissions import ChatToolPermissionStore
 
 __layer__ = "lanes"
 
+
+
+def _qa_request_fields(overrides) -> dict:
+    """The runner fields a QA turn's admitted overrides set (none on a real turn)."""
+
+    if overrides is None:
+        return {}
+    fields: dict = {
+        "qa_checkpoint_after_seconds": overrides.checkpoint_after_seconds,
+        "qa_silence_seconds": overrides.silence_seconds,
+    }
+    if overrides.max_iterations is not None:
+        fields["max_iterations"] = overrides.max_iterations
+    return fields
 
 class GPTPersonaRuntime:
     def __init__(
@@ -104,6 +119,9 @@ class GPTPersonaRuntime:
         # operator. ``None`` on every operator/CLI send — those rows stay
         # byte-identical.
         relay_sender_marker: str | None = None,
+        # Whether a person is reading this turn as it streams (``turn_attendance``): the caller
+        # decides from ``requested_by``; None leaves upstream's session-source rule in charge.
+        attended: bool | None = None,
         root_chat_session_id: str | None = None,
         client_message_id: str | None = None,
         runtime_registry=None,
@@ -117,6 +135,9 @@ class GPTPersonaRuntime:
         compression_threshold_tokens_override: int | None = None,
         compression_protect_first_n_override: int | None = None,
         compression_protect_last_n_override: int | None = None,
+        # QA-only limit overrides (``agent_runtime.qa_turn_overrides``), already admitted by the
+        # caller; ``None`` on every real turn.
+        qa_turn_overrides=None,
     ) -> AgentRunResult:
         """Run the canonical Mission Control chat path.
 
@@ -139,6 +160,11 @@ class GPTPersonaRuntime:
         if binding.readiness == "missing_profile":
             raise ValueError(binding.summary)
         runtime_provider, runtime_model = turn_provider_model(persona, provider_override, model_override, self._default_provider, self._default_model)
+        if not runtime_model:
+            # An empty model id reached anthropic and came back 404 (RT-NO-MODEL-CHAT-SENDS-AND-404S).
+            from .provider_dependency_error import ChatModelUnsetError
+
+            raise ChatModelUnsetError(provider=runtime_provider)
         _assert_turn_provider_health(persona, runtime_provider, runtime_model)
         # Non-blocking clarify bridge for this lane: a clarify call records the
         # question and ends the turn instead of blocking on a human queue the
@@ -195,7 +221,7 @@ class GPTPersonaRuntime:
             before_first_trace=pre_trace_callback,
             on_trace=trace_callback,
         )
-        with slot_env_scope(slot_bindings, workdir.path if workdir.grounded else None), launcher_invocation(
+        with attended_turn(attended), slot_env_scope(slot_bindings, workdir.path if workdir.grounded else None), launcher_invocation(
                 "operator", root_chat_session_id or perm_session_id, turn_id,
                 persona_instance_id=persona_instance_id, profile=binding.hermes_profile):
             result = self._runner.run(
@@ -252,6 +278,7 @@ class GPTPersonaRuntime:
                     max_wall_seconds=max_wall_seconds,
                     max_api_calls=max_api_calls,
                     max_total_tokens=max_total_tokens,
+                    **_qa_request_fields(qa_turn_overrides),
                     # Byte-stable system prompt (T5 + T9a): the volatile Runtime
                     # Situation HUD *and* the queued-skill preload ride the operator's
                     # user turn, not the codex ``instructions``, so the cross-turn

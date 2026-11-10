@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import shutil
 import uuid
-from collections.abc import Callable
 
 from hermes_time import now
 
@@ -33,6 +32,14 @@ from .ledgers import DELETED_WORKSPACE_LEDGER_CAP, _prune_workspace_lifts
 from .realms import RealmStore
 
 __layer__ = "stores"
+
+
+def _brain_paths_changed(reason: str) -> None:
+    """The workspace half of ``agent_runtime.brain_paths.changed`` (RT-BRAIN-PATHS-PLAIN-LIST)."""
+
+    from ..brain_paths import changed
+
+    changed(reason)
 
 
 class WorkspaceStore:
@@ -74,6 +81,7 @@ class WorkspaceStore:
         if path.exists():
             raise AlreadyExists(item.id)
         _write_model(path, item)
+        _brain_paths_changed("workspace.created")
         emit_store_event(
             self.event_log,
             "workspace.created",
@@ -92,30 +100,15 @@ class WorkspaceStore:
         return sorted(items, key=lambda item: (item.name.lower(), item.id))
 
     def save(self, item: Workspace, *, emit_event: bool = True) -> Workspace:
-        # Project references have a revisioned command. An older rename/roster
-        # record must not overwrite a connection committed while it was held.
         with _file_lock(paths.store_root() / "workspace_write_locks" / f"{paths.safe_path_token(item.id)}.lock", timeout_seconds=2.0):
-            if paths.workspace_path(item.id).exists():
-                current = self.get(item.id)
-                item.project_ids = current.project_ids
-                item.project_assignment_revision = current.project_assignment_revision
             return self._save_unlocked(item, emit_event=emit_event)
-
-    def update_project_connections(self, workspace_id: str, change: Callable[[Workspace], None]) -> Workspace:
-        """Apply the connection command to the current workspace, under its writer lock."""
-        with _file_lock(paths.store_root() / "workspace_write_locks" / f"{paths.safe_path_token(workspace_id)}.lock", timeout_seconds=2.0):
-            item = self.get(workspace_id)
-            revision = item.project_assignment_revision
-            change(item)
-            if revision == item.project_assignment_revision:
-                return item
-            return self._save_unlocked(item)
 
     def _save_unlocked(self, item: Workspace, *, emit_event: bool = True) -> Workspace:
         """``emit_event=False`` is for named mutators (rename/archive/…) that
         append their own, more specific event — never for skipping emission."""
         item.updated_at = now()
         _write_model(paths.workspace_path(item.id), item)
+        _brain_paths_changed("workspace.updated")
         if emit_event:
             emit_store_event(
                 self.event_log,
@@ -327,6 +320,7 @@ class WorkspaceStore:
             )
 
         paths.workspace_path(item.id).unlink(missing_ok=True)
+        _brain_paths_changed("workspace.deleted")
         if self.active_id() == item.id:
             # Clear the dangling pointer; verb-layer callers may re-reconcile
             # to the realm's default afterwards.

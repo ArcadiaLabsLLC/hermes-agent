@@ -203,8 +203,8 @@ def test_mission_chat_turn_mirrors_the_order_and_the_recorded_reply(
     from tests.agent_runtime.test_persona_assignments import (
         _TranscriptDB,
         _assignment_config,
-        _mission_chat_test_args,
     )
+    from tests.agent_runtime.test_persona_assignments_chat_history import _mission_chat_test_args
 
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
     reset_chat_live_log_state()
@@ -250,8 +250,8 @@ def test_mission_chat_resend_does_not_double_the_mirrored_order(
     from tests.agent_runtime.test_persona_assignments import (
         _TranscriptDB,
         _assignment_config,
-        _mission_chat_test_args,
     )
+    from tests.agent_runtime.test_persona_assignments_chat_history import _mission_chat_test_args
 
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
     reset_chat_live_log_state()
@@ -291,8 +291,8 @@ def test_mirror_failure_never_fails_the_mission_chat_turn(
     from tests.agent_runtime.test_persona_assignments import (
         _TranscriptDB,
         _assignment_config,
-        _mission_chat_test_args,
     )
+    from tests.agent_runtime.test_persona_assignments_chat_history import _mission_chat_test_args
 
     monkeypatch.setenv("HERMES_HEAD_HOME", str(tmp_path))
     reset_chat_live_log_state()

@@ -243,7 +243,8 @@ never deleted — that file is still on disk live. Retention is
 projection's displayable tail — `MAX_PERSONA_CHAT_MESSAGE_TAIL = 40` in
 `agent_runtime/persona_chat_history/vocabulary.py` — or a displayable agent row loses its
 `turn_elements` (`agent_runtime/persona_chat_history/curation.py`, which joins them through
-`mission_chat_turn_elements`); plus an opportunistic session-file GC under
+`mission_chat_turn_elements` once per logical turn and attaches the list only to that turn's LAST
+visible agent row — its earlier `:assistant:<n>` step rows carry text only); plus an opportunistic session-file GC under
 `mission_chat_turns.gc.lock`. `_MAX_ELEMENTS = 80` (`:65`) is a DIFFERENT bound:
 it caps the `elements` list inside ONE turn record (`_safe_elements`, `:1272`),
 not the turns a session keeps. Live counts (2026-08-22): 50
@@ -637,6 +638,25 @@ reader-side decision that needs its own ruling — not a wire cleanup.
 This is a wire removal, so the contract and Launcher pin move together
 under the removal rule recorded at 46.
 
+54 KEPT (RT-TASK-BOUND-WIRE-PRUNE, 2026-11-02) — the task-bound wire keys
+leave: ``current_task_id`` from every ``persona_instances`` row (snapshot
+and ``state_patches`` lanes together), ``kind`` / ``live_mission`` from
+every ``persona_chat_history`` row, ``task_id`` from every
+``persona_chat_trace`` row and from every ``operator_channels`` row and
+its ``conversation``; with them go the ``persona_chat_history.live_mission_shadow``
+and ``trace_empty`` warnings, unreachable once no row carries a mission
+kind or a task id. Each value was constant on a live frame since
+RT-TASK-BOUND-MISSION-LANES (null / ``"chat"`` / ``false``), and the
+Launcher removed every reader FIRST (``MC-TASK-BOUND-WIRE-READERS``
+``9b9e989969``, ``MC-CHANNEL-TASK-ID-READERS`` ``cdc1613338``), the order
+the plan (``planned/task-bound-mission-lanes-2026-10-28.md`` § S4) chose so
+the pin need not travel. Why rule (a) does not bump here: it exists so a
+consumer that still READS a leaving field learns of it through the pin;
+none does, and a bump would fail-close every Launcher at 54 (``health()``
+is exact equality) for a change it cannot observe. ``harness_trace``
+entries keep their per-event ``task_id`` — that is the event's own field,
+not the row key retired here.
+
 54 KEPT (running_work contract/ambient split, 2026-08-09) — the
 ``running_work`` section stops folding MACHINE-LOCAL state into its
 per-source ``detail`` prose, gains a typed ``live_enrichment_error`` on
@@ -818,7 +838,7 @@ carries a ``messaging`` block (``running_work/lanes_messaging.py``). A row adds
 ruling: nothing left the wire. The goldens and ``work_list_empty.json`` moved; the
 launcher mirror is owed (``tests/fixtures/stream_frames/README.md``).
 
-54 KEPT (Projects connections, 2026-10-28) — ``workspaces[]`` gains
+54 KEPT (Projects connections, 2026-10-28) [RETIRED 2026-11-04 by RT-WS-ABSORB-RETIRE-PROJECT, below] — ``workspaces[]`` gains
 ``project_ids`` and ``project_assignment_revision``. These are references to
 Launcher Projects, not a Project manifest, agent roster, slot declaration or
 content export. Existing records default to an empty list and revision zero.
@@ -833,7 +853,7 @@ Deleting an account-local Launcher Project does not cascade into a shared or
 offline workspace: an orphaned opaque reference is inert. Connections grant no
 content access and do not alter slots or agent assignments.
 
-54 KEPT (Projects record, 2026-10-29, RT-PROJECT-RECORD-STORE) — no snapshot key
+54 KEPT (Projects record, 2026-10-29, RT-PROJECT-RECORD-STORE) [RETIRED 2026-11-04 by RT-WS-ABSORB-RETIRE-PROJECT, below] — no snapshot key
 moved. Hermes now keeps a Project's record at ``store/projects/<token>.json``
 (``paths.project_path``): ``slots`` in the workspace slot document's exact shape
 (``workspace_slots.apply_declared_set``; ``context`` may carry ``document_dirs`` /
@@ -851,7 +871,7 @@ publish decision for each realm whose workspace holds the Project
 in ``test/fixtures/harness_stream/``). Plan
 [project-slots-and-shared-chats-2026-10-29.md](planned/project-slots-and-shared-chats-2026-10-29.md) §2.
 
-54 KEPT (Project slot fill, 2026-10-29, RT-PROJECT-SLOT-REKEY) — no snapshot key
+54 KEPT (Project slot fill, 2026-10-29, RT-PROJECT-SLOT-REKEY) [RETIRED 2026-11-04 by RT-WS-ABSORB-RETIRE-PROJECT, below] — no snapshot key
 moved. A slot is named ``<project>/<slot>``. ``machine_roots.json`` schema 4 adds
 ``project_roots.<project>.<slot>`` (one fill per Project per machine, kept by every
 write that does not pass it) and ``machine_slot_env.json`` a ``projects`` collection;
@@ -863,7 +883,7 @@ fills COPIED (an older edition keeps its own) and the document stamped ``migrate
 which the slot merge carries. Verbs ``runtime.project.slot.bind`` / ``.slot.env.set`` /
 ``.report`` are local-console only, like their workspace twins.
 
-54 KEPT (Project slots for agents, 2026-10-29, RT-PROJECT-SLOTS-FOR-AGENTS) — no
+54 KEPT (Project slots for agents, 2026-10-29, RT-PROJECT-SLOTS-FOR-AGENTS) [RETIRED 2026-11-04 by RT-WS-ABSORB-RETIRE-PROJECT, below] — no
 snapshot key moved. ``PersonaInstance.assigned_slots`` / ``primary_slot`` hold
 ``<project>/<slot>`` for a Project's slot (a bare name stays a slot of the workspace's
 own, unmigrated document); ``persona_slots.visible_slots`` is what an instance may be
@@ -886,7 +906,7 @@ keys a Project's slot ``<project>/<slot>``; ``recipe.set`` on one edits the Proj
 ``runtime.project.slot.clone`` / ``.recipe.run_step`` (local console; the run record
 carries ``project_id`` and a clone binds the Project's fill).
 
-54 KEPT (Project category folders, 2026-10-29, RT-PROJECT-CATEGORY-FOLDERS) — no
+54 KEPT (Project category folders, 2026-10-29, RT-PROJECT-CATEGORY-FOLDERS) [RETIRED 2026-11-04 by RT-WS-ABSORB-RETIRE-PROJECT, below] — no
 snapshot key moved. ``categories.documents`` may carry ``context_files`` (relative
 paths; ``runtime.project.category.set`` key ``context_files``); every instance of a
 workspace holding the Project — assigned or not — gets the turn's ``project_context``
@@ -895,7 +915,7 @@ supersedes the ``--agents-file`` alias; RT-PROJECT-CONTEXT-WITHOUT-ASSIGNMENT): 
 file from this machine's documents folder as ``## <Project>/documents — <file>`` and, while
 the guidance share is on, one ``## <Project> — guidance`` section, after the slot (or alias)
 content, with ``kind: project_context`` receipts under the workspace receipt's
-``projects`` key (``agent_runtime/project_categories.py``). Work boards: ``Board.project_id``; a Project
+``projects`` key (``project_categories``). Work boards: ``Board.project_id``; a Project
 lists a board per live slot, keyed ``(project, slot)`` — its boards category names
 the Project's default board, never a filter (RT-WORK-BOARD-PER-PROJECT-SLOT,
 2026-10-31; ``RowRef.project_id`` defaulted, so saved refs load) — and a migrated
@@ -939,6 +959,17 @@ reason}], deferred: [...]}`` (RT-PROJECT-CHAT-FOLD-WITHOUT-SENDING). It is dropp
 its offsets and the export cursors and nothing else, when the chats share turns off or
 the last workspace of the namespace disconnects the Project.
 
+54 KEPT (slot context picks, 2026-11-01, RT-SLOT-CONTEXT-FILE-PICKS) — no snapshot key
+moved. ``PersonaInstance.slot_context_files`` (``{<assigned slot>: [subset of CLAUDE.md /
+AGENTS.md]}``, travels) and ``slot_context_custom`` (``{<assigned slot>: absolute .md}``,
+this machine's own, LOCAL_ONLY) ride the slot-lane clock. ``runtime.persona.instance.slots.set``
+takes optional ``context_files`` ``{<slot>: {files, custom_path} | null}`` — present it
+REPLACES the override map (``{}`` clears all), absent it keeps the overrides of slots still
+assigned; a bad pick is ``context_files_invalid``. ``instance.slots.show`` rows carry
+``context_files`` (``null`` = no override: the declaration's list, else the one-file
+default). The loader honours an override first; its receipts say ``override_choice:
+slot_override`` (loaded) or ``override_off`` (toggled off).
+
 54 KEPT (recall across stores, 2026-10-29, RT-PROJECT-CHAT-RECALL-ACROSS-STORES) — no
 snapshot key moved. ``PersonaInstance.recall_shared_projects`` (default false; slot-lane
 clock; ``runtime.persona.instance.recall.set`` ``{persona_instance_id, enabled,
@@ -952,6 +983,100 @@ merged round-robin by per-store rank with the own store first; each shared hit c
 ``shared_from {project, project_id, author, machine}``, ``shared_label`` and the link
 ``@project:<id>/<session>``, which read and scroll resolve against that store. The own
 store's current-lineage exclusion is unchanged. Memory extraction opens no shared store.
+
+54 KEPT (workspace content, 2026-11-04, RT-WS-ABSORB-CONTENT-DOC) — no snapshot key moved. The
+workspace slot document (``store/workspace_slots/<ws>.json``, family ``WORKSPACE_SLOTS``) carries
+``categories.<chats | documents | boards | artifacts | guidance>`` (``{slot, subpath, shared,
+issued_at, revision[, context_files]}``) and, only while ``categories.guidance.shared``,
+``guidance {description, instructions, issued_at, revision}`` beside ``slots`` and ``machines``
+(``agent_runtime/workspace_categories.py``). The merge takes one side's whole category or guidance
+by newer ``revision`` then ``issued_at``; a peer entry that fails drops alone (``invalid_category``
+/ ``invalid_guidance``); ``enforce_share_rule`` runs after every declare (``slots.declare``
+answers ``categories_unshared``) and every merge. Console verbs, each refusal a typed
+``data.reason``: ``runtime.workspace.category.set {workspace_id, category, slot, subpath, shared,
+issued_at, context_files?, credential?}`` → ``{workspace_id, category, record}``;
+``runtime.workspace.guidance.set {workspace_id, description, instructions, issued_at,
+credential?}`` → ``{workspace_id, guidance}``; ``runtime.workspace.artifacts.list
+{workspace_id}`` → ``{workspace_id, here, files: [{name, size}], truncated}``;
+``runtime.workspace.chat.share {workspace_id, session_id, shared, credential?}`` → ``{workspace_id,
+session_id, exported, shared, commit?, pushed?}`` (stop: ``{workspace_id, session_id, shared:
+false, commit, note}``); ``runtime.workspace.chat.fold {workspace_id}`` (local console) →
+``{workspace_id, inserted, skipped, malformed, sessions, stale}``. ``runtime.workspace.slots.show``
+answers ``shared_chats``. A workspace's shared chats live at ``store/workspace_chats/<ws>.db``,
+``workspace_chat_fold/<ws>.json`` and ``workspace_chat_exports/<ws>/<session>.json``, published by
+the Work writer under pseudo-workspace ``workspace_chats_<ws>``; the realm pull and the realm-less
+tick fold every shared workspace as they fold Projects.
+
+54 KEPT (workspace merge, 2026-11-04, RT-WS-ABSORB-MIGRATION) — no snapshot key moved. On every serve
+boot ``project_migration.migrate_namespace`` folds each Project into ONE home workspace — its
+``ws-<ws>`` origin, else the first workspace (by id) listing it, else a new workspace in the default
+realm named after it; a reference with no record and no listing workspace is dropped — and is a
+no-op once nothing Project-keyed is left. The origin Project replaces its frozen document's slots and
+reports; another Project's live slot whose name the home already holds becomes
+``<project_slug>_<slot>`` (a root name has no ``-``); a held category keeps the workspace's own;
+guidance moves only into a document without one. Rekeyed to the home: ``project_roots`` →
+``slot_folders``, env ``projects`` → ``workspaces``, ``slot_worktrees/<project>/``, the shared chat
+store / fold offsets / export cursors, instance keys ``<project>/<slot>`` (dropped outside the
+home), Work run records' and schedules' row refs; ``<project>/<slot>`` Work worktrees and the chats
+writer's ``project_<id>`` ones are removed for a recut. Then ``store/projects/``, the workspace
+records' ``project_ids`` / ``project_assignment_revision`` and every ``migrated_to`` stamp go, with
+``require_unmigrated`` and the ``slot_migrated`` refusal. Receipt ``workspace_merge.completed
+{merged: [{project_id, workspace_id, created, renamed, …counts}], dropped, stamps_removed}``.
+
+54 KEPT (Projects retired, 2026-11-04, RT-WS-ABSORB-RETIRE-PROJECT) — the workspace is the one record
+(launcher plan ``WORKSPACE_ABSORBS_PROJECTS_2026-11-04.md``). ``workspaces[]`` rows lose ``project_ids``
+and ``project_assignment_revision`` (``Workspace`` drops both fields); the Launcher's decode of them
+already tolerates absence, so rule (a) does not bump, as for RT-TASK-BOUND-WIRE-PRUNE. Deleted with no
+transition (every realm peer moves together): ``runtime.workspace.project.set``, every
+``runtime.project.*`` verb and ``harness project …``; the realm family ``project`` with its pull and
+publish legs; ``project_store`` / ``project_sync`` / ``project_categories`` / ``workspace_projects``;
+``paths.projects_dir`` / ``project_path`` / ``project_chat_*_path``; the address ``project:`` chain
+(``Kind.PROJECT``; ``slot-folder``'s pair is ``<ws>/<slot>``). Every slot is the workspace's own:
+``machine_roots.json`` stays schema 3 with no ``project_roots``; ``BoundSlot`` / ``ResolvedSlot`` /
+``VisibleSlot`` carry no ``project_id``; an instance's slot keys are bare. Work: ``Board`` has no
+``project_id`` / ``project_name`` / ``projects`` / ``project_default`` — its key is its slot and
+``board_default`` marks the ``boards`` category's slot, listed first; ``RowRef`` is ``(slot, note,
+id)`` (list form ``[slot, note, id]``; ``runtime.batch.plan`` ``rows`` refuses a fourth item); the
+``project_id`` param leaves ``runtime.work.list`` / ``.inspect`` / every row-addressed verb, task and
+receipt refs carry none, ``runtime.work.list`` answers no ``projects``, ``runtime.work.pull`` answers
+no ``project_id``, and the ``slot_ambiguous`` refusal is gone. The turn's category block is
+``category_context`` (``persona_slots.CategoryContext`` from ``workspace_categories.category_context``:
+``## <workspace>/documents — <file>`` and ``## <workspace> — guidance``), its receipts
+``kind: workspace_category`` under the workspace receipt's ``categories`` key. Recall searches the
+instance's own workspace's shared store: a hit carries ``shared_from {workspace, workspace_id, author,
+machine}`` and the link ``@workspace:<id>/<session>``; the pull envelope's fold row is
+``workspace_chat_fold {folded: [{workspace_id, inserted, stale}], skipped, deferred}``. ``brain_paths.json``
+is schema 2: ``workspaces.<id>.slots[]`` (``{slot, path, brain_dir, behind}``) replaces
+``projects[].slots[]``, fixture ``tests/fixtures/brain_paths_v2.json``.
+
+54 KEPT (chat names, 2026-11-05, RT-WS-ABSORB-CHAT-NAMES-RESIDUE) — no snapshot key or wire name moved.
+The chat modules are ``agent_runtime/workspace_chat_export`` / ``workspace_chat_fold`` /
+``workspace_chat_recall`` (the ``tools/session_search_tool.py`` seam imports the last), the store class
+is ``workspace_chat_fold.WorkspaceSharedSessionDB``, and the log receipts are ``workspace_chat.exported``
+/ ``.unshared`` / ``.export_failed`` / ``.folded`` / ``.store_dropped`` / ``.export_hook_failed``. Kept
+spelled Project because they are persisted or on the wire: the session source ``project_shared``, the
+index ``project_shared_message_uid_unique``, ``PersonaInstance.recall_shared_projects`` (synced) and its
+``runtime.persona.instance.slots.show`` key (RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE).
+
+54 KEPT (persisted names, 2026-11-05, RT-WS-ABSORB-PERSISTED-NAMES-MIGRATE) — no snapshot key moved.
+The shared store's session source is ``workspace_shared`` and its UNIQUE index
+``workspace_shared_message_uid_unique``; a store a Project edition wrote is migrated in place on its next
+writable open (``workspace_chat_fold._migrate_project_names``: the old source UPDATEd, the old index
+dropped, the new one created, one write; a read-only open migrates nothing). ``runtime.persona.instance.slots.show``
+(and the ``.recall.set`` reply, which is its shape) answers ``recall_shared_workspaces`` beside
+``recall_shared_projects``, one value, until the launcher reads the new key (MC-RECALL-SWITCH-KEY-REPOINT);
+``.recall.set`` still takes ``{persona_instance_id, enabled, issued_at}``. ``PersonaInstance.recall_shared_projects``
+keeps its name: it is persisted and in the sync allowlist, so a rename is a cross-edition sync change
+(RT-WS-ABSORB-RECALL-FIELD-RENAME).
+
+54 KEPT (recall field renamed locally, 2026-11-06, RT-WS-RECALL-RENAME-S2-FIELD / -S4-DROP-REPLY-KEY) — no
+snapshot key moved. The field is ``PersonaInstance.recall_shared_workspaces``; the store writes that key and
+reads either (``persona_instance_sync.contract.stored_instance_body``). The sync projection still PUBLISHES
+``recall_shared_projects`` (``PERSONA_INSTANCE_PUBLISHED_KEYS``, field → published key; the allowlist is spelled
+in published keys, ``PERSONA_INSTANCE_TRAVEL_FIELDS`` in field names), so the wire bytes and the projection hash
+are unchanged until RT-WS-RECALL-RENAME-S3-PUBLISH. ``runtime.persona.instance.slots.show`` and the ``.recall.set``
+reply answer ``recall_shared_workspaces`` only: the launcher's switch reads it since its
+MC-RECALL-SWITCH-KEY-REPOINT (`053567a7ed`); a launcher build older than that reads the switch as off.
 
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead

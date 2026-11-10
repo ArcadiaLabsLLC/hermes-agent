@@ -64,6 +64,11 @@ def test_revert_all_adopts_the_published_level_and_the_row_clears(isolate_agent_
     assert [(row["family"], row["outcome"]) for row in result["items"]] == [("level", "reverted_to_upstream")]
     assert LevelStore().read(workspace.id) == published
     assert _level_rows(realm.id) == []
+    # RT-REVERT-DRIFT-AFTER-OMITS-FAMILIES: the answer counts the family it reverted, and every
+    # family status counts, so a caller reads "now clean" off the revert itself.
+    status_families = set(realm_sync_status(realm.id)["store_drift"]) - {"items"}
+    assert set(result["store_drift_after"]) == status_families
+    assert result["store_drift_after"]["levels"] == {"levels_changed": 0, "levels_added": 0, "levels_removed": 0}
 
 
 def test_a_local_only_level_is_archived_never_deleted(isolate_agent_runtime_root, tmp_path):
@@ -130,3 +135,6 @@ def test_revert_to_a_version_moves_a_level_whose_published_copy_changed(isolate_
     ]
     assert LevelStore().read(workspace.id) == old
     assert [row["kind"] for row in _level_rows(realm.id)] == ["changed"]  # no baseline written
+    # The version revert's answer counts that row too (RT-REVERT-DRIFT-AFTER-OMITS-FAMILIES).
+    assert result["store_drift_after"]["levels"]["levels_changed"] == 1
+    assert set(result["store_drift_after"]) == set(realm_sync_status(realm.id)["store_drift"]) - {"items"}

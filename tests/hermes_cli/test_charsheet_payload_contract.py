@@ -211,7 +211,7 @@ def test_a_dynamic_map_is_measured_and_its_KEYS_never_reach_the_dump(document):
                 assert path.startswith(f"{parent}.{contract.DYNAMIC_KEY}"), path
 
 
-def test_the_read_payloads_the_launcher_decodes_are_all_four(document):
+def test_the_read_payloads_the_launcher_decodes_are_all_five(document):
     """`status` and `list` are decoded by the same reader and were not in here.
 
     They were left out because their QA items hang off maps keyed by direction
@@ -219,10 +219,18 @@ def test_the_read_payloads_the_launcher_decodes_are_all_four(document):
     about the two payloads that carry `hermesHome`, the field whose absence cost
     a person a re-run of the verbs to find.
     """
-    assert sorted(document["payloads"]) == ["list", "sprite", "status", "thumb"]
+    assert sorted(document["payloads"]) == ["cells", "list", "sprite", "status", "thumb"]
+    # RT-CHARS-CELLS-PAYLOAD-CONTRACT-KIND: an approved row's registered cells, probed on an
+    # approved strip that segments (the shared drafts' solid strip extracts none).
+    assert document["payloads"]["cells"]["object"] == ""
+    assert {"path", "frameW", "frameH", "registeredWith", "paletteLocked", "draft", "stage"} <= set(
+        _keys(document, "cells"))
     assert document["payloads"]["status"]["object"] == "status"
     assert document["payloads"]["list"]["object"] == ""
     assert "status.hermesHome" in _keys(document, "status")
+    # The row loop timing Studio's "open row on timeline" reads (never a
+    # launcher constant): a status without it refuses the open.
+    assert "status.spec.loopMs" in _keys(document, "status")
     assert "drafts[].hermesHome" in _keys(document, "list")
 
 
@@ -268,7 +276,7 @@ def test_the_verb_prints_the_document(capsys):
     assert args.func(args) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed["schema"] == contract.SCHEMA
-    assert sorted(printed["payloads"]) == ["list", "sprite", "status", "thumb"]
+    assert sorted(printed["payloads"]) == ["cells", "list", "sprite", "status", "thumb"]
 
 
 def test_the_human_line_counts_the_keys(capsys):

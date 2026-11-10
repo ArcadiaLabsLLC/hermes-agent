@@ -9,6 +9,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Callable, Final, Mapping
 import json
+import re
 import sys
 import time
 import uuid
@@ -25,6 +26,7 @@ from agent_runtime.mission_chat_turns.states import (
 )
 from agent_runtime.models import Event
 from agent_runtime.persona_assignments import safe_assignment_text, safe_assignment_token
+from agent_runtime.provider_retry_wait import PROVIDER_RETRY_WAIT_FRAME, safe_provider_retry_wait
 from agent_runtime.serde import safe_block, safe_int, safe_text
 from hermes_cli.harness_parts.persona.tool_heartbeat import ToolHeartbeat
 from hermes_time import now
@@ -443,6 +445,10 @@ class _ChatProtocolV2Emitter:
         if event_type == "run.progress" and compaction_state(payload) is not None:
             self._compaction(compaction_state(payload))
             return
+        retry_wait = safe_provider_retry_wait(payload) if event_type == "run.progress" else None
+        if retry_wait is not None:
+            self._provider_retry_wait(retry_wait)
+            return
         handler = _PROGRESS_EVENTS.get(event_type)
         if handler is None:
             return
@@ -514,6 +520,26 @@ class _ChatProtocolV2Emitter:
                 "after_seq": self._seq,
             }
         )
+
+    def _provider_retry_wait(self, wait: dict[str, object]) -> None:
+        """One ``provider.retry_wait`` v2 frame per retry the turn sits out: the provider's
+        refusal (when the waited-on error is one) and when the retry runs, so the console
+        stops reading a 600 s wait as "Thinking". Presentation-only, like
+        ``context.compaction``: no element seq, no segment end; the next frame of any kind
+        (a reply delta, a tool, ``turn.end``) supersedes it."""
+
+        frame: dict[str, object] = {
+            "type": PROVIDER_RETRY_WAIT_FRAME,
+            "protocol_version": 2,
+            "turn_id": self.turn_id,
+            "after_seq": self._seq,
+            "retry_in_seconds": wait["retry_in_seconds"],
+            "attempt": wait["attempt"],
+            "max_attempts": wait["max_attempts"],
+        }
+        if "provider_refusal" in wait:
+            frame["provider_refusal"] = wait["provider_refusal"]
+        self._emit_chat_frame(frame)
 
     def end_segment(self, *, state: str = "settled") -> None:
         segment = self._current_segment
@@ -741,6 +767,18 @@ class _ChatProtocolV2Emitter:
             self.elements.append(tool)
         tool["state"] = "finished"
         tool["settled_at"] = now_iso_micro()
+        # A settled element must not keep saying "Started tool <name>: …"
+        # (RT-TOOL-ROW-SAYS-STARTED): `args` keeps what the call was ABOUT —
+        # the started line minus its lead-in — and `summary` takes the
+        # finished payload's own line ("Finished tool <name>: passed in <n>ms"),
+        # falling back to that same lead-in-free text when the finish has none.
+        settled_args = _without_started_lead_in(tool.get("args"))
+        if settled_args is not None:
+            tool["args"] = settled_args
+        finished_summary = safe_text(payload.get("summary"), limit=_STREAM_TEXT_LIMIT)
+        settled_summary = finished_summary or _without_started_lead_in(tool.get("summary"))
+        if settled_summary is not None:
+            tool["summary"] = settled_summary
         tool["status"] = safe_text(payload.get("status"), limit=_STREAM_TEXT_LIMIT) or "ok"
         tool["duration_ms"] = payload.get("duration_ms")
         started = tool.get("started_mono")
@@ -915,6 +953,17 @@ _PROGRESS_EVENTS: Final[Mapping[str, Callable[[_ChatProtocolV2Emitter, dict[str,
 
 #: The mission-chat stream's one-line text bound (``safe_text``'s limit on this lane).
 _STREAM_TEXT_LIMIT = 800
+
+#: The started progress line's lead-in (`agent_runtime.profile_runner.tool_payloads._tool_started_payload`:
+#: "Started tool <name>" then ": <target>" when there is one).
+_STARTED_LEAD_IN = re.compile(r"^\s*Started tool\b[^:]*:?\s*")
+
+
+def _without_started_lead_in(text: object) -> str | None:
+    """``text`` minus a "Started tool <name>: " lead-in; ``None`` when it carried none."""
+    if not isinstance(text, str) or not _STARTED_LEAD_IN.match(text):
+        return None
+    return _STARTED_LEAD_IN.sub("", text, count=1)
 
 
 def _tool_name_from_progress(payload: dict[str, object]) -> str:

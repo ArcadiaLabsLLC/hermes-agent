@@ -172,3 +172,20 @@ def test_a_matched_element_leaves_the_pending_set(field):
     assert first["output"] == "first"
     assert orphan["output"] == "second"
     assert orphan["id"] != first["id"]
+
+
+def test_a_settled_tool_element_stops_saying_started():
+    """RT-TOOL-ROW-SAYS-STARTED: finish rewrites `args` and `summary`, not only state/status."""
+    item = emitter()
+
+    item.progress(started("read_file", "Started tool read_file: …/web-counter/index.html"))
+    item.progress(finished("read_file", summary="Finished tool read_file: passed in 12ms"))
+    item.progress(started("todo", "Started tool todo"))
+    item.progress(finished("todo"))
+
+    read, todo = tools(item)
+    assert read["args"] == "…/web-counter/index.html"
+    assert read["summary"] == "Finished tool read_file: passed in 12ms"
+    assert todo["args"] == "" and todo["summary"] == ""
+    assert not any("Started tool" in (element.get("args") or "") + (element.get("summary") or "")
+                   for element in tools(item))

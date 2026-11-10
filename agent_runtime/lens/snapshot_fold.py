@@ -28,6 +28,7 @@ from .missed_deadlines import offline_interval
 from .rules import manifest_rule
 from .store import LensStore, LensStoreError, MonitorState
 from .store_decisions import open_episodes
+from .store_scope import with_scope
 
 __layer__ = "lanes"
 
@@ -57,9 +58,13 @@ def recorded_watcher(state: Any) -> Iterator[None]:
         _RECORDED_WATCHER.reset(token)
 
 
-def lens_fold(store: LensStore | None = None) -> dict[str, Any]:
+def lens_fold(store: LensStore | None = None, *, workspace_id: str | None = None) -> dict[str, Any]:
+    """The fold; only ``workspace_id``'s monitors, Episodes and receipts when it is given
+    (``store_scope``). Every open Episode row carries ``workspace_id`` and ``orphan``."""
+
     store = store or LensStore()
-    enabled = store.monitors(states=(MonitorState.ENABLED,))
+    enabled = [row for row in store.monitors(states=(MonitorState.ENABLED,))
+               if workspace_id is None or row["workspace_id"] == workspace_id]
     latest = []
     for row in enabled:
         for feed in row["sealed"]["manifest"]["feeds"] if row["sealed"] else []:
@@ -71,9 +76,10 @@ def lens_fold(store: LensStore | None = None) -> dict[str, Any]:
         "version": 1,
         "monitors_enabled": len(enabled),
         # Settled by the operator (``store_decisions``): off the fold, not crowded out by 32 newer ones.
-        "open_episodes": [_with_outage(store, row) for row in open_episodes(store, limit=MAXIMUM_OPEN_EPISODES)],
+        "open_episodes": with_scope(store, [_with_outage(store, row) for row in open_episodes(
+            store, limit=MAXIMUM_OPEN_EPISODES, workspace_id=workspace_id)]),
         "latest": latest,
-        "last_receipt": next(iter(store.receipts(limit=1)), None),
+        "last_receipt": next(iter(store.receipts(limit=1, workspace_id=workspace_id)), None),
         "watcher": watcher_state(),
     }
 

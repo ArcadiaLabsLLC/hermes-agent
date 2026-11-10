@@ -14,6 +14,7 @@ imports no applier.
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -90,8 +91,6 @@ class SyncFamily(StrEnum):
     PREFAB = "prefab"
     #: The repo-slot documents (build plan §3.1): key-wise at three depths.
     WORKSPACE_SLOTS = "workspace_slots"
-    #: The Launcher Project record (plan project-slots-and-shared-chats §2): the slot rules plus categories.
-    PROJECT = "project"
     PROFILE_FILE = "profile_file"
     ARTIFACT = "artifact"
 
@@ -159,6 +158,7 @@ LEGACY_PROFILES_ROOT = "profiles"
 KIND_PROFILE_MEMORY = "profile_memory"
 KIND_CORE_CONTEXT = "core_context"
 KIND_PERSONA_PROMPT = "persona_prompt"
+KIND_PROFILE_PORTRAIT = "profile_portrait"
 
 MEMORY_DESTINATION = "memories/MEMORY.md"
 CORE_CONTEXT_FILENAMES: tuple[str, ...] = ("AGENTS.md", "CLAUDE.md", "GEMINI.md")
@@ -206,6 +206,8 @@ def classify_destination(dest_rel: str) -> str | None:
         return None
     if any(not part or part.startswith(".") for part in parts):
         return None
+    if re.fullmatch(r"assets/portraits/[0-9a-f]{64}\.png", text):
+        return KIND_PROFILE_PORTRAIT
     if text == MEMORY_DESTINATION:
         return KIND_PROFILE_MEMORY
     if len(parts) == 1 and parts[0] in CORE_CONTEXT_FILENAMES:
@@ -341,8 +343,6 @@ SYNC_PATH_FAMILIES: Final[tuple[SyncPathFamily, ...]] = (
         _prefix("store/workspace_slots/"),
         owner="workspace_slots_sync.apply_workspace_slots_pull",
     ),
-    # The Project records: the slot document's key-wise merge plus the category declarations.
-    SyncPathFamily(SyncFamily.PROJECT, _prefix("store/projects/"), owner="project_sync.apply_project_pull"),
     SyncPathFamily(
         SyncFamily.PROFILE_FILE,
         _prefix("store/profile_files/"),

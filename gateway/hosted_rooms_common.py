@@ -104,12 +104,18 @@ def open_sqlite(path: DbPath, *, timeout: float = 10) -> sqlite3.Connection:
 
 def connect(
     db_path: DbPath, *, db_label: str, ready: Callable[[sqlite3.Connection], bool],
-    initialize: Callable[[sqlite3.Connection], None], lock_retries: int = 1) -> sqlite3.Connection:
+    initialize: Callable[[sqlite3.Connection], None], lock_retries: int = 1,
+    synchronous: str | None = "NORMAL") -> sqlite3.Connection:
     """Open the shared root store: WAL, foreign keys, then ``initialize`` in one IMMEDIATE txn if not ``ready``.
 
     Multiple profile gateways share this database, so every draft-schema transition
     is serialized in SQLite itself: a crash rolls back the whole DDL/data migration and
     another process can safely retry it.
+
+    ``synchronous`` defaults to NORMAL for the room and run stores: a FULL commit's WAL fsync held the shared
+    write lock past the 10 s busy timeout under a disk storm (RT-FLAKE-NATIVE-DISCUSSION-ROOM-DB-LOCKED, owner
+    RULED 2026-11-09). WAL keeps them consistent; a power loss can roll back their last commits. A receipt store
+    passes ``"FULL"``.
     """
     def _initialize(conn: sqlite3.Connection) -> None:
         if not ready(conn):
@@ -124,7 +130,7 @@ def connect(
     from hermes_cli.sqlite_util import open_db
 
     return open_db(db_path, db_label=db_label, busy_timeout_ms=10_000, foreign_keys=True,
-                   wal_lock_retries=lock_retries, initialize=_initialize)
+                   wal_lock_retries=lock_retries, initialize=_initialize, synchronous=synchronous)
 
 
 def fenced_update(conn: sqlite3.Connection, sql: str, params: tuple, error: Exception) -> None:

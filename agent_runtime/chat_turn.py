@@ -179,6 +179,7 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "course_credential",
     "files",
     "images",
+    "input_mode",
     "intent_hint",
     "max_seconds",
     "message",
@@ -415,6 +416,7 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     # retry always lives in an existing root, so it is refused without one;
     # WHICH turns it may name is the turn's own admission rule.
     retry_of = _text(params, "retry_of", limit=MAX_TURN_REQUEST_ID_LENGTH)
+    input_mode = _input_mode(params)
     if retry_of and not session_id:
         raise ChatTurnInvalid(
             "retry_of_requires_session",
@@ -478,6 +480,10 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     ]
     if session_id:
         argv += ["--session-id", session_id]
+    # The owner a root this send MINTS is stamped with (RT-CHAT-MESSAGE-MINT-UNSCOPED); validated
+    # by ``request_client_scope`` before any turn is admitted.
+    if owner := request_client_scope(params):
+        argv += ["--client-scope", owner]
     argv += skill_argv
     if persona_instance_id:
         argv += ["--persona-instance-id", persona_instance_id]
@@ -507,6 +513,8 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv += ["--intent-hint", intent_hint]
     if retry_of:
         argv += ["--retry-of", retry_of]
+    if input_mode:
+        argv += ["--input-mode", input_mode]
     # RT-OPERATOR-CHAT-SEND-PERSONA: pasted images ride as stored references, never bytes or paths.
     for ref in _image_refs(params):
         argv += [IMAGE_FLAG, ref]
@@ -521,7 +529,7 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv=argv,
         correlation_id=correlation_id,
         delivery_flags=("--stream",) if stream else (),
-        client_scope=request_client_scope(params),
+        client_scope=owner,
         secrets=_course_secrets(params),
     )
 
@@ -542,6 +550,21 @@ def _course_secrets(params: dict) -> dict[str, Any]:
     if credential.is_expired():
         raise ChatTurnInvalid("course_credential_expired", "invalid params: course credential expired; re-broker it")
     return {"course_credential": credential}
+
+
+#: ``runtime.chat.message``'s ``input_mode`` words (RT-CHAT-TURN-INPUT-MODE): how the operator made the message.
+INPUT_MODES = ("typed", "voice")
+
+
+def _input_mode(params: dict) -> str | None:
+    """``input_mode`` when sent (``typed`` / ``voice``), else None: an absent mode is typed and adds no flag."""
+
+    value = params.get("input_mode")
+    if value is None:
+        return None
+    if value not in INPUT_MODES:
+        raise ChatTurnInvalid("input_mode_invalid", "invalid params: input_mode is typed or voice")
+    return value
 
 
 def _image_refs(params: dict) -> list[str]:
@@ -790,7 +813,8 @@ def perform_chat_turn(
             raise ChatTurnInvalid("unknown_chat_verb", f"unknown chat verb: {verb}")
         if request.client_scope is not None:
             validate_conversation_access({"client_scope": request.client_scope,
-                                         "session_id": params.get("session_id")})
+                                         "session_id": params.get("session_id"),
+                                         "new_session": params.get("new_session") is True})
     except ConversationOwnerError as exc:
         return ChatTurnOutcome(refusal=ChatTurnRefusal(
             code=ERR_CONFLICT, message="This conversation is unavailable for this account.",

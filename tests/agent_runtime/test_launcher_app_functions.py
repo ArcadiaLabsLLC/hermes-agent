@@ -159,7 +159,7 @@ def test_a_call_with_no_link_bound_sends_nothing():
 
     from tools.registry import registry
 
-    assert "no Launcher" in json.loads(registry.dispatch("launcher_library_list", {}))["error"]
+    assert "Eternia is not attached to this turn" in json.loads(registry.dispatch("launcher_library_list", {}))["error"]
     assert len(launcher.sent) == sent
 
 

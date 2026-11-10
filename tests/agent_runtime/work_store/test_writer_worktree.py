@@ -103,20 +103,6 @@ def _registered(repo: Path) -> list[str]:
     return [line for line in out.splitlines() if line.startswith("worktree ")]
 
 
-def test_retiring_the_default_brain_removes_its_worktree(workspace):
-    """W3. Killing mutation: skipping the prune leaves git a registered but missing worktree."""
-
-    from agent_runtime.work_store import default_brain
-    from agent_runtime.work_store.board import default_board
-
-    made = default_brain.ensure_default_brain(workspace, issued_at="2026-10-21T12:00:00+00:00")
-    worktree = Writer(made, machine_id="m1").sync()
-    assert worktree.is_dir() and len(_registered(made.checkout)) == 2
-    default_brain.retire_binding(workspace, into="hermes", at="2026-10-21T12:00:00+00:00", moved=[])
-    assert not worktree.exists() and len(_registered(made.checkout)) == 1
-    assert default_board(workspace) is None
-
-
 def test_a_tombstoned_slot_drops_its_worktrees(workspace, tmp_path):
     """W3: ``declare`` tombstoning a slot removes every ``<slot>-<token>`` worktree and prunes the clone."""
 

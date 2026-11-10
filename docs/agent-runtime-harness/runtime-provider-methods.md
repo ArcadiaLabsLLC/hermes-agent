@@ -14,19 +14,26 @@ moving `RPC_CONTRACT_VERSION`.
 
 | method | tier | params | wraps |
 |---|---|---|---|
-| `runtime.provider.list` | read | — | `build_provider_visibility()` (`hermes harness providers --json`) |
-| `runtime.provider.usage` | read | `provider` | `agent.account_usage.fetch_account_usage`; Nous via `get_nous_portal_account_info` + `build_nous_credits_snapshot` |
+| `runtime.provider.list` | read | `persona_instance_id?` / `persona_id?`; `prewarm_signin?` | `build_provider_visibility()` (`hermes harness providers --json`) |
+| `runtime.provider.usage` | read | `provider`; `persona_instance_id?` / `persona_id?` | `agent.account_usage.fetch_account_usage`; Nous via `get_nous_portal_account_info` + `build_nous_credits_snapshot` |
 | `runtime.provider.signin.begin` | console | `provider`; `flow?`, `profile?` | one `hermes harness auth login <provider> --json --flow <flow>` child (`hermes_cli/provider_browser_login.py` driver table) |
 | `runtime.provider.signin.poll` | console | `login_id` | the session the child's NDJSON feeds |
 | `runtime.provider.signin.complete` | console | `login_id`, `code` | writes `code` as one line to the child's stdin |
 | `runtime.provider.signin.cancel` | console | `login_id` | kills the child |
 | `runtime.provider.refresh` | console | `provider`; `credential?` (index, id or label) | `hermes auth refresh` (`auth_refresh_command`) |
 | `runtime.provider.signout` | console | `provider` | `hermes auth logout` (`auth_logout_command`) |
+| `runtime.provider.env_token.remove` | console | `provider`, `variable` | upstream's `env:*` removal (`remove_env_value` + pool `remove_index`), once per home whose `.env` sets it |
 | `runtime.provider.configure` | console | `provider`, `auth_mode`; `base_url?` | `agent_runtime/provider_account.py::provider_configure`: writes `model.provider`, `model.auth_mode` (and `model.base_url`) on the bound provider home's `config.yaml` through the round-trip YAML writer — only a provider `PROVIDER_AUTH_MODES` declares, only a declared mode, no secret (a `needs_key` mode is keyed through `auth set-key`); it selects the provider because the mode is read only for the selected one |
+| `runtime.provider.source.set` | console | `provider`, `source` | `agent_runtime/provider_account.py::provider_source_set`: writes `providers.<provider>.credential_source` on the bound provider home's `config.yaml` through the round-trip YAML writer — only a provider `PROVIDER_CREDENTIAL_SOURCES` declares, only a declared source with a credential stored; chooses which STORED credential turns spend (`agent_runtime/provider_credential_source.py`) and selects nothing else (not `model.provider`: that is `configure`) |
 | `runtime.provider.dependency.install` | console | `provider` | `agent_runtime/provider_dependencies.py`: `uv pip install` of the provider's one extra into this runtime's environment; `pm` sync (new generation) only on a resolver conflict |
 | `runtime.provider.pack.activate` | console | `site_packages` (absolute) | `agent_runtime/provider_packs.py`: `site.addsitedir` of an unpacked provider pack this bundle built (its `engine-pack.json` names a pack in `bundle-manifest.json` `packs`, same commit), so the SDK imports without a restart |
 
 `provider` is lower-cased. Unknown params are ignored.
+
+Every method first applies the bound home `.env`'s change since its last look to the serve's environment
+(`agent_runtime/home_env_freshness.py::refresh_home_env`), so a key `hermes harness auth set-key` or `auth remove`
+wrote from another process is answered at once, never after a restart; a key the serve was launched with and the
+file never named is kept.
 
 `list`, `usage`, `refresh` and `signout` run on the transport's worker lane
 when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
@@ -44,7 +51,9 @@ table (`HermesProviderMethod.timeoutFor`).
 | `runtime.provider.usage` | every usage fetch in `agent/account_usage.py` is an HTTP call with `timeout=15.0`; Nous reads `hermes_cli/nous_account.py` with `timeout=8` | 20 s |
 | `runtime.provider.refresh` | `hermes auth refresh`: token endpoint calls under upstream's HTTP timeouts; no single bound, and a lost reply leaves the outcome unknown | 30 s |
 | `runtime.provider.signout` | `hermes auth logout`: as refresh | 30 s |
+| `runtime.provider.env_token.remove` | a few `.env` rewrites and pool loads, one per home | 30 s |
 | `runtime.provider.configure` | up to three round-trip YAML writes of one local file | 10 s |
+| `runtime.provider.source.set` | local credential-presence reads and one round-trip YAML write of one local file | 10 s |
 | `runtime.provider.signin.begin` | spawns the login child and answers in state `starting` without waiting on it | 15 s |
 | `runtime.provider.list` | local files, plus — only for a credential in cooldown — upstream's throttled Codex quota probe (`_probe_codex_quota_restored`, `timeout=10.0`, after an expired-token refresh) | 30 s |
 | `runtime.provider.signin.poll` | in-memory session read | 10 s |
@@ -61,6 +70,22 @@ source, selected, health, token_preview}]}], environment?, api_keys?,
 auth_logins?, local_llama?, catalog?, block_errors?}`. `catalog` rows are the
 real login catalog plus `browser_login: bool` and `browser_login_methods:
 [flow…]`. `token_preview` is at most the last four characters.
+An `env:*` credential whose token any profile under the namespace root recorded dead or
+`auth_failed` (401/403; a 429 does not count) reads `health: {state: "dead", reason:
+"login_expired", …}` in every profile: one `.env` token copied into several profiles is
+one credential (`refused_tokens` in `hermes_cli/harness_parts/provider_visibility.py`,
+matched by a sha256 digest held in memory only). The `api_keys` Anthropic row carries
+`expired` from the same fold.
+Each `providers[]` row carries `credential_source`: for a provider
+`PROVIDER_CREDENTIAL_SOURCES` declares (today `anthropic`: `account` "Claude
+account", `api_key` "API key") `{chosen, effective, sources: [{id, label,
+present}]}`, else null. `chosen` is `providers.<id>.credential_source` (null =
+unset: the provider's own ladder, where an env `ANTHROPIC_API_KEY` wins);
+`effective` is the source a turn spends now (null with nothing stored) — the
+chosen one while it has a credential stored, else the other; `present` is
+"a credential of this family is stored". Read it instead of inferring from the
+pool rows: with the choice unset a stored key prunes the account rows, and
+with it set the unchosen family's rows stay listed but benched.
 `dependencies` (owner ruling 2026-10-15) is `{sdk_free, providers: [{provider,
 missing: [distribution…], extra, installable}]}` — only providers this
 interpreter cannot run for lack of their SDK. `extra: null` means no extra
@@ -87,17 +112,34 @@ environment generation: `restart_required: true`).
 mode), `auth_mode_unknown` (+ `auth_modes`), `base_url_invalid` (not http(s)), `configure_failed`
 (+ the exception class).
 
+**source.set** — `{contract, provider, source, effective, sources: [{id, label, present}]}`
+(`effective` and `sources` as `list`'s `credential_source`); refusals `provider_required`,
+`source_required`, `source_unsupported` (the provider declares no sources), `source_unknown`
+(+ `sources`), `source_absent` (+ `source`: nothing of that family is stored — sign in or paste
+the key first), `source_failed` (+ the exception class).
+
 **pack.activate** — `{contract, pack, site_packages, activated}`; `activated: false`
 when the pack was already on the import path.
 
 **usage** —
 `{contract, provider, available, source, title, plan, fetched_at,
-windows: [{label, used_percent, reset_at, detail}], details: [str],
+windows: [{label, used_percent, reset_at, detail, scope}], details: [str],
 unavailable_reason}`. Times are ISO-8601. With no usage source for the
 provider (or not signed in): `{contract, provider, available: false,
 unavailable_reason: "no_usage_source"}`. A Nous portal failure reads
 `available: false` with `unavailable_reason` = the exception class name.
 The upstream snapshot's `raw` body is never sent.
+Every view carries `credential_source` (`list`'s block; null off the table).
+While a provider's effective source is `api_key` (Anthropic), the view is
+`available: true`, `source: "api_key"`, `windows: []`, `unavailable_reason:
+null`, `details: ["Monthly API credits are spent by this key; the balance is
+not readable with an API key — see Console › Billing"]` (Anthropic exposes no
+credit balance to a user key), plus `plan_windows: [window…]` — the Account's
+plan windows read with the stored grant passed explicitly, `[]` when no grant
+is stored or the read failed; the Launcher shows them as "Plan limits — not
+spent while the API key is chosen". `plan_windows` is absent otherwise. The
+argv `hermes harness usage --json` lanes carry the same two keys
+(`agent_runtime/provider_usage_source.py` serves both doors).
 
 **signin.\*** — one session view:
 
@@ -128,8 +170,28 @@ provider.
 
 **refresh** — `{contract, provider, credential, refreshed: true}`.
 
-**signout** — `{contract, provider, was_signed_in, signed_in}` (booleans read
-from `get_auth_status` before and after).
+**list `prewarm_signin: true`** (send it when Connections opens) also starts ONE warm
+sign-in child for the serve's home (`agent_runtime/provider_signin_warm.py`): it has already
+paid the cold child's 3.7–4.4 s of imports and waits on one stdin line `{provider, flow,
+profile}`, then runs the same `auth_login_command` NDJSON. The next `signin.begin` whose
+target home matches takes it (single use); another home discards it and starts cold. It is
+a process, so a cancel still kills it whole; unused, it exits after 600 s or when the serve
+closes its stdin. Profiles with `auth.subprocess_signin: false` warm nothing.
+
+**signout** — `{contract, provider, was_signed_in, signed_in, env_tokens}` (booleans read
+from `get_auth_status` before and after). `env_tokens` is `[{variable, files}]`: each
+`env:<VAR>` entry still in the provider's pool after the logout, and the `.env` files under
+the namespace root (the root's and each profile's, paths relative to the root) that set it —
+a `.env` line re-seeds the pool on every load, so sign-out cannot clear it. Names only,
+never a value.
+
+**env_token.remove** — `{contract, provider, variable, removed_from, signed_in, env_tokens}`.
+`variable` must be one the signout answer reported (else `env_token_unknown`: the verb
+cannot erase an arbitrary setting). For each file sign-out
+named it deletes the `VAR=` lines under that file's home (and this process's environment)
+and removes the `env:VAR` pool entry, as `hermes auth remove` does for that source;
+`removed_from` lists the files done. A locked `.env` or a raise answers
+`env_token_remove_failed` with `removed_from` so far. Names only, never a value.
 
 ## Errors
 
@@ -143,11 +205,17 @@ from `get_auth_status` before and after).
 | -32602 | `login_id_required` | `signin.poll/complete/cancel` |
 | -32602 | `code_invalid` | `signin.complete`: missing, over 2048 chars, or holding CR/LF/NUL |
 | -32602 | `provider_unknown` (+`provider`) | `refresh`, `signout` |
+| -32602 | `source_required` / `source_unsupported` (+`provider`) / `source_unknown` (+`provider`, `sources`) | `source.set` |
+| 4090 | `source_absent` (+`provider`, `source`) | `source.set`: no credential of that family is stored |
+| -32000 | `source_failed` (+`provider`; `message` is the exception class) | `source.set` |
 | 4001 | `login_not_found` (+`login_id`) | `signin.poll/complete/cancel` |
 | 4090 | `login_in_progress` (+`login_id` of the live one) | `signin.begin` |
 | 4090 | `login_not_awaiting_code` (+`state`) | `signin.complete` |
 | -32000 | `refresh_refused` / `signout_refused` | upstream refused; `message` is its operator text |
 | -32000 | `refresh_failed` / `signout_failed` | upstream raised; `message` is the exception class |
+| -32602 | `variable_required` | `env_token.remove` |
+| 4090 | `env_token_unknown` (+`provider`, `variable`) | `env_token.remove`: no `env:<variable>` entry in this provider's pool |
+| -32000 | `env_token_remove_failed` (+`provider`, `variable`, `removed_from`; `message` is the exception class) | `env_token.remove` |
 | -32000 | `sdk_free_edition` (+`provider`) | `dependency.install` on an SDK-free profile |
 | -32000 | `dependency_not_installable` (+`provider`, `missing`) | `dependency.install`: no single extra installs it, or the platform excludes it |
 | -32000 | `environment_busy` (+`provider`, `extra`) | `dependency.install`: still `os error 32` after the retries |
@@ -158,6 +226,8 @@ from `get_auth_status` before and after).
 | -32000 | `pack_not_found` | `pack.activate`: not an absolute directory with an `engine-pack.json` one level up |
 | -32000 | `pack_unknown` (+`pack`) | `pack.activate`: a pack this bundle does not offer |
 | -32000 | `pack_mismatch` (+`pack`) | `pack.activate`: built from another commit than this bundle |
+| 4001 | `agent_unknown` (+`persona_instance_id` / `persona_id`) | `list`, `usage`: the named agent is not one this runtime knows (or the two ids disagree) |
+| 4090 | `agent_profile_unavailable` (+`persona_id`, `profile`) | `list`, `usage`: the agent's Hermes profile does not exist |
 | -32000 | `handler_failed` (+`method`, `error_class`) | anything else |
 
 ## Credentials
@@ -187,7 +257,14 @@ not auto-opened; the client opens `verification_uri`.
 
 `signin.begin`'s `profile` becomes the child's `--profile` (the same resolution
 as `hermes harness auth login --profile`); the child otherwise runs under the serve's
-`HERMES_HOME`. The other methods act on the serve's own home.
+`HERMES_HOME`. The other methods act on the serve's own home, except that `list`
+and `usage` given an agent (`persona_instance_id`, or `persona_id`) answer under
+that agent's profile: the read runs inside the same `resolve_persona_profile` +
+`persona_profile_context` binding a turn of that agent runs in
+(`agent_runtime/provider_agent_scope.py`), so it sees the accounts that turn
+spends, and the result gains `agent: {persona_id, persona_instance_id, profile}`
+(`profile` is the bound Hermes profile, or the serve's own for an agent that
+binds none). Without either id the result is unchanged and has no `agent` key.
 
 The sign-in child is a subprocess; a profile that cannot spawn one binds a
 different runner through `ProviderSignIns(spawn=…)`.

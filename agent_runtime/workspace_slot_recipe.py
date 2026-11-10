@@ -165,10 +165,13 @@ def derived_steps(slot_name: str, slot: dict[str, Any]) -> list[dict[str, Any]]:
 
     repo = slot.get("repo") or {}
     toolchain = slot.get("toolchain") or {}
+    # A local slot has no clone URL (``clone_slot`` refuses it): Locate is its one meaningful action
+    # (RT-PROJECT-LOCAL-FOLDER-READINESS).
+    local = repo.get("local") is True
     steps: list[dict[str, Any]] = [{
         "id": CLONE_STEP_ID, "kind": STEP_CLONE, "slot": slot_name, "derived": True,
-        "label": f"Clone or locate {slot_name}", "clone_url": repo.get("clone_url"),
-        "default_branch": repo.get("default_branch"), "actions": ["clone", "locate"],
+        "label": f"Locate {slot_name}" if local else f"Clone or locate {slot_name}", "clone_url": repo.get("clone_url"),
+        "default_branch": repo.get("default_branch"), "actions": ["locate"] if local else ["clone", "locate"],
     }]
     for tool in toolchain.get("tools") or []:
         steps.append({"id": tool_step_id(tool["name"]), "kind": STEP_TOOL, "slot": slot_name, "derived": True,
@@ -359,6 +362,7 @@ def _dotenv_state(step: dict[str, Any], row: dict[str, Any]) -> tuple[str, str |
 _CHECKOUT_STATES = {
     "matches": (STATE_DONE, None),
     "local": (STATE_DONE, None),
+    "folder": (STATE_DONE, None),
     "remote_mismatch": (STATE_WARNING, "remote_mismatch"),
     "not_a_repo": (STATE_TODO, "not_a_repo"),
     None: (STATE_UNKNOWN, UNKNOWN_PROBE_ABSENT),

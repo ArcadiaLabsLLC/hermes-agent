@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from agent.charsheet import pipeline
 from agent.charsheet.revisions import ImageRevisionStore
+from agent.pet.constants import LOOP_MS
 
 from .installed import _row_json
 from .layout import SCHEMA, STAGES, path_or_none, read_palette, row_item, spec_to_dict, turnaround_item
@@ -74,6 +75,12 @@ class StatusReport:
                 "rows": [_row_json(row) for row in spec.rows()],
                 "sheetWidth": width,
                 "sheetHeight": height,
+                # The full-loop duration of one row, the SAME constant compose
+                # writes into an installed sheet's manifest. Published here so a
+                # consumer timing a draft row's frames (Studio's "open row on
+                # timeline": loopMs / frames per cell) reads hermes's number
+                # instead of keeping a second copy of it.
+                "loopMs": LOOP_MS,
             },
             "turnaround": turnaround,
             "rows": rows,

@@ -385,6 +385,31 @@ def test_history_row_activity_uses_latest_message_when_raw_session_has_no_last_a
     assert rows[0]["updated_at"] == "2026-06-22T21:01:04.000000Z"
 
 
+def test_history_row_counts_the_rows_the_chat_shows_beside_the_stored_rows():
+    """RT-CHAT-VISIBLE-MESSAGE-COUNT: the panel said "6 messages" for a chat that shows 2."""
+    db = FakeHistorySessionDB(
+        [{"id": "chat_neko", "title": "Neko", "message_count": 6, "started_at": 1782162000.0}],
+        messages=[
+            {"id": "m1", "role": "user", "content": "hi"},
+            {"id": "m2", "role": "assistant", "content": None,
+             "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}]},
+            {"id": "m3", "role": "tool", "content": "file body", "tool_call_id": "c1"},
+            {"id": "m4", "role": "assistant", "content": None,
+             "tool_calls": [{"id": "c2", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}]},
+            {"id": "m5", "role": "tool", "content": "file body", "tool_call_id": "c2"},
+            {"id": "m6", "role": "assistant", "content": "hello"},
+        ],
+    )
+
+    row = persona_chat_history_summary(
+        persona_instances=[_chat_persona_instance("personainst_neko", "neko_supervisor", "chat_neko")],
+        session_db=db,
+    )[0]
+
+    assert row["message_count"] == 6  # stored rows: usage accounting, unchanged
+    assert row["visible_message_count"] == 2 == len(row["messages"])
+
+
 def test_history_row_normalizes_iso_and_drops_garbage_timestamps():
     db = FakeHistorySessionDB(
         [
@@ -528,13 +553,12 @@ def test_persona_chat_history_emits_no_mission_row_for_a_stored_mission_instance
     )
 
     # RT-TASK-BOUND-MISSION-LANES: a stored mission-shaped instance gets no
-    # synthetic "Mission run" row and no ``task_id`` key; the chat row still
-    # emits ``kind`` / ``live_mission`` until the wire prune.
-    # Kill-mutation: restore ``live_mission_candidates`` → the mission row reappears, red.
-    assert [(row["session_id"], row["kind"], row["live_mission"]) for row in rows] == [
-        ("chat_neko", "chat", False)
-    ]
-    assert all("task_id" not in row for row in rows)
+    # synthetic "Mission run" row and no ``task_id`` key; RT-TASK-BOUND-WIRE-PRUNE
+    # then took ``kind`` / ``live_mission`` off every row.
+    # Kill-mutation: restore ``live_mission_candidates`` → the mission row reappears, red;
+    # put ``"live_mission": False`` back in ``_history_row`` → red.
+    assert [row["session_id"] for row in rows] == ["chat_neko"]
+    assert all(key not in row for row in rows for key in ("task_id", "kind", "live_mission"))
 
 
 def test_iso_timestamp_normalizes_datetime_values():
@@ -621,6 +645,40 @@ def test_safe_recent_messages_projects_persisted_turn_elements(isolate_agent_run
     assert [item["id"] for item in rows[0]["turn_elements"]] == ["seg_1", "tool_1", "seg_2"]
     assert rows[0]["turn_elements"][1]["files"] == ["safe.dart", "…/private_token.txt"]  # word kept, path cut
     assert mission_chat_turn_elements(session_id="s1", client_message_id="missing") == []
+
+
+def test_turn_elements_ride_once_on_the_turns_last_agent_row(isolate_agent_runtime_root):
+    """RT-CHAT-HISTORY-TURN-REPEATED: a turn that spoke three times ships its elements once."""
+
+    persist_mission_chat_turn(
+        session_id="s1",
+        client_message_id="client_1",
+        turn_id="turn_1",
+        elements=[
+            {"kind": "segment", "id": "seg_1", "turn_id": "turn_1", "seq": 1,
+             "seg_type": "plan", "text": "I will inspect."},
+            {"kind": "segment", "id": "seg_2", "turn_id": "turn_1", "seq": 2,
+             "seg_type": "answer", "text": "Done."},
+        ],
+    )
+    db = FakeSessionDB(
+        [
+            {"id": "op_1", "role": "user", "content": "Go", "platform_message_id": "client_1"},
+            {"id": "a_1", "role": "assistant", "content": "I will inspect.",
+             "platform_message_id": "client_1:assistant:1"},
+            {"id": "a_2", "role": "assistant", "content": "Still looking.",
+             "platform_message_id": "client_1:assistant:2"},
+            {"id": "a_3", "role": "assistant", "content": "Done.",
+             "platform_message_id": "client_1:assistant:3"},
+        ]
+    )
+
+    rows, _status, _unread = _safe_recent_messages(db, session_id="s1")
+
+    agent_rows = [row for row in rows if row["role"] == "agent"]
+    assert [row["text"] for row in agent_rows] == ["I will inspect.", "Still looking.", "Done."]
+    assert [bool(row.get("turn_elements")) for row in agent_rows] == [False, False, True]
+    assert [item["id"] for item in agent_rows[-1]["turn_elements"]] == ["seg_1", "seg_2"]
 
 
 def test_mission_chat_turn_persists_durable_partial_prefix(isolate_agent_runtime_root):
@@ -1564,7 +1622,7 @@ def test_persona_chat_trace_projects_session_keyed_chat_tool_calls():
     assert len(rows) == 1
     row = rows[0]
     assert row["persona_instance_id"] == "personainst_neko"
-    assert row["task_id"] is None
+    assert "task_id" not in row, "RT-TASK-BOUND-WIRE-PRUNE: the trace row carries no task id"
     assert row["session_id"] == "chat_neko"
     assert [entry["event"] for entry in row["entries"]] == ["tool_started", "tool_finished"]
     assert row["entries"][0]["summary"] == "echo PARITY_OK_2026"

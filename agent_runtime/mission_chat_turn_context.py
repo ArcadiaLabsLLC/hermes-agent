@@ -246,10 +246,10 @@ def _default_load_slot_context(instance: Any) -> Any:
     return load_slot_context(instance)
 
 
-def _default_load_project_context(instance: Any) -> Any:
-    from .persona_slots import load_project_context
+def _default_load_category_context(instance: Any) -> Any:
+    from .persona_slots import load_category_context
 
-    return load_project_context(instance)
+    return load_category_context(instance)
 
 
 def _default_mission_chat_workdir(
@@ -355,9 +355,9 @@ class MissionChatTurnResolvers:
     load_workspace_agents: Callable[[Any], Any] = _default_load_workspace_agents
     #: The instance's repo-slot context (build plan §3.3); None = no assignment.
     load_slot_context: Callable[[Any], Any] = _default_load_slot_context
-    #: The instance's workspace's Projects' documents + shared guidance (plan §7); None = nothing to offer.
+    #: The instance's workspace's listed documents + shared guidance (its categories); None = nothing to offer.
     #: Its own field: it reaches an UNASSIGNED instance too, and never supersedes the alias.
-    load_project_context: Callable[[Any], Any] = _default_load_project_context
+    load_category_context: Callable[[Any], Any] = _default_load_category_context
     #: Where the turn runs (G6 workdir ladder), resolved ONCE here from the three inputs this
     #: builder is the first to hold, and handed down to ``mission_chat_reply`` (D1.12 S1).
     mission_chat_workdir: Callable[..., Any] = _default_mission_chat_workdir
@@ -440,9 +440,9 @@ class MissionChatTurnContext:
     #: The assigned slots' context (``persona_slots.SlotContext``), or None when the
     #: instance has no assignment and the one-release ``--agents-file`` alias applies.
     slot_context: Any = None
-    #: The workspace's Projects' context (``persona_slots.ProjectContext``), with or without an
+    #: The workspace's category context (``persona_slots.CategoryContext``), with or without an
     #: assignment; its sections follow the slot (or alias) content in the system message.
-    project_context: Any = None
+    category_context: Any = None
     #: The workspace this turn is in, as Hermes resolved it from the lane's own
     #: pointer (else the active workspace). The context record is stamped from
     #: THIS, never from what a client sent: a client can only say which
@@ -460,9 +460,9 @@ class MissionChatTurnContext:
 
     @property
     def workspace_agents_content(self) -> str | None:
-        """Under an assignment, every assigned slot's sections, each headed by its slot name; then the Projects'."""
+        """Under an assignment, every assigned slot's sections, each headed by its slot name; then the categories'."""
 
-        return workspace_content(self.slot_context, self.workspace_agents, self.project_context)
+        return workspace_content(self.slot_context, self.workspace_agents, self.category_context)
 
     @property
     def slot_bindings(self) -> tuple[Any, ...]:
@@ -559,7 +559,7 @@ def build_mission_chat_turn_context(
     )
     timings["context_skill_preload_ms"] = _elapsed_ms(_started)
 
-    slot_context, workspace_agents, workspace_agents_receipt, workdir, project_context = _turn_workspace(
+    slot_context, workspace_agents, workspace_agents_receipt, workdir, category_context = _turn_workspace(
         resolvers, persona, instance, agents_file, run_workdir, chat_session_id=session_id)
 
     # Composed ONCE and folded two ways (``_turn_signature``).
@@ -635,7 +635,7 @@ def build_mission_chat_turn_context(
         runtime_signature_digests=runtime_signature_digests,
         timings=timings,
         slot_context=slot_context,
-        project_context=project_context,
+        category_context=category_context,
         lane_workspace=resolvers.lane_workspace(instance) or LaneWorkspace(),
         workdir=workdir,
     )
@@ -681,10 +681,10 @@ def _turn_workspace(
     resolvers: MissionChatTurnResolvers, persona: Any, instance: Any, agents_file: Any, run_workdir: str | None = None,
     *, chat_session_id: str | None = None,
 ) -> tuple[Any, Any, dict[str, Any] | None, Any, Any]:
-    """``(slot context, workspace agents, its receipt, workdir, project context)``: the turn's workspace facts, each once.
+    """``(slot context, workspace agents, its receipt, workdir, category context)``: the turn's workspace facts, each once.
 
-    The Project context is loaded whether or not the instance holds an assignment; its receipts
-    ride the workspace receipt under ``projects`` so the signature folds what the prompt carries.
+    The category context is loaded whether or not the instance holds an assignment; its receipts
+    ride the workspace receipt under ``categories`` so the signature folds what the prompt carries.
 
     The workdir is resolved HERE (D1.12 S1) because this is where its three inputs are first
     in hand — the persona, the loaded ``AGENTS.md`` pointer, the primary slot's path. Under an
@@ -700,34 +700,34 @@ def _turn_workspace(
     # Rung 4 (chat-folder plan §2.3): this chat's own folder, created only if the ladder reaches it.
     folder = chat_folder_path_for(getattr(instance, "id", None), chat_session_id)
     slot_context = resolvers.load_slot_context(instance)
-    project_context = resolvers.load_project_context(instance)
+    category_context = resolvers.load_category_context(instance)
     if slot_context is None:
         workspace_agents, receipt = _workspace_context(resolvers, agents_file, None)
         workdir = resolvers.mission_chat_workdir(
             persona, workspace_agents_path=_workspace_agents_path(None, workspace_agents), primary_slot_path=None,
             chat_folder_path=folder,
         )
-        return (None, workspace_agents, _with_projects(receipt, project_context),
-                with_run_override(workdir, run_workdir), project_context)
+        return (None, workspace_agents, _with_categories(receipt, category_context),
+                with_run_override(workdir, run_workdir), category_context)
     workdir = with_run_override(resolvers.mission_chat_workdir(
         persona, workspace_agents_path=None, primary_slot_path=slot_context.primary_path, chat_folder_path=folder,
     ), run_workdir)
     slot_context = slot_context_for_prompt(slot_context, persona=persona, workdir=workdir)
     workspace_agents, receipt = _workspace_context(resolvers, agents_file, slot_context)
-    return slot_context, workspace_agents, _with_projects(receipt, project_context), workdir, project_context
+    return slot_context, workspace_agents, _with_categories(receipt, category_context), workdir, category_context
 
 
-def _with_projects(receipt: dict[str, Any] | None, project_context: Any) -> dict[str, Any] | None:
-    """The workspace receipt plus the Project context's receipts (``projects``), when there are any."""
+def _with_categories(receipt: dict[str, Any] | None, category_context: Any) -> dict[str, Any] | None:
+    """The workspace receipt plus the category context's receipts (``categories``), when there are any."""
 
-    if project_context is None or not project_context.receipts:
+    if category_context is None or not category_context.receipts:
         return receipt
-    base = dict(receipt) if receipt else {"kind": "workspace_context", "source": "projects"}
-    return {**base, "projects": [dict(item) for item in project_context.receipts]}
+    base = dict(receipt) if receipt else {"kind": "workspace_context", "source": "categories"}
+    return {**base, "categories": [dict(item) for item in category_context.receipts]}
 
 
-def workspace_content(slot_context: Any, workspace_agents: Any, project_context: Any) -> str | None:
-    """The workspace text the system message carries: the slots' (or the alias's), then the Projects'.
+def workspace_content(slot_context: Any, workspace_agents: Any, category_context: Any) -> str | None:
+    """The workspace text the system message carries: the slots' (or the alias's), then the categories'.
 
     The ONE composition, shared by the turn (:attr:`MissionChatTurnContext.workspace_agents_content`)
     and the prewarm's first-turn message, so the warmed prompt stays byte-equal to the turn's.
@@ -737,7 +737,7 @@ def workspace_content(slot_context: Any, workspace_agents: Any, project_context:
         base = slot_context.content or None
     else:
         base = getattr(workspace_agents, "content", None)
-    extra = project_context.content if project_context is not None else ""
+    extra = category_context.content if category_context is not None else ""
     return "\n\n".join(part for part in (base, extra) if part) or None
 
 

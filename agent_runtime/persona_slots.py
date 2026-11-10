@@ -5,12 +5,8 @@ The authority is the instance record (``assigned_slots``, ``primary_slot``,
 ``runtime.persona.instance.slots.set`` (owner correction 2026-10-04) — the workspace side
 declares and fills slots and never assigns agents.
 
-* **A subset, never "all".** Every assigned name is a live slot the instance's workspace
-  sees (``slot_not_in_workspace``); empty means NONE. A slot a Project declares is assigned as
-  ``<project>/<slot>`` (plan project-slots-and-shared-chats §3) and is visible only while the
-  workspace holds that Project in ``project_ids``; a bare name is a slot of the workspace's own,
-  not-yet-migrated document. Disconnecting a Project drops ``<project>/*`` from every instance of
-  that workspace in the same write (:func:`drop_project_slots`). A slot may sit in several
+* **A subset, never "all".** Every assigned name is a live slot of the instance's workspace's
+  slot document (``slot_not_in_workspace``); empty means NONE. A slot may sit in several
   instances' lists at once (OWNER 2026-10-04 example): ``set`` touches one record, so
   assigning a slot to the frontend agent never takes it from the backend agent. A slot the
   workspace removes is dropped from every assignment in the same write
@@ -28,6 +24,12 @@ declares and fills slots and never assigns agents.
   (``not_default``, or ``missing``). Receipts list every assigned slot and every file — an
   unbound slot (``slot_unbound_here``, naming the machines that bind it) and a missing file
   (``missing``) included.
+* **The agent's own pick** (RT-SLOT-CONTEXT-FILE-PICKS): an instance may OVERRIDE, per assigned
+  slot, which files load — ``CLAUDE.md`` and ``AGENTS.md`` as on/off toggles plus one custom
+  ``.md`` (an absolute path, this machine's own). An override outranks the declaration's list and
+  the one-file default; every loaded file's receipt carries ``override_choice: slot_override`` and a
+  toggled-off one says ``override_off``. No override keeps today's ruling. ``slots.set`` accepts it
+  as ``context_files``, ``slots.show`` returns it on each slot row (:func:`context_files_override`).
 * **Not twice** (D1.12): when the persona opts into core context files and the turn is
   grounded, upstream's prompt builder injects the cwd chain's ``AGENTS.md`` / ``CLAUDE.md``
   for the workdir itself. A slot section whose content that chain carries WHOLE is dropped
@@ -54,6 +56,12 @@ REASON_INSTANCE_HAS_NO_WORKSPACE = "instance_has_no_workspace"
 REASON_INSTANCE_NOT_FOUND = "instance_not_found"
 REASON_STALE_REVISION = "stale_revision"
 REASON_INVALID_REQUEST = "invalid_request"
+REASON_CONTEXT_FILES_INVALID = "context_files_invalid"
+
+#: The two files an override toggles, in the order their sections load.
+OVERRIDE_TOGGLE_FILES: tuple[str, ...] = ("CLAUDE.md", "AGENTS.md")
+#: The reason every receipt under an override names.
+OVERRIDE_CHOICE = "slot_override"
 
 PRIMARY_SOURCE_EXPLICIT = "explicit"
 PRIMARY_SOURCE_FIRST_ASSIGNED = "first_assigned"
@@ -97,34 +105,72 @@ def _slot_instance(instance_id: str):
 
 @dataclass(frozen=True)
 class VisibleSlot:
-    """A slot an instance of a workspace may be assigned: its key, owner, record and the document it lives in."""
+    """A slot an instance of a workspace may be assigned: its name, record and the document it lives in."""
 
     key: str
     name: str
-    project_id: str | None
     record: dict[str, Any]
     document: dict[str, Any]
 
 
 def visible_slots(workspace_id: str) -> dict[str, VisibleSlot]:
-    """Every live slot a workspace's instances may be assigned, by key (``<project>/<slot>`` or a bare name)."""
+    """Every live slot of the workspace's slot document, by name: what its instances may be assigned."""
 
-    from .project_store import load_project
-    from .workspace_slots import live_slots, load_document, slot_key, slots_of_workspace
+    from .workspace_slots import live_slots, load_document
 
-    documents: dict[str | None, dict[str, Any]] = {}
-    out: dict[str, VisibleSlot] = {}
-    for project_id, name in slots_of_workspace(workspace_id):
-        if project_id not in documents:
-            documents[project_id] = load_project(project_id) if project_id else load_document(workspace_id)
-        document = documents[project_id]
-        key = slot_key(project_id, name)
-        out[key] = VisibleSlot(key, name, project_id, live_slots(document)[name], document)
-    return out
+    document = load_document(workspace_id)
+    return {name: VisibleSlot(name, name, record, document) for name, record in sorted(live_slots(document).items())}
 
 
-def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, issued_at: str) -> dict[str, Any]:
-    """REPLACE one instance's assignment and primary; refusals are typed."""
+def _parse_context_files(context_files: Any, slots: list[str]) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """``slots.set``'s ``context_files`` → ``(toggles, custom paths)``; refusals are typed.
+
+    ``{<assigned slot>: {"files": [subset of CLAUDE.md / AGENTS.md], "custom_path": abs .md | null} | null}``.
+    A slot mapped to ``null`` (or left out) has no override.
+    """
+
+    if not isinstance(context_files, dict):
+        raise SlotAssignmentRefused(REASON_CONTEXT_FILES_INVALID, "context_files must be an object keyed by slot")
+    toggles: dict[str, list[str]] = {}
+    custom: dict[str, str] = {}
+    for slot, pick in context_files.items():
+        if slot not in slots:
+            raise SlotAssignmentRefused(REASON_CONTEXT_FILES_INVALID, f"{slot}: not an assigned slot")
+        if pick is None:
+            continue
+        files = pick.get("files") if isinstance(pick, dict) else None
+        if not isinstance(files, list) or not all(isinstance(name, str) and name in OVERRIDE_TOGGLE_FILES
+                                                  for name in files):
+            raise SlotAssignmentRefused(REASON_CONTEXT_FILES_INVALID,
+                                        f"{slot}: files must be a subset of {list(OVERRIDE_TOGGLE_FILES)}")
+        toggles[slot] = [name for name in OVERRIDE_TOGGLE_FILES if name in files]
+        path = pick.get("custom_path")
+        if path is None:
+            continue
+        if not isinstance(path, str) or not Path(path).is_absolute() or not path.lower().endswith(".md"):
+            raise SlotAssignmentRefused(REASON_CONTEXT_FILES_INVALID,
+                                        f"{slot}: custom_path must be an absolute path to a .md file")
+        custom[slot] = path
+    return toggles, custom
+
+
+def context_files_override(instance: Any, slot: str) -> dict[str, Any] | None:
+    """``{"files": [...], "custom_path": str | None}`` — the slot's override on this machine, or None (no
+    override: the declaration's list, else the one-file default)."""
+
+    toggles = getattr(instance, "slot_context_files", None) or {}
+    if slot not in toggles:
+        return None
+    return {"files": list(toggles[slot]), "custom_path": (getattr(instance, "slot_context_custom", None) or {}).get(slot)}
+
+
+def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, issued_at: str,
+                       context_files: Any = None) -> dict[str, Any]:
+    """REPLACE one instance's assignment and primary; refusals are typed.
+
+    ``context_files`` (optional) REPLACES the per-slot context override map; omitted, the
+    overrides of slots still assigned are kept. Either way an unassigned slot's override leaves.
+    """
 
     from .workspace_slots import stamp_epoch
 
@@ -142,18 +188,25 @@ def set_instance_slots(instance_id: str, slots: Any, primary: Any = None, *, iss
         raise SlotAssignmentRefused(REASON_SLOT_NOT_IN_WORKSPACE, ", ".join(unknown))
     if primary is not None and primary not in slots:
         raise SlotAssignmentRefused(REASON_PRIMARY_NOT_ASSIGNED, str(primary))
+    if context_files is not None:
+        toggles, custom = _parse_context_files(context_files, slots)
+    else:
+        toggles = {k: v for k, v in (instance.slot_context_files or {}).items() if k in slots}
+        custom = {k: v for k, v in (instance.slot_context_custom or {}).items() if k in toggles}
     held = instance.slots_issued_at
     if held is not None and issued < held.timestamp():
         raise SlotAssignmentRefused(REASON_STALE_REVISION, "a newer assignment already landed")
     instance.assigned_slots = list(dict.fromkeys(slots))
     instance.primary_slot = primary or None
+    instance.slot_context_files = toggles
+    instance.slot_context_custom = custom
     instance.slots_issued_at = datetime.fromisoformat(issued_at)
     _store().update(instance)
     return show_instance_slots(instance_id)
 
 
 def set_instance_recall(instance_id: str, enabled: Any, *, issued_at: str) -> dict[str, Any]:
-    """``recall_shared_projects`` on one instance (plan project-slots-and-shared-chats §6), on the slot clock."""
+    """``recall_shared_workspaces`` on one instance (plan project-slots-and-shared-chats §6), on the slot clock."""
 
     from .workspace_slots import stamp_epoch
 
@@ -164,46 +217,44 @@ def set_instance_recall(instance_id: str, enabled: Any, *, issued_at: str) -> di
         raise SlotAssignmentRefused(REASON_INVALID_REQUEST, "issued_at must be an ISO-8601 stamp")
     instance = _slot_instance(instance_id)
     if not instance.workspace_id:
-        raise SlotAssignmentRefused(REASON_INSTANCE_HAS_NO_WORKSPACE, "the canonical persona channel has no Projects")
+        raise SlotAssignmentRefused(REASON_INSTANCE_HAS_NO_WORKSPACE, "the canonical persona channel has no workspace")
     held = instance.slots_issued_at
     if held is not None and issued < held.timestamp():
         raise SlotAssignmentRefused(REASON_STALE_REVISION, "a newer assignment already landed")
-    instance.recall_shared_projects = enabled
+    instance.recall_shared_workspaces = enabled
     instance.slots_issued_at = datetime.fromisoformat(issued_at)
     _store().update(instance)
     return show_instance_slots(instance_id)
 
 
 def show_instance_slots(instance_id: str) -> dict[str, Any]:
-    """``{workspace_id, slots: [{name, project_id, slot, bound_here, path, status}], projects, primary_slot,
-    primary_source}`` — ``projects`` groups the assigned keys by the Project that declares them
-    (``null`` for the workspace's own document)."""
+    """``{workspace_id, slots: [{name, slot, bound_here, path, status, context_files}], primary_slot,
+    primary_source, recall_shared_workspaces}`` — ``context_files`` is the slot's override (:func:`context_files_override`, ``null`` =
+    today's ruling)."""
 
     instance = _slot_instance(instance_id)
     declared = visible_slots(instance.workspace_id) if instance.workspace_id else {}
     rows = []
-    projects: dict[str, list[str]] = {}
     for name in instance.assigned_slots or []:
         held = declared.get(name)
         path = _bound(held, instance.workspace_id) if held else None
         bound = bool(path and path.is_dir())
         status = "bound" if bound else ("unbound_here" if held else "not_declared")
-        rows.append({"name": name, "project_id": held.project_id if held else None,
-                     "slot": held.name if held else name, "bound_here": bound,
-                     "path": str(path) if bound else None, "status": status})
-        projects.setdefault(held.project_id if held and held.project_id else "", []).append(name)
+        rows.append({"name": name, "slot": held.name if held else name, "bound_here": bound,
+                     "path": str(path) if bound else None, "status": status,
+                     "context_files": context_files_override(instance, name)})
     primary, source = resolve_primary(instance)
+    recall = bool(getattr(instance, "recall_shared_workspaces", False))
     return {"persona_instance_id": instance.id, "workspace_id": instance.workspace_id, "slots": rows,
-            "projects": [{"project_id": pid or None, "slots": keys} for pid, keys in projects.items()],
             "primary_slot": primary, "primary_source": source,
-            "recall_shared_projects": bool(getattr(instance, "recall_shared_projects", False))}
+            # The Project-edition key ``recall_shared_projects`` left this reply (RT-WS-RECALL-RENAME-S4-DROP-REPLY-KEY):
+            # the launcher's switch reads this one since MC-RECALL-SWITCH-KEY-REPOINT.
+            "recall_shared_workspaces": recall}
 
 
 def _bound(held: VisibleSlot, workspace_id: str) -> Path | None:
     from .workspace_slots import bound_path
 
-    if held.project_id:
-        return bound_path(held.name, project_id=held.project_id)
     return bound_path(held.name, workspace_id=workspace_id)
 
 
@@ -211,18 +262,6 @@ def drop_removed_slots(workspace_id: str, removed: set[str] | frozenset[str]) ->
     """Drop ``removed`` slot keys from every instance of ``workspace_id``; returns the ids touched."""
 
     return _drop_where(lambda instance: instance.workspace_id == workspace_id, lambda key: key in removed)
-
-
-def drop_project_slots(project_id: str, *, workspace_id: str | None = None,
-                       removed: set[str] | frozenset[str] | None = None) -> list[str]:
-    """Drop ``<project>/*`` (or only ``<project>/<removed>``) from every instance of ``workspace_id``
-    (every workspace when ``None``); the ids touched. A Project's disconnect and a Project slot's
-    tombstone both leave every assignment in the same write."""
-
-    prefix = f"{project_id}/"
-    return _drop_where(
-        lambda instance: workspace_id is None or instance.workspace_id == workspace_id,
-        lambda key: key.startswith(prefix) and (removed is None or key[len(prefix):] in removed))
 
 
 def _drop_where(owns, drops) -> list[str]:
@@ -236,29 +275,42 @@ def _drop_where(owns, drops) -> list[str]:
             instance.id,
             assigned_slots=[key for key in keys if not drops(key)],
             primary_slot=None if instance.primary_slot and drops(instance.primary_slot) else instance.primary_slot,
+            slot_context_files={k: v for k, v in (instance.slot_context_files or {}).items() if not drops(k)},
+            slot_context_custom={k: v for k, v in (instance.slot_context_custom or {}).items() if not drops(k)},
         )
         touched.append(instance.id)
     return touched
 
 
-def rekey_workspace_assignments(workspace_id: str, project_id: str, names: set[str] | frozenset[str]) -> list[str]:
-    """The slot migration's step 3 (plan §4): bare names of a migrated document become ``<project>/<slot>``.
+def rekey_project_assignments(project_id: str, home: str | None, rename: dict[str, str]) -> list[str]:
+    """The workspace merge's instance step (RT-WS-ABSORB-MIGRATION): ``<project>/<slot>`` keys become bare.
 
-    Set-to-value per instance (a key already re-keyed is left as it is), ``slots_issued_at`` stamped.
+    In the Project's home workspace a key takes its (renamed) slot name; in any other workspace, or for a
+    slot that did not move, it is dropped — the Project is no longer seen there. ``slots_issued_at`` stamped.
     """
 
+    prefix = f"{project_id}/"
     store = _store()
     touched = []
     stamp = datetime.now().astimezone()
     for instance in store.list_all():
         keys = list(instance.assigned_slots or [])
-        if instance.workspace_id != workspace_id or not any(key in names for key in keys):
+        owned = [key for key in (*keys, instance.primary_slot or "", *(instance.slot_context_files or {}),
+                                 *(instance.slot_context_custom or {})) if key.startswith(prefix)]
+        if not owned:
             continue
+
+        def moved(key: str) -> str | None:
+            if not key.startswith(prefix):
+                return key
+            return rename.get(key[len(prefix):]) if home is not None and instance.workspace_id == home else None
+
         store.patch_fields(
             instance.id,
-            assigned_slots=list(dict.fromkeys(f"{project_id}/{key}" if key in names else key for key in keys)),
-            primary_slot=(f"{project_id}/{instance.primary_slot}" if instance.primary_slot in names
-                          else instance.primary_slot),
+            assigned_slots=list(dict.fromkeys(key for key in map(moved, keys) if key)),
+            primary_slot=moved(instance.primary_slot) if instance.primary_slot else instance.primary_slot,
+            slot_context_files={moved(k): v for k, v in (instance.slot_context_files or {}).items() if moved(k)},
+            slot_context_custom={moved(k): v for k, v in (instance.slot_context_custom or {}).items() if moved(k)},
             slots_issued_at=stamp,
         )
         touched.append(instance.id)
@@ -300,22 +352,13 @@ class SlotContext:
     dedup_against: str | None = None
     #: ``(slot, file)`` of every section dropped because the cwd chain carries it whole.
     dedup_dropped: tuple[tuple[str, str], ...] = ()
-    #: ``(assigned key, (slot name, project id | None))`` for each bound slot (a Project's slot keys as
-    #: ``<project>/<slot>``; its env overlay reads the Project's fill and declaration).
-    owners: tuple[tuple[str, tuple[str, str | None]], ...] = ()
-
     @property
     def bindings(self) -> tuple[Any, ...]:
         """The bound assigned slots as overlay bindings (the turn's env scope, §3.3)."""
 
         from .workspace_slot_overlay import SlotBinding
 
-        owned = dict(self.owners)
-        bindings = []
-        for slot, path in self.bound:
-            name, project_id = owned.get(slot, (slot, None))
-            bindings.append(SlotBinding(self.workspace_id, name, path, project_id))
-        return tuple(bindings)
+        return tuple(SlotBinding(self.workspace_id, slot, path) for slot, path in self.bound)
 
     @property
     def content(self) -> str:
@@ -385,6 +428,33 @@ def _default_file_receipts(slot: str, path: Path, load: Any) -> tuple[list[dict[
     return receipts, sections
 
 
+def _override_file_receipts(slot: str, path: Path, override: dict[str, Any],
+                            load: Any) -> tuple[list[dict[str, Any]], list[SlotContextSection]]:
+    """The agent's own pick for one bound slot: each toggled-on file and the custom ``.md`` loaded, each
+    toggled-off file's receipt saying so; every receipt names the override as its reason."""
+
+    receipts: list[dict[str, Any]] = []
+    sections: list[SlotContextSection] = []
+    on = override.get("files") or []
+    for file in OVERRIDE_TOGGLE_FILES:
+        if file not in on:
+            receipts.append({"slot": slot, "file": file, "label": f"{slot}/{file}", "kind": "workspace_context",
+                             "included": False, "status": "override_off", "evidence": OVERRIDE_CHOICE})
+            continue
+        loaded = load(str(path / file), allowed_names=None)
+        receipts.append(_file_receipt(slot, file, loaded) | {"override_choice": OVERRIDE_CHOICE})
+        if getattr(loaded, "content", None):
+            sections.append(SlotContextSection(slot, file, loaded.content))
+    custom = override.get("custom_path")
+    if custom:
+        file = Path(custom).name
+        loaded = load(custom, allowed_names=None)
+        receipts.append(_file_receipt(slot, file, loaded) | {"override_choice": OVERRIDE_CHOICE, "custom_path": custom})
+        if getattr(loaded, "content", None):
+            sections.append(SlotContextSection(slot, file, loaded.content))
+    return receipts, sections
+
+
 def _file_receipt(slot: str, file: str, loaded: Any) -> dict[str, Any]:
     receipt = dict(getattr(loaded, "receipt", None) or {})
     receipt.pop("preview", None)
@@ -401,11 +471,12 @@ def _unbound_receipt(slot: str, document: dict[str, Any]) -> dict[str, Any]:
 
 
 @dataclass(frozen=True)
-class ProjectContext:
-    """The workspace's Projects' listed documents and shared guidance for one turn (plan §7, H-P4).
+class CategoryContext:
+    """The workspace's listed documents and shared guidance for one turn (its ``documents`` and
+    ``guidance`` categories, ``workspace_categories.category_context``).
 
-    Its own turn-context field, beside the slot context: it reaches every instance of a workspace
-    holding the Project — assigned or not — and never supersedes the ``--agents-file`` alias.
+    Its own turn-context field, beside the slot context: it reaches every instance of the workspace —
+    assigned or not — and never supersedes the ``--agents-file`` alias.
     """
 
     sections: tuple[SlotContextSection, ...] = ()
@@ -416,18 +487,18 @@ class ProjectContext:
         return sections_text(self.sections)
 
 
-def load_project_context(instance: Any) -> ProjectContext | None:
-    """The instance's workspace's Project context, or None when the workspace holds nothing to offer."""
+def load_category_context(instance: Any) -> CategoryContext | None:
+    """The instance's workspace's category context, or None when the workspace has nothing to offer."""
 
-    from .project_categories import project_context
+    from .workspace_categories import category_context
 
     workspace_id = getattr(instance, "workspace_id", None)
     if not workspace_id:
         return None
-    sections, receipts = project_context(workspace_id)
+    sections, receipts = category_context(workspace_id)
     if not sections and not receipts:
         return None
-    return ProjectContext(tuple(SlotContextSection(slot, file, content) for slot, file, content in sections),
+    return CategoryContext(tuple(SlotContextSection(slot, file, content) for slot, file, content in sections),
                           tuple(receipts))
 
 
@@ -444,7 +515,6 @@ def load_slot_context(instance: Any) -> SlotContext | None:
     sections: list[SlotContextSection] = []
     receipts: list[dict[str, Any]] = []
     bound: list[tuple[str, str]] = []
-    owners: dict[str, tuple[str, str | None]] = {}
     for slot in assigned:
         held = declared.get(slot)
         path = _bound(held, workspace_id) if held else None
@@ -454,7 +524,13 @@ def load_slot_context(instance: Any) -> SlotContext | None:
                              "status": "slot_not_declared"})
             continue
         bound.append((slot, str(path)))
-        owners[slot] = (held.name, held.project_id)
+        override = context_files_override(instance, slot)
+        if override is not None:
+            override_receipts, override_sections = _override_file_receipts(
+                slot, Path(path), override, load_workspace_agents_context)
+            receipts.extend(override_receipts)
+            sections.extend(override_sections)
+            continue
         files = (held.record.get("context") or {}).get("files")
         if not files:
             default_receipts, default_sections = _default_file_receipts(slot, Path(path), load_workspace_agents_context)
@@ -468,8 +544,7 @@ def load_slot_context(instance: Any) -> SlotContext | None:
                 sections.append(SlotContextSection(slot, file, loaded.content))
     primary, source = resolve_primary(instance)
     primary_path = dict(bound).get(primary) if primary else None
-    return SlotContext(tuple(sections), tuple(receipts), primary, source, primary_path, tuple(bound), workspace_id,
-                       owners=tuple(sorted(owners.items())))
+    return SlotContext(tuple(sections), tuple(receipts), primary, source, primary_path, tuple(bound), workspace_id)
 
 
 # ── not twice: the slot sections against the prompt builder's cwd chain (D1.12) ──

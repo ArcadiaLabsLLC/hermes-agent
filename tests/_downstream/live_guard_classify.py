@@ -14,6 +14,7 @@ the ``_check_subprocess_cmd`` chokepoint every spawn primitive funnels through.
 from __future__ import annotations
 
 import ast
+import os
 import re
 import shlex
 
@@ -47,12 +48,31 @@ def strip_shell_comments(script: str) -> str:
     return "\n".join(kept)
 
 
+# A grep-family PATTERN is data: ``grep -q "hermes gateway restart"`` matches text and starts
+# nothing, yet the word scan read the quoted pattern inside a ``bash -c`` script as
+# ``hermes ... gateway`` (scripts/desktop-update/posix.sh's hint block,
+# FH-HERMES-CLI-GATEWAY-UPDATE-REDS-REMAINDER). Only a quoted pattern right after the grep word
+# and its short flags is dropped, and only one carrying no quote of the other kind, no
+# ``$`` / backtick / backslash (an expansion) and no ``; | & ( ) < >`` or newline (a command
+# boundary): a span that misreads where a string ends can then only be more arguments to the
+# same grep, never a second command.
+_GREP_PATTERN_RE = re.compile(
+    r"""(?<![\w./-])([ef]?grep)((?:[ \t]+-[A-Za-z]+)*)[ \t]+("[^"'$`\\;|&()<>\n]*"|'[^'"$`\\;|&()<>\n]*')"""
+)
+
+
+def drop_grep_patterns(script: str) -> str:
+    """*script* with each grep-family quoted pattern replaced by a neutral word."""
+    return _GREP_PATTERN_RE.sub(lambda match: f"{match.group(1)}{match.group(2)} PATTERN", script)
+
+
 def script_words(token: str) -> list[str]:
     """Whitespace words of one argv token; a script token (one with a newline)
-    loses its comments first, a single-line argv token is split as it was."""
+    loses its comments first, a single-line argv token is split as it was.
+    Either loses its grep patterns (:func:`drop_grep_patterns`)."""
     if "\n" in token:
         token = strip_shell_comments(token)
-    return token.split()
+    return drop_grep_patterns(token).split()
 
 
 # ── Backend-spawn arm (ML-14 / B20(i)) ─────────────────────────────
@@ -181,30 +201,121 @@ def _python_c_code_is_inert(code: str) -> bool:
     return not any(part in name.lower() for name in imports for part in _BACKEND_NAME_PARTS)
 
 
+# ``hermes update``'s import-health probe (``hermes_cli/update_cmd_validation.py``) is a
+# ``python -I -c`` child that only IMPORTS the critical modules and prints a marker. Its
+# CODE carries ``sys.argv = ['hermes', 'update']`` and the first-party roots tuple
+# (``'gateway'``, ``'tui_gateway'`` ...) as data, which the word scan read as
+# ``hermes ... gateway`` (FH-UPDATE-TESTS-RED-ON-LINUX-MAIN, 2026-11-02). It is recognised
+# by its marker AND by calling only names from this list, through the
+# ``runtime_command`` wrapper's ``exec("<literal>")`` too: no call here can start a process.
+_IMPORT_PROBE_MARKER = "__HERMES_IMPORT_HEALTH_"
+_IMPORT_PROBE_CALLS = frozenset({
+    "pop", "insert", "get", "__setitem__", "str", "__import__", "get_default_hermes_root",
+    "exec", "import_module", "split", "getattr", "startswith", "append", "type", "write",
+    "dumps",
+})
+
+
+def _import_probe_calls_only(code: str, depth: int = 0) -> bool:
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+        if name not in _IMPORT_PROBE_CALLS:
+            return False
+        if name == "exec":
+            arg = node.args[0] if len(node.args) == 1 and not node.keywords else None
+            if not (isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+                    and depth < 2 and _import_probe_calls_only(arg.value, depth + 1)):
+                return False
+    return True
+
+
+def _is_update_import_probe(code: str) -> bool:
+    return _IMPORT_PROBE_MARKER in code and _import_probe_calls_only(code)
+
+
 def _without_inert_python_c_code(raw: list) -> list:
     """*raw* without CODE when it is ``python [opts] -c CODE`` and CODE is inert."""
     if len(raw) >= 3 and raw[-2] == "-c" and _PYTHON_BASENAME_RE.match(
         str(raw[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
-    ) and _python_c_code_is_inert(str(raw[-1])):
+    ) and (_python_c_code_is_inert(str(raw[-1])) or _is_update_import_probe(str(raw[-1]))):
         return raw[:-1]
+    return raw
+
+
+def _exec_literal_bodies(code: str, depth: int = 0) -> list[str]:
+    """The source each ``exec("<literal>")`` in *code* runs, decoded, nested ones too.
+
+    ``runtime_command`` wraps CODE as ``exec(<literal>)``, and on Windows that literal is
+    written with ``\\x27`` / ``\\x22`` / ``\\n`` escapes (``_inline_string_literal``, kept
+    intact through PowerShell's argv quoting), so ``['hermes', 'gateway', 'run']`` inside it
+    reached the word scan as ``\\x27hermes\\x27,`` and no word was ``hermes``; POSIX's
+    ``repr`` keeps the quotes the scan splits on. Decoding the literal gives both OSes the
+    same words (FH-GUARD-PROBE-SCAN-RED-WINDOWS). It only adds words, never hides one."""
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return []
+    bodies = []
+    for node in ast.walk(tree):
+        func = getattr(node, "func", None)
+        if not (isinstance(node, ast.Call) and isinstance(func, ast.Name) and func.id == "exec"):
+            continue
+        for arg in node.args[:1]:
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                bodies.append(arg.value)
+                if depth < 2:
+                    bodies.extend(_exec_literal_bodies(arg.value, depth + 1))
+    return bodies
+
+
+def _with_exec_literals_decoded(raw: list) -> list:
+    """*raw* plus the decoded ``exec`` bodies of its CODE when it is ``python [opts] -c CODE``."""
+    if len(raw) >= 3 and raw[-2] == "-c" and _PYTHON_BASENAME_RE.match(
+        str(raw[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
+    ):
+        return [*raw, *_exec_literal_bodies(str(raw[-1]))]
     return raw
 
 
 _CODE_PUNCTUATION_RE = re.compile(r"""["'`()\[\]{},;]+""")
 
 
-def _cmd_tokens(cmd, cmd_to_string) -> list:
+def _names_an_existing_path(token: str, cwd) -> bool:
+    """True when the argv element *token* (one with whitespace) is a file or folder that exists.
+
+    Such an element is a path operand, never a wrapper's command string: splitting it invents
+    words. ``git ls-files -- "Harness_Brain/30 — Decisions/0012 — The hermes half of ….md"
+    "…/Touching serve and boot.md"`` read as ``hermes`` … ``serve`` (FH-GUARD-PATH-WORDS-READ-AS-SPAWN)."""
+    if "\n" in token or not any(ch.isspace() for ch in token):
+        return False
+    try:
+        return os.path.lexists(os.path.join(os.fspath(cwd) if cwd else os.getcwd(), token))
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def _cmd_tokens(cmd, cmd_to_string, cwd=None) -> list:
     # argv lists are tokenized by construction; only strings need shlex,
     # which on Windows would otherwise eat the backslashes in a path.
     if isinstance(cmd, (list, tuple)):
         raw = [str(token) for token in cmd]
+        # MUTATION: drop this filter and test_a_git_pathspec_with_backend_words_in_its_name_is_not_a_spawn reddens.
+        paths = [token for token in raw if _names_an_existing_path(token, cwd)]
     else:
+        paths = []
         cmd_str = cmd_to_string(cmd)
         try:
             raw = shlex.split(cmd_str)
         except ValueError:
             raw = cmd_str.split()
-    raw = _without_inert_python_c_code(_without_python_c_argv(raw))
+    raw = _with_exec_literals_decoded(_without_inert_python_c_code(_without_python_c_argv(raw)))
     # A wrapper's argument is itself a whole command: ``["bash", "-c",
     # "hermes gateway run"]`` arrives as THREE elements, the last of which
     # is the command. Split on whitespace (not shlex — it would eat the
@@ -216,6 +327,9 @@ def _cmd_tokens(cmd, cmd_to_string) -> list:
     # not split, so ``--name=gateway`` stays one flag.
     tokens = []
     for token in raw:
+        if token in paths:
+            tokens.append(token)
+            continue
         for word in script_words(token):
             tokens.extend(part for part in _CODE_PUNCTUATION_RE.split(word) if part)
     return tokens
@@ -236,7 +350,7 @@ def _as_executed(cmd, kwargs):
 
 def backend_spawn_subcommand(cmd, cmd_to_string, kwargs=None):
     """Which backend subcommand this argv would START, or ``None``."""
-    tokens = _cmd_tokens(_as_executed(cmd, kwargs), cmd_to_string)
+    tokens = _cmd_tokens(_as_executed(cmd, kwargs), cmd_to_string, (kwargs or {}).get("cwd"))
     entry = None
     for index, token in enumerate(tokens):
         normalized = str(token).replace("\\", "/").lower()
@@ -278,3 +392,46 @@ def refuse_backend_spawn(name, cmd, cmd_to_string, lookalike_ok, kwargs=None) ->
             "needs a real child — and say in a comment WHAT it spawns and "
             "how the child's root is sandboxed."
         )
+
+
+def _is_gateway_run_script(token: str) -> bool:
+    normalized = token.replace("\\", "/").lower()
+    return normalized == "gateway/run.py" or normalized.endswith("/gateway/run.py")
+
+
+def _runs_as_program(tokens: list, index: int) -> bool:
+    """True when ``tokens[index]`` is what the OS or an interpreter executes: argv[0], or the
+    SCRIPT of a ``python [opts] SCRIPT`` anywhere in argv (``env X=1 python gateway/run.py``)."""
+    if index == 0:
+        return True
+    for start, token in enumerate(tokens[:index]):
+        if not _PYTHON_BASENAME_RE.match(token.replace("\\", "/").rsplit("/", 1)[-1].lower()):
+            continue
+        cursor = start + 1
+        while cursor < len(tokens) and tokens[cursor].startswith("-"):
+            if tokens[cursor] in ("-c", "-m"):
+                break
+            cursor += 2 if tokens[cursor] in ("-X", "-W") else 1
+        if cursor == index:
+            return True
+    return False
+
+
+def gateway_run_path_is_only_data(cmd_str: str) -> bool:
+    """True when the only gateway in *cmd_str* is a ``gateway/run.py`` PATH the program reads as
+    data (``git ls-files -- gateway/run.py``), never one it executes (FH-LIVE-GUARD-PATH-READ-AS-SPAWN).
+
+    ``gateway.status.gateway_spawn_intent_subcommand`` (upstream) answers ``run`` for any argv
+    holding that path, because a PID record renders a running gateway's argv that way. A spawn
+    runs that script only as argv[0] or a Python interpreter's SCRIPT; anywhere else it is an
+    operand, so the spawn intent is re-read with those operands dropped."""
+    try:
+        raw = shlex.split(cmd_str, posix=False)
+    except ValueError:
+        raw = cmd_str.split()
+    tokens = [token.strip("\"'") for token in raw]
+    operands = [i for i, token in enumerate(tokens) if _is_gateway_run_script(token)]
+    if not operands or any(_runs_as_program(tokens, i) for i in operands):
+        return False
+    kept = " ".join(token for i, token in enumerate(raw) if i not in operands)
+    return gateway.status.gateway_spawn_intent_subcommand(kept) is None

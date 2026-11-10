@@ -25,7 +25,8 @@ or registry entry names something real).
 
 | run | command | role |
 | --- | --- | --- |
-| pre-push | `scripts/prepush.sh [tests]` | the queue gates, the cheap text gates and the branch's touched tests, before every push to `main` (owner 2026-10-29); each step prints its budget and deadline, heartbeats and notifies past budget, is killed at its deadline (owner 2026-10-30) |
+| pre-push | `scripts/prepush.sh [tests]` | the queue gates, the cheap text gates and the branch's touched tests, before every push to `main` (owner 2026-10-29); each step prints its budget and deadline, heartbeats and notifies past budget, is killed at its deadline (owner 2026-10-30); one whole-run cap exits 3 so the push never runs, and each overrun appends a JSON line to `_lane_logs/prepush_overruns.jsonl` (owner 2026-11-08) |
+| daily | `scripts/daily_full_run.sh [--out=<dir>] [--dry-run] [--only=<steps>]` | once a day, from Eternia's daily run: the whole fork suite less the upstream skip list (`scripts/daily_suite_files.py`), the prepush gates, doc-cite, both name census gates and `tests/tooling/`, each its own step, log, `EXIT=` line and timeout, every step after a red too; exits 0 or 1 and names each red and the row it owes (owner 2026-11-08, `FH-DAILY-FULL-RUN`) |
 | landing gate | `scripts/run_tests_bundled.sh tests` (`--scope fork`) | every fork test plus the upstream tests the change reaches; once per batch |
 | release merge | `scripts/run_tests_bundled.sh --since-merge <merge> tests` | what the merge produced |
 | dev loop | `scripts/run_tests_bundled.sh --affected` | never a gate; skips whole-tree source walkers |
@@ -50,6 +51,7 @@ or registry entry names something real).
 | `tests/tooling/test_seam_local_imports_resolve.py` | fence | a deferred fork import inside an upstream file resolves |
 | `tests/tooling/test_plugin_imports_public_surface.py` | fence | `plugins/eternia-harness/` never imports the fork's edits to upstream files |
 | `tests/tooling/test_fork_modules_do_not_import_pyyaml.py` | fence | YAML goes through `agent_runtime.yaml_io`, never `yaml` |
+| `tests/tooling/test_fork_tests_spawn_no_bare_bash.py` | fence | a fork-owned test spawns bash through `tests/_downstream/real_bash.py`, never a bare `bash` |
 | `tests/tooling/test_no_secret_word_decisions.py` | fence | no "is this a secret?" decision by looking for a word |
 | `tests/tooling/test_no_launcher_entry_id_literals.py` | fence | no hermes code names a Launcher entry id |
 | `tests/tooling/test_no_launcher_tool_name_literals.py` | fence | no hermes code names a Launcher tool (the underscore spelling), by the vendored catalog |

@@ -37,7 +37,7 @@ class _RecordingParams(dict):
 _EVERY_VALUE: dict[str, Any] = {
     "action": "dismiss", "add_instance": False, "agents": None, "all": False, "before": None,
     "client_message_id": "c1", "credential": None, "display_name": "D", "dry_run": False,
-    "items": None, "key": "k", "kill_active": False, "limit": 5, "none": False,
+    "items": None, "key": "k", "limit": 5, "none": False,
     "persona_id": "neko", "persona_instance_id": "pi_1", "placement_id": None, "realm_id": "r1",
     "reason": None, "requested_by": None, "server_id": None, "session_id": "s1", "skill": "sk",
     "skills": None, "sort": None, "take": "local", "title": "T", "to": None, "turn_id": "t1",

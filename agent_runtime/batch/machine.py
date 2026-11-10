@@ -7,7 +7,9 @@ and nothing automates ``LAND`` or ``APPROVE`` (``AUTOMATABLE``; owner ruling 202
 The tree, where it differs from the plan's table: a lane is ``PLANNED`` between the manifest's
 ``STARTED`` line and its rows' claims (a start that crashed half way resumes there); a landing lane
 that does not report green moves the batch back to ``READY_TO_LAND`` (``LANDING_RED``), so the
-operator can land again — the plan's table names no red edge.
+operator can land again — the plan's table names no red edge. A started batch whose every lane settled
+with nothing to land (every lane stopped, or reported no commit and no done row) ends ``ABORTED`` by
+itself (``NOTHING_TO_LAND``, RT-BATCH-SETTLE-WHEN-EVERY-LANE-STOPPED) instead of staying ``STARTED``.
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ __all__ = [
     "LaneState",
     "automation_allows",
     "move",
+    "nothing_to_land",
     "ready_to_land",
     "startable",
 ]
@@ -56,6 +59,7 @@ class BatchState(StrEnum):
 class BatchEvent(StrEnum):
     START = "start"
     LANES_SETTLED = "lanes_settled"
+    NOTHING_TO_LAND = "nothing_to_land"
     LAND = "land"
     LANDING_GREEN = "landing_green"
     LANDING_RED = "landing_red"
@@ -83,6 +87,7 @@ _ABORTABLE = (BatchState.STARTED, BatchState.READY_TO_LAND, BatchState.LANDING, 
 BATCH_MOVES: dict[tuple[BatchState, BatchEvent], BatchState] = {
     (BatchState.PLANNED, BatchEvent.START): BatchState.STARTED,
     (BatchState.STARTED, BatchEvent.LANES_SETTLED): BatchState.READY_TO_LAND,
+    (BatchState.STARTED, BatchEvent.NOTHING_TO_LAND): BatchState.ABORTED,
     (BatchState.READY_TO_LAND, BatchEvent.LAND): BatchState.LANDING,
     (BatchState.LANDING, BatchEvent.LANDING_GREEN): BatchState.AWAITING_APPROVAL,
     (BatchState.LANDING, BatchEvent.LANDING_RED): BatchState.READY_TO_LAND,
@@ -166,16 +171,34 @@ class LaneRecord:
     tool_calls: int | None = None
     commits: tuple[str, ...] = ()
     done_rows: int = 0
+    #: The lane's worktrees (absolute paths), from its RUNNING line (RT-BATCH-LANE-WORKTREES-AND-USAGE).
+    worktrees: tuple[str, ...] = ()
+    #: ``(state, utc)`` per lane state its lines reached, the latest line's ``at`` for each; read as :attr:`at`.
+    times: tuple[tuple[str, str], ...] = ()
 
     @property
     def id(self) -> str:
         return self.lane.id
 
+    @property
+    def at(self) -> dict[str, str]:
+        """``{state: utc}`` — when the lane's lines reached each state."""
+        return dict(self.times)
+
     def wire(self) -> dict[str, Any]:
+        """``rows`` is what the lane CLAIMED (empty until its CLAIMED line); ``planned_rows`` is the plan's exact
+        refs while the lane is still ``PLANNED`` (empty after), so a Stop of a started wave can review the whole
+        scope before any claim (RT-BATCH-PLANNED-STOP-SCOPE)."""
+        at = self.at
+        planned = self.lane.rows if self.state is LaneState.PLANNED else ()
         return {"id": self.id, "kind": self.lane.kind.value, "state": self.state.value, "persona": self.persona,
-                "rows": [r.items() for r in self.rows], "run_id": self.run_id or None,
+                "rows": [r.items() for r in self.rows], "planned_rows": [r.items() for r in planned],
+                "run_id": self.run_id or None,
                 "stop_requested": self.stop_requested, "verdict": self.verdict.value if self.verdict else None,
                 "tool_calls": self.tool_calls, "commits": list(self.commits), "done_rows": self.done_rows,
+                "worktrees": list(self.worktrees), "claimed_at": at.get(LaneState.CLAIMED.value),
+                "running_at": at.get(LaneState.RUNNING.value),
+                "settled_at": at.get(self.state.value) if self.state in _SETTLED else None,
                 "heavy": self.lane.heavy, "quiet_box": self.lane.quiet_box, "after": list(self.lane.after),
                 "effort": self.lane.effort,
                 "domain": None if self.lane.domain is None else [
@@ -258,3 +281,9 @@ def ready_to_land(lanes: Sequence[LaneRecord]) -> bool:
     """Every lane settled and at least one carries work (plan §3.2 ``READY_TO_LAND``)."""
 
     return bool(lanes) and all(lane.state in _SETTLED for lane in lanes) and any(map(_has_work, lanes))
+
+
+def nothing_to_land(lanes: Sequence[LaneRecord]) -> bool:
+    """Every lane settled and none carries work: the batch can never land, so it ends (``NOTHING_TO_LAND``)."""
+
+    return bool(lanes) and all(lane.state in _SETTLED for lane in lanes) and not any(map(_has_work, lanes))

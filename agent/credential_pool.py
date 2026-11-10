@@ -7,6 +7,7 @@ from agent.credential_pool_model_cooldowns import CredentialPoolModelCooldownMix
 from agent_runtime.pool_rotation import PoolRotationMixin, PoolRotationCursor
 from agent.credential_pool_timestamps import _parse_absolute_timestamp
 from agent_runtime import credential_pool_snapshot as _fork_pool_snapshot  # fork seam: picker pool snapshot (RT-PICKER-AUTH-REREAD)
+from agent_runtime import provider_credential_source as _fork_source  # fork seam: credential_source bench
 
 import logging
 import os
@@ -2054,7 +2055,10 @@ class CredentialPool(PoolRotationMixin, CredentialPoolAdminMixin, CredentialPool
         available: list[PooledCredential] = []
         pending_refresh: list[PooledCredential] = []
         sole_credential = self._is_sole_credential()
+        benched = _fork_source.benched_entry_ids(self.provider, self._entries)  # fork seam: the unchosen family
         for entry in self._entries:
+            if entry.id in benched:
+                continue
             # Borrowed credentials persist as metadata-only references and are
             # hydrated from their live source on load; never lease an
             # unhydrated duplicate as an empty key.
@@ -2559,6 +2563,8 @@ def _seed_anthropic_singletons(seed: _Seeder) -> None:
         return (_env_file.get(key) or _get_secret(key, "") or "").strip()
 
     anthropic_oauth_env = _env_val("ANTHROPIC_TOKEN") or _env_val("CLAUDE_CODE_OAUTH_TOKEN")
+    # fork seam: an explicit credential_source opts out of the key-only prune below (the pool benches instead)
+    anthropic_oauth_env = anthropic_oauth_env or _fork_source.chosen_credential_source("anthropic")
     if _env_val("ANTHROPIC_API_KEY") and not anthropic_oauth_env:
         # Prune stale autodiscovered OAuth entries from a previous OAuth
         # session so a transient 401 cannot revive them.

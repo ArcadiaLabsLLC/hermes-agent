@@ -1,7 +1,8 @@
 # Planned — drain the stored mission rows at serve boot; retire the mission-row readers
 
 **Status:** planned 2026-10-28 (planning lane w1028p-taskbound), row
-`RT-TASK-BOUND-MISSION-LANES`. Continues
+`RT-TASK-BOUND-MISSION-LANES`; S0–S3 shipped 2026-10-29, S4 (`RT-TASK-BOUND-WIRE-PRUNE`)
+shipped 2026-11-02 — the plan is complete. Continues
 [`task-bound-mode-retirement-2026-10-27.md`](task-bound-mode-retirement-2026-10-27.md)
 (S1 shipped 2026-10-28; its decisions 1–5 stand). Owner doc:
 [`../01-system-architecture.md`](../01-system-architecture.md).
@@ -157,7 +158,9 @@ S2 in the wave's lander, though it is correct in any order by the decode hardeni
 - Tests touched: `test_persona_chat_history_curation.py` (the four
   `test_synthetic_mission_row_*`, `test_busy_task_does_not_starve_a_quiet_personas_trace`,
   `test_persona_chat_trace_merges_task_and_session_lanes_for_one_instance`),
-  `test_operator_channels.py::test_operator_channel_trace_empty_fires_for_task_bound_channel_without_trace`,
+  `test_operator_channels.py::test_a_stored_mission_row_projects_no_task_id_and_no_trace_empty`
+  (S3 named it the trace-empty-fires case; S4 retired `trace_empty` with the task id it keyed on, so the
+  case now pins the opposite: no `task_id`, no `trace_empty` — the firing behaviour is gone, not uncovered),
   `test_persona_assignments.py` (`test_task_terminal_reaps_task_bound_persona_instances`,
   `test_task_archive_moves_task_bound_persona_instance_evidence`,
   `test_persona_chat_history_summary_ignores_task_bound_worker_sessions`),

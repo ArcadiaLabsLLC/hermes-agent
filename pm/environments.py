@@ -623,5 +623,22 @@ def _fork_borrowing(original):
 dependency_home_root = _fork_borrowing(dependency_home_root)
 owning_home_root = _fork_borrowing(owning_home_root)
 
+
+def _fork_borrowing_checkout(original):  # HERMES_DEPENDENCY_CHECKOUT: the lender checkout's key
+    def borrowed(project_root):
+        if os.environ.get("HERMES_DEPENDENCY_CHECKOUT", "").strip():
+            from pm import _fork_dependency_borrow as borrow
+
+            checkout = borrow.borrowed_checkout()
+            return borrow.lender_install_state_dir(
+                project_root, borrow.borrowed_dependency_root(), checkout, install_key, ACTIVATION_INPUTS)
+        return original(project_root)
+
+    borrowed.__name__, borrowed.__doc__, borrowed.__wrapped__ = original.__name__, original.__doc__, original
+    return borrowed
+
+
+install_state_dir = _fork_borrowing_checkout(install_state_dir)
+
 if __name__ == "__main__":
     main()

@@ -2295,14 +2295,14 @@
       "path": "agent_runtime/persona_assignments/replicate.py",
       "symbol": "replicate_instance",
       "operator": "ignore-the-travel-allowlist",
-      "find": "        for name in sorted(PERSONA_INSTANCE_ALLOWED_KEYS - {\"id\", \"persona_id\", \"steered_by\"}):",
-      "replace": "        for name in sorted(set(body) - {\"id\", \"persona_id\", \"steered_by\"}):",
+      "find": "    for name in sorted(PERSONA_INSTANCE_TRAVEL_FIELDS - {\"id\", \"persona_id\", \"steered_by\"}):",
+      "replace": "    for name in sorted(set(body) - {\"id\", \"persona_id\", \"steered_by\"}):",
       "test": [
         "{python}",
         "-m",
         "pytest",
         "-q",
-        "tests/agent_runtime/test_persona_instance_pull.py::test_the_store_door_cannot_express_importing_a_live_binding"
+        "tests/agent_runtime/test_persona_instance_pull.py::test_the_mint_arm_cannot_express_importing_a_live_binding_either"
       ]
     },
     {

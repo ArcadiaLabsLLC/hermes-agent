@@ -95,6 +95,38 @@ def test_no_hermes_python_uses_the_shared_venv(tmp_path):
     assert proc.stdout.strip().splitlines()[-1] == f"HP={(tmp_path / 'venv').as_posix()}/bin/python"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX password database; Git Bash reads USERPROFILE")
+def test_a_temp_home_still_finds_the_shared_venv_under_the_real_user_home(tmp_path):
+    """FH-PREPUSH-TEMP-HOME-NO-VENV: `HOME=$(mktemp -d) scripts/prepush.sh` named the empty temp
+    dir as the venv and redded every step. Mutation: `fork_default_test_venv` back to
+    `$HOME/.venvs/hermes-test` -> the temp-HOME arm prints the temp path, red."""
+    import pwd
+
+    real = pwd.getpwuid(os.getuid()).pw_dir
+    temp_home = tmp_path / "home"
+    temp_home.mkdir()
+    env = {"HOME": temp_home.as_posix(), "HERMES_TEST_VENV": ""}
+    proc = _door("fork_default_test_venv", env)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == f"{real}/.venvs/hermes-test"
+    # A HOME that carries its own venv keeps it, and an explicit HERMES_TEST_VENV beats both.
+    (temp_home / ".venvs" / "hermes-test").mkdir(parents=True)
+    assert _door("fork_default_test_venv", env).stdout.strip() == f"{temp_home.as_posix()}/.venvs/hermes-test"
+    explicit = {**env, "HERMES_TEST_VENV": (tmp_path / "v").as_posix()}
+    assert _door("fork_default_test_venv", explicit).stdout.strip() == (tmp_path / "v").as_posix()
+
+
+def test_prepush_and_the_runner_take_the_venv_default_from_the_door_only():
+    """Both interpreter lookups ask fork_default_test_venv; a second `$HOME/.venvs` spelling would
+    bring the temp-HOME red back on one of them (FH-PREPUSH-TEMP-HOME-NO-VENV)."""
+    door = (REPO / "scripts" / "_fork_test_env.sh").read_text(encoding="utf-8")
+    prepush = (REPO / "scripts" / "prepush.sh").read_text(encoding="utf-8")
+    assert '. "$SCRIPT_DIR/_fork_test_env.sh"' in prepush and "$(fork_default_test_venv)" in prepush
+    assert '_SHARED_VENV="$(fork_default_test_venv)"' in door
+    for text in (door, prepush):
+        assert "${HERMES_TEST_VENV:-$HOME" not in text
+
+
 def _shim_venv(tmp_path: Path, version: tuple[int, int], present: tuple[str, ...]) -> Path:
     """A shared venv whose python answers the readiness probe as a venv of ``version`` with
     only ``present`` importable: the probe's own source runs under this interpreter with

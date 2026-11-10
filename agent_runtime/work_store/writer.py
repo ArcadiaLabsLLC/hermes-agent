@@ -10,27 +10,36 @@ is never touched. Steps, in the §5 table's numbering:
    shipped at all is the lanes caller's check: ``agent_runtime/work/service.py``);
 1. ``worktree prune`` then, when absent, ``worktree add --no-checkout`` + ``sparse-checkout set``;
 2. ``remote get-url origin`` + ``fetch origin <branch>`` (refs only; skipped for a local slot);
-3. ``reset --hard <tip>`` (an unreadable index is moved aside and the reset retried once, else
-   ``index_corrupt``) then ``status --porcelain`` must be empty (``clean -fdq`` once);
+3. ``reset --hard <tip>`` (an unreadable index, or an ``index.lock`` older than any writer git call, is
+   moved aside and the reset retried once, else ``index_corrupt`` / ``index_locked``) then ``status --porcelain`` must be empty (``clean -fdq`` once);
 4. idempotency — a commit at the tip whose body carries ``request_id: <rid>`` replays its receipt;
 5. read the note at the tip, check the op's precondition (the ``_PRECONDITIONS`` table);
 6. the one-line edit, written temp + ``os.replace``;
 7. ``add`` + ``commit`` under hermes's identity as ``-c`` pairs (never ``git config``);
 8. ``push origin work/<machine>:<branch>`` (fast-forward only); a local slot moves its branch with a
-   compare-and-swap ``update-ref``. A non-fast-forward replays from step 2;
+   compare-and-swap ``update-ref``, or — when a worktree (the user's checkout) has it checked out — a
+   ``merge --ff-only`` in THAT worktree (``checked_out.advance``). A non-fast-forward replays from step 2;
 9. the replay budget (8) exhausted → ``push_contended``, the tips seen in the detail.
 
 A local slot (the default brain) has no remote: steps 2 and 8 become a local tip and a CAS.
+
+Steps 0–3 (``sync``) and 0–9 (``apply``) run under ONE admission per hermes worktree
+(:meth:`Writer.admitted`, RT-WORK-BATCH-WRITER-CONTENTION): a cross-process lock keyed by the worktree,
+reentrant within a thread, waited for a bounded time and refused ``index_locked`` ("writer busy") past it.
+Two Writer instances of one worktree (the batch manifest's and a Work request's) used to run ``reset
+--hard`` at once, and the second met the first's live ``index.lock``.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import re
 import shutil
 import subprocess
-from collections.abc import Callable, Mapping
+import threading
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -38,11 +47,16 @@ from typing import Any
 
 from .. import paths
 from . import receipts
-from .board import Board, ids_in_brain
+from .board import Board, board_rows, ids_in_brain
+from .checked_out import advance
 from .default_brain import IDENTITY_PAIRS
-from .grammar import Op, Row, RowRef, apply as apply_line, find, parse_note, row_defects
+from .grammar import (
+    Op, Row, RowRef, apply as apply_line, archive_note_for, archive_note_text, find, local_day, parse_note, parse_outcome,
+    row_defects, split_segments,
+)
 from .models import OPERATOR
 from .reasons import Reason, WorkRefused
+from .tasks import sibling_rows, siblings_visible, write_task_defects
 
 __layer__ = "stores"
 __all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token", "drop_worktrees", "remove_worktree",
@@ -54,6 +68,14 @@ _NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward", "[remote
 _CREDENTIAL = re.compile(r"://[^/@\s]+@")
 #: git's words for an unreadable index (a zeroed ``.git/worktrees/<name>/index``, RT-WORK-INDEX-SELF-HEAL).
 _INDEX_CORRUPT = "index file corrupt"
+#: Carried on every Writer git call (``realm_sync/git.py::_REPO_CONFIG``; RT-WORK-WRITER-LONGPATHS).
+_REPO_CONFIG = ("core.longpaths=true",)
+#: git's words for a held ``index.lock`` (RT-WORK-LIST-ONE-BOARD-REFUSAL): "Unable to create '….lock': File exists".
+_INDEX_LOCKED = re.compile(r"Unable to create '([^']*index\.lock)': File exists")
+#: A lock older than this is stale: every git call the writer makes times out at 120 s, so none of ours holds it.
+STALE_LOCK_SECONDS = 300
+#: The worktrees this thread already holds the writer admission of (reentrancy across Writer instances).
+_ADMITTED = threading.local()
 
 
 @dataclass(frozen=True)
@@ -78,8 +100,7 @@ class Receipt:
     kind: str
 
     def wire(self) -> dict[str, Any]:
-        return {"kind": self.kind, "ref": {"slot": self.ref.slot, "note": self.ref.note, "id": self.ref.id,
-                                           "project_id": self.ref.project_id},
+        return {"kind": self.kind, "ref": {"slot": self.ref.slot, "note": self.ref.note, "id": self.ref.id},
                 "op": self.op.value, "who": self.who, "request_id": self.request_id, "commit": self.commit,
                 "replays": self.replays, "pushed": self.pushed, "replayed": self.replayed}
 
@@ -119,24 +140,10 @@ def remove_worktree(worktree: Path, *, repo: Path | None) -> None:
         run_git(["worktree", "prune"], repo=repo, timeout=60, stdin=subprocess.DEVNULL)
 
 
-_OWNER_RULE = object()
+def work_worktree_for(workspace_id: str, slot: str, token: str) -> Path:
+    """Hermes's worktree of a workspace slot's checkout (``<slot>-<checkout token>``)."""
 
-
-def work_worktree_for(workspace_id: str, slot: str, token: str, *, project_id: Any = _OWNER_RULE) -> Path:
-    """Hermes's worktree of a slot's checkout, keyed by ``<project>/<slot>`` when a Project declares it.
-
-    ``project_id`` is the board's owner (``Board.project_id``, None for the workspace's own); left out,
-    the owner is ``slot_owner``'s answer. A worktree cut before the slot moved into a Project sits at
-    the bare-slot key and stays in use there until it is recut (a live git worktree is never renamed
-    under git's feet — plan §4 step 2).
-    """
-
-    from ..workspace_slots import slot_key, slot_owner
-
-    owner = slot_owner(workspace_id, slot) if project_id is _OWNER_RULE else project_id
-    keyed = paths.work_worktree_dir(workspace_id, slot_key(owner, slot), token)
-    legacy = paths.work_worktree_dir(workspace_id, slot, token)
-    return legacy if not keyed.exists() and legacy.exists() else keyed
+    return paths.work_worktree_dir(workspace_id, slot, token)
 
 
 def drop_worktrees(workspace_id: str, slot: str) -> list[Path]:
@@ -177,20 +184,29 @@ def _held(op: RowOp, row: Row | None) -> None:
 
 
 def _present(op: RowOp, row: Row | None) -> None:
-    """SET_STATUS / DELETE / ASSIGN / SET_SKILLS: the row exists; a taken row answers only its holder or the operator."""
+    """SET_STATUS / DELETE / ASSIGN / SET_SKILLS / SET_GROUP: the row exists; a taken row answers only its holder or the operator."""
 
     if row is None:
         raise WorkRefused(Reason.ROW_GONE, op.ref.id)
     _holder_or_operator(op, row)
+    if "expected_raw" in op.payload:
+        if row.raw != op.payload["expected_raw"]:
+            raise WorkRefused(Reason.ROW_CHANGED, op.ref.id)
+        if row.taken is not None:
+            raise WorkRefused(Reason.ALREADY_TAKEN, row.taken.who)
 
 
 _PRECONDITIONS: dict[Op, Callable[[RowOp, Row | None], None]] = {
     Op.CLAIM: _claimable,
     Op.RELEASE: _held,
     Op.SET_STATUS: _present,
+    Op.EDIT: _present,
     Op.DELETE: _present,
     Op.ASSIGN: _present,
     Op.SET_SKILLS: _present,
+    Op.SET_GROUP: _present,
+    Op.ANSWER: _present,
+    Op.CLOSE: _present,
 }
 
 
@@ -259,14 +275,21 @@ class Writer:
         return (brain.parent if str(brain.parent) != "." else brain).as_posix()
 
     def _git(self, args: list[str], *, repo: Path, config: tuple[str, ...] = ()) -> subprocess.CompletedProcess[str]:
-        return self._run(args, repo=repo, config=config, encoding="utf-8", errors="replace",
+        # ``core.longpaths`` on every call (as ``realm_sync/git.py::_REPO_CONFIG``): a brain under hermes's
+        # worktree path passes Windows' 260-character limit and ``reset --hard`` fails "Filename too long".
+        return self._run(args, repo=repo, config=(*_REPO_CONFIG, *config), encoding="utf-8", errors="replace",
                          timeout=120, stdin=subprocess.DEVNULL)
 
     def _must(self, args: list[str], reason: Reason, *, repo: Path, config: tuple[str, ...] = ()) -> str:
-        """Run git; a failure refuses ``reason`` — or ``index_corrupt`` when git says the index is unreadable."""
+        """Run git; a failure refuses ``reason`` — or ``index_corrupt`` when git says the index is unreadable,
+        ``index_locked`` when its ``index.lock`` is held."""
 
         done = self._git(args, repo=repo, config=config)
         if done.returncode != 0:
+            locked = _INDEX_LOCKED.search(str(done.stderr))
+            if locked is not None:
+                # git's lock advice runs past the 200-character tail; the detail names the held file instead.
+                raise WorkRefused(Reason.INDEX_LOCKED, f"git {args[0]}: {locked.group(1)} is held")
             said = Reason.INDEX_CORRUPT if _INDEX_CORRUPT in str(done.stderr) else reason
             raise WorkRefused(said, f"git {args[0]}: {_tail(done.stderr)}")
         return str(done.stdout or "")
@@ -278,14 +301,36 @@ class Writer:
         delete, and the ``work.index_healed`` receipt names both paths.
         """
 
-        done = self._git(["rev-parse", "--path-format=absolute", "--git-path", "index"], repo=self.worktree)
-        index = Path(str(done.stdout or "").strip()) if done.returncode == 0 else None
+        index = self._git_path("index")
         if index is None or not index.is_file():
             return False
         aside = index.with_name(f"{index.name}.corrupt-{self._now().strftime('%Y%m%dT%H%M%S%f')}")
         os.replace(index, aside)
         receipts.emit("work.index_healed", slot=self.board.slot, workspace_id=self.board.workspace_id,
                       index=str(index), moved_to=str(aside))
+        return True
+
+    def _git_path(self, name: str) -> Path | None:
+        done = self._git(["rev-parse", "--path-format=absolute", "--git-path", name], repo=self.worktree)
+        return Path(str(done.stdout or "").strip()) if done.returncode == 0 else None
+
+    def _heal_lock(self) -> bool:
+        """Move a STALE ``index.lock`` of hermes's worktree aside (RT-WORK-LIST-ONE-BOARD-REFUSAL).
+
+        Stale is older than :data:`STALE_LOCK_SECONDS`: no writer git call lives that long, so the lock is
+        a crashed process's leftover. A younger lock may be live and is never touched (``index_locked``).
+        The move is ``index.lock.stale-<utc stamp>`` beside it, logged ``work.index_lock_healed``.
+        """
+
+        lock = self._git_path("index.lock")
+        if lock is None or not lock.is_file():
+            return False
+        if self._now().timestamp() - lock.stat().st_mtime < STALE_LOCK_SECONDS:
+            return False
+        aside = lock.with_name(f"{lock.name}.stale-{self._now().strftime('%Y%m%dT%H%M%S%f')}")
+        os.replace(lock, aside)
+        receipts.emit("work.index_lock_healed", slot=self.board.slot, workspace_id=self.board.workspace_id,
+                      lock=str(lock), moved_to=str(aside))
         return True
 
     # ── steps 0–3: sync (a read runs these only) ─────────────────────────
@@ -300,7 +345,7 @@ class Writer:
             raise WorkRefused(Reason.SLOT_UNBOUND, self.board.slot)
         if self._worktree is None:
             self._worktree = work_worktree_for(self.board.workspace_id, self.board.slot,
-                                               checkout_token(clone, run=self._run), project_id=self.board.project_id)
+                                               checkout_token(clone, run=self._run))
         return clone
 
     def _common_dir(self, repo: Path) -> str:
@@ -323,6 +368,10 @@ class Writer:
                    Reason.WORKTREE_FAILED, repo=clone)
         self._must(["sparse-checkout", "set", "--no-cone", f"/{self.brain_root}/"], Reason.WORKTREE_FAILED,
                    repo=self.worktree)
+        if self.board.local and self.board.is_default:
+            from ..brain_paths import changed
+
+            changed("local_work_brain_created")
 
     def _fetch(self, clone: Path, *, stale_ok: bool) -> None:
         self.stale = False
@@ -360,14 +409,29 @@ class Writer:
     def _dirty(self) -> bool:
         return bool(self._must(["status", "--porcelain"], Reason.WORKTREE_DIRTY, repo=self.worktree).strip())
 
-    def _reset(self) -> None:
+    def _reset_to_tip(self) -> None:
+        """``reset --hard`` to the tip; a failure is ``branch_missing`` only when the tip does not resolve —
+        a tip that resolves and still will not check out is ``worktree_failed`` with git's own words."""
+
         try:
             self._must(["reset", "-q", "--hard", self.tip], Reason.BRANCH_MISSING, repo=self.worktree)
         except WorkRefused as refused:
-            # A corrupt index: moved aside and the reset retried ONCE; a second failure is the refusal.
-            if refused.reason is not Reason.INDEX_CORRUPT or not self._heal_index():
+            if refused.reason is not Reason.BRANCH_MISSING:
                 raise
-            self._must(["reset", "-q", "--hard", self.tip], Reason.BRANCH_MISSING, repo=self.worktree)
+            if self._git(["rev-parse", "-q", "--verify", self.tip], repo=self.worktree).returncode == 0:
+                raise WorkRefused(Reason.WORKTREE_FAILED, refused.detail) from refused
+            raise
+
+    def _reset(self) -> None:
+        try:
+            self._reset_to_tip()
+        except WorkRefused as refused:
+            # A corrupt index or a stale lock: moved aside and the reset retried ONCE; a second failure
+            # is the refusal (a held lock stays ``index_locked``, never ``branch_missing``).
+            heal = {Reason.INDEX_CORRUPT: self._heal_index, Reason.INDEX_LOCKED: self._heal_lock}.get(refused.reason)
+            if heal is None or not heal():
+                raise
+            self._reset_to_tip()
         if self._dirty():
             self._git(["clean", "-fdq"], repo=self.worktree)
             if self._dirty():
@@ -381,14 +445,44 @@ class Writer:
         tip = self._git(["rev-parse", "-q", "--verify", self.tip], repo=self.worktree)
         return head.returncode == 0 and tip.returncode == 0 and head.stdout.strip() == tip.stdout.strip()
 
+    @contextlib.contextmanager
+    def admitted(self) -> Iterator[Path]:
+        """Hold this worktree's writer admission (module docstring); yields the worktree.
+
+        Reentrant within a thread whatever Writer instance holds it; another thread or process waits the
+        lock budget, then the call refuses ``index_locked`` naming the worktree — never a removed live lock.
+        """
+
+        from ..locks import HarnessLockUnavailable, board_lock
+
+        self._clone()
+        key = str(self.worktree)
+        held: set[str] = getattr(_ADMITTED, "keys", None) or set()
+        _ADMITTED.keys = held
+        if key in held:
+            yield self.worktree
+            return
+        name = "work-writer-" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
+        with contextlib.ExitStack() as stack:
+            try:
+                stack.enter_context(board_lock(name))
+            except HarnessLockUnavailable as busy:
+                raise WorkRefused(Reason.INDEX_LOCKED, f"writer busy: {self.worktree.name}") from busy
+            held.add(key)
+            try:
+                yield self.worktree
+            finally:
+                held.discard(key)
+
     def sync(self, *, stale_ok: bool = False) -> Path:
         """Steps 0–3: the worktree at the tip; ``stale`` is set when a tolerated fetch failed."""
 
-        clone = self._clone()
-        self._ensure_worktree(clone)
-        self._fetch(clone, stale_ok=stale_ok)
-        self._reset()
-        return self.worktree
+        with self.admitted():
+            clone = self._clone()
+            self._ensure_worktree(clone)
+            self._fetch(clone, stale_ok=stale_ok)
+            self._reset()
+            return self.worktree
 
     # ── step 4: idempotency ──────────────────────────────────────────────
 
@@ -479,7 +573,7 @@ class Writer:
         assert row is not None
         lines = text.split("\n")
         carriage = "\r" if lines[row.line_no - 1].endswith("\r") else ""
-        date = self._now().date().isoformat()
+        date = local_day(self._now())
         edited = apply_line(row.raw, op.op, who=op.who, date=date, payload=dict(op.payload))
         if edited is None:
             del lines[row.line_no - 1]
@@ -488,8 +582,36 @@ class Writer:
         updated = "\n".join(lines)
         if updated == text:
             return []
+        written = self._write_files(op.payload.get("files") or {}) if op.op is Op.EDIT else []
         _write_atomic(path, updated)
-        return [op.ref.note]
+        return [op.ref.note, *written]
+
+    def _close(self, op: RowOp) -> list[str]:
+        """CLOSE: the archived line appended to its month file (created with the archive head) and the live line
+        dropped, both in this one commit (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan D2–D5)."""
+
+        path, text, rows = self._note_rows(op.ref)
+        row = find(rows, op.ref.id)
+        _present(op, row)
+        assert row is not None
+        archived = apply_line(row.raw, Op.CLOSE, who=op.who, date=local_day(self._now()),
+                              payload=dict(op.payload))
+        assert archived is not None
+        outcome = next(o for o in map(parse_outcome, (s.strip() for s in split_segments(archived))) if o is not None)
+        note = archive_note_for(op.ref.note, outcome.date)
+        target = self.worktree / note
+        head = target.read_bytes().decode("utf-8") if target.is_file() else archive_note_text(
+            PurePosixPath(op.ref.note).name, self._program(text), outcome.date[:7])
+        _write_atomic(target, head + ("" if head.endswith("\n") else "\n") + archived + "\n")
+        lines = text.split("\n")
+        del lines[row.line_no - 1]
+        _write_atomic(path, "\n".join(lines))
+        return [op.ref.note, note]
+
+    @staticmethod
+    def _program(text: str) -> str | None:
+        front = text.split("\n---", 1)[0].split("\n")
+        return next((line.split(":", 1)[1].strip() for line in front if line.startswith("program:")), None)
 
     # ── steps 7–8: commit and push ───────────────────────────────────────
 
@@ -500,7 +622,7 @@ class Writer:
         note = PurePosixPath(op.ref.note).name
         subject = f"work: {op.op.value} {op.ref.id} {op.who} (ws {self.board.workspace_id}, {op.ref.slot}/{note})"
         body = f"request_id: {op.request_id}"
-        if op.op is Op.DELETE and op.payload.get("result"):
+        if op.op in (Op.DELETE, Op.CLOSE) and op.payload.get("result"):
             body += "\nresult: " + " ".join(str(op.payload["result"]).split())
         self._must(["commit", "-q", "-m", subject, "-m", body], Reason.COMMIT_FAILED, repo=self.worktree,
                    config=IDENTITY_PAIRS(self.machine_id))
@@ -510,8 +632,8 @@ class Writer:
         """True when the commit is the tip now; False on a non-fast-forward (the caller replays)."""
 
         if self.board.local:
-            ref = f"refs/heads/{self.board.default_branch}"
-            return self._git(["update-ref", ref, commit, self._tip_sha or ""], repo=self.worktree).returncode == 0
+            # Through the worktree that has the branch checked out, never under it (``checked_out``).
+            return advance(self._git, self.worktree, self.board.default_branch, commit, self._tip_sha or "")
         done = self._git(["push", "-q", "origin", f"HEAD:{self.board.default_branch}"], repo=self.worktree)
         if done.returncode == 0:
             return True
@@ -553,14 +675,14 @@ class Writer:
             return self._chat_turns(op)
         if op.op is Op.APPEND:
             return self._append(op)
+        if op.op is Op.CLOSE:
+            return self._close(op)
         return self._bulk_delete(op) if op.op is Op.DELETE and "ids" in op.payload else self._line_edit(op)
 
     def _validate(self, op: RowOp) -> None:
         if not REQUEST_ID.match(op.request_id):
             raise WorkRefused(Reason.INVALID, "request_id is [A-Za-z0-9_.:-]{1,200}")
-        if op.ref.slot != self.board.slot or (
-                op.ref.project_id is not None and op.ref.project_id != self.board.project_id
-                and op.ref.project_id not in self.board.owners):
+        if op.ref.slot != self.board.slot:
             raise WorkRefused(Reason.INVALID, "the op's slot is not this writer's board")
 
     def apply(self, op: RowOp) -> Receipt:
@@ -568,6 +690,30 @@ class Writer:
 
         self._validate(op)
         self._qa_fence(self._clone())
+        with self.admitted():
+            return self._apply(op)
+
+    def _refuse_task_defects(self, changed: list[str]) -> None:
+        """Refuse an edit whose CHANGED rows break the task rules, before the commit, the worktree put back to its
+        tip (RT-QUEUE-TASK-RULES-AT-WRITE; :func:`agent_runtime.work_store.tasks.write_task_defects`)."""
+
+        written: dict[str, tuple[str, str]] = {}
+        for note in changed:
+            path = self.worktree / note
+            if not path.is_file():
+                continue
+            prior = self._git(["show", f"HEAD:{note}"], repo=self.worktree)
+            written[note] = (prior.stdout if prior.returncode == 0 else "", path.read_bytes().decode("utf-8"))
+        brain = [row for row in board_rows(replace(self.board, read_root=self.worktree)) if row.ref.note not in written]
+        siblings = sibling_rows(self.board.checkout or self.worktree)
+        defects = write_task_defects(written, brain, [row for rows in siblings.values() for row in rows],
+                                     siblings_visible=siblings_visible(siblings))
+        if defects:
+            self._reset_to_tip()
+            self._git(["clean", "-fdq"], repo=self.worktree)
+            raise WorkRefused(Reason.GRAMMAR_INVALID, "the write breaks the task rules: " + "; ".join(defects))
+
+    def _apply(self, op: RowOp) -> Receipt:
         tips: list[str] = []
         for replays in range(self._budget):
             self.sync()
@@ -577,6 +723,7 @@ class Writer:
             changed = self._edit(op)
             if not changed:
                 return self._receipt(op, None, replays=replays, pushed=False, replayed=False)
+            self._refuse_task_defects(changed)
             commit = self._commit(op, changed)
             if self._push(commit):
                 return self._receipt(op, commit, replays=replays, pushed=not self.board.local, replayed=False)

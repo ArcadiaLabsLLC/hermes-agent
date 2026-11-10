@@ -23,6 +23,13 @@ from pathlib import Path
 
 __layer__ = "models"
 __all__ = [
+    "anthropic_account_usage",
+    "anthropic_env",
+    "anthropic_oauth_file",
+    "anthropic_pool_account_token",
+    "anthropic_prefer_refreshable_token",
+    "anthropic_resolve_claude_code_token",
+    "anthropic_token_unless_benched",
     "codex_account_claims",
     "codex_bounded_prompt_cache_key",
     "codex_cache_scope_from_session_id",
@@ -49,6 +56,7 @@ __all__ = [
     "pid_exists",
     "piper_engine_importable",
     "piper_voice_for_config",
+    "pool_source_is_manual",
     "profiles_root",
     "reasoning_caps_disk_load",
     "reasoning_caps_disk_save",
@@ -516,3 +524,65 @@ def codex_profile_declared_efforts(provider, model, base_url=None, *, allow_warm
     from agent.transports.codex import _profile_declared_efforts
 
     return _profile_declared_efforts(provider, model, base_url, allow_warm=allow_warm)
+
+
+# Anthropic credential source (RT-ANTHROPIC-CREDENTIAL-SOURCE-CHOICE): the rungs of upstream's own
+# ``resolve_anthropic_token`` ladder, read by ``provider_credential_source`` (the choice),
+# ``provider_usage_source`` (the plan half of the API-key lane) and ``provider_source_card``
+# (the dashboard card). Nothing here decides; each door is the upstream function, at call time.
+def anthropic_env(*names: str) -> str:
+    """First non-blank profile-scoped env value among *names* (``_first_env``)."""
+    from agent.anthropic_credentials import _first_env
+
+    return _first_env(*names)
+
+
+def anthropic_token_unless_benched(token, model):
+    """*token* unless the pool benched it for *model* (``_available_anthropic_token``)."""
+    from agent.anthropic_credentials import _available_anthropic_token
+
+    return _available_anthropic_token(token, model)
+
+
+def anthropic_prefer_refreshable_token(env_token: str, creds):
+    """A refreshable Claude Code token over a static env one (``_prefer_refreshable_claude_code_token``)."""
+    from agent.anthropic_credentials import _prefer_refreshable_claude_code_token
+
+    return _prefer_refreshable_claude_code_token(env_token, creds)
+
+
+def anthropic_pool_account_token():
+    """The pool's first Hermes-owned OAuth grant, read-only (``_resolve_anthropic_pool_token``)."""
+    from agent.anthropic_credentials import _resolve_anthropic_pool_token
+
+    return _resolve_anthropic_pool_token(skip_borrowed=True)
+
+
+def anthropic_resolve_claude_code_token(creds):
+    """The borrowed Claude Code login's token (``_resolve_claude_code_token_from_credentials``)."""
+    from agent.anthropic_credentials import _resolve_claude_code_token_from_credentials
+
+    return _resolve_claude_code_token_from_credentials(creds)
+
+
+def anthropic_oauth_file() -> Path:
+    """The Hermes PKCE grant file (``_get_hermes_oauth_file``)."""
+    from agent.anthropic_credentials import _get_hermes_oauth_file
+
+    return _get_hermes_oauth_file()
+
+
+def anthropic_account_usage(api_key: str):
+    """The Account's ``/api/oauth/usage`` read with *api_key* (``_fetch_anthropic_account_usage``),
+    without ``fetch_account_usage``'s cache write: the plan half of an API-key lane must not
+    become the picker's Anthropic gauge."""
+    from agent.account_usage import _fetch_anthropic_account_usage
+
+    return _fetch_anthropic_account_usage(api_key=api_key)
+
+
+def pool_source_is_manual(source: str) -> bool:
+    """A ``manual`` / ``manual:*`` pool row (``credential_pool._is_manual_source``)."""
+    from agent.credential_pool import _is_manual_source
+
+    return _is_manual_source(source)

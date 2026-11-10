@@ -37,6 +37,7 @@ from agent_runtime.core_cache.fingerprint import (
     build_input_fingerprint,
     build_stamp_token,
     contract_versions,
+    racy_contents_moved,
 )
 from agent_runtime.core_cache.generations import (
     _core_digest,
@@ -196,6 +197,9 @@ def _judge_persisted_pair(
     if different_question:
         return CacheRead(core, False, different_question, key, sidecar)
     if sidecar.get("fingerprint") != key.digest:
+        return CacheRead(core, False, DEMOTE_FINGERPRINT_MISMATCH, key, sidecar)
+    if racy_contents_moved(sidecar.get("racy")):
+        # A same-size rewrite inside the tick the key was taken in (RT-CORE-CACHE-SAME-TICK-REWRITE).
         return CacheRead(core, False, DEMOTE_FINGERPRINT_MISMATCH, key, sidecar)
     return CacheRead(core, True, "", key, sidecar)
 

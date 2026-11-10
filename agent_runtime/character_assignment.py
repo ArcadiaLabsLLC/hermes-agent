@@ -11,6 +11,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+import re
 
 __layer__ = "models"
 
@@ -75,7 +76,24 @@ def validate_character_record(record: Any, *, persona: bool = False) -> dict[str
     if type(revision) is not int or revision < 1:
         raise CharacterAssignmentRefused(CharacterAssignmentReason.INVALID, "Invalid assignment revision.")
     validate_character_choice(record.get("mode"), record.get("asset_reference"), persona=persona)
+    validate_character_portrait(record.get("portrait"), persona=persona)
     return record
+
+
+def validate_character_portrait(portrait: Any, *, persona: bool = False) -> None:
+    if portrait is None:
+        return
+    if not isinstance(portrait, dict) or persona:
+        raise CharacterAssignmentRefused(CharacterAssignmentReason.INVALID, "Invalid agent portrait choice.")
+    if portrait == {"mode": "character"}:
+        return
+    if (set(portrait) == {"mode", "profile", "handle"} and portrait.get("mode") == "custom"
+            and isinstance(portrait.get("profile"), str)
+            and re.fullmatch(r"[a-zA-Z0-9_-]{1,128}", portrait["profile"])
+            and isinstance(portrait.get("handle"), str)
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", portrait["handle"])):
+        return
+    raise CharacterAssignmentRefused(CharacterAssignmentReason.INVALID, "Invalid agent portrait asset reference.")
 
 
 @dataclass(frozen=True)
@@ -86,6 +104,7 @@ class CharacterAssignmentChange:
     operation_id: str
     migration_receipt: dict[str, Any] | None = None
     restore_previous: bool = False
+    portrait: dict[str, Any] | None = None
 
     def apply(self, current: Any, *, persona: bool = False) -> dict[str, Any]:
         if type(self.expected_revision) is not int or self.expected_revision < 0:
@@ -105,8 +124,12 @@ class CharacterAssignmentChange:
         else:
             choice = {"mode": self.mode, "asset_reference": self.asset_reference}
         validate_character_choice(choice["mode"], choice["asset_reference"], persona=persona)
+        portrait = deepcopy(self.portrait if self.portrait is not None else (current or {}).get("portrait"))
+        validate_character_portrait(portrait, persona=persona)
+        if persona and self.portrait is not None:
+            raise CharacterAssignmentRefused(CharacterAssignmentReason.INVALID, "Chat portraits belong to an exact agent instance.")
         if current is not None and current.get("operation_id") == self.operation_id:
-            if current.get("operation_kind", "set") == "set" and all(current.get(key) == value for key, value in choice.items()):
+            if current.get("operation_kind", "set") == "set" and all(current.get(key) == value for key, value in choice.items()) and current.get("portrait") == portrait:
                 return deepcopy(current)
             raise CharacterAssignmentRefused(CharacterAssignmentReason.CONFLICT, "Operation id was reused for another choice.")
         if (current["revision"] if current else 0) != self.expected_revision:
@@ -120,6 +143,7 @@ class CharacterAssignmentChange:
             **choice, "operation_id": self.operation_id,
             "operation_kind": "restore" if self.restore_previous else "set",
             "previous_choice": previous_choice,
+            **({"portrait": portrait} if portrait is not None else {}),
             "migration_receipt": deepcopy(current.get("migration_receipt") if current else self.migration_receipt),
         }
 
@@ -135,6 +159,8 @@ class CharacterAssignmentReplication:
         incoming = validate_character_record(self.incoming_record, persona=persona)
         if current is not None and incoming is None:
             raise CharacterAssignmentRefused(CharacterAssignmentReason.CONFLICT, "An older peer cannot remove record ownership.")
+        if current and current.get("portrait") is not None and incoming and "portrait" not in incoming:
+            raise CharacterAssignmentRefused(CharacterAssignmentReason.CONFLICT, "An older peer cannot remove agent portrait ownership.")
         return deepcopy(incoming)
 
 

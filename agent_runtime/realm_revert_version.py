@@ -73,15 +73,14 @@ from .realm_sync import (
     RealmSyncError,
     StoreDriftItem,
     _append_realm_sync_event,
-    _board_store_drift,
     _mirror_realm_skill_inbox,
-    _office_store_drift,
     _safe_display_path,
     _workspaces_for_realm,
     store_drift_items,
 )
 from .realm_sync.drift import DRIFT_KEY_BOARD_DEF, DRIFT_KEY_OFFICE_SURFACE
 from .realm_sync.families import SyncFamily
+from .realm_sync.status import store_drift_family_counts
 from .serde import to_jsonable
 from .store import RealmStore
 
@@ -321,10 +320,10 @@ def revert_realm_sync_to_version(
         "kept": len(kept),
         "refused": len(rows) - len(applied) - len(kept),
         "items": [row.as_dict() for row in rows],
-        "store_drift_after": {
-            "boards": _board_store_drift(realm.id, workspaces),
-            "office": _office_store_drift(realm.id, workspaces),
-        },
+        # Every family ``realm sync status`` counts, from the same table, so a caller reads
+        # "now clean" for the family it just reverted (RT-REVERT-DRIFT-AFTER-OMITS-FAMILIES).
+        # MUTATION: count only boards and office and test_realm_level_revert reddens.
+        "store_drift_after": store_drift_family_counts(store_drift_items(realm.id, workspaces)),
         "sync_repo": _safe_display_path(repo),
     }
 

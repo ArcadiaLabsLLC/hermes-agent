@@ -14,8 +14,7 @@ saw it gone. Two turns running at once on one slot share the window, so ``create
 whose end FIRST saw the worktree — the honest bound of what one observation can say.
 
 The ledger is ``paths.slot_worktrees_path(owner, slot)``: machine-local like the slot fill, never synced. The
-owner is the Project that declares the slot (``<project>/<slot>``, plan project-slots-and-shared-chats §3), or
-the workspace for a slot its own document still declares. No command text is read and nothing is ever written
+owner is the workspace whose slot document declares the slot. No command text is read and nothing is ever written
 into the slot's repository.
 """
 
@@ -23,7 +22,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -124,15 +123,12 @@ def observe_bound_slots(workspace_id: str | None, *, phase: str, turn: str | Non
         return {}
     out: dict[str, dict[str, list[str]]] = {}
     try:
-        from .workspace_slots import bound_path, slot_key, slots_of_workspace
+        from .workspace_slots import bound_path, live_slots, load_document
 
-        owned: Iterable[tuple[str | None, str]] = slots_of_workspace(workspace_id)
-        for project_id, name in owned:
-            folder = (bound_path(name, project_id=project_id) if project_id
-                      else bound_path(name, workspace_id=workspace_id))
+        for name in sorted(live_slots(load_document(workspace_id))):
+            folder = bound_path(name, workspace_id=workspace_id)
             if folder is not None and folder.is_dir():
-                out[slot_key(project_id, name)] = observe(project_id or workspace_id, name, folder, phase=phase,
-                                                          turn=turn, run=run)
+                out[name] = observe(workspace_id, name, folder, phase=phase, turn=turn, run=run)
     except Exception:  # an audit aid: a failed observation never touches the turn
         return out
     return out

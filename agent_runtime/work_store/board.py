@@ -1,15 +1,15 @@
 """A workspace's todo boards: one per live repo slot, read from the slot's checkout (plan §2, §6.1).
 
 A board is a slot plus where its brain's queue notes live. The rows are read straight from the
-``type: queue`` notes under ``<read root>/<brain dir>/``; nothing is copied. A board is keyed by
-``(project, slot)`` (:attr:`Board.key`, RT-WORK-BOARD-PER-PROJECT-SLOT) and a task by its board and
-ID, so two repos — or two Projects' same-named slots — may each carry an ``RT-A``. ``read_roots`` lets W2 point a board at
+``type: queue`` notes under ``<read root>/<brain dir>/``; nothing is copied. A board is keyed by its
+slot (the workspace absorbed Projects, RT-WS-ABSORB-RETIRE-PROJECT) and a task by its board and
+ID, so two repos may each carry an ``RT-A``. ``read_roots`` lets W2 point a board at
 hermes's own worktree of the slot (§5 steps 1–3) instead of the operator's checkout.
 
 The default brain is NOT a declared slot (owner ruling 2026-10-18, ``RT-WORK-DEFAULT-BRAIN-REALM``):
 it is a machine-local binding, ``<work_workspace_dir(ws)>/default_brain.json``, listed as slot
-``brain`` until the move into a repo brain retires it (``agent_runtime/work/store.py::
-normalize_default_brain``). Promotion (``default_brain.promote_default_brain``, p10-work §2.5) writes
+``brain`` — the workspace's own brain, kept beside every bound repo brain (RT-WORK-WORKSPACE-BRAIN-KEPT;
+a ``retired_into`` an older build wrote is no longer read). Promotion (``default_brain.promote_default_brain``, p10-work §2.5) writes
 ``remote_url`` and a ``declaration``: while it is ``pending`` (a server-bound realm; the Launcher's next
 credentialed ``slots.declare`` carries the entry) the default board is listed with its remote
 (``local=False``: the writer fetches and pushes); once ``declared`` the declared slot ``brain`` lists it.
@@ -19,14 +19,14 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .. import paths
 from ..workspace_slots import bound_path
-from .grammar import Row, Status, is_queue, parse_note
-from .reasons import Reason, WorkRefused
+from .grammar import ARCHIVE_DIR, Row, Status, is_queue, is_queue_archive, parse_note
+from .tasks import parked_task
 
 #: The personal board's reserved Work id (RT-GENERAL-TODO-G1, plan ``general-todo-2026-10-25.md`` §2.2):
 #: one per operator per namespace, a machine-local default brain under ``work/personal/`` that never
@@ -40,6 +40,7 @@ __all__ = [
     "DEFAULT_BRAIN_SLOT",
     "PERSONAL_BOARD_ID",
     "Board",
+    "archive_notes",
     "binding_path",
     "board_rows",
     "boards",
@@ -47,10 +48,8 @@ __all__ = [
     "declaration_state",
     "declared_boards",
     "default_board",
-    "first_repo_brain",
     "has_brain_here",
     "ids_in_brain",
-    "needs_default_brain",
     "notes",
     "pick",
     "preferred",
@@ -79,29 +78,16 @@ class Board:
     is_default: bool
     #: The checkout git runs against: the slot's bound path, or the default brain's directory.
     checkout: Path | None = None
-    #: The Project that declares the slot (plan project-slots-and-shared-chats §7), None for a workspace's own.
-    project_id: str | None = None
-    #: That Project's name, None for a workspace's own.
-    project_name: str | None = None
-    #: ``(project_id, project_name)`` of EVERY Project the board answers for: two Projects naming one
-    #: checkout share one board (one brain, one writer, one worktree — D3 of the launcher plan
-    #: workspace-todo-all-projects-2026-10-31). Empty for a workspace's own board no Project shares.
-    projects: tuple[tuple[str, str], ...] = ()
-    #: The slot is a Project's default board (its ``boards`` category, D1): listed first, where a
-    #: slot-less start and the default brain's move land.
-    project_default: bool = False
+    #: The slot is the workspace's default board (its ``boards`` category,
+    #: ``workspace_categories.default_board_slot``): listed first, where a slot-less start and the
+    #: default brain's move land.
+    board_default: bool = False
 
     @property
     def key(self) -> str:
-        """``<project>/<slot>``, or the bare slot for the workspace's own (``workspace_slots.slot_key``)."""
+        """The board's key: its slot name (one workspace, one slot document)."""
 
-        return f"{self.project_id}/{self.slot}" if self.project_id else self.slot
-
-    @property
-    def owners(self) -> frozenset[str]:
-        """Every Project id the board answers for."""
-
-        return frozenset(pid for pid, _name in self.projects)
+        return self.slot
 
 
 def brain_dir_of(root: Path | None, slot: dict[str, Any]) -> str | None:
@@ -117,13 +103,11 @@ def brain_dir_of(root: Path | None, slot: dict[str, Any]) -> str | None:
 
 
 def _slot_board(workspace_id: str, name: str, slot: dict[str, Any], read_roots: Mapping[str, Path],
-                project_id: str | None = None, project_name: str | None = None,
-                project_default: bool = False) -> Board:
+                board_default: bool = False) -> Board:
     repo = slot.get("repo") or {}
-    path = bound_path(name, project_id=project_id) if project_id else bound_path(name, workspace_id=workspace_id)
+    path = bound_path(name, workspace_id=workspace_id)
     bound_here = bool(path and path.is_dir())
-    key = f"{project_id}/{name}" if project_id else name
-    read_root = read_roots.get(key) or (path if bound_here else None)
+    read_root = read_roots.get(name) or (path if bound_here else None)
     local = repo.get("local") is True
     return Board(
         workspace_id=workspace_id,
@@ -136,99 +120,34 @@ def _slot_board(workspace_id: str, name: str, slot: dict[str, Any], read_roots: 
         bound_here=bound_here,
         is_default=False,
         checkout=path if bound_here else None,
-        project_id=project_id,
-        project_name=project_name,
-        projects=((project_id, project_name or project_id),) if project_id else (),
-        project_default=project_default,
+        board_default=board_default,
     )
 
 
-def _same_repo(a: Board, b: Board, tokens: dict[Path, str]) -> bool:
-    """Two same-named boards over one repository: one checkout when both are bound here, else one clone URL."""
-
-    if a.checkout is not None and b.checkout is not None:
-        from .writer import checkout_token
-
-        for path in (a.checkout, b.checkout):
-            if path not in tokens:
-                tokens[path] = checkout_token(path)
-        return tokens[a.checkout] == tokens[b.checkout]
-    return bool(a.clone_url) and a.clone_url == b.clone_url
-
-
-def _merged(found: list[Board]) -> list[Board]:
-    """One board per ``(slot, repository)``: a later owner of a repo an earlier one already lists joins it."""
-
-    out: list[Board] = []
-    tokens: dict[Path, str] = {}
-    for board in found:
-        index = next((i for i, kept in enumerate(out)
-                      if kept.slot == board.slot and _same_repo(kept, board, tokens)), None)
-        if index is None:
-            out.append(board)
-            continue
-        kept = out[index]
-        out[index] = replace(kept, projects=(*kept.projects, *board.projects),
-                             project_default=kept.project_default or board.project_default,
-                             read_root=kept.read_root or board.read_root,
-                             brain_dir=kept.brain_dir or board.brain_dir)
-    return out
-
-
 def declared_boards(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> list[Board]:
-    """One board per live DECLARED ``(owner, slot)``, sorted by name, bound here or not (an unbound one is never read).
+    """One board per live DECLARED slot of the workspace's slot document, sorted by name, bound here or not
+    (an unbound one is never read)."""
 
-    The slots are the workspace's own document's and EVERY live slot of each Project it holds
-    (``project_categories.board_slots``; a migrated document lists none of its own). Two owners naming
-    one repository under one slot name are ONE board carrying both in ``projects``; the same name over
-    two repositories is two boards, keyed ``<project>/<slot>`` (RT-WORK-BOARD-PER-PROJECT-SLOT). Within
-    a name, the workspace's own comes first, then the Projects in the workspace's order.
-    """
+    from ..workspace_categories import default_board_slot
+    from ..workspace_slots import live_slots, load_document
 
-    from ..project_categories import board_slots
-
-    built = [_slot_board(workspace_id, held.slot, held.declaration, read_roots or {}, held.project_id,
-                         held.project_name, held.project_default)
-             for held in board_slots(workspace_id)]
-    order = {id(board): i for i, board in enumerate(built)}
-    return _merged(sorted(built, key=lambda board: (board.slot, order[id(board)])))
+    document = load_document(workspace_id)
+    default = default_board_slot(document)
+    return [_slot_board(workspace_id, name, declaration, read_roots or {}, name == default)
+            for name, declaration in sorted(live_slots(document).items())]
 
 
 def preferred(found: list[Board]) -> list[Board]:
-    """``found`` with every Project's default board first (D1), each part kept in its own (name) order."""
+    """``found`` with the workspace's default board first (its ``boards`` category), the rest in name order."""
 
-    return sorted(found, key=lambda board: not board.project_default)
+    return sorted(found, key=lambda board: not board.board_default)
 
 
-def pick(found: list[Board], slot: Any, project_id: Any = None) -> Board | None:
-    """The board a caller names by ``slot`` (bare, or ``<project>/<slot>``) and an optional ``project_id``.
-
-    With a Project: the board that answers for it. Without one: the workspace's own board of that name,
-    else the ONE board of that name; two Projects' boards of one name refuse ``slot_ambiguous`` naming
-    both — never the first (a ref saved before boards were keyed by Project resolves here).
-    """
+def pick(found: list[Board], slot: Any) -> Board | None:
+    """The board a caller names by ``slot``, or None."""
 
     name = str(slot)
-    if not project_id and "/" in name:
-        project_id, _, name = name.partition("/")
-    named = [board for board in found if board.slot == name]
-    if project_id:
-        return next((board for board in named if board.project_id == project_id or project_id in board.owners), None)
-    own = next((board for board in named if board.project_id is None), None)
-    if own is not None or len(named) < 2:
-        return own or (named[0] if named else None)
-    raise WorkRefused(Reason.SLOT_AMBIGUOUS, f"{name}: " + ", ".join(board.key for board in named))
-
-
-def first_repo_brain(workspace_id: str) -> Board | None:
-    """The first declared board whose bound checkout carries a brain: a Project's default board first, else BY NAME.
-
-    The owner's rule is "the first bound slot in declaration order", but the slot document is keyed by
-    name and stored sorted, and every ``declare`` stamps one ``declared_at`` on the whole set, so the
-    name order is the only order the store records.
-    """
-
-    return next((board for board in preferred(declared_boards(workspace_id)) if has_brain_here(board)), None)
+    return next((board for board in found if board.slot == name), None)
 
 
 def binding_path(workspace_id: str) -> Path:
@@ -246,10 +165,10 @@ def read_binding(workspace_id: str) -> dict[str, Any] | None:
 
 
 def default_board(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> Board | None:
-    """The default brain's board while its binding is live (not retired into a repo brain, not declared)."""
+    """The workspace brain's board while its binding is live (not yet declared as slot ``brain``)."""
 
     record = read_binding(workspace_id)
-    if record is None or record.get("retired_into") or declaration_state(record) == "declared":
+    if record is None or declaration_state(record) == "declared":
         return None
     root = Path(str(record["path"]))
     if not (root / ".git").exists():
@@ -295,15 +214,23 @@ def notes(board: Board) -> list[Path]:
 
 
 def board_rows(board: Board) -> list[Row]:
-    """Every row of the board's queue notes, keyed by its board (slot + Project) and the note's path under the read root."""
+    """Every row of the board's queue notes, keyed by its board (slot) and the note's path under the read root."""
 
     root = board.read_root or Path()
     return [
         row
         for path in notes(board)
-        for row in parse_note(path.read_text(encoding="utf-8"), slot=board.slot, note=path.relative_to(root).as_posix(),
-                              project_id=board.project_id)
+        for row in parse_note(path.read_text(encoding="utf-8"), slot=board.slot, note=path.relative_to(root).as_posix())
     ]
+
+
+def archive_notes(board: Board) -> list[Path]:
+    """Declared monthly archives of this exact board, newest first. No live-note scan."""
+    if board.read_root is None or board.brain_dir is None:
+        return []
+    directory = (board.read_root / board.brain_dir).parent / ARCHIVE_DIR
+    return [path for path in sorted(directory.glob("*.md"), reverse=True)
+            if is_queue_archive(path.read_text(encoding="utf-8"))]
 
 
 def rows(
@@ -313,12 +240,11 @@ def rows(
     slot: str | None = None,
     assignee: str | None = None,
     read_roots: Mapping[str, Path] | None = None,
-    project_id: str | None = None,
 ) -> list[Row]:
-    """Every row on the workspace's boards, filtered by status, slot (+ the Project answering it) and assignee token."""
+    """Every row on the workspace's boards, filtered by status, slot and assignee token."""
 
     found = [row for board in boards(workspace_id, read_roots=read_roots)
-             if (slot is None or board.slot == slot) and (project_id is None or project_id in board.owners)
+             if slot is None or board.slot == slot
              for row in board_rows(board)]
     return [
         row for row in found
@@ -328,9 +254,18 @@ def rows(
 
 
 def ready(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) -> list[Row]:
-    """The rows a claim may take: ``READY`` and not ``TAKEN``."""
+    """The rows a claim may take (:func:`claimable`) across the workspace's boards."""
 
-    return [row for row in rows(workspace_id, status=Status.READY, read_roots=read_roots) if row.taken is None]
+    return claimable(rows(workspace_id, read_roots=read_roots))
+
+
+def claimable(every: list[Row]) -> list[Row]:
+    """Of ``every`` row the boards read (all statuses, so tasks are visible), those a claim may take: ``READY``, not
+    ``TAKEN``, and not a subtask of a task that is not READY (RT-QUEUE-TASKS-DOORS; launcher plan
+    QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3: the task's status is the owner's lever over every subtask)."""
+
+    return [row for row in every
+            if row.status is Status.READY and row.taken is None and parked_task(row, every) is None]
 
 
 def ids_in_brain(board: Board) -> set[str]:
@@ -344,8 +279,3 @@ def has_brain_here(board: Board) -> bool:
 
     return bool(board.bound_here and board.read_root and board.brain_dir and (board.read_root / board.brain_dir).is_dir())
 
-
-def needs_default_brain(found: list[Board]) -> bool:
-    """True when no board bound here has a brain directory — the §4 trigger (pass ``declared_boards``)."""
-
-    return not any(has_brain_here(board) for board in found)

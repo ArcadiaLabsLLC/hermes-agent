@@ -26,7 +26,11 @@ and Console navigation acceptance in its Projects §4A evidence.
 
 `lens_cursor::` 2026-10-26 — Lens implementation, live acceptance and remaining plan extensions reconciled; the domain queues own outstanding work. [Scope and queue pointers](../../docs/agent-runtime-harness/planned/eternia-lens-in-hermes.md#current-implementation-and-queue-coverage).
 
-`next_prompt_cursor::` 2026-10-27 — Completion implementation authorized and built in owned worktrees; shared helpers/presentation outside Console, existing routing/persona/state owners, free-form output and false-default Harness setting preserved. [Completion plan](../../docs/agent-runtime-harness/planned/console-next-prompt-completion-2026-10-27.md) records implementation and remaining paired live qualification. No DM work; optional palette/rebinding remains a documented gap.
+`next_prompt_cursor::` 2026-11-03 — Off / Manual / Auto with legacy preference
+migration and an epoch-/connection-bound explicit request. Manual observation does
+not enqueue generation. Native RPC, mode persistence, duplicate and Off-in-flight
+regressions passed; request is additive to contract 1. Contract:
+`docs/agent-runtime-harness/03-transport-and-wire.md`.
 
 `history_review_cursor::` 2026-10-14 — Old Console history review reconciled
 against the landed owners; missing safety coverage and private-API seam record

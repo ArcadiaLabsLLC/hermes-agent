@@ -147,7 +147,7 @@ def test_fake_source_refuses_like_the_writer():
         with pytest.raises(WorkRefused) as refused:
             call()
         assert refused.value.reason is reason
-    assert src.done(ref, persona, "shipped").kind == "work.row_delete"
+    assert src.done(ref, persona, "shipped").kind == "work.row_close"
     with pytest.raises(WorkRefused) as gone:
         src.claim(ref, persona, "r3")
     assert gone.value.reason is Reason.ROW_GONE

@@ -52,6 +52,7 @@ class DiscussionService:
         # Constructors above do no I/O; this is called only after serve ownership.
         with closing(self.runs.connect()), closing(self.attempts.connect()):
             pass
+        self._wal_keeper = self.runs.keep_wal()
         # The checkpoint's DDL indexes hosted_room_events: open the room store (its schema) first.
         rooms.list_rooms(self.db_path, limit=1)
         self.checkpoints = HostedRoomPolicyCheckpoint(self.db_path, max_active_events=256)
@@ -93,6 +94,7 @@ class DiscussionService:
         self.executions.close()
         self.context.launcher.close()
         self.runtime.stop(timeout=5.0)
+        self._wal_keeper.close()
 
     @property
     def accepting(self) -> bool:

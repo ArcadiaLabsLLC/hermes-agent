@@ -330,7 +330,8 @@ def test_every_provider_method_is_registered_with_its_tier():
         "runtime.provider.signin.complete": "console", "runtime.provider.signin.cancel": "console",
         "runtime.provider.refresh": "console", "runtime.provider.signout": "console",
         "runtime.provider.dependency.install": "console", "runtime.provider.pack.activate": "console",
-        "runtime.provider.configure": "console",
+        "runtime.provider.configure": "console", "runtime.provider.source.set": "console",
+        "runtime.provider.env_token.remove": "console",
     }
 
 
@@ -364,7 +365,7 @@ def test_the_contract_publishes_a_reply_budget_for_every_provider_method():
     doc = (Path(__file__).resolve().parents[2] / "docs" / "agent-runtime-harness"
            / "runtime-provider-methods.md").read_text(encoding="utf-8")
     section = doc.split("## Reply budgets", 1)[1].split("\n## ", 1)[0]
-    rows = re.findall(r"^\| `(runtime\.provider\.[a-z.]+)` \|.*\| (\d+) s \|$", section, re.MULTILINE)
+    rows = re.findall(r"^\| `(runtime\.provider\.[a-z_.]+)` \|.*\| (\d+) s \|$", section, re.MULTILINE)
     registered = {name for name in registry.method_names() if name.startswith("runtime.provider.")}
     assert registered  # positive control: the family is registered
     assert sorted(name for name, _ in rows) == sorted(registered)

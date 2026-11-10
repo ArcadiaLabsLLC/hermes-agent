@@ -1,38 +1,10 @@
-"""Workspace setup over the existing store: the conversations home and the create door."""
+"""Workspace setup over the existing store: the conversations home, the create door and the realm assign."""
 from agent_runtime.call_authorization import TIER_CONSOLE
-from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, err, ok
+from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, ERR_NOT_FOUND, err, ok
 from agent_runtime.serve_rpc.registry import method
 from agent_runtime.workspace_create import create_workspace, WorkspaceCreationRefused, WorkspaceCreationReason
 
 __layer__ = "lanes"
-
-PROJECT_CONNECTION_METHOD = "runtime.workspace.project.set"
-PROJECT_CONNECTION_PARAMS = ("workspace_id", "project_id", "connected", "expected_revision", "credential")
-
-
-@method(PROJECT_CONNECTION_METHOD, tier=TIER_CONSOLE)
-def runtime_workspace_project_set(rid, params, context=None):
-    from agent_runtime.errors import NotFound
-    from agent_runtime.locks import HarnessLockUnavailable
-    from agent_runtime.realm_membership import RealmSyncCredential
-    from agent_runtime.workspace_slots import SlotRefused
-    from agent_runtime.workspace_projects import set_project_connection
-
-    try:
-        raw = params.get("credential")
-        credential = None if raw is None else RealmSyncCredential.parse(raw)
-        result = set_project_connection(
-            params.get("workspace_id"), params.get("project_id"),
-            connected=params.get("connected"), expected_revision=params.get("expected_revision"),
-            credential=credential,
-        )
-        return ok(rid, result)
-    except SlotRefused as exc:
-        return err(rid, ERR_CONFLICT, "Workspace connection needs review.", {"reason": exc.reason})
-    except HarnessLockUnavailable:
-        return err(rid, ERR_CONFLICT, "Workspace connection is busy.", {"reason": "workspace_busy"})
-    except (ValueError, NotFound):
-        return err(rid, ERR_INVALID_PARAMS, "Workspace connection is unavailable.")
 
 
 @method("runtime.workspace.conversations", tier=TIER_CONSOLE)
@@ -71,3 +43,25 @@ def runtime_workspace_create(rid, params, context=None):
         code = ERR_INVALID_PARAMS if exc.reason == WorkspaceCreationReason.INVALID else ERR_CONFLICT
         return err(rid, code, "Workspace creation needs review.", {"reason": exc.reason.value})
     return ok(rid, {**row, "warnings": warnings})
+
+
+_ASSIGN_CODES = {"invalid_request": ERR_INVALID_PARAMS, "workspace_not_found": ERR_NOT_FOUND,
+                 "realm_not_found": ERR_NOT_FOUND}
+
+
+@method("runtime.workspace.assign_realm", tier=TIER_CONSOLE)
+def runtime_workspace_assign_realm(rid, params, context=None):
+    """Home a realm-less workspace in a realm (RT-WORKSPACE-REALM-ASSIGN-VERB): ``{workspace_id, realm_id}``
+    -> the workspace row plus ``assigned`` (false when that realm already owned it whole)."""
+    from agent_runtime.workspace_create import assign_workspace_realm, WorkspaceRealmRefused
+
+    if set(params) != {"workspace_id", "realm_id"}:
+        return err(rid, ERR_INVALID_PARAMS, "workspace_id and realm_id are required.", {"reason": "invalid_request"})
+    try:
+        row, assigned = assign_workspace_realm(params["workspace_id"], params["realm_id"])
+    except WorkspaceRealmRefused as exc:
+        data = {"reason": exc.reason.value}
+        if exc.owner_realm_id is not None:
+            data["owner_realm_id"] = exc.owner_realm_id
+        return err(rid, _ASSIGN_CODES.get(exc.reason.value, ERR_CONFLICT), "The realm assignment was refused.", data)
+    return ok(rid, {**row, "assigned": assigned})

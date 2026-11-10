@@ -38,6 +38,7 @@ __all__ = [
     "PROVIDER_CONTRACT",
     "_runtime_provider_configure",
     "_runtime_provider_dependency_install",
+    "_runtime_provider_env_token_remove",
     "_runtime_provider_list",
     "_runtime_provider_pack_activate",
     "_runtime_provider_refresh",
@@ -46,6 +47,7 @@ __all__ = [
     "_runtime_provider_signin_complete",
     "_runtime_provider_signin_poll",
     "_runtime_provider_signout",
+    "_runtime_provider_source_set",
     "_runtime_provider_usage",
 ]
 
@@ -57,7 +59,13 @@ MAX_CODE_CHARS = 2048
 
 #: Provider refusals that name a bad request rather than a failed operation.
 _INVALID_PARAM_REASONS = frozenset({"provider_unknown", "auth_mode_unsupported", "auth_mode_unknown",
-                                    "base_url_invalid"})
+                                    "base_url_invalid", "source_unsupported", "source_unknown"})
+
+#: Provider refusals that name an agent this runtime cannot answer for (RT-PROVIDER-USAGE-PER-AGENT-PROFILE).
+_NOT_FOUND_REASONS = frozenset({"agent_unknown"})
+
+#: Provider refusals that name a state of the home rather than a bad request.
+_CONFLICT_REASONS = frozenset({"source_absent", "agent_profile_unavailable", "env_token_unknown"})
 
 _FAMILY_CODES = {"invalid_params": ERR_INVALID_PARAMS, "conflict": ERR_CONFLICT, "not_found": ERR_NOT_FOUND}
 
@@ -77,15 +85,21 @@ def _stamp(result: dict) -> dict:
 
 def _answer(rid: Any, method_name: str, work: Callable[[], dict]) -> dict:
     """Run ``work`` and turn every outcome into ONE frame, credential-free."""
+    from agent_runtime.home_env_freshness import refresh_home_env
     from agent_runtime.provider_account import ProviderRefused
     from agent_runtime.provider_signin import SignInRefused
 
     try:
+        # A key ``auth set-key`` / ``auth remove`` wrote from another process is seen before the read
+        # (RT-SERVE-STALE-ENV-AFTER-SET-KEY).
+        refresh_home_env()
         return ok(rid, _stamp(work()))
     except SignInRefused as refusal:
         return _refused(rid, method_name, refusal.reason, _FAMILY_CODES[refusal.code], **refusal.data)
     except ProviderRefused as refusal:
-        code = ERR_INVALID_PARAMS if refusal.reason in _INVALID_PARAM_REASONS else ERR_HANDLER_FAILED
+        code = (ERR_INVALID_PARAMS if refusal.reason in _INVALID_PARAM_REASONS
+                else ERR_NOT_FOUND if refusal.reason in _NOT_FOUND_REASONS
+                else ERR_CONFLICT if refusal.reason in _CONFLICT_REASONS else ERR_HANDLER_FAILED)
         return _refused(rid, method_name, refusal.reason, code, refusal.message, **refusal.data)
     except Exception as exc:  # class name only, never the message
         return _failed(rid, method_name, exc)
@@ -110,26 +124,44 @@ def _login_id_or_refuse(rid: Any, method_name: str, params: dict) -> tuple[str |
     return login_id, None
 
 
+def _agent_target(params: dict):
+    from agent_runtime.provider_agent_scope import AgentProviderTarget
+
+    return AgentProviderTarget(_text_param(params, "persona_instance_id"), _text_param(params, "persona_id"))
+
+
 # ── catalog / usage ──────────────────────────────────────────────────────────
 
 
 @method("runtime.provider.list", tier=TIER_READ)
 def _runtime_provider_list(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    """The real provider catalog with pools, logins and sign-in methods. Params: none."""
-    from agent_runtime import provider_account
+    """The real provider catalog with pools, logins and sign-in methods.
+    Params: ``persona_instance_id`` / ``persona_id`` optional — answer under that agent's profile;
+    ``prewarm_signin: true`` (Connections opening) also starts a warm sign-in child, so a press
+    does not wait on a cold child's imports (RT-PROVIDER-SIGNIN-COLD-CHILD)."""
+    from agent_runtime import provider_account, provider_signin
+    from agent_runtime.provider_agent_scope import answer_for_agent
 
-    return _off_reader(rid, "runtime.provider.list", context, provider_account.provider_list)
+    if params.get("prewarm_signin") is True:
+        provider_signin.prewarm_signin()
+    target = _agent_target(params)
+    return _off_reader(rid, "runtime.provider.list", context,
+                       lambda: answer_for_agent(target, provider_account.provider_list))
 
 
 @method("runtime.provider.usage", tier=TIER_READ)
 def _runtime_provider_usage(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    """Account limits / rate-limit windows. Params: ``provider``."""
+    """Account limits / rate-limit windows. Params: ``provider``; ``persona_instance_id`` /
+    ``persona_id`` optional — answer under that agent's profile, the way its turn runs."""
     from agent_runtime import provider_account
+    from agent_runtime.provider_agent_scope import answer_for_agent
 
     provider, refusal = _provider_or_refuse(rid, "runtime.provider.usage", params)
     if refusal is not None:
         return refusal
-    return _off_reader(rid, "runtime.provider.usage", context, lambda: provider_account.provider_usage(provider))
+    target = _agent_target(params)
+    return _off_reader(rid, "runtime.provider.usage", context,
+                       lambda: answer_for_agent(target, lambda: provider_account.provider_usage(provider)))
 
 
 @method("runtime.provider.dependency.install", tier=TIER_CONSOLE)
@@ -225,6 +257,22 @@ def _runtime_provider_refresh(rid: Any, params: dict, context: RpcContext | None
                        lambda: provider_account.provider_refresh(provider, credential))
 
 
+@method("runtime.provider.env_token.remove", tier=TIER_CONSOLE)
+def _runtime_provider_env_token_remove(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Remove a stale env token sign-out reported. Params: ``provider``, ``variable`` (one of the
+    signout answer's ``env_tokens[].variable``)."""
+    from agent_runtime import provider_account
+
+    provider, refusal = _provider_or_refuse(rid, "runtime.provider.env_token.remove", params)
+    if refusal is not None:
+        return refusal
+    variable = _text_param(params, "variable")
+    if variable is None:
+        return _refused(rid, "runtime.provider.env_token.remove", "variable_required", ERR_INVALID_PARAMS)
+    return _off_reader(rid, "runtime.provider.env_token.remove", context,
+                       lambda: provider_account.provider_env_token_remove(provider, variable))
+
+
 @method("runtime.provider.signout", tier=TIER_CONSOLE)
 def _runtime_provider_signout(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Clear this provider's sign-in. Params: ``provider``."""
@@ -254,3 +302,19 @@ def _runtime_provider_configure(rid: Any, params: dict, context: RpcContext | No
         return _refused(rid, "runtime.provider.configure", "base_url_invalid", ERR_INVALID_PARAMS)
     return _answer(rid, "runtime.provider.configure",
                    lambda: provider_account.provider_configure(provider, auth_mode.lower(), base_url))
+
+
+@method("runtime.provider.source.set", tier=TIER_CONSOLE)
+def _runtime_provider_source_set(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Choose which stored credential the provider's turns spend (``providers.<id>.credential_source``).
+    Params: ``provider``, ``source``. Selects nothing else."""
+    from agent_runtime import provider_account
+
+    provider, refusal = _provider_or_refuse(rid, "runtime.provider.source.set", params)
+    if refusal is not None:
+        return refusal
+    source = _text_param(params, "source")
+    if source is None:
+        return _refused(rid, "runtime.provider.source.set", "source_required", ERR_INVALID_PARAMS)
+    return _answer(rid, "runtime.provider.source.set",
+                   lambda: provider_account.provider_source_set(provider, source.lower()))

@@ -116,6 +116,8 @@ def handshake(
         return None
     connection.device_id = outcome.device_id
     connection.device_tier = outcome.device_tier
+    connection.device_kind = outcome.device_kind
+    connection.bound_instances = tuple(outcome.bound_instances or ())
     connection.pairing_token = outcome.issued_token
     connection.peer_install_id = outcome.peer_install_id
     connection.peer_secret = outcome.issued_peer_secret
@@ -154,6 +156,8 @@ def handshake(
         open_log["transport"] = server._transport_name
         open_log["device_id"] = connection.device_id
         open_log["device_tier"] = connection.device_tier
+        if connection.device_kind == "channel":
+            open_log["device_kind"] = connection.device_kind
     if connection.peer_install_id is not None:
         # The peer half of the same line, and the reason is the same one:
         # an install id is what makes a cross-install connection auditable

@@ -35,6 +35,16 @@ def format_elapsed(seconds: float) -> str:
     return f"{hours}h" if minutes == 0 else f"{hours}h{minutes}m"
 
 
+def dispatch_target_name(row: dict[str, Any]) -> str:
+    """The name the dispatch's target is known by, or ``""`` when none resolves
+    (fail-safe: see :func:`persona_assignments.persona_instance_display_name`).
+    The typed delivery marker carries this beside the target thread."""
+
+    from ..persona_assignments import persona_instance_display_name
+
+    return persona_instance_display_name(str(row.get("target_instance_id") or "")) or ""
+
+
 def format_dispatch_delivery(row: dict[str, Any]) -> str:
     """The self-contained block a delivery turn carries.
 
@@ -339,6 +349,8 @@ def forge_delivery_turn(
     notify_operator: bool = False,
     state: str | None = None,
     max_seconds: float | None = None,
+    target_session_id: str | None = None,
+    target_name: str | None = None,
 ) -> tuple[bool, dict[str, Any] | None]:
     """Run one delivery as a real mission-chat turn. Returns ``(ok, payload)``.
 
@@ -373,7 +385,11 @@ def forge_delivery_turn(
         # the persisted user row carries, which is the ONLY reason a consumer
         # can tell a delivered result from something the operator typed.
         requested_by=delivery_requested_by(
-            dispatch_id, notify_operator=notify_operator, state=state
+            dispatch_id,
+            notify_operator=notify_operator,
+            state=state,
+            target_session_id=target_session_id,
+            target_name=target_name,
         ),
         client_message_id=client_message_id,
         stream=False,

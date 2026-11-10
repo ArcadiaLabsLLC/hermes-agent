@@ -249,6 +249,32 @@ def test_an_mcp_call_with_no_report_still_beats_as_none_reported(emitter, frames
     assert isinstance(beat["elapsed_ms"], int)
 
 
+def test_a_worker_that_runs_before_its_starter_resumes_still_joins_the_beat(emitter, frames, monkeypatch):
+    """FH-CHAT-TOOL-PROGRESS-BUNDLE-LEAK: the long-call bracket starts the dispatch's worker and only
+    then told the live-turn registry about it, so a worker scheduled first beat while the call was
+    still joined to the starter's thread (``progress_state`` None under a loaded bundle). Hold the
+    starter's own note until the call is done: the worker must already have named itself."""
+    from tools import long_tool_calls
+
+    original, call_done = long_tool_calls._note_worker, threading.Event()
+
+    def starter_waits(call):
+        if threading.get_ident() != call.worker_tid:
+            call_done.wait(10)
+        original(call)
+
+    monkeypatch.setattr(long_tool_calls, "_note_worker", starter_waits)
+
+    def during(_meta):
+        assert emitter._heartbeat.beat() == 1
+        call_done.set()
+
+    _mcp_beat(emitter, frames, during)
+
+    [beat] = of_type(frames, "tool.progress")
+    assert beat["progress_state"] == "none_reported"
+
+
 def test_the_mcp_record_closes_with_the_dispatch(emitter, frames):
     from tools import mcp_progress_relay as relay
 

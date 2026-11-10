@@ -30,6 +30,8 @@ Domain queues — work filed by the SURFACE it serves, never the layer it lives 
 - [[fork-hygiene-queue]] — the repository as a fork: upstream sync and the boundary, CI, the suite and its gates, the mutation gate, docs gates, the god-file refactor, this vault.
 - [[dead-code-burn-down-queue]] — the god-file program's deletion register (hermes half): every dead-code candidate the census and the layout sheets find, launcher format, one row per symbol; listed apart because a deletion serves no surface and its rows share one gate (the tombstone registry).
 
+**Closed rows** leave their queue for its monthly archive, `80 — Archive/Queues/<queue stem>-<YYYY-MM>.md` (`type: queue-archive`), with ONE outcome segment — close with `python scripts/work_row.py close <ID> --done <sha>` ([[0011 — One brain per repo, one Mission Control queue in the launcher]] § Row grammar, amendment 2026-11-03).
+
 ## The order of programs
 
 When two staged plans are both ready, the order is a ruling, not a queue row: [[0013 — Seams before the god-file refactor, and main's reds classified first]] — classify `main`'s reds, then seam Stage 0b + Stage 1, then the god-file refactor Wave 0 → H4, then seam Stage 2 onward. The rows themselves live in [[fork-hygiene-queue]].

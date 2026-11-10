@@ -471,6 +471,25 @@ def test_a_run_naming_files_builds_no_node_for_a_sibling(request, tmp_path):
     assert named_scope(["pkg"], tmp_path) is None  # a directory argument: pytest's own walk
 
 
+def test_a_run_that_returns_to_a_directory_collects_it_as_one_node(request, tmp_path):
+    """``tests/_downstream/named_files_collect.py::contiguous_args``: pytest 9.1 parses a directory conftest's
+    fixtures onto the FIRST ``Dir`` node for that directory, so ``work_store/test_writer.py
+    test_work_service.py work_store/test_board.py`` errored every test_board test with "fixture 'workspace'
+    not found" (FH-WORK-STORE-FIXTURE-LOST-IN-ONE-PROCESS). The arguments are regrouped by path tree, first
+    appearance kept. Mutation: drop the ``pytest_collection_contiguous_args`` re-export from
+    ``conftest_plugin`` (red here), or emit ``args`` unchanged from ``contiguous_args`` (red below)."""
+
+    from tests._downstream.named_files_collect import contiguous_args
+
+    hooked = [impl.function.__name__ for impl in request.config.pluginmanager.hook.pytest_collection.get_hookimpls()]
+    assert "pytest_collection_contiguous_args" in hooked
+    args = ["a/b/test_w.py", "a/test_s.py::test_one", "a/b/c/test_x.py", "a/b/test_b.py::test_b", "a/test_s.py::test_two"]
+    assert contiguous_args(args, tmp_path) == [
+        "a/b/test_w.py", "a/b/c/test_x.py", "a/b/test_b.py::test_b", "a/test_s.py::test_one", "a/test_s.py::test_two",
+    ]
+    assert contiguous_args(["a/test_s.py", "a/b/test_w.py"], tmp_path) == ["a/test_s.py", "a/b/test_w.py"]
+
+
 class _BodyPatchSentinel:
     """``tests/_downstream/body_patch_scope.py``'s subject: module state a body and a late fixture both patch."""
 

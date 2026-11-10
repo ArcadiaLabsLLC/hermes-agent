@@ -4,6 +4,7 @@ worktree, and a second clone playing "the other machine" (plan §5, §6.2)."""
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import replace
 import subprocess
 from pathlib import Path
@@ -312,7 +313,172 @@ def test_an_index_that_stays_corrupt_refuses_index_corrupt_not_branch_missing(re
     assert refused.value.reason is Reason.INDEX_CORRUPT and "index file corrupt" in refused.value.detail
     # Positive control: an ordinary reset failure keeps its own word.
     other = Writer(repo.board, machine_id="m1", run=recording([], lambda a: subprocess.CompletedProcess(
-        a, 128, "", "fatal: ambiguous argument 'origin/main'\n") if a[:1] == ["reset"] else None))
+        a, 128, "", "fatal: ambiguous argument 'origin/main'\n")
+        if a[:1] == ["reset"] or a[:3] == ["rev-parse", "-q", "--verify"] else None))
     with pytest.raises(WorkRefused) as plain:
         other.apply(op(Op.CLAIM, rid="r2"))
     assert plain.value.reason is Reason.BRANCH_MISSING
+
+
+def test_a_reset_git_fails_with_the_tip_present_is_worktree_failed_not_branch_missing(repo):
+    """RT-WORK-WRITER-LONGPATHS. Mutation: drop the tip check in ``_reset_to_tip`` -> branch_missing."""
+    Writer(repo.board, machine_id="m1").sync()
+    long = Writer(repo.board, machine_id="m1", run=recording([], lambda a: subprocess.CompletedProcess(
+        a, 128, "", "error: unable to create file X: Filename too long\n") if a[:1] == ["reset"] else None))
+    with pytest.raises(WorkRefused) as refused:
+        long.apply(op(Op.CLAIM))
+    assert refused.value.reason is Reason.WORKTREE_FAILED and "Filename too long" in refused.value.detail
+
+
+def test_every_writer_git_call_carries_core_longpaths(repo):
+    """RT-WORK-WRITER-LONGPATHS. Mutation: drop ``_REPO_CONFIG`` from ``Writer._git`` -> red."""
+    seen: list[tuple[list[str], tuple[str, ...]]] = []
+
+    def run(args, **kwargs):
+        seen.append((list(args), tuple(kwargs.get("config") or ())))
+        return run_git(args, **kwargs)
+
+    Writer(repo.board, machine_id="m1", run=run).apply(op(Op.CLAIM))
+    # ``checkout_token``'s common-dir probe is the module's, not ``Writer._git``'s, and reads no tree path.
+    door = [(args, config) for args, config in seen if "--git-common-dir" not in args]
+    assert door and all("core.longpaths=true" in config for _args, config in door), \
+        [args for args, config in door if "core.longpaths=true" not in config]
+
+
+def _write_long(path: Path, text: str) -> None:
+    """Write past Windows' 260-character limit (the ``\\\\?\\`` prefix), anywhere else plainly."""
+
+    name = "\\\\?\\" + str(path) if os.name == "nt" else str(path)
+    os.makedirs(os.path.dirname(name), exist_ok=True)
+    with open(name, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+
+
+def test_a_brain_note_past_260_characters_syncs(tmp_path, workspace):
+    """RT-WORK-WRITER-LONGPATHS: a tip holding a note whose worktree path passes 260 characters resets and
+    lands (behaviour proof; a box whose git sets core.longpaths system-wide passes it either way —
+    the killing test is test_every_writer_git_call_carries_core_longpaths)."""
+    origin = tmp_path / "o.git"
+    git("init", "-q", "--bare", "-b", "main", str(origin), cwd=tmp_path)
+    seed = tmp_path / "s"
+    git("clone", "-q", str(origin), str(seed), cwd=tmp_path)
+    _write_long(seed / NOTE, HEAD + ROWS)
+    deep = "Harness_Brain/50 — Agent Handoffs/" + "/".join(["a-rather-long-folder-name-for-a-handoff"] * 5)
+    _write_long(seed / deep / "Hermes handoff — a deep note.md", "deep\n")
+    git("-c", "core.longpaths=true", "add", "-A", cwd=seed)
+    git("-c", "core.longpaths=true", "commit", "-q", "-m", "seed", cwd=seed)
+    git("push", "-q", "origin", "main", cwd=seed)
+    clone = tmp_path / "c"
+    git("-c", "core.longpaths=true", "clone", "-q", "-c", "core.longpaths=true", str(origin), str(clone), cwd=tmp_path)
+    declare_slots(workspace, slot_decl("hermes"))
+    bind_here(workspace, hermes=clone)
+    board = next(b for b in boards(workspace) if b.slot == "hermes")
+    writer = Writer(board, machine_id="m1")
+    assert writer.apply(op(Op.CLAIM)).commit
+    assert len(str(writer.worktree / deep / "Hermes handoff — a deep note.md")) > 260
+
+
+ARCHIVE = "Harness_Brain/80 — Archive/Queues/q-2026-11.md"
+
+
+def test_a_close_creates_the_month_file_appends_the_next_and_drops_the_live_line_in_one_commit(repo):
+    """RT-QUEUE-ARCHIVE-GRAMMAR. Mutation: skip the live-line drop in ``Writer._close`` -> the row is both live
+    and archived, red; write the archive without its head -> the note is not a queue-archive, red."""
+    from agent_runtime.work_store.grammar import is_queue_archive
+
+    writer = Writer(repo.board, machine_id="m1")
+    first = writer.apply(op(Op.CLOSE, outcome="DONE", commit="3f9c2a1", date="2026-11-03", result="shipped"))
+    assert git("rev-list", "--count", f"{first.commit}^..{first.commit}", cwd=repo.origin).strip() == "1"
+    changed = git("-c", "core.quotePath=false", "show", "--name-only", "--format=", first.commit,
+                  cwd=repo.origin).split("\n")
+    assert set(filter(None, changed)) == {NOTE, ARCHIVE}
+    writer.apply(op(Op.CLOSE, row_id="RT-B", rid="r2", outcome="REFUTED", commit="here", date="2026-11-04"))
+    git("pull", "-q", "--ff-only", cwd=repo.other)
+    archive = (repo.other / ARCHIVE).read_text(encoding="utf-8")
+    assert is_queue_archive(archive) and "queue: q.md" in archive and "program: test" in archive
+    assert "month: 2026-11" in archive
+    archived = parse_note(archive, slot="hermes", note=ARCHIVE)
+    assert [(r.ref.id, r.outcome.render(), r.result, r.defects) for r in archived] == [
+        ("RT-A", "DONE 2026-11-03 3f9c2a1", "shipped", ()), ("RT-B", "REFUTED 2026-11-04 here", None, ())]
+    assert parse_note(note_text(repo.other), slot="hermes", note=NOTE) == []
+    assert "result: shipped" in git("log", "-1", "--format=%B", first.commit, cwd=repo.origin)
+
+
+def test_two_writers_of_one_worktree_are_admitted_one_at_a_time(repo, monkeypatch):
+    """RT-WORK-BATCH-WRITER-CONTENTION: a second Writer of the same worktree (the batch manifest's beside a Work
+    request's) waits for the first's admission and, past the bound, refuses ``index_locked`` "writer busy" — it
+    never runs ``reset --hard`` beside a live one. Killing mutation: ``sync`` without ``with self.admitted()``
+    — the busy sync lands while the first writer holds the worktree."""
+    import threading
+
+    from agent_runtime import locks
+
+    monkeypatch.setattr(locks, "_lock_timeout_seconds", lambda _value: 0.2)
+    first, second = Writer(repo.board, machine_id="m1"), Writer(repo.board, machine_id="m1")
+    first.sync()
+    seen: list[object] = []
+
+    def other_thread() -> None:
+        try:
+            second.sync()
+            seen.append("synced")
+        except WorkRefused as refused:
+            seen.append(refused)
+
+    with first.admitted():
+        worker = threading.Thread(target=other_thread)
+        worker.start()
+        worker.join(10)
+        # the same thread stays admitted: another instance of the worktree is reentrant here
+        Writer(repo.board, machine_id="m1").apply(op(Op.CLAIM))
+    assert len(seen) == 1 and isinstance(seen[0], WorkRefused)
+    assert seen[0].reason is Reason.INDEX_LOCKED and seen[0].detail.startswith("writer busy: ")
+    assert second.sync() == second.worktree  # released: the next sync is admitted
+    assert taken_count(note_text(repo.other)) == 1
+
+
+def test_a_claim_stamps_the_local_day_not_the_utc_one(repo):
+    """RT-WORK-DATES-LOCAL-DAY: 03:53 UTC on 2026-11-06 is 22:53 on 2026-11-05 in New York. KILLING
+    MUTATION: ``self._now().date().isoformat()`` back in ``Writer._line_edit`` → TAKEN 2026-11-06."""
+
+    import time
+    from datetime import UTC, datetime
+
+    before = os.environ.get("TZ")
+    os.environ["TZ"] = "America/New_York"
+    time.tzset()
+    try:
+        moment = datetime(2026, 11, 6, 3, 53, tzinfo=UTC)
+        Writer(repo.board, machine_id="m1", now=lambda: moment).apply(op(Op.CLAIM))
+    finally:
+        if before is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = before
+        time.tzset()
+    assert "· **TAKEN 2026-11-05 persona:pi_a**" in note_text(repo.other)
+
+
+def test_a_write_whose_changed_rows_break_the_task_rules_is_refused_and_nothing_lands(repo):
+    """RT-QUEUE-TASK-RULES-AT-WRITE (launcher tool/queue/queue_write_check.dart). In a brain that uses tasks, an
+    APPEND of a row under no task, or of a task with a technical title, refuses ``grammar_invalid`` naming the defect,
+    nothing committed; a defect the note already carried (RT-A, RT-B have no task) does not refuse an edit of
+    another row. KILLING MUTATION: drop ``self._refuse_task_defects(changed)`` in ``_apply`` -> RT-LONE lands, red."""
+    edit_and_push(repo.other, "- **`RT-B` — second** · READY 2026-10-18\n",
+                  "- **`RT-B` — second** · READY 2026-10-18\n"
+                  "- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n")
+    writer = Writer(repo.board, machine_id="m1")
+    before = git("rev-parse", "origin/main", cwd=repo.other)
+    for row_id, line, defect in (
+            ("RT-LONE", "- **`RT-LONE` — lone** · READY 2026-11-09", "ROW HAS NO TASK"),
+            ("TASK-T", "- **`TASK-T` — Fix `x.py` for tasks** · task: t · READY 2026-11-09", "TASK TITLE"),
+            ("TASK-Q", "- **`TASK-Q` — Pills again** · task: p · READY 2026-11-09", "TWO TASKS")):
+        with pytest.raises(WorkRefused) as refused:
+            writer.apply(op(Op.APPEND, row_id, rid=f"a-{row_id}", row=line))
+        assert refused.value.reason is Reason.GRAMMAR_INVALID and defect in refused.value.detail
+    git("fetch", "-q", cwd=repo.other)
+    assert git("rev-parse", "origin/main", cwd=repo.other) == before
+    assert not git("status", "--porcelain", cwd=writer.worktree).strip()
+    writer.apply(op(Op.APPEND, "RT-SUB", rid="a-ok", row="- **`RT-SUB` — slice** · group: p · READY 2026-11-09"))
+    writer.apply(op(Op.CLAIM, "RT-SUB", rid="c-ok"))
+    assert "`RT-SUB` — slice** · group: p · READY 2026-11-09 · **TAKEN" in note_text(repo.clone)

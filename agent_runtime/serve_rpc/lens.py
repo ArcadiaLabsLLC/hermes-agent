@@ -7,10 +7,12 @@ monitor names the operator's own systems, and a credential is theirs.
 =====================  ================================================================
 verb                   params -> result
 =====================  ================================================================
-list                   {} -> {monitors, feed_kinds}; a monitor row is {monitor_id, state,
-                       updated_at_ms, revision, has_draft} — ``has_draft`` is true while a
-                       draft waits for seal: a new proposal, or a SEALED monitor's next revision
-create                 {manifest} -> monitor (the manifest becomes its DRAFT)
+list                   {workspace_id?} -> {monitors, feed_kinds}; a monitor row is {monitor_id,
+                       state, updated_at_ms, revision, has_draft, workspace_id} — ``has_draft``
+                       is true while a draft waits for seal: a new proposal, or a SEALED
+                       monitor's next revision
+create                 {manifest, workspace_id?} -> monitor (the manifest becomes its DRAFT; a
+                       NEW monitor belongs to ``workspace_id``, else the active workspace)
 seal                   {monitor_id} -> monitor (draft frozen as the next revision)
 draft.drop             {monitor_id} -> monitor (a SEALED monitor's pending next-revision draft
                        is forgotten; the sealed revision and its state stand. ``no_draft``
@@ -25,15 +27,26 @@ preview                {manifest} -> {feeds: [{feed_id, status, number, reason, 
                        NOTHING is written)
 latest                 {monitor_id} -> {latest: [row per feed]}
 range                  {monitor_id, feed_id, start_ms, end_ms} -> {series, observations, rollups}
-episodes               {monitor_id?, state?} -> {episodes}
+episodes               {monitor_id?, state?, workspace_id?} -> {episodes}; each row also carries
+                       ``workspace_id`` (its monitor's) and ``orphan``: null, or why nothing will
+                       ever observe it again (monitor_gone | monitor_retired | monitor_paused)
 episode.decide         {episode_id, decision: dismiss|investigate|snooze15m} -> the Episode
-                       (the operator's settle, ``lens.store_decisions``; ``episode_not_found``,
-                       ``episode_settled`` for one already closed or resolved)
-fold                   {} -> the Mission Control fold (``lens.snapshot_fold``)
+                       (the operator's settle, ``lens.store_decisions``; a dismissed ORPHAN is
+                       resolved; ``episode_not_found``, ``episode_settled`` for one already
+                       closed or resolved)
+episodes.close_orphans {workspace_id?} -> {closed: [Episode]} (every orphaned open Episode
+                       resolved in one call, ``lens.store_scope``)
+episode.close          {episode_id, workspace_id?} -> {closed: [Episode]} (ONE orphaned open
+                       Episode resolved, the per-pill Close; ``episode_not_found`` for an id
+                       no Episode carries or one outside ``workspace_id``, ``episode_settled``
+                       for one already closed or resolved, ``episode_not_orphaned`` for one
+                       its monitor still observes, ``episode_contended``)
+fold                   {workspace_id?} -> the Mission Control fold (``lens.snapshot_fold``)
 credential.set         {ref, scheme, secret, username?} -> {ref, set, rotated_at}
                        (write-only: no verb returns a credential value)
 receipt                {episode_id} -> the exit door's receipt for that Episode (stage L2)
-receipts               {monitor_id?, limit?} -> {receipts} (newest first; limit <= 256)
+receipts               {monitor_id?, limit?, workspace_id?} -> {receipts} (newest first; limit
+                       <= 256; each row carries its monitor's ``workspace_id``)
 artifact               {episode_id, name} -> {name, media_type, size_bytes, sha256, encoding, content}
                        (one file from the Episode's folder only; 1 MiB, text and images)
 ingress.register       {monitor_id, kind, mapping?, auth?} -> {route_id, url, secret, kind, mapping,
@@ -41,11 +54,20 @@ ingress.register       {monitor_id, kind, mapping?, auth?} -> {route_id, url, se
                        only in the home's credential file as ``ingress:<route_id>``;
                        ``auth: bearer``, alertmanager and a local bind only, is ``weaker``)
 ingress.list           {monitor_id?} -> {routes, listener} (never a secret; listener =
-                       {host, port, listening, url_base, maximum_body_bytes})
+                       {host, port, listening, bound_since_ms, url_base, maximum_body_bytes,
+                       bind_error}; bind_error is null or, while a route wants the door and
+                       the last bind failed, {reason: address_in_use | permission_denied |
+                       other, host, port, errno, at_ms})
 ingress.revoke         {route_id} -> the route + revoked (its secret is forgotten)
 ingress.bind           {host, port} -> listener (loopback or a private address only; the
-                       running listener moves; written to ``lens/ingress.json``)
+                       running listener moves, a door whose bind failed is retried there;
+                       written to the head home's ``lens/ingress.json``, so each serve's
+                       home holds its own port — the default is 127.0.0.1:47652)
 =====================  ================================================================
+
+``workspace_id`` (RT-LENS-WORKSPACE-SCOPE-AND-ORPHANS): given, a read answers only that
+workspace's monitors and their Episodes and receipts; absent, every workspace — the
+all-workspaces read, and the answer these verbs always gave.
 
 Every refusal carries ``data.reason`` (a ``WireRefusal`` or ``StoreRefusal`` value)
 and, for a schema refusal, ``data.detail`` naming the field — never a value.
@@ -104,10 +126,14 @@ def _feed_kinds() -> dict[str, str]:
 @method("runtime.lens.list", tier=TIER_CONSOLE)
 def _runtime_lens_list(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     def body() -> dict:
-        monitors = [{key: row[key] for key in ("monitor_id", "state", "updated_at_ms")}
+        from agent_runtime.lens.store_scope import workspace_param
+
+        workspace_id = workspace_param(params)
+        monitors = [{key: row[key] for key in ("monitor_id", "state", "updated_at_ms", "workspace_id")}
                     | {"revision": None if row["sealed"] is None else row["sealed"]["revision"],
                        "has_draft": row["draft"] is not None}
-                    for row in _store().monitors()]
+                    for row in _store().monitors()
+                    if workspace_id is None or row["workspace_id"] == workspace_id]
         return {"monitors": monitors, "feed_kinds": _feed_kinds()}
 
     return _lens_call(rid, body)
@@ -115,7 +141,13 @@ def _runtime_lens_list(rid: Any, params: dict, context: RpcContext | None = None
 
 @method("runtime.lens.create", tier=TIER_CONSOLE)
 def _runtime_lens_create(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    return _lens_call(rid, lambda: _store().create((params or {}).get("manifest")))
+    def body() -> dict:
+        from agent_runtime.lens.store_scope import active_workspace_id, workspace_param
+
+        workspace_id = workspace_param(params) or active_workspace_id()
+        return _store().create((params or {}).get("manifest"), workspace_id=workspace_id)
+
+    return _lens_call(rid, body)
 
 
 @method("runtime.lens.seal", tier=TIER_CONSOLE)
@@ -206,7 +238,39 @@ def _runtime_lens_episodes(rid: Any, params: dict, context: RpcContext | None = 
         params_ = params or {}
         monitor_id = None if params_.get("monitor_id") is None else _monitor_id(params_)
         states = None if params_.get("state") is None else (enum_value(params_["state"], EpisodeState).value,)
-        return {"episodes": _store().episodes(monitor_id=monitor_id, states=states)}
+        from agent_runtime.lens.store_scope import with_scope, workspace_param
+
+        workspace_id = workspace_param(params_)
+        store = _store()
+        rows = store.episodes(monitor_id=monitor_id, states=states, workspace_id=workspace_id)
+        return {"episodes": with_scope(store, rows)}
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.episodes.close_orphans", tier=TIER_CONSOLE)
+def _runtime_lens_episodes_close_orphans(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from datetime import UTC, datetime
+
+        from agent_runtime.lens.store_scope import close_orphans, workspace_param
+
+        return {"closed": close_orphans(_store(), datetime.now(UTC), workspace_id=workspace_param(params))}
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.episode.close", tier=TIER_CONSOLE)
+def _runtime_lens_episode_close(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from datetime import UTC, datetime
+
+        from agent_runtime.lens.store_scope import close_orphan, workspace_param
+        from agent_runtime.lens.wire_value import checked_object, digest_value
+
+        m = checked_object(params or {}, {"episode_id"}, {"workspace_id"})
+        return {"closed": close_orphan(_store(), digest_value(m["episode_id"]), datetime.now(UTC),
+                                       workspace_id=workspace_param(m))}
 
     return _lens_call(rid, body)
 
@@ -230,8 +294,9 @@ def _runtime_lens_episode_decide(rid: Any, params: dict, context: RpcContext | N
 @method("runtime.lens.fold", tier=TIER_CONSOLE)
 def _runtime_lens_fold(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.lens.snapshot_fold import lens_fold
+    from agent_runtime.lens.store_scope import workspace_param
 
-    return _lens_call(rid, lens_fold)
+    return _lens_call(rid, lambda: lens_fold(workspace_id=workspace_param(params)))
 
 
 @method("runtime.lens.credential.set", tier=TIER_CONSOLE)
@@ -269,7 +334,10 @@ def _runtime_lens_receipts(rid: Any, params: dict, context: RpcContext | None = 
         monitor_id = None if params_.get("monitor_id") is None else _monitor_id(params_)
         limit = bounded_int(params_.get("limit", 32), minimum=1, maximum=MAXIMUM_RECEIPTS_PAGE)
         store = _store()
-        reply: dict = {"receipts": store.receipts(monitor_id=monitor_id, limit=limit)}
+        from agent_runtime.lens.store_scope import with_scope, workspace_param
+
+        rows = store.receipts(monitor_id=monitor_id, limit=limit, workspace_id=workspace_param(params_))
+        reply: dict = {"receipts": with_scope(store, rows, episodes=False)}
         if monitor_id is not None:  # the days retention folded (RT-LENS-RECEIPT-RETENTION L3)
             reply["rollups"] = store.receipt_rollups(monitor_id)
         return reply

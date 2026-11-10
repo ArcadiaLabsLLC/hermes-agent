@@ -100,7 +100,7 @@ def _install_chat_lane(monkeypatch, reply: str = "the recorded reply"):
 
 
 def _args(client_message_id: str):
-    from tests.agent_runtime.test_persona_assignments import _mission_chat_test_args
+    from tests.agent_runtime.test_persona_assignments_chat_history import _mission_chat_test_args
 
     return _mission_chat_test_args(client_message_id)
 

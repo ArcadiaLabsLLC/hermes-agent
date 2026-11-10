@@ -8,7 +8,8 @@ dozens of times per build is wasted work (profiled as the dominant snapshot cost
 YAML scanning ≫ everything else).
 
 This caches by ``(path, device, inode, ctime_ns, mtime_ns, size)`` so a file edit invalidates the entry
-(safe in a long-lived daemon) while repeats within a build are free. Caches are
+(safe in a long-lived daemon) while repeats within a build are free. A stamp younger than
+:data:`RACY_STAMP_NS` is never memoized (a same-tick rewrite could share it). Caches are
 bounded and self-clearing.
 
 **The disk tier (D1.05 CF-2).** The memo is per process, so every new process
@@ -35,6 +36,7 @@ import hashlib
 import json
 import os
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -46,6 +48,17 @@ _MAX_ENTRIES = 4096
 _value_cache: dict[tuple, Any] = {}
 _sha_cache: dict[tuple, str] = {}
 
+#: The racy-stamp window (RT-PARSE-CACHE-SAME-TICK-REWRITE), as git's racy-index rule: a stamp this
+#: young may still be shared by a same-size rewrite inside one filesystem clock tick (~15.6 ms on
+#: Windows, where ctime is creation time; Linux's coarse ctime clock ticks in ms), so a parse of it is
+#: served but never memoized. A memoized stamp is therefore older than the window, and any later
+#: rewrite lands a newer one. Several Windows ticks wide; a file this fresh is re-parsed, not wrong.
+RACY_STAMP_NS = 100_000_000
+
+
+def _now_ns() -> int:
+    return time.time_ns()
+
 
 def _stamp(path: Path) -> tuple | None:
     try:
@@ -53,6 +66,13 @@ def _stamp(path: Path) -> tuple | None:
     except OSError:
         return None
     return (str(path), st.st_dev, st.st_ino, st.st_ctime_ns, st.st_mtime_ns, st.st_size)
+
+
+def _racy(key: tuple) -> bool:
+    """True while *key*'s newest time is inside :data:`RACY_STAMP_NS` of now (do not memoize it)."""
+
+    # MUTATION: answer False and test_parse_cache's same-tick rewrite row reddens.
+    return _now_ns() - max(key[3], key[4]) < RACY_STAMP_NS
 
 
 def _bounded_set(cache: dict, key: tuple, value: Any) -> None:
@@ -87,6 +107,8 @@ def cached_by_mtime(
         value = loader(path)
     except Exception:
         return default
+    if _racy(key):
+        return value
     _bounded_set(_value_cache, key, value)
     if disk is not None:
         disk.put(key, value)
@@ -276,7 +298,7 @@ def cached_file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     value = "sha256:" + digest.hexdigest()
-    if key is not None:
+    if key is not None and not _racy(key):
         _bounded_set(_sha_cache, key, value)
     return value
 

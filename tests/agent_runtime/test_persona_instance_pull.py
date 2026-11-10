@@ -418,6 +418,34 @@ def test_the_store_door_cannot_express_importing_a_live_binding():
     assert after.default_chat_session_id == local.default_chat_session_id
 
 
+def test_the_mint_arm_cannot_express_importing_a_live_binding_either():
+    """The same contract on the MINT arm, where it is the door's alone.
+
+    On the adopt arm the store's replication write re-reads the stored row and copies only the
+    travel allowlist onto it, so the door's own allowlist is shadowed there; a minted row has no
+    stored row yet, so the door's allowlist is the one thing between a peer's run binding and this
+    machine (claim ``ir-h3-the-store-door-writes-the-whole-remote-body``,
+    FH-MUTATION-CLAIM-IR-H3-UNANCHORED).
+    """
+
+    _realm_workspace()
+    minted = PersonaInstanceStore().replicate_instance(
+        {
+            **_body(),
+            "active_run_id": "run_from_a_peer",
+            "chat_head_home": "somebody_elses_profile",
+            "token_budget_used": 999999,
+        },
+        realm_id="realm_home",
+    )
+
+    after = PersonaInstanceStore().get(INSTANCE_ID)
+    assert minted.display_name == after.display_name == "Neko", "the travelling surface did not land"
+    assert after.active_run_id is None
+    assert after.chat_head_home != "somebody_elses_profile"
+    assert after.token_budget_used != 999999
+
+
 # ── §3.4 the ordering hazard ──────────────────────────────────────────────
 
 
@@ -766,3 +794,64 @@ def test_the_pull_ack_carries_the_summary_under_the_contract_key():
     ]
     assert shape["source"] is None
     assert all(shape[key] == [] for key in shape if key != "source")
+
+
+def test_a_body_spelled_with_the_next_editions_recall_key_replicates_as_this_ones(tmp_path):
+    """RT-WS-RECALL-RENAME-S1-ALIAS (plan recall-field-rename-mixed-editions-2026-11-06 S1). KILLING
+    MUTATION: drop the ``canonical_instance_body`` call in ``PullPass._row_context`` → the new-key
+    body refuses ``unexpected_key`` and ``replicated`` is empty."""
+
+    realm_id, ws = _realm_workspace()
+    newer = _body(workspace_id=ws, recall_shared_workspaces=True)
+    _write_remote(tmp_path, newer)
+    summary = apply_persona_instance_pull(realm_id, tmp_path)
+    assert summary.replicated == [INSTANCE_ID] and summary.refused == []
+    minted = PersonaInstanceStore().get(INSTANCE_ID)
+    assert minted.recall_shared_workspaces is True
+    # Zero drift: the baseline is the CANONICAL body's hash, which is what this edition projects.
+    older = _body(workspace_id=ws, recall_shared_projects=True)
+    from agent_runtime.persona_instance_sync import project_persona_instance
+
+    assert read_persona_instance_baseline(realm_id)[instance_baseline_key(INSTANCE_ID)] == (
+        persona_instance_def_hash(older)) == persona_instance_def_hash(project_persona_instance(minted))
+
+
+def test_two_spellings_disagreeing_are_refused_and_a_stored_new_spelling_loads(tmp_path):
+    """KILLING MUTATION: drop ``stored_instance_body`` from ``store._decode_stored_instance`` →
+    a row an S1-or-older edition stored (the Project spelling) loads recall OFF and the last assertion reds."""
+
+    realm_id, ws = _realm_workspace()
+    _write_remote(tmp_path, _body(workspace_id=ws, recall_shared_workspaces=True, recall_shared_projects=False))
+    summary = apply_persona_instance_pull(realm_id, tmp_path)
+    assert summary.replicated == [] and [r["code"] for r in summary.refused] == ["unexpected_key"]
+
+    from agent_runtime.persona_assignments.store import _decode_stored_instance
+
+    from agent_runtime.serde import to_jsonable
+
+    stored = {k: v for k, v in to_jsonable(_local()).items() if k != "recall_shared_workspaces"}
+    assert _decode_stored_instance({**stored, "recall_shared_workspaces": True}).recall_shared_workspaces is True
+    assert _decode_stored_instance({**stored, "recall_shared_projects": True}).recall_shared_workspaces is True
+
+
+def test_the_renamed_field_is_stored_new_and_published_old_with_the_hash_unmoved(tmp_path):
+    """RT-WS-RECALL-RENAME-S2-FIELD (plan S2): the store writes ``recall_shared_workspaces``, the
+    projection still publishes ``recall_shared_projects``, and a recall-on instance hashes exactly
+    as the Project edition's body. KILLING MUTATION: publish the field under its own name (drop
+    ``published_key`` in ``project_persona_instance``) → the field is withheld as an unknown name,
+    the body loses the key and the hash moves."""
+
+    import json
+
+    from agent_runtime import paths
+    from agent_runtime.persona_instance_sync import project_persona_instance
+
+    realm_id, ws = _realm_workspace()
+    _write_remote(tmp_path, _body(workspace_id=ws, recall_shared_projects=True))
+    assert apply_persona_instance_pull(realm_id, tmp_path).replicated == [INSTANCE_ID]
+    stored = json.loads(paths.persona_instance_path(INSTANCE_ID).read_text(encoding="utf-8"))
+    assert stored["recall_shared_workspaces"] is True and "recall_shared_projects" not in stored
+    body = project_persona_instance(PersonaInstanceStore().get(INSTANCE_ID))
+    assert body["recall_shared_projects"] is True and "recall_shared_workspaces" not in body
+    assert persona_instance_def_hash(body) == persona_instance_def_hash(
+        _body(workspace_id=ws, recall_shared_projects=True))

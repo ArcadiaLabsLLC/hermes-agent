@@ -103,10 +103,6 @@ class Workspace:
     realm_id: str | None = None
     archived: bool = False
     schema_version: int = 1
-    # Launcher Project references only. Existing workspace/instance owners keep
-    # slots and access; a connection never assigns slots or shares content.
-    project_ids: list[str] = field(default_factory=list)
-    project_assignment_revision: int = 0
 
 
 @dataclass(slots=True)
@@ -561,6 +557,13 @@ class PersonaInstance:
     # which outranks the env head for this conversation. ``None`` reads as
     # ``process``. Like ``chat_head_home``, it projects to no wire field.
     chat_head_kind: str | None = None
+    # RT-PERSONA-ENSURE-REVERTS-INSTANCE-RENAME: True once the operator named this
+    # instance (``update_profile(display_name=...)``, the launcher's Edit profile).
+    # ``PersonaInstanceStore.ensure_for_persona`` syncs the persona's own name onto
+    # the canonical row only while this is False, so a rename survives every
+    # snapshot build and a persona renamed in config still renames an instance
+    # nobody named. Local-only: an older member's pull door refuses unknown keys.
+    display_name_custom: bool = False
     # Repo slots (build plan §3.3, OWNER 2026-10-04): the subset of this
     # instance's workspace's declared slots it works in — the AUTHORITY the
     # launcher's Agent Console edits. Empty means NONE (never "all"); a slot may
@@ -573,10 +576,23 @@ class PersonaInstance:
     primary_slot: str | None = None
     slots_issued_at: datetime | None = None
     # RT-PROJECT-CHAT-RECALL-ACROSS-STORES: this agent's recall also searches the
-    # shared chat store of every Project its workspace holds whose chats are
-    # shared. Off by default; ``runtime.persona.instance.recall.set`` edits it on
+    # shared chat store of its own workspace (when that workspace shares its chats).
+    # Off by default; ``runtime.persona.instance.recall.set`` edits it on
     # the slot lane's clock (``slots_issued_at``). Memory extraction never reads it.
-    recall_shared_projects: bool = False
+    # RT-WS-RECALL-RENAME-S2-FIELD: the workspace name locally; the sync projection still
+    # PUBLISHES ``recall_shared_projects`` (``persona_instance_sync.contract.PERSONA_INSTANCE_PUBLISHED_KEYS``).
+    recall_shared_workspaces: bool = False
+    # RT-SLOT-CONTEXT-FILE-PICKS: a per-slot override of which context files load,
+    # keyed by assigned slot key. ``slot_context_files[slot]`` is the subset of
+    # ``CLAUDE.md`` / ``AGENTS.md`` the agent switched ON for that slot (an empty
+    # list loads neither); a slot ABSENT from it keeps today's ruling (the
+    # declaration's ``context.files``, else the one-file default). It is a choice
+    # about the agent and travels. ``slot_context_custom[slot]`` is THIS machine's
+    # one picked ``.md`` (an absolute path), honoured only under an override; it
+    # never travels — a local path is each machine's own, like a slot's fill. Both
+    # ride the slot lane's clock (``slots_issued_at``).
+    slot_context_files: dict[str, list[str]] = field(default_factory=dict)
+    slot_context_custom: dict[str, str] = field(default_factory=dict)
     # S70 (contract 54) removed ``context_receipt_id`` / ``compression_receipt_id``
     # / ``tool_budget_used`` / ``watchdog_warning_count`` from this record. Their
     # only writers died with the worker/goal lanes; ``ensure_for_personas`` was

@@ -249,6 +249,7 @@ def manifest() -> dict[str, Any]:
     from ..persona_open_chat import (OPEN_CHAT_METHOD, OPEN_CHAT_METHOD_PARAMS,
                                      CREATE_CONVERSATION_METHOD, CREATE_CONVERSATION_METHOD_PARAMS)
     from .board import BOARD_METHOD_PARAMS
+    from .channel import CHANNEL_MESSAGE_METHOD_PARAMS
     from .twin_params import (COURSE_METHOD_PARAMS, PERSONA_TOOLSET_METHOD_PARAMS, SKILL_CHANGES_METHOD_PARAMS,
                               TWIN_METHOD_PARAMS)
     from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
@@ -260,8 +261,7 @@ def manifest() -> dict[str, Any]:
     WORK_READ_METHOD_PARAMS: dict[str, tuple[str, ...]] = {}
     if shipped("agent_runtime.work"):
         from ..work.model import READ_METHOD_PARAMS as WORK_READ_METHOD_PARAMS
-    from .workspace import PROJECT_CONNECTION_METHOD, PROJECT_CONNECTION_PARAMS
-    from .project import PROJECT_METHOD_PARAMS
+    from .workspace_slots import WORKSPACE_CONTENT_METHOD_PARAMS
 
     return {
         "contract": RPC_CONTRACT_VERSION,
@@ -272,6 +272,7 @@ def manifest() -> dict[str, Any]:
                 **CHAT_TURN_METHOD_PARAMS,
                 "runtime.agent.create": AGENT_CREATE_METHOD_PARAMS,
                 OPEN_CHAT_METHOD: OPEN_CHAT_METHOD_PARAMS,
+                "runtime.channel.message": CHANNEL_MESSAGE_METHOD_PARAMS,
                 CREATE_CONVERSATION_METHOD: CREATE_CONVERSATION_METHOD_PARAMS,
                 CONVERSATION_LIST_METHOD: CONVERSATION_LIST_METHOD_PARAMS,
                 **TWIN_METHOD_PARAMS,
@@ -281,8 +282,9 @@ def manifest() -> dict[str, Any]:
                 **BOARD_METHOD_PARAMS,
                 **SUBAGENT_METHOD_PARAMS,
                 **WORK_READ_METHOD_PARAMS,
-                PROJECT_CONNECTION_METHOD: PROJECT_CONNECTION_PARAMS,
-                **PROJECT_METHOD_PARAMS,
+                **WORKSPACE_CONTENT_METHOD_PARAMS,
+                # Listed with the workspace content contract the launcher mirrors.
+                "runtime.persona.instance.recall.set": ("persona_instance_id", "enabled", "issued_at"),
                 MIGRATE_METHOD: MIGRATE_PARAMS,
             }.items())
         },

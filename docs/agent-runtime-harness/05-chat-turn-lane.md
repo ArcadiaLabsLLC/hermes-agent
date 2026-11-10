@@ -424,7 +424,7 @@ inside it. It is taken on EVERY lane: a turn without `--stream` hands the runner
 `first_reply_text` (the stamp, no frames, no elements) as its stream callback — the argv fallback's
 turn `b00deebf` (2026-10-06) recorded no first byte before it (h-turn1-again); `response_headers` is the nearer first-byte stamp. The name is the persisted phase key
 and the source of the wire's `provider_first_byte_ms` (launcher-read), so it is not renamed. Beside the marks ride one
-flag (`agent_init_cold`, `:92`), one closed-set label (`context_native_history_source`: `resident` when the resident actor handed over its lineage-stamped history, `read` when SessionDB was read; `PHASE_LABELS`, 2026-10-16) and four counters (`registry_probe_rounds`,
+flag (`agent_init_cold`: `true` means only that this turn CONSTRUCTED its agent, no resident actor reused; process caches under construction may be warm, and with `persona_chat.hot_sessions_enabled` off every turn reads `true`), two closed-set labels (`context_native_history_source`: `resident` when the resident actor handed over its lineage-stamped history, `read` when SessionDB was read; `PHASE_LABELS`, 2026-10-16; `agent_init_source`: `resident` / `constructed` / `constructed_no_registry`, which construction the flag reports, RT-TURN-AGENT-INIT-COLD-ALWAYS-TRUE 2026-11-06) and four counters (`registry_probe_rounds`,
 `visibility_bundle_builds`, `builds_overlapped`, `prewarm_overlapped`); `_BLOCK_ORDER` is the
 closed set a reader may see. `visibility_bundle_builds` landed 2026-08-23 with the chat-lane bundle
 (§4a) and is a delta of a thread-cumulative counter like `registry_probe_rounds`: `0` on a warm
@@ -596,6 +596,15 @@ Four tiers, highest wins, resolved once in `_chat_effective_model_payload`
 ```
 chat-session override  >  instance override  >  persona default  >  config default
 ```
+
+A DISPATCHED thread (minted fresh per task, `agent_runtime/dispatch_session_policy.py`) with no override
+of its own takes the override of the thread it supersedes, walking `_dispatched_from` predecessors
+(every mint repoints the default thread, so the console thread the operator chose a model on can sit
+several dispatches back) — the model the sticky policy would have continued with — at the chat-session
+tier; and, when every tier is still empty, the dispatcher's own chat override (`requested_by_session`)
+as the last tier, so a relay never refuses `model_unset` while its sender has a model. Read every turn,
+never copied; the turn's model receipt names the tier `dispatch_predecessor` / `dispatcher`
+(`agent_runtime/persona_chat_session.py::_resolve_turn_model_selection`, RT-RELAY-DISPATCH-THREAD-NO-MODEL).
 
 The chat-session override persists under `mission_control_chat_model_override`
 (`agent_runtime/persona_chat_session.py::_resolve_chat_model_override`, key spelled once as `agent_runtime/persona_chat_history/vocabulary.py::_CHAT_MODEL_OVERRIDE_CONFIG_KEY`) via
@@ -870,7 +879,9 @@ Under a slot assignment each assigned slot's declared `context.files` load, each
 (`agent_runtime/persona_slots.py::load_slot_context`); a declaration that names none loads ONE file —
 `AGENTS.md` when it has content of its own, else `CLAUDE.md`, never one that only points at the other
 (`persona_slots.default_context_choice`, owner ruling 2026-11-01; the loaded file's receipt carries
-`default_choice`, the other's `not_default` or `missing` with the reason; the turn's prompt-context row
+`default_choice`, the other's `not_default` or `missing` with the reason; an agent's own per-slot pick —
+`CLAUDE.md` / `AGENTS.md` toggles plus one custom `.md`, `slots.set`'s `context_files` — outranks both,
+its receipts saying `override_choice: slot_override` or `override_off`, RT-SLOT-CONTEXT-FILE-PICKS; the turn's prompt-context row
 carries the whole workspace receipt, slot receipts included, as `workspace_context_receipt` — None off a
 turn — because under an assignment `context_files` has no workspace row, RT-SLOT-RECEIPTS-IN-PROMPT-CONTEXT). The sections ride the `context` tier of
 the system prompt — after the static-prefix cache breakpoint, before the end-of-system one — so on a
@@ -987,6 +998,33 @@ kinds cross; `conversation_observability.compaction_progress_payload`) → `Chat
 The agent's `status_callback` has that ONE convention: the fork's dict timing receipts go through
 `agent_runtime/receipt_sink.py::receipt_callback` to the profile runner's `ReceiptSink.receipt`
 only, so a CLI / gateway / TUI / api_server callback never receives one.
+
+### 5c. A provider retry wait on the `provider.retry_wait` frame (2026-11-02)
+
+A streamed turn that sits out a provider retry (a 429 or another refusal, a 5xx, a dropped stream)
+carries one `provider.retry_wait` v2 frame per wait, written when the wait starts:
+`{"type": "provider.retry_wait", "protocol_version": 2, "turn_id", "after_seq", "retry_in_seconds",
+"attempt", "max_attempts", "provider_refusal"?}`. `provider_refusal` is the settled refusal's own
+block (`ProviderRefusal.as_dict` through `safe_provider_refusal`: `status_code`, `reason`, `provider`,
+`model`, `reset_at`, `resets_in_seconds`, …) and is present only when the waited-on error IS a
+refusal (`PROVIDER_REFUSAL_STATUS_CODES`); a 5xx wait says only when the retry runs. Before it the
+wait was spoken only on `thinking_callback`, which the profile runner never wires, so a 600 s 429
+wait read "Thinking" in the console (row `RT-CHAT-PROVIDER-RETRY-WAIT-FRAME`, launcher
+`MC-CONSOLE-PROVIDER-429-BACKOFF-SHOWS-THINKING`). Presentation-only like `context.compaction`: no
+element `seq`, no segment end, no EventLog row; the next frame of any kind supersedes it. The path:
+`agent/turn_api_error.py::settle_unrecovered_error` (one seam call after `compute_error_backoff`) →
+`agent_runtime/provider_retry_wait.py::emit_provider_retry_wait` → the agent's `ReceiptSink.receipt`
+→ `ChatProgressSink._forward_provider_retry_wait` → `_ChatProtocolV2Emitter._provider_retry_wait`;
+every hop re-reads it through `safe_provider_retry_wait`'s closed set.
+
+**A reset no retry can reach ends the cycle instead** (row `RT-RETRY-AFTER-CAP-RETRIES-WEEK-LIMIT`):
+each wait is capped at `RETRY_AFTER_CAP_S` (600 s), so a 429 whose reset (the later of its uncapped
+`Retry-After` and its `reset_at`) lies beyond `600 s × (max_retries − retry_count)` is a wall every
+retry walks into — the Anthropic Account's used week limit slept 600 s three times into the same 429.
+`provider_retry_wait.reset_outlasts_retries` (one seam `if` in `settle_unrecovered_error`, beside the
+attended free tier's `free_tier_cooldown_ends_turn`) ends it: fallback first, else the terminal
+result whose `provider_error` settles as a typed refusal with `reset_at` / `resets_in_seconds`, and
+no `provider.retry_wait` frame is sent. A reset the remaining waits do reach is still waited out.
 
 ## 6. Terminal envelope grants
 

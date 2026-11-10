@@ -101,7 +101,7 @@ class RunRecord:
 
     @classmethod
     def from_wire(cls, raw: dict[str, Any]) -> RunRecord:
-        return cls(**{**raw, "ref": RowRef(**raw["ref"]), "state": RecordState(raw["state"])})
+        return cls(**{**raw, "ref": RowRef.from_dict(raw["ref"]), "state": RecordState(raw["state"])})
 
 
 # ── the write-back table ───────────────────────────────────────────────────
@@ -110,7 +110,8 @@ Step = tuple[str, Op, dict[str, Any]]
 
 
 def _done(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
-    return [("done", Op.DELETE, {"result": " ".join(str(ending.result or "done").split())[:4000]})]
+    return [("done", Op.CLOSE, {"outcome": "DONE", "date": date, "commit": ending.commit,
+                                "result": " ".join(str(ending.result or "done").split())[:4000]})]
 
 
 def _blocked(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
@@ -315,12 +316,9 @@ class WorkEngine:
                 if writer is None or board.read_root is None:
                     continue
                 for row in board_rows(board):
-                    # A ref saved before boards were keyed by Project carries none: it is the same row.
-                    legacy = replace(row.ref, project_id=None)
-                    if (row.taken is None or row.taken.persona_instance_id is None
-                            or row.ref in held or legacy in held):
+                    if row.taken is None or row.taken.persona_instance_id is None or row.ref in held:
                         continue  # untaken (the engine never claims), a session lane's claim, or a batch lane's
-                    handed = self._hand_off(workspace_id, row, writer, live.get(row.ref) or live.get(legacy))
+                    handed = self._hand_off(workspace_id, row, writer, live.get(row.ref))
                     counts.update([handed] if handed else [])
         return counts
 
@@ -361,7 +359,7 @@ class WorkEngine:
             if row.taken is not None and row.taken.who != who:
                 raise WorkRefused(Reason.ALREADY_TAKEN, row.taken.who)
             live = next((r.request_id for r in records()
-                         if r.ref in (row.ref, replace(row.ref, project_id=None)) and r.state is not RecordState.CLOSED),
+                         if r.ref == row.ref and r.state is not RecordState.CLOSED),
                         None)
             if live is not None:
                 raise WorkRefused(Reason.ALREADY_TAKEN, f"run {live}")
@@ -378,11 +376,11 @@ class WorkEngine:
             return self._begin(record, lambda: self.executor.start_from(assignment, origin))
 
     def _locate(self, ref: RowRef) -> tuple[str, Row, Any]:
-        """The workspace, the row and the writer of the row ``ref`` names (by its board — slot + Project — and ID)."""
+        """The workspace, the row and the writer of the row ``ref`` names (by its board — its slot — and ID)."""
 
         for workspace_id in self._workspaces():
             view = self._sync(workspace_id)
-            board = pick(view.boards, ref.slot, ref.project_id)
+            board = pick(view.boards, ref.slot)
             writer = view.writers.get(board.key) if board is not None else None
             if board is None or writer is None or board.read_root is None:
                 continue
@@ -452,7 +450,8 @@ class WorkEngine:
             if record is None or record.state in (RecordState.SETTLED, RecordState.CLOSED):
                 return
             ending = next((e for ref, e in outcome.per_row.items() if ref.id == record.ref.id), None)
-            self._record_ending(record, ending or RowEnding(outcome.verdict, reason="the run named no ending"))
+            ending = ending or RowEnding(outcome.verdict, reason="the run named no ending")
+            self._record_ending(record, replace(ending, commit=outcome.completion_commit))
             self._write_back(record)
 
     def stop(self, request_id: str, reason: StopReason = StopReason.OPERATOR) -> dict[str, Any]:
@@ -500,7 +499,7 @@ class WorkEngine:
         from .writer import RowOp
 
         view = self._sync(record.workspace_id)
-        board = pick(view.boards, record.ref.slot, record.ref.project_id)
+        board = pick(view.boards, record.ref.slot)
         writer = view.writers.get(board.key) if board is not None else None
         if writer is None:
             raise WorkRefused(Reason.SLOT_UNBOUND, record.ref.slot)

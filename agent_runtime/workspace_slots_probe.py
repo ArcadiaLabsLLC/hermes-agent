@@ -11,7 +11,9 @@ every value the fixture environment set.
 
 The probes, in order: the bound path exists and ``git remote get-url origin`` matches the
 declared ``repo.clone_url`` (``checkout: matches | remote_mismatch | not_a_repo``; a
-``repo.local`` slot with a ``.git`` answers ``local``, no remote check); each
+``repo.local`` slot answers ``local`` with a ``.git`` and ``folder`` without one — a bound local folder
+is set up as it stands, no repository is invented and no remote is checked,
+RT-PROJECT-LOCAL-FOLDER-READINESS); each
 declared tool resolves (``tool_paths`` first, then ``PATH`` with the fill's
 ``path_prepend`` in front, through ``hermes_platform.resolver.locate_command``) and its
 ``--version`` is parsed where it prints one; each env key is present in the fill's ``env``
@@ -53,6 +55,8 @@ CHECKOUT_REMOTE_MISMATCH = "remote_mismatch"
 CHECKOUT_NOT_A_REPO = "not_a_repo"
 #: A ``repo.local`` slot (the Work default brain) is a repository with no remote to match.
 CHECKOUT_LOCAL = "local"
+#: A ``repo.local`` slot bound to a plain folder (no ``.git``): its readiness is the folder itself.
+CHECKOUT_FOLDER = "folder"
 
 STATUS_READY = "ready"
 STATUS_NEEDS_SETUP = "needs_setup"
@@ -107,10 +111,10 @@ class _SlotProbe:
         return PROBE_UNKNOWN
 
     def checkout(self, path: Path) -> str:
+        if (self.slot.get("repo") or {}).get("local") is True:
+            return CHECKOUT_LOCAL if (path / ".git").exists() else CHECKOUT_FOLDER
         if not (path / ".git").exists():
             return CHECKOUT_NOT_A_REPO
-        if (self.slot.get("repo") or {}).get("local") is True:
-            return CHECKOUT_LOCAL
         try:
             done = self.run(["git", "-C", str(path), "remote", "get-url", "origin"])
         except (OSError, subprocess.SubprocessError) as exc:
@@ -203,22 +207,6 @@ def report(
                             lambda name: bound_path(name, workspace_id=workspace_id),
                             run=run, now=now, fresh_binds=fresh_binds)
     write_document(workspace_id, document)
-    return {"machine": me, **entry}
-
-
-def report_project(
-    project_id: str, *, run: Runner | None = None, now: float | None = None, fresh_binds: frozenset[str] = frozenset()
-) -> dict[str, Any]:
-    """:func:`report` for a Project's slots: ``machines.<me>`` of the Project record (plan §3)."""
-
-    from .project_store import load_project, write_project
-
-    record = load_project(project_id)
-    entry, me = _probe_into(record, lambda name: slot_fill(None, name, project_id=project_id),
-                            lambda name: bound_path(name, project_id=project_id),
-                            run=run, now=now, fresh_binds=fresh_binds)
-    record["project_id"] = project_id
-    write_project(project_id, record)
     return {"machine": me, **entry}
 
 

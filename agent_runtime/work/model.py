@@ -24,13 +24,13 @@ __all__ = ["BOARD_KINDS", "KIND_AGENT", "KIND_PERSONAL", "KIND_WORKSPACE", "OPER
 _SCOPED = ("client_scope", "conversation", "install_id", "owner")
 READ_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.work.capabilities": ("observe",),
-    "runtime.work.inspect": tuple(sorted((*_SCOPED, "kind", "observe", "project_id", "slot", "stale_ok", "task_id"))),
-    "runtime.work.list": tuple(sorted((*_SCOPED, "assignee", "kind", "observe", "project_id", "slot", "stale_ok", "status",
+    "runtime.work.inspect": tuple(sorted((*_SCOPED, "kind", "observe", "slot", "stale_ok", "task_id"))),
+    "runtime.work.list": tuple(sorted((*_SCOPED, "assignee", "group", "kind", "observe", "slot", "stale_ok", "status",
                                        "view"))),
 }
 
 #: What an owner advertises on the wire (``capabilities`` / ``context`` are not owner operations).
-OPERATIONS = ("inspect", "start", "assign", "claim", "release", "set_status", "done", "create_brain", "lend_skills")
+OPERATIONS = ("inspect", "start", "edit", "assign", "claim", "release", "set_status", "move", "answer", "pull", "done", "close", "create_brain", "lend_skills")
 
 
 KIND_WORKSPACE = "workspace"

@@ -57,7 +57,8 @@ from tests._downstream.plugin_module_keep import _plugin_module_keep  # autouse,
 from tests._downstream.teardown_plugin_delivery import (  # teardown hook (suite speed, h6-collect)
     pytest_runtest_teardown_plugin_delivery,
 )
-from tests._downstream.named_files_collect import (  # collect hook (suite speed, h6-collect)
+from tests._downstream.named_files_collect import (  # collect hooks (suite speed, h6-collect; FH-WORK-STORE-FIXTURE-LOST-IN-ONE-PROCESS)
+    pytest_collection_contiguous_args,
     pytest_ignore_collect_named_files,
 )
 from tests._downstream.version_info_scope import _version_info_scope  # autouse (q-chain)

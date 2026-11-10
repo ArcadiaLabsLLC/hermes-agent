@@ -16,6 +16,7 @@ from agent.charsheet.revisions import ImageRevisionStore
 from agent.charsheet.spec import CHAR8, SheetSpec
 from hermes_constants import get_hermes_home
 
+from .cells import RowCells
 from .compose import Composer
 from .directions import DirectionStage
 from .layout import DEFAULT_THUMB_FRAME, DEFAULT_THUMB_SCALE, DRAFT_FILENAME, REVISIONS_DIRNAME, SCHEMA, STAGES, VERB_STAGES, Stage, drafts_dir, spec_from_dict, spec_to_dict
@@ -41,6 +42,7 @@ class CharacterDraft:
         self._directions = DirectionStage(self)
         self._rows = RowStage(self)
         self._thumbs = Thumbs(self)
+        self._cells = RowCells(self)
         self._composer = Composer(self)
         self._status = StatusReport(self)
         self._palette_ops = PaletteOps(self)
@@ -450,6 +452,10 @@ class CharacterDraft:
     ) -> dict:
         """See :meth:`Thumbs.direction_thumb`."""
         return self._thumbs.direction_thumb(direction, attempt=attempt, scale=scale, square=square)
+
+    def row_cells(self, row_key: str) -> dict:
+        """See :meth:`RowCells.row_cells`."""
+        return self._cells.row_cells(row_key)
 
     def reopen(self) -> dict:
         """See :meth:`Composer.reopen`."""

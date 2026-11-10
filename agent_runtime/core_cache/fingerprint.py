@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import time
 from pathlib import Path
 from typing import Callable, Iterable, NamedTuple
 
@@ -76,11 +77,44 @@ def build_input_fingerprint() -> CoreFingerprint | None:
     makes the whole answer ``None``.
     """
 
+    started_ns = time.time_ns()
     entries: list[FingerprintEntry] = []
     for input_class in INPUT_CLASSES:
         if not input_class.collect(entries):
             return None
-    return _fingerprint_over(entries)
+    return _fingerprint_over(entries, racy_contents(entries, started_ns))
+
+
+#: How close to the walk's start an mtime may be and still be "racy" (git's racy-stat rule): file times
+#: are coarse (Windows' system timer, FAT's 2 s, a coarse kernel clock lagging ``time_ns``), so a file
+#: rewritten to the same size within the tick it was stamped in keeps its ``(mtime_ns, size)``.
+RACY_WINDOW_NS = 2_000_000_000
+
+
+def racy_contents(entries: Iterable[FingerprintEntry], started_ns: int) -> dict[str, str]:
+    """``{path: sha256}`` of every file entry whose mtime is within ``RACY_WINDOW_NS`` of ``started_ns``.
+
+    RT-CORE-CACHE-SAME-TICK-REWRITE: such a triple cannot tell a same-size rewrite in the same tick from no
+    change, so the key carries its bytes digest (``CoreFingerprint.racy``) and the sidecar persists it; a read
+    whose stat digest matches still demotes when one of those files hashes differently
+    (:func:`racy_contents_moved`). The stat digest itself never includes them — a later walk outside the window
+    must still match a key taken inside it. A racy file that cannot be read answers ``unreadable``, which no
+    later read of real bytes equals — the safe direction (a demote, never a stale hit). Absent paths and
+    directories carry no mtime and are never racy; neither is a CONTENT-keyed config entry, whose "mtime" is
+    a 63-bit digest (``walk._config_input_is_content_keyed``) — the window's upper edge keeps it out but for a
+    ~1e-9 chance, and a stray hash of it costs one digest, never a stale hit.
+    """
+
+    out: dict[str, str] = {}
+    for entry in entries:
+        if entry.mtime_ns < 0 or abs(entry.mtime_ns - started_ns) > RACY_WINDOW_NS:
+            continue
+        try:
+            with open(entry.path, "rb") as handle:
+                out[entry.path] = hashlib.file_digest(handle, "sha256").hexdigest()
+        except OSError:
+            out[entry.path] = "unreadable"
+    return out
 
 
 def _collect_store_root(entries: list[FingerprintEntry]) -> bool:
@@ -382,7 +416,8 @@ INPUT_CLASSES: tuple[InputClass, ...] = (
 )
 
 
-def _fingerprint_over(entries: Iterable[FingerprintEntry]) -> CoreFingerprint:
+def _fingerprint_over(entries: Iterable[FingerprintEntry],
+                      racy: dict[str, str] | None = None) -> CoreFingerprint:
     """Order a stat set and digest it — the ONE definition of the key's shape.
 
     Its own function since IC-2, which needs to re-key a stat set that was
@@ -393,12 +428,33 @@ def _fingerprint_over(entries: Iterable[FingerprintEntry]) -> CoreFingerprint:
     """
 
     ordered = tuple(sorted(set(entries)))
+    paths = {item.path for item in ordered} if racy else set()
+    held = tuple(sorted((path, sha) for path, sha in (racy or {}).items() if path in paths))
     digest = hashlib.sha256(
         "\n".join(f"{item.path}|{item.mtime_ns}|{item.size}" for item in ordered).encode(
             "utf-8", "surrogatepass"
         )
     ).hexdigest()
-    return CoreFingerprint(ordered, digest)
+    return CoreFingerprint(ordered, digest, held)
+
+
+def racy_contents_moved(racy: object) -> bool:
+    """True when any ``[path, sha256]`` a persisted key recorded as racy now hashes differently (git's smudged
+    entry, re-checked by content): the stat digest cannot see a same-size rewrite in the tick it was taken in,
+    so the bytes are compared. Absent / malformed records compare nothing (an older sidecar)."""
+
+    for pair in racy if isinstance(racy, list) else []:
+        if not (isinstance(pair, list) and len(pair) == 2 and all(isinstance(part, str) for part in pair)):
+            continue
+        path, sha = pair
+        try:
+            with open(path, "rb") as handle:
+                now = hashlib.file_digest(handle, "sha256").hexdigest()
+        except OSError:
+            now = "unreadable"
+        if now != sha:
+            return True
+    return False
 
 
 def contract_versions() -> dict[str, int]:

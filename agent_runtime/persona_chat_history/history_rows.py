@@ -100,7 +100,6 @@ def _history_row(
     session_id: str,
     session_db: Any | None = None,
     message_tail: int = DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
-    kind: str = "chat",
 ) -> dict[str, Any]:
     persona_id = canonical_chat_persona_id(persona_id) or "unknown"
     raw_title = safe_assignment_text(raw.get("title"), limit=120)
@@ -112,9 +111,12 @@ def _history_row(
         redacted_fallback="Preview hidden by redaction boundary",
         limit=180,
     )
-    messages, messages_status, messages_unread = _safe_recent_messages(
-        session_db, session_id=session_id, limit=message_tail
-    )
+    # The full curated transcript, read once: its tail is the frame's
+    # ``messages`` and its length is ``visible_message_count`` — the rows the
+    # chat actually shows (``persona chat history``'s ``total_count``), beside
+    # SessionDB's stored-row ``message_count`` (RT-CHAT-VISIBLE-MESSAGE-COUNT).
+    curated, messages_status, messages_unread = _safe_curated_messages(session_db, session_id=session_id)
+    messages = curated[-_bounded_message_tail(message_tail):]
     active_session_id = session_id
     try:
         active_session_id = session_db.resolve_resume_session_id(session_id)
@@ -172,18 +174,21 @@ def _history_row(
     return {
         "session_id": session_id,
         **({"client_scope": owner} if (owner := session_client_scope(raw)) is not None else {}),
+        **_channel_origin(raw),
         "persona_id": persona_id,
         "persona_instance_id": safe_assignment_text(
             instance_id or persona_instance_id_for(persona_id),
             limit=160,
         ),
-        "kind": "mission" if kind == "mission" or bool(raw.get("live_mission")) else "chat",
-        "live_mission": bool(kind == "mission" or raw.get("live_mission")),
         "title": title,
         "last_message_preview": preview,
+        # Every STORED row across the lineage (user, assistant tool-call steps,
+        # tool results) — usage accounting, not what the chat shows.
         "message_count": lineage_aggregate.get(
             "message_count", positive_int(raw.get("message_count"), default=0)
         ),
+        # The operator/agent rows the transcript shows; absent when it was not read.
+        **({"visible_message_count": len(curated)} if messages_unread is None else {}),
         "created_at": iso_timestamp(raw.get("started_at")),
         "updated_at": iso_timestamp(
             lineage_aggregate.get("last_active")
@@ -329,6 +334,15 @@ def _chat_model_fields(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _channel_origin(raw: dict[str, Any]) -> dict[str, str]:
+    """``channel_source`` / ``channel_key`` from the session meta ``runtime.channel.message`` stamps
+    (RT-CONVERSATION-ROW-CHANNEL-SOURCE); absent on every conversation no channel opened."""
+
+    config = _model_config(raw.get("model_config"))
+    origin = {key: safe_assignment_text(config.get(key), limit=200) for key in ("channel_source", "channel_key")}
+    return {key: value for key, value in origin.items() if value}
+
+
 def _model_config(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
@@ -359,9 +373,9 @@ def _persisted_persona_instance_id(raw: dict[str, Any]) -> str | None:
 
 
 def _persona_chat_candidate_sort_key(
-    candidate: tuple[dict[str, Any], PersonaInstance, str, str]
+    candidate: tuple[dict[str, Any], PersonaInstance, str]
 ) -> tuple[bool, str, str]:
-    raw, _instance, session_id, _kind = candidate
+    raw, _instance, session_id = candidate
     created_at = iso_timestamp(raw.get("started_at"))
     return (created_at is not None, created_at or "", session_id)
 

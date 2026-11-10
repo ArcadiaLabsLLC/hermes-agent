@@ -76,7 +76,10 @@ def _decode_stored_instance(raw: dict[str, Any]) -> PersonaInstance:
     on a level by following a pointer an old bind stamped
     (RT-GLOBAL-SINGLETON-CANONICAL; plan ``canonical-channel-global-storage-2026-10-27``).
     """
-    instance = from_jsonable(PersonaInstance, raw)
+    from agent_runtime.persona_instance_sync.contract import stored_instance_body
+
+    # A row written by an edition that stored the Project spelling (RT-WS-RECALL-RENAME-S2-FIELD).
+    instance = from_jsonable(PersonaInstance, stored_instance_body(raw))
     if instance.mode == "task_bound":
         # ``task_bound`` is stored-only: nothing writes it, so no reader branches on it
         # (RT-TASK-BOUND-MISSION-LANES). A STEER-shaped row (its task IS its goal, a
@@ -178,7 +181,9 @@ class PersonaInstanceStore:
             )
             return self._instance_row(persona, instance_id)
         changed = False
-        if existing.display_name != persona.display_name:
+        # An operator rename (``display_name_custom``) outranks the persona's own name;
+        # only an instance nobody named follows it (RT-PERSONA-ENSURE-REVERTS-INSTANCE-RENAME).
+        if not existing.display_name_custom and existing.display_name != persona.display_name:
             existing.display_name = persona.display_name
             changed = True
         if existing.profile_id != persona.hermes_profile:
@@ -326,7 +331,8 @@ class PersonaInstanceStore:
 
     #: The repo-slot assignment (build plan §3.3) and its clock, ``slots_issued_at``.
     _SLOT_LANE_FIELDS: tuple[str, ...] = ("assigned_slots", "primary_slot", "slots_issued_at",
-                                          "recall_shared_projects")
+                                          "recall_shared_workspaces", "slot_context_files",
+                                          "slot_context_custom")
 
     def _keep_newer_slot_assignment(self, instance: PersonaInstance) -> None:
         """A whole-row copy older than the stored slot assignment takes the stored one.
@@ -339,8 +345,8 @@ class PersonaInstanceStore:
         from agent_runtime.persona_assignments.profile import _as_utc
 
         try:
-            stored = from_jsonable(
-                PersonaInstance, json.loads(paths.persona_instance_path(instance.id).read_text(encoding="utf-8"))
+            stored = _decode_stored_instance(
+                json.loads(paths.persona_instance_path(instance.id).read_text(encoding="utf-8"))
             )
         except Exception:  # absent/unreadable: no baseline to defend
             return
@@ -436,7 +442,11 @@ class PersonaInstanceStore:
         workspace_id: str | None = None,
         realm_id: str | None = None,
         client_scope: str | None = None,
+        correlation_id: str | None = None,
     ) -> PersonaInstance:
+        # ``correlation_id``: the placing gesture's token, handed to
+        # ``open_chat`` (correlation-id plan P2) — the argv
+        # ``persona instance open-chat --add-instance`` door's half of the join.
         normalized_persona = _normalize_instance_source_persona(persona_id)
         normalized_placement = safe_assignment_token(placement_id)
         if not normalized_placement:
@@ -508,6 +518,7 @@ class PersonaInstanceStore:
             profile_id=_profile_id_for_persona_or_template(normalized_persona, ensure_persisted_personas),
             workspace_id=workspace_id,
             realm_id=realm_id,
+            correlation_id=correlation_id,
         )
 
     def _session_owned_by_other_instance(self, session_id: str, instance_id: str) -> bool:
@@ -646,9 +657,9 @@ class PersonaInstanceStore:
                 # A character-only edit never writes a stale chat/profile row.
                 instance = _decode_stored_instance(stored)
             elif isinstance(character_change, CharacterAssignmentReplication) and stored:
-                from agent_runtime.persona_instance_sync.contract import PERSONA_INSTANCE_ALLOWED_KEYS
+                from agent_runtime.persona_instance_sync.contract import PERSONA_INSTANCE_TRAVEL_FIELDS
                 fresh = _decode_stored_instance(stored)
-                for name in PERSONA_INSTANCE_ALLOWED_KEYS - {"id", "persona_id", "steered_by"}:
+                for name in PERSONA_INSTANCE_TRAVEL_FIELDS - {"id", "persona_id", "steered_by"}:
                     setattr(fresh, name, getattr(instance, name))
                 fresh.updated_at = instance.updated_at
                 instance = fresh

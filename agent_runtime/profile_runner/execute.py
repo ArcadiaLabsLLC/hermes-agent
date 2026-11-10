@@ -331,6 +331,16 @@ def _notify_agent_ready(request: AgentRunRequest, agent: Any) -> Callable[[], No
         return None
 
 
+def _qa_silence(request: AgentRunRequest, expired: Event | None) -> None:
+    """A QA turn's forced model silence (``agent_runtime.qa_turn_overrides``): wait before the first
+    provider call. Cut short by the hard wall (``expired``); a no-op on every real turn."""
+
+    seconds = positive_float(request.qa_silence_seconds)
+    if seconds is None:
+        return
+    (expired or Event()).wait(seconds)
+
+
 def _run_conversation_with_usage_ledger(agent: Any, conversation_kwargs: dict[str, Any]) -> Any:
     """Run the turn with a per-call usage ledger, the persona agent bound for plugin
     middleware (dispatch timing, cache routing) and the provider stream observers armed;
@@ -606,6 +616,7 @@ class AgentRunExecution:
                 total_seconds=positive_float(request.max_wall_seconds) or _NO_WALL_BUDGET_SECONDS,
                 deadline_epoch=time.time()
                 + (positive_float(request.max_wall_seconds) or _NO_WALL_BUDGET_SECONDS),
+                checkpoint_after_seconds=request.qa_checkpoint_after_seconds,
             ),
             progress_callback=request.progress_callback,
             ledger=ledger,
@@ -790,6 +801,8 @@ class AgentRunExecution:
             # `agent_init_cold` while every one of those turns had paid full
             # cold construction.
             timing["resident_actor_reused"] = 0
+            # Why nothing was reused: there was nothing to reuse from (RT-TURN-AGENT-INIT-COLD-ALWAYS-TRUE).
+            timing["resident_registry_absent"] = 1
             return
         active_id = request.session_id or request.root_chat_session_id
         runtime_revision = resolved_runtime_revision(self.runtime)
@@ -942,6 +955,7 @@ class AgentRunExecution:
     def converse(self, agent_ready_cleanup: Any) -> tuple[Any, Any, dict[str, Any]]:
         request, agent, timing = self.request, self.agent, self.timing
         try:
+            _qa_silence(request, None)
             conversation_started = time.perf_counter()
             raw_result = _run_conversation_with_usage_ledger(agent, self.conversation_kwargs())
             _attach_model_input_observability(raw_result, agent=agent, request=request)
@@ -960,6 +974,7 @@ class AgentRunExecution:
         wall_checkpoint.bind(agent)
         timers = self.start_wall_timers(max_wall_seconds, expired)
         try:
+            _qa_silence(request, expired)
             conversation_started = time.perf_counter()
             raw_result = _run_conversation_with_usage_ledger(agent, self.conversation_kwargs())
             _attach_model_input_observability(raw_result, agent=agent, request=request)

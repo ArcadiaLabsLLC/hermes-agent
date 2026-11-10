@@ -106,6 +106,31 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def _operator_client_scope(persona_id: str) -> str | None:
+    """The client scope the operator's chat with *persona_id* records, or ``None`` (RT-LENS-ALERT-CHAT-NO-CLIENT-SCOPE).
+
+    An Episode's chat is minted by no client, so it carried no ``client_scope`` and a scoped operator
+    client's conversation directory never listed it: Eternia's Lens receipt "Open chat" could not open
+    it. The operator who reads this persona's Episodes is the client that owns the persona's canonical
+    instance's current chat (its ``default_chat_session_id``); the Episode chat is stamped with that
+    owner. No current chat, an unscoped one, or any read failure: ``None``, minted unscoped as before.
+    """
+
+    from ..persona_assignments import PersonaInstanceStore, persona_instance_id_for
+    from ..persona_chat_history.messages import existing_chat_session
+
+    try:
+        instance = PersonaInstanceStore().get(persona_instance_id_for(persona_id))
+        session_id = str(getattr(instance, "default_chat_session_id", None) or "")
+        if not session_id:
+            return None
+        with existing_chat_session(session_id=session_id) as session:
+            return session.owner
+    except Exception:  # the scope is a listing courtesy: a failed read never blocks the Episode
+        logger.debug("lens: no operator client scope for %s", persona_id, exc_info=True)
+        return None
+
+
 def _open_episode_chat(persona_id: str, episode: Episode, turn_key: str) -> tuple[str | None, dict[str, Any]]:
     """Mint the Episode's own chat (never selected over the operator's), titled, held ``read_only``.
 
@@ -117,12 +142,15 @@ def _open_episode_chat(persona_id: str, episode: Episode, turn_key: str) -> tupl
     from ..tool_permissions import ChatToolPermissionStore
     from ..permission_modes import PERMISSION_MODE_READ_ONLY
 
-    # Titled BY the mint (one door), never re-titled after it.
+    # Titled BY the mint (one door), never re-titled after it; owned by the operator's client, so its
+    # conversation directory lists it (RT-LENS-ALERT-CHAT-NO-CLIENT-SCOPE).
+    owner = _operator_client_scope(persona_id)
     outcome = perform_persona_instance_open_chat({
         "persona_id": persona_id, "new_session": True,
         "idempotency_key": f"{lens_client_message_id(turn_key)}:chat",
         "requested_by": lens_requested_by(episode.id, episode.monitor_id),
         "title": episode_title(episode),
+        **({"client_scope": owner} if owner is not None else {}),
     }, select_session=False)
     if outcome.refusal is not None:
         return None, {"ok": False, "error_kind": str((outcome.refusal.data or {}).get("reason") or "open_chat_refused")}

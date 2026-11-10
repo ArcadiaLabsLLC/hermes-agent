@@ -256,7 +256,12 @@ def delivery_client_message_id(dispatch_id: str) -> str:
 
 
 def delivery_requested_by(
-    dispatch_id: str, *, notify_operator: bool = False, state: str | None = None
+    dispatch_id: str,
+    *,
+    notify_operator: bool = False,
+    state: str | None = None,
+    target_session_id: str | None = None,
+    target_name: str | None = None,
 ) -> str:
     """The ``requested_by`` provenance a forged delivery turn is sent under.
 
@@ -276,15 +281,26 @@ def delivery_requested_by(
     third, an ``error`` delivery is indistinguishable from a successful one
     except in prose — and ``pending_deliveries`` selects ``state != running``,
     so failures genuinely travel this lane.
+
+    The dispatch's target thread and the target's name ride last
+    (RT-DELIVERY-MARKER-NO-TARGET-SESSION), percent-encoded and only when a
+    thread is known, in the same order the ``finish_reason`` marker carries
+    them — so the row can draw "Open thread" from the typed block.
     """
 
-    from ..relay_policy import HARNESS_DELIVERY_UNKNOWN_STATE
+    from ..relay_policy import HARNESS_DELIVERY_UNKNOWN_STATE, encode_delivery_segment
 
     settled = (state or "").strip() or HARNESS_DELIVERY_UNKNOWN_STATE
-    return (
+    value = (
         f"{DELIVERY_REQUESTED_BY}:{str(dispatch_id or '').strip()}:"
         f"{'1' if notify_operator else '0'}:{settled}"
     )
+    if (target_session_id or "").strip():
+        value += (
+            f":{encode_delivery_segment(target_session_id)}"
+            f":{encode_delivery_segment(target_name)}"
+        )
+    return value
 
 
 def parse_delivery_requested_by(value):
@@ -297,7 +313,7 @@ def parse_delivery_requested_by(value):
     coordinator and relay sends are untouched.
     """
 
-    from ..relay_policy import HARNESS_DELIVERY_UNKNOWN_STATE, HarnessDeliveryOrigin
+    from ..relay_policy import HarnessDeliveryOrigin, harness_delivery_origin_from_segments
 
     if not isinstance(value, str):
         return None
@@ -307,15 +323,7 @@ def parse_delivery_requested_by(value):
     prefix = f"{DELIVERY_REQUESTED_BY}:"
     if not token.startswith(prefix):
         return None
-    parts = token[len(prefix):].split(":", 3)
-    dispatch_id = parts[0].strip() if parts else ""
-    flag = parts[1].strip() if len(parts) > 1 else ""
-    state = parts[2].strip() if len(parts) > 2 else ""
-    return HarnessDeliveryOrigin(
-        dispatch_id=dispatch_id or None,
-        notify_operator=flag == "1",
-        state=state or HARNESS_DELIVERY_UNKNOWN_STATE,
-    )
+    return harness_delivery_origin_from_segments(token[len(prefix):].split(":", 5))
 
 
 #: How long the drain waits for a live turn to acknowledge a completion steer. The turn's

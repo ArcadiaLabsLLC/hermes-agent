@@ -65,6 +65,7 @@ __all__ = [
     "PROVIDER_REFUSED_OUTCOME",
     "PROVIDER_UNAVAILABLE_OUTCOME",
     "PROVIDER_UNAVAILABLE_REASON",
+    "refusal_never_left_hermes",
     "PROVIDER_UNAVAILABLE_STATUS_CODE",
     "ChatErrorKind",
     "ExecutionState",
@@ -76,6 +77,7 @@ __all__ = [
     "TurnOutcome",
     "classify_turn_failure",
     "provider_refusal",
+    "provider_refusal_from_block",
 ]
 
 
@@ -179,6 +181,10 @@ class ChatErrorKind(StrEnum):
     #: images/files; one of them is no longer stored. ``safe_details.missing`` names the basenames
     #: (RT-PENDING-ATTACHMENTS-NO-READER). Refused before the write-ahead: nothing ran.
     ATTACHMENT_MISSING = "attachment_missing"
+    #: A QA limit override (``--qa-*``, ``agent_runtime.qa_turn_overrides``) sent outside a QA
+    #: namespace under a QA provider pool, or out of its bounds. Refused before the write-ahead.
+    QA_TURN_OVERRIDES_REFUSED = "qa_turn_overrides_refused"
+    QA_TURN_OVERRIDES_INVALID = "qa_turn_overrides_invalid"
 
     # -- chat-root ownership / concurrency -----------------------------------
     UNKNOWN_CHAT_SESSION = "unknown_chat_session"
@@ -240,6 +246,8 @@ ADMISSION_ERROR_KINDS = frozenset(
         ChatErrorKind.VISION_UNSUPPORTED,
         ChatErrorKind.FILE_INVALID,
         ChatErrorKind.ATTACHMENT_MISSING,
+        ChatErrorKind.QA_TURN_OVERRIDES_REFUSED,
+        ChatErrorKind.QA_TURN_OVERRIDES_INVALID,
     }
 )
 CHAT_ROOT_ERROR_KINDS = frozenset(
@@ -321,6 +329,21 @@ PROVIDER_REFUSAL_STATUS_CODES = frozenset({401, 402, 403, 404, 429})
 PROVIDER_UNAVAILABLE_REASON = "provider_unavailable"
 PROVIDER_UNAVAILABLE_STATUS_CODE = 0
 
+
+def refusal_never_left_hermes(block: object) -> bool:
+    """A persisted ``provider_refusal`` block the HARNESS authored: the request never left Hermes.
+
+    Keyed on the harness-authored status code (:data:`PROVIDER_UNAVAILABLE_STATUS_CODE`), never on
+    the reason: a dependency refusal carries its own ``runtime_dependency_*`` reason and settled
+    ``chat_turn_provider_unavailable`` just like ``provider_unavailable`` and ``model_unset``
+    (RT-DEPENDENCY-REFUSAL-RESEND-REPLAYS-REFUSED).
+    """
+
+    if not isinstance(block, dict):
+        return False
+    code = block.get("status_code")
+    return type(code) is int and code == PROVIDER_UNAVAILABLE_STATUS_CODE
+
 #: A 400 is the one status that is a refusal on the WIRE and not a refusal in
 #: MEANING. These classified reasons say the request as SENT was malformed or
 #: oversized — the harness can repair and re-send it, and the operator has
@@ -347,6 +370,10 @@ AMBIGUOUS_400_FAILURE_REASONS = frozenset(
 #: (epoch) for a ``Retry-After`` header, and forwards ``x-ratelimit-reset``
 #: verbatim, which providers send as either.
 _RESET_AT_EPOCH_FLOOR = 1_000_000_000
+#: At or above this, an epoch is in MILLISECONDS (10^12 ms is 2001-09-09; as seconds it is
+#: ~31,700 years out). Some providers send ``x-ratelimit-reset`` in ms, and read as seconds it
+#: became a reset tens of millennia away — which ``reset_outlasts_retries`` would act on.
+_RESET_AT_EPOCH_MS_FLOOR = 1_000_000_000_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -409,6 +436,23 @@ class ProviderRefusal:
             return (
                 f"repair the runtime dependencies: {self.repair_hint}; send a NEW "
                 "client_message_id; this turn is settled and needs NO turn-resolve"
+            )
+        from .provider_dependency_error import MODEL_UNSET_REASON
+
+        if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.reason == MODEL_UNSET_REASON:
+            return (
+                "no model is chosen for this chat and the request never left Hermes; choose a "
+                "model for this chat or agent, then send a NEW client_message_id — this turn is "
+                "settled and needs NO turn-resolve"
+            )
+        from agent_runtime.provider_login_expiry import LOGIN_EXPIRED_REASON
+
+        if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
+                and self.failure_reason == LOGIN_EXPIRED_REASON):
+            return (
+                f"the {self.provider} sign-in has expired and the request never left Hermes; sign in "
+                f"again (`hermes auth add {self.provider}`), then send a NEW client_message_id — this "
+                "turn is settled and needs NO turn-resolve"
             )
         if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE:
             return (
@@ -477,6 +521,8 @@ def _reset_delta_seconds(value: object, *, now: float | None = None) -> float | 
             return parsed.timestamp() - moment
     if number is None:
         return None
+    if number >= _RESET_AT_EPOCH_MS_FLOOR:
+        number /= 1000.0
     return number - moment if number >= _RESET_AT_EPOCH_FLOOR else number
 
 
@@ -491,7 +537,14 @@ def provider_refusal(exc: BaseException) -> ProviderRefusal | None:
     after its first byte. Those settle ``outcome_unknown`` exactly as before.
     """
 
-    block = getattr(exc, "provider_error", None)
+    return provider_refusal_from_block(getattr(exc, "provider_error", None))
+
+
+def provider_refusal_from_block(block: object) -> ProviderRefusal | None:
+    """:func:`provider_refusal` for a bare ``provider_error`` block — the same verdict whether
+    the block rides a terminal result or a retry wait the turn is still sitting out
+    (``agent_runtime.provider_retry_wait``)."""
+
     if not isinstance(block, dict):
         return None
     try:
@@ -645,8 +698,16 @@ def classify_turn_failure(
     absent ``request_sent``. It settles :data:`REQUEST_UNSENT_OUTCOME`.
     """
 
-    from .provider_dependency_error import ProviderDependencyError
+    from .provider_dependency_error import ChatModelUnsetError, ProviderDependencyError
 
+    if isinstance(exc, ChatModelUnsetError):
+        return replace(
+            PROVIDER_UNAVAILABLE_OUTCOME,
+            provider_refusal=ProviderRefusal(
+                status_code=PROVIDER_UNAVAILABLE_STATUS_CODE, reason=exc.reason,
+                message=stripped_str(str(exc)), provider=exc.provider,
+            ),
+        )
     if isinstance(exc, ProviderDependencyError):
         return replace(
             PROVIDER_UNAVAILABLE_OUTCOME,
@@ -672,12 +733,18 @@ def classify_turn_failure(
                 request_dispatched is False and isinstance(exc, ProviderNotConfiguredError)
             )
         ):
+            # The provider init resolved and found unusable rides the exception (agent_init names
+            # it, and an expired sign-in as the credentials reason): the console names that
+            # provider's sign-in door, not "no provider is configured"
+            # (RT-EXPIRED-LOGIN-REFUSAL-UNNAMED).
             return replace(
                 PROVIDER_UNAVAILABLE_OUTCOME,
                 provider_refusal=ProviderRefusal(
                     status_code=PROVIDER_UNAVAILABLE_STATUS_CODE,
                     reason=PROVIDER_UNAVAILABLE_REASON,
                     message=stripped_str(str(exc)),
+                    provider=stripped_str(getattr(exc, "provider", None)),
+                    failure_reason=stripped_str(getattr(exc, "credentials_reason", None)),
                 ),
             )
         if request_dispatched is not True and request_unsent:

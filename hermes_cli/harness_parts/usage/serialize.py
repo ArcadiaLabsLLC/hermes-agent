@@ -59,6 +59,11 @@ def _serialize_usage_window(window) -> Optional[dict]:
         "used_percent": used,
         "reset_at": iso_timestamp(window.reset_at),
         "detail": window.detail,
+        # ``account``: exhausting it exhausts the login; ``model``: it caps one model
+        # family only (Anthropic's Opus / Sonnet week), so the launcher's headline
+        # (``pickHeadlineWindow``) never reads it as the account being out.
+        # RT-USAGE-WINDOW-SCOPE-SERIALIZE.
+        "scope": window.scope,
     }
 
 

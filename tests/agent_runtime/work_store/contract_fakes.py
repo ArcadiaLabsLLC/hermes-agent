@@ -78,10 +78,10 @@ class FakeSource:
     def block(self, ref: RowRef, who: Claimant, question: str, recommend: str) -> Receipt:
         return self.release(ref, who, Status.BLOCKED, f"owner decision — {question} · Recommend: {recommend}")
 
-    def done(self, ref: RowRef, who: Claimant, result: str) -> Receipt:
+    def done(self, ref: RowRef, who: Claimant, result: str, *, commit: str = "here") -> Receipt:
         self._held(ref, who)
         del self.by_ref[ref]
-        return self._receipt(ref, Op.DELETE, who.who, f"done:{ref.id}")
+        return self._receipt(ref, Op.CLOSE, who.who, f"done:{ref.id}")
 
     def append(self, board: Board, row: Row, request_id: str) -> Receipt:
         if any(r.ref.slot == row.ref.slot and r.ref.id == row.ref.id for r in self.by_ref.values()):

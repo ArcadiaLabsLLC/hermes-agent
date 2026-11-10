@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import ast
 import os
+import subprocess
+from pathlib import Path
 
 try:  # imported as ``scripts.gate_mark`` (the tests)
     from scripts import source_cache
@@ -58,3 +60,22 @@ def carries_gate_mark(path: os.PathLike[str] | str) -> bool:
     except OSError:
         return False
     return tree is not None and GATE_MARK in module_marks(tree)
+
+
+def gate_marked_files(root: os.PathLike[str] | str, pathspec: str = "tests") -> frozenset[str]:
+    """Every tracked ``test_*.py`` under ``pathspec`` whose module-level ``pytestmark`` names the gate mark.
+
+    ``git grep`` runs the text probe over the tree in one process and the parse runs only on its hits:
+    opening each of ~8,000 tracked test files from Python took over 30 s on Windows and killed the gate
+    directory at its timeout (FH-PREPUSH-GATES-OVER-BUDGET); the grep takes under a second.
+    """
+
+    done = subprocess.run(["git", "grep", "-l", "-z", "-F", f"mark.{GATE_MARK}", "--", pathspec],
+                          cwd=root, capture_output=True, check=False)
+    if done.returncode not in (0, 1):  # 1: no file matched
+        raise OSError(f"git grep failed: {done.stderr.decode('utf-8', 'replace').strip()}")
+    marked: set[str] = set()
+    for rel in done.stdout.decode("utf-8").split("\0"):
+        if rel.endswith(".py") and Path(rel).name.startswith("test_") and carries_gate_mark(Path(root) / rel):
+            marked.add(rel)
+    return frozenset(marked)

@@ -33,9 +33,17 @@ class CardOrdering:
     """Order keys for one board's columns. ``emit`` is the store's event append
     (a rebalance is a mutation and rides its own ``board.rebalanced``)."""
 
-    def __init__(self, board_id: str, emit: Callable[..., None]) -> None:
+    def __init__(
+        self,
+        board_id: str,
+        emit: Callable[..., None],
+        patch: Callable[[list[BoardCard]], None] | None = None,
+    ) -> None:
         self.board_id = board_id
         self.emit = emit
+        # The store's rebalance producer (``patches.emit_rebalance_patches``):
+        # one ``board_card`` row per rewritten card, before ``board.rebalanced``.
+        self.patch = patch
 
     def cards(self) -> list[BoardCard]:
         """THE read every order-key decision goes through, and the one place
@@ -100,12 +108,16 @@ class CardOrdering:
         if not column_cards:
             return
         keys = board_order.rebalance(len(column_cards))
+        rewritten: list[BoardCard] = []
         for card, key in zip(column_cards, keys):
             if card.order_key == key:
                 continue
             card.order_key = key
             card.updated_at = now()
             _write_card(card)
+            rewritten.append(card)
+        if self.patch is not None:
+            self.patch(rewritten)
         self.emit("board.rebalanced", board_id=self.board_id, column_id=column_id, card_count=len(column_cards))
 
 

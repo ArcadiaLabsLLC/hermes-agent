@@ -28,6 +28,22 @@ def _character_response(rid, params, handler, *, migrate=False):
         return err(rid, ERR_NOT_FOUND, "The agent record is unavailable.", {"reason": "agent_not_found"})
 
 
+@method("runtime.character.appearance.set", tier=TIER_CONSOLE)
+def _runtime_character_appearance_set(rid, params, context=None):
+    from agent_runtime.agent_portrait import write_agent_appearance
+    from agent_runtime.profile_avatar import ProfileAvatarRefused
+    try:
+        return _character_response(rid, params, write_agent_appearance)
+    except ProfileAvatarRefused as exc:
+        return err(rid, ERR_INVALID_PARAMS, "The agent portrait could not be saved.", {"reason": exc.reason.value})
+
+
+@method("runtime.character.portrait", tier=TIER_READ)
+def _runtime_character_portrait(rid, params, context=None):
+    from agent_runtime.agent_portrait import read_agent_portrait
+    return _character_response(rid, params, read_agent_portrait)
+
+
 @method("runtime.character.assignment.get", tier=TIER_READ)
 def _runtime_character_assignment_get(rid, params, context=None):
     return _character_response(rid, params, read_character_assignment)

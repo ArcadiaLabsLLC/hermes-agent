@@ -1,5 +1,141 @@
 {
   "payloads": {
+    "cells": {
+      "argv": "harness characters cells --draft <id> --row <key> --json",
+      "keys": {
+        "attempt": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "draft": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "frameH": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "frameW": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "frames": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "height": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "home": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "home.characters_dir": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "home.hermes_home": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "home.source": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "ok": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "paletteLocked": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "path": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "registeredWith": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "row": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "source": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "stage": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        },
+        "width": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default"
+          ]
+        }
+      },
+      "modes": [
+        "default"
+      ],
+      "object": "",
+      "producer": "agent/charsheet/draft/cells.py::RowCells.row_cells"
+    },
     "list": {
       "argv": "harness characters list --json",
       "keys": {
@@ -910,6 +1046,14 @@
           ]
         },
         "status.spec.frameW": {
+          "conditional": false,
+          "dynamic": false,
+          "modes": [
+            "default",
+            "palette"
+          ]
+        },
+        "status.spec.loopMs": {
           "conditional": false,
           "dynamic": false,
           "modes": [

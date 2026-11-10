@@ -49,6 +49,7 @@ from __future__ import annotations
 import argparse
 import ast
 import importlib.metadata as md
+import functools
 import json
 import re
 import sys
@@ -412,7 +413,11 @@ def eager_tops(modules, index, first_party_tops) -> set[str]:
 # -- declarations (pyproject) and the dependency graph ----------------------------------------------
 
 
+@functools.lru_cache(maxsize=None)
 def _req(raw: str):
+    """One parse per requirement string per process: callers only read the result, and a
+    graph walk meets the same strings again and again (FORK-BUNDLE-PROFILES-SDK-PACK-TEST-HANGS:
+    the re-parse was most of a test that ran past its 30 s timeout on a starved core)."""
     from packaging.requirements import Requirement
 
     return Requirement(raw)
@@ -477,6 +482,14 @@ def declared_anywhere(path: Path = ROOT / "pyproject.toml") -> set[str]:
 
 
 def _lock(path: Path = ROOT / "uv.lock") -> dict[str, dict]:
+    stat = path.stat()
+    return dict(_parsed_lock(path, stat.st_mtime_ns, stat.st_size))
+
+
+@functools.lru_cache(maxsize=4)
+def _parsed_lock(path: Path, _mtime_ns: int, _size: int) -> dict[str, dict]:
+    """uv.lock parsed once per file version: the parse is the largest cost of a closure
+    walk, and the stat key re-reads a lock that changed."""
     return {_norm(p["name"]): p for p in tomllib.loads(path.read_text(encoding="utf-8-sig")).get("package", [])}
 
 
@@ -503,7 +516,12 @@ class Graph:
         #: distribution -> extras a declaration requests; their requirements are followed too
         self.extras = extras or {}
         self.installed = {_norm(d.metadata["Name"]): d for d in md.distributions()}
-        self.mapping = md.packages_distributions()
+
+    @functools.cached_property
+    def mapping(self) -> dict[str, list[str]]:
+        """Import top -> distributions, read on first use: it opens every installed RECORD,
+        and a closure walk never asks it."""
+        return md.packages_distributions()
 
     def dist_for_top(self, top: str) -> str | None:
         names = self.mapping.get(top)
@@ -549,6 +567,15 @@ class Graph:
         return cache[key]
 
     def requires(self, name: str) -> list[str]:
+        """``name``'s requirements for the target, memoized per graph: every ``closure`` over
+        one graph walks the same core again, and each walk re-read and re-parsed every
+        installed distribution's metadata."""
+        cache = self.__dict__.setdefault("_requires_cache", {})
+        if name not in cache:
+            cache[name] = self._requires(name)
+        return list(cache[name])
+
+    def _requires(self, name: str) -> list[str]:
         envs = [self.env, *({**self.env, "extra": e} for e in sorted(self.extras.get(name, ())))]
         dist = self.installed.get(name)
         if dist is not None:

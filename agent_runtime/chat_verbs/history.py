@@ -11,7 +11,13 @@ from __future__ import annotations
 from typing import Any
 
 __layer__ = "lanes"
-__all__ = ["HISTORY_PAGE_MAX", "clamp_history_limit", "persona_chat_history_page", "persona_chat_history_search"]
+__all__ = [
+    "HISTORY_PAGE_MAX",
+    "clamp_history_limit",
+    "persona_chat_history_page",
+    "persona_chat_history_search",
+    "persona_chat_tool_io",
+]
 
 #: The page ceiling both doors clamp to (the argv verb's ``--limit`` help).
 HISTORY_PAGE_MAX = 40
@@ -47,5 +53,41 @@ def persona_chat_history_search(session_id: str, query: str, *, limit: Any = Non
 
     return attach_root_observability(
         persona_chat_session_search(session_id=session_id, query=query, limit=limit, before=before),
+        chat_scope=True,
+    )
+
+
+def persona_chat_tool_io(session_id: str, tool_call_id: str, *, offset: Any = 0) -> dict:
+    """``persona chat tool-io`` — one tool call's FULL input and result, joined by ``tool_call_id``.
+
+    A turn element's ``tool_input`` / ``tool_result`` is head-cut under the
+    event cap; SessionDB keeps the call's arguments and its tool row whole,
+    keyed by the same id the element carries. This is the argv door onto the
+    one join that already serves ``runtime.persona.chat.content`` (kinds
+    ``tool_input`` / ``tool_result``): each half is one bounded, redacted
+    window with its ``next_offset``, or that half's typed refusal.
+    """
+    from ..persona_chat_history.content import read_chat_content
+    from ..root_observability import attach_root_observability
+
+    try:
+        start = int(offset or 0)
+    except (TypeError, ValueError):
+        start = -1
+    halves = {
+        kind: read_chat_content({
+            "session_id": session_id,
+            "content_ref": {"kind": kind, "id": tool_call_id},
+            "offset": start,
+        })
+        for kind in ("tool_input", "tool_result")
+    }
+    return attach_root_observability(
+        {
+            "ok": any(half.get("ok") for half in halves.values()),
+            "session_id": session_id,
+            "tool_call_id": tool_call_id,
+            **halves,
+        },
         chat_scope=True,
     )

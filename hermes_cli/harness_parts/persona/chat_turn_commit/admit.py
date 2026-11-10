@@ -14,11 +14,12 @@ from types import MappingProxyType
 from typing import Any, Callable, Final, Mapping
 
 from agent_runtime.mission_chat_outcome import (
-    PROVIDER_UNAVAILABLE_REASON,
+    refusal_never_left_hermes,
     ChatErrorKind,
     ExecutionState,
 )
 from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
+from agent_runtime.provider_dependency_error import MODEL_UNSET_REASON
 from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
 from agent_runtime.mission_chat_turns.states import (
     REPLY_RECOVERABLE_TURN_STATES,
@@ -89,9 +90,21 @@ def _provider_refused_payload(turn) -> dict[str, Any]:
     }
     if isinstance(refusal_block, dict):
         data["provider_refusal"] = refusal_block
-        if refusal_block.get("reason") == PROVIDER_UNAVAILABLE_REASON:
-            # D2.02: the harness-authored block — the request never left Hermes.
-            # A resend gets the same typed pair the first attempt settled with.
+        if refusal_block.get("reason") == MODEL_UNSET_REASON:
+            # RT-NO-MODEL-CHAT-SENDS-AND-404S: the first attempt settled the unavailable pair too.
+            data.update(
+                {
+                    "error_kind": ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE,
+                    "error": "no model is chosen for this chat and the turn never ran; it is settled and needs no resolution",
+                    "next_expected": "choose a model for this chat or agent, then send a new client_message_id; no turn-resolve is required",
+                }
+            )
+        # MUTATION: key this arm on reason == provider_unavailable and test_chat_turn_unavailable_resend's
+        # dependency case reddens (it replays "refused by the model provider").
+        elif refusal_never_left_hermes(refusal_block):
+            # D2.02: the harness-authored block (status 0) — the request never left Hermes, whether
+            # no provider could take it or a runtime dependency is missing. A resend gets the same
+            # typed pair the first attempt settled with.
             data.update(
                 {
                     "error_kind": ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE,
@@ -99,6 +112,11 @@ def _provider_refused_payload(turn) -> dict[str, Any]:
                     "next_expected": "configure a provider for this profile, then send a new client_message_id; no turn-resolve is required",
                 }
             )
+            if refusal_block.get("repair_hint"):
+                data["next_expected"] = (
+                    "repair the runtime dependencies this refusal names, then send a new client_message_id; "
+                    "no turn-resolve is required"
+                )
     return data
 
 
@@ -315,7 +333,32 @@ class _AdmitPhases:
             return 2
         self.message = message
         refused = self._admit_images()
-        return refused if refused is not None else self._admit_files()
+        if refused is None:
+            refused = self._admit_files()
+        return refused if refused is not None else self._admit_qa_overrides()
+
+    def _admit_qa_overrides(self) -> int | None:
+        """RT-QA-TURN-LIMIT-OVERRIDES: the ``--qa-*`` limits, honoured only in a QA namespace under a QA pool."""
+
+        from agent_runtime.qa_turn_overrides import INVALID, QaTurnOverridesRefused, qa_turn_overrides
+
+        args = self.args
+        try:
+            self.qa_turn_overrides = qa_turn_overrides(
+                checkpoint_after_seconds=getattr(args, "qa_checkpoint_after_seconds", None),
+                max_iterations=getattr(args, "qa_max_iterations", None),
+                silence_seconds=getattr(args, "qa_silence_seconds", None),
+            )
+        except QaTurnOverridesRefused as exc:
+            kind = (ChatErrorKind.QA_TURN_OVERRIDES_INVALID if exc.error_kind == INVALID
+                    else ChatErrorKind.QA_TURN_OVERRIDES_REFUSED)
+            _mission_chat_emit(args, {
+                "ok": False, "capability_id": "mission.chat.message", "execution_state": ExecutionState.REJECTED,
+                "persona_id": self.normalized_persona, "persona_instance_id": self.instance.id,
+                "session_id": self.session_id, "error_kind": kind, "error": str(exc),
+                "next_expected": "send the message without the --qa-* flags; nothing was run"})
+            return 2
+        return None
 
     def _admit_images(self) -> int | None:
         """Pasted images: resolve the references, and refuse a model without vision before any token."""

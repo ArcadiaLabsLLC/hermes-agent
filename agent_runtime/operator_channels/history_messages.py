@@ -18,6 +18,7 @@ from ..persona_chat_history.vocabulary import (
     PERSONA_LENS_EPISODE_KIND,
     PERSONA_PRE_TRACE_ACK_KIND,
     PERSONA_RELAYED_MESSAGE_KIND,
+    PERSONA_RUNTIME_NOTICE_KIND,
     MessageRole,
     canonical_persona_chat_turn_id,
 )
@@ -101,6 +102,13 @@ def _operator_shape(row: dict[str, Any], persona_id: str, instance_id: str | Non
     return RowShape("operator_message", "operator", None)
 
 
+def _runtime_notice_shape(row: dict[str, Any], persona_id: str, instance_id: str | None) -> RowShape:
+    # A harness notice steered into a turn: the runtime wrote it, so the actor is
+    # the harness, like a delivery; a consumer that ignores the kind still has a
+    # system row (RT-RUNTIME-NOTICE-ROW-SHIPS-RAW-NOTE).
+    return RowShape(PERSONA_RUNTIME_NOTICE_KIND, "harness", None)
+
+
 def _system_shape(row: dict[str, Any], persona_id: str, instance_id: str | None) -> RowShape:
     return RowShape("system_message", persona_id, instance_id)
 
@@ -112,6 +120,7 @@ HISTORY_ROW_SHAPES: tuple[tuple[Callable[[str, str], bool], ShapeBuilder], ...] 
     (lambda role, kind: role == OPERATOR and kind == PERSONA_LENS_EPISODE_KIND, _lens_episode_shape),
     (lambda role, kind: role == OPERATOR and kind == PERSONA_RELAYED_MESSAGE_KIND, _relayed_shape),
     (lambda role, kind: role == AGENT and kind == PERSONA_PRE_TRACE_ACK_KIND, _pre_trace_ack_shape),
+    (lambda role, kind: role == SYSTEM and kind == PERSONA_RUNTIME_NOTICE_KIND, _runtime_notice_shape),
     (lambda role, kind: role == AGENT, _reply_shape),
     (lambda role, kind: role == OPERATOR, _operator_shape),
 )
@@ -284,6 +293,18 @@ class HistoryMessage:
             }
         if shape.kind == PERSONA_HARNESS_DELIVERY_KIND:
             message["delivery"] = _delivery_block(row)
+        # A titled notice (a runtime notice, any steered timeline notification) keeps
+        # its operator title and category; the body is the note.
+        title = safe_assignment_text(row.get("display_title"), limit=160) if self.role == SYSTEM else ""
+        if title:
+            message["display_title"] = title
+        category = safe_assignment_token(row.get("notification_category")) if self.role == SYSTEM else ""
+        if category:
+            message["notification_category"] = category
+        # Which harness notice (RT-RUNTIME-NOTICE-CODE-ON-ROW); absent on a row that is none.
+        notice_code = safe_assignment_token(row.get("notice_code")) if shape.kind == PERSONA_RUNTIME_NOTICE_KIND else ""
+        if notice_code:
+            message["notice_code"] = notice_code
         if shape.kind == PERSONA_LENS_EPISODE_KIND:
             # The receipt (runtime.lens.receipt) is keyed by this id.
             message["lens"] = {"episode_id": safe_assignment_token(row.get("lens_episode_id")) or ""}
@@ -337,6 +358,12 @@ def _delivery_block(row: dict[str, Any]) -> dict[str, Any]:
         "dispatch_id": safe_assignment_text(row.get("delivery_dispatch_id"), limit=200) or "",
         "notify_operator": bool(row.get("delivery_notify_operator")),
         "state": safe_assignment_token(row.get("delivery_state")) or HARNESS_DELIVERY_UNKNOWN_STATE,
+        # RT-DELIVERY-MARKER-NO-TARGET-SESSION: the thread the dispatch ran in
+        # and its target's name, so the row can open that thread without
+        # parsing the prose "Their thread:" line. "" when the marker predates
+        # them or the dispatch never opened a thread.
+        "target_session_id": safe_assignment_text(row.get("delivery_target_session_id"), limit=200) or "",
+        "target_name": safe_assignment_text(row.get("delivery_target_name"), limit=160) or "",
     }
 
 
@@ -353,6 +380,10 @@ def _carry_retry_lineage(message: dict[str, Any], row: dict[str, Any]) -> None:
         value = safe_assignment_text(row.get(key), limit=240)
         if value:
             message[key] = value
+    # RT-CHAT-TURN-INPUT-MODE: a spoken turn's operator row says so (absent: typed).
+    mode = safe_assignment_text(row.get("input_mode"), limit=16)
+    if mode:
+        message["input_mode"] = mode
 
 
 def _carry_history_run_budget(message: dict[str, Any], row: dict[str, Any]) -> None:

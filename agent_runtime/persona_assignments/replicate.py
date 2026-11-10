@@ -94,10 +94,8 @@ def replicate_instance(
     writing it again would be a second authority over one row.
     """
 
-    from ..persona_instance_sync import (
-        PERSONA_INSTANCE_ALLOWED_KEYS,
-        cleared_travel_value,
-    )
+    from ..persona_instance_sync import cleared_travel_value
+    from ..persona_instance_sync.contract import PERSONA_INSTANCE_TRAVEL_FIELDS, published_key
 
     instance_id = str(body["id"])
     persona_id = str(body["persona_id"])
@@ -114,8 +112,9 @@ def replicate_instance(
     # ``steered_by`` is deliberately NOT applied here: the edges are phase
     # two (plan §3.4), because an edge may name a parent this pass has not
     # minted yet.
-    for name in sorted(PERSONA_INSTANCE_ALLOWED_KEYS - {"id", "persona_id", "steered_by"}):
-        value = body.get(name, _MISSING_TRAVEL_FIELD)
+    for name in sorted(PERSONA_INSTANCE_TRAVEL_FIELDS - {"id", "persona_id", "steered_by"}):
+        # ``body`` is spelled in PUBLISHED keys, the record in field names (S2).
+        value = body.get(published_key(name), _MISSING_TRAVEL_FIELD)
         if value is _MISSING_TRAVEL_FIELD:
             value = cleared_travel_value(name)
         setattr(instance, name, _coerce_travel_value(name, value))
@@ -133,7 +132,7 @@ def replicate_instance(
         emit_persona_instance_patch(
             store.event_log,
             instance,
-            [*sorted(PERSONA_INSTANCE_ALLOWED_KEYS - {"id", "persona_id"}), "updated_at"],
+            [*sorted(PERSONA_INSTANCE_TRAVEL_FIELDS - {"id", "persona_id"}), "updated_at"],
         )
     # ``source``/``realm_id`` on the payload: the ``updated_by="realm_sync"``
     # precedent, so an operator reading the log can tell a peer's arrival

@@ -49,3 +49,23 @@ def test_has_secret_value_reads_values_not_words():
     assert has_secret_value("pushed with ghp_" + "A1" * 12) is True
     assert has_secret_value("password=" + "hunter" + "Two" * 4) is True
     assert has_secret_value("token_budget.py caps the password field") is False
+
+
+def test_a_tool_target_is_shortened_once_and_a_generated_tree_path_is_a_label():
+    """RT-TOOL-TARGET-DOUBLE-SHORTENED: the operator target and the progress sink no longer
+    each cut the path — the transcript read ``……/web-counter`` for ``/ref/examples/web-counter/``."""
+    from agent_runtime.profile_runner.operator_redaction import _safe_operator_target
+    from agent_runtime.progress import _safe_progress_payload
+
+    def shown(path):
+        target = _safe_operator_target({"path": path})
+        summary = _safe_progress_payload(
+            "run.tool.started", {"summary": f"Started tool read_file: {target}"})["summary"]
+        return target, summary
+
+    assert shown("/ref/examples/web-counter/") == (
+        "/ref/examples/web-counter", "Started tool read_file: /ref/examples/web-counter")
+    assert shown("/home/alice/proj/app/src/main.py") == (
+        "…/app/src/main.py", "Started tool read_file: …/app/src/main.py")
+    assert mask_local_paths("read /doc/components/logic/main.luau") == "read /doc/components/logic/main.luau"
+    assert mask_local_paths("read /docs/alice/main.luau") == "read …/main.luau"  # not a tree root

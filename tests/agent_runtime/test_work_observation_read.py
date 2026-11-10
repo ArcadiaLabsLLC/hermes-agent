@@ -1,6 +1,6 @@
 """RT-WORK-OBSERVATION-READ: ``observe: true`` on capabilities / list / inspect reads Work without acting.
 
-The ruled lifecycle (create, promote, move the default brain; sync hermes's worktrees) stays on the
+The ruled lifecycle (create and promote the workspace brain; sync hermes's worktrees) stays on the
 ordinary calls. An observation call must make ZERO logical writes: every mutating door is replaced by a
 tripwire, and the store's bytes are compared before and after.
 """
@@ -16,7 +16,6 @@ from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.machine_roots import machine_roots_cache_clear
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.work import service
-from agent_runtime.work import store as work_store
 from agent_runtime.work_store import default_brain
 from agent_runtime.work_store.writer import Writer
 
@@ -46,7 +45,6 @@ def _tripwires(monkeypatch):
             raise AssertionError(f"observation read called the mutating door {name}")
         return _raise
 
-    monkeypatch.setattr(work_store, "normalize_default_brain", refuse("normalize_default_brain"))
     monkeypatch.setattr(default_brain, "ensure_default_brain", refuse("ensure_default_brain"))
     monkeypatch.setattr(Writer, "sync", refuse("Writer.sync"))
     monkeypatch.setattr(Writer, "apply", refuse("Writer.apply"))

@@ -60,7 +60,9 @@ def _resolve_delete_owner(owner_instance_id: str | None) -> tuple[PersonaInstanc
         if archived is None:
             return None, False
         raw = json.loads(archived.read_text(encoding="utf-8-sig"))
-        return from_jsonable(PersonaInstance, raw), True
+        from agent_runtime.persona_instance_sync.contract import stored_instance_body
+
+        return from_jsonable(PersonaInstance, stored_instance_body(raw)), True
     except Exception:
         return None, False
 

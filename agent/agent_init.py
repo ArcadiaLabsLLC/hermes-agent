@@ -846,6 +846,11 @@ def _routed_client_kwargs(agent, fallback_model, _provider_timeout) -> Optional[
         if _exhausted_message:
             raise ProviderCredentialsExhaustedError(_exhausted_message, provider=_explicit)
     if _explicit and _explicit not in {"auto", "openrouter", "custom"}:
+        # fork seam: RT-EXPIRED-LOGIN-REFUSAL-UNNAMED — the refusal names the provider (and an expired
+        # sign-in), so it is not read as "nothing configured"; upstream's raise below stays as the
+        # merge anchor and is not reached.
+        from agent_runtime.provider_login_expiry import named_missing_provider_error
+        raise named_missing_provider_error(_explicit, _pool if _pool_exhausted else None)
         # Explicit non-OpenRouter provider with no creds and no usable fallback: fail fast.
         from agent.auxiliary_unavailable import ProviderNotConfiguredError, missing_provider_credentials_message
         raise ProviderNotConfiguredError(missing_provider_credentials_message(_explicit))

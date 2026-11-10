@@ -270,6 +270,7 @@ class ChatProgressSink:
         consumers: tuple[Callable[[dict[str, Any]], bool], ...] = (
             self._forward_phase_timing_marker,
             self._forward_compaction_state,
+            self._forward_provider_retry_wait,
             lambda raw: not _chat_progress_has_signal(raw),  # nothing worth a trace row: drop
         )
         return any(consume(payload) for consume in consumers)
@@ -362,6 +363,22 @@ class ChatProgressSink:
             return False
         if self.on_trace is not None:
             self.on_trace({"type": "run.progress", "phase": COMPACTION_PHASE, "step": state})
+        return True
+
+    def _forward_provider_retry_wait(self, payload: dict[str, Any]) -> bool:
+        """Pass a provider retry wait to the live stream only (True when it was one).
+
+        Like the compaction edge above: no EventLog row, no first-trace latch, and only the
+        closed set ``provider_retry_wait.safe_provider_retry_wait`` admits crosses.
+        """
+
+        from .provider_retry_wait import PROVIDER_RETRY_WAIT_PHASE, safe_provider_retry_wait
+
+        if not isinstance(payload, dict) or payload.get("phase") != PROVIDER_RETRY_WAIT_PHASE:
+            return False
+        safe = safe_provider_retry_wait(payload)
+        if safe is not None and self.on_trace is not None:
+            self.on_trace(safe)
         return True
 
     def _mirror_tool_line(self, event_type: str, safe_payload: dict[str, Any]) -> None:

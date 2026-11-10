@@ -23,7 +23,8 @@ from hermes_cli.harness_parts.serve.frames import _request_id, _request_sink
 
 __layer__ = "lanes"
 
-__all__ = ["QueuedTurnStream", "queued_turn_runner_policy", "start_realmless_fold_ticker", "start_serve_scheduler",
+__all__ = ["QueuedTurnStream", "queued_turn_runner_policy", "start_brain_remote_ticker", "start_realmless_fold_ticker",
+           "start_serve_scheduler",
            "start_serve_work_engine"]
 
 
@@ -151,8 +152,10 @@ def start_serve_work_engine(session: Any) -> Any:
     start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home,
                       on_tick=session.work_executor.wake_parked)
     start_serve_scheduler(session)
-    if shipped("agent_runtime.project_chat_fold"):
-        # A realm-less Project's shared chats ride no realm pull (RT-PROJECT-CHAT-FOLD-REALMLESS).
+    # The brains' remote check (RT-BRAIN-PATHS-PLAIN-LIST): fetch, fast-forward hermes's own, count the rest.
+    start_brain_remote_ticker(stop_event=session.liveness_stop, home=home)
+    if shipped("agent_runtime.workspace_chat_fold"):
+        # A realm-less workspace's shared chats ride no realm pull (RT-PROJECT-CHAT-FOLD-REALMLESS).
         start_realmless_fold_ticker(stop_event=session.liveness_stop, home=home)
     if shipped("agent_runtime.messaging"):  # both bundle manifests switch it off (p10-messaging §2.6)
         from agent_runtime.messaging.serve_lane import start_messaging_bridge
@@ -181,10 +184,39 @@ def start_serve_scheduler(session: Any) -> Any:
     return session.scheduler
 
 
-def start_realmless_fold_ticker(*, stop_event: Any, interval_s: float | None = None, home: Any = None) -> Any:
-    """Fold this namespace's realm-less shared Projects every ``interval_s`` on a daemon thread until ``stop_event``.
+def start_brain_remote_ticker(*, stop_event: Any, interval_s: float | None = None, home: Any = None,
+                              check: Any = None) -> Any:
+    """Tick ``agent_runtime.brain_remote.RemoteCheck`` every ``interval_s`` on a daemon thread until ``stop_event``.
 
-    ``agent_runtime.project_chat_fold.fold_realmless_projects`` is the tick (bounded, round-robin); the
+    A failed tick is logged, never fatal; ``home`` is the serve's request home, bound around every tick.
+    """
+
+    import logging
+    import threading
+
+    from agent_runtime.brain_remote import REMOTE_TICK_S, RemoteCheck
+    from agent_runtime.work_store.engine import home_scope
+
+    wait = REMOTE_TICK_S if interval_s is None else interval_s
+    state = check or RemoteCheck()
+
+    def _loop() -> None:
+        while not stop_event.wait(wait):
+            try:
+                with home_scope(home):
+                    state.tick()
+            except Exception:
+                logging.getLogger(__name__).warning("brain remote check failed", exc_info=True)
+
+    thread = threading.Thread(target=_loop, name="harness-brain-remote", daemon=True)
+    thread.start()
+    return thread
+
+
+def start_realmless_fold_ticker(*, stop_event: Any, interval_s: float | None = None, home: Any = None) -> Any:
+    """Fold this namespace's realm-less shared workspaces every ``interval_s`` on a daemon thread until ``stop_event``.
+
+    ``agent_runtime.workspace_chat_fold.fold_realmless_workspaces`` is the tick (bounded, round-robin); the
     cursor lives in this loop, never in a module. A failed tick is logged, never fatal; ``home`` is the
     serve's request home, bound around every tick like the schedule ticker's.
     """
@@ -192,7 +224,7 @@ def start_realmless_fold_ticker(*, stop_event: Any, interval_s: float | None = N
     import logging
     import threading
 
-    from agent_runtime.project_chat_fold import REALMLESS_FOLD_TICK_S, fold_realmless_projects
+    from agent_runtime.workspace_chat_fold import REALMLESS_FOLD_TICK_S, fold_realmless_workspaces
     from agent_runtime.work_store.engine import home_scope
 
     wait = REALMLESS_FOLD_TICK_S if interval_s is None else interval_s
@@ -202,10 +234,10 @@ def start_realmless_fold_ticker(*, stop_event: Any, interval_s: float | None = N
         while not stop_event.wait(wait):
             try:
                 with home_scope(home):
-                    cursor = int(fold_realmless_projects(cursor=cursor).get("next_cursor") or 0)
+                    cursor = int(fold_realmless_workspaces(cursor=cursor).get("next_cursor") or 0)
             except Exception:
-                logging.getLogger(__name__).warning("realm-less project chat fold failed", exc_info=True)
+                logging.getLogger(__name__).warning("realm-less workspace chat fold failed", exc_info=True)
 
-    thread = threading.Thread(target=_loop, name="harness-project-chat-fold", daemon=True)
+    thread = threading.Thread(target=_loop, name="harness-workspace-chat-fold", daemon=True)
     thread.start()
     return thread

@@ -73,10 +73,17 @@ class Reason(StrEnum):
     URL_MISMATCH = "url_mismatch"
     # A lent skill set with a skill that does not resolve or cannot load (p10-work S1, RT-ETERNIA-SKILLS-LENDS-SKILLS).
     SKILLS_NOT_LOADABLE = "skills_not_loadable"
-    # A ref with no Project that two of the workspace's Projects answer (RT-WORK-BOARD-PER-PROJECT-SLOT): never guessed.
-    SLOT_AMBIGUOUS = "slot_ambiguous"
     # Hermes's worktree index stays unreadable after it was moved aside once (RT-WORK-INDEX-SELF-HEAL).
     INDEX_CORRUPT = "index_corrupt"
+    # Hermes's worktree ``index.lock`` is held by a live git (a stale one is moved aside; RT-WORK-LIST-ONE-BOARD-REFUSAL).
+    INDEX_LOCKED = "index_locked"
+    # ``runtime.work.pull`` on a bound folder that is not a git checkout (RT-WORK-PULL-PROJECT-CHECKOUT).
+    NOT_A_REPO = "not_a_repo"
+    # ``runtime.work.move`` with a ``revision`` the row no longer carries (RT-WORK-MOVE-ROW-COLUMN).
+    ROW_CHANGED = "row_changed"
+    # ``runtime.work.claim`` of a subtask whose task is not READY (RT-QUEUE-TASKS-GRAMMAR; launcher plan
+    # QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3): the task's status is the owner's lever over every subtask.
+    TASK_NOT_READY = "task_not_ready"
 
 
 class WorkRefused(ValueError):

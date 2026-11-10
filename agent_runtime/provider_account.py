@@ -10,6 +10,8 @@ for the wire; none decides anything an upstream function already decides:
 * refresh   -> ``hermes auth refresh`` (``auth_refresh_command``), whose pool
                refresh dispatches to the per-provider refreshers
 * sign-out  -> ``hermes auth logout`` (``auth_logout_command``)
+* env token -> upstream's ``env:*`` removal (``remove_env_value`` + the pool's
+               ``remove_index``), run once per home whose ``.env`` sets the variable
 
 No credential value crosses this module's return: usage drops the snapshot's
 ``raw`` body, refresh and sign-out answer with booleans, and a raised error is
@@ -26,9 +28,11 @@ __layer__ = "stores"
 
 __all__ = [
     "ProviderRefused",
+    "provider_env_token_remove",
     "provider_list",
     "provider_refresh",
     "provider_signout",
+    "provider_source_set",
     "provider_usage",
 ]
 
@@ -53,6 +57,11 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
+def _window_view(w: Any) -> dict:
+    return {"label": w.label, "used_percent": w.used_percent, "reset_at": _iso(w.reset_at), "detail": w.detail,
+            "scope": w.scope}
+
+
 def _usage_view(provider: str, snapshot: Any) -> dict:
     from .provider_account_view import account_view
 
@@ -66,11 +75,7 @@ def _usage_view(provider: str, snapshot: Any) -> dict:
         "title": snapshot.title,
         "plan": snapshot.plan,
         "fetched_at": _iso(snapshot.fetched_at),
-        "windows": [
-            {"label": w.label, "used_percent": w.used_percent, "reset_at": _iso(w.reset_at), "detail": w.detail,
-             "scope": w.scope}
-            for w in snapshot.windows
-        ],
+        "windows": [_window_view(w) for w in snapshot.windows],
         "details": list(snapshot.details),
         "unavailable_reason": snapshot.unavailable_reason,
     }
@@ -83,19 +88,32 @@ def _nous_snapshot() -> Any:
 
 
 def provider_usage(provider: str) -> dict:
-    """The account's limits and rate-limit windows, or ``available: false``."""
+    """The account's limits and rate-limit windows, or ``available: false``.
+
+    Every view carries ``credential_source`` (``list``'s block, null off the table); while the API
+    key is the effective source it also carries ``plan_windows``, the Account's plan windows read
+    with the stored grant (``agent_runtime/provider_usage_source.py``)."""
     from agent.account_usage import fetch_account_usage
+
+    from .provider_usage_source import sourced_usage
 
     if provider == "nous":
         try:
             snapshot = _nous_snapshot()
         except Exception as exc:  # fail open like upstream's /usage, class name only
-            return _usage_view(provider, None) | {"unavailable_reason": type(exc).__name__}
+            return _usage_view(provider, None) | {"unavailable_reason": type(exc).__name__,
+                                                   "credential_source": None}
+        sourced = None
     else:
-        snapshot = fetch_account_usage(provider)
+        sourced = sourced_usage(provider, lambda: fetch_account_usage(provider))
+        snapshot = sourced.snapshot
     from .provider_account_metadata import usage_snapshot
 
-    return _usage_view(provider, usage_snapshot(provider, snapshot))
+    view = _usage_view(provider, usage_snapshot(provider, snapshot))
+    view["credential_source"] = sourced.credential_source if sourced else None
+    if sourced is not None and sourced.spends_api_key:
+        view["plan_windows"] = [_window_view(w) for w in getattr(sourced.plan, "windows", ())]
+    return view
 
 
 def _known(provider: str) -> None:
@@ -140,7 +158,97 @@ def provider_signout(provider: str) -> dict:
         raise ProviderRefused("signout_refused", str(exit_.code or ""), provider=provider) from None
     except Exception as exc:  # class name only, never the message
         raise ProviderRefused("signout_failed", type(exc).__name__, provider=provider) from None
-    return {"provider": provider, "was_signed_in": was, "signed_in": _signed_in(provider)}
+    return {"provider": provider, "was_signed_in": was, "signed_in": _signed_in(provider),
+            "env_tokens": _env_tokens_left(provider)}
+
+
+def _env_files_defining(variable: str) -> list[str]:
+    """The ``.env`` files under the namespace root that set ``variable``, relative to the root.
+
+    Only the variable's NAME is matched (``VAR=`` or ``export VAR=``); no value is read out.
+    """
+    from hermes_constants import get_default_hermes_root, get_hermes_home
+
+    root = get_default_hermes_root(home=get_hermes_home())
+    candidates = [root / ".env"]
+    profiles = root / "profiles"
+    if profiles.is_dir():
+        candidates += [child / ".env" for child in sorted(profiles.iterdir()) if child.is_dir()]
+    found = []
+    for path in candidates:
+        try:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+        except (OSError, ValueError):
+            continue
+        for line in lines:
+            name = line.strip().removeprefix("export ").split("=", 1)[0].strip()
+            if "=" in line and name == variable:
+                found.append(path.relative_to(root).as_posix())
+                break
+    return found
+
+
+def _remove_env_token_in_home(provider: str, variable: str, home) -> None:
+    """Upstream's ``env:<VAR>`` removal under one home: the ``.env`` line (and this process's
+    environment), then the pool entry it seeded — what ``hermes auth remove`` does for that source."""
+    from agent.credential_pool import load_pool
+    from hermes_cli.config import remove_env_value, require_env_writable
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+
+    token = set_hermes_home_override(str(home))
+    try:
+        require_env_writable(variable, "remove")  # a locked .env refuses instead of reading as done
+        remove_env_value(variable)
+        pool = load_pool(provider)
+        for index, entry in enumerate(pool.entries(), start=1):
+            if entry.source == f"env:{variable}":
+                pool.remove_index(index)
+                break
+    finally:
+        reset_hermes_home_override(token)
+
+
+def provider_env_token_remove(provider: str, variable: str) -> dict:
+    """Delete a stale env token's ``VAR=`` lines from every ``.env`` under the namespace root
+    (RT-SIGNOUT-ENV-TOKEN-REMOVE) and drop the ``env:VAR`` pool entry each seeded.
+
+    Only a variable sign-out reported (an ``env:*`` entry still in this provider's pool) may
+    be removed, so the verb cannot erase an arbitrary setting. Answers file names, never a value.
+    """
+    from hermes_constants import get_default_hermes_root, get_hermes_home
+
+    _known(provider)
+    left = {row["variable"]: row["files"] for row in _env_tokens_left(provider)}
+    if variable not in left:
+        raise ProviderRefused("env_token_unknown", provider=provider, variable=variable)
+    root = get_default_hermes_root(home=get_hermes_home())
+    removed = []
+    for relative in left[variable]:
+        try:
+            _remove_env_token_in_home(provider, variable, (root / relative).parent)
+        except Exception as exc:  # class name only, never the message
+            raise ProviderRefused("env_token_remove_failed", type(exc).__name__, provider=provider,
+                                  variable=variable, removed_from=removed) from None
+        removed.append(relative)
+    return {"provider": provider, "variable": variable, "removed_from": removed,
+            "signed_in": _signed_in(provider), "env_tokens": _env_tokens_left(provider)}
+
+
+def _env_tokens_left(provider: str) -> list[dict]:
+    """``[{variable, files}]`` — the env tokens sign-out cannot clear (RT-CONNECTIONS-SHOWS-EXPIRED-LOGIN-CONNECTED).
+
+    ``hermes auth logout`` clears stored logins; a ``.env`` line re-seeds the pool on the
+    next load, so the answer names where each one lives instead of calling it a sign-in.
+    A failure answers ``[]``: it never turns a done sign-out into a refusal.
+    """
+    try:
+        from agent.credential_pool import load_pool
+
+        variables = sorted({entry.source.removeprefix("env:") for entry in load_pool(provider).entries()
+                            if str(entry.source or "").startswith("env:")})
+        return [{"variable": variable, "files": _env_files_defining(variable)} for variable in variables]
+    except Exception:
+        return []
 
 
 #: ``runtime.provider.configure``'s writes, in order, on the bound provider home's ``config.yaml``.
@@ -192,3 +300,40 @@ def provider_configure(provider: str, auth_mode: str, base_url: str | None = Non
         raise ProviderRefused("configure_failed", type(exc).__name__, provider=provider) from None
     return {"provider": provider, "auth_mode": auth_mode, "base_url": url, "needs_key": modes[auth_mode],
             "written": [key for key in CONFIGURE_KEYS if key in values]}
+
+
+def provider_source_set(provider: str, source: str) -> dict:
+    """Choose which STORED credential a provider's turns spend (``providers.<id>.credential_source``).
+
+    Only a provider ``PROVIDER_CREDENTIAL_SOURCES`` declares, only a declared source, and only one
+    with a credential stored — a choice of nothing would bench the family that works. Written on
+    the bound provider home's ``config.yaml`` (where the credentials it chooses between live)
+    through the round-trip YAML writer; selects nothing else (not ``model.provider``: that is
+    :func:`provider_configure`). The answer is the fact the client re-reads, never a secret.
+    """
+    from utils import atomic_roundtrip_yaml_update
+
+    from .provider_credential_source import credential_source_block, credential_source_ids, present_credential_sources
+
+    ids = [source_id for source_id, _label in credential_source_ids(provider)]
+    if not ids:
+        raise ProviderRefused("source_unsupported", provider=provider)
+    if source not in ids:
+        raise ProviderRefused("source_unknown", provider=provider, sources=ids)
+    try:
+        stored = present_credential_sources(provider).get(source)
+    except Exception as exc:  # class name only
+        raise ProviderRefused("source_failed", type(exc).__name__, provider=provider) from None
+    if not stored:
+        raise ProviderRefused("source_absent", provider=provider, source=source)
+    path = _configure_home() / "config.yaml"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.write_text("", encoding="utf-8")
+        atomic_roundtrip_yaml_update(path, f"providers.{provider}.credential_source", source)
+        block = credential_source_block(provider) or {}
+    except Exception as exc:  # class name only
+        raise ProviderRefused("source_failed", type(exc).__name__, provider=provider) from None
+    return {"provider": provider, "source": source, "effective": block.get("effective"),
+            "sources": block.get("sources", [])}

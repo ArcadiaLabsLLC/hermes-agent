@@ -9,21 +9,17 @@ control is that a planted ``pytest`` process is NAMED in the refusal.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-import pytest
+from tests._downstream.real_bash import real_bash_or_skip
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _git_bash() -> str:
-    bash = shutil.which("bash")
-    if bash is None or "system32" in bash.lower():  # WSL's launcher is not the repo's shell
-        pytest.skip("no POSIX bash on PATH")
-    return bash
+    return real_bash_or_skip()
 
 
 def test_the_idle_lane_refuses_and_names_a_running_pytest():

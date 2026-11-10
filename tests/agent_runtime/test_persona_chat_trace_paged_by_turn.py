@@ -75,7 +75,7 @@ def _tool_calls_by_turn(rows: list[dict]) -> dict[str, list[str]]:
     row = rows[0]
     contract = _conversation_contract(
         channel_id="chan", persona_id="dev", persona_instance_id=row["persona_instance_id"],
-        session_id=SESSION, task_id=None, goal_id=None, title="t", state="idle",
+        session_id=SESSION, goal_id=None, title="t", state="idle",
         history=None, trace=row,
     )
     out: dict[str, list[str]] = {}

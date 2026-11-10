@@ -19,6 +19,29 @@ def _block_message(value: str, status_code: int | None) -> str:
     return f"HTTP {status_code} — {title}" if status_code else title
 
 
+def provider_failure_block(
+    classified: ClassifiedError,
+    context: dict[str, Any] | None,
+    *,
+    failure_reason: str | None = None,
+) -> dict[str, Any]:
+    """The ``provider_error`` block for *classified*: what a terminal result carries, and what a
+    retry wait announces while the turn is still alive (``agent_runtime.provider_retry_wait``)."""
+    evidence = {**(context or {}), **classified.error_context}
+    block = {
+        "status_code": classified.status_code,
+        "provider": classified.provider,
+        "model": classified.model,
+        "failure_reason": failure_reason or classified.reason.value,
+    }
+    # Reuse parsed provider evidence; do not serialize SDK objects or request headers.
+    for key in ("reason", "message", "reset_at"):
+        value = evidence.get(key)
+        if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+            block[key] = _block_message(value, classified.status_code) if key == "message" and isinstance(value, str) else value
+    return block
+
+
 def attach_provider_failure(
     result: dict[str, Any] | None,
     classified: ClassifiedError | None,
@@ -26,16 +49,6 @@ def attach_provider_failure(
 ) -> None:
     if classified is None or not result or not result.get("failed") or result.get("interrupted"):
         return
-    evidence = {**context, **classified.error_context}
-    block = {
-        "status_code": classified.status_code,
-        "provider": classified.provider,
-        "model": classified.model,
-        "failure_reason": result.get("failure_reason") or classified.reason.value,
-    }
-    # Reuse parsed provider evidence; do not serialize SDK objects or request headers.
-    for key in ("reason", "message", "reset_at"):
-        value = evidence.get(key)
-        if isinstance(value, (str, int, float)) and not isinstance(value, bool):
-            block[key] = _block_message(value, classified.status_code) if key == "message" and isinstance(value, str) else value
-    result["provider_error"] = block
+    result["provider_error"] = provider_failure_block(
+        classified, context, failure_reason=result.get("failure_reason"),
+    )

@@ -354,10 +354,12 @@ def test_operator_channel_newborn_chat_emits_no_warnings():
     assert "trace_empty" not in codes
 
 
-def test_operator_channel_trace_empty_fires_for_task_bound_channel_without_trace():
-    """A task-bound channel with a goal but no trace and no flow messages is a
-    genuine empty-trace anomaly — trace_empty must still fire. The newborn
-    exemption is scoped to session-only channels with no task binding."""
+def test_a_stored_mission_row_projects_no_task_id_and_no_trace_empty():
+    """RT-TASK-BOUND-WIRE-PRUNE: a not-yet-archived mission-shaped row (``current_task_id``
+    still stored) projects no ``task_id`` on its channel or conversation, and reads as the
+    newborn session channel it is — the retired ``trace_empty`` arm no longer fires for it.
+    KILLING MUTATION: put ``"task_id": identity.canonical.current_task_id`` back on the
+    channel row -> the key reappears, red."""
     ts = now()
     channels = operator_channel_summary(
         persona_instances=[_dev_task_instance(ts)],
@@ -366,9 +368,10 @@ def test_operator_channel_trace_empty_fires_for_task_bound_channel_without_trace
     )
 
     assert len(channels) == 1
-    assert any(
-        warning["code"] == "trace_empty" for warning in channels[0]["warnings"]
-    )
+    assert "task_id" not in channels[0]
+    assert "task_id" not in channels[0]["conversation"]
+    assert channels[0]["goal_id"] == "goal_goal", "the goal still projects"
+    assert not any(warning["code"] == "trace_empty" for warning in channels[0]["warnings"])
 
 
 def test_operator_channel_dormant_instance_has_no_trace_empty_warning():
@@ -600,7 +603,7 @@ def test_operator_channel_projects_canonical_goal_conversation_and_filters_telem
 
     conversation = channels[0]["conversation"]
     assert conversation["status"] == "complete"
-    assert conversation["task_id"] == "task_live"
+    assert "task_id" not in conversation
     assert conversation["goal_id"] == "goal_live"
     # S47 removed the synthetic leading ``goal_input`` message: it could only be
     # minted from a resolved task, and no caller could supply one. The projected

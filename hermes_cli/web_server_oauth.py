@@ -11,6 +11,8 @@ import time
 from datetime import datetime, timezone, UTC
 from typing import Any, Dict, Optional
 
+from agent_runtime import provider_source_card as _fork_card  # fork seam: the card names the effective source
+
 # Same logger the code used before extraction (record parity).
 _log = logging.getLogger("hermes_cli.web_server")
 
@@ -47,6 +49,8 @@ def _anthropic_oauth_status() -> dict[str, Any]:
     Claude Code's ``~/.claude/.credentials.json`` is deliberately NOT read here; it has its own
     ``claude-code`` entry, and counting it here would shadow a real ANTHROPIC_API_KEY.
     """
+    if (card := _fork_card.anthropic_card_status(_truncate_token, _token_status)) is not None:  # fork seam
+        return card
     try:
         from agent.anthropic_credentials import read_hermes_oauth_credentials, _get_hermes_oauth_file
         hermes_creds = read_hermes_oauth_credentials()

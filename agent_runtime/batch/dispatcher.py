@@ -12,7 +12,7 @@ through the W2 writer before or after the side effect it records:
   batch whose manifest exists is a replay that finishes any claim a crash left;
 * a lane runs as ONE ``Executor`` assignment of all its rows; its settle writes every row's ending
   (``ROW_ENDINGS``) and the lane line, then advances the batch (``READY_TO_LAND`` when every lane settled
-  with work);
+  with work, ``ABORTED`` with reason ``nothing to land`` when every lane settled with none);
 * ``stop`` releases a lane that has not begun and WAITS for a running turn (owner ruling 2026-10-18):
   the lane line records ``STOP_REQUESTED`` and the settle ends the lane ``STOPPED``; ``stop`` with no lane
   aborts the batch (every claim released ``DEFERRED``);
@@ -36,6 +36,7 @@ the writer's ``work.row_*`` and the executor's ``work.exec_*``.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -43,7 +44,7 @@ from typing import Any, Protocol
 
 from ..work_store import receipts
 from ..work_store.default_brain import this_machine
-from ..work_store.executor import Assignment, Executor, Outcome, RowEnding, Run, StopReason, Verdict
+from ..work_store.executor import Assignment, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
 from ..work_store.grammar import RowRef, Status
 from ..work_store.reasons import Reason, WorkRefused
 from ..work_store.source import Claimant, WorkSource
@@ -51,13 +52,16 @@ from .gate import is_green, require_green, slot_gate
 from .lane_git import slots_of
 from .machine import (
     BATCH_MOVES, LANE_MOVES, Automation, Batch, BatchAction, BatchEvent, BatchState, LaneEvent, LaneRecord,
-    LaneState, automation_allows, move, ready_to_land, startable,
+    LaneState, automation_allows, move, nothing_to_land, ready_to_land, startable,
 )
 from .manifest import (
     BATCH_SUBJECT, LANE_PREFIX, STOP_REQUESTED, ManifestStore, automation_of, brief_path, entry_line, find_batch,
     fold, head, manifest_path,
 )
 from .planner import LANDING_ID, Budget, LaneKind, Member, Plan, plan as make_plan
+from .usage import lane_usage, usage_index
+
+_ENDED = frozenset({BatchState.ABORTED, BatchState.LANDED})
 
 __layer__ = "lanes"
 __all__ = ["ROW_ENDINGS", "BatchDispatcher", "Lander", "UnbuiltLander", "default_dispatcher", "idle_box"]
@@ -66,12 +70,14 @@ logger = logging.getLogger(__name__)
 
 _REPORTED = frozenset({Verdict.DONE, Verdict.BLOCKED})
 _SETTLED = frozenset({LaneState.REPORTED, LaneState.STOPPED})
+#: The ``ABORTED`` line's reason when every lane settled with nothing to land (RT-BATCH-SETTLE-WHEN-EVERY-LANE-STOPPED).
+NOTHING_TO_LAND_REASON = "nothing to land"
 _HOLDING_LANDING = frozenset({BatchState.LANDING, BatchState.AWAITING_APPROVAL})
 _GATE_TAIL = 1000
 
 #: A row's ending → the one SOURCE write it is (the W3 engine's ``WRITE_BACKS``, over the contract).
 ROW_ENDINGS: dict[Verdict, Callable[[WorkSource, RowRef, Claimant, RowEnding], Any]] = {
-    Verdict.DONE: lambda src, ref, who, e: src.done(ref, who, e.result or "done"),
+    Verdict.DONE: lambda src, ref, who, e: src.done(ref, who, e.result or "done", commit=e.commit),
     Verdict.BLOCKED: lambda src, ref, who, e: src.block(ref, who, e.question or "the lane asked no question",
                                                         e.recommend),
     Verdict.STOPPED: lambda src, ref, who, e: src.release(ref, who, Status.DEFERRED,
@@ -117,6 +123,33 @@ def idle_box(*, cpu_max: float = 50.0, python_max: int = 20) -> bool:
     return psutil.cpu_percent(interval=0.5) < cpu_max and pythons < python_max
 
 
+def _all_turn_records() -> list[dict[str, Any]]:
+    from ..mission_chat_turns import all_mission_chat_turn_records
+
+    return all_mission_chat_turn_records()
+
+
+def _turn_audit_price(usage: dict[str, Any]) -> dict[str, Any] | None:
+    """``chat_verbs.turn_audit``'s pricer: the one price list (Eternia never prices)."""
+
+    from ..chat_verbs.turn_audit import _price_usage
+
+    return _price_usage(usage)
+
+
+def _chosen(ready: list[Any], refs: tuple[RowRef, ...]) -> list[Any]:
+    """The READY rows the refs name, in board order. A ref names ``(slot, note, id)``; a ref no READY,
+    unclaimed row answers refuses ``invalid`` naming it."""
+
+    def names(ref: RowRef, row: Any) -> bool:
+        return row.ref == ref
+
+    missing = [ref.id for ref in refs if not any(names(ref, row) for row in ready)]
+    if missing:
+        raise WorkRefused(Reason.INVALID, "not a READY, unclaimed row of this workspace: " + ", ".join(missing))
+    return [row for row in ready if any(names(ref, row) for ref in refs)]
+
+
 def _stamp(now: datetime) -> str:
     return now.isoformat(timespec="seconds")
 
@@ -139,6 +172,8 @@ class BatchDispatcher:
         lander: Lander | None = None,
         workspaces: Callable[[], list[str]] = list,
         now: Callable[[], datetime] | None = None,
+        turn_records: Callable[[], list[dict[str, Any]]] | None = None,
+        price: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None,
     ) -> None:
         self._source_for = source_for
         self.manifests = manifests
@@ -152,19 +187,34 @@ class BatchDispatcher:
         self._lander = lander or UnbuiltLander()
         self._workspaces = workspaces
         self._now = now or (lambda: datetime.now(UTC))
+        self._turn_records = turn_records or _all_turn_records
+        self._price = price or _turn_audit_price
 
     # ── reads ────────────────────────────────────────────────────────────
 
-    def plan(self, workspace_id: str, *, scheduled: bool = False) -> Plan:
+    def plan(self, workspace_id: str, *, scheduled: bool = False,
+             rows: tuple[RowRef, ...] | None = None) -> Plan:
+        """The workspace's READY rows as lanes; with ``rows``, ONLY those refs (RT-BATCH-PLAN-ROWS) —
+        a ref that is not a READY, unclaimed row of the workspace refuses ``invalid`` naming it."""
+
         if scheduled:
             automation_allows(self.automation(workspace_id), BatchAction.PLAN)
-        rows = self._source_for(workspace_id).ready(workspace_id)
+        source = self._source_for(workspace_id)
+        ready = source.ready(workspace_id)
+        rows = ready if rows is None else _chosen(ready, rows)
         planned = make_plan(rows, workspace_id=workspace_id, roster=self._roster(workspace_id),
                             slot_roles=self._slot_roles(workspace_id), budget=self._budget_for(workspace_id),
-                            slot_gates=self._slot_gates(workspace_id))
+                            slot_gates=self._slot_gates(workspace_id), ended=self._ended(workspace_id))
         receipts.emit("batch.planned", workspace_id=workspace_id, batch_id=planned.id,
                       lanes=[lane.id for lane in planned.lanes], asks=list(planned.asks))
         return planned
+
+    def _ended(self, workspace_id: str) -> set[str]:
+        """The workspace's batch ids whose wave is over (ABORTED, LANDED): a re-plan of the same rows mints a
+        fresh id instead of replaying one, so Start schedules again (COMP-WORK-RUN-AGAIN-REUSES-ABORTED-WAVE)."""
+
+        return {key for key, text in self.manifests.texts(workspace_id).items()
+                if (b := fold(text)) is not None and b.state in _ENDED}
 
     def automation(self, workspace_id: str) -> Automation:
         return automation_of(self.manifests.settings(workspace_id))
@@ -177,7 +227,8 @@ class BatchDispatcher:
         return batch
 
     def status(self, workspace_id: str, batch_id: str | None = None) -> dict[str, Any]:
-        """Every batch of the workspace (or one), each lane's rows with their marks at the tip."""
+        """Every batch of the workspace (or one), each lane's rows with their marks at the tip, and each
+        lane's ``usage`` — its run's turn-record tokens priced now (RT-BATCH-LANE-WORKTREES-AND-USAGE)."""
 
         texts = self.manifests.texts(workspace_id)
         if batch_id is not None and batch_id not in texts:
@@ -186,18 +237,50 @@ class BatchDispatcher:
         rows = {row.ref: row for row in self._source_for(workspace_id).rows(workspace_id)}
         marks = lambda ref: ("gone" if ref not in rows else
                              rows[ref].taken.who if rows[ref].taken else (rows[ref].status or Status.READY).value)
+        runs = any(lane.run_id for b in batches for lane in (*b.lanes, b.landing))
+        turns = self._turn_records() if runs else []
+        index = usage_index(turns)
+        turn_ids = {f"{r.get('root_chat_session_id')}/{r.get('client_message_id')}":
+                    r.get("turn_id") or r.get("client_message_id") for r in turns}
+        personas = {member.instance_id: member.persona_id for member in self._roster(workspace_id)} if runs else {}
+
+        def batch_wire(b: Batch) -> dict[str, Any]:
+            wire = b.wire()
+            for lane_wire, lane in zip((*wire["lanes"], wire["landing"]), (*b.lanes, b.landing), strict=True):
+                lane_wire["usage"] = lane_usage(lane.run_id, index, self._price)
+                # Manifest RUNNING means submitted, not executing. Only this
+                # machine's executor can confirm the exact native attempt.
+                lane_wire["execution"] = None
+                lane_wire["session_id"] = None
+                lane_wire["persona_id"] = personas.get(lane.persona)
+                turn_id = turn_ids.get(lane.run_id)
+                lane_wire["turn_work_id"] = f"chat_turn:{turn_id}" if turn_id else None
+                if lane.run_id and b.owner_machine == self._machine():
+                    try:
+                        lane_wire["execution"] = self.executor.status(lane.run_id).value
+                    except Exception:
+                        logger.warning("batch execution unavailable: %s/%s", b.id, lane.id, exc_info=True)
+                    if lane_wire["execution"] in {RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.SETTLED}:
+                        root, separator, message = lane.run_id.partition("/")
+                        if root and separator and message:
+                            lane_wire["session_id"] = root
+            return {**wire, "marks": {f"{r.slot}/{r.id}": marks(r) for lane in b.lanes
+                                      for r in (lane.rows or lane.lane.rows)}}
+
         return {"automation": self.automation(workspace_id).value, "machine": self._machine(),
-                "batches": [{**b.wire(), "marks": {f"{r.slot}/{r.id}": marks(r) for lane in b.lanes
-                                                   for r in (lane.rows or lane.lane.rows)}} for b in batches]}
+                "batches": [batch_wire(b) for b in batches]}
 
     # ── start ────────────────────────────────────────────────────────────
 
     def start(self, workspace_id: str, plan_id: str, *, personas: Mapping[str, str] | None = None,
-              scheduled: bool = False) -> Batch:
+              scheduled: bool = False, rows: tuple[RowRef, ...] | None = None) -> Batch:
+        """``rows`` is the chosen set ``plan`` was given (RT-BATCH-PLAN-ROWS): start re-plans the same set
+        so the plan id still detects a moved board."""
+
         if scheduled:
             automation_allows(self.automation(workspace_id), BatchAction.START)
         if plan_id not in self.manifests.texts(workspace_id):
-            self._open(workspace_id, plan_id, personas or {})
+            self._open(workspace_id, plan_id, personas or {}, rows)
         batch = self.load(workspace_id, plan_id)
         self._own(batch)
         for record in batch.lanes:
@@ -206,8 +289,9 @@ class BatchDispatcher:
         receipts.emit("batch.started", workspace_id=workspace_id, batch_id=plan_id, scheduled=scheduled)
         return self.advance(workspace_id, plan_id)
 
-    def _open(self, workspace_id: str, plan_id: str, personas: Mapping[str, str]) -> None:
-        planned = self.plan(workspace_id)
+    def _open(self, workspace_id: str, plan_id: str, personas: Mapping[str, str],
+              rows: tuple[RowRef, ...] | None = None) -> None:
+        planned = self.plan(workspace_id, rows=rows)
         if planned.id != plan_id:
             raise WorkRefused(Reason.CONFLICT, f"the board moved since {plan_id} was planned (now {planned.id})")
         planned = planned.with_personas(personas)
@@ -265,6 +349,12 @@ class BatchDispatcher:
             self.manifests.append(workspace_id, batch_id, [self._batch_line(state, {})], f"{batch_id}:ready_to_land")
             receipts.emit("batch.ready_to_land", workspace_id=workspace_id, batch_id=batch_id)
             batch = self.load(workspace_id, batch_id)
+        elif nothing_to_land(batch.lanes):
+            state = move(BATCH_MOVES, batch.state, BatchEvent.NOTHING_TO_LAND)
+            line = self._batch_line(state, {"reason": NOTHING_TO_LAND_REASON})
+            self.manifests.append(workspace_id, batch_id, [line], f"{batch_id}:aborted")
+            receipts.emit("batch.aborted", workspace_id=workspace_id, batch_id=batch_id, reason=NOTHING_TO_LAND_REASON)
+            batch = self.load(workspace_id, batch_id)
         return batch
 
     def _assignment(self, batch_id: str, rows: tuple[RowRef, ...], persona: str, lane: Any, request: str) -> Assignment:
@@ -285,7 +375,10 @@ class BatchDispatcher:
             receipts.emit("batch.lane_refused", workspace_id=workspace_id, batch_id=batch.id, lane=record.id,
                           reason=refused.reason.value, detail=refused.detail)
             return
-        line = self._lane_line(record.id, move(LANE_MOVES, record.state, LaneEvent.RUN), {"run_id": run.run_id})
+        data: dict[str, Any] = {"run_id": run.run_id}
+        if getattr(run, "worktrees", ()):
+            data["worktrees"] = list(run.worktrees)  # RT-BATCH-LANE-WORKTREES-AND-USAGE: "running" is readable
+        line = self._lane_line(record.id, move(LANE_MOVES, record.state, LaneEvent.RUN), data)
         self.manifests.append(workspace_id, batch.id, [line], f"{a.request_id}:running")
 
     def settled(self, run: Run, outcome: Outcome) -> None:
@@ -313,6 +406,7 @@ class BatchDispatcher:
         done, errors = 0, []
         for ref in record.rows:
             ending = outcome.per_row.get(ref) or RowEnding(outcome.verdict, reason="the lane named no ending")
+            ending = replace(ending, commit=outcome.completion_commit)
             if stopping and ending.verdict is not Verdict.DONE:
                 ending = RowEnding(Verdict.STOPPED, reason="operator stop")
             try:
@@ -355,7 +449,7 @@ class BatchDispatcher:
         batch = self.load(workspace_id, batch_id)
         if lane_id is not None:
             self._stop_lane(workspace_id, batch, batch.lane(lane_id))
-            return self.load(workspace_id, batch_id)
+            return self.advance(workspace_id, batch_id)  # the last lane's stop settles the batch
         state = move(BATCH_MOVES, batch.state, BatchEvent.ABORT)
         for record in (*batch.lanes, batch.landing):
             if record.state not in _SETTLED and not (record.lane.kind is LaneKind.LANDING
@@ -492,7 +586,7 @@ def _slot_gates(workspace_id: str) -> dict[str, tuple[str, ...] | None]:
     from ..workspace_slots import resolve_slot
 
     def declared(board) -> dict | None:
-        resolved = resolve_slot(workspace_id, board.slot, project_id=board.project_id)
+        resolved = resolve_slot(workspace_id, board.slot)
         return resolved.declaration if resolved else None
 
     return {board.slot: slot_gate(declared(board), is_default=board.is_default) for board in boards(workspace_id)}

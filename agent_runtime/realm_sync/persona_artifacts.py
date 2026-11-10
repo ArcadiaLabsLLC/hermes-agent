@@ -246,6 +246,37 @@ def _raw_active_config() -> dict[str, Any]:
     return load_raw_config()
 
 
+def _instance_portrait_artifacts(projection) -> tuple[list[RealmSyncArtifact], list[dict[str, str]]]:
+    """Bytes for exactly the admitted realm instances, never a second census."""
+    from ..profile_avatar import AVATAR_UPLOAD_MAX_BYTES, AvatarRefusal, ProfileAvatarRefused, agent_portrait_asset_path
+    from ..media_handles import handle_for_bytes
+    from .families import KIND_PROFILE_PORTRAIT, published_relative_path
+
+    artifacts: list[RealmSyncArtifact] = []
+    withheld: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for instance in projection.instances.values():
+        portrait = (instance.get("character_assignment") or {}).get("portrait")
+        if not isinstance(portrait, dict) or portrait.get("mode") != "custom":
+            continue
+        identity = (portrait["profile"], portrait["handle"])
+        if identity in seen:
+            continue
+        seen.add(identity)
+        try:
+            source = agent_portrait_asset_path(*identity)
+            if not 0 < source.stat().st_size <= AVATAR_UPLOAD_MAX_BYTES or handle_for_bytes(source.read_bytes()) != identity[1]:
+                raise ProfileAvatarRefused(AvatarRefusal.UNAVAILABLE)
+            destination = f"assets/portraits/{identity[1][7:]}.png"
+            artifacts.append(RealmSyncArtifact(kind=KIND_PROFILE_PORTRAIT, source=source,
+                relative_path=published_relative_path(identity[0], destination),
+                destination=source, persona_id=instance["persona_id"]))
+        except (OSError, ProfileAvatarRefused):
+            withheld.append({"persona_id": instance["persona_id"], "kind": KIND_PROFILE_PORTRAIT,
+                "reason": "unavailable", "message": "An agent portrait asset is unavailable on this runtime."})
+    return artifacts, withheld
+
+
 def _persona_config_artifact(projection) -> RealmSyncArtifact:
     """The single synthesized ``persona_config`` artifact.
 

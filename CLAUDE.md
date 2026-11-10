@@ -65,8 +65,13 @@ Work tracking (adopted from the launcher's ADR 0025):
   `git config user.name`, `<worktree>` = the worktree's folder name, never a full path — the
   owner runs lanes on several machines; launcher ADR 0025's 2026-10-26 amendment), commit that
   alone, push, then cut the worktree. The Work engine's `persona:<instance_id>` claim is
-  unchanged. A row already marked `TAKEN` is someone else's. The landing commit deletes the row.
+  unchanged. A row already marked `TAKEN` is someone else's. The claim is discharged by closing the row
+  (`scripts/work_row.py close <ID> --done <sha>`, which archives it — ADR 0011), never by deleting it.
 - **Any lane works any READY row, whoever filed it (owner ruling 2026-11-01: "doesn't matter who filed them do them all if they are ready, remove any contradictory rulings").** Filing a row gives no ownership: any lane may claim a READY row and close it DONE when delivered whole, narrow it to what is left, or close it REFUTED with the closing evidence, with no ask to its filer. A row's `RULED` segments are records and stay on it until it closes. The only hold is a claim — a `TAKEN` mark, or a claim commit naming the row that was not released — and a claimed row is its claimant's. The queue row guard no longer checks who filed a deleted row (its filer arm was retired, `FH-QUEUE-GUARD-FILER-ARM-RETIRE`); an `Authorized-by:` line is still what passes a dropped `RULED` segment or a rolled-back status date (`EterniaLauncher/Launcher_Brain/30 — Decisions/0038 — A teammate's row is deleted only on that teammate's explicit authorization.md`, 2026-11-01 amendment).
+- **A row's title is plain English: what doing it gets the user (owner 2026-11-09).** The bold lead after the ID is one sentence a non-engineer can follow; IDs, paths, symbols and lane words go in the segments after it.
+- **Every row belongs to a task; look for an existing task before filing a new one (owner 2026-11-09).** A task is one row `- **`TASK-<SLUG>` — <what the user gets>** · task: <slug> · … · <status>` under a queue's `## Tasks — …` heading; a subtask carries ` · group: <slug>` (or `<slug>.<feature>` when it also builds a plan's feature). Find one with `git grep -h "task: "` over the three brains' queues — a task may span all three; file a new task only when none fits. Full rule: `EterniaLauncher/docs/agent_context/WORK_TRACKING.md`, plan `EterniaLauncher/docs/mission_control/subsystems/QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md`. **Only the feature itself holds a task open** (owner 2026-11-09): a live QA check runs on Linux or Windows (`REQUIRES windows, linux`; `windows` alone only for Windows-only behaviour), and a performance check never blocks a feature — the lane checks speed is reasonable and moves on, and measured performance work goes in the surface's speed task, batched by feature later on Windows (owner 2026-11-09).
+- **Doing a task means finishing it as far as it can go (owner 2026-11-09).** The task's main lane claims the `TASK-…` row; it and any row lanes beside it work every READY subtask, keep going as closes wake the next ones, stop only when none is READY (a subtask waiting only on a READY row of another task is not a stop: claim and do that row too), then update the task line (count, and READY / BLOCKED on its first waiting subtask / closed) and report what each remaining subtask waits on. A task row is READY only when a subtask can start. Full rule: `EterniaLauncher/docs/agent_context/WORK_TRACKING.md`.
+- **A wave of tasks runs one main lane per task and one repository per lane, and a handoff travels on the row (owner 2026-11-09).** A lane works its task's subtasks in its own repository; a task whose READY rows touch different files runs a row lane for each file-disjoint set beside its main lane, which alone holds the TAKEN mark and rewrites the task line (row lanes check `origin/main` before each row and rebase before each landing); performance rows never ride in a feature lane — a wave runs them as a separate perf lane per domain (the surface's speed task, quiet box) — and a row the plan would drop as Windows-only is first re-read for a Linux-capable QA check (`REQUIRES windows, linux`) (owner 2026-11-10); the task's rows in another repository go to a separate agent there, started when they are READY (the orchestrator relays cross-brain wakes). Whoever leaves, releases, files or wakes a row for another agent writes ` · handoff <date>: <found, how far, likely fix>` on that row in the same commit — a record, never a status. Full statement: `EterniaLauncher/docs/agent_context/WORK_TRACKING.md`, "A wave of tasks…".
 - **File a finding when it arrives, not at the end of the session.** A report, a review
   verdict, an audit result is EVIDENCE; the queue rows point at it. The one exception is a
   finding you are fixing in this change, where the commit is the record.
@@ -135,13 +140,22 @@ batch at its landing, never per lane.
   prints its plan, then runs the queue gates, the cheap whole-tree text gates and every test file
   the branch touched, and exits non-zero on any red. Each step declares a budget and a deadline:
   past budget it heartbeats and raises a desktop notification, at the deadline it is killed and
-  named (owner 2026-10-30, `FH-PREPUSH-PROGRESS-BUDGET`). Any red is fixed before the push (owner
+  named (owner 2026-10-30, `FH-PREPUSH-PROGRESS-BUDGET`); one whole-run cap bounds the run (exit 3,
+  the push never runs) and every overrun is a line in `_lane_logs/prepush_overruns.jsonl`
+  (owner 2026-11-08, `FH-PREPUSH-CAP-TIGHT`, `FH-PREPUSH-OVERRUN-LEDGER`; the numbers:
+  `Running the tests.md` § prepush). Any red is fixed before the push (owner
   2026-10-29, adopting the launcher's 2026-10-27 rule). It is a command, not a hook.
+- A prepush step or test lane that runs past its budget gets a row in the fork-hygiene queue the
+  moment it is seen (check, budget, measured time, box load) and the next wave optimises the check;
+  raise a budget only on an idle-box measurement (owner 2026-11-01: "also make sure we are optimising the gates if they go out of buget").
 - While the operator is testing a live serve, commit from a worktree and push `HEAD:main`,
   never in the primary checkout: a commit there moves the code tree the serve is built from
   and the Launcher restarts it (three queue-only commits did, 2026-10-05; vault-only paths stop
   counting once `Harness_Brain/` is in `NON_RUNTIME_PREFIXES`, landing h-turn1).
 - Concurrent sessions share ONE git index: stage and commit in one breath, by pathspec.
+- Push every branch that holds unmerged work to `origin` (`git push origin HEAD:<branch>`) as
+  soon as its lane is marked done, so any machine can continue it (owner 2026-11-01: "branches with unmerged work should be pushed to remote after every lane is marked done so any machine can continue it").
+  The worktree may stay; the branch must be on the remote. Never force-push to do it.
 - Cut worktrees from a NEUTRAL cwd (the directory beside the clone, never inside the checkout):
   `git -C <clone> worktree add <beside the clone>/.worktrees/<lane> -b <branch> origin/main`. The
   clone's location differs per workstation; read it off `git worktree list`, never from this file.

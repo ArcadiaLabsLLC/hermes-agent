@@ -56,6 +56,16 @@ from agent_runtime.store import WorkspaceStore
 from tests._downstream import _seams
 
 
+@pytest.fixture(autouse=True)
+def _fresh_stamps_memoize(monkeypatch):
+    """These rows pin how often a file is parsed, on files written a moment ago: the racy-stamp
+    window (``parse_cache.RACY_STAMP_NS``, RT-PARSE-CACHE-SAME-TICK-REWRITE) is closed for them;
+    ``test_parse_cache`` proves the window itself."""
+    from agent_runtime import parse_cache as _parse_cache
+
+    monkeypatch.setattr(_parse_cache, "RACY_STAMP_NS", 0)
+
+
 # --------------------------------------------------------------------------- #
 # Drivers — the REAL writers, each left in its post-write state inside the block
 # --------------------------------------------------------------------------- #
@@ -1123,7 +1133,13 @@ def test_a_realm_sync_baseline_stays_inside_the_closure(
         "unlabeled stale served as authoritative."
     )
 
-    path.write_text('{"card_a": "sha_two"}', encoding="utf-8")
+    # The rewrite CHANGES THE SIZE. The fingerprint is a (path, mtime_ns, size) stat set, so a
+    # same-size rewrite moves the key only when the clock ticked between the writes; on a
+    # coarse-timestamp filesystem (Windows' system-timer file times) the office case failed
+    # only in a bundled run, the fingerprint walk between the writes then fitting inside one
+    # tick (FH-CORE-CACHE-REALM-BASELINE-BUNDLE). The same-tick blindness itself is filed as
+    # RT-CORE-CACHE-SAME-TICK-REWRITE; this case claims only that the baseline is in the closure.
+    path.write_text('{"card_a": "sha_two_and_longer"}', encoding="utf-8")
     after = core_cache.build_input_fingerprint()
     assert after is not None
     assert after.digest != before.digest, (

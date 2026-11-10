@@ -9,9 +9,21 @@ Killing mutations (plan §6 B2), each red recorded in the B2 commit body:
 
 RT-BATCH-GATE-RECEIPT (owner ruling 2026-10-18), red recorded in its commit body:
 * ``BatchDispatcher.approve`` without ``require_green`` → ``test_approve_refuses_without_a_green_gate_receipt`` red.
+
+RT-BATCH-SETTLE-WHEN-EVERY-LANE-STOPPED, red recorded in its commit body:
+* ``advance`` without its ``nothing_to_land`` branch → ``test_no_work_no_landing`` and
+  ``test_a_wave_whose_every_lane_stopped_ends_by_itself`` red (the batch stays ``STARTED``).
+* ``stop`` of one lane returning ``load`` instead of ``advance`` →
+  ``test_a_wave_whose_every_lane_stopped_ends_by_itself`` red (the last lane's stop settles nothing).
+
+COMP-WORK-RUN-AGAIN-REUSES-ABORTED-WAVE, red recorded in its commit body:
+* ``BatchDispatcher.plan`` without ``ended=`` → ``test_a_stopped_task_run_again_starts_a_new_wave`` red (the
+  re-plan gets the aborted id back and start replays the ended wave).
 """
 
 from __future__ import annotations
+
+from dataclasses import replace
 
 import pytest
 
@@ -157,7 +169,39 @@ def test_rows_are_claimed_and_a_lane_settles_its_rows_by_ending():
 def test_no_work_no_landing():
     d, batch = started(FakeSource(rows("Fork-owned")))
     settle_all(d, batch, Verdict.FAILED)
-    assert d.load(WS, batch.id).state is BatchState.STARTED
+    ended = d.load(WS, batch.id)
+    assert ended.state is BatchState.ABORTED, "a batch with nothing to land ends instead of staying STARTED"
+    assert ended.landing.state is LaneState.PLANNED, "no landing lane is begun"
+    assert refused(lambda: d.land(WS, batch.id, persona="inst-a")) is Reason.STATE_TRANSITION_INVALID
+
+
+def test_a_wave_whose_every_lane_stopped_ends_by_itself():
+    source = FakeSource(rows("A-one", "B-two"))
+    d, batch = started(source)
+    d.stop(WS, batch.id, "L1")
+    assert d.load(WS, batch.id).state is BatchState.STARTED, "one lane still runs: the wave is not over"
+    d.stop(WS, batch.id, "L2")
+    ended = d.load(WS, batch.id)
+    assert [lane.state for lane in ended.lanes] == [LaneState.STOPPED, LaneState.STOPPED]
+    assert ended.state is BatchState.ABORTED and ended.wire()["state"] == "ABORTED"
+    assert all(r.taken is None for r in source.by_ref.values())
+    assert refused(lambda: d.stop(WS, batch.id)) is Reason.STATE_TRANSITION_INVALID
+
+
+def test_a_stopped_task_run_again_starts_a_new_wave():
+    source = FakeSource(rows("A-one"))
+    d, batch = started(source)
+    assert d.stop(WS, batch.id).state is BatchState.ABORTED
+    ref = batch.lanes[0].rows[0]
+    # Run again → Ready, as Edit's status review writes it.
+    source.by_ref[ref] = replace(source.by_ref[ref], status=Status.READY, status_body="")
+    again = d.plan(WS)
+    assert again.id != batch.id, "an ended wave's id is never planned again"
+    assert d.plan(WS).id == again.id, "the fresh id is stable, so start still detects a moved board"
+    restarted = d.start(WS, again.id)
+    assert restarted.state is BatchState.STARTED and restarted.lanes[0].state is LaneState.RUNNING
+    assert source.by_ref[ref].taken is not None
+    assert d.load(WS, batch.id).state is BatchState.ABORTED, "the ended wave stays as it was"
 
 
 def test_lanes_start_under_the_budget():

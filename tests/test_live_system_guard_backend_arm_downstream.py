@@ -109,3 +109,82 @@ def test_the_same_argv_with_no_executable_is_still_refused():
 def test_an_executable_that_is_the_hermes_launcher_is_refused_whatever_argv0_says(tmp_path):
     argv = ["python", "gateway", "run"]
     assert backend_spawn_subcommand(argv, str, {"executable": str(tmp_path / "bin" / "hermes")}) == "gateway"
+
+
+# ``hermes update``'s import-health probe carries ``sys.argv = ['hermes', 'update']`` and the
+# first-party roots (``'gateway'`` ...) as data inside ``runtime_command``'s ``exec`` wrapper:
+# an import check, never a backend (FH-UPDATE-TESTS-RED-ON-LINUX-MAIN). The marker alone
+# does not exempt code that calls anything outside the probe's own calls.
+def _update_import_probe_argv(tmp_path, extra=""):
+    from hermes_cli._launchers import runtime_command
+    code = ("import importlib, json, sys\nsys.argv = ['hermes', 'update']\n"
+            "for name in ('hermes_cli.main',):\n    importlib.import_module(name)\n"
+            f"roots = ('gateway', 'tui_gateway')\n{extra}"
+            "sys.stdout.write('\\n__HERMES_IMPORT_HEALTH_abc__' + json.dumps([]))\n")
+    return runtime_command(tmp_path, code=code)
+
+
+def test_the_update_import_probe_is_not_a_backend_start(tmp_path):
+    assert backend_spawn_subcommand(_update_import_probe_argv(tmp_path), str) is None
+
+
+def test_a_marked_probe_that_could_spawn_keeps_the_conservative_scan(tmp_path):
+    argv = _update_import_probe_argv(tmp_path, "__import__('subprocess').run(['hermes', 'gateway', 'run'])\n")
+    assert backend_spawn_subcommand(argv, str) == "gateway"
+
+
+# FH-HERMES-CLI-GATEWAY-UPDATE-REDS-REMAINDER: a grep-family quoted PATTERN is data. Mutation: return
+# ``script`` unchanged from ``drop_grep_patterns`` -> the first test is red (`gateway`).
+_HINT_BLOCK = ('OWED_HINT=hint\n'
+               '    if [ -n "$GW_REASONS" ] && ! printf \'%s\\n\' "$GW_REASONS" | grep -q "hermes gateway restart"; then\n'
+               '      OWED_HINT=""\n    fi\nprintf %s "$OWED_HINT"')
+
+
+def test_a_quoted_grep_pattern_in_a_script_is_not_a_backend_start():
+    assert backend_spawn_subcommand(["bash", "-c", _HINT_BLOCK], str) is None
+    assert backend_spawn_subcommand(["bash", "-c", "grep -qE 'hermes (gateway|serve)' log"], str) is None
+
+
+@pytest.mark.parametrize("script", [
+    'grep -q x\nhermes gateway run\n',                          # a second command after the grep
+    'grep "x" "$(hermes gateway run)"\n',                       # an expansion in a later word
+    "grep 'x; hermes gateway run'\n",                           # a span with a command boundary
+    'grep "$(hermes gateway run)"\n',                           # an expansion in the pattern itself
+    'grep "x" && "hermes" gateway run',                         # a quoted entry point after a boundary
+    "f() { hermes gateway run; }\ngrep -q 'hermes gateway' log && f",
+])
+def test_a_script_whose_grep_hides_nothing_still_refuses_the_real_start(script):
+    assert backend_spawn_subcommand(["bash", "-c", script], str) == "gateway"
+
+
+# FH-LIVE-GUARD-PATH-READ-AS-SPAWN: upstream's spawn-intent matcher answers ``run`` for any argv
+# holding ``gateway/run.py``. A program that reads the path as data runs; one that executes it
+# (argv[0], or a Python interpreter's SCRIPT) is still refused. Mutation: drop the guard's
+# ``gateway_run_path_is_only_data`` clause -> the git pathspec spawn is blocked, red.
+def test_a_git_pathspec_naming_gateway_run_py_is_not_a_gateway_spawn():
+    subprocess.run(["git", "ls-files", "--", "gateway/run.py"], check=True, timeout=30,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+@pytest.mark.parametrize("argv", [
+    lambda tmp: [sys.executable, str(tmp / "gateway" / "run.py")],
+    lambda tmp: ["env", "HERMES_X=1", sys.executable, "-X", "utf8", str(tmp / "gateway" / "run.py")],
+    lambda tmp: [str(tmp / "gateway" / "run.py"), "--replace"],
+], ids=["python-script", "env-wrapped-python-with-options", "script-as-program"])
+def test_a_gateway_run_py_the_program_executes_is_still_refused(tmp_path, argv):
+    with pytest.raises(RuntimeError, match="spawn a REAL hermes gateway"):
+        subprocess.Popen(argv(tmp_path), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+# FH-GUARD-PATH-WORDS-READ-AS-SPAWN: an argv element with spaces that names an existing file is a path
+# operand. Split into words, ``…/0012 — The hermes half of ….md`` + ``…/Touching serve and boot.md`` read as
+# ``hermes serve`` and blocked the line-endings gate's ``git ls-files --eol`` over the brain's notes.
+def test_a_git_pathspec_with_backend_words_in_its_name_is_not_a_spawn(tmp_path):
+    for name in ("The hermes half of it.md", "Touching serve and boot.md"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    argv = ["git", "ls-files", "--eol", "--", "The hermes half of it.md", "Touching serve and boot.md"]
+    assert backend_spawn_subcommand(argv, str, {"cwd": tmp_path}) is None
+
+
+def test_a_wrapper_command_string_that_names_no_file_is_still_split(tmp_path):
+    assert backend_spawn_subcommand(["bash", "-c", "hermes serve"], str, {"cwd": tmp_path}) == "serve"

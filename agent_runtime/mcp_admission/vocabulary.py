@@ -273,8 +273,11 @@ READ_ONLY_EXCLUDED_TOOLS: Mapping[str, tuple[str, ...]] = {
 #: need the same manual, and a role admitted nothing needs none.
 #:
 #: ``eternia-level-editing`` (RT-LEVEL-SKILL-PRELOAD, 2026-11-01) is the second
-#: ``launcher_qa`` manual: the level app functions (``launcher.world.level.*``) an
-#: admitted run reaches through ``mcp_launcher_qa_call_app_function``. Authored in the
+#: ``launcher_qa`` manual: the level-editing app functions an admitted run reaches
+#: through ``mcp_launcher_qa_call_app_function``. Their ids are deliberately not
+#: spelled here: hermes learns entry ids only from the Launcher's own app-function
+#: list (one-action-layer R10, ``tests/tooling/test_no_launcher_entry_id_literals.py``),
+#: so naming them would be a second, unlisted copy of its catalog. Authored in the
 #: launcher checkout like the first, so the same two gates and the same freshness
 #: check (``agent_runtime.skill_freshness``) hold it.
 MCP_OPERATING_SKILLS: Mapping[str, tuple[str, ...]] = {

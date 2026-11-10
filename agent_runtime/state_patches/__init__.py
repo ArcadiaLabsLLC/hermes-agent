@@ -245,8 +245,10 @@ from agent_runtime.state_patches.office import (  # the package's export floor
     project_office_actor_wire_row,
 )
 from agent_runtime.state_patches.board import (  # the package's export floor
+    board_def_unpublished,
     emit_board_card_patch,
     emit_board_card_refresh,
+    emit_board_card_remove,
     project_board_card_wire_row,
 )
 

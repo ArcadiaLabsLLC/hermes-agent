@@ -44,7 +44,7 @@ from .chat_coordinator import (
 from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
 from agent_runtime.persona_chat_session import _persona_chat_session_owner
 from .chat_target import _persona_by_id
-from .lifecycle_commands import _note_retired_kill_active, _placement_discriminability_refusal
+from .lifecycle_commands import _placement_discriminability_refusal
 
 __layer__ = "lanes"
 __all__ = [
@@ -81,7 +81,6 @@ def _instance_session_db(instance):
 
 
 def _cmd_persona_instance_open_chat(args) -> int:
-    _note_retired_kill_active(args)
     # Function-local: the convention from before lane H1, when this file was
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
@@ -184,6 +183,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
                 default_display_name=honest_default_display_name,
                 workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
                 realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
+                correlation_id=getattr(args, "correlation_id", None),
             )
             instance = _maybe_stamp_spawned_by(instance, coordinator_id=coordinator_id)
         else:
@@ -289,6 +289,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
                     persona_id=persona_id,
                     persona_instance_id=target_instance_id,
                     session_id=args.session_id,
+                    correlation_id=getattr(args, "correlation_id", None),
                 )
             except ValueError as exc:
                 data = {

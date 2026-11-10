@@ -121,10 +121,13 @@ def _file_lock(path: Path, *, timeout_seconds: float | None = None) -> Iterator[
     timeout_seconds = _lock_timeout_seconds(timeout_seconds)
     deadline = time.monotonic() + timeout_seconds
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a+b") as handle:
-        _prepare(handle)
+    # A competing first opener can lock byte zero between our empty-file check
+    # and seed write. That write is contention too, under the same deadline.
+    # Unbuffered writes cannot leave a refused seed queued for context exit.
+    with open(path, "a+b", buffering=0) as handle:
         while True:
             try:
+                _prepare(handle)
                 _try_acquire(handle)
                 break
             except OSError as exc:
@@ -227,6 +230,13 @@ def agent_create_lock(key_digest: str) -> Iterator[None]:
 def workspace_create_lock(key_digest: str) -> Iterator[None]:
     """Serialize one non-activating workspace creation gesture."""
     with _file_lock(paths.lock_dir() / "workspace_creates" / f"{paths.safe_path_token(key_digest)}.lock"):
+        yield
+
+
+@contextlib.contextmanager
+def workspace_realm_assign_lock() -> Iterator[None]:
+    """Serialize ``runtime.workspace.assign_realm``: the realm-ownership read and both writes are one step."""
+    with _file_lock(paths.lock_dir() / "workspace_realm_assign.lock"):
         yield
 
 

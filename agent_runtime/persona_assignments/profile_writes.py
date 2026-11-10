@@ -217,6 +217,11 @@ def _apply_chat_fields(
         if instance.display_name != value:
             instance.display_name = value
             changed = True
+        # The operator named it: the persona's own name no longer syncs over it
+        # (``PersonaInstanceStore.ensure_for_persona``).
+        if not instance.display_name_custom:
+            instance.display_name_custom = True
+            changed = True
     if current_chat_goal is not None:
         value = safe_assignment_text(current_chat_goal, limit=500) or None
         if instance.current_chat_goal != value:

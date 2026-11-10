@@ -153,3 +153,44 @@ def test_the_argv_verb_and_the_method_reach_one_implementation(monkeypatch):
     assert workspace_commands._cmd_workspace_create(args) == 0
     _rpc({"name": "Method", "idempotency_key": "shared", "realm_id": realm.id})
     assert seen == [("Argv", realm.id), ("Method", realm.id)]
+
+
+# ── runtime.workspace.assign_realm (RT-WORKSPACE-REALM-ASSIGN-VERB) ─────────
+
+def _assign(**params):
+    return serve_rpc.handle_request({"jsonrpc": "2.0", "id": "assign", "method": "runtime.workspace.assign_realm",
+                                     "params": params})
+
+
+def test_assign_realm_homes_a_realmless_workspace_and_refuses_another_realms():
+    """Mutations: drop the back-reference write -> ``realm_id`` stays None, red; drop the forward append ->
+    the realm never lists it, red; drop the other-owner refusal -> the owned workspace moves, red."""
+    from agent_runtime.store import RealmStore
+
+    realms, workspaces = RealmStore(), WorkspaceStore()
+    home, other = realms.create(name="Home"), realms.create(name="Other")
+    loose = workspaces.create(name="QA Fixture")
+    assert loose.realm_id is None
+    first = _assign(workspace_id=loose.id, realm_id=home.id)["result"]
+    assert first["assigned"] is True and first["realm_id"] == home.id
+    assert workspaces.get(loose.id).realm_id == home.id and loose.id in realms.get(home.id).workspace_ids
+    again = _assign(workspace_id=loose.id, realm_id=home.id)["result"]
+    assert again["assigned"] is False and realms.get(home.id).workspace_ids.count(loose.id) == 1
+    owned = _assign(workspace_id=loose.id, realm_id=other.id)["error"]
+    assert owned["data"] == {"reason": "workspace_owned_by_other_realm", "owner_realm_id": home.id}
+    assert workspaces.get(loose.id).realm_id == home.id and loose.id not in realms.get(other.id).workspace_ids
+    listed = workspaces.create(name="Listed only")
+    held = realms.get(other.id)
+    held.workspace_ids.append(listed.id)
+    realms.save(held)
+    refused = _assign(workspace_id=listed.id, realm_id=home.id)["error"]["data"]
+    assert refused == {"reason": "workspace_owned_by_other_realm", "owner_realm_id": other.id}
+    healed = _assign(workspace_id=listed.id, realm_id=other.id)["result"]
+    assert healed["assigned"] is True and workspaces.get(listed.id).realm_id == other.id
+    for params, reason in (({"workspace_id": "ws_nowhere", "realm_id": home.id}, "workspace_not_found"),
+                           ({"workspace_id": loose.id, "realm_id": "realm_nowhere"}, "realm_not_found"),
+                           ({"workspace_id": loose.id}, "invalid_request"),
+                           ({"workspace_id": 7, "realm_id": home.id}, "invalid_request")):
+        assert _assign(**params)["error"]["data"]["reason"] == reason
+    workspaces.archive(listed.id)
+    assert _assign(workspace_id=listed.id, realm_id=other.id)["error"]["data"]["reason"] == "workspace_archived"

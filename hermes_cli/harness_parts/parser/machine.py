@@ -156,6 +156,25 @@ def _add_gateway_pairing_verbs(gateway_subs) -> None:
         default="console",
         help="What the paired device may do. console: run console verbs (create/retire agents). read: view only.",
     )
+    gateway_pair.add_argument(
+        "--kind",
+        choices=["device", "channel"],
+        default="device",
+        help="device: a person's screen. channel: your own external gateway (a bot), which may only relay chat turns to the --instance agents",
+    )
+    gateway_pair.add_argument(
+        "--instance",
+        dest="instances",
+        action="append",
+        default=None,
+        help="A persona instance id a channel credential is bound to (repeatable; required with --kind channel)",
+    )
+    gateway_pair.add_argument(
+        "--client-scope",
+        dest="client_scope",
+        default=None,
+        help="The owning account's client-scope digest (64 hex; --kind channel only): the channel's conversations list under that account",
+    )
     _add_stage42_global_args(gateway_pair)
     gateway_pair.set_defaults(func=gateway_commands.cmd_gateway_pair)
     # S2. `introduce` sits under `gateway` rather than under `peers`, and that
@@ -417,6 +436,7 @@ def add_observe(subs) -> None:
     )
     builds.add_argument("--since", default="1h", help="Window back from now: 90s, 30m, 2h, 1d (default 1h)")
     builds.add_argument("--log", default=None, help="agent.log to read (default <HERMES_HOME>/logs/agent.log, rotations included)")
+    builds.add_argument("--qa-namespace-root", default=None, help="A QA lane namespace's folder (<QA folder>/hermes-namespaces/stagec-*) to read instead of this process's: its profiles/base/logs/agent.log and its agent-runtime store, read only; no namespace is resolved, so it works from outside the launcher")
     builds.add_argument("--json", action="store_true")
     builds.set_defaults(func=observe_commands._cmd_observe_snapshot_builds)
     timing = observe_subs.add_parser(
@@ -427,6 +447,7 @@ def add_observe(subs) -> None:
     timing.add_argument("--log", default=None, help="agent.log to read (default: the live serve's <home>/logs/agent.log)")
     timing.add_argument("--launcher-log", default=None, help="Launcher diag log (default: newest <temp>/eternia_launcher_diag*.log)")
     timing.add_argument("--baseline", default=None, help="Baseline JSON (default tests/fixtures/turn_timing_baseline.json)")
+    timing.add_argument("--qa-namespace-root", default=None, help="A QA lane namespace's folder (<QA folder>/hermes-namespaces/stagec-*) to read instead of this process's: its profiles/base/logs/agent.log and its agent-runtime store, read only; no namespace is resolved, so it works from outside the launcher")
     timing.add_argument("--json", action="store_true")
     timing.add_argument("--check", action="store_true",
                         help="Judge the last N turns' receipts against agent_runtime/turn_latency_budgets.json; exit 1 on any FAIL")

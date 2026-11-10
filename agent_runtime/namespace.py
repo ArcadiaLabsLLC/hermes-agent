@@ -22,6 +22,7 @@ from typing import Any
 from hermes_cli._namespace_bootstrap import (
     BASE_ID,
     ENV,
+    QA_PREFIX,
     Layout,
     NamespaceRefused,
     Reason,
@@ -98,9 +99,8 @@ def namespace_named(env: Mapping[str, str] | None = None) -> bool:
     return namespace_stamp(env) != ""
 
 
-#: The Launcher's QA namespaces (``stagec-smoke``, ``stagec-*``): disposable, so never a writer to a
-#: network remote (RT-WORK-QA-NAMESPACE-PUSH-FENCE).
-QA_PREFIX = "stagec-"
+#: ``QA_PREFIX`` — the Launcher's QA namespaces (``stagec-smoke``, ``stagec-*``): disposable, so never a
+#: writer to a network remote (RT-WORK-QA-NAMESPACE-PUSH-FENCE); one constant with the QA provider pool's.
 
 
 def qa_namespace(env: Mapping[str, str] | None = None) -> bool:

@@ -1,9 +1,9 @@
 """Resolve the current runtime's work authority on each call.
 
 An owner is a workspace (``WorkScope(install, workspace_id)``); ``capabilities`` lists every
-workspace with an office plus the default one, gives a workspace whose repos carry no brain its
-machine-local default brain (plan §4, ruling 2026-10-18), and moves a default brain's rows into a
-repo brain once one is bound (``store.normalize_default_brain``).
+workspace with an office plus the default one and gives every workspace its own machine-local brain
+(plan §4, ruling 2026-10-18), kept beside any bound repo brain (owner ruling 2026-11-02,
+RT-WORK-WORKSPACE-BRAIN-KEPT: a workspace having its own brain is still valid).
 
 The general todo (plan ``general-todo-2026-10-25.md`` §2.2): one more owner, the ``personal`` board —
 the operator's machine-local brain under the namespace, never promoted to a remote
@@ -37,11 +37,11 @@ def _lend_skills(scope, params, actor, *, context=None):
 
 
 #: The owner operations; each takes ``(scope, params, actor, *, context)``.
-_WRITES = {"start": store.start, "assign": store.assign, "claim": store.claim, "release": store.release,
-           "set_status": store.set_status, "done": store.done, "create_brain": store.create_brain,
-           "lend_skills": _lend_skills}
+_WRITES = {"start": store.start, "edit": store.edit, "assign": store.assign, "claim": store.claim, "release": store.release,
+           "set_status": store.set_status, "move": store.move, "answer": store.answer, "pull": store.pull, "done": store.done,
+           "close": store.close, "create_brain": store.create_brain, "lend_skills": _lend_skills}
 _READS = {"list": store.list_work, "inspect": store.inspect}
-#: The operations that take ``observe: true`` — a read with no provisioning, normalization, promotion,
+#: The operations that take ``observe: true`` — a read with no provisioning, promotion,
 #: worktree sync or row write (RT-WORK-OBSERVATION-READ); advertised as ``capabilities.observe``.
 OBSERVE_OPERATIONS = ("capabilities", "list", "inspect")
 
@@ -114,19 +114,16 @@ def _worded(remote, word):
 def _default_brain_state(workspace_id):
     """``capabilities.default_brain.<ws>``: ``{state, clone_url?, slot?, reason?, retry_after?}``.
 
-    The tree's words stay (``absent``: a repo brain carries the board; ``present``: a live local default
-    brain; ``created``; ``moved``; ``unavailable``) and promotion adds ``remote``,
-    ``remote_pending_declare`` and ``remote_refused`` (``default_brain.remote_state``, p10-work §2.5).
+    The tree's words (``present``: a live workspace brain; ``created``; ``unavailable``) and promotion's
+    ``remote``, ``remote_pending_declare`` and ``remote_refused`` (``default_brain.remote_state``, p10-work
+    §2.5). ``absent`` and ``moved`` are retired with the move (RT-WORK-WORKSPACE-BRAIN-KEPT): a bound repo
+    brain no longer takes the workspace brain's place.
     """
-    from agent_runtime.work_store.board import declared_boards, default_board, needs_default_brain
+    from agent_runtime.work_store.board import default_board
     from agent_runtime.work_store.default_brain import ensure_default_brain, remote_state
 
     issued = store._now().isoformat(timespec="seconds")
     try:
-        if not needs_default_brain(declared_boards(workspace_id)):
-            _require_git()
-            moved = store.normalize_default_brain(workspace_id)
-            return {"state": "moved", "into": moved["into"]} if moved else _worded(remote_state(workspace_id), "absent")
         if default_board(workspace_id) is not None:
             if git_shipped():
                 ensure_default_brain(workspace_id, issued_at=issued)  # the automatic promotion
@@ -143,17 +140,14 @@ def _default_brain_state(workspace_id):
 def _observed_brain_state(workspace_id):
     """``capabilities{observe: true}.default_brain.<ws>``: the same words, read without acting.
 
-    No creation, promotion or move (RT-WORK-OBSERVATION-READ). What the lifecycle WOULD do next is said
-    as its own word: ``missing`` (a full read would create the default brain) and ``move_pending`` (a
-    full read would move its rows into the bound repo brain).
+    No creation or promotion (RT-WORK-OBSERVATION-READ). What the lifecycle WOULD do next is said as its
+    own word: ``missing`` (a full read would create the workspace brain).
     """
-    from agent_runtime.work_store.board import declared_boards, default_board, needs_default_brain
+    from agent_runtime.work_store.board import default_board
     from agent_runtime.work_store.default_brain import remote_state
 
     try:
         live = default_board(workspace_id) is not None
-        if not needs_default_brain(declared_boards(workspace_id)):
-            return {"state": "move_pending"} if live else _worded(remote_state(workspace_id), "absent")
         return _worded(remote_state(workspace_id), "present") if live else {"state": "missing"}
     except (NotFound, FileNotFoundError, KeyError, ValueError, OSError):
         return {"state": "unavailable", "reason": Reason.UNAVAILABLE.value}
@@ -183,6 +177,9 @@ def _work_capabilities(install, *, observe=False):
     ids = workspace_ids()
     brain_state = _observed_brain_state if observe else _default_brain_state
     return {"version": VERSION, "install_id": install, "execution_identity_guard": True, "chat_scopes": True,
+            "guarded_row_edits": True,
+            "guarded_completion": True,
+            "guarded_task_edits": True,
             "observe": list(OBSERVE_OPERATIONS), "board_kinds": list(BOARD_KINDS),
             "owners": [scope.wire(_label(scope)) for scope in scopes(install)],
             "default_brain": {ws: brain_state(ws) for ws in ids},
@@ -268,7 +265,7 @@ def _agent_view(params, context, install):
         raise WorkRefused(Reason.INVALID, "an agent view names assignee: persona:<instance_id>")
     token = store._assignee_token(assigned)
     tokens, visible = _agent_reach(install, token)
-    read = {key: value for key, value in params.items() if key not in ("assignee", "kind", "owner", "project_id", "slot")}
+    read = {key: value for key, value in params.items() if key not in ("assignee", "kind", "owner", "slot")}
     owners = []
     for scope in visible:
         entry = {"owner": scope.owner, "workspace_id": scope.workspace_id, "kind": scope.kind,

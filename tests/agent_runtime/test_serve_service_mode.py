@@ -498,6 +498,19 @@ def test_every_greeting_frame_and_the_registry_row_state_the_service_fields(serv
             assert version["ops"]["service"] is service
 
 
+def test_a_serve_adopted_at_boot_publishes_no_starter(monkeypatch):
+    """RT-SERVE-STARTER-PID-NOT-THE-SUBREAPER: the boot read is ``serve_starter.boot_starter_pid``; when it
+    finds only an adopter (a subreaper or init), the row and the greeting say ``null``, never that pid."""
+
+    import agent_runtime.serve_starter as serve_starter
+
+    monkeypatch.setattr(serve_starter, "boot_starter_pid", lambda: None)
+    with _serve(service=True) as handle:
+        assert handle.ready["starter_pid"] is None
+        row = next(r for r in _instances() if r.get("boot_id") == handle.ready["boot_id"])
+        assert row["starter_pid"] is None
+
+
 def test_the_ops_manifest_advertises_service_on_every_transport():
     """RL-2's fallback condition is a MEMBERSHIP test, so the key is universal.
 

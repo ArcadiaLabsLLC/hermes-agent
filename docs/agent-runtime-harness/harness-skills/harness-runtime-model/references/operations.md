@@ -137,26 +137,22 @@ that table does not carry, plus the payload-shape gotchas that have actually cos
 | redaction-safe observability | `harness observe --json` |
 | offices and the actors an operator actually sees | `harness snapshot --json` → `.offices[<ws_id>].actors` (`office show --workspace <id>` returns `actors` as a COUNT, not a list) |
 
-## Repo slots live on Projects
+## Repo slots live on the workspace
 
 A workspace's repo slots (backend / hermes / launcher checkouts, their environment and setup
-recipe) are declared on the **Projects** connected to it, not on the workspace. Start from
-`harness project list --json`: every Project with its `slots` and the `workspaces` it is
-connected to (an id with `exists: false` is a reference no record backs yet). Then:
+recipe) are declared on the workspace's own slot document. Start from
+`harness workspace slots show <workspace_id> --json`: the document and this machine's fill per slot.
+Then:
 
 | Do | Command |
 |---|---|
-| read one Project and this machine's fill | `harness project show <project_id> --json` |
-| declare (REPLACE) its slot set; creates the Project | `harness project declare <project_id> --slots-file <slots.json> [--name <name>] --json` — a JSON list of `{name, repo: {clone_url}, toolchain, context}`; a name left out is tombstoned |
-| bind a slot to a checkout on this machine | `harness project slot bind <project_id> <slot> <abs path> --json` |
-| clone a slot here, then bind it (waits) | `harness project slot clone <project_id> <slot> <dest path> --json` |
-| this machine's environment fill | `harness project slot env-set <project_id> <slot> --env K=V --tool-path T=P --dotenv .env --json` |
-| the setup recipe | `harness project recipe show\|set\|run-step …` |
+| declare (REPLACE) its slot set | `harness workspace slots declare <workspace_id> --slots-file <slots.json> --json` — a JSON list of `{name, repo: {clone_url}, toolchain, context}`; a name left out is tombstoned |
+| bind a slot to a checkout on this machine | `harness workspace slots bind <workspace_id> <slot> <abs path> --json` |
+| clone a slot here, then bind it (waits) | `harness workspace slots clone <workspace_id> <slot> <dest path> --json` |
+| this machine's environment fill | `harness workspace slots env-set <workspace_id> <slot> --env K=V --tool-path T=P --dotenv .env --json` |
 
-`harness workspace slots …` on a migrated workspace answers `slot_migrated` with the Project id
-first and these verbs after it: follow it, do not guess. A write into a Project held by a
-server-bound realm answers `realm_publish_denied` from argv (the credential is the launcher's);
-say so to the operator rather than retrying.
+A write into a workspace held by a server-bound realm answers `realm_publish_denied` from argv (the
+credential is the launcher's); say so to the operator rather than retrying.
 
 ## Operating the live chat lane
 

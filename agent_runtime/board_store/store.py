@@ -26,7 +26,13 @@ from ..store_conflicts import check_revision
 from ..store_events import emit_store_event
 from . import adopt
 from .card_mechanics import CardOrdering, IdempotencyReceipts
-from .patches import emit_card_patch
+from .patches import (
+    board_flag,
+    emit_card_patch,
+    emit_card_remove,
+    emit_card_restore,
+    emit_rebalance_patches,
+)
 from .files import (
     _write_board,
     _write_card,
@@ -59,6 +65,16 @@ class BoardStore:
         self.event_log = event_log or EventLog()
 
     # --- event emission (single chokepoint) ------------------------------
+
+    def _ordering(self, board_id: str) -> CardOrdering:
+        """The board's ordering, wired to this store's event append and its
+        rebalance producer (one ``board_card`` row per rewritten card)."""
+
+        return CardOrdering(
+            board_id,
+            self._emit,
+            patch=lambda cards: emit_rebalance_patches(self, board_id, cards),
+        )
 
     def _emit(self, event_type: str, **payload: Any) -> None:
         emit_store_event(self.event_log, event_type, payload, domain="board")
@@ -253,7 +269,7 @@ class BoardStore:
             column_id = board_models.resolve_column_id(board, column)
             if column_id is None:
                 raise ValueError("invalid_request")
-            order_key = CardOrdering(board.board_id, self._emit).next_key(column_id)
+            order_key = self._ordering(board.board_id).next_key(column_id)
             ts = now()
             actor = _safe_actor(created_by)
             card = BoardCard(
@@ -375,7 +391,7 @@ class BoardStore:
             if target_column is None:
                 raise ValueError("invalid_request")
             from_column = card.column_id
-            order_key = CardOrdering(board_id, self._emit).allocate(
+            order_key = self._ordering(board_id).allocate(
                 target_column, before=before, after=after, exclude_card_id=card_id
             )
             card.column_id = target_column
@@ -424,6 +440,7 @@ class BoardStore:
         with board_lock(board_id):
             board = self.get(board_id)
             card = self.get_card(card_id, board_id=board_id)
+            flag_before = board_flag(board)
             archive_card_locked(
                 board,
                 card,
@@ -431,6 +448,12 @@ class BoardStore:
                 updated_by=updated_by,
                 emit=self._emit,
                 record_tombstone=record_tombstone,
+                patch=lambda archived: emit_card_remove(
+                    self,
+                    archived,
+                    ledger_recorded=record_tombstone,
+                    board_flag_before=flag_before,
+                ),
             )
             archived = from_jsonable(BoardCard, read_json(paths.board_archived_card_path(board_id, card_id)))
         return archived
@@ -445,11 +468,12 @@ class BoardStore:
                 raise NotFound(f"card:{card_id}")
             card = from_jsonable(BoardCard, read_json(archive_path))
             board = self.get(board_id)
+            flag_before = board_flag(board)
             # Re-home to a valid column (its old column may have been deleted).
             if not any(col.column_id == card.column_id for col in board.columns):
                 landing = board_models.first_queued_column(board)
                 card.column_id = landing.column_id if landing else card.column_id
-            card.order_key = CardOrdering(board_id, self._emit).next_key(card.column_id)
+            card.order_key = self._ordering(board_id).next_key(card.column_id)
             card.state = "active"
             card.revision += 1
             card.updated_at = now()
@@ -461,6 +485,7 @@ class BoardStore:
                 board.archived_card_ids = [cid for cid in board.archived_card_ids if cid != card.card_id]
                 board.updated_at = now()
                 _write_board(board)
+            emit_card_restore(self, card, board_flag_before=flag_before)
             self._emit("board.card.restored", board_id=board_id, card_id=card.card_id, column_id=card.column_id)
         return self.get_card(card_id, board_id=board_id)
 

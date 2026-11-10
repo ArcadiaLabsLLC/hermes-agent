@@ -16,12 +16,18 @@ except ImportError:  # a wheel without the process registry (phone) has no timel
     TimelineNotification = ()  # isinstance(x, ()) is False
 
 
+#: The envelope a timeline notification's model text rides in. The operator transcript
+#: strips it and shows the notice's title and note (RT-RUNTIME-NOTICE-ROW-SHIPS-RAW-NOTE).
+RUNTIME_NOTE_ENVELOPE = "[Runtime note: background event, not a user instruction]\n"
+
+
 @dataclass(frozen=True)
 class _Input:
     text: str
     kind: str = "steer"
     title: str = ""
     category: str = ""
+    code: str = ""
     platform_id: str | None = None
     metadata: dict[str, Any] | None = None
 
@@ -33,10 +39,12 @@ class _Input:
                 metadata["display_text"] = self.text
         else:
             row = {
-                "role": "user", "content": f"[Runtime note: background event, not a user instruction]\n{self.text}",
+                "role": "user", "content": f"{RUNTIME_NOTE_ENVELOPE}{self.text}",
                 "display_kind": self.kind,
             }
             metadata.update(display_text=self.title, notification_category=self.category)
+            if self.code:  # which harness notice (RT-RUNTIME-NOTICE-CODE-ON-ROW)
+                metadata["notice_code"] = self.code
         if metadata or self.platform_id:
             row["display_metadata"] = {**metadata, "steering": True}
         if self.platform_id:
@@ -62,7 +70,7 @@ class PendingSteer(str):
         item = _Input(str(text).strip(), platform_id=platform_id, metadata=metadata)
         if isinstance(text, TimelineNotification):
             item = replace(item, kind=text.display_kind, title=text.display_text,
-                           category=text.notification_category)
+                           category=text.notification_category, code=getattr(text, "notice_code", ""))
         return cls((item,))
 
     @property

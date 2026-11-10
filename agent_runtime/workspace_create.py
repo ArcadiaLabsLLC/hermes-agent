@@ -23,11 +23,11 @@ from typing import Any
 
 from . import paths
 from .errors import NotFound
-from .locks import workspace_create_lock
+from .locks import workspace_create_lock, workspace_realm_assign_lock
 from .office_store import OfficeStore
 from .scope_activation import workspace_row
 from .serde import read_json, write_json_atomic
-from .store import RealmStore, WorkspaceStore
+from .store import RealmStore, WorkspaceStore, lift_deleted_workspace
 from .workspace_template import COPY_SCOPES, CONTENT_COPY_SCOPES, copy_workspace_content, normalize_copy_scopes
 
 __layer__ = "lanes"
@@ -45,6 +45,23 @@ class WorkspaceCreationReason(StrEnum):
 class WorkspaceCreationRefused(ValueError):
     def __init__(self, reason: WorkspaceCreationReason):
         self.reason = reason
+        super().__init__(reason.value)
+
+
+class WorkspaceRealmReason(StrEnum):
+    """``runtime.workspace.assign_realm``'s refusals (RT-WORKSPACE-REALM-ASSIGN-VERB)."""
+
+    INVALID = "invalid_request"
+    WORKSPACE_NOT_FOUND = "workspace_not_found"
+    REALM_NOT_FOUND = "realm_not_found"
+    ARCHIVED = "workspace_archived"
+    OWNED = "workspace_owned_by_other_realm"
+
+
+class WorkspaceRealmRefused(ValueError):
+    def __init__(self, reason: WorkspaceRealmReason, *, owner_realm_id: str | None = None):
+        self.reason = reason
+        self.owner_realm_id = owner_realm_id
         super().__init__(reason.value)
 
 
@@ -235,3 +252,46 @@ def create_workspace(
         created, row, warnings = apply_workspace_create(plan, workspace_id=identity)
         OfficeStore().ensure_surface(identity)
         return created, row, warnings
+
+
+def assign_workspace_realm(workspace_id: Any, realm_id: Any) -> tuple[dict, bool]:
+    """Home a realm-less workspace in ``realm_id``: the workspace's ``realm_id`` back-reference and the
+    realm's ``workspace_ids`` forward entry, under one lock (RT-WORKSPACE-REALM-ASSIGN-VERB).
+
+    A workspace already owned by ANOTHER realm (its ``realm_id``, or any realm listing it) is refused,
+    never moved. Assigning the realm that already owns it heals a missing half and answers
+    ``assigned: false``. The back-reference is written first, so a crash between the two writes leaves a
+    workspace whose replay heals the forward list. Returns ``(workspace_row, assigned)``.
+    """
+
+    for value in (workspace_id, realm_id):
+        if not isinstance(value, str) or not value.strip() or len(value) > 256 or any(ord(c) < 32 for c in value):
+            raise WorkspaceRealmRefused(WorkspaceRealmReason.INVALID)
+    workspaces, realms = WorkspaceStore(), RealmStore()
+    with workspace_realm_assign_lock():
+        try:
+            workspace = workspaces.get(workspace_id)
+        except NotFound:
+            raise WorkspaceRealmRefused(WorkspaceRealmReason.WORKSPACE_NOT_FOUND) from None
+        try:
+            realm = realms.get(realm_id)
+        except NotFound:
+            raise WorkspaceRealmRefused(WorkspaceRealmReason.REALM_NOT_FOUND) from None
+        if workspace.archived:
+            raise WorkspaceRealmRefused(WorkspaceRealmReason.ARCHIVED)
+        owners = {workspace.realm_id} if workspace.realm_id else set()
+        owners |= {item.id for item in realms.list_all(include_archived=True) if workspace.id in item.workspace_ids}
+        other = sorted(owners - {realm.id})
+        if other:
+            raise WorkspaceRealmRefused(WorkspaceRealmReason.OWNED, owner_realm_id=other[0])
+        assigned = workspace.realm_id != realm.id
+        if assigned:
+            workspace.realm_id = realm.id
+            workspace = workspaces.save(workspace)
+        realm_changed = lift_deleted_workspace(realm, workspace.id)
+        if workspace.id not in realm.workspace_ids:
+            realm.workspace_ids.append(workspace.id)
+            realm_changed = True
+        if realm_changed:
+            realms.save(realm)
+    return workspace_row(workspace), assigned or realm_changed

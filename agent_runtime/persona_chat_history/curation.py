@@ -11,11 +11,13 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol
 
 from ..clock import iso_timestamp
+from ..turn_budget import CHECKPOINT_TRIGGER_TIMER, CHECKPOINT_TRIGGER_TOOL_GATE
 from ..mission_chat_turns.reads import (
     mission_chat_turn_elements,
     mission_chat_turn_records,
@@ -47,6 +49,11 @@ from .vocabulary import (
     PERSONA_PRE_TRACE_ACK_FINISH_REASON,
     PERSONA_PRE_TRACE_ACK_KIND,
     PERSONA_RELAYED_MESSAGE_KIND,
+    PERSONA_RUNTIME_NOTICE_KIND,
+    RUNTIME_NOTICE_CODES,
+    RUNTIME_NOTICE_ITERATION_LIMIT,
+    RUNTIME_NOTICE_TOOL_AVAILABILITY,
+    RUNTIME_NOTICE_WALL_CHECKPOINT,
     canonical_persona_chat_turn_id,
     logical_persona_chat_client_message_id,
 )
@@ -117,6 +124,7 @@ def _safe_curated_messages(
     for index, raw in enumerate(raw_messages or []):
         if not isinstance(raw, dict):
             continue
+        raw = _typed_iteration_limit_nudge(raw, state.turn_records_by_message)
         role = MessageRole.from_wire(raw.get("role"))
         curator = ROLE_CURATORS.get(role) if role is not None else None
         if curator is not None:
@@ -124,6 +132,65 @@ def _safe_curated_messages(
     # Third element ``None``: the transcript WAS read, so "safe" here is an
     # observation about content that actually passed through the redactor.
     return state.finish(), "redacted" if state.redacted else "safe", None
+
+
+#: How the tool-iteration limit's summary request reads in the transcript: a harness notice, not
+#: the operator's own message (RT-ITERATION-LIMIT-NUDGE-STORED-AS-USER).
+_ITERATION_LIMIT_NOTICE = MappingProxyType({
+    "display_text": "Tool-iteration limit reached", "notification_category": "diagnostic", "steering": True,
+    "notice_code": RUNTIME_NOTICE_ITERATION_LIMIT,
+})
+
+#: A runtime notice stored before ``notice_code`` existed carries only its title; this reads the code
+#: off it, so a stored chat answers the same as a new one (RT-RUNTIME-NOTICE-CODE-ON-ROW). Frozen: a
+#: new notice carries its code from birth and never joins this table.
+_LEGACY_NOTICE_CODES = MappingProxyType({
+    "Time budget checkpoint": RUNTIME_NOTICE_WALL_CHECKPOINT,
+    "Tool availability update": RUNTIME_NOTICE_TOOL_AVAILABILITY,
+})
+
+
+def _notice_code(metadata: Mapping[str, Any], title: str) -> str:
+    """The row's ``notice_code``: its stored code when it names a known notice, else (an older row)
+    the code its stored title reads as, else none."""
+
+    code = safe_assignment_token(metadata.get("notice_code")) or ""
+    return code if code in RUNTIME_NOTICE_CODES else _LEGACY_NOTICE_CODES.get(title, "")
+
+
+#: The journal's ``budget_trigger`` values that say the turn's wall-budget CHECKPOINT engaged — and with
+#: it ``turn_budget.drain_iteration_budget``, which is what makes upstream ask for the iteration-limit
+#: summary (``settle._budget_metadata``; ``wall_budget_checkpoint`` is its fallback spelling).
+_CHECKPOINT_TRIGGERS = frozenset({CHECKPOINT_TRIGGER_TIMER, CHECKPOINT_TRIGGER_TOOL_GATE, "wall_budget_checkpoint"})
+
+
+def _typed_iteration_limit_nudge(
+    raw: dict[str, Any], turn_records_by_message: Mapping[str, Mapping[str, Any]] = MappingProxyType({}),
+) -> dict[str, Any]:
+    """The iteration-limit nudge row, typed as a runtime notice; any other row unchanged.
+
+    Upstream ``handle_max_iterations`` appends the nudge as a plain role-user row whose content is
+    :data:`agent.context_compressor.MAX_ITERATIONS_SUMMARY_REQUEST` — the stable key the compaction
+    recognizers read it by, too. Typing it here, on read, keeps the upstream file at its own bytes
+    (FH-UPSTREAM-FOOTPRINT-UNLEDGERED-AUX-UNAVAILABLE); a row already typed is left alone.
+
+    A turn whose wall-budget checkpoint engaged drained its iteration budget to stop new tool work,
+    so the summary request is the checkpoint's mechanism, not a limit the turn hit: it is hidden, and
+    the checkpoint's own notice is the turn's account (RT-CHECKPOINT-DRAIN-NUDGE-TYPED-AS-ITERATION-LIMIT).
+    """
+
+    if raw.get("display_kind") or raw.get("role") != "user":
+        return raw
+    from agent.context_compressor import MAX_ITERATIONS_SUMMARY_REQUEST
+
+    if raw.get("content") != MAX_ITERATIONS_SUMMARY_REQUEST:
+        return raw
+    turn = logical_persona_chat_client_message_id(safe_assignment_text(raw.get("platform_message_id"), limit=240))
+    record = turn_records_by_message.get(str(turn or "")) or {}
+    # MUTATION: drop this arm and test_runtime_notice_transcript's checkpoint-drain row reddens.
+    if record.get("budget_trigger") in _CHECKPOINT_TRIGGERS:
+        return {**raw, "display_kind": "hidden"}
+    return {**raw, "display_kind": PERSONA_RUNTIME_NOTICE_KIND, "display_metadata": dict(_ITERATION_LIMIT_NOTICE)}
 
 
 def _read_raw_messages(session_db: Any, session_id: str) -> Any:
@@ -223,6 +290,8 @@ class _OperatorCurator:
             row["delivery_dispatch_id"] = delivery.dispatch_id
             row["delivery_notify_operator"] = delivery.notify_operator
             row["delivery_state"] = delivery.state
+            row["delivery_target_session_id"] = delivery.target_session_id
+            row["delivery_target_name"] = delivery.target_name
         elif relay_sender is not None:
             row["kind"] = PERSONA_RELAYED_MESSAGE_KIND
             row["relay_sender_persona_id"] = relay_sender.persona_id
@@ -239,11 +308,29 @@ class _OperatorCurator:
             row["steered"] = ctx.raw.get("display_kind") == "steer"
             if metadata.get("turn_id"):
                 row["turn_id"] = safe_assignment_token(metadata["turn_id"])
+            elif ctx.client_message_id and (steered_into := _STEERED_INPUT_ID.fullmatch(ctx.client_message_id)):
+                # ``native_persistence`` ids an unaddressed steer row ``<turn>:input:<n>``: it is a row OF
+                # that turn, never a turn of its own (RT-RUNTIME-NOTICE-OUTSIDE-ITS-TURN-POSITION).
+                row["turn_id"] = safe_assignment_token(steered_into.group(1))
             if isinstance(metadata.get("turn_seq"), int):
                 row["turn_seq"] = metadata["turn_seq"]
+            elif not row["steered"]:
+                row[_PLACE_BY_POSITION] = ctx.index
             if not row["steered"]:
                 row["role"] = MessageRole.SYSTEM
-                row["kind"] = "system_message"
+                # MUTATION: always "system_message" and test_persona_chat_history_curation's
+                # "a runtime notice is typed and titled" reddens.
+                row["kind"] = (PERSONA_RUNTIME_NOTICE_KIND
+                               if ctx.raw.get("display_kind") == PERSONA_RUNTIME_NOTICE_KIND else "system_message")
+                title = safe_assignment_text(metadata.get("display_text"), limit=160)
+                if title:
+                    row["display_title"] = title
+                category = safe_assignment_token(metadata.get("notification_category"))
+                if category:
+                    row["notification_category"] = category
+                # MUTATION: drop this and test_runtime_notice_transcript's notice-code rows redden.
+                if row["kind"] == PERSONA_RUNTIME_NOTICE_KIND and (code := _notice_code(metadata, title)):
+                    row["notice_code"] = code
             return
         # D2.04: the turn this message re-ran, read off its own journal record.
         record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""))
@@ -253,6 +340,9 @@ class _OperatorCurator:
         retry_of = safe_assignment_text((record or {}).get("retry_of"), limit=240)
         if retry_of:
             row["retry_of"] = retry_of
+        input_mode = safe_assignment_text((record or {}).get("input_mode"), limit=16)
+        if input_mode:
+            row["input_mode"] = input_mode
 
 
 class _AgentCurator:
@@ -293,14 +383,15 @@ class _AgentCurator:
         return None if is_pre_trace_ack else TURN_SEQ_TERMINAL
 
     def after_row(self, state: CurationState, row: dict[str, Any], ctx: RowContext) -> None:
+        if row.get("turn_seq") == TURN_SEQ_TERMINAL:
+            row[_PLACE_BY_POSITION] = ctx.index
         if not ctx.client_message_id:
             return
-        record = state.turn_records_by_message.get(str(ctx.logical_client_message_id or ""), {})
-        elements = mission_chat_turn_elements(
-            session_id=record.get("_history_source_session") or state.session_id,
-            client_message_id=ctx.logical_client_message_id,
-        )
+        elements = state.turn_elements_for(ctx.logical_client_message_id)
         if elements:
+            # Placed on every agent row of the turn here; ``CurationState``
+            # keeps it only on the turn's LAST visible agent row once that row
+            # is appended (RT-CHAT-HISTORY-TURN-REPEATED).
             row["turn_elements"] = elements
         # "What bounded this turn?" — carried verbatim off the turn record
         # (see mission_chat_turns._JOURNAL_RUN_BUDGET_FIELD). The row shapes
@@ -353,6 +444,13 @@ class CurationState:
     # visible turns are tracked separately and subtract candidates at the end.
     visible_agent_logical_ids: set[str] = field(default_factory=set)
     silent_turn_candidates: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # A turn's element list belongs to the TURN, not to each of its text-step
+    # rows: a turn that spoke three times used to ship its whole element list
+    # three times, and the launcher expanded every copy into rows. The list is
+    # read once per logical turn and rides only on the latest appended agent
+    # row of that turn; the earlier step rows keep their text only.
+    turn_elements_by_logical_id: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    turn_element_rows: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
     def for_session(cls, session_id: str, *, session_db=None, raw_messages=()) -> CurationState:
@@ -391,6 +489,11 @@ class CurationState:
         if raw.get("display_kind") == "steer":
             display = raw.get("display_metadata") or {}
             raw_content = display.get("display_text") or raw_content
+        elif (raw.get("display_metadata") or {}).get("steering") and isinstance(raw_content, str):
+            # A harness notice: the note, without the envelope the model reads it in.
+            from agent.steering import RUNTIME_NOTE_ENVELOPE
+
+            raw_content = raw_content.removeprefix(RUNTIME_NOTE_ENVELOPE)
         curated = _curate_chat_message_text(ctx.role, raw_content)
         if not curated:
             self._silent_candidate(ctx, raw_content)
@@ -418,6 +521,23 @@ class CurationState:
             from .text import message_preview
             row = message_preview(row, PERSONA_CHAT_MESSAGE_TEXT_LIMIT)
         self.rows.append(row)
+        if "turn_elements" in row and ctx.logical_client_message_id:
+            earlier = self.turn_element_rows.get(ctx.logical_client_message_id)
+            if earlier is not None:
+                earlier.pop("turn_elements", None)
+            self.turn_element_rows[ctx.logical_client_message_id] = row
+
+    def turn_elements_for(self, logical_client_message_id: str | None) -> list[dict[str, Any]]:
+        """The turn's element list, read from the journal once per logical turn."""
+
+        key = str(logical_client_message_id or "")
+        if key not in self.turn_elements_by_logical_id:
+            record = self.turn_records_by_message.get(key, {})
+            self.turn_elements_by_logical_id[key] = mission_chat_turn_elements(
+                session_id=record.get("_history_source_session") or self.session_id,
+                client_message_id=logical_client_message_id,
+            )
+        return self.turn_elements_by_logical_id[key]
 
     def _silent_candidate(self, ctx: RowContext, raw_content: Any) -> None:
         # The curator says "not presentable AS WRITTEN", which covers both
@@ -456,6 +576,7 @@ class CurationState:
         return True
 
     def finish(self) -> list[dict[str, Any]]:
+        _place_by_stored_position(self.rows)
         rows = list(self.rows)
         rows.extend(
             marker
@@ -474,6 +595,38 @@ class CurationState:
             )
         )
         return _ordered_message_rows(rows)
+
+
+#: A steer row ``native_persistence`` stored without a platform id of its own: ``<turn>:input:<n>``.
+_STEERED_INPUT_ID = re.compile(r"^(.+):input:\d+$")
+#: Transient (popped by :func:`_place_by_stored_position`): the stored index of a row placed by it.
+_PLACE_BY_POSITION = "_stored_index"
+
+
+def _place_by_stored_position(rows: list[dict[str, Any]]) -> None:
+    """Order a turn's agent rows and harness notices by where SessionDB stored them.
+
+    Every agent row closes its turn (``TURN_SEQ_TERMINAL``) and a notice had no position at all, so
+    a notice steered between two agent steps sorted beside the operator row or, on a clock later than
+    the reply's, after the reply (RT-RUNTIME-NOTICE-OUTSIDE-ITS-TURN-POSITION). Inside one turn these
+    rows now take ``TURN_SEQ_TERMINAL - k`` in stored order, k counting the rows stored after it — the
+    last stays terminal, and all stay after the turn's content rows (``TURN_SEQ_CONTENT``).
+    """
+
+    by_turn: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if _PLACE_BY_POSITION in row:
+            anchor = safe_assignment_token(row.get("turn_id")) or canonical_persona_chat_turn_id(
+                row.get("client_message_id"))
+            by_turn.setdefault(anchor or "", []).append(row)
+    for anchor, members in by_turn.items():
+        members.sort(key=lambda member: member[_PLACE_BY_POSITION])
+        for after, member in enumerate(reversed(members)):
+            del member[_PLACE_BY_POSITION]
+            # MUTATION: stamp TURN_SEQ_TERMINAL for every member and test_runtime_notice_transcript's
+            # in-turn notice row reddens (the notice sorts after the reply).
+            if anchor:
+                member["turn_seq"] = TURN_SEQ_TERMINAL - after
 
 
 def _message_row(ctx: RowContext, *, session_id: str, text: str, status: str) -> dict[str, Any]:

@@ -62,8 +62,8 @@
   },
   {
    "depth": 5,
-   "lines": 122,
-   "unit": "agent_runtime/serve_gateway_auth.py|redeem_pairing_code"
+   "lines": 121,
+   "unit": "agent_runtime/serve_gateway_auth/pairing.py|redeem_pairing_code"
   },
   {
    "depth": 2,

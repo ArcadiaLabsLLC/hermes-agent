@@ -62,11 +62,13 @@ properties that keep it from rotting into an allowlist:
 from __future__ import annotations
 
 import ast
-import hashlib
 import pathlib
 from collections import defaultdict
 
 import pytest
+
+from scripts import census_pool as _pool
+from scripts import god_file_chunks as _chunks
 
 #: The two module-scoped walks are paid in the first test that reads each: the
 #: fork-wide one measured 10.1 s setup, the agent_runtime one 7.3 s, on a
@@ -107,50 +109,14 @@ _GRANDFATHERED: dict[tuple[str, ...], str] = {
 }
 
 
-def _normalize_signature(node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
-    """Erase everything a reader could rename without changing the function.
-
-    The NAME first — that is what hid every family this gate was written for.
-    But also the PARAMETER names and every annotation: ``read_model._rows``
-    and ``snapshot._rows`` had identical bodies and differed only in that one
-    of them annotated its argument ``Any`` and the other left it bare, and
-    ``paths._safe_path_token`` vs ``realm_sync._safe_token`` differed only by
-    ``str`` vs ``str | None``. A gate that hashes the signature verbatim
-    would have missed both — which is to say, would have missed the two
-    families the audit actually named.
-
-    Defaults are NOT erased: a different default is a different function.
-    """
-
-    node.name = "_"
-    node.returns = None
-    args = node.args
-    every = [
-        *args.posonlyargs,
-        *args.args,
-        *([args.vararg] if args.vararg else []),
-        *args.kwonlyargs,
-        *([args.kwarg] if args.kwarg else []),
-    ]
-    mapping: dict[str, str] = {}
-    for index, arg in enumerate(every):
-        mapping[arg.arg] = f"a{index}"
-        arg.arg = mapping[arg.arg]
-        arg.annotation = None
-    # ...and the parameter's USES in the body. Without this the gate is
-    # defeated by `def f(raw)` vs `def f(value)`, which is a rename a copier
-    # makes without thinking. Other locals are deliberately left alone: full
-    # alpha-renaming would start matching functions that merely share a shape.
-    for child in ast.walk(node):
-        if isinstance(child, ast.Name) and child.id in mapping:
-            child.id = mapping[child.id]
-        elif isinstance(child, ast.arg) and child.arg in mapping:
-            child.arg = mapping[child.arg]
-    ast.fix_missing_locations(node)
-
-
 def _module_level_functions() -> dict[str, list[tuple[str, str]]]:
-    """``body hash -> [(relative path, function name)]`` for agent_runtime."""
+    """``body hash -> [(relative path, function name)]`` for agent_runtime.
+
+    The per-file hashing is ``scripts/god_file_chunks.py::signature_hash_chunk`` (with the
+    signature normalizer and its reasons), mapped over ``scripts/census_pool.py`` so the
+    walk runs in chunks on worker processes (FH-PREPUSH-CAP-TIGHT); the groups are the
+    serial walk's, in its file order.
+    """
 
     groups: dict[str, list[tuple[str, str]]] = defaultdict(list)
     files = sorted(PACKAGE.rglob("*.py"))
@@ -158,32 +124,10 @@ def _module_level_functions() -> dict[str, list[tuple[str, str]]]:
         f"the duplicate scan found only {len(files)} files under {PACKAGE} — "
         "the gate would be vacuous"
     )
-    for path in files:
-        if "__pycache__" in path.parts:
-            continue
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-        except SyntaxError:  # pragma: no cover - a broken file is another gate's job
-            continue
-        for node in tree.body:
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            clone = ast.parse(ast.unparse(node)).body[0]
-            body = clone.body
-            if (
-                body
-                and isinstance(body[0], ast.Expr)
-                and isinstance(body[0].value, ast.Constant)
-                and isinstance(body[0].value.value, str)
-            ):
-                clone.body = body[1:]
-            rendered = "\n".join(ast.unparse(stmt) for stmt in clone.body)
-            if len(rendered.splitlines()) < _MIN_BODY_LINES:
-                continue
-            _normalize_signature(clone)
-            digest = hashlib.sha256(ast.unparse(clone).encode()).hexdigest()[:12]
-            relative = path.relative_to(HERMES_ROOT).as_posix()
-            groups[digest].append((relative, node.name))
+    relative = [p.relative_to(HERMES_ROOT).as_posix() for p in files if "__pycache__" not in p.parts]
+    for part in _pool.map_chunks(_chunks.signature_hash_chunk, relative, HERMES_ROOT, _MIN_BODY_LINES):
+        for digest, path, name in part:
+            groups[digest].append((path, name))
     return groups
 
 

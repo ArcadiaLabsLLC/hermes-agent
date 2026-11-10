@@ -2,7 +2,7 @@
 builder) and its two emitters — upsert and refresh.
 
 Plan: ``docs/agent-runtime-harness/planned/board-card-fold-2026-10-15.md``
-(S1, S2). Measured before it was built (S0, 2026-10-25): a card move acked in
+(S1, S2; the archive / restore / rebalance widening, row RT-BOARD-CARD-FOLD-ARCHIVE). Measured before it was built (S0, 2026-10-25): a card move acked in
 10–12 ms and every subscriber then received the demoted ~668 KB full core
 2.0–2.4 s later.
 """
@@ -18,6 +18,7 @@ from .emit import delta_patches_enabled, emit_state_patch
 from .models import (
     BOARD_CARD_ENTITY,
     PATCH_OP_REFRESH,
+    PATCH_OP_REMOVE,
     PATCH_OP_UPSERT,
     PATCH_VALUE_BUDGET_BYTES,
 )
@@ -72,6 +73,35 @@ def _board_card_unpublished(card: Any) -> bool | None:
             return None
         baseline = read_board_baseline(str(realm_id))
         return baseline.get(f"{board_id}:card:{card.card_id}") != board_content_hash(card)
+    except Exception:
+        return None
+
+
+def board_def_unpublished(board: Any) -> bool | None:
+    """The board ROW's ``unpublished`` flag for ``board`` as it stands —
+    ``snapshot.boards._boards_summary``'s ``board_unpublished``, reproduced.
+
+    An archive or a restore rewrites the board def's ``archived_card_ids``,
+    which is part of ``board_content_hash``, so on a realm-bound board the ROW
+    flag can flip — and no card patch carries the board row. The emitters
+    compare this before and after the write and take the accounted refresh on
+    a flip. Same posture as :func:`_board_card_unpublished`: ``None`` off-realm
+    or under an archived workspace, and best-effort (``None`` on any fault).
+    """
+
+    try:
+        from ..board_models import board_content_hash
+        from ..board_sync import read_board_baseline
+        from ..store import WorkspaceStore
+
+        workspace = WorkspaceStore().get(str(getattr(board, "workspace_id", "") or ""))
+        if getattr(workspace, "archived", False):
+            return None
+        realm_id = getattr(workspace, "realm_id", None)
+        if not realm_id:
+            return None
+        baseline = read_board_baseline(str(realm_id))
+        return baseline.get(f"{board.board_id}:board") != board_content_hash(board)
     except Exception:
         return None
 
@@ -146,6 +176,41 @@ def emit_board_card_refresh(
         entity=BOARD_CARD_ENTITY,
         entity_id=board_card_patch_id(board_id, card_id),
         op=PATCH_OP_REFRESH,
+        correlation_id=correlation_id,
+        config=config,
+    )
+
+
+def emit_board_card_remove(
+    event_log: EventLog,
+    board_id: Any,
+    card_id: Any,
+    *,
+    correlation_id: str | None = None,
+    config: AgentRuntimeConfig | None = None,
+) -> bool:
+    """Emit a ``board_card`` ``remove`` — an ARCHIVE, the board's delete.
+
+    Carries no ``changed``, like ``office_actor``'s remove, so it can never hit
+    the value budget. The fold splices the card out by id, recomputes
+    ``active_card_count``, and mirrors the board row's ``archived_card_ids``
+    ledger: append the id if absent, keep the last ``ARCHIVED_LEDGER_CAP``
+    (``board_store.files.archive_card_locked``'s own rule). That mirror is only
+    honest for an archive that WROTE the ledger entry, so the diagnostic
+    no-tombstone archive takes the refresh instead (``board_store.patches``).
+
+    Coverable only for a client that names
+    :data:`~agent_runtime.patch_coverage.BOARD_CARD_LIFECYCLE_CAPABILITY`: the
+    fielded ``board_card`` fold answers a remove with ``patch_unknown_op``.
+    """
+
+    if not delta_patches_enabled(config):
+        return False
+    return emit_state_patch(
+        event_log,
+        entity=BOARD_CARD_ENTITY,
+        entity_id=board_card_patch_id(board_id, card_id),
+        op=PATCH_OP_REMOVE,
         correlation_id=correlation_id,
         config=config,
     )

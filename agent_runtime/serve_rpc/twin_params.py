@@ -24,6 +24,7 @@ __all__ = [
 
 #: ``runtime.characters.*`` (``serve_rpc/characters.py``).
 CHARACTERS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.characters.cells": ("draft", "row"),
     "runtime.characters.list": (),
     "runtime.characters.recolour": ("draft", "from", "to"),
     "runtime.characters.status": ("draft",),
@@ -35,7 +36,12 @@ CHARACTERS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 PETS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.pets.thumb": ("slug", "url")}
 
 #: ``runtime.profiles.avatar`` (``serve_rpc/profiles.py``), a profile's avatar bytes for a remote reader.
-PROFILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.profiles.avatar": ("profile",)}
+PROFILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.profiles.avatar": ("profile",),
+    "runtime.profiles.avatar.set": ("data_base64", "expected_handle", "profile"),
+    "runtime.character.appearance.set": ("asset_reference", "expected_revision", "id", "kind", "local_sources", "mode", "operation_id", "persona_id", "portrait", "source_fingerprint"),
+    "runtime.character.portrait": ("id", "kind", "persona_id"),
+}
 
 #: ``runtime.health`` (``serve_rpc/health.py``) takes none and refuses any.
 HEALTH_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.health": ()}
@@ -50,7 +56,7 @@ CHAT_VERB_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.persona.chat.delete": ("persona_id", "persona_instance_id", "requested_by", "session_id"),
     "runtime.persona.chat.history": ("before", "limit", "session_id"),
     "runtime.persona.instance.create": (
-        "add_instance", "client_message_id", "display_name", "kill_active", "persona_id", "placement_id",
+        "add_instance", "client_message_id", "display_name", "persona_id", "placement_id",
         "realm_id", "requested_by", "session_id", "title", "workspace_id"),
 }
 

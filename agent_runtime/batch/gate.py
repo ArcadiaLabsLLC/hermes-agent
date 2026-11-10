@@ -19,7 +19,6 @@ the lane executor's red "no gate declared" receipt, never a skip.
 from __future__ import annotations
 
 import shlex
-import shutil
 import subprocess
 import sys
 import time
@@ -85,8 +84,15 @@ def gate_argv(command: str) -> list[str]:
 
     argv = shlex.split(command)
     if argv and argv[0] == "bash" and sys.platform == "win32":
-        argv[0] = str(_GIT_BASH) if _GIT_BASH.is_file() else (shutil.which("bash") or "bash")
+        argv[0] = str(_GIT_BASH) if _GIT_BASH.is_file() else _path_bash()
     return argv
+
+
+def _path_bash() -> str:
+    from hermes_platform.resolver import locate_command
+
+    resolution = locate_command("bash")
+    return resolution.command[0] if resolution.found else "bash"
 
 
 def summary_line(output: str) -> str:

@@ -30,19 +30,56 @@ fork_test_env_extend() {
   done <"$list"
 }
 
+# FH-PREPUSH-TEMP-HOME-NO-VENV: the shared test venv's default lives in the OS user's
+# REAL home, not whatever $HOME says. Lanes run `HOME=$(mktemp -d) scripts/prepush.sh`
+# to keep tests off their own home; a `$HOME/.venvs/hermes-test` default then named the
+# empty temp dir and every step went red before testing anything. Order: an explicit
+# HERMES_TEST_VENV; else `$HOME/.venvs/hermes-test` when it exists (an unswapped HOME,
+# or a deliberate one that carries a venv); else the same path under the account's home
+# from the password database (Git Bash: USERPROFILE), which no HOME swap moves.
+fork_real_user_home() {
+  if command -v cygpath >/dev/null 2>&1 && [ -n "${USERPROFILE:-}" ]; then
+    cygpath -u "$USERPROFILE"
+    return
+  fi
+  local entry
+  entry="$(getent passwd "$(id -u)" 2>/dev/null)" && [ -n "$entry" ] && {
+    entry="${entry#*:*:*:*:*:}"
+    printf '%s\n' "${entry%%:*}"
+    return
+  }
+  # No getent (macOS): bash's ~name asks getpwnam, never $HOME; the name is checked first.
+  local user
+  user="$(id -un 2>/dev/null)" || return 0
+  case "$user" in "" | *[!A-Za-z0-9._-]*) return 0 ;; esac
+  eval "printf '%s\\n' ~$user"
+}
+fork_default_test_venv() {
+  if [ -n "${HERMES_TEST_VENV:-}" ]; then
+    printf '%s\n' "$HERMES_TEST_VENV"
+    return
+  fi
+  local real
+  if [ -d "$HOME/.venvs/hermes-test" ] || ! real="$(fork_real_user_home)" || [ -z "$real" ]; then
+    printf '%s\n' "$HOME/.venvs/hermes-test"
+  else
+    printf '%s\n' "$real/.venvs/hermes-test"
+  fi
+}
+
 # Fork (owner ruling 2026-10-15): on a workstation, no HERMES_PYTHON means the
-# shared test venv (HERMES_TEST_VENV, default ~/.venvs/hermes-test), never the
+# shared test venv (fork_default_test_venv: HERMES_TEST_VENV, else ~/.venvs/hermes-test), never the
 # PM test environment activation would sync inside the operator's live Hermes
 # home. Missing shared venv = refuse. CI keeps upstream's activation path.
 fork_shared_test_venv_fallback() {
   if [ -z "${__HERMES_ACTIVATED:-}" ] && ! _has_pytest "${HERMES_PYTHON:-}" && [ -z "${CI:-}" ]; then
-    _SHARED_VENV="${HERMES_TEST_VENV:-$HOME/.venvs/hermes-test}"
+    _SHARED_VENV="$(fork_default_test_venv)"
     for _candidate in "$_SHARED_VENV/Scripts/python.exe" "$_SHARED_VENV/bin/python"; do
       if _has_pytest "$_candidate"; then HERMES_PYTHON="$_candidate"; break; fi
     done
     if ! _has_pytest "${HERMES_PYTHON:-}"; then
       echo "error: no HERMES_PYTHON and no shared test venv with pytest at $_SHARED_VENV" >&2
-      echo "       create it, or set HERMES_PYTHON / HERMES_TEST_VENV (Running the tests.md)" >&2
+      echo "       create it, or set HERMES_PYTHON to a python with pytest, or HERMES_TEST_VENV to its venv (Running the tests.md)" >&2
       exit 1
     fi
     fork_refuse_unbuilt_shared_venv "$HERMES_PYTHON" "$_SHARED_VENV" || exit 1
@@ -302,4 +339,44 @@ if added:
     cache.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print("▶ seeded heavy-file durations: " + ", ".join(sorted(added)))
 PY
+}
+
+# FH-PREPUSH-GATES-COLD-BYTECODE-DEADLINE: run_tests.sh's whole-tree `compileall`, narrowed.
+# In a fresh worktree the cold precompile alone outran prepush's 120 s gates deadline. Two cuts:
+#  * Never the files pytest REWRITES (``test_*.py``, ``*_test.py``, ``conftest.py``): pytest
+#    loads those through its assertion-rewriting importer and its own ``-pytest-`` pyc, so
+#    compileall's pyc for them is never read. 8.2k of 12.8k tracked files; cold 42.9 s -> 21.4 s.
+#  * Not at all for a SMALL run that names only test files (at most
+#    HERMES_TEST_PRECOMPILE_MAX_FILES, default 64): each process compiles only what it imports
+#    and Python caches every module on first import, so a whole-tree pass costs a small run far
+#    more than it saves. HERMES_TEST_PRECOMPILE=always|never overrides the choice.
+# Sets _fork_precompile_owned=1 so upstream's own whole-tree pass (kept verbatim) is skipped.
+_is_small_file_run() {
+  local limit="${HERMES_TEST_PRECOMPILE_MAX_FILES:-64}" count=0 skip_next=0 arg
+  for arg in "$@"; do
+    if [ "$skip_next" = 1 ]; then skip_next=0; continue; fi
+    case "$arg" in
+      --files|--files=*|--files-from|--files-from=*|--paths|--paths=*|--slice|--slice=*|--generate-slices) return 1 ;;
+      -j|--jobs|--file-timeout|--file-retries|-k|-m|-p|-o|-c|-r|-W) skip_next=1; continue ;;
+      -*) continue ;;
+    esac
+    case "$arg" in *.py) [ -f "$arg" ] || return 1 ;; *) return 1 ;; esac
+    count=$((count + 1))
+  done
+  [ "$count" -gt 0 ] && [ "$count" -le "$limit" ]
+}
+fork_bytecode_precompile() {
+  local precompile
+  case "${HERMES_TEST_PRECOMPILE:-auto}" in
+    always) precompile=1 ;;
+    never) precompile=0 ;;
+    *) if _is_small_file_run "$@"; then precompile=0; else precompile=1; fi ;;
+  esac
+  if [ "$precompile" = 1 ]; then
+    echo "▶ pre-compiling bytecode cache"
+    "$PYTHON" -m compileall -q -j 0 -- $(git ls-files '*.py' | grep -Ev '(^|/)(test_[^/]*|[^/]*_test|conftest)\.py$') >/dev/null 2>&1 || true
+  else
+    echo "▶ bytecode cache: a small file run compiles what it imports (no whole-tree pass)"
+  fi
+  _fork_precompile_owned=1
 }

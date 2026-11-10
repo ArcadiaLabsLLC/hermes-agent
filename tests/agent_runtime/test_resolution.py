@@ -134,3 +134,24 @@ def test_runtime_resolution_scope_is_thread_local(tmp_path):
         resolved = list(pool.map(resolve_in_scope, roots))
 
     assert resolved == roots
+
+
+def test_a_bound_worker_config_answers_store_root_without_opening_the_file(tmp_path, monkeypatch):
+    """A managed worker's frozen config is the only config it reads (FH-W1108C-WAVE-END-REDS:
+    a bypass worker's plugin load opened the user's config.yaml through ``store_root``)."""
+    from agent import safe_worker_policy
+
+    home, frozen, on_disk = tmp_path / "home", tmp_path / "frozen-root", tmp_path / "file-root"
+    home.mkdir()
+    (home / "config.yaml").write_text(f"agent_runtime:\n  store_root: '{on_disk}'\n", encoding="utf-8")
+    clear_parse_cache()
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.delenv("HERMES_AGENT_RUNTIME_ROOT", raising=False)
+    monkeypatch.setattr(safe_worker_policy, "worker_config_snapshot",
+                        lambda: {"agent_runtime": {"store_root": str(frozen)}})
+
+    resolution = resolve_runtime()
+
+    assert (resolution.layer, resolution.store_root) == ("config", frozen)
+    # Positive control: a caller-supplied env resolves that home from its own file.
+    assert resolve_runtime({"HERMES_HOME": str(home)}).store_root == on_disk

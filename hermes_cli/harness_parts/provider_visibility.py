@@ -6,7 +6,10 @@ every probe here is failure-isolated.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+from pathlib import Path
 from typing import Optional
 
 from agent_runtime.cli_format import emit_json
@@ -33,6 +36,7 @@ __all__ = [
     "_provider_visibility_environment",
     "_record_visibility_block",
     "build_provider_visibility",
+    "refused_tokens",
 ]
 
 logger = logging.getLogger(__name__)
@@ -110,6 +114,99 @@ def _credential_token_preview(entry) -> Optional[str]:
         return f"…{value[-_TOKEN_PREVIEW_CHARS:]}"
     except Exception:
         return None
+
+
+#: The health states that say a TOKEN was refused, not a window spent: a dead
+#: grant, or a 401/403 the pool classified ``auth failed``. A 429 is a fact about
+#: the account's window and never makes a sibling profile's copy read expired.
+_REFUSED_STATES = {"dead": 2, "auth_failed": 1}
+
+
+def _token_digest(token) -> Optional[str]:
+    """sha256 of a credential, compared in memory only and never emitted."""
+    if not isinstance(token, str) or not token.strip():
+        return None
+    return hashlib.sha256(token.strip().encode("utf-8")).hexdigest()
+
+
+def _namespace_auth_stores() -> list[tuple[str, dict]]:
+    """``(profile, auth.json)`` for the namespace root and every profile under it.
+
+    Read as plain JSON (never ``load_pool``, which binds to ONE home and may
+    write); an unreadable store is skipped. A host secure store (the phone
+    edition) has no sibling profiles on disk, so it answers nothing.
+    """
+    from agent_runtime.host_store import secret_files
+    from hermes_constants import get_default_hermes_root, get_hermes_home
+
+    if secret_files.bound():
+        return []
+    root = get_default_hermes_root(home=get_hermes_home())
+    paths: list[tuple[str, Path]] = [("root", root / "auth.json")]
+    profiles = root / "profiles"
+    if profiles.is_dir():
+        paths += [(child.name, child / "auth.json") for child in sorted(profiles.iterdir()) if child.is_dir()]
+    stores = []
+    for profile, path in paths:
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(raw, dict) and isinstance(raw.get("credential_pool"), dict):
+            stores.append((profile, raw))
+    return stores
+
+
+def refused_tokens(provider: str, stores: Optional[list[tuple[str, dict]]] = None) -> dict[str, dict]:
+    """``{token digest: {state, code, profile}}`` — the worst refusal any profile
+    under the namespace root recorded for each of ``provider``'s tokens
+    (RT-CONNECTIONS-SHOWS-EXPIRED-LOGIN-CONNECTED).
+
+    One token copied into several profiles' ``.env`` is one credential: the pool
+    that tried it and was refused is the only one that knows, so every other
+    profile's pool kept reading it healthy. The state is read through
+    [_credential_health], the one classification of a pooled entry.
+    """
+    from agent.credential_pool import PooledCredential
+
+    worst: dict[str, dict] = {}
+    for profile, raw in _namespace_auth_stores() if stores is None else stores:
+        entries = raw["credential_pool"].get(provider)
+        for payload in entries if isinstance(entries, list) else ():
+            if not isinstance(payload, dict):
+                continue
+            digest = _token_digest(payload.get("access_token"))
+            if digest is None:
+                continue
+            try:
+                health = _credential_health(PooledCredential.from_dict(provider, payload))
+            except Exception:
+                continue
+            rank = _REFUSED_STATES.get(health["state"], 0)
+            held = worst.get(digest)
+            if rank and (held is None or rank > _REFUSED_STATES[held["state"]]):
+                worst[digest] = {"state": health["state"], "code": health.get("code"), "profile": profile}
+    return worst
+
+
+def _login_expired(health: dict, refusal: dict) -> dict:
+    """A static env token some profile's pool refused: expired, whatever this pool read."""
+    return {
+        "state": "dead",
+        "code": refusal.get("code") if refusal.get("code") is not None else health.get("code"),
+        "reason": "login_expired",
+        "retry_at": None,
+        "message": f"Login expired — sign in again (refused in profile {refusal['profile']})",
+    }
+
+
+def _folded_health(entry, refused: dict[str, dict]) -> dict:
+    """[_credential_health], with an ``env:*`` token any sibling profile refused read as expired."""
+    health = _credential_health(entry)
+    if not str(getattr(entry, "source", "") or "").startswith("env:"):
+        return health
+    refusal = refused.get(_token_digest(getattr(entry, "access_token", None)) or "")
+    return _login_expired(health, refusal) if refusal else health
 
 
 def _record_visibility_block(payload: dict, name: str, builder) -> None:
@@ -192,6 +289,19 @@ def _lift_reopened_cooldowns(pool, entries: list, provider: str = "") -> list:
         return entries
 
 
+def _credential_source(provider: str) -> Optional[dict]:
+    """``{chosen, effective, sources}`` for a provider ``PROVIDER_CREDENTIAL_SOURCES`` declares, else
+    None — the ONE fact a client reads for "which stored credential do turns spend", so it never
+    infers it from pool rows (the unchosen family can be pruned or benched). A raise reads as None:
+    it never breaks the credential payload."""
+    try:
+        from agent_runtime.provider_credential_source import credential_source_block
+
+        return credential_source_block(provider)
+    except Exception:
+        return None
+
+
 def build_provider_visibility() -> dict:
     """Typed, machine-readable snapshot of every credential pool — the contract
     the Launcher's provider/model surfaces consume instead of scraping the
@@ -209,6 +319,7 @@ def build_provider_visibility() -> dict:
     from hermes_cli.provider_login_catalog import provider_disabled
 
     providers_out = []
+    stores: Optional[list] = None
     for provider in provider_ids:
         if provider_disabled(provider):
             continue  # never even read a switched-off provider's credential source
@@ -218,6 +329,13 @@ def build_provider_visibility() -> dict:
             continue
         entries = _lift_reopened_cooldowns(pool, entries, provider)
         current = pool.peek()
+        refused: dict[str, dict] = {}
+        if any(str(getattr(entry, "source", "") or "").startswith("env:") for entry in entries):
+            try:
+                stores = _namespace_auth_stores() if stores is None else stores
+                refused = refused_tokens(provider, stores)
+            except Exception:  # the fold only darkens a row; it never breaks the payload
+                logger.warning("provider_token_fold_failed provider=%s", provider, exc_info=True)
         credentials = []
         for idx, entry in enumerate(entries, start=1):
             credentials.append(
@@ -227,7 +345,7 @@ def build_provider_visibility() -> dict:
                     "auth_type": entry.auth_type,
                     "source": display_source(entry.source),
                     "selected": current is not None and entry.id == current.id,
-                    "health": _credential_health(entry),
+                    "health": _folded_health(entry, refused),
                     # Last-4 only, matching the dashboard's existing preview
                     # rule. Enough to tell two keys apart in a UI; never enough
                     # to use. See _credential_token_preview for why this is the
@@ -235,7 +353,8 @@ def build_provider_visibility() -> dict:
                     "token_preview": _credential_token_preview(entry),
                 }
             )
-        providers_out.append({"id": provider, "credentials": credentials})
+        providers_out.append({"id": provider, "credentials": credentials,
+                              "credential_source": _credential_source(provider)})
     payload: dict = {
         "schema": "hermes.provider_visibility/v2",
         "providers": providers_out,
@@ -301,8 +420,22 @@ def _provider_visibility_api_keys() -> list[dict]:
         {"name": name, "configured": bool(first_env_value(env_ref))}
         for name, env_ref in status_api_keys().items()
     ]
-    out.append({"name": "Anthropic", "configured": bool(get_anthropic_key())})
+    key = get_anthropic_key()
+    out.append({"name": "Anthropic", "configured": bool(key), "expired": _anthropic_key_refused(key)})
     return out
+
+
+def _anthropic_key_refused(key) -> bool:
+    """True when some profile under the root recorded the resolved Anthropic key refused —
+    presence alone read a May env token "configured" while every turn on it failed."""
+    digest = _token_digest(key)
+    if digest is None:
+        return False
+    try:
+        return digest in refused_tokens("anthropic")
+    except Exception:
+        logger.warning("provider_token_fold_failed provider=anthropic", exc_info=True)
+        return False
 
 
 def _provider_visibility_auth_logins() -> list[dict]:

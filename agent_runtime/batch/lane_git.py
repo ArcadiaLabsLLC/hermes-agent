@@ -18,6 +18,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..work_store.checked_out import advance
 from ..work_store.reasons import Reason, WorkRefused
 from .machine import Batch, LaneRecord, LaneState
 from .planner import LaneKind
@@ -129,6 +130,12 @@ class LaneGit:
         return self._run(list(args), repo=repo, encoding="utf-8", errors="replace", timeout=300,
                          stdin=subprocess.DEVNULL)
 
+    def _advance_git(self, args: Sequence[str], *, repo: Path,
+                     config: Sequence[str] = ()) -> subprocess.CompletedProcess[str]:
+        """``checked_out.advance``'s git: keyword ``repo`` and ``config`` pairs."""
+        return self._run(list(args), repo=repo, config=list(config), encoding="utf-8", errors="replace",
+                         timeout=300, stdin=subprocess.DEVNULL)
+
     def _must(self, args: Sequence[str], reason: Reason, repo: Path) -> str:
         done = self._git(args, repo)
         if done.returncode != 0:
@@ -201,8 +208,12 @@ class LaneGit:
 
         target = f"refs/heads/{site.clone.default_branch}"
         if site.clone.local:
+            # Through the worktree that has the branch checked out (the default brain's own checkout), never an
+            # ``update-ref`` under it: that left its index and files at the old tip, and the next Work write
+            # refused ``worktree_dirty`` (RT-WORK-DEFAULT-BRAIN-CHECKOUT-STALE-INDEX).
             old = self._must(["rev-parse", target], Reason.BRANCH_MISSING, site.clone.path).strip()
-            self._must(["update-ref", target, head, old], Reason.PUSH_REFUSED, site.clone.path)
+            if not advance(self._advance_git, site.clone.path, site.clone.default_branch, head, old):
+                raise WorkRefused(Reason.PUSH_REFUSED, f"{target} moved during the landing; land again")
             return
         url = qa_blocked_push_url(
             lambda: str(self._git(["remote", "get-url", "--push", "origin"], site.worktree).stdout or ""))

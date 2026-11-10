@@ -41,6 +41,11 @@ _REFUSAL_FAMILIES = {
     "too_many_pending": "pairing_codes_pending",
     "locked_out": "pairing_locked_out",
     "invalid_tier": "invalid_payload",
+    # RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL: a channel code's two preconditions.
+    "invalid_kind": "invalid_payload",
+    "invalid_bound_instances": "invalid_payload",
+    "bound_instances_required": "invalid_payload",
+    "invalid_client_scope": "invalid_payload",
     "invalid_device_id": "invalid_payload",
     "invalid_code": "invalid_payload",
     "unknown_device": "not_found",

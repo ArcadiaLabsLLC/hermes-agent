@@ -32,8 +32,9 @@ def _runtime_persona_instance_open_chat(
     """Open — or mint — the chat root a persona instance is bound to.
 
     Params: ``persona_id`` (required); ``persona_instance_id``, ``session_id``,
-    ``new_session``, ``kill_active``, ``idempotency_key`` (alias
-    ``client_message_id``), ``requested_by``, ``correlation_id`` (optional).
+    ``new_session``, ``idempotency_key`` (alias
+    ``client_message_id``), ``requested_by``, ``correlation_id`` (optional);
+    ``kill_active`` is refused ``kill_active_retired``.
 
     Result: the CLI verb's own success row, verbatim. It carries ``session_id``
     and ``persona_instance_id`` on BOTH arms — which is not a coincidence but
