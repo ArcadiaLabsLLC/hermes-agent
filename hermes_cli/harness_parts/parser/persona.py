@@ -400,6 +400,77 @@ def add_mission_chat(subs) -> None:
     """``hermes harness mission-chat``."""
     mission_chat = subs.add_parser("mission-chat", help="Canonical Mission Control chat path")
     mission_chat_subs = mission_chat.add_subparsers(dest="mission_chat_command")
+    _add_mission_chat_message(mission_chat_subs)
+    mission_chat_queue_skill = mission_chat_subs.add_parser("queue-skill", help="Load a skill on the next Mission Control chat turn")
+    mission_chat_queue_skill.add_argument("--persona", dest="persona_id", required=True)
+    mission_chat_queue_skill.add_argument("--persona-instance-id", default=None)
+    mission_chat_queue_skill.add_argument("--session-id", required=True)
+    mission_chat_queue_skill.add_argument("--skill", action="append", default=[])
+    mission_chat_queue_skill.add_argument("--skills", nargs="+", default=[])
+    mission_chat_queue_skill.add_argument("--json", action="store_true")
+    mission_chat_queue_skill.set_defaults(func=chat_coordinator._cmd_mission_chat_queue_skill)
+    mission_chat_steer = mission_chat_subs.add_parser("steer", help="Steer an active streamed Mission Control chat turn")
+    mission_chat_steer.add_argument("--session-id", required=True)
+    mission_chat_steer.add_argument("--message", required=True)
+    mission_chat_steer.add_argument("--client-message-id", required=True)
+    mission_chat_steer.add_argument("--persona", dest="persona_id", default=None)
+    mission_chat_steer.add_argument("--persona-instance-id", default=None)
+    mission_chat_steer.add_argument("--json", action="store_true")
+    mission_chat_steer.set_defaults(func=chat_coordinator._cmd_mission_chat_steer)
+    mission_chat_resolve = mission_chat_subs.add_parser(
+        "turn-resolve", help="Resolve an uncertain turn or dismiss an interruption"
+    )
+    mission_chat_resolve.add_argument("--session-id", required=True)
+    mission_chat_resolve.add_argument("--client-message-id", required=True)
+    mission_chat_resolve.add_argument("--turn-id", required=True)
+    mission_chat_resolve.add_argument("--persona-instance-id", default=None)
+    from agent_runtime.mission_chat_turns.states import TurnResolution
+    mission_chat_resolve.add_argument("--action", choices=list(TurnResolution), required=True)
+    mission_chat_resolve.add_argument("--json", action="store_true")
+    mission_chat_resolve.set_defaults(func=chat_tickets_commands._cmd_mission_chat_turn_resolve)
+    _add_mission_chat_audit(mission_chat_subs)
+    # Read-only adoption readout for the clarify-token binding. Registered with
+    # the NON-mutating stage42 args on purpose: it never mints, settles, or
+    # sweeps, so it has no --dry-run to honor and nothing to confirm. Whether
+    # agents are echoing the token is answered from state the binding already
+    # records, with no new event kinds (telemetry is not the EventLog here).
+    mission_chat_clarify_tickets = mission_chat_subs.add_parser(
+        "clarify-tickets",
+        help="Clarify-token adoption readout: live tickets with state/age/session binding, and the bound_via histogram",
+    )
+    _add_stage42_global_args(
+        mission_chat_clarify_tickets, controls=frozenset({"limit", "sort"})
+    )
+    mission_chat_clarify_tickets.add_argument("--session-id", default=None, help="Only list tickets bound to this chat root (counts still cover the whole store)")
+    mission_chat_clarify_tickets.add_argument("--state", default=None, choices=["open", "answered", "rebound"], help="Only list tickets in this lifecycle state (counts still cover the whole store)")
+    mission_chat_clarify_tickets.set_defaults(func=chat_tickets_commands._cmd_mission_chat_clarify_tickets)
+    # The agent-to-agent delivery QUEUE, as opposed to the chat turns it forges
+    # into. Repair verbs only: the drain owns the normal path, and this group
+    # exists for the rows it gave up on.
+    mission_chat_dispatch = mission_chat_subs.add_parser(
+        "dispatch", help="Operate the agent-to-agent dispatch delivery queue"
+    )
+    mission_chat_dispatch_subs = mission_chat_dispatch.add_subparsers(
+        dest="mission_chat_dispatch_command"
+    )
+    mission_chat_dispatch_redeliver = mission_chat_dispatch_subs.add_parser(
+        "redeliver",
+        help=(
+            "Re-arm a DROPPED dispatch reply for another delivery pass (dropped -> "
+            "pending, attempts 0, previous drop reason cleared)"
+        ),
+    )
+    mission_chat_dispatch_redeliver.add_argument(
+        "dispatch_id", help="The dispatch handle, e.g. dispatch-2540634d5cf3"
+    )
+    mission_chat_dispatch_redeliver.add_argument("--json", action="store_true")
+    mission_chat_dispatch_redeliver.set_defaults(
+        func=chat_tickets_commands._cmd_mission_chat_dispatch_redeliver
+    )
+
+
+def _add_mission_chat_message(mission_chat_subs) -> None:
+    """``hermes harness mission-chat message`` — one Mission Control chat turn."""
     mission_chat_message = mission_chat_subs.add_parser("message", help="Send one Mission Control chat turn through the normal Hermes profile context")
     mission_chat_message.add_argument("--persona", dest="persona_id", required=True)
     mission_chat_message.add_argument("--persona-instance-id", default=None)
@@ -485,72 +556,6 @@ def add_mission_chat(subs) -> None:
     mission_chat_message.add_argument("--json", action="store_true")
     mission_chat_message.add_argument("--in-process", dest="in_process", action="store_true", help="Run the turn in THIS process with this shell's home and credentials instead of handing it to the live serve (the default whenever a serve is live for the runtime root)")
     mission_chat_message.set_defaults(func=chat_serve_route.cmd_mission_chat_send)
-    mission_chat_queue_skill = mission_chat_subs.add_parser("queue-skill", help="Load a skill on the next Mission Control chat turn")
-    mission_chat_queue_skill.add_argument("--persona", dest="persona_id", required=True)
-    mission_chat_queue_skill.add_argument("--persona-instance-id", default=None)
-    mission_chat_queue_skill.add_argument("--session-id", required=True)
-    mission_chat_queue_skill.add_argument("--skill", action="append", default=[])
-    mission_chat_queue_skill.add_argument("--skills", nargs="+", default=[])
-    mission_chat_queue_skill.add_argument("--json", action="store_true")
-    mission_chat_queue_skill.set_defaults(func=chat_coordinator._cmd_mission_chat_queue_skill)
-    mission_chat_steer = mission_chat_subs.add_parser("steer", help="Steer an active streamed Mission Control chat turn")
-    mission_chat_steer.add_argument("--session-id", required=True)
-    mission_chat_steer.add_argument("--message", required=True)
-    mission_chat_steer.add_argument("--client-message-id", required=True)
-    mission_chat_steer.add_argument("--persona", dest="persona_id", default=None)
-    mission_chat_steer.add_argument("--persona-instance-id", default=None)
-    mission_chat_steer.add_argument("--json", action="store_true")
-    mission_chat_steer.set_defaults(func=chat_coordinator._cmd_mission_chat_steer)
-    mission_chat_resolve = mission_chat_subs.add_parser(
-        "turn-resolve", help="Resolve an uncertain turn or dismiss an interruption"
-    )
-    mission_chat_resolve.add_argument("--session-id", required=True)
-    mission_chat_resolve.add_argument("--client-message-id", required=True)
-    mission_chat_resolve.add_argument("--turn-id", required=True)
-    mission_chat_resolve.add_argument("--persona-instance-id", default=None)
-    from agent_runtime.mission_chat_turns.states import TurnResolution
-    mission_chat_resolve.add_argument("--action", choices=list(TurnResolution), required=True)
-    mission_chat_resolve.add_argument("--json", action="store_true")
-    mission_chat_resolve.set_defaults(func=chat_tickets_commands._cmd_mission_chat_turn_resolve)
-    _add_mission_chat_audit(mission_chat_subs)
-    # Read-only adoption readout for the clarify-token binding. Registered with
-    # the NON-mutating stage42 args on purpose: it never mints, settles, or
-    # sweeps, so it has no --dry-run to honor and nothing to confirm. Whether
-    # agents are echoing the token is answered from state the binding already
-    # records, with no new event kinds (telemetry is not the EventLog here).
-    mission_chat_clarify_tickets = mission_chat_subs.add_parser(
-        "clarify-tickets",
-        help="Clarify-token adoption readout: live tickets with state/age/session binding, and the bound_via histogram",
-    )
-    _add_stage42_global_args(
-        mission_chat_clarify_tickets, controls=frozenset({"limit", "sort"})
-    )
-    mission_chat_clarify_tickets.add_argument("--session-id", default=None, help="Only list tickets bound to this chat root (counts still cover the whole store)")
-    mission_chat_clarify_tickets.add_argument("--state", default=None, choices=["open", "answered", "rebound"], help="Only list tickets in this lifecycle state (counts still cover the whole store)")
-    mission_chat_clarify_tickets.set_defaults(func=chat_tickets_commands._cmd_mission_chat_clarify_tickets)
-    # The agent-to-agent delivery QUEUE, as opposed to the chat turns it forges
-    # into. Repair verbs only: the drain owns the normal path, and this group
-    # exists for the rows it gave up on.
-    mission_chat_dispatch = mission_chat_subs.add_parser(
-        "dispatch", help="Operate the agent-to-agent dispatch delivery queue"
-    )
-    mission_chat_dispatch_subs = mission_chat_dispatch.add_subparsers(
-        dest="mission_chat_dispatch_command"
-    )
-    mission_chat_dispatch_redeliver = mission_chat_dispatch_subs.add_parser(
-        "redeliver",
-        help=(
-            "Re-arm a DROPPED dispatch reply for another delivery pass (dropped -> "
-            "pending, attempts 0, previous drop reason cleared)"
-        ),
-    )
-    mission_chat_dispatch_redeliver.add_argument(
-        "dispatch_id", help="The dispatch handle, e.g. dispatch-2540634d5cf3"
-    )
-    mission_chat_dispatch_redeliver.add_argument("--json", action="store_true")
-    mission_chat_dispatch_redeliver.set_defaults(
-        func=chat_tickets_commands._cmd_mission_chat_dispatch_redeliver
-    )
 
 
 def add_persona_instance(subs) -> None:

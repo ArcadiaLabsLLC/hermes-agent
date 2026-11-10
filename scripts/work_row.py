@@ -376,53 +376,64 @@ def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, 
     return EXIT_GIT_FAILED
 
 
+def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, str]) -> list[Path]:
+    """Archive *args.row_id*, wake its dependents and step its task; the notes it rewrote."""
+    payload = close_payload(args)
+    closed = find(parse_note(text, slot="hermes", note=str(note)), args.row_id)
+    texts = {path: path.read_bytes().decode("utf-8") for path in queue_notes(repo, None)}
+    siblings = sibling_rows(repo)
+    if payload["outcome"] == OutcomeKind.DONE:
+        refuse_parked_task(closed, _brains(texts, siblings))
+    closed_by_owner = payload["outcome"] == OutcomeKind.CLOSED
+    how = OutcomeKind.CLOSED.value if closed_by_owner else f"{payload['outcome']} {payload['commit']}"
+    before = {**texts, note: text}
+    texts[note], _ = archive_row(repo, note, text, args.row_id, args.who, payload, archives)
+    woken: dict[Path, list[str]] = {}
+    if not args.no_wake:
+        for path, current in texts.items():
+            after, ids = wake_dependents(current, args.row_id, payload["date"], how)
+            if ids:
+                texts[path] = after
+                woken[path] = ids
+    said = task_step(repo, closed, [i for ids in woken.values() for i in ids], texts, archives, payload,
+                     siblings, args.who, how)
+    touched = [path for path in texts if texts[path] != before.get(path)]
+    refuse_task_defects(repo, {path: (before[path], texts[path]) for path in touched}, texts, siblings)
+    # The archives first: a failed write must never lose a row.
+    for archive, archive_text in archives.items():
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        archive.write_bytes(archive_text.encode("utf-8"))
+    for path in touched:
+        path.write_bytes(texts[path].encode("utf-8"))
+    for ids in woken.values():
+        for woke in ids:
+            print(f"woke `{woke}`: READY (it waited on `{args.row_id}`)")
+    for line in said:
+        print(line)
+    return touched
+
+
+def _apply_edit(repo: Path, note: Path, text: str, args) -> None:
+    """Every operation but close: one row of *note* rewritten in place."""
+    if COMMANDS[args.command] is Op.CLAIM:
+        refuse_claim_of_parked(repo, note, text, args.row_id)
+    new = edited_text(text, args)
+    others = {path: path.read_bytes().decode("utf-8") for path in queue_notes(repo, None) if path != note}
+    refuse_task_defects(repo, {note: (text, new)}, others, sibling_rows(repo))
+    note.write_bytes(new.encode("utf-8"))
+
+
 def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     repo = Path(args.repo).resolve()
+    archives: dict[Path, str] = {}
+    touched: list[Path] = []
     try:
         note, text = _note_and_text(repo, args)
-        archives: dict[Path, str] = {}
-        touched: list[Path] = []
         if COMMANDS[args.command] is Op.CLOSE:
-            payload = close_payload(args)
-            closed = find(parse_note(text, slot="hermes", note=str(note)), args.row_id)
-            texts = {path: path.read_bytes().decode("utf-8") for path in queue_notes(repo, None)}
-            siblings = sibling_rows(repo)
-            if payload["outcome"] == OutcomeKind.DONE:
-                refuse_parked_task(closed, _brains(texts, siblings))
-            closed_by_owner = payload["outcome"] == OutcomeKind.CLOSED
-            how = OutcomeKind.CLOSED.value if closed_by_owner else f"{payload['outcome']} {payload['commit']}"
-            before = {**texts, note: text}
-            texts[note], _ = archive_row(repo, note, text, args.row_id, args.who, payload, archives)
-            woken: dict[Path, list[str]] = {}
-            if not args.no_wake:
-                for path, current in texts.items():
-                    after, ids = wake_dependents(current, args.row_id, payload["date"], how)
-                    if ids:
-                        texts[path] = after
-                        woken[path] = ids
-            said = task_step(repo, closed, [i for ids in woken.values() for i in ids], texts, archives, payload,
-                             siblings, args.who, how)
-            touched = [path for path in texts if texts[path] != before.get(path)]
-            refuse_task_defects(repo, {path: (before[path], texts[path]) for path in touched}, texts, siblings)
-            # The archives first: a failed write must never lose a row.
-            for archive, archive_text in archives.items():
-                archive.parent.mkdir(parents=True, exist_ok=True)
-                archive.write_bytes(archive_text.encode("utf-8"))
-            for path in touched:
-                path.write_bytes(texts[path].encode("utf-8"))
-            for ids in woken.values():
-                for woke in ids:
-                    print(f"woke `{woke}`: READY (it waited on `{args.row_id}`)")
-            for line in said:
-                print(line)
+            touched = _apply_close(repo, note, text, args, archives)
         else:
-            if COMMANDS[args.command] is Op.CLAIM:
-                refuse_claim_of_parked(repo, note, text, args.row_id)
-            new = edited_text(text, args)
-            others = {path: path.read_bytes().decode("utf-8") for path in queue_notes(repo, None) if path != note}
-            refuse_task_defects(repo, {note: (text, new)}, others, sibling_rows(repo))
-            note.write_bytes(new.encode("utf-8"))
+            _apply_edit(repo, note, text, args)
     except WorkRefused as refusal:
         print(f"refused: {refusal.reason.value} {refusal.detail}".rstrip(), file=sys.stderr)
         return EXIT_REFUSED
