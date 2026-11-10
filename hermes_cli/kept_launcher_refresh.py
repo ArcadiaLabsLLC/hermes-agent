@@ -59,4 +59,20 @@ def _remint_cmd(name: str, root: Path, local: Path, python: Path) -> Path | None
     script = _launchers._launcher_script(name, root, None)
     encoded = base64.b64encode(script.encode("utf-8")).decode("ascii")
     body = f'@echo off\r\n"{python}" -I -c "import base64; exec(base64.b64decode(\'{encoded}\'))" %*\r\n'
-    return _launchers._write_atomic(local / f"{name}.cmd", lambda p: p.write_text(body, encoding="utf-8"))
+    return _replace_file(local / f"{name}.cmd", body)
+
+
+def _replace_file(target: Path, body: str) -> Path | None:
+    """*target* holding *body*, swapped in whole so a starting process never reads half a launcher."""
+    import contextlib
+    import os
+
+    staged = target.with_name(f"{target.name}.refresh.{os.getpid()}")
+    try:
+        staged.write_text(body, encoding="utf-8")
+        os.replace(staged, target)
+    except OSError:
+        with contextlib.suppress(OSError):
+            staged.unlink()
+        return None
+    return target

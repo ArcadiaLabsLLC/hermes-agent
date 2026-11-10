@@ -115,3 +115,25 @@ def test_an_obsolete_kept_exe_is_reminted_on_its_own_interpreter(tmp_path, monke
     assert _launchers._launcher_python(stale) == default_python
     with ZipFile(stale) as archive:
         assert archive.read("__main__.py").decode() == _launchers._launcher_script("hermes", repo.resolve(), None)
+
+
+def test_a_reminted_cmd_replaces_the_old_file_whole_and_leaves_no_staging(tmp_path):
+    """The ``.cmd`` re-mint writes its own file (FH-MAIN-RED-IMPORT-LAYERS-KEPT-LAUNCHER: no reach
+    into upstream's private ``_write_atomic``). Runs on every OS: the write is plain text.
+
+    Killing mutation (2026-11-10): drop ``os.replace`` in ``_replace_file`` -> red (the old
+    script stays and the staged copy is left beside it)."""
+    from hermes_cli.kept_launcher_refresh import _remint_cmd
+
+    repo = _make_repo(tmp_path)
+    local = tmp_path / "bin"
+    local.mkdir()
+    python = tmp_path / "python.exe"
+    (local / "hermes.cmd").write_text("@echo off\r\nrem october\r\n", encoding="utf-8")
+
+    written = _remint_cmd("hermes", repo, local, python)
+
+    assert written == local / "hermes.cmd"
+    assert f'"{python}" -I -c' in written.read_text(encoding="utf-8")
+    assert _embedded_script(written) == _launchers._launcher_script("hermes", repo, None)
+    assert sorted(p.name for p in local.iterdir()) == ["hermes.cmd"]

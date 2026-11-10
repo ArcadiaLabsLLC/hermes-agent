@@ -66,6 +66,7 @@
   "gateway/hosted_room_limits.py|gateway.hosted_room_discussion|_thread_messages",
   "hermes_cli/harness_parts/pets_commands.py|agent.pet.render|_frame_is_blank",
   "hermes_cli/kept_launcher_refresh.py|hermes_cli._launchers|_launcher_python",
+  "hermes_cli/kept_launcher_refresh.py|hermes_cli._launchers|_launcher_script",
   "hermes_cli/plugins_declared_cli.py|hermes_cli.plugins|_get_disabled_plugins",
   "hermes_cli/plugins_declared_cli.py|hermes_cli.plugins|_get_enabled_plugins",
   "hermes_cli/update_restart_truth.py|hermes_cli.update_restart_recovery|_host_state_dir",
