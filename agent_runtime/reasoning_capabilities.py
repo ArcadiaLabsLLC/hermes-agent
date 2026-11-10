@@ -126,21 +126,14 @@ def reasoning_capabilities(
         # not a Console generation check or a second model registry.
         if canonical == "openai-codex" or api_mode in ("codex_responses", "codex_app_server"):
             from agent.reasoning_effort import route_supported_efforts, codex_supported_efforts
-            from hermes_cli.models import github_model_reasoning_efforts
 
-            if support is True or github_model_reasoning_efforts(model):
-                levels = (route_supported_efforts(canonical, model, api_mode)
-                          if canonical == "openai-codex" else codex_supported_efforts(model))
+            # Upstream v0.23.1 moved Copilot (and github_model_reasoning_efforts, the name-pattern
+            # probe this branch asked) out of core; the transport's own vocabulary decides now.
+            levels = (route_supported_efforts(canonical, model, api_mode)
+                      if canonical == "openai-codex" else codex_supported_efforts(model))
+            if support is True or levels:
                 return ReasoningCapabilities(**base, state=ReasoningSupport.SUPPORTED,
                                              levels=levels, source="runtime_transport")
-        if canonical == "copilot":
-            from hermes_cli.models import github_model_reasoning_efforts
-
-            levels, unrecognised = _levels(github_model_reasoning_efforts(model))
-            if levels:
-                return ReasoningCapabilities(**base, state=ReasoningSupport.SUPPORTED,
-                                             levels=levels, source="provider_profile",
-                                             unrecognised_levels=unrecognised)
         return ReasoningCapabilities(**base,
             state=ReasoningSupport.SUPPORTED if support is True else ReasoningSupport.UNKNOWN,
             source=source)
@@ -233,26 +226,3 @@ def codex_declared_or_static_efforts(model: str | None) -> tuple[str, ...]:
     profile = get_provider_profile("openai-codex")
     declared = profile.supported_reasoning_efforts(model) if profile is not None else None
     return tuple(declared) if declared is not None else codex_supported_efforts(model)
-
-
-def widen_github_reasoning_efforts(model_id: str, upstream: list[str]) -> list[str]:
-    """Upstream's ``_github_reasoning_efforts_for_model_id`` answer, widened to the GPT-6 tiers.
-
-    O-series and Astra keep upstream's answer; a GPT-6 / no-disable tier answers the Codex
-    tier ladder (shared vocabulary with the transport); everything else is upstream's.
-    Called by ``hermes_cli/models.py::github_model_reasoning_efforts``.
-    """
-    raw = (model_id or "").strip().lower()
-    if raw.startswith(("openai/o1", "openai/o3", "openai/o4", "o1", "o3", "o4")):
-        return upstream
-    from hermes_cli.models import is_astra_model, normalize_copilot_model_id
-
-    normalized = normalize_copilot_model_id(model_id).lower()
-    if is_astra_model(normalized):
-        return upstream
-    from agent.reasoning_effort import GPT6_TIER_PREFIXES, NO_DISABLE_TIER_PREFIXES, codex_supported_efforts
-
-    bare = normalized.rsplit("/", 1)[-1]
-    if bare.startswith((*GPT6_TIER_PREFIXES, *NO_DISABLE_TIER_PREFIXES)):
-        return list(codex_supported_efforts(bare))
-    return upstream
