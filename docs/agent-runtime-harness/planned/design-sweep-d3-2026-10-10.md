@@ -352,12 +352,15 @@ when the next upstream test arrives, and no blanket.
 
 **Stages.**
 1. Readers-from-ledger + the dynamic deferral, id rows kept (both mechanisms on). Tests: the
-   five known files (`tests/tools/test_browser_console.py`, `test_image_generation.py`,
+   five known files (`test_browser_console.py` (deleted in v0.23.1), `tests/tools/test_image_generation.py`,
    `test_vision_native_fast_path.py`, the nous_provider and self_hosted files,
    `plugins/dashboard_auth` jwt clock-skew) green.
 2. Delete the id rows. Killing mutations (two, recorded): (a) remove the `is not _ORIGINAL`
-   deferral → `tests/tools/test_browser_console.py::TestBrowserVisionConfig` reds as it did
-   before any id existed; (b) drop one module from the derived set (edit the ledger row's
+   deferral → `tests/tools/test_vision_native_fast_path.py::TestHandleVisionAnalyzeFastPath`
+   reds as it did before any id existed (re-measured 2026-11-10 on the v0.23.1 merge: its
+   `test_supports_vision_override_bypasses_provider_allowlist` and `test_image_generation.py`'s
+   `TestModelResolution::test_config_wins_over_env_var` red; v0.23.1 deleted the original
+   anchor, `test_browser_console.py::TestBrowserVisionConfig`, with the browser console tool); (b) drop one module from the derived set (edit the ledger row's
    reason on a throwaway copy) → that module's upstream test reds. Positive control: a fork
    test patches `hermes_cli.config.load_config` and asserts `load_config_readonly()` returns
    the patch; unpatched, asserts the readonly projection refuses mutation.
