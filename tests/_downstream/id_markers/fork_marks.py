@@ -70,6 +70,10 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
         f"tests/agent/transports/test_provider_wire_snapshot.py::{name}": (_UPSTREAM_WIRE_UNBRIEFED,)
         for name in ("test_provider_wire_matches_snapshot", "test_base_url_only_wire_matches_snapshot")
     },
+    # v0.23.1's model-variant wire snapshots pin the same registry text.
+    "tests/agent/transports/test_provider_wire_snapshot_variants.py::test_model_variant_wire_matches_snapshot": (
+        _UPSTREAM_WIRE_UNBRIEFED,
+    ),
     # The fork's standalone tool_describe rides every non-empty tool list, so the web
     # toolset serves three names once a web key lights it.
     "tests/tools/test_web_tools_config.py::TestCheckWebApiKey::"
