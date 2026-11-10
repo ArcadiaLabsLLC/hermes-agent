@@ -93,6 +93,7 @@ from tests._downstream.id_markers.reasons import (
     NO_REAL_ORPHAN_REAP_MARK as _NO_REAL_ORPHAN_REAP_MARK,
     REAL_PROCESS_TABLE_MARK as _REAL_PROCESS_TABLE_MARK,
     SCOPED_MONKEYPATCH_UNDO_MARK as _SCOPED_MONKEYPATCH_UNDO_MARK,
+    SHUTDOWN_CRON_DRAIN_PINNED_MARK as _SHUTDOWN_CRON_DRAIN_PINNED_MARK,
     STATE_DB_RESOLVES_THROUGH_SCOPE_MARK as _STATE_DB_RESOLVES_THROUGH_SCOPE_MARK,
     STRIP_REAL_HOME_PATH_MARK as _STRIP_REAL_HOME_PATH_MARK,
     UPSTREAM_WIRE_UNBRIEFED_MARK as _UPSTREAM_WIRE_UNBRIEFED_MARK,
@@ -852,6 +853,22 @@ def _upstream_wire_unbriefed(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _shutdown_cron_drain_pinned(request, monkeypatch):
+    """Pin the cron drain floor ``make_restart_runner`` gives its runner to 0.01 s for a marked test.
+
+    API work shares the cron drain floor (30 s by default), so an upstream settle-window test
+    built on ``tests/gateway/restart_test_helpers.make_restart_runner`` waits that floor out: 30.6 s
+    green at upstream bytes, above the fork's ``--timeout=30``. The fork once pinned it inside
+    the upstream file; the id table now applies it (FH-FOOTPRINT-FORK-TEST-HUNKS-OUT).
+    """
+    if request.node.get_closest_marker(_SHUTDOWN_CRON_DRAIN_PINNED_MARK) is None:
+        return
+    import tests.gateway.restart_test_helpers as _helpers
+
+    monkeypatch.setattr(_helpers, "DEFAULT_GATEWAY_CRON_DRAIN_TIMEOUT", 0.01)
+
+
+@pytest.fixture(autouse=True)
 def _no_real_orphan_reap(request, monkeypatch):
     """Keep an upstream web-server test off the machine's real process table.
 
@@ -977,6 +994,12 @@ def pytest_configure(config):  # pytest hook
         f"{_UPSTREAM_WIRE_UNBRIEFED_MARK}: the fork's one-line tool-description brief is "
         "off, so an upstream wire snapshot sees the registry text (applied by id from "
         "tests/_downstream/id_markers/).",
+    )
+    config.addinivalue_line(
+        "markers",
+        f"{_SHUTDOWN_CRON_DRAIN_PINNED_MARK}: make_restart_runner's cron drain floor is 0.01 s, so a "
+        "shutdown test's API work does not wait out the 30 s cron drain floor (applied by id "
+        "from tests/_downstream/id_markers/).",
     )
     config.addinivalue_line(
         "markers",

@@ -42,6 +42,9 @@ SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
 STRIP_REAL_HOME_PATH_MARK = "strip_real_home_path"
 STATE_DB_RESOLVES_THROUGH_SCOPE_MARK = "state_db_resolves_through_scope"
 UPSTREAM_WIRE_UNBRIEFED_MARK = "upstream_wire_unbriefed"
+#: Pins ``make_restart_runner``'s ``_cron_drain_timeout`` to 0.01 s for a shutdown test
+#: whose API work shares the 30 s cron drain floor (FH-FOOTPRINT-FORK-TEST-HUNKS-OUT).
+SHUTDOWN_CRON_DRAIN_PINNED_MARK = "shutdown_cron_drain_pinned"
 #: Upstream's own mark (read by ``tests/conftest.py``'s live-system guard, used by
 #: upstream tests); nobody registers it -- see tests/test_id_markers_downstream.py.
 SPAWNS_GATEWAY_LOOKALIKE_MARK = "spawns_gateway_lookalike"
@@ -137,6 +140,7 @@ _STRIP_REAL_HOME_PATH = getattr(pytest.mark, STRIP_REAL_HOME_PATH_MARK)
 _STATE_DB_THROUGH_SCOPE = getattr(pytest.mark, STATE_DB_RESOLVES_THROUGH_SCOPE_MARK)
 _HOST_DISK_HAS_ROOM = getattr(pytest.mark, HOST_DISK_HAS_ROOM_MARK)
 _UPSTREAM_WIRE_UNBRIEFED = getattr(pytest.mark, UPSTREAM_WIRE_UNBRIEFED_MARK)
+_CRON_DRAIN_PINNED = getattr(pytest.mark, SHUTDOWN_CRON_DRAIN_PINNED_MARK)
 
 _CLAUDE_HOME_TMP = getattr(pytest.mark, CLAUDE_HOME_IS_TMP_PATH_MARK)
 _GATE = getattr(pytest.mark, GATE_MARK)

@@ -18,6 +18,7 @@ from tests._downstream.id_markers.reasons import (
     _CHILDREN_DIE_WITH_THE_TEST,
     _CLAUDE_HOME_TMP,
     _CREDENTIALS_FILE,
+    _CRON_DRAIN_PINNED,
     _FORK_LIVE_GUARD_ENSURE,
     _FORK_LIVE_SYSTEM_GUARD,
     _FORK_MANAGED_PYTHON,
@@ -116,6 +117,10 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # still stands behind it (upstream renamed the seven it replaced, 2026-09-25).
     "tests/hermes_cli/test_update_concurrent_quarantine.py::"
     "test_pause_stops_launcher_after_worker_drain": (_REAL_PAUSE,),
+    # API work shares the 30 s cron drain floor, so upstream's settle-window test waits it out:
+    # 30.6 s green at upstream bytes, 2026-11-10. The fixture pins the floor the file once pinned.
+    "tests/gateway/test_api_server_active_work_drain.py::TestShutdownSettleWindow::"
+    "test_settle_window_waits_for_interrupted_api_work": (_CRON_DRAIN_PINNED,),
     # The fork runner's 30s default is below the child PowerShell's own 30s
     # budget; this upstream test needs the headroom.
     "tests/scripts/desktop_update/test_desktop_update_windows_retry_policy.py::"
