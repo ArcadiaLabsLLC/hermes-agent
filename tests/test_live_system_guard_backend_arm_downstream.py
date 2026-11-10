@@ -174,3 +174,17 @@ def test_a_git_pathspec_naming_gateway_run_py_is_not_a_gateway_spawn():
 def test_a_gateway_run_py_the_program_executes_is_still_refused(tmp_path, argv):
     with pytest.raises(RuntimeError, match="spawn a REAL hermes gateway"):
         subprocess.Popen(argv(tmp_path), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+# FH-GUARD-PATH-WORDS-READ-AS-SPAWN: an argv element with spaces that names an existing file is a path
+# operand. Split into words, ``…/0012 — The hermes half of ….md`` + ``…/Touching serve and boot.md`` read as
+# ``hermes serve`` and blocked the line-endings gate's ``git ls-files --eol`` over the brain's notes.
+def test_a_git_pathspec_with_backend_words_in_its_name_is_not_a_spawn(tmp_path):
+    for name in ("The hermes half of it.md", "Touching serve and boot.md"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    argv = ["git", "ls-files", "--eol", "--", "The hermes half of it.md", "Touching serve and boot.md"]
+    assert backend_spawn_subcommand(argv, str, {"cwd": tmp_path}) is None
+
+
+def test_a_wrapper_command_string_that_names_no_file_is_still_split(tmp_path):
+    assert backend_spawn_subcommand(["bash", "-c", "hermes serve"], str, {"cwd": tmp_path}) == "serve"

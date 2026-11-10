@@ -14,6 +14,7 @@ the ``_check_subprocess_cmd`` chokepoint every spawn primitive funnels through.
 from __future__ import annotations
 
 import ast
+import os
 import re
 import shlex
 
@@ -251,12 +252,29 @@ def _without_inert_python_c_code(raw: list) -> list:
 _CODE_PUNCTUATION_RE = re.compile(r"""["'`()\[\]{},;]+""")
 
 
-def _cmd_tokens(cmd, cmd_to_string) -> list:
+def _names_an_existing_path(token: str, cwd) -> bool:
+    """True when the argv element *token* (one with whitespace) is a file or folder that exists.
+
+    Such an element is a path operand, never a wrapper's command string: splitting it invents
+    words. ``git ls-files -- "Harness_Brain/30 — Decisions/0012 — The hermes half of ….md"
+    "…/Touching serve and boot.md"`` read as ``hermes`` … ``serve`` (FH-GUARD-PATH-WORDS-READ-AS-SPAWN)."""
+    if "\n" in token or not any(ch.isspace() for ch in token):
+        return False
+    try:
+        return os.path.lexists(os.path.join(os.fspath(cwd) if cwd else os.getcwd(), token))
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def _cmd_tokens(cmd, cmd_to_string, cwd=None) -> list:
     # argv lists are tokenized by construction; only strings need shlex,
     # which on Windows would otherwise eat the backslashes in a path.
     if isinstance(cmd, (list, tuple)):
         raw = [str(token) for token in cmd]
+        # MUTATION: drop this filter and test_a_git_pathspec_with_backend_words_in_its_name_is_not_a_spawn reddens.
+        paths = [token for token in raw if _names_an_existing_path(token, cwd)]
     else:
+        paths = []
         cmd_str = cmd_to_string(cmd)
         try:
             raw = shlex.split(cmd_str)
@@ -274,6 +292,9 @@ def _cmd_tokens(cmd, cmd_to_string) -> list:
     # not split, so ``--name=gateway`` stays one flag.
     tokens = []
     for token in raw:
+        if token in paths:
+            tokens.append(token)
+            continue
         for word in script_words(token):
             tokens.extend(part for part in _CODE_PUNCTUATION_RE.split(word) if part)
     return tokens
@@ -294,7 +315,7 @@ def _as_executed(cmd, kwargs):
 
 def backend_spawn_subcommand(cmd, cmd_to_string, kwargs=None):
     """Which backend subcommand this argv would START, or ``None``."""
-    tokens = _cmd_tokens(_as_executed(cmd, kwargs), cmd_to_string)
+    tokens = _cmd_tokens(_as_executed(cmd, kwargs), cmd_to_string, (kwargs or {}).get("cwd"))
     entry = None
     for index, token in enumerate(tokens):
         normalized = str(token).replace("\\", "/").lower()

@@ -363,6 +363,16 @@ def test_a_touched_file_last_run_slow_runs_as_node_id_shards_unless_listed_unsha
     assert "--hermes-shard" not in calls and "tests/a/test_committed.py" in calls.splitlines()[-1].split()
 
 
+# FH-PREPUSH-TOUCHED-NAMED-HEAVY-OVER-BUDGET: the runner on Windows keys its record by backslash paths, and
+# a forward-slash lookup found none, so nothing ever sharded there. Killing mutation in the script's comment.
+def test_a_windows_keyed_duration_record_still_shards(repo: Path):
+    (repo / "test_durations.json").write_text(json.dumps({r"tests\a\test_committed.py": 25.4}), encoding="utf-8")
+    proc, calls = _run(repo)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "sharded: tests/a/test_committed.py into 3 (last run 26s)" in proc.stdout
+    assert calls.count("--hermes-shard=") == 3, calls
+
+
 def test_a_red_shard_reds_the_touched_step(repo: Path):
     (repo / "test_durations.json").write_text(json.dumps({"tests/a/test_committed.py": 40}), encoding="utf-8")
     proc, _ = _run(repo, runner_body='case "$*" in *--hermes-shard=2/4*) exit 1 ;; esac')

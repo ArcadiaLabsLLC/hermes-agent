@@ -210,7 +210,10 @@ done
 _last_seconds() {
   local record="$REPO_ROOT/test_durations.json"
   [ -f "$record" ] || { echo 0; return; }
-  grep -o "\"${1//./\\.}\": *[0-9.]*" "$record" 2>/dev/null |
+  # A Windows run keys the record `tests\\a\\test_x.py` (JSON-escaped backslashes): both separators
+  # are read as `/`, or no file ever shards on Windows (FH-PREPUSH-TOUCHED-NAMED-HEAVY-OVER-BUDGET).
+  # MUTATION: drop the sed and test_a_windows_keyed_duration_record_still_shards reddens.
+  sed 's#\\\\#/#g' "$record" 2>/dev/null | grep -o "\"${1//./\\.}\": *[0-9.]*" 2>/dev/null |
     awk -F': *' 'NR == 1 { v = $2 + 0; printf "%d\n", (v == int(v)) ? v : int(v) + 1; found = 1 } END { if (!found) print 0 }'
 }
 _unsharded() {

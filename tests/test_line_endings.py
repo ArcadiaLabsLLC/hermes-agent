@@ -102,8 +102,13 @@ def _argv_chunks(paths: list[str], *, fixed: list[str], budget: int = _EOL_ARGV_
 def _git(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
     import os
 
+    # git writes paths as UTF-8; decoding them with the locale's codepage (cp1252 on Windows without
+    # PYTHONUTF8) turned `00 — Maps/` into mojibake that no pathspec matches, so those blobs were never
+    # classified and the gate skipped them (FH-LINE-ENDINGS-MEMO-RED-WINDOWS).
+    # MUTATION: drop `encoding="utf-8"` and, on Windows, test_a_non_ascii_path_is_classified
+    # and test_the_blob_memo_answers_what_git_answers redden (a cold memo: the seen-blob tripwire too).
     return subprocess.run(["git", *args], cwd=REPO_ROOT, check=False, capture_output=True, text=True,
-                          env={**os.environ, **(env or {})})
+                          encoding="utf-8", errors="surrogateescape", env={**os.environ, **(env or {})})
 
 
 def _staged_blobs() -> dict[str, str] | None:
@@ -259,6 +264,18 @@ def test_the_blob_memo_answers_what_git_answers(endings):
 
     sample = sorted(endings)[:: max(1, len(endings) // 200)] + ["gateway/run.py"]  # FH-LIVE-GUARD-PATH-READ-AS-SPAWN
     assert _eol_states(sample) == {path: endings[path] for path in sample}
+
+
+def test_a_non_ascii_path_is_classified():
+    """FH-LINE-ENDINGS-MEMO-RED-WINDOWS: a non-ASCII name decoded with the wrong codepage comes back as a
+    pathspec git cannot match, drops out of the classification, and the CR gate above never sees it.
+    Asked of git directly, so a warm memo cannot hide it."""
+
+    staged = _staged_blobs()
+    assert staged is not None
+    non_ascii = sorted(path for path in staged if not path.isascii())
+    assert non_ascii, "no non-ASCII tracked path left: re-point this pin"
+    assert sorted(_eol_states(non_ascii)) == non_ascii
 
 
 def test_a_blob_the_memo_has_seen_is_not_classified_again(endings, monkeypatch):
