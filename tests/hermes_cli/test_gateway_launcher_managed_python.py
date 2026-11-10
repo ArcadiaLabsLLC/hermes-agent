@@ -125,7 +125,7 @@ def test_rendered_launcher_names_the_managed_interpreter(tmp_path):
 
     cmd_text = script_path.read_text(encoding="utf-8")
     assert gateway_windows.launcher_interpreter(cmd_text) == expected
-    assert expected in script_path.with_suffix(".vbs").read_text(encoding="utf-8")
+    assert expected in script_path.with_suffix(".vbs").read_text(encoding="utf-16")  # upstream ff56731030: UTF-16 with a BOM
 
 
 def test_write_task_script_refuses_rather_than_pinning_a_guess(tmp_path):
