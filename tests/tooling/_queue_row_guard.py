@@ -219,12 +219,33 @@ def _files_at(root: Path, ref: str) -> dict[str, str]:
     """Every ``type: queue`` and ``type: queue-archive`` note of the vault at ``ref``."""
     brain = BRAIN.relative_to(REPO).as_posix()
     listing = _git(root, "grep", "-l", "-z", "^type: queue", ref, "--", brain) or ""
-    files: dict[str, str] = {}
-    for entry in filter(None, listing.split("\0")):
-        path = entry.split(":", 1)[1] if entry.startswith(ref + ":") else entry
-        if path.endswith(".md") and (text := _git(root, "show", f"{ref}:{path}")) is not None:
-            files[path] = text
-    return files
+    paths = [path for entry in filter(None, listing.split("\0"))
+             if (path := entry.split(":", 1)[1] if entry.startswith(ref + ":") else entry).endswith(".md")]
+    texts = _blobs(root, [f"{ref}:{path}" for path in paths])
+    return {path: text for path, text in zip(paths, texts, strict=True) if text is not None}
+
+
+def _blobs(root: Path, names: list[str]) -> list[str | None]:
+    """Each ``<ref>:<path>`` blob's text, from ONE ``git cat-file --batch`` (a ``git show`` per note was a
+    process each: ~0.25 s apiece on Windows, FH-PREPUSH-GATES-OVER-BUDGET). Decoded as ``_git`` decodes:
+    UTF-8 with replacement, universal newlines; a name git cannot read is None, as ``_git`` answered."""
+    if not names:
+        return []
+    out = subprocess.run(["git", "cat-file", "--batch"], cwd=root, input="\n".join(names).encode() + b"\n",
+                         capture_output=True, check=True).stdout
+    texts, cursor = [], 0
+    for _name in names:
+        header_end = out.index(b"\n", cursor)
+        header = out[cursor:header_end].split()
+        if header[-1] == b"missing":
+            texts.append(None)
+            cursor = header_end + 1
+            continue
+        size = int(header[2])
+        body = out[header_end + 1:header_end + 1 + size].decode("utf-8", "replace")
+        texts.append(body.replace("\r\n", "\n").replace("\r", "\n"))
+        cursor = header_end + 1 + size + 1
+    return texts
 
 
 def _working_tree(root: Path) -> dict[str, str]:

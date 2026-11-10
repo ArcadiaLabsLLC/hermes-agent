@@ -108,3 +108,25 @@ def test_this_checkout_drops_no_ruling_and_rolls_no_status_back(capsys):
     refused = [finding.message for finding in report.findings if finding.refuses]
     assert not refused, "\n".join(refused)
     assert report.compared > 0
+
+
+# FH-PREPUSH-GATES-OVER-BUDGET: the base vault is read with ONE ``git cat-file --batch``, not a ``git show``
+# per note. KILLING MUTATION: drop the ``+ 1`` that steps over the newline after each blob in ``_blobs`` ->
+# the second note's header is misread and this reds (an IndexError or a wrong text).
+def test_the_base_vault_read_in_one_batch_is_what_git_show_answers_per_note(tmp_path):
+    import subprocess
+    brain = tmp_path / guard.BRAIN.name / "20 — Active Initiatives"
+    brain.mkdir(parents=True)
+    notes = {"a.md": "---\ntype: queue\n---\r\n\r\n- **`RT-A` — é** · READY 2026-10-28\r\n",
+             "b.md": "---\ntype: queue-archive\n---\n\n- **`RT-B` — b** · READY 2026-10-28\n",
+             "c.md": "---\ntype: plan\n---\n"}
+    for name, text in notes.items():
+        (brain / name).write_bytes(text.encode("utf-8"))
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "core.autocrlf=false"]
+    for args in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "base"]):
+        subprocess.run([*git, *args], cwd=tmp_path, check=True, capture_output=True, stdin=subprocess.DEVNULL)
+    got = guard._files_at(tmp_path, "HEAD")
+    prefix = f"{guard.BRAIN.name}/20 — Active Initiatives/"
+    assert got == {prefix + name: guard._git(tmp_path, "show", f"HEAD:{prefix}{name}") for name in ("a.md", "b.md")}
+    assert got[prefix + "a.md"].endswith("READY 2026-10-28\n") and "\r" not in got[prefix + "a.md"]
+    assert guard._blobs(tmp_path, ["HEAD:nope.md", f"HEAD:{prefix}b.md"]) == [None, notes["b.md"]]

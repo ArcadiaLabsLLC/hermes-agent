@@ -113,23 +113,20 @@ TASK_DEFECT_CEILING = 0
 
 
 def split_segments(line: str) -> list[str]:
-    """The `` · ``-separated segments of ``line``, never splitting inside a code span."""
-    out: list[str] = []
-    current: list[str] = []
-    in_code = False
-    i = 0
-    while i < len(line):
-        char = line[i]
-        if char == "`":
-            in_code = not in_code
-        if not in_code and line.startswith(" · ", i):
-            out.append("".join(current))
-            current = []
-            i += 3
+    """The `` · ``-separated segments of ``line``, never splitting inside a code span.
+
+    Split on backticks: an even-numbered piece is outside every code span, and `` · `` holds no
+    backtick, so it splits only there. One ``str.split`` per piece instead of a Python loop per
+    character: 1.3 s of the row guard's 4.4 s on Windows (FH-PREPUSH-GATES-OVER-BUDGET)."""
+    out = [""]
+    for index, piece in enumerate(line.split("`")):
+        tick = "`" if index else ""
+        if index % 2:
+            out[-1] += tick + piece
             continue
-        current.append(char)
-        i += 1
-    out.append("".join(current))
+        first, *rest = piece.split(" · ")
+        out[-1] += tick + first
+        out.extend(rest)
     return out
 
 
@@ -627,3 +624,16 @@ def test_the_recent_archive_months_are_in_the_archive_grammar_and_no_closed_row_
     bad += [f"`{row_id}` is archived twice" for row_id in sorted({i for i in ids if ids.count(i) > 1})]
     bad += archived_live(_queue_notes(), archives)
     assert not bad, "\n".join(bad)
+
+
+# FH-PREPUSH-GATES-OVER-BUDGET: segments are cut per backtick piece, not per character. KILLING MUTATION:
+# split the ODD pieces (``if not index % 2``) -> the code span's `` · `` splits and the plain one does not.
+@pytest.mark.parametrize(("line", "segments"), [
+    ("- **`A` — t** · the `a · b` span · READY 2026-10-18", ["- **`A` — t**", "the `a · b` span", "READY 2026-10-18"]),
+    ("x · `` · y", ["x", "``", "y"]),
+    ("`open · span", ["`open · span"]),
+    ("a ·  b · · c", ["a", " b", "· c"]),
+    ("", [""]),
+])
+def test_segments_split_on_the_dot_only_outside_code_spans(line, segments):
+    assert split_segments(line) == segments
