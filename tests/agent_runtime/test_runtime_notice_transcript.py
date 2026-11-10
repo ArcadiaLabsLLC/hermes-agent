@@ -15,6 +15,7 @@ from agent.steering import RUNTIME_NOTE_ENVELOPE, PendingSteer
 from agent_runtime.operator_channels.history_messages import _conversation_history_message
 from agent_runtime.persona_chat_history.curation import _safe_curated_messages
 from tools.process_registry_notifications import TimelineNotification
+from tests._downstream.split_package_source import patch_where_bound
 
 NOTE = "[harness] Wall budget nearly exhausted: 12s left. Wrap up."
 
@@ -212,7 +213,7 @@ def test_the_engaged_checkpoint_and_the_mcp_notice_steer_their_codes(monkeypatch
                                       clock=lambda: 1_500.0)
     checkpoint.bind(agent)
     assert checkpoint.engage(trigger="wall_budget_tool_gate")
-    monkeypatch.setattr(mcp_admission, "render_mcp_admission_line", lambda *_a, **_k: "- qa: unavailable")
+    patch_where_bound(monkeypatch, mcp_admission, "render_mcp_admission_line", lambda *_a, **_k: "- qa: unavailable")
     assert _steer_mcp_admission_notice(agent, None, SimpleNamespace(degraded=True))
     assert [(n.display_text, n.notice_code) for n in steered] == [
         ("Time budget checkpoint", "wall_checkpoint"), ("Tool availability update", "tool_availability")]

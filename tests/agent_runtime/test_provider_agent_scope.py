@@ -15,6 +15,7 @@ from agent_runtime import profile_context
 from agent_runtime.serve_rpc import DEFERRED, RpcContext
 from agent_runtime.serve_rpc import provider as family
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_NOT_FOUND
+from tests._downstream.split_package_source import patch_where_bound
 
 
 @pytest.fixture
@@ -32,8 +33,8 @@ def agents(tmp_path, monkeypatch):
     monkeypatch.delenv("HERMES_PROFILE", raising=False)
     personas = [SimpleNamespace(id="neko", hermes_profile="neko"), SimpleNamespace(id="plain", hermes_profile=None),
                 SimpleNamespace(id="ghost", hermes_profile="nowhere")]
-    monkeypatch.setattr(runtime_config, "load_agent_runtime_config", lambda: None)
-    monkeypatch.setattr(runtime_config, "ensure_persisted_personas", lambda _config: personas)
+    patch_where_bound(monkeypatch, runtime_config, "load_agent_runtime_config", lambda: None)
+    patch_where_bound(monkeypatch, runtime_config, "ensure_persisted_personas", lambda _config: personas)
     monkeypatch.setattr(profile_context, "profile_exists", lambda name: name in homes)
     monkeypatch.setattr(profile_context, "get_profile_dir", lambda name: homes[name])
     monkeypatch.setattr(profile_context, "_resolved_runtime_root", lambda: tmp_path / "store")
