@@ -274,8 +274,32 @@ def resolve_candidates(
     if token in paths:
         return [token]
     if "/" in token:
-        return sorted(path for path in paths if path.endswith("/" + token))
+        return sorted(_by_suffix(paths).get(token, ()))
     return sorted(by_name.get(token, []))
+
+
+# One slot: the walk resolves every cite against ONE ``paths`` set. The index holds that set
+# itself, so a new set (or one that grew) rebuilds instead of reading a stale answer.
+_SUFFIX_INDEX: tuple[set[str], int, dict[str, list[str]]] | None = None
+
+
+def _by_suffix(paths: set[str]) -> dict[str, list[str]]:
+    """Each tracked path under every proper ``a/b/...`` suffix of its components.
+
+    ``path.endswith("/" + token)`` is true exactly when ``token`` is the join of the path's last
+    k components for some k below its depth, so one dict lookup answers what a scan over every
+    tracked path did per cite: ~2.6 M ``endswith`` calls, 1.5 s of a 3.8 s run on Windows
+    (FH-PREPUSH-DOC-CITE-OVER-BUDGET)."""
+    global _SUFFIX_INDEX
+    if _SUFFIX_INDEX is not None and _SUFFIX_INDEX[0] is paths and _SUFFIX_INDEX[1] == len(paths):
+        return _SUFFIX_INDEX[2]
+    index: dict[str, list[str]] = defaultdict(list)
+    for path in paths:
+        parts = path.split("/")
+        for start in range(1, len(parts) - 1):
+            index["/".join(parts[start:])].append(path)
+    _SUFFIX_INDEX = (paths, len(paths), index)
+    return index
 
 
 def resolve_path(token: str, paths: set[str], by_name: dict[str, list[str]]) -> str | None:
