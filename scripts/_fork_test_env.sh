@@ -30,19 +30,56 @@ fork_test_env_extend() {
   done <"$list"
 }
 
+# FH-PREPUSH-TEMP-HOME-NO-VENV: the shared test venv's default lives in the OS user's
+# REAL home, not whatever $HOME says. Lanes run `HOME=$(mktemp -d) scripts/prepush.sh`
+# to keep tests off their own home; a `$HOME/.venvs/hermes-test` default then named the
+# empty temp dir and every step went red before testing anything. Order: an explicit
+# HERMES_TEST_VENV; else `$HOME/.venvs/hermes-test` when it exists (an unswapped HOME,
+# or a deliberate one that carries a venv); else the same path under the account's home
+# from the password database (Git Bash: USERPROFILE), which no HOME swap moves.
+fork_real_user_home() {
+  if command -v cygpath >/dev/null 2>&1 && [ -n "${USERPROFILE:-}" ]; then
+    cygpath -u "$USERPROFILE"
+    return
+  fi
+  local entry
+  entry="$(getent passwd "$(id -u)" 2>/dev/null)" && [ -n "$entry" ] && {
+    entry="${entry#*:*:*:*:*:}"
+    printf '%s\n' "${entry%%:*}"
+    return
+  }
+  # No getent (macOS): bash's ~name asks getpwnam, never $HOME; the name is checked first.
+  local user
+  user="$(id -un 2>/dev/null)" || return 0
+  case "$user" in "" | *[!A-Za-z0-9._-]*) return 0 ;; esac
+  eval "printf '%s\\n' ~$user"
+}
+fork_default_test_venv() {
+  if [ -n "${HERMES_TEST_VENV:-}" ]; then
+    printf '%s\n' "$HERMES_TEST_VENV"
+    return
+  fi
+  local real
+  if [ -d "$HOME/.venvs/hermes-test" ] || ! real="$(fork_real_user_home)" || [ -z "$real" ]; then
+    printf '%s\n' "$HOME/.venvs/hermes-test"
+  else
+    printf '%s\n' "$real/.venvs/hermes-test"
+  fi
+}
+
 # Fork (owner ruling 2026-10-15): on a workstation, no HERMES_PYTHON means the
-# shared test venv (HERMES_TEST_VENV, default ~/.venvs/hermes-test), never the
+# shared test venv (fork_default_test_venv: HERMES_TEST_VENV, else ~/.venvs/hermes-test), never the
 # PM test environment activation would sync inside the operator's live Hermes
 # home. Missing shared venv = refuse. CI keeps upstream's activation path.
 fork_shared_test_venv_fallback() {
   if [ -z "${__HERMES_ACTIVATED:-}" ] && ! _has_pytest "${HERMES_PYTHON:-}" && [ -z "${CI:-}" ]; then
-    _SHARED_VENV="${HERMES_TEST_VENV:-$HOME/.venvs/hermes-test}"
+    _SHARED_VENV="$(fork_default_test_venv)"
     for _candidate in "$_SHARED_VENV/Scripts/python.exe" "$_SHARED_VENV/bin/python"; do
       if _has_pytest "$_candidate"; then HERMES_PYTHON="$_candidate"; break; fi
     done
     if ! _has_pytest "${HERMES_PYTHON:-}"; then
       echo "error: no HERMES_PYTHON and no shared test venv with pytest at $_SHARED_VENV" >&2
-      echo "       create it, or set HERMES_PYTHON / HERMES_TEST_VENV (Running the tests.md)" >&2
+      echo "       create it, or set HERMES_PYTHON to a python with pytest, or HERMES_TEST_VENV to its venv (Running the tests.md)" >&2
       exit 1
     fi
     fork_refuse_unbuilt_shared_venv "$HERMES_PYTHON" "$_SHARED_VENV" || exit 1

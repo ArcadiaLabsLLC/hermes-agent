@@ -58,6 +58,7 @@ def repo(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
     (root / "scripts").mkdir(parents=True)
     shutil.copy2(SCRIPT, root / "scripts" / "prepush.sh")
+    shutil.copy2(SCRIPT.parent / "_fork_test_env.sh", root / "scripts" / "_fork_test_env.sh")
     (root / "tests" / "a").mkdir(parents=True)
     (root / "tests" / "a" / "test_base.py").write_text("x = 1\n", encoding="utf-8")
     _git(root, "init", "-q")

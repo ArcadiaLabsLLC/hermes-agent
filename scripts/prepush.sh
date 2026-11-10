@@ -265,8 +265,13 @@ RUNNER="${PREPUSH_RUNNER:-$SCRIPT_DIR/run_tests.sh}"
 # (`_fork_test_env.sh`: HERMES_TEST_VENV, else ~/.venvs/hermes-test), else python3, else python.
 # A bare `python` is absent on the Linux box, which redded every push `exit 127`
 # (FH-PREPUSH-BARE-PYTHON-LINUX).
+# The venv default is the door's (fork_default_test_venv: the real user home, so a temp HOME
+# still finds it — FH-PREPUSH-TEMP-HOME-NO-VENV).
+# shellcheck source=scripts/_fork_test_env.sh
+. "$SCRIPT_DIR/_fork_test_env.sh"
 _default_python() {
-  local venv="${HERMES_TEST_VENV:-$HOME/.venvs/hermes-test}" candidate
+  local venv candidate
+  venv="$(fork_default_test_venv)"
   for candidate in "$venv/Scripts/python.exe" "$venv/bin/python"; do
     [ -x "$candidate" ] && { echo "$candidate"; return; }
   done
