@@ -21,6 +21,7 @@ from pathlib import Path
 from ..work_store.checked_out import advance
 from ..work_store.reasons import Reason, WorkRefused
 from .machine import Batch, LaneRecord, LaneState
+from .manifest import BATCHES_DIR
 from .planner import LaneKind
 
 __layer__ = "stores"
@@ -30,6 +31,7 @@ __all__ = [
     "LaneGit",
     "Site",
     "board_clone",
+    "is_bookkeeping",
     "landing_branch",
     "landing_site",
     "lane_branch",
@@ -101,6 +103,13 @@ def slots_of(batch: Batch) -> list[str]:
     """Every slot the batch's work lanes touch, in lane order: the landing lands each."""
 
     return list(dict.fromkeys(slot for record in batch.lanes if (slot := lane_slot(record))))
+
+
+def is_bookkeeping(path: str) -> bool:
+    """A path the dispatcher itself writes on a brain's default branch while a batch runs: its manifest
+    (``<brain>/50 — Agent Handoffs/batches/<batch>.md``) or a lane brief under ``batches/<batch>/``."""
+
+    return f"/{BATCHES_DIR}/" in f"/{path}"
 
 
 def board_clone(workspace_id: str, slot: str) -> Clone:
@@ -196,9 +205,39 @@ class LaneGit:
         if self.dirty(site.worktree):
             raise WorkRefused(Reason.WORKTREE_DIRTY, str(site.worktree))
         head = self.head(site.worktree)
-        if self._git(["merge-base", "--is-ancestor", site.clone.tip, head], site.worktree).returncode != 0:
+        if not self._behind_tip(site, head) and not self._tip_moved_by_bookkeeping_only(site, head):
             raise WorkRefused(Reason.PUSH_CONTENDED, f"{site.clone.tip} moved since {site.branch} merged; land again")
         return head
+
+    def _behind_tip(self, site: Site, head: str) -> bool:
+        return self._git(["merge-base", "--is-ancestor", site.clone.tip, head], site.worktree).returncode == 0
+
+    def _tip_moved_by_bookkeeping_only(self, site: Site, head: str) -> bool:
+        """True when every path the tip changed since it and ``head`` forked is the dispatcher's own manifest or
+        brief: on a brain slot the batch's own ``landing``/``awaiting approval`` lines move ``main`` after
+        ``land/<batch>`` was cut, and counting them as "main moved" refused every Approve there
+        (RT-WORK-APPROVE-REFUSED-BY-OWN-BOOKKEEPING)."""
+
+        done = self._git(["diff", "--name-only", "-z", f"{head}...{site.clone.tip}"], site.worktree)
+        if done.returncode != 0:
+            return False
+        return all(is_bookkeeping(path) for path in str(done.stdout or "").split("\0") if path)
+
+    def catch_up(self, site: Site, head: str) -> str:
+        """The commit to push: ``head`` itself when the tip is its ancestor, else a merge of the tip's bookkeeping
+        commits onto it, written as an object only (``merge-tree`` + ``commit-tree``) so the landing worktree
+        stays at the gated HEAD and a refused push leaves nothing to undo. Call after ``check_ff``."""
+
+        if self._behind_tip(site, head):
+            return head
+        tip = self._must(["rev-parse", site.clone.tip], Reason.BRANCH_MISSING, site.worktree).strip()
+        merged = self._git(["merge-tree", "--write-tree", head, tip], site.worktree)
+        if merged.returncode != 0:
+            raise WorkRefused(Reason.PUSH_CONTENDED, f"{site.clone.tip} moved since {site.branch} merged; land again")
+        tree = str(merged.stdout or "").split("\n", 1)[0].strip()
+        message = f"Merge {site.clone.tip}'s batch bookkeeping into {site.branch}"
+        return self._must(["commit-tree", tree, "-p", head, "-p", tip, "-m", message],
+                          Reason.PUSH_REFUSED, site.worktree).strip()
 
     def push_ff(self, site: Site, head: str) -> None:
         """``head`` onto the default branch, fast-forward only (never ``--force``); a QA namespace pushes to a

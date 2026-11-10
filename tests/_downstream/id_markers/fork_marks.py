@@ -306,6 +306,15 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # A timeout's os._exit skipped the probe's finally and left its busy-waiters alive
     # (40 on 2026-10-18); the job keeps them from outliving the test (tests/_downstream/child_job.py).
     "tests/hermes_cli/test_completion_backlog.py": (pytest.mark.timeout(120), _CHILDREN_DIE_WITH_THE_TEST),
+    # Upstream e2e files whose module fixtures drive real `hermes` children; no hang, the work is
+    # that long (FH-E2E-KANBAN-ROUTING-RED-ON-MAIN, lane w1110d-hm, alone at 1 worker, load ~22 on
+    # this 52-core box, 2026-11-10). The kanban flow runs eight `hermes kanban` CLI boots (~2 s each)
+    # and two real workers (13.5 s and 5.9 s, the first cold-starting the profile daemon):
+    # 32.4 s setup, then 23.6 s for the clean-handoff flow. The routing table runs its 17 CLI cases
+    # six wide (45.5 s setup) and a real gateway's /model switch (14.9 s). Run side by side at load
+    # ~50 the two files took 100 s and 94 s whole, so each bound is ~5x its longest alone item.
+    "tests/e2e/core/kanban/test_kanban_rate_limit_review.py": (pytest.mark.timeout(180),),
+    "tests/e2e/core/tenancy/test_routing_truth_table.py": (pytest.mark.timeout(240),),
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),

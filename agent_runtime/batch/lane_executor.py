@@ -38,7 +38,7 @@ from ..work_store.executor import Assignment, ExecutorKind, Outcome, Run, RunSta
 from ..work_store.persona_turn import BRIEF_MAX_LINES, REPORT_CLOSING
 from ..work_store.models import GateReceipt
 from ..work_store.reasons import Reason, WorkRefused
-from .gate import GateRunner, no_gate_summary
+from .gate import GATE_NONE, GateRunner, no_gate_summary
 from .lane_git import (
     Clone, LaneGit, Site, board_clone, landing_site, lane_branch, lane_site, lane_slot, slots_of,
 )
@@ -56,12 +56,23 @@ _LAND_RUN = ("Gate: when you settle, the executor runs the landing gate here and
              "your verdict is advisory. Fix a caused red as its own commit.")
 
 
+def _run_line(gate: Sequence[str] | None) -> str:
+    """The brief's Run line, following the slot's gate (RT-WORK-LANE-BRIEF-TESTS-ON-BRAIN-SLOT): a brain-only slot
+    has no tests (its gate is ``GATE_NONE``) and no ``scripts/run_tests.sh`` — a lane told to run it got exit 127."""
+
+    if gate is not None and tuple(gate) == (GATE_NONE,):
+        return "Run: no tests — this slot is a brain-only queue (no test script); re-read your edits instead."
+    if gate is None or any("scripts/run_tests" in command for command in gate):
+        return _RUN
+    return f"Run: the tests covering what you touched, with this slot's own runner (its gate: `{' && '.join(gate)}`)."
+
+
 def _clip(lines: Sequence[str], budget: int) -> list[str]:
     return list(lines) if len(lines) <= budget else [*lines[:budget - 1], "…"]
 
 
 def render_lane_brief(a: Assignment, sites: Sequence[Site], *, landing: bool, merged: Sequence[str] = (),
-                      conflicts: Sequence[str] = ()) -> str:
+                      conflicts: Sequence[str] = (), gate: Sequence[str] | None = None) -> str:
     """The lane's brief: the skeleton's fixed lines first, then rows / objective / inputs, then the report ask.
 
     Never longer than ``BRIEF_MAX_LINES``; what does not fit is clipped from the variable middle.
@@ -78,7 +89,11 @@ def render_lane_brief(a: Assignment, sites: Sequence[Site], *, landing: bool, me
         head += [f"Conflicted, merge it by hand first: {', '.join(conflicts)}"] if conflicts else []
         head += [_LAND_RUN, "Do NOT push main: the push is the owner's approve."]
     else:
-        head += [_RUN, f"Commits: MOVE and CHANGE never share one; `git push -u origin {sites[0].branch}` after each; "
+        # A slot with no remote (the machine-local default brain) has no ``origin`` to push to; the landing merges
+        # the branch from this clone's own refs (RT-WORK-LANE-BRIEF-PUSH-WITH-NO-REMOTE).
+        share = ("commit each on the branch; there is no remote, so never push" if sites[0].clone.local
+                 else f"`git push -u origin {sites[0].branch}` after each")
+        head += [_run_line(gate), f"Commits: MOVE and CHANGE never share one; {share}; "
                        "never main; never amend, force or stash; leave the worktree."]
     if brief.acceptance:
         head.append(f"Done when: {' '.join(brief.acceptance.split())[:300]}")
@@ -127,7 +142,8 @@ class BatchLaneExecutor:
         batch, record = self._lane(a.request_id)
         landing = record.lane.kind is LaneKind.LANDING
         sites, merged, conflicts = self._land(batch) if landing else self._cut(batch, record)
-        message = render_lane_brief(a, sites, landing=landing, merged=merged, conflicts=conflicts)
+        gate = None if landing else batch.landing.lane.gates.get(sites[0].slot)
+        message = render_lane_brief(a, sites, landing=landing, merged=merged, conflicts=conflicts, gate=gate)
         (sites[0].scratch / "brief.md").write_text(message + "\n", encoding="utf-8", newline="\n")
         receipts.emit("batch.lane_site", batch_id=batch.id, lane=record.id, request_id=a.request_id,
                       worktrees=[str(s.worktree) for s in sites], branches=[s.branch for s in sites],
@@ -176,14 +192,17 @@ class BatchLaneExecutor:
         return sites
 
     def _land(self, batch: Batch) -> tuple[list[Site], tuple[str, ...], tuple[str, ...]]:
-        """Cut ``land/<batch>`` per slot from the fresh tip and merge each REPORTED lane in order."""
+        """Cut ``land/<batch>`` per slot from the fresh tip and merge each REPORTED lane in order. A landing worktree
+        that already stands (a land again, after a red gate or an Approve refused for a moved main) first merges
+        the fresh tip, or the next Approve would be refused the same way (RT-WORK-STALE-APPROVAL-HOLDS-LANDING)."""
 
         merged: list[str] = []
         conflicts: list[str] = []
         sites = self._landing_sites(batch)
         for site in sites:
             self._git.fetch(site.clone)
-            self._git.ensure(site)
+            if not self._git.ensure(site):
+                (merged if self._git.merge(site.worktree, site.clone.tip) else conflicts).append(site.clone.tip)
             for record in batch.lanes:
                 branch = lane_branch(batch.id, record.id)
                 if (record.state is not LaneState.REPORTED or lane_slot(record) != site.slot

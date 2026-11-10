@@ -84,17 +84,35 @@ def test_start_enqueues_on_the_instance_root_with_a_work_origin_and_wakes(no_dir
     assert again.run_id == run.run_id and len(send_queue._entries(ROOT)) == 1
 
 
+def _open_chat_verb_contract(args):
+    """``persona.instance.open_chat``'s argument rules (``chat_open._cmd_persona_instance_open_chat``): a mint
+    (``new_session``) takes no ``session_id``; a rebind needs one unless it adds an instance."""
+
+    if args.new_session:
+        if args.session_id or args.add_instance:
+            return 2, {"ok": False, "error": "session_id must be omitted when new_session is true"}
+        return 0, {"ok": True, "session_id": "persona_chat_opened", "new_session": True}
+    if not args.session_id and not args.add_instance:
+        return 2, {"ok": False, "error": "session_id is required unless add_instance is true"}
+    return 0, {"ok": True, "session_id": args.session_id}
+
+
 def test_no_root_opens_a_chat_through_the_door(no_direct_turns):
+    """RT-WORK-LANE-NO-CHAT-ROOT-REFUSED: an instance that has never chatted mints its own root (and selects it);
+    ``new_session=False`` with no ``session_id`` was refused by the verb on every tick and the lane sat CLAIMED.
+    Killing mutation: ``_open`` back to ``new_session=False`` -> refused ``persona_unavailable``, red."""
+
     opened: list[SimpleNamespace] = []
 
     def open_chat(args):
         opened.append(args)
-        return 0, {"ok": True, "session_id": "persona_chat_opened"}
+        return _open_chat_verb_contract(args)
 
     executor, _ = _executor(root=None, open_chat=open_chat)
     run = executor.start(_assignment())
     assert run.root_session_id == "persona_chat_opened"
     assert opened[0].persona_instance_id == "inst-1" and opened[0].add_instance is False
+    assert opened[0].new_session is True and opened[0].session_id is None and opened[0].select_session is True
     assert send_queue.find("persona_chat_opened", run.client_message_id) is not None
 
     def unbound(args):

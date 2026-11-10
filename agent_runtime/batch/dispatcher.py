@@ -512,11 +512,27 @@ class BatchDispatcher:
         state = move(BATCH_MOVES, batch.state, BatchEvent.APPROVE)
         require_green(batch.gate_receipts, slots_of(batch))
         with _one_landing(batch_id):
-            sha = self._lander.push(batch)
+            try:
+                sha = self._lander.push(batch)
+            except WorkRefused as refused:
+                if refused.reason is Reason.PUSH_CONTENDED:
+                    self._approve_contended(workspace_id, batch, refused)
+                raise
         self.manifests.append(workspace_id, batch_id, [self._batch_line(state, {"landing_sha": sha})],
                               f"{batch_id}:landed")
         receipts.emit("batch.landed", workspace_id=workspace_id, batch_id=batch_id, landing_sha=sha)
         return self.load(workspace_id, batch_id)
+
+    def _approve_contended(self, workspace_id: str, batch: Batch, refused: WorkRefused) -> None:
+        """The default branch moved under an AWAITING_APPROVAL batch: no Approve can pass until it lands again,
+        so it goes back to READY_TO_LAND and stops holding the machine's one landing slot; the refusal still
+        reaches the caller (RT-WORK-STALE-APPROVAL-HOLDS-LANDING)."""
+
+        state = move(BATCH_MOVES, batch.state, BatchEvent.APPROVE_CONTENDED)
+        line = self._batch_line(state, {"reason": refused.reason.value, "detail": str(refused.detail or "")})
+        self.manifests.append(workspace_id, batch.id, [line], f"{batch.id}:approve_contended:{batch.landing_attempt}")
+        receipts.emit("batch.approve_contended", workspace_id=workspace_id, batch_id=batch.id,
+                      attempt=batch.landing_attempt)
 
     # ── the tick and the lookups ─────────────────────────────────────────
 

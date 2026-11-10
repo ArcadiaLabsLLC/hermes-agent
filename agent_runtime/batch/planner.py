@@ -72,7 +72,7 @@ _BRACES = re.compile(r"\{([^{}]*)\}")
 _CITATIONS = ("docs",)
 _LANE_CONSTRAINTS = (
     "Edit only what these rows name; the dispatcher writes every row's ending — never edit the rows.",
-    "Run only the tests that import what you touched (scripts/run_tests.sh -j 4); other lanes are live.",
+    "Run only what the brief's Run line names (it follows the slot's gate); other lanes are live.",
     "One CHANGE commit (a MOVE, if any, separately); report your tool-call count.",
 )
 
