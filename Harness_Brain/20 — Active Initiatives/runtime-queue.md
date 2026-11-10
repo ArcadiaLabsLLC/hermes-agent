@@ -844,7 +844,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-09-24 (seam lane S2)
 
-- **`RT-NINE-STAGE-2-ROWS` — Nine Stage 2 rows the ledger said the surface "has" wait on five widening PRs nobody owns, and none is on §Stage 3's P-list** · group: upstream-footprint-ledger.harness-plugin-and-upstream-seams · `seams / upstream` · `register_command` with gateway context + `busy_policy` (`/queue-status`, 4 rows); a terminal command-guard hook consulted by `_check_all_guards` with a typed result (the envelope gate); a per-call usage ledger in the turn result (`usage_ledger`, 3 rows); a tool-schema transform hook (wire briefs); a register-toolset PR (bundle membership, `harness_core`). Each needs a P-number, an owner and a fallback in `docs/agent-runtime-harness/planned/harness-plugin-and-upstream-seams.md` §Stage 3 · evidence: `docs/agent-runtime-harness/planned/upstream-footprint-ledger.md` rows marked "DESIGN (lane S2)" / "waits on" · filed by lane S2 2026-09-24 · the tool-schema transform ask is REFUTED (upstream `llm_request` middleware rewrites `api_kwargs.tools`) · RULED 2026-10-10 owner: fork-side `/queue-status` through `pre_gateway_dispatch`, no re-cut — in the tree (98b4553ef03, `agent_runtime/gateway_queue_status.py`) · DEFERRED 2026-11-09: owner triage — Speculative features waiting on upstream merges; no user is hurt today; until the owner reopens it
 
 ### Filed on arrival — 2026-09-24 (disposition wave, lane DISP-C)
 
