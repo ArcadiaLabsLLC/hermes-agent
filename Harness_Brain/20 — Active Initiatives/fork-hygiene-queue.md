@@ -637,7 +637,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-18 (session r-perf close-out)
 
 - **`FORK-ORPHAN-INSTALL-LEFTOVERS` — the 335 owner-approved orphan pm install states under `X:\Eternia\.hermes\installs` each keep ~82 locked files (~36 MB, hardlinked native modules such as aiohttp `.pyd` held by live Pythons; the whole folder is 5.1 GB), and `uv cache prune` failed on a held temp dir (os error 32); rerun `delete_orphans.py` (skip-and-continue) and `uv cache prune` after a reboot** · group: embedded-hermes · fork / workstation · deleter run 2026-10-18 `deleted=0 skipped=0 failed=335` (all PARTIAL) · DEFERRED 2026-11-09: owner triage — Disk clean-up on the owner's PC, no urgency; until the owner reopens it
-- **`FORK-STALE-PR-BRANCH-LAZY-HTTPS` — remote branch `upstream-pr/lazy-https-opener` (`95b3221fbec`) is dead: its SSLKEYLOGFILE cause is fixed by the launcher strip (`1616c349cc`) and FORK-DIAGNOSE-LOCAL-CLI-STARTUP is closed; delete it (`git push origin --delete upstream-pr/lazy-https-opener`), a remote-ref delete the owner runs** · group: upstream-footprint-ledger · fork / git · w4-misc `317dc4779c` · DEFERRED 2026-11-09: owner triage — Harmless leftover; one-command tidy-up anytime; until the owner reopens it
 
 ## Filed on arrival — 2026-10-19 (land w10, b05ccafe29)
 
