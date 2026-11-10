@@ -477,7 +477,7 @@ def _add_mission_chat_message(mission_chat_subs) -> None:
     mission_chat_message.add_argument("--session-id", default=None)
     # The owning account's client-scope digest (RT-CHAT-MESSAGE-MINT-UNSCOPED): a send that names
     # no session and MINTS one stamps it on the new root, so the chat lists under that account
-    # (`launcher.agent_chat.list` filters on it). Lowered from `runtime.chat.message`'s
+    # (the Launcher's chat list filters on it). Lowered from `runtime.chat.message`'s
     # `client_scope`, which the door has already validated.
     mission_chat_message.add_argument("--client-scope", dest="client_scope", default=None, help="The owning account's client-scope digest (64 hex) a chat this send MINTS is stamped with; ignored when continuing an existing thread")
     # store_true (absent → False) is deliberate on THIS lane: False is now an

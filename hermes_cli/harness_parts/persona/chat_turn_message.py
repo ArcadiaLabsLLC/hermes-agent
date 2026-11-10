@@ -815,7 +815,7 @@ def _mint_send_root(args, *, instance_store, session_db, normalized_persona, per
                 "requested_by_session": requested_by_session,
             },
             # A scoped client's first send mints the chat it will list: without the owner mark
-            # the root is unscoped, `launcher.agent_chat.list` omits it after a relaunch and
+            # the root is unscoped, the Launcher's chat list omits it after a relaunch and
             # every scoped history read of it refuses `conversation_owner_changed`
             # (RT-CHAT-MESSAGE-MINT-UNSCOPED, Eternia MC-CONSOLE-FIRST-SEND-CHAT-UNSCOPED-DROPS-FROM-DIRECTORY).
             client_scope=getattr(args, "client_scope", None),
