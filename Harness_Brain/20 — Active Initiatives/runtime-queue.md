@@ -863,7 +863,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-25 (lane w1025b-h-audit)
 
-- **`UP-TOOL-REQUEST-MIDDLEWARE-ORIGINAL-ARGS` — upstream's `tool_request` chain hands EVERY middleware the original args (`hermes_cli/middleware.py::_apply_request_chain` passes the same `**kwargs` each time and keeps only the last result), so two plugins that both rewrite one call silently drop the first rewrite; the fork carries one rewriter (`plugins/eternia-harness/__init__.py::default_background_notify` chains background-notify and commit trailers) to stay correct** · group: upstream-footprint-ledger · `hermes_cli/middleware.py::_apply_request_chain` (upstream-owned) · DEFERRED 2026-10-25: the fork's single rewriter carries it; an upstream issue (each middleware sees the current payload) only if a second plugin rewriter is ever needed
 
 ### Filed on arrival — 2026-10-21 (lane w1021j-tooling, branch `w1021j/tooling`)
 
