@@ -392,6 +392,21 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_delegated_child_reports_its_delegators_conversation",
         )
     },
+    # Upstream v0.23.1 (6393828580) anchors "a shipped built-in the session lacks" on an eager,
+    # available browser_exec; the fork's tool_search scope holds eager in-session names too
+    # (tool_search_downstream.admit_direct_in_scope), so that browser_exec is in the session.
+    **{
+        f"tests/hermes_cli/test_shared_metrics_signals.py::{name}": (
+            _fork_replaces(
+                "tools.tool_search_downstream.admit_direct_in_scope (eager in-session names are in scope)",
+                "tests/hermes_cli/test_shared_metrics_signals_downstream.py",
+            ),
+        )
+        for name in (
+            "test_only_a_disabled_shipped_builtin_is_reported",
+            "test_turn_validation_reports_disabled_builtin_once_and_unknown_names_never",
+        )
+    },
     # The same refuse_tool_call registration reaches session.create's launch-hook consent:
     # upstream counts exactly one pre_tool_call hook (row FH-SESSION-POLICY-HOOK-COUNT-RED).
     "tests/gateway/test_session_policy.py::"
