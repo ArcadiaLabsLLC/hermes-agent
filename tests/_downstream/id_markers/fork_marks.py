@@ -70,6 +70,11 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
         f"tests/agent/transports/test_provider_wire_snapshot.py::{name}": (_UPSTREAM_WIRE_UNBRIEFED,)
         for name in ("test_provider_wire_matches_snapshot", "test_base_url_only_wire_matches_snapshot")
     },
+    # Upstream v0.23.1 (e240d617e8): the control half rewrites clarify's schema and reads it back
+    # off the wire, which the brief would collapse first.
+    "tests/agent/test_session_prompt_refresh.py::test_refresh_keeps_the_sessions_tools_pin": (
+        _UPSTREAM_WIRE_UNBRIEFED,
+    ),
     # The fork's standalone tool_describe rides every non-empty tool list, so the web
     # toolset serves three names once a web key lights it.
     "tests/tools/test_web_tools_config.py::TestCheckWebApiKey::"
