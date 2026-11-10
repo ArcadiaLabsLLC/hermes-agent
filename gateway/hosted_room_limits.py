@@ -26,6 +26,7 @@ from types import ModuleType
 
 from gateway import hosted_room_driver as driver
 from gateway import hosted_rooms
+from gateway import hosted_rooms_common as common
 from gateway.hosted_room_message_intent import response_from_payload
 
 
@@ -51,9 +52,12 @@ class DiscussionLimits:
 
     def __post_init__(self) -> None:
         _discussion = _policy()
+        # Upstream's scheduling ceilings (v0.23.1): any positive integer, owner-configurable.
+        # (``common.bounded_int`` directly: this runs mid-import, before the policy module's helpers.)
+        for name in ("max_rounds", "max_messages"):
+            common.bounded_int(getattr(self, name), error=_discussion.DiscussionValidationError, low=1,
+                               message=f"hosted_rooms.discussion.{name} must be a positive integer")
         for name, low, high in (("max_members", 2, hosted_rooms.MAX_MEMBERS),
-                                ("max_rounds", 1, _discussion.MAX_DISCUSSION_ROUNDS),
-                                ("max_messages", 1, 384),
                                 ("prompt_bytes", 2048, driver.MAX_PROMPT_BYTES)):
             value = getattr(self, name)
             if type(value) is not int or not low <= value <= high:
@@ -119,13 +123,17 @@ def _conclude(room, events, discussion, active, decision) -> _discussion.Discuss
 
 
 def task_round_index(identity: driver.TaskIdentity, *, limits: DiscussionLimits | None = None) -> int:
-    """Read a durable task coordinate, including after the room has ended."""
-    if limits is None:
-        limits = __getattr__("DEFAULT_LIMITS")
+    """Read a durable task coordinate, including after the room has ended.
+
+    ``limits`` is accepted for callers' symmetry but no longer bounds the round: upstream v0.23.1
+    made the round budget owner-configurable, and a lowered budget must not invalidate history.
+    """
+    del limits
     match = _discussion._TURN_ID_RE.fullmatch(identity.turn_id)
     if match is None:
         raise _discussion.DiscussionReconstructionError("turn_id is not a Discussion coordinate")
-    return _discussion._zero_based_int(int(match.group("round")), label="round_index", maximum=limits.last_round_index)
+    # Lowering the scheduling budget must not invalidate already-published higher rounds (v0.23.1).
+    return _discussion._bounded_int(int(match.group("round")), message="round_index must be a non-negative integer")
 
 
 # Last, so a first import of this module has defined every name the upstream seam line imports.
