@@ -701,7 +701,7 @@ def _set_group(line: str, *, who: str, date: str, payload: dict) -> str:
     return SEPARATOR.join(segments).rstrip()
 
 
-def _answer(line: str, *, who: str, date: str, payload: dict) -> str:
+def _answer_line(line: str, *, who: str, date: str, payload: dict) -> str:
     """An owner decision answered (RT-WORK-ANSWER-VERB): ``RULED <date>: owner — <answer>`` inserted before the
     status, the status replaced by ``READY <date>`` and its ``Recommend:`` dropped, the claim (if any) kept.
     A row that is not ``BLOCKED <date>: owner decision`` refuses ``invalid``."""
@@ -766,7 +766,7 @@ _EDITS: dict[Op, Callable[..., str | None]] = {
     Op.ASSIGN: _assign,
     Op.SET_SKILLS: _set_skills,
     Op.SET_GROUP: _set_group,
-    Op.ANSWER: _answer,
+    Op.ANSWER: _answer_line,
     Op.CLOSE: _close_line,
     Op.CHAT_TURNS_APPENDED: _not_a_line_edit,
 }
