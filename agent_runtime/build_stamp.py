@@ -88,6 +88,7 @@ __all__ = [
     "baked_build_stamp",
     "build_stamp",
     "checkout_bound_enabled",
+    "prefetch_build_stamp",
     "reset_build_stamp_cache",
 ]
 
@@ -221,6 +222,40 @@ def build_stamp(*, refresh: bool = False) -> BuildStamp:
         stamp = _resolve()
         _cached_stamp = stamp
         return stamp
+
+
+def prefetch_build_stamp() -> threading.Thread | None:
+    """Start resolving :func:`build_stamp` on a daemon thread; return the thread (None when cached).
+
+    RT-HARNESS-SERVE-COLD-BOOT: the serve's ``ready`` frame needs the stamp, and resolving it is
+    up to three git processes (``rev-parse``, ``status``, ``ls-tree``) that the boot used to wait
+    for serially inside ``_boot_store_and_identity`` — 0.8-1.5 s on a loaded Windows box. Started
+    at the serve verb's entry, the git work runs beside the serve's own imports instead. The
+    stamp is the same value either way: ``build_stamp`` resolves under ``_cache_lock``, so the
+    boot's reader waits for this thread's answer (or, if the thread failed, resolves it itself)
+    and never sees a second resolution. Never raises.
+    """
+
+    if _cached_stamp is not None:
+        return None
+    try:
+        import contextvars
+
+        context = contextvars.copy_context()
+        thread = threading.Thread(
+            target=context.run, args=(_prefetch_quietly,), name="build-stamp-prefetch", daemon=True
+        )
+        thread.start()
+    except Exception:  # pragma: no cover - a thread that cannot start leaves the lazy path as it was
+        return None
+    return thread
+
+
+def _prefetch_quietly() -> None:
+    try:
+        build_stamp()
+    except Exception:  # pragma: no cover - the boot's own call resolves (and reports) it again
+        pass
 
 
 def reset_build_stamp_cache() -> None:
