@@ -557,6 +557,13 @@ class PersonaInstance:
     # which outranks the env head for this conversation. ``None`` reads as
     # ``process``. Like ``chat_head_home``, it projects to no wire field.
     chat_head_kind: str | None = None
+    # RT-PERSONA-ENSURE-REVERTS-INSTANCE-RENAME: True once the operator named this
+    # instance (``update_profile(display_name=...)``, the launcher's Edit profile).
+    # ``PersonaInstanceStore.ensure_for_persona`` syncs the persona's own name onto
+    # the canonical row only while this is False, so a rename survives every
+    # snapshot build and a persona renamed in config still renames an instance
+    # nobody named. Local-only: an older member's pull door refuses unknown keys.
+    display_name_custom: bool = False
     # Repo slots (build plan §3.3, OWNER 2026-10-04): the subset of this
     # instance's workspace's declared slots it works in — the AUTHORITY the
     # launcher's Agent Console edits. Empty means NONE (never "all"); a slot may

@@ -181,7 +181,9 @@ class PersonaInstanceStore:
             )
             return self._instance_row(persona, instance_id)
         changed = False
-        if existing.display_name != persona.display_name:
+        # An operator rename (``display_name_custom``) outranks the persona's own name;
+        # only an instance nobody named follows it (RT-PERSONA-ENSURE-REVERTS-INSTANCE-RENAME).
+        if not existing.display_name_custom and existing.display_name != persona.display_name:
             existing.display_name = persona.display_name
             changed = True
         if existing.profile_id != persona.hermes_profile:

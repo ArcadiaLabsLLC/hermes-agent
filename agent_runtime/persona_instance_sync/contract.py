@@ -180,6 +180,7 @@ PERSONA_INSTANCE_LOCAL_ONLY_KEYS: frozenset[str] = frozenset(
         "current_assignment_id",
         "current_chat_goal",
         "current_task_id",
+        "display_name_custom",
         "goal_id",
         "last_heartbeat_at",
         "returned_to",
