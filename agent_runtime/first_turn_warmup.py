@@ -110,6 +110,11 @@ FIRST_TURN_MODULES = (
     # ``agent_ready`` on turn 0 only, RT-TURN0-REQUEST-SENT-IDLE-RED, 2026-11-01).
     "agent_runtime.address", "agent_runtime.machine_identity", "agent_runtime.slot_worktrees",
     "agent_runtime.turn_checkpoints", "agent_runtime.workspace_slot_overlay",
+    # Upstream v0.23.1's turn path: the bot-chain / bot-loop guard, the side-question lease and
+    # request, the reasoning carriers and the gateway's response filters (the counts guard saw all
+    # six between write_ahead and request_sent on turn 0 at the v0.23.1 sync gate, 2026-11-10).
+    "agent.bot_chain", "agent.reasoning_carriers", "agent.side_question_lease", "agent.side_question_request",
+    "gateway.bot_loop_guard", "gateway.response_filters",
 )
 
 
