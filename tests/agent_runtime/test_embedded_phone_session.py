@@ -481,6 +481,23 @@ def _unseamed(attempts: list[dict]) -> list[dict]:
     return out
 
 
+def _device_env() -> dict[str, str]:
+    """This process's environment with the device's ``PATH``: the interpreter's folder and the OS's.
+
+    A phone has no command-line agents installed. The test host may: an operator's ``copilot`` on
+    ``PATH`` (VS Code's copilot-shim on the Windows box, RT-WINDOWS-BASELINE-REGRESSIONS) makes the
+    model picker count copilot-acp as signed in and probe it (``copilot --help``, ``--acp --stdio``),
+    which the ``spawned == []`` check then sees, and the phone wheel's switched-off ACP client import.
+    The CLIs are a test-host fact, not the turn's, like the ``cmd /c ver`` stand-in in :data:`_CHILD`.
+    """
+    keep = [str(Path(sys.executable).parent)]
+    if sys.platform == "win32":
+        keep.append(str(Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32"))
+    else:
+        keep += ["/usr/bin", "/bin"]
+    return {**os.environ, "PATH": os.pathsep.join(keep)}
+
+
 @pytest.mark.slow_native
 @pytest.mark.timeout(300)  # the phone case stages the wheel first (the packager's walk, ~40 s)
 @pytest.mark.parametrize("wheel", ["phone", "full"])
@@ -497,7 +514,8 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_histo
     else:
         cwd, off = REPO_ROOT, tuple(load_profile("bundled-phone").switched_off_modules)
     proc = subprocess.run([sys.executable, "-c", _CHILD, str(app), __file__, wheel, str(REPO_ROOT), json.dumps(off)],
-                          cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=200, check=False)
+                          cwd=cwd, env=_device_env(), capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=200, check=False)
     lines = [line for line in proc.stdout.splitlines() if line.startswith("RESULT ")]
     assert proc.returncode == 0 and lines, (proc.stdout[-3000:], proc.stderr[-6000:])
     result = json.loads(lines[-1][len("RESULT "):])

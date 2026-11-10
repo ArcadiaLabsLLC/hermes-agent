@@ -27,7 +27,8 @@ fences that child through ``hermes_cli/_registry_write_fence.py``.
 A child spawned with an environment built from SCRATCH (``env={"HERMES_HOME": tmp, ...}``)
 inherits nothing, so on Windows ``install`` also wraps ``subprocess.Popen.__init__``
 (:func:`fence_scratch_child_envs`): an explicit ``env`` mapping that lacks the marker gets it
-added. ``asyncio``'s Windows children are ``subprocess.Popen`` too. Without it a scratch-env
+added; one that spells it (a positive control's ``"0"``) is left alone. ``asyncio``'s
+Windows children are ``subprocess.Popen`` too. Without it a scratch-env
 ``python -m hermes_cli.main`` or ``install.ps1`` child under a temp home put
 ``<tmp>\home\bin`` on the user Path (FH-PYTEST-HOME-BIN-LEAKS-INTO-USER-PATH, dozens of
 entries on the owner's box 2026-11-08).
@@ -64,8 +65,14 @@ _POPEN_ENV_INDEX = 10
 
 
 def marked_env(env: Mapping[str, str] | None) -> Mapping[str, str] | None:
-    """*env* with the child fence marker added; ``None`` (inherit) and marked maps are returned as is."""
-    if env is None or os.environ.get(_E2E_OWNS_THE_REGISTRY) == "1" or env.get(CHILD_FENCE_ENV) == "1":
+    """*env* with the child fence marker added when it names none.
+
+    ``None`` (inherit) is returned as is, and so is a map that already spells the marker: ``"1"``
+    is fenced already, and any other value is the caller's deliberate choice — a positive control
+    that must watch an unfenced child write (``"0"``), like an operator's own value in
+    ``hermes_cli/_namespace_bootstrap.py``. Only a map that never mentions it was built from scratch.
+    """
+    if env is None or os.environ.get(_E2E_OWNS_THE_REGISTRY) == "1" or CHILD_FENCE_ENV in env:
         return env
     return {**env, CHILD_FENCE_ENV: "1"}
 
