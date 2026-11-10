@@ -43,7 +43,7 @@ def test_profile_switches_the_listed_toolsets_off():
     after = _selected(disabled)
 
     # Positive control: the same selection without the profile carries the shell family.
-    assert {"terminal", "process_manage", "execute_code", "browser_navigate"} <= before
+    assert {"terminal", "process_manage", "execute_code", "browser_cdp"} <= before
     for toolset in manifest.disabled_toolsets:
         leaked = set(resolve_toolset(toolset)) & after
         assert not leaked, f"{toolset} still selected: {sorted(leaked)}"
