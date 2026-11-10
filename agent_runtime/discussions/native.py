@@ -58,8 +58,9 @@ class NativeTurns:
                 self._live.pop(key, None)
                 raise
 
-    def recover(self, row: Mapping[str, Any]) -> dict[str, Any]:
-        current = self.attempts.get(*self._key(row)) or dict(row)
+    def recover(self, row: Mapping[str, Any], *, fresh: bool = False) -> dict[str, Any]:
+        """``fresh``: ``row`` was read from the store just now, so it is not read again."""
+        current = dict(row) if fresh else self.attempts.get(*self._key(row)) or dict(row)
         if current["stage"] in {"terminal", "waiting_input"}:
             return current
         record = self.context.journal(current["session_id"], current["native_id"])

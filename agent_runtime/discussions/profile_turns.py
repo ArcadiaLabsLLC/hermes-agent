@@ -71,12 +71,13 @@ class ProfileTurns:
         if current["stage"] == "terminal" and on_terminal is not None:
             on_terminal(current["receipt"])
 
-    def recover(self, row):
+    def recover(self, row, *, fresh=False):
+        """``fresh``: ``row`` was read from the store just now, so it is not read again."""
         with self._admission:
-            return self._recover(row)
+            return self._recover(row, fresh=fresh)
 
-    def _recover(self, row):
-        current = self._current(row)
+    def _recover(self, row, *, fresh=False):
+        current = row if fresh else self._current(row)
         if current["stage"] in {"pending", "terminal"}:
             return current
         try:

@@ -16,12 +16,21 @@ class SessionExecution:
     def transport(self, run, member, task):
         return NativeSessionRPC(self.turns, run, member, task)
 
-    def row(self, run_id, task):
-        row = self.attempts.get(run_id, task["identity"].task_id, task["execution_generation"])
-        return self.turns.recover(row) if row is not None else None
+    def row(self, run_id, task, attempts=None):
+        """``task``'s attempt, recovered. ``attempts`` is the run's ``attempt_rows``, read once for a whole
+        walk over its tasks; without it this reads the one row. Either way the row is fresh, so recovery
+        does not read it again (a view over twelve tasks opened the attempt file 24 times)."""
+        key = (task["identity"].task_id, task["execution_generation"])
+        row = attempts.get(key) if attempts is not None else self.attempts.get(run_id, *key)
+        return self.turns.recover(row, fresh=True) if row is not None else None
+
+    def attempt_rows(self, run_id):
+        """Every attempt of ``run_id`` on ONE connection, keyed ``(task_id, generation)`` for ``row``."""
+        return {(row["task_id"], row["generation"]): row for row in self.attempts.rows(run_id)}
 
     def unresolved(self, row):
-        return row is not None and (self.turns.is_live(row) or self.turns.recover(row)["stage"] != "terminal")
+        """``row`` comes from ``row`` (recovered from a fresh read), so its re-check does not read it again."""
+        return row is not None and (self.turns.is_live(row) or self.turns.recover(row, fresh=True)["stage"] != "terminal")
 
     def retry(self, row):
         if not self.turns.execution_absent(row):
