@@ -62,7 +62,7 @@ def _full(name):
     return full_tool_description(name) or _schema(name).get("description", "")
 
 
-def test_mirror_and_briefs_cover_thirty_four_tools():
+def test_mirror_and_briefs_cover_twenty_four_tools():
     """Every tool whose wire description the fork hand-wrote has a row (mirror or table).
 
     34 was T6b's count after ``mission_goal_create`` retired; 33 since lane REDS3
@@ -71,10 +71,12 @@ def test_mirror_and_briefs_cover_thirty_four_tools():
     hand-written one-liners: ``browser_exec``, ``tool_describe`` (a bridge tool, left out
     of this registry walk) and ``skill_view``, the one tool with both a mirror row (what
     ``tool_describe`` serves) and a wire line; every other tool is collapsed to its first
-    sentence by the middleware and needs no row.
+    sentence by the middleware and needs no row. 24 since the v0.23.1 merge: upstream
+    deleted the ten built-in ``browser_navigate``/``snapshot``/``click``/... tools
+    (68500d9ff9), and their rows went with them.
     """
     assert set(FULL_TOOL_DESCRIPTIONS) & set(BRIEF_DESCRIPTIONS) == {"skill_view"}
-    assert len(TRIMMED_TOOLS) == 34
+    assert len(TRIMMED_TOOLS) == 24
     assert "mission_goal_create" not in TRIMMED_TOOLS
 
 
@@ -111,14 +113,14 @@ def test_wire_ships_brief_shorter_than_full_docs():
 
 def test_registry_keeps_upstream_text_for_middleware_briefed_tools():
     """The moved briefs never reach the registry: it carries upstream's text."""
-    for name in ("clarify", "session_search", "write_file", "todo_list", "browser_navigate"):
+    for name in ("clarify", "session_search", "write_file", "todo_list", "web_search"):
         assert _schema(name)["description"] != BRIEF_DESCRIPTIONS[name], name
         assert _wire(name) == BRIEF_DESCRIPTIONS[name], name
 
 
 def test_tool_describe_returns_full_docs_and_live_params():
     """tool_describe serves the full text + the untrimmed parameters."""
-    for name in ("session_search", "browser_navigate", "execute_code"):
+    for name in ("session_search", "web_search", "execute_code"):
         schema = _schema(name)
         result = json.loads(dispatch_tool_describe(
             {"names": [name]}, current_tool_defs=[{"type": "function", "function": schema}]))
