@@ -337,6 +337,21 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # stat): 57 s on X:, ~245 s under the runner's C: temp root (lane h7-reds, 2026-09-29).
     "tests/scripts/test_bundle_native.py::"
     "test_bundle_stages_git_tree_and_runs_native_children_before_manifest": (pytest.mark.timeout(360),),
+    # v0.23.1 (#150283): upstream's compute-host relay stubs answer respond() with None / a bare bool;
+    # the fork relays only on the child's respond.ack (the mirror stays until it acknowledges).
+    **{
+        f"tests/tui_gateway/test_vault_preview_fill.py::{name}": (
+            _fork_replaces(
+                "tui_gateway.compute_host_bridge._answer_compute_host_request (child respond.ack required)",
+                "tests/tui_gateway/test_vault_preview_fill_downstream.py",
+            ),
+        )
+        for name in (
+            "test_preview_vault_request_is_live_only_and_still_resolves[True]",
+            "test_isolated_preview_read_is_redacted_in_the_owning_profile_before_the_child",
+            "test_non_preview_relayed_reply_is_forwarded_untouched",
+        )
+    },
     # Lane bridge-direct (2026-10-08): an in-scope eager name sent through tool_call is
     # dispatched by name, not refused; upstream's correction stays for unknown names.
     "tests/tools/test_tool_search.py::TestRegression_OpenClawCron84141::"
