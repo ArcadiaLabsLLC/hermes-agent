@@ -90,7 +90,7 @@ def _drive_serve_verb(monkeypatch, *, ndjson: bool) -> list[str]:
         lambda: (os.open(os.devnull, os.O_RDONLY), os.open(os.devnull, os.O_WRONLY)),
     )
     monkeypatch.setattr(serve_commands, "serve_loop", lambda reader, writer, **kw: order.append("serve") or 0)
-    parser_machine._cmd_serve(SimpleNamespace(ndjson=ndjson, pool_size=1, no_socket=True))
+    parser_machine._cmd_serve_trampoline(SimpleNamespace(ndjson=ndjson, pool_size=1, no_socket=True))
     return order
 
 

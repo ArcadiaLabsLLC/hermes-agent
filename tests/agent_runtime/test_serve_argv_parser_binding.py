@@ -1,7 +1,7 @@
 """The serve argv lane borrows the harness parser through a BINDING, never an import.
 
 No harness part may import ``hermes_cli.harness`` (W0-G6), so the lane's parser
-builder is bound by the harness itself: ``hermes_cli.harness_parts.parser.machine._cmd_serve`` hands
+builder is bound by the harness itself: ``hermes_cli.harness_parts.parser.machine._cmd_serve_trampoline`` hands
 ``build_parser`` to ``serve.commands._cmd_serve``, which binds it before the
 loop starts. This file pins that production wiring — the session conftest binds
 the same builder for every other test, so each test here starts UNBOUND.
@@ -47,7 +47,7 @@ def test_the_harness_serve_verb_binds_its_own_parser_before_serving(unbound, mon
     )
     monkeypatch.setattr(serve_commands, "serve_loop", _fake_serve_loop)
 
-    code = parser_machine._cmd_serve(SimpleNamespace(ndjson=True, pool_size=1, no_socket=True))
+    code = parser_machine._cmd_serve_trampoline(SimpleNamespace(ndjson=True, pool_size=1, no_socket=True))
 
     assert code == 0
     assert seen["builder"] is harness_parser.build_parser

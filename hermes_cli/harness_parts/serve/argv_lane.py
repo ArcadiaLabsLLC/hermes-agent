@@ -121,7 +121,7 @@ class _ArgvRequest:
 
 
 #: The harness parser tree's builder (``harness_parts.parser.build_parser``),
-#: BOUND by the parser's ``serve`` trampoline (``parser.machine._cmd_serve``)
+#: BOUND by the parser's ``serve`` trampoline (``parser.machine._cmd_serve_trampoline``)
 #: before a serve runs, so this package never imports the parser package (which
 #: imports every verb family): the lane only borrows the tree per request.
 _harness_parser_builder: Callable[[Any], None] | None = None

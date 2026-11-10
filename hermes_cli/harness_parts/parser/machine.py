@@ -30,7 +30,7 @@ settle_commands = lazy_module("hermes_cli.harness_parts.serve.settle_commands")
 
 __layer__ = "wiring"
 __all__ = [
-    "_cmd_serve",
+    "_cmd_serve_trampoline",
     "_cmd_serve_connect",
     "add_builds",
     "add_config",
@@ -585,7 +585,7 @@ def add_serve(subs) -> None:
             "`parent_exited`. Omitted: nothing is watched."
         ),
     )
-    serve.set_defaults(func=_cmd_serve)
+    serve.set_defaults(func=_cmd_serve_trampoline)
     # Sub-verbs under `serve`. The subparser is NOT required, so a bare
     # `harness serve --ndjson` keeps parsing exactly as it always has and still
     # dispatches to `_cmd_serve`.
@@ -673,7 +673,7 @@ def add_work(subs) -> None:
     work_cancel.set_defaults(func=work_commands._cmd_work_cancel)
 
 
-def _cmd_serve(args) -> int:
+def _cmd_serve_trampoline(args) -> int:
     if getattr(args, "ndjson", False):
         # The ready frame's build stamp is git work; it runs beside the serve's imports below
         # (RT-HARNESS-SERVE-COLD-BOOT) instead of serially inside the boot.
