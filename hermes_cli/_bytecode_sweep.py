@@ -304,6 +304,17 @@ def _sweep_stale_bytecode_if_checkout_changed() -> None:
                     removed=removed,
                     started=_started,
                 )
+            # Upstream 3caa45f370: an emptied directory at a dropped package path
+            # imports as a namespace package and hides the package's new home.
+            # An OSError (git could not list the dropped files) skips the restamp,
+            # so the next launch retries.
+            from hermes_cli.main_web_build import _prune_dropped_directories
+            if pruned := _prune_dropped_directories(PROJECT_ROOT, recorded):
+                logger.info(
+                    "Removed %d director%s the checkout no longer has",
+                    pruned,
+                    "y" if pruned == 1 else "ies",
+                )
             _record_bytecode_fingerprint()
         finally:
             # Released only after the restamp, so a loser that wakes up on the
