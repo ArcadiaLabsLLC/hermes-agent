@@ -93,18 +93,27 @@ def parent_alive(ppid: int | None, child_started: float, created: dict[int, floa
 
 
 def scan(run_started: float) -> list[Proc]:
-    """The box's processes through psutil, matched; [] when psutil is unavailable."""
+    """The box's processes through psutil, matched; [] when psutil is unavailable.
+
+    Two passes (FH-UPSTREAM-RUNNER-ONE-PROCESS-GROUP): every process's start time and name,
+    then the parent and command line of only those that started during the run — the only
+    ones :func:`match` can name. Reading every command line and parent cost 37.5 s over 537
+    processes on a loaded Windows box (psutil re-snapshots the process table per ``ppid``
+    there and opens each process for its command line), longer than the gates it followed.
+    """
 
     try:
         import psutil
     except ImportError:
         return []
-    infos = []
-    for proc in psutil.process_iter(["pid", "create_time", "cmdline", "ppid", "name"]):
+    infos, procs = [], {}
+    for proc in psutil.process_iter(["pid", "create_time", "name"]):
         try:
-            infos.append(dict(proc.info))
+            info = dict(proc.info)
         except (psutil.Error, OSError):
             continue
+        infos.append(info)
+        procs[info.get("pid")] = proc
     created = {}
     for info in infos:
         try:
@@ -113,13 +122,15 @@ def scan(run_started: float) -> list[Proc]:
             continue
     reapers = reaper_pids(infos)
     rows = []
-    for info in infos:
+    for pid, started in created.items():
+        if started + _SLACK_SECONDS < run_started:
+            continue  # started before the run: never a match, so its details are never read
         try:
-            started = float(info.get("create_time") or 0.0)
-            alive = parent_alive(info.get("ppid"), started, created, reapers)
-            rows.append(Proc(int(info["pid"]), started, info.get("cmdline") or [], alive))
-        except (KeyError, TypeError, ValueError):
+            proc = procs[pid]
+            ppid, cmdline = proc.ppid(), proc.cmdline()
+        except (KeyError, psutil.Error, OSError):
             continue
+        rows.append(Proc(pid, started, cmdline or [], parent_alive(ppid, started, created, reapers)))
     return match(rows, run_started)
 
 

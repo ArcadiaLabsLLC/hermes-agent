@@ -86,3 +86,39 @@ def test_a_posix_reaper_that_adopted_the_orphan_is_not_its_parent():
     assert lo.parent_alive(77, NOW, created, reapers) is False
     assert lo.parent_alive(1, NOW, created, reapers) is False
     assert lo.parent_alive(88, NOW, created, reapers) is True  # positive control: a real parent
+
+
+class _FakeProc:
+    """A psutil.Process stand-in that counts the reads the scan's second pass makes."""
+
+    reads: list[int] = []
+
+    def __init__(self, pid: int, started: float, ppid: int, cmdline: list[str]):
+        self.info = {"pid": pid, "create_time": started, "name": "python"}
+        self._ppid, self._cmdline = ppid, cmdline
+
+    def ppid(self) -> int:
+        self.reads.append(self.info["pid"])
+        return self._ppid
+
+    def cmdline(self) -> list[str]:
+        self.reads.append(self.info["pid"])
+        return self._cmdline
+
+
+def test_scan_reads_details_only_of_processes_started_during_the_run(monkeypatch):
+    """FH-UPSTREAM-RUNNER-ONE-PROCESS-GROUP: reading every process's parent and command line
+    cost 37.5 s on a loaded Windows box. KILLING MUTATION: drop the started-before-the-run
+    ``continue`` in ``scan`` -> the old processes' details are read and ``reads`` reddens."""
+    import types
+
+    run_started = 1_000_000.0
+    update = ["python", "-m", "hermes_cli.main", "update", "--yes"]
+    procs = [_FakeProc(pid, run_started - 3600, 4, update) for pid in range(10, 40)]  # old: never read
+    procs.append(_FakeProc(99, run_started + 5, 7, update))  # started in the run, parent 7 gone
+    fake = types.SimpleNamespace(process_iter=lambda attrs: iter(procs), Error=Exception)
+    monkeypatch.setitem(sys.modules, "psutil", fake)
+    _FakeProc.reads = []
+    found = lo.scan(run_started)
+    assert [p.pid for p in found] == [99]
+    assert sorted(set(_FakeProc.reads)) == [99]
