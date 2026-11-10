@@ -225,6 +225,13 @@ class _OpenAIHost:
     def _ensure_primary_openai_client(self, *, reason):
         return object()
 
+    @staticmethod
+    def _api_kwargs_have_image_parts(api_kwargs):
+        # v0.23.1's checkout scans for image parts first; borrow the real scan.
+        from agent.client_lifecycle import ClientLifecycleMixin
+
+        return ClientLifecycleMixin._api_kwargs_have_image_parts(api_kwargs)
+
     def _openai_client_lock(self):
         return self._lock
 
