@@ -142,6 +142,34 @@ def pytest_argv(file: Path, pytest_args: list[str], argv: list[str] | None = Non
     return [*job_prefix(), sys.executable, *prefix, "-m", "pytest", *targets, *pytest_args]
 
 
+def start(file: Path, pytest_args: list[str], repo_root: Path, env: dict[str, str], scratch_dir: str,
+          upstream_start):
+    """Start one file's pytest child; return ``(proc, pgid)`` like upstream's ``start_pytest``.
+
+    The plain ``python -m pytest <file> …`` argv goes through upstream's launcher (its
+    fork-server path included); any argv this module changes (``pytest_argv``: coverage
+    wrap, node-id selection, the Windows Job Object wrapper) is spawned here, in a session
+    of its own and, on Windows, without inheriting the operator's console."""
+
+    cmd = pytest_argv(file, pytest_args)
+    if cmd == [sys.executable, "-m", "pytest", str(file), *pytest_args]:
+        return upstream_start(file, pytest_args, repo_root, env, scratch_dir)
+    import subprocess
+
+    proc = subprocess.Popen(
+        cmd, cwd=repo_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, encoding="utf-8", errors="replace", env=env,
+        start_new_session=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+    )
+    if sys.platform == "win32":
+        return proc, None
+    try:
+        return proc, os.getpgid(proc.pid)
+    except (ProcessLookupError, PermissionError):
+        return proc, None
+
+
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
 _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
 

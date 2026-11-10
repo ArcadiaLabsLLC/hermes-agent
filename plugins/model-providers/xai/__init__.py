@@ -2,12 +2,12 @@
 
 from hermes_cli.version_info import release_version
 from providers import register_provider
-from providers.base import ProviderProfile
+from providers.base import LazyHeaders, ProviderProfile
 
 xai = ProviderProfile(
     name="xai", aliases=("grok", "x-ai", "x.ai"), api_mode="codex_responses", env_vars=("XAI_API_KEY",),
     base_url="https://api.x.ai/v1", auth_type="api_key",
-    default_headers={"User-Agent": f"Hermes-Agent/{release_version()}"},
+    default_headers=LazyHeaders({"User-Agent": lambda: f"Hermes-Agent/{release_version()}"}),
 )
 
 register_provider(xai)

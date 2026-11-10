@@ -70,6 +70,10 @@ from tests._downstream.idle_box import (  # hook re-exports (owner ruling 2026-1
     pytest_configure_idle_box,
     pytest_runtest_setup_idle_box,
 )
+from tests._downstream.install_sh_windows_bash import (  # hook + fixture re-exports (v0.23.1 merge)
+    _install_sh_bare_bash_resolves_by_path,
+    pytest_collection_modifyitems_install_sh,
+)
 from tests._downstream.child_job import (  # hook and fixture re-exports
     _children_die_with_the_test,
     pytest_configure_child_job,

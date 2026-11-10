@@ -155,9 +155,13 @@ def _relay_compute_host_rpc(message: dict) -> bool:
         # A server request minted by the child: remember it against its session until it is answered/withdrawn.
         session = _sessions.get(str((params or {}).get("session_id") or "")) if isinstance(params, dict) else None
         if session is not None:
+            from tui_gateway.server_requests import can_replay_request
+
+            replayable = can_replay_request(message["method"], params)
             with _history_lock(session):
                 session["_compute_host_open_request"] = {
-                    "id": message["id"], "method": message["method"], "params": dict(params)}
+                    "id": message["id"], "method": message["method"],
+                    **({"params": dict(params)} if replayable else {"replayable": False})}
     elif isinstance(params, dict) and params.get("type") == "request.cancel":
         session = _sessions.get(str(params.get("session_id") or ""))
         payload = params.get("payload")
@@ -208,8 +212,18 @@ def _answer_compute_host_request(frame: dict, session_id: str = "") -> dict | No
     if located is None or not _session_uses_compute_host(located[1]):
         return None
     sid, session = located
+    with _history_lock(session):
+        # Fork: the mirror stays until the child acknowledges (popped below), so a timeout stays reconcilable.
+        mirrored = session.get("_compute_host_open_request")
+        method = mirrored.get("method") if isinstance(mirrored, dict) else None
+    # Vault-secret egress across the process boundary (#150283): a UI key-button fill registers the
+    # filled password in THIS (parent) process's redaction registry, keyed by the owning profile; the
+    # compute-host child has a separate registry, so a preview read/action it runs would forward an
+    # echoed password unredacted. Scrub the window's reply here, in the owning profile's scope, before it
+    # reaches the child — the same vault-secret boundary every browser result crosses.
+    forwarded = _scrub_preview_vault_reply(session, method, frame)
     try:
-        ack = _get_compute_host_supervisor().respond(sid, {"frame": dict(frame)})
+        ack = _get_compute_host_supervisor().respond(sid, {"frame": dict(forwarded)})
     except Exception as exc:
         logger.debug("compute-host response relay failed sid=%s", sid, exc_info=True)
         raise RuntimeError("Answer acknowledgement unavailable") from exc
@@ -221,6 +235,23 @@ def _answer_compute_host_request(frame: dict, session_id: str = "") -> dict | No
         if _open_request_matches(session, frame.get("id")):
             session.pop("_compute_host_open_request", None)
     return result
+
+
+def _scrub_preview_vault_reply(session: dict, method: str | None, frame: dict) -> dict:
+    """Redact registered vault secrets from a ``preview.read`` / ``preview.act`` reply before it is
+    forwarded to the compute-host child, under the request-owning profile's scope. Any other method, or a
+    frame with no scrubbable ``result.value``, is returned unchanged."""
+    if method not in ("preview.read", "preview.act"):
+        return frame
+    result = frame.get("result")
+    if not isinstance(result, dict) or not isinstance(result.get("value"), str):
+        return frame
+    from tools.browser_vault_preview import redact_preview_result
+    with _session_profile_runtime_scope(session):
+        scrubbed = redact_preview_result(result["value"])
+    if scrubbed == result["value"]:
+        return frame
+    return {**frame, "result": {**result, "value": scrubbed}}
 
 
 def _cancel_session_requests(sid: str, reason: str, *, method: str) -> None:
