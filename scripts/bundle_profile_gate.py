@@ -302,7 +302,7 @@ table = getattr(importlib.import_module(table_module), table_name) if table_name
 installed = ensure_spawn_stand_ins(table)
 if not installed:  # a profile with a provider SDK (desktop) is not the phone: nothing is answered
     with open(out, "w", encoding="utf-8") as fh:
-        json.dump([], fh)
+        json.dump({"answered": [], "unimportable": {}}, fh)
     sys.exit(0)
 for row in (table if table is not None else importlib.import_module("agent_runtime.spawn_stand_ins").SPAWN_STAND_INS):
     obj = importlib.import_module(row.module)
@@ -310,9 +310,15 @@ for row in (table if table is not None else importlib.import_module("agent_runti
         obj = obj.__dict__[part] if isinstance(obj, type) else getattr(obj, part)
     if spawn_stand_in_of(obj) != (row.module, row.qualname):
         sys.exit(f"table row {row.module}.{row.qualname} is not bound to its stand-in")
-answered = []
+answered, unimportable = [], {}
 for module, line, chain in sites:
-    obj, prefix = importlib.import_module(module), []
+    if module in unimportable:
+        continue
+    try:
+        obj, prefix = importlib.import_module(module), []
+    except Exception as exc:  # a kept module the profile cannot import is a finding, not a probe crash
+        unimportable[module] = f"{type(exc).__name__}: {exc}"
+        continue
     for part in chain:
         obj = (obj.__dict__.get(part) if isinstance(obj, type) else getattr(obj, part, None))
         prefix.append(part)
@@ -322,7 +328,7 @@ for module, line, chain in sites:
         if obj is None:
             break
 with open(out, "w", encoding="utf-8") as fh:  # a file, not stdout: imported modules may rebind sys.stdout
-    json.dump(answered, fh)
+    json.dump({"answered": answered, "unimportable": unimportable}, fh)
 """
 
 
@@ -348,6 +354,8 @@ def spawn_seams(manifest, findings: list[dict], index: dict[str, Path], *,
     Proven at run time in a child interpreter with the phone's absences in place: every table row
     must resolve to a real function that the entry really rebound, or the probe FAILS (a stale row is
     an error, never a silent skip); a site counts as answered only when a stand-in marked for exactly
+    that function encloses it. A kept module that cannot import under the profile's absences is a
+    ``closure`` finding naming the error, and the probe goes on to the next module.
     that function encloses it. ``table`` (``module:NAME``) replaces the table, for the gate's tests."""
     import subprocess
 
@@ -371,14 +379,18 @@ def spawn_seams(manifest, findings: list[dict], index: dict[str, Path], *,
         if done.returncode != 0 or not out.is_file():
             raise RuntimeError(f"spawn stand-in probe failed ({done.returncode}): "
                                f"{(done.stderr or done.stdout)[-2000:]}")
-        rows = json.loads(out.read_text(encoding="utf-8-sig"))
+        probed = json.loads(out.read_text(encoding="utf-8-sig"))
     answered: dict[str, list[str]] = {}
     hit = set()
-    for module, line, function in rows:
+    for module, line, function in probed["answered"]:
         hit.add((module, line))
         answered.setdefault(module, []).append(f"{line}: {function}")
     kept = [row for row in findings if (row.get("module"), row.get("line")) not in hit
             or row["kind"] != "subprocess_call"]
+    # FH-PHONE-GATE-UNIMPORTABLE-KEPT-MODULE-IS-A-FINDING: a kept module whose import fails under
+    # the profile's absences would fail on the device too; it is refused, and the probe goes on.
+    kept += [{"kind": "closure", "subject": f"kept module {module} does not import on this profile: {error}",
+              "module": module} for module, error in sorted(probed["unimportable"].items())]
     return kept, {m: sorted(v, key=lambda s: int(s.partition(":")[0])) for m, v in sorted(answered.items())}
 
 

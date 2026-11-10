@@ -270,6 +270,37 @@ def test_a_spawn_in_a_function_the_phone_entry_rebinds_is_answered_at_run_time(t
     assert (len(kept), answered) == (4, {})
 
 
+_BROKENY = """
+import subprocess
+
+import agent_runtime.parent_watch  # switched off on the phone: this module cannot import there
+
+def spawner():
+    subprocess.run(["git"])
+"""
+
+
+def test_a_kept_module_the_phone_cannot_import_is_a_finding_and_the_probe_goes_on(tmp_path, monkeypatch):
+    """FH-PHONE-GATE-UNIMPORTABLE-KEPT-MODULE-IS-A-FINDING: a kept module that imports a switched-off
+    module at module level is refused (``closure``, naming the module and the error) instead of
+    crashing the probe, and every other module's sites are still judged."""
+    from agent_runtime.bundle_profiles.manifest import load_profile
+    from scripts.bundle_profile_gate import spawn_seams
+
+    for name, text in (("spawny", _SPAWNY), ("brokeny", _BROKENY), ("spawny_table", _SPAWNY_TABLE)):
+        (tmp_path / f"{name}.py").write_text(text, encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
+    index = {name: tmp_path / f"{name}.py" for name in ("brokeny", "spawny")}
+    findings = module_findings("brokeny", index["brokeny"]) + module_findings("spawny", index["spawny"])
+
+    kept, answered = spawn_seams(load_profile("bundled-phone"), findings, index, table="spawny_table:TABLE")
+
+    refused = [f for f in kept if f["kind"] == "closure"]
+    assert [f["module"] for f in refused] == ["brokeny"]
+    assert "agent_runtime.parent_watch" in refused[0]["subject"]
+    assert answered == {"spawny": ["5: rebound", "13: Owner.meth", "17: outer"]}
+
+
 def test_the_gate_runs_only_under_the_bundles_pinned_cpython_or_a_named_interpreter(tmp_path, capsys):
     """The count depends on the interpreter (s2-g1: 104 under the lane's, 106 under system 3.12), so the
     gate refuses to run anywhere but the pinned CPython's major.minor unless ``--interpreter`` names the
