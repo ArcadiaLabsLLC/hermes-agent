@@ -106,8 +106,33 @@ def test_never_fetches_or_resets(clones):
                  ["delete", "RT-B"], ["append", "RT-C", "--row", "- **`RT-C` — new** · READY 2026-10-18"]):
         assert work_row.main([*argv, "--who", "r-lane", "--repo", str(mine)], git=fake) == 0
     verbs = {call[0] for call in calls}
-    assert verbs == {"add", "commit", "push"}
+    assert verbs == {"add", "commit", "push", "symbolic-ref"}
     assert not verbs & {"fetch", "reset", "stash", "pull", "merge", "rebase", "checkout"}
+
+
+@pytest.mark.parametrize("place", ["lane branch", "detached HEAD"])
+def test_a_close_from_a_lane_branch_or_a_detached_head_pushes_to_main(clones, place):
+    """FH-WORK-ROW-CLOSE-PUSH-FROM-LANE-BRANCH: a bare ``git push`` from a branch with no upstream exited 4
+    ("no upstream branch") and from a detached HEAD pushed nothing, so lanes pushed the close by hand.
+    Mutation: ``push_target`` back to ``[]`` (a bare push) -> exit 4 and origin's main unmoved, red."""
+    origin, mine, _ = clones
+    if place == "lane branch":
+        git("checkout", "-q", "-b", "wave/lane", cwd=mine)
+    else:
+        git("checkout", "-q", "--detach", cwd=mine)
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "3f9c2a1", "--date", "2026-11-03",
+                          "--repo", str(mine)]) == 0
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue(q): close RT-A DONE 3f9c2a1"
+    assert git("rev-parse", "main", cwd=origin) == git("rev-parse", "HEAD", cwd=mine)
+
+
+def test_a_branch_with_an_upstream_pushes_to_that_upstream(clones):
+    origin, mine, _ = clones
+    git("push", "-q", "origin", "main:side", cwd=mine)
+    git("checkout", "-q", "-b", "mine-side", "--track", "origin/side", cwd=mine)
+    assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--repo", str(mine)]) == 0
+    assert git("log", "-1", "--format=%s", "side", cwd=origin).strip() == "queue: claim RT-A r-lane"
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "seed"
 
 
 def test_close_archives_the_row_and_commits_both_files(clones):

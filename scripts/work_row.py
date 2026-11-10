@@ -39,7 +39,8 @@ The edit is ``agent_runtime.work_store.grammar.apply`` — the same one-line, by
 writer makes (plan ``docs/agent-runtime-harness/archive/work-on-markdown-2026-10-18.md`` §5, §6.2):
 a session that races the engine re-applies its op here instead of resolving a text conflict.
 The row is found across ``*_Brain/20 — Active Initiatives/*.md`` (or ``--note``); the commit is
-by pathspec under the session's own git identity; a non-fast-forward push exits 3 with the hint
+by pathspec under the session's own git identity and pushed as ``HEAD`` to the branch's upstream, or to
+``origin`` ``main`` from a lane branch with none or a detached HEAD; a non-fast-forward push exits 3 with the hint
 "fetch, then re-run". It never runs ``fetch``, ``reset``, ``stash``, ``pull``, ``merge`` or
 ``rebase`` on the checkout.
 """
@@ -331,6 +332,26 @@ def edited_text(text: str, args: argparse.Namespace) -> str:
     return "\n".join(lines)
 
 
+def push_target(repo: Path, git: Git) -> list[str]:
+    """``[<remote>, HEAD:<ref>]``: the branch's upstream when it has one, else ``origin`` ``main``.
+
+    A bare ``git push`` worked only on a branch tracking ``main``. A lane closes from its own
+    branch (no upstream: git's "no upstream branch", exit 4) or a detached HEAD, and then pushed
+    the close by hand (FH-WORK-ROW-CLOSE-PUSH-FROM-LANE-BRANCH); lanes land with
+    ``git push origin HEAD:main`` (CLAUDE.md § Git), so that is the default here too. Read-only
+    git only: ``symbolic-ref`` and ``for-each-ref``.
+    """
+
+    branch = git(["symbolic-ref", "-q", "HEAD"], repo)
+    ref = str(branch.stdout).strip() if branch.returncode == 0 else ""
+    if ref.startswith("refs/heads/"):
+        upstream = git(["for-each-ref", "--format=%(upstream:remotename)%09%(upstream:remoteref)", ref], repo)
+        remote, _, merge = str(upstream.stdout).strip().partition("\t")
+        if upstream.returncode == 0 and remote and merge:
+            return [remote, f"HEAD:{merge}"]
+    return ["origin", "HEAD:main"]
+
+
 def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, *, also: tuple[Path, ...] = (),
                     woken: tuple[Path, ...] = ()) -> int:
     relative = list(dict.fromkeys([note.relative_to(repo).as_posix(), *(path.relative_to(repo).as_posix()
@@ -345,7 +366,7 @@ def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, 
         if done.returncode != 0:
             print(f"git {step[0]} failed: {str(done.stderr).strip()[-300:]}", file=sys.stderr)
             return EXIT_GIT_FAILED
-    pushed = git(["push", "-q"], repo)
+    pushed = git(["push", "-q", *push_target(repo, git)], repo)
     if pushed.returncode == 0:
         return 0
     if any(marker in str(pushed.stderr) for marker in NON_FAST_FORWARD):
