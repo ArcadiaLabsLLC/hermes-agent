@@ -171,3 +171,20 @@ def test_plan_describes_the_path_the_guard_will_take(repo, monkeypatch, capsys, 
     out = capsys.readouterr().out
     assert ("stop before stashing" in out) is guarded
     assert ("standard rescue-ref" in out) is not guarded
+
+
+def test_the_plan_inventory_assesses_a_fork_checkout_and_skips_an_official_one(repo):
+    """``update --plan``'s fork-history block (hermes_cli/update_inventory_history.py,
+    FH-FOOTPRINT-UPDATE-INVENTORY-HISTORY): a fork origin gets the cached assessment, the
+    official origin (with or without ``.git`` / trailing slash) gets none.
+
+    Killing mutation (2026-11-10): drop the ``not in official`` test in ``_origin_is_fork`` -> red
+    (the official checkout is assessed too)."""
+    from hermes_cli.update_cmd_git import OFFICIAL_REPO_URL
+    from hermes_cli.update_inventory_history import inventory_history
+
+    folded_tip(repo, related=False)
+    assessed = inventory_history(["git"], repo)
+    assert assessed["relationship"] == "unrelated" and assessed["guarded"] is True
+    git(repo, "remote", "set-url", "origin", OFFICIAL_REPO_URL.removesuffix(".git") + "/")
+    assert inventory_history(["git"], repo) == {}

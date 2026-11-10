@@ -564,9 +564,6 @@
       "files": {
         "hermes_cli/update_cmd.py": {
           "mode": "hunks"
-        },
-        "hermes_cli/update_inventory.py": {
-          "mode": "hunks"
         }
       },
       "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
