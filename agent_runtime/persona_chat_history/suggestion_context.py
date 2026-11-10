@@ -40,6 +40,21 @@ def _native_tail(db, tip):
     return [row for row in rows if row.get("display_kind") != "hidden"]
 
 
+def _session_turn_is_active(db, session_id: str) -> bool:
+    """Read the native turn lease without claiming it or waking an actor.
+
+    Fork-owned (moved out of ``hermes_state_compression.SessionCompressionMixin``, lane
+    hm-fp-shrink 2026-11-10): the lease table and its key are upstream's, read through the
+    db's own connection helpers, so the lease key spelling stays upstream's.
+    """
+    with db._read_ctx() as conn:
+        row = conn.execute(
+            "SELECT expires_at FROM session_turn_leases WHERE conversation_id = ?",
+            (db._session_turn_lease_key_on_conn(conn, session_id),),
+        ).fetchone()
+    return row is not None and float(row[0]) > time.time()
+
+
 def suggestion_context(params: dict, window: int, *, now: float | None = None) -> dict:
     now = time.time() if now is None else now
     with operator_session_read(params) as (_, session):
@@ -47,7 +62,7 @@ def suggestion_context(params: dict, window: int, *, now: float | None = None) -
         db = session.db
         tip = db.resolve_resume_session_id(params["session_id"])
         current = db.get_session(tip)
-        if current is None or db.session_turn_is_active(params["session_id"]):
+        if current is None or _session_turn_is_active(db, params["session_id"]):
             return {"identity": identity, "reason": "turn_active"}
         if PersonaChatClarifyTicketStore().open_ticket_for_session(params["session_id"]):
             return {"identity": identity, "reason": "manual_confirmation_required"}
