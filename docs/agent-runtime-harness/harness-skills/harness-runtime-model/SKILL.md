@@ -144,7 +144,7 @@ sections — gone, not missing.
 
 <!-- BEGIN GENERATED: harness_core inventory -->
 
-44 tools · generated from the registry by `scripts/emit_harness_tool_inventory.py` · do not edit by hand. If a tool exists for it, the tool is the answer; the full table with descriptions is `references/tool-inventory.md`.
+34 tools · generated from the registry by `scripts/emit_harness_tool_inventory.py` · do not edit by hand. If a tool exists for it, the tool is the answer; the full table with descriptions is `references/tool-inventory.md`.
 
 | toolset | tools | use it for |
 |---|---|---|
@@ -155,7 +155,7 @@ sections — gone, not missing.
 | `terminal` | `process_manage` · `terminal` | run commands and manage background processes |
 | `file` | `patch` · `read_file` · `search_files` · `write_file` | read, write, patch and search files |
 | `web` | `web_extract` · `web_search` | search the web and pull a page's content |
-| `browser` | `browser_back` · `browser_click` · `browser_console` · `browser_get_images` · `browser_navigate` · `browser_press` · `browser_scroll` · `browser_snapshot` · `browser_type` · `browser_vault` · `browser_vision` | drive a real browser: navigate, click, type, read, screenshot |
+| `browser` | `browser_vault` | drive a real browser: navigate, click, type, read, screenshot |
 | `browser-cdp` | `browser_cdp` · `browser_dialog` | raw CDP and dialog handling for the same browser |
 | `skills` | `skill_manage` · `skill_search` · `skill_view` · `skills_list` | find, read and author skills |
 | `memory` | `memory` | durable profile memory |
