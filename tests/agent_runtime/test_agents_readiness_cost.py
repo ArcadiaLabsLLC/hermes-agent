@@ -161,8 +161,11 @@ def _profiles(tmp_path, count):
 def test_each_profile_config_is_parsed_once_across_builds(tmp_path, monkeypatch):
     homes = _profiles(tmp_path, 3)
     parses = []
-    real_yaml_load = skill_utils.yaml_load
-    monkeypatch.setattr(skill_utils, "yaml_load", lambda text: parses.append(1) or real_yaml_load(text))
+    # skill_utils reads config.yaml through the config backend (v0.23.1; no longer its yaml_load).
+    from hermes_cli import config_backend
+
+    real_read = config_backend.read_config_doc
+    monkeypatch.setattr(config_backend, "read_config_doc", lambda path: parses.append(1) or real_read(path))
 
     answers = {}
     for _build in range(4):
