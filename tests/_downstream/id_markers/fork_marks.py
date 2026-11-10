@@ -132,6 +132,11 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # killed them (green on the pure tag, whose runner has no default). Each sits above its child bound.
     "tests/gateway/test_session_policy.py::test_launch_policy_reaches_real_turn_runner": (pytest.mark.timeout(150),),
     "tests/gateway/test_session_policy.py::test_ordinary_daemon_cli_launch_policy": (pytest.mark.timeout(200),),
+    # A v0.23.1 test recovers a lost peer admission only once its 30 s lease expires (by design),
+    # then waits up to 60 s for the settle: 32.7 s green alone at --timeout=150, 2026-11-10, so the
+    # runner's 30 s default killed the file. 90 s sits above the test's own 60 s wait.
+    "tests/tui_gateway/test_hosted_room_two_gateway_peer.py::"
+    "test_lost_admission_reply_and_refused_replay_run_the_turn_once": (pytest.mark.timeout(90),),
     # FH-TOOLING-LANE-TIMEOUTS-ICON-INSTALL (2026-10-25, measured alone): the icon file's module
     # fixture builds the icon runtime in 159 s of setup and two renders take ~50 s each; the
     # installer file's three git-staging tests take 29-70 s. The fork's --timeout=30 killed every
@@ -325,16 +330,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # stat): 57 s on X:, ~245 s under the runner's C: temp root (lane h7-reds, 2026-09-29).
     "tests/scripts/test_bundle_native.py::"
     "test_bundle_stages_git_tree_and_runs_native_children_before_manifest": (pytest.mark.timeout(360),),
-    # The fork's stdio child env carries its OWN profile's HERMES_HOME (downstream B-2), so
-    # two profiles' equal stdio configs are two identities; upstream's tail asserts they
-    # share the owner's child.
-    "tests/tools/test_mcp_multiplex_connection_keys.py::"
-    "test_same_named_server_with_other_credentials_is_a_separate_connection": (
-        _fork_replaces(
-            "tools.mcp_tool_config._inject_child_hermes_home (per-profile child HERMES_HOME)",
-            "tests/agent_runtime/test_persona_binding_child_env.py",
-        ),
-    ),
     # Lane bridge-direct (2026-10-08): an in-scope eager name sent through tool_call is
     # dispatched by name, not refused; upstream's correction stays for unknown names.
     "tests/tools/test_tool_search.py::TestRegression_OpenClawCron84141::"
