@@ -43,6 +43,8 @@ class GateCommand:
     name: str
     argv: list[str]
     cwd: Path
+    #: Run under a fresh scratch ``HERMES_HOME``, never the operator's home.
+    isolated_home: bool = False
 
 
 @dataclass(frozen=True)
@@ -134,17 +136,19 @@ def build_gate_commands(
         )
     commands.extend(
         [
-            GateCommand("agent_runtime_pytest", [bash, "scripts/run_tests.sh", "tests/agent_runtime", "--", "-q"], repo_root),
-            GateCommand("hermes_cli_pytest", [bash, "scripts/run_tests.sh", "tests/hermes_cli", "--", "-q"], repo_root),
+            # The fork landing gate (--scope fork over `tests`): fork files plus the upstream files
+            # the change reaches, minus the skip list. Never a whole directory through
+            # scripts/run_tests.sh (ADR 0016: no whole-tree run; the 2026-11-10 release merge's two
+            # directory lanes ran with no skip list) — FH-SYNC-GATE-STALE-SMOKE-AND-DIRS.
+            GateCommand("fork_landing_gate", [bash, "scripts/run_tests_bundled.sh", "tests"], repo_root),
+            # `harness smoke` is gone; `harness verify` runs the read-only harness commands with no
+            # model. Its own focused pytest step is the gate above's, so it is skipped here.
             GateCommand(
-                "harness_no_model_smoke",
-                # `--temp-root` was retired 2026-07-27 (env-determinism audit
-                # §7.3): a smoke run is synthetic and ALWAYS uses a temp runtime
-                # root, so the flag could only ever be ignored. Passing it now
-                # is a parse error, which would fail this gate on the flag
-                # instead of on the smoke.
-                [python, "-m", "hermes_cli.main", "harness", "smoke", "--json", "--no-model"],
+                "harness_no_model_verify",
+                [python, "-m", "hermes_cli.main", "harness", "verify", "--mode", "temp-root", "--json",
+                 "--skip-tests"],
                 repo_root,
+                isolated_home=True,
             ),
         ]
     )
@@ -160,15 +164,20 @@ def build_gate_commands(
 
 
 def run_command(command: GateCommand, *, tail_chars: int) -> GateResult:
-    completed = subprocess.run(
-        command.argv,
-        cwd=str(command.cwd),
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        check=False,
-    )
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="sync-gate-home-") as scratch:
+        env = {**os.environ, "HERMES_HOME": scratch} if command.isolated_home else None
+        completed = subprocess.run(
+            command.argv,
+            cwd=str(command.cwd),
+            env=env,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+        )
     return GateResult(
         name=command.name,
         returncode=int(completed.returncode),

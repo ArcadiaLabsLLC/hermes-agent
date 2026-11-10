@@ -14,9 +14,8 @@ fixed.
 
 The required lanes are:
 
-- `python -m pytest tests/agent_runtime -q`
-- `python -m pytest tests/hermes_cli -q`
-- `python -m hermes_cli.main harness smoke --json --temp-root --no-model`
+- `scripts/run_tests_bundled.sh tests` (the fork landing gate, `--scope fork`; no whole-directory run, ADR 0016)
+- `python -m hermes_cli.main harness verify --mode temp-root --json --skip-tests` under a scratch `HERMES_HOME`
 - `flutter test test/features/mission_control --reporter=compact` when changed
   paths touch agent/tool/Harness seams, or when `--include-launcher` is supplied.
 
