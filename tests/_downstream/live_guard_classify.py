@@ -249,6 +249,41 @@ def _without_inert_python_c_code(raw: list) -> list:
     return raw
 
 
+def _exec_literal_bodies(code: str, depth: int = 0) -> list[str]:
+    """The source each ``exec("<literal>")`` in *code* runs, decoded, nested ones too.
+
+    ``runtime_command`` wraps CODE as ``exec(<literal>)``, and on Windows that literal is
+    written with ``\\x27`` / ``\\x22`` / ``\\n`` escapes (``_inline_string_literal``, kept
+    intact through PowerShell's argv quoting), so ``['hermes', 'gateway', 'run']`` inside it
+    reached the word scan as ``\\x27hermes\\x27,`` and no word was ``hermes``; POSIX's
+    ``repr`` keeps the quotes the scan splits on. Decoding the literal gives both OSes the
+    same words (FH-GUARD-PROBE-SCAN-RED-WINDOWS). It only adds words, never hides one."""
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return []
+    bodies = []
+    for node in ast.walk(tree):
+        func = getattr(node, "func", None)
+        if not (isinstance(node, ast.Call) and isinstance(func, ast.Name) and func.id == "exec"):
+            continue
+        for arg in node.args[:1]:
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                bodies.append(arg.value)
+                if depth < 2:
+                    bodies.extend(_exec_literal_bodies(arg.value, depth + 1))
+    return bodies
+
+
+def _with_exec_literals_decoded(raw: list) -> list:
+    """*raw* plus the decoded ``exec`` bodies of its CODE when it is ``python [opts] -c CODE``."""
+    if len(raw) >= 3 and raw[-2] == "-c" and _PYTHON_BASENAME_RE.match(
+        str(raw[0]).replace("\\", "/").rsplit("/", 1)[-1].lower()
+    ):
+        return [*raw, *_exec_literal_bodies(str(raw[-1]))]
+    return raw
+
+
 _CODE_PUNCTUATION_RE = re.compile(r"""["'`()\[\]{},;]+""")
 
 
@@ -280,7 +315,7 @@ def _cmd_tokens(cmd, cmd_to_string, cwd=None) -> list:
             raw = shlex.split(cmd_str)
         except ValueError:
             raw = cmd_str.split()
-    raw = _without_inert_python_c_code(_without_python_c_argv(raw))
+    raw = _with_exec_literals_decoded(_without_inert_python_c_code(_without_python_c_argv(raw)))
     # A wrapper's argument is itself a whole command: ``["bash", "-c",
     # "hermes gateway run"]`` arrives as THREE elements, the last of which
     # is the command. Split on whitespace (not shlex — it would eat the
