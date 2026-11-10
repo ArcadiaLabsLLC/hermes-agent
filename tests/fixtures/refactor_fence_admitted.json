@@ -83,5 +83,10 @@
   "commit": "5d7f2dd3b5ea4de5fea622e2941fe00e707d8935",
   "path": "hermes_cli/plugins_state.py",
   "reason": "footprint move at the v0.23.1 release merge (owner goal 2026-11-10: fewer fork lines in upstream files): the commit takes fork lines OUT of this upstream file toward upstream's bytes; it adds none"
+ },
+ {
+  "commit": "9c1f626359adde75d915668f83dbb14cf3722531",
+  "path": "hermes_cli/update_inventory.py",
+  "reason": "footprint move (TASK-UPSTREAM-FOOTPRINT-LEDGER, FH-FOOTPRINT-UPDATE-INVENTORY-HISTORY; owner goal 2026-11-10: fewer fork lines in upstream files): the commit takes 16 fork lines OUT of this upstream file into hermes_cli/update_inventory_history.py; it adds none"
  }
 ]
