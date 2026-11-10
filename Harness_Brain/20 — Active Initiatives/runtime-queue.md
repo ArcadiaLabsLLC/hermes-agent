@@ -40,6 +40,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-11-10 (lane w1110c-hmboot: `RT-HARNESS-SERVE-COLD-BOOT`)
+
+- **`RT-HARNESS-PARSER-PLUGIN-LOAD-TWICE` — Mission Control's runtime gets ready sooner when building the harness command line stops running the whole harness plugin start-up** · group: console-smooth-and-fast.design-sweep-d1 · `hermes_cli/plugins_declared_cli.py::_materialize_declared_cli_command`, `plugins/eternia-harness/__init__.py::register` · measured 2026-11-10 (sandbox serve, box at 100% CPU): to attach the `harness` parser the CLI loads the eternia-harness plugin transiently, so `register(ctx)` runs every start-time migration (`seed_all_persona_profiles` 693 ms, `migrate_retired_provider_id_once` 240 ms), `install_process_presence` 1,746 ms (the `tools.process_registry` import) and ~530 module imports before the serve verb even starts, then unloads it; the serve's post-ready plugin discovery runs `register(ctx)` a second time · likely fix: a manifest `setup:` entry so the parser imports only `hermes_cli.harness.build_cli_parser`, with the serve running the plugin's start-time migrations once, explicitly, before `ready` · NEEDS PLAN 2026-11-10: every non-serve `harness` verb gets the migrations at parse time today, so moving them is a behaviour decision per verb
+
 ### Filed on arrival — 2026-11-09 (Eternia lane w1109a-workpill: `COMP-WORK-WAVE-STARTED-AFTER-LANES-ENDED`)
 
 
@@ -493,7 +497,6 @@ Reconciled against the built code and the plan, not inferred from an absent old 
 
 ### Filed on arrival — 2026-10-03 (launcher lane fx-mc2, filed by the orchestrator)
 
-- **`RT-HARNESS-SERVE-COLD-BOOT` — `harness serve` cold boot dominates Mission Control's first open: total_ms 21592, interpreter_ms 15203 (interpreter_boot 5196, main_import 4016, dispatch 5991) on a disk-cold QA seed, 2026-10-03 — profile and cut the import/dispatch path** · group: console-smooth-and-fast.design-sweep-d1 · `hermes_cli/harness_parts/serve/boot.py` · launcher fx-mc2 · designed in `docs/agent-runtime-harness/planned/design-sweep-d1-2026-10-10.md` § D1.06 (investigation) · RULED 2026-10-25: owner — an agent runs this sitting on this PC · LIVE 2026-10-25: three warm-disk boots read interpreter_ms 3,482–6,750 (`docs/agent-runtime-harness/planned/live-sitting-results-2026-10-25.md` § Timing batch) · READY 2026-11-10 · RULED 2026-11-10: owner reopened it in the Mission Control speed triage ("rest sounds good as suggested"): measure and cut the cold boot on a QA copy, no owner sitting needed · unblocked 2026-11-10: owner reopened it · **TAKEN 2026-11-10 w1110c-hmboot on DESKTOP-QJ7DDV2 as nekwo in h1108b-fh**
 
 ### Filed on arrival — 2026-10-02 (launcher lane mc-a, filed by the orchestrator)
 
@@ -718,6 +721,10 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 ### Filed on arrival — 2026-11-01 (release merge lane, branch `merge/upstream-v0.22.5`)
 
 - **`RT-SEAM-ENV-LOADER-RESOLVE-HOME-DOTENV` — upstream v0.22.5's new `hermes_cli.env_loader.resolve_home_dotenv(home)` reads `<home>/.env` straight from disk through `_parse_dotenv_file`, past the fork's `agent_runtime.host_store.secret_files.view()` seam in the same file, so `hermes_cli.left_core_migration` (`TERMINAL_ENV` lookup, singularity detection) misses a `.env` held in a bound host store; route it through the view or a door** · group: upstream-footprint-ledger · seams · `hermes_cli/env_loader.py` · supersession pass of merge `41a204e31e` · READY 2026-11-01
+
+### Filed on arrival — 2026-11-10 (lane w1110c-hmboot: `RT-HARNESS-SERVE-COLD-BOOT`)
+
+- **`RT-HARNESS-SERVE-SKIP-UPSTREAM-PARSERS` — Mission Control's runtime gets ready 2-4 s sooner when `hermes harness serve` stops building every other hermes command's parser first** · group: console-smooth-and-fast.design-sweep-d1 · `hermes_cli/main.py::main` → `_build_cli_parser` · measured 2026-11-10 (sandbox serve, box at 100% CPU): `_build_cli_parser` 3.4-4.5 s per serve boot, of which the transient harness plugin load is ~1.4 s (`RT-HARNESS-PARSER-PLUGIN-LOAD-TWICE`) and the rest ~70 upstream subcommand parsers the serve never uses (`build_secrets_parser` alone 1.5 s under cProfile, `bundles` 250 ms, `vault` 107 ms) · fix: one import and one call before `_build_cli_parser`, the shape of upstream's own `_try_fast_serve_launch`, dispatching an argv whose first positional is a manifest-declared plugin command (`hermes_cli/main_plugin_cli.py::declared_cli_command_argv` already finds it) · BLOCKED 2026-11-10: owner decision — an additive seam in upstream `hermes_cli/main.py` (lane briefs forbid upstream edits) · Recommend: allow it as a one-import-one-call seam (Architecture Invariant 8)
 
 ### Filed on arrival — 2026-10-29 (lane w1029b-h-rt)
 
