@@ -49,7 +49,8 @@ UNKNOWN_LANE = "unknown"
 #:
 #: MIRROR of ``hermes_cli/main.py::_AGENT_COMMANDS`` (``chat``/``acp``/``rl``
 #: and the bare no-command chat launch) plus the ``_AGENT_SUBCOMMANDS`` owners
-#: (``cron run|tick``, ``gateway run``, ``mcp serve``). We mirror rather than
+#: (``cron run|tick``, ``gateway run``, ``curator run``; ``mcp serve`` left core
+#: for the mcp-serve plugin in upstream e3a962d087). We mirror rather than
 #: import because ``hermes_cli.main`` is an upstream module and importing it
 #: from the resolver would drag the whole CLI into every visibility resolve.
 #:
@@ -58,7 +59,7 @@ UNKNOWN_LANE = "unknown"
 #: CONSERVATIVE direction — it can only suppress a row, never invent one.
 #: ``tests/agent_runtime/test_mcp_lane_visibility.py`` guards the mirror
 #: against upstream drift.
-MCP_REGISTERING_LANES = frozenset({"chat", "acp", "rl", "cron", "gateway", "mcp"})
+MCP_REGISTERING_LANES = frozenset({"chat", "acp", "rl", "cron", "gateway", "curator"})
 
 #: Lane tokens we can recognize positionally in ``sys.argv``.
 _RECOGNIZED_LANES = MCP_REGISTERING_LANES | {HARNESS_LANE}
