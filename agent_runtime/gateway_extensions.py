@@ -23,19 +23,11 @@ try:
     from tui_gateway import methods_connectors_account as _methods_connectors_account
 except ImportError:  # fork seam: phone wheel — the connectors RPCs (pydantic contracts) are not shipped
     _methods_connectors = _methods_connectors_account = None
-try:
-    from agent_runtime.gateway import methods_pdf as _methods_pdf
-except ImportError as _pdf_exc:  # a bundle that starts no process (the phone) serves no pdf.attach
-    # `from agent_runtime.gateway import x` reports a missing submodule as ImportError(name=<package>); anything
-    # methods_pdf itself fails to import carries another name and still raises.
-    if _pdf_exc.name not in ("agent_runtime.gateway", "agent_runtime.gateway.methods_pdf"):
-        raise
-    _methods_pdf = None
 
 
 def prepare(server) -> None:
-    """Preserve bundled connector/PDF omissions and server namespace aliases."""
-    connectors, connectors_account, pdf = _methods_connectors, _methods_connectors_account, _methods_pdf
+    """Preserve bundled connector omissions and server namespace aliases."""
+    connectors, connectors_account = _methods_connectors, _methods_connectors_account
     if connectors is None:
         from types import SimpleNamespace
 
@@ -47,16 +39,12 @@ def prepare(server) -> None:
         server._no_connector_rpcs = _no_connector_rpcs
     server._methods_connectors = connectors
     server._methods_connectors_account = connectors_account
-    if pdf is None:
-        from types import SimpleNamespace
-
-        pdf = SimpleNamespace(register=lambda server: None)
-        server.SimpleNamespace = SimpleNamespace
-    server._methods_pdf = pdf
 
 
 def register(server) -> None:
     """Install fork methods once for every native gateway execution host."""
+    from agent_runtime.spawn_stand_ins import drop_phone_methods
+    drop_phone_methods(server)  # the phone serves no method that must start a process (pdf.attach)
     from agent_runtime.gateway import session_recovery
     server._session_recovery = session_recovery
     session_recovery.register(server)

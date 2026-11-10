@@ -8,10 +8,10 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-ORDER = ['session_registry', 'agent_factory', 'slash_worker_client', 'session_transports', 'session_reaper', 'session_lifecycle', 'session_workdir', 'compute_host_bridge', 'model_switch', 'session_compression', 'change_watcher', 'tool_progress', 'session_notifications', 'prompt_attachments', 'session_history', 'agent_callbacks', 'session_auto_continue', 'plugin_inject', 'rpc_dispatch', 'methods_complete_helpers', 'methods_slash', 'methods_voice', 'methods_browser', 'methods_session', 'methods_prompt', 'methods_pdf', 'methods_config', 'methods_config_set', 'methods_complete', 'methods_tools', 'methods_tools_plugin_servers', 'methods_profiles', 'methods_images', 'methods_bot_relay', 'prompt_turn', 'billing_view', 'methods_projects', 'methods_session_foreign', 'methods_session_control', 'methods_subagents', 'methods_vault', 'methods_free_tier', 'methods_connectors', 'methods_connectors_account', 'methods_display', 'methods_display_watch', 'methods_onboarding', 'methods_i18n', 'methods_machine', 'methods_shared_metrics', 'methods_plugin_catalog', 'session_recovery', 'session_retirement', 'ssh_remote_cwd']
+ORDER = ['session_registry', 'agent_factory', 'slash_worker_client', 'session_transports', 'session_reaper', 'session_lifecycle', 'session_workdir', 'compute_host_bridge', 'model_switch', 'session_compression', 'change_watcher', 'tool_progress', 'session_notifications', 'prompt_attachments', 'session_history', 'agent_callbacks', 'session_auto_continue', 'plugin_inject', 'rpc_dispatch', 'methods_complete_helpers', 'methods_slash', 'methods_voice', 'methods_browser', 'methods_session', 'methods_prompt', 'methods_config', 'methods_config_set', 'methods_complete', 'methods_tools', 'methods_tools_plugin_servers', 'methods_profiles', 'methods_images', 'methods_bot_relay', 'prompt_turn', 'billing_view', 'methods_projects', 'methods_session_foreign', 'methods_session_control', 'methods_subagents', 'methods_vault', 'methods_free_tier', 'methods_connectors', 'methods_connectors_account', 'methods_display', 'methods_display_watch', 'methods_onboarding', 'methods_i18n', 'methods_machine', 'methods_shared_metrics', 'methods_plugin_catalog', 'session_recovery', 'session_retirement', 'ssh_remote_cwd']
 
 
-def registration(monkeypatch, failure=None, *, inspect_pdf_import=False):
+def registration(monkeypatch, failure=None):
     source = (ROOT / "tui_gateway/server.py").read_text(encoding="utf-8")
     source = source[source.index("# ── Split @method handler modules"):]
     server = ModuleType("tui_gateway._job2_registration_test")
@@ -28,12 +28,6 @@ def registration(monkeypatch, failure=None, *, inspect_pdf_import=False):
         if name in ("tui_gateway", "agent_runtime.gateway") or (not name and level == 1):
             modules = {}
             for child in fromlist:
-                if inspect_pdf_import and child == "methods_pdf":
-                    # The optional imports are module-level seams in gateway_extensions
-                    # (the bundle-profile fence reads only that shape), so the aliases are
-                    # published by prepare(); what survives of the original import-time
-                    # visibility is the ORDER: the connector pair is imported before PDF.
-                    assert {"methods_connectors", "methods_connectors_account"} <= set(server.imported)
                 server.imported.append(child)
                 if failure and child == failure[0]:
                     raise ImportError("fixture omitted dependency", name=failure[1])
@@ -56,11 +50,11 @@ def registration(monkeypatch, failure=None, *, inspect_pdf_import=False):
 
 
 def test_registration_order_and_server_aliases_are_preserved(monkeypatch):
-    server = registration(monkeypatch, inspect_pdf_import=True)
+    server = registration(monkeypatch)
     assert server.calls == ORDER
     assert callable(server._methods["eternia.subagents.list"])
     assert server._CONNECTOR_RPC_METHODS == frozenset({"connectors.fixture"})
-    for name in ("methods_connectors", "methods_connectors_account", "methods_pdf", "session_recovery", "session_retirement"):
+    for name in ("methods_connectors", "methods_connectors_account", "session_recovery", "session_retirement"):
         assert hasattr(server, "_" + name)
 
 
@@ -75,28 +69,14 @@ def test_omitted_connector_pair_registers_empty_rpc_set(monkeypatch, missing):
 
 def test_connector_internal_import_failure_retains_existing_optional_semantics(monkeypatch):
     # Existing connectors catch every ImportError; tightening this is a CHANGE,
-    # not part of this MOVE. PDF already distinguishes internal failures.
+    # not part of this MOVE.
     server = registration(monkeypatch, ("methods_connectors_account", "connectors.internal_dependency"))
     assert server._CONNECTOR_RPC_METHODS == frozenset()
-
-
-@pytest.mark.parametrize("error_name", ["agent_runtime.gateway", "agent_runtime.gateway.methods_pdf"])
-def test_omitted_pdf_has_no_handler_and_preserves_remaining_order(monkeypatch, error_name):
-    server = registration(monkeypatch, ("methods_pdf", error_name))
-    assert server.calls == [name for name in ORDER if name != "methods_pdf"]
-    assert callable(server._methods_pdf.register)
-
-
-def test_pdf_internal_import_error_propagates(monkeypatch):
-    with pytest.raises(ImportError) as error:
-        registration(monkeypatch, ("methods_pdf", "pdf.internal_dependency"))
-    assert error.value.name == "pdf.internal_dependency"
 
 
 def test_live_handlers_keep_server_namespace_and_native_owner_handles():
     from tui_gateway import server
     assert server._methods["pdf.attach"].__globals__ is vars(server)
-    assert server._methods_pdf.__name__ == "agent_runtime.gateway.methods_pdf"
     assert server._session_recovery.__name__ == "agent_runtime.gateway.session_recovery"
     assert server._session_retirement.__name__ == "agent_runtime.gateway.session_retirement"
     for name in ("session.recover", "session.recovery.history", "session.recovery.inflight", "session.retire"):
@@ -110,3 +90,44 @@ def test_gateway_helper_remains_fork_owned():
     manifest = (ROOT / "tests/fixtures/upstream_manifest.txt").read_text(encoding="utf-8")
     assert "agent_runtime/gateway_extensions.py" not in manifest
     ast.parse((ROOT / "tui_gateway/server.py").read_text(encoding="utf-8"))
+
+
+def test_the_phone_unregisters_pdf_attach_and_the_desktop_keeps_it(monkeypatch):
+    """pdf.attach is upstream's handler in methods_prompt again (FH-FOOTPRINT-PDF-ATTACH-UPSTREAM-BYTES);
+    the phone (``agent.provider_sdks: false``) drops it after registration, the desktop keeps it.
+
+    Killing mutation (2026-11-10): ``drop_phone_methods`` returns before popping -> the phone row red."""
+    from agent.transports import httpx_client
+    from agent_runtime.spawn_stand_ins import drop_phone_methods
+
+    desktop = SimpleNamespace(_methods={"pdf.attach": object(), "file.attach": object()})
+    assert drop_phone_methods(desktop) == () and "pdf.attach" in desktop._methods
+    monkeypatch.setattr(httpx_client, "provider_sdks_enabled", lambda: False)
+    phone = SimpleNamespace(_methods={"pdf.attach": object(), "file.attach": object()})
+    assert drop_phone_methods(phone) == ("pdf.attach",)
+    assert sorted(phone._methods) == ["file.attach"]
+
+
+def test_the_phone_gate_answers_spawns_inside_a_dropped_handler_only(tmp_path):
+    """The profile gate answers a spawn call inside ``@method("pdf.attach")`` for the phone, and not one
+    in any other handler, nor for a profile that keeps its SDKs (positive controls).
+
+    Killing mutation (2026-11-10): ``_registered_method`` ignores the decorator name -> red."""
+    from agent_runtime.bundle_profiles.manifest import load_profile
+    from scripts.bundle_profile_gate import dropped_method_seams, module_findings
+
+    path = tmp_path / "handlers.py"
+    path.write_text(
+        "import subprocess\n"
+        "@method('pdf.attach')\n"
+        "def _(rid, params):\n"
+        "    return subprocess.run(['pdftoppm'])\n"
+        "@method('file.attach')\n"
+        "def _(rid, params):\n"
+        "    return subprocess.run(['cp'])\n", encoding="utf-8")
+    findings = module_findings("handlers", path)
+    assert [f["line"] for f in findings] == [4, 7]
+    kept, answered = dropped_method_seams(load_profile("bundled-phone"), findings, {"handlers": path})
+    assert [f["line"] for f in kept] == [7] and answered == {"handlers": ["4: pdf.attach"]}
+    kept, answered = dropped_method_seams(load_profile("bundled-desktop", validate=False), findings, {"handlers": path})
+    assert kept == findings and answered == {}

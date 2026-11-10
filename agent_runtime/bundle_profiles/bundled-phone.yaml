@@ -515,12 +515,11 @@ packaging:
     - tools.agent_chat_dispatch.local_child
     # Doors with fork carry (phone-gate plan 2026-09-30, bucket D4): the launch relaunch lives in
     # the fork's launch_relaunch, which imports venv_sync (hermes_bootstrap imports it guarded and
-    # only recovers without it: an app-store wheel is never re-launched), and PDF attach (pdftoppm)
-    # lives in agent_runtime.gateway.methods_pdf (tui_gateway/server.py imports it guarded; the
-    # phone serves no pdf.attach).
+    # only recovers without it: an app-store wheel is never re-launched). PDF attach (pdftoppm)
+    # stays in upstream's tui_gateway.methods_prompt; the phone unregisters `pdf.attach` after
+    # registration (agent_runtime.spawn_stand_ins.PHONE_DROPPED_METHODS).
     - hermes_cli.launch_relaunch
     - hermes_cli.venv_sync
-    - agent_runtime.gateway.methods_pdf
     # Owner decisions D3/D4/D5 (2026-09-30, phone-gate plan §5). D3: the secrets vault — the local
     # Fernet store and the external password managers; the host's secure store binding is the phone's
     # vault and the vault.* RPCs answer unavailable. D4: DuckDuckGo search runs its query in a worker

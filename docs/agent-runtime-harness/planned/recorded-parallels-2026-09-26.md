@@ -29,7 +29,7 @@ call. **CARRY**: cannot be adopted; the reason and the retiring event are named.
 | 7b | `tools/tool_search.py:489` `dispatch_tool_describe`, search top hits | same file: `ensure_tool_describe_present`, `tool_describe_schema`, `parameters` in top hits | describe always registered, serves every tool; top hits carry schemas | (16) | PR-D |
 | 7c | `tools/tool_search.py:494` `names` list arg (and `queries`) | same file: legacy single `query` / `name` args | a second spelling of upstream's list door | (16) | RESOLVER |
 | 8 | `agent/credential_pool.py:2124` `_select_unlocked` strategy branch (`:2141-2157`) | same file +9/-18; `agent_runtime/pool_rotation.py` (218), `PoolRotationMixin` leads the MRO | typed persisted cursor; `round_robin` no longer rewrites every `priority` + `_persist()`s per select; `least_used` counts durable | 18 | PR-E |
-| 9 | `hermes_cli/gateway.py:5641` `_pm_runtime_venv_dir` (`pm.environments.selected_venv`) | same file: `resolve_managed_python`, `ManagedPythonUnavailable`, carried `_detect_venv_dir` (added-only, ~150 lines) | finds the launcher's out-of-checkout venv that pm's committed selection does not | 0 of the row's 19 | CARRY |
+| 9 | `hermes_cli/gateway.py` `_pm_runtime_venv_dir` (`pm.environments.selected_venv`; deleted upstream in v0.23.1, `5a583fb333`) | same file: `resolve_managed_python`, `ManagedPythonUnavailable`, carried `_detect_venv_dir` (added-only, ~150 lines) | finds the launcher's out-of-checkout venv that pm's committed selection does not | 0 of the row's 19 | CARRY |
 | 10 | `hermes_cli/local_runtime/presets.py:192` `generate_presets` → `preset_for_model` | `agent_runtime/local_llama_adapter/engine.py:44` `write_preset` | per-model load knobs (context, GPU layers, flash-attn, KV types, template); owner KEEP 2026-09-24 | 0 | PR-F |
 | 11 | `hermes_cli/local_runtime/bootstrap.py:311` `ensure_local_runtime` binary pick (`engine.binary` → `LlamaServerSupervisor`) | `engine.py:79` serves `config["executable_path"]` | bring-your-own `llama-server` | 0 | PR-F |
 | 12 | `bootstrap.py:44` `models_dir` / `:123` `staged_models` | `engine.py:254` `scan` over `config["model_roots"]` | extra read-only model roots | 0 | PR-F |
@@ -112,9 +112,11 @@ decoder, stop=None)` public dispatcher (POSIX/Windows by `sys.platform`, ≤6 li
 `_Pump.run` becomes `drain_fd(proc, fd, _LineSink(sink), decoder, self.stop)`; `_pump_fd` and its
 Windows branch delete.
 
-**CARRY (row 9).** `_pm_runtime_venv_dir` returns pm's committed selection or nothing, by design
+**CARRY (row 9).** `_pm_runtime_venv_dir` returned pm's committed selection or nothing, by design
 ("fail closed"); the launcher's venv is out of checkout and uncommitted, so no override point is
-generic. Retires when the launcher's install moves onto pm bundles — the launcher's
+generic. Upstream deleted `_pm_runtime_venv_dir` itself in v0.23.1 (`5a583fb333`, callerless), so
+the fork's `_detect_venv_dir` (`hermes_cli/gateway_downstream.py`) has no upstream twin left
+(2026-11-10, FH-CARRIED-PRS-WEB-OAUTH-STALE). Retires when the launcher's install moves onto pm bundles — the launcher's
 hermes-environment design sheet (launcher commit `518f5a251`, 2026-09-26) is that event.
 
 **CARRY (row 14).** `hermes_yaml.safe_load` is YAML 1.1 on purpose (`:24 yaml.version = (1, 1)`);

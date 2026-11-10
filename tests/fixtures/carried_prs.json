@@ -91,12 +91,6 @@
       "reviewed_head": "2765d2db50d0c598c6e58a480d758f53041127d8",
       "base_ref": "upstream/main",
       "files": {
-        "tests/hermes_cli/test_setup_hermes_script.py": {
-          "mode": "hunks"
-        },
-        "tests/tools/test_execution_flag_detection.py": {
-          "mode": "hunks"
-        },
         "tests/tools/test_file_tools_live.py": {
           "mode": "hunks"
         }
@@ -115,9 +109,6 @@
           "mode": "hunks"
         },
         "hermes_cli/worktree_ops.py": {
-          "mode": "hunks"
-        },
-        "tests/hermes_cli/test_uninstall_dry_run.py": {
           "mode": "hunks"
         }
       },
@@ -210,9 +201,6 @@
       "base_ref": "upstream/main",
       "files": {
         "agent/shell_hooks.py": {
-          "mode": "hunks"
-        },
-        "tests/tools/test_windows_agent_loop_papercuts.py": {
           "mode": "hunks"
         }
       },
@@ -720,16 +708,8 @@
           "reason": "Reviewed OAuth catalog/disconnect consumer; provider_login_catalog is independently extracted fork authority."
         },
         "hermes_cli/web_server_oauth.py": {
-          "mode": "lines",
-          "fragments": [
-            {
-              "text": "_OAUTH_STATUS_FNS = {\n    \"copilot-acp\": _copilot_acp_status,\n    \"anthropic\": _anthropic_oauth_status,\n    \"claude-code\": _claude_code_only_status,\n}\n_OAUTH_PROVIDER_CATALOG: tuple[dict[str, Any], ...] = tuple(\n    {**row, \"status_fn\": _OAUTH_STATUS_FNS.get(row[\"id\"])} for row in OAUTH_FLOW_OVERRIDES",
-              "replacements": {
-                "dict": "Dict"
-              }
-            }
-          ],
-          "reason": "Reviewed OAuth catalog/disconnect consumer; provider_login_catalog is independently extracted fork authority."
+          "mode": "deferred",
+          "reason": "The PR head still quotes _OAUTH_STATUS_FNS with the copilot-acp line the v0.23.1 merge removed from the fork (upstream moved Copilot out of core), so no reviewed fragment matches both; re-pin the fragment once the PR branch is rebased onto upstream/main (FH-UPSTREAM-PRS-REBASE-V0231). The fork's catalog is the PR's shape minus that line."
         }
       },
       "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
@@ -848,18 +828,6 @@
         "hermes_bootstrap.py": {
           "mode": "deferred",
           "reason": "Reviewed shared relaunch contract; the fork calls the same relaunch_if_needed from its own hermes_cli/launch_relaunch.py (2026-11-10, venv_sync.py back to upstream bytes), with the recover callback, ABI re-entry, phone fallback and write fence retained. No exact added fragment survives the module rename; semantic coverage is in tests/pm/test_source_update_launch.py and tests/hermes_cli/test_interpreter_abi.py."
-        }
-      },
-      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
-    },
-    "129414": {
-      "head_ref": "origin/refactor/tui-gateway-methods-pdf",
-      "reviewed_head": "0dd508f2d5a326e098762c8d6b10c2ebd92250f0",
-      "base_ref": "upstream/main",
-      "files": {
-        "tests/fixtures/resolution_allowlist.json": {
-          "mode": "deferred",
-          "reason": "The PR's one allowlist row names upstream's tui_gateway/methods_pdf.py; the fork relocated that module to agent_runtime/gateway/methods_pdf.py and carries the same row (symbol _, kind bare_which) under the fork path. Re-check when the PR merges."
         }
       },
       "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"

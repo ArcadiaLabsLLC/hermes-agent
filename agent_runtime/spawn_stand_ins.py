@@ -46,8 +46,20 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 __layer__ = "lanes"
-__all__ = ["SPAWN_STAND_INS", "SlashCommandsUnavailable", "SpawnNotAvailable", "SpawnSeamStale", "StandIn", "ensure_spawn_stand_ins",
-           "install_spawn_stand_ins", "is_spawn_stand_in", "remove_spawn_stand_ins", "spawn_stand_in_of"]
+__all__ = [
+    "PHONE_DROPPED_METHODS",
+    "SPAWN_STAND_INS",
+    "SlashCommandsUnavailable",
+    "SpawnNotAvailable",
+    "SpawnSeamStale",
+    "StandIn",
+    "drop_phone_methods",
+    "ensure_spawn_stand_ins",
+    "install_spawn_stand_ins",
+    "is_spawn_stand_in",
+    "remove_spawn_stand_ins",
+    "spawn_stand_in_of",
+]
 
 #: Set on every stand-in callable: ``(module, qualname)`` of the function it replaces.
 MARKER = "__hermes_spawn_stand_in__"
@@ -389,3 +401,24 @@ def ensure_spawn_stand_ins(table: tuple[StandIn, ...] | None = None) -> tuple[st
     if provider_sdks_enabled():
         return ()
     return install_spawn_stand_ins(SPAWN_STAND_INS if table is None else table)
+
+
+#: Gateway RPC methods the phone does not serve, because their handler's whole job is a process the
+#: phone cannot start. Upstream registers each with ``@method("<name>")``; rather than a fork copy of
+#: the handler in a module the phone omits, the phone drops the name after registration
+#: (:func:`drop_phone_methods`) and the profile gate answers the handler's spawn calls from this table
+#: (``scripts/bundle_profile_gate.py::dropped_method_seams``; FH-FOOTPRINT-PDF-ATTACH-UPSTREAM-BYTES).
+PHONE_DROPPED_METHODS: dict[str, str] = {
+    "pdf.attach": "renders each page with pdftoppm (tui_gateway/methods_prompt.py)",
+}
+
+
+def drop_phone_methods(server) -> tuple[str, ...]:
+    """Unregister :data:`PHONE_DROPPED_METHODS` from *server* when this profile ships no provider SDK
+    (the phone's switch, as :func:`ensure_spawn_stand_ins`); the names dropped. A call to one answers
+    as any unknown method does."""
+    from agent.transports.httpx_client import provider_sdks_enabled
+
+    if provider_sdks_enabled():
+        return ()
+    return tuple(name for name in PHONE_DROPPED_METHODS if server._methods.pop(name, None) is not None)

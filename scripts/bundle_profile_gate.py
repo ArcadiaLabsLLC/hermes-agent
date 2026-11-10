@@ -382,6 +382,41 @@ def spawn_seams(manifest, findings: list[dict], index: dict[str, Path], *,
     return kept, {m: sorted(v, key=lambda s: int(s.partition(":")[0])) for m, v in sorted(answered.items())}
 
 
+def _registered_method(tree: ast.AST, line: int) -> str | None:
+    """The RPC name of the top-level ``@method("<name>")`` handler enclosing ``line``, else None."""
+    for node in getattr(tree, "body", ()):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                and node.lineno <= line <= (node.end_lineno or node.lineno):
+            for deco in node.decorator_list:
+                if (isinstance(deco, ast.Call) and _dotted(deco.func) == "method" and len(deco.args) == 1
+                        and isinstance(deco.args[0], ast.Constant) and isinstance(deco.args[0].value, str)):
+                    return deco.args[0].value
+    return None
+
+
+def dropped_method_seams(manifest, findings: list[dict], index: dict[str, Path], *,
+                         dropped=None) -> tuple[list[dict], dict[str, list[str]]]:
+    """``findings`` minus the ``subprocess_call`` rows inside a gateway handler the phone unregisters
+    (``agent_runtime.spawn_stand_ins.PHONE_DROPPED_METHODS``, dropped by ``drop_phone_methods`` on the
+    phone's ``agent.provider_sdks: false``), and module -> the answered ``line: method``. A profile that
+    keeps its provider SDKs (desktop) drops nothing, so nothing is answered for it."""
+    from agent_runtime.bundle_profiles.manifest import apply_to_config
+
+    if apply_to_config(manifest, {}).get("agent", {}).get("provider_sdks", True) is not False:
+        return findings, {}
+    if dropped is None:
+        from agent_runtime.spawn_stand_ins import PHONE_DROPPED_METHODS as dropped
+    kept, answered = [], {}
+    for row in findings:
+        tree = _parse(index[row["module"]]) if row["kind"] == "subprocess_call" else None
+        name = _registered_method(tree, row["line"]) if tree is not None else None
+        if name in dropped:
+            answered.setdefault(row["module"], []).append(f"{row['line']}: {name}")
+            continue
+        kept.append(row)
+    return kept, answered
+
+
 def forced_tree_seams(manifest, walk, index: dict[str, Path], answered=()) -> list[str]:
     """The pinned modules (not already ``answered``) that the packager's plan ships in the sibling
     tree: present on the phone, resolvable once the embedded entry mounts the tree, and out of the
@@ -411,7 +446,10 @@ def gate(profile: str) -> dict:
         if module.startswith(BROWSER_MODULE_PREFIXES):
             findings.append({"kind": "browser", "subject": module, "module": module})
         findings += module_findings(module, index[module])
+    findings, dropped = dropped_method_seams(manifest, findings, index)
     findings, spawned = spawn_seams(manifest, findings, index)
+    spawned = {m: sorted({*spawned.get(m, ()), *dropped.get(m, ())}, key=lambda s: int(s.partition(":")[0]))
+               for m in sorted({*spawned, *dropped})}
     lock = _lock()
     targets = manifest.packaging_targets or (None,)
     per_target = {}

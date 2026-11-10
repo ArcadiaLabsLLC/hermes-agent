@@ -710,4 +710,14 @@ if _WIN:
         "test_make_run_env_preserves_windows_mixed_case_path_key": (
             pytest.mark.xfail(reason=_FORK_SYSTEM_PATH, strict=True),
         ),
+        # Upstream runs the bare binary name, which Windows resolves from System32 first; the fork's
+        # PR #121226 copies run the PATH binary (FH-FOOTPRINT-FORK-TEST-HUNKS-OUT: upstream bytes kept).
+        "tests/tools/test_execution_flag_detection.py::test_real_read_tool_binaries_confirm_option_ownership": (
+            pytest.mark.skip(reason="bare-name spawn hits System32 on Windows; fork copy: "
+                                    "tests/tools/test_execution_flag_detection_downstream.py"),
+        ),
+        "tests/hermes_cli/test_setup_hermes_script.py::test_setup_hermes_script_is_valid_shell": (
+            pytest.mark.skip(reason="bare 'bash' is the WSL launcher on Windows; fork copy: "
+                                    "tests/hermes_cli/test_setup_hermes_script_downstream.py"),
+        ),
     })

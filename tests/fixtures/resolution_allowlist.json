@@ -609,7 +609,7 @@
     "kind": "bare_which"
   },
   {
-    "path": "agent_runtime/gateway/methods_pdf.py",
+    "path": "tui_gateway/methods_prompt.py",
     "symbol": "_",
     "kind": "bare_which"
   },

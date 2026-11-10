@@ -139,7 +139,6 @@
   "agent_runtime/_upstream_doors.py|tui_gateway.server|_session_uses_compute_host",
   "agent_runtime/approval_surface_policy.py|tools.approval_context|_VALID_MODES",
   "agent_runtime/approval_surface_policy.py|tools.approval_context|_get_approval_mode",
-  "agent_runtime/gateway/methods_pdf.py|cli|_resolve_attachment_path",
   "hermes_cli/_bytecode_sweep.py|hermes_cli.main_web_build|_prune_dropped_directories",
   "hermes_cli/_bytecode_sweep.py|hermes_cli.main|_clear_bytecode_cache",
   "hermes_cli/_bytecode_sweep.py|hermes_cli.main|_read_git_revision_fingerprint",
