@@ -220,10 +220,12 @@ def test_the_reader_and_the_artifact_are_the_same_facts():
         assert builtin_toolset_for_tool(name) == toolset
 
 
-@pytest.mark.parametrize("name", ["read_terminal", "browser_navigate"])
+@pytest.mark.parametrize("name", ["read_terminal", "discord_admin"])
 def test_both_registration_forms_survive_the_round_trip(name):
-    """One literal registration and one that names a module-level ``_TOOLSET``
-    constant — the two forms the real tree uses. A reader that regressed to
-    literals-only would still pass every synthetic case."""
+    """One literal registration and one whose name and toolset are bound by a
+    loop over a literal module-level table (``tools/discord_tool.py``) — the two
+    forms the real tree uses since v0.23.1 deleted the ``browser_*`` tools (the
+    old ``_TOOLSET``-constant example). A reader that regressed to literals-only
+    would still pass every synthetic case."""
 
     assert builtin_toolset_for_tool(name) is not None
