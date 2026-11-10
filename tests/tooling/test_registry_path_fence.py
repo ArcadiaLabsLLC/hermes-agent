@@ -122,7 +122,8 @@ def _child(env: dict, entry: Path) -> str:
 
 
 def _child_env(tmp_path: Path, hermes_home: Path | None) -> dict:
-    env = {name: value for name, value in os.environ.items() if name not in (CHILD_FENCE_ENV, "HERMES_HOME")}
+    env = {name: value for name, value in os.environ.items() if name != "HERMES_HOME"}
+    env[CHILD_FENCE_ENV] = "0"  # registry fence off (a dropped key would be re-added by marked_env); PATH fence stays
     env["LOCALAPPDATA"] = str(tmp_path / "LocalAppData")
     env["HERMES_DATA_DIR_SUFFIX"] = ""
     if hermes_home is not None:

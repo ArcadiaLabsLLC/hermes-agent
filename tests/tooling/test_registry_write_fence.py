@@ -70,6 +70,11 @@ def test_marked_env_leaves_inherit_and_the_e2e_opt_in_alone(monkeypatch):
     monkeypatch.delenv("HERMES_E2E_WINDOWS_INSTALL", raising=False)
     assert registry_write_fence.marked_env(None) is None
     assert registry_write_fence.marked_env({"A": "1"}) == {"A": "1", registry_write_fence.CHILD_FENCE_ENV: "1"}
+    # A map that spells the marker is the caller's choice: a positive control's "0" stays off.
+    # Killing mutation (2026-11-10): test ``env.get(CHILD_FENCE_ENV) == "1"`` again -> red here and the
+    # four Windows positive controls (test_registry_write_fence_children / test_registry_path_fence) red.
+    off = {"A": "1", registry_write_fence.CHILD_FENCE_ENV: "0"}
+    assert registry_write_fence.marked_env(off) == off
     monkeypatch.setenv("HERMES_E2E_WINDOWS_INSTALL", "1")
     assert registry_write_fence.marked_env({"A": "1"}) == {"A": "1"}
 

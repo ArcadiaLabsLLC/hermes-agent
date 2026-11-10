@@ -106,7 +106,8 @@ def test_the_same_child_writes_when_the_fence_is_off(absent):
     # Positive control: identical child bytes, the one variable is the inherited marker.
     assert os.environ.get(CHILD_FENCE_ENV) == "1"
     path = _throwaway_key()
-    env = {name: value for name, value in os.environ.items() if name != CHILD_FENCE_ENV}
+    # "0", not a dropped key: a map with no marker is a scratch env the Popen wrap fences (marked_env).
+    env = {**os.environ, CHILD_FENCE_ENV: "0"}
 
     out = _run_child(path, isolated=False, env=env, absent=absent)
 
