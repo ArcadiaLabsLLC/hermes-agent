@@ -37,11 +37,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 UNSHIPPED = ("openai", "anthropic", "psutil", "pty")
 UNSHIPPED_TOOLS = ("tools.terminal_tool", "tools.browser", "tools.environments", "tools.process_registry",
-                   "tools.code_execution", "tools.computer_use", "tools.delegate_tool")
+                   "tools.code_execution", "tools.computer_use")
+# The delegate tool is one module: the phone switches off ``tools.delegate_tool`` but ships
+# ``tools.delegate_tool_config`` (the tool build reads ``delegation.backend`` through it).
+UNSHIPPED_MODULES = ("tools.delegate_tool",)
+
+def unshipped(name):
+    return name.split(".")[0] in UNSHIPPED or name.startswith(UNSHIPPED_TOOLS) or name in UNSHIPPED_MODULES
 
 class NotShipped:
     def find_spec(self, name, path=None, target=None):
-        if name.split(".")[0] in UNSHIPPED or name.startswith(UNSHIPPED_TOOLS):
+        if unshipped(name):
             raise ModuleNotFoundError(f"not shipped: {name}", name=name)
 
 sys.meta_path.insert(0, NotShipped())
@@ -113,7 +119,7 @@ print(json.dumps({
     "tool": turn(["todo"]),
     "placed": list(placed),
     "loaded": sorted(m for m, mod in sys.modules.items()
-                     if (m.split(".")[0] in UNSHIPPED or m.startswith(UNSHIPPED_TOOLS)) and not is_lifecycle_placeholder(mod)),
+                     if unshipped(m) and not is_lifecycle_placeholder(mod)),
 }))
 '''
 
@@ -135,8 +141,8 @@ def test_the_loop_runs_a_turn_without_sdks_or_desktop_tool_lifecycles(tmp_path):
     assert "todo_list" in tool["tools"]
     assert tool["roles"] == ["system", "user", "assistant", "tool"]
     assert json.loads(tool["tool_results"][0])["todos"] == []  # the safe tool really ran
-    assert report["placed"] == ["tools.terminal_tool_lifecycle", "tools.browser_tool_lifecycle", "tools.delegate_tool",
-                                "tools.computer_use.tool", "tools.browser_tool_cloud",
+    assert report["placed"] == ["tools.terminal_tool_lifecycle", "tools.browser_session_lifecycle", "tools.delegate_tool",
+                                "tools.computer_use.tool", "tools.browser_session_cloud",
                                 "tools.environments.local"]  # blocked here; file_tools is not
     assert report["loaded"] == []
 
@@ -328,7 +334,7 @@ def test_the_turn_wires_no_password_manager_where_the_vault_is_switched_off(tmp_
     out = _run_vault_child("seam", tmp_path)
     assert out["placed"] == ["agent.vault_backends", "agent.vault_backends.base", "agent.vault_backends.unlock",
                              "agent.vault_store"]
-    assert out["prompt"] is None and out["pairs"] == 5
+    assert out["prompt"] is None and out["pairs"] == 6  # upstream 80d92daceb added the unlock owner pair
     assert out["enabled_backends"] == out["vault_store"] == out["lock"] == "refused"
 
 

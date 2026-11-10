@@ -59,11 +59,11 @@ __all__ = ["BROWSER_CLOUD", "BROWSER_LIFECYCLE", "COMPUTER_USE_TOOL", "DELEGATE_
            "ensure_lifecycle_placeholders", "is_lifecycle_placeholder", "not_shipped", "shipped"]
 
 TERMINAL_LIFECYCLE = "tools.terminal_tool_lifecycle"
-BROWSER_LIFECYCLE = "tools.browser_tool_lifecycle"
+BROWSER_LIFECYCLE = "tools.browser_session_lifecycle"
 DELEGATE_TOOL = "tools.delegate_tool"
 FILE_TOOLS = "tools.file_tools"
 COMPUTER_USE_TOOL = "tools.computer_use.tool"
-BROWSER_CLOUD = "tools.browser_tool_cloud"
+BROWSER_CLOUD = "tools.browser_session_cloud"
 LOCAL_ENVIRONMENT = "tools.environments.local"
 LOCAL_TTS = "tools.tts_tool_local"
 LOCAL_RUNTIME_CAPABILITIES = "hermes_cli.local_runtime.capabilities"
@@ -147,7 +147,7 @@ _LOOP_NAMES: dict[str, dict[str, Any]] = {
     DELEGATE_TOOL: {"_get_max_concurrent_children": _no_delegation_cap},
     FILE_TOOLS: {"clear_file_ops_cache": _no_cleanup},
     COMPUTER_USE_TOOL: {"release_computer_use_session": _no_cleanup},
-    BROWSER_CLOUD: {"_is_headed_mode": _not_headed},
+    BROWSER_CLOUD: {"is_headed_mode": _not_headed},
     LOCAL_ENVIRONMENT: _loud(LOCAL_ENVIRONMENT, "hermes_subprocess_env"),
     LOCAL_TTS: {"_LOCAL_TTS_MODEL_CACHES": types.MappingProxyType({}),
                 **_loud(LOCAL_TTS, "_generate_kittentts", "_generate_neutts", "_generate_piper_tts",
@@ -164,7 +164,7 @@ _LOOP_NAMES: dict[str, dict[str, Any]] = {
     VAULT_UNLOCK: {name: _no_callback for name in (
         "set_unlock_prompt_callback", "get_unlock_prompt_callback", "set_save_login_prompt_callback",
         "get_save_login_prompt_callback", "set_code_prompt_callback", "get_code_prompt_callback",
-        "set_current_session_id", "release_session")} | _loud(VAULT_UNLOCK, "lock"),
+        "get_current_session_id", "set_current_session_id", "release_session")} | _loud(VAULT_UNLOCK, "lock"),
     VAULT_BACKENDS: _loud(VAULT_BACKENDS, "enabled_backends", "backend_for_handle"),
     VAULT_BACKENDS_BASE: _loud(VAULT_BACKENDS_BASE, "external_backend_classes", "is_installed"),
     VAULT_STORE: _loud(VAULT_STORE, "get_vault_store"),
