@@ -201,6 +201,9 @@ packaging:
     - agent_runtime.serve_registry
     - agent_runtime.serve_socket
     - agent_runtime.parent_watch
+    # Launcher supervision (beats, the relaunch, the game watch): the phone has no desktop launcher
+    # to watch, and its watchdog imports parent_watch at module level (FH-PHONE-GATE-SPAWN-PROBE-CRASH).
+    - agent_runtime.launcher_supervision
     # Shell family.
     - tools.terminal_tool
     - tools.terminal_tool_backends
@@ -483,6 +486,9 @@ packaging:
     - agent.proxy_sources.iron_proxy
     - hermes_cli.proxy_cli
     - tui_gateway.host_supervisor
+    # The turn-isolation compute host itself: it imports host_supervisor at module level, and only
+    # its own child process reaches it (FH-PHONE-GATE-SPAWN-PROBE-CRASH).
+    - tui_gateway.compute_host
     - tools.env_probe
     - tools.async_delegation_recovery_hints
     # File-edit tooling (no file toolset on phones): checkpoint upkeep, rg search, node linter.
