@@ -362,7 +362,7 @@
   "counts": {
     "tools": 34,
     "toolsets": 16,
-    "token_estimate": 7244
+    "token_estimate": 6988
   },
   "cli_only_verbs": [
     "persona instance open-chat",

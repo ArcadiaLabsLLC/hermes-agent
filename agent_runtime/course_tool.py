@@ -57,7 +57,7 @@ COURSE_CHECKOUT_SCHEMA: dict[str, Any] = {
 COURSE_COMMIT_SCHEMA: dict[str, Any] = {
     "name": "course_commit",
     "description": (
-        "Write files into a checked-out course on your authoring branch, commit them as you, and push the "
+        "Write files into a checked-out course on your authoring branch. Commits them as you and pushes the "
         "branch (never forced). `files` maps a repo-relative path to its full new text; `deletes` lists paths "
         "to remove. Check the course out first."
     ),
@@ -78,8 +78,8 @@ COURSE_COMMIT_SCHEMA: dict[str, Any] = {
 COURSE_PULL_REQUEST_SCHEMA: dict[str, Any] = {
     "name": "course_pull_request",
     "description": (
-        "Open (or answer the already-open) pull request for your pushed authoring branch against the course's "
-        "default branch."
+        "Open (or answer the already-open) pull request for your authoring branch. Push the branch first; the "
+        "request targets the course's default branch."
     ),
     "parameters": {
         "type": "object",

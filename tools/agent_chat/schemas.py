@@ -16,7 +16,7 @@ _MESSAGE_LIMIT = 12000
 AGENT_CHAT_SEND_SCHEMA = {
     "name": "agent_chat_send",
     "description": (
-        "Send a conversational message to ANOTHER Harness persona (persona id e.g. neko_supervisor/dev/qa, or a @personainst_* handle for a specific instance; display names refused). Each new task you dispatch starts a FRESH thread by default; to continue an exchange (an in-task follow-up) pass back the session_id their reply returned. Answering their clarifying question: pass back the clarify_token from their clarify_request and your answer lands in that question's thread. new_session=false continues the target's CURRENT default thread (the most recent one) instead. This is conversational only and does not create tracked work."
+        "Send a conversational message to ANOTHER Harness persona. Address it by persona id (e.g. neko_supervisor/dev/qa) or a @personainst_* handle for a specific instance; display names are refused. Each new task you dispatch starts a FRESH thread by default; to continue an exchange (an in-task follow-up) pass back the session_id their reply returned. Answering their clarifying question: pass back the clarify_token from their clarify_request and your answer lands in that question's thread. new_session=false continues the target's CURRENT default thread (the most recent one) instead. This is conversational only and does not create tracked work."
     ),
     "parameters": {
         "type": "object",
@@ -115,7 +115,7 @@ AGENT_CHAT_SEND_SCHEMA = {
 AGENT_CHAT_DISPATCHES_SCHEMA = {
     "name": "agent_chat_dispatches",
     "description": (
-        "List the background dispatches YOU sent with agent_chat_send(wait=false): who they went to, what you asked, whether they are still running or finished, and whether their answer has been delivered back to you yet. Read-only, bounded. Use it to check on long-running work without pestering the teammate. Disambiguator: this lists YOUR background dispatches; agent_chat_threads lists your threads; agent_chat_open reads one."
+        "List the background dispatches YOU sent with agent_chat_send(wait=false). Shows who they went to, what you asked, whether they are still running or finished, and whether their answer has been delivered back to you yet. Read-only, bounded. Use it to check on long-running work without pestering the teammate. Disambiguator: this lists YOUR background dispatches; agent_chat_threads lists your threads; agent_chat_open reads one."
     ),
     "parameters": {
         "type": "object",
@@ -152,7 +152,7 @@ AGENT_CHAT_DISPATCHES_SCHEMA = {
 AGENT_CHAT_THREADS_SCHEMA = {
     "name": "agent_chat_threads",
     "description": (
-        "List your agent-to-agent chat threads with teammates on your level: persona id, display name, @personainst_* handle, and the default thread's session/title/activity when one exists. Read-only. Disambiguator: lists threads; agent_chat_open reads one, agent_chat_send sends."
+        "List your agent-to-agent chat threads with teammates on your level. Each row: persona id, display name, @personainst_* handle, and the default thread's session/title/activity when one exists. Read-only. Disambiguator: lists threads; agent_chat_open reads one, agent_chat_send sends."
     ),
     "parameters": {
         "type": "object",
@@ -177,7 +177,7 @@ AGENT_CHAT_THREADS_SCHEMA = {
 AGENT_CHAT_OPEN_SCHEMA = {
     "name": "agent_chat_open",
     "description": (
-        "Review the recent message tail of a thread with ONE teammate (persona id, or a @personainst_* handle for a specific instance) — 'what did we last say to each other?' before you continue it or inspect what a dispatched task actually said. Reviews their current default thread, or the session_id you name. Read-only; never creates a session. Disambiguator: agent_chat_open READS a thread; agent_chat_send replies; agent_chat_threads lists your threads."
+        "Review the recent message tail of a thread with ONE teammate. Name them by persona id, or a @personainst_* handle for a specific instance — 'what did we last say to each other?' before you continue the thread or inspect what a dispatched task actually said. Reviews their current default thread, or the session_id you name. Read-only; never creates a session. Disambiguator: agent_chat_open READS a thread; agent_chat_send replies; agent_chat_threads lists your threads."
     ),
     "parameters": {
         "type": "object",
@@ -215,7 +215,7 @@ AGENT_CHAT_OPEN_SCHEMA = {
 AGENT_CHAT_INSTALLS_SCHEMA = {
     "name": "agent_chat_installs",
     "description": (
-        "List the other INSTALLS (machines) paired with this one — which are reachable right now, and optionally who is on one of them. Read-only: it never pairs, never mints and never sends. Use it before addressing @install/persona so you name a machine that is actually reachable and a teammate that is actually there. Disambiguator: agent_chat_installs lists MACHINES; agent_chat_threads lists teammates on this machine (or, with @install/, on one of theirs)."
+        "List the other INSTALLS (machines) paired with this one. Shows which are reachable right now, and optionally who is on one of them. Read-only: it never pairs, never mints and never sends. Use it before addressing @install/persona so you name a machine that is actually reachable and a teammate that is actually there. Disambiguator: agent_chat_installs lists MACHINES; agent_chat_threads lists teammates on this machine (or, with @install/, on one of theirs)."
     ),
     "parameters": {
         "type": "object",
@@ -237,7 +237,7 @@ AGENT_CHAT_INSTALLS_SCHEMA = {
 AGENT_CHAT_LOG_PATH_SCHEMA = {
     "name": "agent_chat_log_path",
     "description": (
-        "Get the FILE PATH of a teammate thread's transcript log so you can grep/glob/tail it with your own file tools — use this when 40 messages is not enough, when you need to search a long thread for something specific, or when you want to watch what a teammate is doing while they are still working. The file is append-only JSONL and redaction-safe. It holds the thread's materialized history, and it KEEPS GROWING: appended as they happen are operator/relay messages, mid-turn steers, each turn's final reply, and compact tool start/finish lines (so you can see what they are doing right now). Not appended live: the runtime's non-final rows — the intermediate assistant messages between tool calls. Those are in the materialized history but will not show up in a live tail, so do not read their absence as 'it never happened'. Disambiguator: agent_chat_log_path gives you the thread as a greppable file; agent_chat_open is the quick bounded 40-message tail; agent_chat_threads lists your threads; agent_chat_send sends. Read-only: it never creates a chat session and never sends anything."
+        "Get the FILE PATH of a teammate thread's transcript log. Grep/glob/tail it with your own file tools — use this when 40 messages is not enough, when you need to search a long thread for something specific, or when you want to watch what a teammate is doing while they are still working. The file is append-only JSONL and redaction-safe. It holds the thread's materialized history, and it KEEPS GROWING: appended as they happen are operator/relay messages, mid-turn steers, each turn's final reply, and compact tool start/finish lines (so you can see what they are doing right now). Not appended live: the runtime's non-final rows — the intermediate assistant messages between tool calls. Those are in the materialized history but will not show up in a live tail, so do not read their absence as 'it never happened'. Disambiguator: agent_chat_log_path gives you the thread as a greppable file; agent_chat_open is the quick bounded 40-message tail; agent_chat_threads lists your threads; agent_chat_send sends. Read-only: it never creates a chat session and never sends anything."
     ),
     "parameters": {
         "type": "object",
