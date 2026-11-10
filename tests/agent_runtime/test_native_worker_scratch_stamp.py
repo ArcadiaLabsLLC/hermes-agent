@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 
 import pytest
 
@@ -38,24 +39,26 @@ def _spawn_until_the_process(monkeypatch, home):
         worker.start_worker(home, receive=lambda _frame: None, lost=lambda: None)
 
 
-def _worker_process_prunes(monkeypatch, home) -> bool:
-    """Whether upstream's boot-time ``get_scratch_dir`` prunes *home*, as in a fresh process."""
-    pruned = []
+def _worker_process_prunes(monkeypatch, home, spawned: list) -> bool:
+    """Whether upstream's boot-time ``get_scratch_dir`` prunes *home*, as in a fresh process.
+
+    Upstream runs the pass in a detached child (``hermes_constants_scratch_detach.spawn_prune``);
+    the suite's autouse ``scratch_prune_spawns`` fixture records each spawn instead (*spawned*)."""
     monkeypatch.setattr(hermes_constants, "_scratch_pruned_once", False)
-    monkeypatch.setattr(hermes_constants, "prune_scratch_dir", lambda scratch=None, *a, **k: pruned.append(scratch))
+    before = len(spawned)
     hermes_constants.get_scratch_dir(home)
-    return bool(pruned)
+    return Path(home) / "cache" / "scratch" in spawned[before:]
 
 
-def test_a_fresh_home_is_stamped_and_its_worker_skips_the_prune(tmp_path, monkeypatch):
+def test_a_fresh_home_is_stamped_and_its_worker_skips_the_prune(tmp_path, monkeypatch, scratch_prune_spawns):
     home = tmp_path / "fresh-profile"
     home.mkdir()
     _spawn_until_the_process(monkeypatch, home)
     assert (home / "cache" / "scratch" / worker.SCRATCH_PRUNE_STAMP).is_file()
-    assert not _worker_process_prunes(monkeypatch, home)
+    assert not _worker_process_prunes(monkeypatch, home, scratch_prune_spawns)
 
 
-def test_an_existing_scratch_is_never_stamped_and_its_worker_prunes(tmp_path, monkeypatch):
+def test_an_existing_scratch_is_never_stamped_and_its_worker_prunes(tmp_path, monkeypatch, scratch_prune_spawns):
     home = tmp_path / "used-profile"
     scratch = home / "cache" / "scratch"
     (scratch / "old-entry").mkdir(parents=True)
@@ -65,4 +68,4 @@ def test_an_existing_scratch_is_never_stamped_and_its_worker_prunes(tmp_path, mo
     os.utime(stamp, (old, old))
     _spawn_until_the_process(monkeypatch, home)
     assert stamp.stat().st_mtime == pytest.approx(old, abs=1)
-    assert _worker_process_prunes(monkeypatch, home)
+    assert _worker_process_prunes(monkeypatch, home, scratch_prune_spawns)
