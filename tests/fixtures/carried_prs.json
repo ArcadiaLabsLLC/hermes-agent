@@ -63,17 +63,6 @@
       },
       "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
-    "121224": {
-      "head_ref": "origin/up/win-path-spelling",
-      "reviewed_head": "0476e1fb7df92faec833569762ec918b2391a8d3",
-      "base_ref": "upstream/main",
-      "files": {
-        "tests/hermes_cli/test_deleted_profile_tombstone.py": {
-          "mode": "hunks"
-        }
-      },
-      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
-    },
     "121225": {
       "head_ref": "origin/up/win-posix-only-apis",
       "reviewed_head": "4d8e71b63a745d3e4b59629c9cfe115f58df9769",

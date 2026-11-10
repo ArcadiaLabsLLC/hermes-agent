@@ -725,4 +725,10 @@ if _WIN:
             pytest.mark.skip(reason="bare 'bash' is the WSL launcher on Windows; fork copy: "
                                     "tests/hermes_cli/test_setup_hermes_script_downstream.py"),
         ),
+        # match= is a regex and a Windows path is not a valid one; the fork's PR #121224 copy escapes it.
+        "tests/hermes_cli/test_deleted_profile_tombstone.py::TestDeletedProfileTombstone::"
+        "test_marker_less_shell_is_not_a_profile": (
+            pytest.mark.skip(reason="raw Windows path in pytest.raises(match=); fork copy: "
+                                    "tests/hermes_cli/test_deleted_profile_tombstone_downstream.py"),
+        ),
     })
