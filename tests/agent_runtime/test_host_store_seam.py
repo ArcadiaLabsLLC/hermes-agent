@@ -224,3 +224,18 @@ def test_the_bound_pairing_store_lists_platforms_held_in_slots(app):
     assert sorted(row["platform"] for row in store.list_pending()) == ["slack", "telegram"]
     assert [row["platform"] for row in store.list_approved()] == ["discord"]
     assert store.clear_pending() == 2 and store.list_pending() == []
+
+
+def test_the_home_dotenv_resolver_reads_a_bound_home_env(app):
+    """``resolve_home_dotenv`` (upstream v0.22.5, read by ``left_core_migration``) reads ``<home>/.env``
+    through the same host-store view as ``load_hermes_dotenv``: bound, the value lives in a slot.
+
+    Killing mutation (2026-11-10, RT-SEAM-ENV-LOADER-RESOLVE-HOME-DOTENV): drop the ``view`` around
+    ``layers[0]`` in ``resolve_home_dotenv`` -> red (the disk has no .env, the answer is empty)."""
+    from hermes_cli import env_loader
+
+    root, home = app
+    FakeHostSecureStore().bind(profile="phone-a", store_root=root)
+    secret_files.write_text(home / ".env", "TERMINAL_ENV=singularity\n")
+    assert not (home / ".env").exists()
+    assert env_loader.resolve_home_dotenv(home).get("TERMINAL_ENV") == "singularity"

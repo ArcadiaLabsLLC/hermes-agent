@@ -403,6 +403,8 @@ def resolve_home_dotenv(home: Path) -> dict[str, str]:
 
     managed_dir = managed_scope.get_managed_dir()
     layers = [home / ".env", *([managed_dir / ".env"] if managed_dir is not None else [])]
+    from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: phone credentials seam
+    layers[0] = _host_secrets.view(layers[0])
     with _DOTENV_LOCK:
         lookup_env = _dotenv_lookup_env(None)
     out: dict[str, str] = {}
