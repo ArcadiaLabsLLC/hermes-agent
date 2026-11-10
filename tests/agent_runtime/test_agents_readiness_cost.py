@@ -5,9 +5,11 @@ Measured on a scratch copy of the operator's store (11 runtime personas,
 persona per build that need not be:
 
 * ``get_all_skills_dirs`` re-parsed each persona's ``config.yaml`` — upstream's
-  config cache holds ONE entry and every persona binds a different profile;
-  ``skill_resolution.skill_search_roots`` memoizes it per profile on every input
-  the upstream body reads;
+  config cache held ONE entry and every persona binds a different profile; the
+  fork memoized ``skill_resolution.skill_search_roots`` per profile until v0.23.1's
+  multi-entry raw-config cache in ``agent.skill_utils`` made it redundant
+  (FH-SKILL-SEARCH-ROOTS-CACHE-REDUNDANT): the once-per-profile count now guards
+  upstream's cache;
 * ``resolve_skills`` scanned every registry entry for every name (~200 x ~1,150
   Path compares a persona) and paid a ``realpath`` per candidate; the registry
   now indexes its entries by path and carries their realpaths;
@@ -15,11 +17,8 @@ persona per build that need not be:
   the walk it answers once per package list.
 
 Named sabotage, one per guarantee:
-* key ``skill_search_roots`` on the home alone (drop ``config_sig``) -> the
-  config-edit row reds;
-* drop the ``create_dir.is_dir() == existed`` re-check -> the create-dir row reds;
-* make ``skill_search_roots`` return ``get_all_skills_dirs()`` unmemoized -> the
-  once-per-profile count reds;
+* make ``agent.skill_utils._RAW_CONFIG_CACHE`` hold one entry -> the once-per-profile
+  count reds;
 * drop the ``manifests_by_path`` lookup in ``resolve_skills`` -> the
   equivalence row reds (direct-path matches vanish);
 * drop ``runtime_environment_status_scope()`` from the section -> the
@@ -65,12 +64,12 @@ class _home:
 
 @pytest.fixture(autouse=True)
 def _fresh_memos():
-    sr._search_roots_cache_clear()
     sr._skill_root_registry_cache_clear()
+    skill_utils._raw_config_cache_clear()
     skill_utils._external_dirs_cache_clear()
     yield
-    sr._search_roots_cache_clear()
     sr._skill_root_registry_cache_clear()
+    skill_utils._raw_config_cache_clear()
     skill_utils._external_dirs_cache_clear()
 
 

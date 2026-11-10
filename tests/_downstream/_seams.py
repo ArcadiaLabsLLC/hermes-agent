@@ -66,7 +66,6 @@ IN_MODULE_SEAMS = (
     "agent_runtime/launcher_client_requests.py::ClientRequests.open_count",
     "agent_runtime/parse_cache.py::clear_parse_cache",
     "agent_runtime/profile_readiness.py::_provider_issue_cache_clear",
-    "agent_runtime/skill_resolution.py::_search_roots_cache_clear",
     "agent_runtime/skill_resolution.py::_skill_root_registry_cache_clear",
     "agent_runtime/skill_resolution.py::reset_skill_root_walks_for_tests",
     "agent_runtime/skill_resolution.py::skill_root_rebuilds_this_thread",

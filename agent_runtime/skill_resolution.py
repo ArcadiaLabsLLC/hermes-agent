@@ -384,63 +384,17 @@ def _resolved_path(path: Path) -> Path:
     except (OSError, RuntimeError):
         return path.expanduser().absolute()
 
-#: ``skill_search_roots`` memo: key -> (roots, create_dir, create_dir existed).
-_SEARCH_ROOTS_CACHE: dict[tuple[Any, ...], tuple[tuple[Path, ...], Optional[Path], bool]] = {}
-
-_SEARCH_ROOTS_CACHE_MAX = 64
-
-
-def _search_roots_cache_clear() -> None:
-    """Test hook — drop the ``skill_search_roots`` memo."""
-
-    _SEARCH_ROOTS_CACHE.clear()
-
-
 def skill_search_roots() -> list[Path]:
-    """``agent.skill_utils.get_all_skills_dirs()`` for the active profile, memoized per profile.
+    """``agent.skill_utils.get_all_skills_dirs()`` for the active profile.
 
-    h-readiness: upstream parses ``config.yaml`` behind a ONE-entry cache that
-    clears on every new key, which is right for a process with one
-    ``HERMES_HOME`` and wrong for this one. A snapshot build binds each
-    persona's profile in turn, so every persona re-parsed its profile's config
-    (~60 ms of ruamel each, 5 of them per build on the operator's roster).
-
-    The key is every input the upstream body reads: the walker itself (a patch
-    or reload invalidates), the active Hermes home (skills dir, config path,
-    relative-path anchor, shared root), ``config.yaml``'s file signature, and
-    the whole environment (``${VAR}``/``~`` expansion, ``HERMES_SHARED_SKILLS``).
-    The one filesystem fact it adds, whether the configured ``create_dir``
-    exists, is re-checked on every hit. ``external_dirs`` existence is upstream's
-    own cache's contract (keyed on the config signature alone) and is served
-    exactly as upstream would serve it.
+    The fork memoized this per profile (h-readiness, 2026-10-05) while upstream's config cache
+    held ONE entry. Since v0.23.1 upstream's ``agent.skill_utils`` keeps a
+    multi-entry raw-config cache, so a build that binds each persona's profile in turn parses
+    each ``config.yaml`` once either way (FH-SKILL-SEARCH-ROOTS-CACHE-REDUNDANT); the memo is gone.
     """
     from agent import skill_utils as _skills
-    from hermes_constants import get_hermes_home
-    from utils import file_signature
 
-    home = get_hermes_home()
-    try:
-        config_sig: Optional[tuple[int, ...]] = file_signature((home / "config.yaml").stat())
-    except OSError:
-        config_sig = None
-    key = (
-        _skills.get_all_skills_dirs,
-        str(home),
-        config_sig,
-        frozenset(os.environ.items()),
-    )
-    cached = _SEARCH_ROOTS_CACHE.get(key)
-    if cached is not None:
-        roots, create_dir, existed = cached
-        if create_dir is None or create_dir.is_dir() == existed:
-            return list(roots)
-    create_dir = _skills.get_skill_create_dir()
-    existed = create_dir is not None and create_dir.is_dir()
-    roots = tuple(_skills.get_all_skills_dirs())
-    if len(_SEARCH_ROOTS_CACHE) >= _SEARCH_ROOTS_CACHE_MAX:
-        _SEARCH_ROOTS_CACHE.clear()
-    _SEARCH_ROOTS_CACHE[key] = (roots, create_dir, existed)
-    return list(roots)
+    return list(_skills.get_all_skills_dirs())
 
 
 def skill_source_kind(root: Path) -> str:

@@ -32,20 +32,3 @@ def test_public_manifests_preserve_resolver_aliases_and_category_scope(tmp_path)
     assert resolve_skill("public-alias", roots=[root]).candidate.skill_md == entry.manifest
     assert compact_skill_categories(["public-alias"], roots=[root]) == frozenset()
     assert compact_skill_categories([], roots=[root]) == frozenset({"group"})
-
-
-def test_default_resolver_roots_reuse_profile_memo(tmp_path, monkeypatch):
-    from agent import skill_utils
-    from agent_runtime import skill_resolution
-    root = tmp_path / "skills"
-    root.mkdir()
-    calls = []
-    def roots():
-        calls.append(1)
-        return [root]
-    monkeypatch.setattr(skill_utils, "get_all_skills_dirs", roots)
-    monkeypatch.setattr(skill_utils, "get_skill_create_dir", lambda: None)
-    skill_resolution._SEARCH_ROOTS_CACHE.clear()
-    resolve_skill("first-missing")
-    resolve_skill("second-missing")
-    assert len(calls) == 1
