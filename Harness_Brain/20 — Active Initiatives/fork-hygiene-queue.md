@@ -216,7 +216,6 @@ The repository AS A FORK: upstream sync and the boundary, CI, the suite and its 
 
 ## Filed on arrival — 2026-10-05 (owner ask: a usable suite)
 
-- **`FORK-BARE-PYTEST-FILES-SEVERAL` — A bare pytest over files from several test directories hangs `test_gateway_spawn_fence::test_subprocess_run_refuses_the_measured_argv` (the fence is not armed; a real `gateway run` starts) and reddens `test_conftest_isolation_downstream` test_2/test_4; red on main `71079deb70`** · group: hermes-test-isolation · `fork / suite` · evidence: lane h-suite-hermetic report · reproducing it starts a real gateway on the operator's machine · DEFERRED 2026-11-09: owner triage — Only hit by an unusual test invocation the team avoids; until the owner reopens it
 
 ## Filed on arrival — 2026-10-05 (lane h-turn1-title)
 
