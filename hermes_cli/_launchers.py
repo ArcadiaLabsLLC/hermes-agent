@@ -72,8 +72,16 @@ def runtime_command(repo_root: Path, args=(), *, module: str = "hermes_cli.main"
     return [str(python), "-I", "-c", bootstrap, *args]
 
 
-def print_runtime_command(repo_root: Path, argv: list[str]) -> None:
-    """Machine boundary for consumers holding the exact published launcher."""
+def print_runtime_command(repo_root: Path, argv: list[str], *,
+                          python: str | Path | None = None) -> None:
+    """Machine boundary for consumers holding the exact published launcher.
+
+    A published launcher passes ``python=sys.executable``: the interpreter it
+    really runs, baked at publication. Re-resolving the store here instead read
+    the CURRENT home's tools, so with ``HERMES_HOME`` unset an unstamped
+    checkout published under another root printed ``~/.hermes/tools/...``
+    while the launcher ran its own (RT-PRINT-RUNTIME-COMMAND-NAMES-OTHER-STORE).
+    """
     import argparse
 
     parser = argparse.ArgumentParser(description="Resolve this installation's launch command.")
@@ -81,7 +89,7 @@ def print_runtime_command(repo_root: Path, argv: list[str]) -> None:
     parser.add_argument("args", nargs=argparse.REMAINDER)
     options = parser.parse_args(argv)
     args = options.args[1:] if options.args[:1] == ["--"] else options.args
-    print(json.dumps(runtime_command(repo_root, args, module=options.module)))
+    print(json.dumps(runtime_command(repo_root, args, module=options.module, python=python)))
 
 
 def installation_command(repo_root: Path, args=(), *, module: str = "hermes_cli.main",
@@ -492,7 +500,7 @@ def _launcher_script(name: str, repo_root: Path, dependencies: Path | None) -> s
         "    from hermes_constants import get_default_hermes_root\n"
         "    os.environ['HERMES_HOME'] = os.environ.get('HERMES_HOME') or str(get_default_hermes_root())\n"
         "    from hermes_cli._launchers import print_runtime_command\n"
-        f"    print_runtime_command(Path({root!r}), sys.argv[2:])\n"
+        f"    print_runtime_command(Path({root!r}), sys.argv[2:], python=sys.executable)\n"
         "    sys.exit(0)\n"
         f"sys.{PIN_DEFAULT_HOME_FLAG} = True\n"
         "try:\n"
