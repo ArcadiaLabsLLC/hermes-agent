@@ -407,6 +407,14 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_turn_validation_reports_disabled_builtin_once_and_unknown_names_never",
         )
     },
+    # The test makes load_config_readonly unreadable for all of create_profile; the fork's plugin
+    # discovery reads through it too, and v0.23.1's create discovers plugins before the memory hook.
+    "tests/hermes_cli/test_profiles_memory_hooks.py::test_an_unreadable_config_backend_never_fails_create": (
+        _fork_replaces(
+            "hermes_cli/plugins_discovery.py reader moved to load_config_readonly (upstream-footprint ledger)",
+            "tests/hermes_cli/test_profiles_memory_hooks_downstream.py",
+        ),
+    ),
     # The same refuse_tool_call registration reaches session.create's launch-hook consent:
     # upstream counts exactly one pre_tool_call hook (row FH-SESSION-POLICY-HOOK-COUNT-RED).
     "tests/gateway/test_session_policy.py::"
