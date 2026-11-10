@@ -345,6 +345,15 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # stat): 57 s on X:, ~245 s under the runner's C: temp root (lane h7-reds, 2026-09-29).
     "tests/scripts/test_bundle_native.py::"
     "test_bundle_stages_git_tree_and_runs_native_children_before_manifest": (pytest.mark.timeout(360),),
+    # Shared-provider correction 2026-09-29: an IDLE compute-host model pick reaches the live
+    # owner (agent_runtime.gateway.compute_model_selection.forward) instead of deferring.
+    "tests/tui_gateway/test_compute_host_pending_model_switch.py::"
+    "test_config_set_model_defers_on_compute_host_session": (
+        _fork_replaces(
+            "tui_gateway.methods_config_set._set_model (idle compute picks forward to the owner)",
+            "tests/tui_gateway/test_compute_host_pending_model_switch_downstream.py",
+        ),
+    ),
     # v0.23.1 (#150283): upstream's compute-host relay stubs answer respond() with None / a bare bool;
     # the fork relays only on the child's respond.ack (the mirror stays until it acknowledges).
     **{

@@ -34,9 +34,9 @@ def _session(**extra):
     return base
 
 
-def test_config_set_model_defers_on_busy_compute_host_session(monkeypatch):
-    """A running isolated turn must not be mutated."""
-    session = _session(_compute_host_active=True, running=True)
+def test_config_set_model_defers_on_compute_host_session(monkeypatch):
+    """Idle isolated session: config.set model must stash, not direct-apply."""
+    session = _session(_compute_host_active=True)
     server._sessions["sid-cfgset"] = session
     build_calls = []
     monkeypatch.setattr(server, "_start_agent_build", lambda *a, **k: build_calls.append(a))
