@@ -22,6 +22,19 @@ import pytest
 from agent_runtime import spawn_stand_ins as ssi
 from agent_runtime.spawn_stand_ins import SpawnNotAvailable, SpawnSeamStale, StandIn
 
+
+@pytest.fixture(autouse=True)
+def scratch_prune_spawns(monkeypatch):
+    """Overrides tests/conftest.py's fixture of this name for this file: that one replaces
+    ``hermes_constants_scratch_detach.spawn_prune`` (a stand-in row's target) with ``list.append``,
+    so the real-table check below would read the harness's stand-in, not the module's function.
+    Here the prune is kept from spawning one step earlier (the once-per-process latch is spent), so
+    no test still starts a real detached prune and ``spawn_prune`` stays the module's own."""
+    import hermes_constants
+
+    monkeypatch.setattr(hermes_constants, "_scratch_pruned_once", True)
+    return []
+
 _SOURCE = """
     import subprocess
 
