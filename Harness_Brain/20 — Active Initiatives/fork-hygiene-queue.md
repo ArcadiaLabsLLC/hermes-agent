@@ -635,7 +635,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-18 (session r-perf close-out)
 
-- **`FORK-ORPHAN-INSTALL-LEFTOVERS` — the 335 owner-approved orphan pm install states under `X:\Eternia\.hermes\installs` each keep ~82 locked files (~36 MB, hardlinked native modules such as aiohttp `.pyd` held by live Pythons; the whole folder is 5.1 GB), and `uv cache prune` failed on a held temp dir (os error 32); rerun `delete_orphans.py` (skip-and-continue) and `uv cache prune` after a reboot** · group: embedded-hermes · fork / workstation · deleter run 2026-10-18 `deleted=0 skipped=0 failed=335` (all PARTIAL) · DEFERRED 2026-11-09: owner triage — Disk clean-up on the owner's PC, no urgency; until the owner reopens it
 
 ## Filed on arrival — 2026-10-19 (land w10, b05ccafe29)
 
