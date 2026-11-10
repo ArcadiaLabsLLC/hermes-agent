@@ -58,14 +58,69 @@ def native_id(run: str, task: str, generation: int, continuation: int) -> str:
     return "room-turn-" + digest({"run": run, "task": task, "generation": generation, "continuation": continuation})[:40]
 
 
+#: The receipts' own file, beside the shared ``state.db`` (RT-FLAKE-NATIVE-DISCUSSION-ROOM-DB-LOCKED).
+ATTEMPTS_FILE = "discussion_attempts.db"
+#: The legacy ``state.db`` schema version after its rows moved out: an older gateway still running on the
+#: home reads it as ``unsupported_attempt_schema`` and refuses, rather than claiming a turn in a second table.
+_MOVED_OUT = 2
+_COLUMNS = ("run_id,task_id,generation,member_id,session_id,continuation,native_id,prompt,stage,receipt_json,"
+            "question_json,answer_key,answer_digest,owner_pid,owner_started")
+
+
+def _move_legacy_rows(legacy: Path, own: Path) -> None:
+    """Move receipts an older build kept in ``state.db`` into ``own``, then fence the legacy table.
+
+    One IMMEDIATE transaction over both files (the legacy write lock keeps older writers out while it copies).
+    WAL commits are atomic per file, not across the pair: a crash after the copy and before the fence leaves
+    the legacy rows readable at version 1, and the next open copies again with ``INSERT OR IGNORE``."""
+    if not legacy.exists():
+        return
+    conn = sqlite3.connect(legacy, timeout=10, isolation_level=None)
+    try:
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE name='mc_discussion_attempts_schema'").fetchone() is None:
+            return
+        conn.execute("ATTACH DATABASE ? AS own", (str(own),))
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            version = conn.execute("SELECT version FROM main.mc_discussion_attempts_schema").fetchone()
+            if version is not None and version[0] == 1:
+                conn.execute(f"INSERT OR IGNORE INTO own.mc_discussion_attempts({_COLUMNS}) "
+                             f"SELECT {_COLUMNS} FROM main.mc_discussion_attempts")
+                conn.execute("UPDATE main.mc_discussion_attempts_schema SET version=?", (_MOVED_OUT,))
+            conn.execute("COMMIT")
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+    finally:
+        conn.close()
+
+
 class AttemptStore:
+    """Turn receipts, in their own file beside ``state.db``.
+
+    Receipts commit at ``synchronous=FULL`` (owner RULED 2026-11-09: a rolled-back claim would let a turn run
+    twice), and a FULL commit fsyncs the WAL while it holds that file's write lock. In ``state.db`` that lock is
+    every room, run and definition writer's, so one stalled fsync refused them all past their 10 s busy
+    timeout (RT-FLAKE-NATIVE-DISCUSSION-ROOM-DB-LOCKED: the holders traced were ``attempt_store.update``). No
+    transaction spans a receipt and a room row, so the receipts hold only their own lock."""
+
     def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
+        #: ``db_path`` names the shared ``state.db``; the receipts live beside it.
+        self.legacy_path = Path(db_path)
+        self.db_path = self.legacy_path.with_name(ATTEMPTS_FILE)
+        self._moved = False
 
     def connect(self) -> sqlite3.Connection:
-        # Receipts stay FULL (owner RULED 2026-11-09): a rolled-back claim would let a turn run twice.
-        return connect(self.db_path, db_label="discussion-attempts", ready=_ready, initialize=_initialize, lock_retries=4,
-                       synchronous="FULL")
+        conn = connect(self.db_path, db_label="discussion-attempts", ready=_ready, initialize=_initialize,
+                       lock_retries=4, synchronous="FULL")
+        if not self._moved:
+            try:
+                _move_legacy_rows(self.legacy_path, self.db_path)
+            except BaseException:
+                conn.close()
+                raise
+            self._moved = True
+        return conn
 
     def get(self, run: str, task: str, generation: int) -> dict[str, Any] | None:
         with closing(self.connect()) as conn:
