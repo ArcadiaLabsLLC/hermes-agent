@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import ast
 import dataclasses
-import re
 from pathlib import Path
 
 import pytest
@@ -345,14 +344,18 @@ def _upstream_lane_gate() -> tuple[set, dict]:
     """
 
     source = (_REPO_ROOT / "hermes_cli" / "main.py").read_text(encoding="utf-8")
-    commands = re.search(r"^_AGENT_COMMANDS = (\{.*?\})$", source, re.MULTILINE)
-    subcommands = re.search(r"^_AGENT_SUBCOMMANDS = (\{.*?^\})$", source, re.MULTILINE | re.DOTALL)
-    assert commands and subcommands, (
+    gate = {
+        node.targets[0].id: node.value
+        for node in ast.parse(source).body
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in {"_AGENT_COMMANDS", "_AGENT_SUBCOMMANDS"}
+    }
+    assert set(gate) == {"_AGENT_COMMANDS", "_AGENT_SUBCOMMANDS"}, (
         "hermes_cli/main.py no longer spells the MCP-registration gate as "
         "_AGENT_COMMANDS/_AGENT_SUBCOMMANDS; re-derive agent_runtime.mcp_lane."
         "MCP_REGISTERING_LANES from whatever replaced it."
     )
-    return ast.literal_eval(commands.group(1)), ast.literal_eval(subcommands.group(1))
+    return ast.literal_eval(gate["_AGENT_COMMANDS"]), ast.literal_eval(gate["_AGENT_SUBCOMMANDS"])
 
 
 def test_registering_lane_mirror_matches_the_cli_gate():
