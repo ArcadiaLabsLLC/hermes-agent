@@ -68,12 +68,14 @@ def test_the_work_clause_waits_for_a_work_verb():
     assert "submit Work" not in _render("delegate_task", *WORK_SUBMIT_TOOLS)
 
 
-def test_the_five_fixed_lines_render_as_before():
+def test_the_four_fixed_lines_render_as_before():
+    """Four since FH-BROWSER-GUIDANCE-GATED-ON-DELETED-TOOL: the browser precondition line was gated
+    on browser_navigate, which upstream v0.23.1 deleted, and named its deleted per-action tools."""
     plugin = _plugin()
-    assert [attr for gate, attr in plugin._TOOL_GUIDANCE[:5]] == [
+    assert [attr for gate, attr in plugin._TOOL_GUIDANCE[:4]] == [
         "TOOL_DESCRIBE_GUIDANCE", "SHELL_TOOL_PREFERENCE_GUIDANCE", "CLARIFY_CHOICES_GUIDANCE",
-        "BROWSER_PRECONDITION_GUIDANCE", "SKILL_MANAGE_CONFIRM_GUIDANCE"]
-    assert all(isinstance(gate, str) for gate, _ in plugin._TOOL_GUIDANCE[:5])
+        "SKILL_MANAGE_CONFIRM_GUIDANCE"]
+    assert all(isinstance(gate, str) for gate, _ in plugin._TOOL_GUIDANCE[:4])
     assert _render() == TOOL_DESCRIBE_GUIDANCE
 
 

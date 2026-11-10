@@ -16,7 +16,6 @@ from tests.agent.test_system_prompt import (  # upstream names the moved tests u
 )
 
 from agent_runtime.prompt_guidance import (
-    BROWSER_PRECONDITION_GUIDANCE,
     CLARIFY_CHOICES_GUIDANCE,
     SHELL_TOOL_PREFERENCE_GUIDANCE,
     SKILL_MANAGE_CONFIRM_GUIDANCE,
@@ -67,10 +66,6 @@ class TestT6bToolGuidance:
         assert CLARIFY_CHOICES_GUIDANCE in _volatile(_make_agent(valid_tool_names=["clarify", "tool_describe"]))
         assert CLARIFY_CHOICES_GUIDANCE not in _volatile(_make_agent(valid_tool_names=["terminal", "tool_describe"]))
 
-    def test_browser_precondition_gated_on_browser(self):
-        assert BROWSER_PRECONDITION_GUIDANCE in _volatile(_make_agent(valid_tool_names=["browser_navigate", "tool_describe"]))
-        assert BROWSER_PRECONDITION_GUIDANCE not in _volatile(_make_agent(valid_tool_names=["terminal", "tool_describe"]))
-
     def test_skill_confirm_before_delete_gated_on_skill_manage(self):
         assert SKILL_MANAGE_CONFIRM_GUIDANCE in _volatile(_make_agent(valid_tool_names=["skill_manage", "tool_describe"]))
         assert SKILL_MANAGE_CONFIRM_GUIDANCE not in _volatile(_make_agent(valid_tool_names=["read_file", "tool_describe"]))
@@ -80,28 +75,28 @@ class TestT6bToolGuidance:
         ``tool_describe`` (no T6b wire) gets no harness block even when every other
         gating tool is present — which is also what keeps upstream's exact-bytes
         prompt tests (synthetic tool sets) byte-identical."""
-        tools = ["terminal", "clarify", "browser_navigate", "skill_manage"]
+        tools = ["terminal", "clarify", "skill_manage"]
         assert _SECTION_ID not in _volatile(_make_agent(valid_tool_names=tools))
         # Positive control: the same build plus tool_describe carries the block.
         assert _SECTION_ID in _volatile(_make_agent(valid_tool_names=[*tools, "tool_describe"]))
 
     def test_guidance_never_enters_the_stable_prefix(self):
-        tools = ["terminal", "clarify", "browser_navigate", "skill_manage", "tool_describe"]
+        tools = ["terminal", "clarify", "skill_manage", "tool_describe"]
         stable = _stable_prompt(_make_agent(valid_tool_names=tools))
         for line in (TOOL_DESCRIBE_GUIDANCE, SHELL_TOOL_PREFERENCE_GUIDANCE, CLARIFY_CHOICES_GUIDANCE,
-                     BROWSER_PRECONDITION_GUIDANCE, SKILL_MANAGE_CONFIRM_GUIDANCE):
+                     SKILL_MANAGE_CONFIRM_GUIDANCE):
             assert line not in stable
 
     def test_guidance_is_byte_stable_across_builds(self):
         """Byte-stability guard (extends T5): the rendered section is
         byte-identical across repeated builds — static lines, no per-turn volatility."""
-        tools = ["terminal", "clarify", "browser_navigate", "skill_manage", "tool_describe"]
+        tools = ["terminal", "clarify", "skill_manage", "tool_describe"]
         with patch("agent.system_prompt._timestamp_line", return_value=""):
             first = _volatile(_make_agent(valid_tool_names=tools))
             second = _volatile(_make_agent(valid_tool_names=tools))
         assert first == second
         for line in (TOOL_DESCRIBE_GUIDANCE, SHELL_TOOL_PREFERENCE_GUIDANCE, CLARIFY_CHOICES_GUIDANCE,
-                     BROWSER_PRECONDITION_GUIDANCE, SKILL_MANAGE_CONFIRM_GUIDANCE):
+                     SKILL_MANAGE_CONFIRM_GUIDANCE):
             assert line in first
 
 

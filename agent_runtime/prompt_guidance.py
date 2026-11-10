@@ -33,11 +33,6 @@ CLARIFY_CHOICES_GUIDANCE = (
     "pickable rows)."
 )
 
-BROWSER_PRECONDITION_GUIDANCE = (
-    "All browser_* tools require a prior browser_navigate; browser_click and "
-    "browser_type also require a prior browser_snapshot."
-)
-
 SKILL_MANAGE_CONFIRM_GUIDANCE = "Confirm with the user before creating or deleting a skill."
 
 #: Which hand-off to pick, rendered only when both hand-off tools are present

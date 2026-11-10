@@ -65,7 +65,6 @@ _TOOL_GUIDANCE = (
     ("tool_describe", "TOOL_DESCRIBE_GUIDANCE"),
     ("terminal", "SHELL_TOOL_PREFERENCE_GUIDANCE"),
     ("clarify", "CLARIFY_CHOICES_GUIDANCE"),
-    ("browser_navigate", "BROWSER_PRECONDITION_GUIDANCE"),
     ("skill_manage", "SKILL_MANAGE_CONFIRM_GUIDANCE"),
     (("delegate_task", "agent_chat_send"), "DELEGATION_HANDOFF_GUIDANCE"),
     (_work_clause_gate(), "DELEGATION_HANDOFF_WORK_CLAUSE"),
