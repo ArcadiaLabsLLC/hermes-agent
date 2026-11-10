@@ -1240,4 +1240,3 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-10 (Eternia lane w1110c-hmsync)
 
-- **`RT-WORK-LIST-SYNC-SERIAL-BOARDS` — Work's Refresh comes back in well under its time limit even with several boards bound** · group: console-smooth-and-fast · `agent_runtime/work/store.py::synced` · `agent_runtime/work_store/writer.py::sync` · found 2026-11-10 by w1110c-speed: `runtime.work.list` in lifecycle mode takes 4–8 s of the 10 s RPC budget at ~957 rows because it syncs every bound board one after another (worktree prune, worktree add -B, fetch origin main) on every list; Eternia rows `COMP-WORK-PILL-REFRESH-RECONCILIATION-PAST-HALF` and `COMP-WORK-REFRESH-OWNER-SIZE-PAST-HALF` · READY 2026-11-10 · **TAKEN 2026-11-10 w1110c-hmsync on DESKTOP-QJ7DDV2 as nekwo in h1108b-hm**
