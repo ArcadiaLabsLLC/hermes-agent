@@ -28,12 +28,11 @@ from __future__ import annotations
 import ast
 import functools
 import re
-import subprocess
 from pathlib import Path
 
 import pytest
 
-from scripts.gate_mark import GATE_MARK, carries_gate_mark, module_marks as _module_marks
+from scripts.gate_mark import GATE_MARK, gate_marked_files, module_marks as _module_marks
 from tests._downstream.id_markers import ids_marked
 
 pytestmark = pytest.mark.gate
@@ -52,17 +51,10 @@ def _named() -> set[str]:
 def _marked(root: Path = REPO) -> frozenset[str]:
     """Every tracked test file carrying the ``gate`` mark, by its ``pytestmark`` or by an id row.
 
-    Walked ONCE per process (FH-PREPUSH-GATES-GATE-DIRECTORY-OVER-BUDGET): three tests asked it, each
-    reading ~8,000 tracked test files — 12.0 s of the prepush gates step at box load ~54."""
-    out = subprocess.run(["git", "ls-files", "-z", "--", "tests"], cwd=root, capture_output=True, check=True)
+    Asked ONCE per process (FH-PREPUSH-GATES-GATE-DIRECTORY-OVER-BUDGET), through ``git grep`` and a parse
+    of its hits only (FH-PREPUSH-GATES-OVER-BUDGET: reading every tracked test file passed 30 s on Windows)."""
     marked = {node for node in ids_marked(GATE_MARK) if "::" not in node}
-    for rel in out.stdout.decode("utf-8").split("\0"):
-        if not (rel.endswith(".py") and Path(rel).name.startswith("test_")):
-            continue
-        path = root / rel
-        if path.is_file() and carries_gate_mark(path):
-            marked.add(rel)
-    return frozenset(marked)
+    return frozenset(marked | gate_marked_files(root))
 
 
 def _enumerated() -> set[str]:
