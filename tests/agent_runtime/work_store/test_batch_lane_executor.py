@@ -198,6 +198,20 @@ def test_a_lane_on_a_slot_with_no_remote_is_never_told_to_push(repo):
     assert "there is no remote, so never push" in text
 
 
+def test_a_lane_on_a_brain_only_slot_is_not_told_to_run_a_test_script(repo):
+    """RT-WORK-LANE-BRIEF-TESTS-ON-BRAIN-SLOT: the Run line named ``scripts/run_tests.sh`` for every slot; on a
+    brain-only slot (gate ``GATE_NONE``) the lane ran it and got exit 127. The Run line follows the slot's gate.
+    Killing mutations, each red recorded: ``start`` passing no ``gate`` to ``render_lane_brief``, or the planner's
+    lane constraint naming ``scripts/run_tests.sh`` again -> the brain lane's brief names it, red."""
+
+    _d, turns, batch = lanes_over(repo, [qrow("RT-A", assignee="inst-a")], slot_gates={"hermes": (GATE_NONE,)})
+    brief = turns.sent[f"{batch.id}:{batch.lanes[0].id}"][0]
+    assert "scripts/run_tests" not in brief and "Run: no tests" in brief
+    _d, turns, batch = lanes_over(_init_repo(repo.tmp / "code"), [qrow("RT-A", assignee="inst-a")],
+                                  slot_gates={"hermes": (LANDING_GATE,)})
+    assert "scripts/run_tests.sh -j 4" in turns.sent[f"{batch.id}:{batch.lanes[0].id}"][0]
+
+
 def test_settle_reports_the_lanes_commits_and_a_sequenced_lane_is_cut_from_its_predecessor(repo):
     rows = [qrow("RT-A", heading="One", files=["pkg/shared.py"], assignee="inst-a"),
             qrow("RT-B", heading="Two", files=["pkg/shared.py"], assignee="inst-a")]
@@ -255,6 +269,12 @@ def test_landing_never_pushes_before_approve(repo):
 
 
 def test_approve_refuses_a_moved_main_and_pushes_nothing(repo):
+    """RT-WORK-STALE-APPROVAL-HOLDS-LANDING: an Approve refused for a moved main sends the wave back to
+    READY_TO_LAND (freeing the machine's one landing slot), and its land again merges the fresh tip so the next
+    Approve passes. Killing mutations, each red recorded: ``approve`` without ``_approve_contended`` -> the wave
+    stays AWAITING_APPROVAL and still holds the slot, red; ``_land`` without the tip merge on a standing landing
+    worktree -> the land again merges nothing (no "Merged --no-ff: origin/main"), red."""
+
     d, turns, batch, _shas = _land(repo)
     d.land(WS, batch.id)
     turns.settle(f"{batch.id}:LAND:1", Outcome(Verdict.DONE, report="green"))
@@ -263,11 +283,20 @@ def test_approve_refuses_a_moved_main_and_pushes_nothing(repo):
     subprocess.run(["git", "clone", "-q", str(repo.origin), str(other)], check=True, capture_output=True)
     moved = commit_in(other, "c.txt", "c\n")
     git(other, "push", "-q", "origin", "HEAD:main")
+    assert d._landing_elsewhere("BATCH-OTHER") == batch.id
     with pytest.raises(WorkRefused) as refused:
         d.approve(WS, batch.id)
     assert refused.value.reason is Reason.PUSH_CONTENDED
     assert git(repo.origin, "rev-parse", "main") == moved
-    assert d.load(WS, batch.id).state is BatchState.AWAITING_APPROVAL
+    assert d.load(WS, batch.id).state is BatchState.READY_TO_LAND
+    assert d._landing_elsewhere("BATCH-OTHER") is None, "a wave no Approve can pass holds no landing slot"
+    d.land(WS, batch.id)
+    assert "Merged --no-ff: origin/main" in turns.sent[f"{batch.id}:LAND:2"][0]
+    turns.settle(f"{batch.id}:LAND:2", Outcome(Verdict.DONE, report="green"))
+    d.executor.wait_for_gates(120)
+    landed = d.approve(WS, batch.id)
+    assert landed.state is BatchState.LANDED
+    assert git(repo.origin, "merge-base", "--is-ancestor", moved, "main") == ""
 
 
 def test_approve_lands_over_the_dispatchers_own_bookkeeping_on_main(repo):
