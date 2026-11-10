@@ -73,6 +73,9 @@
 #                         scripts/run_tests.sh) and the doc-cite interpreter;
 #                         both exist so the script's own test can drive it
 #                         without running the suite.
+#   PREPUSH_GATES_RUNNER  the gates step's runner, called with `--small` (default
+#                         scripts/run_tests_bundled.sh: one pytest process per test
+#                         directory, not per file — FH-UPSTREAM-RUNNER-ONE-PROCESS-GROUP).
 
 set -uo pipefail
 
@@ -240,7 +243,20 @@ echo "prepush — base $(git rev-parse --short "$BASE") (merge-base with origin/
 echo "  default path: gates + doc-cite, budget $((BUDGET_GATES + BUDGET_DOC_CITE))s"
 echo "  whole-run cap ${CAP}s: past it the running step is killed, the rest do not start, exit 3"
 echo "  overrun ledger: ${LEDGER#"$REPO_ROOT"/}"
+# The gates run BUNDLED (FH-UPSTREAM-RUNNER-ONE-PROCESS-GROUP, owner 2026-11-10: fork-side, no
+# upstream change): `run_tests.sh` starts one pytest per file, and on Windows each start is
+# ~3 s of interpreter, plugins and the root conftest before its first test — nine of them were
+# most of the step's wall. The bundled runner's `--small` path (named files: no scope, skip list,
+# gate store or leftovers scan) puts a test directory's files in one process and
+# keeps the per-file guarantee where it matters: a bundle that reds re-runs every member that
+# did not pass ONE FILE PER PROCESS, and a member red bundled but green alone is reported as an
+# isolation leak (`scripts/run_tests_bundled.py`). It runs with ETERNIA_HEAVY_SLOTS=off: a bundled
+# run otherwise waits for the launcher's machine-wide heavy-run slot (two per box), which a lane's
+# full-tier run can hold for minutes — measured 2026-11-10 at 139 s and 300 s+ of waiting for a
+# 14 s step. The per-file runner this replaces never claimed a slot, so the cap loses nothing.
+GATES_RUNNER="${PREPUSH_GATES_RUNNER:-$SCRIPT_DIR/run_tests_bundled.sh}"
 echo "  step gates — budget ${BUDGET_GATES}s, deadline ${DEADLINE_GATES}s"
+echo "    runner: ${GATES_RUNNER#"$REPO_ROOT"/}"
 _list "queue gates" "${PREPUSH_QUEUE_GATES[@]}"
 _list "text gates" "${PREPUSH_TEXT_GATES[@]}"
 echo "  step doc-cite — budget ${BUDGET_DOC_CITE}s, deadline ${DEADLINE_DOC_CITE}s"
@@ -487,7 +503,7 @@ _touched_lane() {
   return "$rc"
 }
 
-_step gates "$BUDGET_GATES" "$DEADLINE_GATES" bash "$RUNNER" -j "$JOBS" "${GATES[@]}"
+_step gates "$BUDGET_GATES" "$DEADLINE_GATES" env ETERNIA_HEAVY_SLOTS=off bash "$GATES_RUNNER" --small -j "$JOBS" "${GATES[@]}"
 _step doc-cite "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
   "$PY" "$SCRIPT_DIR/doc_cite_adjacency.py" --exclude archive --exclude planned
 if [ "${#CENSUS[@]}" -gt 0 ]; then

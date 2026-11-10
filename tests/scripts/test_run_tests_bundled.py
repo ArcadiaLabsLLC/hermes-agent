@@ -546,3 +546,56 @@ def test_landing_gate_defaults_to_twelve_workers(monkeypatch) -> None:
     assert bundled._build_parser().parse_args([]).jobs == 6
     monkeypatch.setenv("HERMES_TEST_WORKERS", "8")
     assert bundled._build_parser().parse_args([]).jobs == 8
+
+
+# ── --small: the pre-push gates' path (FH-UPSTREAM-RUNNER-ONE-PROCESS-GROUP) ─────────
+
+
+def test_a_small_run_keeps_the_solo_rerun_the_leak_report_and_the_unbundled_list(tmp_path, capsys):
+    """KILLING MUTATION: drop ``unbundled=`` from ``small_run``'s ``run`` call -> the listed file is
+    bundled, never run alone, and ``solo_calls`` reds."""
+    rels = [f"tests/alpha/test_{i}.py" for i in range(4)]
+    files = _tree(tmp_path, rels)
+    listed = tmp_path / "unbundled.txt"
+    listed.write_text("tests/alpha/test_0.py  # needs its own process\n", encoding="utf-8")
+    solo_calls: list[str] = []
+
+    def _solo(path, args, repo_root, timeout, retries):
+        solo_calls.append(path.resolve().relative_to(tmp_path.resolve()).as_posix())
+        return path, 0, "ok", {"passed": 1}, 0.5
+
+    args = bundled._build_parser().parse_args(["--small", "-j", "2", "--unbundled-list", str(listed), *map(str, files)])
+    rc = bundled.small_run(args, files, tmp_path, [],
+                           bundle_runner=_fake_bundle_runner({"tests/alpha/test_2.py"}, tmp_path), solo_runner=_solo)
+    out = capsys.readouterr().out
+    assert rc == 0, out  # red bundled, green alone: a leak, not a red
+    assert sorted(solo_calls) == ["tests/alpha/test_0.py", "tests/alpha/test_2.py"]
+    assert "ISOLATION LEAK" in out and "tests/alpha/test_2.py" in out
+
+
+def test_a_small_run_skips_scope_skip_list_gate_store_and_leftovers_scan(tmp_path, monkeypatch):
+    """The ~20 s a 9-file bundled run paid around its tests. KILLING MUTATION: drop the ``args.small``
+    branch in ``main`` -> the scope / skip list / gate store stubs raise and the run reds."""
+
+    def _never(*_a, **_k):
+        raise AssertionError("a --small run reached the landing gate's machinery")
+
+    monkeypatch.setattr(bundled.plan, "load_skip_list", _never)
+    monkeypatch.setattr(bundled.scope, "select_for_run", _never)
+    monkeypatch.setattr(bundled._gate.GateRun, "start", _never)
+    monkeypatch.setattr(bundled._leftovers, "scan", _never)
+    seen = []
+    monkeypatch.setattr(bundled, "small_run", lambda args, files, root, pytest_args: seen.append(files) or 0)
+    named = "tests/scripts/test_run_tests_bundled.py"
+    assert bundled.main(["--small", named]) == 0
+    assert [[p.resolve() for p in files] for files in seen] == [[(_REPO_ROOT / named).resolve()]]
+
+
+def test_a_small_run_refuses_a_directory(monkeypatch):
+    def _never(*_a, **_k):
+        raise AssertionError("a --small run of a directory went on to run it")
+
+    monkeypatch.setattr(bundled.plan, "load_skip_list", _never)  # a mutant never runs the real tree
+    with pytest.raises(SystemExit) as raised:
+        bundled.main(["--small", "tests/scripts"])
+    assert raised.value.code == 2
