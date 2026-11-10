@@ -38,7 +38,7 @@ def test_rpc_signin_child_uses_the_same_plugin_parser(monkeypatch):
     from hermes_cli.harness_parts.parser import auth
 
     calls = []
-    monkeypatch.setattr(provider_signin_child, "_PopenChild", lambda argv, env: argv)
+    monkeypatch.setattr(provider_signin_child, "_PopenChild", lambda argv, env, home: argv)
     monkeypatch.setattr(auth, "auth_login_command", lambda args: calls.append((args.provider, args.flow, args.json)) or 7)
     argv = provider_signin_child.spawn_login_child("codex", "browser", None)
     args = harness_parser().parse_args(argv[3:])
