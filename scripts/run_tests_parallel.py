@@ -1086,7 +1086,7 @@ def _format_timeout_output(output: str | None, file_timeout: float) -> str:
     """Render a timeout result even when ``communicate()`` returned ``None``."""
     captured = output or "(captured output unavailable)"
     return (
-        f"(timed out after {file_timeout:.0f}s; process tree terminated)\n"
+        f"({file_timeout:.0f}s exceeded; process tree SIGKILL'd)\n"
         f"{captured}"
     )
 
@@ -1100,7 +1100,7 @@ def _is_retryable_timeout_result(
     if rc == 0 or summary.get("failed", 0) > 0:
         return False
     lowered = output.lower()
-    return rc == 124 or bool(re.search(r"(?m)^\++ Timeout \++$", output)) or lowered.startswith("(timed out after")
+    return rc == 124 or bool(re.search(r"(?m)^\++ Timeout \++$", output)) or lowered.startswith("(timed out after") or bool(re.match(r"\(\d+s exceeded; process tree", lowered))
 
 
 def _pytest_flag_error(tokens: list[str]) -> Optional[str]:

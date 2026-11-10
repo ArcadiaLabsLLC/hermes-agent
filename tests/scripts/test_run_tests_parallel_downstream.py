@@ -70,7 +70,7 @@ def _load_runner_module():
     return mod
 
 
-_TIMEOUT_OUTPUT = "(timed out after 5s; process tree terminated)\n(no output)"
+_TIMEOUT_OUTPUT = "(5s exceeded; process tree SIGKILL'd)\n(no output)"
 
 
 def test_timeout_shape_is_not_retried_in_pool(tmp_path: Path, monkeypatch) -> None:
