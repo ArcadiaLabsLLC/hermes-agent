@@ -23,10 +23,12 @@ Which vocabularies are in a file's REACH is the probe's
 from __future__ import annotations
 
 import ast
+from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache, cache
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, Mapping
+from weakref import WeakKeyDictionary
 
 try:  # imported as ``scripts.god_file_scope`` (the gates)
     from scripts import source_cache as _source_cache
@@ -307,7 +309,7 @@ def file_scope(root: Path, path: str) -> FileScope:
     builder.bind_all(module_bindings(root, path))
     parsed = tree(root, path)
     top = {id(node) for node in parsed.body} if parsed is not None else set()
-    imports = [n for n in ast.walk(parsed) if isinstance(n, (ast.Import, ast.ImportFrom))] if parsed else []
+    imports = import_nodes(parsed) if parsed else []
     for node in imports:
         if id(node) not in top:  # a deferred import binds too
             builder.bind_all(statement_bindings(root, path, node))
@@ -317,9 +319,37 @@ def file_scope(root: Path, path: str) -> FileScope:
 # ── what a file reaches ─────────────────────────────────────────────────────
 
 
+#: Nodes that can hold a statement: statements, and the two clause nodes whose ``body`` is statements.
+_STATEMENT_HOLDERS = (ast.stmt, ast.excepthandler, ast.match_case)
+#: ``tree -> its import nodes``; weak, so a tree ``source_cache`` evicts is not kept alive here.
+_IMPORTS: WeakKeyDictionary[ast.Module, list[ast.Import | ast.ImportFrom]] = WeakKeyDictionary()
+
+
+def import_nodes(tree: ast.Module) -> list[ast.Import | ast.ImportFrom]:
+    """Every ``import`` / ``from … import`` in ``tree``, in ``ast.walk`` order, found once per tree.
+
+    An import is a statement and no expression holds a statement, so the walk descends through
+    statements and their clauses only; breadth-first like ``ast.walk``, so the order is its order.
+    The census asked every file's imports three times by a full ``ast.walk`` (~1,400 files, ~15 s
+    of a 92 s serial ladder census on Windows, FH-PREPUSH-CENSUS-OVER-BUDGET).
+    """
+    held = _IMPORTS.get(tree)
+    if held is not None:
+        return held
+    found: list[ast.Import | ast.ImportFrom] = []
+    queue = deque([tree])
+    while queue:
+        node = queue.popleft()
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            found.append(node)
+        queue.extend(child for child in ast.iter_child_nodes(node) if isinstance(child, _STATEMENT_HOLDERS))
+    _IMPORTS[tree] = found
+    return found
+
+
 def imports_of(path: str, tree: ast.Module) -> Iterator[tuple[str, str | None, int]]:
     """``(module, imported name or None, line)`` for every import, module-level or deferred."""
-    for node in ast.walk(tree):
+    for node in import_nodes(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 yield alias.name, None, node.lineno
@@ -358,7 +388,7 @@ def is_private_upstream_import(root: Path, upstream: frozenset[str], module: str
 def _import_aliases(path: str, tree: ast.Module) -> dict[str, str]:
     """Local name -> the dotted module or ``module.Name`` an import binds it to (any scope)."""
     out: dict[str, str] = {}
-    for node in ast.walk(tree):
+    for node in import_nodes(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.asname:
