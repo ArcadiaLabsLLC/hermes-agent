@@ -441,9 +441,11 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     **{
         path: (_GATE,)
         for path in (
+            "tests/hermes_cli/test_config_backend.py",
             "tests/hermes_cli/test_config_yaml_comment_preservation.py",
             "tests/scripts/test_bash_shebangs.py",
             "tests/scripts/test_case_collision_check.py",
+            "tests/scripts/test_check_detached_spawns.py",
             "tests/scripts/test_check_no_tmp_literals.py",
             "tests/scripts/test_check_profile_scope_patterns.py",
             "tests/scripts/test_code_health_cli.py",
