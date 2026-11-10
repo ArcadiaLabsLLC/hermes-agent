@@ -445,8 +445,6 @@ if _WIN:
                 "test_relay_rewrite_precedes_sequential_policy_approval_checkpoint_and_dispatch",
                 "tests/tools/test_bot_relay.py::"
                 "test_waiter_is_a_runner_entrypoint_the_approval_gate_lets_through",
-                "tests/tools/test_browser_pm.py::"
-                "test_restricted_path_discovers_external_browser_without_execution",
                 "tests/tools/test_project_tools.py::"
                 "test_agent_session_project_create_keeps_profile_active_pointer_and_moves_session",
                 "tests/tools/test_project_tools.py::"
@@ -513,8 +511,8 @@ if _WIN:
                 "TestBrowserExec::test_code_piped_on_stdin",
                 "TestBrowserExec::test_nonzero_exit_reports_failure_and_stderr",
                 "TestBrowserExec::test_session_sets_bu_name",
-                "TestLegacyCloudMigration::test_explicit_backend_does_not_set_bu_autospawn",
                 "TestLegacyCloudMigration::test_migrated_config_gets_bu_autospawn",
+                "TestLegacyCloudMigration::test_non_legacy_config_does_not_set_bu_autospawn",
                 "TestLightpandaPreamble::test_lightpanda_session_skips_own_tab_preamble",
                 "TestNativeScreenshots::test_text_only_model_gets_plain_result_with_path",
                 "TestNativeScreenshots::test_vision_model_gets_multimodal_envelope",
