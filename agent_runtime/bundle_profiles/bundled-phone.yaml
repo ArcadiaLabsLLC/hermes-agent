@@ -156,7 +156,11 @@ packaging:
       degrades: a history row holding a native-vision image attachment shows its stored text, not the `@image:` refs (tui_gateway/session_history.py::_user_image_display_text verifies the file through the web server's helpers; its import is ImportError-guarded, RT-PHONE-HISTORY-IMAGE-IMPORT); the web dashboard and its routers are not packaged
     - distribution: psutil
       imports: [psutil]
-      degrades: nothing a phone has — it starts no sibling process; pid liveness falls back to the stdlib (hermes_cli/_subprocess_compat.py::pid_exists_stdlib), and every kept import site is ImportError-guarded (discussions/native.py, conversations/native_peer.py, process_identity.py and hermes_constants_scratch.py since lane s2-g2)
+      # The embedded entry registers this module's `psutil` (an empty process table under psutil's
+      # names), so upstream's unguarded function-local imports in process_identity.py and
+      # hermes_constants_scratch.py resolve with upstream's bytes (FH-FOOTPRINT-PHONE-PSUTIL-STUB).
+      stand_in: agent_runtime.psutil_stand_in
+      degrades: nothing a phone has — it starts no sibling process; pid liveness falls back to the stdlib (hermes_cli/_subprocess_compat.py::pid_exists_stdlib), a process read raises NoSuchProcess, the scratch reap finds nothing; the fork's own sites stay ImportError-guarded (discussions/native.py, conversations/native_peer.py)
   # The forced set (switched-off code kept code imports unguarded) ships under `phone_forced/`
   # beside `app/`, never under the scanned `tools/` / `plugins/`: upstream's directory scans
   # (tools/registry.py discover_builtin_tools, the plugin loader) would import it. The embedded

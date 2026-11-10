@@ -78,10 +78,7 @@ def process_birth(proc) -> float:
     Other platforms keep ``create_time()``: Linux and Windows apply no per-process reference.
     Raises ``psutil.Error`` like ``create_time()``.
     """
-    try:
-        import psutil
-    except ImportError:  # like every other psutil site here: a wheel without psutil reads the plain start
-        return float(proc.create_time())
+    import psutil
     if getattr(psutil, "MACOS", False):
         platform_proc = getattr(proc, "_proc", None)
         if platform_proc is not None:
@@ -101,10 +98,7 @@ def worker_birth(proc) -> float:
     :func:`process_birth`: its persisted epoch births must keep matching across an update.
     Raises ``psutil.Error`` like ``create_time()``.
     """
-    try:
-        import psutil
-    except ImportError:  # like every other psutil site here: a wheel without psutil reads the plain birth
-        return process_birth(proc)
+    import psutil
     if getattr(psutil, "LINUX", False):
         return float(proc._proc.create_time(monotonic=True))
     return process_birth(proc)
@@ -119,10 +113,7 @@ def boot_start(proc) -> Optional[float]:
     entries carry this alongside it (``boot_start`` / ``spawner_boot``) and compare it exactly.
     Raises ``psutil.Error`` like ``create_time()``.
     """
-    try:
-        import psutil
-    except ImportError:  # like every other psutil site here: without psutil there is no boot start to read
-        return None
+    import psutil
     if getattr(psutil, "LINUX", False):
         return float(proc._proc.create_time(monotonic=True))
     return None
@@ -225,10 +216,7 @@ def spawned_by_this_process(pid: int) -> bool:
     the Hermes whose command actually started it: the CLI it ran was given ``spawn_env`` and the
     daemon inherited it. A pid file proves what a process is, not who started it. Fails closed:
     an unreadable environment (another user, a race) is not ours."""
-    try:
-        import psutil
-    except ImportError:  # like every other psutil site here: without psutil the tag is unreadable, so not ours
-        return False
+    import psutil
 
     try:
         tag = parse_spawn_tag(psutil.Process(int(pid)).environ().get(SPAWN_ENV_VAR))
@@ -738,10 +726,7 @@ def _kill_process_tree_windows(proc) -> None:
     """Terminate *proc* and every still-alive descendant (npx.cmd → node.exe), Windows-only
     (#61059): without a pgid there is no group-kill, and grandchildren reparent to nothing
     (ParentId=null) once the direct child exits, so they must be reached through the tree."""
-    try:
-        import psutil
-    except ImportError:  # like every other psutil site here: without psutil there is no tree to walk
-        return
+    import psutil
 
     try:
         descendants = proc.children(recursive=True)

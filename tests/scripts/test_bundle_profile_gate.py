@@ -294,20 +294,24 @@ def test_the_gate_runs_only_under_the_bundles_pinned_cpython_or_a_named_interpre
     assert out.startswith(f"interpreter: {sys.executable} (") and "GATE NOT RUN" in err
 
 
-def test_the_phones_kept_pty_and_psutil_import_sites_are_guarded():
-    """Phone-gate lane G2: the tty prompt's ``termios``/``tty`` and the kept psutil sites are
-    ImportError-guarded, so ``secret_prompt`` stays kept and ``psutil`` can be omitted.
+def test_the_phones_kept_pty_and_psutil_import_sites_are_guarded_or_answered():
+    """Phone-gate lane G2: the tty prompt's ``termios``/``tty`` and the fork's kept psutil sites are
+    ImportError-guarded, so ``secret_prompt`` stays kept and ``psutil`` can be omitted; upstream's
+    sites (process_identity, hermes_constants_scratch) keep upstream's bytes and are answered by the
+    phone row's ``stand_in`` (FH-FOOTPRINT-PHONE-PSUTIL-STUB), proven in a child interpreter.
     Positive control: the same gate refuses an unguarded pty import (the test above)."""
     from pathlib import Path
 
-    from scripts.bundle_profile_closure import _imports
+    from agent_runtime.bundle_profiles.manifest import load_profile
+    from scripts.bundle_profile_closure import _imports, stand_in_answered
 
     root = Path(__file__).resolve().parents[2]
     kinds = {kind for kind, _ in [(f["kind"], f["subject"]) for f in
                                   module_findings("hermes_cli.secret_prompt", root / "hermes_cli/secret_prompt.py")]}
     assert "process" not in kinds
-    for rel in ("hermes_cli/process_identity.py", "hermes_constants_scratch.py", "agent_runtime/discussions/native.py",
-                "agent_runtime/conversations/native_peer.py"):
+    phone = load_profile("bundled-phone")
+    assert stand_in_answered(phone, {"psutil": [{"dotted": "psutil", "guarded": False}]}) == {"psutil": ["psutil"]}
+    for rel in ("agent_runtime/discussions/native.py", "agent_runtime/conversations/native_peer.py"):
         module = rel[:-3].replace("/", ".")
         unguarded = [line for dotted, _eager, guarded, line in _imports(root / rel, module, False)
                      if dotted == "psutil" and not guarded]

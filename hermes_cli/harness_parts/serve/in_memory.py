@@ -212,6 +212,9 @@ class EmbeddedServe:
         from agent_runtime.provider_sdk_shim import ensure_provider_sdk_shim
 
         ensure_provider_sdk_shim()  # the phone's `openai`: upstream's SDK import sites get the SDK-free client
+        from agent_runtime.psutil_stand_in import ensure_psutil_stand_in
+
+        ensure_psutil_stand_in()  # the phone's `psutil`: upstream's process reads see an empty table
         from agent_runtime.spawn_stand_ins import ensure_spawn_stand_ins
 
         ensure_spawn_stand_ins()  # upstream functions that start a process answer as a phone must

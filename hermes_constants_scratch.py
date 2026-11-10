@@ -215,10 +215,7 @@ def _own_lineage() -> set[int] | None:
     """This process and its ancestors: never reap the shell that is running the prune. A
     detached pass adds its launcher's ancestors that still run under the same create time (a
     reused pid is not spared), and returns ``None`` (spare every process) without them."""
-    try:
-        import psutil
-    except ImportError:  # fork: a profile without psutil (the phone) has no lineage to walk
-        return set()
+    import psutil
 
     if _launcher_lineage is None:
         return None
@@ -246,10 +243,7 @@ def _registered_live_pids(home: Path) -> set[int]:
     point and MCP helper, ``hermes_cli.process_identity``) and the background-process checkpoint
     (``tools.process_registry``, ``processes.json``). A recorded start time that no longer
     matches is a reused pid, not ownership."""
-    try:
-        import psutil
-    except ImportError:  # fork: a profile without psutil (the phone) has no registered process to read
-        return set()
+    import psutil
 
     from hermes_cli.process_identity import entry_still_running, spawner_is_dead
     from hermes_constants import get_default_hermes_root
@@ -292,10 +286,7 @@ def _owned_by_hermes(proc, registered: set[int]) -> bool:
     """Registered itself, or a descendant of a live registered process (a background shell's
     child). An orphan whose spawning shell is gone was reparented away from that lineage, so
     it is not owned and is still reaped."""
-    try:
-        import psutil
-    except ImportError:  # fork: a profile without psutil (the phone) has no lineage to walk
-        return False
+    import psutil
 
     try:
         # pid 1 is excluded as an ancestor: a Hermes running as a container init adopts every orphan.
@@ -315,10 +306,7 @@ def reap_processes_rooted_in(scratch_root: Path, doomed: list[Path], audit: logg
     A process Hermes owns (:func:`_owned_by_hermes`) is never signalled; each doomed entry it
     works inside is dropped from *doomed* in place and recorded as kept.
     """
-    try:
-        import psutil
-    except ImportError:  # fork: a profile without psutil (the phone) reaps nothing
-        return 0
+    import psutil
 
     root = os.path.realpath(str(scratch_root))
     targets = [os.path.realpath(str(p)) for p in doomed]

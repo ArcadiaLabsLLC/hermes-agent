@@ -840,17 +840,6 @@
       },
       "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
     },
-    "129412": {
-      "head_ref": "origin/fix/process-identity-psutil-guard",
-      "reviewed_head": "267d4145bd6ea13b82dbb753e3a41ff2adcc2c98",
-      "base_ref": "upstream/main",
-      "files": {
-        "hermes_cli/process_identity.py": {
-          "mode": "hunks"
-        }
-      },
-      "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"
-    },
     "129413": {
       "head_ref": "origin/refactor/bootstrap-relaunch-in-venv-sync",
       "reviewed_head": "3c12e739d274c43c6960a2112620f267d7ad168f",
