@@ -352,6 +352,20 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_non_preview_relayed_reply_is_forwarded_untouched",
         )
     },
+    # v0.23.1: upstream's BRIDGE counts tool_describe, which the fork's standalone tool_describe
+    # keeps in every non-empty tool list; the fork half runs these bodies with the search bridge.
+    **{
+        f"tests/tools/test_tool_defs_memo_availability.py::{name}": (
+            _fork_replaces(
+                "model_tools.get_tool_definitions via tools.tool_defs_observability.with_tool_describe",
+                "tests/tools/test_tool_defs_memo_availability_downstream.py",
+            ),
+        )
+        for name in (
+            "test_bridge_tools_stay_out_of_a_live_session_when_its_only_deferrable_tools_recover",
+            "test_pin_restore_in_the_same_process_keeps_the_pinned_bridge_through_an_outage",
+        )
+    },
     # Lane bridge-direct (2026-10-08): an in-scope eager name sent through tool_call is
     # dispatched by name, not refused; upstream's correction stays for unknown names.
     "tests/tools/test_tool_search.py::TestRegression_OpenClawCron84141::"

@@ -53,8 +53,10 @@ BARE_HOME_FILES = frozenset({
 PARTIAL_WRITER_FILES = frozenset({
     "tests/agent/test_mcp_execution_deadline.py",
     "tests/hermes_cli/test_models_relay_base_url.py",
-    # v0.23.1 (new upstream file): writes its custom_providers config through atomic_config_write.
+    # v0.23.1 (new upstream files): write a partial config through atomic_config_write.
     "tests/gateway/test_named_custom_provider_session_identity.py",
+    "tests/tools/test_tool_defs_memo_availability.py",
+    "tests/tools/test_tool_defs_memo_availability_downstream.py",  # runs that file's bodies
 })
 
 
