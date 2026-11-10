@@ -78,8 +78,9 @@ DECLARED_TOOL_COUNT = 34
 # They are deferrable (a non-core toolset), so a turn with tool search active carries them as listing rows.
 # Upstream v0.23.1 (2026-11-10): the ten browser_* schemas leave and upstream rewrote several kept
 # tools' descriptions (terminal, web_search, clarify, skill_view, session_search, process_manage, the
-# CDP pair), re-measured: 8205 -> 7244 (-961).
-DECLARED_TOKEN_ESTIMATE = 7244
+# CDP pair), re-measured: 8205 -> 7244 (-961); the catalog-length lead sentences on nine fork tool
+# descriptions (v0.23.1 tool_search 80-char rule): 7244 -> 6988.
+DECLARED_TOKEN_ESTIMATE = 6988
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

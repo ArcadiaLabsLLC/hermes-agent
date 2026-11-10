@@ -127,7 +127,7 @@ def test_the_text_mode_names_the_source(
     # ``browser_vault`` (2026-10-15 release merge); the ratchet reads 41 in the same wave.
     # 41 -> 44: RT-COURSE-PERSONA-TOOLS (``0c4361389d``) added the ``course`` toolset's
     # three tools to ``harness_core``; the ratchet reads DECLARED_TOOL_COUNT = 44.
-    assert "(44 callable by name)" in out
+    assert "(34 callable by name)" in out
     assert "toolsets: harness_core (" in out
     assert "persona-level toolsets list ignored" not in out
 
