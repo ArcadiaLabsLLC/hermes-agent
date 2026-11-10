@@ -895,7 +895,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ### Filed on arrival — 2026-10-10 (Fable design sweep D1–D3, filed by the orchestrator)
 
-- **`RT-PREFLIGHT-DB-WRITABILITY` — `preflight_db_writability` reads `os.access` on a sidecar it listed a moment earlier; a WAL unlinked in between reports as read-only** · group: upstream-footprint-ledger · upstream / state repair · design-sweep-d3 § D3.02 · fork carry built by build-1011-B5; upstream PR owed · the fork carry is built (build-1011-B5); the upstream PR remains · DEFERRED 2026-11-09: owner triage — Fixed for us already; upstream report is courtesy; until the owner reopens it · fork carry build-1011-B5 stays
 
 ### Filed on arrival — 2026-10-10 (fork-fixable sweep lane-1011, filed by the orchestrator)
 
