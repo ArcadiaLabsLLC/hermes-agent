@@ -19,6 +19,7 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-10 (lane w1110c-hm3)
 
+- **`FH-EOL-GATE-COLD-TIMEOUT` — On a fresh clone or a new machine the first run of the line-endings check is killed for time, so a first push reds until someone re-runs it** · group: prepush · `tests/test_line_endings.py::endings` · found 2026-11-10 by w1110c-hm3 on DESKTOP-QJ7DDV2: with no `hermes-eol-memo.json` the module fixture classifies all 24,366 blobs with `git ls-files --eol` in ~49 chunks of 500 literal pathspecs; the run took 62.7 s (load ~45) and under the default `--timeout=30` the fixture is killed (40 s wall, exit 1); warm it is 6.5 s; measure one pathspec-free `git ls-files --eol` census against the chunks cold before choosing (the docstring's 87 s whole-tree number is from load ~50), never a raised timeout without an idle measurement · REQUIRES windows · READY 2026-11-10
 - **`FH-GROUP-COMPUTE-QUESTION-RED-WINDOWS` — On a busy Windows box the group-compute discussion test fails because the agent's question never shows up in the room within 30 seconds** · group: hermes-test-isolation · `tests/agent_runtime/test_discussion_group_compute.py::test_compute_question_lost_answer_ack_and_confirmed_stop` · found 2026-11-10 by w1110c-hm3 on DESKTOP-QJ7DDV2 (CPU 96-100 %, msys load ~85): red 3 of 3 alone (37.7 s, 108 s, and 79.8 s on HEAD 03d778447a1 without 42bee2eddf6), so pre-existing; the view shows the task `running` with no question when `until` (30 s) expires; re-run on an idle box first, then trace whether ProfileTurns' observe ever reports the request · REQUIRES windows · READY 2026-11-10
 
 ## Filed on arrival — 2026-11-09 (lane w1109a-hm-2)
@@ -707,7 +708,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Windows cold EOL census — 2026-11-03
 
-- **`FH-WINDOWS-EOL-COLD-ARGV` — Bound the cold EOL classifier batch by the native Windows command-line limit** · group: prepush · `tests/test_line_endings.py::_eol_states` · 500 literal paths exceed CreateProcess limits on Windows and all five EOL gates error with WinError 206; use a bounded argv or smaller cross-platform batch, retain git classification and all assertions; warming the existing blob memo with one git ls-files --eol census lets the unchanged gate run · built 2026-11-06 w1106b-hm e40ba3032b: `_argv_chunks` cuts the unseen batch by a 16,000-character command-line budget and 500 paths (pure unit tests, every host) · left: the native Windows cold run — with the blob memo empty (`hermes-eol-memo.json` beside the git common dir removed), `tests/test_line_endings.py` passes with no WinError 206 · DEFERRED 2026-11-09: owner triage — Developer check; fix built, only verification left; until the owner reopens it · REQUIRES windows
 
 ## Baseline gates observed during suggestion modes — 2026-11-03
 
