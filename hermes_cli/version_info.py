@@ -383,3 +383,12 @@ _git_version_info = record_release(_git_version_info)
 release_version = make_release_version(
     lambda: _cached_version_info, lambda: _stamp_version_info(), lambda: _resolve_repo_dir(), lambda: get_version_info()
 )
+
+
+def _release_user_agent(product: str = "hermes-cli") -> str:
+    """``<product>/<release>`` from the cached release read (FH-FOOTPRINT-PROVIDER-UA-LAZY, owner
+    2026-11-10): the same value as upstream's whenever a version is known, without the provenance walk."""
+    return f"{product}/{release_version()}"
+
+
+hermes_user_agent = _release_user_agent  # fork seam: every caller, the provider plugins at upstream bytes
