@@ -78,7 +78,11 @@ def render_lane_brief(a: Assignment, sites: Sequence[Site], *, landing: bool, me
         head += [f"Conflicted, merge it by hand first: {', '.join(conflicts)}"] if conflicts else []
         head += [_LAND_RUN, "Do NOT push main: the push is the owner's approve."]
     else:
-        head += [_RUN, f"Commits: MOVE and CHANGE never share one; `git push -u origin {sites[0].branch}` after each; "
+        # A slot with no remote (the machine-local default brain) has no ``origin`` to push to; the landing merges
+        # the branch from this clone's own refs (RT-WORK-LANE-BRIEF-PUSH-WITH-NO-REMOTE).
+        share = ("commit each on the branch; there is no remote, so never push" if sites[0].clone.local
+                 else f"`git push -u origin {sites[0].branch}` after each")
+        head += [_RUN, f"Commits: MOVE and CHANGE never share one; {share}; "
                        "never main; never amend, force or stash; leave the worktree."]
     if brief.acceptance:
         head.append(f"Done when: {' '.join(brief.acceptance.split())[:300]}")

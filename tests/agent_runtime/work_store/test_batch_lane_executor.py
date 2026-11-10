@@ -185,6 +185,19 @@ def test_brief_cap(repo):
     assert any(str(site.worktree) in line for line in lines) and any("git push -u origin q/B/L1" in line for line in lines)
 
 
+def test_a_lane_on_a_slot_with_no_remote_is_never_told_to_push(repo):
+    """RT-WORK-LANE-BRIEF-PUSH-WITH-NO-REMOTE: a lane on the local default brain was told ``git push -u origin …``,
+    committed, then reported ``blocked`` "what remote URL?". Killing mutation: the brief's push line without
+    its ``clone.local`` arm -> the push line is back, red."""
+
+    site = Site("brain", Clone(repo.clone, local=True), repo.tmp / ".worktrees" / "clone-b-l1", "q/B/L1", "main")
+    brief = Brief(title="lane L1", objective="do it")
+    text = render_lane_brief(Assignment((RowRef("brain", "q.md", "RT-1"),), "inst-a", brief, "B:L1"), [site],
+                             landing=False)
+    assert "git push" not in text and "origin" not in text
+    assert "there is no remote, so never push" in text
+
+
 def test_settle_reports_the_lanes_commits_and_a_sequenced_lane_is_cut_from_its_predecessor(repo):
     rows = [qrow("RT-A", heading="One", files=["pkg/shared.py"], assignee="inst-a"),
             qrow("RT-B", heading="Two", files=["pkg/shared.py"], assignee="inst-a")]
