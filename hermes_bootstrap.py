@@ -595,14 +595,14 @@ from hermes_cli._parser import command_argv
 # Repair needs only stdlib. Do not activate the damaged tree to reach it.
 _pm_repair = command_argv(sys.argv[1:])[:2] == ["pm", "repair"]
 if not _pm_repair:
-    # The relaunch (source-update completion, managed / ABI interpreter re-entry) lives in
-    # venv_sync so this module, which every embedder imports, starts no process itself. A
-    # bundle that ships no relaunch machinery (the phone profile switches venv_sync off)
-    # only recovers; any other import failure still raises.
+    # The relaunch (source-update completion, managed / ABI interpreter re-entry) lives in the
+    # fork's launch_relaunch so this module, which every embedder imports, starts no process. A
+    # bundle without it (the phone switches it and venv_sync off) or a boot fixture holding only
+    # upstream's boot files only recovers; any other import failure still raises.
     try:
-        from hermes_cli.venv_sync import relaunch_if_needed
+        from hermes_cli.launch_relaunch import relaunch_if_needed
     except ModuleNotFoundError as _sync_exc:
-        if _sync_exc.name != "hermes_cli.venv_sync":
+        if _sync_exc.name not in ("hermes_cli.launch_relaunch", "hermes_cli.venv_sync"):
             raise
 
         def relaunch_if_needed(root, *, recover, exit_type):

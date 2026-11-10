@@ -211,8 +211,8 @@ _UPDATE_CRITICAL_FILES = (
     "hermes_cli/main.py", "hermes_cli/config.py", "hermes_cli/__init__.py",
     "hermes_cli/web_server.py", "cli.py", "run_agent.py", "model_tools.py", "toolsets.py",
     "hermes_constants.py")
-# fork: hermes_bootstrap imports the registry write fence on every startup.
-_UPDATE_CRITICAL_FILES += ("hermes_cli/_registry_write_fence.py",)
+# fork: hermes_bootstrap imports the registry write fence and the launch relaunch on every startup.
+_UPDATE_CRITICAL_FILES += ("hermes_cli/_registry_write_fence.py", "hermes_cli/launch_relaunch.py")
 
 
 def _record_update_step(step: str, ok: bool, detail: str = "") -> None:

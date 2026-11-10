@@ -626,6 +626,7 @@ update-startup-files = [
   "hermes_cli/main.py", "hermes_cli/config.py", "hermes_cli/__init__.py",
   "hermes_cli/web_server.py", "cli.py", "run_agent.py", "model_tools.py", "toolsets.py",
   "hermes_constants.py",
+  "hermes_cli/_registry_write_fence.py", "hermes_cli/launch_relaunch.py",  # fork: hermes_bootstrap imports both
 ]
 
 # Per-extra platform gates (settled 2026-09-02): an extra listed here is

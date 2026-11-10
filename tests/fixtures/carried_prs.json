@@ -858,17 +858,7 @@
       "files": {
         "hermes_bootstrap.py": {
           "mode": "deferred",
-          "reason": "Reviewed shared relaunch contract; fork recover callback, ABI re-entry, phone fallback and write fence retained. No exact added fragment survives adapter spelling; semantic coverage is in targeted importing tests."
-        },
-        "hermes_cli/venv_sync.py": {
-          "mode": "lines",
-          "fragments": [
-            "    \"\"\"The launch's relaunch step, run by ``hermes_bootstrap`` before dependency activation.\n\n    Finishes a pending source update and re-enters the managed interpreter when this one is",
-            "    \"\"\"\n    import sys\n",
-            "    from pm.environments import install_state_permission_message\n\n    try:\n        launch_python = prepare_launch(root, sys.argv[1:])\n        if launch_python is not None:",
-            "    except Exception as exc:\n        if isinstance(exc, PermissionError) and (message := install_state_permission_message(root, exc)):\n            print(f\"hermes: {message}\", file=sys.stderr)\n            raise SystemExit(1) from None\n        # Degrade, never brick the CLI: the previous dependency generation is still selected\n        # (a failed sync commits nothing), so an offline or half-finished update leaves a\n        # usable Hermes plus a warning. Activation after this is the real gate — a tree whose\n        # dependencies cannot load still exits with the repair remedy.\n        print(f\"hermes: source-update completion failed: {exc}; \"\n              \"running with the previous dependencies — run `hermes update` to finish it\",\n              file=sys.stderr)"
-          ],
-          "reason": "Reviewed shared relaunch contract; fork recover callback, ABI re-entry, phone fallback and write fence retained."
+          "reason": "Reviewed shared relaunch contract; the fork calls the same relaunch_if_needed from its own hermes_cli/launch_relaunch.py (2026-11-10, venv_sync.py back to upstream bytes), with the recover callback, ABI re-entry, phone fallback and write fence retained. No exact added fragment survives the module rename; semantic coverage is in tests/pm/test_source_update_launch.py and tests/hermes_cli/test_interpreter_abi.py."
         }
       },
       "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"

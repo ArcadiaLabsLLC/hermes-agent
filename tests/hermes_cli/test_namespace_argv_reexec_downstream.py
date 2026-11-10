@@ -4,7 +4,7 @@
 of the process never changes. A re-exec built from ``sys.argv`` AFTER the strip would start a child
 whose argv lacks the flag (the launcher's sweeps read store identity from argv). Every re-exec on a
 ``hermes`` launch runs BEFORE the strip: the bootstrap's interpreter relaunch
-(``hermes_bootstrap`` -> ``venv_sync.relaunch_if_needed``) and the interrupted-pull relaunch
+(``hermes_bootstrap`` -> ``launch_relaunch.relaunch_if_needed``) and the interrupted-pull relaunch
 (``_early_recovery.relaunch_after_restore``, from ``sys.orig_argv``). This pins that order.
 """
 

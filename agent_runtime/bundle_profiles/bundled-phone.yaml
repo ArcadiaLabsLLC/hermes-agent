@@ -510,9 +510,11 @@ packaging:
     - agent_runtime.gateway_endpoints.route_command
     - tools.agent_chat_dispatch.local_child
     # Doors with fork carry (phone-gate plan 2026-09-30, bucket D4): the launch relaunch lives in
-    # venv_sync (hermes_bootstrap imports it guarded and only recovers without it: an app-store
-    # wheel is never re-launched), and PDF attach (pdftoppm) lives in agent_runtime.gateway.methods_pdf
-    # (tui_gateway/server.py imports it guarded; the phone serves no pdf.attach).
+    # the fork's launch_relaunch, which imports venv_sync (hermes_bootstrap imports it guarded and
+    # only recovers without it: an app-store wheel is never re-launched), and PDF attach (pdftoppm)
+    # lives in agent_runtime.gateway.methods_pdf (tui_gateway/server.py imports it guarded; the
+    # phone serves no pdf.attach).
+    - hermes_cli.launch_relaunch
     - hermes_cli.venv_sync
     - agent_runtime.gateway.methods_pdf
     # Owner decisions D3/D4/D5 (2026-09-30, phone-gate plan §5). D3: the secrets vault — the local
