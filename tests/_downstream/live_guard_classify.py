@@ -299,6 +299,11 @@ def _names_an_existing_path(token: str, cwd) -> bool:
         return os.path.lexists(os.path.join(os.fspath(cwd) if cwd else os.getcwd(), token))
     except (OSError, ValueError, TypeError):
         return False
+    except AssertionError:
+        # The home-I/O guard refuses even a stat under the real Hermes home. A token there is
+        # not known to be a path, so it stays words and the spawn arms still read it — the safe
+        # direction (FH-MAIN-RED-SPAWN-FENCE-TOOL-NOT-ARGV0: red on any box with ~/.hermes).
+        return False
 
 
 def _cmd_tokens(cmd, cmd_to_string, cwd=None) -> list:
