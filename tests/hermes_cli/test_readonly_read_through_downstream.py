@@ -69,5 +69,5 @@ def test_the_reader_set_is_read_from_the_ledger():
 def test_one_hop_of_the_import_graph_selects_the_files():
     # test_nous_provider imports plugins.dashboard_auth.nous, which imports the reader _shared.
     assert readers.file_reads_through(str(REPO / "tests/plugins/dashboard_auth/test_nous_provider.py"))
-    assert readers.file_reads_through(str(REPO / "tests/tools/test_browser_console.py"))
+    assert readers.file_reads_through(str(REPO / "tests/tools/test_browser_eval_ssrf.py"))
     assert not readers.file_reads_through(str(REPO / "tests/scripts/test_upstream_footprint.py"))
