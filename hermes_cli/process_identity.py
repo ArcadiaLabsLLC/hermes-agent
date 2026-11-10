@@ -101,7 +101,10 @@ def worker_birth(proc) -> float:
     :func:`process_birth`: its persisted epoch births must keep matching across an update.
     Raises ``psutil.Error`` like ``create_time()``.
     """
-    import psutil
+    try:
+        import psutil
+    except ImportError:  # like every other psutil site here: a wheel without psutil reads the plain birth
+        return process_birth(proc)
     if getattr(psutil, "LINUX", False):
         return float(proc._proc.create_time(monotonic=True))
     return process_birth(proc)
@@ -116,7 +119,10 @@ def boot_start(proc) -> Optional[float]:
     entries carry this alongside it (``boot_start`` / ``spawner_boot``) and compare it exactly.
     Raises ``psutil.Error`` like ``create_time()``.
     """
-    import psutil
+    try:
+        import psutil
+    except ImportError:  # like every other psutil site here: without psutil there is no boot start to read
+        return None
     if getattr(psutil, "LINUX", False):
         return float(proc._proc.create_time(monotonic=True))
     return None
@@ -219,7 +225,10 @@ def spawned_by_this_process(pid: int) -> bool:
     the Hermes whose command actually started it: the CLI it ran was given ``spawn_env`` and the
     daemon inherited it. A pid file proves what a process is, not who started it. Fails closed:
     an unreadable environment (another user, a race) is not ours."""
-    import psutil
+    try:
+        import psutil
+    except ImportError:  # like every other psutil site here: without psutil the tag is unreadable, so not ours
+        return False
 
     try:
         tag = parse_spawn_tag(psutil.Process(int(pid)).environ().get(SPAWN_ENV_VAR))
