@@ -61,6 +61,8 @@ from .manifest import (
 from .planner import LANDING_ID, Budget, LaneKind, Member, Plan, plan as make_plan
 from .usage import lane_usage, usage_index
 
+_ENDED = frozenset({BatchState.ABORTED, BatchState.LANDED})
+
 __layer__ = "lanes"
 __all__ = ["ROW_ENDINGS", "BatchDispatcher", "Lander", "UnbuiltLander", "default_dispatcher", "idle_box"]
 
@@ -202,10 +204,17 @@ class BatchDispatcher:
         rows = ready if rows is None else _chosen(ready, rows)
         planned = make_plan(rows, workspace_id=workspace_id, roster=self._roster(workspace_id),
                             slot_roles=self._slot_roles(workspace_id), budget=self._budget_for(workspace_id),
-                            slot_gates=self._slot_gates(workspace_id))
+                            slot_gates=self._slot_gates(workspace_id), ended=self._ended(workspace_id))
         receipts.emit("batch.planned", workspace_id=workspace_id, batch_id=planned.id,
                       lanes=[lane.id for lane in planned.lanes], asks=list(planned.asks))
         return planned
+
+    def _ended(self, workspace_id: str) -> set[str]:
+        """The workspace's batch ids whose wave is over (ABORTED, LANDED): a re-plan of the same rows mints a
+        fresh id instead of replaying one, so Start schedules again (COMP-WORK-RUN-AGAIN-REUSES-ABORTED-WAVE)."""
+
+        return {key for key, text in self.manifests.texts(workspace_id).items()
+                if (b := fold(text)) is not None and b.state in _ENDED}
 
     def automation(self, workspace_id: str) -> Automation:
         return automation_of(self.manifests.settings(workspace_id))
