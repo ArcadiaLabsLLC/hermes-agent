@@ -447,3 +447,25 @@ Setup: the machine install at `193e65d661`. The serve is the one an Eternia QA l
 ### Turn-record field seen on the way
 
 `phases.agent_init_cold` reads `true` on every turn of one chat, warm turns included, even though those turns read `tool_defs_cached_ms` and `system_prompt_restore_ms`. Either the flag means something narrower than its name, or it is stuck. Detail is in Eternia `docs/stages/qa-reboot/live/2026-11-06/OPER-PREP-COST-RETAKE/w1106a-live-c/README.md`.
+
+## 2026-11-10 — lane w1110d-lens (isolated serve, Linux, fixture model)
+
+Setup: a `harness serve --ndjson` child of hermes `0aa8418da4` (this lane's own checkout on `PYTHONPATH`), in a namespace laid out the way Eternia spawns one — `HERMES_HOME` and `HERMES_HEAD_HOME` at `<ns>/profiles/base`, `HERMES_AGENT_RUNTIME_ROOT` at `<ns>/agent-runtime` — with `HOME`, `LOCALAPPDATA` and the XDG folders inside the lane's folder, no display and no session bus. The model is a scripted loopback (`tests/fakes/fake_llm_provider.py`, `provider: custom`, no key, no spend); the feed is a loopback server answering `{"cpu": 97}`. Persona `lensqa` (`agent_runtime.personas.lensqa.hermes_profile: lensqa`) has its own profile `<ns>/profiles/lensqa`. Every call went over the child's stdio. The owner's serve, homes and desktop were not touched.
+
+### RT-ETERNIA-LENS-L2-L4 — L4 DONE (the successful recheck after `bcacd6935a`)
+
+- `persona tool-diff lensqa` before: declared `[harness_core]`, `lens` in `undeclared_registered_toolsets`. `hermes --profile lensqa config set toolsets "[harness_core, lens]"` → declared `[harness_core, lens]` (`profile_config`), `lens` effective, `lens_read` and `lens_propose` on the surface — DEFERRED (`non_core_rule_defer`), so a turn reaches them through the `tool_call` bridge, not as eager tools (the turn was offered 23 tools, `lens_read` not among them).
+- Monitor `w1110d_l4b`: `http_json` feed `api` every 2 s, `allow_private_network: true`, threshold rule above 200 (never fires), `level: notify`. Create, seal (revision 1), enable; paused after 12 s so the series is frozen. `runtime.lens.range {start_ms: now-1h, end_ms: now}` → 6 observations, all `97.0`, `http_status 200`.
+- One turn, `runtime.chat.message {persona_id: lensqa, new_session: true}`, the model scripted to call `tool_call {calls: [{name: lens_read, arguments: {monitor: w1110d_l4b, feed: api, range: {start_ms, end_ms}}}]}` with the same window. The chat `persona_chat_personainst_lensqa_…` is stored in `profiles/lensqa/state.db` (the turn ran in the persona's profile home); its rows: user, assistant (tool call), `tool` row named `lens_read`, assistant. The `lens_read` answer's `observations` and `rollups` EQUAL `runtime.lens.range`'s for the window (6 rows). No `profiles/lensqa/lens/` was created; the only store is `profiles/base/lens/lens.sqlite3`.
+- Red, live: the same run with `lens_root()` mutated back to `get_hermes_home() / "lens"` (monitor `w1110d_l4c`) answered `{"error": "monitor_not_found"}` and created `profiles/lensqa/lens/` — the 2026-10-26 symptom exactly. Source restored before the next run.
+- Not measured: a real model choosing `lens_read` on its own (owner rule: fixture model only); the runtime path the tool runs through is the same one.
+
+### RT-LENS-WORKSPACE-SCOPE-AND-ORPHANS — the hermes half read live
+
+Three monitors, each above 90 on the same feed so each opens an Episode: `w1110d_ws_a` and `w1110d_ws_a2` created with `workspace_id: ws_lens_a`, `w1110d_ws_b` with `ws_lens_b`.
+
+- `runtime.lens.episodes` (no workspace) → all three active, each row with its `workspace_id` and `orphan: null`; `{workspace_id: ws_lens_a}` → only the two `ws_lens_a` Episodes; `runtime.lens.list {workspace_id: ws_lens_b}` → only `w1110d_ws_b`.
+- Retire `w1110d_ws_a2` → its Episode at once `resolved`, `decision: dismiss` (retire leaves no orphan behind).
+- Pause `w1110d_ws_b` → its Episode stays `active` with `orphan: monitor_paused`.
+- `runtime.lens.episodes.close_orphans {workspace_id: ws_lens_a}` → `closed: []` (the paused orphan is another workspace's); `close_orphans {}` → closes `w1110d_ws_b`'s (`resolved`, `dismiss`). `runtime.lens.fold` then lists only `w1110d_ws_a` open. Retiring the last two resolves every Episode.
+- Left: the owner's five `w1025a_*` Episodes on the owner's own serve (their monitors retired before retire closed Episodes, so they read `orphan: monitor_retired` on a current hermes): one Close all there — an owner sitting, steps on the row.
