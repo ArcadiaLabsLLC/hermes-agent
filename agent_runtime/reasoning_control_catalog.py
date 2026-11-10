@@ -4,10 +4,10 @@ Moved out of the upstream ``hermes_cli/models_reasoning_caps.py`` (footprint aud
 2026-10-15, lane R). It shares that module's disk cache file and TTL through
 ``agent_runtime/_upstream_doors.py`` (``reasoning_caps_disk_*``); upstream keeps one
 two-line hook in ``_seed_reasoning_caps`` that records the OpenRouter/Nous catalogs here.
-Writers: ``hermes_cli/models.py::fetch_github_model_catalog`` (copilot) and
-``hermes_cli/codex_models.py::_fetch_models_from_api`` (openai-codex). Readers: the
-copilot and openai-codex provider profiles (``cached_control_efforts``) and
-``agent_runtime/reasoning_capabilities.py`` (``cached_control_capabilities``).
+Writer: ``hermes_cli/codex_models.py::_fetch_models_from_api`` (openai-codex; upstream v0.23.1
+moved Copilot out of core, so nothing records a Copilot catalog). Readers: the openai-codex
+provider profile (``cached_control_efforts``) and ``agent_runtime/reasoning_capabilities.py``
+(``cached_control_capabilities``).
 """
 from __future__ import annotations
 
@@ -103,12 +103,7 @@ def record_control_catalog(provider: str, items: Any, *, base_url: Optional[str]
         model = item.get("slug") or item.get("id")
         if not isinstance(model, str) or not model.strip():
             continue
-        if provider == "copilot":
-            detail = item.get("capabilities")
-            supports = detail.get("supports") if isinstance(detail, dict) else None
-            levels = supports.get("reasoning_effort") if isinstance(supports, dict) else None
-        else:
-            levels = item.get("supported_reasoning_levels")
+        levels = item.get("supported_reasoning_levels")
         if not isinstance(levels, list):
             caps[model.strip()] = None
             continue
