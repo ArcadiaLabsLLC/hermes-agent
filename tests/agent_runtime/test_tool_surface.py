@@ -136,7 +136,9 @@ def test_a_faulted_assembly_is_recorded_not_swallowed(harness_lane, monkeypatch)
 def test_the_browser_use_swap_is_an_unavailable_row(harness_lane, monkeypatch):
     """The recorded lane carries ``browser_exec`` (``browser.backend: browser-use``): upstream's
     ``browser`` toolset lists every ``browser_*`` core tool by name, check_fn keeps
-    ``browser_exec`` (registered into ``browser-use``) and drops the rest."""
+    ``browser_exec`` (registered into ``browser-use``) and drops the rest. Since v0.23.1
+    (68500d9ff9 deleted browser_navigate and the other ten built-ins) the rest is the CDP pair
+    ``browser_cdp`` / ``browser_dialog``, so the floor is 2, not 11."""
 
     import toolsets
     import model_tools
@@ -146,7 +148,7 @@ def test_the_browser_use_swap_is_an_unavailable_row(harness_lane, monkeypatch):
         if name not in _names(harness_lane.raw)
     )
     receipt = _surface()
-    assert len(swapped) >= 11, swapped
+    assert len(swapped) >= 2, swapped
     assert {name: receipt["unavailable"][name]["reason"] for name in swapped} == {
         name: "backend_swap" for name in swapped}
     # The swap target is on the surface: Neko defers it by name (R1 of the prompt-surface plan),
