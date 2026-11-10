@@ -3163,10 +3163,11 @@ options:
 ```text
 usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--persona-instance-id PERSONA_INSTANCE_ID]
-                                           [--session-id SESSION_ID] [--new-session]
-                                           [--clarify-token CLARIFY_TOKEN] [--title TITLE]
-                                           --message MESSAGE [--provider PROVIDER] [--model MODEL]
-                                           [--use-agent-default] [--surface-prompt SURFACE_PROMPT]
+                                           [--session-id SESSION_ID] [--client-scope CLIENT_SCOPE]
+                                           [--new-session] [--clarify-token CLARIFY_TOKEN]
+                                           [--title TITLE] --message MESSAGE [--provider PROVIDER]
+                                           [--model MODEL] [--use-agent-default]
+                                           [--surface-prompt SURFACE_PROMPT]
                                            [--agents-file AGENTS_FILE] [--intent-hint INTENT_HINT]
                                            [--requested-by REQUESTED_BY]
                                            [--client-message-id CLIENT_MESSAGE_ID]
@@ -3190,6 +3191,9 @@ options:
   --persona PERSONA_ID
   --persona-instance-id PERSONA_INSTANCE_ID
   --session-id SESSION_ID
+  --client-scope CLIENT_SCOPE
+                        The owning account's client-scope digest (64 hex) a chat this send MINTS is
+                        stamped with; ignored when continuing an existing thread
   --new-session         Force a fresh canonical chat session for the target instead of continuing
                         the default thread (agent_chat_send new_session lane); ignored when
                         --session-id is given
