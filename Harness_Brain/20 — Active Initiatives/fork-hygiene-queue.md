@@ -122,7 +122,6 @@ tags: [queue, program/fork-hygiene]
 
 
 
-- **`FORK-SECOND-WORKSTATION-ENV` — Qualify the canonical shared test environment on the second Windows workstation before treating the PM slow-exit check as covered there.** Baseline re-audit on `5fc3c617df` (2026-10-15): with no explicit `HERMES_PYTHON`, `scripts/run_tests.sh tests/pm/test_worker_slow_exit_downstream.py` refuses before collection because this Windows account has no shared environment with pytest at `~/.venvs/hermes-test`. Explicitly selecting this clone's Python 3.13.15 reproduces the PM fixture's Python 3.14 requirement error; no worker assertion runs. Commit `646acfb921` established a genuine 1/1 pass on another account's shared Python 3.14.5 environment, not this workstation. Use the existing shared-environment setup and runner, then rerun the single file; do not change upstream's fixture, relax the Python requirement, or add another runner. Evidence: `scripts/run_tests.sh`, `tests/pm/_fixtures.py::isolated_python`, `pm/pyproject.toml`; local re-audit receipts retained. Environment setup, not a demonstrated PM or Eternia runtime defect. · group: prepush · DEFERRED 2026-11-09: owner triage — Machine setup for one test; no product defect; until the owner reopens it
 
 
 
