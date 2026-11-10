@@ -53,5 +53,35 @@
   "commit": "490d81e1ed3e40fee8894b4a8f8e30ec64cf7d2c",
   "path": "hermes_cli/main.py",
   "reason": "an additive 2-line carry_install_identity seam before maybe_run_boot_bootstrap, re-homed from boot_bootstrap.py so the footprint does not rise (RT-VAULT-COMMIT-HOME-MAINTENANCE, w1025b-h-stream)"
+ },
+ {
+  "commit": "3e331adf92c188d11df4ace63cf99b241056a085",
+  "path": "tests/agent/test_context_file_sources.py",
+  "reason": "footprint move at the v0.23.1 release merge (owner goal 2026-11-10: fewer fork lines in upstream files): the commit takes fork lines OUT of this upstream file toward upstream's bytes; it adds none"
+ },
+ {
+  "commit": "0708d89acc0269a11babae8647f488ee4a96c277",
+  "path": "tests/test_live_system_guard_self_test.py",
+  "reason": "footprint move at the v0.23.1 release merge (owner goal 2026-11-10: fewer fork lines in upstream files): the commit takes fork lines OUT of this upstream file toward upstream's bytes; it adds none"
+ },
+ {
+  "commit": "d0ab898a2b0e9a5966c9e27458949d82b8fe54d3",
+  "path": "tests/tui_gateway/test_compute_host_pending_model_switch.py",
+  "reason": "footprint move at the v0.23.1 release merge (owner goal 2026-11-10: fewer fork lines in upstream files): the commit takes fork lines OUT of this upstream file toward upstream's bytes; it adds none"
+ },
+ {
+  "commit": "88e57b6b0018dac2d77a1a672dc026245fbc66b0",
+  "path": "tools/file_tools_read_tracking.py",
+  "reason": "footprint move at the v0.23.1 release merge (owner goal 2026-11-10: fewer fork lines in upstream files): the commit takes fork lines OUT of this upstream file toward upstream's bytes; it adds none"
+ },
+ {
+  "commit": "7f53f668ce9a8136e302307f88d03c6e1128525c",
+  "path": "hermes_state_compression.py",
+  "reason": "footprint move at the v0.23.1 release merge (owner goal 2026-11-10: fewer fork lines in upstream files): the commit takes fork lines OUT of this upstream file toward upstream's bytes; it adds none"
+ },
+ {
+  "commit": "5d7f2dd3b5ea4de5fea622e2941fe00e707d8935",
+  "path": "hermes_cli/plugins_state.py",
+  "reason": "footprint move at the v0.23.1 release merge (owner goal 2026-11-10: fewer fork lines in upstream files): the commit takes fork lines OUT of this upstream file toward upstream's bytes; it adds none"
  }
 ]

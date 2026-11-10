@@ -396,6 +396,14 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     ),
     # v0.23.1 pins the startup checkout-SHA read to one `git rev-parse HEAD`; the fork's q-version
     # seam answers it from the git files, so it spawns none.
+    # v0.23.1's serve handler ledger lists upstream's verbs; the fork's serve adds its own, so the
+    # whole-ledger equality lives on the fork-owned copy and upstream's file keeps its bytes.
+    "tests/hermes_cli/test_serve_handler_ledger.py::test_committed_ledger_lists_every_live_handler": (
+        _fork_replaces(
+            "agent_runtime gateway verbs (eternia.*, session.recover/recovery/retire)",
+            "tests/hermes_cli/test_serve_handler_ledger_downstream.py",
+        ),
+    ),
     "tests/hermes_cli/test_version_info_startup_git.py::test_startup_checkout_sha_read_is_one_rev_parse": (
         _fork_replaces(
             "hermes_cli.version_info_cache.memoize_run_git (rev-parse HEAD read from the git files)",
