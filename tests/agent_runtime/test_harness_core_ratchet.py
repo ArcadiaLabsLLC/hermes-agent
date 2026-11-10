@@ -1,4 +1,4 @@
-"""The S0a ratchet: 44 tools, 0 withheld, 0 requirement failures, per persona.
+"""The S0a ratchet: 34 tools (44 before v0.23.1), 0 withheld, 0 requirement failures, per persona.
 
 Plan: ``docs/agent-runtime-harness/archive/s0a-atlas-cleanup.md`` §2 A3.
 
@@ -50,7 +50,10 @@ HARNESS_CORE_MEMBERS = [
 # tools into one ``browser_vault`` action tool: 45 -> 41, re-measured.
 # RT-COURSE-PERSONA-TOOLS (2026-10-26, plan course-turn-credential-2026-10-25 §2.4): the ``course`` toolset
 # joins harness_core with course_checkout / course_commit / course_pull_request: 41 -> 44, re-measured.
-DECLARED_TOOL_COUNT = 44
+# Upstream v0.23.1 (2026-11-10 release merge, 68500d9ff9) deleted the ten built-in browser_* tools
+# (navigate/snapshot/click/type/scroll/back/press/get_images/vision/console); ``browser`` keeps only
+# browser_vault: 44 -> 34, re-measured.
+DECLARED_TOOL_COUNT = 34
 # Upstream's canonical tool names and refreshed manifest: same 44 declared
 # tools, measured name/schema estimate +13 tokens (1177 -> 1190).
 # HQ1 (2026-10-01) added ``harness_query`` to ``agent_chat``: 45 tools,
@@ -73,7 +76,10 @@ DECLARED_TOOL_COUNT = 44
 # one ``browser_vault`` action tool; the v0.22.2 schemas re-measured: 8380 -> 7792 (-588).
 # RT-COURSE-PERSONA-TOOLS (2026-10-26): the three course tools' schemas, re-measured: 7792 -> 8205 (+413).
 # They are deferrable (a non-core toolset), so a turn with tool search active carries them as listing rows.
-DECLARED_TOKEN_ESTIMATE = 8205
+# Upstream v0.23.1 (2026-11-10): the ten browser_* schemas leave and upstream rewrote several kept
+# tools' descriptions (terminal, web_search, clarify, skill_view, session_search, process_manage, the
+# CDP pair), re-measured: 8205 -> 7244 (-961).
+DECLARED_TOKEN_ESTIMATE = 7244
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 
