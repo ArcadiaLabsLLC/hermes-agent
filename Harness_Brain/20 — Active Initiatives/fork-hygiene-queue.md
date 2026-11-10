@@ -23,7 +23,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-09 (lane w1109a-hm-iso)
 
-- **`FH-WORK-ROW-CLOSE-PUSH-FROM-LANE-BRANCH` — Closing a queue row from a lane's own branch commits the close but never pushes it, so the lane has to push it by hand** · group: prepush · `scripts/work_row.py` · READY 2026-11-09 · handoff 2026-11-09: found by w1109a-hm-iso; `work_row.py close` ran from branch `wave/w1109a-hm-iso` (no upstream set) committed ec8391414d and exited 4 with git's "no upstream branch" hint; the push is a bare `git push -q` (the `pushed = git(["push", "-q"], repo)` line); likely fix: push `HEAD:main` (or `HEAD:<the branch's upstream>` when one is set), as CLAUDE.md tells lanes to land
 
 ## Filed on arrival — 2026-11-09 (stale-headers lane)
 
