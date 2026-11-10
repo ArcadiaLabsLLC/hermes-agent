@@ -2,8 +2,8 @@
 
 Upstream keeps the rows inline in ``hermes_cli/web_server_oauth.py``. The derived tuple must equal
 upstream's field-for-field (``status_fn`` aside, which the fork attaches by id). ``_UPSTREAM_ROWS``
-is upstream's row set at 2f14d5e6e4e (merge 2026-09-27, which renamed the anthropic card to
-"Anthropic Account"); when a merge brings a row edit, this literal and ``OAUTH_FLOW_OVERRIDES``
+is upstream's row set at v0.23.1 (which dropped the copilot-acp card and its
+``_copilot_acp_status``; the anthropic card is "Anthropic Account" since 2f14d5e6e4e); when a merge brings a row edit, this literal and ``OAUTH_FLOW_OVERRIDES``
 move together.
 """
 from hermes_cli import web_server_oauth as oauth
@@ -20,8 +20,6 @@ _UPSTREAM_ROWS = (
     {"id": "xai-oauth", "name": "xAI Grok OAuth (SuperGrok / Premium+)", "flow": "device_code",
      "cli_command": "hermes auth add xai-oauth",
      "docs_url": "https://hermes-agent.nousresearch.com/docs/guides/xai-grok-oauth"},
-    {"id": "copilot-acp", "name": "GitHub Copilot (ACP)", "flow": "external",
-     "cli_command": "copilot login", "docs_url": "https://docs.github.com/en/copilot"},
     {"id": "anthropic", "name": "Anthropic Account", "flow": "external",
      "cli_command": "hermes auth add anthropic",
      "docs_url": "https://docs.claude.com/en/api/getting-started"},
@@ -31,7 +29,6 @@ _UPSTREAM_ROWS = (
 )
 
 _UPSTREAM_STATUS_FNS = {
-    "copilot-acp": oauth._copilot_acp_status,
     "anthropic": oauth._anthropic_oauth_status,
     "claude-code": oauth._claude_code_only_status,
 }
