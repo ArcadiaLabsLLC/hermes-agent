@@ -729,4 +729,3 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-10 (lane w1110d-foot)
 
-- **`FH-BROWSER-GUIDANCE-GATED-ON-DELETED-TOOL` — Personas get the browser precondition advice again now that they drive the browser through browser_exec** · group: upstream-footprint-ledger · `plugins/eternia-harness/__init__.py::_TOOL_GUIDANCE` · the `BROWSER_PRECONDITION_GUIDANCE` line is gated on `browser_navigate`, which upstream v0.23.1 deleted (68500d9ff9), so it never renders; re-gate it on `browser_exec` (harness_core names `browser-use` since FH-HARNESS-CORE-BROWSER-AFTER-V0231) or retire it, and re-measure the prompt-surface ratchets · handoff 2026-11-10 (w1110d-foot): found while adding browser-use; not changed, the guidance text may name the old per-action tools · READY 2026-11-10
