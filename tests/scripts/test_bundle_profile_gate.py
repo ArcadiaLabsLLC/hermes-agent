@@ -157,18 +157,18 @@ def test_a_pin_the_loop_placeholders_answer_is_a_seam_proven_at_run_time(tmp_pat
 
     sources = {
         "loop_a": "from tools.terminal_tool_lifecycle import cleanup_vm, get_active_env\n"
-                  "from tools.browser_tool_lifecycle import cleanup_browser\n",
+                  "from tools.browser_session_lifecycle import cleanup_browser\n",
         "loop_b": "from tools.skills_hub import GitHubAuth\n",
     }
     index = {}
     for name, source in sources.items():
         index[name] = tmp_path / f"{name}.py"
         index[name].write_text(source, encoding="utf-8")
-    pinned = {"tools.terminal_tool_lifecycle", "tools.browser_tool_lifecycle", "tools.skills_hub"}
+    pinned = {"tools.terminal_tool_lifecycle", "tools.browser_session_lifecycle", "tools.skills_hub"}
     manifest = SimpleNamespace(switched_off_modules=tuple(sorted(pinned)))
     walk = SimpleNamespace(pinned=pinned, kept=set(sources))
     assert placeholder_seams(manifest, walk, index) == {
-        "tools.browser_tool_lifecycle": ["cleanup_browser"],
+        "tools.browser_session_lifecycle": ["cleanup_browser"],
         "tools.terminal_tool_lifecycle": ["cleanup_vm", "get_active_env"],
     }
 
@@ -185,7 +185,7 @@ def test_a_pin_the_loop_placeholders_answer_is_a_seam_proven_at_run_time(tmp_pat
 
     # Negative controls: a name the placeholder table lacks, and a bare module import, stay pinned.
     index["loop_a"].write_text("from tools.terminal_tool_lifecycle import cleanup_vm, cleanup_all_environments\n"
-                               "import tools.browser_tool_lifecycle\n", encoding="utf-8")
+                               "import tools.browser_session_lifecycle\n", encoding="utf-8")
     assert placeholder_seams(manifest, walk, index) == {}
 
 
