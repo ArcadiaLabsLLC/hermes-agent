@@ -185,6 +185,45 @@ def test_an_interpreter_inside_the_store_root_is_refused(tmp_path):
     assert allowed.returncode == 0, allowed.stderr
 
 
+@pytest.mark.skipif(sys.platform == "win32" and not Path(BASH).is_file(), reason="Git Bash not installed")
+def test_a_yes_from_the_pytest_probe_is_asked_once_per_run(tmp_path):
+    """FH-PREPUSH-GATES-OVER-BUDGET: one run asked upstream's probe of one interpreter three times,
+    a python start each. The door keeps upstream's probe and remembers its yes; a no is asked again.
+    Mutation: drop the memo's `case` line and the yes is probed three times."""
+    door = (REPO / "scripts" / "_fork_test_env.sh").as_posix()
+    log = (tmp_path / "probes").as_posix()
+    probe = f'_has_pytest() {{ echo "$1" >> "{log}"; [ "$1" = yes ]; }}'
+    script = f'{probe}; . "{door}"; _has_pytest yes; _has_pytest yes; _has_pytest yes; _has_pytest no; _has_pytest no; _has_pytest ""; echo "rc=$?"'
+    proc = subprocess.run([BASH, "-c", script], capture_output=True, text=True, timeout=60, check=False)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == "rc=1"
+    assert (tmp_path / "probes").read_text(encoding="utf-8").split("\n") == ["yes", "no", "no", "", ""]
+
+
+@pytest.mark.skipif(sys.platform == "win32" and not Path(BASH).is_file(), reason="Git Bash not installed")
+def test_the_root_fence_names_the_root_and_refuses_an_interpreter_inside_it_in_one_python_start(tmp_path):
+    """FH-PREPUSH-GATES-OVER-BUDGET: the root probe and the inside-the-root probe were two python
+    starts; the fence's one probe answers both. Mutation: drop the fence's `_TEST_INTERP=` line and
+    the refusal asks again (two starts), so the start count reddens."""
+    door = (REPO / "scripts" / "_fork_test_env.sh").as_posix()
+    starts = tmp_path / "starts"
+    wrapper = tmp_path / "py"
+    wrapper.write_text(f'#!/bin/sh\necho x >> "{starts.as_posix()}"\nexec "{Path(sys.executable).as_posix()}" "$@"\n', encoding="utf-8")
+    wrapper.chmod(0o755)
+    base = {k: v for k, v in os.environ.items() if k not in ("HERMES_PYTHON", "CI", "__HERMES_ACTIVATED", "_TEST_INTERP")}
+    def fence(home: Path) -> subprocess.CompletedProcess:
+        script = f'_has_pytest() {{ :; }}; . "{door}"; fork_real_root_fence; echo "ROOT=$REAL_HERMES_ROOT"'
+        return subprocess.run([BASH, "-c", script], cwd=REPO, env={**base, "PYTHON": wrapper.as_posix(), "HERMES_HOME": str(home)},
+                              capture_output=True, text=True, timeout=120, check=False)
+    allowed = fence(tmp_path / "home")
+    assert allowed.returncode == 0, allowed.stderr
+    assert "real store root handed to the gateway fence: " in allowed.stdout
+    assert allowed.stdout.strip().splitlines()[-1] != "ROOT="
+    assert starts.read_text(encoding="utf-8").count("x") == 1
+    refused = fence(Path(sys.executable).resolve().parent)
+    assert refused.returncode == 1 and "inside the live Hermes home" in refused.stderr
+
+
 def test_run_tests_calls_both_moved_policies():
     script = (REPO / "scripts" / "run_tests.sh").read_text(encoding="utf-8")
     assert script.index(". \"$SCRIPT_DIR/_fork_test_env.sh\"") < script.index("fork_shared_test_venv_fallback")
