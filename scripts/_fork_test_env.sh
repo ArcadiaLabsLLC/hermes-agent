@@ -67,6 +67,22 @@ fork_default_test_venv() {
   fi
 }
 
+# Fork (FH-PREPUSH-GATES-OVER-BUDGET): upstream's `_has_pytest` starts a python each time it
+# is asked, and one run asks it of the same interpreter three times (here twice, then
+# run_tests.sh); every prepush step pays each start, 1-5 s apiece on a loaded Windows box.
+# Sourced after upstream defines it, this wraps it: the probe itself stays upstream's, and a
+# path it said yes to is answered from memory for the rest of the run (a no is asked again,
+# so a venv built mid-run is still found).
+if declare -F _has_pytest >/dev/null && ! declare -F __fork_probe_has_pytest >/dev/null; then
+  eval "__fork_probe_has_pytest() $(declare -f _has_pytest | tail -n +2)"
+  __FORK_HAS_PYTEST=$'\n'
+  _has_pytest() {
+    case "$__FORK_HAS_PYTEST" in *$'\n'"$1"$'\n'*) [ -n "$1" ] && return 0 ;; esac
+    __fork_probe_has_pytest "$1" || return 1
+    __FORK_HAS_PYTEST="$__FORK_HAS_PYTEST$1"$'\n'
+  }
+fi
+
 # Fork (owner ruling 2026-10-15): on a workstation, no HERMES_PYTHON means the
 # shared test venv (fork_default_test_venv: HERMES_TEST_VENV, else ~/.venvs/hermes-test), never the
 # PM test environment activation would sync inside the operator's live Hermes
@@ -119,7 +135,8 @@ if missing:
 # inside the operator's live store root (warn only under CI, whose store root
 # is the runner's throwaway home) — owner ruling 2026-10-15.
 fork_refuse_live_home_interpreter() {
-  _TEST_INTERP="$(
+  # fork_real_root_fence's one probe already answered (_TEST_INTERP); a caller on its own asks here.
+  [ -n "${_TEST_INTERP:-}" ] || _TEST_INTERP="$(
     "$PYTHON" -c 'import os, sys
 e = os.path.normcase(os.path.realpath(sys.executable)); r = sys.argv[1]
 r = os.path.normcase(os.path.realpath(r)).rstrip(os.sep) + os.sep if r else ""
@@ -296,11 +313,27 @@ fork_win_env_extend() {
 # unwrapping has exactly one implementation. Fail-soft: if the probe prints
 # nothing the variable is not forwarded and the fence falls back to today's
 # behavior. Runs from REPO_ROOT (the probe imports hermes_constants from ".").
+# One python start answers it and fork_refuse_live_home_interpreter's question (it was two,
+# FH-PREPUSH-GATES-OVER-BUDGET): the last line is the test interpreter, prefixed `INSIDE `
+# when it lives in that root; the lines before it are the root, empty when its probe fails.
 fork_real_root_fence() {
-  REAL_HERMES_ROOT="$(
-    "$PYTHON" -c 'import sys; sys.path.insert(0, "."); from hermes_constants import get_default_hermes_root; print(get_default_hermes_root())' \
-      2>/dev/null || true
+  local probe
+  probe="$(
+    "$PYTHON" -c 'import os, sys
+sys.path.insert(0, ".")
+try:
+    from hermes_constants import get_default_hermes_root
+    root = str(get_default_hermes_root())
+except Exception:
+    root = ""
+print(root)
+e = os.path.normcase(os.path.realpath(sys.executable))
+r = os.path.normcase(os.path.realpath(root)).rstrip(os.sep) + os.sep if root else ""
+print(("INSIDE " if r and e.startswith(r) else "") + sys.executable)' 2>/dev/null || true
   )"
+  _TEST_INTERP="${probe##*$'\n'}"
+  REAL_HERMES_ROOT=""
+  [ "$probe" = "$_TEST_INTERP" ] || REAL_HERMES_ROOT="${probe%$'\n'*}"
   if [ -n "$REAL_HERMES_ROOT" ]; then
     echo "▶ real store root handed to the gateway fence: $REAL_HERMES_ROOT"
   fi
