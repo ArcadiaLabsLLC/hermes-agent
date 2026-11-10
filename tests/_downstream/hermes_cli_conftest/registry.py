@@ -161,7 +161,7 @@ _ENV_GAP_SKIPS: EnvGapSkipRegistry = {
             'keys and are genuinely NOT owner-restricted on Windows, which '
             'wants an ACL path rather than a skipped test',
             {
-                'TestBackfillProfileEnvs::test_copies_default_env_into_envless_profiles',
+                'TestBackfillProfileEnvs::test_seeds_placeholder_never_the_default_env',
                 'TestCreateProfile::test_seeds_placeholder_env_file',
             },
         ),
