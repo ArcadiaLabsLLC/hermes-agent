@@ -114,6 +114,9 @@ def test_a_command_spawned_in_another_slot_runs_with_that_slot_not_the_turn_work
 
     monkeypatch.setattr(local, "_find_bash", lambda: "bash")
     monkeypatch.setattr(local.subprocess, "Popen", fake_popen)
+    # The captured Popen is not a process: never hand its (this test's own) pid to the owner-death
+    # supervisor, which would also be spawned through the fake.
+    monkeypatch.setattr(local, "own_process_groups", lambda pgids: None)
     terminal = local.LocalEnvironment.__new__(local.LocalEnvironment)
     terminal.env, terminal.cwd = {}, str(checkout / "lib")
     bindings = [SlotBinding(workspace, "launcher", str(checkout))]
