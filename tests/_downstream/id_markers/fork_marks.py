@@ -221,6 +221,14 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/agent/test_external_skills_downstream.py",
         ),
     ),
+    # RT-CONTEXT-MANIFEST-SHADOWED: upstream's parity test expects CLAUDE.md, .cursorrules,
+    # .cursor/rules/*.mdc and both AGENTS files shadowed; the fork loads every present kind.
+    "tests/agent/test_context_file_sources.py::test_manifest_matches_what_the_prompt_actually_loads": (
+        _fork_replaces(
+            "agent.context_file_sources.list_context_file_sources (every present kind loaded)",
+            "tests/agent/test_context_file_sources_downstream.py",
+        ),
+    ),
     "tests/agent/test_prompt_builder.py::TestBuildContextFilesPrompt::"
     "test_hermes_md_still_wins_over_agents_override": (
         _fork_replaces(
