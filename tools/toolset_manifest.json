@@ -10,20 +10,10 @@
     "annotate_preview": "desktop_ui",
     "board_card_add": "board",
     "board_cards": "board",
-    "browser_back": "browser",
     "browser_cdp": "browser-cdp",
-    "browser_click": "browser",
-    "browser_console": "browser",
     "browser_dialog": "browser-cdp",
     "browser_exec": "browser-use",
-    "browser_get_images": "browser",
-    "browser_navigate": "browser",
-    "browser_press": "browser",
-    "browser_scroll": "browser",
-    "browser_snapshot": "browser",
-    "browser_type": "browser",
     "browser_vault": "browser",
-    "browser_vision": "browser",
     "clarify": "clarify",
     "close_terminal": "desktop_ui",
     "computer_use": "computer_use",
@@ -90,12 +80,7 @@
     "write_file": "file",
     "x_search": "x_search",
     "xai_video_edit": "video_gen",
-    "xai_video_extend": "video_gen",
-    "yb_query_group_info": "hermes-yuanbao",
-    "yb_query_group_members": "hermes-yuanbao",
-    "yb_search_sticker": "hermes-yuanbao",
-    "yb_send_dm": "hermes-yuanbao",
-    "yb_send_sticker": "hermes-yuanbao"
+    "xai_video_extend": "video_gen"
   },
   "modules": {
     "agent_chat_tool": [
@@ -119,18 +104,6 @@
     ],
     "browser_dialog_tool": [
       "browser_dialog"
-    ],
-    "browser_tool": [
-      "browser_back",
-      "browser_click",
-      "browser_console",
-      "browser_get_images",
-      "browser_navigate",
-      "browser_press",
-      "browser_scroll",
-      "browser_snapshot",
-      "browser_type",
-      "browser_vision"
     ],
     "browser_use_cli": [
       "browser_exec"
@@ -279,13 +252,6 @@
     "xai_video_tools": [
       "xai_video_edit",
       "xai_video_extend"
-    ],
-    "yuanbao_tools": [
-      "yb_query_group_info",
-      "yb_query_group_members",
-      "yb_search_sticker",
-      "yb_send_dm",
-      "yb_send_sticker"
     ]
   }
 }
