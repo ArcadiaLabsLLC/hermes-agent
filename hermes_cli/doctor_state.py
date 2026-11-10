@@ -190,9 +190,7 @@ def _check_directory_structure(should_fix: bool, f: Finding) -> None:
         check_legacy_desktop_checkout()
     except Exception:
         pass  # best-effort report; must never break the directory check
-    from hermes_cli.doctor import _DHH
-    from hermes_cli.config import get_hermes_home
-    HERMES_HOME = get_hermes_home()
+    from hermes_cli.doctor import HERMES_HOME, _DHH
     hermes_home = HERMES_HOME
     ensure_dir(f, should_fix, hermes_home, f"{_DHH} directory exists", f"Created {_DHH} directory", f"{_DHH} not found")
     _memory_enabled, _user_profile_enabled = _memory_store_flags(hermes_home)
@@ -487,9 +485,7 @@ def _retired_wal_holders(f: Finding, state_db_path: Path, _DHH: str) -> bool:
 @doctor_check()
 def _check_state_db(should_fix: bool, f: Finding) -> None:
     """state.db session count, FTS write health, schema repair, stats snapshot, WAL size."""
-    from hermes_cli.doctor import _DHH
-    from hermes_cli.config import get_hermes_home
-    HERMES_HOME = get_hermes_home()
+    from hermes_cli.doctor import HERMES_HOME, _DHH
     state_db_path = HERMES_HOME / "state.db"
     # A read-only connect on the new generation is itself another opener, so nothing below may run.
     if _retired_wal_holders(f, state_db_path, _DHH):
@@ -585,9 +581,7 @@ def _gh_authenticated() -> bool:
 
 @doctor_check()
 def _check_skills_hub(should_fix: bool, f: Finding) -> None:
-    from hermes_cli.doctor import _DHH
-    from hermes_cli.config import get_hermes_home
-    HERMES_HOME = get_hermes_home()
+    from hermes_cli.doctor import HERMES_HOME, _DHH
     hub_dir = HERMES_HOME / "skills" / ".hub"
     if check_bool(hub_dir.exists(), "Skills Hub directory exists", ("Skills Hub directory not initialized", "(run: hermes skills list)")):
         lock_file = hub_dir / "lock.json"
@@ -630,8 +624,7 @@ def _memory_provider_generic(name: str) -> None:
 
 @doctor_check()
 def _check_memory_provider(should_fix: bool, f: Finding) -> None:
-    from hermes_cli.config import get_hermes_home
-    HERMES_HOME = get_hermes_home()
+    from hermes_cli.doctor import HERMES_HOME
     from agent.memory_provider import is_core_memory_provider
     name = _doctor_memory_config(HERMES_HOME).get("provider", "")
     if is_core_memory_provider(name):

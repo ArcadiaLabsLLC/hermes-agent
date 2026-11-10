@@ -386,40 +386,6 @@
       "files": {
         "hermes_cli/doctor.py": {
           "mode": "hunks"
-        },
-        "hermes_cli/doctor_config.py": {
-          "mode": "hunks"
-        },
-        "hermes_cli/doctor_platform.py": {
-          "mode": "hunks"
-        },
-        "hermes_cli/doctor_state.py": {
-          "mode": "hunks"
-        },
-        "tests/hermes_cli/test_doctor.py": {
-          "mode": "lines",
-          "fragments": [
-            "        monkeypatch.setenv(\"HERMES_HOME\", str(hermes_home))",
-            "        monkeypatch.setenv(\"HERMES_HOME\", str(hermes_home))",
-            "        monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "    monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "        monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "        monkeypatch.setenv(\"HERMES_HOME\", str(home))",
-            "        monkeypatch.setenv(\"HERMES_HOME\", str(hermes_home))"
-          ],
-          "reason": "All current PR added blocks; independent fork additions preserved. Context and removed lines require manual review."
         }
       },
       "reviewed_base": "e017fe5ceb4dc3fb8cc09cc03cf935627aafb9a1"

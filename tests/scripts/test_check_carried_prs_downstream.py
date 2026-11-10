@@ -200,13 +200,14 @@ def test_identifier_replacement_is_validated_against_pr_before_mapping(history):
     assert run(history)[0] == 1
 
 
-@pytest.mark.parametrize("field", ["default", "forwarding", "doctor"])
+@pytest.mark.parametrize("field", ["default", "forwarding"])
 def test_production_duplicate_mutation_is_drift(history, field):
-    """Use the real carried production source and manifest, without remote refs."""
+    """Use the real carried production source and manifest, without remote refs. (The ``doctor``
+    case left with PR #125260's test_doctor.py carry, FH-FOOTPRINT-FORK-TEST-HUNKS-OUT 2026-11-10.)"""
     from pathlib import Path
     root = Path(__file__).resolve().parents[2]
-    path = "tests/hermes_cli/test_doctor.py" if field == "doctor" else "agent/conversation_loop.py"
-    number = "125260" if field == "doctor" else "124210"
+    path = "agent/conversation_loop.py"
+    number = "124210"
     production = root / path
     source = production.read_text(encoding="utf-8")
     rules = json.loads((root / "tests/fixtures/carried_prs.json").read_text(encoding="utf-8"))
@@ -229,9 +230,6 @@ def test_production_duplicate_mutation_is_drift(history, field):
             else "reuse_current_user_message=reuse_current_user_message")
     replacement = ("reuse_current_user_message: bool = True" if field == "default"
                    else "reuse_current_user_message=False")
-    if field == "doctor":
-        text = 'monkeypatch.setenv("HERMES_HOME", str(hermes_home))'
-        replacement = 'monkeypatch.setenv("WRONG_HOME", str(hermes_home))'
     assert source.count(text) >= 2
     history[1].write_text(source.replace(text, replacement, 1), encoding="utf-8")
     assert run(history)[0] == 1

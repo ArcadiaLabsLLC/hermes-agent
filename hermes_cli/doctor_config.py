@@ -170,9 +170,7 @@ def _check_mcp_security(should_fix: bool, f: Finding) -> None:
 @doctor_check()
 def _check_env_file(should_fix: bool, f: Finding) -> None:
     """Managed scope plus ~/.hermes/.env presence and provider credentials."""
-    from hermes_cli.doctor import PROJECT_ROOT, _DHH
-    from hermes_cli.config import get_hermes_home
-    HERMES_HOME = get_hermes_home()
+    from hermes_cli.doctor import HERMES_HOME, PROJECT_ROOT, _DHH
     managed_scope_check()
     env_path = HERMES_HOME / '.env'
     if env_path.exists():

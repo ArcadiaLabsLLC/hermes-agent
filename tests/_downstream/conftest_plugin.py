@@ -66,6 +66,9 @@ from tests._downstream.git_audit import (  # hook re-exports (opt-in, design swe
     pytest_configure_git_audit,
     pytest_runtest_protocol_git_audit,
 )
+from tests._downstream.doctor_live_home import (  # hook re-export (FH-FOOTPRINT-FORK-TEST-HUNKS-OUT)
+    pytest_runtest_setup_doctor_live_home,
+)
 from tests._downstream.idle_box import (  # hook re-exports (owner ruling 2026-10-10)
     pytest_collection_modifyitems_idle_box,
     pytest_configure_idle_box,
