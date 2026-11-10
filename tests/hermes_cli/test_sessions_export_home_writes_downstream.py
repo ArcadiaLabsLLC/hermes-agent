@@ -4,7 +4,8 @@ The launcher's owner-chat import runs the export against the owner's home. The f
 (scratch prune, file log handlers, boot bootstrap record, ``ensure_hermes_home``'s skeleton) each
 read the fork-owned ``hermes_read_only_invocation.is_read_only_invocation`` in a ``# fork seam``
 guard. The subprocess cases drive the real CLI entry; ``sessions list`` is the positive control —
-the same home, one variable changed, and the skeleton MUST appear.
+the same home, one variable changed, and the writers MUST appear (the bootstrap's skeleton exactly
+when the child reads a checkout identity: RT-WRITING-COMMAND-HOME-SKELETON).
 """
 
 import os
@@ -76,14 +77,33 @@ def seeded_home(tmp_path):
     return home
 
 
-def _run_cli(home: Path, *args: str) -> subprocess.CompletedProcess:
+def _cli_env(home: Path, *, no_git: bool = False) -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if k not in {"TMPDIR", "TMP", "TEMP", "HERMES_SCRATCH_DIR"}}
     env["HERMES_HOME"] = str(home)
     env["PYTHONPATH"] = str(REPO_ROOT)
+    if no_git:  # the interpreter's own directory only: no git on PATH, as on a box whose git is absent
+        env["PATH"] = str(Path(sys.executable).parent)
+    return env
+
+
+def _run_cli(home: Path, *args: str, no_git: bool = False) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "hermes_cli.main", *args],
-        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=120, check=False,
+        cwd=REPO_ROOT, env=_cli_env(home, no_git=no_git), capture_output=True, text=True, timeout=120, check=False,
     )
+
+
+def _child_install_identity(tmp_path: Path, *, no_git: bool) -> str:
+    """The checkout identity a CLI child with this env reads (``boot_bootstrap.current_install_identity``), asked
+    under a scratch home of its own so the probe never writes the home under test."""
+
+    probe = tmp_path / "identity-probe-home"
+    probe.mkdir(exist_ok=True)
+    code = ("import sys; from pathlib import Path; from hermes_cli.boot_bootstrap import current_install_identity; "
+            "print(current_install_identity(Path(sys.argv[1])) or '')")
+    done = subprocess.run([sys.executable, "-c", code, str(REPO_ROOT)], cwd=REPO_ROOT,
+                          env=_cli_env(probe, no_git=no_git), capture_output=True, text=True, timeout=60, check=True)
+    return done.stdout.strip()
 
 
 def _tree(home: Path) -> set[str]:
@@ -100,14 +120,40 @@ def test_export_leaves_a_writable_home_untouched(seeded_home):
     assert _tree(seeded_home) == before == {"state.db"}
 
 
-def test_positive_control_a_writing_command_still_builds_the_skeleton(seeded_home):
-    result = _run_cli(seeded_home, "sessions", "list")
+#: Written by every writing command: the file log handlers and the scratch prune.
+_ALWAYS_WRITTEN = ("logs/agent.log", "cache/scratch/.last_prune")
+#: Written only by the boot bootstrap's home steps, which run once per readable checkout identity and are
+#: skipped, fail-open, when the child cannot read one (``boot_bootstrap.current_install_identity`` is None).
+_BOOTSTRAP_WRITTEN = ("SOUL.md", "memories")
+
+
+@pytest.mark.parametrize("no_git", [False, True], ids=["git", "no-git"])
+def test_positive_control_a_writing_command_still_builds_the_skeleton(seeded_home, tmp_path, no_git):
+    """RT-WRITING-COMMAND-HOME-SKELETON: the control asserted SOUL.md unconditionally, but SOUL.md (and
+    ``memories``, the bootstrap record) come only from the boot bootstrap, which skips when the CLI child reads no
+    checkout identity — no git on its PATH, or a git that refuses the checkout (Windows "dubious ownership").
+    That box read SOUL.md absent: the producer is right (fail-open by design), the expectation was stale.
+    Qualified: the always-on writers are asserted everywhere; the bootstrap writers exactly when the same env
+    reads an identity, and absent when it reads none (the ``no-git`` case reproduces that box on Linux).
+
+    Killing mutations, each red recorded: ``initialize_home`` without ``_ensure_default_soul_md`` -> ``[git]``
+    red; ``maybe_run_boot_bootstrap`` returning before ``run_boot_bootstrap`` -> ``[git]`` red (identity read,
+    no record); ``setup_logging``'s read-only guard answering read-only for every argv -> both red."""
+
+    identity = _child_install_identity(tmp_path, no_git=no_git)
+    if no_git:
+        assert identity == "", "a child with no git reads no checkout identity"
+
+    result = _run_cli(seeded_home, "sessions", "list", no_git=no_git)
 
     assert result.returncode == 0, result.stderr
     after = _tree(seeded_home)
-    for written in ("SOUL.md", "logs/agent.log", "cache/scratch/.last_prune", "memories"):
+    for written in _ALWAYS_WRITTEN:
         assert written in after, sorted(after)
-    assert any(p.startswith("installs/") and p.endswith("bootstrap/default.json") for p in after), sorted(after)
+    recorded = any(p.startswith("installs/") and p.endswith("bootstrap/default.json") for p in after)
+    assert recorded is bool(identity), (identity, sorted(after))
+    for written in _BOOTSTRAP_WRITTEN:
+        assert (written in after) is bool(identity), (identity, sorted(after))
 
 
 # -- each guard on its own: the CLI case above reaches ensure_hermes_home only through the
