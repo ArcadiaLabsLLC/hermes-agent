@@ -75,6 +75,10 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "tests/agent/test_session_prompt_refresh.py::test_refresh_keeps_the_sessions_tools_pin": (
         _UPSTREAM_WIRE_UNBRIEFED,
     ),
+    # v0.23.1's model-variant wire snapshots pin the same registry text.
+    "tests/agent/transports/test_provider_wire_snapshot_variants.py::test_model_variant_wire_matches_snapshot": (
+        _UPSTREAM_WIRE_UNBRIEFED,
+    ),
     # The fork's standalone tool_describe rides every non-empty tool list, so the web
     # toolset serves three names once a web key lights it.
     "tests/tools/test_web_tools_config.py::TestCheckWebApiKey::"
