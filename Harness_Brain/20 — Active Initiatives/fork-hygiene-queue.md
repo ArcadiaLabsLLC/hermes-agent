@@ -111,7 +111,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-10-26 (lane poller-requeue)
 
-- **`FORK-PYTEST-EXIT-HANG-LOOP-THREAD` — A pytest run printed `4 passed` and then never exited, held by a non-daemon thread named `Thread-1 (_loop)`** · group: hermes-test-isolation · `fork / suite` · seen once 2026-10-26 on Linux, the first (cold-bytecode) run of `tests/tui_gateway/test_prompt_turn_reaper_downstream.py` in a fresh `~/.venvs/hermes-test`; the next three runs of the same file and a 351-file `tests/tui_gateway` run exited normally, and no `Thread(target=_loop` without `daemon=True` exists in the fork's own code, so it is likely a dependency's. If it recurs, dump the thread's stack (`py-spy dump` or `faulthandler.dump_traceback_later`) before killing it · DEFERRED 2026-10-26: a watch until it recurs
 
 ## Filed on arrival — 2026-10-26 (next-prompt implementation)
 
