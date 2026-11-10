@@ -127,11 +127,11 @@ def reasoning_capabilities(
         if canonical == "openai-codex" or api_mode in ("codex_responses", "codex_app_server"):
             from agent.reasoning_effort import route_supported_efforts, codex_supported_efforts
 
-            # Upstream v0.23.1 moved Copilot (and github_model_reasoning_efforts, the name-pattern
-            # probe this branch asked) out of core; the transport's own vocabulary decides now.
-            levels = (route_supported_efforts(canonical, model, api_mode)
-                      if canonical == "openai-codex" else codex_supported_efforts(model))
-            if support is True or levels:
+            # The transport's vocabulary has a ladder for every name, so it never says whether a
+            # model reasons: only reported support or a known reasoning family does.
+            if support is True or _named_reasoning_family(model):
+                levels = (route_supported_efforts(canonical, model, api_mode)
+                          if canonical == "openai-codex" else codex_supported_efforts(model))
                 return ReasoningCapabilities(**base, state=ReasoningSupport.SUPPORTED,
                                              levels=levels, source="runtime_transport")
         return ReasoningCapabilities(**base,
@@ -213,6 +213,20 @@ def declared_reasoning_efforts(provider: str, model: str, base_url: str | None =
     from agent_runtime._upstream_doors import codex_profile_declared_efforts
 
     return codex_profile_declared_efforts(provider, model, base_url, allow_warm=False)
+
+
+def _named_reasoning_family(model: str | None) -> bool:
+    """Whether the model id names an OpenAI reasoning family (o1/o3/o4, GPT-5, the GPT-6 tiers, Astra).
+
+    The name probe this module asked of upstream's Copilot catalog (``github_model_reasoning_efforts``
+    with no catalog, widened to the GPT-6 tiers) until v0.23.1 moved Copilot out of core
+    (1da2eb42dc / 35ac640464). An unlisted name stays UNKNOWN rather than borrowing a ladder.
+    """
+    from agent.reasoning_effort import GPT6_TIER_PREFIXES, NO_DISABLE_TIER_PREFIXES, is_astra_model
+
+    bare = (model or "").strip().lower().rsplit("/", 1)[-1]
+    return bare.startswith(("o1", "o3", "o4", "gpt-5", *GPT6_TIER_PREFIXES, *NO_DISABLE_TIER_PREFIXES)) or (
+        is_astra_model(bare))
 
 
 def codex_declared_or_static_efforts(model: str | None) -> tuple[str, ...]:

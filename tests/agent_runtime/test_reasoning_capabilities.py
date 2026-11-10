@@ -48,19 +48,20 @@ def test_arbitrary_future_model_catalog_drives_transport_and_read_model(monkeypa
 
 
 def test_unknown_unsupported_and_unmapped_are_distinct():
-    record_control_catalog("copilot", [
-        {"id": "unknown", "capabilities": {}},
-        {"id": "unsupported", "capabilities": {"supports": {"reasoning_effort": []}}},
-        {"id": "new-terms", "capabilities": {"supports": {"reasoning_effort": ["turbo"]}}},
-        {"id": "known", "capabilities": {"supports": {"reasoning_effort": ["high", "low"]}}},
+    # The Codex serving catalog (v0.23.1 moved Copilot, the other catalog writer, out of core).
+    record_control_catalog("openai-codex", [
+        {"slug": "unknown"},
+        {"slug": "unsupported", "supported_reasoning_levels": []},
+        {"slug": "new-terms", "supported_reasoning_levels": ["turbo"]},
+        {"slug": "known", "supported_reasoning_levels": ["high", "low"]},
     ])
-    assert reasoning_capabilities("copilot", "unknown").wire()["state"] == "unknown"
-    negative = reasoning_capabilities("copilot", "unsupported", default_effort="medium")
+    assert reasoning_capabilities("openai-codex", "unknown").wire()["state"] == "unknown"
+    negative = reasoning_capabilities("openai-codex", "unsupported", default_effort="medium")
     assert negative.wire()["state"] == "unsupported" and negative.default_effort is None
-    novel = reasoning_capabilities("copilot", "new-terms")
+    novel = reasoning_capabilities("openai-codex", "new-terms")
     assert novel.wire()["state"] == "supported"
     assert novel.levels == () and novel.unrecognised_levels == ("turbo",)
-    assert reasoning_capabilities("copilot", "known").levels == ("low", "high")
+    assert reasoning_capabilities("openai-codex", "known").levels == ("low", "high")
     assert reasoning_capabilities("openai-codex", "unlisted-future-model").wire()["state"] == "unknown"
 
 
@@ -68,7 +69,7 @@ def test_cache_inspection_is_read_only_isolated_and_expires(monkeypatch, tmp_pat
     from hermes_cli import models_reasoning_caps as cache
     from hermes_constants import get_hermes_home
     original_home = get_hermes_home()
-    record_control_catalog("copilot", [{"id": "shared", "capabilities": {"supports": {"reasoning_effort": ["high"]}}}])
+    record_control_catalog("openai-codex", [{"slug": "shared", "supported_reasoning_levels": ["high"]}])
     disk = cache._reasoning_caps_disk_path()
     before = disk.read_bytes()
     def forbidden(*args, **kwargs):
@@ -77,17 +78,26 @@ def test_cache_inspection_is_read_only_isolated_and_expires(monkeypatch, tmp_pat
     monkeypatch.setattr(cache, "_warm_reasoning_caps_async", forbidden)
     monkeypatch.setattr(cache, "_save_reasoning_caps_disk", forbidden)
     monkeypatch.setattr("hermes_cli.runtime_provider.resolve_runtime_provider", forbidden)
-    assert reasoning_capabilities("copilot", "shared").levels == ("high",)
+    assert reasoning_capabilities("openai-codex", "shared").levels == ("high",)
     assert disk.read_bytes() == before
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "other"))
-    assert cached_control_capabilities("copilot", "shared") is None
+    assert cached_control_capabilities("openai-codex", "shared") is None
     monkeypatch.setenv("HERMES_HOME", str(original_home))
-    monkeypatch.setenv("GH_TOKEN", "different-account")
-    assert cached_control_capabilities("copilot", "shared") is None
-    monkeypatch.delenv("GH_TOKEN")
+    assert cached_control_capabilities("openai-codex", "shared") is not None  # positive control
+    # A different signed-in account: the profile's auth store changes (Codex declares no env key).
+    from hermes_cli.auth import _auth_file_path
+    auth_file = _auth_file_path()
+    held = auth_file.read_bytes() if auth_file.exists() else None
+    auth_file.parent.mkdir(parents=True, exist_ok=True)
+    auth_file.write_text('{"providers": {"openai-codex": {"tokens": {"access_token": "other"}}}}', encoding="utf-8")
+    assert cached_control_capabilities("openai-codex", "shared") is None
+    if held is None:
+        auth_file.unlink()
+    else:
+        auth_file.write_bytes(held)
     clock = cache.time.time()
     monkeypatch.setattr(cache.time, "time", lambda: clock + cache._REASONING_CAPS_DISK_TTL_SECONDS + 1)
-    assert cached_control_capabilities("copilot", "shared") is None
+    assert cached_control_capabilities("openai-codex", "shared") is None
 
 
 def test_router_catalog_mandatory_and_missing_level_list():
