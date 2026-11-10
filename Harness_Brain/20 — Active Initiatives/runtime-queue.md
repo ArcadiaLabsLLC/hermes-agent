@@ -1243,3 +1243,4 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-09 (Eternia lane w1109a-lens3)
 
+- **`RT-FLAKE-UPDATE-EXISTING-MAIN-SWITCH-HANDOFF` — The update command's hand-off after switching to an existing main passes even on a busy box** · group: upstream-load-flakes · `tests/hermes_cli/test_update_existing_branch_baseline.py::test_command_hands_off_after_existing_main_switch` · found 2026-11-10 by w1110d-hm2: red once in a prepush `touched` run at load 31 beside an unrelated change; not reproduced alone · DEFERRED 2026-11-10: a load-only red joins the deferred upstream-load-flakes batch; reproduce on a quiet box first
