@@ -29,14 +29,15 @@ def test_tool_diff_prints_the_split(bound_profile_home, capsys):
     assert surface["contract_source"] == "chat_lane_bundle", surface.get("unavailable")
     assert counts["eager"] > 0 and counts["eager"] == visibility["eager_tool_count"]
     assert visibility["deferred_tool_count"] == counts["deferred"]
+    # 44 -> 34: upstream v0.23.1 deleted the ten browser_* action tools (68500d9ff9).
     # 41 -> 44: RT-COURSE-PERSONA-TOOLS (``0c4361389d``) added the ``course`` toolset's three tools;
     # the declaration twin followed then, this pin did not (RT-LINUX-REDS-SEVEN-TESTS).
-    assert visibility["final_tool_count"] == 44, "R1: the callable-by-name count keeps its meaning"
+    assert visibility["final_tool_count"] == 34, "R1: the callable-by-name count keeps its meaning"
 
     assert _tool_diff("dev") == 0
     out = capsys.readouterr().out
     head = (f"dev: {counts['eager']} eager · {counts['deferred']} deferred · "
-            f"{counts['unavailable']} unavailable · {counts['blocked']} blocked (44 callable by name)")
+            f"{counts['unavailable']} unavailable · {counts['blocked']} blocked (34 callable by name)")
     assert head in out, out
     # Each non-eager group names the rule that moved it.
     for state in ("deferred", "unavailable"):
