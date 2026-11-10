@@ -37,11 +37,16 @@ COMMANDS = frozenset({"send", "stop", "end", "invite", "remove", "answer", "retr
 class RunStore:
     def __init__(self, definitions: DefinitionStore) -> None:
         self.definitions, self.db_path = definitions, definitions.db_path
+        self._definitions_ready = False
 
     def connect(self) -> sqlite3.Connection:
-        # The definition schema and run schema use separate version authorities.
-        with closing(self.definitions._connect()):
-            pass
+        # The definition schema and run schema use separate version authorities; run queries join the
+        # definition tables, so their schema is brought up first — once per store, not per op (a room
+        # turn opened state.db ~10 extra times for it, FH-PREPUSH-TOUCHED-NAMED-HEAVY-OVER-BUDGET).
+        if not self._definitions_ready:
+            with closing(self.definitions._connect()):
+                pass
+            self._definitions_ready = True
         return connect(self.db_path, db_label="native-discussions", ready=run_schema_ready, initialize=initialize_runs, lock_retries=4)
 
     def keep_wal(self) -> sqlite3.Connection:

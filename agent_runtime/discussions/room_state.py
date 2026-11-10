@@ -92,12 +92,14 @@ class RoomState:
         # Only CURRENT task generations count. Earlier generations stay as audit
         # rows after an explicitly approved retry; they cannot lock a new run.
         execution = self.executions.for_run(self.runs.get(run_id))
+        attempts = None
         for task in driver.list_tasks(self.db_path, room_id=run_id):
             if member_id is not None and task["payload"]["target_member_id"] != member_id:
                 continue
             if task["status"] in _LIVE_TASKS:
                 return True
-            if execution.unresolved(execution.row(run_id, task)):
+            attempts = execution.attempt_rows(run_id) if attempts is None else attempts
+            if execution.unresolved(execution.row(run_id, task, attempts)):
                 return True
         return False
 
@@ -200,8 +202,9 @@ class RoomState:
         run = self.runs.get(run_id)
         limits = self.limits(run)
         execution = self.executions.for_run(run)
+        attempts = execution.attempt_rows(run_id)
         for task in driver.list_tasks(self.db_path, room_id=run_id):
-            row = execution.row(run_id, task)
+            row = execution.row(run_id, task, attempts)
             tasks.append({"task_id": task["identity"].task_id, "member_id": task["payload"]["target_member_id"],
                 "round_index": policy.task_round_index(task["identity"], limits=limits),
                 "source_event_seq": task["payload"]["source_event_seq"],

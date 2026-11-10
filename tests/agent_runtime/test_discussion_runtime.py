@@ -187,6 +187,29 @@ def test_twelve_same_profile_instances_run_distinct_sessions_and_end_retains_his
     assert len({a.session_id for a in ctx.calls}) == 24
 
 
+def test_a_room_view_reads_every_attempt_on_one_connection(engine, monkeypatch):
+    # A view and an unresolved-check walk every task of the room; each task read its attempt and recovery
+    # read it again, so a twelve-member view opened the attempt file 24 times, and run reads re-opened the
+    # definition schema each op (FH-PREPUSH-TOUCHED-NAMED-HEAVY-OVER-BUDGET: the twelve-member test 37 -> 24 s).
+    service, _ctx = engine
+    run = begin(service, 3)
+    wait_until(lambda: settled(service, run))
+    opens = {"attempts": 0, "definitions": 0}
+    attempt_connect, definition_connect = service.attempts.connect, service.definitions._connect
+    def counted(name, real):
+        def connect():
+            opens[name] += 1
+            return real()
+        return connect
+    monkeypatch.setattr(service.attempts, "connect", counted("attempts", attempt_connect))
+    monkeypatch.setattr(service.definitions, "_connect", counted("definitions", definition_connect))
+    view = service.view("ws", run["run_id"])
+    assert len(view["tasks"]) == 3 and all(t["attempt_stage"] == "terminal" for t in view["tasks"])
+    assert opens == {"attempts": 1, "definitions": 0}
+    assert service.state.unresolved(run["run_id"]) is False
+    assert opens == {"attempts": 2, "definitions": 0}
+
+
 def test_start_replay_and_busy_edit_are_transactional(engine):
     service, ctx = engine
     run = begin(service)
