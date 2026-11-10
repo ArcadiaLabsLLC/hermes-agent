@@ -5,8 +5,15 @@ a slow file across ``k`` processes (fast-gate plan §3). A test belongs to shard
 ``crc32(nodeid) % k``: a stable hash of the NODE ID, never a precomputed list,
 so a new test lands in exactly one shard, parametrised ids split across
 shards, and module/class fixtures run once per shard (the cost that bounds k).
-The other shards' items are deselected through ``pytest_deselected``; a shard
-left with nothing exits 5, which the per-file runner reads as a pass.
+The other shards' items are deselected through ``pytest_deselected``.
+
+A shard the hash leaves EMPTY (a few tests over k shards: 5 tests over 4 left
+shard 1 with none) keeps ONE other shard's item, marked skip, instead of
+exiting 5. Exit 5 alone is a per-file pass, but a run that is just that shard
+(``scripts/prepush.sh`` starts each shard as its own runner) collected nothing,
+and the runner's nothing-ran guard reds it: "NO TESTS RAN — 0 collected" over a
+green file (FH-PREPUSH-NAMED-FILE-NO-TESTS-RAN). The skip is reported with its
+reason and never sets up a fixture.
 
 Generic on purpose (no fork paths), like ``hermes_bundle_report``.
 """
@@ -60,6 +67,13 @@ def pytest_collection_modifyitems(session, config, items):
     i, k = shard
     keep = [item for item in items if shard_of(item.nodeid, k) == i]
     drop = [item for item in items if shard_of(item.nodeid, k) != i]
+    if not keep and drop:
+        placeholder = drop.pop(0)
+        placeholder.add_marker(pytest.mark.skip(
+            reason=f"{_OPTION}={i}/{k} holds none of these {len(items)} tests; "
+                   f"this one runs in shard {shard_of(placeholder.nodeid, k)}/{k}"
+        ))
+        keep = [placeholder]
     if drop:
         config.hook.pytest_deselected(items=drop)
         items[:] = keep

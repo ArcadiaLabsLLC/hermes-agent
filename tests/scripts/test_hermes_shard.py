@@ -58,3 +58,37 @@ def test_a_bad_shard_spec_is_a_usage_error(twelve):
     rc, nodes = _collect(twelve, "--hermes-shard=3/3")
 
     assert rc == 4 and nodes == []
+
+
+def _run(root: Path, *extra: str) -> subprocess.CompletedProcess:
+    env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}
+    env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+    env["PYTHONPATH"] = os.pathsep.join([str(_PLUGIN_DIR), env.get("PYTHONPATH", "")])
+    return subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-rs", "-p", "no:cacheprovider", "-p", "hermes_shard",
+         *extra, "test_twelve.py"],
+        cwd=root, env=env, capture_output=True, text=True, encoding="utf-8", timeout=120, check=False,
+    )
+
+
+@pytest.mark.timeout(120)
+def test_a_shard_the_hash_leaves_empty_reports_one_skipped_placeholder_not_exit_5(tmp_path):
+    """FH-PREPUSH-NAMED-FILE-NO-TESTS-RAN: prepush runs each shard as its own runner, and a shard
+    holding none of a small file's tests exited 5 -> the runner's "NO TESTS RAN" guard redded a green
+    file. Mutation: drop the placeholder arm -> the empty shard exits 5 with nothing collected, red."""
+    import zlib
+
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    names = [f"test_n{n}" for n in range(40)]
+    # Two tests whose node ids land in one shard of 3: the other two shards hold none.
+    home = zlib.crc32(f"test_twelve.py::{names[0]}".encode()) % 3
+    pair = [name for name in names if zlib.crc32(f"test_twelve.py::{name}".encode()) % 3 == home][:2]
+    (tmp_path / "test_twelve.py").write_text(
+        "".join(f"def {name}():\n    pass\n" for name in pair), encoding="utf-8")
+    empty = next(i for i in range(3) if i != home)
+
+    proc = _run(tmp_path, f"--hermes-shard={empty}/3")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "1 skipped, 1 deselected" in proc.stdout and f"runs in shard {home}/3" in proc.stdout
+    held = _run(tmp_path, f"--hermes-shard={home}/3")
+    assert held.returncode == 0 and "2 passed" in held.stdout, held.stdout
