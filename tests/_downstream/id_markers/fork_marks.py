@@ -315,6 +315,11 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # ~50 the two files took 100 s and 94 s whole, so each bound is ~5x its longest alone item.
     "tests/e2e/core/kanban/test_kanban_rate_limit_review.py": (pytest.mark.timeout(180),),
     "tests/e2e/core/tenancy/test_routing_truth_table.py": (pytest.mark.timeout(240),),
+    # Upstream's safe-mode contract starts a real gateway daemon, runs an in-process turn, then two
+    # real `hermes chat` CLIs on a PTY against a loopback model; its own waits are 60 s and 90 s.
+    # No hang: 54.9 s alone at load ~24 on this 52-core box (FH-MAIN-RED-SAFE-MODE-TIMEOUT, lane
+    # w1110d-foot, 2026-11-10), so the bound is ~4x that.
+    "tests/hermes_cli/test_safe_mode.py": (pytest.mark.timeout(240),),
     # The fork runs the whole tree under --timeout=30; these PowerShell
     # harnesses carry their own child budgets above that.
     "tests/scripts/desktop_update/test_desktop_update_windows_cwd.py": (pytest.mark.timeout(75),),
