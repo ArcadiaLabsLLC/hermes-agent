@@ -64,6 +64,9 @@ class BatchEvent(StrEnum):
     LANDING_GREEN = "landing_green"
     LANDING_RED = "landing_red"
     APPROVE = "approve"
+    #: Approve refused because the default branch moved: back to READY_TO_LAND, freeing the machine's one
+    #: landing slot, so the operator lands again (RT-WORK-STALE-APPROVAL-HOLDS-LANDING).
+    APPROVE_CONTENDED = "approve_contended"
     ABORT = "abort"
 
 
@@ -92,6 +95,7 @@ BATCH_MOVES: dict[tuple[BatchState, BatchEvent], BatchState] = {
     (BatchState.LANDING, BatchEvent.LANDING_GREEN): BatchState.AWAITING_APPROVAL,
     (BatchState.LANDING, BatchEvent.LANDING_RED): BatchState.READY_TO_LAND,
     (BatchState.AWAITING_APPROVAL, BatchEvent.APPROVE): BatchState.LANDED,
+    (BatchState.AWAITING_APPROVAL, BatchEvent.APPROVE_CONTENDED): BatchState.READY_TO_LAND,
     **{(state, BatchEvent.ABORT): BatchState.ABORTED for state in _ABORTABLE},
 }
 
@@ -137,6 +141,9 @@ class BatchAction(StrEnum):
     STOP = "stop"
     LAND = "land"
     APPROVE = "approve"
+    #: Approve refused because the default branch moved: back to READY_TO_LAND, freeing the machine's one
+    #: landing slot, so the operator lands again (RT-WORK-STALE-APPROVAL-HOLDS-LANDING).
+    APPROVE_CONTENDED = "approve_contended"
 
 
 #: What a scheduler fire may do at each ``batch_automation`` level; land and approve appear at none.
