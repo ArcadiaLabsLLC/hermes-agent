@@ -438,3 +438,40 @@ def test_a_namespace_top_two_distributions_share_resolves_by_its_dotted_import(t
 
     assert plan("uses_ident") == {"nsx-ident", "nsx-core"}
     assert plan("uses_core") == {"nsx-core"}  # positive control
+
+
+def test_a_graph_reads_each_distributions_requirements_once_across_walks(monkeypatch):
+    """FORK-BUNDLE-PROFILES-SDK-PACK-TEST-HANGS: the provider-pack check walks one graph four
+    times; re-reading every distribution's requirements per walk made it a CPU-bound test that
+    ran past the 30 s timeout on a starved core. Each name is read once per graph, the RECORD
+    scan (``packages_distributions``) waits for its first use, and uv.lock is parsed once per
+    file version."""
+    import importlib.metadata as md
+
+    from scripts import bundle_profile_closure as closure_script
+
+    lock = {"fakeroot": {"dependencies": [{"name": "fakeleaf"}]}, "fakeleaf": {}}
+    graph = Graph(lock)
+    reads = []
+    real = Graph._requires
+    monkeypatch.setattr(Graph, "_requires", lambda self, name: reads.append(name) or real(self, name))
+    first = graph.closure({"fakeroot"})
+    assert graph.closure({"fakeroot"}) == first == {"fakeroot", "fakeleaf"}
+    assert sorted(reads) == ["fakeleaf", "fakeroot"]
+    graph.requires("fakeroot").append("mutated")  # a caller's list is its own
+    assert graph.requires("fakeroot") == ["fakeleaf"]
+
+    scans = []
+    monkeypatch.setattr(md, "packages_distributions", lambda: scans.append(1) or {"fakeleaf": ["fakeleaf"]})
+    lazy = Graph(lock)
+    lazy.closure({"fakeroot"})
+    assert scans == []
+    assert lazy.dist_for_top("fakeleaf") == "fakeleaf" and scans == [1]
+
+    parses = []
+    real_loads = closure_script.tomllib.loads
+    monkeypatch.setattr(closure_script.tomllib, "loads", lambda text: parses.append(1) or real_loads(text))
+    closure_script._parsed_lock.cache_clear()
+    one, two = closure_script._lock(), closure_script._lock()
+    assert one == two and one is not two
+    assert parses == [1]
