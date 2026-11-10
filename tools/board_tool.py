@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 BOARD_CARD_ADD_SCHEMA = {
     "name": "board_card_add",
     "description": (
-        "Add a planning CARD to the workspace Mission Board (Queued column, attributed to you) for follow-up work worth remembering. Advisory. A card is planning state only and never starts tracked work."
+        "Add a planning CARD to the workspace Mission Board. It lands in the Queued column, attributed to you, for follow-up work worth remembering. Advisory. A card is planning state only and never starts tracked work."
     ),
     "parameters": {
         "type": "object",
