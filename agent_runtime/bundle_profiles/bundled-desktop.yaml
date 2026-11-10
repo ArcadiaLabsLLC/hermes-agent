@@ -31,7 +31,6 @@ toolsets:
     # Messaging platform tools — off in bundled.
     - discord
     - discord_admin
-    - yuanbao
     - feishu_doc
     - feishu_drive
 
@@ -185,7 +184,6 @@ packaging:
     - tools.discord_tool
     - tools.feishu_doc_tool
     - tools.feishu_drive_tool
-    - tools.yuanbao_tools
     # Hermes's own mic/speaker features (matrix: "—" on bundled desktop).
     - tools.voice_mode
     - tools.voice_live

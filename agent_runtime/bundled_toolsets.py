@@ -38,7 +38,7 @@ RECORD_PARTS = ("approvals", "toolsets.json")
 PHONE_PLATFORMS = frozenset({"android", "ios"})
 #: Messaging-platform toolsets: their tools need a platform adapter, and a profile whose config sets
 #: ``gateway.platform_adapters: false`` starts none, so an opt-in would enable tools with no platform.
-PLATFORM_TOOLSETS = frozenset({"discord", "discord_admin", "yuanbao", "feishu_doc", "feishu_drive"})
+PLATFORM_TOOLSETS = frozenset({"discord", "discord_admin", "feishu_doc", "feishu_drive"})
 REASON_MAX = 240
 
 
