@@ -517,7 +517,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-10-10 (queue sweep lane-1010, filed by the orchestrator)
 
-- **`FORK-HERMETIC-DEFAULT-DB-PATH` — The hermetic `DEFAULT_DB_PATH` pin depends on import order: `tests/conftest.py` pins it only if `hermes_state` is already imported, so profile-scoped store tests pass alone and red after any importer** · group: hermes-test-isolation · fork / suite · `queue-sweep-2026-10-10/L7-outcomes.md` L7.01 · lane: suite · upstream-owned on both sides (`tests/conftest.py` step 3b, `tests/gateway/test_multiplex_routing_authz.py`), so the answer is an upstream issue/PR · RULED 2026-10-15 (owner, decision sheet w1015i #2): post the upstream ones together in one sitting · DEFERRED 2026-11-09: owner triage — Test isolation quirk; known failures already worked around; until the owner reopens it
 
 ## Filed on arrival — 2026-10-10 (fork-fixable sweep lane-1011, filed by the orchestrator)
 
