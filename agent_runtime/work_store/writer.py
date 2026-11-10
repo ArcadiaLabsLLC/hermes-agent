@@ -76,6 +76,14 @@ _INDEX_LOCKED = re.compile(r"Unable to create '([^']*index\.lock)': File exists"
 STALE_LOCK_SECONDS = 300
 #: The worktrees this thread already holds the writer admission of (reentrancy across Writer instances).
 _ADMITTED = threading.local()
+#: A note's last commit time at a tip never changes, so it is remembered per worktree: ``worktree -> (tip sha,
+#: {note: commit time})``. A list at an unmoved tip asks git one ``rev-parse``; a tip that moved fast-forward by
+#: plain commits is advanced from one ``log`` of the new commits (RT-WORK-LIST-SYNC-SERIAL-BOARDS: the per-note
+#: ``git log`` was ~half of a 960-row, four-board list).
+_COMMITTED_AT: dict[str, tuple[str, dict[str, int | None]]] = {}
+_COMMITTED_AT_LOCK = threading.Lock()
+#: Past this many new commits the remembered times are dropped and read again note by note.
+ADVANCE_LIMIT = 400
 
 
 @dataclass(frozen=True)
@@ -126,7 +134,11 @@ def checkout_token(clone: Path, *, run: GitRun | None = None) -> str:
 
     if run is None:
         from ..git_cmd import run_git as run
-    return hashlib.sha256(_common_dir(clone, run).encode("utf-8")).hexdigest()[:12]
+    return _token(_common_dir(clone, run))
+
+
+def _token(common_dir: str) -> str:
+    return hashlib.sha256(common_dir.encode("utf-8")).hexdigest()[:12]
 
 
 def remove_worktree(worktree: Path, *, repo: Path | None) -> None:
@@ -239,6 +251,10 @@ class Writer:
         self._now = now or (lambda: datetime.now(UTC))
         self._budget = replay_budget
         self._tip_sha: str | None = None
+        #: The clone's git common dir, read once per Writer (the worktree token and the worktree check share it).
+        self._clone_common: str | None = None
+        #: The tip's commit as the commit-time reads resolved it; forgotten by ``sync`` and ``_push``.
+        self._read_tip: str | None = None
 
     # ── the git door ─────────────────────────────────────────────────────
 
@@ -344,17 +360,26 @@ class Writer:
         if clone is None or not (clone / ".git").exists():
             raise WorkRefused(Reason.SLOT_UNBOUND, self.board.slot)
         if self._worktree is None:
-            self._worktree = work_worktree_for(self.board.workspace_id, self.board.slot,
-                                               checkout_token(clone, run=self._run))
+            self._clone_common = _common_dir(clone, self._run)
+            self._worktree = work_worktree_for(self.board.workspace_id, self.board.slot, _token(self._clone_common))
         return clone
+
+    @property
+    def checkout_key(self) -> str:
+        """The clone's checkout token: two boards with one key share a git repository (and its fetch)."""
+
+        return self.worktree.name.rsplit("-", 1)[-1]
 
     def _common_dir(self, repo: Path) -> str:
         return _common_dir(repo, self._run)
 
     def _ensure_worktree(self, clone: Path) -> None:
-        self._git(["worktree", "prune"], repo=clone)
-        if (self.worktree / ".git").exists() and self._common_dir(self.worktree) == self._common_dir(clone):
+        # A worktree already of this checkout is used as it is: ``worktree prune`` only matters when one is
+        # (re)added, so a list no longer pays it per board (RT-WORK-LIST-SYNC-SERIAL-BOARDS).
+        clone_common = self._clone_common or self._common_dir(clone)
+        if (self.worktree / ".git").exists() and self._common_dir(self.worktree) == clone_common:
             return
+        self._git(["worktree", "prune"], repo=clone)
         if self.worktree.exists():
             # Keyed by its checkout, the directory can only be stale: git no longer reads it as a worktree
             # of this checkout (the checkout was deleted or re-cloned in place).
@@ -474,9 +499,15 @@ class Writer:
             finally:
                 held.discard(key)
 
+    def held_here(self) -> bool:
+        """True when this thread already holds this worktree's writer admission (another thread would wait)."""
+
+        return str(self.worktree) in (getattr(_ADMITTED, "keys", None) or set())
+
     def sync(self, *, stale_ok: bool = False) -> Path:
         """Steps 0–3: the worktree at the tip; ``stale`` is set when a tolerated fetch failed."""
 
+        self._read_tip = None
         with self.admitted():
             clone = self._clone()
             self._ensure_worktree(clone)
@@ -631,6 +662,7 @@ class Writer:
     def _push(self, commit: str) -> bool:
         """True when the commit is the tip now; False on a non-fast-forward (the caller replays)."""
 
+        self._read_tip = None
         if self.board.local:
             # Through the worktree that has the branch checked out, never under it (``checked_out``).
             return advance(self._git, self.worktree, self.board.default_branch, commit, self._tip_sha or "")
@@ -743,6 +775,68 @@ class Writer:
         return {"commit": lines[0], "at": int(lines[1]), "subject": lines[2], "body": "\n".join(lines[3:]).strip()}
 
     def note_committed_at(self, note: str) -> int | None:
-        done = self._git(["log", "-n", "1", "--format=%ct", self.tip, "--", note], repo=self.worktree)
+        """The commit time of the last commit at the tip that changed ``note`` (a file or a folder).
+
+        Remembered per worktree and tip (:data:`_COMMITTED_AT`): the answer is the same ``git log -n 1``
+        a cold read runs, whichever of the three paths gave it."""
+
+        tip = self._tip_commit()
+        if tip is None:
+            return self._log_committed_at(note)
+        key = str(self.worktree)
+        with _COMMITTED_AT_LOCK:
+            seen_tip, times = _COMMITTED_AT.get(key, (tip, {}))
+            times = dict(times)
+        if seen_tip != tip:
+            times = self._advanced(seen_tip, tip, times) or {}
+        if note not in times:
+            times[note] = self._log_committed_at(note, tip)
+        with _COMMITTED_AT_LOCK:
+            _COMMITTED_AT[key] = (tip, times)
+        return times[note]
+
+    def _tip_commit(self) -> str | None:
+        if self._read_tip is None:
+            done = self._git(["rev-parse", "-q", "--verify", f"{self.tip}^{{commit}}"], repo=self.worktree)
+            self._read_tip = str(done.stdout or "").strip() if done.returncode == 0 else ""
+        return self._read_tip or None
+
+    def _log_committed_at(self, note: str, tip: str | None = None) -> int | None:
+        done = self._git(["log", "-n", "1", "--format=%ct", tip or self.tip, "--", note], repo=self.worktree)
         value = str(done.stdout or "").strip() if done.returncode == 0 else ""
         return int(value) if value.isdigit() else None
+
+    def _advanced(self, old: str, new: str, times: dict[str, int | None]) -> dict[str, int | None] | None:
+        """``times`` (read at ``old``) as they read at ``new``, or None when that cannot be said exactly.
+
+        Exact only when ``new`` descends from ``old`` through at most :data:`ADVANCE_LIMIT` commits none of
+        which is a merge: then ``git log -n 1 new -- P`` is the newest of those commits that touched P, or
+        else the answer at ``old``. Renames are listed as a delete and an add (``--no-renames``), as the
+        path-limited log sees them; a quoted path (a name git will not print plain) gives up."""
+
+        if self._git(["merge-base", "--is-ancestor", old, new], repo=self.worktree).returncode != 0:
+            return None
+        done = self._git(["log", "--no-renames", "--name-only", "--format=%x00%P%x00%ct", "-n",
+                          str(ADVANCE_LIMIT + 1), f"{old}..{new}"], repo=self.worktree, config=("core.quotePath=false",))
+        if done.returncode != 0:
+            return None
+        out = dict(times)
+        left = set(times)
+        commits = 0
+        ct: int | None = None
+        for line in str(done.stdout or "").split("\n"):
+            if line.startswith("\0"):
+                _, parents, stamp = line.split("\0")
+                commits += 1
+                if commits > ADVANCE_LIMIT or len(parents.split()) > 1 or not stamp.isdigit():
+                    return None
+                ct = int(stamp)
+                continue
+            if not line:
+                continue
+            if line.startswith('"'):
+                return None
+            for note in [n for n in left if line == n or line.startswith(n.rstrip("/") + "/")]:
+                out[note] = ct
+                left.discard(note)
+        return out

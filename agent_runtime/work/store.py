@@ -12,6 +12,7 @@ its rows into the first repo brain); a slot-less ``start`` still lands in a repo
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -83,20 +84,68 @@ def worktree_brain(board: Board) -> Board:
     return board if found is None else replace(board, read_root=worktree, brain_dir=found)
 
 
+#: At most this many boards sync at once (each sync is a handful of short git processes and one fetch).
+SYNC_WORKERS = 8
+
+
 def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None) -> Synced:
+    """Every bound board's worktree synced to its tip (``Writer.sync``), the boards read from them.
+
+    The boards sync AT ONCE (RT-WORK-LIST-SYNC-SERIAL-BOARDS: one after another, four boards' fetches and
+    resets were most of a 960-row list): one thread per git repository, so boards sharing a checkout's
+    repository still sync one after another (one fetch of its refs at a time), and a board whose writer
+    admission this thread already holds syncs here, reentrantly, never in a thread that would wait on it.
+    Every board still syncs on every call: what the list returns and how fresh it is are unchanged.
+    """
+
     writers: dict[str, Writer] = {}
     refused: dict[str, WorkRefused] = {}
+    order: list[str] = []
+    groups: dict[str, list[tuple[str, Writer]]] = {}
+    inline: list[tuple[str, Writer]] = []
     for board in map(worktree_brain, boards_store.boards(workspace_id)):
         if board.bound_here and board.brain_dir and slot in (None, board.slot):
             writer = writer_for(board)
+            order.append(board.key)
+            try:
+                key = writer.checkout_key
+            except WorkRefused as refusal:
+                refused[board.key] = refusal
+                continue
+            if writer.held_here():
+                inline.append((board.key, writer))
+            else:
+                groups.setdefault(key, []).append((board.key, writer))
+
+    def run(group: list[tuple[str, Writer]]) -> dict[str, WorkRefused | None]:
+        answers: dict[str, WorkRefused | None] = {}
+        for board_key, writer in group:
             try:
                 writer.sync(stale_ok=stale_ok)
+                answers[board_key] = None
             except WorkRefused as refusal:
                 # One board's refusal is that board's answer, never the whole read's
                 # (RT-WORK-LIST-ONE-BOARD-REFUSAL): every other board still syncs and lists.
-                refused[board.key] = refusal
-                continue
-            writers[board.key] = writer
+                answers[board_key] = refusal
+        return answers
+
+    answers = run(inline)
+    batches = list(groups.values())
+    if len(batches) == 1:
+        answers.update(run(batches[0]))
+    elif batches:
+        with ThreadPoolExecutor(max_workers=min(SYNC_WORKERS, len(batches)),
+                                thread_name_prefix="work-sync") as pool:
+            for done in [pool.submit(run, batch) for batch in batches]:
+                answers.update(done.result())
+    every = {board_key: writer for board_key, writer in [*inline, *(pair for batch in batches for pair in batch)]}
+    for board_key in order:
+        if board_key in refused:
+            continue
+        if answers[board_key] is not None:
+            refused[board_key] = answers[board_key]
+        else:
+            writers[board_key] = every[board_key]
     roots = {key: writer.worktree for key, writer in writers.items()}
     return Synced(boards_store.boards(workspace_id, read_roots=roots), writers,
                   any(writer.stale for writer in writers.values()), refused)
