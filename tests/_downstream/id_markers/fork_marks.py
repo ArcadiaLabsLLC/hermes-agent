@@ -371,6 +371,22 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_resync_keeps_in_memory_consent_and_never_disarms_on_bad_input",
         )
     },
+    # Upstream v0.23.1's conversation_id probe reads its event list off the FIRST pre_tool_call
+    # hook, which is the bundled eternia-harness refuse_tool_call; the fork half re-runs the same
+    # test bodies on a fixture that takes the probe plugin's own hook.
+    **{
+        f"tests/agent/test_plugin_conversation_id.py::{name}": (
+            _fork_replaces(
+                "eternia-harness pre_tool_call hook refuse_tool_call (plugins/eternia-harness)",
+                "tests/agent/test_plugin_conversation_id_downstream.py",
+            ),
+        )
+        for name in (
+            "test_conversation_id_survives_compression_rotation[sequential-cli]",
+            "test_conversation_id_survives_compression_rotation[concurrent-tool]",
+            "test_delegated_child_reports_its_delegators_conversation",
+        )
+    },
     # The same refuse_tool_call registration reaches session.create's launch-hook consent:
     # upstream counts exactly one pre_tool_call hook (row FH-SESSION-POLICY-HOOK-COUNT-RED).
     "tests/gateway/test_session_policy.py::"
