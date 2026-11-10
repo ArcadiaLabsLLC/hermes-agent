@@ -615,7 +615,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-10-18 (lane h1-setup)
 
 ## Filed on arrival — 2026-10-18 (lane h2-sleep)
-- **`FORK-TEST-UPSTREAM-FIXED-WAITS` — The largest suite sleeps left are upstream constants a test cannot shorten: `tools/terminal_tool.py::_run_foreground` retries any backend exception at 2+4+8 s (the five `_LIFECYCLE_SCAN` strict-xfail rows in `test_gateway_restart_loop.py` reach the test double's `execute` on Windows, so each pays 14 s: 70 s per run), `hermes_cli/local_runtime/supervisor.py::unload_model`'s 15 s / 0.3 s poll (44 s in `test_local_runtime.py`), `cron/scheduler.py::_launch_external_cron_worker` (18 s in `test_restart_safe_worker_death_evidence.py`) and `hermes_state._sleep_before_write_retry` (15 s in `test_compression_watermark_commit.py`)** · group: prepush · fork / suite (upstream code) · probe 2026-10-18 lane h2-sleep (main-thread sleep per call site, top 44 files) · DEFERRED 2026-11-09: owner triage — Test speed only; upstream change needed; until the owner reopens it
 
 ## Filed on arrival — 2026-10-18 (lane h3-plugins)
 
