@@ -278,7 +278,6 @@ tests/tools/test_kanban_complete_parents_tool.py · unused: kanban (ADR 0015) ·
 tests/tools/test_kanban_persisted_identity.py · unused: kanban (ADR 0015) · e6899c8090
 tests/tools/test_kanban_redaction.py · unused: kanban (ADR 0015) · e6899c8090
 # unused: messaging platform adapters
-tests/gateway/platforms/test_yuanbao_state_cleanup.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/gateway/test_dingtalk.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/gateway/test_dingtalk_reconnect_circuit_breaker.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/gateway/test_discord_admission_thread_exemption.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
@@ -460,14 +459,6 @@ tests/gateway/test_whatsapp_reply_prefix.py · unused: messaging platform adapte
 tests/gateway/test_whatsapp_stale_bridge.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/gateway/test_whatsapp_text_batching.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/gateway/test_whatsapp_to_jid.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
-tests/gateway/test_yuanbao_forwarded_heartbeat.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
-tests/gateway/test_yuanbao_integration.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
-tests/gateway/test_yuanbao_markdown.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
-tests/gateway/test_yuanbao_media_ssrf.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
-tests/gateway/test_yuanbao_pipeline.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
-tests/gateway/test_yuanbao_proto.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
-tests/gateway/test_yuanbao_reconnect_set_active.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
-tests/gateway/test_yuanbao_shutdown.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/hermes_cli/test_dingtalk_auth.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/hermes_cli/test_telegram_managed_bot.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
 tests/hermes_cli/test_whatsapp_cloud_setup.py · unused: messaging platform adapters (ADR 0015) · e6899c8090
@@ -528,7 +519,6 @@ tests/ci/test_update_transitive_routing.py · unused: upstream updater and relea
 tests/cron/test_cron_relay_dm_origin_user_id.py · unused: gateway relay, tests only - code stays for cron (ADR 0015) · e6899c8090
 tests/cron/test_relay_fronted_delivery.py · unused: gateway relay, tests only - code stays for cron (ADR 0015) · e6899c8090
 tests/desktop/test_check_store_update.py · unused: desktop/Electron app and installers (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
-tests/gateway/platforms/test_yuanbao_recall_db_only.py · unused: messaging platform adapters (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/gateway/relay/test_auth.py · unused: gateway relay, tests only - code stays for cron (ADR 0015) · e6899c8090
 tests/gateway/relay/test_channel_context_consume.py · unused: gateway relay, tests only - code stays for cron (ADR 0015) · e6899c8090
 tests/gateway/relay/test_cold_opt_out.py · unused: gateway relay, tests only - code stays for cron (ADR 0015) · e6899c8090
@@ -720,7 +710,6 @@ tests/gateway/test_whatsapp_group_allowlist_env.py · unused: messaging platform
 tests/gateway/test_whatsapp_multiplex_secret_scope.py · unused: messaging platform adapters (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/gateway/test_ws_auth_retry.py · unused: messaging platform adapters (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/gateway/test_ws_auth_retry_verifier_probe.py · unused: messaging platform adapters (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
-tests/gateway/test_yuanbao_secret_scope.py · unused: messaging platform adapters (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/hermes_cli/test_anon_desktop_signin.py · unused: desktop/Electron app and installers (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/hermes_cli/test_banner_release_channel.py · unused: upstream updater and release tooling (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/hermes_cli/test_bundled_desktop_launch.py · unused: desktop/Electron app and installers (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
@@ -892,7 +881,6 @@ tests/scripts/desktop_update/test_desktop_update_windows_marker_ops.py · unused
 tests/scripts/desktop_update/test_posix_handoff_pid_export.py · unused: desktop/Electron app and installers (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/scripts/test_appinstaller.py · unused: upstream updater and release tooling (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/scripts/test_archive_inputs.py · unused: upstream updater and release tooling (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
-tests/scripts/test_bundle_npm.py · unused: desktop/Electron app and installers (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/scripts/test_bundle_payload.py · unused: upstream updater and release tooling (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/scripts/test_channel_build_versions.py · unused: upstream updater and release tooling (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
 tests/scripts/test_commit_bundle_entrypoints.py · unused: desktop/Electron app and installers (ADR 0015; agent-read 2026-10-17, catalogue) · e6899c8090
