@@ -1175,7 +1175,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Character completion qualification findings — 2026-10-31
 
-- **`RT-WRITING-COMMAND-HOME-SKELETON` — Qualify the writing-command positive control beside read-only session export** · group: hermes-test-isolation · `tests/hermes_cli/test_sessions_export_home_writes_downstream.py::test_positive_control_a_writing_command_still_builds_the_skeleton` · the character landing gate found SOUL.md absent after the writing command; preserve read-only export behavior and determine whether the producer or its positive-control expectation is stale · READY 2026-11-10 · RULED 2026-11-10: owner approved reopening it ("rest of the triage is good") · unblocked 2026-11-10: owner reopened it · REQUIRES windows · **TAKEN 2026-11-10 w1110d-hm2 on nekwo-ubuntu24 as nekwo in hm-w1109a-console**
 
 ## Filed on arrival — 2026-10-31 (lane w1031j-h-rt)
 
