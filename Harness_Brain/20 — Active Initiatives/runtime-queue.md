@@ -1180,7 +1180,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-10-30 (character migration validation)
 
-- **`RT-WINDOWS-SUPERVISION-FIXTURE-IDENTITY` — Triage the two launcher-supervision fixture identity failures on native Windows while retaining the real-process safety fence** · group: hermes-test-isolation · `tests/agent_runtime/test_launcher_relaunch.py::test_the_hang_kill_takes_the_launcher_and_spares_its_child` · `tests/agent_runtime/test_launcher_supervision_ops.py::test_only_the_connection_that_beat_can_drop_it` · both fail on isolated unmodified main `19e49b3c57` as well as the migration landing-gate run; the connection test records `launcher_identity_mismatch` instead of the expected drop; no character code runs in either owning seam · separate fixture identity from any actual supervisor defect; do not weaken live-system protection or change another lane's relaunch behavior · DEFERRED 2026-11-09: owner triage — Likely a test-setup issue; real safety fence stays intact; until the owner reopens it · REQUIRES windows
 
 
 ## Character completion qualification findings — 2026-10-31
