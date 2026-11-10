@@ -127,7 +127,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-10-29 (lane w1029c-h-a)
 
-- **`RT-MAIN-REDS-SQLITE-OPEN-FAMILY` — remainder after land/w1029c: the three `test_gateway_chat_commands_live` classic-view cases red with `FileNotFoundError: 'tmux'` — the Linux dev box has no `tmux` on PATH (the worker family, `test_browse_schema_drift` and `test_sessions_export_md_cli` were fixed at land/w1029c)** · group: hermes-test-isolation · `tests/hermes_cli/test_gateway_chat_commands_live.py` · RULED 2026-10-29: owner — "rest of recoomendations are good" — install `tmux` on nekwo-ubuntu24 · DEFERRED 2026-11-09: owner triage — Dev-machine setup only; no user impact; until the owner reopens it
 
 ### Filed on arrival — 2026-10-29 (landing w1029c-h-land)
 
