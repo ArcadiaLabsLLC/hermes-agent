@@ -160,3 +160,33 @@ def test_retry_proves_a_restart_only_by_a_new_live_process(monkeypatch):
     monkeypatch.setattr(update_restart_recovery, "_run_profile_restart", lambda profile, run: False)
     pids = iter([0, 0])
     assert truth.retry_gateway_restart("default") is truth.RetryOutcome.FAILED
+
+
+def test_a_failed_windows_resume_after_a_marked_restart_names_it(monkeypatch, capsys, owed_gateway):
+    """The live 2026-11-06 order: the fleet restart phase came back clean (stage marked ``success``),
+    THEN the Windows gateway resume failed; the update stays a success, the restart is not done.
+
+    Killing mutation (2026-11-10): delete the ``settle_owed_restart`` seam call in
+    ``_verify_fleet_after_update`` -> red (last ``restart`` mark ``success``, no summary)."""
+    import hermes_cli.main as main_mod
+
+    from hermes_cli.update_cmd_windows import _resume_windows_gateways_and_merge_outcome
+
+    calls = _retry(monkeypatch, truth.RetryOutcome.FAILED)
+    owed_gateway.incomplete = False
+    owed_gateway.phase_errors.clear()
+
+    def resume_fails(_token):
+        raise OSError("gateway exited during boot")
+
+    monkeypatch.setattr(main_mod, "_resume_windows_gateways_after_update", resume_fails)
+    token = {"resume_needed": True, "platform": "windows", "services": [], "relaunched_profiles": []}
+    _resume_windows_gateways_and_merge_outcome(owed_gateway, token, False)
+    receipt = _verify(owed_gateway)
+
+    assert calls == ["default"]
+    assert receipt["outcome"] == "success"
+    assert [m["outcome"] for m in _restart_marks(receipt)] == ["success", "failed"]
+    assert receipt["restart_summary"] == truth.NOT_RESTARTED
+    assert receipt["restart_recourse"] == "hermes gateway restart"
+    assert "Run: hermes gateway restart" in capsys.readouterr().out
