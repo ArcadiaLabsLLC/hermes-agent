@@ -80,8 +80,17 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "tests/acp_adapter/test_acp_dashboard_model_switch_validation.py": (_NEEDS_ACP,),
     "tests/acp_adapter/test_edit_approval.py::"
     "test_acp_permission_tool_call_uses_edit_kind_and_diff_content": (_NEEDS_ACP,),
-    "tests/acp_adapter/test_failed_turn_closure.py::"
-    "test_acp_refusal_closes_the_turn_and_is_not_replayed_into_the_next_prompt": (_NEEDS_ACP,),
+    # Upstream v0.23.1 (ab3afc0b89, ec24dd3556) split the one refusal test into these five.
+    **{
+        f"tests/acp_adapter/test_failed_turn_closure.py::{node}": (_NEEDS_ACP,)
+        for node in (
+            "test_acp_refusal_never_poisons_the_next_prompt",
+            "test_acp_refusal_is_erased_durably_and_survives_a_reload",
+            "test_acp_exception_shaped_refusal_is_also_erased",
+            "test_acp_refused_turn_stays_in_the_display_tagged_content_refused",
+            "test_acp_reload_replays_the_refused_ask_and_notice_to_the_editor",
+        )
+    },
 }
 
 
