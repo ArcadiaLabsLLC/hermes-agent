@@ -20,7 +20,10 @@ from work_store_support import ISSUED, LATER, bind_here, checkout, declare_slots
 
 
 def _git(root, *args) -> str:
-    return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, check=True).stdout
+    # git prints the notes' bytes (UTF-8 em dashes, middle dots); the locale codec (cp1252 on Windows
+    # without PYTHONUTF8) turned them into mojibake the row assertions never matched.
+    return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, encoding="utf-8",
+                          check=True).stdout
 
 
 def test_skeleton_writes_todo_and_queue_with_frontmatter(tmp_path):
