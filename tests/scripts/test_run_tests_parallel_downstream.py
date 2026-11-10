@@ -273,7 +273,7 @@ def test_an_untraced_run_spawns_exactly_what_it_always_did(monkeypatch) -> None:
     monkeypatch.delenv("HERMES_TEST_COVERAGE_RC", raising=False)
 
     probe = Path("tests/agent/test_x.py")
-    assert mod._fork_pytest_argv(probe, ["-q"]) == [
+    assert _spawned_argv(mod, probe, ["-q"]) == [
         *_job_prefix(), sys.executable, "-m", "pytest", str(probe), "-q",
     ]
 
@@ -290,7 +290,7 @@ def test_the_config_var_wraps_each_file_in_coverage_run(monkeypatch) -> None:
     monkeypatch.setenv("HERMES_TEST_COVERAGE_RC", "/tmp/rc")
 
     probe = Path("tests/agent/test_x.py")
-    assert mod._fork_pytest_argv(probe, ["-q"]) == [
+    assert _spawned_argv(mod, probe, ["-q"]) == [
         *_job_prefix(), sys.executable, "-m", "coverage", "run", "--rcfile=/tmp/rc",
         "-m", "pytest", str(probe), "-q",
     ]
@@ -300,6 +300,15 @@ def _job_prefix() -> list[str]:
     from scripts import _fork_runner
 
     return _fork_runner.job_prefix()
+
+
+def _spawned_argv(mod, file: Path, pytest_args: list[str]) -> list[str]:
+    """The argv the runner spawns for one file: since the v0.23.1 merge its one seam is
+    ``_fork_runner.start`` (bound as ``_fork_start``), which builds it with ``pytest_argv``."""
+    from scripts import _fork_runner
+
+    assert mod._fork_start is _fork_runner.start
+    return _fork_runner.pytest_argv(file, pytest_args)
 
 
 _ORPHANING_CHILD = '''
@@ -362,7 +371,7 @@ def test_a_blank_config_var_is_the_same_as_an_absent_one(monkeypatch) -> None:
     mod = _load_runner_module()
     monkeypatch.setenv("HERMES_TEST_COVERAGE_RC", "   ")
 
-    assert "coverage" not in mod._fork_pytest_argv(Path("tests/agent/test_x.py"), [])
+    assert "coverage" not in _spawned_argv(mod, Path("tests/agent/test_x.py"), [])
 
 
 def test_timeout_configuration_header_does_not_trigger_timeout_retry():
