@@ -79,6 +79,7 @@ def _run(repo: Path, *args: str, runner_code: int = 0, cite_code: int = 0, runne
     env = {
         **os.environ,
         "PREPUSH_RUNNER": str(_stub(repo.parent / "runner.sh", runner_code, log, runner_body)),
+        "PREPUSH_GATES_RUNNER": str(repo.parent / "runner.sh"),  # the gates step's own runner, same stub
         "PREPUSH_PYTHON": str(_stub(repo.parent / "cite.sh", cite_code, log)),
         "PREPUSH_NOTIFY": str(_stub(repo.parent / "notify.sh", 0, repo.parent / "notified.log")),
         **(env_extra or {}),
@@ -113,6 +114,41 @@ def test_plan_names_the_queue_gates_and_every_gate_exists_in_this_repo():
     assert "tests/tooling/test_queue_row_guard.py" in named
     missing = [p for p in named if not (REPO / p).is_file()]
     assert not missing, missing
+
+
+def test_the_gates_step_runs_bundled_by_default():
+    """FH-UPSTREAM-RUNNER-ONE-PROCESS-GROUP: one pytest per gate file cost ~3 s of Windows start-up
+    each; the gates run through the fork's bundled runner instead. KILLING MUTATION: default
+    ``GATES_RUNNER`` to ``run_tests.sh`` -> the plan names the per-file runner and this reds."""
+    env = {k: v for k, v in os.environ.items() if k not in ("PREPUSH_RUNNER", "PREPUSH_GATES_RUNNER")}
+    proc = subprocess.run(
+        [_BASH, str(SCRIPT), "--plan"],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "    runner: scripts/run_tests_bundled.sh" in proc.stdout.splitlines(), proc.stdout
+
+
+def test_the_gates_step_runs_on_the_gates_runner_and_the_other_steps_do_not(repo: Path):
+    """KILLING MUTATIONS: run the gates step on ``$RUNNER`` -> the gates argv lands in the
+    per-file runner's log and the gates runner is never called; drop ``ETERNIA_HEAVY_SLOTS=off``
+    -> the bundled gates wait on the machine-wide heavy-run slot and the ``slots=off`` line reds;
+    drop ``--small`` -> the gates pay the landing gate's scope, plan and record, and the argv reds."""
+    gates_log = repo.parent / "gates.log"
+    gates = _stub(repo.parent / "gates.sh", 0, gates_log, f'echo "slots=${{ETERNIA_HEAVY_SLOTS:-}}" >> "{gates_log}"')
+    proc, calls = _run(repo, env_extra={"PREPUSH_GATES_RUNNER": str(gates), "ETERNIA_HEAVY_SLOTS": "2"})
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    gates_argv = gates_log.read_text(encoding="utf-8").split()
+    assert "slots=off" in gates_argv and gates_argv[0] == "--small"
+    assert "tests/tooling/test_queue_row_guard.py" in gates_argv
+    assert "tests/tooling/test_queue_row_guard.py" not in calls
+    assert "tests/a/test_committed.py" in calls and "tests/a/test_committed.py" not in gates_argv
 
 
 def test_touched_tests_are_the_changed_and_untracked_test_files(repo: Path):
@@ -234,6 +270,7 @@ def test_without_an_explicit_interpreter_the_doc_cite_step_finds_the_shared_venv
     _stub(venv / "bin" / "python", 0, log, f'echo "venv-python" >> "{log}"')
     env = {key: value for key, value in os.environ.items() if key not in {"PREPUSH_PYTHON", "HERMES_PYTHON"}}
     env = {**env, "PREPUSH_RUNNER": str(_stub(repo.parent / "runner.sh", 0, log)),
+           "PREPUSH_GATES_RUNNER": str(repo.parent / "runner.sh"),
            "PREPUSH_NOTIFY": str(_stub(repo.parent / "notify.sh", 0, repo.parent / "notified.log")),
            "HERMES_TEST_VENV": str(venv)}
     run = lambda env: subprocess.run([_BASH, str(repo / "scripts" / "prepush.sh")], cwd=repo, env=env,
@@ -296,6 +333,7 @@ def test_the_whole_run_cap_kills_the_running_step_starts_no_other_and_exits_3(re
     chain = subprocess.run([_BASH, "-c", f'"{_BASH}" scripts/prepush.sh && echo PUSHED'], cwd=repo,
                            env={**os.environ, "PREPUSH_CAP": "2", "PREPUSH_GATES_DEADLINE": "60",
                                 "PREPUSH_RUNNER": str(repo.parent / "runner.sh"),
+                                "PREPUSH_GATES_RUNNER": str(repo.parent / "runner.sh"),
                                 "PREPUSH_PYTHON": str(repo.parent / "cite.sh"), "PREPUSH_NOTIFY": "off"},
                            capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL, check=False)
     assert chain.returncode == 3 and "PUSHED" not in chain.stdout, chain.stdout

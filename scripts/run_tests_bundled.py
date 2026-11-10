@@ -634,7 +634,7 @@ _affected = _load_sibling("run_tests_bundled_affected")  # --affected: the tests
 _OUR_FLAGS = {
     "-h", "--help", "-j", "--jobs", "--bundle-size", "--file-timeout",
     "--file-retries", "--unbundled-list", "--scope", "--since", "--since-merge", "--manifest",
-    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", *_gate.FLAGS, *_confirm.FLAGS,
+    "--bundle-seconds", "--solo-seconds", "--skip-list", "--git-audit", "--small", *_gate.FLAGS, *_confirm.FLAGS,
     *_affected.FLAGS,
 }
 _PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
@@ -837,6 +837,11 @@ def _build_parser() -> argparse.ArgumentParser:
     _gate.add_arguments(parser)
     _confirm.add_arguments(parser)
     _affected.add_arguments(parser)
+    parser.add_argument(
+        "--small", action="store_true",
+        help="a small run of files named on the command line (the pre-push gates): bundles, the solo "
+        "re-run and the leak report only — no scope, skip list, gate store or leftovers scan",
+    )
     parser.add_argument("paths", nargs="*", metavar="PATH")
     return parser
 
@@ -867,6 +872,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     if not files:
         print("No test files to run", file=sys.stderr)
         return 1
+    if args.small:
+        if not args.paths or not all(r.is_file() for r in roots):
+            parser.error("--small runs named test files only: name each file, never a directory")
+        return small_run(args, files, repo_root, pytest_args)
     try:
         skip_rows = plan.load_skip_list(args.skip_list or repo_root / plan.SKIP_LIST)
     except (OSError, ValueError) as exc:
@@ -935,6 +944,41 @@ def main(argv: Optional[list[str]] = None) -> int:
     for line in _leftovers.lines(_leftovers.scan(run_wall)):  # a detached hermes update, named
         print(line)
     return gate.report(result, _print_summary(result, files, repo_root, elapsed, args.jobs, cost))
+
+
+def small_run(args, files: Sequence[Path], repo_root: Path, pytest_args: list[str], **runners) -> int:
+    """``--small``: the named files as bundles, with the landing gate's run-time guarantees only.
+
+    The pre-push gates are nine named files (FH-UPSTREAM-RUNNER-ONE-PROCESS-GROUP): per file,
+    Windows pays ~3 s of start-up each; bundled through :func:`main` they ran in 12-17 s against
+    21-27 s per-file, but the run around them added ~20 s — the fork scope (~3.5 s), the skip list
+    and the gate store's plan (~5.7 s), its record (~10 s) and the leftovers scan. None of those
+    serve a run of named files: a named file is always in scope, never deselected, and a prepush
+    gate's green is never a cache entry. What stays is :func:`run` itself — a red bundle re-runs
+    each member that did not pass ONE FILE PER PROCESS, a member red bundled and green alone is
+    an ISOLATION LEAK in the summary, and ``scripts/test_bundles_unbundled.txt`` still runs alone.
+    ``runners`` passes :func:`run`'s ``bundle_runner`` / ``solo_runner`` (tests inject fakes).
+    """
+
+    prepare_child_environ(os.environ)
+    durations = rtp._load_durations(repo_root)
+    started = time.monotonic()
+    result = run(
+        files,
+        pytest_args,
+        repo_root,
+        jobs=args.jobs,
+        bundle_size=args.bundle_size,
+        unbundled=unbundled_files(args.unbundled_list),
+        flat_timeout=args.file_timeout,
+        retries=args.file_retries,
+        durations=durations,
+        bundle_seconds=args.bundle_seconds,
+        solo_seconds=args.solo_seconds,
+        on_outcome=_progress_printer(len(files), repo_root, pytest_args),
+        **runners,
+    )
+    return _print_summary(result, files, repo_root, time.monotonic() - started, args.jobs)
 
 
 def _claims_a_heavy_slot(argv: list[str], environ) -> bool:
