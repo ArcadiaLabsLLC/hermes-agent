@@ -13,7 +13,7 @@ import pytest
 
 import gateway.run as gateway_run
 from gateway.platforms.base import MessageEvent, MessageType
-from tests.gateway.test_plugin_origin_injection import _context, _origin, _publish, gateway  # noqa: F401 (fixture)
+from tests.gateway.test_plugin_origin_injection import _context, _origin, _publish, gateway
 from tests.waiting import async_wait_until
 
 # The session's 30 s default covers a cold state.db schema init plus four turns on a quiet box only;

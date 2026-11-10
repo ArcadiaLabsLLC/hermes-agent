@@ -40,9 +40,9 @@ __all__ = [
     "LoginChild",
     "ProviderSignIns",
     "SignInRefused",
+    "prewarm_signin",
     "registry",
     "run_login_in_process",
-    "prewarm_signin",
     "select_login_runner",
     "spawn_login_child",
 ]

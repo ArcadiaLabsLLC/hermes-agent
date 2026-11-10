@@ -502,7 +502,7 @@ def test_a_serve_adopted_at_boot_publishes_no_starter(monkeypatch):
     """RT-SERVE-STARTER-PID-NOT-THE-SUBREAPER: the boot read is ``serve_starter.boot_starter_pid``; when it
     finds only an adopter (a subreaper or init), the row and the greeting say ``null``, never that pid."""
 
-    import agent_runtime.serve_starter as serve_starter
+    from agent_runtime import serve_starter
 
     monkeypatch.setattr(serve_starter, "boot_starter_pid", lambda: None)
     with _serve(service=True) as handle:

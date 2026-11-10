@@ -35,7 +35,7 @@ from hermes_cli.harness_parts.persona import (
 )
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 # The same autouse persona seed the lifecycle half runs under.
-from tests.agent_runtime.test_relay_session_lifecycle import _persist_explicit_chat_persona_data  # noqa: F401
+from tests.agent_runtime.test_relay_session_lifecycle import _persist_explicit_chat_persona_data
 
 
 # --------------------------------------------------------------------------- #

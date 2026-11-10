@@ -55,7 +55,7 @@ print(json.dumps({"subreaper": os.getpid(), **json.loads(data)}))
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="PR_SET_CHILD_SUBREAPER is Linux's")
 def test_a_detached_serve_adopted_by_a_subreaper_records_no_starter():
     result = subprocess.run([sys.executable, "-c", _REPARENT, str(REPO)], capture_output=True, text=True,
-                            timeout=60, start_new_session=True)
+                            timeout=60, start_new_session=True, check=False)
     assert result.returncode == 0, result.stderr
     seen = json.loads(result.stdout)
     # While its starter lives, the serve names it.
@@ -71,7 +71,7 @@ def test_a_serve_its_live_starter_spawned_records_that_starter():
     script = "import sys; sys.path.insert(0, sys.argv[1]); from agent_runtime.serve_starter import boot_starter_pid; print(boot_starter_pid())"
     for new_session in (False, True):
         result = subprocess.run([sys.executable, "-c", script, str(REPO)], capture_output=True, text=True,
-                                timeout=60, start_new_session=new_session)
+                                timeout=60, start_new_session=new_session, check=False)
         assert result.returncode == 0, result.stderr
         assert int(result.stdout) == os.getpid(), new_session
 

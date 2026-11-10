@@ -100,7 +100,7 @@ def test_a_branch_being_rebased_refuses_and_moves_nothing(user):
     git(user.repo, "add", "side.txt")
     git(user.repo, "commit", "-q", "-m", "conflicting")
     before = git(user.repo, "rev-parse", "main")
-    rebase = subprocess.run(["git", *ID, "-C", str(user.repo), "rebase", "-q", "side"], capture_output=True, text=True)
+    rebase = subprocess.run(["git", *ID, "-C", str(user.repo), "rebase", "-q", "side"], capture_output=True, text=True, check=False)
     assert rebase.returncode != 0  # stopped on the conflict, main is being rebased
     with pytest.raises(WorkRefused) as refused:
         create(user)

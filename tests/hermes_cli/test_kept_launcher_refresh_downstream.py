@@ -73,7 +73,7 @@ def test_an_obsolete_kept_cmd_is_reminted_as_a_cmd_on_its_own_interpreter(tmp_pa
     publishes a ``hermes.exe`` beside it and the kept ``.cmd`` keeps its October script)."""
     import base64
 
-    default_home, default_python = _make_home(tmp_path, "default")
+    _default_home, default_python = _make_home(tmp_path, "default")
     temp_home, _ = _make_home(tmp_path, "sandbox")
     repo = _make_repo(tmp_path)
     local = repo / ".hermes" / "bin"
@@ -100,7 +100,7 @@ def test_an_obsolete_kept_exe_is_reminted_on_its_own_interpreter(tmp_path, monke
 
     from tests.hermes_cli.test_hermes_home_shared_launchers import _write_dead_exe
 
-    default_home, default_python = _make_home(tmp_path, "default")
+    _default_home, default_python = _make_home(tmp_path, "default")
     temp_home, _ = _make_home(tmp_path, "sandbox")
     repo = _make_repo(tmp_path)
     local = repo / ".hermes" / "bin"

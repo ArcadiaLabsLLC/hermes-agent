@@ -23,6 +23,7 @@ __all__ = [
     "_cmd_characters_add_state",
     "_cmd_characters_backfill_home",
     "_cmd_characters_base",
+    "_cmd_characters_cells",
     "_cmd_characters_list",
     "_cmd_characters_migrate_home",
     "_cmd_characters_payload_contract",
@@ -32,7 +33,6 @@ __all__ = [
     "_cmd_characters_start",
     "_cmd_characters_status",
     "_cmd_characters_thumb",
-    "_cmd_characters_cells",
 ]
 
 

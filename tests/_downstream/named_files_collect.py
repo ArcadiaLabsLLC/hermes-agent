@@ -103,6 +103,6 @@ def contiguous_args(args, invocation_dir) -> list[str]:
 def pytest_collection_contiguous_args(session):  # pytest hook
     config = session.config
     if config.getoption("pyargs", False):
-        return None
+        return
     config.args[:] = contiguous_args(config.args, config.invocation_params.dir)
-    return None
+    return

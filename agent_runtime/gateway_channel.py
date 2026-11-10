@@ -90,7 +90,7 @@ def external_access_on(env: Mapping[str, str] | None = None) -> bool:
 def channel_session_key(device_id: str, channel_key: str) -> str:
     """The open-chat idempotency key for one (device, platform conversation) pair."""
 
-    digest = hashlib.sha256(f"{device_id}\x1f{channel_key}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{device_id}\x1f{channel_key}".encode()).hexdigest()
     return f"channel-{digest[:40]}"
 
 

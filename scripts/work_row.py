@@ -396,8 +396,8 @@ def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
             texts[note], _ = archive_row(repo, note, text, args.row_id, args.who, payload, archives)
             woken: dict[Path, list[str]] = {}
             if not args.no_wake:
-                for path in texts:
-                    after, ids = wake_dependents(texts[path], args.row_id, payload["date"], how)
+                for path, current in texts.items():
+                    after, ids = wake_dependents(current, args.row_id, payload["date"], how)
                     if ids:
                         texts[path] = after
                         woken[path] = ids

@@ -11,7 +11,7 @@ from contextlib import closing
 
 from agent_runtime.discussions.definition_store import DefinitionStore
 from agent_runtime.discussions.run_store import RunStore
-from tests.agent_runtime.test_discussion_runtime import engine  # noqa: F401 (fixture)
+from tests.agent_runtime.test_discussion_runtime import engine
 
 
 def _op(runs: RunStore) -> None:

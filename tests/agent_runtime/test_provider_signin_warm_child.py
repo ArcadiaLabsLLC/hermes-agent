@@ -13,7 +13,7 @@ from agent_runtime import provider_signin, provider_signin_child, provider_signi
 
 
 class _FakeChild:
-    started: list["_FakeChild"] = []
+    started: list[_FakeChild] = []
 
     def __init__(self, argv, env, home=""):
         self.argv, self.home = argv, home

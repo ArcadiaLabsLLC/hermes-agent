@@ -142,7 +142,7 @@ def signature_hash_chunk(paths: Iterable[str], root: Path, min_lines: int) -> li
     out: list[tuple[str, str, str]] = []
     for path in paths:
         try:
-            tree = ast.parse((root / path).read_text(encoding="utf-8", errors="replace"))
+            tree = ast.parse((root / path).read_text(encoding="utf-8-sig", errors="replace"))
         except SyntaxError:  # pragma: no cover - a broken file is another gate's job
             continue
         for node in tree.body:

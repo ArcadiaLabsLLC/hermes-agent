@@ -414,7 +414,7 @@ def eager_tops(modules, index, first_party_tops) -> set[str]:
 # -- declarations (pyproject) and the dependency graph ----------------------------------------------
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _req(raw: str):
     """One parse per requirement string per process: callers only read the result, and a
     graph walk meets the same strings again and again (FORK-BUNDLE-PROFILES-SDK-PACK-TEST-HANGS:

@@ -65,7 +65,6 @@ __all__ = [
     "PROVIDER_REFUSED_OUTCOME",
     "PROVIDER_UNAVAILABLE_OUTCOME",
     "PROVIDER_UNAVAILABLE_REASON",
-    "refusal_never_left_hermes",
     "PROVIDER_UNAVAILABLE_STATUS_CODE",
     "ChatErrorKind",
     "ExecutionState",
@@ -78,6 +77,7 @@ __all__ = [
     "classify_turn_failure",
     "provider_refusal",
     "provider_refusal_from_block",
+    "refusal_never_left_hermes",
 ]
 
 

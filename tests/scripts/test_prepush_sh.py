@@ -231,7 +231,7 @@ def test_without_an_explicit_interpreter_the_doc_cite_step_finds_the_shared_venv
     log = repo.parent / "calls.log"
     venv = repo.parent / "venv"
     (venv / "bin").mkdir(parents=True)
-    _stub(venv / "bin" / "python", 0, log, 'echo "venv-python" >> "%s"' % log)
+    _stub(venv / "bin" / "python", 0, log, f'echo "venv-python" >> "{log}"')
     env = {key: value for key, value in os.environ.items() if key not in {"PREPUSH_PYTHON", "HERMES_PYTHON"}}
     env = {**env, "PREPUSH_RUNNER": str(_stub(repo.parent / "runner.sh", 0, log)),
            "PREPUSH_NOTIFY": str(_stub(repo.parent / "notify.sh", 0, repo.parent / "notified.log")),
@@ -245,7 +245,7 @@ def test_without_an_explicit_interpreter_the_doc_cite_step_finds_the_shared_venv
     log.unlink()
     shims = repo.parent / "shims"
     shims.mkdir()
-    _stub(shims / "python3", 0, log, 'echo "python3-on-path" >> "%s"' % log)
+    _stub(shims / "python3", 0, log, f'echo "python3-on-path" >> "{log}"')
     proc = run({**env, "HERMES_TEST_VENV": str(repo.parent / "no-venv"), "PATH": f"{shims}{os.pathsep}{env['PATH']}"})
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "python3-on-path" in log.read_text(encoding="utf-8")

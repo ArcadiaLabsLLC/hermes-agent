@@ -192,7 +192,7 @@ def test_a_child_booted_on_the_borrower_runs_the_borrowers_code_on_the_lenders_p
     import subprocess
     import sys
 
-    lender_checkout, borrower, _, venv = pinned
+    _lender_checkout, borrower, _, venv = pinned
     repo = Path(__file__).resolve().parents[2]
     script = (
         "import sys; sys.path.insert(0, sys.argv[1])\n"
@@ -204,7 +204,7 @@ def test_a_child_booted_on_the_borrower_runs_the_borrowers_code_on_the_lenders_p
     )
     result = subprocess.run(
         [sys.executable, "-c", script, str(repo), str(borrower), str(venv)],
-        capture_output=True, text=True, timeout=60, env=dict(os.environ), cwd=str(borrower.parent))
+        capture_output=True, text=True, timeout=60, env=dict(os.environ), cwd=str(borrower.parent), check=False)
     assert result.returncode == 0, result.stderr
     who, file, lender_packages_on_path = result.stdout.split()
     assert who == "borrower"
