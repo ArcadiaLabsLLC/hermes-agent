@@ -66,7 +66,7 @@ def _session(home: Path) -> None:
     store = auth._load_auth_store()
     store.setdefault("providers", {})["nous"] = {"access_token": ACCESS, "refresh_token": REFRESH}
     auth._save_auth_store(store)
-    auth_nous._write_shared_nous_state({"access_token": ACCESS, "refresh_token": REFRESH})
+    auth_nous._write_shared_nous_state({"access_token": ACCESS, "refresh_token": REFRESH}, renewal=False)
     config.save_env_value("OPENROUTER_API_KEY", API_KEY)
     _write_hermes_oauth_credentials(PKCE, PKCE + "-r", 1)
     mcp_oauth._write_json(mcp_oauth._get_token_dir() / "srv.json", {"access_token": MCP})
@@ -152,29 +152,32 @@ def test_borrowed_machine_wide_logins_are_refused_when_bound(app, tmp_path, monk
     (user / ".qwen" / "oauth_creds.json").write_text(json.dumps({"access_token": "q"}), encoding="utf-8")
     (user / ".claude").mkdir()
     (user / ".claude" / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {}}), encoding="utf-8")
+    # v0.23.1 moved Copilot (and its gh-CLI token borrow) out of core; the Codex CLI's auth.json is
+    # the in-repo borrowed login that stands in for it.
+    (user / ".codex").mkdir()
+    (user / ".codex" / "auth.json").write_text(
+        json.dumps({"tokens": {"access_token": "codex-borrowed", "refresh_token": "r"}}), encoding="utf-8")
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: user))
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
+    monkeypatch.delenv("CODEX_HOME", raising=False)
 
     from agent import anthropic_credentials as ac
     from agent.credential_sources import adopt_external_logins_enabled
-    from hermes_cli import auth_qwen, copilot_auth
+    from hermes_cli import auth_codex, auth_qwen
 
-    monkeypatch.setattr(copilot_auth, "_probe_gh_cli_token", lambda: "gho_borrowed")
-    copilot_auth._invalidate_gh_cli_token_cache()
     claude_file = ac.claude_code_credentials_path()
 
     # Positive control: unbound, every borrowed store is reachable.
     assert adopt_external_logins_enabled() is True
     assert auth_qwen._read_qwen_cli_tokens()["access_token"] == "q"
-    assert copilot_auth._try_gh_cli_token() == "gho_borrowed"
+    assert auth_codex._import_codex_cli_tokens()["access_token"] == "codex-borrowed"
     assert ac._load_json_if_exists(claude_file, "claude") is not None
 
     FakeHostSecureStore().bind(profile="phone-a", store_root=root)
-    copilot_auth._invalidate_gh_cli_token_cache()
     assert adopt_external_logins_enabled() is False
     with pytest.raises(Exception, match="not found"):
         auth_qwen._read_qwen_cli_tokens()
-    assert copilot_auth._try_gh_cli_token() is None
+    assert auth_codex._import_codex_cli_tokens() is None
     assert ac._load_json_if_exists(claude_file, "claude") is None
 
 

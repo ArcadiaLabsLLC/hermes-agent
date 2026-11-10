@@ -69,7 +69,7 @@ def _sign_in(home: Path) -> None:
     store = auth._load_auth_store()
     store.setdefault("providers", {})["nous"] = {"access_token": ACCESS, "refresh_token": REFRESH}
     auth._save_auth_store(store)
-    auth_nous._write_shared_nous_state({"access_token": ACCESS, "refresh_token": REFRESH})
+    auth_nous._write_shared_nous_state({"access_token": ACCESS, "refresh_token": REFRESH}, renewal=False)
     config.save_env_value("OPENROUTER_API_KEY", API_KEY)
     _write_hermes_oauth_credentials(PKCE, PKCE + "-r", 1)
     mcp_oauth._write_json(mcp_oauth._get_token_dir() / "srv.json", {"access_token": MCP})
