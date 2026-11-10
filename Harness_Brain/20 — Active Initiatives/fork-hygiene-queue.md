@@ -724,3 +724,4 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-09 (lane queue-tasks-s2)
 
+- **`FH-E2E-KANBAN-ROUTING-RED-ON-MAIN` — Two end-to-end checks (kanban rate-limit review, routing truth table) pass on main again** · group: upstream-load-flakes · `tests/e2e/core/kanban/test_kanban_rate_limit_review.py` · `tests/e2e/core/tenancy/test_routing_truth_table.py` · found 2026-11-10 by w1110b-hm: both time out at 1 worker (31-35 s, a `wait_until(not pid_alive)` and a thread join), and `--confirm-red` on test_routing_truth_table: red alone on HEAD and on origin/main ba0b5e8d11 (pre-existing) · handoff 2026-11-10 (w1110b-hm): not chased; next: run each alone with the timeout stack and name the child process or thread that does not exit · READY 2026-11-10
