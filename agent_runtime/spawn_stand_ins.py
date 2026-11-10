@@ -113,6 +113,15 @@ class SlashCommandsUnavailable(SpawnNotAvailable):
         self.args = (self.errno, self.strerror)
 
 
+def _hermes_fit_without_pm(_mod, manifest, *_a, **_k):
+    """``hermes_fit_error`` without its PM half: upstream v0.23.1 asks ``pm.workspace`` for the
+    plugin's own ``hermes-agent`` requirement, and the phone ships no package manager (its
+    ``pm.workspace`` is switched off). ``requires_hermes`` still decides, as on a desktop."""
+    from hermes_cli.plugins_manifest import requires_hermes_error
+
+    return requires_hermes_error(manifest)
+
+
 def _no_slash_commands(_mod, *_a, **_k):
     raise SlashCommandsUnavailable("tui_gateway.server._SlashWorker.__init__")
 
@@ -160,7 +169,6 @@ SPAWN_STAND_INS: tuple[StandIn, ...] = (
     StandIn("hermes_cli._subprocess_compat", "posix_is_zombie", returns=False),
     StandIn("hermes_cli._subprocess_compat", "_legacy_kill_process_tree", returns=None),
     StandIn("hermes_cli.config", "edit_config"),
-    StandIn("hermes_cli.copilot_auth", "_probe_gh_cli_token", returns=None),
     StandIn("hermes_cli.git_line_endings", "_read", answer=lambda _mod, *_a, **_k: []),
     StandIn("hermes_cli.gitlock", "_git_stdout_lines", answer=lambda _mod, *_a, **_k: []),
     StandIn("hermes_cli.gitlock", "_batch_missing_parents", answer=lambda _mod, *_a, **_k: set()),
@@ -173,6 +181,13 @@ SPAWN_STAND_INS: tuple[StandIn, ...] = (
             returns=(False, -1, "[gate could not run: SpawnNotAvailable: no process on the phone]")),
     StandIn("hermes_cli.plugin_host", "PluginHost.ensure_started", error="PluginHostUnavailable"),
     StandIn("hermes_cli.plugin_host_profiles", "_extract", answer=_extraction_failed),
+    StandIn("hermes_cli.plugins_loader", "hermes_fit_error", answer=_hermes_fit_without_pm),
+    # v0.23.1: a feature that left core is installed through PM at the first agent build; the phone
+    # ships no PM (nor cron, which the route read imports), so nothing is recovered there.
+    StandIn("hermes_cli.left_core_migration", "recover_at_startup", answer=lambda _mod, *_a, **_k: []),
+    # v0.23.1: the hourly scratch prune runs in a detached child; a phone starts no process (the
+    # documented "could not start" outcome: logged and dropped, the next pass is the next process).
+    StandIn("hermes_constants_scratch_detach", "spawn_prune", returns=None),
     StandIn("hermes_cli.profiles", "check_alias_collision"),
     StandIn("hermes_cli.profiles", "seed_profile_skills", returns=None),
     StandIn("hermes_cli.profiles", "_cleanup_gateway_service", returns=False),
