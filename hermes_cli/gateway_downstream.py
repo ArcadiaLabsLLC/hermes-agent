@@ -5,8 +5,9 @@ home-resolution receipt, and the profile matcher the pid scan uses.
 Moved out of the upstream module by lane FOOTPRINT-DROP (2026-09-27); ``gateway.py``
 re-exports these names in one import line so callers and patches keep spelling them
 ``gateway.<name>``, and every upstream name is read through the module at call time.
-``_detect_venv_dir`` is the RECORDED PARALLEL of upstream ``_pm_runtime_venv_dir``
-(upstream-footprint-ledger row ``hermes_cli/gateway.py``). Retires with the G11 PR.
+``_detect_venv_dir`` is the RECORDED PARALLEL of upstream ``_pm_runtime_venv_dir`` (itself
+deleted upstream in v0.23.1, 5a583fb333, as callerless) (upstream-footprint-ledger row
+``hermes_cli/gateway.py``). Retires with the G11 PR.
 """
 
 from __future__ import annotations
@@ -27,7 +28,8 @@ def _detect_venv_dir() -> Path | None:
     sys.prefix), then .venv/venv under PROJECT_ROOT; None if none found.
 
     RECORDED PARALLEL (upstream merge 2026-09-25, design note §5 Q4): upstream deleted this in
-    favour of :func:`_pm_runtime_venv_dir` (``pm.environments.selected_venv``). The launcher's
+    favour of ``_pm_runtime_venv_dir`` (``pm.environments.selected_venv``; that one went too, in
+    v0.23.1, 5a583fb333). The launcher's
     install is a venv OUTSIDE the checkout (``.hermes/venvs/hermes-agent``), which pm's
     committed-environment contract does not find, and ``hermes update`` was not exercised on the
     merged tree. Retire condition: the launcher's install moves onto pm bundles.
