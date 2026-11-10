@@ -674,6 +674,12 @@ def add_work(subs) -> None:
 
 
 def _cmd_serve(args) -> int:
+    if getattr(args, "ndjson", False):
+        # The ready frame's build stamp is git work; it runs beside the serve's imports below
+        # (RT-HARNESS-SERVE-COLD-BOOT) instead of serially inside the boot.
+        from agent_runtime.build_stamp import prefetch_build_stamp
+
+        prefetch_build_stamp()
     # Lazy: serve is the process's main loop, owns the sys.stdout/sys.stderr
     # swaps, and every other verb would pay its import weight.
     from hermes_cli.harness_parts.serve.commands import _cmd_serve as _run_serve
