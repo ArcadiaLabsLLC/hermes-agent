@@ -125,19 +125,30 @@ def _staged_blobs() -> dict[str, str] | None:
     return out
 
 
+def _read_eol_records(done: subprocess.CompletedProcess, states: dict[str, str]) -> None:
+    if done.returncode != 0:
+        pytest.skip(f"git ls-files --eol failed: {done.stderr.strip()}")
+    for record in done.stdout.split("\0"):
+        columns, tab, path = record.partition("\t")
+        if tab:
+            states[path] = columns.split()[0]
+
+
 def _eol_states(paths: list[str]) -> dict[str, str]:
     """``{path: i/<state>}`` from git's own classifier, for ``paths`` only (literal pathspecs)."""
 
     states: dict[str, str] = {}
     fixed = ["git", "ls-files", "--eol", "-z", "--"]
     for chunk in _argv_chunks(paths, fixed=fixed):
-        done = _git(*fixed[1:], *chunk, env={"GIT_LITERAL_PATHSPECS": "1"})
-        if done.returncode != 0:
-            pytest.skip(f"git ls-files --eol failed: {done.stderr.strip()}")
-        for record in done.stdout.split("\0"):
-            columns, tab, path = record.partition("\t")
-            if tab:
-                states[path] = columns.split()[0]
+        _read_eol_records(_git(*fixed[1:], *chunk, env={"GIT_LITERAL_PATHSPECS": "1"}), states)
+    return states
+
+
+def _eol_census() -> dict[str, str]:
+    """``{path: i/<state>}`` for the whole index, in ONE pathspec-free ``git ls-files --eol`` call."""
+
+    states: dict[str, str] = {}
+    _read_eol_records(_git("ls-files", "--eol", "-z"), states)
     return states
 
 
@@ -187,7 +198,14 @@ def _index_line_endings() -> dict[str, str]:
     memo = _read_memo(memo_path)
     unseen = sorted(path for path, sha in blobs.items() if sha not in memo)
     if unseen:
-        for path, state in _eol_states(unseen).items():
+        # A cold memo (a fresh clone, a new machine) classifies the whole tree in one census, never in
+        # chunks: 84 chunked calls over 27,289 paths took 6.8-6.9 s against 3.2-8.1 s for one census
+        # (nekwo-ubuntu24, load ~20), and on Windows each chunk is a process start, so 49 chunks ran
+        # past the 30 s test timeout cold (FH-EOL-GATE-COLD-TIMEOUT). The chunks stay for the few
+        # blobs a warm memo has not seen.
+        # MUTATION: classify by chunks whatever the count -> test_a_cold_memo_is_classified_in_one_census red.
+        classify = _eol_census() if len(unseen) * 2 >= len(blobs) else _eol_states(unseen)
+        for path, state in classify.items():
             if path in blobs:
                 memo[blobs[path]] = state
         _write_memo(memo_path, memo)
@@ -286,6 +304,40 @@ def test_a_blob_the_memo_has_seen_is_not_classified_again(endings, monkeypatch):
 
     monkeypatch.setitem(globals(), "_eol_states", tripwire)
     assert _index_line_endings() == endings
+
+
+def test_a_cold_memo_is_classified_in_one_census(endings, monkeypatch, tmp_path):
+    """FH-EOL-GATE-COLD-TIMEOUT: with no memo, every blob is unseen and one pathspec-free census answers
+    them all; a warm memo's few unseen blobs still go by literal-pathspec chunks."""
+
+    censuses: list[int] = []
+
+    def census():
+        censuses.append(len(endings))
+        return dict(endings)
+
+    def chunked(paths):
+        raise AssertionError(f"a cold memo classified {len(paths)} path(s) in chunks")
+
+    monkeypatch.setitem(globals(), "_eol_census", census)
+    monkeypatch.setitem(globals(), "_eol_states", chunked)
+    monkeypatch.setitem(globals(), "_memo_path", lambda: tmp_path / EOL_MEMO_NAME)
+    assert _index_line_endings() == endings
+    assert censuses == [len(endings)]
+
+    import json
+    from collections import Counter
+
+    staged = _staged_blobs()
+    assert staged is not None
+    shared = Counter(staged.values())
+    fresh = [path for path in sorted(staged) if shared[staged[path]] == 1][:3]
+    warm = {sha: state for path, sha in staged.items() if path not in fresh and (state := endings.get(path))}
+    (tmp_path / EOL_MEMO_NAME).write_text(json.dumps(warm), encoding="utf-8")
+    asked: list[list[str]] = []
+    monkeypatch.setitem(globals(), "_eol_states", lambda paths: asked.append(paths) or {p: endings[p] for p in paths})
+    assert _index_line_endings() == endings
+    assert censuses == [len(endings)] and asked and set(asked[0]) <= set(fresh)
 
 
 # -- the argv budget (FH-WINDOWS-EOL-COLD-ARGV): pure, so it is proven on every host --------------
