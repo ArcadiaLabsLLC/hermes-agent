@@ -19,6 +19,8 @@ from tests._downstream.id_markers.reasons import (
     _NEEDS_ACP,
     _NEEDS_CHROME_DESKTOP_ENTRY,
     _NEEDS_NODE,
+    _NEEDS_NODE_AND_PNPM,
+    _NEEDS_RIPGREP,
     _NEEDS_TMUX,
 )
 
@@ -69,6 +71,94 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "test_layered_macos_icon_mono_layer_and_flavor_stays_in_the_fill",
             "test_invalid_or_conflicting_build_identity_cannot_emit_icons",
             "test_msix_logos_resolve_every_slot_windows_draws",
+        )
+    },
+    # Node (and pnpm) for upstream's photon sidecar, source-launch, web-build and desktop-reuse tests
+    # (FH-LINUX-BOX-NO-NODE-UPSTREAM-REDS): red at setup or on spawn on a box without them; the
+    # tests of the same files that need neither keep running.
+    **{
+        f"tests/plugins/platforms/photon/test_spectrum_patch.py::{node}": (_NEEDS_NODE,)
+        for node in (
+            "test_sidecar_patch_failure_still_reaches_health_endpoint",
+            "test_spectrum_patch_rewrites_the_imessage_mapper",
+        )
+    },
+    **{
+        f"tests/hermes_cli/test_desktop_build_reuse.py::{node}": (_NEEDS_NODE,)
+        for node in (
+            "test_a_stamp_a_build_would_bake_differently_still_rebuilds",
+            "test_update_reuses_the_packaged_app_until_a_desktop_input_changes",
+        )
+    },
+    **{
+        f"tests/hermes_cli/test_tui_npm_install.py::{node}": (_NEEDS_NODE_AND_PNPM,)
+        for node in (
+            "test_source_launch_prepares_base_union_but_compiles_only_tui",
+            "test_source_launch_keeps_the_users_download_retries",
+            "test_source_launch_ignores_an_npm_retry_count_pnpm_ignores",
+            "test_source_compile_failure_stops_launch_without_reinstall",
+            "test_failed_dependency_preparation_launches_the_previous_build",
+            "test_fallback_names_a_refusal_that_printed_nothing",
+            "test_fresh_bundle_does_not_prepare_or_compile",
+            "test_prebuilt_bundle_launch_does_not_touch_missing_source",
+            "test_dev_launch_builds_ink_before_running_source",
+            "test_runtime_node_comes_from_pm_without_legacy_repair",
+            "test_tui_rebuild_preserves_the_prepared_desktop_and_web_union",
+        )
+    },
+    **{
+        f"tests/hermes_cli/test_web_ui_build.py::{node}": (_NEEDS_NODE_AND_PNPM,)
+        for node in (
+            "test_web_build_prepares_once_and_skips_a_current_product",
+            "test_web_failure_is_not_success_even_with_an_old_dist",
+            "test_failed_preparation_never_runs_web_compilation",
+            "test_web_rebuild_reuses_the_existing_desktop_union",
+            "test_contended_build_waits_and_rechecks_winner",
+            "test_lock_open_failure_does_not_start_an_unprotected_build",
+        )
+    },
+    # The source-build and update-completion acceptance fixtures `assert node and pnpm`
+    # (FH-LINUX-SOURCE-UPDATE-FILES-RED-ON-MAIN); both files are skip-listed `unused`, so this
+    # keeps a NAMED run of them green on a box without the tools.
+    **{
+        f"tests/hermes_cli/test_source_build.py::{node}": (_NEEDS_NODE_AND_PNPM,)
+        for node in (
+            "test_installed_pnpm_does_not_authorize_missing_workspace_dependencies",
+            "test_preparation_reuses_only_the_exact_completed_workspace_union",
+            "test_update_builds_selected_products_after_one_union_preparation",
+            "test_update_recompiles_only_products_whose_inputs_changed",
+            "test_update_failure_raises_without_retries_or_replacing_live_app",
+            "test_unbuilt_desktop_is_named_on_one_whole_line",
+            "test_desktop_dependency_failure_still_builds_the_tui_and_web_ui",
+            "test_module_cli_builds_the_requested_products",
+        )
+    },
+    **{
+        f"tests/hermes_cli/test_update_finish.py::{node}": (_NEEDS_NODE_AND_PNPM,)
+        for node in (
+            "test_selected_child_builds_and_finalizes_under_parent_lock",
+            "test_real_compiler_failure_is_owed_build_and_completion_continues",
+        )
+    },
+    # ripgrep (FH-LINUX-BOX-NO-RIPGREP-SEARCH-REDS): the grep fallback cannot match across lines
+    # or give the zero-match hint; the doctor's parity test pins the host's own `rg`.
+    "tests/tools/test_search_auto_multiline.py::TestAutoMultiline::test_newline_regex_matches_across_lines": (
+        _NEEDS_RIPGREP,
+    ),
+    **{
+        f"tests/tools/test_search_zero_match_and_multipath.py::TestZeroMatchProbe::{node}": (_NEEDS_RIPGREP,)
+        for node in (
+            "test_case_mismatch_hint_names_the_files",
+            "test_regex_metachar_literal_hint",
+            "test_hidden_only_match_gets_hint",
+            "test_hidden_probe_prunes_dependency_trees_and_keeps_local_ignored",
+        )
+    },
+    **{
+        f"tests/hermes_cli/test_doctor_pm_store_probe.py::{node}": (_NEEDS_RIPGREP,)
+        for node in (
+            "test_rejected_store_is_not_reported_as_runtime_available",
+            "test_sealed_store_extension_matches_launched_tool",
         )
     },
     # Not Node: the shim's browser choice needs an installed google-chrome.desktop (reasons.py).

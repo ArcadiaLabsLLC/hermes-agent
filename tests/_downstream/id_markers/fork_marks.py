@@ -707,6 +707,27 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             ),
         ),
     }),
+    # Upstream's minted "selected source" tree copies upstream's packages only, and the fork's
+    # hermes_cli imports agent_runtime at module level (hermes_cli/main.py), so the completion
+    # child exits "No module named 'agent_runtime'" before the behaviour under test. The fork does
+    # not ship upstream's updater (ADR 0015; the file is skip-listed `unused`), so no fork twin is
+    # owed; copying agent_runtime in would be an [up-fp] raise (FH-LINUX-SOURCE-UPDATE-FILES-RED-ON-MAIN).
+    **{
+        f"tests/hermes_cli/test_update_finish.py::{node}": (
+            _fork_replaces(
+                "agent_runtime import in hermes_cli (absent from upstream's minted update tree; ADR 0015 unused)",
+                "none owed: the fork does not ship upstream's updater",
+            ),
+        )
+        for node in (
+            "test_failure_preserves_original_receipt_before_build[plan]",
+            "test_interrupt_after_verification_closed_the_run_keeps_gateway_status_0",
+            "test_missing_desktop_observation_uses_installed_products",
+            "test_pre_pull_restart_enters_current_cli_with_original_arguments",
+            "test_raising_fleet_restart_after_commit_is_a_followup_not_exit_1",
+            "test_refused_gateway_resume_after_commit_is_a_followup_not_exit_1",
+        )
+    },
 }
 
 if _WIN:

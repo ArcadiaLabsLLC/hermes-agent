@@ -207,6 +207,24 @@ _NEEDS_NODE = pytest.mark.skipif(
     reason="REQUIRES node: drives Node.js (`node`/`npm`), which is not on PATH; runs once it is",
 )
 
+#: ``node`` AND ``pnpm``: upstream's source-launch and web-build tests prepare a real workspace
+#: with pnpm under the host's Node, so either one missing reds them at fixture setup
+#: (``os.symlink(None, …)``, ``assert node and pnpm``). Runs again the day both are on PATH
+#: (FH-LINUX-BOX-NO-NODE-UPSTREAM-REDS, 2026-11-11).
+_NEEDS_NODE_AND_PNPM = pytest.mark.skipif(
+    shutil.which("node") is None or shutil.which("pnpm") is None,
+    reason="REQUIRES node and pnpm: prepares a real pnpm workspace under Node, and one of them is not on PATH; "
+    "runs once both are",
+)
+
+#: ``rg`` (ripgrep) on PATH: with none, the search tool falls back to grep, which cannot match
+#: across lines and gives no zero-match hint, and the doctor's executable parity test pins the
+#: host's own rg. Runs again the day rg is on PATH (FH-LINUX-BOX-NO-RIPGREP-SEARCH-REDS, 2026-11-11).
+_NEEDS_RIPGREP = pytest.mark.skipif(
+    shutil.which("rg") is None,
+    reason="REQUIRES ripgrep: needs `rg` on PATH (grep, the fallback, cannot do this); runs once it is installed",
+)
+
 
 def _chrome_desktop_entry_installed() -> bool:
     data_dirs = [os.environ.get("XDG_DATA_HOME", ""),
