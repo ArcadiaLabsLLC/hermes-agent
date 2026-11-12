@@ -2,7 +2,12 @@
 
 Status: PLANNED 2026-11-12 by lane w1112b-hm-rejoin2; slice 1 BUILT the same day (`agent_runtime/realm_rekey.py`:
 the place table as top-level store entries, the map, the journal, the JSON-store steps, the census — one module,
-not the package §3 names; nothing calls it). Task `TASK-REJOIN-FRESH-REALM` (slug `rejoin-fresh-realm`,
+not the package §3 names; nothing calls it). Lane w1112b-hm-rejoin3 BUILT, the same day, the agents
+(`realm_rekey_agents.py`), git (`realm_rekey_git.py`), the places outside the JSON store
+(`realm_rekey_outside.py`) and the id map (`realm_rekey_journal.py`, the realm row's `rekeyed_from`, the
+`realm.rekeyed` event): the operation is whole, `OWED_HANDLERS` is empty, and STILL NOTHING CALLS IT. Not built:
+§5 (triggers, busy facts, `realm_busy`) and §7 (the switch-over and its walk). "As built" notes are in §3, §4, §6;
+new open points are at the end of §10. Task `TASK-REJOIN-FRESH-REALM` (slug `rejoin-fresh-realm`,
 runtime queue). Nothing here is built unless §9 says so; until the switch-over row lands a member sees the
 behaviour of ed84b2c01a / 30bf4d08c7 (the realm turns local at the leave; a re-join binds the SAME realm id again
 and merges).
@@ -222,3 +227,13 @@ accepts a rewritten `sceneId`.
   later, with no click. Recommend: a one-line notice on the realm ("this copy now has its own agents; the team's
   agents and their chats return when you re-join") — DECISION row
   `RT-REKEY-NOTICE-LOCAL-COPY-HAS-OWN-AGENTS`.
+- **Found while building (lane w1112b-hm-rejoin3), each on the switch-over row's handoff:** the fresh pull meets
+  the restored team agents with no persona-instance baseline; install-wide catalogues (maps, prefabs, persona
+  definitions, skills) are not re-keyed, so the team's copy of an id meets the local one; this machine's folder
+  slots, env fills and Lens watches move with the local copy, so the fresh realm arrives with no folder bound
+  (Recommend: say so, as for a first-time joiner; copying a binding to both realms is an owner choice); a
+  promoted brain keeps the team's remote (`RT-LEFT-REALM-BRAIN-STILL-PUSHES-TO-THE-TEAM`); a card adopted from
+  a Work row keeps its id on both copies (`RT-REJOIN-CARD-VERB-WITHOUT-BOARD-PICKS-EITHER-COPY`); `owe_rekey`
+  maps a whole realm — §7's one-workspace re-key aside needs it to take a subset.
+- **The owner's notice is ruled** (2026-11-12, "Yes, one line"): hermes exposes `rekeyed_from.at`; the line on
+  the realm card is Eternia's.
