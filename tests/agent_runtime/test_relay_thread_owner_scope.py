@@ -72,3 +72,28 @@ def test_an_unscoped_operator_send_mints_unscoped_as_before(db):
     assert require_session_owner(row, None) is None
     with pytest.raises(ConversationOwnerError):
         require_session_owner(row, OPERATOR)
+
+
+def test_a_relayed_thread_names_who_sent_it(db, monkeypatch):
+    """Eternia MC-RELAY-PROVENANCE: the target thread's history row says which chat (and agent) asked
+    for it, from the mint's ``_dispatched_from`` record — the app's "From <agent>" header reads it.
+    KILLING MUTATION: ``_dispatched_from`` answers {} -> no ``dispatched_from``, red (run)."""
+
+    import json
+
+    from agent_runtime.persona_chat_history import history_rows
+
+    meta = json.loads(db.get_session(SENDER_ROOT)["model_config"] or "{}")
+    meta["persona_instance_id"] = "personainst_base"
+    db.update_session_meta(SENDER_ROOT, json.dumps(meta, sort_keys=True))
+    monkeypatch.setattr(history_rows, "persona_instance_display_name",
+                        lambda instance: {"personainst_base": "Base"}.get(instance, ""))
+
+    relayed = _relay_mint(db, args=Namespace(), requested_by_session=SENDER_ROOT)
+    row = history_rows._history_row(relayed, persona_id="qa", instance_id="personainst_qa",
+                                    session_id=relayed["id"], session_db=db)
+    assert row["dispatched_from"] == {"session_id": SENDER_ROOT, "persona_instance_id": "personainst_base",
+                                      "display_name": "Base"}
+    sender = history_rows._history_row(db.get_session(SENDER_ROOT), persona_id="base",
+                                       instance_id="personainst_base", session_id=SENDER_ROOT, session_db=db)
+    assert "dispatched_from" not in sender, "a thread nobody dispatched names no sender"

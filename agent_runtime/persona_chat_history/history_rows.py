@@ -12,6 +12,7 @@ from typing import Any
 from ..clock import iso_timestamp
 from ..models import PersonaInstance
 from ..persona_assignments import (
+    persona_instance_display_name,
     persona_instance_id_for,
     safe_assignment_text,
     safe_assignment_token,
@@ -175,6 +176,7 @@ def _history_row(
         "session_id": session_id,
         **({"client_scope": owner} if (owner := session_client_scope(raw)) is not None else {}),
         **_channel_origin(raw),
+        **_dispatched_from(raw, session_db),
         "persona_id": persona_id,
         "persona_instance_id": safe_assignment_text(
             instance_id or persona_instance_id_for(persona_id),
@@ -341,6 +343,30 @@ def _channel_origin(raw: dict[str, Any]) -> dict[str, str]:
     config = _model_config(raw.get("model_config"))
     origin = {key: safe_assignment_text(config.get(key), limit=200) for key in ("channel_source", "channel_key")}
     return {key: value for key, value in origin.items() if value}
+
+
+def _dispatched_from(raw: dict[str, Any], session_db: Any | None) -> dict[str, Any]:
+    """``dispatched_from``: the chat that asked for this thread (``_dispatched_from.requested_by_session``)
+    and the agent it belongs to — a relay's target thread says who sent it (Eternia MC-RELAY-PROVENANCE),
+    from the producer's record, never from ``requested_by`` prose. Absent on a thread nobody dispatched,
+    or when the asking chat cannot be read (a name is never guessed)."""
+
+    lineage = _model_config(raw.get("model_config")).get("_dispatched_from")
+    source = safe_assignment_text(lineage.get("requested_by_session"), limit=240) if isinstance(lineage, dict) else ""
+    if not source or session_db is None:
+        return {}
+    try:
+        source_row = session_db.get_session(source)
+    except Exception:
+        return {}
+    if not isinstance(source_row, dict):
+        return {}
+    # MUTATION: answer {} here and test_a_relayed_thread_names_who_sent_it reddens (run 2026-11-12).
+    instance = _persisted_persona_instance_id(source_row)
+    name = persona_instance_display_name(instance) if instance else ""
+    if not instance or not name:
+        return {}
+    return {"dispatched_from": {"session_id": source, "persona_instance_id": instance, "display_name": name}}
 
 
 def _model_config(value: Any) -> dict[str, Any]:
