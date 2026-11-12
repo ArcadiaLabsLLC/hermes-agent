@@ -34,6 +34,16 @@ fold receipt (or a demote receipt naming the id among contributors).
   `agent_runtime/correlation_acceptance.py`, pinned by
   `tests/agent_runtime/test_correlation_acceptance.py`. The run against the operator's own
   build (one delete, one drag) is the live half and is still owed.
+- **Run 2026-11-12 (lane w1112b-ctt-hm, Linux QA copy of Eternia 3373a961b2 served from hermes
+  7e4eda8c17, fixture model, dev login).** One office drag — `launcher.mission_control.office.item.move`
+  on the placed Base agent, the app function that saves the layout as dragging does — minted
+  `g-office-…-d65f`, and `scripts/correlation_id_acceptance.py` answered **joined (exit 0)**: send
+  18:22:43.141 → serve 18:22:43.161 → fold 18:22:43.577 (UTC). The palette drop that placed that agent
+  did NOT join: its layout save minted `g-office-…-d65c` (send and serve present, the upsert a
+  `noop=1`, so no fold carries it) while the create folded under a second token `g-place-…-d65d` with no
+  send or serve line naming it (row `RT-PALETTE-DROP-SPLITS-ITS-CORRELATION-TOKEN`). No delete was run:
+  the QA bus has no office delete (an actor's Delete needs a pointer select on an actor this Linux copy
+  did not draw).
 - Gate: it must run against the operator's own build reading logs only — no
   `.hermes/` writes, no casual `harness serve`.
 - Until it exists, the sanctioned diagnostic procedure it was meant to REPLACE
