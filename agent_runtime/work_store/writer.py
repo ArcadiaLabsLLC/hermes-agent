@@ -398,15 +398,38 @@ class Writer:
 
             changed("local_work_brain_created")
 
+    @property
+    def _remote_branch(self) -> str:
+        return f"refs/heads/{self.board.default_branch}"
+
+    def _tracks(self, clone: Path, advertised: str | None) -> bool:
+        """True when origin's branch tip (``ls-remote`` output) is the tip this clone already tracks.
+
+        Then a fetch would bring nothing, yet a no-op ``fetch`` of a real-size repository still pays
+        upload-pack, a connectivity walk over every local ref and auto-maintenance: 1.6–2.9 s on Windows
+        (5,498 refs) against 0.6–0.7 s for asking the one tip (RT-WORK-SYNC-FETCH-UNMOVED-TIP). The branch
+        absent there or here is not "tracked": the fetch runs and owns that refusal."""
+
+        remote = next((sha for sha, _, ref in (line.partition("\t") for line in str(advertised or "").splitlines())
+                       if ref == self._remote_branch), None)
+        here = self._git(["rev-parse", "-q", "--verify", f"refs/remotes/{self.tip}"], repo=clone)
+        return remote is not None and here.returncode == 0 and here.stdout.strip() == remote
+
     def _fetch(self, clone: Path, *, stale_ok: bool) -> None:
+        """Step 2: the clone's tracking ref at origin's branch tip, fetched only when that tip moved."""
+
         self.stale = False
         if self.board.local:
             return
         if self._git(["remote", "get-url", "origin"], repo=clone).returncode != 0:
             raise WorkRefused(Reason.REMOTE_MISSING, self.board.slot)
-        done = self._git(["fetch", "-q", "origin", self.board.default_branch], repo=clone)
+        done = self._git(["ls-remote", "origin", self._remote_branch], repo=clone)
         if done.returncode == 0:
-            return
+            if self._tracks(clone, done.stdout):
+                return
+            done = self._git(["fetch", "-q", "origin", self.board.default_branch], repo=clone)
+            if done.returncode == 0:
+                return
         if "couldn't find remote ref" in str(done.stderr):
             raise WorkRefused(Reason.BRANCH_MISSING, self.board.default_branch)
         if not stale_ok:
