@@ -477,9 +477,11 @@ def start(scope, params, actor, *, context=None):
     request = text(params.get("request_id"))
     # From an operator conversation the persona instance it talks to is the default assignee. Start
     # never claims (owner ruling 2026-11-02, RT-WORK-START-NEVER-CLAIMS): taking the row is
-    # ``runtime.work.claim`` or a batch, each its own explicit choice.
+    # ``runtime.work.claim`` or a batch, each its own explicit choice. An explicit ``assignee: null`` is
+    # nobody — the row is for anyone (as ``runtime.work.assign`` reads null), never the default
+    # (RT-WORK-START-FOR-NOBODY-FROM-A-CHAT); only an omitted or empty one takes the default.
     here = context.assignee if context is not None else None
-    assigned = params.get("assignee") or here
+    assigned = None if "assignee" in params and params["assignee"] is None else params.get("assignee") or here
     token = resolve_assignee(_assignee_token(assigned)).token if assigned else None
     view, board = _create_target(scope.workspace_id, params.get("slot"))
     writer = view.writers[board.key]

@@ -253,6 +253,28 @@ def test_start_from_a_conversation_assigns_and_never_claims(work, monkeypatch):
     assert other["taken"] is None and other["in_conversation"] is False
 
 
+def test_start_from_a_conversation_for_nobody_writes_no_assignee(work, monkeypatch):
+    """RT-WORK-START-FOR-NOBODY-FROM-A-CHAT (Eternia ``COMP-WORK-START-FROM-A-CHAT-FOR-ANYONE``): Anyone
+    chosen in an agent's chat sends ``assignee: null`` and the row is for anyone; an omitted or empty
+    ``assignee`` still takes the chat's agent (the old shape). Mutation: ``assigned = params.get("assignee")
+    or here`` again (null falls back to the chat's agent) -> the null start is assigned to alice, red."""
+    from agent_runtime import operator_conversation
+
+    alice = mint_free_floating("alice")
+    monkeypatch.setattr(operator_conversation, "validate_operator_conversation", lambda reference: reference)
+    reference = {"kind": "operator", "workspace_id": work.ws, "persona_id": "alice",
+                 "persona_instance_id": alice.id, "session_id": "s1"}
+    nobody = start(work, "n1", title="For anyone", conversation=reference, assignee=None)["task"]
+    assert nobody["assignee"] is None and nobody["status"] == "READY" and nobody["taken"] is None
+    line = call(work, "inspect", slot="brain", task_id=nobody["id"])["task"]["raw"]
+    assert "assignee:" not in line and " · READY " in line
+    for request_id, shape in (("n2", {}), ("n3", {"assignee": ""})):
+        default = start(work, request_id, title=f"Default {request_id}", conversation=reference, **shape)["task"]
+        assert default["assignee"] == f"persona:{alice.id}"
+    # With no conversation, null is nobody too (it always was: there is no default to fall back to).
+    assert start(work, "n4", title="No chat", assignee=None)["task"]["assignee"] is None
+
+
 def test_unknown_caller_and_wrong_install_refuse(work):
     for operation in rpc.OPERATIONS:
         with pytest.raises(WorkRefused) as denied:
