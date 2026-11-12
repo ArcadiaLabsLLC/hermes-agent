@@ -17,7 +17,9 @@ removed, the status replaced by ONE outcome, the line appended to
 files in one commit, ``queue(<stem>): close <ID> <outcome>``. Every row of this brain BLOCKED on ``<ID>`` (reason
 ``hermes`` or ``another lane``) is woken in the same commit: back to ``READY <date>`` with an ``unblocked`` segment
 naming the close (``agent_runtime/work_store/wake.py``; launcher row BRAIN-QUEUE-CLOSE-WAKES-DEPENDENTS);
-``--no-wake`` leaves them. Rows in the launcher or backend brains are theirs to wake — the launcher's
+``--no-wake`` leaves them (and says so on stderr: a row left BLOCKED on an archived row reds the queue gate). A row
+whose block lists several rows (``— `A` then `B`, `C`: why``) is woken only by the close of the last one still
+open; until then a close of one of them re-points it at the rest, ``--no-wake`` or not. Rows in the launcher or backend brains are theirs to wake — the launcher's
 ``dart tool/queue/waits_on.dart <ID> --in hermes`` lists them.
 
 A close also moves the row's TASK (launcher plan ``EterniaLauncher/docs/mission_control/planned/
@@ -429,12 +431,17 @@ def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, s
     before = {**texts, note: text}
     texts[note], _ = archive_row(repo, note, text, args.row_id, args.who, payload, archives)
     woken: dict[Path, list[str]] = {}
-    if not args.no_wake:
-        for path, current in texts.items():
-            after, ids = wake_dependents(current, args.row_id, payload["date"], how)
-            if ids:
-                texts[path] = after
-                woken[path] = ids
+    held: dict[str, list[str]] = {}
+    stranded: list[str] = []
+    live_ids = {row.ref.id for row in _brains(texts, siblings)}
+    for path, current in texts.items():
+        stepped = wake_dependents(current, args.row_id, payload["date"], how, live_ids=live_ids,
+                                  wake=not args.no_wake)
+        texts[path] = stepped.text
+        held |= stepped.held
+        stranded += stepped.stranded
+        if stepped.woken:
+            woken[path] = stepped.woken
     said = task_step(repo, closed, [i for ids in woken.values() for i in ids], texts, archives, payload,
                      siblings, args.who, how)
     touched = [path for path in texts if texts[path] != before.get(path)]
@@ -448,6 +455,13 @@ def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, s
     for ids in woken.values():
         for woke in ids:
             print(f"woke `{woke}`: READY (it waited on `{args.row_id}`)")
+    for row_id, still_open in held.items():
+        print(f"`{row_id}` stays BLOCKED: it also waits on {', '.join(f'`{b}`' for b in still_open)}, still open "
+              f"(`{args.row_id}` is off its list)")
+    for row_id in stranded:
+        print(f"warning: `{row_id}` is left BLOCKED on `{args.row_id}`, which this close archives (--no-wake): "
+              "re-status it before you push, or the queue gate reds on a blocker that is no longer a row",
+              file=sys.stderr)
     for line in said:
         print(line)
     return touched

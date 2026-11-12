@@ -290,6 +290,66 @@ def test_no_wake_leaves_them_blocked(clones):
     assert (mine / other_note).read_text(encoding="utf-8") == waiting
 
 
+HELD = ("- **`RT-H` — the switch-over** · BLOCKED 2026-11-01: another lane — `RT-A` then `RT-B`, `RT-GONE` and "
+        "`RT-C`: only when all are on main and `OWED_HANDLERS` is empty · filed by a lane\n"
+        "- **`RT-C` — third** · READY 2026-10-18\n")
+
+
+def test_a_close_keeps_a_row_other_rows_still_hold_blocked(clones, capsys):
+    """RT-QUEUE-CLOSE-WAKES-ROW-STILL-HELD-BY-OTHERS (three closes of 2026-11-12 woke a row five others held).
+    KILLING MUTATIONS: ``still_open = []`` in ``wake_dependents`` -> RT-H is READY after the first close, red;
+    match only the list's first ID (``closed_id != listed[1][0]``) -> closing RT-C, a later blocker, leaves it on the list, red."""
+    _, mine, _ = clones
+    (mine / NOTE).write_text(HEAD + ROWS + HELD, encoding="utf-8", newline="\n")
+    close = ["--who", "r", "--owner", "done elsewhere", "--date", "2026-11-03", "--repo", str(mine), "--no-commit"]
+
+    def held_row() -> str:
+        return next(line for line in (mine / NOTE).read_text(encoding="utf-8").split("\n") if "`RT-H`" in line)
+
+    assert work_row.main(["close", "RT-A", *close]) == 0
+    assert held_row() == ("- **`RT-H` — the switch-over** · BLOCKED 2026-11-01: another lane — `RT-B` then `RT-C`: only "
+                          "when all are on main and `OWED_HANDLERS` is empty · filed by a lane"), "RT-GONE is no row"
+    assert capsys.readouterr().out == ("`RT-H` stays BLOCKED: it also waits on `RT-B`, `RT-C`, still open (`RT-A` is "
+                                       "off its list)\n")
+    assert work_row.main(["close", "RT-C", *close]) == 0
+    assert "another lane — `RT-B`: only when all" in held_row()
+    capsys.readouterr()
+    assert work_row.main(["close", "RT-B", *close]) == 0
+    assert held_row() == ("- **`RT-H` — the switch-over** · READY 2026-11-03 · unblocked 2026-11-03: `RT-B` closed by "
+                          "the owner · filed by a lane")
+    assert capsys.readouterr().out == "woke `RT-H`: READY (it waited on `RT-B`)\n"
+
+
+def test_no_wake_still_takes_the_archived_row_off_a_list_and_names_a_row_it_strands(clones, capsys):
+    """The other half: a ``--no-wake`` close left a row naming an archived blocker first and the queue gate red on
+    main (6d7b7e554f). KILLING MUTATIONS: ``if still_open and wake`` -> RT-H still names RT-A, red; drop the
+    ``stranded`` report -> no warning for RT-W, red. RT-W itself is left as it stands: that is what the flag asks."""
+    _, mine, _ = clones
+    lone = "- **`RT-W` — waits on one** · BLOCKED 2026-11-01: hermes — `RT-A` first\n"
+    (mine / NOTE).write_text(HEAD + ROWS + HELD + lone, encoding="utf-8", newline="\n")
+    assert work_row.main(["close", "RT-A", "--who", "r", "--owner", "x", "--no-wake", "--repo", str(mine),
+                          "--no-commit"]) == 0
+    text = (mine / NOTE).read_text(encoding="utf-8")
+    assert "· BLOCKED 2026-11-01: another lane — `RT-B` then `RT-C`: only when" in text
+    assert lone in text
+    said = capsys.readouterr()
+    assert "`RT-H` stays BLOCKED" in said.out and "RT-W" not in said.out
+    assert said.err.startswith("warning: `RT-W` is left BLOCKED on `RT-A`, which this close archives (--no-wake)")
+
+
+def test_only_the_rows_a_block_opens_with_are_its_blockers():
+    """KILLING MUTATION: let ``_NEXT_BLOCKER`` match a bare space before the next backticked name -> the prose's
+    ``RT-B`` joins the list, red."""
+    from agent_runtime.work_store.wake import blocker_list
+
+    assert blocker_list("another lane — `RT-A` then `RT-B`, `RT-C`, and `RT-D` & `RT-E` + `RT-F`: why `RT-Z`") == (
+        "another lane — ", ["RT-A", "RT-B", "RT-C", "RT-D", "RT-E", "RT-F"], ": why `RT-Z`")
+    assert blocker_list("hermes — `RT-A` the fix, which `RT-B` also wants") == (
+        "hermes — ", ["RT-A"], " the fix, which `RT-B` also wants")
+    assert blocker_list("another lane — `RT-A` `RT-B`")[1] == ["RT-A"]
+    assert blocker_list("owner decision — which one?") is None
+
+
 TASK_ROWS = ("- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n"
              "- **`RT-S1` — first slice** · group: p · READY 2026-11-09\n"
              "- **`RT-S2` — second slice** · group: p.x · READY 2026-11-09\n")
