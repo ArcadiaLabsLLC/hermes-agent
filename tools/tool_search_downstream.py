@@ -76,7 +76,14 @@ def attach_hit_parameters(record: dict[str, Any], index: int, params) -> None:
 #: only after a ``tool_search``. They are every tool registered into the ``board`` toolset
 #: (``tests/tools/test_board_tools_ride_eager_downstream.py`` holds the two sets equal).
 BOARD_TOOLS = frozenset({"board_card_add", "board_cards"})
-_BUILTIN_NEVER_DEFER = frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"}) | BOARD_TOOLS
+#: The opt-in ``schedule`` toolset's tools (``RT-SCHEDULE-TOOL-HIDDEN-FROM-OPTED-IN-AGENT``). A plugin tool, so
+#: upstream deferred it: a persona whose profile declares ``schedule`` was sent 35 tools and not this one
+#: (live, 2026-11-12). It is registered into a toolset only an opted-in profile declares, so naming it here
+#: un-hides it for exactly those personas and grants nothing to anyone else
+#: (``tests/agent_runtime/test_schedule_tool_sent_to_opted_in_agent.py`` holds the set equal to the toolset).
+SCHEDULE_TOOLS = frozenset({"schedule_manage"})
+# MUTATION: drop ``| SCHEDULE_TOOLS`` and test_schedule_tool_sent_to_opted_in_agent reddens (the tool is deferred).
+_BUILTIN_NEVER_DEFER = frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"}) | BOARD_TOOLS | SCHEDULE_TOOLS
 
 #: MCP promotions, keyed by the server that produces them and spelled as that server EXPOSES each
 #: tool. The registered name is derived below by the registry's own naming function — never typed by
