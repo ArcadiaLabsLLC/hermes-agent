@@ -126,6 +126,29 @@ def _held_binary(directory: Path) -> subprocess.Popen:
     return subprocess.Popen([str(exe), *argv_tail], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def _only_these_processes(monkeypatch, *pids: int) -> None:
+    """The guard's process walk sees ``pids`` only — each read for real, by psutil — never the box's table.
+
+    The whole table made this test depend on what else ran: with a hermes running out of the real home's
+    ``tools/`` directory the guard's ``realpath`` of THAT executable tripped ``tests/home_io_guard.py`` and the
+    test was red on a box where the product was merely in use
+    (FH-FLUTTER-BUILD-GUARD-TEST-RED-WHILE-A-HERMES-RUNS-ON-THE-BOX). ``pids`` holds the held binary and one
+    process outside the output directory (this one), so the match is still a choice among processes.
+    """
+    import psutil
+
+    def walk(attrs=None):
+        for pid in pids:
+            try:
+                found = psutil.Process(pid)
+                found.info = found.as_dict(attrs=attrs)
+            except psutil.NoSuchProcess:
+                continue
+            yield found
+
+    monkeypatch.setattr(psutil, "process_iter", walk)
+
+
 @pytest.mark.skipif(sys.platform == "darwin", reason="macOS output layout is a bundle; covered on win/linux")
 def test_a_build_whose_output_binary_is_running_is_refused(hook, tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "no_roots_home"))  # no primary bound: this test alone
@@ -136,6 +159,7 @@ def test_a_build_whose_output_binary_is_running_is_refused(hook, tmp_path, monke
         lane / "build" / "linux" / "x64" / "debug" / "bundle")
     command = f"flutter build {target} --debug"
     process = _held_binary(debug_dir)
+    _only_these_processes(monkeypatch, process.pid, os.getpid())
     try:
         refused = _call(hook, command, lane)
         assert refused is not None and refused["action"] == "block"
