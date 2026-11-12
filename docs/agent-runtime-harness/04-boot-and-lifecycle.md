@@ -865,7 +865,11 @@ everywhere (`messaging_enabled` false). Pinned by `tests/agent_runtime/messaging
     `agent_runtime/run_context.py`, which also bridges them into every factory-built child
     env), and the workdir is bound in the run's terminal scope, never `os.chdir`
     (`tests/agent_runtime/test_serve_cwd_serialization_invariant.py` reds on a `chdir`).
-    The one process write left is POSIX `HOME`, serialized by `_PROCESS_HOME_LOCK`;
+    The one process write left is POSIX `HOME` (a profile's `home/`, where one exists), passed
+    through `profile_runner.workdir._ProcessHomeGate`: runs wanting the same `HOME` — on a host,
+    every run, since no profile has a `home/` and nothing is written — hold it together, and only
+    a run wanting another value waits its turn (until 2026-11-12 one lock held every POSIX run
+    for its whole body, so one agent's slow model call froze every other agent's next turn);
     `_WORKDIR_LOCK` is now only the operator workspace writers' lock that a run passes
     through at entry.
 11. **A frozen `snapshot.json` / `read_model.db` mtime says nothing about liveness** — a live

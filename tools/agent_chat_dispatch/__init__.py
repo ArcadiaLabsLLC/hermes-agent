@@ -40,9 +40,10 @@ WHY STILL A SUBPROCESS after run-serialization S5 (``7c3bb31a12b``, decided
 2026-10-16). S5 retired the whole-run ``_WORKDIR_LOCK``: a run holds
 ``workdir.root_run_lock`` for its own chat root, so turns of different roots
 run side by side on native Windows. The hop stays, for three facts S5 did not
-change: on POSIX every run still holds ``workdir._PROCESS_HOME_LOCK`` for its
-whole body (until the upstream home door, run-serialization decision 3), so an
-in-process dispatch there would still freeze every other turn; a dispatch whose
+change: on POSIX a run whose profile carries its own ``home/`` still holds the
+process ``HOME`` for its whole body (``workdir._ProcessHomeGate``, until the
+upstream home door, run-serialization decision 3), so an in-process dispatch
+there would still hold back every turn that wants another ``HOME``; a dispatch whose
 target turn shares a root with a running turn waits on that root's lock with no
 wall budget ticking; and the child's PID identity is what the orphan sweep and
 the kill-after-grace act on — a thread can be neither swept nor killed.

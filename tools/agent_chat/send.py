@@ -165,11 +165,13 @@ class Send:
         # though the reason narrowed with run-serialization S5 (``7c3bb31a12b``):
         # a run no longer holds the process-wide ``_WORKDIR_LOCK`` for its body,
         # it holds ``workdir.root_run_lock`` for its OWN chat root, so a target in
-        # ANOTHER root no longer waits on the sender on native Windows. Two locks
-        # still would, and the tool executes on a worker thread, so reentrancy
-        # (per thread) does not save it: on POSIX every run holds
-        # ``workdir._PROCESS_HOME_LOCK`` for its whole body (until the upstream
-        # home door, run-serialization decision 3), and a send whose target turn
+        # ANOTHER root no longer waits on the sender on native Windows. Two waits
+        # still would happen, and the tool executes on a worker thread, so
+        # reentrancy (per thread) does not save it: on POSIX a target whose
+        # profile carries its own ``home/`` waits at ``workdir._ProcessHomeGate``
+        # until the sender is out (until the upstream home door,
+        # run-serialization decision 3; profiles with no ``home/`` pass it
+        # together since 2026-11-12), and a send whose target turn
         # lands in the sender's own root needs the root lock the sender holds.
         # Either one waits until the sender's wall budget kills the sender
         # (measured 203 s on 2026-10-08, before S5). The detached lane runs the

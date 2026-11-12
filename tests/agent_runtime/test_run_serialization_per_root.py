@@ -73,11 +73,10 @@ def _run(profile: str, root: str, message: str, runtime_root: Path, errors: list
         errors.append(exc)
 
 
-@pytest.mark.xfail(
-    os.name != "nt", strict=True,
-    reason="POSIX runs serialize behind workdir._PROCESS_HOME_LOCK (the HOME write) until the upstream "
-           "home-hook door lands: row RT-POSIX-TURNS-SERIALIZE-BEHIND",
-)
+# POSIX too since 2026-11-12: neither profile has a ``home/``, so both pass the HOME gate together
+# (``workdir._ProcessHomeGate``, RT-NEW-TURN-WAITS-ON-ANOTHER-AGENTS-MODEL-CALL). Profiles carrying
+# DIFFERENT ``home/`` directories still take turns until the upstream home-hook door lands
+# (RT-POSIX-TURNS-SERIALIZE-BEHIND); ``test_new_turn_not_held_by_another_agents_call.py`` pins both.
 def test_another_root_finishes_while_one_root_waits(tmp_path, two_profiles):
     b_done = threading.Event()
     a_waiting = threading.Event()

@@ -4,10 +4,11 @@ counter, one writer).
 
 from __future__ import annotations
 
+from collections import deque
 from contextlib import contextmanager
 import os
 from pathlib import Path
-from threading import Lock, RLock
+from threading import Condition, Lock, RLock, get_ident, local
 
 from agent_runtime.profile_runner.errors import ProfileRunnerError
 
@@ -16,7 +17,7 @@ __layer__ = "stores"
 __all__ = [
     "_ACTIVE_RUNS",
     "_ACTIVE_RUNS_LOCK",
-    "_PROCESS_HOME_LOCK",
+    "_PROCESS_HOME",
     "_WORKDIR_LOCK",
     "_agent_workdir",
     "_counted_agent_run",
@@ -133,19 +134,124 @@ def root_run_lock(root_key: str | None):
                 del _ROOT_LOCKS[key]
 
 
-#: Serializes runs on POSIX only, for the ONE process write left: ``HOME``.
-_PROCESS_HOME_LOCK = RLock()
+class _ProcessHomeGate:
+    """``HOME`` is ONE process value: runs that want the same one hold it together, any other waits.
+
+    ``os.path.expanduser`` / ``Path.home()`` read ``HOME`` on POSIX and have no context hook, so a
+    run whose profile carries a ``home/`` directory still needs the process write. What that needs
+    is that every run in flight wants the value in force — not that one run is in flight. Until
+    2026-11-12 this was one ``RLock`` held for each run's whole body, bound or not: an agent
+    waiting on a slow model call froze every other agent's next turn before its agent was even
+    built (RT-NEW-TURN-WAITS-ON-ANOTHER-AGENTS-MODEL-CALL: 80-143 s, live), although on a host no
+    profile has a ``home/`` and nothing was ever written.
+
+    * ``value`` is the ``HOME`` in force: a path, or ``None`` for "the process's own, unwritten".
+      Runs wanting it enter side by side; the first in writes it, the last out restores it.
+    * A run wanting another value waits until the holders are out, and holds its place in line:
+      later arrivals queue behind it, so same-value traffic cannot starve it.
+    * Reentrant per thread, as the ``RLock`` was. A nested run that writes nothing, or wants the
+      value in force, joins. A nested run wanting ANOTHER value takes ``HOME`` to itself: it waits
+      for every other holder to leave, nobody enters while it runs, and its exit puts the outer
+      value back. Two threads asking for that at once would wait on each other for ever; the
+      second is refused instead (no production path nests a run in-process: an inline send from
+      inside a run goes to a child process, ``tools/agent_chat/send.py``).
+
+    The upstream door that retires the write itself is run-serialization decision 3 (row
+    ``RT-POSIX-TURNS-SERIALIZE-BEHIND``): runs whose profiles carry DIFFERENT ``home/``
+    directories still take turns.
+    """
+
+    def __init__(self) -> None:
+        self._changed = Condition()
+        self._value: str | None = None
+        self._holders = 0
+        self._line: deque[object] = deque()
+        #: What ``HOME`` was before the first holder of the value in force wrote it.
+        self._before: str | None = None
+        #: The thread a nested run gave ``HOME`` to alone; nobody else enters while it is set.
+        self._sole_owner: int | None = None
+        self._held = local()
+
+    @staticmethod
+    def _write(home: str | None) -> str | None:
+        """Point ``HOME`` at ``home`` (``None`` writes nothing); what it was, to put back."""
+
+        before = os.environ.get("HOME")
+        if home is not None:
+            os.environ["HOME"] = home
+        return before
+
+    @staticmethod
+    def _restore(home: str | None, before: str | None) -> None:
+        if home is None:
+            return
+        if before is None:
+            os.environ.pop("HOME", None)
+        else:
+            os.environ["HOME"] = before
+
+    @contextmanager
+    def hold(self, home: str | None):
+        depth = getattr(self._held, "depth", 0)
+        me = get_ident()
+        sole = False
+        with self._changed:
+            if depth and (home is None or home == self._value):
+                pass  # joins the value in force; nothing to write or put back
+            elif depth:
+                if self._sole_owner not in (None, me):
+                    raise ProfileRunnerError("another run is changing the process home; a nested run cannot")
+                sole, outer_owner = True, self._sole_owner
+                self._sole_owner = me
+                try:
+                    while self._holders > depth:
+                        self._changed.wait()
+                except BaseException:
+                    self._sole_owner = outer_owner
+                    self._changed.notify_all()
+                    raise
+                outer_value, self._value = self._value, home
+                before = self._write(home)
+            else:
+                place = object()
+                self._line.append(place)
+                try:
+                    while not (self._line[0] is place and self._sole_owner is None
+                               and (self._holders == 0 or self._value == home)):
+                        self._changed.wait()
+                finally:
+                    self._line.remove(place)
+                    self._changed.notify_all()
+                if self._holders == 0:
+                    self._value = home
+                    self._before = self._write(home)
+            self._holders += 1
+        self._held.depth = depth + 1
+        try:
+            yield
+        finally:
+            self._held.depth = depth
+            with self._changed:
+                self._holders -= 1
+                if sole:
+                    self._restore(home, before)
+                    self._value, self._sole_owner = outer_value, outer_owner
+                elif self._holders == 0:
+                    self._restore(self._value, self._before)
+                    self._value = None
+                self._changed.notify_all()
+
+
+#: The one gate every POSIX run passes for the ONE process write left: ``HOME``.
+_PROCESS_HOME = _ProcessHomeGate()
 
 
 @contextmanager
 def _posix_process_home(binding):
-    """POSIX: hold ``_PROCESS_HOME_LOCK`` for the run and point ``HOME`` at the profile's ``home/``.
+    """POSIX: point ``HOME`` at the profile's ``home/`` for the run, beside every run that wants the same.
 
-    ``os.path.expanduser`` / ``Path.home()`` read ``HOME`` on POSIX and have no context hook,
-    so a persona whose ``~`` must resolve to its profile (``skills.external_dirs`` spelled
-    with ``~``, the ``~/.codex`` / ``~/.qwen`` credential files) still needs the process
-    write — and the write is only sound while every run on the box is serialized behind
-    this lock, bound or not. The upstream door that retires it is plan decision 3.
+    A profile without a ``home/`` writes nothing and runs beside every other such run; see
+    :class:`_ProcessHomeGate` for what waits and why that is all the write needs.
     Native Windows: a no-op — ``ntpath.expanduser`` reads ``USERPROFILE``, never ``HOME``
     (measured, field notes S1), and every factory-built child computes its own ``HOME``.
     """
@@ -153,21 +259,10 @@ def _posix_process_home(binding):
     if os.name == "nt":
         yield
         return
-    with _PROCESS_HOME_LOCK:
-        profile_home = getattr(binding, "profile_home", None)
-        home_dir = Path(profile_home) / "home" if profile_home is not None else None
-        if home_dir is None or not home_dir.exists():
-            yield
-            return
-        previous = os.environ.get("HOME")
-        os.environ["HOME"] = str(home_dir)
-        try:
-            yield
-        finally:
-            if previous is None:
-                os.environ.pop("HOME", None)
-            else:
-                os.environ["HOME"] = previous
+    profile_home = getattr(binding, "profile_home", None)
+    home_dir = Path(profile_home) / "home" if profile_home is not None else None
+    with _PROCESS_HOME.hold(str(home_dir) if home_dir is not None and home_dir.exists() else None):
+        yield
 
 
 #: Real agent runs currently between ``ProfileAgentRunner.run``'s entry and its

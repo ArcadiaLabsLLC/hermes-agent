@@ -28,6 +28,8 @@ class HeldModel(ThreadingHTTPServer):
         self.daemon_threads = True
         self.entered, self.release = threading.Event(), threading.Event()
         self.hold = True
+        #: Which chat calls ``hold`` holds; the others answer at once (two agents, one model server).
+        self.hold_if: Callable[[dict], bool] = lambda body: True
         #: Text a held call streams BEFORE it waits: the half-written reply a Stop lands on.
         self.partial = ""
         #: Every chat request body, in arrival order (the QA fixture's ``/qa/state``).
@@ -76,11 +78,13 @@ class _Handler(BaseHTTPRequestHandler):
             self.wfile.write(("data: " + json.dumps(row) + "\n\n").encode())
             self.wfile.flush()
 
+        held = self.server.hold and self.server.hold_if(body)
         try:
-            if self.server.hold and self.server.partial:
+            if held and self.server.partial:
                 chunk({"role": "assistant", "content": self.server.partial}, None)
-            self.server.entered.set()
-            if self.server.hold:
+            if held or not self.server.hold:
+                self.server.entered.set()
+            if held:
                 self.server.release.wait(60)
             text, finish = self.server.reply(body)
             chunk(text if isinstance(text, dict) else {"role": "assistant", "content": text}, None)
