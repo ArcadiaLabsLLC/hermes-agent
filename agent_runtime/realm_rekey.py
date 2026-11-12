@@ -364,8 +364,13 @@ def rekey_realm(realm_id: str) -> dict[str, Any]:
         root = paths.store_root()
         journal = _write_journal({**journal, "state": RekeyState.RUNNING.value, "steps_done": []})
         for name, step in STEPS:
-            step(root, mapping)
-            journal = _write_journal({**journal, "steps_done": [*journal["steps_done"], name]})
+            try:
+                step(root, mapping)
+            except Exception as exc:
+                # Still ``running``, with the step that stopped it named: the next trigger runs it again.
+                _write_journal({**journal, "blocked": {"step": name, "error": type(exc).__name__}})
+                raise
+            journal = _write_journal({**journal, "steps_done": [*journal["steps_done"], name], "blocked": None})
         leftover = leftover_ids(root, list(mapping.forms()), only=PlaceClass.MOVES)
         journal = _write_journal({
             **journal, "state": RekeyState.DONE.value, "done_at": now().isoformat(), "leftover": leftover,

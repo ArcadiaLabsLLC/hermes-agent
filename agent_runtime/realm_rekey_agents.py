@@ -29,6 +29,7 @@ from .serde import safe_assignment_token
 __layer__ = "lanes"
 __all__ = [
     "PARKED_DIRNAME",
+    "RekeyAgentBusy",
     "agent_forms",
     "agent_name_forms",
     "agents_of",
@@ -43,6 +44,10 @@ PARKED_DIRNAME = "persona_instances_parked"
 #: answers about the agent (a custom name, a local context-file path), not chat or run state.
 _KEPT_LOCAL_FIELDS = ("display_name_custom", "slot_context_custom")
 _GRAPH_PREFIX = "runtime_"
+
+
+class RekeyAgentBusy(RuntimeError):
+    """An agent of the map has a live run binding: the re-key runs only when idle, and waits (journal ``running``)."""
 
 
 def parked_agents_dir(realm_id: str) -> Path:
@@ -111,7 +116,7 @@ def step_agents(root: Path, mapping: Any) -> None:
             continue  # retired while the realm was local: nothing to park, no desk to re-seat
         team = _read_row(source)
         if live.exists() and store._has_live_binding(team):
-            raise RuntimeError(f"realm re-key: {old} has a live run binding; the re-key runs only when idle")
+            raise RekeyAgentBusy(f"realm re-key: {old} has a live run binding; the re-key runs only when idle")
         parents[new] = [mapping.agents.get(parent, parent) for parent in team.steered_by]
         if not paths.persona_instance_path(new).exists():
             body = project_persona_instance(team)

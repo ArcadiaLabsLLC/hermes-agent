@@ -5,8 +5,9 @@ the place table as top-level store entries, the map, the journal, the JSON-store
 not the package §3 names; nothing calls it). Lane w1112b-hm-rejoin3 BUILT, the same day, the agents
 (`realm_rekey_agents.py`), git (`realm_rekey_git.py`), the places outside the JSON store
 (`realm_rekey_outside.py`) and the id map (`realm_rekey_journal.py`, the realm row's `rekeyed_from`, the
-`realm.rekeyed` event): the operation is whole, `OWED_HANDLERS` is empty, and STILL NOTHING CALLS IT. Not built:
-§5 (triggers, busy facts, `realm_busy`) and §7 (the switch-over and its walk). "As built" notes are in §3, §4, §6;
+`realm.rekeyed` event): the operation is whole and `OWED_HANDLERS` is empty. Lane w1112b-hm-rejoin4 BUILT §5 (the
+triggers, the busy facts, `realm_busy`; `agent_runtime/realm_rekey_triggers.py`): an owed re-key now runs by
+itself, but NOTHING OWES ONE YET. Not built: §7 (the switch-over and its walk). "As built" notes are in §3, §4, §6;
 new open points are at the end of §10. Task `TASK-REJOIN-FRESH-REALM` (slug `rejoin-fresh-realm`,
 runtime queue). Nothing here is built unless §9 says so; until the switch-over row lands a member sees the
 behaviour of ed84b2c01a / 30bf4d08c7 (the realm turns local at the leave; a re-join binds the SAME realm id again
@@ -129,6 +130,27 @@ One function, `rekey_realm(journal)`. Nothing else renames a realm or a workspac
 - **"Realm busy".** `runtime.realm.adopt` (and the argv twin) answers the retryable refusal `realm_busy` with
   `realm_id`, `retry_after_ms` and what is running (`turn` | `work_run` | `build` | `rename_blocked`) when an owed
   re-key cannot run now. Nothing is adopted in that call.
+
+- **As built** (lane w1112b-hm-rejoin4, `agent_runtime/realm_rekey_triggers.py`). The busy facts are one table
+  (`BUSY_FACTS`), asked in order: `serve` (an argv child, while a serve is registered live or unclassifiable on
+  this store — the fifth word of `running`, beside the four above), `turn` (serve-wide: `agent_runs_in_flight`,
+  `chat_turns_admitted`, `chat_turns_accepted`; also a held `_WORKDIR_LOCK`, and an agent of the map with a live
+  run binding — `RekeyAgentBusy`, typed), `work_run` (a `work/<ws>/runs/` record `starting` or `running` for a
+  workspace of the map), `build` (a build row with no outcome for a workspace of the map). A fact that cannot be
+  asked (a bundle without Work or builds) is not busy. `try_rekey` takes `_WORKDIR_LOCK` without blocking and
+  holds it for the whole operation; one attempt at a time per process. Any `OSError` out of a step is
+  `rename_blocked`: `rekey_realm` writes `blocked: {step, error}` into the journal (still `running`) and the
+  refusal carries `blocked_step`. Triggers: `BootPhases._run_boot_sweeps` right after the Project fold (before
+  the socket accepts and before the read model is first built); `start_rekey_ticker` — the turn-idle boundary
+  (`turn_activity.register_turn_idle_listener`, off the turn's thread) and a 20 s tick; `finish_rekey_or_refuse`
+  for the re-join (`realm_busy`, retryable, `realm_id`, `running`, `retry_after_ms`: 5 s for a turn or a serve,
+  15 s for a blocked rename, 30 s for a Work run or a build).
+- **Decided here.** A machine with no `git` on PATH is not `rename_blocked`: the git step and the local sync
+  history are skipped (nothing cut a worktree or a brain there; the Writer recuts) and the journal turns `done`.
+  The Lens poller holding `lens.sqlite3` is covered by sqlite's own 10 s busy wait; a database still busy or
+  locked after it is `rename_blocked` (step `outside`), never a watch silently left on the old workspace. A turn accepted while the re-key holds
+  the lock waits at the run turnstile; what it read before the turnstile (its agent row) may be the old id's —
+  the same window any workspace writer has.
 
 ## 6. Agents
 

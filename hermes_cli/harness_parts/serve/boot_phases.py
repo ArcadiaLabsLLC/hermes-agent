@@ -776,6 +776,18 @@ class BootPhases:
 
             logging.getLogger(__name__).warning("workspace_merge.failed: %s: %s", type(exc).__name__, exc)
         self.timeline.mark("project_migration_ms")
+        # A realm whose server the member left owes a re-key (RT-REKEY-RUNS-WHEN-IDLE-AND-AT-START): nothing
+        # is running yet, so it runs now — after the Project fold, before the socket accepts and before the
+        # read model is first built, so no client sees the old ids from this serve. Never raises.
+        try:
+            from agent_runtime.realm_rekey_triggers import RekeyTrigger, run_owed_rekeys
+
+            run_owed_rekeys(RekeyTrigger.SERVE_START)
+        except Exception as exc:  # fail-open: the idle tick tries again
+            import logging
+
+            logging.getLogger(__name__).warning("realm_rekey.serve_start_failed: %s: %s", type(exc).__name__, exc)
+        self.timeline.mark("realm_rekey_ms")
         # Builds (build plan §2, §5, §7): THIS process owns the detected-build scan, exports
         # HERMES_BUILD_REGISTRY_DIR so every child it spawns can announce, sweeps expired
         # records, and starts the 30 s stall-fail / build.ended tick.
