@@ -22,6 +22,9 @@ _REASON_HARD_STOP = "explicit stop requested"
 _REASON_NEW_MESSAGE = "user sent a new message"
 _REASON_USER_INTERRUPT = "user interrupt"
 USER_INTERRUPT_REASONS = frozenset({_REASON_HARD_STOP, _REASON_NEW_MESSAGE, _REASON_USER_INTERRUPT})
+# The person pressed Stop (an explicit stop, or a bare interrupt): nothing failed and nothing is
+# re-queued. A new message is a correction, and it rides ``_interrupt_message`` as the next turn.
+PERSON_STOP_REASONS = frozenset({_REASON_HARD_STOP, _REASON_USER_INTERRUPT})
 # ``tool_reason`` the gateway's restart/shutdown stop passes (gateway.run._INTERRUPT_TOOL_REASON_GATEWAY_SHUTDOWN).
 _REASON_GATEWAY_SHUTDOWN = "gateway shutdown"
 
@@ -294,6 +297,10 @@ class InterruptControlMixin:
             if preserve_redirect and not _ic_slot(self, "_pending_redirect_lock", "_pending_redirect"):
                 return False
             self._interrupt_requested = False
+            if getattr(self, "_tool_interrupt_reason", None):
+                # Kept past the clear for the failed-turn closer, which runs after the finalizer
+                # cleared the interrupt (``conversation_loop._stopped_by_the_person``).
+                self._turn_cleared_interrupt_reason = self._tool_interrupt_reason
             self._interrupt_message = self._tool_interrupt_reason = None
             getattr(self, "_hard_interrupt_requested", threading.Event()).clear()
             if not preserve_redirect:

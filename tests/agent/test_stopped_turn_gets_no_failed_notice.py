@@ -9,6 +9,14 @@ with the hidden interrupt row. An interrupt that names itself (a restart, a run 
 correction) keeps the notice: its owner replaces it.
 
 The store, the agent's flush and the closer are the production ones.
+
+RT-CONSOLE-STOP-STILL-SAYS-NOT-PROCESSED: the cases above passed while the live console Stop
+still wrote the notice, because they called the closer with a result typed by hand. The
+console's Stop is ``interrupt_operator_turn`` → ``InterruptScope.cancel("Stopped by the user",
+tool_reason=None)`` → a HARD stop that carries those words as the result's
+``interrupt_message``, which the first rule read as "an interrupt that names itself". The last
+tests run the whole turn (``run_conversation``, real finalizer) and stop it through that seam
+while the model call waits.
 """
 
 from __future__ import annotations
@@ -78,3 +86,94 @@ def test_a_turn_that_was_not_stopped_by_the_person_keeps_the_notice(tmp_path, mo
     assert rows[-1]["content"] == FAILED_TURN_NOTICE
     assert rows[-1]["display_kind"] == FAILED_TURN_DISPLAY_KIND
     db.close()
+
+
+def _run_and_stop(tmp_path, monkeypatch, stop):
+    """One real turn whose model call is waiting when ``stop(agent)`` lands; returns (result, rows)."""
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from agent.interrupt_scope import InterruptScope, bind_interrupt_scope
+    from agent_runtime.persona_chat_session import _persona_chat_native_history
+    from hermes_cli.harness_parts.serve.operator_interrupt import interrupt_operator_turn
+    from hermes_state import SessionDB
+    from run_agent import AIAgent
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    db = SessionDB(db_path=tmp_path / "state.db")
+    db.create_session("s", source="test")
+    with (
+        patch("model_tools.get_tool_definitions", return_value=[]),
+        patch("model_tools.check_toolset_requirements", return_value={}),
+    ):
+        agent = AIAgent(session_db=db, session_id="s", model="test-model", provider="openai-compat", api_key="test",
+                        base_url="http://127.0.0.1:1/v1", quiet_mode=True, skip_context_files=True, skip_memory=True)
+    agent._cached_system_prompt = "You are helpful."
+    agent.compression_enabled = False
+    agent.save_trajectories = False
+    scope = InterruptScope()
+    serve = SimpleNamespace(
+        inflight_lock=__import__("threading").Lock(),
+        inflight={"r": SimpleNamespace(turn_request_id="turn-1", interrupt_scope=scope)},
+    )
+
+    def _waiting_model_call(*_a, **_k):
+        stop(agent, lambda: interrupt_operator_turn(serve, "turn-1"))
+        raise InterruptedError("Agent interrupted during API call")  # what the real call raises on the bit
+
+    with (
+        bind_interrupt_scope(scope),
+        patch.object(agent, "_interruptible_api_call", side_effect=_waiting_model_call),
+        patch.object(agent, "_interruptible_streaming_api_call", side_effect=_waiting_model_call),
+    ):
+        result = agent.run_conversation("please work")
+    rows = db.get_messages("s")
+    # The NEXT message of the chat, on the stored history: what does the model get to read?
+    sent: list[list[dict]] = []
+
+    def _next_model_call(api_kwargs, *_a, **_k):
+        sent.append(list(api_kwargs.get("messages") or ()))
+        agent.interrupt()
+        raise InterruptedError("Agent interrupted during API call")
+
+    with (
+        patch.object(agent, "_interruptible_api_call", side_effect=_next_model_call),
+        patch.object(agent, "_interruptible_streaming_api_call", side_effect=_next_model_call),
+    ):
+        agent.run_conversation("something else", conversation_history=_persona_chat_native_history(db, "s"))  # the harness read
+    db.close()
+    result["next_request"] = sent[0]
+    return result, rows
+
+
+def test_the_consoles_stop_on_a_waiting_model_call_writes_no_failed_turn_notice(tmp_path, monkeypatch):
+    result, rows = _run_and_stop(tmp_path, monkeypatch, lambda agent, console_stop: console_stop())
+
+    assert result["interrupted"] is True and result["interrupt_message"] == "Stopped by the user"
+    said = [row["content"] for row in rows if row["role"] == "assistant"]
+    assert FAILED_TURN_NOTICE not in said and PARTIAL_FAILED_TURN_NOTICE not in said, (
+        "the console's Stop still told the person their request was not processed")
+    assert [row["role"] for row in rows][-2:] == ["user", "assistant"], "the stopped turn's tail was left open"
+    assert rows[-1]["display_kind"] == "hidden"
+
+
+def test_a_stopped_message_is_not_sent_to_the_model_again_inside_the_next_one(tmp_path, monkeypatch):
+    """Live, the stopped message's fixture hold was served a second time on the next turn: the
+    display-only notice is stripped before a provider request, so the stopped user row and the
+    next one merged into one message. The hidden row stays on the wire as the assistant's
+    placeholder, so the two stay apart."""
+    result, _rows = _run_and_stop(tmp_path, monkeypatch, lambda agent, console_stop: console_stop())
+
+    last_user = [m for m in result["next_request"] if m.get("role") == "user"][-1]
+    assert "something else" in str(last_user["content"]) and "please work" not in str(last_user["content"]), (
+        "the stopped message was sent to the model again inside the next one")
+
+
+def test_a_run_budget_that_ends_a_waiting_model_call_keeps_the_notice(tmp_path, monkeypatch):
+    """The harness wall ends the turn through the same interrupt seam, softly and with its own
+    words (``profile_runner.execute``): not a person's stop."""
+    result, rows = _run_and_stop(
+        tmp_path, monkeypatch, lambda agent, _console_stop: agent.interrupt("live run budget exceeded"))
+
+    assert result["interrupted"] is True and result["interrupt_message"] == "live run budget exceeded"
+    assert rows[-1]["content"] == FAILED_TURN_NOTICE and rows[-1]["display_kind"] == FAILED_TURN_DISPLAY_KIND

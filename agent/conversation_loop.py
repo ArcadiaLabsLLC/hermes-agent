@@ -1875,6 +1875,7 @@ def run_conversation(
 
     # Steer / redirect / interrupt set this mid-turn; the result reports whether the turn ran untouched.
     agent._turn_user_intervened = False
+    agent._turn_cleared_interrupt_reason = None  # set by clear_interrupt; read by the closer below
     # Images attached natively to this user turn stay visible to vision_analyze for the turn, so
     # it does not embed the same pixels a second time into the same request (#76411).
     with native_turn_images(user_message):
@@ -1951,11 +1952,19 @@ def _redact_display_metadata(metadata: dict) -> dict:
     return {k: _redact(v) for k, v in metadata.items()}
 
 
-def _stopped_by_the_person(result: dict) -> bool:
-    """A plain Stop: the run returned ``interrupted`` and no ``interrupt_message``. Every other
-    interrupt names itself there (a restart, a run budget, the correction a new message carries)
-    and keeps the failed-turn notice, which its owner may replace."""
-    return result.get("interrupted") is True and not result.get("interrupt_message") and not result.get("failed")
+def _stopped_by_the_person(agent, result: dict) -> bool:
+    """The person pressed Stop: the turn ended ``interrupted`` on a RECORDED reason in
+    ``interrupt_control.PERSON_STOP_REASONS`` (kept by ``clear_interrupt``). The console's Stop
+    arrives as a hard stop carrying the words "Stopped by the user", so the result's
+    ``interrupt_message`` is no signal. An agent that recorded no reason counts when the result
+    names nothing. Every other interrupt (a restart, a watchdog, a run budget, a correction)
+    keeps the notice."""
+    from agent.interrupt_control import PERSON_STOP_REASONS
+
+    if result.get("failed") or result.get("interrupted") is not True:
+        return False
+    reason = getattr(agent, "_turn_cleared_interrupt_reason", None)
+    return reason in PERSON_STOP_REASONS if reason else not result.get("interrupt_message")
 
 
 def _close_durable_failed_turn(agent, result: Any) -> None:
@@ -2005,7 +2014,7 @@ def _close_durable_failed_turn(agent, result: Any) -> None:
         }
         if failure := _failed_turn_display_metadata(agent, result):
             boundary["display_metadata"] = failure
-        if _stopped_by_the_person(result):
+        if _stopped_by_the_person(agent, result):
             # Nothing failed: the person pressed Stop. The tail is still closed (the next prompt must
             # not merge into this one), with the row no transcript shows — the host says "stopped".
             boundary = hidden_interrupt_placeholder_row()
