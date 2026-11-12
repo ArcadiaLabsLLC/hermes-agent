@@ -211,6 +211,37 @@ def _prune_workspace_lifts(entries: list[WorkspaceLift]) -> list[WorkspaceLift]:
     )
 
 
+def record_deleted_workspace(realm: Realm, workspace_id: str) -> None:
+    """Take ``workspace_id`` out of the realm and put it on the delete ledger.
+
+    The single write for "this workspace left this realm for every member":
+    ``WorkspaceStore.delete`` (it is gone) and ``move_workspace_realm`` out of a
+    server-bound realm (it lives in another realm now) both call it. Mutates
+    ``realm`` IN MEMORY; the caller saves.
+
+    Any lift marker for the id is SUPERSEDED rather than dropped. Dropping it
+    would be an absence again, and a peer's surviving lift would then out-rank
+    this fresh delete on the next pull. Stamping ``deleted_at`` makes "a fresh
+    re-delete beats a stale lift" the same comparison as "a fresh lift beats a
+    stale delete".
+    """
+
+    realm.workspace_ids = [wid for wid in (realm.workspace_ids or []) if wid != workspace_id]
+    ledger = [wid for wid in (realm.deleted_workspace_ids or []) if wid != workspace_id]
+    ledger.append(workspace_id)
+    realm.deleted_workspace_ids = ledger[-DELETED_WORKSPACE_LEDGER_CAP:]
+    realm.workspace_lifts = _prune_workspace_lifts(
+        [
+            (
+                WorkspaceLift(workspace_id=lift.workspace_id, restored_at=lift.restored_at, deleted_at=now())
+                if lift.workspace_id == workspace_id
+                else lift
+            )
+            for lift in (getattr(realm, "workspace_lifts", None) or [])
+        ]
+    )
+
+
 def lift_deleted_workspace(realm: Realm, workspace_id: str) -> bool:
     """Take ``workspace_id`` off the delete ledger AND say so to the peers.
 

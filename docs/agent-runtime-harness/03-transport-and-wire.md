@@ -1450,21 +1450,40 @@ its realm's delete ledger and heals a missing `workspace_ids` entry, so a copy r
 ride `error.data.reason`: `invalid_request` (-32602), `workspace_not_found` (4001), `realm_archived` (4090, with
 `realm_id` — the owning realm is archived). One implementation, `agent_runtime/workspace_manage.py`.
 
-`runtime.workspace.move_realm` (`console` tier; RT-WORKSPACE-MOVE-REALM; argv twin `harness workspace move-realm
-<workspace_id> <realm_id>`) moves a workspace into another realm — what `assign_realm` refuses as
-`workspace_owned_by_other_realm`. Params exactly `workspace_id`, `realm_id`; the answer is the workspace row
-(`realm_id` now the target) plus `moved` (false when that realm already owned it whole), `from_realm_id` (the
-realm it left, null for a realm-less one) and `active_workspace_id` (the pointer after the reconcile). Writes
-under the assign lock: the workspace's `realm_id`, then every source realm's `workspace_ids` entry out, then the
-target's in (lifting its delete-ledger entry). When the moved workspace was the ACTIVE one and the active realm
-is not the target, the realm pointer stays and the workspace pointer falls to that realm's next workspace
-(`reconcile_active_workspace_to_realm`), so the two pointers never straddle realms. Refusals ride
-`error.data.reason`: `invalid_request` (-32602); `workspace_not_found`, `realm_not_found` (4001); and at 4090
-`realm_archived` (`realm_id`), `workspace_archived` (restore it first), `realm_default_workspace` (`realm_id` — a
-realm's default workspace and the reserved `ws_default` never leave) and `workspace_realm_server_bound`
-(`owner_realm_id` — a workspace a server-bound realm shares is not moved OUT: realm sync would restore the other
-members' copy or delete this one; moving INTO a server-bound realm is allowed). The rules live in
-`agent_runtime/workspace_manage.py::move_workspace_realm`; a client draws the refusal, it never pre-judges one.
+`runtime.workspace.move_realm` (`console` tier; RT-WORKSPACE-MOVE-REALM, RT-WORKSPACE-MOVE-OUT-OF-SERVER-REALM;
+argv twin `harness workspace move-realm <workspace_id> <realm_id> [--confirm-leave-realm <id or name>]
+[--credential-file <path>]`) moves a workspace into another realm — what `assign_realm` refuses as
+`workspace_owned_by_other_realm`. Params `workspace_id`, `realm_id`, and optionally `confirm_leave_realm` (a
+string) and `credential` (the launcher-brokered object the `runtime.realm.*` verbs take); the answer is the
+workspace row (`realm_id` now the target) plus `moved` (false when that realm already owned it whole),
+`from_realm_id` (the realm it left, null for a realm-less one), `active_workspace_id` (the pointer after the
+reconcile) and `publish_owed` (the server-bound realms the move changed, in the order to publish them: the target
+first, then the source — so the workspace is never absent from both remotes; empty for a move between local
+realms). Writes under the assign lock: the workspace's `realm_id`, then every source realm's `workspace_ids` entry
+out, then the target's in (lifting its delete-ledger entry). When the moved workspace was the ACTIVE one and the
+active realm is not the target, the realm pointer stays and the workspace pointer falls to that realm's next
+workspace (`reconcile_active_workspace_to_realm`), so the two pointers never straddle realms.
+
+**A move OUT of a server-bound realm removes the workspace for the team** (owner 2026-11-12: build it, behind a
+confirm that names the realm). Every member of the source realm who is not also in the target loses the workspace
+at their next pull (their copy is deleted — kept archived when it owns local goals — and an edit they made to it
+after the move is not kept); a member of both realms has it in the target. Two gates, nothing written when either
+refuses: the caller may publish to the source realm (realm sync's own publish gate with `credential`, asked first
+when a credential is sent), and the caller named the realm it leaves (`confirm_leave_realm` = the source realm's id
+or its name, case aside). The move writes the leave into the source realm the way a delete does (off
+`workspace_ids`, onto `deleted_workspace_ids`, a live lift superseded), and the pull keeps the mover's workspace
+([01 — System architecture](01-system-architecture.md) § "The realm ledgers on a pull"). Moving it back lifts the
+ledger. Moving INTO a server-bound realm needs neither gate.
+
+Refusals ride `error.data.reason`: `invalid_request` (-32602); `workspace_not_found`, `realm_not_found` (4001);
+and at 4090 `realm_archived` (`realm_id`), `workspace_archived` (restore it first), `realm_default_workspace`
+(`realm_id` — a realm's default workspace and the reserved `ws_default` never leave),
+`workspace_move_confirm_required` (`owner_realm_id`, `owner_realm_name` — the workspace is in a server-bound
+realm and `confirm_leave_realm` is absent or names another realm; the client shows its confirm with that name and
+re-sends), and the source realm's publish gate with `retryable`: `sync_auth_failed` (no credential, or one for
+another realm), `role_insufficient`, `membership_denied`, `realm_revoked`, `sync_remote_unreachable`. The rules
+live in `agent_runtime/workspace_manage.py::move_workspace_realm`; a client draws the refusal, it never pre-judges
+one.
 
 ## 5. Attachment receipts
 

@@ -329,6 +329,18 @@ families rather than about the lane, and the transport is in
 "Those two ledgers" are `deleted_workspace_ids` and `skill_tombstones`, both
 defined in [Realms and workspaces](#realms-and-workspaces) above.
 
+**A `deleted_workspace_ids` entry means "gone from THIS realm", not "gone"**
+(RT-WORKSPACE-MOVE-OUT-OF-SERVER-REALM). `move_workspace_realm` out of a
+server-bound realm writes the same entry a delete does, and the workspace lives
+on under its new realm. So a pull of a realm leaves alone any local workspace
+whose `realm_id` names ANOTHER realm: `_apply_workspace_tombstones` does not
+delete it, and the generic overwrite loop does not write an older copy of it
+that a member who had not heard of the move published into the realm's subtree
+(`_workspaces_moved_out`, `realm_sync/pull.py` — it reads the MERGED ledger, so
+the order of the realm record and the workspace file in the loop does not
+matter). A workspace this machine holds under the pulled realm, or does not
+hold, is handled as before: written, then removed by the tombstone applier.
+
 **Both of those ledgers are UNIONED on pull, not adopted** (RD-11, 2026-08-31,
 `4a8d398268`). `_UNIONED_REALM_LEDGERS` (`realm_sync/ledgers.py`) names them and
 `_pulled_artifact_bytes` merges each by its own rule — set-union for

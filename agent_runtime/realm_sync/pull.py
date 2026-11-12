@@ -143,7 +143,10 @@ def _overwrite_generic_families(artifacts: list[RealmSyncArtifact], *, realm: Re
     store-record families have one — ``families.SYNC_PATH_FAMILIES``)."""
 
     changed = False
+    moved_out = _workspaces_moved_out(artifacts, realm=realm)
     for artifact in artifacts:
+        if artifact.destination in moved_out:
+            continue
         artifact.destination.parent.mkdir(parents=True, exist_ok=True)
         before = artifact.destination.read_bytes() if artifact.destination.exists() else None
         data = _pulled_artifact_bytes(artifact, realm=realm)
@@ -154,6 +157,51 @@ def _overwrite_generic_families(artifacts: list[RealmSyncArtifact], *, realm: Re
             artifact.destination.write_bytes(data)
             changed = True
     return changed
+
+
+def _local_workspace_realm_id(path: Path) -> str | None:
+    """The ``realm_id`` this machine's workspace file names, or None (no file, unreadable, realm-less)."""
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None
+    value = record.get("realm_id") if isinstance(record, dict) else None
+    return value if isinstance(value, str) and value else None
+
+
+def _workspaces_moved_out(artifacts: list[RealmSyncArtifact], *, realm: Realm) -> set[Path]:
+    """The workspace files this pull must not write: a workspace that LEFT the pulled realm.
+
+    A workspace moved out of this realm (``move_workspace_realm``) is on the realm's delete ledger
+    and lives here under ANOTHER realm. A member who had not heard of the move may still have
+    published their older copy into this realm's subtree; writing it would put ``realm_id`` back
+    to this realm — and the tombstone applier, last in the pull, would then delete the workspace.
+    The ledger read is the MERGED one (this machine's union the incoming record's, lifts applied):
+    the same bytes ``_pulled_artifact_bytes`` writes for the realm record, whichever of the two
+    artifacts the loop reaches first.
+
+    Narrow on purpose: a tombstoned workspace this machine does not hold, or holds under THIS
+    realm, is still written and then removed by the tombstone applier, whose delete cascade also
+    clears the boards and office the family appliers adopt in between.
+    """
+    ledger = set(realm.deleted_workspace_ids or [])
+    realm_file = paths.realm_path(realm.id)
+    for artifact in artifacts:
+        if artifact.kind == SyncFamily.REALM and artifact.destination == realm_file:
+            try:
+                merged = json.loads(_pulled_artifact_bytes(artifact, realm=realm).decode("utf-8"))
+            except (OSError, UnicodeDecodeError, ValueError):
+                break
+            if isinstance(merged, dict):
+                ledger = {item for item in (merged.get("deleted_workspace_ids") or []) if isinstance(item, str)}
+            break
+    skipped: set[Path] = set()
+    for workspace_id in ledger:
+        destination = paths.workspace_path(workspace_id)
+        if _local_workspace_realm_id(destination) not in (None, realm.id):
+            skipped.add(destination)
+    return {artifact.destination for artifact in artifacts
+            if artifact.kind == SyncFamily.WORKSPACE and artifact.destination in skipped}
 
 
 @dataclass
@@ -463,6 +511,8 @@ def _apply_workspace_tombstones(realm_id: str) -> dict[str, list]:
 
     A workspace another member deleted must not survive here as a live copy —
     it would ride this member's next publish straight back into the realm.
+    The ledger is the realm's own: a local workspace that names ANOTHER realm as
+    its owner was moved out of this one, not deleted, and is left alone.
     Hard-delete the local copy through the store chokepoint (cascade + event);
     a copy that still owns local live-store goals degrades to ARCHIVE instead
     (evidence is never destroyed by a sync), reported as a warning.
@@ -481,6 +531,10 @@ def _apply_workspace_tombstones(realm_id: str) -> dict[str, list]:
     store = _WorkspaceStore()
     for workspace_id in ledger:
         if not paths.workspace_path(workspace_id).exists():
+            continue
+        if _local_workspace_realm_id(paths.workspace_path(workspace_id)) not in (None, realm_id):
+            # It left this realm for another one (``move_workspace_realm``): the ledger entry says
+            # "gone from THIS realm", and the workspace this machine holds belongs to the other.
             continue
         try:
             store.delete(workspace_id, reason="realm_sync_tombstone")

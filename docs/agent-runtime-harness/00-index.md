@@ -45,7 +45,9 @@ Read in this order for a full picture; each stands alone for its own territory.
 ## planned/ — designed, not implemented
 
 - [Moving a workspace out of a server-bound realm](planned/workspace-move-out-of-server-realm-2026-11-12.md) — 2026-11-12:
-  why `runtime.workspace.move_realm` refuses it, the four slices, and the owner decision it waits on.
+  the four slices and the owner decision. S1–S3 (hermes) are BUILT 2026-11-12 — the truth is
+  [03 — Transport and wire](03-transport-and-wire.md) § `runtime.workspace.move_realm`; S4 (Eternia's confirm
+  dialog and publish offer) is the part still planned.
 
 - [Agent Console suggestion completion](planned/console-next-prompt-completion-2026-10-27.md) — 2026-10-27 completion recommendations; documentation only, implementation deferred by the owner.
 

@@ -17,7 +17,7 @@ from .default_scope import DEFAULT_REALM_ID, DEFAULT_WORKSPACE_ID
 from .errors import NotFound
 from .locks import workspace_realm_assign_lock
 from .scope_activation import reconcile_active_workspace_to_realm, workspace_row
-from .store import RealmStore, WorkspaceStore, lift_deleted_workspace
+from .store import RealmStore, WorkspaceStore, lift_deleted_workspace, record_deleted_workspace
 
 __layer__ = "lanes"
 __all__ = ["WorkspaceManageReason", "WorkspaceManageRefused", "move_workspace_realm", "unarchive_workspace"]
@@ -33,8 +33,11 @@ class WorkspaceManageReason(StrEnum):
     #: ``WorkspaceStore.delete`` refuses with.
     REALM_DEFAULT = "realm_default_workspace"
     #: The realm that owns it is server-bound: its workspaces are shared through realm sync, and a
-    #: move out is a delete every member must receive (RT-WORKSPACE-MOVE-OUT-OF-SERVER-REALM).
-    SERVER_BOUND = "workspace_realm_server_bound"
+    #: move out removes the workspace for every member of that realm who is not in the target. The
+    #: caller must say so by naming that realm (``confirm_leave_realm`` = its id or its name); the
+    #: refusal carries ``owner_realm_id`` and ``owner_realm_name`` for the client's confirm dialog
+    #: (RT-WORKSPACE-MOVE-OUT-OF-SERVER-REALM).
+    CONFIRM_LEAVE = "workspace_move_confirm_required"
 
 
 class WorkspaceManageRefused(ValueError):
@@ -91,11 +94,21 @@ def unarchive_workspace(workspace_id: Any) -> tuple[dict, bool]:
     return workspace_row(workspace, full=True), restored
 
 
-def move_workspace_realm(workspace_id: Any, realm_id: Any) -> tuple[dict, dict]:
+def _names_realm(confirm: Any, realm) -> bool:
+    """Whether ``confirm`` is the realm's id, or its name (case and outer spaces aside)."""
+    if not isinstance(confirm, str) or not confirm.strip():
+        return False
+    said = confirm.strip()
+    return said == realm.id or said.casefold() == str(realm.name or "").strip().casefold()
+
+
+def move_workspace_realm(workspace_id: Any, realm_id: Any, *, confirm_leave_realm: Any = None,
+                         credential: Any = None, membership: Any = None) -> tuple[dict, dict]:
     """Move a workspace into ``realm_id``. Returns ``(workspace_row, flags)`` with ``flags`` =
-    ``{moved, from_realm_id, active_workspace_id}``: ``moved`` is False when that realm already owned
-    it whole (nothing written); ``from_realm_id`` is the realm it left (None for a realm-less one);
-    ``active_workspace_id`` is the active pointer after the reconcile.
+    ``{moved, from_realm_id, active_workspace_id, publish_owed}``: ``moved`` is False when that realm
+    already owned it whole (nothing written); ``from_realm_id`` is the realm it left (None for a
+    realm-less one); ``active_workspace_id`` is the active pointer after the reconcile;
+    ``publish_owed`` is the server-bound realms this move changed, in the order to publish them.
 
     The rules, all decided here:
 
@@ -103,10 +116,31 @@ def move_workspace_realm(workspace_id: Any, realm_id: Any) -> tuple[dict, dict]:
       workspace is restored first (``workspace_archived``);
     * a realm's default workspace — and the reserved ``ws_default`` — never leaves its realm
       (``realm_default_workspace``, with ``realm_id``);
-    * a workspace owned by a SERVER-BOUND realm is not moved out (``workspace_realm_server_bound``,
-      with ``owner_realm_id``): realm sync would put the other members' copy back, or delete this
-      one on the next pull. Moving INTO a server-bound realm is allowed — it is how a local
-      workspace gets shared — and lifts the target's delete ledger for the id.
+    * moving INTO a server-bound realm is how a local workspace gets shared; it lifts the target's
+      delete ledger for the id;
+    * moving OUT of a SERVER-BOUND realm removes the workspace for the team — every member of that
+      realm who is not also a member of the target loses it at their next pull (their copy is
+      deleted, or kept archived when it owns local goals). So it is a write to the shared realm,
+      and it is refused unless both hold, with nothing written:
+
+      - **the caller may publish to the source realm.** ``realm_sync``'s own publish gate runs
+        (``_authorize(source, "publish", …)`` with the launcher-brokered ``credential``) and its
+        ``RealmSyncError`` propagates: ``sync_auth_failed`` (no credential, or one for another
+        realm), ``role_insufficient`` / ``membership_denied``, ``realm_revoked``. Asked FIRST when
+        a credential is given, so a member who may not publish is told so before being asked to
+        confirm; a call with no credential is asked to confirm first.
+      - **the caller named the realm it leaves.** ``confirm_leave_realm`` must be the source
+        realm's id or name; absent or naming anything else is ``workspace_move_confirm_required``
+        with ``owner_realm_id`` and ``owner_realm_name``.
+
+      The move then writes the LEAVE into the source (``record_deleted_workspace`` — what
+      ``WorkspaceStore.delete`` writes: off ``workspace_ids``, onto ``deleted_workspace_ids``, a
+      live lift superseded) so realm sync carries it. The pull keeps the moved workspace on this
+      machine (``realm_sync.pull``: the tombstone applier and the overwrite loop both leave a
+      workspace that names another realm). Moving it back lifts the ledger again.
+
+    Publish order (``publish_owed``): the TARGET first when it is server-bound, then the source —
+    so the workspace is never absent from both remotes.
 
     Writes, under the assign lock: the workspace's ``realm_id`` back-reference first, then every
     source realm's ``workspace_ids`` entry out, then the target's in — so a crash in between leaves
@@ -137,14 +171,18 @@ def move_workspace_realm(workspace_id: Any, realm_id: Any) -> tuple[dict, dict]:
         for source in sources:
             if source.default_workspace_id == workspace.id:
                 raise WorkspaceManageRefused(WorkspaceManageReason.REALM_DEFAULT, realm_id=source.id)
-            if source.server_id:
-                raise WorkspaceManageRefused(WorkspaceManageReason.SERVER_BOUND, owner_realm_id=source.id)
+        shared = [source for source in sources if source.server_id]
+        if shared:
+            _admit_leaving_shared_realms(shared, from_realm_id, confirm_leave_realm, credential, membership)
         moved = workspace.realm_id != target.id
         if moved:
             workspace.realm_id = target.id
             workspace = workspaces.save(workspace)
         for source in sources:
-            source.workspace_ids = [wid for wid in (source.workspace_ids or []) if wid != workspace.id]
+            if source.server_id:
+                record_deleted_workspace(source, workspace.id)
+            else:
+                source.workspace_ids = [wid for wid in (source.workspace_ids or []) if wid != workspace.id]
             realms.save(source)
             moved = True
         target_changed = lift_deleted_workspace(target, workspace.id)
@@ -160,5 +198,26 @@ def move_workspace_realm(workspace_id: Any, realm_id: Any) -> tuple[dict, dict]:
                 reconcile_active_workspace_to_realm(realms.get(active_realm_id))
             except NotFound:  # a dangling realm pointer has no realm to reconcile to
                 pass
-    flags = {"moved": moved, "from_realm_id": from_realm_id, "active_workspace_id": workspaces.active_id()}
+    publish_owed = [realm.id for realm in ([target] if target.server_id else []) + shared] if moved else []
+    flags = {"moved": moved, "from_realm_id": from_realm_id, "active_workspace_id": workspaces.active_id(),
+             "publish_owed": publish_owed}
     return workspace_row(workspace), flags
+
+
+def _admit_leaving_shared_realms(shared: list, from_realm_id: str | None, confirm: Any, credential: Any,
+                                 membership: Any) -> None:
+    """The two gates of a move out of server-bound realm(s) — see :func:`move_workspace_realm`."""
+    from .realm_sync.git import _authorize
+
+    def authorize() -> None:
+        for source in shared:
+            _authorize(source, "publish", membership, credential)
+
+    if credential is not None:
+        authorize()
+    owner = next((source for source in shared if source.id == from_realm_id), shared[0])
+    if not _names_realm(confirm, owner):
+        raise WorkspaceManageRefused(WorkspaceManageReason.CONFIRM_LEAVE, owner_realm_id=owner.id,
+                                     owner_realm_name=str(owner.name or ""))
+    if credential is None:
+        authorize()

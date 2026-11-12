@@ -128,8 +128,8 @@ def test_moving_the_active_workspace_keeps_the_realm_and_falls_to_its_next_works
     assert back["active_workspace_id"] == stays.id == workspaces.active_id()
 
 
-def test_move_refuses_a_default_workspace_a_server_bound_source_and_dead_ends_and_writes_nothing():
-    """Mutations: drop the server-bound refusal -> the shared workspace leaves its realm (KeyError 'error'), red;
+def test_move_refuses_a_default_workspace_an_unconfirmed_shared_source_and_dead_ends_and_writes_nothing():
+    """Mutations: drop the confirm refusal -> the shared workspace leaves its realm (KeyError 'error'), red;
     drop the realm-default refusal -> the default workspace leaves, red; drop the archived-target refusal -> red."""
     from agent_runtime.default_scope import DEFAULT_REALM_ID, DEFAULT_WORKSPACE_ID, ensure_default_scope
 
@@ -149,7 +149,8 @@ def test_move_refuses_a_default_workspace_a_server_bound_source_and_dead_ends_an
     free = wc_create("Free", team.id)
     for params, data, code in (
             ({"workspace_id": shared.id, "realm_id": team.id},
-             {"reason": "workspace_realm_server_bound", "owner_realm_id": shared_realm.id}, 4090),
+             {"reason": "workspace_move_confirm_required", "owner_realm_id": shared_realm.id,
+              "owner_realm_name": "Shared"}, 4090),
             ({"workspace_id": DEFAULT_WORKSPACE_ID, "realm_id": team.id},
              {"reason": "realm_default_workspace", "realm_id": DEFAULT_REALM_ID}, 4090),
             ({"workspace_id": local_default.id, "realm_id": DEFAULT_REALM_ID},

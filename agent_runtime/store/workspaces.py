@@ -14,7 +14,7 @@ from .. import paths
 from ..errors import AlreadyExists, NotFound, WorkspaceDeleteBlocked
 from ..events import EventLog
 from ..locks import _file_lock
-from ..models import Realm, Workspace, WorkspaceLift
+from ..models import Realm, Workspace
 from ..serde import safe_id
 from ..store_events import emit_store_event
 from .base import (
@@ -28,7 +28,7 @@ from .base import (
     read_model_json,
     read_pointer,
 )
-from .ledgers import DELETED_WORKSPACE_LEDGER_CAP, _prune_workspace_lifts
+from .ledgers import record_deleted_workspace
 from .realms import RealmStore
 
 __layer__ = "stores"
@@ -300,29 +300,7 @@ class WorkspaceStore:
                 shutil.rmtree(paths.board_dir(board.board_id), ignore_errors=True)
 
         if realm is not None:
-            realm.workspace_ids = [wid for wid in (realm.workspace_ids or []) if wid != item.id]
-            ledger = [wid for wid in (realm.deleted_workspace_ids or []) if wid != item.id]
-            ledger.append(item.id)
-            realm.deleted_workspace_ids = ledger[-DELETED_WORKSPACE_LEDGER_CAP:]
-            # SUPERSEDE any lift marker for this id rather than dropping it.
-            # Dropping it would be an absence again, and a peer's surviving lift
-            # would then out-rank this fresh delete on the next pull. Stamping
-            # ``deleted_at`` makes "a fresh re-delete beats a stale lift" the
-            # same comparison as "a fresh lift beats a stale delete".
-            realm.workspace_lifts = _prune_workspace_lifts(
-                [
-                    (
-                        WorkspaceLift(
-                            workspace_id=lift.workspace_id,
-                            restored_at=lift.restored_at,
-                            deleted_at=now(),
-                        )
-                        if lift.workspace_id == item.id
-                        else lift
-                    )
-                    for lift in (getattr(realm, "workspace_lifts", None) or [])
-                ]
-            )
+            record_deleted_workspace(realm, item.id)
             if realm.default_workspace_id == item.id:
                 # Only reachable for local realms — the server-bound case is
                 # guarded above.

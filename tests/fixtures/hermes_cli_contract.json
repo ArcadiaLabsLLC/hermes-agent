@@ -16337,6 +16337,22 @@
     "harness workspace move-realm": {
       "exclusive_groups": [],
       "options": {
+        "--confirm-leave-realm": {
+          "action": "store",
+          "canonical": "--confirm-leave-realm",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--credential-file": {
+          "action": "store",
+          "canonical": "--credential-file",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--fields": {
           "action": "store",
           "canonical": "--fields",

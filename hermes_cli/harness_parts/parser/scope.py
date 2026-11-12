@@ -97,6 +97,8 @@ def add_workspace(subs) -> None:
     workspace_move_realm = workspace_subs.add_parser("move-realm", help="Move a workspace into another realm")
     workspace_move_realm.add_argument("workspace_id")
     workspace_move_realm.add_argument("realm_id")
+    workspace_move_realm.add_argument("--confirm-leave-realm", default=None, help="Moving OUT of a shared (server-bound) realm removes the workspace for its other members: name that realm (id or name) to confirm")
+    workspace_move_realm.add_argument("--credential-file", default=None, help="Launcher-brokered realm sync credential JSON for the shared realm the workspace leaves (fallback: HERMES_REALM_SYNC_CREDENTIAL)")
     _add_stage42_global_args(workspace_move_realm)
     workspace_move_realm.set_defaults(func=workspace_commands._cmd_workspace_move_realm)
     workspace_delete = workspace_subs.add_parser(

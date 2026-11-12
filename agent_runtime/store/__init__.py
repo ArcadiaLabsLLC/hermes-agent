@@ -40,6 +40,7 @@ from agent_runtime.store.ledgers import (  # the package's export floor
     ledger_time,
     lift_deleted_workspace,
     prune_settled_ledger,
+    record_deleted_workspace,
     SKILL_TOMBSTONE_LEDGER_CAP,
     skill_tombstone_matches,
     skill_tombstoned,

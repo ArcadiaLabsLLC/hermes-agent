@@ -1,8 +1,14 @@
 # Moving a workspace out of a server-bound realm (2026-11-12)
 
-Status: PLANNED, not built — waits on one owner decision (§4). Row `RT-WORKSPACE-MOVE-OUT-OF-SERVER-REALM`
-(`Harness_Brain/20 — Active Initiatives/runtime-queue.md`). Written by lane w1112b-hm-ws against `origin/main`
-at `bfb4beaac0`.
+Status: S1–S3 BUILT 2026-11-12 by lane w1112b-hm-moveout (owner ruling 2026-11-12 on §4: "yes" to the
+recommendation — build it, behind a confirm that names the realm); S4 (Eternia) is still planned. Row
+`RT-WORKSPACE-MOVE-OUT-OF-SERVER-REALM`. What was built, where it differs from §3: the confirm is a runtime
+argument (`confirm_leave_realm` = the source realm's id or name; refusal `workspace_move_confirm_required` with
+`owner_realm_id`, `owner_realm_name`), not only a launcher dialog; the overwrite loop skips an incoming workspace
+file only when this machine holds that workspace under ANOTHER realm (a tombstoned workspace it holds under the
+pulled realm is still written and then deleted, so the delete cascade clears what the board and office appliers
+adopt in between). The built contract is `docs/agent-runtime-harness/03-transport-and-wire.md` §
+`runtime.workspace.move_realm`. §1 and §2 below describe the tree BEFORE the build.
 
 ## 1. What works today
 

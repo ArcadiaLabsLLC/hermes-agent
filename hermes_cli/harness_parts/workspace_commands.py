@@ -266,13 +266,26 @@ def _cmd_workspace_unarchive(args) -> int:
 
 
 def _cmd_workspace_move_realm(args) -> int:
-    """``harness workspace move-realm <workspace_id> <realm_id>`` (``runtime.workspace.move_realm``'s twin)."""
+    """``harness workspace move-realm <workspace_id> <realm_id> [--confirm-leave-realm <id or name>]
+    [--credential-file <path>]`` (``runtime.workspace.move_realm``'s twin). The two options are for a move OUT
+    of a server-bound realm: the realm the workspace leaves, named, and the credential that may publish to it."""
+    from agent_runtime.realm_membership import load_realm_sync_credential
+    from agent_runtime.realm_sync import RealmSyncError
     from agent_runtime.workspace_manage import WorkspaceManageRefused, move_workspace_realm
 
     try:
-        row, flags = move_workspace_realm(args.workspace_id, args.realm_id)
+        row, flags = move_workspace_realm(
+            args.workspace_id, args.realm_id, confirm_leave_realm=getattr(args, "confirm_leave_realm", None),
+            credential=load_realm_sync_credential(getattr(args, "credential_file", None)))
     except WorkspaceManageRefused as exc:
-        return emit_harness_error(exc, args=args, code=exc.reason.value)
+        message = None
+        if exc.reason.value == "workspace_move_confirm_required":
+            message = (f"Moving this workspace out of the shared realm \"{exc.details['owner_realm_name']}\" "
+                       f"({exc.details['owner_realm_id']}) removes it for that realm's other members; "
+                       "pass --confirm-leave-realm with that realm's id or name.")
+        return emit_harness_error(exc, args=args, code=exc.reason.value, message=message)
+    except RealmSyncError as exc:
+        return emit_harness_error(exc, args=args, code=exc.code)
     envelope = attach_root_observability(_object_envelope("workspace", {**row, **flags}))
     _print_stage42(envelope, args=args, default_output="json")
     return 0
