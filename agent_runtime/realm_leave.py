@@ -15,7 +15,8 @@ local realm". ``runtime.realm.revoked`` with a member-access reason (``MEMBER_AC
   data, which lives in the store and is not touched;
 * each workspace's brain lets go of the team's shared task repository (``work_store.default_brain.
   detach_left_remote``): its remote and its declared slot ``brain`` go, its history stays, and Work written in
-  the local copy is never pushed to the team;
+  the local copy is never pushed to the team; nor is it given a repository of its own automatically — it
+  stays on this machine until the member promotes it (owner 2026-11-12);
 * the revocation mark and the cached sync state are cleared: both describe a bound realm, and the
   ``shared_from`` record is now the history. Kept, the mark would refuse a local realm's own sync
   ``realm_revoked`` and tell the client its access was revoked for a realm it now simply owns.

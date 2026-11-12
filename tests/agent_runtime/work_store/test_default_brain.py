@@ -430,6 +430,29 @@ def test_two_workspaces_promoting_keep_their_own_brain(workspace, host):
         assert board.default_board(ws) is None
 
 
+def _leave_a_connected_realm(ws, host) -> tuple[str, object, str, str]:
+    """The brain promoted to the team's repository (two repositories), its realm then left through
+    ``make_realm_local``: ``(team url, team bare repo, brain HEAD, team tip)`` as they were before the leave."""
+    from agent_runtime.realm_leave import make_realm_local
+    from agent_runtime.realm_sync.revocation import RealmRevokedReason
+    from agent_runtime.store import RealmStore, WorkspaceStore
+
+    default_brain.ensure_default_brain(ws, issued_at=ISSUED)
+    url = _record(ws)["remote_url"]
+    team = host.bare(default_brain.brain_repo_name(ws))
+    root = paths.default_brain_dir(ws)
+    realm = RealmStore().create(name="Team", server_id="srv_team")
+    item = WorkspaceStore().get(ws)
+    item.realm_id = realm.id
+    WorkspaceStore().save(item)
+    realm = RealmStore().get(realm.id)
+    realm.workspace_ids = [ws]
+    RealmStore().save(realm)
+    history, team_tip = _git(root, "rev-parse", "HEAD"), _git(team, "rev-parse", "main")
+    assert make_realm_local(realm.id, RealmRevokedReason.MEMBERSHIP_LEFT)[1] is True
+    return url, team, history, team_tip
+
+
 def test_a_left_realms_promoted_brain_pushes_nowhere(workspace, host):
     """RT-LEFT-REALM-BRAIN-STILL-PUSHES-TO-THE-TEAM. A workspace brain promoted to the team's shared task repository
     kept that repository as its remote after the member left the server (``make_realm_local`` dropped only the
@@ -441,27 +464,12 @@ def test_a_left_realms_promoted_brain_pushes_nowhere(workspace, host):
     Mutation: skip the ``remote remove`` in ``detach_left_remote`` -> the brain still names the team's
     repository as ``origin``, red; drop ``_detach_brains`` from ``make_realm_local`` -> the same, red (both
     recorded in the commit)."""
-    from agent_runtime.realm_leave import make_realm_local
-    from agent_runtime.realm_sync.revocation import RealmRevokedReason
-    from agent_runtime.store import RealmStore, WorkspaceStore
     from agent_runtime.work import store as work_store
     from agent_runtime.work_store.grammar import Op, RowRef
     from agent_runtime.work_store.writer import OPERATOR, RowOp
 
-    default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
-    url = _record(workspace)["remote_url"]
-    team = host.bare(default_brain.brain_repo_name(workspace))
+    url, team, history, team_tip = _leave_a_connected_realm(workspace, host)
     root = paths.default_brain_dir(workspace)
-    realm = RealmStore().create(name="Team", server_id="srv_team")
-    item = WorkspaceStore().get(workspace)
-    item.realm_id = realm.id
-    WorkspaceStore().save(item)
-    realm = RealmStore().get(realm.id)
-    realm.workspace_ids = [workspace]
-    RealmStore().save(realm)
-    history, team_tip = _git(root, "rev-parse", "HEAD"), _git(team, "rev-parse", "main")
-
-    assert make_realm_local(realm.id, RealmRevokedReason.MEMBERSHIP_LEFT)[1] is True
 
     assert _git(root, "remote").strip() == ""
     assert _git(root, "rev-parse", "HEAD") == history
@@ -478,3 +486,38 @@ def test_a_left_realms_promoted_brain_pushes_nowhere(workspace, host):
     assert "WORK-LOCALA" in _git(root, "show", f"main:{QUEUE_NOTE_PATH}")
     assert _git(team, "rev-parse", "main") == team_tip
     assert default_brain.detach_left_remote(workspace, at=LATER) is None  # a replay finds nothing to let go
+
+
+def test_a_left_realms_brain_stays_local_until_the_member_promotes_it(workspace, host, tmp_path):
+    """RT-LEFT-REALM-BRAIN-PROMOTED-AGAIN-BEFORE-ITS-REKEY (owner 2026-11-12: "yes stay local because its related
+    to the team its irreelvant to you alone"). After a leave on a connected machine (two repositories), the next
+    ``ensure_default_brain`` used to promote the copy's brain to a private ``eternia-work-<slug>``: refused
+    ``remote_exists`` every day on the account that made the team's repository, a new repository on any other.
+    Now neither: the brain stays local, nothing is created or refused. The manual door still promotes it and
+    clears the hold, and the automatic path then leaves the promoted brain alone.
+
+    Mutation: drop the ``left_remote`` hold in ``_auto_promote`` -> the first ensure records ``promote_refused``
+    ``remote_exists`` (the team's account) and, with the team's repository gone from this account, the second
+    creates a new repository: red (seen: ``promote_refused`` ``remote_exists``). Keep ``left_remote`` on a manual
+    promote -> red (seen: the hold still set after the promotion)."""
+    url, team, _, team_tip = _leave_a_connected_realm(workspace, host)
+    name = default_brain.brain_repo_name(workspace)
+    assert host.created == [name]
+
+    made = default_brain.ensure_default_brain(workspace, issued_at=LATER)  # the account that made the team's repo
+    assert made.is_default and made.local and made.clone_url is None
+    record = _record(workspace)
+    assert record["left_remote"]["url"] == url and not record.get("remote_url")
+    assert not record.get("promote_refused")
+    assert default_brain.remote_state(workspace) is None
+    team.rename(tmp_path / "team-elsewhere.git")  # any other account: the name is free there
+    default_brain.ensure_default_brain(workspace, issued_at=LATER)
+    assert host.created == [name] and not _record(workspace).get("remote_url")
+
+    promoted = default_brain.promote_default_brain(workspace, issued_at=LATER)  # the member asks
+    assert promoted["outcome"] == "promoted" and host.created == [name, name]
+    record = _record(workspace)
+    assert record["remote_url"] == promoted["url"] and record["left_remote"] is None
+    assert _git(tmp_path / "team-elsewhere.git", "rev-parse", "main") == team_tip  # the team's copy untouched
+    assert default_brain.ensure_default_brain(workspace, issued_at=LATER).slot == "brain"
+    assert host.created == [name, name]
