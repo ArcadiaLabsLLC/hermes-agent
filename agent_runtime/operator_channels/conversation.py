@@ -15,6 +15,7 @@ from ..transcript_order import order_transcript_rows
 
 from .history_messages import AGENT, _conversation_history_message
 from .trace_messages import _conversation_tool_call_messages, _conversation_trace_message
+from .turn_interleave import seat_tool_calls_by_elements
 from .vocabulary import (
     TOOL_CALL_RUNNING,
     OPERATOR_CONVERSATION_SCHEMA_VERSION,
@@ -131,6 +132,7 @@ def _conversation_contract(
     )
 
     _settle_terminal_tool_calls(messages, history=history)
+    seat_tool_calls_by_elements(messages, list((history or {}).get("messages") or []), anchor=_turn_anchor)
 
     messages = _order_conversation_messages(messages)
     messages = _dedupe_conversation_messages(messages)
@@ -283,6 +285,11 @@ def _apply_conversation_cap(
     return _order_conversation_messages([*protected, marker, *kept])
 
 
+def _turn_anchor(message: dict[str, Any]) -> str | None:
+    return (safe_assignment_token(message.get("turn_id"))
+            or canonical_persona_chat_turn_id(message.get("client_message_id")))
+
+
 def _order_conversation_messages(
     messages: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -298,10 +305,7 @@ def _order_conversation_messages(
 
     return order_transcript_rows(
         messages,
-        anchor=lambda message: (
-            safe_assignment_token(message.get("turn_id"))
-            or canonical_persona_chat_turn_id(message.get("client_message_id"))
-        ),
+        anchor=_turn_anchor,
         turn_seq=lambda message: message.get("turn_seq")
         if isinstance(message.get("turn_seq"), int)
         and not isinstance(message.get("turn_seq"), bool)

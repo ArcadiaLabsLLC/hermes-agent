@@ -551,3 +551,39 @@ def test_conversation_contract_order_is_stable_under_source_shuffle():
         if baseline is None:
             baseline = ids
         assert ids == baseline
+
+
+def test_conversation_contract_seats_tool_calls_between_said_things():
+    """RT-OPERATOR-CHAT-TOOLS-SORT-BEFORE-ALL-WORDS: a turn that says, runs, says, runs, says draws
+    its steps between its words, in its turn_elements order — not every step before every word."""
+    def said(n, text, seq, elements=None):
+        row = {"id": f"h-say-{n}", "role": "agent", "text": text,
+               "timestamp": f"2026-07-17T10:00:0{n}Z", "client_message_id": f"turn-a:assistant:{n}",
+               "turn_seq": seq}
+        if elements:
+            row["turn_elements"] = elements
+        return row
+
+    elements = [{"kind": kind, "id": f"e{seq}", "turn_id": "turn-a", "seq": seq}
+                for seq, kind in enumerate(["segment", "tool", "segment", "tool", "segment"], start=1)]
+    history = {"messages": [
+        {"id": "h-op", "role": "operator", "text": "go", "timestamp": "2026-07-17T10:00:00Z",
+         "client_message_id": "turn-a", "turn_seq": TURN_SEQ_OPERATOR},
+        said(1, "Plan.", TURN_SEQ_TERMINAL - 2),
+        said(2, "Next.", TURN_SEQ_TERMINAL - 1),
+        said(3, "Done.", TURN_SEQ_TERMINAL, elements),
+    ]}
+    trace = {"entries": [
+        {"kind": "harness_trace", "event": event, "tool_name": "terminal", "status": "passed",
+         "summary": f"{event} {n}", "ts": f"2026-07-17T10:00:1{i}Z", "turn_id": "turn-a", "run_id": "run_1"}
+        for i, (event, n) in enumerate([("tool_started", 1), ("tool_finished", 1),
+                                        ("tool_started", 2), ("tool_finished", 2)])
+    ]}
+    contract = _conversation_contract(
+        channel_id="session:s1", persona_id="dev", persona_instance_id="personainst_dev",
+        session_id="s1", goal_id=None, title="Dev chat", state="open", history=history, trace=trace)
+    order = [(m["kind"], m.get("display_text")) for m in contract["messages"]]
+    assert [kind for kind, _ in order] == [
+        "operator_message", "reply", "tool_call", "reply", "tool_call", "reply"], order
+    assert [text for kind, text in order if kind == "reply"] == ["Plan.", "Next.", "Done."]
+    assert contract["messages"][-1]["turn_seq"] == TURN_SEQ_TERMINAL
