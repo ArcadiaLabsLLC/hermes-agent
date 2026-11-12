@@ -395,3 +395,59 @@ def test_a_failed_delivery_projects_its_failure(monkeypatch):
     )
 
     assert message["delivery"]["state"] == "error"
+
+
+# ---------------------------------------------------------------------------
+# MC-DELIVERED-RESULT-SHOWS-MODEL-INSTRUCTIONS — what a PERSON reads of the block
+# ---------------------------------------------------------------------------
+# Seen live 2026-11-12 (w1112b-ctt): the console drew the whole model-facing block ("[BACKGROUND
+# DISPATCH COMPLETE — …]", "You may have moved on…", "agent_chat_open with this session_id…",
+# "--- THEIR REPLY ---") as chat prose. The block now carries its reader parts on the wire.
+
+
+def _forged_block(**result) -> str:
+    from agent_runtime.dispatch_delivery.forge import format_dispatch_delivery
+
+    return format_dispatch_delivery({
+        "dispatch_id": "dispatch-abc123", "state": "completed", "target_persona": "qa", "ask": "Pick a colour",
+        "target_session_id": "persona_chat_personainst_dev_b", "notify_operator": True, "result": result,
+    })
+
+
+def test_the_reader_parts_are_the_reply_question_and_error_without_the_instructions():
+    """KILLING MUTATIONS (run 2026-11-12): the notify paragraph not ending a section -> the reply
+    carries "OPERATOR IS WAITING ON THIS", red; the parser keyed on a re-spelled header -> no reply, red."""
+
+    from agent_runtime.dispatch_delivery.vocabulary import delivery_reader_parts
+
+    parts = delivery_reader_parts(_forged_block(
+        reply="Line one.\n\nLine two.",
+        clarify_request={"question": "Blue or green?", "choices": ["Blue", "Green"],
+                         "clarify_token": "clarify-2f87bf3e7f38"}))
+    assert parts == {"reply": "Line one.\n\nLine two.", "question": "Blue or green?", "choices": ["Blue", "Green"],
+                     "error": ""}
+    failed = delivery_reader_parts(_forged_block(error="the tool timed out"))
+    assert failed["error"] == "the tool timed out" and failed["reply"] == ""
+    assert delivery_reader_parts("From Neko: status?") is None
+
+
+def test_the_history_read_carries_the_reader_parts_to_the_console():
+    from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
+    from tests.agent_runtime.test_persona_chat_history_curation import FakeSessionDB
+
+    db = FakeSessionDB([{
+        "id": "m1", "role": "user", "content": _forged_block(reply="It is blue."),
+        "finish_reason": build_harness_delivery_marker(
+            "dispatch-abc123", True, None, "persona_chat_personainst_dev_b", "Dev"),
+        "platform_message_id": "dispatch-delivery-dispatch-abc123",
+        "created_at": "2026-11-12T00:00:00Z",
+    }])
+    rows, _status, _unread = _safe_recent_messages(db, session_id="persona_chat_personainst_qa_abc123def456")
+    delivered = [row for row in rows if row.get("kind") == PERSONA_HARNESS_DELIVERY_KIND]
+    assert delivered[0]["delivery_reader"]["reply"] == "It is blue."
+
+    message = _project(_history_row(kind=PERSONA_HARNESS_DELIVERY_KIND, delivery_dispatch_id="dispatch-abc123",
+                                    delivery_reader=delivered[0]["delivery_reader"]))
+    assert message["delivery"]["reader"] == {"reply": "It is blue.", "question": "", "choices": [], "error": ""}
+    assert "reader" not in _project(_history_row(kind=PERSONA_HARNESS_DELIVERY_KIND,
+                                                 delivery_dispatch_id="dispatch-abc123"))["delivery"]

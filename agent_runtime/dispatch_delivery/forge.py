@@ -16,6 +16,11 @@ from .vocabulary import (
     IDLE_LEASE_BUSY_OWNERLESS,
     IDLE_LEASE_PROBE_ERROR,
     REPLY_LIMIT,
+    DELIVERY_BLOCK_OPENER,
+    DELIVERY_ERROR_HEADER,
+    DELIVERY_NOTIFY_OPENER,
+    DELIVERY_QUESTION_HEADER,
+    DELIVERY_REPLY_HEADER,
     delivery_requested_by,
 )
 
@@ -98,7 +103,7 @@ def format_dispatch_delivery(row: dict[str, Any]) -> str:
     completed_at = float(row.get("completed_at") or time.time())
 
     lines = [
-        "[BACKGROUND DISPATCH COMPLETE — "
+        f"{DELIVERY_BLOCK_OPENER} — "
         + (f"{attribution} — " if attribution else "")
         + f"{row.get('dispatch_id')}]",
         (
@@ -136,11 +141,11 @@ def format_dispatch_delivery(row: dict[str, Any]) -> str:
         )
     lines.append("")
     if reply:
-        lines.append("--- THEIR REPLY ---")
+        lines.append(DELIVERY_REPLY_HEADER)
         lines.append(reply)
     lines.extend(_clarify_lines(result.get("clarify_request"), target))
     if error:
-        lines.append("--- ERROR ---")
+        lines.append(DELIVERY_ERROR_HEADER)
         lines.append(error[:600])
     if not reply and not error:
         # The generic line was the only one available before the supervisor
@@ -165,7 +170,7 @@ def format_dispatch_delivery(row: dict[str, Any]) -> str:
     if row.get("notify_operator"):
         lines.append("")
         lines.append(
-            "OPERATOR IS WAITING ON THIS: you flagged this dispatch to notify the operator. "
+            f"{DELIVERY_NOTIFY_OPENER} you flagged this dispatch to notify the operator. "
             "Tell them the result now, in this conversation, in your own words — what you "
             "asked for, what came back, and what you are doing about it."
         )
@@ -183,7 +188,7 @@ def _clarify_lines(clarify: Any, target: str) -> list[str]:
 
     if not isinstance(clarify, dict) or not clarify.get("question"):
         return []
-    lines = ["", "--- THEY ASKED YOU A QUESTION (clarify) ---", str(clarify["question"])]
+    lines = ["", DELIVERY_QUESTION_HEADER, str(clarify["question"])]
     for choice in clarify.get("choices") or []:
         lines.append(f"  - {choice}")
     count = clarify.get("question_count")

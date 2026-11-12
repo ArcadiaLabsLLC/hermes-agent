@@ -26,6 +26,7 @@ from ..mission_chat_turns.records import STEER_OF_FIELD, safe_steer_of
 from ..relay_policy import HARNESS_DELIVERY_UNKNOWN_STATE
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
 from ..serde import safe_assignment_text, safe_assignment_token
+from ..dispatch_delivery.vocabulary import REPLY_LIMIT
 
 from .vocabulary import _TERMINAL_TURN_MARKER_PRESENTATION
 
@@ -369,7 +370,29 @@ def _delivery_block(row: dict[str, Any]) -> dict[str, Any]:
         # them or the dispatch never opened a thread.
         "target_session_id": safe_assignment_text(row.get("delivery_target_session_id"), limit=200) or "",
         "target_name": safe_assignment_text(row.get("delivery_target_name"), limit=160) or "",
+        # MC-DELIVERED-RESULT-SHOWS-MODEL-INSTRUCTIONS: what a person reads of the block, absent when the
+        # row is not a parsable delivery (the console then draws the body as stored).
+        **({"reader": reader} if (reader := _delivery_reader(row.get("delivery_reader"))) else {}),
     }
+
+
+def _delivery_reader(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    choices = value.get("choices")
+    return {
+        # Multi-line prose, so bounded rather than flattened: it was cut from the row's own display text,
+        # which curation already passed through the secret check.
+        "reply": _bounded_prose(value.get("reply"), REPLY_LIMIT),
+        "question": safe_assignment_text(value.get("question"), limit=2000) or "",
+        "choices": [text for choice in (choices if isinstance(choices, list) else [])[:20]
+                    if (text := safe_assignment_text(choice, limit=300))],
+        "error": _bounded_prose(value.get("error"), 600),
+    }
+
+
+def _bounded_prose(value: Any, limit: int) -> str:
+    return value.replace("\x00", " ")[:limit].strip() if isinstance(value, str) else ""
 
 
 def _carry_turn_seq(message: dict[str, Any], row: dict[str, Any]) -> None:
