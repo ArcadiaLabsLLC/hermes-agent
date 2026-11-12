@@ -230,9 +230,12 @@ def _adopt(p: dict) -> dict:
 def _revoked(p: dict) -> dict:
     """Params: ``realm_id``, ``reason`` — a ``RealmRevokedReason`` (the
     ``realm.revoked`` event's) or a credential-mint refusal ``error.code``
-    (``realms.git_host_unbound`` / ``realms.git_host_binding_lost``) — and
+    (``realms.git_host_unbound`` / ``realms.git_host_binding_lost``) —
     ``server_name`` (optional): the caller's display name for the server, kept
-    on the realm's ``shared_from`` record when the realm becomes local."""
+    on the realm's ``shared_from`` record when the realm becomes local — and
+    ``occurred_at`` (optional, ISO 8601): when the backend event happened, so a
+    replayed notice older than this install's binding of the realm is not
+    taken for a new leave (RT-REVOKED-REPLAYED-AFTER-A-REJOIN-TURNS-THE-FRESH-REALM-LOCAL)."""
     from agent_runtime.realm_sync.revocation import BACKEND_REFUSAL_REASONS, RealmRevokedReason
     from agent_runtime.realm_verbs import realm_mark_revoked
 
@@ -243,7 +246,22 @@ def _revoked(p: dict) -> dict:
         raise _Refused(
             "invalid_request", "reason must be one of " + ", ".join(item.value for item in RealmRevokedReason)
         ) from None
-    return realm_mark_revoked(realm_id, reason=typed, server_name=_param_text(p, "server_name"))
+    return realm_mark_revoked(realm_id, reason=typed, server_name=_param_text(p, "server_name"),
+                              occurred_at=_occurred_at(p))
+
+
+def _occurred_at(p: dict):
+    """``occurred_at`` as an aware datetime (a naive one is read as UTC), or None when absent."""
+    from datetime import UTC, datetime
+
+    text = _param_text(p, "occurred_at")
+    if text is None:
+        return None
+    try:
+        stamp = datetime.fromisoformat(text)
+    except ValueError:
+        raise _Refused("invalid_request", "occurred_at must be an ISO 8601 time") from None
+    return stamp if stamp.tzinfo is not None else stamp.replace(tzinfo=UTC)
 
 
 #: method name -> verb body. One table, so a test can iterate it and a verb is

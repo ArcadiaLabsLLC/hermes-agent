@@ -273,3 +273,40 @@ def test_the_fresh_pull_takes_what_the_team_changed_in_a_shared_catalogue_and_ke
     names = {token: json.loads(MapStore().read(token))["name"] for token in ("map_same", "map_mine", "map_team")}
     assert names == {"map_same": "Same", "map_mine": "Mine v2, edited while local", "map_team": "Team v2, edited by the team"}
     assert not (runtime_paths.realm_sync_root() / realm.id / "map_conflicts").exists()
+
+
+def test_a_leave_notice_replayed_after_a_rejoin_leaves_the_fresh_realm_bound(tmp_path, monkeypatch):
+    """RT-REVOKED-REPLAYED-AFTER-A-REJOIN-TURNS-THE-FRESH-REALM-LOCAL. After a re-join the team's realm id names the
+    fresh bound realm again, so the first ``realm.revoked`` arriving again (Eternia's personal-channel replay) read
+    as a second leave and turned the fresh realm into a second local copy. A notice carrying ``occurred_at``
+    older than this install's binding of the realm now changes nothing (``stale``); a leave after the re-join is
+    taken; a time that is not ISO 8601 is refused.
+
+    Mutation: drop the ``occurred_at >= bound_at`` comparison in ``realm_verbs._older_than_binding`` (always take
+    the notice) -> the replay converts the fresh realm, ``stale`` false, red (recorded in the commit)."""
+    from datetime import UTC, datetime
+
+    realm = RealmStore().create(name="Team", server_id="srv_team", realm_id="realm_team")
+    WorkspaceStore().create(name="Shared", realm_id=realm.id, workspace_id="ws_shared")
+    left_at = datetime.now(UTC).isoformat()
+    first = _rpc("runtime.realm.revoked", realm_id=realm.id, reason="membership_left", occurred_at=left_at)["result"]
+    assert (first["became_local"], first["rekey"], first["stale"]) == (True, "done", False)
+    local_copy = first["rekeyed_to"]
+    _join(monkeypatch, tmp_path)
+    assert RealmStore().get(realm.id).server_id == "srv_team"
+
+    replay = _rpc("runtime.realm.revoked", realm_id=realm.id, reason="membership_left", occurred_at=left_at)["result"]
+
+    assert (replay["became_local"], replay["stale"], replay["shared_from"]) == (False, True, None)
+    assert RealmStore().get(realm.id).server_id == "srv_team"
+    assert sorted(item.id for item in RealmStore().list_all(include_archived=True)) == sorted([realm.id, local_copy])
+    assert read_rekey_journal(realm.id)["map"]["realm_new"] == local_copy
+
+    refused = _rpc("runtime.realm.revoked", realm_id=realm.id, reason="membership_left", occurred_at="yesterday")
+    assert refused["error"]["data"]["reason"] == "invalid_request"
+    assert RealmStore().get(realm.id).server_id == "srv_team"
+
+    again = _rpc("runtime.realm.revoked", realm_id=realm.id, reason="membership_left",
+                 occurred_at=datetime.now(UTC).isoformat())["result"]
+    assert (again["became_local"], again["stale"]) == (True, False)
+    assert RealmStore().get(again["rekeyed_to"]).server_id is None

@@ -1219,8 +1219,14 @@ once, on the grant diff, so a realm left bound after a lost role would get no se
 member later leaves. Owner ruling 2026-11-12, asked "Should losing your role or access also turn the realm
 local, not only leaving or being removed?": "Yes, keep it wide". The verb takes an optional `server_name` (the caller's display name for the server)
 and answers `{realm_id, reason, revoked_at, host_state, became_local, shared_from, rekey, rekeyed_to,
-rekey_waits_on}`; a repeat answers the first record with `became_local: false` (also once `realm_id` is the
-id the local copy had before its re-key). `rekey` is the state of the re-key the leave owes (`owed` |
+rekey_waits_on, stale}`; a repeat answers the first record with `became_local: false` (also once `realm_id` is the
+id the local copy had before its re-key). It also takes an optional `occurred_at` (ISO 8601, the backend
+event's time; naive is read as UTC, anything else is `invalid_request`): a notice older than this install's
+binding of a still-bound realm (the realm's `created_at` — the adopt, a re-join's fresh realm included) is a
+replay of an earlier binding's leave and changes nothing, answering `stale: true`, `became_local: false`
+(2026-11-12, `RT-REVOKED-REPLAYED-AFTER-A-REJOIN-TURNS-THE-FRESH-REALM-LOCAL`; without it the replay turned the
+fresh realm into a second local copy). With no `occurred_at` every notice is taken, as before; `stale` is
+false on every other answer. `rekey` is the state of the re-key the leave owes (`owed` |
 `running` | `done`; null on a git-host reason), `rekeyed_to` the local copy's realm id once it is `done`
 (null before — the copy still answers to `realm_id`), `rekey_waits_on` what it waits for when it could not
 run in this call (`turn` | `work_run` | `build` | `rename_blocked` | `serve`). The snapshot's realm row and the full `realm_row` (`realm show`, the archive verbs) carry `shared_from`

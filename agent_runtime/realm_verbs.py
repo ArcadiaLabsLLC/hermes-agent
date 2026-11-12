@@ -268,7 +268,7 @@ def realm_adopt(
     return attach_root_observability(list_envelope("realm", sort_rows([realm_row(item) for item in adopted], sort)))
 
 
-def realm_mark_revoked(realm_id: str, *, reason: Any, server_name: str | None = None) -> dict:
+def realm_mark_revoked(realm_id: str, *, reason: Any, server_name: str | None = None, occurred_at: Any = None) -> dict:
     """Record backend ``realm.revoked`` for this install. Method lane only (no argv twin).
 
     A loss of the MEMBER's access (``MEMBER_ACCESS_REASONS`` — left, removed, …) makes the realm a
@@ -280,15 +280,25 @@ def realm_mark_revoked(realm_id: str, *, reason: Any, server_name: str | None = 
     A repeat answers the first record, ``became_local`` false — also once the realm id asked for is
     the local copy's old one. A git-HOST reason keeps the realm
     bound and writes the mark (``realm_sync.revocation``): its credentialed sync verbs refuse
-    ``realm_revoked`` until an admitted credential lifts it. ``reason`` is a ``RealmRevokedReason``."""
+    ``realm_revoked`` until an admitted credential lifts it. ``reason`` is a ``RealmRevokedReason``.
+
+    ``occurred_at`` (an aware datetime, optional) is when the backend event happened. A notice older than this
+    install's binding of a still-bound realm (its ``created_at``: the adopt that made it, a re-join's fresh
+    realm included) is about an earlier binding — a replay of the leave before a re-join — and changes nothing:
+    ``stale`` true, ``became_local`` false (RT-REVOKED-REPLAYED-AFTER-A-REJOIN-TURNS-THE-FRESH-REALM-LOCAL). It
+    was indistinguishable from a second leave and turned the fresh realm into a second local copy. Without
+    ``occurred_at`` every notice is taken, as before. ``stale`` is false on every other answer."""
     from .realm_sync.revocation import MEMBER_ACCESS_REASONS, mark_realm_revoked
     from .store import RealmStore
 
+    stale = _older_than_binding(realm_id, reason, occurred_at)
+    if stale is not None:
+        return attach_root_observability(object_envelope("realm_revocation", stale))
     if reason in MEMBER_ACCESS_REASONS:
         return attach_root_observability(object_envelope("realm_revocation", _leave(realm_id, reason, server_name)))
     mark = mark_realm_revoked(RealmStore().get(realm_id), reason)
     return attach_root_observability(object_envelope(
-        "realm_revocation", {"realm_id": realm_id, **mark, "became_local": False, "shared_from": None}
+        "realm_revocation", {"realm_id": realm_id, **mark, "became_local": False, "shared_from": None, "stale": False}
     ))
 
 
@@ -325,4 +335,30 @@ def _leave(realm_id: str, reason: Any, server_name: str | None) -> dict:
         "rekey": state,
         "rekeyed_to": local_id if local_id != realm_id else None,
         "rekey_waits_on": waits_on.value if waits_on else None,
+        "stale": False,
     }
+
+
+def _older_than_binding(realm_id: str, reason: Any, occurred_at: Any) -> dict | None:
+    """The answer to a revocation notice that predates this install's binding of the realm, or None when the
+    notice is to be taken (no time given, no such realm, a realm no longer bound, or a notice since the bind)."""
+    from datetime import UTC
+
+    from .errors import NotFound
+    from .realm_sync.revocation import read_realm_revocation
+    from .store import RealmStore
+
+    if occurred_at is None:
+        return None
+    try:
+        realm = RealmStore().get(realm_id)
+    except NotFound:
+        return None
+    bound_at = realm.created_at if realm.created_at.tzinfo is not None else realm.created_at.replace(tzinfo=UTC)
+    # MUTATION: drop this comparison (always take the notice) and
+    # test_a_leave_notice_replayed_after_a_rejoin_leaves_the_fresh_realm_bound reddens.
+    if not realm.server_id or occurred_at >= bound_at:
+        return None
+    mark = read_realm_revocation(realm.id) or {}
+    return {"realm_id": realm.id, "reason": reason.value, "revoked_at": mark.get("revoked_at"),
+            "host_state": bool(mark.get("host_state")), "became_local": False, "shared_from": None, "stale": True}
