@@ -125,6 +125,28 @@ conflicts after v0.22.2 + Phase B): tag the old tip `archive/upstream-daily-<dat
 `origin/main` + `upstream/main`, replay only the `fix(merge)` commits that still apply, then move the
 branch with `--force-with-lease=integration/upstream-daily:<old tip>`.
 
+## 8. The lane reads its own fix live
+
+Owner 2026-11-12: "the same agent can open the qa to check too". A lane whose change shows in Eternia
+reads it there before it reports; "tests pass" is not the report. The rule of record is
+`EterniaLauncher/docs/agent_context/WORK_TRACKING.md`, "The lane that builds or fixes a thing reads it
+live itself…"; what differs here:
+
+- **The serve runs from the lane's own worktree, never the primary.** The lane takes an Eternia
+  worktree to drive, publishes its hermes worktree's launchers once, and launches the QA copy with
+  `hermes_checkout` naming that worktree (`EterniaLauncher/docs/agent_context/STAGEC_QA.md`, "A hermes
+  lane serves its QA copy from its own hermes worktree"). No lane edits, switches or fast-forwards the
+  primary checkout: other lanes' serves run from it.
+- **That QA copy's serve is the only serve a lane starts** — in its own lane namespace, on its own
+  Xvfb display, memory-capped, with the fake model, and stopped by pid at the end. "Never start a real
+  serve or gateway" in the skeleton below still means the machine's own.
+- **What the lane could not read is a `LIVE CHECK` row with the reason on it** (a worktree whose
+  dependency files differ from the machine install's is refused; context spent; a Windows-only need).
+  A timing measurement is never part of the read ([[Running the tests]] § the live latency check is
+  the operator's).
+- Bought by w1112b: a stop fix whose test typed the interrupted result by hand passed, and its first
+  live read failed, because the console's Stop arrives through another entry point.
+
 ## The brief skeleton
 
 ```
@@ -134,7 +156,7 @@ Scratch X:/Eternia/.worktrees/<lane>-scratch/, own UV_CACHE_DIR there.
 Read: <one page> + <plan section / queue row>.
 Steps: 1. … 2. … (decision rules inline: "if the tree differs from the plan, follow the tree and say so in the commit")
 Run: per `Running the tests.md` § "What a lane runs" (name it; do not restate it). `scripts/run_tests.sh -j 4` while other lanes are live; never `-n`.
-Host: shell scripts run with Git Bash's absolute path (`C:/Program Files/Git/bin/bash.exe`) — a bare `bash` from Python is WSL; never start a real serve or gateway; a test whose red writes real machine state runs once by hand.
+Host: shell scripts run with Git Bash's absolute path (`C:/Program Files/Git/bin/bash.exe`) — a bare `bash` from Python is WSL; never start a real serve or gateway (a QA copy's own serve, § 8, is the one exception); a test whose red writes real machine state runs once by hand.
 Upstream files / fixtures: § 4 of this page (the brief names which apply).
 Commits: one MOVE, one CHANGE; push per commit; never main; never amend/force/stash; leave the worktree.
 Report (≤30 lines): tip SHA; per-file outcome; test counts + reds marked caused/pre-existing/load; ≤3 rows verbatim; tool-call count.

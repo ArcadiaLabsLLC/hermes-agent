@@ -437,7 +437,8 @@ everything machine-specific read from the environment: `STAGEC_QA_REPO_ROOT` (or
 checkout's direct-EXE helper; the prebuilt server is used when present, else `dart run`. Register
 it once with `claude mcp add launcher_qa -- python scripts/launcher_qa_mcp.py`; `--print` shows
 what it resolved. A missing variable is a refusal naming it, never a half-configured server
-(owner ruling 2026-10-15).
+(owner ruling 2026-10-15). A lane uses the same surface to read its own fix live before it reports
+(owner 2026-11-12; [[Dispatching a lane]] § 8).
 
 ## After a landing that touches the chat path: the live latency check
 
