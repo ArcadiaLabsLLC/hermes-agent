@@ -38,6 +38,7 @@ def runtime_workspace_create(rid, params, context=None):
             realm_id=params.get("realm_id"),
             template_workspace_id=params.get("template_workspace_id"),
             copy_scopes=params.get("copy_scopes"),
+            land_in_default=True,
         )
     except WorkspaceCreationRefused as exc:
         code = ERR_INVALID_PARAMS if exc.reason == WorkspaceCreationReason.INVALID else ERR_CONFLICT

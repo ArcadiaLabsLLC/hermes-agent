@@ -157,7 +157,7 @@ def add_realm(subs) -> None:
 
 
 def _add_realm_row_verbs(realm_subs) -> None:
-    """``hermes harness realm list / show / create / adopt / bind-server / use / default-scope``."""
+    """``hermes harness realm list / show / create / adopt / bind-server / use / default / default-scope``."""
     realm_list = realm_subs.add_parser("list", help="List realms")
     _add_stage42_global_args(realm_list, controls=frozenset({"sort"}))
     realm_list.set_defaults(func=realm_commands._cmd_realm_list)
@@ -192,6 +192,12 @@ def _add_realm_row_verbs(realm_subs) -> None:
     )
     _add_stage42_global_args(realm_use)
     realm_use.set_defaults(func=realm_commands._cmd_realm_use)
+    realm_default = realm_subs.add_parser(
+        "default", help="Choose the account's default realm: where a workspace created with no realm lands"
+    )
+    realm_default.add_argument("realm_id")
+    _add_stage42_global_args(realm_default)
+    realm_default.set_defaults(func=realm_commands._cmd_realm_default)
     realm_default_scope = realm_subs.add_parser(
         "default-scope",
         help="Preview default-scope adoption/reconciliation without mutating persisted state",

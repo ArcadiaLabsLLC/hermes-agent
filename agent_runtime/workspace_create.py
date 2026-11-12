@@ -92,10 +92,19 @@ def plan_workspace_create(
     isolation: str | None = None,
     max_lanes: int | None = None,
     check_realm: bool = True,
+    land_in_default: bool = False,
 ) -> WorkspaceCreatePlan:
     """Resolve a create request without writing. Raises ``NotFound`` for an
     unknown realm and :class:`TemplateWorkspaceNotFound` for an unknown template;
-    copy scopes without a template are a ``ValueError``."""
+    copy scopes without a template are a ``ValueError``.
+
+    ``land_in_default`` (both create doors pass it; RT-ACCOUNT-DEFAULT-REALM): a request naming no
+    realm lands in the account's default realm (``default_realm.default_realm_id``). The
+    conversations workspace does not pass it and stays realm-less."""
+    if not realm_id and land_in_default:
+        from .default_realm import default_realm_id
+
+        realm_id = default_realm_id()
     template = None
     scopes: tuple[str, ...] = ()
     if template_workspace_id:
@@ -209,9 +218,12 @@ def create_workspace(
     realm_id: str | None = None,
     template_workspace_id: str | None = None,
     copy_scopes: list[str] | None = None,
+    land_in_default: bool = False,
 ):
     """The method door: a receipt fences replay; the workspace record remains
-    the sole authority. Returns ``(workspace, row, warnings)``."""
+    the sole authority. Returns ``(workspace, row, warnings)``. The receipt's fingerprint is the
+    REQUEST's (``realm_id`` as sent), so a replay of a no-realm create matches whatever the default
+    realm has become since."""
     if not _valid_request(name, key, realm_id, template_workspace_id, copy_scopes):
         raise WorkspaceCreationRefused(WorkspaceCreationReason.INVALID)
     name = name.strip()
@@ -243,7 +255,8 @@ def create_workspace(
             return existing, row, []
         try:
             plan = plan_workspace_create(
-                name, realm_id=realm_id, template_workspace_id=template_workspace_id, copy_scopes=copy_scopes)
+                name, realm_id=realm_id, template_workspace_id=template_workspace_id, copy_scopes=copy_scopes,
+                land_in_default=land_in_default)
         except TemplateWorkspaceNotFound:
             raise WorkspaceCreationRefused(WorkspaceCreationReason.TEMPLATE_NOT_FOUND) from None
         except NotFound:

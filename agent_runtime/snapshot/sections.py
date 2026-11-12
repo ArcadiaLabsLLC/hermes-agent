@@ -17,6 +17,7 @@ from agent_runtime.decision_contract_registry import (
     CONTRACT_SCHEMA_VERSION,
     contract_hash,
 )
+from agent_runtime.default_realm import default_realm_id
 from agent_runtime.events import CachedEventLog
 from agent_runtime.migrations import effective_config_summary, migration_status
 from agent_runtime.operator_channels import operator_channel_summary
@@ -373,6 +374,10 @@ class SnapshotFrameBuild:
             "lens": self.lens_section,
             "active_workspace_id": self.workspace_store.active_id(),
             "active_realm_id": self.realm_store.active_id(),
+            # The account's default realm (RT-ACCOUNT-DEFAULT-REALM): where a workspace created with
+            # no realm lands. Resolved by the runtime (``default_realm.default_realm_id``) — the
+            # stored pointer, else ``realm_default``, else the active realm — never by a client.
+            "default_realm_id": default_realm_id(self.realms),
             "agents": self.agent_summaries,
             "available_personas": self.available_personas,
             "runtime_paths_diagnostic": _runtime_paths_diagnostic(self.available_personas),

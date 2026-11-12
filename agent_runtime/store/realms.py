@@ -352,3 +352,23 @@ class RealmStore:
 
     def active_id(self) -> str | None:
         return read_pointer(paths.active_realm_path(), "realm_id")
+
+    def set_default_pointer(self, realm_id: str) -> bool:
+        """Write the account's default-realm pointer; False (no write, no event) when it already names
+        ``realm_id``. The decision — which realm may be the default, and what the default is while the
+        pointer is unset — is ``agent_runtime.default_realm``'s; this is only the file and its event."""
+        item = self.get(realm_id)
+        if self.default_pointer_id() == item.id:
+            return False
+        _write_model(paths.default_realm_path(), {"realm_id": item.id, "updated_at": now()})
+        emit_store_event(
+            self.event_log,
+            "realm.updated",
+            {"realm_id": item.id, "change": "default_realm_set"},
+            domain="store",
+        )
+        return True
+
+    def default_pointer_id(self) -> str | None:
+        """The stored pointer, unresolved: ``None`` until one was set."""
+        return read_pointer(paths.default_realm_path(), "realm_id")

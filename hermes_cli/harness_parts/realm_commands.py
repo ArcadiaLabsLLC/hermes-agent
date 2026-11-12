@@ -41,6 +41,7 @@ __all__ = [
     "_cmd_realm_agents_show",
     "_cmd_realm_bind_server",
     "_cmd_realm_create",
+    "_cmd_realm_default",
     "_cmd_realm_default_scope",
     "_cmd_realm_list",
     "_cmd_realm_show",
@@ -107,6 +108,18 @@ def _cmd_realm_use(args) -> int:
     # `agent_runtime.scope_activation.activate_realm` for why the workspace
     # reconcile lives inside the shared function rather than at each door.
     row = activate_realm(args.realm_id, issued_at=getattr(args, "issued_at", None))
+    _print_stage42(_object_envelope("realm", row), args=args, default_output="json")
+    return 0
+
+
+def _cmd_realm_default(args) -> int:
+    """``harness realm default <id>``: the account's default realm (``runtime.realm.set_default``'s twin)."""
+    from agent_runtime.default_realm import DefaultRealmRefused, default_realm_row
+
+    try:
+        row = default_realm_row(args.realm_id)
+    except DefaultRealmRefused as exc:
+        return emit_harness_error(exc, args=args, code=exc.reason.value)
     _print_stage42(_object_envelope("realm", row), args=args, default_output="json")
     return 0
 

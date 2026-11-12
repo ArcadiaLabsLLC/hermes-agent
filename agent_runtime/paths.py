@@ -862,6 +862,11 @@ def active_realm_path() -> Path:
     return store_root() / "active_realm.json"
 
 
+def default_realm_path() -> Path:
+    """The account's default-realm pointer (RT-ACCOUNT-DEFAULT-REALM)."""
+    return store_root() / "default_realm.json"
+
+
 def run_path(run_id: str) -> Path:
     return runs_dir() / f"{run_id}.json"
 

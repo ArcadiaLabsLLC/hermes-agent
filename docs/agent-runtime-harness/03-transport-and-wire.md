@@ -1416,6 +1416,17 @@ forward entry (lifting a delete-ledger entry for it), under one lock
 `workspace_owned_by_other_realm` (4090, with `owner_realm_id` — owned means the workspace's `realm_id` or
 any realm's `workspace_ids` names another realm; it is never moved).
 
+`runtime.realm.set_default` (`console` tier; RT-ACCOUNT-DEFAULT-REALM; argv twin `harness realm default <id>`)
+chooses the account's default realm — where a workspace created with no realm lands. Params exactly `realm_id`;
+the answer is the realm row plus `default_realm_id` (the resolved default after the write) and `changed` (false
+when the pointer already named it). The pointer is one file beside the active one (`default_realm.json`) and the
+write moves no active pointer. Refusals ride `error.data.reason`: `invalid_request` (-32602), `realm_not_found`
+(4001), `realm_archived` (4090). The snapshot's top-level `default_realm_id` and both create doors read ONE
+resolver (`agent_runtime/default_realm.py::default_realm_id`): the stored pointer while it names a live
+(present, unarchived) realm, else `realm_default`, else the active realm, else `null`. `runtime.workspace.create`
+and `harness workspace create` with no realm land in it (the row's `realm_id` says where); the conversations
+workspace stays realm-less.
+
 ## 5. Attachment receipts
 
 `log_stream_attach` (`agent_runtime/stream/build_policy.py::log_stream_denied`) writes ONE line per attachment to the

@@ -90,13 +90,14 @@ def _cmd_workspace_create(args) -> int:
             isolation=args.isolation,
             max_lanes=args.max_lanes,
             check_realm=not dry_run,
+            land_in_default=True,
         )
     except TemplateWorkspaceNotFound as exc:
         return emit_harness_error(exc, args=args, code="template_workspace_not_found")
     except ValueError as exc:
         return emit_harness_error(exc, args=args, code="invalid_request")
     if dry_run:
-        row = {"id": f"ws_dry_{uuid.uuid4().hex[:6]}", "name": args.name, "realm_id": args.realm, "agents": len(list_flag_or_empty(args, "agent")), "goals": 0, "isolation": args.isolation or "soft", "updated_at": now()}
+        row = {"id": f"ws_dry_{uuid.uuid4().hex[:6]}", "name": args.name, "realm_id": plan.realm_id, "agents": len(list_flag_or_empty(args, "agent")), "goals": 0, "isolation": args.isolation or "soft", "updated_at": now()}
         if plan.template is not None:
             row["template_workspace_id"] = plan.template.id
             row["copy_scopes"] = list(plan.scopes)
