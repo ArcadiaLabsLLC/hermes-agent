@@ -48,6 +48,10 @@ Read in this order for a full picture; each stands alone for its own territory.
   the four slices and the owner decision. S1–S3 (hermes) are BUILT 2026-11-12 — the truth is
   [03 — Transport and wire](03-transport-and-wire.md) § `runtime.workspace.move_realm`; S4 (Eternia's confirm
   dialog and publish offer) is the part still planned.
+- [Leaving and re-joining a server: the local copy stays, the server's realm comes back fresh](planned/rejoin-fresh-realm-2026-11-12.md) — 2026-11-12:
+  the owned re-key of a realm that turned local (three classes of place: moves, parks, history), the owed journal
+  and its triggers, the local copy's new agents, the fresh adopt, what Eternia is told. Task
+  `TASK-REJOIN-FRESH-REALM`; planned, nothing switched over.
 
 - [Agent Console suggestion completion](planned/console-next-prompt-completion-2026-10-27.md) — 2026-10-27 completion recommendations; documentation only, implementation deferred by the owner.
 
