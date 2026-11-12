@@ -103,6 +103,10 @@ PREPUSH_TEXT_GATES=(
   # path, an upstream test file edited with no ledger row sat red on main for two days unseen
   # (7939482ee8, FH-FOOTPRINT-LEDGER-LAUNCHER-PUBLICATION-TEST-UNLEDGERED).
   tests/scripts/test_upstream_footprint.py
+  # The 800-code-line size ceiling (its census ~1 s in-process): off this path, the bundled runner
+  # crossed it and main sat red unseen (FH-SIZE-CEILING-TWO-FILES-OVER-800). The import-layers gate
+  # stays on the landing gate: it imports every fork module (63.6 s alone at load ~28).
+  tests/tooling/test_downstream_size_ceiling.py
 )
 
 # The name census gates: a touched or named one runs in the census step, never the touched lane.
