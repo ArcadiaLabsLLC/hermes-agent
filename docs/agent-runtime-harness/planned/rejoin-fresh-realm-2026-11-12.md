@@ -1,6 +1,8 @@
 # Leaving and re-joining a server: the local copy stays, the server's realm comes back fresh (2026-11-12)
 
-Status: PLANNED 2026-11-12 by lane w1112b-hm-rejoin2. Task `TASK-REJOIN-FRESH-REALM` (slug `rejoin-fresh-realm`,
+Status: PLANNED 2026-11-12 by lane w1112b-hm-rejoin2; slice 1 BUILT the same day (`agent_runtime/realm_rekey.py`:
+the place table as top-level store entries, the map, the journal, the JSON-store steps, the census — one module,
+not the package §3 names; nothing calls it). Task `TASK-REJOIN-FRESH-REALM` (slug `rejoin-fresh-realm`,
 runtime queue). Nothing here is built unless §9 says so; until the switch-over row lands a member sees the
 behaviour of ed84b2c01a / 30bf4d08c7 (the realm turns local at the leave; a re-join binds the SAME realm id again
 and merges).
@@ -144,6 +146,8 @@ One function, `rekey_realm(journal)`. Nothing else renames a realm or a workspac
 1. `RT-REKEY-ONE-OWNED-OPERATION` — the table, the map, the journal, the operation for realm and workspace ids,
    the census test. No caller.
 2. `RT-REKEY-BRAIN-AND-WORKTREES-FOLLOW` — §4(e). No caller.
+   `RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE` — the MOVES places slice 1 does not reach (lens monitors,
+   `machine_roots.json`, the skills inbox and provenance, the local sync clone's subtree). No caller.
 3. `RT-REKEY-LOCAL-COPY-GETS-NEW-AGENTS` — §6 (park, mint, re-point, restore). No caller.
 4. `RT-REKEY-RUNS-WHEN-IDLE-AND-AT-START` — §5 triggers and the busy facts; nothing owes a re-key yet.
 5. `RT-REKEY-ID-MAP-FOR-ETERNIA` — §8 `rekeyed_from` + the event, fixture mirrored.
