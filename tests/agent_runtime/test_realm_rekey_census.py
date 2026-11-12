@@ -533,3 +533,34 @@ def test_what_lives_outside_the_json_store_follows_the_local_copy(tmp_path):
     census = _census(journal)
     assert [census.get(name, []) for name in ("moves", "unclassified", "install")] == [[], [], []]
     assert _git(tmp_path / "team.git", "rev-parse", "main") == team_head
+
+
+def test_the_realm_row_and_one_event_say_which_ids_changed_and_when(tmp_path):
+    """RT-REKEY-ID-MAP-FOR-ETERNIA (and the fact RT-REKEY-NOTICE-LOCAL-COPY-HAS-OWN-AGENTS draws its line from),
+    read through the snapshot's realm row and ``realm show``'s full row. Mutations: answer ``rekeyed_from`` from
+    a journal that is not ``done`` -> set while the re-key is only owed, red; match the journal on ``realm_old``
+    -> the new realm's row is null, red; drop the ``realm.rekeyed`` event, or its row in the event contract registry -> the event list, red; show it on a
+    server-bound realm -> the bound row, red; leave ``rekeyed_from`` out of the full row's keys -> KeyError, red."""
+    from agent_runtime.scope_activation import realm_row
+    from agent_runtime.snapshot.summaries import realm_summary
+
+    realm, first, second, extra, _ = _left_realm(tmp_path)
+    owed = owe_rekey(realm.id, reason="membership_left")
+    assert realm_summary(RealmStore().get(realm.id), workspaces=[])["rekeyed_from"] is None  # owed, not run
+
+    journal = rekey_realm(realm.id)
+
+    mine = RealmStore().get(journal["map"]["realm_new"])
+    told = realm_summary(mine, workspaces=WorkspaceStore().list_all(include_archived=True))["rekeyed_from"]
+    assert told == {"realm_id": realm.id, "workspaces": owed["map"]["workspaces"], "agents": owed["map"]["agents"],
+                    "at": journal["done_at"]}
+    assert set(told["agents"]) == {LEAD, HELPER} and told["at"]
+    assert realm_row(mine, full=True)["rekeyed_from"] == told
+    assert realm_summary(RealmStore().get("realm_team_2"), workspaces=[])["rekeyed_from"] is None
+    events = [event.payload for event in RealmStore().event_log.tail(400) if event.type == "realm.rekeyed"]
+    assert events == [{"realm_id": mine.id, "realm_id_was": realm.id, "at": told["at"],
+                       "workspaces": told["workspaces"], "agents": told["agents"]}]
+    mine.server_id = "srv_again"  # a bound realm never carries it
+    assert realm_summary(mine, workspaces=[])["rekeyed_from"] is None
+    assert rekey_realm(realm.id) == journal and len(
+        [event for event in RealmStore().event_log.tail(400) if event.type == "realm.rekeyed"]) == 1

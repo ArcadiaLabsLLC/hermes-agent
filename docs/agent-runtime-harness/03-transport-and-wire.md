@@ -1205,7 +1205,16 @@ member later leaves. Owner ruling 2026-11-12, asked "Should losing your role or 
 local, not only leaving or being removed?": "Yes, keep it wide". The verb takes an optional `server_name` (the caller's display name for the server)
 and answers `{realm_id, reason, revoked_at, host_state, became_local, shared_from}`; a repeat answers the
 first record with `became_local: false`. The snapshot's realm row and the full `realm_row` (`realm show`, the archive verbs) carry `shared_from`
-(null on a server-bound realm and on a realm that never had a server). Nothing is sent: the team's copy
+(null on a server-bound realm and on a realm that never had a server), and beside it `rekeyed_from`
+(2026-11-12, `RT-REKEY-ID-MAP-FOR-ETERNIA`; plan `planned/rejoin-fresh-realm-2026-11-12.md` §8): null until the
+local copy's re-key has run (`agent_runtime/realm_rekey.py`; nothing runs it yet — the switch-over row), then
+`{realm_id, workspaces: {old: new}, agents: {old: new}, at}` — the ids the copy had as the team's realm, and
+when it took its own. From `at` on the copy has its own agents with empty chats; the team's agents and
+their chats wait on this machine and return with a re-join. The same map is appended once as the event
+`realm.rekeyed` `{realm_id (new), realm_id_was, at, workspaces, agents}`. A client follows the workspace map
+for what it had open (active workspace, an Office subscription, per-workspace view state) and keeps anything
+filed under an agent or a chat with the OLD id. How long a client shows "this copy now has its own agents"
+is the client's own. Nothing is sent: the team's copy
 is unchanged, and a later publish or pull is a local realm's. Archive then follows the local rules
 (`realm_manage.py`). A re-grant (`adopt_realms`) binds the same realm again by its id, drops the record,
 and brings the realm back if it was archived while local. The drift baselines (`realm_sync/<realm>/*_baseline.json`)

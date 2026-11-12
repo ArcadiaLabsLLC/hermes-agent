@@ -291,6 +291,10 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     "realm.adopted": EventContract("realm.adopted", "Realm adopted", ("realm_id", "name"), ("server_id",)),
     "realm.created": EventContract("realm.created", "Realm created", ("realm_id", "name"), ("server_id",)),
     "realm.updated": EventContract("realm.updated", "Realm updated", ("realm_id", "change"), ("server_id",)),
+    # ``realm_rekey.rekey_realm``: a realm that turned local took its own ids. ``realm_id`` is the NEW id;
+    # the maps are old -> new, the same the realm row carries as ``rekeyed_from``.
+    "realm.rekeyed": EventContract("realm.rekeyed", "Realm took its own ids", ("realm_id", "realm_id_was", "at"),
+                                   ("workspaces", "agents")),
     # RealmStore.archive — the one realm mutation whose event was emitted but
     # never registered, so its append raised and was swallowed by
     # store_events.emit_store_event's best-effort wrapper and the archive stayed invisible

@@ -17,6 +17,7 @@ from agent_runtime.persona_chat_history.vocabulary import _SECRET_RE
 from agent_runtime.persona_profiles import effective_toolsets
 from agent_runtime.process_state import register_process_state
 from agent_runtime.realm_sync.sidecar import read_realm_sync_sidecar
+from agent_runtime.realm_rekey_journal import rekeyed_from
 from agent_runtime.realm_sync.revocation import read_realm_shared_from
 from agent_runtime.repo_context import resolve_affected_repo_workdir
 from agent_runtime.work_store.activity import read_activity
@@ -127,6 +128,10 @@ def realm_summary(realm, *, workspaces, active_id: str | None = None) -> dict:
         # (``realm_leave``): ``{server_id, server_name, reason, left_at}``, else null. A pure file
         # read, like the sidecar; never set on a server-bound realm.
         "shared_from": None if realm.server_id else read_realm_shared_from(realm.id),
+        # Set once the local copy's re-key has run (``realm_rekey``): ``{realm_id, workspaces, agents, at}``,
+        # the ids it had as the team's realm mapped old -> new. From ``at`` on it has its own agents; the
+        # team's agents and their chats wait for a re-join. A file read; never set on a server-bound realm.
+        "rekeyed_from": None if realm.server_id else rekeyed_from(realm.id),
         "archived": bool(realm.archived),
         "active": realm.id == active_id,
         "updated_at": realm.updated_at,

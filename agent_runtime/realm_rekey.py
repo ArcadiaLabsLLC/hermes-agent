@@ -48,10 +48,12 @@ from utils import atomic_json_write
 from . import paths
 from .board_models import default_board_id
 from .locks import workspace_realm_assign_lock
+from .realm_rekey_journal import JOURNAL_DIRNAME, RekeyState, read_rekey_journal, rekey_journal_path, rekeyed_from
 from .realm_rekey_git import LANE_WORKTREES_DIRNAME, step_git
 from .realm_rekey_outside import LOCAL_SYNC_REPO, step_outside
 from .realm_rekey_agents import PARKED_DIRNAME, agent_forms, agent_name_forms, agents_of, fresh_agent_id, step_agents
 from .store import RealmStore, WorkspaceStore
+from .store_events import emit_store_event
 
 __layer__ = "lanes"
 __all__ = [
@@ -68,11 +70,11 @@ __all__ = [
     "owe_rekey",
     "place_class",
     "read_rekey_journal",
+    "rekeyed_from",
     "rekey_journal_path",
     "rekey_realm",
 ]
 
-JOURNAL_DIRNAME = "realm_rekey"
 #: The level document's one embedded id: its store address (``EterniaLauncher`` ``level_ref.dart``).
 SCENE_ID_PREFIX = "ws-"
 _PIECES = re.compile(r"([/\\:])")
@@ -88,12 +90,6 @@ class PlaceClass(str, Enum):
     #: This install's own, whatever realms come and go: catalogues every realm shares (maps, prefabs, courses,
     #: skills), machine state. Holds no realm, workspace or agent id of a realm — the census reds one that does.
     INSTALL = "install"
-
-
-class RekeyState(str, Enum):
-    OWED = "owed"
-    RUNNING = "running"
-    DONE = "done"
 
 
 _M, _P, _H, _D, _I = PlaceClass.MOVES, PlaceClass.PARKS, PlaceClass.HISTORY, PlaceClass.DERIVED, PlaceClass.INSTALL
@@ -179,17 +175,6 @@ class RekeyMap:
         """What a file or folder NAME is matched against: the tokens, and a long actor key's capped file token."""
         return {**agent_name_forms(self.agents), **self.forms()}
 
-
-
-def rekey_journal_path(realm_id: str) -> Path:
-    return paths.store_root() / JOURNAL_DIRNAME / f"{paths.safe_path_token(realm_id)}.json"
-
-
-def read_rekey_journal(realm_id: str) -> dict[str, Any] | None:
-    try:
-        return json.loads(rekey_journal_path(realm_id).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
 
 
 def _write_journal(journal: dict[str, Any]) -> dict[str, Any]:
@@ -382,9 +367,17 @@ def rekey_realm(realm_id: str) -> dict[str, Any]:
             step(root, mapping)
             journal = _write_journal({**journal, "steps_done": [*journal["steps_done"], name]})
         leftover = leftover_ids(root, list(mapping.forms()), only=PlaceClass.MOVES)
-        return _write_journal({
+        journal = _write_journal({
             **journal, "state": RekeyState.DONE.value, "done_at": now().isoformat(), "leftover": leftover,
         })
+        # The one event of a re-key: it advances the event log every reader is gated on, and carries the map
+        # a client needs to follow what it had open (the realm row's ``rekeyed_from`` says the same, durably).
+        told = rekeyed_from(mapping.realm_new) or {}
+        emit_store_event(RealmStore().event_log, "realm.rekeyed", {
+            "realm_id": mapping.realm_new, "realm_id_was": told.get("realm_id"), "at": told.get("at"),
+            "workspaces": told.get("workspaces"), "agents": told.get("agents"),
+        }, domain="store")
+        return journal
 
 
 def token_pattern(ids: Any) -> re.Pattern[str]:
