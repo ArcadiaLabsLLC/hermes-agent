@@ -122,6 +122,10 @@ ERROR_EXIT_CODES = {
     # damaged file an operator repairs before the identical call succeeds, and
     # this one is a request that will be refused identically forever.
     "idempotency_key_verb_mismatch": 2,
+    # A card verb named no board and two boards hold the card id (a re-joined
+    # realm beside its local copy). Family 2: the identical command is refused
+    # identically until it names ``--board``.
+    "card_ambiguous": 2,
     # THIS machine's operating system refused to put a packet on its own local
     # network (R-D20). Measured on the operator's Mac 2026-09-04: macOS 15 Local
     # Network privacy had never been granted to the responsible app, so the
@@ -477,6 +481,7 @@ def _error_hint(code: str) -> str:
         # and the neighbouring hint's "repair the file" is wrong here — the
         # receipt is intact and correct about the gesture that wrote it.
         "idempotency_key_verb_mismatch": "That --idempotency-key already belongs to a different board verb on this board (the message names both). One key names one gesture: re-run with a key of its own. Retrying this command unchanged will be refused identically.",
+        "card_ambiguous": "Two boards hold this card id (the message names them). Re-run with --board <board-id> to say which copy you mean; without it nothing is changed.",
         "actors_unreadable": "Repair or remove the undecodable actor file named in the message, or pass --persona-instance-id to place the instance, then retry.",
         # ``duplicate_desk``'s hint stood here until 2026-09-18 and left with
         # its code and the fence that produced it (see ERROR_EXIT_CODES above).

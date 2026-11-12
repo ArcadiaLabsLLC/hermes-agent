@@ -9,6 +9,12 @@ ack echoes store truth). ``resolve_conflict`` whose outcome archived the card
 answers ``{"card": null, "card_id", "state": "archived", "take"}``, as the CLI
 does.
 
+**The board.** Every card verb honours ``board_id``: named, the verb reaches
+that board's copy or answers ``unknown_card``. Named by ``card_id`` alone it
+reaches the card's only board, and is refused ``card_ambiguous`` (``data.
+board_ids``) when two boards hold that id — a re-joined realm beside its local
+copy can (``tests/agent_runtime/test_card_id_on_two_boards.py``).
+
 **Refusals are terminal** (rule 1): a store exception is translated by
 :data:`BOARD_WRITE_ERRORS` through ``office_errors.translate`` and the client
 does not retry on argv. ``expect_revision`` and ``idempotency_key`` pass
@@ -32,6 +38,7 @@ from agent_runtime.errors import (
     AgentRuntimeError,
     AlreadyExists,
     ArchiveUnreadable,
+    CardAmbiguous,
     IdempotencyKeyVerbMismatch,
     IdempotentReplayUnresolved,
     NotFound,
@@ -52,6 +59,7 @@ from agent_runtime.serve_rpc.protocol import (
     ERR_INVALID_REQUEST,
     ERR_NOT_FOUND,
     RpcContext,
+    err,
     logger,
     ok,
 )
@@ -84,13 +92,13 @@ RESOLVE_CONFLICT = "runtime.board.resolve_conflict"
 BOARD_METHOD_PARAMS: Mapping[str, tuple[str, ...]] = {
     CARD_ADD: ("assignee", "board_id", "column_id", "correlation_id", "created_by", "description",
                "idempotency_key", "labels", "priority", "title", "workspace_id"),
-    CARD_EDIT: ("assignee", "card_id", "clear_assignee", "correlation_id", "description",
+    CARD_EDIT: ("assignee", "board_id", "card_id", "clear_assignee", "correlation_id", "description",
                 "expect_revision", "idempotency_key", "labels", "priority", "title"),
-    CARD_MOVE: ("after", "before", "card_id", "column_id", "correlation_id", "expect_revision",
+    CARD_MOVE: ("after", "before", "board_id", "card_id", "column_id", "correlation_id", "expect_revision",
                 "idempotency_key"),
-    CARD_ARCHIVE: ("card_id", "correlation_id"),
-    CARD_RESTORE: ("card_id", "correlation_id"),
-    RESOLVE_CONFLICT: ("card_id", "correlation_id", "take"),
+    CARD_ARCHIVE: ("board_id", "card_id", "correlation_id"),
+    CARD_RESTORE: ("board_id", "card_id", "correlation_id"),
+    RESOLVE_CONFLICT: ("board_id", "card_id", "correlation_id", "take"),
 }
 
 
@@ -103,8 +111,19 @@ def _not_found_reason(exc: BaseException) -> str:
     return "unknown_board" if str(exc).startswith("board:") else "unknown_card"
 
 
+def _card_ambiguous(exc: BaseException, scope: OfficeWriteScope) -> dict:
+    """``card_ambiguous`` with the boards that hold the id — the caller's cure
+    is to send ``board_id``, so the frame names the candidates."""
+
+    return err(scope.rid, ERR_INVALID_PARAMS, str(exc),
+               {"reason": own_code(exc), "card_id": exc.card_id, "board_ids": list(exc.board_ids)})
+
+
 #: The five card verbs' translation table.
 BOARD_WRITE_ERRORS: Mapping[type[BaseException], Translation] = {
+    # No ``board_id`` sent and the card id is on two boards (a re-joined realm
+    # beside its local copy): nothing is written, the cure is to name the board.
+    CardAmbiguous: _card_ambiguous,
     # The office's spelling; no current revision rides ``data`` (a retry with
     # it is the lost update the guard refused).
     StaleRevision: refusal(ERR_CONFLICT, "stale_revision", carry=("card_id", "expect_revision")),
@@ -147,6 +166,12 @@ def _required_param(params: dict, key: str, reason: RpcRefusal) -> str:
     if not value:
         raise ParamRefused(f"invalid params: {key} must be a non-empty string", reason)
     return value
+
+
+def _board_id_param(params: dict) -> str | None:
+    """The board the caller names, or ``None``: a blank string names none."""
+
+    return (_str_param(params, "board_id") or "").strip() or None
 
 
 def _priority_param(params: dict) -> str | None:
@@ -280,7 +305,7 @@ def _runtime_board_card_edit(rid: Any, params: dict, context: RpcContext | None 
         fields = {"title": _str_param(p, "title"), "description": _str_param(p, "description"),
                   "priority": _priority_param(p), "labels": _labels_param(p), "assignee": _str_param(p, "assignee"),
                   "clear_assignee": _bool_param(p, "clear_assignee"), "expect_revision": _expect_revision_param(p),
-                  "idempotency_key": _str_param(p, "idempotency_key")}
+                  "idempotency_key": _str_param(p, "idempotency_key"), "board_id": _board_id_param(p)}
         return lambda store: store.edit_card(card_id, **fields)
 
     return _card_write(rid, CARD_EDIT, params, read)
@@ -294,7 +319,8 @@ def _runtime_board_card_move(rid: Any, params: dict, context: RpcContext | None 
         card_id = _required_param(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
         fields = {"column_id": _required_param(p, "column_id", RpcRefusal.COLUMN_ID_REQUIRED),
                   "before": _str_param(p, "before"), "after": _str_param(p, "after"),
-                  "expect_revision": _expect_revision_param(p), "idempotency_key": _str_param(p, "idempotency_key")}
+                  "expect_revision": _expect_revision_param(p), "idempotency_key": _str_param(p, "idempotency_key"),
+                  "board_id": _board_id_param(p)}
         return lambda store: store.move_card(card_id, **fields)
 
     return _card_write(rid, CARD_MOVE, params, read)
@@ -306,7 +332,8 @@ def _runtime_board_card_archive(rid: Any, params: dict, context: RpcContext | No
 
     def read(p: dict):
         card_id = _required_param(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
-        return lambda store: store.archive_card(card_id, reason="operator")
+        board_id = _board_id_param(p)
+        return lambda store: store.archive_card(card_id, board_id=board_id, reason="operator")
 
     return _card_write(rid, CARD_ARCHIVE, params, read)
 
@@ -317,7 +344,8 @@ def _runtime_board_card_restore(rid: Any, params: dict, context: RpcContext | No
 
     def read(p: dict):
         card_id = _required_param(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
-        return lambda store: store.restore_card(card_id)
+        board_id = _board_id_param(p)
+        return lambda store: store.restore_card(card_id, board_id=board_id)
 
     return _card_write(rid, CARD_RESTORE, params, read)
 
@@ -337,7 +365,7 @@ def _runtime_board_resolve_conflict(rid: Any, params: dict, context: RpcContext 
 
     def read(p: dict):
         card_id = _required_param(p, "card_id", RpcRefusal.CARD_ID_REQUIRED)
-        take = _take_param(p)
-        return lambda store: store.resolve_conflict(card_id, take=take)
+        take, board_id = _take_param(p), _board_id_param(p)
+        return lambda store: store.resolve_conflict(card_id, take=take, board_id=board_id)
 
     return _card_write(rid, RESOLVE_CONFLICT, params, read, table=RESOLVE_CONFLICT_ERRORS, answer=_resolve_answer)

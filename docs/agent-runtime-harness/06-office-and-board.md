@@ -1330,8 +1330,22 @@ entity, archive (a `remove`) and restore (a `created` upsert) under the
 row over the value budget, a no-tombstone archive, a flip of a realm-bound
 board's `unpublished` — emits the accounted `refresh`. Conflict resolve and the
 board-def writes stay uncovered (`patch_coverage.py`), so those batches demote
-to a full core. The launcher still sends all six as argv capabilities
-(`board/mission_board_write.dart`) until its RPC-first row lands.
+to a full core. Eternia sends none of the six since 2026-11-04 (its planning
+kanban retired; the Board tab draws `runtime.work` rows), so the twins' callers
+today are the argv verbs and tests.
+
+**Which board a card verb reaches.** Edit, move, archive, restore and
+`resolve_conflict` each take an optional `board_id` (argv `--board`). Named,
+the verb reaches that board's copy or answers `unknown_card`. Named by
+`card_id` alone, it reaches the card's only board; when more than one board
+holds that id — live, archived or as a conflict sidecar — it is refused
+`card_ambiguous` (`-32602`, `data.board_ids`; CLI exit family 2) and nothing
+is written (`board_store/files.py` `boards_holding_card`). One install holds
+one id twice after a re-join: a card adopted from a Work row keeps the row's
+id, a leave's re-key renames only board-minted cards, and the team's board
+comes back fresh beside the local copy
+(`tests/agent_runtime/test_card_id_on_two_boards.py`).
+
 One asymmetry worth knowing: the board DOES send `expect_revision`
 (`mission_board_write.dart`, sourced from `card.revision` at
 `mission_board_card_panel.dart`), while the office's argv arms deliberately
