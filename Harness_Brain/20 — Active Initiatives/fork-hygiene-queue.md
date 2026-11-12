@@ -19,7 +19,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-12 (lane w1112a-hmscan)
 
-- **`FH-PROCESS-GLOBALS-STALE-SKILL-SEARCH-ROW` — The process-globals check passes on main again** · group: prepush · `tests/tooling/test_process_globals_declared.py::test_no_allowlist_row_outlives_its_global` red on origin/main 4f5fed23361 (seen 2026-11-12 on DESKTOP-QJ7DDV2 by w1112a-hmscan, a run that touched only `agent_runtime/builds/detect.py`): `STALE agent_runtime/skill_resolution.py|_SEARCH_ROOTS_CACHE` — 810bbd7c948 (FH-SKILL-SEARCH-ROOTS-CACHE-REDUNDANT) deleted the global and left its row in `tests/fixtures/process_globals_allowlist.json`; fix: delete that one row · READY 2026-11-12 · **TAKEN 2026-11-12 w1112a-hmrows on DESKTOP-QJ7DDV2 as nekwo in h1109-wake**
 
 ## Filed on arrival — 2026-11-12 (lane w1112a-hmwork)
 
