@@ -757,6 +757,14 @@ each. What remains is the PR cluster: `methods_session.py` (`observe_only` on `s
 `event_replay.py` (a replay checkpoint API), `server_requests.py` + `compute_host_bridge.py`
 (the answer acknowledgement result), `rpc_dispatch.py` (queued RPC work holds retirement).
 
+**Landed 2026-11-12 (lane w1112b-ctt-hm, row RT-NATIVE-CONVERSATION-RECOVERY).** After the v0.23.1
+merge the last two multi-line recovery bodies left in upstream files moved: the compute host's exact
+interrupt arm (`compute_host._handle_interrupt` → `session_execution.host_interrupted`) and the reapers'
+native-execution hold (`session_reaper._session_is_lru_evictable` → `session_execution.holds_session`);
+each site is now one call. Every other recovery hunk in an upstream file is a one-line call or one of
+the four door-PR hunks above, which cannot move without reaching upstream privates and wait on the
+2026-10-16 ruling that PR branches stay idle (row `RT-RECOVERY-DOOR-PRS`).
+
 ### Stages (one MOVE commit each, no CHANGE)
 
 | lane | files | done-test | killing mutation |

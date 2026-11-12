@@ -214,3 +214,28 @@ def test_uncertain_compute_dispatch_never_falls_back_to_an_inline_execution(owne
         "session_id": "live", "text": "hello", "execution_id": "native-turn", "reject_if_busy": True})
     assert response["error"]["code"] == 5019
     assert execution.snapshot(session, "native-turn")["status"] == "unknown"
+
+
+def test_compute_host_interrupt_stops_only_the_named_execution(owner, monkeypatch):
+    """The child's ``interrupt`` frame with ``expected_execution_id`` acks whether THAT execution
+    was stopped; a stale id is refused without touching the running turn (RT-NATIVE-CONVERSATION-RECOVERY)."""
+    import io
+    import json
+    from tui_gateway.compute_host import ComputeHost
+    session, _ = owner
+    interrupted = []
+    monkeypatch.setattr(server, "_interrupt_session_turn", lambda *args, **kwargs: interrupted.append(kwargs))
+    execution.admit(session, "current")
+    out = io.StringIO()
+    host = ComputeHost(stdout=out, heartbeat_secs=0)
+    server._sessions["child"] = session
+    try:
+        host._handle_interrupt({"sid": "child", "request_id": "stale", "expected_execution_id": "old"})
+        host._handle_interrupt({"sid": "child", "request_id": "exact", "expected_execution_id": "current"})
+        acks = [json.loads(line) for line in out.getvalue().splitlines() if line.strip()]
+        assert [(a["type"], a["request_id"], a["applied"]) for a in acks] == [
+            ("interrupt.ack", "stale", False), ("interrupt.ack", "exact", True)]
+        assert interrupted == [{"expected_execution_id": "current"}]
+    finally:
+        server._sessions.pop("child", None)
+        host.close()
