@@ -133,6 +133,24 @@ def test_a_never_promote_tool_is_not_bracketed(queue_registry, tools_reg):
     assert json.loads(result) == {"answer": 42}
 
 
+def test_every_never_promote_name_is_a_registered_tool():
+    """RT-LONG-CALL-NEVER-PROMOTE-STALE-NAMES: ``armed`` matches by name, so a renamed tool leaves the list."""
+    import model_tools  # noqa: F401 — discovers the built-in tools into the process registry
+    from tools.registry import registry
+
+    registered = set(registry.get_all_tool_names())
+    assert sorted(long_tool_calls.NEVER_PROMOTE - registered) == []
+    assert {"process_manage", "todo_list"} <= long_tool_calls.NEVER_PROMOTE
+
+
+def test_a_process_wait_in_a_live_turn_is_not_bracketed():
+    verdicts = _in_live_call(
+        lambda: [long_tool_calls.armed(name) for name in ("process_manage", "todo_list", "slow")],
+        tool="process_manage",
+    )
+    assert verdicts == [False, False, True]
+
+
 def test_the_operator_sends_a_call_to_the_background_before_the_threshold(queue_registry, tools_reg, monkeypatch):
     monkeypatch.setattr(long_tool_calls, "THRESHOLD_S", 30.0)
     seen = {}

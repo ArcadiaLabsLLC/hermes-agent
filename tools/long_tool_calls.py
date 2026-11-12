@@ -60,13 +60,15 @@ THRESHOLD_S = 45.0
 DECLARED_GRACE_S = 5.0
 _POLL_S = 0.2
 #: Tools whose result must land in the turn that asked, or that own their own background door.
+#: Each name is the tool's REGISTERED name (``armed`` matches by name; a legacy alias is resolved
+#: before dispatch); pinned against the registry by ``tests/tools/test_long_tool_calls.py``.
 NEVER_PROMOTE = frozenset({
     "clarify",          # the question IS the turn
     "terminal",         # its own door: background=True + notify_on_complete, and the yield seam
-    "process",          # manages terminal's background processes; quick by construction
+    "process_manage",   # manages terminal's background processes; its wait must land in-turn
     "delegate_task",    # its own async door
     "execute_code",     # its sandbox calls tools back into THIS turn
-    "todo",             # mutates the conversation's plan
+    "todo_list",        # mutates the conversation's plan
     "memory",           # mutates the agent's memory the turn reads next
 })
 CHECKPOINT_FILENAME = "tool_calls.json"
