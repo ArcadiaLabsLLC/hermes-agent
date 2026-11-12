@@ -1967,6 +1967,19 @@ def _stopped_by_the_person(agent, result: dict) -> bool:
     return reason in PERSON_STOP_REASONS if reason else not result.get("interrupt_message")
 
 
+def _helper_ended_by_its_delegation(agent, result: dict) -> bool:
+    """A delegated child (``_delegate_depth`` > 0) stopped because its delegation ended — the operator
+    cancelled the helper, its parent stopped, it ran out of time (``delegate_tool_child_run.
+    _signal_child_stop``'s reason, kept by ``clear_interrupt``). Nobody sent it a request to send again:
+    the failed-turn notice in its transcript was quoted back to the parent as the helper's "Partial
+    output" (RT-STOPPED-HELPER-RESULT-SAYS-NOT-PROCESSED)."""
+    from agent.interrupt_control import HELPER_DELEGATION_ENDED_REASON
+
+    if result.get("failed") or result.get("interrupted") is not True or not getattr(agent, "_delegate_depth", 0) > 0:
+        return False
+    return getattr(agent, "_turn_cleared_interrupt_reason", None) == HELPER_DELEGATION_ENDED_REASON
+
+
 def _close_durable_failed_turn(agent, result: Any) -> None:
     """Append a Hermes-authored assistant boundary when a failed turn left its durable tail open
     (``OPEN_TURN_TAIL_ROLES``: the accepted ``user`` row, or a ``tool`` row when a call ran before
@@ -2014,9 +2027,10 @@ def _close_durable_failed_turn(agent, result: Any) -> None:
         }
         if failure := _failed_turn_display_metadata(agent, result):
             boundary["display_metadata"] = failure
-        if _stopped_by_the_person(agent, result):
-            # Nothing failed: the person pressed Stop. The tail is still closed (the next prompt must
-            # not merge into this one), with the row no transcript shows — the host says "stopped".
+        if _stopped_by_the_person(agent, result) or _helper_ended_by_its_delegation(agent, result):
+            # Nothing failed: the person pressed Stop (or a helper's delegation ended). The tail is still
+            # closed (the next prompt must not merge into this one), with the row no transcript shows —
+            # the host says "stopped".
             boundary = hidden_interrupt_placeholder_row()
         append_message(messages, boundary)
         agent._flush_messages_to_session_db(messages)

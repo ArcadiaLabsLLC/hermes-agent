@@ -25,6 +25,10 @@ USER_INTERRUPT_REASONS = frozenset({_REASON_HARD_STOP, _REASON_NEW_MESSAGE, _REA
 # The person pressed Stop (an explicit stop, or a bare interrupt): nothing failed and nothing is
 # re-queued. A new message is a correction, and it rides ``_interrupt_message`` as the next turn.
 PERSON_STOP_REASONS = frozenset({_REASON_HARD_STOP, _REASON_USER_INTERRUPT})
+# ``tool_reason`` a delegated child is stopped with when its delegation ends (the default of
+# ``tools.delegate_tool_child_run._signal_child_stop``): an operator's cancel of the helper, its parent
+# stopping, its time running out. Not a person's stop of THIS agent, and not a failure of a request.
+HELPER_DELEGATION_ENDED_REASON = "parent delegation ended"
 # ``tool_reason`` the gateway's restart/shutdown stop passes (gateway.run._INTERRUPT_TOOL_REASON_GATEWAY_SHUTDOWN).
 _REASON_GATEWAY_SHUTDOWN = "gateway shutdown"
 
