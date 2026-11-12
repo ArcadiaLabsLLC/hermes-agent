@@ -2068,7 +2068,8 @@ no run owns from the settled turn's arguments its `wait` recorded (`<store_root>
 A persona claim starts such a run: `runtime.work.claim` with `goal_mode: "until_done"` (an unknown word is
 `goal_mode_unsupported`; the reply echoes `goal_mode`) keeps the mode BESIDE the claim
 (`work_store/until_done.py`, `<store_root>/work/<ws>/claim_goals/`, honoured only for that claimant, forgotten
-on release and when the run closes), and the engine's run of that row is `UNTIL_DONE`; a `run_task`
+on release and when the run closes) — kept BEFORE the claim is written and put back if the claim is refused,
+because the engine starts a TAKEN row the moment it reads it (RT-RUN-UNTIL-DONE-RUNS-ONE-PASS, 2026-11-12) — and the engine's run of that row is `UNTIL_DONE`; a `run_task`
 schedule's `goal_mode` takes the same path. Done is judged against the task's text — title and body are the
 objective — and its tests: every code span on a `Test:` / `Tests:` line of the body is a goal gate. A run
 takes at most `chat_goal.MAX_PASSES` (20) passes of 30 minutes each. `runtime.work.capabilities` answers
