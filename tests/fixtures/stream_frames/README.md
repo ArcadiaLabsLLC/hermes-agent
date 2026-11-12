@@ -12,6 +12,16 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w1112b-hm-ws, 2026-11-12) — launcher copy OWED (launcher task `TASK-MANAGE-WORKSPACE-GENUI`; lane w1112b-ws).**
+> Eight generated goldens moved, for three reasons. Every core-carrying frame gained top-level
+> `default_realm_id` (`null` in the fixture — no realm; RT-ACCOUNT-DEFAULT-REALM). Each `workspaces[]`
+> row gained `tasks_running` / `needs_you` / `last_activity_at` (`null` — no engine read;
+> RT-WORKSPACE-SUMMARY-ACTIVITY). And the persona `toolsets` lists gained `browser-use`
+> (FH-HARNESS-CORE-BROWSER-AFTER-V0231, `d572176d5c`, which landed without regenerating). Copy
+> `delta.json`, `delta_agent_create_narrow_profile.json`, `delta_batch.json`, `hydrate.json`,
+> `hydrate_authoritative_same_offset.json`, `hydrate_running_work_owner.json`, `hydrate_stale_first.json`,
+> `patch_agent_create.json` and `MANIFEST.sha256` into `test/fixtures/harness_stream/`.
+
 > **CROSS-STACK COPY STATUS (w1104a-wsabsorb2, 2026-11-04) — launcher copy OWED (launcher row `MC-WS-ABSORB-WIRE`).**
 > One generated golden moved for one reason: the workspace row lost `project_ids` and
 > `project_assignment_revision` (RT-WS-ABSORB-RETIRE-PROJECT — the workspace absorbed Projects). Copy
