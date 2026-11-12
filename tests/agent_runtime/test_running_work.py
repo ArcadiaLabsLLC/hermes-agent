@@ -1833,7 +1833,7 @@ def test_cancelling_a_delegation_this_process_does_not_hold_says_so(home, monkey
             return []
 
         @staticmethod
-        def interrupt_for_session(**_kwargs):
+        def interrupt_delegation(*_args, **_kwargs):
             raise AssertionError("must not reach the interrupt seam")
 
     real_module = running_work._module

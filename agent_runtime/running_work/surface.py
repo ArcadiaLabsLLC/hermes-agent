@@ -7,7 +7,6 @@ import time
 from datetime import datetime, timezone, UTC
 from typing import Any
 
-from .._upstream_doors import delegation_interrupt_one
 from ..projection_accountant import ProjectionAccountant
 
 from .lanes_build import _collect_builds
@@ -342,7 +341,7 @@ def cancel_work(work_id: str, *, reason: str = "operator_cancel") -> dict[str, A
     Never a bare PID kill. Terminal work goes through
     ``process_registry.kill_process``, whose tree-kill is identity-guarded by
     the same ``host_start_time`` baseline this projection verifies; a delegation
-    is interrupted alone, by id (``delegation_interrupt_one``), which lets the child unwind and
+    is interrupted alone, by id (``interrupt_delegation``), which lets the child unwind and
     deliver partial results through the normal finalize path. Kinds with no
     interrupt seam return a typed ``cancel_unsupported`` rather than pretending.
     """
@@ -431,7 +430,7 @@ def _cancel_delegation(work_id: str, kind: str, stable: str, row: dict[str, Any]
     try:
         # By the row's own id: ``interrupt_for_session`` would stop every helper the owning
         # session runs, and the operator pressed Stop on ONE (RT-STOP-ONE-DELEGATION-STOPS-SIBLINGS).
-        interrupted = delegation_interrupt_one(stable, reason=reason)
+        interrupted = mod.interrupt_delegation(stable, reason=reason)
     except Exception as exc:
         return {
             "status": "error",

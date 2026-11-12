@@ -1430,6 +1430,15 @@ def interrupt_for_session(
         targets, "interrupt_for_session", reason, "Interrupted %d async delegation(s) for ending session (%s)")
 
 
+def interrupt_delegation(delegation_id: str, reason: str = "operator_cancel") -> int:
+    """Fork (additive): signal the ONE running async delegation ``delegation_id`` to stop — its
+    session's other delegations keep running. Returns how many were signalled (0 or 1)."""
+    with _records_lock:
+        targets = [r for r in _records.values()
+                   if r.get("status") in _ACTIVE_STATES and str(r.get("delegation_id") or "") == delegation_id]
+    return _interrupt_records(targets, "interrupt_delegation", reason, "Interrupted %d async delegation (%s)")
+
+
 def refuse_for_session(token: Any, *, session_key: str = "", parent_session_ids=()) -> None:
     """Refuse new dispatches for ONE closing session (any selector matches) until ``allow_for_session``.
     Set before ``interrupt_for_session``: a dispatch registered first is interrupted, a later one refused."""
