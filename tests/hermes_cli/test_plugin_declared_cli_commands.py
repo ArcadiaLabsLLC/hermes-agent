@@ -330,3 +330,47 @@ def test_an_unwritable_cache_still_answers_the_rows(three_bundled_plugins, monke
     for _ in range(2):
         assert {c["name"] for c in declared_mod.discover_declared_cli_commands()} == {"alpha", "beta"}
     assert blocker.is_file()
+
+
+def test_a_row_naming_its_setup_attaches_with_no_plugin_load(two_bundled_plugins, tmp_path, monkeypatch):
+    """``setup: "<module>:<function>"`` (RT-HARNESS-PARSER-PLUGIN-LOAD-TWICE): the stub imports that one
+    function and calls it on the parser; ``register(ctx)`` never runs, so nothing is loaded or unloaded."""
+    markers = two_bundled_plugins
+    (tmp_path / "alpha_cli_setup_s1.py").write_text(
+        'def setup(parser):\n    parser.add_argument("--from-setup", action="store_true")\n'
+        '    parser.set_defaults(func=lambda args: 7)\n', encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    manifest = plugins_mod.get_bundled_plugins_dir() / "alpha" / "plugin.yaml"
+    manifest.write_text(manifest.read_text(encoding="utf-8") + '    setup: "alpha_cli_setup_s1:setup"\n', encoding="utf-8")
+    declared = {c["name"]: c for c in declared_mod.discover_declared_cli_commands()}
+
+    parser = _attach(declared["alpha"])
+
+    assert not list(markers.iterdir()), "a row that names its setup must not load its plugin"
+    args = parser.parse_args(["--from-setup"])
+    assert args.from_setup is True and args.func(args) == 7
+    # Positive control: beta's row names no setup, and the same attach DOES load beta.
+    _attach(declared["beta"])
+    assert sorted(p.name for p in markers.iterdir()) == ["beta.registered"]
+
+
+def test_setup_is_carried_only_when_given_and_a_malformed_one_skips_the_row(tmp_path):
+    from hermes_cli.plugins_manifest import parse_manifest_file
+
+    plugin = tmp_path / "delta"
+    plugin.mkdir()
+    (plugin / "plugin.yaml").write_text(textwrap.dedent("""\
+        name: delta
+        cli_commands:
+          - name: delta
+            setup: "pkg.mod:build"
+          - name: plain
+          - name: spaced
+            setup: "pkg.mod build"
+          - name: listed
+            setup: ["pkg.mod:build"]
+        """), encoding="utf-8")
+    rows = parse_manifest_file(plugin / "plugin.yaml", plugin, "bundled", "").cli_commands
+
+    assert rows == [{"name": "delta", "help": "", "description": "", "parent": "", "setup": "pkg.mod:build"},
+                    {"name": "plain", "help": "", "description": "", "parent": ""}]

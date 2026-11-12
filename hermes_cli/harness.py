@@ -3,8 +3,8 @@
 The ``eternia-harness`` plugin (``plugins/eternia-harness/__init__.py``) calls
 :func:`build_cli_parser`, which builds the whole tree
 (``hermes_cli.harness_parts.parser``) and wraps every handler with
-:func:`_harness_entry` (the core-cache fingerprint capture, and the harness
-error envelope for an exception escaping a handler).
+:func:`_harness_entry` (the start-time setup, the core-cache fingerprint capture,
+and the harness error envelope for an exception escaping a handler).
 
 Where things live — import the module that owns a name, and patch a name in
 the module that LOOKS IT UP (W0-G4, ``tests/tooling/test_harness_namespace_is_thin.py``):
@@ -42,8 +42,8 @@ __all__ = ["build_cli_parser", "build_parser", "emit_harness_error"]  # noqa: F8
 
 
 def _harness_entry(fn):
-    """Wrap one harness handler: capture the fingerprint home first, and render an
-    exception escaping the handler as the harness error envelope (exit code from
+    """Wrap one harness handler: run the start-time setup, capture the fingerprint home, and
+    render an exception escaping the handler as the harness error envelope (exit code from
     ``emit_harness_error``). Idempotent."""
 
     import functools
@@ -55,6 +55,11 @@ def _harness_entry(fn):
 
     @functools.wraps(fn)
     def entry(args, *rest, **kwargs):
+        # The start-time migrations and process globals the plugin's ``register(ctx)`` also runs: the
+        # command line is built with no plugin load (``plugin.yaml`` ``setup:``), so the verb asks here.
+        from hermes_cli.harness_parts.start_time_setup import run_start_time_setup
+
+        run_start_time_setup()
         # The core cache's fingerprint home, captured BEFORE the command runs
         # (HC-1); the instrument and its reasons live in ``core_cache.home``.
         from agent_runtime.core_cache.home import capture_for_harness_command

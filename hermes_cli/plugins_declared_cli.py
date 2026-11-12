@@ -5,7 +5,8 @@ Re-exported by :mod:`hermes_cli.plugins`; the plugin machinery is read through t
 time, so a test that patches ``hermes_cli.plugins.<name>`` patches what these functions see.
 
 The file shape is PR #128648's (owner ruling 2026-10-21: the fork adopts the PR branch's shape).
-Fork additions the PR does not carry: the transient load in :func:`_materialize_declared_cli_command`
+Fork additions the PR does not carry: the transient load in :func:`_materialize_declared_cli_command`,
+the ``setup:`` row that skips it (:func:`_run_declared_setup`)
 and the fingerprint cache plus single readonly config read in :func:`discover_declared_cli_commands`
 (``RT-HARNESS-ARGV-MANIFEST-SCAN``). The manifest field's parser stays fork-owned in
 ``hermes_cli/plugins_manifest_cli_commands.py``.
@@ -57,6 +58,16 @@ def _materialize_declared_cli_command(manifest: PluginManifest, name: str, parse
             manager.unload(key)
 
 
+def _run_declared_setup(setup: str, parser: Any) -> None:
+    """Stub ``setup_fn`` for a row that names its parser setup (``setup: "<module>:<function>"``): import
+    that one function and call it on ``parser``. No plugin is loaded, so no ``register(ctx)`` runs to
+    learn a command's flags (``RT-HARNESS-PARSER-PLUGIN-LOAD-TWICE``); the function sets its own ``func=``."""
+    import importlib
+
+    module, _, function = setup.partition(":")
+    getattr(importlib.import_module(module), function)(parser)
+
+
 def _manifest_roots() -> list[tuple[str, Path]]:
     """``(source, directory)`` in the upstream walk's scan order, read at CALL time through the same
     names ``plugins_discovery.collect_directory_manifests`` reads (tests patch them). The project
@@ -76,10 +87,13 @@ def _declared_descriptors(manifest: PluginManifest, plugin_key: str) -> list[dic
     commands = []
     for row in manifest.cli_commands:
         key = cli_command_key(row["name"], row["parent"])
+        if row.get("setup"):  # the manifest names the parser: nothing of the plugin is loaded
+            setup_fn = lambda parser, _s=row["setup"]: _run_declared_setup(_s, parser)
+        else:
+            setup_fn = lambda parser, _m=manifest, _k=key: _materialize_declared_cli_command(_m, _k, parser)
         commands.append({
             **row, "parent": row["parent"] or None, "help": row["help"] or manifest.description or "",
-            "handler_fn": None, "plugin": manifest.name, "plugin_key": plugin_key,
-            "setup_fn": lambda parser, _m=manifest, _k=key: _materialize_declared_cli_command(_m, _k, parser),
+            "handler_fn": None, "plugin": manifest.name, "plugin_key": plugin_key, "setup_fn": setup_fn,
         })
     return commands
 

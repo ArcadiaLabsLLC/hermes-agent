@@ -1,9 +1,21 @@
 # The `harness` parser without the plugin load (plan)
 
-Status: PLAN — written 2026-11-12 by lane w1112b-hm-queue. Row: runtime-queue
-`RT-HARNESS-PARSER-PLUGIN-LOAD-TWICE` (task `TASK-CONSOLE-SMOOTH-AND-FAST`). NOT BUILT: S1–S2 need no owner
-decision; the build's acceptance is a serve boot timed on a quiet box, which a feature lane beside twelve
-others cannot produce (`EterniaLauncher/docs/agent_context/WORK_TRACKING.md`: performance runs in its own lane).
+Status: BUILT 2026-11-12 (S1–S2, lane w1112b-hm-speed); S3 NOT BUILT — measured, not earned. Row: runtime-queue
+`RT-HARNESS-PARSER-PLUGIN-LOAD-TWICE` (task `TASK-CONSOLE-SMOOTH-AND-FAST`). Canon:
+`docs/agent-runtime-harness/04-boot-and-lifecycle.md`, "The `harness` parser without the plugin load".
+
+As built, where it differs from the design below: the start-time function is
+`hermes_cli/harness_parts/start_time_setup.py::run_start_time_setup` (it calls
+`hermes_cli.harness_parts.mission_chat_door_binding`, so it sits in the wiring layer beside the plugin, not
+under `agent_runtime/`); only the MIGRATIONS are guarded once per process and set of stores — the four
+process globals are idempotent on their own and run on every call. Measured after the build (Linux dev box,
+load 32–41, interleaved): serve spawn → `ready` 2.04 s → 1.93 s median over 12 boots each; `harness --help`
+1.25 s → 0.91 s. S3's ceiling, counted on the same boots: the load did 123 modules of work the serve does
+not need by `ready` (0.1–0.15 s), and S2 keeps all but 24 of them before the verb — the migrations and
+process presence import most of them (`seed_all_persona_profiles` 82 modules / ~85 ms,
+`migrate_authored_character_assignments` 90 / ~90 ms, `install_process_presence` 144 / ~100 ms in a fresh
+process). Deferring process presence would buy under 0.1 s of a 2 s boot and needs the pre-ready proof per
+global, so it is not built.
 
 ## In plain English
 

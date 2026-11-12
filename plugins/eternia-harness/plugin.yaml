@@ -10,11 +10,14 @@ author: Arcadia Labs
 kind: backend
 api_version: 1
 tags: [harness, mission-control]
-# Attached before plugin discovery, materialising only this plugin
-# (hermes_cli/plugins_manifest_cli_commands.py::discover_declared_cli_commands).
+# Attached before plugin discovery (hermes_cli/plugins_declared_cli.py::discover_declared_cli_commands).
+# `harness` names its parser setup, so its command line is built with NO plugin load; the verb's entry
+# (hermes_cli/harness.py::_harness_entry) runs the start-time setup register(ctx) also runs.
+# `postinstall` has no `setup:` and materialises only this plugin to attach.
 cli_commands:
   - name: harness
     help: Experimental Agent Runtime Harness
+    setup: "hermes_cli.harness_cli_setup:setup_harness_parser"
   - name: postinstall
     help: Bootstrap non-Python deps for pip installs (node, browser, ripgrep, ffmpeg)
     description: >-

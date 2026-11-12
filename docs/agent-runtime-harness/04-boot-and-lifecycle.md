@@ -244,9 +244,32 @@ to attach, `HERMES_SAFE_MODE`, or `HERMES_DISABLE_FAST_DECLARED_LAUNCH=1` answer
 is built as before. The one seam in upstream's file is the owner's ruling of 2026-11-12 (one import, one
 call; the footprint ledger's `hermes_cli/main.py` row). Measured on the Linux dev box 2026-11-12, warm
 bytecode, 11 interleaved runs each at load 42: `hermes harness serve --help` 1.50 s → 1.24 s median, the
-parser build inside it 0.76 s → 0.49 s (76 subcommands → 2); what is left of the build is the transient
-harness plugin load (`RT-HARNESS-PARSER-PLUGIN-LOAD-TWICE`). Pinned by
-`tests/hermes_cli/test_main_declared_parser.py`.
+parser build inside it 0.76 s → 0.49 s (76 subcommands → 2); what was left of the build was the transient
+harness plugin load, removed next. Pinned by `tests/hermes_cli/test_main_declared_parser.py`.
+
+**The `harness` parser without the plugin load** (`RT-HARNESS-PARSER-PLUGIN-LOAD-TWICE`, 2026-11-12). A
+`cli_commands:` row may name its parser setup, `setup: "<module>:<function>"`
+(`hermes_cli/plugins_manifest_cli_commands.py::cli_command_entry`); the CLI then builds that command's parser
+by importing the one function (`hermes_cli/plugins_declared_cli.py::_run_declared_setup`) and loads no
+plugin. `plugins/eternia-harness/plugin.yaml` names `hermes_cli/harness_cli_setup.py::setup_harness_parser`
+for `harness` (the same function `register(ctx)` registers); `postinstall` names none and keeps the
+transient load. What the load used to do as a side effect of the parse — the start-time migrations, the
+mission-chat door, `harness_core`, process presence, the registry-spelled filesystem reads — is one function,
+`hermes_cli/harness_parts/start_time_setup.py::run_start_time_setup`, with two callers: every harness verb's
+entry (`hermes_cli/harness.py::_harness_entry`, before the handler) and the plugin's `register(ctx)`. The
+migrations run once per process for one set of stores (profile home, head home, pinned store root), so the
+serve's post-ready plugin discovery does not repeat them; the four globals are idempotent and run on every
+call. `harness --help` and a mistyped verb run none of it. Counted on a sandbox `harness serve` boot: the
+harness plugin's `register(ctx)` runs once (post-ready discovery) instead of twice, and the modules imported
+by `ready` go 1,636 → 1,612. Measured on the Linux dev box 2026-11-12, warm bytecode, interleaved, load
+32–41: `harness serve` spawn → `ready` median 2.04 s → 1.93 s (12 boots each; 1.84–2.37 → 1.74–2.82);
+`harness serve --help` 1.26 s → 0.93 s, `harness bogus` 1.22 s → 0.90 s (9 runs each); `harness doctor`
+5.1–6.6 s → 3.5–5.3 s (8 runs each, same store, same output). `harness_parser_ms` keeps its meaning
+(harness import + tree build) and reads about 40 ms higher (60–98 → 104–158), because imports the plugin
+load used to pay first are now paid inside the mark. Not built: letting the serve defer process presence
+past `ready` (the plan's S3) — everything the load did that the serve does not need by `ready` is 123
+modules, about 0.1–0.15 s, and the start-time setup is most of it. Pinned by
+`tests/hermes_cli/test_harness_start_time_setup.py` and `tests/hermes_cli/test_plugin_declared_cli_commands.py`.
 
 ## Stages 2-3 — `booting`, then registry, head pointer, root anchor
 

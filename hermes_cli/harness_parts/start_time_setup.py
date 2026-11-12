@@ -4,11 +4,21 @@ Moved out of ``plugins/eternia-harness/__init__.py::register`` (``RT-HARNESS-PAR
 the two callers share one function: the plugin's ``register(ctx)`` and ``hermes_cli.harness._harness_entry``,
 which runs it before a ``hermes harness`` verb's handler. None of it is registered on a plugin context, so
 unloading the plugin undoes none of it.
+
+The ``harness`` command line is built from ``plugin.yaml``'s ``setup:`` row with no plugin load, so a verb no
+longer gets this work as a side effect of the parse: ``_harness_entry`` asks for it, and ``--help`` or a
+mistyped verb runs none of it. The migrations run ONCE per process for one set of stores
+(:func:`_stores_key`): a ``harness serve`` runs them before its verb and its post-ready plugin discovery
+calls ``register(ctx)`` without repeating them. The four globals are idempotent on their own and run on
+every call (a test that resets ``toolsets.TOOLSETS`` and registers again gets ``harness_core`` back).
+Pinned by ``tests/hermes_cli/test_harness_start_time_setup.py``.
 """
 
 from __future__ import annotations
 
 import logging
+import os
+import threading
 
 __layer__ = "wiring"
 __all__ = ["run_start_time_setup"]
@@ -120,20 +130,51 @@ def _compute_worker() -> bool:
     return is_worker_process()
 
 
+_MIGRATED: set[tuple] = set()
+_MIGRATED_LOCK = threading.Lock()
+
+
+def _stores_key(config_frozen: bool, compute_worker: bool) -> tuple | None:
+    """What the migrations read and rewrite, as this process resolves it NOW: the profile home, the head
+    home, the pinned store root, and the two worker facts that pick which migrations run. None when a
+    home cannot be resolved — the migrations then run unguarded, as they did at every plugin load."""
+    try:
+        from agent_runtime.profile_context import RUNTIME_ROOT_ENV
+        from agent_runtime.profile_home import get_hermes_head_home
+        from hermes_constants import get_hermes_home
+
+        return (str(get_hermes_home()), str(get_hermes_head_home()), os.environ.get(RUNTIME_ROOT_ENV, ""),
+                config_frozen, compute_worker)
+    except Exception:
+        return None
+
+
+def _run_start_time_migrations() -> None:
+    config_frozen, compute_worker = _worker_config_frozen(), _compute_worker()
+    key = _stores_key(config_frozen, compute_worker)
+    with _MIGRATED_LOCK:  # held across the run: a second caller waits for the first one's migrations
+        if key is not None and key in _MIGRATED:
+            return
+        if not config_frozen:  # the three read and rewrite profile config.yaml files
+            if not compute_worker:  # it also rewrites canonical state.db, which a worker never opens
+                migrate_retired_local_llama_id()
+            migrate_legacy_persona_toolsets()
+            retire_legacy_harness_blocks()
+            seed_persona_profile_defaults()
+        migrate_legacy_office_schema()  # a store migration, not a config.yaml rewrite
+        migrate_shared_character_assignments()
+        retire_persona_assignment_store()  # a store migration too: archive the retired store's rows
+        if key is not None:
+            _MIGRATED.add(key)
+
+
 def run_start_time_setup() -> None:
-    """Bind the door, run the start-time migrations, and install the three other process globals."""
+    """Bind the door, run the start-time migrations (once per process and set of stores), and install
+    the three other process globals."""
     from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
 
     bind_mission_chat_door()  # ruling Q10: the runtime's door onto the CLI turn handler
-    if not _worker_config_frozen():  # the three read and rewrite profile config.yaml files
-        if not _compute_worker():  # it also rewrites canonical state.db, which a worker never opens
-            migrate_retired_local_llama_id()
-        migrate_legacy_persona_toolsets()
-        retire_legacy_harness_blocks()
-        seed_persona_profile_defaults()
-    migrate_legacy_office_schema()  # a store migration, not a config.yaml rewrite
-    migrate_shared_character_assignments()
-    retire_persona_assignment_store()  # a store migration too: archive the retired store's rows
+    _run_start_time_migrations()
     from agent_runtime.harness_toolset import ensure_harness_core
 
     ensure_harness_core()  # the persona lane's composite, through upstream's create_custom_toolset
