@@ -94,6 +94,9 @@ def test_main_installs_the_memo_before_it_builds_the_parser(monkeypatch):
         raise _Stop
 
     monkeypatch.setattr(main_mod, "_build_cli_parser", fake_build_cli_parser)
+    # ``harness`` is a declared plugin command, whose parser main() asks for first (hermes_cli/main_declared_parser.py):
+    # either builder is "the parser is being built".
+    monkeypatch.setattr("hermes_cli.main_declared_parser.declared_command_parser", lambda builtins: fake_build_cli_parser())
     monkeypatch.setattr(sys, "argv", ["hermes", "harness", "status", "--json"])
 
     with pytest.raises(_Stop):

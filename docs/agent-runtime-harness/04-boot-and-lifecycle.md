@@ -235,6 +235,19 @@ n = 20 each, box at 100 % load (upper bounds): miss median 134 ms, hit median 18
 stat'ed). Receipt at debug: `declared_cli_scan cache=hit|miss|unwritable files=N ms=N`. The superset is
 pinned by the gate `tests/hermes_cli/test_declared_cli_cache_superset.py`.
 
+**The declared-command parser** (`RT-HARNESS-SERVE-SKIP-UPSTREAM-PARSERS`, 2026-11-12). `hermes_cli/main.py::main`
+asks `hermes_cli/main_declared_parser.py::declared_command_parser` for the parser before it builds
+upstream's whole tree: for an argv whose first positional is a top-level manifest-declared plugin command
+(`hermes harness …`) it answers the top-level flags, `chat` and that one command, and `main()` goes on
+unchanged — container routing, the parse, startup discovery, dispatch. Any other argv, a plugin that fails
+to attach, `HERMES_SAFE_MODE`, or `HERMES_DISABLE_FAST_DECLARED_LAUNCH=1` answers None and the whole tree
+is built as before. The one seam in upstream's file is the owner's ruling of 2026-11-12 (one import, one
+call; the footprint ledger's `hermes_cli/main.py` row). Measured on the Linux dev box 2026-11-12, warm
+bytecode, 11 interleaved runs each at load 42: `hermes harness serve --help` 1.50 s → 1.24 s median, the
+parser build inside it 0.76 s → 0.49 s (76 subcommands → 2); what is left of the build is the transient
+harness plugin load (`RT-HARNESS-PARSER-PLUGIN-LOAD-TWICE`). Pinned by
+`tests/hermes_cli/test_main_declared_parser.py`.
+
 ## Stages 2-3 — `booting`, then registry, head pointer, root anchor
 
 The `booting` frame is emitted before ANY heavy boot work, carrying `boot: timeline.stamps()`

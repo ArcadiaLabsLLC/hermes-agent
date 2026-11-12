@@ -2,7 +2,7 @@
   "measured_at": "2026-11-12",
   "base": "3b42157858",
   "files": 223,
-  "deleted_lines": 871,
+  "deleted_lines": 872,
   "heavy": 1,
   "reasons": [
     {
@@ -1360,6 +1360,21 @@
       },
       "reason": "The room and run stores commit at synchronous=NORMAL so a WAL fsync no longer holds state.db's write lock past the 10 s busy timeout under a disk storm; attempt receipts pass FULL. The stores live in upstream gateway modules, so the level is set where they connect; no upstream call site changed. 9f1b9a5e26's upstream test edit was moved out to the fork's tests/gateway/test_plugin_origin_settled.py (upstream node skip-listed), so it adds nothing here.",
       "owner_ruling": "2026-11-09 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-FLAKE-NATIVE-DISCUSSION-ROOM-DB-LOCKED RULED (owner: synchronous=NORMAL for the room and run stores, FULL kept for attempt receipts)"
+    },
+    {
+      "change": "RT-HARNESS-SERVE-SKIP-UPSTREAM-PARSERS (lane w1112b-hm-queue): in hermes_cli/main.py main(), `parser, subparsers = _build_cli_parser()` becomes `declared_command_parser(_BUILTIN_SUBCOMMANDS) or _build_cli_parser()` under a one-line import of the fork-owned hermes_cli/main_declared_parser.py (+2 / -1)",
+      "before": {
+        "files": 223,
+        "deleted_lines": 871,
+        "heavy": 1
+      },
+      "after": {
+        "files": 223,
+        "deleted_lines": 872,
+        "heavy": 1
+      },
+      "reason": "`hermes harness serve` is spawned on every Mission Control start and main() built every upstream subcommand parser before parsing it. An argv naming a top-level manifest-declared plugin command now gets the top-level parser with only that command attached; main()'s tail (container routing, parse, startup discovery, dispatch) is untouched. The call has to stand where the build stands, so the one upstream line is edited in place rather than copied: the additive alternatives are a fork copy of main()'s tail or an early return inside _build_cli_parser.",
+      "owner_ruling": "2026-11-12 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-HARNESS-SERVE-SKIP-UPSTREAM-PARSERS RULED (owner: \"Yes, allow it\" \u2014 the one-import, one-call seam in upstream hermes_cli/main.py, with its boundary-ledger row; nothing wider)"
     }
   ]
 }

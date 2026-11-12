@@ -3431,7 +3431,8 @@ def main():
     if _try_fast_chat_launch():
         return
 
-    parser, subparsers = _build_cli_parser()
+    from hermes_cli.main_declared_parser import declared_command_parser  # fork seam: a declared plugin command skips the other parsers
+    parser, subparsers = declared_command_parser(_BUILTIN_SUBCOMMANDS) or _build_cli_parser()
 
     # NixOS container mode routes ALL invocations into the managed container.
     # MUST run before parse_args() so --help, unrecognised flags and every
