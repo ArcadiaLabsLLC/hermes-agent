@@ -28,7 +28,7 @@ tick, which continues a parked run whose barrier lifted and whose root has nothi
 chat goal no run owns, forged from the settled turn's arguments its ``wait`` recorded.
 A run whose assignment lends skills carries them in its origin (:data:`SKILLS_ORIGIN`); every continuation
 re-queues them for its own turn (``queued_skills`` is one turn deep, p10-work S1).
-Receipts: ``work.goal_arm | goal_continue | goal_hold | goal_wake | goal_end | chat_goal_continue |
+Receipts: ``work.goal_arm | goal_continue | goal_hold | goal_wake | goal_stop | goal_end | chat_goal_continue |
 chat_goal_hold | chat_goal_settle | chat_goal_wake``.
 """
 
@@ -49,7 +49,8 @@ from .reasons import Reason, WorkRefused
 __layer__ = "lanes"
 __all__ = [
     "CHAT_GOAL_ORIGIN", "DECISION_ENDINGS", "SKILLS_ORIGIN", "after_chat_goal_turn", "after_turn", "arm_run", "direct_entry",
-    "first_cmid", "out_of_time_ending", "pass_max_seconds", "run_status", "stop_run", "wake_parked",
+    "end_stopped", "first_cmid", "out_of_time_ending", "pass_max_seconds", "run_status", "stop_from_conversation",
+    "stop_run", "stopping_pass", "wake_parked",
 ]
 
 #: The origin key a chat goal's own continuation carries (``user_initiated=False`` when it settles).
@@ -145,6 +146,67 @@ def stop_run(bound: chat_goal.GoalBinding, *, goals: Callable[[str], Any]) -> bo
     return True
 
 
+def _names_pass(bound: chat_goal.GoalBinding, turn_id: str) -> bool:
+    """``turn_id`` names a pass of ``bound``'s run — this one or an earlier one — as a client spells it:
+    the send's client message id, or the turn id made of it (``serde.safe_assignment_token``)."""
+
+    from ..serde import safe_assignment_token
+
+    named, first = safe_assignment_token(turn_id), safe_assignment_token(first_cmid(bound.request_id))
+    return bool(named) and (named == first or named.startswith(f"{first}-g"))
+
+
+def stopping_pass(root: str, turn_id: str) -> bool:
+    """``turn_id`` is a pass of the run bound to ``root`` and that run has been told to stop."""
+
+    bound = chat_goal.binding(root)
+    return bound is not None and bound.stopping and _names_pass(bound, turn_id)
+
+
+def stop_from_conversation(root: str, turn_id: str) -> tuple[chat_goal.GoalBinding, bool] | None:
+    """The conversation's own Stop on a pass of the ``UNTIL_DONE`` run bound to ``root``; None for any other turn.
+
+    ``RT-UNTIL-DONE-CHAT-STOP-DOES-NOT-END-RUN``: a pass is a send the engine queued, so the Stop door's
+    admission receipt never knew it and refused the Stop (``execution_not_admitted``, live 2026-11-12); the
+    pass then settled a plain reply and the run went on. Here the run is marked ``stopping`` — its pass's
+    settle ends the WHOLE run ``STOPPED`` however that pass settles (:func:`_ending_now` asks no judge) —
+    and a pass that has not begun is taken off the root, so it never begins; the run then ends at the
+    engine's next tick (:func:`end_stopped`). Returns the binding and whether its pass is running now (the
+    caller interrupts a running one). A Stop naming an EARLIER pass of the run (it raced that pass's
+    settle) stops the run just the same.
+    """
+
+    bound = chat_goal.binding(root)
+    if bound is None or not _names_pass(bound, turn_id):
+        return None
+    entry = send_queue.find(root, bound.cmid)
+    running = entry is not None and entry.state == send_queue.STATE_RUNNING
+    # MUTATION: drop this bind and test_until_done_conversation_stop's plain-reply row reddens (the judge is
+    # asked and the next pass is queued).
+    chat_goal.bind(bound.advanced(stopping=True))
+    if entry is not None and not running:
+        send_queue.remove(root, bound.cmid)
+    receipts.emit("work.goal_stop", root=root, request_id=bound.request_id, turn=bound.turns + 1, running=running)
+    return bound, running
+
+
+def end_stopped(bound: chat_goal.GoalBinding, *, goals: Callable[[str], Any]) -> RowEnding | None:
+    """The ending of a run told to stop that has NO pass on its root (queued or running), else None.
+
+    A running pass ends the run at its own settle; this is the run whose stop found nothing in flight
+    (:func:`stop_from_conversation` between two passes). The runner tells a settle before it removes the
+    entry, so an absent entry is a pass that is not coming.
+    """
+
+    if not bound.stopping or send_queue.find(bound.root_session_id, bound.cmid) is not None:
+        return None
+    ending = RowEnding(Verdict.STOPPED, reason=OPERATOR_STOP_REASON)
+    _end_goal(bound, goals, f"work run ended {ending.verdict.value}")
+    receipts.emit("work.goal_end", root=bound.root_session_id, request_id=bound.request_id,
+                  verdict=ending.verdict.value, turns=bound.turns)
+    return ending
+
+
 @contextlib.contextmanager
 def _gate_cwd(cwd: str | None) -> Iterator[None]:
     """Gates run where the persona works: the session cwd upstream's ``_gate_workspace`` reads."""
@@ -224,9 +286,10 @@ def _ending_now(bound: chat_goal.GoalBinding, payload: dict | None, report: RowE
                 own: bool) -> RowEnding | None:
     """The endings no judge is asked about: a stop, a failed turn, a report that says blocked/stopped.
 
-    A stop is the run's ``stopping`` mark (``runtime.work.cancel`` on the pass's running-work row) or the
-    run's OWN pass settling ``stopped: true`` (the conversation's Stop): either ends the WHOLE run, never
-    one pass (``RT-WORK-CLAIM-RUNS-UNTIL-DONE``). An operator's own turn stopped on the root ends nothing.
+    A stop is the run's ``stopping`` mark (``runtime.work.cancel`` on the pass's running-work row, or the
+    conversation's own Stop — :func:`stop_from_conversation`) or the run's OWN pass settling
+    ``stopped: true``: either ends the WHOLE run, never one pass (``RT-WORK-CLAIM-RUNS-UNTIL-DONE``),
+    however the pass itself settled. An operator's own turn stopped on the root ends nothing.
     """
 
     refusal = outcome_from_payload(payload).refusal_class

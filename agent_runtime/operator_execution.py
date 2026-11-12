@@ -66,7 +66,7 @@ def execution_status(session_id: str, turn_id: str, *, stop: bool = False) -> di
     elif journal is None and receipt.state == STATE_SETTLED:
         outcome = "stopped" if receipt.exit_code == 130 else "finished"
     else:
-        outcome = "stop_requested" if receipt.stop_requested else "unsettled"
+        outcome = "stop_requested" if receipt.stop_requested or _run_pass_stopping(session_id, turn_id) else "unsettled"
     timing = left_behind = None
     if (not receipt.is_new and journal is not None
             and journal.get("client_message_id") == str(turn_id).strip()
@@ -83,8 +83,49 @@ def execution_status(session_id: str, turn_id: str, *, stop: bool = False) -> di
             **chat_observation_guidance(terminal=outcome in {"stopped", "finished"})}
 
 
+def _run_pass_stopping(session_id: str, turn_id: str) -> bool:
+    """The turn is a pass of an until-done Work run that has been told to stop (it holds no receipt to say so)."""
+
+    from agent_runtime.work_store.goal_turns import stopping_pass
+
+    return stopping_pass(session_id, str(turn_id or ""))
+
+
+def _stop_run_pass(session_id: str, turn_id: str) -> dict | None:
+    """Stop on a pass of an ``UNTIL_DONE`` Work run ends the WHOLE run; None for any other turn.
+
+    ``RT-UNTIL-DONE-CHAT-STOP-DOES-NOT-END-RUN``. A pass is a send the Work engine queued and the serve's
+    queued-send runner runs: it holds no admission receipt and is not in the serve's in-flight table, so
+    this door used to refuse its Stop ``execution_not_admitted`` and the run went on to the next pass. The
+    run is marked stopping (``goal_turns.stop_from_conversation``) and a pass running in this process is
+    interrupted through its agent's own seam; ``ends`` says which: ``now`` (interrupted, or no pass was
+    running) or ``after_pass`` (the pass runs where this process cannot reach it and ends the run when it
+    settles). The answer is ``runtime.work.cancel``'s for the same row, in this door's envelope.
+    """
+
+    from agent_runtime.live_turns import interrupt_turn
+    from agent_runtime.work_store.goal_turns import stop_from_conversation
+
+    hit = stop_from_conversation(session_id, str(turn_id or ""))
+    if hit is None:
+        return None
+    bound, running = hit
+    journal = mission_chat_turn_record(session_id=session_id, client_message_id=bound.cmid) if running else None
+    live_id = (journal or {}).get("turn_id") or safe_assignment_token(bound.cmid)
+    interrupted = running and interrupt_turn(live_id, reason="operator_stop")
+    return {"turn_request_id": turn_id, "outcome": "stop_requested", "admitted": False, "stop_requested": True,
+            "owner_observed": bool(interrupted), "stopped": "work_run", "work_request": bound.request_id,
+            "ends": "now" if interrupted or not running else "after_pass",
+            "dependent_dispatches": cancel_turn_dispatches(session_id, live_id),
+            **chat_observation_guidance(terminal=False)}
+
+
 def stop_operator_execution(session_id: str, turn_id: str,
                             interrupt: Callable[[str], bool]) -> dict:
+    # MUTATION: drop these two lines and test_until_done_conversation_stop reddens (execution_not_admitted).
+    stopped_run = _stop_run_pass(session_id, turn_id)
+    if stopped_run is not None:
+        return stopped_run
     result = execution_status(session_id, turn_id, stop=True)
     if result["outcome"] == "stop_requested":
         # A disconnected owner is uncertainty, never evidence that work stopped.

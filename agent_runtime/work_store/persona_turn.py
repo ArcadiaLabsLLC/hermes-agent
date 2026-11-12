@@ -457,7 +457,19 @@ class PersonaTurnExecutor:
     def wake_parked(self) -> int:
         """The serve's waker for a judge ``wait`` (``goal_turns.wake_parked``), run on the engine's tick."""
 
+        # MUTATION: drop this call and test_until_done_conversation_stop's between-passes row reddens.
+        self._end_stopped()
         return goal_turns.wake_parked(goals=self._goals, enqueue=self._enqueue, wake=self._wake or _wake_runner)
+
+    def _end_stopped(self) -> None:
+        """A run told to stop while no pass of it was on its root ends here (``goal_turns.end_stopped``)."""
+
+        for bound in chat_goal.bindings():
+            ending = goal_turns.end_stopped(bound, goals=self._goals)
+            if ending is not None:
+                rows = tuple(RowRef(*row) for row in bound.rows)
+                self._report(bound.request_id, bound.root_session_id, goal_turns.first_cmid(bound.request_id), "",
+                             rows, Outcome(ending.verdict, {ref: ending for ref in rows}))
 
     def _report(self, request_id: str, root: str, cmid: str, queued_at: str, rows: tuple[RowRef, ...],
                 outcome: Outcome) -> None:

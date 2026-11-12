@@ -24,7 +24,8 @@ Reads never block a writer for longer than a dict copy, and nothing here signals
 a process: :func:`interrupt_tool_call` sets ONE call's thread interrupt bit — the bit the
 command's own wait loop reads — and the turn carries on; ending a turn is the agent's own
 ``interrupt`` (``/stop``, the conversation's Stop), reached from here by :func:`interrupt_turn`
-for ONE caller: Stop on a pass of an until-done Work run (``running_work.surface._cancel_run_pass``).
+for ONE purpose: Stop on a pass of an until-done Work run (``running_work.surface._cancel_run_pass``, and
+the conversation's own Stop on such a pass, ``operator_execution._stop_run_pass``).
 """
 
 from __future__ import annotations

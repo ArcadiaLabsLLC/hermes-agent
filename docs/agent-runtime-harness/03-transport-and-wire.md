@@ -1934,7 +1934,16 @@ takes at most `chat_goal.MAX_PASSES` (20) passes of 30 minutes each. `runtime.wo
 carries `work_request` and `goal: {pass, max_passes}` and is `cancellable`: `runtime.work.cancel` on it marks
 the run stopping and interrupts the pass (`{status: cancelled, ends: now, stopped: work_run}`; `cancel_requested`
 / `ends: after_pass` when the pass runs in another process), and the run's own pass settling `stopped: true`
-(the conversation's Stop) ends the WHOLE run `STOPPED — operator stop`, never one pass.
+ends the WHOLE run `STOPPED — operator stop`, never one pass. The conversation's own Stop
+(`runtime.operator.conversation.stop` naming a pass by its client message id or its turn id — the running one
+or an earlier one of the same run) does the same thing through the same mark: a pass holds no admission
+receipt, so the door answers for it itself — `{turn_request_id, outcome: stop_requested, admitted: false,
+stop_requested: true, owner_observed: <the pass's agent was interrupted>, stopped: work_run, work_request,
+ends: now | after_pass, dependent_dispatches}` — and the run ends `STOPPED` however that pass then settles
+(a plain reply included); a pass queued but not begun is taken off the root and the run ends at the engine's
+next tick. `runtime.operator.conversation.status` on such a pass reads `stop_requested` until it settles.
+Until 2026-11-12 the door refused a pass's Stop `execution_not_admitted` and the run went on
+(RT-UNTIL-DONE-CHAT-STOP-DOES-NOT-END-RUN).
 
 ### Batch methods
 
