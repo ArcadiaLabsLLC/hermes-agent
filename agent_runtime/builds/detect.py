@@ -30,8 +30,10 @@ eighty pays for eighty prefix compares per candidate, and ``scan_ms`` says so on
 from __future__ import annotations
 
 import os
+import sys
 import time
 from dataclasses import dataclass, field
+from functools import cache
 from typing import Any, Callable, Iterable
 
 from agent_runtime.builds.flutter_argv import COMMAND_OTHER, recognize_argv
@@ -196,6 +198,21 @@ def _process_fact(reader: Callable[[], Any]) -> Any:
         return exc
 
 
+def _consider_one(scanner: _Scanner, proc: Any, now: float) -> None:
+    """One process; a read that escapes the fact guard skips THAT process, never the scan.
+
+    An exception raised while WALKING the table (the table itself unreadable) still reaches
+    :func:`scan`'s ``scan_failed`` arm: that is "I could not look". One process that exits or
+    refuses mid-read is only an unknown (RT-BUILD-SCAN-FAILS-ON-OWNER-WINDOWS).
+    """
+
+    try:
+        scanner.consider(proc)
+    except Exception as exc:
+        name = str(getattr(proc, "name", "") or "?")
+        scanner.scan.unknowns.add(UNKNOWN_PROCESS_UNIDENTIFIED, f"{name}: unreadable ({type(exc).__name__})", now)
+
+
 def _gate(census: Any) -> str:
     if not _ENABLED:
         return SUB_REASON_NOT_IN_PROCESS
@@ -222,7 +239,7 @@ def scan(*, now: float, census: Any, owned: set[int], table: Iterable[Any] | Non
 
             table = psutil_table(psutil)
         for proc in table:
-            scanner.consider(proc)
+            _consider_one(scanner, proc, now)
             if scanner.over_budget():
                 result.status, result.reason, result.builds = "unavailable", SUB_REASON_SCAN_BUDGET, []
                 break
@@ -288,5 +305,130 @@ class _PsutilProcess:
         return [(parent.pid, parent.name()) for parent in self._proc.parents()]
 
 
-def psutil_table(psutil: Any) -> Iterable[Any]:
-    return (_PsutilProcess(proc) for proc in psutil.process_iter(["pid", "name"]))
+class _SnapshotProcess(_PsutilProcess):
+    """One row of a Windows process snapshot; ``psutil`` opens it only when a fact is read.
+
+    Only a name-matched candidate ever reads a fact, so only candidates pay for an open (a pid
+    gone by then is ``NoSuchProcess``, a refused fact). Its parent chain is read from the same
+    snapshot, never through ``psutil.Process.parents()``, which names each ancestor the slow way.
+    """
+
+    def __init__(self, pid: int, name: str, snapshot: "WindowsSnapshot", psutil: Any) -> None:
+        self.pid, self.name, self._snapshot, self._psutil, self._held = pid, name, snapshot, psutil, None
+
+    @property
+    def _proc(self) -> Any:  # type: ignore[override]
+        if self._held is None:
+            self._held = self._psutil.Process(self.pid)
+        return self._held
+
+    def parents(self) -> list[tuple[int, str]]:
+        return self._snapshot.parents(self.pid, created=self._psutil_created)
+
+    def _psutil_created(self, pid: int) -> float | None:
+        try:
+            return float(self._psutil.Process(pid).create_time())
+        except Exception:  # gone or refused: the hop's age is unknown, so the walk stops there
+            return None
+
+
+@dataclass
+class WindowsSnapshot:
+    """``pid -> (parent pid, executable name)`` for every process, from ONE Toolhelp32 snapshot."""
+
+    rows: dict[int, tuple[int, str]]
+
+    def parents(self, pid: int, *, created: Callable[[int], float | None]) -> list[tuple[int, str]]:
+        """The ancestor chain, nearest first, the way ``psutil`` judges it.
+
+        Windows keeps a dead parent's pid in the snapshot and reuses pids, so a "parent" created
+        after its child is a recycled pid and ends the chain; so does an ancestor whose age
+        cannot be read, or a loop.
+        """
+
+        chain: list[tuple[int, str]] = []
+        seen, child = {pid}, pid
+        child_created = created(pid)
+        while True:
+            ppid = self.rows.get(child, (0, ""))[0]
+            if not ppid or ppid in seen or ppid not in self.rows:
+                return chain
+            parent_created = created(ppid)
+            if parent_created is None or child_created is None or parent_created > child_created:
+                return chain
+            chain.append((ppid, self.rows[ppid][1]))
+            seen.add(ppid)
+            child, child_created = ppid, parent_created
+
+
+def psutil_table(psutil: Any, *, snapshot: Callable[[], WindowsSnapshot] | None = None) -> Iterable[Any]:
+    """The process table the scan walks; on Windows its names come from ONE OS snapshot.
+
+    ``psutil``'s per-process ``name()`` on Windows resolves the full image path and converts
+    its device form to a drive letter, every process: measured 2026-11-12 on a 16-core
+    Windows box at ~5.6 ms a process (2.5 s for 440), so the 50 ms budget ran out after 5–23
+    processes and EVERY scan read ``scan_budget`` (RT-BUILD-SCAN-FAILS-ON-OWNER-WINDOWS);
+    ``parents()`` names each ancestor the same way (80–200 ms a candidate). One Toolhelp32
+    snapshot names every process and its parent in ~20 ms; ``psutil`` then opens only the
+    name-matched candidates.
+    """
+
+    if snapshot is None and sys.platform == "win32":
+        snapshot = windows_snapshot
+    if snapshot is None:
+        return (_PsutilProcess(proc) for proc in psutil.process_iter(["pid", "name"]))
+    taken = snapshot()
+    return (_SnapshotProcess(pid, name, taken, psutil) for pid, (_ppid, name) in taken.rows.items())
+
+
+@cache
+def _toolhelp_api() -> tuple[Any, Any]:
+    """kernel32 with the Toolhelp32 process walk typed, plus ``PROCESSENTRY32W``, built once."""
+
+    import ctypes
+    from ctypes import wintypes
+
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD), ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD), ("szExeFile", ctypes.c_wchar * 260),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    for walk in (kernel32.Process32FirstW, kernel32.Process32NextW):
+        walk.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W)]
+        walk.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    return kernel32, PROCESSENTRY32W
+
+
+def windows_snapshot() -> WindowsSnapshot:
+    """Every process's parent pid and executable name, from one Toolhelp32 snapshot (Windows).
+
+    Raises ``OSError`` when the snapshot cannot be taken — the table itself unreadable, which
+    :func:`scan` reports as ``scan_failed``.
+    """
+
+    import ctypes
+
+    kernel32, entry_type = _toolhelp_api()
+    handle = kernel32.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
+    if not handle or handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    rows: dict[int, tuple[int, str]] = {}
+    try:
+        entry = entry_type()
+        entry.dwSize = ctypes.sizeof(entry_type)
+        found = kernel32.Process32FirstW(handle, ctypes.byref(entry))
+        while found:
+            rows[int(entry.th32ProcessID)] = (int(entry.th32ParentProcessID), str(entry.szExeFile))
+            found = kernel32.Process32NextW(handle, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(handle)
+    return WindowsSnapshot(rows)

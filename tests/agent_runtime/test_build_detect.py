@@ -121,3 +121,82 @@ def test_a_cpu_stalled_detected_build_is_marked_stalled_through_the_lane(tmp_pat
     monkeypatch.setattr(lanes_build, "_detect_table", [_build(7, tmp_path / "launcher", cpu=9.0)])
     moved, _ = lanes_build.BuildLane(now=1000.0 + 600, accountant=None, frame_rows=[]).collect()
     assert moved[0]["liveness"] == "live"
+
+
+# --- RT-BUILD-SCAN-FAILS-ON-OWNER-WINDOWS: one unreadable process, and the Windows table ----------
+
+
+class _VanishingPid(_Proc):
+    """A candidate whose pid read raises OUTSIDE the fact guard (the process went mid-read)."""
+
+    @property
+    def pid(self):
+        raise ProcessLookupError("gone")
+
+    @pid.setter
+    def pid(self, _value):
+        pass
+
+
+def test_one_process_that_cannot_be_read_is_skipped_not_the_whole_scan(tmp_path):
+    census = _census(tmp_path, "launcher")
+    gone = _VanishingPid(0, "dart.exe", [DART, SNAPSHOT, "build", "windows"], str(tmp_path / "launcher"))
+    result = detect.scan(now=1.0, census=census, owned=set(), table=[gone, _build(21, tmp_path / "launcher")],
+                         clock=lambda: 0.0)
+    assert (result.status, result.reason) == ("ok", "")
+    assert [b.pid for b in result.builds] == [21]
+    assert [(e["kind"], e["evidence"]) for e in result.unknowns.wire()] == [
+        ("process_unidentified", "dart.exe: unreadable (ProcessLookupError)")]
+
+
+class _FakePsutil:
+    """``psutil`` as the Windows table uses it: ``Process(pid)`` only, every open recorded."""
+
+    def __init__(self, procs, created):
+        self.procs, self.created, self.opened = procs, created, []
+
+    def Process(self, pid):  # noqa: N802 - psutil's name
+        self.opened.append(pid)
+        if pid not in self.created:
+            raise ProcessLookupError(pid)
+        fake = self.procs.get(pid)
+        return type("P", (), {"create_time": lambda _s: self.created[pid], "cmdline": lambda _s: fake._argv,
+                              "cwd": lambda _s: fake._cwd,
+                              "cpu_times": lambda _s: type("T", (), {"user": 1.0, "system": 0.5})()})()
+
+    def process_iter(self, _attrs):
+        raise AssertionError("the Windows table never walks process_iter")
+
+
+def test_on_windows_the_names_come_from_one_snapshot_and_only_candidates_are_opened(tmp_path, monkeypatch):
+    census = _census(tmp_path, "launcher")
+    build = _build(30, tmp_path / "launcher")
+    snapshot = detect.WindowsSnapshot({4: (0, "System"), 20: (4, "cmd.exe"), 30: (20, "dart.exe"),
+                                       40: (20, "svchost.exe"), 50: (20, "explorer.exe")})
+    psutil = _FakePsutil({30: build}, {4: 1.0, 20: 2.0, 30: 3.0})
+    monkeypatch.setattr(detect.sys, "platform", "win32")
+    monkeypatch.setattr(detect, "windows_snapshot", lambda: snapshot)
+    monkeypatch.setattr(detect._PsutilProcess, "start", lambda _self: 11)
+    result = detect.scan(now=1.0, census=census, owned=set(), table=detect.psutil_table(psutil), clock=lambda: 0.0)
+    assert [(b.pid, b.parents) for b in result.builds] == [(30, [(20, "cmd.exe"), (4, "System")])]
+    assert result.processes_examined == 5 and result.candidates == 1
+    assert set(psutil.opened) <= {30, 20, 4}  # never a non-candidate process's own open
+
+
+def test_the_snapshot_parent_chain_stops_at_a_recycled_pid_a_loop_or_an_unknown_age():
+    snapshot = detect.WindowsSnapshot({1: (0, "System"), 2: (1, "wininit.exe"), 3: (2, "cmd.exe"),
+                                       4: (3, "dart.exe"), 7: (8, "a.exe"), 8: (7, "b.exe")})
+    ages = {1: 1.0, 2: 2.0, 3: 3.0, 4: 4.0, 7: 7.0, 8: 6.0}
+    assert snapshot.parents(4, created=ages.get) == [(3, "cmd.exe"), (2, "wininit.exe"), (1, "System")]
+    assert snapshot.parents(4, created={**ages, 3: 5.0}.get) == []  # a parent younger than its child: recycled
+    assert snapshot.parents(4, created={**ages, 2: None}.get) == [(3, "cmd.exe")]  # age unreadable: stop
+    assert snapshot.parents(7, created={7: 7.0, 8: 6.0}.get) == [(8, "b.exe")]  # loop: 8 -> 7 is seen
+
+
+@pytest.mark.skipif(detect.sys.platform != "win32", reason="the Toolhelp32 snapshot is Windows-only")
+def test_the_real_windows_snapshot_names_this_process_and_its_parent():
+    import os
+
+    rows = detect.windows_snapshot().rows
+    ppid, name = rows[os.getpid()]
+    assert name.lower().startswith("python") and ppid == os.getppid()
