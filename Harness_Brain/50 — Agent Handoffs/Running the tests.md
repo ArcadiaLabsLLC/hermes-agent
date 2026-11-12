@@ -351,6 +351,7 @@ twice the step's measured wall under that load; one whole-run cap bounds the run
 |---|---|---|---|---|
 | gates | 4.9 s (load 31) | 4.6 s (load 22), 6.1 s (load 16) | 10 s | 20 s (was 120) |
 | doc-cite | 2.1 s (load 31) | 1.7–1.9 s | 4 s | 10 s (was 60) |
+| contracts (only when runtime or CLI source changed) | — (not run) | 1.6 s + 0.5 s alone (load ~50, 2026-11-12) | 6 s | 20 s |
 | census (both name census gates) | 62.9 s (load 29) | 13.2 s (load 16) | 30 s (was 75) | 60 s (was 600) |
 | touched (`test_prepush_sh.py`) | 21.9 s, 14 tests (load 29) | 27.9 s, 20 tests in 4 shards (load 16) | 60 s | 120 s (was 900) |
 | **whole run** | — | — | — | **cap 240 s** (none before: up to ~28 min) |
@@ -362,6 +363,13 @@ twice the step's measured wall under that load; one whole-run cap bounds the run
   since 2026-11-12, FH-FOOTPRINT-LEDGER-LAUNCHER-PUBLICATION-TEST-UNLEDGERED): ~4 s alone, and beside the
   other gates in the bundle the step measured 7.7 s without it and 7.3 / 7.6 s with it (nekwo-ubuntu24,
   load 27), inside the 10 s budget. Off the default path it sat red on `main` for two days unseen.
+- **The contracts step** (since 2026-11-12, RT-PREPUSH-MISSES-STALE-RPC-MANIFEST-AND-CLI-DUMP) runs
+  `python -m tests.agent_runtime._serve_rpc_manifest` and `scripts/dump_cli_contract.py --check` when a `.py`
+  file under `agent_runtime/` or `hermes_cli/`, either recorded file or either producer differs from the
+  merge-base; a stale one reds the run and prints its regenerate command (`--write`). A stale manifest once
+  passed prepush because only the six tests that read it would have said so, and the lane had named none.
+- **A named file that is not `test_*.py`** (a fixture, a conftest, a helper) is skipped with one line naming
+  it, never run as a test (RT-PREPUSH-RUNS-A-NAMED-FIXTURE-AS-A-TEST); a named directory still runs.
 - **The census** is fast because its walks are chunked over worker processes
   (`scripts/census_pool.py`, `HERMES_CENSUS_JOBS`, default 8; `1` = serial), never cached:
   `god_file_scope.module_bindings` is order-independent, so a chunk reads what the serial walk reads.

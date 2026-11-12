@@ -433,3 +433,56 @@ def test_a_red_shard_reds_the_touched_step(repo: Path):
     proc, _ = _run(repo, runner_body='case "$*" in *--hermes-shard=2/4*) exit 1 ;; esac')
     assert proc.returncode == 1, proc.stdout
     assert "touched (exit 1)" in proc.stdout.splitlines()[-1]
+
+
+def test_a_named_file_that_is_not_a_test_is_skipped_and_said(repo: Path):
+    """RT-PREPUSH-RUNS-A-NAMED-FIXTURE-AS-A-TEST (three rounds lost to "no tests ran": a ``git grep -l`` list
+    held fixtures and conftest plugins). KILLING MUTATION: keep every existing path (``NAMED+=("$path")`` in
+    the not-a-test arm) -> the helper reaches the runner, red. A directory and a test file still run."""
+    (repo / "tests" / "a" / "fixture.json").write_text("{}\n", encoding="utf-8")
+    proc, calls = _run(repo, "tests/a/helper.py", "tests/a/fixture.json", "tests/a", "tests/a/test_base.py")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    lane_argv = calls.splitlines()[-1].split()
+    assert "tests/a" in lane_argv and "tests/a/test_base.py" in lane_argv
+    assert "tests/a/helper.py" not in lane_argv and "tests/a/fixture.json" not in lane_argv
+    for skipped in ("tests/a/helper.py", "tests/a/fixture.json"):
+        assert f"skipped, not a test file (a named file is test_*.py; name its directory to run that): {skipped}" \
+            in proc.stdout
+
+
+def test_a_runtime_or_cli_change_checks_the_two_recorded_contracts(repo: Path):
+    """RT-PREPUSH-MISSES-STALE-RPC-MANIFEST-AND-CLI-DUMP (a stale serve-RPC manifest passed prepush at
+    9966cb8023 and was found by a grep). KILLING MUTATIONS: never set ``CONTRACTS=1`` -> no contract check
+    runs for a runtime change, red; return from ``_contracts`` at the first stale check -> the CLI dump is not
+    checked beside a stale manifest, red. A branch that changed no runtime or CLI source runs neither."""
+    proc, calls = _run(repo)
+    assert "_serve_rpc_manifest" not in calls and "dump_cli_contract" not in calls
+    assert "step contracts — no runtime or CLI source changed, skipped" in proc.stdout
+    (repo / "agent_runtime" / "serve_rpc").mkdir(parents=True)
+    (repo / "agent_runtime" / "serve_rpc" / "board.py").write_text("x = 1\n", encoding="utf-8")  # untracked
+    (repo.parent / "calls.log").unlink()
+    proc, calls = _run(repo)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    ran = calls.splitlines()
+    assert ran[2] == "-m tests.agent_runtime._serve_rpc_manifest"
+    assert ran[3].endswith("scripts/dump_cli_contract.py --check")
+    assert len(ran) == 5, "gates, doc-cite, the two contract checks, the touched lane"
+    stale = _stub(repo.parent / "stale.sh", 0, repo.parent / "calls.log",
+                  'case "$*" in *_serve_rpc_manifest*) echo "stale: run --write"; exit 1 ;; esac')
+    (repo.parent / "calls.log").unlink()
+    proc, calls = _run(repo, env_extra={"PREPUSH_PYTHON": str(stale)})
+    assert proc.returncode == 1
+    assert "✘ prepush: contracts red (exit 1" in proc.stdout and "stale: run --write" in proc.stdout
+    assert "dump_cli_contract.py --check" in calls, "the second check runs beside a stale first"
+    # A committed CLI-side change triggers it too; a document does not.
+    (repo / "agent_runtime" / "serve_rpc" / "board.py").unlink()
+    (repo / "hermes_cli" / "parts").mkdir(parents=True)
+    (repo / "hermes_cli" / "parts" / "parser.py").write_text("y = 1\n", encoding="utf-8")
+    (repo / "docs").mkdir()
+    (repo / "docs" / "note.md").write_text("words\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "cli")
+    assert "step contracts — budget 6s, deadline 20s" in _run(repo, "--plan")[0].stdout
+    _git(repo, "rm", "-q", "-r", "hermes_cli")
+    _git(repo, "commit", "-q", "-m", "docs only")
+    assert "step contracts — no runtime" in _run(repo, "--plan")[0].stdout
