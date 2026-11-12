@@ -38,7 +38,7 @@ from __future__ import annotations
 import json
 
 from agent_runtime import serve_rpc
-from tests.agent_runtime.office_seed import seed_workspace_record
+from tests.agent_runtime.office_seed import seed_workspace_record, settle_task_activity
 from tests.agent_runtime.test_serve_rpc_office import (
     SHUTDOWN,
     _reply,
@@ -99,6 +99,9 @@ def _seed(workspace_id: str = WORKSPACE):
     ensure_default_scope(seed_active_pointers=False)
     store = _store()
     seed_workspace_record(workspace_id)
+    # The serve's Work engine records each workspace's task counts on its first tick and says so with a
+    # ``workspace.updated``; having them known here keeps that event, too, out of the batch.
+    settle_task_activity()
     store.ensure_surface(workspace_id, created_by="seed")
     # The first write differs (a content-equal upsert is a no-op, RT-OFFICE-NOOP-ACTOR-WRITE), so the
     # second lands the canonical payload at revision 2.
