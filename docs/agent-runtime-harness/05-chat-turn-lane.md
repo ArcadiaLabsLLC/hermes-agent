@@ -1061,7 +1061,11 @@ watcher writes each accepted steer to `<steer dir>/<root>/accepted/<id>.json` be
 settle (`leftover_steer.requeue_undelivered_steers`, under the root lease) queues as the root's next
 turn (`steer-next-<id>`) every record that is not in the transcript and belongs to a turn that raised,
 hit the hard wall or died — a returned turn's own steers were drained or handed back as `pending_steer`.
-Process-completion notices are not re-sent. The door also redacts a steer before the agent takes it
+Process-completion notices are not re-sent. A turn that DIED never settles, so the watcher also keeps the
+turn's own send in `active.json` (`send_args`, the busy-root queue's persisted shape) and the serve boot
+(`leftover_steer.requeue_dead_turn_steers`, right after the orphan sweep) queues the ledger of every root
+whose lease is free at once, rather than at the operator's next send; a held lease is a live turn and is
+skipped (`tests/agent_runtime/test_dead_turn_steer_boot_requeue.py`). The door also redacts a steer before the agent takes it
 (`_redacted`, idempotent): a steer row is the one row sent BEFORE its first flush, and the flush's wire
 boundary rewrites the live row, so an unredacted steer was sent in two forms and broke the cached
 prefix from that row on (`tests/agent_runtime/test_steer_redacted_at_the_door.py`). Pins: `tests/agent_runtime/test_cut_off_turn_marker_after_tool_step.py`,

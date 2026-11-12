@@ -709,6 +709,19 @@ class BootPhases:
             orphaned_repaired = repair_orphaned_chat_turns()
         except Exception:
             orphaned_repaired = []
+        # Same sweep, the other half of a dead turn: the steers it had accepted are queued as
+        # their root's next turn now, not after the operator's next send. The steer directory
+        # is listed first, so a boot with no ledger imports nothing of the chat lane.
+        try:
+            from agent_runtime import paths as _paths
+            from agent_runtime.mission_chat_steer import roots_owing_steers
+
+            if roots_owing_steers(runtime_root=_paths.store_root()):
+                from hermes_cli.harness_parts.persona.chat_turn_commit.leftover_steer import requeue_dead_turn_steers
+
+                requeue_dead_turn_steers()
+        except Exception:
+            pass
         self.timeline.mark("orphaned_turn_sweep_ms")
         # Reconcile phase 0 only (RT-TASK-BOUND-BOOT-SWEEP): every box drains its
         # stored ``task_bound`` rows — steer-shaped normalised, mission-shaped

@@ -419,7 +419,10 @@ acquirable lease" is proof the turn can no longer settle itself; a session whose
 a live turn in another process and is skipped. It runs BEFORE `ready` — the first hydrate is only
 requested after — so repaired records project as typed `turn_interrupted` markers in that hydrate
 instead of a console stuck "running" forever. When anything flips, a `state.reconciled` event is
-appended so already-connected watermark-gated consumers converge too. Best-effort.
+appended so already-connected watermark-gated consumers converge too. Best-effort. The same phase then
+queues the steers a dead turn had accepted as their root's next turn
+(`leftover_steer.requeue_dead_turn_steers`, `05-chat-turn-lane.md`); a boot with no steer ledger imports
+nothing of the chat lane for it.
 
 **Stored `task_bound` rows** (`task_bound_retire_ms`,
 `agent_runtime/persona_assignments/repair.py::retire_task_bound_rows`). Reconcile phase 0 and

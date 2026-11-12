@@ -22,7 +22,8 @@ from __future__ import annotations
 from typing import Any
 
 __layer__ = "lanes"
-__all__ = ["leftover_steer_client_message_id", "queue_leftover_steer", "requeue_undelivered_steers"]
+__all__ = ["leftover_steer_client_message_id", "queue_leftover_steer", "requeue_dead_turn_steers",
+           "requeue_undelivered_steers"]
 
 #: Prefix of the queued turn's ``client_message_id``. Derived from the steer's own
 #: id, so a replay of the same turn converges on the one queue entry.
@@ -78,15 +79,28 @@ def requeue_undelivered_steers(
     input and are not re-sent. Called under the chat-root lease, like ``queue_leftover_steer``.
     """
 
+    from agent_runtime import chat_root_send_queue
+    from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
+
+    if not session_id:
+        return []
+    return _requeue_from_ledger(
+        chat_root_send_queue.persistable_args(args, origin=send_origin()), session_id=session_id,
+        client_message_id=client_message_id, session_db=session_db, turn_returned=turn_returned,
+    )
+
+
+def _requeue_from_ledger(
+    send_args: dict, *, session_id: str, client_message_id: str, session_db: Any, turn_returned: bool,
+) -> list[str]:
+    """Take the root's ledger and queue what is owed, each as ``send_args`` with the steer's text."""
+
     from agent_runtime import chat_root_send_queue, paths
     from agent_runtime.mission_chat_steer import take_accepted_steers
-    from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
 
     from ..chat_history_writes import _persona_chat_existing_turn
 
     queued: list[str] = []
-    if not session_id:
-        return queued
     for steer in take_accepted_steers(runtime_root=paths.store_root(), session_id=session_id):
         steer_id = str(steer.get("client_message_id") or "").strip()
         text = str(steer.get("message") or "").strip()
@@ -99,11 +113,50 @@ def requeue_undelivered_steers(
         ).get("operator"):
             continue
         next_id = NEXT_TURN_PREFIX + steer_id
-        persisted = chat_root_send_queue.persistable_args(args, origin=send_origin())
+        persisted = dict(send_args)
         persisted.update(
             message=text, client_message_id=next_id, session_id=session_id, new_session=False,
             clarify_token=None, retry_of=None, title=None, idempotency_key=None,
         )
         chat_root_send_queue.enqueue(session_id, next_id, persisted)
         queued.append(next_id)
+    return queued
+
+
+def requeue_dead_turn_steers() -> list[str]:
+    """Serve boot: queue the steers a dead executor accepted, as each root's next turn. Returns their ids.
+
+    A turn that died never settles, so its ledger waited for the root's NEXT settle — the
+    steer typed just before a crash was delivered only after the operator sent something
+    else (RT-DEAD-TURN-STEER-WAITS-FOR-NEXT-TURN). The watcher now keeps the turn's send
+    beside the ledger (``active.json`` ``send_args``), so the boot can queue each record at
+    once; the serve's queued-send runner then runs it. A root whose lease is HELD has a live
+    turn, which settles its own ledger, and is skipped; a root whose transcript cannot be
+    opened keeps its ledger for the next settle. Fail-open per root, like the orphan sweep.
+    """
+
+    from agent_runtime import paths
+    from agent_runtime.chat_heads import resolve_conversation_chat_scope
+    from agent_runtime.mission_chat_steer import roots_owing_steers
+    from agent_runtime.persona_chat_continuity import persona_chat_root_lease
+    from agent_runtime.persona_chat_durability import persona_session_db_for
+
+    queued: list[str] = []
+    for owed in roots_owing_steers(runtime_root=paths.store_root()):
+        root = owed["session_id"]
+        try:
+            with persona_chat_root_lease(root, observer_kind="orphan_sweep"):
+                from .. import chat_turn_message
+
+                session_db = persona_session_db_for(
+                    resolve_conversation_chat_scope(
+                        session_id=root, persona_instance_id=owed.get("persona_instance_id") or None),
+                    process=chat_turn_message._default_persona_session_db,
+                )
+                queued += _requeue_from_ledger(
+                    owed["send_args"], session_id=root, client_message_id="", session_db=session_db,
+                    turn_returned=False,
+                )
+        except Exception:  # busy (a live turn) or unreadable: the root's next settle still has the ledger
+            continue
     return queued

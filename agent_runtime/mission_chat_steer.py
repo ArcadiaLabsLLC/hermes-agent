@@ -50,8 +50,15 @@ def start_active_mission_chat_turn(
     client_message_id: str | None = None,
     poll_seconds: float = _POLL_SECONDS,
     input_position: Callable[[], dict[str, Any]] | None = None,
+    send_args: dict[str, Any] | None = None,
 ) -> MissionChatSteerHandle:
-    """Register a live Mission Control chat turn and watch its steer inbox."""
+    """Register a live Mission Control chat turn and watch its steer inbox.
+
+    ``send_args`` is the turn's own send as the busy-root queue persists one
+    (``chat_root_send_queue.persistable_args``). It is kept in ``active.json`` so that, when
+    this process dies with accepted steers in its ledger, the next serve boot can queue them
+    as the root's next turn without waiting for another send (:func:`roots_owing_steers`).
+    """
 
     normalized_session_id = _require_text(session_id, "session_id")
     root = Path(runtime_root)
@@ -71,6 +78,7 @@ def start_active_mission_chat_turn(
             "pid": os.getpid(),
             "started_at": time.time(),
             "updated_at": time.time(),
+            **({"send_args": dict(send_args)} if send_args else {}),
         },
     )
     handle = MissionChatSteerHandle(
@@ -313,6 +321,35 @@ def take_accepted_steers(*, runtime_root: Path, session_id: str) -> list[dict[st
         if record is not None and str(record.get("client_message_id") or "").strip():
             taken.append(record)
     return sorted(taken, key=lambda item: float(item.get("accepted_at") or 0.0))
+
+
+def roots_owing_steers(*, runtime_root: Path) -> list[dict[str, Any]]:
+    """Every chat root whose ledger still holds an accepted steer, with its last turn's send.
+
+    Each item is ``{session_id, persona_instance_id, send_args}`` read from the root's
+    ``active.json``; a root whose record carries no ``send_args`` (written before they were
+    stored) is left out and waits for the root's next settle, as before. Reads only — whether
+    the turn is dead is the caller's to prove (the chat-root lease), never a pid here.
+    """
+
+    owing: list[dict[str, Any]] = []
+    try:
+        turn_dirs = sorted(path for path in (Path(runtime_root) / MISSION_CHAT_STEER_DIRNAME).iterdir() if path.is_dir())
+    except OSError:
+        return owing
+    for turn_dir in turn_dirs:
+        try:
+            if not any((turn_dir / "accepted").glob("*.json")):
+                continue
+        except OSError:
+            continue
+        record = _read_json(turn_dir / "active.json") or {}
+        session_id = str(record.get("session_id") or "").strip()
+        send_args = record.get("send_args")
+        if session_id and isinstance(send_args, dict) and send_args:
+            owing.append({"session_id": session_id, "persona_instance_id": record.get("persona_instance_id"),
+                          "send_args": dict(send_args)})
+    return owing
 
 
 def _accepted(*, session_id: str, client_message_id: str, duplicate: bool = False) -> dict[str, Any]:

@@ -431,6 +431,9 @@ class _RunPhases:
         try:
             if not getattr(self.args, "stream", False):
                 return None
+            from agent_runtime import chat_root_send_queue
+            from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
+
             handle = start_active_mission_chat_turn(
                 runtime_root=paths.store_root(),
                 session_id=self.session_id,
@@ -439,6 +442,10 @@ class _RunPhases:
                 persona_instance_id=self.instance.id,
                 client_message_id=self.client_message_id,
                 input_position=self.stream_emitter.input_position,
+                # Kept beside the watcher's ledger: a steer this turn accepts and then dies
+                # with is queued by the next serve boot from these, not after the operator's
+                # next send (RT-DEAD-TURN-STEER-WAITS-FOR-NEXT-TURN).
+                send_args=chat_root_send_queue.persistable_args(self.args, origin=send_origin()),
             )
             return handle.close
         finally:
