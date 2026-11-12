@@ -13,6 +13,9 @@ local realm". ``runtime.realm.revoked`` with a member-access reason (``MEMBER_AC
 * the server's sync clone on this machine goes once no realm is bound to that server any more — it is
   the publish projection of the team's repository (its address, its fetch log), not the realm's
   data, which lives in the store and is not touched;
+* each workspace's brain lets go of the team's shared task repository (``work_store.default_brain.
+  detach_left_remote``): its remote and its declared slot ``brain`` go, its history stays, and Work written in
+  the local copy is never pushed to the team;
 * the revocation mark and the cached sync state are cleared: both describe a bound realm, and the
   ``shared_from`` record is now the history. Kept, the mark would refuse a local realm's own sync
   ``realm_revoked`` and tell the client its access was revoked for a realm it now simply owns.
@@ -89,6 +92,10 @@ def make_realm_local(
             {"realm_id": realm.id, "change": "became_local", "server_id": server_id},
             domain="store",
         )
+    # Each workspace's brain stops pushing to the team's shared task repository (RT-LEFT-REALM-BRAIN-STILL-PUSHES-
+    # TO-THE-TEAM): the copy's Work stays on this machine. Before the re-key, which then commits the copy's own ids
+    # into a brain that is this machine's alone (``realm_rekey_git._commit_new_ids``).
+    _detach_brains(realm.id)
     # Owed outside the assign lock (``owe_rekey`` takes it itself). The map is the realm as it is at THIS
     # moment: what the team's copy publishes. What the member adds from here on is theirs alone and keeps
     # its ids. A crash before this line leaves a local realm that owes nothing; a re-join owes it then
@@ -109,6 +116,18 @@ def make_marked_realms_local() -> list[str]:
         if make_realm_local(realm.id, RealmRevokedReason(mark["reason"]))[1]:
             converted.append(realm.id)
     return converted
+
+
+def _detach_brains(realm_id: str) -> None:
+    from .clock import now_iso
+    from .store import WorkspaceStore
+    from .work_store.default_brain import detach_left_remote
+
+    realm = RealmStore().get(realm_id)
+    held = [item.id for item in WorkspaceStore().list_all(include_archived=True) if item.realm_id == realm_id]
+    at = now_iso()
+    for workspace_id in dict.fromkeys([*realm.workspace_ids, *held]):
+        detach_left_remote(workspace_id, at=at)
 
 
 def _drop_server_clone(server_id: str, realms: RealmStore) -> None:

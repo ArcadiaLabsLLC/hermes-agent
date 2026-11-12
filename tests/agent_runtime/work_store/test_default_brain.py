@@ -428,3 +428,53 @@ def test_two_workspaces_promoting_keep_their_own_brain(workspace, host):
         (declared,) = [b for b in board.declared_boards(ws) if b.slot == "brain"]
         assert declared.read_root == paths.default_brain_dir(ws) and board.has_brain_here(declared)
         assert board.default_board(ws) is None
+
+
+def test_a_left_realms_promoted_brain_pushes_nowhere(workspace, host):
+    """RT-LEFT-REALM-BRAIN-STILL-PUSHES-TO-THE-TEAM. A workspace brain promoted to the team's shared task repository
+    kept that repository as its remote after the member left the server (``make_realm_local`` dropped only the
+    realm's own sync address), so Work written in the local copy was pushed to the team. Through
+    ``make_realm_local``, with two repositories (the brain, the team's): the brain loses the remote and keeps its
+    history, the declared slot ``brain`` is tombstoned, the board is the local default board, and a Work write
+    commits here and leaves the team's repository where it was.
+
+    Mutation: skip the ``remote remove`` in ``detach_left_remote`` -> the brain still names the team's
+    repository as ``origin``, red; drop ``_detach_brains`` from ``make_realm_local`` -> the same, red (both
+    recorded in the commit)."""
+    from agent_runtime.realm_leave import make_realm_local
+    from agent_runtime.realm_sync.revocation import RealmRevokedReason
+    from agent_runtime.store import RealmStore, WorkspaceStore
+    from agent_runtime.work import store as work_store
+    from agent_runtime.work_store.grammar import Op, RowRef
+    from agent_runtime.work_store.writer import OPERATOR, RowOp
+
+    default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    url = _record(workspace)["remote_url"]
+    team = host.bare(default_brain.brain_repo_name(workspace))
+    root = paths.default_brain_dir(workspace)
+    realm = RealmStore().create(name="Team", server_id="srv_team")
+    item = WorkspaceStore().get(workspace)
+    item.realm_id = realm.id
+    WorkspaceStore().save(item)
+    realm = RealmStore().get(realm.id)
+    realm.workspace_ids = [workspace]
+    RealmStore().save(realm)
+    history, team_tip = _git(root, "rev-parse", "HEAD"), _git(team, "rev-parse", "main")
+
+    assert make_realm_local(realm.id, RealmRevokedReason.MEMBERSHIP_LEFT)[1] is True
+
+    assert _git(root, "remote").strip() == ""
+    assert _git(root, "rev-parse", "HEAD") == history
+    record = _record(workspace)
+    assert (record["remote_url"], record["declaration"]) == (None, None)
+    assert record["left_remote"]["url"] == url
+    assert "brain" not in workspace_slots.live_slots(load_document(workspace))
+    [listed] = [b for b in board.boards(workspace) if b.slot == "brain"]
+    assert listed.is_default and listed.local and listed.clone_url is None
+    raw = "- **`WORK-LOCALA` — written in the local copy** · READY 2026-11-12"
+    receipt = work_store.writer_for(listed).apply(RowOp(RowRef("brain", QUEUE_NOTE_PATH, "WORK-LOCALA"), Op.APPEND,
+                                                        OPERATOR, "req-left-1", {"rows": [raw], "files": {}}))
+    assert receipt.pushed is False
+    assert "WORK-LOCALA" in _git(root, "show", f"main:{QUEUE_NOTE_PATH}")
+    assert _git(team, "rev-parse", "main") == team_tip
+    assert default_brain.detach_left_remote(workspace, at=LATER) is None  # a replay finds nothing to let go

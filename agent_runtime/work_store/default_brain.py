@@ -74,6 +74,7 @@ __all__ = [
     "QUEUE_TEMPLATE",
     "TODO_TEMPLATE",
     "brain_repo_name",
+    "detach_left_remote",
     "ensure_default_brain",
     "promote_default_brain",
     "remote_state",
@@ -421,6 +422,48 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
     if not url and connected_github() is None:
         return {"state": "present", "reason": Reason.NEEDS_GIT_ACCOUNT.value}
     return None
+
+
+def detach_left_remote(workspace_id: str, *, at: str) -> str | None:
+    """The workspace's brain stops reaching the server's shared task repository: the realm it belongs to was left
+    (``realm_leave.make_realm_local``; RT-LEFT-REALM-BRAIN-STILL-PUSHES-TO-THE-TEAM). Returns the URL let go, or
+    None when the brain had no remote.
+
+    The local copy is the member's (owner 2026-11-12), so its Work writes stay on this machine: the brain's git
+    remotes at that URL are removed (history kept, ``branch.*`` upstreams with them), the slot ``brain`` the
+    workspace's slot document declared for that URL is tombstoned, and the binding goes back to a local brain
+    (no ``remote_url``, no declaration) recording ``left_remote`` ``{url, at}``. The board is then the default
+    board, ``local``: the writer advances the branch and pushes nowhere. From there it is any local realm's
+    workspace brain — promoted to the member's own repository when the machine is connected
+    (``_auto_promote``). A re-join brings the team's brain back with the fresh realm, adopted as a second
+    machine adopts it."""
+
+    from ..git_cmd import run_git
+    from ..workspace_slots import live_slots, load_document, write_document
+
+    record = read_binding(workspace_id)
+    url = (record or {}).get("remote_url")
+    if record is None or not url:
+        return None
+    root = Path(str(record["path"]))
+    if (root / ".git").exists():
+        listed = run_git(["remote"], repo=root, timeout=60, stdin=subprocess.DEVNULL, encoding="utf-8")
+        for name in str(listed.stdout).split():
+            # The configured URL, not ``get-url``'s: that one is rewritten by any ``url.*.insteadOf``.
+            named = run_git(["config", "--get", f"remote.{name}.url"], repo=root, timeout=60,
+                            stdin=subprocess.DEVNULL, encoding="utf-8")
+            # MUTATION: skip this removal and test_a_left_realms_promoted_brain_pushes_nowhere reddens.
+            if str(named.stdout).strip() == url:
+                run_git(["remote", "remove", name], repo=root, timeout=60, stdin=subprocess.DEVNULL, encoding="utf-8")
+    document = load_document(workspace_id)
+    slot = live_slots(document).get(DEFAULT_BRAIN_SLOT)
+    if slot is not None and (slot.get("repo") or {}).get("clone_url") == url:
+        document["slots"][DEFAULT_BRAIN_SLOT] = {**slot, "removed_at": at}
+        write_document(workspace_id, document)
+    _write_binding(workspace_id, {**record, "remote_url": None, "declaration": None, "promoted_at": None,
+                                  "remote_owner": None, "promote_refused": None,
+                                  "left_remote": {"url": url, "at": at}})
+    return url
 
 
 def ensure_default_brain(workspace_id: str, *, issued_at: str) -> Board:
