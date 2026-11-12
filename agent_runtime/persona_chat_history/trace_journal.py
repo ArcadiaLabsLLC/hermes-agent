@@ -35,6 +35,7 @@ from ..clock import parse_iso
 from ..mission_chat_turns.reads import mission_chat_turn_records
 from ..mission_chat_turns.states import TERMINAL_TURN_STATES
 from ..serde import safe_assignment_text, safe_assignment_token
+from ..tool_call_outcome import carried_tool_outcome
 from ..transcript_order import TURN_SEQ_CONTENT
 
 __layer__ = "stores"
@@ -83,6 +84,8 @@ def _journal_entries(record: dict[str, Any], *, persona_id: str, turn_id: str) -
             # sort, and never lands outside the turn.
             "ts": started + timedelta(microseconds=index) if started is not None else None,
         }
+        # The stored element's own word for how the call ended (a stopped call keeps `status: failed`).
+        entry.update(carried_tool_outcome(element))
         command = safe_assignment_text(element.get("command"), limit=500)
         if command:
             entry["command"] = command

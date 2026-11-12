@@ -24,6 +24,7 @@ from agent_runtime.serde import (
     safe_block,
 )
 
+from agent_runtime.tool_call_outcome import carried_tool_outcome
 from agent_runtime.mission_chat_turns.states import TURN_STATE_COMPLETED, _record_state
 from agent_runtime.redaction import has_secret_value, mask_local_paths
 from agent_runtime.running_work.rows import bounded_operator_text
@@ -563,11 +564,7 @@ def _tool_fields(raw: dict[str, Any]) -> dict[str, Any]:
     # RW3: how the call ENDED (`passed` / `failed` / `timed_out`) and the
     # foreground deadline it ran under, so a reloaded turn says "timed out at
     # 180 s" exactly as the live stream did. Absent-when-absent.
-    outcome = safe_assignment_token(raw.get("outcome"))
-    if outcome:
-        fields["outcome"] = outcome
-    if raw.get("timed_out") is True:
-        fields["timed_out"] = True
+    fields.update(carried_tool_outcome(raw))
     timeout_seconds = non_negative_int(raw.get("timeout_seconds"))
     if timeout_seconds is not None:
         fields["timeout_seconds"] = timeout_seconds

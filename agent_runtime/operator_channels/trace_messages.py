@@ -6,6 +6,7 @@ from typing import Any
 
 from ..clock import parse_iso
 from ..serde import safe_assignment_text, safe_assignment_token
+from ..tool_call_outcome import carried_tool_outcome
 from ..transcript_order import TURN_SEQ_CONTENT
 
 from .vocabulary import (
@@ -364,6 +365,9 @@ def _merge_tool_detail(tool: dict[str, Any], entry: dict[str, Any]) -> None:
         value = entry.get(field)
         if isinstance(value, int) and not isinstance(value, bool):
             tool[field] = value
+    # How the call ended, from the finished trace row (a started row carries none): `outcome: stopped`
+    # rides beside `status: failed`, which older readers keep reading.
+    tool.update(carried_tool_outcome(entry))
     paths = entry.get("paths")
     if isinstance(paths, list) and paths:
         tool["paths"] = [str(item) for item in paths if str(item or "").strip()][:12]

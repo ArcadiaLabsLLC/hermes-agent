@@ -11,6 +11,7 @@ from typing import Any
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..redaction import mask_secret_lines
 from ..serde import strict_int
+from ..tool_call_outcome import carried_tool_outcome
 from ..stream_gap_receipt import REASONING_USAGE_STEP
 from ..transcript_order import TURN_SEQ_CONTENT
 from .vocabulary import (
@@ -154,6 +155,9 @@ def _trace_entry(event: Any) -> dict[str, Any] | None:
         "non_goals": _safe_trace_list_text(payload.get("non_goals"), limit=500),
         "allowed_decisions": _safe_trace_list_text(payload.get("allowed_decisions"), limit=80),
         **_reasoning_usage_fields(payload),
+        # How the call ended, as its finished event states it (`stopped` for a call a Stop killed,
+        # beside `status: failed` for older readers) — carried, never read off the exit code.
+        **(carried_tool_outcome(payload) if trace_event == "tool_finished" else {}),
     }
 
 
