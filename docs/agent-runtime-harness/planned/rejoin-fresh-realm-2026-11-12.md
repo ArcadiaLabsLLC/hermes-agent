@@ -82,6 +82,21 @@ One function, `rekey_realm(journal)`. Nothing else renames a realm or a workspac
   the workspace and agent ids of the map as whole tokens in every tracked `*.md` of the workspace's own brain,
   bytes in and out. A brain whose binding has a `remote_url` (promoted: the team's shared repository) gets NO
   commit — and still has the team's remote: follow-up `RT-LEFT-REALM-BRAIN-STILL-PUSHES-TO-THE-TEAM`.
+- **Outside the JSON store, as built** (slice 2b, `agent_runtime/realm_rekey_outside.py`, step `outside`):
+  `machine_roots.json` / `machine_slot_env.json` / `machine_slot_runs.json` rewritten by value and key; Lens
+  `monitors.workspace_id` by `UPDATE`; the skills inbox folder renamed and provenance `source.realm_id`
+  rewritten; the `local` sync repository's `realms/<realm>/` moved with `git mv`, the ids inside rewritten as
+  whole tokens and committed once (a pull before the next publish otherwise hands the old workspace files
+  back — pinned). `OWED_HANDLERS` is empty.
+- **Cards** (not in the first plan): a card the board store minted (`card_<hex32>`) on a board of the map gets a
+  new id (`map.cards`), so the local copy and the fresh realm never hold one card id on two boards. A card
+  adopted from a Work row keeps the row's id (it is the brain's text) — row
+  `RT-REJOIN-CARD-VERB-WITHOUT-BOARD-PICKS-EITHER-COPY`.
+- **The table is total over the source**, not only `paths.py`: a second test reads every
+  `store_root() / <name>` the fork builds; 37 entries were unclassified (among them `flow_graphs`). A fifth
+  class, INSTALL, holds what belongs to no realm (maps, prefabs, courses, skill queues, machine state); the
+  census reds an old id found there. Catalogues are NOT re-keyed: at a re-join the team's map, prefab, persona
+  and skill of the same id meet the local one as for a member who edited offline (the switch-over row says how).
 - **The census test** (`tests/agent_runtime/test_realm_rekey_census.py`): seeds one runtime root through the real
   stores with every MOVES and PARKS place populated for one server realm of two workspaces, runs a publish and a
   pull while local (lane hm-leftrealm's INEFF: the unit test passed while the real path lost a card), re-keys, then

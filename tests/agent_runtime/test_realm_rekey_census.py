@@ -172,7 +172,7 @@ def test_a_left_realm_is_rekeyed_whole_and_no_old_id_stays_where_the_local_copy_
     journal = rekey_realm(realm.id)
 
     assert (journal["state"], journal["steps_done"], journal["leftover"]) == (
-        RekeyState.DONE.value, ["agents", "content", "rename", "git", "ledgers"], [])
+        RekeyState.DONE.value, ["agents", "content", "rename", "git", "outside", "ledgers"], [])
     _assert_local_copy_is_whole(journal, first, second, extra)
     census = _census(journal)
     assert census.get("moves", []) == [] and census.get("unclassified", []) == []
@@ -436,3 +436,100 @@ def test_the_brain_and_its_worktrees_follow_the_new_ids_and_the_past_is_not_rewr
     census = _census(journal)
     ours = [row for row in census.get("moves", []) if not row["path"].startswith(f"work/{new_second}/brain/")]
     assert ours == [] and census.get("unclassified", []) == []
+
+
+def _store_root_literals() -> set[str]:
+    """Every top-level store entry the fork's source builds as ``store_root() / <name>``."""
+    import re
+
+    repo = Path(realm_rekey.__file__).resolve().parents[1]
+    joined = re.compile(r"store_root\(\) / (\"([^\"]+)\"|([A-Z_][A-Z0-9_]*)\b)")
+    names, constants = set(), {}
+    sources = [*(repo / "agent_runtime").rglob("*.py"), *(repo / "hermes_cli" / "harness_parts").rglob("*.py")]
+    texts = {path: path.read_text(encoding="utf-8") for path in sources}
+    for text in texts.values():
+        constants.update(re.findall(r"^([A-Z_][A-Z0-9_]*) = \"([^\"]+)\"$", text, flags=re.M))
+    for text in texts.values():
+        for _, literal, constant in joined.findall(text):
+            names.add(literal or constants.get(constant) or f"<unresolved {constant}>")
+    return names
+
+
+def test_every_top_level_store_entry_the_source_builds_is_in_the_table():
+    """The ``paths.py`` probe above cannot see an entry built elsewhere (``flow_graphs`` was one). Mutation:
+    drop ``"flow_graphs"`` or ``"messaging"`` from STORE_PLACES -> named here, red."""
+    names = _store_root_literals()
+    assert len(names) >= 70, "the source walk stopped finding store entries"
+    assert sorted(name for name in names if name not in realm_rekey.STORE_PLACES) == []
+    assert realm_rekey.OWED_HANDLERS == {}
+
+
+def test_what_lives_outside_the_json_store_follows_the_local_copy(tmp_path):
+    """RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE. Mutations, each dropping one part of ``_PARTS`` in
+    ``realm_rekey_outside``: ``_rekey_machine_files`` -> the slot folder is still filed under the old workspace,
+    red; ``_rekey_lens`` -> the watch is in no workspace of the local copy, red; ``_rekey_skills`` -> the inbox
+    and the provenance still name the old realm, red; ``_rekey_local_history`` -> the next pull of the local
+    copy hands ``workspaces/ws_shared.json`` back, red. Leave ``cards`` out of ``RekeyMap.forms`` -> the team's
+    card id is still the local copy's, red."""
+    from agent_runtime.lens.store import LensStore
+    from agent_runtime.machine_roots import load_machine_roots, write_machine_roots
+    from agent_runtime.skill_promotion import provenance_root, realm_inbox_dir
+    from agent_runtime.workspace_slot_env import slot_env_path
+    from agent_runtime.workspace_slot_runs import runs_path
+    from tests.agent_runtime.lens.test_lens_contracts import _manifest
+
+    realm, first, second, extra, team_head = _left_realm(tmp_path)
+    folder = tmp_path / "member-clone"
+    folder.mkdir()
+    current = load_machine_roots(refresh=True)
+    write_machine_roots(dict(current.roots), workspace_roots={first.id: {"code": str(folder)}}, dry_run=False)
+    for path in (slot_env_path(), runs_path()):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"version": 1, "workspaces": {first.id: {"code": {"note": "x"}}}}), encoding="utf-8")
+    LensStore().create(_manifest(), workspace_id=first.id)
+    inbox = realm_inbox_dir(realm.id) / "team-skill"
+    inbox.mkdir(parents=True)
+    (inbox / "SKILL.md").write_text("---\nname: team-skill\n---\n", encoding="utf-8")
+    provenance = provenance_root() / "team-skill.json"
+    provenance.parent.mkdir(parents=True, exist_ok=True)
+    provenance.write_text(json.dumps({"skill": "team-skill", "source": {"kind": "realm", "realm_id": realm.id}}),
+                          encoding="utf-8")
+    local_repo = runtime_paths.realm_sync_root() / "local"
+    assert (local_repo / "realms" / realm.id / "store" / "workspaces" / f"{first.id}.json").is_file(), (
+        "the seed's local-era publish wrote the local copy's history")
+    history = _git(local_repo, "rev-list", "--count", "HEAD")
+    team_cards = {card.card_id for card in BoardStore().list_cards(default_board_id(first.id))}
+
+    journal = rekey_realm(owe_rekey(realm.id, reason="membership_left")["map"]["realm_old"])
+
+    mapping = journal["map"]
+    new_realm, new_first = mapping["realm_new"], mapping["workspaces"][first.id]
+    assert load_machine_roots(refresh=True).workspace_roots == {new_first: {"code": str(folder)}}
+    for path in (slot_env_path(), runs_path()):
+        assert list(json.loads(path.read_text(encoding="utf-8"))["workspaces"]) == [new_first]
+    assert [row["workspace_id"] for row in LensStore().monitors()] == [new_first]
+    assert (realm_inbox_dir(new_realm) / "team-skill" / "SKILL.md").is_file() and not realm_inbox_dir(realm.id).exists()
+    assert json.loads(provenance.read_text(encoding="utf-8"))["source"] == {"kind": "realm", "realm_id": new_realm}
+    # The team's minted card ids are not the local copy's any more; the cards themselves are all there.
+    mine = {card.card_id: card.title for card in BoardStore().list_cards(default_board_id(new_first))}
+    assert sorted(mine.values()) == ["Added while local", "Team card"] and not team_cards & set(mine)
+    assert set(mapping["cards"]) >= team_cards
+    # The local copy's version history moved with it, in one more commit, and its next sync changes nothing.
+    assert not (local_repo / "realms" / realm.id).exists()
+    assert (local_repo / "realms" / new_realm / "store" / "workspaces" / f"{new_first}.json").is_file()
+    assert _git(local_repo, "rev-list", "--count", "HEAD") == str(int(history) + 1)
+    assert _git(local_repo, "status", "--porcelain") == ""
+    assert place_class(Path("realm_sync/local/realms") / new_realm / "store" / "a.json") is PlaceClass.MOVES
+    census = _census(journal)
+    assert [census.get(name, []) for name in ("moves", "unclassified", "install")] == [[], [], []]
+    pull_realm_sync(new_realm)  # before any new publish: what the history holds is what comes back
+    _assert_local_copy_is_whole(journal, first, second, extra)
+    try:  # a local realm's publish commits, then answers that it has nowhere to push (as in the seed)
+        publish_realm_sync(new_realm)
+    except RealmSyncError:
+        pass
+    pull_realm_sync(new_realm)
+    _assert_local_copy_is_whole(journal, first, second, extra)
+    census = _census(journal)
+    assert [census.get(name, []) for name in ("moves", "unclassified", "install")] == [[], [], []]
+    assert _git(tmp_path / "team.git", "rev-parse", "main") == team_head
