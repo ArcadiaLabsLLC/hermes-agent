@@ -52,6 +52,8 @@ class Reason(StrEnum):
     SCHEDULE_INVALID = "schedule_invalid"
     AUTOMATION_OFF = "automation_off"
     NOT_OWNER_MACHINE = "not_owner_machine"
+    # ``runtime.schedule.pause | resume`` on a key nothing is armed under.
+    SCHEDULE_NOT_FOUND = "schedule_not_found"
     # The goal door's (dispatcher plan §5; B3): a verb that needs a goal on a root holding none.
     NO_GOAL = "no_goal"
     # The batch dispatcher's (dispatcher plan §3; B2): a plan that cannot be made, a lane with no

@@ -488,12 +488,40 @@ def test_a_scheduled_task_whose_board_cannot_be_read_keeps_its_schedule(board):
     assert [r.key for r in schedule_store.load_all()] == ["nightly"] and executor.started == []
 
 
-def test_a_scheduled_task_fire_while_its_last_run_is_live_is_refused_naming_the_run(board):
+def test_a_scheduled_task_fire_while_its_last_run_is_live_starts_no_second_run(board):
     _writer, _engine_, executor, scheduler, (t1, t2, _t3) = _task_schedule(board, _row("RT-S"))
     scheduler.tick(t1)
     [fire] = scheduler.tick(t2)
-    assert fire["refused"] == Reason.ALREADY_TAKEN.value and "nightly@20261018T120500Z" in fire["detail"]
+    assert fire["kind"] == "schedule.skipped" and fire["run_id"] == "nightly@20261018T120500Z"
     assert len(executor.started) == 1
+
+
+# ── RT-SCHEDULE-PAUSE-END-AND-LAST-RESULT: the run's ending is its schedule's last_result ──
+
+
+def test_a_scheduled_run_s_ending_is_its_schedule_s_last_result(board):
+    """Killing mutation: ``_record_ending`` never calls ``_note_schedule`` → ``last_result`` stays None, red."""
+
+    from agent_runtime.work_store import schedule_store
+    from agent_runtime.work_store.executor import CAUSE_OUT_OF_TIME
+
+    _writer, engine, executor, scheduler, (t1, t2, t3) = _task_schedule(board, _row("RT-S"))
+    scheduler.tick(t1)
+    assert schedule_store.last_result("nightly") is None
+    [skipped] = scheduler.tick(t2)
+    assert skipped["kind"] == "schedule.skipped" and skipped["run_id"] == "nightly@20261018T120500Z"
+    assert schedule_store.last_result("nightly")["verdict"] == "skipped"
+    executor.settle(executor.started[0], RowEnding(Verdict.DONE, result="swept the inbox"))
+    result = schedule_store.last_result("nightly")
+    assert result == {"verdict": "done", "at": "2026-10-18T00:00:00+00:00", "detail": "swept the inbox",
+                      "run_id": "root/work-nightly@20261018T120500Z"}
+    assert schedule_store.load_one("nightly").fires == 1, "the skipped fire counted nothing"
+    engine.tick()
+    scheduler.tick(t3)
+    executor.settle(executor.started[1], RowEnding(Verdict.FAILED, reason="the turn used its 1800 s time budget",
+                                                   cause=CAUSE_OUT_OF_TIME))
+    late = schedule_store.last_result("nightly")
+    assert late["verdict"] == "failed" and late["detail"].startswith("ran out of time (")
 
 
 def test_a_row_with_skills_hands_them_to_the_assignment(board):

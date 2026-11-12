@@ -6,6 +6,15 @@ loses nothing. A record carries the contract's ``Armed`` fields plus the tick's 
 (``armed_at`` for the ``WHEN_IDLE`` give-up, ``idle_ticks``, ``held_since`` for an over-cap fire's
 ``waited_s``). Its JSON is the wire ``runtime.schedule.list`` answers and the Launcher mirrors.
 
+A record also carries how it ends (``ends_after_fires`` / ``ends_until``, the wire's ``ends``), how many
+fires started a run (``fires``) and ``skip_while_running`` (``RT-SCHEDULE-PAUSE-END-AND-LAST-RESULT``).
+
+``last_result`` — how the schedule's last fire ended — is its OWN file, ``store/schedules/results/<key>.json``,
+because two writers own it: the scheduler (a ``skipped`` or ``refused`` fire) and the Work engine (the fire's
+run settling, minutes later, on another thread). Each write replaces the whole value, so neither can lose
+the other's edit of the record, and the engine never takes the scheduler's lock. :func:`record_wire` is the
+record with its ``last_result`` — the wire the verbs answer.
+
 An unreadable file is skipped (and logged), never fired; ``save`` writes tmp + rename.
 """
 
@@ -27,12 +36,18 @@ from .reasons import Reason, WorkRefused
 from .scheduler import KEY, Action, Armed, PersonaPrompt, RunAssignment, RunTask, StartBatch, Trigger, TriggerKind
 
 __layer__ = "lanes"
-__all__ = ["SCHEMA_VERSION", "ScheduleRecord", "action_from_wire", "action_wire", "load_all", "load_one",
-           "remove", "save", "trigger_from_wire", "trigger_wire"]
+__all__ = ["RESULT_VERDICTS", "SCHEMA_VERSION", "ScheduleRecord", "action_from_wire", "action_wire", "ends_from_wire",
+           "last_result", "load_all", "load_one", "record_wire", "remove", "save", "trigger_from_wire", "trigger_wire",
+           "write_result"]
 
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
+
+
+#: ``last_result.verdict``: a run's four endings, plus the two a fire that started no run can have.
+RESULT_VERDICTS: frozenset[str] = frozenset({"done", "blocked", "stopped", "failed", "skipped", "refused"})
+_RESULT_DETAIL = 500
 
 
 def _stamp(value: datetime | None) -> str | None:
@@ -134,6 +149,28 @@ def action_from_wire(raw: Mapping[str, Any]) -> Action:
         raise WorkRefused(Reason.SCHEDULE_INVALID, f"action: {exc}") from exc
 
 
+def ends_from_wire(raw: Any) -> tuple[int | None, datetime | None]:
+    """``ends: {after_fires: <int >= 1> | null, until: <aware ISO time> | null}`` as ``(after_fires, until)``.
+
+    Absent or null is "never ends"; anything else malformed refuses ``schedule_invalid``.
+    """
+
+    if raw is None:
+        return None, None
+    if not isinstance(raw, Mapping):
+        raise WorkRefused(Reason.SCHEDULE_INVALID, "ends is {after_fires, until}")
+    after, until = raw.get("after_fires"), raw.get("until")
+    if after is not None and (isinstance(after, bool) or not isinstance(after, int) or after < 1):
+        raise WorkRefused(Reason.SCHEDULE_INVALID, "ends.after_fires is a whole number >= 1")
+    try:
+        when = _when(until)
+    except (TypeError, ValueError) as exc:
+        raise WorkRefused(Reason.SCHEDULE_INVALID, f"ends.until: {exc}") from exc
+    if when is not None and when.utcoffset() is None:
+        raise WorkRefused(Reason.SCHEDULE_INVALID, "ends.until needs an aware time")
+    return after, when
+
+
 @dataclass(frozen=True)
 class ScheduleRecord:
     """One armed schedule, as stored: the contract's ``Armed`` plus the tick's bookkeeping."""
@@ -149,6 +186,13 @@ class ScheduleRecord:
     armed_by: str = ""
     idle_ticks: int = 0
     held_since: datetime | None = None
+    #: The schedule is removed (``schedule.ended``) once this many fires started a run, or past this time.
+    ends_after_fires: int | None = None
+    ends_until: datetime | None = None
+    #: Fires that started a run (a refused or skipped fire counts nothing).
+    fires: int = 0
+    #: A ``RunTask`` fire that finds the task's last run still live advances and records ``skipped``.
+    skip_while_running: bool = False
 
     def armed(self) -> Armed:
         return Armed(self.key, self.trigger, self.action, self.next_fire, self.last_fire, self.enabled,
@@ -162,7 +206,9 @@ class ScheduleRecord:
                 "action": action_wire(self.action), "next_fire": _stamp(self.next_fire),
                 "last_fire": _stamp(self.last_fire), "enabled": self.enabled, "owner_machine": self.owner_machine,
                 "armed_at": _stamp(self.armed_at), "armed_by": self.armed_by, "idle_ticks": self.idle_ticks,
-                "held_since": _stamp(self.held_since)}
+                "held_since": _stamp(self.held_since),
+                "ends": {"after_fires": self.ends_after_fires, "until": _stamp(self.ends_until)},
+                "fires": self.fires, "skip_while_running": self.skip_while_running}
 
     @classmethod
     def from_wire(cls, raw: Mapping[str, Any]) -> ScheduleRecord:
@@ -171,7 +217,9 @@ class ScheduleRecord:
                    armed_at=_when(raw["armed_at"]), last_fire=_when(raw.get("last_fire")),
                    enabled=bool(raw.get("enabled", True)), owner_machine=str(raw.get("owner_machine") or ""),
                    armed_by=str(raw.get("armed_by") or ""), idle_ticks=int(raw.get("idle_ticks") or 0),
-                   held_since=_when(raw.get("held_since")))
+                   held_since=_when(raw.get("held_since")),
+                   **dict(zip(("ends_after_fires", "ends_until"), ends_from_wire(raw.get("ends")), strict=True)),
+                   fires=int(raw.get("fires") or 0), skip_while_running=bool(raw.get("skip_while_running", False)))
 
 
 def _path(key: str) -> Path:
@@ -218,8 +266,57 @@ def load_all() -> list[ScheduleRecord]:
 
 
 def remove(key: str) -> bool:
+    """Drop the schedule and its ``last_result``; False when nothing was armed under ``key``."""
+
+    try:
+        _result_path(key).unlink()
+    except FileNotFoundError:
+        pass
     try:
         _path(key).unlink()
     except FileNotFoundError:
         return False
     return True
+
+
+# ── last_result: its own file per key ──────────────────────────────────────
+
+
+def _result_path(key: str) -> Path:
+    return _path(key).parent / "results" / _path(key).name
+
+
+def write_result(key: str, verdict: str, *, at: datetime, detail: str = "", run_id: str | None = None) -> bool:
+    """Record how ``key``'s last fire ended; False (nothing written) when no schedule is armed under it.
+
+    ``verdict`` is one of :data:`RESULT_VERDICTS`. The whole value is replaced — the last writer is the
+    last result.
+    """
+
+    if verdict not in RESULT_VERDICTS:
+        raise ValueError(f"last_result verdict {verdict!r}")
+    if not _path(key).is_file():
+        return False
+    path = _result_path(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_json_atomic(path, {"verdict": verdict, "at": _stamp(at),
+                             "detail": " ".join(str(detail or "").split())[:_RESULT_DETAIL], "run_id": run_id or None})
+    return True
+
+
+def last_result(key: str) -> dict[str, Any] | None:
+    """``{verdict, at, detail, run_id}`` of ``key``'s last fire, or None (never fired, or unreadable)."""
+
+    try:
+        raw = json.loads(_result_path(key).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(raw, dict) or raw.get("verdict") not in RESULT_VERDICTS:
+        return None
+    return {name: raw.get(name) for name in ("verdict", "at", "detail", "run_id")}
+
+
+def record_wire(record: ScheduleRecord) -> dict[str, Any]:
+    """The record as the verbs answer it: its stored wire plus ``last_result``."""
+
+    return {**record.wire(), "last_result": last_result(record.key)}

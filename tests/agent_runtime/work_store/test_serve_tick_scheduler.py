@@ -434,3 +434,91 @@ def test_the_serve_binds_run_task_to_its_work_engine():
     scheduler.arm("bound", Trigger.at_utc(T0), TASK)
     [receipt] = scheduler.tick(T0)
     assert receipt["refused"] is None and calls[0][0] == TASK
+
+
+# ── RT-SCHEDULE-PAUSE-END-AND-LAST-RESULT ──
+
+
+def test_a_paused_schedule_never_fires_and_resume_counts_from_now():
+    scheduler, clock = _scheduler()
+    scheduler.arm("p", Trigger.every(5), PROMPT)
+    assert scheduler.set_enabled("p", False).enabled is False
+    clock.now = T0 + timedelta(hours=2)
+    assert scheduler.tick(clock.now) == [] and _scheduled_entries() == []
+    resumed = scheduler.set_enabled("p", True)
+    assert resumed.enabled is True and resumed.next_fire == clock.now + timedelta(minutes=5)
+    assert scheduler.tick(clock.now) == [], "the two paused hours are not caught up"
+    [fire] = scheduler.tick(clock.now + timedelta(minutes=5))
+    assert fire["kind"] == "schedule.fire" and len(_scheduled_entries()) == 1
+    with pytest.raises(WorkRefused) as refused:
+        scheduler.set_enabled("nope", False)
+    assert refused.value.reason is Reason.SCHEDULE_NOT_FOUND
+
+
+def test_a_schedule_ends_after_its_number_of_started_fires_and_a_refused_fire_counts_nothing():
+    """Killing mutation: ``_fire`` never checks ``_ended`` → the schedule outlives its count, red."""
+
+    calls, refusal = [], [WorkRefused(Reason.ALREADY_TAKEN, "lane-x")]
+
+    def door(action, request_id, origin, *, repeats):
+        calls.append(request_id)
+        if refusal:
+            raise refusal.pop()
+        return SimpleNamespace(run_id=f"root/work-{request_id}")
+
+    scheduler, _ = _scheduler(start_task=door)
+    scheduler.arm("twice", Trigger.every(5), TASK, ends=(2, None))
+    [refused] = scheduler.tick(T0 + timedelta(minutes=5))
+    assert refused["refused"] == "already_taken" and schedule_store.load_one("twice").fires == 0
+    assert schedule_store.last_result("twice")["verdict"] == "refused"
+    assert "already_taken" in schedule_store.last_result("twice")["detail"]
+    [first] = scheduler.tick(T0 + timedelta(minutes=10))
+    assert first["refused"] is None and schedule_store.load_one("twice").fires == 1
+    fire, ended = scheduler.tick(T0 + timedelta(minutes=15))
+    assert fire["kind"] == "schedule.fire" and ended["kind"] == "schedule.ended" and ended["fires"] == 2
+    assert schedule_store.load_one("twice") is None and schedule_store.last_result("twice") is None
+    assert scheduler.tick(T0 + timedelta(minutes=20)) == [] and len(calls) == 3
+
+
+def test_a_schedule_ends_on_its_date():
+    """The last fire at or before ``until`` runs; the schedule is removed once its next would fall after it."""
+
+    scheduler, _ = _scheduler()
+    scheduler.arm("dated", Trigger.every(5), PROMPT, ends=(None, T0 + timedelta(minutes=7)))
+    fire, ended = scheduler.tick(T0 + timedelta(minutes=5))
+    assert fire["kind"] == "schedule.fire" and ended["kind"] == "schedule.ended"
+    assert schedule_store.load_one("dated") is None and len(_scheduled_entries()) == 1
+    scheduler.arm("late", Trigger.every(5), PROMPT, ends=(None, T0 + timedelta(minutes=2)))
+    [ended] = scheduler.tick(T0 + timedelta(minutes=5))
+    assert ended["kind"] == "schedule.ended" and len(_scheduled_entries()) == 1, "past its date it never fires"
+
+
+def test_a_fire_while_the_last_run_is_still_going_is_skipped_not_counted():
+    """Killing mutation: ``_fire`` ignores ``skip_while_running`` → the fire reads ``refused``, red."""
+
+    live = WorkRefused(Reason.ALREADY_TAKEN, "run nightly@x", data={"live_run": "nightly@x"})
+    scheduler, _ = _scheduler(start_task=_task_door([], live))
+    scheduler.arm("skip", Trigger.every(5), TASK)
+    [receipt] = scheduler.tick(T0 + timedelta(minutes=5))
+    record = schedule_store.load_one("skip")
+    assert receipt["kind"] == "schedule.skipped" and receipt["run_id"] == "nightly@x"
+    assert record.fires == 0 and record.next_fire == T0 + timedelta(minutes=10)
+    result = schedule_store.last_result("skip")
+    assert result["verdict"] == "skipped" and result["run_id"] == "nightly@x" and result["at"]
+    scheduler.arm("noskip", Trigger.every(5), TASK, skip_while_running=False)
+    [fire] = [r for r in scheduler.tick(T0 + timedelta(minutes=5)) if r["key"] == "noskip"]
+    assert fire["kind"] == "schedule.fire" and fire["refused"] == "already_taken"
+    assert schedule_store.last_result("noskip")["verdict"] == "refused"
+
+
+def test_an_edit_keeps_the_count_and_a_fresh_arm_starts_clean():
+    scheduler, _ = _scheduler(start_task=_task_door([]))
+    scheduler.arm("e", Trigger.every(5), TASK)
+    scheduler.tick(T0 + timedelta(minutes=5))
+    schedule_store.write_result("e", "done", at=T0, detail="ran", run_id="r/1")
+    scheduler.arm("e", Trigger.every(9), TASK, replace=True)
+    assert schedule_store.load_one("e").fires == 1 and schedule_store.last_result("e")["verdict"] == "done"
+    scheduler.disarm("e")
+    assert schedule_store.write_result("e", "done", at=T0) is False, "a removed schedule takes no result"
+    scheduler.arm("e", Trigger.every(5), TASK)
+    assert schedule_store.load_one("e").fires == 0 and schedule_store.last_result("e") is None

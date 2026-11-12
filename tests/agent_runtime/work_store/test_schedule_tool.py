@@ -21,7 +21,7 @@ from agent_runtime.work_store.schedule_tool import SCHEDULE_TOOLSET, handle_sche
 from tests.agent_runtime._serve_rpc_manifest import expected_manifest
 
 PLUGIN = Path(__file__).resolve().parents[3] / "plugins" / "eternia-harness" / "__init__.py"
-VERBS = ("arm", "disarm", "list")
+VERBS = ("arm", "disarm", "list", "pause", "resume")
 PROMPT_ACTION = {"type": "persona_prompt", "persona_instance_id": "inst-1", "prompt": "Say what is READY."}
 
 
@@ -33,7 +33,7 @@ def _call(verb, **params):
     return reply
 
 
-def test_the_three_verbs_are_console_methods_in_the_manifest():
+def test_the_verbs_are_console_methods_in_the_manifest():
     manifest = expected_manifest()
     for verb in VERBS:
         name = f"runtime.schedule.{verb}"
@@ -124,6 +124,52 @@ def test_the_tool_arms_a_run_task_as_the_same_record_the_rpc_stores():
     again = json.loads(handle_schedule_manage({"action": "arm", "key": "by-tool", "trigger": EVERY_HOUR,
                                                "persona_instance_id": "inst-1", "prompt": "ping", "replace": True}))
     assert again["schedule"]["action"]["type"] == "persona_prompt"
+
+
+# ── RT-SCHEDULE-PAUSE-END-AND-LAST-RESULT ──
+
+
+def test_pause_and_resume_flip_enabled_and_an_unknown_key_is_not_found():
+    """Killing mutation: ``_pause`` calls ``set_enabled(key, True)`` → the paused record reads enabled, red."""
+
+    _call("arm", key="k", trigger=EVERY_HOUR, action=TASK_ACTION)
+    paused = _call("pause", key="k")["result"]["schedule"]
+    assert paused["key"] == "k" and paused["enabled"] is False
+    assert _call("list")["result"]["schedules"][0]["enabled"] is False
+    resumed = _call("resume", key="k")["result"]["schedule"]
+    assert resumed["enabled"] is True and resumed["next_fire"]
+    missing = _call("pause", key="nope")
+    assert missing["error"]["code"] == 4001 and missing["error"]["data"]["reason"] == "schedule_not_found"
+    assert _call("resume", key="")["error"]["data"]["reason"] == "invalid_request"
+
+
+def test_arm_echoes_ends_and_skip_while_running_and_list_names_what_it_serves():
+    ends = {"after_fires": 3, "until": "2026-12-01T00:00:00+00:00"}
+    task = _call("arm", key="t", trigger=EVERY_HOUR, action=TASK_ACTION, ends=ends)["result"]["schedule"]
+    assert task["ends"] == ends and task["fires"] == 0 and task["last_result"] is None
+    assert task["skip_while_running"] is True, "on by default for a run_task"
+    off = _call("arm", key="t2", trigger=EVERY_HOUR, action=TASK_ACTION, skip_while_running=False)
+    assert off["result"]["schedule"]["skip_while_running"] is False
+    prompt = _call("arm", key="p", trigger=EVERY_HOUR, action=PROMPT_ACTION)["result"]["schedule"]
+    assert prompt["ends"] == {"after_fires": None, "until": None} and prompt["skip_while_running"] is False
+    supports = _call("list")["result"]["supports"]
+    assert {"pause", "ends", "skip_while_running", "last_result"} <= set(supports)
+    for bad in ({"after_fires": 0}, {"after_fires": True}, {"after_fires": "3"}, {"until": "2026-12-01T00:00:00"},
+                {"until": "soon"}, "never"):
+        refused = _call("arm", key="bad", trigger=EVERY_HOUR, action=TASK_ACTION, ends=bad)
+        assert refused["error"]["data"]["reason"] == "schedule_invalid", bad
+    odd = _call("arm", key="bad", trigger=EVERY_HOUR, action=TASK_ACTION, skip_while_running="yes")
+    assert odd["error"]["data"]["reason"] == "schedule_invalid"
+
+
+def test_the_tool_pauses_resumes_and_arms_with_an_end():
+    task = {key: value for key, value in TASK_ACTION.items() if key != "type"}
+    armed = json.loads(handle_schedule_manage({"action": "arm", "key": "tool-k", "trigger": EVERY_HOUR,
+                                               "run_task": task, "ends": {"after_fires": 2}}))["schedule"]
+    assert armed["ends"] == {"after_fires": 2, "until": None}
+    assert json.loads(handle_schedule_manage({"action": "pause", "key": "tool-k"}))["schedule"]["enabled"] is False
+    assert json.loads(handle_schedule_manage({"action": "resume", "key": "tool-k"}))["schedule"]["enabled"] is True
+    assert json.loads(handle_schedule_manage({"action": "pause", "key": "none"}))["error"] == "schedule_not_found"
 
 
 def _plugin_tools() -> dict[str, str]:

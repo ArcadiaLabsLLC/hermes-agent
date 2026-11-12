@@ -1,10 +1,11 @@
-"""``runtime.schedule.arm | disarm | list`` — the desktop runtime's scheduler (``ServeTickScheduler``).
+"""``runtime.schedule.arm | disarm | list | pause | resume`` — the desktop runtime's scheduler (``ServeTickScheduler``).
 
 Dispatcher plan ``docs/agent-runtime-harness/archive/dispatcher-and-libraries-2026-10-18.md`` §2.3, §4
 (B4, ``RT-DISPATCH-B4-SCHEDULER``). Each verb is one row of ``work_store.schedule_ops.OPS`` and runs off
 the reader lane (``spawn_reply``), as every Work verb does. ``console`` tier: an armed schedule starts
 agent turns on a clock. The Launcher arms a hermes schedule only through ``arm`` (plan §4). Refusals:
-``invalid_request`` / ``schedule_invalid`` (-32602), the rest (``automation_off``, ``machine_identity_unavailable``)
+``invalid_request`` / ``schedule_invalid`` (-32602), ``schedule_not_found`` (4001, ``pause`` / ``resume`` of a
+key nothing is armed under), the rest (``automation_off``, ``machine_identity_unavailable``)
 4090, each with ``data.reason``.
 """
 
@@ -13,7 +14,9 @@ from __future__ import annotations
 from typing import Any
 
 from agent_runtime.call_authorization import TIER_CONSOLE
-from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, defer_or_refuse, err, ok
+from agent_runtime.serve_rpc.protocol import (
+    ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, ERR_NOT_FOUND, defer_or_refuse, err, ok,
+)
 from agent_runtime.serve_rpc.registry import method
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 
@@ -21,8 +24,9 @@ __layer__ = "lanes"
 __all__ = ["REFUSAL_CODES", "SCHEDULE_METHOD_PREFIX", "SCHEDULE_OPS"]
 
 SCHEDULE_METHOD_PREFIX = "runtime.schedule."
-SCHEDULE_OPS = ("arm", "disarm", "list")
-REFUSAL_CODES: dict[Reason, int] = {Reason.INVALID: ERR_INVALID_PARAMS, Reason.SCHEDULE_INVALID: ERR_INVALID_PARAMS}
+SCHEDULE_OPS = ("arm", "disarm", "list", "pause", "resume")
+REFUSAL_CODES: dict[Reason, int] = {Reason.INVALID: ERR_INVALID_PARAMS, Reason.SCHEDULE_INVALID: ERR_INVALID_PARAMS,
+                                    Reason.SCHEDULE_NOT_FOUND: ERR_NOT_FOUND}
 
 
 def _schedule_reply(rid: Any, op: str, params: dict) -> dict:

@@ -2,7 +2,8 @@
 
 A persona arms a ``PersonaPrompt`` (a prompt that arrives later as one queued turn of a named persona
 instance) or a ``RunTask`` (a board task run again and again by the agent it names — owner 2026-11-12:
-"agents should also be able to schedule it for you", ``RT-SCHEDULE-RUN-TASK-REPEATS``), lists, or disarms;
+"agents should also be able to schedule it for you", ``RT-SCHEDULE-RUN-TASK-REPEATS``), lists, pauses,
+resumes or disarms;
 batches and frozen Work assignments are armed by the operator only (``runtime.schedule.arm``). An arm goes
 through ``schedule_ops.execute``, so the record it stores is the one the RPC stores. The tool lives in the opt-in ``schedule`` toolset, never ``harness_core``:
 manual by default means a persona schedules only when the operator opted its profile in. It replaces
@@ -27,7 +28,7 @@ SCHEDULE_MANAGE_SCHEMA: dict[str, Any] = {
         "Schedule a prompt to arrive later as a turn of a persona instance's chat (queued behind any turn "
         "already running there), or schedule a board task to be run by an agent (run_task: the task is read "
         "afresh at each run and stays open between runs of a repeating schedule), list armed schedules, or "
-        "disarm one. Triggers: at (UTC ISO time), every "
+        "pause, resume or disarm one. Triggers: at (UTC ISO time), every "
         "(minutes), cron (5-field expression + tz), when_idle (fires once the chat root has been idle for "
         "two ticks). A schedule here delivers a message to an agent's chat; a cron job (cronjob_manage, "
         "where you hold it) runs a standalone job with its own session and delivery target."
@@ -35,7 +36,7 @@ SCHEDULE_MANAGE_SCHEMA: dict[str, Any] = {
     "parameters": {
         "type": "object",
         "properties": {
-            "action": {"type": "string", "enum": ["arm", "list", "disarm"]},
+            "action": {"type": "string", "enum": ["arm", "list", "disarm", "pause", "resume"]},
             "key": {"type": "string", "description": "Schedule key (letters, digits, _ . : -); arm joins an existing key."},
             "persona_instance_id": {"type": "string", "description": "arm: the instance whose chat receives the prompt."},
             "prompt": {"type": "string", "description": "arm: the message the turn starts with."},
@@ -45,6 +46,10 @@ SCHEDULE_MANAGE_SCHEMA: dict[str, Any] = {
                                "goal_mode: none|until_done} — run that board task with that agent.",
             },
             "replace": {"type": "boolean", "description": "arm: overwrite the schedule already under the key."},
+            "ends": {"type": "object",
+                     "description": "arm: {after_fires: <runs, >= 1>, until: <ISO time with offset>} — when it stops."},
+            "skip_while_running": {"type": "boolean",
+                                   "description": "arm run_task: skip a run while the last one is still going (default true)."},
             "trigger": {
                 "type": "object",
                 "description": "arm: {kind: at|every|cron|when_idle, at, minutes, expr, tz, root}.",
@@ -73,6 +78,8 @@ def handle_schedule_manage(args: dict[str, Any], **kwargs: Any) -> str:
     if op == "arm":
         params["action"] = _arm_action(args)
         params["replace"] = args.get("replace") is True
+        params["ends"] = args.get("ends")
+        params["skip_while_running"] = args.get("skip_while_running")
     who = f"tool:schedule_manage:{kwargs.get('task_id') or '-'}"
     try:
         return json.dumps(execute(op, params, armed_by=who), default=str)

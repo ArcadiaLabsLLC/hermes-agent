@@ -1988,7 +1988,7 @@ again.
 
 ### Schedule methods — the serve's scheduler
 
-`runtime.schedule.arm | disarm | list` (`agent_runtime/serve_rpc/schedule.py` over
+`runtime.schedule.arm | disarm | list | pause | resume` (`agent_runtime/serve_rpc/schedule.py` over
 `work_store/schedule_ops.py::OPS`) drive `work_store/serve_scheduler.py::ServeTickScheduler`, the desktop
 runtime's scheduler (dispatcher plan §2.3, §4; upstream cron is not run, `Trigger.from_cron_job` is the
 one door from an upstream job record). `arm` takes `key`, `trigger` (`{kind: manual|at|every|cron|when_idle,
@@ -1997,10 +1997,18 @@ persona_instance_id, prompt}` | `{type: run_assignment, assignment}` | `{type: r
 task_id, persona_instance_id, goal_mode: none|until_done}` | `{type: start_batch, workspace_id,
 plan_id}`), joins an existing key — or, with `replace: true`, overwrites the record under it (an edit) — and
 answers `{"schedule": <record>}`; `list` answers `{"schedules": [<record>], "supports": [<word>]}`
-(`schedule_ops.SUPPORTS`: `run_task`, `replace` — a client shows a control only when its word is there);
-`disarm` `{key, disarmed}`. A record is `store/schedules/<key>.json` (`{key, trigger, action,
-next_fire, last_fire, enabled, owner_machine, armed_at, armed_by, idle_ticks, held_since}`) — the files are
-the whole state. Console tier, deferred through `spawn_reply`. Refusals: `invalid_request` /
+(`schedule_ops.SUPPORTS`: `run_task`, `replace`, `pause`, `ends`, `skip_while_running`, `last_result` — a
+client shows a control only when its word is there); `disarm` `{key, disarmed}`; `pause` / `resume` take
+`{key}`, flip `enabled` and answer `{"schedule": <record>}` (a resume computes `next_fire` from now; a key
+nothing is armed under is `schedule_not_found`, 4001). `arm` also takes `ends` (`{after_fires: <int ≥ 1> |
+null, until: <aware ISO time> | null}`) and `skip_while_running` (default true for a `run_task`). A record is `store/schedules/<key>.json` (`{key, trigger, action,
+next_fire, last_fire, enabled, owner_machine, armed_at, armed_by, idle_ticks, held_since, ends, fires,
+skip_while_running}`) — the files are the whole state; every answered record also carries `last_result`
+(`{verdict: done|blocked|stopped|failed|skipped|refused, at, detail, run_id}` or `null`), kept in its own
+file `store/schedules/results/<key>.json` because the scheduler (a skipped or refused fire) and the Work
+engine (the fire's run settling) both write it. `fires` counts fires that started a run; a schedule whose
+`fires` reached `ends.after_fires`, or whose next fire falls after `ends.until`, is removed with a
+`schedule.ended` receipt; an edit (`replace`) keeps `fires` and `last_result`. Console tier, deferred through `spawn_reply`. Refusals: `invalid_request` /
 `schedule_invalid` (-32602), `automation_off` (a `start_batch` while the workspace's `batch_automation` is
 not `start`) and `machine_identity_unavailable` (4090).
 
@@ -2017,10 +2025,13 @@ the assignment is built at EACH fire from the row as it then reads (title, body,
 the agent and goal mode the action names; a run of an `every` / `cron` schedule that ends DONE RELEASES the
 row instead of archiving it, so the task is open and unclaimed for the next fire; a fire that finds the row
 gone removes the schedule (`schedule.abandoned`, `reason: row_gone`), a fire while the task's last run is
-live is refused `already_taken`, and a board that cannot be read just then refuses that one fire.
+live is SKIPPED when `skip_while_running` (advances `next_fire`, counts nothing, `last_result.verdict:
+skipped`, receipt `schedule.skipped`) and refused `already_taken` when not, and a board that cannot be read
+just then refuses that one fire. A refused fire writes `last_result.verdict: refused`; a run's ending writes
+its verdict when it settles (a `persona_prompt` fire starts no run and writes none).
 The persona tool arms a `run_task` as well (`run_task: {…}` in place of `prompt`), the same record.
 The persona tool is `schedule_manage`, in the opt-in `schedule` toolset (never `harness_core`). Receipts:
-`schedule.arm | disarm | fire | queued | abandoned`.
+`schedule.arm | disarm | fire | queued | abandoned | pause | resume | ended | skipped`.
 
 ### Messaging methods — the headless persona gateway (p10-messaging)
 

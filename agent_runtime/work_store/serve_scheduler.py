@@ -24,7 +24,15 @@ Manual by default: nothing fires unless an operator armed it (``runtime.schedule
   that ends DONE leaves the row open and unclaimed, and a fire that finds the row gone removes the
   schedule (``schedule.abandoned``, ``reason: row_gone``).
 * **``arm(..., replace=True)``** overwrites the record under the key (an edit); without it a second arm
-  joins the first.
+  joins the first. An edit keeps the schedule's ``fires`` count and its ``last_result``.
+* **Pause / resume** (``RT-SCHEDULE-PAUSE-END-AND-LAST-RESULT``) flip ``enabled``; a paused record never
+  fires, and ``resume`` computes ``next_fire`` from now (a paused hour is not caught up).
+* **An end.** ``ends_after_fires`` / ``ends_until``: a schedule whose started fires reached the count, or
+  whose next fire falls after the time, is removed with a ``schedule.ended`` receipt.
+* **``skip_while_running``** (default on for a ``RunTask``): a fire that finds the task's last run still
+  live advances ``next_fire``, counts nothing and records a ``skipped`` ``last_result`` (``schedule.skipped``).
+* **``last_result``** (``schedule_store.write_result``): written here for a ``skipped`` or ``refused`` fire,
+  and by the Work engine when the fire's run settles (``RunRecord.schedule``).
 * **The cap.** At most ``max_parallel`` scheduled turns in flight — the root config's
   ``agent_runtime.scheduler.max_parallel``, read each tick (default 4, ``0`` unlimited); a due fire
   over the cap stays due, logs ``schedule.queued`` once, and its ``schedule.fire`` carries ``waited_s``
@@ -34,7 +42,7 @@ Manual by default: nothing fires unless an operator armed it (``runtime.schedule
   (``schedule.abandoned``).
 * **Never during a drain** (``can_dispatch``), and only the owning machine fires a record.
 
-Receipts: ``schedule.arm | disarm | fire | queued | abandoned``.
+Receipts: ``schedule.arm | disarm | fire | queued | abandoned | pause | resume | ended | skipped``.
 
 Pinned by ``tests/agent_runtime/work_store/test_serve_tick_scheduler.py``, ``test_schedule_tool.py`` and
 ``test_engine.py`` (the scheduled-run rows).
@@ -175,7 +183,8 @@ class ServeTickScheduler:
     # ── the contract ─────────────────────────────────────────────────────
 
     def arm(self, key: str, trigger: Trigger, action: Action, *, armed_by: str = "operator",
-            replace: bool = False) -> Armed:
+            replace: bool = False, ends: tuple[int | None, datetime | None] = (None, None),
+            skip_while_running: bool | None = None) -> Armed:
         """Idempotent by key: a second arm JOINS the first and returns it unchanged — unless ``replace``,
         which overwrites the record under the key (an edit: new trigger, new action, ``next_fire`` from now)."""
 
@@ -189,8 +198,13 @@ class ServeTickScheduler:
             # MUTATION: drop ``or replaced`` and test_serve_tick_scheduler's "replace overwrites" reddens.
             if existing is None or replaced:
                 now = self._clock()
+                if not replaced:
+                    schedule_store.remove(key)  # a result file a removed schedule's late settle left behind
+                skip = isinstance(action, RunTask) and skip_while_running is not False
                 existing = ScheduleRecord(key, trigger, action, _NEXT_FIRE[trigger.kind](trigger, now), now,
-                                          owner_machine=self._machine(), armed_by=armed_by)
+                                          owner_machine=self._machine(), armed_by=armed_by,
+                                          ends_after_fires=ends[0], ends_until=ends[1], skip_while_running=skip,
+                                          fires=existing.fires if replaced else 0)
                 schedule_store.save(existing)
                 joined = False
             else:
@@ -205,6 +219,31 @@ class ServeTickScheduler:
             gone = schedule_store.remove(key)
         receipts.emit("schedule.disarm", key=key, disarmed=gone)
         return gone
+
+    def set_enabled(self, key: str, enabled: bool) -> ScheduleRecord:
+        """Pause (``enabled=False``) or resume the schedule under ``key``; ``schedule_not_found`` for none.
+
+        A resume counts from NOW: ``next_fire`` is recomputed (a paused stretch is never caught up), and a
+        ``WHEN_IDLE`` schedule's 15-minute give-up starts over. Idempotent: the same state is returned as is.
+        """
+
+        with self._lock:
+            record = schedule_store.load_one(key)
+            if record is None:
+                raise WorkRefused(Reason.SCHEDULE_NOT_FOUND, key)
+            if record.enabled != enabled:
+                changes: dict[str, Any] = {"enabled": enabled, "held_since": None, "idle_ticks": 0}
+                if enabled:
+                    now = self._clock()
+                    # MUTATION: keep the stored next_fire and test_serve_tick_scheduler's "resume counts
+                    # from now" reddens (the paused fires all run at once).
+                    changes["next_fire"] = _NEXT_FIRE[record.trigger.kind](record.trigger, now)
+                    if record.trigger.kind is TriggerKind.WHEN_IDLE:
+                        changes["armed_at"] = now
+                record = record.evolve(**changes)
+                schedule_store.save(record)
+        receipts.emit("schedule.resume" if enabled else "schedule.pause", key=key, next_fire=record.next_fire)
+        return record
 
     def armed(self) -> list[Armed]:
         return [record.armed() for record in schedule_store.load_all()]
@@ -232,6 +271,9 @@ class ServeTickScheduler:
             for record in schedule_store.load_all():
                 if not record.enabled or record.owner_machine != mine:
                     continue
+                if self._ended(record, record.next_fire, now):
+                    out.append(self._end(record))
+                    continue
                 if record.trigger.kind is TriggerKind.WHEN_IDLE:
                     record = self._idle_step(record, now, out)
                 if record is not None and (record.next_fire is not None and record.next_fire <= now
@@ -242,7 +284,7 @@ class ServeTickScheduler:
                 if cap and flying >= cap:
                     out += self._hold(record, now, cap)
                     continue
-                out.append(self._fire(record, now))
+                out += self._fire(record, now)
                 flying += 1
             return out
 
@@ -288,7 +330,22 @@ class ServeTickScheduler:
                               next_fire=record.next_fire, action=type(record.action).__name__,
                               reason=Reason.CAP_REACHED.value, max_parallel=cap)]
 
-    def _fire(self, record: ScheduleRecord, now: datetime) -> dict[str, Any]:
+    @staticmethod
+    def _ended(record: ScheduleRecord, next_fire: datetime | None, now: datetime) -> bool:
+        """The schedule has run its course: its count is reached, or what it would fire next is past its date."""
+
+        if record.ends_after_fires is not None and record.fires >= record.ends_after_fires:
+            return True
+        return record.ends_until is not None and (next_fire or now) > record.ends_until
+
+    @staticmethod
+    def _end(record: ScheduleRecord) -> dict[str, Any]:
+        schedule_store.remove(record.key)
+        return receipts.emit("schedule.ended", key=record.key, trigger=record.trigger.kind.value,
+                             action=type(record.action).__name__, fires=record.fires,
+                             after_fires=record.ends_after_fires, until=record.ends_until)
+
+    def _fire(self, record: ScheduleRecord, now: datetime) -> list[dict[str, Any]]:
         fire_id = f"{record.key}:{_stamp(record.next_fire or record.armed_at)}"
         origin = {ORIGIN_KEY: record.key, "fire": fire_id, "fired_at": now.isoformat(timespec="seconds")}
         waited = int((now - record.held_since).total_seconds()) if record.held_since else 0
@@ -299,18 +356,38 @@ class ServeTickScheduler:
         if refused is not None and refused.reason is Reason.ROW_GONE and isinstance(record.action, RunTask):
             # The task was closed or deleted: nothing is left to run, on this fire or any later one.
             schedule_store.remove(record.key)
-            return receipts.emit("schedule.abandoned", key=record.key, trigger=record.trigger.kind.value,
-                                 action=type(record.action).__name__, fire=fire_id,
-                                 reason=refused.reason.value, detail=refused.detail)
+            return [receipts.emit("schedule.abandoned", key=record.key, trigger=record.trigger.kind.value,
+                                  action=type(record.action).__name__, fire=fire_id,
+                                  reason=refused.reason.value, detail=refused.detail)]
         nxt = None if record.trigger.kind in _ONE_SHOT else _NEXT_FIRE[record.trigger.kind](record.trigger, now)
+        live_run = refused.data.get("live_run") if refused is not None else None
+        skipped = bool(live_run) and record.skip_while_running
+        # MUTATION: count every fire (``fires + 1`` unconditionally) and test_serve_tick_scheduler's "a refused
+        # fire counts nothing" reddens.
+        after = record.evolve(next_fire=nxt, last_fire=now, held_since=None, idle_ticks=0,
+                              fires=record.fires + (1 if refused is None else 0))
+        if skipped:
+            schedule_store.write_result(record.key, "skipped", at=now, run_id=str(live_run),
+                                        detail="the task's last run was still going")
+        elif refused is not None:
+            schedule_store.write_result(record.key, "refused", at=now,
+                                        detail=f"{refused.reason.value}: {refused.detail}")
+        if skipped:
+            receipt = receipts.emit("schedule.skipped", key=record.key, trigger=record.trigger.kind.value,
+                                    next_fire=nxt, action=type(record.action).__name__, fire=fire_id,
+                                    run_id=str(live_run))
+        else:
+            receipt = receipts.emit("schedule.fire", key=record.key, trigger=record.trigger.kind.value, next_fire=nxt,
+                                    action=type(record.action).__name__, fire=fire_id, waited_s=waited, **result,
+                                    refused=None if refused is None else refused.reason.value,
+                                    detail=None if refused is None else refused.detail)
         if nxt is None:
             schedule_store.remove(record.key)
-        else:
-            schedule_store.save(record.evolve(next_fire=nxt, last_fire=now, held_since=None, idle_ticks=0))
-        return receipts.emit("schedule.fire", key=record.key, trigger=record.trigger.kind.value, next_fire=nxt,
-                             action=type(record.action).__name__, fire=fire_id, waited_s=waited, **result,
-                             refused=None if refused is None else refused.reason.value,
-                             detail=None if refused is None else refused.detail)
+            return [receipt]
+        if self._ended(after, nxt, now):
+            return [receipt, self._end(after)]
+        schedule_store.save(after)
+        return [receipt]
 
     # ── the fires, one per Action type ───────────────────────────────────
 

@@ -50,6 +50,7 @@ from .. import paths
 from ..serde import write_json_atomic
 from . import receipts
 from .activity import record_view
+from ..chat_root_send_queue import SCHEDULE_ORIGIN_KEY
 from .board import board_rows, pick
 from .executor import (
     CAUSE_OUT_OF_TIME, Assignment, Brief, Executor, GoalMode, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict,
@@ -104,6 +105,8 @@ class RunRecord:
     error: str = ""
     #: A run of a repeating schedule: DONE releases the row instead of archiving it.
     repeats: bool = False
+    #: The schedule key whose fire started the run: its ending is that schedule's ``last_result``.
+    schedule: str = ""
 
     def wire(self) -> dict[str, Any]:
         return {**asdict(self), "ref": asdict(self.ref), "state": self.state.value}
@@ -151,6 +154,15 @@ WRITE_BACKS: dict[Verdict, Callable[[RunRecord, RowEnding, str], list[Step]]] = 
     Verdict.BLOCKED: _blocked,
     Verdict.STOPPED: _stopped,
     Verdict.FAILED: _failed,
+}
+
+
+#: Verdict -> the one line of the ending a schedule's ``last_result.detail`` shows.
+_RESULT_DETAIL: dict[Verdict, Callable[[RowEnding], str]] = {
+    Verdict.DONE: lambda ending: ending.result,
+    Verdict.BLOCKED: lambda ending: ending.question,
+    Verdict.STOPPED: lambda ending: ending.reason,
+    Verdict.FAILED: lambda ending: ending.reason,
 }
 
 
@@ -413,7 +425,8 @@ class WorkEngine:
 
                 writer.apply(RowOp(row.ref, Op.CLAIM, who, f"{assignment.request_id}:claim", {}))
             record = RunRecord(assignment.request_id, row.ref, workspace_id, assignment.persona_instance_id, "", "",
-                               self._stamp(), RecordState.STARTING, who=who, repeats=repeats)
+                               self._stamp(), RecordState.STARTING, who=who, repeats=repeats,
+                               schedule=str(origin.get(SCHEDULE_ORIGIN_KEY) or ""))
             _save(record)
             return self._begin(record, lambda: self.executor.start_from(assignment, origin))
 
@@ -524,6 +537,26 @@ class WorkEngine:
         record.ending = {key: str(value) for key, value in asdict(ending).items()}
         record.state = RecordState.SETTLED
         _save(record)
+        if record.schedule:
+            self._note_schedule(record, ending)
+
+    def _note_schedule(self, record: RunRecord, ending: RowEnding) -> None:
+        """The run's ending as its schedule's ``last_result`` (``RT-SCHEDULE-PAUSE-END-AND-LAST-RESULT``).
+
+        Its own file (``schedule_store.write_result``), so nothing of the scheduler's is locked or re-read
+        here; a schedule since removed takes no result, and a failed write is logged, never the run's.
+        """
+
+        from . import schedule_store
+
+        detail = _RESULT_DETAIL[ending.verdict](ending)
+        if ending.cause == CAUSE_OUT_OF_TIME:
+            detail = f"ran out of time ({detail})" if detail else "ran out of time"
+        try:
+            schedule_store.write_result(record.schedule, ending.verdict.value, at=self._now(), detail=detail,
+                                        run_id=record.run_id)
+        except Exception:
+            logger.warning("schedule %s could not record its last result", record.schedule, exc_info=True)
 
     def _write_back(self, record: RunRecord) -> int:
         ending = RowEnding(**{**record.ending, "verdict": Verdict(record.ending["verdict"])})
