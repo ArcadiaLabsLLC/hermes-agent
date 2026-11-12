@@ -50,7 +50,7 @@ def _clean_id(value: Any) -> str:
     return value.strip()
 
 
-def _workspace(workspaces: WorkspaceStore, workspace_id: Any):
+def _managed_workspace(workspaces: WorkspaceStore, workspace_id: Any):
     try:
         return workspaces.get(_clean_id(workspace_id))
     except NotFound:
@@ -69,7 +69,7 @@ def unarchive_workspace(workspace_id: Any) -> tuple[dict, bool]:
     """
     workspaces, realms = WorkspaceStore(), RealmStore()
     with workspace_realm_assign_lock():
-        workspace = _workspace(workspaces, workspace_id)
+        workspace = _managed_workspace(workspaces, workspace_id)
         realm = None
         if workspace.realm_id:
             try:
@@ -118,7 +118,7 @@ def move_workspace_realm(workspace_id: Any, realm_id: Any) -> tuple[dict, dict]:
     target_id = _clean_id(realm_id)
     workspaces, realms = WorkspaceStore(), RealmStore()
     with workspace_realm_assign_lock():
-        workspace = _workspace(workspaces, workspace_id)
+        workspace = _managed_workspace(workspaces, workspace_id)
         try:
             target = realms.get(target_id)
         except NotFound:
