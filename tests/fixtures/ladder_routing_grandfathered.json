@@ -163,10 +163,6 @@
   },
   {
    "arms": 4,
-   "site": "hermes_cli/harness_support.py|emit_harness_error|isinstance|exc"
-  },
-  {
-   "arms": 4,
    "site": "scripts/doc_cite_adjacency.py|_judge_one|ladder|outcome"
   },
   {
