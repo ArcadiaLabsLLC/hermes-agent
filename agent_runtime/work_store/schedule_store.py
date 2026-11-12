@@ -24,7 +24,7 @@ from ..serde import write_json_atomic
 from .executor import Assignment, Brief, GoalMode
 from .grammar import RowRef
 from .reasons import Reason, WorkRefused
-from .scheduler import KEY, Action, Armed, PersonaPrompt, RunAssignment, StartBatch, Trigger, TriggerKind
+from .scheduler import KEY, Action, Armed, PersonaPrompt, RunAssignment, RunTask, StartBatch, Trigger, TriggerKind
 
 __layer__ = "lanes"
 __all__ = ["SCHEMA_VERSION", "ScheduleRecord", "action_from_wire", "action_wire", "load_all", "load_one",
@@ -86,17 +86,37 @@ def _prompt_from_wire(raw: Mapping[str, Any]) -> PersonaPrompt:
     return PersonaPrompt(instance, prompt)
 
 
+_TASK_FIELDS = ("workspace_id", "slot", "task_id", "persona_instance_id")
+
+
+def _task_wire(action: RunTask) -> dict[str, Any]:
+    return {"type": "run_task", **{name: getattr(action, name) for name in _TASK_FIELDS},
+            "goal_mode": action.goal_mode.value}
+
+
+def _task_from_wire(raw: Mapping[str, Any]) -> RunTask:
+    """``{type: run_task, workspace_id, slot, task_id, persona_instance_id, goal_mode}``; every id is required."""
+
+    fields = {name: str(raw.get(name) or "").strip() for name in _TASK_FIELDS}
+    missing = [name for name, value in fields.items() if not value]
+    if missing:
+        raise ValueError(f"a run_task needs {', '.join(missing)}")
+    return RunTask(**fields, goal_mode=GoalMode(raw.get("goal_mode") or "none"))
+
+
 #: Action type -> (wire word, to wire); the wire word -> from wire. An Action is never a script (RT-D1).
 _ACTION_TO_WIRE: dict[type, Callable[[Any], dict[str, Any]]] = {
     StartBatch: lambda a: {"type": "start_batch", "workspace_id": a.workspace_id, "plan_id": a.plan_id},
     PersonaPrompt: lambda a: {"type": "persona_prompt", "persona_instance_id": a.persona_instance_id,
                               "prompt": a.prompt},
     RunAssignment: _assignment_wire,
+    RunTask: _task_wire,
 }
 _ACTION_FROM_WIRE: dict[str, Callable[[Mapping[str, Any]], Action]] = {
     "start_batch": lambda raw: StartBatch(str(raw["workspace_id"]), str(raw["plan_id"])),
     "persona_prompt": _prompt_from_wire,
     "run_assignment": _assignment_from_wire,
+    "run_task": _task_from_wire,
 }
 
 
@@ -107,7 +127,7 @@ def action_wire(action: Action) -> dict[str, Any]:
 def action_from_wire(raw: Mapping[str, Any]) -> Action:
     build = _ACTION_FROM_WIRE.get(str(raw.get("type") or "")) if isinstance(raw, Mapping) else None
     if build is None:
-        raise WorkRefused(Reason.SCHEDULE_INVALID, "an action is start_batch, persona_prompt or run_assignment")
+        raise WorkRefused(Reason.SCHEDULE_INVALID, "an action is start_batch, persona_prompt, run_assignment or run_task")
     try:
         return build(raw)
     except (KeyError, TypeError, ValueError) as exc:

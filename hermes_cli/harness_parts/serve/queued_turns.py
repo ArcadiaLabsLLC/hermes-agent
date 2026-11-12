@@ -179,6 +179,7 @@ def start_serve_scheduler(session: Any) -> Any:
         session.scheduler = ServeTickScheduler(executor=session.work_executor,
                                                start_batch=_start_batch_door(session),
                                                start_assignment=getattr(getattr(session, "work_engine", None), "adopt", None),
+                                               start_task=getattr(getattr(session, "work_engine", None), "adopt_task", None),
                                                can_dispatch=lambda: session.drain_state is None)
     start_schedule_ticker(stop_event=session.liveness_stop, scheduler=session.scheduler, home=home)
     return session.scheduler

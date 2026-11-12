@@ -422,6 +422,80 @@ def test_a_scheduled_assignment_on_a_row_another_claimant_holds_is_refused(board
     assert records() == []
 
 
+# ── RT-SCHEDULE-RUN-TASK-REPEATS: a scheduled RunTask builds its assignment at each fire ──
+
+
+def _task_schedule(board, *rows, minutes=5, goal_mode="none"):
+    from datetime import UTC, datetime, timedelta
+
+    from agent_runtime.work_store.executor import GoalMode
+    from agent_runtime.work_store.scheduler import RunTask, Trigger
+    from agent_runtime.work_store.serve_scheduler import ServeTickScheduler
+
+    writer, b = board(*rows)
+    engine, executor = _engine(writer, b, executor=_OriginExecutor())
+    at = datetime(2026, 10, 18, 12, 0, tzinfo=UTC)
+    scheduler = ServeTickScheduler(executor=executor, machine=lambda: "machine-a", clock=lambda: at,
+                                   start_task=engine.adopt_task)
+    scheduler.arm("nightly", Trigger.every(minutes), RunTask(WS, "repo", "RT-S", "inst-1", GoalMode(goal_mode)))
+    return writer, engine, executor, scheduler, [at + timedelta(minutes=minutes * n) for n in (1, 2, 3)]
+
+
+def test_a_repeating_scheduled_task_stays_open_and_each_fire_reads_the_row_as_it_is_then(board):
+    """Killing mutations: ``_done`` ignores ``record.repeats`` → the first DONE archives the row and the second
+    fire abandons, red; ``adopt_task`` reusing the first fire's assignment → the second brief is stale, red."""
+
+    writer, engine, executor, scheduler, (t1, t2, _t3) = _task_schedule(board, _row("RT-S"), goal_mode="until_done")
+    [fire] = scheduler.tick(t1)
+    assert fire["refused"] is None and fire["request_id"] == "nightly@20261018T120500Z"
+    [first] = executor.started
+    assert first.request_id == "nightly@20261018T120500Z" and first.persona_instance_id == "inst-1"
+    assert first.goal_mode.value == "until_done" and first.brief.title == "do rt-s"
+    assert _rows(writer)["RT-S"].taken.who == "persona:inst-1"
+    executor.settle(first, RowEnding(Verdict.DONE, result="ran"))
+    row = _rows(writer)["RT-S"]
+    assert row.taken is None and row.status is Status.READY, "DONE leaves the task open and unclaimed"
+    assert row_defects(row.raw) == []
+    note = writer.worktree / NOTE
+    note.write_text(note.read_text(encoding="utf-8").replace("do rt-s", "do the edited thing"), encoding="utf-8")
+    engine.tick()  # reaps the closed record of the first run
+    [fire] = scheduler.tick(t2)
+    assert fire["refused"] is None
+    second = executor.started[1]
+    assert second.request_id == "nightly@20261018T121000Z" and second.brief.title == "do the edited thing"
+    assert "do the edited thing" in second.brief.inputs[0]
+
+
+def test_a_scheduled_task_whose_row_is_gone_removes_its_schedule(board):
+    from agent_runtime.work_store import schedule_store
+
+    writer, _engine_, executor, scheduler, (t1, _t2, _t3) = _task_schedule(board, _row("RT-OTHER"))
+    [receipt] = scheduler.tick(t1)
+    assert receipt["kind"] == "schedule.abandoned" and receipt["reason"] == "row_gone"
+    assert executor.started == [] and schedule_store.load_all() == [] and writer.ops == []
+
+
+def test_a_scheduled_task_whose_board_cannot_be_read_keeps_its_schedule(board):
+    """A sync refusal is that fire's refusal, never "the row is gone".
+    Killing mutation: ``_locate`` ignores ``view.refused`` → the fire reads ``row_gone`` and abandons, red."""
+
+    from agent_runtime.work_store import schedule_store
+
+    writer, engine, executor, scheduler, (t1, _t2, _t3) = _task_schedule(board, _row("RT-S"))
+    engine._sync = lambda ws: Synced([], {}, False, {"repo": WorkRefused(Reason.UNAVAILABLE, "fetch failed")})
+    [fire] = scheduler.tick(t1)
+    assert fire["kind"] == "schedule.fire" and fire["refused"] == Reason.UNAVAILABLE.value
+    assert [r.key for r in schedule_store.load_all()] == ["nightly"] and executor.started == []
+
+
+def test_a_scheduled_task_fire_while_its_last_run_is_live_is_refused_naming_the_run(board):
+    _writer, _engine_, executor, scheduler, (t1, t2, _t3) = _task_schedule(board, _row("RT-S"))
+    scheduler.tick(t1)
+    [fire] = scheduler.tick(t2)
+    assert fire["refused"] == Reason.ALREADY_TAKEN.value and "nightly@20261018T120500Z" in fire["detail"]
+    assert len(executor.started) == 1
+
+
 def test_a_row_with_skills_hands_them_to_the_assignment(board):
     """p10-work S1: ``Assignment.skills`` is DERIVED from the row's ``skills:`` segment, never a pointer."""
 

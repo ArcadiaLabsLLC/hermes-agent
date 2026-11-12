@@ -6,7 +6,11 @@ tick, so a verb needs no handle on the running ticker. Refusals raise ``WorkRefu
 
 ``arm`` params: ``key``; ``trigger`` (the wire: ``{kind, at, minutes, expr, tz, root, settle_ticks}``)
 or ``cron_job`` (an upstream job record, read through ``Trigger.from_cron_job`` with ``tz``); ``action``
-(``{type: persona_prompt | run_assignment | start_batch, …}``).
+(``{type: persona_prompt | run_assignment | run_task | start_batch, …}``); ``replace: true`` overwrites the
+record already under the key (an edit) where a plain second arm joins it.
+
+``list`` answers ``supports`` beside ``schedules``: the words (:data:`SUPPORTS`) a client waits for before it
+shows a control (``RT-SCHEDULE-RUN-TASK-REPEATS``).
 """
 
 from __future__ import annotations
@@ -20,7 +24,11 @@ from .scheduler import Trigger
 from .serve_scheduler import ServeTickScheduler
 
 __layer__ = "lanes"
-__all__ = ["OPS", "execute"]
+__all__ = ["OPS", "SUPPORTS", "execute"]
+
+#: What this scheduler serves, as ``runtime.schedule.list`` says it: ``run_task`` (the action), ``replace``
+#: (``arm``'s overwrite).
+SUPPORTS: tuple[str, ...] = ("run_task", "replace")
 
 
 def _schedule_key(params: Mapping[str, Any]) -> str:
@@ -45,7 +53,8 @@ def _arm(scheduler: ServeTickScheduler, params: Mapping[str, Any], armed_by: str
     raw_action = params.get("action")
     if not isinstance(raw_action, Mapping):
         raise WorkRefused(Reason.INVALID, "action is required")
-    scheduler.arm(key, _trigger(params), schedule_store.action_from_wire(raw_action), armed_by=armed_by)
+    scheduler.arm(key, _trigger(params), schedule_store.action_from_wire(raw_action), armed_by=armed_by,
+                  replace=params.get("replace") is True)
     record = schedule_store.load_one(key)
     return {"schedule": None if record is None else record.wire()}
 
@@ -56,7 +65,7 @@ def _disarm(scheduler: ServeTickScheduler, params: Mapping[str, Any], _armed_by:
 
 
 def _list(scheduler: ServeTickScheduler, _params: Mapping[str, Any], _armed_by: str) -> dict[str, Any]:
-    return {"schedules": [record.wire() for record in scheduler.records()]}
+    return {"schedules": [record.wire() for record in scheduler.records()], "supports": list(SUPPORTS)}
 
 
 OPS: dict[str, Callable[[ServeTickScheduler, Mapping[str, Any], str], dict[str, Any]]] = {

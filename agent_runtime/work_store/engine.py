@@ -12,7 +12,11 @@ rebuilt from those files, so a restart loses nothing. A record moves
 starting a second one; ``settled`` holds the outcome until the write-back lands; ``closed`` is reaped.
 
 A scheduled ``RunAssignment`` fire comes in through ``WorkEngine.adopt``: the one place the engine
-claims, for the row an operator armed, so that run is recorded and written back like any other.
+claims, for the row an operator armed, so that run is recorded and written back like any other. A
+scheduled ``RunTask`` fire comes in through ``WorkEngine.adopt_task``, which builds the assignment from
+the row as it reads at that fire; a run of a REPEATING schedule (``RunRecord.repeats``) that ends DONE
+releases the row instead of archiving it, so the task is open and unclaimed for the next fire
+(``RT-SCHEDULE-RUN-TASK-REPEATS``).
 
 ``tick`` runs three phases, in order: (1) settle what ended without reporting — a run that ended while
 the serve was down (seen at construction, before the runner's first pass) or whose settle never
@@ -47,7 +51,9 @@ from ..serde import write_json_atomic
 from . import receipts
 from .activity import record_view
 from .board import board_rows, pick
-from .executor import CAUSE_OUT_OF_TIME, Assignment, Brief, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
+from .executor import (
+    CAUSE_OUT_OF_TIME, Assignment, Brief, Executor, GoalMode, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict,
+)
 from .grammar import Op, Row, RowRef, Status, render_status, segment_text
 from .reasons import Reason, WorkRefused
 
@@ -96,6 +102,8 @@ class RunRecord:
     run_id: str = ""
     ending: dict[str, str] | None = None
     error: str = ""
+    #: A run of a repeating schedule: DONE releases the row instead of archiving it.
+    repeats: bool = False
 
     def wire(self) -> dict[str, Any]:
         return {**asdict(self), "ref": asdict(self.ref), "state": self.state.value}
@@ -111,6 +119,9 @@ Step = tuple[str, Op, dict[str, Any]]
 
 
 def _done(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
+    # MUTATION: drop this arm and test_engine's "a repeating scheduled task stays open" reddens.
+    if record.repeats:
+        return [("done:release", Op.RELEASE, {})]
     return [("done", Op.CLOSE, {"outcome": "DONE", "date": date, "commit": ending.commit,
                                 "result": " ".join(str(ending.result or "done").split())[:4000]})]
 
@@ -363,16 +374,37 @@ class WorkEngine:
 
         if len(assignment.rows) != 1:
             raise WorkRefused(Reason.SCHEDULE_INVALID, "a scheduled assignment runs one row; schedule a batch for more")
-        who = f"persona:{assignment.persona_instance_id}"
         with self._lock:
             workspace_id, row, writer = self._locate(assignment.rows[0])
+            return self._adopt_row(workspace_id, row, writer, assignment, origin)
+
+    def adopt_task(self, action: Any, request_id: str, origin: Mapping[str, Any], *, repeats: bool = False) -> Run:
+        """A scheduled ``RunTask`` fire made an engine run: :meth:`adopt`, with the assignment built HERE.
+
+        The brief is the row as it reads now (title, body, pointers, lent skills — :meth:`_assignment`),
+        for the agent and goal mode the action names, so nothing is frozen at arm time. ``repeats`` marks a
+        run of an ``every`` / ``cron`` schedule: its DONE releases the row for the next fire. The row is
+        looked for in the action's workspace only; ``row_gone`` when it is not there.
+        """
+
+        with self._lock:
+            workspace_id, row, writer = self._locate(RowRef(action.slot, "", action.task_id),
+                                                     workspace_id=action.workspace_id)
+            assignment = self._assignment(row, writer, request_id, persona=action.persona_instance_id,
+                                          goal_mode=GoalMode(action.goal_mode))
+            return self._adopt_row(workspace_id, row, writer, assignment, origin, repeats=repeats)
+
+    def _adopt_row(self, workspace_id: str, row: Row, writer: Any, assignment: Assignment,
+                   origin: Mapping[str, Any], *, repeats: bool = False) -> Run:
+        who = f"persona:{assignment.persona_instance_id}"
+        with self._lock:
             if row.taken is not None and row.taken.who != who:
                 raise WorkRefused(Reason.ALREADY_TAKEN, row.taken.who)
             live = next((r.request_id for r in records()
                          if r.ref == row.ref and r.state is not RecordState.CLOSED),
                         None)
             if live is not None:
-                raise WorkRefused(Reason.ALREADY_TAKEN, f"run {live}")
+                raise WorkRefused(Reason.ALREADY_TAKEN, f"run {live}", data={"live_run": live})
             refusal = self.executor.can_start(assignment)
             if refusal is not None:
                 raise WorkRefused(refusal, assignment.persona_instance_id)
@@ -381,15 +413,22 @@ class WorkEngine:
 
                 writer.apply(RowOp(row.ref, Op.CLAIM, who, f"{assignment.request_id}:claim", {}))
             record = RunRecord(assignment.request_id, row.ref, workspace_id, assignment.persona_instance_id, "", "",
-                               self._stamp(), RecordState.STARTING, who=who)
+                               self._stamp(), RecordState.STARTING, who=who, repeats=repeats)
             _save(record)
             return self._begin(record, lambda: self.executor.start_from(assignment, origin))
 
-    def _locate(self, ref: RowRef) -> tuple[str, Row, Any]:
-        """The workspace, the row and the writer of the row ``ref`` names (by its board — its slot — and ID)."""
+    def _locate(self, ref: RowRef, *, workspace_id: str | None = None) -> tuple[str, Row, Any]:
+        """The workspace, the row and the writer of the row ``ref`` names (by its board — its slot — and ID),
+        in ``workspace_id`` alone when one is named."""
 
-        for workspace_id in self._workspaces():
+        for found in ([workspace_id] if workspace_id else self._workspaces()):
+            workspace_id = found
             view = self._sync(workspace_id)
+            unread = getattr(view, "refused", {}).get(ref.slot)
+            if unread is not None:
+                # The board could not be read just now: that is its own refusal, never "the row is gone"
+                # (a scheduled task's schedule is removed on ``row_gone``).
+                raise unread
             board = pick(view.boards, ref.slot)
             writer = view.writers.get(board.key) if board is not None else None
             if board is None or writer is None or board.read_root is None:
@@ -399,11 +438,15 @@ class WorkEngine:
                 return workspace_id, row, writer
         raise WorkRefused(Reason.ROW_GONE, f"{ref.slot}/{ref.id}")
 
-    def _assignment(self, row: Row, writer: Any, request_id: str) -> Assignment:
+    def _assignment(self, row: Row, writer: Any, request_id: str, *, persona: str | None = None,
+                    goal_mode: GoalMode = GoalMode.NONE) -> Assignment:
+        """The row's assignment: for its claimant, or for ``persona`` (a scheduled task's agent)."""
+
         body = self._brief_of(row, writer)
         brief = Brief(title=row.title, objective=body or row.title,
                       inputs=(row.raw, *(f"`{pointer}`" for pointer in row.pointers)), constraints=(_CONSTRAINT,))
-        return Assignment((row.ref,), row.taken.persona_instance_id, brief, request_id, skills=row.skills)
+        return Assignment((row.ref,), persona or row.taken.persona_instance_id, brief, request_id,
+                          goal_mode=goal_mode, skills=row.skills)
 
     def _start(self, record: RunRecord, assignment: Assignment) -> str:
         try:

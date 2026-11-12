@@ -79,6 +79,53 @@ def test_the_tool_arms_only_a_persona_prompt():
     assert json.loads(handle_schedule_manage({"action": "list"}))["schedules"][0]["key"] == "t1"
 
 
+# ── RT-SCHEDULE-RUN-TASK-REPEATS: a schedule runs a board task; an agent can arm one too ──
+
+TASK_ACTION = {"type": "run_task", "workspace_id": "ws-1", "slot": "repo", "task_id": "RT-N",
+               "persona_instance_id": "inst-1", "goal_mode": "until_done"}
+EVERY_HOUR = {"kind": "every", "minutes": 60}
+
+
+def test_arm_echoes_a_run_task_action_and_list_says_it_serves_one():
+    """Killing mutation: drop ``run_task`` from ``schedule_store._ACTION_FROM_WIRE`` → the arm refuses, red."""
+
+    schedule = _call("arm", key="nightly", trigger=EVERY_HOUR, action=TASK_ACTION)["result"]["schedule"]
+    assert schedule["action"] == TASK_ACTION
+    listed = _call("list")["result"]
+    assert "run_task" in listed["supports"] and "replace" in listed["supports"]
+    assert listed["schedules"][0]["action"] == TASK_ACTION
+    short = _call("arm", key="bad", trigger=EVERY_HOUR, action={**TASK_ACTION, "task_id": ""})
+    assert short["error"]["data"]["reason"] == "schedule_invalid"
+    odd = _call("arm", key="odd", trigger=EVERY_HOUR, action={**TASK_ACTION, "goal_mode": "forever"})
+    assert odd["error"]["data"]["reason"] == "schedule_invalid"
+
+
+def test_arm_with_replace_overwrites_and_without_it_joins():
+    _call("arm", key="k", trigger=EVERY_HOUR, action=TASK_ACTION)
+    joined = _call("arm", key="k", trigger={"kind": "every", "minutes": 5}, action=PROMPT_ACTION)
+    assert joined["result"]["schedule"]["action"] == TASK_ACTION
+    edited = _call("arm", key="k", trigger={"kind": "every", "minutes": 5}, action=PROMPT_ACTION, replace=True)
+    assert edited["result"]["schedule"]["action"] == PROMPT_ACTION
+    assert edited["result"]["schedule"]["trigger"]["minutes"] == 5
+    assert [s["action"] for s in _call("list")["result"]["schedules"]] == [PROMPT_ACTION]
+
+
+def test_the_tool_arms_a_run_task_as_the_same_record_the_rpc_stores():
+    """The owner's "agents should also be able to schedule it for you": one record, whoever armed it.
+    Killing mutation: ``_arm_action`` ignores ``run_task`` (arms the prompt) → the actions differ, red."""
+
+    task = {key: value for key, value in TASK_ACTION.items() if key != "type"}
+    by_rpc = _call("arm", key="by-rpc", trigger=EVERY_HOUR, action=TASK_ACTION)["result"]["schedule"]
+    by_tool = json.loads(handle_schedule_manage({"action": "arm", "key": "by-tool", "trigger": EVERY_HOUR,
+                                                 "run_task": task}, task_id="sess-1"))["schedule"]
+    who = {"key", "armed_by", "armed_at", "next_fire"}
+    assert {k: v for k, v in by_tool.items() if k not in who} == {k: v for k, v in by_rpc.items() if k not in who}
+    assert by_tool["action"] == TASK_ACTION and by_tool["armed_by"] == "tool:schedule_manage:sess-1"
+    again = json.loads(handle_schedule_manage({"action": "arm", "key": "by-tool", "trigger": EVERY_HOUR,
+                                               "persona_instance_id": "inst-1", "prompt": "ping", "replace": True}))
+    assert again["schedule"]["action"]["type"] == "persona_prompt"
+
+
 def _plugin_tools() -> dict[str, str]:
     """The plugin's real ``register`` against a recording context: tool name -> toolset."""
 

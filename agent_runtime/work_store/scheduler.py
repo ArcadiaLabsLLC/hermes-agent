@@ -2,7 +2,7 @@
 
 A schedule is ``(key, Trigger, Action)``. The trigger vocabulary ``AT | EVERY | CRON`` is upstream's
 ``cron/jobs.py::parse_schedule`` kinds ``once | interval | cron`` one-to-one; ``WHEN_IDLE`` is the
-Launcher's ``AfterReplyScheduler`` rule; ``MANUAL`` is the default. An ``Action`` is one of three
+Launcher's ``AfterReplyScheduler`` rule; ``MANUAL`` is the default. An ``Action`` is one of four
 typed records and never a script (RT-D1 by construction).
 
 :class:`ManualScheduler` is the one production implementation until B4's ``ServeTickScheduler``:
@@ -22,7 +22,7 @@ from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import receipts
-from .executor import Assignment
+from .executor import Assignment, GoalMode
 from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
@@ -34,6 +34,7 @@ __all__ = [
     "ManualScheduler",
     "PersonaPrompt",
     "RunAssignment",
+    "RunTask",
     "Scheduler",
     "StartBatch",
     "Trigger",
@@ -189,7 +190,23 @@ class PersonaPrompt:
     prompt: str
 
 
-Action = StartBatch | RunAssignment | PersonaPrompt
+@dataclass(frozen=True)
+class RunTask:
+    """Run a board task with the agent the operator picked (``RT-SCHEDULE-RUN-TASK-REPEATS``).
+
+    Unlike a :class:`RunAssignment` the action carries no brief: the Work engine builds the assignment at
+    EACH fire from the row as it then reads (``WorkEngine.adopt_task``), so an edit of the task between
+    fires is what the next run works.
+    """
+
+    workspace_id: str
+    slot: str
+    task_id: str
+    persona_instance_id: str
+    goal_mode: GoalMode = GoalMode.NONE
+
+
+Action = StartBatch | RunAssignment | PersonaPrompt | RunTask
 
 
 @dataclass(frozen=True)

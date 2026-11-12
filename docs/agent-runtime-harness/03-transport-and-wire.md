@@ -1993,9 +1993,12 @@ again.
 runtime's scheduler (dispatcher plan §2.3, §4; upstream cron is not run, `Trigger.from_cron_job` is the
 one door from an upstream job record). `arm` takes `key`, `trigger` (`{kind: manual|at|every|cron|when_idle,
 at, minutes, expr, tz, root, settle_ticks}`) or `cron_job` (+ `tz`), and `action` (`{type: persona_prompt,
-persona_instance_id, prompt}` | `{type: run_assignment, assignment}` | `{type: start_batch, workspace_id,
-plan_id}`), joins an existing key, and answers `{"schedule": <record>}`; `list` answers `{"schedules":
-[<record>]}`; `disarm` `{key, disarmed}`. A record is `store/schedules/<key>.json` (`{key, trigger, action,
+persona_instance_id, prompt}` | `{type: run_assignment, assignment}` | `{type: run_task, workspace_id, slot,
+task_id, persona_instance_id, goal_mode: none|until_done}` | `{type: start_batch, workspace_id,
+plan_id}`), joins an existing key — or, with `replace: true`, overwrites the record under it (an edit) — and
+answers `{"schedule": <record>}`; `list` answers `{"schedules": [<record>], "supports": [<word>]}`
+(`schedule_ops.SUPPORTS`: `run_task`, `replace` — a client shows a control only when its word is there);
+`disarm` `{key, disarmed}`. A record is `store/schedules/<key>.json` (`{key, trigger, action,
 next_fire, last_fire, enabled, owner_machine, armed_at, armed_by, idle_ticks, held_since}`) — the files are
 the whole state. Console tier, deferred through `spawn_reply`. Refusals: `invalid_request` /
 `schedule_invalid` (-32602), `automation_off` (a `start_batch` while the workspace's `batch_automation` is
@@ -2009,6 +2012,13 @@ chat root (`PersonaTurnExecutor.queue_prompt` / `start_from`), its origin naming
 A `run_assignment` fire is the Work engine's (`WorkEngine.adopt`): its one row is claimed
 `persona:<instance_id>`, recorded and started, so its settle is written back like any engine run; a fire
 on a row another claimant holds is refused `already_taken`, a multi-row assignment `schedule_invalid`.
+A `run_task` fire is the engine's too (`WorkEngine.adopt_task`), under the request id `<key>@<fire stamp>`:
+the assignment is built at EACH fire from the row as it then reads (title, body, pointers, lent skills) for
+the agent and goal mode the action names; a run of an `every` / `cron` schedule that ends DONE RELEASES the
+row instead of archiving it, so the task is open and unclaimed for the next fire; a fire that finds the row
+gone removes the schedule (`schedule.abandoned`, `reason: row_gone`), a fire while the task's last run is
+live is refused `already_taken`, and a board that cannot be read just then refuses that one fire.
+The persona tool arms a `run_task` as well (`run_task: {…}` in place of `prompt`), the same record.
 The persona tool is `schedule_manage`, in the opt-in `schedule` toolset (never `harness_core`). Receipts:
 `schedule.arm | disarm | fire | queued | abandoned`.
 

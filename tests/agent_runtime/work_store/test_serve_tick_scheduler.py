@@ -25,7 +25,8 @@ from agent_runtime.work_store.executor import Assignment, Brief
 from agent_runtime.work_store.grammar import RowRef
 from agent_runtime.work_store.persona_turn import PersonaTurnExecutor
 from agent_runtime.work_store.reasons import Reason, WorkRefused
-from agent_runtime.work_store.scheduler import PersonaPrompt, RunAssignment, StartBatch, Trigger
+from agent_runtime.work_store.executor import GoalMode
+from agent_runtime.work_store.scheduler import PersonaPrompt, RunAssignment, RunTask, StartBatch, Trigger
 from agent_runtime.work_store.serve_scheduler import ABANDON_AFTER, ORIGIN_KEY, ServeTickScheduler
 
 ROOT = "persona_chat_root_sched"
@@ -350,3 +351,86 @@ def test_each_fire_of_a_repeating_assignment_runs_under_its_own_request_id():
     first, second = (a.request_id for a in adopted)
     assert first == "ws:repo:RT-N:r@20261018T120500Z" and second == "ws:repo:RT-N:r@20261018T121000Z"
     assert adopted[0].rows == armed.rows and schedule_store.load_one("repeat").action.assignment == armed
+
+
+# ── RT-SCHEDULE-RUN-TASK-REPEATS ──
+
+TASK = RunTask("ws-1", "repo", "RT-N", "inst-1", GoalMode.UNTIL_DONE)
+
+
+def _task_door(calls, refuse=None):
+    def start(action, request_id, origin, *, repeats):
+        calls.append((action, request_id, dict(origin), repeats))
+        if refuse is not None:
+            raise refuse
+        return SimpleNamespace(run_id=f"root/work-{request_id}")
+    return start
+
+
+def test_each_fire_of_a_run_task_asks_the_engine_under_key_at_fire_stamp():
+    """Killing mutation: ``_fire_task`` passes ``repeats=False`` → the ``every`` rows' flag is False, red."""
+
+    calls = []
+    scheduler, _ = _scheduler(start_task=_task_door(calls))
+    scheduler.arm("nightly", Trigger.every(5), TASK)
+    [first] = scheduler.tick(T0 + timedelta(minutes=5))
+    scheduler.tick(T0 + timedelta(minutes=10))
+    assert [c[1] for c in calls] == ["nightly@20261018T120500Z", "nightly@20261018T121000Z"]
+    assert all(c[0] == TASK and c[3] is True and c[2][ORIGIN_KEY] == "nightly" for c in calls)
+    assert first["refused"] is None and first["run_id"] == "root/work-nightly@20261018T120500Z"
+    assert schedule_store.load_one("nightly").action == TASK, "the record still carries the action as armed"
+    once = []
+    scheduler, _ = _scheduler(start_task=_task_door(once))
+    scheduler.arm("once", Trigger.at_utc(T0), TASK)
+    scheduler.tick(T0)
+    assert once[0][3] is False, "a one-shot's run archives its task like any other"
+
+
+def test_a_run_task_fire_that_finds_the_row_gone_removes_the_schedule():
+    """Killing mutation: drop the ``row_gone`` arm of ``_fire`` → the schedule stays and refuses for ever, red."""
+
+    scheduler, _ = _scheduler(start_task=_task_door([], WorkRefused(Reason.ROW_GONE, "repo/RT-N")))
+    scheduler.arm("gone", Trigger.every(5), TASK)
+    [receipt] = scheduler.tick(T0 + timedelta(minutes=5))
+    assert receipt["kind"] == "schedule.abandoned" and receipt["reason"] == "row_gone"
+    assert schedule_store.load_one("gone") is None
+    busy, _ = _scheduler(start_task=_task_door([], WorkRefused(Reason.ALREADY_TAKEN, "lane-x")))
+    busy.arm("busy", Trigger.every(5), TASK)
+    [fire] = busy.tick(T0 + timedelta(minutes=5))
+    assert fire["kind"] == "schedule.fire" and fire["refused"] == "already_taken"
+    assert schedule_store.load_one("busy") is not None, "any other refusal keeps the schedule for its next fire"
+
+
+def test_a_run_task_fire_without_a_bound_engine_is_refused():
+    scheduler, _ = _scheduler()
+    scheduler.arm("unbound", Trigger.every(5), TASK)
+    [fire] = scheduler.tick(T0 + timedelta(minutes=5))
+    assert fire["refused"] == Reason.DOOR_UNBOUND.value and _scheduled_entries() == []
+
+
+def test_arm_with_replace_overwrites_the_record_under_the_key():
+    scheduler, clock = _scheduler()
+    scheduler.arm("a", Trigger.every(10), PROMPT)
+    clock.now = T0 + timedelta(hours=1)
+    edited = scheduler.arm("a", Trigger.every(99), TASK, replace=True)
+    assert edited.action == TASK and edited.trigger.minutes == 99
+    assert edited.next_fire == clock.now + timedelta(minutes=99), "an edit's next fire counts from the edit"
+    assert schedule_store.load_one("a").action == TASK
+
+
+def test_the_serve_binds_run_task_to_its_work_engine():
+    import threading
+
+    from hermes_cli.harness_parts.serve.queued_turns import start_serve_scheduler
+
+    stop = threading.Event()
+    stop.set()
+    calls = []
+    engine = SimpleNamespace(adopt=None, adopt_task=_task_door(calls))
+    session = SimpleNamespace(work_executor=None, work_engine=engine, liveness_stop=stop, drain_state=None,
+                              serve_request_home=None)
+    scheduler = start_serve_scheduler(session)
+    scheduler._machine = lambda: "machine-a"
+    scheduler.arm("bound", Trigger.at_utc(T0), TASK)
+    [receipt] = scheduler.tick(T0)
+    assert receipt["refused"] is None and calls[0][0] == TASK
