@@ -71,15 +71,47 @@ def _read_completion_rows(conn, lineage):
 
 def _read_result_messages(conn, lineage):
     placeholders = ",".join("?" for _ in lineage)
-    messages = conn.execute(f"""SELECT id, substr(content,1,{MAX_DOCUMENT + 1}), timestamp FROM messages
-        WHERE session_id IN ({placeholders}) AND role='tool' AND tool_name='delegate_task'
+    messages = conn.execute(f"""SELECT id, substr(content,1,{MAX_DOCUMENT + 1}), timestamp, session_id, tool_call_id
+        FROM messages WHERE session_id IN ({placeholders}) AND role='tool' AND tool_name='delegate_task'
         AND (active=1 OR compacted=1) ORDER BY id DESC LIMIT ?""", (*lineage, MAX_RECORDS + 1)).fetchall()
     return messages
+
+
+def _call_goals(conn, session_id, message_id, tool_call_id):
+    """``{task_index: goal}`` of the ``delegate_task`` call a transcript result answers; ``{}`` when unread.
+
+    ``RT-SUBAGENT-HISTORY-RESULT-HAS-NO-GOAL``: upstream's result entry carries no goal, so a result read
+    from the transcript — every synchronous delegation, so every helper a helper ran — was listed with
+    none ("Task 1"). The goal is the argument of the assistant's call with the result's own ``tool_call_id``,
+    the nearest one BEFORE it in the SAME session (a call id is unique per session at best). A single task
+    is index 0, as upstream numbers it; anything unreadable is no goal, never a guess.
+    """
+    if not isinstance(tool_call_id, str) or not tool_call_id:
+        return {}
+    row = conn.execute(f"""SELECT substr(tool_calls,1,{MAX_DOCUMENT + 1}) FROM messages WHERE session_id=? AND id<?
+        AND role='assistant' AND tool_calls IS NOT NULL AND instr(tool_calls, ?) > 0 ORDER BY id DESC LIMIT 1""",
+        (session_id, message_id, tool_call_id)).fetchone()
+    if row is None or not isinstance(row[0], str) or len(row[0]) > MAX_DOCUMENT:
+        return {}
+    try:
+        calls = json.loads(row[0])
+    except ValueError:
+        return {}
+    call = next((c for c in calls if isinstance(c, dict) and c.get("id") == tool_call_id), None) if isinstance(calls, list) else None
+    function = call.get("function") if call else None
+    if not isinstance(function, dict) or function.get("name") != "delegate_task":
+        return {}
+    arguments = function.get("arguments")
+    arguments = history_object(arguments) if isinstance(arguments, str) else arguments if isinstance(arguments, dict) else {}
+    tasks = arguments.get("tasks")
+    goals = [t.get("goal") if isinstance(t, dict) else None for t in tasks] if isinstance(tasks, list) and tasks else [arguments.get("goal")]
+    return {index: goal for index, goal in enumerate(goals) if isinstance(goal, str) and goal.strip()}
 
 
 def read_result_history(db_path, delegation_db_path, lineage):
     with closing(sqlite3.connect(Path(db_path).as_uri() + "?mode=ro", uri=True, timeout=5)) as conn:
         messages = _read_result_messages(conn, lineage)
+        call_goals = {key: _call_goals(conn, session_id, key, call_id) for key, _c, _s, session_id, call_id in messages}
     units = []
     if Path(delegation_db_path).is_file():
         with closing(sqlite3.connect(Path(delegation_db_path).as_uri() + "?mode=ro", uri=True, timeout=5)) as conn:
@@ -101,14 +133,17 @@ def read_result_history(db_path, delegation_db_path, lineage):
             index = entry.get("task_index")
             results.append((f"delegation:{key}:{position}", result_projection(entry,
                 goal=goal_by_index.get(index, task.get("goal")), source="delegation", started=started, finished=finished)))
-    for key, content, stamp in messages:
+    for key, content, stamp, _session_id, _call_id in messages:
         payload = history_object(content)
         incomplete |= not bool(payload)
         if payload.get("delegation_id") in delegation_ids:
             continue
+        goals = call_goals.get(key) or {}
         for position, entry in enumerate(_result_entries(payload)):
+            index = entry.get("task_index") if type(entry.get("task_index")) is int else position
+            # MUTATION: pass ``entry.get("goal")`` alone and test_subagent_history_goal reddens (no goal).
             results.append((f"message:{key}:{position}", result_projection(entry,
-                goal=entry.get("goal"), source="transcript", started=None, finished=stamp)))
+                goal=entry.get("goal") or goals.get(index), source="transcript", started=None, finished=stamp)))
     results.sort(key=lambda pair: pair[1]["completed_at"] or 0, reverse=True)
     return results[:MAX_RECORDS], incomplete or len(results) > MAX_RECORDS or len(units) > MAX_RECORDS or len(messages) > MAX_RECORDS
 
