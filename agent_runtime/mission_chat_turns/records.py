@@ -133,6 +133,20 @@ def safe_ran_by(value: Any) -> dict[str, Any] | None:
 #: here, at the write, until RT-MISSION-CHAT-MESSAGE-TAKES added this table.
 _JOURNAL_PATH_LISTS = {"pending_user_images": 16, "pending_user_files": 16}
 
+#: The client message ids of the operator steers a late steer's own turn (``steer-next-…``) delivers,
+#: oldest first, written ahead from its queued send (``chat_turn_commit/leftover_steer.py``). Absent on
+#: every other turn (RT-STEER-NEXT-TURN-NAMES-THE-STEER-IT-DELIVERS).
+STEER_OF_FIELD = "steer_of"
+_JOURNAL_STEER_OF_CAP = 16
+
+
+def safe_steer_of(value: Any) -> list[str]:
+    """``steer_of`` as stored and as served: bounded ids, empties dropped; ``[]`` when there is none."""
+
+    if not isinstance(value, list):
+        return []
+    return [text for text in (safe_assignment_text(item, limit=240) for item in value[:_JOURNAL_STEER_OF_CAP]) if text]
+
 
 #: The ONE structured entry on a turn record, carried verbatim from
 #: ``run_budget.RunBudgetLedger.accounting()`` — the whole "what bounded this
@@ -401,6 +415,8 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
             if isinstance(raw, list) else []
         if kept:
             result[key] = kept
+    if steer_of := safe_steer_of(value.get(STEER_OF_FIELD)):
+        result[STEER_OF_FIELD] = steer_of
     run_budget = safe_run_budget_accounting(value.get(_JOURNAL_RUN_BUDGET_FIELD))
     if run_budget is not None:
         result[_JOURNAL_RUN_BUDGET_FIELD] = run_budget

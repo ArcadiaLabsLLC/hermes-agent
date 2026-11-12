@@ -1099,6 +1099,18 @@ no board walk and no git call in a build. A changed count appends ``workspace.up
 every workspace the session is shared into; an instance placed in no workspace stamps nothing.
 Additive keys on maps the launcher parses as maps: rule (a) does not bump.
 
+54 KEPT (steerable, 2026-11-12, RT-CHAT-TURN-ROW-SAYS-WHETHER-IT-TAKES-A-STEER) — every ``running_work``
+``chat_turn`` row gained ``steerable`` (bool): a steer sent now lands in that turn
+(``running_work/lanes_chat.py::_takes_steer`` over ``mission_chat_steer.turn_takes_steer``, the steer door's
+own read; ``03-transport-and-wire.md`` has the per-kind table in prose). One additive key on a row the
+launcher parses as a map: rule (a) does not bump. No golden moved (no generated frame holds a ``chat_turn``
+row).
+
+54 KEPT (steer_of, 2026-11-12, RT-STEER-NEXT-TURN-NAMES-THE-STEER-IT-DELIVERS) — the turn record of a late
+steer's own turn (``steer-next-…``) gained ``steer_of`` (a list of client message ids, at most 16,
+``mission_chat_turns/records.py::safe_steer_of``), and so did that turn's operator row in the persona chat
+history and its operator-conversation message. Absent on every other turn. Additive: rule (a) does not bump.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

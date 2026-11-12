@@ -22,6 +22,7 @@ from ..mission_chat_turns.reads import (
     mission_chat_turn_elements,
     mission_chat_turn_records,
 )
+from ..mission_chat_turns.records import STEER_OF_FIELD, safe_steer_of
 from ..mission_chat_turns.states import TERMINAL_TURN_STATES
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..relay_policy import parse_harness_delivery_marker, parse_lens_episode_marker, parse_relay_sender_marker
@@ -349,6 +350,9 @@ class _OperatorCurator:
         input_mode = safe_assignment_text((record or {}).get("input_mode"), limit=16)
         if input_mode:
             row["input_mode"] = input_mode
+        # The operator steers this turn delivers (a late steer's own turn), off its own journal record.
+        if steer_of := safe_steer_of((record or {}).get(STEER_OF_FIELD)):
+            row[STEER_OF_FIELD] = steer_of
 
 
 def _is_reply_row(raw: Mapping[str, Any]) -> bool:
