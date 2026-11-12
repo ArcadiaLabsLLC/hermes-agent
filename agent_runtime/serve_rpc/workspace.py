@@ -1,5 +1,5 @@
 """Workspace setup and management over the existing store: the conversations home, the create door, the realm
-assign and unarchive."""
+assign, the realm move and unarchive."""
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, ERR_NOT_FOUND, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -101,3 +101,17 @@ def runtime_workspace_unarchive(rid, params, context=None):
         return row, {"restored": restored}
 
     return _manage(rid, {"workspace_id"}, params, call)
+
+
+@method("runtime.workspace.move_realm", tier=TIER_CONSOLE)
+def runtime_workspace_move_realm(rid, params, context=None):
+    """Move a workspace into another realm (RT-WORKSPACE-MOVE-REALM; argv twin ``harness workspace move-realm``):
+    ``{workspace_id, realm_id}`` -> the workspace row (``realm_id`` now the target) plus ``moved``,
+    ``from_realm_id`` and ``active_workspace_id``. Refusals: ``invalid_request``, ``workspace_not_found``,
+    ``realm_not_found``, ``realm_archived`` (+ ``realm_id``), ``workspace_archived``, ``realm_default_workspace``
+    (+ ``realm_id``), ``workspace_realm_server_bound`` (+ ``owner_realm_id``). The rules are
+    ``agent_runtime.workspace_manage.move_workspace_realm``'s."""
+    from agent_runtime.workspace_manage import move_workspace_realm
+
+    return _manage(rid, {"workspace_id", "realm_id"}, params,
+                   lambda: move_workspace_realm(params["workspace_id"], params["realm_id"]))

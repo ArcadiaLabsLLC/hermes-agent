@@ -1,4 +1,4 @@
-"""``hermes harness workspace``: list, show, create, delete, use, rename, archive, unarchive, roster.
+"""``hermes harness workspace``: list, show, create, delete, use, rename, archive, unarchive, move-realm, roster.
 
 Separate because the workspace store (``agent_runtime.store.WorkspaceStore``) is
 one store with one verb family.
@@ -35,6 +35,7 @@ __all__ = [
     "_cmd_workspace_create",
     "_cmd_workspace_delete",
     "_cmd_workspace_list",
+    "_cmd_workspace_move_realm",
     "_cmd_workspace_remove_agent",
     "_cmd_workspace_rename",
     "_cmd_workspace_show",
@@ -260,4 +261,16 @@ def _cmd_workspace_unarchive(args) -> int:
             return emit_harness_error(exc, args=args, code=exc.reason.value)
         row["restored"] = restored
     _print_stage42(_object_envelope("workspace", row), args=args, default_output="json")
+    return 0
+
+
+def _cmd_workspace_move_realm(args) -> int:
+    """``harness workspace move-realm <workspace_id> <realm_id>`` (``runtime.workspace.move_realm``'s twin)."""
+    from agent_runtime.workspace_manage import WorkspaceManageRefused, move_workspace_realm
+
+    try:
+        row, flags = move_workspace_realm(args.workspace_id, args.realm_id)
+    except WorkspaceManageRefused as exc:
+        return emit_harness_error(exc, args=args, code=exc.reason.value)
+    _print_stage42(_object_envelope("workspace", {**row, **flags}), args=args, default_output="json")
     return 0

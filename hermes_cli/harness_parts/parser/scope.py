@@ -94,6 +94,11 @@ def add_workspace(subs) -> None:
     workspace_unarchive.add_argument("workspace_id")
     _add_stage42_global_args(workspace_unarchive, controls=frozenset({"dry_run"}))
     workspace_unarchive.set_defaults(func=workspace_commands._cmd_workspace_unarchive)
+    workspace_move_realm = workspace_subs.add_parser("move-realm", help="Move a workspace into another realm")
+    workspace_move_realm.add_argument("workspace_id")
+    workspace_move_realm.add_argument("realm_id")
+    _add_stage42_global_args(workspace_move_realm)
+    workspace_move_realm.set_defaults(func=workspace_commands._cmd_workspace_move_realm)
     workspace_delete = workspace_subs.add_parser(
         "delete", help="Permanently delete a workspace and its office/board content (archive is the reversible path)"
     )

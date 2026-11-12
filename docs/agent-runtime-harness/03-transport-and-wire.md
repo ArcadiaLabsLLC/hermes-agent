@@ -1435,6 +1435,22 @@ its realm's delete ledger and heals a missing `workspace_ids` entry, so a copy r
 ride `error.data.reason`: `invalid_request` (-32602), `workspace_not_found` (4001), `realm_archived` (4090, with
 `realm_id` — the owning realm is archived). One implementation, `agent_runtime/workspace_manage.py`.
 
+`runtime.workspace.move_realm` (`console` tier; RT-WORKSPACE-MOVE-REALM; argv twin `harness workspace move-realm
+<workspace_id> <realm_id>`) moves a workspace into another realm — what `assign_realm` refuses as
+`workspace_owned_by_other_realm`. Params exactly `workspace_id`, `realm_id`; the answer is the workspace row
+(`realm_id` now the target) plus `moved` (false when that realm already owned it whole), `from_realm_id` (the
+realm it left, null for a realm-less one) and `active_workspace_id` (the pointer after the reconcile). Writes
+under the assign lock: the workspace's `realm_id`, then every source realm's `workspace_ids` entry out, then the
+target's in (lifting its delete-ledger entry). When the moved workspace was the ACTIVE one and the active realm
+is not the target, the realm pointer stays and the workspace pointer falls to that realm's next workspace
+(`reconcile_active_workspace_to_realm`), so the two pointers never straddle realms. Refusals ride
+`error.data.reason`: `invalid_request` (-32602); `workspace_not_found`, `realm_not_found` (4001); and at 4090
+`realm_archived` (`realm_id`), `workspace_archived` (restore it first), `realm_default_workspace` (`realm_id` — a
+realm's default workspace and the reserved `ws_default` never leave) and `workspace_realm_server_bound`
+(`owner_realm_id` — a workspace a server-bound realm shares is not moved OUT: realm sync would restore the other
+members' copy or delete this one; moving INTO a server-bound realm is allowed). The rules live in
+`agent_runtime/workspace_manage.py::move_workspace_realm`; a client draws the refusal, it never pre-judges one.
+
 ## 5. Attachment receipts
 
 `log_stream_attach` (`agent_runtime/stream/build_policy.py::log_stream_denied`) writes ONE line per attachment to the
