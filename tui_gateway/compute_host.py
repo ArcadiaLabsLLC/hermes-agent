@@ -27,6 +27,7 @@ from typing import Any, Callable, Collection
 from hermes_cli.config_backend import ConfigBackendUnavailable
 from tui_gateway.host_supervisor import MUTATOR_ROUTE_TABLE, _build_sha
 from agent_runtime.conversations.worker_app_functions import session_construction
+from agent_runtime.gateway.session_execution import control, host_interrupted, host_turn_adopted, host_turn_persisted
 
 
 def now_ns() -> int:
@@ -200,10 +201,7 @@ class ComputeHost:
             if session is None:
                 self._reply("interrupt.ack", sid, request_id, applied=False)
                 return
-            if expected := frame.get("expected_execution_id"):
-                from agent_runtime.gateway.session_execution import interrupt
-                applied = interrupt(sid, session, expected)
-                self._reply("interrupt.ack", sid, request_id, applied=applied, applied_ns=now_ns())
+            if host_interrupted(self, sid, session, request_id, frame):
                 return
             # In the child the shared helper interrupts the local agent and releases this
             # process's pending clarify Event (the parent only has a metadata mirror).
@@ -259,7 +257,6 @@ class ComputeHost:
             server._install_borrowed_lease(sid, session, frame)
             text = frame["text"] if "text" in frame else frame.get("prompt", "")
             inflight = frame["text"] if "text" in frame else frame.get("prompt")
-            from agent_runtime.gateway.session_execution import control, host_turn_adopted, host_turn_persisted
             with control(session), session["history_lock"]:
                 queued_gen = frame.get("queued_prompt_generation")
                 current_gen = int(session.get("_queued_prompt_generation", 0))

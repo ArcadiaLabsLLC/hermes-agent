@@ -155,6 +155,24 @@ def interrupt(sid: str, session: dict, expected: str) -> bool:
         return True
 
 
+def host_interrupted(host, sid: str, session: dict, request_id, frame: dict) -> bool:
+    """A compute-host interrupt naming ``expected_execution_id`` stops exactly that execution and
+    acks it. False = no expected id: the host's own interrupt runs."""
+    if not (expected := frame.get("expected_execution_id")):
+        return False
+    from tui_gateway.compute_host import now_ns
+    host._reply("interrupt.ack", sid, request_id, applied=interrupt(sid, session, expected), applied_ns=now_ns())
+    return True
+
+
+def holds_session(session: dict) -> bool:
+    """An unsettled native execution, or a settled one with prompts queued behind it, keeps its
+    session from either reaper."""
+    execution = session.get("native_execution")
+    return bool(execution) and (execution.get("status") not in _TERMINAL
+                                or bool(session.get("queued_prompt") or session.get("queued_prompts")))
+
+
 def exact_interrupt_reply(params: dict, rid, sess_nowait, ok) -> dict | None:
     """session.interrupt with ``expected_execution_id``: stop exactly that execution, before any
     process-wide voice effect. ``None`` leaves the request to upstream's handler, which passes its
