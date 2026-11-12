@@ -16,6 +16,8 @@ import sqlite3
 from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 
+from types import SimpleNamespace
+
 import pytest
 
 from agent_runtime import running_work
@@ -1540,6 +1542,48 @@ def test_peek_never_marks_output_consumed(home):
     # as "produced no output".
     assert payload["tail_available"] is False
     assert payload["tail_reason"] in {"not_in_process", "session_not_in_registry"}
+
+
+def _until_done_pass(turn_id="turn-goal", cmid="work-run-1"):
+    from agent_runtime import chat_goal
+    from agent_runtime.mission_chat_turns import persist_mission_chat_turn
+
+    persist_mission_chat_turn(session_id="chat-sess-goal", client_message_id=cmid, turn_id=turn_id, elements=None,
+                              state="executing", write_ahead=True,
+                              metadata={"persona_instance_id": "personainst_neko",
+                                        "root_chat_session_id": "chat-sess-goal"})
+    chat_goal.bind(chat_goal.GoalBinding("chat-sess-goal", "run-1", (), {}, "work-run-1", turns=2))
+
+
+def test_a_pass_of_an_until_done_run_says_its_pass_and_can_be_stopped(home, isolate_agent_runtime_root):
+    """RT-WORK-CLAIM-RUNS-UNTIL-DONE: the run's row carries ``goal: {pass, max_passes}`` and is cancellable.
+    Killing mutation: ``turn_row`` drops ``**run_pass`` → no ``goal`` on the row, red."""
+
+    _until_done_pass()
+    [row] = _rows_of_kind(build_running_work(), KIND_CHAT_TURN)
+    assert row["goal"] == {"pass": 3, "max_passes": 20} and row["work_request"] == "run-1"
+    assert row["cancellable"] is True
+
+
+def test_stop_on_an_until_done_pass_marks_the_whole_run_stopping_and_interrupts_the_turn(
+        home, isolate_agent_runtime_root):
+    """Killing mutation: ``_cancel_run_pass`` never binds ``stopping`` → the pass's settle asks the judge and
+    the run goes on, red."""
+
+    from agent_runtime import chat_goal
+    from agent_runtime.live_turns import live_turn
+
+    _until_done_pass()
+    elsewhere = cancel_work("chat_turn:turn-goal")
+    assert elsewhere["status"] == "cancel_requested" and elsewhere["ends"] == "after_pass"
+    assert elsewhere["stopped"] == "work_run" and elsewhere["work_request"] == "run-1"
+    assert chat_goal.binding("chat-sess-goal").stopping is True
+    interrupts = []
+    agent = SimpleNamespace(interrupt=lambda: interrupts.append(1))
+    with live_turn(turn_id="turn-goal", session_id="chat-sess-goal", persona_instance_id="personainst_neko",
+                   agent=agent):
+        here = cancel_work("chat_turn:turn-goal")
+    assert here["status"] == "cancelled" and here["ends"] == "now" and interrupts == [1]
 
 
 def test_cancel_refuses_a_kind_with_no_interrupt_seam(home, isolate_agent_runtime_root):

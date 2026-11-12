@@ -503,3 +503,35 @@ def test_claim_refuses_a_subtask_whose_task_is_not_ready(work):
                                       "checked": True}
     task = call(work, "claim", request_id="c3", who=f"persona:{alice.id}", slot="brain", task_id="TASK-PILLS")
     assert task["parent_task"] is None, "a task row is not a subtask"
+
+
+# ── RT-WORK-CLAIM-RUNS-UNTIL-DONE ──
+
+
+def test_capabilities_say_a_run_can_keep_going_until_done(work):
+    assert work.caps["until_done_runs"] is True and work.caps["until_done_max_passes"] == 20
+
+
+def test_a_claim_keeps_the_goal_mode_it_asked_for_and_refuses_an_unknown_one(work):
+    """Killing mutation: ``store.claim`` never calls ``until_done.keep`` → the kept mode reads ``none``, red."""
+
+    from agent_runtime.work_store import until_done
+    from agent_runtime.work_store.executor import GoalMode
+    from agent_runtime.work_store.grammar import RowRef
+
+    alice = mint_free_floating("alice")
+    task = start(work)["task"]
+    where = {"slot": task["slot"], "task_id": task["id"]}
+    who = f"persona:{alice.id}"
+    with pytest.raises(WorkRefused) as refused:
+        call(work, "claim", request_id="c0", who=who, goal_mode="forever", **where)
+    assert refused.value.reason is Reason.GOAL_MODE_UNSUPPORTED
+    assert call(work, "list")["boards"][0]["queues"][0]["rows"][0]["status"] == "READY", "refused before any write"
+    claimed = call(work, "claim", request_id="c1", who=who, goal_mode="until_done", **where)
+    assert claimed["goal_mode"] == "until_done" and claimed["task"]["status"] == "TAKEN"
+    ref = RowRef(task["slot"], claimed["receipt"]["ref"]["note"], task["id"])
+    assert until_done.kept(work.ws, ref, who) is GoalMode.UNTIL_DONE
+    call(work, "release", request_id="r1", who=who, **where)
+    assert until_done.kept(work.ws, ref, who) is GoalMode.NONE, "a release forgets it"
+    plain = call(work, "claim", request_id="c2", who=who, **where)
+    assert plain["goal_mode"] == "none" and until_done.kept(work.ws, ref, who) is GoalMode.NONE

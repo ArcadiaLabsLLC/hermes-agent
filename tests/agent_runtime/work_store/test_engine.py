@@ -524,6 +524,35 @@ def test_a_scheduled_run_s_ending_is_its_schedule_s_last_result(board):
     assert late["verdict"] == "failed" and late["detail"].startswith("ran out of time (")
 
 
+# ── RT-WORK-CLAIM-RUNS-UNTIL-DONE: the goal mode kept with a claim is the run's ──
+
+
+def test_a_claim_that_asked_for_it_runs_until_done_judged_against_the_tasks_text_and_tests(board):
+    from agent_runtime.work_store import until_done
+    from agent_runtime.work_store.executor import GoalMode
+
+    writer, b = board(_row("RT-A", "persona:inst-1"), _row("RT-B", "persona:inst-2"))
+    rows = _rows(writer)
+    until_done.keep(WS, rows["RT-A"].ref, "persona:inst-1", GoalMode.UNTIL_DONE)
+    until_done.keep(WS, rows["RT-B"].ref, "persona:someone-else", GoalMode.UNTIL_DONE)
+    executor = FakeExecutor()
+    engine = WorkEngine(executor=executor, sync=lambda ws: Synced([b], {"repo": writer}, False),
+                        workspaces=lambda: [WS], cap_for=lambda ws: 4,
+                        now=lambda: datetime(2026, 10, 18, tzinfo=UTC),
+                        brief_of=lambda row, writer: "Answer every thread.\nTests: `pytest tests/inbox`")
+    assert engine.tick()["started"] == 2
+    by_row = {a.rows[0].id: a for a in executor.started}
+    kept = by_row["RT-A"]
+    assert kept.goal_mode is GoalMode.UNTIL_DONE
+    assert kept.brief.objective == "do rt-a\n\nAnswer every thread.\nTests: `pytest tests/inbox`"
+    assert kept.brief.tests == ("pytest tests/inbox",)
+    plain = by_row["RT-B"]
+    assert plain.goal_mode is GoalMode.NONE and plain.brief.tests == (), "kept for another claimant: one pass"
+    assert {r.ref.id: r.goal_mode for r in records()} == {"RT-A": "until_done", "RT-B": "none"}
+    executor.settle(kept, RowEnding(Verdict.DONE, result="swept"))
+    assert until_done.kept(WS, rows["RT-A"].ref, "persona:inst-1") is GoalMode.NONE, "forgotten once the run closed"
+
+
 def test_a_row_with_skills_hands_them_to_the_assignment(board):
     """p10-work S1: ``Assignment.skills`` is DERIVED from the row's ``skills:`` segment, never a pointer."""
 

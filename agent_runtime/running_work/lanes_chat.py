@@ -457,6 +457,9 @@ class ChatTurnLane(LanePass):
         if instance_id and owner_instance and owner_instance != instance_id:
             owner_persona = ""
         instance = instance_id or owner_instance
+        # A pass of an UNTIL_DONE Work run says which pass it is, and its Stop (``runtime.work.cancel``)
+        # ends the whole run (RT-WORK-CLAIM-RUNS-UNTIL-DONE); any other chat turn is unchanged.
+        run_pass = _run_pass(session_id, record.get("client_message_id"))
         row = work_row(
             kind=KIND_CHAT_TURN,
             stable_id=turn_id,
@@ -478,8 +481,8 @@ class ChatTurnLane(LanePass):
             # Chat turns are interrupted through the chat lane's own authority
             # (turn-resolve / the steer marker), never by this verb — see
             # ``cancel_work``. Their foreground ``tool_call`` children are.
-            cancellable=False,
-            extra={"title": "", "current_tool": None},
+            cancellable=bool(run_pass),
+            extra={"title": "", "current_tool": None, **run_pass},
         )
         self.rows.append(row)
         if state in self.running_states:
@@ -580,6 +583,17 @@ class ChatTurnLane(LanePass):
         titles = _chat_titles(sessions - {""})
         for row in turns:
             row["title"] = titles.get((row.get("owner") or {}).get("session_id") or "", "")
+
+
+def _run_pass(session_id: str, client_message_id: Any) -> dict[str, Any]:
+    """``chat_goal.run_pass``, fail-safe: a binding that cannot be read leaves the row a plain chat turn."""
+
+    try:
+        from ..chat_goal import run_pass
+
+        return run_pass(session_id, client_message_id)
+    except Exception:
+        return {}
 
 
 def _promotable(turn_id: str, call_id: str) -> bool:

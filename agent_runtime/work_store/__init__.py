@@ -15,9 +15,10 @@ executor: the EXECUTOR contract (dispatcher plan §2.2) — who runs a claimed r
 scheduler: the SCHEDULER contract (dispatcher plan §2.3) and ``ManualScheduler``, the default;
 schedule_store: armed schedules on disk, ``store/schedules/<key>.json`` (B4);
 serve_scheduler: ``ServeTickScheduler`` — the serve's scheduler and its ticker thread (B4);
-schedule_ops: the ``arm | disarm | list`` verbs ``runtime.schedule.*`` and the tool share (B4);
+schedule_ops: the ``arm | disarm | list | pause | resume`` verbs ``runtime.schedule.*`` and the tool share (B4);
 schedule_tool: ``schedule_manage``, the opt-in ``schedule`` toolset's one tool (B4);
 persona_turn: ``PersonaTurnExecutor`` — a claimed row as one queued chat turn of the claiming instance;
+until_done: a claim's kept ``goal_mode``, and what "done" is judged against (the task's text and tests);
 engine: the serve's Work engine — run records, the tick, the write-back table.
 """
 

@@ -32,6 +32,7 @@ from .work_store.reasons import Reason, WorkRefused
 
 __layer__ = "stores"
 __all__ = [
+    "MAX_PASSES",
     "OPS",
     "ChatGoalPark",
     "GoalBinding",
@@ -44,10 +45,17 @@ __all__ = [
     "manager",
     "park",
     "parked",
+    "run_pass",
     "unbind",
     "unpark",
     "wire",
 ]
+
+#: The most passes an ``UNTIL_DONE`` Work run takes (owner ruling 2026-11-12,
+#: ``RT-WORK-CLAIM-RUNS-UNTIL-DONE``): upstream's own default, stated here so a config cannot widen it and
+#: ``runtime.work.capabilities`` can say it. Pinned over ``hermes_cli.goals.DEFAULT_MAX_TURNS`` by
+#: ``tests/agent_runtime/work_store/test_until_done_claim.py``.
+MAX_PASSES = 20
 
 _CONTRACT_KEYS = ("outcome", "verification", "constraints", "boundaries", "stop_when")
 _MAX_GATES = 8
@@ -211,6 +219,20 @@ def bindings() -> list[GoalBinding]:
     """Every root a Work run's goal is bound to."""
 
     return _records(paths.chat_goal_bindings_dir(), _read_binding)
+
+
+def run_pass(root_session_id: str, client_message_id: Any) -> dict[str, Any]:
+    """What a running turn's ``running_work`` row says when it is a pass of an ``UNTIL_DONE`` Work run.
+
+    ``{work_request, goal: {pass, max_passes}}`` when ``client_message_id`` is the latest send of the run
+    bound to the root, else ``{}`` (an operator's own turn on that root, or a root no run owns). The pass
+    is 1-based: the run's first turn is pass 1, each continuation the next.
+    """
+
+    bound = binding(root_session_id) if root_session_id and client_message_id else None
+    if bound is None or bound.cmid != str(client_message_id):
+        return {}
+    return {"work_request": bound.request_id, "goal": {"pass": bound.turns + 1, "max_passes": MAX_PASSES}}
 
 
 def unbind(root_session_id: str) -> None:

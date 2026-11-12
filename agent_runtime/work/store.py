@@ -19,7 +19,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from agent_runtime.work_store import board as boards_store
-from agent_runtime.work_store import receipts
+from agent_runtime.work_store import receipts, until_done
 from agent_runtime.work_store.board import Board
 from agent_runtime.work_store.default_brain import (
     QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, this_machine,
@@ -559,8 +559,12 @@ def claim(scope, params, actor, *, context=None):
     def gate(row: Row) -> None:
         parent.update(parent_task(scope.workspace_id, row) or {})
 
+    goal_mode = until_done.goal_mode_of(params.get("goal_mode"))
     writer, receipt = _row_write(scope, params, Op.CLAIM, f"persona:{instance}", {}, context=context, gate=gate)
-    return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire(), "parent_task": parent or None}
+    # Kept beside the claim: the engine's run of this row is UNTIL_DONE (RT-WORK-CLAIM-RUNS-UNTIL-DONE).
+    until_done.keep(scope.workspace_id, receipt.ref, f"persona:{instance}", goal_mode)
+    return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire(), "parent_task": parent or None,
+            "goal_mode": goal_mode.value}
 
 
 def parent_task(workspace_id: str, row: Row) -> dict[str, Any] | None:
@@ -612,6 +616,7 @@ def release(scope, params, actor, *, context=None):
         _row_write(scope, params, Op.SET_STATUS, who, {"status": _status_segment(params["status"])},
                    context=context, request=f"{request}:status")
     writer, receipt = _row_write(scope, params, Op.RELEASE, who, {}, context=context)
+    until_done.forget(scope.workspace_id, receipt.ref)
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
 
 

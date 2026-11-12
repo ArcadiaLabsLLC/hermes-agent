@@ -48,7 +48,7 @@ from typing import Any
 
 from .. import paths
 from ..serde import write_json_atomic
-from . import receipts
+from . import receipts, until_done
 from .activity import record_view
 from ..chat_root_send_queue import SCHEDULE_ORIGIN_KEY
 from .board import board_rows, pick
@@ -107,6 +107,8 @@ class RunRecord:
     repeats: bool = False
     #: The schedule key whose fire started the run: its ending is that schedule's ``last_result``.
     schedule: str = ""
+    #: ``until_done`` when the claim (or the schedule) asked the run to keep going until the task is done.
+    goal_mode: str = GoalMode.NONE.value
 
     def wire(self) -> dict[str, Any]:
         return {**asdict(self), "ref": asdict(self.ref), "state": self.state.value}
@@ -363,16 +365,21 @@ class WorkEngine:
         if record is None:
             request_id = ":".join([_token(workspace_id), _token(row.ref.slot), row.ref.id,
                                    row.taken.date, os.urandom(3).hex()])
-            assignment = self._assignment(row, writer, request_id)
+            # The goal mode kept with the claim (``runtime.work.claim`` ``goal_mode``); recorded on the run so
+            # a retried start is the same run. MUTATION: pass ``GoalMode.NONE`` and test_until_done_claim's
+            # "a claim that asked for it runs until done" reddens.
+            goal_mode = until_done.kept(workspace_id, row.ref, row.taken.who)
+            assignment = self._assignment(row, writer, request_id, goal_mode=goal_mode)
             refusal = self.executor.can_start(assignment)
             if refusal is None and self._running(workspace_id) >= self._cap_for(workspace_id):
                 refusal = Reason.CAP_REACHED
             if refusal is not None:
                 return self._refuse(row.ref, refusal, assignment.persona_instance_id)
             record = RunRecord(request_id, row.ref, workspace_id, assignment.persona_instance_id, "", "",
-                               self._stamp(), RecordState.STARTING, who=row.taken.who)
+                               self._stamp(), RecordState.STARTING, who=row.taken.who, goal_mode=goal_mode.value)
             _save(record)
-        return self._start(record, self._assignment(row, writer, record.request_id))
+        return self._start(record, self._assignment(row, writer, record.request_id,
+                                                    goal_mode=GoalMode(record.goal_mode)))
 
     def adopt(self, assignment: Assignment, origin: Mapping[str, Any]) -> Run:
         """A run started outside the claim scan -- a scheduled ``RunAssignment`` fire -- made an engine run.
@@ -426,7 +433,8 @@ class WorkEngine:
                 writer.apply(RowOp(row.ref, Op.CLAIM, who, f"{assignment.request_id}:claim", {}))
             record = RunRecord(assignment.request_id, row.ref, workspace_id, assignment.persona_instance_id, "", "",
                                self._stamp(), RecordState.STARTING, who=who, repeats=repeats,
-                               schedule=str(origin.get(SCHEDULE_ORIGIN_KEY) or ""))
+                               schedule=str(origin.get(SCHEDULE_ORIGIN_KEY) or ""),
+                               goal_mode=assignment.goal_mode.value)
             _save(record)
             return self._begin(record, lambda: self.executor.start_from(assignment, origin))
 
@@ -453,11 +461,18 @@ class WorkEngine:
 
     def _assignment(self, row: Row, writer: Any, request_id: str, *, persona: str | None = None,
                     goal_mode: GoalMode = GoalMode.NONE) -> Assignment:
-        """The row's assignment: for its claimant, or for ``persona`` (a scheduled task's agent)."""
+        """The row's assignment: for its claimant, or for ``persona`` (a scheduled task's agent).
+
+        An ``UNTIL_DONE`` run is judged against the task's text and its tests (owner ruling 2026-11-12): the
+        objective is the title and the body, and the test commands the body names are the goal's gates.
+        """
 
         body = self._brief_of(row, writer)
-        brief = Brief(title=row.title, objective=body or row.title,
-                      inputs=(row.raw, *(f"`{pointer}`" for pointer in row.pointers)), constraints=(_CONSTRAINT,))
+        keeps_going = goal_mode is GoalMode.UNTIL_DONE
+        brief = Brief(title=row.title,
+                      objective=until_done.objective(row.title, body) if keeps_going else body or row.title,
+                      inputs=(row.raw, *(f"`{pointer}`" for pointer in row.pointers)), constraints=(_CONSTRAINT,),
+                      tests=until_done.gate_commands(body) if keeps_going else ())
         return Assignment((row.ref,), persona or row.taken.persona_instance_id, brief, request_id,
                           goal_mode=goal_mode, skills=row.skills)
 
@@ -576,6 +591,7 @@ class WorkEngine:
             return 0
         record.state = RecordState.CLOSED
         _save(record)
+        until_done.forget(record.workspace_id, record.ref)
         receipts.emit("work.run_settle", ref=asdict(record.ref), request_id=record.request_id,
                       workspace_id=record.workspace_id, verdict=ending.verdict.value, commits=commits,
                       error=record.error or None)

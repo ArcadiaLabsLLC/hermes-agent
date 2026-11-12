@@ -43,7 +43,7 @@ from .. import chat_goal
 from .. import chat_root_send_queue as send_queue
 from ..chat_turn_settles import outcome_from_payload
 from . import receipts
-from .executor import CAUSE_OUT_OF_TIME, Assignment, RowEnding, RunStatus, Verdict
+from .executor import CAUSE_OUT_OF_TIME, OPERATOR_STOP_REASON, Assignment, RowEnding, RunStatus, Verdict
 from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
@@ -118,7 +118,9 @@ def arm_run(root: str, a: Assignment, args: Mapping[str, Any], *, cwd: str | Non
     if bound is not None or goals(root).is_active():
         raise WorkRefused(Reason.EXECUTOR_BUSY, f"chat root {root} already works a goal")
     gates = a.brief.tests if a.goal_gates else ()
-    chat_goal.arm(root, a.brief.objective or a.brief.title, acceptance=a.brief.acceptance, gates=gates, goals=goals)
+    # MUTATION: drop ``max_turns`` and test_until_done_claim's "a run takes at most twenty passes" reddens.
+    chat_goal.arm(root, a.brief.objective or a.brief.title, acceptance=a.brief.acceptance, gates=gates,
+                  max_turns=chat_goal.MAX_PASSES, goals=goals)
     rows = tuple(tuple(ref.items()) for ref in a.rows)
     chat_goal.bind(chat_goal.GoalBinding(root, a.request_id, rows, dict(args), first_cmid(a.request_id), cwd=cwd))
     receipts.emit("work.goal_arm", root=root, request_id=a.request_id, gates=len(gates))
@@ -218,12 +220,20 @@ def out_of_time_ending(payload: dict | None) -> RowEnding | None:
     return RowEnding(Verdict.FAILED, reason=f"the turn used its {budget} before it reported", cause=CAUSE_OUT_OF_TIME)
 
 
-def _ending_now(bound: chat_goal.GoalBinding, payload: dict | None, report: RowEnding | None) -> RowEnding | None:
-    """The endings no judge is asked about: a stop, a failed turn, a report that says blocked/stopped."""
+def _ending_now(bound: chat_goal.GoalBinding, payload: dict | None, report: RowEnding | None, *,
+                own: bool) -> RowEnding | None:
+    """The endings no judge is asked about: a stop, a failed turn, a report that says blocked/stopped.
+
+    A stop is the run's ``stopping`` mark (``runtime.work.cancel`` on the pass's running-work row) or the
+    run's OWN pass settling ``stopped: true`` (the conversation's Stop): either ends the WHOLE run, never
+    one pass (``RT-WORK-CLAIM-RUNS-UNTIL-DONE``). An operator's own turn stopped on the root ends nothing.
+    """
 
     refusal = outcome_from_payload(payload).refusal_class
-    if bound.stopping:
-        return RowEnding(Verdict.STOPPED, reason="operator stop")
+    # MUTATION: drop the ``own and stopped`` arm and test_until_done_claim's "Stop on a pass ends the whole
+    # run" reddens (the judge is asked and the run goes on).
+    if bound.stopping or (own and (payload or {}).get("stopped") is True):
+        return RowEnding(Verdict.STOPPED, reason=OPERATOR_STOP_REASON)
     if refusal:
         return out_of_time_ending(payload) or RowEnding(Verdict.FAILED, reason=f"the turn ended {refusal}")
     if report is not None and report.verdict in (Verdict.BLOCKED, Verdict.STOPPED):
@@ -238,10 +248,10 @@ def after_turn(bound: chat_goal.GoalBinding, entry: send_queue.QueuedSend, paylo
 
     reply = str((payload or {}).get("reply") or "")
     report = parse_report(reply)
-    ending = _ending_now(bound, payload, report)
+    origin = entry.args.get(send_queue.ORIGIN_ARG)
+    own = isinstance(origin, dict) and origin.get("work") == bound.request_id
+    ending = _ending_now(bound, payload, report, own=own)
     if ending is None:
-        origin = entry.args.get(send_queue.ORIGIN_ARG)
-        own = isinstance(origin, dict) and origin.get("work") == bound.request_id
         goal = goals(bound.root_session_id)
         with _gate_cwd(bound.cwd):
             decision = goal.evaluate_after_turn(reply, user_initiated=not own)

@@ -19,6 +19,7 @@ from agent_runtime.gateway_identity import read_install_identity
 from agent_runtime.paths import store_root
 
 from . import store
+from agent_runtime.chat_goal import MAX_PASSES
 from agent_runtime.errors import NotFound
 
 from .model import BOARD_KINDS, KIND_AGENT, KIND_PERSONAL, KIND_WORKSPACE, Reason, WorkRefused, WorkScope, text
@@ -180,6 +181,10 @@ def _work_capabilities(install, *, observe=False):
             "guarded_row_edits": True,
             "guarded_completion": True,
             "guarded_task_edits": True,
+            # ``runtime.work.claim`` takes ``goal_mode: until_done`` and such a run takes at most this many
+            # passes (RT-WORK-CLAIM-RUNS-UNTIL-DONE): the words the Launcher's "Keep going until done" waits for.
+            "until_done_runs": True,
+            "until_done_max_passes": MAX_PASSES,
             "observe": list(OBSERVE_OPERATIONS), "board_kinds": list(BOARD_KINDS),
             "owners": [scope.wire(_label(scope)) for scope in scopes(install)],
             "default_brain": {ws: brain_state(ws) for ws in ids},

@@ -1304,8 +1304,8 @@ fenced `work_report` block of its reply, read when the queued-send runner settle
 Recommend: …` and releases; stopped releases and writes `DEFERRED <date>: stopped — …`; an unreadable
 ending, or a run that ended while the serve was down, releases and writes `NEEDS PLAN <date>: …` (re-claim
 to retry). Each step is one writer op by row ID with a request id derived from the run's. A run is a file
-under `<store_root>/work/<ws>/runs/` (the engine's whole state); `goal_mode=UNTIL_DONE` is refused until
-the dispatcher's B3. Receipts: `work.run_start | run_settle | run_refused | engine_tick` and the executor's
+under `<store_root>/work/<ws>/runs/` (the engine's whole state); a claim's `goal_mode: until_done` makes
+the run keep going until done (03 § Chat goal methods and `UNTIL_DONE` Work runs). Receipts: `work.run_start | run_settle | run_refused | engine_tick` and the executor's
 `work.exec_start | exec_settle | exec_stop`.
 
 ## The board — method twins on the hermes side, argv on the launcher

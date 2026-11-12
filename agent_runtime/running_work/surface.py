@@ -454,6 +454,32 @@ def _cancel_delegation(work_id: str, kind: str, stable: str, row: dict[str, Any]
     }
 
 
+def _cancel_run_pass(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    """Stop on a pass of an ``UNTIL_DONE`` Work run ends the WHOLE run (``RT-WORK-CLAIM-RUNS-UNTIL-DONE``).
+
+    The run is marked ``stopping`` (its pass's settle then ends it ``STOPPED — operator stop``, no judge,
+    no further pass) and the pass is interrupted through its agent's own seam when it runs in this
+    process (``ends: now``); a pass running elsewhere ends on its own and the run with it
+    (``ends: after_pass``). Any other chat turn has no interrupt seam here — it is stopped by its
+    conversation's Stop — and answers ``cancel_unsupported`` as before.
+    """
+
+    from .. import chat_goal
+    from ..live_turns import interrupt_turn
+
+    request = row.get("work_request")
+    session = str((row.get("owner") or {}).get("session_id") or "")
+    bound = chat_goal.binding(session) if request and session else None
+    if bound is None or bound.request_id != request:
+        return {"status": "error", "code": "cancel_unsupported", "work_id": work_id, "kind": kind,
+                "detail": f"{kind} work has no interrupt seam in v1"}
+    chat_goal.bind(bound.advanced(stopping=True))
+    interrupted = interrupt_turn(stable, reason=reason)
+    return {"status": "cancelled" if interrupted else "cancel_requested", "code": "", "work_id": work_id,
+            "kind": kind, "stopped": "work_run", "work_request": request,
+            "ends": "now" if interrupted else "after_pass"}
+
+
 def _cancel_tool_call_arm(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
     if row.get("background"):
         return _cancel_background_tool_call(work_id, stable)
@@ -561,6 +587,7 @@ _DISPATCH_CANCEL_REFUSAL_DETAIL = {
 
 #: ``cancel_work``'s interrupt seams by work kind; a kind absent here is ``cancel_unsupported``.
 _CANCELLERS = {
+    KIND_CHAT_TURN: _cancel_run_pass,
     KIND_TERMINAL: _cancel_terminal,
     KIND_DELEGATION: _cancel_delegation,
     KIND_TOOL_CALL: _cancel_tool_call_arm,

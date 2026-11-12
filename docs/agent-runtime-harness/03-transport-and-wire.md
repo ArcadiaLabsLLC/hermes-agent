@@ -1923,6 +1923,19 @@ paused and the root unbound. Receipts: `work.goal_arm | goal_continue | goal_hol
 (`goal_turns.wake_parked`) continues it when the barrier lifts — a bound run from its binding, a chat goal
 no run owns from the settled turn's arguments its `wait` recorded (`<store_root>/chat_goal_parks/<root>.json`).
 
+A persona claim starts such a run: `runtime.work.claim` with `goal_mode: "until_done"` (an unknown word is
+`goal_mode_unsupported`; the reply echoes `goal_mode`) keeps the mode BESIDE the claim
+(`work_store/until_done.py`, `<store_root>/work/<ws>/claim_goals/`, honoured only for that claimant, forgotten
+on release and when the run closes), and the engine's run of that row is `UNTIL_DONE`; a `run_task`
+schedule's `goal_mode` takes the same path. Done is judged against the task's text — title and body are the
+objective — and its tests: every code span on a `Test:` / `Tests:` line of the body is a goal gate. A run
+takes at most `chat_goal.MAX_PASSES` (20) passes of 30 minutes each. `runtime.work.capabilities` answers
+`until_done_runs: true` and `until_done_max_passes: 20`. While a pass runs, its `chat_turn` running-work row
+carries `work_request` and `goal: {pass, max_passes}` and is `cancellable`: `runtime.work.cancel` on it marks
+the run stopping and interrupts the pass (`{status: cancelled, ends: now, stopped: work_run}`; `cancel_requested`
+/ `ends: after_pass` when the pass runs in another process), and the run's own pass settling `stopped: true`
+(the conversation's Stop) ends the WHOLE run `STOPPED — operator stop`, never one pass.
+
 ### Batch methods
 
 `runtime.batch.plan | start | status | stop | land | approve` (`agent_runtime/batch/rpc.py` over
