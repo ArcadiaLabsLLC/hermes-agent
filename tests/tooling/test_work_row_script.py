@@ -290,6 +290,84 @@ def test_no_wake_leaves_them_blocked(clones):
     assert (mine / other_note).read_text(encoding="utf-8") == waiting
 
 
+def test_handoff_adds_one_dated_segment_before_the_claim(clones, capsys):
+    """RT-QUEUE-ROW-HANDOFF-HAS-NO-COMMAND. KILLING MUTATIONS: write the segment after the claim mark
+    (``line + handoff``) -> the claim is no longer the row's last segment, red; drop the segment count in
+    ``handoff_line`` -> a text carrying the separator is written as two segments, red."""
+    origin, mine, _ = clones
+    claimed = ("- **`RT-A` — first** · READY 2026-10-18 · **TAKEN 2026-11-12 lane on box as me in wt**\n"
+               "- **`RT-B` — second** · READY 2026-10-18\n")
+    (mine / NOTE).write_text(HEAD + claimed, encoding="utf-8", newline="\n")
+    git("commit", "-q", "-am", "claimed", cwd=mine)
+    git("push", "-q", cwd=mine)
+    handoff = ["handoff", "RT-A", "--who", "r-lane", "--date", "2026-11-12", "--repo", str(mine)]
+    assert work_row.main([*handoff, "--text", "found  the cause; half built (seen live); likely fix: `x`"]) == 0
+    assert (mine / NOTE).read_text(encoding="utf-8") == HEAD + (
+        "- **`RT-A` — first** · READY 2026-10-18 · handoff 2026-11-12 (r-lane): found the cause; half built (seen "
+        "live); likely fix: `x` · **TAKEN 2026-11-12 lane on box as me in wt**\n- **`RT-B` — second** · READY 2026-10-18\n")
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue: handoff RT-A r-lane"
+    before = (mine / NOTE).read_text(encoding="utf-8")
+    for bad in ("one · two", "", "an open `span"):
+        assert work_row.main([*handoff, "--text", bad, "--no-commit"]) == work_row.EXIT_REFUSED, bad
+    assert "a handoff is ONE segment" in capsys.readouterr().err
+    assert (mine / NOTE).read_text(encoding="utf-8") == before
+
+
+def test_no_push_commits_the_op_and_pushes_nothing(clones):
+    """RT-QUEUE-ROW-OP-PUSHES-BEFORE-THE-LANES-CHECKS. KILLING MUTATION: drop the ``no_push`` return in
+    ``commit_and_push`` -> the claim is on origin's main, red. The default still pushes
+    (``test_claim_by_id_commits_by_pathspec_and_pushes``)."""
+    origin, mine, _ = clones
+    tip = git("rev-parse", "main", cwd=origin)
+    assert work_row.main(["claim", "RT-A", "--who", "lane", "--machine", "box", "--account", "me", "--worktree", "wt",
+                          "--repo", str(mine), "--no-push"]) == 0
+    assert git("log", "-1", "--format=%s", cwd=mine).strip() == "queue: claim RT-A lane"
+    assert git("status", "--porcelain", cwd=mine) == ""
+    assert git("rev-parse", "main", cwd=origin) == tip
+
+
+PLACED = ("---\ntype: queue\nprogram: test\n---\n\n## Tasks — the tasks\n\n"
+          "- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n"
+          "- **`TASK-Q` — Quiet mode** · task: q · READY 2026-11-09\n\n## Open\n\n"
+          "- **`RT-S1` — first slice** · group: p · READY 2026-11-09\n"
+          "- **`RT-Q1` — a quiet slice** · group: q · READY 2026-11-09\n\n## Later — 2026-11-10\n\n"
+          "- **`RT-Q2` — another quiet slice** · group: q.x · READY 2026-11-09\n")
+
+
+def test_append_puts_a_row_beside_its_tasks_other_rows(clones, tmp_path, monkeypatch, capsys):
+    """RT-QUEUE-ROW-APPEND-LANDS-AT-THE-BOTTOM-OF-THE-NOTE (three filings of 2026-11-12 landed under an old dated
+    heading; with no ``--note`` they went to the first queue note found). KILLING MUTATIONS: drop the own-rows arm
+    of ``appended_text`` -> RT-S2 lands at the end of q.md, red; ``_home_note`` returns None -> it lands in a.md,
+    red; drop the Tasks arm -> TASK-N lands at the end, red; ``_after_section`` returns the heading's own line for
+    a section with rows -> RT-U lands above RT-Q2, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path)
+    first = mine / "Harness_Brain/20 — Active Initiatives/a.md"
+    first.write_text(HEAD + "- **`TASK-Z` — Zed** · task: z · READY 2026-11-09\n"
+                     "- **`RT-Z1` — a zed slice** · group: z · READY 2026-11-09\n", encoding="utf-8", newline="\n")
+    (mine / NOTE).write_text(PLACED, encoding="utf-8", newline="\n")
+
+    def append(row_id: str, tail: str, *more: str) -> int:
+        return work_row.main(["append", row_id, "--who", "r", "--row", f"- **`{row_id}` — new** · {tail} · READY 2026-11-12",
+                              "--repo", str(mine), "--no-commit", *more])
+
+    def order(path: Path) -> list[str]:
+        return [row.ref.id for row in work_row.parse_note(path.read_text(encoding="utf-8"), slot="", note="")]
+
+    assert append("RT-S2", "group: p.x") == 0
+    assert append("TASK-N", "task: n", "--note", NOTE) == 0
+    assert append("RT-N1", "group: n", "--note", NOTE) == 0, "no row of its task yet: the end of the note"
+    assert append("RT-U", "group: q", "--under", "Later") == 0
+    assert order(mine / NOTE) == ["TASK-P", "TASK-Q", "TASK-N", "RT-S1", "RT-S2", "RT-Q1", "RT-Q2", "RT-N1", "RT-U"]
+    assert (mine / NOTE).read_text(encoding="utf-8").endswith("· READY 2026-11-12\n")
+    assert order(first) == ["TASK-Z", "RT-Z1"]
+    assert append("RT-Z2", "group: z") == 0
+    assert order(first) == ["TASK-Z", "RT-Z1", "RT-Z2"]
+    assert append("RT-V", "group: q", "--under", "No such heading") == work_row.EXIT_REFUSED
+    assert "--under: no heading of the note starts with `No such heading`" in capsys.readouterr().err
+
+
 HELD = ("- **`RT-H` — the switch-over** · BLOCKED 2026-11-01: another lane — `RT-A` then `RT-B`, `RT-GONE` and "
         "`RT-C`: only when all are on main and `OWED_HANDLERS` is empty · filed by a lane\n"
         "- **`RT-C` — third** · READY 2026-10-18\n")
