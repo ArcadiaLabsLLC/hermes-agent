@@ -24,12 +24,12 @@ from, so it has no rows: a device-only realm must not read "unpublished".
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 from .. import paths
 from ..models import Realm, Workspace
+from ..serde import read_json
 from ..store import RealmStore, WorkspaceStore
 from .artifacts import _workspaces_for_realm
 from .git import _realm_subtree
@@ -70,9 +70,11 @@ def workspace_file_published(repo: Path, realm_id: str, workspace_id: str) -> bo
 
 
 def _published_record(path: Path) -> dict[str, Any]:
+    """The team's copy of one workspace record; ``{}`` for a file that will not read (its row is by id)."""
+
     try:
-        record = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        record = read_json(path)
+    except Exception:
         return {}
     return record if isinstance(record, dict) else {}
 
