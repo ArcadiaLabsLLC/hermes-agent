@@ -97,7 +97,6 @@
   "agent_runtime/skill_publishability.py|_DIR_HASH_CACHE": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/skill_publishability.py|_MANIFEST_CACHE": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/skill_resolution.py|_CONTENT_HASH_CACHE": "seeded 2026-10-16 from the census; reason owed",
-  "agent_runtime/skill_resolution.py|_SEARCH_ROOTS_CACHE": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/skill_resolution.py|_SKILL_ROOT_REGISTRY_CACHE": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/skill_root_freshness.py|_PENDING": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/skill_root_freshness.py|_REVALIDATION": "seeded 2026-10-16 from the census; reason owed",
