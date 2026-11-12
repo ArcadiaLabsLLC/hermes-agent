@@ -1073,11 +1073,16 @@ skipped (`tests/agent_runtime/test_dead_turn_steer_boot_requeue.py`). Each `stee
 operator steers it delivers (`steer_of`, a list of their client message ids; `leftover_steer._name_steers`), the
 turn writes that ahead on its journal record, and the stored operator row carries it
 (`tests/agent_runtime/test_steer_next_turn_names_its_steer.py`). All three sites write the send through
-`leftover_steer._next_turn_send`: it keeps the send of the turn the steer was typed at, except that a steer
-typed at a single Work pass or a wave lane's turn is queued as the operator's own message — their requester,
-no time budget, the agent's own folder, an origin naming no run — so the run is reported ended once and the
-late message is answered like any other (owner ruling 2026-11-12; an until-done run's late steer stays a turn
-of the run; `tests/agent_runtime/test_late_steer_at_a_work_turn.py`). The next turn is sent the hand-back
+`leftover_steer._next_turn_send`: a steer typed at an until-done pass keeps that pass's send (it is a turn
+of the run); any other late steer is queued as the operator's own ordinary message (owner ruling 2026-11-12:
+"an ordinary chat message") — their requester, no time budget, the agent's own folder, none of the first
+message's pictures, files, one-message skills or voice label, and the origin of the STEER's sender, so the run
+is reported ended once and a steer typed on a paired device is answered on that device. The steer door records
+its sender on the accepted record (`send_origin()` at `_cmd_mission_chat_steer` → the record's `send_origin`,
+`mission_chat_steer.accepted_steer_origin`); a record naming none is answered as a send whose sender has gone.
+Of an operator's own send the late turn keeps only the chat's choices (`_CHAT_CHOICES`: model, provider,
+`use_agent_default`, surface prompt, intent) (`tests/agent_runtime/test_late_steer_at_a_work_turn.py`,
+`tests/agent_runtime/test_late_steer_is_an_ordinary_message.py`). The next turn is sent the hand-back
 minus the ended turn's own runtime notices (`leftover_steer._next_turn_text`: the wall checkpoint's nudge
 speaks to the turn it was steered into), and a hand-back holding nothing else queues no turn
 (`tests/agent_runtime/test_late_steer_without_the_ended_turns_notice.py`). The door also redacts a steer before the agent takes it

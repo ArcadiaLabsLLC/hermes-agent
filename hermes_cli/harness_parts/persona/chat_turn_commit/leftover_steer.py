@@ -91,54 +91,82 @@ def _name_steers(persisted: dict, ids: list[str]) -> None:
 
 #: What a late steer's own turn keeps of a Work run's send: whose chat it is. Nothing the run set for itself.
 _CHAT_IDENTITY = ("persona_id", "persona_instance_id")
+#: What it keeps, besides, of an operator's own send: the choices the app states for the CHAT on every message
+#: (the model picked for it, the surface's prompt and intent) — never what was attached to that one message.
+_CHAT_CHOICES = ("provider", "model", "use_agent_default", "surface_prompt", "intent_hint")
+#: The origin of a send whose sender is not known: ``owner: None`` binds the link a send whose sender has gone
+#: binds (``queued_turn_origin.queued_turn_link``: the Launcher that answers) and answers no paired device.
+_UNKNOWN_SENDER = {"owner": None, "gateway": False}
 
 
-def _is_one_shot_work_send(send_args: dict) -> bool:
-    """The send of a Work run that ends on this turn's reply: a single pass or a wave lane, not until-done.
+def _is_until_done_send(send_args: dict) -> bool:
+    """A pass of an until-done Work run: its origin says ``goal`` (``work_store/persona_turn.py::start_from``).
 
-    An until-done run's origin says ``goal`` (``work_store/persona_turn.py::start_from``); on its root every
-    turn's settle feeds the run's after-turn hook, so a late steer there is part of the run by design.
+    On its root every turn's settle feeds the run's after-turn hook, so a late steer there is part of the run
+    by design and keeps the pass's send.
     """
 
     origin = send_args.get(ORIGIN_ARG)
-    until_done = isinstance(origin, dict) and bool(origin.get("goal"))
-    return is_work_requester(send_args.get("requested_by")) and not until_done
+    return is_work_requester(send_args.get("requested_by")) and isinstance(origin, dict) and bool(origin.get("goal"))
 
 
-def _operators_own_send(send_args: dict) -> dict:
+def _operators_own_send(send_args: dict, *, sender: dict | None) -> dict:
     """The send ``runtime.chat.message`` would have queued for the operator on this chat, message aside.
 
-    Not a copy of the run's send with fields struck out: a field the run gains later (as it gained its
-    working folder) must not reach the operator's turn by default. So the requester is the operator's
-    (no ``work:`` → no Work clock, no run to report to), there is no time budget (a turn a person sent
-    runs until it ends), no ``run_workdir`` (the agent's own folder, not the lane's worktree), and the
-    origin names no run, rows, lane or lent skills — its settle is the chat's, like any message's.
-    ``tests/agent_runtime/test_late_steer_at_a_work_turn.py`` holds each field to what the real parser
-    gives the app's own send.
+    Owner ruling 2026-11-12: a too-late steer is "an ordinary chat message" — it carries what was typed with
+    it and nothing of the message it was typed at. Not a copy of that send with fields struck out: a field a
+    send gains later must not reach the steer's turn by default. So the requester is the operator's (no
+    ``work:`` → no Work clock, no run to report to), there is no time budget (a turn a person sent runs until
+    it ends), no ``run_workdir`` (the agent's own folder, not a lane's worktree), no pictures, files,
+    one-message skills, voice label or relay of the first message
+    (RT-LATE-STEER-AT-YOUR-OWN-MESSAGE-CARRIES-ITS-ATTACHMENTS-AGAIN), and the origin is the STEER's sender
+    — the device it was typed on hears the answer (RT-LATE-STEER-TYPED-ON-A-PAIRED-DEVICE-IS-NOT-ANSWERED-THERE)
+    — naming no run, rows, lane or lent skills. Of an operator's own send it keeps :data:`_CHAT_CHOICES`.
+    ``tests/agent_runtime/test_late_steer_at_a_work_turn.py`` holds each field to what the real parser gives
+    the app's own send; ``tests/agent_runtime/test_late_steer_is_an_ordinary_message.py`` the rest.
     """
 
-    return {
+    own = {
         **{name: send_args.get(name) for name in _CHAT_IDENTITY},
         "requested_by": OPERATOR_REQUESTED_BY, "requested_by_session": None, "max_seconds": None,
         "intent_hint": INTENT_HINT_DEFAULT, "surface_prompt": SURFACE_PROMPT_DEFAULT, "provider": None,
         "model": None, "use_agent_default": False, "relay_chain": None, "relay_deadline_epoch": None,
-        # Who typed the steer is not on its ledger record; ``owner: None`` binds the link a send whose
-        # sender has gone binds (``queued_turn_origin.queued_turn_link``: the Launcher that answers).
-        ORIGIN_ARG: {"owner": None, "gateway": False},
+        ORIGIN_ARG: dict(sender) if isinstance(sender, dict) else dict(_UNKNOWN_SENDER),
     }
+    # MUTATION: keep the choices of a Work send too and the parser-agreement test reddens (a run's model).
+    if not is_work_requester(send_args.get("requested_by")):
+        own.update({name: send_args[name] for name in _CHAT_CHOICES if name in send_args})
+    return own
 
 
-def _next_turn_send(send_args: dict, *, session_id: str, text: str, next_id: str, ids: list[str]) -> dict:
-    """The ONE writer of a ``steer-next-…`` send: ``text`` as the root's next turn, naming ``ids``.
+def _steer_sender(session_id: str, ids: list[str]) -> dict | None:
+    """Who typed the first of ``ids``, from its accepted record (``mission_chat_steer.accepted_steer_origin``).
 
-    ``send_args`` is the persisted send of the turn the steer was typed at. A one-shot Work turn's is
-    replaced by the operator's own (owner ruling 2026-11-12, the module docstring); any other turn's is
-    kept — an operator's own send, or an until-done pass.
+    ``None`` when no record names one: a steer accepted before 2026-11-12, or one sent with no serve request.
     """
 
-    # MUTATION: keep ``dict(send_args)`` for every turn and test_late_steer_at_a_work_turn reddens at
-    # all three minting sites (the requester, the budget, the origin, the working folder).
-    persisted = _operators_own_send(send_args) if _is_one_shot_work_send(send_args) else dict(send_args)
+    from agent_runtime import paths
+    from agent_runtime.mission_chat_steer import accepted_steer_origin
+
+    for steer_id in ids[:1]:
+        return accepted_steer_origin(runtime_root=paths.store_root(), session_id=session_id,
+                                     client_message_id=steer_id)
+    return None
+
+
+def _next_turn_send(send_args: dict, *, session_id: str, text: str, next_id: str, ids: list[str],
+                    sender: dict | None = None) -> dict:
+    """The ONE writer of a ``steer-next-…`` send: ``text`` as the root's next turn, naming ``ids``.
+
+    ``send_args`` is the persisted send of the turn the steer was typed at, ``sender`` the origin of the
+    first steer it delivers (``None``: not known). An until-done pass's send is kept — the late steer is a
+    turn of the run. Any other turn's — an operator's own, a one-shot or wave-lane Work turn — is replaced
+    by the operator's own send from ``sender`` (owner ruling 2026-11-12, :func:`_operators_own_send`).
+    """
+
+    # MUTATION: keep ``dict(send_args)`` for an operator's turn and test_late_steer_is_an_ordinary_message
+    # reddens (the first message's picture, file, skill and voice label; the first sender's device).
+    persisted = dict(send_args) if _is_until_done_send(send_args) else _operators_own_send(send_args, sender=sender)
     # The same root, as a plain follow-up: never a new thread, a clarify answer, a
     # retry, a title or a second use of the first send's idempotency key.
     persisted.update(
@@ -174,9 +202,10 @@ def queue_leftover_steer(args: Any, *, session_id: str, client_message_id: str, 
     if not text or not session_id:
         return None
     next_id = leftover_steer_client_message_id(pending, client_message_id)
+    ids = steer_ids(pending)
     persisted = _next_turn_send(
         chat_root_send_queue.persistable_args(args, origin=send_origin()), session_id=session_id, text=text,
-        next_id=next_id, ids=steer_ids(pending))
+        next_id=next_id, ids=ids, sender=_steer_sender(session_id, ids))
     chat_root_send_queue.enqueue(session_id, next_id, persisted)
     return next_id
 
@@ -245,8 +274,10 @@ def _requeue_from_ledger(
         ).get("operator"):
             continue
         next_id = NEXT_TURN_PREFIX + steer_id
+        sender = steer.get(chat_root_send_queue.ORIGIN_ARG)
         chat_root_send_queue.enqueue(session_id, next_id, _next_turn_send(
-            send_args, session_id=session_id, text=text, next_id=next_id, ids=[steer_id]))
+            send_args, session_id=session_id, text=text, next_id=next_id, ids=[steer_id],
+            sender=sender if isinstance(sender, dict) else None))
         queued.append(next_id)
     return queued
 

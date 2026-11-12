@@ -24,7 +24,7 @@ ledger sweep, the serve boot's) are read at the queue entry they write — the e
 Killing mutations (each run, seen red, restored — recorded in the commit body):
 * ``_next_turn_send`` keeps ``dict(send_args)`` for every turn → the one-shot, wave-lane, ledger-sweep and boot
   tests red (requester, budget, origin, working folder; the run reported ended twice);
-* ``_is_one_shot_work_send`` drops its until-done term → the until-done test red;
+* ``_is_until_done_send`` drops its ``goal`` term → the until-done test red;
 * ``_operators_own_send`` keeps the run's ``max_seconds`` → the parser-agreement test and the one-shot test red.
 """
 
@@ -298,19 +298,6 @@ def test_a_late_steer_at_an_until_done_run_stays_a_turn_of_the_run():
     assert late["requested_by"] == f"work:{REQUEST}" and late["max_seconds"] == WORK_BUDGET
     assert late[send_queue.ORIGIN_ARG] == dict(WORK_ORIGIN, goal=True)
     assert late["message"] == "one more thing" and late["steer_of"] == [STEER_ID]
-
-
-def test_an_operators_own_late_steer_keeps_the_send_it_was_typed_at():
-    """An operator's streaming turn is already the operator's: nothing of its send is replaced."""
-
-    send = {"persona_id": "p", "persona_instance_id": "personainst_1", "requested_by": OPERATOR_REQUESTED_BY,
-            "max_seconds": 90.0, "model": "picked-for-this-chat",
-            send_queue.ORIGIN_ARG: {"owner": "conn-7", "gateway": True}}
-
-    late = leftover_steer._next_turn_send(send, session_id="root", text="one more thing", next_id=LATE_TURN,
-                                          ids=[STEER_ID])
-
-    assert {key: late[key] for key in send} == send
 
 
 def test_the_operators_own_send_is_what_the_real_parser_gives_the_apps_message():

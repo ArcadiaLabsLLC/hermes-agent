@@ -10,8 +10,10 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, Callable
 
+from .chat_root_send_queue import ORIGIN_ARG
 from .paths import MISSION_CHAT_STEER_DIRNAME, unlink_quietly
 
 __layer__ = "lanes"
@@ -108,7 +110,15 @@ def submit_mission_chat_steer(
     persona_instance_id: str | None = None,
     timeout_seconds: float = _ACK_TIMEOUT_SECONDS,
     notification: bool = False,
+    origin: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Hand a steer to the root's running turn and wait for its watcher's answer.
+
+    ``origin`` is who sent it — the serve request's ``queued_turn_origin.send_origin()`` — kept on the
+    accepted record so a steer that arrives too late is answered where it was typed
+    (:func:`accepted_steer_origin`); ``None`` for a caller with no sender to name.
+    """
+
     normalized_session_id = (session_id or "").strip()
     normalized_client_id = (client_message_id or "").strip()
     try:
@@ -148,6 +158,7 @@ def submit_mission_chat_steer(
                 "persona_instance_id": persona_instance_id,
                 "message": normalized_message,
                 "notification": notification,
+                **({ORIGIN_ARG: dict(origin)} if isinstance(origin, Mapping) else {}),
                 "created_at": time.time(),
             },
         )
@@ -248,6 +259,8 @@ def _process_request(handle: MissionChatSteerHandle, path: Path) -> None:
             _accepted_path(handle.runtime_root, handle.session_id, client_message_id),
             {"client_message_id": client_message_id, "message": message,
              "notification": request.get("notification") is True,
+             # MUTATION: drop this line and test_late_steer_is_an_ordinary_message's device tests redden.
+             **({ORIGIN_ARG: request[ORIGIN_ARG]} if isinstance(request.get(ORIGIN_ARG), dict) else {}),
              "turn": handle.client_message_id, "accepted_at": time.time()},
         )
         handle.processed_client_ids.add(client_message_id)
@@ -300,6 +313,18 @@ def _mirror_steer_to_live_log(session_id: str, message: str, client_message_id: 
     except Exception:
         return
     return
+
+
+def accepted_steer_origin(*, runtime_root: Path, session_id: str, client_message_id: str) -> dict[str, Any] | None:
+    """Who sent an accepted steer (its record's :data:`ORIGIN_ARG`), read without taking the record.
+
+    ``None`` for a steer whose sender was not recorded: one accepted before 2026-11-12, a process notice,
+    or a caller that named none.
+    """
+
+    record = _read_json(_accepted_path(Path(runtime_root), session_id, client_message_id)) or {}
+    origin = record.get(ORIGIN_ARG)
+    return dict(origin) if isinstance(origin, dict) else None
 
 
 def take_accepted_steers(*, runtime_root: Path, session_id: str) -> list[dict[str, Any]]:

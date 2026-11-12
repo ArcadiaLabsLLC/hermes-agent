@@ -116,6 +116,8 @@ def _cmd_mission_chat_steer(args) -> int:
         return 2
     try:
         message = normalize_operator_message(message)
+        from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
+
         data = submit_mission_chat_steer(
             runtime_root=paths.store_root(),
             session_id=session_id,
@@ -123,6 +125,10 @@ def _cmd_mission_chat_steer(args) -> int:
             client_message_id=client_message_id,
             persona_id=safe_assignment_token(getattr(args, "persona_id", None)) or None,
             persona_instance_id=safe_assignment_token(getattr(args, "persona_instance_id", None)) or None,
+            # Who typed it: a steer that arrives too late is answered on that device
+            # (RT-LATE-STEER-TYPED-ON-A-PAIRED-DEVICE-IS-NOT-ANSWERED-THERE).
+            # MUTATION: drop this argument and test_late_steer_is_an_ordinary_message's device test reddens.
+            origin=send_origin(),
         )
     except ValueError as exc:
         data = {
