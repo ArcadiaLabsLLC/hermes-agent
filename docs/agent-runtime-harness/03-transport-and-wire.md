@@ -1505,6 +1505,18 @@ or its name, case aside). The move writes the leave into the source realm the wa
 ([01 — System architecture](01-system-architecture.md) § "The realm ledgers on a pull"). Moving it back lifts the
 ledger. Moving INTO a server-bound realm needs neither gate.
 
+**What waits for the publish is on the status read** (RT-REALM-STATUS-MISSES-A-WAITING-WORKSPACE-LEAVE).
+`runtime.realm.sync.status` carries `workspace_changes`: one row per workspace file this machine's next publish of
+the realm adds, rewrites or removes against the team's copy in its sync clone — `{workspace_id, name, change,
+realm_id, realm_name, to_realm_id, to_realm_name}`, `change` one of `added` (new here, moved in or restored),
+`changed` (a rename, an archive, its agent list), `left` (moved to the realm `to_realm_id` / `to_realm_name` name;
+the team loses it at the publish) and `deleted` (the two `to_*` keys are null except on `left`). It also carries
+`skill_deletes_waiting`: the slugs of skills deleted for the whole realm here that the team's copy still holds.
+Either one lights `unpublished_changes`. A realm this machine has never published has no rows. The rows are the
+publish's own set (`artifacts._workspaces_for_realm`, the delete ledger already subtracted) compared file by file
+with the clone's realm subtree — `agent_runtime/realm_sync/workspace_changes.py`; both keys are additive and
+absent-tolerant.
+
 Refusals ride `error.data.reason`: `invalid_request` (-32602); `workspace_not_found`, `realm_not_found` (4001);
 and at 4090 `realm_archived` (`realm_id`), `workspace_archived` (restore it first), `realm_default_workspace`
 (`realm_id` — a realm's default workspace and the reserved `ws_default` never leave),
