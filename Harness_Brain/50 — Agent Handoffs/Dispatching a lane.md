@@ -13,7 +13,7 @@ differs here, each rule with the incident that bought it.
 
 > [!important] A brief is a work order — ≤ 40 lines, one page to read, steps, capped report
 > Setup commands; the one page (a handoff here, or the plan section); the steps in order; the report
-> fields with a cap (≤ 30 lines, ≤ 3 rows). No history, no rationale, no restated rules. A judgment
+> fields with a cap (≤ 30 lines; queue rows are not capped — filed as found, named by ID). No history, no rationale, no restated rules. A judgment
 > call gets a one-line decision rule.
 
 ## 1. Cut lanes thick, by domain
@@ -98,7 +98,7 @@ Every lane, every peer session (`ListAgents`), the live serve and the gate share
    needs two lanes' changes to appear. In the launcher's land-w1021e, about eight of ten fix commits were one
    lane's own red, fixed one at a time by an agent that had not written the code. Regenerate generated files a move touched
    (`scripts/gen_gateway_contracts.py`).
-6. Push `HEAD:main` (fast-forward), send **"main open"**, delete the landed rows, update memory.
+6. Push `HEAD:main` (fast-forward), send **"main open"**, close the landed rows (`scripts/work_row.py close`, which archives them — never a deletion), update memory.
 
 ## 6. Peer sessions
 
@@ -159,7 +159,7 @@ Run: per `Running the tests.md` § "What a lane runs" (name it; do not restate i
 Host: shell scripts run with Git Bash's absolute path (`C:/Program Files/Git/bin/bash.exe`) — a bare `bash` from Python is WSL; never start a real serve or gateway (a QA copy's own serve, § 8, is the one exception); a test whose red writes real machine state runs once by hand.
 Upstream files / fixtures: § 4 of this page (the brief names which apply).
 Commits: one MOVE, one CHANGE; push per commit; never main; never amend/force/stash; leave the worktree.
-Report (≤30 lines): tip SHA; per-file outcome; test counts + reds marked caused/pre-existing/load; ≤3 rows verbatim; tool-call count.
+Report (≤30 lines): tip SHA; per-file outcome; test counts + reds marked caused/pre-existing/load; rows filed, by ID (not capped, never held for the report); tool-call count.
 Trailer: Co-Authored-By: <the lane's model> <noreply@anthropic.com>
 ```
 
@@ -170,10 +170,11 @@ lane's report lives only in its notification — copy what matters the moment it
 rows on arrival, by surface ([[TODO]]).
 
 Before dispatching rows filed during a wave, read all of them in one pass, merge duplicates, order the
-ones that depend on each other and brief them as a set, quoting each row's own words (in a question to
-the owner too). A task's follow-ups sit on its task row's `handoff` segment until its close: file them
-together then as the task's follow-up task, check none is a defect in what the task built, and file
-what a dead lane's handoff and holding-file lines carry (owner 2026-11-12; the rule is
+ones that depend on each other and brief them as a set; a brief names rows by ID and never paraphrases
+one (where it, or a question to the owner, must say what a row is, paste the row's line). A task's
+follow-ups are rows under its follow-up task from the minute they arrive: before the task's last close
+read them once together, merge and cross-cite, and check none is a defect in what the task built
+(owner 2026-11-12; the rule is
 `EterniaLauncher/docs/agent_context/WORK_TRACKING.md`, "A row says what was SEEN…" and "A task closes
 when…").
 
