@@ -60,7 +60,7 @@ class WorkSource(Protocol):
         """Drop ``who``'s claim and set ``status`` with ``reason``; ``not_claimant`` for another's claim."""
 
     def block(self, ref: RowRef, who: Claimant, question: str, recommend: str) -> Receipt:
-        """``BLOCKED <date>: owner decision — <question> · Recommend: <recommend>``, then release."""
+        """``DECISION <date>: <question> · Recommend: <recommend>``, then release."""
 
     def done(self, ref: RowRef, who: Claimant, result: str, *, commit: str = "here") -> Receipt:
         """Archive the row and its result; the full result also goes in the commit body."""

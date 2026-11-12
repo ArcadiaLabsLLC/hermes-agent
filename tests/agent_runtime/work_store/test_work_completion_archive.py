@@ -40,6 +40,22 @@ def test_native_completion_survives_reopen_with_result_and_commit(repo):
     assert receipt.commit
 
 
+def test_a_lanes_question_is_written_as_a_decision_and_released(repo):
+    """RT-WORK-QUESTION-WRITES-DECISION. KILLING MUTATION: write ``BLOCKED … owner decision — `` in
+    ``BoardSource.block`` -> the row is not among the DECISION rows, red."""
+    writer = Writer(repo.board, machine_id="m1")
+    writer.sync()
+    board = replace(repo.board, read_root=writer.worktree)
+    source = BoardSource(repo.ws, sync=lambda *a, **kw: Synced([board], {board.key: writer}, False))
+    ref = RowRef(board.slot, NOTE, "RT-A")
+    who = Claimant.persona("inst-a")
+    source.claim(ref, who, "claim-ask")
+    source.block(ref, who, "ship on `Friday`?", "")
+    row = next(row for row in board_rows(board) if row.ref.id == "RT-A")
+    assert (row.status.value, row.status_body, row.recommend) == ("DECISION", "ship on -Friday-?", "none offered")
+    assert row.taken is None and not row.defects
+
+
 def test_completion_commit_never_invents_delivery():
     assert Outcome(Verdict.DONE).completion_commit == "here"
     assert Outcome(Verdict.DONE, commits=("not-a-sha", "abcdef0123")).completion_commit == "abcdef0123"

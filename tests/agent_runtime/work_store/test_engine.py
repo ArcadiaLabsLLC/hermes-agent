@@ -234,8 +234,10 @@ def test_done_archives_blocked_sets_owner_decision_stopped_defers_failed_needs_p
     assert f"DONE {DATE} here" in archived and "result: shipped it" in archived
     for row in rows.values():
         assert row_defects(row.raw) == [] and row.taken is None, row.raw
-    assert rows["RT-B"].status is Status.BLOCKED
-    assert rows["RT-B"].status_body == "owner decision — ship on Friday?"
+    # RT-WORK-QUESTION-WRITES-DECISION. KILLING MUTATION: write ``Status.BLOCKED`` with ``owner decision — `` in
+    # ``engine._blocked`` -> the question is not among the DECISION rows, red.
+    assert rows["RT-B"].status is Status.DECISION
+    assert rows["RT-B"].status_body == "ship on Friday?"
     assert rows["RT-B"].recommend == "yes, behind the flag"
     assert (rows["RT-S"].status, rows["RT-S"].status_body) == (Status.DEFERRED, "stopped — operator stop")
     assert rows["RT-F"].status is Status.NEEDS_PLAN
@@ -273,7 +275,7 @@ def test_write_backs_use_derived_request_ids_so_a_replay_cannot_double_apply(boa
     assert [op.request_id for op in calls] == [f"{rid}:blocked:status", f"{rid}:blocked:release",
                                                 f"{rid}:blocked:status", f"{rid}:blocked:release"]
     row = _rows(writer)["RT-B"]
-    assert row.raw.count("BLOCKED") == 1 and row.raw.count("Recommend:") == 1 and row.taken is None
+    assert row.raw.count("DECISION") == 1 and row.raw.count("Recommend:") == 1 and row.taken is None
     assert row_defects(row.raw) == []
     assert records() == [] or all(r.state is RecordState.CLOSED for r in records())
 
@@ -534,7 +536,7 @@ def test_a_repeating_schedule_waits_for_the_owners_answer_before_it_runs_the_tas
     writer, engine, executor, scheduler, (t1, t2, t3) = _task_schedule(board, _row("RT-S"))
     scheduler.tick(t1)
     executor.settle(executor.started[0], RowEnding(Verdict.BLOCKED, question="ship on Friday?", recommend="yes"))
-    assert _rows(writer)["RT-S"].status is Status.BLOCKED
+    assert _rows(writer)["RT-S"].status is Status.DECISION
     engine.tick()
     [skipped] = scheduler.tick(t2)
     assert skipped["kind"] == "schedule.skipped" and skipped["reason"] == "waits_on_owner"

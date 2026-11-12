@@ -1300,7 +1300,7 @@ that instance as ONE chat turn — `PersonaTurnExecutor` (`persona_turn.py`, beh
 contract `executor.py`) enqueues the brief on the instance's chat root through the busy-root send queue, so
 the turn runs when the root is idle; a session lane's claim is never touched. The turn's ending is the LAST
 fenced `work_report` block of its reply, read when the queued-send runner settles it
-(`RunnerPolicy.on_settle`): done deletes the row; blocked writes `BLOCKED <date>: owner decision — … ·
+(`RunnerPolicy.on_settle`): done deletes the row; blocked writes `DECISION <date>: <question> ·
 Recommend: …` and releases; stopped releases and writes `DEFERRED <date>: stopped — …`; an unreadable
 ending, or a run that ended while the serve was down, releases and writes `NEEDS PLAN <date>: …` (re-claim
 to retry). Each step is one writer op by row ID with a request id derived from the run's. A run is a file

@@ -158,7 +158,7 @@ def test_rows_are_claimed_and_a_lane_settles_its_rows_by_ending():
                                                               first.rows[1]: RowEnding(Verdict.BLOCKED, question="Q?")}))
     assert first.rows[0] not in source.by_ref
     blocked = source.by_ref[first.rows[1]]
-    assert blocked.status is Status.BLOCKED and blocked.taken is None and "Q?" in blocked.status_body
+    assert blocked.status is Status.DECISION and blocked.taken is None and "Q?" in blocked.status_body
     d.executor.settle(f"{batch.id}:L2", Outcome(Verdict.FAILED))
     assert all(source.by_ref[r].status is Status.NEEDS_PLAN and source.by_ref[r].taken is None for r in second.rows)
     after = d.load(WS, batch.id)
@@ -332,7 +332,7 @@ def test_status_reads_marks_from_the_rows():
     d.executor.settle(f"{batch.id}:L1", Outcome(Verdict.DONE, {ref: RowEnding(Verdict.DONE),
                                                               other: RowEnding(Verdict.BLOCKED, question="?")}))
     marks = d.status(WS, batch.id)["batches"][0]["marks"]
-    assert marks == {f"hermes/{ref.id}": "gone", f"hermes/{other.id}": "BLOCKED"}
+    assert marks == {f"hermes/{ref.id}": "gone", f"hermes/{other.id}": "DECISION"}
     assert refused(lambda: d.status(WS, "BATCH-NOPE00")) is Reason.BATCH_MISSING
 
 

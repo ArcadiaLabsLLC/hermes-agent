@@ -17,7 +17,7 @@ from typing import Any
 
 from ..work_store import board as boards_store
 from ..work_store.board import Board
-from ..work_store.grammar import OWNER_DECISION, Op, Row, RowRef, Status, render_status, segment_text
+from ..work_store.grammar import Op, Row, RowRef, Status, render_status, segment_text
 from ..work_store.models import Claimant
 from ..work_store.reasons import Reason, WorkRefused
 from ..work_store.writer import Receipt, RowOp
@@ -86,7 +86,7 @@ class BoardSource:
                            {"status": render_status(status, self._today(), body)})
 
     def block(self, ref: RowRef, who: Claimant, question: str, recommend: str) -> Receipt:
-        status = render_status(Status.BLOCKED, self._today(), f"{OWNER_DECISION} — {segment_text(question)}")
+        status = render_status(Status.DECISION, self._today(), segment_text(question) or "the lane asked no question")
         status += f" · Recommend: {segment_text(recommend) or 'none offered'}"
         rid = _derived_id("block", ref, who.who, status)
         self._apply(ref, Op.SET_STATUS, who, f"{rid}:status", {"status": status})

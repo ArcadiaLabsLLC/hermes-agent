@@ -76,7 +76,7 @@ class FakeSource:
         return self._receipt(ref, Op.RELEASE, who.who, f"release:{ref.id}")
 
     def block(self, ref: RowRef, who: Claimant, question: str, recommend: str) -> Receipt:
-        return self.release(ref, who, Status.BLOCKED, f"owner decision — {question} · Recommend: {recommend}")
+        return self.release(ref, who, Status.DECISION, f"{question} · Recommend: {recommend}")
 
     def done(self, ref: RowRef, who: Claimant, result: str, *, commit: str = "here") -> Receipt:
         self._held(ref, who)

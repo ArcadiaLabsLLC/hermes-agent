@@ -26,7 +26,7 @@ each persona-claimed row with no live record, under the workspace's lane cap; (3
 The write-back is the ``WRITE_BACKS`` table, one ``RowOp`` per step through the W2 writer, keyed by
 row ID, each with a request id derived from the run's (``<run request_id>:<verdict>:<step>``) so a
 replay cannot double-apply: DONE deletes the row (the result in the commit body); BLOCKED sets
-``BLOCKED <date>: owner decision — <question> · Recommend: <answer>`` then releases; STOPPED releases
+``DECISION <date>: <question> · Recommend: <answer>`` then releases; STOPPED releases
 then ``DEFERRED <date>: stopped — <reason>``; FAILED releases then ``NEEDS PLAN <date>: …``.
 Receipts: ``work.run_start | run_settle | run_refused | engine_tick``.
 """
@@ -132,7 +132,7 @@ def _done(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
 
 
 def _blocked(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
-    status = render_status(Status.BLOCKED, date, f"owner decision — {segment_text(ending.question)}")
+    status = render_status(Status.DECISION, date, segment_text(ending.question) or "the agent asked no question")
     status += f" · Recommend: {segment_text(ending.recommend) or 'none offered'}"
     return [("blocked:status", Op.SET_STATUS, {"status": status}), ("blocked:release", Op.RELEASE, {})]
 
