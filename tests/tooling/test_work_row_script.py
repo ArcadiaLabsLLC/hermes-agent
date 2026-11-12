@@ -329,6 +329,45 @@ def test_the_last_subtask_closing_closes_its_task(clones, tmp_path, monkeypatch,
     assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue(q): close RT-S2 DONE 5d6e7f8"
 
 
+FOLLOW_UPS = ("- **`TASK-P-FOLLOWUPS` — What the pills found on the way** · task: p-followups · READY 2026-11-09\n"
+              "- **`RT-F1` — a loose end** · group: p-followups · READY 2026-11-09\n"
+              "- **`RT-F2` — a parked one** · group: p-followups.x · DEFERRED 2026-11-09: later\n")
+
+
+def test_closing_a_task_lists_its_open_follow_up_rows(clones, tmp_path, monkeypatch, capsys):
+    """Launcher row QA-TASK-CLOSE-SHOWS-ITS-FOLLOW-UP-ROWS (its twin: ``close_row.dart::_listFollowUps``). KILLING
+    MUTATION: drop ``follow_up_lines`` from ``close_task``'s return -> the read-them-together line and the three
+    rows are not printed, red. A close that archives no task prints none of it."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path, "- **`L-F` — a launcher loose end** · group: p-followups · READY 2026-11-09\n")
+    _seed(mine, TASK_ROWS + FOLLOW_UPS)
+    close = ["--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date", "2026-11-09", "--repo", str(mine)]
+    assert work_row.main(["close", "RT-S1", *close]) == 0
+    assert "follow-up" not in capsys.readouterr().out, "TASK-P is still open: nothing to read yet"
+    assert work_row.main(["close", "RT-S2", *close]) == 0
+    assert capsys.readouterr().out.split("\n")[-5:] == [
+        "task `TASK-P` is closed with 3 follow-up row(s) open under `p-followups` — read them together now: one "
+        "that is a defect in what this task built goes back into the task, which reopens for it",
+        "  `RT-F1` — a loose end (hermes, q.md)",
+        "  `RT-F2` — a parked one (hermes, q.md)",
+        "  `L-F` — a launcher loose end (launcher, mission-control-queue.md)",
+        ""]
+
+
+def test_closing_a_task_with_no_follow_up_rows_prints_nothing_about_them(clones, tmp_path, monkeypatch, capsys):
+    """KILLING MUTATION: return the read-them-together line from ``follow_up_lines`` when it found no row -> a
+    line naming 0 rows is printed, red. Another task's follow-up rows are not this task's."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path)
+    _seed(mine, TASK_ROWS.replace("- **`RT-S2` — second slice** · group: p.x · READY 2026-11-09\n", "")
+          + FOLLOW_UPS.replace("p-followups", "pp-followups"))
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date", "2026-11-09",
+                          "--repo", str(mine), "--no-commit"]) == 0
+    assert capsys.readouterr().out == "closed task `TASK-P` DONE 2026-11-09 1a2b3c4: all 1 subtasks closed\n"
+
+
 def test_a_subtask_open_in_a_sibling_brain_or_a_sibling_not_checked_out_keeps_the_task_open(
         clones, tmp_path, monkeypatch, capsys):
     """KILLING MUTATIONS: drop the sibling rows from ``_brains`` in ``task_step`` -> TASK-P closes with

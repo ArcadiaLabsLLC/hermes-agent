@@ -28,7 +28,8 @@ task (an owner close still goes); the last open subtask's close archives a task 
 (``DONE <date> <sha> · result: all N subtasks closed``); otherwise the task of the closed row and of every woken row
 follows its subtasks — READY with an ``unblocked`` segment once one is startable, ``BLOCKED`` on the first waiting
 one when none is (:func:`agent_runtime.work_store.tasks.task_status_after_close`). A task in a sibling brain is that
-brain's to move — the close prints what to set there; with a sibling brain not checked out the task is left open.
+brain's to move — the close prints what to set there; with a sibling brain not checked out the task is left open. A close that archives a task prints the live rows under
+``<slug>-followups`` in every brain read, with one line saying to read them together (nothing when there are none).
 ``claim`` refuses a subtask whose task holds its subtasks back (``task_not_ready``).
 
 A claim names its place (ADR 0025's 2026-10-26 amendment): ``**TAKEN <date> <lane> on <machine> as
@@ -294,7 +295,24 @@ def close_task(repo: Path, closed: Row, task: Row, texts: dict[Path, str], archi
     texts[note], _ = archive_row(repo, note, texts[note], task.ref.id, who, {**task_payload, "date": payload["date"]},
                                  archives)
     done_as = f"CLOSED {payload['date']}" if by_owner else f"DONE {payload['date']} {payload['commit']}"
-    return [f"closed task `{task.ref.id}` {done_as}: {words}"]
+    # MUTATION: drop the follow-up lines and test_closing_a_task_lists_its_open_follow_up_rows reddens.
+    return [f"closed task `{task.ref.id}` {done_as}: {words}", *follow_up_lines(task, _brains(texts, siblings))]
+
+
+def follow_up_lines(task: Row, rows: list[Row]) -> list[str]:
+    """After ``task`` is archived: the live rows under ``<slug>-followups`` in every brain read, by ID and title,
+    under one line saying to read them together — the last moment a defect parked there is in view (launcher row
+    QA-TASK-CLOSE-SHOWS-ITS-FOLLOW-UP-ROWS; the words are ``EterniaLauncher/tool/queue/close_row.dart::
+    _listFollowUps``'s). A print only: nothing when there are none, and no refusal."""
+
+    slug = f"{task.task}-followups"
+    found = [row for row in rows if row.task is None and row.group is not None
+             and (row.group == slug or row.group.startswith(slug + "."))]
+    if not found:
+        return []
+    return [f"task `{task.ref.id}` is closed with {len(found)} follow-up row(s) open under `{slug}` — read them "
+            "together now: one that is a defect in what this task built goes back into the task, which reopens for it",
+            *(f"  `{row.ref.id}` — {row.title} ({row.ref.slot}, {Path(row.ref.note).name})" for row in found)]
 
 
 def queue_notes(repo: Path, note: str | None) -> list[Path]:
