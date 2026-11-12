@@ -114,6 +114,24 @@ def test_move_drops_a_card_on_a_status_column(work):
         assert refused.value.reason is reason
 
 
+def test_move_drops_a_card_on_live_check_and_on_decision_and_the_question_is_answered(work):
+    """RT-QUEUE-LIVE-CHECK-STATUS. Mutations: drop the question check in ``store.move`` -> a DECISION drop with no
+    question writes, red; drop ``LIVE CHECK|DECISION`` from ``grammar.STATUS`` -> ``to`` refuses ``invalid``, red."""
+    task = start(work)["task"]
+    where = {"slot": "brain", "task_id": task["id"]}
+    live = call(work, "move", request_id="v1", to="LIVE CHECK", reason="open the board, read the pill", **where)["task"]
+    assert (live["status"], live["status_body"]) == ("LIVE CHECK", "open the board, read the pill")
+    with pytest.raises(WorkRefused) as unasked:
+        call(work, "move", request_id="v2", to="DECISION", **where)
+    assert unasked.value.reason is Reason.GRAMMAR_INVALID
+    asked = call(work, "move", request_id="v3", to="DECISION", reason="round or square?", **where)["task"]
+    assert (asked["status"], asked["status_body"]) == ("DECISION", "round or square?")
+    answered = call(work, "answer", request_id="v4", answer="round", line=asked["raw"], **where)["task"]
+    assert answered["status"] == "READY" and answered["rulings"][-1].endswith(": owner — round")
+    kept = call(work, "set_status", request_id="v5", status="LIVE CHECK 2026-11-12: read the pill", **where)["task"]
+    assert kept["status"] == "LIVE CHECK"
+
+
 def test_move_guards_on_the_line_the_board_drew(work):
     """RT-WORK-MOVE-LINE-GUARD: a board reading the user's checkout holds the row's raw line, not ``revision``.
     Mutation: drop the ``line`` check in ``store.move`` -> the stale-line drop writes BLOCKED, red."""

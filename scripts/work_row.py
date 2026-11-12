@@ -22,7 +22,7 @@ naming the close (``agent_runtime/work_store/wake.py``; launcher row BRAIN-QUEUE
 A close also moves the row's TASK (launcher plan ``EterniaLauncher/docs/mission_control/planned/
 QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md`` D3 amended, D7; the launcher's ``tool/queue/close_row.dart``;
 ``agent_runtime/work_store/tasks.py``), judged with the launcher's and the backend's queues checked out beside this
-repository: ``--done`` on a subtask whose task is DEFERRED or BLOCKED on an owner decision is refused, naming the
+repository: ``--done`` on a subtask whose task is DEFERRED, a DECISION or BLOCKED on an owner decision of its own is refused, naming the
 task (an owner close still goes); the last open subtask's close archives a task in this brain in the same commit
 (``DONE <date> <sha> · result: all N subtasks closed``); otherwise the task of the closed row and of every woken row
 follows its subtasks — READY with an ``unblocked`` segment once one is startable, ``BLOCKED`` on the first waiting
@@ -60,7 +60,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from agent_runtime.work_store.grammar import (
-    SEPARATOR, STATUS, Op, OutcomeKind, Row, apply, archive_note_for, archive_note_text, find, is_queue,
+    RECOMMEND, SEPARATOR, STATUS, Op, OutcomeKind, Row, apply, archive_note_for, archive_note_text, find, is_queue,
     parse_note, parse_outcome, row_defects, split_segments,
 )
 from agent_runtime.work_store.reasons import Reason, WorkRefused
@@ -186,7 +186,8 @@ def refuse_parked_task(closed: Row, rows: list[Row]) -> None:
     """``--done`` on a subtask whose task the owner parked or owes a decision is refused, naming the task (D3)."""
 
     task = task_of(closed, rows) if closed.task is None else None
-    if task is not None and (why := task_refuses_done(task)) is not None:
+    own = [closed.ref.id, *(s.ref.id for s in subtasks_of(task, rows))] if task is not None else []
+    if task is not None and (why := task_refuses_done(task, own)) is not None:
         raise WorkRefused(Reason.TASK_NOT_READY, f"`{closed.ref.id}` is a subtask of task `{task.ref.id}` "
                                                  f"(task: {task.task}, {task.ref.slot}), which is {why} — the task's "
                                                  "status is the owner's decision for every subtask; reopen the task first")
@@ -194,7 +195,8 @@ def refuse_parked_task(closed: Row, rows: list[Row]) -> None:
 
 def _rewrite_status(text: str, row_id: str, status: list[str]) -> str:
     """``text`` with ``row_id``'s status segment replaced by ``status``, its earlier ``unblocked`` records dropped
-    (a task line keeps only the latest) and every other segment, a claim included, kept."""
+    (a task line keeps only the latest) and the ``Recommend:`` an owner-decision block carried (``status`` brings
+    its own when it asks the owner), and every other segment, a claim included, kept."""
 
     lines = text.split("\n")
     row = find(parse_note(text, slot="", note=""), row_id)
@@ -204,7 +206,7 @@ def _rewrite_status(text: str, row_id: str, status: list[str]) -> str:
     for index, segment in enumerate(split_segments(line.rstrip("\r"))):
         if index and STATUS.match(segment.strip()):
             kept += status
-        elif not (index and segment.strip().startswith("unblocked ")):
+        elif not (index and (segment.strip().startswith("unblocked ") or RECOMMEND.match(segment.strip()))):
             kept.append(segment)
     lines[row.line_no - 1] = SEPARATOR.join(kept) + carriage
     return "\n".join(lines)

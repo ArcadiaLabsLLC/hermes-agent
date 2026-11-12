@@ -37,6 +37,8 @@ from .reasons import Reason, WorkRefused
 __layer__ = "policy"
 __all__ = [
     "ARCHIVE_DIR",
+    "STARTABLE",
+    "STATUS_WORDS",
     "Assignee",
     "Claim",
     "Op",
@@ -48,6 +50,7 @@ __all__ = [
     "apply",
     "archive_note_for",
     "archive_note_text",
+    "asks_owner",
     "domain_of",
     "find",
     "is_queue",
@@ -66,7 +69,7 @@ __all__ = [
 ROW = re.compile(r"^\s*- (?:\[[ xX]\] )?\*\*")
 ROW_ID = re.compile(r"^- \*\*`([^`]*)` — ")
 ID_SHAPE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
-STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN) (\d{4}-\d{2}-\d{2})(?::\s*(.*))?$", re.DOTALL)
+STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN|LIVE CHECK|DECISION) (\d{4}-\d{2}-\d{2})(?::\s*(.*))?$", re.DOTALL)
 RULED = re.compile(r"^RULED \d{4}-\d{2}-\d{2}\b")
 RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
 ASSIGNEE = re.compile(r"^assignee: persona:([A-Za-z0-9_.-]+)$")
@@ -116,6 +119,26 @@ class Status(StrEnum):
     BLOCKED = "BLOCKED"
     DEFERRED = "DEFERRED"
     NEEDS_PLAN = "NEEDS PLAN"
+    #: Everything on the row is built; what is left is driving the app and reading the result. Startable.
+    LIVE_CHECK = "LIVE CHECK"
+    #: The row waits on the owner's answer to the question in its body. Not startable.
+    DECISION = "DECISION"
+
+
+#: The statuses an agent can start work on (launcher ``tool/queue/queue_wake.dart::isStartable``): a task with one
+#: such subtask is READY. Every other status waits (BLOCKED, DECISION) or is parked (DEFERRED).
+STARTABLE = frozenset({Status.READY, Status.NEEDS_PLAN, Status.LIVE_CHECK})
+#: The status words, as a refusal names them.
+STATUS_WORDS = " / ".join(status.value for status in Status)
+
+
+def asks_owner(status: Status | None, body: str | None) -> bool:
+    """Whether a status is a question the owner has not answered: ``DECISION``, or ``BLOCKED`` on ``owner
+    decision`` (the earlier spelling, still read)."""
+
+    if status is Status.DECISION:
+        return True
+    return status is Status.BLOCKED and blocked_reason((body or "").strip()) == OWNER_DECISION
 
 
 class OutcomeKind(StrEnum):
@@ -328,7 +351,7 @@ def _status_defects(segments: list[str]) -> list[str]:
     statuses = [(i, STATUS.match(s)) for i, s in enumerate(segments) if STATUS.match(s)]
     defects: list[str] = []
     if len(statuses) != 1:
-        defects.append(f"{len(statuses)} status segments; exactly one of READY / BLOCKED / DEFERRED / NEEDS PLAN <date>")
+        defects.append(f"{len(statuses)} status segments; exactly one of {STATUS_WORDS} <date>")
     for index, status in statuses:
         if Status(status.group(1)) is not Status.BLOCKED:
             continue
@@ -629,13 +652,13 @@ def _set_status(line: str, *, who: str, date: str, payload: dict) -> str:
     wanted = [s.strip() for s in split_segments(str(payload.get("status") or ""))]
     new = STATUS.match(wanted[0])
     if new is None:
-        raise WorkRefused(Reason.INVALID, "payload.status is not a READY / BLOCKED / DEFERRED / NEEDS PLAN <date> segment")
+        raise WorkRefused(Reason.INVALID, f"payload.status is not a {STATUS_WORDS} <date> segment")
     claim = claim_mark(line)
     segments = split_segments(_release(line, who=who, date=date, payload={}))
     at = next((i for i, s in enumerate(segments) if i and STATUS.match(s.strip())), None)
     if at is None:
         raise WorkRefused(Reason.GRAMMAR_INVALID, "the row has no status segment to replace")
-    asks = Status(new.group(1)) is Status.BLOCKED and blocked_reason((new.group(3) or "").strip()) == OWNER_DECISION
+    asks = asks_owner(Status(new.group(1)), new.group(3))
     keep_recommend = asks and len(wanted) == 1
     edited: list[str] = []
     for i, segment in enumerate(segments):
@@ -704,7 +727,7 @@ def _set_group(line: str, *, who: str, date: str, payload: dict) -> str:
 def _answer_line(line: str, *, who: str, date: str, payload: dict) -> str:
     """An owner decision answered (RT-WORK-ANSWER-VERB): ``RULED <date>: owner — <answer>`` inserted before the
     status, the status replaced by ``READY <date>`` and its ``Recommend:`` dropped, the claim (if any) kept.
-    A row that is not ``BLOCKED <date>: owner decision`` refuses ``invalid``."""
+    A row that is neither ``DECISION <date>`` nor ``BLOCKED <date>: owner decision`` refuses ``invalid``."""
 
     answer = segment_text(str(payload.get("answer") or ""), limit=900)
     if not answer:
@@ -713,9 +736,8 @@ def _answer_line(line: str, *, who: str, date: str, payload: dict) -> str:
     segments = split_segments(_release(line, who=who, date=date, payload={}))
     at = next((i for i, s in enumerate(segments) if i and STATUS.match(s.strip())), None)
     status = STATUS.match(segments[at].strip()) if at is not None else None
-    if status is None or Status(status.group(1)) is not Status.BLOCKED or blocked_reason(
-            (status.group(3) or "").strip()) != OWNER_DECISION:
-        raise WorkRefused(Reason.INVALID, "the row is not BLOCKED on an owner decision")
+    if status is None or not asks_owner(Status(status.group(1)), status.group(3)):
+        raise WorkRefused(Reason.INVALID, "the row is not a DECISION, nor BLOCKED on an owner decision")
     edited = [*segments[:at], f"RULED {date}: owner — {answer}", f"READY {date}"]
     edited += [s for s in segments[at + 1:] if not RECOMMEND.match(s.strip())]
     return SEPARATOR.join(edited).rstrip() + (f"{SEPARATOR}{claim.group(0)}" if claim else "")

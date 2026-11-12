@@ -316,6 +316,71 @@ def test_no_startable_subtask_blocks_the_task_on_the_first_waiting_one(clones, t
     assert "task `TASK-P`: BLOCKED 2026-11-09" in capsys.readouterr().out
 
 
+def test_a_live_check_subtask_keeps_its_task_ready(clones, tmp_path, monkeypatch):
+    """RT-QUEUE-LIVE-CHECK-STATUS. KILLING MUTATION: drop ``Status.LIVE_CHECK`` from ``grammar.STARTABLE`` -> TASK-P
+    turns BLOCKED on RT-S3 with a live check left to run, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path)
+    task = "- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n"
+    _seed(mine, task + SUBTASK
+          + "- **`RT-S2` — the pill reads right** · group: p · LIVE CHECK 2026-11-12: open the board, read the pill\n"
+          "- **`RT-S3` — waits** · group: p · BLOCKED 2026-11-09: another lane — `RT-B` first\n")
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--repo", str(mine),
+                          "--no-commit"]) == 0
+    assert task in (mine / NOTE).read_text(encoding="utf-8")
+    claim = ["claim", "RT-S2", "--who", "lane", "--machine", "box", "--account", "me", "--worktree", "wt",
+             "--repo", str(mine), "--no-commit"]
+    assert work_row.main(claim) == 0 and "read the pill · **TAKEN " in (mine / NOTE).read_text(encoding="utf-8")
+
+
+def test_a_decision_subtask_waits_on_the_owner_and_its_tasks_block_holds_no_other_close(
+        clones, tmp_path, monkeypatch, capsys):
+    """RT-QUEUE-LIVE-CHECK-STATUS. KILLING MUTATIONS: drop ``Status.DECISION`` from the ``waiting`` rows of
+    ``task_status_after_close`` -> TASK-P stays READY with only a question left, red; drop the own-subtask arm of
+    ``task_refuses_done`` -> the DONE close of RT-S3 under the block is refused, red; drop the ``DECISION`` arm of
+    ``task_refuses_done`` -> a DONE close under a task that is itself a DECISION goes, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path)
+    question = "- **`RT-S2` — which pill** · group: p · DECISION 2026-11-12: round or square? · Recommend: round\n"
+    _seed(mine, "- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n" + SUBTASK + question)
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--date", "2026-11-12",
+                          "--repo", str(mine), "--no-commit"]) == 0
+    blocked = ("- **`TASK-P` — Pills on the board** · task: p · BLOCKED 2026-11-12: owner decision — `RT-S2` every "
+               "live subtask waits (1 on the owner); the task turns READY when one of them does · "
+               "Recommend: answer `RT-S2`\n")
+    assert blocked in (mine / NOTE).read_text(encoding="utf-8")
+    capsys.readouterr()
+    _seed(mine, blocked + question + "- **`RT-S3` — a late slice** · group: p · READY 2026-11-12\n")
+    done = ["close", "RT-S3", "--who", "r", "--done", "1a2b3c4", "--date", "2026-11-12", "--repo", str(mine),
+            "--no-commit"]
+    assert work_row.main(done) == 0, capsys.readouterr().err
+    assert blocked in (mine / NOTE).read_text(encoding="utf-8")
+    _seed(mine, "- **`TASK-P` — Pills on the board** · task: p · DECISION 2026-11-12: build pills at all?\n"
+          + "- **`RT-S3` — a late slice** · group: p · READY 2026-11-12\n")
+    assert work_row.main(done) == work_row.EXIT_REFUSED
+    assert "which is DECISION 2026-11-12" in capsys.readouterr().err
+
+
+def test_an_answered_question_readies_its_task_and_drops_the_tasks_recommend(clones, tmp_path, monkeypatch):
+    """RT-QUEUE-LIVE-CHECK-STATUS. KILLING MUTATION: keep ``Recommend:`` segments in ``_rewrite_status`` -> the READY
+    task still reads ``Recommend: answer `RT-S2```, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path)
+    _seed(mine, "- **`TASK-P` — Pills on the board** · task: p · BLOCKED 2026-11-12: owner decision — `RT-S2` every "
+                "live subtask waits (1 on the owner); the task turns READY when one of them does · "
+                "Recommend: answer `RT-S2`\n"
+                "- **`RT-S2` — which pill** · group: p · DECISION 2026-11-12: round or square? · Recommend: round\n"
+                "- **`RT-S3` — the pill** · group: p · BLOCKED 2026-11-12: another lane — `RT-S2` the shape\n")
+    assert work_row.main(["close", "RT-S2", "--who", "r", "--owner", "round", "--date", "2026-11-13",
+                          "--repo", str(mine), "--no-commit"]) == 0
+    text = (mine / NOTE).read_text(encoding="utf-8")
+    assert ("- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-13 · unblocked 2026-11-13: `RT-S2` closed "
+            "by the owner\n") in text
+
+
 def test_an_owner_block_of_the_tasks_own_stays_when_a_subtask_wakes(clones, tmp_path, monkeypatch):
     """KILLING MUTATION: drop the owner guard in ``task_status_after_close`` -> TASK-P turns READY, red."""
     monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)

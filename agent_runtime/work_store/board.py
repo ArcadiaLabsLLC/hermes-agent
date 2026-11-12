@@ -262,7 +262,9 @@ def ready(workspace_id: str, *, read_roots: Mapping[str, Path] | None = None) ->
 def claimable(every: list[Row]) -> list[Row]:
     """Of ``every`` row the boards read (all statuses, so tasks are visible), those a claim may take: ``READY``, not
     ``TAKEN``, and not a subtask of a task that is not READY (RT-QUEUE-TASKS-DOORS; launcher plan
-    QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3: the task's status is the owner's lever over every subtask)."""
+    QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3: the task's status is the owner's lever over every subtask). The Work
+    engine and a planned wave take ``READY`` only: a ``NEEDS PLAN`` or ``LIVE CHECK`` row is startable
+    (``grammar.STARTABLE`` — it keeps its task READY) but is started by a claim that names it, never swept up."""
 
     return [row for row in every
             if row.status is Status.READY and row.taken is None and parked_task(row, every) is None]

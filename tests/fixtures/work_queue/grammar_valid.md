@@ -20,6 +20,8 @@ queues. -->
 - **`FX-ANOTHER-LANE` — Another lane row** · BLOCKED 2026-10-16: another lane — `FX-READY` lane w1016c-mc
 - **`FX-DEFERRED` — Deferred row** · DEFERRED 2026-10-16: owner: "after the release" until 2026-11-01
 - **`FX-NEEDS-PLAN` — Needs plan row** · NEEDS PLAN 2026-10-16: the read path and card fields
+- **`FX-LIVE-CHECK` — Live check row** · LIVE CHECK 2026-11-12: open the board at 1280×800 and read the pill · REQUIRES windows, linux
+- **`FX-DECISION` — Decision row** · DECISION 2026-11-12: Ship the pill read-only? · Recommend: yes, writes wait for an ask
 - **`FX-RULED` — Ruled row** · RULED 2026-10-16: one board per repo · READY 2026-10-16
 - **`FX-TAKEN` — Taken row** · READY 2026-10-16 · **TAKEN 2026-10-16 w1016c-mc**
 - **`FX-CODE-SPAN` — Code span row** · the separator `a · b` inside code · READY 2026-10-16

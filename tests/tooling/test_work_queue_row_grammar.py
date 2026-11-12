@@ -12,7 +12,8 @@ A row is ``- **`<ID>` — <title>** · <segment> · …``, on ONE physical line,
 
 * an ID (``^[A-Z0-9][A-Z0-9._-]*$``) unique across every queue note in the vault;
 * EXACTLY one status segment — ``READY <date>``, ``BLOCKED <date>: <reason> — …``,
-  ``DEFERRED <date>: …`` or ``NEEDS PLAN <date>: …``;
+  ``DEFERRED <date>: …``, ``NEEDS PLAN <date>: …``, ``LIVE CHECK <date>: …`` (built; what is left is driving the
+  app and reading the result) or ``DECISION <date>: <question>`` (waits on the owner's answer);
 * a BLOCKED reason from the closed set below, and a ``Recommend: …`` segment after an
   ``owner decision``;
 * for the lane reasons (``backend``, ``hermes``, ``launcher``, ``another lane``) the text after `` — ``
@@ -72,7 +73,7 @@ BRAIN = REPO / "Harness_Brain"
 ROW = re.compile(r"^\s*- (?:\[[ xX]\] )?\*\*")
 ROW_ID = re.compile(r"^- \*\*`([^`]*)` — ")
 ID_SHAPE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
-STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN) (\d{4}-\d{2}-\d{2})(?::\s*(.*))?$", re.DOTALL)
+STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN|LIVE CHECK|DECISION) (\d{4}-\d{2}-\d{2})(?::\s*(.*))?$", re.DOTALL)
 RULED = re.compile(r"^RULED \d{4}-\d{2}-\d{2}\b")
 ASSIGNEE = re.compile(r"^assignee: persona:[A-Za-z0-9_.-]+$")
 SKILLS = re.compile(r"^skills: `[A-Za-z0-9_./-]+`(?:, `[A-Za-z0-9_./-]+`)*$")
@@ -186,7 +187,8 @@ def row_defects(line: str, *, archived: bool = False) -> list[str]:
     elif outcomes:
         defects.append("CLOSED ROW LIVE: an outcome segment on a live row; a closed row moves to the archive")
     if not archived and len(statuses) != 1:
-        defects.append(f"{len(statuses)} status segments; exactly one of READY / BLOCKED / DEFERRED / NEEDS PLAN <date>")
+        defects.append(f"{len(statuses)} status segments; exactly one of READY / BLOCKED / DEFERRED / NEEDS PLAN / "
+                       "LIVE CHECK / DECISION <date>")
     for index, status in statuses:
         if status.group(1) != "BLOCKED":
             continue
@@ -331,6 +333,9 @@ VALID = [
     "- **`RT-N` — persona claim** · READY 2026-10-27 · **TAKEN 2026-10-27 persona:pi_alice_01**",
     "- **`RT-O` — grouped** · group: companion-templates.tags · plan `docs/x/planned/p.md` · READY 2026-11-02",
     "- **`TASK-PILLS` — Pills on the board** · task: board-pills · READY 2026-11-09",
+    "- **`RT-P` — live check** · group: board-pills · LIVE CHECK 2026-11-12: open the board, read the pill · REQUIRES windows, linux",
+    "- **`RT-Q` — question** · group: board-pills · DECISION 2026-11-12: round or square? · Recommend: round",
+    "- **`RT-R` — bare question** · group: board-pills · DECISION 2026-11-12: round or square?",
 ]
 DEFECTS = {
     "- [ ] **`RT-A` — checkbox** · READY 2026-10-18": "checkbox",
@@ -339,6 +344,8 @@ DEFECTS = {
     "- **`RT-A` — no status** · fork": "0 status",
     "- **`RT-A` — undated** · READY **TAKEN 2026-10-18 x**": "0 status",
     "- **`RT-A` — two** · READY 2026-10-18 · DEFERRED 2026-10-18: x": "2 status",
+    "- **`RT-A` — built and waiting** · LIVE CHECK 2026-11-12: drive it · DECISION 2026-11-12: ship?": "2 status",
+    "- **`RT-A` — lower** · Live check 2026-11-12: drive it": "0 status",
     "- **`RT-A` — reason** · BLOCKED 2026-10-18: quiet box": "BLOCKED reason",
     "- **`RT-A` — outside** · BLOCKED 2026-10-18: the launcher — row": "BLOCKED reason",
     "- **`RT-A` — ask** · BLOCKED 2026-10-18: owner decision — A or B?": "Recommend",

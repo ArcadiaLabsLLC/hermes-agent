@@ -25,7 +25,7 @@ from agent_runtime.work_store.default_brain import (
     QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, this_machine,
 )
 from agent_runtime.work_store.grammar import (
-    ASSIGNEE, GROUP_SLUG, STATUS, Assignee, Op, Row, RowRef, Status, find, local_day, mint_id, parse_note,
+    ASSIGNEE, GROUP_SLUG, STATUS, STATUS_WORDS, Assignee, Op, Row, RowRef, Status, find, local_day, mint_id, parse_note,
 )
 from agent_runtime.work_store.tasks import task_of
 from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, work_worktree_for
@@ -566,8 +566,8 @@ def claim(scope, params, actor, *, context=None):
 def parent_task(workspace_id: str, row: Row) -> dict[str, Any] | None:
     """The claim door's task check (RT-QUEUE-TASKS-GRAMMAR; launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3).
 
-    A subtask (a row with ``group:``) is claimable only while its task is READY: a DEFERRED, BLOCKED or NEEDS PLAN
-    task refuses ``task_not_ready``, naming the task. The task is looked for in every brain the workspace's boards
+    A subtask (a row with ``group:``) is claimable only while its task is READY: a task in any other status
+    refuses ``task_not_ready``, naming the task. The task is looked for in every brain the workspace's boards
     read (the slug or a dotted prefix of it); a task no visible brain holds lets the claim through, and the answer
     says so (``checked: false``). None for a row that is not a subtask.
     """
@@ -600,7 +600,7 @@ def _instance_exists(instance: str) -> None:
 def _status_segment(value: Any) -> str:
     segment = text(value, maximum=1000)
     if STATUS.match(segment.split(" · ")[0]) is None:
-        raise WorkRefused(Reason.GRAMMAR_INVALID, "status is READY / BLOCKED / DEFERRED / NEEDS PLAN <date>[: …]")
+        raise WorkRefused(Reason.GRAMMAR_INVALID, f"status is {STATUS_WORDS} <date>[: …]")
     return segment
 
 
@@ -628,7 +628,7 @@ def move(scope, params, actor, *, context=None):
     """The Work board's drag between status columns, as one write (RT-WORK-MOVE-ROW-COLUMN).
 
     ``to`` is a column word; the serve dates the status. ``reason`` is the status body (``BLOCKED`` needs
-    one, starting with a blocked-reason word). ``revision`` (the card's ``revision``) refuses ``row_changed``
+    one, starting with a blocked-reason word; ``DECISION`` needs one, the question). ``revision`` (the card's ``revision``) refuses ``row_changed``
     when the row moved on since the card was drawn. ``line`` (the row's raw line as a board drew it off the
     user's checkout, which never holds ``revision``: launcher ``MC-BRAINS-ONE-READER``) refuses ``row_changed``
     when hermes's worktree row reads otherwise (RT-WORK-MOVE-LINE-GUARD); a trailing CR is not a change.
@@ -638,7 +638,7 @@ def move(scope, params, actor, *, context=None):
 
     to = params.get("to")
     if to not in MOVE_COLUMNS:
-        raise WorkRefused(Reason.INVALID, "to is READY | BLOCKED | DEFERRED | NEEDS PLAN")
+        raise WorkRefused(Reason.INVALID, "to is " + " | ".join(MOVE_COLUMNS))
     reason = params.get("reason")
     reason = None if reason is None else text(reason, maximum=900).strip()
     segment = f"{to} {local_day(_now())}" + (f": {reason}" if reason else "")
@@ -647,6 +647,8 @@ def move(scope, params, actor, *, context=None):
 
         if not reason or blocked_reason(reason) is None:
             raise WorkRefused(Reason.GRAMMAR_INVALID, "a BLOCKED drop names a reason: owner decision | backend | …")
+    if to == Status.DECISION and not reason:
+        raise WorkRefused(Reason.GRAMMAR_INVALID, "a DECISION drop names the question the owner is asked")
     view = synced(scope.workspace_id, slot=params.get("slot"))
     board = _view_board(view, params.get("slot"))
     writer = view.writers[board.key]

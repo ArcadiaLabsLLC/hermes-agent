@@ -117,7 +117,8 @@ tags: [queue, program/work]
 
 Row grammar (Harness_Brain ADR 0011, the launcher's ADR 0025): `- **`<ID>` — <title>** · … · <status>`,
 one line, a unique ID, EXACTLY ONE of `READY <date>` / `BLOCKED <date>: <reason> — …` /
-`DEFERRED <date>: …` / `NEEDS PLAN <date>: …`; a claim is `**TAKEN <date> <who>**`.
+`DEFERRED <date>: …` / `NEEDS PLAN <date>: …` / `LIVE CHECK <date>: …` / `DECISION <date>: <question>`;
+a claim is `**TAKEN <date> <who>**`.
 """
 
 def IDENTITY_PAIRS(machine: str) -> tuple[str, str]:

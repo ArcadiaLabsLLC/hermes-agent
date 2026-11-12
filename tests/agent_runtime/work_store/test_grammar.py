@@ -42,6 +42,10 @@ def test_every_valid_fixture_row_parses_with_no_defect() -> None:
     assert by_id["FX-OWNER-DECISION"].status is Status.BLOCKED
     assert by_id["FX-OWNER-DECISION"].recommend == "yes, writes wait for an ask"
     assert by_id["FX-NEEDS-PLAN"].status is Status.NEEDS_PLAN and by_id["FX-NEEDS-PLAN"].status_date == "2026-10-16"
+    assert by_id["FX-LIVE-CHECK"].status is Status.LIVE_CHECK and by_id["FX-LIVE-CHECK"].requires == ("windows", "linux")
+    assert by_id["FX-LIVE-CHECK"].status_body == "open the board at 1280×800 and read the pill"
+    assert by_id["FX-DECISION"].status is Status.DECISION and by_id["FX-DECISION"].status_body == "Ship the pill read-only?"
+    assert by_id["FX-DECISION"].recommend == "yes, writes wait for an ask"
     assert by_id["FX-TAKEN"].taken == grammar.Claim("2026-10-16", "w1016c-mc")
     assert by_id["FX-RULED"].rulings == ("RULED 2026-10-16: one board per repo",)
     assert by_id["FX-READY-PLAN"].pointers == ("docs/mission_control/subsystems/WORK_QUEUE_BOARD_2026-10-16.md",)
@@ -98,6 +102,30 @@ def test_set_status_keeps_exactly_one_status() -> None:
     with pytest.raises(WorkRefused) as unasked:
         grammar.apply(line, Op.SET_STATUS, who="q", date=DATE, payload={"status": "BLOCKED 2026-10-18: owner decision — ?"})
     assert unasked.value.reason is Reason.GRAMMAR_INVALID
+
+
+def test_a_live_check_is_startable_and_a_decision_is_the_owners_to_answer() -> None:
+    """RT-QUEUE-LIVE-CHECK-STATUS. KILLING MUTATIONS: drop ``LIVE CHECK|DECISION`` from ``grammar.STATUS`` -> both
+    rows read 0 status segments, red; drop the ``DECISION`` arm of ``grammar.asks_owner`` -> the answer refuses
+    ``invalid`` and the re-status loses its ``Recommend:``, red."""
+    assert grammar.STARTABLE == {Status.READY, Status.NEEDS_PLAN, Status.LIVE_CHECK}
+    line = "- **`RT-L` — a row** · group: p · READY 2026-11-12 · **TAKEN 2026-11-12 q on box as me in wt**"
+    live = grammar.apply(line, Op.SET_STATUS, who="q", date="2026-11-12",
+                         payload={"status": "LIVE CHECK 2026-11-12: open the board, read the pill"})
+    assert live == line.replace("READY 2026-11-12", "LIVE CHECK 2026-11-12: open the board, read the pill")
+    assert grammar.row_defects(live) == [] and grammar.parse_row(live, slot="s", note="n", line_no=1).status is Status.LIVE_CHECK
+    asked = grammar.apply(live, Op.SET_STATUS, who="q", date="2026-11-12",
+                          payload={"status": "DECISION 2026-11-12: round or square? · Recommend: round"})
+    row = grammar.parse_row(asked, slot="s", note="n", line_no=1)
+    assert (row.status, row.status_body, row.recommend, row.defects) == (Status.DECISION, "round or square?", "round", ())
+    reworded = grammar.apply(asked, Op.SET_STATUS, who="q", date="2026-11-12",
+                             payload={"status": "DECISION 2026-11-12: round, square or none?"})
+    assert " · DECISION 2026-11-12: round, square or none? · Recommend: round · **TAKEN" in reworded
+    answered = grammar.apply(asked, Op.ANSWER, who="operator", date="2026-11-13", payload={"answer": "round"})
+    assert answered == line.replace("READY 2026-11-12", "RULED 2026-11-13: owner — round · READY 2026-11-13")
+    with pytest.raises(WorkRefused) as built:
+        grammar.apply(live, Op.ANSWER, who="operator", date="2026-11-13", payload={"answer": "round"})
+    assert built.value.reason is Reason.INVALID
 
 
 def test_mint_id_is_work_six_base32() -> None:
