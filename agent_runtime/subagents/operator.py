@@ -1,4 +1,5 @@
 """Read children through the exact operator conversation and its recorded DB."""
+import json
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -26,13 +27,47 @@ def _belongs(record, db, session_id, home):
         return False
     if Path(db_path).resolve() != Path(db.db_path).resolve() or Path(logs_dir).resolve().parent != home:
         return False
-    # Resolve only ids that actually exist in this owner's database. Unknown
-    # identities cannot become authority through a best-effort resolver fallback.
-    if db.get_session(durable_owner) is None:
-        return False
-    owned_tip = db.resolve_resume_session_id(durable_owner)
     requested_tip = db.resolve_resume_session_id(session_id)
-    return bool(owned_tip and requested_tip and owned_tip == requested_tip)
+    if not requested_tip:
+        return False
+    # A helper's own helper is owned by the HELPER's session (RT-SUBAGENT-ROSTER-OMITS-HELPERS-HELPER: one
+    # ran four minutes and was never listed). Climb the delegation edge the helper's session recorded —
+    # ``model_config._delegate_from``, the one edge upstream follows out of an execution transcript
+    # (``gateway/run_notifications_ownership.py``) and ``history_store.owned_history_sessions`` already reads —
+    # until a session resolves to this conversation's tip. A branch or a reset carries no such edge.
+    # MUTATION: return after the first hop and test_subagent_operator_descendants reddens (the nested helper
+    # is not listed).
+    seen = set()
+    for _hop in range(_MAX_DELEGATE_HOPS + 1):
+        # Resolve only ids that actually exist in this owner's database. Unknown
+        # identities cannot become authority through a best-effort resolver fallback.
+        row = db.get_session(durable_owner) if durable_owner not in seen else None
+        if row is None:
+            return False
+        seen.add(durable_owner)
+        if db.resolve_resume_session_id(durable_owner) == requested_tip:
+            return True
+        durable_owner = _delegated_from(row)
+        if not durable_owner:
+            return False
+    return False
+
+
+#: How far a helper's lineage is climbed to its conversation. Real nesting is ``delegation.max_spawn_depth``
+#: (default 2); this only stops a corrupt chain from costing an unbounded run of session reads.
+_MAX_DELEGATE_HOPS = 8
+
+
+def _delegated_from(row) -> str:
+    """The session that delegated to ``row``'s session (``model_config._delegate_from``), else ``""``."""
+    config = row.get("model_config")
+    if isinstance(config, str):
+        try:
+            config = json.loads(config)
+        except ValueError:
+            return ""
+    source = config.get("_delegate_from") if isinstance(config, dict) else None
+    return source if isinstance(source, str) else ""
 
 
 def _subagent_profile_binding(instance):
