@@ -179,12 +179,16 @@ def test_a_rekey_killed_part_way_is_finished_by_running_it_again(tmp_path, monke
         late = runtime_paths.board_card_path(default_board_id(first.id), "card_late")
         late.parent.mkdir(parents=True)
         moved = runtime_paths.board_cards_dir(owed["map"]["boards"][default_board_id(first.id)])
-        late.write_text(next(moved.glob("*.json")).read_text(encoding="utf-8"), encoding="utf-8")
+        new_board = moved.parent.name
+        late.write_text(next(moved.glob("*.json")).read_text(encoding="utf-8").replace(
+            new_board, default_board_id(first.id)), encoding="utf-8")
 
     journal = rekey_realm(realm.id)
 
     if killed_after == "rename":
-        assert (moved / "card_late.json").exists() and not late.parent.parent.exists()
+        assert json.loads((moved / "card_late.json").read_text(encoding="utf-8"))["board_id"] == new_board
+        assert not late.parent.parent.exists()
+        (moved / "card_late.json").unlink()
 
     assert journal["map"] == owed["map"] and journal["leftover"] == []
     _assert_local_copy_is_whole(journal, first, second, extra)

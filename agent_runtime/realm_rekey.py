@@ -196,13 +196,15 @@ def _rewrite_text(value: str, forms: dict[str, str]) -> str:
 
 
 def _rewrite_json(value: Any, forms: dict[str, str]) -> Any:
-    if isinstance(value, str):
-        return _rewrite_text(value, forms)
-    if isinstance(value, list):
-        return [_rewrite_json(item, forms) for item in value]
-    if isinstance(value, dict):
-        return {_rewrite_text(key, forms): _rewrite_json(item, forms) for key, item in value.items()}
-    return value
+    rewrite = _JSON_REWRITERS.get(type(value))
+    return rewrite(value, forms) if rewrite else value
+
+
+_JSON_REWRITERS = {
+    str: _rewrite_text,
+    list: lambda value, forms: [_rewrite_json(item, forms) for item in value],
+    dict: lambda value, forms: {_rewrite_text(key, forms): _rewrite_json(item, forms) for key, item in value.items()},
+}
 
 
 def _git_tree_roots(root: Path) -> set[Path]:
@@ -261,6 +263,19 @@ def _renamed(name: str, forms: dict[str, str]) -> str:
     return forms[stem] + dot + rest if dot and stem in forms else name
 
 
+def _merge_folder(old: Path, new: Path) -> None:
+    """A late writer re-made the old folder after it moved: bring over what the new one lacks. A file both
+    hold stays where it is — the new one is the newer — and the census names what is left."""
+    for child in sorted(old.iterdir()):
+        target = new / child.name
+        if not target.exists():
+            shutil.move(str(child), str(target))
+        elif child.is_dir() and target.is_dir():
+            _merge_folder(child, target)
+    if not any(old.iterdir()):
+        old.rmdir()
+
+
 def _step_rename(root: Path, mapping: RekeyMap) -> None:
     forms = mapping.forms()
     for path in _moves_files(root):
@@ -270,12 +285,7 @@ def _step_rename(root: Path, mapping: RekeyMap) -> None:
         if not target.exists():
             path.rename(target)
         elif path.is_dir() and target.is_dir():
-            # A late writer re-made the old folder after it moved: bring over what the new one lacks.
-            for child in sorted(path.iterdir()):
-                if not (target / child.name).exists():
-                    shutil.move(str(child), str(target / child.name))
-            if not any(path.iterdir()):
-                path.rmdir()
+            _merge_folder(path, target)
 
 
 def _step_ledgers(root: Path, mapping: RekeyMap) -> None:
