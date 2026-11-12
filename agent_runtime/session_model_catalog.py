@@ -56,11 +56,14 @@ def facts(conversation_id: str, snapshot: dict, inventory: dict) -> dict:
     offered = choices(inventory)
     labels = {provider_id(row): row.get("name") or row["slug"]
               for row in inventory.get("providers", ()) if isinstance(row.get("slug"), str)}
+    # A row may name its models (``model_labels``: the local llama presets, RT-LOCAL-LLAMA-PRESET-PICKABLE).
+    model_labels = {provider_id(row): row.get("model_labels") or {}
+                    for row in inventory.get("providers", ()) if isinstance(row.get("slug"), str)}
     connected = {provider_id(row) for row in inventory.get("providers", ())
                  if row.get("authenticated") is not False}
     return {"session_id": conversation_id, "current_model_id": current,
             "model_selection_required": not model or provider not in connected,
-            "models": [{"id": key, "label": model, "provider_id": provider,
+            "models": [{"id": key, "label": model_labels.get(provider, {}).get(model, model), "provider_id": provider,
                         "provider_label": labels[provider]}
                        for key, (provider, model) in offered.items()],
             "usage": info.get("usage") or {},

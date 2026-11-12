@@ -46,7 +46,7 @@ def operator_model_inventory(instance) -> dict:
         return _with_local_llama_presets(build_model_options_payload(load_picker_context()))
 
 
-def _local_llama_presets() -> list[str]:
+def _local_llama_presets() -> dict[str, str]:
     """The selectable presets saved in Mission Control's local llama screens (RT-LOCAL-LLAMA-PRESET-PICKABLE).
 
     Upstream's picker row for ``llamacpp`` (``hermes_cli.inventory._local_runtime_row``) knows only the
@@ -57,8 +57,9 @@ def _local_llama_presets() -> list[str]:
     try:
         block = catalog_visibility()
     except Exception:  # an unreadable adapter config offers no presets; the other rows still answer
-        return []
-    return [row["model_id"] for row in block.get("models", ()) if row.get("selectable")]
+        return {}
+    return {row["model_id"]: row.get("display_name") or row["model_id"]
+            for row in block.get("models", ()) if row.get("selectable")}
 
 
 def _with_local_llama_presets(payload: dict) -> dict:
@@ -71,12 +72,13 @@ def _with_local_llama_presets(payload: dict) -> dict:
     for index, row in enumerate(rows):
         if provider_id(row) == PROVIDER_ID:
             models = list(row.get("models") or ())
-            rows[index] = {**row, "authenticated": True,
+            rows[index] = {**row, "authenticated": True, "model_labels": presets,
                            "models": models + [m for m in presets if m not in models]}
             break
     else:
-        rows.append({"slug": PROVIDER_ID, "name": "Local", "authenticated": True, "models": presets,
-                     "total_models": len(presets), "source": "local-llama"})
+        # ``model_labels``: the preset's saved name, so the chat's model chip never reads a UUID.
+        rows.append({"slug": PROVIDER_ID, "name": "Local", "authenticated": True, "models": list(presets),
+                     "model_labels": presets, "total_models": len(presets), "source": "local-llama"})
     return {**payload, "providers": rows}
 
 

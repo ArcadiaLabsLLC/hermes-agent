@@ -461,8 +461,8 @@ def test_a_local_llama_preset_saved_in_mission_control_is_offered_and_selected(p
         {"model_id": missing, "display_name": "Gone", "context_length": 4096, "selectable": False,
          "unavailable_reason": "missing_file"}]})
     params = target(placed_agent["persona_instance_id"])
-    offered = {row["id"] for row in inspect("models", params)["result"]["facts"]["models"]}
-    assert model_key(PROVIDER_ID, saved) in offered
+    offered = {row["id"]: row["label"] for row in inspect("models", params)["result"]["facts"]["models"]}
+    assert offered[model_key(PROVIDER_ID, saved)] == "Qwen"  # the saved name, never the preset's UUID
     assert model_key(PROVIDER_ID, missing) not in offered
     reply = inspect("model.select", {**params, "model_id": model_key(PROVIDER_ID, saved), "scope": "conversation"})
     assert "result" in reply, reply
