@@ -1191,7 +1191,8 @@ server's sync clone `realm_sync/<server>` is removed once no realm is bound to t
 the cached sync state are cleared, and `realm.updated` `{change: "became_local", server_id}` is
 appended. All member reasons, not only the three `membership_*` ones: the backend emits `realm.revoked`
 once, on the grant diff, so a realm left bound after a lost role would get no second event when the
-member later leaves. The verb takes an optional `server_name` (the caller's display name for the server)
+member later leaves. Owner ruling 2026-11-12, asked "Should losing your role or access also turn the realm
+local, not only leaving or being removed?": "Yes, keep it wide". The verb takes an optional `server_name` (the caller's display name for the server)
 and answers `{realm_id, reason, revoked_at, host_state, became_local, shared_from}`; a repeat answers the
 first record with `became_local: false`. The snapshot's realm row and the full `realm_row` (`realm show`, the archive verbs) carry `shared_from`
 (null on a server-bound realm and on a realm that never had a server). Nothing is sent: the team's copy
