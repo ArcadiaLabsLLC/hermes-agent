@@ -28,6 +28,7 @@ from agent_runtime.models import Event
 from agent_runtime.persona_assignments import safe_assignment_text, safe_assignment_token
 from agent_runtime.provider_retry_wait import PROVIDER_RETRY_WAIT_FRAME, safe_provider_retry_wait
 from agent_runtime.serde import safe_block, safe_int, safe_text
+from agent_runtime.tool_call_outcome import carried_tool_outcome
 from hermes_cli.harness_parts.persona.tool_heartbeat import ToolHeartbeat
 from hermes_time import now
 
@@ -786,11 +787,7 @@ class _ChatProtocolV2Emitter:
             # The `run.tool.finished` lane carries no duration (upstream's
             # completion callback has none to give); this process timed the call.
             tool["duration_ms"] = int(max(0.0, time.monotonic() - started) * 1000)
-        outcome = safe_assignment_token(payload.get("outcome"))
-        if outcome:
-            tool["outcome"] = outcome
-        if payload.get("timed_out") is True:
-            tool["timed_out"] = True
+        tool.update(carried_tool_outcome(payload))
         files = payload.get("changed_files") or payload.get("files_touched") or []
         if isinstance(files, list):
             tool["files"] = [safe_assignment_text(item, limit=240) for item in files if safe_assignment_text(item, limit=240)]
