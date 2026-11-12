@@ -1,17 +1,13 @@
 # Leaving and re-joining a server: the local copy stays, the server's realm comes back fresh (2026-11-12)
 
-Status: PLANNED 2026-11-12 by lane w1112b-hm-rejoin2; slice 1 BUILT the same day (`agent_runtime/realm_rekey.py`:
-the place table as top-level store entries, the map, the journal, the JSON-store steps, the census — one module,
-not the package §3 names; nothing calls it). Lane w1112b-hm-rejoin3 BUILT, the same day, the agents
-(`realm_rekey_agents.py`), git (`realm_rekey_git.py`), the places outside the JSON store
-(`realm_rekey_outside.py`) and the id map (`realm_rekey_journal.py`, the realm row's `rekeyed_from`, the
-`realm.rekeyed` event): the operation is whole and `OWED_HANDLERS` is empty. Lane w1112b-hm-rejoin4 BUILT §5 (the
-triggers, the busy facts, `realm_busy`; `agent_runtime/realm_rekey_triggers.py`): an owed re-key now runs by
-itself, but NOTHING OWES ONE YET. Not built: §7 (the switch-over and its walk). "As built" notes are in §3, §4, §6;
-new open points are at the end of §10. Task `TASK-REJOIN-FRESH-REALM` (slug `rejoin-fresh-realm`,
-runtime queue). Nothing here is built unless §9 says so; until the switch-over row lands a member sees the
-behaviour of ed84b2c01a / 30bf4d08c7 (the realm turns local at the leave; a re-join binds the SAME realm id again
-and merges).
+Status: BUILT 2026-11-12 (lanes w1112b-hm-rejoin2, -rejoin3, -rejoin4), in four modules beside the package §3
+names: `agent_runtime/realm_rekey.py` (the place table, the map, the journal, the JSON-store steps, the census),
+`realm_rekey_agents.py`, `realm_rekey_git.py`, `realm_rekey_outside.py`, `realm_rekey_journal.py` (the read side:
+`rekeyed_from`), and `realm_rekey_triggers.py` (§5: the one caller). THE SWITCH-OVER IS IN (§7, as built): a leave
+owes the re-key and tries it at once; a re-join makes way and adopts the server's realm fresh. A member no longer
+sees the re-bind of ed84b2c01a / 30bf4d08c7. Task `TASK-REJOIN-FRESH-REALM` (slug `rejoin-fresh-realm`, runtime
+queue). "As built" notes are in §3–§7; what is still open is §10 (two owner questions) and the in-app
+two-member read (a `LIVE CHECK` row: it needs a server realm on staging).
 
 ## 1. The rulings (owner, 2026-11-12)
 
@@ -192,6 +188,52 @@ One function, `rekey_realm(journal)`. Nothing else renames a realm or a workspac
   doc's re-join wording (`docs/agent-runtime-harness/03-transport-and-wire.md`). The leave itself, the wide reason
   set, the archive rules and the ordinary-move fixes of 30bf4d08c7 stand.
 
+- **As built** (lane w1112b-hm-rejoin4; `realm_leave.make_realm_local`, `realm_verbs.realm_mark_revoked` /
+  `realm_adopt`, `realm_membership.adopt_realms(make_way=…)`, `realm_rekey_triggers.make_way_for_rejoin`,
+  `realm_sync/pull.py::_pull_persona_instances`). The seven points of the row's handoff, each settled:
+  1. *Restored team agents meet the pull with no instance baseline.* The agents are restored INSIDE the fresh
+     realm's first pull, just before the mint door (not at the adopt: between an adopt and its pull their
+     workspaces do not exist yet, and a reconcile could read them as orphans), and only the ones the team still
+     publishes (`only=`); an agent the team removed while the member was away stays parked. Each restored row
+     is written into the realm's instance baseline as it stands, so a row the team changed is ADOPTED (the
+     team's body), never held as "both sides added it". Pinned: the agent renamed while local comes back with
+     the team's name and no conflict sidecar.
+  2. *Install-wide catalogues are not re-keyed.* Maps, prefabs, persona definitions, profile files and skills
+     keep one document per id for both realms. Their five drift baselines are kept at the moment the re-key is
+     owed (`realm_rekey/<realm>.team_catalogues/`, read from the older build's `team_baselines` folder where
+     one exists) and handed to the fresh realm when the re-join makes way for it. So at the fresh pull: an id
+     only the TEAM changed is adopted; an id only the MEMBER changed is kept and reads as an unpublished change
+     of the fresh realm (sent only by a publish the member makes); an id BOTH changed is held, the team's body
+     parked as a conflict. Without the kept baselines every difference was held as a conflict (measured: a map
+     the team alone had edited never arrived). What a member SHOULD see for an id they changed while local is
+     the open owner question of §10.
+  3. *Folder slots, env fills and Lens watches* moved with the local copy; the fresh realm arrives with no
+     folder bound, as for a first-time joiner — said in the wire doc. Owner question of §10; the one place that
+     would change is `realm_rekey_outside._rekey_machine_files` / `_rekey_lens` (rewrite → copy to both).
+  4. *A promoted brain keeps the team's remote* — unchanged here, row
+     `RT-LEFT-REALM-BRAIN-STILL-PUSHES-TO-THE-TEAM`.
+  5. *A one-workspace re-key aside is not needed.* The map is minted at the leave from the realm as the team
+     knows it, and the content step rewrites a mapped workspace wherever it sits by the time the re-key runs —
+     including one moved into another local realm after the leave (that realm's `workspace_ids` /
+     `default_workspace_id` are rewritten, its ledgers are not: `_rewrite_membership`). What the member adds
+     after the leave was never the team's and keeps its id. The collision re-check at the re-join is therefore
+     per REALM: a granted realm id still held by a server-less realm here (a leave under the build that owed
+     nothing, or a crash between the conversion and the owing) is owed and re-keyed in the adopt call. A
+     workspace the member moved out BEFORE leaving and never published is the ordinary-move case of
+     30bf4d08c7: the pull re-homes it, as for a member who stayed.
+  6. *`realm_busy`* — §5 as built; the adopt refuses before anything is adopted, for the whole grant list.
+  7. *A real `hermes harness` child drove it* — the walk of §9 slice 6, through a real serve in a sandboxed
+     namespace with a bare team repository (lane log `.lane_logs/rj4/walk.log`).
+- **The leave tries the re-key at once.** `runtime.realm.revoked` runs `run_owed_rekeys(LEAVE)` in the same
+  call: with the serve idle the answer already says `rekey: "done"` and `rekeyed_to`; otherwise `rekey: "owed"`
+  and `rekey_waits_on`. A realm left a second time (after a re-join) gets a new journal; the first cycle's is
+  filed beside it as `<old>.<new>.json` and still answers the first local copy's `rekeyed_from`.
+- **Removed:** `keep_team_baselines` / `restore_team_baselines` / `team_baselines_dir` /
+  `clear_realm_shared_from` and the unarchive-on-re-grant; a `team_baselines` folder an older build left is
+  deleted by the re-key's `ledgers` step. `shared_from` now stays with the local copy for good.
+- **Not guarded (Eternia's cursor):** a `realm.revoked` replayed AFTER a re-join names the fresh realm's id and
+  turns it local again — hermes cannot tell a replay from a second leave (the verb carries no event time).
+
 ## 8. Eternia
 
 - **The id map.** The snapshot's realm row for a re-keyed realm carries `rekeyed_from` (`realm_id`,
@@ -249,7 +291,16 @@ accepts a rewritten `sceneId`.
   later, with no click. Recommend: a one-line notice on the realm ("this copy now has its own agents; the team's
   agents and their chats return when you re-join") — DECISION row
   `RT-REKEY-NOTICE-LOCAL-COPY-HAS-OWN-AGENTS`.
-- **Found while building (lane w1112b-hm-rejoin3), each on the switch-over row's handoff:** the fresh pull meets
+- **OWNER QUESTION — folders after a re-join** (`RT-REJOIN-FRESH-REALM-ARRIVES-WITH-NO-FOLDER`). Built: the
+  folder slots, env fills and Lens watches stay with the local copy; the fresh realm has none, as for a
+  first-time joiner. Recommend: keep it, and say so on the realm. Alternative: copy the bindings to both.
+- **OWNER QUESTION — a map, prefab, persona or skill you changed while local**
+  (`RT-REJOIN-SHARED-CATALOGUE-EDITS-SHOW-IN-THE-FRESH-REALM`). Built: §7 point 2 — your version stays (it is
+  the same document for both realms) and the fresh realm lists it as an unpublished change; the team's version
+  arrives only for ids you did not touch. Recommend: keep it (nothing is lost, nothing is sent without a
+  publish). Alternative: at the leave give the local copy its own copies under new ids, so the fresh realm
+  always shows the team's — a re-key of five more families.
+- **Found while building (lane w1112b-hm-rejoin3), each settled in §7 "As built":** the fresh pull meets
   the restored team agents with no persona-instance baseline; install-wide catalogues (maps, prefabs, persona
   definitions, skills) are not re-keyed, so the team's copy of an id meets the local one; this machine's folder
   slots, env fills and Lens watches move with the local copy, so the fresh realm arrives with no folder bound
