@@ -1951,6 +1951,13 @@ def _redact_display_metadata(metadata: dict) -> dict:
     return {k: _redact(v) for k, v in metadata.items()}
 
 
+def _stopped_by_the_person(result: dict) -> bool:
+    """A plain Stop: the run returned ``interrupted`` and no ``interrupt_message``. Every other
+    interrupt names itself there (a restart, a run budget, the correction a new message carries)
+    and keeps the failed-turn notice, which its owner may replace."""
+    return result.get("interrupted") is True and not result.get("interrupt_message") and not result.get("failed")
+
+
 def _close_durable_failed_turn(agent, result: Any) -> None:
     """Append a Hermes-authored assistant boundary when a failed turn left its durable tail open
     (``OPEN_TURN_TAIL_ROLES``: the accepted ``user`` row, or a ``tool`` row when a call ran before
@@ -1998,6 +2005,10 @@ def _close_durable_failed_turn(agent, result: Any) -> None:
         }
         if failure := _failed_turn_display_metadata(agent, result):
             boundary["display_metadata"] = failure
+        if _stopped_by_the_person(result):
+            # Nothing failed: the person pressed Stop. The tail is still closed (the next prompt must
+            # not merge into this one), with the row no transcript shows — the host says "stopped".
+            boundary = hidden_interrupt_placeholder_row()
         append_message(messages, boundary)
         agent._flush_messages_to_session_db(messages)
     except Exception:
