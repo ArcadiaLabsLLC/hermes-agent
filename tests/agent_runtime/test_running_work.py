@@ -55,6 +55,7 @@ def _patch_bound(monkeypatch, name, value):
             running_work.rows,
             running_work.ownership,
             running_work.lanes_process,
+            running_work.lanes_cron_ledger,
             running_work.lanes_chat,
             running_work.lanes_build,
             running_work.surface,
@@ -1195,19 +1196,115 @@ def test_chat_turn_rows_never_carry_message_content(home, isolate_agent_runtime_
 # --- live-only lanes --------------------------------------------------------
 
 
-def test_live_only_cron_lane_reports_unavailable_rather_than_no_work(home):
-    """Absence proves nothing: an empty registry in a non-owning process is blind.
+@pytest.fixture
+def cron_homes(home, tmp_path, monkeypatch):
+    """The head home plus a default home with one ``profiles/neko``: every store the gateway ticks."""
 
-    Reporting ``ok`` with zero rows here would tell an operator "no cron jobs
-    are running" on the sole evidence that THIS process is not the one that
-    would know.
+    from agent_runtime import _upstream_doors
+
+    default = tmp_path / "default"
+    (default / "profiles" / "neko").mkdir(parents=True)
+    monkeypatch.setattr(_upstream_doors, "default_hermes_home", lambda: default)
+    monkeypatch.setattr(_upstream_doors, "profiles_root", lambda: default / "profiles")
+    return home, default, default / "profiles" / "neko"
+
+
+def _cron_ledger(home, attempts, jobs=()):
+    """A real ``cron/executions.db`` (upstream's own schema) holding ``attempts``."""
+
+    from cron.executions import _initialize_schema
+
+    (home / "cron").mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(home / "cron" / "executions.db")
+    conn.row_factory = sqlite3.Row
+    _initialize_schema(conn)
+    for index, (job_id, pid, started, status) in enumerate(attempts):
+        conn.execute(
+            "INSERT INTO executions (id, job_id, source, process_id, pid, process_started_at, status, claimed_at, started_at)"
+            " VALUES (?, ?, 'tick', 'p', ?, ?, ?, ?, ?)",
+            (f"exec-{index}", job_id, pid, started, status, "2026-11-12T10:00:00+01:00", "2026-11-12T10:00:05+01:00"),
+        )
+    conn.commit()
+    conn.close()
+    (home / "cron" / "jobs.json").write_text(json.dumps({"jobs": [dict(job) for job in jobs]}), encoding="utf-8")
+
+
+def test_a_serve_reads_running_cron_jobs_from_the_schedulers_ledger(cron_homes):
+    """The scheduler runs in the gateway, so the serve reads its durable ledger, not its memory.
+
+    *Killing mutations:* ``_collect_cron`` returns ``unavailable / not_in_process`` again when the
+    scheduler is not here -> the source is not ok; the owner-liveness check is skipped -> the dead
+    owner's attempt shows; only the head home is read -> the profile's run is missing.
     """
+
+    from gateway.status import get_process_start_time
+
+    head, _default, neko = cron_homes
+    me = os.getpid()
+    _cron_ledger(neko, [("nightly", me, get_process_start_time(me), "running"),
+                        ("orphan", 999_999, 12345, "claimed"),
+                        ("done", me, get_process_start_time(me), "completed")],
+                 jobs=[{"id": "nightly", "name": "Nightly digest"}])
+    _cron_ledger(head, [("unproven", me, None, "claimed")])
+    accountant = ProjectionAccountant("running_work")
+
+    payload = build_running_work(accountant)
+
+    assert payload["sources"][KIND_CRON_JOB] == {"status": SOURCE_OK, "lane": "durable"}
+    cron = {row["label"]: row for row in payload["rows"] if row["kind"] == KIND_CRON_JOB}
+    assert sorted(cron) == ["Nightly digest", "unproven"]
+    assert (cron["Nightly digest"]["status"], cron["Nightly digest"]["pid_verified"]) == (STATUS_RUNNING, True)
+    assert cron["Nightly digest"]["started_at"].startswith("2026-11-12T09:00:05")
+    assert cron["unproven"]["status"] == STATUS_UNKNOWN  # a live pid with no baseline is unproven, not running
+    assert "cron_owner_exited" in accountant.summary()["by_design"]
+    assert KIND_CRON_JOB not in [name for name, entry in payload["sources"].items() if entry["status"] != SOURCE_OK]
+
+
+class _NotTheScheduler:
+    """``cron.scheduler`` imported (``mission_chat_turns`` pulls it in) but never ticked here."""
+
+    @staticmethod
+    def get_running_job_ids():
+        return frozenset()
+
+
+@pytest.mark.parametrize("scheduler", [None, _NotTheScheduler()], ids=["scheduler-absent", "scheduler-resident-not-owner"])
+def test_a_process_that_is_not_the_scheduler_answers_from_the_ledger(cron_homes, monkeypatch, scheduler):
+    """Both "not the scheduler" arms read the ledger: neither is ``unavailable / not_in_process`` any more.
+
+    *Killing mutation:* either arm returns the old ``unavailable / not_in_process`` source.
+    """
+
+    original_module = running_work._module
+    _patch_bound(monkeypatch, "_module",
+                 lambda name: scheduler if name == "cron.scheduler" else original_module(name))
+    head, _default, _neko = cron_homes
+    me = os.getpid()
+    _cron_ledger(head, [("hourly", me, None, "running")])
 
     payload = build_running_work()
 
-    entry = payload["sources"][KIND_CRON_JOB]
-    assert entry["status"] == SOURCE_UNAVAILABLE
-    assert entry["reason"] == "not_in_process"
+    assert payload["sources"][KIND_CRON_JOB] == {"status": SOURCE_OK, "lane": "durable"}
+    assert [row["label"] for row in payload["rows"] if row["kind"] == KIND_CRON_JOB] == ["hourly"]
+
+
+def test_no_ledger_is_nothing_running_and_reading_creates_nothing(cron_homes):
+    head, default, neko = cron_homes
+
+    source = build_running_work()["sources"][KIND_CRON_JOB]
+
+    assert source == {"status": SOURCE_OK, "lane": "durable"}
+    assert not any((home / "cron").exists() for home in (head, default, neko))
+
+
+def test_an_unreadable_cron_ledger_is_unavailable_not_empty(cron_homes):
+    head, _default, _neko = cron_homes
+    (head / "cron").mkdir()
+    (head / "cron" / "executions.db").write_bytes(b"not a database at all" * 64)
+
+    source = build_running_work()["sources"][KIND_CRON_JOB]
+
+    assert (source["status"], source["reason"], source["detail"]) == (SOURCE_UNAVAILABLE, "ledger_unreadable", "DatabaseError")
 
 
 def test_connected_mcp_transports_are_capabilities_not_running_work(home, monkeypatch):

@@ -2,7 +2,7 @@
 background processes (durable checkpoint + live registry), MCP background
 jobs (durable checkpoint, owned by the process holding the MCP session),
 promoted long tool calls (durable checkpoint, owned by the process whose worker
-thread runs the call) and cron jobs (live-only, with positive proof the scheduler runs here)."""
+thread runs the call) and cron jobs (live with positive proof the scheduler runs here, else the scheduler's durable ledger)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from typing import Any
 from .._upstream_doors import cron_pools_present
 from ..projection_accountant import ProjectionAccountant
 
+from .lanes_cron_ledger import collect_cron_ledger
 from .ownership import _head_home, _owner_of, _pid_identity
 from .rows import (
     LanePass,
@@ -36,7 +37,6 @@ from .vocabulary import (
     LANE_LIVE,
     PID_DEAD,
     PID_RECYCLED,
-    REASON_NOT_IN_PROCESS,
     REGISTRY_EXITED,
     SOURCE_OK,
     SOURCE_UNAVAILABLE,
@@ -508,7 +508,7 @@ def _cron_owned_here(scheduler: Any, running_ids: set) -> bool:
 
 
 def _collect_cron(
-    *, accountant: ProjectionAccountant | None
+    *, now: float, accountant: ProjectionAccountant | None
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Currently-executing cron jobs — live-only, for a structural reason.
 
@@ -519,13 +519,16 @@ def _collect_cron(
     (``mission_chat_turns`` imports the scheduler transitively), so the lane
     demands positive proof that the scheduler runs HERE: a live running-id, or
     one of the dispatch pools the ticker creates on its first tick.
+
+    A process that is NOT the scheduler (``harness serve``: cron runs in the gateway) answers from
+    the scheduler's durable ledger instead (:mod:`.lanes_cron_ledger`), so the lane is ``ok`` on
+    evidence rather than ``unavailable / not_in_process`` on every serve frame
+    (RT-RUNNING-WORK-CRON-LANE-ALWAYS-UNAVAILABLE).
     """
 
     scheduler = _module("cron.scheduler")
     if scheduler is None:
-        return [], _source(
-            SOURCE_UNAVAILABLE, lane=LANE_LIVE, reason=REASON_NOT_IN_PROCESS
-        )
+        return collect_cron_ledger(now=now, accountant=accountant)
     try:
         running_ids = set(scheduler.get_running_job_ids())
     except Exception as exc:
@@ -536,9 +539,7 @@ def _collect_cron(
             detail=type(exc).__name__,
         )
     if not _cron_owned_here(scheduler, running_ids):
-        return [], _source(
-            SOURCE_UNAVAILABLE, lane=LANE_LIVE, reason=REASON_NOT_IN_PROCESS
-        )
+        return collect_cron_ledger(now=now, accountant=accountant)
 
     labels: dict[str, str] = {}
     jobs_mod = _module("cron.jobs")

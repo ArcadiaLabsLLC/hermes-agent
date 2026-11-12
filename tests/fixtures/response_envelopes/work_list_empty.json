@@ -22,7 +22,7 @@
     "count": 0,
     "counts": {
       "total": 0,
-      "unavailable_sources": 1
+      "unavailable_sources": 0
     },
     "cursor": null,
     "item_kind": "running_work",
@@ -58,9 +58,8 @@
         "status": "ok"
       },
       "cron_job": {
-        "lane": "live",
-        "reason": "not_in_process",
-        "status": "unavailable"
+        "lane": "durable",
+        "status": "ok"
       },
       "delegation": {
         "lane": "durable",

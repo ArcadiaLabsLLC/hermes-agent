@@ -272,7 +272,7 @@ def _rejects(live: dict, committed: dict) -> bool:
             id="a-source-silently-dropped",
         ),
         pytest.param(
-            lambda e: e["stdout"]["sources"]["cron_job"].__setitem__("status", "ok"),
+            lambda e: e["stdout"]["sources"]["cron_job"].__setitem__("status", "unavailable"),
             id="a-source-status-flipped",
         ),
         pytest.param(
