@@ -438,24 +438,16 @@ def test_two_writers_of_one_worktree_are_admitted_one_at_a_time(repo, monkeypatc
 
 
 def test_a_claim_stamps_the_local_day_not_the_utc_one(repo):
-    """RT-WORK-DATES-LOCAL-DAY: 03:53 UTC on 2026-11-06 is 22:53 on 2026-11-05 in New York. KILLING
-    MUTATION: ``self._now().date().isoformat()`` back in ``Writer._line_edit`` → TAKEN 2026-11-06."""
+    """RT-WORK-DATES-LOCAL-DAY: 03:53 UTC on 2026-11-06 is 22:53 on 2026-11-05 in New York (EST, UTC-5). The zone is
+    pinned through ``local_zone``, not the process ``TZ`` + ``time.tzset`` (POSIX-only: FH-WORK-WRITER-TZSET-WINDOWS-RED).
+    KILLING MUTATIONS: ``self._now().date().isoformat()`` back in ``Writer._line_edit``, or ``moment.date()`` in
+    ``grammar.local_day`` → TAKEN 2026-11-06."""
 
-    import time
-    from datetime import UTC, datetime
+    from datetime import UTC, datetime, timedelta, timezone
 
-    before = os.environ.get("TZ")
-    os.environ["TZ"] = "America/New_York"
-    time.tzset()
-    try:
-        moment = datetime(2026, 11, 6, 3, 53, tzinfo=UTC)
-        Writer(repo.board, machine_id="m1", now=lambda: moment).apply(op(Op.CLAIM))
-    finally:
-        if before is None:
-            os.environ.pop("TZ", None)
-        else:
-            os.environ["TZ"] = before
-        time.tzset()
+    moment = datetime(2026, 11, 6, 3, 53, tzinfo=UTC)
+    new_york = timezone(timedelta(hours=-5), "EST")
+    Writer(repo.board, machine_id="m1", now=lambda: moment, local_zone=new_york).apply(op(Op.CLAIM))
     assert "· **TAKEN 2026-11-05 persona:pi_a**" in note_text(repo.other)
 
 

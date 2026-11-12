@@ -27,7 +27,7 @@ import os
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, tzinfo
 from enum import StrEnum
 from typing import Any
 
@@ -629,11 +629,12 @@ def segment_text(value: str, limit: int = 300) -> str:
     return " ".join(_SEGMENT_FORBIDDEN.sub("-", str(value or "")).split())[:limit]
 
 
-def local_day(moment: datetime) -> str:
+def local_day(moment: datetime, zone: tzinfo | None = None) -> str:
     """The calendar day a row write stamps: ``moment`` on THIS machine's clock, never UTC's
-    (RT-WORK-DATES-LOCAL-DAY — a 22:53 EST move wrote tomorrow's UTC date). A naive moment is local already."""
+    (RT-WORK-DATES-LOCAL-DAY — a 22:53 EST move wrote tomorrow's UTC date). A naive moment is local already.
+    ``zone`` stands in for the machine's zone (None = the process's own), so a check can pin one on any OS."""
 
-    return (moment.astimezone() if moment.tzinfo is not None else moment).date().isoformat()
+    return (moment.astimezone(zone) if moment.tzinfo is not None else moment).date().isoformat()
 
 
 def mint_id(rand: bytes | None = None) -> str:
