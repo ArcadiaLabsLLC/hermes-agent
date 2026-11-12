@@ -100,6 +100,8 @@ def _commit_new_ids(workspace_id: str, tokens: dict[str, str]) -> None:
 def step_git(root: Path, mapping: Any) -> None:
     """After the rename: per moved workspace, find its worktrees again, then the one commit. Re-run it finds
     nothing to re-point and nothing left to rewrite."""
+    if shutil.which("git") is None:
+        return  # no git here: nothing cut a worktree or a brain on this machine, and the Writer recuts
     forms = mapping.forms()
     tokens = {**mapping.workspaces, **mapping.agents}
     for workspace_id in mapping.workspaces.values():

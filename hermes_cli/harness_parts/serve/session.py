@@ -779,6 +779,16 @@ class ServeSession(
                 "agent_chat_send(wait=false) will be refused for this serve",
                 exc_info=True,
             )
+        # An owed realm re-key runs the moment the serve is idle (RT-REKEY-RUNS-WHEN-IDLE-AND-AT-START).
+        try:
+            from agent_runtime.realm_rekey_triggers import start_rekey_ticker
+
+            start_rekey_ticker(stop_event=self.liveness_stop, home=self.serve_request_home)
+        except Exception:
+            import logging as _rekey_logging
+
+            _rekey_logging.getLogger(__name__).warning(
+                "realm re-key ticker did not start; an owed re-key waits for the next serve start", exc_info=True)
         # Same owner: the Work engine (work plan §6.3), built BEFORE the runner so its boot read of
         # the run records precedes the runner's first pass.
         try:

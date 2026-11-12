@@ -18,6 +18,7 @@ Plan ``docs/agent-runtime-harness/planned/rejoin-fresh-realm-2026-11-12.md`` §3
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -33,6 +34,9 @@ __all__ = ["LOCAL_SYNC_REPO", "step_outside"]
 
 #: ``realm_sync/git.py`` keys a server-less realm's sync repository by this name.
 LOCAL_SYNC_REPO = "local"
+#: How long the re-key waits for the Lens poller to let go of its database.
+LENS_WAIT_SECONDS = 10.0
+_SQLITE_IN_USE = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED})
 _SYNC_IDENTITY = ("user.name=Hermes Realm Sync", "user.email=realm-sync@localhost")
 
 
@@ -67,10 +71,13 @@ def _rekey_lens(mapping: Any) -> None:
     if not path.is_file():
         return
     try:
-        with sqlite3.connect(path, timeout=10) as connection:
+        with sqlite3.connect(path, timeout=LENS_WAIT_SECONDS) as connection:
             connection.executemany("UPDATE monitors SET workspace_id = ? WHERE workspace_id = ?",
                                    [(new, old) for old, new in mapping.workspaces.items()])
-    except sqlite3.Error:
+    except sqlite3.Error as exc:
+        if getattr(exc, "sqlite_errorcode", None) in _SQLITE_IN_USE:
+            # The Lens poller holds the database past sqlite's own wait: the re-key waits like a refused rename.
+            raise PermissionError(f"lens database is in use: {exc}") from exc
         return  # a store older than the workspace column holds no workspace id
 
 
@@ -104,7 +111,7 @@ def _rekey_local_history(mapping: Any) -> None:
 
     repo = paths.realm_sync_root() / LOCAL_SYNC_REPO
     old, new = (Path("realms") / paths.safe_path_token(realm) for realm in (mapping.realm_old, mapping.realm_new))
-    if not (repo / ".git").exists():
+    if not (repo / ".git").exists() or shutil.which("git") is None:
         return
     if (repo / old).exists() and not (repo / new).exists():
         _sync_git(repo, "mv", old.as_posix(), new.as_posix())
