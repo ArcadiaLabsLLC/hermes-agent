@@ -6,6 +6,7 @@
         [--machine <host>] [--account <git account>] [--worktree <folder>]
     python scripts/work_row.py close <ID> --who <lane> (--done <sha|here> | --refuted <sha|here> | --owner "<words>")
         [--result "<line>"] [--date YYYY-MM-DD] [--note <path>] [--repo <checkout>] [--no-wake] [--no-commit]
+        [--allow-unlanded]
 
 A finished row is CLOSED, never deleted: ``delete`` only drops a line (to move a row, with ``append`` in
 its new queue), and the row guard refuses a row that left the live queues without an archive line (ADR 0011).
@@ -40,9 +41,23 @@ writer makes (plan ``docs/agent-runtime-harness/archive/work-on-markdown-2026-10
 a session that races the engine re-applies its op here instead of resolving a text conflict.
 The row is found across ``*_Brain/20 — Active Initiatives/*.md`` (or ``--note``); the commit is
 by pathspec under the session's own git identity and pushed as ``HEAD`` to the branch's upstream, or to
-``origin`` ``main`` from a lane branch with none or a detached HEAD; a non-fast-forward push exits 3 with the hint
-"fetch, then re-run". It never runs ``fetch``, ``reset``, ``stash``, ``pull``, ``merge`` or
-``rebase`` on the checkout.
+``origin`` ``main`` from a lane branch with none or a detached HEAD.
+
+A push that loses the race for the branch is retried here, by re-applying the op, never by a text merge
+(FH-WORK-ROW-CLOSE-CHECKS-SHA-ON-MAIN; four lanes of wave w1112b each lost ~2 min per row to it): fetch the
+target, take the op's own commit back off (``reset --soft`` + ``restore`` of its paths only), fast-forward to
+the new tip, apply the op again by ID there, commit, push — up to ``PUSH_ATTEMPTS`` times. A claim that lost
+to another lane's claim of the same row is then refused ``already_taken``, which is the answer. The retry runs
+only when the op's commit is the one thing the checkout has that the remote lacks and no file the checkout
+changed is touched by the incoming commits; otherwise the push exits 3 with the hint "fetch, then re-run", as
+before, and nothing else is touched. It never runs ``stash``, ``pull``, ``rebase``, ``reset --hard`` or a
+merge that is not a fast-forward, and a push that lands the first time runs no ``fetch`` at all.
+
+``close --done <sha>`` / ``--refuted <sha>`` refuses a commit that is not on the push target's branch
+(``sha_not_on_main``, "push it first"): a landing chain once hid a rejected push behind a pipe and archived a
+row DONE on a commit that never reached ``main``. It reads the checkout's remote-tracking ref and fetches once
+before refusing. ``here`` is not checked; ``--allow-unlanded`` is for a commit that lives in another
+repository.
 """
 
 from __future__ import annotations
@@ -74,6 +89,8 @@ COMMANDS = {"claim": Op.CLAIM, "release": Op.RELEASE, "set-status": Op.SET_STATU
             "append": Op.APPEND, "close": Op.CLOSE}
 BRAIN_GLOBS = ("*_Brain/20 — Active Initiatives/*.md", "*_brain/20 — Active Initiatives/*.md")
 NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward")
+#: How many times one op is committed and pushed before a lost race is reported (exit 3).
+PUSH_ATTEMPTS = 5
 EXIT_REFUSED = 2
 EXIT_NON_FAST_FORWARD = 3
 EXIT_GIT_FAILED = 4
@@ -97,6 +114,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--repo", default=".")
     parser.add_argument("--no-commit", action="store_true")
     parser.add_argument("--no-wake", action="store_true")
+    parser.add_argument("--allow-unlanded", action="store_true")
     parser.add_argument("--machine")
     parser.add_argument("--account")
     parser.add_argument("--worktree")
@@ -373,7 +391,6 @@ def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, 
     if pushed.returncode == 0:
         return 0
     if any(marker in str(pushed.stderr) for marker in NON_FAST_FORWARD):
-        print("push rejected (non-fast-forward): fetch, then re-run", file=sys.stderr)
         return EXIT_NON_FAST_FORWARD
     print(f"git push failed: {str(pushed.stderr).strip()[-300:]}", file=sys.stderr)
     return EXIT_GIT_FAILED
@@ -426,9 +443,75 @@ def _apply_edit(repo: Path, note: Path, text: str, args) -> None:
     note.write_bytes(new.encode("utf-8"))
 
 
-def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
-    args = parse_args(sys.argv[1:] if argv is None else argv)
-    repo = Path(args.repo).resolve()
+def _target_branch(repo: Path, git: Git) -> tuple[str, str]:
+    """``(<remote>, <branch>)`` the op is pushed to."""
+
+    remote, target = push_target(repo, git)
+    return remote, target.removeprefix("HEAD:").removeprefix("refs/heads/")
+
+
+def unlanded_sha(repo: Path, args: argparse.Namespace, git: Git) -> str | None:
+    """Why ``close --done|--refuted <sha>`` is refused: the commit is not on the branch the close is pushed to.
+
+    ``None`` when it is there (or for ``here``, ``--owner``, ``--allow-unlanded``, any other command). The
+    checkout's remote-tracking ref answers; one fetch of the target is tried before refusing, so a commit a
+    peer pushed is found.
+    """
+
+    sha = args.done or args.refuted
+    if COMMANDS[args.command] is not Op.CLOSE or not sha or sha == "here" or args.allow_unlanded:
+        return None
+    remote, branch = _target_branch(repo, git)
+
+    def landed() -> bool:
+        return git(["merge-base", "--is-ancestor", sha, f"{remote}/{branch}"], repo).returncode == 0
+
+    if landed():
+        return None
+    git(["fetch", "-q", remote, branch], repo)
+    if landed():
+        return None
+    return (f"sha_not_on_main `{sha}` is not on {remote}/{branch}: push it first (--allow-unlanded when the "
+            "commit lives in another repository)")
+
+
+def _names(listing: str) -> set[str]:
+    return {name for name in str(listing).split("\0") if name}
+
+
+def back_onto_remote_tip(repo: Path, git: Git) -> int | None:
+    """After a lost push race: take the op's own commit back off and fast-forward to the target's new tip.
+
+    ``None`` when the checkout now stands on the fetched tip with the op undone, ready for it to be applied
+    again. ``EXIT_NON_FAST_FORWARD`` when this is not safe to do — the checkout holds other commits the remote
+    lacks, or changed a file the incoming commits touch — and nothing was changed. ``EXIT_GIT_FAILED`` when the
+    fast-forward itself failed after the op was undone (said on stderr).
+    """
+
+    remote, branch = _target_branch(repo, git)
+    if git(["fetch", "-q", remote, branch], repo).returncode != 0:
+        return EXIT_NON_FAST_FORWARD
+    tip = str(git(["rev-parse", "FETCH_HEAD"], repo).stdout).strip()
+    if not tip or git(["merge-base", "--is-ancestor", "HEAD~1", tip], repo).returncode != 0:
+        return EXIT_NON_FAST_FORWARD
+    own = _names(git(["diff", "--name-only", "-z", "HEAD~1", "HEAD"], repo).stdout)
+    incoming = _names(git(["diff", "--name-only", "-z", "HEAD~1", tip], repo).stdout)
+    if _names(git(["diff", "--name-only", "-z", "HEAD"], repo).stdout) & incoming:
+        return EXIT_NON_FAST_FORWARD
+    for step in (["reset", "-q", "--soft", "HEAD~1"],
+                 ["restore", "-q", "--staged", "--worktree", "--source=HEAD", "--", *sorted(own)],
+                 ["merge", "-q", "--ff-only", tip]):
+        done = git(step, repo)
+        if done.returncode != 0:
+            print(f"git {step[0]} failed while retrying the push: {str(done.stderr).strip()[-300:]} — the row "
+                  "operation is not committed here; re-run it", file=sys.stderr)
+            return EXIT_GIT_FAILED
+    return None
+
+
+def _apply_and_push(repo: Path, args: argparse.Namespace, git: Git) -> int:
+    """One attempt: apply the op to the checkout as it stands, commit it by pathspec, push it."""
+
     archives: dict[Path, str] = {}
     touched: list[Path] = []
     try:
@@ -443,6 +526,28 @@ def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
     if args.no_commit:
         return 0
     return commit_and_push(repo, note, args, git, also=tuple(archives), woken=tuple(touched))
+
+
+def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    repo = Path(args.repo).resolve()
+    unlanded = unlanded_sha(repo, args, git)
+    if unlanded is not None:
+        print(f"refused: {unlanded}", file=sys.stderr)
+        return EXIT_REFUSED
+    code = _apply_and_push(repo, args, git)
+    for _ in range(PUSH_ATTEMPTS - 1):
+        if code != EXIT_NON_FAST_FORWARD:
+            return code
+        # MUTATION: return here (no retry) and test_a_lost_push_race_is_retried_on_the_new_tip reddens.
+        undone = back_onto_remote_tip(repo, git)
+        if undone is not None:
+            code = undone
+            break
+        code = _apply_and_push(repo, args, git)
+    if code == EXIT_NON_FAST_FORWARD:
+        print("push rejected (non-fast-forward): fetch, then re-run", file=sys.stderr)
+    return code
 
 
 if __name__ == "__main__":

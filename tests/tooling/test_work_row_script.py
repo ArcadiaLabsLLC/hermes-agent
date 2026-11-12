@@ -1,4 +1,5 @@
-"""``scripts/work_row.py`` — a session's by-ID row op: commit by pathspec, push, never fetch or reset."""
+"""``scripts/work_row.py`` — a session's by-ID row op: commit by pathspec, push; a lost push race is retried by
+re-applying the op on the new tip, and a close refuses a commit that is not on the target branch."""
 
 from __future__ import annotations
 
@@ -82,19 +83,104 @@ def test_claim_with_an_unreadable_part_refuses(clones, capsys):
     assert (mine / NOTE).read_bytes() == before
 
 
-def test_non_fast_forward_exits_3_and_touches_nothing_else(clones, capsys):
-    origin, mine, other = clones
+def _other_session_pushes(other: Path, subject: str = "other session") -> None:
     (other / NOTE).write_text(HEAD + ROWS.replace("second", "renamed"), encoding="utf-8", newline="\n")
-    git("commit", "-q", "-am", "other session", cwd=other)
+    git("commit", "-q", "-am", subject, cwd=other)
     git("push", "-q", "origin", "main", cwd=other)
-    tracking = git("rev-parse", "origin/main", cwd=mine)
+
+
+def test_a_lost_push_race_is_retried_on_the_new_tip(clones, capsys):
+    """FH-WORK-ROW-CLOSE-CHECKS-SHA-ON-MAIN: a claim whose push lost the race exited 3 and the lane fetched and
+    re-ran by hand (~2 min a row on a busy main). It now re-applies the op by ID on the fetched tip.
+    KILLING MUTATION: ``main`` returns the first ``EXIT_NON_FAST_FORWARD`` (no retry) -> exit 3, the claim absent
+    from origin, red. A staged change that is not the op's stays staged through the retry."""
+    origin, mine, other = clones
+    _other_session_pushes(other)
+    (mine / "README.md").write_text("staged, not this commit's\n", encoding="utf-8")
+    git("add", "README.md", cwd=mine)
+    assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--repo", str(mine)]) == 0
+    assert "non-fast-forward" not in capsys.readouterr().err
+    assert git("log", "-2", "--format=%s", "main", cwd=origin).split("\n")[:2] == [
+        "queue: claim RT-A r-lane", "other session"]
+    note = git("show", f"main:{NOTE}", cwd=origin)
+    assert "**TAKEN " in note and "renamed" in note
+    assert git("rev-parse", "main", cwd=origin) == git("rev-parse", "HEAD", cwd=mine)
+    assert git("diff", "--cached", "--name-only", cwd=mine).strip() == "README.md"
+    assert git("status", "--porcelain", "--untracked-files=no", cwd=mine).strip() == "M  README.md"
+
+
+def test_two_closes_racing_into_one_archive_file_both_land(clones):
+    """Two lanes closing at once both append at the end of the month's archive file; the loser's close used to
+    need a hand-made redo from a fresh ``origin/main``. The retry re-applies it, so both lines are kept."""
+    origin, mine, other = clones
+    git("config", "user.name", "Other Lane", cwd=other)
+    git("config", "user.email", "other@test.invalid", cwd=other)
+    assert work_row.main(["close", "RT-B", "--who", "o-lane", "--owner", "not needed", "--date", "2026-11-03",
+                          "--repo", str(other)]) == 0
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--owner", "dropped", "--date", "2026-11-03",
+                          "--repo", str(mine)]) == 0
+    archive = git("show", "main:Harness_Brain/80 — Archive/Queues/q-2026-11.md", cwd=origin)
+    assert archive.count("- **`RT-B` — second**") == 1 and archive.count("- **`RT-A` — first**") == 1
+    assert archive.index("`RT-B`") < archive.index("`RT-A`")
+    live = git("show", f"main:{NOTE}", cwd=origin)
+    assert "RT-A" not in live and "RT-B" not in live
+    assert git("status", "--porcelain", cwd=mine).strip() == ""
+
+
+def test_a_claim_that_lost_to_another_lanes_claim_is_refused_not_doubled(clones, capsys):
+    origin, mine, other = clones
+    git("config", "user.name", "Other Lane", cwd=other)
+    git("config", "user.email", "other@test.invalid", cwd=other)
+    assert work_row.main(["claim", "RT-A", "--who", "o-lane", "--repo", str(other)]) == 0
+    assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--repo", str(mine)]) == work_row.EXIT_REFUSED
+    assert "already_taken" in capsys.readouterr().err
+    note = git("show", f"main:{NOTE}", cwd=origin)
+    assert note.count("**TAKEN ") == 1 and " o-lane on " in note
+    assert git("rev-parse", "main", cwd=origin) == git("rev-parse", "HEAD", cwd=mine)
+    assert git("status", "--porcelain", cwd=mine).strip() == ""
+
+
+def test_a_lost_race_with_other_unpushed_commits_exits_3_and_rewrites_nothing(clones, capsys):
+    """The retry is only for a checkout whose one unpushed commit is the op: anything else is the session's
+    to rebase. Mutation: drop the ``HEAD~1`` ancestor check -> the local commit is reset away, red."""
+    origin, mine, other = clones
+    _other_session_pushes(other)
+    (mine / "README.md").write_text("a lane's own unpushed work\n", encoding="utf-8")
+    git("commit", "-q", "-am", "lane work", cwd=mine)
     assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--repo", str(mine)]) == 3
     assert "fetch, then re-run" in capsys.readouterr().err
-    assert git("rev-parse", "origin/main", cwd=mine) == tracking
+    assert git("log", "-2", "--format=%s", cwd=mine).split("\n")[:2] == ["queue: claim RT-A r-lane", "lane work"]
     assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "other session"
 
 
-def test_never_fetches_or_resets(clones):
+def test_a_close_on_a_commit_that_never_reached_main_is_refused(clones, capsys):
+    """FH-WORK-ROW-CLOSE-CHECKS-SHA-ON-MAIN: a rejected push hidden behind a pipe let ``close`` archive a row DONE
+    on a commit that was not on ``origin/main``. KILLING MUTATION: ``unlanded_sha`` returns None -> the first
+    close exits 0 and the row is archived on the unpushed commit, red."""
+    origin, mine, other = clones
+    (mine / "README.md").write_text("the fix\n", encoding="utf-8")
+    git("commit", "-q", "-am", "the fix", cwd=mine)
+    sha = git("rev-parse", "--short=10", "HEAD", cwd=mine).strip()
+    before = (mine / NOTE).read_bytes()
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", sha, "--repo", str(mine)]) == work_row.EXIT_REFUSED
+    err = capsys.readouterr().err
+    assert "sha_not_on_main" in err and "push it first" in err
+    assert (mine / NOTE).read_bytes() == before
+    assert git("log", "-1", "--format=%s", cwd=mine).strip() == "the fix"
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--refuted", "0123abc", "--repo", str(mine)]) == work_row.EXIT_REFUSED
+    git("push", "-q", "origin", "HEAD:main", cwd=mine)
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", sha, "--repo", str(mine)]) == 0
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == f"queue(q): close RT-A DONE {sha}"
+    # A commit a peer pushed is found by the one fetch; ``here`` names no commit to check.
+    git("pull", "-q", "--ff-only", cwd=other)
+    (other / "README.md").write_text("a peer's fix\n", encoding="utf-8")
+    git("commit", "-q", "-am", "peer fix", cwd=other)
+    git("push", "-q", "origin", "main", cwd=other)
+    peer = git("rev-parse", "--short=10", "HEAD", cwd=other).strip()
+    assert work_row.main(["close", "RT-B", "--who", "r-lane", "--refuted", peer, "--repo", str(mine), "--no-commit"]) == 0
+
+
+def test_a_push_that_lands_first_time_never_fetches_or_resets(clones):
     _, mine, _ = clones
     calls: list[list[str]] = []
 
@@ -120,7 +206,7 @@ def test_a_close_from_a_lane_branch_or_a_detached_head_pushes_to_main(clones, pl
         git("checkout", "-q", "-b", "wave/lane", cwd=mine)
     else:
         git("checkout", "-q", "--detach", cwd=mine)
-    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "3f9c2a1", "--date", "2026-11-03",
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "3f9c2a1", "--allow-unlanded", "--date", "2026-11-03",
                           "--repo", str(mine)]) == 0
     assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue(q): close RT-A DONE 3f9c2a1"
     assert git("rev-parse", "main", cwd=origin) == git("rev-parse", "HEAD", cwd=mine)
@@ -139,7 +225,7 @@ def test_close_archives_the_row_and_commits_both_files(clones):
     """RT-QUEUE-ARCHIVE-GRAMMAR. Mutation: write the queue text unchanged in ``main``'s close arm -> the row stays
     live beside its archived copy, red."""
     origin, mine, _ = clones
-    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "3f9c2a1", "--date", "2026-11-03",
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "3f9c2a1", "--allow-unlanded", "--date", "2026-11-03",
                           "--result", "shipped", "--repo", str(mine)]) == 0
     assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue(q): close RT-A DONE 3f9c2a1"
     changed = set(filter(None, git("show", "--name-only", "--format=", "main", cwd=origin).split("\n")))
@@ -163,7 +249,7 @@ def test_close_wakes_the_rows_blocked_on_it_and_commits_their_note(clones):
     git("add", "-A", cwd=mine)
     git("commit", "-q", "-m", "waiting", cwd=mine)
     git("push", "-q", cwd=mine)
-    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "3f9c2a1", "--date", "2026-11-03",
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "3f9c2a1", "--allow-unlanded", "--date", "2026-11-03",
                           "--repo", str(mine)]) == 0
     woken = (mine / other_note).read_text(encoding="utf-8")
     assert ("- **`RT-W` — waits** · READY 2026-11-03 · unblocked 2026-11-03: `RT-A` closed DONE 3f9c2a1\n"
@@ -208,10 +294,10 @@ def test_the_last_subtask_closing_closes_its_task(clones, tmp_path, monkeypatch,
     origin, mine, _ = clones
     _siblings(tmp_path)
     _seed(mine, TASK_ROWS)
-    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--date", "2026-11-09",
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date", "2026-11-09",
                           "--repo", str(mine)]) == 0
     assert "`TASK-P` — Pills" in (mine / NOTE).read_text(encoding="utf-8"), "RT-S2 is still open"
-    assert work_row.main(["close", "RT-S2", "--who", "r", "--done", "5d6e7f8", "--date", "2026-11-09",
+    assert work_row.main(["close", "RT-S2", "--who", "r", "--done", "5d6e7f8", "--allow-unlanded", "--date", "2026-11-09",
                           "--repo", str(mine)]) == 0
     assert "closed task `TASK-P` DONE 2026-11-09 5d6e7f8: all 2 subtasks closed" in capsys.readouterr().out
     assert "TASK-P" not in (mine / NOTE).read_text(encoding="utf-8")
@@ -229,14 +315,14 @@ def test_a_subtask_open_in_a_sibling_brain_or_a_sibling_not_checked_out_keeps_th
     monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
     _, mine, _ = clones
     _seed(mine, TASK_ROWS.replace("- **`RT-S2` — second slice** · group: p.x · READY 2026-11-09\n", ""))
-    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--repo", str(mine),
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--repo", str(mine),
                           "--no-commit"]) == 0
     assert "brain is not checked out beside this repository: left open" in capsys.readouterr().out
     assert "TASK-P" in (mine / NOTE).read_text(encoding="utf-8")
     git("checkout", "-q", "--", ".", cwd=mine)
     git("clean", "-qfd", cwd=mine)
     _siblings(tmp_path, "- **`L-S` — launcher slice** · group: p · READY 2026-11-09\n")
-    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--repo", str(mine),
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--repo", str(mine),
                           "--no-commit"]) == 0
     assert "TASK-P" in (mine / NOTE).read_text(encoding="utf-8")
 
@@ -248,7 +334,7 @@ def test_a_woken_subtask_sets_its_blocked_task_ready(clones, tmp_path, monkeypat
     _siblings(tmp_path)
     _seed(mine, "- **`TASK-W` — Wait for the fix** · task: w · BLOCKED 2026-11-09: another lane — `RT-W1` first\n"
                 "- **`RT-W1` — the slice** · group: w · BLOCKED 2026-11-09: another lane — `RT-A` the fix\n")
-    assert work_row.main(["close", "RT-A", "--who", "r", "--done", "3f9c2a1", "--date", "2026-11-09",
+    assert work_row.main(["close", "RT-A", "--who", "r", "--done", "3f9c2a1", "--allow-unlanded", "--date", "2026-11-09",
                           "--repo", str(mine)]) == 0
     text = (mine / NOTE).read_text(encoding="utf-8")
     assert ("- **`TASK-W` — Wait for the fix** · task: w · READY 2026-11-09 · unblocked 2026-11-09: `RT-A` closed "
@@ -291,7 +377,7 @@ def test_done_on_a_subtask_of_a_parked_or_owner_blocked_task_is_refused(clones, 
     _siblings(tmp_path)
     for task in (PARKED, OWED):
         _seed(mine, task + SUBTASK)
-        done = ["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--repo", str(mine), "--no-commit"]
+        done = ["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--repo", str(mine), "--no-commit"]
         assert work_row.main(done) == work_row.EXIT_REFUSED, task
         assert "which is " in capsys.readouterr().err
         assert "RT-S1" in (mine / NOTE).read_text(encoding="utf-8")
@@ -308,7 +394,7 @@ def test_no_startable_subtask_blocks_the_task_on_the_first_waiting_one(clones, t
     _seed(mine, "- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09 · unblocked 2026-11-08: old\n"
                 + SUBTASK + "- **`RT-S2` — waits** · group: p · BLOCKED 2026-11-09: another lane — `RT-B` first\n"
                 "- **`RT-S3` — parked** · group: p · DEFERRED 2026-11-09: later\n")
-    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--date", "2026-11-09",
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date", "2026-11-09",
                           "--repo", str(mine), "--no-commit"]) == 0
     assert ("- **`TASK-P` — Pills on the board** · task: p · BLOCKED 2026-11-09: another lane — `RT-S2` every live "
             "subtask waits (1 on other work); the task turns READY when one of them does\n"
@@ -326,7 +412,7 @@ def test_a_live_check_subtask_keeps_its_task_ready(clones, tmp_path, monkeypatch
     _seed(mine, task + SUBTASK
           + "- **`RT-S2` — the pill reads right** · group: p · LIVE CHECK 2026-11-12: open the board, read the pill\n"
           "- **`RT-S3` — waits** · group: p · BLOCKED 2026-11-09: another lane — `RT-B` first\n")
-    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--repo", str(mine),
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--repo", str(mine),
                           "--no-commit"]) == 0
     assert task in (mine / NOTE).read_text(encoding="utf-8")
     claim = ["claim", "RT-S2", "--who", "lane", "--machine", "box", "--account", "me", "--worktree", "wt",
@@ -345,7 +431,7 @@ def test_a_decision_subtask_waits_on_the_owner_and_its_tasks_block_holds_no_othe
     _siblings(tmp_path)
     question = "- **`RT-S2` — which pill** · group: p · DECISION 2026-11-12: round or square? · Recommend: round\n"
     _seed(mine, "- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n" + SUBTASK + question)
-    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--date", "2026-11-12",
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date", "2026-11-12",
                           "--repo", str(mine), "--no-commit"]) == 0
     blocked = ("- **`TASK-P` — Pills on the board** · task: p · BLOCKED 2026-11-12: owner decision — `RT-S2` every "
                "live subtask waits (1 on the owner); the task turns READY when one of them does · "
@@ -353,7 +439,7 @@ def test_a_decision_subtask_waits_on_the_owner_and_its_tasks_block_holds_no_othe
     assert blocked in (mine / NOTE).read_text(encoding="utf-8")
     capsys.readouterr()
     _seed(mine, blocked + question + "- **`RT-S3` — a late slice** · group: p · READY 2026-11-12\n")
-    done = ["close", "RT-S3", "--who", "r", "--done", "1a2b3c4", "--date", "2026-11-12", "--repo", str(mine),
+    done = ["close", "RT-S3", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date", "2026-11-12", "--repo", str(mine),
             "--no-commit"]
     assert work_row.main(done) == 0, capsys.readouterr().err
     assert blocked in (mine / NOTE).read_text(encoding="utf-8")
@@ -387,7 +473,7 @@ def test_an_owner_block_of_the_tasks_own_stays_when_a_subtask_wakes(clones, tmp_
     _, mine, _ = clones
     _siblings(tmp_path)
     _seed(mine, OWED + "- **`RT-S1` — waits** · group: p · BLOCKED 2026-11-09: another lane — `RT-A` the fix\n")
-    assert work_row.main(["close", "RT-A", "--who", "r", "--done", "3f9c2a1", "--repo", str(mine),
+    assert work_row.main(["close", "RT-A", "--who", "r", "--done", "3f9c2a1", "--allow-unlanded", "--repo", str(mine),
                           "--no-commit"]) == 0
     text = (mine / NOTE).read_text(encoding="utf-8")
     assert OWED in text and "- **`RT-S1` — waits** · group: p · READY" in text
@@ -410,6 +496,6 @@ def test_a_write_whose_changed_rows_break_the_task_rules_is_refused(clones, tmp_
     # A close whose task step rewrites a task line carrying an old TASK TITLE defect: the changed line is refused.
     _seed(mine, "- **`TASK-Q` — Fix `x.py` here** · task: q · READY 2026-11-09\n" + SUBTASK.replace("group: p", "group: q")
           + "- **`RT-S2` — waits** · group: q · BLOCKED 2026-11-09: another lane — `RT-B` first\n")
-    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--repo", str(mine),
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--repo", str(mine),
                           "--no-commit"]) == work_row.EXIT_REFUSED
     assert "(TASK TITLE" in capsys.readouterr().err and "RT-S1" in (mine / NOTE).read_text(encoding="utf-8")
