@@ -21,7 +21,10 @@ read ``stalled`` four minutes in, compiling or not (RT-BUILD-FLUTTER-RUN-READS-S
 under ``<project>/build/`` — the app the run built, which ``flutter run`` launched and now hosts
 for hot reload — the session idles by design: neither building nor stalled, and Stop would close
 the app in front of the operator. The scan names that app (``DetectedBuild.app``); the build lane
-drops the row by design (RT-BUILD-FLUTTER-RUN-READS-STALLED).
+drops the row by design (RT-BUILD-FLUTTER-RUN-READS-STALLED). A web run has no app under
+``build/``: ``-d chrome``/``-d edge`` hosts the browser it launched after compiling, and
+``-d web-server`` counts once a browser is connected to it (:func:`_running_app`,
+RT-BUILD-FLUTTER-RUN-WEB-LIVENESS).
 
 **Index the unknowns.** A name-filtered process the parser cannot place is
 ``process_unidentified`` (exe + argv head; not shown as a build); a build-shaped cmdline whose
@@ -206,20 +209,68 @@ class _Scanner:
         tree = tree if isinstance(tree, list) else []
         cpu = (float(cpu) if isinstance(cpu, (int, float)) else 0.0) + sum(d.cpu for d in tree if d.cpu is not None)
         self.scan.builds.append(DetectedBuild(int(proc.pid), _process_fact(proc.start), exe, [str(a) for a in argv], cwd, command,
-                                              slot, cpu, parents, app=_running_app(command, tree)))
+                                              slot, cpu, parents,
+                                              app=_running_app(command, tree, tcp=getattr(proc, "tcp", None), pid=proc.pid)))
 
 
-def _running_app(command: Any, tree: list[Descendant]) -> Descendant | None:
-    """The app a ``flutter run`` launched: a descendant whose executable is under ``<project>/build/``.
+#: ``flutter run -d <device>`` devices that run the app in a browser flutter_tools launches itself.
+WEB_BROWSER_DEVICES = frozenset({"chrome", "edge"})
+#: The ``-d web-server`` device: flutter_tools serves the app and launches nothing.
+WEB_SERVER_DEVICE = "web-server"
+#: Executable names of the browsers flutter_tools launches for a web device (Windows, Linux, macOS).
+BROWSER_NAMES = frozenset({"chrome.exe", "msedge.exe", "chrome", "google-chrome", "google-chrome-stable",
+                           "chromium", "chromium-browser", "msedge", "microsoft-edge", "google chrome",
+                           "microsoft edge"})
+
+
+def _running_app(command: Any, tree: list[Descendant], *, tcp: Callable[[], Any] | None = None,
+                 pid: int | None = None) -> Descendant | None:
+    """The app a ``flutter run`` is hosting, once it has one; None while it builds (or for a build).
 
     Only a ``run`` hosts an app; a ``build``'s descendants are its compilers and linkers, which
-    live in the SDK and the toolchains, never in the output folder.
+    live in the SDK and the toolchains, never in the output folder. A run's app is, by device:
+
+    * desktop (and any run): a descendant whose executable is under ``<project>/build/``;
+    * ``-d chrome`` / ``-d edge`` (or no ``-d``): a browser descendant — flutter_tools launches it
+      only AFTER the first compile succeeded (``ResidentWebRunner.run``: compile, then
+      ``startApp``), so a compiling run has none and still reads building, a hung one stalled;
+    * ``-d web-server``: no app process exists, so the app is "a browser has it open": an
+      ESTABLISHED connection a tree process ACCEPTED on a port it listens on. Until one connects,
+      a served run is not told apart from a hung compile — both idle — and reads by CPU as before
+      (RT-BUILD-FLUTTER-RUN-WEB-LIVENESS).
     """
 
     if getattr(command, "kind", "") != COMMAND_RUN:
         return None
     output = _comparable_path(os.path.join(str(command.project_dir), "build")) + os.sep
-    return next((d for d in tree if d.exe and _comparable_path(d.exe).startswith(output)), None)
+    app = next((d for d in tree if d.exe and _comparable_path(d.exe).startswith(output)), None)
+    if app is not None:
+        return app
+    device = str(getattr(command, "target", "")).partition(":")[2]
+    if device in WEB_BROWSER_DEVICES or device == "":
+        return next((d for d in tree if d.name.lower() in BROWSER_NAMES), None)
+    if device == WEB_SERVER_DEVICE and tcp is not None:
+        return _browser_connected(tree, pid, _process_fact(tcp))
+    return None
+
+
+def _browser_connected(tree: list[Descendant], pid: int | None, table: Any) -> Descendant | None:
+    """The web-server's session once a client is connected: an accepted connection in the run's tree.
+
+    ``table`` rows are ``(pid, status, local port, remote port)`` for the machine's TCP sockets; a
+    refused read (an exception class) is no evidence, so the run reads by CPU.
+    """
+
+    if not isinstance(table, list):
+        return None
+    names = {d.pid: d.name for d in tree}
+    pids = set(names) | ({pid} if pid is not None else set())
+    mine = [row for row in table if row[0] in pids]
+    listening = {local for _pid, status, local, _remote in mine if status == "LISTEN"}
+    for holder, status, local, _remote in mine:
+        if status == "ESTABLISHED" and local in listening:
+            return Descendant(holder, f"web server on port {local} (a browser is connected)", None, None)
+    return None
 
 
 def _comparable_path(path: Any) -> str:
@@ -263,6 +314,30 @@ def _gate(census: Any) -> str:
     return ""
 
 
+def warm_detection() -> None:
+    """Pay the scan's ONE-TIME first-use costs, outside the budgeted walk.
+
+    Measured 2026-11-12 on DESKTOP-QJ7DDV2 (16 logical CPUs): the first scan in a fresh process
+    took 220–560 ms against the 50 ms budget, so its frame read ``scan_budget`` — not the walk
+    (warm scans take 12–22 ms) but imports: ``gateway.status`` with ``hermes_cli.process_identity``
+    (~300 ms, on the first candidate's start time), ``psutil`` (~36 ms) and the Toolhelp32 ctypes
+    types (~13 ms). Each is a cached import after this, so the walk the budget times is the walk
+    (RT-BUILD-SCAN-FIRST-PASS-OVER-BUDGET). Serve boot calls it on the build-sweep thread; ``scan``
+    calls it again before its clock starts (a no-op once warm). A dependency that is missing is
+    left for the walk to meet and report as ``scan_failed``.
+    """
+
+    try:
+        import psutil  # noqa: F401  # the phone profile omits it
+
+        from gateway.status import get_process_start_time
+    except ImportError:
+        return
+    get_process_start_time(os.getpid())  # its own lazy imports, on a process that is surely there
+    if sys.platform == "win32":
+        _toolhelp_api()
+
+
 def scan(*, now: float, census: Any, owned: set[int], table: Iterable[Any] | None = None,
          clock: Callable[[], float] = time.perf_counter, budget_ms: int = DETECT_BUDGET_MS) -> DetectScan:
     """Scan the process table for detected builds under ``census.bound``; never raises."""
@@ -272,6 +347,11 @@ def scan(*, now: float, census: Any, owned: set[int], table: Iterable[Any] | Non
     if refusal:
         result.status, result.reason = "unavailable", refusal
         return result
+    if table is None:
+        try:
+            warm_detection()  # one-time imports: paid before the budget's clock starts, never inside it
+        except Exception:  # noqa: S110 - the walk below meets the same failure and types it scan_failed
+            pass
     scanner = _Scanner(result, now=now, bound=list(census.bound), owned=owned, clock=clock, budget_ms=budget_ms)
     try:
         if table is None:
@@ -347,6 +427,22 @@ class _PsutilProcess:
     def descendants(self) -> list[Descendant]:
         return [_descendant(child, int(child.pid), None) for child in self._proc.children(recursive=True)]
 
+    def tcp(self) -> list[tuple[int, str, int, int | None]]:
+        """The machine's TCP sockets as ``(pid, status, local port, remote port)``; read only for a web-server run."""
+
+        import psutil
+
+        return _tcp_rows(psutil)
+
+
+def _tcp_rows(psutil: Any) -> list[tuple[int, str, int, int | None]]:
+    rows = []
+    for conn in psutil.net_connections(kind="tcp"):
+        if conn.pid is None or not conn.laddr:
+            continue
+        rows.append((int(conn.pid), str(conn.status), int(conn.laddr.port), int(conn.raddr.port) if conn.raddr else None))
+    return rows
+
 
 def _descendant(proc: Any, pid: int, name: str | None) -> Descendant:
     """One descendant's facts; a fact it refuses (gone, access denied) is None, never a raise."""
@@ -379,6 +475,9 @@ class _SnapshotProcess(_PsutilProcess):
 
     def parents(self) -> list[tuple[int, str]]:
         return self._snapshot.parents(self.pid, created=self._psutil_created)
+
+    def tcp(self) -> list[tuple[int, str, int, int | None]]:
+        return _tcp_rows(self._psutil)
 
     def _psutil_created(self, pid: int) -> float | None:
         try:

@@ -291,3 +291,135 @@ def test_the_snapshot_descendants_skip_a_recycled_pid_and_an_unknown_age():
                                        13: (10, "old.exe"), 14: (11, "ghost.exe"), 15: (14, "below.exe")})
     ages = {10: 10.0, 11: 11.0, 12: 12.0, 13: 5.0, 14: None, 15: 15.0}
     assert snapshot.descendants(10, created=ages.get) == [(11, "dartvm.exe"), (12, "app.exe")]
+
+
+# --- RT-BUILD-SCAN-FIRST-PASS-OVER-BUDGET: one-time imports are paid before the budget's clock ------
+
+
+def test_the_first_scans_one_time_imports_are_paid_before_the_budget_clock(tmp_path, monkeypatch):
+    # A fresh process's first scan imported gateway.status (~300 ms) on its first candidate and read
+    # scan_budget; the warm-up runs before the clock starts, so the budget times only the walk.
+    census = _census(tmp_path, "launcher")
+    now = [0.0]
+    warmed = []
+
+    def slow_imports():
+        warmed.append(now[0])
+        now[0] += 0.3  # the measured first-use cost
+
+    monkeypatch.setattr(detect, "warm_detection", slow_imports)
+    monkeypatch.setattr(detect, "psutil_table", lambda _psutil: [_build(1, tmp_path / "launcher")])
+    result = detect.scan(now=1.0, census=census, owned=set(), clock=lambda: now[0])
+    assert warmed == [0.0]
+    assert (result.status, result.reason, result.scan_ms) == ("ok", "", 0)
+    assert [b.pid for b in result.builds] == [1]
+    # A walk that is slow ITSELF still breaches: the warm-up hides nothing it does not pay for.
+    monkeypatch.setattr(detect, "psutil_table", lambda _psutil: [_build(i, tmp_path / "launcher") for i in range(5)])
+    slow = iter(range(100))
+    breached = detect.scan(now=1.0, census=census, owned=set(), clock=lambda: next(slow) * 0.04)
+    assert (breached.status, breached.reason) == ("unavailable", "scan_budget")
+
+
+def test_an_injected_table_never_warms_and_the_serve_sweep_warms_before_its_first_tick(tmp_path, monkeypatch):
+    import threading
+
+    from agent_runtime.builds import sweep
+
+    calls = []
+    monkeypatch.setattr(detect, "warm_detection", lambda: calls.append("warm"))
+    detect.scan(now=1.0, census=_census(tmp_path, "launcher"), owned=set(), table=[], clock=lambda: 0.0)
+    assert calls == []
+    stop = threading.Event()
+    stop.set()
+    monkeypatch.setattr(sweep, "_STOP", stop)
+    sweep._loop(type("S", (), {"tick": lambda _self: calls.append("tick")})())
+    assert calls == ["warm"]
+
+
+def test_the_real_warm_up_runs_and_a_second_one_is_cheap():
+    import time
+
+    detect.warm_detection()
+    started = time.perf_counter()
+    detect.warm_detection()
+    assert (time.perf_counter() - started) * 1000.0 < detect.DETECT_BUDGET_MS
+
+
+# --- RT-BUILD-FLUTTER-RUN-WEB-LIVENESS: a web run's app is its browser, or a browser connected to it --
+
+
+def _web(pid, root, device, *, tree=(), tcp=None):
+    proc = _TreeProc(pid, "dart.exe", [DART, SNAPSHOT, "run", "-d", device], str(root), cpu=0.03, tree=tree)
+    if tcp is not None:
+        proc.tcp = lambda: tcp() if callable(tcp) else list(tcp)
+    return proc
+
+
+def _chrome(pid=45):
+    return detect.Descendant(pid, "chrome.exe", "C:/Program Files/Google/Chrome/Application/chrome.exe", 2.0)
+
+
+def test_a_chrome_run_is_an_app_session_once_its_browser_is_up_and_building_until_then(tmp_path, monkeypatch):
+    from agent_runtime.projection_accountant import ProjectionAccountant
+
+    census = _census(tmp_path, "launcher")
+    root = tmp_path / "launcher"
+    compiling = _lane_rows(monkeypatch, tmp_path, census, [_web(8, root, "chrome", tree=[_vm(5.0)])], 1000.0)
+    moved = _lane_rows(monkeypatch, tmp_path, census, [_web(8, root, "chrome", tree=[_vm(60.0)])], 1000.0 + 300)
+    assert (compiling[0]["status"], moved[0]["status"]) == ("running", "running")
+    accountant = ProjectionAccountant("running_work")
+    running = [_web(8, root, "chrome", tree=[_vm(60.0), _chrome()])]
+    assert _lane_rows(monkeypatch, tmp_path, census, running, 1000.0 + 600, accountant) == []
+    assert _lane_rows(monkeypatch, tmp_path, census, running, 1000.0 + 1200) == []
+    assert "build_app_running" in accountant.summary()["by_design"]
+    edge = detect.scan(now=1.0, census=census, owned=set(), clock=lambda: 0.0, table=[
+        _web(9, root, "edge", tree=[detect.Descendant(46, "msedge.exe", "C:/Edge/msedge.exe", 1.0)])])
+    assert edge.builds[0].app.pid == 46
+
+
+def test_a_hung_web_compile_still_reads_stalled(tmp_path, monkeypatch):
+    census = _census(tmp_path, "launcher")
+    root = tmp_path / "launcher"
+    for device, tcp in (("chrome", None), ("web-server", [(41, "LISTEN", 8080, None)])):
+        PROGRESS.clear()
+        hung = [_web(8, root, device, tree=[_vm(5.0)], tcp=tcp)]
+        _lane_rows(monkeypatch, tmp_path, census, hung, 1000.0)
+        later = _lane_rows(monkeypatch, tmp_path, census, hung, 1000.0 + 300)
+        assert (device, later[0]["status"]) == (device, "stalled")
+
+
+def test_a_web_server_run_is_an_app_session_once_a_browser_is_connected_to_it(tmp_path, monkeypatch):
+    census = _census(tmp_path, "launcher")
+    root = tmp_path / "launcher"
+    served = [(41, "LISTEN", 8080, None), (41, "ESTABLISHED", 8080, 51234), (999, "ESTABLISHED", 51234, 8080)]
+    rows = _lane_rows(monkeypatch, tmp_path, census, [_web(8, root, "web-server", tree=[_vm(5.0)], tcp=served)], 1000.0)
+    assert rows == []
+    scanned = detect.scan(now=1.0, census=census, owned=set(), clock=lambda: 0.0,
+                          table=[_web(8, root, "web-server", tree=[_vm(5.0)], tcp=served)])
+    assert (scanned.builds[0].app.pid, scanned.builds[0].app.name) == (41, "web server on port 8080 (a browser is connected)")
+
+
+@pytest.mark.parametrize(
+    "tcp",
+    [
+        [(41, "LISTEN", 8080, None)],  # served, nobody connected yet: not told from a hang
+        [(41, "LISTEN", 8080, None), (41, "ESTABLISHED", 50000, 443)],  # an OUTBOUND connection (pub, a CDN)
+        [(41, "ESTABLISHED", 8080, 51234), (77, "LISTEN", 8080, None)],  # the listener is not the run's
+        lambda: (_ for _ in ()).throw(PermissionError("denied")),  # the TCP table refused
+    ],
+    ids=["listening-only", "outbound-only", "foreign-listener", "refused"],
+)
+def test_a_web_server_run_without_a_connected_browser_is_not_an_app(tmp_path, tcp):
+    census = _census(tmp_path, "launcher")
+    root = tmp_path / "launcher"
+    scanned = detect.scan(now=1.0, census=census, owned=set(), clock=lambda: 0.0,
+                          table=[_web(8, root, "web-server", tree=[_vm(5.0)], tcp=tcp)])
+    assert scanned.builds[0].app is None
+
+
+def test_a_browser_below_a_desktop_or_web_server_run_is_not_its_app(tmp_path):
+    census = _census(tmp_path, "launcher")
+    root = tmp_path / "launcher"
+    scanned = detect.scan(now=1.0, census=census, owned=set(), clock=lambda: 0.0, table=[
+        _web(8, root, "windows", tree=[_vm(5.0), _chrome()]), _web(9, root, "web-server", tree=[_chrome(47)], tcp=[])])
+    assert [b.app for b in scanned.builds] == [None, None]
