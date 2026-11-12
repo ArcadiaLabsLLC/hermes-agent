@@ -17,10 +17,13 @@ from agent_runtime.realm_sync.revocation import (
     HOST_STATE_REASONS,
     MEMBER_ACCESS_REASONS,
     RealmRevokedReason,
+    keep_team_baselines,
     mark_realm_revoked,
     read_realm_revocation,
     read_realm_shared_from,
     realm_shared_from_path,
+    restore_team_baselines,
+    team_baselines_dir,
     write_realm_shared_from,
 )
 from agent_runtime.realm_sync.sidecar import realm_sync_sidecar_path
@@ -220,7 +223,10 @@ def test_archive_follows_the_local_rules_once_the_realm_is_local():
 
 
 def test_joining_again_binds_the_same_realm_and_local_changes_show_as_drift(tmp_path, monkeypatch):
-    """Mutations: drop ``clear_realm_shared_from`` in ``adopt_realms`` -> the record file is still there, red;
+    """Mutations: drop ``keep_team_baselines`` at the leave, or ``restore_team_baselines`` at the adopt -> the
+    card made while local reads as published and the pull from the team removes it (``cards_added`` 0, then
+    the card is gone), red — the defect the real-path read found;
+    drop ``clear_realm_shared_from`` in ``adopt_realms`` -> the record file is still there, red;
     drop the unarchive beside it -> the re-joined realm stays archived, red. One realm per id is the adopt's
     own upsert by id (no line of this change) and is pinned here as it stands."""
     realm, bare, clone = _team_realm(tmp_path)
@@ -230,6 +236,12 @@ def test_joining_again_binds_the_same_realm_and_local_changes_show_as_drift(tmp_
     team_head = _git(bare, "rev-parse", "main")
     _rpc("runtime.realm.revoked", realm_id=realm.id, reason="membership_left", server_name="The Guild")
     kept = BoardStore().add_card(workspace_id=workspace.id, title="Made while it was local")
+    # While local the realm syncs against its own ``local`` repository, which moves the live baselines:
+    # the publish commits there (and has nowhere to push), the pull then records the card as synced.
+    with pytest.raises(RealmSyncError):
+        publish_realm_sync(realm.id)
+    pull_realm_sync(realm.id)
+    assert realm_sync_status(realm.id)["store_drift"]["boards"]["cards_added"] == 0
     WorkspaceStore().archive(workspace.id)
     home = RealmStore().create(name="Home")
     RealmStore().set_active(home.id)
@@ -245,6 +257,7 @@ def test_joining_again_binds_the_same_realm_and_local_changes_show_as_drift(tmp_
     bound = RealmStore().get(realm.id)
     assert (bound.server_id, bound.sync_manifest_ref, bound.archived) == ("srv_team", str(clone), False)
     assert not realm_shared_from_path(realm.id).exists()
+    assert not team_baselines_dir(realm.id).exists()
     assert realm_summary(bound, workspaces=[])["shared_from"] is None
     WorkspaceStore().unarchive(workspace.id)
     # Nothing was republished by the re-join, and the local-era card is unpublished drift, not lost.
@@ -253,8 +266,31 @@ def test_joining_again_binds_the_same_realm_and_local_changes_show_as_drift(tmp_
     assert status["unpublished_changes"] is True
     assert status["store_drift"]["boards"]["cards_added"] >= 1
     pull_realm_sync(realm.id)
-    assert BoardStore().get_card(kept.card_id).title == "Made while it was local"
+    from agent_runtime import board_models
+
+    live = [card.card_id for card in BoardStore().list_cards(board_models.default_board_id(workspace.id))]
+    assert kept.card_id in live
     assert _git(bare, "rev-parse", "main") == team_head
+
+
+def test_a_second_leave_keeps_the_first_baselines_and_a_local_era_baseline_does_not_survive_the_re_join():
+    """Mutations: let ``keep_team_baselines`` overwrite a kept set -> the board baseline restored is the
+    local-era one, red; let ``restore_team_baselines`` leave a baseline that has no kept counterpart -> the
+    office baseline written while local survives, red."""
+    board = runtime_paths.board_baseline_path("realm_team")
+    office = runtime_paths.office_baseline_path("realm_team")
+    board.parent.mkdir(parents=True, exist_ok=True)
+    board.write_text('{"agreed_with": "team"}', encoding="utf-8")
+    keep_team_baselines("realm_team")
+    board.write_text('{"agreed_with": "local"}', encoding="utf-8")
+    office.write_text('{"agreed_with": "local"}', encoding="utf-8")
+    keep_team_baselines("realm_team")
+    assert restore_team_baselines("realm_team") is True
+    assert json.loads(board.read_text(encoding="utf-8")) == {"agreed_with": "team"}
+    assert not office.exists()
+    assert not team_baselines_dir("realm_team").exists()
+    assert restore_team_baselines("realm_team") is False
+    assert json.loads(board.read_text(encoding="utf-8")) == {"agreed_with": "team"}
 
 
 def test_no_address_or_token_stays_behind_and_the_servers_clone_goes_with_its_last_realm(tmp_path, monkeypatch):

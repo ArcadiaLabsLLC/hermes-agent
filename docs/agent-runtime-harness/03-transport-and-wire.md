@@ -1197,8 +1197,13 @@ first record with `became_local: false`. The snapshot's realm row and the full `
 (null on a server-bound realm and on a realm that never had a server). Nothing is sent: the team's copy
 is unchanged, and a later publish or pull is a local realm's. Archive then follows the local rules
 (`realm_manage.py`). A re-grant (`adopt_realms`) binds the same realm again by its id, drops the record,
-and brings the realm back if it was archived while local; drift baselines are untouched by the leave,
-so local-era changes show as store drift and are held by the pull's own family rules. A git-host reason
+and brings the realm back if it was archived while local. The drift baselines (`realm_sync/<realm>/*_baseline.json`)
+are copied to `realm_sync_state/<realm>.team_baselines/` at the leave and put back at the re-grant
+(`keep_team_baselines` / `restore_team_baselines`): while local the realm's own publishes and pulls move
+the live baselines against the `local` repository, and read against the team's repository those would
+call a card made while local "published, then removed by the team" — the pull took it away (measured in
+this row's real-path read). With the kept set restored, local-era changes show as store drift and are
+kept by the pull's own family rules. A git-host reason
 is unchanged: the realm stays bound under the mark described above. `runtime.realm.adopt` also converts
 any realm still bound under a member-access mark written before this rule (`make_marked_realms_local`).
 

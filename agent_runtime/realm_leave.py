@@ -19,9 +19,11 @@ local realm". ``runtime.realm.revoked`` with a member-access reason (``MEMBER_AC
 
 Nothing is sent anywhere: the team's copy is not changed by a member leaving. Archive then follows
 the local rules (``realm_manage.archive_realm``). A re-grant (``realm_membership.adopt_realms``)
-binds the SAME realm again by its id and drops the record; the drift baselines under
-``realm_sync/<realm>/`` are never touched here, so what changed while the realm was local shows as
-drift on the next status and is held by the next pull, as for any member who edited offline.
+binds the SAME realm again by its id and drops the record. The drift baselines are set aside at the
+leave (``keep_team_baselines``) and put back at the re-grant, so whatever the realm's own publishes
+and pulls did while it was local, the next status reads the store against what this install and the
+team last agreed on: what changed while local shows as drift and is kept by the next pull, as for
+any member who edited offline — it is neither taken away nor sent without a publish.
 
 Pinned by ``tests/agent_runtime/test_realm_leave.py``.
 """
@@ -40,6 +42,7 @@ from .realm_sync.revocation import (
     MEMBER_ACCESS_REASONS,
     RealmRevokedReason,
     clear_realm_revocation,
+    keep_team_baselines,
     read_realm_revocation,
     read_realm_shared_from,
     write_realm_shared_from,
@@ -72,6 +75,7 @@ def make_realm_local(
             return read_realm_shared_from(realm.id), False
         server_id = realm.server_id
         record = write_realm_shared_from(realm.id, server_id=server_id, server_name=server_name, reason=reason)
+        keep_team_baselines(realm.id)
         realm.server_id = None
         realm.sync_manifest_ref = None
         realm = realms.save(realm, emit_event=False)

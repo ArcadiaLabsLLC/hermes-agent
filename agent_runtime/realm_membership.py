@@ -286,7 +286,7 @@ def adopt_realms(credential: RealmSyncCredential, *, server_id: str | None = Non
             )
         )
     if not dry_run:
-        from .realm_sync.revocation import clear_realm_revocation, clear_realm_shared_from
+        from .realm_sync.revocation import clear_realm_revocation, clear_realm_shared_from, restore_team_baselines
 
         for index, realm in enumerate(adopted):
             _append_realm_adopted_event(realm)
@@ -294,6 +294,8 @@ def adopt_realms(credential: RealmSyncCredential, *, server_id: str | None = Non
             # A realm that became local when the member left (``realm_leave``) is the SAME realm,
             # bound again by its id above: its ``shared_from`` record goes, and one put away while
             # it was local comes back — joining again is asking to see it.
+            # The drift baselines go back to what the team and this install last agreed on.
+            restore_team_baselines(realm.id)
             if clear_realm_shared_from(realm.id) and realm.archived:
                 adopted[index] = store.unarchive(realm.id)
     return adopted
