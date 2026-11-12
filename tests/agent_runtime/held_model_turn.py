@@ -32,8 +32,8 @@ class HeldModel(ThreadingHTTPServer):
         self.partial = ""
         #: Every chat request body, in arrival order (the QA fixture's ``/qa/state``).
         self.requests: list[dict] = []
-        #: ``reply(body) -> (text, finish_reason)`` for a call that is not held.
-        self.reply: Callable[[dict], tuple[str, str]] = lambda body: ("Thanks, noted.", "stop")
+        #: ``reply(body) -> (text or a whole delta, finish_reason)`` for a call that is not held.
+        self.reply: Callable[[dict], tuple[Any, str]] = lambda body: ("Thanks, noted.", "stop")
         threading.Thread(target=self.serve_forever, daemon=True).start()
 
     def configure(self, home) -> None:
@@ -83,7 +83,7 @@ class _Handler(BaseHTTPRequestHandler):
             if self.server.hold:
                 self.server.release.wait(60)
             text, finish = self.server.reply(body)
-            chunk({"role": "assistant", "content": text}, None)
+            chunk(text if isinstance(text, dict) else {"role": "assistant", "content": text}, None)
             chunk({}, finish, usage={"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15})
             self.wfile.write(b"data: [DONE]\n\n")
         except OSError:

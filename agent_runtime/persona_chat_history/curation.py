@@ -518,6 +518,8 @@ class CurationState:
             from agent.steering import RUNTIME_NOTE_ENVELOPE
 
             raw_content = raw_content.removeprefix(RUNTIME_NOTE_ENVELOPE)
+        elif raw.get("display_kind") == _FAILED_TURN_DISPLAY_KIND:
+            raw_content = self._failed_turn_reply(ctx) or raw_content
         curated = curator.printable(_curate_chat_message_text(ctx.role, raw_content))
         if not curated:
             self._silent_candidate(ctx, raw_content)
@@ -550,6 +552,21 @@ class CurationState:
             if earlier is not None:
                 earlier.pop("turn_elements", None)
             self.turn_element_rows[ctx.logical_client_message_id] = row
+
+    def _failed_turn_reply(self, ctx: RowContext) -> str:
+        """What the turn itself said when it failed, for the core's boundary row; ``""`` when it said nothing.
+
+        A failed model call leaves the stored tail closed by the core's row ("Your request was not
+        processed…", ``display_kind: failed_turn`` — every host needs the tail closed), while the Harness
+        settles the turn with the loop's own words for that failure ("The model's reply was cut off before
+        it finished…") and shows those live. Drawn as stored, the chat said both, and after a reload only
+        the generic one (RT-CUT-OFF-REPLY-ALSO-SAYS-NOT-PROCESSED). The turn's settled reply is on its
+        journal record; the row reads as that. A failed turn that settled no reply keeps the core's sentence.
+        """
+
+        record = self.turn_records_by_message.get(str(ctx.logical_client_message_id or "")) or {}
+        reply = record.get("stored_reply")
+        return reply if isinstance(reply, str) and reply.strip() else ""
 
     def turn_elements_for(self, logical_client_message_id: str | None) -> list[dict[str, Any]]:
         """The turn's element list, read from the journal once per logical turn."""
@@ -621,6 +638,9 @@ class CurationState:
         return _ordered_message_rows(rows)
 
 
+#: ``agent.turn_failure_copy.FAILED_TURN_DISPLAY_KIND``: the core's boundary row for a failed turn. Spelled here
+#: (this store imports no loop module); ``test_cut_off_reply_one_notice`` holds the two equal.
+_FAILED_TURN_DISPLAY_KIND = "failed_turn"
 #: A steer row ``native_persistence`` stored without a platform id of its own: ``<turn>:input:<n>``.
 _STEERED_INPUT_ID = re.compile(r"^(.+):input:\d+$")
 #: Transient (popped by :func:`_place_by_stored_position`): the stored index of a row placed by it.
