@@ -406,6 +406,9 @@ def test_every_attaching_delegate_attaches(monkeypatch, tmp_path):
         def set_agent_selection(self, realm_id, **kw):
             return None
 
+        def list_all(self, **kw):  # realm_adopt's sweep of realms still bound under an old member mark
+            return []
+
     patch_where_bound(monkeypatch, store, "RealmStore", _Store)
     monkeypatch.setattr(realm_verbs, "realm_skill_selection_envelope", lambda realm: {"id": realm})
     produced = {

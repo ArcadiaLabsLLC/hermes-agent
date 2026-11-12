@@ -395,6 +395,8 @@ def test_realm_row_is_value_identical_to_before(fixture_store):
         "workspace_ids": [fixture_store["workspace"].id],
         "default_workspace_name": realm.default_workspace_name,
         "archived": False,
+        # RT-LEFT-SERVER-REALM-STAYS-LISTED: the server a now-local realm came from; null on a bound realm.
+        "shared_from": None,
         "sync_manifest_ref": realm.sync_manifest_ref,
         "created_at": realm.created_at,
     }

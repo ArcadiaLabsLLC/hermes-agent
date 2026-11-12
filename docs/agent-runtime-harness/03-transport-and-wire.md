@@ -1193,7 +1193,7 @@ appended. All member reasons, not only the three `membership_*` ones: the backen
 once, on the grant diff, so a realm left bound after a lost role would get no second event when the
 member later leaves. The verb takes an optional `server_name` (the caller's display name for the server)
 and answers `{realm_id, reason, revoked_at, host_state, became_local, shared_from}`; a repeat answers the
-first record with `became_local: false`. The snapshot's realm row and `realm_row` carry `shared_from`
+first record with `became_local: false`. The snapshot's realm row and the full `realm_row` (`realm show`, the archive verbs) carry `shared_from`
 (null on a server-bound realm and on a realm that never had a server). Nothing is sent: the team's copy
 is unchanged, and a later publish or pull is a local realm's. Archive then follows the local rules
 (`realm_manage.py`). A re-grant (`adopt_realms`) binds the same realm again by its id, drops the record,

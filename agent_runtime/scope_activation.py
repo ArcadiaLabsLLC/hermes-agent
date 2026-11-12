@@ -166,11 +166,14 @@ def realm_row(realm, *, full: bool = False) -> dict:
     summary = realm_summary(realm, workspaces=WorkspaceStore().list_all(include_archived=True))
     row = {
         key: summary[key]
-        for key in ("id", "name", "server_id", "shared_from", "default_workspace_id", "default_workspace_version", "workspaces", "sync")
+        for key in ("id", "name", "server_id", "default_workspace_id", "default_workspace_version", "workspaces", "sync")
     }
     row["updated_at"] = realm.updated_at
     if full:
-        row.update({key: summary[key] for key in ("kind", "slug", "workspace_ids", "default_workspace_name", "archived")})
+        row.update({
+            key: summary[key]
+            for key in ("kind", "slug", "workspace_ids", "default_workspace_name", "archived", "shared_from")
+        })
         row["sync_manifest_ref"] = realm.sync_manifest_ref
         row["created_at"] = realm.created_at
     return row
