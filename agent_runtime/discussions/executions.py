@@ -19,10 +19,11 @@ class SessionExecution:
     def row(self, run_id, task, attempts=None):
         """``task``'s attempt, recovered. ``attempts`` is the run's ``attempt_rows``, read once for a whole
         walk over its tasks; without it this reads the one row. Either way the row is fresh, so recovery
-        does not read it again (a view over twelve tasks opened the attempt file 24 times)."""
+        does not read it again (a view over twelve tasks opened the attempt file 24 times). It never waits
+        on an in-flight dispatch (``wait=False``); a decision that must observe uses ``is_live``/``recover``."""
         key = (task["identity"].task_id, task["execution_generation"])
         row = attempts.get(key) if attempts is not None else self.attempts.get(run_id, *key)
-        return self.turns.recover(row, fresh=True) if row is not None else None
+        return self.turns.recover(row, fresh=True, wait=False) if row is not None else None
 
     def attempt_rows(self, run_id):
         """Every attempt of ``run_id`` on ONE connection, keyed ``(task_id, generation)`` for ``row``."""

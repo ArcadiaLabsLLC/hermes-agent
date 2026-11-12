@@ -58,8 +58,9 @@ class NativeTurns:
                 self._live.pop(key, None)
                 raise
 
-    def recover(self, row: Mapping[str, Any], *, fresh: bool = False) -> dict[str, Any]:
-        """``fresh``: ``row`` was read from the store just now, so it is not read again."""
+    def recover(self, row: Mapping[str, Any], *, fresh: bool = False, wait: bool = True) -> dict[str, Any]:
+        """``fresh``: ``row`` was read from the store just now, so it is not read again. ``wait`` is
+        ProfileTurns' (a read that never queues behind a dispatch); native recovery takes no lock to wait on."""
         current = dict(row) if fresh else self.attempts.get(*self._key(row)) or dict(row)
         if current["stage"] in {"terminal", "waiting_input"}:
             return current
