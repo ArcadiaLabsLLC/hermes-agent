@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import uuid
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +14,44 @@ from ..redaction import TEXT_SECRET_ASSIGNMENT_RE, TEXT_SECRET_KEYS
 __layer__ = "policy"
 
 logger = logging.getLogger(__name__)
+
+
+#: A runtime clarify ticket (``clarify-<12 hex>``, :mod:`.clarify_tickets`) is a lookup key the
+#: asking agent must echo back whole, "never a capability secret". Under its ``clarify_token``
+#: name upstream's redactor cut it to ``clarif...7f38`` and the field pass set it to
+#: ``[redacted]``, so the asker's answer on it could not bind
+#: (RT-DISPATCH-DELIVERY-CLARIFY-TOKEN-MASKED). The wire spares exactly this shape; upstream's
+#: redactor is left as it is (its footprint is ledgered) and the ticket is shielded around it.
+_CLARIFY_TICKET_RE = re.compile(r"(?<![A-Za-z0-9_-])clarify-[0-9a-f]{12}(?![A-Za-z0-9_-])")
+
+
+def _is_clarify_ticket(value: Any) -> bool:
+    return isinstance(value, str) and _CLARIFY_TICKET_RE.fullmatch(value) is not None
+
+
+def _redact_sparing_clarify_tickets(text: str, redact) -> str:
+    """``redact(text)`` with every clarify ticket shielded behind a short placeholder.
+
+    The placeholder is non-ASCII and under 12 characters, a shape no secret pass masks; it
+    carries a per-call nonce so a placeholder-looking string already in *text* is not restored.
+    """
+
+    tickets: list[str] = []
+    nonce = uuid.uuid4().hex[:4]
+
+    def shield(match: re.Match) -> str:
+        tickets.append(match.group(0))
+        return f"⟦{nonce}{len(tickets) - 1}⟧"
+
+    shielded = _CLARIFY_TICKET_RE.sub(shield, text)
+    redacted = redact(shielded)
+    if not tickets:
+        return redacted
+    return re.sub(
+        rf"⟦{nonce}(\d+)⟧",
+        lambda m: tickets[int(m.group(1))] if int(m.group(1)) < len(tickets) else m.group(0),
+        redacted,
+    )
 
 
 # Single-homed in ``agent_runtime.redaction`` — see the header there for the
@@ -118,7 +157,9 @@ def _redacted(value: Any) -> str:
         nonlocal changed
         if isinstance(item, dict):
             for key, child in item.items():
-                if re.search(r"(?:" + TEXT_SECRET_KEYS + r")$", key, re.IGNORECASE):
+                if re.search(r"(?:" + TEXT_SECRET_KEYS + r")$", key, re.IGNORECASE) and not (
+                    _is_clarify_ticket(child)
+                ):
                     item[key] = "[redacted]"
                     changed = True
                 else:
@@ -137,9 +178,9 @@ def _redacted(value: Any) -> str:
     try:
         from agent.redact import redact_sensitive_text
 
-        return redact_sensitive_text(text, force=True)
+        return _redact_sparing_clarify_tickets(text, lambda t: redact_sensitive_text(t, force=True))
     except Exception:
-        return _SECRET_RE.sub(r"\1: [redacted]", text)
+        return _redact_sparing_clarify_tickets(text, lambda t: _SECRET_RE.sub(r"\1: [redacted]", t))
 
 
 def _truncate(text: str, limit: int) -> str:
