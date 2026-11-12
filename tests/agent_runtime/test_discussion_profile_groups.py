@@ -153,6 +153,38 @@ def test_native_question_ack_and_confirmed_stop_share_exact_execution(groups):
     assert len(sends(factory)) == 1
 
 
+def test_a_view_does_not_wait_for_a_member_dispatch_in_flight(groups, monkeypatch):
+    """FH-GROUP-COMPUTE-QUESTION-RED-WINDOWS: ``launch`` holds the turns' admission across the member's worker
+    and compute-host start. A view queued on it froze for the whole start, then reported the attempt it read
+    before waiting (``pending`` after the claim committed), and the compute test's 30 s poll ran out. The
+    dispatch is held open here, so a view that waits never returns. KILLING MUTATION: ``wait=False`` dropped
+    from ``SessionExecution.row`` -> the view thread is still blocked when the join gives up."""
+    import threading
+
+    service, conversations, _, _ = groups
+    run = create(groups)
+    target = service.runs.members(run["run_id"])[0]["member_id"]
+    entered, release = threading.Event(), threading.Event()
+    original = conversations.send
+    def held_send(*args, **kwargs):
+        entered.set()
+        assert release.wait(60)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(conversations, "send", held_send)
+    act(service, run, "send", "ask", message="Do this", response={"mode": "reply", "members": [target]})
+    try:
+        assert entered.wait(30)  # the admission is held, past the claim, until ``release``
+        seen = []
+        reader = threading.Thread(target=lambda: seen.append(service.view(run["workspace_id"], run["run_id"])),
+                                  daemon=True)
+        reader.start()
+        reader.join(10)
+        assert not reader.is_alive(), "the view waited on the dispatch"
+        assert [t["attempt_stage"] for t in seen[0]["tasks"]] == ["running"]
+    finally:
+        release.set()
+
+
 def test_a_settled_group_does_not_hold_maintenance_but_a_pending_one_does(groups):
     """Runtime-queue row (w5-rt): idle_drain counted every owned run, so an open group
     with nothing to do deferred automatic maintenance until the operator ended it."""

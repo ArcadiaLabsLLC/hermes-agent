@@ -71,10 +71,21 @@ class ProfileTurns:
         if current["stage"] == "terminal" and on_terminal is not None:
             on_terminal(current["receipt"])
 
-    def recover(self, row, *, fresh=False):
-        """``fresh``: ``row`` was read from the store just now, so it is not read again."""
-        with self._admission:
+    def recover(self, row, *, fresh=False, wait=True):
+        """``fresh``: ``row`` was read from the store just now, so it is not read again.
+
+        ``wait=False`` is a read that never queues behind a dispatch: ``launch`` holds the admission
+        across the member's worker and compute-host start (seconds; tens of seconds on a loaded box), and
+        the lock is one for every room, so a view that waited froze for all of it and then reported the
+        row it read before waiting — ``pending`` after the claim had long committed
+        (FH-GROUP-COMPUTE-QUESTION-RED-WINDOWS). While the admission is busy the stored row is read
+        again and returned unobserved; the next read observes."""
+        if not self._admission.acquire(blocking=wait):
+            return self._current(row)
+        try:
             return self._recover(row, fresh=fresh)
+        finally:
+            self._admission.release()
 
     def _recover(self, row, *, fresh=False):
         current = row if fresh else self._current(row)
