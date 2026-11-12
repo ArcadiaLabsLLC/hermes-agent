@@ -41,7 +41,7 @@ import subprocess
 import threading
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -239,6 +239,7 @@ class Writer:
         machine_id: str,
         run: Callable[..., subprocess.CompletedProcess[str]] | None = None,
         now: Callable[[], datetime] | None = None,
+        local_zone: tzinfo | None = None,
         replay_budget: int = REPLAY_BUDGET,
     ) -> None:
         if run is None:
@@ -249,6 +250,8 @@ class Writer:
         self.stale = False
         self._run = run
         self._now = now or (lambda: datetime.now(UTC))
+        #: The zone a row's day is stamped in; None is this machine's own (a check pins one portably).
+        self._zone = local_zone
         self._budget = replay_budget
         self._tip_sha: str | None = None
         #: The clone's git common dir, read once per Writer (the worktree token and the worktree check share it).
@@ -627,7 +630,7 @@ class Writer:
         assert row is not None
         lines = text.split("\n")
         carriage = "\r" if lines[row.line_no - 1].endswith("\r") else ""
-        date = local_day(self._now())
+        date = local_day(self._now(), self._zone)
         edited = apply_line(row.raw, op.op, who=op.who, date=date, payload=dict(op.payload))
         if edited is None:
             del lines[row.line_no - 1]
@@ -648,7 +651,7 @@ class Writer:
         row = find(rows, op.ref.id)
         _present(op, row)
         assert row is not None
-        archived = apply_line(row.raw, Op.CLOSE, who=op.who, date=local_day(self._now()),
+        archived = apply_line(row.raw, Op.CLOSE, who=op.who, date=local_day(self._now(), self._zone),
                               payload=dict(op.payload))
         assert archived is not None
         outcome = next(o for o in map(parse_outcome, (s.strip() for s in split_segments(archived))) if o is not None)
