@@ -21,7 +21,7 @@ import pytest
 
 from agent_runtime import paths, serve_rpc, turn_activity
 from agent_runtime.realm_rekey import read_rekey_journal
-from agent_runtime.realm_sync import RealmSyncError, publish_realm_sync, pull_realm_sync
+from agent_runtime.realm_sync import publish_realm_sync, pull_realm_sync
 from agent_runtime.store import RealmStore, WorkspaceStore
 from tests.agent_runtime.test_realm_leave import _adopt, _team_realm
 from tests.agent_runtime.test_realm_leave import _git as _git_out
@@ -169,8 +169,7 @@ def test_a_workspace_moved_out_while_the_realm_was_local_stays_yours_and_the_tea
     home = RealmStore().create(name="Home")
     moved = _move(workspace_id=workspace.id, realm_id=home.id)["result"]  # a local realm: no confirm asked
     assert (moved["moved"], moved["publish_owed"]) == (True, [])
-    with pytest.raises(RealmSyncError):
-        publish_realm_sync(realm.id)  # commits to the local repo, has nowhere to push
+    assert publish_realm_sync(realm.id)["changed"] is True  # into the local repo's own history, nowhere else
     pull_realm_sync(realm.id)
 
     _adopt(monkeypatch, {"id": realm.id, "server_id": "srv_team", "name": "Team", "slug": "team", "git_url": str(clone)})
