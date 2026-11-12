@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from ..projection_accountant import ProjectionAccountant
+from .lanes_schedule import _epoch  # one stamp reader for the lanes; a naive stamp is local time
 from .ownership import _head_home, _pid_identity
 from .rows import LanePass, _progress, _source, bounded_operator_text, work_row
 from .vocabulary import (
@@ -96,16 +97,6 @@ def _job_labels(home: Path) -> dict[str, str]:
         if isinstance(job, dict) and job.get("id"):
             labels[str(job["id"])] = bounded_operator_text(job.get("name") or job.get("prompt") or job["id"], limit=160)
     return labels
-
-
-def _epoch(stamp: Any) -> float | None:
-    try:
-        moment = datetime.fromisoformat(str(stamp))
-    except (TypeError, ValueError):
-        return None
-    if moment.tzinfo is None:
-        moment = moment.astimezone()  # the ledger writes aware stamps; a naive one is local time
-    return moment.astimezone(UTC).timestamp()
 
 
 class CronLedgerLane(LanePass):
