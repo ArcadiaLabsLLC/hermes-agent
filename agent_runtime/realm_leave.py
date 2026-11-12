@@ -18,12 +18,14 @@ local realm". ``runtime.realm.revoked`` with a member-access reason (``MEMBER_AC
   ``realm_revoked`` and tell the client its access was revoked for a realm it now simply owns.
 
 Nothing is sent anywhere: the team's copy is not changed by a member leaving. Archive then follows
-the local rules (``realm_manage.archive_realm``). A re-grant (``realm_membership.adopt_realms``)
-binds the SAME realm again by its id and drops the record. The drift baselines are set aside at the
-leave (``keep_team_baselines``) and put back at the re-grant, so whatever the realm's own publishes
-and pulls did while it was local, the next status reads the store against what this install and the
-team last agreed on: what changed while local shows as drift and is kept by the next pull, as for
-any member who edited offline — it is neither taken away nor sent without a publish.
+the local rules (``realm_manage.archive_realm``).
+
+The leave also OWES A RE-KEY (``realm_rekey.owe_rekey``; owner 2026-11-12: "it should be rekeyd as
+soon as you leave"): the local copy takes a realm id, workspace ids, board ids and agents of its own
+the first moment nothing is running (``realm_rekey_triggers``; at once when the serve is idle), so
+that a re-join can bring the server's realm back FRESH beside it — the team's ids, the team's
+agents and their chats — instead of binding this realm again and merging. Nothing done while local
+is published by a re-join; the local copy stays the member's, labelled by its ``shared_from`` record.
 
 Pinned by ``tests/agent_runtime/test_realm_leave.py``.
 """
@@ -38,11 +40,11 @@ from typing import Any
 
 from . import paths
 from .locks import workspace_realm_assign_lock
+from .realm_rekey import owe_rekey
 from .realm_sync.revocation import (
     MEMBER_ACCESS_REASONS,
     RealmRevokedReason,
     clear_realm_revocation,
-    keep_team_baselines,
     read_realm_revocation,
     read_realm_shared_from,
     write_realm_shared_from,
@@ -75,7 +77,6 @@ def make_realm_local(
             return read_realm_shared_from(realm.id), False
         server_id = realm.server_id
         record = write_realm_shared_from(realm.id, server_id=server_id, server_name=server_name, reason=reason)
-        keep_team_baselines(realm.id)
         realm.server_id = None
         realm.sync_manifest_ref = None
         realm = realms.save(realm, emit_event=False)
@@ -88,6 +89,11 @@ def make_realm_local(
             {"realm_id": realm.id, "change": "became_local", "server_id": server_id},
             domain="store",
         )
+    # Owed outside the assign lock (``owe_rekey`` takes it itself). The map is the realm as it is at THIS
+    # moment: what the team's copy publishes. What the member adds from here on is theirs alone and keeps
+    # its ids. A crash before this line leaves a local realm that owes nothing; a re-join owes it then
+    # (``realm_rekey_triggers.make_way_for_rejoin``).
+    owe_rekey(realm.id, reason=reason.value)
     return record, True
 
 

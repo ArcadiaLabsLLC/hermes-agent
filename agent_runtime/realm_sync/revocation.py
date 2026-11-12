@@ -19,8 +19,10 @@ reconnect). A loss of the MEMBER's access (``MEMBER_ACCESS_REASONS``) no longer
 leaves a bound realm that cannot sync: ``agent_runtime.realm_leave`` makes the
 realm a local one and records where it came from in the ``shared_from`` record
 below — a third install-local file, read by the snapshot only for a realm with
-no ``server_id`` — and sets the drift baselines aside (``keep_team_baselines``)
-until a re-grant puts them back.
+no ``server_id``. The record follows the local copy through its re-key and is
+what labels it beside the server's realm after a re-join
+(RT-REJOIN-PULLS-THE-SERVER-REALM-FRESH): a re-join never binds the local copy
+again, so nothing here is "put back".
 
 Stored at ``realm_sync_state/<realm>.revoked.json`` beside the status
 sidecar — a separate file, because every status run rewrites the sidecar
@@ -30,7 +32,6 @@ whole. Install-local: nothing here is published.
 from __future__ import annotations
 
 import json
-import shutil
 from datetime import timezone, UTC
 from enum import Enum
 from pathlib import Path
@@ -52,16 +53,12 @@ __all__ = [
     "REALM_REVOKED_CODE",
     "RealmRevokedReason",
     "clear_realm_revocation",
-    "clear_realm_shared_from",
-    "keep_team_baselines",
     "mark_realm_revoked",
     "read_realm_revocation",
     "read_realm_shared_from",
     "realm_revocation_path",
     "realm_shared_from_path",
     "refuse_if_revoked",
-    "restore_team_baselines",
-    "team_baselines_dir",
     "write_realm_shared_from",
 ]
 
@@ -105,7 +102,8 @@ HOST_STATE_REASONS = frozenset({RealmRevokedReason.GIT_HOST_UNBOUND, RealmRevoke
 #: All of them, not only the three ``membership_*`` ones: the backend emits
 #: ``realm.revoked`` once, on the grant diff — a member who loses a role's realm
 #: and LATER leaves the server gets no second event, so a realm left bound on
-#: the first would stay bound for good. A re-grant re-binds the same realm.
+#: the first would stay bound for good. A re-grant adopts the server's realm
+#: fresh, beside the local copy.
 MEMBER_ACCESS_REASONS = frozenset(RealmRevokedReason) - HOST_STATE_REASONS
 
 #: Backend refusal ``error.code`` on the credential mint -> the mark it is.
@@ -179,62 +177,6 @@ def write_realm_shared_from(
     }
     atomic_json_write(realm_shared_from_path(realm_id), payload)
     return read_realm_shared_from(realm_id) or {}
-
-
-def clear_realm_shared_from(realm_id: str) -> bool:
-    """Remove the record (the realm is bound to its server again). Returns
-    whether one was there."""
-    try:
-        realm_shared_from_path(realm_id).unlink()
-    except FileNotFoundError:
-        return False
-    return True
-
-
-def team_baselines_dir(realm_id: str) -> Path:
-    return paths.store_root() / "realm_sync_state" / f"{paths.safe_path_token(realm_id)}.team_baselines"
-
-
-def _live_baselines_dir(realm_id: str) -> Path:
-    """Where every family keeps its drift baseline (``paths.*_baseline_path``)."""
-    return paths.realm_sync_root() / paths.safe_path_token(realm_id)
-
-
-def keep_team_baselines(realm_id: str) -> None:
-    """Set aside the realm's drift baselines as they stand when it leaves its
-    server: what this install and the team last agreed on. While the realm is
-    local its own publishes and pulls move the live baselines against the
-    ``local`` repository; read against the team's repository after a re-join,
-    those would call a card made while local "published, then removed by the
-    team" and the pull would take it away. A first leave wins: a repeat never
-    overwrites the kept set with local-era baselines."""
-    kept = team_baselines_dir(realm_id)
-    if kept.exists():
-        return
-    kept.mkdir(parents=True, exist_ok=True)
-    live = _live_baselines_dir(realm_id)
-    for source in sorted(live.glob("*_baseline.json")) if live.is_dir() else ():
-        shutil.copy2(source, kept / source.name)
-
-
-def restore_team_baselines(realm_id: str) -> bool:
-    """Put the kept baselines back as the live ones (the realm is bound to its
-    server again) and drop the kept set. A baseline first written while the
-    realm was local has no team counterpart and is removed, so that family
-    reads as never published. Returns whether a kept set was there."""
-    kept = team_baselines_dir(realm_id)
-    if not kept.is_dir():
-        return False
-    live = _live_baselines_dir(realm_id)
-    names = {path.name for path in kept.glob("*_baseline.json")}
-    for stale in live.glob("*_baseline.json") if live.is_dir() else ():
-        if stale.name not in names:
-            stale.unlink()
-    live.mkdir(parents=True, exist_ok=True)
-    for name in sorted(names):
-        shutil.copy2(kept / name, live / name)
-    shutil.rmtree(kept)
-    return True
 
 
 def mark_realm_revoked(realm: Realm, reason: RealmRevokedReason) -> dict[str, Any]:

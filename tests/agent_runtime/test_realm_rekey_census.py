@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import paths as runtime_paths
-from agent_runtime import realm_rekey, serve_rpc
+from agent_runtime import realm_rekey, serve_rpc, turn_activity
 from agent_runtime.agent_create import perform_agent_create
 from agent_runtime.board_models import default_board_id
 from agent_runtime.board_store import BoardStore
@@ -65,9 +65,11 @@ def _left_realm(tmp_path):
     level.write_text(LEVEL % (first.id, first.id), encoding="utf-8")
     WorkspaceStore().set_active(first.id)
     assert publish_realm_sync(realm.id)["changed"] is True
-    left = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "rk", "method": "runtime.realm.revoked",
-                                     "params": {"realm_id": realm.id, "reason": "membership_left"}})
-    assert left["result"]["became_local"] is True
+    with turn_activity.admitted_turn("a turn is live at the leave"):  # so the re-key it owes waits
+        left = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "rk", "method": "runtime.realm.revoked",
+                                         "params": {"realm_id": realm.id, "reason": "membership_left"}})
+    assert (left["result"]["became_local"], left["result"]["rekey"], left["result"]["rekeyed_to"],
+            left["result"]["rekey_waits_on"]) == (True, "owed", None, "turn")
     boards.add_card(workspace_id=first.id, title="Added while local")
     try:  # a local realm's own sync run: it rewrites the baselines the re-key must carry over
         publish_realm_sync(realm.id)
@@ -498,7 +500,8 @@ def test_what_lives_outside_the_json_store_follows_the_local_copy(tmp_path):
     assert (local_repo / "realms" / realm.id / "store" / "workspaces" / f"{first.id}.json").is_file(), (
         "the seed's local-era publish wrote the local copy's history")
     history = _git(local_repo, "rev-list", "--count", "HEAD")
-    team_cards = {card.card_id for card in BoardStore().list_cards(default_board_id(first.id))}
+    # The map was minted at the leave: the card added after it was never the team's and keeps its id.
+    team_cards = {card.card_id for card in BoardStore().list_cards(default_board_id(first.id)) if card.title == "Team card"}
 
     journal = rekey_realm(owe_rekey(realm.id, reason="membership_left")["map"]["realm_old"])
 

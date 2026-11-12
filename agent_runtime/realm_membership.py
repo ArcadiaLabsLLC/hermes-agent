@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, UTC
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from hermes_time import now
 
@@ -237,13 +237,22 @@ class BackendRealmMembershipProvider(RealmMembershipProvider):
         return _decision_from_response(status, payload, action=action)
 
 
-def adopt_realms(credential: RealmSyncCredential, *, server_id: str | None = None, dry_run: bool = False) -> list[Realm]:
+def adopt_realms(
+    credential: RealmSyncCredential, *, server_id: str | None = None, dry_run: bool = False,
+    make_way: Callable[[list[str]], Any] | None = None,
+) -> list[Realm]:
     """Fetch granted realms from the backend and upsert local Realm records.
 
     Idempotent: an unchanged realm is not rewritten; existing ``workspace_ids``
     are always preserved on re-adopt. ``sync_manifest_ref`` is set from the
     backend-provided ``git_url`` so ``_ensure_sync_repo`` clones the brokered
     remote on first sync.
+
+    ``make_way`` is called once with the granted realm ids before anything is
+    upserted (never on a dry run): the re-join's hook, which moves a local copy
+    still holding one of those ids aside (``realm_rekey_triggers``) or raises its
+    refusal. A realm a member left is therefore adopted FRESH, as a first-time
+    joiner's — never bound again by its id.
     """
     url = f"{credential.api_base.rstrip('/')}/realms"
     status, payload = _request_json("GET", url, headers=credential.bearer_headers())
@@ -259,6 +268,7 @@ def adopt_realms(credential: RealmSyncCredential, *, server_id: str | None = Non
         )
     store = RealmStore()
     adopted: list[Realm] = []
+    granted = []
     for item in payload["items"]:
         if not isinstance(item, dict):
             continue
@@ -268,6 +278,10 @@ def adopt_realms(credential: RealmSyncCredential, *, server_id: str | None = Non
             continue
         if server_id and item_server_id != server_id:
             continue
+        granted.append((item, realm_id, item_server_id))
+    if make_way is not None and not dry_run:
+        make_way([realm_id for _, realm_id, _ in granted])
+    for item, realm_id, item_server_id in granted:
         git_url = str(item.get("git_url") or "").strip()
         if not git_url and realm_id == credential.realm_id:
             git_url = credential.git_url
@@ -286,18 +300,11 @@ def adopt_realms(credential: RealmSyncCredential, *, server_id: str | None = Non
             )
         )
     if not dry_run:
-        from .realm_sync.revocation import clear_realm_revocation, clear_realm_shared_from, restore_team_baselines
+        from .realm_sync.revocation import clear_realm_revocation
 
-        for index, realm in enumerate(adopted):
+        for realm in adopted:
             _append_realm_adopted_event(realm)
-            clear_realm_revocation(realm)  # a re-grant lifts a realm.revoked mark
-            # A realm that became local when the member left (``realm_leave``) is the SAME realm,
-            # bound again by its id above: its ``shared_from`` record goes, and one put away while
-            # it was local comes back — joining again is asking to see it.
-            # The drift baselines go back to what the team and this install last agreed on.
-            restore_team_baselines(realm.id)
-            if clear_realm_shared_from(realm.id) and realm.archived:
-                adopted[index] = store.unarchive(realm.id)
+            clear_realm_revocation(realm)  # a re-grant lifts a realm.revoked mark (a git-host loss)
     return adopted
 
 
