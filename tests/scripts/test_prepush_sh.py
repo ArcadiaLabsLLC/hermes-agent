@@ -151,6 +151,23 @@ def test_the_gates_step_runs_on_the_gates_runner_and_the_other_steps_do_not(repo
     assert "tests/a/test_committed.py" in calls and "tests/a/test_committed.py" not in gates_argv
 
 
+def test_the_gates_bundles_are_sized_to_fill_the_workers(repo: Path):
+    """FH-WORK-V1-CLAIM-GATES-WINDOWS-BUDGET: at the runner's default bundle size the gates ran as one
+    bundle per test directory, 3 serial bundles beside 5 idle workers. KILLING MUTATION: drop the
+    ``--bundle-size`` argument -> the argv names none and this reds; drop the floor of 2 -> ``-j 16``
+    asks bundles of 1 (every gate its own process) and this reds."""
+    gates_log = repo.parent / "gates.log"
+    gates = _stub(repo.parent / "gates.sh", 0, gates_log)
+    gate_count = len(subprocess.run([_BASH, str(SCRIPT), "--list-gates"], capture_output=True, text=True,
+                                    encoding="utf-8", stdin=subprocess.DEVNULL, check=True).stdout.split())
+    for jobs, expected in (("2", -(-gate_count // 2)), ("16", 2)):
+        gates_log.unlink(missing_ok=True)
+        proc, _calls = _run(repo, "-j", jobs, env_extra={"PREPUSH_GATES_RUNNER": str(gates)})
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        argv = gates_log.read_text(encoding="utf-8").split()
+        assert argv[argv.index("--bundle-size") + 1] == str(expected), argv
+
+
 def test_touched_tests_are_the_changed_and_untracked_test_files(repo: Path):
     proc, calls = _run(repo)
     assert proc.returncode == 0, proc.stdout + proc.stderr

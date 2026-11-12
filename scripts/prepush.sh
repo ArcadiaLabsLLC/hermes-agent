@@ -511,7 +511,15 @@ _touched_lane() {
   return "$rc"
 }
 
-_step gates "$BUDGET_GATES" "$DEADLINE_GATES" env ETERNIA_HEAVY_SLOTS=off bash "$GATES_RUNNER" --small -j "$JOBS" "${GATES[@]}"
+# The gates' bundles are sized to fill the workers (FH-WORK-V1-CLAIM-GATES-WINDOWS-BUDGET): the
+# runner's default (20 files, one bundle per test directory) ran the 11 gates as 3 serial bundles
+# with 5 of 8 workers idle, so the step's wall was its longest directory's sum. ceil(gates / jobs),
+# at least 2, runs them as ~one bundle per worker. Windows 2026-11-12, load 29-39, the step's two
+# runs each way: 46.1 / 39.3 s at 3 bundles, 33.7 / 36.5 s at 7.
+GATES_BUNDLE_SIZE=$(( (${#GATES[@]} + JOBS - 1) / JOBS ))
+[ "$GATES_BUNDLE_SIZE" -ge 2 ] || GATES_BUNDLE_SIZE=2
+_step gates "$BUDGET_GATES" "$DEADLINE_GATES" env ETERNIA_HEAVY_SLOTS=off bash "$GATES_RUNNER" --small -j "$JOBS" \
+  --bundle-size "$GATES_BUNDLE_SIZE" "${GATES[@]}"
 _step doc-cite "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
   "$PY" "$SCRIPT_DIR/doc_cite_adjacency.py" --exclude archive --exclude planned
 if [ "${#CENSUS[@]}" -gt 0 ]; then
