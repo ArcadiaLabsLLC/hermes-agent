@@ -24,7 +24,7 @@ from .persona_chat_session import (
     log_model_selection, reasoning_effort_label,
 )
 from .profile_context import persona_profile_context, resolve_persona_profile
-from .session_model_catalog import choices, facts, model_key
+from .session_model_catalog import choices, facts, model_key, provider_id
 
 __layer__ = "lanes"
 
@@ -43,20 +43,61 @@ def operator_model_inventory(instance) -> dict:
     from hermes_cli.inventory import build_model_options_payload, load_picker_context
 
     with _model_profile(instance), credential_pool_snapshot():
-        return build_model_options_payload(load_picker_context())
+        return _with_local_llama_presets(build_model_options_payload(load_picker_context()))
+
+
+def _local_llama_presets() -> list[str]:
+    """The selectable presets saved in Mission Control's local llama screens (RT-LOCAL-LLAMA-PRESET-PICKABLE).
+
+    Upstream's picker row for ``llamacpp`` (``hermes_cli.inventory._local_runtime_row``) knows only the
+    staged ``<root>/models/*.gguf``; a preset is the fork adapter's (``llamacpp`` + preset UUID, the id a
+    persona stores), so the console offered it from the visibility block and the pick was refused."""
+    from .local_llama_adapter.provider import catalog_visibility
+
+    try:
+        block = catalog_visibility()
+    except Exception:  # an unreadable adapter config offers no presets; the other rows still answer
+        return []
+    return [row["model_id"] for row in block.get("models", ()) if row.get("selectable")]
+
+
+def _with_local_llama_presets(payload: dict) -> dict:
+    from .local_llama_adapter import PROVIDER_ID
+
+    presets = _local_llama_presets()
+    if not presets:
+        return payload
+    rows = list(payload.get("providers") or ())
+    for index, row in enumerate(rows):
+        if provider_id(row) == PROVIDER_ID:
+            models = list(row.get("models") or ())
+            rows[index] = {**row, "authenticated": True,
+                           "models": models + [m for m in presets if m not in models]}
+            break
+    else:
+        rows.append({"slug": PROVIDER_ID, "name": "Local", "authenticated": True, "models": presets,
+                     "total_models": len(presets), "source": "local-llama"})
+    return {**payload, "providers": rows}
 
 
 def _selected_model(instance, choice: str) -> tuple[str, str, str]:
     from hermes_cli.inventory import build_model_options_payload, load_picker_context
     from hermes_cli.model_switch import switch_model
 
+    from .local_llama_adapter import PROVIDER_ID
+    from .local_llama_adapter.provider import provider_profile
+
     with _model_profile(instance):
         context = load_picker_context()
         with credential_pool_snapshot():
-            selection = choices(build_model_options_payload(context)).get(choice)
+            selection = choices(_with_local_llama_presets(build_model_options_payload(context))).get(choice)
         if selection is None:
             raise OperatorConversationRefused("model_unavailable")
         provider, model = selection
+        if provider == PROVIDER_ID and model in _local_llama_presets():
+            # A preset is loaded by the adapter's whole-turn lease (``provider.turn_scope``), not resolved
+            # here: upstream's switch resolves the managed endpoint and refuses a server that is not up yet.
+            return PROVIDER_ID, model, provider_profile().api_mode
         result = switch_model(model, context.current_provider, context.current_model,
             current_base_url=context.current_base_url, explicit_provider=provider,
             user_providers=context.user_providers, custom_providers=context.custom_providers)

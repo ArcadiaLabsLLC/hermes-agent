@@ -442,3 +442,36 @@ def test_a_picker_open_reads_auth_json_once_per_provider_pool(placed_agent, cata
     monkeypatch.setattr(credential_pool, "_load_auth_store", counted)  # imported by name there
     assert "result" in inspect("models", params)
     assert 0 < len(reads) <= PICKER_AUTH_READS_BAR, len(reads)
+
+
+def test_a_local_llama_preset_saved_in_mission_control_is_offered_and_selected(placed_agent, catalog, monkeypatch):
+    """RT-LOCAL-LLAMA-PRESET-PICKABLE: the console's local-model entry is a pick, not a refusal.
+
+    Mutation: drop ``_with_local_llama_presets`` from ``_selected_model`` -> the pick answers
+    ``model_unavailable``; drop the preset early return -> upstream's switch refuses the
+    llamacpp server that is not running yet (``model_unavailable``)."""
+    import uuid
+
+    from agent_runtime.local_llama_adapter import PROVIDER_ID, provider
+
+    saved, missing = str(uuid.uuid4()), str(uuid.uuid4())
+    monkeypatch.setattr(provider, "catalog_visibility", lambda: {"models": [
+        {"model_id": saved, "display_name": "Qwen", "context_length": 4096, "selectable": True,
+         "unavailable_reason": None},
+        {"model_id": missing, "display_name": "Gone", "context_length": 4096, "selectable": False,
+         "unavailable_reason": "missing_file"}]})
+    params = target(placed_agent["persona_instance_id"])
+    offered = {row["id"] for row in inspect("models", params)["result"]["facts"]["models"]}
+    assert model_key(PROVIDER_ID, saved) in offered
+    assert model_key(PROVIDER_ID, missing) not in offered
+    reply = inspect("model.select", {**params, "model_id": model_key(PROVIDER_ID, saved), "scope": "conversation"})
+    assert "result" in reply, reply
+    assert reply["result"]["facts"]["current_model_id"] == model_key(PROVIDER_ID, saved)
+    override = _chat_model_override_from_config(stored(params))
+    assert (override["provider"], override["model"]) == (PROVIDER_ID, saved)
+    reply = inspect("model.select", {**params, "model_id": model_key(PROVIDER_ID, saved), "scope": "agent_default"})
+    assert "result" in reply, reply
+    instance = PersonaInstanceStore().get(params["persona_instance_id"])
+    assert (instance.provider, instance.model) == (PROVIDER_ID, saved)
+    reply = inspect("model.select", {**params, "model_id": model_key(PROVIDER_ID, missing), "scope": "conversation"})
+    assert reply["error"]["data"]["reason"] == "model_unavailable", reply
