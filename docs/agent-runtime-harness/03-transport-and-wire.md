@@ -2033,7 +2033,7 @@ chat root (`PersonaTurnExecutor.queue_prompt` / `start_from`), its origin naming
 A `run_assignment` fire is the Work engine's (`WorkEngine.adopt`): its one row is claimed
 `persona:<instance_id>`, recorded and started, so its settle is written back like any engine run; a fire
 on a row another claimant holds is refused `already_taken`, a multi-row assignment `schedule_invalid`.
-A `run_task` fire is the engine's too (`WorkEngine.adopt_task`), under the request id `<key>@<fire stamp>`:
+A `run_task` fire is the engine's too (`WorkEngine.adopt_task`), under the request id `<key>:<fire stamp>` (a separator the board writer accepts; `@` was refused, RT-SCHEDULE-TASK-RUN-NEVER-STARTS):
 the assignment is built at EACH fire from the row as it then reads (title, body, pointers, lent skills) for
 the agent and goal mode the action names; a run of an `every` / `cron` schedule that ends DONE RELEASES the
 row instead of archiving it, so the task is open and unclaimed for the next fire; a fire that finds the row

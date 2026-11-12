@@ -19,7 +19,7 @@ Manual by default: nothing fires unless an operator armed it (``runtime.schedule
   dispatcher binds (``door_unbound`` until it does) and is armed only when the workspace's
   ``batch_automation`` is ``start``. An Action is never a script (RT-D1).
 * **A ``RunTask``** (``RT-SCHEDULE-RUN-TASK-REPEATS``) names a board task, an agent and a goal mode and
-  no brief: each fire goes through ``WorkEngine.adopt_task`` under the request id ``<key>@<fire stamp>``,
+  no brief: each fire goes through ``WorkEngine.adopt_task`` under the request id ``<key>:<fire stamp>``,
   which builds the assignment from the row as it reads THEN; a run of an ``every`` / ``cron`` schedule
   that ends DONE leaves the row open and unclaimed, and a fire that finds the row gone removes the
   schedule (``schedule.abandoned``, ``reason: row_gone``).
@@ -68,7 +68,7 @@ from .scheduler import KEY, Action, Armed, Fire, PersonaPrompt, RunAssignment, R
 
 __layer__ = "lanes"
 __all__ = ["ABANDON_AFTER", "DEFAULT_MAX_PARALLEL", "ORIGIN_KEY", "TICK_SECONDS", "ServeTickScheduler",
-           "start_schedule_ticker"]
+           "fire_request_id", "start_schedule_ticker"]
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +135,23 @@ def _stamp(when: datetime) -> str:
     return when.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
+def fire_request_id(base: str, when: datetime) -> str:
+    """The request id ONE fire runs under: ``<base>:<fire stamp>`` (``RT-SCHEDULE-TASK-RUN-NEVER-STARTS``).
+
+    ``base`` is the schedule's key (a ``RunTask``) or the armed request id (a repeating ``RunAssignment``).
+    The engine claims the row and writes the ending back under ids derived from this one, and the board
+    writer refuses an id outside ``writer.REQUEST_ID`` — so the separator is one of that pattern's own
+    characters. It was ``@`` until 2026-11-12, which the writer refuses: every fire of a scheduled task
+    ended ``invalid_request`` and no run started. Pinned against the real writer by
+    ``tests/agent_runtime/work_store/test_scheduled_task_real_board.py``.
+    """
+
+    # MUTATION: join with "@" and test_scheduled_task_real_board reddens (the real writer refuses the claim).
+    return f"{base}:{_stamp(when)}"
+
+
 def _per_fire(record: ScheduleRecord) -> Action:
-    """The action one fire runs. A repeating ``RunAssignment`` fires under ``<armed request id>@<fire stamp>``,
+    """The action one fire runs. A repeating ``RunAssignment`` fires under ``<armed request id>:<fire stamp>``,
     so each fire's claim, queued cmid and write-back replay by that fire's own id and a second fire after
     a release never converges on the first fire's replayed ops; a re-fire of the SAME due time (a crash
     before ``next_fire`` advanced) keeps the same stamp and so joins its own replay. A one-shot fires once
@@ -145,8 +160,8 @@ def _per_fire(record: ScheduleRecord) -> Action:
     action = record.action
     if not isinstance(action, RunAssignment) or record.trigger.kind in _ONE_SHOT:
         return action
-    stamp = _stamp(record.next_fire or record.armed_at)
-    return RunAssignment(replace(action.assignment, request_id=f"{action.assignment.request_id}@{stamp}"))
+    request_id = fire_request_id(action.assignment.request_id, record.next_fire or record.armed_at)
+    return RunAssignment(replace(action.assignment, request_id=request_id))
 
 
 class ServeTickScheduler:
@@ -419,7 +434,7 @@ class ServeTickScheduler:
     def _fire_task(self, record: ScheduleRecord, action: RunTask, fire_id: str, origin: dict[str, Any]) -> dict[str, Any]:
         if self._start_task is None:
             raise WorkRefused(Reason.DOOR_UNBOUND, "no Work engine is bound to this serve")
-        request_id = f"{record.key}@{_stamp(record.next_fire or record.armed_at)}"
+        request_id = fire_request_id(record.key, record.next_fire or record.armed_at)
         run = self._start_task(action, request_id, origin, repeats=record.trigger.kind in _REPEATING)
         return {"run_id": run.run_id, "request_id": request_id}
 

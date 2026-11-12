@@ -449,9 +449,9 @@ def test_a_repeating_scheduled_task_stays_open_and_each_fire_reads_the_row_as_it
 
     writer, engine, executor, scheduler, (t1, t2, _t3) = _task_schedule(board, _row("RT-S"), goal_mode="until_done")
     [fire] = scheduler.tick(t1)
-    assert fire["refused"] is None and fire["request_id"] == "nightly@20261018T120500Z"
+    assert fire["refused"] is None and fire["request_id"] == "nightly:20261018T120500Z"
     [first] = executor.started
-    assert first.request_id == "nightly@20261018T120500Z" and first.persona_instance_id == "inst-1"
+    assert first.request_id == "nightly:20261018T120500Z" and first.persona_instance_id == "inst-1"
     assert first.goal_mode.value == "until_done" and first.brief.title == "do rt-s"
     assert _rows(writer)["RT-S"].taken.who == "persona:inst-1"
     executor.settle(first, RowEnding(Verdict.DONE, result="ran"))
@@ -464,7 +464,7 @@ def test_a_repeating_scheduled_task_stays_open_and_each_fire_reads_the_row_as_it
     [fire] = scheduler.tick(t2)
     assert fire["refused"] is None
     second = executor.started[1]
-    assert second.request_id == "nightly@20261018T121000Z" and second.brief.title == "do the edited thing"
+    assert second.request_id == "nightly:20261018T121000Z" and second.brief.title == "do the edited thing"
     assert "do the edited thing" in second.brief.inputs[0]
 
 
@@ -494,7 +494,7 @@ def test_a_scheduled_task_fire_while_its_last_run_is_live_starts_no_second_run(b
     _writer, _eng, executor, scheduler, (t1, t2, _t3) = _task_schedule(board, _row("RT-S"))
     scheduler.tick(t1)
     [fire] = scheduler.tick(t2)
-    assert fire["kind"] == "schedule.skipped" and fire["run_id"] == "nightly@20261018T120500Z"
+    assert fire["kind"] == "schedule.skipped" and fire["run_id"] == "nightly:20261018T120500Z"
     assert len(executor.started) == 1
 
 
@@ -511,12 +511,12 @@ def test_a_scheduled_run_s_ending_is_its_schedule_s_last_result(board):
     scheduler.tick(t1)
     assert schedule_store.last_result("nightly") is None
     [skipped] = scheduler.tick(t2)
-    assert skipped["kind"] == "schedule.skipped" and skipped["run_id"] == "nightly@20261018T120500Z"
+    assert skipped["kind"] == "schedule.skipped" and skipped["run_id"] == "nightly:20261018T120500Z"
     assert schedule_store.last_result("nightly")["verdict"] == "skipped"
     executor.settle(executor.started[0], RowEnding(Verdict.DONE, result="swept the inbox"))
     result = schedule_store.last_result("nightly")
     assert result == {"verdict": "done", "at": "2026-10-18T00:00:00+00:00", "detail": "swept the inbox",
-                      "run_id": "root/work-nightly@20261018T120500Z"}
+                      "run_id": "root/work-nightly:20261018T120500Z"}
     assert schedule_store.load_one("nightly").fires == 1, "the skipped fire counted nothing"
     engine.tick()
     scheduler.tick(t3)

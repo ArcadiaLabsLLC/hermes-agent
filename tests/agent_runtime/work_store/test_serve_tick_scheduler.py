@@ -338,7 +338,7 @@ def test_max_parallel_is_the_root_config_knob_read_each_tick(raw, cap):
 
 
 def test_each_fire_of_a_repeating_assignment_runs_under_its_own_request_id():
-    """RT-SCHEDULE-REPEAT-REQUEST-ID: a repeating ``RunAssignment`` fires as ``<armed id>@<fire stamp>``, so a
+    """RT-SCHEDULE-REPEAT-REQUEST-ID: a repeating ``RunAssignment`` fires as ``<armed id>:<fire stamp>``, so a
     second fire after a release claims and writes back under its own id; a one-shot keeps the armed id.
     Killing mutation: ``_fire`` hands the fire ``record.action`` (the armed id) → both fires share one id, red."""
 
@@ -349,7 +349,7 @@ def test_each_fire_of_a_repeating_assignment_runs_under_its_own_request_id():
     scheduler.tick(T0 + timedelta(minutes=5))
     scheduler.tick(T0 + timedelta(minutes=10))
     first, second = (a.request_id for a in adopted)
-    assert first == "ws:repo:RT-N:r@20261018T120500Z" and second == "ws:repo:RT-N:r@20261018T121000Z"
+    assert first == "ws:repo:RT-N:r:20261018T120500Z" and second == "ws:repo:RT-N:r:20261018T121000Z"
     assert adopted[0].rows == armed.rows and schedule_store.load_one("repeat").action.assignment == armed
 
 
@@ -375,9 +375,9 @@ def test_each_fire_of_a_run_task_asks_the_engine_under_key_at_fire_stamp():
     scheduler.arm("nightly", Trigger.every(5), TASK)
     [first] = scheduler.tick(T0 + timedelta(minutes=5))
     scheduler.tick(T0 + timedelta(minutes=10))
-    assert [c[1] for c in calls] == ["nightly@20261018T120500Z", "nightly@20261018T121000Z"]
+    assert [c[1] for c in calls] == ["nightly:20261018T120500Z", "nightly:20261018T121000Z"]
     assert all(c[0] == TASK and c[3] is True and c[2][ORIGIN_KEY] == "nightly" for c in calls)
-    assert first["refused"] is None and first["run_id"] == "root/work-nightly@20261018T120500Z"
+    assert first["refused"] is None and first["run_id"] == "root/work-nightly:20261018T120500Z"
     assert schedule_store.load_one("nightly").action == TASK, "the record still carries the action as armed"
     once = []
     scheduler, _ = _scheduler(start_task=_task_door(once))
