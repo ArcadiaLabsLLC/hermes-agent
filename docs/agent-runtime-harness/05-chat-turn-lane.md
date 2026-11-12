@@ -1,52 +1,22 @@
 # 05 — The chat turn lane: one turn, end to end
 
-Message-local skill selection: `runtime.chat.message.skills` carries a list
-of explicit preload names, lowered to repeatable `mission-chat message --skill`.
-It remains part of that message through the existing journal/replay path and
-joins the existing preload resolver, rather than writing the session's
-next-turn queue. Invalid selection refuses before queue consumption.
-Implementation and validation: [message-bound skills](../downstream/message-bound-skills-2026-10-31.md).
-
 This document's operator lane sends one message to one persona instance and
 runs a bounded, receipted, durable turn. The old goal/task mission lane remains
 removed. Independent conversations and discussion runs share runtime authority
 without replacing the operator's session or prompt policy.
 Every claim cites the file and line holding it at HEAD; anything the code could not be made to say
-sits under `### Durable provider-refusal transcript marker
-
-`persona_chat_history.vocabulary.TERMINAL_TURN_MARKERS` includes `provider_refused`.
-`markers._terminal_turn_marker_rows` emits that typed terminal marker when no
-assistant reply exists and carries the journal's sanitized `provider_refusal`.
-The unavailable reason says the request never left Hermes and directs the operator
-to review profile provider setup before sending a new message. HTTP refusals retain
-generic provider-refusal copy; uncertain outcomes do not acquire setup-recovery copy.
-
-`operator_channels.HistoryMessage.marker` preserves the refusal block and presents
-status `provider_refused`. `tests/agent_runtime/test_provider_refusal_history.py`
-proves real journal-to-history-to-console projection, reply deduplication and
-uncertainty separation. Launcher consumes the same typed marker; operator live
-no-credential acceptance is not claimed by this deterministic proof.
-
-### Known setup refusal before provider dispatch
-
-`mission_chat_outcome.classify_turn_failure` retains the phase-aware repair from
-`7fbd3688e6`: failure before agent-ready settles terminal `provider_unavailable`.
-Agent-ready itself precedes prompt assembly and HTTP dispatch. A typed
-`ProviderNotConfiguredError` after that handoff also settles unavailable when
-the runtime has seen neither a request-sent receipt nor reply text. The type's
-contract is an agent-construction setup refusal; generic exceptions retain
-uncertainty. Positive dispatch evidence always wins over the exception type.
-
-`TurnCommit._stream_progress` records a separate dispatch fact from the validated
-request-sent event; `_settle_failure` also reads the emitter's observed-reply fact.
-The classifier does not branch on timing-mark snapshots or redefine budgets.
-`tests/hermes_cli/test_mission_chat_provider_unavailable_payload.py` drives the
-real command/journal through local, sent, generic and duplicate-refusal cases.
-The remaining provider-neutral dispatch-evidence gap is queued separately.
-
-## Open rows`, `## Unverified carry-forward`, or is gone. The handler is
+sits under `## Open rows`, `## Unverified carry-forward`, or is gone. The handler is
 `_cmd_mission_chat_message` in `hermes_cli/harness_parts/persona/chat_turn_message.py`, which hands the run to
 `hermes_cli/harness_parts/persona/chat_turn_commit/`; most of the turn's logic lives in the `agent_runtime/` modules they call.
+
+## Message-local skill selection
+
+`runtime.chat.message.skills` carries a list
+of explicit preload names, lowered to repeatable `mission-chat message --skill`.
+It remains part of that message through the existing journal/replay path and
+joins the existing preload resolver, rather than writing the session's
+next-turn queue. Invalid selection refuses before queue consumption.
+Implementation and validation: [message-bound skills](../downstream/message-bound-skills-2026-10-31.md).
 
 ## Native result delivery
 
@@ -1353,6 +1323,38 @@ WITHOUT acceptance emits `[MissionChatOutcome] turn_id=… status=… error_kind
 `Logger`, so the release-build diag tee carries it
 (`mission_agent_chat_runtime_controller.dart`) — harness error prose only, never the
 operator's text.
+
+### Durable provider-refusal transcript marker
+
+`persona_chat_history.vocabulary.TERMINAL_TURN_MARKERS` includes `provider_refused`.
+`markers._terminal_turn_marker_rows` emits that typed terminal marker when no
+assistant reply exists and carries the journal's sanitized `provider_refusal`.
+The unavailable reason says the request never left Hermes and directs the operator
+to review profile provider setup before sending a new message. HTTP refusals retain
+generic provider-refusal copy; uncertain outcomes do not acquire setup-recovery copy.
+
+`operator_channels.HistoryMessage.marker` preserves the refusal block and presents
+status `provider_refused`. `tests/agent_runtime/test_provider_refusal_history.py`
+proves real journal-to-history-to-console projection, reply deduplication and
+uncertainty separation. Launcher consumes the same typed marker; operator live
+no-credential acceptance is not claimed by this deterministic proof.
+
+### Known setup refusal before provider dispatch
+
+`mission_chat_outcome.classify_turn_failure` retains the phase-aware repair from
+`7fbd3688e6`: failure before agent-ready settles terminal `provider_unavailable`.
+Agent-ready itself precedes prompt assembly and HTTP dispatch. A typed
+`ProviderNotConfiguredError` after that handoff also settles unavailable when
+the runtime has seen neither a request-sent receipt nor reply text. The type's
+contract is an agent-construction setup refusal; generic exceptions retain
+uncertainty. Positive dispatch evidence always wins over the exception type.
+
+`TurnCommit._stream_progress` records a separate dispatch fact from the validated
+request-sent event; `_settle_failure` also reads the emitter's observed-reply fact.
+The classifier does not branch on timing-mark snapshots or redefine budgets.
+`tests/hermes_cli/test_mission_chat_provider_unavailable_payload.py` drives the
+real command/journal through local, sent, generic and duplicate-refusal cases.
+The remaining provider-neutral dispatch-evidence gap is queued separately.
 
 ## Invariants
 

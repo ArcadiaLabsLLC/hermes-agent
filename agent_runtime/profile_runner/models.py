@@ -39,8 +39,8 @@ class AgentRunRequest:
     chat_lane_index_skills: tuple[str, ...] | None = None
     session_id: str | None = None
     # Codex cache-scope routing hint (header-only), DISTINCT from ``session_id``.
-    # The persona-chat lane passes ``session_id=None`` so the runtime does not
-    # re-load a transcript it already baked into the message, but the
+    # The persona-chat lane's ``session_id`` is the chat's native tip, which
+    # moves when compression rotates it, and the
     # ChatGPT-Codex backend routes its prompt cache on the ``session_id`` /
     # ``x-client-request-id`` HTTP headers. ``cache_scope_id`` supplies a STABLE
     # per-conversation value for those headers without ever touching transcript

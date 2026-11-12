@@ -148,11 +148,15 @@ class GPTPersonaRuntime:
 
         ``permission_session_id`` resolves the chat-scoped tool permission
         (e.g. an operator-granted ``unbounded`` mode) independently of the run
-        ``session_id``. The Mission Control caller passes ``session_id=None`` so
-        the runtime does not re-load the transcript it already baked into the
-        message, but the permission record is keyed on the real chat session —
-        without this, the unbounded grant is silently ignored and the chat falls
-        back to the role-default toolset.
+        ``session_id``. The Mission Control caller
+        (``chat_turn_commit/run.py::_run_model``) passes ``session_id`` = the chat's
+        native TIP (``_persona_chat_native_tip``: the session the turn's rows are
+        appended to, which moves when compression rotates it) and the transcript
+        as structured ``conversation_history`` — never text folded into the
+        message. ``permission_session_id`` is the chat ROOT, which does not move:
+        the permission record, the trace and the cache scope are keyed on it —
+        keyed on the tip, an unbounded grant would be silently dropped at the
+        first compression and the chat would fall back to the role-default toolset.
         """
 
         perm_session_id = permission_session_id or session_id
@@ -248,8 +252,8 @@ class GPTPersonaRuntime:
                     skill_surface="mission_chat",
                     skill_root_node_mode=False,
                     session_id=session_id,
-                    # session_id stays None on this lane (the transcript is already
-                    # baked into the message), but the ChatGPT-Codex prompt cache is
+                    # session_id above is the chat's native tip, which moves when
+                    # compression rotates it, and the ChatGPT-Codex prompt cache is
                     # scoped by the session_id / x-client-request-id HTTP headers.
                     # Feed the STABLE chat session identity (perm_session_id — the id
                     # that names the turn store / observability session) as the
@@ -298,10 +302,9 @@ class GPTPersonaRuntime:
                     stream_callback=stream_callback,
                     agent_ready_callback=agent_ready_callback,
                     clarify_callback=clarify_capture.callback,
-                    # Key chat trace on the real chat session: Mission Control passes
-                    # session_id=None (the transcript is already baked into the
-                    # message) but the permission/session lineage lives on
-                    # perm_session_id, which is also the persona instance's session.
+                    # Key chat trace on the chat ROOT: session_id is the native tip
+                    # (it moves at a compression), while the permission/session
+                    # lineage lives on perm_session_id, the persona instance's session.
                     progress_callback=trace_sink.callback() if trace_sink is not None else None,
                     runtime_root=paths.store_root(),
                     workdir=Path(workdir.path) if workdir.grounded else None,
@@ -441,9 +444,9 @@ def _mission_chat_user_message(
     *,
     preloaded_skill_prompt: str | None = None,
 ) -> str:
-    """Compose the operator turn's user message: the operator's message (which
-    already carries the redaction-safe rolling chat history baked in by
-    the native structured conversation history), then the queued-skill preload (when
+    """Compose the operator turn's user message: the operator's message (the
+    chat history is NOT in it — it travels beside it as the structured
+    ``conversation_history``), then the queued-skill preload (when
     the operator loaded a skill this turn), then the per-turn Runtime Situation
     HUD.
 
