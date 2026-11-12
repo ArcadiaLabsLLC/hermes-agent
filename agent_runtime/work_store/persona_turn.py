@@ -282,7 +282,12 @@ class PersonaTurnExecutor:
                   **({goal_turns.SKILLS_ORIGIN: list(a.skills)} if a.skills else {})}
         if a.skills:
             self._lend(instance, root, a)
-        turn = _turn_args(instance, root, cmid, message or render_brief(a), f"work:{a.request_id}")
+        # An until-done run's turn args are the template of every later pass (``goal_turns._forge``),
+        # so the pass budget set here is each pass's (RT-UNTIL-DONE-PASS-FOUR-MINUTE-CLOCK).
+        # MUTATION: pass ``None`` here and test_persona_turn's "an until-done pass runs on the pass
+        # budget" reddens.
+        turn = _turn_args(instance, root, cmid, message or render_brief(a), f"work:{a.request_id}",
+                          max_seconds=goal_turns.pass_max_seconds() if until_done else None)
         if workdir:
             setattr(turn, RUN_WORKDIR_ARG, workdir)
         args = send_queue.persistable_args(turn, origin=origin)
@@ -468,10 +473,16 @@ class PersonaTurnExecutor:
 
 
 def outcome_of(exit_code: int, payload: dict | None, rows: tuple[RowRef, ...]) -> Outcome:
-    """The run's outcome: the reply's ``work_report`` ending, else ``FAILED`` with what the turn said."""
+    """The run's outcome: the reply's ``work_report`` ending, else ``FAILED`` with what the turn said.
+
+    A turn that ended on its time budget without a report is ``FAILED`` with ``cause=out_of_time``
+    (RT-WORK-TURN-OUT-OF-TIME-READS-FAILED); a checkpoint reply that DID report is believed.
+    """
 
     reply = str((payload or {}).get("reply") or "")
     ending = parse_work_report(reply)
+    # MUTATION: drop this line and test_persona_turn's "a turn that ran out of time says so" reddens.
+    ending = ending or goal_turns.out_of_time_ending(payload)
     if ending is None:
         refusal = outcome_from_payload(payload).refusal_class
         detail = f"the turn ended {refusal}" if refusal else f"no readable {REPORT_INFO} block (exit {exit_code})"
@@ -493,8 +504,12 @@ def _wake_runner() -> None:
     wake_queued_send_runner()
 
 
-def _turn_args(instance: Any, root: str, cmid: str, message: str, requested_by: str) -> SimpleNamespace:
-    """The namespace ``dispatch_delivery.forge.forge_delivery_turn`` builds, carrying ``message``."""
+def _turn_args(instance: Any, root: str, cmid: str, message: str, requested_by: str, *,
+               max_seconds: float | None = None) -> SimpleNamespace:
+    """The namespace ``dispatch_delivery.forge.forge_delivery_turn`` builds, carrying ``message``.
+
+    ``max_seconds`` is the turn's stated wall budget; ``None`` is the lane default for an unattended turn.
+    """
 
     from ..config import mission_chat_default_max_seconds
 
@@ -503,6 +518,6 @@ def _turn_args(instance: Any, root: str, cmid: str, message: str, requested_by: 
         new_session=False, task_id=None, goal_id=None, title=None, message=message, provider=None,
         model=None, use_agent_default=False, surface_prompt="", intent_hint="chat",
         requested_by=requested_by, client_message_id=cmid, stream=False,
-        max_seconds=float(mission_chat_default_max_seconds()), json=True, requested_by_session=root,
+        max_seconds=float(max_seconds or mission_chat_default_max_seconds()), json=True, requested_by_session=root,
         relay_chain=[], relay_deadline_epoch=None,
     )

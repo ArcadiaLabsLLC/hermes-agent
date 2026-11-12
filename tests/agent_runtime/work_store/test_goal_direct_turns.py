@@ -93,6 +93,8 @@ def test_a_chat_goal_with_no_work_run_continues_as_a_queued_send_and_judges_its_
     assert entry.args["message"] == "continue please" and entry.args["persona_id"] == "neko"
     assert "idempotency_key" not in entry.args
     assert entry.args[send_queue.ORIGIN_ARG][goal_turns.CHAT_GOAL_ORIGIN] is True
+    # RT-UNTIL-DONE-PASS-FOUR-MINUTE-CLOCK: the settled send stated no budget, so the pass carries its own.
+    assert entry.args["max_seconds"] == goal_turns.pass_max_seconds() == 1800.0
     executor.settled(entry, 0, {"ok": True, "reply": "all done"})  # the runner's on_settle
     assert goals(ROOT).evaluated == [("did it", True), ("all done", False)]
     assert chat_goal.binding(ROOT) is None

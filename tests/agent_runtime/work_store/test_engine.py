@@ -202,6 +202,23 @@ ENDINGS = {
 }
 
 
+def test_an_out_of_time_runs_row_says_it_ran_out_of_time(board):
+    """RT-WORK-TURN-OUT-OF-TIME-READS-FAILED: the row's write-back names the time budget, not a missing report."""
+
+    from agent_runtime.work_store.executor import CAUSE_OUT_OF_TIME
+
+    writer, b = board(_row("RT-T", "persona:inst-RT-T"))
+    engine, executor = _engine(writer, b)
+    engine.tick()
+    [assignment] = executor.started
+    executor.settle(assignment, RowEnding(Verdict.FAILED, cause=CAUSE_OUT_OF_TIME,
+                                          reason="the turn used its 240 s time budget before it reported"))
+    row = _rows(writer)["RT-T"]
+    assert row.status is Status.NEEDS_PLAN and row_defects(row.raw) == []
+    assert "ran out of time (the turn used its 240 s time budget before it reported)" in row.status_body
+    assert "work_report" not in row.status_body and "re-claim to retry" in row.status_body
+
+
 def test_done_archives_blocked_sets_owner_decision_stopped_defers_failed_needs_plan(board):
     writer, b = board(*(_row(row_id, f"persona:inst-{row_id}") for row_id in ENDINGS))
     engine, executor = _engine(writer, b)

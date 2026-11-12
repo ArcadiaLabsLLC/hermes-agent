@@ -43,13 +43,13 @@ from .. import chat_goal
 from .. import chat_root_send_queue as send_queue
 from ..chat_turn_settles import outcome_from_payload
 from . import receipts
-from .executor import Assignment, RowEnding, RunStatus, Verdict
+from .executor import CAUSE_OUT_OF_TIME, Assignment, RowEnding, RunStatus, Verdict
 from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
 __all__ = [
     "CHAT_GOAL_ORIGIN", "DECISION_ENDINGS", "SKILLS_ORIGIN", "after_chat_goal_turn", "after_turn", "arm_run", "direct_entry",
-    "first_cmid", "run_status", "stop_run", "wake_parked",
+    "first_cmid", "out_of_time_ending", "pass_max_seconds", "run_status", "stop_run", "wake_parked",
 ]
 
 #: The origin key a chat goal's own continuation carries (``user_initiated=False`` when it settles).
@@ -61,6 +61,20 @@ _NOT_CARRIED = frozenset({send_queue.ORIGIN_ARG, "idempotency_key", "retry_of", 
                           "title", "new_session"})
 
 _RECOMMEND_BLOCKED = "re-scope the row, or resume the goal with runtime.chat.goal.resume"
+
+
+def pass_max_seconds() -> float:
+    """The wall budget of ONE pass of a keep-going-until-done loop: the detached-dispatch budget.
+
+    Owner ruling 2026-11-12 (``RT-UNTIL-DONE-PASS-FOUR-MINUTE-CLOCK``): 30 minutes per pass, at most
+    upstream's 20 passes (``hermes_cli.goals.DEFAULT_MAX_TURNS``). A pass is unattended work, so it runs
+    on ``agent_runtime.mission_chat.dispatch_max_seconds`` (default 1800 s), not on the 240 s an
+    unattended conversational turn gets (a pass was checkpointed at about 180 s).
+    """
+
+    from ..config import mission_chat_dispatch_max_seconds
+
+    return float(mission_chat_dispatch_max_seconds())
 
 
 def first_cmid(request_id: str) -> str:
@@ -183,6 +197,27 @@ def _requeue_skills(bound: chat_goal.GoalBinding) -> None:
                                    persona_instance_id=bound.turn_args.get("persona_instance_id"))
 
 
+def out_of_time_ending(payload: dict | None) -> RowEnding | None:
+    """The ending of a run whose turn ended on its time budget; None when the turn did not.
+
+    A turn that ran out of wall clock either settles ``chat_turn_budget_exhausted`` (the hard wall: no
+    reply) or lands a checkpoint reply flagged ``budget_exhausted`` — and a checkpoint reply reports what
+    is still in flight, so it rarely carries a ``work_report``. Either way the run did not fail for want
+    of a report: it ran out of time, and the ending says so (:data:`executor.CAUSE_OUT_OF_TIME`).
+    """
+
+    from ..mission_chat_outcome import ChatErrorKind
+
+    data = payload if isinstance(payload, dict) else {}
+    hard_wall = outcome_from_payload(data).refusal_class == ChatErrorKind.CHAT_TURN_BUDGET_EXHAUSTED.value
+    if not hard_wall and data.get("budget_exhausted") is not True:
+        return None
+    block = data.get("wall_budget")
+    total = block.get("total_seconds") if isinstance(block, dict) else None
+    budget = f"{total:g} s time budget" if isinstance(total, (int, float)) and not isinstance(total, bool) else "time budget"
+    return RowEnding(Verdict.FAILED, reason=f"the turn used its {budget} before it reported", cause=CAUSE_OUT_OF_TIME)
+
+
 def _ending_now(bound: chat_goal.GoalBinding, payload: dict | None, report: RowEnding | None) -> RowEnding | None:
     """The endings no judge is asked about: a stop, a failed turn, a report that says blocked/stopped."""
 
@@ -190,7 +225,7 @@ def _ending_now(bound: chat_goal.GoalBinding, payload: dict | None, report: RowE
     if bound.stopping:
         return RowEnding(Verdict.STOPPED, reason="operator stop")
     if refusal:
-        return RowEnding(Verdict.FAILED, reason=f"the turn ended {refusal}")
+        return out_of_time_ending(payload) or RowEnding(Verdict.FAILED, reason=f"the turn ended {refusal}")
     if report is not None and report.verdict in (Verdict.BLOCKED, Verdict.STOPPED):
         return report
     return None
@@ -238,10 +273,16 @@ def _chat_goal_cmid(after_cmid: str) -> str:
 
 
 def _chat_goal_template(entry: send_queue.QueuedSend) -> dict[str, Any]:
-    """The settled turn's arguments a chat goal's continuation inherits, its origin marked ``chat_goal``."""
+    """The settled turn's arguments a chat goal's continuation inherits, its origin marked ``chat_goal``.
+
+    A continuation is the runtime's own pass, not a send somebody is waiting on: when the settled turn
+    stated no budget (an attended send runs with no wall clock) the pass gets :func:`pass_max_seconds`.
+    """
 
     origin = entry.args.get(send_queue.ORIGIN_ARG)
     base = {key: value for key, value in entry.args.items() if key not in _NOT_CARRIED}
+    # MUTATION: drop this line and test_goal_direct_turns' chat-goal continuation row reddens.
+    base["max_seconds"] = base.get("max_seconds") or pass_max_seconds()
     carried = dict(origin) if isinstance(origin, dict) else {"owner": None, "gateway": False}
     return {**base, send_queue.ORIGIN_ARG: {**carried, CHAT_GOAL_ORIGIN: True}}
 

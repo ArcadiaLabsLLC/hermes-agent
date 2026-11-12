@@ -46,7 +46,7 @@ from .. import paths
 from ..serde import write_json_atomic
 from . import receipts
 from .board import board_rows, pick
-from .executor import Assignment, Brief, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
+from .executor import CAUSE_OUT_OF_TIME, Assignment, Brief, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
 from .grammar import Op, Row, RowRef, Status, render_status, segment_text
 from .reasons import Reason, WorkRefused
 
@@ -126,7 +126,9 @@ def _stopped(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
 
 
 def _failed(record: RunRecord, ending: RowEnding, date: str) -> list[Step]:
-    body = (f"work run {record.request_id} ended without a readable work_report "
+    # MUTATION: drop the out-of-time arm and test_engine's "an out-of-time run's row says so" reddens.
+    how = "ran out of time" if ending.cause == CAUSE_OUT_OF_TIME else "ended without a readable work_report"
+    body = (f"work run {record.request_id} {how} "
             f"({segment_text(ending.reason, 200) or 'no detail'}); re-claim to retry")
     return [("failed:release", Op.RELEASE, {}),
             ("failed:status", Op.SET_STATUS, {"status": render_status(Status.NEEDS_PLAN, date, body)})]

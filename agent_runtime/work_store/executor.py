@@ -25,6 +25,7 @@ from .reasons import Reason
 __layer__ = "lanes"
 __all__ = [
     "REFUSALS",
+    "CAUSE_OUT_OF_TIME",
     "Assignment",
     "Brief",
     "Executor",
@@ -83,6 +84,11 @@ class Assignment:
     skills: tuple[str, ...] = ()
 
 
+#: ``RowEnding.cause`` of a run whose turn ended on its time budget before it reported
+#: (RT-WORK-TURN-OUT-OF-TIME-READS-FAILED): the row's write-back says so instead of "no work_report".
+CAUSE_OUT_OF_TIME = "out_of_time"
+
+
 @dataclass(frozen=True)
 class RowEnding:
     verdict: Verdict
@@ -91,6 +97,8 @@ class RowEnding:
     recommend: str = ""
     reason: str = ""
     commit: str = "here"
+    #: Why a ``FAILED`` run failed, when the executor knows: ``""`` or :data:`CAUSE_OUT_OF_TIME`.
+    cause: str = ""
 
 
 @dataclass(frozen=True)

@@ -176,6 +176,49 @@ def test_unparsable_reply_is_failed(reply):
     assert "work_report" in outcome.per_row[REF].reason
 
 
+def test_a_turn_that_ran_out_of_time_says_so_instead_of_no_work_report():
+    """RT-WORK-TURN-OUT-OF-TIME-READS-FAILED: a hard-walled turn (no reply) and a checkpoint reply with
+    no report both end ``FAILED`` with ``cause=out_of_time``; a checkpoint reply that reports is believed."""
+
+    from agent_runtime.work_store.executor import CAUSE_OUT_OF_TIME
+    from agent_runtime.work_store.persona_turn import outcome_of
+
+    wall = {"total_seconds": 240.0, "trigger": "wall_budget_timer"}
+    hard = outcome_of(2, {"ok": False, "error_kind": "chat_turn_budget_exhausted", "budget_exhausted": True,
+                          "wall_budget": wall}, (REF,))
+    checkpoint = outcome_of(0, {"ok": True, "reply": "Ran out of time; the suite is still running.",
+                                "budget_exhausted": True, "wall_budget": wall}, (REF,))
+    for outcome in (hard, checkpoint):
+        ending = outcome.per_row[REF]
+        assert (outcome.verdict, ending.cause) == (Verdict.FAILED, CAUSE_OUT_OF_TIME)
+        assert ending.reason == "the turn used its 240 s time budget before it reported"
+        assert "work_report" not in ending.reason
+    reported = outcome_of(0, {"ok": True, "reply": "```work_report\nverdict: done\nresult: shipped\n```",
+                              "budget_exhausted": True, "wall_budget": wall}, (REF,))
+    assert reported.verdict is Verdict.DONE and reported.per_row[REF].cause == ""
+    # A turn that did not end on its budget keeps the old reading.
+    plain = outcome_of(0, {"ok": True, "reply": "All done, trust me."}, (REF,))
+    assert plain.per_row[REF].cause == "" and "work_report" in plain.per_row[REF].reason
+
+
+def test_an_until_done_run_queues_on_the_pass_budget_and_a_single_turn_run_on_the_lane_default(no_direct_turns):
+    """RT-UNTIL-DONE-PASS-FOUR-MINUTE-CLOCK (owner 2026-11-12): 30 minutes per pass. The first turn's
+    arguments are the template of every continuation, so the budget queued here is each pass's."""
+
+    from agent_runtime import chat_goal
+    from agent_runtime.work_store import goal_turns
+    from tests.agent_runtime.work_store.contract_fakes import FakeGoals
+
+    assert goal_turns.pass_max_seconds() == 1800.0
+    executor, _ = _executor(goals=FakeGoals(), workdir_of=lambda instance: None)
+    single = executor.start(_assignment(request_id="single-run"))
+    assert send_queue.find(ROOT, single.client_message_id).args["max_seconds"] == 240.0
+    send_queue.remove(ROOT, single.client_message_id)
+    run = executor.start(_assignment(request_id="goal-run", goal_mode=GoalMode.UNTIL_DONE))
+    assert send_queue.find(ROOT, run.client_message_id).args["max_seconds"] == 1800.0
+    assert chat_goal.binding(ROOT).turn_args["max_seconds"] == 1800.0
+
+
 def test_a_refused_turn_fails_with_its_refusal_and_a_foreign_send_is_not_reported():
     executor, _ = _executor()
     told = []

@@ -44,7 +44,7 @@ from typing import Any, Protocol
 
 from ..work_store import receipts
 from ..work_store.default_brain import this_machine
-from ..work_store.executor import Assignment, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
+from ..work_store.executor import CAUSE_OUT_OF_TIME, Assignment, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
 from ..work_store.grammar import RowRef, Status
 from ..work_store.reasons import Reason, WorkRefused
 from ..work_store.source import Claimant, WorkSource
@@ -83,7 +83,9 @@ ROW_ENDINGS: dict[Verdict, Callable[[WorkSource, RowRef, Claimant, RowEnding], A
     Verdict.STOPPED: lambda src, ref, who, e: src.release(ref, who, Status.DEFERRED,
                                                           f"stopped — {e.reason or 'no reason given'}"),
     Verdict.FAILED: lambda src, ref, who, e: src.release(
-        ref, who, Status.NEEDS_PLAN, f"batch lane ended without a readable work_report ({e.reason or 'no detail'})"),
+        ref, who, Status.NEEDS_PLAN,
+        f"batch lane {'ran out of time' if e.cause == CAUSE_OUT_OF_TIME else 'ended without a readable work_report'}"
+        f" ({e.reason or 'no detail'})"),
 }
 
 
