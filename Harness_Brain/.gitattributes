@@ -1,0 +1,6 @@
+# The closed-row archive is append-only: every `scripts/work_row.py close` adds one line at the end of
+# `80 — Archive/Queues/<queue>-<month>.md`. Two branches that each closed a row therefore both change the
+# file's last line, and a rebase or a merge of them conflicted there every time. Union keeps both sides'
+# lines, which is what an append-only file wants (FH-QUEUE-ARCHIVE-APPENDS-MERGE-CLEAN). A line both sides
+# EDITED comes out twice; the archive grammar gate then names the duplicate ID.
+80*Archive/Queues/*.md merge=union
