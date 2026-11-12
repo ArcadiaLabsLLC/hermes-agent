@@ -193,3 +193,110 @@ def test_pull_refuses_dirty_diverged_and_upstreamless_checkouts(tmp_path, monkey
             pull_checkout(path)
         assert refused.value.reason is reason, path
         assert before is None or _head(path) == before
+
+
+# ── RT-SLOT-BRAIN-MAKE-REMOTE: a remote-less Project checkout gets a private repository on the person's ask ──
+
+
+class _FakeGitHub:
+    """``connected_github`` / ``create_private_repo`` faked; a local bare repository plays the created one
+    (``url.<dir>.insteadOf``). Nothing reaches ``gh``, a network or a real account."""
+
+    HOST = "https://github.example/octo/"
+
+    def __init__(self, root: Path, monkeypatch) -> None:
+        from agent_runtime import git_host_account
+
+        self.root, self.created, self.refuse = root, [], None
+        root.mkdir()
+        monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+        monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{root.as_posix()}/.insteadOf")
+        monkeypatch.setenv("GIT_CONFIG_VALUE_0", self.HOST)
+        monkeypatch.setattr(git_host_account, "connected_github",
+                            lambda *a, **k: git_host_account.GitHubAccount("octo", "test"))
+        monkeypatch.setattr(git_host_account, "create_private_repo", self.create)
+
+    def create(self, account, name):
+        from agent_runtime.git_host_account import GitHostRefused
+
+        if self.refuse is not None:
+            raise GitHostRefused(self.refuse, name)
+        git("init", "-q", "--bare", "-b", "main", str(self.root / f"{name}.git"), cwd=self.root)
+        self.created.append(name)
+        return f"{self.HOST}{name}.git"
+
+
+def _project(tmp_path: Path, name: str = "My App") -> Path:
+    repo = tmp_path / name
+    repo.mkdir()
+    git("init", "-q", "-b", "main", str(repo), cwd=tmp_path)
+    (repo / "a.md").write_text("a\n", encoding="utf-8")
+    git("add", "-A", cwd=repo)
+    git("commit", "-q", "-m", "main work", cwd=repo)
+    git("checkout", "-q", "-b", "feature", cwd=repo)
+    (repo / "b.md").write_text("b\n", encoding="utf-8")
+    git("add", "-A", cwd=repo)
+    git("commit", "-q", "-m", "feature work", cwd=repo)
+    return repo
+
+
+def test_a_remote_less_checkout_gets_a_private_repo_with_only_its_current_branch(tmp_path, monkeypatch):
+    """RULED 2026-11-12: push the CURRENT branch only. Mutation: ``push --all`` in place of the current branch
+    (``adopt_remote`` with ``branch=current``) -> ``main`` reaches the host, red."""
+    from agent_runtime.brain_remote import make_checkout_remote
+
+    hub = _FakeGitHub(tmp_path / "host", monkeypatch)
+    repo = _project(tmp_path)
+    made = make_checkout_remote(repo)
+    bare = hub.root / "my-app.git"
+    assert hub.created == ["my-app"] and made == {"url": f"{hub.HOST}my-app.git", "repo_name": "my-app",
+                                                    "branch": "feature", "git_account": "octo"}
+    assert git("for-each-ref", "--format=%(refname)", "refs/heads", cwd=bare).split() == ["refs/heads/feature"]
+    assert git("rev-parse", "feature", cwd=bare) == git("rev-parse", "HEAD", cwd=repo)
+    assert git("rev-parse", "--abbrev-ref", "@{u}", cwd=repo).strip() == "origin/feature"
+
+
+@pytest.mark.parametrize("case, reason", [
+    ("remote", Reason.REMOTE_EXISTS), ("dirty", Reason.WORKTREE_DIRTY), ("detached", Reason.INVALID),
+    ("refused", Reason.REMOTE_EXISTS), ("plain", Reason.NOT_A_REPO),
+])
+def test_making_a_remote_is_refused_and_leaves_the_checkout_as_it_was(tmp_path, monkeypatch, case, reason):
+    """A refused creation adds no ``origin``. Mutation: add ``origin`` (``git remote add``) before
+    ``create_private_repo`` in ``make_checkout_remote`` -> the ``refused`` case leaves a remote, red."""
+    from agent_runtime.brain_remote import make_checkout_remote
+
+    hub = _FakeGitHub(tmp_path / "host", monkeypatch)
+    repo = _project(tmp_path) if case != "plain" else tmp_path / "plain"
+    if case == "plain":
+        repo.mkdir()
+    elif case == "remote":
+        git("remote", "add", "upstream", "https://example.invalid/x.git", cwd=repo)
+    elif case == "dirty":
+        (repo / "a.md").write_text("edited\n", encoding="utf-8")
+    elif case == "detached":
+        git("checkout", "-q", "--detach", cwd=repo)
+    elif case == "refused":
+        hub.refuse = Reason.REMOTE_EXISTS
+    before = git("remote", cwd=repo) if case != "plain" else ""
+    with pytest.raises(WorkRefused) as refused:
+        make_checkout_remote(repo)
+    assert refused.value.reason is reason
+    assert hub.created == []
+    assert case == "plain" or git("remote", cwd=repo) == before
+
+
+def test_create_brain_promote_on_a_slot_is_the_door(tmp_path, monkeypatch):
+    """``runtime.work.create_brain {slot, promote: true}`` reaches ``make_checkout_remote`` for the bound slot's
+    checkout. Mutation: drop the ``promote`` arm in ``store.create_brain`` -> no repository is made, red."""
+    from types import SimpleNamespace
+
+    from agent_runtime.work import store
+
+    hub = _FakeGitHub(tmp_path / "host", monkeypatch)
+    repo = _project(tmp_path)
+    board = SimpleNamespace(slot="app", bound_here=True, checkout=repo)
+    monkeypatch.setattr(store.boards_store, "boards", lambda ws: [board])
+    monkeypatch.setattr(store.boards_store, "pick", lambda boards, slot: boards[0] if slot == "app" else None)
+    scope = SimpleNamespace(workspace_id="ws_app")
+    answer = store.create_brain(scope, {"slot": "app", "promote": True, "request_id": "r1"}, "operator")
+    assert answer["slot"] == "app" and answer["remote"]["branch"] == "feature" and hub.created == ["my-app"]

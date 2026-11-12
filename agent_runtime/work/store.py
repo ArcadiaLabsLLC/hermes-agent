@@ -824,6 +824,18 @@ def _promote_default(scope, params, actor):
     return {"board": board_wire(made, None), "receipt": record, "promotion": promotion}
 
 
+def _promote_slot(scope, params, actor, board):
+    """``{slot, promote: true}`` — a Project brain's own checkout gets a private remote (RT-SLOT-BRAIN-MAKE-REMOTE)."""
+    from agent_runtime.brain_remote import make_checkout_remote
+
+    if board.checkout is None:
+        raise WorkRefused(Reason.SLOT_UNBOUND, board.slot)
+    made = make_checkout_remote(board.checkout)
+    record = receipts.emit("work.slot_remote_made", workspace_id=scope.workspace_id, slot=board.slot, who=actor,
+                           request_id=params.get("request_id"), url=made["url"], branch=made["branch"])
+    return {"slot": board.slot, "remote": made, "receipt": record}
+
+
 def create_brain(scope, params, actor, *, context=None):
     request = text(params.get("request_id"))
     if params.get("slot") is None:
@@ -833,6 +845,8 @@ def create_brain(scope, params, actor, *, context=None):
     found = boards_store.pick(boards_store.boards(scope.workspace_id), params["slot"])
     if found is None or not found.bound_here:
         raise WorkRefused(Reason.SLOT_UNBOUND, str(params["slot"]))
+    if params.get("promote") is True:
+        return _promote_slot(scope, params, actor, found)
     found = worktree_brain(found)
     if found.brain_dir is not None:
         return {"board": board_wire(found, None), "receipt": None}

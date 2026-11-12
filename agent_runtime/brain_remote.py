@@ -32,7 +32,8 @@ from typing import Any
 from .brain_paths import brains, held_counts, read_brain_paths, write_brain_paths
 
 __layer__ = "stores"
-__all__ = ["BRAINS_PER_TICK", "FETCH_TIMEOUT_S", "REMOTE_TICK_S", "RemoteCheck", "check_brain", "pull_checkout"]
+__all__ = ["BRAINS_PER_TICK", "FETCH_TIMEOUT_S", "REMOTE_TICK_S", "RemoteCheck", "check_brain", "checkout_repo_name",
+           "make_checkout_remote", "pull_checkout"]
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,55 @@ def pull_checkout(path: Path) -> dict[str, Any]:
     head = _remote_git(["rev-parse", "HEAD"], repo)
     write_brain_paths(behind={**held_counts(), str(repo): after})
     return {"pulled": behind - after, "behind": after, "head": str(head.stdout).strip() if head else None}
+
+
+def checkout_repo_name(path: Path) -> str:
+    """The private repository a remote-less checkout would get: its folder's name, lower-case ``[a-z0-9._-]``."""
+
+    import re
+
+    token = re.sub(r"[^a-z0-9._-]+", "-", Path(path).name.lower()).strip("-.")
+    return (token or "project")[:100]
+
+
+def make_checkout_remote(path: Path) -> dict[str, Any]:
+    """Give a remote-less checkout a PRIVATE GitHub repository and push its CURRENT branch (RT-SLOT-BRAIN-MAKE-REMOTE).
+
+    ``runtime.work.create_brain {slot, promote: true}``'s git half, on the person's ask only. Refused, before
+    anything is created: ``not_a_repo``; ``remote_exists`` (any remote already); ``worktree_dirty`` (tracked
+    changes); ``invalid`` (a detached HEAD: no branch to name); ``needs_git_account``. The repository is created
+    first and ``origin`` is added only once it exists (``git_remote_adopt.adopt_remote``), so a refused creation
+    leaves the checkout as it was. Only the current branch is pushed (RULED 2026-11-12: the person's other
+    branches may be private work in progress; the offer names the one it pushes).
+    """
+
+    from .git_host_account import GitHostRefused, connected_github, create_private_repo
+    from .git_remote_adopt import AdoptRefused, adopt_remote
+    from .work_store.reasons import Reason, WorkRefused
+
+    repo = Path(path)
+    remotes = _remote_git(["remote"], repo) if (repo / ".git").exists() else None
+    if remotes is None or remotes.returncode != 0:
+        raise WorkRefused(Reason.NOT_A_REPO, str(repo.name))
+    if str(remotes.stdout).strip():
+        raise WorkRefused(Reason.REMOTE_EXISTS, "the checkout already has a remote")
+    if not _clean(repo):
+        raise WorkRefused(Reason.WORKTREE_DIRTY, "the checkout has uncommitted changes")
+    branch = _remote_git(["symbolic-ref", "--short", "-q", "HEAD"], repo)
+    if branch is None or branch.returncode != 0 or not str(branch.stdout).strip():
+        raise WorkRefused(Reason.INVALID, "the checkout is on no branch")
+    account = connected_github()
+    if account is None:
+        raise WorkRefused(Reason.NEEDS_GIT_ACCOUNT, "no GitHub credential on this machine answers")
+    name, current = checkout_repo_name(repo), str(branch.stdout).strip()
+    try:
+        url = create_private_repo(account, name)
+        adopt_remote(repo, url, branch=current)
+    except GitHostRefused as refused:
+        raise WorkRefused(refused.reason, refused.detail) from None
+    except AdoptRefused as refused:
+        raise WorkRefused(Reason.PUSH_REFUSED, refused.detail or refused.reason) from None
+    return {"url": url, "repo_name": name, "branch": current, "git_account": account.login}
 
 
 @dataclass
