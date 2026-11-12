@@ -728,3 +728,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-10 (lane w1110d-foot)
 
+
+## Filed on arrival — 2026-11-12 (lane w1112b-hm-settle)
+
+- **`FH-WORK-ROW-CLOSE-CHECKS-SHA-ON-MAIN` — Closing a queue row refuses a commit that never reached main, so a failed push cannot leave a row marked done** · group: prepush · `scripts/work_row.py` · `tests/tooling/` · found 2026-11-12 (lane w1112b-hm-settle, lived): a landing chain `git push origin HEAD:main 2>&1 | tail -1 && work_row.py close … --done <sha>` hid a rejected push behind the pipe, and `close` archived `RT-REDACTION-REWRITE-MAY-BREAK-PROMPT-CACHE` DONE on a sha that was not on `origin/main` (re-landed and the archive line corrected, `957b2a5e76`) · handoff 2026-11-12: in `close --done <sha>` (not `here`), after resolving the sha, run `git merge-base --is-ancestor <sha> origin/main` against the checkout's fetched `origin/main` and refuse `sha_not_on_main` with the hint "push it first"; same wave, lane w1112b-hm-ws measured ~2 min per row lost to claim/close push races — have `claim`/`close` retry fetch + re-apply + push themselves on the non-fast-forward exit 3 (the op is one line by ID, so re-applying is safe) · READY 2026-11-12
