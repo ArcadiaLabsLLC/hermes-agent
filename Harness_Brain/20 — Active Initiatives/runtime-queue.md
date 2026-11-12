@@ -46,7 +46,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-12 (Eternia lane w1112b-work3, live on hermes 7bb8dbd9f6: the two shared-work live checks)
 
-- **`RT-UNTIL-DONE-CHAT-STOP-DOES-NOT-END-RUN` — Pressing Stop in the chat while a task is being worked until done ends the whole run** · group: shared-work-v1 · `agent_runtime/operator_execution.py` (`stop_operator_execution`), `agent_runtime/work_store/goal_turns.py`, `agent_runtime/work_store/persona_turn.py` · seen live: the conversation's own Stop pressed during pass 3 of an until-done run did nothing — the pass ran to its end, replied, and pass 4 started; the task stayed claimed · evidence: `EterniaLauncher/docs/stages/qa-reboot/live/2026-11-12/COMP-WORK-V1-DECIDE-GOAL-MODE/w1112b-work3/README.md` · do: establish how the Stop was answered and how the pass settled, then make a person's Stop on any pass end the run however that pass settles · holds Eternia `COMP-WORK-V1-DECIDE-GOAL-MODE` · READY 2026-11-12 · **TAKEN 2026-11-12 w1112b-hm-work2 on nekwo-ubuntu24 as nekwo in hm-w1109a-iso**
 
 ### Filed on arrival — 2026-11-12 (Eternia lane w1112b-work2: `COMP-WORK-V1-DECIDE-SCHEDULES`, `COMP-WORK-V1-DECIDE-GOAL-MODE`)
 
