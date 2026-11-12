@@ -25,8 +25,10 @@ NOTHING CALLS THIS YET: the leave does not owe a re-key and a re-join still bind
 * Git is ``agent_runtime.realm_rekey_git`` (the ``git`` step, after the rename): worktrees found again, and one
   new commit in the workspace's own brain; history is never rewritten.
 
-Still owed, each a place :data:`OWED_HANDLERS` names (the switch-over waits for them): the places outside the
-JSON store (``RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE``).
+* What is not JSON under the store root is ``agent_runtime.realm_rekey_outside`` (the ``outside`` step): the
+  machine's slot files, Lens watches, the shared skills' inbox and provenance, the local sync repository.
+
+:data:`OWED_HANDLERS` is empty: every MOVES place has its step. The switch-over row is what calls this.
 """
 from __future__ import annotations
 
@@ -47,6 +49,7 @@ from . import paths
 from .board_models import default_board_id
 from .locks import workspace_realm_assign_lock
 from .realm_rekey_git import LANE_WORKTREES_DIRNAME, step_git
+from .realm_rekey_outside import LOCAL_SYNC_REPO, step_outside
 from .realm_rekey_agents import PARKED_DIRNAME, agent_forms, agent_name_forms, agents_of, fresh_agent_id, step_agents
 from .store import RealmStore, WorkspaceStore
 
@@ -58,6 +61,8 @@ __all__ = [
     "RekeyMap",
     "RekeyState",
     "leftover_ids",
+    "merge_folder",
+    "rewrite_json",
     "rewrite_text",
     "token_pattern",
     "owe_rekey",
@@ -72,6 +77,7 @@ JOURNAL_DIRNAME = "realm_rekey"
 SCENE_ID_PREFIX = "ws-"
 _PIECES = re.compile(r"([/\\:])")
 _MINTED_SUFFIX = re.compile(r"_[0-9a-f]{6}$")
+_MINTED_CARD = re.compile(r"^card_[0-9a-f]{32}$")
 
 
 class PlaceClass(str, Enum):
@@ -79,6 +85,9 @@ class PlaceClass(str, Enum):
     PARKS = "parks"
     HISTORY = "history"
     DERIVED = "derived"
+    #: This install's own, whatever realms come and go: catalogues every realm shares (maps, prefabs, courses,
+    #: skills), machine state. Holds no realm, workspace or agent id of a realm — the census reds one that does.
+    INSTALL = "install"
 
 
 class RekeyState(str, Enum):
@@ -87,7 +96,7 @@ class RekeyState(str, Enum):
     DONE = "done"
 
 
-_M, _P, _H, _D = PlaceClass.MOVES, PlaceClass.PARKS, PlaceClass.HISTORY, PlaceClass.DERIVED
+_M, _P, _H, _D, _I = PlaceClass.MOVES, PlaceClass.PARKS, PlaceClass.HISTORY, PlaceClass.DERIVED, PlaceClass.INSTALL
 #: Every top-level entry of the store root that can hold a realm, workspace, board or agent id.
 STORE_PLACES: dict[str, PlaceClass] = {
     "realms": _M, "workspaces": _M, "workspace_slots": _M, "office": _M, paths.OFFICE_ARCHIVE_DIRNAME: _M,
@@ -105,14 +114,23 @@ STORE_PLACES: dict[str, PlaceClass] = {
     "patch_diffs_archive": _H, paths.DELETED_ARCHIVE_DIRNAME: _H, "runs": _H, "incidents": _H, "agents": _H,
     "migration_backups": _H, JOURNAL_DIRNAME: _H, "flow_graphs_stale": _H,
     "snapshot.json": _D, paths.DERIVED_CACHE_DIRNAME: _D, "locks": _D,
+    # Entries no ``paths.py`` function with an id parameter names (the census reads the source for them).
+    # Chat bookkeeping is keyed by session and parks with the chats; a messaging binding routes to an agent.
+    "mission_chat_turns": _P, "mission_chat_turns_archive": _P, "mission_chat_turns.json": _P,
+    "mission_chat_turns.legacy.json": _P, "chat_turn_reservations": _P, "chat_turn_settles": _P,
+    "chat_root_send_queue": _P, "persona_chat_clarify_tickets": _P, "session_controls": _P,
+    "tool_turn_context": _P, "history_recovery": _P, "chat_head_home.json": _P, "messaging": _P,
+    "events_journal.json": _H, "events_manifest.json": _H, "prompt_observability_catalogs": _H,
+    "prompt_observability_index.json": _H, "worktree_events.jsonl": _H, "wt_reaped_patches": _H,
+    "workspace_creates": _H, "projects": _H, "migrations": _H,
+    "serve_read_model": _D, "workspace_write_locks": _D, "chat_history_locks": _D,
+    "mission_chat_turns.migrate.lock": _D, "mission_chat_turns.gc.lock": _D,
+    "maps": _I, "prefabs": _I, "courses": _I, "queued_skills": _I, "skill_lends": _I, "tool_permissions.json": _I,
+    "launcher_supervision": _I, "operator_files": _I, "persona_instance_aliases.json": _I, "wt": _I,
 }
-#: MOVES places this module does not rewrite yet, and the row that owes each.
-OWED_HANDLERS: dict[str, str] = {
-    "realm_sync/local clone subtree": "RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE",
-    "lens.sqlite3 monitors": "RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE",
-    "machine_roots.json slot folders": "RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE",
-    "skills .realm_inbox + provenance": "RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE",
-}
+#: MOVES places no step rewrites yet, and the row that owes each. Empty since the ``outside`` step: the
+#: switch-over (``RT-REJOIN-PULLS-THE-SERVER-REALM-FRESH``) may call the re-key only while it stays empty.
+OWED_HANDLERS: dict[str, str] = {}
 
 
 def _under_work(parts: tuple[str, ...]) -> tuple[str, ...]:
@@ -127,8 +145,8 @@ _SUB_PLACES: tuple[tuple[Any, PlaceClass], ...] = (
     (lambda parts: ".git" in parts, PlaceClass.HISTORY),
     # a batch lane's checkout is its branch's: it reaches the brain by a merge
     (lambda parts: LANE_WORKTREES_DIRNAME in _under_work(parts)[1:2], PlaceClass.HISTORY),
-    # a sync clone (the publish projection): OWED_HANDLERS
-    (lambda parts: parts[0] == paths.REALM_SYNC_DIRNAME and len(parts) > 1
+    # a server's sync clone is the team's projection; the ``local`` one is the local copy's (the outside step)
+    (lambda parts: parts[0] == paths.REALM_SYNC_DIRNAME and parts[1:2] not in ((), (LOCAL_SYNC_REPO,))
      and (paths.realm_sync_root() / parts[1] / ".git").exists(), PlaceClass.HISTORY),
 )
 
@@ -148,11 +166,12 @@ class RekeyMap:
     workspaces: dict[str, str] = field(default_factory=dict)
     boards: dict[str, str] = field(default_factory=dict)
     agents: dict[str, str] = field(default_factory=dict)
+    cards: dict[str, str] = field(default_factory=dict)
 
     def forms(self) -> dict[str, str]:
         """Every whole token that is rewritten: the ids, the level address ``ws-<workspace>`` and the forms
         an agent id takes (``realm_rekey_agents.agent_forms``)."""
-        forms = {**agent_forms(self.agents), self.realm_old: self.realm_new, **self.boards, **self.workspaces}
+        forms = {**agent_forms(self.agents), **self.cards, self.realm_old: self.realm_new, **self.boards, **self.workspaces}
         forms.update({SCENE_ID_PREFIX + old: SCENE_ID_PREFIX + new for old, new in self.workspaces.items()})
         return forms
 
@@ -197,6 +216,16 @@ def _boards_of(workspace_ids: set[str]) -> list[str]:
     return found
 
 
+def _minted_cards_of(board_ids: Any) -> list[str]:
+    """The cards a board store minted (``card_<hex32>``) on these boards, archived ones too. A card adopted
+    from a Work row carries that row's id and keeps it: the id is the row's, in the brain's own text."""
+    found = []
+    for board_id in board_ids:
+        for folder in (paths.board_cards_dir(board_id), paths.board_archive_dir(board_id)):
+            found.extend(path.stem for path in sorted(folder.glob("*.json")) if _MINTED_CARD.match(path.stem))
+    return found
+
+
 def owe_rekey(realm_id: str, *, reason: str) -> dict[str, Any]:
     """Record that ``realm_id`` owes a re-key and mint its map. A realm that already has a journal answers it."""
     with workspace_realm_assign_lock():
@@ -210,7 +239,8 @@ def owe_rekey(realm_id: str, *, reason: str) -> dict[str, Any]:
         boards = {default_board_id(old): default_board_id(new) for old, new in workspaces.items()}
         boards.update({board: _fresh_id(board) for board in _boards_of(set(workspaces)) if board not in boards})
         agents = {old: fresh_agent_id(old, persona) for old, persona in agents_of(realm.id, set(workspaces)).items()}
-        mapping = RekeyMap(realm.id, _fresh_id(realm.id), workspaces, boards, agents)
+        cards = {old: f"card_{uuid.uuid4().hex}" for old in dict.fromkeys(_minted_cards_of(boards))}
+        mapping = RekeyMap(realm.id, _fresh_id(realm.id), workspaces, boards, agents, cards)
         return _write_journal({
             "state": RekeyState.OWED.value, "reason": reason, "owed_at": now().isoformat(),
             "map": asdict(mapping), "steps_done": [], "leftover": [],
@@ -225,15 +255,15 @@ def rewrite_text(value: str, forms: dict[str, str]) -> str:
     return "".join(forms.get(piece, piece) for piece in _PIECES.split(value))
 
 
-def _rewrite_json(value: Any, forms: dict[str, str]) -> Any:
+def rewrite_json(value: Any, forms: dict[str, str]) -> Any:
     rewrite = _JSON_REWRITERS.get(type(value))
     return rewrite(value, forms) if rewrite else value
 
 
 _JSON_REWRITERS = {
     str: rewrite_text,
-    list: lambda value, forms: [_rewrite_json(item, forms) for item in value],
-    dict: lambda value, forms: {rewrite_text(key, forms): _rewrite_json(item, forms) for key, item in value.items()},
+    list: lambda value, forms: [rewrite_json(item, forms) for item in value],
+    dict: lambda value, forms: {rewrite_text(key, forms): rewrite_json(item, forms) for key, item in value.items()},
 }
 
 
@@ -281,7 +311,7 @@ def _step_content(root: Path, mapping: RekeyMap) -> None:
             before = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        after = _rewrite_json(before, forms)
+        after = rewrite_json(before, forms)
         if after != before:
             atomic_json_write(path, after)
 
@@ -293,7 +323,7 @@ def _renamed(name: str, forms: dict[str, str]) -> str:
     return forms[stem] + dot + rest if dot and stem in forms else name
 
 
-def _merge_folder(old: Path, new: Path) -> None:
+def merge_folder(old: Path, new: Path) -> None:
     """A late writer re-made the old folder after it moved: bring over what the new one lacks. A file both
     hold stays where it is — the new one is the newer — and the census names what is left."""
     for child in sorted(old.iterdir()):
@@ -301,7 +331,7 @@ def _merge_folder(old: Path, new: Path) -> None:
         if not target.exists():
             shutil.move(str(child), str(target))
         elif child.is_dir() and target.is_dir():
-            _merge_folder(child, target)
+            merge_folder(child, target)
     if not any(old.iterdir()):
         old.rmdir()
 
@@ -315,7 +345,7 @@ def _step_rename(root: Path, mapping: RekeyMap) -> None:
         if not target.exists():
             path.rename(target)
         elif path.is_dir() and target.is_dir():
-            _merge_folder(path, target)
+            merge_folder(path, target)
 
 
 def _step_ledgers(root: Path, mapping: RekeyMap) -> None:
@@ -330,7 +360,8 @@ def _step_ledgers(root: Path, mapping: RekeyMap) -> None:
         atomic_json_write(path, {**record, **cleared})
 
 
-STEPS = (("agents", step_agents), ("content", _step_content), ("rename", _step_rename), ("git", step_git), ("ledgers", _step_ledgers))
+STEPS = (("agents", step_agents), ("content", _step_content), ("rename", _step_rename), ("git", step_git),
+         ("outside", step_outside), ("ledgers", _step_ledgers))
 
 
 def rekey_realm(realm_id: str) -> dict[str, Any]:

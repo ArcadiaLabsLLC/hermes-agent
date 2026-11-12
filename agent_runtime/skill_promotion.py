@@ -127,12 +127,12 @@ def realm_inbox_dir(realm_token: str) -> Path:
     return realm_inbox_root() / safe_path_token(realm_token)
 
 
-def _provenance_root() -> Path:
+def provenance_root() -> Path:
     return get_shared_skills_dir() / _PROVENANCE_DIRNAME
 
 
 def _provenance_path(skill: str) -> Path:
-    return _provenance_root() / f"{skill.replace('/', '__')}.json"
+    return provenance_root() / f"{skill.replace('/', '__')}.json"
 
 
 def promotion_source_path(skill: str) -> Path | None:
