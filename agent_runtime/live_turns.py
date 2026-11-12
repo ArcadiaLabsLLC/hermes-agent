@@ -21,8 +21,9 @@ start is the one ``BaseEnvironment.execute`` waits on — the exact join to
 :mod:`tools.environments.foreground_watch`, never a match on command text.
 
 Reads never block a writer for longer than a dict copy, and nothing here signals
-a process: :func:`interrupt_turn` is the agent's own ``interrupt`` — the seam
-``/stop`` and the wall budget already use.
+a process: :func:`interrupt_tool_call` sets ONE call's thread interrupt bit — the bit the
+command's own wait loop reads — and the turn carries on; ending a turn is the agent's own
+``interrupt`` (``/stop``, the conversation's Stop), never reached from here.
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ __all__ = [
     "LiveToolCall",
     "LiveTurn",
     "call_on_thread",
-    "interrupt_turn",
+    "interrupt_tool_call",
     "live_turn",
     "live_turn_view",
     "persona_instance_of",
@@ -305,25 +306,4 @@ def interrupt_tool_call(turn_id: str | None, call_id: Any, *, reason: str) -> bo
         if call is None:
             return False
         _interrupt.set_interrupt(True, call.exec_tid or call.tid, reason=reason)
-    return True
-
-
-def interrupt_turn(turn_id: str | None, *, reason: str) -> bool:
-    """Interrupt a live turn through its agent's own seam. False when not live here."""
-
-    key = str(turn_id or "").strip()
-    with _lock:
-        turn = _turns.get(key)
-    if turn is None:
-        return False
-    interrupt = getattr(turn.agent, "interrupt", None)
-    if not callable(interrupt):
-        return False
-    try:
-        # The soft stop ``/stop`` sends: the running tool's thread gets the
-        # interrupt bit (a foreground command is killed, rc 130) and the loop
-        # ends the turn. ``reason`` is the caller's record, not the agent's.
-        interrupt()
-    except Exception:
-        return False
     return True
