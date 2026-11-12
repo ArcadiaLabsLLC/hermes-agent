@@ -9,20 +9,20 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from ..redaction import TEXT_SECRET_ASSIGNMENT_RE, TEXT_SECRET_KEYS
+from ..redaction import CLARIFY_TICKET_RE, TEXT_SECRET_ASSIGNMENT_RE, TEXT_SECRET_KEYS
 
 __layer__ = "policy"
 
 logger = logging.getLogger(__name__)
 
 
-#: A runtime clarify ticket (``clarify-<12 hex>``, :mod:`.clarify_tickets`) is a lookup key the
-#: asking agent must echo back whole, "never a capability secret". Under its ``clarify_token``
-#: name upstream's redactor cut it to ``clarif...7f38`` and the field pass set it to
-#: ``[redacted]``, so the asker's answer on it could not bind
-#: (RT-DISPATCH-DELIVERY-CLARIFY-TOKEN-MASKED). The wire spares exactly this shape; upstream's
-#: redactor is left as it is (its footprint is ledgered) and the ticket is shielded around it.
-_CLARIFY_TICKET_RE = re.compile(r"(?<![A-Za-z0-9_-])clarify-[0-9a-f]{12}(?![A-Za-z0-9_-])")
+#: A runtime clarify ticket (``clarify-<12 hex>``) is a lookup key the asking agent must echo
+#: back whole. Under its ``clarify_token`` name upstream's redactor cut it to ``clarif...7f38``
+#: and the field pass set it to ``[redacted]``, so the asker's answer on it could not bind
+#: (RT-DISPATCH-DELIVERY-CLARIFY-TOKEN-MASKED). The wire spares exactly this shape (spelled once
+#: in ``agent_runtime.redaction``); upstream's redactor is left as it is (its footprint is
+#: ledgered) and the ticket is shielded around it.
+_CLARIFY_TICKET_RE = CLARIFY_TICKET_RE
 
 
 def _is_clarify_ticket(value: Any) -> bool:

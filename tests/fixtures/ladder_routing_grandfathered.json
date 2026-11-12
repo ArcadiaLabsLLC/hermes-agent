@@ -86,14 +86,6 @@
    "site": "agent_runtime/persona_chat_history/markers.py|_silent_turn_marker_row|vocab|agent"
   },
   {
-   "arms": 1,
-   "site": "agent_runtime/persona_chat_history/text.py|_curate_chat_message_text|vocab|agent"
-  },
-  {
-   "arms": 1,
-   "site": "agent_runtime/persona_chat_history/text.py|_curate_chat_message_text|vocab|operator"
-  },
-  {
    "arms": 5,
    "site": "agent_runtime/persona_config_sync.py|apply_persona_config_pull|ladder|decision.action"
   },

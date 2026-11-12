@@ -141,6 +141,40 @@ def safe_file_labels(value: Any) -> list[str]:
     return labels
 
 
+#: A runtime clarify ticket (``clarify-<12 hex>``, ``persona_chat_continuity.clarify_tickets``)
+#: is a LOOKUP KEY the asking agent echoes back whole, never a capability secret
+#: (RT-DISPATCH-DELIVERY-CLARIFY-TOKEN-MASKED). One spelling: the chat wire's shield
+#: (``persona_chat_continuity.bounds``) and the display reads below spare it.
+CLARIFY_TICKET_RE = re.compile(r"(?<![A-Za-z0-9_-])clarify-[0-9a-f]{12}(?![A-Za-z0-9_-])")
+
+#: The cut form (6 + ``...`` + 4) upstream's redactor made of a ticket before
+#: b636d3b44b; delivery rows stored then still carry it, and it is no secret either.
+_CUT_CLARIFY_TICKET_RE = re.compile(r"clarif\.\.\.[0-9a-f]{4}")
+
+#: Quoting and punctuation a prose ``clarify_token: <ticket>.`` wraps its value in.
+_VALUE_WRAPPING = "`'\".,;:)]}"
+
+
+def has_text_secret_assignment(text: str) -> bool:
+    """Whether *text* carries a :data:`TEXT_SECRET_ASSIGNMENT_RE` assignment whose
+    value is not a clarify ticket (whole or in its old cut form).
+
+    A teammate's question delivered to an asker carries ``clarify_token: <ticket>``;
+    the display reads hid the whole message for it ("Message hidden by redaction
+    boundary", RT-DELIVERED-QUESTION-HIDDEN-IN-CONSOLE). Any other assignment on the
+    same text still counts, and a ticket glued to more text (no whitespace) is not
+    spared, so a secret cannot ride beside one.
+    """
+
+    for match in TEXT_SECRET_ASSIGNMENT_RE.finditer(str(text or "")):
+        value = match.group(2).strip(_VALUE_WRAPPING)
+        # MUTATION: return True here and test_delivered_question_is_shown_in_history reddens.
+        if CLARIFY_TICKET_RE.fullmatch(value) or _CUT_CLARIFY_TICKET_RE.fullmatch(value):
+            continue
+        return True
+    return False
+
+
 #: The in-band marker a masked line is replaced by. One spelling for the read
 #: projection (``persona_chat_history``) and the live mirror (``chat_live_log``).
 REDACTED_SECRET_LINE = "[redacted line — contained a secret]"
@@ -148,7 +182,7 @@ REDACTED_SECRET_LINE = "[redacted line — contained a secret]"
 
 def mask_secret_lines(text: str) -> str:
     """``text`` with every line that carries a secret assignment
-    (:data:`TEXT_SECRET_ASSIGNMENT_RE`) replaced by :data:`REDACTED_SECRET_LINE`.
+    (:func:`has_text_secret_assignment`) replaced by :data:`REDACTED_SECRET_LINE`.
 
     The ONE per-line masker: the whole line goes, never a surgical cut, so a
     value the pattern half-matched cannot survive beside the key. Split and
@@ -156,7 +190,7 @@ def mask_secret_lines(text: str) -> str:
     """
 
     return "\n".join(
-        REDACTED_SECRET_LINE if TEXT_SECRET_ASSIGNMENT_RE.search(line) else line
+        REDACTED_SECRET_LINE if has_text_secret_assignment(line) else line
         for line in text.split("\n")
     )
 

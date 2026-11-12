@@ -11,7 +11,7 @@ from ..persona_chat_history.vocabulary import (
     PERSONA_TURN_BUDGET_EXHAUSTED_KIND,
     PERSONA_TURN_INTERRUPTED_KIND,
 )
-from ..redaction import TEXT_SECRET_ASSIGNMENT_RE
+from ..redaction import TEXT_SECRET_ASSIGNMENT_RE, has_text_secret_assignment
 from ..serde import safe_assignment_text
 
 __layer__ = "policy"
@@ -109,7 +109,7 @@ def _safe_conversation_text(value: Any, *, limit: int) -> str | None:
     # code blocks and aligned output whose indentation must reach the display.
     lines = [
         "[redacted line — contained a secret]"
-        if _SECRET_RE.search(line)
+        if has_text_secret_assignment(line)
         else line.rstrip()
         for line in text.split("\n")
     ]

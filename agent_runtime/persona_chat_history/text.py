@@ -11,9 +11,8 @@ import re
 from typing import Any
 
 from ..serde import safe_assignment_text, safe_assignment_token
-from ..redaction import mask_secret_lines
+from ..redaction import has_text_secret_assignment, mask_secret_lines
 from ..redaction_mode import redaction_observe_enabled
-from .vocabulary import _SECRET_RE
 
 __layer__ = "stores"
 __all__ = [
@@ -95,7 +94,7 @@ def _safe_display_text(
     text = safe_assignment_text(value, limit=limit)
     if not text:
         return fallback, "safe"
-    if _SECRET_RE.search(text):
+    if has_text_secret_assignment(text):
         if redaction_observe_enabled():
             return _mask_secret_lines(text, limit=limit), "would_redact"
         return redacted_fallback or fallback, "redacted"
@@ -112,7 +111,7 @@ def _safe_display_body_text(
     text = _safe_chat_body_text(value, limit=limit)
     if not text:
         return fallback, "safe"
-    if _SECRET_RE.search(text):
+    if has_text_secret_assignment(text):
         if redaction_observe_enabled():
             return _mask_secret_lines(text, limit=limit), "would_redact"
         return redacted_fallback or fallback, "redacted"
