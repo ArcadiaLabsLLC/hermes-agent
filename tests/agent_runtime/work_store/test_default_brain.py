@@ -561,7 +561,8 @@ def test_a_local_brain_on_a_connected_machine_is_offered_a_remote_under_its_logi
     from agent_runtime.work import service
 
     default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
-    offered = {"state": "present", "reason": "remote_offered", "git_account": "octo"}
+    offered = {"state": "present", "reason": "remote_offered", "git_account": "octo",
+               "repo_name": default_brain.brain_repo_name(workspace)}
     assert default_brain.remote_state(workspace) == offered
     assert service._default_brain_state(workspace) == offered
     host.connected = False

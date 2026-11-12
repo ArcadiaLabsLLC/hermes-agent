@@ -156,18 +156,19 @@ def _observed_brain_state(workspace_id):
 
 def _personal_board_state(*, observe):
     """``capabilities.personal_board``: ``present`` / ``created`` (``missing`` on an observe read) /
-    ``unavailable``. Machine-local by contract, so it has no remote words."""
+    ``unavailable``, with the same remote words as a workspace brain (RT-PERSONAL-BRAIN-PROMOTE: a remote
+    only when the person asks — ``create_brain {promote: true}`` on the personal owner)."""
     from agent_runtime.work_store.board import PERSONAL_BOARD_ID, default_board
-    from agent_runtime.work_store.default_brain import ensure_default_brain
+    from agent_runtime.work_store.default_brain import ensure_default_brain, remote_state
 
     try:
         if default_board(PERSONAL_BOARD_ID) is not None:
-            return {"state": "present"}
+            return _worded(remote_state(PERSONAL_BOARD_ID), "present")
         if observe:
             return {"state": "missing"}
         _require_git()
         ensure_default_brain(PERSONAL_BOARD_ID, issued_at=store._now().isoformat(timespec="seconds"))
-        return {"state": "created"}
+        return _worded(remote_state(PERSONAL_BOARD_ID), "created")
     except WorkRefused as refusal:
         return {"state": "unavailable", "reason": refusal.reason.value}
     except (NotFound, FileNotFoundError, KeyError, ValueError, OSError):

@@ -409,9 +409,10 @@ def test_the_personal_board_is_one_more_owner_with_its_own_machine_local_brain(w
     personal = _personal(work)
     assert personal.owner["workspace_id"] == "personal" and personal.owner["label"] == "Personal"
     assert personal.owner["owner"] not in {row["owner"] for row in caps["owners"] if row["kind"] == "workspace"}
-    assert caps["personal_board"] == {"state": "created"}
+    assert caps["personal_board"] == {"state": "created", "reason": "needs_git_account"}
     assert (paths.default_brain_dir("personal") / ".git").is_dir()
-    assert service.execute("capabilities", {}, STDIO_OWNER)["personal_board"] == {"state": "present"}
+    assert service.execute("capabilities", {}, STDIO_OWNER)["personal_board"] == {
+        "state": "present", "reason": "needs_git_account"}
     task = service.execute("start", {**personal.scope, "request_id": "p1", "title": "Call the dentist"},
                            STDIO_OWNER)["task"]
     listed = service.execute("list", {**personal.scope, "kind": "personal"}, STDIO_OWNER)
@@ -422,22 +423,56 @@ def test_the_personal_board_is_one_more_owner_with_its_own_machine_local_brain(w
     assert wrong_kind.value.reason is Reason.INVALID
 
 
-def test_the_personal_board_is_never_promoted_to_a_remote(work, monkeypatch):
-    """Machine-local by contract, even on a machine whose GitHub account answers. Mutation: drop the
-    ``PERSONAL_BOARD_ID`` refusal in ``default_brain.promote_default_brain`` -> a private repo is created
-    for it (nothing promotes on its own since RT-BRAIN-REMOTE-ONLY-WHEN-ASKED, so only the press could)."""
-    from agent_runtime import git_host_account
-    from agent_runtime.work_store import default_brain
+def test_the_personal_board_gets_its_fixed_remote_only_when_the_person_asks(work, monkeypatch, tmp_path):
+    """RT-PERSONAL-BRAIN-PROMOTE (RULED 2026-11-12: the repository name is FIXED, ``eternia-work-personal``,
+    offered before the press). A connected machine makes nothing on its own and offers the name; the press
+    (``create_brain {promote: true}`` on the personal owner) creates it and pushes; without an account the press
+    is refused ``needs_git_account``. A local bare repository plays GitHub; nothing reaches a network.
 
-    created = []
-    monkeypatch.setattr(git_host_account, "connected_github", lambda *a, **k: object())
-    monkeypatch.setattr(git_host_account, "create_private_repo",
-                        lambda account, name: created.append(name) or "https://example.invalid/r.git")
-    default_brain.ensure_default_brain("personal", issued_at="2026-10-26T00:00:00")
-    assert created == []
+    Mutation: restore the ``PERSONAL_BOARD_ID`` refusal in ``default_brain.promote_default_brain`` -> the press
+    is refused ``invalid``, red; drop the personal arm of ``brain_repo_name`` -> the repo is
+    ``eternia-work-personal`` only by accident of the path token, and the offer test pins the name."""
+    import subprocess
+
+    from agent_runtime import git_host_account
+    from agent_runtime.git_host_account import GitHubAccount
+
+    bare_root = tmp_path / "host"
+    bare_root.mkdir()
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{bare_root.as_posix()}/.insteadOf")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "https://github.example/octo/")
+    connected, created = [None], []
+    monkeypatch.setattr(git_host_account, "connected_github", lambda *a, **k: connected[0])
+
+    def create(account, name):
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare_root / f"{name}.git")], check=True)
+        created.append(name)
+        return f"https://github.example/octo/{name}.git"
+
+    monkeypatch.setattr(git_host_account, "create_private_repo", create)
+    personal = _personal(work)
     with pytest.raises(WorkRefused) as refused:
-        default_brain.promote_default_brain("personal", issued_at="2026-10-26T00:00:00")
-    assert refused.value.reason is Reason.INVALID and created == []
+        service.execute("create_brain", {**personal.scope, "request_id": "pp0", "promote": True}, STDIO_OWNER)
+    assert refused.value.reason is Reason.NEEDS_GIT_ACCOUNT and created == []
+
+    connected[0] = GitHubAccount("octo", "test")
+    offered = service.execute("capabilities", {}, STDIO_OWNER)["personal_board"]
+    assert offered == {"state": "present", "reason": "remote_offered", "git_account": "octo",
+                       "repo_name": "eternia-work-personal"}
+    assert created == []  # an offer, never an action
+
+    made = service.execute("create_brain", {**personal.scope, "request_id": "pp1", "promote": True}, STDIO_OWNER)
+    url = "https://github.example/octo/eternia-work-personal.git"
+    assert created == ["eternia-work-personal"] and made["promotion"]["url"] == url
+    assert service.execute("capabilities", {}, STDIO_OWNER)["personal_board"] == {"state": "remote", "clone_url": url}
+    root = paths.default_brain_dir("personal")
+    head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True).stdout
+    pushed = subprocess.run(["git", "-C", str(bare_root / "eternia-work-personal.git"), "rev-parse", "main"],
+                            capture_output=True, text=True).stdout
+    assert head and head == pushed
+    task = service.execute("start", {**personal.scope, "request_id": "pp2", "title": "Still mine"}, STDIO_OWNER)
+    assert task["task"]["id"]  # the personal board stays the person's board after the remote
 
 
 def test_an_agents_todo_is_a_view_over_every_board_it_can_see(work):

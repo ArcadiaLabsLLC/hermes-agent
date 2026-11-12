@@ -29,6 +29,9 @@ slot instead of creating a brain: it clones the remote (``adopt_remote`` into an
 it. A machine that had already made its own LOCAL brain folds that brain's rows into the adopted one once,
 in one commit with the IDs kept, and its binding then records the remote as declared
 (``_fold_local_brain``, RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL).
+The PERSONAL board promotes the same way, only on the press, to the fixed ``eternia-work-personal``
+(RT-PERSONAL-BRAIN-PROMOTE, retiring the 2026-10-26 "never gets a remote" contract); it has no slot document, so
+its remote stays the binding's and the board stays ``default_board``'s.
 Pinned by ``tests/agent_runtime/work_store/test_default_brain.py``.
 """
 
@@ -187,10 +190,19 @@ def _write_binding(workspace_id: str, record: dict[str, Any]) -> None:
     changed("default_brain.binding")
 
 
+#: The personal brain's repository: FIXED, one per account (RT-PERSONAL-BRAIN-PROMOTE, RULED 2026-11-12 under
+#: the owner's standing order — predictable, so a second machine can find it; the offer names it before the press).
+PERSONAL_REPO_NAME = "eternia-work-personal"
+
+
 def brain_repo_name(workspace_id: str) -> str:
-    """``eternia-work-<workspace slug>`` (else the workspace's path token), lower-case ``[a-z0-9._-]``, ≤ 100 chars."""
+    """``eternia-work-<workspace slug>`` (else the workspace's path token), lower-case ``[a-z0-9._-]``, ≤ 100 chars;
+    the personal board's is ``PERSONAL_REPO_NAME``."""
 
     from ..store import WorkspaceStore
+
+    if workspace_id == PERSONAL_BOARD_ID:
+        return PERSONAL_REPO_NAME
 
     try:
         slug = str(WorkspaceStore().get(workspace_id).slug or "")
@@ -238,8 +250,6 @@ def promote_default_brain(workspace_id: str, *, issued_at: str) -> dict[str, Any
     from ..git_host_account import GitHostRefused, connected_github, create_private_repo
     from ..git_remote_adopt import AdoptRefused, adopt_remote
 
-    if workspace_id == PERSONAL_BOARD_ID:
-        raise WorkRefused(Reason.INVALID, "the personal board is machine-local and never gets a remote")
     record = read_binding(workspace_id)
     if record is None:
         raise WorkRefused(Reason.NO_BRAIN, "no live default brain to promote")
@@ -262,8 +272,13 @@ def promote_default_brain(workspace_id: str, *, issued_at: str) -> dict[str, Any
     # The member asked for a repository: the left realm's record ends here.
     _write_binding(workspace_id, {**record, "remote_url": url, "promoted_at": issued_at,
                                   "remote_owner": account.login, "promote_refused": None, "left_remote": None})
-    declaration = _declare_brain_slot(workspace_id, url, root, issued_at)
-    _write_binding(workspace_id, {**(read_binding(workspace_id) or {}), "declaration": declaration})
+    if workspace_id == PERSONAL_BOARD_ID:
+        # The personal board belongs to no workspace's slot document: its remote is the binding's alone, and the
+        # board stays the binding's (``default_board``), now pushing to the person's own repository.
+        declaration = {"state": "personal"}
+    else:
+        declaration = _declare_brain_slot(workspace_id, url, root, issued_at)
+        _write_binding(workspace_id, {**(read_binding(workspace_id) or {}), "declaration": declaration})
     receipt = receipts.emit("work.brain_promoted", workspace_id=workspace_id, url=url,
                             declaration=declaration["state"])
     return {"outcome": "promoted", "url": url, "declaration": declaration, "receipt": receipt}
@@ -391,10 +406,10 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
     from ..git_host_account import connected_github
 
     record = read_binding(workspace_id)
-    if record is None or workspace_id == PERSONAL_BOARD_ID:
+    if record is None:
         return None
     url, state = record.get("remote_url"), declaration_state(record)
-    if url and state == "declared":
+    if url and (state == "declared" or workspace_id == PERSONAL_BOARD_ID):
         return {"state": "remote", "clone_url": url}
     if url and state == "pending":
         return {"state": "remote_pending_declare", "clone_url": url,
@@ -413,7 +428,8 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
     # MUTATION: drop this hold and test_a_left_realms_brain_stays_local_until_the_member_promotes_it reddens.
     if record.get("left_remote"):
         return None
-    return {"state": "present", "reason": REMOTE_OFFERED, "git_account": account.login}
+    return {"state": "present", "reason": REMOTE_OFFERED, "git_account": account.login,
+            "repo_name": brain_repo_name(workspace_id)}
 
 
 def detach_left_remote(workspace_id: str, *, at: str) -> str | None:
