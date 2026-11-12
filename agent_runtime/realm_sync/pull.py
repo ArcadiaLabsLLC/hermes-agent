@@ -427,6 +427,13 @@ def _pull_persona_instances(run: _PullRun) -> bool:
         for row in (run.office.archive_outcomes or [])
         if row.get("outcome") == "archived" and row.get("actor_key")
     ]
+    # A re-join's first pull: the team's agents this install parked when the realm turned local come back
+    # before the mint door looks, so each is found present — its chats re-attach by id — and not minted anew.
+    from ..persona_instance_sync import read_remote_persona_instances
+    from ..realm_rekey_agents import restore_parked_agents
+
+    published, _source = read_remote_persona_instances(run.subtree)
+    restore_parked_agents(run.realm.id, only=set(published or ()))
     run.instance = apply_persona_instance_pull(
         run.realm.id, run.subtree, desks_removed=desks_removed
     )

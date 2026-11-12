@@ -1218,11 +1218,15 @@ appended. All member reasons, not only the three `membership_*` ones: the backen
 once, on the grant diff, so a realm left bound after a lost role would get no second event when the
 member later leaves. Owner ruling 2026-11-12, asked "Should losing your role or access also turn the realm
 local, not only leaving or being removed?": "Yes, keep it wide". The verb takes an optional `server_name` (the caller's display name for the server)
-and answers `{realm_id, reason, revoked_at, host_state, became_local, shared_from}`; a repeat answers the
-first record with `became_local: false`. The snapshot's realm row and the full `realm_row` (`realm show`, the archive verbs) carry `shared_from`
+and answers `{realm_id, reason, revoked_at, host_state, became_local, shared_from, rekey, rekeyed_to,
+rekey_waits_on}`; a repeat answers the first record with `became_local: false` (also once `realm_id` is the
+id the local copy had before its re-key). `rekey` is the state of the re-key the leave owes (`owed` |
+`running` | `done`; null on a git-host reason), `rekeyed_to` the local copy's realm id once it is `done`
+(null before — the copy still answers to `realm_id`), `rekey_waits_on` what it waits for when it could not
+run in this call (`turn` | `work_run` | `build` | `rename_blocked` | `serve`). The snapshot's realm row and the full `realm_row` (`realm show`, the archive verbs) carry `shared_from`
 (null on a server-bound realm and on a realm that never had a server), and beside it `rekeyed_from`
 (2026-11-12, `RT-REKEY-ID-MAP-FOR-ETERNIA`; plan `planned/rejoin-fresh-realm-2026-11-12.md` §8): null until the
-local copy's re-key has run (`agent_runtime/realm_rekey.py`; nothing runs it yet — the switch-over row), then
+local copy's re-key has run (`agent_runtime/realm_rekey.py`), then
 `{realm_id, workspaces: {old: new}, agents: {old: new}, at}` — the ids the copy had as the team's realm, and
 when it took its own. From `at` on the copy has its own agents with empty chats; the team's agents and
 their chats wait on this machine and return with a re-join. The same map is appended once as the event
@@ -1231,14 +1235,36 @@ for what it had open (active workspace, an Office subscription, per-workspace vi
 filed under an agent or a chat with the OLD id. How long a client shows "this copy now has its own agents"
 is the client's own. Nothing is sent: the team's copy
 is unchanged, and a later publish or pull is a local realm's. Archive then follows the local rules
-(`realm_manage.py`). A re-grant (`adopt_realms`) binds the same realm again by its id, drops the record,
-and brings the realm back if it was archived while local. The drift baselines (`realm_sync/<realm>/*_baseline.json`)
-are copied to `realm_sync_state/<realm>.team_baselines/` at the leave and put back at the re-grant
-(`keep_team_baselines` / `restore_team_baselines`): while local the realm's own publishes and pulls move
-the live baselines against the `local` repository, and read against the team's repository those would
-call a card made while local "published, then removed by the team" — the pull took it away (measured in
-this row's real-path read). With the kept set restored, local-era changes show as store drift and are
-kept by the pull's own family rules. A git-host reason
+(`realm_manage.py`).
+
+**The leave owes a re-key, and a re-join brings the server's realm back fresh (2026-11-12,
+`RT-REJOIN-PULLS-THE-SERVER-REALM-FRESH`; plan `planned/rejoin-fresh-realm-2026-11-12.md`).** Owner: "it
+would be less buggy if it kept your local realm and then re-pulled the fresh one from the community server";
+"it should be rekeyd as soon as you leave and checked for a rekey again once joined back". `make_realm_local`
+records the re-key as owed (`realm_rekey/<realm>.json`, the id map minted from the realm as it is at the
+leave) and `agent_runtime/realm_rekey_triggers.py` runs it the first moment nothing is running: inside the
+`runtime.realm.revoked` call itself when the serve is idle, else when its last turn ends, on a 20 s tick, and
+at the next serve start before the socket accepts. Until it runs the local copy still answers to the team's
+ids and shows the team's agents; afterwards it has its own realm id, workspace ids, board ids, board-minted
+card ids and new agents of the same personas with empty chats (`rekeyed_from`, `realm.rekeyed`). What the
+member adds after the leave was never the team's and keeps its ids.
+
+`runtime.realm.adopt` (and the argv twin) for a granted realm this install still holds as a LOCAL realm —
+its re-key owed or half done, or a realm left under a build that owed none — finishes that re-key first, so
+the adopt creates the server's realm new, exactly as for a first-time joiner: the team's realm id, the default
+workspace, nothing else until the first pull. It is never the local copy bound again; `shared_from` and
+`rekeyed_from` stay on the local copy, which is how a client tells the two realms of one name apart. When the
+re-key cannot run in that call the adopt is refused **`realm_busy`** (JSON-RPC conflict, `retryable: true`,
+`data`: `realm_id`, `running` — `turn` | `work_run` | `build` | `rename_blocked` | `serve` —
+`retry_after_ms`, and `blocked_step` for a refused rename) and NOTHING is adopted, for any realm of that
+grant list. The first pull of the fresh realm puts the team's agents back before its mint door looks —
+the ones the team still publishes, under the team's ids, so their chats (which never left this machine)
+re-attach; an agent the team has since removed stays parked. The team repository's head is not moved by a
+re-join, and nothing done while local is published by it. This machine's folder slots, env fills and Lens
+watches moved with the local copy: the fresh realm's workspaces arrive with no folder bound, as for a
+first-time joiner. Install-wide catalogues (maps, prefabs, persona definitions, skills) are not re-keyed:
+the fresh pull meets this install's copy of an id by each family's ordinary pull rule, as for a member who
+edited offline. A git-host reason
 is unchanged: the realm stays bound under the mark described above. `runtime.realm.adopt` also converts
 any realm still bound under a member-access mark written before this rule (`make_marked_realms_local`).
 

@@ -2,11 +2,21 @@
 """Apply one work-queue row operation by ID in a SESSION's checkout, then commit and push it.
 
     python scripts/work_row.py <claim|release|set-status|delete|append> <ID> --who <lane>
-        [--note <path>] [--status "<segment>"] [--row "<line>"] [--repo <checkout>] [--no-commit]
-        [--machine <host>] [--account <git account>] [--worktree <folder>]
+        [--note <path>] [--status "<segment>"] [--row "<line>"] [--under "<heading>"] [--repo <checkout>]
+        [--no-commit] [--no-push] [--machine <host>] [--account <git account>] [--worktree <folder>]
+    python scripts/work_row.py handoff <ID> --who <lane> --text "<found, how far, likely fix>" [--date YYYY-MM-DD]
     python scripts/work_row.py close <ID> --who <lane> (--done <sha|here> | --refuted <sha|here> | --owner "<words>")
         [--result "<line>"] [--date YYYY-MM-DD] [--note <path>] [--repo <checkout>] [--no-wake] [--no-commit]
-        [--allow-unlanded]
+        [--no-push] [--allow-unlanded]
+
+``handoff`` adds ONE `` · handoff <date> (<lane>): <text>`` segment to the row, before its claim mark, and leaves
+every other segment alone (RT-QUEUE-ROW-HANDOFF-HAS-NO-COMMAND; a second blocker is ``set-status`` with a list:
+``"BLOCKED <date>: another lane — `A` then `B`: why"``). ``append`` places the new row beside its own: a subtask
+after the last live row of its task in the note that holds them, a task row after the last row under that note's
+``## Tasks`` heading, ``--under "<heading>"`` after the last row under the heading that starts with those words;
+a row with nowhere better goes to the end of the note (RT-QUEUE-ROW-APPEND-LANDS-AT-THE-BOTTOM-OF-THE-NOTE).
+``--no-push`` commits the operation by pathspec and pushes nothing — for a lane whose landing checks run before its
+push (RT-QUEUE-ROW-OP-PUSHES-BEFORE-THE-LANES-CHECKS); the default pushes, as before.
 
 A finished row is CLOSED, never deleted: ``delete`` only drops a line (to move a row, with ``append`` in
 its new queue), and the row guard refuses a row that left the live queues without an archive line (ADR 0011).
@@ -17,7 +27,9 @@ removed, the status replaced by ONE outcome, the line appended to
 files in one commit, ``queue(<stem>): close <ID> <outcome>``. Every row of this brain BLOCKED on ``<ID>`` (reason
 ``hermes`` or ``another lane``) is woken in the same commit: back to ``READY <date>`` with an ``unblocked`` segment
 naming the close (``agent_runtime/work_store/wake.py``; launcher row BRAIN-QUEUE-CLOSE-WAKES-DEPENDENTS);
-``--no-wake`` leaves them. Rows in the launcher or backend brains are theirs to wake — the launcher's
+``--no-wake`` leaves them (and says so on stderr: a row left BLOCKED on an archived row reds the queue gate). A row
+whose block lists several rows (``— `A` then `B`, `C`: why``) is woken only by the close of the last one still
+open; until then a close of one of them re-points it at the rest, ``--no-wake`` or not. Rows in the launcher or backend brains are theirs to wake — the launcher's
 ``dart tool/queue/waits_on.dart <ID> --in hermes`` lists them.
 
 A close also moves the row's TASK (launcher plan ``EterniaLauncher/docs/mission_control/planned/
@@ -76,8 +88,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from agent_runtime.work_store.grammar import (
-    RECOMMEND, SEPARATOR, STATUS, Op, OutcomeKind, Row, apply, archive_note_for, archive_note_text, find, is_queue,
-    parse_note, parse_outcome, row_defects, split_segments,
+    RECOMMEND, ROW, SEPARATOR, STATUS, Op, OutcomeKind, Row, apply, archive_note_for, archive_note_text, claim_mark,
+    find, is_queue, parse_note, parse_outcome, row_defects, split_segments,
 )
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 from agent_runtime.work_store.tasks import (
@@ -88,6 +100,8 @@ from agent_runtime.work_store.wake import unblocked_segment, wake_dependents
 
 COMMANDS = {"claim": Op.CLAIM, "release": Op.RELEASE, "set-status": Op.SET_STATUS, "delete": Op.DELETE,
             "append": Op.APPEND, "close": Op.CLOSE}
+#: The one command that is not a Work-writer op: a record segment added to a row.
+HANDOFF = "handoff"
 BRAIN_GLOBS = ("*_Brain/20 — Active Initiatives/*.md", "*_brain/20 — Active Initiatives/*.md")
 #: What a push that lost the race for the branch says. ``cannot lock ref`` is the remote's own wording when two
 #: pushes arrive together (``! [remote rejected] … is at <sha> but expected <sha>``, lived 2026-11-12).
@@ -108,14 +122,17 @@ def run_git(args: list[str], repo: Path) -> subprocess.CompletedProcess:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("command", choices=sorted(COMMANDS))
+    parser.add_argument("command", choices=sorted([*COMMANDS, HANDOFF]))
     parser.add_argument("row_id", metavar="ID")
     parser.add_argument("--who", required=True)
     parser.add_argument("--note")
     parser.add_argument("--status")
     parser.add_argument("--row")
     parser.add_argument("--repo", default=".")
+    parser.add_argument("--under", metavar="HEADING")
+    parser.add_argument("--text")
     parser.add_argument("--no-commit", action="store_true")
+    parser.add_argument("--no-push", action="store_true")
     parser.add_argument("--no-wake", action="store_true")
     parser.add_argument("--allow-unlanded", action="store_true")
     parser.add_argument("--machine")
@@ -328,12 +345,90 @@ def _note_and_text(repo: Path, args: argparse.Namespace) -> tuple[Path, str]:
         text = path.read_bytes().decode("utf-8")
         rows = parse_note(text, slot="", note=path.name)
         if find(rows, args.row_id) is not None:
-            if COMMANDS[args.command] is Op.APPEND:
+            if COMMANDS.get(args.command) is Op.APPEND:
                 raise WorkRefused(Reason.ID_EXISTS, args.row_id)
             return path, text
-    if COMMANDS[args.command] is Op.APPEND and notes and notes[0].is_file():
-        return notes[0], notes[0].read_bytes().decode("utf-8")
+    if COMMANDS.get(args.command) is Op.APPEND and notes and notes[0].is_file():
+        home = _home_note(notes, args.row or "") or notes[0]
+        return home, home.read_bytes().decode("utf-8")
     raise WorkRefused(Reason.ROW_GONE if notes else Reason.NOTE_MISSING, args.row_id)
+
+
+def _new_row(line: str) -> Row | None:
+    return next(iter(parse_note(line, slot="", note="")), None)
+
+
+def _own_rows(new: Row, rows: list[Row]) -> list[Row]:
+    """The live rows of ``rows`` that belong with ``new``, a subtask: its task's other subtasks (its own group's rows
+    when no task row is in sight), in note order. Empty for a task row or an untasked one."""
+
+    if new.task is not None or new.group is None:
+        return []
+    tasks = {row.task for row in rows if row.task is not None}
+    home = owning_task(new.group, tasks) or new.group
+    return [row for row in rows if row.task is None and row.group is not None
+            and (owning_task(row.group, tasks) or row.group) == home]
+
+
+def _home_note(notes: list[Path], line: str) -> Path | None:
+    """The queue note that already holds the new row's own rows, else None (the caller's default stands)."""
+
+    new = _new_row(line)
+    if new is None:
+        return None
+    return next((path for path in notes
+                 if _own_rows(new, parse_note(path.read_bytes().decode("utf-8"), slot="", note=""))), None)
+
+
+def _after_section(lines: list[str], words: str) -> int | None:
+    """The index to insert at so a line lands after the last row under the first heading starting with ``words``."""
+
+    start = next((i for i, line in enumerate(lines) if line.startswith("#") and
+                  line.lstrip("#").strip().startswith(words)), None)
+    if start is None:
+        return None
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("#")), len(lines))
+    last = max((i for i in range(start + 1, end) if ROW.match(lines[i])), default=None)
+    return last + 1 if last is not None else start + 1
+
+
+def appended_text(text: str, line: str, under: str | None) -> str:
+    """``text`` with the new row ``line`` placed beside its own (module docstring); the end of the note otherwise."""
+
+    lines = text.split("\n")
+    new = _new_row(line)
+    at: int | None = None
+    if under:
+        at = _after_section(lines, under.lstrip("#").strip())
+        if at is None:
+            raise WorkRefused(Reason.INVALID, f"--under: no heading of the note starts with `{under}`")
+    elif new is not None and new.task is not None:
+        at = _after_section(lines, "Tasks")
+    elif new is not None and (own := _own_rows(new, parse_note(text, slot="", note=""))):
+        # MUTATION: drop this arm and test_append_puts_a_row_beside_its_tasks_other_rows reddens.
+        at = own[-1].line_no
+    if at is None:
+        return text + ("" if text.endswith("\n") else "\n") + line + "\n"
+    carriage = "\r" if at and lines[at - 1].endswith("\r") else ""
+    lines.insert(at, line + carriage)
+    return "\n".join(lines)
+
+
+def handoff_line(line: str, *, who: str, day: str, text: str | None) -> str:
+    """``line`` with one ``handoff <day> (<who>): <text>`` segment added before its claim mark."""
+
+    words = " ".join(str(text or "").split())
+    if not words:
+        raise WorkRefused(Reason.INVALID, 'handoff names --text "<found, how far, likely fix>"')
+    claim = claim_mark(line)
+    open_line = apply(line, Op.RELEASE, who=who, date=day, payload={})
+    new = f"{open_line}{SEPARATOR}handoff {day} ({who}): {words}" + (f"{SEPARATOR}{claim.group(0)}" if claim else "")
+    # MUTATION: drop the segment count and test_handoff_adds_one_dated_segment_before_the_claim reddens (a text
+    # carrying the separator is written as two segments).
+    if len(split_segments(new)) != len(split_segments(line)) + 1 or (not row_defects(line) and row_defects(new)):
+        raise WorkRefused(Reason.GRAMMAR_INVALID, "a handoff is ONE segment the grammar reads: no ` · ` in --text "
+                                                  "(a label goes in parentheses), every code span closed")
+    return new
 
 
 def _place_token(value: str | None, part: str) -> str:
@@ -356,14 +451,18 @@ def claim_who(args: argparse.Namespace, repo: Path) -> str:
 
 
 def edited_text(text: str, args: argparse.Namespace) -> str:
-    op = COMMANDS[args.command]
+    op = COMMANDS.get(args.command)
     if op is Op.APPEND:
         if not args.row or row_defects(args.row) or f"`{args.row_id}` — " not in args.row:
             raise WorkRefused(Reason.GRAMMAR_INVALID, "--row is one canonical row carrying the ID")
-        return text + ("" if text.endswith("\n") else "\n") + args.row + "\n"
+        return appended_text(text, args.row, args.under)
     row = find(parse_note(text, slot="", note=""), args.row_id)
     lines = text.split("\n")
     carriage = "\r" if lines[row.line_no - 1].endswith("\r") else ""
+    if args.command == HANDOFF:
+        lines[row.line_no - 1] = handoff_line(row.raw, who=args.who, day=args.date or date.today().isoformat(),
+                                              text=args.text) + carriage
+        return "\n".join(lines)
     who = claim_who(args, Path(args.repo).resolve()) if op is Op.CLAIM else args.who
     new = apply(row.raw, op, who=who, date=date.today().isoformat(), payload={"status": args.status or ""})
     if new is None:
@@ -398,7 +497,7 @@ def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, 
     relative = list(dict.fromkeys([note.relative_to(repo).as_posix(), *(path.relative_to(repo).as_posix()
                                                                          for path in (*also, *woken))]))
     if not also:
-        subject = f"queue: {COMMANDS[args.command].value} {args.row_id} {args.who}"
+        subject = f"queue: {op.value if (op := COMMANDS.get(args.command)) else args.command} {args.row_id} {args.who}"
     else:
         word = f"DONE {args.done}" if args.done else f"REFUTED {args.refuted}" if args.refuted else "CLOSED by owner"
         subject = f"queue({note.stem}): close {args.row_id} {word}"
@@ -407,6 +506,9 @@ def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, 
         if done.returncode != 0:
             print(f"git {step[0]} failed: {str(done.stderr).strip()[-300:]}", file=sys.stderr)
             return EXIT_GIT_FAILED
+    if args.no_push:
+        # MUTATION: drop this return and test_no_push_commits_the_op_and_pushes_nothing reddens.
+        return 0
     pushed = git(["push", "-q", *push_target(repo, git)], repo)
     if pushed.returncode == 0:
         return 0
@@ -429,12 +531,17 @@ def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, s
     before = {**texts, note: text}
     texts[note], _ = archive_row(repo, note, text, args.row_id, args.who, payload, archives)
     woken: dict[Path, list[str]] = {}
-    if not args.no_wake:
-        for path, current in texts.items():
-            after, ids = wake_dependents(current, args.row_id, payload["date"], how)
-            if ids:
-                texts[path] = after
-                woken[path] = ids
+    held: dict[str, list[str]] = {}
+    stranded: list[str] = []
+    live_ids = {row.ref.id for row in _brains(texts, siblings)}
+    for path, current in texts.items():
+        stepped = wake_dependents(current, args.row_id, payload["date"], how, live_ids=live_ids,
+                                  wake=not args.no_wake)
+        texts[path] = stepped.text
+        held |= stepped.held
+        stranded += stepped.stranded
+        if stepped.woken:
+            woken[path] = stepped.woken
     said = task_step(repo, closed, [i for ids in woken.values() for i in ids], texts, archives, payload,
                      siblings, args.who, how)
     touched = [path for path in texts if texts[path] != before.get(path)]
@@ -448,6 +555,13 @@ def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, s
     for ids in woken.values():
         for woke in ids:
             print(f"woke `{woke}`: READY (it waited on `{args.row_id}`)")
+    for row_id, still_open in held.items():
+        print(f"`{row_id}` stays BLOCKED: it also waits on {', '.join(f'`{b}`' for b in still_open)}, still open "
+              f"(`{args.row_id}` is off its list)")
+    for row_id in stranded:
+        print(f"warning: `{row_id}` is left BLOCKED on `{args.row_id}`, which this close archives (--no-wake): "
+              "re-status it before you push, or the queue gate reds on a blocker that is no longer a row",
+              file=sys.stderr)
     for line in said:
         print(line)
     return touched
@@ -455,7 +569,7 @@ def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, s
 
 def _apply_edit(repo: Path, note: Path, text: str, args) -> None:
     """Every operation but close: one row of *note* rewritten in place."""
-    if COMMANDS[args.command] is Op.CLAIM:
+    if COMMANDS.get(args.command) is Op.CLAIM:
         refuse_claim_of_parked(repo, note, text, args.row_id)
     new = edited_text(text, args)
     others = {path: path.read_bytes().decode("utf-8") for path in queue_notes(repo, None) if path != note}
@@ -479,7 +593,7 @@ def unlanded_sha(repo: Path, args: argparse.Namespace, git: Git) -> str | None:
     """
 
     sha = args.done or args.refuted
-    if COMMANDS[args.command] is not Op.CLOSE or not sha or sha == "here" or args.allow_unlanded:
+    if COMMANDS.get(args.command) is not Op.CLOSE or not sha or sha == "here" or args.allow_unlanded:
         return None
     remote, branch = _target_branch(repo, git)
 
@@ -536,7 +650,7 @@ def _apply_and_push(repo: Path, args: argparse.Namespace, git: Git) -> int:
     touched: list[Path] = []
     try:
         note, text = _note_and_text(repo, args)
-        if COMMANDS[args.command] is Op.CLOSE:
+        if COMMANDS.get(args.command) is Op.CLOSE:
             touched = _apply_close(repo, note, text, args, archives)
         else:
             _apply_edit(repo, note, text, args)

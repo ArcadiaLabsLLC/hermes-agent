@@ -66,6 +66,8 @@ REASON_CODES: dict[str, int] = {
     "sync_secret_excluded": ERR_CONFLICT,
     "sync_remote_unreachable": ERR_HANDLER_FAILED,
     "realm_revoked": ERR_CONFLICT,
+    # A re-join while the local copy's owed re-key cannot run (``realm_rekey_triggers``); retryable.
+    "realm_busy": ERR_CONFLICT,
 }
 
 

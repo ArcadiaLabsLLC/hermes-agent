@@ -8,6 +8,13 @@
 #   gates    the queue gates (row grammar, row-history guard — ADR 0038) and the
 #            cheap whole-tree text gates, in one `scripts/run_tests.sh` run;
 #   doc-cite `scripts/doc_cite_adjacency.py` over the ruled scope;
+#   contracts the two recorded contracts a runtime or CLI change must regenerate — the serve-RPC
+#            manifest expectation (`python -m tests.agent_runtime._serve_rpc_manifest`) and the CLI
+#            contract dump (`scripts/dump_cli_contract.py --check`) — only when a `.py` file under
+#            `agent_runtime/` or `hermes_cli/`, either recorded file or either producer differs from
+#            the merge-base; each names its regenerate command when stale
+#            (RT-PREPUSH-MISSES-STALE-RPC-MANIFEST-AND-CLI-DUMP: a stale manifest once passed prepush
+#            and was found by a grep);
 #   census   the two name census gates (`Running the tests.md` asks a lane that touched Python to
 #            run them), when touched or named: their own step and budget, because together they
 #            are ~55 s of whole-tree walk and sank the touched lane's 60 s on their own
@@ -19,6 +26,10 @@
 #            tests/`), which no diff can find for you. This is the named SLOWER
 #            lane: its cost is the pusher's own tests, so it carries its own
 #            budget instead of counting against the default path's few seconds.
+#            A named FILE that is not `test_*.py` (a fixture, a conftest, a helper — what
+#            `git grep -l <symbol>` also returns) is skipped with one line naming it, never
+#            run as a test: three rounds were lost to "no tests ran"
+#            (RT-PREPUSH-RUNS-A-NAMED-FIXTURE-AS-A-TEST). A named directory still runs.
 #            A file this tree last ran in PREPUSH_SHARD_MIN s or more (the runner's
 #            own `test_durations.json`) runs as shards, side by side, split by node
 #            id (`scripts/_bundle_plugin/hermes_shard.py`), unless it is listed in
@@ -60,8 +71,8 @@
 #   PREPUSH_NOTIFY        `off`, or a command run as `<cmd> <title> <body>`
 #                         instead of the OS adapter (notify-send, osascript,
 #                         the Windows toast).
-#   PREPUSH_<STEP>_BUDGET / PREPUSH_<STEP>_DEADLINE   (STEP = GATES, DOC_CITE, CENSUS,
-#                         TOUCHED; whole seconds) override one step's numbers.
+#   PREPUSH_<STEP>_BUDGET / PREPUSH_<STEP>_DEADLINE   (STEP = GATES, DOC_CITE, CONTRACTS,
+#                         CENSUS, TOUCHED; whole seconds) override one step's numbers.
 #   PREPUSH_HEARTBEAT     seconds between heartbeats past budget (default 5).
 #   PREPUSH_CAP           the whole-run cap, whole seconds (default 240).
 #   PREPUSH_LEDGER        the overrun ledger (default _lane_logs/prepush_overruns.jsonl).
@@ -148,6 +159,10 @@ BUDGET_CENSUS="${PREPUSH_CENSUS_BUDGET:-30}"
 DEADLINE_CENSUS="${PREPUSH_CENSUS_DEADLINE:-60}"
 BUDGET_TOUCHED="${PREPUSH_TOUCHED_BUDGET:-60}"
 DEADLINE_TOUCHED="${PREPUSH_TOUCHED_DEADLINE:-120}"
+# contracts: 1.6 s + 0.5 s alone, 2026-11-12 on nekwo-ubuntu24 at load ~50 (the manifest check
+# imports the serve-RPC registry, the dump walks the argparse tree; neither runs a test).
+BUDGET_CONTRACTS="${PREPUSH_CONTRACTS_BUDGET:-6}"
+DEADLINE_CONTRACTS="${PREPUSH_CONTRACTS_DEADLINE:-20}"
 HEARTBEAT="${PREPUSH_HEARTBEAT:-5}"
 CAP="${PREPUSH_CAP:-240}"
 SHARD_MIN="${PREPUSH_SHARD_MIN:-20}"
@@ -173,6 +188,7 @@ done
 
 for value in "$BUDGET_GATES" "$DEADLINE_GATES" "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
     "$BUDGET_CENSUS" "$DEADLINE_CENSUS" "$BUDGET_TOUCHED" "$DEADLINE_TOUCHED" "$HEARTBEAT" "$CAP" \
+    "$BUDGET_CONTRACTS" "$DEADLINE_CONTRACTS" \
     "$SHARD_MIN" "$SHARD_SECONDS"; do
   case "$value" in
     ''|*[!0-9]*|0) echo "prepush: a budget, deadline, cap, heartbeat or shard number is not a positive whole number of seconds: '$value'" >&2; exit 2 ;;
@@ -193,9 +209,34 @@ while IFS= read -r path; do
   esac
 done < <( { git diff --name-only "$BASE" --; git ls-files --others --exclude-standard -- tests; } | sort -u)
 
+# The named arguments that run. A FILE not named `test_*.py` is not a test: skipped, and said.
+# MUTATION: keep every existing path (NAMED=EXTRA) and
+# test_a_named_file_that_is_not_a_test_is_skipped_and_said reddens.
+NAMED=()
+NOT_TESTS=()
 for path in ${EXTRA[@]+"${EXTRA[@]}"}; do
   [ -e "$path" ] || { echo "prepush: no such test path: $path" >&2; exit 2; }
+  if [ -f "$path" ]; then
+    case "${path##*/}" in
+      test_*.py) NAMED+=("$path") ;;
+      *) NOT_TESTS+=("$path") ;;
+    esac
+  else
+    NAMED+=("$path")
+  fi
 done
+
+# The recorded contracts are checked when the branch (committed, staged, unstaged or untracked)
+# changed what they are generated from.
+# MUTATION: never set CONTRACTS=1 and test_a_runtime_or_cli_change_checks_the_two_recorded_contracts
+# reddens.
+CONTRACTS=0
+while IFS= read -r path; do
+  case "$path" in
+    agent_runtime/*.py|hermes_cli/*.py|scripts/dump_cli_contract.py|tests/fixtures/hermes_cli_contract.json|\
+    tests/agent_runtime/_serve_rpc_manifest.py|tests/agent_runtime/serve_rpc_manifest.expected.json) CONTRACTS=1 ;;
+  esac
+done < <( { git diff --name-only "$BASE" --; git ls-files --others --exclude-standard -- agent_runtime hermes_cli; } | sort -u)
 
 # Each file once, in plan order: a gate is never re-run in the touched lane.
 GATES=()
@@ -206,7 +247,7 @@ for path in "${PREPUSH_QUEUE_GATES[@]}" "${PREPUSH_TEXT_GATES[@]}"; do
   SEEN="$SEEN$path"$'\n'
   GATES+=("$path")
 done
-for path in ${TOUCHED[@]+"${TOUCHED[@]}"} ${EXTRA[@]+"${EXTRA[@]}"}; do
+for path in ${TOUCHED[@]+"${TOUCHED[@]}"} ${NAMED[@]+"${NAMED[@]}"}; do
   case "$SEEN" in *$'\n'"$path"$'\n'*) continue ;; esac
   SEEN="$SEEN$path"$'\n'
   case " ${PREPUSH_CENSUS_GATES[*]} " in
@@ -269,6 +310,13 @@ _list "queue gates" "${PREPUSH_QUEUE_GATES[@]}"
 _list "text gates" "${PREPUSH_TEXT_GATES[@]}"
 echo "  step doc-cite — budget ${BUDGET_DOC_CITE}s, deadline ${DEADLINE_DOC_CITE}s"
 echo "    scripts/doc_cite_adjacency.py --exclude archive --exclude planned"
+if [ "$CONTRACTS" = 1 ]; then
+  echo "  step contracts — budget ${BUDGET_CONTRACTS}s, deadline ${DEADLINE_CONTRACTS}s"
+  echo "    python -m tests.agent_runtime._serve_rpc_manifest   (stale: add --write)"
+  echo "    scripts/dump_cli_contract.py --check                (stale: --write)"
+else
+  echo "  step contracts — no runtime or CLI source changed, skipped"
+fi
 if [ "${#CENSUS[@]}" -gt 0 ]; then
   echo "  step census — budget ${BUDGET_CENSUS}s, deadline ${DEADLINE_CENSUS}s"
   _list "name census gates" "${CENSUS[@]}"
@@ -282,7 +330,10 @@ else
   echo "  step touched (the slower lane) — nothing touched or named, skipped"
 fi
 _list "touched tests" ${TOUCHED[@]+"${TOUCHED[@]}"}
-_list "named by you" ${EXTRA[@]+"${EXTRA[@]}"}
+_list "named by you" ${NAMED[@]+"${NAMED[@]}"}
+for path in ${NOT_TESTS[@]+"${NOT_TESTS[@]}"}; do
+  echo "  skipped, not a test file (a named file is test_*.py; name its directory to run that): $path"
+done
 echo "  not run: the landing gate (scripts/run_tests_bundled.sh tests) and the importers of a"
 echo "    symbol you changed unless you named them above"
 [ "$PLAN_ONLY" = 1 ] && exit 0
@@ -522,6 +573,16 @@ _step gates "$BUDGET_GATES" "$DEADLINE_GATES" env ETERNIA_HEAVY_SLOTS=off bash "
   --bundle-size "$GATES_BUNDLE_SIZE" "${GATES[@]}"
 _step doc-cite "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
   "$PY" "$SCRIPT_DIR/doc_cite_adjacency.py" --exclude archive --exclude planned
+# Both contract checks run even when the first is stale: one push, the whole answer.
+_contracts() {
+  local rc=0
+  "$PY" -m tests.agent_runtime._serve_rpc_manifest || rc=1
+  "$PY" "$SCRIPT_DIR/dump_cli_contract.py" --check || rc=1
+  return "$rc"
+}
+if [ "$CONTRACTS" = 1 ]; then
+  _step contracts "$BUDGET_CONTRACTS" "$DEADLINE_CONTRACTS" _contracts
+fi
 if [ "${#CENSUS[@]}" -gt 0 ]; then
   _step census "$BUDGET_CENSUS" "$DEADLINE_CENSUS" bash "$RUNNER" -j "$JOBS" "${CENSUS[@]}"
 fi

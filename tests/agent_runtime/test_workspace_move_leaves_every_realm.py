@@ -7,7 +7,8 @@ one bare remote) and pinned here through the same verbs (``runtime.workspace.mov
 
 * RT-WORKSPACE-MOVE-OUT-OF-PERSONAL-REPO-REALM — a player's two machines, two of her own realms in one repo;
 * RT-WORKSPACE-RESTORED-IN-SOURCE-AFTER-A-MOVE-SITS-IN-TWO-REALMS — another member restores it in the source;
-* RT-REJOIN-KEEPS-WORKSPACES-MOVED-WHILE-LOCAL — moved out while the realm was local, then a re-join.
+* RT-REJOIN-KEEPS-WORKSPACES-MOVED-WHILE-LOCAL — moved out while the realm was local, then a re-join (now a
+  fresh re-join, RT-REJOIN-PULLS-THE-SERVER-REALM-FRESH: the move stays with the local copy's ids).
 
 Killing mutations are named per test.
 """
@@ -17,7 +18,8 @@ import shutil
 
 import pytest
 
-from agent_runtime import paths, serve_rpc
+from agent_runtime import paths, serve_rpc, turn_activity
+from agent_runtime.realm_rekey import read_rekey_journal
 from agent_runtime.realm_sync import RealmSyncError, publish_realm_sync, pull_realm_sync
 from agent_runtime.store import RealmStore, WorkspaceStore
 from tests.agent_runtime.test_realm_leave import _adopt, _team_realm
@@ -144,20 +146,25 @@ def test_a_workspace_another_member_restored_after_a_move_ends_in_one_realm(team
     assert WorkspaceStore().get(workspace.id).realm_id == shared.id
 
 
-def test_a_workspace_moved_out_while_the_realm_was_local_stays_out_after_a_re_join(tmp_path, monkeypatch):
+def test_a_workspace_moved_out_while_the_realm_was_local_stays_yours_and_the_team_keeps_its_own(tmp_path, monkeypatch):
     """Leave the server, move a workspace into your own realm, run a sync while local, join again, pull.
 
-    Mutations: in ``move_workspace_realm`` write the leave only ``if source.server_id`` -> the pull after the
-    re-join writes the team's copy back, ``realm_id`` is the team realm again, red;
-    in ``_pulled_artifact_bytes`` drop the ``workspace_ids`` filter by the merged ledger -> the team realm
-    lists the workspace its own ledger says left, red at ``_lists(realm.id)``."""
+    Since RT-REJOIN-PULLS-THE-SERVER-REALM-FRESH the re-join brings the team's realm back fresh: the moved
+    workspace stays in Home under the id the local copy's re-key gave it, the team's copy of it comes back in
+    the team's realm under the team's id, and nothing of the move reaches the team.
+
+    Mutations: in ``move_workspace_realm`` write the leave only ``if source.server_id`` -> no change here any
+    more (the fresh realm carries no ledger; pinned by ``test_a_move_between_your_own_realms…``); drop
+    ``_rewrite_membership`` in the re-key -> Home lists the team's id, red at ``_lists(home.id)``; bind the
+    same realm again at the adopt (drop ``make_way``) -> one workspace, in Home, under the team's id, red."""
     realm, bare, clone = _team_realm(tmp_path)
     workspace = WorkspaceStore().create(name="Roadmap", realm_id=realm.id)
     realm.workspace_ids.append(workspace.id)  # what the create verb writes: the team's record lists it
     RealmStore().save(realm)
     publish_realm_sync(realm.id)
     team_head = _git_out(bare, "rev-parse", "main")
-    _rpc("runtime.realm.revoked", realm_id=realm.id, reason="membership_left", server_name="The Guild")
+    with turn_activity.admitted_turn("a live turn"):  # the re-key the leave owes waits: the move is made first
+        _rpc("runtime.realm.revoked", realm_id=realm.id, reason="membership_left", server_name="The Guild")
     home = RealmStore().create(name="Home")
     moved = _move(workspace_id=workspace.id, realm_id=home.id)["result"]  # a local realm: no confirm asked
     assert (moved["moved"], moved["publish_owed"]) == (True, [])
@@ -168,14 +175,15 @@ def test_a_workspace_moved_out_while_the_realm_was_local_stays_out_after_a_re_jo
     _adopt(monkeypatch, {"id": realm.id, "server_id": "srv_team", "name": "Team", "slug": "team", "git_url": str(clone)})
     pull_realm_sync(realm.id)
 
-    assert WorkspaceStore().get(workspace.id).realm_id == home.id
-    assert _lists(realm.id) == ([], [workspace.id])
-    assert _lists(home.id) == ([workspace.id], [])
-    # Nothing reached the team by the re-join or the pull: the leave is this member's to publish.
+    mine = read_rekey_journal(realm.id)["map"]["workspaces"][workspace.id]
+    assert WorkspaceStore().get(mine).realm_id == home.id
+    assert _lists(home.id) == ([mine], [])
+    assert WorkspaceStore().get(workspace.id).realm_id == realm.id  # the team's Roadmap, back in the team's realm
+    assert _lists(realm.id) == ([workspace.id], [])
+    # Nothing reached the team by the re-join or the pull, and a publish of the fresh realm removes nothing.
     assert _git_out(bare, "rev-parse", "main") == team_head
-    assert f"realms/{realm.id}/store/workspaces/{workspace.id}.json" in _git_out(bare, "ls-tree", "-r", "--name-only", "main")
     publish_realm_sync(realm.id)
-    assert f"store/workspaces/{workspace.id}.json" not in _git_out(bare, "ls-tree", "-r", "--name-only", "main")
+    assert f"realms/{realm.id}/store/workspaces/{workspace.id}.json" in _git_out(bare, "ls-tree", "-r", "--name-only", "main")
 
 
 def test_a_realms_default_workspace_cannot_be_moved_out_while_the_realm_is_local(tmp_path):
@@ -186,7 +194,8 @@ def test_a_realms_default_workspace_cannot_be_moved_out_while_the_realm_is_local
     bound = RealmStore().get(realm.id)
     bound.default_workspace_id = default.id
     RealmStore().save(bound)
-    _rpc("runtime.realm.revoked", realm_id=realm.id, reason="membership_left")
+    with turn_activity.admitted_turn("a live turn"):  # read while the realm still has the id it left with
+        _rpc("runtime.realm.revoked", realm_id=realm.id, reason="membership_left")
     home = RealmStore().create(name="Home")
     refused = _move(workspace_id=default.id, realm_id=home.id)["error"]["data"]
     assert (refused["reason"], refused["realm_id"]) == ("realm_default_workspace", realm.id)
