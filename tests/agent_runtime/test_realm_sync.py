@@ -129,6 +129,29 @@ def test_publish_dry_run_is_allowlisted_and_excludes_state(isolate_agent_runtime
     assert all("\\" not in path for path in paths)
 
 
+def test_a_local_realm_with_no_remote_publishes_into_its_own_history(isolate_agent_runtime_root, tmp_path):
+    """RT-LOCAL-REALM-PUBLISH-SAYS-REMOTE-UNREACHABLE: a server-less realm whose sync repository has no remote
+    committed the publish and then raised ``sync_remote_unreachable`` ("could not push upstream"), so a local
+    realm's every publish read as a failure (the re-key census and the leave test swallowed it). The commit is
+    the publish now, answered as one; a second publish with nothing changed commits nothing.
+    KILLING MUTATION: drop the no-remote ``return`` in ``_stage_commit_and_push`` -> RealmSyncError
+    ``sync_remote_unreachable``, red (recorded in the commit)."""
+    realm, repo = _realm_with_repo(tmp_path)
+    _git_in(repo, "config", "user.email", "realm-sync-test@localhost")
+    _git_in(repo, "config", "user.name", "Realm Sync Test")
+    WorkspaceStore().create(name="Launcher", realm_id=realm.id)
+
+    result = publish_realm_sync(realm.id)
+
+    assert result["state"] == "published" and result["changed"] is True
+    assert _git_in(repo, "log", "-1", "--format=%s").stdout.strip() == f"Publish realm sync {realm.id}"
+    assert _git_in(repo, "remote").stdout.strip() == ""
+    assert _git_in(repo, "status", "--porcelain", "--", "realms").stdout.strip() == ""
+    head = _git_in(repo, "rev-parse", "HEAD").stdout
+    assert publish_realm_sync(realm.id)["changed"] is False
+    assert _git_in(repo, "rev-parse", "HEAD").stdout == head
+
+
 def test_publish_secret_candidate_hard_fails(isolate_agent_runtime_root, tmp_path):
     get_hermes_home()
     skill = get_shared_skills_dir() / "leaky-skill" / "SKILL.md"
