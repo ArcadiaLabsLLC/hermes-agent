@@ -133,11 +133,19 @@ def move_workspace_realm(workspace_id: Any, realm_id: Any, *, confirm_leave_real
         realm's id or name; absent or naming anything else is ``workspace_move_confirm_required``
         with ``owner_realm_id`` and ``owner_realm_name``.
 
-      The move then writes the LEAVE into the source (``record_deleted_workspace`` — what
+    * EVERY move out writes the LEAVE into the realm it left (``record_deleted_workspace`` — what
       ``WorkspaceStore.delete`` writes: off ``workspace_ids``, onto ``deleted_workspace_ids``, a
-      live lift superseded) so realm sync carries it. The pull keeps the moved workspace on this
-      machine (``realm_sync.pull``: the tombstone applier and the overwrite loop both leave a
-      workspace that names another realm). Moving it back lifts the ledger again.
+      live lift superseded), server-bound or not, so realm sync carries it whenever that realm
+      syncs — now or later. A local realm reaches other machines too: through the player's
+      personal repo (``sync_manifest_ref`` is set by its first sync, so "does it sync" cannot be
+      asked at move time — RT-WORKSPACE-MOVE-OUT-OF-PERSONAL-REPO-REALM), and a realm that turned
+      local when the member left its server is bound again by a re-join
+      (RT-REJOIN-KEEPS-WORKSPACES-MOVED-WHILE-LOCAL). Without the leave the other machine's copy
+      is republished into the source, or the team's copy is written back over the moved one. Only
+      the confirm and the publish gate above are a server-bound source's: a local realm is the
+      player's own. The pull keeps the moved workspace on this machine (``realm_sync.pull``: the
+      tombstone applier and the overwrite loop both leave a workspace that names another realm).
+      Moving it back lifts the ledger again.
 
     Publish order (``publish_owed``): the TARGET first when it is server-bound, then the source —
     so the workspace is never absent from both remotes.
@@ -179,10 +187,7 @@ def move_workspace_realm(workspace_id: Any, realm_id: Any, *, confirm_leave_real
             workspace.realm_id = target.id
             workspace = workspaces.save(workspace)
         for source in sources:
-            if source.server_id:
-                record_deleted_workspace(source, workspace.id)
-            else:
-                source.workspace_ids = [wid for wid in (source.workspace_ids or []) if wid != workspace.id]
+            record_deleted_workspace(source, workspace.id)
             realms.save(source)
             moved = True
         target_changed = lift_deleted_workspace(target, workspace.id)
