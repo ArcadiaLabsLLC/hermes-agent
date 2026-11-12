@@ -273,6 +273,7 @@ def finalize_foreground_result(
         ("sudo_auth_failed", True if sudo_auth_failed else None),
         ("sudo_cache_cleared", True if sudo_cache_cleared else None),
         ("timed_out", True if result.get("hermes_timed_out") else None),  # Hermes' deadline, not the command's own exit 124
+        ("stopped", True if result.get("hermes_interrupted") else None),  # Hermes killed it on a Stop, not the command's own exit 130
     ]
     for key, value in optional_fields:
         if value is not None:

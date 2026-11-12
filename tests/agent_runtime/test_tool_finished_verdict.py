@@ -126,6 +126,39 @@ def test_the_terminal_result_carries_hermes_timeout_flag():
 
 
 # --------------------------------------------------------------------------- #
+# A call a Stop killed is "stopped", not "failed"                              #
+# (RT-STOPPED-TOOL-CALL-IS-RECORDED-FAILED)                                    #
+# --------------------------------------------------------------------------- #
+def test_a_call_killed_by_a_stop_is_recorded_stopped_from_the_executor_to_the_stored_element():
+    """The whole chain on the production functions: the executor's ``hermes_interrupted`` →
+    the terminal result the model reads (``stopped: true``) → ``run.tool.finished``
+    (``outcome: stopped``; the status pair stays ``failed`` for old readers) → the progress
+    gate keeps the word → the stored turn element keeps it for a reload."""
+    from agent_runtime.mission_chat_turns.records import _tool_fields
+    from agent_runtime.progress import _typed_outcome
+    from tools.terminal_tool_result import finalize_foreground_result
+
+    def envelope(result):
+        return finalize_foreground_result(
+            command="sleep 300", result=result, env=SimpleNamespace(cwd=None), env_type="local",
+            effective_task_id="t", task_id="t", session_id="s", session_key="k", workdir=None,
+            command_cwd=None, approval_note=None,
+        )
+
+    killed = envelope({"output": "\n[Command interrupted]", "returncode": 130, "hermes_interrupted": True})
+    assert json.loads(killed)["stopped"] is True
+    payload = _finished("terminal", killed, invocation={"command": "sleep 300"})
+    assert (payload["status"], payload["outcome"], payload["exit_code"]) == ("failed", "stopped", 130)
+    assert _typed_outcome(payload["outcome"]), "the progress gate drops the word, so the stream never carries it"
+    assert _tool_fields(payload)["outcome"] == "stopped"
+
+    # A command that exits 130 by itself (its own Ctrl-C handling) was not stopped by anyone.
+    own = envelope({"output": "", "returncode": 130})
+    assert "stopped" not in json.loads(own)
+    assert _finished("terminal", own, invocation={"command": "sleep 300"})["outcome"] == "failed"
+
+
+# --------------------------------------------------------------------------- #
 # One finished call, ONE published event (w3-turn, 2026-10-01)                 #
 # --------------------------------------------------------------------------- #
 

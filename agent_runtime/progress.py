@@ -111,8 +111,8 @@ _OPERATOR_TOOL_RESULT_MAX = 1700
 # The tool-call record's typed admission. A value failing its check is dropped
 # (strict) or kept with a ``would_redact`` marker (observe) — never coerced.
 #: ``outcome`` words: ``profile_runner.tool_payloads._outcome_fields``' status
-#: pair plus its ``TOOL_OUTCOME_TIMED_OUT``.
-_TOOL_CALL_OUTCOMES = frozenset({"passed", "failed", "timed_out"})
+#: pair plus its ``TOOL_OUTCOME_TIMED_OUT`` and ``TOOL_OUTCOME_STOPPED``.
+_TOOL_CALL_OUTCOMES = frozenset({"passed", "failed", "timed_out", "stopped"})
 _TOOL_CALL_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
 
 

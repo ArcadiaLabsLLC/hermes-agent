@@ -31,6 +31,7 @@ from agent_runtime.profile_runner.operator_redaction import (
 __layer__ = "stores"
 
 __all__ = [
+    "TOOL_OUTCOME_STOPPED",
     "TOOL_OUTCOME_TIMED_OUT",
     "_PATCH_MODES",
     "_TODO_STATE_MAX_CONTENT",
@@ -173,13 +174,20 @@ def _tool_finished_payload(
 #: is Hermes' own deadline firing (the terminal result's ``timed_out: true``),
 #: never a command that chose to ``exit 124``.
 TOOL_OUTCOME_TIMED_OUT = "timed_out"
+#: A call Hermes killed because someone pressed Stop (the terminal result's ``stopped: true``,
+#: from the executor's ``hermes_interrupted``) — on that call alone, or on its whole turn. Never a
+#: command that chose to ``exit 130``. The status pair stays ``failed`` for older readers.
+TOOL_OUTCOME_STOPPED = "stopped"
 
 
 def _outcome_fields(status: str, verdict: Any) -> dict[str, Any]:
-    """``outcome`` on every finished payload; ``timed_out: true`` only when it did."""
+    """``outcome`` on every finished payload; ``timed_out: true`` only when it did; ``stopped``
+    for a call a Stop killed (RT-STOPPED-TOOL-CALL-IS-RECORDED-FAILED)."""
 
     if isinstance(verdict, dict) and verdict.get("timed_out") is True:
         return {"outcome": TOOL_OUTCOME_TIMED_OUT, "timed_out": True}
+    if isinstance(verdict, dict) and verdict.get("stopped") is True:
+        return {"outcome": TOOL_OUTCOME_STOPPED}
     return {"outcome": status}
 
 
