@@ -263,6 +263,12 @@ def boot_builds() -> dict[str, Any]:
 
 
 def _loop(sweep: BuildSweep) -> None:
+    from agent_runtime.builds.detect import warm_detection
+
+    try:
+        warm_detection()  # the scan's one-time imports, off the serve's boot path (RT-BUILD-SCAN-FIRST-PASS-OVER-BUDGET)
+    except Exception:
+        logger.warning("build_detect_warm_failed", exc_info=True)
     while not _STOP.wait(SWEEP_INTERVAL_SECONDS):
         try:
             sweep.tick()
