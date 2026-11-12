@@ -169,6 +169,14 @@ A RESUME line in session memory after every report (branch tips, what is merged,
 lane's report lives only in its notification — copy what matters the moment it arrives, and file its
 rows on arrival, by surface ([[TODO]]).
 
+Before dispatching rows filed during a wave, read all of them in one pass, merge duplicates, order the
+ones that depend on each other and brief them as a set, quoting each row's own words (in a question to
+the owner too). A task's follow-ups sit on its task row's `handoff` segment until its close: file them
+together then as the task's follow-up task, check none is a defect in what the task built, and file
+what a dead lane's handoff and holding-file lines carry (owner 2026-11-12; the rule is
+`EterniaLauncher/docs/agent_context/WORK_TRACKING.md`, "A row says what was SEEN…" and "A task closes
+when…").
+
 Before the closing queue commit of a landing, run `python scripts/remap_cited_shas.py --onto origin/main
 <queue files>`; pin each HELD commit with `git tag held/<lane>/<sha> <sha>` (pushed).
 
