@@ -15,6 +15,7 @@ from hermes_cli.flag_binding import list_flag_or_empty
 from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 from agent_runtime.errors import NotFound, WorkspaceDeleteBlocked
 from agent_runtime.realm_sync import sync_artifacts_for_workspace_agent
+from agent_runtime.root_observability import attach_root_observability
 from agent_runtime.scope_activation import activate_workspace, workspace_row as _scope_workspace_row
 from agent_runtime.store import RealmStore, WorkspaceStore
 from hermes_cli.harness_support import (
@@ -260,7 +261,7 @@ def _cmd_workspace_unarchive(args) -> int:
         except WorkspaceManageRefused as exc:
             return emit_harness_error(exc, args=args, code=exc.reason.value)
         row["restored"] = restored
-    _print_stage42(_object_envelope("workspace", row), args=args, default_output="json")
+    _print_stage42(attach_root_observability(_object_envelope("workspace", row)), args=args, default_output="json")
     return 0
 
 
@@ -272,5 +273,6 @@ def _cmd_workspace_move_realm(args) -> int:
         row, flags = move_workspace_realm(args.workspace_id, args.realm_id)
     except WorkspaceManageRefused as exc:
         return emit_harness_error(exc, args=args, code=exc.reason.value)
-    _print_stage42(_object_envelope("workspace", {**row, **flags}), args=args, default_output="json")
+    envelope = attach_root_observability(_object_envelope("workspace", {**row, **flags}))
+    _print_stage42(envelope, args=args, default_output="json")
     return 0

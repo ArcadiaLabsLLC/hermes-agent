@@ -120,7 +120,7 @@ def _cmd_realm_default(args) -> int:
         row = default_realm_row(args.realm_id)
     except DefaultRealmRefused as exc:
         return emit_harness_error(exc, args=args, code=exc.reason.value)
-    _print_stage42(_object_envelope("realm", row), args=args, default_output="json")
+    _print_stage42(attach_root_observability(_object_envelope("realm", row)), args=args, default_output="json")
     return 0
 
 
