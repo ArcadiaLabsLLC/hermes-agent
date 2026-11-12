@@ -355,7 +355,7 @@ def classify_persisted_turn_row(
                 finish_reason=reason_token,
                 reply_chars=len(text),
             )
-        if _has_tool_calls(tool_calls) or reason_token in TOOL_CALL_FINISH_REASONS:
+        if persisted_row_is_tool_step(tool_calls=tool_calls, finish_reason=reason_token):
             return None
         return TurnVisibility(
             state=VisibilityState.SILENT,
@@ -365,6 +365,12 @@ def classify_persisted_turn_row(
         )
     except Exception:  # pragma: no cover — the totality guarantee itself
         return None
+
+
+def persisted_row_is_tool_step(*, tool_calls: Any, finish_reason: Any = None) -> bool:
+    """Is this stored assistant row a STEP of its turn (it asks for tools), not the turn's reply?"""
+
+    return _has_tool_calls(tool_calls) or str(finish_reason or "").strip() in TOOL_CALL_FINISH_REASONS
 
 
 def _has_tool_calls(tool_calls: Any) -> bool:
@@ -441,5 +447,6 @@ __all__ = [
     "VisibilityState",
     "classify_persisted_turn_row",
     "classify_turn_visibility",
+    "persisted_row_is_tool_step",
     "printable_reply_text",
 ]

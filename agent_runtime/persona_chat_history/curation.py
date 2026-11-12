@@ -27,7 +27,7 @@ from ..serde import safe_assignment_text, safe_assignment_token
 from ..relay_policy import parse_harness_delivery_marker, parse_lens_episode_marker, parse_relay_sender_marker
 from .operator_envelopes import strip_operator_envelopes
 from ..transcript_order import TURN_SEQ_OPERATOR, TURN_SEQ_TERMINAL
-from ..turn_visibility import printable_reply_text
+from ..turn_visibility import persisted_row_is_tool_step, printable_reply_text
 from .markers import (
     _carry_run_budget,
     _carry_turn_outcome,
@@ -351,11 +351,24 @@ class _OperatorCurator:
             row["input_mode"] = input_mode
 
 
+def _is_reply_row(raw: Mapping[str, Any]) -> bool:
+    """A stored assistant row that closes its turn: no tool request, no interrupted mark."""
+
+    if persisted_row_is_tool_step(tool_calls=raw.get("tool_calls"), finish_reason=raw.get("finish_reason")):
+        return False
+    metadata = raw.get("display_metadata")
+    return not (isinstance(metadata, Mapping) and metadata.get("interrupted") is True)
+
+
 class _AgentCurator:
     role = MessageRole.AGENT
 
     def before_curation(self, state: CurationState, ctx: RowContext) -> None:
-        if ctx.logical_client_message_id:
+        # Only the turn's REPLY row answers it. A tool step, or the half reply a stop or a
+        # crash left behind (upstream marks it ``interrupted``), is not one: counting those
+        # hid the terminal marker of every cut-off turn that had got as far as one tool call,
+        # so a crashed or stopped turn reloaded as nothing (RT-CRASHED-TURN-WAITS-FOR-NEXT-SEND).
+        if ctx.logical_client_message_id and _is_reply_row(ctx.raw):
             state.assistant_client_message_ids.add(ctx.logical_client_message_id)
 
     def strip_envelopes(self, raw_content: Any) -> tuple[Any, Any, Any]:
