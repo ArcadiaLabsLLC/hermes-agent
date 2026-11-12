@@ -39,6 +39,7 @@ __all__ = [
     "_git_state",
     "_has_remote",
     "_looks_like_remote",
+    "_pull_fast_forward",
     "_realm_subtree",
     "_redact_text",
     "_refresh_remote_tracking",
@@ -193,6 +194,33 @@ def _ensure_repo_gitattributes(repo: Path) -> None:
         path.write_bytes(desired)
     except OSError:
         return
+
+
+def _pull_fast_forward(repo: Path, *, credential: RealmSyncCredential | None = None) -> None:
+    """``git pull --ff-only``, past the one untracked file hermes itself writes.
+
+    ``_ensure_repo_gitattributes`` writes the pin UNTRACKED into a clone made while the remote held
+    none (it is committed only by a publish). Once another member publishes theirs, git refuses the
+    fast-forward — "untracked working tree files would be overwritten by merge: .gitattributes" —
+    and every later pull and publish of that clone fails (RT-REALM-PULL-FAILS-ON-CLONE-MADE-BEFORE-
+    FIRST-PUBLISH). The untracked copy is ours to drop when it carries our marker: the incoming
+    commit brings the tracked one, and the pin is re-materialized after (a remote that tracks none
+    gets the untracked copy back). A foreign untracked ``.gitattributes`` is left for git to refuse.
+    """
+    path = repo / ".gitattributes"
+    try:
+        ours = path.is_file() and _REALM_SYNC_GITATTRIBUTES_MARKER in path.read_bytes()
+    except OSError:
+        ours = False
+    if ours and not _git(repo, "ls-files", "--", ".gitattributes", check=False).strip():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    try:
+        _git(repo, "pull", "--ff-only", extra_config=_credential_git_config(credential))
+    finally:
+        _ensure_repo_gitattributes(repo)
 
 
 def _credential_git_config(credential: RealmSyncCredential | None) -> list[str] | None:
