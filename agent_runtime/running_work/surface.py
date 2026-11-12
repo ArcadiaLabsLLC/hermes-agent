@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timezone, UTC
 from typing import Any
 
+from .._upstream_doors import delegation_interrupt_one
 from ..projection_accountant import ProjectionAccountant
 
 from .lanes_build import _collect_builds
@@ -340,8 +341,8 @@ def cancel_work(work_id: str, *, reason: str = "operator_cancel") -> dict[str, A
 
     Never a bare PID kill. Terminal work goes through
     ``process_registry.kill_process``, whose tree-kill is identity-guarded by
-    the same ``host_start_time`` baseline this projection verifies; delegations
-    go through ``interrupt_for_session``, which lets the child unwind and
+    the same ``host_start_time`` baseline this projection verifies; a delegation
+    is interrupted alone, by id (``delegation_interrupt_one``), which lets the child unwind and
     deliver partial results through the normal finalize path. Kinds with no
     interrupt seam return a typed ``cancel_unsupported`` rather than pretending.
     """
@@ -413,11 +414,11 @@ def _cancel_terminal(work_id: str, kind: str, stable: str, row: dict[str, Any], 
 
 
 def _cancel_delegation(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
-    """A delegation: ``interrupt_for_session`` from the process that dispatched it."""
+    """ONE delegation, by its id, from the process that dispatched it — its siblings keep running."""
     mod = _module("tools.async_delegation")
     if mod is None or not _delegation_owned_here(mod, stable):
         # The interrupt callable lives in the record map of the process that
-        # dispatched the child. From anywhere else `interrupt_for_session`
+        # dispatched the child. From anywhere else the interrupt
         # matches nothing and returns 0, which the caller would otherwise
         # read as "the cancel failed" rather than "ask the owning lane".
         return {
@@ -427,18 +428,10 @@ def _cancel_delegation(work_id: str, kind: str, stable: str, row: dict[str, Any]
             "detail": REASON_NOT_IN_PROCESS,
             "owning_lane": "serve",
         }
-    session_id = (row.get("owner") or {}).get("session_id") or ""
-    if not session_id:
-        return {
-            "status": "error",
-            "code": "cancel_unavailable",
-            "work_id": work_id,
-            "detail": "delegation row carries no owning session",
-        }
     try:
-        interrupted = mod.interrupt_for_session(
-            parent_session_id=str(session_id), reason=reason
-        )
+        # By the row's own id: ``interrupt_for_session`` would stop every helper the owning
+        # session runs, and the operator pressed Stop on ONE (RT-STOP-ONE-DELEGATION-STOPS-SIBLINGS).
+        interrupted = delegation_interrupt_one(stable, reason=reason)
     except Exception as exc:
         return {
             "status": "error",
@@ -451,7 +444,7 @@ def _cancel_delegation(work_id: str, kind: str, stable: str, row: dict[str, Any]
             "status": "error",
             "code": "cancel_failed",
             "work_id": work_id,
-            "detail": "no running delegation matched the owning session",
+            "detail": "that delegation is no longer running",
         }
     return {
         "status": "cancelled",
@@ -480,18 +473,19 @@ def _cancel_background_tool_call(work_id: str, handle: str) -> dict[str, Any]:
 
 
 def _cancel_tool_call(work_id: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
-    """RW2: stop a foreground command through its TURN's interrupt seam.
+    """RW2: stop ONE foreground command; its turn carries on (RT-STOP-TOOL-CALL-ENDS-WHOLE-TURN).
 
-    Never a pid kill. ``agent.interrupt()`` is the soft stop ``/stop`` sends:
-    the tool thread's interrupt bit kills the command (rc 130,
-    ``[Command interrupted]``) and the turn ends interrupted. So the cancel is a
-    cancel of the turn, and the reply names the turn it stopped.
+    Never a pid kill, and never ``agent.interrupt()`` (the soft stop ``/stop`` sends, which ends
+    the whole turn): only the thread executing this call gets the interrupt bit
+    (``live_turns.interrupt_tool_call``), so the command is killed (rc 130,
+    ``[Command interrupted]``), the model reads that as the call's result and the reply goes on.
+    ``stopped`` / ``turn_continues`` say so to the client; stopping the reply is the turn's own Stop.
     """
 
-    from ..live_turns import interrupt_turn
+    from ..live_turns import interrupt_tool_call
 
     parent = str(row.get("parent_work_id") or "")
-    if not interrupt_turn(parent.partition(":")[2], reason=reason):
+    if not interrupt_tool_call(parent.partition(":")[2], row.get("tool_call_id"), reason=reason):
         return {
             "status": "error",
             "code": "cancel_unavailable",
@@ -504,7 +498,9 @@ def _cancel_tool_call(work_id: str, row: dict[str, Any], *, reason: str) -> dict
         "code": "",
         "work_id": work_id,
         "kind": KIND_TOOL_CALL,
-        "interrupted_turn": parent,
+        "stopped": KIND_TOOL_CALL,
+        "turn_continues": True,
+        "parent_work_id": parent,
     }
 
 

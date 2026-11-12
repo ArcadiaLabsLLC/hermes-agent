@@ -287,6 +287,27 @@ def live_turn_view(turn_id: str | None) -> LiveTurn | None:
     )
 
 
+def interrupt_tool_call(turn_id: str | None, call_id: Any, *, reason: str) -> bool:
+    """Stop ONE in-flight tool call of a live turn; the turn itself carries on. False when not live here.
+
+    The interrupt bit goes to the thread executing the call only (the long-call worker when a
+    bracket moved it, else the tool thread) — never ``agent.interrupt()``, which ends the turn.
+    A foreground command sees the bit in its wait loop and is killed (rc 130,
+    ``[Command interrupted]``); that is the tool result the model reads, and it replies on.
+    Set under the registry lock, so a call that already finished is never signalled.
+    """
+
+    from tools import interrupt as _interrupt
+
+    with _lock:
+        turn = _turns.get(str(turn_id or "").strip())
+        call = turn.calls.get(str(call_id or "").strip()) if turn is not None else None
+        if call is None:
+            return False
+        _interrupt.set_interrupt(True, call.exec_tid or call.tid, reason=reason)
+    return True
+
+
 def interrupt_turn(turn_id: str | None, *, reason: str) -> bool:
     """Interrupt a live turn through its agent's own seam. False when not live here."""
 

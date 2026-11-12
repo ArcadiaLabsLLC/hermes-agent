@@ -7,7 +7,7 @@ foreground ``flutter build windows``. These pin the live half: inside the
 process executing the turn, the chat-turn row carries the agent's NAME, the
 conversation title, the tool in flight and real progress, and the foreground
 command is a ``tool_call`` child row (pid, timeout, output tail) that ``work
-peek`` reads and ``work cancel`` stops through the turn's interrupt seam.
+peek`` reads and ``work cancel`` stops alone, the turn carrying on.
 
 The foreground command is a REAL one, spawned by ``LocalEnvironment.execute``
 on the thread that recorded the tool start — the join under test is the one the
@@ -36,6 +36,7 @@ from agent_runtime.running_work import (
     ownership,
     peek_work,
 )
+from tools import interrupt as _interrupt
 from tools.environments import foreground_watch
 
 TURN = "turn-live-1"
@@ -72,6 +73,8 @@ def journal(tmp_path, monkeypatch, isolate_agent_runtime_root):
 class _Agent:
     def __init__(self) -> None:
         self.interrupts = 0
+        self.tool_result: dict = {}
+        self.tool_done = threading.Event()
 
     def get_activity_summary(self) -> dict:
         return {"api_call_count": 3, "seconds_since_activity": 2.0}
@@ -90,15 +93,16 @@ def _build(*, register: bool):
     from tools.environments.local import LocalEnvironment
 
     agent = _Agent()
-    done = threading.Event()
+    done = agent.tool_done
     command = f"echo {MARKER}; sleep 6"
 
     def tool_thread() -> None:
         live_turns.tool_started(TURN, "call_build", "terminal", preview=command, command=command, timeout_seconds=30)
         try:
-            LocalEnvironment().execute(command, timeout=30, bounded_capture=True)
+            agent.tool_result = LocalEnvironment().execute(command, timeout=30, bounded_capture=True)
         finally:
             live_turns.tool_finished(TURN, "call_build")
+            _interrupt.set_interrupt(False)  # as the tool executor does: idents are reused
             done.set()
 
     with ExitStack() as stack:
@@ -189,11 +193,18 @@ def test_a_silent_foreground_command_reads_stalling(journal):
     assert turn["progress"]["seconds_since_progress"] >= 700
 
 
-def test_peek_reads_the_foreground_tail_and_cancel_interrupts_the_turn(journal):
+def test_peek_reads_the_foreground_tail_and_cancel_stops_the_command_not_the_turn(journal):
+    """RT-STOP-TOOL-CALL-ENDS-WHOLE-TURN: Stop on a tool call kills that command; the turn is not interrupted."""
     work_id = f"tool_call:{TURN}:call_build"
     with _build(register=True) as agent:
         peek = peek_work(work_id)
+        cancelled_at = time.monotonic()
         cancel = cancel_work(work_id)
+        # The real command (``sleep 6``) is killed by its own wait loop, well before it would end.
+        assert agent.tool_done.wait(4), "the foreground command outlived its Stop"
+        stopped_after = time.monotonic() - cancelled_at
+        # Still inside the live turn: the turn's own row is there, with no child left.
+        after = build_running_work()
 
     assert peek["found"] is True
     assert peek["tail_available"] is True
@@ -203,9 +214,22 @@ def test_peek_reads_the_foreground_tail_and_cancel_interrupts_the_turn(journal):
         "code": "",
         "work_id": work_id,
         "kind": KIND_TOOL_CALL,
-        "interrupted_turn": f"chat_turn:{TURN}",
+        "stopped": KIND_TOOL_CALL,
+        "turn_continues": True,
+        "parent_work_id": f"chat_turn:{TURN}",
     }
-    assert agent.interrupts == 1
+    assert agent.interrupts == 0
+    assert stopped_after < 4
+    assert agent.tool_result["returncode"] == 130
+    assert "[Command interrupted]" in agent.tool_result["output"]
+    assert [row["work_id"] for row in _kind(after, KIND_CHAT_TURN)] == [f"chat_turn:{TURN}"]
+    assert _kind(after, KIND_TOOL_CALL) == []
+
+
+def test_stopping_a_tool_call_this_process_does_not_run_says_so(journal):
+    assert live_turns.interrupt_tool_call(TURN, "call_build", reason="operator_cancel") is False
+    with live_turns.live_turn(turn_id=TURN, session_id=SESSION, persona_instance_id=INSTANCE, agent=_Agent()):
+        assert live_turns.interrupt_tool_call(TURN, "call_gone", reason="operator_cancel") is False
 
 
 def test_titles_are_read_only_from_the_chat_sessiondb(tmp_path):

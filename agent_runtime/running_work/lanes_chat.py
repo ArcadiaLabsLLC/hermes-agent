@@ -561,7 +561,7 @@ class ChatTurnLane(LanePass):
                     available=True,
                 ),
                 tail_preview=_preview(command.tail, self.accountant),
-                # Through the turn's interrupt seam — see ``cancel_work``.
+                # That call's own thread gets the interrupt bit; the turn carries on — see ``cancel_work``.
                 cancellable=True,
                 extra={
                     "parent_work_id": turn["work_id"],
