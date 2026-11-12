@@ -41,6 +41,11 @@ Every place that holds a realm id, a workspace id or an agent id is in exactly o
 | PARKS | untouched, keeps the team's ids, invisible until the re-join brings the realm back | the agents: `persona_instances/<agent>.json` (moved to `persona_instances_parked/<old realm>/`, NOT a retire tombstone — a tombstone would stop the pull bringing the agent back), `chat_folders/<agent>/`, `state.db` sessions, discussion tables, conversation routes, `chat_goal_bindings`, mint receipts; workspace chats: `workspace_chats/<ws>.db`, `workspace_chat_fold/<ws>.json`, `workspace_chat_exports/<ws>/`, `work/workspace_chats_<ws>/`; `realm_sync_state/<realm>.team_baselines/` (dropped at the switch-over, §7) |
 | HISTORY | never touched | `events.jsonl` and its archive, `prompt_observability*`, `patch_diffs*`, the deleted archive, `migration_backups`, `persona_instances_archive`, `persona_assignments_archive`, `runs/`, `incidents/`, git object stores (`.git/` of a brain, a sync clone) |
 
+Built by slice 3 (`agent_runtime/realm_rekey_agents.py`): `persona_instances/` is classed MOVES, because the
+`agents` step runs first and moves the team's rows to `persona_instances_parked/<old realm>/` (PARKS); what is
+left there is the install's own channels and the local copy's new agents, re-pointed like any other row.
+`flow_graphs/` is MOVES too (a canvas is its owner's and follows the desk: `runtime_<agent>.json`).
+
 "Chats park" is the reading of ruling (2): chats never leave the machine and return with the agents. Workspace
 chats and discussions are chats, so they park too; the local copy starts with none.
 
@@ -69,6 +74,14 @@ One function, `rekey_realm(journal)`. Nothing else renames a realm or a workspac
   old commits keep the old ids and that is correct (they describe the past); a brain repository that is the
   user's own clone (a folder slot) is not touched: its `work/<machine>.<ws>.<name>` branches keep their names
   (HISTORY), new lanes cut under the new id; (f) the journal turns `done`, one `realm.rekeyed` event carries the map.
+- **(e) as built** (slice 2, `agent_runtime/realm_rekey_git.py`, step `git` after `rename`): every linked
+  worktree's `.git` file under `work/<ws>/` is re-pointed by path piece and `git worktree repair` run in it;
+  hermes's own Writer worktrees (`work/<ws>/worktrees/`) are REMOVED rather than repaired (reset on every sync,
+  on a branch named after the old id; the Writer recuts); a batch lane's worktree (`work/<ws>/.worktrees/`) is
+  kept with its uncommitted work and classed HISTORY (its checkout is its branch's). The one commit rewrites
+  the workspace and agent ids of the map as whole tokens in every tracked `*.md` of the workspace's own brain,
+  bytes in and out. A brain whose binding has a `remote_url` (promoted: the team's shared repository) gets NO
+  commit — and still has the team's remote: follow-up `RT-LEFT-REALM-BRAIN-STILL-PUSHES-TO-THE-TEAM`.
 - **The census test** (`tests/agent_runtime/test_realm_rekey_census.py`): seeds one runtime root through the real
   stores with every MOVES and PARKS place populated for one server realm of two workspaces, runs a publish and a
   pull while local (lane hm-leftrealm's INEFF: the unit test passed while the real path lost a card), re-keys, then
@@ -109,7 +122,19 @@ One function, `rekey_realm(journal)`. Nothing else renames a realm or a workspac
   keeps the old agent id; the one new commit of §4(e) rewrites the live rows.
 - **At the re-join** the parked records go back into `persona_instances/` before the fresh pull, so the pull finds
   the team's agents present (its mint is for a missing one) and their chats re-attach by id.
-- A parked agent with a live turn cannot exist: the re-key runs only when idle.
+- A parked agent with a live turn cannot exist: the re-key runs only when idle (the step refuses an agent with
+  a live run binding and leaves the journal `running`).
+- **As built.** The map carries `agents: {old: new}`; a new id is the old one with a fresh placement tail
+  (`personainst_<persona>_agent_<hex8>`). A persona's own channel (`personainst_<persona>`) belongs to no realm
+  and never parks. The agents of the map are the ones the realm held when the re-key was OWED (the leave): an
+  agent added while local is the member's own, keeps its id and its chats, and is only re-pointed. The new agent
+  keeps the travelling definition (name, model lane, skills, slots, character) plus the two local answers
+  `display_name_custom` and `slot_context_custom`; it is born idle with an empty chat. Its steering edges are the
+  old ones mapped through the agents map. Rewritten tokens: the id, the placement id (the id without
+  `personainst_`, the office item's id where Eternia minted it), `runtime_<id>` (the stored flow-graph id), and
+  the capped actor file token of a long key.
+- **Work claims.** A claim held in the store's JSON (`work/<ws>/` runs, activity, claim goals) reads
+  `persona:<new agent>` after the re-key; claim text in the brain's markdown is slice 2's one new commit.
 
 ## 7. The fresh adopt, and what is removed
 
@@ -168,8 +193,13 @@ accepts a rewritten `sceneId`.
 - **Schedules of a parked agent.** Recommend: they move with the local copy and name the new agent (a schedule
   is workspace work, not a chat); the fresh realm's schedules come from the team as for any joiner.
 - **Do readers tolerate parked data whose workspace is absent** (an orphan sweep that deletes a chat db with no
-  workspace)? To verify in slice 3 before anything parks; if a sweep exists it must skip a workspace named in a
-  journal's map.
+  workspace)? ANSWERED by slice 3, read in code and pinned in a test: no. Every delete site under
+  `agent_runtime/` and `hermes_cli/harness_parts/` was read; none is keyed on "the workspace (or agent) is
+  absent". The boot sweeps (`boot_phases._run_boot_sweeps`), the chat-receipt repair and
+  `reconcile_persona_instances` run for real over a re-keyed store in
+  `test_the_local_copy_gets_new_agents…` and the parked rows and their chat sessions are still there. The only
+  chat deletes are operator verbs (`drop_chats` on un-sharing chats, a session delete) and the retired-scratch
+  purge (by session source).
 - **Never re-joined.** The parked agents' chats stay on disk and are not shown. Recommend: leave them (the
   realm's archive rules already cover deleting a local realm); a row if the owner wants them browsable.
 - **Product choice on the row, not inferred:** between the leave and the idle re-key the local realm still shows
