@@ -358,6 +358,10 @@ twice the step's measured wall under that load; one whole-run cap bounds the run
 - **The cap**: a step still running when the cap is spent is killed (its process group), the steps
   after it do not start, and the run exits **3** naming the step (`✘ prepush: CAPPED …`), so
   `prepush.sh && git push` never pushes. A red or a deadline kill exits 1; usage 2.
+- **The gates step runs the upstream-footprint ledger gate** (`tests/scripts/test_upstream_footprint.py`,
+  since 2026-11-12, FH-FOOTPRINT-LEDGER-LAUNCHER-PUBLICATION-TEST-UNLEDGERED): ~4 s alone, and beside the
+  other gates in the bundle the step measured 7.7 s without it and 7.3 / 7.6 s with it (nekwo-ubuntu24,
+  load 27), inside the 10 s budget. Off the default path it sat red on `main` for two days unseen.
 - **The census** is fast because its walks are chunked over worker processes
   (`scripts/census_pool.py`, `HERMES_CENSUS_JOBS`, default 8; `1` = serial), never cached:
   `god_file_scope.module_bindings` is order-independent, so a chunk reads what the serial walk reads.

@@ -99,6 +99,10 @@ PREPUSH_TEXT_GATES=(
   tests/test_docket_stage_claims.py
   tests/scripts/test_no_machine_paths_in_fork_scripts.py
   tests/scripts/test_check_no_tmp_literals.py
+  # The upstream-footprint ledger gate (~4 s alone; the bundle runs it beside the others). Off this
+  # path, an upstream test file edited with no ledger row sat red on main for two days unseen
+  # (7939482ee8, FH-FOOTPRINT-LEDGER-LAUNCHER-PUBLICATION-TEST-UNLEDGERED).
+  tests/scripts/test_upstream_footprint.py
 )
 
 # The name census gates: a touched or named one runs in the census step, never the touched lane.
