@@ -10,9 +10,18 @@ cmdline through the Flutter argv parser, then the slot test on the cwd. A proces
 cannot be read, or whose cwd is under no bound slot, is NOT a detected build — unprovable
 scope is out of scope, by design. A candidate that is an agent-started or announced build, or
 a DESCENDANT of one (``flutter.bat`` → ``dart.exe flutter_tools.snapshot``), is skipped.
-Liveness is ``cpu``: the process's cumulative CPU time across consecutive scans; a build
-quiet for ``stall_seconds`` is ``stalled`` and is NEVER ended here (owner call 1 — the
-operator ends it with Stop).
+Liveness is ``cpu``: the cumulative CPU time of the process AND its descendants across
+consecutive scans; a build quiet for ``stall_seconds`` is ``stalled`` and is NEVER ended here
+(owner call 1 — the operator ends it with Stop). The tree, not the process alone: the Dart SDK's
+``dart.exe`` is a thin launcher that hands the work to a ``dartvm.exe`` child (which runs the
+frontend server and MSBuild/CMake below it), so its own CPU never moves and every detected build
+read ``stalled`` four minutes in, compiling or not (RT-BUILD-FLUTTER-RUN-READS-STALLED).
+
+**A ``flutter run`` whose app is running is not a build.** Once a descendant's executable lives
+under ``<project>/build/`` — the app the run built, which ``flutter run`` launched and now hosts
+for hot reload — the session idles by design: neither building nor stalled, and Stop would close
+the app in front of the operator. The scan names that app (``DetectedBuild.app``); the build lane
+drops the row by design (RT-BUILD-FLUTTER-RUN-READS-STALLED).
 
 **Index the unknowns.** A name-filtered process the parser cannot place is
 ``process_unidentified`` (exe + argv head; not shown as a build); a build-shaped cmdline whose
@@ -36,7 +45,7 @@ from dataclasses import dataclass, field
 from functools import cache
 from typing import Any, Callable, Iterable
 
-from agent_runtime.builds.flutter_argv import COMMAND_OTHER, recognize_argv
+from agent_runtime.builds.flutter_argv import COMMAND_OTHER, COMMAND_RUN, recognize_argv
 from agent_runtime.process_state import register_process_state
 from agent_runtime.builds.unknowns import (
     UNKNOWN_CWD_UNREADABLE,
@@ -87,9 +96,23 @@ def _reset_detection() -> None:
 register_process_state(__name__, _reset_detection, holds=("_ENABLED",))
 
 
+@dataclass(frozen=True)
+class Descendant:
+    """One process below a candidate: its name, executable path and CPU seconds (None = refused)."""
+
+    pid: int
+    name: str
+    exe: str | None
+    cpu: float | None
+
+
 @dataclass
 class DetectedBuild:
-    """One detected build, as the scan saw it."""
+    """One detected build, as the scan saw it.
+
+    ``cpu`` is the tree's (the process plus every descendant read). ``app`` is the running app a
+    ``flutter run`` launched (a descendant whose executable is under ``<project>/build/``), else None.
+    """
 
     pid: int
     start: Any
@@ -101,6 +124,7 @@ class DetectedBuild:
     cpu: float
     parents: list[tuple[int, str]]
     unknowns: UnknownsIndex = field(default_factory=UnknownsIndex)
+    app: Descendant | None = None
 
 
 @dataclass
@@ -178,8 +202,24 @@ class _Scanner:
             return
         command = recognize_argv(argv, cwd).command
         cpu = _process_fact(proc.cpu)
+        tree = _process_fact(getattr(proc, "descendants", list))
+        tree = tree if isinstance(tree, list) else []
+        cpu = (float(cpu) if isinstance(cpu, (int, float)) else 0.0) + sum(d.cpu for d in tree if d.cpu is not None)
         self.scan.builds.append(DetectedBuild(int(proc.pid), _process_fact(proc.start), exe, [str(a) for a in argv], cwd, command,
-                                              slot, float(cpu) if isinstance(cpu, (int, float)) else 0.0, parents))
+                                              slot, cpu, parents, app=_running_app(command, tree)))
+
+
+def _running_app(command: Any, tree: list[Descendant]) -> Descendant | None:
+    """The app a ``flutter run`` launched: a descendant whose executable is under ``<project>/build/``.
+
+    Only a ``run`` hosts an app; a ``build``'s descendants are its compilers and linkers, which
+    live in the SDK and the toolchains, never in the output folder.
+    """
+
+    if getattr(command, "kind", "") != COMMAND_RUN:
+        return None
+    output = _comparable_path(os.path.join(str(command.project_dir), "build")) + os.sep
+    return next((d for d in tree if d.exe and _comparable_path(d.exe).startswith(output)), None)
 
 
 def _comparable_path(path: Any) -> str:
@@ -304,6 +344,21 @@ class _PsutilProcess:
     def parents(self) -> list[tuple[int, str]]:
         return [(parent.pid, parent.name()) for parent in self._proc.parents()]
 
+    def descendants(self) -> list[Descendant]:
+        return [_descendant(child, int(child.pid), None) for child in self._proc.children(recursive=True)]
+
+
+def _descendant(proc: Any, pid: int, name: str | None) -> Descendant:
+    """One descendant's facts; a fact it refuses (gone, access denied) is None, never a raise."""
+
+    if name is None:
+        name = _process_fact(proc.name)
+        name = name if isinstance(name, str) else ""
+    exe = _process_fact(proc.exe)
+    times = _process_fact(proc.cpu_times)
+    cpu = float(times.user + times.system) if hasattr(times, "user") else None
+    return Descendant(pid, name, exe if isinstance(exe, str) and exe else None, cpu)
+
 
 class _SnapshotProcess(_PsutilProcess):
     """One row of a Windows process snapshot; ``psutil`` opens it only when a fact is read.
@@ -330,6 +385,19 @@ class _SnapshotProcess(_PsutilProcess):
             return float(self._psutil.Process(pid).create_time())
         except Exception:  # gone or refused: the hop's age is unknown, so the walk stops there
             return None
+
+    def descendants(self) -> list[Descendant]:
+        opened: dict[int, Any] = {}
+
+        def created(pid: int) -> float | None:
+            try:
+                if pid not in opened:
+                    opened[pid] = self._psutil.Process(pid)
+                return float(opened[pid].create_time())
+            except Exception:  # gone or refused: not provably a descendant
+                return None
+
+        return [_descendant(opened[pid], pid, name) for pid, name in self._snapshot.descendants(self.pid, created=created)]
 
 
 @dataclass
@@ -359,6 +427,33 @@ class WindowsSnapshot:
             chain.append((ppid, self.rows[ppid][1]))
             seen.add(ppid)
             child, child_created = ppid, parent_created
+
+    def descendants(self, pid: int, *, created: Callable[[int], float | None]) -> list[tuple[int, str]]:
+        """Every process below ``pid``, breadth first, the way ``psutil`` judges a child.
+
+        A row naming a parent but created BEFORE it is a recycled pid's orphan, not a child; one
+        whose age cannot be read is not provably a child. Either is skipped with all below it.
+        """
+
+        children: dict[int, list[int]] = {}
+        for child, (ppid, _name) in self.rows.items():
+            children.setdefault(ppid, []).append(child)
+        found: list[tuple[int, str]] = []
+        seen, queue = {pid}, [(pid, created(pid))]
+        while queue:
+            parent, parent_created = queue.pop(0)
+            if parent_created is None:
+                continue
+            for child in children.get(parent, ()):
+                if child in seen:
+                    continue
+                child_created = created(child)
+                if child_created is None or child_created < parent_created:
+                    continue
+                seen.add(child)
+                found.append((child, self.rows[child][1]))
+                queue.append((child, child_created))
+        return found
 
 
 def psutil_table(psutil: Any, *, snapshot: Callable[[], WindowsSnapshot] | None = None) -> Iterable[Any]:

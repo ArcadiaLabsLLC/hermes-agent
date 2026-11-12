@@ -10,7 +10,9 @@ Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §1
   the durable lane the stage is ``unknown`` and ``progress_signal: none``.
 * **announced** — one record per job in ``<background-work home>/builds/``, written by the
   job's own writer (``builds.registry``, whose reader rules decide liveness and expiry).
-* **detected** — reported as its own sub-source (the scan lands in ``builds.detect``).
+* **detected** — reported as its own sub-source (the scan lands in ``builds.detect``). A
+  ``flutter run`` whose built app is running is no build: dropped ``build_app_running`` (by
+  design), so it is never "stalled" and never offers a Stop that would close that app.
 
 ``sources.build`` is ONE entry with three sub-healths, because the three sources fail
 independently and "I could not look" must be sayable per source. Every row resolves its
@@ -307,9 +309,17 @@ class BuildLane(LanePass):
         result = scan(now=self.now, census=self.census, owned=owned, table=_detect_table, **kwargs)
         self.scan_ms = result.scan_ms
         seen: set[Any] = set()
-        rows = [build_row(self.detected_facts(build, seen), self.accountant) for build in result.builds]
-        for _row in rows:
+        rows = []
+        for build in result.builds:
             self.consider()
+            if build.app is not None:
+                # A ``flutter run`` hosting the app it built idles by design: not a build, never
+                # "stalled", and Stop would close the app in front of the operator
+                # (RT-BUILD-FLUTTER-RUN-READS-STALLED). Dropped by design, on the books.
+                self.drop("build_app_running", entity_id=f"{KIND_BUILD}:{SOURCE_DETECTED}:{build.pid}-{build.start}",
+                          detail=f"flutter run hosts its running app {build.app.name} (pid {build.app.pid})", by_design=True)
+                continue
+            rows.append(build_row(self.detected_facts(build, seen), self.accountant))
         PROGRESS.prune(seen, SOURCE_DETECTED)
         return rows, result.sub()
 

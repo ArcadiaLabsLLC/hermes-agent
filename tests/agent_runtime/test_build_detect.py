@@ -200,3 +200,94 @@ def test_the_real_windows_snapshot_names_this_process_and_its_parent():
     rows = detect.windows_snapshot().rows
     ppid, name = rows[os.getpid()]
     assert name.lower().startswith("python") and ppid == os.getppid()
+
+
+# --- RT-BUILD-FLUTTER-RUN-READS-STALLED: the tree's CPU, and a run that hosts its app -----------
+
+
+class _TreeProc(_Proc):
+    """A candidate with descendants (``dart.exe`` → ``dartvm.exe`` → frontend server, the app …)."""
+
+    def __init__(self, *args, tree=(), **kw):
+        super().__init__(*args, **kw)
+        self.tree = list(tree)
+
+    def descendants(self):
+        return list(self.tree)
+
+
+def _run(pid, root, *, cpu=0.03, tree=()):
+    return _TreeProc(pid, "dart.exe", [DART, SNAPSHOT, "run", "-d", "windows"], str(root), cpu=cpu, tree=tree)
+
+
+def _vm(cpu):
+    return detect.Descendant(41, "dartvm.exe", "C:/flutter/bin/cache/dart-sdk/bin/dartvm.exe", cpu)
+
+
+def _app(root):
+    return detect.Descendant(42, "eternia_launcher.exe", str(root / "build" / "windows" / "x64" / "runner" / "Debug"
+                                                             / "eternia_launcher.exe"), 500.0)
+
+
+def _lane_rows(monkeypatch, tmp_path, census, table, now, accountant=None):
+    from agent_runtime.running_work import lanes_build
+
+    monkeypatch.setattr(lanes_build, "_census", lambda: census)
+    monkeypatch.setattr(lanes_build, "_head_home", lambda: (tmp_path / "home", "test"))
+    monkeypatch.setattr(lanes_build, "_detect_table", table)
+    rows, _source = lanes_build.BuildLane(now=now, accountant=accountant, frame_rows=[]).collect()
+    return rows
+
+
+def test_a_flutter_run_hosting_its_built_app_is_not_a_build_and_offers_no_stop(tmp_path, monkeypatch):
+    # The owner's own `flutter run -d windows`: the wrapper's CPU never moves, its app runs below it.
+    from agent_runtime.projection_accountant import ProjectionAccountant
+
+    census = _census(tmp_path, "launcher")
+    root = tmp_path / "launcher"
+    run = _run(8, root, tree=[_vm(9.0), _app(root)])
+    scanned = detect.scan(now=1.0, census=census, owned=set(), table=[run], clock=lambda: 0.0)
+    assert scanned.builds[0].app.pid == 42
+    accountant = ProjectionAccountant("running_work")
+    first = _lane_rows(monkeypatch, tmp_path, census, [run], 1000.0, accountant)
+    later = _lane_rows(monkeypatch, tmp_path, census, [run], 1000.0 + 600)
+    assert first == [] and later == []  # never a row, so never "stalled" and never a Stop to press
+    summary = accountant.summary()
+    assert "build_app_running" in summary["by_design"]
+
+
+def test_a_flutter_run_still_compiling_reads_building_by_its_trees_cpu(tmp_path, monkeypatch):
+    census = _census(tmp_path, "launcher")
+    root = tmp_path / "launcher"
+    first = _lane_rows(monkeypatch, tmp_path, census, [_run(8, root, tree=[_vm(5.0)])], 1000.0)
+    later = _lane_rows(monkeypatch, tmp_path, census, [_run(8, root, tree=[_vm(60.0)])], 1000.0 + 300)
+    assert (first[0]["status"], later[0]["status"], later[0]["liveness"]) == ("running", "running", "live")
+    assert later[0]["controls"]["stop"] == "allowed"  # a build, not an app: Stop stays offered
+
+
+def test_a_hung_compile_still_reads_stalled(tmp_path, monkeypatch):
+    census = _census(tmp_path, "launcher")
+    root = tmp_path / "launcher"
+    hung = [_run(8, root, tree=[_vm(5.0)])]
+    _lane_rows(monkeypatch, tmp_path, census, hung, 1000.0)
+    later = _lane_rows(monkeypatch, tmp_path, census, hung, 1000.0 + 300)
+    assert (later[0]["status"], later[0]["seconds_since_progress"]) == ("stalled", 300.0)
+
+
+def test_only_a_run_hosts_an_app_and_only_from_its_build_folder(tmp_path):
+    census = _census(tmp_path, "launcher")
+    root = tmp_path / "launcher"
+    build = _TreeProc(9, "dart.exe", [DART, SNAPSHOT, "build", "windows"], str(root), tree=[_app(root)])
+    elsewhere = detect.Descendant(43, "chrome.exe", "C:/Program Files/Google/Chrome/chrome.exe", 3.0)
+    refused = detect.Descendant(44, "eternia_launcher.exe", None, None)
+    scanned = detect.scan(now=1.0, census=census, owned=set(), clock=lambda: 0.0,
+                          table=[build, _run(10, root, tree=[elsewhere, refused])])
+    assert [(b.pid, b.app) for b in scanned.builds] == [(9, None), (10, None)]
+    assert scanned.builds[1].cpu == pytest.approx(3.03)  # a refused CPU read adds nothing
+
+
+def test_the_snapshot_descendants_skip_a_recycled_pid_and_an_unknown_age():
+    snapshot = detect.WindowsSnapshot({10: (1, "dart.exe"), 11: (10, "dartvm.exe"), 12: (11, "app.exe"),
+                                       13: (10, "old.exe"), 14: (11, "ghost.exe"), 15: (14, "below.exe")})
+    ages = {10: 10.0, 11: 11.0, 12: 12.0, 13: 5.0, 14: None, 15: 15.0}
+    assert snapshot.descendants(10, created=ages.get) == [(11, "dartvm.exe"), (12, "app.exe")]
