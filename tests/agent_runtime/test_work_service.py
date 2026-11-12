@@ -538,3 +538,52 @@ def test_a_claim_keeps_the_goal_mode_it_asked_for_and_refuses_an_unknown_one(wor
     assert until_done.kept(work.ws, ref, who) == "none", "a release forgets it"
     plain = call(work, "claim", request_id="c2", who=who, **where)
     assert plain["goal_mode"] == "none" and until_done.kept(work.ws, ref, who) == "none"
+
+
+def test_the_mode_is_kept_before_the_claim_lands(work, monkeypatch):
+    """RT-RUN-UNTIL-DONE-RUNS-ONE-PASS (seen live 2026-11-12): Run until done ran ONE plain pass.
+
+    The engine starts a TAKEN row the moment it reads it and reads the kept mode once (``engine._hand_off``);
+    the claim kept the mode only after its write, so an engine pass in between ran the claim as one pass —
+    live, ``work.exec_start`` was logged before the claim's own receipt. Here the engine's read is made at the
+    exact instant the claim's commit lands (inside ``Writer.apply``): it must already read ``until_done``.
+    Killing mutation: ``store.claim`` keeps the mode after ``_row_write`` → the read at the write is ``none``.
+    """
+
+    from agent_runtime.work_store import until_done
+    from agent_runtime.work_store.writer import Writer
+
+    alice = mint_free_floating("alice")
+    task = start(work)["task"]
+    who = f"persona:{alice.id}"
+    seen_by_the_engine: list[str] = []
+    real_apply = Writer.apply
+
+    def apply_then_read_as_the_engine(self, op):
+        receipt = real_apply(self, op)
+        if op.who == who:
+            seen_by_the_engine.append(until_done.kept(work.ws, op.ref, who))
+        return receipt
+
+    monkeypatch.setattr(Writer, "apply", apply_then_read_as_the_engine)
+    call(work, "claim", request_id="c1", who=who, goal_mode="until_done", slot=task["slot"], task_id=task["id"])
+    assert seen_by_the_engine == ["until_done"]
+
+
+def test_a_refused_claim_leaves_the_holders_mode_as_it_was(work):
+    """Keeping the mode before the write means a refused claim must put it back: the holder's run is until-done.
+
+    Killing mutation: ``store.claim`` drops its undo on a refused write → the holder's kept mode reads ``none``.
+    """
+
+    from agent_runtime.work_store import until_done
+    from agent_runtime.work_store.grammar import RowRef
+
+    alice, bob = mint_free_floating("alice"), mint_free_floating("bob")
+    task = start(work)["task"]
+    where = {"slot": task["slot"], "task_id": task["id"]}
+    claimed = call(work, "claim", request_id="c1", who=f"persona:{alice.id}", goal_mode="until_done", **where)
+    ref = RowRef(task["slot"], claimed["receipt"]["ref"]["note"], task["id"])
+    with pytest.raises(WorkRefused):
+        call(work, "claim", request_id="c2", who=f"persona:{bob.id}", **where)
+    assert until_done.kept(work.ws, ref, f"persona:{alice.id}") == "until_done"

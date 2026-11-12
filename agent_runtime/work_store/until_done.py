@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -69,6 +70,32 @@ def keep(workspace_id: str, ref: RowRef, who: str, goal_mode: str) -> None:
     path = _path(workspace_id, ref)
     path.parent.mkdir(parents=True, exist_ok=True)
     write_json_atomic(path, {"who": who, "goal_mode": goal_mode})
+
+
+def keep_before_the_claim(workspace_id: str, ref: RowRef, who: str, goal_mode: str) -> Callable[[], None]:
+    """:func:`keep` for a claim not yet written; answers the undo for a claim that is then refused.
+
+    The engine starts a TAKEN row the moment it reads it and reads the kept mode once
+    (``engine._hand_off``), so the mode is kept BEFORE the claim is visible: kept after it, an engine pass
+    between the two ran an until-done claim as one plain pass (RT-RUN-UNTIL-DONE-RUNS-ONE-PASS, seen live
+    2026-11-12). The undo puts back what was kept before — another claimant's mode included.
+    """
+
+    path = _path(workspace_id, ref)
+    try:
+        before: Any = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        before = None
+    keep(workspace_id, ref, who, goal_mode)
+
+    def undo() -> None:
+        if isinstance(before, dict):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            write_json_atomic(path, before)
+        else:
+            forget(workspace_id, ref)
+
+    return undo
 
 
 def kept(workspace_id: str, ref: RowRef, who: str) -> str:

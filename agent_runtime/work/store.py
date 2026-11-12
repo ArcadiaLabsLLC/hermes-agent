@@ -576,14 +576,24 @@ def claim(scope, params, actor, *, context=None):
         raise WorkRefused(Reason.INVALID, "a claim names who: persona:<instance_id>")
     _instance_exists(instance)
     parent: dict[str, Any] = {}
+    undo: list[Callable[[], None]] = []
+    goal_mode = until_done.goal_mode_of(params.get("goal_mode"))
 
     def gate(row: Row) -> None:
         parent.update(parent_task(scope.workspace_id, row) or {})
+        # Kept BEFORE the claim is written: the engine's run of this row is UNTIL_DONE
+        # (RT-WORK-CLAIM-RUNS-UNTIL-DONE), and the engine may start the row the instant the claim lands
+        # (RT-RUN-UNTIL-DONE-RUNS-ONE-PASS). MUTATION: keep it after ``_row_write`` instead and
+        # test_work_service's "the mode is kept before the claim lands" reddens.
+        undo.append(until_done.keep_before_the_claim(scope.workspace_id, row.ref, f"persona:{instance}", goal_mode))
 
-    goal_mode = until_done.goal_mode_of(params.get("goal_mode"))
-    writer, receipt = _row_write(scope, params, Op.CLAIM, f"persona:{instance}", {}, context=context, gate=gate)
-    # Kept beside the claim: the engine's run of this row is UNTIL_DONE (RT-WORK-CLAIM-RUNS-UNTIL-DONE).
-    until_done.keep(scope.workspace_id, receipt.ref, f"persona:{instance}", goal_mode)
+    try:
+        writer, receipt = _row_write(scope, params, Op.CLAIM, f"persona:{instance}", {}, context=context,
+                                     gate=gate)
+    except BaseException:
+        for put_back in undo:
+            put_back()
+        raise
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire(), "parent_task": parent or None,
             "goal_mode": goal_mode}
 
