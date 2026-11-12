@@ -22,6 +22,7 @@ from ..persona_chat_history.vocabulary import (
     MessageRole,
     canonical_persona_chat_turn_id,
 )
+from ..mission_chat_turns.records import STEER_OF_FIELD, safe_steer_of
 from ..relay_policy import HARNESS_DELIVERY_UNKNOWN_STATE
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
 from ..serde import safe_assignment_text, safe_assignment_token
@@ -388,6 +389,9 @@ def _carry_retry_lineage(message: dict[str, Any], row: dict[str, Any]) -> None:
     mode = safe_assignment_text(row.get("input_mode"), limit=16)
     if mode:
         message["input_mode"] = mode
+    # RT-STEER-NEXT-TURN-NAMES-THE-STEER-IT-DELIVERS: a late steer's own turn names the steers it delivers.
+    if steer_of := safe_steer_of(row.get(STEER_OF_FIELD)):
+        message[STEER_OF_FIELD] = steer_of
 
 
 def _carry_history_run_budget(message: dict[str, Any], row: dict[str, Any]) -> None:

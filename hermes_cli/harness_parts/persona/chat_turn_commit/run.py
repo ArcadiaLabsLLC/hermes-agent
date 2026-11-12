@@ -26,6 +26,7 @@ from agent_runtime.mission_chat_phases import (
 )
 from agent_runtime.mission_chat_steer import start_active_mission_chat_turn
 from agent_runtime.mission_chat_workdir import RUN_WORKDIR_ARG
+from agent_runtime.mission_chat_turns.records import STEER_OF_FIELD, safe_steer_of
 from agent_runtime.mission_chat_turns.journal import (
     mark_stale_inflight_turns_interrupted,
     persist_mission_chat_turn,
@@ -501,6 +502,8 @@ class _RunPhases:
                 **({"retry_of": self.retry_of} if self.retry_of else {}),
                 # RT-CHAT-TURN-INPUT-MODE: a spoken turn stays spoken across a restart.
                 **({"input_mode": self.args.input_mode} if getattr(self.args, "input_mode", None) else {}),
+                # A late steer's own turn: the operator steers it delivers, as its queued send named them.
+                **({STEER_OF_FIELD: named} if (named := safe_steer_of(getattr(self.args, STEER_OF_FIELD, None))) else {}),
             },
         )
         # C1h-bis: the turn's START, published the moment its row is real and

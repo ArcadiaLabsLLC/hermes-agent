@@ -124,7 +124,7 @@ def submit_mission_chat_steer(
             error="session_id, client_message_id, and non-empty message are required",
         )
     root = Path(runtime_root)
-    if not _active_record_is_live(root, normalized_session_id):
+    if steer_taking_turn(runtime_root=root, session_id=normalized_session_id) is None:
         return _rejected(
             "no_active_turn",
             session_id=normalized_session_id,
@@ -157,7 +157,7 @@ def submit_mission_chat_steer(
         ack = _read_json(ack_path)
         if ack is not None:
             return ack
-        if not _active_record_is_live(root, normalized_session_id):
+        if steer_taking_turn(runtime_root=root, session_id=normalized_session_id) is None:
             return _rejected(
                 "no_active_turn",
                 session_id=normalized_session_id,
@@ -377,14 +377,41 @@ def _rejected(error_kind: str, *, session_id: str, client_message_id: str, error
     }
 
 
-def _active_record_is_live(runtime_root: Path, session_id: str) -> bool:
-    record = _read_json(_active_path(runtime_root, session_id))
+def steer_taking_turn(*, runtime_root: Path, session_id: str) -> dict[str, Any] | None:
+    """The watcher record of the turn that takes a steer for this chat root NOW; ``None`` when none does.
+
+    THE read of "is a steer accepted": :func:`submit_mission_chat_steer` admits or refuses
+    ``no_active_turn`` on it, and the running ``chat_turn`` row's ``steerable`` is
+    :func:`turn_takes_steer` over it — one record, one rule, so the row and the door cannot
+    disagree (RT-CHAT-TURN-ROW-SAYS-WHETHER-IT-TAKES-A-STEER). A watcher is up from
+    :func:`start_active_mission_chat_turn` until its handle closes (``execution_state``
+    ``active``), in a process that is still alive.
+    """
+
+    # MUTATION: a read of its own at ``submit_mission_chat_steer``'s admission (``_read_json(...) is None``)
+    # and test_chat_turn_row_says_steerable's agreement test reddens (a refused steer left in the inbox).
+    if not str(session_id or "").strip():
+        return None
+    record = _read_json(_active_path(Path(runtime_root), session_id))
     if record is None or record.get("execution_state") != "active":
-        return False
+        return None
     pid = record.get("pid")
     if isinstance(pid, int) and pid > 0 and not _pid_is_alive(pid):
-        return False
-    return True
+        return None
+    return record
+
+
+def turn_takes_steer(*, runtime_root: Path, session_id: str, client_message_id: Any) -> bool:
+    """Whether a steer sent to this chat root now is accepted INTO this turn.
+
+    A steer is addressed to the chat root, and the root's one watcher belongs to one turn
+    (``client_message_id`` in its record); any other turn of the root — one whose agent is
+    still being built, a crashed one still listed in flight — takes none.
+    """
+
+    turn = str(client_message_id or "").strip()
+    record = steer_taking_turn(runtime_root=runtime_root, session_id=session_id) if turn else None
+    return record is not None and str(record.get("client_message_id") or "").strip() == turn
 
 
 def _pid_is_alive(pid: int) -> bool:

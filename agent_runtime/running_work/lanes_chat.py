@@ -482,7 +482,10 @@ class ChatTurnLane(LanePass):
             # (turn-resolve / the steer marker), never by this verb — see
             # ``cancel_work``. Their foreground ``tool_call`` children are.
             cancellable=bool(run_pass),
-            extra={"title": "", "current_tool": None, **run_pass},
+            # Whether a steer sent now lands in THIS turn — the steer door's own read, so the client
+            # never infers it from the turn's kind or its id (a Work turn takes one, a forged one not).
+            extra={"title": "", "current_tool": None, **run_pass,
+                   "steerable": _takes_steer(session_id, record.get("client_message_id"))},
         )
         self.rows.append(row)
         if state in self.running_states:
@@ -583,6 +586,19 @@ class ChatTurnLane(LanePass):
         titles = _chat_titles(sessions - {""})
         for row in turns:
             row["title"] = titles.get((row.get("owner") or {}).get("session_id") or "", "")
+
+
+def _takes_steer(session_id: str, client_message_id: Any) -> bool:
+    """``mission_chat_steer.turn_takes_steer``, fail-safe: a watcher record that cannot be read is no watcher."""
+
+    try:
+        from .. import paths
+        from ..mission_chat_steer import turn_takes_steer
+
+        return turn_takes_steer(runtime_root=paths.store_root(), session_id=session_id,
+                                client_message_id=client_message_id)
+    except Exception:
+        return False
 
 
 def _run_pass(session_id: str, client_message_id: Any) -> dict[str, Any]:

@@ -21,13 +21,42 @@ from __future__ import annotations
 
 from typing import Any
 
+from agent_runtime.mission_chat_turns.records import STEER_OF_FIELD
+
 __layer__ = "lanes"
 __all__ = ["leftover_steer_client_message_id", "queue_leftover_steer", "requeue_dead_turn_steers",
-           "requeue_undelivered_steers"]
+           "requeue_undelivered_steers", "steer_ids"]
 
 #: Prefix of the queued turn's ``client_message_id``. Derived from the steer's own
 #: id, so a replay of the same turn converges on the one queue entry.
 NEXT_TURN_PREFIX = "steer-next-"
+
+def steer_ids(pending: Any) -> list[str]:
+    """The client message ids of the OPERATOR steers in a hand-back, oldest first.
+
+    A background notice rides the same buffer under an id of its own; it is not something the
+    operator typed, so it is not named.
+    """
+
+    # MUTATION: drop the ``kind`` term and test_steer_next_turn_names_its_steer's notice test reddens.
+    return [platform_id for item in getattr(pending, "inputs", ()) or ()
+            if getattr(item, "kind", "") == "steer"
+            and (platform_id := str(getattr(item, "platform_id", None) or "").strip())]
+
+
+def _name_steers(persisted: dict, ids: list[str]) -> None:
+    """State ``ids`` on a queued send — and nothing inherited from the send it was copied from.
+
+    The turn writes them ahead on its journal record and the stored operator row carries them, so a
+    reader links the steer it echoed to the turn that delivers it by this field, never by taking
+    :data:`NEXT_TURN_PREFIX` off the turn's id — that id is the TURN's own when the hand-back kept no
+    ids (RT-STEER-NEXT-TURN-NAMES-THE-STEER-IT-DELIVERS).
+    """
+
+    # MUTATION: return here and test_steer_next_turn_names_its_steer reddens at every minting site.
+    persisted.pop(STEER_OF_FIELD, None)
+    if ids:
+        persisted[STEER_OF_FIELD] = list(ids)
 
 
 def leftover_steer_client_message_id(pending: Any, turn_client_message_id: str) -> str:
@@ -62,6 +91,7 @@ def queue_leftover_steer(args: Any, *, session_id: str, client_message_id: str, 
         message=text, client_message_id=next_id, session_id=session_id, new_session=False,
         clarify_token=None, retry_of=None, title=None, idempotency_key=None,
     )
+    _name_steers(persisted, steer_ids(pending))
     chat_root_send_queue.enqueue(session_id, next_id, persisted)
     return next_id
 
@@ -135,6 +165,7 @@ def _requeue_from_ledger(
             message=text, client_message_id=next_id, session_id=session_id, new_session=False,
             clarify_token=None, retry_of=None, title=None, idempotency_key=None,
         )
+        _name_steers(persisted, [steer_id])
         chat_root_send_queue.enqueue(session_id, next_id, persisted)
         queued.append(next_id)
     return queued
