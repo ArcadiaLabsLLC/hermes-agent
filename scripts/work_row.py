@@ -15,7 +15,8 @@ every other segment alone (RT-QUEUE-ROW-HANDOFF-HAS-NO-COMMAND; a second blocker
 after the last live row of its task in the note that holds them, a task row after the last row under that note's
 ``## Tasks`` heading, ``--under "<heading>"`` after the last row under the heading that starts with those words
 (with no ``--note``: in the row's home note when it has that heading, else the one queue note that does — two such
-notes refuse; RT-WORK-ROW-APPEND-UNDER-PICKS-ANOTHER-QUEUE);
+notes refuse; RT-WORK-ROW-APPEND-UNDER-PICKS-ANOTHER-QUEUE); with neither and no note holding the row's task (its task
+row, or a task row's subtasks) the append refuses rather than take the first queue note found;
 a row with nowhere better goes to the end of the note (RT-QUEUE-ROW-APPEND-LANDS-AT-THE-BOTTOM-OF-THE-NOTE).
 ``--no-push`` commits the operation by pathspec and pushes nothing — for a lane whose landing checks run before its
 push (RT-QUEUE-ROW-OP-PUSHES-BEFORE-THE-LANES-CHECKS); the default pushes, as before. An op that would push from a
@@ -357,6 +358,14 @@ def _note_and_text(repo: Path, args: argparse.Namespace) -> tuple[Path, str]:
         home = _home_note(notes, args.row or "")
         if args.under and not args.note:
             home = _note_with_heading(notes, args.under, home)
+        if home is None and not args.note and len(notes) > 1:
+            # RT-WORK-ROW-APPEND-UNDER-PICKS-ANOTHER-QUEUE (two sightings 2026-11-12): the first note found was taken,
+            # which put rows in fork-hygiene-queue.md and dead-code-burn-down-queue.md. A row with no home is placed
+            # where the filer says, never where the glob happens to start.
+            # MUTATION: drop this refusal and test_append_without_a_home_note_refuses_instead_of_taking_the_first
+            # reddens (RT-LOST lands in a.md).
+            raise WorkRefused(Reason.INVALID, f"`{args.row_id}` has no row of its task in any queue note: pass --note "
+                                              f"<note> (or --under <heading>) — {len(notes)} queue notes could take it")
         home = home or notes[0]
         return home, home.read_bytes().decode("utf-8")
     raise WorkRefused(Reason.ROW_GONE if notes else Reason.NOTE_MISSING, args.row_id)
@@ -399,13 +408,25 @@ def _own_rows(new: Row, rows: list[Row]) -> list[Row]:
 
 
 def _home_note(notes: list[Path], line: str) -> Path | None:
-    """The queue note that already holds the new row's own rows, else None (the caller's default stands)."""
+    """The queue note that already holds the new row's own rows — a subtask's sibling subtasks or its task row, a
+    task row's subtasks — else None."""
 
     new = _new_row(line)
     if new is None:
         return None
-    return next((path for path in notes
-                 if _own_rows(new, parse_note(path.read_bytes().decode("utf-8"), slot="", note=""))), None)
+    for path in notes:
+        rows = parse_note(path.read_bytes().decode("utf-8"), slot="", note="")
+        if _own_rows(new, rows):
+            return path
+        if new.task is not None and any(
+                row.group is not None and owning_task(row.group, {new.task}) == new.task for row in rows):
+            # MUTATION: drop this arm and test_append_without_a_home_note_refuses_instead_of_taking_the_first's
+            # re-appended task row lands in a.md (the first note), red.
+            return path
+        if new.group is not None and new.task is None and any(
+                row.task is not None and owning_task(new.group, {row.task}) == row.task for row in rows):
+            return path
+    return None
 
 
 def _after_section(lines: list[str], words: str) -> int | None:

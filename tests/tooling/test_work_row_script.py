@@ -776,3 +776,33 @@ def test_a_write_whose_changed_rows_break_the_task_rules_is_refused(clones, tmp_
     assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--repo", str(mine),
                           "--no-commit"]) == work_row.EXIT_REFUSED
     assert "(TASK TITLE" in capsys.readouterr().err and "RT-S1" in (mine / NOTE).read_text(encoding="utf-8")
+
+
+def test_append_without_a_home_note_refuses_instead_of_taking_the_first(clones, tmp_path, monkeypatch, capsys):
+    """RT-WORK-ROW-APPEND-UNDER-PICKS-ANOTHER-QUEUE, second sighting (w1112b-turnapp2, 2026-11-12): a TASK row
+    re-appended with no ``--note`` landed in dead-code-burn-down-queue.md (the first queue note, which has a Tasks
+    heading too), not runtime-queue.md where its subtasks are. KILLING MUTATIONS: drop the task-row arm of
+    ``_home_note`` -> TASK-P2 is refused (no home), red; drop the no-home refusal -> RT-LOST lands in a.md, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path, "- **`TASK-L` — l** · task: l · READY 2026-11-09\n")
+    first = mine / "Harness_Brain/20 — Active Initiatives/a.md"
+    first.write_text(HEAD.replace("## Open", "## Tasks — other") +
+                     "- **`TASK-Z` — Zed** · task: z · READY 2026-11-09\n", encoding="utf-8", newline="\n")
+    (mine / NOTE).write_text(PLACED.replace("- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n", ""),
+                             encoding="utf-8", newline="\n")
+
+    def append(row_id: str, tail: str, *more: str) -> int:
+        return work_row.main(["append", row_id, "--who", "r", "--row", f"- **`{row_id}` — new** · {tail} · READY 2026-11-12",
+                              "--repo", str(mine), "--no-commit", *more])
+
+    def ids(path: Path) -> list[str]:
+        return [row.ref.id for row in work_row.parse_note(path.read_text(encoding="utf-8"), slot="", note="")]
+
+    assert append("TASK-P2", "task: p") == 0, "a task row goes where its subtasks are"
+    assert "TASK-P2" in ids(mine / NOTE) and "TASK-P2" not in ids(first)
+    assert append("RT-LOST", "group: l") == work_row.EXIT_REFUSED
+    assert "`RT-LOST` has no row of its task in any queue note: pass --note" in capsys.readouterr().err
+    assert "RT-LOST" not in ids(first) + ids(mine / NOTE)
+    assert append("RT-LOST", "group: l", "--note", NOTE) == 0
+
