@@ -302,7 +302,11 @@ class SnapshotFrameBuild:
         self.lens_section = lens_fold()
 
     def frame(self) -> None:
-        """The frame dict: contract stamps, runtime default and config, and the projections above."""
+        """The frame dict: contract stamps, runtime default and config, and the projections above.
+
+        Pinned by ``tests/agent_runtime/test_stream_contract_fixture.py`` (the stream goldens under
+        ``tests/fixtures/stream_frames/``): a key added here or to a row builder moves them — regenerate
+        with ``python scripts/generate_agent_runtime_stream_fixtures.py`` in the same change."""
 
         self.data = {
             "schema_version": 2,

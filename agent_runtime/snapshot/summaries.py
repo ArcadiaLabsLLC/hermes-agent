@@ -56,6 +56,9 @@ def workspace_summary(
     persona_instances=(),
     active_id: str | None = None,
 ) -> dict:
+    """One ``workspaces[]`` row. Pinned by ``tests/agent_runtime/test_stream_contract_fixture.py`` (the
+    stream goldens; regenerate with ``scripts/generate_agent_runtime_stream_fixtures.py``) and
+    ``tests/hermes_cli/test_entity_row_characterization.py`` (the CLI rows re-keyed from it)."""
     roster_agent_ids = list(workspace.agent_ids or [])
     live_scoped_agent_ids = exact_scoped_instance_ids(
         persona_instances,
