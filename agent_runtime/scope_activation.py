@@ -172,7 +172,7 @@ def realm_row(realm, *, full: bool = False) -> dict:
     if full:
         row.update({
             key: summary[key]
-            for key in ("kind", "slug", "workspace_ids", "default_workspace_name", "archived", "shared_from")
+            for key in ("kind", "slug", "workspace_ids", "default_workspace_name", "archived", "shared_from", "rekeyed_from")
         })
         row["sync_manifest_ref"] = realm.sync_manifest_ref
         row["created_at"] = realm.created_at

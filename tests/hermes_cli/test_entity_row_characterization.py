@@ -397,6 +397,8 @@ def test_realm_row_is_value_identical_to_before(fixture_store):
         "archived": False,
         # RT-LEFT-SERVER-REALM-STAYS-LISTED: the server a now-local realm came from; null on a bound realm.
         "shared_from": None,
+        # RT-REKEY-ID-MAP-FOR-ETERNIA: the ids a local copy had as the team's realm; null until its re-key ran.
+        "rekeyed_from": None,
         "sync_manifest_ref": realm.sync_manifest_ref,
         "created_at": realm.created_at,
     }
