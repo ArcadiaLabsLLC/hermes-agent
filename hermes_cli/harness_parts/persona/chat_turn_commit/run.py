@@ -123,6 +123,16 @@ def _resident_native_history(runtime_registry, session_db, root_session_id: str)
     return runtime_registry.resident_native_history(root_session_id, stamp=stamp)
 
 
+
+def _is_work_turn(args) -> bool:
+    """A Work run's turn (``requested_by`` ``work:<request>``, ``work_store/persona_turn.py``).
+
+    RULED 2026-11-12 (RT-STEER-ONLY-STREAMING-TURNS): a Work turn takes an operator steer though it
+    streams to no screen — the operator watches it on the board; a forged delivery or relay turn does not.
+    """
+
+    return str(getattr(args, "requested_by", "") or "").startswith("work:")
+
 class _RunPhases:
     """The ``TurnCommit`` methods that build the turn and run it through the provider."""
 
@@ -429,7 +439,7 @@ class _RunPhases:
         turn_phases.count_delta("registry_probe_rounds", _registry_probe_rounds())
         turn_phases.count_delta("visibility_bundle_builds", _visibility_bundle_builds())
         try:
-            if not getattr(self.args, "stream", False):
+            if not getattr(self.args, "stream", False) and not _is_work_turn(self.args):
                 return None
             from agent_runtime import chat_root_send_queue
             from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
