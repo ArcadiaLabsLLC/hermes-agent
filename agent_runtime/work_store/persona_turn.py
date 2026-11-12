@@ -45,7 +45,8 @@ from ..chat_turn_settles import outcome_from_payload, read_settle, settle_id_for
 from ..mission_chat_workdir import RUN_WORKDIR_ARG
 from . import goal_turns, receipts
 from .executor import (
-    Assignment, Brief, ExecutorKind, GoalMode, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict,
+    OPERATOR_STOP_REASON, Assignment, Brief, ExecutorKind, GoalMode, Outcome, RowEnding, Run, RunStatus, StopReason,
+    Verdict,
 )
 from .grammar import RowRef
 from .reasons import Reason, WorkRefused
@@ -473,7 +474,8 @@ class PersonaTurnExecutor:
 
 
 def outcome_of(exit_code: int, payload: dict | None, rows: tuple[RowRef, ...]) -> Outcome:
-    """The run's outcome: the reply's ``work_report`` ending, else ``FAILED`` with what the turn said.
+    """The run's outcome: the reply's ``work_report`` ending, else ``STOPPED`` for a turn the operator
+    stopped (the settle's ``stopped: true``), else ``FAILED`` with what the turn said.
 
     A turn that ended on its time budget without a report is ``FAILED`` with ``cause=out_of_time``
     (RT-WORK-TURN-OUT-OF-TIME-READS-FAILED); a checkpoint reply that DID report is believed.
@@ -481,6 +483,11 @@ def outcome_of(exit_code: int, payload: dict | None, rows: tuple[RowRef, ...]) -
 
     reply = str((payload or {}).get("reply") or "")
     ending = parse_work_report(reply)
+    if ending is None and (payload or {}).get("stopped") is True:
+        # The operator stopped the turn itself (Activity, the chat's Stop): the same ending the board's
+        # Stop writes once its turn ends — released ``DEFERRED: stopped — operator stop``, never a
+        # failure that asks for a plan (RT-TWO-STOPS-ONE-RUNNING-TASK). A report it got out still wins.
+        ending = RowEnding(Verdict.STOPPED, reason=OPERATOR_STOP_REASON)
     # MUTATION: drop this line and test_persona_turn's "a turn that ran out of time says so" reddens.
     ending = ending or goal_turns.out_of_time_ending(payload)
     if ending is None:

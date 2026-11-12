@@ -24,8 +24,9 @@ from .reasons import Reason
 
 __layer__ = "lanes"
 __all__ = [
-    "REFUSALS",
     "CAUSE_OUT_OF_TIME",
+    "OPERATOR_STOP_REASON",
+    "REFUSALS",
     "Assignment",
     "Brief",
     "Executor",
@@ -45,6 +46,12 @@ REFUSALS: frozenset[Reason] = frozenset({
     Reason.EXECUTOR_BUSY, Reason.PERSONA_UNAVAILABLE, Reason.CAP_REACHED, Reason.DRAIN_BEGUN,
     Reason.DOOR_UNBOUND, Reason.WORKTREE_FAILED,
 })
+
+
+#: The reason a row's ``STOPPED`` ending carries when the operator stopped its run — ONE spelling for
+#: the board's Stop (``batch.dispatcher``) and a stop of the turn itself (``persona_turn.outcome_of``),
+#: so the row reads the same whichever Stop was pressed (RT-TWO-STOPS-ONE-RUNNING-TASK).
+OPERATOR_STOP_REASON = "operator stop"
 
 
 class ExecutorKind(StrEnum):

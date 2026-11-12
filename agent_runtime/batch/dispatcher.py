@@ -15,7 +15,9 @@ through the W2 writer before or after the side effect it records:
   with work, ``ABORTED`` with reason ``nothing to land`` when every lane settled with none);
 * ``stop`` releases a lane that has not begun and WAITS for a running turn (owner ruling 2026-10-18):
   the lane line records ``STOP_REQUESTED`` and the settle ends the lane ``STOPPED``; ``stop`` with no lane
-  aborts the batch (every claim released ``DEFERRED``);
+  aborts the batch (every claim released ``DEFERRED``). A stop of the lane's TURN itself (Activity, the
+  chat's Stop) ends it at once and settles ``STOPPED`` with the same row ending — ``DEFERRED: stopped —
+  operator stop`` (``persona_turn.outcome_of`` reads the settle's ``stopped: true``);
 * ``land`` (manual only) runs the landing lane; its settle carries the executor's code-run gate receipts
   (``gate.py``), which alone decide ``AWAITING_APPROVAL`` — the persona's verdict is advisory
   (RT-BATCH-GATE-RECEIPT, owner ruling 2026-10-18). ``approve`` (manual only) is the ONLY door to
@@ -44,7 +46,10 @@ from typing import Any, Protocol
 
 from ..work_store import receipts
 from ..work_store.default_brain import this_machine
-from ..work_store.executor import CAUSE_OUT_OF_TIME, Assignment, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
+from ..work_store.executor import (
+    CAUSE_OUT_OF_TIME, OPERATOR_STOP_REASON, Assignment, Executor, Outcome, RowEnding, Run, RunStatus, StopReason,
+    Verdict,
+)
 from ..work_store.grammar import RowRef, Status
 from ..work_store.reasons import Reason, WorkRefused
 from ..work_store.source import Claimant, WorkSource
@@ -410,7 +415,7 @@ class BatchDispatcher:
             ending = outcome.per_row.get(ref) or RowEnding(outcome.verdict, reason="the lane named no ending")
             ending = replace(ending, commit=outcome.completion_commit)
             if stopping and ending.verdict is not Verdict.DONE:
-                ending = RowEnding(Verdict.STOPPED, reason="operator stop")
+                ending = RowEnding(Verdict.STOPPED, reason=OPERATOR_STOP_REASON)
             try:
                 ROW_ENDINGS[ending.verdict](source, ref, who, ending)
                 done += ending.verdict is Verdict.DONE
@@ -475,7 +480,7 @@ class BatchDispatcher:
         state = move(LANE_MOVES, record.state, LaneEvent.STOP)
         source = self._source_for(workspace_id)
         who = Claimant.persona(record.persona or "")
-        ending = RowEnding(Verdict.STOPPED, reason="operator stop")
+        ending = RowEnding(Verdict.STOPPED, reason=OPERATOR_STOP_REASON)
         for ref in record.rows:
             try:
                 ROW_ENDINGS[Verdict.STOPPED](source, ref, who, ending)

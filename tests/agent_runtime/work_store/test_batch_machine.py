@@ -241,6 +241,40 @@ def test_stop_waits_for_the_running_turn():
     assert d.load(WS, batch.id).lanes[0].state is LaneState.STOPPED
 
 
+def test_stopping_the_lanes_turn_ends_the_row_exactly_as_the_boards_stop_does():
+    """RT-TWO-STOPS-ONE-RUNNING-TASK: Stop on the board, or Stop on the lane's turn in Activity — one ending."""
+    from agent_runtime.work_store.persona_turn import outcome_of
+
+    def ending(stop_on_board: bool, payload: dict):
+        source = FakeSource(rows("Fork-owned"))
+        d, batch = started(source)
+        lane = batch.lanes[0]
+        d.executor.statuses[lane.run_id] = RunStatus.RUNNING
+        if stop_on_board:
+            d.stop(WS, batch.id, "L1")
+        d.executor.settle(f"{batch.id}:L1", outcome_of(0, payload, lane.rows))
+        row, after = source.by_ref[lane.rows[0]], d.load(WS, batch.id)
+        return row.status, row.status_body, row.taken, after.lanes[0].state, after.state
+
+    # The board's Stop waits for the turn, which ends with no report; Activity's Stop ends the turn itself,
+    # and its settle says so (``stopped: true``) — the dispatcher is told nothing else.
+    board = ending(True, {"ok": True, "reply": "half a reply"})
+    activity = ending(False, {"ok": True, "stopped": True, "execution_state": "stopped", "reply": "half a reply"})
+    assert board == (Status.DEFERRED, board[1], None, LaneState.STOPPED, BatchState.ABORTED)
+    assert "stopped — operator stop" in board[1]
+    assert activity == board
+
+
+def test_a_stopped_turn_that_got_its_report_out_keeps_it_and_an_unstopped_one_still_fails():
+    from agent_runtime.work_store.persona_turn import REPORT_INFO, outcome_of
+
+    ref = rows("Fork-owned")[0].ref
+    report = f"```{REPORT_INFO}\nverdict: done\nresult: shipped\n```"
+    assert outcome_of(0, {"ok": True, "stopped": True, "reply": report}, (ref,)).verdict is Verdict.DONE
+    assert outcome_of(0, {"ok": True, "reply": "no report"}, (ref,)).verdict is Verdict.FAILED
+    assert outcome_of(0, {"ok": True, "stopped": "yes", "reply": ""}, (ref,)).verdict is Verdict.FAILED
+
+
 def test_stop_releases_a_lane_that_has_not_begun_and_abort_releases_every_claim():
     source = FakeSource(rows("A-one", "B-two", "C-three"))
     d, batch = started(source, budget=Budget(max_lanes=1))
