@@ -27,6 +27,8 @@ class MissionChatSteerHandle:
     session_id: str
     agent: Any
     input_position: Callable[[], dict[str, Any]] | None = None
+    #: The turn this handle watches for; stamped on each accepted steer's ledger record.
+    client_message_id: str | None = None
     stop_event: threading.Event = field(default_factory=threading.Event)
     processed_client_ids: set[str] = field(default_factory=set)
     thread: threading.Thread | None = None
@@ -76,6 +78,7 @@ def start_active_mission_chat_turn(
         session_id=normalized_session_id,
         agent=agent,
         input_position=input_position,
+        client_message_id=client_message_id,
     )
     handle.thread = threading.Thread(
         target=_watch_inbox,
@@ -220,6 +223,16 @@ def _process_request(handle: MissionChatSteerHandle, path: Path) -> None:
         pending = PendingSteer.from_text(text, platform_id=client_message_id, metadata=position)
         if steer(pending) is False:
             raise ValueError("agent refused the input")
+        # On disk BEFORE the ack: the agent holds an accepted steer only in memory, and a turn
+        # that raises, hits its hard wall or dies takes that memory with it. The turn's settle
+        # reads this ledger (``take_accepted_steers``) and re-delivers what never reached the
+        # transcript (RT-STEER-LOST-WHEN-TURN-FAILS).
+        _write_json_atomic(
+            _accepted_path(handle.runtime_root, handle.session_id, client_message_id),
+            {"client_message_id": client_message_id, "message": message,
+             "notification": request.get("notification") is True,
+             "turn": handle.client_message_id, "accepted_at": time.time()},
+        )
         handle.processed_client_ids.add(client_message_id)
         _mirror_steer_to_live_log(handle.session_id, message, client_message_id,
                                 position=position, notification=request.get("notification") is True)
@@ -270,6 +283,27 @@ def _mirror_steer_to_live_log(session_id: str, message: str, client_message_id: 
     except Exception:
         return
     return
+
+
+def take_accepted_steers(*, runtime_root: Path, session_id: str) -> list[dict[str, Any]]:
+    """Every steer this chat root accepted and no settle has accounted for yet, oldest first.
+
+    Each record is ``{client_message_id, message, notification, turn, accepted_at}``; reading
+    one removes it, so a caller owns what it is handed. Called by the turn's settle under the
+    chat-root lease, after the watcher has stopped.
+    """
+
+    taken: list[dict[str, Any]] = []
+    try:
+        paths = sorted((_turn_dir(Path(runtime_root), session_id) / "accepted").glob("*.json"))
+    except OSError:
+        return taken
+    for path in paths:
+        record = _read_json(path)
+        unlink_quietly(path)
+        if record is not None and str(record.get("client_message_id") or "").strip():
+            taken.append(record)
+    return sorted(taken, key=lambda item: float(item.get("accepted_at") or 0.0))
 
 
 def _accepted(*, session_id: str, client_message_id: str, duplicate: bool = False) -> dict[str, Any]:
@@ -363,6 +397,10 @@ def _request_path(runtime_root: Path, session_id: str, client_message_id: str) -
 
 def _ack_path(runtime_root: Path, session_id: str, client_message_id: str) -> Path:
     return _turn_dir(runtime_root, session_id) / "ack" / f"{_safe_token(client_message_id)}.json"
+
+
+def _accepted_path(runtime_root: Path, session_id: str, client_message_id: str) -> Path:
+    return _turn_dir(runtime_root, session_id) / "accepted" / f"{_safe_token(client_message_id)}.json"
 
 
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:

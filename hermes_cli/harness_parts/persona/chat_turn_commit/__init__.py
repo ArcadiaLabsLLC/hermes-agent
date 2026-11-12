@@ -132,16 +132,24 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases, _StoppedPhases):
             ]
         return data
 
-    def _queue_leftover_steer(self) -> None:
-        """Input the turn finished before absorbing becomes the root's next turn (never dropped)."""
+    def _queue_leftover_steer(self, *, turn_returned: bool = True) -> None:
+        """Input the turn finished before absorbing becomes the root's next turn (never dropped).
 
-        from .leftover_steer import queue_leftover_steer
+        ``turn_returned`` False is the raised turn: no result hands anything back, so every
+        steer it accepted and never stored is re-delivered from the watcher's ledger.
+        """
 
-        raw = getattr(getattr(self, "chat_result", None), "raw", None)
+        from .leftover_steer import queue_leftover_steer, requeue_undelivered_steers
+
+        raw = getattr(getattr(self, "chat_result", None), "raw", None) if turn_returned else None
         try:
             queue_leftover_steer(
                 self.args, session_id=self.session_id,
                 client_message_id=self.client_message_id, raw=raw,
+            )
+            requeue_undelivered_steers(
+                self.args, session_id=self.session_id, client_message_id=self.client_message_id,
+                session_db=self.session_db, turn_returned=turn_returned,
             )
         except Exception as exc:
             self._warn(FinalizationWarningKind.LEFTOVER_STEER_NOT_QUEUED, type(exc).__name__)
@@ -167,7 +175,9 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases, _StoppedPhases):
             self._fold_profile_timing()
             self._attach_turn_results()
         except Exception as exc:
-            return self._settle_failure(exc)
+            code = self._settle_failure(exc)
+            self._queue_leftover_steer(turn_returned=False)
+            return code
         if self._run_was_stopped():
             # A stop is not a reply: its own settle (``stopped``), never the native commit.
             try:

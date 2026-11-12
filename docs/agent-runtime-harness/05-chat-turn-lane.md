@@ -1081,6 +1081,19 @@ work apply unchanged. An EMPTY run (upstream's `(empty)` sentinel or explainer s
 the stored `(empty)` row reads as a `turn_silent` marker (`turn_visibility.printable_reply_text`).
 Pins: `tests/agent_runtime/test_chat_turn_stopped_or_empty.py`.
 
+**A cut-off turn says so on reload, and a steer it accepted is not lost** (2026-11-12). The serve-boot
+sweep (`persona_chat_continuity.repair_orphaned_chat_turns`) flips a dead executor's in-flight records
+to `interrupted` before the first hydrate; the history projection then shows the `turn_interrupted`
+marker unless the turn has a REPLY row — a tool-request row, or a half reply upstream marked
+`display_metadata.interrupted`, no longer stands in for it (`curation._is_reply_row`; before, any stored
+assistant row hid the marker, so a turn cut off after one tool call reloaded as nothing). The steer
+watcher writes each accepted steer to `<steer dir>/<root>/accepted/<id>.json` before its ack; the turn's
+settle (`leftover_steer.requeue_undelivered_steers`, under the root lease) queues as the root's next
+turn (`steer-next-<id>`) every record that is not in the transcript and belongs to a turn that raised,
+hit the hard wall or died — a returned turn's own steers were drained or handed back as `pending_steer`.
+Process-completion notices are not re-sent. Pins: `tests/agent_runtime/test_cut_off_turn_marker_after_tool_step.py`,
+`tests/agent_runtime/test_steer_survives_a_failed_turn.py`.
+
 **The run budget is an accounting seam, not a scheduler.** `agent_runtime/run_budget.py` holds no
 policy, enforces nothing, never raises (`:29-44`); each mechanism decides on its own terms and then
 declares itself. Four kinds (`:66-72`): `wall`, `api_calls`, `total_tokens`, `mcp_calls`. Three
