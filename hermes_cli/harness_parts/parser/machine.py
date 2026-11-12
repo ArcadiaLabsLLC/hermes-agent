@@ -633,13 +633,16 @@ def add_work(subs) -> None:
     # `tests/agent_runtime/test_s46_incremental_projection_lane_removal.py` (deleted 2026-09-24) and
     # by the `agent_runtime.read_model` / `.projector` MODULE tombstones.
 
-    # `harness work` — the operator's view of background work in flight
-    # (terminal processes, subagent delegations, in-flight chat turns, MCP
-    # servers, cron jobs). `list`/`peek` are strictly read-only; `cancel` is a
-    # stage42 mutation verb and carries the confirm + replay guards.
-    work = subs.add_parser("work", help="Background work running right now (list / peek / cancel)")
+    # `harness work` — the operator's view of what is RUNNING NOW (terminal
+    # processes, subagent delegations, in-flight chat turns, MCP servers, cron
+    # jobs). Never board tasks: a Task is a row of a workspace board, read by
+    # `runtime.work.list`, and the two id spaces do not overlap
+    # (RT-WORK-WORD-MEANS-TASKS-AND-RUNNING-THINGS). `list`/`peek` are strictly
+    # read-only; `cancel` is a stage42 mutation verb and carries the confirm +
+    # replay guards.
+    work = subs.add_parser("work", help="What is running now: processes, builds, helper agents, chat turns, tool calls (list / peek / cancel). Board tasks are not listed here")
     work_subs = work.add_subparsers(dest="work_command", required=True)
-    work_list = work_subs.add_parser("list", help="Every piece of running background work, with per-source health")
+    work_list = work_subs.add_parser("list", help="Everything running now, with per-source health (not board tasks)")
     work_list.add_argument("--kind", default=None, help="Only rows of this kind (terminal, delegation, chat_turn, mcp_server, cron_job, dispatch)")
     # No `--cursor`/`--since`: this projection is a point-in-time census of what
     # is running NOW, built fresh on every call. There is no page to resume from
@@ -650,7 +653,7 @@ def add_work(subs) -> None:
     )
     work_list.set_defaults(func=work_commands._cmd_work_list)
     work_peek = work_subs.add_parser("peek", help="Bounded read-only look at one item's recent output/progress")
-    work_peek.add_argument("work_id", help="Work id from `harness work list`, e.g. terminal:sess-1")
+    work_peek.add_argument("work_id", help="Running-now id from `harness work list`, e.g. terminal:sess-1 (a board task id is not one)")
     # Peek answers about ONE row, so nothing to sort, page or bound.
     _add_stage42_global_args(work_peek)
     work_peek.set_defaults(func=work_commands._cmd_work_peek)
@@ -659,8 +662,8 @@ def add_work(subs) -> None:
     work_restart.add_argument("--issued-at", dest="issued_at", default=None, help="ISO-8601 issue timestamp; a restart issued before the build started is superseded")
     _add_stage42_global_args(work_restart)
     work_restart.set_defaults(func=work_commands._cmd_work_restart)
-    work_cancel = work_subs.add_parser("cancel", help="Interrupt one piece of running work through its owning subsystem")
-    work_cancel.add_argument("work_id", help="Work id from `harness work list`")
+    work_cancel = work_subs.add_parser("cancel", help="Stop one thing that is running now, through its owning subsystem")
+    work_cancel.add_argument("work_id", help="Running-now id from `harness work list` (a board task id is not one)")
     work_cancel.add_argument("--reason", default="operator_cancel", help="Recorded interrupt reason")
     work_cancel.add_argument("--issued-at", dest="issued_at", default=None, help="ISO-8601 issue timestamp; a cancel issued before the work started is superseded instead of applied")
     # Same single-row reasoning, plus `--idempotency-key`: replay protection on

@@ -1824,6 +1824,20 @@ recovery and pending discovery serve both directions.
 
 ## Native Work methods
 
+**Two things share the `runtime.work.` prefix, and they are named apart** (owner 2026-11-12,
+`RT-WORK-WORD-MEANS-TASKS-AND-RUNNING-THINGS`). A **Task** is a row of a workspace board: the methods
+of this section (`runtime.work.list`, `.claim`, `.done` …, `agent_runtime/work/rpc.py`), keyed
+`(slot, ID)`. What is **running now** — a terminal process, a build, a helper agent, a chat turn, a tool
+call — is the `running_work` projection: `runtime.work.cancel`, `runtime.work.restart`,
+`runtime.work.background.promote` (`agent_runtime/serve_rpc/work.py`) and the argv family
+`harness work list|peek|cancel|restart`, keyed by a `<kind>:<id>` running-now id. The id spaces are
+disjoint and each method takes only its own kind, so nothing misroutes; the method names stay for wire
+compatibility, and fork-owned text says "task" for the first and "running now" for the second. A
+promoted tool call's `bg:<id>` handle is a running-now handle too: not a process session id
+(`process_manage` cannot poll it) and not a task id. An agent may hold both `schedule_manage` (a
+message delivered later to an agent's chat) and upstream's `cronjob_manage` (a standalone cron job);
+upstream's tool descriptions are left as they are.
+
 `agent_runtime/work/` serves Work on the workspace todo boards (plan
 [work-on-markdown-2026-10-18.md](archive/work-on-markdown-2026-10-18.md) §2, §5, §6.2). An owner is a
 WORKSPACE; its board is the `type: queue` notes of every repo slot it binds (plus the auto-created

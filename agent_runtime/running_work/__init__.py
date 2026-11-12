@@ -1,4 +1,9 @@
-"""Unified ``running_work`` projection — what background work is running RIGHT NOW.
+"""Unified ``running_work`` projection — what is running RIGHT NOW (never board tasks).
+
+Words (owner 2026-11-12, RT-WORK-WORD-MEANS-TASKS-AND-RUNNING-THINGS): a **Task** is a row of a workspace
+board (``agent_runtime/work``, ``runtime.work.list``); what this package projects is **running now**. The
+two share the ``runtime.work.`` / ``harness work`` prefix by history only — separate id spaces, and each
+method takes only its own kind.
 
 One aggregator, six lanes (terminal background processes, background subagent
 delegations, in-flight mission-chat turns — with, live, the foreground

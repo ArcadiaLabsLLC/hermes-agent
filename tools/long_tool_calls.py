@@ -255,8 +255,12 @@ def running_in_background(call: _Call, *, reused: bool = False) -> str:
         "status": "running_in_background",
         "handle": call.handle,
         "tool": call.tool_name,
+        # The handle names this running CALL: it is not a process session id (``process_manage``
+        # cannot poll it) and not a board task id (RT-WORK-WORD-MEANS-TASKS-AND-RUNNING-THINGS).
         "message": note + "Its result will arrive as a new message when it finishes; do not poll "
-                          "or call it again. Continue with anything that does not need its result.",
+                          "or call it again. The handle names this running call only: it is not a "
+                          "process id and not a task id, so no other tool takes it. Continue with "
+                          "anything that does not need its result.",
     })
 
 

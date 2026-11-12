@@ -1,6 +1,14 @@
 """``runtime.work.cancel`` / ``runtime.work.restart`` — Stop and Restart as direct methods (OWNER call 3);
 ``runtime.work.background.promote`` — Send to background (RT-LONG-TOOL-CALLS-BACKGROUND).
 
+**These three act on what is RUNNING NOW, not on board tasks** (RT-WORK-WORD-MEANS-TASKS-AND-RUNNING-THINGS,
+owner 2026-11-12: "Task" for a board item, "Running now" for what is executing). They share the
+``runtime.work.`` prefix with the Task methods (``agent_runtime/work/rpc.py``: ``runtime.work.list``,
+``.claim``, ``.done`` … — rows of a workspace board) only by history. Their ``work_id`` is a running-now
+id (``<kind>:<id>`` from the ``running_work`` projection — ``terminal:``, ``build:``, ``delegation:``,
+``chat_turn:``, ``tool_call:``); a Task is named by ``(slot, ID)``. The id spaces are disjoint and each
+method takes only its own kind, so the words in every message below say "running".
+
 Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §7. Each is the
 SAME decision the argv verb reaches (``harness work cancel`` / ``harness work restart``):
 ``running_work.cancel_work`` and ``builds.control.restart_build``, behind the ONE ``issued_at``
@@ -29,7 +37,7 @@ def _row_or_refusal(rid, params):
         return None, err(rid, ERR_INVALID_PARAMS, "work_id is required.", {"reason": "invalid_request"})
     row = find_work_row(work_id)
     if row is None:
-        return None, err(rid, ERR_NOT_FOUND, "No running work with that id.", {"reason": "not_found", "work_id": work_id})
+        return None, err(rid, ERR_NOT_FOUND, "Nothing running now has that id (a task id is not a running-now id).", {"reason": "not_found", "work_id": work_id})
     if _cancel_is_superseded(str(params.get("issued_at") or ""), str(row.get("started_at") or "")):
         return None, err(rid, ERR_CONFLICT, "Issued before this work started; superseded.",
                          {"reason": "stale_revision", "work_id": work_id, "started_at": row.get("started_at")})
@@ -46,7 +54,7 @@ def _runtime_work_cancel(rid, params, context=None):
     result = cancel_work(row["work_id"], reason=str((params or {}).get("reason") or "operator_cancel"))
     if result.get("status") in _CANCEL_ACCEPTED:
         return ok(rid, result)
-    return err(rid, ERR_CONFLICT, "The work could not be stopped.",
+    return err(rid, ERR_CONFLICT, "What is running could not be stopped.",
                {"reason": result.get("code") or "cancel_failed", "detail": result.get("detail") or ""})
 
 

@@ -1,4 +1,4 @@
-"""``harness work``: list, peek and cancel the running background work.
+"""``harness work``: list, peek and cancel what is RUNNING NOW (never board tasks — those are ``runtime.work.list``).
 
 Split from ``runtime_commands`` (H2 sheet leftover, lane h10b-refac): the
 running-work verb family and the confirmation-target helper only it calls.
@@ -32,7 +32,7 @@ __all__ = [
 ]
 
 
-# --- `harness work` — running background work -------------------------------
+# --- `harness work` — what is running now -------------------------------------
 #
 # Every import below is function-local — the convention from before lane H1,
 # when these bodies were exec'd into hermes_cli/harness.py's globals.

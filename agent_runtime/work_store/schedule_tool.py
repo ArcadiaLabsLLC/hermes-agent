@@ -25,7 +25,8 @@ SCHEDULE_MANAGE_SCHEMA: dict[str, Any] = {
         "Schedule a prompt to arrive later as a turn of a persona instance's chat (queued behind any turn "
         "already running there), list armed schedules, or disarm one. Triggers: at (UTC ISO time), every "
         "(minutes), cron (5-field expression + tz), when_idle (fires once the chat root has been idle for "
-        "two ticks)."
+        "two ticks). A schedule here delivers a message to an agent's chat; a cron job (cronjob_manage, "
+        "where you hold it) runs a standalone job with its own session and delivery target."
     ),
     "parameters": {
         "type": "object",
