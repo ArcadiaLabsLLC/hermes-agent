@@ -105,7 +105,7 @@ def test_build_context_reads_the_lineage_once_and_keeps_the_revision(
     monkeypatch.setattr(run_module, "persona_chat_runtime_registry", lambda: None)
     monkeypatch.setattr(run_module, "_resolve_relay_sender_marker", lambda *a, **k: None)
     monkeypatch.setattr(run_module, "_session_model_config", lambda db, sid: {})
-    monkeypatch.setattr(run_module, "resolve_mission_chat_max_seconds", lambda value: 240)
+    monkeypatch.setattr(run_module, "resolve_mission_chat_turn_seconds", lambda value, **_kw: 240)
     expected = native_history_revision(_CountingSessionDB(HISTORY), ROOT)
     passes = []
     real_safe = wire_module.safe_native_history

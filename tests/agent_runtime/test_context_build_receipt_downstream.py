@@ -29,7 +29,7 @@ def _run_build_context(monkeypatch, builder_sleep_s: float):
     monkeypatch.setattr(run_module, "persona_chat_runtime_registry", lambda: None)
     monkeypatch.setattr(run_module, "_resolve_relay_sender_marker", lambda *a, **k: None)
     monkeypatch.setattr(run_module, "_session_model_config", lambda db, sid: {})
-    monkeypatch.setattr(run_module, "resolve_mission_chat_max_seconds", lambda value: 240)
+    monkeypatch.setattr(run_module, "resolve_mission_chat_turn_seconds", lambda value, **_kw: 240)
 
     def _slow_builder(**kwargs):
         time.sleep(builder_sleep_s)
