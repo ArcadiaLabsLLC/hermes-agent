@@ -1945,6 +1945,20 @@ next tick. `runtime.operator.conversation.status` on such a pass reads `stop_req
 Until 2026-11-12 the door refused a pass's Stop `execution_not_admitted` and the run went on
 (RT-UNTIL-DONE-CHAT-STOP-DOES-NOT-END-RUN).
 
+Every other turn the runtime starts for itself is stopped by the same door (RT-STOP-ON-RUNTIME-STARTED-TURN-IS-REFUSED,
+2026-11-12): a helper's or background command's result coming back (`bg-completion-…`), a dispatch reply
+delivered, a schedule's fire, a single Work pass, a goal's next turn, a leftover steer, a platform message. None
+holds an admission receipt, so `runtime.operator.conversation.stop` naming one — by its client message id or by
+its turn id, the spelling its `chat_turn:<turn id>` running-work row carries — is answered from the live-turn
+table: a turn running in this serve FOR THAT CONVERSATION is interrupted and the door answers
+`{turn_request_id, outcome: stop_requested, admitted: false, stop_requested: true, owner_observed: true,
+dependent_dispatches}`; `runtime.operator.conversation.status` then reads `stopped` (or `finished`) off the turn
+journal under either spelling. A stopped delivery turn settles `ok` with `execution_state: stopped`, so its
+result counts as delivered and is not forged again. An id that names no running turn of that conversation keeps
+`execution_not_admitted`. An ADMITTED send that waited for its busy root is run by the queued-send runner, not a
+serve request; its Stop now reaches it the same way (`owner_observed: true`) instead of only setting the receipt's
+`stop_requested`.
+
 ### Batch methods
 
 `runtime.batch.plan | start | status | stop | land | approve` (`agent_runtime/batch/rpc.py` over

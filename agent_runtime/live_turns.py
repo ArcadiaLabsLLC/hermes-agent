@@ -24,8 +24,9 @@ Reads never block a writer for longer than a dict copy, and nothing here signals
 a process: :func:`interrupt_tool_call` sets ONE call's thread interrupt bit — the bit the
 command's own wait loop reads — and the turn carries on; ending a turn is the agent's own
 ``interrupt`` (``/stop``, the conversation's Stop), reached from here by :func:`interrupt_turn`
-for ONE purpose: Stop on a pass of an until-done Work run (``running_work.surface._cancel_run_pass``, and
-the conversation's own Stop on such a pass, ``operator_execution._stop_run_pass``).
+for a turn the serve's in-flight table does not hold: a pass of an until-done Work run
+(``running_work.surface._cancel_run_pass``, ``operator_execution._stop_run_pass``) and any other turn the
+runtime started or ran from the send queue (``operator_execution._stop_live_turn``).
 """
 
 from __future__ import annotations
@@ -312,16 +313,19 @@ def interrupt_tool_call(turn_id: str | None, call_id: Any, *, reason: str) -> bo
     return True
 
 
-def interrupt_turn(turn_id: str | None, *, reason: str) -> bool:
+def interrupt_turn(turn_id: str | None, *, reason: str, session_id: str | None = None) -> bool:
     """End a live turn through its agent's own seam (the soft stop ``/stop`` sends). False when not live here.
 
     The running tool's thread gets the interrupt bit and the loop ends the turn, which settles
-    ``stopped: true``. ``reason`` is the caller's record, not the agent's.
+    ``stopped: true``. ``reason`` is the caller's record, not the agent's. ``session_id``, when given, must be the
+    turn's own conversation: a Stop that names a turn of another conversation finds nothing here.
     """
 
     key = str(turn_id or "").strip()
     with _lock:
         turn = _turns.get(key)
+        if turn is not None and session_id is not None and turn.session_id != str(session_id):
+            turn = None
     interrupt = getattr(turn.agent, "interrupt", None) if turn is not None else None
     if not callable(interrupt):
         return False
