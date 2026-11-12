@@ -1849,6 +1849,44 @@ def test_cancelling_a_delegation_this_process_does_not_hold_says_so(home, monkey
     assert result["detail"] == "not_in_process"
 
 
+def test_stopping_one_delegation_leaves_its_siblings_running(home, monkeypatch):
+    """RT-STOP-ONE-DELEGATION-STOPS-SIBLINGS: Stop on a helper's row stops that helper only."""
+    from unittest.mock import MagicMock
+
+    from tools import async_delegation
+
+    _seed_delegation_db(
+        home,
+        [
+            (delegation_id, "origin", "parent", "running", 1_700_000_000.0, os.getpid(), _self_start_time(), "{}")
+            for delegation_id in ("del-stop-me", "del-sibling")
+        ],
+    )
+    stops = {delegation_id: MagicMock() for delegation_id in ("del-stop-me", "del-sibling")}
+    async_delegation._reset_for_tests()
+    with async_delegation._records_lock:
+        for delegation_id, stop in stops.items():
+            async_delegation._records[delegation_id] = {
+                "delegation_id": delegation_id, "status": "running", "parent_session_id": "parent",
+                "session_key": "", "origin_ui_session_id": "", "interrupt_fn": stop,
+            }
+    try:
+        result = cancel_work("delegation:del-stop-me", reason="operator_cancel")
+
+        assert (result["status"], result["interrupted"]) == ("cancelled", 1)
+        stops["del-stop-me"].assert_called_once()
+        stops["del-sibling"].assert_not_called()
+
+        # A helper that already finished is a typed refusal, never a stop of the others.
+        with async_delegation._records_lock:
+            async_delegation._records["del-stop-me"]["status"] = "completed"
+        again = cancel_work("delegation:del-stop-me")
+        assert (again["status"], again["code"]) == ("error", "not_found")
+        stops["del-sibling"].assert_not_called()
+    finally:
+        async_delegation._reset_for_tests()
+
+
 # --------------------------------------------------------------------------
 # lane: detached dispatches (WP-H2)
 # --------------------------------------------------------------------------

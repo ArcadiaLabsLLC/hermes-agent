@@ -38,6 +38,7 @@ __all__ = [
     "compression_threshold_for_model",
     "cron_pools_present",
     "default_hermes_home",
+    "delegation_interrupt_one",
     "delegation_knobs",
     "delegation_managed_keys",
     "dispatch_streams",
@@ -481,6 +482,25 @@ def delegation_knobs() -> dict:
         "compression_threshold_tokens": lambda: delegate_tool._child_compression_cap_tokens(
             knobs._cfg().get("compression_threshold_tokens")),
     }
+
+
+# RT-STOP-ONE-DELEGATION-STOPS-SIBLINGS: upstream's public stops are per SESSION
+# (``interrupt_for_session``) or everything (``interrupt_all``); Activity's Stop names ONE
+# delegation, so the record is picked by id here and stopped through upstream's own
+# ``_interrupt_records`` (the child still finalizes ``interrupted``). Retired by a public
+# ``interrupt_delegation(delegation_id)`` upstream.
+def delegation_interrupt_one(delegation_id: str, *, reason: str) -> int:
+    """Signal the ONE running async delegation ``delegation_id`` to stop; how many were signalled (0 or 1)."""
+    from tools import async_delegation as registry
+
+    with registry._records_lock:
+        targets = [
+            record for record in registry._records.values()
+            if str(record.get("delegation_id") or "") == delegation_id
+            and record.get("status") in registry._ACTIVE_STATES
+        ]
+    return registry._interrupt_records(
+        targets, "delegation_interrupt_one", reason, "Interrupted %d async delegation (%s)")
 
 
 def delegation_managed_keys() -> frozenset:
