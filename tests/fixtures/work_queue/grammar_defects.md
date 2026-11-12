@@ -28,3 +28,5 @@ status: open
 - **`FX-CODE-GROUP` — Code-span group row** · group: `a` · READY 2026-11-01
 - **`FX-TWO-GROUPS` — Two group segments row** · group: a · group: b · READY 2026-11-01
 - **`FX-CLOSED-LIVE` — Live row carrying an outcome** · READY 2026-11-02 · DONE 2026-11-02 3f9c2a1
+- **`FX-BARE-LIVE-CHECK` — Live check that says nothing row** · LIVE CHECK 2026-11-12
+- **`FX-BARE-DECISION` — Decision that asks nothing row** · DECISION 2026-11-12

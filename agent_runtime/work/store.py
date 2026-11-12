@@ -634,7 +634,8 @@ def move(scope, params, actor, *, context=None):
     """The Work board's drag between status columns, as one write (RT-WORK-MOVE-ROW-COLUMN).
 
     ``to`` is a column word; the serve dates the status. ``reason`` is the status body (``BLOCKED`` needs
-    one, starting with a blocked-reason word; ``DECISION`` needs one, the question). ``revision`` (the card's ``revision``) refuses ``row_changed``
+    one, starting with a blocked-reason word; ``DECISION`` needs one, the question; ``LIVE CHECK`` needs one,
+    what to drive and what to read). ``revision`` (the card's ``revision``) refuses ``row_changed``
     when the row moved on since the card was drawn. ``line`` (the row's raw line as a board drew it off the
     user's checkout, which never holds ``revision``: launcher ``MC-BRAINS-ONE-READER``) refuses ``row_changed``
     when hermes's worktree row reads otherwise (RT-WORK-MOVE-LINE-GUARD); a trailing CR is not a change.
@@ -655,6 +656,8 @@ def move(scope, params, actor, *, context=None):
             raise WorkRefused(Reason.GRAMMAR_INVALID, "a BLOCKED drop names a reason: owner decision | backend | …")
     if to == Status.DECISION and not reason:
         raise WorkRefused(Reason.GRAMMAR_INVALID, "a DECISION drop names the question the owner is asked")
+    if to == Status.LIVE_CHECK and not reason:
+        raise WorkRefused(Reason.GRAMMAR_INVALID, "a LIVE CHECK drop names what to drive and what to read")
     view = synced(scope.workspace_id, slot=params.get("slot"))
     board = _view_board(view, params.get("slot"))
     writer = view.writers[board.key]

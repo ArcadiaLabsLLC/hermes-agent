@@ -43,9 +43,9 @@ def test_every_valid_fixture_row_parses_with_no_defect() -> None:
     assert by_id["FX-OWNER-DECISION"].recommend == "yes, writes wait for an ask"
     assert by_id["FX-NEEDS-PLAN"].status is Status.NEEDS_PLAN and by_id["FX-NEEDS-PLAN"].status_date == "2026-10-16"
     assert by_id["FX-LIVE-CHECK"].status is Status.LIVE_CHECK and by_id["FX-LIVE-CHECK"].requires == ("windows", "linux")
-    assert by_id["FX-LIVE-CHECK"].status_body == "open the board at 1280×800 and read the pill"
-    assert by_id["FX-DECISION"].status is Status.DECISION and by_id["FX-DECISION"].status_body == "Ship the pill read-only?"
-    assert by_id["FX-DECISION"].recommend == "yes, writes wait for an ask"
+    assert by_id["FX-LIVE-CHECK"].status_body == "open the board and read the pill"
+    assert by_id["FX-DECISION"].status is Status.DECISION and by_id["FX-DECISION"].status_body == "Should the pill be amber?"
+    assert by_id["FX-DECISION"].recommend == "yes, it waits on you"
     assert by_id["FX-TAKEN"].taken == grammar.Claim("2026-10-16", "w1016c-mc")
     assert by_id["FX-RULED"].rulings == ("RULED 2026-10-16: one board per repo",)
     assert by_id["FX-READY-PLAN"].pointers == ("docs/mission_control/subsystems/WORK_QUEUE_BOARD_2026-10-16.md",)
@@ -126,6 +126,9 @@ def test_a_live_check_is_startable_and_a_decision_is_the_owners_to_answer() -> N
     with pytest.raises(WorkRefused) as built:
         grammar.apply(live, Op.ANSWER, who="operator", date="2026-11-13", payload={"answer": "round"})
     assert built.value.reason is Reason.INVALID
+    # A live check that says nothing and a question that asks nothing are defects (the launcher's FX-BARE-* rows).
+    for bare in ("LIVE CHECK 2026-11-12", "DECISION 2026-11-12"):
+        assert any("with no body" in d for d in grammar.row_defects(f"- **`RT-L` — a row** · group: p · {bare}")), bare
 
 
 def test_mint_id_is_work_six_base32() -> None:

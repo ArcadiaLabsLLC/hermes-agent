@@ -353,6 +353,10 @@ def _status_defects(segments: list[str]) -> list[str]:
     if len(statuses) != 1:
         defects.append(f"{len(statuses)} status segments; exactly one of {STATUS_WORDS} <date>")
     for index, status in statuses:
+        if status.group(1) in ("LIVE CHECK", "DECISION") and not (status.group(3) or "").strip():
+            defects.append(f"{status.group(1)} with no body: `{status.group(1)} <date>: <"
+                           + ("what to drive and what to read" if status.group(1) == "LIVE CHECK" else "the question")
+                           + ">`")
         if Status(status.group(1)) is not Status.BLOCKED:
             continue
         reason = blocked_reason((status.group(3) or "").strip())

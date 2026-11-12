@@ -121,9 +121,10 @@ def test_move_drops_a_card_on_live_check_and_on_decision_and_the_question_is_ans
     where = {"slot": "brain", "task_id": task["id"]}
     live = call(work, "move", request_id="v1", to="LIVE CHECK", reason="open the board, read the pill", **where)["task"]
     assert (live["status"], live["status_body"]) == ("LIVE CHECK", "open the board, read the pill")
-    with pytest.raises(WorkRefused) as unasked:
-        call(work, "move", request_id="v2", to="DECISION", **where)
-    assert unasked.value.reason is Reason.GRAMMAR_INVALID
+    for bare in ("DECISION", "LIVE CHECK"):
+        with pytest.raises(WorkRefused) as unasked:
+            call(work, "move", request_id="v2", to=bare, **where)
+        assert unasked.value.reason is Reason.GRAMMAR_INVALID
     asked = call(work, "move", request_id="v3", to="DECISION", reason="round or square?", **where)["task"]
     assert (asked["status"], asked["status_body"]) == ("DECISION", "round or square?")
     answered = call(work, "answer", request_id="v4", answer="round", line=asked["raw"], **where)["task"]

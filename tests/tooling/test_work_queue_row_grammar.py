@@ -190,6 +190,10 @@ def row_defects(line: str, *, archived: bool = False) -> list[str]:
         defects.append(f"{len(statuses)} status segments; exactly one of READY / BLOCKED / DEFERRED / NEEDS PLAN / "
                        "LIVE CHECK / DECISION <date>")
     for index, status in statuses:
+        if status.group(1) in ("LIVE CHECK", "DECISION") and not (status.group(3) or "").strip():
+            defects.append(f"{status.group(1)} with no body: `{status.group(1)} <date>: <"
+                           + ("what to drive and what to read" if status.group(1) == "LIVE CHECK" else "the question")
+                           + ">`")
         if status.group(1) != "BLOCKED":
             continue
         reason = blocked_reason((status.group(3) or "").strip())
@@ -346,6 +350,8 @@ DEFECTS = {
     "- **`RT-A` — two** · READY 2026-10-18 · DEFERRED 2026-10-18: x": "2 status",
     "- **`RT-A` — built and waiting** · LIVE CHECK 2026-11-12: drive it · DECISION 2026-11-12: ship?": "2 status",
     "- **`RT-A` — lower** · Live check 2026-11-12: drive it": "0 status",
+    "- **`RT-A` — says nothing** · LIVE CHECK 2026-11-12": "LIVE CHECK with no body",
+    "- **`RT-A` — asks nothing** · DECISION 2026-11-12 · Recommend: yes": "DECISION with no body",
     "- **`RT-A` — reason** · BLOCKED 2026-10-18: quiet box": "BLOCKED reason",
     "- **`RT-A` — outside** · BLOCKED 2026-10-18: the launcher — row": "BLOCKED reason",
     "- **`RT-A` — ask** · BLOCKED 2026-10-18: owner decision — A or B?": "Recommend",
