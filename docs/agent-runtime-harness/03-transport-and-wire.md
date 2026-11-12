@@ -2035,6 +2035,19 @@ result counts as delivered and is not forged again. An id that names no running 
 serve request; its Stop now reaches it the same way (`owner_observed: true`) instead of only setting the receipt's
 `stop_requested`.
 
+Every running `chat_turn` row says whether a steer sent now lands in that turn: `steerable`, true or false
+(RT-CHAT-TURN-ROW-SAYS-WHETHER-IT-TAKES-A-STEER, 2026-11-12). It is true exactly while that turn's steer
+watcher is up — an operator's streaming send and a Work turn (a wave lane's, a single pass, an until-done
+pass) from the moment the agent is built until the turn's cleanup — and false for a turn that starts none
+(a forged result delivery, a dispatch reply, a relay, a schedule's fire, a platform message), for a turn
+written ahead whose agent is still being built, and for a crashed turn still listed in flight. A late
+steer's own turn (`steer-next-…`) is queued with the send of the turn it was typed at, so it takes a steer
+when that turn did. The row and `runtime.chat.steer` read ONE record
+(`agent_runtime/mission_chat_steer.py::steer_taking_turn`), so a steer sent while the row says true is
+admitted and one sent while every row of the conversation says false is refused `no_active_turn`; a client
+never infers it from the turn's kind or its id. A turn can still end between the read and the steer: the
+refusal is then `no_active_turn` and the client's fall-back to a new message stands.
+
 ### Batch methods
 
 `runtime.batch.plan | start | status | stop | land | approve` (`agent_runtime/batch/rpc.py` over
