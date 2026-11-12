@@ -18,9 +18,13 @@ NOTHING CALLS THIS YET: the leave does not owe a re-key and a re-join still bind
   a prefix of another id is never hit.
 * :func:`leftover_ids` is the census: where an old id still shows under the store root, by place class.
 
+* The agents are ``agent_runtime.realm_rekey_agents`` (the ``agents`` step, first): the team's agents park, the
+  local copy gets new ones of the same personas, and the generic steps re-point desks, flow graphs, schedules
+  and open Work claims at them.
+
 Still owed, each a place :data:`OWED_HANDLERS` names (the switch-over waits for them): brain markdown and git
-worktrees (``RT-REKEY-BRAIN-AND-WORKTREES-FOLLOW``), the agents (``RT-REKEY-LOCAL-COPY-GETS-NEW-AGENTS``), and
-the places outside the JSON store (``RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE``).
+worktrees (``RT-REKEY-BRAIN-AND-WORKTREES-FOLLOW``) and the places outside the JSON store
+(``RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE``).
 """
 from __future__ import annotations
 
@@ -40,6 +44,7 @@ from utils import atomic_json_write
 from . import paths
 from .board_models import default_board_id
 from .locks import workspace_realm_assign_lock
+from .realm_rekey_agents import PARKED_DIRNAME, agent_forms, agent_name_forms, agents_of, fresh_agent_id, step_agents
 from .store import RealmStore, WorkspaceStore
 
 __layer__ = "lanes"
@@ -84,19 +89,21 @@ STORE_PLACES: dict[str, PlaceClass] = {
     "boards": _M, paths.LEVELS_DIRNAME: _M, "slot_worktrees": _M, paths.WORK_DIRNAME: _M, "schedules": _M,
     paths.REALM_SYNC_DIRNAME: _M, "realm_sync_state": _M, "active_workspace.json": _M, "active_realm.json": _M,
     "default_realm.json": _M, "brain_paths.json": _M,
-    "persona_instances": _P, "persona_assignments": _P, paths.CHAT_FOLDERS_DIRNAME: _P, "workspace_chats": _P,
+    # Once the ``agents`` step has parked the team's rows, what is left in ``persona_instances`` is this
+    # install's own and the local copy's new agents; a flow graph is its owner's canvas and follows the desk.
+    "persona_instances": _M, "flow_graphs": _M,
+    PARKED_DIRNAME: _P, "persona_assignments": _P, paths.CHAT_FOLDERS_DIRNAME: _P, "workspace_chats": _P,
     "workspace_chat_fold": _P, "workspace_chat_exports": _P, "persona_chat_mint_receipts": _P,
     "chat_goal_bindings": _P, "chat_goal_parks": _P, "agent_create_reservations": _P, "state.db": _P,
     "persona_instances_archive": _H, "persona_assignments_archive": _H, "events.jsonl": _H,
     "events_archive": _H, "prompt_observability": _H, "prompt_observability_archive": _H, "patch_diffs": _H,
     "patch_diffs_archive": _H, paths.DELETED_ARCHIVE_DIRNAME: _H, "runs": _H, "incidents": _H, "agents": _H,
-    "migration_backups": _H, JOURNAL_DIRNAME: _H,
+    "migration_backups": _H, JOURNAL_DIRNAME: _H, "flow_graphs_stale": _H,
     "snapshot.json": _D, paths.DERIVED_CACHE_DIRNAME: _D, "locks": _D,
 }
 #: MOVES places this module does not rewrite yet, and the row that owes each.
 OWED_HANDLERS: dict[str, str] = {
     "work/<ws>/brain/*.md + git worktrees": "RT-REKEY-BRAIN-AND-WORKTREES-FOLLOW",
-    "persona_instances + office actor keys + flow-graph owners": "RT-REKEY-LOCAL-COPY-GETS-NEW-AGENTS",
     "realm_sync/local clone subtree": "RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE",
     "lens.sqlite3 monitors": "RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE",
     "machine_roots.json slot folders": "RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE",
@@ -124,12 +131,18 @@ class RekeyMap:
     realm_new: str
     workspaces: dict[str, str] = field(default_factory=dict)
     boards: dict[str, str] = field(default_factory=dict)
+    agents: dict[str, str] = field(default_factory=dict)
 
     def forms(self) -> dict[str, str]:
-        """Every whole token that is rewritten: the ids, and the level address ``ws-<workspace>``."""
-        forms = {self.realm_old: self.realm_new, **self.boards, **self.workspaces}
+        """Every whole token that is rewritten: the ids, the level address ``ws-<workspace>`` and the forms
+        an agent id takes (``realm_rekey_agents.agent_forms``)."""
+        forms = {**agent_forms(self.agents), self.realm_old: self.realm_new, **self.boards, **self.workspaces}
         forms.update({SCENE_ID_PREFIX + old: SCENE_ID_PREFIX + new for old, new in self.workspaces.items()})
         return forms
+
+    def name_forms(self) -> dict[str, str]:
+        """What a file or folder NAME is matched against: the tokens, and a long actor key's capped file token."""
+        return {**agent_name_forms(self.agents), **self.forms()}
 
 
 
@@ -180,7 +193,8 @@ def owe_rekey(realm_id: str, *, reason: str) -> dict[str, Any]:
         # A default board is made on first use, so its id is mapped whether or not it is on disk yet.
         boards = {default_board_id(old): default_board_id(new) for old, new in workspaces.items()}
         boards.update({board: _fresh_id(board) for board in _boards_of(set(workspaces)) if board not in boards})
-        mapping = RekeyMap(realm.id, _fresh_id(realm.id), workspaces, boards)
+        agents = {old: fresh_agent_id(old, persona) for old, persona in agents_of(realm.id, set(workspaces)).items()}
+        mapping = RekeyMap(realm.id, _fresh_id(realm.id), workspaces, boards, agents)
         return _write_journal({
             "state": RekeyState.OWED.value, "reason": reason, "owed_at": now().isoformat(),
             "map": asdict(mapping), "steps_done": [], "leftover": [],
@@ -277,7 +291,7 @@ def _merge_folder(old: Path, new: Path) -> None:
 
 
 def _step_rename(root: Path, mapping: RekeyMap) -> None:
-    forms = mapping.forms()
+    forms = mapping.name_forms()
     for path in _moves_files(root):
         target = path.with_name(_renamed(path.name, forms))
         if target == path or not path.exists():
@@ -300,7 +314,7 @@ def _step_ledgers(root: Path, mapping: RekeyMap) -> None:
         atomic_json_write(path, {**record, **cleared})
 
 
-STEPS = (("content", _step_content), ("rename", _step_rename), ("ledgers", _step_ledgers))
+STEPS = (("agents", step_agents), ("content", _step_content), ("rename", _step_rename), ("ledgers", _step_ledgers))
 
 
 def rekey_realm(realm_id: str) -> dict[str, Any]:
