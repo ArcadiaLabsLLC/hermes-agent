@@ -139,6 +139,12 @@ STOP_REQUEST_SUFFIX = ".stop"
 DEFAULT_STALL_SECONDS = 240.0
 #: Seconds ``stalled`` before an agent/announced build is ENDED (§7); detected builds are only marked.
 DEFAULT_STALL_FAIL_SECONDS = 900.0
+#: EventLog types the serve build sweep emits (``builds.sweep``): an ending, and an in-flight
+#: build whose wire status moved without any write (running → stalling → stalled, and back on a
+#: new heartbeat). Both move a ``running_work`` row, so the stream re-issues that section on them.
+EVENT_BUILD_ENDED = "build.ended"
+EVENT_BUILD_LIVENESS_CHANGED = "build.liveness_changed"
+BUILD_RUNNING_WORK_EVENT_TYPES = frozenset({EVENT_BUILD_ENDED, EVENT_BUILD_LIVENESS_CHANGED})
 #: A running record's ``expires_at`` = start + 6 h (the wake's ``_ROUTE_TTL_S``).
 RUNNING_RECORD_TTL_SECONDS = 6 * 60 * 60
 #: A finished record's ``expires_at`` = finish + 30 min (the wake's ``_FINISHED_TTL_S``).

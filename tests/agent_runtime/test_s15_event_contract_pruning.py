@@ -272,7 +272,10 @@ REMOVED_EVENT_TYPES = frozenset(
 # 74 (lane w1027f-h-rt, 2026-10-27, RT-SKILL-CHANGE-EVENT): ``persona_chat.skill_changed``, a
 # background-review skill change applied or staged (``agent_runtime.review_skill_changes._announce``).
 # Red at 73 on that commit and moved deliberately.
-SURVIVING_EVENT_COUNT = 74
+# 75 (lane w1112b-hm-turn2, 2026-11-12, RT-BUILD-GONE-SILENT-SENDS-NO-NEW-FRAME):
+# ``build.liveness_changed``, one per in-flight build whose wire status moved with no write
+# (running → stalling → stalled, or back), so the stream re-issues its ``running_work`` row.
+SURVIVING_EVENT_COUNT = 75
 
 
 def test_the_unemittable_event_types_are_no_longer_registered():

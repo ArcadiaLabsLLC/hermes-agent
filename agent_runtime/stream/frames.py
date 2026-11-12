@@ -18,6 +18,7 @@ from ..chat_turn_presence import EVENT_TURN_ENDED, EVENT_TURN_STARTED
 from ..events import EventLog
 from ..models import Event
 from ..patch_coverage import normalize_fold_entities
+from ..builds.vocabulary import BUILD_RUNNING_WORK_EVENT_TYPES, EVENT_BUILD_LIVENESS_CHANGED
 from ..running_work import build_running_work
 from ..running_work.process_presence import PROCESS_PRESENCE_EVENT_TYPES
 from ..serde import optional_text, section_rows, to_jsonable
@@ -156,10 +157,10 @@ def heartbeat_frame(
 
 
 #: The events that move a ``running_work`` row's presence: a chat turn's pair
-#: (``chat_turn_presence``) and a terminal process's pair (``running_work.process_presence``,
-#: plan p10-turn §2 S3).
+#: (``chat_turn_presence``), a terminal process's pair (``running_work.process_presence``,
+#: plan p10-turn §2 S3) and the build sweep's ending and liveness change (``builds.sweep``).
 _RUNNING_WORK_PRESENCE_EVENT_TYPES = frozenset(
-    {EVENT_TURN_STARTED, EVENT_TURN_ENDED, *PROCESS_PRESENCE_EVENT_TYPES}
+    {EVENT_TURN_STARTED, EVENT_TURN_ENDED, *PROCESS_PRESENCE_EVENT_TYPES, *BUILD_RUNNING_WORK_EVENT_TYPES}
 )
 
 
@@ -178,8 +179,8 @@ def _is_running_work_event(event: Event) -> bool:
     ``running_work`` stores (``families == ["running_work"]``)."""
 
     event_type = getattr(event, "type", None)
-    if event_type in PROCESS_PRESENCE_EVENT_TYPES:
-        return True
+    if event_type in PROCESS_PRESENCE_EVENT_TYPES or event_type == EVENT_BUILD_LIVENESS_CHANGED:
+        return True  # ``build.ended`` is not here: the core carries it as a notice too
     payload = event.payload if isinstance(event.payload, dict) else {}
     return (
         event_type == EVENT_STATE_RECONCILED

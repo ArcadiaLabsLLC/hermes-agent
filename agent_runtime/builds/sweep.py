@@ -14,6 +14,9 @@ call 1).
 * **Every ending** (stall, lost, failed, succeeded, stopped, a process that simply exited)
   emits ONE ``build.ended`` EventLog event — on the transition, never per tick — and a build
   whose outcome is known appends a ``history.jsonl`` line (``builds.history``).
+* **A liveness change** — an in-flight build whose wire status moved between two ticks (running →
+  stalling → stalled, and back on a new heartbeat) emits ONE ``build.liveness_changed``: a stall
+  is no write, so without it the stream never re-issues the ``running_work`` row.
 * **Boot** (:func:`boot_builds`): this process owns detection, exports
   ``HERMES_BUILD_REGISTRY_DIR`` into its own environment so every child it spawns can
   announce, sweeps record files past ``expires_at`` + 24 h, and starts the tick thread.
@@ -32,6 +35,8 @@ from typing import Any, Callable
 from agent_runtime.builds import history
 from agent_runtime.builds.vocabulary import (
     DEFAULT_STALL_FAIL_SECONDS,
+    EVENT_BUILD_ENDED,
+    EVENT_BUILD_LIVENESS_CHANGED,
     OUTCOME_FAILED,
     OUTCOME_LOST,
     OUTCOME_STALLED,
@@ -51,7 +56,6 @@ __layer__ = "lanes"
 
 logger = logging.getLogger(__name__)
 
-EVENT_BUILD_ENDED = "build.ended"
 SWEEP_INTERVAL_SECONDS = 30.0
 #: Statuses a build is still "in flight" in (the sweep's transition baseline).
 _IN_FLIGHT = frozenset({"running", "stalling", "stalled", "unknown"})
@@ -147,6 +151,7 @@ class SweepResult:
     stall_failed: list[str] = field(default_factory=list)
     marked: list[str] = field(default_factory=list)
     ended: list[tuple[str, str | None]] = field(default_factory=list)
+    liveness_changed: list[tuple[str, str | None]] = field(default_factory=list)
 
 
 class BuildSweep:
@@ -167,6 +172,7 @@ class BuildSweep:
         current = {row["work_id"]: row for row in self.rows(now)}
         for work_id, row in current.items():
             self._consider(work_id, row, now, result)
+            self._liveness(work_id, row, now, result)
         for work_id, last in self.in_flight.items():
             if work_id not in current and work_id not in self.stall_ended:
                 self._ended(last, _vanished_outcome(last), now, result)
@@ -187,6 +193,22 @@ class BuildSweep:
         elif row.get("outcome") is not None and work_id in self.in_flight and work_id not in self.stall_ended:
             self._ended(row, row["outcome"], now, result)
 
+    def _liveness(self, work_id: str, row: dict[str, Any], now: float, result: SweepResult) -> None:
+        """One ``build.liveness_changed`` when an in-flight build's wire status moved since the last
+        tick. A stall is no write, so nothing else tells the stream to re-issue the row
+        (RT-BUILD-GONE-SILENT-SENDS-NO-NEW-FRAME). An ending is ``build.ended``'s, never this."""
+
+        last = self.in_flight.get(work_id)
+        status = row.get("status")
+        if (last is None or work_id in self.stall_ended or row.get("outcome") is not None
+                or status not in _IN_FLIGHT or last.get("status") == status):
+            return
+        result.liveness_changed.append((work_id, status))
+        self._append(row, EVENT_BUILD_LIVENESS_CHANGED, now, {
+            "work_id": work_id, "source": row.get("source"), "status": status,
+            "previous_status": last.get("status"), "seconds_since_progress": row.get("seconds_since_progress"),
+            "label": row.get("label"), "workspace_id": row.get("workspace_id"), "slot_id": row.get("slot_id")})
+
     def _ended(self, row: dict[str, Any], outcome: str | None, now: float, result: SweepResult) -> None:
         result.ended.append((row["work_id"], outcome))
         duration_ms = int(row.get("elapsed_seconds") or 0) * 1000
@@ -198,20 +220,22 @@ class BuildSweep:
                            mode=row.get("mode") or "", duration_ms=duration_ms, outcome=outcome, ended_at=now)
 
     def _emit(self, row: dict[str, Any], outcome: str | None, duration_ms: int, now: float) -> None:
-        from datetime import datetime, timezone
+        self._append(row, EVENT_BUILD_ENDED, now, {
+            "work_id": row["work_id"], "source": row.get("source"), "outcome": outcome,
+            "ended_reason": "outcome" if outcome is not None else "process_exited",
+            "label": row.get("label"), "workspace_id": row.get("workspace_id"), "slot_id": row.get("slot_id"),
+            "started_by_instance": row.get("started_by_instance"), "duration_ms": duration_ms,
+            "tail_preview": row.get("tail_preview") or ""})
+
+    def _append(self, row: dict[str, Any], event_type: str, now: float, payload: dict[str, Any]) -> None:
+        from datetime import datetime
 
         from agent_runtime.events import EventLog
         from agent_runtime.models import Event
 
-        owner = row.get("owner") or {}
-        payload = {"work_id": row["work_id"], "source": row.get("source"), "outcome": outcome,
-                   "ended_reason": "outcome" if outcome is not None else "process_exited",
-                   "label": row.get("label"), "workspace_id": row.get("workspace_id"), "slot_id": row.get("slot_id"),
-                   "started_by_instance": row.get("started_by_instance"), "duration_ms": duration_ms,
-                   "tail_preview": row.get("tail_preview") or ""}
         (self.event_log or EventLog()).append(Event(
-            ts=datetime.fromtimestamp(now, UTC), type=EVENT_BUILD_ENDED, task_id=None, run_id=None,
-            persona_id=owner.get("persona_id"), payload=payload))
+            ts=datetime.fromtimestamp(now, UTC), type=event_type, task_id=None, run_id=None,
+            persona_id=(row.get("owner") or {}).get("persona_id"), payload=payload))
 
 
 _THREAD: threading.Thread | None = None

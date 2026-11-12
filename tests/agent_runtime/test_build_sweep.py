@@ -169,3 +169,53 @@ def test_the_ending_lands_in_the_real_event_log(tmp_path):
     built.tick(NOW + 30)
     [event] = [e for e in EventLog().tail(20) if e.type == "build.ended"]
     assert (event.payload["work_id"], event.payload["outcome"]) == ("build:announced:qb-r", "failed")
+
+
+# ---- RT-BUILD-GONE-SILENT-SENDS-NO-NEW-FRAME: a stall is no write, so the sweep says it ----------
+
+
+def test_a_build_gone_silent_says_so_once_per_change_and_again_when_it_recovers(tmp_path):
+    """A frozen heartbeat crosses running → stalling → stalled with no record write: the sweep
+    emits ONE ``build.liveness_changed`` per crossing (never per tick), and one more when a new
+    heartbeat brings it back. First sight and an ending are not liveness changes."""
+
+    wid = "build:announced:qb-frozen"
+    frames = [[_row(wid, "announced", status="running", quiet=10)],
+              [_row(wid, "announced", status="stalling", quiet=130)],
+              [_row(wid, "announced", status="stalled", quiet=250)],
+              [_row(wid, "announced", status="stalled", quiet=280)],
+              [_row(wid, "announced", status="running", quiet=2)],
+              [_row(wid, "announced", status="completed", outcome="succeeded")]]
+    built, log, calls = _sweep(tmp_path, frames)
+    results = [built.tick(NOW + 30 * i) for i in range(len(frames))]
+
+    assert [(e.type, e.payload.get("previous_status"), e.payload.get("status")) for e in log.events[:3]] == [
+        ("build.liveness_changed", "running", "stalling"),
+        ("build.liveness_changed", "stalling", "stalled"),
+        ("build.liveness_changed", "stalled", "running"),
+    ]
+    assert [e.type for e in log.events[3:]] == ["build.ended"], "an ending is build.ended's, never a liveness change"
+    assert [r.liveness_changed for r in results] == [[], [(wid, "stalling")], [(wid, "stalled")], [], [(wid, "running")], []]
+    assert log.events[1].payload["seconds_since_progress"] == 250 and calls == []
+
+
+def test_the_stream_reissues_running_work_on_a_liveness_change_and_on_an_ending(tmp_path):
+    """The event lands in the real EventLog (its contract is registered) and the stream reads it as
+    a running-work change: the section rides beside the batch, and a batch of only liveness
+    changes is the section alone. ``build.ended`` re-issues the section too but keeps its core."""
+
+    from agent_runtime.events import EventLog
+    from agent_runtime.stream.frames import batch_changes_running_work_presence, batch_is_running_work_only
+
+    wid = "build:announced:qb-s"
+    frames = iter([[_row(wid, "announced")], [_row(wid, "announced", status="stalled", quiet=250)],
+                   [_row(wid, "announced", status="error", outcome="failed")]])
+    built = sweep.BuildSweep(rows=lambda now: next(frames), ender=lambda row: True,
+                             history_dir=lambda: tmp_path / "builds")
+    for i in range(3):
+        built.tick(NOW + 30 * i)
+    events = [e for e in EventLog().tail(20) if e.type.startswith("build.") and e.payload["work_id"] == wid]
+    [changed, ended] = events
+    assert (changed.type, changed.payload["status"]) == ("build.liveness_changed", "stalled")
+    assert batch_changes_running_work_presence([(1, changed)]) and batch_is_running_work_only([(1, changed)])
+    assert batch_changes_running_work_presence([(2, ended)]) and not batch_is_running_work_only([(2, ended)])

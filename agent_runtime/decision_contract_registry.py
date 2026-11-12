@@ -451,6 +451,9 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # stall-fail, lost, failed, succeeded, stopped, or a process that simply exited
     # (``outcome: null``, ``ended_reason: process_exited``). The launcher renders it as a notice.
     "build.ended": EventContract("build.ended", "Build ended", ("work_id", "source", "outcome"), ("ended_reason", "label", "workspace_id", "slot_id", "started_by_instance", "duration_ms"), ("tail_preview",)),
+    # An in-flight build's wire status moved with no write (running → stalling → stalled, or back):
+    # one per change, from the same sweep, so the stream re-issues the ``running_work`` row.
+    "build.liveness_changed": EventContract("build.liveness_changed", "Build liveness changed", ("work_id", "source", "status"), ("previous_status", "seconds_since_progress", "label", "workspace_id", "slot_id"), ()),
     # Peer-store mutations (S2c, R-IP12). Every write door in
     # ``gateway_peers`` rides one of these, for the standing store reason: the
     # stream/read-model pipeline is watermark-gated on the EventLog, so an
