@@ -5,6 +5,7 @@ import hashlib
 import errno
 import os
 from pathlib import Path
+import threading
 import time
 from typing import Iterator
 
@@ -69,6 +70,26 @@ class HarnessLockUnavailable(RuntimeError):
     pass
 
 
+class HarnessLockReentered(HarnessLockUnavailable):
+    """The thread asking for the lock already holds it (RT-FILE-LOCK-TAKEN-TWICE-BY-ONE-PROCESS-WAITS-OUT-ITS-TIMEOUT).
+
+    A :class:`HarnessLockUnavailable` so every caller that turns a refusal into a typed answer still does, but
+    raised at once: the second take could only wait for its own holder until the deadline (minutes under a
+    test's budget, d02e22714e moved one such call out of ``make_realm_local``'s hold)."""
+
+
+#: The lock paths each thread holds now. Per THREAD, not per process: another thread of this process waiting
+#: for a holder is ordinary contention and still waits out its deadline.
+_HELD = threading.local()
+
+
+def _held_by_this_thread() -> set[str]:
+    held = getattr(_HELD, "paths", None)
+    if held is None:
+        held = _HELD.paths = set()
+    return held
+
+
 @contextlib.contextmanager
 def chat_history_admission_lock(session_scope: str) -> Iterator[None]:
     """Order send acceptance and history edits before either enters its writer."""
@@ -112,12 +133,20 @@ def _file_lock(path: Path, *, timeout_seconds: float | None = None) -> Iterator[
     NOT reentrant, and now uniformly so: a second acquisition from this same
     process opens a fresh handle — a fresh open file description under
     ``flock``, a second byte-range request under ``msvcrt`` — and contends with
-    the first, so it refuses at the deadline rather than deadlocking forever.
+    the first. From ANOTHER thread that is ordinary contention, refused at the
+    deadline. From the thread that holds it, it is refused at once
+    (:class:`HarnessLockReentered`, naming the path): it could only wait for
+    itself.
     :meth:`OfficeStore.upsert_actor`'s ``position_policy`` hook exists because
     of that property: work that must see the locked state runs INSIDE the lock
     that already holds it, never by taking it again.
     """
 
+    key = os.path.normcase(os.path.abspath(path))
+    held = _held_by_this_thread()
+    # MUTATION: drop this refusal and test_a_second_take_by_the_holding_thread_refuses_at_once reddens.
+    if key in held:
+        raise HarnessLockReentered(f"lock already held by this thread, so taking it again would wait for itself: {path}")
     timeout_seconds = _lock_timeout_seconds(timeout_seconds)
     deadline = time.monotonic() + timeout_seconds
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -138,9 +167,11 @@ def _file_lock(path: Path, *, timeout_seconds: float | None = None) -> Iterator[
                         f"lock unavailable after {timeout_seconds:g}s: {path}"
                     ) from exc
                 time.sleep(_RETRY_SLEEP_SECONDS)
+        held.add(key)
         try:
             yield
         finally:
+            held.discard(key)
             _release(handle)
 
 

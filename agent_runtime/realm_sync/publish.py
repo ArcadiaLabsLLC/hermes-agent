@@ -27,6 +27,7 @@ from .git import (
     _ensure_sync_repo,
     _git,
     _git_state,
+    _has_remote,
     _realm_subtree,
     _refresh_remote_tracking,
 )
@@ -214,6 +215,13 @@ def _stage_commit_and_push(
     if changed:
         _ensure_git_identity(repo)
         _git(repo, "commit", "-m", f"Publish realm sync {realm.id}")
+        if not realm.server_id and not _has_remote(repo):
+            # A local realm whose sync repository has no remote (one that never had a personal repository, or
+            # a server's realm you left: ``make_realm_local`` dropped its address): the commit IS the publish.
+            # It used to raise ``sync_remote_unreachable`` after committing (RT-LOCAL-REALM-PUBLISH-SAYS-REMOTE-
+            # UNREACHABLE). A server realm with no remote is still refused below: its copy is the team's.
+            # MUTATION: drop this return and test_a_local_realm_with_no_remote_publishes_into_its_own_history reddens.
+            return changed, changed_paths
         try:
             # No upstream yet (a personal repo adopted empty, p10-work §2.6): set it.
             upstream = _git(repo, "rev-parse", "--abbrev-ref", "@{u}", check=False).strip()

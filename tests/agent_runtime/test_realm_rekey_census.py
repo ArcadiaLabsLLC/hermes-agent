@@ -25,7 +25,7 @@ from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_chat_durability import default_persona_session_db
 from agent_runtime.realm_rekey_agents import parked_agents_dir, restore_parked_agents
 from agent_runtime.realm_rekey import PlaceClass, RekeyState, leftover_ids, owe_rekey, place_class, rekey_realm
-from agent_runtime.realm_sync import RealmSyncError, publish_realm_sync, pull_realm_sync
+from agent_runtime.realm_sync import publish_realm_sync, pull_realm_sync
 from agent_runtime.realm_sync.revocation import read_realm_shared_from
 from agent_runtime.store import AgentStore, RealmStore, WorkspaceStore
 
@@ -71,11 +71,9 @@ def _left_realm(tmp_path):
     assert (left["result"]["became_local"], left["result"]["rekey"], left["result"]["rekeyed_to"],
             left["result"]["rekey_waits_on"]) == (True, "owed", None, "turn")
     boards.add_card(workspace_id=first.id, title="Added while local")
-    try:  # a local realm's own sync run: it rewrites the baselines the re-key must carry over
-        publish_realm_sync(realm.id)
-        pull_realm_sync(realm.id)
-    except RealmSyncError:
-        pass
+    # A local realm's own sync run: it rewrites the baselines the re-key must carry over.
+    publish_realm_sync(realm.id)
+    pull_realm_sync(realm.id)
     # A neighbour in another realm whose ids only START with ours: never touched.
     other = RealmStore().create(name="Mine", realm_id="realm_team_2")
     neighbour = WorkspaceStore().create(name="Neighbour", realm_id=other.id, workspace_id="ws_shared_2")
@@ -527,10 +525,7 @@ def test_what_lives_outside_the_json_store_follows_the_local_copy(tmp_path):
     assert [census.get(name, []) for name in ("moves", "unclassified", "install")] == [[], [], []]
     pull_realm_sync(new_realm)  # before any new publish: what the history holds is what comes back
     _assert_local_copy_is_whole(journal, first, second, extra)
-    try:  # a local realm's publish commits, then answers that it has nowhere to push (as in the seed)
-        publish_realm_sync(new_realm)
-    except RealmSyncError:
-        pass
+    publish_realm_sync(new_realm)  # a local realm's publish commits into its own history (as in the seed)
     pull_realm_sync(new_realm)
     _assert_local_copy_is_whole(journal, first, second, extra)
     census = _census(journal)

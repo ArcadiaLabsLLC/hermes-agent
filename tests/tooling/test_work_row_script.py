@@ -142,15 +142,59 @@ def test_a_claim_that_lost_to_another_lanes_claim_is_refused_not_doubled(clones,
 
 def test_a_lost_race_with_other_unpushed_commits_exits_3_and_rewrites_nothing(clones, capsys):
     """The retry is only for a checkout whose one unpushed commit is the op: anything else is the session's
-    to rebase. Mutation: drop the ``HEAD~1`` ancestor check -> the local commit is reset away, red."""
+    to rebase. Mutation: drop the ``HEAD~1`` ancestor check -> the local commit is reset away, red. The other
+    commit changes nothing (a commit with work in it is refused before the op, the test below)."""
     origin, mine, other = clones
     _other_session_pushes(other)
-    (mine / "README.md").write_text("a lane's own unpushed work\n", encoding="utf-8")
-    git("commit", "-q", "-am", "lane work", cwd=mine)
+    git("commit", "-q", "--allow-empty", "-m", "lane work", cwd=mine)
     assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--repo", str(mine)]) == 3
     assert "fetch, then re-run" in capsys.readouterr().err
     assert git("log", "-2", "--format=%s", cwd=mine).split("\n")[:2] == ["queue: claim RT-A r-lane", "lane work"]
     assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "other session"
+
+
+def test_an_op_on_a_branch_with_unlanded_work_is_refused_naming_it(clones, capsys):
+    """RT-QUEUE-ROW-OP-CARRIES-UNLANDED-COMMITS-TO-MAIN: every op pushed ``HEAD``, so a claim made on a lane branch
+    holding an unchecked code commit took it to ``main`` with the row. Now it is refused before anything is
+    written, naming the commit; ``--no-push`` still commits the op for the lane's own landing to push.
+    KILLING MUTATION: ``carried_commits`` returns None at its first check -> exit 0 and origin's main carries
+    "lane work", red (recorded in the commit)."""
+    origin, mine, _ = clones
+    before_tip = git("rev-parse", "main", cwd=origin)
+    (mine / "README.md").write_text("a lane's own unchecked work\n", encoding="utf-8")
+    git("commit", "-q", "-am", "lane work", cwd=mine)
+    before = (mine / NOTE).read_bytes()
+    for argv in (["claim", "RT-A"], ["close", "RT-A", "--owner", "dropped"]):
+        assert work_row.main([*argv, "--who", "r-lane", "--repo", str(mine)]) == work_row.EXIT_REFUSED
+        err = capsys.readouterr().err
+        assert "unlanded_commits" in err and "lane work" in err and "--no-push" in err
+        assert (mine / NOTE).read_bytes() == before
+    assert git("rev-parse", "main", cwd=origin) == before_tip
+    assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--no-push", "--repo", str(mine)]) == 0
+    assert git("log", "-2", "--format=%s", cwd=mine).split("\n")[:2] == ["queue: claim RT-A r-lane", "lane work"]
+    assert git("rev-parse", "main", cwd=origin) == before_tip
+
+
+def test_an_op_after_a_local_merge_of_main_or_behind_a_peer_is_not_refused(clones):
+    """Only work of the checkout's own is refused: a merge of the target that adds nothing, and a tracking ref a
+    peer's push left behind (one fetch answers it), push as before."""
+    origin, mine, other = clones
+    _other_session_pushes(other)
+    git("checkout", "-q", "-b", "wave/lane", cwd=mine)
+    git("fetch", "-q", "origin", cwd=mine)
+    git("merge", "-q", "--no-ff", "-m", "merge main", "origin/main", cwd=mine)
+    git("checkout", "-q", "--detach", cwd=mine)
+    assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--repo", str(mine)]) == 0
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue: claim RT-A r-lane"
+    git("pull", "-q", "--ff-only", cwd=other)
+    (other / "README.md").write_text("peer\n", encoding="utf-8")
+    git("commit", "-q", "-am", "peer work", cwd=other)
+    git("push", "-q", "origin", "main", cwd=other)
+    git("fetch", "-q", "origin", cwd=mine)
+    git("checkout", "-q", "--detach", "origin/main", cwd=mine)
+    git("update-ref", "refs/remotes/origin/main", "HEAD~1", cwd=mine)  # the tracking ref one push behind
+    assert work_row.main(["claim", "RT-B", "--who", "r-lane", "--repo", str(mine)]) == 0
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue: claim RT-B r-lane"
 
 
 def test_a_close_on_a_commit_that_never_reached_main_is_refused(clones, capsys):
@@ -213,7 +257,7 @@ def test_a_push_that_lands_first_time_never_fetches_or_resets(clones):
                  ["delete", "RT-B"], ["append", "RT-C", "--row", "- **`RT-C` — new** · READY 2026-10-18"]):
         assert work_row.main([*argv, "--who", "r-lane", "--repo", str(mine)], git=fake) == 0
     verbs = {call[0] for call in calls}
-    assert verbs == {"add", "commit", "push", "symbolic-ref"}
+    assert verbs == {"add", "commit", "diff", "push", "symbolic-ref"}
     assert not verbs & {"fetch", "reset", "stash", "pull", "merge", "rebase", "checkout"}
 
 

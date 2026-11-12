@@ -16,7 +16,10 @@ after the last live row of its task in the note that holds them, a task row afte
 ``## Tasks`` heading, ``--under "<heading>"`` after the last row under the heading that starts with those words;
 a row with nowhere better goes to the end of the note (RT-QUEUE-ROW-APPEND-LANDS-AT-THE-BOTTOM-OF-THE-NOTE).
 ``--no-push`` commits the operation by pathspec and pushes nothing — for a lane whose landing checks run before its
-push (RT-QUEUE-ROW-OP-PUSHES-BEFORE-THE-LANES-CHECKS); the default pushes, as before.
+push (RT-QUEUE-ROW-OP-PUSHES-BEFORE-THE-LANES-CHECKS); the default pushes, as before. An op that would push from a
+checkout holding work the target lacks is refused before anything is written, naming the commits
+(``unlanded_commits``, RT-QUEUE-ROW-OP-CARRIES-UNLANDED-COMMITS-TO-MAIN): the push of ``HEAD`` would have taken them
+to ``main`` unchecked. Land them first, or use ``--no-push`` and push the row with that landing.
 
 A finished row is CLOSED, never deleted: ``delete`` only drops a line (to move a row, with ``append`` in
 its new queue), and the row guard refuses a row that left the live queues without an archive line (ADR 0011).
@@ -609,6 +612,41 @@ def unlanded_sha(repo: Path, args: argparse.Namespace, git: Git) -> str | None:
             "commit lives in another repository)")
 
 
+def carried_commits(repo: Path, args: argparse.Namespace, git: Git) -> str | None:
+    """Why an op that would push is refused: the checkout holds work the push target lacks, which ``git push
+    HEAD:<branch>`` would take to that branch with the row change, before any landing check
+    (RT-QUEUE-ROW-OP-CARRIES-UNLANDED-COMMITS-TO-MAIN; the launcher's ``queue_claim.dart`` closed the same gap).
+
+    ``None`` when the op pushes nothing (``--no-push``, ``--no-commit``) or HEAD changes nothing the target lacks:
+    the three-dot diff ``<remote>/<branch>...HEAD`` is empty, so a local merge of the target with no work of its
+    own is not refused. One fetch of the target is tried before refusing, so a tracking ref left behind by a
+    peer's push is not mistaken for this checkout's work. A target git cannot read is left to the push itself.
+    """
+
+    if args.no_push or args.no_commit:
+        return None
+    remote, branch = _target_branch(repo, git)
+
+    def changed() -> set[str] | None:
+        diff = git(["diff", "--name-only", "-z", f"{remote}/{branch}...HEAD"], repo)
+        return _names(diff.stdout) if diff.returncode == 0 else None
+
+    # MUTATION: return None here and test_an_op_on_a_branch_with_unlanded_work_is_refused_naming_it reddens.
+    paths = changed()
+    if not paths:
+        return None
+    git(["fetch", "-q", remote, branch], repo)
+    paths = changed()
+    if not paths:
+        return None
+    listed = git(["log", "--no-merges", "--format=%h %s", f"{remote}/{branch}..HEAD"], repo)
+    commits = [line for line in str(listed.stdout).splitlines() if line.strip()]
+    named = "; ".join(commits[:5]) + (f"; and {len(commits) - 5} more" if len(commits) > 5 else "")
+    return (f"unlanded_commits this checkout holds work {remote}/{branch} lacks ({named or ', '.join(sorted(paths))}), "
+            f"which the push would carry with the row: land it first, or run with --no-push and push the row with "
+            "that landing")
+
+
 def _names(listing: str) -> set[str]:
     return {name for name in str(listing).split("\0") if name}
 
@@ -665,7 +703,7 @@ def _apply_and_push(repo: Path, args: argparse.Namespace, git: Git) -> int:
 def main(argv: list[str] | None = None, *, git: Git = run_git) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     repo = Path(args.repo).resolve()
-    unlanded = unlanded_sha(repo, args, git)
+    unlanded = unlanded_sha(repo, args, git) or carried_commits(repo, args, git)
     if unlanded is not None:
         print(f"refused: {unlanded}", file=sys.stderr)
         return EXIT_REFUSED
