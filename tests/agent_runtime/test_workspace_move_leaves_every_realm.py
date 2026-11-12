@@ -8,7 +8,8 @@ one bare remote) and pinned here through the same verbs (``runtime.workspace.mov
 * RT-WORKSPACE-MOVE-OUT-OF-PERSONAL-REPO-REALM — a player's two machines, two of her own realms in one repo;
 * RT-WORKSPACE-RESTORED-IN-SOURCE-AFTER-A-MOVE-SITS-IN-TWO-REALMS — another member restores it in the source;
 * RT-REJOIN-KEEPS-WORKSPACES-MOVED-WHILE-LOCAL — moved out while the realm was local, then a re-join (now a
-  fresh re-join, RT-REJOIN-PULLS-THE-SERVER-REALM-FRESH: the move stays with the local copy's ids).
+  fresh re-join, RT-REJOIN-PULLS-THE-SERVER-REALM-FRESH: the move stays with the local copy's ids);
+* RT-PULL-KEEPS-A-MOVED-OUT-WORKSPACE-OUT-HAS-NO-TEST — a teammate's record that still lists the workspace.
 
 Killing mutations are named per test.
 """
@@ -200,3 +201,39 @@ def test_a_realms_default_workspace_cannot_be_moved_out_while_the_realm_is_local
     refused = _move(workspace_id=default.id, realm_id=home.id)["error"]["data"]
     assert (refused["reason"], refused["realm_id"]) == ("realm_default_workspace", realm.id)
     assert WorkspaceStore().get(default.id).realm_id == realm.id
+
+
+def test_a_workspace_you_moved_out_stays_out_when_a_teammates_record_still_lists_it(team):
+    """RT-PULL-KEEPS-A-MOVED-OUT-WORKSPACE-OUT-HAS-NO-TEST. Alice moves a workspace out of the shared realm and does
+    not publish; Bob, who has not heard of it, publishes the realm record still LISTING it; Alice pulls. Her
+    shared realm keeps it off ``workspace_ids`` (her own delete ledger says it left) and her next publish says so.
+    The workspace is created through the verb, which lists it on the realm record, so the record Bob publishes
+    names it.
+
+    Mutation: in ``_pulled_artifact_bytes`` replace the ``workspace_ids`` filter by the merged delete ledger with
+    ``pass`` -> Alice's shared realm lists the workspace it left, red (recorded in the commit)."""
+    shared = team.found("alice", "Team Realm", "srv_team")
+    created = _rpc("runtime.workspace.create", name="Roadmap", idempotency_key="rt-pull-filter",
+                   realm_id=shared.id)["result"]
+    publish_realm_sync(shared.id)
+    team.join("bob", shared)
+    assert created["id"] in _lists(shared.id)[0]
+
+    team.be("alice")
+    private = RealmStore().create(name="Private")
+    assert _move(workspace_id=created["id"], realm_id=private.id, confirm_leave_realm=shared.id)["result"]["moved"]
+    assert _lists(shared.id) == ([], [created["id"]])
+
+    team.be("bob")
+    WorkspaceStore().rename(created["id"], "Bob's copy")
+    publish_realm_sync(shared.id)
+    assert created["id"] in _lists(shared.id)[0]  # the record Bob published lists it
+
+    team.be("alice")
+    pull_realm_sync(shared.id)
+    assert _lists(shared.id) == ([], [created["id"]])
+    assert WorkspaceStore().get(created["id"]).realm_id == private.id
+    publish_realm_sync(shared.id)
+    team.be("bob")
+    pull_realm_sync(shared.id)
+    assert created["id"] not in _lists(shared.id)[0]
