@@ -30,3 +30,6 @@ status: open
 - **`FX-CLOSED-LIVE` — Live row carrying an outcome** · READY 2026-11-02 · DONE 2026-11-02 3f9c2a1
 - **`FX-BARE-LIVE-CHECK` — Live check that says nothing row** · LIVE CHECK 2026-11-12
 - **`FX-BARE-DECISION` — Decision that asks nothing row** · DECISION 2026-11-12
+- **`FX-RETIRED-OWNER` — Retired owner ruling opener row** · READY 2026-11-12 · OWNER RULING 2026-10-15: stays deferred
+- **`FX-RETIRED-PLAN` — Retired plan opener row** · PLAN written 2026-10-15 · READY 2026-11-12
+- **`FX-OWNER-NO-RECOMMEND` — Owner decision with no recommendation row** · BLOCKED 2026-11-12: owner decision — amber or cyan
