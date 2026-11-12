@@ -187,3 +187,47 @@ def test_a_fault_that_is_not_contention_is_raised_unwrapped(tmp_path, monkeypatc
             pass
     assert not isinstance(caught.value, HarnessLockUnavailable)
     assert caught.value.errno == 9
+
+
+def test_a_second_take_by_the_holding_thread_refuses_at_once(tmp_path):
+    """RT-FILE-LOCK-TAKEN-TWICE-BY-ONE-PROCESS-WAITS-OUT-ITS-TIMEOUT: ``owe_rekey`` called inside
+    ``make_realm_local``'s hold of the assign lock waited for itself until the deadline (over 3 minutes of a
+    test run). The holding thread's second take now refuses at once, naming the path, as a
+    ``HarnessLockUnavailable`` so typed callers still answer; another thread still waits as before, and the
+    lock is takeable again once the outer hold ends (an exception included).
+
+    *Mutation:* drop the ``key in held`` refusal in ``_file_lock``. The inner take waits its 30 s budget and
+    the elapsed bound fails (recorded in the commit).
+    """
+    from agent_runtime.locks import HarnessLockReentered
+
+    path = tmp_path / "assign.lock"
+    with _file_lock(path, timeout_seconds=30):
+        started = time.monotonic()
+        with pytest.raises(HarnessLockReentered) as caught:
+            with _file_lock(path, timeout_seconds=30):
+                pass
+        assert time.monotonic() - started < 2.0
+        assert isinstance(caught.value, HarnessLockUnavailable)
+        assert str(path) in str(caught.value)
+        *results, still_alive = _contend(path, timeout_seconds=0.2)
+        assert still_alive is False and isinstance(results[0], HarnessLockUnavailable)
+        assert not isinstance(results[0], HarnessLockReentered)
+    with pytest.raises(RuntimeError, match="inside"):
+        with _file_lock(path, timeout_seconds=1):
+            raise RuntimeError("inside")
+    with _file_lock(path, timeout_seconds=1):
+        with _file_lock(tmp_path / "other.lock", timeout_seconds=1):
+            pass
+
+
+def test_the_realm_assign_lock_taken_inside_itself_refuses_at_once(isolate_agent_runtime_root):
+    """The lock the row was seen on, through its own door."""
+    from agent_runtime.locks import HarnessLockReentered, workspace_realm_assign_lock
+
+    started = time.monotonic()
+    with workspace_realm_assign_lock():
+        with pytest.raises(HarnessLockReentered):
+            with workspace_realm_assign_lock():
+                pass
+    assert time.monotonic() - started < 2.0
