@@ -254,8 +254,9 @@ def promote_default_brain(workspace_id: str, *, issued_at: str) -> dict[str, Any
     except AdoptRefused as refused:
         raise _refuse_promotion(workspace_id, _ADOPT_REASONS.get(refused.reason, Reason.PUSH_REFUSED),
                                 refused.detail, issued_at=issued_at, back_off=True) from None
+    # The member asked for a repository: a left realm's hold on the automatic path ends here.
     _write_binding(workspace_id, {**record, "remote_url": url, "promoted_at": issued_at,
-                                  "remote_owner": account.login, "promote_refused": None})
+                                  "remote_owner": account.login, "promote_refused": None, "left_remote": None})
     declaration = _declare_brain_slot(workspace_id, url, root, issued_at)
     _write_binding(workspace_id, {**(read_binding(workspace_id) or {}), "declaration": declaration})
     receipt = receipts.emit("work.brain_promoted", workspace_id=workspace_id, url=url,
@@ -269,7 +270,12 @@ def _refused_recently(record: dict[str, Any]) -> bool:
 
 
 def _auto_promote(workspace_id: str, issued_at: str) -> None:
-    """The automatic path: promote when connected and not backing off; a refusal is a receipt, never raised."""
+    """The automatic path: promote when connected and not backing off; a refusal is a receipt, never raised.
+
+    A brain let go of a left server's shared task repository (``left_remote``, ``detach_left_remote``) is never
+    promoted automatically: the copy's Work board belongs to the team's work, so it stays on this machine until
+    the member asks for a repository through ``promote_default_brain`` (owner 2026-11-12,
+    RT-LEFT-REALM-BRAIN-PROMOTED-AGAIN-BEFORE-ITS-REKEY)."""
 
     from ..git_host_account import connected_github
 
@@ -277,6 +283,9 @@ def _auto_promote(workspace_id: str, issued_at: str) -> None:
         return  # machine-local by contract: never in a repo, never promoted
     record = read_binding(workspace_id)
     if record is None or record.get("remote_url") or _refused_recently(record):
+        return
+    # MUTATION: drop this hold and test_a_left_realms_brain_stays_local_until_the_member_promotes_it reddens.
+    if record.get("left_remote"):
         return
     if connected_github() is None:
         return
@@ -433,9 +442,9 @@ def detach_left_remote(workspace_id: str, *, at: str) -> str | None:
     remotes at that URL are removed (history kept, ``branch.*`` upstreams with them), the slot ``brain`` the
     workspace's slot document declared for that URL is tombstoned, and the binding goes back to a local brain
     (no ``remote_url``, no declaration) recording ``left_remote`` ``{url, at}``. The board is then the default
-    board, ``local``: the writer advances the branch and pushes nowhere. From there it is any local realm's
-    workspace brain — promoted to the member's own repository when the machine is connected
-    (``_auto_promote``). A re-join brings the team's brain back with the fresh realm, adopted as a second
+    board, ``local``: the writer advances the branch and pushes nowhere. It is NOT promoted automatically
+    (``_auto_promote`` skips a binding with ``left_remote``; owner 2026-11-12): it stays on this machine until the
+    member promotes it by hand (``promote_default_brain``, which clears the hold). A re-join brings the team's brain back with the fresh realm, adopted as a second
     machine adopts it."""
 
     from ..git_cmd import run_git
