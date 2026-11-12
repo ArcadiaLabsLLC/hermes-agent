@@ -11,6 +11,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from agent_runtime.work_store import grammar, tasks
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "work_queue"
@@ -178,3 +180,31 @@ def test_write_task_defects_holds_only_the_rows_a_write_changes() -> None:
     assert "BAD TASK" in defects("- **`TASK-X` — X** · task: x · group: p · READY 2026-11-09")[0]
     work = head + "- **`WORK-ABCDEF` — t** · READY 2026-11-09\n"
     assert defects("- **`WORK-BCDEFG` — u** · READY 2026-11-09", before=work) == [], "a brain using no tasks"
+
+
+@pytest.mark.parametrize(("status", "holds"), [
+    ("READY 2026-11-12", False),
+    ("LIVE CHECK 2026-11-12: open the board, read the pill", False),
+    ("BLOCKED 2026-11-12: another lane — `RT-ELSE` first", False),
+    ("BLOCKED 2026-11-12: launcher — `MC-X` the board", False),
+    ("BLOCKED 2026-11-12: owner decision — `RT-ASK` every live subtask waits (1 on the owner) · Recommend: answer `RT-ASK`",
+     False),
+    ("BLOCKED 2026-11-12: owner decision — build pills at all? · Recommend: yes", True),
+    ("BLOCKED 2026-11-12: owner sitting (look at the board)", True),
+    ("DECISION 2026-11-12: build pills at all?", True),
+    ("DEFERRED 2026-11-12: after release", True),
+    ("NEEDS PLAN 2026-11-12: the shape", True),
+])
+def test_a_task_holds_its_subtasks_back_only_on_the_owners_word(status: str, holds: bool) -> None:
+    """RT-WORK-CLAIM-UNDER-TASK-WAITING-ON-ITS-OWN-SUBTASK (the launcher's ``taskHoldsSubtasks``). KILLING MUTATIONS:
+    ``return task.status is not Status.READY`` in ``task_holds_subtasks`` -> the four waiting-on-work rows hold, red;
+    drop the ``blocked_on_id(task) not in`` arm -> the task BLOCKED on its own asking subtask holds, red; drop
+    ``Status.DECISION`` from the first arm -> a DECISION task lets its subtask be claimed, red."""
+    from agent_runtime.work_store import grammar
+    from agent_runtime.work_store.tasks import parked_task, task_holds_subtasks
+
+    text = (f"- **`TASK-P` — Pills on the board** · task: p · {status}\n"
+            "- **`RT-ASK` — which pill** · group: p · READY 2026-11-12\n")
+    task, sub = grammar.parse_note(text, slot="hermes", note="q.md")
+    assert task_holds_subtasks(task, ["RT-ASK"]) is holds
+    assert (parked_task(sub, [task, sub]) is task) is holds

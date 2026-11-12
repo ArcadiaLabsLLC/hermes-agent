@@ -27,7 +27,7 @@ from agent_runtime.work_store.default_brain import (
 from agent_runtime.work_store.grammar import (
     ASSIGNEE, GROUP_SLUG, STATUS, STATUS_WORDS, Assignee, Op, Row, RowRef, Status, find, local_day, mint_id, parse_note,
 )
-from agent_runtime.work_store.tasks import task_of
+from agent_runtime.work_store.tasks import subtasks_of, task_holds_subtasks, task_of
 from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, work_worktree_for
 
 from agent_runtime.errors import NotFound
@@ -566,7 +566,8 @@ def claim(scope, params, actor, *, context=None):
 def parent_task(workspace_id: str, row: Row) -> dict[str, Any] | None:
     """The claim door's task check (RT-QUEUE-TASKS-GRAMMAR; launcher plan QUEUE_TASKS_AND_SUBTASKS_2026-11-09 D3).
 
-    A subtask (a row with ``group:``) is claimable only while its task is READY: a task in any other status
+    A subtask (a row with ``group:``) is not claimable while its task holds its subtasks back
+    (``tasks.task_holds_subtasks``: DEFERRED, NEEDS PLAN, a DECISION, or BLOCKED on an owner reason of its own); it
     refuses ``task_not_ready``, naming the task. The task is looked for in every brain the workspace's boards
     read (the slug or a dotted prefix of it); a task no visible brain holds lets the claim through, and the answer
     says so (``checked: false``). None for a row that is not a subtask.
@@ -580,10 +581,10 @@ def parent_task(workspace_id: str, row: Row) -> dict[str, Any] | None:
         return {"group": row.group, "task_id": None, "task_status": None, "checked": False,
                 "detail": f"no visible brain has a task for `{row.group}`: the claim was not checked against one"}
     status = task.status.value if task.status is not None else None
-    if task.status is not Status.READY:
+    if task_holds_subtasks(task, (s.ref.id for s in subtasks_of(task, candidates))):
         raise WorkRefused(Reason.TASK_NOT_READY,
                           f"`{row.ref.id}` is a subtask of `{task.ref.id}`, which is {status or 'without a status'}: "
-                          "a subtask is claimed only while its task is READY",
+                          "the task's status holds every subtask back",
                           data={"task_id": task.ref.id, "task_status": status})
     return {"group": row.group, "task_id": task.ref.id, "task_status": status, "checked": True}
 

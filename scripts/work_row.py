@@ -28,7 +28,7 @@ task (an owner close still goes); the last open subtask's close archives a task 
 follows its subtasks — READY with an ``unblocked`` segment once one is startable, ``BLOCKED`` on the first waiting
 one when none is (:func:`agent_runtime.work_store.tasks.task_status_after_close`). A task in a sibling brain is that
 brain's to move — the close prints what to set there; with a sibling brain not checked out the task is left open.
-``claim`` refuses a subtask whose task is not READY (``task_not_ready``).
+``claim`` refuses a subtask whose task holds its subtasks back (``task_not_ready``).
 
 A claim names its place (ADR 0025's 2026-10-26 amendment): ``**TAKEN <date> <lane> on <machine> as
 <git account> in <worktree>**``. ``--machine`` defaults to the hostname, ``--account`` to the
@@ -169,8 +169,9 @@ def refuse_task_defects(repo: Path, written: dict[Path, tuple[str, str]], texts:
 
 
 def refuse_claim_of_parked(repo: Path, note: Path, text: str, row_id: str) -> None:
-    """A lane claim of a subtask whose task is not READY is refused, naming the task (D3); a task no brain read here
-    holds lets the claim through."""
+    """A lane claim of a subtask whose task holds its subtasks back (``task_holds_subtasks``: DEFERRED, NEEDS PLAN,
+    a DECISION, or BLOCKED on an owner reason of its own) is refused, naming the task (D3); a task no brain read
+    here holds lets the claim through."""
 
     texts = {path: path.read_bytes().decode("utf-8") for path in queue_notes(repo, None)}
     texts[note] = text
@@ -179,7 +180,7 @@ def refuse_claim_of_parked(repo: Path, note: Path, text: str, row_id: str) -> No
     if task is not None:
         raise WorkRefused(Reason.TASK_NOT_READY, f"`{row_id}` is a subtask of task `{task.ref.id}` (task: {task.task}, "
                                                  f"{task.ref.slot}), which is {task.status.value if task.status else 'without a status'}"
-                                                 ": a subtask is claimed only while its task is READY")
+                                                 ": the task's status holds every subtask back")
 
 
 def refuse_parked_task(closed: Row, rows: list[Row]) -> None:

@@ -238,12 +238,27 @@ def blocked_on_id(row: Row) -> str | None:
     return match.group(1) if match else None
 
 
-def parked_task(row: Row, candidates: Iterable[Row]) -> Row | None:
-    """The task of subtask ``row`` among ``candidates`` when it is not READY (the claim doors refuse then); None for
-    a row that is not a subtask, a task no candidate holds, or a READY task."""
+def task_holds_subtasks(task: Row, subtask_ids: Iterable[str]) -> bool:
+    """Whether ``task``'s own status holds its subtasks back whatever theirs say — the owner's lever (the launcher's
+    ``taskHoldsSubtasks``; its row BRAIN-READY-SUBTASK-UNDER-BLOCKED-TASK): DEFERRED, NEEDS PLAN, a DECISION, or
+    BLOCKED on an owner reason naming none of ``subtask_ids``. A task BLOCKED on other work, or on one of its own
+    subtasks, holds nothing back: that block only reports that every subtask waited."""
 
+    if task.status in (Status.DEFERRED, Status.NEEDS_PLAN, Status.DECISION):
+        return True
+    return task.status is Status.BLOCKED and waits_on_owner(task) and blocked_on_id(task) not in set(subtask_ids)
+
+
+def parked_task(row: Row, candidates: Iterable[Row]) -> Row | None:
+    """The task of subtask ``row`` among ``candidates`` when it holds its subtasks back
+    (:func:`task_holds_subtasks`; the claim doors refuse then); None for a row that is not a subtask, a task no
+    candidate holds, or a task that holds nothing back."""
+
+    candidates = list(candidates)
     task = task_of(row, candidates) if row.task is None else None
-    return task if task is not None and task.status is not Status.READY else None
+    if task is None or not task_holds_subtasks(task, (s.ref.id for s in subtasks_of(task, candidates))):
+        return None
+    return task
 
 
 def task_refuses_done(task: Row, subtask_ids: Iterable[str] = ()) -> str | None:
