@@ -1069,6 +1069,18 @@ Two subtleties worth not tidying: `budget_exhausted` is settled and deliberately
 `native_committed` (`:223-226`), because a reply proven after the budget settled must never be lost.
 `turn-resolve --action abandon` accepts `outcome_unknown` only (`:192`).
 
+**A run that returned without a reply is not a reply** (2026-11-12). Two arms sit between the model
+run and the native commit. A STOPPED run (the result carries `interrupted`: an operator Stop reached
+the agent's interrupt seam) settles in `chat_turn_commit/stopped.py`: the frame is `ok: true`,
+`execution_state: "stopped"`, `stopped: true`, `journal_state: "interrupted"`, `reply` = the text
+already written else `""` (`turn_visibility.reason: "stopped"` when none); the record is the legacy
+`interrupted` state with `stopped: true`, written by `journal.stop_mission_chat_turn`, so the
+`turn_interrupted` marker (its text says stopped, the row carries `stopped`), `retry_of` and running
+work apply unchanged. An EMPTY run (upstream's `(empty)` sentinel or explainer sentence, exit reason
+`empty_response_exhausted`) keeps the normal walk with `reply: ""` and a silent `turn_visibility`;
+the stored `(empty)` row reads as a `turn_silent` marker (`turn_visibility.printable_reply_text`).
+Pins: `tests/agent_runtime/test_chat_turn_stopped_or_empty.py`.
+
 **The run budget is an accounting seam, not a scheduler.** `agent_runtime/run_budget.py` holds no
 policy, enforces nothing, never raises (`:29-44`); each mechanism decides on its own terms and then
 declares itself. Four kinds (`:66-72`): `wall`, `api_calls`, `total_tokens`, `mcp_calls`. Three
