@@ -17,7 +17,9 @@ removed, the status replaced by ONE outcome, the line appended to
 files in one commit, ``queue(<stem>): close <ID> <outcome>``. Every row of this brain BLOCKED on ``<ID>`` (reason
 ``hermes`` or ``another lane``) is woken in the same commit: back to ``READY <date>`` with an ``unblocked`` segment
 naming the close (``agent_runtime/work_store/wake.py``; launcher row BRAIN-QUEUE-CLOSE-WAKES-DEPENDENTS);
-``--no-wake`` leaves them. Rows in the launcher or backend brains are theirs to wake — the launcher's
+``--no-wake`` leaves them (and says so on stderr: a row left BLOCKED on an archived row reds the queue gate). A row
+whose block lists several rows (``— `A` then `B`, `C`: why``) is woken only by the close of the last one still
+open; until then a close of one of them re-points it at the rest, ``--no-wake`` or not. Rows in the launcher or backend brains are theirs to wake — the launcher's
 ``dart tool/queue/waits_on.dart <ID> --in hermes`` lists them.
 
 A close also moves the row's TASK (launcher plan ``EterniaLauncher/docs/mission_control/planned/
@@ -28,7 +30,8 @@ task (an owner close still goes); the last open subtask's close archives a task 
 (``DONE <date> <sha> · result: all N subtasks closed``); otherwise the task of the closed row and of every woken row
 follows its subtasks — READY with an ``unblocked`` segment once one is startable, ``BLOCKED`` on the first waiting
 one when none is (:func:`agent_runtime.work_store.tasks.task_status_after_close`). A task in a sibling brain is that
-brain's to move — the close prints what to set there; with a sibling brain not checked out the task is left open.
+brain's to move — the close prints what to set there; with a sibling brain not checked out the task is left open. A close that archives a task prints the live rows under
+``<slug>-followups`` in every brain read, with one line saying to read them together (nothing when there are none).
 ``claim`` refuses a subtask whose task holds its subtasks back (``task_not_ready``).
 
 A claim names its place (ADR 0025's 2026-10-26 amendment): ``**TAKEN <date> <lane> on <machine> as
@@ -294,7 +297,24 @@ def close_task(repo: Path, closed: Row, task: Row, texts: dict[Path, str], archi
     texts[note], _ = archive_row(repo, note, texts[note], task.ref.id, who, {**task_payload, "date": payload["date"]},
                                  archives)
     done_as = f"CLOSED {payload['date']}" if by_owner else f"DONE {payload['date']} {payload['commit']}"
-    return [f"closed task `{task.ref.id}` {done_as}: {words}"]
+    # MUTATION: drop the follow-up lines and test_closing_a_task_lists_its_open_follow_up_rows reddens.
+    return [f"closed task `{task.ref.id}` {done_as}: {words}", *follow_up_lines(task, _brains(texts, siblings))]
+
+
+def follow_up_lines(task: Row, rows: list[Row]) -> list[str]:
+    """After ``task`` is archived: the live rows under ``<slug>-followups`` in every brain read, by ID and title,
+    under one line saying to read them together — the last moment a defect parked there is in view (launcher row
+    QA-TASK-CLOSE-SHOWS-ITS-FOLLOW-UP-ROWS; the words are ``EterniaLauncher/tool/queue/close_row.dart::
+    _listFollowUps``'s). A print only: nothing when there are none, and no refusal."""
+
+    slug = f"{task.task}-followups"
+    found = [row for row in rows if row.task is None and row.group is not None
+             and (row.group == slug or row.group.startswith(slug + "."))]
+    if not found:
+        return []
+    return [f"task `{task.ref.id}` is closed with {len(found)} follow-up row(s) open under `{slug}` — read them "
+            "together now: one that is a defect in what this task built goes back into the task, which reopens for it",
+            *(f"  `{row.ref.id}` — {row.title} ({row.ref.slot}, {Path(row.ref.note).name})" for row in found)]
 
 
 def queue_notes(repo: Path, note: str | None) -> list[Path]:
@@ -411,12 +431,17 @@ def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, s
     before = {**texts, note: text}
     texts[note], _ = archive_row(repo, note, text, args.row_id, args.who, payload, archives)
     woken: dict[Path, list[str]] = {}
-    if not args.no_wake:
-        for path, current in texts.items():
-            after, ids = wake_dependents(current, args.row_id, payload["date"], how)
-            if ids:
-                texts[path] = after
-                woken[path] = ids
+    held: dict[str, list[str]] = {}
+    stranded: list[str] = []
+    live_ids = {row.ref.id for row in _brains(texts, siblings)}
+    for path, current in texts.items():
+        stepped = wake_dependents(current, args.row_id, payload["date"], how, live_ids=live_ids,
+                                  wake=not args.no_wake)
+        texts[path] = stepped.text
+        held |= stepped.held
+        stranded += stepped.stranded
+        if stepped.woken:
+            woken[path] = stepped.woken
     said = task_step(repo, closed, [i for ids in woken.values() for i in ids], texts, archives, payload,
                      siblings, args.who, how)
     touched = [path for path in texts if texts[path] != before.get(path)]
@@ -430,6 +455,13 @@ def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, s
     for ids in woken.values():
         for woke in ids:
             print(f"woke `{woke}`: READY (it waited on `{args.row_id}`)")
+    for row_id, still_open in held.items():
+        print(f"`{row_id}` stays BLOCKED: it also waits on {', '.join(f'`{b}`' for b in still_open)}, still open "
+              f"(`{args.row_id}` is off its list)")
+    for row_id in stranded:
+        print(f"warning: `{row_id}` is left BLOCKED on `{args.row_id}`, which this close archives (--no-wake): "
+              "re-status it before you push, or the queue gate reds on a blocker that is no longer a row",
+              file=sys.stderr)
     for line in said:
         print(line)
     return touched

@@ -290,6 +290,66 @@ def test_no_wake_leaves_them_blocked(clones):
     assert (mine / other_note).read_text(encoding="utf-8") == waiting
 
 
+HELD = ("- **`RT-H` — the switch-over** · BLOCKED 2026-11-01: another lane — `RT-A` then `RT-B`, `RT-GONE` and "
+        "`RT-C`: only when all are on main and `OWED_HANDLERS` is empty · filed by a lane\n"
+        "- **`RT-C` — third** · READY 2026-10-18\n")
+
+
+def test_a_close_keeps_a_row_other_rows_still_hold_blocked(clones, capsys):
+    """RT-QUEUE-CLOSE-WAKES-ROW-STILL-HELD-BY-OTHERS (three closes of 2026-11-12 woke a row five others held).
+    KILLING MUTATIONS: ``still_open = []`` in ``wake_dependents`` -> RT-H is READY after the first close, red;
+    match only the list's first ID (``closed_id != listed[1][0]``) -> closing RT-C, a later blocker, leaves it on the list, red."""
+    _, mine, _ = clones
+    (mine / NOTE).write_text(HEAD + ROWS + HELD, encoding="utf-8", newline="\n")
+    close = ["--who", "r", "--owner", "done elsewhere", "--date", "2026-11-03", "--repo", str(mine), "--no-commit"]
+
+    def held_row() -> str:
+        return next(line for line in (mine / NOTE).read_text(encoding="utf-8").split("\n") if "`RT-H`" in line)
+
+    assert work_row.main(["close", "RT-A", *close]) == 0
+    assert held_row() == ("- **`RT-H` — the switch-over** · BLOCKED 2026-11-01: another lane — `RT-B` then `RT-C`: only "
+                          "when all are on main and `OWED_HANDLERS` is empty · filed by a lane"), "RT-GONE is no row"
+    assert capsys.readouterr().out == ("`RT-H` stays BLOCKED: it also waits on `RT-B`, `RT-C`, still open (`RT-A` is "
+                                       "off its list)\n")
+    assert work_row.main(["close", "RT-C", *close]) == 0
+    assert "another lane — `RT-B`: only when all" in held_row()
+    capsys.readouterr()
+    assert work_row.main(["close", "RT-B", *close]) == 0
+    assert held_row() == ("- **`RT-H` — the switch-over** · READY 2026-11-03 · unblocked 2026-11-03: `RT-B` closed by "
+                          "the owner · filed by a lane")
+    assert capsys.readouterr().out == "woke `RT-H`: READY (it waited on `RT-B`)\n"
+
+
+def test_no_wake_still_takes_the_archived_row_off_a_list_and_names_a_row_it_strands(clones, capsys):
+    """The other half: a ``--no-wake`` close left a row naming an archived blocker first and the queue gate red on
+    main (6d7b7e554f). KILLING MUTATIONS: ``if still_open and wake`` -> RT-H still names RT-A, red; drop the
+    ``stranded`` report -> no warning for RT-W, red. RT-W itself is left as it stands: that is what the flag asks."""
+    _, mine, _ = clones
+    lone = "- **`RT-W` — waits on one** · BLOCKED 2026-11-01: hermes — `RT-A` first\n"
+    (mine / NOTE).write_text(HEAD + ROWS + HELD + lone, encoding="utf-8", newline="\n")
+    assert work_row.main(["close", "RT-A", "--who", "r", "--owner", "x", "--no-wake", "--repo", str(mine),
+                          "--no-commit"]) == 0
+    text = (mine / NOTE).read_text(encoding="utf-8")
+    assert "· BLOCKED 2026-11-01: another lane — `RT-B` then `RT-C`: only when" in text
+    assert lone in text
+    said = capsys.readouterr()
+    assert "`RT-H` stays BLOCKED" in said.out and "RT-W" not in said.out
+    assert said.err.startswith("warning: `RT-W` is left BLOCKED on `RT-A`, which this close archives (--no-wake)")
+
+
+def test_only_the_rows_a_block_opens_with_are_its_blockers():
+    """KILLING MUTATION: let ``_NEXT_BLOCKER`` match a bare space before the next backticked name -> the prose's
+    ``RT-B`` joins the list, red."""
+    from agent_runtime.work_store.wake import blocker_list
+
+    assert blocker_list("another lane — `RT-A` then `RT-B`, `RT-C`, and `RT-D` & `RT-E` + `RT-F`: why `RT-Z`") == (
+        "another lane — ", ["RT-A", "RT-B", "RT-C", "RT-D", "RT-E", "RT-F"], ": why `RT-Z`")
+    assert blocker_list("hermes — `RT-A` the fix, which `RT-B` also wants") == (
+        "hermes — ", ["RT-A"], " the fix, which `RT-B` also wants")
+    assert blocker_list("another lane — `RT-A` `RT-B`")[1] == ["RT-A"]
+    assert blocker_list("owner decision — which one?") is None
+
+
 TASK_ROWS = ("- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n"
              "- **`RT-S1` — first slice** · group: p · READY 2026-11-09\n"
              "- **`RT-S2` — second slice** · group: p.x · READY 2026-11-09\n")
@@ -327,6 +387,45 @@ def test_the_last_subtask_closing_closes_its_task(clones, tmp_path, monkeypatch,
                             "- **`TASK-P` — Pills on the board** · task: p · DONE 2026-11-09 5d6e7f8 · "
                             "result: all 2 subtasks closed\n")
     assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue(q): close RT-S2 DONE 5d6e7f8"
+
+
+FOLLOW_UPS = ("- **`TASK-P-FOLLOWUPS` — What the pills found on the way** · task: p-followups · READY 2026-11-09\n"
+              "- **`RT-F1` — a loose end** · group: p-followups · READY 2026-11-09\n"
+              "- **`RT-F2` — a parked one** · group: p-followups.x · DEFERRED 2026-11-09: later\n")
+
+
+def test_closing_a_task_lists_its_open_follow_up_rows(clones, tmp_path, monkeypatch, capsys):
+    """Launcher row QA-TASK-CLOSE-SHOWS-ITS-FOLLOW-UP-ROWS (its twin: ``close_row.dart::_listFollowUps``). KILLING
+    MUTATION: drop ``follow_up_lines`` from ``close_task``'s return -> the read-them-together line and the three
+    rows are not printed, red. A close that archives no task prints none of it."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path, "- **`L-F` — a launcher loose end** · group: p-followups · READY 2026-11-09\n")
+    _seed(mine, TASK_ROWS + FOLLOW_UPS)
+    close = ["--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date", "2026-11-09", "--repo", str(mine)]
+    assert work_row.main(["close", "RT-S1", *close]) == 0
+    assert "follow-up" not in capsys.readouterr().out, "TASK-P is still open: nothing to read yet"
+    assert work_row.main(["close", "RT-S2", *close]) == 0
+    assert capsys.readouterr().out.split("\n")[-5:] == [
+        "task `TASK-P` is closed with 3 follow-up row(s) open under `p-followups` — read them together now: one "
+        "that is a defect in what this task built goes back into the task, which reopens for it",
+        "  `RT-F1` — a loose end (hermes, q.md)",
+        "  `RT-F2` — a parked one (hermes, q.md)",
+        "  `L-F` — a launcher loose end (launcher, mission-control-queue.md)",
+        ""]
+
+
+def test_closing_a_task_with_no_follow_up_rows_prints_nothing_about_them(clones, tmp_path, monkeypatch, capsys):
+    """KILLING MUTATION: return the read-them-together line from ``follow_up_lines`` when it found no row -> a
+    line naming 0 rows is printed, red. Another task's follow-up rows are not this task's."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path)
+    _seed(mine, TASK_ROWS.replace("- **`RT-S2` — second slice** · group: p.x · READY 2026-11-09\n", "")
+          + FOLLOW_UPS.replace("p-followups", "pp-followups"))
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date", "2026-11-09",
+                          "--repo", str(mine), "--no-commit"]) == 0
+    assert capsys.readouterr().out == "closed task `TASK-P` DONE 2026-11-09 1a2b3c4: all 1 subtasks closed\n"
 
 
 def test_a_subtask_open_in_a_sibling_brain_or_a_sibling_not_checked_out_keeps_the_task_open(

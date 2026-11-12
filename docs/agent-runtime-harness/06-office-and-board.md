@@ -1346,10 +1346,10 @@ id, a leave's re-key renames only board-minted cards, and the team's board
 comes back fresh beside the local copy
 (`tests/agent_runtime/test_card_id_on_two_boards.py`).
 
-One asymmetry worth knowing: the board DOES send `expect_revision`
-(`mission_board_write.dart`, sourced from `card.revision` at
-`mission_board_card_panel.dart`), while the office's argv arms deliberately
-omit it — the office's revision guard lives on the RPC lane only.
+One asymmetry worth knowing: the board's argv verbs DO take
+`--expect-revision` (Eternia's retired kanban sent it from `card.revision`),
+while the office's argv arms deliberately omit it — the office's revision
+guard lives on the RPC lane only.
 
 ### The pull's adopt arms, and the day they started emitting
 
