@@ -115,20 +115,30 @@ OWED_HANDLERS: dict[str, str] = {
 }
 
 
+def _under_work(parts: tuple[str, ...]) -> tuple[str, ...]:
+    return parts[1:] if parts[0] == paths.WORK_DIRNAME else ()
+
+
+#: Places INSIDE a top-level entry that are not their entry's class; the first rule that holds wins.
+_SUB_PLACES: tuple[tuple[Any, PlaceClass], ...] = (
+    # shared chats are chats: they wait for the re-join
+    (lambda parts: _under_work(parts)[:1] and _under_work(parts)[0].startswith("workspace_chats_"), PlaceClass.PARKS),
+    # a brain's or a sync clone's object store
+    (lambda parts: ".git" in parts, PlaceClass.HISTORY),
+    # a batch lane's checkout is its branch's: it reaches the brain by a merge
+    (lambda parts: LANE_WORKTREES_DIRNAME in _under_work(parts)[1:2], PlaceClass.HISTORY),
+    # a sync clone (the publish projection): OWED_HANDLERS
+    (lambda parts: parts[0] == paths.REALM_SYNC_DIRNAME and len(parts) > 1
+     and (paths.realm_sync_root() / parts[1] / ".git").exists(), PlaceClass.HISTORY),
+)
+
+
 def place_class(relative: Path) -> PlaceClass | None:
     """The class of a path under the store root, or ``None`` for an entry the table does not know."""
     parts = relative.parts
     if not parts:
         return None
-    if parts[0] == paths.WORK_DIRNAME and len(parts) > 1 and parts[1].startswith("workspace_chats_"):
-        return PlaceClass.PARKS  # shared chats are chats: they wait for the re-join
-    if ".git" in parts:
-        return PlaceClass.HISTORY  # a brain's or a sync clone's object store
-    if parts[0] == paths.WORK_DIRNAME and LANE_WORKTREES_DIRNAME in parts[2:3]:
-        return PlaceClass.HISTORY  # a batch lane's checkout is its branch's: it reaches the brain by a merge
-    if parts[0] == paths.REALM_SYNC_DIRNAME and len(parts) > 1 and (paths.realm_sync_root() / parts[1] / ".git").exists():
-        return PlaceClass.HISTORY  # a sync clone (the publish projection): OWED_HANDLERS
-    return STORE_PLACES.get(parts[0])
+    return next((found for holds, found in _SUB_PLACES if holds(parts)), STORE_PLACES.get(parts[0]))
 
 
 @dataclass
