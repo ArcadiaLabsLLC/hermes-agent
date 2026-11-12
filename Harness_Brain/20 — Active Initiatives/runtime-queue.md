@@ -43,7 +43,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-12 (lane w1112a-hmwork: the Harness half of `COMP-WORK-PILL-REFRESH-RECONCILIATION-PAST-HALF`)
 
-- **`RT-WORK-SYNC-FETCH-UNMOVED-TIP` — Work's Refresh no longer waits on a fetch when nobody has pushed to the board** · group: windows-handoffs · `agent_runtime/work_store/writer.py::Writer._fetch`, `Writer._tracks` · launcher rows `COMP-WORK-PILL-REFRESH-RECONCILIATION-PAST-HALF`, `COMP-WORK-REFRESH-OWNER-SIZE-PAST-HALF` · measured 2026-11-12 on Windows: the boards already sync at once (`RT-WORK-LIST-SYNC-SERIAL-BOARDS`), so a lifecycle `runtime.work.list` waits on the slowest board's sync, which is its fetch — a no-op `fetch origin main` of a real-size repository (5,498 refs) costs 1.6–2.9 s (upload-pack ~1.6 s, connectivity walk ~0.8 s, auto-maintenance ~0.6 s); the sync now asks origin for the one tip (`ls-remote`, 0.6–0.7 s) and fetches only when it moved, freshness unchanged; one real-size board 2,979–3,540 → 1,574–1,797 ms (box CPU 11–28 %), four synthetic boards 539–701 → 419–506 ms (box 32–40 %) · READY 2026-11-12
 
 ### Filed on arrival — 2026-11-10 (lane w1110c-hmboot: `RT-HARNESS-SERVE-COLD-BOOT`)
 
