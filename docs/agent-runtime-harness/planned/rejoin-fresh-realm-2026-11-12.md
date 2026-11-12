@@ -158,8 +158,10 @@ One function, `rekey_realm(journal)`. Nothing else renames a realm or a workspac
   old → new in the map. Afterwards the desk's office actor (actor key and file name), the flow-graph owner,
   schedules and open Work claims of the local copy name the NEW agent. Claim text committed in the brain's history
   keeps the old agent id; the one new commit of §4(e) rewrites the live rows.
-- **At the re-join** the parked records go back into `persona_instances/` before the fresh pull, so the pull finds
-  the team's agents present (its mint is for a missing one) and their chats re-attach by id.
+- **At the re-join** the parked records go back into `persona_instances/` inside the fresh realm's first pull,
+  just before its mint door (as built, §7 point 1: only the ones the team still publishes, each written into
+  the instance baseline), so the pull finds the team's agents present (its mint is for a missing one) and
+  their chats re-attach by id.
 - A parked agent with a live turn cannot exist: the re-key runs only when idle (the step refuses an agent with
   a live run binding and leaves the journal `running`).
 - **As built.** The map carries `agents: {old: new}`; a new id is the old one with a fresh placement tail
