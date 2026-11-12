@@ -1259,17 +1259,21 @@ IS a task; nothing is copied, and tasks are keyed `(slot, ID)` (plan
 Native Work methods).
 
 The default brain has four states, and promotion is the one door from binding to slot
-(`RT-WORK-DEFAULT-BRAIN-REMOTE`, plan [p10-work-2026-10-19.md](archive/p10-work-2026-10-19.md) §2.5; owner ruling
-2026-10-18: a connected git account means the remote is created automatically). **Local**: no remote. When the
-machine's own GitHub chain (`GITHUB_TOKEN`/`GH_TOKEN`, `gh auth token`, the git credential helper) answers
+(`RT-WORK-DEFAULT-BRAIN-REMOTE`, plan [p10-work-2026-10-19.md](archive/p10-work-2026-10-19.md) §2.5). A remote is
+made only when the person asks: the owner's 2026-11-02 sitting on Eternia `MC-BRAIN-MAKE-REMOTE-ON-GIT-CONNECT`
+("never silent, never automatic") retired the 2026-10-18 automatic promotion (`RT-BRAIN-REMOTE-ONLY-WHEN-ASKED`,
+after QA serves made repositories in a signed-in account). **Local**: no remote; `capabilities` says
+`reason: needs_git_account` with no account, and `reason: remote_offered` + `git_account` (the login) when the
+machine's chain answers — an offer Eternia shows as "Make this brain remote". On the press
+(`runtime.work.create_brain` with `promote: true`), when the machine's own GitHub chain (`GITHUB_TOKEN`/`GH_TOKEN`, `gh auth token`, the git credential helper) answers
 `GET /user`, `default_brain.promote_default_brain` creates a PRIVATE `eternia-work-<workspace slug>` repo (a name
 that exists is refused `remote_exists`, never adopted), pushes the brain with upstream through
 `agent_runtime/git_remote_adopt.py::adopt_remote`, and records `remote_url`. **Remote**: where this machine may
 publish (no realm, a server-less realm) slot `brain` is declared with `workspace_slots.declare_one_slot` (nothing
 else is touched) and bound here, and the declared slot lists the board. **Remote, pending declare**: in a
 server-bound realm the entry is staged in the binding and the Launcher's next credentialed `slots.declare` carries
-it; meanwhile the default board is listed with its remote and the writer pushes. **Refused**: a refusal backs the
-automatic path off for a day; `runtime.work.create_brain` with `promote: true` retries at once. A second machine
+it; meanwhile the default board is listed with its remote and the writer pushes. **Refused**: a refused press is
+recorded and read as `remote_refused` (+ `reason`, `retry_after`); the next press retries at once. A second machine
 that finds a declared `brain` slot it has not bound clones it instead of creating a brain; a local default brain
 it already had moves its rows in through the normal move.
 

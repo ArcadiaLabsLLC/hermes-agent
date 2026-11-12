@@ -127,7 +127,7 @@ def _default_brain_state(workspace_id):
     try:
         if default_board(workspace_id) is not None:
             if git_shipped():
-                ensure_default_brain(workspace_id, issued_at=issued)  # the automatic promotion
+                ensure_default_brain(workspace_id, issued_at=issued)  # settles a staged declaration, adopts or folds; never promotes
             return _worded(remote_state(workspace_id), "present")
         _require_git()
         ensure_default_brain(workspace_id, issued_at=issued)

@@ -184,6 +184,13 @@ def _record(ws) -> dict:
     return json.loads(board.binding_path(ws).read_text(encoding="utf-8"))
 
 
+def _promoted(ws, at=ISSUED):
+    """The brain made, then promoted by the press (``promote_default_brain``); the board ``ensure`` lists after."""
+    default_brain.ensure_default_brain(ws, issued_at=at)
+    default_brain.promote_default_brain(ws, issued_at=at)
+    return default_brain.ensure_default_brain(ws, issued_at=at)
+
+
 def _unbind_brain(ws) -> None:
     from agent_runtime.machine_roots import load_machine_roots, write_machine_roots
 
@@ -217,7 +224,7 @@ def _become_a_second_machine(ws, tmp_path) -> None:
 
 def test_promotion_creates_a_private_repo_pushes_and_declares_the_slot_in_a_no_realm_workspace(workspace, host):
     declare_slots(workspace, slot_decl("tools"))  # declared, not bound here: the brain stays needed, and it survives
-    made = default_brain.ensure_default_brain(workspace, issued_at=LATER)
+    made = _promoted(workspace, LATER)
     root = paths.default_brain_dir(workspace)
     name = default_brain.brain_repo_name(workspace)
     assert host.created == [name] and name.startswith("eternia-work-")
@@ -244,7 +251,7 @@ def test_promotion_in_a_server_bound_realm_stages_the_declaration(workspace, hos
         raise workspace_slots.SlotRefused(workspace_slots.REASON_REALM_PUBLISH_DENIED, "membership_denied")
 
     monkeypatch.setattr(workspace_slots, "require_publish_right", denied)
-    default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    _promoted(workspace)
     record = _record(workspace)
     assert "brain" not in (load_document(workspace).get("slots") or {})
     assert record["declaration"]["state"] == "pending"
@@ -279,6 +286,9 @@ def test_not_connected_is_a_receipt_and_the_brain_stays_local(workspace, host, c
 def test_remote_exists_is_refused_never_adopted(workspace, host):
     host.make(default_brain.brain_repo_name(workspace))
     made = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    with pytest.raises(WorkRefused) as refused:
+        default_brain.promote_default_brain(workspace, issued_at=ISSUED)
+    assert refused.value.reason is Reason.REMOTE_EXISTS
     assert made.is_default and host.created == []
     root = paths.default_brain_dir(workspace)
     assert subprocess.run(["git", "-C", str(root), "remote", "get-url", "origin"], capture_output=True,
@@ -289,26 +299,27 @@ def test_remote_exists_is_refused_never_adopted(workspace, host):
     assert state["retry_after"].startswith("2026-10-19T12:00:00")
 
 
-def test_a_refusal_backs_off_for_a_day_and_the_manual_door_ignores_it(workspace, host, monkeypatch):
+def test_a_refused_press_is_reported_and_the_next_press_retries_at_once(workspace, host):
+    """No automatic path is left to back off (RT-BRAIN-REMOTE-ONLY-WHEN-ASKED): a refused press is recorded and
+    read as ``remote_refused``; ensuring again makes nothing, and the next press promotes."""
     import shutil
 
     name = default_brain.brain_repo_name(workspace)
     host.make(name)
-    now = workspace_slots.stamp_epoch(ISSUED)
-    monkeypatch.setattr(default_brain.time, "time", lambda: now + 3600)
     default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    with pytest.raises(WorkRefused):
+        default_brain.promote_default_brain(workspace, issued_at=ISSUED)
     shutil.rmtree(host.bare(name))
     default_brain.ensure_default_brain(workspace, issued_at=LATER)
-    assert host.created == [] and not _record(workspace).get("remote_url")  # backing off
+    assert host.created == [] and not _record(workspace).get("remote_url")
+    assert default_brain.remote_state(workspace)["state"] == "remote_refused"
     promoted = default_brain.promote_default_brain(workspace, issued_at=LATER)
     assert promoted["outcome"] == "promoted" and host.created == [name]
     assert _record(workspace)["promote_refused"] is None
-    monkeypatch.setattr(default_brain.time, "time", lambda: now + default_brain.PROMOTE_RETRY_S + 1)
-    assert not default_brain._refused_recently({"promote_refused": {"reason": "x", "at": ISSUED}})
 
 
 def test_second_machine_adopts_the_declared_remote_instead_of_creating_a_brain(workspace, host, tmp_path):
-    default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    _promoted(workspace)
     url = _record(workspace)["remote_url"]
     _commit_row(paths.default_brain_dir(workspace), "WORK-ONEAAA", push=True)
     _become_a_second_machine(workspace, tmp_path)
@@ -330,7 +341,7 @@ def test_second_machine_with_a_local_brain_folds_its_rows_into_the_adopted_brain
     ``_fold_local_brain`` — two ``brain`` boards, ``WORK-TWOAAA`` never reaches the remote."""
     from agent_runtime.work import store as work_store
 
-    default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    _promoted(workspace)
     name = default_brain.brain_repo_name(workspace)
     _become_a_second_machine(workspace, tmp_path)
     slots_file = paths.workspace_slots_path(workspace)
@@ -361,7 +372,7 @@ def test_second_machine_with_a_local_brain_folds_its_rows_into_the_adopted_brain
 def test_a_fold_that_clashes_keeps_both_boards_and_backs_off(workspace, host, tmp_path):
     """An ID already in the adopted brain refuses the fold whole: both boards stay listed, no row lost."""
 
-    made = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    made = _promoted(workspace)
     name = default_brain.brain_repo_name(workspace)
     _commit_row(made.checkout, "WORK-SAMEAA", push=True)
     _become_a_second_machine(workspace, tmp_path)
@@ -384,7 +395,7 @@ def test_the_writer_pushes_to_the_promoted_brain(workspace, host):
     from agent_runtime.work_store.grammar import Op, RowRef
     from agent_runtime.work_store.writer import OPERATOR, RowOp
 
-    made = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    made = _promoted(workspace)
     raw = "- **`WORK-PUSHAA` — pushed** · READY 2026-10-19"
     receipt = work_store.writer_for(made).apply(RowOp(RowRef("brain", QUEUE_NOTE_PATH, "WORK-PUSHAA"), Op.APPEND,
                                                       OPERATOR, "req-push-1", {"rows": [raw], "files": {}}))
@@ -419,8 +430,8 @@ def test_two_workspaces_promoting_keep_their_own_brain(workspace, host):
     from agent_runtime.store import WorkspaceStore
 
     other = WorkspaceStore().create(name="Second workspace").id
-    default_brain.ensure_default_brain(workspace, issued_at=LATER)
-    default_brain.ensure_default_brain(other, issued_at=LATER)
+    _promoted(workspace, LATER)
+    _promoted(other, LATER)
     assert len(host.created) == 2
     for ws in (workspace, other):
         assert _record(ws)["declaration"] == {"state": "declared"}
@@ -437,7 +448,7 @@ def _leave_a_connected_realm(ws, host) -> tuple[str, object, str, str]:
     from agent_runtime.realm_sync.revocation import RealmRevokedReason
     from agent_runtime.store import RealmStore, WorkspaceStore
 
-    default_brain.ensure_default_brain(ws, issued_at=ISSUED)
+    _promoted(ws)
     url = _record(ws)["remote_url"]
     team = host.bare(default_brain.brain_repo_name(ws))
     root = paths.default_brain_dir(ws)
@@ -493,13 +504,12 @@ def test_a_left_realms_brain_stays_local_until_the_member_promotes_it(workspace,
     to the team its irreelvant to you alone"). After a leave on a connected machine (two repositories), the next
     ``ensure_default_brain`` used to promote the copy's brain to a private ``eternia-work-<slug>``: refused
     ``remote_exists`` every day on the account that made the team's repository, a new repository on any other.
-    Now neither: the brain stays local, nothing is created or refused. The manual door still promotes it and
-    clears the hold, and the automatic path then leaves the promoted brain alone.
+    Now neither: nothing promotes on its own (RT-BRAIN-REMOTE-ONLY-WHEN-ASKED), and the left copy is not even
+    offered a remote. The manual door still promotes it and clears ``left_remote``.
 
-    Mutation: drop the ``left_remote`` hold in ``_auto_promote`` -> the first ensure records ``promote_refused``
-    ``remote_exists`` (the team's account) and, with the team's repository gone from this account, the second
-    creates a new repository: red (seen: ``promote_refused`` ``remote_exists``). Keep ``left_remote`` on a manual
-    promote -> red (seen: the hold still set after the promotion)."""
+    Mutation (moved with ``_auto_promote``'s retirement, RT-BRAIN-REMOTE-ONLY-WHEN-ASKED): drop the ``left_remote``
+    check in ``remote_state`` -> the left copy is offered (``remote_offered``), red. Keep ``left_remote`` on a
+    manual promote -> red (seen: the hold still set after the promotion)."""
     url, team, _, team_tip = _leave_a_connected_realm(workspace, host)
     name = default_brain.brain_repo_name(workspace)
     assert host.created == [name]
@@ -521,3 +531,39 @@ def test_a_left_realms_brain_stays_local_until_the_member_promotes_it(workspace,
     assert _git(tmp_path / "team-elsewhere.git", "rev-parse", "main") == team_tip  # the team's copy untouched
     assert default_brain.ensure_default_brain(workspace, issued_at=LATER).slot == "brain"
     assert host.created == [name, name]
+
+
+def test_a_connected_machine_makes_no_repository_on_its_own_and_offers_one(workspace, host):
+    """RT-BRAIN-REMOTE-ONLY-WHEN-ASKED (owner sitting 2026-11-02 on Eternia ``MC-BRAIN-MAKE-REMOTE-ON-GIT-CONNECT``:
+    "never silent, never automatic"; seen 2026-11-12: QA serves made five ``eternia-work-*`` repositories in a
+    signed-in account). With a connected (fake) account, making the brain and reading it again — directly and
+    through ``capabilities`` as Eternia reads it — creates nothing and leaves no remote.
+
+    Mutation: restore ``_auto_promote`` and its calls in ``ensure_default_brain`` -> ``host.created`` is
+    ``[eternia-work-…]``, red."""
+    from agent_runtime.work import service
+
+    made = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    default_brain.ensure_default_brain(workspace, issued_at=LATER)
+    assert host.created == []
+    assert service._default_brain_state(workspace)["state"] == "present" and host.created == []
+    assert made.is_default and made.local and made.clone_url is None
+    assert _git(paths.default_brain_dir(workspace), "remote").strip() == ""
+    assert not _record(workspace).get("remote_url") and not _record(workspace).get("promote_refused")
+
+
+def test_a_local_brain_on_a_connected_machine_is_offered_a_remote_under_its_login(workspace, host):
+    """``remote_state`` says what a press would do: ``present`` + ``remote_offered`` + the login the private
+    repository would be made under, which Eternia's "Make this brain remote" strip shows. Unconnected, it is
+    still ``needs_git_account``.
+
+    Mutation: return None in place of the ``remote_offered`` answer in ``remote_state`` -> red."""
+    from agent_runtime.work import service
+
+    default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    offered = {"state": "present", "reason": "remote_offered", "git_account": "octo"}
+    assert default_brain.remote_state(workspace) == offered
+    assert service._default_brain_state(workspace) == offered
+    host.connected = False
+    assert default_brain.remote_state(workspace) == {"state": "present", "reason": "needs_git_account"}
+    assert host.created == []

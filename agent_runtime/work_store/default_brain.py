@@ -12,17 +12,19 @@ It is the WORKSPACE's own brain and stays when a repo slot with a brain is bound
 RT-WORK-WORKSPACE-BRAIN-KEPT, retiring the move into the first repo brain and its ``retire_binding``; a
 ``retired_into`` an older build wrote is no longer read).
 
-**Promotion** (``RT-WORK-DEFAULT-BRAIN-REMOTE``, plan ``p10-work-2026-10-19.md`` §2.5; owner ruling
-2026-10-18: a connected git account means the remote is created automatically) is the one door from
-binding to slot. ``promote_default_brain``: the machine's own GitHub chain answers an account
+**Promotion** (``RT-WORK-DEFAULT-BRAIN-REMOTE``, plan ``p10-work-2026-10-19.md`` §2.5) is the one door from
+binding to slot, and it opens only when the person asks (``runtime.work.create_brain`` with ``promote: true``;
+owner sitting 2026-11-02 on Eternia ``MC-BRAIN-MAKE-REMOTE-ON-GIT-CONNECT``: "never silent, never automatic",
+which retired the 2026-10-18 automatic promotion — RT-BRAIN-REMOTE-ONLY-WHEN-ASKED, after QA serves made
+repositories in a signed-in account). ``promote_default_brain``: the machine's own GitHub chain answers an account
 (``git_host_account.connected_github``) → a PRIVATE ``eternia-work-<slug>`` repo is created (an
 existing name is refused ``remote_exists``, never adopted) → ``git_remote_adopt.adopt_remote`` pushes
 the brain with upstream → the binding records ``remote_url`` → slot ``brain`` is declared with
 ``workspace_slots.declare_one_slot`` and bound here where ``require_publish_right(ws, None)`` passes,
 else the entry is STAGED in the binding (``declaration.state == "pending"``) for the Launcher's next
-credentialed ``slots.declare``. ``ensure_default_brain`` promotes on its own when the machine is
-connected; a refusal backs the auto path off for ``PROMOTE_RETRY_S`` (the manual door,
-``runtime.work.create_brain`` with ``promote: true``, ignores it). A SECOND machine adopts the declared
+credentialed ``slots.declare``. ``ensure_default_brain`` never promotes: on a connected machine
+``remote_state`` OFFERS the remote (``reason: remote_offered`` + ``git_account``) and Eternia shows the press.
+A refusal is recorded (``promote_refused``) and read as ``remote_refused``. A SECOND machine adopts the declared
 slot instead of creating a brain: it clones the remote (``adopt_remote`` into an empty repo), binds
 it. A machine that had already made its own LOCAL brain folds that brain's rows into the adopted one once,
 in one commit with the IDs kept, and its binding then records the remote as declared
@@ -81,8 +83,11 @@ __all__ = [
     "skeleton",
 ]
 
-#: How long the AUTOMATIC promotion waits after a refusal before trying again (the manual door never waits).
+#: How long a refused fold of a local brain into an adopted one waits before trying again, and the
+#: ``retry_after`` a refused promotion reports (a press may retry at once).
 PROMOTE_RETRY_S = 24 * 3600
+#: ``remote_state``'s reason for a local brain on a connected machine: a remote is offered, not made.
+REMOTE_OFFERED = "remote_offered"
 #: An adopter refusal as a Work refusal.
 _ADOPT_REASONS = {"url_mismatch": Reason.URL_MISMATCH, "remote_diverged": Reason.REMOTE_DIVERGED,
                   "fetch_failed": Reason.FETCH_FAILED, "push_failed": Reason.PUSH_REFUSED,
@@ -254,7 +259,7 @@ def promote_default_brain(workspace_id: str, *, issued_at: str) -> dict[str, Any
     except AdoptRefused as refused:
         raise _refuse_promotion(workspace_id, _ADOPT_REASONS.get(refused.reason, Reason.PUSH_REFUSED),
                                 refused.detail, issued_at=issued_at, back_off=True) from None
-    # The member asked for a repository: a left realm's hold on the automatic path ends here.
+    # The member asked for a repository: the left realm's record ends here.
     _write_binding(workspace_id, {**record, "remote_url": url, "promoted_at": issued_at,
                                   "remote_owner": account.login, "promote_refused": None, "left_remote": None})
     declaration = _declare_brain_slot(workspace_id, url, root, issued_at)
@@ -262,38 +267,6 @@ def promote_default_brain(workspace_id: str, *, issued_at: str) -> dict[str, Any
     receipt = receipts.emit("work.brain_promoted", workspace_id=workspace_id, url=url,
                             declaration=declaration["state"])
     return {"outcome": "promoted", "url": url, "declaration": declaration, "receipt": receipt}
-
-
-def _refused_recently(record: dict[str, Any]) -> bool:
-    at = stamp_epoch((record.get("promote_refused") or {}).get("at"))
-    return at is not None and time.time() - at < PROMOTE_RETRY_S
-
-
-def _auto_promote(workspace_id: str, issued_at: str) -> None:
-    """The automatic path: promote when connected and not backing off; a refusal is a receipt, never raised.
-
-    A brain let go of a left server's shared task repository (``left_remote``, ``detach_left_remote``) is never
-    promoted automatically: the copy's Work board belongs to the team's work, so it stays on this machine until
-    the member asks for a repository through ``promote_default_brain`` (owner 2026-11-12,
-    RT-LEFT-REALM-BRAIN-PROMOTED-AGAIN-BEFORE-ITS-REKEY)."""
-
-    from ..git_host_account import connected_github
-
-    if workspace_id == PERSONAL_BOARD_ID:
-        return  # machine-local by contract: never in a repo, never promoted
-    record = read_binding(workspace_id)
-    if record is None or record.get("remote_url") or _refused_recently(record):
-        return
-    # MUTATION: drop this hold and test_a_left_realms_brain_stays_local_until_the_member_promotes_it reddens.
-    if record.get("left_remote"):
-        return
-    if connected_github() is None:
-        return
-    try:
-        promote_default_brain(workspace_id, issued_at=issued_at)
-    except (WorkRefused, SlotRefused) as refused:
-        receipts.emit("work.brain_auto_promote_refused", workspace_id=workspace_id,
-                      reason=getattr(refused.reason, "value", refused.reason))
 
 
 def _declared_brain(workspace_id: str) -> dict[str, Any]:
@@ -407,14 +380,18 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
     """The live default brain's remote state for ``capabilities`` (None: nothing to add to the caller's word).
 
     ``remote`` (declared), ``remote_pending_declare`` (+ ``clone_url``, ``slot``), ``remote_refused``
-    (+ ``reason``, ``retry_after``); a local brain on an unconnected machine stays ``present`` (the tree's
-    word for the plan's ``local``) with ``reason: needs_git_account``.
+    (+ ``reason``, ``retry_after``); a local brain stays ``present`` (the tree's word for the plan's ``local``)
+    with ``reason: needs_git_account`` on an unconnected machine and ``reason: remote_offered`` +
+    ``git_account`` (the login a press would create the repository under) on a connected one — an offer,
+    never an action (RT-BRAIN-REMOTE-ONLY-WHEN-ASKED). A brain let go of a left server's repository
+    (``left_remote``) is not offered: its Work belongs to the team's work (owner 2026-11-12); the press still
+    promotes it.
     """
 
     from ..git_host_account import connected_github
 
     record = read_binding(workspace_id)
-    if record is None:
+    if record is None or workspace_id == PERSONAL_BOARD_ID:
         return None
     url, state = record.get("remote_url"), declaration_state(record)
     if url and state == "declared":
@@ -428,9 +405,15 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
         retry = datetime.fromtimestamp(at, UTC) + timedelta(seconds=PROMOTE_RETRY_S)
         return {"state": "remote_refused", "reason": refused["reason"],
                 "retry_after": retry.isoformat(timespec="seconds")}
-    if not url and connected_github() is None:
+    if url:
+        return None
+    account = connected_github()
+    if account is None:
         return {"state": "present", "reason": Reason.NEEDS_GIT_ACCOUNT.value}
-    return None
+    # MUTATION: drop this hold and test_a_left_realms_brain_stays_local_until_the_member_promotes_it reddens.
+    if record.get("left_remote"):
+        return None
+    return {"state": "present", "reason": REMOTE_OFFERED, "git_account": account.login}
 
 
 def detach_left_remote(workspace_id: str, *, at: str) -> str | None:
@@ -442,9 +425,9 @@ def detach_left_remote(workspace_id: str, *, at: str) -> str | None:
     remotes at that URL are removed (history kept, ``branch.*`` upstreams with them), the slot ``brain`` the
     workspace's slot document declared for that URL is tombstoned, and the binding goes back to a local brain
     (no ``remote_url``, no declaration) recording ``left_remote`` ``{url, at}``. The board is then the default
-    board, ``local``: the writer advances the branch and pushes nowhere. It is NOT promoted automatically
-    (``_auto_promote`` skips a binding with ``left_remote``; owner 2026-11-12): it stays on this machine until the
-    member promotes it by hand (``promote_default_brain``, which clears the hold). A re-join brings the team's brain back with the fresh realm, adopted as a second
+    board, ``local``: the writer advances the branch and pushes nowhere. Nothing promotes on its own, and
+    ``remote_state`` does not offer it a remote (owner 2026-11-12): it stays on this machine until the member
+    promotes it by hand (``promote_default_brain``, which clears ``left_remote``). A re-join brings the team's brain back with the fresh realm, adopted as a second
     machine adopts it."""
 
     from ..git_cmd import run_git
@@ -488,7 +471,6 @@ def ensure_default_brain(workspace_id: str, *, issued_at: str) -> Board:
         return adopted
     record = read_binding(workspace_id)
     if record is not None and (root / ".git").exists():
-        _auto_promote(workspace_id, issued_at)
         return _default(workspace_id)
     machine = this_machine()
     root.mkdir(parents=True, exist_ok=True)
@@ -497,7 +479,6 @@ def ensure_default_brain(workspace_id: str, *, issued_at: str) -> Board:
     _write_binding(workspace_id, {"slot": DEFAULT_BRAIN_SLOT, "path": str(root), "brain_dir": QUEUE_DIR,
                                   "default_branch": "main", "created_at": issued_at, "machine": machine,
                                   "remote_url": None})
-    _auto_promote(workspace_id, issued_at)
     return _default(workspace_id)
 
 

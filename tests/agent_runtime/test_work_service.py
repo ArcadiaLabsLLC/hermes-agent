@@ -425,7 +425,7 @@ def test_the_personal_board_is_one_more_owner_with_its_own_machine_local_brain(w
 def test_the_personal_board_is_never_promoted_to_a_remote(work, monkeypatch):
     """Machine-local by contract, even on a machine whose GitHub account answers. Mutation: drop the
     ``PERSONAL_BOARD_ID`` refusal in ``default_brain.promote_default_brain`` -> a private repo is created
-    for it (the ``_auto_promote`` guard is the cheap early exit in front of it)."""
+    for it (nothing promotes on its own since RT-BRAIN-REMOTE-ONLY-WHEN-ASKED, so only the press could)."""
     from agent_runtime import git_host_account
     from agent_runtime.work_store import default_brain
 
