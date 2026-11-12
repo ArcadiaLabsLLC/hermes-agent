@@ -128,6 +128,37 @@ def test_the_argv_verbs_reach_the_same_implementation(monkeypatch, capsys):
     assert realms.get(home.id).archived is False
 
 
+def test_an_argv_refusal_names_what_is_in_the_way_as_the_method_lane_does(capsys):
+    """RT-REALM-ARCHIVE-ARGV-REFUSAL-DROPS-DETAILS. Mutation: in ``emit_harness_error`` drop the
+    ``_REFUSALS_WITH_DETAILS`` arm -> ``safe_details`` is ``{error_class}`` only, red on every case."""
+    from hermes_cli.harness_parts import realm_commands, workspace_commands
+
+    realms = RealmStore()
+    home, spare = realms.create(name="Home"), realms.create(name="Spare")
+    team = realms.create(name="Team", server_id="srv_team")
+    realms.set_active(home.id)
+    workspace = WorkspaceStore().create(name="Roadmap", realm_id=spare.id)
+    shared = WorkspaceStore().create(name="Shared", realm_id=team.id)
+
+    def refused(command, **args):
+        capsys.readouterr()
+        assert command(SimpleNamespace(**args)) != 0
+        error = json.loads(capsys.readouterr().out)["error"]
+        details = dict(error["safe_details"])
+        details.pop("error_class")
+        return error["code"], details
+
+    for realm_id in (spare.id, team.id):
+        data = _rpc("runtime.realm.archive", realm_id=realm_id)["error"]["data"]
+        reason = data.pop("reason")
+        assert refused(realm_commands._cmd_realm_archive, realm_id=realm_id) == (reason, data)
+    assert refused(realm_commands._cmd_realm_archive, realm_id=spare.id) == (
+        "realm_not_empty", {"workspace_ids": [workspace.id]})
+    assert refused(realm_commands._cmd_realm_archive, realm_id=team.id) == ("realm_server_bound", {"server_id": "srv_team"})
+    assert refused(workspace_commands._cmd_workspace_move_realm, workspace_id=shared.id, realm_id=home.id) == (
+        "workspace_move_confirm_required", {"owner_realm_id": team.id, "owner_realm_name": "Team"})
+
+
 # ── the archived flag never travels through realm sync ───────────────────────
 
 def _synced_realm(tmp_path, name="Synced"):

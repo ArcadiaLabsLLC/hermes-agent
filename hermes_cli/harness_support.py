@@ -46,7 +46,9 @@ from agent_runtime.errors import (
     WorkspaceDeleteBlocked,
     WorkspaceUnresolved,
 )
+from agent_runtime.realm_manage import RealmManageRefused
 from agent_runtime.realm_sync import RealmSyncError
+from agent_runtime.workspace_manage import WorkspaceManageRefused
 
 __all__ = [
     "ERROR_EXIT_CODES",
@@ -295,6 +297,13 @@ ERROR_EXIT_CODES = {
 }
 
 
+#: The refusals whose operator-safe details ride the argv error envelope's ``safe_details`` —
+#: one table, read by ``emit_harness_error`` and nothing else.
+_REFUSALS_WITH_SAFE_DETAILS = (RealmSyncError, WorkspaceDeleteBlocked, WorkspaceUnresolved, DefaultScopeReconciliationRequired)
+#: The manage verbs' typed refusals carry theirs as ``details``.
+_REFUSALS_WITH_DETAILS = (RealmManageRefused, WorkspaceManageRefused)
+
+
 def emit_harness_error(exc: BaseException, *, args=None, code: str | None = None, message: str | None = None, reason: str | None = None) -> int:
     """Render one refusal. ``reason`` is the RAW word the layer below used.
 
@@ -313,14 +322,13 @@ def emit_harness_error(exc: BaseException, *, args=None, code: str | None = None
 
     error_code = code or _error_code_for_exception(exc)
     safe_details = {"error_class": type(exc).__name__}
-    if isinstance(exc, RealmSyncError):
+    if isinstance(exc, _REFUSALS_WITH_SAFE_DETAILS):
         safe_details.update(exc.safe_details)
-    if isinstance(exc, WorkspaceDeleteBlocked):
-        safe_details.update(exc.safe_details)
-    if isinstance(exc, WorkspaceUnresolved):
-        safe_details.update(exc.safe_details)
-    if isinstance(exc, DefaultScopeReconciliationRequired):
-        safe_details.update(exc.safe_details)
+    elif isinstance(exc, _REFUSALS_WITH_DETAILS):
+        # What the method lane puts on ``error.data`` beside the reason (``workspace_ids``,
+        # ``server_id``, ``realm_id``, ``owner_realm_*``): the argv twin names the same things
+        # (RT-REALM-ARCHIVE-ARGV-REFUSAL-DROPS-DETAILS).
+        safe_details.update(exc.details)
     envelope = _error_envelope(
         error_code,
         message or _safe_error_message(exc),
