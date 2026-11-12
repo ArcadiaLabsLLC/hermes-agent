@@ -44,6 +44,9 @@ Read in this order for a full picture; each stands alone for its own territory.
 
 ## planned/ — designed, not implemented
 
+- [Moving a workspace out of a server-bound realm](planned/workspace-move-out-of-server-realm-2026-11-12.md) — 2026-11-12:
+  why `runtime.workspace.move_realm` refuses it, the four slices, and the owner decision it waits on.
+
 - [Agent Console suggestion completion](planned/console-next-prompt-completion-2026-10-27.md) — 2026-10-27 completion recommendations; documentation only, implementation deferred by the owner.
 
 - [Agent Console follow-up suggestions](05-chat-turn-lane.md#opt-in-follow-up-drafts) — implemented through existing native owners; off by default. Historical design is archived and live qualification remains named in the domain queue.
