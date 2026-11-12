@@ -39,7 +39,7 @@ from agent_runtime.persona_chat_continuity import (
     mint_chat_root,
     persona_chat_root_lease,
 )
-from agent_runtime.conversation_owner import ConversationOwnerError
+from agent_runtime.conversation_owner import ConversationOwnerError, session_client_scope
 from agent_runtime.persona_chat_mints import PersonaChatMintError
 from agent_runtime.persona_chat_durability import (
     PersonaChatPersistenceError,
@@ -793,6 +793,42 @@ def _cmd_mission_chat_message(args) -> int:
     return exit_code
 
 
+def _dispatching_chat_owner(session_db, requested_by_session) -> str | None:
+    """The owner scope of the chat an agent relay was sent from, or None.
+
+    An agent's ``agent_chat_send`` (inline or detached) reaches this lane with the
+    sender's chat root as ``requested_by_session`` and no ``client_scope``. The
+    teammate thread it mints is part of that operator's conversation, so it takes
+    the dispatching chat's owner; without it the operator's own Open thread is
+    refused ``conversation_owner_changed`` (Eternia MC-NATIVE-ACCEPT-REPAIRS step 4).
+    The sender's row is read where the turn writes, else on its own chat head.
+    An unreadable or unscoped sender mints unscoped, as before.
+    """
+
+    if not requested_by_session:
+        return None
+    try:
+        row = session_db.get_session(requested_by_session)
+        if row is None:
+            from agent_runtime.chat_session_scope import SessionDbAccess, open_chat_session_db
+
+            sender_db = open_chat_session_db(
+                resolve_conversation_chat_scope(session_id=requested_by_session),
+                access=SessionDbAccess.READ,
+            )
+            if sender_db is None:
+                return None
+            try:
+                row = sender_db.get_session(requested_by_session)
+            finally:
+                close = getattr(sender_db, "close", None)
+                if callable(close):
+                    close()
+        return session_client_scope(row) if row is not None else None
+    except Exception:
+        return None
+
+
 def _mint_send_root(args, *, instance_store, session_db, normalized_persona, persona_instance_id,
                     client_message_id, session_id, mint_title, existing_root, requested_by_session):
     """The send lane's fresh-root mint through the ONE mint (``mint_chat_root``), its typed refusals
@@ -818,7 +854,12 @@ def _mint_send_root(args, *, instance_store, session_db, normalized_persona, per
             # the root is unscoped, the Launcher's chat list omits it after a relaunch and
             # every scoped history read of it refuses `conversation_owner_changed`
             # (RT-CHAT-MESSAGE-MINT-UNSCOPED, Eternia MC-CONSOLE-FIRST-SEND-CHAT-UNSCOPED-DROPS-FROM-DIRECTORY).
-            client_scope=getattr(args, "client_scope", None),
+            # A relay carries no scope of its own: the thread it mints for the teammate belongs
+            # to whoever owns the dispatching chat (RT-RELAY-THREAD-REFUSES-ITS-OWN-OPERATOR).
+            client_scope=(
+                getattr(args, "client_scope", None)
+                or _dispatching_chat_owner(session_db, requested_by_session)
+            ),
         )
     except RetiredPersonaInstanceError as exc:
         # What this handler guarantees is the TYPE. An unhandled raise
