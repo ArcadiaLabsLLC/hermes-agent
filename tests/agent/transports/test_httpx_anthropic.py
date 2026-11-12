@@ -108,7 +108,23 @@ STREAMS = {
         ("vendor_heartbeat", {"type": "vendor_heartbeat"}),
         _block(0, {"type": "text", "text": "", "cache_control": {"type": "ephemeral"}}),
         _delta(0, {"type": "text_delta", "text": "ok"}), _stop(0), *_end()),
+    "refusal_details_container_and_thinking_tokens": _sse(  # what anthropic 0.125.0 reads off message_delta
+        _start(), _block(0, {"type": "text", "text": ""}), _delta(0, {"type": "text_delta", "text": "No."}), _stop(0),
+        ("message_delta", {"type": "message_delta", "delta": {
+            "stop_reason": "refusal", "stop_sequence": None,
+            "stop_details": {"type": "refusal", "category": "cyber", "explanation": "declined"}},
+            "usage": {"output_tokens": 5, "output_tokens_details": {"thinking_tokens": 2}}}),
+        ("message_stop", {"type": "message_stop"})),
 }
+#: A container named on message_delta replaces the message's (its ``expires_at`` stays the wire's
+#: string here where the SDK builds a datetime, so it is pinned by id, not by the event-for-event read).
+CONTAINER_ON_DELTA = _sse(
+    _start(), _block(0, {"type": "text", "text": ""}), _delta(0, {"type": "text_delta", "text": "ok"}), _stop(0),
+    ("message_delta", {"type": "message_delta", "delta": {
+        "stop_reason": "end_turn", "stop_sequence": None,
+        "container": {"id": "cntr_1", "expires_at": "2026-11-12T00:00:00Z", "skills": []}},
+        "usage": {"output_tokens": 5}}),
+    ("message_stop", {"type": "message_stop"}))
 REQUEST = {"model": "claude-x", "max_tokens": 64, "messages": [{"role": "user", "content": "Hello"}],
            "system": [{"type": "text", "text": "Be brief."}], "metadata": {"user_id": "u1"},
            "thinking": {"type": "enabled", "budget_tokens": 1024}}
@@ -305,3 +321,10 @@ def test_the_profile_switch_picks_the_client_at_the_one_builder():
     assert isinstance(anthropic_adapter.build_anthropic_client(KEY, BASE), SdkFreeAnthropicClient)
     copy = anthropic_adapter.build_anthropic_client(KEY, BASE).with_options(default_headers={"x-extra": "1"})
     assert isinstance(copy, SdkFreeAnthropicClient) and copy._default_headers["x-extra"] == "1"
+
+
+def test_a_container_named_on_message_delta_is_the_final_messages_container():
+    for client in _clients(lambda _r: httpx.Response(200, headers={"content-type": "text/event-stream"},
+                                                     content=CONTAINER_ON_DELTA)):
+        _events, final = _stream_through(client, **REQUEST)
+        assert final.container.id == "cntr_1"

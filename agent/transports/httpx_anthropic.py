@@ -171,7 +171,12 @@ class _Snapshot:
         if block._kind in _TRACKS_TOOL_INPUT:
             buf = self._json_bufs.get(index, "") + delta.partial_json
             if buf:
-                block.input = parse_partial_json(buf)
+                try:
+                    block.input = parse_partial_json(buf)
+                except ValueError as error:
+                    raise ValueError(
+                        "Unable to parse tool parameter JSON from model. Please retry your request or adjust "
+                        f"your prompt. Error: {error}. JSON: {buf}") from error
             self._json_bufs[index] = buf
 
     def _citation(self, _index: int, block: Any, delta: Any) -> None:
@@ -190,8 +195,12 @@ class _Snapshot:
         message, usage = self.message, event.usage
         message.stop_reason = event.delta.stop_reason
         message.stop_sequence = event.delta.stop_sequence
+        message.stop_details = event.delta.stop_details
+        if event.delta.container is not None:
+            message.container = event.delta.container
         message.usage.output_tokens = usage.output_tokens
-        for field in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "server_tool_use"):
+        for field in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "server_tool_use",
+                      "output_tokens_details"):
             if getattr(usage, field, None) is not None:
                 setattr(message.usage, field, getattr(usage, field))
 
@@ -227,7 +236,10 @@ def _delta_events(block: Any, delta: Any) -> list[Any]:
                                                       snapshot=block.thinking)),
         "signature_delta": ("thinking", lambda: _event(type="signature", signature=block.signature)),
     }.get(delta.type)
-    return [derive[1]()] if derive is not None and block.type == derive[0] else []
+    if derive is None:
+        return []
+    matches = block._kind in _TRACKS_TOOL_INPUT if derive[0] == "tool_use" else block.type == derive[0]
+    return [derive[1]()] if matches else []
 
 
 #: ``build_events``: the events one accumulated raw event becomes (the raw event itself when unlisted).
