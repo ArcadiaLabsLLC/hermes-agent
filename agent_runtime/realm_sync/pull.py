@@ -144,9 +144,11 @@ def _overwrite_generic_families(artifacts: list[RealmSyncArtifact], *, realm: Re
 
     changed = False
     moved_out = _workspaces_moved_out(artifacts, realm=realm)
+    rehomed: list[tuple[str, str]] = []
     for artifact in artifacts:
         if artifact.destination in moved_out:
             continue
+        held_by = _local_workspace_realm_id(artifact.destination) if artifact.kind == SyncFamily.WORKSPACE else None
         artifact.destination.parent.mkdir(parents=True, exist_ok=True)
         before = artifact.destination.read_bytes() if artifact.destination.exists() else None
         data = _pulled_artifact_bytes(artifact, realm=realm)
@@ -156,7 +158,42 @@ def _overwrite_generic_families(artifacts: list[RealmSyncArtifact], *, realm: Re
         if before is None or _canonicalize_text_bytes(before) != _canonicalize_text_bytes(data):
             artifact.destination.write_bytes(data)
             changed = True
+        if held_by not in (None, realm.id) and _local_workspace_realm_id(artifact.destination) == realm.id:
+            rehomed.append((artifact.destination.stem, held_by))
+    if _leave_realms_a_pull_rehomed_from(rehomed):
+        changed = True
     return changed
+
+
+def _leave_realms_a_pull_rehomed_from(rehomed: list[tuple[str, str]]) -> bool:
+    """A pull that wrote a workspace INTO the pulled realm takes it out of the realm that held it here.
+
+    ``rehomed`` is ``(workspace_id, realm it named on this machine before the write)``. The pulled
+    realm's record says the workspace is its own (it was not on the merged delete ledger, or the
+    write would have been skipped — ``_workspaces_moved_out``): another member restored it there
+    after this machine moved it out, or moved it there. One workspace has one realm, so the realm
+    that held it gets the LEAVE ``move_workspace_realm`` writes (``record_deleted_workspace``) —
+    off its ``workspace_ids``, onto its delete ledger — and its next publish carries that to its
+    other members and machines. Without it both realms listed the workspace and both published it
+    (RT-WORKSPACE-RESTORED-IN-SOURCE-AFTER-A-MOVE-SITS-IN-TWO-REALMS)."""
+    if not rehomed:
+        return False
+    from ..errors import NotFound
+    from ..locks import workspace_realm_assign_lock
+    from ..store import record_deleted_workspace
+
+    store = RealmStore()
+    wrote = False
+    with workspace_realm_assign_lock():
+        for workspace_id, realm_id in rehomed:
+            try:
+                held = store.get(realm_id)
+            except NotFound:
+                continue
+            record_deleted_workspace(held, workspace_id)
+            store.save(held)
+            wrote = True
+    return wrote
 
 
 def _local_workspace_realm_id(path: Path) -> str | None:
