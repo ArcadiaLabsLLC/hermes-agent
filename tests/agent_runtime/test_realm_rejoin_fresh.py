@@ -310,3 +310,187 @@ def test_a_leave_notice_replayed_after_a_rejoin_leaves_the_fresh_realm_bound(tmp
                  occurred_at=datetime.now(UTC).isoformat())["result"]
     assert (again["became_local"], again["stale"]) == (True, False)
     assert RealmStore().get(again["rekeyed_to"]).server_id is None
+
+
+#: The three cases of the kept catalogue rule (owner 2026-11-12, "Yes, keep it"): only the team changed it, only the
+#: member changed it while local, both changed it.
+_CASES = ("team", "mine", "both")
+
+
+def _prefab_doc(label: str) -> bytes:
+    return json.dumps({"v": 1, "id": "p", "label": label, "savedAt": "2026-10-18T00:00:00Z",
+                       "document": {"version": 9, "nodes": []}}, indent=2).encode("utf-8")
+
+
+class _Maps:
+    key = "map_sync"
+
+    def write(self, name, text):
+        from agent_runtime.map_sync import MapStore
+        MapStore().write(f"map_{name}", _map(text))
+
+    def read(self, name):
+        from agent_runtime.map_sync import MapStore
+        return json.loads(MapStore().read(f"map_{name}"))["name"]
+
+    def team_write(self, subtree, name, text):
+        [doc] = list(subtree.rglob(f"map_{name}.json"))
+        doc.write_bytes(_map(text))
+
+    def entity(self, name):
+        return f"map_{name}"
+
+    def summary(self, result):
+        return result[self.key]
+
+
+class _Prefabs(_Maps):
+    key = "prefab_sync"
+
+    def write(self, name, text):
+        from agent_runtime.prefab_store import PrefabStore
+        PrefabStore("default").write(f"pf_{name}", _prefab_doc(text))
+
+    def read(self, name):
+        from agent_runtime.prefab_store import PrefabStore
+        return json.loads(PrefabStore("default").read(f"pf_{name}"))["label"]
+
+    def team_write(self, subtree, name, text):
+        [doc] = list(subtree.rglob(f"pf_{name}.json"))
+        doc.write_bytes(_prefab_doc(text))
+
+    def entity(self, name):
+        return f"default/pf_{name}"
+
+
+class _Skills(_Maps):
+    key = "skill_sync"
+
+    def _path(self, name):
+        from agent_runtime.profile_home import get_shared_skills_dir
+        return get_shared_skills_dir() / f"sk-{name}" / "SKILL.md"
+
+    def write(self, name, text):
+        path = self._path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"---\nname: sk-{name}\ndescription: kept rule\n---\n# {text}\n", encoding="utf-8")
+
+    def read(self, name):
+        return self._path(name).read_text(encoding="utf-8").rsplit("# ", 1)[1].strip()
+
+    def team_write(self, subtree, name, text):
+        [doc] = [path for path in subtree.rglob("SKILL.md") if path.parent.name == f"sk-{name}"]
+        doc.write_text(f"---\nname: sk-{name}\ndescription: kept rule\n---\n# {text}\n", encoding="utf-8")
+
+    def entity(self, name):
+        return f"sk-{name}"
+
+    def summary(self, result):
+        rows = result[self.key]
+        return {**rows, "adopted": [*rows["adopted"], *rows["updated"]]}  # a skill the member holds is "updated"
+
+
+class _Personas(_Maps):
+    key = "profile_sync"
+
+    def write(self, name, text):
+        from agent_runtime.models import AgentPersona
+        from agent_runtime.store import AgentStore
+        workspace = WorkspaceStore().get("ws_shared")
+        if f"pc-{name}" in workspace.agent_ids:
+            persona = AgentStore().get(f"pc-{name}")
+            persona.display_name = text
+        else:
+            persona = AgentPersona(id=f"pc-{name}", display_name=text, role="qa", model=None, provider=None,
+                                   api_mode=None, system_prompt_path="")
+            workspace.agent_ids = [*workspace.agent_ids, persona.id]  # a reference publishes the definition
+            WorkspaceStore().save(workspace)
+        AgentStore().save(persona)
+
+    def read(self, name):
+        from agent_runtime.store import AgentStore
+        return AgentStore().get(f"pc-{name}").display_name
+
+    def team_write(self, subtree, name, text):
+        [doc] = list(subtree.rglob("personas.yaml"))
+        doc.write_text(doc.read_text(encoding="utf-8").replace(f"display_name: {name} v1", f"display_name: {text}"),
+                       encoding="utf-8")
+
+    def entity(self, name):
+        return f"pc-{name}"
+
+    def summary(self, result):
+        return result[self.key]["personas"]
+
+
+class _ProfileFiles(_Maps):
+    """One profile home, one file per case: the entity is ``<profile>:<destination>``."""
+    key = "profile_artifact_sync"
+    DESTINATIONS = {"team": "memories/MEMORY.md", "mine": "soul.md", "both": "AGENTS.md"}
+
+    def _path(self, name):
+        from hermes_constants import get_hermes_home
+        return get_hermes_home().joinpath(*self.DESTINATIONS[name].split("/"))
+
+    def write(self, name, text):
+        from agent_runtime.store import AgentStore
+        persona = AgentStore().get("qa")  # the seated agents' persona carries the three files
+        persona.include_profile_memory, persona.include_core_context_files, persona.soul_overlay_path = True, True, "soul.md"
+        AgentStore().save(persona)
+        path = self._path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{text}\n", encoding="utf-8")
+
+    def read(self, name):
+        return self._path(name).read_text(encoding="utf-8").strip()
+
+    def team_write(self, subtree, name, text):
+        [doc] = [path for path in subtree.rglob(self.DESTINATIONS[name].rsplit("/", 1)[-1]) if "profile_files" in path.parts]
+        doc.write_text(f"{text}\n", encoding="utf-8")
+
+    def entity(self, name):
+        return f"default:{self.DESTINATIONS[name]}"
+
+
+@pytest.mark.parametrize("family", [_Maps(), _Prefabs(), _Skills(), _Personas(), _ProfileFiles()],
+                         ids=["maps", "prefabs", "skills", "persona-definitions", "profile-files"])
+def test_after_a_rejoin_each_shared_catalogue_takes_the_teams_change_keeps_yours_and_holds_both(
+        tmp_path, monkeypatch, family):
+    """RT-REJOIN-CATALOGUE-RULE-PINNED-FOR-MAPS-ONLY: the rule the owner kept (a team-only change is adopted, a
+    member-only change stays as an unpublished change, a change on both sides is held) for every family whose
+    baseline the leave keeps (``CATALOGUE_BASELINES``), through a leave, the re-key, a team push and a re-join.
+
+    Mutation: drop ``restore_team_catalogues`` from ``make_way_for_rejoin`` -> the fresh realm has no baseline,
+    so every family holds the member-only change (and the team-only one where the member's copy differs), red in
+    each case (recorded in the commit)."""
+    from tests.agent_runtime import test_realm_rekey_census as census
+
+    publish = census.publish_realm_sync
+    seeded = []
+
+    def publish_seeded(realm_id, *args, **kwargs):
+        if not seeded:  # the seed's first publish, while still a member
+            seeded.append(True)
+            for name in _CASES:
+                family.write(name, f"{name} v1")
+        return publish(realm_id, *args, **kwargs)
+
+    monkeypatch.setattr(census, "publish_realm_sync", publish_seeded)
+    realm, _first, _second, _extra, _head = _left_realm(tmp_path)
+    for name in ("mine", "both"):
+        family.write(name, f"{name} v2, edited while local")
+    run_owed_rekeys(RekeyTrigger.IDLE)
+    clone = tmp_path / "team-clone"
+    for name in ("team", "both"):
+        family.team_write(clone, name, f"{name} v2 team")
+    _git(clone, "commit", "-q", "-am", "the team edits its catalogue")
+    _git(clone, "push", "-q", "origin", "HEAD")
+
+    _join(monkeypatch, tmp_path)
+    summary = family.summary(pull_realm_sync(realm.id))
+
+    assert family.entity("team") in summary["adopted"]
+    assert summary["kept_local"] == [family.entity("mine")]
+    assert summary["held"] == [family.entity("both")]
+    assert {name: family.read(name) for name in _CASES} == {
+        "team": "team v2 team", "mine": "mine v2, edited while local", "both": "both v2, edited while local"}
