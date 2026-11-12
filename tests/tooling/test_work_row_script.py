@@ -409,7 +409,42 @@ def test_append_puts_a_row_beside_its_tasks_other_rows(clones, tmp_path, monkeyp
     assert append("RT-Z2", "group: z") == 0
     assert order(first) == ["TASK-Z", "RT-Z1", "RT-Z2"]
     assert append("RT-V", "group: q", "--under", "No such heading") == work_row.EXIT_REFUSED
-    assert "--under: no heading of the note starts with `No such heading`" in capsys.readouterr().err
+    assert "--under: no heading of any queue note starts with `No such heading`" in capsys.readouterr().err
+
+
+def test_append_under_picks_the_note_the_heading_is_in(clones, tmp_path, monkeypatch, capsys):
+    """RT-WORK-ROW-APPEND-UNDER-PICKS-ANOTHER-QUEUE (seen live 2026-11-12: ``--under "Filed on arrival — 2026-10-15"``
+    with no ``--note`` wrote into the first queue note found, which had no such heading of the row's queue, and
+    ``--under "Tasks"`` was refused there). KILLING MUTATIONS: ``_note_and_text`` skips ``_note_with_heading`` ->
+    RT-W1 goes to a.md (the first note) and is refused there, red; drop the home arm of ``_note_with_heading`` -> RT-W2 is refused as
+    ambiguous instead of landing beside its task's rows, red; drop the ambiguous refusal (take the first) -> RT-W3
+    lands in a.md, red (all three run red 2026-11-12 through a pytest plugin, no tracked file swapped)."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path, "- **`TASK-N` — n** · task: n · READY 2026-11-09\n"
+                        "- **`TASK-N2` — n two** · task: n2 · READY 2026-11-09\n")
+    first = mine / "Harness_Brain/20 — Active Initiatives/a.md"
+    first.write_text(HEAD.replace("## Open", "## Filed on arrival — 2026-10-15") +
+                     "- **`RT-Z1` — a zed slice** · group: z · READY 2026-11-09\n", encoding="utf-8", newline="\n")
+    (mine / NOTE).write_text(PLACED + "\n## Filed on arrival — 2026-10-15\n\n"
+                             "- **`RT-F1` — filed** · group: f · READY 2026-11-09\n", encoding="utf-8", newline="\n")
+
+    def append(row_id: str, tail: str, *more: str) -> int:
+        return work_row.main(["append", row_id, "--who", "r", "--row", f"- **`{row_id}` — new** · {tail} · READY 2026-11-12",
+                              "--repo", str(mine), "--no-commit", *more])
+
+    def ids(path: Path) -> list[str]:
+        return [row.ref.id for row in work_row.parse_note(path.read_text(encoding="utf-8"), slot="", note="")]
+
+    assert append("RT-W1", "group: n", "--under", "Later") == 0
+    assert "RT-W1" in ids(mine / NOTE) and "RT-W1" not in ids(first)
+    assert append("TASK-W", "task: w", "--under", "Tasks") == 0, "`## Tasks — …` matched by its first word"
+    assert "TASK-W" in ids(mine / NOTE)
+    assert append("RT-W2", "group: q", "--under", "Filed on arrival") == 0, "home note wins a shared heading"
+    assert ids(mine / NOTE)[-1] == "RT-W2" and "RT-W2" not in ids(first)
+    assert append("RT-W3", "group: n2", "--under", "Filed on arrival") == work_row.EXIT_REFUSED
+    assert "is in 2 queue notes (a.md, q.md); pass --note" in capsys.readouterr().err
+    assert "RT-W3" not in ids(first) + ids(mine / NOTE)
 
 
 HELD = ("- **`RT-H` — the switch-over** · BLOCKED 2026-11-01: another lane — `RT-A` then `RT-B`, `RT-GONE` and "

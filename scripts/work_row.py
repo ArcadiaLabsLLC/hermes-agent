@@ -13,7 +13,9 @@
 every other segment alone (RT-QUEUE-ROW-HANDOFF-HAS-NO-COMMAND; a second blocker is ``set-status`` with a list:
 ``"BLOCKED <date>: another lane — `A` then `B`: why"``). ``append`` places the new row beside its own: a subtask
 after the last live row of its task in the note that holds them, a task row after the last row under that note's
-``## Tasks`` heading, ``--under "<heading>"`` after the last row under the heading that starts with those words;
+``## Tasks`` heading, ``--under "<heading>"`` after the last row under the heading that starts with those words
+(with no ``--note``: in the row's home note when it has that heading, else the one queue note that does — two such
+notes refuse; RT-WORK-ROW-APPEND-UNDER-PICKS-ANOTHER-QUEUE);
 a row with nowhere better goes to the end of the note (RT-QUEUE-ROW-APPEND-LANDS-AT-THE-BOTTOM-OF-THE-NOTE).
 ``--no-push`` commits the operation by pathspec and pushes nothing — for a lane whose landing checks run before its
 push (RT-QUEUE-ROW-OP-PUSHES-BEFORE-THE-LANES-CHECKS); the default pushes, as before. An op that would push from a
@@ -352,9 +354,32 @@ def _note_and_text(repo: Path, args: argparse.Namespace) -> tuple[Path, str]:
                 raise WorkRefused(Reason.ID_EXISTS, args.row_id)
             return path, text
     if COMMANDS.get(args.command) is Op.APPEND and notes and notes[0].is_file():
-        home = _home_note(notes, args.row or "") or notes[0]
+        home = _home_note(notes, args.row or "")
+        if args.under and not args.note:
+            home = _note_with_heading(notes, args.under, home)
+        home = home or notes[0]
         return home, home.read_bytes().decode("utf-8")
     raise WorkRefused(Reason.ROW_GONE if notes else Reason.NOTE_MISSING, args.row_id)
+
+
+def _note_with_heading(notes: list[Path], under: str, home: Path | None) -> Path:
+    """The queue note ``--under`` means: the row's home note when it has that heading, else the ONE note that does;
+    refused when none or several do (RT-WORK-ROW-APPEND-UNDER-PICKS-ANOTHER-QUEUE: the first note found won)."""
+
+    words = under.lstrip("#").strip()
+    having = [path for path in notes
+              if _after_section(path.read_bytes().decode("utf-8").split("\n"), words) is not None]
+    # MUTATION: drop the home arm and test_append_under_picks_the_note_the_heading_is_in reddens (RT-W2 lands in
+    # the first note with the heading, not beside its task's rows).
+    if home is not None and home in having:
+        return home
+    if len(having) == 1:
+        return having[0]
+    if not having:
+        raise WorkRefused(Reason.INVALID, f"--under: no heading of any queue note starts with `{under}`")
+    names = ", ".join(path.name for path in having)
+    raise WorkRefused(Reason.INVALID, f"--under: a heading starting with `{under}` is in {len(having)} queue notes "
+                                      f"({names}); pass --note")
 
 
 def _new_row(line: str) -> Row | None:
