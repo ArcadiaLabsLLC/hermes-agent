@@ -196,7 +196,7 @@ _OWNER_STAMP_FIELDS = (
 )
 
 
-def _owner_of(row: dict[str, Any], process_registry: Any) -> _Owner:
+def _build_owner(row: dict[str, Any], process_registry: Any) -> _Owner:
     """The owner of an ``agent`` build's session, carried to its restart (RT-BUILD-RESTART-LOSES-ITS-OWNER).
 
     Only an agent build has one here: its row IS a terminal session of this registry. An announced or
@@ -218,7 +218,7 @@ def restart_build(row: dict[str, Any], *, registry: Any = None) -> dict[str, Any
     """Stop the build if it is running, then spawn its restart spec with the slot's environment.
 
     An agent's build restarts with the SAME owner (session, task, completion notice): the agent that
-    started it hears the restarted run finish (``_owner_of``).
+    started it hears the restarted run finish (``_build_owner``).
     """
 
     from agent_runtime.workspace_slot_overlay import env_overlay
@@ -229,7 +229,7 @@ def restart_build(row: dict[str, Any], *, registry: Any = None) -> dict[str, Any
         return _error(work_id, "restart_refused", refusal)
     process_registry = registry or _spawning_registry()
     # Read BEFORE the stop: the first run's session is where its owner is written.
-    owner = _owner_of(row, process_registry)
+    owner = _build_owner(row, process_registry)
     if row.get("status") in _RUNNING and row.get("outcome") is None:
         stopped = stop_build(row, reason="operator_restart")
         if stopped.get("status") == "error":
