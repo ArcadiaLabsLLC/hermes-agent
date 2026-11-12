@@ -57,6 +57,7 @@
       ]
     },
     "schema_version": 1,
+    "skill_deletes_waiting": [],
     "skill_publish_mode": "all",
     "skill_selection": [],
     "skill_tombstones": [],
@@ -104,6 +105,7 @@
     },
     "sync_repo": "realm_sync/local",
     "unpublished_changes": false,
+    "workspace_changes": [],
     "workspace_statuses": []
   }
 }

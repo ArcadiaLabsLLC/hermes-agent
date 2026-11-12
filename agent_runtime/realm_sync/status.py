@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 from .. import paths
 from ..models import Realm, Workspace
-from ..store import RealmStore
+from ..store import RealmStore, skill_tombstoned
 from .models import RealmMembershipProvider, RealmSyncError, _safe_display_path
 from .ledgers import _skill_tombstone_rows
 from .git import (
@@ -18,6 +18,7 @@ from .git import (
     _ensure_repo_gitattributes,
     _ensure_sync_repo,
     _git_state,
+    _realm_subtree,
     _refresh_remote_tracking,
     _sync_repo_path,
     _sync_state,
@@ -96,6 +97,7 @@ def realm_sync_status(
     map_row = _map_status_row(realm.id)
     prefab_row = _prefab_status_row(realm.id)
     workspace_changes = workspace_publish_changes(realm, repo)
+    skill_deletes_waiting = _skill_deletes_waiting(realm, repo)
     _write_sync_sidecar(
         realm,
         repo=repo,
@@ -155,7 +157,13 @@ def realm_sync_status(
             or map_row["unpublished"]
             or prefab_row["unpublished"]
             or workspace_changes
+            or skill_deletes_waiting
         ),
+        # Skills deleted for the whole realm here (``skill_tombstones`` above) that the team's
+        # copy in this machine's sync clone still carries: the delete travels with the next
+        # publish, and until then the drift walk says nothing (a tombstoned slug has no row by
+        # design). The slugs, sorted. Additive and absent-tolerant.
+        "skill_deletes_waiting": skill_deletes_waiting,
         # The realm's WORKSPACES against the team's copy in this machine's sync clone
         # (``workspace_changes.workspace_publish_changes``): one row per workspace the next
         # publish adds, rewrites or REMOVES for the team — ``left`` names the realm it moved to,
@@ -238,6 +246,18 @@ def _status_repo(
         _ensure_repo_gitattributes(repo)
         remote_check = {"checked": False, "error": auth_error.code}
     return repo, remote_check
+
+
+def _skill_deletes_waiting(realm: Realm, repo: Path) -> list[str]:
+    """The skill packages the clone's realm subtree still holds that this realm's delete ledger blocks
+    (``store.skill_tombstoned``, the publish filter's own question): the next publish removes them."""
+
+    from ..skill_promotion import iter_skill_packages
+
+    skills = _realm_subtree(repo, realm.id) / "skills"
+    if not skills.is_dir():
+        return []
+    return sorted(slug for slug, _dir in iter_skill_packages(skills) if skill_tombstoned(realm, slug) is not None)
 
 
 def _status_store_drift(realm_id: str, workspaces: list[Workspace]) -> dict[str, Any]:
