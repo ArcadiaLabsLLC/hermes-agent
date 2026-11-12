@@ -124,7 +124,9 @@ def situational_hud_for_instance(
         # surviving canonical row shadowed behind any in-scope placement. So a
         # placement in another workspace is never offered here, and an unplaced
         # persona no longer advertises its canonical row onto every level.
-        identity_roster = PersonaInstanceStore().list_all()
+        from ..roster_reach import offered  # RT-RELAY-TO-ROSTER-AGENT-WITHOUT-PROFILE
+
+        identity_roster = offered(PersonaInstanceStore().list_all())
 
         realm_store = RealmStore()
         # The scope line names the lane's OWN workspace when it carries a pointer

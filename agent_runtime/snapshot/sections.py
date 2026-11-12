@@ -225,7 +225,10 @@ class SnapshotFrameBuild:
         # for months, and no code in either repo branches on a disabled verdict. Both
         # gates went with the config block.
         self.instance_store = PersonaInstanceStore(event_log=self.event_log)
-        self.persona_instances = self.instance_store.ensure_for_personas(self.agents)
+        # RT-RELAY-TO-ROSTER-AGENT-WITHOUT-PROFILE: an instance whose profile is gone is not offered.
+        from ..roster_reach import offered
+
+        self.persona_instances = offered(self.instance_store.ensure_for_personas(self.agents))
         self.topology_persona_instances = self.persona_instances
         self.agent_summaries = [
             *self.agent_summaries,
