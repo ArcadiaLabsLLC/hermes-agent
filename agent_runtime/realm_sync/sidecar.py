@@ -23,6 +23,7 @@ from .models import RealmSyncArtifact, _canonicalize_text_bytes, _safe_display_p
 from .ledgers import _skill_tombstone_rows
 from .git import _realm_subtree, _sync_state
 from .artifacts import _distinct_skill_package_count, realm_agent_selection_state
+from .workspace_changes import workspace_file_published
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +221,6 @@ def _workspace_sync_statuses(realm: Realm, repo: Path) -> list[dict[str, str]]:
         if workspace.realm_id == realm.id:
             workspace_ids.add(workspace.id)
     rows: list[dict[str, str]] = []
-    subtree = _realm_subtree(repo, realm.id) / "store" / "workspaces"
     for workspace_id in sorted(workspace_ids):
         local = paths.workspace_path(workspace_id)
         if not local.exists():
@@ -228,15 +228,7 @@ def _workspace_sync_statuses(realm: Realm, repo: Path) -> list[dict[str, str]]:
         if not realm.server_id:
             state = "local"
         else:
-            published = subtree / f"{paths.safe_path_token(workspace_id)}.json"
-            try:
-                # Canonical compare: the published file is LF while the local
-                # store file is CRLF on Windows — byte-equality would falsely
-                # report a just-published workspace as "unpublished".
-                matches = published.exists() and _canonicalize_text_bytes(published.read_bytes()) == _canonicalize_text_bytes(local.read_bytes())
-            except OSError:
-                matches = False
-            state = "published" if matches else "unpublished"
+            state = "published" if workspace_file_published(repo, realm.id, workspace_id) else "unpublished"
         rows.append({"workspace_id": workspace_id, "state": state})
     return rows
 

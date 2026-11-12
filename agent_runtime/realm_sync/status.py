@@ -49,6 +49,7 @@ from .sidecar import (
     _write_sync_sidecar,
 )
 from .skill_inbox import _held_skill_packages_for_realm
+from .workspace_changes import workspace_publish_changes
 
 __layer__ = "lanes"
 __all__ = [
@@ -94,6 +95,7 @@ def realm_sync_status(
     level_row = _level_status_row(realm.id, workspaces)
     map_row = _map_status_row(realm.id)
     prefab_row = _prefab_status_row(realm.id)
+    workspace_changes = workspace_publish_changes(realm, repo)
     _write_sync_sidecar(
         realm,
         repo=repo,
@@ -152,7 +154,15 @@ def realm_sync_status(
             or level_row["unpublished"]
             or map_row["unpublished"]
             or prefab_row["unpublished"]
+            or workspace_changes
         ),
+        # The realm's WORKSPACES against the team's copy in this machine's sync clone
+        # (``workspace_changes.workspace_publish_changes``): one row per workspace the next
+        # publish adds, rewrites or REMOVES for the team — ``left`` names the realm it moved to,
+        # ``deleted`` is a delete. Without it a leave or a delete waited in the realm's delete
+        # ledger and the flag above read False until the publish took the workspace from
+        # everyone. Additive and absent-tolerant.
+        "workspace_changes": workspace_changes,
         # Held profile FILES (MEMORY.md / core context / persona prompts whose
         # member copy diverged from the realm's). A hold the operator cannot see
         # is the same as a loss, so it is surfaced here and resolvable with
