@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 __layer__ = "models"
 
 
@@ -329,3 +331,54 @@ def parse_delivery_requested_by(value):
 #: How long the drain waits for a live turn to acknowledge a completion steer. The turn's
 #: inbox watcher polls every 50 ms; past this the completion is re-queued for its idle turn.
 STEER_ACK_SECONDS = 2.0
+
+
+# ── the delivery block's sections, written by the forge and read back for a person ──
+
+#: The block's first-line prefix (``forge.format_dispatch_delivery``).
+DELIVERY_BLOCK_OPENER = "[BACKGROUND DISPATCH COMPLETE"
+#: Section headers the forge writes. One spelling: the forge writes them, and
+#: :func:`delivery_reader_parts` finds them again.
+DELIVERY_REPLY_HEADER = "--- THEIR REPLY ---"
+DELIVERY_QUESTION_HEADER = "--- THEY ASKED YOU A QUESTION (clarify) ---"
+DELIVERY_ERROR_HEADER = "--- ERROR ---"
+#: The paragraph that closes a ``notify_operator`` block — model-facing, never a reply.
+DELIVERY_NOTIFY_OPENER = "OPERATOR IS WAITING ON THIS:"
+_CHOICE_PREFIX = "  - "
+
+
+def delivery_reader_parts(text: str) -> dict[str, Any] | None:
+    """What a PERSON reads of a delivery block: the teammate's reply, the question
+    they asked (and its choices), the error — without the instructions the block
+    gives the asking MODEL (MC-DELIVERED-RESULT-SHOWS-MODEL-INSTRUCTIONS).
+
+    ``None`` when *text* is not a delivery block (a hidden/redacted row, an old
+    shape): the reader then keeps the body as stored. Every key is present
+    otherwise, ``""`` / ``[]`` when that section is absent — "no reply" is an
+    answer the console words itself.
+    """
+
+    lines = str(text or "").split("\n")
+    if not lines or not lines[0].startswith(DELIVERY_BLOCK_OPENER):
+        return None
+    headers = {DELIVERY_REPLY_HEADER, DELIVERY_QUESTION_HEADER, DELIVERY_ERROR_HEADER}
+    sections: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in lines[1:]:
+        if line in headers:
+            current = line
+            sections[current] = []
+        elif line.startswith(DELIVERY_NOTIFY_OPENER):
+            current = None
+        elif current is not None:
+            sections[current].append(line)
+    question_lines = sections.get(DELIVERY_QUESTION_HEADER, [])
+    question = question_lines[0].strip() if question_lines else ""
+    choices = [line[len(_CHOICE_PREFIX):].strip() for line in question_lines[1:]
+               if line.startswith(_CHOICE_PREFIX)]
+    return {
+        "reply": "\n".join(sections.get(DELIVERY_REPLY_HEADER, [])).strip(),
+        "question": question,
+        "choices": choices,
+        "error": "\n".join(sections.get(DELIVERY_ERROR_HEADER, [])).strip(),
+    }

@@ -26,6 +26,7 @@ from ..mission_chat_turns.records import STEER_OF_FIELD, safe_steer_of
 from ..mission_chat_turns.states import TERMINAL_TURN_STATES
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..relay_policy import parse_harness_delivery_marker, parse_lens_episode_marker, parse_relay_sender_marker
+from ..dispatch_delivery.vocabulary import delivery_reader_parts
 from .operator_envelopes import strip_operator_envelopes
 from ..transcript_order import TURN_SEQ_OPERATOR, TURN_SEQ_TERMINAL
 from ..turn_visibility import persisted_row_is_tool_step, printable_reply_text
@@ -299,6 +300,12 @@ class _OperatorCurator:
             row["delivery_state"] = delivery.state
             row["delivery_target_session_id"] = delivery.target_session_id
             row["delivery_target_name"] = delivery.target_name
+            # MC-DELIVERED-RESULT-SHOWS-MODEL-INSTRUCTIONS: the parts a person reads (the reply, the
+            # question, the error), apart from the block's instructions to the asking model. Read
+            # off the row's DISPLAY text, so a hidden row yields nothing.
+            if row.get("redaction_status") == "safe" and (
+                    reader := delivery_reader_parts(str(row.get("text") or ""))) is not None:
+                row["delivery_reader"] = reader
         elif relay_sender is not None:
             row["kind"] = PERSONA_RELAYED_MESSAGE_KIND
             row["relay_sender_persona_id"] = relay_sender.persona_id
