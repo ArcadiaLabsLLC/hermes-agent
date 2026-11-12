@@ -64,7 +64,7 @@ def _rung(tmp_path, monkeypatch, rung):
         return {}, repo, WORKDIR_SOURCE_PERSONA_CONFIG
     if rung == "agents_file":
         (repo / "AGENTS.md").write_text("# rules", encoding="utf-8")
-        from agent_runtime.mission_chat_turn_context import _default_load_workspace_agents
+        from agent_runtime.mission_chat_turn_resolvers import _default_load_workspace_agents
 
         return ({"agents_file": str(repo / "AGENTS.md"),
                  "resolvers": _resolvers(load_workspace_agents=_default_load_workspace_agents)},

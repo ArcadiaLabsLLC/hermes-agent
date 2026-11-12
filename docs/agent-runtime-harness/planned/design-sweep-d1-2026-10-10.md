@@ -670,7 +670,7 @@ lifetime, recorded in the module docstring).
 **Files and symbols (fork-owned).** `agent_runtime/skill_preload_memo.py` (new):
 `memoised_preload(names, *, task_id, required_skill_names, root_registries, build)` wrapping
 the default resolver; an 8-entry FIFO keyed on the tuple above; on a hit runs the side effects
-and returns the cached `(prompt, loaded, missing)`; `mission_chat_turn_context._default_build_preloaded_skills_prompt`
+and returns the cached `(prompt, loaded, missing)`; `mission_chat_turn_resolvers._default_build_preloaded_skills_prompt`
 routes through it; `timings["context_skill_preload_memo"] = 1|0` beside
 `context_skill_preload_ms`.
 

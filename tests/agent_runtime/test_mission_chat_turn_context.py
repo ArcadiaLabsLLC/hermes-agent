@@ -616,7 +616,7 @@ def _resolver_default_source(name: str) -> str:
     Deliberately NOT ``inspect.getsource(DEFAULT_RESOLVERS.<field>)``. That call
     fuses two readings taken at DIFFERENT times: ``co_firstlineno``, frozen when
     the module was imported at collection, and the file's text, read from disk at
-    assertion time. Anything that rewrites ``mission_chat_turn_context.py``
+    assertion time. Anything that rewrites ``mission_chat_turn_resolvers.py``
     in between — another agent's edit landing during a ten-minute suite run, an
     editor save, a checkout — shifts the line numbers, and ``getsource`` then
     returns a DIFFERENT function's body with no error at all. That is why this
@@ -633,13 +633,13 @@ def _resolver_default_source(name: str) -> str:
     import ast
     from pathlib import Path
 
-    from agent_runtime import mission_chat_turn_context
+    from agent_runtime import mission_chat_turn_resolvers
 
-    text = Path(mission_chat_turn_context.__file__).read_text(encoding="utf-8")
+    text = Path(mission_chat_turn_resolvers.__file__).read_text(encoding="utf-8")
     for node in ast.walk(ast.parse(text)):
         if isinstance(node, ast.FunctionDef) and node.name == name:
             return ast.get_source_segment(text, node) or ""
-    raise AssertionError(f"{name} not found in {mission_chat_turn_context.__file__}")
+    raise AssertionError(f"{name} not found in {mission_chat_turn_resolvers.__file__}")
 
 
 def _called_names(source: str) -> set[str]:
@@ -702,7 +702,7 @@ def test_the_default_resolvers_bind_the_canonical_authorities():
 
     import inspect
 
-    from agent_runtime import chat_lane_bundle, mission_chat_turn_context, runtime_hud
+    from agent_runtime import chat_lane_bundle, mission_chat_turn_resolvers, runtime_hud
     from agent_runtime.prompt_observability import load_workspace_agents_context
     from agent_runtime.queued_skills import consume_skills_for_next_turn
 
@@ -723,7 +723,7 @@ def test_the_default_resolvers_bind_the_canonical_authorities():
         # Assert the BINDING first, which the old source-only check never did: a
         # wrapper or replacement left on the field is caught here, instead of
         # ``getsource`` quietly following it and reporting on the wrapper's body.
-        assert bound is getattr(mission_chat_turn_context, f"_default_{field}"), (
+        assert bound is getattr(mission_chat_turn_resolvers, f"_default_{field}"), (
             f"{field} is no longer bound to the module's own default"
         )
         called = _called_names(_resolver_default_source(bound.__name__))
@@ -1537,7 +1537,7 @@ def _slot_instance(workspace, slots, primary=None):
 
 
 def _slot_build(instance, **overrides):
-    from agent_runtime.mission_chat_turn_context import _default_load_slot_context
+    from agent_runtime.mission_chat_turn_resolvers import _default_load_slot_context
 
     resolvers = _resolvers()
     assert resolvers.load_slot_context is _default_load_slot_context  # the REAL loader, never a fake

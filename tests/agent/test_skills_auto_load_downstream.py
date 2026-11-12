@@ -16,7 +16,7 @@ class TestBuildAutoLoadPrompt:
     def test_required_preload_keeps_runtime_note_and_auto_load_dedup(self, tmp_path):
         """The fork's required-skill emphasis now rides the mission-chat preload resolver
         on top of upstream's own note (lane DOORS-A 2026-09-24), not a threaded parameter."""
-        from agent_runtime.mission_chat_turn_context import _default_build_preloaded_skills_prompt
+        from agent_runtime.mission_chat_turn_resolvers import _default_build_preloaded_skills_prompt
 
         _write_skill(tmp_path, "optional-skill", "OPTIONAL CONTENT")
         _write_skill(tmp_path, "required-skill", "REQUIRED CONTENT")

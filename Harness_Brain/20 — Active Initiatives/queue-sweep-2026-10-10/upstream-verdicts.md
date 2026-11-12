@@ -3,7 +3,7 @@
 FF = fork-fixable (route), UO = upstream-only, AH = already handled.
 
 L1.05 · FF · partial: web-search share via L3.06's memo; the other ~41 ms of build_kwargs needs a breakdown before a fix
-L2.04 · FF · caller-side memo in agent_runtime/mission_chat_turn_context._default_build_preloaded_skills_prompt keyed on skill-file stat (~30 lines); it skips upstream's usage write, so bump usage itself
+L2.04 · FF · caller-side memo in agent_runtime/mission_chat_turn_resolvers._default_build_preloaded_skills_prompt keyed on skill-file stat (~30 lines); it skips upstream's usage write, so bump usage itself
 L3.03 · FF · additive alias `_sanitize_client_source = _resolve_session_source` in tui_gateway/server.py (1 line, file already carried)
 L3.05 · FF · additive owner candidate in pm/environments.owning_home_root, e.g. an env-named root the launcher passes (~4 lines, +1 footprint file)
 L3.06 · FF · caller-side door rebinding agent.web_search_registry.get_active_search_provider (codex imports lazily) with a memo keyed on config+credential epoch (~30 lines); cost: stale-credential risk

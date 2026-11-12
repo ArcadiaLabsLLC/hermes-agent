@@ -102,7 +102,7 @@ def test_a_rung_above_wins_and_the_chat_folder_is_never_created(tmp_path):
 
 
 def test_a_turn_with_no_grounding_runs_in_its_chat_folder(tmp_path, monkeypatch):
-    from agent_runtime.mission_chat_turn_context import _default_mission_chat_workdir
+    from agent_runtime.mission_chat_turn_resolvers import _default_mission_chat_workdir
     from agent_runtime.mission_chat_workdir import WORKDIR_SOURCE_CHAT_FOLDER
     from tests.agent_runtime.test_mission_chat_turn_context import _build, _resolvers
 
