@@ -5,11 +5,14 @@ owns the operation and trusts its caller for idle; this module is that caller, t
 folders a running turn has open and ids a running turn holds in memory, so it runs only when nothing is
 running, from three triggers:
 
-* **idle** — :func:`run_owed_rekeys` tries every journal that is ``owed`` or ``running`` whenever the serve's
-  last turn ends (``turn_activity``'s idle boundary) and every :data:`TICK_SECONDS` (:func:`start_rekey_ticker`);
+* **the leave and idle** — :func:`run_owed_rekeys` tries every journal that is ``owed`` or ``running``: at
+  once when the member leaves (``realm_verbs.realm_mark_revoked``), whenever the serve's last turn ends
+  (``turn_activity``'s idle boundary) and every :data:`TICK_SECONDS` (:func:`start_rekey_ticker`);
 * **serve start** — the boot sweeps call it before the socket accepts and before the read model is first
   built, so a restarted serve never shows the old ids;
-* **a re-join** — :func:`finish_rekey_or_refuse` runs it first, or refuses the adopt ``realm_busy``.
+* **a re-join** — :func:`make_way_for_rejoin` runs it first for every granted realm, or refuses the adopt
+  ``realm_busy``; a granted realm id still held by a server-less realm here (one left under a build that owed
+  nothing) is owed and re-keyed aside in the same call — the collision re-check.
 
 What makes it wait is one of :class:`RekeyBusy`, read in :func:`busy_fact`. Turns are counted serve-wide (no
 run body has a cwd or an open file under a folder about to be renamed — what makes Windows safe); Work runs
@@ -21,6 +24,7 @@ An argv child never re-keys while a serve is live on the same store (``serve``):
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import threading
@@ -42,6 +46,7 @@ __all__ = [
     "RekeyTrigger",
     "busy_fact",
     "finish_rekey_or_refuse",
+    "make_way_for_rejoin",
     "pending_rekeys",
     "run_owed_rekeys",
     "start_rekey_ticker",
@@ -106,9 +111,13 @@ def pending_rekeys() -> list[str]:
     directory = paths.store_root() / JOURNAL_DIRNAME
     found = []
     for path in sorted(directory.glob("*.json")) if directory.is_dir() else []:
-        journal = read_rekey_journal(path.stem)
-        if journal and journal.get("state") in _PENDING and isinstance(journal.get("map"), dict):
-            found.append((str(journal.get("owed_at") or ""), str(journal["map"].get("realm_old") or path.stem)))
+        try:
+            journal = json.loads(path.read_text(encoding="utf-8"))
+            realm_id = str(journal["map"]["realm_old"])
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if journal.get("state") in _PENDING:
+            found.append((str(journal.get("owed_at") or ""), realm_id))
     return [realm_id for _, realm_id in sorted(found)]
 
 
@@ -218,6 +227,31 @@ def finish_rekey_or_refuse(realm_id: str) -> dict[str, Any] | None:
             retryable=True, safe_details=attempt.refusal_details(),
         )
     return attempt.journal
+
+
+def make_way_for_rejoin(realm_ids: list[str]) -> list[str]:
+    """Before a re-join adopts ``realm_ids`` (the realms the server grants): every one of them that this
+    install still holds as a LOCAL realm takes its own ids first, so the adopt creates the server's realm
+    fresh beside it. Refuses ``realm_busy`` — before anything is adopted — when one cannot run now. Returns
+    the granted ids whose local copy was re-keyed in this call."""
+    from .errors import NotFound
+    from .realm_rekey import owe_rekey
+    from .store import RealmStore
+
+    moved = []
+    for realm_id in realm_ids:
+        journal = read_rekey_journal(realm_id)
+        if journal is None or journal.get("state") not in _PENDING:
+            try:
+                held = RealmStore().get(realm_id)
+            except NotFound:
+                continue
+            if held.server_id:
+                continue  # still bound: a member who never left, or the fresh realm of an earlier re-join
+            owe_rekey(realm_id, reason=RekeyTrigger.REJOIN.value)
+        finish_rekey_or_refuse(realm_id)
+        moved.append(realm_id)
+    return moved
 
 
 #: The serve's request home, bound around a re-key the serve starts off a request (Lens and the shared skills

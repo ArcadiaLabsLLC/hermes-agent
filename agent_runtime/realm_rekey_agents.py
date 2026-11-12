@@ -135,11 +135,23 @@ def step_agents(root: Path, mapping: Any) -> None:
             store.apply_replicated_steering(new, steered_by, realm_id=mapping.realm_new)
 
 
-def restore_parked_agents(realm_id: str) -> list[str]:
-    """Put the team's agents of ``realm_id`` (its id before the re-key) back, before a re-join's pull: the pull
-    then finds them present and their chats re-attach by id. A row that is somehow live already is left as it
-    is and its parked copy stays. Returns the ids restored."""
+def restore_parked_agents(realm_id: str, *, only: set[str] | None = None) -> list[str]:
+    """Put the team's agents of ``realm_id`` (its id before the re-key) back, in a re-join's first pull just
+    before the mint door: the pull then finds them present and their chats re-attach by id. ``only`` is the
+    set the team's copy publishes now — an agent the team has since removed stays parked (its chats stay on
+    disk, unseen). A row that is somehow live already is left as it is and its parked copy stays.
+
+    Each restored row is recorded in the realm's instance baseline AS IT STANDS: the fresh realm has no
+    baseline (the old one went with the local copy), and without one a row the team changed while the member
+    was away would read as "both sides added it" and be held as a conflict. With it the team's body is adopted.
+    Returns the ids restored."""
     from .persona_assignments import PersonaInstanceStore
+    from .persona_instance_sync.pull import _local_projection_hash
+    from .persona_instance_sync.sidecars import (
+        instance_baseline_key,
+        read_persona_instance_baseline,
+        write_persona_instance_baseline,
+    )
     from .state_patches.persona_instance import emit_persona_instance_create
 
     store = PersonaInstanceStore()
@@ -147,13 +159,20 @@ def restore_parked_agents(realm_id: str) -> list[str]:
     restored = []
     for parked in sorted(parked_dir.glob("*.json")) if parked_dir.is_dir() else []:
         live = paths.persona_instances_dir() / parked.name
-        if live.exists():
+        if live.exists() or (only is not None and parked.stem not in only):
             continue
         live.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(parked), str(live))
         instance = _read_row(live)
         emit_persona_instance_create(store.event_log, instance)
         restored.append(instance.id)
+    if restored:
+        baseline = read_persona_instance_baseline(realm_id)
+        for instance_id in restored:
+            body_hash = _local_projection_hash(store, instance_id)[0]
+            if body_hash is not None:
+                baseline[instance_baseline_key(instance_id)] = body_hash
+        write_persona_instance_baseline(realm_id, baseline)
     if parked_dir.is_dir() and not any(parked_dir.iterdir()):
         parked_dir.rmdir()
     return restored

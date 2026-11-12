@@ -2,9 +2,9 @@
 
 Plan ``docs/agent-runtime-harness/planned/rejoin-fresh-realm-2026-11-12.md`` §3, §4. A realm whose server the
 member left is to sit BESIDE the fresh copy a re-join pulls, so the local copy needs a realm id, workspace ids
-and board ids the team's copy does not publish. Nothing else in the tree renames a realm or a workspace, and
-NOTHING CALLS THIS YET: the leave does not owe a re-key and a re-join still binds the same realm id again
-(``realm_leave``, ``realm_membership.adopt_realms``) until the task's switch-over row lands.
+and board ids the team's copy does not publish. Nothing else in the tree renames a realm or a workspace. The leave
+owes it (``realm_leave.make_realm_local`` calls :func:`owe_rekey`); ``agent_runtime.realm_rekey_triggers`` is
+the one caller of :func:`rekey_realm` — at the leave, when the serve is idle, at serve start, before a re-join.
 
 * :data:`STORE_PLACES` puts every top-level entry of the store root in one :class:`PlaceClass`. MOVES is the
   local copy (re-keyed); PARKS keeps the team's ids until a re-join brings the realm back (the agents and every
@@ -28,7 +28,7 @@ NOTHING CALLS THIS YET: the leave does not owe a re-key and a re-join still bind
 * What is not JSON under the store root is ``agent_runtime.realm_rekey_outside`` (the ``outside`` step): the
   machine's slot files, Lens watches, the shared skills' inbox and provenance, the local sync repository.
 
-:data:`OWED_HANDLERS` is empty: every MOVES place has its step. The switch-over row is what calls this.
+:data:`OWED_HANDLERS` is empty: every MOVES place has its step.
 """
 from __future__ import annotations
 
@@ -80,6 +80,8 @@ SCENE_ID_PREFIX = "ws-"
 _PIECES = re.compile(r"([/\\:])")
 _MINTED_SUFFIX = re.compile(r"_[0-9a-f]{6}$")
 _MINTED_CARD = re.compile(r"^card_[0-9a-f]{32}$")
+#: ``realm_sync_state/<realm>.team_baselines/``: written at a leave from ed84b2c01a until the fresh re-join.
+LEGACY_TEAM_BASELINES_SUFFIX = ".team_baselines"
 
 
 class PlaceClass(str, Enum):
@@ -124,8 +126,8 @@ STORE_PLACES: dict[str, PlaceClass] = {
     "maps": _I, "prefabs": _I, "courses": _I, "queued_skills": _I, "skill_lends": _I, "tool_permissions.json": _I,
     "launcher_supervision": _I, "operator_files": _I, "persona_instance_aliases.json": _I, "wt": _I,
 }
-#: MOVES places no step rewrites yet, and the row that owes each. Empty since the ``outside`` step: the
-#: switch-over (``RT-REJOIN-PULLS-THE-SERVER-REALM-FRESH``) may call the re-key only while it stays empty.
+#: MOVES places no step rewrites yet, and the row that owes each. Empty since the ``outside`` step; the
+#: leave owes a re-key only while it stays empty (pinned).
 OWED_HANDLERS: dict[str, str] = {}
 
 
@@ -211,12 +213,22 @@ def _minted_cards_of(board_ids: Any) -> list[str]:
     return found
 
 
+def _file_done_journal(realm_id: str, journal: dict[str, Any]) -> None:
+    """A realm id that was re-keyed, came back with a re-join and is left AGAIN: the first cycle's journal is
+    filed beside (``<old>.<new>.json``) — it is still what names the first local copy's ``rekeyed_from``."""
+    path = rekey_journal_path(realm_id)
+    path.replace(path.with_name(f"{path.stem}.{paths.safe_path_token(journal['map']['realm_new'])}.json"))
+
+
 def owe_rekey(realm_id: str, *, reason: str) -> dict[str, Any]:
-    """Record that ``realm_id`` owes a re-key and mint its map. A realm that already has a journal answers it."""
+    """Record that ``realm_id`` owes a re-key and mint its map. A realm whose journal is still ``owed`` or
+    ``running`` answers it; one left again after a re-join gets a new journal and a new map."""
     with workspace_realm_assign_lock():
         existing = read_rekey_journal(realm_id)
-        if existing is not None:
+        if existing is not None and existing.get("state") != RekeyState.DONE.value:
             return existing
+        if existing is not None:
+            _file_done_journal(realm_id, existing)
         realm = RealmStore().get(realm_id)
         held = [item.id for item in WorkspaceStore().list_all(include_archived=True) if item.realm_id == realm.id]
         workspaces = {old: _fresh_id(old) for old in dict.fromkeys([*realm.workspace_ids, *held])}
@@ -288,7 +300,8 @@ def _step_content(root: Path, mapping: RekeyMap) -> None:
         if not path.is_file() or path.suffix != ".json":
             continue
         if relative.parts[0] == "realms" and path.name not in own_realm:
-            continue  # another realm's ledgers name what LEFT it; they are that realm's, not ours
+            _rewrite_membership(path, forms)
+            continue
         if relative.parts[0] == paths.LEVELS_DIRNAME:
             _rewrite_level(path, forms)
             continue
@@ -299,6 +312,21 @@ def _step_content(root: Path, mapping: RekeyMap) -> None:
         after = rewrite_json(before, forms)
         if after != before:
             atomic_json_write(path, after)
+
+
+#: What another realm's record says it HOLDS. Its ledgers name what LEFT it — the team's ids, that realm's own
+#: business — and are never touched; a workspace moved into it after the leave is listed under its new id.
+_MEMBERSHIP_FIELDS = ("workspace_ids", "default_workspace_id")
+
+
+def _rewrite_membership(path: Path, forms: dict[str, str]) -> None:
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    held = {key: rewrite_json(record[key], forms) for key in _MEMBERSHIP_FIELDS if key in record}
+    if any(record[key] != value for key, value in held.items()):
+        atomic_json_write(path, {**record, **held})
 
 
 def _renamed(name: str, forms: dict[str, str]) -> str:
@@ -334,7 +362,11 @@ def _step_rename(root: Path, mapping: RekeyMap) -> None:
 
 
 def _step_ledgers(root: Path, mapping: RekeyMap) -> None:
-    """The delete ledger and the lifts speak to the team's copy about the team's ids; the local copy starts clean."""
+    """The delete ledger and the lifts speak to the team's copy about the team's ids; the local copy starts clean.
+    So does a set of drift baselines an older build set aside at the leave for a re-bind that no longer exists."""
+    for realm_id in (mapping.realm_old, mapping.realm_new):
+        shutil.rmtree(root / "realm_sync_state" / f"{paths.safe_path_token(realm_id)}{LEGACY_TEAM_BASELINES_SUFFIX}",
+                      ignore_errors=True)
     path = paths.realm_path(mapping.realm_new)
     try:
         record = json.loads(path.read_text(encoding="utf-8"))

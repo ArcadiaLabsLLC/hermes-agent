@@ -334,10 +334,11 @@ defined in [Realms and workspaces](#realms-and-workspaces) above.
 realm — server-bound or local — writes the same entry a delete does, and the
 workspace lives on under its new realm. A local realm needs it too: it reaches
 the player's other machines through the personal repo
-(RT-WORKSPACE-MOVE-OUT-OF-PERSONAL-REPO-REALM), and a realm that turned local at
-a leave is bound again by a re-join, where the entry is what keeps the team's
-copy from being written back; it reaches the team only when the member publishes
-(RT-REJOIN-KEEPS-WORKSPACES-MOVED-WHILE-LOCAL). So a pull of a realm leaves alone any local workspace
+(RT-WORKSPACE-MOVE-OUT-OF-PERSONAL-REPO-REALM). A realm that turned local at a
+leave is NOT bound again by a re-join (RT-REJOIN-PULLS-THE-SERVER-REALM-FRESH):
+its re-key gives a workspace moved out of it while local an id of its own and
+clears the local copy's ledger, and the server's realm comes back fresh with the
+team's copy under the team's id. So a pull of a realm leaves alone any local workspace
 whose `realm_id` names ANOTHER realm: `_apply_workspace_tombstones` does not
 delete it, and the generic overwrite loop does not write an older copy of it
 that a member who had not heard of the move published into the realm's subtree

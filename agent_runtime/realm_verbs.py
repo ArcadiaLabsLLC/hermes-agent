@@ -251,13 +251,20 @@ def realm_adopt(
             "realm adopt requires a launcher-brokered credential; pass --credential-file or set "
             "HERMES_REALM_SYNC_CREDENTIAL.",
         )
-    adopted = adopt_realms(credential, server_id=server_id, dry_run=dry_run)
+    # A re-join: a granted realm this install still holds as a local copy takes its own ids first (or the
+    # adopt is refused ``realm_busy``, nothing adopted), so the adopt below creates the server's realm fresh.
+    from .realm_rekey_triggers import make_way_for_rejoin
+
+    adopted = adopt_realms(credential, server_id=server_id, dry_run=dry_run, make_way=make_way_for_rejoin)
     if not dry_run:
         from .realm_leave import make_marked_realms_local
 
         # A re-grant has just lifted the mark of every realm still held; a member-access mark that
         # is left predates RT-LEFT-SERVER-REALM-STAYS-LISTED and its realm becomes local now.
-        make_marked_realms_local()
+        if make_marked_realms_local():
+            from .realm_rekey_triggers import RekeyTrigger, run_owed_rekeys
+
+            run_owed_rekeys(RekeyTrigger.LEAVE)
     return attach_root_observability(list_envelope("realm", sort_rows([realm_row(item) for item in adopted], sort)))
 
 
@@ -267,23 +274,55 @@ def realm_mark_revoked(realm_id: str, *, reason: Any, server_name: str | None = 
     A loss of the MEMBER's access (``MEMBER_ACCESS_REASONS`` — left, removed, …) makes the realm a
     local one (``realm_leave.make_realm_local``): ``became_local`` true, ``shared_from`` the record
     of the server it came from (``server_name`` is the caller's display name for it, optional).
-    A repeat answers the first record, ``became_local`` false. A git-HOST reason keeps the realm
+    The local copy then takes its own ids at once if nothing is running (``realm_rekey_triggers``):
+    ``rekey`` says how far that is (``owed`` | ``running`` | ``done``), ``rekeyed_to`` is the local
+    copy's realm id once it is done (null before), ``rekey_waits_on`` what it waits for.
+    A repeat answers the first record, ``became_local`` false — also once the realm id asked for is
+    the local copy's old one. A git-HOST reason keeps the realm
     bound and writes the mark (``realm_sync.revocation``): its credentialed sync verbs refuse
     ``realm_revoked`` until an admitted credential lifts it. ``reason`` is a ``RealmRevokedReason``."""
-    from .realm_leave import make_realm_local
     from .realm_sync.revocation import MEMBER_ACCESS_REASONS, mark_realm_revoked
     from .store import RealmStore
 
-    realm = RealmStore().get(realm_id)
     if reason in MEMBER_ACCESS_REASONS:
-        shared_from, changed = make_realm_local(realm.id, reason, server_name=server_name)
-        mark = {
-            "reason": (shared_from or {}).get("reason") or reason.value,
-            "revoked_at": (shared_from or {}).get("left_at"),
-            "host_state": False,
-        }
-    else:
-        mark, shared_from, changed = mark_realm_revoked(realm, reason), None, False
+        return attach_root_observability(object_envelope("realm_revocation", _leave(realm_id, reason, server_name)))
+    mark = mark_realm_revoked(RealmStore().get(realm_id), reason)
     return attach_root_observability(object_envelope(
-        "realm_revocation", {"realm_id": realm.id, **mark, "became_local": changed, "shared_from": shared_from}
+        "realm_revocation", {"realm_id": realm_id, **mark, "became_local": False, "shared_from": None}
     ))
+
+
+def _leave(realm_id: str, reason: Any, server_name: str | None) -> dict:
+    """The member-access arm of ``realm_mark_revoked``: make the realm local, then try its re-key now."""
+    from .errors import NotFound
+    from .realm_leave import make_realm_local
+    from .realm_rekey_journal import RekeyState, read_rekey_journal
+    from .realm_rekey_triggers import RekeyTrigger, run_owed_rekeys
+    from .realm_sync.revocation import read_realm_shared_from
+
+    def local_copy() -> tuple[str | None, str]:
+        """``(journal state, the id the local copy has now)``."""
+        journal = read_rekey_journal(realm_id) or {}
+        done = journal.get("state") == RekeyState.DONE.value
+        return journal.get("state"), journal["map"]["realm_new"] if done else realm_id
+
+    try:
+        shared_from, changed = make_realm_local(realm_id, reason, server_name=server_name)
+    except NotFound:
+        if local_copy()[1] == realm_id:
+            raise
+        shared_from, changed = None, False  # a replay: the id asked for is the local copy's old one
+    waits_on = {attempt.realm_id: attempt.busy for attempt in run_owed_rekeys(RekeyTrigger.LEAVE)}.get(realm_id)
+    state, local_id = local_copy()
+    shared_from = shared_from if local_id == realm_id else read_realm_shared_from(local_id)
+    return {
+        "realm_id": realm_id,
+        "reason": (shared_from or {}).get("reason") or reason.value,
+        "revoked_at": (shared_from or {}).get("left_at"),
+        "host_state": False,
+        "became_local": changed,
+        "shared_from": shared_from,
+        "rekey": state,
+        "rekeyed_to": local_id if local_id != realm_id else None,
+        "rekey_waits_on": waits_on.value if waits_on else None,
+    }
