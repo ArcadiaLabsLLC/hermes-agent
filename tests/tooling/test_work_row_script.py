@@ -180,6 +180,27 @@ def test_a_close_on_a_commit_that_never_reached_main_is_refused(clones, capsys):
     assert work_row.main(["close", "RT-B", "--who", "r-lane", "--refuted", peer, "--repo", str(mine), "--no-commit"]) == 0
 
 
+def test_two_pushes_arriving_together_count_as_a_lost_race(clones):
+    """The remote answers two simultaneous pushes ``! [remote rejected] … (cannot lock ref … is at X but expected
+    Y)``, not ``! [rejected]``; it is the same lost race and is retried. Mutation: drop ``cannot lock ref`` from
+    ``NON_FAST_FORWARD`` -> exit 4, no fetch, red."""
+    _, mine, _ = clones
+    calls: list[list[str]] = []
+    before = (mine / NOTE).read_bytes()
+
+    def fake(args, repo):
+        calls.append(list(args))
+        if args[0] == "restore":  # what the real one does to the op's paths
+            (mine / NOTE).write_bytes(before)
+        if args[0] == "push" and sum(call[0] == "push" for call in calls) == 1:
+            return subprocess.CompletedProcess(args, 1, "", " ! [remote rejected]       HEAD -> main (cannot lock ref "
+                                               "'refs/heads/main': is at 4fcd07dd64 but expected db4a7c9713)")
+        return subprocess.CompletedProcess(args, 0, "abc1234\n" if args[0] == "rev-parse" else "", "")
+
+    assert work_row.main(["claim", "RT-B", "--who", "r-lane", "--repo", str(mine)], git=fake) == 0
+    assert [call[0] for call in calls].count("push") == 2 and ["fetch", "-q", "origin", "main"] in calls
+
+
 def test_a_push_that_lands_first_time_never_fetches_or_resets(clones):
     _, mine, _ = clones
     calls: list[list[str]] = []

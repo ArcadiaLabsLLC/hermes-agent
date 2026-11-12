@@ -88,7 +88,9 @@ from agent_runtime.work_store.wake import unblocked_segment, wake_dependents
 COMMANDS = {"claim": Op.CLAIM, "release": Op.RELEASE, "set-status": Op.SET_STATUS, "delete": Op.DELETE,
             "append": Op.APPEND, "close": Op.CLOSE}
 BRAIN_GLOBS = ("*_Brain/20 — Active Initiatives/*.md", "*_brain/20 — Active Initiatives/*.md")
-NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward")
+#: What a push that lost the race for the branch says. ``cannot lock ref`` is the remote's own wording when two
+#: pushes arrive together (``! [remote rejected] … is at <sha> but expected <sha>``, lived 2026-11-12).
+NON_FAST_FORWARD = ("! [rejected]", "fetch first", "non-fast-forward", "cannot lock ref")
 #: How many times one op is committed and pushed before a lost race is reported (exit 3).
 PUSH_ATTEMPTS = 5
 EXIT_REFUSED = 2
