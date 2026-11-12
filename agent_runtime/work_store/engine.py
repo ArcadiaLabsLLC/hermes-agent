@@ -45,6 +45,7 @@ from typing import Any
 from .. import paths
 from ..serde import write_json_atomic
 from . import receipts
+from .activity import record_view
 from .board import board_rows, pick
 from .executor import CAUSE_OUT_OF_TIME, Assignment, Brief, Executor, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict
 from .grammar import Op, Row, RowRef, Status, render_status, segment_text
@@ -313,15 +314,22 @@ class WorkEngine:
             held = self._held(workspace_id, view)
             live = {record.ref: record for record in records()
                     if record.workspace_id == workspace_id and record.state is not RecordState.CLOSED}
+            read: dict[str, list[Row]] = {}
             for board in view.boards:
                 writer = view.writers.get(board.key)
                 if writer is None or board.read_root is None:
                     continue
-                for row in board_rows(board):
+                read[board.key] = board_rows(board)
+                for row in read[board.key]:
                     if row.taken is None or row.taken.persona_instance_id is None or row.ref in held:
                         continue  # untaken (the engine never claims), a session lane's claim, or a batch lane's
                     handed = self._hand_off(workspace_id, row, writer, live.get(row.ref))
                     counts.update([handed] if handed else [])
+            try:
+                # The workspace card's counts (``activity.record_view``): the tick has read every board anyway.
+                record_view(workspace_id, view, read)
+            except Exception:
+                logger.warning("work engine could not record workspace %s's activity", workspace_id, exc_info=True)
         return counts
 
     def _hand_off(self, workspace_id: str, row: Row, writer: Any, record: RunRecord | None) -> str | None:

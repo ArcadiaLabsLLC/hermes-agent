@@ -1078,6 +1078,22 @@ are unchanged until RT-WS-RECALL-RENAME-S3-PUBLISH. ``runtime.persona.instance.s
 reply answer ``recall_shared_workspaces`` only: the launcher's switch reads it since its
 MC-RECALL-SWITCH-KEY-REPOINT (`053567a7ed`); a launcher build older than that reads the switch as off.
 
+54 KEPT (Manage Workspace, 2026-11-12, RT-ACCOUNT-DEFAULT-REALM / RT-WORKSPACE-SUMMARY-ACTIVITY) — two
+additive reads for the launcher's Manage Workspace page (launcher plan
+``MANAGE_WORKSPACE_GENUI_2026-11-11.md``). Top-level ``default_realm_id``: the account's default realm,
+resolved by ``agent_runtime/default_realm.py::default_realm_id`` (the stored pointer ``default_realm.json``
+while it names a live realm, else ``realm_default``, else the active realm, else null). Each
+``workspaces[]`` row gains ``tasks_running``, ``needs_you`` (ints) and ``last_activity_at`` (ISO-8601 UTC):
+tasks on the workspace's boards carrying a claim, unclaimed tasks waiting on the owner (``DECISION`` or
+``BLOCKED`` on an owner reason), and the newest commit to a board's queue notes — a task being a ``task:``
+row or a row no task on those boards owns. All three are null until the Work engine has read every board
+of the workspace on this machine whole (a workspace with no board is 0 / 0 / null). The snapshot path
+reads ONE sidecar per workspace (``<work>/<workspace>/activity.json``,
+``agent_runtime/work_store/activity.py``), written by the engine's tick from the boards it already reads —
+no board walk and no git call in a build. A changed count appends ``workspace.updated``
+(``change: task_activity``); a moved ``last_activity_at`` alone appends nothing and rides the next build.
+Additive keys on maps the launcher parses as maps: rule (a) does not bump.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

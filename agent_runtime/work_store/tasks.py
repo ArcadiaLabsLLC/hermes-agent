@@ -223,7 +223,7 @@ def _reason(row: Row) -> str | None:
     return blocked_reason(row.status_body) if row.status is Status.BLOCKED else None
 
 
-def _waits_on_owner(row: Row) -> bool:
+def waits_on_owner(row: Row) -> bool:
     """Whether ``row`` waits on the owner: a ``DECISION``, or ``BLOCKED`` on an owner reason."""
 
     return row.status is Status.DECISION or _reason(row) in OWNER_REASONS
@@ -282,7 +282,7 @@ def task_status_after_close(task: Row, subtasks: list[Row], *, all_visible: bool
     startable = any(s.status in STARTABLE for s in live)
     on_own = task.status is Status.BLOCKED and blocked_on_id(task) in {closed_id, *(s.ref.id for s in subtasks)}
     if task.status is Status.BLOCKED and startable:
-        if _waits_on_owner(task) and not on_own:
+        if waits_on_owner(task) and not on_own:
             return None
         return [f"READY {date}", unblocked]
     if startable or not all_visible:
@@ -292,7 +292,7 @@ def task_status_after_close(task: Row, subtasks: list[Row], *, all_visible: bool
     waiting = [s for s in live if s.status in (Status.BLOCKED, Status.DECISION) and s.ref.id]
     if not waiting:
         return None
-    owner = sum(1 for s in waiting if _waits_on_owner(s))
+    owner = sum(1 for s in waiting if waits_on_owner(s))
     mix = ", ".join(part for part in (f"{owner} on the owner" if owner else "",
                                       f"{len(waiting) - owner} on other work" if len(waiting) > owner else "") if part)
     first = waiting[0]

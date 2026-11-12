@@ -18,6 +18,7 @@ from agent_runtime.persona_profiles import effective_toolsets
 from agent_runtime.process_state import register_process_state
 from agent_runtime.realm_sync.sidecar import read_realm_sync_sidecar
 from agent_runtime.repo_context import resolve_affected_repo_workdir
+from agent_runtime.work_store.activity import read_activity
 from agent_runtime.tool_visibility import (
     _profile_readiness_for_visibility,
     resolve_tool_visibility,
@@ -91,6 +92,10 @@ def workspace_summary(
         # the workspace's 2D view has a slots table while no serve is up (build plan §3; launcher plan §4).
         # Probe-free, no path, never a value — ``slots.show`` is the live door.
         "repo_slots": snapshot_slots(workspace.id, machine=known_machine_id()),
+        # Task activity for the workspace card (RT-WORKSPACE-SUMMARY-ACTIVITY): ``tasks_running``,
+        # ``needs_you``, ``last_activity_at`` — the Work engine's sidecar, ONE small file read; never a
+        # board walk or a git call here. ``None`` = not known on this machine (never a fake 0).
+        **read_activity(workspace.id),
     }
 
 
