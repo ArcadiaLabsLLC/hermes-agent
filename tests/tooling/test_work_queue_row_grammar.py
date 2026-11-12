@@ -82,6 +82,11 @@ TASK = re.compile(r"^task: [a-z0-9][a-z0-9.-]*$")
 CODE_SPAN = re.compile(r"`([^`]+)`")
 WORK_ID = re.compile(r"^WORK-[A-Z2-7]{6}$")
 RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
+#: A handoff that says something; a LIVE CHECK row carries one (RT-QUEUE-LIVE-CHECK-NEEDS-HANDOFF; the twin's
+#: ``agent_runtime/work_store/grammar.py::HANDOFF`` and the launcher parser's ``_handoff`` are the same pattern).
+HANDOFF = re.compile(r"^handoff \d{4}-\d{2}-\d{2}\b[^:]*:\s*\S")
+LIVE_CHECK_NEEDS_HANDOFF = ("LIVE CHECK NEEDS HANDOFF: add ` · handoff <date>: <why the lane that built it could not "
+                            "read it live>`")
 REQUIRES = re.compile(r"^REQUIRES(?:\s+(.*))?$", re.DOTALL)
 HOSTS = ("windows", "macos", "linux")
 TAKEN = re.compile(r"\*\*TAKEN (\d{4}-\d{2}-\d{2}) ([^*]+?)\*\*")
@@ -194,6 +199,8 @@ def row_defects(line: str, *, archived: bool = False) -> list[str]:
             defects.append(f"{status.group(1)} with no body: `{status.group(1)} <date>: <"
                            + ("what to drive and what to read" if status.group(1) == "LIVE CHECK" else "the question")
                            + ">`")
+        if status.group(1) == "LIVE CHECK" and not any(HANDOFF.match(s) for s in segments[1:]):
+            defects.append(LIVE_CHECK_NEEDS_HANDOFF)
         if status.group(1) != "BLOCKED":
             continue
         reason = blocked_reason((status.group(3) or "").strip())
@@ -337,7 +344,9 @@ VALID = [
     "- **`RT-N` — persona claim** · READY 2026-10-27 · **TAKEN 2026-10-27 persona:pi_alice_01**",
     "- **`RT-O` — grouped** · group: companion-templates.tags · plan `docs/x/planned/p.md` · READY 2026-11-02",
     "- **`TASK-PILLS` — Pills on the board** · task: board-pills · READY 2026-11-09",
-    "- **`RT-P` — live check** · group: board-pills · LIVE CHECK 2026-11-12: open the board, read the pill · REQUIRES windows, linux",
+    "- **`RT-P` — live check** · group: board-pills · LIVE CHECK 2026-11-12: open the board, read the pill · REQUIRES windows, linux"
+    " · handoff 2026-11-12: context spent before the live read",
+    "- **`RT-P` — live check** · LIVE CHECK 2026-11-12: read the pill · handoff 2026-11-12 (w1112b-x): REQUIRES windows",
     "- **`RT-Q` — question** · group: board-pills · DECISION 2026-11-12: round or square? · Recommend: round",
     "- **`RT-R` — bare question** · group: board-pills · DECISION 2026-11-12: round or square?",
 ]
@@ -351,6 +360,10 @@ DEFECTS = {
     "- **`RT-A` — built and waiting** · LIVE CHECK 2026-11-12: drive it · DECISION 2026-11-12: ship?": "2 status",
     "- **`RT-A` — lower** · Live check 2026-11-12: drive it": "0 status",
     "- **`RT-A` — says nothing** · LIVE CHECK 2026-11-12": "LIVE CHECK with no body",
+    # RT-QUEUE-LIVE-CHECK-NEEDS-HANDOFF. Mutation: `if False and status.group(1) == "LIVE CHECK"` in row_defects -> red.
+    "- **`RT-A` — does not say why** · LIVE CHECK 2026-11-12: open the board, read the pill": "LIVE CHECK NEEDS HANDOFF: add",
+    "- **`RT-A` — empty why** · LIVE CHECK 2026-11-12: read the pill · handoff 2026-11-12 (w1112b-x):": "LIVE CHECK NEEDS HANDOFF",
+    "- **`RT-A` — undated why** · LIVE CHECK 2026-11-12: read the pill · handoff: context spent": "LIVE CHECK NEEDS HANDOFF",
     "- **`RT-A` — asks nothing** · DECISION 2026-11-12 · Recommend: yes": "DECISION with no body",
     "- **`RT-A` — reason** · BLOCKED 2026-10-18: quiet box": "BLOCKED reason",
     "- **`RT-A` — outside** · BLOCKED 2026-10-18: the launcher — row": "BLOCKED reason",
@@ -421,7 +434,7 @@ def _fixture_rows(name: str) -> list[tuple[str | None, str, list[str]]]:
 
 def test_the_shared_fixtures_pass_and_fail_as_the_launcher_says() -> None:
     valid, broken = _fixture_rows("grammar_valid.md"), _fixture_rows("grammar_defects.md")
-    assert len(valid) >= 19 and len(broken) >= 11, "a moved or emptied fixture must not pass silently"
+    assert len(valid) >= 26 and len(broken) >= 28, "a moved or emptied fixture must not pass silently"
     wrong = [f"valid {row_id}: {defects}" for row_id, _, defects in valid if row_id not in STRICTER_HERE and defects]
     wrong += [
         f"valid {row_id}: expected {STRICTER_HERE[row_id]!r}, got {defects}"

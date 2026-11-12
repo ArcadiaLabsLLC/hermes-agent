@@ -121,6 +121,9 @@ def test_move_drops_a_card_on_live_check_and_on_decision_and_the_question_is_ans
     where = {"slot": "brain", "task_id": task["id"]}
     live = call(work, "move", request_id="v1", to="LIVE CHECK", reason="open the board, read the pill", **where)["task"]
     assert (live["status"], live["status_body"]) == ("LIVE CHECK", "open the board, read the pill")
+    # RT-QUEUE-LIVE-CHECK-NEEDS-HANDOFF: a drop gives no reason, so the row says who set it and that none was recorded.
+    # Mutation: `_board_live_check` returns {"status": segment} alone -> the drop is refused grammar_invalid, red.
+    assert live["raw"].count(" · handoff ") == 1 and "why its builder could not read it live was not recorded" in live["raw"]
     for bare in ("DECISION", "LIVE CHECK"):
         with pytest.raises(WorkRefused) as unasked:
             call(work, "move", request_id="v2", to=bare, **where)
@@ -130,7 +133,7 @@ def test_move_drops_a_card_on_live_check_and_on_decision_and_the_question_is_ans
     answered = call(work, "answer", request_id="v4", answer="round", line=asked["raw"], **where)["task"]
     assert answered["status"] == "READY" and answered["rulings"][-1].endswith(": owner — round")
     kept = call(work, "set_status", request_id="v5", status="LIVE CHECK 2026-11-12: read the pill", **where)["task"]
-    assert kept["status"] == "LIVE CHECK"
+    assert kept["status"] == "LIVE CHECK" and kept["raw"].count(" · handoff ") == 1
 
 
 def test_move_guards_on_the_line_the_board_drew(work):

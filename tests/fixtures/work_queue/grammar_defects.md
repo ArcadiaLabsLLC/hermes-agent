@@ -32,4 +32,6 @@ status: open
 - **`FX-BARE-DECISION` — Decision that asks nothing row** · DECISION 2026-11-12
 - **`FX-RETIRED-OWNER` — Retired owner ruling opener row** · READY 2026-11-12 · OWNER RULING 2026-10-15: stays deferred
 - **`FX-RETIRED-PLAN` — Retired plan opener row** · PLAN written 2026-10-15 · READY 2026-11-12
+- **`FX-LIVE-CHECK-NO-HANDOFF` — Live check that does not say why its builder could not check it row** · LIVE CHECK 2026-11-12: open the board and read the pill · REQUIRES windows, linux
+- **`FX-LIVE-CHECK-EMPTY-HANDOFF` — Live check whose handoff says nothing row** · LIVE CHECK 2026-11-12: open the board and read the pill · handoff 2026-11-12:
 - **`FX-OWNER-NO-RECOMMEND` — Owner decision with no recommendation row** · BLOCKED 2026-11-12: owner decision — amber or cyan

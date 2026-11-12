@@ -32,7 +32,7 @@ def _duplicated(rows: list[grammar.Row]) -> set[str]:
 
 def test_every_valid_fixture_row_parses_with_no_defect() -> None:
     rows = _rows("grammar_valid.md")
-    assert len(rows) >= 19
+    assert len(rows) >= 26
     for row in rows:
         if row.ref.id in STRICTER_HERE:
             assert any(STRICTER_HERE[row.ref.id] in d for d in row.defects), row
@@ -54,10 +54,47 @@ def test_every_valid_fixture_row_parses_with_no_defect() -> None:
 
 def test_every_defect_fixture_row_is_a_defect() -> None:
     rows = _rows("grammar_defects.md")
-    assert len(rows) >= 11
+    assert len(rows) >= 28
     duplicated = _duplicated(rows)
     clean = [row.raw for row in rows if not row.defects and row.ref.id not in duplicated]
     assert not clean, clean
+
+
+def test_a_live_check_says_why_its_builder_could_not_check_it() -> None:
+    """RT-QUEUE-LIVE-CHECK-NEEDS-HANDOFF (owner 2026-11-12, "yes"). KILLING MUTATIONS: ``if False and Status(...) is
+    Status.LIVE_CHECK`` in ``grammar._status_defects`` -> the bare rows read clean and the lane's set-status is
+    written, red (and the shared defects fixture reds on FX-LIVE-CHECK-NO-HANDOFF / -EMPTY-HANDOFF); drop the
+    ``payload.handoff`` append in ``grammar._set_status`` -> the board's drop is refused, red."""
+    live = "- **`RT-L` — a row** · group: p · LIVE CHECK 2026-11-12: open the board, read the pill"
+    for said in (" · handoff 2026-11-12: context spent", " · handoff 2026-11-12 (w1112b-x): REQUIRES windows",
+                 " · handoff 2026-11-12 w1112b-x: waits on another landing"):
+        assert grammar.row_defects(live + said) == [], said
+    for missing in ("", " · handoff 2026-11-12:", " · handoff 2026-11-12 (w1112b-x):", " · handoff: context spent",
+                    " · the handoff 2026-11-12: context spent"):
+        assert grammar.row_defects(live + missing) == [grammar.LIVE_CHECK_NEEDS_HANDOFF], missing
+    assert "add ` · handoff <date>: <why" in grammar.LIVE_CHECK_NEEDS_HANDOFF
+    # Only a live LIVE CHECK row owes one.
+    assert grammar.row_defects("- **`RT-L` — a row** · group: p · READY 2026-11-12") == []
+    assert grammar.row_defects("- **`RT-L` — a row** · group: p · DONE 2026-11-12 abcdef1", archived=True) == []
+    # A lane's set-status (``scripts/work_row.py``: no ``payload.handoff``) is refused in words that say what to add.
+    ready = "- **`RT-L` — a row** · group: p · READY 2026-11-12"
+    with pytest.raises(WorkRefused) as bare:
+        grammar.apply(ready, Op.SET_STATUS, who="q", date="2026-11-12", payload={"status": "LIVE CHECK 2026-11-12: read the pill"})
+    assert bare.value.reason is Reason.GRAMMAR_INVALID and "add ` · handoff <date>:" in str(bare.value)
+    # A row that already says why keeps its own words.
+    handed = ready + " · handoff 2026-11-11: the pill shows only on Windows"
+    kept = grammar.apply(handed, Op.SET_STATUS, who="q", date="2026-11-12",
+                         payload={"status": "LIVE CHECK 2026-11-12: read the pill", "handoff": "x"})
+    assert kept == handed.replace("READY 2026-11-12", "LIVE CHECK 2026-11-12: read the pill")
+    # A board's drop gives no reason; the row says who set it and that none was recorded.
+    dropped = grammar.apply(ready, Op.SET_STATUS, who="q", date="2026-11-12",
+                            payload={"status": "LIVE CHECK 2026-11-12: read the pill", "handoff": "q set it; no reason"})
+    assert dropped == ready.replace("READY 2026-11-12", "LIVE CHECK 2026-11-12: read the pill"
+                                                        " · handoff 2026-11-12: q set it; no reason")
+    # ``payload.handoff`` is for LIVE CHECK only.
+    plain = grammar.apply(ready, Op.SET_STATUS, who="q", date="2026-11-12",
+                          payload={"status": "DEFERRED 2026-11-12: later", "handoff": "x"})
+    assert plain == ready.replace("READY 2026-11-12", "DEFERRED 2026-11-12: later")
 
 
 @pytest.mark.parametrize("name", ["grammar_valid.md", "grammar_defects.md", "grammar_tasks.md",
@@ -109,7 +146,8 @@ def test_a_live_check_is_startable_and_a_decision_is_the_owners_to_answer() -> N
     rows read 0 status segments, red; drop the ``DECISION`` arm of ``grammar.asks_owner`` -> the answer refuses
     ``invalid`` and the re-status loses its ``Recommend:``, red."""
     assert grammar.STARTABLE == {Status.READY, Status.NEEDS_PLAN, Status.LIVE_CHECK}
-    line = "- **`RT-L` — a row** · group: p · READY 2026-11-12 · **TAKEN 2026-11-12 q on box as me in wt**"
+    line = ("- **`RT-L` — a row** · group: p · handoff 2026-11-12: context spent · READY 2026-11-12"
+            " · **TAKEN 2026-11-12 q on box as me in wt**")
     live = grammar.apply(line, Op.SET_STATUS, who="q", date="2026-11-12",
                          payload={"status": "LIVE CHECK 2026-11-12: open the board, read the pill"})
     assert live == line.replace("READY 2026-11-12", "LIVE CHECK 2026-11-12: open the board, read the pill")

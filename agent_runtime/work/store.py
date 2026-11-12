@@ -602,6 +602,19 @@ def _instance_exists(instance: str) -> None:
         raise WorkRefused(Reason.ASSIGNEE_UNKNOWN, instance) from exc
 
 
+def _board_live_check(segment: str, who: str) -> dict[str, str]:
+    """The SET_STATUS payload for a status a board or a console wrote. A row left ``LIVE CHECK`` says in a handoff why
+    its builder could not read it live (RT-QUEUE-LIVE-CHECK-NEEDS-HANDOFF); a drop on the Live check column gives
+    no reason, so the row says exactly that — who set it, and that no reason was recorded — unless the status or
+    the row already carries a handoff (``grammar._set_status``)."""
+
+    payload = {"status": segment}
+    if segment.startswith(Status.LIVE_CHECK.value + " "):
+        payload["handoff"] = (f"{who} set this to a live check from the Work board; why its builder could not read "
+                              "it live was not recorded, so it is open for any lane to read live")
+    return payload
+
+
 def _status_segment(value: Any) -> str:
     segment = text(value, maximum=1000)
     if STATUS.match(segment.split(" · ")[0]) is None:
@@ -613,7 +626,7 @@ def release(scope, params, actor, *, context=None):
     who = _writer_who(params, actor)
     request = text(params.get("request_id"))
     if params.get("status") is not None:
-        _row_write(scope, params, Op.SET_STATUS, who, {"status": _status_segment(params["status"])},
+        _row_write(scope, params, Op.SET_STATUS, who, _board_live_check(_status_segment(params["status"]), who),
                    context=context, request=f"{request}:status")
     writer, receipt = _row_write(scope, params, Op.RELEASE, who, {}, context=context)
     until_done.forget(scope.workspace_id, receipt.ref)
@@ -621,8 +634,9 @@ def release(scope, params, actor, *, context=None):
 
 
 def set_status(scope, params, actor, *, context=None):
-    payload = {"status": _status_segment(params.get("status"))}
-    writer, receipt = _row_write(scope, params, Op.SET_STATUS, _writer_who(params, actor), payload, context=context)
+    who = _writer_who(params, actor)
+    payload = _board_live_check(_status_segment(params.get("status")), who)
+    writer, receipt = _row_write(scope, params, Op.SET_STATUS, who, payload, context=context)
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire()}
 
 
@@ -672,7 +686,7 @@ def move(scope, params, actor, *, context=None):
         return {"task": _task(writer, row.ref, context), "receipt": None, "unchanged": True}
     request = text(params.get("request_id"))
     who = _writer_who(params, actor)
-    receipt = writer.apply(RowOp(row.ref, Op.SET_STATUS, who, f"{request}:status", {"status": segment}))
+    receipt = writer.apply(RowOp(row.ref, Op.SET_STATUS, who, f"{request}:status", _board_live_check(segment, who)))
     if row.taken is not None:
         receipt = writer.apply(RowOp(row.ref, Op.RELEASE, who, request, {}))
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire(), "unchanged": False}

@@ -33,5 +33,6 @@ queues. -->
 - **`FX-REQUIRES` — Host-bound row** · READY 2026-10-26 · REQUIRES windows, macos
 - **`FX-TAKEN-PLACED` — Placed-claim row** · READY 2026-10-27 · **TAKEN 2026-10-27 w1027a-mc on box-1 as nekwo in wt-w1027a-mc**
 - **`FX-GROUP` — Grouped row** · group: companion-templates · READY 2026-11-01
-- **`FX-LIVE-CHECK` — Live check row** · LIVE CHECK 2026-11-12: open the board and read the pill · REQUIRES windows, linux
+- **`FX-LIVE-CHECK` — Live check row** · LIVE CHECK 2026-11-12: open the board and read the pill · REQUIRES windows, linux · handoff 2026-11-12: the builder ran out of context before the live read
+- **`FX-LIVE-CHECK-LANE-HANDOFF` — Live check with a handoff that names its lane row** · LIVE CHECK 2026-11-12: open the board and read the pill · handoff 2026-11-12 (w1112b-lane): the pill shows only on Windows and this lane ran on Linux · REQUIRES windows
 - **`FX-DECISION` — Decision row** · DECISION 2026-11-12: Should the pill be amber? · Recommend: yes, it waits on you

@@ -73,6 +73,14 @@ ID_SHAPE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
 STATUS = re.compile(r"^(READY|BLOCKED|DEFERRED|NEEDS PLAN|LIVE CHECK|DECISION) (\d{4}-\d{2}-\d{2})(?::\s*(.*))?$", re.DOTALL)
 RULED = re.compile(r"^RULED \d{4}-\d{2}-\d{2}\b")
 RETIRED = re.compile(r"^(VERDICT|DESIGN|OWNER|PLAN|VERIFY)\b")
+#: A handoff that says something: ``handoff <date>: <words>``, a lane name allowed between the date and the colon.
+#: The launcher parser's ``_handoff`` and the backend lint's ``_HANDOFF`` are the same pattern.
+HANDOFF = re.compile(r"^handoff \d{4}-\d{2}-\d{2}\b[^:]*:\s*\S")
+#: A LIVE CHECK row says why its builder could not read it live (RT-QUEUE-LIVE-CHECK-NEEDS-HANDOFF; owner
+#: 2026-11-12, "yes" to a check for it; the rule is ``EterniaLauncher/docs/agent_context/WORK_TRACKING.md``,
+#: "The lane that builds or fixes a thing reads it live itself before it reports").
+LIVE_CHECK_NEEDS_HANDOFF = ("LIVE CHECK NEEDS HANDOFF: add ` · handoff <date>: <why the lane that built it could not "
+                            "read it live>`")
 ASSIGNEE = re.compile(r"^assignee: persona:([A-Za-z0-9_.-]+)$")
 SKILLS = re.compile(r"^skills: `[A-Za-z0-9_./-]+`(?:, `[A-Za-z0-9_./-]+`)*$")
 SKILL_SLUG = re.compile(r"^[A-Za-z0-9_./-]+$")
@@ -359,6 +367,8 @@ def _status_defects(segments: list[str]) -> list[str]:
         says = BODY_REQUIRED.get(Status(status.group(1)))
         if says is not None and not (status.group(3) or "").strip():
             defects.append(f"{status.group(1)} with no body: `{status.group(1)} <date>: <{says}>`")
+        if Status(status.group(1)) is Status.LIVE_CHECK and not any(HANDOFF.match(s) for s in segments[1:]):
+            defects.append(LIVE_CHECK_NEEDS_HANDOFF)
         if Status(status.group(1)) is not Status.BLOCKED:
             continue
         reason = blocked_reason((status.group(3) or "").strip())
@@ -667,6 +677,13 @@ def _set_status(line: str, *, who: str, date: str, payload: dict) -> str:
         raise WorkRefused(Reason.GRAMMAR_INVALID, "the row has no status segment to replace")
     asks = asks_owner(Status(new.group(1)), new.group(3))
     keep_recommend = asks and len(wanted) == 1
+    # A board's drop on LIVE CHECK carries no handoff of its own: ``payload.handoff`` is what the row then says
+    # (``agent_runtime/work/store.py::_board_live_check``). A lane's ``work_row.py set-status`` passes none, so its
+    # LIVE CHECK with no handoff is refused below, in ``apply``.
+    said = payload.get("handoff")
+    if (said and Status(new.group(1)) is Status.LIVE_CHECK
+            and not any(HANDOFF.match(s.strip()) for s in [*wanted[1:], *segments[1:]])):
+        wanted.append(f"handoff {date}: {said}")
     edited: list[str] = []
     for i, segment in enumerate(segments):
         if i == at:
