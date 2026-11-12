@@ -1061,7 +1061,10 @@ watcher writes each accepted steer to `<steer dir>/<root>/accepted/<id>.json` be
 settle (`leftover_steer.requeue_undelivered_steers`, under the root lease) queues as the root's next
 turn (`steer-next-<id>`) every record that is not in the transcript and belongs to a turn that raised,
 hit the hard wall or died — a returned turn's own steers were drained or handed back as `pending_steer`.
-Process-completion notices are not re-sent. Pins: `tests/agent_runtime/test_cut_off_turn_marker_after_tool_step.py`,
+Process-completion notices are not re-sent. The door also redacts a steer before the agent takes it
+(`_redacted`, idempotent): a steer row is the one row sent BEFORE its first flush, and the flush's wire
+boundary rewrites the live row, so an unredacted steer was sent in two forms and broke the cached
+prefix from that row on (`tests/agent_runtime/test_steer_redacted_at_the_door.py`). Pins: `tests/agent_runtime/test_cut_off_turn_marker_after_tool_step.py`,
 `tests/agent_runtime/test_steer_survives_a_failed_turn.py`.
 
 **The run budget is an accounting seam, not a scheduler.** `agent_runtime/run_budget.py` holds no

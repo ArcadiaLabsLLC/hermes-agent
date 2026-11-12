@@ -217,6 +217,15 @@ def _process_request(handle: MissionChatSteerHandle, path: Path) -> None:
         from agent.steering import PendingSteer
         from tools.process_registry_notifications import TimelineNotification
 
+        from .persona_chat_continuity.bounds import _redacted
+
+        # A steer row is sent to the model BEFORE its first flush (upstream appends it after the
+        # newest tool result and flushes it at the next tool round), and the flush's wire boundary
+        # rewrites the live row with its redacted content. Text the redactor changes was therefore
+        # sent raw once and rewritten after, so every later request differed from that row on and
+        # paid for the tail again. Redacting at this door makes the first bytes the stored bytes
+        # (RT-REDACTION-REWRITE-MAY-BREAK-PROMPT-CACHE; the redaction is idempotent).
+        message = _redacted(message)
         position = handle.input_position() if handle.input_position else {}
         text = (TimelineNotification(message, "Background process update", "process_completed")
                 if request.get("notification") is True else message)
