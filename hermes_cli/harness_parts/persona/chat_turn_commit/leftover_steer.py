@@ -30,6 +30,7 @@ from typing import Any
 from agent_runtime.chat_root_send_queue import ORIGIN_ARG
 from agent_runtime.chat_turn import INTENT_HINT_DEFAULT, OPERATOR_REQUESTED_BY, SURFACE_PROMPT_DEFAULT
 from agent_runtime.mission_chat_turns.records import STEER_OF_FIELD
+from agent_runtime.persona_chat_history.vocabulary import PERSONA_RUNTIME_NOTICE_KIND
 from agent_runtime.turn_attendance import is_work_requester
 
 __layer__ = "lanes"
@@ -51,6 +52,26 @@ def steer_ids(pending: Any) -> list[str]:
     return [platform_id for item in getattr(pending, "inputs", ()) or ()
             if getattr(item, "kind", "") == "steer"
             and (platform_id := str(getattr(item, "platform_id", None) or "").strip())]
+
+
+def _next_turn_text(pending: Any) -> str:
+    """What the next turn is sent of a hand-back: everything but the ENDED turn's own harness notices.
+
+    A runtime notice (``persona_chat_history.vocabulary.runtime_notice``: the wall checkpoint's "give
+    your final reply now", a tool-availability note) speaks to the turn it was steered into. Handed
+    back because that turn ended first, it was queued with the operator's steer — drawn in their own
+    bubble — and, alone, as a turn nobody sent (RT-LATE-STEER-CARRIES-THE-ENDED-TURNS-TIME-NOTICE, seen
+    live 2026-11-12). A background-process notice still rides: it is news for whoever runs next. A
+    hand-back that kept no provenance (upstream's plain join) is sent as it is.
+    """
+
+    inputs = getattr(pending, "inputs", None)
+    if not inputs:
+        return str(pending or "").strip()
+    # MUTATION: return ``str(pending).strip()`` here and both tests of
+    # test_late_steer_without_the_ended_turns_notice redden.
+    return "\n".join(item.text for item in inputs
+                     if getattr(item, "kind", "") != PERSONA_RUNTIME_NOTICE_KIND).strip()
 
 
 def _name_steers(persisted: dict, ids: list[str]) -> None:
@@ -149,7 +170,7 @@ def queue_leftover_steer(args: Any, *, session_id: str, client_message_id: str, 
     from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
 
     pending = raw.get("pending_steer") if isinstance(raw, dict) else None
-    text = str(pending or "").strip()
+    text = _next_turn_text(pending)
     if not text or not session_id:
         return None
     next_id = leftover_steer_client_message_id(pending, client_message_id)
