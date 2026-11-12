@@ -26,6 +26,7 @@ from agent_runtime.mission_chat_phases import (
 )
 from agent_runtime.mission_chat_steer import start_active_mission_chat_turn
 from agent_runtime.mission_chat_workdir import RUN_WORKDIR_ARG
+from agent_runtime.chat_turn_redo import TURN_MODEL_FIELDS, redone_message_ids
 from agent_runtime.mission_chat_turns.records import STEER_OF_FIELD, safe_steer_of
 from agent_runtime.mission_chat_turns.journal import (
     mark_stale_inflight_turns_interrupted,
@@ -33,7 +34,7 @@ from agent_runtime.mission_chat_turns.journal import (
     transition_mission_chat_turn,
 )
 from agent_runtime.mission_chat_turns.reads import (
-    abandoned_mission_chat_message_ids, is_abandoned_mission_chat_message,
+    abandoned_mission_chat_message_ids, is_abandoned_mission_chat_message, mission_chat_turn_records,
 )
 from agent_runtime.mission_chat_turns.states import (
     MissionChatTurnPersistOutcome,
@@ -167,7 +168,9 @@ class _RunPhases:
             native_history = _persona_chat_native_history(session_db, active_session_id)
         laps.lap("history_read")
         history_read = native_history
-        abandoned_ids = abandoned_mission_chat_message_ids(session_id=session_id)
+        abandoned_ids = abandoned_mission_chat_message_ids(session_id=session_id) | frozenset(redone_message_ids(
+            mission_chat_turn_records(session_id=session_id), current=str(self.client_message_id or ""),
+            current_redo_of=self.redo_of))
         kept_history = [
             item for item in (native_history or [])
             if not is_abandoned_mission_chat_message(
@@ -500,6 +503,8 @@ class _RunPhases:
                 MISSION_CHAT_TURN_PHASES_KEY: self.turn_phases.snapshot(),
                 # D2.04: stored once, here; every later persist merges it forward.
                 **({"retry_of": self.retry_of} if self.retry_of else {}),
+                # RT-CHAT-TURN-MODEL-AND-REDO: the model this turn alone ran on, echoed on its reply row.
+                **{key: value for key in TURN_MODEL_FIELDS if (value := getattr(self.args, key, None))},
                 # RT-CHAT-TURN-INPUT-MODE: a spoken turn stays spoken across a restart.
                 **({"input_mode": self.args.input_mode} if getattr(self.args, "input_mode", None) else {}),
                 # A late steer's own turn: the operator steers it delivers, as its queued send named them.

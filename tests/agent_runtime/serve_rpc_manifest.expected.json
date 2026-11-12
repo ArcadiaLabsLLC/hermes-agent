@@ -540,6 +540,8 @@
       "stream",
       "surface_prompt",
       "title",
+      "turn_model",
+      "turn_provider",
       "turn_request_id",
       "use_agent_default"
     ],

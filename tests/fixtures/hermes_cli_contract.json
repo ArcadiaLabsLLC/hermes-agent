@@ -6187,6 +6187,22 @@
           "required": false,
           "type": null
         },
+        "--turn-model": {
+          "action": "store",
+          "canonical": "--turn-model",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--turn-provider": {
+          "action": "store",
+          "canonical": "--turn-provider",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--use-agent-default": {
           "action": "store_true",
           "canonical": "--use-agent-default",

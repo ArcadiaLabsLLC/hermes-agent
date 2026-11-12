@@ -372,13 +372,19 @@ def _resolve_turn_model_selection(
     persona,
     config,
     instance,
+    turn_override: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """The model ONE chat turn runs: apply the turn's own override request, read
-    the session's stored one, fold the cascade, and receipt the result."""
+    the session's stored one, fold the cascade, and receipt the result.
+
+    ``turn_override`` (RT-CHAT-TURN-MODEL-AND-REDO, ``_requested_turn_model``) is folded over the
+    stored override for this turn only: nothing is written, so the next turn runs on the chat's own."""
 
     override = _resolve_chat_model_override(
         session_db=session_db, session_id=session_id, requested_override=requested_override,
     )
+    if turn_override:
+        override = {**(override or {}), **turn_override}
     lineage = _dispatch_lineage(session_db, session_id) if not (override or {}).get("model") else {}
     own_effort = (override or {}).get("reasoning_effort")
     inherited = _predecessor_override(session_db, lineage.get("predecessor_chat_session_id"))
@@ -399,7 +405,8 @@ def _resolve_turn_model_selection(
     _logger.info(
         TURN_MODEL_RECEIPT, session_id or "-", selection.get("effective_provider") or "-",
         selection.get("effective_model") or "-",
-        (override or {}).get("source") if (override or {}).get("source") in _LINEAGE_SOURCES else chat_model_source(selection),
+        (override or {}).get("source") if (override or {}).get("source") in (*_LINEAGE_SOURCES, "turn")
+        else chat_model_source(selection),
     )
     return selection
 

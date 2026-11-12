@@ -103,6 +103,8 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases, _StoppedPhases):
         self.transport_attempts = None
         # D2.04: the reply-less terminal turn this send re-runs, once admitted.
         self.retry_of: str | None = None
+        # RT-CHAT-TURN-MODEL-AND-REDO: the delivered turn this send redoes on its own model, once admitted.
+        self.redo_of: str | None = None
         self.terminal_outcome = None
 
     def _warn(self, kind, detail: object, *, step: str | None = None) -> None:

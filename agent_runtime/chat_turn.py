@@ -198,6 +198,8 @@ CHAT_MESSAGE_PARAMS: tuple[str, ...] = (
     "stream",
     "surface_prompt",
     "title",
+    "turn_model",
+    "turn_provider",
     "turn_request_id",
     "use_agent_default",
 )
@@ -420,6 +422,10 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     # retry always lives in an existing root, so it is refused without one;
     # WHICH turns it may name is the turn's own admission rule.
     retry_of = _text(params, "retry_of", limit=MAX_TURN_REQUEST_ID_LENGTH)
+    # RT-CHAT-TURN-MODEL-AND-REDO: the model THIS turn alone runs on (never the chat's, the agent's
+    # or the profile's); with ``retry_of`` naming the chat's latest delivered turn it is a redo.
+    turn_provider = _text(params, "turn_provider", limit=MAX_MODEL_OVERRIDE_LENGTH)
+    turn_model = _text(params, "turn_model", limit=MAX_MODEL_OVERRIDE_LENGTH)
     input_mode = _input_mode(params)
     if retry_of and not session_id:
         raise ChatTurnInvalid(
@@ -440,6 +446,14 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
             "model_override_conflict",
             "invalid params: use_agent_default cannot be combined with provider "
             "or model",
+        )
+    if (turn_provider or turn_model) and (provider or model or use_agent_default):
+        # A one-turn model beside a chat-model change would leave the chat on a model the
+        # operator did not pick for it (plan REGENERATE_WITH_ANOTHER_MODEL decision 3).
+        raise ChatTurnInvalid(
+            "model_override_conflict",
+            "invalid params: turn_provider/turn_model cannot be combined with provider, "
+            "model or use_agent_default",
         )
 
     max_seconds_raw = params.get("max_seconds")
@@ -517,6 +531,10 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         argv += ["--intent-hint", intent_hint]
     if retry_of:
         argv += ["--retry-of", retry_of]
+    if turn_provider:
+        argv += ["--turn-provider", turn_provider]
+    if turn_model:
+        argv += ["--turn-model", turn_model]
     if input_mode:
         argv += ["--input-mode", input_mode]
     # RT-OPERATOR-CHAT-SEND-PERSONA: pasted images ride as stored references, never bytes or paths.

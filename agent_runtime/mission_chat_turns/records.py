@@ -98,6 +98,9 @@ _JOURNAL_TEXT_FIELDS = {
     # D2.04: the client_message_id of the reply-less terminal turn this turn
     # re-runs. Stored once, on the retry; the original record is never written.
     "retry_of": 240,
+    # RT-CHAT-TURN-MODEL-AND-REDO: the provider and model THIS turn alone ran on (a redo's), echoed on its reply row.
+    "turn_provider": 200,
+    "turn_model": 200,
     # RT-CHAT-TURN-INPUT-MODE: ``typed`` / ``voice``, as the operator's send said (absent: typed).
     "input_mode": 16,
     # RT-NAMING-ADDRESS-VALUE: the turn's typed address (``agent_runtime.address``), stamped once at

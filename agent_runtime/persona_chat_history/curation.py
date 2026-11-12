@@ -438,6 +438,24 @@ class _AgentCurator:
         _carry_run_budget(row, turn_record)
         # What the turn left behind, copied off the same record (agent_runtime.turn_outcome).
         _carry_turn_outcome(row, turn_record)
+        if _is_reply_row(ctx.raw):
+            _carry_redo(state, row, turn_record, str(ctx.logical_client_message_id or ""))
+
+
+def _carry_redo(state: CurationState, row: dict[str, Any], record: Mapping[str, Any] | None, turn: str) -> None:
+    """RT-CHAT-TURN-MODEL-AND-REDO, on a turn's reply row: the model a redo ran on, and ``retried_as``
+    on the delivered reply a redo replaced (a reply-less turn's marker carries it already)."""
+
+    from ..chat_turn_redo import TURN_MODEL_FIELDS
+    from .markers import _retried_as_by_origin
+
+    for key in TURN_MODEL_FIELDS:
+        if value := safe_assignment_text((record or {}).get(key), limit=200):
+            row[key] = value
+    if state.retried_as is None:
+        state.retried_as = _retried_as_by_origin(state.turn_records)
+    if turn in state.retried_as:
+        row["retried_as"] = state.retried_as[turn]
 
 
 #: The transcript roles that render, each with its curator. ``MessageRole.SYSTEM``
@@ -460,6 +478,8 @@ class CurationState:
     turn_records: list[dict[str, Any]]
     turn_records_by_message: dict[str, dict[str, Any]]
     rows: list[dict[str, Any]] = field(default_factory=list)
+    # ``origin -> newest retry naming it``, read once off ``turn_records`` when a reply row first asks.
+    retried_as: dict[str, str] | None = None
     redacted: bool = False
     preview: bool = True
     assistant_client_message_ids: set[str] = field(default_factory=set)

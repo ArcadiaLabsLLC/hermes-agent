@@ -20,7 +20,7 @@ from agent_runtime.mission_chat_outcome import (
 )
 from agent_runtime.mission_chat_turns.journal import transition_mission_chat_turn
 from agent_runtime.provider_dependency_error import MODEL_UNSET_REASON
-from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record
+from agent_runtime.mission_chat_turns.reads import mission_chat_turn_record, mission_chat_turn_records
 from agent_runtime.mission_chat_turns.states import (
     REPLY_RECOVERABLE_TURN_STATES,
     RESEND_BLOCKING_TURN_STATES,
@@ -53,6 +53,7 @@ from ..chat_request import (
     _invalid_chat_model_override_payload,
     _invalid_operator_message_payload,
     _requested_chat_model_override,
+    _requested_turn_model,
     _retired_persona_instance_payload,
 )
 from agent_runtime.persona_chat_session import (
@@ -298,6 +299,8 @@ class _AdmitPhases:
                 persona=self.persona,
                 config=self.cfg,
                 instance=instance,
+                # RT-CHAT-TURN-MODEL-AND-REDO: this turn's own model, never persisted.
+                turn_override=_requested_turn_model(args),
             )
         except ValueError as exc:
             data = _invalid_chat_model_override_payload(
@@ -502,7 +505,7 @@ class _AdmitPhases:
         if retry_of != self.client_message_id:
             target = mission_chat_turn_record(session_id=self.session_id, client_message_id=retry_of)
         target_state = safe_assignment_token((target or {}).get("state")) or None
-        if target_state in TERMINAL_TURN_MARKERS:
+        if target_state in TERMINAL_TURN_MARKERS or self._is_redo_of(retry_of):
             self.retry_of = retry_of
             return self._reattach_retried(target, retry_of)
         data = {
@@ -517,11 +520,25 @@ class _AdmitPhases:
             "client_message_id": self.client_message_id,
             "retry_of": retry_of,
             "retry_target_state": target_state,
-            "error": "retry_of names no interrupted or budget-exhausted turn of this chat",
+            "error": "retry_of names no interrupted or budget-exhausted turn of this chat"
+                     + (", nor its latest delivered turn" if getattr(self.args, "turn_model", None) else ""),
             "next_expected": "send the message again without retry_of; nothing was run",
         }
         _mission_chat_emit(self.args, data)
         return 2
+
+    def _is_redo_of(self, retry_of: str) -> bool:
+        """RT-CHAT-TURN-MODEL-AND-REDO: ``retry_of`` with ``turn_model`` may name the chat's LATEST delivered turn."""
+
+        from agent_runtime.chat_turn_redo import latest_delivered_turn
+
+        if not getattr(self.args, "turn_model", None):
+            return False
+        records = mission_chat_turn_records(session_id=self.session_id)
+        if latest_delivered_turn(records, current=self.client_message_id) != retry_of:
+            return False
+        self.redo_of = retry_of
+        return True
 
     def _reattach_retried(self, target: Mapping[str, Any], retry_of: str) -> int | None:
         """RT-PENDING-ATTACHMENTS-NO-READER: a retry sent with no attachments re-attaches the retried turn's.

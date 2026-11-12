@@ -404,7 +404,8 @@ def _carry_turn_seq(message: dict[str, Any], row: dict[str, Any]) -> None:
 def _carry_retry_lineage(message: dict[str, Any], row: dict[str, Any]) -> None:
     # D2.04: ``retry_of`` on a retry's operator row, ``retried_as`` on the marker
     # of the turn it re-ran. Absent stays absent.
-    for key in ("retry_of", "retried_as"):
+    # RT-CHAT-TURN-MODEL-AND-REDO: the model a redo ran on, on its reply row.
+    for key in ("retry_of", "retried_as", "turn_provider", "turn_model"):
         value = safe_assignment_text(row.get(key), limit=240)
         if value:
             message[key] = value

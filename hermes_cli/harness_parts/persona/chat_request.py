@@ -30,6 +30,7 @@ __all__ = [
     "_mission_chat_clarify_request_payload",
     "_mission_chat_retired_target_refusal",
     "_requested_chat_model_override",
+    "_requested_turn_model",
     "_resolve_mission_chat_clarify_binding",
     "_retired_persona_instance_payload",
     "_settle_mission_chat_clarify_binding",
@@ -112,6 +113,21 @@ def _requested_chat_model_override(args) -> dict[str, object] | None:
         "scope": "mission_control_chat_session",
         "updated_at": datetime.now(UTC).isoformat(),
     }
+
+
+def _requested_turn_model(args) -> dict[str, object] | None:
+    """RT-CHAT-TURN-MODEL-AND-REDO: the model THIS turn alone runs on, or ``None``.
+
+    Folded over the chat's stored override for one turn and never persisted, so the chat, the
+    agent and the profile keep their models. Beside a chat-model change it is refused (the same
+    rule ``runtime.chat.message`` applies at its door, ``model_override_conflict``)."""
+    provider = _safe_chat_model_override_value(getattr(args, "turn_provider", None), field="turn_provider")
+    model = _safe_chat_model_override_value(getattr(args, "turn_model", None), field="turn_model")
+    if not provider and not model:
+        return None
+    if getattr(args, "use_agent_default", False) or getattr(args, "provider", None) or getattr(args, "model", None):
+        raise ValueError("turn_provider/turn_model cannot be combined with provider, model or use_agent_default")
+    return {"provider": provider, "model": model, "source": "turn"}
 
 
 def _missing_chat_message_payload() -> dict[str, object]:
