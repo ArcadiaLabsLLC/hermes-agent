@@ -253,6 +253,10 @@ class HistoryMessage:
         for key in ("resolution", "operator_message_present"):
             if key in self.row:
                 message[key] = self.row[key]
+        if self.row.get("stopped") is True:
+            # Stopped on purpose, not cut off by a crash: the typed mark, so no consumer has to match the
+            # sentence (RT-STOPPED-REPLY-STORED-CHAT-DOES-NOT-SAY-STOPPED).
+            message["stopped"] = True
         if self.client_message_id:
             message["client_message_id"] = self.client_message_id
         if turn_id:

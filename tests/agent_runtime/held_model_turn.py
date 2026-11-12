@@ -28,6 +28,8 @@ class HeldModel(ThreadingHTTPServer):
         self.daemon_threads = True
         self.entered, self.release = threading.Event(), threading.Event()
         self.hold = True
+        #: Text a held call streams BEFORE it waits: the half-written reply a Stop lands on.
+        self.partial = ""
         #: Every chat request body, in arrival order (the QA fixture's ``/qa/state``).
         self.requests: list[dict] = []
         #: ``reply(body) -> (text, finish_reason)`` for a call that is not held.
@@ -64,18 +66,26 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         self.server.requests.append(body)
-        self.server.entered.set()
-        if self.server.hold:
-            self.server.release.wait(60)
-        text, finish = self.server.reply(body)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()  # HTTP/1.0: the stream ends when the connection closes
         base = {"id": "r", "object": "chat.completion.chunk", "created": 1, "model": "test-model"}
-        rows = [{**base, "choices": [{"index": 0, "delta": {"role": "assistant", "content": text},
-                                      "finish_reason": None}]},
-                {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": finish}],
-                 "usage": {"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15}}]
+
+        def chunk(delta: dict, finish: str | None, **extra) -> None:
+            row = {**base, "choices": [{"index": 0, "delta": delta, "finish_reason": finish}], **extra}
+            self.wfile.write(("data: " + json.dumps(row) + "\n\n").encode())
+            self.wfile.flush()
+
         try:
-            self._send("text/event-stream", ("".join("data: " + json.dumps(r) + "\n\n" for r in rows)
-                                             + "data: [DONE]\n\n").encode())
+            if self.server.hold and self.server.partial:
+                chunk({"role": "assistant", "content": self.server.partial}, None)
+            self.server.entered.set()
+            if self.server.hold:
+                self.server.release.wait(60)
+            text, finish = self.server.reply(body)
+            chunk({"role": "assistant", "content": text}, None)
+            chunk({}, finish, usage={"prompt_tokens": 12, "completion_tokens": 3, "total_tokens": 15})
+            self.wfile.write(b"data: [DONE]\n\n")
         except OSError:
             pass  # the stopped turn hung up
 
@@ -109,6 +119,42 @@ class Running:
         if self.error is not None:
             raise self.error
         return self.result
+
+
+def operator_turn(instance_id: str, root: str, cmid: str, message: str) -> Running:
+    """An operator send, running: admitted (a receipt), in a serve in-flight table, under its interrupt scope.
+
+    ``.stop()`` on the returned run is the serve's own ``interrupt_operator`` seam for that table, to hand
+    to :func:`operator_call` — the console's Stop is then the hard stop it is live.
+    """
+
+    from functools import partial
+    from types import SimpleNamespace
+
+    from agent.interrupt_scope import InterruptScope, bind_interrupt_scope
+    from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD
+    from agent_runtime.chat_turn_reservations import reserve_chat_turn, settle_chat_turn
+    from agent_runtime.mission_chat_door import run_mission_chat_turn
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+    from agent_runtime.work_store.persona_turn import _turn_args
+    from hermes_cli.harness_parts.serve.operator_interrupt import interrupt_operator_turn
+
+    with reserve_chat_turn(turn_request_id=cmid, verb=CHAT_MESSAGE_METHOD, session_scope=root) as reservation:
+        reservation.mark_accepted({"turn_request_id": cmid}, request_id=f"req-{cmid}")
+    scope = InterruptScope()
+    serve = SimpleNamespace(inflight_lock=threading.Lock(),
+                            inflight={cmid: SimpleNamespace(turn_request_id=cmid, interrupt_scope=scope)})
+    args = _turn_args(PersonaInstanceStore().get(instance_id), root, cmid, message, "gateway_device")
+
+    def _run():
+        with bind_interrupt_scope(scope):
+            exit_code, payload = run_mission_chat_turn(args)
+        settle_chat_turn(turn_request_id=cmid, exit_code=exit_code)
+        return exit_code, payload
+
+    run = Running(_run)
+    run.interrupt_operator = partial(interrupt_operator_turn, serve)
+    return run
 
 
 def operator_params(instance: str, root: str, turn_request_id: str, *, persona: str, workspace: str) -> dict:
