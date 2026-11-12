@@ -524,6 +524,32 @@ def test_a_scheduled_run_s_ending_is_its_schedule_s_last_result(board):
     assert late["verdict"] == "failed" and late["detail"].startswith("ran out of time (")
 
 
+def test_a_repeating_schedule_waits_for_the_owners_answer_before_it_runs_the_task_again(board):
+    """RT-SCHEDULE-REPEAT-RUNS-A-TASK-THAT-WAITS-ON-THE-OWNER: a run that ended BLOCKED on a question is not
+    re-run every fire; the fire is skipped (no count) until the row is answered. A FAILED run's row
+    (NEEDS PLAN) is retried — that is what a repeat is for."""
+
+    from agent_runtime.work_store import schedule_store
+
+    writer, engine, executor, scheduler, (t1, t2, t3) = _task_schedule(board, _row("RT-S"))
+    scheduler.tick(t1)
+    executor.settle(executor.started[0], RowEnding(Verdict.BLOCKED, question="ship on Friday?", recommend="yes"))
+    assert _rows(writer)["RT-S"].status is Status.BLOCKED
+    engine.tick()
+    [skipped] = scheduler.tick(t2)
+    assert skipped["kind"] == "schedule.skipped" and skipped["reason"] == "waits_on_owner"
+    assert len(executor.started) == 1 and _rows(writer)["RT-S"].taken is None
+    result = schedule_store.last_result("nightly")
+    assert result["verdict"] == "skipped" and result["detail"] == "the task is waiting on your answer"
+    assert result["run_id"] is None and schedule_store.load_one("nightly").fires == 1
+    note = writer.worktree / NOTE
+    text = note.read_text(encoding="utf-8")
+    line = next(l for l in text.split("\n") if "RT-S" in l)
+    note.write_text(text.replace(line, _row("RT-S", status=f"NEEDS PLAN {DATE}: the last run failed")), encoding="utf-8")
+    [fire] = scheduler.tick(t3)
+    assert fire["kind"] == "schedule.fire" and fire["refused"] is None and len(executor.started) == 2
+
+
 # ── RT-WORK-CLAIM-RUNS-UNTIL-DONE: the goal mode kept with a claim is the run's ──
 
 

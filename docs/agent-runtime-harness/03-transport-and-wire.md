@@ -2040,7 +2040,9 @@ row instead of archiving it, so the task is open and unclaimed for the next fire
 gone removes the schedule (`schedule.abandoned`, `reason: row_gone`), a fire while the task's last run is
 live is SKIPPED when `skip_while_running` (advances `next_fire`, counts nothing, `last_result.verdict:
 skipped`, receipt `schedule.skipped`) and refused `already_taken` when not, and a board that cannot be read
-just then refuses that one fire. A refused fire writes `last_result.verdict: refused`; a run's ending writes
+just then refuses that one fire. A repeating `run_task` whose row asks the owner a question (`DECISION`, or
+`BLOCKED … owner decision` — an earlier run's) is skipped the same way until it is answered (`last_result.detail:
+"the task is waiting on your answer"`, `run_id: null`, receipt `schedule.skipped` `reason: waits_on_owner`). A refused fire writes `last_result.verdict: refused`; a run's ending writes
 its verdict when it settles (a `persona_prompt` fire starts no run and writes none).
 The persona tool arms a `run_task` as well (`run_task: {…}` in place of `prompt`), the same record.
 The persona tool is `schedule_manage`, in the opt-in `schedule` toolset (never `harness_core`). Receipts:

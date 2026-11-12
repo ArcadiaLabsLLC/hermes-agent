@@ -55,7 +55,7 @@ from .board import board_rows, pick
 from .executor import (
     CAUSE_OUT_OF_TIME, Assignment, Brief, Executor, GoalMode, Outcome, RowEnding, Run, RunStatus, StopReason, Verdict,
 )
-from .grammar import Op, Row, RowRef, Status, render_status, segment_text
+from .grammar import Op, Row, RowRef, Status, asks_owner, render_status, segment_text
 from .reasons import Reason, WorkRefused
 
 __layer__ = "lanes"
@@ -402,13 +402,21 @@ class WorkEngine:
 
         The brief is the row as it reads now (title, body, pointers, lent skills — :meth:`_assignment`),
         for the agent and goal mode the action names, so nothing is frozen at arm time. ``repeats`` marks a
-        run of an ``every`` / ``cron`` schedule: its DONE releases the row for the next fire. The row is
+        run of an ``every`` / ``cron`` schedule: its DONE releases the row for the next fire, and it is not
+        started at all while the row asks the owner a question (``DECISION``, or ``BLOCKED … owner decision``
+        — an earlier run's; ``task_not_ready`` with ``data.waits_on_owner``, which the scheduler records as a
+        skipped fire: ``RT-SCHEDULE-REPEAT-RUNS-A-TASK-THAT-WAITS-ON-THE-OWNER``). The row is
         looked for in the action's workspace only; ``row_gone`` when it is not there.
         """
 
         with self._lock:
             workspace_id, row, writer = self._locate(RowRef(action.slot, "", action.task_id),
                                                      workspace_id=action.workspace_id)
+            # MUTATION: drop this arm and test_engine's "a repeating schedule waits for the owner's answer"
+            # reddens (the agent is run again and asks the same question every fire).
+            if repeats and asks_owner(row.status, row.status_body):
+                raise WorkRefused(Reason.TASK_NOT_READY, "the task is waiting on your answer",
+                                  data={"waits_on_owner": True})
             assignment = self._assignment(row, writer, request_id, persona=action.persona_instance_id,
                                           goal_mode=GoalMode(action.goal_mode))
             return self._adopt_row(workspace_id, row, writer, assignment, origin, repeats=repeats)

@@ -31,6 +31,7 @@ Manual by default: nothing fires unless an operator armed it (``runtime.schedule
   whose next fire falls after the time, is removed with a ``schedule.ended`` receipt.
 * **``skip_while_running``** (default on for a ``RunTask``): a fire that finds the task's last run still
   live advances ``next_fire``, counts nothing and records a ``skipped`` ``last_result`` (``schedule.skipped``).
+  A repeating ``RunTask`` whose row asks the owner a question is skipped the same way until it is answered.
 * **``last_result``** (``schedule_store.write_result``): written here for a ``skipped`` or ``refused`` fire,
   and by the Work engine when the fire's run settles (``RunRecord.schedule``).
 * **The cap.** At most ``max_parallel`` scheduled turns in flight — the root config's
@@ -77,6 +78,9 @@ ABANDON_AFTER = timedelta(minutes=15)
 #: The send-queue origin key a scheduled fire carries (the ``scheduled_turn`` lane reads it).
 ORIGIN_KEY = send_queue.SCHEDULE_ORIGIN_KEY
 _ONE_SHOT = frozenset({TriggerKind.AT, TriggerKind.WHEN_IDLE})
+#: ``last_result.detail`` of a skipped fire, by why it was skipped.
+_SKIP_RUNNING = "the task's last run was still going"
+_SKIP_WAITS = "the task is waiting on your answer"
 #: The kinds whose schedule fires again: a ``RunTask`` run of one leaves its task open when it ends DONE.
 _REPEATING = frozenset({TriggerKind.EVERY, TriggerKind.CRON})
 
@@ -361,21 +365,25 @@ class ServeTickScheduler:
                                   reason=refused.reason.value, detail=refused.detail)]
         nxt = None if record.trigger.kind in _ONE_SHOT else _NEXT_FIRE[record.trigger.kind](record.trigger, now)
         live_run = refused.data.get("live_run") if refused is not None else None
-        skipped = bool(live_run) and record.skip_while_running
+        # A repeating task whose last run asked the owner a question is skipped until it is answered,
+        # whatever ``skip_while_running`` says (the engine refuses it ``waits_on_owner``).
+        waits = refused is not None and bool(refused.data.get("waits_on_owner"))
+        skipped = waits or (bool(live_run) and record.skip_while_running)
         # MUTATION: count every fire (``fires + 1`` unconditionally) and test_serve_tick_scheduler's "a refused
         # fire counts nothing" reddens.
         after = record.evolve(next_fire=nxt, last_fire=now, held_since=None, idle_ticks=0,
                               fires=record.fires + (1 if refused is None else 0))
         if skipped:
-            schedule_store.write_result(record.key, "skipped", at=now, run_id=str(live_run),
-                                        detail="the task's last run was still going")
+            schedule_store.write_result(record.key, "skipped", at=now, run_id=None if waits else str(live_run),
+                                        detail=_SKIP_WAITS if waits else _SKIP_RUNNING)
         elif refused is not None:
             schedule_store.write_result(record.key, "refused", at=now,
                                         detail=f"{refused.reason.value}: {refused.detail}")
         if skipped:
             receipt = receipts.emit("schedule.skipped", key=record.key, trigger=record.trigger.kind.value,
                                     next_fire=nxt, action=type(record.action).__name__, fire=fire_id,
-                                    run_id=str(live_run))
+                                    run_id=None if waits else str(live_run),
+                                    reason="waits_on_owner" if waits else "still_running")
         else:
             receipt = receipts.emit("schedule.fire", key=record.key, trigger=record.trigger.kind.value, next_fire=nxt,
                                     action=type(record.action).__name__, fire=fire_id, waited_s=waited, **result,
