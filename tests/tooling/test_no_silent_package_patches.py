@@ -43,7 +43,9 @@ from __future__ import annotations
 import ast
 import functools
 import json
+import os
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -87,6 +89,7 @@ class ForkModules:
             if path.endswith(".py"):
                 self.paths[probe.module_name(path)] = path
         self._trees: dict[str, ast.Module | None] = {}
+        self._bindings: dict[str, list[tuple[str, str, bool]]] = {}
         self._by_name: dict[str, list[tuple[str, str, bool]]] | None = None
 
     def tree(self, dotted: str) -> ast.Module | None:
@@ -110,8 +113,17 @@ class ForkModules:
                 return True
         return False
 
-    def bindings(self, dotted: str):
-        """``(source module, name, module_scope)`` for every ``from … import`` in *dotted*."""
+    def bindings(self, dotted: str) -> list[tuple[str, str, bool]]:
+        """``(source module, name, module_scope)`` for every ``from … import`` in *dotted*.
+
+        Walked once per module: ``silent_readers`` asks a package for its bindings once per name
+        it re-exports, and the census walk asked ~147,000 times (FH-SILENT-PATCH-WALK-OVER-BUDGET-
+        BESIDE-FILES)."""
+        if dotted not in self._bindings:
+            self._bindings[dotted] = list(self._walk_bindings(dotted))
+        return self._bindings[dotted]
+
+    def _walk_bindings(self, dotted: str):
         tree = self.tree(dotted)
         if tree is None:
             return
@@ -254,6 +266,75 @@ def _census(root: Path) -> frozenset[str]:
 _WALK_BUDGET = pytest.mark.timeout(120)
 
 
+#: Lines ``git grep`` prints after each call; a call whose window runs past them (short lines, or
+#: a call near the end of the file) has its file read whole instead.
+_GREP_AFTER = 10
+_WINDOW = 240
+
+Windows = tuple[list[str], list[str]]
+
+
+def _windows_in(text: str) -> Windows:
+    """The ``_WINDOW`` characters after each ``monkeypatch.setattr(`` and each ``patch_where_bound(``."""
+    return (
+        [text[m.end() : m.end() + _WINDOW] for m in _SETATTR.finditer(text)],
+        [text[m.end() : m.end() + _WINDOW] for m in _HELPER.finditer(text)],
+    )
+
+
+def _grep_windows(root: Path) -> dict[str, Windows | None] | None:
+    """``{normcased path: its windows, or None to read it whole}`` for every test file naming a patch call.
+
+    ONE ``git grep`` over tracked, untracked AND ignored files (the set ``rglob`` walks) names the
+    files and prints the lines after each call. Opening every one of the ~9,500 files under
+    ``tests/`` to find the calls was most of the walk's wall: 181 of 309 s profiled were ``open``
+    under load on Windows, ~17-24 ms an open (FH-SILENT-PATCH-WALK-OVER-BUDGET-BESIDE-FILES). Now a
+    file is opened only when its windows name a hot name and it must be parsed. ``None`` outside a
+    git checkout (a planted tree): every file is read, as before.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "grep", "-z", "-n", f"-A{_GREP_AFTER}", "--untracked", "--no-exclude-standard", "-E",
+             r"monkeypatch\.setattr\(|patch_where_bound\(", "--", "tests/*.py"],
+            cwd=root, capture_output=True, check=False,
+        )
+    except OSError:
+        return None
+    if out.returncode not in (0, 1) or not (root / ".git").exists():  # 1: no match; else not a checkout
+        return None
+    runs: dict[str, list[list[str]]] = {}
+    last: dict[str, int] = {}
+    for line in out.stdout.decode("utf-8", "replace").split("\n"):
+        parts = line.split("\0", 2)
+        if len(parts) != 3:
+            continue  # the "--" between hunks, or the trailing empty line
+        rel, number = parts[0], int(parts[1])
+        if last.get(rel) != number - 1:
+            runs.setdefault(rel, []).append([])
+        runs[rel][-1].append(parts[2].removesuffix("\r"))
+        last[rel] = number
+    found: dict[str, Windows | None] = {}
+    for rel, file_runs in runs.items():
+        windows: Windows | None = ([], [])
+        for run in file_runs:
+            text = "\n".join(run) + "\n"
+            calls, helpers = _windows_in(text)
+            if "\r" in text or "﻿" in text or any(len(w) < _WINDOW for w in calls + helpers):
+                windows = None  # a bare CR, a BOM, or the printed lines end inside a window
+                break
+            windows[0].extend(calls)
+            windows[1].extend(helpers)
+        found[os.path.normcase(str(root / rel))] = windows
+    return found
+
+
+def _candidate_test_files(root: Path) -> list[Path]:
+    """The test files that can hold a site: those naming ``monkeypatch.setattr(`` or ``patch_where_bound(``."""
+    every = sorted((root / "tests").rglob("*.py"))
+    found = _grep_windows(root)
+    return every if found is None else [path for path in every if os.path.normcase(str(path)) in found]
+
+
 def silent_package_patches(root: Path = probe.ROOT) -> set[str]:
     modules = ForkModules(root)
     # Only a name some package re-exports to a silent reader can make a site; a
@@ -267,15 +348,20 @@ def silent_package_patches(root: Path = probe.ROOT) -> set[str]:
     }
     aliased = {bound for dotted in modules.paths for _, bound in modules.aliased_bindings(dotted)}
     live: set[str] = set()
+    grepped = _grep_windows(root)
     for path in sorted((root / "tests").rglob("*.py")):
         if "fixtures" in path.parts:
             continue
-        try:
-            text = source_cache.source(path)
-        except OSError:
-            continue
-        calls = [text[m.end() : m.end() + 240] for m in _SETATTR.finditer(text)]
-        helper_calls = [text[m.end() : m.end() + 240] for m in _HELPER.finditer(text)]
+        key = os.path.normcase(str(path))
+        if grepped is not None and key not in grepped:
+            continue  # names no patch call: never opened
+        windows = grepped[key] if grepped is not None else None
+        if windows is None:
+            try:
+                windows = _windows_in(source_cache.source(path))
+            except OSError:
+                continue
+        calls, helper_calls = windows
         setattr_hot = any(hot.intersection(_IDENT.findall(call)) for call in calls)
         helper_hot = any(aliased.intersection(_IDENT.findall(call)) for call in helper_calls)
         if not (setattr_hot or helper_hot):
@@ -420,3 +506,59 @@ def test_patch_where_bound_reaches_a_reader_outside_the_package(monkeypatch):
     patch_where_bound(monkeypatch, config, "load_agent_runtime_config", stub)
     assert config.load_agent_runtime_config is stub
     assert migrations.load_agent_runtime_config is stub
+
+
+def test_only_test_files_naming_a_patch_call_are_read_and_ignored_files_still_count(tmp_path):
+    """FH-SILENT-PATCH-WALK-OVER-BUDGET-BESIDE-FILES: one ``git grep`` picks the files to open.
+
+    KILLING MUTATION: drop ``--no-exclude-standard`` -> the ignored file the rglob walk always saw
+    is skipped and this reddens; return every file -> the plain file is read and this reddens."""
+    import subprocess as sp
+
+    sp.run(["git", "init", "-q", str(tmp_path)], check=True)
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tmp_path / ".gitignore").write_text("tests/ignored_*.py\n", encoding="utf-8")
+    (tests / "test_patch.py").write_text("def t(monkeypatch):\n    monkeypatch.setattr(x, 'y', 1)\n", encoding="utf-8")
+    (tests / "test_helper.py").write_text("patch_where_bound(monkeypatch, m, 'n', 1)\n", encoding="utf-8")
+    (tests / "test_plain.py").write_text("def test_a():\n    assert True\n", encoding="utf-8")
+    (tests / "ignored_patch.py").write_text("monkeypatch.setattr(x, 'y', 1)\n", encoding="utf-8")
+    picked = [p.name for p in _candidate_test_files(tmp_path)]
+    assert picked == ["ignored_patch.py", "test_helper.py", "test_patch.py"]
+
+
+def test_a_call_the_printed_lines_cover_is_answered_without_opening_its_file(tmp_path):
+    """KILLING MUTATION: map every grepped file to ``None`` (read it whole) -> the covered call's
+    windows are missing and this reddens; drop the short-window check -> the call at the end of
+    its file keeps a window shorter than the file would give and this reddens."""
+    import subprocess as sp
+
+    sp.run(["git", "init", "-q", str(tmp_path)], check=True)
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    filler = "".join(f"    x{i} = '{'y' * 40}'\n" for i in range(12))
+    covered = "def t(monkeypatch):\n    monkeypatch.setattr(pkg, 'emit', 1)\n" + filler
+    (tests / "test_covered.py").write_text(covered, encoding="utf-8")
+    (tests / "test_at_end.py").write_text("def t(monkeypatch):\n    monkeypatch.setattr(pkg, 'emit', 1)\n", encoding="utf-8")
+    found = _grep_windows(tmp_path)
+    assert found[os.path.normcase(str(tests / "test_covered.py"))] == _windows_in(covered)
+    assert found[os.path.normcase(str(tests / "test_at_end.py"))] is None
+
+
+def test_a_module_s_bindings_are_walked_once(tmp_path, monkeypatch):
+    """KILLING MUTATION: make ``bindings`` return ``list(self._walk_bindings(dotted))`` uncached ->
+    the package is walked once per question and this reddens."""
+    pkg = tmp_path / "agent_runtime" / "splitpkg"
+    pkg.mkdir(parents=True)
+    (tmp_path / "agent_runtime" / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "__init__.py").write_text("from .impl import emit, other\n", encoding="utf-8")
+    (pkg / "impl.py").write_text("def emit():\n    return 1\n\ndef other():\n    return 2\n", encoding="utf-8")
+    files = ["agent_runtime/__init__.py", "agent_runtime/splitpkg/__init__.py", "agent_runtime/splitpkg/impl.py"]
+    monkeypatch.setattr(probe, "fork_production_files", lambda root, *a, **k: list(files))
+    modules = ForkModules(tmp_path)
+    walks: list[str] = []
+    walk = modules._walk_bindings
+    monkeypatch.setattr(modules, "_walk_bindings", lambda dotted: walks.append(dotted) or walk(dotted))
+    for name in ("emit", "other", "emit"):
+        silent_readers(modules, "agent_runtime.splitpkg", name)
+    assert walks.count("agent_runtime.splitpkg") == 1
