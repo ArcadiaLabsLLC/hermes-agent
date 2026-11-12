@@ -961,6 +961,21 @@ other turn, and on a `steer-next-…` turn whose hand-back kept no ids — that 
 the steer was typed at>`, which names no steer. A client links the steer it echoed to the turn that delivers it
 by this field, never by taking the `steer-next-` prefix off a turn id.
 
+**What a late steer's own turn runs as (RT-LATE-STEER-TURN-RUNS-AS-THE-WORK-REQUEST-IT-WAS-TYPED-AT, owner
+ruling 2026-11-12: "it should be an ordinary chat message").** Every `steer-next-…` send is written by one
+function (`chat_turn_commit/leftover_steer.py::_next_turn_send`), from the persisted send of the turn the
+steer was typed at. Typed at an operator's own send, or at a pass of an until-done run, it keeps that send
+(requester, budget, origin) with only the message and its ids replaced — an until-done run's late steer is a
+turn of the run. Typed at a single Work pass or a wave lane's turn, it is the OPERATOR'S OWN send on that
+chat, what `runtime.chat.message` would have queued: `requested_by` `gateway_device`, no `max_seconds` (a turn
+a person sent has no wall clock), no `run_workdir` (the agent's own folder, never the lane's worktree), and
+the origin `{owner: null, gateway: false}` — no `kind: work`, request, rows, lane or lent skills. So its
+`chat_turn` running-work row carries no `work_request`, its settle goes to the chat (not to the Work
+executor's listeners), and the run is reported ended once, on its own turn's reply: `work.exec_settle` is
+emitted once per run and the board card shows the run as it ended. A steer too late for THAT turn is again
+the operator's own message. `steer_of` is stated the same way in every case. Pins:
+`tests/agent_runtime/test_late_steer_at_a_work_turn.py`.
+
 **`images` on `runtime.chat.message` (RT-OPERATOR-CHAT-SEND-PERSONA, 2026-10-18).**
 `[{media_type: image/png|image/jpeg, data_b64}]`, at most 4, each at most 5 MiB
 decoded, magic bytes matching the declared type; refusals `image_invalid` /
@@ -2060,8 +2075,10 @@ watcher is up — an operator's streaming send and a Work turn (a wave lane's, a
 pass) from the moment the agent is built until the turn's cleanup — and false for a turn that starts none
 (a forged result delivery, a dispatch reply, a relay, a schedule's fire, a platform message), for a turn
 written ahead whose agent is still being built, and for a crashed turn still listed in flight. A late
-steer's own turn (`steer-next-…`) is queued with the send of the turn it was typed at, so it takes a steer
-when that turn did. The row and `runtime.chat.steer` read ONE record
+steer's own turn (`steer-next-…`) typed at an operator's send or an until-done pass is queued with the send of
+that turn, so it takes a steer when that turn did; one typed at a single Work pass or a wave lane's turn is the
+operator's own message (below), so it takes a steer exactly when an operator's send does — while it streams.
+The row and `runtime.chat.steer` read ONE record
 (`agent_runtime/mission_chat_steer.py::steer_taking_turn`), so a steer sent while the row says true is
 admitted and one sent while every row of the conversation says false is refused `no_active_turn`; a client
 never infers it from the turn's kind or its id. A turn can still end between the read and the steer: the

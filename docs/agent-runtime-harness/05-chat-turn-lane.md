@@ -1072,7 +1072,12 @@ whose lease is free at once, rather than at the operator's next send; a held lea
 skipped (`tests/agent_runtime/test_dead_turn_steer_boot_requeue.py`). Each `steer-next-…` send names the
 operator steers it delivers (`steer_of`, a list of their client message ids; `leftover_steer._name_steers`), the
 turn writes that ahead on its journal record, and the stored operator row carries it
-(`tests/agent_runtime/test_steer_next_turn_names_its_steer.py`). The door also redacts a steer before the agent takes it
+(`tests/agent_runtime/test_steer_next_turn_names_its_steer.py`). All three sites write the send through
+`leftover_steer._next_turn_send`: it keeps the send of the turn the steer was typed at, except that a steer
+typed at a single Work pass or a wave lane's turn is queued as the operator's own message — their requester,
+no time budget, the agent's own folder, an origin naming no run — so the run is reported ended once and the
+late message is answered like any other (owner ruling 2026-11-12; an until-done run's late steer stays a turn
+of the run; `tests/agent_runtime/test_late_steer_at_a_work_turn.py`). The door also redacts a steer before the agent takes it
 (`_redacted`, idempotent): a steer row is the one row sent BEFORE its first flush, and the flush's wire
 boundary rewrites the live row, so an unredacted steer was sent in two forms and broke the cached
 prefix from that row on (`tests/agent_runtime/test_steer_redacted_at_the_door.py`). Pins: `tests/agent_runtime/test_cut_off_turn_marker_after_tool_step.py`,

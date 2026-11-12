@@ -158,6 +158,10 @@ MAX_MODEL_OVERRIDE_LENGTH = 200
 SURFACE_PROMPT_DEFAULT = ""
 INTENT_HINT_DEFAULT = "chat"
 
+#: ``--requested-by`` of the operator's own send through :func:`normalize_chat_message` — and of a too-late
+#: steer's own turn at a one-shot Work run, which is that send (``chat_turn_commit/leftover_steer.py``).
+OPERATOR_REQUESTED_BY = "gateway_device"
+
 #: R-C8. Every param key :func:`normalize_chat_message` reads, sorted, spelled
 #: ONCE — this tuple is what :func:`agent_runtime.serve_rpc.manifest` advertises
 #: under ``params``, so the advertisement cannot drift from the code that
@@ -475,7 +479,7 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
         # cannot be a param, and a client that could type it would be naming its
         # own provenance.
         "--requested-by",
-        "gateway_device",
+        OPERATOR_REQUESTED_BY,
         "--json",
     ]
     if session_id:

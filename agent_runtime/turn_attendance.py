@@ -22,7 +22,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 __layer__ = "policy"
-__all__ = ["attended_for_requester", "attended_override", "attended_turn"]
+__all__ = ["attended_for_requester", "attended_override", "attended_turn", "is_work_requester"]
 
 _ATTENDED: ContextVar[bool | None] = ContextVar("mission_chat_turn_attended", default=None)
 #: ``<kind>:`` — the shape of every machine provenance a chat turn's ``requested_by`` carries.
@@ -34,6 +34,12 @@ def attended_for_requester(requested_by: object) -> bool:
 
     text = requested_by.strip() if isinstance(requested_by, str) else ""
     return bool(text) and _MACHINE_ORIGIN.match(text) is None
+
+
+def is_work_requester(requested_by: object) -> bool:
+    """A Work run's turn: ``requested_by`` ``work:<request>`` (``work_store/persona_turn.py``)."""
+
+    return isinstance(requested_by, str) and requested_by.startswith("work:")
 
 
 def attended_override() -> bool | None:

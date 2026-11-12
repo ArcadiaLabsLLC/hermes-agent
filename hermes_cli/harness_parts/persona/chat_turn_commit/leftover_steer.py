@@ -15,13 +15,22 @@ agent's steer buffer with it. ``requeue_undelivered_steers`` closes that from th
 watcher's own on-disk ledger of what it accepted (RT-STEER-LOST-WHEN-TURN-FAILS). The next turn rides the busy-root send queue
 (``agent_runtime.chat_root_send_queue``), the one door that already runs a send
 after the turn holding the root, in arrival order, with the sender's origin.
+
+Owner ruling 2026-11-12 (RT-LATE-STEER-TURN-RUNS-AS-THE-WORK-REQUEST-IT-WAS-TYPED-AT): "it should be an
+ordinary chat message". A steer typed at a one-shot or wave-lane Work turn that arrives too late runs next
+as the OPERATOR'S OWN send on that chat (:func:`_operators_own_send`), not as another turn of the run: the
+run ended, and was reported, on its own turn's reply. An until-done run's late steer stays a turn of the
+run. Every site that mints a ``steer-next-…`` send goes through :func:`_next_turn_send`.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from agent_runtime.chat_root_send_queue import ORIGIN_ARG
+from agent_runtime.chat_turn import INTENT_HINT_DEFAULT, OPERATOR_REQUESTED_BY, SURFACE_PROMPT_DEFAULT
 from agent_runtime.mission_chat_turns.records import STEER_OF_FIELD
+from agent_runtime.turn_attendance import is_work_requester
 
 __layer__ = "lanes"
 __all__ = ["leftover_steer_client_message_id", "queue_leftover_steer", "requeue_dead_turn_steers",
@@ -59,6 +68,66 @@ def _name_steers(persisted: dict, ids: list[str]) -> None:
         persisted[STEER_OF_FIELD] = list(ids)
 
 
+#: What a late steer's own turn keeps of a Work run's send: whose chat it is. Nothing the run set for itself.
+_CHAT_IDENTITY = ("persona_id", "persona_instance_id")
+
+
+def _is_one_shot_work_send(send_args: dict) -> bool:
+    """The send of a Work run that ends on this turn's reply: a single pass or a wave lane, not until-done.
+
+    An until-done run's origin says ``goal`` (``work_store/persona_turn.py::start_from``); on its root every
+    turn's settle feeds the run's after-turn hook, so a late steer there is part of the run by design.
+    """
+
+    origin = send_args.get(ORIGIN_ARG)
+    until_done = isinstance(origin, dict) and bool(origin.get("goal"))
+    return is_work_requester(send_args.get("requested_by")) and not until_done
+
+
+def _operators_own_send(send_args: dict) -> dict:
+    """The send ``runtime.chat.message`` would have queued for the operator on this chat, message aside.
+
+    Not a copy of the run's send with fields struck out: a field the run gains later (as it gained its
+    working folder) must not reach the operator's turn by default. So the requester is the operator's
+    (no ``work:`` → no Work clock, no run to report to), there is no time budget (a turn a person sent
+    runs until it ends), no ``run_workdir`` (the agent's own folder, not the lane's worktree), and the
+    origin names no run, rows, lane or lent skills — its settle is the chat's, like any message's.
+    ``tests/agent_runtime/test_late_steer_at_a_work_turn.py`` holds each field to what the real parser
+    gives the app's own send.
+    """
+
+    return {
+        **{name: send_args.get(name) for name in _CHAT_IDENTITY},
+        "requested_by": OPERATOR_REQUESTED_BY, "requested_by_session": None, "max_seconds": None,
+        "intent_hint": INTENT_HINT_DEFAULT, "surface_prompt": SURFACE_PROMPT_DEFAULT, "provider": None,
+        "model": None, "use_agent_default": False, "relay_chain": None, "relay_deadline_epoch": None,
+        # Who typed the steer is not on its ledger record; ``owner: None`` binds the link a send whose
+        # sender has gone binds (``queued_turn_origin.queued_turn_link``: the Launcher that answers).
+        ORIGIN_ARG: {"owner": None, "gateway": False},
+    }
+
+
+def _next_turn_send(send_args: dict, *, session_id: str, text: str, next_id: str, ids: list[str]) -> dict:
+    """The ONE writer of a ``steer-next-…`` send: ``text`` as the root's next turn, naming ``ids``.
+
+    ``send_args`` is the persisted send of the turn the steer was typed at. A one-shot Work turn's is
+    replaced by the operator's own (owner ruling 2026-11-12, the module docstring); any other turn's is
+    kept — an operator's own send, or an until-done pass.
+    """
+
+    # MUTATION: keep ``dict(send_args)`` for every turn and test_late_steer_at_a_work_turn reddens at
+    # all three minting sites (the requester, the budget, the origin, the working folder).
+    persisted = _operators_own_send(send_args) if _is_one_shot_work_send(send_args) else dict(send_args)
+    # The same root, as a plain follow-up: never a new thread, a clarify answer, a
+    # retry, a title or a second use of the first send's idempotency key.
+    persisted.update(
+        message=text, client_message_id=next_id, session_id=session_id, new_session=False,
+        clarify_token=None, retry_of=None, title=None, idempotency_key=None,
+    )
+    _name_steers(persisted, ids)
+    return persisted
+
+
 def leftover_steer_client_message_id(pending: Any, turn_client_message_id: str) -> str:
     """The next turn's id: the first addressed input's id, else the turn's own."""
 
@@ -84,14 +153,9 @@ def queue_leftover_steer(args: Any, *, session_id: str, client_message_id: str, 
     if not text or not session_id:
         return None
     next_id = leftover_steer_client_message_id(pending, client_message_id)
-    persisted = chat_root_send_queue.persistable_args(args, origin=send_origin())
-    # The same root, as a plain follow-up: never a new thread, a clarify answer, a
-    # retry, a title or a second use of the first send's idempotency key.
-    persisted.update(
-        message=text, client_message_id=next_id, session_id=session_id, new_session=False,
-        clarify_token=None, retry_of=None, title=None, idempotency_key=None,
-    )
-    _name_steers(persisted, steer_ids(pending))
+    persisted = _next_turn_send(
+        chat_root_send_queue.persistable_args(args, origin=send_origin()), session_id=session_id, text=text,
+        next_id=next_id, ids=steer_ids(pending))
     chat_root_send_queue.enqueue(session_id, next_id, persisted)
     return next_id
 
@@ -160,13 +224,8 @@ def _requeue_from_ledger(
         ).get("operator"):
             continue
         next_id = NEXT_TURN_PREFIX + steer_id
-        persisted = dict(send_args)
-        persisted.update(
-            message=text, client_message_id=next_id, session_id=session_id, new_session=False,
-            clarify_token=None, retry_of=None, title=None, idempotency_key=None,
-        )
-        _name_steers(persisted, [steer_id])
-        chat_root_send_queue.enqueue(session_id, next_id, persisted)
+        chat_root_send_queue.enqueue(session_id, next_id, _next_turn_send(
+            send_args, session_id=session_id, text=text, next_id=next_id, ids=[steer_id]))
         queued.append(next_id)
     return queued
 

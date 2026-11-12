@@ -54,7 +54,7 @@ from agent_runtime.skill_root_freshness import TurnRootRegistries
 from agent_runtime.tool_turn_history import persist_tool_turn_actual
 from hermes_cli.flag_binding import list_flag_or_empty
 from agent_runtime.transport_dispatch_evidence import begin_turn_attempts
-from agent_runtime.turn_attendance import attended_for_requester
+from agent_runtime.turn_attendance import attended_for_requester, is_work_requester
 from ..chat_admission import (
     _prewarm_constructions_overlapped,
     _registry_probe_rounds,
@@ -132,7 +132,7 @@ def _is_work_turn(args) -> bool:
     streams to no screen — the operator watches it on the board; a forged delivery or relay turn does not.
     """
 
-    return str(getattr(args, "requested_by", "") or "").startswith("work:")
+    return is_work_requester(getattr(args, "requested_by", None))
 
 class _RunPhases:
     """The ``TurnCommit`` methods that build the turn and run it through the provider."""
