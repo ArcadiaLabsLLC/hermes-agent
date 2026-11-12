@@ -156,7 +156,8 @@ def test_a_board_this_thread_holds_syncs_here_not_in_a_waiting_thread(tmp_path, 
 
 def test_a_list_at_an_unmoved_tip_asks_git_no_log_and_no_prune(tmp_path, workspace, monkeypatch):
     """Mutation: drop the remembered times (always ``_log_committed_at``) -> a ``log`` per note, red;
-    run ``worktree prune`` before the in-place check -> a prune per board, red."""
+    run ``worktree prune`` before the in-place check -> a prune per board, red;
+    ``Writer._tracks`` always False -> a fetch per board, red (RT-WORK-SYNC-FETCH-UNMOVED-TIP)."""
     scope = _bound(workspace, alpha=_repo(tmp_path, "alpha"), beta=_repo(tmp_path, "beta"))
     first = work_store.list_work(scope, {})
     calls = _git_calls(monkeypatch)
@@ -164,7 +165,34 @@ def test_a_list_at_an_unmoved_tip_asks_git_no_log_and_no_prune(tmp_path, workspa
     assert again["boards"] == first["boards"]
     assert [args for args in calls if args[0] == "log"] == []
     assert [args for args in calls if args[:2] == ["worktree", "prune"]] == []
-    assert sum(1 for args in calls if args[0] == "fetch") == 2  # freshness unchanged: every board still fetches
+    # Freshness unchanged: every board still asks origin for its tip; the tip has not moved, so none fetches.
+    assert sum(1 for args in calls if args[0] == "ls-remote") == 2
+    assert [args for args in calls if args[0] == "fetch"] == []
+
+
+def test_an_unreachable_origin_lists_stale_without_a_second_wait(tmp_path, workspace, monkeypatch):
+    """The tip ask failing IS the fetch failing: ``stale_ok`` lists the last tip as stale and runs no fetch.
+    Mutation: on a failed ``ls-remote`` run the fetch anyway -> a fetch call (a second network wait), red."""
+    alpha = _repo(tmp_path, "alpha")
+    scope = _bound(workspace, alpha=alpha)
+    work_store.list_work(scope, {})
+    git("remote", "set-url", "origin", str(tmp_path / "nowhere.git"), cwd=alpha.clone)
+    calls = _git_calls(monkeypatch)
+    listed = work_store.list_work(scope, {"stale_ok": True})
+    assert listed["stale"] is True and [b["readable"] for b in listed["boards"]] == [True]
+    assert [args[0] for args in calls if args[0] in ("ls-remote", "fetch")] == ["ls-remote"]
+
+
+def test_a_branch_gone_from_origin_still_refuses_branch_missing(tmp_path, workspace):
+    """Origin advertises no tip: the fetch runs and refuses, never a read of the clone's old tracking ref.
+    Mutation: read an absent advertised tip as tracked in ``Writer._tracks`` -> the board lists, red."""
+    from agent_runtime.work_store.reasons import Reason
+
+    alpha = _repo(tmp_path, "alpha")
+    _bound(workspace, alpha=alpha)
+    work_store.synced(workspace)
+    git("update-ref", "-d", "refs/heads/main", cwd=alpha.origin)
+    assert [refusal.reason for refusal in work_store.synced(workspace).refused.values()] == [Reason.BRANCH_MISSING]
 
 
 def _push_from(tmp_path: Path, repo: SimpleNamespace, name: str) -> Path:
