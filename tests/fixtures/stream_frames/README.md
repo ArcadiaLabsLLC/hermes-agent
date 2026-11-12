@@ -12,6 +12,14 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w1112b-turnapp, 2026-11-12) — mirrored on launcher branch `wave/w1112b-turnapp`, landing right after this one (row `FH-STREAM-GOLDENS-RED-ON-MAIN-20261112`).**
+> Seven generated goldens moved for one reason: `core.decision_contract_hash` went
+> `313d619c…` → `04fa3b83…` when `6db8a4213e` (realm re-key) added two lines to
+> `agent_runtime/decision_contract_registry.py` without regenerating. Copy `delta.json`,
+> `delta_agent_create_narrow_profile.json`, `delta_batch.json`, `hydrate.json`,
+> `hydrate_authoritative_same_offset.json`, `hydrate_running_work_owner.json`,
+> `hydrate_stale_first.json` and `MANIFEST.sha256` into `test/fixtures/harness_stream/`.
+
 > **CROSS-STACK COPY STATUS (w1112b-hm-ws, 2026-11-12) — launcher copy OWED (launcher task `TASK-MANAGE-WORKSPACE-GENUI`; lane w1112b-ws).**
 > Eight generated goldens moved, for three reasons. Every core-carrying frame gained top-level
 > `default_realm_id` (`null` in the fixture — no realm; RT-ACCOUNT-DEFAULT-REALM). Each `workspaces[]`
