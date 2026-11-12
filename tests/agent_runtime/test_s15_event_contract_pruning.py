@@ -275,7 +275,10 @@ REMOVED_EVENT_TYPES = frozenset(
 # 75 (lane w1112b-hm-turn2, 2026-11-12, RT-BUILD-GONE-SILENT-SENDS-NO-NEW-FRAME):
 # ``build.liveness_changed``, one per in-flight build whose wire status moved with no write
 # (running → stalling → stalled, or back), so the stream re-issues its ``running_work`` row.
-SURVIVING_EVENT_COUNT = 75
+# 76 (6db8a4213e, 2026-11-12, RT-REKEY-ID-MAP-FOR-ETERNIA): ``realm.rekeyed``, appended once when a left
+# realm's local copy takes its own ids (``agent_runtime.realm_rekey``). That commit left this at 75 and
+# main red; moved by lane w1112b-rjfu, who found it red alone on origin/main (--confirm-red: pre-existing).
+SURVIVING_EVENT_COUNT = 76
 
 
 def test_the_unemittable_event_types_are_no_longer_registered():
