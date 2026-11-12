@@ -74,6 +74,14 @@ One function, `rekey_realm(journal)`. Nothing else renames a realm or a workspac
   old commits keep the old ids and that is correct (they describe the past); a brain repository that is the
   user's own clone (a folder slot) is not touched: its `work/<machine>.<ws>.<name>` branches keep their names
   (HISTORY), new lanes cut under the new id; (f) the journal turns `done`, one `realm.rekeyed` event carries the map.
+- **(e) as built** (slice 2, `agent_runtime/realm_rekey_git.py`, step `git` after `rename`): every linked
+  worktree's `.git` file under `work/<ws>/` is re-pointed by path piece and `git worktree repair` run in it;
+  hermes's own Writer worktrees (`work/<ws>/worktrees/`) are REMOVED rather than repaired (reset on every sync,
+  on a branch named after the old id; the Writer recuts); a batch lane's worktree (`work/<ws>/.worktrees/`) is
+  kept with its uncommitted work and classed HISTORY (its checkout is its branch's). The one commit rewrites
+  the workspace and agent ids of the map as whole tokens in every tracked `*.md` of the workspace's own brain,
+  bytes in and out. A brain whose binding has a `remote_url` (promoted: the team's shared repository) gets NO
+  commit — and still has the team's remote: follow-up `RT-LEFT-REALM-BRAIN-STILL-PUSHES-TO-THE-TEAM`.
 - **The census test** (`tests/agent_runtime/test_realm_rekey_census.py`): seeds one runtime root through the real
   stores with every MOVES and PARKS place populated for one server realm of two workspaces, runs a publish and a
   pull while local (lane hm-leftrealm's INEFF: the unit test passed while the real path lost a card), re-keys, then

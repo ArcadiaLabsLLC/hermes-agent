@@ -172,7 +172,7 @@ def test_a_left_realm_is_rekeyed_whole_and_no_old_id_stays_where_the_local_copy_
     journal = rekey_realm(realm.id)
 
     assert (journal["state"], journal["steps_done"], journal["leftover"]) == (
-        RekeyState.DONE.value, ["agents", "content", "rename", "ledgers"], [])
+        RekeyState.DONE.value, ["agents", "content", "rename", "git", "ledgers"], [])
     _assert_local_copy_is_whole(journal, first, second, extra)
     census = _census(journal)
     assert census.get("moves", []) == [] and census.get("unclassified", []) == []
@@ -364,3 +364,75 @@ def _run_every_sweep_a_serve_start_and_a_reconcile_run() -> None:
     PersonaInstanceStore().retire_task_bound_rows(apply=True)
     migrate_namespace()
     reconcile_persona_instances(apply=True)
+
+
+def test_the_brain_and_its_worktrees_follow_the_new_ids_and_the_past_is_not_rewritten(tmp_path):
+    """RT-REKEY-BRAIN-AND-WORKTREES-FOLLOW. Mutations: drop ``step_git`` from STEPS -> the brain's notes still
+    name the old workspace and agent and the lane worktree is not found from the brain, red; rewrite by
+    ``git filter-branch``/amend instead of a new commit -> the first commit no longer names the old ids, red;
+    commit in a brain that has a remote -> the shared brain's head moves, red; keep hermes's Writer worktree ->
+    its stale checkout still names the old ids and the census names it, red; skip the ``.git`` file re-point
+    -> ``git status`` in the lane worktree fails, red; drop the ``worktree repair`` -> the brain lists the lane
+    at its old path, red; write the note in text mode -> its CRLF line is lost, red; rewrite by ``str.replace`` -> the neighbour id
+    ``ws_shared_2`` in the note is rewritten, red."""
+    from agent_runtime.work_store import board, default_brain
+
+    realm, first, second, extra, _ = _left_realm(tmp_path)
+    issued = "2026-11-12T12:00:00+00:00"
+    default_brain.ensure_default_brain(first.id, issued_at=issued)
+    default_brain.ensure_default_brain(second.id, issued_at=issued)
+    brain, shared = runtime_paths.default_brain_dir(first.id), runtime_paths.default_brain_dir(second.id)
+    note = brain / "Work_Brain" / "50 — Agent Handoffs" / "batches" / "BATCH-1.md"
+    note.parent.mkdir(parents=True)
+    body = (f"---\ntype: batch\nbatch: BATCH-1\nworkspace_id: {first.id}\n---\n\n- **`WORK-AAAAAA` — a row** · "
+            f"assignee: persona:{LEAD} · READY 2026-11-12 · **TAKEN 2026-11-12 persona:{LEAD}**\n"
+            "a neighbour, never ours: ws_shared_2\r\n")
+    for repo, text in ((brain, body), (shared, body.replace(first.id, second.id))):
+        target = repo / note.relative_to(brain)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(text.encode("utf-8"))
+        _git(repo, "add", "-A")
+        _git(repo, "-c", "user.name=t", "-c", "user.email=t@localhost", "commit", "-q", "-m", "a batch")
+    # The second workspace's brain was promoted: it has a remote, so it is the team's and is left alone.
+    binding = json.loads(board.binding_path(second.id).read_text(encoding="utf-8"))
+    board.binding_path(second.id).write_text(json.dumps({**binding, "remote_url": "https://host.invalid/team/brain.git"}),
+                                             encoding="utf-8")
+    lane = runtime_paths.work_workspace_dir(first.id) / ".worktrees" / "brain-BATCH-1-l1"
+    writer = runtime_paths.work_worktree_dir(first.id, "brain", "abc123")
+    _git(brain, "worktree", "add", "-q", "-b", "batch/BATCH-1/l1", str(lane))
+    _git(brain, "worktree", "add", "-q", "-b", f"work/m.{first.id}.brain-abc123", str(writer))
+    (lane / "in-flight.txt").write_text("lane work, not committed", encoding="utf-8")
+    clone = tmp_path / "member-clone"
+    subprocess.run(["git", "init", "-q", "-b", "main", str(clone)], check=True, capture_output=True)
+    _git(clone, "-c", "user.name=t", "-c", "user.email=t@localhost", "commit", "-q", "--allow-empty", "-m", "init")
+    code_writer = runtime_paths.work_worktree_dir(first.id, "code", "def456")
+    _git(clone, "worktree", "add", "-q", "-b", f"work/m.{first.id}.code-def456", str(code_writer))
+    commits, shared_head = _git(brain, "rev-list", "--count", "HEAD"), _git(shared, "rev-parse", "HEAD")
+
+    journal = rekey_realm(owe_rekey(realm.id, reason="membership_left")["map"]["realm_old"])
+
+    new_first, new_second = (journal["map"]["workspaces"][item.id] for item in (first, second))
+    new_lead = journal["map"]["agents"][LEAD]
+    moved = runtime_paths.default_brain_dir(new_first)
+    assert board.read_binding(new_first)["path"] == str(moved) and not brain.exists()
+    now_reads = (moved / note.relative_to(brain)).read_bytes().decode("utf-8")
+    assert now_reads == body.replace(f"workspace_id: {first.id}", f"workspace_id: {new_first}").replace(LEAD, new_lead)
+    assert now_reads.endswith("never ours: ws_shared_2\r\n")
+    assert _git(moved, "rev-list", "--count", "HEAD") == str(int(commits) + 1) and _git(moved, "status", "--porcelain") == ""
+    was = _git(moved, "show", f"HEAD~1:{note.relative_to(brain).as_posix()}")
+    assert f"workspace_id: {first.id}" in was and f"persona:{LEAD}" in was  # the past still says what it said
+    assert _git(moved, "log", "-1", "--format=%an") == "Eternia Harness"
+    # A lane's worktree is found again with its work; hermes's own Writer worktrees are gone, to be recut.
+    moved_lane = runtime_paths.work_workspace_dir(new_first) / ".worktrees" / "brain-BATCH-1-l1"
+    assert "in-flight.txt" in _git(moved_lane, "status", "--porcelain")
+    listed = _git(moved, "worktree", "list", "--porcelain")
+    assert str(moved_lane) in listed and f"/{first.id}/" not in listed and listed.count("worktree ") == 2
+    assert not runtime_paths.work_worktrees_dir(new_first).exists() or not any(
+        runtime_paths.work_worktrees_dir(new_first).iterdir())
+    assert _git(clone, "worktree", "list", "--porcelain").count("worktree ") == 1
+    assert f"work/m.{first.id}.code-def456" in _git(clone, "branch", "--list")  # a member's branch names stay
+    # The promoted brain is the team's: moved with its workspace, not committed to.
+    assert _git(runtime_paths.default_brain_dir(new_second), "rev-parse", "HEAD") == shared_head
+    census = _census(journal)
+    ours = [row for row in census.get("moves", []) if not row["path"].startswith(f"work/{new_second}/brain/")]
+    assert ours == [] and census.get("unclassified", []) == []

@@ -22,9 +22,11 @@ NOTHING CALLS THIS YET: the leave does not owe a re-key and a re-join still bind
   local copy gets new ones of the same personas, and the generic steps re-point desks, flow graphs, schedules
   and open Work claims at them.
 
-Still owed, each a place :data:`OWED_HANDLERS` names (the switch-over waits for them): brain markdown and git
-worktrees (``RT-REKEY-BRAIN-AND-WORKTREES-FOLLOW``) and the places outside the JSON store
-(``RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE``).
+* Git is ``agent_runtime.realm_rekey_git`` (the ``git`` step, after the rename): worktrees found again, and one
+  new commit in the workspace's own brain; history is never rewritten.
+
+Still owed, each a place :data:`OWED_HANDLERS` names (the switch-over waits for them): the places outside the
+JSON store (``RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE``).
 """
 from __future__ import annotations
 
@@ -44,6 +46,7 @@ from utils import atomic_json_write
 from . import paths
 from .board_models import default_board_id
 from .locks import workspace_realm_assign_lock
+from .realm_rekey_git import LANE_WORKTREES_DIRNAME, step_git
 from .realm_rekey_agents import PARKED_DIRNAME, agent_forms, agent_name_forms, agents_of, fresh_agent_id, step_agents
 from .store import RealmStore, WorkspaceStore
 
@@ -55,6 +58,8 @@ __all__ = [
     "RekeyMap",
     "RekeyState",
     "leftover_ids",
+    "rewrite_text",
+    "token_pattern",
     "owe_rekey",
     "place_class",
     "read_rekey_journal",
@@ -103,7 +108,6 @@ STORE_PLACES: dict[str, PlaceClass] = {
 }
 #: MOVES places this module does not rewrite yet, and the row that owes each.
 OWED_HANDLERS: dict[str, str] = {
-    "work/<ws>/brain/*.md + git worktrees": "RT-REKEY-BRAIN-AND-WORKTREES-FOLLOW",
     "realm_sync/local clone subtree": "RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE",
     "lens.sqlite3 monitors": "RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE",
     "machine_roots.json slot folders": "RT-REKEY-PLACES-OUTSIDE-THE-JSON-STORE",
@@ -120,6 +124,8 @@ def place_class(relative: Path) -> PlaceClass | None:
         return PlaceClass.PARKS  # shared chats are chats: they wait for the re-join
     if ".git" in parts:
         return PlaceClass.HISTORY  # a brain's or a sync clone's object store
+    if parts[0] == paths.WORK_DIRNAME and LANE_WORKTREES_DIRNAME in parts[2:3]:
+        return PlaceClass.HISTORY  # a batch lane's checkout is its branch's: it reaches the brain by a merge
     if parts[0] == paths.REALM_SYNC_DIRNAME and len(parts) > 1 and (paths.realm_sync_root() / parts[1] / ".git").exists():
         return PlaceClass.HISTORY  # a sync clone (the publish projection): OWED_HANDLERS
     return STORE_PLACES.get(parts[0])
@@ -201,7 +207,7 @@ def owe_rekey(realm_id: str, *, reason: str) -> dict[str, Any]:
         })
 
 
-def _rewrite_text(value: str, forms: dict[str, str]) -> str:
+def rewrite_text(value: str, forms: dict[str, str]) -> str:
     if value in forms:
         return forms[value]
     if not _PIECES.search(value):
@@ -215,9 +221,9 @@ def _rewrite_json(value: Any, forms: dict[str, str]) -> Any:
 
 
 _JSON_REWRITERS = {
-    str: _rewrite_text,
+    str: rewrite_text,
     list: lambda value, forms: [_rewrite_json(item, forms) for item in value],
-    dict: lambda value, forms: {_rewrite_text(key, forms): _rewrite_json(item, forms) for key, item in value.items()},
+    dict: lambda value, forms: {rewrite_text(key, forms): _rewrite_json(item, forms) for key, item in value.items()},
 }
 
 
@@ -314,7 +320,7 @@ def _step_ledgers(root: Path, mapping: RekeyMap) -> None:
         atomic_json_write(path, {**record, **cleared})
 
 
-STEPS = (("agents", step_agents), ("content", _step_content), ("rename", _step_rename), ("ledgers", _step_ledgers))
+STEPS = (("agents", step_agents), ("content", _step_content), ("rename", _step_rename), ("git", step_git), ("ledgers", _step_ledgers))
 
 
 def rekey_realm(realm_id: str) -> dict[str, Any]:
@@ -340,6 +346,11 @@ def rekey_realm(realm_id: str) -> dict[str, Any]:
         })
 
 
+def token_pattern(ids: Any) -> re.Pattern[str]:
+    """Matches any of ``ids`` as a whole token in free text: never inside a longer id."""
+    return re.compile(r"(?<![A-Za-z0-9_-])(" + "|".join(sorted(map(re.escape, ids), key=len, reverse=True)) + r")(?![A-Za-z0-9_-])")
+
+
 def _sqlite_text(path: Path) -> str:
     try:
         with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as connection:
@@ -354,7 +365,7 @@ def leftover_ids(root: Path, ids: list[str], *, only: PlaceClass | None = None) 
     :data:`STORE_PLACES` does not know. ``only`` reads one class and nothing inside a git working tree (what
     the operation checks itself against); without it every file under ``root`` is read."""
     trees = _git_tree_roots(root) if only else set()
-    token = re.compile(r"(?<![A-Za-z0-9_-])(" + "|".join(sorted(map(re.escape, ids), key=len, reverse=True)) + r")(?![A-Za-z0-9_-])")
+    token = token_pattern(ids)
     rows = []
     for path in sorted(root.rglob("*")):
         relative = path.relative_to(root)
