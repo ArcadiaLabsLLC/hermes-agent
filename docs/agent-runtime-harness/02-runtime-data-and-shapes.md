@@ -1106,6 +1106,11 @@ own read; ``03-transport-and-wire.md`` has the per-kind table in prose). One add
 launcher parses as a map: rule (a) does not bump. No golden moved (no generated frame holds a ``chat_turn``
 row).
 
+54 KEPT (phase, 2026-11-12, RT-CHAT-HELD-BETWEEN-UNTIL-DONE-PASSES-LISTS-NOTHING-RUNNING) — a ``running_work``
+``chat_turn`` row may carry ``phase: "checking"``: not a turn but an until-done run checking the pass that ended
+(``running_work/lanes_chat.py::checking_row``; ``03-transport-and-wire.md``). A turn's row carries no ``phase``.
+One additive key on a row the launcher parses as a map: rule (a) does not bump. No golden moved.
+
 54 KEPT (steer_of, 2026-11-12, RT-STEER-NEXT-TURN-NAMES-THE-STEER-IT-DELIVERS) — the turn record of a late
 steer's own turn (``steer-next-…``) gained ``steer_of`` (a list of client message ids, at most 16,
 ``mission_chat_turns/records.py::safe_steer_of``), and so did that turn's operator row in the persona chat

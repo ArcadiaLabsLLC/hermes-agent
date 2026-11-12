@@ -97,6 +97,13 @@ RUNNING_WORK_SOURCES = (
 )
 
 STATUS_RUNNING = "running"
+
+#: A ``chat_turn`` row's ``phase`` when it is not a turn but an until-done run checking the pass that ended
+#: (``lanes_chat.ChatTurnLane.checking_row``); a turn's row carries no ``phase``. Additive: a client that does
+#: not read it shows the row as the run's running pass, which is what holds the chat.
+PHASE_CHECKING = "checking"
+#: That row's ``title``.
+CHECKING_TITLE = "Checking whether the task is done"
 STATUS_STALLING = "stalling"
 STATUS_STALLED = "stalled"
 STATUS_FINALIZING = "finalizing"

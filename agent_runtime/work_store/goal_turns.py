@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import time
 from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 
@@ -304,6 +305,34 @@ def _ending_now(bound: chat_goal.GoalBinding, payload: dict | None, report: RowE
     return None
 
 
+def _checked(bound: chat_goal.GoalBinding, goal: Any, reply: str, *, own: bool) -> Mapping[str, Any]:
+    """The judge's decision on a pass that ended, with the run marked as checking while it is asked.
+
+    The judge is a model call made from the runner's settle, before the pass's queue entry is removed, so the
+    chat stays held for it — seconds with a real model, ~3 minutes on the QA fixture (three attempts, each held
+    by the brief's own ``[[qa:hold …]]``). ``checking_since`` puts the run on ``running_work`` for that time
+    (``running_work/lanes_chat.py``), so a message sent meanwhile waits behind something the app can show
+    (RT-CHAT-HELD-BETWEEN-UNTIL-DONE-PASSES-LISTS-NOTHING-RUNNING). Every bind that follows starts from
+    ``bound`` and so clears it; a judge that raises restores ``bound`` itself.
+    """
+
+    # MUTATION: drop this bind and test_until_done_run_says_it_is_checking reddens (no row while it checks).
+    chat_goal.bind(bound.advanced(checking_since=time.time()))
+    try:
+        with _gate_cwd(bound.cwd):
+            return goal.evaluate_after_turn(reply, user_initiated=not own)
+    except BaseException:
+        chat_goal.bind(bound)
+        raise
+
+
+def _stopped_while_checking(bound: chat_goal.GoalBinding) -> bool:
+    """A Stop on the checking row (``runtime.work.cancel`` marks the binding ``stopping``) wins over the judge."""
+
+    current = chat_goal.binding(bound.root_session_id)
+    return current is not None and current.request_id == bound.request_id and current.stopping
+
+
 def after_turn(bound: chat_goal.GoalBinding, entry: send_queue.QueuedSend, payload: dict | None, *,
                goals: Callable[[str], Any], enqueue: Callable[..., Any], wake: Callable[[], None],
                parse_report: Callable[[str], RowEnding | None]) -> RowEnding | None:
@@ -316,16 +345,18 @@ def after_turn(bound: chat_goal.GoalBinding, entry: send_queue.QueuedSend, paylo
     ending = _ending_now(bound, payload, report, own=own)
     if ending is None:
         goal = goals(bound.root_session_id)
-        with _gate_cwd(bound.cwd):
-            decision = goal.evaluate_after_turn(reply, user_initiated=not own)
-        if decision.get("should_continue"):
+        decision = _checked(bound, goal, reply, own=own)
+        if _stopped_while_checking(bound):
+            ending = RowEnding(Verdict.STOPPED, reason=OPERATOR_STOP_REASON)
+        elif decision.get("should_continue"):
             _forge(bound, entry, str(decision.get("continuation_prompt") or goal.next_continuation_prompt()),
                    enqueue=enqueue, wake=wake)
             return None
-        ending = DECISION_ENDINGS.get(str(decision.get("verdict")), _stopped)(decision, report)
-        if ending is None:
-            chat_goal.bind(bound.advanced(held=True))
-            return None
+        else:
+            ending = DECISION_ENDINGS.get(str(decision.get("verdict")), _stopped)(decision, report)
+            if ending is None:
+                chat_goal.bind(bound.advanced(held=True))
+                return None
     _end_goal(bound, goals, f"work run ended {ending.verdict.value}")
     receipts.emit("work.goal_end", root=bound.root_session_id, request_id=bound.request_id,
                   verdict=ending.verdict.value, turns=bound.turns + 1)

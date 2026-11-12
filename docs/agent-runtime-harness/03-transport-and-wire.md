@@ -2101,9 +2101,16 @@ watcher is up — an operator's streaming send and a Work turn (a wave lane's, a
 pass) from the moment the agent is built until the turn's cleanup — and false for a turn that starts none
 (a forged result delivery, a dispatch reply, a relay, a schedule's fire, a platform message), for a turn
 written ahead whose agent is still being built, and for a crashed turn still listed in flight. A late
-steer's own turn (`steer-next-…`) typed at an operator's send or an until-done pass is queued with the send of
-that turn, so it takes a steer when that turn did; one typed at a single Work pass or a wave lane's turn is the
-operator's own message (below), so it takes a steer exactly when an operator's send does — while it streams.
+steer's own turn (`steer-next-…`) typed at an until-done pass is queued with the send of that pass, so it
+takes a steer when that pass did; any other is the operator's own ordinary message (below), so it takes a steer
+exactly when an operator's send does — while it streams.
+
+An until-done run checking a pass that ended (its goal judge's model call, made before the pass's queue entry
+is removed, so the chat stays held) is listed as a running `chat_turn` row of the run: the ended pass's id,
+`phase: "checking"`, `title` "Checking whether the task is done", `work_request` and `goal`, `steerable` false,
+`cancellable` true — its Stop ends the whole run, as a pass's does (`running_work/lanes_chat.py::checking_row`
+over `chat_goal.GoalBinding.checking_since`; RT-CHAT-HELD-BETWEEN-UNTIL-DONE-PASSES-LISTS-NOTHING-RUNNING,
+2026-11-12). A turn's row carries no `phase`; a client that does not read it shows the run's pass as running.
 The row and `runtime.chat.steer` read ONE record
 (`agent_runtime/mission_chat_steer.py::steer_taking_turn`), so a steer sent while the row says true is
 admitted and one sent while every row of the conversation says false is refused `no_active_turn`; a client

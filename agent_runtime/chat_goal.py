@@ -185,6 +185,10 @@ class GoalBinding:
     held: bool = False
     #: ``stop`` reached a running turn; its settle ends the run ``STOPPED``.
     stopping: bool = False
+    #: Wall time the run began checking a pass that ended (the goal judge's model call), ``None`` otherwise.
+    #: The pass's queue entry holds the root meanwhile, so ``running_work`` lists the run as running from it
+    #: (RT-CHAT-HELD-BETWEEN-UNTIL-DONE-PASSES-LISTS-NOTHING-RUNNING); every bind after the check clears it.
+    checking_since: float | None = None
 
     def advanced(self, **changes: Any) -> GoalBinding:
         return replace(self, **changes)

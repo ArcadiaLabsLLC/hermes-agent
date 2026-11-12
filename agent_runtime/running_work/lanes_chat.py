@@ -28,6 +28,8 @@ from .rows import (
     work_row,
 )
 from .vocabulary import (
+    CHECKING_TITLE,
+    PHASE_CHECKING,
     DELEGATION_STATE_FINALIZING,
     KIND_CHAT_TURN,
     KIND_DELEGATION,
@@ -418,6 +420,8 @@ class ChatTurnLane(LanePass):
         for record in records:
             if isinstance(record, dict):
                 self.turn_row(record)
+        for bound in _checking_runs():
+            self.checking_row(bound)
         self.attach_titles()
         return self.finish(self.rows), _source(SOURCE_OK, lane=self.lane)
 
@@ -490,6 +494,41 @@ class ChatTurnLane(LanePass):
         self.rows.append(row)
         if state in self.running_states:
             self.enrich_live(row, turn_id)
+
+    def checking_row(self, bound: Any) -> None:
+        """An until-done run checking a pass that ended: it holds its chat, so it is listed as running.
+
+        No turn is in the journal then — the pass ended and the next is not queued — yet the pass's queue
+        entry holds the root while the goal judge's model call runs (``goal_turns._checked``), and a message
+        sent meanwhile waits behind it. Listed as the run's pass (``work_request`` / ``goal``, the same Stop
+        that ends the whole run), titled for what it does, taking no steer: there is no turn to steer
+        (RT-CHAT-HELD-BETWEEN-UNTIL-DONE-PASSES-LISTS-NOTHING-RUNNING).
+        """
+
+        self.consider()
+        args = bound.turn_args if isinstance(bound.turn_args, Mapping) else {}
+        session_id = bounded_operator_text(bound.root_session_id, limit=240)
+        owner_persona, owner_instance = _owner_of(session_id, memo=self.owners)
+        instance = bounded_operator_text(args.get("persona_instance_id"), limit=200) or owner_instance
+        from ..chat_goal import MAX_PASSES
+
+        self.rows.append(work_row(
+            kind=KIND_CHAT_TURN,
+            stable_id=bounded_operator_text(bound.cmid, limit=200),
+            label=self.named(instance) or instance or session_id,
+            status=STATUS_RUNNING,
+            source_lane=LANE_DURABLE,
+            persona_id=owner_persona,
+            persona_instance_id=instance,
+            session_id=session_id,
+            started_at=_iso(bound.checking_since),
+            elapsed_seconds=elapsed_seconds(bound.checking_since, now=self.now),
+            progress=_progress(available=False),
+            cancellable=True,
+            extra={"title": CHECKING_TITLE, "current_tool": None, "phase": PHASE_CHECKING,
+                   "work_request": bound.request_id,
+                   "goal": {"pass": bound.turns + 1, "max_passes": MAX_PASSES}, "steerable": False},
+        ))
 
     def enrich_live(self, row: dict[str, Any], turn_id: str) -> None:
         """The executing process's view of the turn; nothing when it runs elsewhere."""
@@ -599,6 +638,17 @@ def _takes_steer(session_id: str, client_message_id: Any) -> bool:
                                 client_message_id=client_message_id)
     except Exception:
         return False
+
+
+def _checking_runs() -> list[Any]:
+    """``chat_goal.bindings`` that are checking a pass (``checking_since``), fail-safe: unreadable is none."""
+
+    try:
+        from ..chat_goal import bindings
+
+        return [bound for bound in bindings() if bound.checking_since]
+    except Exception:
+        return []
 
 
 def _run_pass(session_id: str, client_message_id: Any) -> dict[str, Any]:
