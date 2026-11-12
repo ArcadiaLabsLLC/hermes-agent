@@ -1092,6 +1092,11 @@ reads ONE sidecar per workspace (``<work>/<workspace>/activity.json``,
 ``agent_runtime/work_store/activity.py``), written by the engine's tick from the boards it already reads —
 no board walk and no git call in a build. A changed count appends ``workspace.updated``
 (``change: task_activity``); a moved ``last_activity_at`` alone appends nothing and rides the next build.
+``last_activity_at`` is the newer of that task time and the workspace's last chat turn
+(RT-WORKSPACE-LAST-ACTIVITY-COUNTS-CHATS): the chat turn's commit stamps
+``<work>/<workspace>/chat_activity.json`` at turn end (``activity.record_chat_turn``, from
+``workspace_chat_export.export_after_turn``) for the workspace the turn's persona instance is placed in and
+every workspace the session is shared into; an instance placed in no workspace stamps nothing.
 Additive keys on maps the launcher parses as maps: rule (a) does not bump.
 
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``

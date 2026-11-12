@@ -11,12 +11,18 @@ no task on these boards owns (a subtask counts through its task):
 
 * ``tasks_running`` — tasks carrying a claim (``TAKEN``): a persona or a session lane is working it;
 * ``needs_you`` — unclaimed tasks that wait on the owner (``DECISION``, or ``BLOCKED`` on an owner reason);
-* ``last_activity_at`` — the newest commit that changed a board's queue notes (ISO-8601 UTC): the last time a
-  task here was created, claimed, moved or closed. Chats are not counted.
+* ``last_activity_at`` — the newer of the newest commit that changed a board's queue notes (the last time a
+  task here was created, claimed, moved or closed) and the last chat turn held in the workspace (ISO-8601 UTC).
 
-All three are ``None`` until the engine has read every board of the workspace on this machine whole — a board
-with no worktree here, or one whose sync refused, is "not known", never a zero. A workspace with no board has
-no tasks: both counts are 0.
+The two counts are ``None`` until the engine has read every board of the workspace on this machine whole — a
+board with no worktree here, or one whose sync refused, is "not known", never a zero. A workspace with no
+board has no tasks: both counts are 0.
+
+Chat recency (RT-WORKSPACE-LAST-ACTIVITY-COUNTS-CHATS) is a second small file with its own one writer,
+``<work>/<workspace>/chat_activity.json``: the chat turn's commit stamps it at turn end
+(:func:`record_chat_turn`, called from ``workspace_chat_export.export_after_turn``) for the workspace the
+turn's persona instance is placed in and every workspace the session is shared into. A turn of an instance
+placed in no workspace stamps nothing. It appends no event: like a moved task time, it rides the next build.
 
 Pinned by ``tests/agent_runtime/work_store/test_activity.py``.
 """
@@ -37,7 +43,7 @@ from .grammar import Row
 from .tasks import owning_task, waits_on_owner
 
 __layer__ = "stores"
-__all__ = ["ACTIVITY_FIELDS", "count_tasks", "read_activity", "record_view"]
+__all__ = ["ACTIVITY_FIELDS", "count_tasks", "read_activity", "record_chat_turn", "record_view"]
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +68,39 @@ def count_tasks(rows: Iterable[Row]) -> dict[str, int]:
             "needs_you": sum(1 for row in tasks if row.taken is None and waits_on_owner(row))}
 
 
-def read_activity(workspace_id: str) -> dict[str, Any]:
-    """The sidecar's three fields; every one ``None`` when it is missing or unreadable. One file read, no
-    board walk, no git — the snapshot path's read."""
+def _chat_path(workspace_id: str) -> Path:
+    return paths.work_workspace_dir(workspace_id) / "chat_activity.json"
+
+
+def _stamp(when: datetime) -> str:
+    return when.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def record_chat_turn(workspace_ids: Iterable[str | None], *, when: datetime | None = None) -> list[str]:
+    """Stamp a chat turn's end on each workspace it was held in; returns the workspaces stamped. Best effort
+    per workspace (a failed stamp is logged, never raised into the turn)."""
+
+    stamp = _stamp(when or datetime.now(UTC))
+    done: list[str] = []
+    for workspace_id in dict.fromkeys(item for item in workspace_ids if isinstance(item, str) and item):
+        try:
+            write_json_atomic(_chat_path(workspace_id), {"last_chat_at": stamp})
+            done.append(workspace_id)
+        except Exception:
+            logger.warning("could not stamp chat activity on workspace %s", workspace_id, exc_info=True)
+    return done
+
+
+def _last_chat_at(workspace_id: str) -> str | None:
+    try:
+        stamp = read_json(_chat_path(workspace_id)).get("last_chat_at")
+    except Exception:
+        return None
+    return stamp if isinstance(stamp, str) else None
+
+
+def _tasks(workspace_id: str) -> dict[str, Any]:
+    """The engine's sidecar as stored (``last_activity_at`` there is the TASK time only)."""
 
     try:
         raw = read_json(_path(workspace_id))
@@ -74,6 +110,17 @@ def read_activity(workspace_id: str) -> dict[str, Any]:
         return dict(_UNKNOWN)
     stamp = raw.get("last_activity_at")
     return {**{key: raw[key] for key in _COUNTS}, "last_activity_at": stamp if isinstance(stamp, str) else None}
+
+
+def read_activity(workspace_id: str) -> dict[str, Any]:
+    """The three fields ``workspace_summary`` carries: the engine's counts, and the newer of the task time
+    and the last chat turn. Two small file reads, no board walk, no git — the snapshot path's read."""
+
+    fields = _tasks(workspace_id)
+    # Both stamps are second-resolution UTC ``…Z`` strings, so the newer one is the greater string.
+    fields["last_activity_at"] = max(filter(None, (fields["last_activity_at"], _last_chat_at(workspace_id))),
+                                     default=None)
+    return fields
 
 
 def _committed_at(view: Any) -> str | None:
@@ -93,7 +140,7 @@ def _committed_at(view: Any) -> str | None:
             times.append(int(when))
     if not times:
         return None
-    return datetime.fromtimestamp(max(times), UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return _stamp(datetime.fromtimestamp(max(times), UTC))
 
 
 def record_view(workspace_id: str, view: Any, read: Mapping[str, list[Row]],
@@ -111,7 +158,7 @@ def record_view(workspace_id: str, view: Any, read: Mapping[str, list[Row]],
     if getattr(view, "refused", None) or any(board.key not in read for board in boards):
         return False
     fresh: dict[str, Any] = count_tasks(row for board in boards for row in read[board.key])
-    before = read_activity(workspace_id)
+    before = _tasks(workspace_id)
     fresh["last_activity_at"] = _committed_at(view) or before["last_activity_at"]
     if fresh == before:
         return False

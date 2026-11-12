@@ -400,10 +400,16 @@ def _unshare(home: ChatHome, session_id: str) -> dict[str, Any]:
 
 
 def export_after_turn(session_db: Any, session_id: str | None, *, persona_instance_id: str | None = None,
-                      background: bool = True) -> threading.Thread | None:
-    """The turn-end hook: export ``session_id`` into every home it is shared into, off the turn thread."""
+                      background: bool = True, workspace_id: str | None = None) -> threading.Thread | None:
+    """The turn-end hook: export ``session_id`` into every home it is shared into, off the turn thread.
+
+    It also stamps the turn on the workspace card's "last active" (``work_store.activity.record_chat_turn``):
+    ``workspace_id`` — the workspace the turn's persona instance is placed in — and every home."""
 
     homes = shared_homes_of(session_id) if session_id else []
+    from .work_store.activity import record_chat_turn
+
+    record_chat_turn([workspace_id, *(home.id for home in homes)])
     if not homes:
         return None
 

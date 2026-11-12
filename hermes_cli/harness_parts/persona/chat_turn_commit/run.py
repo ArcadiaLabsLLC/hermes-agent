@@ -826,7 +826,8 @@ class _RunPhases:
             from agent_runtime.workspace_chat_export import export_after_turn
 
             export_after_turn(self.session_db, self.session_id,
-                              persona_instance_id=getattr(self.instance, "id", None))
+                              persona_instance_id=getattr(self.instance, "id", None),
+                              workspace_id=getattr(self.instance, "workspace_id", None))
         except Exception as exc:
             import logging
 

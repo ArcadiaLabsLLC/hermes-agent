@@ -126,3 +126,47 @@ class _NoRuns:
 
     def on_settle(self, callback):
         self.callback = callback
+
+
+# ── chat recency (RT-WORKSPACE-LAST-ACTIVITY-COUNTS-CHATS) ──────────────────
+
+def test_last_activity_is_the_newer_of_the_task_time_and_the_last_chat_turn(tmp_path):
+    """Mutations: ignore the chat stamp in ``read_activity`` -> the task time is answered after a newer chat,
+    red; let the engine fold the merged time back into its sidecar (``before = read_activity``) with a writer
+    that cannot answer -> the TASK time read back is the chat's, red; stamp a None or empty workspace -> red."""
+    board, writer = _board(tmp_path, "repo", ROWS), _Writer(tmp_path)
+    view, rows = Synced([board], {"repo": writer}, False), {"repo": board_rows(board)}
+    assert activity.record_chat_turn([None, "", WS, WS], when=datetime(2025, 11, 1, tzinfo=UTC)) == [WS]
+    assert read_activity(WS) == {"tasks_running": None, "needs_you": None, "last_activity_at": "2025-11-01T00:00:00Z"}
+    record_view(WS, view, rows)
+    task_time = datetime.fromtimestamp(1_762_900_000, UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    assert read_activity(WS) == {"tasks_running": 3, "needs_you": 3, "last_activity_at": task_time}
+    activity.record_chat_turn([WS], when=datetime(2026, 11, 12, 9, 30, tzinfo=UTC))
+    assert read_activity(WS)["last_activity_at"] == "2026-11-12T09:30:00Z"
+    writer.committed_at = None  # the writer cannot answer: the engine keeps the TASK time it had
+    record_view(WS, Synced([board], {"repo": writer}, False), {"repo": board_rows(_board(tmp_path, "repo", ROWS[1:]))})
+    assert activity._tasks(WS)["last_activity_at"] == task_time, "the engine keeps the TASK time, not the chat's"
+    assert read_activity(WS)["last_activity_at"] == "2026-11-12T09:30:00Z"
+
+
+def test_a_turn_end_stamps_the_instances_workspace_and_a_workspaceless_turn_stamps_nothing(monkeypatch):
+    """Mutations: drop ``workspace_id`` at the turn commit's hook call -> the workspace is never stamped, red;
+    drop ``record_chat_turn`` from ``export_after_turn`` -> red."""
+    from types import SimpleNamespace
+
+    from agent_runtime import workspace_chat_export
+    from hermes_cli.harness_parts.persona.chat_turn_commit import run
+
+    assert workspace_chat_export.export_after_turn(None, "chat_free") is None
+    assert read_activity(WS)["last_activity_at"] is None
+    for name in ("attach_prompt_observability_turn_results", "persist_prompt_observability_context"):
+        monkeypatch.setattr(run, name, lambda *args, **kwargs: {})
+    for name in ("turn_usage_from_result", "persist_tool_turn_actual"):
+        monkeypatch.setattr(run, name, lambda *args, **kwargs: None)
+    turn = SimpleNamespace(
+        chat_result=SimpleNamespace(raw={}), turn_context=SimpleNamespace(skills=SimpleNamespace(missing=[])),
+        prompt_context={}, model_selection=None, trace_payloads=[], persona=None, normalized_persona="dev",
+        session_id="chat_1", client_message_id="m1", session_db=None,
+        instance=SimpleNamespace(id="inst-1", workspace_id=WS))
+    run._RunPhases._attach_turn_results(turn)
+    assert read_activity(WS)["last_activity_at"] is not None
