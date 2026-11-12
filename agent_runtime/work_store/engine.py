@@ -368,7 +368,7 @@ class WorkEngine:
             # The goal mode kept with the claim (``runtime.work.claim`` ``goal_mode``); recorded on the run so
             # a retried start is the same run. MUTATION: pass ``GoalMode.NONE`` and test_until_done_claim's
             # "a claim that asked for it runs until done" reddens.
-            goal_mode = until_done.kept(workspace_id, row.ref, row.taken.who)
+            goal_mode = GoalMode(until_done.kept(workspace_id, row.ref, row.taken.who))
             assignment = self._assignment(row, writer, request_id, goal_mode=goal_mode)
             refusal = self.executor.can_start(assignment)
             if refusal is None and self._running(workspace_id) >= self._cap_for(workspace_id):

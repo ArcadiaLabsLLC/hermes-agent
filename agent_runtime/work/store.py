@@ -564,7 +564,7 @@ def claim(scope, params, actor, *, context=None):
     # Kept beside the claim: the engine's run of this row is UNTIL_DONE (RT-WORK-CLAIM-RUNS-UNTIL-DONE).
     until_done.keep(scope.workspace_id, receipt.ref, f"persona:{instance}", goal_mode)
     return {"task": _task(writer, receipt.ref, context), "receipt": receipt.wire(), "parent_task": parent or None,
-            "goal_mode": goal_mode.value}
+            "goal_mode": goal_mode}
 
 
 def parent_task(workspace_id: str, row: Row) -> dict[str, Any] | None:

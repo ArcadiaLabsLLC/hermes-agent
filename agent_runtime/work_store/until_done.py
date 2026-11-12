@@ -29,27 +29,30 @@ from typing import Any
 
 from .. import paths
 from ..serde import write_json_atomic
-from .executor import GoalMode
 from .grammar import RowRef
 from .reasons import Reason, WorkRefused
 
-__layer__ = "lanes"
-__all__ = ["forget", "gate_commands", "goal_mode_of", "keep", "kept", "objective"]
+__layer__ = "stores"
+__all__ = ["GOAL_MODES", "NONE", "UNTIL_DONE", "forget", "gate_commands", "goal_mode_of", "keep", "kept", "objective"]
+
+#: The wire words of ``executor.GoalMode``, spelled here because this module sits below the executor
+#: contract (the claim door, a store, writes it); the pinning test holds the two sets equal.
+NONE, UNTIL_DONE = "none", "until_done"
+GOAL_MODES: tuple[str, ...] = (NONE, UNTIL_DONE)
 
 _TEST_LINE = re.compile(r"^[\s>*\-]*\**tests?\**\s*:", re.IGNORECASE)
 _CODE_SPAN = re.compile(r"`([^`\n]+)`")
 _MAX_GATES = 8
 
 
-def goal_mode_of(value: Any) -> GoalMode:
-    """A request's ``goal_mode``: absent is ``none``; a word that is no goal mode refuses."""
+def goal_mode_of(value: Any) -> str:
+    """A request's ``goal_mode`` word: absent is ``none``; a word that is no goal mode refuses."""
 
     if value is None:
-        return GoalMode.NONE
-    try:
-        return GoalMode(value)
-    except ValueError as exc:
-        raise WorkRefused(Reason.GOAL_MODE_UNSUPPORTED, "goal_mode is none | until_done") from exc
+        return NONE
+    if value not in GOAL_MODES:
+        raise WorkRefused(Reason.GOAL_MODE_UNSUPPORTED, "goal_mode is none | until_done")
+    return str(value)
 
 
 def _path(workspace_id: str, ref: RowRef) -> Path:
@@ -57,25 +60,25 @@ def _path(workspace_id: str, ref: RowRef) -> Path:
     return paths.work_workspace_dir(workspace_id) / "claim_goals" / name
 
 
-def keep(workspace_id: str, ref: RowRef, who: str, goal_mode: GoalMode) -> None:
+def keep(workspace_id: str, ref: RowRef, who: str, goal_mode: str) -> None:
     """Record the goal mode ``who``'s claim of ``ref`` asked for; ``none`` clears what an earlier claim kept."""
 
-    if goal_mode is GoalMode.NONE:
+    if goal_mode_of(goal_mode) == NONE:
         forget(workspace_id, ref)
         return
     path = _path(workspace_id, ref)
     path.parent.mkdir(parents=True, exist_ok=True)
-    write_json_atomic(path, {"who": who, "goal_mode": goal_mode.value})
+    write_json_atomic(path, {"who": who, "goal_mode": goal_mode})
 
 
-def kept(workspace_id: str, ref: RowRef, who: str) -> GoalMode:
+def kept(workspace_id: str, ref: RowRef, who: str) -> str:
     """The goal mode kept with ``who``'s claim of ``ref``; ``none`` when there is none, or it is another's."""
 
     try:
         raw = json.loads(_path(workspace_id, ref).read_text(encoding="utf-8"))
-        return GoalMode(raw["goal_mode"]) if raw.get("who") == who else GoalMode.NONE
+        return goal_mode_of(raw["goal_mode"]) if raw.get("who") == who else NONE
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
-        return GoalMode.NONE
+        return NONE
 
 
 def forget(workspace_id: str, ref: RowRef) -> None:

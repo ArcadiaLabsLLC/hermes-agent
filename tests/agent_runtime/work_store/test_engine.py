@@ -469,7 +469,7 @@ def test_a_repeating_scheduled_task_stays_open_and_each_fire_reads_the_row_as_it
 def test_a_scheduled_task_whose_row_is_gone_removes_its_schedule(board):
     from agent_runtime.work_store import schedule_store
 
-    writer, _engine_, executor, scheduler, (t1, _t2, _t3) = _task_schedule(board, _row("RT-OTHER"))
+    writer, _eng, executor, scheduler, (t1, _t2, _t3) = _task_schedule(board, _row("RT-OTHER"))
     [receipt] = scheduler.tick(t1)
     assert receipt["kind"] == "schedule.abandoned" and receipt["reason"] == "row_gone"
     assert executor.started == [] and schedule_store.load_all() == [] and writer.ops == []
@@ -481,7 +481,7 @@ def test_a_scheduled_task_whose_board_cannot_be_read_keeps_its_schedule(board):
 
     from agent_runtime.work_store import schedule_store
 
-    writer, engine, executor, scheduler, (t1, _t2, _t3) = _task_schedule(board, _row("RT-S"))
+    _writer, engine, executor, scheduler, (t1, _t2, _t3) = _task_schedule(board, _row("RT-S"))
     engine._sync = lambda ws: Synced([], {}, False, {"repo": WorkRefused(Reason.UNAVAILABLE, "fetch failed")})
     [fire] = scheduler.tick(t1)
     assert fire["kind"] == "schedule.fire" and fire["refused"] == Reason.UNAVAILABLE.value
@@ -489,7 +489,7 @@ def test_a_scheduled_task_whose_board_cannot_be_read_keeps_its_schedule(board):
 
 
 def test_a_scheduled_task_fire_while_its_last_run_is_live_starts_no_second_run(board):
-    _writer, _engine_, executor, scheduler, (t1, t2, _t3) = _task_schedule(board, _row("RT-S"))
+    _writer, _eng, executor, scheduler, (t1, t2, _t3) = _task_schedule(board, _row("RT-S"))
     scheduler.tick(t1)
     [fire] = scheduler.tick(t2)
     assert fire["kind"] == "schedule.skipped" and fire["run_id"] == "nightly@20261018T120500Z"
@@ -533,8 +533,8 @@ def test_a_claim_that_asked_for_it_runs_until_done_judged_against_the_tasks_text
 
     writer, b = board(_row("RT-A", "persona:inst-1"), _row("RT-B", "persona:inst-2"))
     rows = _rows(writer)
-    until_done.keep(WS, rows["RT-A"].ref, "persona:inst-1", GoalMode.UNTIL_DONE)
-    until_done.keep(WS, rows["RT-B"].ref, "persona:someone-else", GoalMode.UNTIL_DONE)
+    until_done.keep(WS, rows["RT-A"].ref, "persona:inst-1", "until_done")
+    until_done.keep(WS, rows["RT-B"].ref, "persona:someone-else", "until_done")
     executor = FakeExecutor()
     engine = WorkEngine(executor=executor, sync=lambda ws: Synced([b], {"repo": writer}, False),
                         workspaces=lambda: [WS], cap_for=lambda ws: 4,
@@ -550,7 +550,7 @@ def test_a_claim_that_asked_for_it_runs_until_done_judged_against_the_tasks_text
     assert plain.goal_mode is GoalMode.NONE and plain.brief.tests == (), "kept for another claimant: one pass"
     assert {r.ref.id: r.goal_mode for r in records()} == {"RT-A": "until_done", "RT-B": "none"}
     executor.settle(kept, RowEnding(Verdict.DONE, result="swept"))
-    assert until_done.kept(WS, rows["RT-A"].ref, "persona:inst-1") is GoalMode.NONE, "forgotten once the run closed"
+    assert until_done.kept(WS, rows["RT-A"].ref, "persona:inst-1") == "none", "forgotten once the run closed"
 
 
 def test_a_row_with_skills_hands_them_to_the_assignment(board):

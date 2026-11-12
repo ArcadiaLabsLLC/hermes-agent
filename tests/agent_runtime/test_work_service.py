@@ -516,7 +516,6 @@ def test_a_claim_keeps_the_goal_mode_it_asked_for_and_refuses_an_unknown_one(wor
     """Killing mutation: ``store.claim`` never calls ``until_done.keep`` → the kept mode reads ``none``, red."""
 
     from agent_runtime.work_store import until_done
-    from agent_runtime.work_store.executor import GoalMode
     from agent_runtime.work_store.grammar import RowRef
 
     alice = mint_free_floating("alice")
@@ -530,8 +529,8 @@ def test_a_claim_keeps_the_goal_mode_it_asked_for_and_refuses_an_unknown_one(wor
     claimed = call(work, "claim", request_id="c1", who=who, goal_mode="until_done", **where)
     assert claimed["goal_mode"] == "until_done" and claimed["task"]["status"] == "TAKEN"
     ref = RowRef(task["slot"], claimed["receipt"]["ref"]["note"], task["id"])
-    assert until_done.kept(work.ws, ref, who) is GoalMode.UNTIL_DONE
+    assert until_done.kept(work.ws, ref, who) == "until_done"
     call(work, "release", request_id="r1", who=who, **where)
-    assert until_done.kept(work.ws, ref, who) is GoalMode.NONE, "a release forgets it"
+    assert until_done.kept(work.ws, ref, who) == "none", "a release forgets it"
     plain = call(work, "claim", request_id="c2", who=who, **where)
-    assert plain["goal_mode"] == "none" and until_done.kept(work.ws, ref, who) is GoalMode.NONE
+    assert plain["goal_mode"] == "none" and until_done.kept(work.ws, ref, who) == "none"

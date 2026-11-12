@@ -96,15 +96,16 @@ def test_a_pass_says_which_pass_it_is_and_only_the_runs_own_turn_does():
 
 def test_the_claims_goal_mode_is_kept_for_its_claimant_only():
     ws = "ws_until_done"
-    assert until_done.kept(ws, REF, "persona:inst-1") is GoalMode.NONE
-    until_done.keep(ws, REF, "persona:inst-1", GoalMode.UNTIL_DONE)
-    assert until_done.kept(ws, REF, "persona:inst-1") is GoalMode.UNTIL_DONE
-    assert until_done.kept(ws, REF, "persona:inst-2") is GoalMode.NONE, "another claimant's run is one pass"
-    until_done.keep(ws, REF, "persona:inst-1", GoalMode.NONE)
-    assert until_done.kept(ws, REF, "persona:inst-1") is GoalMode.NONE, "a plain re-claim clears it"
-    until_done.keep(ws, REF, "persona:inst-1", GoalMode.UNTIL_DONE)
+    assert set(until_done.GOAL_MODES) == {mode.value for mode in GoalMode}, "the store's words are the contract's"
+    assert until_done.kept(ws, REF, "persona:inst-1") == "none"
+    until_done.keep(ws, REF, "persona:inst-1", "until_done")
+    assert until_done.kept(ws, REF, "persona:inst-1") == "until_done"
+    assert until_done.kept(ws, REF, "persona:inst-2") == "none", "another claimant's run is one pass"
+    until_done.keep(ws, REF, "persona:inst-1", "none")
+    assert until_done.kept(ws, REF, "persona:inst-1") == "none", "a plain re-claim clears it"
+    until_done.keep(ws, REF, "persona:inst-1", "until_done")
     until_done.forget(ws, REF)
-    assert until_done.kept(ws, REF, "persona:inst-1") is GoalMode.NONE
+    assert until_done.kept(ws, REF, "persona:inst-1") == "none"
 
 
 def test_done_is_judged_against_the_tasks_text_and_the_tests_its_body_names():
