@@ -429,8 +429,12 @@ class _RunPhases:
         turn_phases.count_delta("registry_probe_rounds", _registry_probe_rounds())
         turn_phases.count_delta("visibility_bundle_builds", _visibility_bundle_builds())
         try:
-            if not getattr(self.args, "stream", False):
-                return None
+            # Every turn takes steers, streaming to a screen or not (a forged, scheduled or
+            # Work turn, RT-STEER-ONLY-STREAMING-TURNS): the watcher needs only the agent and
+            # the emitter's input position. Gated on ``--stream`` a steer sent at such a turn
+            # was refused ``no_active_turn`` and waited for the turn to end as a new message.
+            # MUTATION: restore ``if not args.stream: return None`` and
+            # test_steer_survives_a_failed_turn's "a turn that is not streaming" row reddens.
             handle = start_active_mission_chat_turn(
                 runtime_root=paths.store_root(),
                 session_id=self.session_id,
