@@ -12,7 +12,7 @@ from agent_runtime import paths as runtime_paths
 from agent_runtime import realm_leave, serve_rpc, turn_activity
 from agent_runtime.board_store import BoardStore
 from agent_runtime.realm_rekey import read_rekey_journal
-from agent_runtime.realm_sync import RealmSyncError, publish_realm_sync, pull_realm_sync, realm_sync_status
+from agent_runtime.realm_sync import publish_realm_sync, pull_realm_sync, realm_sync_status
 from agent_runtime.realm_sync.git import _sync_repo_path
 from agent_runtime.realm_sync.revocation import (
     HOST_STATE_REASONS,
@@ -181,10 +181,7 @@ def test_nothing_reaches_the_team_after_leaving_and_the_teams_copy_is_untouched(
     assert realm_summary(local, workspaces=[])["sync"] is None
     # A local edit, then a publish: it is a local realm's publish and never reaches the team.
     BoardStore().add_card(workspace_id=workspace.id, title="Added after leaving")
-    try:
-        publish_realm_sync(realm.id)
-    except RealmSyncError as refused:  # a local realm with no repository of its own has nowhere to push
-        assert refused.code == "sync_remote_unreachable"
+    assert publish_realm_sync(realm.id)["changed"] is True  # into the local realm's own history, nowhere else
     assert _git(bare, "rev-parse", "main") == team_head
     assert _git(clone, "rev-parse", "HEAD") == team_head
     # The team moves on; a pull here does not fetch it.
