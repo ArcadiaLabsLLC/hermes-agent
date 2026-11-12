@@ -1106,6 +1106,11 @@ own read; ``03-transport-and-wire.md`` has the per-kind table in prose). One add
 launcher parses as a map: rule (a) does not bump. No golden moved (no generated frame holds a ``chat_turn``
 row).
 
+54 KEPT (steer_of, 2026-11-12, RT-STEER-NEXT-TURN-NAMES-THE-STEER-IT-DELIVERS) — the turn record of a late
+steer's own turn (``steer-next-…``) gained ``steer_of`` (a list of client message ids, at most 16,
+``mission_chat_turns/records.py::safe_steer_of``), and so did that turn's operator row in the persona chat
+history and its operator-conversation message. Absent on every other turn. Additive: rule (a) does not bump.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

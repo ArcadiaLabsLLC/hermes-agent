@@ -951,6 +951,16 @@ given, it lowers to `--input-mode <mode>`, the write-ahead turn record stores `i
 `persona chat history` and the operator conversation history carries it, so a spoken turn stays spoken across a
 restart (`agent_runtime/chat_turn.py::_input_mode`).
 
+**`steer_of` on a late steer's own turn (RT-STEER-NEXT-TURN-NAMES-THE-STEER-IT-DELIVERS, 2026-11-12).** A steer
+accepted too late to land inside its turn runs as the conversation's next turn, `steer-next-<id>`. That turn's
+queued send states `steer_of`: a list of the client message ids of the operator steers it delivers, oldest first
+(one id from the settle's or the serve boot's ledger sweep; every addressed operator steer of a hand-back, which
+can be several in one turn; never a background notice's id). The write-ahead turn record stores it, and the
+turn's operator row in `persona chat history` and its operator-conversation message carry it. Absent on every
+other turn, and on a `steer-next-…` turn whose hand-back kept no ids — that turn's id is `steer-next-<the turn
+the steer was typed at>`, which names no steer. A client links the steer it echoed to the turn that delivers it
+by this field, never by taking the `steer-next-` prefix off a turn id.
+
 **`images` on `runtime.chat.message` (RT-OPERATOR-CHAT-SEND-PERSONA, 2026-10-18).**
 `[{media_type: image/png|image/jpeg, data_b64}]`, at most 4, each at most 5 MiB
 decoded, magic bytes matching the declared type; refusals `image_invalid` /
