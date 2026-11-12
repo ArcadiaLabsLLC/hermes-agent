@@ -251,6 +251,64 @@ def spent_envelope(monkeypatch, capsys, isolate_agent_runtime_root):
     return code, json.loads(capsys.readouterr().out)
 
 
+def _recording_provider(seen: dict):
+    """A provider that records the wall it was handed and the chain deadline seeded around it."""
+
+    from agent_runtime import relay_policy
+    from agent_runtime.profile_runner import RunBudgetExceeded
+
+    class _Provider:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def mission_chat_reply(self, *args, **kwargs):
+            seen["max_wall_seconds"] = kwargs["max_wall_seconds"]
+            seen["relay_deadline"] = relay_policy.RELAY_DEADLINE.get()
+            kwargs["agent_ready_callback"](object())
+            raise RunBudgetExceeded("ended by the test", wall_budget=_WALL_BUDGET)
+
+    return _Provider
+
+
+def _run_recording(monkeypatch, capsys, *, requested_by: str, max_seconds) -> dict:
+    seen: dict = {}
+    _seed(monkeypatch, _recording_provider(seen))
+    args = _args("clock_turn")
+    args.requested_by, args.max_seconds = requested_by, max_seconds
+    chat_turn_message._cmd_mission_chat_message(args)
+    capsys.readouterr()
+    return seen
+
+
+def test_an_attended_turn_that_states_no_budget_runs_with_no_wall_clock(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    """RT-CHAT-TURN-FOUR-MINUTE-CLOCK (owner 2026-11-12): a turn a person sent is not cut at 240 s.
+
+    The runner is handed no wall (so it arms neither the checkpoint timer nor the hard wall) and
+    the turn seeds no chain deadline for the hops it relays.
+    """
+
+    seen = _run_recording(monkeypatch, capsys, requested_by="operator", max_seconds=None)
+    assert seen == {"max_wall_seconds": None, "relay_deadline": None}
+
+
+def test_a_stated_budget_is_still_honoured_on_an_attended_turn(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    seen = _run_recording(monkeypatch, capsys, requested_by="operator", max_seconds=600.0)
+    assert seen["max_wall_seconds"] is not None and 500.0 < seen["max_wall_seconds"] <= 600.0
+    assert seen["relay_deadline"] is not None
+
+
+def test_an_unattended_turn_that_states_no_budget_keeps_the_lane_default(
+    monkeypatch, capsys, isolate_agent_runtime_root
+):
+    seen = _run_recording(monkeypatch, capsys, requested_by="schedule:nightly", max_seconds=None)
+    assert seen["max_wall_seconds"] is not None and 200.0 < seen["max_wall_seconds"] <= 240.0
+    assert seen["relay_deadline"] is not None
+
+
 # --------------------------------------------------------------------------- #
 # The contract, as executable rows                                             #
 # --------------------------------------------------------------------------- #

@@ -197,10 +197,12 @@ class CoordinatorPermissionConfig:
 class MissionChatConfig:
     """Harness-wide defaults for the canonical Mission Control chat lane.
 
-    ``default_max_seconds`` is the wall budget a mission-chat turn gets when the
-    caller passes no ``--max-seconds``. It defaults to **240 s** — the value the
-    CLI parser hardcoded before this block existed, so an absent stanza keeps
-    today's behavior exactly.
+    ``default_max_seconds`` is the wall budget an UNATTENDED mission-chat turn
+    (a relay hop, a schedule, a Lens or Forge turn) gets when the caller passes
+    no ``--max-seconds``. It defaults to **240 s** — the value the CLI parser
+    hardcoded before this block existed. A turn a person sent and is watching
+    that states no budget runs with NO wall clock (owner 2026-11-12,
+    ``config.resolve_mission_chat_turn_seconds``).
 
     Why it is configurable: the mission-chat lane is the primary home for agent
     work, but 240 s is a *conversation*-shaped window (the last
@@ -230,8 +232,8 @@ class MissionChatConfig:
 
         agent_runtime:
           mission_chat:
-            # Wall budget for a mission-chat turn when --max-seconds is absent.
-            # Default 240; clamped to [30, 86400]. An explicit --max-seconds
+            # Wall budget for an UNATTENDED mission-chat turn when --max-seconds
+            # is absent (an attended one then has no wall clock). Default 240; clamped to [30, 86400]. An explicit --max-seconds
             # always wins. The last max(60s, 15%) of the window is reserved for
             # the turn's graceful checkpoint reply.
             default_max_seconds: 1800

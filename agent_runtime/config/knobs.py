@@ -231,6 +231,36 @@ def resolve_mission_chat_max_seconds(
     return value if value > 0 else mission_chat_default_max_seconds(cfg)
 
 
+def resolve_mission_chat_turn_seconds(
+    requested: float | None, *, attended: bool, cfg: AgentRuntimeConfig | None = None
+) -> float | None:
+    """The wall budget one mission-chat turn runs under, or ``None`` for no wall clock.
+
+    Owner ruling 2026-11-12 (``RT-CHAT-TURN-FOUR-MINUTE-CLOCK``): a turn a person sent and is
+    watching (``attended`` — :func:`agent_runtime.turn_attendance.attended_for_requester`) runs with
+    no wall clock unless its caller states one; the step cap, the stream-stall retries and the
+    operator's Stop are its backstops, as on upstream's CLI. A number the caller states is honoured
+    on every turn, and an unattended turn (a relay, a dispatch, a schedule, a Work pass) that states
+    none keeps :func:`mission_chat_default_max_seconds`.
+    """
+
+    # MUTATION: drop ``attended and`` (or return the default here) and
+    # test_mission_chat_budget_default's "attended turn has no wall clock" rows redden.
+    if attended and _stated_positive_seconds(requested) is None:
+        return None
+    return resolve_mission_chat_max_seconds(requested, cfg)
+
+
+def _stated_positive_seconds(requested: object) -> float | None:
+    if requested is None or isinstance(requested, bool):
+        return None
+    try:
+        value = float(requested)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
 def mission_chat_dispatch_max_seconds(cfg: AgentRuntimeConfig | None = None) -> float:
     """The wall budget a DETACHED dispatch's target turn gets.
 

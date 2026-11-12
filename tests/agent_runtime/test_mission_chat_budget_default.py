@@ -182,6 +182,30 @@ def test_a_nonsense_request_falls_back_rather_than_arming_a_dead_budget():
     assert resolve_mission_chat_max_seconds("abc", cfg) == LEGACY_DEFAULT
 
 
+def test_an_attended_turn_that_states_no_budget_has_no_wall_clock():
+    """RT-CHAT-TURN-FOUR-MINUTE-CLOCK (owner 2026-11-12): ``None`` is "no wall clock", not 240 s."""
+
+    from agent_runtime.config import resolve_mission_chat_turn_seconds
+
+    cfg = _cfg(
+        """
+        agent_runtime:
+          mission_chat:
+            default_max_seconds: 1800
+        """
+    )
+
+    assert resolve_mission_chat_turn_seconds(None, attended=True, cfg=cfg) is None
+    # A request that states no usable number is no opinion either.
+    assert resolve_mission_chat_turn_seconds(0.0, attended=True, cfg=cfg) is None
+    assert resolve_mission_chat_turn_seconds("abc", attended=True, cfg=cfg) is None
+    # A stated number is honoured on an attended turn...
+    assert resolve_mission_chat_turn_seconds(90.0, attended=True, cfg=cfg) == 90.0
+    # ...and an unattended turn keeps the configured default.
+    assert resolve_mission_chat_turn_seconds(None, attended=False, cfg=cfg) == 1800.0
+    assert resolve_mission_chat_turn_seconds(90.0, attended=False, cfg=cfg) == 90.0
+
+
 # ── the CLI seam ────────────────────────────────────────────────────────────
 
 

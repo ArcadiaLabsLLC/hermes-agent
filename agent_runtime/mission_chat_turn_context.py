@@ -414,7 +414,8 @@ class MissionChatTurnContext:
     second HUD/tail resolution.
     """
 
-    wall_budget: TurnWallBudget
+    #: ``None`` — the turn runs with no wall clock (an attended turn that stated no budget).
+    wall_budget: TurnWallBudget | None
     capability: dict[str, Any]
     situational_hud: dict[str, Any]
     situational_hud_revision: str
@@ -588,12 +589,22 @@ def build_mission_chat_turn_context(
     # SHARED remaining budget — that is how a supervisor learns what window a
     # dispatch actually has instead of briefing 50 minutes of work into a
     # 9-minute hop (live incident 2026-07-26).
-    wall_budget = resolve_turn_wall_budget(
-        max_seconds=max_seconds,
-        relay_deadline_epoch=relay_deadline_epoch,
-        relay_chain=relay_chain,
-        min_relay_seconds=min_relay_seconds,
-    )
+    #
+    # ``max_seconds=None`` with no inherited chain deadline is a turn with NO wall
+    # clock (RT-CHAT-TURN-FOUR-MINUTE-CLOCK, owner 2026-11-12: an attended turn that
+    # states no budget — the caller decides that through
+    # ``config.resolve_mission_chat_turn_seconds``): no budget object, so no budget
+    # line, no HUD block, no checkpoint and no hard wall.
+    # MUTATION: drop this branch (always resolve a budget) and
+    # test_mission_chat_turn_context's "no wall clock" row reddens.
+    wall_budget: TurnWallBudget | None = None
+    if max_seconds is not None or relay_deadline_epoch is not None:
+        wall_budget = resolve_turn_wall_budget(
+            max_seconds=max_seconds,
+            relay_deadline_epoch=relay_deadline_epoch,
+            relay_chain=relay_chain,
+            min_relay_seconds=min_relay_seconds,
+        )
 
     # This lane's capability account, resolved ONCE (G5): the typed chat-lane
     # drops plus the terminal envelope's grant/refusal posture for this role. It
@@ -605,7 +616,9 @@ def build_mission_chat_turn_context(
     _started = time.monotonic()
     situational_hud = (
         resolvers.situational_hud(
-            instance, turn_budget=wall_budget.hud_block(), capability=capability
+            instance,
+            turn_budget=wall_budget.hud_block() if wall_budget is not None else {},
+            capability=capability,
         )
         or {}
     )
@@ -791,7 +804,7 @@ def _compose_volatile_tail(
     *,
     persona: Any,
     session_id: str,
-    wall_budget: TurnWallBudget,
+    wall_budget: TurnWallBudget | None,
     capability: dict[str, Any],
     resolvers: MissionChatTurnResolvers,
 ) -> VolatileTail:

@@ -1081,11 +1081,18 @@ through, and `turn_run_budget_metadata` (`:419`) the one adapter turning "the ru
 ended" into the journal fragment a settle point splices in (`run_budget.py:46`) — both
 absence-preserving. Neither is the only code that touches the block: two live consumers read it
 straight off the record they were handed (`agent_runtime/operator_channels/contract.py::_dedupe_conversation_messages`,
-`agent_runtime/persona_chat_history/curation.py:475`). Default wall budget is **240 s**
-(`runtime_config.py:150-164`), tunable at
-`agent_runtime.mission_chat.default_max_seconds` and clamped; an explicit `--max-seconds` always
-wins, including outside the clamp (`agent_runtime/config/knobs.py:155-176`). The last `max(60s, 15%)` is reserved for
-the graceful checkpoint, so a default turn has ~180 s of tool-using time.
+`agent_runtime/persona_chat_history/curation.py:475`). **An attended turn has no wall
+clock** (owner 2026-11-12, `RT-CHAT-TURN-FOUR-MINUTE-CLOCK`): a turn a person sent
+(`turn_attendance.attended_for_requester` — the console, the argv default, a paired device) that
+states no `--max-seconds` resolves no budget at all (`config.resolve_mission_chat_turn_seconds`
+answers `None`; `MissionChatTurnContext.wall_budget` is `None`), so it gets no budget line, no HUD
+`turn_budget` block, no checkpoint and no hard wall, and seeds no relay-chain deadline; the step
+cap, the stream-stall retries and the operator's Stop are its backstops. An explicit
+`--max-seconds` always wins, on any turn and including outside the clamp. An UNATTENDED turn that
+states none (a relay hop, a schedule, a Lens or Forge turn) keeps the default wall budget, **240 s**
+(`MissionChatConfig.default_max_seconds`), tunable at
+`agent_runtime.mission_chat.default_max_seconds` and clamped; the last `max(60s, 15%)` of a budget
+is reserved for the graceful checkpoint, so a 240 s turn has ~180 s of tool-using time.
 
 **The volatile tail** is how the agent is told any of this. Contributors register by name with their
 own byte budget — `turn_budget` 1024, `capability` 4096, `mcp_admission` 2048

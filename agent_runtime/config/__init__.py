@@ -98,6 +98,7 @@ from agent_runtime.config.knobs import (
     mission_chat_workdir,
     resolve_mission_chat_dispatch_max_seconds,
     resolve_mission_chat_max_seconds,
+    resolve_mission_chat_turn_seconds,
     scheduler_max_parallel,
 )
 

@@ -526,8 +526,9 @@ def _add_mission_chat_message(mission_chat_subs) -> None:
     # in the ROOT config.yaml, itself defaulting to 240s) rather than pinned in the
     # parser: an argparse default cannot be told apart from an explicit flag, and
     # "explicit --max-seconds always wins over the configured default" has to be
-    # decidable. `None` here IS "the caller expressed no opinion".
-    mission_chat_message.add_argument("--max-seconds", type=float, default=None, help="Wall budget for this turn (default: agent_runtime.mission_chat.default_max_seconds, or 240s when unset). The agent is told how much remains, and the last max(60s, 15%%) is reserved for a final checkpoint reply; the turn then settles as budget_exhausted (terminal, no turn-resolve)")
+    # decidable. `None` here IS "the caller expressed no opinion" — no wall clock
+    # at all on an attended turn (config.resolve_mission_chat_turn_seconds).
+    mission_chat_message.add_argument("--max-seconds", type=float, default=None, help="Wall budget for this turn (default: none on a turn a person sent — it runs until it ends or is stopped; agent_runtime.mission_chat.default_max_seconds, or 240s when unset, on a machine-origin turn). The agent is told how much remains, and the last max(60s, 15%%) is reserved for a final checkpoint reply; the turn then settles as budget_exhausted (terminal, no turn-resolve)")
     mission_chat_message.add_argument("--compression-threshold-tokens", type=int, default=None, help="One-turn native-compression proof seam; overrides the compressor token threshold without changing profile config")
     mission_chat_message.add_argument("--compression-protect-first-n", type=int, default=None, help="One-turn native-compression proof seam; override protected head messages")
     mission_chat_message.add_argument("--compression-protect-last-n", type=int, default=None, help="One-turn native-compression proof seam; override protected tail messages")

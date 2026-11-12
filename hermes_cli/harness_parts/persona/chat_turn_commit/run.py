@@ -17,7 +17,7 @@ from agent_runtime.operator_images import with_media_lines
 from agent_runtime import paths, relay_policy
 from agent_runtime.auxiliary_chat import is_auxiliary_chat
 from agent_runtime.cli_format import emit_json
-from agent_runtime.config import resolve_mission_chat_max_seconds
+from agent_runtime.config import resolve_mission_chat_turn_seconds
 from agent_runtime.context_build_receipt import ContextBuildLaps
 from agent_runtime.mission_chat_phases import (
     TURN_PHASES_KEY as MISSION_CHAT_TURN_PHASES_KEY,
@@ -211,11 +211,12 @@ class _RunPhases:
         # guarded by tests that assert the composed bytes. What remains here is
         # composition: gather the turn's inputs, call the builder, send.
         #
-        # G10: an explicit --max-seconds ALWAYS wins; only its absence (None) falls
-        # through to the operator's configured lane default
-        # (agent_runtime.mission_chat.default_max_seconds, itself 240s when unset),
-        # so the deployment sets the work-shaped window once instead of every caller
-        # remembering a flag.
+        # G10: an explicit --max-seconds ALWAYS wins. Its absence means NO wall clock
+        # on a turn a person sent and is watching (RT-CHAT-TURN-FOUR-MINUTE-CLOCK,
+        # owner 2026-11-12), and the operator's configured lane default
+        # (agent_runtime.mission_chat.default_max_seconds, itself 240s when unset)
+        # on an unattended one. A QA checkpoint override needs a clock to open
+        # against, so a turn carrying one keeps the lane default.
         # chat-turn-prep CP-5, Stage 8: ONE registry snapshot per physical root for
         # the whole turn. The preload policy walks the roots first and fills this
         # map; the prompt-observability resolver below is constructed around the
@@ -246,7 +247,11 @@ class _RunPhases:
             native_history=native_history,
             model_selection=self.model_selection,
             session_model_config=session_model_config,
-            max_seconds=resolve_mission_chat_max_seconds(getattr(args, "max_seconds", None)),
+            max_seconds=resolve_mission_chat_turn_seconds(
+                getattr(args, "max_seconds", None),
+                attended=attended_for_requester(getattr(args, "requested_by", None))
+                and getattr(getattr(self, "qa_turn_overrides", None), "checkpoint_after_seconds", None) is None,
+            ),
             relay_deadline_epoch=self.relay_deadline,
             relay_chain=self.turn_relay_chain,
             min_relay_seconds=relay_policy.MIN_RELAY_BUDGET_SECONDS,
@@ -592,13 +597,16 @@ class _RunPhases:
         # Relative window handed to the runner: time from NOW to the same
         # absolute deadline the agent's HUD line quoted, so prompt assembly
         # cannot let the enforced wall outlive the shared chain deadline.
-        relay_wall_seconds = max(
+        # A turn with no wall clock (``wall_budget is None``: attended, no stated
+        # budget) hands the runner no wall and seeds no chain deadline — a hop it
+        # relays mints its own, exactly as a hop from outside any chain does.
+        relay_wall_seconds = None if self.wall_budget is None else max(
             relay_policy.MIN_RELAY_BUDGET_SECONDS,
             self.wall_budget.remaining_seconds(),
         )
         _relay_chain_token = relay_policy.RELAY_CHAIN.set(self.turn_relay_chain)
         _relay_deadline_token = relay_policy.RELAY_DEADLINE.set(
-            self.wall_budget.deadline_epoch
+            None if self.wall_budget is None else self.wall_budget.deadline_epoch
         )
         # The turn's own id rides beside the chain so a dispatch this turn makes
         # is owned by it (``dispatch_store`` ``parent_turn_id``) and Stop on this

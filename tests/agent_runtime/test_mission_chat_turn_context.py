@@ -594,6 +594,22 @@ def test_a_relay_hop_inherits_the_shared_chain_deadline():
     assert context.situational_hud["turn_budget"]["shared"] is True
 
 
+def test_a_turn_with_no_stated_budget_and_no_chain_deadline_has_no_wall_clock():
+    """RT-CHAT-TURN-FOUR-MINUTE-CLOCK: no budget object, so the agent is told of no clock and the
+    HUD carries no ``turn_budget`` block; an inherited chain deadline still bounds the hop."""
+
+    import time
+
+    context = _build(max_seconds=None)
+    assert context.wall_budget is None
+    assert "Wall budget" not in context.volatile_tail.content
+    assert not context.situational_hud.get("turn_budget")
+
+    hop = _build(max_seconds=None, relay_deadline_epoch=time.time() + 120.0, relay_chain=("neko", "dev"))
+    assert hop.wall_budget is not None and hop.wall_budget.shared is True
+    assert "Wall budget" in hop.volatile_tail.content
+
+
 def _resolver_default_source(name: str) -> str:
     """The default resolver ``name`` as written ON DISK, looked up by NAME.
 
