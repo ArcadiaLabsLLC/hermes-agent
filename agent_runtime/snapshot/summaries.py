@@ -17,6 +17,7 @@ from agent_runtime.persona_chat_history.vocabulary import _SECRET_RE
 from agent_runtime.persona_profiles import effective_toolsets
 from agent_runtime.process_state import register_process_state
 from agent_runtime.realm_sync.sidecar import read_realm_sync_sidecar
+from agent_runtime.realm_sync.revocation import read_realm_shared_from
 from agent_runtime.repo_context import resolve_affected_repo_workdir
 from agent_runtime.work_store.activity import read_activity
 from agent_runtime.tool_visibility import (
@@ -122,6 +123,10 @@ def realm_summary(realm, *, workspaces, active_id: str | None = None) -> dict:
         # must never shell out to git or resolve artifacts. Absent sidecar →
         # null so the launcher renders "not checked", not a fake in_sync.
         "sync": read_realm_sync_sidecar(realm.id),
+        # A local realm that came from a server the member left or was removed from
+        # (``realm_leave``): ``{server_id, server_name, reason, left_at}``, else null. A pure file
+        # read, like the sidecar; never set on a server-bound realm.
+        "shared_from": None if realm.server_id else read_realm_shared_from(realm.id),
         "archived": bool(realm.archived),
         "active": realm.id == active_id,
         "updated_at": realm.updated_at,

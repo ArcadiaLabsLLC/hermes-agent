@@ -228,7 +228,9 @@ def _adopt(p: dict) -> dict:
 def _revoked(p: dict) -> dict:
     """Params: ``realm_id``, ``reason`` — a ``RealmRevokedReason`` (the
     ``realm.revoked`` event's) or a credential-mint refusal ``error.code``
-    (``realms.git_host_unbound`` / ``realms.git_host_binding_lost``)."""
+    (``realms.git_host_unbound`` / ``realms.git_host_binding_lost``) — and
+    ``server_name`` (optional): the caller's display name for the server, kept
+    on the realm's ``shared_from`` record when the realm becomes local."""
     from agent_runtime.realm_sync.revocation import BACKEND_REFUSAL_REASONS, RealmRevokedReason
     from agent_runtime.realm_verbs import realm_mark_revoked
 
@@ -239,7 +241,7 @@ def _revoked(p: dict) -> dict:
         raise _Refused(
             "invalid_request", "reason must be one of " + ", ".join(item.value for item in RealmRevokedReason)
         ) from None
-    return realm_mark_revoked(realm_id, reason=typed)
+    return realm_mark_revoked(realm_id, reason=typed, server_name=_param_text(p, "server_name"))
 
 
 #: method name -> verb body. One table, so a test can iterate it and a verb is

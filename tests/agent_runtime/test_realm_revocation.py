@@ -3,7 +3,9 @@
 The launcher records the event through ``runtime.realm.revoked``; the realm
 and its local data stay, the snapshot's ``sync`` object carries ``revoked``,
 and every credentialed sync verb refuses ``realm_revoked`` (not retryable)
-before any network call. A re-adopt (re-grant) lifts the mark.
+before any network call. A re-adopt (re-grant) lifts the mark. Through the
+verb only a git-host reason leaves the mark now: a member-access reason makes
+the realm local (``test_realm_leave.py``).
 """
 
 from __future__ import annotations
@@ -34,12 +36,12 @@ def _rpc(method: str, params: dict) -> dict:
 
 
 def test_the_method_records_the_mark_and_keeps_the_realm(realm):
-    reply = _rpc("runtime.realm.revoked", {"realm_id": realm.id, "reason": "membership_kicked"})
+    reply = _rpc("runtime.realm.revoked", {"realm_id": realm.id, "reason": "git_host_unbound"})
     result = reply["result"]
     assert result["kind"] == "realm_revocation"
-    assert (result["realm_id"], result["reason"], result["host_state"]) == (realm.id, "membership_kicked", False)
+    assert (result["realm_id"], result["reason"], result["host_state"]) == (realm.id, "git_host_unbound", True)
     assert realm_revocation_path(realm.id).is_file()
-    assert RealmStore().get(realm.id).id == realm.id  # local data kept
+    assert RealmStore().get(realm.id).server_id == "srv_9"  # still bound; local data kept
 
 
 def test_an_unknown_reason_is_invalid_request(realm):
@@ -149,9 +151,10 @@ def test_an_admitted_credential_never_lifts_a_membership_mark(realm):
 
 
 def test_an_ownership_transfer_parses_and_is_a_member_reason_not_host_state(realm):
-    """RT-REALM-REVOKED-OWNERSHIP-TRANSFERRED: the backend's newest reason is accepted."""
+    """RT-REALM-REVOKED-OWNERSHIP-TRANSFERRED: the backend's newest reason is accepted. A member reason
+    makes the realm local (``test_realm_leave.py``); the low-level mark still takes it."""
     reply = _rpc("runtime.realm.revoked", {"realm_id": realm.id, "reason": "ownership_transferred"})
     result = reply["result"]
     assert (result["reason"], result["host_state"]) == ("ownership_transferred", False)
     assert RealmRevokedReason("ownership_transferred") is RealmRevokedReason.OWNERSHIP_TRANSFERRED
-    assert read_realm_revocation(realm.id)["reason"] == "ownership_transferred"
+    assert mark_realm_revoked(realm, RealmRevokedReason.OWNERSHIP_TRANSFERRED)["host_state"] is False

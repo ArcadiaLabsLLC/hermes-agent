@@ -1180,6 +1180,28 @@ host-state marks — never `sync_remote_unreachable`, the retryable 503's word. 
 follows a reconnect, so a host-state mark is lifted by the next call carrying an admitted credential
 (the mint re-verified the binding); a membership mark is lifted only by a re-adopt.
 
+**A member-access `realm.revoked` makes the realm local (2026-11-12, `RT-LEFT-SERVER-REALM-STAYS-LISTED`).**
+Owner: after you leave a server, or are removed from it, its realm stays on your machine and becomes a
+local realm. `runtime.realm.revoked` with any reason that is not the git host's state
+(`MEMBER_ACCESS_REASONS`: every `membership_*`, `timeout_started`, `role_revoked`, `grant_removed`,
+`ownership_transferred`, `realm_deleted`, `server_deleted`) calls `agent_runtime/realm_leave.py`
+`make_realm_local`: the realm record drops `server_id` and `sync_manifest_ref`, the install-local record
+`realm_sync_state/<realm>.shared_from.json` keeps `{server_id, server_name, reason, left_at}`, the
+server's sync clone `realm_sync/<server>` is removed once no realm is bound to that server, the mark and
+the cached sync state are cleared, and `realm.updated` `{change: "became_local", server_id}` is
+appended. All member reasons, not only the three `membership_*` ones: the backend emits `realm.revoked`
+once, on the grant diff, so a realm left bound after a lost role would get no second event when the
+member later leaves. The verb takes an optional `server_name` (the caller's display name for the server)
+and answers `{realm_id, reason, revoked_at, host_state, became_local, shared_from}`; a repeat answers the
+first record with `became_local: false`. The snapshot's realm row and `realm_row` carry `shared_from`
+(null on a server-bound realm and on a realm that never had a server). Nothing is sent: the team's copy
+is unchanged, and a later publish or pull is a local realm's. Archive then follows the local rules
+(`realm_manage.py`). A re-grant (`adopt_realms`) binds the same realm again by its id, drops the record,
+and brings the realm back if it was archived while local; drift baselines are untouched by the leave,
+so local-era changes show as store drift and are held by the pull's own family rules. A git-host reason
+is unchanged: the realm stays bound under the mark described above. `runtime.realm.adopt` also converts
+any realm still bound under a member-access mark written before this rule (`make_marked_realms_local`).
+
 ## 3. The mission-control stream
 
 `agent_runtime/stream/session.py::stream_frames` (the whole function at `:1221`) is the single producer body.

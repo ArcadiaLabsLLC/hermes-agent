@@ -13,6 +13,14 @@ degrades to its local half, as it does for any refused authorization.
 
 The mark is cleared by a re-grant: ``adopt_realms`` re-adopting the realm.
 
+Since RT-LEFT-SERVER-REALM-STAYS-LISTED (owner 2026-11-12) the mark is what a
+HOST-state loss leaves (``HOST_STATE_REASONS``: the binding is still there to
+reconnect). A loss of the MEMBER's access (``MEMBER_ACCESS_REASONS``) no longer
+leaves a bound realm that cannot sync: ``agent_runtime.realm_leave`` makes the
+realm a local one and records where it came from in the ``shared_from`` record
+below — a third install-local file, read by the snapshot only for a realm with
+no ``server_id``.
+
 Stored at ``realm_sync_state/<realm>.revoked.json`` beside the status
 sidecar — a separate file, because every status run rewrites the sidecar
 whole. Install-local: nothing here is published.
@@ -38,13 +46,18 @@ __layer__ = "stores"
 __all__ = [
     "BACKEND_REFUSAL_REASONS",
     "HOST_STATE_REASONS",
+    "MEMBER_ACCESS_REASONS",
     "REALM_REVOKED_CODE",
     "RealmRevokedReason",
     "clear_realm_revocation",
+    "clear_realm_shared_from",
     "mark_realm_revoked",
     "read_realm_revocation",
+    "read_realm_shared_from",
     "realm_revocation_path",
+    "realm_shared_from_path",
     "refuse_if_revoked",
+    "write_realm_shared_from",
 ]
 
 #: The ``RealmSyncError.code`` a revoked realm's sync verbs refuse with.
@@ -81,6 +94,15 @@ class RealmRevokedReason(str, Enum):
 #: refuses with these same 409s while it is still gone.
 HOST_STATE_REASONS = frozenset({RealmRevokedReason.GIT_HOST_UNBOUND, RealmRevokedReason.GIT_HOST_BINDING_LOST})
 
+#: Every other reason: the MEMBER lost the realm (left, kicked, banned, timed
+#: out, lost the role or the grant, ownership moved, the realm or its server
+#: was deleted). The realm becomes a local one (``agent_runtime.realm_leave``).
+#: All of them, not only the three ``membership_*`` ones: the backend emits
+#: ``realm.revoked`` once, on the grant diff — a member who loses a role's realm
+#: and LATER leaves the server gets no second event, so a realm left bound on
+#: the first would stay bound for good. A re-grant re-binds the same realm.
+MEMBER_ACCESS_REASONS = frozenset(RealmRevokedReason) - HOST_STATE_REASONS
+
 #: Backend refusal ``error.code`` on the credential mint -> the mark it is.
 #: Both are permanent (no ``Retry-After``): never ``sync_remote_unreachable``,
 #: which is the retryable ``503 realm.sync.git_unavailable``'s word.
@@ -112,6 +134,56 @@ def read_realm_revocation(realm_id: str) -> dict[str, Any] | None:
         "revoked_at": raw.get("revoked_at"),
         "host_state": reason in HOST_STATE_REASONS,
     }
+
+
+def realm_shared_from_path(realm_id: str) -> Path:
+    return paths.store_root() / "realm_sync_state" / f"{paths.safe_path_token(realm_id)}.shared_from.json"
+
+
+def read_realm_shared_from(realm_id: str) -> dict[str, Any] | None:
+    """``{server_id, server_name, reason, left_at}`` — the server a now-local
+    realm was shared from — or ``None``. A pure file read (the snapshot's)."""
+    try:
+        raw = json.loads(realm_shared_from_path(realm_id).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(raw, dict) or not isinstance(raw.get("server_id"), str) or not raw["server_id"]:
+        return None
+    name = raw.get("server_name")
+    return {
+        "server_id": raw["server_id"],
+        "server_name": name if isinstance(name, str) and name else None,
+        "reason": raw.get("reason"),
+        "left_at": raw.get("left_at"),
+    }
+
+
+def write_realm_shared_from(
+    realm_id: str, *, server_id: str, server_name: str | None, reason: RealmRevokedReason
+) -> dict[str, Any]:
+    """Record where a realm came from. Holds ids, a display name and a reason
+    only — never a URL, a token or a credential. No event: its caller's
+    ``became_local`` event is the one that advances the watermark."""
+    payload = {
+        "schema_version": 1,
+        "realm_id": realm_id,
+        "server_id": server_id,
+        "server_name": server_name or None,
+        "reason": reason.value,
+        "left_at": now().astimezone(UTC).isoformat(),
+    }
+    atomic_json_write(realm_shared_from_path(realm_id), payload)
+    return read_realm_shared_from(realm_id) or {}
+
+
+def clear_realm_shared_from(realm_id: str) -> bool:
+    """Remove the record (the realm is bound to its server again). Returns
+    whether one was there."""
+    try:
+        realm_shared_from_path(realm_id).unlink()
+    except FileNotFoundError:
+        return False
+    return True
 
 
 def mark_realm_revoked(realm: Realm, reason: RealmRevokedReason) -> dict[str, Any]:

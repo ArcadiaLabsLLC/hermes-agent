@@ -252,17 +252,38 @@ def realm_adopt(
             "HERMES_REALM_SYNC_CREDENTIAL.",
         )
     adopted = adopt_realms(credential, server_id=server_id, dry_run=dry_run)
+    if not dry_run:
+        from .realm_leave import make_marked_realms_local
+
+        # A re-grant has just lifted the mark of every realm still held; a member-access mark that
+        # is left predates RT-LEFT-SERVER-REALM-STAYS-LISTED and its realm becomes local now.
+        make_marked_realms_local()
     return attach_root_observability(list_envelope("realm", sort_rows([realm_row(item) for item in adopted], sort)))
 
 
-def realm_mark_revoked(realm_id: str, *, reason: Any) -> dict:
-    """Record backend ``realm.revoked`` for this install (``realm_sync.revocation``):
-    the realm and its local data stay, its credentialed sync verbs refuse
-    ``realm_revoked`` until a re-adopt. ``reason`` is a ``RealmRevokedReason``.
-    Method lane only (no argv twin)."""
-    from .realm_sync.revocation import mark_realm_revoked
+def realm_mark_revoked(realm_id: str, *, reason: Any, server_name: str | None = None) -> dict:
+    """Record backend ``realm.revoked`` for this install. Method lane only (no argv twin).
+
+    A loss of the MEMBER's access (``MEMBER_ACCESS_REASONS`` — left, removed, …) makes the realm a
+    local one (``realm_leave.make_realm_local``): ``became_local`` true, ``shared_from`` the record
+    of the server it came from (``server_name`` is the caller's display name for it, optional).
+    A repeat answers the first record, ``became_local`` false. A git-HOST reason keeps the realm
+    bound and writes the mark (``realm_sync.revocation``): its credentialed sync verbs refuse
+    ``realm_revoked`` until an admitted credential lifts it. ``reason`` is a ``RealmRevokedReason``."""
+    from .realm_leave import make_realm_local
+    from .realm_sync.revocation import MEMBER_ACCESS_REASONS, mark_realm_revoked
     from .store import RealmStore
 
     realm = RealmStore().get(realm_id)
-    mark = mark_realm_revoked(realm, reason)
-    return attach_root_observability(object_envelope("realm_revocation", {"realm_id": realm.id, **mark}))
+    if reason in MEMBER_ACCESS_REASONS:
+        shared_from, changed = make_realm_local(realm.id, reason, server_name=server_name)
+        mark = {
+            "reason": (shared_from or {}).get("reason") or reason.value,
+            "revoked_at": (shared_from or {}).get("left_at"),
+            "host_state": False,
+        }
+    else:
+        mark, shared_from, changed = mark_realm_revoked(realm, reason), None, False
+    return attach_root_observability(object_envelope(
+        "realm_revocation", {"realm_id": realm.id, **mark, "became_local": changed, "shared_from": shared_from}
+    ))
