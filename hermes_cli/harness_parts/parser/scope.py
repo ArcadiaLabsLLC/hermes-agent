@@ -166,7 +166,7 @@ def add_realm(subs) -> None:
 
 
 def _add_realm_row_verbs(realm_subs) -> None:
-    """``hermes harness realm list / show / create / adopt / bind-server / use / default / default-scope``."""
+    """``hermes harness realm list / show / create / adopt / bind-server / use / default / archive / unarchive / default-scope``."""
     realm_list = realm_subs.add_parser("list", help="List realms")
     _add_stage42_global_args(realm_list, controls=frozenset({"sort"}))
     realm_list.set_defaults(func=realm_commands._cmd_realm_list)
@@ -207,6 +207,14 @@ def _add_realm_row_verbs(realm_subs) -> None:
     realm_default.add_argument("realm_id")
     _add_stage42_global_args(realm_default)
     realm_default.set_defaults(func=realm_commands._cmd_realm_default)
+    realm_archive = realm_subs.add_parser("archive", help="Put an empty realm away (reversible)")
+    realm_archive.add_argument("realm_id")
+    _add_stage42_global_args(realm_archive)
+    realm_archive.set_defaults(func=realm_commands._cmd_realm_archive)
+    realm_unarchive = realm_subs.add_parser("unarchive", help="Bring an archived realm back")
+    realm_unarchive.add_argument("realm_id")
+    _add_stage42_global_args(realm_unarchive)
+    realm_unarchive.set_defaults(func=realm_commands._cmd_realm_unarchive)
     realm_default_scope = realm_subs.add_parser(
         "default-scope",
         help="Preview default-scope adoption/reconciliation without mutating persisted state",

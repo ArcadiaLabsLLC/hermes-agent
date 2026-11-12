@@ -1,5 +1,6 @@
 """``runtime.workspace.use`` / ``runtime.realm.use`` — scope activation verbs — and
-``runtime.realm.set_default``, the account's default-realm pointer.
+``runtime.realm.set_default``, the account's default-realm pointer, and ``runtime.realm.archive`` /
+``runtime.realm.unarchive``.
 """
 
 from __future__ import annotations
@@ -14,7 +15,9 @@ from agent_runtime.serve_rpc.registry import method
 __layer__ = "lanes"
 
 __all__ = [
+    "_runtime_realm_archive",
     "_runtime_realm_set_default",
+    "_runtime_realm_unarchive",
     "_runtime_realm_use",
     "_runtime_workspace_use",
 ]
@@ -160,3 +163,53 @@ def _runtime_realm_set_default(
         code = _SET_DEFAULT_CODES.get(exc.reason.value, ERR_CONFLICT)
         return err(rid, code, "The default realm was not changed.", {"reason": exc.reason.value})
     return ok(rid, dict(to_jsonable(row)))
+
+
+_REALM_MANAGE_CODES = {"invalid_request": ERR_INVALID_PARAMS, "realm_not_found": ERR_NOT_FOUND}
+
+
+def _realm_manage(rid: Any, params: dict, verb: str) -> dict:
+    """One ``agent_runtime.realm_manage`` verb: exactly ``realm_id``; the full realm row plus ``changed``,
+    or the typed refusal on ``error.data`` (``reason`` and the refusal's details)."""
+    from agent_runtime import realm_manage
+    from agent_runtime.serde import to_jsonable
+
+    if not isinstance(params, dict) or set(params) != {"realm_id"}:
+        return err(rid, ERR_INVALID_PARAMS, "realm_id is required.", {"reason": "invalid_request"})
+    try:
+        row, changed = getattr(realm_manage, verb)(params["realm_id"])
+    except realm_manage.RealmManageRefused as exc:
+        code = _REALM_MANAGE_CODES.get(exc.reason.value, ERR_CONFLICT)
+        return err(rid, code, "The realm was not changed.", {"reason": exc.reason.value, **exc.details})
+    return ok(rid, dict(to_jsonable({**row, "changed": changed})))
+
+
+@method("runtime.realm.archive", tier=TIER_CONSOLE)
+def _runtime_realm_archive(
+    rid: Any, params: dict, context: RpcContext | None = None
+) -> dict:
+    """Put an empty realm away (RT-REALM-ARCHIVE-RESTORE; argv twin ``harness realm archive``).
+
+    Params: exactly ``realm_id``. Result: the full realm row (``archived: true``) plus ``changed``
+    (false when it was already archived). Refusals ride ``error.data.reason``: ``invalid_request``
+    (-32602), ``realm_not_found`` (4001), and at 4090 ``realm_server_bound`` (+ ``server_id`` — the
+    realm comes from a server; leave the server to remove it), ``realm_is_active``,
+    ``realm_is_default``, ``realm_not_empty`` (+ ``workspace_ids``, the workspaces not archived). The
+    rules are ``agent_runtime.realm_manage.archive_realm``'s. It moves no pointer.
+    """
+
+    return _realm_manage(rid, params, "archive_realm")
+
+
+@method("runtime.realm.unarchive", tier=TIER_CONSOLE)
+def _runtime_realm_unarchive(
+    rid: Any, params: dict, context: RpcContext | None = None
+) -> dict:
+    """Bring an archived realm back (RT-REALM-ARCHIVE-RESTORE; argv twin ``harness realm unarchive``).
+
+    Params: exactly ``realm_id``. Result: the full realm row (``archived: false``) plus ``changed``
+    (false when it was not archived). Refusals: ``invalid_request`` (-32602), ``realm_not_found``
+    (4001). Its archived workspaces stay archived until each is restored.
+    """
+
+    return _realm_manage(rid, params, "unarchive_realm")

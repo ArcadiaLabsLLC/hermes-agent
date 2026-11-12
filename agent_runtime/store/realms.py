@@ -120,6 +120,22 @@ class RealmStore:
         )
         return item
 
+    def unarchive(self, realm_id: str) -> Realm:
+        """Bring an archived realm back (archive's reverse). A live one is returned as it stands:
+        no write, no event."""
+        item = self.get(realm_id)
+        if not item.archived:
+            return item
+        item.archived = False
+        item = self.save(item, emit_event=False)
+        emit_store_event(
+            self.event_log,
+            "realm.updated",
+            {"realm_id": item.id, "change": "unarchived"},
+            domain="store",
+        )
+        return item
+
     def bind_server(self, realm_id: str, server_id: str) -> Realm:
         item = self.get(realm_id)
         item.server_id = safe_id(server_id)

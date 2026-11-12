@@ -7,6 +7,7 @@ selection read it or feed it.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -576,6 +577,22 @@ def _append_skill_package_artifacts(
         )
 
 
+def _published_realm_record(realm: Realm) -> bytes | None:
+    """The realm record's published bytes when they must differ from the file: ``archived`` is this
+    machine's flag (RT-REALM-ARCHIVE-RESTORE) and never travels, so an archived realm publishes its
+    record with the flag off. ``None`` = publish the file verbatim (every live realm)."""
+    if not realm.archived:
+        return None
+    try:
+        record = json.loads(paths.realm_path(realm.id).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict) or not record.get("archived"):
+        return None
+    record["archived"] = False
+    return json.dumps(record, indent=2, sort_keys=True, default=str).encode("utf-8")
+
+
 def _workspace_realm_artifacts(realm: Realm, workspaces: list[Workspace]) -> list[RealmSyncArtifact]:
     artifacts = [
         RealmSyncArtifact(
@@ -583,6 +600,7 @@ def _workspace_realm_artifacts(realm: Realm, workspaces: list[Workspace]) -> lis
             source=paths.realm_path(realm.id),
             relative_path=f"store/realms/{paths.safe_path_token(realm.id)}.json",
             destination=paths.realm_path(realm.id),
+            content=_published_realm_record(realm),
         )
     ]
     for workspace in workspaces:

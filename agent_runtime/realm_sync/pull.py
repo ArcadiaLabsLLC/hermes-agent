@@ -591,21 +591,33 @@ def _pulled_artifact_bytes(artifact: RealmSyncArtifact, *, realm: Realm) -> byte
        Not gated on ``server_id``: a local-only realm with a sync repo loses a
        tombstone exactly the same way, and the guard is not about identity.
 
-    Returns the source bytes UNTOUCHED when neither reconciliation changes
+    3. **The archived flag** (every realm) is install-local: the local value is
+       kept, whatever the repo says.
+
+    Returns the source bytes UNTOUCHED when no reconciliation changes
     anything, so a pull that reconciles nothing cannot report ``changed`` on
     re-serialization alone.
     """
     data = artifact.source.read_bytes()
-    if artifact.kind != SyncFamily.REALM or not artifact.destination.exists():
+    if artifact.kind != SyncFamily.REALM:
         return data
     try:
         incoming = json.loads(data.decode("utf-8"))
-        current = json.loads(artifact.destination.read_text(encoding="utf-8"))
+        current = (
+            json.loads(artifact.destination.read_text(encoding="utf-8"))
+            if artifact.destination.exists()
+            else {}
+        )
     except (OSError, UnicodeDecodeError, ValueError):
         return data
     if not isinstance(incoming, dict) or not isinstance(current, dict):
         return data
     merged = dict(incoming)
+    # 3. ``archived`` is THIS machine's flag (RT-REALM-ARCHIVE-RESTORE): a pull never puts a realm
+    #    away here and never brings one back. A first pull (no local record) lands it live.
+    local_archived = bool(current.get("archived", False))
+    if bool(incoming.get("archived", False)) != local_archived:
+        merged["archived"] = local_archived
     if realm.server_id:
         for field in _REALM_AUTHORITY_FIELDS:
             if field in current:

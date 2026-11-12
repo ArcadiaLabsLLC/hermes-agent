@@ -336,7 +336,11 @@ defined in [Realms and workspaces](#realms-and-workspaces) above.
 a concurrent publish can no longer drop a delete another member recorded. It is
 not gated on `server_id`: a local-only realm with a sync repo loses a guard
 entry the same way. Every OTHER realm field keeps the last-writer-wins posture
-`skill_selection` documents. The `skill_tombstones` half is what makes the
+`skill_selection` documents — except `archived`, which is this machine's flag
+and never travels (RT-REALM-ARCHIVE-RESTORE): a pull keeps the local value
+whatever the repo says (a first pull lands the realm live), and an archived
+realm publishes its record with the flag off (`_published_realm_record`,
+`realm_sync/artifacts.py`). The `skill_tombstones` half is what makes the
 ledger a per-slug **state register** rather than a delete list: an entry
 lifted by `skills restore` stays on the ledger carrying `restored_at`
 (`models.py:119-135`), because an absence cannot be told apart from "this

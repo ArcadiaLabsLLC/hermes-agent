@@ -1427,6 +1427,21 @@ resolver (`agent_runtime/default_realm.py::default_realm_id`): the stored pointe
 and `harness workspace create` with no realm land in it (the row's `realm_id` says where); the conversations
 workspace stays realm-less.
 
+`runtime.realm.archive` and `runtime.realm.unarchive` (`console` tier; RT-REALM-ARCHIVE-RESTORE; argv twins
+`harness realm archive <realm_id>` / `harness realm unarchive <realm_id>`) put an empty realm away and bring it
+back. Params exactly `realm_id`; the answer is the full realm row (`archived` true / false) plus `changed` (false
+when it already was — nothing checked, nothing written). Archive refuses, in this order, on `error.data.reason`:
+`invalid_request` (-32602); `realm_not_found` (4001); and at 4090 `realm_server_bound` (`server_id` — the realm
+comes from a server and is every member's: leaving the server is how it is removed), `realm_is_active` (switch to
+another realm first), `realm_is_default` (the resolved account default — choose another first) and
+`realm_not_empty` (`workspace_ids` — the workspaces in it that are not archived; archived ones do not block).
+Unarchive refuses only `invalid_request` and `realm_not_found`; the realm's archived workspaces stay archived
+until each is restored. Neither moves a pointer or touches a workspace; the write is `realm.archived` /
+`realm.updated` (`change: unarchived`). `archived` is this machine's flag: realm sync neither publishes it nor
+adopts it ([01 — System architecture](01-system-architecture.md) § "The realm ledgers on a pull"). The rules live
+in `agent_runtime/realm_manage.py` (owner 2026-11-12: "realm must be empty", "same with the server realms", "you
+need to remove yourself from the server to get rid of it").
+
 `runtime.workspace.unarchive` (`console` tier; RT-WORKSPACE-UNARCHIVE; argv twin `harness workspace unarchive
 <id>`) is archive's reverse: params exactly `workspace_id`; the answer is the full workspace row (`archived:
 false`) plus `restored` (false when it was not archived — nothing is written). A restore lifts the workspace off

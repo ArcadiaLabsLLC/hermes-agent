@@ -39,6 +39,7 @@ __all__ = [
     "_cmd_realm_adopt",
     "_cmd_realm_agents_set",
     "_cmd_realm_agents_show",
+    "_cmd_realm_archive",
     "_cmd_realm_bind_server",
     "_cmd_realm_create",
     "_cmd_realm_default",
@@ -54,6 +55,7 @@ __all__ = [
     "_cmd_realm_sync_resolve",
     "_cmd_realm_sync_revert",
     "_cmd_realm_sync_status",
+    "_cmd_realm_unarchive",
     "_cmd_realm_use",
     "_realm_agent_selection_envelope",
     "_realm_row",
@@ -122,6 +124,29 @@ def _cmd_realm_default(args) -> int:
         return emit_harness_error(exc, args=args, code=exc.reason.value)
     _print_stage42(attach_root_observability(_object_envelope("realm", row)), args=args, default_output="json")
     return 0
+
+
+def _realm_manage(args, verb: str) -> int:
+    """One ``agent_runtime.realm_manage`` verb from argv: the full realm row plus ``changed``."""
+    from agent_runtime import realm_manage
+
+    try:
+        row, changed = getattr(realm_manage, verb)(args.realm_id)
+    except realm_manage.RealmManageRefused as exc:
+        return emit_harness_error(exc, args=args, code=exc.reason.value)
+    envelope = attach_root_observability(_object_envelope("realm", {**row, "changed": changed}))
+    _print_stage42(envelope, args=args, default_output="json")
+    return 0
+
+
+def _cmd_realm_archive(args) -> int:
+    """``harness realm archive <id>``: put an empty realm away (``runtime.realm.archive``'s twin)."""
+    return _realm_manage(args, "archive_realm")
+
+
+def _cmd_realm_unarchive(args) -> int:
+    """``harness realm unarchive <id>``: archive's reverse (``runtime.realm.unarchive``'s twin)."""
+    return _realm_manage(args, "unarchive_realm")
 
 
 def _cmd_realm_default_scope(args) -> int:
