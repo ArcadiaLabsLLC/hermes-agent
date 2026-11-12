@@ -15,7 +15,8 @@ detected   ``terminate_host_pid(pid, host_start_time)``                 slot no 
 
 **Restart** = stop if running, then spawn ``restart.argv`` in ``restart.cwd`` through
 ``process_registry.spawn_local`` as a background process (``persist_on_release``: an
-operator's restart outlives an agent's turn). **A detected build restarts through the SAME
+operator's restart outlives an agent's turn); an ``agent`` build's restart keeps the first run's
+owner, so the agent that started it is told when the restarted run finishes. **A detected build restarts through the SAME
 path, with no confirm step** (owner call 2): the row already shows the argv and cwd it will run
 and lists, as typed unknowns, what hermes could not observe. Under a bound slot the restart
 runs with that SLOT's environment (``workspace_slot_overlay.env_overlay``: ``path_prepend``,
@@ -32,6 +33,7 @@ import os
 import shlex
 import sys
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -177,8 +179,47 @@ def _restart_refusal(row: dict[str, Any]) -> str:
     return ""
 
 
+@dataclass(frozen=True)
+class _Owner:
+    """Who hears a build finish: ``spawn`` goes to ``spawn_local``, ``stamps`` onto the new session."""
+
+    spawn: dict[str, Any] = field(default_factory=dict)
+    stamps: dict[str, Any] = field(default_factory=dict)
+
+
+#: What a background ``terminal`` records about the agent that started it (``terminal_tool_background``):
+#: the session's identity at spawn, then the completion contract and its route.
+_OWNER_SPAWN_FIELDS = ("task_id", "owner_task_id", "session_key")
+_OWNER_STAMP_FIELDS = (
+    "notify_on_complete", "completion_output_chars", "parent_session_id", "watcher_platform", "watcher_chat_id",
+    "watcher_user_id", "watcher_user_name", "watcher_thread_id", "watcher_message_id",
+)
+
+
+def _owner_of(row: dict[str, Any], process_registry: Any) -> _Owner:
+    """The owner of an ``agent`` build's session, carried to its restart (RT-BUILD-RESTART-LOSES-ITS-OWNER).
+
+    Only an agent build has one here: its row IS a terminal session of this registry. An announced or
+    detected build was started outside hermes, so nobody is waiting on a completion; no owner, as before.
+    """
+
+    if row.get("source") != SOURCE_AGENT:
+        return _Owner()
+    first = process_registry.get(_stable(row))
+    if first is None:
+        return _Owner()
+    return _Owner(
+        spawn={name: value for name in _OWNER_SPAWN_FIELDS if (value := getattr(first, name, ""))},
+        stamps={name: value for name in _OWNER_STAMP_FIELDS if (value := getattr(first, name, None))},
+    )
+
+
 def restart_build(row: dict[str, Any], *, registry: Any = None) -> dict[str, Any]:
-    """Stop the build if it is running, then spawn its restart spec with the slot's environment."""
+    """Stop the build if it is running, then spawn its restart spec with the slot's environment.
+
+    An agent's build restarts with the SAME owner (session, task, completion notice): the agent that
+    started it hears the restarted run finish (``_owner_of``).
+    """
 
     from agent_runtime.workspace_slot_overlay import env_overlay
 
@@ -186,6 +227,9 @@ def restart_build(row: dict[str, Any], *, registry: Any = None) -> dict[str, Any
     refusal = _restart_refusal(row)
     if refusal:
         return _error(work_id, "restart_refused", refusal)
+    process_registry = registry or _spawning_registry()
+    # Read BEFORE the stop: the first run's session is where its owner is written.
+    owner = _owner_of(row, process_registry)
     if row.get("status") in _RUNNING and row.get("outcome") is None:
         stopped = stop_build(row, reason="operator_restart")
         if stopped.get("status") == "error":
@@ -194,9 +238,10 @@ def restart_build(row: dict[str, Any], *, registry: Any = None) -> dict[str, Any
     overlay = env_overlay(spec.get("cwd") or "")
     argv = _resolved_argv([str(a) for a in spec["argv"]], overlay)
     env_vars = overlay.apply({"PATH": os.environ.get("PATH", "")}) if overlay is not None else {}
-    process_registry = registry or _spawning_registry()
     session = process_registry.spawn_local(shlex.join(argv), cwd=spec.get("cwd") or None, env_vars=env_vars,
-                                           persist_on_release=True)
+                                           persist_on_release=True, **owner.spawn)
+    for name, value in owner.stamps.items():
+        setattr(session, name, value)
     env_source = overlay.env_source if overlay is not None else ENV_SOURCE_PROCESS
     _mark(session.id, restart_of=work_id, env_source=env_source)
     return {"status": "restarted", "code": "", "work_id": work_id, "new_work_id": f"build:{SOURCE_AGENT}:{session.id}",

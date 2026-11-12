@@ -164,6 +164,50 @@ def test_a_detected_restart_runs_with_the_slot_environment_and_says_so(head, ide
     assert len(env_unobserved(new)) < len(env_unobserved(original))
 
 
+def test_a_restarted_agent_build_still_tells_the_agent_that_started_it(head, tmp_path, monkeypatch):
+    """RT-BUILD-RESTART-LOSES-ITS-OWNER: the restarted run keeps the first run's owner, so its finish is delivered.
+
+    A REAL registry and real processes: the first build as the terminal tool leaves it (an owning session,
+    ``notify_on_complete``), restarted through ``restart_build``; the restarted run's completion must name the owner.
+    """
+    import sys
+    import time
+
+    import tools.process_registry as registry_module
+
+    registry = registry_module.ProcessRegistry()
+    registry._completions_restored = True
+    monkeypatch.setattr(registry_module, "process_registry", registry)  # the Stop half reads the process's own
+    first = registry.spawn_local(f"{shlex.quote(sys.executable)} -c 'import time; time.sleep(60)'", cwd=str(tmp_path),
+                                 task_id="task-A", owner_task_id="sa-task-A", session_key="chat-root-A")
+    first.notify_on_complete = True
+    first.completion_output_chars = 321
+    first.parent_session_id = "sess-A"
+    row = _row("agent", first.id, restart={"argv": [sys.executable, "-c", "import time; time.sleep(0.4); print('rebuilt')"],
+                                           "cwd": str(tmp_path)})
+    try:
+        result = control.restart_build(row, registry=registry)
+        assert result["status"] == "restarted"
+        new_id = result["new_work_id"].rsplit(":", 1)[-1]
+        restarted = registry.get(new_id)
+        assert (restarted.session_key, restarted.task_id, restarted.owner_task_id) == ("chat-root-A", "task-A", "sa-task-A")
+        assert (restarted.notify_on_complete, restarted.completion_output_chars, restarted.parent_session_id) == (
+            True, 321, "sess-A")
+        finished, deadline = {}, time.monotonic() + 20
+        while new_id not in finished and time.monotonic() < deadline:
+            try:
+                event = registry.completion_queue.get(timeout=0.5)
+            except Exception:
+                continue
+            finished[event.get("session_id")] = event
+        assert new_id in finished, f"the restarted build finished and told nobody: {sorted(finished)}"
+        assert (finished[new_id]["type"], finished[new_id]["session_key"], finished[new_id]["exit_code"]) == (
+            "completion", "chat-root-A", 0)
+    finally:
+        for session_id in (first.id, *( [new_id] if "new_id" in locals() else [])):
+            registry.kill_process(session_id, source="test", consume_output=False)
+
+
 def test_a_restart_without_an_argv_or_off_its_slot_is_refused_typed(monkeypatch):
     assert control.restart_build(_row("announced", "qb"))["detail"] == "argv_unknown"
     monkeypatch.setattr("agent_runtime.workspace_slots.authorized_roots_bound_here", list)
