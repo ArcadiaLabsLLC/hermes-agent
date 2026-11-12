@@ -68,15 +68,18 @@ def queue_leftover_steer(args: Any, *, session_id: str, client_message_id: str, 
 
 def requeue_undelivered_steers(
     args: Any, *, session_id: str, client_message_id: str, session_db: Any, turn_returned: bool,
+    raw: Any = None,
 ) -> list[str]:
     """Queue every accepted steer that reached neither the transcript nor a next turn. Returns their ids.
 
-    Reads (and so clears) the root's accepted-steer ledger. A steer of THIS turn is already
-    accounted for when the run returned: it was drained into the turn or handed back as
-    ``pending_steer`` (``queue_leftover_steer``). Every other record — this turn's when it
-    raised, an earlier turn's whose executor died — is re-delivered unless its own row is in
-    the transcript (the model was given it). Process-completion notices are not operator
-    input and are not re-sent. Called under the chat-root lease, like ``queue_leftover_steer``.
+    Reads (and so clears) the root's accepted-steer ledger. A record is re-delivered unless
+    its own row is in the transcript (the model was given it) or, for a steer of THIS turn
+    when the run returned, ``raw["pending_steer"]`` handed it back (``queue_leftover_steer``
+    queued that already). A returned turn's own steer can be in neither: the watcher keeps
+    accepting until the runner's cleanup stops it, after upstream's finalizer drained the
+    buffer for the last time (RT-STEER-ACCEPTED-AS-REPLY-ENDS) — so "the run returned" alone
+    accounts for nothing. Process-completion notices are not operator input and are not
+    re-sent. Called under the chat-root lease, like ``queue_leftover_steer``.
     """
 
     from agent_runtime import chat_root_send_queue
@@ -87,11 +90,23 @@ def requeue_undelivered_steers(
     return _requeue_from_ledger(
         chat_root_send_queue.persistable_args(args, origin=send_origin()), session_id=session_id,
         client_message_id=client_message_id, session_db=session_db, turn_returned=turn_returned,
+        handed_back=raw.get("pending_steer") if isinstance(raw, dict) else None,
     )
+
+
+def _handed_back(pending: Any, steer_id: str, text: str) -> bool:
+    """Whether the turn's ``pending_steer`` carries this steer: by its id, or — when the
+    hand-back is plain text that kept no ids — by its text."""
+
+    inputs = getattr(pending, "inputs", None)
+    if inputs:
+        return any(str(getattr(item, "platform_id", None) or "").strip() == steer_id for item in inputs)
+    return bool(text) and text in str(pending or "")
 
 
 def _requeue_from_ledger(
     send_args: dict, *, session_id: str, client_message_id: str, session_db: Any, turn_returned: bool,
+    handed_back: Any = None,
 ) -> list[str]:
     """Take the root's ledger and queue what is owed, each as ``send_args`` with the steer's text."""
 
@@ -106,7 +121,9 @@ def _requeue_from_ledger(
         text = str(steer.get("message") or "").strip()
         if not steer_id or not text or steer.get("notification") is True:
             continue
-        if turn_returned and steer.get("turn") == client_message_id:
+        # MUTATION: skip every record of a returned turn here (drop the ``_handed_back`` term) and
+        # test_steer_accepted_as_reply_ends' "accepted as the reply ends" row reddens.
+        if turn_returned and steer.get("turn") == client_message_id and _handed_back(handed_back, steer_id, text):
             continue
         if _persona_chat_existing_turn(
             session_db=session_db, session_id=session_id, client_message_id=steer_id,

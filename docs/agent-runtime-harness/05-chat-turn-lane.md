@@ -1059,8 +1059,12 @@ marker unless the turn has a REPLY row — a tool-request row, or a half reply u
 assistant row hid the marker, so a turn cut off after one tool call reloaded as nothing). The steer
 watcher writes each accepted steer to `<steer dir>/<root>/accepted/<id>.json` before its ack; the turn's
 settle (`leftover_steer.requeue_undelivered_steers`, under the root lease) queues as the root's next
-turn (`steer-next-<id>`) every record that is not in the transcript and belongs to a turn that raised,
-hit the hard wall or died — a returned turn's own steers were drained or handed back as `pending_steer`.
+turn (`steer-next-<id>`) every record that is not in the transcript — a turn that raised, hit the hard
+wall or died, and a RETURNED turn's own steer too unless `pending_steer` handed it back: the watcher
+accepts until the runner's cleanup stops it, after upstream's finalizer drained the buffer for the last
+time, so a steer accepted as the reply ends is in neither place
+(`tests/agent_runtime/test_steer_accepted_as_reply_ends.py`, whose first test proves on a real `SessionDB`
+that an absorbed steer row keeps its `platform_message_id`, so it is never sent twice).
 Process-completion notices are not re-sent. A turn that DIED never settles, so the watcher also keeps the
 turn's own send in `active.json` (`send_args`, the busy-root queue's persisted shape) and the serve boot
 (`leftover_steer.requeue_dead_turn_steers`, right after the orphan sweep) queues the ledger of every root

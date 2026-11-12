@@ -149,7 +149,7 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases, _StoppedPhases):
             )
             requeue_undelivered_steers(
                 self.args, session_id=self.session_id, client_message_id=self.client_message_id,
-                session_db=self.session_db, turn_returned=turn_returned,
+                session_db=self.session_db, turn_returned=turn_returned, raw=raw,
             )
         except Exception as exc:
             self._warn(FinalizationWarningKind.LEFTOVER_STEER_NOT_QUEUED, type(exc).__name__)

@@ -90,11 +90,17 @@ def test_a_steer_the_transcript_already_holds_is_not_sent_twice(monkeypatch, iso
     assert chat_root_send_queue.find(ROOT, "steer-next-cm-steer-1") is None
 
 
-def test_a_turn_that_returns_owes_its_own_steers_nothing_more(monkeypatch, isolate_agent_runtime_root):
-    """The twin: the run returned, so its steers were drained or handed back; none is re-sent."""
+def test_a_turn_that_returns_does_not_resend_a_steer_it_absorbed(monkeypatch, isolate_agent_runtime_root):
+    """The twin: the run returned and the steer's row is in the transcript; it is not re-sent.
+    (A returned turn's steer that is in neither the transcript nor ``pending_steer`` IS
+    re-delivered: ``test_steer_accepted_as_reply_ends``.)"""
 
     handler = _install_chat_lane(monkeypatch)
     _provider(monkeypatch, steers={"cm-fine": [("cm-steer-1", "also check the logs")]}, fails=set())
+    monkeypatch.setattr(
+        chat_history_writes, "_persona_chat_existing_turn",
+        lambda **kwargs: {"operator": {"role": "user"}} if kwargs["client_message_id"] == "cm-steer-1" else {},
+    )
 
     assert handler._cmd_mission_chat_message(_args("cm-fine")) == 0
     assert not chat_root_send_queue.has_entries(ROOT)
