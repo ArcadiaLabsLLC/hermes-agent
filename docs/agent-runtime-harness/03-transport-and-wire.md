@@ -1487,8 +1487,10 @@ workspace row (`realm_id` now the target) plus `moved` (false when that realm al
 `from_realm_id` (the realm it left, null for a realm-less one), `active_workspace_id` (the pointer after the
 reconcile) and `publish_owed` (the server-bound realms the move changed, in the order to publish them: the target
 first, then the source — so the workspace is never absent from both remotes; empty for a move between local
-realms). Writes under the assign lock: the workspace's `realm_id`, then every source realm's `workspace_ids` entry
-out, then the target's in (lifting its delete-ledger entry). When the moved workspace was the ACTIVE one and the
+realms). Writes under the assign lock: the workspace's `realm_id`, then the leave into every source realm — local
+or server-bound: off `workspace_ids`, onto `deleted_workspace_ids`, so the player's other machines and a later
+re-join keep the move ([01 — System architecture](01-system-architecture.md) § "The realm ledgers on a pull") —
+then the target's entry in (lifting its delete-ledger entry). When the moved workspace was the ACTIVE one and the
 active realm is not the target, the realm pointer stays and the workspace pointer falls to that realm's next
 workspace (`reconcile_active_workspace_to_realm`), so the two pointers never straddle realms.
 

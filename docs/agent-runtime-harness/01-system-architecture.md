@@ -330,9 +330,14 @@ families rather than about the lane, and the transport is in
 defined in [Realms and workspaces](#realms-and-workspaces) above.
 
 **A `deleted_workspace_ids` entry means "gone from THIS realm", not "gone"**
-(RT-WORKSPACE-MOVE-OUT-OF-SERVER-REALM). `move_workspace_realm` out of a
-server-bound realm writes the same entry a delete does, and the workspace lives
-on under its new realm. So a pull of a realm leaves alone any local workspace
+(RT-WORKSPACE-MOVE-OUT-OF-SERVER-REALM). `move_workspace_realm` out of ANY
+realm — server-bound or local — writes the same entry a delete does, and the
+workspace lives on under its new realm. A local realm needs it too: it reaches
+the player's other machines through the personal repo
+(RT-WORKSPACE-MOVE-OUT-OF-PERSONAL-REPO-REALM), and a realm that turned local at
+a leave is bound again by a re-join, where the entry is what keeps the team's
+copy from being written back; it reaches the team only when the member publishes
+(RT-REJOIN-KEEPS-WORKSPACES-MOVED-WHILE-LOCAL). So a pull of a realm leaves alone any local workspace
 whose `realm_id` names ANOTHER realm: `_apply_workspace_tombstones` does not
 delete it, and the generic overwrite loop does not write an older copy of it
 that a member who had not heard of the move published into the realm's subtree
@@ -340,6 +345,15 @@ that a member who had not heard of the move published into the realm's subtree
 the order of the realm record and the workspace file in the loop does not
 matter). A workspace this machine holds under the pulled realm, or does not
 hold, is handled as before: written, then removed by the tombstone applier.
+
+**One workspace, one realm, after every pull**
+(RT-WORKSPACE-RESTORED-IN-SOURCE-AFTER-A-MOVE-SITS-IN-TWO-REALMS). When the loop
+does write a workspace this machine held under another realm — the entry was
+lifted (another member restored it there after the move), or it was moved there
+— `_leave_realms_a_pull_rehomed_from` writes the leave into the realm that held
+it here, so that realm stops listing and publishing it. And the pulled realm
+record never lists an id its merged delete ledger names (`_pulled_artifact_bytes`
+filters `workspace_ids`): a peer who had not heard of the leave may still list it.
 
 **Both of those ledgers are UNIONED on pull, not adopted** (RD-11, 2026-08-31,
 `4a8d398268`). `_UNIONED_REALM_LEDGERS` (`realm_sync/ledgers.py`) names them and
