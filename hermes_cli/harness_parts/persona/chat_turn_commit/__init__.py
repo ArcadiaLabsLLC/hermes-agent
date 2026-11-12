@@ -9,8 +9,9 @@ chat-root lease; it builds a ``TurnCommit`` and runs it. The phases are the
   (a settled refusal, a projected reply, a transcript reply) or fall through;
 * ``run`` — ``context_built``, ``observability_built``, ``emitter_created``,
   ``write_ahead`` and the provider call up to ``stream_done``;
-* ``settle`` — a raised run's typed terminal state, or ``native_committed``
-  then ``projected`` and the deferred auto-title.
+* ``settle`` — a raised run's typed terminal state, a stopped run's ``interrupted``
+  record (``stopped``), or ``native_committed`` then ``projected`` and the deferred
+  auto-title.
 
 The object's fields are the turn's locals; a phase reads what an earlier phase
 set and never reaches back into the plan. Every durable write from
@@ -26,6 +27,7 @@ from agent_runtime.persona_assignments import safe_assignment_text
 from .admit import _AdmitPhases
 from .run import _RunPhases
 from .settle import _SettlePhases
+from .stopped import _StoppedPhases
 
 __layer__ = "lanes"
 __all__ = [
@@ -34,7 +36,7 @@ __all__ = [
 ]
 
 
-class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases):
+class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases, _StoppedPhases):
     """One mission-chat turn under the chat-root lease: the SOLE writer of its durable state."""
 
     def __init__(self, plan, deferred, presence) -> None:
@@ -166,6 +168,12 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases):
             self._attach_turn_results()
         except Exception as exc:
             return self._settle_failure(exc)
+        if self._run_was_stopped():
+            # A stop is not a reply: its own settle (``stopped``), never the native commit.
+            try:
+                return self._settle_stopped()
+            except Exception as exc:
+                return self._settle_failure(exc)
         self._commit_native()
         self._queue_leftover_steer()
         # The native reply is durable. Projection/bookkeeping failures deliberately

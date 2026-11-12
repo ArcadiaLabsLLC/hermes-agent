@@ -89,6 +89,7 @@ from agent_runtime.mission_chat_turns.journal import (
     resolve_mission_chat_turn,
     mark_stale_inflight_turns_interrupted,
     persist_mission_chat_turn,
+    stop_mission_chat_turn,
     transition_mission_chat_turn,
 )
 from agent_runtime.mission_chat_turns.reads import (
@@ -138,5 +139,6 @@ __all__ = [
     "resolve_mission_chat_turn",
     "safe_provider_refusal",
     "safe_turn_profile_timing",
+    "stop_mission_chat_turn",
     "transition_mission_chat_turn",
 ]

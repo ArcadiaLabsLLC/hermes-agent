@@ -51,6 +51,9 @@ EXECUTION_STATE_WIRE = {
     "BLOCKED": "blocked",
     "BUDGET_EXHAUSTED": "budget_exhausted",
     "COMPLETED": "completed",
+    # A turn stopped on purpose: ``ok`` stays true, the frame carries ``stopped``
+    # (RT-STOPPED-TURN-SETTLES-AS-A-REPLY).
+    "STOPPED": "stopped",
     # A send accepted while its chat root was busy and queued behind the current
     # turn (``chat_root_send_queue``, owner ruling 2026-10-10).
     "ACCEPTED": "accepted",

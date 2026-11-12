@@ -88,6 +88,10 @@ class VisibilityReason(str, Enum):
     FILTERED = "filtered"
     #: Silent: the turn ended in an error and left no reply behind.
     FAILED = "failed"
+    #: Silent: the turn was stopped before the model wrote anything
+    #: (RT-STOPPED-TURN-SETTLES-AS-A-REPLY). Only the live result knows it; a
+    #: reloaded turn says it through its ``turn_interrupted`` marker instead.
+    STOPPED = "stopped"
     #: Unknown: nothing to classify from.
     NO_EVIDENCE = "no_evidence"
 
@@ -120,8 +124,30 @@ SILENT_REASONS = frozenset(
         VisibilityReason.TRUNCATED,
         VisibilityReason.FILTERED,
         VisibilityReason.FAILED,
+        VisibilityReason.STOPPED,
     }
 )
+
+#: Upstream's terminal sentinel for a model that returned nothing after every retry and
+#: fallback (``agent/turn_empty_response._terminal_empty``): it is BOTH the stored assistant
+#: row's content and the run's ``final_response``. It is a marker, not something the model
+#: said, so every reader here treats it as no reply (RT-EMPTY-MODEL-REPLY-SETTLES-AS-A-REPLY).
+EMPTY_REPLY_SENTINEL = "(empty)"
+#: The run result's ``turn_exit_reason`` on that same exit. With upstream's turn-completion
+#: explainer on, ``final_response`` is the explainer's sentence rather than the sentinel; the
+#: exit reason names the outcome either way.
+EMPTY_REPLY_EXIT_REASON = "empty_response_exhausted"
+
+
+def printable_reply_text(reply_text: Any, *, raw: Any = None) -> str:
+    """The reply a human would read: ``""`` for the empty-reply sentinel or exit. TOTAL."""
+
+    text = "" if reply_text is None else str(reply_text)
+    if text.strip() == EMPTY_REPLY_SENTINEL:
+        return ""
+    if isinstance(raw, dict) and raw.get("turn_exit_reason") == EMPTY_REPLY_EXIT_REASON:
+        return ""
+    return text
 
 
 @dataclass(frozen=True)
@@ -183,6 +209,7 @@ class TurnVisibility:
             VisibilityReason.TRUNCATED: "the model was cut off before producing content",
             VisibilityReason.FILTERED: "the provider blocked the content",
             VisibilityReason.FAILED: "the turn ended in an error",
+            VisibilityReason.STOPPED: "the turn was stopped",
         }.get(self.reason, "the model produced no content")
         suffix = f", finish_reason={self.finish_reason}" if self.finish_reason else ""
         return f"empty reply — {detail}{suffix}"
@@ -269,6 +296,10 @@ def _reason_for_empty(finish_reason: str, *, raw: Any = None) -> VisibilityReaso
     the exact defect this module was written to retire, one level down.
     """
 
+    if isinstance(raw, dict) and raw.get("interrupted") is True:
+        # Asked first: a stop is what ended the turn, whatever the last model call's
+        # finish reason was when the stop landed.
+        return VisibilityReason.STOPPED
     if finish_reason in FILTER_FINISH_REASONS:
         return VisibilityReason.FILTERED
     if finish_reason in TRUNCATION_FINISH_REASONS:
@@ -312,7 +343,7 @@ def classify_persisted_turn_row(
     """
 
     try:
-        text = "" if content is None else str(content).strip()
+        text = printable_reply_text(content).strip()
         reason_token = str(finish_reason or "").strip()
         if text:
             # Content wins over every finish reason, including ``tool_calls``:
@@ -374,7 +405,7 @@ def classify_turn_visibility(
     try:
         if reply_text is None:
             return TurnVisibility.unknown()
-        text = str(reply_text).strip()
+        text = printable_reply_text(reply_text, raw=raw).strip()
         finish_reason = _final_assistant_finish_reason(messages)
         if text:
             # A non-empty reply is VISIBLE regardless of finish reason: a
@@ -398,6 +429,8 @@ def classify_turn_visibility(
 
 
 __all__ = [
+    "EMPTY_REPLY_EXIT_REASON",
+    "EMPTY_REPLY_SENTINEL",
     "FILTER_FINISH_REASONS",
     "SILENT_REASONS",
     "TOOL_CALL_FINISH_REASONS",
@@ -408,4 +441,5 @@ __all__ = [
     "VisibilityState",
     "classify_persisted_turn_row",
     "classify_turn_visibility",
+    "printable_reply_text",
 ]

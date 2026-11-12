@@ -45,6 +45,7 @@ from agent_runtime.prompt_observability import slim_chat_final_observability
 from agent_runtime.run_budget import turn_run_budget_metadata
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.turn_outcome import VERDICT_FAILED
+from agent_runtime.turn_visibility import printable_reply_text
 from agent_runtime.turn_usage import TURN_USAGE_KEY, turn_usage_block
 from ..chat_events import (
     _mission_chat_emit,
@@ -334,7 +335,11 @@ class _SettlePhases:
         session_id = self.session_id
         runtime_registry = self.runtime_registry
         stream_emitter = self.stream_emitter
-        reply_text = _redact_persona_chat_text(getattr(self.chat_result, "final_response", "") or "")
+        # ``printable_reply_text``: a model that returned nothing leaves upstream's "(empty)"
+        # sentinel (or its explainer sentence) here; that is no reply, and the turn settles
+        # silent through ``turn_visibility`` (RT-EMPTY-MODEL-REPLY-SETTLES-AS-A-REPLY).
+        reply_text = _redact_persona_chat_text(printable_reply_text(
+            getattr(self.chat_result, "final_response", "") or "", raw=getattr(self.chat_result, "raw", None)))
         # Stamp, then read (lineage-stamp S3): the read is the revision's input AND the
         # history the resident actor hands the next turn while the stamp holds.
         native_stamp, active_session_id, native_history = _persona_chat_native_read(session_db, session_id)

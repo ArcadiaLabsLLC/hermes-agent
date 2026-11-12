@@ -43,6 +43,7 @@ __all__ = [
     "RUNTIME_NOTICE_TOOL_AVAILABILITY",
     "RUNTIME_NOTICE_WALL_CHECKPOINT",
     "SILENT_TURN_MARKER_TEXTS",
+    "STOPPED_TURN_MARKER_TEXT",
     "TERMINAL_TURN_MARKERS",
     "WIRE_ROLES",
     "_CHAT_MODEL_OVERRIDE_CONFIG_KEY",
@@ -171,6 +172,11 @@ PERSONA_TURN_INTERRUPTED_KIND = "turn_interrupted"
 
 PERSONA_TURN_BUDGET_EXHAUSTED_KIND = "budget_exhausted"
 
+#: What an ``interrupted`` marker says when the turn's record carries ``stopped`` (the turn
+#: was stopped on purpose, ``mission_chat_turns.stop_mission_chat_turn``), in place of the
+#: crashed-turn sentence. Same kind and retry affordance; the row also carries ``stopped``.
+STOPPED_TURN_MARKER_TEXT = "This reply was stopped before it finished."
+
 
 @dataclass(frozen=True, slots=True)
 class TerminalTurnMarker:
@@ -267,6 +273,9 @@ SILENT_TURN_MARKER_TEXTS: dict[VisibilityReason, str] = {
     VisibilityReason.EMPTY: (
         "Agent turn ended without a reply — the model produced no content and "
         f"nothing recorded why. {_SILENT_TURN_RETRY_HINT}"
+    ),
+    VisibilityReason.STOPPED: (
+        "Agent turn ended without a reply — it was stopped before the agent wrote anything."
     ),
 }
 

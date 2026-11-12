@@ -27,6 +27,7 @@ from ..serde import safe_assignment_text, safe_assignment_token
 from ..relay_policy import parse_harness_delivery_marker, parse_lens_episode_marker, parse_relay_sender_marker
 from .operator_envelopes import strip_operator_envelopes
 from ..transcript_order import TURN_SEQ_OPERATOR, TURN_SEQ_TERMINAL
+from ..turn_visibility import printable_reply_text
 from .markers import (
     _carry_run_budget,
     _carry_turn_outcome,
@@ -235,6 +236,8 @@ class RoleCurator(Protocol):
 
     def strip_envelopes(self, raw_content: Any) -> tuple[Any, Any, Any]: ...
 
+    def printable(self, curated: Any) -> Any: ...
+
     def on_visible(self, state: CurationState, ctx: RowContext) -> None: ...
 
     def annotate(self, row: dict[str, Any], ctx: RowContext) -> bool: ...
@@ -252,6 +255,9 @@ class _OperatorCurator:
 
     def strip_envelopes(self, raw_content: Any) -> tuple[Any, Any, Any]:
         return strip_operator_envelopes(raw_content)
+
+    def printable(self, curated: Any) -> Any:
+        return curated
 
     def on_visible(self, state: CurationState, ctx: RowContext) -> None:
         return None
@@ -354,6 +360,11 @@ class _AgentCurator:
 
     def strip_envelopes(self, raw_content: Any) -> tuple[Any, Any, Any]:
         return raw_content, None, None
+
+    def printable(self, curated: Any) -> Any:
+        # Upstream's "(empty)" sentinel row is the model saying nothing, not a reply: it
+        # reads as a silent turn (RT-EMPTY-MODEL-REPLY-SETTLES-AS-A-REPLY).
+        return curated if isinstance(curated, str) and printable_reply_text(curated).strip() else ""
 
     def on_visible(self, state: CurationState, ctx: RowContext) -> None:
         if ctx.logical_client_message_id:
@@ -494,7 +505,7 @@ class CurationState:
             from agent.steering import RUNTIME_NOTE_ENVELOPE
 
             raw_content = raw_content.removeprefix(RUNTIME_NOTE_ENVELOPE)
-        curated = _curate_chat_message_text(ctx.role, raw_content)
+        curated = curator.printable(_curate_chat_message_text(ctx.role, raw_content))
         if not curated:
             self._silent_candidate(ctx, raw_content)
             return

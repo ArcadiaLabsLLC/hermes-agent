@@ -19,6 +19,7 @@ from ..turn_visibility import TURN_VISIBILITY_KEY, classify_persisted_turn_row
 from .vocabulary import (
     PERSONA_TURN_SILENT_KIND,
     SILENT_TURN_MARKER_TEXTS,
+    STOPPED_TURN_MARKER_TEXT,
     TERMINAL_TURN_MARKERS,
     canonical_persona_chat_turn_id,
 )
@@ -204,6 +205,10 @@ def _terminal_turn_marker_rows(
         # not the interrupted outcome or its unfinished tool calls.
         if record.get("resolution"):
             marker_row["resolution"] = record["resolution"]
+        if record.get("stopped") is True:
+            # Stopped on purpose, not cut off by a crash (RT-STOPPED-TURN-SETTLES-AS-A-REPLY).
+            marker_row["stopped"] = True
+            marker_row["text"] = STOPPED_TURN_MARKER_TEXT
         if state == "provider_refused":
             refusal = record.get("provider_refusal")
             if isinstance(refusal, dict):

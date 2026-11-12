@@ -1,4 +1,4 @@
-"""The journal's four writes — persist, transition, resolve, mark stale.
+"""The journal's five writes — persist, transition, resolve, stop, mark stale.
 
 Every write goes through ``_mutate_session``, the ONE write chokepoint: the
 session's lock held for the whole read-modify-write, the turn cap applied, and a
@@ -232,6 +232,54 @@ def resolve_mission_chat_turn(
                 or f"explicit {action.value}",
             }
         )
+        session[message_key] = record
+        return True, MissionChatTurnPersistOutcome.PERSISTED
+
+    return _mutate_session(
+        session_key,
+        _mutate,
+        timeout_result=MissionChatTurnPersistOutcome.SKIPPED_LOCK_TIMEOUT,
+        protected_message=message_key,
+    )
+
+
+def stop_mission_chat_turn(
+    *,
+    session_id: str | None,
+    client_message_id: str | None,
+    turn_id: str | None,
+    elements: list[dict[str, Any]] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> MissionChatTurnPersistOutcome:
+    """Settle THIS turn as stopped: ``interrupted`` with ``stopped: True`` (RT-STOPPED-TURN-SETTLES-AS-A-REPLY).
+
+    Called by the turn's own executor when the run returned interrupted (an operator Stop
+    reached the agent's interrupt seam), so nothing is ambiguous and nothing needs resolving.
+    ``interrupted`` is the state every reader already treats as "cut off before a reply was
+    recorded" (the ``turn_interrupted`` marker, ``retry_of``, running work); ``stopped`` is what
+    tells it apart from a crash. Only an in-flight record is flipped: a settled one is refused.
+    """
+
+    session_key = safe_assignment_text(session_id, limit=240)
+    message_key = safe_assignment_text(client_message_id, limit=240)
+    if not session_key or not message_key:
+        return MissionChatTurnPersistOutcome.SKIPPED_NO_KEYS
+
+    def _mutate(session: dict[str, Any]) -> tuple[bool, MissionChatTurnPersistOutcome]:
+        existing = session.get(message_key)
+        if not isinstance(existing, dict) or _record_state(existing) not in INFLIGHT_TURN_STATES:
+            return False, MissionChatTurnPersistOutcome.REJECTED_STALE_TRANSITION
+        record = dict(existing)
+        record.update(
+            {
+                "turn_id": safe_assignment_token(turn_id) or safe_assignment_token(message_key),
+                "state": TURN_STATE_INTERRUPTED,
+                "updated_at": now_iso_micro(),
+            }
+        )
+        if elements is not None:
+            record["elements"] = _safe_elements(elements)
+        record.update(_safe_journal_metadata({**(metadata or {}), "stopped": True}))
         session[message_key] = record
         return True, MissionChatTurnPersistOutcome.PERSISTED
 

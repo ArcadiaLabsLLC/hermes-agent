@@ -342,7 +342,9 @@ def _normalize_result(result: Any, *, agent) -> AgentRunResult:
     if isinstance(result, dict):
         messages = result.get("messages") if isinstance(result.get("messages"), list) else []
         return AgentRunResult(
-            final_response=str(result.get("final_response", "")),
+            # ``or ""``: an interrupted run returns ``final_response: None``, which ``str``
+            # turned into the reply text "None" (RT-STOPPED-TURN-SETTLES-AS-A-REPLY).
+            final_response=str(result.get("final_response") or ""),
             session_id=result.get("session_id") or getattr(agent, "session_id", None),
             provider=result.get("provider") or getattr(agent, "provider", None),
             model=result.get("model") or getattr(agent, "model", None),

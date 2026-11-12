@@ -106,6 +106,11 @@ class ExecutionState(StrEnum):
     BUDGET_EXHAUSTED = "budget_exhausted"
     #: The turn ran and settled.
     COMPLETED = "completed"
+    #: The turn was stopped on purpose before it finished (an operator Stop reached the
+    #: agent's interrupt seam). ``ok`` stays true — the stop worked — and the frame carries
+    #: ``stopped: true`` with whatever partial reply was already written
+    #: (RT-STOPPED-TURN-SETTLES-AS-A-REPLY).
+    STOPPED = "stopped"
     #: The message was accepted while its chat root was busy and is queued to run
     #: after the current turn (``chat_root_send_queue``, owner ruling
     #: 2026-10-10). A success: nothing was refused, and the turn's own settle is
@@ -125,6 +130,7 @@ OK_EXECUTION_STATES = frozenset(
     {
         ExecutionState.COMPLETED,
         ExecutionState.ACCEPTED,
+        ExecutionState.STOPPED,
     }
 )
 FAILURE_EXECUTION_STATES = frozenset(

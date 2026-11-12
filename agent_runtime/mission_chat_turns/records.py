@@ -440,6 +440,9 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
         # that still projected a real reply, so "why is this reply short?" is
         # answerable from the record instead of from the operator's memory.
         "budget_exhausted",
+        # True on a turn that was stopped on purpose (``journal.stop_mission_chat_turn``):
+        # what tells its ``interrupted`` record apart from a crashed turn's.
+        "stopped",
     ):
         if key in value:
             result[key] = bool(value.get(key))
