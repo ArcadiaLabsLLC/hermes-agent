@@ -45,7 +45,7 @@ PROJECTION_RELATIVE_PATH = "store/persona_instances.yaml"
 #: - ``assigned_slots`` / ``primary_slot`` / ``slots_issued_at`` (build plan §3.3):
 #:   slot NAMES are portable (the workspace declares them); the local path a slot
 #:   resolves to never travels — it is each machine's own ``roots.<slot>``.
-#:   ``recall_shared_projects`` (RT-PROJECT-CHAT-RECALL-ACROSS-STORES) rides the same
+#:   ``recall_shared_workspaces`` (RT-PROJECT-CHAT-RECALL-ACROSS-STORES) rides the same
 #:   clock: a choice about the agent, portable, never a store or a path.
 #:   ``slot_context_files`` (RT-SLOT-CONTEXT-FILE-PICKS) is the same kind of choice
 #:   (which of CLAUDE.md / AGENTS.md load per slot) and travels; its sibling
@@ -68,7 +68,7 @@ PERSONA_INSTANCE_ALLOWED_KEYS: frozenset[str] = frozenset(
         "provider",
         "realm_id",
         "reasoning_effort",
-        "recall_shared_projects",
+        "recall_shared_workspaces",
         "skill_overrides",
         "slot_context_files",
         "slots_issued_at",
@@ -78,11 +78,13 @@ PERSONA_INSTANCE_ALLOWED_KEYS: frozenset[str] = frozenset(
     }
 )
 
-#: A field's NEXT spelling → the spelling this edition stores and publishes. Read at the pull door
-#: and the store decoder, never written: an edition that publishes the new spelling is read here as
-#: the old fact (plan ``docs/agent-runtime-harness/planned/recall-field-rename-mixed-editions-2026-11-06.md``
-#: S1, ``RT-WS-RECALL-RENAME-S1-ALIAS``). Publishing keeps the old spelling until S3.
-PERSONA_INSTANCE_KEY_ALIASES: dict[str, str] = {"recall_shared_workspaces": "recall_shared_projects"}
+#: A field's PREVIOUS spelling → the spelling this edition stores and publishes. Read at the pull door
+#: and the store decoder, never written (plan
+#: ``docs/agent-runtime-harness/planned/recall-field-rename-mixed-editions-2026-11-06.md``): S1 read the
+#: then-next spelling ``recall_shared_workspaces`` as ``recall_shared_projects``; S3
+#: (``RT-WS-RECALL-RENAME-S3-PUBLISH``) flipped it, so this edition publishes the workspace name and
+#: still reads a Project edition's body, and a row a Project edition stored, as the same fact.
+PERSONA_INSTANCE_KEY_ALIASES: dict[str, str] = {"recall_shared_projects": "recall_shared_workspaces"}
 
 
 def canonical_instance_body(body: Any) -> Any:
@@ -104,41 +106,37 @@ def canonical_instance_body(body: Any) -> Any:
     return canonical
 
 
-#: A ``PersonaInstance`` FIELD → the key the projection PUBLISHES for it (plan S2,
-#: ``RT-WS-RECALL-RENAME-S2-FIELD``): the field took the workspace name, the wire keeps the Project
-#: edition's until S3 flips this map, so an older member reads the same bytes and the hash does not move.
-#: :data:`PERSONA_INSTANCE_ALLOWED_KEYS` is spelled in PUBLISHED keys.
-PERSONA_INSTANCE_PUBLISHED_KEYS: dict[str, str] = {"recall_shared_workspaces": "recall_shared_projects"}
-_FIELD_FOR_PUBLISHED_KEY: dict[str, str] = {key: field for field, key in PERSONA_INSTANCE_PUBLISHED_KEYS.items()}
+#: A published key → the spelling the projection HASH reads it under. The hash keeps the Project
+#: edition's spelling for good (S3): every baseline an S1 or S2 edition wrote, and every S1/S2
+#: member pulling an S3 body (their alias reads the new key as the old one, then hashes), agree with
+#: this edition that a renamed-only body did not change. Never published, never stored.
+PERSONA_INSTANCE_HASH_KEYS: dict[str, str] = {"recall_shared_workspaces": "recall_shared_projects"}
 
 
-def published_key(field_name: str) -> str:
-    """The key the projection publishes for ``PersonaInstance`` field *field_name*."""
+def hash_spelled_body(body: Any) -> Any:
+    """``body`` with each :data:`PERSONA_INSTANCE_HASH_KEYS` key renamed for hashing only."""
 
-    return PERSONA_INSTANCE_PUBLISHED_KEYS.get(field_name, field_name)
-
-
-def instance_field(key: str) -> str:
-    """The ``PersonaInstance`` field a published key *key* lands on."""
-
-    return _FIELD_FOR_PUBLISHED_KEY.get(key, key)
+    if not isinstance(body, dict) or not any(key in body for key in PERSONA_INSTANCE_HASH_KEYS):
+        return body
+    return {PERSONA_INSTANCE_HASH_KEYS.get(key, key): value for key, value in body.items()}
 
 
-#: The travelling surface in FIELD names — what an applier sets on a record.
-PERSONA_INSTANCE_TRAVEL_FIELDS: frozenset[str] = frozenset(instance_field(key) for key in PERSONA_INSTANCE_ALLOWED_KEYS)
+#: The travelling surface in FIELD names — what an applier sets on a record. Since S3 every field
+#: publishes under its own name, so it is the allowlist itself.
+PERSONA_INSTANCE_TRAVEL_FIELDS: frozenset[str] = PERSONA_INSTANCE_ALLOWED_KEYS
 
 
 def stored_instance_body(raw: Any) -> Any:
     """A stored instance row read into FIELD names, whichever edition wrote it.
 
-    An S1-or-older edition stored ``recall_shared_projects``; this one writes
+    An S1-or-older edition stored ``recall_shared_projects``; S2 and later write
     ``recall_shared_workspaces``. A row carrying both (never written by either) keeps the field's own
     spelling. A non-mapping is returned as is."""
 
-    if not isinstance(raw, dict) or not any(key in raw for key in _FIELD_FOR_PUBLISHED_KEY):
+    if not isinstance(raw, dict) or not any(key in raw for key in PERSONA_INSTANCE_KEY_ALIASES):
         return raw
     body = dict(raw)
-    for key, field_name in _FIELD_FOR_PUBLISHED_KEY.items():
+    for key, field_name in PERSONA_INSTANCE_KEY_ALIASES.items():
         if key in body:
             value = body.pop(key)
             body.setdefault(field_name, value)

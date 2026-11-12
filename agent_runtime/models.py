@@ -579,8 +579,8 @@ class PersonaInstance:
     # shared chat store of its own workspace (when that workspace shares its chats).
     # Off by default; ``runtime.persona.instance.recall.set`` edits it on
     # the slot lane's clock (``slots_issued_at``). Memory extraction never reads it.
-    # RT-WS-RECALL-RENAME-S2-FIELD: the workspace name locally; the sync projection still
-    # PUBLISHES ``recall_shared_projects`` (``persona_instance_sync.contract.PERSONA_INSTANCE_PUBLISHED_KEYS``).
+    # RT-WS-RECALL-RENAME-S2-FIELD / -S3-PUBLISH: the workspace name, stored and published; a Project
+    # edition's ``recall_shared_projects`` is read as it (``persona_instance_sync.contract.PERSONA_INSTANCE_KEY_ALIASES``).
     recall_shared_workspaces: bool = False
     # RT-SLOT-CONTEXT-FILE-PICKS: a per-slot override of which context files load,
     # keyed by assigned slot key. ``slot_context_files[slot]`` is the subset of

@@ -1,6 +1,7 @@
 # Planned — renaming `recall_shared_projects` across mixed editions (RT-WS-ABSORB-RECALL-FIELD-RENAME, 2026-11-06)
 
-**Status:** plan by lane w1105i-hm; S1 built, the other slices filed as rows (§5). Group: `workspace-absorbs-projects`.
+**Status:** plan by lane w1105i-hm; all four slices built (S1 `9331ad3247`, S2+S4 `ea7f76cc1f`, S3 by lane
+w1112b-wsabsorb-hm 2026-11-12, the commit closing `RT-WS-RECALL-RENAME-S3-PUBLISH`). Group: `workspace-absorbs-projects`.
 **Owner domain:** persona-instance replication (`agent_runtime/persona_instance_sync/__init__.py`, its map) and the
 slot lane (`agent_runtime/persona_slots.py`).
 **Read (code, no live run):** hermes `origin/main` `3693670cf1` — `agent_runtime/models.py::PersonaInstance`,
@@ -52,6 +53,11 @@ instance whose recall is ON, on a realm with a member one edition behind.
   edition carries S1 — there is no edition floor in the sync today, so the gate is a release ruling (the
   release that ships S1 is named in the row) or an edition-floor field added to the projection head first.
   Because S1 hashes the canonical spelling, S1 members agree with S3 members that nothing changed.
+  **Built 2026-11-12** on the owner's ruling that the edition floor is v0.1 (no release predates S1): the
+  allowlist names `recall_shared_workspaces`, the alias table flipped to read `recall_shared_projects` as it,
+  the spelling map is gone (every field publishes under its own name), and the hash keeps the old spelling
+  (`contract.hash_spelled_body`) so no baseline moves. Risk (guess): a dev install from main older than
+  2026-11-06 refuses each recall-on row `unexpected_key` (row skipped and named, pull continues) until it pulls.
 - **S4 — drop the old `slots.show` / `recall.set` reply key.** Waits on launcher `MC-RECALL-SWITCH-KEY-REPOINT`
   (the launcher reads `recall_shared_workspaces`). Independent of S1–S3.
 

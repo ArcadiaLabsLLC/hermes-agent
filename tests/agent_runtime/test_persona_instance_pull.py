@@ -796,10 +796,22 @@ def test_the_pull_ack_carries_the_summary_under_the_contract_key():
     assert all(shape[key] == [] for key in shape if key != "source")
 
 
-def test_a_body_spelled_with_the_next_editions_recall_key_replicates_as_this_ones(tmp_path):
-    """RT-WS-RECALL-RENAME-S1-ALIAS (plan recall-field-rename-mixed-editions-2026-11-06 S1). KILLING
-    MUTATION: drop the ``canonical_instance_body`` call in ``PullPass._row_context`` → the new-key
-    body refuses ``unexpected_key`` and ``replicated`` is empty."""
+def test_a_body_spelled_with_either_editions_recall_key_replicates_as_this_ones(tmp_path):
+    """RT-WS-RECALL-RENAME-S1-ALIAS (plan recall-field-rename-mixed-editions-2026-11-06 S1, flipped by
+    S3): this edition publishes ``recall_shared_workspaces`` and reads a Project edition's
+    ``recall_shared_projects`` as it. KILLING MUTATION: drop the ``canonical_instance_body`` call in
+    ``PullPass._row_context`` → the old-key body refuses ``unexpected_key`` and ``replicated`` is empty."""
+
+    realm_id, ws = _realm_workspace()
+    _write_remote(tmp_path, _body(workspace_id=ws, recall_shared_projects=True))
+    summary = apply_persona_instance_pull(realm_id, tmp_path)
+    assert summary.replicated == [INSTANCE_ID] and summary.refused == []
+    assert PersonaInstanceStore().get(INSTANCE_ID).recall_shared_workspaces is True
+
+
+def test_a_body_spelled_with_this_editions_recall_key_replicates_with_zero_drift(tmp_path):
+    """The S1 test's original body (the then-next spelling), kept: it replicates and its baseline
+    is the hash this edition projects."""
 
     realm_id, ws = _realm_workspace()
     newer = _body(workspace_id=ws, recall_shared_workspaces=True)
@@ -834,24 +846,45 @@ def test_two_spellings_disagreeing_are_refused_and_a_stored_new_spelling_loads(t
     assert _decode_stored_instance({**stored, "recall_shared_projects": True}).recall_shared_workspaces is True
 
 
-def test_the_renamed_field_is_stored_new_and_published_old_with_the_hash_unmoved(tmp_path):
-    """RT-WS-RECALL-RENAME-S2-FIELD (plan S2): the store writes ``recall_shared_workspaces``, the
-    projection still publishes ``recall_shared_projects``, and a recall-on instance hashes exactly
-    as the Project edition's body. KILLING MUTATION: publish the field under its own name (drop
-    ``published_key`` in ``project_persona_instance``) → the field is withheld as an unknown name,
-    the body loses the key and the hash moves."""
+def test_the_projection_publishes_the_workspace_key_and_an_s1_reader_hashes_it_unmoved(tmp_path):
+    """RT-WS-RECALL-RENAME-S3-PUBLISH (plan S3, after S2's ``…_stored_new_and_published_old…``): the
+    store and the wire both say ``recall_shared_workspaces``; an S1/S2 member — whose door reads that
+    key as ``recall_shared_projects`` and then hashes the body as is — gets exactly the hash this
+    edition (and every S1/S2 baseline) holds for the same fact. KILLING MUTATIONS (red recorded
+    2026-11-12): spell the allowlist entry ``recall_shared_projects`` again → the door refuses the
+    aliased body and ``replicated`` is ``[]``; drop ``hash_spelled_body`` from
+    ``persona_instance_def_hash`` → "assert '4ad326…' == '8f5eab…'", the hash moved off the S1
+    reader's."""
 
+    import hashlib
     import json
 
     from agent_runtime import paths
-    from agent_runtime.persona_instance_sync import project_persona_instance
+    from agent_runtime.persona_instance_sync import project_persona_instances
+    from agent_runtime.persona_instance_sync.contract import PERSONA_INSTANCE_ALLOWED_KEYS
 
     realm_id, ws = _realm_workspace()
     _write_remote(tmp_path, _body(workspace_id=ws, recall_shared_projects=True))
     assert apply_persona_instance_pull(realm_id, tmp_path).replicated == [INSTANCE_ID]
     stored = json.loads(paths.persona_instance_path(INSTANCE_ID).read_text(encoding="utf-8"))
     assert stored["recall_shared_workspaces"] is True and "recall_shared_projects" not in stored
-    body = project_persona_instance(PersonaInstanceStore().get(INSTANCE_ID))
-    assert body["recall_shared_projects"] is True and "recall_shared_workspaces" not in body
-    assert persona_instance_def_hash(body) == persona_instance_def_hash(
+
+    record = PersonaInstanceStore().get(INSTANCE_ID)
+    projection = project_persona_instances([INSTANCE_ID], records={INSTANCE_ID: record})
+    body = projection.instances[INSTANCE_ID]
+    assert body["recall_shared_workspaces"] is True and "recall_shared_projects" not in body
+    assert b"recall_shared_workspaces: true" in projection.to_bytes()
+    assert b"recall_shared_projects" not in projection.to_bytes()
+
+    # An S1-shaped reader: its alias reads the new key as the old one, its allowlist is spelled
+    # with the old key, and its hash is sha256 over the canonical JSON of that body.
+    s1_allowed = (PERSONA_INSTANCE_ALLOWED_KEYS - {"recall_shared_workspaces"}) | {"recall_shared_projects"}
+    s1_body = {("recall_shared_projects" if k == "recall_shared_workspaces" else k): v for k, v in body.items()}
+    assert set(s1_body) <= s1_allowed
+    s1_hash = hashlib.sha256(
+        json.dumps(s1_body, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    ).hexdigest()
+    assert s1_hash == persona_instance_def_hash(body) == persona_instance_def_hash(
         _body(workspace_id=ws, recall_shared_projects=True))
+    assert read_persona_instance_baseline(realm_id)[instance_baseline_key(INSTANCE_ID)] == s1_hash
+

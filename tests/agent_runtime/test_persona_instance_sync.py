@@ -84,8 +84,8 @@ def test_every_persona_instance_field_is_classified():
     # 41 since RT-PERSONA-ENSURE-REVERTS-INSTANCE-RENAME (2026-11-10): display_name_custom, local-only.
     assert len(names) == 41, "the contract classifies the operator-rename mark with the existing 40 fields"
 
-    # Fields, so the travelling set in FIELD names (S2: ``recall_shared_workspaces`` publishes
-    # ``recall_shared_projects``, ``contract.PERSONA_INSTANCE_PUBLISHED_KEYS``).
+    # Fields, so the travelling set in FIELD names (one set with the allowlist since
+    # RT-WS-RECALL-RENAME-S3-PUBLISH: every field publishes under its own name).
     unclassified = names - (
         PERSONA_INSTANCE_TRAVEL_FIELDS
         | PERSONA_INSTANCE_DERIVED_KEYS

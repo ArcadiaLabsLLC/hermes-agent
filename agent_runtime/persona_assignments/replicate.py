@@ -95,7 +95,7 @@ def replicate_instance(
     """
 
     from ..persona_instance_sync import cleared_travel_value
-    from ..persona_instance_sync.contract import PERSONA_INSTANCE_TRAVEL_FIELDS, published_key
+    from ..persona_instance_sync.contract import PERSONA_INSTANCE_TRAVEL_FIELDS
 
     instance_id = str(body["id"])
     persona_id = str(body["persona_id"])
@@ -113,8 +113,7 @@ def replicate_instance(
     # two (plan §3.4), because an edge may name a parent this pass has not
     # minted yet.
     for name in sorted(PERSONA_INSTANCE_TRAVEL_FIELDS - {"id", "persona_id", "steered_by"}):
-        # ``body`` is spelled in PUBLISHED keys, the record in field names (S2).
-        value = body.get(published_key(name), _MISSING_TRAVEL_FIELD)
+        value = body.get(name, _MISSING_TRAVEL_FIELD)
         if value is _MISSING_TRAVEL_FIELD:
             value = cleared_travel_value(name)
         setattr(instance, name, _coerce_travel_value(name, value))

@@ -17,7 +17,7 @@ from agent_runtime import yaml_io
 from ..models import looks_like_persona_instance_id
 from .contract import (
     PERSONA_INSTANCE_ALLOWED_KEYS,
-    published_key,
+    hash_spelled_body,
     PROJECTION_KIND,
     PROJECTION_SCHEMA_VERSION,
     REFUSAL_CANONICAL_CHANNEL,
@@ -107,7 +107,7 @@ def persona_instance_def_hash(body: Any) -> str:
     for the reason ``office_models._HASH_EXCLUDE`` states.
     """
 
-    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
+    canonical = json.dumps(hash_spelled_body(body), sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -157,8 +157,8 @@ def _wire_mapping(value: dict) -> dict[str, Any]:
 
 #: Switches whose OFF value is their absence, so a body from an edition that predates the
 #: key and a body that carries it off hash alike — a fresh replica's projection must equal
-#: the remote hash its baseline was minted at (``recall_shared_projects``, default off).
-_OMITTED_WHEN_OFF: frozenset[str] = frozenset({"recall_shared_projects"})
+#: the remote hash its baseline was minted at (``recall_shared_workspaces``, default off).
+_OMITTED_WHEN_OFF: frozenset[str] = frozenset({"recall_shared_workspaces"})
 
 
 def project_persona_instance(record: Any, *, dropped: list[str] | None = None) -> dict[str, Any]:
@@ -184,9 +184,9 @@ def project_persona_instance(record: Any, *, dropped: list[str] | None = None) -
         names = sorted(name for name in dir(record) if not name.startswith("_"))
     body: dict[str, Any] = {}
     for name in names:
-        # The PUBLISHED spelling of the field (S2: ``recall_shared_workspaces`` still publishes
-        # ``recall_shared_projects``), so the wire and the hash are the Project edition's.
-        key = published_key(name)
+        # Every field publishes under its own name since RT-WS-RECALL-RENAME-S3-PUBLISH; the hash
+        # still reads ``recall_shared_workspaces`` as the Project spelling (``hash_spelled_body``).
+        key = name
         if key not in PERSONA_INSTANCE_ALLOWED_KEYS:
             accounting.append(f"instances.{instance_id}.{name}")
             continue

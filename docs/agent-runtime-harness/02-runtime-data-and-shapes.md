@@ -1078,6 +1078,19 @@ are unchanged until RT-WS-RECALL-RENAME-S3-PUBLISH. ``runtime.persona.instance.s
 reply answer ``recall_shared_workspaces`` only: the launcher's switch reads it since its
 MC-RECALL-SWITCH-KEY-REPOINT (`053567a7ed`); a launcher build older than that reads the switch as off.
 
+54 KEPT (recall key published, 2026-11-12, RT-WS-RECALL-RENAME-S3-PUBLISH) — no snapshot key moved. The
+persona-instance sync projection (``store/persona_instances.yaml``) now PUBLISHES ``recall_shared_workspaces``:
+the allowlist names it, ``PERSONA_INSTANCE_TRAVEL_FIELDS`` is the allowlist (every field publishes under its own
+name), and a Project edition's ``recall_shared_projects`` is read as it at the pull door and the store decoder
+(``contract.PERSONA_INSTANCE_KEY_ALIASES``, read-only, kept for a release). The projection HASH still reads the
+key as ``recall_shared_projects`` (``contract.hash_spelled_body``), so the hash of every body is unmoved: old
+baselines hold, and an S1/S2 member — whose door aliases the new key back to the old and hashes — agrees that a
+rename-only body did not change. Edition floor (owner ruling 2026-11-12): v0.1, and no release predates S1
+(`9331ad3247`, 2026-11-06). Risk (guess, not seen): a dev install built from hermes main older than 2026-11-06
+refuses each recall-ON instance row ``unexpected_key`` until it pulls — the row is skipped and named in the pull's
+``refused``, the pull goes on, its replica and baseline stay as they were; a recall-off row omits the key and is
+unaffected.
+
 54 KEPT (Manage Workspace, 2026-11-12, RT-ACCOUNT-DEFAULT-REALM / RT-WORKSPACE-SUMMARY-ACTIVITY) — two
 additive reads for the launcher's Manage Workspace page (launcher plan
 ``MANAGE_WORKSPACE_GENUI_2026-11-11.md``). Top-level ``default_realm_id``: the account's default realm,
