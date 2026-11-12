@@ -34,7 +34,7 @@ _COLLECTORS = (
     (KIND_MESSAGING_TURN, _collect_messaging_turns, True),
     # AFTER the terminal lane: it reclassifies the frame's terminal rows in place.
     (KIND_BUILD, _collect_builds, True),
-    (KIND_CRON_JOB, _collect_cron, False),
+    (KIND_CRON_JOB, _collect_cron, True),
 )
 
 
