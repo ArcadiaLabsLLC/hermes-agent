@@ -901,3 +901,42 @@ def test_the_agent_create_placement_joins_the_same_token_as_an_ordinary_drag():
         payload.get(CORRELATION_ID_KEY)
         for payload in _payloads(fresh, "office.actor.upserted")
     ] == [None, TOKEN]
+
+
+def test_a_create_logs_its_office_write_naming_the_token(caplog, monkeypatch):
+    """RT-PALETTE-DROP-SPLITS-ITS-CORRELATION-TOKEN (seen live 2026-11-12, w1112b-ctt-hm): a palette
+    drop's create threaded its ``g-place-…`` token into the store's events but wrote NO serve line,
+    so ``scripts/correlation_id_acceptance.py`` found no serve hop. The create's serve door now logs
+    the same ``office_write`` line every office write does (``noop=1`` on an idempotent replay).
+
+    *Mutation:* drop the ``log_office_write`` call in ``_log_created_placement`` → no line, red (run
+    2026-11-12). Through the serve door with the service stubbed: the roster this suite does not
+    seed is the service's business, the line is the door's.
+    """
+
+    from agent_runtime import agent_create
+    from agent_runtime.agent_create.outcome import AgentCreateOutcome
+    from agent_runtime.serve_rpc import agent as agent_rpc
+
+    result = {"persona_instance_id": QA_INSTANCE, "workspace_id": WORKSPACE, "actor_key": QA_INSTANCE,
+              "revision": 3, "correlation_id": TOKEN, "default_chat_session_id": None}
+    replies = [AgentCreateOutcome(result=result),
+               AgentCreateOutcome(result={**result, "idempotent_replay": True})]
+    monkeypatch.setattr(agent_create, "perform_agent_create", lambda params, caller=None: replies.pop(0))
+    with caplog.at_level(logging.INFO, logger="agent_runtime.serve_rpc"):
+        agent_rpc._runtime_agent_create(1, {"correlation_id": TOKEN}, None)
+        agent_rpc._runtime_agent_create(2, {"correlation_id": TOKEN}, None)
+
+    assert _office_write_lines(caplog) == [
+        f"office_write op=runtime.agent.create corr={TOKEN} workspace={WORKSPACE} actor_key={QA_INSTANCE} "
+        f"revision=3 noop={noop}" for noop in (0, 1)
+    ]
+
+    # The acceptance script's serve hop reads this line.
+    from datetime import timedelta
+    from agent_runtime.correlation_acceptance import read_hops
+
+    stamped = [f"2026-11-12 10:00:0{i},000 INFO agent_runtime.serve_rpc: {line}"
+               for i, line in enumerate(_office_write_lines(caplog))]
+    assert [hop.detail for hop in read_hops(TOKEN, [("agent.log", stamped)], serve_offset=timedelta(0))] == [
+        "runtime.agent.create", "runtime.agent.create"]

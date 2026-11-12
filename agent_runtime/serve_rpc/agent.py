@@ -139,8 +139,34 @@ def _runtime_agent_create(
     if outcome.refusal is not None:
         refusal = outcome.refusal
         return err(rid, refusal.code, refusal.message, refusal.data)
+    _log_created_placement(outcome.result)
     _prewarm_created_chat_root(outcome.result, context)
     return ok(rid, outcome.result)
+
+
+def _log_created_placement(result: Any) -> None:
+    """The create's office write in the serve child's log, as every other office write has.
+
+    A palette drop's ONE token (the placement's) rode the create into the store's events,
+    but the serve log named no write for it, so ``scripts/correlation_id_acceptance.py``
+    found no serve hop (RT-PALETTE-DROP-SPLITS-ITS-CORRELATION-TOKEN). Here at the serve
+    door, beside the prewarm — the service runs with no serve. ``noop=1`` on an idempotent
+    replay: that call wrote nothing.
+    """
+
+    if not isinstance(result, dict):
+        return
+    from agent_runtime.serve_rpc.office_read import log_office_write
+
+    # MUTATION: drop this call and test_a_create_logs_its_office_write_naming_the_token reddens.
+    log_office_write(
+        op="runtime.agent.create",
+        correlation_id=result.get("correlation_id"),
+        workspace=result.get("workspace_id"),
+        actor_key=result.get("actor_key"),
+        revision=result.get("revision"),
+        noop=1 if result.get("idempotent_replay") else 0,
+    )
 
 
 def _prewarm_created_chat_root(result: Any, context: RpcContext | None) -> None:
