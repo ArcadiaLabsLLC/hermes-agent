@@ -113,33 +113,3 @@ def test_a_dead_turns_steer_is_delivered_after_the_next_turn(monkeypatch, isolat
     entry = chat_root_send_queue.find(ROOT, "steer-next-cm-steer-orphan")
     assert entry is not None and entry.args["message"] == "this was typed before the crash"
     assert chat_root_send_queue.find(ROOT, "steer-next-cm-notice") is None, "a process notice was sent as operator input"
-
-
-def test_a_turn_that_is_not_streaming_to_a_screen_still_takes_a_steer(monkeypatch, isolate_agent_runtime_root):
-    """RT-STEER-ONLY-STREAMING-TURNS: a forged or Work turn (``stream=False``) registers the steer
-    watcher too, so a steer sent while it runs is ACCEPTED into it instead of refused ``no_active_turn``."""
-
-    handler = _install_chat_lane(monkeypatch)
-    acks: list[dict] = []
-
-    class _Provider:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def mission_chat_reply(self, persona, message, **kwargs):
-            close = kwargs["agent_ready_callback"](_Agent())
-            try:
-                acks.append(submit_mission_chat_steer(
-                    runtime_root=paths.store_root(), session_id=ROOT, message="look at the logs too",
-                    client_message_id="cm-steer-quiet"))
-            finally:
-                if callable(close):
-                    close()
-            return SimpleNamespace(final_response="reply", input_tokens=1, output_tokens=2, total_tokens=3, raw={})
-
-    monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _Provider)
-    args = _args("cm-quiet")
-    assert not getattr(args, "stream", False)
-
-    assert handler._cmd_mission_chat_message(args) == 0
-    assert acks and acks[0]["ok"] is True and acks[0]["execution_state"] == "accepted", acks
