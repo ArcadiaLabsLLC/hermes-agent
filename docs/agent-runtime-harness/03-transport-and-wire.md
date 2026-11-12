@@ -1427,6 +1427,14 @@ resolver (`agent_runtime/default_realm.py::default_realm_id`): the stored pointe
 and `harness workspace create` with no realm land in it (the row's `realm_id` says where); the conversations
 workspace stays realm-less.
 
+`runtime.workspace.unarchive` (`console` tier; RT-WORKSPACE-UNARCHIVE; argv twin `harness workspace unarchive
+<id>`) is archive's reverse: params exactly `workspace_id`; the answer is the full workspace row (`archived:
+false`) plus `restored` (false when it was not archived — nothing is written). A restore lifts the workspace off
+its realm's delete ledger and heals a missing `workspace_ids` entry, so a copy realm sync archived
+(`workspace_tombstone_archived`) is not archived again by the next pull; it moves no active pointer. Refusals
+ride `error.data.reason`: `invalid_request` (-32602), `workspace_not_found` (4001), `realm_archived` (4090, with
+`realm_id` — the owning realm is archived). One implementation, `agent_runtime/workspace_manage.py`.
+
 ## 5. Attachment receipts
 
 `log_stream_attach` (`agent_runtime/stream/build_policy.py::log_stream_denied`) writes ONE line per attachment to the

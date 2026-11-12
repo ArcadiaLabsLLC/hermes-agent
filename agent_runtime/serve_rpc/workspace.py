@@ -1,4 +1,5 @@
-"""Workspace setup over the existing store: the conversations home, the create door and the realm assign."""
+"""Workspace setup and management over the existing store: the conversations home, the create door, the realm
+assign and unarchive."""
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, ERR_NOT_FOUND, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -66,3 +67,37 @@ def runtime_workspace_assign_realm(rid, params, context=None):
             data["owner_realm_id"] = exc.owner_realm_id
         return err(rid, _ASSIGN_CODES.get(exc.reason.value, ERR_CONFLICT), "The realm assignment was refused.", data)
     return ok(rid, {**row, "assigned": assigned})
+
+
+_MANAGE_CODES = {"invalid_request": ERR_INVALID_PARAMS, "workspace_not_found": ERR_NOT_FOUND,
+                 "realm_not_found": ERR_NOT_FOUND}
+
+
+def _manage(rid, keys, params, call):
+    """One ``agent_runtime.workspace_manage`` verb: exact params, the row plus its outcome flags, or the typed
+    refusal on ``error.data`` (``reason`` and the refusal's details)."""
+    from agent_runtime.serde import to_jsonable
+    from agent_runtime.workspace_manage import WorkspaceManageRefused
+
+    if not isinstance(params, dict) or set(params) != keys:
+        return err(rid, ERR_INVALID_PARAMS, f"{' and '.join(sorted(keys))} required.", {"reason": "invalid_request"})
+    try:
+        row, flags = call()
+    except WorkspaceManageRefused as exc:
+        code = _MANAGE_CODES.get(exc.reason.value, ERR_CONFLICT)
+        return err(rid, code, "The workspace was not changed.", {"reason": exc.reason.value, **exc.details})
+    return ok(rid, dict(to_jsonable({**row, **flags})))
+
+
+@method("runtime.workspace.unarchive", tier=TIER_CONSOLE)
+def runtime_workspace_unarchive(rid, params, context=None):
+    """Bring an archived workspace back (RT-WORKSPACE-UNARCHIVE; argv twin ``harness workspace unarchive``):
+    ``{workspace_id}`` -> the full workspace row (``archived: false``) plus ``restored`` (false when it was not
+    archived). Refusals: ``invalid_request``, ``workspace_not_found``, ``realm_archived`` (+ ``realm_id``)."""
+    from agent_runtime.workspace_manage import unarchive_workspace
+
+    def call():
+        row, restored = unarchive_workspace(params["workspace_id"])
+        return row, {"restored": restored}
+
+    return _manage(rid, {"workspace_id"}, params, call)

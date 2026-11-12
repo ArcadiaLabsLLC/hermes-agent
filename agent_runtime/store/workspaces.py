@@ -211,6 +211,22 @@ class WorkspaceStore:
         )
         return item
 
+    def unarchive(self, workspace_id: str) -> Workspace:
+        """Bring an archived workspace back (archive's reverse). An unarchived one is returned as it
+        stands: no write, no event."""
+        item = self.get(workspace_id)
+        if not item.archived:
+            return item
+        item.archived = False
+        item = self.save(item, emit_event=False)
+        emit_store_event(
+            self.event_log,
+            "workspace.updated",
+            {"workspace_id": item.id, "change": "unarchived", "name": item.name},
+            domain="store",
+        )
+        return item
+
     def delete(self, workspace_id: str, *, reason: str = "operator_delete") -> dict:
         """Hard-delete a workspace and cascade its scoped content stores.
 

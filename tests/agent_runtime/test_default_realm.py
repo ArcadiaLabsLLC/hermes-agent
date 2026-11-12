@@ -84,7 +84,7 @@ def test_the_argv_verb_and_the_method_answer_one_row(monkeypatch):
     monkeypatch.setattr(realm_commands, "_print_stage42", lambda envelope, **_: rows.append(envelope))
     assert realm_commands._cmd_realm_default(SimpleNamespace(realm_id=team.id)) == 0
     method = _rpc("runtime.realm.set_default", realm_id=team.id)["result"]
-    argv = rows[0]["data"] if "data" in rows[0] else rows[0]
+    argv = rows[0]
     assert argv["id"] == method["id"] == team.id and argv["default_realm_id"] == method["default_realm_id"] == team.id
     assert (argv["changed"], method["changed"]) == (True, False)
 

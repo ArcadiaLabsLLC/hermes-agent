@@ -90,6 +90,10 @@ def add_workspace(subs) -> None:
         workspace_archive, controls=frozenset({"dry_run", "yes"})
     )
     workspace_archive.set_defaults(func=workspace_commands._cmd_workspace_archive)
+    workspace_unarchive = workspace_subs.add_parser("unarchive", help="Bring an archived workspace back")
+    workspace_unarchive.add_argument("workspace_id")
+    _add_stage42_global_args(workspace_unarchive, controls=frozenset({"dry_run"}))
+    workspace_unarchive.set_defaults(func=workspace_commands._cmd_workspace_unarchive)
     workspace_delete = workspace_subs.add_parser(
         "delete", help="Permanently delete a workspace and its office/board content (archive is the reversible path)"
     )

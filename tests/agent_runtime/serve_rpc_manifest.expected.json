@@ -384,6 +384,7 @@
     "runtime.workspace.slots.declare",
     "runtime.workspace.slots.report",
     "runtime.workspace.slots.show",
+    "runtime.workspace.unarchive",
     "runtime.workspace.use"
   ],
   "params": {
@@ -1458,6 +1459,7 @@
     "runtime.workspace.slots.declare": "console",
     "runtime.workspace.slots.report": "console",
     "runtime.workspace.slots.show": "console",
+    "runtime.workspace.unarchive": "console",
     "runtime.workspace.use": "console"
   }
 }
