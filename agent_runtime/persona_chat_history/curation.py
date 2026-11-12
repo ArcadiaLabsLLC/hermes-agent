@@ -518,8 +518,7 @@ class CurationState:
             from agent.steering import RUNTIME_NOTE_ENVELOPE
 
             raw_content = raw_content.removeprefix(RUNTIME_NOTE_ENVELOPE)
-        elif raw.get("display_kind") == _FAILED_TURN_DISPLAY_KIND:
-            raw_content = self._failed_turn_reply(ctx) or raw_content
+        raw_content = self._failed_turn_reply(ctx) or raw_content
         curated = curator.printable(_curate_chat_message_text(ctx.role, raw_content))
         if not curated:
             self._silent_candidate(ctx, raw_content)
@@ -554,7 +553,7 @@ class CurationState:
             self.turn_element_rows[ctx.logical_client_message_id] = row
 
     def _failed_turn_reply(self, ctx: RowContext) -> str:
-        """What the turn itself said when it failed, for the core's boundary row; ``""`` when it said nothing.
+        """What the turn itself said when it failed, for the core's boundary row; ``""`` for any other row.
 
         A failed model call leaves the stored tail closed by the core's row ("Your request was not
         processed…", ``display_kind: failed_turn`` — every host needs the tail closed), while the Harness
@@ -564,6 +563,8 @@ class CurationState:
         journal record; the row reads as that. A failed turn that settled no reply keeps the core's sentence.
         """
 
+        if ctx.raw.get("display_kind") != _FAILED_TURN_DISPLAY_KIND:
+            return ""
         record = self.turn_records_by_message.get(str(ctx.logical_client_message_id or "")) or {}
         reply = record.get("stored_reply")
         return reply if isinstance(reply, str) and reply.strip() else ""

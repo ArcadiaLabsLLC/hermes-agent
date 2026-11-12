@@ -16,9 +16,10 @@ history now reads that row as the turn's own settled words: one notice, live and
 turn that settled no reply keeps the core's sentence.
 
 Killing mutations (reds recorded in the commit body):
-* ``CurationState.curate`` drops the ``failed_turn`` arm → the cut-off test red (the generic sentence is
+* ``CurationState.curate`` drops its ``_failed_turn_reply`` line → the cut-off test red (the generic sentence is
   the stored chat's only word for the turn);
-* ``_failed_turn_reply`` answers for a record with no ``stored_reply`` by hiding the row → the control red.
+* ``_failed_turn_reply`` answers for a record with no ``stored_reply`` by hiding the row → the control red;
+* ``_failed_turn_reply`` answers for any agent row → the ordinary-reply control red.
 """
 
 from __future__ import annotations
@@ -114,6 +115,25 @@ def test_a_failed_turn_that_settled_no_words_keeps_the_core_sentence(placed_agen
         said = _agent_words(instance, root)
 
     assert said["persona history"] == [FAILED_TURN_NOTICE], said
+
+
+def test_an_ordinary_reply_row_is_read_as_stored_never_from_the_journal(placed_agent, model):
+    """Only the core's boundary row borrows the journal's words: a reply row is its own text."""
+
+    from agent_runtime.persona_chat_history import history_evidence
+
+    instance, root = _new_chat(placed_agent)
+    operator_turn(instance, root, "msg-1", "Hello.").join(120)
+    real = history_evidence.history_turn_records
+
+    def _other_words(*args, **kwargs):
+        return [{**record, "stored_reply": "words the journal holds"} for record in real(*args, **kwargs)]
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(history_evidence, "history_turn_records", _other_words)
+        said = _agent_words(instance, root)
+
+    assert said["persona history"] == ["Thanks, noted."], said
 
 
 def test_the_boundary_rows_kind_is_spelled_as_the_core_spells_it():
