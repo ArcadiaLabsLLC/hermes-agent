@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import unicodedata
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
@@ -59,6 +60,60 @@ def task_title_problem(row: Row) -> str | None:
     if len(row.title) > TASK_TITLE_LIMIT:
         return f"{len(row.title)} characters, over {TASK_TITLE_LIMIT}"
     return None
+
+
+#: The longest slug :func:`new_task_slug` derives from a title (whole words; a clash adds the ID's tail after it).
+TASK_SLUG_LIMIT = 40
+_SLUG_WORD = re.compile(r"[a-z0-9]+")
+#: :func:`task_title_problem`'s answers in words for the person who typed the title (``runtime.work.start``).
+_TITLE_ADVICE = {
+    "a code span": "it holds a backtick",
+    "a path": "it holds a path (words joined by a slash): say it in words, and put the path in the details",
+    "a row ID": "it holds a row ID (capitals joined by a dash, like AB-12): say it in words, and put the ID in the "
+                "details",
+}
+
+
+def task_title_refusal(row: Row) -> str | None:
+    """Why a NEW task may not carry ``row``'s title, in plain words (:func:`task_title_problem`), or None."""
+
+    why = task_title_problem(row)
+    if why is None:
+        return None
+    advice = _TITLE_ADVICE.get(why, f"it is {why}: shorten it, and put the rest in the details")
+    return f"a task's title is plain English, and this one cannot be saved: {advice}"
+
+
+def taken_slugs(rows: Iterable[Row]) -> set[str]:
+    """The slugs a new task may not take among ``rows``: every task's, and every subtask group's with each dotted
+    prefix of it — a new task named like a group no task owns yet would adopt those subtasks unasked."""
+
+    taken: set[str] = set()
+    for row in rows:
+        if row.task is not None:
+            taken.add(row.task)
+        parts = (row.group or "").split(".")
+        taken.update(".".join(parts[:end]) for end in range(1, len(parts) + 1) if row.group)
+    return taken
+
+
+def new_task_slug(title: str, row_id: str, taken: Iterable[str]) -> str:
+    """The slug of a task started from ``title``: its words (ASCII letters and digits, accents folded), lower-case
+    and dash-joined, whole words up to :data:`TASK_SLUG_LIMIT`. A title with no such word takes ``task-<tail>``, and
+    a slug in ``taken`` gets ``-<tail>`` after it, ``<tail>`` being the end of the minted ``row_id`` — so two tasks
+    with one title are two tasks, each with its own slug."""
+
+    folded = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode("ascii").lower()
+    slug = ""
+    for word in _SLUG_WORD.findall(folded):
+        longer = f"{slug}-{word}" if slug else word[:TASK_SLUG_LIMIT]
+        if len(longer) > TASK_SLUG_LIMIT:
+            break
+        slug = longer
+    tail = row_id.rsplit("-", 1)[-1].lower()
+    if not slug:
+        return f"task-{tail}"
+    return f"{slug}-{tail}" if slug in set(taken) else slug
 
 
 def owning_task(group: str, tasks: Iterable[str]) -> str | None:
@@ -323,12 +378,18 @@ def task_status_after_close(task: Row, subtasks: list[Row], *, all_visible: bool
 # ── the rules where rows are written (RT-QUEUE-TASK-RULES-AT-WRITE; launcher tool/queue/queue_write_check.dart) ──
 
 
+def _untasked(row: Row) -> bool:
+    return row.task is None and row.group is None
+
+
 def write_task_defects(written: Mapping[str, tuple[str, str]], brain: Iterable[Row], siblings: Iterable[Row], *,
                        siblings_visible: bool) -> list[str]:
     """The task defects of the rows a write CHANGES — ``BAD TASK`` and :func:`task_defects` — or ``[]`` when it may
     land. ``written`` maps each queue note the write touches to ``(prior text, new text)``; a row whose exact line is
     in the prior text is unchanged, so a defect the note already carried is never refused here (the vault lint's
-    business). ``brain`` is the live rows of this brain's notes the write leaves alone; ``siblings`` the sibling
+    business) — nor is a row that had neither ``task:`` nor ``group:`` before the write and has neither after it: a
+    Work brain's rows from before ``runtime.work.start`` wrote tasks stay claimable once the brain holds one
+    (RT-WORK-START-WRITES-A-TASK-ROW). ``brain`` is the live rows of this brain's notes the write leaves alone; ``siblings`` the sibling
     brains' (``GROUP HAS NO TASK`` is judged only when ``siblings_visible``). A brain none of whose live rows is a
     task (a workspace's own Work brain) does not use tasks, and is held to none of these rules."""
 
@@ -338,8 +399,10 @@ def write_task_defects(written: Mapping[str, tuple[str, str]], brain: Iterable[R
         if not is_queue(new):
             continue
         before = {line.rstrip("\r") for line in prior.split("\n")}
+        untasked = {row.ref.id for row in parse_note(prior, slot="hermes", note=note) if _untasked(row)}
         for row in parse_note(new, slot="hermes", note=note):
-            (unchanged if row.raw in before else changed).append(row)
+            carried = row.raw in before or (_untasked(row) and row.ref.id in untasked)
+            (unchanged if carried else changed).append(row)
     others = [*unchanged, *brain]
     if not changed or not any(row.task is not None for row in [*changed, *others]):
         return []

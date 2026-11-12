@@ -27,7 +27,9 @@ from agent_runtime.work_store.default_brain import (
 from agent_runtime.work_store.grammar import (
     ASSIGNEE, BODY_REQUIRED, GROUP_SLUG, STATUS, STATUS_WORDS, Assignee, Op, Row, RowRef, Status, find, local_day, mint_id, parse_note,
 )
-from agent_runtime.work_store.tasks import subtasks_of, task_holds_subtasks, task_of
+from agent_runtime.work_store.tasks import (
+    new_task_slug, sibling_rows, subtasks_of, taken_slugs, task_holds_subtasks, task_of, task_title_refusal,
+)
 from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, work_worktree_for
 
 from agent_runtime.errors import NotFound
@@ -438,9 +440,11 @@ def _first_note(board: Board, params: Mapping[str, Any]) -> str:
 
 
 def _start_row(row_id: str, title: str, brief: str | None, token: str | None, date: str,
-               group: str | None = None) -> str:
-    """The appended line: ``READY <date>``, never a claim mark — assignment is not execution."""
+               group: str | None = None, task: str | None = None) -> str:
+    """The appended line: ``READY <date>``, never a claim mark — assignment is not execution. Every row is a task
+    (``task``) or a subtask of one (``group``)."""
     segments = [f"- **`{row_id}` — {title}**"]
+    segments += [f"task: {task}"] if task else []
     segments += [f"group: {group}"] if group else []
     segments += [f"brief: `{brief}`"] if brief else []
     segments += [f"assignee: persona:{token}"] if token else []
@@ -448,7 +452,21 @@ def _start_row(row_id: str, title: str, brief: str | None, token: str | None, da
     return " · ".join(segments)
 
 
+def _new_task_slug(workspace_id: str, board: Board, writer: Writer, title: str, row_id: str) -> str:
+    """The slug a start with no ``group`` files its row under, as a TASK (RT-WORK-START-WRITES-A-TASK-ROW): unique
+    among the rows the writer's own task check reads (the board's brain and the sibling brains beside its checkout)
+    and the workspace's other boards, where a claim looks for a subtask's task (:func:`parent_task`)."""
+
+    seen = [*boards_store.board_rows(board),
+            *(row for rows in sibling_rows(board.checkout or writer.worktree).values() for row in rows),
+            *(row for other in observed(workspace_id).boards if other.key != board.key
+              for row in boards_store.board_rows(other))]
+    return new_task_slug(title, row_id, taken_slugs(seen))
+
+
 def start(scope, params, actor, *, context=None):
+    """Append a READY row: a subtask of ``group``'s task when the caller names one, else a new TASK
+    (``task: <slug>``, the slug from the title) — every row belongs to a task, and the Tasks board lists tasks."""
     title = text(params.get("title"), maximum=160).strip()
     if any(mark in title for mark in _TITLE_FORBIDDEN):
         raise WorkRefused(Reason.INVALID, "a title carries no backtick, `*` or ` · `")
@@ -467,7 +485,10 @@ def start(scope, params, actor, *, context=None):
     writer = view.writers[board.key]
     row_id = mint_id()
     brief = f"{writer.brain_root}/{BRIEF_DIR}/{row_id}.md" if body else None
-    line = _start_row(row_id, title, brief, token, local_day(_now()), group)
+    slug = None if group is not None else _new_task_slug(scope.workspace_id, board, writer, title, row_id)
+    line = _start_row(row_id, title, brief, token, local_day(_now()), group, slug)
+    if slug is not None and (why := task_title_refusal(parse_note(line, slot=board.slot, note="")[0])) is not None:
+        raise WorkRefused(Reason.INVALID, why)
     payload = {"row": line, "files": {f"{BRIEF_DIR}/{row_id}.md": body} if body else {}}
     ref = RowRef(board.slot, _first_note(board, params), row_id)
     receipt = writer.apply(RowOp(ref, Op.APPEND, actor, request, payload))
