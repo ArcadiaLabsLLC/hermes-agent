@@ -43,7 +43,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-12 (lane w1112b-hm-leftrealm: closing `RT-LEFT-SERVER-REALM-STAYS-LISTED`)
 
-- **`RT-REALM-ARCHIVE-ARGV-REFUSAL-DROPS-DETAILS` — When a realm cannot be archived from the command line, the answer names the workspaces or the server in the way** · group: manage-workspace-genui · `hermes_cli/harness_parts/realm_commands.py` · filed 2026-11-12 by w1112b-hm-leftrealm from its real-path read: `harness realm archive` on a realm holding a live workspace answers `realm_not_empty` with `safe_details` `{error_class}` only — `workspace_ids` (and `server_id` on `realm_server_bound`) are missing, while `runtime.realm.archive` on the method lane carries them · handoff 2026-11-12: nothing built; pass `RealmManageRefused.details` into the argv error envelope's `safe_details` and pin it beside `test_the_argv_verbs_reach_the_same_implementation` · READY 2026-11-12 · **TAKEN 2026-11-12 w1112b-hm-realm2 on nekwo-ubuntu24 as nekwo in hm-w1109a-iso**
 
 ### Filed on arrival — 2026-11-12 (lane w1112b-hm-realm: the owner's ruling on `MC-MANAGE-WS-REALM-ARCHIVE`)
 
