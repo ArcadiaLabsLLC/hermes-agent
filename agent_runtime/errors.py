@@ -142,6 +142,27 @@ class CardsUnreadable(ArchiveUnreadable):
     code = "cards_unreadable"
 
 
+class CardAmbiguous(AgentRuntimeError):
+    """Raised when a card verb names no board and the card id is held on more than one.
+
+    One install can hold one card id on two boards: a card adopted from a Work
+    row keeps the row's id, a leave's re-key renames only the cards a board
+    minted, and a re-join pulls the team's board fresh beside the local copy.
+    A verb that names only the card would then change whichever board folder
+    the directory listing happened to return first. The store does not guess:
+    it refuses and names the boards, and the caller names one (``board_id``).
+
+    NON-RETRYABLE as sent. ``code`` rides the RPC error envelope verbatim.
+    """
+
+    code = "card_ambiguous"
+
+    def __init__(self, card_id: str, board_ids: tuple[str, ...]):
+        super().__init__(f"card_ambiguous:{card_id}: held on boards {', '.join(board_ids)}; name board_id")
+        self.card_id = card_id
+        self.board_ids = tuple(board_ids)
+
+
 class PersonaInstancesUnreadable(ArchiveUnreadable):
     """Raised when a persona-lane write cannot see the WHOLE instance directory.
 

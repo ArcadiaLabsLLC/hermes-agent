@@ -823,6 +823,14 @@
     "harness board card archive": {
       "exclusive_groups": [],
       "options": {
+        "--board": {
+          "action": "store",
+          "canonical": "--board",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--fields": {
           "action": "store",
           "canonical": "--fields",
@@ -930,6 +938,14 @@
         "--assignee": {
           "action": "store",
           "canonical": "--assignee",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--board": {
+          "action": "store",
+          "canonical": "--board",
           "choices": null,
           "nargs": 1,
           "required": false,
@@ -1116,6 +1132,14 @@
           "required": false,
           "type": null
         },
+        "--board": {
+          "action": "store",
+          "canonical": "--board",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--column": {
           "action": "store",
           "canonical": "--column",
@@ -1244,6 +1268,14 @@
     "harness board card restore": {
       "exclusive_groups": [],
       "options": {
+        "--board": {
+          "action": "store",
+          "canonical": "--board",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--fields": {
           "action": "store",
           "canonical": "--fields",
@@ -1592,6 +1624,14 @@
     "harness board resolve-conflict": {
       "exclusive_groups": [],
       "options": {
+        "--board": {
+          "action": "store",
+          "canonical": "--board",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--fields": {
           "action": "store",
           "canonical": "--fields",

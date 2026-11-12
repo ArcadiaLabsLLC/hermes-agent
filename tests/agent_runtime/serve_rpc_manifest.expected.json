@@ -429,11 +429,13 @@
       "workspace_id"
     ],
     "runtime.board.card.archive": [
+      "board_id",
       "card_id",
       "correlation_id"
     ],
     "runtime.board.card.edit": [
       "assignee",
+      "board_id",
       "card_id",
       "clear_assignee",
       "correlation_id",
@@ -447,6 +449,7 @@
     "runtime.board.card.move": [
       "after",
       "before",
+      "board_id",
       "card_id",
       "column_id",
       "correlation_id",
@@ -454,10 +457,12 @@
       "idempotency_key"
     ],
     "runtime.board.card.restore": [
+      "board_id",
       "card_id",
       "correlation_id"
     ],
     "runtime.board.resolve_conflict": [
+      "board_id",
       "card_id",
       "correlation_id",
       "take"

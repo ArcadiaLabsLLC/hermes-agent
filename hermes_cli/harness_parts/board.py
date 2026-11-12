@@ -145,6 +145,7 @@ def _cmd_board_card_edit(args) -> int:
         labels = [part.strip() for part in args.labels.split(",") if part.strip()]
     card = store.edit_card(
         args.card_id,
+        board_id=getattr(args, "board", None),
         title=getattr(args, "title", None),
         description=getattr(args, "description", None),
         priority=getattr(args, "priority", None),
@@ -162,6 +163,7 @@ def _cmd_board_card_move(args) -> int:
     store = _board_store()
     card = store.move_card(
         args.card_id,
+        board_id=getattr(args, "board", None),
         column_id=args.column,
         before=getattr(args, "before", None),
         after=getattr(args, "after", None),
@@ -174,21 +176,21 @@ def _cmd_board_card_move(args) -> int:
 
 def _cmd_board_card_archive(args) -> int:
     store = _board_store()
-    card = store.archive_card(args.card_id, reason="operator")
+    card = store.archive_card(args.card_id, board_id=getattr(args, "board", None), reason="operator")
     _print_stage42(_object_envelope("card", _card_row(card, full=True)), args=args, default_output="json")
     return 0
 
 
 def _cmd_board_card_restore(args) -> int:
     store = _board_store()
-    card = store.restore_card(args.card_id)
+    card = store.restore_card(args.card_id, board_id=getattr(args, "board", None))
     _print_stage42(_object_envelope("card", _card_row(card, full=True)), args=args, default_output="json")
     return 0
 
 
 def _cmd_board_resolve_conflict(args) -> int:
     store = _board_store()
-    card = store.resolve_conflict(args.card_id, take=args.take)
+    card = store.resolve_conflict(args.card_id, take=args.take, board_id=getattr(args, "board", None))
     row = _card_row(card, full=True) if card is not None else {"id": args.card_id, "state": "archived", "take": args.take}
     _print_stage42(_object_envelope("card", row), args=args, default_output="json")
     return 0
