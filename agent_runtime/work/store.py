@@ -25,7 +25,7 @@ from agent_runtime.work_store.default_brain import (
     QUEUE_DIR, QUEUE_NOTE, QUEUE_TEMPLATE, TODO_TEMPLATE, this_machine,
 )
 from agent_runtime.work_store.grammar import (
-    ASSIGNEE, GROUP_SLUG, STATUS, STATUS_WORDS, Assignee, Op, Row, RowRef, Status, find, local_day, mint_id, parse_note,
+    ASSIGNEE, BODY_REQUIRED, GROUP_SLUG, STATUS, STATUS_WORDS, Assignee, Op, Row, RowRef, Status, find, local_day, mint_id, parse_note,
 )
 from agent_runtime.work_store.tasks import subtasks_of, task_holds_subtasks, task_of
 from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, work_worktree_for
@@ -654,10 +654,8 @@ def move(scope, params, actor, *, context=None):
 
         if not reason or blocked_reason(reason) is None:
             raise WorkRefused(Reason.GRAMMAR_INVALID, "a BLOCKED drop names a reason: owner decision | backend | …")
-    if to == Status.DECISION and not reason:
-        raise WorkRefused(Reason.GRAMMAR_INVALID, "a DECISION drop names the question the owner is asked")
-    if to == Status.LIVE_CHECK and not reason:
-        raise WorkRefused(Reason.GRAMMAR_INVALID, "a LIVE CHECK drop names what to drive and what to read")
+    if not reason and Status(to) in BODY_REQUIRED:
+        raise WorkRefused(Reason.GRAMMAR_INVALID, f"a {to} drop names {BODY_REQUIRED[Status(to)]}")
     view = synced(scope.workspace_id, slot=params.get("slot"))
     board = _view_board(view, params.get("slot"))
     writer = view.writers[board.key]

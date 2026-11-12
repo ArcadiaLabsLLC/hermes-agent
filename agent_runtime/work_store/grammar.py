@@ -37,6 +37,7 @@ from .reasons import Reason, WorkRefused
 __layer__ = "policy"
 __all__ = [
     "ARCHIVE_DIR",
+    "BODY_REQUIRED",
     "STARTABLE",
     "STATUS_WORDS",
     "Assignee",
@@ -128,6 +129,8 @@ class Status(StrEnum):
 #: The statuses an agent can start work on (launcher ``tool/queue/queue_wake.dart::isStartable``): a task with one
 #: such subtask is READY. Every other status waits (BLOCKED, DECISION) or is parked (DEFERRED).
 STARTABLE = frozenset({Status.READY, Status.NEEDS_PLAN, Status.LIVE_CHECK})
+#: The statuses that are nothing without a body, and what the body says.
+BODY_REQUIRED = {Status.LIVE_CHECK: "what to drive and what to read", Status.DECISION: "the question"}
 #: The status words, as a refusal names them.
 STATUS_WORDS = " / ".join(status.value for status in Status)
 
@@ -353,10 +356,9 @@ def _status_defects(segments: list[str]) -> list[str]:
     if len(statuses) != 1:
         defects.append(f"{len(statuses)} status segments; exactly one of {STATUS_WORDS} <date>")
     for index, status in statuses:
-        if status.group(1) in ("LIVE CHECK", "DECISION") and not (status.group(3) or "").strip():
-            defects.append(f"{status.group(1)} with no body: `{status.group(1)} <date>: <"
-                           + ("what to drive and what to read" if status.group(1) == "LIVE CHECK" else "the question")
-                           + ">`")
+        says = BODY_REQUIRED.get(Status(status.group(1)))
+        if says is not None and not (status.group(3) or "").strip():
+            defects.append(f"{status.group(1)} with no body: `{status.group(1)} <date>: <{says}>`")
         if Status(status.group(1)) is not Status.BLOCKED:
             continue
         reason = blocked_reason((status.group(3) or "").strip())
