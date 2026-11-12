@@ -48,6 +48,27 @@ def seed_workspace_record(workspace_id: str, *, name: str | None = None):
     return store.create(name=name or f"seed {wsid}", workspace_id=wsid)
 
 
+def settle_task_activity() -> None:
+    """Record every workspace's task counts the way a serve's first Work-engine tick does.
+
+    A serve started on a fresh root ticks the Work engine on its own thread, and the first tick turns each
+    workspace's card counts from "not known" into numbers (``work_store.activity.record_view``), appending one
+    ``workspace.updated`` (``change: task_activity``) per workspace. That is right — the card changed — but it
+    is the engine's event, not the RPC's, and it lands at a moment the test does not choose. A test that reads
+    the batch ONE request produced (is it patch-coverable?) calls this after seeding its workspaces and before
+    it takes its offset, so the counts are already known and the tick has nothing to say
+    (FH-OFFICE-REMOVE-AND-RESOLVE-PATCH-TESTS-RED-ON-MAIN). A seeded workspace has no board: both counts 0.
+    """
+
+    from types import SimpleNamespace
+
+    from agent_runtime.work_store.activity import record_view
+
+    no_boards = SimpleNamespace(boards=[], writers={}, refused=None)
+    for workspace in WorkspaceStore().list_all(include_archived=True):
+        record_view(workspace.id, no_boards, {})
+
+
 def unlink_workspace_record(workspace_id: str) -> None:
     """Remove the workspace RECORD and leave the office standing.
 
