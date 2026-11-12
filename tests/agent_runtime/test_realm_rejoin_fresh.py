@@ -228,3 +228,48 @@ def test_a_leave_with_nothing_running_takes_its_own_ids_at_once(tmp_path, reason
     assert left["shared_from"] == read_realm_shared_from(local.id) and left["shared_from"]["server_name"] == "Other Guild"
     assert json.loads(runtime_paths.workspace_path(read_rekey_journal(other.id)["map"]["workspaces"]["ws_theirs"]).read_text(
         encoding="utf-8"))["realm_id"] == local.id
+
+
+def _map(name: str) -> bytes:
+    return json.dumps({"version": 4, "name": name, "props": []}).encode("utf-8")
+
+
+def test_the_fresh_pull_takes_what_the_team_changed_in_a_shared_catalogue_and_keeps_what_you_changed(tmp_path, monkeypatch):
+    """Maps, prefabs, persona definitions, profile files and skills are this install's: one document serves the
+    local copy and the server's realm. Three maps published while a member; after the leave the member edits
+    one, the team edits another.
+
+    Mutations: drop ``_keep_team_catalogues`` from ``owe_rekey`` (or ``restore_team_catalogues`` from
+    ``make_way_for_rejoin``) -> the fresh realm has no map baseline and both edited maps are held as
+    conflicts, the team's newer map never arrives, red; keep the baselines at the re-key instead of the leave
+    (read the live folder after the local-era sync) -> not reachable here without a local-era map publish:
+    pinned by the order in ``owe_rekey`` only."""
+    from agent_runtime.map_sync import MapStore
+    from tests.agent_runtime import test_realm_rekey_census as census
+
+    publish = census.publish_realm_sync
+
+    def publish_with_maps(realm_id, *args, **kwargs):
+        if not MapStore().list_tokens():  # the seed's first publish, while still a member
+            for token, name in (("map_same", "Same"), ("map_mine", "Mine v1"), ("map_team", "Team v1")):
+                MapStore().write(token, _map(name))
+        return publish(realm_id, *args, **kwargs)
+
+    monkeypatch.setattr(census, "publish_realm_sync", publish_with_maps)
+    realm, _first, _second, _extra, _head = _left_realm(tmp_path)
+    MapStore().write("map_mine", _map("Mine v2, edited while local"))
+    run_owed_rekeys(RekeyTrigger.IDLE)
+    clone = tmp_path / "team-clone"
+    [published] = list(clone.rglob("map_team.json"))
+    published.write_bytes(_map("Team v2, edited by the team"))
+    _git(clone, "commit", "-q", "-am", "the team edits a map")
+    _git(clone, "push", "-q", "origin", "HEAD")
+
+    _join(monkeypatch, tmp_path)
+    maps = pull_realm_sync(realm.id)["map_sync"]
+
+    assert (maps["held"], maps["kept_local"]) == ([], ["map_mine"])
+    assert "map_team" in maps["adopted"]
+    names = {token: json.loads(MapStore().read(token))["name"] for token in ("map_same", "map_mine", "map_team")}
+    assert names == {"map_same": "Same", "map_mine": "Mine v2, edited while local", "map_team": "Team v2, edited by the team"}
+    assert not (runtime_paths.realm_sync_root() / realm.id / "map_conflicts").exists()

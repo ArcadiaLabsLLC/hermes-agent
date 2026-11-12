@@ -235,7 +235,7 @@ def make_way_for_rejoin(realm_ids: list[str]) -> list[str]:
     fresh beside it. Refuses ``realm_busy`` — before anything is adopted — when one cannot run now. Returns
     the granted ids whose local copy was re-keyed in this call."""
     from .errors import NotFound
-    from .realm_rekey import owe_rekey
+    from .realm_rekey import owe_rekey, restore_team_catalogues
     from .store import RealmStore
 
     moved = []
@@ -245,11 +245,13 @@ def make_way_for_rejoin(realm_ids: list[str]) -> list[str]:
             try:
                 held = RealmStore().get(realm_id)
             except NotFound:
+                restore_team_catalogues(realm_id)  # re-keyed earlier (at the leave, or when idle): the id is free
                 continue
             if held.server_id:
                 continue  # still bound: a member who never left, or the fresh realm of an earlier re-join
             owe_rekey(realm_id, reason=RekeyTrigger.REJOIN.value)
         finish_rekey_or_refuse(realm_id)
+        restore_team_catalogues(realm_id)
         moved.append(realm_id)
     return moved
 

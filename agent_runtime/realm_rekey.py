@@ -73,6 +73,8 @@ __all__ = [
     "rekeyed_from",
     "rekey_journal_path",
     "rekey_realm",
+    "restore_team_catalogues",
+    "team_catalogues_dir",
 ]
 
 #: The level document's one embedded id: its store address (``EterniaLauncher`` ``level_ref.dart``).
@@ -82,6 +84,12 @@ _MINTED_SUFFIX = re.compile(r"_[0-9a-f]{6}$")
 _MINTED_CARD = re.compile(r"^card_[0-9a-f]{32}$")
 #: ``realm_sync_state/<realm>.team_baselines/``: written at a leave from ed84b2c01a until the fresh re-join.
 LEGACY_TEAM_BASELINES_SUFFIX = ".team_baselines"
+#: The drift baselines of the families that are this INSTALL's, not a realm's (``PlaceClass.INSTALL``: maps,
+#: prefabs, persona definitions, profile files, skills). Their ids are not re-keyed, so one document serves
+#: the local copy and the server's realm alike, and what this install and the team last agreed on about it
+#: is still true at a re-join. Kept at the leave, handed to the fresh realm (:func:`restore_team_catalogues`).
+CATALOGUE_BASELINES = ("map_baseline.json", "prefab_baseline.json", "persona_config_baseline.json",
+                       "profile_artifact_baseline.json", "skill_baseline.json")
 
 
 class PlaceClass(str, Enum):
@@ -220,6 +228,40 @@ def _file_done_journal(realm_id: str, journal: dict[str, Any]) -> None:
     path.replace(path.with_name(f"{path.stem}.{paths.safe_path_token(journal['map']['realm_new'])}.json"))
 
 
+def team_catalogues_dir(realm_id: str) -> Path:
+    """Beside the journal (HISTORY: never renamed), under the id the TEAM knows the realm by."""
+    return rekey_journal_path(realm_id).with_suffix(".team_catalogues")
+
+
+def _keep_team_catalogues(realm_id: str) -> None:
+    """At the moment a re-key is owed — the leave, before any sync of the now-local realm moves them. A realm
+    left under the older build has that moment's set in its ``team_baselines`` folder: that one is read."""
+    live = paths.realm_sync_root() / paths.safe_path_token(realm_id)
+    legacy = paths.store_root() / "realm_sync_state" / f"{paths.safe_path_token(realm_id)}{LEGACY_TEAM_BASELINES_SUFFIX}"
+    source, kept = (legacy if legacy.is_dir() else live), team_catalogues_dir(realm_id)
+    shutil.rmtree(kept, ignore_errors=True)
+    for name in CATALOGUE_BASELINES:
+        if (source / name).is_file():
+            kept.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source / name, kept / name)
+
+
+def restore_team_catalogues(realm_id: str) -> list[str]:
+    """Hand the kept catalogue baselines to the realm a re-join has just made way for (its id is free): the
+    fresh pull then takes what the TEAM changed while the member was away, keeps what the MEMBER changed as an
+    unpublished change, and holds only what both changed — instead of holding every difference as "both
+    added". Never over a baseline that is already there. Returns the file names restored."""
+    kept, live = team_catalogues_dir(realm_id), paths.realm_sync_root() / paths.safe_path_token(realm_id)
+    restored = []
+    for source in sorted(kept.glob("*.json")) if kept.is_dir() else []:
+        if not (live / source.name).exists():
+            live.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, live / source.name)
+            restored.append(source.name)
+    shutil.rmtree(kept, ignore_errors=True)
+    return restored
+
+
 def owe_rekey(realm_id: str, *, reason: str) -> dict[str, Any]:
     """Record that ``realm_id`` owes a re-key and mint its map. A realm whose journal is still ``owed`` or
     ``running`` answers it; one left again after a re-join gets a new journal and a new map."""
@@ -229,6 +271,7 @@ def owe_rekey(realm_id: str, *, reason: str) -> dict[str, Any]:
             return existing
         if existing is not None:
             _file_done_journal(realm_id, existing)
+        _keep_team_catalogues(realm_id)
         realm = RealmStore().get(realm_id)
         held = [item.id for item in WorkspaceStore().list_all(include_archived=True) if item.realm_id == realm.id]
         workspaces = {old: _fresh_id(old) for old in dict.fromkeys([*realm.workspace_ids, *held])}
