@@ -423,13 +423,18 @@ def readiness(slot_name: str, slot: dict[str, Any], row: dict[str, Any] | None) 
         return _answer(steps, orphaned, states, ready, checklist)
     for step in steps:
         state, why = step_state(step, row)
+        if state == STATE_TODO and step.get("derived") and step["kind"] != STEP_CLONE:
+            # Tools, keys and the .env vary by dev environment: a missing one is a note,
+            # never a block (RT-SLOT-READY-IGNORES-TOOLS-AND-KEYS, owner 2026-11-13).
+            state = STATE_OPTIONAL_MISSING
         states[step["id"]] = {"state": state, "why": why}
-    derived_states = [states[s["id"]]["state"] for s in steps if s.get("derived")]
-    if STATE_UNKNOWN in derived_states:
+    # Ready is the checkout alone: cloned (or located) and the declared repository.
+    clone = states[CLONE_STEP_ID]["state"]
+    if clone == STATE_UNKNOWN:
         ready, checklist = READY_UNKNOWN, CHECKLIST_UNKNOWN
-    elif states[CLONE_STEP_ID]["state"] == STATE_WARNING:
+    elif clone == STATE_WARNING:
         ready, checklist = READY_NO, CHECKLIST_REMOTE_MISMATCH
-    elif STATE_TODO in derived_states:
+    elif clone == STATE_TODO:
         ready, checklist = READY_NO, CHECKLIST_NEEDS_SETUP
     else:
         ready, checklist = READY_YES, CHECKLIST_READY

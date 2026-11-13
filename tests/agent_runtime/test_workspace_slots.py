@@ -177,7 +177,8 @@ def test_a_hanging_version_probe_is_unknown_with_evidence(workspace, checkout):
     set_slot_fill(workspace, "launcher", tool_paths={"python_probe": sys.executable})
     row = report(workspace, run=runner)["slots"]["launcher"]
     assert row["tools"]["python_probe"]["status"] == "unknown"
-    assert row["status"] == "unknown"
+    # The checkout alone decides the status; the unknown tool is kept as evidence.
+    assert row["status"] == "ready"
     [entry] = row["unknowns"]
     assert entry["kind"] == "slot_probe_unknown" and "python_probe --version: TimeoutExpired" in entry["evidence"]
 
@@ -314,7 +315,7 @@ def test_the_snapshot_workspace_row_carries_slot_names_and_this_machines_last_re
     call("runtime.workspace.slot.bind", {"workspace_id": workspace, "slot": "launcher", "path": str(checkout),
                                          "issued_at": ISSUED})
     row = _snapshot_row(workspace)
-    assert row["slots"]["launcher"] == {"bound_here": True, "status": "needs_setup", "checkout": "matches"}
+    assert row["slots"]["launcher"] == {"bound_here": True, "status": "ready", "checkout": "matches"}
     assert row["slots"]["backend"] == {"bound_here": False, "status": "not_cloned", "checkout": None}
     assert row["reported_at"]
     # No path and never a value on the frame.

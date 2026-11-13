@@ -183,9 +183,9 @@ class _SlotProbe:
 def _status(name: str, row: dict[str, Any], slot: dict[str, Any]) -> str:
     """The row's status, from THE readiness answer (``workspace_slot_recipe.readiness``).
 
-    One authority for "ready on this machine": any unknown probe ⇒ ``unknown``; a required
-    piece missing, a checkout that is not a repository, or a remote that does not match the
-    declaration ⇒ ``needs_setup``; else ``ready``.
+    One authority for "ready on this machine", and it reads the checkout alone: its probe
+    unknown ⇒ ``unknown``; not a repository, or a remote that does not match the declaration ⇒
+    ``needs_setup``; else ``ready``. A missing tool, key or .env is a note, never a block.
     """
 
     ready = readiness(name, slot, row)["ready"]

@@ -197,6 +197,9 @@ def _row(**over) -> dict:
     return row
 
 
+_TOOL_MISSING = {"flutter": {"status": "missing", "version": None}, "dart": {"status": "set", "version": "3"}}
+
+
 @pytest.mark.parametrize(("row", "ready", "checklist"), [
     (_row(), "yes", "ready"),
     (None, "unknown", "unknown"),
@@ -205,31 +208,36 @@ def _row(**over) -> dict:
     (_row(checkout="remote_mismatch"), "no", "remote_mismatch"),
     (_row(checkout="not_a_repo"), "no", "needs_setup"),
     (_row(checkout="unknown"), "unknown", "unknown"),
-    (_row(tools={"flutter": {"status": "missing", "version": None}, "dart": {"status": "set", "version": "3"}}), "no", "needs_setup"),
-    (_row(tools={"flutter": {"status": "set", "version": "3.40.9"}, "dart": {"status": "set", "version": "3"}}), "no", "needs_setup"),
-    (_row(tools={"flutter": {"status": "set", "version": None}, "dart": {"status": "set", "version": "3"}}), "unknown", "unknown"),
-    (_row(tools={"flutter": {"status": "unknown", "version": None}, "dart": {"status": "set", "version": "3"}}), "unknown", "unknown"),
-    (_row(tools={"flutter": {"status": "set", "version": "3.41.2"}}), "unknown", "unknown"),  # dart never probed
-    (_row(env_keys={"FLUTTER_ROOT": "missing", "PUB_CACHE": "set"}), "no", "needs_setup"),
-    (_row(env_keys={"FLUTTER_ROOT": "set", "PUB_CACHE": "missing"}), "yes", "ready"),  # optional ⇒ a note
-    (_row(env_keys={"FLUTTER_ROOT": "set"}), "unknown", "unknown"),  # PUB_CACHE absent from the report
-    (_row(dotenv={"present": False, "keys": {"ETERNIA_API_BASE": "missing", "OPTIONAL_FLAG": "missing"}}), "no", "needs_setup"),
-    (_row(dotenv={"present": True, "keys": {"ETERNIA_API_BASE": "unknown", "OPTIONAL_FLAG": "unknown"}}), "unknown", "unknown"),
-    (_row(dotenv=None), "unknown", "unknown"),
-    # The unknown arm outranks a definite miss: a missing tool beside an unknown key is unknown.
-    (_row(tools={"flutter": {"status": "missing", "version": None}, "dart": {"status": "unknown", "version": None}}),
-     "unknown", "unknown"),
+    # Ready is the checkout alone (RT-SLOT-READY-IGNORES-TOOLS-AND-KEYS, owner 2026-11-13): tools,
+    # keys and the .env vary by dev environment, so a miss or an unknown probe there never decides it.
+    (_row(tools=_TOOL_MISSING), "yes", "ready"),
+    (_row(tools={"flutter": {"status": "set", "version": "3.40.9"}, "dart": {"status": "set", "version": "3"}}), "yes", "ready"),
+    (_row(tools={"flutter": {"status": "set", "version": None}, "dart": {"status": "set", "version": "3"}}), "yes", "ready"),
+    (_row(tools={"flutter": {"status": "unknown", "version": None}, "dart": {"status": "set", "version": "3"}}), "yes", "ready"),
+    (_row(tools={"flutter": {"status": "set", "version": "3.41.2"}}), "yes", "ready"),  # dart never probed
+    (_row(env_keys={"FLUTTER_ROOT": "missing", "PUB_CACHE": "set"}), "yes", "ready"),
+    (_row(env_keys={"FLUTTER_ROOT": "set", "PUB_CACHE": "missing"}), "yes", "ready"),
+    (_row(env_keys={"FLUTTER_ROOT": "set"}), "yes", "ready"),  # PUB_CACHE absent from the report
+    (_row(dotenv={"present": False, "keys": {"ETERNIA_API_BASE": "missing", "OPTIONAL_FLAG": "missing"}}), "yes", "ready"),
+    (_row(dotenv={"present": True, "keys": {"ETERNIA_API_BASE": "unknown", "OPTIONAL_FLAG": "unknown"}}), "yes", "ready"),
+    (_row(dotenv=None), "yes", "ready"),
+    # The checkout still decides beside an environment miss.
+    (_row(checkout="remote_mismatch", tools=_TOOL_MISSING), "no", "remote_mismatch"),
+    (_row(checkout="unknown", tools=_TOOL_MISSING), "unknown", "unknown"),
 ])
 def test_ready_truth_table(row, ready, checklist):
     answer = readiness("launcher", _slot_body(), row)
     assert (answer["ready"], answer["checklist"]) == (ready, checklist)
     if ready == "yes":
-        assert answer["unknown"] == [] and answer["blocking"] == []
+        assert answer["blocking"] == []
 
 
-def test_an_optional_miss_is_a_note_and_a_required_miss_is_blocking():
-    answer = readiness("launcher", _slot_body(), _row(env_keys={"FLUTTER_ROOT": "missing", "PUB_CACHE": "missing"}))
-    assert answer["blocking"] == ["env_key:FLUTTER_ROOT"] and answer["notes"] == ["env_key:PUB_CACHE"]
+def test_an_environment_miss_is_a_note_never_blocking():
+    answer = readiness("launcher", _slot_body(), _row(
+        tools=_TOOL_MISSING, env_keys={"FLUTTER_ROOT": "missing", "PUB_CACHE": "missing"},
+        dotenv={"present": False, "keys": {"ETERNIA_API_BASE": "missing", "OPTIONAL_FLAG": "missing"}}))
+    assert answer["ready"] == "yes" and answer["blocking"] == []
+    assert answer["notes"] == ["tool:flutter", "env_key:FLUTTER_ROOT", "env_key:PUB_CACHE", "dotenv"]
 
 
 def test_a_never_reported_machine_reads_unknown_not_ready(workspace):
