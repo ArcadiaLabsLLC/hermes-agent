@@ -44,3 +44,8 @@ Focused creation/service/subphase/RPC coverage plus name censuses: **140 passed*
 with one unrelated pre-existing ladder census failure in
 `workspace_slot_recipe.py`'s `readiness`. The identical census row reproduced
 on base `03ed4abd18` (**1 failed, 7 passed**), and was filed separately.
+
+The final scoped `scripts/prepush.sh` run passed queue/text/document gates,
+RPC/CLI contract freshness, the duplicate-helper census (**6 passed**), and
+all four creation/service/subphase/RPC files (**127 passed**). The unrelated
+ladder census finding above remains tracked separately.
