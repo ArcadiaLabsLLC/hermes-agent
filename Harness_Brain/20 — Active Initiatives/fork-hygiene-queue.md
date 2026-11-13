@@ -689,7 +689,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-01 (release merge lane, branch `merge/upstream-v0.22.5`)
 
-- **`FH-MAIN-RED-COMMAND-DISCOVERY-SERVE-GUARD` — upstream `tests/gateway/test_command_discovery.py::test_ordinary_daemon_discovery_matches_legacy_extensions` is red on main on nekwo-ubuntu24: the fork's live-system guard (`tests/_fixtures/live_system_guard.py`) blocks its `python -m hermes_cli.main serve --isolated` spawn; classify it on the pure tag (`scripts/classify_reds_on_tag.py --tag v0.22.5 --nodeid …`) and give it a skip/up-red row or a guard exemption for `--isolated`** · group: hermes-test-isolation · fork / suite · `tests/_fixtures/live_system_guard.py` · `--confirm-red` on origin/main `f6ac4265f4`: pre-existing · READY 2026-11-01 · handoff 2026-11-13 (w1112b-hm5): moved from TASK-UPSTREAM-LOAD-FLAKES (DEFERRED) to TASK-HERMES-TEST-ISOLATION by review batch 6 §0 (the live-system guard is test isolation); not built (not in batch 6)
 
 ## Profile artwork qualification findings — 2026-11-01
 
