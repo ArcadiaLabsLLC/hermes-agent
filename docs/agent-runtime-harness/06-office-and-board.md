@@ -38,6 +38,13 @@ other five for the same reason rather than waiting for each to rot in turn.
 `@method(...)` is the only registration site, so a symbol is grep-findable and a
 line number is a guess about who edited above it.
 
+`runtime.agent.create` resolves the canonical workspace record, not the
+existence of a previously rendered office. A valid cold workspace can create
+its first agent without opening Mission Control; the existing locked placement
+writer creates the default surface. A missing workspace still refuses before
+reservation or roster writes, including when an orphaned scene file survives.
+Live and regression evidence: [cold workspace creation](evidence/cold-workspace-agent-create-2026-11-13/README.md).
+
 The last two are the only ones whose write crosses BOTH stores — the roster and
 the office — and they are each other's inverse. The four above them are office-only
 and remain the verbs for what a placement verb cannot reach: an authored desk, a
