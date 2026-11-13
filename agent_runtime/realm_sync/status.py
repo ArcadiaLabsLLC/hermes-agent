@@ -46,6 +46,7 @@ from .level_drift import LEVEL_DRIFT_COUNTS
 from .sidecar import (
     _held_profile_artifacts,
     _timestamp_file,
+    _skipped_workspaces,
     _workspace_sync_statuses,
     _write_sync_sidecar,
 )
@@ -141,6 +142,7 @@ def realm_sync_status(
         "artifacts": len(artifacts),
         "sync_repo": _safe_display_path(repo),
         "workspace_statuses": workspace_statuses,
+        "skipped_workspaces": _skipped_workspaces(realm),
         # Additive honesty fields (launcher consumes these; absent-tolerant).
         # ``state``/``ahead``/``behind`` are UNCHANGED — other consumers key off
         # them — this only ADDS store-vs-baseline drift accounting on top.

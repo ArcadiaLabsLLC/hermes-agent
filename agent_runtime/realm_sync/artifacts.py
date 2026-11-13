@@ -54,6 +54,8 @@ __all__ = [
     "_skill_slug_selected",
     "_workspace_realm_artifacts",
     "_workspaces_for_realm",
+    "realm_workspace_ids",
+    "tombstoned_workspace_ids",
     "publishable_skill_packages",
     "realm_agent_selection_state",
     "resolve_realm_sync_artifacts",
@@ -302,20 +304,37 @@ def _persona_instance_projection(instance_ids: list[str]):
     return project_persona_instances(wanted, records=records), unreadable
 
 
-def _workspaces_for_realm(realm: Realm) -> list[Workspace]:
-    workspace_store = WorkspaceStore()
+def realm_workspace_ids(realm: Realm) -> list[str]:
+    """Every workspace on this machine the realm holds — named by the realm or naming it — tombstoned or not,
+    sorted. The ONE walk publish (:func:`_workspaces_for_realm`) and status
+    (``sidecar._workspace_sync_statuses``) both read."""
+
     workspace_ids = set(realm.workspace_ids or [])
-    for workspace in workspace_store.list_all(include_archived=True):
+    for workspace in WorkspaceStore().list_all(include_archived=True):
         if workspace.realm_id == realm.id:
             workspace_ids.add(workspace.id)
+    return [workspace_id for workspace_id in sorted(workspace_ids) if paths.workspace_path(workspace_id).exists()]
+
+
+def tombstoned_workspace_ids(realm: Realm) -> list[str]:
+    """The realm's workspaces on this machine that its ``deleted_workspace_ids`` ledger keeps from ever publishing:
+    a publish skips each, and says so (RT-REALM-PUBLISH-NAMES-A-TOMBSTONED-WORKSPACE)."""
+
+    deleted = set(realm.deleted_workspace_ids or [])
+    return [workspace_id for workspace_id in realm_workspace_ids(realm) if workspace_id in deleted]
+
+
+def _workspaces_for_realm(realm: Realm) -> list[Workspace]:
+    workspace_store = WorkspaceStore()
     # Tombstoned workspaces never publish (defense-in-depth: the pull already
     # deletes local copies, but a publish racing ahead of its pull must not
-    # resurrect a deleted workspace into the realm subtree).
-    workspace_ids -= set(realm.deleted_workspace_ids or [])
+    # resurrect a deleted workspace into the realm subtree). They are named, not
+    # dropped in silence: :func:`tombstoned_workspace_ids`.
+    deleted = set(realm.deleted_workspace_ids or [])
     return [
         workspace_store.get(workspace_id)
-        for workspace_id in sorted(workspace_ids)
-        if paths.workspace_path(workspace_id).exists()
+        for workspace_id in realm_workspace_ids(realm)
+        if workspace_id not in deleted
     ]
 
 

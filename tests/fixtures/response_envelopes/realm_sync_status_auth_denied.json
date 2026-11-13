@@ -63,6 +63,7 @@
     "skill_tombstones": [],
     "skills_drift": [],
     "skills_published": 0,
+    "skipped_workspaces": [],
     "state": "ahead",
     "store_drift": {
       "boards": {

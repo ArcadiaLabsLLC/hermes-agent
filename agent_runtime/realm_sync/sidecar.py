@@ -18,11 +18,15 @@ from utils import atomic_json_write
 from .. import paths
 from ..events import EventLog
 from ..models import Event, Realm
-from ..store import WorkspaceStore
 from .models import RealmSyncArtifact, _canonicalize_text_bytes, _safe_display_path
 from .ledgers import _skill_tombstone_rows
 from .git import _realm_subtree, _sync_state
-from .artifacts import _distinct_skill_package_count, realm_agent_selection_state
+from .artifacts import (
+    _distinct_skill_package_count,
+    realm_agent_selection_state,
+    realm_workspace_ids,
+    tombstoned_workspace_ids,
+)
 from .workspace_changes import workspace_file_published
 
 logger = logging.getLogger(__name__)
@@ -33,6 +37,7 @@ __all__ = [
     "_held_profile_artifacts",
     "_sync_result",
     "_timestamp_file",
+    "_skipped_workspaces",
     "_workspace_sync_statuses",
     "_write_sync_metadata",
     "_write_sync_sidecar",
@@ -112,6 +117,8 @@ def read_realm_sync_sidecar(realm_id: str) -> dict[str, Any] | None:
         "artifacts": raw.get("artifacts"),
         "checked_at": raw.get("checked_at"),
         "workspace_statuses": raw.get("workspace_statuses") or [],
+        # Additive + absent-tolerant: a sidecar written before publish named its skips reports none.
+        "skipped_workspaces": raw.get("skipped_workspaces") or [],
         # Additive + absent-tolerant: a sidecar written before the profile-file
         # lane existed simply reports no holds.
         "profile_artifacts_held": raw.get("profile_artifacts_held") or [],
@@ -165,6 +172,7 @@ def _write_sync_sidecar(
         "artifacts": len(artifacts),
         "checked_at": now().astimezone(UTC).isoformat(),
         "workspace_statuses": _workspace_sync_statuses(realm, repo),
+        "skipped_workspaces": _skipped_workspaces(realm),
         "profile_artifacts_held": list(profile_artifacts_held or []),
     }
     try:
@@ -204,7 +212,22 @@ def _sync_result(realm: Realm, action: str, state: str, artifacts: list[RealmSyn
         "sync_repo": _safe_display_path(repo),
         "updated_at": now(),
         "workspace_statuses": _workspace_sync_statuses(realm, repo),
+        "skipped_workspaces": _skipped_workspaces(realm),
     }
+
+
+#: A workspace's sync state, and a publish's skip reason, when the realm's ``deleted_workspace_ids`` holds it.
+WORKSPACE_TOMBSTONED = "tombstoned"
+
+
+def _skipped_workspaces(realm: Realm) -> list[dict[str, str]]:
+    """The workspaces a publish of this realm leaves out, and why — a skip is never silent
+    (RT-REALM-PUBLISH-NAMES-A-TOMBSTONED-WORKSPACE)."""
+
+    return [
+        {"workspace_id": workspace_id, "reason": WORKSPACE_TOMBSTONED}
+        for workspace_id in tombstoned_workspace_ids(realm)
+    ]
 
 
 def _workspace_sync_statuses(realm: Realm, repo: Path) -> list[dict[str, str]]:
@@ -213,19 +236,17 @@ def _workspace_sync_statuses(realm: Realm, repo: Path) -> list[dict[str, str]]:
     Local realms are device-owned. A server-bound workspace is published only
     when its current store file byte-matches the file in the checked-out realm
     subtree; a missing or changed remote artifact is unpublished. Transient
-    syncing is deliberately a launcher phase, never persisted here.
+    syncing is deliberately a launcher phase, never persisted here. A
+    workspace the realm's delete ledger holds is ``tombstoned``: no publish ships it.
     """
-    workspace_store = WorkspaceStore()
-    workspace_ids = set(realm.workspace_ids or [])
-    for workspace in workspace_store.list_all(include_archived=True):
-        if workspace.realm_id == realm.id:
-            workspace_ids.add(workspace.id)
+    tombstoned = set(realm.deleted_workspace_ids or [])
     rows: list[dict[str, str]] = []
-    for workspace_id in sorted(workspace_ids):
-        local = paths.workspace_path(workspace_id)
-        if not local.exists():
-            continue
-        if not realm.server_id:
+    for workspace_id in realm_workspace_ids(realm):
+        if workspace_id in tombstoned:
+            # The realm's delete ledger holds it: no publish will ship it, so it is
+            # never "unpublished" (RT-REALM-PUBLISH-NAMES-A-TOMBSTONED-WORKSPACE).
+            state = WORKSPACE_TOMBSTONED
+        elif not realm.server_id:
             state = "local"
         else:
             state = "published" if workspace_file_published(repo, realm.id, workspace_id) else "unpublished"

@@ -482,6 +482,30 @@ def test_server_workspace_moves_unpublished_to_published_and_back(
     ]
 
 
+def test_a_tombstoned_workspace_is_named_by_publish_and_status_never_unpublished(
+    isolate_agent_runtime_root, tmp_path,
+):
+    """RT-REALM-PUBLISH-NAMES-A-TOMBSTONED-WORKSPACE (seen in B's QA Realm clone, w1112b-accounts2): a workspace
+    the realm's delete ledger holds was dropped by publish without a word while status still read it
+    "unpublished". KILLING MUTATIONS: status reads ``state = "unpublished"`` for it -> red; the sync result's
+    ``skipped_workspaces`` built empty -> red."""
+    realm, _repo = _realm_with_remote(tmp_path)
+    realm = RealmStore().bind_server(realm.id, "srv_tombstone")
+    kept = WorkspaceStore().create(name="Kept Office", realm_id=realm.id)
+    gone = WorkspaceStore().create(name="Deleted Office", realm_id=realm.id)
+    realm = RealmStore().get(realm.id)
+    realm.deleted_workspace_ids = [gone.id]
+    RealmStore().save(realm)
+
+    for result in (realm_sync_status(realm.id), publish_realm_sync(realm.id, dry_run=True),
+                   publish_realm_sync(realm.id)):
+        assert result["skipped_workspaces"] == [{"workspace_id": gone.id, "reason": "tombstoned"}]
+        assert {row["workspace_id"]: row["state"] for row in result["workspace_statuses"]}[gone.id] == "tombstoned"
+    assert {row["workspace_id"]: row["state"] for row in result["workspace_statuses"]} == {
+        kept.id: "published", gone.id: "tombstoned",
+    }
+
+
 def test_server_pull_preserves_backend_owned_default_pointer(
     isolate_agent_runtime_root, tmp_path,
 ):
