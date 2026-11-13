@@ -50,7 +50,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-12 (lane w1112b-hm3: review batch w1112b-4 §3, §6)
 
-- **`RT-REALM-WORKSPACE-BACK-IN-CAN-PUBLISH-AGAIN` — A workspace moved out of a realm and back in can be published again** · group: manage-workspace-genui-followups · `agent_runtime/realm_sync/ledgers.py` (`workspace_lifts`, `deleted_workspace_ids`) · cites `RT-REALM-PUBLISH-NAMES-A-TOMBSTONED-WORKSPACE` and EterniaLauncher `MC-REALM-PUBLISH-SAYS-NOTHING-NEW-WHILE-UNPUBLISHED` · guess, not tried (w1112b-accounts2): workspace create or move-in accepts an id already in the target realm's deleted list, so a move-out then move-back-in of the same workspace can never publish again · read in code 2026-11-12 (w1112b-hm3), not reproduced: a `workspace_lifts` ledger is subtracted from the deleted union; whether a move-in writes a lift was not read · done when: reproduced first (server-bound realm: move a workspace out, publish, move it back in, publish); if seen, the move-in lifts the tombstone or refuses naming it, a test watched red; if not seen, closed with what was tried · READY 2026-11-12
 
 ### Filed on arrival — 2026-11-12 (lane w1112b-hm2: review batch w1112b-3 §2, §4, §5)
 
