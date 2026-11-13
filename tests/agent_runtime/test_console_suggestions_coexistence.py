@@ -74,9 +74,11 @@ def _stock_route(home, route):
 
 
 def test_stock_and_console_routes_set_change_and_reset_independently(head):
-    """Mutation: register the Console task with ``inherit_from="next_prompt"``
-    (``console_suggestions/generation.py::register_suggestion_task``) -> the first and the reset
-    calls go to ``stock-fixture`` / ``stock-two``, red."""
+    """Mutations: a Console reset that copies the stock slot's route
+    (``console_suggestions/settings.py::SuggestionSettings.write``) -> the reset call goes to
+    ``stock-two``, red; a dual read of ``auxiliary.next_prompt`` when the Console slot names no
+    route (``agent/auxiliary_task_config.py::_task_config``) -> the first call goes to
+    ``stock-fixture``, red."""
     from agent.auxiliary_client import _resolve_task_provider_model
 
     home, requests = head
