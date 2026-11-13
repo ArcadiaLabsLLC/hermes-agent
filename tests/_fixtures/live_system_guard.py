@@ -339,24 +339,50 @@ def _live_system_guard(request, monkeypatch):
 
     from tests.git_safety import blocked_git_mutation
 
-    def _sandboxed_gateway_child(cmd_str: str, env) -> bool:
+    def _sandboxed_entry(tokens) -> str | None:
+        """Which disposable module entry ``tokens`` run: ``gateway`` for ``-m gateway.run``;
+        ``serve`` for ``-m hermes_cli.main serve … --isolated`` with no lifecycle flag
+        (``--stop`` SIGTERMs every ``hermes serve`` on the machine, the live one included);
+        else ``None``."""
+        if "-m" not in tokens:
+            return None
+        module = tokens[tokens.index("-m") + 1:]
+        if module[:1] == ["gateway.run"]:
+            return "gateway"
+        if module[:1] != ["hermes_cli.main"]:
+            return None
+        rest = module[1:]
+        positional = [token for token in rest if not token.startswith("-")]
+        if positional[:1] != ["serve"]:
+            return None
+        after = rest[rest.index("serve") + 1:]
+        # MUTATION: drop the ``--isolated`` test and test_a_serve_the_sandbox_does_not_cover_is_refused[unisolated] reddens.
+        if "--isolated" not in after or "--stop" in after or "--status" in after:
+            return None
+        return "serve"
+
+    def _sandboxed_child(cmd_str: str, env) -> str | None:
         """The disposable-daemon fixtures (``tests/gateway/fixtures/*``, the socket-path-length
-        probes) launch the bare ``python -m gateway.run`` module entry with an explicit ``env``
-        that re-homes BOTH ``HERMES_HOME`` and ``HOME`` away from the developer's account. Such a
-        child resolves no developer unit or config, holds no live port, and is reaped by its
-        test: the orphan class the guard exists for is the ``hermes gateway run|start|restart``
-        CLI spawn against the real home, which the fixtures never use."""
+        probes) launch the bare ``python -m gateway.run`` module entry, and upstream's discovery
+        test a ``python -m hermes_cli.main serve --isolated`` (a dedicated server, never the
+        machine-level one), each with an explicit ``env`` that re-homes BOTH ``HERMES_HOME`` and
+        ``HOME`` away from the developer's account. Such a child resolves no developer unit,
+        config or root anchor, holds no live port, and is reaped by its test: the orphan class the
+        guard exists for is the CLI spawn against the real home, which the fixtures never use.
+        Answers the entry (``gateway`` / ``serve``) of a sandboxed child, else ``None``
+        (FH-MAIN-RED-COMMAND-DISCOVERY-SERVE-GUARD)."""
         if not isinstance(env, dict):
-            return False
+            return None
         try:
             tokens = _shlex.split(cmd_str)
         except ValueError:
             tokens = cmd_str.split()
-        if "-m" not in tokens or tokens[tokens.index("-m") + 1:][:1] != ["gateway.run"]:
-            return False
+        entry = _sandboxed_entry(tokens)
+        if entry is None:
+            return None
         hermes_home, home = env.get("HERMES_HOME"), env.get("HOME")
         if not hermes_home or not home:
-            return False
+            return None
         # The developer's account home from the passwd db: tests re-point ``Path.home`` at their
         # tmp user dir, which would make a sandboxed child look like it runs against the real one.
         try:
@@ -369,10 +395,11 @@ def _live_system_guard(request, monkeypatch):
         from hermes_state_guard import _real_platform_state_root
         real_root = _real_platform_state_root() or real_home / ".hermes"
         try:
-            return (Path(home).resolve() != real_home
-                    and not Path(hermes_home).resolve().is_relative_to(real_root))
+            sandboxed = (Path(home).resolve() != real_home
+                         and not Path(hermes_home).resolve().is_relative_to(real_root))
         except Exception:
-            return False
+            return None
+        return entry if sandboxed else None
 
     def _check_subprocess_cmd(name, cmd, kwargs=None):
         git_verb = blocked_git_mutation(cmd, kwargs, _LIVE_GUARD_PROTECTED_GIT_ROOTS)
@@ -435,7 +462,8 @@ def _live_system_guard(request, monkeypatch):
                 "needed (e.g. an integration test testing the update "
                 "flow against a dedicated throwaway repo)."
             )
-        refuse_backend_spawn(name, cmd, _cmd_to_string, lookalike_ok, kwargs)  # fork: tests/_downstream/live_guard_classify.py
+        if _sandboxed_child(cmd_str, (kwargs or {}).get("env")) != "serve":
+            refuse_backend_spawn(name, cmd, _cmd_to_string, lookalike_ok, kwargs)  # fork: tests/_downstream/live_guard_classify.py
         # Block spawning a REAL gateway runtime (``python -m hermes_cli.main
         # gateway run|start|restart``). ``_spawn_hermes_action`` launches it
         # with start_new_session=True, so it outlives the pytest worker; the
@@ -454,7 +482,7 @@ def _live_system_guard(request, monkeypatch):
             and not in_container
             and gateway_spawn_intent_subcommand(cmd_str) in ("run", "start", "restart")
             and not gateway_run_path_is_only_data(cmd_str)  # fork: FH-LIVE-GUARD-PATH-READ-AS-SPAWN
-            and not _sandboxed_gateway_child(cmd_str, (kwargs or {}).get("env"))
+            and _sandboxed_child(cmd_str, (kwargs or {}).get("env")) != "gateway"
         ):
             raise RuntimeError(
                 f"tests/conftest.py live-system guard: blocked "

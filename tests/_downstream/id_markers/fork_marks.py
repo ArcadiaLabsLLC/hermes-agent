@@ -677,13 +677,6 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
             "tests/hermes_cli/test_git_line_endings_downstream.py",
         ),
     ),
-    # The live-system guard's backend-spawn arm refuses a real `hermes serve` / `gateway ensure`.
-    "tests/gateway/test_command_discovery.py::test_ordinary_daemon_discovery_matches_legacy_extensions": (
-        _fork_replaces(
-            "_live_system_guard backend-spawn arm (a real `hermes serve --isolated`)",
-            "tests/test_live_system_guard_backend_arm_downstream.py",
-        ),
-    ),
     "tests/gateway/test_multiplex_cold_profile_sidebar_mutation.py::"
     "test_cold_profile_archive_unarchive_while_another_profile_is_attached": (
         pytest.mark.xfail(reason=_FORK_LIVE_GUARD_ENSURE, strict=True),

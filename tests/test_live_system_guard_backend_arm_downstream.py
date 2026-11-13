@@ -10,6 +10,7 @@ starts can be a backend (python exits on "can't open file").
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 
@@ -208,3 +209,48 @@ def test_gateway_attach_without_start_is_not_a_backend_start():
     assert backend_spawn_subcommand([*attach, "--recover"], str) == "gateway"
     assert backend_spawn_subcommand(["hermes", "gateway", "run"], str) == "gateway"
     assert backend_spawn_subcommand(["hermes", "gateway"], str) == "gateway"
+
+
+# FH-MAIN-RED-COMMAND-DISCOVERY-SERVE-GUARD: upstream's discovery test boots a dedicated
+# ``python -m hermes_cli.main serve --isolated`` with HERMES_HOME and HOME both re-homed to its
+# tmp dir; the guard lets exactly that through. The interpreter here does not exist, so a case
+# the guard admits raises FileNotFoundError at exec, and nothing can boot. Mutation: drop the
+# ``--isolated`` test in ``_sandboxed_entry`` -> the ``unisolated`` case is admitted, red.
+_ISOLATED_SERVE = ["-m", "hermes_cli.main", "serve", "--host", "127.0.0.1", "--port", "0", "--isolated"]
+
+
+def _account_home():
+    import pwd
+    return pwd.getpwuid(os.getuid()).pw_dir
+
+
+def _rehomed(tmp_path, **overrides):
+    env = {"PATH": os.environ.get("PATH", ""), "HERMES_HOME": str(tmp_path / "state"),
+           "HOME": str(tmp_path / "user")}
+    env.update(overrides)
+    return env
+
+
+@pytest.mark.platforms("linux")
+def test_an_isolated_serve_on_a_sandboxed_home_reaches_the_exec(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        subprocess.Popen([str(tmp_path / "python3"), *_ISOLATED_SERVE], env=_rehomed(tmp_path),
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+@pytest.mark.platforms("linux")
+@pytest.mark.parametrize("argv, env", [
+    (lambda tmp: _ISOLATED_SERVE, lambda tmp: _rehomed(tmp, HOME=_account_home())),
+    (lambda tmp: _ISOLATED_SERVE, lambda tmp: _rehomed(tmp, HERMES_HOME=os.path.join(_account_home(), ".hermes"))),
+    (lambda tmp: _ISOLATED_SERVE, lambda tmp: {k: v for k, v in _rehomed(tmp).items() if k != "HOME"}),
+    (lambda tmp: _ISOLATED_SERVE, lambda tmp: None),
+    (lambda tmp: [a for a in _ISOLATED_SERVE if a != "--isolated"], lambda tmp: _rehomed(tmp)),
+    (lambda tmp: [*_ISOLATED_SERVE, "--stop"], lambda tmp: _rehomed(tmp)),
+    (lambda tmp: ["-m", "hermes_cli.main", "--isolated", "serve"], lambda tmp: _rehomed(tmp)),
+    (lambda tmp: ["-m", "hermes_cli.main", "harness", "serve", "--isolated"], lambda tmp: _rehomed(tmp)),
+], ids=["real-home", "real-hermes-root", "home-unset", "inherited-env", "unisolated", "stop",
+        "isolated-before-serve", "harness-serve"])
+def test_a_serve_the_sandbox_does_not_cover_is_refused(tmp_path, argv, env):
+    with pytest.raises(RuntimeError, match="would START a hermes backend"):
+        subprocess.Popen([str(tmp_path / "python3"), *argv(tmp_path)], env=env(tmp_path),
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
