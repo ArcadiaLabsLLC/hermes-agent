@@ -40,6 +40,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-11-13 (lane w1113-slotclonehome: Eternia `MC-SLOT-JOIN-ONE-PROMPT-SETUP`, the Harness half)
+
+- **`RT-SLOT-DEFAULT-CLONE-FOLDER` — When a workspace slot is not set up on this computer, Eternia can offer a ready clone folder inside your Harness namespace, organized by realm** · group: workspace-slots-easy · for Eternia `MC-SLOT-JOIN-ONE-PROMPT-SETUP` (RULED 2026-11-13: `<namespace>/repos/<realm>/<slot>`) · `agent_runtime/workspace_slots.py::show` · `agent_runtime/workspace_slot_setup.py::clone_slot` · read in code, not reproduced: `runtime.workspace.slots.show`'s `here.<slot>` rows carry no default folder, so Eternia guesses one beside its other checkouts; `slot.clone` spawns git in the nearest existing ancestor and leaves the parent folders to git · done when: `here.<slot>.default_clone_path` (absolute; null when bound here, local or URL-less) names `<namespace>/repos/<realm folder>/<slot>`, the realm folder fixed per realm id the first time it is used and suffixed on a name collision, a repository already bound in the realm under `repos/<realm>/` is reused, a slot name taken by another repository is suffixed, and `slot.clone` creates the parent folders · READY 2026-11-13 · **TAKEN 2026-11-13 w1113-slotclonehome on DESKTOP-QJ7DDV2 as nekwo in w1113-slotclonehome**
+
 ### Filed on arrival — 2026-11-12 (lane w1112b-hm4: review batch w1112b-5 §2, §9, §10)
 
 
