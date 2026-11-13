@@ -9,7 +9,8 @@ from __future__ import annotations
 from typing import Any
 
 from ..clock import iso_timestamp
-from ..mission_chat_outcome import refusal_never_left_hermes
+from ..local_llama_adapter import PROVIDER_ID as LOCAL_LLAMA_PROVIDER_ID
+from ..mission_chat_outcome import LOCAL_MODEL_NOT_READY_REASON, refusal_never_left_hermes
 from ..mission_chat_turns.reads import mission_chat_turn_records
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
@@ -32,6 +33,14 @@ __all__ = [
     "_silent_turn_marker_row",
     "_terminal_turn_marker_rows",
 ]
+
+
+#: The marker line under a message refused because the picked local model's llama server is
+#: off or its model is not loaded — it names the fix, not "review this profile's provider setup".
+LLAMA_OFF_MARKER_TEXT = (
+    "This request never left Hermes because local llama is off or the model is not loaded. "
+    "Turn llama on and load the model, then send a new message."
+)
 
 
 def _carry_run_budget(row: dict[str, Any], record: dict[str, Any] | None) -> None:
@@ -219,6 +228,12 @@ def _terminal_turn_marker_rows(
                         "This request never left Hermes because no model is chosen for this chat. "
                         "Choose a model, then send a new message."
                     )
+                elif (refusal_never_left_hermes(refusal)
+                      and refusal.get("provider") == LOCAL_LLAMA_PROVIDER_ID
+                      and refusal.get("failure_reason") == LOCAL_MODEL_NOT_READY_REASON):
+                    # A picked local model with llama off or unloaded (RT-LLAMA-OFF-MARKER-NAMES-LLAMA;
+                    # the block is typed by RT-LLAMA-OFF-REFUSAL-NAMES-LLAMA).
+                    marker_row["text"] = LLAMA_OFF_MARKER_TEXT
                 elif refusal_never_left_hermes(refusal):
                     # Harness-authored (status 0): provider unavailable or a runtime dependency
                     # missing (RT-DEPENDENCY-REFUSAL-RESEND-REPLAYS-REFUSED).

@@ -33,3 +33,21 @@ def test_provider_http_refusal_does_not_claim_setup_was_unavailable():
 
 def test_uncertain_execution_does_not_project_a_setup_refusal():
     assert _terminal_turn_marker_rows(session_id="base", assistant_client_message_ids=set(), records=[{"state": "outcome_unknown", "client_message_id": "unknown"}]) == []
+
+
+def test_llama_off_refusal_marker_says_turn_llama_on_and_load_the_model():
+    """RT-LLAMA-OFF-MARKER-NAMES-LLAMA: the line under the refused message names llama, not the profile."""
+    llama_off = {"status_code": 0, "reason": "provider_unavailable", "provider": "llamacpp", "failure_reason": "model_not_ready"}
+    other = {"status_code": 0, "reason": "provider_unavailable", "provider": "openrouter", "failure_reason": "model_not_ready"}
+    records = [
+        {"state": "provider_refused", "client_message_id": "off", "provider_refusal": llama_off},
+        {"state": "provider_refused", "client_message_id": "other", "provider_refusal": other},
+    ]
+    rows = {row["client_message_id"]: row for row in _terminal_turn_marker_rows(
+        session_id="base", assistant_client_message_ids=set(), records=records)}
+    assert rows["off"]["text"] == (
+        "This request never left Hermes because local llama is off or the model is not loaded. "
+        "Turn llama on and load the model, then send a new message."
+    )
+    assert rows["off"]["provider_refusal"] == llama_off
+    assert "provider setup" in rows["other"]["text"]
