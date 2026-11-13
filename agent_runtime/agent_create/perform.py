@@ -248,9 +248,10 @@ class AgentCreate:
         # Before the reservation, and before any store write: an unknown
         # workspace is the ONE refusal that must leave no receipt behind, or a
         # client fixing a typo would be answered with its own stale error under
-        # the same key. Mirrors ``runtime.office.upsert``'s refusal to lazily
-        # author a surface for a typo.
-        if self.store.surface_exists(self.request.workspace_id):
+        # the same key. The canonical workspace record is the authority, not
+        # whether a scene consumer has already requested its office surface.
+        # The existing placement writer creates that surface under its lock.
+        if self.store.workspace_resolves(self.request.workspace_id):
             return
         # Inventoried on a throwaway store root, every path under
         # ``store_root()`` diffed across the call: this arm changes NOTHING —
