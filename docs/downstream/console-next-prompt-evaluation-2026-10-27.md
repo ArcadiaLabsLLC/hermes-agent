@@ -194,3 +194,34 @@ this change. Do not treat this as full SDK/release/placement qualification.
 `RT-NEXT-PROMPT-PROVIDER-EVAL` remains open for its wider matrix and measurements;
 this presentation change neither adds a producer nor requires a repeated provider
 corpus. No new Harness implementation authority or queue row was introduced.
+
+## Cost per suggestion — November 13, 2026
+
+Each Console suggestion is one `console_next_prompt` auxiliary call. Its token
+count is the `tokens=` field of the serve's `plugin_llm.complete` log line. No new
+model calls were made for this section; the counts come from Eternia lane
+`w1112b-console7`'s capped sitting (evidence
+`EterniaLauncher/docs/stages/qa-reboot/live/2026-11-13/w1112b-console7/README.md`),
+all on `openai-codex` / `gpt-6-luna` through the QA pool sign-in, with the
+auxiliary route pinned and the agent replies on the fixture model.
+
+| Serve | Calls | Total tokens per call | Sum | Mean |
+| --- | --- | --- | --- | --- |
+| checkout serve | 10 | 372, 383, 400, 366, 355, 369, 362, 373, 374, 347 | 3701 | 370.1 (median 370.5, range 347–400) |
+| bundled serve | 1 | 354 | 354 | 354 |
+| both | 11 | — | 4055 | 368.6 |
+
+So one suggestion costs about 369 total tokens on `gpt-6-luna` for a short
+garage-tidying conversation. The count grows with the clipped conversation context
+the helper sends, so longer chats cost more, up to the helper's context clip.
+An earlier lane (`w1112b-console5`, same model and pool) reported one call at 284
+tokens; its second call's count was not recorded, so it is left out of the table.
+
+For comparison, the October 27 corpus above (`gpt-5.6-sol`, 18 calls per
+variant, short synthetic exchanges) works out to about 253 tokens per call for
+the baseline (4553 / 18) and about 263 for the candidate (4728 / 18).
+
+Money cost is unknown. The QA pool signs in with a plan account, which draws plan
+limits, not per-token billing; the `plugin_llm.complete` line records no cost, and
+the facade returned `cost_usd: null` in the October corpus. A per-suggestion price
+needs an API-key route and that provider's token prices; nothing here measures one.
