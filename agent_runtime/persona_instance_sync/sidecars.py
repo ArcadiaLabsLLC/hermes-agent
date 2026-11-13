@@ -151,9 +151,19 @@ def update_persona_instance_baseline_after_publish(
     The ``_published_profile_file_hashes`` precedent: a member who publishes and
     then pulls must see local == baseline, or their own publish comes straight
     back as a HOLD on every row they just shipped.
+
+    The publish rewrites the realm's subtree whole, so the team's copy now holds
+    exactly the projection: the ``instance:*`` keys are REPLACED, never merged.
+    A merge kept an agent the publish removed, and drift reported "1 agent
+    removed" for good (RT-REALM-PUBLISH-BASELINE-KEEPS-REMOVED-AGENTS). Keys of
+    any other kind are left as they are.
     """
 
-    baseline = read_persona_instance_baseline(realm_id)
+    prefix = instance_baseline_key("")
+    baseline = {
+        key: value for key, value in read_persona_instance_baseline(realm_id).items()
+        if not key.startswith(prefix)
+    }
     for instance_id, body_hash in projection.hashes().items():
         baseline[instance_baseline_key(instance_id)] = body_hash
     write_persona_instance_baseline(realm_id, baseline)

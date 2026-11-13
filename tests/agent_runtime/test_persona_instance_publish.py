@@ -337,3 +337,49 @@ def test_the_baseline_sidecar_is_never_itself_published():
     assert paths.persona_instance_baseline_path(realm_id).exists()
     published = [a.relative_path for a in resolve_realm_sync_artifacts(realm_id)]
     assert not any("persona_instance_baseline" in path for path in published)
+
+
+def test_a_publish_that_removes_an_agent_drops_it_from_the_baseline():
+    """RT-REALM-PUBLISH-BASELINE-KEEPS-REMOVED-AGENTS (seen live 2026-11-12, w1112b-accounts2:
+    after a workspace moved out with its agent and a publish removed it, the baseline kept
+    ``instance:<id>`` and status kept "1 agent removed"). Publish two agents in two
+    workspaces, move one workspace out, publish: the baseline's instance keys equal the
+    published projection's, other keys are untouched, and status reports no agent change.
+
+    *Killing mutation:* read the old baseline whole again in
+    ``update_persona_instance_baseline_after_publish`` (``baseline = read_persona_instance_baseline(realm_id)``)
+    — the removed agent's key survives and ``instances_removed`` stays 1."""
+
+    from agent_runtime.persona_instance_sync import write_persona_instance_baseline
+    from agent_runtime.realm_sync import publish_realm_sync, realm_sync_status
+
+    other_id = "personainst_qa_agent_1b2c3d4e"
+    realm_id, ws = _make_realm_workspace()
+    ws_out = WorkspaceStore().create(name="WS out", realm_id=realm_id)
+    realm = RealmStore().get(realm_id)
+    realm.workspace_ids.append(ws_out.id)
+    RealmStore().save(realm)
+    OfficeStore().upsert_actor(ws, _payload("dev"))
+    OfficeStore().upsert_actor(ws_out.id, _payload("qa", instance_id=other_id))
+    _mint_instance(workspace_id=ws)
+    _mint_instance(other_id, persona_id="qa", workspace_id=ws_out.id)
+    assert publish_realm_sync(realm_id)["state"] == "published"
+    baseline = read_persona_instance_baseline(realm_id)
+    assert {instance_baseline_key(INSTANCE_ID), instance_baseline_key(other_id)} <= set(baseline)
+    write_persona_instance_baseline(realm_id, {**baseline, "other:kept": "h"})
+
+    elsewhere = RealmStore().create(name="Elsewhere")
+    realm = RealmStore().get(realm_id)
+    realm.workspace_ids.remove(ws_out.id)
+    RealmStore().save(realm)
+    moved = WorkspaceStore().get(ws_out.id)
+    moved.realm_id = elsewhere.id
+    WorkspaceStore().save(moved)
+    assert realm_sync_status(realm_id)["store_drift"]["persona_instances"]["instances_removed"] == 1
+    assert publish_realm_sync(realm_id)["state"] == "published"
+
+    baseline = read_persona_instance_baseline(realm_id)
+    assert {key for key in baseline if key.startswith("instance:")} == {instance_baseline_key(INSTANCE_ID)}
+    assert baseline["other:kept"] == "h"
+    counts = realm_sync_status(realm_id)["store_drift"]["persona_instances"]
+    assert counts["instances_removed"] == 0, counts
