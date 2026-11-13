@@ -762,7 +762,8 @@ def open_chat_session_db(
 
     READ attaches an EXISTING store with upstream's ``mode=ro`` (no schema init,
     no data migration, no scratch purge) and answers ``None`` for an ABSENT one
-    — a read never creates the store. A writer open is not a read: upstream
+    — a read never creates the store, and a file a writer created but has not
+    yet given its ``sessions`` table counts as absent. A writer open is not a read: upstream
     ``_run_data_migrations`` stamps ``fts_storage_version`` on a fresh
     database's second writer open, so a build that opened a writer moved
     ``state.db``'s mtime under the stream watchdog (runtime-queue, lane W3-C
@@ -806,10 +807,40 @@ def chat_session_store_exists(scope: ChatSessionScope | None = None) -> bool:
 
 
 def _store_exists(db_path: Any) -> bool:
+    """A store is there when its file is AND a writer has given it the ``sessions`` table.
+
+    A writer creates the file before its schema: a fresh serve's first list read
+    landed between the two and failed "no such table: sessions"
+    (RT-CONVERSATION-LIST-FRESH-STORE-NO-SESSIONS-TABLE). A schema-less file holds
+    no conversation, so every READ answers it like an absent store.
+    """
     try:
-        return Path(db_path).is_file()
+        if not Path(db_path).is_file():
+            return False
     except (OSError, TypeError, ValueError):
         return False
+    return _has_sessions_table(Path(db_path))
+
+
+def _has_sessions_table(db_path: Path) -> bool:
+    """Read-only probe; a probe that cannot answer (busy, unreadable) says yes and the open decides."""
+    import sqlite3
+
+    from hermes_state_holders import read_only_db_uri
+
+    try:
+        conn = sqlite3.connect(read_only_db_uri(db_path), uri=True, timeout=1.0)
+    except sqlite3.Error:
+        return True
+    try:
+        found = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
+        ).fetchone()
+    except sqlite3.Error:
+        return True
+    finally:
+        conn.close()
+    return found is not None
 
 
 # db paths whose retired scratch rows this process already purged.

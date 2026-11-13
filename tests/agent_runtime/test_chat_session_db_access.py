@@ -80,3 +80,27 @@ def test_a_present_store_missing_the_row_is_still_session_not_in_db(scope, isola
     persona_chat_history_summary(persona_instances=[bound], accountant=accountant)
 
     assert accountant.summary()["reasons"] == {"session_not_in_db": 1}
+
+
+def test_a_store_file_with_no_sessions_table_reads_as_absent(scope, isolate_agent_runtime_root):
+    """RT-CONVERSATION-LIST-FRESH-STORE-NO-SESSIONS-TABLE: a writer creates the file
+    before its schema; a read landing between the two answers like an absent store.
+
+    *Killing mutation:* ``_store_exists`` back to ``Path(db_path).is_file()`` — the
+    READ attaches the bare file and the summary accounts nothing (or a caller hits
+    "no such table: sessions").
+    """
+
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+
+    scope.db_path.touch()  # what a writer leaves before its schema
+    assert open_chat_session_db(scope, access=SessionDbAccess.READ) is None
+    assert not chat_session_scope.chat_session_store_exists(scope)
+    bound = PersonaInstanceStore().open_chat(persona_id="dev", session_id="chat_bound")
+    accountant = ProjectionAccountant("persona_chat_history")
+
+    assert persona_chat_history_summary(persona_instances=[bound], accountant=accountant) == []
+    assert accountant.summary()["reasons"] == {SESSION_DB_ABSENT: 1}
+    # Positive control: once a writer gives it the schema, it is a store again.
+    open_chat_session_db(scope, access=SessionDbAccess.WRITE).close()
+    assert chat_session_scope.chat_session_store_exists(scope)

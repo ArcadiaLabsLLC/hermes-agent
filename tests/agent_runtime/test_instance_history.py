@@ -150,3 +150,22 @@ def test_persona_filter_precedes_page_bound_and_survives_an_instance_restamp(pla
     assert read_history(before=cursor)["error"]["data"]["reason"] == "invalid_history_cursor"
     for bad in (7, "", "x" * 201):
         assert read_history(persona_id=bad)["error"]["data"]["reason"] == "invalid_history_query"
+
+
+def test_a_store_file_without_its_schema_lists_no_conversations(placed_agent):
+    """RT-CONVERSATION-LIST-FRESH-STORE-NO-SESSIONS-TABLE (seen live 3/3 on fresh
+    namespaces: handler error "no such table: sessions"). *Killing mutation:*
+    ``chat_session_scope._store_exists`` back to ``is_file()`` — the list attaches
+    the bare file and fails."""
+    from agent_runtime import chat_session_scope
+
+    db_path = chat_session_scope.chat_session_db_path()
+    for leftover in (db_path, db_path.with_name(db_path.name + "-wal"), db_path.with_name(db_path.name + "-shm")):
+        leftover.unlink(missing_ok=True)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db_path.touch()
+
+    answer = read_history(all_accounts=True)
+
+    assert "error" not in answer, answer
+    assert answer["result"]["conversations"] == []
