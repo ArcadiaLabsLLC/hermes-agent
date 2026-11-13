@@ -150,8 +150,14 @@ def _write_sync_sidecar(
     skills_drift: list[str],
     artifacts: list[RealmSyncArtifact],
     profile_artifacts_held: list[str] | None = None,
-) -> None:
+) -> str:
+    """Write the realm's sync sidecar; answers the ``checked_at`` it stamped.
+
+    The status answer carries that same stamp (RT-REALM-SYNC-STATUS-CARRIES-CHECKED-AT):
+    one clock, so Eternia's "Last checked" never disagrees with the sidecar.
+    """
     agent_state = realm_agent_selection_state(realm.id)
+    checked_at = now().astimezone(UTC).isoformat()
     payload = {
         "schema_version": 2,
         "realm_id": realm.id,
@@ -170,7 +176,7 @@ def _write_sync_sidecar(
         "last_pull": _timestamp_file(repo, "last_pull.txt"),
         "last_publish": _timestamp_file(repo, "last_publish.txt"),
         "artifacts": len(artifacts),
-        "checked_at": now().astimezone(UTC).isoformat(),
+        "checked_at": checked_at,
         "workspace_statuses": _workspace_sync_statuses(realm, repo),
         "skipped_workspaces": _skipped_workspaces(realm),
         "profile_artifacts_held": list(profile_artifacts_held or []),
@@ -178,7 +184,8 @@ def _write_sync_sidecar(
     try:
         atomic_json_write(realm_sync_sidecar_path(realm.id), payload)
     except OSError:
-        return  # the sidecar is a best-effort snapshot cache; never fail the sync verb over it
+        pass  # the sidecar is a best-effort snapshot cache; never fail the sync verb over it
+    return checked_at
 
 
 def _write_sync_metadata(subtree: Path, *, realm: Realm, artifacts: list[RealmSyncArtifact]) -> None:

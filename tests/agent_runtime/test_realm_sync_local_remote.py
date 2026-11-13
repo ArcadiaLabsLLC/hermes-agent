@@ -182,3 +182,20 @@ def test_the_authorization_header_never_lands_in_git_config(isolate_agent_runtim
     config_text = (_shared_local_repo() / ".git" / "config").read_text(encoding="utf-8").lower()
     assert "extraheader" not in config_text
     assert "sekret" not in config_text
+
+
+def test_a_status_answer_carries_the_check_time_its_sidecar_holds(isolate_agent_runtime_root, personal):
+    """RT-REALM-SYNC-STATUS-CARRIES-CHECKED-AT (seen live, w1112b-realmbak: Eternia's sheet
+    read "Not checked yet" right after Check now). *Killing mutation:* drop the answer's
+    ``"checked_at": checked_at`` in ``realm_sync/status.py`` — the answer carries none."""
+    from agent_runtime.realm_sync import read_realm_sync_sidecar
+
+    realm, credential = _local_realm()
+
+    first = realm_sync_status(realm.id, credential=credential)
+    assert first["checked_at"], first
+    assert first["checked_at"] == read_realm_sync_sidecar(realm.id)["checked_at"]
+    # A later check answers its own time, the one the sidecar now holds.
+    second = realm_sync_status(realm.id, credential=credential)
+    assert second["checked_at"] >= first["checked_at"]
+    assert second["checked_at"] == read_realm_sync_sidecar(realm.id)["checked_at"]

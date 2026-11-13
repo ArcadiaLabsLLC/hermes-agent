@@ -99,7 +99,7 @@ def realm_sync_status(
     prefab_row = _prefab_status_row(realm.id)
     workspace_changes = workspace_publish_changes(realm, repo)
     skill_deletes_waiting = _skill_deletes_waiting(realm, repo)
-    _write_sync_sidecar(
+    checked_at = _write_sync_sidecar(
         realm,
         repo=repo,
         git=git,
@@ -140,6 +140,10 @@ def realm_sync_status(
         "last_pull": _timestamp_file(repo, "last_pull.txt"),
         "last_publish": _timestamp_file(repo, "last_publish.txt"),
         "artifacts": len(artifacts),
+        # When this realm was last checked: the stamp this read just wrote to the
+        # sidecar (RT-REALM-SYNC-STATUS-CARRIES-CHECKED-AT). Without it Eternia's
+        # "Last checked" went blank after every Check now.
+        "checked_at": checked_at,
         "sync_repo": _safe_display_path(repo),
         "workspace_statuses": workspace_statuses,
         "skipped_workspaces": _skipped_workspaces(realm),

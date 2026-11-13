@@ -2,7 +2,8 @@
 
 The production argparse tree and production handlers emit every fixture.  The
 generator runs against an isolated empty runtime root, then normalizes only
-the random error id added after the handler has classified the response, and the
+the random error id added after the handler has classified the response, a realm
+sync status's ``checked_at`` clock, and the
 case's temp root (to ``<case-root>``) wherever a root-resolution block names it.
 
 Some envelopes only exist against runtime STATE (a realm whose sync remote is
@@ -171,12 +172,16 @@ def _git_quiet(*args: str) -> None:
 
 
 CASE_ROOT_TOKEN = "<case-root>"
+#: The one clock value an envelope carries (``checked_at``), fixed so the bytes repeat.
+CHECKED_AT_FIXTURE = "2026-01-01T00:00:00+00:00"
 
 
 def _normalize_dict(value: dict, case_root: str) -> dict:
     normalized = {str(key): _normalize(item, case_root) for key, item in value.items()}
     if "error_id" in normalized:
         normalized["error_id"] = "err_fixture"
+    if normalized.get("checked_at") is not None:  # a realm sync status's check time
+        normalized["checked_at"] = CHECKED_AT_FIXTURE
     return normalized
 
 
