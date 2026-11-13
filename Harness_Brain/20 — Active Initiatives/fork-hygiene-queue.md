@@ -720,7 +720,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-10 (lane hm-rel-fix-a, v0.23.1 release gate)
 
-- **`FH-MAIN-RED-LAUNCHER-ENTRY-ID-AGENT-CHAT-LIST` — The Launcher entry-id check passes on main again: the chat parser and turn message stop naming `launcher.agent_chat.list` outside the listed catalog** · group: console-transcript-truthful-followups · `tests/tooling/test_no_launcher_entry_id_literals.py` · `hermes_cli/harness_parts/parser/persona.py` · `hermes_cli/harness_parts/persona/chat_turn_message.py` · red on origin/main `0338812f8b` since `b49ae82006` (RT-CHAT-MESSAGE-MINT-UNSCOPED); `FH-MAIN-RED-LAUNCHER-ENTRY-ID-WORLD-LEVEL` names `launcher.world.level`, which `vocabulary.py` no longer carries; read the intent from `launcher.app_functions.list` or add it to ALLOWED with its reason · READY 2026-11-10 · handoff 2026-11-10 (w1110d-foot): fixed on main b24af51bb2, its gate green; `work_row.py close` refuses only because the row's task is DEFERRED — close DONE b24af51bb2 when the owner reopens it · handoff 2026-11-13 (w1112b-hm5): moved from TASK-UPSTREAM-LOAD-FLAKES (DEFERRED) by review batch 6 §0 so its DONE close can run (fixed on main b24af51bb2)
 
 ## Filed on arrival — 2026-11-10 (lane hm-release, branch `merge/upstream-v0.23.1`)
 
