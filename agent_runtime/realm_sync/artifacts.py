@@ -54,6 +54,7 @@ __all__ = [
     "_skill_slug_selected",
     "_workspace_realm_artifacts",
     "_workspaces_for_realm",
+    "artifact_kind_counts",
     "realm_workspace_ids",
     "tombstoned_workspace_ids",
     "publishable_skill_packages",
@@ -632,6 +633,19 @@ def _workspace_realm_artifacts(realm: Realm, workspaces: list[Workspace]) -> lis
             )
         )
     return [item for item in artifacts if item.source.exists()]
+
+
+def artifact_kind_counts(artifacts: list[RealmSyncArtifact]) -> dict[str, int]:
+    """How many resolved artifacts of each kind, keyed by the kind's wire string.
+
+    The one count both ``realm sync status`` (``artifact_counts``,
+    RT-REALM-SYNC-STATUS-ARTIFACT-COUNTS) and the publish notification send.
+    """
+    counts: dict[str, int] = {}
+    for artifact in artifacts:
+        kind = str(artifact.kind)
+        counts[kind] = counts.get(kind, 0) + 1
+    return counts
 
 
 def _distinct_skill_package_count(artifacts: list[RealmSyncArtifact]) -> int:

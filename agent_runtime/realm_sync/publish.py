@@ -45,6 +45,7 @@ from .artifacts import (
     _ResolvedPublish,
     _resolve_artifacts_with_projection,
     _workspaces_for_realm,
+    artifact_kind_counts,
     publishable_skill_packages,
 )
 from .drift import store_drift_items
@@ -412,9 +413,7 @@ def _notify_publish(realm: Realm, *, repo: Path, artifacts: list[RealmSyncArtifa
         # so there is no notify route and no ``realm:`` channel to fan out on.
         return []
     commit = _git(repo, "rev-parse", "HEAD", check=False).strip()
-    counts: dict[str, int] = {}
-    for artifact in artifacts:
-        counts[artifact.kind] = counts.get(artifact.kind, 0) + 1
+    counts = artifact_kind_counts(artifacts)
     from ..realm_membership import notify_realm_published
 
     try:

@@ -947,6 +947,26 @@ def test_skill_selection_defaults_to_publish_all(isolate_agent_runtime_root, tmp
     assert status["skills_published"] >= 2
 
 
+def test_status_counts_the_realms_artifacts_by_kind(isolate_agent_runtime_root, tmp_path):
+    """RT-REALM-SYNC-STATUS-ARTIFACT-COUNTS: status answers ``artifact_counts`` by kind,
+    beside the old integer total, so Eternia's realm sheet can say what is shared."""
+
+    for slug in ("alpha", "beta"):
+        _make_shared_skill(slug)
+    realm, _repo = _realm_with_repo(tmp_path)
+    WorkspaceStore().create(name="Counted", realm_id=realm.id)
+
+    expected: dict[str, int] = {}
+    for artifact in resolve_realm_sync_artifacts(realm.id):
+        expected[str(artifact.kind)] = expected.get(str(artifact.kind), 0) + 1
+
+    status = realm_sync_status(realm.id)
+    assert status["artifact_counts"] == expected
+    assert status["artifact_counts"]["skill"] >= 2
+    assert "workspace" in status["artifact_counts"]
+    assert sum(status["artifact_counts"].values()) == status["artifacts"]  # the int stays
+
+
 def test_selected_mode_filters_skill_artifacts(isolate_agent_runtime_root, tmp_path):
     for slug in ("alpha", "beta", "gamma"):
         _make_shared_skill(slug)

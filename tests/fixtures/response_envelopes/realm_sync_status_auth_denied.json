@@ -13,6 +13,9 @@
     "agent_selection": [],
     "agents_published": 0,
     "ahead": 0,
+    "artifact_counts": {
+      "realm": 1
+    },
     "artifacts": 1,
     "behind": 0,
     "checked_at": "2026-01-01T00:00:00+00:00",

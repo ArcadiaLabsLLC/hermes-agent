@@ -28,6 +28,7 @@ from .artifacts import (
     _distinct_skill_package_count,
     _flow_graph_projection,
     _workspaces_for_realm,
+    artifact_kind_counts,
     realm_agent_selection_state,
     resolve_realm_sync_artifacts,
 )
@@ -140,6 +141,11 @@ def realm_sync_status(
         "last_pull": _timestamp_file(repo, "last_pull.txt"),
         "last_publish": _timestamp_file(repo, "last_publish.txt"),
         "artifacts": len(artifacts),
+        # Additive: the same total by kind (RT-REALM-SYNC-STATUS-ARTIFACT-COUNTS).
+        # Eternia's realm sheet reads only this map (or a list), so with the bare
+        # int above it said nothing was counted after every Check now. The int
+        # stays for older readers.
+        "artifact_counts": artifact_kind_counts(artifacts),
         # When this realm was last checked: the stamp this read just wrote to the
         # sidecar (RT-REALM-SYNC-STATUS-CARRIES-CHECKED-AT). Without it Eternia's
         # "Last checked" went blank after every Check now.
