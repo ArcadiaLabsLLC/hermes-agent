@@ -145,3 +145,94 @@ def test_a_console_suggestion_call_wakes_no_turn_hook_producer(head, monkeypatch
     assert len(requests) == 1
     assert not {"pre_llm_call", "post_llm_call"} & set(during), during
     assert fired[len(during):] == ["post_llm_call"]
+
+
+# The stock plugin's post_llm_call platform allowlist (``_UI_PLATFORMS`` in
+# soymarketing/hermes-plugin-next-prompt at the catalog's pinned sha; recorded in
+# ``docs/agent-runtime-harness/archive/console-next-prompt-2026-10-26.md``): empty, desktop, tui.
+_STOCK_UI_PLATFORMS = ("", "desktop", "tui")
+
+
+def _install_stock_standin(home, ledger):
+    """A user plugin shaped like the external stock producer: it hooks ``post_llm_call`` behind
+    the stock Desktop allowlist and records each suggestion it would draw."""
+    plugin = home / "plugins" / "next-prompt-standin"
+    plugin.mkdir(parents=True)
+    (plugin / "plugin.yaml").write_text(json.dumps({"name": "next-prompt-standin"}), encoding="utf-8")
+    (plugin / "__init__.py").write_text(
+        "import json\n\n"
+        f"_UI_PLATFORMS = {set(_STOCK_UI_PLATFORMS)!r}\n\n"
+        "def register(ctx):\n"
+        "    def _on_post_llm_call(platform=None, session_id=None, **kwargs):\n"
+        "        if (platform or '') not in _UI_PLATFORMS:\n"
+        "            return\n"
+        f"        with open({str(ledger)!r}, 'a', encoding='utf-8') as out:\n"
+        "            out.write(json.dumps({'platform': platform, 'session_id': session_id}) + '\\n')\n"
+        "    ctx.register_hook('post_llm_call', _on_post_llm_call)\n",
+        encoding="utf-8")
+    config = _raw(home)
+    config["plugins"]["enabled"] = ["eternia-harness", "next-prompt-standin"]
+    _write(home, config)
+
+
+def _drawn(ledger):
+    if not ledger.exists():
+        return []
+    return [json.loads(line)["platform"] for line in ledger.read_text(encoding="utf-8").splitlines()]
+
+
+def _completions(requests):
+    """Model requests the fake served; a turn's own model-metadata probe (``{"name": ...}``) is not one."""
+    return sum("messages" in body for body in requests)
+
+
+def _turn(platform):
+    """One real turn through ``run_conversation`` and its finalizer; only the model client is fake."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from run_agent import AIAgent
+
+    client = MagicMock()
+    client.chat.completions.create.return_value = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="explained", tool_calls=None),
+                                 finish_reason="stop")], model="head-fixture", usage=None)
+    with (
+        patch("model_tools.get_tool_definitions", return_value=[]),
+        patch("model_tools.check_toolset_requirements", return_value={}),
+        patch("agent.process_bootstrap.OpenAI", return_value=client),
+        patch("agent.model_metadata.fetch_model_metadata", return_value={}),
+        patch("agent.title_generator.maybe_auto_title", lambda *a, **k: None),
+    ):
+        agent = AIAgent(api_key="fixture-no-network", base_url="http://127.0.0.1:9999/v1", model="head-fixture",
+                        quiet_mode=True, skip_context_files=True, skip_memory=True, platform=platform)
+        agent._cached_system_prompt = "You are helpful."
+        agent.skip_background_review = True
+        result = agent.run_conversation("continue")
+    assert result["final_response"] == "explained"
+    assert client.chat.completions.create.call_count == 1
+    return result["messages"]
+
+
+def test_a_console_turn_with_the_stock_plugin_installed_draws_one_suggestion(head):
+    """The plan leaves the stock plugin's allowlist alone and asks that one Console turn get one
+    producer (``console-next-prompt-completion-2026-10-27.md``, "Do not install or enable the
+    stock Desktop plugin"). A Console turn runs on ``persona_runtime.PERSONA_CHAT_SCRATCH_SOURCE``,
+    which the stock allowlist does not admit, so its finalizer wakes the stand-in for nothing and
+    the Console producer's one request is the turn's only suggestion. Positive control: the same
+    turn on ``desktop`` draws the stand-in's. Mutations: ``tool`` added to the stand-in's
+    allowlist (``_STOCK_UI_PLATFORMS``) -> two producers, red; ``PERSONA_CHAT_SCRATCH_SOURCE`` set
+    to ``desktop`` (``agent_runtime/persona_runtime.py``) -> two producers, red."""
+    from agent_runtime.persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE
+
+    home, requests = head
+    ledger = home / "standin-drawn.jsonl"
+    _install_stock_standin(home, ledger)
+    with suggestion_home(home):
+        messages = _turn(PERSONA_CHAT_SCRATCH_SOURCE)
+        assert generate_suggestion(messages)["text"] == "next"
+    assert (_completions(requests), _drawn(ledger)) == (1, [])
+
+    with suggestion_home(home):
+        _turn("desktop")
+    assert (_completions(requests), _drawn(ledger)) == (1, ["desktop"])
