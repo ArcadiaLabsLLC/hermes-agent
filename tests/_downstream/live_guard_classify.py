@@ -427,9 +427,37 @@ def backend_spawn_subcommand(cmd, cmd_to_string, kwargs=None):
     return None
 
 
-def refuse_backend_spawn(name, cmd, cmd_to_string, lookalike_ok, kwargs=None) -> None:
-    """Raise when *cmd* would START a hermes backend; a lookalike-marked test may start only a gateway."""
+def is_isolated_serve_module(cmd_str: str) -> bool:
+    """True for ``python -m hermes_cli.main serve … --isolated`` with no lifecycle flag: a
+    dedicated server, never the machine-level one (``hermes_cli/subcommands/dashboard.py``).
+    ``--stop`` SIGTERMs every ``hermes serve`` on the machine, the live one included, so it is
+    never one (FH-MAIN-RED-COMMAND-DISCOVERY-SERVE-GUARD)."""
+    try:
+        tokens = shlex.split(cmd_str)
+    except ValueError:
+        tokens = cmd_str.split()
+    if "-m" not in tokens:
+        return False
+    module = tokens[tokens.index("-m") + 1:]
+    positional = [token for token in module[1:] if not token.startswith("-")]
+    if module[:1] != ["hermes_cli.main"] or positional[:1] != ["serve"]:
+        return False
+    after = module[module.index("serve") + 1:]
+    # MUTATION: drop the ``--isolated`` test -> test_a_serve_the_sandbox_does_not_cover_is_refused[unisolated] reddens.
+    return "--isolated" in after and "--stop" not in after and "--status" not in after
+
+
+def refuse_backend_spawn(name, cmd, cmd_to_string, lookalike_ok, kwargs=None, *, sandboxed_home=None) -> None:
+    """Raise when *cmd* would START a hermes backend; a lookalike-marked test may start only a gateway.
+
+    ``sandboxed_home(env)`` is the upstream guard's own re-homing rule (HERMES_HOME and HOME both
+    away from the developer's account, ``_sandboxed_gateway_child``): an isolated serve module
+    under such an ``env`` is a disposable child its test reaps, as the gateway fixtures are."""
     backend = backend_spawn_subcommand(cmd, cmd_to_string, kwargs)
+    # MUTATION: drop this early return -> test_an_isolated_serve_on_a_sandboxed_home_reaches_the_exec reddens.
+    if (backend == "serve" and sandboxed_home is not None and is_isolated_serve_module(cmd_to_string(cmd))
+            and sandboxed_home((kwargs or {}).get("env"))):
+        return
     # The existing marker permits only a test-owned gateway lookalike.
     # Other backend entry points remain forbidden even in marked tests.
     if backend is not None and not (backend == "gateway" and lookalike_ok):

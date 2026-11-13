@@ -215,7 +215,9 @@ def test_gateway_attach_without_start_is_not_a_backend_start():
 # ``python -m hermes_cli.main serve --isolated`` with HERMES_HOME and HOME both re-homed to its
 # tmp dir; the guard lets exactly that through. The interpreter here does not exist, so a case
 # the guard admits raises FileNotFoundError at exec, and nothing can boot. Mutation: drop the
-# ``--isolated`` test in ``_sandboxed_entry`` -> the ``unisolated`` case is admitted, red.
+# ``--isolated`` test in ``is_isolated_serve_module`` (tests/_downstream/live_guard_classify.py)
+# -> the ``unisolated`` case is admitted, red; drop the serve early return in
+# ``refuse_backend_spawn`` -> the isolated case is refused, red.
 _ISOLATED_SERVE = ["-m", "hermes_cli.main", "serve", "--host", "127.0.0.1", "--port", "0", "--isolated"]
 
 
