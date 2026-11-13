@@ -175,6 +175,21 @@ def _personal_board_state(*, observe):
         return {"state": "unavailable", "reason": Reason.UNAVAILABLE.value}
 
 
+def _slot_brain_states(workspace_id):
+    """``capabilities.slot_brains.<ws>``: ``{<slot>: brain_remote.checkout_remote_state}`` for each Project
+    checkout bound on this machine — what "Make this brain remote" would create and push, before the press
+    (RT-SLOT-BRAIN-OFFER-NAMES-REPO-AND-BRANCH). A workspace whose slots cannot be read lists none."""
+    from agent_runtime.brain_remote import checkout_remote_state
+    from agent_runtime.work_store.board import boards
+
+    try:
+        found = boards(workspace_id)
+    except (NotFound, FileNotFoundError, KeyError, ValueError, OSError):
+        return {}
+    return {board.slot: checkout_remote_state(board.checkout) for board in found
+            if not board.is_default and board.bound_here and board.checkout is not None}
+
+
 def _work_capabilities(install, *, observe=False):
     ids = workspace_ids()
     brain_state = _observed_brain_state if observe else _default_brain_state
@@ -190,6 +205,7 @@ def _work_capabilities(install, *, observe=False):
             "owners": [scope.wire(_label(scope)) for scope in scopes(install)],
             "default_brain": {ws: brain_state(ws) for ws in ids},
             "personal_board": _personal_board_state(observe=observe),
+            "slot_brains": {ws: _slot_brain_states(ws) for ws in ids},
             "limitations": list(LIMITATIONS)}
 
 

@@ -15,6 +15,8 @@ import uuid
 
 from agent_runtime import yaml_io
 
+from . import PROVIDER_ID
+
 __layer__ = "stores"
 
 LOAD_DEFAULTS = {"context_size": 32768, "gpu_layers": "auto", "flash_attention": "auto",
@@ -24,9 +26,20 @@ GENERATION_DEFAULTS = {"temperature": .7, "top_p": .9, "top_k": 40,
 
 
 class LocalLlamaError(Exception):
+    """A typed local-llama refusal. A chat turn it stops is refused ``provider_unavailable`` naming this
+    provider and the typed ``reason`` as ``failure_reason`` (``mission_chat_outcome.classify_turn_failure``
+    reads ``provider`` / ``failure_reason``), so Eternia says "turn llama on and load the model", never
+    "no provider is configured" (RT-LLAMA-OFF-REFUSAL-NAMES-LLAMA)."""
+
+    provider = PROVIDER_ID
+
     def __init__(self, reason: str, message: str, *, code: int = -32602, **details):
         super().__init__(message)
         self.reason, self.code, self.details = reason, code, details
+
+    @property
+    def failure_reason(self) -> str:
+        return self.reason
 
     def as_error(self):
         return {"reason": self.reason, "message": str(self), "retryable": False, "log_ref": None}

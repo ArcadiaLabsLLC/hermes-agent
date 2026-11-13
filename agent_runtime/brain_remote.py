@@ -32,8 +32,8 @@ from typing import Any
 from .brain_paths import brains, held_counts, read_brain_paths, write_brain_paths
 
 __layer__ = "stores"
-__all__ = ["BRAINS_PER_TICK", "FETCH_TIMEOUT_S", "REMOTE_TICK_S", "RemoteCheck", "check_brain", "checkout_repo_name",
-           "make_checkout_remote", "pull_checkout"]
+__all__ = ["BRAINS_PER_TICK", "FETCH_TIMEOUT_S", "REMOTE_TICK_S", "RemoteCheck", "check_brain", "checkout_remote_state",
+           "checkout_repo_name", "make_checkout_remote", "pull_checkout"]
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +146,66 @@ def checkout_repo_name(path: Path) -> str:
     return (token or "project")[:100]
 
 
+def _pressable_branch(repo: Path) -> str:
+    """The branch a press would push, or the press's local refusal in its order: ``not_a_repo``,
+    ``remote_exists``, ``worktree_dirty``, ``invalid`` (a detached HEAD). Local git only, no network."""
+
+    from .work_store.reasons import Reason, WorkRefused
+
+    remotes = _remote_git(["remote"], repo) if (repo / ".git").exists() else None
+    if remotes is None or remotes.returncode != 0:
+        raise WorkRefused(Reason.NOT_A_REPO, str(repo.name))
+    if str(remotes.stdout).strip():
+        raise WorkRefused(Reason.REMOTE_EXISTS, "the checkout already has a remote")
+    if not _clean(repo):
+        raise WorkRefused(Reason.WORKTREE_DIRTY, "the checkout has uncommitted changes")
+    branch = _remote_git(["symbolic-ref", "--short", "-q", "HEAD"], repo)
+    if branch is None or branch.returncode != 0 or not str(branch.stdout).strip():
+        raise WorkRefused(Reason.INVALID, "the checkout is on no branch")
+    return str(branch.stdout).strip()
+
+
+def _remote_url(repo: Path) -> str | None:
+    """``origin``'s URL, else the first remote's (``git remote`` lists them sorted)."""
+
+    listed = _remote_git(["remote"], repo)
+    names = str(listed.stdout).split() if listed is not None and listed.returncode == 0 else []
+    for name in (["origin"] if "origin" in names else []) + names[:1]:
+        url = _remote_git(["remote", "get-url", name], repo)
+        if url is not None and url.returncode == 0 and str(url.stdout).strip():
+            return str(url.stdout).strip()
+    return None
+
+
+def checkout_remote_state(path: Path) -> dict[str, Any]:
+    """What "Make this brain remote" would do for one Project checkout, read before any press
+    (RT-SLOT-BRAIN-OFFER-NAMES-REPO-AND-BRANCH): ``capabilities.slot_brains.<ws>.<slot>``.
+
+    ``remote`` (+ ``clone_url``) when the checkout already has one; else ``present`` with the press's own
+    refusal as ``reason`` (``not_a_repo`` / ``worktree_dirty`` / ``invalid_request`` for a detached HEAD),
+    or, the checks passed, ``needs_git_account`` / ``remote_offered`` + ``git_account``, with ``repo_name`` and
+    ``branch``: the private repository the press would create and the one branch it would push. The same
+    checks as :func:`make_checkout_remote`, in its order (one helper); no network beyond ``connected_github``.
+    """
+
+    from .git_host_account import connected_github
+    from .work_store.default_brain import REMOTE_OFFERED
+    from .work_store.reasons import Reason, WorkRefused
+
+    repo = Path(path)
+    try:
+        branch = _pressable_branch(repo)
+    except WorkRefused as refused:
+        if refused.reason is Reason.REMOTE_EXISTS:
+            return {"state": "remote", "clone_url": _remote_url(repo)}
+        return {"state": "present", "reason": refused.reason.value}
+    offer = {"repo_name": checkout_repo_name(repo), "branch": branch}
+    account = connected_github()
+    if account is None:
+        return {"state": "present", "reason": Reason.NEEDS_GIT_ACCOUNT.value, **offer}
+    return {"state": "present", "reason": REMOTE_OFFERED, "git_account": account.login, **offer}
+
+
 def make_checkout_remote(path: Path) -> dict[str, Any]:
     """Give a remote-less checkout a PRIVATE GitHub repository and push its CURRENT branch (RT-SLOT-BRAIN-MAKE-REMOTE).
 
@@ -162,20 +222,11 @@ def make_checkout_remote(path: Path) -> dict[str, Any]:
     from .work_store.reasons import Reason, WorkRefused
 
     repo = Path(path)
-    remotes = _remote_git(["remote"], repo) if (repo / ".git").exists() else None
-    if remotes is None or remotes.returncode != 0:
-        raise WorkRefused(Reason.NOT_A_REPO, str(repo.name))
-    if str(remotes.stdout).strip():
-        raise WorkRefused(Reason.REMOTE_EXISTS, "the checkout already has a remote")
-    if not _clean(repo):
-        raise WorkRefused(Reason.WORKTREE_DIRTY, "the checkout has uncommitted changes")
-    branch = _remote_git(["symbolic-ref", "--short", "-q", "HEAD"], repo)
-    if branch is None or branch.returncode != 0 or not str(branch.stdout).strip():
-        raise WorkRefused(Reason.INVALID, "the checkout is on no branch")
+    current = _pressable_branch(repo)
     account = connected_github()
     if account is None:
         raise WorkRefused(Reason.NEEDS_GIT_ACCOUNT, "no GitHub credential on this machine answers")
-    name, current = checkout_repo_name(repo), str(branch.stdout).strip()
+    name = checkout_repo_name(repo)
     try:
         url = create_private_repo(account, name)
         adopt_remote(repo, url, branch=current)

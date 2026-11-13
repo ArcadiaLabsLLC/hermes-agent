@@ -693,3 +693,30 @@ def test_the_published_id_is_upstreams_llamacpp_under_an_eternia_harness_name():
     visibility_profile = provider.provider_profile()
     assert (PROVIDER_ID, visibility_profile.name) == ("llamacpp", "llamacpp")
     assert "Hermes" not in provider.DISPLAY_NAME.replace("Eternia Harness", "")
+
+
+def test_a_turn_on_a_local_model_with_llama_off_is_refused_naming_llama(tmp_path):
+    """Seen live 2026-11-12 (w1112b-hm, engine namespace): a turn on a picked preset with llama off was refused
+    ``provider_unavailable`` with no provider, and Eternia said "No model provider is configured". The turn's own
+    route (``turn_scope``) now refuses with the block naming ``llamacpp`` and ``failure_reason: model_not_ready``.
+    Mutation (2026-11-12): drop ``provider = PROVIDER_ID`` from ``LocalLlamaError`` -> no provider, red."""
+    from agent_runtime.local_llama_adapter import binding
+    from agent_runtime.local_llama_adapter.provider import turn_scope
+    from agent_runtime.mission_chat_outcome import ChatErrorKind, classify_turn_failure
+
+    binding.bind(tmp_path, tmp_path / "config.yaml")  # the serve owns the root; nobody turned llama on
+    request = SimpleNamespace(provider="llamacpp", runtime_root=tmp_path, model=str(uuid.uuid4()), turn_id="turn-1",
+                              session_id="chat-1", persona_instance_id="personainst_base")
+    try:
+        with pytest.raises(LocalLlamaError) as caught:
+            with turn_scope(request):
+                pass
+    finally:
+        binding.shutdown(root=tmp_path)
+    outcome = classify_turn_failure(caught.value, provider_submitted=True, request_started=False)
+
+    assert outcome.error_kind == ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE
+    block = outcome.provider_refusal.as_dict()
+    assert (block["reason"], block["provider"], block["failure_reason"]) == (
+        "provider_unavailable", "llamacpp", "model_not_ready")
+    assert "turn llama on and load the model" in outcome.provider_refusal.next_expected()

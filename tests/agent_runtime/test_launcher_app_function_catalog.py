@@ -558,3 +558,90 @@ def test_invalid_arguments_is_not_read_to_the_model_as_a_schema_failure():
     assert meaning.retry == answers.RETRY_AFTER_CHANGE
     assert "schema" not in meaning.detail
     assert "message" in meaning.detail
+
+
+# ── a document edit Eternia turned down is a failed step ──────────────────────
+
+_EDIT_TOOL = {
+    "name": "launcher_generated_edit",
+    "method": "launcher.generated.edit",
+    "description": "Edit a generated document.",
+    "parameters": {"type": "object", "properties": {"verdict": {"type": "string"}}},
+}
+
+
+class _SurfaceLauncher(_TypedLauncher):
+    """Answers the edit method with the data of eternia ``SubmissionResult.toJson``
+    for the verdict the call names (``applied`` / ``pending`` / ``rejected``)."""
+
+    def _answer(self, frame):
+        if frame["method"] != _EDIT_TOOL["method"] or frame["method"] in self.refusals:
+            return super()._answer(frame)
+        verdict = frame["params"]["verdict"]
+        code = {"applied": "applied", "pending": "preview_ready", "rejected": "invalid_proposal"}[verdict]
+        return {"jsonrpc": "2.0", "id": frame["id"], "result": {"data": {
+            "status": verdict, "code": code, "message": f"edit {verdict}", "path": "components",
+            "surfaceId": "surf-1", "revision": 4, "saved": verdict == "applied"}}}
+
+
+def _edit_step(link, verdict):
+    """One edit call through the registered tool, then the tool-finished event
+    the chat stream folds into the step's row (``run.tool.finished``)."""
+
+    from tools.registry import registry
+
+    from agent_runtime.profile_runner.progress import _progress_payload_from_callback
+
+    args = {"verdict": verdict}
+    token = laf.bind_launcher_link(link)
+    try:
+        raw = registry.dispatch(_EDIT_TOOL["name"], args)
+    finally:
+        laf.reset_launcher_link(token)
+    row = _progress_payload_from_callback("run.tool.finished", ("call_1", _EDIT_TOOL["name"], args, raw), {})
+    return json.loads(raw), row
+
+
+def test_a_rejected_document_edit_is_a_failed_step_in_either_form():
+    """Seen in Eternia's Home QA turn journal 2026-11-12: two rejected edits, one
+    failure counted — Eternia's refusal form carried ``error`` and counted, its
+    ``status: rejected`` success form was stamped passed. Both forms now stamp
+    failed; an admitted preview (``pending``) and an ``applied`` edit stay passed,
+    and the rejected answer keeps its data for the model's repair.
+    Killing mutation (2026-11-12): drop ``answer["success"] = False`` from
+    ``success_result`` -> the ``rejected`` row reads ``passed`` (recorded red)."""
+
+    link = laf.LauncherLink(_SurfaceLauncher([_EDIT_TOOL]), laf.ORIGIN_LOCAL)
+    laf.refresh_app_function_tools(link)
+
+    answer, row = _edit_step(link, "rejected")
+    assert row["status"] == "failed"
+    assert answer["success"] is False
+    assert answer["data"]["status"] == "rejected" and answer["data"]["code"] == "invalid_proposal"
+    assert answer["data"]["revision"] == 4
+
+    for verdict in ("pending", "applied"):
+        answer, row = _edit_step(link, verdict)
+        assert row["status"] == "passed", verdict
+        assert "success" not in answer, verdict
+
+    laf._reset_for_tests()
+    refused = laf.LauncherLink(
+        _SurfaceLauncher([_EDIT_TOOL], refusals={_EDIT_TOOL["method"]: ("invalid_arguments", -32602)}),
+        laf.ORIGIN_LOCAL)
+    laf.refresh_app_function_tools(refused)
+    answer, row = _edit_step(refused, "rejected")
+    assert row["status"] == "failed"
+    assert answer["refusal"] == "invalid_arguments"
+
+
+def test_a_nested_rejected_status_in_another_tools_result_is_not_a_failure():
+    """The classifier stays strict: only the producer that knows the answer is
+    Eternia's marks it. A ``read_file`` of a JSON fixture carrying
+    ``{"data": {"status": "rejected"}}`` is not a failed step."""
+
+    from agent_runtime.profile_runner.progress import _progress_payload_from_callback
+
+    fixture = json.dumps({"data": {"status": "rejected", "code": "invalid_proposal"}})
+    row = _progress_payload_from_callback("run.tool.finished", ("call_2", "read_file", {"path": "f.json"}, fixture), {})
+    assert row["status"] == "passed"

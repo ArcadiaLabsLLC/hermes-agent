@@ -113,13 +113,30 @@ RUNTIME_REFUSALS: Mapping[str, RefusalMeaning] = {
 _UNKNOWN = RefusalMeaning(RETRY_LATER, "Eternia refused with a reason this runtime does not know")
 #: The Launcher's word for the person saying no at the approval card.
 _CONFIRMATION_DECLINED = "confirmation_declined"
+#: The verdict word of a document edit Eternia ran and turned down
+#: (eternia ``SubmissionResult.toJson``: ``applied`` / ``pending`` / ``rejected``).
+#: It arrives as a success ``{"data": {"status": "rejected", "code": …}}``,
+#: not as a typed refusal, so the tool-row classifier never saw it.
+_REJECTED = "rejected"
 
 
 def success_result(result: Mapping[str, Any], *, requires_confirmation: bool) -> dict[str, Any]:
     """The Launcher's result as the tool result. A ``confirm`` entry's success
-    means the person approved it at the Launcher, and the model is told so."""
+    means the person approved it at the Launcher, and the model is told so.
+
+    An answer whose ``data.status`` is ``rejected`` is Eternia's verdict that
+    the call did not take effect: it is marked ``success: false`` (the failure
+    marker the tool-row classifier, ``operator_redaction._is_error_result``,
+    already reads), so the step shows failed, with ``data`` (code, path,
+    revision) left whole for the model's repair. The mark is made here, where
+    the answer is known to be Eternia's, never by the classifier reading a
+    nested status any tool's JSON could carry.
+    """
 
     answer = dict(result)
+    data = answer.get("data")
+    if isinstance(data, Mapping) and data.get("status") == _REJECTED:
+        answer["success"] = False
     if requires_confirmation:
         answer["confirmed"] = True
     return answer

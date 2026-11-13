@@ -333,6 +333,8 @@ PROVIDER_REFUSAL_STATUS_CODES = frozenset({401, 402, 403, 404, 429})
 #: never left the process (D2.02). ``status_code`` 0 says no HTTP status
 #: exists — the provider was never asked — so no consumer can read it as one.
 PROVIDER_UNAVAILABLE_REASON = "provider_unavailable"
+#: ``LocalLlamaError.reason`` when a picked local model's llama server is off or the model is not loaded.
+LOCAL_MODEL_NOT_READY_REASON = "model_not_ready"
 PROVIDER_UNAVAILABLE_STATUS_CODE = 0
 
 
@@ -458,6 +460,13 @@ class ProviderRefusal:
             return (
                 f"the {self.provider} sign-in has expired and the request never left Hermes; sign in "
                 f"again (`hermes auth add {self.provider}`), then send a NEW client_message_id — this "
+                "turn is settled and needs NO turn-resolve"
+            )
+        if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
+                and self.failure_reason == LOCAL_MODEL_NOT_READY_REASON):
+            return (
+                f"the local {self.provider} server is off or its model is not loaded and the request never "
+                "left Hermes; turn llama on and load the model, then send a NEW client_message_id — this "
                 "turn is settled and needs NO turn-resolve"
             )
         if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE:
@@ -750,7 +759,8 @@ def classify_turn_failure(
                     reason=PROVIDER_UNAVAILABLE_REASON,
                     message=stripped_str(str(exc)),
                     provider=stripped_str(getattr(exc, "provider", None)),
-                    failure_reason=stripped_str(getattr(exc, "credentials_reason", None)),
+                    failure_reason=stripped_str(getattr(exc, "credentials_reason", None)
+                                                or getattr(exc, "failure_reason", None)),
                 ),
             )
         if request_dispatched is not True and request_unsent:

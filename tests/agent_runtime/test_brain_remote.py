@@ -300,3 +300,65 @@ def test_create_brain_promote_on_a_slot_is_the_door(tmp_path, monkeypatch):
     scope = SimpleNamespace(workspace_id="ws_app")
     answer = store.create_brain(scope, {"slot": "app", "promote": True, "request_id": "r1"}, "operator")
     assert answer["slot"] == "app" and answer["remote"]["branch"] == "feature" and hub.created == ["my-app"]
+
+
+# ── RT-SLOT-BRAIN-OFFER-NAMES-REPO-AND-BRANCH: the offer says what the press would make, before it is pressed ──
+
+
+@pytest.mark.parametrize("case, expected", [
+    ("offered", {"state": "present", "reason": "remote_offered", "git_account": "octo", "repo_name": "my-app",
+                 "branch": "feature"}),
+    ("no_account", {"state": "present", "reason": "needs_git_account", "repo_name": "my-app", "branch": "feature"}),
+    ("remote", {"state": "remote", "clone_url": "https://example.invalid/mine.git"}),
+    ("dirty", {"state": "present", "reason": "worktree_dirty"}),
+    ("detached", {"state": "present", "reason": "invalid_request"}),
+    ("plain", {"state": "present", "reason": "not_a_repo"}),
+])
+def test_a_project_checkouts_offer_names_repo_branch_and_account_before_any_press(tmp_path, monkeypatch, case,
+                                                                                   expected):
+    """Each state the press would meet, read without pressing: nothing is created. Mutations (2026-11-12): drop
+    ``branch`` from the offer -> ``offered`` / ``no_account`` red; answer every ``remote_exists`` as ``present``
+    -> ``remote`` red."""
+    from agent_runtime import git_host_account
+    from agent_runtime.brain_remote import checkout_remote_state
+
+    hub = _FakeGitHub(tmp_path / "host", monkeypatch)
+    repo = _project(tmp_path) if case != "plain" else tmp_path / "plain"
+    if case == "plain":
+        repo.mkdir()
+    elif case == "no_account":
+        monkeypatch.setattr(git_host_account, "connected_github", lambda *a, **k: None)
+    elif case == "remote":
+        git("remote", "add", "origin", "https://example.invalid/mine.git", cwd=repo)
+    elif case == "dirty":
+        (repo / "a.md").write_text("edited\n", encoding="utf-8")
+    elif case == "detached":
+        git("checkout", "-q", "--detach", cwd=repo)
+    assert checkout_remote_state(repo) == expected
+    assert hub.created == []
+    assert case in ("plain", "remote") or git("remote", cwd=repo) == ""
+
+
+def test_capabilities_carry_each_bound_project_checkouts_offer(tmp_path, monkeypatch):
+    """``capabilities.slot_brains.<ws>.<slot>``: the bound Project checkouts only — not the workspace's own
+    default brain, not a slot bound on another machine. Mutation: drop the ``slot_brains`` key from
+    ``_work_capabilities`` -> red."""
+    from types import SimpleNamespace
+
+    from agent_runtime.work import service
+    from agent_runtime.work_store import board as boards_store
+
+    _FakeGitHub(tmp_path / "host", monkeypatch)
+    repo = _project(tmp_path)
+    found = [SimpleNamespace(slot="app", is_default=False, bound_here=True, checkout=repo),
+             SimpleNamespace(slot="elsewhere", is_default=False, bound_here=False, checkout=None),
+             SimpleNamespace(slot="boards", is_default=True, bound_here=True, checkout=tmp_path)]
+    monkeypatch.setattr(boards_store, "boards", lambda ws: found if ws == "ws_app" else [])
+    monkeypatch.setattr(service, "workspace_ids", lambda: ["ws_app"])
+    monkeypatch.setattr(service, "_default_brain_state", lambda ws: {"state": "present"})
+    monkeypatch.setattr(service, "_personal_board_state", lambda *, observe: {"state": "present"})
+    monkeypatch.setattr(service, "scopes", lambda install: [])
+    caps = service._work_capabilities("inst-1")
+    assert caps["slot_brains"] == {"ws_app": {"app": {
+        "state": "present", "reason": "remote_offered", "git_account": "octo", "repo_name": "my-app",
+        "branch": "feature"}}}
