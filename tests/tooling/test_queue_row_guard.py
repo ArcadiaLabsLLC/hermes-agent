@@ -92,6 +92,31 @@ def test_an_outcome_sha_that_is_not_an_ancestor_reds_and_here_is_never_looked_up
     assert [(f.id, f.change) for f in found] == [("RT-D", Change.OUTCOME_SHA_UNREACHABLE)] and asked == ["0a1b2c3"]
 
 
+def test_a_sibling_repo_outcome_is_checked_in_that_repo():
+    """FH-CLOSE-TAKES-A-SIBLING-REPO-OUTCOME: an archive line whose ``outcome repo:`` record names a sibling is
+    checked on that sibling's origin/main, never against HEAD, and a sibling not checked out refuses. KILLING
+    MUTATION: read ``reachable(entry.commit)`` in the sibling arm -> the landed launcher sha reds and the missing
+    backend passes, red."""
+    added = _archived("- **`RT-F` — f** · DONE 2026-11-12 57e453b2ca · outcome repo: EterniaLauncher",
+                      "- **`RT-G` — g** · DONE 2026-11-12 0a1b2c3 · outcome repo: EterniaLauncher",
+                      "- **`RT-H` — h** · DONE 2026-11-12 ef7d6bc6 · outcome repo: eternia-backend")
+    assert added["RT-F"].repo == "EterniaLauncher" and added["RT-F"].commit == "57e453b2ca"
+    on_launcher = {"57e453b2ca"}
+    asked: list[tuple[str, str]] = []
+
+    def sibling(repo: str, sha: str) -> bool | None:
+        asked.append((repo, sha))
+        return None if repo == "eternia-backend" else sha in on_launcher
+
+    found = guard.findings(base={}, head={}, authorized=set(), archived=added, added=added,
+                           reachable=lambda _sha: False, sibling_reachable=sibling)
+    assert [(f.id, f.change) for f in found] == [("RT-G", Change.OUTCOME_SHA_UNREACHABLE),
+                                                 ("RT-H", Change.OUTCOME_SHA_UNREACHABLE)]
+    assert "sibling_repo_missing" in found[1].message
+    assert sorted(asked) == [("EterniaLauncher", "0a1b2c3"), ("EterniaLauncher", "57e453b2ca"),
+                             ("eternia-backend", "ef7d6bc6")]
+
+
 def test_an_authorized_by_line_naming_the_row_passes_it_whole():
     messages = ["queue: drop the ruling\n\nAuthorized-by: owner, \"drop it\" — `RT-A`\n",
                 "unrelated RT-B mention with no authorization"]

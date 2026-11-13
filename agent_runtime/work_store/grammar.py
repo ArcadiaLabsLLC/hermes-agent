@@ -37,6 +37,7 @@ from .reasons import Reason, WorkRefused
 __layer__ = "policy"
 __all__ = [
     "ARCHIVE_DIR",
+    "OUTCOME_REPO",
     "BODY_REQUIRED",
     "STARTABLE",
     "STATUS_WORDS",
@@ -114,6 +115,10 @@ _SEGMENT_FORBIDDEN = re.compile(r"[`*·]")
 OUTCOME_OPEN = re.compile(r"^(?:DONE|REFUTED|CLOSED) \d{4}-\d{2}-\d{2}\b")
 OUTCOME = re.compile(r"^(DONE|REFUTED) (\d{4}-\d{2}-\d{2}) ([0-9a-f]{7,40}|here)$")
 CLOSED_OUTCOME = re.compile(r"^CLOSED (\d{4}-\d{2}-\d{2}):\s*owner — (.+)$", re.DOTALL)
+#: The record naming the repository an archived row's outcome commit lives in, when it is not this one
+#: (``close --done <repo>@<sha>``, FH-CLOSE-TAKES-A-SIBLING-REPO-OUTCOME). A segment beside the outcome, never part
+#: of it: the outcome token is read by this grammar, the guard's twin and the launcher's row parser alike.
+OUTCOME_REPO = re.compile(r"^outcome repo: ([A-Za-z0-9._-]+)$")
 #: The longest ``result:`` record an archived row carries.
 RESULT_LIMIT = 300
 #: Where a brain's closed rows live, beside its queue directory (plan D1).
@@ -777,7 +782,8 @@ def _close_line(line: str, *, who: str, date: str, payload: dict) -> str:
 
     ``payload``: ``outcome`` (``DONE`` / ``REFUTED`` / ``CLOSED``), ``commit`` (7–40 hex or ``here``; DONE /
     REFUTED), ``words`` (CLOSED: the owner's words), ``result`` (one line, ≤ 300 after :func:`segment_text`),
-    ``date`` (the close date; default today).
+    ``date`` (the close date; default today), ``repo`` (the sibling repository the commit lives in; written as an
+    ``outcome repo: <repo>`` segment right after the outcome).
     """
 
     kind = str(payload.get("outcome") or "")
@@ -792,7 +798,11 @@ def _close_line(line: str, *, who: str, date: str, payload: dict) -> str:
     at = next((i for i, s in enumerate(segments) if i and STATUS.match(s.strip())), None)
     if at is None:
         raise WorkRefused(Reason.GRAMMAR_INVALID, "the row has no status segment to replace")
-    kept = [outcome.render() if i == at else s for i, s in enumerate(segments)
+    repo = str(payload.get("repo") or "")
+    rendered = outcome.render() + (f"{SEPARATOR}outcome repo: {repo}" if repo else "")
+    if repo and not OUTCOME_REPO.match(f"outcome repo: {repo}"):
+        raise WorkRefused(Reason.INVALID, f"not a repository name: {repo!r}")
+    kept = [rendered if i == at else s for i, s in enumerate(segments)
             if i == at or not (i > at and RECOMMEND.match(s.strip()))]
     result = segment_text(str(payload.get("result") or ""), limit=RESULT_LIMIT)
     return SEPARATOR.join(kept).rstrip() + (f"{SEPARATOR}result: {result}" if result else "")

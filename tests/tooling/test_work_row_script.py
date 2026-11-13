@@ -286,6 +286,49 @@ def test_a_branch_with_an_upstream_pushes_to_that_upstream(clones):
     assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "seed"
 
 
+def _sibling_repo(tmp_path: Path, name: str) -> tuple[Path, str]:
+    """A ``name`` checkout beside the lane's clone, with an origin: ``(checkout, sha on its origin/main)``."""
+    remote = tmp_path / f"{name}.git"
+    git("init", "-q", "--bare", "-b", "main", str(remote), cwd=tmp_path)
+    checkout = tmp_path / name
+    git("clone", "-q", str(remote), str(checkout), cwd=tmp_path)
+    (checkout / "lib.txt").write_text("landed\n", encoding="utf-8")
+    git("add", "-A", cwd=checkout)
+    git("commit", "-q", "-m", "landed", cwd=checkout)
+    git("push", "-q", "-u", "origin", "main", cwd=checkout)
+    return checkout, git("rev-parse", "--short=10", "HEAD", cwd=checkout).strip()
+
+
+def test_a_close_naming_a_sibling_repo_checks_its_origin_main(clones, tmp_path, monkeypatch, capsys):
+    """FH-CLOSE-TAKES-A-SIBLING-REPO-OUTCOME: ``--done EterniaLauncher@<sha>`` archives in one step when the sha is
+    on that sibling's origin/main, records the repository beside the outcome, and refuses a sha only the sibling's
+    working tree holds, or a sibling not checked out. KILLING MUTATION: ``unlanded_sha`` returns None for a sibling
+    -> the unpushed launcher sha is archived, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    origin, mine, _ = clones
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "eternia-backend@0a1b2c3", "--repo", str(mine),
+                          "--no-commit"]) == work_row.EXIT_REFUSED
+    assert "sibling_repo_missing" in capsys.readouterr().err
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "Elsewhere@0a1b2c3", "--repo", str(mine),
+                          "--no-commit"]) == work_row.EXIT_REFUSED
+    launcher, landed = _sibling_repo(tmp_path, "EterniaLauncher")
+    (launcher / "lib.txt").write_text("not pushed\n", encoding="utf-8")
+    git("commit", "-q", "-am", "local only", cwd=launcher)
+    local = git("rev-parse", "--short=10", "HEAD", cwd=launcher).strip()
+    before = (mine / NOTE).read_bytes()
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", f"EterniaLauncher@{local}",
+                          "--repo", str(mine)]) == work_row.EXIT_REFUSED
+    assert "EterniaLauncher's origin/main" in capsys.readouterr().err
+    assert (mine / NOTE).read_bytes() == before
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", f"EterniaLauncher@{landed}", "--date",
+                          "2026-11-12", "--result", "read live", "--repo", str(mine)]) == 0
+    archived = (mine / "Harness_Brain/80 — Archive/Queues/q-2026-11.md").read_text(encoding="utf-8")
+    assert archived.endswith(f"- **`RT-A` — first** · DONE 2026-11-12 {landed} · outcome repo: EterniaLauncher · "
+                             "result: read live\n")
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == \
+        f"queue(q): close RT-A DONE EterniaLauncher@{landed}"
+
+
 def test_close_archives_the_row_and_commits_both_files(clones):
     """RT-QUEUE-ARCHIVE-GRAMMAR. Mutation: write the queue text unchanged in ``main``'s close arm -> the row stays
     live beside its archived copy, red."""

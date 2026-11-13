@@ -20,7 +20,9 @@ archive line this push added (a row MOVED to another queue is still live by ID);
 newest commit is dated :data:`ARCHIVE_REQUIRED_FROM` or later and is a NOTE before, so lanes dispatched under
 the delete rule land; ``archived_row_live`` — an ID in an archive note and in a live queue; and
 ``outcome_sha_unreachable`` — a new archive line's ``<commit>`` (not ``here``) is not an ancestor of HEAD (a
-rebased lane: re-point it at the rebased twin).
+rebased lane: re-point it at the rebased twin). A line whose ``outcome repo: <repo>`` record names a sibling repository
+(``close --done <repo>@<sha>``, FH-CLOSE-TAKES-A-SIBLING-REPO-OUTCOME) is checked against that sibling checkout's
+``origin/main`` instead, found as the close tool finds it; a sibling not checked out here refuses, never skips.
 
 Every finding is passed when a commit in ``base..HEAD`` carries an ``Authorized-by:`` line and names the
 row's ID — the row owner's own words, quoted. Every finding names its row.
@@ -40,6 +42,8 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from agent_runtime.work_store.grammar import OUTCOME_REPO
+from agent_runtime.work_store.tasks import sibling_checkout, sibling_has_commit
 from tests.tooling.test_work_queue_row_grammar import (
     BRAIN, OUTCOME, OUTCOME_OPEN, REPO, ROW_ID, RULED, STATUS, is_queue, is_queue_archive,
     queue_rows, split_segments,
@@ -117,11 +121,13 @@ ARCHIVE_REQUIRED_FROM = "2026-11-04"
 
 @dataclass(frozen=True, slots=True)
 class Archived:
-    """One archived row: its archive note and its outcome's commit (None for CLOSED, ``here`` for the close)."""
+    """One archived row: its archive note, its outcome's commit (None for CLOSED, ``here`` for the close) and the
+    sibling repository that commit lives in (None: this one)."""
 
     id: str
     file: str
     commit: str | None
+    repo: str | None = None
 
 
 def archived_by_id(files: Mapping[str, str]) -> dict[str, Archived]:
@@ -134,9 +140,11 @@ def archived_by_id(files: Mapping[str, str]) -> dict[str, Archived]:
             match = ROW_ID.match(line.lstrip())
             if match is None or match.group(1) in out:
                 continue
-            outcome = next((s.strip() for s in split_segments(line)[1:] if OUTCOME_OPEN.match(s.strip())), "")
+            segments = [s.strip() for s in split_segments(line)[1:]]
+            outcome = next((s for s in segments if OUTCOME_OPEN.match(s)), "")
             done = OUTCOME.match(outcome)
-            out[match.group(1)] = Archived(match.group(1), path, done.group(3) if done else None)
+            repo = next((named.group(1) for s in segments if (named := OUTCOME_REPO.match(s))), None)
+            out[match.group(1)] = Archived(match.group(1), path, done.group(3) if done else None, repo)
     return out
 
 
@@ -158,9 +166,12 @@ class Finding:
 
 def findings(*, base: Mapping[str, Row], head: Mapping[str, Row], authorized: set[str],
              archived: Mapping[str, Archived] | None = None, added: Mapping[str, Archived] | None = None,
-             reachable: Callable[[str], bool] = lambda _sha: True, archive_required: bool = True) -> list[Finding]:
+             reachable: Callable[[str], bool] = lambda _sha: True,
+             sibling_reachable: Callable[[str, str], bool | None] = lambda _repo, _sha: None,
+             archive_required: bool = True) -> list[Finding]:
     """Every watched change: one per surviving row and kind, then the archive arms (``archived``: every archived
-    row at the head; ``added``: the archive lines this push added; ``reachable``: is a sha an ancestor of HEAD)."""
+    row at the head; ``added``: the archive lines this push added; ``reachable``: is a sha an ancestor of HEAD;
+    ``sibling_reachable``: is a sha on that sibling repository's ``origin/main``, None when it is not checked out)."""
     out: list[Finding] = []
     archived, added = archived or {}, added or {}
     for row_id, before in base.items():
@@ -177,7 +188,22 @@ def findings(*, base: Mapping[str, Row], head: Mapping[str, Row], authorized: se
                                f"`{row_id}` is archived in {entry.file} and still live at {after.file}:{after.line} "
                                "— a close MOVES the row"))
     for row_id, entry in sorted(added.items()):
-        if entry.commit and entry.commit != "here" and row_id not in authorized and not reachable(entry.commit):
+        if not entry.commit or entry.commit == "here" or row_id in authorized:
+            continue
+        if entry.repo is not None:
+            # MUTATION: read reachable(entry.commit) here and test_a_sibling_repo_outcome_is_checked_in_that_repo
+            # reddens.
+            found = sibling_reachable(entry.repo, entry.commit)
+            if found is None:
+                out.append(Finding(row_id, Change.OUTCOME_SHA_UNREACHABLE,
+                                   f"`{row_id}` ({entry.file}) names {entry.repo}@{entry.commit}, and no {entry.repo} "
+                                   "checkout is beside this one to check it (sibling_repo_missing)"))
+            elif not found:
+                out.append(Finding(row_id, Change.OUTCOME_SHA_UNREACHABLE,
+                                   f"`{row_id}` ({entry.file}) names {entry.repo}@{entry.commit}, not on that "
+                                   "repository's origin/main — push it there first"))
+            continue
+        if not reachable(entry.commit):
             out.append(Finding(row_id, Change.OUTCOME_SHA_UNREACHABLE,
                                f"`{row_id}` ({entry.file}) names {entry.commit}, not an ancestor of HEAD — a rebase "
                                "renamed it; point the outcome at the rebased commit"))
@@ -258,6 +284,11 @@ def _ancestor(root: Path, sha: str) -> bool:
                           check=False).returncode == 0
 
 
+def _sibling_has(root: Path, repo: str, sha: str) -> bool | None:
+    checkout = sibling_checkout(root, repo)
+    return None if checkout is None else sibling_has_commit(checkout, sha)
+
+
 def run(root: Path = REPO, *, upstream: str = "origin/main") -> GuardReport:
     """Compare this vault at ``merge-base(HEAD, upstream)`` with the working tree."""
     base = (_git(root, "merge-base", "HEAD", upstream) or "").strip()
@@ -273,7 +304,8 @@ def run(root: Path = REPO, *, upstream: str = "origin/main") -> GuardReport:
     newest = (_git(root, "log", "-1", "--format=%cs", "HEAD") or "").strip()
     return GuardReport(base, len(base_rows), findings(
         base=base_rows, head=head_rows, authorized=authorized_row_ids(messages), archived=archived, added=added,
-        reachable=lambda sha: _ancestor(root, sha), archive_required=newest >= ARCHIVE_REQUIRED_FROM))
+        reachable=lambda sha: _ancestor(root, sha), sibling_reachable=lambda repo, sha: _sibling_has(root, repo, sha),
+        archive_required=newest >= ARCHIVE_REQUIRED_FROM))
 
 
 def main() -> int:

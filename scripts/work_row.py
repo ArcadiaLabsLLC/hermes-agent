@@ -75,8 +75,11 @@ merge that is not a fast-forward, and a push that lands the first time runs no `
 ``close --done <sha>`` / ``--refuted <sha>`` refuses a commit that is not on the push target's branch
 (``sha_not_on_main``, "push it first"): a landing chain once hid a rejected push behind a pipe and archived a
 row DONE on a commit that never reached ``main``. It reads the checkout's remote-tracking ref and fetches once
-before refusing. ``here`` is not checked; ``--allow-unlanded`` is for a commit that lives in another
-repository.
+before refusing. ``here`` is not checked. A commit that lives in a sibling repository is named ``<repo>@<sha>``
+(``EterniaLauncher`` / ``eternia-backend``; FH-CLOSE-TAKES-A-SIBLING-REPO-OUTCOME): it is checked against that
+checkout's ``origin/main`` (found as the sibling brains are; ``sibling_repo_missing`` when none is, never skipped)
+and the archive line records ``outcome repo: <repo>`` beside the outcome, which the row guard checks the same way.
+``--allow-unlanded`` skips the check.
 """
 
 from __future__ import annotations
@@ -99,8 +102,9 @@ from agent_runtime.work_store.grammar import (
 )
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 from agent_runtime.work_store.tasks import (
-    SIBLING_QUEUE_DIRS, archived_rows, owning_task, parked_task, sibling_rows, siblings_visible, subtasks_of, task_of,
-    task_refuses_done, task_status_after_close, write_task_defects,
+    SIBLING_QUEUE_DIRS, SIBLING_REPOS, archived_rows, owning_task, parked_task, sibling_checkout, sibling_has_commit,
+    sibling_rows, siblings_visible, subtasks_of, task_of, task_refuses_done, task_status_after_close,
+    write_task_defects,
 )
 from agent_runtime.work_store.wake import unblocked_segment, wake_dependents
 
@@ -153,13 +157,27 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def close_payload(args: argparse.Namespace) -> dict:
-    """``Op.CLOSE``'s payload from ``--done`` / ``--refuted`` / ``--owner`` (exactly one), ``--result``, ``--date``."""
+def outcome_commit(value: str) -> tuple[str | None, str]:
+    """``(<sibling repo>, <sha>)`` of a ``--done`` / ``--refuted`` value: ``<sha>`` (this repository: None) or
+    ``<repo>@<sha>``, ``<repo>`` one of :data:`SIBLING_REPOS` (FH-CLOSE-TAKES-A-SIBLING-REPO-OUTCOME)."""
 
-    if args.done is not None:
-        payload = {"outcome": "DONE", "commit": args.done}
-    elif args.refuted is not None:
-        payload = {"outcome": "REFUTED", "commit": args.refuted}
+    repo, at, sha = value.rpartition("@")
+    if not at:
+        return None, value
+    if repo not in SIBLING_REPOS:
+        raise WorkRefused(Reason.INVALID, f"--done/--refuted <repo>@<sha> names one of {', '.join(SIBLING_REPOS)}, "
+                                          f"not {repo!r}")
+    return repo, sha
+
+
+def close_payload(args: argparse.Namespace) -> dict:
+    """``Op.CLOSE``'s payload from ``--done`` / ``--refuted`` / ``--owner`` (exactly one), ``--result``, ``--date``;
+    a ``<repo>@<sha>`` commit adds ``repo`` (the archive line's ``outcome repo:`` record)."""
+
+    if args.done is not None or args.refuted is not None:
+        repo, sha = outcome_commit(args.done if args.done is not None else args.refuted)
+        payload = {"outcome": "DONE" if args.done is not None else "REFUTED", "commit": sha,
+                   **({"repo": repo} if repo else {})}
     elif args.owner is not None:
         payload = {"outcome": "CLOSED", "words": args.owner}
     else:
@@ -644,6 +662,20 @@ def unlanded_sha(repo: Path, args: argparse.Namespace, git: Git) -> str | None:
     sha = args.done or args.refuted
     if COMMANDS.get(args.command) is not Op.CLOSE or not sha or sha == "here" or args.allow_unlanded:
         return None
+    try:
+        sibling, sha = outcome_commit(sha)
+    except WorkRefused as refusal:
+        return f"{refusal.reason.value} {refusal.detail}"
+    if sibling is not None:
+        # A commit of a sibling repository is checked against THAT checkout's origin/main, never skipped.
+        # MUTATION: return None here and test_a_close_naming_a_sibling_repo_checks_its_origin_main reddens.
+        checkout = sibling_checkout(repo, sibling)
+        if checkout is None:
+            return (f"sibling_repo_missing no {sibling} checkout beside this one (or in ETERNIA_WORKSPACE_ROOTS) to "
+                    f"check `{sha}` against")
+        if sibling_has_commit(checkout, sha, fetch=True):
+            return None
+        return f"sha_not_on_main `{sha}` is not on {sibling}'s origin/main: push it there first"
     remote, branch = _target_branch(repo, git)
 
     def landed() -> bool:

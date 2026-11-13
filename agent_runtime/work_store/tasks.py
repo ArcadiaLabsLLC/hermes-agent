@@ -29,6 +29,8 @@ SIBLING_QUEUE_DIRS = {
     "launcher": "EterniaLauncher/Launcher_Brain/20 — Active Initiatives",
     "backend": "eternia-backend/EterniaBackend_brain/20 — Active Initiatives",
 }
+#: The sibling checkouts a close may name as where its outcome commit lives (``--done <repo>@<sha>``).
+SIBLING_REPOS = tuple(dict.fromkeys(relative.split("/", 1)[0] for relative in SIBLING_QUEUE_DIRS.values()))
 #: Extra directories that may hold the checkouts (``:``-separated; ``;`` on Windows), the launcher's variable.
 WORKSPACE_ROOTS_ENV = "ETERNIA_WORKSPACE_ROOTS"
 
@@ -205,6 +207,32 @@ def workspace_roots(repo: Path, environ: Mapping[str, str] | None = None) -> lis
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8",
                           errors="replace", stdin=subprocess.DEVNULL, check=False)
+
+
+def sibling_checkout(repo: Path, name: str, environ: Mapping[str, str] | None = None) -> Path | None:
+    """The sibling repository ``name`` (one of :data:`SIBLING_REPOS`) checked out where :func:`workspace_roots`
+    looks, or None when no such checkout is found."""
+
+    for root in workspace_roots(repo, environ):
+        checkout = root / name
+        if (checkout / ".git").exists():
+            return checkout
+    return None
+
+
+def sibling_has_commit(checkout: Path, sha: str, *, fetch: bool = False) -> bool:
+    """Whether ``sha`` is an ancestor of the sibling checkout's ``origin/main`` (one fetch first when ``fetch``
+    and it is not)."""
+
+    def landed() -> bool:
+        return _git(checkout, "merge-base", "--is-ancestor", sha, "origin/main").returncode == 0
+
+    if landed():
+        return True
+    if not fetch:
+        return False
+    _git(checkout, "fetch", "-q", "origin", "main")
+    return landed()
 
 
 def _origin_texts(repo: Path, queue_dir: str) -> dict[str, str] | None:
