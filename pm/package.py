@@ -44,8 +44,12 @@ def compose_env(diffs: list[dict], base: Optional[dict] = None) -> dict[str, str
     if path_dirs:
         key = next((k for k in env if k.upper() == "PATH"), "PATH")
         existing = env.get(key, "")
-        prefix = os.pathsep.join(path_dirs)
-        env[key] = f"{prefix}{os.pathsep}{existing}" if existing else prefix
+        # Activation and update handoffs compose repeatedly. Move our directories
+        # to the front instead of growing PATH past cmd.exe's environment limit.
+        managed = {os.path.normcase(path) for path in path_dirs}
+        inherited = [path for path in existing.split(os.pathsep)
+                     if os.path.normcase(native(path)) not in managed] if existing else []
+        env[key] = os.pathsep.join([*path_dirs, *inherited])
     return env
 
 

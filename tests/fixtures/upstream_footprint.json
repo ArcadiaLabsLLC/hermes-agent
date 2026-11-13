@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-11-12",
+  "measured_at": "2026-11-13",
   "base": "3b42157858",
-  "files": 223,
-  "deleted_lines": 872,
+  "files": 224,
+  "deleted_lines": 874,
   "heavy": 1,
   "reasons": [
     {
@@ -1375,6 +1375,21 @@
       },
       "reason": "`hermes harness serve` is spawned on every Mission Control start and main() built every upstream subcommand parser before parsing it. An argv naming a top-level manifest-declared plugin command now gets the top-level parser with only that command attached; main()'s tail (container routing, parse, startup discovery, dispatch) is untouched. The call has to stand where the build stands, so the one upstream line is edited in place rather than copied: the additive alternatives are a fork copy of main()'s tail or an early return inside _build_cli_parser.",
       "owner_ruling": "2026-11-12 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md RT-HARNESS-SERVE-SKIP-UPSTREAM-PARSERS RULED (owner: \"Yes, allow it\" \u2014 the one-import, one-call seam in upstream hermes_cli/main.py, with its boundary-ledger row; nothing wider)"
+    },
+    {
+      "change": "RT-WINDOWS-SOURCE-UPDATE-NODE-NOT-FOUND",
+      "before": {
+        "files": 223,
+        "deleted_lines": 872,
+        "heavy": 1
+      },
+      "after": {
+        "files": 224,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "reason": "HELD PR: source activation must move managed tool prefixes to the front once; repeated handoffs overflow the Windows cmd environment limit and pnpm cannot find installed Node. Central compose_env owns precedence; no parallel environment writer. Retires when upstream composes idempotently.",
+      "owner_ruling": "2026-11-13 \u00b7 RT-WINDOWS-SOURCE-UPDATE-NODE-NOT-FOUND: owner requested proper shared-runtime repair and completion of live verification; canonical install recovery is required to deliver it"
     }
   ]
 }
