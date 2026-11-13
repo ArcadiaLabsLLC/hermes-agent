@@ -17,6 +17,10 @@ tags: [queue, program/fork-hygiene]
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
 
 
+## Filed on arrival — 2026-11-12 (lane w1112b-hm3: review batch w1112b-4 §6)
+
+- **`FH-CLOSE-TAKES-A-SIBLING-REPO-OUTCOME` — A row or task closed by another repository's commit is archived in one step, naming that repository** · group: prepush · `scripts/work_row.py` (close: --done) · `tests/tooling/_queue_row_guard.py` (`outcome_sha_unreachable`) · seen 2026-11-12 (w1112b-hm2): archiving TASK-REJOIN-FRESH-REALM, whose last subtask closed in EterniaLauncher 57e453b2ca, was refused outcome_sha_unreachable, and the 300-character result cap refused the sha in the result — two extra prepush runs (~6 min) · RULED 2026-11-12: owner standing order; took: `--done <repo>@<sha>` (repo = EterniaLauncher / eternia-backend) recorded as such on the archive line, verified as an ancestor of that sibling checkout's origin/main found through the machine's folder slots (refused `sibling_repo_missing` when absent, never skipped); why: the archive then cites the real outcome and the guard still checks it · RULED 2026-11-12: owner standing order (w1112b-hm3) — took: the archive line keeps `DONE <date> <sha>` and records the repository in an `outcome repo: <repo>` segment beside it; why: the outcome token is parsed by three readers (agent_runtime/work_store/grammar.py, the guard's twin, EterniaLauncher work_queue_row_parser.dart) and a `<repo>@<sha>` token would read as a bad outcome in the launcher · done when: close and the guard accept `EterniaLauncher@<sha>` for an ancestor of the sibling's origin/main and refuse a non-ancestor, a test each with a fake sibling repo, watched red · READY 2026-11-12 · handoff 2026-11-12 (w1112b-hm3): worked as a row claim, not under the task — TASK-PREPUSH is TAKEN by the Windows lane w1112a-hmprepush (review batch w1112b-4 §6) · **TAKEN 2026-11-12 w1112b-hm3 on nekwo-ubuntu24 as nekwo in hm-w1109a-2**
+
 ## Filed on arrival — 2026-11-12 (lane w1112b-hm-speed: running the tests beside `RT-HARNESS-PARSER-PLUGIN-LOAD-TWICE`)
 
 
