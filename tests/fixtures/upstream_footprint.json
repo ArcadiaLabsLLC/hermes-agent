@@ -2,7 +2,7 @@
   "measured_at": "2026-11-13",
   "base": "3b42157858",
   "files": 224,
-  "deleted_lines": 874,
+  "deleted_lines": 875,
   "heavy": 1,
   "reasons": [
     {
@@ -1390,6 +1390,21 @@
       },
       "reason": "HELD PR: source activation must move managed tool prefixes to the front once; repeated handoffs overflow the Windows cmd environment limit and pnpm cannot find installed Node. Central compose_env owns precedence; no parallel environment writer. Retires when upstream composes idempotently.",
       "owner_ruling": "2026-11-13 \u00b7 RT-WINDOWS-SOURCE-UPDATE-NODE-NOT-FOUND: owner requested proper shared-runtime repair and completion of live verification; canonical install recovery is required to deliver it"
+    },
+    {
+      "change": "RT-WINDOWS-SOURCE-UPDATE-NODE-NOT-FOUND-ACTIVATION",
+      "before": {
+        "files": 224,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "after": {
+        "files": 224,
+        "deleted_lines": 875,
+        "heavy": 1
+      },
+      "reason": "HELD PR: activate_dependencies routes its checkout and venv PATH prefix through compose_env so repeated boots share the same idempotent managed-path composition; otherwise nested pnpm postinstall crosses the Windows cmd environment limit after the root preinstall succeeds. Same required canonical update recovery as pm/package.py.",
+      "owner_ruling": "2026-11-13 \u00b7 RT-WINDOWS-SOURCE-UPDATE-NODE-NOT-FOUND: owner requested proper shared-runtime repair and completed live verification; canonical install recovery is required to deliver it"
     }
   ]
 }

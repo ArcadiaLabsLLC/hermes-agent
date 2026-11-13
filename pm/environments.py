@@ -530,7 +530,8 @@ def activate_dependencies(project_root: Path) -> None:
         directories.append(venv_bin_dir(environment))
     prefix = [str(path) for path in directories if path.is_dir()]
     if prefix:
-        os.environ["PATH"] = os.pathsep.join([*prefix, os.environ.get("PATH", "")])
+        from pm.package import compose_env
+        os.environ["PATH"] = compose_env([{"PATH": prefix}])["PATH"]
 
 
 def activation_environment(project_root: Path) -> dict[str, str]:
