@@ -122,7 +122,7 @@ def _realm_workspaces(realm_id: str | None, workspace_id: str) -> list[str]:
     return sorted(set(ids) | {workspace_id})
 
 
-def _inside(path: Path, root: Path) -> bool:
+def _under_folder(path: Path, root: Path) -> bool:
     try:
         path.resolve().relative_to(root.resolve())
     except ValueError:
@@ -149,7 +149,7 @@ class _Bindings:
         """A folder under ``realm_dir`` a slot of the realm binds to ``url`` and that exists here."""
 
         for workspace_id, path, bound_url in self.rows:
-            if bound_url == url and workspace_id in workspaces and path.is_dir() and _inside(path, realm_dir):
+            if bound_url == url and workspace_id in workspaces and path.is_dir() and _under_folder(path, realm_dir):
                 return path
         return None
 
