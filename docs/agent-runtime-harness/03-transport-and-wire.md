@@ -2206,10 +2206,12 @@ repository under `repos/<realm folder>/`, its path is the default — it exists,
 `<slot>-2`, `-3` …. Reading it writes only the realm folder mapping; nothing is cloned. Additive: a client that
 does not read the key is unchanged.
 
+Sample (`<namespace>` stands for the absolute namespace folder on the machine):
+
 ```json
 {"here": {"launcher": {"bound_here": false, "path": null, "folder_missing": false, "unknowns": [], "fill": null,
-                       "default_clone_path": "X:/hermes-namespaces/acct-1a2b/repos/Team-Alpha/launcher"},
-          "backend":  {"bound_here": true, "path": "D:/src/eternia-backend", "folder_missing": false, "unknowns": [],
+                       "default_clone_path": "<namespace>/repos/Team-Alpha/launcher"},
+          "backend":  {"bound_here": true, "path": "<this machine's checkout>", "folder_missing": false, "unknowns": [],
                        "fill": null, "default_clone_path": null}}}
 ```
 
