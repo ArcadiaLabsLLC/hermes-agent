@@ -32,12 +32,16 @@ __all__ = [
 ]
 
 
-def _parity_warnings(data, *, office_evidence=None) -> list[dict]:
+def _parity_warnings(data, *, office_evidence=None, stored_instance_rows=None) -> list[dict]:
     """Snapshot-level self-checks that flag likely UI/harness divergence.
 
     ``office_evidence`` is the build-only archived-placement evidence
     (``OfficesProjection.archived_placement_instance_ids``); ``None`` (a caller
     that has none) silences the checks that need it, never guesses.
+    ``stored_instance_rows`` is the build-only row list of EVERY stored
+    persona instance, the ones the roster does not offer included
+    (``roster_reach.offered``); the orphan checks read it so a hidden orphan is
+    still flagged for reconcile. ``None`` reads the frame's own rows.
     """
 
     # Board/office warnings do not depend on the persona-instance runtime, so
@@ -54,7 +58,7 @@ def _parity_warnings(data, *, office_evidence=None) -> list[dict]:
         )
         return warnings
 
-    frame = _WarningFrame(data, office_evidence=office_evidence)
+    frame = _WarningFrame(data, office_evidence=office_evidence, stored_instance_rows=stored_instance_rows)
     for _name, check in PARITY_WARNINGS:
         warnings.extend(check(frame))
     return warnings
@@ -64,10 +68,15 @@ class _WarningFrame:
     """What every parity check reads, derived once: the frame, its
     persona-instance rows, and its chat-history rows."""
 
-    def __init__(self, data: dict, *, office_evidence=None) -> None:
+    def __init__(self, data: dict, *, office_evidence=None, stored_instance_rows=None) -> None:
         self.data = data
         self.office_evidence = office_evidence
         self.instances = section_rows(data.get("persona_instances"))
+        self.stored_instances = (
+            self.instances
+            if stored_instance_rows is None
+            else [row for row in stored_instance_rows if isinstance(row, dict)]
+        )
         self.chat_rows = [
             row for row in data.get("persona_chat_history") or [] if isinstance(row, dict)
         ]
@@ -93,9 +102,13 @@ def _duplicate_instance_warnings(frame: _WarningFrame) -> list[dict]:
 
 
 def _orphan_instance_warnings(frame: _WarningFrame) -> list[dict]:
-    """Instances with no backing persona/profile: prunable, or held from prune."""
+    """Instances with no backing persona/profile: prunable, or held from prune.
 
-    data, instances, warnings = frame.data, frame.instances, []
+    Reads every stored instance, the ones the roster hides included: a hidden
+    orphan is still a record reconcile must prune (RT-SNAPSHOT-ORPHAN-WARNING-TEST-RED-ON-MAIN).
+    """
+
+    data, instances, warnings = frame.data, frame.stored_instances, []
     # Orphan / held persona-instance accounting: rows whose backing persona/profile is
     # absent (or a mothballed role) project as phantom "on level" agents. Surface them
     # the same way duplicate rows are surfaced so nothing is silently dropped — the

@@ -228,7 +228,11 @@ class SnapshotFrameBuild:
         # RT-RELAY-TO-ROSTER-AGENT-WITHOUT-PROFILE: an instance whose profile is gone is not offered.
         from ..roster_reach import offered
 
-        self.persona_instances = offered(self.instance_store.ensure_for_personas(self.agents))
+        # The orphan warnings still classify every stored record, hidden ones too
+        # (RT-SNAPSHOT-ORPHAN-WARNING-TEST-RED-ON-MAIN): a hidden orphan stays flagged
+        # for `harness persona-instance reconcile`; only the roster offer goes.
+        self.stored_persona_instances = list(self.instance_store.ensure_for_personas(self.agents))
+        self.persona_instances = offered(self.stored_persona_instances)
         self.topology_persona_instances = self.persona_instances
         self.agent_summaries = [
             *self.agent_summaries,
@@ -410,6 +414,18 @@ class SnapshotFrameBuild:
         # reconciler registry + structurally derivable drift still live in
         # this snapshot). Consumers key dedup on this instead of heuristics.
         self.data["identity_map"] = identity_aliases_for_rows(self.persona_instance_rows)
+        offered_ids = {id(instance) for instance in self.persona_instances}
+        # Build-only, never on the wire: the rows the roster does not offer, for the
+        # orphan warnings (``stored_instance_rows`` below).
+        self.hidden_persona_instance_rows = [
+            persona_instance_summary(
+                instance,
+                self.personas_by_id.get(str(getattr(instance, "persona_id", "") or "")),
+                roster=ensure_persisted_personas,
+            )
+            for instance in self.stored_persona_instances
+            if id(instance) not in offered_ids
+        ]
         self.data["persona_instances"] = _keyed(self.persona_instance_rows, "persona_instance_id")
 
     def persona_chat(self) -> None:
@@ -496,6 +512,7 @@ class SnapshotFrameBuild:
             office_evidence=getattr(
                 getattr(self, "offices_projection", None), "archived_placement_instance_ids", None
             ),
+            stored_instance_rows=[*self.persona_instance_rows, *self.hidden_persona_instance_rows],
         )
         # ``sections_ms`` is stored by reference in the envelope, so recording the
         # parity section's own duration after the call is reflected in the frame.

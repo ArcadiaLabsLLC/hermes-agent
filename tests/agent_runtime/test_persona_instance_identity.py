@@ -601,6 +601,40 @@ def test_snapshot_emits_orphan_and_no_warning_for_real_agent(monkeypatch):
     ]
 
 
+def test_hidden_orphan_stays_off_the_roster_and_is_flagged_for_reconcile(monkeypatch):
+    """RT-SNAPSHOT-ORPHAN-WARNING-TEST-RED-ON-MAIN: the roster hides a profile-backed
+    instance whose profile is gone (``roster_reach.offered``), and the orphan warning
+    still names it with the reconcile command — hiding is not a silent drop."""
+
+    cfg = _runtime_config()
+    monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
+    monkeypatch.setattr(
+        "agent_runtime.snapshot.summaries.available_profile_templates",
+        lambda: [_FakeTemplate("alice"), _FakeTemplate("base")],
+    )
+    _seed_row(
+        "personainst_profile_gone_probe",
+        persona_id="profile_gone_probe",
+        display_name="Gone Probe",
+        mode="configured",
+        profile_id="gone_probe",
+        updated_at=_STALE,
+    )
+
+    snapshot = build_snapshot()
+
+    assert "personainst_profile_gone_probe" not in snapshot["persona_instances"]
+    flagged = [
+        w
+        for w in snapshot["parity"]["warnings"]
+        if w.get("code") == "orphaned_persona_instance"
+        and w.get("entity_id") == "personainst_profile_gone_probe"
+    ]
+    assert len(flagged) == 1
+    assert "harness persona-instance reconcile" in flagged[0]["detail"]
+
+
 # --- Phase 4: stale chat-session bindings (the ``session_not_in_db`` class) ----
 #
 # Live evidence 2026-07-25 (home X:\Eternia\.hermes, profile alice): the
