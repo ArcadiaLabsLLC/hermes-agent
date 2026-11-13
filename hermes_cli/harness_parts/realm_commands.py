@@ -52,6 +52,8 @@ __all__ = [
     "_cmd_realm_sync_history",
     "_cmd_realm_sync_publish",
     "_cmd_realm_sync_pull",
+    "_cmd_realm_sync_remote_clear",
+    "_cmd_realm_sync_remote_set",
     "_cmd_realm_sync_resolve",
     "_cmd_realm_sync_revert",
     "_cmd_realm_sync_status",
@@ -228,6 +230,30 @@ def _cmd_realm_sync_status(args) -> int:
     except RealmSyncError as exc:
         return emit_harness_error(exc, args=args)
     _print_stage42(data, args=args, default_output="json")
+    return 0
+
+
+def _cmd_realm_sync_remote_set(args) -> int:
+    """RT-HARNESS-REALM-SET-BACKUP-REMOTE: the same adoption a ``local:`` credential's git_url takes."""
+    from agent_runtime.realm_sync.remote import set_realm_backup_remote
+
+    return _emit_realm_remote(args, lambda: set_realm_backup_remote(args.realm_id, args.git_url))
+
+
+def _cmd_realm_sync_remote_clear(args) -> int:
+    from agent_runtime.realm_sync.remote import clear_realm_backup_remote
+
+    return _emit_realm_remote(args, lambda: clear_realm_backup_remote(args.realm_id))
+
+
+def _emit_realm_remote(args, verb) -> int:
+    try:
+        data = verb()
+    except NotFound as exc:
+        return emit_harness_error(exc, args=args, code="not_found")
+    except RealmSyncError as exc:
+        return emit_harness_error(exc, args=args)
+    _print_stage42(attach_root_observability(data), args=args, default_output="json")
     return 0
 
 

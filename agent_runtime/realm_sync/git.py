@@ -29,6 +29,7 @@ from .models import (
 __layer__ = "stores"
 __all__ = [
     "_adopt_credential_remote",
+    "_adopt_local_remote",
     "_authorize",
     "_credential_git_config",
     "_ensure_git_identity",
@@ -132,7 +133,16 @@ def _adopt_credential_remote(realm: Realm, repo: Path, credential: RealmSyncCred
         return
     if not credential.admits_realm(realm):
         return
-    url = credential.git_url
+    _adopt_local_remote(realm, repo, credential.git_url,
+                        config=(*_REPO_CONFIG, *(_credential_git_config(credential) or ())))
+
+
+def _adopt_local_remote(realm: Realm, repo: Path, url: str, *, config: Sequence[str]) -> None:
+    """``url`` becomes a server-less realm's ``sync_manifest_ref`` and ``repo``'s ``origin``.
+
+    The ONE adoption path: a ``local:`` credential's ``git_url`` and ``harness realm sync
+    remote set`` (``remote.set_realm_backup_remote``) both come through here."""
+
     if str(realm.sync_manifest_ref or "") != url:
         previous = realm.sync_manifest_ref
         realm.sync_manifest_ref = url
@@ -144,7 +154,6 @@ def _adopt_credential_remote(realm: Realm, repo: Path, credential: RealmSyncCred
             realm.sync_manifest_ref = previous
     from ..git_remote_adopt import AdoptRefused, adopt_remote
 
-    config = (*_REPO_CONFIG, *(_credential_git_config(credential) or ()))
     _align_branch(repo, _LOCAL_REALM_BRANCH)
     try:
         adopt_remote(repo, url, branch=_LOCAL_REALM_BRANCH, config=config, merge_unrelated_if_disjoint=True)
@@ -344,7 +353,9 @@ def _ensure_git_identity(repo: Path) -> None:
 
 
 def _looks_like_remote(value: str) -> bool:
-    return value.startswith(("http://", "https://", "ssh://", "git@"))
+    # ``file://`` is a remote too: a backup repository on a disk or share. Read as a
+    # path it named a sync repo called "file:" (RT-HARNESS-REALM-SET-BACKUP-REMOTE).
+    return value.startswith(("http://", "https://", "ssh://", "git@", "file://"))
 
 
 def _redact_text(text: str) -> str:

@@ -239,7 +239,7 @@ def _add_realm_row_verbs(realm_subs) -> None:
 
 
 def _add_realm_sync_verbs(realm_subs) -> None:
-    """``hermes harness realm sync``."""
+    """``hermes harness realm sync`` (status, remote set|clear, history, pull, publish, held, resolve, revert)."""
     realm_sync = realm_subs.add_parser("sync", help="Git-backed selective sync for non-source-controlled realm artifacts")
     realm_sync_subs = realm_sync.add_subparsers(dest="realm_sync_command", required=True)
     realm_sync_status_cmd = realm_sync_subs.add_parser("status", help="Show realm sync state")
@@ -247,6 +247,21 @@ def _add_realm_sync_verbs(realm_subs) -> None:
     realm_sync_status_cmd.add_argument("--credential-file", default=None, help="Launcher-brokered realm sync credential JSON (fallback: HERMES_REALM_SYNC_CREDENTIAL)")
     _add_stage42_global_args(realm_sync_status_cmd)
     realm_sync_status_cmd.set_defaults(func=realm_commands._cmd_realm_sync_status)
+    realm_sync_remote = realm_sync_subs.add_parser(
+        "remote", help="Point a local realm at a backup repository (a server realm's remote is the server's)"
+    )
+    realm_sync_remote_subs = realm_sync_remote.add_subparsers(dest="realm_sync_remote_command", required=True)
+    realm_sync_remote_set = realm_sync_remote_subs.add_parser(
+        "set", help="Adopt a file://, https://, ssh:// or git@ repository as the local realm's backup remote"
+    )
+    realm_sync_remote_set.add_argument("realm_id")
+    realm_sync_remote_set.add_argument("git_url")
+    _add_stage42_global_args(realm_sync_remote_set)
+    realm_sync_remote_set.set_defaults(func=realm_commands._cmd_realm_sync_remote_set)
+    realm_sync_remote_clear = realm_sync_remote_subs.add_parser("clear", help="Forget the local realm's backup remote")
+    realm_sync_remote_clear.add_argument("realm_id")
+    _add_stage42_global_args(realm_sync_remote_clear)
+    realm_sync_remote_clear.set_defaults(func=realm_commands._cmd_realm_sync_remote_clear)
     realm_sync_history_cmd = realm_sync_subs.add_parser(
         "history", help="List the realm's published versions from the local sync clone (read-only, no fetch)"
     )

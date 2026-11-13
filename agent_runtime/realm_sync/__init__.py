@@ -41,6 +41,8 @@ publish            lanes   ``publish_realm_sync`` and ``BASELINE_FAMILIES``
 status             lanes   ``realm_sync_status``
 history            lanes   ``realm_sync_history`` — the published versions,
                            ``git log`` over the realm subtree (read-only)
+remote             lanes   ``remote set|clear``: a local realm's backup remote,
+                           through the credential's adoption path
 =================  ======  =====================================================
 
 Stores written: the realm sync git repo (``git``), ``realm_sync_state/``

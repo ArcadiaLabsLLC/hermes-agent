@@ -46,6 +46,8 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness workspace remove-agent](#hermes-harness-workspace-remove-agent)
 - [hermes harness workspace rename](#hermes-harness-workspace-rename)
 - [hermes harness workspace archive](#hermes-harness-workspace-archive)
+- [hermes harness workspace unarchive](#hermes-harness-workspace-unarchive)
+- [hermes harness workspace move-realm](#hermes-harness-workspace-move-realm)
 - [hermes harness workspace delete](#hermes-harness-workspace-delete)
 - [hermes harness workspace slots](#hermes-harness-workspace-slots)
 - [hermes harness workspace slots show](#hermes-harness-workspace-slots-show)
@@ -61,9 +63,15 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness realm adopt](#hermes-harness-realm-adopt)
 - [hermes harness realm bind-server](#hermes-harness-realm-bind-server)
 - [hermes harness realm use](#hermes-harness-realm-use)
+- [hermes harness realm default](#hermes-harness-realm-default)
+- [hermes harness realm archive](#hermes-harness-realm-archive)
+- [hermes harness realm unarchive](#hermes-harness-realm-unarchive)
 - [hermes harness realm default-scope](#hermes-harness-realm-default-scope)
 - [hermes harness realm sync](#hermes-harness-realm-sync)
 - [hermes harness realm sync status](#hermes-harness-realm-sync-status)
+- [hermes harness realm sync remote](#hermes-harness-realm-sync-remote)
+- [hermes harness realm sync remote set](#hermes-harness-realm-sync-remote-set)
+- [hermes harness realm sync remote clear](#hermes-harness-realm-sync-remote-clear)
 - [hermes harness realm sync history](#hermes-harness-realm-sync-history)
 - [hermes harness realm sync pull](#hermes-harness-realm-sync-pull)
 - [hermes harness realm sync publish](#hermes-harness-realm-sync-publish)
@@ -285,7 +293,8 @@ positional arguments:
     stream              Emit Mission Control hydrate/delta frames as NDJSON
     serve               Persistent NDJSON bridge: dispatch harness argv requests in one warm process
                         (Mission Control serve lane), on stdio and on the per-root localhost socket
-    work                Background work running right now (list / peek / cancel)
+    work                What is running now: processes, builds, helper agents, chat turns, tool
+                        calls (list / peek / cancel). Board tasks are not listed here
     builds              The announced-build registry (where build writers announce)
     pets                Mission Control Petdex bridge
     characters          Mission Control character-sheet bridge (8-way sheets + QA)
@@ -743,10 +752,10 @@ options:
 
 ```text
 usage: hermes harness workspace [-h]
-                                {list,show,create,use,add-agent,remove-agent,rename,archive,delete,slots} ...
+                                {list,show,create,use,add-agent,remove-agent,rename,archive,unarchive,move-realm,delete,slots} ...
 
 positional arguments:
-  {list,show,create,use,add-agent,remove-agent,rename,archive,delete,slots}
+  {list,show,create,use,add-agent,remove-agent,rename,archive,unarchive,move-realm,delete,slots}
     list                List workspaces
     show                Show one workspace
     create              Create a workspace
@@ -755,6 +764,8 @@ positional arguments:
     remove-agent        Remove a persona from a workspace roster
     rename              Rename a workspace
     archive             Archive a workspace
+    unarchive           Bring an archived workspace back
+    move-realm          Move a workspace into another realm
     delete              Permanently delete a workspace and its office/board content (archive is the
                         reversible path)
     slots               Repo slots: declare, bind on this machine, fill the environment, report
@@ -936,6 +947,54 @@ options:
   --fields FIELDS
   --dry-run
   --yes, -y
+```
+
+## hermes harness workspace unarchive
+
+```text
+usage: hermes harness workspace unarchive [-h] [-o {json,table,yaml,wide}] [--json] [-q]
+                                          [--no-color] [--fields FIELDS] [--dry-run]
+                                          workspace_id
+
+positional arguments:
+  workspace_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+  --dry-run
+```
+
+## hermes harness workspace move-realm
+
+```text
+usage: hermes harness workspace move-realm [-h] [--confirm-leave-realm CONFIRM_LEAVE_REALM]
+                                           [--credential-file CREDENTIAL_FILE]
+                                           [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                           [--fields FIELDS]
+                                           workspace_id realm_id
+
+positional arguments:
+  workspace_id
+  realm_id
+
+options:
+  -h, --help            show this help message and exit
+  --confirm-leave-realm CONFIRM_LEAVE_REALM
+                        Moving OUT of a shared (server-bound) realm removes the workspace for its
+                        other members: name that realm (id or name) to confirm
+  --credential-file CREDENTIAL_FILE
+                        Launcher-brokered realm sync credential JSON for the shared realm the
+                        workspace leaves (fallback: HERMES_REALM_SYNC_CREDENTIAL)
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
 ```
 
 ## hermes harness workspace delete
@@ -1121,16 +1180,20 @@ options:
 
 ```text
 usage: hermes harness realm [-h]
-                            {list,show,create,adopt,bind-server,use,default-scope,sync,skills,agents} ...
+                            {list,show,create,adopt,bind-server,use,default,archive,unarchive,default-scope,sync,skills,agents} ...
 
 positional arguments:
-  {list,show,create,adopt,bind-server,use,default-scope,sync,skills,agents}
+  {list,show,create,adopt,bind-server,use,default,archive,unarchive,default-scope,sync,skills,agents}
     list                List realms
     show                Show one realm
     create              Create a realm
     adopt               Adopt server-granted realms from the Eternia backend
     bind-server         Bind a realm to an Eternia server id
     use                 Set active realm
+    default             Choose the account's default realm: where a workspace created with no realm
+                        lands
+    archive             Put an empty realm away (reversible)
+    unarchive           Bring an archived realm back
     default-scope       Preview default-scope adoption/reconciliation without mutating persisted
                         state
     sync                Git-backed selective sync for non-source-controlled realm artifacts
@@ -1260,6 +1323,63 @@ options:
   --fields FIELDS
 ```
 
+## hermes harness realm default
+
+```text
+usage: hermes harness realm default [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                    [--fields FIELDS]
+                                    realm_id
+
+positional arguments:
+  realm_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness realm archive
+
+```text
+usage: hermes harness realm archive [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                    [--fields FIELDS]
+                                    realm_id
+
+positional arguments:
+  realm_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness realm unarchive
+
+```text
+usage: hermes harness realm unarchive [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                      [--fields FIELDS]
+                                      realm_id
+
+positional arguments:
+  realm_id
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
 ## hermes harness realm default-scope
 
 ```text
@@ -1284,11 +1404,13 @@ options:
 ## hermes harness realm sync
 
 ```text
-usage: hermes harness realm sync [-h] {status,history,pull,publish,held,resolve,revert} ...
+usage: hermes harness realm sync [-h] {status,remote,history,pull,publish,held,resolve,revert} ...
 
 positional arguments:
-  {status,history,pull,publish,held,resolve,revert}
+  {status,remote,history,pull,publish,held,resolve,revert}
     status              Show realm sync state
+    remote              Point a local realm at a backup repository (a server realm's remote is the
+                        server's)
     history             List the realm's published versions from the local sync clone (read-only, no
                         fetch)
     pull                Pull and materialize realm sync artifacts
@@ -1321,6 +1443,60 @@ options:
   --credential-file CREDENTIAL_FILE
                         Launcher-brokered realm sync credential JSON (fallback:
                         HERMES_REALM_SYNC_CREDENTIAL)
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness realm sync remote
+
+```text
+usage: hermes harness realm sync remote [-h] {set,clear} ...
+
+positional arguments:
+  {set,clear}
+    set        Adopt a file://, https://, ssh:// or git@ repository as the local realm's backup
+               remote
+    clear      Forget the local realm's backup remote
+
+options:
+  -h, --help   show this help message and exit
+```
+
+## hermes harness realm sync remote set
+
+```text
+usage: hermes harness realm sync remote set [-h] [-o {json,table,yaml,wide}] [--json] [-q]
+                                            [--no-color] [--fields FIELDS]
+                                            realm_id git_url
+
+positional arguments:
+  realm_id
+  git_url
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output {json,table,yaml,wide}
+  --json                Alias for -o json
+  -q, --quiet
+  --no-color
+  --fields FIELDS
+```
+
+## hermes harness realm sync remote clear
+
+```text
+usage: hermes harness realm sync remote clear [-h] [-o {json,table,yaml,wide}] [--json] [-q]
+                                              [--no-color] [--fields FIELDS]
+                                              realm_id
+
+positional arguments:
+  realm_id
+
+options:
+  -h, --help            show this help message and exit
   -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
@@ -2087,9 +2263,9 @@ options:
 ## hermes harness board card edit
 
 ```text
-usage: hermes harness board card edit [-h] [--title TITLE] [--description DESCRIPTION]
-                                      [--priority {p0,p1,p2,p3}] [--labels LABELS]
-                                      [--assignee ASSIGNEE] [--clear-assignee]
+usage: hermes harness board card edit [-h] [--board BOARD] [--title TITLE]
+                                      [--description DESCRIPTION] [--priority {p0,p1,p2,p3}]
+                                      [--labels LABELS] [--assignee ASSIGNEE] [--clear-assignee]
                                       [--expect-revision EXPECT_REVISION]
                                       [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
                                       [--fields FIELDS] [--idempotency-key IDEMPOTENCY_KEY]
@@ -2100,6 +2276,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --board BOARD         Board id (needed when two boards hold this card id)
   --title TITLE
   --description DESCRIPTION
   --priority {p0,p1,p2,p3}
@@ -2118,8 +2295,8 @@ options:
 ## hermes harness board card move
 
 ```text
-usage: hermes harness board card move [-h] --column COLUMN [--before BEFORE] [--after AFTER]
-                                      [--expect-revision EXPECT_REVISION]
+usage: hermes harness board card move [-h] [--board BOARD] --column COLUMN [--before BEFORE]
+                                      [--after AFTER] [--expect-revision EXPECT_REVISION]
                                       [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
                                       [--fields FIELDS] [--idempotency-key IDEMPOTENCY_KEY]
                                       card_id
@@ -2129,6 +2306,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --board BOARD         Board id (needed when two boards hold this card id)
   --column COLUMN       Target column id or kind
   --before BEFORE       Place before this card id
   --after AFTER         Place after this card id
@@ -2144,8 +2322,8 @@ options:
 ## hermes harness board card archive
 
 ```text
-usage: hermes harness board card archive [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                         [--fields FIELDS]
+usage: hermes harness board card archive [-h] [--board BOARD] [-o {json,table,yaml,wide}] [--json]
+                                         [-q] [--no-color] [--fields FIELDS]
                                          card_id
 
 positional arguments:
@@ -2153,6 +2331,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --board BOARD         Board id (needed when two boards hold this card id)
   -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
@@ -2163,8 +2342,8 @@ options:
 ## hermes harness board card restore
 
 ```text
-usage: hermes harness board card restore [-h] [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
-                                         [--fields FIELDS]
+usage: hermes harness board card restore [-h] [--board BOARD] [-o {json,table,yaml,wide}] [--json]
+                                         [-q] [--no-color] [--fields FIELDS]
                                          card_id
 
 positional arguments:
@@ -2172,6 +2351,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --board BOARD         Board id (needed when two boards hold this card id)
   -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
   -q, --quiet
@@ -2182,8 +2362,9 @@ options:
 ## hermes harness board resolve-conflict
 
 ```text
-usage: hermes harness board resolve-conflict [-h] --take {local,remote} [-o {json,table,yaml,wide}]
-                                             [--json] [-q] [--no-color] [--fields FIELDS]
+usage: hermes harness board resolve-conflict [-h] [--board BOARD] --take {local,remote}
+                                             [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                             [--fields FIELDS]
                                              card_id
 
 positional arguments:
@@ -2191,6 +2372,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --board BOARD         Board id (needed when two boards hold this card id)
   --take {local,remote}
   -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
@@ -3173,6 +3355,7 @@ usage: hermes harness mission-chat message [-h] --persona PERSONA_ID
                                            [--client-message-id CLIENT_MESSAGE_ID]
                                            [--idempotency-key IDEMPOTENCY_KEY]
                                            [--input-mode {typed,voice}] [--retry-of RETRY_OF]
+                                           [--turn-provider TURN_PROVIDER] [--turn-model TURN_MODEL]
                                            [--image IMAGES] [--file FILES] [--skill SKILLS]
                                            [--stream] [--max-seconds MAX_SECONDS]
                                            [--compression-threshold-tokens COMPRESSION_THRESHOLD_TOKENS]
@@ -3219,8 +3402,15 @@ options:
                         How the operator made this message (typed | voice; absent = typed); recorded
                         on the turn and carried on its history row
   --retry-of RETRY_OF   client_message_id of the interrupted or budget-exhausted turn of this chat
-                        that this send re-runs (recorded as the turn's lineage; any other target is
-                        refused chat_turn_retry_target_invalid)
+                        that this send re-runs, or, with --turn-model, of the chat's latest
+                        delivered turn this send redoes (recorded as the turn's lineage; any other
+                        target is refused chat_turn_retry_target_invalid)
+  --turn-provider TURN_PROVIDER
+                        Provider for THIS turn only; never written to the chat, the agent or the
+                        profile
+  --turn-model TURN_MODEL
+                        Model for THIS turn only (a redo of the latest reply with --retry-of); never
+                        written to the chat, the agent or the profile
   --image IMAGES        A pasted image stored by runtime.chat.message, by reference
                         (sha256:<hex>.png|.jpg); repeatable, at most 4; sent to a vision-capable
                         model as an image part, refused vision_unsupported otherwise
@@ -3231,11 +3421,11 @@ options:
                         durable request
   --stream              Emit operator-chat deltas and the final payload as NDJSON
   --max-seconds MAX_SECONDS
-                        Wall budget for this turn (default:
-                        agent_runtime.mission_chat.default_max_seconds, or 240s when unset). The
-                        agent is told how much remains, and the last max(60s, 15%) is reserved for a
-                        final checkpoint reply; the turn then settles as budget_exhausted (terminal,
-                        no turn-resolve)
+                        Wall budget for this turn (default: none on a turn a person sent — it runs
+                        until it ends or is stopped; agent_runtime.mission_chat.default_max_seconds,
+                        or 240s when unset, on a machine-origin turn). The agent is told how much
+                        remains, and the last max(60s, 15%) is reserved for a final checkpoint
+                        reply; the turn then settles as budget_exhausted (terminal, no turn-resolve)
   --compression-threshold-tokens COMPRESSION_THRESHOLD_TOKENS
                         One-turn native-compression proof seam; overrides the compressor token
                         threshold without changing profile config
@@ -3923,11 +4113,11 @@ usage: hermes harness work [-h] {list,peek,restart,cancel} ...
 
 positional arguments:
   {list,peek,restart,cancel}
-    list                Every piece of running background work, with per-source health
+    list                Everything running now, with per-source health (not board tasks)
     peek                Bounded read-only look at one item's recent output/progress
     restart             Stop a build if it is running, then re-run it (slot environment under a
                         bound slot)
-    cancel              Interrupt one piece of running work through its owning subsystem
+    cancel              Stop one thing that is running now, through its owning subsystem
 
 options:
   -h, --help            show this help message and exit
@@ -3960,7 +4150,8 @@ usage: hermes harness work peek [-h] [-o {json,table,yaml,wide}] [--json] [-q] [
                                 work_id
 
 positional arguments:
-  work_id               Work id from `harness work list`, e.g. terminal:sess-1
+  work_id               Running-now id from `harness work list`, e.g. terminal:sess-1 (a board task
+                        id is not one)
 
 options:
   -h, --help            show this help message and exit
@@ -4002,7 +4193,7 @@ usage: hermes harness work cancel [-h] [--reason REASON] [--issued-at ISSUED_AT]
                                   work_id
 
 positional arguments:
-  work_id               Work id from `harness work list`
+  work_id               Running-now id from `harness work list` (a board task id is not one)
 
 options:
   -h, --help            show this help message and exit
