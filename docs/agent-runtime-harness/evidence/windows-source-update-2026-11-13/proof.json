@@ -25,7 +25,7 @@
   },
   "canonical_update": {
     "command": "hermes -p default update --channel main --branch main --yes",
-    "receipt": "update_20261113_233102",
+    "receipt": "update_20261113_233103_42188_a721132e9de14588847960372741e2a5.json",
     "apply": "success",
     "python_dependencies": "success",
     "node_dependencies": "success",
