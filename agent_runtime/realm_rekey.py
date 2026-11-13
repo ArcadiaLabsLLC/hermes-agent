@@ -108,7 +108,7 @@ STORE_PLACES: dict[str, PlaceClass] = {
     "realms": _M, "workspaces": _M, "workspace_slots": _M, "office": _M, paths.OFFICE_ARCHIVE_DIRNAME: _M,
     "boards": _M, paths.LEVELS_DIRNAME: _M, "slot_worktrees": _M, paths.WORK_DIRNAME: _M, "schedules": _M,
     paths.REALM_SYNC_DIRNAME: _M, "realm_sync_state": _M, "active_workspace.json": _M, "active_realm.json": _M,
-    "default_realm.json": _M, "brain_paths.json": _M,
+    "default_realm.json": _M, "brain_paths.json": _M, "realm_repo_folders.json": _M,
     # Once the ``agents`` step has parked the team's rows, what is left in ``persona_instances`` is this
     # install's own and the local copy's new agents; a flow graph is its owner's canvas and follows the desk.
     "persona_instances": _M, "flow_graphs": _M,

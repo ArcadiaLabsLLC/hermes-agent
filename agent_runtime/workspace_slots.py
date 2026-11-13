@@ -600,7 +600,8 @@ def show(workspace_id: str) -> dict[str, Any]:
 
     ``bound_here`` is true only when the bound folder exists. ``path`` is the bound root
     whenever this machine binds the slot, and ``folder_missing`` says the root is bound but
-    its folder is gone — distinct from never set up here (``path`` null).
+    its folder is gone — distinct from never set up here (``path`` null). ``default_clone_path`` is where
+    Clone lands by default (``workspace_slot_clone_home``), null when the slot is ready here or has no URL.
     """
 
     import time
@@ -623,6 +624,10 @@ def show(workspace_id: str) -> dict[str, Any]:
                       f"{name}: bound on " + (", ".join(machines) if machines else "no reporting machine"), time.time())
             row["unknowns"] = index.wire()
         here[name] = row
+    from .workspace_slot_clone_home import default_clone_paths
+
+    for name, default in default_clone_paths(workspace_id, document, here).items():
+        here[name]["default_clone_path"] = default
     from .workspace_chat_export import ChatHome, shared_sessions_of
 
     return {"document": document, "here": here, "shared_chats": shared_sessions_of(ChatHome.workspace(workspace_id))}

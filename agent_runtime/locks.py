@@ -272,6 +272,13 @@ def workspace_realm_assign_lock() -> Iterator[None]:
 
 
 @contextlib.contextmanager
+def realm_repo_folders_lock() -> Iterator[None]:
+    """The realm id -> ``repos/`` folder mapping (``workspace_slot_clone_home``): read, fix and write in one step."""
+    with _file_lock(paths.lock_dir() / "realm_repo_folders.lock"):
+        yield
+
+
+@contextlib.contextmanager
 def chat_turn_reservation_lock(key_digest: str) -> Iterator[None]:
     """Serialize one ``turn_request_id``'s ACCEPT decision across processes.
 

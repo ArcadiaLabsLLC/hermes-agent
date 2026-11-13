@@ -152,13 +152,6 @@ def _guard_replay(workspace_id: str | None, slot: str, step_id: str, issued_at: 
         raise SlotRefused(REASON_STALE_REQUEST, f"{slot}/{step_id} already ran for a request issued at {held.get('issued_at')}")
 
 
-def _existing_ancestor(path: Path) -> Path:
-    for candidate in (path, *path.parents):
-        if candidate.is_dir():
-            return candidate
-    return Path(os.getcwd())
-
-
 def _start(run: dict[str, Any], session: Any, registry: Any, watch: bool) -> dict[str, Any]:
     run = record_run({**run, "run_id": session.id, "session_id": session.id, "work_id": f"terminal:{session.id}",
                       "status": RUN_RUNNING, "reason": None, "evidence": None, "exit_code": None, "ended_at": None})
@@ -208,7 +201,8 @@ def clone_slot(workspace_id: str | None, slot: str, dest_path: str, *, issued_at
     with LOCK:
         _guard_replay(workspace_id, slot, CLONE_STEP_ID, issued_at)
         registry = registry or spawning_registry()
-        session = registry.spawn_local(shlex.join(argv), cwd=str(_existing_ancestor(dest.parent)),
+        dest.parent.mkdir(parents=True, exist_ok=True)  # a default clone folder's realm folder may not exist yet
+        session = registry.spawn_local(shlex.join(argv), cwd=str(dest.parent),
                                        env_vars=dict(CLONE_ENV), persist_on_release=True)
         run = _start({"workspace_id": workspace_id, "slot": slot,
                       "step_id": CLONE_STEP_ID, "kind": RUN_KIND_CLONE,

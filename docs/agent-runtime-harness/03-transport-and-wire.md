@@ -2187,6 +2187,36 @@ dart tool/run_tier.dart`, `django`/`backend` → `bash scripts/test.sh`, `brain`
 manifest written before `gates` existed folds to `{}` — every slot red; that batch is stopped and planned
 again.
 
+### Workspace slot methods — this machine's fill and the default clone folder
+
+`runtime.workspace.slots.show {workspace_id}` (`agent_runtime/serve_rpc/workspace_slots.py` over
+`workspace_slots.py::show`) answers `{document, here, shared_chats}`; `here.<slot>` is THIS machine's view of each
+live slot: `{bound_here, path, folder_missing, unknowns, fill, default_clone_path}`. `default_clone_path` (row
+RT-SLOT-DEFAULT-CLONE-FOLDER, for Eternia `MC-SLOT-JOIN-ONE-PROMPT-SETUP`, owner ruling 2026-11-13) is an absolute
+path string, or null when the slot is bound and ready here (`bound_here`), is local-only (`repo.local`) or declares
+no clone URL: the folder the Harness offers as "Clone into", `<namespace>/repos/<realm folder>/<slot>`
+(`agent_runtime/workspace_slot_clone_home.py`). `<namespace>` holds the store (`agent-runtime/`); the realm folder
+is a filesystem-safe form of the realm's display name fixed per realm id the first time one is given
+(`<store>/realm_repo_folders.json`, so a renamed realm keeps its clones; a second realm with the same folder name
+takes `-2`, `-3` …; a workspace in no realm uses `local`). Within a realm a repository (normalized clone URL, the
+ssh and https spellings alike) is cloned once: when a slot of any workspace of the realm is bound here to that
+repository under `repos/<realm folder>/`, its path is the default — it exists, so the client binds it
+(`runtime.workspace.slot.bind`) rather than clones — and two unbound slots of one repository get the same path. A
+`<slot>` folder bound to another repository, or on disk non-empty and not a checkout of this one, is suffixed
+`<slot>-2`, `-3` …. Reading it writes only the realm folder mapping; nothing is cloned. Additive: a client that
+does not read the key is unchanged.
+
+```json
+{"here": {"launcher": {"bound_here": false, "path": null, "folder_missing": false, "unknowns": [], "fill": null,
+                       "default_clone_path": "X:/hermes-namespaces/acct-1a2b/repos/Team-Alpha/launcher"},
+          "backend":  {"bound_here": true, "path": "D:/src/eternia-backend", "folder_missing": false, "unknowns": [],
+                       "fill": null, "default_clone_path": null}}}
+```
+
+`runtime.workspace.slot.clone {workspace_id, slot, dest_path, issued_at}` (local console) clones into `dest_path`
+(absolute; absent or an empty directory) and creates its missing parent folders first, so the default above can be
+passed as it is; any other absolute path the client chooses behaves as before.
+
 ### Schedule methods — the serve's scheduler
 
 `runtime.schedule.arm | disarm | list | pause | resume` (`agent_runtime/serve_rpc/schedule.py` over
