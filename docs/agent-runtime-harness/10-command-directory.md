@@ -247,6 +247,19 @@ bot token is set through `runtime.messaging.credential.set` from this machine's 
 `runtime.messaging.status` for `credential` and `lane`; allow your platform user with
 `runtime.messaging.operator.allow` before the first message (a refused first message puts your user id in
 `runtime.messaging.refused.recent`), then send `/persona <name>` in the chat.
+
+**Which Telegram connector runs** is the setting
+`plugins.entries.eternia-harness.settings.messaging_telegram_transport`: `fork` (the default, the Harness's own
+`agent_runtime/messaging/telegram_api.py::TelegramTransport`) or `upstream` (upstream's Telegram adapter used
+as a plain pipe behind `agent_runtime/messaging/upstream_adapter_transport.py::TelegramUpstreamAdapterTransport`,
+with the same bridge, operator list, bindings and approval cards on top). Turn it on with
+`hermes config set plugins.entries.eternia-harness.settings.messaging_telegram_transport upstream` and back with
+`fork`; the serve lane restarts the platform on its next tick, the old connector stopped before the new one
+starts (a bot has one poller). Any other value is `fork`. `upstream` needs the `messaging` extra installed
+(`python-telegram-bot`); without it the lane reads `start_failed`. What differs under `upstream`: replies are
+formatted (Telegram MarkdownV2), messages sent in quick succession are merged into one turn, and a stranger is
+refused by the adapter before anything they sent is fetched. Evidence and the list of what is still unproven:
+`docs/agent-runtime-harness/evidence/upstream-adapter-as-transport-2026-11-14/SWITCH_AUDIT.md`.
 [Transport](03-transport-and-wire.md) owns the verbs; [multi-device](09-multi-device-runtime.md) the
 service model.
 

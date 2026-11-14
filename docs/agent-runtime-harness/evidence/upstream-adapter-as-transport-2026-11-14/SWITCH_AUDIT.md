@@ -135,3 +135,40 @@ fixes the upstream adapter did everything the fork's own Telegram transport does
 stand-in. The remaining risk is what only real Telegram can show. So: build it as a second
 option that is off by default, on the code of this branch; the owner runs it with a real bot;
 it becomes the default, and the fork's own transport is retired, only after that.
+
+## After the audit: the live check and the opt-in build (added later the same day)
+
+**Live, on real Telegram** (reported by the owner, not seen by the lane): the owner ran
+`scripts/live_telegram_check.py` with a throwaway bot. The bot reached step 6 of 6, so
+connect, a threaded reply, the formatted reply, the split long reply, an approval card's
+press and edit, and a photo all went through Telegram's real servers; asked whether the phone
+buzzed, the reply threaded, the formatting rendered, line 130 arrived and the card changed,
+the owner answered yes. The console summary was not pasted, and the stranger step is not
+confirmed.
+
+**Built, on `main`, off by default** (`RT-MESSAGING-TELEGRAM-ON-UPSTREAM-ADAPTER-OPT-IN`):
+the harness setting `messaging_telegram_transport` (`fork` by default, `upstream` to opt
+in) picks the connector in `agent_runtime/messaging/serve_lane.py`; a changed setting stops
+the running connector before the other starts. Beyond the audit branch, the build:
+
+- asks the fork's operator list at the adapter's intake with the sender's NAME, so the
+  console's Allow list shows a name as it does today (the audit's fix lost it);
+- registers the approval-card press handler on every application the adapter builds, so a
+  rebuilt application after a failed connect still has it;
+- writes the same `messaging.refused` receipt the bridge writes for a stranger;
+- treats an adapter that does not connect as a failed start (`start_failed`).
+
+One more behaviour difference seen in the live script's dry run: the adapter merges messages
+sent within a fraction of a second into one, where the fork's transport queues each.
+
+Tests: `tests/agent_runtime/messaging/test_serve_lane_transport_choice.py` (the setting, the
+restart order, the real factory through the lane against the local Bot API) beside the four
+audit files. The whole messaging folder: 111 passed. The landing gate
+(`scripts/run_tests_bundled.sh tests`) reported 92 failures in 79 files on this tree; one
+was this change's (a test imported pyyaml) and is fixed; none of the others names a file of
+this change, and five of them were read (a function-length floor in `chat_turn.py`, a
+secret-word rule in `realm_sync`, two package patches in other tests, a source-grep
+assertion, an id-marker set) — the rest were not read one by one.
+
+Still unproven: a day of ordinary use on the owner's real bot, and the two upstream Windows
+stuck-poll tests.

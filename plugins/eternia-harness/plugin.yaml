@@ -65,3 +65,7 @@ config_schema:
   messaging_default_persona:
     type: str
     description: Display name of the persona an unbound platform chat is offered first (optional)
+  messaging_telegram_transport:
+    type: str
+    default: fork
+    description: Which Telegram connector the bridge uses, "fork" (the Harness's own, the default) or "upstream" (upstream's adapter behind the shim; needs the messaging extra installed). One poller per bot, never both
