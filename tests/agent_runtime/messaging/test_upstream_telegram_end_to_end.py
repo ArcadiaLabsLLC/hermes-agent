@@ -156,7 +156,11 @@ def test_a_long_reply_is_split_by_the_adapter_at_telegrams_limit(rig):
     _bind()
     rig.server.push_message("write a lot")
     entry = _wait(lambda: _entry_for("write a lot"), what="the queued turn")
+    counted = []
+    real_send = rig.transport.send
+    rig.transport.send = lambda *a, **k: (counted.append(real_send(*a, **k)), counted[-1])[1]
     rig.turns.settled(entry, 0, {"ok": True, "reply": "word " * 2000})  # 10,000 characters
+    assert len(counted[0].refs) == len(rig.server.sent)  # the shim reports every part, not only the last
     sizes = [len(m["text"]) for m in rig.server.sent]
     assert len(sizes) >= 3 and max(sizes) <= 4096, sizes
     assert sum(m["text"].count("word") for m in rig.server.sent) == 2000  # nothing lost in the split

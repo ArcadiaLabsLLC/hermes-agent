@@ -168,7 +168,14 @@ class UpstreamAdapterTransport:
         if not getattr(result, "success", False):
             logger.warning("the upstream adapter refused a send: %s", getattr(result, "error", None))
             return SendResult(())
-        ids = [*getattr(result, "continuation_message_ids", ()), getattr(result, "message_id", None)]
+        # A reply the adapter split: Telegram's adapter lists every part in ``raw_response["message_ids"]``;
+        # others use ``continuation_message_ids`` with ``message_id`` the last part.
+        raw = getattr(result, "raw_response", None)
+        ids = list(raw.get("message_ids") or ()) if isinstance(raw, dict) else []
+        if not ids:
+            first = getattr(result, "message_id", None)
+            rest = [i for i in getattr(result, "continuation_message_ids", ()) if i != first]
+            ids = [first, *rest]
         return SendResult(tuple(MessageRef(chat, str(i)) for i in ids if i))
 
     def typing(self, chat: str, thread: str | None = None) -> None:
