@@ -131,11 +131,17 @@ def run_git(args: list[str], repo: Path) -> subprocess.CompletedProcess:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
+    return build_parser().parse_args(argv)
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("command", choices=sorted([*COMMANDS, HANDOFF]))
     parser.add_argument("row_id", metavar="ID")
     parser.add_argument("--who", required=True)
-    parser.add_argument("--note")
+    parser.add_argument("--note", metavar="PATH",
+                        help="the path of the queue note that holds the row, relative to --repo (default: every queue "
+                             "note); not a remark — a handoff's words go in `handoff --text`")
     parser.add_argument("--status")
     parser.add_argument("--row")
     parser.add_argument("--repo", default=".")
@@ -154,7 +160,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     outcome.add_argument("--owner", metavar="WORDS")
     parser.add_argument("--result")
     parser.add_argument("--date")
-    return parser.parse_args(argv)
+    return parser
 
 
 def outcome_commit(value: str) -> tuple[str | None, str]:
@@ -358,7 +364,13 @@ def follow_up_lines(task: Row, rows: list[Row]) -> list[str]:
 
 def queue_notes(repo: Path, note: str | None) -> list[Path]:
     if note:
-        return [repo / note]
+        # TOOL-WORK-ROW-NOTE-FLAG-READS-AS-ROW-GONE (seen 2026-11-14): text passed as ``--note`` answered ``row_gone``
+        # (or a traceback), so a lane read its row as closed. Only an existing queue note is a ``--note``.
+        # MUTATION: drop this refusal and test_a_note_that_is_not_a_queue_note_refuses_naming_the_flag reddens.
+        path = repo / note
+        if not (path.is_file() and is_queue(path.read_text(encoding="utf-8-sig"))):
+            raise WorkRefused(Reason.NOTE_MISSING, f"--note takes the path of a queue note; `{note}` is not one")
+        return [path]
     found = [path for pattern in BRAIN_GLOBS for path in sorted(repo.glob(pattern))]
     return [path for path in found if is_queue(path.read_text(encoding="utf-8-sig"))]
 

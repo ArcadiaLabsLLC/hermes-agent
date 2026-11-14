@@ -849,3 +849,21 @@ def test_append_without_a_home_note_refuses_instead_of_taking_the_first(clones, 
     assert "RT-LOST" not in ids(first) + ids(mine / NOTE)
     assert append("RT-LOST", "group: l", "--note", NOTE) == 0
 
+
+
+@pytest.mark.parametrize("note", ["closed after the live read", "Harness_Brain/20 — Active Initiatives/README.md"])
+def test_a_note_that_is_not_a_queue_note_refuses_naming_the_flag(clones, capsys, note):
+    """TOOL-WORK-ROW-NOTE-FLAG-READS-AS-ROW-GONE (seen 2026-11-14, w1114a-realmlive, ~3 min): ``--note`` with text
+    in it answered ``row_gone``, as if the row had been closed. It is the queue note's PATH: anything that is not an
+    existing queue note refuses ``note_missing``, says so, and the help says what the flag takes.
+
+    KILLING MUTATION: drop the not-a-queue-note refusal in ``queue_notes`` -> the text answers ``row_gone`` (or a
+    traceback), red."""
+    _, mine, _ = clones
+    (mine / "Harness_Brain/20 — Active Initiatives/README.md").write_text("# not a queue\n", encoding="utf-8")
+    before = (mine / NOTE).read_bytes()
+    assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--note", note, "--repo", str(mine)]) == 2
+    err = capsys.readouterr().err
+    assert "note_missing" in err and "queue note" in err and "row_gone" not in err
+    assert (mine / NOTE).read_bytes() == before
+    assert "path of the queue note" in work_row.build_parser().format_help()
