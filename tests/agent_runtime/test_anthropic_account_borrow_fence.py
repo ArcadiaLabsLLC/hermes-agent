@@ -116,3 +116,18 @@ def test_outside_eternia_the_ladder_is_upstreams(home, monkeypatch):
     monkeypatch.delenv("HERMES_LAUNCHER_SPAWNED")
     assert resolve_anthropic_token() == BORROWED
     assert _anthropic_rows() == ["claude_code"]
+
+
+def test_sign_out_removes_the_hermes_grant_file(home):
+    """RT-ANTHROPIC-SIGN-OUT-LEAVES-THE-HERMES-GRANT-FILE: a ``.anthropic_oauth.json`` (an older
+    ``hermes setup`` login) re-seeded ``hermes_pkce`` after logout cleared ``auth.json``."""
+    from agent_runtime.provider_account import _signed_in, provider_signout
+
+    grant = home / ".anthropic_oauth.json"
+    grant.write_text(json.dumps({"accessToken": GRANT, "refreshToken": "fake-pkce-refresh",
+                                 "expiresAt": _expiry()}))
+    assert _signed_in("anthropic") is True
+    answer = provider_signout("anthropic")
+    assert (answer["was_signed_in"], answer["signed_in"]) == (True, False)
+    assert not grant.exists()
+    assert GRANT not in _turn_token()

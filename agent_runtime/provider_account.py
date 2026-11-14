@@ -151,6 +151,25 @@ def _signed_in(provider: str) -> bool:
         return False
 
 
+def _remove_own_grant_files(provider: str) -> None:
+    """Run upstream's own removal step for the provider's hermes-owned grant file
+    (RT-ANTHROPIC-SIGN-OUT-LEAVES-THE-HERMES-GRANT-FILE).
+
+    ``logout_command`` clears only ``auth.json``; the pool re-seeds ``hermes_pkce`` from
+    ``.anthropic_oauth.json`` on the next load, so sign-out would answer still signed in.
+    The file is hermes's own (``hermes setup`` / an older login), never another tool's."""
+    if provider != "anthropic":
+        return
+    from agent.credential_sources import find_removal_step
+
+    step = find_removal_step(provider, "hermes_pkce")
+    # MUTATION: skip this call and test_sign_out_removes_the_hermes_grant_file reddens.
+    try:
+        step.remove_fn(provider, None)
+    except Exception as exc:  # class name only, never the message
+        raise ProviderRefused("signout_failed", type(exc).__name__, provider=provider) from None
+
+
 def provider_signout(provider: str) -> dict:
     """Clear this provider's sign-in (``hermes auth logout``)."""
     from hermes_cli.auth_commands import auth_logout_command
@@ -163,6 +182,7 @@ def provider_signout(provider: str) -> dict:
         raise ProviderRefused("signout_refused", str(exit_.code or ""), provider=provider) from None
     except Exception as exc:  # class name only, never the message
         raise ProviderRefused("signout_failed", type(exc).__name__, provider=provider) from None
+    _remove_own_grant_files(provider)
     return {"provider": provider, "was_signed_in": was, "signed_in": _signed_in(provider),
             "env_tokens": _env_tokens_left(provider)}
 
