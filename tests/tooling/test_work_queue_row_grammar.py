@@ -488,6 +488,58 @@ def test_a_same_repo_blocker_id_is_a_row_in_this_vault() -> None:
     )
 
 
+def listed_dangling(rows, live: set[str], siblings: dict[str, set[str]]) -> list[str]:
+    """Rows of ``rows`` whose block lists a row its brain does not hold, each entry read in ITS brain
+    (``wake.blockers_of``): a later hermes entry must be a live row here; a launcher / backend entry must be a row
+    (live or archived) in that brain when ``siblings`` holds it. The first hermes entry is
+    :func:`test_a_same_repo_blocker_id_is_a_row_in_this_vault`'s."""
+
+    from agent_runtime.work_store.wake import blockers_of
+
+    return [
+        f"{row.ref.note}:{row.line_no}: `{row.ref.id}` waits on {brain} `{blocker}`, which no {brain} queue holds"
+        for row in rows
+        for index, (blocker, brain) in enumerate(blockers_of(row.status_body))
+        if (brain == "hermes" and index and blocker not in live)
+        or (brain != "hermes" and brain in siblings and blocker not in siblings[brain])
+    ]
+
+
+def test_a_list_names_each_row_in_its_own_brain() -> None:
+    """FH-QUEUE-BLOCKED-LIST-NAMES-ROWS-IN-OTHER-BRAINS (twin of the launcher's 5cfeff2093). KILLING MUTATION:
+    ``blockers_of`` gives every entry the reason's brain -> ``BE-OPEN`` resolves in hermes and dangles, red."""
+    from agent_runtime.work_store import grammar
+
+    note = (
+        "- **`RT-BOTH` — x** · group: g · BLOCKED 2026-11-14: hermes — `RT-OPEN` and backend `BE-OPEN`: both\n"
+        "- **`RT-GONE` — x** · group: g · BLOCKED 2026-11-14: hermes — `RT-OPEN` then backend `BE-GONE`\n"
+        "- **`RT-LATE` — x** · group: g · BLOCKED 2026-11-14: launcher — `MC-OPEN`, hermes `RT-NONE`\n"
+        "- **`RT-OPEN` — x** · group: g · READY 2026-11-14\n"
+    )
+    rows = grammar.parse_note(note, slot="hermes", note="q.md")
+    live = {row.ref.id for row in rows}
+    siblings = {"backend": {"BE-OPEN"}, "launcher": {"MC-OPEN"}}
+    assert listed_dangling(rows, live, siblings) == [
+        "q.md:2: `RT-GONE` waits on backend `BE-GONE`, which no backend queue holds",
+        "q.md:3: `RT-LATE` waits on hermes `RT-NONE`, which no hermes queue holds",
+    ]
+    assert listed_dangling(rows, live, {}) == [
+        "q.md:3: `RT-LATE` waits on hermes `RT-NONE`, which no hermes queue holds"], "a brain not checked out is skipped"
+
+
+def test_every_row_a_block_lists_is_a_row_in_its_brain() -> None:
+    from agent_runtime.work_store import grammar, tasks
+
+    rows = [row for path, text in _queue_notes().items() for row in grammar.parse_note(text, slot="hermes", note=path)]
+    siblings = {brain: {row.ref.id for row in found} for brain, found in tasks.sibling_rows(REPO).items()}
+    for brain, archived in tasks.sibling_archived_ids(REPO).items():
+        siblings.setdefault(brain, set()).update(archived)
+    dangling = listed_dangling(rows, {row.ref.id for row in rows}, siblings)
+    assert not dangling, ("BLOCKED on a row its brain does not hold (misspelled, renamed or closed): point it at the "
+                          "real row, or name the brain it lives in before it (`` `A` and backend `B` ``):\n"
+                          + "\n".join(dangling))
+
+
 def test_lane_blocked_rows_without_a_blocker_id_only_fall() -> None:
     missing = sorted(where for where, (_, blocker, _) in _lane_blocked_rows() if blocker is None)
     assert len(missing) <= BLOCKER_ID_CEILING, (

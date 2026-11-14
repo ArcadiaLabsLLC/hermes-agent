@@ -283,6 +283,18 @@ def sibling_rows(repo: Path, environ: Mapping[str, str] | None = None) -> dict[s
     return found
 
 
+def sibling_archived_ids(repo: Path, environ: Mapping[str, str] | None = None) -> dict[str, set[str]]:
+    """The archived row IDs of each sibling brain checked out beside ``repo`` (:func:`sibling_rows`' brains), read
+    from its working tree; a brain not found is left out."""
+
+    found: dict[str, set[str]] = {}
+    for root in workspace_roots(repo, environ):
+        for brain, relative in SIBLING_QUEUE_DIRS.items():
+            if brain not in found and (directory := root / relative).is_dir():
+                found[brain] = {row.ref.id for row in archived_rows(directory)}
+    return found
+
+
 def siblings_visible(found: Mapping[str, list[Row]]) -> bool:
     return all(brain in found for brain in SIBLING_QUEUE_DIRS)
 

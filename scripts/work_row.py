@@ -11,7 +11,8 @@
 
 ``handoff`` adds ONE `` · handoff <date> (<lane>): <text>`` segment to the row, before its claim mark, and leaves
 every other segment alone (RT-QUEUE-ROW-HANDOFF-HAS-NO-COMMAND; a second blocker is ``set-status`` with a list:
-``"BLOCKED <date>: another lane — `A` then `B`: why"``). ``append`` places the new row beside its own: a subtask
+``"BLOCKED <date>: another lane — `A` then `B`: why"``, or ``… — `A` and backend `B`: why`` for a row in another
+brain). ``append`` places the new row beside its own: a subtask
 after the last live row of its task in the note that holds them, a task row after the last row under that note's
 ``## Tasks`` heading, ``--under "<heading>"`` after the last row under the heading that starts with those words
 (with no ``--note``: in the row's home note when it has that heading, else the one queue note that does — two such
@@ -35,8 +36,11 @@ files in one commit, ``queue(<stem>): close <ID> <outcome>``. Every row of this 
 naming the close (``agent_runtime/work_store/wake.py``; launcher row BRAIN-QUEUE-CLOSE-WAKES-DEPENDENTS);
 ``--no-wake`` leaves them (and says so on stderr: a row left BLOCKED on an archived row reds the queue gate). A row
 whose block lists several rows (``— `A` then `B`, `C`: why``) is woken only by the close of the last one still
-open; until then a close of one of them re-points it at the rest, ``--no-wake`` or not. Rows in the launcher or backend brains are theirs to wake — the launcher's
-``dart tool/queue/waits_on.dart <ID> --in hermes`` lists them.
+open; until then a close of one of them re-points it at the rest, ``--no-wake`` or not. A later row of the list
+in another brain names it first (``— `A` and backend `B`: why``, FH-QUEUE-BLOCKED-LIST-NAMES-ROWS-IN-OTHER-BRAINS):
+each is resolved in its own brain, so a hermes close steps every row listing it as a hermes row, whatever the
+reason, and a row another brain's row still holds is re-pointed at it, never woken. Rows in the launcher or backend
+brains are theirs to wake — the launcher's ``dart tool/queue/waits_on.dart <ID> --in hermes`` lists them.
 
 A close also moves the row's TASK (launcher plan ``EterniaLauncher/docs/mission_control/planned/
 QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md`` D3 amended, D7; the launcher's ``tool/queue/close_row.dart``;

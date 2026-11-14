@@ -537,6 +537,35 @@ def test_no_wake_still_takes_the_archived_row_off_a_list_and_names_a_row_it_stra
     assert said.err.startswith("warning: `RT-W` is left BLOCKED on `RT-A`, which this close archives (--no-wake)")
 
 
+MIXED = ("- **`RT-X` — on two brains** · BLOCKED 2026-11-01: hermes — `RT-A` and backend `BE-B`: both · kept\n"
+         "- **`RT-Y` — the launcher first** · BLOCKED 2026-11-01: launcher — `MC-A` then hermes `RT-A`, `MC-C`: why\n"
+         "- **`RT-Z` — three** · BLOCKED 2026-11-01: another lane — `RT-A` then backend `BE-B` and `RT-B`\n"
+         "- **`RT-V` — a backend namesake** · BLOCKED 2026-11-01: hermes — `RT-B` and backend `RT-A`\n")
+
+
+def test_a_close_steps_only_the_hermes_rows_of_a_list_naming_other_brains(clones, capsys):
+    """FH-QUEUE-BLOCKED-LIST-NAMES-ROWS-IN-OTHER-BRAINS (twin of the launcher's 5cfeff2093): each listed row is
+    resolved in its own brain. KILLING MUTATION: ``blockers_of`` gives every entry the reason's brain (the word
+    ignored) -> RT-X wakes while backend `BE-B` still holds it, RT-Y keeps the archived `RT-A`, and RT-V loses its
+    backend `RT-A`, red (recorded 2026-11-14)."""
+    _, mine, _ = clones
+    (mine / NOTE).write_text(HEAD + ROWS + MIXED, encoding="utf-8", newline="\n")
+    assert work_row.main(["close", "RT-A", "--who", "r", "--owner", "x", "--date", "2026-11-03", "--repo", str(mine),
+                          "--no-commit"]) == 0
+    rows = {line.split("`")[1]: line for line in (mine / NOTE).read_text(encoding="utf-8").split("\n") if "`RT-" in line}
+    assert rows["RT-X"].endswith("· BLOCKED 2026-11-01: backend — `BE-B`: both · kept"), "the reason follows its row"
+    assert rows["RT-Y"].endswith("· BLOCKED 2026-11-01: launcher — `MC-A` then `MC-C`: why")
+    assert rows["RT-Z"].endswith("· BLOCKED 2026-11-01: backend — `BE-B` then hermes `RT-B`")
+    assert rows["RT-V"] == MIXED.split("\n")[3], "a backend row of the same name is not this close's"
+    said = capsys.readouterr().out
+    assert "`RT-X` stays BLOCKED: it also waits on `BE-B`, still open" in said and "woke" not in said
+    assert work_row.main(["close", "RT-B", "--who", "r", "--owner", "x", "--date", "2026-11-03", "--repo", str(mine),
+                          "--no-commit"]) == 0
+    text = (mine / NOTE).read_text(encoding="utf-8")
+    assert "· BLOCKED 2026-11-01: backend — `BE-B`\n" in text, "RT-Z: its last hermes row closed, the backend one holds"
+    assert "· BLOCKED 2026-11-01: backend — `RT-A`\n" in text, "RT-V: re-pointed at the backend's `RT-A`"
+
+
 def test_only_the_rows_a_block_opens_with_are_its_blockers():
     """KILLING MUTATION: let ``_NEXT_BLOCKER`` match a bare space before the next backticked name -> the prose's
     ``RT-B`` joins the list, red."""
@@ -548,6 +577,20 @@ def test_only_the_rows_a_block_opens_with_are_its_blockers():
         "hermes — ", ["RT-A"], " the fix, which `RT-B` also wants")
     assert blocker_list("another lane — `RT-A` `RT-B`")[1] == ["RT-A"]
     assert blocker_list("owner decision — which one?") is None
+    assert blocker_list("hermes — `RT-A` and backend `BE-B`, launcher `MC-C` then `RT-D`: why") == (
+        "hermes — ", ["RT-A", "BE-B", "MC-C", "RT-D"], ": why"), "a brain word belongs to the entry after it"
+
+
+def test_a_list_names_each_row_in_its_own_brain():
+    """KILLING MUTATION: ``blockers_of`` gives every entry the reason's brain -> `BE-B` reads as hermes, red."""
+    from agent_runtime.work_store.wake import blockers_of
+
+    assert blockers_of("hermes — `RT-A` and backend `BE-B`, launcher `MC-C` then `RT-D`: why") == [
+        ("RT-A", "hermes"), ("BE-B", "backend"), ("MC-C", "launcher"), ("RT-D", "hermes")]
+    assert blockers_of("launcher — `MC-A` then hermes `RT-B` and `MC-C`") == [
+        ("MC-A", "launcher"), ("RT-B", "hermes"), ("MC-C", "launcher")]
+    assert blockers_of("another lane — `RT-A`") == [("RT-A", "hermes")]
+    assert blockers_of("owner decision — `RT-A` first") == [], "only a lane reason names a brain"
 
 
 TASK_ROWS = ("- **`TASK-P` — Pills on the board** · task: p · READY 2026-11-09\n"
