@@ -246,6 +246,22 @@ def realm_sync_root() -> Path:
     return store_root() / REALM_SYNC_DIRNAME
 
 
+#: Each realm's own sync clone lives at ``realm_sync/_clones/<realm>`` (RT-REALM-SYNC-ONE-CLONE-PER-REALM).
+#: Not ``realm_sync/<realm>``: that is already the realm's baseline folder (the helpers below), and git
+#: refuses to clone into a folder that holds files. The leading ``_`` is the namespace guarantee:
+#: ``safe_path_token`` strips it, so no realm or server token can ever be named this.
+REALM_SYNC_CLONES_DIRNAME = "_clones"
+#: The ONE clone every server-less realm shared before clones were per realm (``realm_sync/local``); a
+#: server's realms shared ``realm_sync/<server>``. Read only to carry an old install's work over.
+REALM_SYNC_LEGACY_LOCAL_CLONE = "local"
+
+
+def realm_sync_clone_dir(realm_id: str) -> Path:
+    """The realm's own sync clone (one per realm, server realms and local realms alike)."""
+
+    return realm_sync_root() / REALM_SYNC_CLONES_DIRNAME / safe_path_token(realm_id)
+
+
 #: Git course checkouts (realm-course-subject-authoring plan §2): one clone per course per machine, never a
 #: slot and never a realm. Named here so the core cache's exclusion list imports it — a course's tree and
 #: its ``.git`` are no projection input, and a commit there must not cold the read model.

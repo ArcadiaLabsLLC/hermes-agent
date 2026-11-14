@@ -2,7 +2,7 @@
 
 A local realm backs up the same way a ``local:`` credential's ``git_url`` makes it
 (``git._adopt_local_remote``): the URL becomes the realm's ``sync_manifest_ref`` and
-the shared local sync repo's ``origin``. A server realm's remote is the server's and
+the realm's own sync repo's ``origin``. A server realm's remote is the server's and
 is never set here. RT-HARNESS-REALM-SET-BACKUP-REMOTE: before this verb a lane
 hand-edited the realm JSON, and a ``file://`` URL there was read as a path.
 """
@@ -61,8 +61,7 @@ def set_realm_backup_remote(realm_id: str, url: str) -> dict[str, Any]:
 
 
 def clear_realm_backup_remote(realm_id: str) -> dict[str, Any]:
-    """Undo ``set``: the realm forgets its remote; the shared repo's ``origin`` goes once no
-    other local realm names it."""
+    """Undo ``set``: the realm forgets its remote and its own clone's ``origin`` goes."""
 
     realm = _server_less(realm_id)
     url = str(realm.sync_manifest_ref or "")
@@ -71,10 +70,6 @@ def clear_realm_backup_remote(realm_id: str) -> dict[str, Any]:
     repo = _sync_repo_path(realm)
     realm.sync_manifest_ref = None
     RealmStore().save(realm, emit_event=False)
-    still_named = any(
-        not other.server_id and str(other.sync_manifest_ref or "") == url
-        for other in RealmStore().list_all(include_archived=True)
-    )
-    if not still_named and (repo / ".git").exists():
+    if (repo / ".git").exists():  # the realm's own clone: no other realm's backup rides on it
         _git(repo, "remote", "remove", "origin", check=False)
     return _answer(realm, None)

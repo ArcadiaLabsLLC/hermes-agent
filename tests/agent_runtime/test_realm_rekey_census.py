@@ -494,7 +494,7 @@ def test_what_lives_outside_the_json_store_follows_the_local_copy(tmp_path):
     provenance.parent.mkdir(parents=True, exist_ok=True)
     provenance.write_text(json.dumps({"skill": "team-skill", "source": {"kind": "realm", "realm_id": realm.id}}),
                           encoding="utf-8")
-    local_repo = runtime_paths.realm_sync_root() / "local"
+    local_repo = runtime_paths.realm_sync_clone_dir(realm.id)  # the realm's own clone (RT-REALM-SYNC-ONE-CLONE-PER-REALM)
     assert (local_repo / "realms" / realm.id / "store" / "workspaces" / f"{first.id}.json").is_file(), (
         "the seed's local-era publish wrote the local copy's history")
     history = _git(local_repo, "rev-list", "--count", "HEAD")
@@ -515,12 +515,15 @@ def test_what_lives_outside_the_json_store_follows_the_local_copy(tmp_path):
     mine = {card.card_id: card.title for card in BoardStore().list_cards(default_board_id(new_first))}
     assert sorted(mine.values()) == ["Added while local", "Team card"] and not team_cards & set(mine)
     assert set(mapping["cards"]) >= team_cards
-    # The local copy's version history moved with it, in one more commit, and its next sync changes nothing.
+    # The local copy's version history moved with it -- its clone to the new id's folder, the subtree in one
+    # more commit -- and its next sync changes nothing.
+    assert not local_repo.exists()
+    local_repo = runtime_paths.realm_sync_clone_dir(new_realm)
     assert not (local_repo / "realms" / realm.id).exists()
     assert (local_repo / "realms" / new_realm / "store" / "workspaces" / f"{new_first}.json").is_file()
     assert _git(local_repo, "rev-list", "--count", "HEAD") == str(int(history) + 1)
     assert _git(local_repo, "status", "--porcelain") == ""
-    assert place_class(Path("realm_sync/local/realms") / new_realm / "store" / "a.json") is PlaceClass.MOVES
+    assert place_class(Path("realm_sync/_clones") / new_realm / "realms" / new_realm / "a.json") is PlaceClass.MOVES
     census = _census(journal)
     assert [census.get(name, []) for name in ("moves", "unclassified", "install")] == [[], [], []]
     pull_realm_sync(new_realm)  # before any new publish: what the history holds is what comes back

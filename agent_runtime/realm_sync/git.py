@@ -7,6 +7,7 @@ the credential's ``-c`` config never leaves this module unscrubbed.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -121,7 +122,7 @@ _ADOPT_REFUSAL_CODES = {
 
 def _adopt_credential_remote(realm: Realm, repo: Path, credential: RealmSyncCredential | None) -> None:
     """A ``local:`` credential's ``git_url`` becomes the realm's ``sync_manifest_ref``
-    and the shared local repo's ``origin`` (p10-work §2.6, ``REALM-LOCAL-REMOTE-FROM-CREDENTIAL``).
+    and the realm's own sync repo's ``origin`` (p10-work §2.6, ``REALM-LOCAL-REMOTE-FROM-CREDENTIAL``).
 
     The mirror of ``realm_membership.adopt_realms`` for a server-less realm, plus the
     ``git remote add`` a clone never needed: through ``git_remote_adopt.adopt_remote``,
@@ -129,7 +130,7 @@ def _adopt_credential_remote(realm: Realm, repo: Path, credential: RealmSyncCred
     one, and merges another machine's unrelated history only when the two touch no common
     path (owner RULED 2026-10-19). Server realms and course credentials never enter (the
     subject check). The ref is moved only when that does not move the repo
-    (``_sync_repo_path`` keys an empty or remote ref by ``local``; a pinned local-path ref
+    (``_sync_repo_path`` keys an empty or remote ref by the realm's id; a pinned local-path ref
     keeps its repo and still gains the remote)."""
 
     from ..realm_membership import CredentialSubject
@@ -314,11 +315,51 @@ def _credential_git_config(credential: RealmSyncCredential | None) -> list[str] 
 
 
 def _sync_repo_path(realm: Realm) -> Path:
+    """The realm's OWN clone (RT-REALM-SYNC-ONE-CLONE-PER-REALM), or the member's pinned local-path repo.
+
+    It used to be keyed by ``realm.server_id or "local"``: every realm of a server shared one working
+    tree and every server-less realm shared ``local``, so a second realm bound to a different
+    repository was refused ``sync_remote_mismatch``. The first lookup after the upgrade carries the
+    old shared clone over (``_carry_shared_clone``), so every verb -- status and history included --
+    finds the realm's unpublished work where it now lives."""
+
     ref = str(realm.sync_manifest_ref or "").strip()
     if ref and not _looks_like_remote(ref):
         return Path(ref).expanduser()
-    key = paths.safe_path_token(realm.server_id or "local")
-    return paths.realm_sync_root() / key
+    repo = paths.realm_sync_clone_dir(realm.id)
+    if not (repo / ".git").exists():
+        _carry_shared_clone(realm, repo)
+    return repo
+
+
+def _legacy_shared_clone(realm: Realm) -> Path:
+    """Where the realm's clone lived while clones were shared: ``realm_sync/<server or "local">``."""
+
+    return paths.realm_sync_root() / paths.safe_path_token(realm.server_id or paths.REALM_SYNC_LEGACY_LOCAL_CLONE)
+
+
+def _carry_shared_clone(realm: Realm, repo: Path) -> None:
+    """COPY the old shared clone to the realm's own place, once, when it is this realm's to inherit.
+
+    A copy, never a move, and the old clone is never deleted here: several realms may have unpublished
+    commits or files in it, and each one's first lookup takes its own copy, keeping everything (review
+    batch 15's recommendation). Only a realm whose subtree the shared clone holds inherits it. Skipped -- the
+    realm clones fresh instead -- when the shared clone's ``origin``
+    is a repository other than the one this realm names, which is exactly the case a shared tree
+    could not serve. Best effort: a copy that fails is removed, and the realm clones fresh."""
+
+    legacy = _legacy_shared_clone(realm)
+    if not (legacy / ".git").is_dir() or repo.exists() or not _realm_subtree(legacy, realm.id).exists():
+        return  # nothing of this realm's is there: a realm made since clones are its own starts clean
+    ref = str(realm.sync_manifest_ref or "").strip()
+    origin = run_sync_git(("config", "--get", "remote.origin.url"), repo=legacy).stdout.strip()
+    if origin and _looks_like_remote(ref) and origin != ref:
+        return
+    try:
+        repo.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(legacy, repo, symlinks=True)
+    except OSError:
+        shutil.rmtree(repo, ignore_errors=True)
 
 
 def _realm_subtree(repo: Path, realm_id: str) -> Path:

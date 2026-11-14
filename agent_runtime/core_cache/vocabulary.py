@@ -706,8 +706,9 @@ _EXCLUDED_STORE_ENTRIES = frozenset(
 #: it is pinned by its own test rather than left to this paragraph.
 #:
 #: The trap that makes the literal name the only safe key: ``_sync_repo_path``
-#: keys a worktree directory by the realm's SERVER token, while the four baseline
-#: helpers key their sidecars by the REALM ID. The two vocabularies are not the
+#: keys a worktree directory under ``_clones/`` by the realm id (and an older
+#: install's shared clone by the SERVER token), while the four baseline helpers
+#: key their sidecars by the REALM ID directly. The vocabularies are not the
 #: same and neither is a prefix of the other, so "skip the realm's directory" and
 #: "skip everything but the baselines" are both unimplementable without a second
 #: name authority that could drift. Skipping the one literal child name ``.git``

@@ -177,7 +177,7 @@ def test_nothing_reaches_the_team_after_leaving_and_the_teams_copy_is_untouched(
     # Leaving sent nothing, and the member's realm no longer points at the team's repository.
     assert (_git(bare, "rev-parse", "main"), _git(bare, "ls-tree", "-r", "main")) == (team_head, team_tree)
     local = RealmStore().get(realm.id)
-    assert _sync_repo_path(local) == runtime_paths.realm_sync_root() / "local"
+    assert _sync_repo_path(local) == runtime_paths.realm_sync_clone_dir(local.id)
     assert realm_summary(local, workspaces=[])["sync"] is None
     # A local edit, then a publish: it is a local realm's publish and never reaches the team.
     BoardStore().add_card(workspace_id=workspace.id, title="Added after leaving")
@@ -195,7 +195,7 @@ def test_nothing_reaches_the_team_after_leaving_and_the_teams_copy_is_untouched(
     assert moved != team_head
     pull_realm_sync(realm.id)
     assert _git(clone, "rev-parse", "HEAD") == team_head
-    assert moved not in _git(runtime_paths.realm_sync_root() / "local", "rev-list", "--all")
+    assert moved not in _git(runtime_paths.realm_sync_clone_dir(local.id), "rev-list", "--all")
     # Another member still reads exactly what was published before the leave.
     assert _git(peer, "ls-tree", "-r", "HEAD") == team_tree
 

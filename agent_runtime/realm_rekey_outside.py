@@ -31,8 +31,8 @@ from . import paths
 __layer__ = "lanes"
 __all__ = ["LOCAL_SYNC_REPO", "step_outside"]
 
-#: ``realm_sync/git.py`` keys a server-less realm's sync repository by this name.
-LOCAL_SYNC_REPO = "local"
+#: The shared clone server-less realms used before each realm had its own (``paths.realm_sync_clone_dir``).
+LOCAL_SYNC_REPO = paths.REALM_SYNC_LEGACY_LOCAL_CLONE
 #: How long the re-key waits for the Lens poller to let go of its database.
 LENS_WAIT_SECONDS = 10.0
 _SQLITE_IN_USE = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED})
@@ -109,9 +109,16 @@ def _sync_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def _rekey_local_history(mapping: Any) -> None:
+    """The realm's own clone (moved to its new id's folder by the ``rename`` step) and, on an install from
+    before clones were per realm, the old shared ``local`` one."""
+
+    for repo in (paths.realm_sync_clone_dir(mapping.realm_new), paths.realm_sync_root() / LOCAL_SYNC_REPO):
+        _rekey_history_in(repo, mapping)
+
+
+def _rekey_history_in(repo: Path, mapping: Any) -> None:
     from .realm_rekey import token_pattern
 
-    repo = paths.realm_sync_root() / LOCAL_SYNC_REPO
     old, new = (Path("realms") / paths.safe_path_token(realm) for realm in (mapping.realm_old, mapping.realm_new))
     if not (repo / ".git").exists() or shutil.which("git") is None:
         return

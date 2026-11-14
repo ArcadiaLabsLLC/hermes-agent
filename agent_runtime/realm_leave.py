@@ -7,10 +7,11 @@ local realm". ``runtime.realm.revoked`` with a member-access reason (``MEMBER_AC
 
 * the realm record drops ``server_id`` and ``sync_manifest_ref`` (the team's repository address), so
   no sync verb can reach the team's copy again — a later publish or pull is a local realm's, against
-  the ``local`` sync repo, never the server's;
+  a fresh clone of its own, never the server's;
 * where it came from is kept in the install-local ``shared_from`` record
   (``realm_sync/revocation.py``), which the snapshot's realm row carries as ``shared_from``;
-* the server's sync clone on this machine goes once no realm is bound to that server any more — it is
+* the realm's own sync clone goes at once, and an older install's shared server clone goes once no realm
+  is bound to that server any more — each is
   the publish projection of the team's repository (its address, its fetch log), not the realm's
   data, which lives in the store and is not touched;
 * each workspace's brain lets go of the team's shared task repository (``work_store.default_brain.
@@ -84,6 +85,10 @@ def make_realm_local(
         realm.server_id = None
         realm.sync_manifest_ref = None
         realm = realms.save(realm, emit_event=False)
+        # The realm's own clone is the team repository's projection too (its ``origin`` is the team's):
+        # kept, the local realm's next publish would push the member's local work to the team
+        # (RT-REALM-SYNC-ONE-CLONE-PER-REALM). The local realm starts a clone of its own.
+        _drop_clone(paths.realm_sync_clone_dir(realm.id))
         _drop_server_clone(server_id, realms)
         realm_sync_sidecar_path(realm.id).unlink(missing_ok=True)
         clear_realm_revocation(realm)
@@ -138,7 +143,10 @@ def _drop_server_clone(server_id: str, realms: RealmStore) -> None:
     loses its remotes instead, so no address stays configured in it."""
     if any(item.server_id == server_id for item in realms.list_all(include_archived=True)):
         return
-    clone = paths.realm_sync_root() / paths.safe_path_token(server_id)
+    _drop_clone(paths.realm_sync_root() / paths.safe_path_token(server_id))
+
+
+def _drop_clone(clone: Path) -> None:
     if not (clone / ".git").exists():
         return
     try:

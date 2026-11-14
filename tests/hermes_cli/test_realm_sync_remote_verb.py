@@ -61,8 +61,8 @@ def _origin(repo: Path) -> str:
     return proc.stdout.strip()
 
 
-def _shared_local_repo() -> Path:
-    return paths.realm_sync_root() / "local"
+def _own_repo(realm_id: str) -> Path:
+    return paths.realm_sync_clone_dir(realm_id)
 
 
 def test_set_adopts_a_file_url_and_a_publish_backs_up_into_it(bare, capsys):
@@ -77,7 +77,7 @@ def test_set_adopts_a_file_url_and_a_publish_backs_up_into_it(bare, capsys):
     assert code == 0, answer
     assert answer["kind"] == "realm_sync_remote" and answer["remote"] == url
     assert RealmStore().get(realm.id).sync_manifest_ref == url
-    assert _origin(_shared_local_repo()) == url
+    assert _origin(_own_repo(realm.id)) == url
     published = publish_realm_sync(realm.id)
     assert published["state"] == "published"
     on_backup = subprocess.run(["git", "-C", str(bare), "ls-tree", "-r", "--name-only", "main"],
@@ -87,7 +87,7 @@ def test_set_adopts_a_file_url_and_a_publish_backs_up_into_it(bare, capsys):
 
 def test_set_takes_an_https_url_and_clear_undoes_it(bare, capsys):
     """*Killing mutation:* drop the ``remote remove origin`` in ``remote.clear_realm_backup_remote``
-    — the shared repo keeps the origin after a clear."""
+    — the realm's own clone keeps the origin after a clear."""
     realm = RealmStore().create(name="Personal Realm")
     url = HOST + "backup.git"
 
@@ -100,7 +100,7 @@ def test_set_takes_an_https_url_and_clear_undoes_it(bare, capsys):
     assert code == 0, answer
     assert answer["remote"] is None
     assert RealmStore().get(realm.id).sync_manifest_ref is None
-    assert _origin(_shared_local_repo()) == ""
+    assert _origin(_own_repo(realm.id)) == ""
 
 
 def test_a_server_realm_is_refused_and_keeps_its_ref(bare, capsys):

@@ -1212,7 +1212,8 @@ local realm. `runtime.realm.revoked` with any reason that is not the git host's 
 `ownership_transferred`, `realm_deleted`, `server_deleted`) calls `agent_runtime/realm_leave.py`
 `make_realm_local`: the realm record drops `server_id` and `sync_manifest_ref`, the install-local record
 `realm_sync_state/<realm>.shared_from.json` keeps `{server_id, server_name, reason, left_at}`, the
-server's sync clone `realm_sync/<server>` is removed once no realm is bound to that server, the mark and
+realm's own sync clone `realm_sync/_clones/<realm>` is removed at once (an older install's shared
+`realm_sync/<server>` once no realm is bound to that server), the mark and
 the cached sync state are cleared, and `realm.updated` `{change: "became_local", server_id}` is
 appended. All member reasons, not only the three `membership_*` ones: the backend emits `realm.revoked`
 once, on the grant diff, so a realm left bound after a lost role would get no second event when the

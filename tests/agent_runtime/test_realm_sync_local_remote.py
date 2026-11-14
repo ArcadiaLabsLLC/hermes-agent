@@ -61,8 +61,9 @@ def _local_realm(name: str = "Personal Realm"):
     return realm, _credential(f"local:{realm.id}")
 
 
-def _shared_local_repo() -> Path:
-    return runtime_paths.realm_sync_root() / "local"
+def _own_repo(realm) -> Path:
+    """The realm's own sync clone (RT-REALM-SYNC-ONE-CLONE-PER-REALM; it was one shared ``local`` repo)."""
+    return runtime_paths.realm_sync_clone_dir(realm.id)
 
 
 def _other_machine_pushes(tmp_path: Path, bare: Path, files: dict[str, str]) -> None:
@@ -72,7 +73,7 @@ def _other_machine_pushes(tmp_path: Path, bare: Path, files: dict[str, str]) -> 
     _git(other, "push", "-q", str(bare), "HEAD:main")
 
 
-def test_a_local_credential_sets_sync_manifest_ref_and_adds_origin_on_the_shared_local_repo(
+def test_a_local_credential_sets_sync_manifest_ref_and_adds_origin_on_the_realms_own_repo(
     isolate_agent_runtime_root, personal
 ):
     realm, credential = _local_realm()
@@ -80,7 +81,7 @@ def test_a_local_credential_sets_sync_manifest_ref_and_adds_origin_on_the_shared
     realm_sync_status(realm.id, credential=credential)
 
     assert RealmStore().get(realm.id).sync_manifest_ref == PERSONAL
-    repo = _shared_local_repo()
+    repo = _own_repo(realm)
     assert _git(repo, "config", "--get", "remote.origin.url") == PERSONAL
     assert _git(repo, "symbolic-ref", "--short", "HEAD") == "main"
 
@@ -92,7 +93,7 @@ def test_first_publish_pushes_with_upstream_into_the_empty_personal_repo(isolate
     result = publish_realm_sync(realm.id, credential=credential)
 
     assert result["state"] == "published"
-    repo = _shared_local_repo()
+    repo = _own_repo(realm)
     assert _git(repo, "rev-parse", "--abbrev-ref", "@{u}") == "origin/main"
     on_origin = _git(personal, "ls-tree", "-r", "--name-only", "main").splitlines()
     assert any(p.startswith(f"realms/{runtime_paths.safe_path_token(realm.id)}/") for p in on_origin)
@@ -110,7 +111,7 @@ def test_pull_then_fast_forwards_from_origin(isolate_agent_runtime_root, persona
 
     pull_realm_sync(realm.id, credential=credential)
 
-    assert _git(_shared_local_repo(), "rev-parse", "HEAD") == _git(personal, "rev-parse", "main")
+    assert _git(_own_repo(realm), "rev-parse", "HEAD") == _git(personal, "rev-parse", "main")
 
 
 @pytest.mark.parametrize("shared", [False, True], ids=["disjoint_subtrees_merge", "shared_path_refuses"])
@@ -122,7 +123,7 @@ def test_a_second_machine_merges_disjoint_subtrees_and_refuses_a_shared_path(
     _other_machine_pushes(tmp_path, personal, {
         "realms/realm_from_machine_a/realm_sync.json": "{}\n", **({"README.md": "a\n"} if shared else {}),
     })
-    repo = _shared_local_repo()  # this machine's own, unrelated local history
+    repo = _own_repo(realm)  # this machine's own, unrelated local history
     repo.mkdir(parents=True)
     subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True, capture_output=True)
     _commit(repo, {f"realms/{token}/realm_sync.json": "{}\n", **({"README.md": "b\n"} if shared else {})}, "b")
@@ -146,7 +147,7 @@ def test_a_server_credential_never_adopts_into_the_local_repo(isolate_agent_runt
     realm_sync_status(realm.id, credential=credential)
 
     assert not RealmStore().get(realm.id).sync_manifest_ref
-    assert _git(_shared_local_repo(), "remote") == ""
+    assert _git(_own_repo(realm), "remote") == ""
 
 
 def test_a_course_credential_is_refused_before_any_git_call(isolate_agent_runtime_root, personal, monkeypatch):
@@ -179,7 +180,7 @@ def test_the_authorization_header_never_lands_in_git_config(isolate_agent_runtim
     header = credential.git_extra_config()[0]
     assert any("remote" in cmd and "add" in cmd and header in cmd for cmd in calls)  # the adopter carried it
     assert any("push" in cmd and header in cmd for cmd in calls)
-    config_text = (_shared_local_repo() / ".git" / "config").read_text(encoding="utf-8").lower()
+    config_text = (_own_repo(realm) / ".git" / "config").read_text(encoding="utf-8").lower()
     assert "extraheader" not in config_text
     assert "sekret" not in config_text
 

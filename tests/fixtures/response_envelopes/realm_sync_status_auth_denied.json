@@ -108,7 +108,7 @@
         "skills_removed": 0
       }
     },
-    "sync_repo": "realm_sync/srv_fixture",
+    "sync_repo": "realm_sync/_clones/realm_fixture_denied",
     "unpublished_changes": false,
     "workspace_changes": [],
     "workspace_statuses": []

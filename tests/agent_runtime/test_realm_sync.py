@@ -357,7 +357,7 @@ def _clone_on_disk(realm) -> Path:
     the local state without ever passing the door that is about to say no.
     """
 
-    repo = runtime_paths.realm_sync_root() / runtime_paths.safe_path_token(realm.server_id or "local")
+    repo = runtime_paths.realm_sync_clone_dir(realm.id)
     repo.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init", str(repo)], check=True, capture_output=True, text=True)
     return repo

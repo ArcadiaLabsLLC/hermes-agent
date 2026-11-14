@@ -1229,9 +1229,10 @@ def test_the_nested_rule_names_the_directory_the_path_helpers_produce(
 
     Both producers are checked, because the two key their children differently
     and the whole reason the rule skips the literal name ``.git`` is that neither
-    keying is usable as a skip: ``realm_sync._sync_repo_path`` keys a worktree by
-    the realm's SERVER token, ``paths.board_baseline_path`` keys a sidecar by the
-    REALM ID, and both land under the same top-level directory.
+    keying is usable as a skip: ``realm_sync._sync_repo_path`` keys a worktree
+    under ``_clones/`` (an older install's by the SERVER token),
+    ``paths.board_baseline_path`` keys a sidecar by the REALM ID, and both land
+    under the same top-level directory.
 
     *Kill:* re-spell the literal ``"realm_sync"`` in ``core_cache``'s mapping
     instead of importing ``paths.REALM_SYNC_DIRNAME``, then change the
@@ -1258,10 +1259,11 @@ def test_the_nested_rule_names_the_directory_the_path_helpers_produce(
     )
 
     class _Realm:
+        id = "realm_alpha"
         sync_manifest_ref = ""
         server_id = "srv_token"
 
-    assert realm_sync._sync_repo_path(_Realm()).parent == paths.realm_sync_root(), (
+    assert paths.realm_sync_root() in realm_sync._sync_repo_path(_Realm()).parents, (
         "the synced worktree no longer lands under the directory the nested rule "
         "is keyed on, so the exclusion skips nothing on a live store"
     )
