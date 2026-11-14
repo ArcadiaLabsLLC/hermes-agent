@@ -322,6 +322,40 @@ def test_a_name_census_gate_runs_in_its_own_step_never_the_touched_lane(repo: Pa
     assert not set(census) & set(lane_argv) and "tests/a/test_committed.py" in lane_argv
 
 
+def test_a_python_change_outside_tests_plans_the_name_census(repo: Path):
+    """FH-PREPUSH-SKIPS-NAME-CENSUS-ON-PYTHON-CHANGE (a third ``display_kind`` arm — a NEW if-ladder — passed
+    prepush green at 7c40d36133 because no census gate was touched). KILLING MUTATION: never set
+    ``PYTHON_CHANGED=1`` -> a committed fork-module change plans no census step, red. A document and an
+    untracked scratch script plan none; a census gate also touched runs once, in the census step."""
+    census = ("tests/tooling/test_no_ladder_routing.py", "tests/agent_runtime/test_duplicate_helper_bodies.py")
+    for path in census:  # the gates exist in the base, untouched by the branch
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text("x = 5\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "gates")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    (repo / ".lane_logs").mkdir()
+    (repo / ".lane_logs" / "scratch.py").write_text("x = 1\n", encoding="utf-8")  # untracked: never pushed
+    (repo / "docs").mkdir()
+    (repo / "docs" / "note.md").write_text("words\n", encoding="utf-8")
+    _git(repo, "add", "docs")
+    _git(repo, "commit", "-q", "-m", "docs")
+    assert "step census" not in _run(repo, "--plan")[0].stdout
+    (repo / "agent_runtime").mkdir()
+    (repo / "agent_runtime" / "curation.py").write_text("y = 1\n", encoding="utf-8")
+    _git(repo, "add", "agent_runtime")
+    _git(repo, "commit", "-q", "-m", "fork module")
+    proc, calls = _run(repo)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "step census — budget 30s, deadline 60s" in proc.stdout and "✔ census" in proc.stdout
+    census_argv = next(line.split() for line in calls.splitlines() if census[1] in line)
+    assert sorted(p for p in census_argv if p.startswith("tests/")) == sorted(census)
+    (repo / census[0]).write_text("x = 6\n", encoding="utf-8")  # a gate touched as well: still once
+    (repo.parent / "calls.log").unlink()
+    proc, calls = _run(repo)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert sum(census[0] in line for line in calls.splitlines()) == 1
+
 def _ledger(repo: Path) -> list[dict]:
     path = repo / "_lane_logs" / "prepush_overruns.jsonl"
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []

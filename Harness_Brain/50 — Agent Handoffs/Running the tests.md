@@ -318,7 +318,8 @@ five habits cost about 390 minutes a day.
   them from a new module, and only the lane can cheaply rename its own new names: two landings
   (f9ef5d33aa; hermes 76a5a16158, land/w1020-estore) found a lane's NEW `_read` /
   `_namespace_manifest` duplicate or NEW ladder only at the landing gate, each a fix-and-regate
-  cycle (`FH-LANE-RUNS-NEW-NAME-GATES`). A red there that `main` shares is compared by its `NEW` /
+  cycle (`FH-LANE-RUNS-NEW-NAME-GATES`). `scripts/prepush.sh` plans them itself in its census step
+  whenever a `.py` outside `tests/` differs from the merge-base (`FH-PREPUSH-SKIPS-NAME-CENSUS-ON-PYTHON-CHANGE`). A red there that `main` shares is compared by its `NEW` /
   `GREW` lines, as § Calling a red pre-existing says, never fixed in passing.
 - **A lane that touched an upstream-owned file adds the footprint gate to that same run** —
   `tests/scripts/test_upstream_footprint.py`. It reads the diff against upstream, not imports, so

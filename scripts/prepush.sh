@@ -16,7 +16,8 @@
 #            (RT-PREPUSH-MISSES-STALE-RPC-MANIFEST-AND-CLI-DUMP: a stale manifest once passed prepush
 #            and was found by a grep);
 #   census   the two name census gates (`Running the tests.md` asks a lane that touched Python to
-#            run them), when touched or named: their own step and budget, because together they
+#            run them), when touched or named, and whenever a `.py` outside `tests/` differs from
+#            the merge-base (FH-PREPUSH-SKIPS-NAME-CENSUS-ON-PYTHON-CHANGE): their own step and budget, because together they
 #            are ~55 s of whole-tree walk and sank the touched lane's 60 s on their own
 #            (FH-PREPUSH-TOUCHED-BUDGET-VS-NAME-CENSUS);
 #   touched  the pusher's touched tests (every `tests/**/test_*.py` that differs
@@ -238,6 +239,26 @@ while IFS= read -r path; do
   esac
 done < <( { git diff --name-only "$BASE" --; git ls-files --others --exclude-standard -- agent_runtime hermes_cli; } | sort -u)
 
+# The name census gates run whenever the branch (committed, staged or unstaged — not untracked: a push
+# carries none, and lane scratch such as `.lane_logs/*.py` would plan the census on every run) changed a
+# `.py` outside `tests/`: a new if-ladder or a duplicated helper name is made in fork code, not in a test, and
+# a commit adding a third `display_kind` arm passed prepush green because neither gate was touched
+# (FH-PREPUSH-SKIPS-NAME-CENSUS-ON-PYTHON-CHANGE).
+# MUTATION: never set PYTHON_CHANGED=1 and test_a_python_change_outside_tests_plans_the_name_census
+# reddens.
+PYTHON_CHANGED=0
+while IFS= read -r path; do
+  case "$path" in
+    tests/*) ;;
+    *.py) PYTHON_CHANGED=1 ;;
+  esac
+done < <(git diff --name-only "$BASE" --)
+if [ "$PYTHON_CHANGED" = 1 ]; then
+  EXTRA_CENSUS=("${PREPUSH_CENSUS_GATES[@]}")
+else
+  EXTRA_CENSUS=()
+fi
+
 # Each file once, in plan order: a gate is never re-run in the touched lane.
 GATES=()
 CENSUS=()
@@ -247,7 +268,7 @@ for path in "${PREPUSH_QUEUE_GATES[@]}" "${PREPUSH_TEXT_GATES[@]}"; do
   SEEN="$SEEN$path"$'\n'
   GATES+=("$path")
 done
-for path in ${TOUCHED[@]+"${TOUCHED[@]}"} ${NAMED[@]+"${NAMED[@]}"}; do
+for path in ${TOUCHED[@]+"${TOUCHED[@]}"} ${NAMED[@]+"${NAMED[@]}"} ${EXTRA_CENSUS[@]+"${EXTRA_CENSUS[@]}"}; do
   case "$SEEN" in *$'\n'"$path"$'\n'*) continue ;; esac
   SEEN="$SEEN$path"$'\n'
   case " ${PREPUSH_CENSUS_GATES[*]} " in
