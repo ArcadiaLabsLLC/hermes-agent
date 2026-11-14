@@ -474,6 +474,7 @@ _ledger() {
 
 RUN_STARTED="$(_now_ms)"
 RED_STEPS=()
+RETRY_ONCE=""
 CAPPED=""
 # _step NAME BUDGET DEADLINE CMD... — the step and its watchdog each lead their
 # own process group (job control is on only while they start), so a kill takes
@@ -522,6 +523,15 @@ _step() {
       CAPPED="during $name"
       echo "✘ prepush: $name killed at the ${CAP}s whole-run cap"
       RED_STEPS+=("$name (killed at the ${CAP}s whole-run cap)")
+    elif [ "$RETRY_ONCE" = "$name" ]; then
+      # A step that is only slow under load (FH-PREPUSH-DOC-CITE-REDS-UNDER-LOAD: doc-cite killed at its
+      # 10 s deadline at load 21, green in 1.8 s on the rerun) is an overrun to retry, not a red: it is
+      # ledgered and run once more; a second kill is the red.
+      RETRY_ONCE=""
+      echo "… prepush: $name killed at its ${deadline}s deadline (load $(_load_average)) — an overrun, not a red; running it once more"
+      _ledger "$name" killed_retried "$budget" "$deadline" "$ms" "$rc"
+      _step "$name" "$budget" "$deadline" "$@"
+      return
     else
       outcome=killed
       echo "✘ prepush: $name killed at its ${deadline}s deadline"
@@ -571,6 +581,8 @@ GATES_BUNDLE_SIZE=$(( (${#GATES[@]} + JOBS - 1) / JOBS ))
 [ "$GATES_BUNDLE_SIZE" -ge 2 ] || GATES_BUNDLE_SIZE=2
 _step gates "$BUDGET_GATES" "$DEADLINE_GATES" env ETERNIA_HEAVY_SLOTS=off bash "$GATES_RUNNER" --small -j "$JOBS" \
   --bundle-size "$GATES_BUNDLE_SIZE" "${GATES[@]}"
+# doc-cite is short and read-only, so a deadline kill under load is retried once (RETRY_ONCE, above).
+RETRY_ONCE=doc-cite
 _step doc-cite "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
   "$PY" "$SCRIPT_DIR/doc_cite_adjacency.py" --exclude archive --exclude planned
 # Both contract checks run even when the first is stale: one push, the whole answer.

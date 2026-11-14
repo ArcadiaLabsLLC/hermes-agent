@@ -74,13 +74,13 @@ def repo(tmp_path: Path) -> Path:
 
 
 def _run(repo: Path, *args: str, runner_code: int = 0, cite_code: int = 0, runner_body: str = "",
-         env_extra: dict[str, str] | None = None):
+         env_extra: dict[str, str] | None = None, cite_body: str = ""):
     log = repo.parent / "calls.log"
     env = {
         **os.environ,
         "PREPUSH_RUNNER": str(_stub(repo.parent / "runner.sh", runner_code, log, runner_body)),
         "PREPUSH_GATES_RUNNER": str(repo.parent / "runner.sh"),  # the gates step's own runner, same stub
-        "PREPUSH_PYTHON": str(_stub(repo.parent / "cite.sh", cite_code, log)),
+        "PREPUSH_PYTHON": str(_stub(repo.parent / "cite.sh", cite_code, log, cite_body)),
         "PREPUSH_NOTIFY": str(_stub(repo.parent / "notify.sh", 0, repo.parent / "notified.log")),
         **(env_extra or {}),
     }
@@ -387,6 +387,30 @@ def test_every_overrun_and_kill_is_a_ledger_line_and_the_summary_names_its_row(r
     # The ledger only grows: a second run appends, never rewrites.
     _run(repo, runner_body="sleep 2", env_extra={"PREPUSH_GATES_BUDGET": "1", "PREPUSH_HEARTBEAT": "1"})
     assert len(_ledger(repo)) == 3
+
+
+# FH-PREPUSH-DOC-CITE-REDS-UNDER-LOAD (seen once 2026-11-14, w1114a-hfix: doc-cite killed at its 10 s
+# deadline at load 21, green in 1.8 s on the rerun). A doc-cite killed at its own deadline is an overrun
+# to retry, run once more, not a red; a second kill is. KILLING MUTATION: drop the ``RETRY_ONCE`` arm in
+# ``_step`` -> the first kill reds the run (exit 1) and the stub runs once.
+@pytest.mark.timeout(60)
+def test_a_doc_cite_killed_at_its_deadline_runs_once_more_and_only_a_second_kill_is_red(repo: Path):
+    marker = repo.parent / "cite.first"
+    slow_once = f'if [ ! -e "{marker}" ]; then : > "{marker}"; sleep 30; fi'
+    env = {"PREPUSH_DOC_CITE_BUDGET": "1", "PREPUSH_DOC_CITE_DEADLINE": "2", "PREPUSH_HEARTBEAT": "1"}
+    proc, calls = _run(repo, cite_body=slow_once, env_extra=env)
+    assert proc.returncode == 0, proc.stdout
+    assert calls.count("doc_cite_adjacency.py") == 2, calls
+    assert "doc-cite killed at its 2s deadline" in proc.stdout and "running it once more" in proc.stdout
+    assert [(r["step"], r["outcome"]) for r in _ledger(repo)] == [("doc-cite", "killed_retried")]
+    assert "overrun: doc-cite killed_retried:" in proc.stdout
+    assert proc.stdout.rstrip().endswith("✔ prepush: green")
+
+    (repo.parent / "calls.log").unlink()
+    proc, calls = _run(repo, cite_body="sleep 30", env_extra=env)
+    assert proc.returncode == 1, proc.stdout
+    assert calls.count("doc_cite_adjacency.py") == 2, calls
+    assert "doc-cite (killed at its 2s deadline)" in proc.stdout.splitlines()[-1]
 
 
 def test_a_green_run_inside_budget_writes_no_ledger_line(repo: Path):
