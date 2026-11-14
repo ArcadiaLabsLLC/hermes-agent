@@ -1,0 +1,63 @@
+{
+  "row": "RT-WINDOWS-SOURCE-UPDATE-NODE-NOT-FOUND",
+  "date": "2026-11-13",
+  "fix_commits": ["4d29a8936c", "5ff9743df6"],
+  "installed_checkout": "ae45fc454e52e3dc1db0b959254ab21a5caf75fd",
+  "cause": "Repeated PM activation and dependency activation both prepended managed directories. Windows cmd.exe discarded the oversized PATH in pnpm lifecycle children.",
+  "controlled_live_reproduction": {
+    "root_lifecycle_before": {"path_characters": 8485, "exit": 1, "error": "node is not recognized"},
+    "root_lifecycle_after": {"path_characters": 7375, "exit": 0},
+    "nested_lifecycle_before": {"path_characters": 7731, "exit": 1, "packages": ["esbuild@0.28.2", "lefthook@2.2.1"]},
+    "nested_lifecycle_after": {"path_characters": 7375, "exit": 0, "both_postinstall_scripts": "Done"},
+    "node": "26.12.1",
+    "pnpm": "12.15.0",
+    "scope": "Temporary packages; no owner project changes"
+  },
+  "validation": {
+    "pm_focused": {"passed": 49, "skipped": 3, "deselected": 1},
+    "activation_publication": {"passed": 75, "preexisting_failures": ["FH-DEPENDENCY-BORROW-WINDOWS-SITE-DIR"]},
+    "regressions_and_footprint": {"passed": 19},
+    "census": {"passed": 13, "preexisting_failures": ["FH-WORKSPACE-READINESS-LADDER-ON-MAIN"]},
+    "prepush": "green: gates, doc citations and 26 touched checks",
+    "mutation_compose_env": "4 regressions failed when inherited managed prefixes were retained; restored",
+    "mutation_activate_dependencies": "full twenty-activation regression failed when the second writer was restored; restored",
+    "ruff": "green"
+  },
+  "canonical_update": {
+    "command": "hermes -p default update --channel main --branch main --yes",
+    "receipt": "update_20261113_233103_42188_a721132e9de14588847960372741e2a5.json",
+    "apply": "success",
+    "python_dependencies": "success",
+    "node_dependencies": "success",
+    "tui_build": "success",
+    "web_build": "success",
+    "exit": 0,
+    "source_completion_pending": false,
+    "source_completion_attempts": false,
+    "gateway_recovery": "Automatic recovery left a standalone Amelia process and a dead default snapshot. Verified zero turns, stopped only the standalone via -p amelia gateway stop, then restored the host via -p default gateway start.",
+    "separate_restart_finding": "RT-WINDOWS-UPDATE-RESTART-DEFAULT-IDENTITY"
+  },
+  "final_gateway": {
+    "pid": 55776,
+    "process_alive": true,
+    "state": "running",
+    "code_sha": "ae45fc454e52e3dc1db0b959254ab21a5caf75fd",
+    "active_agents": 0,
+    "served_profiles": ["default", "amelia", "backend-dev", "base", "gpt-launcher", "launcher-dev", "launcher-qa", "neko"],
+    "parked_profiles": {},
+    "amelia_telegram": "connected",
+    "connected_at": "2026-11-13T23:37:36.291633Z",
+    "temporary_standalone_pid": 732,
+    "temporary_standalone_stopped": true,
+    "canonical_gateway_status": "exit 0; PID55776; no stale-update warning"
+  },
+  "local_changes_preserved": {
+    "path": "hermes_cli/.web_dist-build-Ov9DR1/",
+    "first_updater_snapshot_stash": "54c9ae46204f48d08c272e3cd240f927d2ab8a68",
+    "comparison": "git hash-object --no-filters against the snapshot's untracked tree",
+    "files": 11,
+    "byte_identical": 11,
+    "differences": [],
+    "remaining_git_stashes": 0
+  }
+}
