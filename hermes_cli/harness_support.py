@@ -183,6 +183,7 @@ ERROR_EXIT_CODES = {
     "spawn_scope_exhausted": 4,
     "sync_conflict": 4,
     "sync_behind": 4,
+    "sync_push_rejected": 4,
     "sync_secret_excluded": 4,
     # Permission / auth (5)
     "permission_denied": 5,
@@ -453,6 +454,7 @@ def _error_hint(code: str) -> str:
         "default_scope_reconciliation_required": "Run `hermes harness realm default-scope --dry-run --json`; no identities will change without explicit approval.",
         "sync_conflict": "Resolve conflicts in the realm sync git repo, then retry.",
         "sync_behind": "Run `hermes harness realm sync pull <realm> --json` before publishing.",
+        "sync_push_rejected": "Another member published first. Run `hermes harness realm sync pull <realm> --json`, resolve anything it holds, then publish again.",
         "sync_repo_missing": "Run `hermes harness realm sync pull <realm> --json` first — a revert reconciles against the last-pulled subtree.",
         "sync_secret_excluded": "Remove secrets/state from the realm sync allowlist source before retrying.",
         "sync_remote_unreachable": "Check network/git remote availability and retry.",

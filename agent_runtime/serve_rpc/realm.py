@@ -63,6 +63,9 @@ REASON_CODES: dict[str, int] = {
     "role_insufficient": ERR_CONFLICT,
     "sync_conflict": ERR_CONFLICT,
     "sync_behind": ERR_CONFLICT,
+    # Someone else published first (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE): a
+    # precondition the caller can clear by pulling, never a transport failure.
+    "sync_push_rejected": ERR_CONFLICT,
     "sync_secret_excluded": ERR_CONFLICT,
     "sync_remote_unreachable": ERR_HANDLER_FAILED,
     "realm_revoked": ERR_CONFLICT,

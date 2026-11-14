@@ -28,6 +28,7 @@ from .git import (
     _git,
     _git_state,
     _has_remote,
+    _push_was_rejected,
     _realm_subtree,
     _refresh_remote_tracking,
 )
@@ -229,6 +230,22 @@ def _stage_commit_and_push(
             push = ("push",) if upstream else ("push", "-u", "origin", "HEAD")
             _git(repo, *push, extra_config=_credential_git_config(credential))
         except RealmSyncError as exc:
+            # A REJECTED push is not an unreachable remote: another member published into this
+            # realm between our fetch and our push, and the cure is to pull, not to go looking
+            # at the network (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE — the mislabel sent the
+            # loser of every race to the wrong layer; the fetch-first discipline at the top of
+            # ``publish_realm_sync`` NARROWS that window, it never closed it). The commit stands
+            # either way: the pull merges it and the next publish carries it.
+            # MUTATION: drop this branch and
+            # test_the_loser_of_a_publish_race_is_told_to_pull_and_its_pull_reconciles reddens
+            # at ``sync_push_rejected``.
+            if _push_was_rejected(str(exc.safe_details.get("stderr") or "")):
+                raise RealmSyncError(
+                    "sync_push_rejected",
+                    "Another member published to this realm first; pull before publishing again.",
+                    retryable=True,
+                    safe_details=exc.safe_details,
+                ) from exc
             raise RealmSyncError("sync_remote_unreachable", "Realm sync publish committed locally but could not push upstream.", retryable=True, safe_details=exc.safe_details) from exc
     return changed, changed_paths if changed else []
 

@@ -42,7 +42,7 @@ from .git import (
     _git,
     _git_state,
     _has_remote,
-    _pull_fast_forward,
+    _pull_remote_into_repo,
     _realm_subtree,
 )
 from .persona_artifacts import _artifacts_from_subtree
@@ -99,7 +99,7 @@ def pull_realm_sync(
     # An adopted personal repo that is still EMPTY (no remote-tracking ref after the
     # adopter's fetch, p10-work §2.6) has nothing to pull and no upstream to pull from.
     if _has_remote(repo) and _git(repo, "for-each-ref", "--count=1", "refs/remotes", check=False).strip():
-        _pull_fast_forward(repo, credential=credential)
+        _pull_remote_into_repo(repo, credential=credential)
     subtree = _realm_subtree(repo, realm.id)
     artifacts = _artifacts_from_subtree(subtree)
     _assert_no_secret_artifacts(artifacts)

@@ -40,7 +40,9 @@ __all__ = [
     "_git_state",
     "_has_remote",
     "_looks_like_remote",
-    "_pull_fast_forward",
+    "_merge_remote",
+    "_pull_remote_into_repo",
+    "_push_was_rejected",
     "_realm_subtree",
     "_redact_text",
     "_refresh_remote_tracking",
@@ -205,8 +207,33 @@ def _ensure_repo_gitattributes(repo: Path) -> None:
         return
 
 
-def _pull_fast_forward(repo: Path, *, credential: RealmSyncCredential | None = None) -> None:
-    """``git pull --ff-only``, past the one untracked file hermes itself writes.
+#: git's own words for "the remote moved past you" on a rejected push. The push lane
+#: classifies by THESE, never by "a push failed": a remote that is gone, an expired
+#: credential and a lost race are three different cures for the operator
+#: (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE).
+_PUSH_REJECTED_TELLS = ("[rejected]", "non-fast-forward", "fetch first", "stale info")
+
+
+def _push_was_rejected(stderr: str) -> bool:
+    """True when ``stderr`` is git refusing a push because the remote has moved on."""
+
+    text = (stderr or "").lower()
+    return any(tell in text for tell in _PUSH_REJECTED_TELLS)
+
+
+def _pull_remote_into_repo(repo: Path, *, credential: RealmSyncCredential | None = None) -> None:
+    """``git pull``, past the one untracked file hermes itself writes.
+
+    Fast-forward while the local branch only TRAILS the remote — the ordinary case. A branch
+    that has DIVERGED (a publish of ours the remote never took, because another member won
+    the race) is merged instead: ``--ff-only`` aborts there, and that abort is what left the
+    loser of a publish race stuck, since the one verb that could get it unstuck answered
+    ``sync_remote_unreachable`` and the reconciliation every pull applier already runs — the
+    inbox/HOLD and the conflict sidecar — was never reached
+    (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE; owner RULED 2026-11-13). No lock, no retry loop
+    and no new reconciliation layer: documents that do not collide merge, and a collision on
+    one document is git's conflict, answered with the ``sync_conflict`` the sync verbs
+    already carry for exactly that state instead of the network's code.
 
     ``_ensure_repo_gitattributes`` writes the pin UNTRACKED into a clone made while the remote held
     none (it is committed only by a publish). Once another member publishes theirs, git refuses the
@@ -227,9 +254,52 @@ def _pull_fast_forward(repo: Path, *, credential: RealmSyncCredential | None = N
         except OSError:
             pass
     try:
-        _git(repo, "pull", "--ff-only", extra_config=_credential_git_config(credential))
+        if _git_state(repo)["ahead"]:
+            _merge_remote(repo, credential=credential)
+        else:
+            _git(repo, "pull", "--ff-only", extra_config=_credential_git_config(credential))
     finally:
         _ensure_repo_gitattributes(repo)
+
+
+def _merge_remote(repo: Path, *, credential: RealmSyncCredential | None = None) -> None:
+    """Merge the upstream commit into our diverged branch, or refuse ``sync_conflict``.
+
+    ``-X theirs`` for the documents both sides rewrote, and it is not a policy about whose
+    work wins: the sync repo is a TRANSPORT mirror of the member's own store, the pull's
+    appliers then reconcile that tree against the store (auto-applying what is safe, holding
+    what is not, writing the conflict sidecar) and the next publish rewrites the subtree from
+    the store from scratch. Resolving at the git layer instead would stop the pull at a
+    manifest every publish rewrites, which is the file this merge collides on first and the
+    one nobody can resolve by hand. So a diverged pull lands in exactly the state a pull of a
+    merely-behind repo lands in — the design — and the two sides' documents are decided where
+    the realm's reconciliation lives (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE).
+
+    A conflict ``-X theirs`` cannot resolve (two sides' trees disagree on a path's SHAPE) is
+    left in the index: ``sync_conflict``'s ``safe_details.conflicts`` is the operator's list,
+    and every later sync verb reads the same state from ``_git_state`` and refuses the same
+    way until they have cleared it."""
+
+    _ensure_git_identity(repo)
+    proc = run_git(("pull", "--no-rebase", "--no-edit", "-X", "theirs"), repo=repo,
+                   config=(*_REPO_CONFIG, *(_credential_git_config(credential) or ())))
+    if proc.returncode == 0:
+        return
+    conflicts = [line.strip() for line in _git(repo, "diff", "--name-only", "--diff-filter=U", check=False).splitlines() if line.strip()]
+    if conflicts:
+        raise RealmSyncError(
+            "sync_conflict",
+            "Another member published changes to the same documents; resolve the conflicts in the realm sync repo, then publish again.",
+            safe_details={"conflicts": conflicts},
+        )
+    code = "sync_auth_failed" if "authentication" in (proc.stderr or "").lower() else "sync_remote_unreachable"
+    raise RealmSyncError(
+        code,
+        "git command failed for realm sync.",
+        retryable=True,
+        safe_details={"git_args": ["pull", "--no-rebase", "-X", "theirs"],
+                      "stderr": _redact_text(_scrub_config_values(proc.stderr, _credential_git_config(credential)))},
+    )
 
 
 def _credential_git_config(credential: RealmSyncCredential | None) -> list[str] | None:
