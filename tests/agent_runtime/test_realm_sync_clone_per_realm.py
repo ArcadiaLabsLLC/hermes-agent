@@ -306,7 +306,7 @@ def _empty(bare: Path) -> bool:
 
 @pytest.mark.parametrize("verb", ["pull", "dry_run_pull", "status"])
 def test_no_read_or_pull_of_a_moved_realm_shares_the_members_unpublished_work(
-    isolate_agent_runtime_root, tmp_path, monkeypatch, verb
+    isolate_agent_runtime_root, tmp_path, verb
 ):
     """RT-REALM-SYNC-PULL-PUBLISHES-INTO-A-MOVED-REPO (seen live 2026-11-14, w1114a-realmlive): under "Ask me
     first", a Pull after the realm moved to an empty repository pushed the member's unpublished commit there.
@@ -333,20 +333,19 @@ def test_no_read_or_pull_of_a_moved_realm_shares_the_members_unpublished_work(
         issued.append(tuple(args))
         return real(args, **kwargs)
 
-    monkeypatch.setattr(sync_git, "run_sync_git", recording)
-
-    if verb == "status":
-        answer = realm_sync_status(realm.id, membership=ALLOW, credential=credential)
-        assert answer["ahead"] == commits
-    else:
-        answer = pull_realm_sync(realm.id, membership=ALLOW, credential=credential, dry_run=verb == "dry_run_pull")
+    with pytest.MonkeyPatch.context() as scoped:  # scoped: never unwind the runtime-root pins
+        scoped.setattr(sync_git, "run_sync_git", recording)
+        if verb == "status":
+            answer = realm_sync_status(realm.id, membership=ALLOW, credential=credential)
+            assert answer["ahead"] == commits
+        else:
+            answer = pull_realm_sync(realm.id, membership=ALLOW, credential=credential, dry_run=verb == "dry_run_pull")
 
     assert _git(clone, "config", "--get", "remote.origin.url") == new_bare.as_uri()  # the clone followed
     assert not [args for args in issued if "push" in args]  # the follow re-points and fetches, nothing more
     assert _empty(new_bare)  # ...and shared nothing
     assert _git(clone, "rev-parse", "HEAD") == unpublished
     assert answer["ahead"] == commits if verb != "status" else answer["state"] == "ahead"
-    monkeypatch.undo()
 
     publish_realm_sync(realm.id, membership=ALLOW, credential=credential)
     assert _git(new_bare, "merge-base", "--is-ancestor", unpublished, "main") == ""
