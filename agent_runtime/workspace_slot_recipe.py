@@ -397,6 +397,14 @@ def step_state(step: dict[str, Any], row: dict[str, Any]) -> tuple[str, str | No
     return _STEP_STATES[step["kind"]](step, row)
 
 
+# The clone step's state -> (ready, checklist row); any other state is a ready checkout.
+_CLONE_READINESS = {
+    STATE_UNKNOWN: (READY_UNKNOWN, CHECKLIST_UNKNOWN),
+    STATE_WARNING: (READY_NO, CHECKLIST_REMOTE_MISMATCH),
+    STATE_TODO: (READY_NO, CHECKLIST_NEEDS_SETUP),
+}
+
+
 def readiness(slot_name: str, slot: dict[str, Any], row: dict[str, Any] | None) -> dict[str, Any]:
     """This machine's checklist for one slot: ``ready``, the checklist row, and every step's state.
 
@@ -429,15 +437,7 @@ def readiness(slot_name: str, slot: dict[str, Any], row: dict[str, Any] | None) 
             state = STATE_OPTIONAL_MISSING
         states[step["id"]] = {"state": state, "why": why}
     # Ready is the checkout alone: cloned (or located) and the declared repository.
-    clone = states[CLONE_STEP_ID]["state"]
-    if clone == STATE_UNKNOWN:
-        ready, checklist = READY_UNKNOWN, CHECKLIST_UNKNOWN
-    elif clone == STATE_WARNING:
-        ready, checklist = READY_NO, CHECKLIST_REMOTE_MISMATCH
-    elif clone == STATE_TODO:
-        ready, checklist = READY_NO, CHECKLIST_NEEDS_SETUP
-    else:
-        ready, checklist = READY_YES, CHECKLIST_READY
+    ready, checklist = _CLONE_READINESS.get(states[CLONE_STEP_ID]["state"], (READY_YES, CHECKLIST_READY))
     return _answer(steps, orphaned, states, ready, checklist)
 
 
