@@ -28,8 +28,11 @@ def team(tmp_path, monkeypatch):
     return _Team(tmp_path, monkeypatch)
 
 
-def _race(team: _Team, monkeypatch, realm_id: str, *, racer: str, publishes) -> None:
-    """``racer`` publishes inside the next publish's fetch->push window, once."""
+def _race(team: _Team, monkeypatch, realm_id: str, *, racer: str, publishes, then_publish: bool = True) -> None:
+    """``racer`` publishes inside the next publish's fetch->push window, once.
+
+    ``then_publish=False``: ``publishes`` itself puts the racer's commit on the remote, and no
+    ``publish_realm_sync`` of the racer's follows (that one rewrites the realm document)."""
 
     real_refresh = realm_publish._refresh_remote_tracking
     state = {"raced": False}
@@ -40,7 +43,8 @@ def _race(team: _Team, monkeypatch, realm_id: str, *, racer: str, publishes) -> 
             state["raced"] = True
             team.be(racer)
             publishes()
-            publish_realm_sync(realm_id)
+            if then_publish:
+                publish_realm_sync(realm_id)
             team.be("bob")
         return answer
 
@@ -50,7 +54,7 @@ def _race(team: _Team, monkeypatch, realm_id: str, *, racer: str, publishes) -> 
 def test_the_loser_of_a_publish_race_is_told_to_pull_and_its_pull_reconciles(team, monkeypatch):
     """Carol publishes in Bob's fetch->push window; Bob's push is rejected non-fast-forward.
 
-    Mutation: in ``_stage_commit_and_push`` restore the blanket ``sync_remote_unreachable`` re-raise
+    Mutation: in ``_push_upstream`` restore the blanket ``sync_remote_unreachable`` re-raise
     -> red at ``sync_push_rejected``. Mutation: in ``_pull_remote_into_repo`` drop the diverged
     branch (always ``--ff-only``) -> Bob's pull raises ``sync_remote_unreachable`` and he never sees
     Carol's workspace."""
@@ -114,6 +118,40 @@ def test_a_race_on_the_very_same_document_ends_where_a_plain_pull_ends(team, mon
     assert publish_realm_sync(shared.id)["state"] == "published"
 
 
+def test_the_publish_after_the_pull_carries_the_losers_own_commit_upstream(team, monkeypatch):
+    """The other member's publish touches nothing Bob changed, so after the pull Bob's store
+    already matches the merged subtree and his next publish has no NEW bytes to commit. It must
+    still push his kept commit and the merge, or it answers "published" while the remote never
+    got his work (seen live 2026-11-13, w1113-publishrace: the clone stayed ``ahead 2``).
+
+    Mutation: in ``_stage_commit_and_push`` drop the nothing-to-commit push -> red at the
+    unpushed count (Bob's kept commit and the merge, ``2``)."""
+
+    shared, workspace = _shared_workspace(team, members=("bob", "carol"))
+    team.be("bob")
+    WorkspaceStore().rename(workspace.id, "Bob renamed")
+
+    def carol_publishes() -> None:
+        clone = team.clone("carol", shared.server_id)
+        _git(clone, "pull", "-q", "--ff-only")
+        _git(clone, "-c", "user.email=c@localhost", "-c", "user.name=Carol",
+             "commit", "-q", "--allow-empty", "-m", "Carol's publish")
+        _git(clone, "push", "-q", "origin", "HEAD:main")
+
+    _race(team, monkeypatch, shared.id, racer="carol", publishes=carol_publishes, then_publish=False)
+
+    with pytest.raises(RealmSyncError) as refused:
+        publish_realm_sync(shared.id)
+    assert refused.value.code == "sync_push_rejected"
+    assert pull_realm_sync(shared.id)["state"] == "pulled"
+    assert publish_realm_sync(shared.id)["state"] == "published"
+
+    bob = team.clone("bob", shared.server_id)
+    _git(bob, "fetch", "-q", "origin")
+    assert _git(bob, "rev-list", "--count", "@{u}..HEAD").strip() == "0"
+    assert _git(team.remote(shared.server_id), "grep", "-l", "Bob renamed", "main").strip()
+
+
 def test_a_merge_git_cannot_resolve_is_a_conflict_not_an_unreachable_remote(tmp_path):
     """Two sides whose trees disagree on a path's shape: ``-X theirs`` cannot resolve it, and
     the operator is told which paths to clear.
@@ -154,7 +192,7 @@ def test_a_merge_git_cannot_resolve_is_a_conflict_not_an_unreachable_remote(tmp_
 def test_an_unreachable_remote_still_says_unreachable(team):
     """The two codes stay apart: a remote that is gone is not a lost race.
 
-    Mutation: in ``_stage_commit_and_push`` answer every push failure with ``sync_push_rejected``
+    Mutation: in ``_push_upstream`` answer every push failure with ``sync_push_rejected``
     -> red here."""
 
     shared, _workspace = _shared_workspace(team, members=("bob",))

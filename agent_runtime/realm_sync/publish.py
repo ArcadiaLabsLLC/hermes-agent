@@ -211,6 +211,15 @@ def _stage_commit_and_push(
             target.write_bytes(desired[artifact.relative_path.replace("\\", "/")])
         _write_sync_metadata(subtree, realm=realm, artifacts=artifacts)
     if not (content_changed or gitattributes_pending):
+        # Nothing new to commit is not "nothing to push": the loser of a publish race keeps its
+        # own commit, and its pull merges it (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE) — the store
+        # then matches the subtree, so the next publish has no new bytes, and before this push it
+        # answered "published" while the remote never got the member's work (seen live
+        # 2026-11-13, w1113-publishrace: the clone stayed `ahead 2`).
+        # MUTATION: drop this push and
+        # test_the_publish_after_the_pull_carries_the_losers_own_commit_upstream reddens.
+        if _has_remote(repo) and _git_state(repo)["ahead"]:
+            _push_upstream(repo, credential=credential)
         return False, []
     _git(repo, "add", "--", *add_paths)
     changed = bool(_git(repo, "status", "--porcelain", "--", *add_paths).strip())
@@ -224,30 +233,36 @@ def _stage_commit_and_push(
             # UNREACHABLE). A server realm with no remote is still refused below: its copy is the team's.
             # MUTATION: drop this return and test_a_local_realm_with_no_remote_publishes_into_its_own_history reddens.
             return changed, changed_paths
-        try:
-            # No upstream yet (a personal repo adopted empty, p10-work §2.6): set it.
-            upstream = _git(repo, "rev-parse", "--abbrev-ref", "@{u}", check=False).strip()
-            push = ("push",) if upstream else ("push", "-u", "origin", "HEAD")
-            _git(repo, *push, extra_config=_credential_git_config(credential))
-        except RealmSyncError as exc:
-            # A REJECTED push is not an unreachable remote: another member published into this
-            # realm between our fetch and our push, and the cure is to pull, not to go looking
-            # at the network (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE — the mislabel sent the
-            # loser of every race to the wrong layer; the fetch-first discipline at the top of
-            # ``publish_realm_sync`` NARROWS that window, it never closed it). The commit stands
-            # either way: the pull merges it and the next publish carries it.
-            # MUTATION: drop this branch and
-            # test_the_loser_of_a_publish_race_is_told_to_pull_and_its_pull_reconciles reddens
-            # at ``sync_push_rejected``.
-            if _push_was_rejected(str(exc.safe_details.get("stderr") or "")):
-                raise RealmSyncError(
-                    "sync_push_rejected",
-                    "Another member published to this realm first; pull before publishing again.",
-                    retryable=True,
-                    safe_details=exc.safe_details,
-                ) from exc
-            raise RealmSyncError("sync_remote_unreachable", "Realm sync publish committed locally but could not push upstream.", retryable=True, safe_details=exc.safe_details) from exc
+        _push_upstream(repo, credential=credential)
     return changed, changed_paths if changed else []
+
+
+def _push_upstream(repo: Path, *, credential: RealmSyncCredential | None = None) -> None:
+    """Push the sync repo's branch, telling a lost race apart from an unreachable remote."""
+
+    try:
+        # No upstream yet (a personal repo adopted empty, p10-work §2.6): set it.
+        upstream = _git(repo, "rev-parse", "--abbrev-ref", "@{u}", check=False).strip()
+        push = ("push",) if upstream else ("push", "-u", "origin", "HEAD")
+        _git(repo, *push, extra_config=_credential_git_config(credential))
+    except RealmSyncError as exc:
+        # A REJECTED push is not an unreachable remote: another member published into this
+        # realm between our fetch and our push, and the cure is to pull, not to go looking
+        # at the network (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE — the mislabel sent the
+        # loser of every race to the wrong layer; the fetch-first discipline at the top of
+        # ``publish_realm_sync`` NARROWS that window, it never closed it). The commit stands
+        # either way: the pull merges it and the next publish carries it.
+        # MUTATION: drop this branch and
+        # test_the_loser_of_a_publish_race_is_told_to_pull_and_its_pull_reconciles reddens
+        # at ``sync_push_rejected``.
+        if _push_was_rejected(str(exc.safe_details.get("stderr") or "")):
+            raise RealmSyncError(
+                "sync_push_rejected",
+                "Another member published to this realm first; pull before publishing again.",
+                retryable=True,
+                safe_details=exc.safe_details,
+            ) from exc
+        raise RealmSyncError("sync_remote_unreachable", "Realm sync publish committed locally but could not push upstream.", retryable=True, safe_details=exc.safe_details) from exc
 
 
 def _publish_accounting(resolved: _ResolvedPublish, *, office_baseline: dict[str, Any] | None = None) -> dict[str, Any]:
