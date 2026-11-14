@@ -204,6 +204,22 @@ class TelegramUpstreamAdapterTransport(UpstreamAdapterTransport):
     def __init__(self, adapter: Any, *, press_prefix: str, **kwargs: Any) -> None:
         super().__init__(adapter, **kwargs)
         self._press_prefix = press_prefix
+        # Audit 2026-11-14: python-telegram-bot's HTTP client logs every request URL at INFO on the
+        # ``httpx`` logger — and the URL carries the bot token — and its own loggers print whole updates
+        # and sends, message text included, at DEBUG. The fork's rule is that neither reaches a log:
+        # the token goes to the redactor the fork's own transport uses, and the library's loggers are
+        # held at INFO.
+        from .telegram_api import _REDACTOR
+
+        token = str(getattr(getattr(adapter, "config", None), "token", "") or "")
+        if token:
+            _REDACTOR.secrets.add(token)
+            _REDACTOR.secrets.add(token.split(":", 1)[-1])
+        for name in ("telegram", "telegram.ext", "telegram.ext.ExtBot", "telegram.ext.Application",
+                     "telegram.ext.Updater", "telegram.Bot"):
+            library_logger = logging.getLogger(name)
+            if library_logger.level < logging.INFO:  # NOTSET (0) inherits, and the root may go to DEBUG
+                library_logger.setLevel(logging.INFO)
 
     def start(self, on_update: OnUpdate) -> None:
         super().start(on_update)

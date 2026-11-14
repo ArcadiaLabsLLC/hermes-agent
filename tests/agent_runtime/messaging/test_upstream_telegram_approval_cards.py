@@ -80,3 +80,20 @@ def test_a_press_that_is_not_the_forks_stays_the_adapters(rig):
     rig.server.push_press("mp:some-upstream-picker", message_id=501)
     _wait(lambda: "answerCallbackQuery" in rig.server.methods(), what="the adapter to acknowledge its own press")
     assert _presses(rig) == []
+
+
+def test_neither_the_token_nor_message_text_reaches_a_log(rig, caplog):
+    """python-telegram-bot logs request URLs (token inside) at INFO and whole updates at DEBUG. Killing
+    mutation: drop the redactor registration in ``TelegramUpstreamAdapterTransport.__init__`` → the token
+    is in an ``httpx`` record → red."""
+    import logging
+
+    caplog.set_level(logging.DEBUG)
+    rig.server.push_message("a private question 12345")
+    _wait(lambda: any(getattr(u, "text", "") == "a private question 12345" for u in rig.updates), what="the message")
+    rig.transport.send("42", "a private answer 67890", None, None)
+    time.sleep(0.5)
+    text = " | ".join(record.getMessage() for record in caplog.records)
+    assert any(record.name == "httpx" for record in caplog.records)  # positive control: requests were logged
+    assert TOKEN.split(":")[1] not in text
+    assert "a private question 12345" not in text and "a private answer 67890" not in text
