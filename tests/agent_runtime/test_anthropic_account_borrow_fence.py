@@ -131,3 +131,24 @@ def test_sign_out_removes_the_hermes_grant_file(home):
     assert (answer["was_signed_in"], answer["signed_in"]) == (True, False)
     assert not grant.exists()
     assert GRANT not in _turn_token()
+
+
+def test_auth_status_never_counts_the_borrowed_login(home):
+    """RT-ANTHROPIC-AUTH-STATUS-STILL-COUNTS-THE-BORROWED-ROW: upstream's status (the picker's
+    ``_provider_has_credentials`` reads it) walked the pool's ``claude_code`` row."""
+    from agent.credential_pool import load_pool
+    from hermes_cli.auth import get_auth_status
+
+    assert get_auth_status("anthropic")["logged_in"] is False
+    assert [entry.source for entry in load_pool("anthropic").entries()] == []
+
+
+def test_a_claude_code_row_an_earlier_cli_run_persisted_is_pruned(home):
+    from agent.credential_pool import load_pool
+    from hermes_cli.auth import get_auth_status
+
+    (home / "auth.json").write_text(json.dumps({"version": 1, "providers": {}, "credential_pool": {"anthropic": [{
+        "id": "cc01", "label": "claude code", "auth_type": "oauth", "priority": 0, "source": "claude_code",
+        "access_token": BORROWED, "refresh_token": "fake-claude-refresh", "expires_at_ms": _expiry()}]}}))
+    assert [entry.source for entry in load_pool("anthropic").entries()] == []
+    assert get_auth_status("anthropic")["logged_in"] is False

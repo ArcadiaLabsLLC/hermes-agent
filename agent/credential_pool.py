@@ -2584,6 +2584,8 @@ def _seed_anthropic_singletons(seed: _Seeder) -> None:
         # Singleton-seeded rows are otherwise never pruned; the opt-out must also drop the row an
         # earlier (adopting) process persisted, or it keeps rotating a login Hermes no longer reads.
         seed.changed |= _retain_sources_not_in(seed.entries, {"claude_code"})
+    if _fork_source.borrowed_login_fenced("anthropic"):  # fork seam: Eternia never seeds Claude Code's login
+        sources = [(name, creds) for name, creds in sources if name != "claude_code"]
     for source_name, creds in sources:
         if creds and creds.get("accessToken"):
             seed.upsert(source_name, {
