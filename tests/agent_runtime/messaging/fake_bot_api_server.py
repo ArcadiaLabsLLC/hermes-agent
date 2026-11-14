@@ -19,6 +19,10 @@ from urllib.parse import parse_qs
 
 BOT_ID = 1234567890
 BOT_USERNAME = "trial_audit_bot"
+#: The smallest valid PNG (1x1), served for every file download.
+PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c626001000000"
+    "ffff03000006000557bfabd40000000049454e44ae426082")
 
 
 def _decode(value: str):
@@ -73,6 +77,15 @@ class FakeTelegram:
 
             def do_POST(self):  # noqa: N802 - http.server's name
                 prefix = f"/bot{fake.token}/"
+                if self.path.endswith(".png"):  # a file download, whatever root the client built for it
+                    with fake._lock:
+                        fake.calls.append(("<download>", {"path": self.path.replace(fake.token, "<token>")}))
+                    self.send_response(200)
+                    self.send_header("Content-Type", "image/png")
+                    self.send_header("Content-Length", str(len(PNG)))
+                    self.end_headers()
+                    self.wfile.write(PNG)
+                    return
                 if not self.path.startswith(prefix):
                     self._answer({"ok": False, "error_code": 401, "description": "Unauthorized"}, 401)
                     return
@@ -119,6 +132,15 @@ class FakeTelegram:
             self._updates.append(update)
             return update
 
+    def push_photo(self, caption: str = "", *, user_id: int = 42, first_name: str = "Max") -> dict:
+        update = self.push_message(caption, user_id=user_id, first_name=first_name)
+        message = update["message"]
+        message["caption"] = message.pop("text")
+        message.pop("entities", None)
+        message["photo"] = [{"file_id": "photo-1", "file_unique_id": "u-photo-1", "width": 1, "height": 1,
+                             "file_size": len(PNG)}]
+        return update
+
     def methods(self) -> list[str]:
         return [method for method, _ in self.calls]
 
@@ -148,6 +170,9 @@ class FakeTelegram:
             return {"message_id": message_id, "date": int(time.time()), "text": str(params.get("text") or ""),
                     "chat": {"id": int(params.get("chat_id") or 0), "type": "private"},
                     "from": {"id": BOT_ID, "is_bot": True, "first_name": "Trial Audit", "username": BOT_USERNAME}}
+        if method == "getFile":
+            return {"file_id": str(params.get("file_id")), "file_unique_id": "u-photo-1", "file_size": len(PNG),
+                    "file_path": "photos/photo-1.png"}
         if method in {"getMyCommands", "getChatAdministrators"}:
             return []
         if method == "getWebhookInfo":

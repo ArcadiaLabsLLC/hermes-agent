@@ -25,7 +25,7 @@ import asyncio
 import hashlib
 import logging
 import threading
-from collections.abc import Coroutine, Sequence
+from collections.abc import Callable, Coroutine, Sequence
 from typing import Any
 
 from .transport import Button, InboundMessage, MessageRef, OnUpdate, SendResult
@@ -55,9 +55,18 @@ class UpstreamAdapterTransport:
     """``Transport`` over one upstream adapter. ``connect=False`` leaves the platform connection to the
     caller (the tests, which never reach a network)."""
 
-    def __init__(self, adapter: Any, *, connect: bool = True) -> None:
+    def __init__(self, adapter: Any, *, connect: bool = True,
+                 is_allowed: Callable[[str], bool] | None = None,
+                 on_refused: Callable[[str, str], None] | None = None) -> None:
+        """``is_allowed(user_id)`` makes the ADAPTER refuse a stranger at intake, before it downloads or
+        transcribes anything they sent (audit 2026-11-14: with no allowlist configured the Telegram
+        adapter passes every sender to the handler, having already fetched their media). The stranger
+        then never reaches the bridge, so ``on_refused(user_id, chat_id)`` is where the console's Allow
+        list is fed. ``None`` keeps the trial's behaviour: everyone reaches the bridge, which refuses."""
         self.adapter = adapter
         self._connect = connect
+        self._is_allowed = is_allowed
+        self._on_refused = on_refused
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._on_update: OnUpdate | None = None
@@ -71,7 +80,13 @@ class UpstreamAdapterTransport:
                                         daemon=True)
         self._thread.start()
         self.adapter.set_message_handler(self._handle)
-        self.adapter.set_authorization_check(lambda *_args, **_kwargs: True)
+        if self._is_allowed is None:
+            self.adapter.set_authorization_check(lambda *_args, **_kwargs: True)
+        else:
+            # An allowlist must be CONFIGURED (even empty) for the adapter's intake gate to ask the
+            # callback at all; with none it lets every sender through and leaves the decision to a runner.
+            self.adapter.config.extra.setdefault("allow_from", [])
+            self.adapter.set_authorization_check(self._gate)
         if self._connect:
             self._call(self.adapter.connect())
 
@@ -90,6 +105,15 @@ class UpstreamAdapterTransport:
             thread.join(timeout=5)
         loop.close()
         self._loop = self._thread = None
+
+    def _gate(self, user_id: Any, chat_type: Any = None, chat_id: Any = None, **_kwargs: Any) -> bool:
+        allowed = bool(self._is_allowed(str(user_id))) if self._is_allowed is not None else True
+        if not allowed and self._on_refused is not None:
+            try:
+                self._on_refused(str(user_id), str(chat_id or ""))
+            except Exception:
+                logger.debug("recording a refused sender failed", exc_info=True)
+        return allowed
 
     def _call(self, coro: Coroutine[Any, Any, Any]) -> Any:
         if self._loop is None:
