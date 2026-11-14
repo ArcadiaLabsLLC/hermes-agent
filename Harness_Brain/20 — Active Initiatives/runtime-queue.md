@@ -40,6 +40,7 @@ Rows are one line and a pointer; claim with `**TAKEN <date> <who>**` before star
 Rows below were moved verbatim from the launcher queue on 2026-09-22 (their provenance headings are kept as sub-headings). Fork-hygiene findings the launcher queue carried (CI, the suite, the mutation gate, upstream reds) went to [[fork-hygiene-queue]] in the same commit.
 
 ## Fork-owned
+- **`RT-RUNNING-CHAT-TURN-CARRIES-PLAN-PROGRESS` — Eternia can show which step of its plan each running agent is on without opening its chat** · group: agent-plan-everywhere · `EterniaLauncher/docs/mission_control/planned/AGENT_PLAN_EVERYWHERE_2026-11-14.md` §5 H1, `agent_runtime/running_work/lanes_chat.py`, `agent_runtime/profile_runner/tool_payloads.py::_todo_state_payload` · read in code, not reproduced: a running chat turn row carries title, status and current tool and nothing about the plan, so a client has no plan for a chat it has not opened · guess: the summary can be read where enrich_live already reads the turn live record · done when: a running chat turn row with a plan carries plan as done, total and current (the step in progress, capped like todo_state), a turn with no plan omits it, a test pins both through the running-work collector, and the field is read live from an Eternia QA copy served from this lane worktree · READY 2026-11-14
 
 ### Filed on arrival — 2026-11-14 (owner in chat, an Eternia session auditing Intelligence → Connected messaging)
 
