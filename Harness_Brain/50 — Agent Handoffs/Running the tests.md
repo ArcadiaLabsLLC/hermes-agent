@@ -400,7 +400,7 @@ same day, on `main` already or not. `--dry-run` prints the plan; `--only=<step>,
 
 **One landing gate (`--scope fork`) per BATCH, never per lane** (owner ruling 2026-10-06, after waves 11–13 each paid a
 15–18 minute gate for a single lane). A finished lane waits for the batch; the landing merges every ready
-lane, then runs the gate once. A lane that finishes while a gate is running joins the next batch unless it
+lane, then runs the gate once. A lane that finishes while a gate is running joins the next landing batch unless it
 touches nothing the running batch touches.
 
 **Gate once, at the end, with main still** (owner 2026-10-16: "best to only run it at the end"). Start the gate only when every lane of the batch is merged; send peer sessions "freeze" first so `main` cannot move under it; merge `main` once, gate once, push, "main open". A peer batch that lands mid-gate never restarts the gate: the next batch picks it up. Phase B (2026-10-16) paid three ~75-minute passes on one batch by gating before its last lane and re-gating after each peer landing; a batch that edits hub files (`tools/registry.py`, `hermes_state.py`, `tui_gateway/server.py`) selects ~2,600 files, so each wasted pass is over an hour.

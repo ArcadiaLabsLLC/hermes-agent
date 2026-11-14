@@ -118,7 +118,7 @@ Every lane, every peer session (`ListAgents`), the live serve and the gate share
 | release merge | `origin/main`, merge the TAG | [[Merging upstream]] Steps 1–6 | its own landing, owner approves the push |
 | daily branch | `integration/upstream-daily` | [[Merging upstream]] § Daily | never lands; pushes the branch |
 | upstream PR prep | `upstream/main` pinned SHA | `scripts/check --base <sha>`, the test red on the base | an idle branch + a body in the operator's `pr-bodies/`; the owner's PR branches stay idle while upstream is not taking them |
-| design | `origin/main` | nothing | one doc commit, landed with the next batch |
+| design | `origin/main` | nothing | one doc commit, landed with the next landing |
 
 The daily branch may be RESET when main has diverged from it past repair (owner 2026-10-16: 131
 conflicts after v0.22.2 + Phase B): tag the old tip `archive/upstream-daily-<date>`, rebuild from
@@ -169,8 +169,11 @@ A RESUME line in session memory after every report (branch tips, what is merged,
 lane's report lives only in its notification — copy what matters the moment it arrives, and file its
 rows on arrival, by surface ([[TODO]]).
 
-Before dispatching rows filed during a wave, read all of them in one pass, merge duplicates, order the
-ones that depend on each other and brief them as a set; a brief names rows by ID and never paraphrases
+Rows filed during a wave are reviewed in rolling batches (a lane lands and a few rows wait, or about a
+dozen gather): read each batch in one pass against the rows earlier batches passed, merge duplicates,
+order the ones that depend on each other, and dispatch the passed set as sub-wave `<wave>.<n>`; no row
+skips a batch except a defect in a lane's own just-built work (owner 2026-11-13/14; the rule is
+`EterniaLauncher/docs/agent_context/WORK_TRACKING.md`, "Rows filed during a wave…"); a brief names rows by ID and never paraphrases
 one (where it, or a question to the owner, must say what a row is, paste the row's line). A task's
 follow-ups are rows under its follow-up task from the minute they arrive: before the task's last close
 read them once together, merge and cross-cite, and check none is a defect in what the task built
