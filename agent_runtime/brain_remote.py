@@ -15,8 +15,8 @@ RT-BRAIN-PATHS-PLAIN-LIST slice 4 (owner sitting 2026-11-02, launcher plan
   Eternia reads "N new upstream" without a call.
 
 A SLOT brain moves only when the user asks: :func:`pull_checkout` is ``runtime.work.pull``'s git half
-(RT-WORK-PULL-PROJECT-CHECKOUT) — fetch, then ``merge --ff-only`` only when the checkout is clean, refusing
-with a typed :class:`~agent_runtime.work_store.reasons.Reason` otherwise, and the new count written to the list.
+(RT-WORK-PULL-PROJECT-CHECKOUT) — fetch, then ``merge --ff-only`` past any local edit it does not collide with,
+refusing with a typed :class:`~agent_runtime.work_store.reasons.Reason` otherwise, and the new count written to the list.
 """
 
 from __future__ import annotations
@@ -104,9 +104,14 @@ def pull_checkout(path: Path) -> dict[str, Any]:
     """Fast-forward one checkout to its upstream when clean; answer ``{pulled, behind, head}``.
 
     Refusals, in the order they are checked: ``not_a_repo`` (no ``.git``), ``remote_missing`` (no upstream:
-    a detached HEAD or an untracked branch), ``fetch_failed``, ``worktree_dirty`` (tracked changes, or an
-    untracked file the merge would overwrite), ``remote_diverged`` (local commits the upstream lacks). A
+    a detached HEAD or an untracked branch), ``fetch_failed``, ``remote_diverged`` (local commits the upstream
+    lacks), ``worktree_dirty`` (a local edit the pull would overwrite; detail ``would overwrite: <paths>``). A
     checkout already at its upstream answers ``pulled: 0`` and moves nothing.
+
+    Local edits never block on their own (RT-WORK-PULL-PAST-UNRELATED-EDITS, owner 2026-11-13): an edit to a file
+    the pull does not touch stays as it is — git's own ``--ff-only`` keeps it — and an edit whose bytes already
+    equal the incoming file (a tool's rewrite the upstream also made) is dropped, losing nothing. Only a real
+    collision refuses, naming its files, before anything moves.
     """
 
     from .work_store.reasons import Reason, WorkRefused
@@ -124,18 +129,64 @@ def pull_checkout(path: Path) -> dict[str, Any]:
     if behind is None:
         raise WorkRefused(Reason.REMOTE_MISSING, str(upstream.stdout).strip())
     if behind:
-        if not _clean(repo):
-            raise WorkRefused(Reason.WORKTREE_DIRTY, "the checkout has uncommitted changes")
         if _ahead(repo):
             raise WorkRefused(Reason.REMOTE_DIVERGED, "the checkout has commits its upstream lacks")
-        merged = _remote_git(["merge", "--ff-only", "-q", "@{u}"], repo)
-        if merged is None or merged.returncode != 0:
-            raise WorkRefused(Reason.WORKTREE_DIRTY, "an untracked file is in the fast-forward's way")
+        _fast_forward_past_local_edits(repo)
     after = _count(repo) or 0
     head = _remote_git(["rev-parse", "HEAD"], repo)
     write_brain_paths(behind={**held_counts(), str(repo): after})
     return {"pulled": behind - after, "behind": after, "head": str(head.stdout).strip() if head else None}
 
+
+
+def _z_paths(args: list[str], repo: Path) -> set[str]:
+    done = _remote_git([args[0], "-z", *args[1:]], repo)  # before any ``--`` pathspec
+    if done is None or done.returncode != 0:
+        return set()
+    return {name for name in str(done.stdout).split("\0") if name}
+
+
+def _matches_upstream(repo: Path, name: str) -> bool:
+    """The local file's bytes already equal the upstream's (both absent counts as equal)."""
+
+    incoming = _remote_git(["rev-parse", "-q", "--verify", f"@{{u}}:{name}"], repo)
+    theirs = str(incoming.stdout).strip() if incoming is not None and incoming.returncode == 0 else None
+    if not (repo / name).is_file():
+        return theirs is None and not (repo / name).exists()
+    mine = _remote_git(["hash-object", "--", name], repo)
+    return mine is not None and mine.returncode == 0 and str(mine.stdout).strip() == theirs
+
+
+def _drop_local_copy(repo: Path, name: str, tracked: set[str]) -> None:
+    """Put one path back to HEAD (or remove it when HEAD lacks it); its bytes are the upstream's already."""
+
+    if name in tracked:
+        _remote_git(["checkout", "-q", "HEAD", "--", name], repo)
+        return
+    _remote_git(["rm", "-q", "--cached", "--ignore-unmatch", "--", name], repo)
+    (repo / name).unlink(missing_ok=True)
+
+
+def _fast_forward_past_local_edits(repo: Path) -> None:
+    """``merge --ff-only`` to the upstream past local edits it does not collide with; refuse a real collision."""
+
+    from .work_store.reasons import Reason, WorkRefused
+
+    incoming = _z_paths(["diff", "--name-only", "HEAD", "@{u}"], repo)
+    edited = _z_paths(["diff", "--name-only", "HEAD"], repo) | _z_paths(["diff", "--name-only", "--cached"], repo)
+    untracked = _z_paths(["ls-files", "--others", "--exclude-standard"], repo)
+    in_the_way = sorted(incoming & (edited | untracked))
+    same = [name for name in in_the_way if _matches_upstream(repo, name)]
+    collide = [name for name in in_the_way if name not in same]
+    if collide:
+        raise WorkRefused(Reason.WORKTREE_DIRTY, "would overwrite: " + ", ".join(collide))
+    tracked = _z_paths(["ls-tree", "-r", "--name-only", "HEAD", "--", *same], repo) if same else set()
+    for name in same:
+        _drop_local_copy(repo, name, tracked)
+    merged = _remote_git(["merge", "--ff-only", "-q", "@{u}"], repo)
+    if merged is None or merged.returncode != 0:
+        detail = str(merged.stderr).strip().splitlines()[:1] if merged is not None else []
+        raise WorkRefused(Reason.WORKTREE_DIRTY, detail[0] if detail else "git refused the fast-forward")
 
 def checkout_repo_name(path: Path) -> str:
     """The private repository a remote-less checkout would get: its folder's name, lower-case ``[a-z0-9._-]``."""

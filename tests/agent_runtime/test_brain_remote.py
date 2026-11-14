@@ -174,11 +174,11 @@ def test_pull_fast_forwards_a_clean_project_checkout_and_writes_its_count(tmp_pa
 
 
 def test_pull_refuses_dirty_diverged_and_upstreamless_checkouts(tmp_path, monkeypatch):
-    """Mutations: drop the ``_clean`` gate -> the dirty checkout's merge runs (git refuses or moves), the
-    reason is not worktree_dirty, red; drop the ``_ahead`` gate -> the diverged ff fails as worktree_dirty, red."""
+    """Mutations: drop the ``collide`` refusal -> git's own refusal words come back, not ``would overwrite:
+    Work_Brain/n2.md``, red; drop the ``_ahead`` gate -> the diverged ff fails as worktree_dirty, red."""
     monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: True)
     dirty = _behind_by_two(tmp_path, "dirty")
-    (dirty / "Work_Brain" / "TODO.md").write_text("# edited\n", encoding="utf-8")
+    (dirty / "Work_Brain" / "n2.md").write_text("mine\n", encoding="utf-8")  # the pull brings its own n2.md
     diverged = _behind_by_two(tmp_path, "div")
     (diverged / "local.md").write_text("mine\n", encoding="utf-8")
     git("add", "-A", cwd=diverged)
@@ -193,6 +193,39 @@ def test_pull_refuses_dirty_diverged_and_upstreamless_checkouts(tmp_path, monkey
             pull_checkout(path)
         assert refused.value.reason is reason, path
         assert before is None or _head(path) == before
+        if path is dirty:
+            assert refused.value.detail == "would overwrite: Work_Brain/n2.md"
+            assert (dirty / "Work_Brain" / "n2.md").read_text(encoding="utf-8") == "mine\n"
+
+
+def test_pull_moves_past_an_edit_to_a_file_the_pull_does_not_touch(tmp_path, monkeypatch):
+    """RT-WORK-PULL-PAST-UNRELATED-EDITS: a tool's stray rewrite elsewhere never blocks the board.
+    Mutation: put back a blanket ``_clean`` refusal before the merge -> worktree_dirty, red."""
+    monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: True)
+    brain = _behind_by_two(tmp_path, "app")
+    (brain / "Work_Brain" / "TODO.md").write_text("# edited\n", encoding="utf-8")
+    (brain / "scratch.txt").write_text("untracked\n", encoding="utf-8")
+    assert pull_checkout(brain)["pulled"] == 2
+    assert (brain / "Work_Brain" / "n3.md").is_file()
+    assert (brain / "Work_Brain" / "TODO.md").read_text(encoding="utf-8") == "# edited\n"
+    assert (brain / "scratch.txt").is_file()
+
+
+def test_pull_drops_a_local_copy_that_already_equals_the_incoming_file(tmp_path, monkeypatch):
+    """The upstream made the same rewrite the local tool did (2026-11-13: a pub-get re-quoted pubspec.lock and
+    the fix landed upstream): nothing is lost, so the pull goes through. Mutation: count every in-the-way path
+    as a collision (drop the ``_matches_upstream`` split) -> worktree_dirty, red."""
+    monkeypatch.setattr(brain_remote, "write_brain_paths", lambda behind: True)
+    brain = _behind_by_two(tmp_path, "app")
+    seed = tmp_path / "app-seed"
+    (seed / "Work_Brain" / "TODO.md").write_text("# TODO\nquoted\n", encoding="utf-8")
+    git("commit", "-q", "-am", "requote", cwd=seed)
+    git("push", "-q", "origin", "main", cwd=seed)
+    (brain / "Work_Brain" / "TODO.md").write_text("# TODO\nquoted\n", encoding="utf-8")  # tracked, same bytes
+    (brain / "Work_Brain" / "n3.md").write_text("3\n", encoding="utf-8")  # untracked, same bytes
+    assert pull_checkout(brain)["pulled"] == 3
+    assert _head(brain) == git("rev-parse", "origin/main", cwd=brain).strip()
+    assert git("status", "--porcelain", cwd=brain) == ""
 
 
 # ── RT-SLOT-BRAIN-MAKE-REMOTE: a remote-less Project checkout gets a private repository on the person's ask ──
