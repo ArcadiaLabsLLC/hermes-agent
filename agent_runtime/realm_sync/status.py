@@ -13,6 +13,7 @@ from ..models import Realm, Workspace
 from ..store import RealmStore, skill_tombstoned
 from .models import RealmMembershipProvider, RealmSyncError, _safe_display_path
 from .ledgers import _skill_tombstone_rows
+from .host_refusal import host_refusal_reported, report_host_refusal
 from .git import (
     _authorize,
     _ensure_repo_gitattributes,
@@ -236,7 +237,8 @@ def _status_repo(
     except RealmSyncError as exc:
         auth_error = exc
     if auth_error is None:
-        repo = _ensure_sync_repo(realm, credential=credential)
+        with host_refusal_reported(realm, credential):
+            repo = _ensure_sync_repo(realm, credential=credential)
         # Refresh the remote-tracking ref FIRST: ahead/behind below are computed
         # against ``@{u}``, and without a fetch that ref is whatever the last
         # pull/publish left behind — a member editing (or deleting) files upstream
@@ -244,6 +246,10 @@ def _status_repo(
         # never fired. Best-effort: an offline check still answers from the local
         # state, and says so via ``remote_checked``.
         remote_check = _refresh_remote_tracking(repo, credential=credential)
+        if remote_check.get("failure") is not None:
+            # A fetch the host refused for its authorization: reported, and the
+            # answer's code (``realm_revoked`` once the binding is gone) is the error.
+            remote_check["error"] = report_host_refusal(realm, credential, remote_check["failure"]).code
     else:
         # THE FLOOR of the degrade, and it is deliberate: a degraded read
         # answers from local facts, so where there are none it still refuses

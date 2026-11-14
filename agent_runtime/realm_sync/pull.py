@@ -36,6 +36,7 @@ from .ledgers import (
     merge_skill_tombstone_ledgers,
     merge_workspace_lift_ledgers,
 )
+from .host_refusal import host_refusal_reported
 from .git import (
     _authorize,
     _ensure_sync_repo,
@@ -88,8 +89,21 @@ def pull_realm_sync(
     credential: RealmSyncCredential | None = None,
 ) -> dict[str, Any]:
     """Pull this realm: the generic overwrite loop, then every applier in
-    ``PULL_APPLIERS`` order, then the skill reconcile and the report."""
+    ``PULL_APPLIERS`` order, then the skill reconcile and the report. A clone
+    or pull the git host refuses for its authorization is reported to the
+    backend first (``host_refusal``, RT-REALM-SYNC-REPORTS-A-REJECTED-PUSH)."""
 
+    with host_refusal_reported(RealmStore().get(realm_id), credential):
+        return _pull_realm_sync(realm_id, dry_run=dry_run, membership=membership, credential=credential)
+
+
+def _pull_realm_sync(
+    realm_id: str,
+    *,
+    dry_run: bool,
+    membership: RealmMembershipProvider | None,
+    credential: RealmSyncCredential | None,
+) -> dict[str, Any]:
     realm = RealmStore().get(realm_id)
     _authorize(realm, "pull", membership, credential)
     repo = _ensure_sync_repo(realm, credential=credential)

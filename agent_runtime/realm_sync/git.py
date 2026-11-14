@@ -406,12 +406,14 @@ def _refresh_remote_tracking(repo: Path, *, credential: RealmSyncCredential | No
     """
 
     if not _has_remote(repo):
-        return {"checked": False, "error": None}
+        return {"checked": False, "error": None, "failure": None}
     try:
         _git(repo, "fetch", extra_config=_credential_git_config(credential))
     except RealmSyncError as exc:
-        return {"checked": False, "error": exc.code}
-    return {"checked": True, "error": None}
+        # ``failure``: the refusal itself, so the status read can report a host auth refusal
+        # (``host_refusal``) -- never part of an envelope.
+        return {"checked": False, "error": exc.code, "failure": exc}
+    return {"checked": True, "error": None, "failure": None}
 
 
 #: Config every realm-sync git call carries. ``core.longpaths``: a realm tree nests
@@ -441,6 +443,10 @@ def run_sync_git(args: Sequence[str], **run_kwargs: Any) -> subprocess.Completed
     env = dict(run_kwargs.pop("env", None) or os.environ)
     for name in _IDENTITY_ENV:
         env.pop(name, None)
+    # A host that refuses the brokered Authorization (401) makes git ask for a username. No one
+    # answers a realm sync's prompt: it must fail, so the refusal is reported
+    # (``host_refusal``, RT-REALM-SYNC-REPORTS-A-REJECTED-PUSH) instead of hanging on a terminal.
+    env["GIT_TERMINAL_PROMPT"] = "0"
     return run_git(args, env=env, **run_kwargs)
 
 

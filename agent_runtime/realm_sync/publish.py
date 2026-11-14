@@ -20,6 +20,7 @@ from .models import (
     RealmSyncError,
     _canonicalize_text_bytes,
 )
+from .host_refusal import host_refusal_reported
 from .git import (
     _authorize,
     _credential_git_config,
@@ -95,8 +96,21 @@ def publish_realm_sync(
     credential: RealmSyncCredential | None = None,
 ) -> dict[str, Any]:
     """Publish this realm: stage the subtree, commit and push, record every
-    family's baseline, account. Each phase is its own function below."""
+    family's baseline, account. Each phase is its own function below. A push
+    or fetch the git host refuses for its authorization is reported to the
+    backend first (``host_refusal``, RT-REALM-SYNC-REPORTS-A-REJECTED-PUSH)."""
 
+    with host_refusal_reported(RealmStore().get(realm_id), credential):
+        return _publish_realm_sync(realm_id, dry_run=dry_run, membership=membership, credential=credential)
+
+
+def _publish_realm_sync(
+    realm_id: str,
+    *,
+    dry_run: bool,
+    membership: RealmMembershipProvider | None,
+    credential: RealmSyncCredential | None,
+) -> dict[str, Any]:
     realm = RealmStore().get(realm_id)
     _authorize(realm, "publish", membership, credential)
     repo = _ensure_sync_repo(realm, credential=credential)

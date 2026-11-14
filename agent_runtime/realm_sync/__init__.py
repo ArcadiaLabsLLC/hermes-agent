@@ -26,6 +26,9 @@ families           policy  ``SyncFamily`` (the ONE family vocabulary) and
 ledgers            policy  the RD-11 ledger unions and the tombstone receipt rows
 git                stores  authorization, the sync repo, ``_git`` (over
                            ``agent_runtime.git_cmd.run_git``), redaction
+host_refusal       stores  a git call the host refused for its authorization,
+                           reported to the backend once per verb (re-broker,
+                           or the ``git_host_binding_lost`` host-state mark)
 publish_scans      stores  the board / office / level / map one-pass scans
 persona_artifacts  stores  profile files, the three synthesized projections,
                            the base-seed and portability guards

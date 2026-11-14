@@ -363,6 +363,20 @@ def notify_realm_published(credential: RealmSyncCredential, realm_id: str, *, co
         )
 
 
+def report_git_auth_rejected(credential: RealmSyncCredential, realm: Realm) -> tuple[int, Any]:
+    """POST that the git host refused this credential's authorization (backend ``603184bc``,
+    RT-REALM-SYNC-REPORTS-A-REJECTED-PUSH). Returns ``(status, body)`` for the caller to read:
+    204 alive (re-broker), 409 ``realms.git_host_binding_lost`` / ``realms.git_host_unbound``.
+    A server realm reports on ``/realms/{id}``; a local realm's credential on ``/me/realms/local:{id}``,
+    the ref its credential was minted for. Raises ``sync_remote_unreachable`` on a transport failure."""
+    base = credential.api_base.rstrip("/")
+    if credential.has_backend_realm:
+        url = f"{base}/realms/{urllib.parse.quote(realm.id, safe='')}/sync/auth-rejected"
+    else:
+        url = f"{base}/me/realms/{urllib.parse.quote(credential.realm_id, safe=':')}/sync/auth-rejected"
+    return _request_json("POST", url, headers=credential.bearer_headers())
+
+
 def _nonnegative_int(value: Any) -> int:
     try:
         return max(0, int(value or 0))
