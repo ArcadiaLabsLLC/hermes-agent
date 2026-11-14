@@ -166,10 +166,10 @@ def test_an_agent_with_a_live_run_holds_the_rekey_as_a_turn(tmp_path, monkeypatc
 
     realm, _first, _second, _extra, _head = _left_realm(tmp_path)
     owe_rekey(realm.id, reason="membership_left")
-    monkeypatch.setattr(PersonaInstanceStore, "_has_live_binding", lambda self, instance: instance.id == HELPER)
-    attempt = triggers.try_rekey(realm.id)
-    assert attempt.busy is RekeyBusy.TURN and attempt.journal["blocked"] == {"step": "agents", "error": "RekeyAgentBusy"}
-    monkeypatch.undo()
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(PersonaInstanceStore, "_has_live_binding", lambda self, instance: instance.id == HELPER)
+        attempt = triggers.try_rekey(realm.id)
+        assert attempt.busy is RekeyBusy.TURN and attempt.journal["blocked"] == {"step": "agents", "error": "RekeyAgentBusy"}
     assert triggers.try_rekey(realm.id).done
 
 

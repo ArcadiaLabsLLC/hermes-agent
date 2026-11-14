@@ -195,39 +195,39 @@ def test_a_rekey_killed_part_way_is_finished_by_running_it_again(tmp_path, monke
     class Killed(RuntimeError):
         pass
 
-    if killed_after == "first rename":
-        real, calls = Path.rename, []
+    with pytest.MonkeyPatch.context() as patched:
+        if killed_after == "first rename":
+            real, calls = Path.rename, []
 
-        def rename_once(self, target):
-            if calls:
+            def rename_once(self, target):
+                if calls:
+                    raise Killed()
+                calls.append(self)
+                return real(self, target)
+
+            patched.setattr(Path, "rename", rename_once)
+        elif killed_after == "first park":
+            from agent_runtime import realm_rekey_agents
+
+            real_move = shutil.move
+
+            def park_then_die(source, target):
+                real_move(source, target)
                 raise Killed()
-            calls.append(self)
-            return real(self, target)
 
-        monkeypatch.setattr(Path, "rename", rename_once)
-    elif killed_after == "first park":
-        from agent_runtime import realm_rekey_agents
+            patched.setattr(realm_rekey_agents.shutil, "move", park_then_die, raising=True)
+        else:
+            steps = dict(realm_rekey.STEPS)
 
-        real_move = shutil.move
+            def then_die(root, mapping):
+                steps[killed_after](root, mapping)
+                raise Killed()
 
-        def park_then_die(source, target):
-            real_move(source, target)
-            raise Killed()
-
-        monkeypatch.setattr(realm_rekey_agents.shutil, "move", park_then_die, raising=True)
-    else:
-        steps = dict(realm_rekey.STEPS)
-
-        def then_die(root, mapping):
-            steps[killed_after](root, mapping)
-            raise Killed()
-
-        monkeypatch.setattr(realm_rekey, "STEPS", tuple(
-            (name, then_die if name == killed_after else step) for name, step in realm_rekey.STEPS))
-    with pytest.raises(Killed):
-        rekey_realm(realm.id)
-    assert realm_rekey.read_rekey_journal(realm.id)["state"] == RekeyState.RUNNING.value
-    monkeypatch.undo()
+            patched.setattr(realm_rekey, "STEPS", tuple(
+                (name, then_die if name == killed_after else step) for name, step in realm_rekey.STEPS))
+        with pytest.raises(Killed):
+            rekey_realm(realm.id)
+        assert realm_rekey.read_rekey_journal(realm.id)["state"] == RekeyState.RUNNING.value
     minted = {item.id: item.default_chat_session_id for item in PersonaInstanceStore().list_all()
               if item.id in owed["map"]["agents"].values()}
     if killed_after == "rename":  # a writer that still held the old id re-made the old board folder

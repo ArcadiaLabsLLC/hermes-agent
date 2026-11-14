@@ -9,16 +9,18 @@ the live home again.
 
 from __future__ import annotations
 
+import pytest
+
 import hermes_cli.doctor as doctor
 from hermes_constants import get_hermes_home
 
 
 def test_a_patched_home_reaches_the_helpers_and_its_undo_leaves_a_real_attribute(monkeypatch, tmp_path):
-    monkeypatch.setattr(doctor, "HERMES_HOME", tmp_path)
-    from hermes_cli.doctor import HERMES_HOME
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(doctor, "HERMES_HOME", tmp_path)
+        from hermes_cli.doctor import HERMES_HOME
 
-    assert HERMES_HOME == tmp_path
-    monkeypatch.undo()
+        assert HERMES_HOME == tmp_path
     assert "HERMES_HOME" in doctor.__dict__, "monkeypatch's undo froze the live value (the premise)"
 
 

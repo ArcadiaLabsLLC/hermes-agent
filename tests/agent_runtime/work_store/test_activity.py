@@ -6,6 +6,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from agent_runtime.events import EventLog
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.work.store import Synced
@@ -78,12 +80,12 @@ def test_the_engine_tick_writes_the_sidecar_and_the_snapshot_row_reads_it_withou
                         workspaces=lambda: [WS], brief_of=lambda row, w: "", cap_for=lambda ws: 0)
     engine.tick()
     assert writer.asked == [BRAIN]
-    monkeypatch.setattr("agent_runtime.work_store.board.board_rows", _never)
-    monkeypatch.setattr(activity, "count_tasks", _never)
-    row = workspace_summary(WorkspaceStore().get(WS))
-    stamp = datetime.fromtimestamp(1_762_900_000, UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
-    assert (row["tasks_running"], row["needs_you"], row["last_activity_at"]) == (3, 3, stamp)
-    monkeypatch.undo()
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr("agent_runtime.work_store.board.board_rows", _never)
+        patched.setattr(activity, "count_tasks", _never)
+        row = workspace_summary(WorkspaceStore().get(WS))
+        stamp = datetime.fromtimestamp(1_762_900_000, UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+        assert (row["tasks_running"], row["needs_you"], row["last_activity_at"]) == (3, 3, stamp)
     assert len(_events()) == 1 and _events()[0]["workspace_id"] == WS
     engine.tick()
     assert len(_events()) == 1, "an unchanged read writes nothing and appends nothing"

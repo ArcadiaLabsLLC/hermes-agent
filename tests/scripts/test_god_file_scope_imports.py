@@ -14,6 +14,8 @@ import gc
 import textwrap
 import weakref
 
+import pytest
+
 from scripts import god_file_scope
 
 _SOURCE = textwrap.dedent(
@@ -57,9 +59,9 @@ def test_finds_the_imports_ast_walk_finds_in_its_order():
 def test_a_tree_is_walked_once_and_not_kept_alive(monkeypatch):
     tree = ast.parse(_SOURCE)
     first = god_file_scope.import_nodes(tree)
-    monkeypatch.setattr(god_file_scope.ast, "iter_child_nodes", lambda node: iter(()))
-    assert god_file_scope.import_nodes(tree) is first
-    monkeypatch.undo()
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(god_file_scope.ast, "iter_child_nodes", lambda node: iter(()))
+        assert god_file_scope.import_nodes(tree) is first
     alive = weakref.ref(tree)
     del tree, first
     gc.collect()
