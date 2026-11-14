@@ -27,7 +27,6 @@ from typing import Any
 from utils import atomic_json_write
 
 from . import paths
-from .git_cmd import run_git
 
 __layer__ = "lanes"
 __all__ = ["LOCAL_SYNC_REPO", "step_outside"]
@@ -37,7 +36,6 @@ LOCAL_SYNC_REPO = "local"
 #: How long the re-key waits for the Lens poller to let go of its database.
 LENS_WAIT_SECONDS = 10.0
 _SQLITE_IN_USE = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED})
-_SYNC_IDENTITY = ("user.name=Hermes Realm Sync", "user.email=realm-sync@localhost")
 
 
 def _machine_files() -> list[Path]:
@@ -103,7 +101,11 @@ def _rekey_skills(mapping: Any) -> None:
 
 
 def _sync_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return run_git(list(args), repo=repo, config=_SYNC_IDENTITY, timeout=120, stdin=subprocess.DEVNULL, encoding="utf-8")
+    # The realm-sync door: its robot identity, and no member's own name or address
+    # (RT-REALM-SYNC-COMMIT-LEAKS-MEMBER-EMAIL).
+    from .realm_sync.git import SYNC_IDENTITY, run_sync_git
+
+    return run_sync_git(list(args), repo=repo, config=SYNC_IDENTITY, timeout=120, stdin=subprocess.DEVNULL, encoding="utf-8")
 
 
 def _rekey_local_history(mapping: Any) -> None:

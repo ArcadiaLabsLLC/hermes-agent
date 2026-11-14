@@ -6,6 +6,8 @@ the credential's ``-c`` config never leaves this module unscrubbed.
 
 from __future__ import annotations
 
+import os
+import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -32,7 +34,6 @@ __all__ = [
     "_adopt_local_remote",
     "_authorize",
     "_credential_git_config",
-    "_ensure_git_identity",
     "_ensure_repo_gitattributes",
     "_ensure_sync_repo",
     "_git",
@@ -49,6 +50,8 @@ __all__ = [
     "_scrub_config_values",
     "_sync_repo_path",
     "_sync_state",
+    "SYNC_IDENTITY",
+    "run_sync_git",
 ]
 
 
@@ -158,7 +161,8 @@ def _adopt_local_remote(realm: Realm, repo: Path, url: str, *, config: Sequence[
 
     _align_branch(repo, _LOCAL_REALM_BRANCH)
     try:
-        adopt_remote(repo, url, branch=_LOCAL_REALM_BRANCH, config=config, merge_unrelated_if_disjoint=True)
+        adopt_remote(repo, url, branch=_LOCAL_REALM_BRANCH, config=config, merge_unrelated_if_disjoint=True,
+                     run=run_sync_git)
     except AdoptRefused as exc:
         detail = _redact_text(_scrub_config_values(exc.detail, config))
         code = _ADOPT_REFUSAL_CODES.get(exc.reason, "sync_remote_unreachable")
@@ -280,8 +284,7 @@ def _merge_remote(repo: Path, *, credential: RealmSyncCredential | None = None) 
     and every later sync verb reads the same state from ``_git_state`` and refuses the same
     way until they have cleared it."""
 
-    _ensure_git_identity(repo)
-    proc = run_git(("pull", "--no-rebase", "--no-edit", "-X", "theirs"), repo=repo,
+    proc = run_sync_git(("pull", "--no-rebase", "--no-edit", "-X", "theirs"), repo=repo,
                    config=(*_REPO_CONFIG, *(_credential_git_config(credential) or ())))
     if proc.returncode == 0:
         return
@@ -375,11 +378,33 @@ def _refresh_remote_tracking(repo: Path, *, credential: RealmSyncCredential | No
 #: Git for Windows refuses a path past MAX_PATH ("Filename too long") without it --
 #: measured 2026-10-02, ``git add`` of a 118-char repo root failed the publish. Other
 #: platforms' git ignores the key.
-_REPO_CONFIG = ("core.longpaths=true",)
+#: ``SYNC_IDENTITY``: the one name every realm-sync commit (and merge) carries, on every machine
+#: (RT-REALM-SYNC-COMMIT-LEAKS-MEMBER-EMAIL). It used to be written to the repo's config only when
+#: ``git config user.email`` answered nothing -- a lookup that reads the GLOBAL config too -- so on a
+#: machine whose user had a git identity the publish carried THAT PERSON'S name and email into a
+#: repository other members read and that may go public later. A ``-c`` pair beats every config
+#: file, and ``run_sync_git`` drops the ``GIT_AUTHOR_*``/``GIT_COMMITTER_*`` variables that would
+#: beat the pair. Who published a change is a commit trailer instead (owner RULED 2026-11-14 on
+#: RT-REALM-SYNC-COMMITS-NAME-NOBODY: never an email or a real name).
+SYNC_IDENTITY = ("user.name=Hermes Realm Sync", "user.email=realm-sync@localhost")
+_REPO_CONFIG = ("core.longpaths=true", *SYNC_IDENTITY)
+_IDENTITY_ENV = ("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL")
+
+
+def run_sync_git(args: Sequence[str], **run_kwargs: Any) -> subprocess.CompletedProcess[str]:
+    """``run_git`` for a realm sync repository: the caller's identity variables never reach git.
+
+    An exported ``GIT_AUTHOR_EMAIL`` outranks ``-c user.email`` and every config file, so the
+    ``SYNC_IDENTITY`` pair alone would still let a member's own address into the history."""
+
+    env = dict(run_kwargs.pop("env", None) or os.environ)
+    for name in _IDENTITY_ENV:
+        env.pop(name, None)
+    return run_git(args, env=env, **run_kwargs)
 
 
 def _git(repo: Path, *args: str, check: bool = True, extra_config: Sequence[str] | None = None) -> str:
-    proc = run_git(args, repo=repo, config=(*_REPO_CONFIG, *(extra_config or ())))
+    proc = run_sync_git(args, repo=repo, config=(*_REPO_CONFIG, *(extra_config or ())))
     if check and proc.returncode != 0:
         code = "sync_auth_failed" if "authentication" in (proc.stderr or "").lower() else "sync_remote_unreachable"
         # safe_details carries the plain subcommand args only — the -c config
@@ -395,7 +420,7 @@ def _git(repo: Path, *args: str, check: bool = True, extra_config: Sequence[str]
 
 
 def _git_clone(ref: str, repo: Path, *, extra_config: Sequence[str] | None = None) -> None:
-    proc = run_git(["clone", ref, str(repo)], config=(*_REPO_CONFIG, *(extra_config or ())))
+    proc = run_sync_git(["clone", ref, str(repo)], config=(*_REPO_CONFIG, *(extra_config or ())))
     if proc.returncode != 0:
         code = "sync_auth_failed" if "authentication" in (proc.stderr or "").lower() else "sync_remote_unreachable"
         raise RealmSyncError(
@@ -413,13 +438,6 @@ def _scrub_config_values(text: str, extra_config: Sequence[str] | None) -> str:
         if value.strip():
             scrubbed = scrubbed.replace(value, "[redacted]")
     return scrubbed
-
-
-def _ensure_git_identity(repo: Path) -> None:
-    if not _git(repo, "config", "user.email", check=False).strip():
-        _git(repo, "config", "user.email", "realm-sync@localhost")
-    if not _git(repo, "config", "user.name", check=False).strip():
-        _git(repo, "config", "user.name", "Hermes Realm Sync")
 
 
 def _looks_like_remote(value: str) -> bool:

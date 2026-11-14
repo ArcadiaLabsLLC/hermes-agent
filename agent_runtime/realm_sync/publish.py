@@ -23,7 +23,6 @@ from .models import (
 from .git import (
     _authorize,
     _credential_git_config,
-    _ensure_git_identity,
     _ensure_sync_repo,
     _git,
     _git_state,
@@ -224,7 +223,6 @@ def _stage_commit_and_push(
     _git(repo, "add", "--", *add_paths)
     changed = bool(_git(repo, "status", "--porcelain", "--", *add_paths).strip())
     if changed:
-        _ensure_git_identity(repo)
         _git(repo, "commit", "-m", f"Publish realm sync {realm.id}")
         if not realm.server_id and not _has_remote(repo):
             # A local realm whose sync repository has no remote (one that never had a personal repository, or

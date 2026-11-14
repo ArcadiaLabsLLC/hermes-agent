@@ -647,11 +647,15 @@ def test_git_extra_config_threads_and_never_leaks(isolate_agent_runtime_root, tm
     monkeypatch.setattr(realm_sync_module.subprocess, "run", _recording_run)
     header = "http.extraHeader=Authorization: Bearer sekret_value_1234567890"
 
+    from agent_runtime.realm_sync.git import _REPO_CONFIG
+
+    repo_config = [part for pair in _REPO_CONFIG for part in ("-c", pair)]
+    assert repo_config[:2] == ["-c", "core.longpaths=true"]  # every realm-sync call: MAX_PATH
     _git(repo, "status", "--porcelain", extra_config=[header])
-    assert calls[-1][:5] == ["git", "-c", "core.longpaths=true", "-c", header]
+    assert calls[-1][: 3 + len(repo_config)] == ["git", *repo_config, "-c", header]
 
     _git(repo, "status", "--porcelain")
-    assert calls[-1][:3] == ["git", "-c", "core.longpaths=true"]  # every realm-sync call: MAX_PATH
+    assert calls[-1][: 1 + len(repo_config)] == ["git", *repo_config]
     assert not any("extraHeader" in part for part in calls[-1])
 
     with pytest.raises(RealmSyncError) as excinfo:
@@ -679,12 +683,15 @@ def test_git_clone_renders_extra_config(tmp_path, monkeypatch):
     monkeypatch.setattr(realm_sync_module.subprocess, "run", _stub_run)
     header = "http.extraHeader=Authorization: Bearer sekret_value_1234567890"
 
+    from agent_runtime.realm_sync.git import _REPO_CONFIG
+
+    repo_config = [part for pair in _REPO_CONFIG for part in ("-c", pair)]
     _git_clone("https://git.test.invalid/x.git", tmp_path / "clone-target", extra_config=[header])
-    assert calls[-1][:5] == ["git", "-c", "core.longpaths=true", "-c", header]
+    assert calls[-1][: 3 + len(repo_config)] == ["git", *repo_config, "-c", header]
     assert "clone" in calls[-1]
 
     _git_clone("https://git.test.invalid/x.git", tmp_path / "clone-target")
-    assert calls[-1][:3] == ["git", "-c", "core.longpaths=true"]
+    assert calls[-1][: 1 + len(repo_config)] == ["git", *repo_config]
     assert not any("extraHeader" in part for part in calls[-1])
 
 
