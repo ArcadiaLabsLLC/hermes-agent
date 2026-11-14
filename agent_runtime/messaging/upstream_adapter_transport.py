@@ -87,6 +87,13 @@ class UpstreamAdapterTransport:
             # callback at all; with none it lets every sender through and leaves the decision to a runner.
             self.adapter.config.extra.setdefault("allow_from", [])
             self.adapter.set_authorization_check(self._gate)
+        if hasattr(self.adapter, "_register_command_menu"):
+            # Telegram: the adapter pushes UPSTREAM's slash-command menu to the bot after connect, and has
+            # no switch for it. Those commands live in the runner the fork does not start, so the menu
+            # would advertise commands that do nothing here. An instance override, not a config key.
+            async def _no_upstream_menu() -> None:
+                return None
+            self.adapter._register_command_menu = _no_upstream_menu
         if self._connect:
             self._call(self.adapter.connect())
 
@@ -154,7 +161,9 @@ class UpstreamAdapterTransport:
 
         if not text.strip():
             return SendResult(())
-        metadata = {"thread_id": thread} if thread else None
+        # ``notify``: the Telegram adapter sends silently (disable_notification) unless a reply says it is
+        # user-visible — the base class marks that itself on a RETURNED reply, which this shim never uses.
+        metadata = {"notify": True, **({"thread_id": thread} if thread else {})}
         result = self._call(self.adapter.send(chat, text, reply_to=reply_to, metadata=metadata))
         if not getattr(result, "success", False):
             logger.warning("the upstream adapter refused a send: %s", getattr(result, "error", None))

@@ -129,7 +129,16 @@ def test_a_real_update_becomes_a_queued_turn_and_the_reply_is_a_real_send(rig):
     rig.turns.settled(entry, 0, {"ok": True, "reply": "three things moved"})
     [sent] = rig.server.sent
     assert str(sent["chat_id"]) == "42" and "three things moved" in sent["text"]
+    assert sent.get("reply_parameters", {}).get("message_id") == update["message"]["message_id"]
+    assert not sent.get("disable_notification")  # the reply must buzz the phone, as the fork's own does
     assert rig.stores == []
+
+
+def test_upstreams_command_menu_is_not_pushed_to_the_bot(rig):
+    """Killing mutation: drop the ``_register_command_menu`` override in ``start`` → ``setMyCommands`` → red."""
+    _wait(lambda: "getUpdates" in rig.server.methods(), what="the long poll")
+    time.sleep(1.5)  # the menu is registered off the connect path
+    assert "setMyCommands" not in rig.server.methods()
 
 
 def test_a_stranger_passes_the_adapters_gate_and_is_refused_by_the_forks_operator_list(rig):
