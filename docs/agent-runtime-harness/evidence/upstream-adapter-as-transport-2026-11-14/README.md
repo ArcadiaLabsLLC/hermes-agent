@@ -1,6 +1,6 @@
 # Upstream platform adapters as plain transports — audit, 2026-11-14
 
-Rows: `RT-MESSAGING-UPSTREAM-ADAPTER-TRIAL` (this is its step 1 and the adapter half of
+Rows: `RT-MESSAGING-UPSTREAM-ADAPTER-TRIAL` (its step 1, then both halves of
 step 2) and the owner's decision `RT-MESSAGING-NEXT-APPS-REUSE-UPSTREAM-CONNECTORS`.
 Related: `FORK-PARALLEL-MESSAGING-GATEWAY`. Run on Windows at fork `eb1fa62052`,
 Python 3.13.15, by lane msg-adapter-audit at the owner's ask in chat.
@@ -11,10 +11,12 @@ An upstream adapter can be used as a pipe. Four real adapter classes (Telegram, 
 Slack, Signal) were built with no `GatewayRunner`, given one handler, and handed an inbound
 message through the real `handle_message`. In every case the handler got the message, the
 reply went out through the adapter's `send`, no `SessionStore` was built and `gateway.run`
-was never imported. The adapter side of the question is answered: yes. What is NOT yet
-shown is the fork side — a shim behind `agent_runtime/messaging/transport.py::Transport`
-feeding `agent_runtime/messaging/bridge.py::MessagingBridge.inbound`, so "lands on the
-persona's one chat root" is still read, not run.
+was never imported. Then the fork side was built as a throwaway trial: one shim class behind
+`agent_runtime/messaging/transport.py::Transport`, with the real
+`agent_runtime/messaging/bridge.py::MessagingBridge` on top. A message through each of the
+four upstream adapters became a queued turn on the persona's one chat root, and the settle's
+reply went back out through the adapter — 24 tests passed. No adapter was connected to its
+real platform; that is the main thing still not shown.
 
 ## What was run
 
@@ -97,23 +99,65 @@ behaviour the fork does not ship, holds.
 | Text batching of split messages | `_enqueue_text_event` | Still runs where an adapter uses it (0.3 s default); not probed |
 | Upstream slash commands (`/new`, `/model` and so on) | the runner's handler | Absent with the runner; only the fork's `/persona` exists |
 
-## What this audit did not show
+## The fork half: the shim trial (added later the same day)
+
+Built on branch `trial/upstream-adapter-shim` (pushed to origin, commit `6b2ae23ffa`; not on
+`main`, nothing constructs it in the serve): one class, `UpstreamAdapterTransport`, that
+implements the fork's `Transport` over any upstream adapter, and one test file that runs the
+real `MessagingBridge` on top of it — the real operator, binding and refused-sender stores,
+the real send queue and `PersonaTurnExecutor`, the rig of
+`tests/agent_runtime/messaging/test_bridge_inbound.py`. Only the adapter's network calls are
+recorders; a message arrives through the adapter's real `handle_message`.
+
+**24 passed: 6 tests, each against the Telegram, Discord, Slack and Signal adapters.**
+
+| What the test shows | All four adapters |
+|---|---|
+| A message through the upstream adapter is a QUEUED turn on the persona's one chat root, bound instance and origin recorded | yes |
+| No upstream `SessionStore` is built, and the adapter holds no busy state afterwards | yes |
+| The settle's reply goes out through the adapter to the origin chat and thread, as a reply to the message | yes |
+| A stranger reaches the bridge, is refused there and is listed for the console's Allow list | yes |
+| The same message delivered twice is one queued entry | yes |
+| A busy root holds the message and says so once | yes |
+| An unbound chat gets the roster and `/persona` binds it (upstream's slash commands are absent with the runner) | yes |
+
+Each of the shim's three load-bearing lines was broken once and the tests watched go red:
+the handler not calling the bridge (24 failed), `send` returning before `adapter.send`
+(12 failed), the message id mixing in a clock (20 failed); restored, 24 passed.
+
+**The shim's cost:** 154 lines, 119 without blanks and comments. It is the same class for
+all four adapters — no per-adapter branch. For comparison the fork's own Telegram transport,
+`agent_runtime/messaging/telegram_api.py`, is 279 lines for one platform.
+
+**One thing the trial found and fixed:** with the adapter's defaults the typing indicator
+was sent twice per message, once by the base class's own typing refresh and once by the
+bridge. `PlatformConfig(typing_indicator=False)` turns the base class's off; the shim's
+adapters must be built that way.
+
+## What is still not shown
 
 - No adapter connected to its platform. `connect()` needs real credentials and a network;
-  the inbound message was built with `build_source` and handed to `handle_message`, so the
-  adapter's own parsing of a platform update and its sender gate were not exercised.
-- Who may talk was not wired. `set_authorization_check` is the hook; Telegram's own gate
-  falls back to upstream's environment allowlist and denies by default when neither is
-  set, which is the safe direction but must be driven from the fork's operator list.
-- Approval cards (`send_exec_approval` and its button presses) were not probed.
-- The fork's transports are thread-based and synchronous; the adapters are asyncio. The
-  shim needs an event loop on its own thread. Not built, so its size in lines is unknown.
+  the inbound message was built with `build_source` and handed to `handle_message`, so each
+  adapter's own parsing of a platform update, and its sender gate ahead of `handle_message`,
+  were not exercised. The shim tells the adapter's gate yes through
+  `set_authorization_check` and lets the fork's operator list decide; whether every adapter
+  honours that callback before its own environment allowlist needs one live message per app.
+- Approval cards: `send_card`, `edit` and `answer_callback` raise in the shim. Upstream has
+  `send_exec_approval` per adapter; mapping the fork's cards onto it is not tried.
+- The bridge was labelled `telegram` in every run: `agent_runtime/messaging/models.py::Platform`
+  has one member, and a new member, its token shape and its page in Eternia are per-app work.
 - Token storage: the adapters read `PlatformConfig.token`; feeding it from
   `agent_runtime/messaging/credentials.py::bot_token` was not tried.
+- Whether each adapter library can enter the bundled-desktop and bundled-phone closures.
+- Long replies: each adapter splits at its own limit inside `send`, which the recorder
+  replaced, so chunking through an upstream adapter was not observed.
 
 ## Reading
 
-Worth continuing. The reason the fork hand-built Telegram — keeping the persona system and
-one conversation — does not require hand-building the next app: the persona system sits
-above the pipe in both designs. What is left before the owner's decision is the fork half
-of step 2: one shim class and the bridge's existing tests run against it.
+Worth it for the apps after Telegram. The reason the fork hand-built Telegram — keeping the
+persona system and one conversation — does not require hand-building the next app: the
+persona system sits above the pipe in both designs, and one 154-line class carried four
+different upstream adapters through the bridge's behaviour unchanged. The fork's own
+Telegram transport has no reason to be replaced. What a real second app still needs is the
+list above, and the first item — one live message on the real platform — is the one that
+could still change this reading.
