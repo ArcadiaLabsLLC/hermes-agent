@@ -203,7 +203,7 @@ def _adopt_credential_remote(realm: Realm, repo: Path, credential: RealmSyncCred
 
     The mirror of ``realm_membership.adopt_realms`` for a server-less realm, plus the
     ``git remote add`` a clone never needed: through ``git_remote_adopt.adopt_remote``,
-    which pushes ``-u`` into an empty personal repo, takes the remote into an empty local
+    which leaves an empty personal repo empty for Publish to fill, takes the remote into an empty local
     one, and merges another machine's unrelated history only when the two touch no common
     path (owner RULED 2026-10-19). Server realms and course credentials never enter (the
     subject check). The ref is moved only when that does not move the repo
@@ -224,7 +224,12 @@ def _adopt_local_remote(realm: Realm, repo: Path, url: str, *, config: Sequence[
     """``url`` becomes a server-less realm's ``sync_manifest_ref`` and ``repo``'s ``origin``.
 
     The ONE adoption path: a ``local:`` credential's ``git_url`` and ``harness realm sync
-    remote set`` (``remote.set_realm_backup_remote``) both come through here."""
+    remote set`` (``remote.set_realm_backup_remote``) both come through here.
+
+    It never PUSHES (RT-LOCAL-REALM-STATUS-READ-PUSHES-INTO-AN-EMPTY-BACKUP-REPO; owner RULED 2026-11-14,
+    superseding the 2026-10-19 seeding allowance): every verb runs it — a status read ("Check now"), a dry-run
+    Pull, a Pull, a remote set — and an EMPTY backup repo is filled only by the member's own Publish. The
+    clone's unpushed commits read ``ahead`` (``_git_state``'s no-upstream arm) until then."""
 
     if str(realm.sync_manifest_ref or "") != url:
         previous = realm.sync_manifest_ref
@@ -240,7 +245,7 @@ def _adopt_local_remote(realm: Realm, repo: Path, url: str, *, config: Sequence[
     _align_branch(repo, _LOCAL_REALM_BRANCH)
     try:
         adopt_remote(repo, url, branch=_LOCAL_REALM_BRANCH, config=config, merge_unrelated_if_disjoint=True,
-                     run=run_sync_git)
+                     push_into_empty=False, run=run_sync_git)
     except AdoptRefused as exc:
         detail = _redact_text(_scrub_config_values(exc.detail, config))
         code = _ADOPT_REFUSAL_CODES.get(exc.reason, "sync_remote_unreachable")

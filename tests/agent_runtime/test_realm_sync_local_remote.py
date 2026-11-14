@@ -200,3 +200,51 @@ def test_a_status_answer_carries_the_check_time_its_sidecar_holds(isolate_agent_
     second = realm_sync_status(realm.id, credential=credential)
     assert second["checked_at"] >= first["checked_at"]
     assert second["checked_at"] == read_realm_sync_sidecar(realm.id)["checked_at"]
+
+
+@pytest.mark.parametrize("verb", ["status", "dry_run_pull", "pull", "remote_set"])
+def test_no_read_pull_or_remote_set_of_a_local_realm_fills_its_empty_backup_repo(
+    isolate_agent_runtime_root, personal, verb
+):
+    """RT-LOCAL-REALM-STATUS-READ-PUSHES-INTO-AN-EMPTY-BACKUP-REPO (owner RULED 2026-11-14: a personal realm's
+    status ("Check now"), dry run or Pull never pushes; an empty backup repo is filled only by Publish). A local
+    realm whose own clone holds history and whose personal repo is EMPTY: each verb (and ``harness realm sync
+    remote set``, which adopts through the same path) sets ``origin`` and pushes nothing; the realm reads
+    ``ahead`` and its own Publish carries the history.
+
+    Red on the old code: every verb left the personal repo holding this machine's commit (``ADDED_PUSHED``).
+    KILLING MUTATION: drop ``push_into_empty=False`` from ``_adopt_local_remote`` -> a ``push`` is recorded and
+    the personal repo is filled by the read, red."""
+    from agent_runtime.realm_sync import git as sync_git
+    from agent_runtime.realm_sync.remote import set_realm_backup_remote
+
+    realm, credential = _local_realm()
+    repo = _own_repo(realm)  # this machine's history, never published
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True, capture_output=True)
+    _commit(repo, {f"realms/{runtime_paths.safe_path_token(realm.id)}/realm_sync.json": "{}\n"}, "local only")
+    local_only = _git(repo, "rev-parse", "HEAD")
+    issued: list[tuple[str, ...]] = []
+    real = sync_git.run_sync_git
+
+    def recording(args, **kwargs):
+        issued.append(tuple(args))
+        return real(args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as scoped:  # scoped: never unwind the runtime-root pins
+        scoped.setattr(sync_git, "run_sync_git", recording)
+        if verb == "status":
+            assert realm_sync_status(realm.id, credential=credential)["state"] == "ahead"
+        elif verb == "remote_set":
+            set_realm_backup_remote(realm.id, PERSONAL)
+        else:
+            pull_realm_sync(realm.id, credential=credential, dry_run=verb == "dry_run_pull")
+
+    assert _git(repo, "config", "--get", "remote.origin.url") == PERSONAL  # the backup remote is adopted
+    assert not [args for args in issued if "push" in args]  # ...and nothing is pushed into it
+    assert _git(personal, "for-each-ref", "refs/heads") == ""
+    assert _git(repo, "rev-parse", "HEAD") == local_only
+
+    assert publish_realm_sync(realm.id, credential=credential)["state"] == "published"  # Publish fills it
+    assert _git(personal, "merge-base", "--is-ancestor", local_only, "main") == ""
+    assert _git(repo, "rev-parse", "--abbrev-ref", "@{u}") == "origin/main"
