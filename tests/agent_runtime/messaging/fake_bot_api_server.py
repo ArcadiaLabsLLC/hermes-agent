@@ -132,6 +132,21 @@ class FakeTelegram:
             self._updates.append(update)
             return update
 
+    def push_press(self, data: str, *, message_id: int, user_id: int = 42, first_name: str = "Max",
+                   chat_id: int | None = None) -> dict:
+        """An inline-keyboard button press on a message the bot sent."""
+        with self._lock:
+            update_id, self._next_update = self._next_update, self._next_update + 1
+            chat = {"id": chat_id if chat_id is not None else user_id, "type": "private", "first_name": first_name}
+            update = {"update_id": update_id, "callback_query": {
+                "id": f"cb-{update_id}", "chat_instance": "audit", "data": data,
+                "from": {"id": user_id, "is_bot": False, "first_name": first_name},
+                "message": {"message_id": message_id, "date": int(time.time()), "chat": chat, "text": "card",
+                            "from": {"id": BOT_ID, "is_bot": True, "first_name": "Trial Audit",
+                                     "username": BOT_USERNAME}}}}
+            self._updates.append(update)
+            return update
+
     def push_photo(self, caption: str = "", *, user_id: int = 42, first_name: str = "Max") -> dict:
         update = self.push_message(caption, user_id=user_id, first_name=first_name)
         message = update["message"]
@@ -170,6 +185,9 @@ class FakeTelegram:
             return {"message_id": message_id, "date": int(time.time()), "text": str(params.get("text") or ""),
                     "chat": {"id": int(params.get("chat_id") or 0), "type": "private"},
                     "from": {"id": BOT_ID, "is_bot": True, "first_name": "Trial Audit", "username": BOT_USERNAME}}
+        if method == "editMessageText":
+            return {"message_id": int(params.get("message_id") or 0), "date": int(time.time()),
+                    "text": str(params.get("text") or ""), "chat": {"id": int(params.get("chat_id") or 0), "type": "private"}}
         if method == "getFile":
             return {"file_id": str(params.get("file_id")), "file_unique_id": "u-photo-1", "file_size": len(PNG),
                     "file_path": "photos/photo-1.png"}

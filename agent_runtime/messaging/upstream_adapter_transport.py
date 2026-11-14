@@ -28,10 +28,10 @@ import threading
 from collections.abc import Callable, Coroutine, Sequence
 from typing import Any
 
-from .transport import Button, InboundMessage, MessageRef, OnUpdate, SendResult
+from .transport import Button, CallbackPress, InboundMessage, MessageRef, OnUpdate, SendResult
 
 __layer__ = "lanes"
-__all__ = ["UpstreamAdapterTransport", "update_id_of"]
+__all__ = ["TelegramUpstreamAdapterTransport", "UpstreamAdapterTransport", "update_id_of"]
 
 logger = logging.getLogger(__name__)
 
@@ -185,3 +185,65 @@ class UpstreamAdapterTransport:
 
     def answer_callback(self, callback_id: str, text: str = "") -> None:
         raise NotImplementedError("trial: approval cards over an upstream adapter are not covered")
+
+
+class TelegramUpstreamAdapterTransport(UpstreamAdapterTransport):
+    """The Telegram half the generic shim cannot do: the fork's approval cards.
+
+    Upstream's own approval buttons (``ea:<choice>:<id>``) resolve against UPSTREAM's approval registry and
+    session keys, so they cannot carry the fork's cards. This goes one level down instead, to the
+    python-telegram-bot ``Bot`` the adapter already holds: cards are plain inline keyboards, and a press
+    whose data carries the fork's prefix is taken by a handler registered AHEAD of the adapter's own
+    (group -1) and stopped there, so the adapter never answers it. Per-platform code — every other
+    adapter needs its own equivalent.
+
+    Audit caveat: the handler is added once, after ``connect()``. The adapter rebuilds its PTB application
+    on a transient-init retry; a real build registers through upstream's plugin handler factory
+    (``BasePlatformAdapter._wire_plugin_handlers``), which the adapter re-runs on a rebuild."""
+
+    def __init__(self, adapter: Any, *, press_prefix: str, **kwargs: Any) -> None:
+        super().__init__(adapter, **kwargs)
+        self._press_prefix = press_prefix
+
+    def start(self, on_update: OnUpdate) -> None:
+        super().start(on_update)
+        from telegram.ext import CallbackQueryHandler
+
+        app = getattr(self.adapter, "_app", None)
+        if app is not None:
+            app.add_handler(CallbackQueryHandler(self._on_press, pattern=f"^{self._press_prefix}:"), group=-1)
+
+    async def _on_press(self, update: Any, _context: Any) -> None:
+        from telegram.ext import ApplicationHandlerStop
+
+        query = update.callback_query
+        user = query.from_user
+        message = query.message
+        press = CallbackPress(
+            update_id=int(update.update_id), callback_id=str(query.id),
+            chat_id=str(message.chat_id) if message is not None else "", user_id=str(user.id),
+            user_display=str(user.full_name or user.username or user.id),
+            message_id=str(message.message_id) if message is not None else "", data=str(query.data or ""))
+        if self._on_update is not None:
+            await asyncio.to_thread(self._on_update, press)
+        raise ApplicationHandlerStop  # the adapter's own callback handler must not see the fork's press
+
+    @staticmethod
+    def _keyboard(buttons: Sequence[Button] | None) -> Any:
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+        return InlineKeyboardMarkup([[InlineKeyboardButton(b.label, callback_data=b.data)] for b in buttons or ()])
+
+    def send_card(self, chat: str, text: str, buttons: Sequence[Button], thread: str | None = None) -> MessageRef:
+        sent = self._call(self.adapter._bot.send_message(
+            chat_id=int(chat), text=text[:4096], reply_markup=self._keyboard(buttons),
+            message_thread_id=int(thread) if thread is not None else None))
+        return MessageRef(str(sent.chat_id), str(sent.message_id))
+
+    def edit(self, ref: MessageRef, text: str, buttons: Sequence[Button] | None = None) -> None:
+        self._call(self.adapter._bot.edit_message_text(
+            chat_id=int(ref.chat_id), message_id=int(ref.message_id), text=text[:4096],
+            reply_markup=self._keyboard(buttons)))
+
+    def answer_callback(self, callback_id: str, text: str = "") -> None:
+        self._call(self.adapter._bot.answer_callback_query(callback_id, text=text or None))
