@@ -160,3 +160,57 @@ def test_after_leaving_a_server_the_realms_publish_never_reaches_the_teams_repos
 
     assert _git(bare, "rev-parse", "main") == team_head
     assert _git(_sync_repo_path(RealmStore().get(realm.id)), "remote") == ""
+
+
+def _legacy_with_unpublished_work(bare: Path, realms) -> tuple[Path, str]:
+    legacy = _legacy_clone(bare, "srv_team")
+    for realm in realms:
+        subtree = legacy / "realms" / paths.safe_path_token(realm.id)
+        subtree.mkdir(parents=True)
+        (subtree / "notes.txt").write_text(f"{realm.id} unpublished\n", encoding="utf-8")
+    _git(legacy, "add", "-A")
+    _git(legacy, "-c", "user.email=t@localhost", "-c", "user.name=T", "commit", "-q", "-m", "never pushed")
+    return legacy, _git(legacy, "rev-parse", "HEAD")
+
+
+def test_an_old_shared_clone_is_removed_once_every_realm_it_holds_has_its_own_copy(isolate_agent_runtime_root, tmp_path):
+    """RT-REALM-SYNC-OLD-SHARED-CLONES-STAY-ON-DISK. Kept while one realm has still to take its copy, removed
+    after the last one does -- and the unpublished commit lives on in each realm's own clone.
+
+    KILLING MUTATION: drop the ``_retire_shared_clone`` call in ``_sync_repo_path`` -> the old clone stays, red.
+    KILLING MUTATION: drop the "has not taken its copy yet" return -> removed after the FIRST realm's lookup,
+    and the second realm's unpublished commit is gone, red."""
+    bare = _bare(tmp_path, "team")
+    first, second = _server_realm("First", bare), _server_realm("Second", bare)
+    legacy, unpublished = _legacy_with_unpublished_work(bare, (first, second))
+
+    _sync_repo_path(RealmStore().get(first.id))
+    assert legacy.exists()  # Second has not taken its copy yet
+    second_clone = _sync_repo_path(RealmStore().get(second.id))
+    assert not legacy.exists()
+    assert _git(second_clone, "rev-parse", "HEAD") == unpublished
+    assert _git(_sync_repo_path(first), "rev-parse", "HEAD") == unpublished
+
+
+def test_an_old_shared_clone_with_work_only_it_holds_is_kept(isolate_agent_runtime_root, tmp_path):
+    """Never removed while it has a file it never committed, or a commit some realm's own clone lacks.
+
+    KILLING MUTATION: drop the porcelain check -> removed with the uncommitted file, red.
+    KILLING MUTATION: drop the ``merge-base --is-ancestor`` check -> removed although First's clone was reset
+    behind the shared clone's last commit, red."""
+    bare = _bare(tmp_path, "team")
+    first = _server_realm("First", bare)
+    legacy, unpublished = _legacy_with_unpublished_work(bare, (first,))
+    (legacy / "scratch.txt").write_text("uncommitted\n", encoding="utf-8")
+
+    clone = _sync_repo_path(RealmStore().get(first.id))
+    assert legacy.exists() and (legacy / "scratch.txt").exists()  # a file only it has (the copy took one too)
+
+    (legacy / "scratch.txt").unlink()
+    _git(clone, "reset", "-q", "--hard", "HEAD~1")  # First's clone no longer holds the shared clone's commit
+    _sync_repo_path(RealmStore().get(first.id))
+    assert legacy.exists() and _git(legacy, "rev-parse", "HEAD") == unpublished
+
+    _git(clone, "reset", "-q", "--hard", unpublished)
+    _sync_repo_path(RealmStore().get(first.id))
+    assert not legacy.exists()

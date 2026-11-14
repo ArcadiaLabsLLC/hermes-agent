@@ -48,6 +48,7 @@ __all__ = [
     "_realm_subtree",
     "_redact_text",
     "_refresh_remote_tracking",
+    "_retire_shared_clone",
     "_scrub_config_values",
     "_sync_repo_path",
     "_sync_state",
@@ -329,6 +330,9 @@ def _sync_repo_path(realm: Realm) -> Path:
     repo = paths.realm_sync_clone_dir(realm.id)
     if not (repo / ".git").exists():
         _carry_shared_clone(realm, repo)
+    legacy = _legacy_shared_clone(realm)
+    if (legacy / ".git").is_dir():
+        _retire_shared_clone(legacy)
     return repo
 
 
@@ -343,7 +347,7 @@ def _carry_shared_clone(realm: Realm, repo: Path) -> None:
 
     A copy, never a move, and the old clone is never deleted here: several realms may have unpublished
     commits or files in it, and each one's first lookup takes its own copy, keeping everything (review
-    batch 15's recommendation). Only a realm whose subtree the shared clone holds inherits it. Skipped -- the
+    batch 15's recommendation). ``_retire_shared_clone`` removes it once every realm it holds has its copy. Only a realm whose subtree the shared clone holds inherits it. Skipped -- the
     realm clones fresh instead -- when the shared clone's ``origin``
     is a repository other than the one this realm names, which is exactly the case a shared tree
     could not serve. Best effort: a copy that fails is removed, and the realm clones fresh."""
@@ -360,6 +364,47 @@ def _carry_shared_clone(realm: Realm, repo: Path) -> None:
         shutil.copytree(legacy, repo, symlinks=True)
     except OSError:
         shutil.rmtree(repo, ignore_errors=True)
+
+
+def _retire_shared_clone(legacy: Path) -> bool:
+    """Remove an old shared clone once nothing in it is left only there (RT-REALM-SYNC-OLD-SHARED-CLONES-STAY-ON-DISK).
+
+    Removed only when EVERY realm whose subtree it holds has its own clone, each of those clones already
+    holds the shared clone's last commit (the copy took it, or a later publish built on it), and the shared
+    clone has no uncommitted or untracked file (hermes's own untracked ``.gitattributes`` pin aside). A
+    shared clone with a realm still to carry it over, a commit some realm's clone lacks, a file never
+    committed, or a git that cannot answer is kept as it is -- the next lookup asks again. Returns whether
+    it was removed."""
+
+    realms = legacy / "realms"
+    held = [entry.name for entry in realms.iterdir() if entry.is_dir()] if realms.is_dir() else []
+    head = run_sync_git(("rev-parse", "-q", "--verify", "HEAD"), repo=legacy)
+    status = run_sync_git(("status", "--porcelain", "--untracked-files=all"), repo=legacy)
+    if head.returncode != 0 or status.returncode != 0:
+        return False
+    for line in status.stdout.splitlines():
+        if line.strip() == "?? .gitattributes":
+            try:
+                if _REALM_SYNC_GITATTRIBUTES_MARKER in (legacy / ".gitattributes").read_bytes():
+                    continue
+            except OSError:
+                pass
+        if line.strip():
+            return False  # a file only this clone has
+    commit = head.stdout.strip()
+    for token in held:
+        own = paths.realm_sync_root() / paths.REALM_SYNC_CLONES_DIRNAME / token
+        if not (own / ".git").exists():
+            return False  # this realm has not taken its copy yet
+        if run_sync_git(("merge-base", "--is-ancestor", commit, "HEAD"), repo=own).returncode != 0:
+            return False  # its clone lacks the shared clone's last commit
+    from utils import rmtree_readonly
+
+    try:
+        rmtree_readonly(legacy)
+    except OSError:
+        return False
+    return True
 
 
 def _realm_subtree(repo: Path, realm_id: str) -> Path:
