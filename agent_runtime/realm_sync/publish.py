@@ -64,6 +64,7 @@ logger = logging.getLogger(__name__)
 __layer__ = "lanes"
 __all__ = [
     "BASELINE_FAMILIES",
+    "PUBLISHER_TRAILER",
     "_notify_publish",
     "_publish_accounting",
     "_published_artifacts_differ",
@@ -81,6 +82,9 @@ __all__ = [
     "_stage_commit_and_push",
     "publish_realm_sync",
 ]
+
+#: The trailer naming who published a realm-sync commit: the member's Eternia public id.
+PUBLISHER_TRAILER = "Eternia-Member"
 
 
 def publish_realm_sync(
@@ -223,7 +227,11 @@ def _stage_commit_and_push(
     _git(repo, "add", "--", *add_paths)
     changed = bool(_git(repo, "status", "--porcelain", "--", *add_paths).strip())
     if changed:
-        _git(repo, "commit", "-m", f"Publish realm sync {realm.id}")
+        # Who published: the member's Eternia public id as a trailer, never a name or an address
+        # (owner RULED 2026-11-14, RT-REALM-SYNC-COMMITS-NAME-NOBODY); the author stays the robot.
+        member = credential.member_public_id if credential is not None else ""
+        trailer = ("-m", f"{PUBLISHER_TRAILER}: {member}") if member else ()
+        _git(repo, "commit", "-m", f"Publish realm sync {realm.id}", *trailer)
         if not realm.server_id and not _has_remote(repo):
             # A local realm whose sync repository has no remote (one that never had a personal repository, or
             # a server's realm you left: ``make_realm_local`` dropped its address): the commit IS the publish.

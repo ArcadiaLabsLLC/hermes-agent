@@ -18,6 +18,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone, UTC
 from enum import Enum
@@ -86,6 +87,11 @@ class RealmSyncCredential:
     git_url: str
     git_authorization: str
     expires_at: datetime
+    #: The publishing member's Eternia public id (a UUID), when the backend sends it: the ONLY
+    #: member identity a realm-sync commit carries, as its ``Eternia-Member`` trailer (owner RULED
+    #: 2026-11-14, RT-REALM-SYNC-COMMITS-NAME-NOBODY). Optional and additive to the frozen v1
+    #: shape; anything that is not a UUID is dropped, never written into a commit.
+    member_public_id: str = ""
 
     @classmethod
     def parse(cls, raw: Any) -> RealmSyncCredential:
@@ -100,7 +106,8 @@ class RealmSyncCredential:
                 raise RealmSyncError("sync_auth_failed", f"Realm sync credential is missing required field: {field_name}.")
             values[field_name] = text
         expires_at = _parse_expiry(raw.get("expires_at"))
-        credential = cls(schema_version=CREDENTIAL_SCHEMA_VERSION, expires_at=expires_at, **values)
+        credential = cls(schema_version=CREDENTIAL_SCHEMA_VERSION, expires_at=expires_at,
+                         member_public_id=_member_public_id(raw.get("member_public_id")), **values)
         if credential.is_expired():
             raise RealmSyncError(
                 "sync_auth_failed",
@@ -159,6 +166,14 @@ class RealmSyncCredential:
 
     def bearer_headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.api_token}", "Accept": "application/json"}
+
+
+def _member_public_id(raw: Any) -> str:
+    """The canonical UUID text of ``raw``, or ``""`` -- a commit trailer never carries anything else."""
+    try:
+        return str(uuid.UUID(str(raw or "").strip()))
+    except ValueError:
+        return ""
 
 
 def load_realm_sync_credential(credential_file: str | None = None) -> RealmSyncCredential | None:
