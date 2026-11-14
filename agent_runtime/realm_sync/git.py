@@ -139,7 +139,14 @@ def _follow_server_repository(realm: Realm, repo: Path, credential: RealmSyncCre
     shares it is simply tracked, an unrelated one is merged only when the two touch no common path, and
     otherwise the verb refuses ``sync_remote_diverged`` with nothing lost (the old ``origin`` is put back, so
     the next verb tries again). Branches and the working tree are never reset; only ``origin`` and its
-    tracking refs are replaced."""
+    tracking refs are replaced.
+
+    It never PUSHES (RT-REALM-SYNC-PULL-PUBLISHES-INTO-A-MOVED-REPO, seen live 2026-11-14): every verb runs it
+    — a status read ("Check now"), a dry-run Pull and a Pull, each authorised as that verb, never as publish —
+    and an empty new repository used to be seeded here with the member's unpublished commits, under "Ask me
+    first" too. The clone now only tracks the new ``origin``; its commits read ``ahead`` (``_git_state``) and
+    reach the new repository through the member's own Publish, an empty new repository included (owner RULED
+    2026-11-14: a Pull, a status read and a dry run never push; following a move only re-points and fetches)."""
 
     if not realm.server_id:
         return
@@ -159,7 +166,8 @@ def _follow_server_repository(realm: Realm, repo: Path, credential: RealmSyncCre
 
     config = (*_REPO_CONFIG, *(_credential_git_config(credential) or ()))
     try:
-        adopt_remote(repo, url, branch=branch, config=config, merge_unrelated_if_disjoint=True, run=run_sync_git)
+        adopt_remote(repo, url, branch=branch, config=config, merge_unrelated_if_disjoint=True,
+                     push_into_empty=False, run=run_sync_git)
     except AdoptRefused as exc:
         # Put the old ``origin`` back, so the next verb sees the move again and retries it.
         _git(repo, "remote", "remove", "origin", check=False)
@@ -487,6 +495,13 @@ def _git_state(repo: Path) -> dict[str, Any]:
         counts = _git(repo, "rev-list", "--left-right", "--count", "HEAD...@{u}", check=False).split()
         if len(counts) == 2:
             ahead, behind = int(counts[0]), int(counts[1])
+    elif _has_remote(repo):
+        # No upstream yet but a remote: a clone that followed its realm into an EMPTY new repository and pushed
+        # nothing (``_follow_server_repository``). Its commits that no remote holds are waiting to be published,
+        # so they read ``ahead`` and the next Publish carries them even with no new bytes
+        # (RT-REALM-SYNC-PULL-PUBLISHES-INTO-A-MOVED-REPO).
+        count = _git(repo, "rev-list", "--count", "HEAD", "--not", "--remotes", check=False).strip()
+        ahead = int(count) if count.isdigit() else 0
     dirty = bool(_git(repo, "status", "--porcelain", check=False).strip())
     return {"ahead": ahead, "behind": behind, "conflicts": conflicts, "dirty": dirty}
 

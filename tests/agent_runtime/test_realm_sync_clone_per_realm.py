@@ -287,3 +287,66 @@ def test_a_moved_repository_that_collides_with_the_clone_is_refused_with_nothing
     assert refused.value.code == "sync_remote_diverged"
     assert _git(clone, "config", "--get", "remote.origin.url") == old_bare.as_uri()
     assert _git(clone, "rev-parse", "HEAD") == head
+
+
+def _moved_with_unpublished_work(tmp_path: Path):
+    """A server realm published once to ``old``, then a commit only this machine holds, then the realm moves to
+    the EMPTY ``new`` (RT-REALM-SYNC-PULL-PUBLISHES-INTO-A-MOVED-REPO)."""
+    old_bare, new_bare = _bare(tmp_path, "old"), _empty_bare(tmp_path, "new")
+    realm = _server_realm("Team", old_bare)
+    publish_realm_sync(realm.id, membership=ALLOW)
+    clone = _sync_repo_path(RealmStore().get(realm.id))
+    _git(clone, "-c", "user.email=t@localhost", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "never pushed")
+    return realm, clone, new_bare, _git(clone, "rev-parse", "HEAD")
+
+
+def _empty(bare: Path) -> bool:
+    return _git(bare, "for-each-ref", "refs/heads") == ""
+
+
+@pytest.mark.parametrize("verb", ["pull", "dry_run_pull", "status"])
+def test_no_read_or_pull_of_a_moved_realm_shares_the_members_unpublished_work(
+    isolate_agent_runtime_root, tmp_path, monkeypatch, verb
+):
+    """RT-REALM-SYNC-PULL-PUBLISHES-INTO-A-MOVED-REPO (seen live 2026-11-14, w1114a-realmlive): under "Ask me
+    first", a Pull after the realm moved to an empty repository pushed the member's unpublished commit there.
+    A Pull, a dry-run Pull and a status read ("Check now") follow the move but push nothing; the clone reads
+    ``ahead`` (work waiting to publish), and the member's own Publish is what carries it.
+
+    Red on the old code: all three left ``new`` holding the unpublished commit (``Adoption.ADDED_PUSHED``).
+    Owner RULED 2026-11-14: no seeding exception, an empty new repository included; the verb issues no push.
+    KILLING MUTATION: pass ``push_into_empty=True`` in ``_follow_server_repository`` -> a ``push`` is recorded and
+    ``new`` is seeded by the read, red.
+    KILLING MUTATION: drop the no-upstream arm of ``_git_state`` -> the moved clone reads ``in_sync`` and the
+    unchanged Publish below pushes nothing, red."""
+    from agent_runtime.realm_sync import realm_sync_status
+
+    from agent_runtime.realm_sync import git as sync_git
+
+    realm, clone, new_bare, unpublished = _moved_with_unpublished_work(tmp_path)
+    credential = _credential_for(realm, new_bare.as_uri())
+    commits = int(_git(clone, "rev-list", "--count", "HEAD"))  # the new repository holds none of them
+    issued: list[tuple[str, ...]] = []
+    real = sync_git.run_sync_git
+
+    def recording(args, **kwargs):
+        issued.append(tuple(args))
+        return real(args, **kwargs)
+
+    monkeypatch.setattr(sync_git, "run_sync_git", recording)
+
+    if verb == "status":
+        answer = realm_sync_status(realm.id, membership=ALLOW, credential=credential)
+        assert answer["ahead"] == commits
+    else:
+        answer = pull_realm_sync(realm.id, membership=ALLOW, credential=credential, dry_run=verb == "dry_run_pull")
+
+    assert _git(clone, "config", "--get", "remote.origin.url") == new_bare.as_uri()  # the clone followed
+    assert not [args for args in issued if "push" in args]  # the follow re-points and fetches, nothing more
+    assert _empty(new_bare)  # ...and shared nothing
+    assert _git(clone, "rev-parse", "HEAD") == unpublished
+    assert answer["ahead"] == commits if verb != "status" else answer["state"] == "ahead"
+    monkeypatch.undo()
+
+    publish_realm_sync(realm.id, membership=ALLOW, credential=credential)
+    assert _git(new_bare, "merge-base", "--is-ancestor", unpublished, "main") == ""

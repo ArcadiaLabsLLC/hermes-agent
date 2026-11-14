@@ -13,7 +13,7 @@ The step table, after ``config --get remote.origin.url`` (the raw value; equal �
 | local has commits | remote has commits | outcome |
 |---|---|---|
 | no | yes | ``reset --hard origin/<branch>`` + upstream → ``ADDED_FETCHED`` |
-| yes | no | ``push -u origin HEAD:<branch>`` → ``ADDED_PUSHED`` |
+| yes | no | ``push -u origin HEAD:<branch>`` → ``ADDED_PUSHED``; with ``push_into_empty=False`` nothing is pushed → ``ADDED_UNPUBLISHED`` |
 | yes | yes, shared history | upstream set if unset → ``ALREADY`` |
 | yes | yes, unrelated | disjoint paths (``.gitattributes`` aside) and the caller allows it → ``merge --allow-unrelated-histories -X ours`` → ``MERGED_UNRELATED``; else ``remote_diverged`` |
 | no | no | nothing to move → ``ALREADY`` (``detail="empty"``) |
@@ -45,6 +45,9 @@ class Adoption(StrEnum):
     ADDED_FETCHED = "added_fetched"
     ALREADY = "already"
     MERGED_UNRELATED = "merged_unrelated"
+    #: The remote is empty and the caller may not publish (``push_into_empty=False``): ``origin`` is set,
+    #: nothing is pushed, the local history waits for a publish (RT-REALM-SYNC-PULL-PUBLISHES-INTO-A-MOVED-REPO).
+    ADDED_UNPUBLISHED = "added_unpublished"
 
 
 @dataclass(frozen=True)
@@ -109,6 +112,7 @@ def adopt_remote(
     branch: str = "main",
     config: Sequence[str] = (),
     merge_unrelated_if_disjoint: bool = False,
+    push_into_empty: bool = True,
     run: Callable[..., subprocess.CompletedProcess[str]] = run_git,
 ) -> AdoptReceipt:
     """Make ``url`` the ``origin`` of ``repo`` and reconcile the two histories (module docstring's table)."""
@@ -128,7 +132,8 @@ def adopt_remote(
     remote_has = fetched.returncode == 0 and door.ok("rev-parse", "-q", "--verify", f"refs/remotes/origin/{branch}")
     local_has = door.ok("rev-parse", "-q", "--verify", "HEAD")
     outcome, detail = _reconcile_tips(door, branch, local_has=local_has, remote_has=remote_has,
-                                 merge_unrelated_if_disjoint=merge_unrelated_if_disjoint)
+                                 merge_unrelated_if_disjoint=merge_unrelated_if_disjoint,
+                                 push_into_empty=push_into_empty)
     receipt = AdoptReceipt(outcome, url, branch, door.out("rev-parse", "HEAD"), detail)
     from .work_store.receipts import emit
 
@@ -137,7 +142,7 @@ def adopt_remote(
 
 
 def _reconcile_tips(door: _Door, branch: str, *, local_has: bool, remote_has: bool,
-               merge_unrelated_if_disjoint: bool) -> tuple[Adoption, str]:
+               merge_unrelated_if_disjoint: bool, push_into_empty: bool = True) -> tuple[Adoption, str]:
     tip = f"origin/{branch}"
     if not local_has and not remote_has:
         return Adoption.ALREADY, "empty"
@@ -146,6 +151,8 @@ def _reconcile_tips(door: _Door, branch: str, *, local_has: bool, remote_has: bo
         door.ensure_upstream(branch)
         return Adoption.ADDED_FETCHED, ""
     if not remote_has:
+        if not push_into_empty:
+            return Adoption.ADDED_UNPUBLISHED, "local history not pushed"
         door.must("push_failed", "push", "-q", "-u", "origin", f"HEAD:{branch}")
         return Adoption.ADDED_PUSHED, ""
     if door.ok("merge-base", "HEAD", tip):
