@@ -94,15 +94,17 @@ def _committed_lender(tmp_path: Path, lender_checkout: Path) -> tuple[Path, Path
     import json
     import sys
 
-    from pm.environments import install_key
+    from pm.environments import install_key, site_packages
 
     root = tmp_path / "lender-root"
     state = root / "installs" / install_key(lender_checkout)
     venv = state / "environments" / "g1" / "venv"
     major, minor = sys.version_info[:2]
-    site = venv / "lib" / f"python{major}.{minor}" / "site-packages"
-    site.mkdir(parents=True)
+    venv.mkdir(parents=True)
     (venv / "pyvenv.cfg").write_text(f"version = {major}.{minor}.0\n", encoding="utf-8")
+    # The platform's own layout (Lib/site-packages on Windows), the one activation resolves.
+    site = site_packages(venv)
+    site.mkdir(parents=True)
     # The editable pointer a uv/setuptools install leaves: it names the LENDER checkout.
     (site / "__editable__.lender.pth").write_text(f"{lender_checkout}\n", encoding="utf-8")
     facts = {"packages": {"venv": {"environment": str(venv)}}}
