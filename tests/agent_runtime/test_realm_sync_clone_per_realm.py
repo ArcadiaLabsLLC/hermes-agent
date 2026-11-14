@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import paths
-from agent_runtime.realm_sync import publish_realm_sync, pull_realm_sync
+from agent_runtime.realm_sync import RealmSyncError, publish_realm_sync, pull_realm_sync
 from agent_runtime.realm_sync.git import _sync_repo_path
 from agent_runtime.realm_sync.models import RealmMembershipProvider
 from agent_runtime.store import RealmStore, WorkspaceStore
@@ -214,3 +214,76 @@ def test_an_old_shared_clone_with_work_only_it_holds_is_kept(isolate_agent_runti
     _git(clone, "reset", "-q", "--hard", unpublished)
     _sync_repo_path(RealmStore().get(first.id))
     assert not legacy.exists()
+
+
+def _empty_bare(tmp_path: Path, name: str) -> Path:
+    bare = tmp_path / f"{name}.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True, capture_output=True)
+    return bare
+
+
+def _credential_for(realm, git_url: str):
+    from datetime import UTC, datetime, timedelta
+
+    from agent_runtime.realm_membership import RealmSyncCredential
+
+    return RealmSyncCredential.parse({
+        "schema_version": 1, "realm_id": realm.id, "api_base": "https://api.test/api", "api_token": "t",
+        "git_url": git_url, "git_authorization": "Basic dA==",
+        "expires_at": (datetime.now(UTC) + timedelta(minutes=30)).isoformat(),
+    })
+
+
+def test_a_server_realm_whose_repository_moved_publishes_to_the_new_one_with_its_unpublished_work(
+    isolate_agent_runtime_root, tmp_path
+):
+    """Backend REALM-OWN-REPO-CHANGE-NOT-ANNOUNCED, hermes half: the server connects another repository; the
+    next credential names it. The existing clone used to keep the OLD origin and publish there for good.
+
+    KILLING MUTATION: make ``_follow_server_repository`` return at once -> the publish lands on the old
+    repository and the new one stays empty, red.
+    KILLING MUTATION: drop ``_take_server_credential_url`` -> the realm's ref never moves, red."""
+    old_bare, new_bare = _bare(tmp_path, "old"), _empty_bare(tmp_path, "new")
+    realm = _server_realm("Team", old_bare)
+    publish_realm_sync(realm.id, membership=ALLOW)
+    clone = _sync_repo_path(RealmStore().get(realm.id))
+    _git(clone, "-c", "user.email=t@localhost", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "never pushed")
+    unpublished = _git(clone, "rev-parse", "HEAD")
+    old_tip = _git(old_bare, "rev-parse", "main")
+
+    WorkspaceStore().create(name="A second desk", realm_id=realm.id)
+    publish_realm_sync(realm.id, membership=ALLOW, credential=_credential_for(realm, new_bare.as_uri()))
+
+    assert RealmStore().get(realm.id).sync_manifest_ref == new_bare.as_uri()
+    assert _git(clone, "config", "--get", "remote.origin.url") == new_bare.as_uri()
+    assert _git(old_bare, "rev-parse", "main") == old_tip  # nothing more went to the old repository
+    assert _git(new_bare, "merge-base", "--is-ancestor", unpublished, "main") == ""
+    assert _on(new_bare) == {paths.safe_path_token(realm.id)}
+    assert pull_realm_sync(realm.id, membership=ALLOW)["state"] == "pulled"
+
+
+def test_a_moved_repository_that_collides_with_the_clone_is_refused_with_nothing_lost(isolate_agent_runtime_root, tmp_path):
+    """The new repository holds another history touching the same realm subtree: refused, the old origin is
+    put back (the next verb tries again), the clone's commits are where they were.
+
+    KILLING MUTATION: drop the put-back in the refusal arm -> the clone is left with no origin, red."""
+    old_bare = _bare(tmp_path, "old")
+    realm = _server_realm("Team", old_bare)
+    publish_realm_sync(realm.id, membership=ALLOW)
+    clone = _sync_repo_path(RealmStore().get(realm.id))
+    head = _git(clone, "rev-parse", "HEAD")
+    other = _empty_bare(tmp_path, "other")
+    seed = tmp_path / "other-seed"
+    subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], check=True, capture_output=True)
+    (seed / "realms" / paths.safe_path_token(realm.id)).mkdir(parents=True)
+    (seed / "realms" / paths.safe_path_token(realm.id) / "manifest.json").write_text("{}\n", encoding="utf-8")
+    _git(seed, "add", "-A")
+    _git(seed, "-c", "user.email=t@localhost", "-c", "user.name=T", "commit", "-q", "-m", "someone else's")
+    _git(seed, "push", "-q", str(other), "HEAD:main")
+
+    with pytest.raises(RealmSyncError) as refused:
+        publish_realm_sync(realm.id, membership=ALLOW, credential=_credential_for(realm, other.as_uri()))
+
+    assert refused.value.code == "sync_remote_diverged"
+    assert _git(clone, "config", "--get", "remote.origin.url") == old_bare.as_uri()
+    assert _git(clone, "rev-parse", "HEAD") == head

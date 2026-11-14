@@ -79,10 +79,10 @@ BINDING_LOST = (409, {"code": "realms.git_host_binding_lost", "message": "gone"}
 ALIVE = (204, None)
 
 
-def _credential(subject: str) -> RealmSyncCredential:
+def _credential(subject: str, git_url: str) -> RealmSyncCredential:
     return RealmSyncCredential.parse({
         "schema_version": 1, "realm_id": subject, "api_base": API, "api_token": "api-token",
-        "git_url": "https://github.com/team/realm.git", "git_authorization": "Basic dG9rZW4=",
+        "git_url": git_url, "git_authorization": "Basic dG9rZW4=",
         "expires_at": (datetime.now(UTC) + timedelta(minutes=30)).isoformat(),
     })
 
@@ -110,7 +110,7 @@ def test_a_dead_binding_marks_the_realm_for_reconnect_not_retry(isolate_agent_ru
     realm = _server_realm(refusing_host)
 
     with pytest.raises(RealmSyncError) as refused:
-        pull_realm_sync(realm.id, credential=_credential(realm.id))
+        pull_realm_sync(realm.id, credential=_credential(realm.id, refusing_host))
 
     assert refused.value.code == "realm_revoked"
     assert refused.value.retryable is False
@@ -129,7 +129,7 @@ def test_a_live_binding_answers_rebroker_and_leaves_no_mark(isolate_agent_runtim
     realm = _server_realm(refusing_host)
 
     with pytest.raises(RealmSyncError) as refused:
-        pull_realm_sync(realm.id, credential=_credential(realm.id))
+        pull_realm_sync(realm.id, credential=_credential(realm.id, refusing_host))
 
     assert refused.value.code == "sync_auth_failed"
     assert refused.value.retryable is True
@@ -138,45 +138,41 @@ def test_a_live_binding_answers_rebroker_and_leaves_no_mark(isolate_agent_runtim
     assert read_realm_revocation(realm.id) is None
 
 
-def test_a_refused_push_reports_once(isolate_agent_runtime_root, monkeypatch, refusing_host, tmp_path):
-    """The realm published fine; then the repository is disconnected: the fetch AND the push are
-    refused, and the publish reports once.
+def _clone_on(realm, url: str) -> Path:
+    """The realm's clone, made while the host still answered: one commit, ``origin`` the host."""
+    clone = _sync_repo_path(realm)
+    clone.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(clone)], check=True, capture_output=True)
+    _git(clone, "-c", "user.email=t@localhost", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "seed")
+    _git(clone, "remote", "add", "origin", url)
+    return clone
+
+
+def test_a_refused_push_reports_once(isolate_agent_runtime_root, monkeypatch, refusing_host):
+    """The repository was disconnected: the publish's fetch AND its push are refused, and it reports once.
 
     KILLING MUTATION: drop the ``with host_refusal_reported(...)`` in ``publish_realm_sync`` -> the
     publish answers ``sync_remote_unreachable`` with no report, red."""
     backend = _Backend(BINDING_LOST)
     monkeypatch.setattr(membership, "_request_json", backend)
-    bare = tmp_path / "realm.git"
-    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True, capture_output=True)
-    seed = tmp_path / "seed"
-    subprocess.run(["git", "init", "-q", "-b", "main", str(seed)], check=True, capture_output=True)
-    _git(seed, "-c", "user.email=t@localhost", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "seed")
-    _git(seed, "push", "-q", str(bare), "HEAD:main")
-    realm = _server_realm(bare.as_uri())
-    credential = _credential(realm.id)
-    assert publish_realm_sync(realm.id, credential=credential)["state"] == "published"
-    assert backend.reports == []
+    realm = _server_realm(refusing_host)
+    _clone_on(realm, refusing_host)
 
-    _git(_sync_repo_path(realm), "remote", "set-url", "origin", refusing_host)
-    WorkspaceStore().create(name="A second desk", realm_id=realm.id)
     with pytest.raises(RealmSyncError) as refused:
-        publish_realm_sync(realm.id, credential=credential)
+        publish_realm_sync(realm.id, credential=_credential(realm.id, refusing_host))
 
     assert refused.value.code == "realm_revoked"
     assert backend.reports == [f"{API}/realms/{realm.id}/sync/auth-rejected"]
 
 
-def test_a_refused_status_fetch_reports_and_names_the_mark(isolate_agent_runtime_root, monkeypatch, refusing_host, tmp_path):
+def test_a_refused_status_fetch_reports_and_names_the_mark(isolate_agent_runtime_root, monkeypatch, refusing_host):
     """The status read degrades (it never raises over the remote half) and its error is the mark's code."""
     backend = _Backend(BINDING_LOST)
     monkeypatch.setattr(membership, "_request_json", backend)
     realm = _server_realm(refusing_host)
-    clone = _sync_repo_path(realm)
-    clone.mkdir(parents=True)
-    subprocess.run(["git", "init", "-q", "-b", "main", str(clone)], check=True, capture_output=True)
-    _git(clone, "remote", "add", "origin", refusing_host)
+    _clone_on(realm, refusing_host)
 
-    status = realm_sync_status(realm.id, credential=_credential(realm.id))
+    status = realm_sync_status(realm.id, credential=_credential(realm.id, refusing_host))
 
     assert status["remote_checked"] is False
     assert status["remote_check_error"] == "realm_revoked"
@@ -193,7 +189,7 @@ def test_a_local_realm_reports_on_its_own_ref(isolate_agent_runtime_root, monkey
     realm = RealmStore().save(realm)
 
     with pytest.raises(RealmSyncError):
-        pull_realm_sync(realm.id, credential=_credential(f"local:{realm.id}"))
+        pull_realm_sync(realm.id, credential=_credential(f"local:{realm.id}", refusing_host))
 
     assert backend.reports == [f"{API}/me/realms/local:{realm.id}/sync/auth-rejected"]
 

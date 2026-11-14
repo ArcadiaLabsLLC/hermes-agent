@@ -95,6 +95,7 @@ def _authorize(realm: Realm, action: str, membership: RealmMembershipProvider | 
 
 
 def _ensure_sync_repo(realm: Realm, *, credential: RealmSyncCredential | None = None) -> Path:
+    _take_server_credential_url(realm, credential)
     repo = _sync_repo_path(realm)
     if not (repo.exists() and (repo / ".git").exists()):
         if _looks_like_remote(str(realm.sync_manifest_ref or "")):
@@ -104,8 +105,75 @@ def _ensure_sync_repo(realm: Realm, *, credential: RealmSyncCredential | None = 
             repo.mkdir(parents=True, exist_ok=True)
             _git(repo, "init")
     _adopt_credential_remote(realm, repo, credential)
+    _follow_server_repository(realm, repo, credential)
     _ensure_repo_gitattributes(repo)
     return repo
+
+
+def _take_server_credential_url(realm: Realm, credential: RealmSyncCredential | None) -> None:
+    """A server realm's brokered credential names the repository it syncs with today: its ``git_url`` becomes
+    the realm's ``sync_manifest_ref`` (a re-adopt writes the same). The ref of a remote is not the clone's
+    key (``_sync_repo_path`` keys it by the realm's id), so the clone stays where it is and follows
+    (``_follow_server_repository``). A pinned local-path ref is the member's own and is left alone."""
+
+    if not realm.server_id or credential is None or not credential.admits_realm(realm):
+        return
+    url, ref = credential.git_url, str(realm.sync_manifest_ref or "")
+    if not _looks_like_remote(url) or ref == url or (ref and not _looks_like_remote(ref)):
+        return
+    realm.sync_manifest_ref = url
+    from ..store import RealmStore
+
+    RealmStore().save(realm, emit_event=False)
+
+
+def _follow_server_repository(realm: Realm, repo: Path, credential: RealmSyncCredential | None) -> None:
+    """A server realm whose repository moved: its clone follows to the new one, keeping unpublished work.
+
+    The clone is made once, from the ``git_url`` of the day, and its ``origin`` was never looked at again: a
+    server that connected another repository (``subject_git_host`` connect/disconnect announce nothing) kept
+    every member publishing into, and pulling from, the old one (backend REALM-OWN-REPO-CHANGE-NOT-ANNOUNCED,
+    its hermes half). A clone whose ``origin`` names another repository than the realm's ref (which
+    ``_take_server_credential_url`` has already moved) is re-pointed through ``git_remote_adopt.adopt_remote``:
+    an empty new repository takes the clone's history (unpublished commits included), a new repository that
+    shares it is simply tracked, an unrelated one is merged only when the two touch no common path, and
+    otherwise the verb refuses ``sync_remote_diverged`` with nothing lost (the old ``origin`` is put back, so
+    the next verb tries again). Branches and the working tree are never reset; only ``origin`` and its
+    tracking refs are replaced."""
+
+    if not realm.server_id:
+        return
+    url = str(realm.sync_manifest_ref or "")
+    if not _looks_like_remote(url):
+        return
+    origin = _git(repo, "config", "--get", "remote.origin.url", check=False).strip()
+    if not origin:
+        return  # never a server clone (a pinned or re-keyed repo): not this function's to give a remote
+    if origin == url:
+        return
+    branch = _git(repo, "symbolic-ref", "--short", "-q", "HEAD", check=False).strip() or _LOCAL_REALM_BRANCH
+    # ``remote remove`` drops the OLD repository's tracking refs with it: a stale ``origin/<branch>`` left
+    # behind would read as the new repository's tip.
+    _git(repo, "remote", "remove", "origin")
+    from ..git_remote_adopt import AdoptRefused, adopt_remote
+
+    config = (*_REPO_CONFIG, *(_credential_git_config(credential) or ()))
+    try:
+        adopt_remote(repo, url, branch=branch, config=config, merge_unrelated_if_disjoint=True, run=run_sync_git)
+    except AdoptRefused as exc:
+        # Put the old ``origin`` back, so the next verb sees the move again and retries it.
+        _git(repo, "remote", "remove", "origin", check=False)
+        _git(repo, "remote", "add", "origin", origin, check=False)
+        detail = _redact_text(_scrub_config_values(exc.detail, config))
+        code = _ADOPT_REFUSAL_CODES.get(exc.reason, "sync_remote_unreachable")
+        if code == "sync_remote_unreachable" and "authentication" in detail.lower():
+            code = "sync_auth_failed"
+        raise RealmSyncError(
+            code,
+            "The realm's repository moved, and this machine's copy could not follow it yet.",
+            retryable=exc.reason in {"fetch_failed", "push_failed"},
+            safe_details={"adopt_reason": exc.reason, "detail": detail, "stderr": detail},
+        ) from exc
 
 
 #: The personal repo's one branch: every machine of the player meets on it.
