@@ -140,7 +140,12 @@ def provider_refresh(provider: str, credential: str | None = None) -> dict:
 def _signed_in(provider: str) -> bool:
     from hermes_cli.auth import get_auth_status
 
+    from .provider_credential_source import account_signed_in
+
     try:
+        fenced = account_signed_in(provider)  # a borrowed CLI login never reads as this provider signed in
+        if fenced is not None:
+            return fenced
         return bool((get_auth_status(provider) or {}).get("logged_in"))
     except Exception:  # an unreadable status reads as signed out
         return False

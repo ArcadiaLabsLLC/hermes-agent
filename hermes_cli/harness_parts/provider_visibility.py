@@ -311,6 +311,7 @@ def build_provider_visibility() -> dict:
     an absent one.
     """
     from agent.credential_pool import list_custom_pool_providers, load_pool
+    from agent_runtime.provider_credential_source import visible_entries
     from hermes_cli.auth import PROVIDER_REGISTRY
 
     provider_ids = sorted(
@@ -324,7 +325,8 @@ def build_provider_visibility() -> dict:
         if provider_disabled(provider):
             continue  # never even read a switched-off provider's credential source
         pool = load_pool(provider)
-        entries = pool.entries()
+        # fork: a borrowed CLI login is never Eternia's connection (RT-ANTHROPIC-ACCOUNT-NEVER-BORROWS-CLAUDE-CODE-LOGIN)
+        entries = visible_entries(provider, pool.entries())
         if not entries:
             continue
         entries = _lift_reopened_cooldowns(pool, entries, provider)

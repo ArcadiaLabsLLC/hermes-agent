@@ -19,6 +19,17 @@ the ``.env`` and ``auth.json`` that hold the credentials it chooses between.
 Plan: Eternia ``docs/mission_control/planned/PROVIDER_API_KEY_AND_USAGE_SOURCE_2026-11-02.md``
 (D2); row ``RT-ANTHROPIC-CREDENTIAL-SOURCE-CHOICE``. No credential value leaves this module:
 the block answers ids, labels and booleans.
+
+**Eternia's Anthropic Account never borrows Claude Code's login** (owner, 2026-11-14,
+``RT-ANTHROPIC-ACCOUNT-NEVER-BORROWS-CLAUDE-CODE-LOGIN``: "the boundry its being put in is its
+own connector login button"). In a process Eternia spawned (``HERMES_LAUNCHER_SPAWNED=1``,
+:func:`borrowed_login_fenced`) the account half is the Hermes PKCE grant the connection's Sign
+in button drives (plus an env token or a manual row the user put there, each shown on its own):
+the pool's ``claude_code`` row is benched, the resolver decides every turn itself so upstream's
+ladder never reaches ``~/.claude/.credentials.json`` / the Keychain, and the status facts
+(:func:`present_credential_sources`, :func:`visible_entries`, :func:`account_signed_in`) never
+count it. Upstream's readers still SEE the file; nothing here spends or reports it. Outside
+Eternia (a CLI user) the ladder is upstream's, byte for byte.
 """
 
 from __future__ import annotations
@@ -31,7 +42,10 @@ __layer__ = "stores"
 __all__ = [
     "ACCOUNT",
     "API_KEY",
+    "BORROWED_SOURCES",
+    "account_signed_in",
     "account_usage_token",
+    "borrowed_login_fenced",
     "benched_entry_ids",
     "chosen_credential_source",
     "credential_source_block",
@@ -39,6 +53,7 @@ __all__ = [
     "entry_family",
     "present_credential_sources",
     "resolve_chosen_anthropic_token",
+    "visible_entries",
 ]
 
 ACCOUNT = "account"
@@ -53,6 +68,34 @@ _ANTHROPIC_SOURCE_FAMILY = {
     "claude_code": ACCOUNT,
     "env:ANTHROPIC_API_KEY": API_KEY,
 }
+
+#: Pool sources that are another program's login, mirrored in: never Eternia's Anthropic Account.
+BORROWED_SOURCES = frozenset({"claude_code"})
+
+
+def borrowed_login_fenced(provider: str = "anthropic") -> bool:
+    """True in a process Eternia spawned: the provider's account never borrows another CLI's login."""
+    if provider != "anthropic":
+        return False
+    import os
+
+    from hermes_cli._namespace_bootstrap import launcher_spawned
+
+    # MUTATION: return False here and test_anthropic_account_never_borrows_claude_code_login reddens.
+    return launcher_spawned(os.environ)
+
+
+def _borrowed(entry: Any) -> bool:
+    return str(getattr(entry, "source", "") or "") in BORROWED_SOURCES
+
+
+def visible_entries(provider: str, entries: Iterable[Any]) -> list[Any]:
+    """*entries* minus the borrowed rows a fenced provider never reports (the Connections facts)."""
+    entries = list(entries)
+    if not borrowed_login_fenced(provider):
+        return entries
+    return [entry for entry in entries if not _borrowed(entry)]
+
 
 def credential_source_ids(provider: str) -> tuple[tuple[str, str], ...]:
     """``((id, label), …)`` the provider declares; empty = no choice to make."""
@@ -138,13 +181,16 @@ def benched_entry_ids(provider: str, entries: Iterable[Any]) -> frozenset[str]:
     :func:`resolve_chosen_anthropic_token`'s fall-through."""
     if provider != "anthropic":
         return frozenset()
+    entries = list(entries)
+    fenced = frozenset(str(entry.id) for entry in entries
+                       if _borrowed(entry)) if borrowed_login_fenced(provider) else frozenset()
     chosen = chosen_credential_source(provider)
     if chosen is None:
-        return frozenset()
-    rows = [entry for entry in entries if _has_secret(entry)]
+        return fenced
+    rows = [entry for entry in entries if _has_secret(entry) and str(entry.id) not in fenced]
     if not any(entry_family(entry) == chosen for entry in rows):
-        return frozenset()
-    return frozenset(str(entry.id) for entry in rows if entry_family(entry) != chosen)
+        return fenced
+    return fenced | frozenset(str(entry.id) for entry in rows if entry_family(entry) != chosen)
 
 
 # ── the resolver ─────────────────────────────────────────────────────────────
@@ -164,8 +210,10 @@ def _account_token() -> Optional[str]:
 
     from . import _upstream_doors as doors
 
-    read = functools.cache(creds.read_claude_code_credentials)
     token = doors.anthropic_env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
+    if borrowed_login_fenced():  # never the borrowed login, not even to swap a static env token for it
+        return token or doors.anthropic_pool_account_token()
+    read = functools.cache(creds.read_claude_code_credentials)
     if token:
         return doors.anthropic_prefer_refreshable_token(token, read()) or token
     return doors.anthropic_pool_account_token() or doors.anthropic_resolve_claude_code_token(read())
@@ -175,11 +223,19 @@ def resolve_chosen_anthropic_token(model: Optional[str] = None) -> Optional[str]
     """The token an explicit choice spends; None when unset (the caller's ladder runs).
 
     ``""`` means "chosen, and nothing usable": the chosen token benched for *model* does NOT
-    fall to the other family. Only a family with nothing stored falls through."""
+    fall to the other family. Only a family with nothing stored falls through.
+
+    Fenced (:func:`borrowed_login_fenced`) it never answers None: unset runs the ladder's order
+    here, without the borrowed login, so upstream's ladder never reaches it."""
     chosen = chosen_credential_source("anthropic")
-    if chosen is None:
-        return None
     from . import _upstream_doors as doors
+
+    if chosen is None:
+        if not borrowed_login_fenced():
+            return None
+        token = (doors.anthropic_env("ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
+                 or doors.anthropic_env("ANTHROPIC_API_KEY") or doors.anthropic_pool_account_token())
+        return doors.anthropic_token_unless_benched(token, model) or ""
 
     api_key = doors.anthropic_env("ANTHROPIC_API_KEY")
     if chosen == API_KEY and api_key:
@@ -201,6 +257,8 @@ def _account_stored() -> bool:
         return True
     if (creds.read_hermes_oauth_credentials() or {}).get("accessToken"):
         return True
+    if borrowed_login_fenced():
+        return False
     return bool(adopt_external_logins_enabled() and (creds.read_claude_code_credentials() or {}).get("accessToken"))
 
 
@@ -281,6 +339,15 @@ def account_usage_token() -> Optional[str]:
     if token:
         return token
     stored = (creds.read_hermes_oauth_credentials() or {}).get("accessToken")
-    if not stored and adopt_external_logins_enabled():
+    if not stored and not borrowed_login_fenced() and adopt_external_logins_enabled():
         stored = (creds.read_claude_code_credentials() or {}).get("accessToken")
     return str(stored or "").strip() or None
+
+
+def account_signed_in(provider: str) -> Optional[bool]:
+    """A fenced provider's sign-in fact (a stored credential of its own), else None (ask upstream).
+
+    Upstream's ``get_auth_status`` counts every pool row, the borrowed one included."""
+    if not borrowed_login_fenced(provider):
+        return None
+    return any(present_credential_sources(provider).values())
