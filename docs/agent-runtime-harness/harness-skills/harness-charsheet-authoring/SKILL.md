@@ -262,15 +262,6 @@ console's QA card lays those fields out one per row.
 - **Approving the turnaround is the last moment a reference can change.**
   `reopen` goes `composed → rows` and nothing goes back to `turnaround`, so QA
   that strip hard before `approve-direction --all`.
-- **Write facing in FRAME terms, three ways at once** — which way the body points
-  in frame, which shoulder is nearer, which side a sliver of face may appear on —
-  plus an explicit refusal of the mirror. "The viewer's right" is ambiguous on a
-  back view; "turn her the other way" and "face north-east" leave the same coin
-  flip that shipped a mirrored `ne`.
-- **When an operator reports two opposite directions wrong and the other six
-  right, suspect ONE authored row and its mirror**, not the consumer. Only the
-  authored directions are drawn; the consumer flips them, so one bad row breaks
-  exactly two. A consumer bug rarely spares six.
 - **If a verb cannot run, the session is restricted — not broken.** Confirm with
   one cheap verb, then say **"this session is restricted"** and name the way
   back: `agent_runtime.personas.<id>.chat_lane_restore_toolsets: [terminal]`. Do
@@ -303,10 +294,12 @@ one from disk when its trigger fires; never read `SKILL.md` or `FIELD-NOTES.md`.
 - **`references/handedness.md`** — the measurements behind the rules above: what
   each basis can and cannot see, and why the rotation refuses to rank. **Open
   when a refusal or warning names handedness, or when you are choosing between a
-  re-roll and an acceptance.**
+  re-roll and an acceptance, or when an operator reports two opposite
+  directions wrong.**
 - **`references/note-craft.md`** — the three reroll notes proven live, including
   the "MIRROR THE REFERENCE'S TURN" phrasing that landed a facing fix after two
-  failures. **Open before writing any `--note`.**
+  failures, and how to write facing in FRAME terms. **Open before writing any
+  `--note`.**
 - **`references/homes-and-migration.md`** — ROOT and home resolution in full, the
   relative-`HERMES_HOME` second-library trap, the `401 token_expired` stale-token
   trap on the provider probe, and the operator-only `backfill-home` /
