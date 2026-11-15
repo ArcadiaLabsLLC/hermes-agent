@@ -43,6 +43,9 @@ SERVE_ARGV = ("harness", "serve", "--ndjson")
 
 _SERVE_IMPORT_PROBE = r"""
 import argparse, importlib, json, sys
+# The report's own channel, saved before any import: a module may swap ``sys.stdout`` at import
+# (``tui_gateway.server`` points it at stderr), and the parent reads only this process's stdout.
+report = sys.stdout
 app, site, table_path, argv, tree = sys.argv[1], sys.argv[2], sys.argv[3], json.loads(sys.argv[4]), sys.argv[5]
 sys.path[:0] = [app, site]
 if tree:  # the sibling tree, mounted as the embedded entry mounts it (forced_tree.mount_forced_tree)
@@ -78,7 +81,7 @@ for module in sorted(m for m in list(sys.modules) if any(m.startswith(p + ".") f
         load(name)
 for name in spawned:  # the ``python -m <module>`` children a shipped module starts
     load(name)
-print(json.dumps({"entry": entry, "tried": tried, "failures": failures}))
+print(json.dumps({"entry": entry, "tried": tried, "failures": failures}), file=report, flush=True)
 """
 
 
