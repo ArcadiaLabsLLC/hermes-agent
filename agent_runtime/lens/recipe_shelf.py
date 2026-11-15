@@ -215,7 +215,7 @@ class ShelfRecipe(NamedTuple):
         return self.manifest is None
 
 
-def _checked(token: str, raw: bytes) -> ShelfRecipe:
+def _shelf_recipe(token: str, raw: bytes) -> ShelfRecipe:
     parsed = validate_document(LENS_RECIPE_FAMILY, raw)
     if filed_token(parsed) != token:
         raise RecipeDocumentError(RecipeRefusal.MISFILED, detail="path")
@@ -232,7 +232,7 @@ def read_recipe(workspace_id: str, recipe_id: str) -> ShelfRecipe:
     raw = DocumentStore(LENS_RECIPE_FAMILY).read(token)
     if raw is None:
         raise RecipeDocumentError(RecipeRefusal.NOT_FOUND)
-    return _checked(token, raw)
+    return _shelf_recipe(token, raw)
 
 
 def read_shelf(workspace_id: str) -> tuple[list[ShelfRecipe], list[dict[str, str]]]:
@@ -250,7 +250,7 @@ def read_shelf(workspace_id: str) -> tuple[list[ShelfRecipe], list[dict[str, str
         try:
             if raw is None:
                 raise RecipeDocumentError(LENS_RECIPE_FAMILY.unreadable_reason)
-            recipes.append(_checked(token, raw))
+            recipes.append(_shelf_recipe(token, raw))
         except RecipeDocumentError as exc:
             refused.append({"recipe_id": token[len(prefix):], "reason": exc.code})
     return recipes, refused
@@ -262,11 +262,11 @@ def write_recipe(raw: bytes) -> ShelfRecipe:
 
     token = filed_token(json.loads(raw))
     store = DocumentStore(LENS_RECIPE_FAMILY)
-    entry = _checked(token, raw)
+    entry = _shelf_recipe(token, raw)
     held = store.read(token)
     if held is not None:
         try:
-            other = _checked(token, held).monitor_id
+            other = _shelf_recipe(token, held).monitor_id
         except RecipeDocumentError:
             other = entry.monitor_id  # an unreadable file is replaced, not protected
         if other != entry.monitor_id:

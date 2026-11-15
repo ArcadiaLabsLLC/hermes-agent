@@ -56,7 +56,7 @@ from agent_runtime.serve_rpc.registry import method
 __layer__ = "lanes"
 
 
-def _workspace(params: dict) -> str:
+def _recipe_workspace(params: dict) -> str:
     """The verb's workspace: the one named, else the active one; ``recipe_needs_workspace`` with neither."""
 
     from agent_runtime.lens.recipe_shelf import RecipeDocumentError, RecipeRefusal
@@ -75,7 +75,7 @@ def _recipe(params: dict, required: set[str]):
     from agent_runtime.lens.wire_value import checked_object, opaque_id
 
     m = checked_object(params or {}, required, {"workspace_id"})
-    workspace_id = _workspace(m)
+    workspace_id = _recipe_workspace(m)
     return workspace_id, read_recipe(workspace_id, opaque_id(m["recipe_id"]))
 
 
@@ -102,7 +102,7 @@ def _runtime_lens_recipe_list(rid: Any, params: dict, context: RpcContext | None
         from agent_runtime.lens.recipe_shelf import read_shelf
         from agent_runtime.lens.wire_value import checked_object
 
-        workspace_id = _workspace(checked_object(params or {}, set(), {"workspace_id"}))
+        workspace_id = _recipe_workspace(checked_object(params or {}, set(), {"workspace_id"}))
         recipes, refused = read_shelf(workspace_id)
         monitors = _monitors()
         return {"workspace_id": workspace_id, "recipes": [_row(recipe, monitors) for recipe in recipes],

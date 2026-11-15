@@ -239,6 +239,17 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "never moved or deleted, so an older edition still finds it; no existing path moves",
         "pins_sha256": "fb00f209aefc29c0e62c6a23cb88dccc1207d381026d4b2a22feb9100f3b2e26",
     },
+    {
+        "id": "lens-recipe-shelf",
+        "date": "2026-11-15",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (RT-LENS-RECIPE-SHELF-SHARE-AND-ADD 3faf6ffa4e): the paths table names the Lens "
+                  "recipe shelf store/lens_recipes/<workspace>/<recipe>.json and its realm-sync baseline and "
+                  "conflict places; an older edition has no reader for them and ignores the folder; no existing "
+                  "path moves",
+        "pins_sha256": "040598973cbacb60ba7ac8aab77900897f8432691ba322f2d5b4d950a69ea7f1",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.

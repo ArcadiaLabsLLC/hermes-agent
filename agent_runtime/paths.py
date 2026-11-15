@@ -549,7 +549,7 @@ def lens_recipe_baseline_path(realm_id: str) -> Path:
 
 
 def lens_recipe_conflicts_root(realm_id: str) -> Path:
-    return realm_sync_root() / safe_path_token(realm_id) / "lens_recipe_conflicts"
+    return realm_sync_root() / safe_path_token(realm_id) / "recipe_conflicts"
 
 
 def lens_recipe_conflict_path(realm_id: str, workspace_id: str, recipe_id: str) -> Path:
