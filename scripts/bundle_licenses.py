@@ -291,12 +291,23 @@ def distribution_rows(out: Path, names, wheels: dict | None = None, overrides: d
     return rows
 
 
+def interpreter_licence_path(target: str, version: str) -> str:
+    """Where a python-build-standalone ``install_only`` interpreter keeps its licence text, relative
+    to the interpreter root: the root itself on Windows, ``lib/pythonX.Y/`` on Linux and macOS
+    (read in the pinned 3.14.9 linux-x64, darwin-arm64 and win32-x64 archives, 2026-11-15)."""
+    if target.startswith("win32"):
+        return "LICENSE.txt"
+    major, minor = version.split("+", 1)[0].split(".")[:2]
+    return f"lib/python{major}.{minor}/LICENSE.txt"
+
+
 def interpreter_row(target: str, lock: Path = INTERPRETER_LOCK) -> dict:
     data = json.loads(lock.read_text(encoding="utf-8-sig"))
     artifact = data["artifacts"][target]
     components = [c for c in INTERPRETER_COMPONENTS
                   if target.startswith("win32") or c["name"] != "vcruntime140"]
-    return _component("cpython", data["version"], "PSF-2.0", ["LICENSE.txt"], artifact["url"],
+    return _component("cpython", data["version"], "PSF-2.0", [interpreter_licence_path(target, data["version"])],
+                artifact["url"],
                 {"url": artifact["url"], "hash": f"sha256:{artifact['sha256']}"},
                 "https://github.com/astral-sh/python-build-standalone", components,
                 licence_files_placed_by="installer (interpreter root)", kind="interpreter")

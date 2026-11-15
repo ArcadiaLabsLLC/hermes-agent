@@ -14,6 +14,7 @@ from scripts.bundle_licenses import (
     EMBEDDED_COMPONENTS,
     LICENCE_TEXTS,
     installed_wheel,
+    interpreter_row,
     licence_expression,
     licence_overrides,
     licence_problems,
@@ -158,6 +159,27 @@ def test_a_phone_core_record_has_no_interpreter_row(tmp_path: Path):
         record = write_licence_records(tmp_path, "core", set(), target, "c0ffee" * 7, core=True, wheels={})
         assert [r["kind"] for r in record["components"]] == ["first-party"]
         assert licence_problems(tmp_path, set()) == []
+
+
+@pytest.mark.parametrize("target, expected", [
+    ("win32-x64", "LICENSE.txt"),
+    ("win32-arm64", "LICENSE.txt"),
+    ("linux-x64", "lib/python3.14/LICENSE.txt"),
+    ("linux-arm64", "lib/python3.14/LICENSE.txt"),
+    ("darwin-arm64", "lib/python3.14/LICENSE.txt"),
+    ("darwin-x64", "lib/python3.14/LICENSE.txt"),
+])
+def test_the_interpreter_row_names_the_licence_text_where_each_target_keeps_it(tmp_path: Path, target, expected):
+    """FH-BUNDLE-LINUX-INTERPRETER-LICENCE-TEXT-NOT-FOUND: a linux-x64 stage's verify said ``cpython has
+    no licence text in the bundle`` — the row named ``LICENSE.txt`` at the interpreter root (the Windows
+    place) while python-build-standalone's POSIX ``install_only`` keeps it under ``lib/pythonX.Y/``.
+    Killing mutation: name ``LICENSE.txt`` for every target -> the linux and darwin cases red."""
+    lock = tmp_path / "interpreters.lock.json"
+    lock.write_text(json.dumps({"version": "3.14.9+20261021", "artifacts": {
+        target: {"url": "https://example.invalid/cpython.tar.gz", "sha256": "ab" * 32}}}), encoding="utf-8")
+    row = interpreter_row(target, lock)
+    assert row["licence_files"] == [expected]
+    assert row["licence_files_placed_by"] == "installer (interpreter root)"
 
 
 # -- vetted licence texts for wheels that ship none ----------------------------------------------
