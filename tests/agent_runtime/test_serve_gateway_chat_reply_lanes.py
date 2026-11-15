@@ -48,9 +48,10 @@ real writes. Stage C1h-bis gave the chat-turn core its own two appends
 (``persona_chat.turn_started`` / ``persona_chat.turn_ended``,
 ``agent_runtime.chat_turn_presence``), so the forcing writes are gone and the
 same test now asserts what it previously had to arrange: the row arrives on the
-lane within a small multiple of one hub publish interval of the ack, and is
-retired within the same of the turn's exit. The caveat is kept as history in the
-field notes, not re-asserted here.
+lane while the turn is running, and is retired after the turn's exit. HOW FAST
+each arrives is asserted in ``test_serve_gateway_chat_reply_lanes_timing.py``,
+an idle-box file (owner ruling 2026-10-10), against the ceilings defined here.
+The caveat is kept as history in the field notes, not re-asserted here.
 """
 
 from __future__ import annotations
@@ -238,6 +239,9 @@ class _Recorder:
         self._connection = connection
         self._frames: list[tuple[float, dict]] = []
         self._lock = threading.Lock()
+        #: Notified on every frame, so a wait blocks on the frame itself instead
+        #: of re-scanning the whole list every 10 ms (w1115c-h2).
+        self._arrived = threading.Condition(self._lock)
         self._stop = threading.Event()
         self._read_error: str | None = None
         self.started_at = time.monotonic()
@@ -252,13 +256,25 @@ class _Recorder:
         while not self._stop.is_set():
             try:
                 frame = self._connection.read_frame()
+            except BlockingIOError:
+                # EAGAIN out of the TLS socket this thread reads while the test
+                # thread writes on it: no frame yet, and the line reader's buffer
+                # is untouched, so read again. Seen once under load (w1115c-h2:
+                # the pump died before the subscription ack and the test waited
+                # out its 20 s on a reader that was gone).
+                continue
             except Exception as exc:
-                self._read_error = f"{type(exc).__name__}: {exc}"[:300]
+                with self._arrived:
+                    self._read_error = f"{type(exc).__name__}: {exc}"[:300]
+                    self._arrived.notify_all()
                 return
             if frame is None:
+                with self._arrived:
+                    self._arrived.notify_all()
                 return
-            with self._lock:
+            with self._arrived:
                 self._frames.append((time.monotonic(), frame))
+                self._arrived.notify_all()
 
     def stop(self) -> None:
         self._stop.set()
@@ -275,11 +291,18 @@ class _Recorder:
 
     def _wait(self, select, predicate, *, what: str, timeout: float):
         deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
+        while True:
+            with self._lock:
+                seen = len(self._frames)
             hits = select(predicate)
             if hits:
                 return hits[0]
-            time.sleep(0.01)
+            with self._arrived:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not self._thread.is_alive():
+                    break
+                if len(self._frames) == seen:
+                    self._arrived.wait(remaining)
         timeline = [
             {
                 "at_ms": round(self.since_start_ms(at)),
@@ -734,6 +757,32 @@ _START_ROW_ELAPSED_CEILING_SECONDS = 4
 _END_ROW_DEADLINE_SECONDS = 8 * _PUBLISH_INTERVAL_SECONDS
 
 
+#: How long the LOADED-SUITE measurement lets its turn run: until the test
+#: releases it, bounded only as a hang. The start frame is waited for while the
+#: turn is provably still in flight, so "it arrived before the turn ended" is a
+#: fact the test arranges rather than a race against :data:`SLOW_TURN_SECONDS`.
+_HELD_TURN_HANG_SECONDS = 120.0
+
+#: The hang bound on the two publish waits of the loaded-suite measurement. Not
+#: a latency claim: the claims are the idle-box file's
+#: (``test_serve_gateway_chat_reply_lanes_timing.py``), which keeps the three
+#: ceilings above unchanged.
+#:
+#: What the start frame waits on, traced (w1115c-h2, the event log, the hub's
+#: build lines and the recorder on one clock): the turn's own pre-start work —
+#: accept-to-anchor, the ``new_session`` mint, model and context build — then
+#: ``persona_chat.turn_started``; then the hub's demote deferral, a fixed
+#: 3.5 s hold while a turn is admitted (``snapshot_build_deferred reason=demote
+#: bound_ms=3500``); then one core build. On a quiet box that is
+#: 0.35 s + 3.5 s + 0.1 s, the measured +4.3 s. With the run pinned to eight
+#: CPUs beside a 40-loop hog the pre-start work alone took 6.0 s, so the event
+#: the frame is built from did not exist until the 6 s ceiling had passed —
+#: the red seen in three full suites at load 50-67
+#: (FH-CHAT-REPLY-LANES-START-FRAME-WAIT-RED-UNDER-LOAD). The frame was right;
+#: only the clock was wrong, so this file waits on the turn's hold instead.
+_PUBLISH_HANG_SECONDS = 90.0
+
+
 @pytest.fixture
 def slow_scripted_model(monkeypatch, scripted_model):
     """The same scripted agent, holding its turn open across poll cycles."""
@@ -744,44 +793,27 @@ def slow_scripted_model(monkeypatch, scripted_model):
     return release
 
 
-@pytest.mark.timeout(300)
-def test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane(
-    gateway_on, placed_agent, slow_scripted_model, capfd
-):
-    """The other half of the measurement, and the one C1l's shape turns on.
+@pytest.fixture
+def held_scripted_model(monkeypatch, scripted_model):
+    """The scripted agent, holding its turn until the test releases it."""
 
-    The fast turn above finished inside a single hub publish, so its empty
-    ``running_work`` was not evidence: "the row is never published" and "nobody
-    published while it existed" are the same observation at that speed. This
-    holds the turn open for :data:`SLOW_TURN_SECONDS` and asks the question of a
-    turn that is provably in flight.
+    monkeypatch.setattr(_ScriptedAgent, "dwell_seconds", _HELD_TURN_HANG_SECONDS)
+    release = threading.Event()
+    monkeypatch.setattr(_ScriptedAgent, "dwell_release", release)
+    return release
 
-    **What this asserted before C1h-bis, and why it had to.** The stream hub is
-    EVENT-DRIVEN — it publishes when the event log moves — and a chat turn
-    running a model appended nothing of its own between its write-ahead record
-    and its projection commit. So simply waiting for the row during a slow turn
-    passed on some runs and timed out on others, and that instability was the
-    finding rather than a flake to tune away: the row was in the projection and
-    no frame carried it. The test therefore FORCED publishes — up to five real
-    ``runtime.agent.create`` calls across the dwell, the shape of an operator
-    moving the office while a turn runs — and asked what the projection said at a
-    moment it chose. The C1h field notes keep that measurement (a row sampled
-    +3187 ms into a turn, ``owner.persona_id`` null) as history.
 
-    **What it asserts now.** The turn publishes on its own account
-    (``persona_chat.turn_started`` at the write-ahead,
-    ``persona_chat.turn_ended`` when it leaves the in-flight set — see
-    ``agent_runtime.chat_turn_presence``), so the forcing writes are GONE and
-    nothing else moves the event log inside this test's windows. The row must
-    arrive within :data:`_START_ROW_ACK_CEILING_SECONDS` of the ack AND carry an
-    ``elapsed_seconds`` no greater than
-    :data:`_START_ROW_ELAPSED_CEILING_SECONDS` — the second is the tight bound,
-    because it is anchored on the write-ahead stamp rather than on an ack that
-    precedes the row's existence by the whole session mint. It must then be
-    RETIRED within :data:`_END_ROW_DEADLINE_SECONDS` of the turn's exit.
+def _run_a_slow_turn(
+    placed_agent: dict,
+    release: threading.Event,
+    *,
+    start_within: float,
+    end_within: float,
+) -> dict:
+    """Send one slow turn from a paired console and record both of its publishes.
 
-    A SECOND console watching the same runtime (the Mac's own launcher, which is
-    exactly C5's arrangement) has only this lane.
+    The turn is held open by ``release`` until the start frame has been read, so
+    the in-flight reading is taken while the turn is provably running.
     """
 
     instance_id = placed_agent["persona_instance_id"]
@@ -832,17 +864,15 @@ def test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane(
                 started_at, _start_frame = recorder.wait_for(
                     _publishes_the_start("slow-gesture-1"),
                     what="the frame that publishes this turn's own start row",
-                    timeout=_START_ROW_ACK_CEILING_SECONDS,
+                    timeout=start_within,
                 )
-                start_row_ms = (started_at - ack_at) * 1000.0
-                first_row_ms = (started_at - sent_at) * 1000.0
                 in_flight = recorder.matching(_is_stream)
                 exited_early = recorder.matching(
                     lambda frame: frame.get("id") == request_id
                     and frame.get("event") == "exit"
                 )
                 # The in-flight reading is taken; the turn may end now.
-                slow_scripted_model.set()
+                release.set()
 
                 exit_at, _exit_frame = recorder.wait_for(
                     lambda frame: frame.get("id") == request_id
@@ -859,20 +889,19 @@ def test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane(
                 ended_at, _end_frame = recorder.wait_for(
                     _publishes_the_end("slow-gesture-1"),
                     what="the frame that publishes this turn's end",
-                    timeout=_END_ROW_DEADLINE_SECONDS,
+                    timeout=end_within,
                 )
-                end_row_ms = (ended_at - exit_at) * 1000.0
                 _settle_stream(recorder, seconds=3.0)
             finally:
+                # A failed wait must not leave the scripted turn holding the
+                # serve's shutdown for the rest of its bound.
+                release.set()
                 recorder.stop()
-
-    assert not exited_early, "the projection was taken after the turn had ended"
 
     per_request = recorder.matching(_request_frame(request_id))
     payload = _payload_of(per_request)
     assert payload is not None and payload["ok"] is True, payload
     assert payload["reply"] == SCRIPTED_REPLY
-
     mid = _stream_says_about(
         in_flight, session_id=payload["session_id"], request_id=request_id
     )
@@ -881,15 +910,33 @@ def test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane(
         session_id=payload["session_id"],
         request_id=request_id,
     )
+    start_row_ms = (started_at - ack_at) * 1000.0
+    end_row_ms = (ended_at - exit_at) * 1000.0
     print("\n=== WHILE THE TURN WAS STILL RUNNING ===")
     print(f"  start row on the stream lane: +{start_row_ms:.0f} ms after the ack")
-    print(f"                               (+{first_row_ms:.0f} ms after the send)")
+    print(f"                               (+{(started_at - sent_at) * 1000.0:.0f} ms after the send)")
     print(f"  row retired on the stream lane: +{end_row_ms:.0f} ms after the exit")
     for key, value in mid.items():
         print(f"  {key}: {value}")
     print("=== OVER THE WHOLE TURN ===")
     for key, value in whole.items():
         print(f"  {key}: {value}")
+    return {
+        "instance_id": instance_id,
+        "payload": payload,
+        "exited_early": exited_early,
+        "mid": mid,
+        "whole": whole,
+        "start_row_ms": start_row_ms,
+        "end_row_ms": end_row_ms,
+    }
+
+
+def _assert_the_turn_published_its_own_start_and_end(run: dict) -> None:
+    """What the lane carries for a running turn. Facts, at any speed."""
+
+    assert not run["exited_early"], "the projection was taken after the turn had ended"
+    mid, whole, payload = run["mid"], run["whole"], run["payload"]
 
     # ── the finding ─────────────────────────────────────────────────────────
     # A turn that is still running IS in the projection the stream lane
@@ -907,25 +954,10 @@ def test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane(
     # R-C3's reply receipt therefore joins on the value the send already holds.
     assert row["work_id"] == "chat_turn:slow-gesture-1"
     assert row["owner"]["session_id"] == payload["session_id"]
-    assert row["owner"]["persona_instance_id"] == instance_id
+    assert row["owner"]["persona_instance_id"] == run["instance_id"]
     # C1h measured this field NULL beside the two above it. A console rendering
     # "who is talking" reads it, so it is asserted rather than described.
     assert row["owner"]["persona_id"] == PERSONA
-
-    # Both publishes are PROMPT, and the numbers are the assertion. Nothing else
-    # moved this runtime's event log in either window, so these are the turn's
-    # own two appends and nobody else's.
-    #
-    # The start is bounded TWICE because the two bounds answer different
-    # questions. Off the clock: it arrived within half the dwell of the ack, so
-    # it cannot be the turn's end arriving. Off the ROW: the turn had been in
-    # flight for at most :data:`_START_ROW_ELAPSED_CEILING_SECONDS` when the
-    # frame carrying it was built — that is one publish interval plus a core
-    # build plus the field's integer floor, measured from the write-ahead stamp
-    # rather than from the ack that precedes it by the whole session mint.
-    assert start_row_ms < _START_ROW_ACK_CEILING_SECONDS * 1000.0, start_row_ms
-    assert row["elapsed_seconds"] <= _START_ROW_ELAPSED_CEILING_SECONDS, row
-    assert end_row_ms < _END_ROW_DEADLINE_SECONDS * 1000.0, end_row_ms
 
     # And the two publishes are on the record as the turn's OWN, by type.
     assert "persona_chat.turn_started" in whole["event_types"], whole
@@ -935,3 +967,55 @@ def test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane(
     # ack's ``request_id``.
     assert whole["carried_the_reply_text"] is False, whole
     assert whole["named_the_request_id"] is False, whole
+
+
+@pytest.mark.timeout(300)
+def test_a_running_turn_publishes_its_own_start_and_end_on_the_stream_lane(
+    gateway_on, placed_agent, held_scripted_model, capfd
+):
+    """The other half of the measurement, and the one C1l's shape turns on.
+
+    The fast turn above finished inside a single hub publish, so its empty
+    ``running_work`` was not evidence: "the row is never published" and "nobody
+    published while it existed" are the same observation at that speed. This
+    holds the turn open until it has read what it needs and asks the question of
+    a turn that is provably in flight.
+
+    **What this asserted before C1h-bis, and why it had to.** The stream hub is
+    EVENT-DRIVEN — it publishes when the event log moves — and a chat turn
+    running a model appended nothing of its own between its write-ahead record
+    and its projection commit. So simply waiting for the row during a slow turn
+    passed on some runs and timed out on others, and that instability was the
+    finding rather than a flake to tune away: the row was in the projection and
+    no frame carried it. The test therefore FORCED publishes — up to five real
+    ``runtime.agent.create`` calls across the dwell, the shape of an operator
+    moving the office while a turn runs — and asked what the projection said at a
+    moment it chose. The C1h field notes keep that measurement (a row sampled
+    +3187 ms into a turn, ``owner.persona_id`` null) as history.
+
+    **What it asserts now.** The turn publishes on its own account
+    (``persona_chat.turn_started`` at the write-ahead,
+    ``persona_chat.turn_ended`` when it leaves the in-flight set — see
+    ``agent_runtime.chat_turn_presence``), so the forcing writes are GONE and
+    nothing else moves the event log inside this test's windows. A frame that
+    NAMES the turn's own start and carries its running row must arrive while the
+    turn is still held open, and a frame naming its end must then retire the
+    row. Before C1h-bis no frame could match the first predicate at all, so the
+    turn's hold, not a clock, is what this waits on.
+
+    **How fast** is the idle-box file's question
+    (``test_serve_gateway_chat_reply_lanes_timing.py``), under the owner's
+    2026-10-10 ruling that timing budgets run only on an idle box: it runs this
+    same turn against the three ceilings above, unchanged.
+
+    A SECOND console watching the same runtime (the Mac's own launcher, which is
+    exactly C5's arrangement) has only this lane.
+    """
+
+    run = _run_a_slow_turn(
+        placed_agent,
+        held_scripted_model,
+        start_within=_PUBLISH_HANG_SECONDS,
+        end_within=_PUBLISH_HANG_SECONDS,
+    )
+    _assert_the_turn_published_its_own_start_and_end(run)
