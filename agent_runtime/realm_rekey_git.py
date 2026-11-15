@@ -100,7 +100,9 @@ def _commit_new_ids(workspace_id: str, tokens: dict[str, str]) -> None:
 def step_git(root: Path, mapping: Any) -> None:
     """After the rename: per moved workspace, find its worktrees again, then the one commit. Re-run it finds
     nothing to re-point and nothing left to rewrite."""
-    if shutil.which("git") is None:
+    from hermes_cli.boot_bootstrap import _git_binary  # the reviewed git resolver (pm's pinned git, then PATH)
+
+    if _git_binary() is None:
         return  # no git here: nothing cut a worktree or a brain on this machine, and the Writer recuts
     forms = mapping.forms()
     tokens = {**mapping.workspaces, **mapping.agents}
