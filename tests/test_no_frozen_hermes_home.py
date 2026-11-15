@@ -52,7 +52,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._fork_scope import is_fork_authored
+from tests._fork_scope import Owner, line_owner, skip_unjudged
 
 pytestmark = pytest.mark.gate
 
@@ -354,8 +354,8 @@ def _module_level_binding_lines(rel: str, name: str) -> list[int]:
     return lines
 
 
-def is_fork_owned_freeze(rel: str, name: str, *, authored=is_fork_authored) -> bool:
-    """Is this freeze the FORK's to answer for?
+def freeze_owner(rel: str, name: str, *, owner=line_owner) -> Owner:
+    """Whose freeze is this — the FORK's to answer for, upstream's, or unjudged?
 
     The ratchet is a fork gate running over upstream's code too. A freeze whose
     every module-level binding is a line upstream wrote (``tests/_fork_scope.py``
@@ -363,11 +363,17 @@ def is_fork_owned_freeze(rel: str, name: str, *, authored=is_fork_authored) -> b
     additively or not at all, so it could not fix that line, and ledgering it
     would only teach the ledger to lie about whose debt it is. Fail closed: a
     name with no binding line this can find, or any line the fork wrote, is the
-    fork's.
+    fork's; otherwise any line a shallow clone cannot judge leaves it unjudged.
     """
 
     lines = _module_level_binding_lines(rel, name)
-    return not lines or any(authored(rel, line) for line in lines)
+    if not lines:
+        return Owner.FORK
+    owners = {owner(rel, line) for line in lines}
+    for answer in (Owner.FORK, Owner.UNJUDGED):
+        if answer in owners:
+            return answer
+    return Owner.UPSTREAM
 
 
 @pytest.mark.timeout(300)
@@ -381,9 +387,8 @@ def test_no_new_frozen_hermes_home_values(probe_result: dict) -> None:
         (rel, name) for rel, (names, _reason) in FROZEN_LEDGER.items() for name in names
     }
 
-    new = sorted(
-        (rel, name) for rel, name in found - ledgered if is_fork_owned_freeze(rel, name)
-    )
+    owners = {(rel, name): freeze_owner(rel, name) for rel, name in found - ledgered}
+    new = sorted(key for key, owner in owners.items() if owner is Owner.FORK)
     assert not new, (
         "New module-level value(s) frozen against HERMES_HOME at import:\n"
         + "\n".join(f"  {rel}: {name}" for rel, name in new)
@@ -393,6 +398,7 @@ def test_no_new_frozen_hermes_home_values(probe_result: dict) -> None:
         "pattern. If the value genuinely cannot be lazy, add it to FROZEN_LEDGER "
         "in this test with a justification."
     )
+    skip_unjudged(sum(owner is Owner.UNJUDGED for owner in owners.values()), "unledgered frozen value(s)")
 
 
 @pytest.mark.timeout(300)
@@ -481,16 +487,20 @@ def test_the_ratchet_scope_asks_about_the_binding_line_and_fails_closed() -> Non
     rel, name = "gateway/mirror.py", "_SESSIONS_INDEX_AT_IMPORT"
     asked: list[tuple[str, int]] = []
 
-    def upstream_wrote_it(path: str, line: int) -> bool:
+    def upstream_wrote_it(path: str, line: int) -> Owner:
         asked.append((path, line))
-        return False
+        return Owner.UPSTREAM
 
-    assert not is_fork_owned_freeze(rel, name, authored=upstream_wrote_it)
+    assert freeze_owner(rel, name, owner=upstream_wrote_it) is Owner.UPSTREAM
     assert asked and {path for path, _ in asked} == {rel}
     source = (REPO_ROOT / rel).read_text(encoding="utf-8").splitlines()
     assert all(source[line - 1].lstrip().startswith(name) for _, line in asked)
 
     # Positive control: the same finding, and the fork wrote the line.
-    assert is_fork_owned_freeze(rel, name, authored=lambda path, line: True)
+    assert freeze_owner(rel, name, owner=lambda path, line: Owner.FORK) is Owner.FORK
+    # A shallow clone that cannot judge the binding line leaves it unjudged, not the fork's.
+    assert freeze_owner(rel, name, owner=lambda path, line: Owner.UNJUDGED) is Owner.UNJUDGED
     # Fail closed: a name bound nowhere at module level stays the fork's.
-    assert is_fork_owned_freeze(rel, "_NOT_BOUND_IN_THIS_MODULE", authored=lambda path, line: False)
+    assert freeze_owner(
+        rel, "_NOT_BOUND_IN_THIS_MODULE", owner=lambda path, line: Owner.UPSTREAM
+    ) is Owner.FORK

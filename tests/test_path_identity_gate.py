@@ -64,7 +64,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._fork_scope import is_fork_authored
+from tests._fork_scope import Owner, line_owner, skip_unjudged
 
 pytestmark = pytest.mark.gate
 
@@ -203,8 +203,14 @@ def scan_tree(tree: ast.AST) -> dict[str, list[int]]:
     return found
 
 
-def _scan_tools() -> tuple[dict[tuple[str, str], list[int]], int]:
-    findings: dict[tuple[str, str], list[int]] = {}
+_Findings = dict[tuple[str, str], list[int]]
+
+
+def _scan_tools() -> tuple[_Findings, int, _Findings]:
+    """The fork's findings, the modules parsed, and the findings a shallow clone
+    could not judge (``tests/_fork_scope.line_owner``)."""
+    findings: _Findings = {}
+    unjudged: _Findings = {}
     scanned = 0
     for py in sorted(TOOLS_ROOT.rglob("*.py")):
         rel = py.relative_to(REPO_ROOT).as_posix()
@@ -221,11 +227,13 @@ def _scan_tools() -> tuple[dict[tuple[str, str], list[int]], int]:
             # PR, never by an entry here. The walk still covers the whole tree,
             # so the anti-vacuity floor measures everything; only FINDINGS are
             # filtered, and tests/_fork_scope fails closed (no upstream ref ->
-            # every line is ours).
-            ours = sorted(line for line in lines if is_fork_authored(py, line))
-            if ours:
-                findings[(rel, fn_name)] = ours
-    return findings, scanned
+            # every line is ours) except on a shallow clone (unjudged).
+            owners = [(line, line_owner(py, line)) for line in lines]
+            for bucket, wanted in ((findings, Owner.FORK), (unjudged, Owner.UNJUDGED)):
+                picked = sorted(line for line, owner in owners if owner is wanted)
+                if picked:
+                    bucket[(rel, fn_name)] = picked
+    return findings, scanned, unjudged
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +242,7 @@ def _scan_tools() -> tuple[dict[tuple[str, str], list[int]], int]:
 
 
 def test_no_unregistered_raw_path_comparison_under_tools():
-    findings, scanned = _scan_tools()
+    findings, scanned, unjudged = _scan_tools()
     assert scanned >= _MIN_SCANNED_FILES, (
         f"only {scanned} modules parsed under tools/ — the walker is broken, "
         f"not the tree clean"
@@ -258,6 +266,10 @@ def test_no_unregistered_raw_path_comparison_under_tools():
             "spelling guard, a cycle breaker), register it in "
             "_RAW_PATH_COMPARISON_EXEMPTIONS with the reason."
         )
+    skip_unjudged(
+        sum(k not in _RAW_PATH_COMPARISON_EXEMPTIONS for k in unjudged),
+        "unregistered raw path comparison site(s)",
+    )
 
 
 def test_every_exemption_still_names_a_real_finding():
@@ -267,8 +279,10 @@ def test_every_exemption_still_names_a_real_finding():
     or deleted and their exemptions stay behind, ready to pre-authorise a future
     defect that happens to land in a function with the same name.
     """
-    findings, _ = _scan_tools()
-    stale = sorted(k for k in _RAW_PATH_COMPARISON_EXEMPTIONS if k not in findings)
+    findings, _, unjudged = _scan_tools()
+    stale = sorted(
+        k for k in _RAW_PATH_COMPARISON_EXEMPTIONS if k not in findings and k not in unjudged
+    )
     assert not stale, (
         "These _RAW_PATH_COMPARISON_EXEMPTIONS entries no longer correspond to "
         f"any raw path comparison — delete them: {stale}"
@@ -403,7 +417,7 @@ def test_the_authority_itself_is_excluded_and_would_otherwise_be_flagged():
         "spelling against the POSIX one — either the reconciliation moved back "
         "out of the authority, or the detector stopped seeing it"
     )
-    findings, _ = _scan_tools()
+    findings, _, _unjudged = _scan_tools()
     assert not any(module == AUTHORITY for module, _ in findings), (
         "the authority must be excluded from the tools/ sweep"
     )

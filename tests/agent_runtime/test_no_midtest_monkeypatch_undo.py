@@ -183,7 +183,15 @@ from pathlib import Path
 
 import pytest
 
-from tests._fork_scope import is_fork_authored, is_fork_touched, upstream_blobs
+from tests._fork_scope import (
+    Owner,
+    is_fork_authored,
+    is_fork_touched,
+    line_owner,
+    skip_unjudged,
+    skip_when_unattributable,
+    upstream_blobs,
+)
 
 pytestmark = pytest.mark.gate
 
@@ -317,6 +325,7 @@ def test_no_test_in_the_tree_unwinds_the_shared_monkeypatch():
     """THE GATE. See the module docstring for the incident it fences."""
 
     offenders: list[str] = []
+    unjudged = 0
     for path, tree in _scanned().items():
         if tree is None:
             continue
@@ -325,7 +334,9 @@ def test_no_test_in_the_tree_unwinds_the_shared_monkeypatch():
             # ("did this reach a real tree?") stay measured against the whole
             # tree, the scope question is asked only about a line that would
             # otherwise be reported, and a green gate asks it zero times.
-            if not is_fork_authored(path, lineno):
+            owner = line_owner(path, lineno)
+            if owner is not Owner.FORK:
+                unjudged += owner is Owner.UNJUDGED
                 continue
             offenders.append(f"{path}:{lineno}: {spelling}")
 
@@ -347,6 +358,7 @@ def test_no_test_in_the_tree_unwinds_the_shared_monkeypatch():
         "        ...            # the patched half\n"
         "    ...                # the unpatched half"
     )
+    skip_unjudged(unjudged, "mid-test `undo()` site(s)")
 
 
 # --------------------------------------------------------------------------- #
@@ -416,6 +428,7 @@ def test_the_fork_scope_filter_actually_removes_upstream_from_the_scan():
     stale against a file someone edits tomorrow.
     """
 
+    skip_when_unattributable("the scope filter's upstream direction")
     blobs = upstream_blobs()
     assert blobs is not None, (
         "the manifest's recorded release base is unavailable or invalid, so the "

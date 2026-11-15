@@ -1,7 +1,8 @@
 """The source-grep test class stops growing here.
 
 Scope (owner ruling 2026-09-24): this is a FORK style rule, so it applies to
-fork-authored lines only (``tests/_fork_scope.is_fork_authored``). Upstream's
+fork-authored lines only (``tests/_fork_scope.line_owner``; on a shallow clone
+an upstream-shipped file's finding is unjudged and the gate skips with the count). Upstream's
 own tests are out of scope; the fork keeps no register of them (the
 2026-09-15 pinned-upstream register is retired). The two closed fork registers
 below receive no new assertions.
@@ -88,7 +89,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._fork_scope import is_fork_authored
+from tests._fork_scope import Owner, line_owner, skip_unjudged
 
 pytestmark = pytest.mark.gate
 
@@ -466,11 +467,13 @@ def _entry(relpath: str, qualname: str, text: str) -> str:
     return f"{relpath}::{qualname}::{text}"
 
 
-def _scan() -> tuple[list[str], int, dict[str, list[int]]]:
+def _scan() -> tuple[list[str], int, dict[str, list[int]], list[str]]:
     """Every positive source-grep assertion under ``tests/``.
 
-    Returns the ledger keys, the number of files walked, and — separately — the
-    line each key was found on. Line numbers are for the failure message only,
+    Returns the ledger keys, the number of files walked, separately the line each
+    key was found on, and the keys ``tests/_fork_scope.line_owner`` could not judge
+    (upstream-shipped files on a shallow clone): neither new nor proof a ledger
+    line went stale. Line numbers are for the failure message only,
     so an author can jump straight to the assertion; they never enter the key,
     because a key that moves on every unrelated edit above it turns the
     register into churn nobody reads.
@@ -479,6 +482,7 @@ def _scan() -> tuple[list[str], int, dict[str, list[int]]]:
     entries: list[str] = []
     locations: dict[str, list[int]] = {}
     scanned = 0
+    unjudged: list[str] = []
     for path in sorted(TESTS_ROOT.rglob("*.py")):
         text = path.read_text(encoding="utf-8", errors="replace")
         scanned += 1
@@ -494,14 +498,18 @@ def _scan() -> tuple[list[str], int, dict[str, list[int]]]:
         relpath = path.relative_to(REPO_ROOT).as_posix()
         qualnames = _qualname_index(tree)
         for lineno, rendered in _SourceTextAnalyzer(tree).violations():
-            if not is_fork_authored(relpath, lineno):
+            owner = line_owner(relpath, lineno)
+            if owner is Owner.UPSTREAM:
                 # Upstream wrote this line: upstream's to police (scope, not exemption).
                 continue
             key = _entry(relpath, qualnames.get(lineno, "<module>"), rendered)
+            if owner is Owner.UNJUDGED:
+                unjudged.append(key)  # a shallow clone cannot say; reported as a skip
+                continue
             entries.append(key)
             locations.setdefault(key, []).append(lineno)
     entries.sort()
-    return entries, scanned, locations
+    return entries, scanned, locations, sorted(unjudged)
 
 
 def _read_ledger() -> tuple[list[str], int | None]:
@@ -572,20 +580,21 @@ _REMEDY = (
 
 
 @pytest.fixture(scope="module")
-def scan() -> tuple[list[str], int, dict[str, list[int]]]:
+def scan() -> tuple[list[str], int, dict[str, list[int]], list[str]]:
     return _scan()
 
 
 @pytest.mark.timeout(300)
 def test_no_new_positive_source_grep_assertion(scan) -> None:
-    found, scanned, locations = scan
+    found, scanned, locations, unjudged = scan
     assert scanned >= _MIN_SCANNED_FILES, (
         f"the walker only saw {scanned} files under {TESTS_ROOT} — it drifted off "
         "the tree, so a green here would mean nothing"
     )
     ledgered, _declared = _read_ledger()
     exempt, _exempt_declared, _reasonless = _read_ruled_exemptions()
-    new = sorted((Counter(found) - Counter(ledgered) - Counter(exempt)).elements())
+    accounted = Counter(ledgered) + Counter(exempt)
+    new = sorted((Counter(found) - accounted).elements())
 
     def located(key: str) -> str:
         path, _, rest = key.partition("::")
@@ -600,6 +609,8 @@ def test_no_new_positive_source_grep_assertion(scan) -> None:
         f"add: fix the assertion. ({LEDGER_PATH.name} and "
         f"{RULED_EXEMPTIONS_PATH.name} are BOTH closed to additions.)"
     )
+    unaccounted = Counter(unjudged) - (accounted - Counter(found))
+    skip_unjudged(sum(unaccounted.values()), "unledgered positive source-grep assertion(s)")
 
 
 @pytest.mark.timeout(300)
@@ -607,9 +618,9 @@ def test_source_grep_ledger_has_no_stale_entries(scan) -> None:
     """A debt register that silently keeps paid-off rows rots exactly like the
     grep pins it exists to retire."""
 
-    found, _scanned, _locations = scan
+    found, _scanned, _locations, unjudged = scan
     ledgered, _declared = _read_ledger()
-    stale = sorted((Counter(ledgered) - Counter(found)).elements())
+    stale = sorted((Counter(ledgered) - Counter(found) - Counter(unjudged)).elements())
     assert not stale, (
         "Ledgered source-grep violation(s) that no longer exist:\n"
         + "\n".join(f"  {item}" for item in stale)
@@ -643,9 +654,9 @@ def test_ruled_exemptions_have_no_stale_entries(scan) -> None:
     same rot: it reads as twelve outstanding greps when there are fewer, and it
     would silently re-admit an offender that came back under an old key."""
 
-    found, _scanned, _locations = scan
+    found, _scanned, _locations, unjudged = scan
     exempt, _declared, _reasonless = _read_ruled_exemptions()
-    stale = sorted((Counter(exempt) - Counter(found)).elements())
+    stale = sorted((Counter(exempt) - Counter(found) - Counter(unjudged)).elements())
     assert not stale, (
         "Ruled-exempt source-grep assertion(s) that no longer exist:\n"
         + "\n".join(f"  {item}" for item in stale)
@@ -820,7 +831,7 @@ def test_detector_leaves_the_allowed_form_alone(label: str) -> None:
 
 
 def test_an_unledgered_assertion_is_flagged(scan):
-    found, scanned, locations = scan
+    found, scanned, locations, unjudged = scan
     new_key = "tests/unregistered.py::test_new::'new' in source"
     with pytest.raises(AssertionError, match="New positive source-grep"):
-        test_no_new_positive_source_grep_assertion((found + [new_key], scanned, locations))
+        test_no_new_positive_source_grep_assertion((found + [new_key], scanned, locations, unjudged))

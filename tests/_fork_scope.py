@@ -63,6 +63,16 @@ ships.
 FAIL CLOSED
 ===========
 
+ONE exception, answered here and nowhere else: a SHALLOW clone (every Claude Code
+cloud session clones at depth 1) cannot validate the recorded base, so a finding
+on a line in a file upstream ships is neither the fork's nor upstream's —
+:func:`line_owner` answers :attr:`Owner.UNJUDGED`. A gate asks :func:`line_owner`,
+fails on the fork's findings, and then calls :func:`skip_unjudged`, which turns a
+green that set findings aside into a visible skip with the count: never a silent
+pass on files the gate could not judge, never a red the fork may not fix
+(FH-SOURCE-GREP-GATE-REDS-UPSTREAM-LINES-ON-A-SHALLOW-CLONE). A FULL clone with an
+unusable base still fails closed below.
+
 When the manifest is missing, its base is invalid, unavailable or not an
 ancestor of HEAD, or when any git invocation fails,
 every file reads as fork-touched and the gates scan exactly what they scanned
@@ -82,19 +92,26 @@ pays them zero times.
 from __future__ import annotations
 
 import difflib
+import enum
 import functools
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from scripts.upstream_footprint import read_manifest
 
 __all__ = [
+    "Owner",
     "fork_authored_lines",
     "is_fork_authored",
     "is_fork_touched",
     "is_shallow_clone",
+    "line_owner",
     "read_upstream_blobs",
     "repo_root",
+    "skip_unjudged",
+    "skip_when_unattributable",
     "unattributable_upstream_paths",
     "upstream_base",
     "upstream_blobs",
@@ -353,3 +370,49 @@ def is_fork_authored(path: str | Path, lineno: int) -> bool:
     if added is None:
         return True
     return lineno in added
+
+
+class Owner(enum.Enum):
+    """Whose finding is this line? The three answers a scoped gate acts on."""
+
+    FORK = "fork"  # the fork wrote it (or nothing could say otherwise: fail closed)
+    UPSTREAM = "upstream"  # demonstrably upstream's line: upstream's to police
+    UNJUDGED = "unjudged"  # an upstream-shipped file on a shallow clone: cannot say
+
+
+@functools.lru_cache(maxsize=1)
+def unattributable_here() -> frozenset[str]:
+    """:func:`unattributable_upstream_paths` for this checkout, once per process."""
+
+    return unattributable_upstream_paths(repo_root())
+
+
+def line_owner(path: str | Path, lineno: int) -> Owner:
+    """THE question every scoped gate asks about a finding (module docstring).
+
+    :attr:`Owner.UNJUDGED` only for a path in :func:`unattributable_here` — on a
+    full clone that set is empty and this is exactly :func:`is_fork_authored`.
+    """
+
+    relative = relative_path(path)
+    if relative is not None and relative in unattributable_here():
+        return Owner.UNJUDGED
+    return Owner.FORK if is_fork_authored(path, lineno) else Owner.UPSTREAM
+
+
+def skip_unjudged(count: int, what: str) -> None:
+    """Call AFTER the gate's own assertion: a pass that set findings aside is a skip."""
+
+    if count:
+        pytest.skip(
+            f"{count} {what} in upstream-shipped files not judged: shallow clone "
+            "(line authorship needs the recorded base's ancestry; "
+            "`git fetch --unshallow` to judge them)"
+        )
+
+
+def skip_when_unattributable(what: str) -> None:
+    """For a probe that needs the upstream index: skip on a shallow clone, not red."""
+
+    if unattributable_here():
+        pytest.skip(f"{what}: shallow clone, the recorded base cannot be validated here")
