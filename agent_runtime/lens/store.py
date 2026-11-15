@@ -39,7 +39,9 @@ must read the OLD version and sealing it the NEW one, so both hashes are held un
 chooses (row ``RT-LENS-RECIPE-DROPPED-UPDATE-STILL-READS-ADDED``). A monitor ANSWERS one
 ``recipe_hash`` (:meth:`LensStore._summary`): the draft's mark while one waits, else the sealed
 revision's — the version this PC's person has in hand, which is what ``recipe_shelf.recipe_state``
-compares with the shelf.
+compares with the shelf — and ``recipe_draft``, true when that answer is the waiting draft's mark
+(so ``recipe_shelf.changed_here`` never reads a sealed revision as "this recipe, changed" while
+the recipe's own update waits over it).
 
 ``HERMES_HOME`` is resolved when a store is constructed, never at import.
 
@@ -456,6 +458,7 @@ class LensStore:
             "updated_at_ms": int(row["updated_ms"]),
             "workspace_id": row["workspace_id"],
             "recipe_hash": row["draft_recipe_hash"] or row["recipe_hash"],
+            "recipe_draft": row["draft_recipe_hash"] is not None,
         }
 
     def monitors(self, *, states: tuple[MonitorState, ...] | None = None) -> list[dict[str, Any]]:

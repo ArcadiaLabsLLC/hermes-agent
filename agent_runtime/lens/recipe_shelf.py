@@ -33,7 +33,8 @@ What is here:
   **filed where it says** (:func:`filed_token`; one that is not is ``recipe_misfiled``).
 * :func:`localize` — what Add writes: every ``credential_ref`` moved into this recipe's own
   namespace and ``automation.actions`` removed.
-* :func:`recipe_summary`, :func:`recipe_state` — the derived row fields Eternia draws.
+* :func:`recipe_summary`, :func:`recipe_state`, :func:`changed_here` — the derived row fields
+  Eternia draws.
 * :func:`announce` — the ``lens.recipe.changed`` event (``decision_contract_registry``).
 
 Pinned by ``tests/agent_runtime/lens/test_lens_recipe_shelf.py``.
@@ -370,6 +371,28 @@ def recipe_state(recipe: ShelfRecipe, monitor: dict[str, Any] | None) -> RecipeS
     """``monitor``: this PC's monitor of the recipe's id IN the recipe's workspace, or None."""
 
     return RECIPE_STATES[recipe.withdrawn, None if monitor is None else monitor.get("recipe_hash") == recipe.hash]
+
+
+def changed_here(recipe: ShelfRecipe, monitor: dict[str, Any] | None) -> bool:
+    """This PC's SEALED revision is on the shelf's version of the recipe and is no longer its
+    manifest: its person changed and re-sealed it, so the shelf is behind this PC
+    (``RT-LENS-RESHARE-AFTER-RESEAL-HAS-NO-STATE``). ``runtime.lens.recipe.share`` publishes it.
+
+    Derived, never stored: the sealed revision's mark is the shelf document's (the monitor's
+    ``recipe_hash``, and not its waiting draft's — ``recipe_draft``), and the sealed manifest is
+    neither the document's manifest (the sharer's monitor) nor what Add made of it
+    (:func:`localize`, an adder's). False for every other standing — no monitor, another version
+    (``update_available``), withdrawn — where "changed since this version" says nothing."""
+
+    if recipe.withdrawn or monitor is None or monitor["recipe_draft"] or monitor["recipe_hash"] != recipe.hash:
+        return False
+    sealed = (monitor["sealed"] or {}).get("manifest")
+    if sealed is None or sealed == recipe.manifest:
+        return False
+    try:
+        return sealed != localize(recipe.manifest)
+    except WireError:  # a recipe Add would refuse (a renamed ref past the id bound) has no added form
+        return True
 
 
 class RecipeChange(str, Enum):

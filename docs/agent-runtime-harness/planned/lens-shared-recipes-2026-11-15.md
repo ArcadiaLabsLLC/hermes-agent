@@ -118,10 +118,19 @@ Every write is an RPC method; refusals carry `data.reason`.
 | `runtime.lens.recipe.withdraw` | `{workspace_id?, recipe_id}` → row | Writes the withdrawn document. `recipe_not_found` |
 | `runtime.lens.recipe.add` | `{workspace_id?, recipe_id}` → monitor (as `runtime.lens.get`) | `LensStore.create(localize(manifest), workspace_id=…, recipe_hash=…)` (the hash marks the DRAFT): a new DRAFT, or a sealed monitor's next-revision draft when this workspace already holds that monitor (an update). `recipe_not_found`, `recipe_withdrawn`, `monitor_exists` (the id belongs to another workspace's monitor; as built, refused inside `create`'s own transaction when it is given a `recipe_hash`), and `create`'s own `capacity_refused` / `monitor_retired` |
 
-A row is `{recipe_id, workspace_id, monitor_id, state, manifest, summary}`.
+A row is `{recipe_id, workspace_id, monitor_id, state, changed_here, manifest, summary}`.
 
 - `state` — a table over (shelf document, this PC's monitor of that id in this workspace, its
   `recipe_hash`): `not_added` · `added` (hash equal) · `update_available` (hash differs) · `withdrawn`.
+- `changed_here` (built, `RT-LENS-RESHARE-AFTER-RESEAL-HAS-NO-STATE`) — true when this PC's sealed
+  revision is on the shelf's version and its person has changed and re-sealed it since, so the shelf is a
+  version behind this PC. Derived by `recipe_shelf.changed_here` from what the store already holds, with
+  no new column: the sealed revision's mark equals the document's hash, the mark is not a waiting draft's
+  (a monitor answer carries `recipe_draft` for that), and the sealed manifest is neither the document's
+  manifest (the sharer's monitor) nor `localize` of it (an adder's). It is a field beside `state`, not a
+  fifth state: a client that knows four states drops a row whose state it cannot read, so the wire stays
+  readable and `state` stays `added`. **A re-share is `runtime.lens.recipe.share` again** — it writes the
+  sealed manifest over the recipe and re-marks the monitor; no withdraw first, and no new verb.
 - `summary` (derived, so Eternia does not parse a manifest): `{level, sources: [{feed_id, kind, host}],
   scheduled, needs_credentials: [ref], private_network, suggested_actions: [tool]}`.
 - Which recipe a monitor is on is two nullable columns, one per thing a monitor holds, written only inside
@@ -170,7 +179,8 @@ A "Shared with this workspace" list in the Lens panel, from `runtime.lens.recipe
 name, sources (kind and host), level, and what it asks of this PC (sign-ins needed, reads a private
 address, wants to act). Actions by `state`: `not_added` → Add; `added` → opens the monitor;
 `update_available` → Review update (Add, then the existing draft diff and Seal); `withdrawn` → a muted
-"no longer shared" line. On a sealed monitor of the active workspace: Share / Stop sharing. An added
+"no longer shared" line. On a sealed monitor of the active workspace: Share / Stop sharing; and where
+its recipe's row reads `changed_here`, "Share new version" (the same `recipe.share`) beside Stop sharing. An added
 recipe is an ordinary draft in the existing list, with the existing sign-in, Seal and Enable controls.
 
 The launcher row to file (for the orchestrator, verbatim, in the launcher's `mission-control-queue.md`):

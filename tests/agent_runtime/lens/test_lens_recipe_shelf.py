@@ -25,7 +25,13 @@ names the mutation that kills it; the reds are recorded in the commit that lande
 * a dropped update is on offer again, a sealed one is added, a hand-edited one keeps its mark
   (``RT-LENS-RECIPE-DROPPED-UPDATE-STILL-READS-ADDED``) — killed by ``drop_draft`` keeping
   ``draft_recipe_hash``, by ``create`` marking ``recipe_hash``, by ``seal`` not taking the draft's
-  mark, by the answer reading the sealed mark only, and by a hand rewrite clearing the draft's mark.
+  mark, by the answer reading the sealed mark only, and by a hand rewrite clearing the draft's mark;
+* a shared monitor its person changed and re-sealed reads ``changed_here`` until it is shared
+  again, and ``share`` republishes with no withdraw (``RT-LENS-RESHARE-AFTER-RESEAL-HAS-NO-STATE``)
+  — killed by ``changed_here`` answering False, by it not reading ``recipe_draft`` (an update's
+  draft waiting over an older sealed revision would read changed), by it comparing with the
+  shelf's manifest only (every added copy would read changed), and by ``_summary`` answering
+  ``recipe_draft`` from the sealed mark.
 
 No real network: the one read goes through an ``httpx.MockTransport``.
 """
@@ -228,6 +234,62 @@ def test_a_dropped_update_is_on_offer_again_and_a_sealed_one_is_added(monkeypatc
     _ok("runtime.lens.create", {"manifest": edited})
     _ok("runtime.lens.seal", {"monitor_id": "site-health"})
     assert _state() == ("added", new)
+
+
+def _standing() -> tuple[str, bool]:
+    [row] = _ok("runtime.lens.recipe.list", {"workspace_id": WORKSPACE})["recipes"]
+    return row["state"], row["changed_here"]
+
+
+def _reseal(interval_ms: int) -> None:
+    """This PC's person changes the sealed monitor by hand and seals the change."""
+
+    manifest = _ok("runtime.lens.get", {"monitor_id": "site-health"})["sealed"]["manifest"]
+    manifest["feeds"][0]["interval_ms"] = interval_ms
+    _ok("runtime.lens.create", {"manifest": manifest})
+    before = _standing()
+    _ok("runtime.lens.seal", {"monitor_id": "site-health"})
+    assert before[1] is False or _standing() == before  # a draft is not a change; only its Seal is
+
+
+def test_a_reseal_of_a_shared_monitor_reads_changed_here_until_it_is_shared_again(monkeypatch, tmp_path):
+    """Row ``RT-LENS-RESHARE-AFTER-RESEAL-HAS-NO-STATE``, through the verbs. The reproduction: the
+    sharer's re-sealed monitor kept the shelf's hash as its mark, so its row read ``added`` and
+    nothing said the shelf was a version behind."""
+
+    _ok("runtime.lens.recipe.share", {"monitor_id": _sealed()})
+    assert _standing() == ("added", False)
+    _reseal(60000)
+    assert _standing() == ("added", True)  # the shelf still holds the 5 s version
+    again = _ok("runtime.lens.recipe.share", {"monitor_id": "site-health"})  # the same verb republishes
+    assert (again["state"], again["changed_here"], again["manifest"]["feeds"][0]["interval_ms"]) \
+        == ("added", False, 60000)
+    second = _shelf_file().read_bytes()
+
+    # On a PC that added it: Add's own renames are not a change; this person's re-seal is.
+    _second_pc(monkeypatch, tmp_path)
+    add = {"workspace_id": WORKSPACE, "recipe_id": "site-health"}
+    _ok("runtime.lens.recipe.add", add)
+    assert _standing() == ("added", False)  # a draft: nothing sealed to have changed
+    _ok("runtime.lens.seal", {"monitor_id": "site-health"})
+    assert _standing() == ("added", False)
+    _reseal(30000)
+    assert _standing() == ("added", True)
+
+    # The shelf moves on: another version is an update, and its waiting draft is not "changed here"
+    # though the sealed revision under it differs from the shelf.
+    moved = json.loads(second)
+    moved["manifest"]["feeds"][0]["interval_ms"] = 120000
+    _shelf_file().write_bytes(json.dumps(moved).encode())
+    assert _standing() == ("update_available", False)
+    _ok("runtime.lens.recipe.add", add)
+    assert _standing() == ("added", False)
+    _ok("runtime.lens.seal", {"monitor_id": "site-health"})
+    assert _standing() == ("added", False)
+    _reseal(45000)
+    assert _standing() == ("added", True)
+    _ok("runtime.lens.recipe.withdraw", add)
+    assert _standing() == ("withdrawn", False)
 
 
 def test_the_verbs_refuse_by_name(monkeypatch):
