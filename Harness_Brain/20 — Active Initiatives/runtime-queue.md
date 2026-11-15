@@ -46,7 +46,6 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ### Filed on arrival — 2026-11-14 (lane w1114a-hplan: the live reads of `RT-RUNNING-CHAT-TURN-CARRIES-PLAN-PROGRESS` and `RT-TODO-STATE-KEEPS-STEP-PARENT`)
 
-- **`RT-MISSION-CHAT-PROMPT-NAMES-SESSION-SEARCH-AS-DIRECT` — A Mission Control agent asked to recall past work can reach the search it is told to use** · group: agent-plan-everywhere-followups · `agent_runtime/mission_chat_prompts.py:132`, `hermes_cli/config_defaults.py` `tools.tool_search.defer` · read in code 2026-11-14 (w1114a-hplantool), not reproduced: the Mission Control chat prompt says "search past sessions (`session_search`)" as if it were a direct tool, and `session_search` is in the default defer list, so a direct call would get the same "does not exist" answer `todo_list` got (`RT-PLAN-TOOL-IS-HIDDEN-BEHIND-TOOL-SEARCH`) · done when: the owner rules whether `session_search` is eager by default for Eternia, or the prompt names the `tool_call` route; a direct or bridged recall works live · NEW 2026-11-14 · RULED 2026-11-14: owner — "go with your recommendation after an architecture investigation for this session" (orchestrator, REVIEW_W1114A_B26: keep `session_search` deferred; the fork prompt names the `tool_call` route) · READY 2026-11-14 · reviewed 2026-11-14 w1114a.27 · **TAKEN 2026-11-14 w1114a-hplantool on nekwo-ubuntu24 as nekwo in hm-w1109a-flakes**
 
 ### Filed on arrival — 2026-11-14 (owner in chat, an Eternia session auditing Intelligence → Connected messaging)
 
