@@ -391,6 +391,71 @@ def _message_skill_argv(params: dict) -> list[str]:
     return [arg for name in names for arg in ("--skill", name)]
 
 
+def _refuse_door_conflicts(
+    *,
+    session_id: str | None,
+    retry_of: str | None,
+    provider: str | None,
+    model: str | None,
+    use_agent_default: bool,
+    turn_provider: str | None,
+    turn_model: str | None,
+) -> None:
+    """``normalize_chat_message``'s refusals of a send whose params contradict each other, in
+    the order the door has always checked them."""
+
+    if retry_of and not session_id:
+        raise ChatTurnInvalid(
+            "retry_of_requires_session",
+            "invalid params: retry_of names a turn of an existing chat and requires session_id",
+        )
+
+    if use_agent_default and (provider or model):
+        # The argv handler's own rule (``_requested_chat_model_override`` raises
+        # ``ValueError`` for it), moved to the door. Over argv that ValueError
+        # surfaces inside the turn, which on this lane would mean an ACCEPTED
+        # turn that dies as a handler failure — a client that already holds an
+        # ack, a receipt keyed on its ``turn_request_id``, and no answer. The
+        # boundary is where a request that cannot be honoured should be refused,
+        # and ``ERR_INVALID_PARAMS`` with a reason is what the client branches
+        # on.
+        raise ChatTurnInvalid(
+            "model_override_conflict",
+            "invalid params: use_agent_default cannot be combined with provider "
+            "or model",
+        )
+    if (turn_provider or turn_model) and (provider or model or use_agent_default):
+        # A one-turn model beside a chat-model change would leave the chat on a model the
+        # operator did not pick for it (plan REGENERATE_WITH_ANOTHER_MODEL decision 3).
+        raise ChatTurnInvalid(
+            "model_override_conflict",
+            "invalid params: turn_provider/turn_model cannot be combined with provider, "
+            "model or use_agent_default",
+        )
+
+
+def _max_seconds(params: dict) -> float | None:
+    """``max_seconds`` when sent: a number greater than zero, else refused at the door."""
+
+    max_seconds_raw = params.get("max_seconds")
+    max_seconds: float | None = None
+    if max_seconds_raw is not None:
+        if isinstance(max_seconds_raw, bool) or not isinstance(
+            max_seconds_raw, (int, float)
+        ):
+            raise ChatTurnInvalid(
+                "max_seconds_invalid",
+                "invalid params: max_seconds must be a number when sent",
+            )
+        max_seconds = float(max_seconds_raw)
+        if not (max_seconds > 0):
+            raise ChatTurnInvalid(
+                "max_seconds_invalid",
+                "invalid params: max_seconds must be greater than zero",
+            )
+    return max_seconds
+
+
 def normalize_chat_message(params: dict) -> ChatTurnRequest:
     """``runtime.chat.message`` params → the argv a local send would have used."""
 
@@ -427,51 +492,11 @@ def normalize_chat_message(params: dict) -> ChatTurnRequest:
     turn_provider = _text(params, "turn_provider", limit=MAX_MODEL_OVERRIDE_LENGTH)
     turn_model = _text(params, "turn_model", limit=MAX_MODEL_OVERRIDE_LENGTH)
     input_mode = _input_mode(params)
-    if retry_of and not session_id:
-        raise ChatTurnInvalid(
-            "retry_of_requires_session",
-            "invalid params: retry_of names a turn of an existing chat and requires session_id",
-        )
-
-    if use_agent_default and (provider or model):
-        # The argv handler's own rule (``_requested_chat_model_override`` raises
-        # ``ValueError`` for it), moved to the door. Over argv that ValueError
-        # surfaces inside the turn, which on this lane would mean an ACCEPTED
-        # turn that dies as a handler failure — a client that already holds an
-        # ack, a receipt keyed on its ``turn_request_id``, and no answer. The
-        # boundary is where a request that cannot be honoured should be refused,
-        # and ``ERR_INVALID_PARAMS`` with a reason is what the client branches
-        # on.
-        raise ChatTurnInvalid(
-            "model_override_conflict",
-            "invalid params: use_agent_default cannot be combined with provider "
-            "or model",
-        )
-    if (turn_provider or turn_model) and (provider or model or use_agent_default):
-        # A one-turn model beside a chat-model change would leave the chat on a model the
-        # operator did not pick for it (plan REGENERATE_WITH_ANOTHER_MODEL decision 3).
-        raise ChatTurnInvalid(
-            "model_override_conflict",
-            "invalid params: turn_provider/turn_model cannot be combined with provider, "
-            "model or use_agent_default",
-        )
-
-    max_seconds_raw = params.get("max_seconds")
-    max_seconds: float | None = None
-    if max_seconds_raw is not None:
-        if isinstance(max_seconds_raw, bool) or not isinstance(
-            max_seconds_raw, (int, float)
-        ):
-            raise ChatTurnInvalid(
-                "max_seconds_invalid",
-                "invalid params: max_seconds must be a number when sent",
-            )
-        max_seconds = float(max_seconds_raw)
-        if not (max_seconds > 0):
-            raise ChatTurnInvalid(
-                "max_seconds_invalid",
-                "invalid params: max_seconds must be greater than zero",
-            )
+    _refuse_door_conflicts(
+        session_id=session_id, retry_of=retry_of, provider=provider, model=model,
+        use_agent_default=use_agent_default, turn_provider=turn_provider, turn_model=turn_model,
+    )
+    max_seconds = _max_seconds(params)
 
     argv: list[str] = [
         "harness",
