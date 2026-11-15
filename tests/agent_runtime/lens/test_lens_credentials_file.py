@@ -107,7 +107,7 @@ def test_a_pool_row_this_home_wrote_is_migrated_out_one_way(monkeypatch):
     assert credential_status("old", host=HOST) == {"ref": "old", "set": False, "host": None,
                                                    "rotated_at": "2026-10-16T12:00:00.000Z"}
     assert read_credential_pool(LEGACY_POOL_PROVIDER) == []
-    moved = lens_credentials._read_credentials_file()["old"]
+    [moved] = lens_credentials._read_credentials_file()["old"]  # one row per saved address
     assert (moved["secret"], moved["username"], moved["scheme"]) == (SECRET, "watcher", "basic")
     listing = _dashboard_pool()
     assert '"lens"' not in listing and _leaks(listing) == []

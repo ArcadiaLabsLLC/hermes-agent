@@ -22,7 +22,11 @@ enable / pause         {monitor_id} -> monitor (polling of the sealed revision o
 retire                 {monitor_id} -> monitor (stopped for good; its data stays)
 get                    {monitor_id} -> monitor + credentials: [{feed_id, ref, set, rotated_at, host}]
                        (``set``: the value would be sent to THIS feed's address; ``host``: the
-                       address it is saved for, null when none or saved before addresses were kept)
+                       address it is saved for, null when none or saved before addresses were kept;
+                       the rows are the sealed revision's feeds, else the draft's)
+                       + draft_credentials: null | [the same rows for a SEALED monitor's waiting
+                       next-revision draft] — what Seal would run with, so a draft that moves a
+                       source to another site reads ``set: false`` there until it is signed in
                        + equivalence_evidence: null | {draft_digest, stale, members:
                        {<feed_id>: {why, cited}}} (a proposal's W5 justification; source-derived)
                        + guidance: {text, source: monitor|workspace|shipped, draft: null | {text,
@@ -56,12 +60,18 @@ episode.close          {episode_id, workspace_id?} -> {closed: [Episode]} (ONE o
                        for one already closed or resolved, ``episode_not_orphaned`` for one
                        its monitor still observes, ``episode_contended``)
 fold                   {workspace_id?} -> the Mission Control fold (``lens.snapshot_fold``)
-credential.set         {ref, scheme, secret, username?} -> {ref, set, rotated_at, host}
+credential.set         {ref, scheme, secret, username?, monitor_id?, revision?: sealed|draft} ->
+                       {ref, set, rotated_at, host}
                        (write-only: no verb returns a credential value. Saved for the ONE address
                        the live monitors naming ``ref`` read — scheme://name:port, never a request
                        param — and sent nowhere else: ``credential_host_unknown`` when no monitor
                        names it, ``credential_host_ambiguous`` when they read several addresses; a
-                       feed at another address reads ``credential_host_mismatch``)
+                       feed at another address reads ``credential_host_mismatch``. ``monitor_id``
+                       and ``revision``, given together, say WHICH manifest the sign-in is for:
+                       that monitor's sealed revision or its waiting draft, so a draft that moved
+                       a source is signed in before Seal and the sealed revision's own sign-in
+                       stands — a name holds one sign-in per address, ``lens/credentials.py``;
+                       ``monitor_not_found``, ``monitor_retired``, ``not_sealed``, ``no_draft``)
 receipt                {episode_id} -> the exit door's receipt for that Episode (stage L2); a receipt that
                        ran a turn carries ``budget``: {tokens_used, token_limit, calls_used,
                        call_limit, stopped_by: null|tokens|calls}, else null
@@ -248,10 +258,11 @@ _runtime_lens_pause = method("runtime.lens.pause", tier=TIER_CONSOLE)(_state_ver
 _runtime_lens_retire = method("runtime.lens.retire", tier=TIER_CONSOLE)(_state_verb("retired"))
 
 
-def _credentials_of(monitor: dict) -> list[dict]:
+def _credentials_of(manifest: dict) -> list[dict]:
+    """One row per feed of ``manifest`` that names a credential: would it be sent to that feed's address."""
+
     from agent_runtime.lens.credentials import credential_status, feed_host
 
-    manifest = (monitor["sealed"] or {}).get("manifest") or monitor["draft"] or {"feeds": []}
     return [{"feed_id": feed["id"], **credential_status(feed["credential_ref"], host=feed_host(feed))}
             for feed in manifest["feeds"] if feed.get("credential_ref")]
 
@@ -265,8 +276,10 @@ def _monitor_answer(monitor_id: str) -> dict:
 
     store = _store()
     monitor = store.get(monitor_id)
-    manifest = (monitor.get("sealed") or {}).get("manifest") or monitor.get("draft")
-    return {**monitor, "credentials": _credentials_of(monitor),
+    sealed, draft = (monitor["sealed"] or {}).get("manifest"), monitor["draft"]
+    manifest = sealed or draft
+    return {**monitor, "credentials": _credentials_of(manifest or {"feeds": []}),
+            "draft_credentials": None if sealed is None or draft is None else _credentials_of(draft),
             "equivalence_evidence": equivalence_evidence(store, monitor),
             "guidance": monitor_guidance(store, monitor), "act_tools": act_tools(manifest)}
 
@@ -408,18 +421,25 @@ def _runtime_lens_fold(rid: Any, params: dict, context: RpcContext | None = None
 @method("runtime.lens.credential.set", tier=TIER_CONSOLE)
 def _runtime_lens_credential_set(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     def body() -> dict:
-        from agent_runtime.lens.credentials import CredentialScheme, set_credential, sign_in_host
+        from agent_runtime.lens.credentials import (
+            CredentialScheme, SignInRevision, named_hosts, revision_manifest, set_credential, sign_in_host,
+        )
         from agent_runtime.lens.store import MonitorState
         from agent_runtime.lens.wire_value import checked_object, enum_value, opaque_id
 
-        m = checked_object(params or {}, {"ref", "scheme", "secret"}, {"username"})
+        m = checked_object(params or {}, {"ref", "scheme", "secret"}, {"username", "monitor_id", "revision"})
         ref = opaque_id(m["ref"])
+        store = _store()
         # The address is the store's word, never the request's: every live monitor's sealed
-        # revision and waiting draft that names the ref.
-        named = [manifest for row in _store().monitors() if row["state"] != MonitorState.RETIRED.value
-                 for manifest in ((row["sealed"] or {}).get("manifest"), row["draft"]) if manifest is not None]
+        # revision and waiting draft that names the ref — or the ONE manifest the request points at.
+        live = [manifest for row in store.monitors() if row["state"] != MonitorState.RETIRED.value
+                for manifest in ((row["sealed"] or {}).get("manifest"), row["draft"]) if manifest is not None]
+        chosen = live
+        if "monitor_id" in m or "revision" in m:
+            chosen = [revision_manifest(store.get(_monitor_id(m)), enum_value(m.get("revision"), SignInRevision))]
         return set_credential(ref, scheme=enum_value(m["scheme"], CredentialScheme).value, secret=m["secret"],
-                              username=m.get("username"), host=sign_in_host(ref, named))
+                              username=m.get("username"), host=sign_in_host(ref, chosen),
+                              live_hosts=named_hosts(ref, live))
 
     return _lens_call(rid, body)
 
