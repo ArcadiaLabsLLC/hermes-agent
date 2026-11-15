@@ -1136,6 +1136,10 @@ def _fleet_row(
     # list. Keep the field only when its shape is usable: callers use it to
     # discharge per-profile restart obligations, so corrupt status must not
     # widen coverage.
+    # RT-UPDATE-FLEET-ROSTER-DROPPED: both published roster shapes reduce to names first.
+    from hermes_cli.update_fleet_roster import roster_names
+
+    served_profiles = roster_names(served_profiles)
     if isinstance(served_profiles, list) and served_profiles and all(
         isinstance(name, str) and name for name in served_profiles
     ):
