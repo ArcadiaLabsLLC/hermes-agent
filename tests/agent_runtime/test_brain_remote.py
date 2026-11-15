@@ -479,6 +479,28 @@ def test_a_second_press_pushes_into_the_empty_private_repo_the_first_made(tmp_pa
     assert git("rev-parse", "--abbrev-ref", "@{u}", cwd=repo).strip() == "origin/feature"
 
 
+def test_a_retry_that_cannot_push_says_it_reused_the_repository(tmp_path, monkeypatch, caplog):
+    """Seen live 2026-11-14: a retry that pushed into the empty repository an earlier press made refused with
+    "made ... but could not push" — it made nothing. Mutation: drop the ``reused`` arm in ``_push_first``
+    (always "made") -> red."""
+    from agent_runtime import git_host_account
+    from agent_runtime.brain_remote import make_checkout_remote
+
+    hub = _ExistingAwareHub(tmp_path / "host", monkeypatch)
+    _reject_on_create(hub)
+    monkeypatch.setattr(git_host_account, "create_private_repo", hub.create)
+    repo = _project(tmp_path)
+    with pytest.raises(WorkRefused):
+        make_checkout_remote(repo)
+    with caplog.at_level("WARNING", logger=brain_remote.logger.name), pytest.raises(WorkRefused) as refused:
+        make_checkout_remote(repo)
+    assert refused.value.reason is Reason.PUSH_REFUSED and hub.created == ["my-app"]
+    assert refused.value.detail.startswith("could not push feature into the existing octo/my-app: ")
+    logged = [r.getMessage() for r in caplog.records if "brain remote" in r.getMessage()]
+    assert logged and logged[-1].startswith("brain remote: could not push feature into the existing octo/my-app: ")
+    assert git("remote", cwd=repo) == ""
+
+
 def test_an_existing_repository_that_holds_commits_is_never_reused(tmp_path, monkeypatch):
     """Only an EMPTY repository is pushed into. Mutation: drop the ``str(listed.stdout).strip()`` test in
     ``_reusable_repo`` -> the press pushes into someone's repository, red."""

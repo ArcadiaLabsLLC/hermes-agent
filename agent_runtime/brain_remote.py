@@ -289,14 +289,16 @@ def make_checkout_remote(path: Path) -> dict[str, Any]:
     if account is None:
         raise WorkRefused(Reason.NEEDS_GIT_ACCOUNT, "no GitHub credential on this machine answers")
     name = checkout_repo_name(repo)
+    reused = False
     try:
         url = create_private_repo(account, name)
     except GitHostRefused as refused:
         url = _reusable_repo(account, name, repo) if refused.reason is Reason.REMOTE_EXISTS else None
         if url is None:
             raise WorkRefused(refused.reason, refused.detail) from None
+        reused = True
     # MUTATION: add ``origin`` here, before the push, and test_a_failed_push_leaves_the_folder_offered reddens.
-    _push_first(repo, url, current, made=f"{account.login}/{name}")
+    _push_first(repo, url, current, target=f"{account.login}/{name}", reused=reused)
     try:
         adopt_remote(repo, url, branch=current)
     except AdoptRefused as refused:
@@ -304,8 +306,12 @@ def make_checkout_remote(path: Path) -> dict[str, Any]:
     return {"url": url, "repo_name": name, "branch": current, "git_account": account.login}
 
 
-def _push_first(repo: Path, url: str, branch: str, *, made: str) -> None:
-    """Push ``branch`` to ``url`` with no remote configured; refuse ``push_refused`` (logged) when it does not land."""
+def _push_first(repo: Path, url: str, branch: str, *, target: str, reused: bool) -> None:
+    """Push ``branch`` to ``url`` with no remote configured; refuse ``push_refused`` (logged) when it does not land.
+
+    The refusal names what the press did to ``target``: ``made`` it, or, on a retry that found the empty private
+    repository an earlier press made (``reused``), pushed into that existing one — it made nothing
+    (RT-SLOT-PRESS-RETRY-SAYS-MADE-A-REPOSITORY-IT-REUSED, seen live 2026-11-14)."""
 
     from .work_store.reasons import Reason, WorkRefused
 
@@ -314,8 +320,11 @@ def _push_first(repo: Path, url: str, branch: str, *, made: str) -> None:
         return
     why = (f"git did not finish within {PUSH_TIMEOUT_S} s" if pushed is None
            else (str(pushed.stderr or "").strip().splitlines() or ["git refused the push"])[-1][:300])
-    logger.warning("brain remote: made %s but could not push %s: %s", made, branch, why)
-    raise WorkRefused(Reason.PUSH_REFUSED, f"made {made} but could not push {branch}: {why}")
+    # MUTATION: drop the ``reused`` arm (always "made") and test_a_retry_that_cannot_push_says_it_reused reddens.
+    did = (f"could not push {branch} into the existing {target}" if reused
+           else f"made {target} but could not push {branch}")
+    logger.warning("brain remote: %s: %s", did, why)
+    raise WorkRefused(Reason.PUSH_REFUSED, f"{did}: {why}")
 
 
 def _reusable_repo(account: Any, name: str, repo: Path) -> str | None:
