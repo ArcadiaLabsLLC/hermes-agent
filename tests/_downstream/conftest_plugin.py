@@ -37,6 +37,10 @@ from tests._downstream.host_disk_room import (  # id-marked fixture + hook re-ex
     _host_disk_has_room,
     pytest_configure_host_disk_room,
 )
+from tests._downstream.store_pnpm_on_path import (  # id-marked fixture + hook re-export
+    _store_pnpm_on_path,
+    pytest_configure_store_pnpm_on_path,
+)
 from tests._downstream.state_db_scope import _state_db_resolves_through_scope  # id-marked
 from tests._downstream.state_db_no_fsync import _state_db_no_fsync  # autouse (suite speed, r-state)
 from tests._downstream.session_db_template import session_db_from_template  # autouse (D3.11, h1-setup)

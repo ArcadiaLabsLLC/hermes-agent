@@ -532,8 +532,8 @@ def activate_dependencies(project_root: Path) -> None:
         directories.append(venv_bin_dir(environment))
     prefix = [str(path) for path in directories if path.is_dir()]
     if prefix:
-        from pm.package import compose_env
-        os.environ["PATH"] = compose_env([{"PATH": prefix}])["PATH"]
+        os.environ["PATH"] = os.pathsep.join([*prefix, os.environ.get("PATH", "")])
+        _fork_compose_activation_path(prefix)  # fork: ledger row pm/environments.py
 
 
 def activation_environment(project_root: Path) -> dict[str, str]:
@@ -652,6 +652,15 @@ def _fork_borrowed_home_environment(project_root):  # a borrowed home with no st
             raise
         return None  # a minted boot tree that copies this file alone
     return borrowed_home_environment(project_root)
+
+def _fork_compose_activation_path(prefix):  # repeated boots keep one copy of the prefix: pm.package.compose_env
+    try:
+        from pm.package import compose_env
+    except ModuleNotFoundError as exc:
+        if exc.name != "pm.package":
+            raise
+        return  # a minted boot tree that copies this file alone keeps upstream's prepend
+    os.environ["PATH"] = compose_env([{"PATH": prefix}])["PATH"]
 
 if __name__ == "__main__":
     main()

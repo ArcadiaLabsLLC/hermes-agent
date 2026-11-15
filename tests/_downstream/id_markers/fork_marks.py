@@ -12,6 +12,8 @@ The map is ``tests/_downstream/id_markers/__init__.py``.
 
 from __future__ import annotations
 
+import sysconfig
+
 import pytest
 
 from tests._downstream.id_markers.reasons import (
@@ -27,6 +29,7 @@ from tests._downstream.id_markers.reasons import (
     _FORK_SYSTEM_PATH,
     _GATE,
     _HOST_DISK_HAS_ROOM,
+    _STORE_PNPM_ON_PATH,
     __layer__,
     _LIVE_GUARD_BYPASS,
     _LOOKALIKE,
@@ -571,6 +574,28 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     # fork's test-tmp drive is over the probe's 90 % line (fixture: host_disk_room).
     "tests/gateway/test_readiness.py::"
     "test_collect_runtime_readiness_reports_healthy_local_runtime": (_HOST_DISK_HAS_ROOM,),
+    # uv records a python-build-standalone interpreter's REAL directory as the venv home, not the
+    # symlink upstream asserts; the shared test venv (and PM's store Python) is one. The point
+    # (PM-built, no pre-PM baseline) is the twin's on any interpreter
+    # (FH-SOURCE-LAUNCHER-AND-PM-TESTS-RED-ON-MAIN).
+    "tests/pm/test_environment_build.py::"
+    "test_a_checkout_venv_built_on_an_external_python_is_not_a_pre_pm_install": (
+        pytest.mark.xfail(
+            sysconfig.get_config_var("PYTHON_BUILD_STANDALONE") == 1, strict=True,
+            reason="uv records a standalone build's real directory as the venv home, not the "
+                   "symlink; fork half: tests/pm/test_environment_build_external_python_downstream.py",
+        ),
+    ),
+    # Upstream's pnpm_project drives the REAL pnpm a developer's activated shell finds on PATH;
+    # the fork's shared-venv runs never activate, so a box whose only pnpm is PM's own reds
+    # here (FH-SOURCE-LAUNCHER-AND-PM-TESTS-RED-ON-MAIN; fixture: store_pnpm_on_path).
+    **{
+        f"tests/pm/test_update_dependency_legs.py::{name}": (_STORE_PNPM_ON_PATH,)
+        for name in (
+            "test_pnpm_refresh_uses_its_installed_entry_and_owned_project",
+            "test_pnpm_refresh_prunes_unlocked_excludes_and_names_too_young_picks",
+        )
+    },
     # Upstream web-server tests whose restart / desktop-startup path runs the REAL
     # gateway orphan reap and its 30 s exit wait (fixture: conftest_plugin).
     **{

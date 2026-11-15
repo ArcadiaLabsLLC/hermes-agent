@@ -40,6 +40,7 @@ NO_REAL_ORPHAN_REAP_MARK = "no_real_orphan_reap"
 REAL_PROCESS_TABLE_MARK = "real_process_table"
 SCOPED_MONKEYPATCH_UNDO_MARK = "scoped_monkeypatch_undo"
 STRIP_REAL_HOME_PATH_MARK = "strip_real_home_path"
+STORE_PNPM_ON_PATH_MARK = "store_pnpm_on_path"
 STATE_DB_RESOLVES_THROUGH_SCOPE_MARK = "state_db_resolves_through_scope"
 UPSTREAM_WIRE_UNBRIEFED_MARK = "upstream_wire_unbriefed"
 #: Pins ``make_restart_runner``'s ``_cron_drain_timeout`` to 0.01 s for a shutdown test
@@ -139,6 +140,7 @@ _SCOPED_UNDO = getattr(pytest.mark, SCOPED_MONKEYPATCH_UNDO_MARK)
 _STRIP_REAL_HOME_PATH = getattr(pytest.mark, STRIP_REAL_HOME_PATH_MARK)
 _STATE_DB_THROUGH_SCOPE = getattr(pytest.mark, STATE_DB_RESOLVES_THROUGH_SCOPE_MARK)
 _HOST_DISK_HAS_ROOM = getattr(pytest.mark, HOST_DISK_HAS_ROOM_MARK)
+_STORE_PNPM_ON_PATH = getattr(pytest.mark, STORE_PNPM_ON_PATH_MARK)
 _UPSTREAM_WIRE_UNBRIEFED = getattr(pytest.mark, UPSTREAM_WIRE_UNBRIEFED_MARK)
 _CRON_DRAIN_PINNED = getattr(pytest.mark, SHUTDOWN_CRON_DRAIN_PINNED_MARK)
 
