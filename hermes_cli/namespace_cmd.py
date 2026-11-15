@@ -69,7 +69,23 @@ def _developer_edition_only(verb: str) -> None:
                                   f"`hermes namespace {verb}` ships in the Developer Edition only; nothing touched")
 
 
+#: The fork's own top-level packages: an import of one of them failing means the build left the verb out.
+_OWN_PACKAGES = frozenset({"agent_runtime", "hermes_cli"})
+
+
 def _absent(verb: str, exc: ImportError) -> ns.NamespaceRefused:
+    """The typed refusal for a verb whose implementation will not import (the reason code Eternia reads).
+
+    Only the verb's own module missing means "not in this build"; a third-party module (``ruamel``) missing
+    means this Python lacks a package, and the message says which one rather than blaming the build
+    (RT-NAMESPACE-SEED-SAYS-DEV-ONLY-WHEN-A-PACKAGE-IS-MISSING).
+    """
+    package = (exc.name or "").partition(".")[0]
+    if package and package not in _OWN_PACKAGES:
+        return ns.NamespaceRefused(
+            ns.Reason.DEV_ONLY,
+            f"`hermes namespace {verb}` cannot load: the package {package!r} is missing from this Python "
+            f"({sys.executable}; module {exc.name!r}); run it from a hermes environment that has its dependencies")
     return ns.NamespaceRefused(ns.Reason.DEV_ONLY, f"`hermes namespace {verb}` is not in this build ({exc.name})")
 
 

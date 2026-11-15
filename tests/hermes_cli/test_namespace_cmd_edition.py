@@ -78,3 +78,32 @@ def test_a_build_without_the_seed_modules_refuses_typed(base: Path, capsys, monk
     for argv in (("seed", QA, "--from", "base"), ("import-sessions", QA, "x.jsonl")):
         code, out = _run(capsys, *argv)
         assert (code, out["reason"]) == (2, "namespace_dev_only"), argv
+
+
+class _MissingPackage:
+    """A meta-path finder: importing ``target`` fails the way a Python without ``package`` fails."""
+
+    def __init__(self, target: str, package: str) -> None:
+        self.target, self.package = target, package
+
+    def find_spec(self, name, path=None, target=None):
+        if name == self.target:
+            raise ModuleNotFoundError(f"No module named {self.package!r}", name=self.package)
+        return None
+
+
+def test_a_seed_missing_a_package_names_the_package_not_the_build(base: Path, capsys, monkeypatch):
+    """RT-NAMESPACE-SEED-SAYS-DEV-ONLY-WHEN-A-PACKAGE-IS-MISSING. Red when ``_absent`` blames the build for
+    every ImportError (the machine seed said "not in this build (ruamel)"): the reason code stays, the
+    message names the missing package; the verb's own module missing still says "not in this build"."""
+    import agent_runtime
+
+    monkeypatch.delitem(sys.modules, "agent_runtime.namespace_seed", raising=False)
+    monkeypatch.delattr(agent_runtime, "namespace_seed", raising=False)
+    monkeypatch.setattr(sys, "meta_path", [_MissingPackage("agent_runtime.namespace_seed", "ruamel"), *sys.meta_path])
+    code, out = _run(capsys, "seed", QA, "--from", "base")
+    assert (code, out["reason"]) == (2, "namespace_dev_only")
+    assert "the package 'ruamel' is missing" in out["detail"] and "not in this build" not in out["detail"]
+
+    own = namespace_cmd._absent("seed", ModuleNotFoundError("gone", name="agent_runtime.namespace_seed"))
+    assert "not in this build" in str(own) and own.reason is ns.Reason.DEV_ONLY
