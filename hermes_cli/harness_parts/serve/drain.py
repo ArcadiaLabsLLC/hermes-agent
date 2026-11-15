@@ -131,6 +131,12 @@ class DrainLane:
         lowers), re-armed while a chat turn or a long run is in flight — the holds
         a drain honours, for the same recording-safety reason — and given up only
         on work nothing is allowed to hold the process open for.
+
+        An EMPTY in-flight set is drained, not stuck: ``_run`` pops a request only
+        once its worker has returned, so a tick that lands after the last turn
+        left but before the pool's join came back has nothing to name. Reading
+        ``[]`` as stuck ended a serve that drained normally with exit 3
+        (FH-SERVE-EOF-JOIN-EXITS-3).
         """
 
         if not self.pool_shutdown_wait:
@@ -149,6 +155,8 @@ class DrainLane:
             with self.inflight_lock:
                 held = any(item.is_chat_turn or item.is_long_run for item in self.inflight.values())
                 stuck = sorted(self.inflight)
+            if not stuck:
+                return None
             if not held:
                 return stuck
         return None

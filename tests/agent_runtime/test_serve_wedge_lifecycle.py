@@ -166,6 +166,49 @@ def test_eof_still_waits_for_a_chat_turn_past_the_deadline(monkeypatch):
         assert handle.code == 0 and exits == []
 
 
+def test_eof_join_reads_an_emptied_in_flight_set_as_drained(monkeypatch):
+    """The last turn ends, the pool has not joined yet, a deadline ticks: exit 0, not 3.
+
+    The race of FH-SERVE-EOF-JOIN-EXITS-3 (seen once in a loaded bundle as a red
+    of the chat-turn test above), made certain: the pool's join is held open
+    past several exit deadlines AFTER every worker has returned, so each tick
+    finds nothing in flight. Nothing is stuck there — ``_run`` pops a request
+    only once its worker has come back. *Killing mutation:* return
+    ``sorted(self.inflight)`` (``[]``) for an empty in-flight set in
+    ``_join_pool_within_exit_deadline`` — exit 3 with ``stuck_request_ids == []``.
+    """
+
+    monkeypatch.setattr(serve_module.drain, "_DRAIN_EXIT_DEADLINE_SECONDS", 0.2)
+    from hermes_cli.harness_parts.serve.request_pool import RequestPool
+
+    real_shutdown = RequestPool.shutdown
+
+    def _slow_join(self, wait: bool = True) -> None:
+        real_shutdown(self, wait=wait)
+        if wait:
+            time.sleep(1.0)  # five deadlines with every worker already back
+
+    monkeypatch.setattr(RequestPool, "shutdown", _slow_join)
+    started, release = threading.Event(), threading.Event()
+    exits: list[int] = []
+
+    def _dispatch(argv):
+        started.set()
+        release.wait(WAIT)
+        return 0
+
+    with running_serve(dispatch=_dispatch, hard_exit=exits.append) as handle:
+        handle.pipe.send({"id": "turn-1", "argv": ["harness", "mission-chat", "message", "hi"]})
+        assert started.wait(WAIT)
+        handle.pipe.close()
+        assert _lane_is_free(10.0)
+        release.set()
+        handle.thread.join(WAIT)
+        assert not handle.thread.is_alive()
+        assert handle.code == 0 and exits == []
+        assert "stuck_request_ids" not in handle.sink.wait_for("shutdown")
+
+
 # ── 2. a drain on a serve whose stdio is dead ───────────────────────────────
 
 
