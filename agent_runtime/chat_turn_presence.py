@@ -218,4 +218,10 @@ class ChatTurnPresence:
                 type(exc).__name__,
             )
             return False
+        try:
+            from .turn_activity import note_turn_presence_published
+
+            note_turn_presence_published()
+        except Exception:
+            pass
         return True

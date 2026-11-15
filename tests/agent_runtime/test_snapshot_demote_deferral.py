@@ -107,6 +107,123 @@ def test_a_non_demote_lane_never_defers(monkeypatch):
     assert clock.slept == [], "a non-demote lane must not sleep at all"
 
 
+def test_a_batch_carrying_a_turns_own_start_or_end_is_not_held(monkeypatch):
+    """RT-RUNNING-TURN-START-ROW-WAITS-OUT-THE-DEMOTE-HOLD.
+
+    The turn is admitted, so the cadence would wait the full bound — but this
+    batch IS that turn's start (or end), the frame a room that does not fold the
+    turn overlay sees it by. ``snapshot_turn_yield`` keeps the build out of the
+    turn's hot windows; the demote hold must not add 3.5 s on top.
+    """
+
+    _admitted(monkeypatch, [1])
+    _in_flight(monkeypatch, [1])
+    clock = _FakeClock()
+    waited = _defer_demote_build_for_active_turns(
+        reason=BATCH_REASON_DEMOTE,
+        caller="hub",
+        moves_running_work=True,
+        sleeper=clock.sleep,
+        clock=clock,
+    )
+    assert waited == 0
+    assert clock.slept == [], "a turn's own start/end batch must not sleep"
+
+
+def test_a_held_batch_is_released_when_a_turn_publishes_its_start(monkeypatch):
+    """RT-RUNNING-TURN-START-ROW-WAITS-OUT-THE-DEMOTE-HOLD, the seen shape.
+
+    The hub drains the turn's pre-start events into one batch and holds it
+    while the turn is admitted; the turn's START lands 0.35 s later in the NEXT
+    batch, which queued behind the full 3.5 s bound (traced: start row +4.0 s).
+    Once the start is on the log the held batch ships, so the start row follows.
+    """
+
+    _admitted(monkeypatch, [1])
+    _in_flight(monkeypatch, [0])
+    script = [0, 0, 0, 0, 0, 1]
+
+    def _publishes():
+        return script.pop(0) if len(script) > 1 else script[0]
+
+    patch_where_bound(monkeypatch, stream_mod, "_turn_presence_publishes", _publishes)
+    clock = _FakeClock()
+    waited = _defer_demote_build_for_active_turns(
+        reason=BATCH_REASON_DEMOTE, caller="hub", sleeper=clock.sleep, clock=clock
+    )
+    assert 0 < waited < SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS
+    assert len(clock.slept) == 4, clock.slept
+
+
+def test_a_landed_turn_publish_is_counted_and_a_lost_one_is_not(monkeypatch):
+    """The release above reads the counter a landed START/END bumps."""
+
+    from agent_runtime import events as events_module
+    from agent_runtime import turn_activity
+    from agent_runtime.chat_turn_presence import ChatTurnPresence
+
+    before = turn_activity.turn_presence_publishes()
+    monkeypatch.setattr(events_module.EventLog, "append", lambda self, event, *a, **k: None)
+    presence = ChatTurnPresence()
+    started = dict(
+        session_id="s", client_message_id="c", turn_id="t",
+        persona_id="p", persona_instance_id="i",
+    )
+    assert presence.publish_started(**started)
+    assert turn_activity.turn_presence_publishes() == before + 1
+
+    def _boom(self, event, *a, **k):
+        raise TimeoutError("events lock not acquired")
+
+    monkeypatch.setattr(events_module.EventLog, "append", _boom)
+    assert not ChatTurnPresence().publish_started(**started)
+    assert turn_activity.turn_presence_publishes() == before + 1
+
+
+def test_the_demote_lane_says_whether_its_batch_moves_running_work(monkeypatch):
+    """The call site hands the policy the batch's fact, not a constant."""
+
+    from agent_runtime.chat_turn_presence import EVENT_TURN_STARTED
+
+    seen: list[bool] = []
+
+    def _fake_defer(*, reason, caller, moves_running_work=False, sleeper=None, clock=None):
+        seen.append(moves_running_work)
+        return 0
+
+    class _FakeJob:
+        def __init__(self, caller, accept_inflight=False, reason=None):
+            self.snapshot = {"schema_version": 1, "sections": {}}
+            self.error = None
+            self.elapsed_ms = None
+            self.build_info = {"caller": caller, "role": "led", "generation": 1}
+
+    class _Event:
+        def __init__(self, type_):
+            self.type = type_
+
+    patch_where_bound(monkeypatch, stream_mod, "_defer_demote_build_for_active_turns", _fake_defer)
+    patch_where_bound(monkeypatch, stream_mod, "_SnapshotBuildJob", _FakeJob)
+    patch_where_bound(monkeypatch, stream_mod, "_build_with_liveness", lambda *a, **k: iter(()))
+    patch_where_bound(monkeypatch, stream_mod, "request_cancelled", lambda: False)
+    monkeypatch.setattr(stream_mod.build.demote_core_reuse, "consult", lambda floor: None)
+    monkeypatch.setattr(stream_mod.build.demote_core_reuse, "remember", lambda snap: None)
+    patch_where_bound(monkeypatch, stream_mod, "core_event_offset", lambda snap: None)
+    patch_where_bound(monkeypatch, stream_mod, "delta_batch_frame", lambda batch, snapshot: {"watermark": {}})
+
+    for batch in ([(7, _Event(EVENT_TURN_STARTED))], [(8, _Event("persona_instance.created"))]):
+        list(
+            stream_mod._full_core_batch_frames(
+                batch,
+                base_offset=6,
+                heartbeat_interval_seconds=5.0,
+                reason=BATCH_REASON_DEMOTE,
+                caller="hub",
+            )
+        )
+    assert seen == [True, False]
+
+
 def test_a_demote_build_with_no_run_in_flight_does_not_wait(monkeypatch):
     """Nothing to yield to is not a reason to pause the cadence."""
 
@@ -626,7 +743,7 @@ def test_the_demote_lane_actually_calls_the_deferral_before_it_builds(monkeypatc
     calls: list[tuple[str, str]] = []
     order: list[str] = []
 
-    def _fake_defer(*, reason, caller, sleeper=None, clock=None):
+    def _fake_defer(*, reason, caller, moves_running_work=False, sleeper=None, clock=None):
         calls.append((reason, caller))
         order.append("defer")
         return 0

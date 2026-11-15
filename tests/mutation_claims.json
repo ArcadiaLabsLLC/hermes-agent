@@ -2652,6 +2652,36 @@
       ]
     },
     {
+      "id": "rt-demote-hold-holds-a-turns-own-start-batch",
+      "path": "agent_runtime/stream/build_policy.py",
+      "symbol": "_defer_demote_build_for_active_turns",
+      "operator": "drop-presence-bypass",
+      "find": "    if moves_running_work:\n",
+      "replace": "    if False:\n",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_snapshot_demote_deferral.py::test_a_batch_carrying_a_turns_own_start_or_end_is_not_held"
+      ]
+    },
+    {
+      "id": "rt-demote-hold-outlasts-a-published-turn-start",
+      "path": "agent_runtime/stream/build_policy.py",
+      "symbol": "_defer_demote_build_for_active_turns",
+      "operator": "drop-presence-release",
+      "find": "        if presence_at_start is not None and _turn_presence_publishes() != presence_at_start:\n",
+      "replace": "        if False:\n",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/agent_runtime/test_snapshot_demote_deferral.py::test_a_held_batch_is_released_when_a_turn_publishes_its_start"
+      ]
+    },
+    {
       "id": "ctp5-deferral-bound-widened-to-a-starvation",
       "path": "agent_runtime/stream/vocabulary.py",
       "symbol": "SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS",
@@ -2686,8 +2716,8 @@
       "path": "agent_runtime/stream/build.py",
       "symbol": "_full_core_batch_frames",
       "operator": "reorder-yield-after-job",
-      "find": "    _defer_demote_build_for_active_turns(reason=reason, caller=caller)\n    if request_cancelled():\n        return\n\n    job = _SnapshotBuildJob(caller=caller, reason=reason)",
-      "replace": "    job = _SnapshotBuildJob(caller=caller, reason=reason)\n    _defer_demote_build_for_active_turns(reason=reason, caller=caller)",
+      "find": "    _defer_demote_build_for_active_turns(\n        reason=reason, caller=caller, moves_running_work=batch_changes_running_work_presence(batch)\n    )\n    if request_cancelled():\n        return\n\n    job = _SnapshotBuildJob(caller=caller, reason=reason)",
+      "replace": "    job = _SnapshotBuildJob(caller=caller, reason=reason)\n    _defer_demote_build_for_active_turns(\n        reason=reason, caller=caller, moves_running_work=batch_changes_running_work_presence(batch)\n    )",
       "test": [
         "{python}",
         "-m",
