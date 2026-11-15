@@ -9,6 +9,7 @@ fixture in the SAME commit with a ``reasons`` row — never silently.
 
 from __future__ import annotations
 
+import functools
 import json
 from pathlib import Path
 
@@ -21,6 +22,11 @@ pytestmark = pytest.mark.gate
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "upstream_footprint.json"
 NUMBERS = ("files", "deleted_lines", "heavy")
 
+#: One whole-tree ``git diff --numstat`` per run, not one per gate (FH-PREPUSH-GATES-OVER-BUDGET: 1.3-1.8 s
+#: each at load ~50, and this file is the gates step's longest bundle). Keyed by the base, which is the
+#: manifest's in both callers; the tree does not change inside one pytest run, and ``Footprint`` is frozen.
+_measure = functools.cache(measure)
+
 
 def test_the_upstream_footprint_never_rises_and_the_fixture_follows_it_down():
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -31,7 +37,7 @@ def test_the_upstream_footprint_never_rises_and_the_fixture_follows_it_down():
     )
     assert isinstance(fixture["reasons"], list)
 
-    _, tree = measure(fixture["base"])
+    _, tree = _measure(fixture["base"])
     risen = {n: (fixture[n], getattr(tree, n)) for n in NUMBERS if getattr(tree, n) > fixture[n]}
     assert not risen, (
         f"{tree.line()} — the fork's footprint in upstream files ROSE {risen} (fixture, tree). "
@@ -260,7 +266,7 @@ def test_every_measured_upstream_edit_has_a_ledger_row():
     from scripts.upstream_footprint import DEFAULT_LEDGER
 
     text = DEFAULT_LEDGER.read_text(encoding="utf-8")
-    _, footprint = measure()
+    _, footprint = _measure(read_manifest(MANIFEST)[0])
     assert footprint.rows, "the footprint measured no rows; this gate would prove nothing"
     assert unledgered_paths(text, footprint) == [], (
         "these upstream files carry a fork edit and no ledger row: write the row (disposition "
