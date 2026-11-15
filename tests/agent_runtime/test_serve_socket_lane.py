@@ -59,6 +59,37 @@ from hermes_cli.harness_parts.serve import serve_loop
 WAIT = 15.0
 
 
+@pytest.fixture(autouse=True)
+def _serve_boots_never_wait_on_the_disk(monkeypatch):
+    """Every serve here boots its stores from empty, and that boot fsyncs: the discussion and
+    conversation stores' schema-init commits, and the runtime store's atomic JSON writes. On a box
+    whose disk other work is flushing, those fsyncs queued behind it for up to the whole ``WAIT`` —
+    traced twice (w1115r-h1; w1115e-h2: 4 fsync writers beside 8 parallel copies of the 3-file
+    prefix gave 22 'ready' misses in 24 runs; ~80% of the stalled boots' one-second stack samples sat
+    in the commit at ``gateway/hosted_rooms_common.py`` ``_initialize``, and once those were gone the
+    rest sat in ``utils._atomic_write``'s ``os.fsync``). This file pins the socket lane, not a
+    store's durability (the stores' own tests pin that), so here the stores commit at
+    ``synchronous=OFF`` and an fsync returns at once: the same SQL, the same WAL, the same temp +
+    replace, no wait on someone else's flush. The 'ready' wait stays ``WAIT``
+    (FH-SOCKET-DRAIN-CLAMP-TEST-MISSED-ITS-READY-FRAME-ONCE-IN-A-BUNDLE)."""
+
+    from agent_runtime.conversations import store as conversation_store
+    from hermes_cli import sqlite_util
+
+    real_open_db = sqlite_util.open_db
+
+    def _open_db(path, **kwargs):
+        kwargs["synchronous_full"] = False
+        kwargs["synchronous"] = "OFF"
+        return real_open_db(path, **kwargs)
+
+    # ``gateway.hosted_rooms_common.connect`` (the room, run, definition and attempt stores)
+    # imports ``open_db`` at call time; the conversations store imported it at module load.
+    monkeypatch.setattr(sqlite_util, "open_db", _open_db)
+    monkeypatch.setattr(conversation_store, "open_db", _open_db)
+    monkeypatch.setattr(os, "fsync", lambda fd: None)
+
+
 class _Clock:
     """A monotonic clock the test moves by hand.
 
@@ -2455,6 +2486,16 @@ def test_the_version_reply_carries_the_connections_block_on_both_transports():
             assert stdio_version["connections"]["count"] == 1
 
 
+#: The three lines the connection-log check reads; it waits until every one is written.
+_CONNECTION_LOG_EVENTS = frozenset(
+    {
+        "serve_socket_connection_open",
+        "serve_socket_connection_close",
+        "serve_socket_connection_rejected",
+    }
+)
+
+
 def test_every_connection_open_close_and_rejection_emits_one_structured_log_line():
     with running_serve() as handle:
         with client(handle, name="watched") as (_conn, _reply):
@@ -2474,11 +2515,13 @@ def test_every_connection_open_close_and_rejection_emits_one_structured_log_line
                 for row in rows
                 if row.get("event") == "stderr" and row.get("line", "").startswith("{")
             ]
-            # Wait for the LAST of the three, not for any log at all: the
-            # rejection is written on the rejected connection's own thread and
-            # lands after the ones this test already provoked.
+            # Wait for ALL three, not for the one that usually lands last: the
+            # rejection is written on the rejected connection's own thread, and
+            # the watched connection's close on ITS thread whenever the server
+            # notices the peer left — which under load can be after the
+            # rejection (FH-SOCKET-LOG-TEST-READS-THE-CLOSE-LINE-BEFORE-IT-IS-WRITTEN).
             events = {row.get("event") for row in found}
-            return found if "serve_socket_connection_rejected" in events else []
+            return found if _CONNECTION_LOG_EVENTS <= events else []
 
         logs = _poll(handle.sink, _service_logs)
         by_event = {row["event"]: row for row in logs}
