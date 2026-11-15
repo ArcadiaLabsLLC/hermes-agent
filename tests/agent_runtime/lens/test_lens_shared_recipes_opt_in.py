@@ -80,7 +80,9 @@ def test_only_the_operator_rpc_and_the_store_move_a_monitors_state():
         for node in ast.walk(ast.parse(text)):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "set_state":
                 callers.add(name)
-        if re.search(r"(UPDATE|INTO)\s+monitors\b", text):
+        # A STATE writer (or a row insert): the realm re-key's ``UPDATE monitors SET workspace_id`` moves no
+        # state and is not one (RT-LENS-GUARD-TEST-RED-SINCE-REALM-REKEY).
+        if re.search(r"INSERT\s+INTO\s+monitors\b|UPDATE\s+monitors\s+SET\s[^\"']*\bstate\s*=", text):
             writers.add(name)
     assert callers <= {"agent_runtime/serve_rpc/lens.py", "agent_runtime/lens/store.py"}, callers
     assert writers == {"agent_runtime/lens/store.py"}, writers
