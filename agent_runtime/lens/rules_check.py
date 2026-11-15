@@ -98,7 +98,7 @@ def fired_values(rule: dict[str, Any] | None, episode: Any, evidence: Any) -> di
             "newest_values": newest}
 
 
-def _ask(system_prompt: str, user_prompt: str) -> RulesCheck:
+def _ask_guardian(system_prompt: str, user_prompt: str) -> RulesCheck:
     """One guardian call through Lens's own layer. Never raises: any failure is ``escalate``."""
 
     usage: dict[str, Any] = {}
@@ -116,7 +116,7 @@ def check_investigate(*, guidance: str, monitor_name: str, fired: list[dict[str,
                       turns_left_today: dict[str, int]) -> RulesCheck:
     """Ask the guardian whether the investigation may run (``escalate`` on any failure: no turn)."""
 
-    return _ask(_SYSTEM_PROMPT + guidance,
+    return _ask_guardian(_SYSTEM_PROMPT + guidance,
                 request_block(monitor_name=monitor_name, fired=fired, turns_left_today=turns_left_today))
 
 
@@ -158,6 +158,6 @@ def check_action(*, guidance: str, monitor_name: str, tool: str, arguments: Any,
                  episode: dict[str, Any]) -> RulesCheck:
     """Ask the guardian whether one mutating call of an ``act`` turn may run (design §2, second row)."""
 
-    return _ask(_ACT_SYSTEM_PROMPT + guidance,
+    return _ask_guardian(_ACT_SYSTEM_PROMPT + guidance,
                 action_request_block(monitor_name=monitor_name, tool=tool, arguments=arguments,
                                      undoable=undoable, episode=episode))
