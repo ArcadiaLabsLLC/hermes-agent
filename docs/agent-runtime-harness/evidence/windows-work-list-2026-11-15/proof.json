@@ -1,0 +1,39 @@
+{
+  "row": "RT-WORK-LIST-OWNER-SIZE-PAST-HALF",
+  "date": "2026-11-15",
+  "platform": "Windows",
+  "scope": "Production runtime.work.list handler with disposable local origin mirrors, separate profile homes and Windows Git. One cold call with new worktrees, then three consecutive calls in the same process. This receipt stops at the RPC reply.",
+  "fixture": {
+    "rows": 936,
+    "boards": 5,
+    "readable_boards": 4,
+    "queue_notes": 46,
+    "tip_shas": {"eternia": "c1851b8ce0", "hermes": "b2a22eeb3a", "backend": "848a910106"},
+    "local_origin_refs": {"eternia": 1249, "hermes": 3241, "backend": 250}
+  },
+  "milliseconds": {
+    "base": {"commit": "9fcfea75f2", "cold": 7669.8, "warm": [2145.7, 3018.9, 830.1]},
+    "parallel_boards": {"commit": "c68879db6a", "cold": 5731.7, "warm": [1687.7, 2450.7, 2233.6]},
+    "parallel_note_history": {"commit": "823c73fda5", "cold": 5077.1, "warm": [1889.6, 1758.3, 1884.7]}
+  },
+  "cold_sync_milliseconds": {
+    "base": {
+      "wall": 2482.1,
+      "start_offsets": {"backend": 89.0, "brain": 89.8, "eternia": 89.2, "hermes": 89.5},
+      "board_times": {"backend": 1791.9, "brain": 1596.6, "eternia": 2404.3, "hermes": 1901.4}
+    },
+    "parallel_note_history": {
+      "wall": 2263.8,
+      "start_offsets": {"backend": 363.8, "brain": 364.6, "eternia": 364.0, "hermes": 364.3},
+      "board_times": {"backend": 1531.7, "brain": 1313.6, "eternia": 1900.5, "hermes": 1634.7}
+    }
+  },
+  "finding": {
+    "baseline_cold_git_log_commands": 42,
+    "baseline_eternia_git_log_commands": 27,
+    "warm_git_log_commands_at_each_unchanged_tip": 0,
+    "cpu_percent_sampled_before_final_calls": [[3.7, 2.3, 5.4], [5.4, 6.8, 5.0], [3.9, 2.1, 2.7], [2.8, 1.3, 1.0]],
+    "remaining": "The first fresh-worktree RPC was 77.1 ms over 5 s. Live application reconciliation timing is still owed."
+  },
+  "validation": {"focused_windows_checks": 32}
+}
