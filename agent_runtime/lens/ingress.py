@@ -273,7 +273,7 @@ class IngressListener:
         return REFUSAL_STATUS[refusal]
 
     def _refusal(self, path: str, headers: Any, stream: Any) -> tuple[IngressRefusal | None, dict | None]:
-        from .credentials import resolve_credential
+        from .credentials import CredentialRefusal, resolve_credential
 
         matched = _ROUTE_PATH.fullmatch(path.split("?", 1)[0])
         store = self.store_factory()
@@ -292,8 +292,8 @@ class IngressListener:
         if int(length) > MAXIMUM_BODY_BYTES:
             return IngressRefusal.OVERSIZE, route
         body = stream.read(int(length))
-        credential = resolve_credential(route["secret_ref"])
-        if credential is None:
+        credential = resolve_credential(route["secret_ref"], host=None)
+        if isinstance(credential, CredentialRefusal):
             return IngressRefusal.UNKNOWN_ROUTE, route
         now = self.clock()
         refusal, nonce = AUTH_VERIFIERS[auth](headers, body, credential.secret, now)

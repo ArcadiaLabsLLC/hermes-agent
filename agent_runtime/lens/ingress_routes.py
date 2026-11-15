@@ -204,7 +204,7 @@ def register_route(monitor_id: str, kind: Any, mapping: Any = None, *, auth: Any
     route = {"route_id": route_id, "monitor_id": monitor_id, "kind": ingress_kind.value,
              "secret_ref": secret_ref_for(route_id), "mapping": canonical, "auth": mode.value,
              "created_ms": to_ms(now or datetime.now(UTC))}
-    set_credential(route["secret_ref"], scheme="bearer", secret=secret, now=now)
+    set_credential(route["secret_ref"], scheme="bearer", secret=secret, host=None, now=now)
     try:
         store.save_route(route)
     except LensStoreError:

@@ -16,7 +16,7 @@ Standing order 2026-11-12: "if a decision comes up investigate fully and go with
 |---|---|---|---|---|
 | 1 | Which channel carries a recipe | Realm sync: a `lens_recipe` whole-document family beside `level` | The backend; a workspace template | The backend holds no Lens model and a template does not move between machines (the row's 2026-11-10 handoff, confirmed in the tree). The whole-document class already exists (`realm_sync/document_family.py`) with three descriptors on it |
 | 2 | Where a pulled recipe lands | On a **shelf** of files (`store/lens_recipes/<workspace>/<monitor>.json`); a DRAFT is written only when this PC's person presses Add | The pull writes each recipe straight into `LensStore.create` (what the row's handoff sketched) | `monitors.monitor_id` is one primary key for every workspace, `create` rewrites a standing draft and plants a next-revision draft on a sealed monitor, and a monitor counts against `MAXIMUM_MONITORS` (64): a pull that calls `create` lets a peer overwrite this PC's drafts and fill its capacity. With a shelf no synced code path reaches the Lens store at all, so the opt-in fence gets stricter, not looser |
-| 3 | What a recipe's credential names do on arrival | Add renames every `credential_ref` to a fresh local name, `shared:<monitor_id>:<ref>`, which is unset here | Keep the publisher's ref name | A credential is found by name alone (`credentials.resolve_credential`), with no host bound to it, and `runtime.lens.preview` reads a draft with it. A shared recipe naming a ref this PC already holds would send that secret to the recipe's URL on the first preview. A fresh name cannot collide |
+| 3 | What a recipe's credential names do on arrival | Add renames every `credential_ref` to a fresh local name, `shared:<monitor_id>:<ref>`, which is unset here | Keep the publisher's ref name | A credential is found by name, and `runtime.lens.preview` reads a draft with it. A shared recipe naming a ref this PC already holds would read through that sign-in on the first preview. A fresh name cannot collide. **Re-checked 2026-11-15 after `RT-LENS-CREDENTIAL-NOT-BOUND-TO-A-HOST` landed, and it stands:** a credential is now also saved for one address and sent nowhere else, which closes the leak to another host; the rename keeps the other half, that a recipe a peer wrote never reads through a sign-in the person made for their own monitor, even at the same address. The two are different facts (where a secret may go; whether an added recipe starts signed out) with one mechanism each, and they compose: the renamed ref is named by one draft at one address, so the person's `runtime.lens.credential.set` for it is saved for exactly the recipe's address |
 | 4 | What an `act` recipe may do alone on arrival | Add drops `automation.actions`; the level stays `act` | Keep the publisher's list | What a monitor may change without asking on this PC is this PC's person's decision. Without the list every change is a proposal (`manifest.py`), which is the safe reading of the same recipe |
 | 5 | Which sources may be shared | `http_json`, `prometheus`, `push` | Every feed kind | `sql_readonly` names an absolute file path on the publisher's disk; `command_allowlisted` carries the argv it runs. Neither is a recipe another PC should receive in v1; refused by name, never dropped silently |
 | 6 | How a recipe stops being shared | A withdrawn document (`withdrawn: true`, no manifest) replaces it | Deleting the shelf file | In the document class `upstream_absent` is never a delete, so a removed file would stay on every peer's shelf for ever. A withdrawn document travels like any edit. A monitor a peer already added keeps running: their PC, their choice |
@@ -32,8 +32,9 @@ Standing order 2026-11-12: "if a decision comes up investigate fully and go with
   `ENABLED`, the one state the poller reads. A draft over a sealed monitor is its pending next revision.
 - **A manifest holds no secret by construction** (closed schema, `manifest.read_manifest`; a URL with
   userinfo is refused at the feed reader). A feed names a credential by `credential_ref`; the bytes live in
-  `<head home>/lens/credentials.json`, written by `runtime.lens.credential.set {ref, scheme, secret}`.
-  `runtime.lens.get` already answers `credentials: [{feed_id, ref, set, rotated_at}]` for a draft.
+  `<head home>/lens/credentials.json`, written by `runtime.lens.credential.set {ref, scheme, secret}`, which
+  saves it for the one address the monitors naming `ref` read (`credentials.sign_in_host`).
+  `runtime.lens.get` already answers `credentials: [{feed_id, ref, set, rotated_at, host}]` for a draft.
 - **The whole-document family class** (`realm_sync/document_family.py`): one `DocumentFamily` descriptor
   per family (`level_sync.LEVEL_FAMILY`, `map_sync.MAP_FAMILY`, `prefab_store.PREFAB_FAMILY`; prefab is
   nested, token `<profile>/<prefab>`). Stored verbatim, adopt / converge / keep local / HOLD per document
@@ -166,11 +167,12 @@ The launcher row to file (for the orchestrator, verbatim, in the launcher's `mis
   `store/lens_recipes/` and adds the folder rename where it does not).
 - **Secret-path scan.** `store/lens_recipes/…` carries none of `SECRET_PATH_MARKERS`; the ref names inside
   a document are not paths. The publish refuses a secret path as before.
-- **The credential's missing host.** Decision 3 closes the collision for a shared recipe. The underlying
-  gap — any manifest that names a ref sends that credential to whatever URL it names — stays for a
-  persona's proposal and for an update that changes a source's address after the person signed it in; row
-  `RT-LENS-CREDENTIAL-NOT-BOUND-TO-A-HOST` files it with the structural answer (the credential remembers
-  the host it was set for).
+- **The credential's host (built, `RT-LENS-CREDENTIAL-NOT-BOUND-TO-A-HOST`).** A credential is saved for
+  one address (scheme, name, port) and `credentials.resolve_credential(ref, host=)` refuses any other with
+  the gap `credential_host_mismatch`, so a persona's proposal, or an update that moves a source's address
+  after the person signed it in, sends nothing. Decision 3's rename stays (see its row). One consequence
+  for a recipe: two feeds that share one ref at two addresses cannot be signed in with one
+  `credential.set` (`credential_host_ambiguous`); the person gives them two refs in the draft.
 - **Version skew.** An older hermes has no row for `store/lens_recipes/`: `_destination_for_sync_path`
   answers None and it skips the files; its own publish rebuilds the subtree without them, which a newer
   peer reads as `upstream_absent` — never a delete, so the shelf stays.

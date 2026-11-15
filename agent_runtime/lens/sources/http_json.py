@@ -12,6 +12,7 @@ import re
 from dataclasses import replace
 from typing import Any
 
+from ..feed import feed_address
 from ..shapes import json_skeleton
 from .transport import ReadReason, ReadResult, Validators, fetch_json, unavailable
 
@@ -63,7 +64,7 @@ def read(feed: dict[str, Any], *, headers: dict[str, str], client: Any = None, r
     """One read; with ``validators`` it is conditional and a ``304`` answers ``not_modified``."""
 
     source = feed["source"]
-    document, failed = fetch_json(source["url"], headers=headers, allow_private=feed.get("allow_private_network", False),
+    document, failed = fetch_json(feed_address(feed), headers=headers, allow_private=feed.get("allow_private_network", False),
                                   client=client, resolver=resolver, validators=validators)
     if failed is not None:
         return _replayed(failed, validators)

@@ -22,7 +22,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from agent_runtime.lens.credentials import credential_status, resolve_credential, set_credential
+from agent_runtime.lens.credentials import CredentialRefusal, credential_status, resolve_credential, set_credential
 from agent_runtime.lens.evidence import build_evidence
 from agent_runtime.lens.feed import Observation
 from agent_runtime.lens.poller import LensPoller
@@ -157,6 +157,8 @@ def test_rollups_older_than_seven_days_are_removed():
 
 
 SECRET = "do-not-copy-this-secret"
+#: The address ``_feed``'s credential is saved for (``credentials.credential_host`` of its URL).
+HOST = "https://status.example.invalid:443"
 
 
 def _secret_forms() -> list[str]:
@@ -198,7 +200,7 @@ def _surfaces(store: LensStore) -> str:
 
 def test_a_resolved_credential_reaches_the_request_and_no_stored_row_or_read_surface():
     case = _redaction_case()
-    set_credential("status-token", scheme="bearer", secret=SECRET, now=T0)
+    set_credential("status-token", scheme="bearer", secret=SECRET, host=HOST, now=T0)
     store = _enabled_store(_manifest(_feed(credential_ref="status-token")))
     seen = []
 
@@ -224,14 +226,14 @@ def test_a_resolved_credential_reaches_the_request_and_no_stored_row_or_read_sur
     for form in _secret_forms():
         assert form.encode() not in stored
         assert form not in surfaces
-    assert credential_status("status-token") == {"ref": "status-token", "set": True,
+    assert credential_status("status-token", host=HOST) == {"ref": "status-token", "set": True, "host": HOST,
                                                  "rotated_at": "2026-10-16T12:00:00.000Z"}
 
 
 def test_a_reference_this_home_does_not_hold_is_a_gap_and_no_request(monkeypatch, tmp_path):
-    set_credential("status-token", scheme="bearer", secret=SECRET)
+    set_credential("status-token", scheme="bearer", secret=SECRET, host=HOST)
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "other-persona-home"))
-    assert resolve_credential("status-token") is None  # another home's row is not this home's
+    assert resolve_credential("status-token", host=HOST) is CredentialRefusal.MISSING  # another home's row is not this home's
 
     calls = []
     result = read_feed_source(_feed(credential_ref="status-token"),
@@ -241,11 +243,11 @@ def test_a_reference_this_home_does_not_hold_is_a_gap_and_no_request(monkeypatch
 
 
 def test_basic_credentials_send_the_pair_and_the_status_never_carries_the_value():
-    status = set_credential("db", scheme="basic", secret=SECRET, username="watcher")
+    status = set_credential("db", scheme="basic", secret=SECRET, username="watcher", host=HOST)
     assert SECRET not in json.dumps(status)
-    headers = resolve_credential("db").headers()
+    headers = resolve_credential("db", host=HOST).headers()
     assert headers["Authorization"] == "Basic " + base64.b64encode(f"watcher:{SECRET}".encode()).decode()
-    assert SECRET not in repr(resolve_credential("db"))
+    assert SECRET not in repr(resolve_credential("db", host=HOST))
 
 
 # --- the source edge --------------------------------------------------------------
@@ -382,6 +384,7 @@ def test_the_fold_of_a_home_without_lens_is_empty_and_creates_no_store():
 
 
 def test_credential_set_is_write_only():
+    _call("runtime.lens.create", {"manifest": _manifest(_feed(credential_ref="k"))})  # the monitor the sign-in is for
     reply = _call("runtime.lens.credential.set", {"ref": "k", "scheme": "bearer", "secret": SECRET})
     assert reply["result"]["set"] is True and SECRET not in json.dumps(reply)
     assert _call("runtime.lens.credential.set", {"ref": "k", "scheme": "bearer", "secret": SECRET,

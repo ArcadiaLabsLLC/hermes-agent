@@ -32,6 +32,7 @@ from agent_runtime.lens.credentials import (
     set_credential,
 )
 
+HOST = "https://status.example.invalid:443"
 SECRET = "zq7Wx-9cJq-Kp4Rv"  # no English word: a 4-char fragment must not match shipped text ("only" is in the default rules)
 
 
@@ -51,14 +52,14 @@ def _dashboard_pool() -> str:
 
 
 def test_a_lens_credential_never_reaches_the_dashboard_pool_listing():
-    set_credential("status-token", scheme="bearer", secret=SECRET)
+    set_credential("status-token", scheme="bearer", secret=SECRET, host=HOST)
     listing = _dashboard_pool()
     assert '"lens"' not in listing and _leaks(listing) == []
-    assert resolve_credential("status-token").secret == SECRET  # still resolvable for a read
+    assert resolve_credential("status-token", host=HOST).secret == SECRET  # still resolvable for a read
 
 
 def test_the_file_is_under_the_home_and_private():
-    set_credential("db", scheme="basic", secret=SECRET, username="watcher")
+    set_credential("db", scheme="basic", secret=SECRET, username="watcher", host=HOST)
     path = credentials_path()
     assert path.parent.name == "lens" and path.is_file()
     if os.name == "posix":
@@ -71,18 +72,21 @@ def test_every_lens_read_path_answers_presence_and_rotation_only():
     def call(method: str, params: dict) -> dict:
         return serve_rpc.handle_request({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
 
-    replies = [call("runtime.lens.credential.set", {"ref": "k", "scheme": "bearer", "secret": SECRET})]
     manifest = {"version": 1, "monitor_id": "status",
                 "feeds": [{"version": 1, "id": "api", "kind": "http_json", "interval_ms": 5000,
                            "source": {"url": "https://status.example.invalid/h", "selector": "$.cpu"},
                            "credential_ref": "k"}],
                 "rules": [], "automation": {"level": "notify", "when": "urgent", "daily_turn_cap": 0},
                 "persona_id": None}
-    replies.append(call("runtime.lens.create", {"manifest": manifest}))
+    # The sheet's order: the monitor first, then its sign-in (saved for the address the monitor reads).
+    replies = [call("runtime.lens.create", {"manifest": manifest})]
+    replies.append(call("runtime.lens.credential.set", {"ref": "k", "scheme": "bearer", "secret": SECRET}))
+    rotated_at = replies[-1]["result"]["rotated_at"]
     replies.append(call("runtime.lens.get", {"monitor_id": "status"}))
-    assert replies[-1]["result"]["credentials"] == [{"feed_id": "api", "ref": "k", "set": True,
-                                                     "rotated_at": replies[0]["result"]["rotated_at"]}]
-    assert _leaks(json.dumps(replies) + json.dumps(credential_status("k")) + repr(resolve_credential("k"))) == []
+    assert replies[-1]["result"]["credentials"] == [{"feed_id": "api", "ref": "k", "set": True, "host": HOST,
+                                                     "rotated_at": rotated_at}]
+    assert _leaks(json.dumps(replies) + json.dumps(credential_status("k", host=HOST))
+                  + repr(resolve_credential("k", host=HOST))) == []
 
 
 def _plant_legacy_row(ref: str, *, stamp: str) -> None:
@@ -99,10 +103,12 @@ def test_a_pool_row_this_home_wrote_is_migrated_out_one_way(monkeypatch):
 
     monkeypatch.setattr(lens_credentials, "_MIGRATED", set())
     _plant_legacy_row("old", stamp=lens_credentials._legacy_home_digest(lens_credentials._home()))
-    assert credential_status("old") == {"ref": "old", "set": True, "rotated_at": "2026-10-16T12:00:00.000Z"}
+    # A migrated row has no saved address: kept, and not signed in for any (RT-LENS-CREDENTIAL-NOT-BOUND-TO-A-HOST).
+    assert credential_status("old", host=HOST) == {"ref": "old", "set": False, "host": None,
+                                                   "rotated_at": "2026-10-16T12:00:00.000Z"}
     assert read_credential_pool(LEGACY_POOL_PROVIDER) == []
-    moved = resolve_credential("old")
-    assert (moved.secret, moved.username, moved.scheme.value) == (SECRET, "watcher", "basic")
+    moved = lens_credentials._read_credentials_file()["old"]
+    assert (moved["secret"], moved["username"], moved["scheme"]) == (SECRET, "watcher", "basic")
     listing = _dashboard_pool()
     assert '"lens"' not in listing and _leaks(listing) == []
 
@@ -112,14 +118,14 @@ def test_a_pool_row_another_home_stamped_is_left_alone(monkeypatch):
 
     monkeypatch.setattr(lens_credentials, "_MIGRATED", set())
     _plant_legacy_row("theirs", stamp="0" * 24)
-    assert credential_status("theirs")["set"] is False
+    assert credential_status("theirs", host=HOST)["set"] is False
     assert [row["id"] for row in read_credential_pool(LEGACY_POOL_PROVIDER)] == ["theirs"]
     assert not credentials_path().exists()  # nothing to move, nothing written
 
 
 def test_the_file_wins_over_a_stale_pool_row(monkeypatch):
     monkeypatch.setattr(lens_credentials, "_MIGRATED", set())
-    set_credential("k", scheme="bearer", secret="newer-value-in-file")
+    set_credential("k", scheme="bearer", secret="newer-value-in-file", host=HOST)
     lens_credentials._MIGRATED.clear()
     _plant_legacy_row("k", stamp=lens_credentials._legacy_home_digest(lens_credentials._home()))
-    assert resolve_credential("k").secret == "newer-value-in-file"
+    assert resolve_credential("k", host=HOST).secret == "newer-value-in-file"

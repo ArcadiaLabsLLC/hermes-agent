@@ -106,7 +106,7 @@ def test_a_route_registers_lists_and_revokes_on_the_method_lane():
     assert secret.startswith("whsec_")
     assert registered["url"] == f"http://127.0.0.1:47652/lens/{route_id}"
     assert registered["mapping"] == {"feed_id": "alert", "alerts": {}}
-    assert resolve_credential(f"ingress:{route_id}").secret == secret
+    assert resolve_credential(f"ingress:{route_id}", host=None).secret == secret
 
     listed = _rpc("runtime.lens.ingress.list", {"monitor_id": "pager"})["result"]["routes"]
     assert [row["route_id"] for row in listed] == [route_id]
@@ -114,7 +114,7 @@ def test_a_route_registers_lists_and_revokes_on_the_method_lane():
 
     revoked = _rpc("runtime.lens.ingress.revoke", {"route_id": route_id})["result"]
     assert revoked["revoked"] is True
-    assert credential_status(f"ingress:{route_id}")["set"] is False
+    assert credential_status(f"ingress:{route_id}", host=None)["set"] is False
     assert _rpc("runtime.lens.ingress.list", {})["result"]["routes"] == []
     missing = _rpc("runtime.lens.ingress.revoke", {"route_id": route_id})
     assert missing["error"]["data"]["reason"] == "route_not_found"

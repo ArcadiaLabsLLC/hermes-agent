@@ -78,7 +78,8 @@ def test_every_shape_reason_is_a_read_reason_and_no_transport_reason_is_one():
     reasons = {reason.value for reason in ReadReason}
     assert SHAPE_REASONS <= reasons
     assert not SHAPE_REASONS & {"timeout", "network", "http_status", "redirect_refused", "too_large",
-                                "private_address_refused", "credential_missing"}
+                                "private_address_refused", "credential_missing",
+                                "credential_host_mismatch"}
 
 
 # --- decision 3: broken detection, pure -------------------------------------------

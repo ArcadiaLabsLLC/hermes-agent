@@ -182,6 +182,41 @@ def kube_proxy_base_url(source: dict[str, Any]) -> str:
             f"{source['service']}:{source['port']}/proxy")
 
 
+def _prometheus_address(source: dict[str, Any]) -> str:
+    return kube_proxy_base_url(source) if "via" in source else source["base_url"]
+
+
+#: Feed kind -> the address its reader sends to. A kind absent here sends nowhere.
+_FEED_ADDRESSES: dict[str, Any] = {
+    FeedKind.HTTP_JSON.value: lambda source: source["url"],
+    FeedKind.PROMETHEUS.value: _prometheus_address,
+}
+
+
+def feed_address(feed: dict[str, Any]) -> str | None:
+    """The http(s) address this feed's reader sends to, or None for a kind that sends nowhere.
+
+    The ONE answer: the ``http_json`` and ``prometheus`` readers build their request from it, the
+    host budget keys its host by it (``host_budget.host_key``) and a feed's credential is saved
+    for it (``lens.credentials.feed_host``), so the address a sign-in is checked against is the
+    address the bytes go to."""
+
+    address = _FEED_ADDRESSES.get(feed["kind"])
+    return None if address is None else address(feed["source"])
+
+
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def address_parts(url: str) -> tuple[str, str, int]:
+    """``(scheme, lowercase name, effective port)`` of an http(s) address: the one normal form the
+    host budget keys a host by and a credential is saved for."""
+
+    parts = urlsplit(url)
+    scheme = parts.scheme.lower()
+    return scheme, (parts.hostname or "").lower(), parts.port or _DEFAULT_PORTS.get(scheme, 0)
+
+
 def read_only_statement(value: Any) -> str:
     """A ``sql_readonly`` statement: up to 4 KiB, beginning SELECT / WITH. It may span lines
     (tab, LF and CR are admitted — a pasted query is multi-line); no other control character."""

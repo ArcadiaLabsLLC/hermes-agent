@@ -166,6 +166,9 @@ class StoreRefusal(str, Enum):
     ACTION_CANNOT_BE_UNDONE = "action_cannot_be_undone"
     #: ``runtime.lens.undo`` on an action already undone.
     ACTION_ALREADY_UNDONE = "action_already_undone"
+    #: ``credential.set``: no monitor names the ref / monitors name it at several addresses.
+    CREDENTIAL_HOST_UNKNOWN = "credential_host_unknown"
+    CREDENTIAL_HOST_AMBIGUOUS = "credential_host_ambiguous"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).

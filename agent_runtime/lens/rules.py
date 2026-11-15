@@ -118,7 +118,7 @@ DEADLINE_FORMS = frozenset({RuleForm.ENDS_WITHIN})
 #: Gap reasons that ATTEST absence: the watcher asked and got no value (§5 decision 2).
 ATTESTING_REASONS = frozenset({
     "http_status", "timeout", "network", "redirect_refused", "too_large", "not_json", "selector_missing",
-    "not_a_number", "private_address_refused", "credential_missing", "no_series", "ambiguous_series",
+    "not_a_number", "private_address_refused", "credential_missing", "credential_host_mismatch", "no_series", "ambiguous_series",
     "query_failed", "type_mismatch", "implausible", "outlier", "fx_stale", "ingress_refused",
     "statement_refused", "command_refused", "command_failed", "source_failed",
 })

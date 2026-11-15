@@ -17,7 +17,7 @@ import math
 from dataclasses import replace
 from typing import Any
 
-from ..feed import kube_proxy_base_url
+from ..feed import feed_address
 from ..shapes import prometheus_skeleton
 from .transport import ReadReason, ReadResult, fetch_json, unavailable
 
@@ -56,8 +56,7 @@ def _value_of(data: Any) -> ReadResult:
 def read(feed: dict[str, Any], *, headers: dict[str, str], client: Any = None, resolver: Any = None) -> ReadResult:
     source = feed["source"]
     proxied = "via" in source
-    base = kube_proxy_base_url(source) if proxied else source["base_url"]
-    url = base.rstrip("/") + "/api/v1/query"
+    url = feed_address(feed).rstrip("/") + "/api/v1/query"
     document, failed = fetch_json(url, headers=headers, params={"query": source["query"]},
                                   allow_private=proxied or feed.get("allow_private_network", False),
                                   client=client, resolver=resolver)

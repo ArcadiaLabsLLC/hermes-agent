@@ -15,6 +15,17 @@ and Lens plan W12:
   reports set / rotated-at, and only :func:`resolve_credential` returns the value —
   to a source, per read, in-process. Nothing here logs, returns or stores a value
   anywhere else, and :class:`LensCredential` never prints it.
+* **A credential is saved for ONE address and is only ever sent there**
+  (``RT-LENS-CREDENTIAL-NOT-BOUND-TO-A-HOST``). Its row records ``host`` — scheme, name and
+  port (:func:`credential_host`) — and BOTH readers of a row (:func:`resolve_credential`,
+  :func:`credential_status`) take the address the caller is about to use and answer through
+  one predicate (:func:`_held`): a different address is :attr:`CredentialRefusal.HOST_MISMATCH`,
+  never the value. The address is never the request's word: ``runtime.lens.credential.set``
+  reads it off the monitors that name the ref (:func:`sign_in_host`). An ingress route's
+  secret is saved for no address (``host=None``) and only the door reads it.
+  **A row an earlier build wrote has no ``host`` and fails closed**: it reads as not signed in
+  for every address until the person saves it again (it still serves as a route's secret,
+  which is sent nowhere).
 * One-way migration: values an earlier build wrote to the pool's ``lens`` slice
   (stamped with this home's digest) are moved into the file and removed from the
   pool the first time this home's credentials are touched (:func:`migrate_pool_slice`).
@@ -31,8 +42,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, UTC
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
+from .feed import address_parts, feed_address
 from .wire_value import bounded_string, format_utc, opaque_id
 
 __layer__ = "stores"
@@ -51,6 +63,48 @@ _MIGRATED: set[str] = set()
 class CredentialScheme(str, Enum):
     BEARER = "bearer"
     BASIC = "basic"
+
+
+class CredentialRefusal(str, Enum):
+    """Why a read gets no credential. The values are ``ReadReason`` values (``sources``)."""
+
+    MISSING = "credential_missing"
+    HOST_MISMATCH = "credential_host_mismatch"
+
+
+#: The host of a feed whose kind sends nowhere: equal to no saved address, so it holds no credential.
+NO_ADDRESS = ""
+
+
+def credential_host(url: str) -> str:
+    """``scheme://name:port`` of an http(s) address — what a credential is saved for. The port is
+    always written, so ``https://a`` and ``https://a:443`` are one address and ``:8443`` another."""
+
+    scheme, name, port = address_parts(url)
+    return f"{scheme}://{name}:{port}"
+
+
+def feed_host(feed: dict[str, Any]) -> str:
+    """The address ``feed``'s credential must be saved for (:data:`NO_ADDRESS` when it sends nowhere)."""
+
+    address = feed_address(feed)
+    return NO_ADDRESS if address is None else credential_host(address)
+
+
+def sign_in_host(ref: str, manifests: Iterable[dict[str, Any]]) -> str:
+    """The one address the feeds naming ``ref`` in ``manifests`` read — what a sign-in is saved for.
+
+    Refused ``credential_host_unknown`` when no feed names the ref and
+    ``credential_host_ambiguous`` when they read several addresses: a secret is never saved for
+    an address nobody chose, and never for a guess between two."""
+
+    from .store import LensStoreError, StoreRefusal
+
+    hosts = {feed_host(feed) for manifest in manifests for feed in manifest["feeds"]
+             if feed.get("credential_ref") == ref} - {NO_ADDRESS}
+    if len(hosts) != 1:
+        raise LensStoreError(StoreRefusal.CREDENTIAL_HOST_AMBIGUOUS if hosts else StoreRefusal.CREDENTIAL_HOST_UNKNOWN)
+    return hosts.pop()
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,9 +202,10 @@ def _own_row(ref: str) -> dict[str, Any] | None:
     return _read_credentials_file().get(ref)
 
 
-def set_credential(ref: str, *, scheme: str, secret: str, username: str | None = None,
+def set_credential(ref: str, *, scheme: str, secret: str, host: str | None, username: str | None = None,
                    now: datetime | None = None) -> dict[str, Any]:
-    """Write (or rotate) ``ref`` in this home's file. Returns its status, never the value."""
+    """Write (or rotate) ``ref`` in this home's file, saved for ``host`` (:func:`credential_host`;
+    None for an ingress route's secret, which is sent nowhere). Returns its status, never the value."""
 
     ref = opaque_id(ref)
     kind = CredentialScheme(scheme)
@@ -163,11 +218,13 @@ def set_credential(ref: str, *, scheme: str, secret: str, username: str | None =
     row: dict[str, Any] = {"scheme": kind.value, "secret": secret, "rotated_at": format_utc(now or datetime.now(UTC))}
     if username is not None:
         row["username"] = username
+    if host is not None:
+        row["host"] = host
     with _LOCK:
         rows = _read_credentials_file()
         rows[ref] = row
         _write_file(rows)
-    return credential_status(ref)
+    return credential_status(ref, host=host)
 
 
 def forget_credential(ref: str) -> bool:
@@ -183,21 +240,34 @@ def forget_credential(ref: str) -> bool:
     return True
 
 
-def credential_status(ref: str) -> dict[str, Any]:
-    """``{ref, set, rotated_at}`` — presence and rotation only (the Launcher's write-only view)."""
-
-    row = _own_row(opaque_id(ref))
-    return {"ref": ref, "set": row is not None, "rotated_at": None if row is None else row.get("rotated_at")}
-
-
-def resolve_credential(ref: str) -> LensCredential | None:
-    """The credential for one read, or None when this home holds no such reference."""
+def _held(ref: str, host: str | None) -> tuple[dict[str, Any] | None, CredentialRefusal | None]:
+    """``(row, refusal)``: this home's row for ``ref`` and why a caller at ``host`` may not use it
+    (None when it may). The ONE place a saved address meets the address about to be used."""
 
     row = _own_row(opaque_id(ref))
     if row is None or not isinstance(row.get("secret"), str) or not row["secret"]:
-        return None
+        return None, CredentialRefusal.MISSING
+    return row, None if row.get("host") == host else CredentialRefusal.HOST_MISMATCH
+
+
+def credential_status(ref: str, *, host: str | None) -> dict[str, Any]:
+    """``{ref, set, rotated_at, host}`` for a caller at ``host`` — presence and rotation only (the
+    Launcher's write-only view). ``set`` is true only when the value would be sent to ``host``;
+    ``host`` is the address it is saved for (null: none, or saved before addresses were recorded)."""
+
+    row, refusal = _held(ref, host)
+    return {"ref": ref, "set": refusal is None, "rotated_at": None if row is None else row.get("rotated_at"),
+            "host": None if row is None else row.get("host")}
+
+
+def resolve_credential(ref: str, *, host: str | None) -> LensCredential | CredentialRefusal:
+    """The credential for one read at ``host`` (None: an ingress route's own secret), or why not."""
+
+    row, refusal = _held(ref, host)
+    if refusal is not None:
+        return refusal
     try:
         scheme = CredentialScheme(row.get("scheme"))
     except ValueError:
-        return None
+        return CredentialRefusal.MISSING
     return LensCredential(ref=ref, scheme=scheme, secret=row["secret"], username=row.get("username"))

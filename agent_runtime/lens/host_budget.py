@@ -3,9 +3,9 @@
 Plan ``LENS_EXTENSIONS_2026-10-27.md`` §2 decisions 1–3. A feed's own pacing
 (``poller._FeedClock.period``) cannot see that four monitors read one host; this can.
 
-* The host key is the lowercase hostname and effective port of the URL a pulled HTTP
-  source reads (``http_json``'s ``url``, ``prometheus``'s ``base_url`` or its
-  ``via: kube_proxy`` base). ``sql_readonly``, ``command_allowlisted`` and ``push`` read
+* The host key is the lowercase hostname and effective port of the address a pulled HTTP
+  source reads (``feed.feed_address``: ``http_json``'s ``url``, ``prometheus``'s ``base_url``
+  or its ``via: kube_proxy`` base). ``sql_readonly``, ``command_allowlisted`` and ``push`` read
   no host and spend no budget (:func:`host_key` answers None).
 * Each host has a token bucket, in memory, process-wide (one poller per serve owns every
   read): a public host refills at ``host_reads_per_minute_public`` (burst
@@ -25,34 +25,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable
-from urllib.parse import urlsplit
+from typing import Any
 
-from .feed import FeedKind, kube_proxy_base_url
+from .feed import address_parts, feed_address
 
 __layer__ = "policy"
 
 PUBLIC_BURST = 5
 PRIVATE_BURST = 20
-_DEFAULT_PORTS = {"http": 80, "https": 443}
-
-
-#: The URL each pulled HTTP kind reads, by kind (a kind not here reads no host).
-_SOURCE_URL: dict[FeedKind, Callable[[dict[str, Any]], str]] = {
-    FeedKind.HTTP_JSON: lambda source: source["url"],
-    FeedKind.PROMETHEUS: lambda source: kube_proxy_base_url(source) if "via" in source else source["base_url"],
-}
 
 
 def host_key(feed: dict[str, Any]) -> str | None:
     """``"<host>:<port>"`` for a pulled HTTP feed, else None (no host, no budget)."""
 
-    reader = _SOURCE_URL.get(FeedKind(feed["kind"]))
-    if reader is None:
+    address = feed_address(feed)
+    if address is None:
         return None
-    parts = urlsplit(reader(feed["source"]))
-    host = (parts.hostname or "").lower()
-    port = parts.port or _DEFAULT_PORTS.get(parts.scheme.lower(), 0)
+    _scheme, host, port = address_parts(address)
     return f"{host}:{port}"
 
 

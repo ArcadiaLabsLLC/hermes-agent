@@ -65,6 +65,8 @@ class ReadReason(str, Enum):
     NOT_A_NUMBER = "not_a_number"
     PRIVATE_ADDRESS_REFUSED = "private_address_refused"
     CREDENTIAL_MISSING = "credential_missing"
+    #: The feed's credential is saved for another address (or for none): it is never sent.
+    CREDENTIAL_HOST_MISMATCH = "credential_host_mismatch"
     NO_SERIES = "no_series"
     AMBIGUOUS_SERIES = "ambiguous_series"
     QUERY_FAILED = "query_failed"

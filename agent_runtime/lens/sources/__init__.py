@@ -3,8 +3,9 @@
 :func:`read_feed_source` is the one door a poll or a preview reads through. It
 resolves the feed's ``credential_ref`` from the home's Lens credential file FOR THIS
 READ (``lens.credentials``) and hands the source only the request headers; a
-reference this home does not hold is a ``credential_missing`` read, never an
-unauthenticated one.
+reference this home does not hold is a ``credential_missing`` read and one saved for
+another address a ``credential_host_mismatch`` read — never an unauthenticated one,
+and never a secret sent to an address its owner did not save it for.
 
 :func:`typed_result` is the one place a read meets its feed's ``value_type``,
 ``plausible`` range, outlier guard and total cost (W2, W5): the poller records it
@@ -44,7 +45,7 @@ def read_feed_source(feed: dict[str, Any], *, client: Any = None, resolver: Any 
     ``validators`` makes a :data:`CONDITIONAL_KINDS` read conditional (the poller's, per
     feed); other kinds ignore them."""
 
-    from ..credentials import resolve_credential
+    from ..credentials import CredentialRefusal, feed_host, resolve_credential
 
     kind = FeedKind(feed["kind"])
     if kind is FeedKind.PUSH:
@@ -57,9 +58,9 @@ def read_feed_source(feed: dict[str, Any], *, client: Any = None, resolver: Any 
     headers = {"Accept": "application/json"}
     ref = feed.get("credential_ref")
     if ref is not None:
-        credential = resolve_credential(ref)
-        if credential is None:
-            return unavailable(ReadReason.CREDENTIAL_MISSING)
+        credential = resolve_credential(ref, host=feed_host(feed))
+        if isinstance(credential, CredentialRefusal):
+            return unavailable(ReadReason(credential.value))
         headers.update(credential.headers())
     conditional = {"validators": validators} if validators is not None and kind in CONDITIONAL_KINDS else {}
     try:
