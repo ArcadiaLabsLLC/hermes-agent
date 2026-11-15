@@ -45,6 +45,9 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-11-15 (lane w1115c-h2: tracing `FH-CHAT-REPLY-LANES-START-FRAME-WAIT-RED-UNDER-LOAD`)
+- **`RT-RUNNING-TURN-START-ROW-WAITS-OUT-THE-DEMOTE-HOLD` — A second console sees a running chat turn appear moments after it starts, not after a fixed three-and-a-half-second hold** · group: engine-suite-green-followups · seen 2026-11-15 (w1115c-h2, `tests/agent_runtime/test_serve_gateway_chat_reply_lanes.py` traced on one clock, quiet CPUs): `persona_chat.turn_started` appended +0.35 s after the ack, then the hub logged `snapshot_build_deferred reason=demote waited_ms=3500 runs_in_flight_at_exit=1 admitted_at_exit=1 bound_ms=3500`, then a 0.1 s build, and the frame naming the start reached the subscriber +4.0 s after the event (subscriber `fold_entities=incident,persona_instance`, so it does not fold the turn overlay) · read in code, not traced further: the hold is `agent_runtime/stream/build_policy.py`'s demote deferral (`SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS`, waits while a turn is admitted or a run is in flight), while `agent_runtime/snapshot_turn_yield.py` says builds must still run between a turn's hot windows for a room that does not fold the overlay, so its start row reaches it · guess: the deferral could let a batch that carries `persona_chat.turn_started`/`turn_ended` through, or the 3.5 s is the intended trade-off (the owner's call) · architecture: fork-owned stream lane — the facts are the event batch (`agent_runtime/stream/frames.py` `batch_changes_running_work_presence` already names it), the policy is the deferral in `agent_runtime/stream/build_policy.py`; no Flutter change; a latency row, not a correctness one, so review may move it to a speed task · NEW 2026-11-15 · NEEDS PLAN 2026-11-15
+
 ### Filed on arrival — 2026-11-15 (review batch w1114a.43, REVIEW_W1114A_B42)
 
 
