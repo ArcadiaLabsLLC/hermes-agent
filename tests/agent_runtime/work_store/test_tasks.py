@@ -162,6 +162,30 @@ def test_sibling_rows_reads_both_brains_beside_a_worktree_and_origin_main_when_i
     assert tasks.sibling_rows(tmp_path / "lanes" / "nowhere", environ={}) == {}
 
 
+def test_origin_blobs_reads_every_note_in_one_batch_as_one_cat_file_each_would(tmp_path: Path) -> None:
+    """FH-PREPUSH-GATES-OVER-BUDGET: ``origin/main``'s notes are read with one ``git cat-file --batch``, not one
+    ``cat-file blob`` per note. Each comes back as ``_git`` returned it (CRLF read as LF), a missing path or a
+    tree is skipped, and the batch stays aligned past them. KILLING MUTATIONS: ``at += size`` (drop the body's
+    newline) -> the second note's header is misread, red; skip the ``missing`` header check -> its size is
+    read from the next line, red."""
+
+    repo = tmp_path / "r"
+    (repo / "q dir").mkdir(parents=True)
+    _git(repo, "init", "-q", "-b", "main")
+    notes = {"q dir/a b.md": "one\r\ntwo\n", "q dir/c.md": "é three\n", "q dir/empty.md": ""}
+    for path, text in notes.items():
+        (repo / path).write_bytes(text.encode("utf-8"))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "one")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    asked = ["q dir/no such.md", "q dir/a b.md", "q dir", "q dir/empty.md", "q dir/c.md"]
+    one_each = {p: tasks._git(repo, "cat-file", "blob", f"origin/main:{p}") for p in asked}
+    expected = {p: shown.stdout for p, shown in one_each.items() if shown.returncode == 0 and p != "q dir"}
+    assert tasks._origin_blobs(repo, asked) == expected
+    assert expected == {"q dir/a b.md": "one\ntwo\n", "q dir/empty.md": "", "q dir/c.md": "é three\n"}
+    assert tasks._origin_blobs(repo, []) == {}
+
+
 def test_write_task_defects_holds_only_the_rows_a_write_changes() -> None:
     """RT-QUEUE-TASK-RULES-AT-WRITE. KILLING MUTATIONS: treat every row as changed (drop the prior filter) -> the
     carried RT-OLD is refused, red; drop the uses-no-tasks exemption -> the Work brain's untasked append is refused,

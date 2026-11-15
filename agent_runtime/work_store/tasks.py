@@ -249,11 +249,38 @@ def _origin_texts(repo: Path, queue_dir: str) -> dict[str, str] | None:
     listing = _git(repo, "ls-tree", "-z", "--name-only", "origin/main", "--", f"{queue_dir}/")
     if listing.returncode:
         return None
-    texts = {}
-    for path in (p for p in listing.stdout.split("\0") if p.endswith(".md")):
-        shown = _git(repo, "cat-file", "blob", f"origin/main:{path}")
-        if shown.returncode == 0:
-            texts[path.rsplit("/", 1)[-1]] = shown.stdout
+    paths = [p for p in listing.stdout.split("\0") if p.endswith(".md")]
+    return {path.rsplit("/", 1)[-1]: text for path, text in _origin_blobs(repo, paths).items()}
+
+
+#: A found object's ``git cat-file --batch`` header: ``<sha> <type> <size>``.
+_BATCH_HEADER = re.compile(rb"^[0-9a-f]{40,64} ([a-z]+) ([0-9]+)$")
+
+
+def _origin_blobs(repo: Path, paths: list[str]) -> dict[str, str]:
+    """``origin/main:<path>`` of each of ``paths`` that is a blob there, read with ONE ``git cat-file --batch``.
+
+    One ``cat-file blob`` per note was 128 git starts per call on the launcher brain, ~1 s of the prepush gates
+    step at load ~60 (FH-PREPUSH-GATES-OVER-BUDGET). Decoded as :func:`_git` decodes (UTF-8, replace)."""
+
+    if not paths:
+        return {}
+    proc = subprocess.run(["git", "-C", str(repo), "cat-file", "--batch"], capture_output=True,
+                          input="".join(f"origin/main:{path}\n" for path in paths).encode("utf-8"), check=False)
+    if proc.returncode:
+        return {}
+    out, at, texts = proc.stdout, 0, {}
+    for path in paths:
+        end = out.index(b"\n", at)
+        header = _BATCH_HEADER.match(out[at:end])
+        at = end + 1
+        if header is None:
+            continue  # `<name> missing` / `<name> ambiguous`: no body follows
+        size = int(header.group(2))
+        if header.group(1) == b"blob":
+            # text mode's universal newlines, as ``_git`` reads
+            texts[path] = out[at:at + size].decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+        at += size + 1
     return texts
 
 
