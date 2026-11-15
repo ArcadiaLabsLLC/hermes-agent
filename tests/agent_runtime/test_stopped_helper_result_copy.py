@@ -80,6 +80,13 @@ def model(chat_head):
     yield held
     stop.set()
     held.close()
+    # The delegations this file starts end ``error``/``interrupted`` but stay in the
+    # process-global registry; a later bundle member's running-work projection then
+    # reads the delegation lane as ``live`` (test_stream_contract_fixture's goldens
+    # went red at hydrate.json byte 2811, FH-THREE-ENGINE-TESTS-RED-ONLY-INSIDE-A-BUNDLE).
+    from tools import async_delegation
+
+    async_delegation._reset_for_tests()
 
 
 @pytest.mark.parametrize("partial", ["", "Twelve stars so far"], ids=["nothing_written", "half_written"])
