@@ -612,7 +612,8 @@ _TODO_STATE_VALID_STATUS = {"pending", "in_progress", "completed", "cancelled"}
 def _safe_todo_state(value: Any) -> list[dict[str, str]] | None:
     """Bounded, validated todo checklist for persistence.
 
-    Keeps only ``{id, content, status}`` per item, caps item count and content
+    Keeps only ``{id, content, status, parent?}`` per item (``parent`` only when it
+    names another kept item), caps item count and content
     length, and normalises unknown statuses to ``pending``. Returns ``None`` only
     when ``value`` is not a list (absent / non-todo element), so a non-todo
     element never gains the key.
@@ -625,6 +626,7 @@ def _safe_todo_state(value: Any) -> list[dict[str, str]] | None:
     if not isinstance(value, list):
         return None
     items: list[dict[str, str]] = []
+    parents: list[str] = []
     for raw in value[:_TODO_STATE_MAX_ITEMS]:
         if not isinstance(raw, dict):
             continue
@@ -634,6 +636,13 @@ def _safe_todo_state(value: Any) -> list[dict[str, str]] | None:
         if status not in _TODO_STATE_VALID_STATUS:
             status = "pending"
         items.append({"id": item_id, "content": content, "status": status})
+        parents.append(safe_assignment_text(raw.get("parent"), limit=120))
+    # RT-TODO-STATE-KEEPS-STEP-PARENT: the producer's rule (``tool_payloads._todo_state_items``)
+    # re-applied — a parent survives only when it names ANOTHER item inside this capped list.
+    ids = {item["id"] for item in items}
+    for item, parent in zip(items, parents):
+        if parent and parent != item["id"] and parent in ids:
+            item["parent"] = parent
     return items
 
 

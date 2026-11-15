@@ -559,6 +559,10 @@ class ChatTurnLane(LanePass):
                 # The running card's "Send to background" (``runtime.work.background.promote``).
                 "promotable": _promotable(turn_id, current.call_id),
             }
+        plan = _plan_progress(live.plan)
+        if plan is not None:
+            # RT-RUNNING-CHAT-TURN-CARRIES-PLAN-PROGRESS: ``{done, total, current}``; absent = no plan.
+            row["plan"] = plan
         for call in live.tools:
             if call.foreground is not None:
                 self.foreground_row(row, turn_id, call)
@@ -625,6 +629,17 @@ class ChatTurnLane(LanePass):
         titles = _chat_titles(sessions - {""})
         for row in turns:
             row["title"] = titles.get((row.get("owner") or {}).get("session_id") or "", "")
+
+
+def _plan_progress(items: Any) -> dict[str, Any] | None:
+    """The live turn's plan summary, counted by the ``todo_state`` producer's own bounds; fail-safe."""
+
+    try:
+        from ..profile_runner.tool_payloads import _todo_plan_progress
+
+        return _todo_plan_progress(items)
+    except Exception:  # a cosmetic summary never breaks the row
+        return None
 
 
 def _takes_steer(session_id: str, client_message_id: Any) -> bool:
