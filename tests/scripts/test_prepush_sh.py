@@ -508,6 +508,28 @@ def test_a_named_file_that_is_not_a_test_is_skipped_and_said(repo: Path):
             in proc.stdout
 
 
+def test_the_contract_checks_write_bytecode_and_run_side_by_side(repo: Path):
+    """FH-PREPUSH-CONTRACTS-OVER-BUDGET: the step's cost is the cold import of ~980 modules, paid on every
+    run while the agent shell's PYTHONDONTWRITEBYTECODE=1 kept any .pyc from being written. KILLING
+    MUTATIONS: drop the ``unset PYTHONDONTWRITEBYTECODE`` in ``_contracts`` -> both checks log ``dwb=1``,
+    red; run the manifest check to completion before the CLI check -> it waits out the CLI check's start
+    marker and goes red."""
+    (repo / "agent_runtime").mkdir()
+    (repo / "agent_runtime" / "board.py").write_text("x = 1\n", encoding="utf-8")  # untracked
+    marker = repo.parent / "cli.started"
+    py = _stub(repo.parent / "py.sh", 0, repo.parent / "calls.log",
+               'case "$*" in\n'
+               f'  *dump_cli_contract*) echo "cli dwb=${{PYTHONDONTWRITEBYTECODE-unset}}" >> "{repo.parent}/env.log"'
+               f'; touch "{marker}" ;;\n'
+               f'  *_serve_rpc_manifest*) echo "manifest dwb=${{PYTHONDONTWRITEBYTECODE-unset}}" >> "{repo.parent}/env.log"\n'
+               f'    for _ in $(seq 50); do [ -e "{marker}" ] && exit 0; sleep 0.1; done; echo "ran alone"; exit 1 ;;\n'
+               'esac')
+    proc, _ = _run(repo, env_extra={"PREPUSH_PYTHON": str(py), "PYTHONDONTWRITEBYTECODE": "1"})
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    seen = sorted((repo.parent / "env.log").read_text(encoding="utf-8").splitlines())
+    assert seen == ["cli dwb=unset", "manifest dwb=unset"]
+
+
 def test_a_runtime_or_cli_change_checks_the_two_recorded_contracts(repo: Path):
     """RT-PREPUSH-MISSES-STALE-RPC-MANIFEST-AND-CLI-DUMP (a stale serve-RPC manifest passed prepush at
     9966cb8023 and was found by a grep). KILLING MUTATIONS: never set ``CONTRACTS=1`` -> no contract check
@@ -522,8 +544,9 @@ def test_a_runtime_or_cli_change_checks_the_two_recorded_contracts(repo: Path):
     proc, calls = _run(repo)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     ran = calls.splitlines()
-    assert ran[2] == "-m tests.agent_runtime._serve_rpc_manifest"
-    assert ran[3].endswith("scripts/dump_cli_contract.py --check")
+    contracts = sorted(ran[2:4])  # side by side, so either may log first
+    assert contracts[0] == "-m tests.agent_runtime._serve_rpc_manifest"
+    assert contracts[1].endswith("scripts/dump_cli_contract.py --check")
     assert len(ran) == 5, "gates, doc-cite, the two contract checks, the touched lane"
     stale = _stub(repo.parent / "stale.sh", 0, repo.parent / "calls.log",
                   'case "$*" in *_serve_rpc_manifest*) echo "stale: run --write"; exit 1 ;; esac')
