@@ -988,10 +988,13 @@ def launch_detached_gateway_restart_by_cmdline(old_pid: int, run_argv: list[str]
 
 def launch_detached_profile_gateway_restart(profile: str, old_pid: int) -> bool:
     """Relaunch a manually-run profile gateway after its current PID exits."""
+    from hermes_cli.profiles import get_profile_dir
+
     return old_pid > 0 and _spawn_gateway_restart_watcher(
         old_pid,
         _gateway_run_args_for_profile(profile),
         host=profile == "default",
+        home=str(get_profile_dir(profile)) if sys.platform == "win32" else None,
     )
 
 
@@ -1171,9 +1174,14 @@ def _spawn_gateway_restart_watcher(old_pid: int, run_argv: list[str], *, host: b
     devnull = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     # Host respawn must not inherit a named launcher's dotenv. The watcher copies os.environ
     # into the gateway child, so the scrub has to be the watcher's own environ.
-    watcher_env = _host_gateway_watcher_env() if (
-        _restart_argv_is_host_gateway(run_argv) if host is None else host
-    ) else None
+    if sys.platform == "win32" and home:
+        from hermes_cli.gateway_windows_launcher import restart_watcher_profile_environment
+
+        watcher_env = restart_watcher_profile_environment(home)
+    else:
+        watcher_env = _host_gateway_watcher_env() if (
+            _restart_argv_is_host_gateway(run_argv) if host is None else host
+        ) else None
     popen_env = {"env": watcher_env} if watcher_env is not None else {}
     # Same detach for the watcher itself, so closing the terminal doesn't kill it.
     try:

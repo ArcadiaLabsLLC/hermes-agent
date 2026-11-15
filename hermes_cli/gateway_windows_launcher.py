@@ -110,3 +110,16 @@ def write_task_script_or_warn() -> bool:
         print("    Re-run from the Hermes environment: hermes gateway install")
         return False
     return True
+
+
+def restart_watcher_profile_environment(home: str) -> dict[str, str]:
+    """Pin the paused runtime's home and credentials through the detached child bootstrap."""
+    from tools.environments.local import served_profile_child_env
+    from tools.environments.local_env_policy import GATEWAY_PROFILE_PIN_ENV, strip_supervised_process_identity
+
+    env = served_profile_child_env(target_home=home, inherit_credentials=True)
+    env.pop("_HERMES_GATEWAY", None)
+    # A selectorless root otherwise follows active_profile. The home pin also lets a captured
+    # argv be replayed verbatim, which the updater needs to verify the replacement.
+    env[GATEWAY_PROFILE_PIN_ENV] = "1"
+    return strip_supervised_process_identity(env)
