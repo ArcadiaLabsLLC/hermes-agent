@@ -22,6 +22,14 @@ retire                 {monitor_id} -> monitor (stopped for good; its data stays
 get                    {monitor_id} -> monitor + credentials: [{feed_id, ref, set, rotated_at}]
                        + equivalence_evidence: null | {draft_digest, stale, members:
                        {<feed_id>: {why, cited}}} (a proposal's W5 justification; source-derived)
+                       + guidance: {text, source: monitor|workspace|shipped, draft: null | {text,
+                       source}} (the rules the sealed revision runs under, else the draft's;
+                       ``draft`` is a waiting next revision's). A monitor's own rules are its
+                       manifest's ``guidance`` key, written by ``create`` and frozen by ``seal``
+guidance.default.get   {workspace_id?} -> {workspace_id, text, source: workspace|shipped,
+                       updated_at_ms, shipped_text} (absent ``workspace_id``: the active workspace)
+guidance.default.set   {workspace_id?, text: str | null} -> the same (``null`` forgets the workspace's
+                       text and the shipped text applies; ``lens.guidance``, kept in the Lens store)
 preview                {manifest} -> {feeds: [{feed_id, status, number, reason, http_status}]}
                        (one read per feed, typed as the poller would store it;
                        NOTHING is written)
@@ -189,8 +197,36 @@ def _runtime_lens_get(rid: Any, params: dict, context: RpcContext | None = None)
 
         store = _store()
         monitor = store.get(_monitor_id(params))
+        from agent_runtime.lens.guidance import monitor_guidance
+
         return {**monitor, "credentials": _credentials_of(monitor),
-                "equivalence_evidence": equivalence_evidence(store, monitor)}
+                "equivalence_evidence": equivalence_evidence(store, monitor),
+                "guidance": monitor_guidance(store, monitor)}
+
+    return _lens_call(rid, body)
+
+
+def _default_workspace(params: dict) -> str | None:
+    from agent_runtime.lens.store_scope import active_workspace_id, workspace_param
+
+    return workspace_param(params) or active_workspace_id()
+
+
+@method("runtime.lens.guidance.default.get", tier=TIER_CONSOLE)
+def _runtime_lens_guidance_default_get(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    from agent_runtime.lens.guidance import workspace_guidance
+
+    return _lens_call(rid, lambda: workspace_guidance(_store(), _default_workspace(params)))
+
+
+@method("runtime.lens.guidance.default.set", tier=TIER_CONSOLE)
+def _runtime_lens_guidance_default_set(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from agent_runtime.lens.guidance import set_workspace_guidance
+        from agent_runtime.lens.wire_value import checked_object
+
+        m = checked_object(params if params is not None else {}, {"text"}, {"workspace_id"})
+        return set_workspace_guidance(_store(), _default_workspace(m), m["text"])
 
     return _lens_call(rid, body)
 

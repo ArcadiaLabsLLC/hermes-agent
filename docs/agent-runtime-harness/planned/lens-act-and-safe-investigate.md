@@ -33,6 +33,21 @@ revision, so a change is a reseal and shows as a diff); a monitor without one us
 > Act only with the actions listed for this monitor, and only when the action can be undone.
 > Anything else, or anything you are unsure of, goes to the owner.
 
+**As built (RT-LENS-MONITOR-RULES, 2026-11-14).** In code the ruleset is *guidance* (`rules` already
+names the trigger list): manifest key `guidance` (optional, ≤ 4 KiB, non-blank, sealed; absent emits no
+bytes), `agent_runtime/lens/guidance.py`. The workspace default is not a root-config key: it is a
+per-workspace row in the Lens store (`guidance_defaults`), written over the RPC, so it needs no config file
+and survives a serve restart; with none, the shipped text above applies. The RPC:
+
+- `runtime.lens.get` adds `guidance: {text, source: monitor|workspace|shipped, draft: null | {text, source}}`
+  — the sealed revision's effective rules (a never-sealed monitor's draft's); `draft` is a waiting next
+  revision's. A monitor's own rules are written by `runtime.lens.create` (the manifest's `guidance`) and
+  frozen by `runtime.lens.seal`.
+- `runtime.lens.guidance.default.get {workspace_id?}` and `runtime.lens.guidance.default.set {workspace_id?,
+  text: str | null}` → `{workspace_id, text, source: workspace|shipped, updated_at_ms, shipped_text}`;
+  absent `workspace_id` is the active workspace, `text: null` restores the shipped text. Console tier; no
+  persona tool writes rules (`lens_propose` has no `guidance` argument).
+
 **The check** is `approval_smart`'s guardian with a Lens prompt: the ruleset goes in the system prompt
 (trusted); the request goes in a fenced user block (untrusted). It runs at exactly two points:
 

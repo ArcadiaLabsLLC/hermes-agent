@@ -28,6 +28,13 @@ Ported from Companion's ``monitor_manifest.dart`` (``MonitorManifest``,
   monitor, and ``schedule_over_cap`` when the cap would clip it every day (``schedules.py``
   produces the runs).
 
+* ``guidance`` (OPTIONAL, design ``planned/lens-act-and-safe-investigate.md`` §2, row
+  ``RT-LENS-MONITOR-RULES``): the monitor's plain-language RULES the operator writes (what is worth
+  investigating, what it may do alone), at most :data:`MAXIMUM_GUIDANCE_BYTES`, sealed with the
+  revision so a change is a reseal and shows as a diff. Named ``guidance`` because ``rules`` is the
+  trigger list; Eternia shows it as "Rules". Absent (or ``null``) is today's bytes, and the monitor
+  follows its workspace default (``guidance.py``).
+
 The schema is CLOSED at every level: a manifest with one unknown key is refused,
 as is a missing key, a duplicate feed or rule id, a rule naming a feed the
 manifest does not carry, and a document over 64 KiB canonical.
@@ -72,6 +79,8 @@ DAY_MS = 24 * 60 * 60 * 1000
 MINIMUM_SCHEDULE_EVERY_MS = DAY_MS // MAXIMUM_DAILY_TURN_CAP
 MAXIMUM_SCHEDULE_EVERY_MS = 7 * DAY_MS
 MAXIMUM_SCHEDULE_BRIEF_BYTES = 1024
+#: The longest plain-language rules text one monitor (or one workspace default) carries.
+MAXIMUM_GUIDANCE_BYTES = 4096
 
 
 class AutomationLevel(str, Enum):
@@ -86,7 +95,7 @@ class AutomationWhen(str, Enum):
 
 MANIFEST_KEYS = frozenset({"version", "monitor_id", "feeds", "rules", "automation", "persona_id"})
 #: Optional top-level keys: read only when present, emitted only when present.
-OPTIONAL_MANIFEST_KEYS = frozenset({"schedule"})
+OPTIONAL_MANIFEST_KEYS = frozenset({"schedule", "guidance"})
 SCHEDULE_KEYS = frozenset({"every_ms", "offset_ms", "brief"})
 AUTOMATION_KEYS = frozenset({"level", "when", "daily_turn_cap"})
 #: Optional automation keys and their ceilings: read only when present, emitted only when present.
@@ -116,6 +125,14 @@ def read_schedule(value: Any) -> dict[str, Any]:
             "brief": bounded_string(m["brief"], maximum=MAXIMUM_SCHEDULE_BRIEF_BYTES)}
 
 
+def read_guidance(value: Any) -> str:
+    """A rules text: non-blank, at most :data:`MAXIMUM_GUIDANCE_BYTES`, line breaks and tabs allowed."""
+
+    text = bounded_string(value, maximum=MAXIMUM_GUIDANCE_BYTES, layout=True)
+    require(bool(text.strip()), "guidance")
+    return text
+
+
 def _check_schedule(manifest: dict[str, Any]) -> None:
     schedule, automation = manifest.get("schedule"), manifest["automation"]
     if schedule is None:
@@ -140,6 +157,8 @@ def read_manifest(value: Any) -> dict[str, Any]:
     }
     if m.get("schedule") is not None:
         manifest["schedule"] = read_schedule(m["schedule"])
+    if m.get("guidance") is not None:
+        manifest["guidance"] = read_guidance(m["guidance"])
     feed_ids = [feed["id"] for feed in manifest["feeds"]]
     require(len(set(feed_ids)) == len(feed_ids), "duplicate feed id")
     rule_ids = [rule["id"] for rule in manifest["rules"]]
