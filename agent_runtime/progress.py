@@ -10,6 +10,7 @@ from .errors import EventPayloadTooLarge
 from .events import EventLog
 from .models import Event
 from .redaction import REDACTED_SECRET_LINE, has_secret_value, safe_file_labels, scrub_display_text, scrub_secret_values
+from .mission_chat_turns import _safe_todo_state
 from .redaction_mode import redaction_observe_enabled
 from .stream_gap_receipt import REASONING_USAGE_STEP
 
@@ -75,6 +76,13 @@ _SAFE_PROGRESS_KEYS = {
     # pairs started with finished, the verdict, and the terminal deadline. Each
     # is admitted only through its typed check in ``_TYPED_TOOL_CALL_FIELDS``.
     "tool_call_id", "outcome", "timed_out", "timeout_seconds",
+    # The plan tool's checklist (RT-SERVE-CHAT-DROPS-THE-PLAN-WRITE): the bounded
+    # ``{id, content, status, parent?}`` list ``tool_payloads._todo_state_payload``
+    # puts on a todo ``run.tool.finished``. Admitted ONLY through the saved-turn
+    # bound ``mission_chat_turns._safe_todo_state`` (item cap, per-field text cap,
+    # status words, parent only when it names a kept item) — never a free-form
+    # value — so the live element and the saved turn see the same shape.
+    "todo_state",
 }
 
 # Bounds for the operator-detail fields (event payload cap is 4096 bytes).
@@ -508,6 +516,9 @@ def _append_bounded_event(event_log: EventLog, event: Event) -> None:
         ("tool_input", "tool_input_truncated"),
         ("dispatch_reply", "dispatch_reply_truncated"),
         ("dispatch_order", "dispatch_order_truncated"),
+        # Last: the live frame already carried the plan (``on_trace`` runs before
+        # this append), so only the trace row loses it, and only when nothing else fit.
+        ("todo_state", "todo_state_truncated"),
     ):
         if drop_key not in payload:
             continue
@@ -542,6 +553,16 @@ def _safe_progress_payload(event_type: str, payload: dict[str, Any]) -> dict[str
             if observe:
                 safe[key] = _observe_value(value)
                 _mark_would_redact(safe, key, "unsupported_progress_key")
+            continue
+        bound = _BOUNDED_SHAPE_FIELDS.get(key)
+        if bound is not None:
+            shaped = bound(value)
+            if shaped is not None:
+                safe[key] = shaped
+                _note_scrub(safe, key, value, key, observe)
+            elif observe:
+                safe[key] = _observe_value(value)
+                _mark_would_redact(safe, key, key)
             continue
         typed_check = _TYPED_TOOL_CALL_FIELDS.get(key)
         if typed_check is not None:
@@ -667,6 +688,30 @@ def _safe_progress_payload(event_type: str, payload: dict[str, Any]) -> dict[str
             else:
                 safe[key] = value
     return safe
+
+
+def _safe_plan(value: Any) -> list[dict[str, str]] | None:
+    """The plan checklist the sink admits: the saved-turn shape, secret values scrubbed.
+
+    ``_safe_todo_state`` gives the bounded ``{id, content, status, parent?}`` list (or
+    ``None`` for a non-list); every text field is then value-scrubbed the way the
+    sink's other operator lines are, and bounded again so the result IS what the
+    saved turn re-derives from it (scrubbing is deterministic, so a parent still
+    names its item)."""
+
+    plan = _safe_todo_state(value)
+    if plan is None:
+        return None
+    scrubbed = [{field: scrub_secret_values(text) if field != "status" else text
+                 for field, text in item.items()} for item in plan]
+    return _safe_todo_state(scrubbed)
+
+
+#: Keys whose value is a STRUCTURE, admitted only as the shape its bound rebuilds
+#: (``None`` = not that shape: dropped, or marked in observe mode). Routing is data.
+_BOUNDED_SHAPE_FIELDS: dict[str, Callable[[Any], Any]] = {
+    "todo_state": _safe_plan,
+}
 
 
 def _note_scrub(payload: dict[str, Any], key: str, original: Any, reason: str, observe: bool) -> None:
