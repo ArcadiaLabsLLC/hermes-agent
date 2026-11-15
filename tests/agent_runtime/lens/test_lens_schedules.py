@@ -230,6 +230,30 @@ def test_a_schedule_that_ran_before_arming_was_kept_arms_at_its_latest_run():
     assert _runs(store)[0] == (2, "scheduled", "2026-10-27T08:00:00.000Z")
 
 
+# --- RT-LENS-RESEAL-BEFORE-FIRST-ARMING-BACK-FILLS-ONCE -----------------------------------------
+# Kill: arm at ``previous.first_seen`` whenever there is no arming row (drop the slot-start check in
+# ``_armed_ms``) -> the re-timed schedule back-fills 10-27's 09:00 slot at once at 10:00: red.
+
+
+def test_a_schedule_re_timed_before_its_first_arming_waits_for_its_new_time():
+    store = _enabled(_monitor(schedule=DAILY_AT_8), armed_at=None)
+    store.save_episode(_run(T0))  # a store from before the arming table: 10-27's 08:00 run
+    _reseal(store, _monitor(schedule={**DAILY_AT_8, "offset_ms": 32_400_000}))  # moved to 09:00, no tick between
+
+    _tick(store, T0 + HOUR)  # 10:30, the first tick that sees the 09:00 timing: its slot began before arming
+    assert len(_runs(store)) == 1
+    _tick(store, T0 + DAY)  # 10-28 09:30: the new time's first slot
+    assert [first for _, _, first in _runs(store)] == ["2026-10-28T09:00:00.000Z", "2026-10-27T08:00:00.000Z"]
+
+
+def test_a_pre_arming_run_on_a_different_cadence_with_the_same_slot_start_keeps_catch_up():
+    store = _enabled(_monitor(schedule={**DAILY_AT_8, "every_ms": 3_600_000, "offset_ms": 0}), armed_at=None)
+    store.save_episode(_run(T0 - DAY))  # a pre-table store: 10-26's 08:00 run sits on an hourly slot start
+
+    _tick(store, T0)  # 09:30: the hourly 09:00 slot is owed once, as catch-up
+    assert _runs(store)[0] == (2, "scheduled", "2026-10-27T09:00:00.000Z")
+
+
 def test_a_paused_monitor_accrues_no_runs():
     store = _enabled(_monitor(schedule=DAILY_AT_8), state=MonitorState.PAUSED)
     _tick(store, T0)

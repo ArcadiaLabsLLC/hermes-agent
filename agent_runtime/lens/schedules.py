@@ -20,7 +20,9 @@ time is the poller's clock on the first tick that sees this ``(every_ms, offset_
 the poller's). A reseal that changes the timing re-arms it (a phase moved later does not back-fill
 the slot the old phase missed); one that keeps it, and a pause, do not, so catch-up still forges its
 one late run. A schedule seen first with runs already recorded (a store from before this table) arms
-at its latest run, so nothing changes for it.
+at its latest run when that run sits on a slot start of the current timing, so nothing changes for
+it; a run on another timing means it was re-timed before that first tick, so it arms then
+(RT-LENS-RESEAL-BEFORE-FIRST-ARMING-BACK-FILLS-ONCE).
 
 ``LensPoller.tick`` calls :func:`record_due_schedule` once per ENABLED monitor, so a paused monitor
 accrues nothing.
@@ -86,8 +88,14 @@ def _armed_ms(store: LensStore, monitor_id: str, schedule: dict[str, Any], *, no
                            (monitor_id,)).fetchone()
         if row is not None and (row[0], row[1]) == timing:
             return int(row[2])
-        # A store from before this table already ran this schedule: arm at its latest run (no change).
-        armed = to_ms(previous.first_seen) if row is None and previous is not None else now_ms
+        # A store from before this table already ran THIS timing (its latest run sits on one of its slot
+        # starts): arm at that run, so catch-up is unchanged. A run on another timing means the schedule was
+        # re-timed before its first tick here: arm now, like any reseal that changes the timing.
+        armed = now_ms
+        if row is None and previous is not None:
+            last = to_ms(previous.first_seen)
+            if slot_start(last, every_ms=timing[0], offset_ms=timing[1]) == last:
+                armed = last
         conn.execute("INSERT OR REPLACE INTO schedule_arming (monitor_id, every_ms, offset_ms, armed_ms) "
                      "VALUES (?, ?, ?, ?)", (monitor_id, *timing, armed))
     return armed
