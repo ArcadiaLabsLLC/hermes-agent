@@ -402,6 +402,10 @@ class CharacterDraft:
         """See :meth:`DirectionStage.set_base_image`."""
         return self._directions.set_base_image(image_path)
 
+    def generate_base_from_concept(self, provider=None) -> Path:
+        """See :meth:`DirectionStage.generate_base_from_concept`."""
+        return self._directions.generate_base_from_concept(provider)
+
     def run_turnaround(self, provider=None) -> dict:
         """See :meth:`DirectionStage.run_turnaround`."""
         return self._directions.run_turnaround(provider)

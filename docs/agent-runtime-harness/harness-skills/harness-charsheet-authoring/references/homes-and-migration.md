@@ -79,8 +79,11 @@ looking in the wrong place. Never chase it.
 **2. Does the image provider actually return an image?** Credentials are
 per-home (`auth.json`), and a plan-gated account fails *politely*: HTTP 200, the
 `image_generation` tool silently stripped from the request, and a model that says
-it has no such tool. It reads exactly like a broken plugin. Spend one cheap
-`image_generate` call before committing to a 16-generation run. (`image_generate`
+it has no such tool. It reads exactly like a broken plugin. When this lane offers
+the `image_generate` tool, spend one cheap call before committing to a
+16-generation run; when it does not, the pipeline still draws through its own
+provider, so the draft's first generation is the probe (the base drawn from the
+concept, for a words-only character — RT-CHARACTER-FROM-WORDS-ALONE-HAS-NO-BASE-IMAGE). (`image_generate`
 is the TOOL; `image_gen` is the toolset that carries it, and separately the
 config section that selects the provider — only one of the two is callable, and
 they differ by one word.) If nothing comes back, report "the image provider is

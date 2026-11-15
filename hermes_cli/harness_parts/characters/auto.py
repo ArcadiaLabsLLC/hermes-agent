@@ -27,6 +27,7 @@ __all__ = [
     "CHARACTER_STEPS",
     "_CHARACTERS_AUTO_STEPS",
     "CharacterStep",
+    "_characters_step_base_from_concept",
     "_characters_auto_next",
     "_characters_auto_plan",
     "_characters_auto_steps",
@@ -84,6 +85,15 @@ def _turnaround_next(draft) -> dict | None:
     if draft.base_image is None:
         return _characters_next("base", "--draft", draft.id, "--image", "<image>")
     return None
+
+
+def _characters_step_base_from_concept(draft) -> tuple[dict, str]:
+    """One text-only generation → the draft's base image (+1 generation)."""
+    target = draft.generate_base_from_concept()
+    return (
+        {"baseImage": str(target), "baseFrom": "concept"},
+        f"Draft {draft.id}: no picture was given, so the base image was drawn from the concept → {target}",
+    )
 
 
 def _run_rows_step(draft) -> tuple[dict, str]:
@@ -313,6 +323,23 @@ def _characters_auto_steps(args, draft, through: str, refuse) -> int:
         )
         refuse(message, step="plan", draft=draft, hint=hint)
         stopped_at, error = "plan", message
+
+    if "turnaround" in plan and draft.base_image is None:
+        # The player gave words and no picture: draw the anchor first (owner
+        # 2026-11-15, "both don't require a picture"). Before the table, not in
+        # it: `base` is no `--through` stop and is never skipped-and-reported
+        # for a draft that was given a picture — a given picture simply wins.
+        try:
+            result, human = _characters_step_base_from_concept(draft)
+        except _CHARACTERS_EXPECTED as exc:
+            refuse(str(exc), step="base", draft=draft, hint=_turnaround_next(draft))
+            stopped_at, error = "base", str(exc)
+            plan = []
+        else:
+            line = {"ok": True, "draft": draft.id, "stage": draft.stage, "step": "base"}
+            line.update(result)
+            _characters_auto_write(args, line, human)
+            ran.append("base")
 
     for step in plan:
         try:

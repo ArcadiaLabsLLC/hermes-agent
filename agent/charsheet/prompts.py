@@ -1,11 +1,13 @@
 """Prompt builders for 8-way character sheets.
 
-Three prompt shapes, one per QA stage of the charsheet draft flow (plan H §4):
+Four prompt shapes, one per QA stage of the charsheet draft flow (plan H §4):
 
 * :func:`build_turnaround_prompt` — ONE wide strip holding the same neutral
   standing pose seen from N authored camera views. This is the identity anchor:
   cross-call identity drift becomes within-image consistency, because a model
   holds a character together far better inside a single generation (§7.1).
+* :func:`build_base_from_concept_prompt` — the base image itself, drawn from
+  the concept alone when the operator gave no picture (one square generation).
 * :func:`build_direction_view_prompt` — a square-canvas re-roll of one view
   when the operator rejects a slice, with the operator's note injected.
 * :func:`build_directional_row_prompt` — an animation strip where the *action*
@@ -311,6 +313,41 @@ def build_turnaround_prompt(
         f"{_strip_layout_spec(slot_count, unit='poses')}"
         f"{_REGISTRATION}"
         f"{_SAME_BG_AS_REF}{prompt_background()}{style_hint(style)}"
+    )
+
+
+def build_base_from_concept_prompt(
+    concept: str,
+    *,
+    style: str | None = "auto",
+) -> str:
+    """The identity anchor drawn from the player's WORDS, when no picture was given.
+
+    Owner ruling 2026-11-15 ("both don't require a picture",
+    RT-CHARACTER-FROM-WORDS-ALONE-HAS-NO-BASE-IMAGE): a picture is optional, and
+    with none the base is generated from the concept. There is no reference to
+    lock identity to, so this is the one prompt without :data:`_IDENTITY_LOCK`
+    or :data:`_SAME_BG_AS_REF` — it INVENTS the design every later prompt then
+    holds to. It asks for the same neutral pose in the front view the
+    turnaround's first slot draws, on the same chroma-key field, so the base
+    grounds the turnaround the way a sliced front view would.
+    """
+    key, view = _view_of("s")
+    concept = (concept or "the character").strip()
+    return (
+        f"Design an original character from this description: {concept}. "
+        f"Draw ONE single pose of the character on a SQUARE canvas, direction "
+        f"{key.upper()}: the character {view}. "
+        f"{_NEUTRAL_POSE}"
+        "Show the WHOLE design clearly — full body, every colour, marking, "
+        "garment and prop the description names — because every later view and "
+        "animation is drawn from this one picture. The character is centered, "
+        "whole-body, uncropped, drawn at a healthy size with an even margin of "
+        "empty background on all four sides, feet resting on an invisible "
+        "conceptual baseline (draw NO ground line, platform, horizon, or contact "
+        "shadow). Draw ONLY this one pose — no strip, no turnaround, no second "
+        "pose, no inset or corner views, no panels, no text. "
+        f"{prompt_background()}{style_hint(style)}"
     )
 
 

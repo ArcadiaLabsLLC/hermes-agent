@@ -65,7 +65,7 @@ five objects it composes.
       migration.py   lanes    migrate_characters_home (+ _migration_entry_id)
       installed.py   stores   sprite_payload, sheet_revision, read_installed_manifest, _handedness_accepted — the installed readers
       draft.py       lanes    CharacterDraft: identity, create/load/list, properties, lock, guards, delegators
-      directions.py  lanes    DirectionStage: base image, turnaround, re-roll/approve directions
+      directions.py  lanes    DirectionStage: base image (given or drawn from the concept), turnaround, re-roll/approve directions
       rows.py        lanes    RowStage: run_rows, reroll_row, add_state
       thumbs.py      lanes    Thumbs: row_thumb, direction_thumb, _finish_thumb
       cells.py       lanes    RowCells: row_cells (an approved row's registered frameW x frameH strip)

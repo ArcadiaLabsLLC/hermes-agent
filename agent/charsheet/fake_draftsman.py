@@ -220,6 +220,10 @@ def slots_for(prompt: str, prefix: str):
     view_prefix = geometry.view_prefix("")
     row_prefix = geometry.row_prefix("")
 
+    if prefix == geometry.PREFIX_BASE_FROM_CONCEPT:
+        # The base drawn from the words alone: one front-view pose on a square.
+        return "square", "s"
+
     if prefix == geometry.PREFIX_TURNAROUND:
         directions = [token.lower() for token in _TURNAROUND_SLOT.findall(prompt)]
         _anchor(directions, prefix, "the numbered per-slot direction list")

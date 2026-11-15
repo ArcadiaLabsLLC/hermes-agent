@@ -43,6 +43,7 @@ STAGES = STAGE_ORDER
 #: The stage each verb requires — the one table the module docstring's "it is
 #: enforced" points at. ``CharacterDraft._require_stage`` is its only reader.
 VERB_STAGES: Final[Mapping[str, Stage]] = MappingProxyType({
+    "generate_base_from_concept": Stage.TURNAROUND,
     "run_turnaround": Stage.TURNAROUND,
     "reroll_direction": Stage.TURNAROUND,
     "approve_direction": Stage.TURNAROUND,

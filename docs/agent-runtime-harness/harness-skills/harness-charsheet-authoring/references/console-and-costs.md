@@ -145,7 +145,11 @@ conversation outlives leaving the Mission Control tab.
 - **Say the cost before a sweep.** The default sheet (`idle:6, walk:8`, 8-way) is
   1 seed + 5 direction references + 10 row strips = **16 generations minimum**,
   each a real generation at roughly one to two minutes, plus rerolls (the live run
-  took three extra). A `--directions 4` sheet authors THREE directions
+  took three extra). **A character made from words alone costs one more: 17.**
+  No picture is needed (owner 2026-11-15, RT-CHARACTER-FROM-WORDS-ALONE-HAS-NO-BASE-IMAGE);
+  with none, `auto` draws the base from the concept in one square, text-only
+  generation before the turnaround. A given picture adds 0. There is no automatic
+  reroll of a drawn base; an operator who dislikes it swaps it with `base`. A `--directions 4` sheet authors THREE directions
   (`spec.FOUR_WAY.authored = ("s", "e", "n")`), so a one-state 4-way draft costs
   3 + 3 and its row keys are `idle-s`, `idle-e`, `idle-n` with nothing named
   `walk`. Read `spec.scheme.authored` out of `status --json` before quoting
