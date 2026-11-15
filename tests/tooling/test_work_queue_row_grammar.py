@@ -451,7 +451,10 @@ def test_the_shared_fixtures_pass_and_fail_as_the_launcher_says() -> None:
 def test_the_walk_found_the_queues() -> None:
     notes = _queue_notes()
     assert len(notes) >= 3, f"a moved or emptied queue directory must not pass silently: {sorted(notes)}"
-    assert sum(len(queue_rows(text)) for text in notes.values()) >= 100
+    # A floor against an emptied or moved queue directory, not a row target: the owner's 2026-11-15
+    # row reduction ("do all of them that drop rows though for sure") took the live queues from 138
+    # rows to 76, under the old floor of 100 (w1115e-rr2).
+    assert sum(len(queue_rows(text)) for text in notes.values()) >= 20
 
 
 def test_every_queue_row_is_in_the_canonical_grammar() -> None:
