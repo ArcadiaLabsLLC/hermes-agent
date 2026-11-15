@@ -1,6 +1,6 @@
 """The brain-path list Eternia reads: ONE file naming, for this machine, every brain (RT-BRAIN-PATHS-PLAIN-LIST).
 
-Contract: ``EterniaLauncher/docs/mission_control/planned/THREE_BRAINS_ONE_READER_2026-11-02.md`` ("The one
+Contract: ``EterniaLauncher/docs/archive/mission_control/THREE_BRAINS_ONE_READER_2026-11-02.md`` ("The one
 list") and the shared w1102c contract; fixture ``tests/fixtures/brain_paths_v2.json`` (identical bytes in the
 launcher's ``test/fixtures/mission_control/brain_paths_v2.json``, MC-WS-ABSORB-CONSOLE-SLOTS). Hermes writes
 ``<namespace>/agent-runtime/brain_paths.json`` atomically; Eternia only reads it, so a to-do read needs no serve

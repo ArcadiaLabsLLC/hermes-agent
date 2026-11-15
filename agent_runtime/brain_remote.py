@@ -1,7 +1,7 @@
 """The brains' remote check: a fetch every few seconds, its upstream count in the brain-path list.
 
 RT-BRAIN-PATHS-PLAIN-LIST slice 4 (owner sitting 2026-11-02, launcher plan
-``EterniaLauncher/docs/mission_control/planned/THREE_BRAINS_ONE_READER_2026-11-02.md`` § Rulings, "Freshness"):
+``EterniaLauncher/docs/archive/mission_control/THREE_BRAINS_ONE_READER_2026-11-02.md`` § Rulings, "Freshness"):
 
 * every :data:`REMOTE_TICK_S` the serve's ticker (``hermes_cli/harness_parts/serve/queued_turns.py::
   start_brain_remote_ticker``) checks up to :data:`BRAINS_PER_TICK` brains of
