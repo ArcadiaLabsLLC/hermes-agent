@@ -33,7 +33,35 @@
     "baseline_eternia_git_log_commands": 27,
     "warm_git_log_commands_at_each_unchanged_tip": 0,
     "cpu_percent_sampled_before_final_calls": [[3.7, 2.3, 5.4], [5.4, 6.8, 5.0], [3.9, 2.1, 2.7], [2.8, 1.3, 1.0]],
-    "remaining": "The first fresh-worktree RPC was 77.1 ms over 5 s. Live application reconciliation timing is still owed."
+    "remaining": "The first fresh-worktree RPC was 77.1 ms over 5 s."
+  },
+  "app_live": {
+    "app_commit": "1bf69e365c73a9b37c3b30a9a32a2670dd5658bd",
+    "app_build": "1bf69e365c73-20261115T175912Z",
+    "hermes_commit": "823c73fda585dc3800710c6a47c13322f03ca665",
+    "qa_tool_commit": "e597e170c70fa3653d3cc22715fe53d2c14f6ce7",
+    "session": "codex-win-hermes-work",
+    "namespace": "stagec-smoke-lane-2c2e3413ea",
+    "model_fixture": true,
+    "fixture": {
+      "live_rows": 934,
+      "history_rows": 2945,
+      "notes": 46,
+      "boards": 5,
+      "readable_boards": 4,
+      "setup": "QA Fixture workspace. Its seeded launcher clone and its local workspace brain are readable. The shared slot is bound to a separate fixture clone and unreadable as a Work brain. The hermes and backend slots are disposable clones with local-only origins and the same tips as the RPC fixture."
+    },
+    "measurement": "Application debug reconciliation spans. Binding, owner lookup and the composite list step are measured separately. List starts the Harness call and local file read together and includes Dart projection and reconciliation. The first Tasks mount follows workspace setup, which had already created Work worktrees. Its timestamp cache state was not observed.",
+    "mount": {"started_utc": "2026-11-15T18:48:40Z", "cpu_before": [5, 1, 3], "binding_ms": 9155, "owners_ms": 0, "list_ms": 12220, "sum_ms": 21375},
+    "refresh": [
+      {"started_utc": "2026-11-15T18:49:39.544168Z", "cpu_before": [0, 1, 0], "cpu_after": 10, "binding_ms": 2672, "owners_ms": 0, "list_ms": 5647, "sum_ms": 8319, "local_read_ms": [2705.578]},
+      {"started_utc": "2026-11-15T18:50:00.086646Z", "cpu_before": [3, 9, 18], "cpu_after": 20, "binding_ms": 1058, "owners_ms": 0, "list_ms": 3281, "sum_ms": 4339, "local_read_ms": [1043.863]},
+      {"started_utc": "2026-11-15T18:50:15.305637Z", "cpu_before": [23, 20, 2], "cpu_after": 0, "binding_ms": 4393, "owners_ms": 334, "list_ms": 5693, "sum_ms": 10420, "local_read_ms": [3080.402, 3003.800]},
+      {"started_utc": "2026-11-15T18:50:37.186371Z", "cpu_before": [8, 6, 2], "cpu_after": 5, "binding_ms": 2490, "owners_ms": 0, "list_ms": 5708, "sum_ms": 8198, "local_read_ms": [2466.533, 2717.160]}
+    ],
+    "serve": "The namespace-stamped transport log records one serve PID at attach and release for the entire run. The captured transport and runtime logs have no per-request dispatch, Git or reply stamps. No cause for the difference between RPC-only and app timings was assigned from these logs.",
+    "result": "Open. Three of four explicit Refreshes exceeded 5 s in the composite list step alone. The repeat needs a per-phase comparison inside the actual application path.",
+    "cleanup": "The QA close passed and reaped its lane serve. The app, the serve and its snapshot worker were absent afterward."
   },
   "validation": {"focused_windows_checks": 32}
 }
