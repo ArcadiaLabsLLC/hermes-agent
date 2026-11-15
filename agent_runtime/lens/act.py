@@ -8,8 +8,8 @@ message id (:func:`armed_act_turn`). The eternia-harness ``pre_tool_call`` hook 
 the names ``read_only`` blocks (``tool_permissions.extra_blocked_tools_for_permission_mode``, the one
 definition) — is decided in this order:
 
-1. the Episode carries untrusted free text, or the turn already read outside content (a ``web_`` or
-   ``browser_`` tool) -> **proposal** (W9: such an Episode never acts alone, whatever the rules say);
+1. the Episode carries untrusted free text, or the turn already made any read outside
+   :data:`TYPED_ONLY_READS` -> **proposal** (W9: such an Episode never acts alone, whatever the rules say);
 2. the tool is not on the monitor's ``automation.actions`` list -> **proposal**;
 3. the call cannot be undone (only checkpointed file writes can, :data:`UNDOABLE_TOOLS`) -> **proposal**;
 4. the rules check (``rules_check.check_action``, Lens's guardian): ``approve`` -> the call runs;
@@ -45,8 +45,11 @@ logger = logging.getLogger(__name__)
 
 #: File writes the turn's checkpoints can restore (``operator_undo.py``): the only calls that can be undone.
 UNDOABLE_TOOLS = frozenset({"apply_patch", "edit_file", "file.edit", "file.write", "patch", "write_file"})
-#: A call to one of these reads outside content into the turn: after it, nothing acts alone (W9).
-TAINTING_PREFIXES = ("web_", "browser_")
+#: The only non-mutating calls that bring no outside text into the turn: Lens's own typed reads, the tool
+#: catalog bridge and a question to the owner. ANY other read (a web or browser read, an MCP read,
+#: ``read_file``, ``skill_view`` ...) may carry an instruction, so after it nothing acts alone (W9,
+#: RT-LENS-ACT-TAINT-ONLY-WEB-AND-BROWSER: a prefix list missed every read it did not name).
+TYPED_ONLY_READS = frozenset({"clarify", "lens_read", "tool_call", "tool_describe", "tool_search"})
 DECIDED_BY_OWNER = "owner"
 
 WHY_UNTRUSTED_TEXT = "untrusted_text"
@@ -169,10 +172,9 @@ def gate_tool_call(tool_name: Any = None, args: Any = None, tool_call_id: Any = 
         if turn is None:
             return None
         name = str(tool_name or "")
-        if name.startswith(TAINTING_PREFIXES):
-            turn.tainted = True
-            return None
         if name not in _mutating():
+            if name not in TYPED_ONLY_READS:
+                turn.tainted = True  # outside text may now be in the turn
             return None
         return turn.decide(name, args if isinstance(args, dict) else {}, str(tool_call_id or "") or None)
     except Exception:

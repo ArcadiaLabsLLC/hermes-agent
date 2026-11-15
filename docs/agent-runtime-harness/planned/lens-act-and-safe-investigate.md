@@ -132,7 +132,8 @@ list (tool names, at most 16, only on `act`; absent = none listed). The door for
 chat held at `bounded` (receipt `tool_admission: bounded`) and arms `agent_runtime/lens/act.py` for the turn's
 client message id; the eternia-harness `pre_tool_call` hook hands it every call (bridged `tool_call` calls
 arrive by their inner name). Mutating = the `read_only` block set. Order: untrusted text in the Episode (a
-broken source's shapes) or an earlier `web_`/`browser_` read in the turn → proposal; not listed → proposal;
+broken source's shapes) or an earlier read in the turn outside the typed-only set (`lens_read`, the
+tool-catalog bridge, `clarify`; RT-LENS-ACT-TAINT-ONLY-WEB-AND-BROWSER) → proposal; not listed → proposal;
 not a checkpointed file write (`write_file`, `patch`, `edit_file`, `apply_patch`, `file.write`, `file.edit`) →
 proposal; else the act check (`rules_check.check_action`, the same fork guardian with an act prompt):
 approve runs, deny is refused with "Refused by this monitor's rules", escalate/failure → proposal. Each
