@@ -21,7 +21,8 @@ withdraw    {workspace_id?, recipe_id} -> row (state ``withdrawn``). ``recipe_no
             monitor someone already added keeps running: their PC, their choice
 add         {workspace_id?, recipe_id} -> the monitor, as ``runtime.lens.get`` answers it. A new
             DRAFT in that workspace, or a sealed monitor's next-revision draft when the workspace
-            already holds that monitor (an update; the sealed revision keeps running unchanged).
+            already holds that monitor (an update; the sealed revision keeps running unchanged, and
+            ``runtime.lens.draft.drop`` of that draft puts the recipe back to ``update_available``).
             Its credential refs are renamed ``shared:<monitor_id>:<ref>`` and read ``set: false``;
             ``automation.actions`` is dropped. ``recipe_not_found``, ``recipe_withdrawn``,
             ``monitor_exists`` (the id is another workspace's monitor), ``capacity_refused``,

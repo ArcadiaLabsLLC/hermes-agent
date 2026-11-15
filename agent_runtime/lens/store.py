@@ -22,10 +22,24 @@ sealed monitor's pending next revision (the sealed one keeps running); ``enable`
 stays). Capacity is refused, never made by eviction (W13): at most
 :data:`MAXIMUM_MONITORS` monitors that are not retired.
 
-``monitors.recipe_hash`` (plan ``planned/lens-shared-recipes-2026-11-15.md`` §4) is the semantic
-hash of the workspace's shared recipe this monitor was last added from (``create``'s
-``recipe_hash``) or shared as (``mark_shared``) — a mark, never a copy of the recipe; NULL for a
-monitor that never met the shelf. Written here and nowhere else.
+Which shared recipe a monitor is on (plan ``planned/lens-shared-recipes-2026-11-15.md`` §4) is two
+marks, one per thing a monitor holds, each the semantic hash of a shelf document and never a copy
+of it — written here and nowhere else:
+
+* ``monitors.recipe_hash`` — the recipe version the SEALED revision came from (``seal``, from the
+  draft's mark) or was shared as (``mark_shared``). NULL: the sealed revision never met the shelf,
+  or nothing is sealed.
+* ``monitors.draft_recipe_hash`` — the recipe version the PENDING DRAFT came from
+  (``create``'s ``recipe_hash``, i.e. ``runtime.lens.recipe.add``). It lives exactly as long as
+  that draft: ``seal`` moves it to ``recipe_hash``, ``drop_draft`` forgets it, and a hand rewrite
+  of the draft keeps it. NULL: no draft, or one no recipe wrote.
+
+One mark could not say both: after an update is added over a sealed monitor, dropping its draft
+must read the OLD version and sealing it the NEW one, so both hashes are held until the person
+chooses (row ``RT-LENS-RECIPE-DROPPED-UPDATE-STILL-READS-ADDED``). A monitor ANSWERS one
+``recipe_hash`` (:meth:`LensStore._summary`): the draft's mark while one waits, else the sealed
+revision's — the version this PC's person has in hand, which is what ``recipe_shelf.recipe_state``
+compares with the shelf.
 
 ``HERMES_HOME`` is resolved when a store is constructed, never at import.
 
@@ -314,8 +328,9 @@ class LensStore:
         :data:`PROPOSAL_TTL_MS`; the operator's write over a proposal adopts it (no expiry).
         A NEW monitor belongs to ``workspace_id`` (``store_scope``); a rewrite keeps its own.
 
-        ``recipe_hash`` (``runtime.lens.recipe.add``): the draft is a shared recipe's, marked with
-        the recipe's hash. A recipe only rewrites a monitor of its own workspace: the id held by
+        ``recipe_hash`` (``runtime.lens.recipe.add``): the draft is a shared recipe's, and carries
+        the recipe's hash as ITS mark (``draft_recipe_hash``; the sealed revision's mark is not
+        touched). A recipe only rewrites a monitor of its own workspace: the id held by
         another workspace's monitor is refused ``monitor_exists``, in the same transaction."""
 
         doc = read_manifest(manifest)
@@ -329,7 +344,7 @@ class LensStore:
                 if proposal:
                     _proposal_room(conn, proposer)
                 conn.execute("INSERT INTO monitors (monitor_id, state, draft, updated_ms, proposed, proposed_by, "
-                             "workspace_id, recipe_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                             "workspace_id, draft_recipe_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                              (doc["monitor_id"], MonitorState.DRAFT.value, canonical_bytes(doc), _now_ms(),
                               int(proposal), proposer if proposal else None, workspace_id, recipe_hash))
             elif row["state"] == MonitorState.RETIRED.value:
@@ -341,14 +356,15 @@ class LensStore:
                              (canonical_bytes(doc), _now_ms(), doc["monitor_id"]))
             else:  # the operator's write adopts a proposal: never expired, never a persona's share
                 conn.execute("UPDATE monitors SET draft = ?, updated_ms = ?, proposed = 0, proposed_by = NULL, "
-                             "recipe_hash = COALESCE(?, recipe_hash) WHERE monitor_id = ?",
+                             "draft_recipe_hash = COALESCE(?, draft_recipe_hash) WHERE monitor_id = ?",
                              (canonical_bytes(doc), _now_ms(), recipe_hash, doc["monitor_id"]))
         self._changed("lens.monitor.changed", monitor_id=doc["monitor_id"], change="draft")
         return self.get(doc["monitor_id"])
 
     def seal(self, monitor_id: str, *, client_scope: str | None = None) -> dict[str, Any]:
         """Freeze the draft as the next revision. ``client_scope``: the account the server verified
-        for the sealing request (``store_owner.verified_seal_scope``), recorded as the monitor's owner."""
+        for the sealing request (``store_owner.verified_seal_scope``), recorded as the monitor's owner.
+        A recipe's draft hands its mark to the revision it becomes; any other draft leaves the mark."""
 
         from .store_owner import owner_for_seal
 
@@ -359,7 +375,8 @@ class LensStore:
             owner = owner_for_seal(row, client_scope)
             sealed = seal_manifest(json.loads(row["draft"]), revision=int(row["revision"]) + 1)
             conn.execute("UPDATE monitors SET revision = ?, digest = ?, body = ?, draft = NULL, updated_ms = ?, "
-                         "client_scope = ? WHERE monitor_id = ?",
+                         "client_scope = ?, recipe_hash = COALESCE(draft_recipe_hash, recipe_hash), "
+                         "draft_recipe_hash = NULL WHERE monitor_id = ?",
                          (sealed.revision, sealed.digest, sealed.body, _now_ms(), owner, monitor_id))
         self._changed("lens.monitor.changed", monitor_id=monitor_id, change="sealed", revision=sealed.revision)
         return self.get(monitor_id)
@@ -374,8 +391,9 @@ class LensStore:
 
     def drop_draft(self, monitor_id: str) -> dict[str, Any]:
         """Forget a SEALED monitor's pending next-revision draft; the sealed revision and its
-        state stand (``runtime.lens.draft.drop``). A monitor never sealed has nothing to fall
-        back to and is refused ``not_sealed`` — ``retire`` discards that proposal."""
+        state stand (``runtime.lens.draft.drop``), and a recipe's draft takes its mark with it. A
+        monitor never sealed has nothing to fall back to and is refused ``not_sealed`` — ``retire``
+        discards that proposal."""
 
         with self._db() as conn:
             row = self._required(conn, monitor_id)
@@ -385,8 +403,8 @@ class LensStore:
                 raise LensStoreError(StoreRefusal.NO_DRAFT)
             if row["body"] is None:
                 raise LensStoreError(StoreRefusal.NOT_SEALED)
-            conn.execute("UPDATE monitors SET draft = NULL, updated_ms = ? WHERE monitor_id = ?",
-                         (_now_ms(), monitor_id))
+            conn.execute("UPDATE monitors SET draft = NULL, draft_recipe_hash = NULL, updated_ms = ? "
+                         "WHERE monitor_id = ?", (_now_ms(), monitor_id))
         self._changed("lens.monitor.changed", monitor_id=monitor_id, change="draft_dropped")
         return self.get(monitor_id)
 
@@ -437,7 +455,7 @@ class LensStore:
             "draft": None if row["draft"] is None else json.loads(row["draft"]),
             "updated_at_ms": int(row["updated_ms"]),
             "workspace_id": row["workspace_id"],
-            "recipe_hash": row["recipe_hash"],
+            "recipe_hash": row["draft_recipe_hash"] or row["recipe_hash"],
         }
 
     def monitors(self, *, states: tuple[MonitorState, ...] | None = None) -> list[dict[str, Any]]:
@@ -836,10 +854,12 @@ def _add_receipt_digest(conn: sqlite3.Connection) -> None:
 
 
 def _add_recipe_hash(conn: sqlite3.Connection) -> None:
-    """A store written before shared recipes gains ``monitors.recipe_hash``; its monitors read NULL."""
+    """A store written before shared recipes gains the two recipe marks; its monitors read NULL."""
 
-    if "recipe_hash" not in {row[1] for row in conn.execute("PRAGMA table_info(monitors)")}:
-        conn.execute("ALTER TABLE monitors ADD COLUMN recipe_hash TEXT")
+    held = {row[1] for row in conn.execute("PRAGMA table_info(monitors)")}
+    for column in ("recipe_hash", "draft_recipe_hash"):
+        if column not in held:
+            conn.execute(f"ALTER TABLE monitors ADD COLUMN {column} TEXT")
 
 
 def _add_route_auth(conn: sqlite3.Connection) -> None:

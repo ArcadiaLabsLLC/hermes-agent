@@ -221,7 +221,7 @@ def withdrawn_document(workspace_id: str, monitor_id: str) -> bytes:
 
 class ShelfRecipe(NamedTuple):
     """One checked shelf document. ``manifest`` is canonical, or None when withdrawn; ``hash`` is
-    the family's semantic document hash (what ``monitors.recipe_hash`` records)."""
+    the family's semantic document hash (what the monitor's two recipe marks record, ``lens/store.py``)."""
 
     recipe_id: str
     workspace_id: str
@@ -353,8 +353,9 @@ class RecipeState(str, Enum):
 
 
 #: ``(the recipe is withdrawn, this PC's monitor of that id in the workspace)`` -> state, the
-#: monitor being None (there is none), True (its ``recipe_hash`` is the shelf document's) or
-#: False (it is not: another version, or a monitor that never met the shelf).
+#: monitor being None (there is none), True (the ``recipe_hash`` it answers — its waiting draft's
+#: mark, else its sealed revision's — is the shelf document's) or False (it is not: another
+#: version, a dropped update, or a monitor that never met the shelf).
 RECIPE_STATES: dict[tuple[bool, bool | None], RecipeState] = {
     (False, None): RecipeState.NOT_ADDED,
     (False, True): RecipeState.ADDED,

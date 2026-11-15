@@ -114,7 +114,7 @@ Every write is an RPC method; refusals carry `data.reason`.
 | `runtime.lens.recipe.list` | `{workspace_id?}` → `{workspace_id, recipes: [row], held: [recipe_id], refused: [{recipe_id, reason}]}` | Absent `workspace_id` is the active workspace (`recipe_needs_workspace` with neither, for every verb). Reads the shelf and, per row, this PC's monitor of that id. As built: `held` is always empty until slice 2 reads the realm's parked tokens |
 | `runtime.lens.recipe.share` | `{monitor_id}` → row | Writes the SEALED manifest (never a draft) to the shelf. `not_sealed`, `recipe_not_portable` (detail names the feed), `recipe_needs_workspace` (a monitor with no `workspace_id`) |
 | `runtime.lens.recipe.withdraw` | `{workspace_id?, recipe_id}` → row | Writes the withdrawn document. `recipe_not_found` |
-| `runtime.lens.recipe.add` | `{workspace_id?, recipe_id}` → monitor (as `runtime.lens.get`) | `LensStore.create(localize(manifest), workspace_id=…, recipe_hash=…)`: a new DRAFT, or a sealed monitor's next-revision draft when this workspace already holds that monitor (an update). `recipe_not_found`, `recipe_withdrawn`, `monitor_exists` (the id belongs to another workspace's monitor; as built, refused inside `create`'s own transaction when it is given a `recipe_hash`), and `create`'s own `capacity_refused` / `monitor_retired` |
+| `runtime.lens.recipe.add` | `{workspace_id?, recipe_id}` → monitor (as `runtime.lens.get`) | `LensStore.create(localize(manifest), workspace_id=…, recipe_hash=…)` (the hash marks the DRAFT): a new DRAFT, or a sealed monitor's next-revision draft when this workspace already holds that monitor (an update). `recipe_not_found`, `recipe_withdrawn`, `monitor_exists` (the id belongs to another workspace's monitor; as built, refused inside `create`'s own transaction when it is given a `recipe_hash`), and `create`'s own `capacity_refused` / `monitor_retired` |
 
 A row is `{recipe_id, workspace_id, monitor_id, state, manifest, summary}`.
 
@@ -122,12 +122,18 @@ A row is `{recipe_id, workspace_id, monitor_id, state, manifest, summary}`.
   `recipe_hash`): `not_added` · `added` (hash equal) · `update_available` (hash differs) · `withdrawn`.
 - `summary` (derived, so Eternia does not parse a manifest): `{level, sources: [{feed_id, kind, host}],
   scheduled, needs_credentials: [ref], private_network, suggested_actions: [tool]}`.
-- `monitors.recipe_hash` is one new nullable column, written only inside `lens/store.py` by `create` (the
-  new keyword) and by `mark_shared` (the publisher's own monitor, after a share). It is the semantic
-  document hash (`document_family.document_hash`), not a second copy of the recipe. As built it is also on
-  every monitor answer (`runtime.lens.get` / `.create` / …: `recipe_hash`, null for a monitor that never
-  met the shelf). Known gap, filed as `RT-LENS-RECIPE-DROPPED-UPDATE-STILL-READS-ADDED`: the mark moves
-  when an update's draft is planted, so a person who then drops that draft still reads `added`.
+- Which recipe a monitor is on is two nullable columns, one per thing a monitor holds, written only inside
+  `lens/store.py` (its module docstring is the statement). `monitors.recipe_hash` is the recipe version the
+  SEALED revision came from (`seal`) or was shared as (`mark_shared`, the publisher's own monitor).
+  `monitors.draft_recipe_hash` is the recipe version the PENDING DRAFT came from (`create`'s `recipe_hash`
+  keyword): `seal` moves it to `recipe_hash`, `drop_draft` forgets it, a hand rewrite of the draft keeps
+  it. Each is the semantic document hash (`document_family.document_hash`), not a copy of the recipe. Two,
+  because after an update is added over a sealed monitor, dropping its draft must read the old version and
+  sealing it the new one (`RT-LENS-RECIPE-DROPPED-UPDATE-STILL-READS-ADDED`, built). A monitor answer
+  (`runtime.lens.get` / `.create` / …) carries ONE `recipe_hash`: the draft's mark while one waits, else
+  the sealed revision's, null for a monitor that never met the shelf — and that is what `state` compares.
+  So an added update reads `added` while its draft waits, `update_available` again if the draft is
+  dropped, and `added` once sealed.
 - A withdrawn row carries `manifest: null` and `summary: null`. `summary.host` is the source's name
   (null for a `push` feed), and `needs_credentials` lists the publisher's ref names.
 - `share`, `withdraw` and `add` append `lens.recipe.changed {workspace_id, recipe_id, change}`

@@ -21,7 +21,11 @@ names the mutation that kills it; the reds are recorded in the commit that lande
   ``command_allowlisted`` to ``PORTABLE_FEED_KINDS`` (§7 row 6);
 * no secret, Episode or receipt is in a shared recipe — killed by ``share`` writing the
   monitor's summary (``store.get``) instead of its sealed manifest (§7 row 7);
-* the state table — killed by answering ``added`` whenever a monitor of the id exists.
+* the state table — killed by answering ``added`` whenever a monitor of the id exists;
+* a dropped update is on offer again, a sealed one is added, a hand-edited one keeps its mark
+  (``RT-LENS-RECIPE-DROPPED-UPDATE-STILL-READS-ADDED``) — killed by ``drop_draft`` keeping
+  ``draft_recipe_hash``, by ``create`` marking ``recipe_hash``, by ``seal`` not taking the draft's
+  mark, by the answer reading the sealed mark only, and by a hand rewrite clearing the draft's mark.
 
 No real network: the one read goes through an ``httpx.MockTransport``.
 """
@@ -174,6 +178,56 @@ def test_an_update_plants_a_draft_and_never_rewrites_the_sealed_revision(monkeyp
     updated = _ok("runtime.lens.recipe.add", {"workspace_id": WORKSPACE, "recipe_id": "site-health"})
     assert updated["sealed"]["digest"] == digest and updated["draft"]["feeds"][0]["interval_ms"] == 60000
     assert updated["draft"]["feeds"][0]["credential_ref"] == "shared:site-health:api"  # the sign-in made for it stays
+
+
+def _state() -> tuple[str, str | None]:
+    """The recipe's listed state, and the mark the monitor answers."""
+
+    [row] = _ok("runtime.lens.recipe.list", {"workspace_id": WORKSPACE})["recipes"]
+    return row["state"], _ok("runtime.lens.get", {"monitor_id": "site-health"})["recipe_hash"]
+
+
+def test_a_dropped_update_is_on_offer_again_and_a_sealed_one_is_added(monkeypatch, tmp_path):
+    """Row ``RT-LENS-RECIPE-DROPPED-UPDATE-STILL-READS-ADDED``, through the verbs: the update's
+    mark is the pending draft's until it is sealed, and goes with the draft when it is dropped."""
+
+    _ok("runtime.lens.recipe.share", {"monitor_id": _sealed()})
+    first = _shelf_file().read_bytes()
+    old = recipe_shelf.read_recipe(WORKSPACE, "site-health").hash
+    _second_pc(monkeypatch, tmp_path)
+    add = {"workspace_id": WORKSPACE, "recipe_id": "site-health"}
+    _ok("runtime.lens.recipe.add", add)
+    assert _state() == ("added", old)  # a never-sealed draft of the recipe: the person has taken it
+    _ok("runtime.lens.seal", {"monitor_id": "site-health"})
+    assert _state() == ("added", old)
+
+    changed = json.loads(first)
+    changed["manifest"]["feeds"][0]["interval_ms"] = 60000
+    _shelf_file().write_bytes(json.dumps(changed).encode())  # the publisher's next version arrives
+    new = recipe_shelf.read_recipe(WORKSPACE, "site-health").hash
+    assert new != old and _state() == ("update_available", old)
+
+    _ok("runtime.lens.recipe.add", add)
+    assert _state() == ("added", new)  # the update waits as a draft: in hand, not yet running
+    _ok("runtime.lens.draft.drop", {"monitor_id": "site-health"})
+    assert _state() == ("update_available", old)  # not kept: the sealed revision is still the old version
+
+    _ok("runtime.lens.recipe.add", add)
+    # A hand edit of the waiting update is still that update's draft.
+    edited = _ok("runtime.lens.get", {"monitor_id": "site-health"})["draft"]
+    edited["feeds"][0]["interval_ms"] = 30000
+    _ok("runtime.lens.create", {"manifest": edited})
+    assert _state() == ("added", new)
+    _ok("runtime.lens.seal", {"monitor_id": "site-health"})
+    assert _state() == ("added", new)  # sealed: the mark is now the running revision's
+
+    # A draft the recipe never wrote carries no mark of its own: writing, dropping or sealing it moves nothing.
+    _ok("runtime.lens.create", {"manifest": edited | {"rules": []}})
+    _ok("runtime.lens.draft.drop", {"monitor_id": "site-health"})
+    assert _state() == ("added", new)
+    _ok("runtime.lens.create", {"manifest": edited})
+    _ok("runtime.lens.seal", {"monitor_id": "site-health"})
+    assert _state() == ("added", new)
 
 
 def test_the_verbs_refuse_by_name(monkeypatch):
