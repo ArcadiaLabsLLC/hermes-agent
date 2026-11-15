@@ -617,9 +617,10 @@ def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, s
     held: dict[str, list[str]] = {}
     stranded: list[str] = []
     live_ids = {row.ref.id for row in _brains(texts, siblings)}
+    own_live_ids = {row.ref.id for row in _live_rows(texts)}
     for path, current in texts.items():
         stepped = wake_dependents(current, args.row_id, payload["date"], how, live_ids=live_ids,
-                                  wake=not args.no_wake)
+                                  own_live_ids=own_live_ids, wake=not args.no_wake)
         texts[path] = stepped.text
         held |= stepped.held
         stranded += stepped.stranded

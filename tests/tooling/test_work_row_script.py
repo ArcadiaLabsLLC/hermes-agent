@@ -520,6 +520,34 @@ def test_a_close_keeps_a_row_other_rows_still_hold_blocked(clones, capsys):
     assert capsys.readouterr().out == "woke `RT-H`: READY (it waited on `RT-B`)\n"
 
 
+S5 = ("- **`RT-S5` — code text is mono** · size S · BLOCKED 2026-11-14: hermes — `RT-A`: needs the seam; and "
+      "`RT-B` (filed 2026-11-14 by a lane, after `RT-OLD` closed): w600 draws another file · reviewed 2026-11-14 w.5\n")
+
+
+def test_a_live_row_named_only_in_the_prose_still_holds_it(clones, capsys):
+    """FH-QUEUE-CLOSE-WAKES-A-ROW-ITS-REASON-STILL-NAMES: the launcher's S5 shape (CORE-TYPE-S5-MONO-FACE, woken by
+    its first row's close while the row its prose names was open; fixed there in ce96bf5b58). KILLING MUTATION: drop
+    the prose arm in ``wake_dependents`` -> RT-S5 is READY after RT-A's close, red (recorded 2026-11-14). `RT-OLD`,
+    closed and named for history, holds nothing: the second close wakes it."""
+    _, mine, _ = clones
+    (mine / NOTE).write_text(HEAD + ROWS + S5, encoding="utf-8", newline="\n")
+    close = ["--who", "r", "--owner", "done elsewhere", "--date", "2026-11-15", "--repo", str(mine), "--no-commit"]
+
+    def s5() -> str:
+        return next(line for line in (mine / NOTE).read_text(encoding="utf-8").split("\n") if "`RT-S5`" in line)
+
+    assert work_row.main(["close", "RT-A", *close]) == 0
+    assert s5() == ("- **`RT-S5` — code text is mono** · size S · BLOCKED 2026-11-14: hermes — `RT-B`: needs the seam; "
+                    "and `RT-B` (filed 2026-11-14 by a lane, after `RT-OLD` closed): w600 draws another file · "
+                    "reviewed 2026-11-14 w.5"), "the list re-written to the live prose row, the prose kept"
+    assert capsys.readouterr().out == ("`RT-S5` stays BLOCKED: it also waits on `RT-B`, still open (`RT-A` is off "
+                                       "its list)\n")
+    assert work_row.main(["close", "RT-B", *close]) == 0
+    assert s5() == ("- **`RT-S5` — code text is mono** · size S · READY 2026-11-15 · unblocked 2026-11-15: `RT-B` "
+                    "closed by the owner · reviewed 2026-11-14 w.5")
+    assert capsys.readouterr().out == "woke `RT-S5`: READY (it waited on `RT-B`)\n"
+
+
 def test_no_wake_still_takes_the_archived_row_off_a_list_and_names_a_row_it_strands(clones, capsys):
     """The other half: a ``--no-wake`` close left a row naming an archived blocker first and the queue gate red on
     main (6d7b7e554f). KILLING MUTATIONS: ``if still_open and wake`` -> RT-H still names RT-A, red; drop the
