@@ -674,3 +674,35 @@ class TestOneDoorForAnEagerName:
         assert "called by name" in LOCAL_CALL_RULE
         # Upstream batches local deferred tools now; the rule must not forbid it.
         assert "ONE entry" not in LOCAL_CALL_RULE and "connectors__" not in LOCAL_CALL_RULE
+
+
+class TestDirectCallToDeferredTool:
+    """RT-DIRECT-CALL-TO-A-DEFERRED-TOOL-SAYS-IT-DOES-NOT-EXIST: the marked rebind in
+    ``agent/conversation_loop.py`` routes a direct call to a deferred tool through ``tool_call``.
+
+    The two upstream callers (``agent/turn_tool_validation.py``, ``agent/turn_tool_round.py``)
+    import ``_invalid_tool_name_error_content`` from the module at call time, so the module
+    attribute asked about here is the function they run."""
+
+    def test_a_deferred_name_is_told_the_tool_call_route(self):
+        import tools.session_search_tool  # noqa: F401 — registration runs at import
+        from agent.conversation_loop import _invalid_tool_name_error_content
+        from tools.tool_search import ToolSearchConfig, is_deferrable_tool_name
+
+        cfg = ToolSearchConfig.from_raw(None)
+        assert is_deferrable_tool_name("session_search", cfg.effective_defer_tools, config=cfg), (
+            "session_search is no longer deferred by default; this test would false-green")
+        answer = _invalid_tool_name_error_content("session_search", ["terminal", "tool_call"])
+        assert "does not exist" not in answer, answer
+        assert "loaded on demand" in answer and '"name": "session_search"' in answer, answer
+
+    def test_blank_unknown_and_bridgeless_names_keep_upstreams_answer(self):
+        import tools.session_search_tool  # noqa: F401
+        from agent.conversation_loop import _invalid_tool_name_error_content
+
+        assert _invalid_tool_name_error_content(" ", ["tool_call"]).startswith("Tool call rejected")
+        assert _invalid_tool_name_error_content("no_such_tool_xyz", ["terminal", "tool_call"]) == (
+            "Tool 'no_such_tool_xyz' does not exist. Available tools: terminal, tool_call")
+        # Without the bridge there is no route to name.
+        assert _invalid_tool_name_error_content("session_search", ["terminal"]) == (
+            "Tool 'session_search' does not exist. Available tools: terminal")

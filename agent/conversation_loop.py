@@ -1163,6 +1163,7 @@ def _invalid_tool_name_error_content(name: str, valid_tool_names) -> str:
         )
     available = ", ".join(sorted(valid_tool_names))
     return f"Tool '{name}' does not exist. Available tools: {available}"
+_invalid_tool_name_error_content = __import__("tools.tool_search_downstream").tool_search_downstream.route_deferred_name(_invalid_tool_name_error_content)  # fork seam: RT-DIRECT-CALL-TO-A-DEFERRED-TOOL-SAYS-IT-DOES-NOT-EXIST
 
 
 def _content_policy_blocked_result(

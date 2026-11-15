@@ -9,6 +9,7 @@ re-exports these names in one import line and calls them where the behaviour att
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 from contextlib import contextmanager
@@ -17,7 +18,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from tools.mcp_tool_schema import mcp_prefixed_tool_name, sanitize_mcp_name_component
-from tools.tool_search_catalog import BRIDGE_TOOL_NAMES, TOOL_DESCRIBE_NAME
+from tools.tool_search_catalog import BRIDGE_TOOL_NAMES, TOOL_CALL_NAME, TOOL_DESCRIBE_NAME
 
 #: Top search hits that carry their full ``parameters`` schema, and its size bound.
 _SEARCH_HIT_SCHEMA_TOP_N = 3
@@ -443,3 +444,44 @@ def ensure_tool_describe_present(tool_defs: list[dict[str, Any]]) -> list[dict[s
         if (td.get("function") or {}).get("name") == TOOL_DESCRIBE_NAME:
             return tool_defs
     return list(tool_defs) + [tool_describe_schema()]
+
+
+def deferred_call_route(name: Any, valid_tool_names: Iterable[str]) -> Optional[str]:
+    """The answer for a direct call to a tool this session defers behind the bridge, or None.
+
+    Upstream answers every name outside ``valid_tool_names`` (the eager list) with "does not
+    exist" and its catalog, so a model calling a deferred tool by its own name is told the tool
+    is missing and three such calls end the turn as partial (RT-DIRECT-CALL-TO-A-DEFERRED-TOOL-
+    SAYS-IT-DOES-NOT-EXIST, live 2026-11-14 with ``todo_list``). None — upstream's answer — for a
+    blank name (its anti-priming reply stays), a name no tool registered, a name the turn's
+    config would not defer, or a session without ``tool_call``. Fail-open: never raises."""
+    name = str(name or "").strip()
+    if not name or TOOL_CALL_NAME not in set(valid_tool_names or ()):
+        return None
+    try:
+        from tools.registry import registry
+        from tools.tool_search import is_deferrable_tool_name, load_config_readonly
+
+        if registry.get_entry(name) is None:
+            return None
+        config = load_config_readonly()  # the turn's defer included (with_turn_defer)
+        if not is_deferrable_tool_name(name, config.effective_defer_tools, config=config):
+            return None
+    except Exception:
+        return None
+    example = json.dumps({"calls": [{"name": name, "arguments": {}}]}, ensure_ascii=False)
+    return (f"'{name}' is not in your direct tool list: it is loaded on demand. Call it through "
+            f"{TOOL_CALL_NAME} with the same arguments, e.g. {TOOL_CALL_NAME} {example} "
+            f"(put your arguments in \"arguments\").")
+
+
+def route_deferred_name(upstream):
+    """Wrap upstream's ``_invalid_tool_name_error_content`` with :func:`deferred_call_route`
+    (the marked rebind in ``agent/conversation_loop.py``; ledger row of that file)."""
+
+    @functools.wraps(upstream)
+    def invalid_tool_name_error_content(name, valid_tool_names):
+        route = deferred_call_route(name, valid_tool_names)
+        return route if route is not None else upstream(name, valid_tool_names)
+
+    return invalid_tool_name_error_content
