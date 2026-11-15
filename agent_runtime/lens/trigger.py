@@ -155,6 +155,19 @@ def _operator_client_scope(persona_id: str) -> str | None:
         return None
 
 
+def _monitor_client_scope(monitor_id: str) -> str | None:
+    """The account that sealed the monitor (RT-LENS-EPISODE-CHAT-OWNED-BY-THE-MONITORS-ACCOUNT), or
+    ``None``: a monitor sealed before it, or by an unscoped operator, falls back to the borrow."""
+
+    from .store_owner import monitor_client_scope
+
+    try:
+        return monitor_client_scope(monitor_id)
+    except Exception:  # a listing courtesy, as the borrow is: a failed read never blocks the Episode
+        logger.debug("lens: no recorded owner for monitor %s", monitor_id, exc_info=True)
+        return None
+
+
 def _open_episode_chat(persona_id: str, episode: Episode, turn_key: str, mode: str | None = None
                        ) -> tuple[str | None, dict[str, Any]]:
     """Mint the Episode's own chat (never selected over the operator's), titled, held ``read_only``
@@ -168,9 +181,10 @@ def _open_episode_chat(persona_id: str, episode: Episode, turn_key: str, mode: s
     from ..tool_permissions import ChatToolPermissionStore
     from ..permission_modes import PERMISSION_MODE_READ_ONLY
 
-    # Titled BY the mint (one door), never re-titled after it; owned by the operator's client, so its
-    # conversation directory lists it (RT-LENS-ALERT-CHAT-NO-CLIENT-SCOPE).
-    owner = _operator_client_scope(persona_id)
+    # Titled BY the mint (one door), never re-titled after it; owned by the account that sealed the
+    # monitor, else the operator's current-chat client, so its conversation directory lists it
+    # (RT-LENS-EPISODE-CHAT-OWNED-BY-THE-MONITORS-ACCOUNT, RT-LENS-ALERT-CHAT-NO-CLIENT-SCOPE).
+    owner = _monitor_client_scope(episode.monitor_id) or _operator_client_scope(persona_id)
     outcome = perform_persona_instance_open_chat({
         "persona_id": persona_id, "new_session": True,
         "idempotency_key": f"{lens_client_message_id(turn_key)}:chat",

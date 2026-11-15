@@ -13,7 +13,8 @@ list                   {workspace_id?} -> {monitors, feed_kinds}; a monitor row 
                        monitor's next revision
 create                 {manifest, workspace_id?} -> monitor (the manifest becomes its DRAFT; a
                        NEW monitor belongs to ``workspace_id``, else the active workspace)
-seal                   {monitor_id} -> monitor (draft frozen as the next revision)
+seal                   {monitor_id, client_scope?} -> monitor (draft frozen as the next revision; the
+                       verified client_scope records the account its Episode chats open for)
 draft.drop             {monitor_id} -> monitor (a SEALED monitor's pending next-revision draft
                        is forgotten; the sealed revision and its state stand. ``no_draft``
                        without one, ``not_sealed`` for a never-sealed proposal: retire it)
@@ -135,10 +136,13 @@ def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
 
     from agent_runtime.lens.artifacts import ArtifactRefusal, LensArtifactError
     from agent_runtime.lens.store import NOT_FOUND_REFUSALS, LensStoreError
+    from agent_runtime.lens.store_owner import LensOwnerError
     from agent_runtime.lens.wire_value import WireError
 
     try:
         return ok(rid, body())
+    except LensOwnerError as exc:
+        return err(rid, ERR_INVALID_PARAMS, "Invalid conversation owner.", {"reason": exc.reason})
     except WireError as exc:
         return err(rid, ERR_INVALID_PARAMS, "The Lens request was refused.",
                    {"reason": exc.code.value, "detail": exc.detail})
@@ -195,9 +199,27 @@ def _runtime_lens_create(rid: Any, params: dict, context: RpcContext | None = No
     return _lens_call(rid, body)
 
 
+def _seal_scope(params: dict, context: RpcContext | None) -> str | None:
+    """The account scope this seal may record (``store_owner.verified_seal_scope``): a paired
+    device is held to the scope its pairing bound, read off the device store, never the request."""
+
+    from agent_runtime.call_authorization import CALLER_DEVICE
+    from agent_runtime.lens.store_owner import verified_seal_scope
+
+    caller = getattr(context, "caller", None)
+    if getattr(caller, "kind", None) != CALLER_DEVICE:
+        return verified_seal_scope(params or {}, None, device=False)
+    from agent_runtime.serve_rpc.channel import _device_identity
+
+    return verified_seal_scope(params or {}, _device_identity(caller.device_id)[1], device=True)
+
+
 @method("runtime.lens.seal", tier=TIER_CONSOLE)
 def _runtime_lens_seal(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    return _lens_call(rid, lambda: _store().seal(_monitor_id(params)))
+    """``{monitor_id, client_scope?}``: seal the draft; the verified ``client_scope`` names the
+    account the monitor's Episode chats open for (RT-LENS-EPISODE-CHAT-OWNED-BY-THE-MONITORS-ACCOUNT)."""
+
+    return _lens_call(rid, lambda: _store().seal(_monitor_id(params), client_scope=_seal_scope(params, context)))
 
 
 @method("runtime.lens.draft.drop", tier=TIER_CONSOLE)

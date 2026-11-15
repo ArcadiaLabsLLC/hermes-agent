@@ -158,6 +158,8 @@ class StoreRefusal(str, Enum):
     PROPOSAL_SETTLED = "proposal_settled"
     #: An approval whose Episode ran no chat to follow up in.
     EPISODE_HAS_NO_CHAT = "episode_has_no_chat"
+    #: ``runtime.lens.seal`` by a scoped client of a monitor another account sealed (``store_owner``).
+    OWNER_CHANGED = "conversation_owner_changed"
     #: ``runtime.lens.undo`` on an id no action receipt carries.
     ACTION_NOT_FOUND = "action_not_found"
     #: ``runtime.lens.undo`` on an action with no before image, or one that never ran.
@@ -277,6 +279,7 @@ class LensStore:
                 _add_workspace_column(conn)
                 _add_budget_tables(conn)
                 _add_action_tables(conn)
+                _add_owner_column(conn)
                 with conn:
                     yield conn
             finally:
@@ -324,14 +327,21 @@ class LensStore:
         self._changed("lens.monitor.changed", monitor_id=doc["monitor_id"], change="draft")
         return self.get(doc["monitor_id"])
 
-    def seal(self, monitor_id: str) -> dict[str, Any]:
+    def seal(self, monitor_id: str, *, client_scope: str | None = None) -> dict[str, Any]:
+        """Freeze the draft as the next revision. ``client_scope``: the account the server verified
+        for the sealing request (``store_owner.verified_seal_scope``), recorded as the monitor's owner."""
+
+        from .store_owner import owner_for_seal
+
         with self._db() as conn:
             row = self._required(conn, monitor_id)
             if row["draft"] is None:
                 raise LensStoreError(StoreRefusal.NO_DRAFT)
+            owner = owner_for_seal(row, client_scope)
             sealed = seal_manifest(json.loads(row["draft"]), revision=int(row["revision"]) + 1)
-            conn.execute("UPDATE monitors SET revision = ?, digest = ?, body = ?, draft = NULL, updated_ms = ? "
-                         "WHERE monitor_id = ?", (sealed.revision, sealed.digest, sealed.body, _now_ms(), monitor_id))
+            conn.execute("UPDATE monitors SET revision = ?, digest = ?, body = ?, draft = NULL, updated_ms = ?, "
+                         "client_scope = ? WHERE monitor_id = ?",
+                         (sealed.revision, sealed.digest, sealed.body, _now_ms(), owner, monitor_id))
         self._changed("lens.monitor.changed", monitor_id=monitor_id, change="sealed", revision=sealed.revision)
         return self.get(monitor_id)
 
@@ -770,6 +780,12 @@ def _add_workspace_column(conn: sqlite3.Connection) -> None:
     from .store_scope import add_workspace_column
 
     add_workspace_column(conn)
+
+
+def _add_owner_column(conn: sqlite3.Connection) -> None:
+    from .store_owner import add_owner_column
+
+    add_owner_column(conn)
 
 
 def _add_budget_tables(conn: sqlite3.Connection) -> None:
