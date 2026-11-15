@@ -90,7 +90,16 @@ def _smart_approve(command: str, description: str) -> str:
 
     Inspired by OpenAI Codex's Smart Approvals guardian subagent (openai/codex#13860).
     """
+    _smart_t0 = time.monotonic()
     try:
+        from agent.auxiliary_client import _get_task_timeout, call_llm
+
+        # Pass the timeout explicitly AND log call + duration: this synchronous call gates EVERY flagged command, and
+        # a stalled provider once froze turns for tens of minutes with zero log output.
+        # Pass the same configured value explicitly (belt) and log the call + duration (suspenders) so a
+        # hang is visible in the logs instead of silent. See #72500, #82846.
+        smart_timeout = _get_task_timeout("approval")
+        logger.debug("Smart approvals: assessing risk for command (timeout=%ss)", smart_timeout)
         system_prompt = _SYSTEM_PROMPT
         # Operator policy goes in the SYSTEM prompt only — the trusted channel. Never
         # next to the <command> block: that would dilute the trust boundary and teach
@@ -111,35 +120,12 @@ def _smart_approve(command: str, description: str) -> str:
             'via -c flag" but is completely harmless.\n\n'
             "Respond with exactly one word: APPROVE, DENY, or ESCALATE"
         )
-    except Exception as e:  # a policy read that fails escalates, as it did inside the guardian's try
-        logger.warning("Smart approvals: prompt build failed (%s: %s), escalating", type(e).__name__, e)
-        return "escalate"
-    return guardian_verdict(system_prompt, user_prompt)
-
-
-def guardian_verdict(system_prompt: str, user_prompt: str, *, usage: dict | None = None) -> str:
-    """The guardian's one call: the trusted ``system_prompt`` and the fenced, untrusted ``user_prompt``
-    to the auxiliary ``approval`` model; 'approve', 'deny', or 'escalate' (uncertain, empty or failed).
-    ``usage`` (when given) receives the call's ``total_tokens``. Fork seam (RT-LENS-RULES-CHECK-BEFORE-
-    INVESTIGATE): Lens's rules check is this guardian with its own prompt, not a second classifier."""
-    _smart_t0 = time.monotonic()
-    try:
-        from agent.auxiliary_client import _get_task_timeout, call_llm
-
-        # Pass the timeout explicitly AND log call + duration: this synchronous call gates EVERY flagged command, and
-        # a stalled provider once froze turns for tens of minutes with zero log output.
-        # Pass the same configured value explicitly (belt) and log the call + duration (suspenders) so a
-        # hang is visible in the logs instead of silent. See #72500, #82846.
-        smart_timeout = _get_task_timeout("approval")
-        logger.debug("Smart approvals: assessing risk for command (timeout=%ss)", smart_timeout)
         response = call_llm(
             task="approval", temperature=0, max_tokens=16, timeout=smart_timeout,
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             reasoning_config=_verdict_reasoning(),
         )
         logger.debug("Smart approvals: LLM call completed in %.1fs", time.monotonic() - _smart_t0)
-        if usage is not None:
-            usage["total_tokens"] = getattr(getattr(response, "usage", None), "total_tokens", None)
         answer = (response.choices[0].message.content or "").strip().upper()
         if not answer:
             # WARNING, not DEBUG: an empty-but-200 body is an infrastructure failure, not a

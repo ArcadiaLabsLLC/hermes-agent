@@ -23,6 +23,7 @@ from pathlib import Path
 
 __layer__ = "models"
 __all__ = [
+    "approval_verdict_reasoning",
     "anthropic_account_usage",
     "anthropic_env",
     "anthropic_oauth_file",
@@ -79,6 +80,16 @@ __all__ = [
     "terminate_host_pid",
     "whisper_confident_text",
 ]
+
+
+def approval_verdict_reasoning() -> dict | None:
+    """The smart-approval guardian's reasoning setting for its one-word verdict (thinking off unless the
+    operator set ``auxiliary.approval`` reasoning) — read so Lens's fork-owned guardian call
+    (``agent_runtime/lens/guardian.py``) sends exactly what the shell guardian sends."""
+
+    from tools.approval_smart import _verdict_reasoning
+
+    return _verdict_reasoning()
 
 
 def pid_exists(pid: int) -> bool:

@@ -118,6 +118,7 @@
   "agent_runtime/_upstream_doors.py|hermes_cli.profiles|_get_default_hermes_home",
   "agent_runtime/_upstream_doors.py|hermes_cli.profiles|_get_profiles_root",
   "agent_runtime/_upstream_doors.py|hermes_cli.profiles|_iter_named_profile_dirs",
+  "agent_runtime/_upstream_doors.py|tools.approval_smart|_verdict_reasoning",
   "agent_runtime/_upstream_doors.py|tools.delegate_tool_registry|_active_subagents",
   "agent_runtime/_upstream_doors.py|tools.delegate_tool_registry|_active_subagents_lock",
   "agent_runtime/_upstream_doors.py|tools.delegate_tool_registry|_subagent_transport_matches",

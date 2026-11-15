@@ -22,8 +22,9 @@ Gates and their killing mutations (each red recorded in the row's commit):
 * the check runs after the caps: a capped or a notify Episode never pays a check (a guard: the check
   lives in ``LensForge._forge``, which neither reaches);
 * a digest is ONE check, and its denial settles every member — killed by checking only the leader's window;
-* the shell guardian still escalates when its policy read fails — killed by dropping the prompt-build
-  ``try`` in ``tools.approval_smart._smart_approve``.
+* the shell guardian still escalates when its policy read fails (upstream ``tools.approval_smart``, back
+  in its upstream form since Lens's guardian call moved to ``agent_runtime/lens/guardian.py``; that
+  layer's own gates are ``test_lens_guardian.py``).
 """
 
 from __future__ import annotations

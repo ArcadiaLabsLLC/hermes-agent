@@ -2,8 +2,9 @@
 
 Design ``planned/lens-act-and-safe-investigate.md`` §2 and §7 row 3 (row
 ``RT-LENS-RULES-CHECK-BEFORE-INVESTIGATE``, owner-approved 2026-11-14, decisions 2 and 3). The check
-is the smart-approval guardian (``tools.approval_smart.guardian_verdict``) with a Lens prompt — no
-second classifier:
+is the smart-approval guardian with a Lens prompt — no second classifier — called through Lens's own
+safety-check layer (``agent_runtime/lens/guardian.py``, owner ruling 2026-11-14), never a seam in the
+upstream ``tools/approval_smart.py``:
 
 * the monitor's EFFECTIVE rules (``guidance.effective_guidance``: its own, else the workspace
   default, else the shipped text) go in the SYSTEM prompt, the trusted channel;
@@ -103,9 +104,9 @@ def check_investigate(*, guidance: str, monitor_name: str, fired: list[dict[str,
 
     usage: dict[str, Any] = {}
     try:
-        from tools.approval_smart import guardian_verdict
+        from agent_runtime.lens import guardian
 
-        answer = guardian_verdict(_SYSTEM_PROMPT + guidance,
+        answer = guardian.guardian_verdict(_SYSTEM_PROMPT + guidance,
                                   request_block(monitor_name=monitor_name, fired=fired,
                                                 turns_left_today=turns_left_today), usage=usage)
         verdict = RulesVerdict(answer)

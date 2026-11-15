@@ -3,7 +3,7 @@
 No Lens test calls a model. The exit door runs the monitor's rules check (``rules_check.py``,
 RT-LENS-RULES-CHECK-BEFORE-INVESTIGATE) through the smart-approval guardian, which fails closed when
 no provider answers — so every door test would read ``notified_by_rules``. The guardian's one call
-(``tools.approval_smart.guardian_verdict``) answers ``approve`` here; ``test_lens_rules_check.py``
+(``agent_runtime.lens.guardian.guardian_verdict``, Lens's own safety-check layer) answers ``approve`` here; ``test_lens_rules_check.py``
 binds its own answers over this.
 """
 
@@ -31,8 +31,9 @@ class GuardianFake:
 
 @pytest.fixture(autouse=True)
 def guardian(monkeypatch):
-    import tools.approval_smart as approval_smart
+    from agent_runtime.lens import guardian as lens_guardian
 
     fake = GuardianFake()
-    monkeypatch.setattr(approval_smart, "guardian_verdict", fake)
+    fake.real = lens_guardian.guardian_verdict  # test_lens_guardian.py calls the real layer
+    monkeypatch.setattr(lens_guardian, "guardian_verdict", fake)
     return fake
