@@ -79,6 +79,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import core_cache
+from agent_runtime.core_cache import lane as core_cache_lane
 from tests._downstream import _seams
 from agent_runtime.snapshot import BUILD_ROLE_CACHE, BUILD_ROLE_LED, build_snapshot
 from agent_runtime.store import WorkspaceStore
@@ -315,6 +316,12 @@ def test_the_persisted_core_survives_a_restart_after_an_identical_rewrite(
 
     counted = _CountedStoreReads(monkeypatch)
     _seams.reset_core_cache_process_state()
+    # A cache hit also starts the once-per-process shadow validation, a FULL build on a
+    # daemon thread; its store reads land in the same counters whenever that thread
+    # reaches them before the assertion below (red inside a bundle, green alone —
+    # FH-THREE-ENGINE-TESTS-RED-ONLY-INSIDE-A-BUNDLE). The shadow is not this case:
+    # take its slot so the counters hear only the build under test.
+    assert core_cache_lane.claim_shadow_slot()
     info: dict = {"caller": "probe"}
     core = build_snapshot(build_info=info)
 
