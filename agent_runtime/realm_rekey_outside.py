@@ -18,7 +18,6 @@ Plan ``docs/agent-runtime-harness/planned/rejoin-fresh-realm-2026-11-12.md`` §3
 from __future__ import annotations
 
 import json
-import shutil
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -119,10 +118,12 @@ def _rekey_local_history(mapping: Any) -> None:
 
 
 def _rekey_history_in(repo: Path, mapping: Any) -> None:
+    from hermes_cli.boot_bootstrap import _git_binary  # the reviewed git resolver (pm's pinned git, then PATH)
+
     from .realm_rekey import token_pattern
 
     old, new = (Path("realms") / paths.safe_path_token(realm) for realm in (mapping.realm_old, mapping.realm_new))
-    if not (repo / ".git").exists() or shutil.which("git") is None:
+    if not (repo / ".git").exists() or _git_binary() is None:
         return
     if (repo / old).exists() and not (repo / new).exists():
         _sync_git(repo, "mv", old.as_posix(), new.as_posix())
