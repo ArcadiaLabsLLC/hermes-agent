@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -86,8 +87,17 @@ def worktree_brain(board: Board) -> Board:
     return board if found is None else replace(board, read_root=worktree, brain_dir=found)
 
 
-#: At most this many boards sync at once (each sync is a handful of short git processes and one fetch).
-SYNC_WORKERS = 8
+#: Both sync and projection can start Git subprocesses. Bound concurrent jobs per Work call.
+BOARD_WORKERS = 8
+
+
+def _ordered_board_jobs(operation, jobs):
+    """Run independent jobs at once and return their answers in board order."""
+    if len(jobs) < 2:
+        return list(map(operation, jobs))
+    with ThreadPoolExecutor(max_workers=min(BOARD_WORKERS, len(jobs)), thread_name_prefix="work-board") as pool:
+        pending = [pool.submit(copy_context().run, operation, job) for job in jobs]
+        return [job.result() for job in pending]
 
 
 def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None) -> Synced:
@@ -133,13 +143,8 @@ def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None
 
     answers = run(inline)
     batches = list(groups.values())
-    if len(batches) == 1:
-        answers.update(run(batches[0]))
-    elif batches:
-        with ThreadPoolExecutor(max_workers=min(SYNC_WORKERS, len(batches)),
-                                thread_name_prefix="work-sync") as pool:
-            for done in [pool.submit(run, batch) for batch in batches]:
-                answers.update(done.result())
+    for batch in _ordered_board_jobs(run, batches):
+        answers.update(batch)
     every = {board_key: writer for board_key, writer in [*inline, *(pair for batch in batches for pair in batch)]}
     for board_key in order:
         if board_key in refused:
@@ -356,8 +361,15 @@ def list_work(scope, params, *, context=None, assignees: frozenset[str] | None =
     keep = _row_filter(params, context, assignees)
     slot = params.get("slot")
     listed = [b for b in view.boards if slot is None or b.slot == slot]
-    return {"boards": [{**board_wire(b, view.writer_of(b), view.refused.get(b.key)),
-                        "queues": _queues(b, view.writer_of(b), keep, context)} for b in listed],
+
+    def project_board(board):
+        writer = view.writer_of(board)
+        return {**board_wire(board, writer, view.refused.get(board.key)),
+                "queues": _queues(board, writer, keep, context)}
+
+    # Cold note timestamps are exact path-history reads. Independent boards can do them together,
+    # keeping Writer's existing timestamp cache and the response's board order.
+    return {"boards": _ordered_board_jobs(project_board, listed),
             "cursor": None, "read_at": _now().isoformat(timespec="seconds"), "stale": view.stale}
 
 
