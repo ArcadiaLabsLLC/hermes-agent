@@ -309,26 +309,36 @@ def _upstream_side_test_names(relative: str) -> tuple[frozenset[str] | None, fro
     return _top_level_test_names(then_lines), _top_level_test_names(_fork_scope._upstream_text(relative))
 
 
-def _upstream_retired_its_own_coverage(relative: str, test_name: str, subject: tuple[str, str]) -> bool:
-    """Is this lost reference UPSTREAM's loss rather than the fork's?
+def _loss_owner(relative: str, test_name: str, subject: tuple[str, str]) -> _fork_scope.Owner:
+    """Whose loss is this lost reference — the fork's, upstream's, or unjudged?
 
-    True only when all three hold: upstream wrote the subject's definition
+    UPSTREAM only when all three hold: upstream wrote the subject's definition
     (``_fork_scope.is_fork_authored`` on its ``def`` line), upstream carried
     the deleted test at the point the base had merged, and the merge base the
     checkout carries now (``_fork_scope.upstream_base``) no longer does — upstream retired its own test of its own code, and a merge
     brought the deletion in. The fork's gates police the fork's lines; the fork
     may not re-add an upstream test it would then owe at every merge. Anything
-    unresolvable answers False, so the finding stays counted (fail closed).
+    unresolvable answers FORK, so the finding stays counted (fail closed), except
+    a subject in an upstream-shipped file on a shallow clone: UNJUDGED
+    (``_fork_scope.line_owner``).
     """
 
-    if _fork_scope.upstream_blobs() is None:
-        return False
+    owner = _fork_scope.Owner
     line = _subject_definition_line(subject)
-    source = f"{subject[0].replace('.', '/')}.py"
-    if line is None or _fork_scope.is_fork_authored(source, line):
-        return False
+    if line is None:
+        return owner.FORK
+    author = _fork_scope.line_owner(f"{subject[0].replace('.', '/')}.py", line)
+    if author is not owner.UPSTREAM:
+        return author
     then, now = _upstream_side_test_names(relative)
-    return then is not None and test_name in then and (now is None or test_name not in now)
+    retired = then is not None and test_name in then and (now is None or test_name not in now)
+    return owner.UPSTREAM if retired else owner.FORK
+
+
+def _upstream_retired_its_own_coverage(relative: str, test_name: str, subject: tuple[str, str]) -> bool:
+    """Is this lost reference UPSTREAM's loss rather than the fork's? (:func:`_loss_owner`)"""
+
+    return _loss_owner(relative, test_name, subject) is _fork_scope.Owner.UPSTREAM
 
 
 _SKIP_LIST = HERMES_ROOT / "tests" / "fixtures" / "upstream_skip_list.txt"
@@ -366,8 +376,9 @@ def _unused_feature_subjects() -> frozenset[tuple[str, str]]:
 
 
 @functools.lru_cache(maxsize=1)
-def _round4_uncovered_subjects() -> tuple[str, ...]:
-    """Live production symbols whose last direct test reference a deletion took.
+def _round4_uncovered_subjects() -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Live production symbols whose last direct test reference a deletion took,
+    and the same for subjects a shallow clone cannot attribute (unjudged).
 
     The current test-tree parse is shared, and historical test contents are
     fetched/read in bulk. Keep this session-scoped work outside item timeouts.
@@ -382,9 +393,10 @@ def _round4_uncovered_subjects() -> tuple[str, ...]:
         _ROUND4_HISTORY_ERROR = (
             f"Cannot read the frozen round-4 base ({_ROUND4_COVERAGE_BASE}): {exc}"
         )
-        return ()
+        return (), ()
     unused = _unused_feature_subjects()
     uncovered: list[str] = []
+    unjudged: list[str] = []
     for relative, base_tests in historical.items():
         current_path = HERMES_ROOT / relative
         current_tree = (
@@ -404,16 +416,19 @@ def _round4_uncovered_subjects() -> tuple[str, ...]:
             for module_name, symbol in subjects:
                 subject = (module_name, symbol)
                 if (
-                    _live_production_symbol(subject)
-                    and subject not in covered
-                    and subject not in unused
-                    and not _upstream_retired_its_own_coverage(relative, test_name, subject)
+                    not _live_production_symbol(subject)
+                    or subject in covered
+                    or subject in unused
                 ):
-                    uncovered.append(
-                        f"{relative}::{test_name} deleted the last direct test "
-                        f"reference to {module_name}.{symbol}"
-                    )
-    return tuple(uncovered)
+                    continue
+                owner = _loss_owner(relative, test_name, subject)
+                if owner is _fork_scope.Owner.UPSTREAM:
+                    continue
+                (uncovered if owner is _fork_scope.Owner.FORK else unjudged).append(
+                    f"{relative}::{test_name} deleted the last direct test "
+                    f"reference to {module_name}.{symbol}"
+                )
+    return tuple(uncovered), tuple(unjudged)
 
 
 # Warmed at import, like the two walks above.
@@ -430,8 +445,9 @@ def test_round4_deleted_tests_left_no_live_production_subject_uncovered():
     # answer at all, so the second case is named before the first is believed.
     assert _ROUND4_HISTORY_ERROR is None, _ROUND4_HISTORY_ERROR
 
-    uncovered = _round4_uncovered_subjects()
+    uncovered, unjudged = _round4_uncovered_subjects()
     assert uncovered == (), "\n".join(uncovered)
+    _fork_scope.skip_unjudged(len(unjudged), "lost test reference(s) whose subject is")
 
 
 def test_upstreams_own_retired_test_of_its_own_code_is_upstreams_loss():

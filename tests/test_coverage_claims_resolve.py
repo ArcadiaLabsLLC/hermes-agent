@@ -742,7 +742,7 @@ def _near(index: int, claim: Claim) -> str:
     )
 
 
-def _fork_owns(claim: Claim) -> bool:
+def _owner(claim: Claim):
     """Is this citation the fork's to fix? Scope, not exemption (``tests/_fork_scope.py``).
 
     A citation on a line upstream authored, in a file upstream ships, is upstream's own
@@ -750,11 +750,12 @@ def _fork_owns(claim: Claim) -> bool:
     every merge, raising the ``[up-fp]`` ratchet to fix a sentence upstream wrote. The
     2026-09-24 merge is where this bit: upstream's purge lanes deleted tests that seven
     of its OWN comments still cite. Markdown under ``docs/`` and fork-only files are
-    always the fork's; an unreadable upstream index answers True (fail closed).
+    always the fork's; an unreadable upstream index answers the fork (fail closed), and
+    a shallow clone answers unjudged for an upstream-shipped file (``line_owner``).
     """
-    from tests._fork_scope import is_fork_authored
+    from tests._fork_scope import Owner, line_owner
 
-    return claim.source.endswith(".md") or is_fork_authored(claim.source, claim.lineno)
+    return Owner.FORK if claim.source.endswith(".md") else line_owner(claim.source, claim.lineno)
 
 
 def test_every_coverage_claim_names_a_test_that_exists(scan) -> None:
@@ -764,20 +765,16 @@ def test_every_coverage_claim_names_a_test_that_exists(scan) -> None:
     covered -- see the module docstring and the failure text below.
     """
 
-    from tests._fork_scope import unattributable_upstream_paths
+    from tests._fork_scope import Owner, skip_unjudged
 
     claims, _ = scan
-    unattributable = unattributable_upstream_paths(REPO_ROOT)
-    unresolved = _unresolved(claims)
-    not_checked = [c for c, _ in unresolved if c.source in unattributable and not c.source.endswith(".md")]
-    if not_checked:
-        warnings.warn(
-            f"{len(not_checked)} unresolved claim(s) in upstream-shipped files are not checked: "
-            "shallow clone (their line authorship needs the recorded base's ancestry)",
-            stacklevel=1,
-        )
-    bad = [(c, reason) for c, reason in unresolved if c not in not_checked and _fork_owns(c)]
+    unresolved = [(c, reason, _owner(c)) for c, reason in _unresolved(claims)]
+    bad = [(c, reason) for c, reason, owner in unresolved if owner is Owner.FORK]
     if not bad:
+        skip_unjudged(
+            sum(owner is Owner.UNJUDGED for _c, _r, owner in unresolved),
+            "unresolved coverage claim(s)",
+        )
         return
     report = "\n".join(
         f"  [{claim.arm}] {claim.source}:{claim.lineno}\n"

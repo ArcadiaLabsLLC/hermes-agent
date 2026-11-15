@@ -81,7 +81,15 @@ from hermes_cli.flag_binding import (
     list_flag_or_absent,
     list_flag_or_empty,
 )
-from tests._fork_scope import is_fork_authored, is_fork_touched, upstream_blobs
+from tests._fork_scope import (
+    Owner,
+    is_fork_authored,
+    is_fork_touched,
+    line_owner,
+    skip_unjudged,
+    skip_when_unattributable,
+    upstream_blobs,
+)
 import itertools
 
 pytestmark = pytest.mark.gate
@@ -278,12 +286,12 @@ def test_no_handler_collapses_an_absent_flag_into_an_empty_collection():
     # The FINDING is filtered, never the walk: the floor above stays measured
     # against the whole package, and the scope question is asked only about a
     # line that would otherwise be reported (a green gate asks it zero times).
-    offenders = sorted(
-        f"{relative}:{lineno}"
+    owners = {
+        f"{relative}:{lineno}": line_owner(path, lineno)
         for path in modules
         for relative, lineno in _collapse_sites(path)
-        if is_fork_authored(path, lineno)
-    )
+    }
+    offenders = sorted(site for site, owner in owners.items() if owner is Owner.FORK)
 
     assert offenders == [], (
         "`<args flag> or []` collapses ABSENT into EMPTY where nobody can see "
@@ -294,6 +302,7 @@ def test_no_handler_collapses_an_absent_flag_into_an_empty_collection():
         "`is not None` as an instruction. "
         f"Offenders: {offenders}"
     )
+    skip_unjudged(sum(owner is Owner.UNJUDGED for owner in owners.values()), "`or []` collapse site(s)")
 
 
 def test_the_ban_actually_recognises_the_shape_it_bans():
@@ -369,6 +378,7 @@ def test_the_fork_scope_filter_actually_removes_upstream_from_the_ban():
     entry in this file goes stale when someone edits that module tomorrow.
     """
 
+    skip_when_unattributable("the scope filter's upstream direction")
     blobs = upstream_blobs()
     assert blobs is not None, (
         "the upstream/main ref is not in this checkout, so the scope filter is "
