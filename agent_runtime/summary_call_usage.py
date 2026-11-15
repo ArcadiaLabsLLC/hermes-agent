@@ -44,7 +44,7 @@ def _nudge() -> str:
     return MAX_ITERATIONS_SUMMARY_REQUEST
 
 
-def _message_text(content: Any) -> str:
+def _summary_nudge_text(content: Any) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -61,7 +61,7 @@ def is_summary_request(body: Any) -> bool:
     if not isinstance(messages, list) or not messages or not isinstance(messages[-1], dict):
         return False
     last = messages[-1]
-    return last.get("role") == "user" and _message_text(last.get("content")).strip() == _nudge()
+    return last.get("role") == "user" and _summary_nudge_text(last.get("content")).strip() == _nudge()
 
 
 def _request_body(request: Any) -> Any:
