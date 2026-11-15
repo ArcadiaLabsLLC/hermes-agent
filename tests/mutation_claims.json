@@ -2716,8 +2716,8 @@
       "path": "agent_runtime/stream/build.py",
       "symbol": "_full_core_batch_frames",
       "operator": "reorder-yield-after-job",
-      "find": "    _defer_demote_build_for_active_turns(\n        reason=reason, caller=caller, moves_running_work=batch_changes_running_work_presence(batch)\n    )\n    if request_cancelled():\n        return\n\n    job = _SnapshotBuildJob(caller=caller, reason=reason)",
-      "replace": "    job = _SnapshotBuildJob(caller=caller, reason=reason)\n    _defer_demote_build_for_active_turns(\n        reason=reason, caller=caller, moves_running_work=batch_changes_running_work_presence(batch)\n    )",
+      "find": "    _defer_for_active_turns(batch, reason=reason, caller=caller)\n    if request_cancelled():\n        return\n\n    job = _SnapshotBuildJob(caller=caller, reason=reason)",
+      "replace": "    job = _SnapshotBuildJob(caller=caller, reason=reason)\n    _defer_for_active_turns(batch, reason=reason, caller=caller)",
       "test": [
         "{python}",
         "-m",

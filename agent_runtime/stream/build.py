@@ -171,6 +171,22 @@ def _build_with_liveness(
             next_heartbeat = current + heartbeat_interval
 
 
+def _defer_for_active_turns(batch: list[tuple[int, Event]], *, reason: str, caller: str) -> None:
+    """Hand the demote deferral this batch's running-work fact, then let it decide.
+
+    A batch that itself carries running-work presence (a turn's START or END
+    row) is never held behind the demote hold — a second console should see the
+    turn appear in about a second, not after ``SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS``.
+    The fact is the batch's, read here; the hold policy stays in
+    ``build_policy``. Kept beside ``_build_with_liveness`` so the full-core
+    batch builder stays under the W0-G7 floor.
+    """
+
+    _defer_demote_build_for_active_turns(
+        reason=reason, caller=caller, moves_running_work=batch_changes_running_work_presence(batch)
+    )
+
+
 def _full_core_batch_frames(
     batch: list[tuple[int, Event]],
     *,
@@ -261,9 +277,7 @@ def _full_core_batch_frames(
     # is no CPU to yield and nothing to wait for — and BEFORE the job so the
     # wait is not held while a worker thread is already running. Bounded by
     # ``SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS`` and a no-op on every lane but demote.
-    _defer_demote_build_for_active_turns(
-        reason=reason, caller=caller, moves_running_work=batch_changes_running_work_presence(batch)
-    )
+    _defer_for_active_turns(batch, reason=reason, caller=caller)
     if request_cancelled():
         return
 
