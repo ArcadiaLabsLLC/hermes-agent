@@ -344,6 +344,60 @@ def test_a_non_clean_turn_journal_write_is_accounted_for(
     assert warnings[0]["detail"] == "skipped_lock_timeout"
 
 
+def test_a_start_whose_append_failed_is_retried_before_the_model_runs(
+    monkeypatch, capsys, caplog, isolate_agent_runtime_root
+):
+    """RT-RUNNING-TURN-START-NEVER-PUBLISHED-ONCE-UNDER-LOAD.
+
+    The START append is fail-safe (a notification is not the turn) and the
+    EventLog lock is bounded, so on a starved box the one publish at the
+    write-ahead could be lost — and the END, which pairs with a landed START,
+    with it: the turn ran and finished with nothing on the stream lane, and
+    nothing said so. The provider boundary retries the start, and a lost append
+    is logged by name.
+    """
+
+    from agent_runtime import events as events_module
+    from agent_runtime.chat_turn_presence import EVENT_TURN_ENDED, EVENT_TURN_STARTED
+    from agent_runtime.events import EventLog
+
+    seen_while_running: list[str] = []
+
+    class _WatchingProvider(_ReplyProvider):
+        def mission_chat_reply(self, *args, **kwargs):
+            seen_while_running.extend(event.type for event in EventLog().tail(40))
+            return super().mission_chat_reply(*args, **kwargs)
+
+    _seed(monkeypatch, _WatchingProvider)
+    real_append = events_module.EventLog.append
+    lost = {"starts": 0}
+
+    def _append(self, event, *args, **kwargs):
+        if event.type == EVENT_TURN_STARTED and lost["starts"] == 0:
+            lost["starts"] += 1
+            raise TimeoutError("events lock not acquired")
+        return real_append(self, event, *args, **kwargs)
+
+    monkeypatch.setattr(events_module.EventLog, "append", _append)
+
+    with caplog.at_level("WARNING", logger="agent_runtime.chat_turn_presence"):
+        assert chat_turn_message._cmd_mission_chat_message(_args("starved_turn")) == 0
+    capsys.readouterr()
+
+    assert lost["starts"] == 1, "the write-ahead's start append was not the one lost"
+    assert EVENT_TURN_STARTED in seen_while_running, (
+        "the turn reached its model with no start published on the stream lane"
+    )
+    types = [event.type for event in EventLog().tail(40)]
+    assert types.count(EVENT_TURN_STARTED) == 1
+    assert types.count(EVENT_TURN_ENDED) == 1
+    assert any(
+        "chat_turn_presence.append_failed" in record.getMessage()
+        and EVENT_TURN_STARTED in record.getMessage()
+        for record in caplog.records
+    ), "a lost start publish must be named in the log"
+
+
 def test_every_discarded_turn_journal_write_is_routed():
     """No ``transition_mission_chat_turn`` call may drop its outcome again."""
 
