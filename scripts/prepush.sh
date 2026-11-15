@@ -449,6 +449,12 @@ _watch() {
     sleep 0.2 >/dev/null 2>&1 </dev/null
   done
   kill -KILL -- "-$pgid" 2>/dev/null
+  # A killed member still answers `kill -0` until it is reaped, so the watchdog exits only once the
+  # group is gone (bounded: an unreaped zombie under a non-reaping init must not hang the run).
+  for _ in $(seq 1 50); do
+    kill -0 -- "-$pgid" 2>/dev/null || exit 124
+    sleep 0.1 >/dev/null 2>&1 </dev/null
+  done
   exit 124
 }
 
@@ -534,7 +540,14 @@ _step() {
   set +m
   wait "$STEP_PGID"
   rc=$?
-  kill -TERM -- "-$WATCH_PGID" 2>/dev/null
+  # The leader can die on the watchdog's TERM while the rest of its group still lives (a member
+  # that ignores TERM, or one the kernel has not reaped yet): past the deadline the watchdog is
+  # mid-kill, so it is waited on — it returns only once the group is gone — never TERM'd, which
+  # would cancel its KILL (FH-PREPUSH-DEADLINE-KILL-TEST-READS-THE-GRANDCHILD-TOO-SOON). Inside the
+  # deadline it is only sleeping, and is stopped.
+  if [ $(( $(_now_ms) - started )) -lt $((deadline * 1000)) ]; then
+    kill -TERM -- "-$WATCH_PGID" 2>/dev/null
+  fi
   wait "$WATCH_PGID" 2>/dev/null
   wd_rc=$?
   STEP_PGID="" WATCH_PGID=""

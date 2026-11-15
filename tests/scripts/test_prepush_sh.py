@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.waiting import wait_until
+
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "prepush.sh"
 
@@ -202,7 +204,7 @@ def test_exit_code_is_red_on_any_red(repo: Path, runner_code: int, cite_code: in
     # A red notifies once at the end; a green run inside budget notifies nothing.
     notified = repo.parent / "notified.log"
     if expected:
-        assert "prepush: RED" in _wait_for(notified), proc.stdout
+        assert "prepush: RED" in _wait_for(notified, "prepush: RED"), proc.stdout
     else:
         time.sleep(0.5)  # the notifier is detached; give a wrong one the time to land
         assert not notified.exists(), proc.stdout
@@ -215,14 +217,16 @@ def test_a_missing_named_path_refuses_before_running(repo: Path):
     assert calls == ""
 
 
-def _wait_for(path: Path, seconds: float = 5.0) -> str:
-    """The notifier is detached on purpose (never waited on), so its record lands a beat later."""
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        if path.exists() and path.read_text(encoding="utf-8").strip():
-            return path.read_text(encoding="utf-8")
-        time.sleep(0.05)
-    return ""
+def _wait_for(path: Path, needle: str, seconds: float = 5.0) -> str:
+    """The notifier is detached on purpose (never waited on), so its record lands a beat later —
+    and after any earlier one: wait for the record named, not for the file to have any text (a run
+    whose over-budget notices land first read as no RED, seen in two parallel loops 2026-11-15)."""
+    def _text() -> str:
+        return path.read_text(encoding="utf-8") if path.exists() else ""
+    try:
+        return wait_until(lambda: needle in _text() and _text(), timeout=seconds, interval=0.05)
+    except AssertionError:
+        return _text()
 
 
 def test_the_plan_declares_every_steps_budget_and_deadline(repo: Path):
@@ -245,18 +249,24 @@ def test_a_step_past_its_budget_heartbeats_and_notifies_once_and_still_passes(re
     assert proc.returncode == 0, proc.stdout
     assert "… prepush: gates still running past its 1s budget (deadline 30s)" in proc.stdout
     assert "… prepush: gates still running (2s, budget 1s, deadline 30s)" in proc.stdout
-    assert "prepush: gates over budget" in _wait_for(repo.parent / "notified.log")
+    assert "prepush: gates over budget" in _wait_for(repo.parent / "notified.log", "prepush: gates over budget")
     assert "… prepush: doc-cite" not in proc.stdout  # only the slow step speaks
     assert proc.stdout.rstrip().endswith("✔ prepush: green")
 
 
-# Mutation: delete the ``kill -TERM/-KILL -- -pgid`` in ``_watch`` -> the run waits out the 60 s
-# sleep and the grandchild survives. The grandchild proves the kill takes the step's whole group.
+# Mutation: delete the ``kill -KILL -- -pgid`` in ``_watch``, or let ``_step`` TERM its watchdog once
+# the step's leader is gone (FH-PREPUSH-DEADLINE-KILL-TEST-READS-THE-GRANDCHILD-TOO-SOON) -> the
+# grandchild, which ignores TERM, outlives the run. The grandchild proves the kill takes the step's
+# whole group, and the read right after the run returns proves prepush returns only once the group is
+# gone (a TERM'd grandchild the kernel has not reaped yet still answers ``kill -0``) — no sleep.
 @pytest.mark.timeout(60)
 def test_a_step_at_its_deadline_is_killed_with_its_tree_and_the_run_fails_naming_it(repo: Path):
     pid_file = repo.parent / "grandchild.pid"
     started = time.monotonic()
-    proc, _ = _run(repo, runner_body=f'sleep 60 & echo $! > "{pid_file}"; wait', env_extra={
+    # Its output goes nowhere, so a survivor cannot hold the run's capture pipe open: the red is the
+    # ``kill -0`` read below, not a timeout.
+    grandchild_body = f'(trap "" TERM; exec sleep 60 >/dev/null 2>&1) & echo $! > "{pid_file}"; wait'
+    proc, _ = _run(repo, runner_body=grandchild_body, env_extra={
         "PREPUSH_GATES_BUDGET": "1", "PREPUSH_GATES_DEADLINE": "2", "PREPUSH_HEARTBEAT": "1",
         "PREPUSH_TOUCHED_BUDGET": "1", "PREPUSH_TOUCHED_DEADLINE": "2"})
     assert time.monotonic() - started < 30, proc.stdout
@@ -264,13 +274,12 @@ def test_a_step_at_its_deadline_is_killed_with_its_tree_and_the_run_fails_naming
     assert "✘ prepush: gates killed at its 2s deadline" in proc.stdout
     assert "gates (killed at its 2s deadline)" in proc.stdout.splitlines()[-1]
     grandchild = int(pid_file.read_text(encoding="utf-8").split()[0])
-    time.sleep(0.2)
     # ``$!`` is a pid in the SHELL's namespace (an MSYS pid under Git Bash, not a Windows one), so
     # the shell that spoke it answers whether it lives (FH-WINDOWS-PREPUSH-SHELL).
     probe = subprocess.run([_BASH, "-c", f"kill -0 {grandchild}"], capture_output=True,
                            stdin=subprocess.DEVNULL, check=False)
     assert probe.returncode != 0, f"grandchild {grandchild} survived the deadline kill"
-    assert "prepush: RED" in _wait_for(repo.parent / "notified.log")
+    assert "prepush: RED" in _wait_for(repo.parent / "notified.log", "prepush: RED")
 
 
 def test_a_budget_that_is_not_a_whole_number_of_seconds_refuses_before_running(repo: Path):
