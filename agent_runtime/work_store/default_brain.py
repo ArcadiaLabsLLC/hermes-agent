@@ -33,7 +33,11 @@ in one commit with the IDs kept, and its binding then records the remote as decl
 (``_fold_local_brain``, RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL).
 The PERSONAL board promotes the same way, only on the press, to the fixed ``eternia-work-personal``
 (RT-PERSONAL-BRAIN-PROMOTE, retiring the 2026-10-26 "never gets a remote" contract); it has no slot document, so
-its remote stays the binding's and the board stays ``default_board``'s.
+its remote stays the binding's and the board stays ``default_board``'s. With no slot document no sync brings it to a
+SECOND machine, so that machine's press meets the repository its first machine made: it JOINS it when it is private
+and carries the skeleton's two notes, appending the local rows in one commit (``_adopt_personal_remote``,
+RT-PERSONAL-BRAIN-PRESS-ON-A-SECOND-MACHINE-HITS-ITS-OWN-REPOSITORY); any other repository of that name stays
+``remote_exists``.
 Pinned by ``tests/agent_runtime/work_store/test_default_brain.py``.
 """
 
@@ -142,7 +146,7 @@ def IDENTITY_PAIRS(machine: str) -> tuple[str, str]:
 def skeleton(root: Path) -> list[Path]:
     """Write the two notes under ``root`` (an existing note is left as it is); the paths, TODO first."""
 
-    notes = [(root / BRAIN_FOLDER / "TODO.md", TODO_TEMPLATE), (root / QUEUE_DIR / QUEUE_NOTE, QUEUE_TEMPLATE)]
+    notes = list(zip(_skeleton_notes(root), (TODO_TEMPLATE, QUEUE_TEMPLATE), strict=True))
     for path, text in notes:
         path.parent.mkdir(parents=True, exist_ok=True)
         if not path.exists():
@@ -308,6 +312,19 @@ def promote_default_brain(workspace_id: str, *, issued_at: str) -> dict[str, Any
         adopt_remote(root, url, branch=str(record.get("default_branch") or "main"))
     except GitHostRefused as refused:
         _free_names.pop((str(account.login), workspace_id), None)  # the next offer looks again
+        if workspace_id == PERSONAL_BOARD_ID and refused.reason is Reason.REMOTE_EXISTS:
+            try:
+                # MUTATION: skip this join and test_a_second_machines_personal_press_joins_its_first_machines_
+                # repository reddens ``remote_exists`` (the refusal the row reported).
+                joined = _adopt_personal_remote(record, account, issued_at)
+            except WorkRefused as clash:
+                raise _refuse_promotion(workspace_id, clash.reason, clash.detail, issued_at=issued_at,
+                                        back_off=True) from None
+            if joined is not None:
+                receipt = receipts.emit("work.brain_promoted", workspace_id=workspace_id, url=joined,
+                                        declaration="personal")
+                return {"outcome": "joined", "url": joined, "declaration": {"state": "personal"},
+                        "receipt": receipt}
         raise _refuse_promotion(workspace_id, refused.reason, refused.detail, issued_at=issued_at,
                                 back_off=True) from None
     except AdoptRefused as refused:
@@ -398,9 +415,6 @@ def _fold_local_brain(workspace_id: str, issued_at: str) -> Board | None:
     None when there is nothing to fold.
     """
 
-    from .grammar import Op, RowRef
-    from .writer import RowOp, Writer
-
     record = read_binding(workspace_id)
     local = default_board(workspace_id)
     url = (_declared_brain(workspace_id).get("repo") or {}).get("clone_url")
@@ -413,26 +427,92 @@ def _fold_local_brain(workspace_id: str, issued_at: str) -> Board | None:
     if adopted is None:
         return None
     lines = [row.raw for row in board_rows(local)]
-    commit = None
-    if lines:
-        first = next((row.ref.id for row in board_rows(local) if row.ref.id), None)
-        machine = this_machine()
-        request = re.sub(r"[^A-Za-z0-9_.:-]+", "-", f"brain-fold.{paths.safe_path_token(workspace_id)}.{machine}")[:200]
-        ref = RowRef(DEFAULT_BRAIN_SLOT, f"{QUEUE_DIR}/{QUEUE_NOTE}", str(first or ""))
-        try:
-            receipt = Writer(adopted, machine_id=machine).apply(
-                RowOp(ref, Op.APPEND, "harness", request, {"rows": lines, "files": {}}))
-        except WorkRefused as refused:
-            _write_binding(workspace_id, {**record, "fold_refused": {"reason": refused.reason.value, "at": issued_at}})
-            receipts.emit("work.brain_fold_refused", workspace_id=workspace_id, reason=refused.reason.value,
-                          detail=refused.detail)
-            return None
-        commit = receipt.commit
+    try:
+        commit = _append_rows(adopted, local, workspace_id)
+    except WorkRefused as refused:
+        _write_binding(workspace_id, {**record, "fold_refused": {"reason": refused.reason.value, "at": issued_at}})
+        receipts.emit("work.brain_fold_refused", workspace_id=workspace_id, reason=refused.reason.value,
+                      detail=refused.detail)
+        return None
     _write_binding(workspace_id, {**record, "remote_url": url, "declaration": {"state": "declared"},
                                   "folded_into": url, "folded_at": issued_at, "fold_commit": commit,
                                   "fold_refused": None})
     receipts.emit("work.brain_folded", workspace_id=workspace_id, url=url, rows=len(lines), commit=commit)
     return _declared_brain_board(workspace_id, url)
+
+
+def _append_rows(adopted: Board, local: Board, workspace_id: str) -> str | None:
+    """Append every row of ``local`` to ``adopted``'s queue note in ONE writer commit, IDs and lines kept;
+    the commit (None: no rows). A clash, a grammar defect or a push failure raises :class:`WorkRefused`."""
+
+    from .grammar import Op, RowRef
+    from .writer import RowOp, Writer
+
+    rows = board_rows(local)
+    if not rows:
+        return None
+    first = next((row.ref.id for row in rows if row.ref.id), None)
+    machine = this_machine()
+    request = re.sub(r"[^A-Za-z0-9_.:-]+", "-", f"brain-fold.{paths.safe_path_token(workspace_id)}.{machine}")[:200]
+    ref = RowRef(DEFAULT_BRAIN_SLOT, f"{QUEUE_DIR}/{QUEUE_NOTE}", str(first or ""))
+    receipt = Writer(adopted, machine_id=machine).apply(
+        RowOp(ref, Op.APPEND, "harness", request, {"rows": [row.raw for row in rows], "files": {}}))
+    return receipt.commit
+
+
+def _adopt_personal_remote(record: dict[str, Any], account: Any, issued_at: str) -> str | None:
+    """The person's own ``eternia-work-personal``, made by their FIRST machine, joined by this one's press
+    (RT-PERSONAL-BRAIN-PRESS-ON-A-SECOND-MACHINE-HITS-ITS-OWN-REPOSITORY): the personal board declares no slot,
+    so no sync brings it here and the press's create met ``remote_exists``. The repository is cloned beside the
+    local brain only when it is PRIVATE and carries the personal skeleton's two notes (:func:`skeleton`); the
+    local rows are appended in one commit, IDs kept, and the binding moves to the clone. The URL, or None (not
+    the person's brain: the press stays refused ``remote_exists``). A clash or a push failure raises
+    :class:`WorkRefused` with the binding and both brains as they were."""
+
+    import shutil
+
+    from ..git_cmd import run_git
+    from ..git_host_account import private_repo_url
+    from ..git_remote_adopt import AdoptRefused, adopt_remote
+
+    url = private_repo_url(account, PERSONAL_REPO_NAME)
+    local = default_board(PERSONAL_BOARD_ID)
+    if url is None or local is None:
+        return None
+    root = Path(str(record["path"]))
+    branch = str(record.get("default_branch") or "main")
+    target = root.with_name(root.name + "-remote")
+    shutil.rmtree(target, ignore_errors=True)  # a clone an earlier refused press left
+    target.mkdir(parents=True)
+    run_git(["init", "-q", "-b", branch], repo=target, timeout=60, stdin=subprocess.DEVNULL)
+    try:
+        adopt_remote(target, url, branch=branch)
+    except AdoptRefused:
+        shutil.rmtree(target, ignore_errors=True)
+        return None
+    # MUTATION: drop this check and test_a_second_machine_never_joins_a_repository_that_is_not_a_personal_brain
+    # reddens: an unrelated private repository of that name is taken as the brain.
+    if not all(note.is_file() for note in _skeleton_notes(target)):
+        shutil.rmtree(target, ignore_errors=True)
+        return None
+    joined = {**record, "path": str(target), "remote_url": url, "promoted_at": issued_at,
+              "remote_owner": account.login, "promote_refused": None, "left_remote": None,
+              "joined_from": str(root), "joined_at": issued_at}
+    _write_binding(PERSONAL_BOARD_ID, joined)
+    try:
+        commit = _append_rows(default_board(PERSONAL_BOARD_ID), local, PERSONAL_BOARD_ID)
+    except WorkRefused:
+        _write_binding(PERSONAL_BOARD_ID, record)
+        shutil.rmtree(target, ignore_errors=True)
+        raise
+    _write_binding(PERSONAL_BOARD_ID, {**joined, "fold_commit": commit})
+    receipts.emit("work.brain_joined", workspace_id=PERSONAL_BOARD_ID, url=url, rows=len(board_rows(local)),
+                  commit=commit)
+    return url
+
+
+def _skeleton_notes(root: Path) -> list[Path]:
+    return [root / BRAIN_FOLDER / "TODO.md", root / QUEUE_DIR / QUEUE_NOTE]
 
 
 def remote_state(workspace_id: str) -> dict[str, Any] | None:

@@ -346,6 +346,63 @@ def test_second_machine_adopts_the_declared_remote_instead_of_creating_a_brain(w
     assert "WORK-ONEAAA" in board.ids_in_brain(made)
 
 
+def _private_repos(host, monkeypatch) -> None:
+    from agent_runtime import git_host_account
+
+    monkeypatch.setattr(git_host_account, "private_repo_url",
+                        lambda account, name: f"{HOST}{name}.git" if host.bare(name).exists() else None)
+
+
+def test_a_second_machines_personal_press_joins_its_first_machines_repository(workspace, host, tmp_path, monkeypatch):
+    """RT-PERSONAL-BRAIN-PRESS-ON-A-SECOND-MACHINE-HITS-ITS-OWN-REPOSITORY: the personal board declares no slot, so
+    a second machine's press met its first machine's ``eternia-work-personal`` and was refused ``remote_exists``.
+    It joins it: the local rows land in ONE commit, IDs kept, and the board pushes to that repository."""
+    _private_repos(host, monkeypatch)
+    ws, name = board.PERSONAL_BOARD_ID, default_brain.PERSONAL_REPO_NAME
+    _promoted(ws)
+    _commit_row(paths.default_brain_dir(ws), "WORK-ONEAAA", push=True)
+    _become_a_second_machine(ws, tmp_path)
+    local = default_brain.ensure_default_brain(ws, issued_at=LATER)
+    _commit_row(local.checkout, "WORK-TWOAAA", push=False)
+    before = len(_git(host.bare(name), "rev-list", "main").split())
+
+    joined = default_brain.promote_default_brain(ws, issued_at=LATER)
+
+    url = f"{HOST}{name}.git"
+    assert joined["outcome"] == "joined" and joined["url"] == url and host.created == [name]
+    remote = _git(host.bare(name), "show", f"main:{QUEUE_NOTE_PATH}")
+    assert "`WORK-ONEAAA`" in remote and "- **`WORK-TWOAAA` — carried** · READY 2026-10-19" in remote
+    assert len(_git(host.bare(name), "rev-list", "main").split()) == before + 1  # one commit
+    made = default_brain.ensure_default_brain(ws, issued_at=LATER)
+    assert made.is_default and made.clone_url == url and made.checkout == local.checkout.with_name("brain-remote")
+    assert _git(made.checkout, "config", "--get", "remote.origin.url").strip() == url
+    assert default_brain.remote_state(ws) == {"state": "remote", "clone_url": url}
+
+
+def test_a_second_machine_never_joins_a_repository_that_is_not_a_personal_brain(workspace, host, tmp_path, monkeypatch):
+    """The join reads the repository first: one of that name WITHOUT the personal skeleton's notes stays refused
+    ``remote_exists``, and the local brain and its binding are left as they were."""
+    _private_repos(host, monkeypatch)
+    ws, name = board.PERSONAL_BOARD_ID, default_brain.PERSONAL_REPO_NAME
+    host.make(name)
+    other = tmp_path / "other"
+    _git(tmp_path, "init", "-q", "-b", "main", str(other))
+    (other / "README.md").write_text("someone else's\n", encoding="utf-8")
+    _git(other, "add", "README.md")
+    _git(other, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "other")
+    _git(other, "push", "-q", str(host.bare(name)), "HEAD:main")
+    local = default_brain.ensure_default_brain(ws, issued_at=ISSUED)
+    record = _record(ws)
+
+    with pytest.raises(WorkRefused) as refused:
+        default_brain.promote_default_brain(ws, issued_at=ISSUED)
+
+    assert refused.value.reason is Reason.REMOTE_EXISTS
+    assert {k: v for k, v in _record(ws).items() if k != "promote_refused"} == record
+    assert not local.checkout.with_name("brain-remote").exists()
+    assert _git(host.bare(name), "log", "-1", "--format=%s", "main").strip() == "other"
+
+
 def test_second_machine_with_a_local_brain_folds_its_rows_into_the_adopted_brain(workspace, host, tmp_path):
     """RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL: a machine that made its own local brain before the declaration synced
     in folds the local rows into the adopted ``brain`` once, in ONE commit, IDs kept; one ``brain`` board is
