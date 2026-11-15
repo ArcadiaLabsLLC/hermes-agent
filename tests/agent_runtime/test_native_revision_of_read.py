@@ -140,6 +140,8 @@ def test_build_context_reads_the_lineage_once_and_keeps_the_revision(
         relay_deadline=None,
         turn_relay_chain=(),
         message="hello",
+        client_message_id=None,
+        redo_of=None,
         turn_phases=types.SimpleNamespace(mark=marks.append, label=lambda name, value: None),
     )
 

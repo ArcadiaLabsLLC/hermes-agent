@@ -9,8 +9,8 @@ from __future__ import annotations
 from typing import Any
 
 from ..clock import iso_timestamp
-from ..local_llama_adapter import PROVIDER_ID as LOCAL_LLAMA_PROVIDER_ID
 from ..mission_chat_outcome import LOCAL_MODEL_NOT_READY_REASON, refusal_never_left_hermes
+from ..module_presence import shipped
 from ..mission_chat_turns.reads import mission_chat_turn_records
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
@@ -37,6 +37,17 @@ __all__ = [
 
 #: The marker line under a message refused because the picked local model's llama server is
 #: off or its model is not loaded — it names the fix, not "review this profile's provider setup".
+def _is_local_llama_provider(provider: Any) -> bool:
+    """``provider`` is the local llama provider's id. The phone wheel ships no
+    ``local_llama_adapter`` (it cannot produce that refusal), so it answers False without the import."""
+
+    if not shipped("agent_runtime.local_llama_adapter"):
+        return False
+    from ..local_llama_adapter import PROVIDER_ID
+
+    return provider == PROVIDER_ID
+
+
 LLAMA_OFF_MARKER_TEXT = (
     "This request never left Hermes because local llama is off or the model is not loaded. "
     "Turn llama on and load the model, then send a new message."
@@ -229,7 +240,7 @@ def _terminal_turn_marker_rows(
                         "Choose a model, then send a new message."
                     )
                 elif (refusal_never_left_hermes(refusal)
-                      and refusal.get("provider") == LOCAL_LLAMA_PROVIDER_ID
+                      and _is_local_llama_provider(refusal.get("provider"))
                       and refusal.get("failure_reason") == LOCAL_MODEL_NOT_READY_REASON):
                     # A picked local model with llama off or unloaded (RT-LLAMA-OFF-MARKER-NAMES-LLAMA;
                     # the block is typed by RT-LLAMA-OFF-REFUSAL-NAMES-LLAMA).

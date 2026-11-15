@@ -68,9 +68,9 @@ def host_path(arguments: Any, task_id: str | None) -> Path | None:
     raw = arguments.get("path") if isinstance(arguments, dict) else None
     if not isinstance(raw, str) or not raw:
         return None
-    from tools.file_tools_paths import _resolve_path_for_task
+    from agent_runtime._upstream_doors import file_tool_path_for_task
 
-    path = _resolve_path_for_task(raw, task_id or "default")
+    path = file_tool_path_for_task(raw, task_id or "default")
     return path if isinstance(path, Path) else None
 
 

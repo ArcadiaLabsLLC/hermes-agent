@@ -57,6 +57,7 @@ def test_run_tests_sources_the_door_and_the_shipped_list_holds_only_names():
     assert [n for n in names if n] == [
         "HERMES_TEST_IDLE_BOX", "HERMES_TEST_BODY_PATCH_UNDO",
         "ETERNIA_HEAVY_SLOTS", "ETERNIA_HEAVY_SLOT_DIR", "ETERNIA_HEAVY_SLOT_HELD",  # the launcher's heavy-run slot
+        "HERMES_REQUIRE_TELEGRAM_EXTRA",  # the fork gate's real Telegram adapter tests fail, never skip (69f68e2170)
     ]
 
 

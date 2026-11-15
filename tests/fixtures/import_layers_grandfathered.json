@@ -122,6 +122,7 @@
   "agent_runtime/_upstream_doors.py|tools.delegate_tool_registry|_active_subagents",
   "agent_runtime/_upstream_doors.py|tools.delegate_tool_registry|_active_subagents_lock",
   "agent_runtime/_upstream_doors.py|tools.delegate_tool_registry|_subagent_transport_matches",
+  "agent_runtime/_upstream_doors.py|tools.file_tools_paths|_resolve_path_for_task",
   "agent_runtime/_upstream_doors.py|tools.mcp_tool_loop|_wait_for_server_session_ready",
   "agent_runtime/_upstream_doors.py|tools.mcp_tool_registration|_register_server_tools",
   "agent_runtime/_upstream_doors.py|tools.mcp_tool_scope|_key_name",

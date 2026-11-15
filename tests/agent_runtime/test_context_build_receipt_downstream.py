@@ -40,7 +40,7 @@ def _run_build_context(monkeypatch, builder_sleep_s: float):
         args=types.SimpleNamespace(), session_db=_CountingSessionDB(HISTORY), session_id=ROOT,
         pre_admit_timings={}, instance_store=None, relay_chain_in=None, persona=None, instance=None,
         cfg=None, model_selection={}, relay_deadline=None, turn_relay_chain=(), message="hello",
-        client_message_id="turn-ctx-1",
+        client_message_id="turn-ctx-1", redo_of=None,
         turn_phases=types.SimpleNamespace(mark=lambda name: None, label=lambda name, value: None),
     )
     run_module._RunPhases._build_context(commit)

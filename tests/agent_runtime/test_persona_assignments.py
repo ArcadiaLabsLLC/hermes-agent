@@ -350,6 +350,12 @@ def test_snapshot_exposes_operator_created_idle_persona_instance(monkeypatch, is
     cfg = _assignment_config()
     monkeypatch.setattr("agent_runtime.snapshot.envelope.load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr("agent_runtime.snapshot.sections.load_agent_runtime_config", lambda: cfg)
+    # The roster offers a profile-backed agent only while its profile exists (roster_reach, f2dedfc9ed).
+    from hermes_cli.profiles import get_profile_dir
+
+    home = get_profile_dir("reviewer")
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "config.yaml").write_text("{}", encoding="utf-8")
     created = mint_free_floating("profile_reviewer")
 
     snapshot = build_snapshot()

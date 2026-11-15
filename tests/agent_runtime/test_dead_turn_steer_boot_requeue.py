@@ -111,13 +111,17 @@ def test_a_dead_turns_process_notice_is_not_sent_as_operator_input(monkeypatch, 
 
 
 def test_serve_boot_runs_the_dead_turn_steer_sweep(monkeypatch, isolate_agent_runtime_root):
-    """The boot phase that repairs orphaned turns also queues their steers."""
+    """The boot phase that repairs orphaned turns also queues their steers: the real
+    ``BootPhases._run_boot_sweeps`` runs, and the dead turn's steer is the root's next turn.
+    Mutation: drop the ``requeue_dead_turn_steers()`` call from the sweep -> red (nothing queued)."""
 
-    import inspect
+    import types
 
     from hermes_cli.harness_parts.serve import boot_phases
 
-    source = inspect.getsource(boot_phases)
-    sweep = source.index("repair_orphaned_chat_turns()")
-    mark = source.index('self.timeline.mark("orphaned_turn_sweep_ms")')
-    assert "requeue_dead_turn_steers()" in source[sweep:mark]
+    _a_turn_dies_holding_a_steer(monkeypatch)
+    marks: list[str] = []
+    boot_phases.BootPhases._run_boot_sweeps(types.SimpleNamespace(timeline=types.SimpleNamespace(mark=marks.append)))
+
+    assert "orphaned_turn_sweep_ms" in marks
+    assert chat_root_send_queue.find(ROOT, "steer-next-cm-steer-orphan") is not None

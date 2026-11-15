@@ -23,7 +23,9 @@ from contextlib import ExitStack, contextmanager
 
 import pytest
 
-from agent_runtime import live_turns
+from tests._downstream.split_package_source import patch_where_bound
+
+from agent_runtime import live_turns, persona_assignments
 from agent_runtime.running_work import (
     KIND_CHAT_TURN,
     KIND_TOOL_CALL,
@@ -54,8 +56,8 @@ def journal(tmp_path, monkeypatch, isolate_agent_runtime_root):
     for module in (lanes_chat, lanes_process, ownership):
         if hasattr(module, "_head_home"):
             monkeypatch.setattr(module, "_head_home", lambda: (head, "test_home"))
-    monkeypatch.setattr(
-        "agent_runtime.persona_assignments.persona_instance_display_name",
+    patch_where_bound(
+        monkeypatch, persona_assignments, "persona_instance_display_name",
         lambda handle: "Launcher Dev Agent" if handle == INSTANCE else "",
     )
     monkeypatch.setattr(lanes_chat, "_chat_titles", lambda ids: {SESSION: "Launcher Dev Agent chat"})

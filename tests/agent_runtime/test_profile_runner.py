@@ -5,9 +5,11 @@ from pathlib import Path
 
 import pytest
 
+from tests._downstream.split_package_source import patch_where_bound
+
 import json
 
-from agent_runtime import paths
+from agent_runtime import paths, persona_assignments
 from agent_runtime.progress import _safe_progress_payload
 from agent_runtime.profile_runner import (
     AgentRunRequest,
@@ -1647,8 +1649,8 @@ def test_target_thread_fields_are_dispatch_only_and_id_shaped():
 
 
 def test_waiting_agent_chat_send_carries_the_reply_and_its_author(monkeypatch):
-    monkeypatch.setattr(
-        "agent_runtime.persona_assignments.persona_instance_display_name",
+    patch_where_bound(
+        monkeypatch, persona_assignments, "persona_instance_display_name",
         lambda handle: "Neko Mission Lead" if handle == "personainst_neko_3ebfce41" else "",
     )
     result = {
@@ -1765,8 +1767,9 @@ def test_dispatch_reply_survives_a_naming_failure(monkeypatch):
     def _boom(handle):
         raise RuntimeError("store unreadable")
 
-    monkeypatch.setattr(
-        "agent_runtime.persona_assignments.persona_instance_display_name", _boom
+    patch_where_bound(
+        monkeypatch, persona_assignments, "persona_instance_display_name",
+        _boom
     )
     payload = _tool_finished_payload(
         "run.tool.finished",

@@ -23,7 +23,6 @@ from pathlib import Path
 
 __layer__ = "models"
 __all__ = [
-    "approval_verdict_reasoning",
     "anthropic_account_usage",
     "anthropic_env",
     "anthropic_oauth_file",
@@ -31,6 +30,7 @@ __all__ = [
     "anthropic_prefer_refreshable_token",
     "anthropic_resolve_claude_code_token",
     "anthropic_token_unless_benched",
+    "approval_verdict_reasoning",
     "codex_account_claims",
     "codex_bounded_prompt_cache_key",
     "codex_cache_scope_from_session_id",
@@ -43,6 +43,7 @@ __all__ = [
     "delegation_managed_keys",
     "dispatch_streams",
     "doctor_section",
+    "file_tool_path_for_task",
     "gateway_agent_pending_sentinel",
     "gguf_file_header",
     "iter_named_profile_dirs",
@@ -90,6 +91,17 @@ def approval_verdict_reasoning() -> dict | None:
     from tools.approval_smart import _verdict_reasoning
 
     return _verdict_reasoning()
+
+
+def file_tool_path_for_task(filepath: str, task_id: str = "default"):
+    """``tools.file_tools_paths._resolve_path_for_task`` — the path a file tool's ``path`` argument
+    names for *task_id*, resolved as the file tools resolve it (a ``Path`` on the host, a
+    ``PurePosixPath`` for a container or remote task). Lens's undo (``agent_runtime/lens/undo.py``)
+    snapshots exactly the file the tool is about to write."""
+
+    from tools.file_tools_paths import _resolve_path_for_task
+
+    return _resolve_path_for_task(filepath, task_id)
 
 
 def pid_exists(pid: int) -> bool:
