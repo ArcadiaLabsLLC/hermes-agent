@@ -26,6 +26,9 @@ get                    {monitor_id} -> monitor + credentials: [{feed_id, ref, se
                        source}} (the rules the sealed revision runs under, else the draft's;
                        ``draft`` is a waiting next revision's). A monitor's own rules are its
                        manifest's ``guidance`` key, written by ``create`` and frozen by ``seal``
+                       + act_tools: null (not an act monitor) | {persona_id, missing: [tool] |
+                       null (unreadable), restore_hint, persona_missing?} — the listed actions
+                       the persona's bounded chat cannot reach (``lens/act_tools.py``)
 guidance.default.get   {workspace_id?} -> {workspace_id, text, source: workspace|shipped,
                        updated_at_ms, shipped_text} (absent ``workspace_id``: the active workspace)
 guidance.default.set   {workspace_id?, text: str | null} -> the same (``null`` forgets the workspace's
@@ -218,9 +221,12 @@ def _runtime_lens_get(rid: Any, params: dict, context: RpcContext | None = None)
         monitor = store.get(_monitor_id(params))
         from agent_runtime.lens.guidance import monitor_guidance
 
+        from agent_runtime.lens.act_tools import act_tools
+
+        manifest = (monitor.get("sealed") or {}).get("manifest") or monitor.get("draft")
         return {**monitor, "credentials": _credentials_of(monitor),
                 "equivalence_evidence": equivalence_evidence(store, monitor),
-                "guidance": monitor_guidance(store, monitor)}
+                "guidance": monitor_guidance(store, monitor), "act_tools": act_tools(manifest)}
 
     return _lens_call(rid, body)
 
