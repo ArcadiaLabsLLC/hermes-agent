@@ -63,6 +63,7 @@ def _rekey_machine_files(mapping: Any) -> None:
 
 
 def _rekey_lens(mapping: Any) -> None:
+    from .lens.guidance import rekey_workspace_guidance
     from .lens.store import default_path
 
     path = default_path()
@@ -70,8 +71,9 @@ def _rekey_lens(mapping: Any) -> None:
         return
     try:
         with sqlite3.connect(path, timeout=LENS_WAIT_SECONDS) as connection:
-            connection.executemany("UPDATE monitors SET workspace_id = ? WHERE workspace_id = ?",
-                                   [(new, old) for old, new in mapping.workspaces.items()])
+            pairs = [(new, old) for old, new in mapping.workspaces.items()]
+            connection.executemany("UPDATE monitors SET workspace_id = ? WHERE workspace_id = ?", pairs)
+            rekey_workspace_guidance(connection, pairs)
     except sqlite3.Error as exc:
         if getattr(exc, "sqlite_errorcode", None) in _SQLITE_IN_USE:
             # The Lens poller holds the database past sqlite's own wait: the re-key waits like a refused rename.

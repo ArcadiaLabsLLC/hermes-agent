@@ -11,7 +11,9 @@ Gates and their killing mutations (each red recorded in the row's commit):
 * a manifest without rules seals to the same bytes as before the key existed — killed by
   emitting ``guidance: null`` for an absent key;
 * blank rules are refused — killed by dropping the ``strip`` check from ``read_guidance``;
-* ``default.set`` with ``text: null`` forgets the workspace's text — killed by skipping the DELETE.
+* ``default.set`` with ``text: null`` forgets the workspace's text — killed by skipping the DELETE;
+* a realm re-key moves a workspace's default with its monitors — killed by dropping the
+  ``rekey_workspace_guidance`` call from ``realm_rekey_outside._rekey_lens``.
 """
 
 from __future__ import annotations
@@ -109,3 +111,16 @@ def test_setting_the_default_to_null_restores_the_shipped_text():
     assert _guidance("alpha")["source"] == "shipped"
     reply = _call("runtime.lens.guidance.default.set", {"workspace_id": "ws_a"})
     assert reply["error"]["data"] == {"reason": "missing_key", "detail": "text"}
+
+
+def test_a_realm_rekey_carries_the_workspace_default_with_its_monitors():
+    from types import SimpleNamespace
+
+    from agent_runtime.realm_rekey_outside import _rekey_lens
+
+    _monitor("alpha", "ws_old")
+    _rpc("runtime.lens.guidance.default.set", {"workspace_id": "ws_old", "text": "Carried rules."})
+    _rekey_lens(SimpleNamespace(workspaces={"ws_old": "ws_new"}))
+    assert _rpc("runtime.lens.get", {"monitor_id": "alpha"})["workspace_id"] == "ws_new"
+    assert _guidance("alpha") == {"text": "Carried rules.", "source": "workspace", "draft": None}
+    assert _rpc("runtime.lens.guidance.default.get", {"workspace_id": "ws_old"})["source"] == "shipped"

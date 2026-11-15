@@ -17,7 +17,7 @@ Three layers, the first present wins (:func:`effective_guidance`):
 =============  ==========================================================================
 
 A monitor with no workspace (one created before workspace scope) reads the unscoped default, key
-``""``. The text is TRUSTED operator input (the rules check puts it in the guardian's system prompt,
+``""``. A realm re-key moves a workspace's default with its monitors (``realm_rekey_outside``). The text is TRUSTED operator input (the rules check puts it in the guardian's system prompt,
 row ``RT-LENS-RULES-CHECK-BEFORE-INVESTIGATE``), so no persona path writes it: ``lens_propose``'s
 closed argument set has no ``guidance`` key, and these writes are console-tier RPC verbs only.
 """
@@ -41,6 +41,14 @@ SHIPPED_GUIDANCE = (
 
 _SCHEMA = """CREATE TABLE IF NOT EXISTS guidance_defaults (
   workspace_id TEXT PRIMARY KEY, text TEXT NOT NULL, updated_ms INTEGER NOT NULL)"""
+
+
+def rekey_workspace_guidance(connection: Any, pairs: list[tuple[str, str]]) -> None:
+    """Move each ``(new, old)`` workspace's default to its new id, inside the realm re-key's own
+    transaction (``realm_rekey_outside._rekey_lens``); a store that never held a default has no table."""
+
+    if connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'guidance_defaults'").fetchone():
+        connection.executemany("UPDATE OR REPLACE guidance_defaults SET workspace_id = ? WHERE workspace_id = ?", pairs)
 
 
 def _key(workspace_id: str | None) -> str:
