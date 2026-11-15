@@ -44,6 +44,9 @@ Read in this order for a full picture; each stands alone for its own territory.
 
 ## planned/ — designed, not implemented
 
+- [Sharing a Lens monitor's recipe with a workspace](planned/lens-shared-recipes-2026-11-15.md) — 2026-11-15:
+  a `lens_recipe` realm-sync family that fills a per-workspace shelf; a pulled recipe becomes a draft only when
+  this PC's person adds it. Designed, not built; three hermes slices and one Eternia row.
 - [Moving a workspace out of a server-bound realm](planned/workspace-move-out-of-server-realm-2026-11-12.md) — 2026-11-12:
   the four slices and the owner decision. S1–S3 (hermes) are BUILT 2026-11-12 — the truth is
   [03 — Transport and wire](03-transport-and-wire.md) § `runtime.workspace.move_realm`; S4 (Eternia's confirm
