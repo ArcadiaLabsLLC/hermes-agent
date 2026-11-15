@@ -99,4 +99,25 @@ def turn_usage_block(result: Any) -> dict[str, Any] | None:
         **{field: getattr(result, field, None) for field in TOTAL_FIELDS},
         "calls": list(getattr(result, "usage_ledger", None) or []),
     }
+    _fold_uncounted_calls(raw)
     return safe_turn_usage(raw)
+
+
+def _fold_uncounted_calls(raw: dict[str, Any]) -> None:
+    """Calls the ledger saw past the runner's ``api_calls`` join the totals (RT-ITERATION-SUMMARY-CALL-UNCOUNTED).
+
+    The runner's counters never see upstream's iteration-summary call; ``summary_call_usage`` appends
+    its row to the ledger after the main-loop rows, so the rows past ``api_calls`` are those calls."""
+
+    counted = raw.get("api_calls")
+    rows = raw["calls"]
+    if type(counted) is not int or counted < 0 or len(rows) <= counted:
+        return
+    extra = [row for row in rows[counted:] if isinstance(row, dict)]
+    raw["api_calls"] = counted + len(extra)
+    for field in ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens"):
+        if type(raw.get(field)) is int:
+            raw[field] += sum(int(row.get(field) or 0) for row in extra)
+    if type(raw.get("total_tokens")) is int:
+        raw["total_tokens"] += sum(int(row.get("prompt_tokens") or 0) + int(row.get("output_tokens") or 0)
+                                   for row in extra)

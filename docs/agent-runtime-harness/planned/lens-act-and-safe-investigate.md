@@ -92,9 +92,10 @@ report. The Episode's token ceiling is never more than what the monitor and all 
 limits and the day's spend are `agent_runtime/lens/budget.py`, stored in the Lens store (tables
 `budget_limits`, `episode_spend`), so an edit survives a restart and needs no config file; the root
 config's `agent_runtime.lens.{episode_token_budget, episode_call_budget, monitor_daily_token_budget,
-daily_token_budget, daily_turn_budget}` is only the fallback. Not counted yet: upstream's iteration-summary
-call fires no `post_api_request`, so the landing reply's own tokens are not on the receipt (the stop leaves
-room for them; row `RT-ITERATION-SUMMARY-CALL-UNCOUNTED`).
+daily_token_budget, daily_turn_budget}` is only the fallback. The landing reply is upstream's iteration-summary
+call, which fires no `post_api_request`; `agent_runtime/summary_call_usage.py` reads its usage at the
+request client the fork already hooks (`transport_phase_trace`), so it is on the receipt and the turn
+record too (RT-ITERATION-SUMMARY-CALL-UNCOUNTED).
 
 The RPC (settled here; the row's "get/set pair" was a guess):
 

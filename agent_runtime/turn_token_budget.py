@@ -22,11 +22,9 @@ landing instead of a trip. This module is that bound:
   tool round starts and upstream's finalizer takes one toolless call — the landing reply, which
   is the report.
 
-**Not counted yet:** upstream's iteration-summary call (``agent/chat_completion_helpers.py::
-handle_max_iterations``) fires no ``post_api_request``, so the landing reply's tokens reach no
-fork reader — not this budget, not the turn record's ``provider_usage`` (seen live 2026-11-14:
-4 requests, ``api_calls: 2``). The stop leaves room for it instead; counting it needs an upstream
-seam (row ``RT-ITERATION-SUMMARY-CALL-UNCOUNTED``).
+The landing reply is upstream's iteration-summary call, which fires no ``post_api_request``; its
+usage reaches :func:`on_provider_call` through ``summary_call_usage`` (an httpx response hook on the
+request client the fork already hooks), so it is counted like any other call.
 
 Unarmed turns pay one dict lookup per provider call. Nothing here raises into the turn.
 """

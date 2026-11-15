@@ -158,6 +158,11 @@ def install_transport_phase_trace(agent: Any, client: Any) -> None:
         if not isinstance(hooks, dict):
             return
         setattr(http_client, _CLIENT_AGENT_ATTR, agent)
+        from agent_runtime.summary_call_usage import install_summary_usage_hook
+
+        # RT-ITERATION-SUMMARY-CALL-UNCOUNTED: the summary call fires no post_api_request; read its usage here.
+        install_summary_usage_hook(http_client, _CLIENT_AGENT_ATTR)
+        hooks = http_client.event_hooks
         if any(getattr(hook, _HOOK_MARK, False) for hook in hooks.get("request", ())):
             note_attempt(agent, AttemptFact.HOOKED)  # the per-attempt fact the settle reads
             return
