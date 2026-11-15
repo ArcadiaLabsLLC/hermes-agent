@@ -9,7 +9,15 @@ its §6 (the owner has not ruled; each default is the plan's recommendation):
 ``daily_turn_budget``                  96       forged Lens turns per UTC day, all monitors
 ``host_reads_per_minute_public``       30       reads of one public host per minute
 ``host_reads_per_minute_private``      120      reads of one opted-in private host
+``episode_token_budget``               150000   total provider tokens one investigate turn may spend
+``episode_call_budget``                30       provider calls one investigate turn may make
+``monitor_daily_token_budget``         600000   tokens one monitor's turns may spend per UTC day
+``daily_token_budget``                 2000000  tokens every Lens turn may spend per UTC day
 =====================================  =======  ===========================================
+
+The four token budgets are the design's (``planned/lens-act-and-safe-investigate.md`` §3, owner
+RULED 2026-11-14). The config value is only the FALLBACK: the owner edits every budget limit over
+``runtime.lens.budget.set`` (``lens/budget.py``), and a limit written there wins over this file.
 
 Read RAW from the root config, not through a ``RuntimeConfig`` section: a section rides
 the ``runtime_config`` wire via ``asdict(cfg)`` (``config/knobs.py`` says the same of
@@ -31,12 +39,28 @@ logger = logging.getLogger(__name__)
 DEFAULT_DAILY_TURN_BUDGET = 96
 DEFAULT_HOST_READS_PER_MINUTE_PUBLIC = 30
 DEFAULT_HOST_READS_PER_MINUTE_PRIVATE = 120
+DEFAULT_EPISODE_TOKEN_BUDGET = 150_000
+DEFAULT_EPISODE_CALL_BUDGET = 30
+DEFAULT_MONITOR_DAILY_TOKEN_BUDGET = 600_000
+DEFAULT_DAILY_TOKEN_BUDGET = 2_000_000
 #: ``key -> (default, minimum, maximum)``; 0 turns the daily budget into "no turns".
 _SETTINGS: dict[str, tuple[int, int, int]] = {
     "daily_turn_budget": (DEFAULT_DAILY_TURN_BUDGET, 0, 100_000),
     "host_reads_per_minute_public": (DEFAULT_HOST_READS_PER_MINUTE_PUBLIC, 1, 6_000),
     "host_reads_per_minute_private": (DEFAULT_HOST_READS_PER_MINUTE_PRIVATE, 1, 6_000),
+    # 0 tokens a day is "no investigate turns"; an Episode gets at least two calls (one is the landing reply).
+    "episode_token_budget": (DEFAULT_EPISODE_TOKEN_BUDGET, 1_000, 10_000_000),
+    "episode_call_budget": (DEFAULT_EPISODE_CALL_BUDGET, 2, 256),
+    "monitor_daily_token_budget": (DEFAULT_MONITOR_DAILY_TOKEN_BUDGET, 0, 1_000_000_000),
+    "daily_token_budget": (DEFAULT_DAILY_TOKEN_BUDGET, 0, 10_000_000_000),
 }
+
+
+def lens_setting_bounds(key: str) -> tuple[int, int]:
+    """``(minimum, maximum)`` a value of ``agent_runtime.lens.<key>`` must sit in."""
+
+    _, minimum, maximum = _SETTINGS[key]
+    return minimum, maximum
 
 
 def lens_setting(key: str) -> int:

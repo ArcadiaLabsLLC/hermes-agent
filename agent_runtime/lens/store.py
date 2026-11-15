@@ -178,12 +178,15 @@ class ReceiptOutcome(str, Enum):
     DIGESTED = "digested"
     #: The stored Episode stopped being owed (a decision, a snooze) after the door read it — no turn.
     SKIPPED_DECIDED = "skipped_decided"
+    #: The investigate turn ran until its token or call budget was spent, then landed: the reply so far
+    #: is the report (``lens/budget.py``, design ``lens-act-and-safe-investigate.md`` §3).
+    BUDGET_SPENT = "budget_spent"
 
 
 FORGE_FAILED_PREFIX = "forge_failed:"
 #: The outcomes ``daily_turn_cap`` counts: a turn run, running, or a notification sent.
 CAPPED_OUTCOMES = (ReceiptOutcome.FORGING.value, ReceiptOutcome.FORGED.value, ReceiptOutcome.NOTIFIED.value,
-                   ReceiptOutcome.NOTIFIED_OVER_BUDGET.value)
+                   ReceiptOutcome.NOTIFIED_OVER_BUDGET.value, ReceiptOutcome.BUDGET_SPENT.value)
 
 
 class LensStoreError(ValueError):
@@ -255,6 +258,7 @@ class LensStore:
                 _add_observation_revision(conn)
                 _add_receipt_digest(conn)
                 _add_workspace_column(conn)
+                _add_budget_tables(conn)
                 with conn:
                     yield conn
             finally:
@@ -748,6 +752,12 @@ def _add_workspace_column(conn: sqlite3.Connection) -> None:
     from .store_scope import add_workspace_column
 
     add_workspace_column(conn)
+
+
+def _add_budget_tables(conn: sqlite3.Connection) -> None:
+    from .budget import add_budget_tables
+
+    add_budget_tables(conn)
 
 
 def _add_receipt_digest(conn: sqlite3.Connection) -> None:

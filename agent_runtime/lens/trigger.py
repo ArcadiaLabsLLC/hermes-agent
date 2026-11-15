@@ -21,9 +21,11 @@ a non-urgent rule      ``source_broken:<feed_id>`` Episode (W1), settled ``notif
 daily cap reached      receipt ``capped`` (``store.receipts_today``, per UTC day)
 global budget reached  receipt ``notified_over_budget`` (W6: an ``investigate`` turn past
                        the root config's ``agent_runtime.lens.daily_turn_budget`` turns,
-                       all monitors, this UTC day — downgraded to a notify, never dropped)
+                       all monitors, this UTC day — downgraded to a notify, never dropped);
+                       also when the monitor's or all Lens's TOKENS today fill their daily
+                       limit (``lens/budget.py``)
 ``level: notify``      receipt ``notified``; no turn
-``level: investigate`` receipt ``forging`` -> the turn -> ``forged`` |
+``level: investigate`` receipt ``forging`` -> the turn -> ``forged`` | ``budget_spent`` |
                        ``forge_failed:<reason>``
 decided after the read receipt ``skipped_decided``, no turn: ``save_receipts`` re-checks
                        ``needs_admission`` on the STORED row (an operator dismiss/snooze
@@ -49,6 +51,13 @@ Every receipt is written in the SAME transaction that sets the Episode's
 ``turn_id`` (the client message id for a turn; the outcome's own name for the
 rest), and BEFORE any turn runs, so a second admission — another tick, a restart,
 a reentrant pass — finds the receipt and forges nothing.
+
+**Token budget** (RT-LENS-INVESTIGATE-TOKEN-BUDGET, design ``planned/lens-act-and-safe-investigate.md``
+§3): the turn runs with a :class:`~agent_runtime.turn_token_budget.TurnTokenBudget` armed for its
+client message id — the Episode's token and call limits (``lens/budget.py``), never more tokens than
+the monitor and all Lens have left today. At 80 % the model is told to write what it has; when the
+next call would pass a limit the turn lands (receipt ``budget_spent``). What it spent is the
+receipt's ``budget`` block and counts toward the day.
 
 The turn goes through the one mission-chat door
 (:func:`agent_runtime.mission_chat_door.run_mission_chat_turn`), as a dispatch
@@ -273,13 +282,22 @@ def _cooling(store: LensStore, episode: Episode, now: datetime, cooldown_ms: int
     return previous is not None and to_ms(now) - previous < cooldown_ms
 
 
+def _over_daily_tokens(store: LensStore, monitor_id: str, now: datetime) -> bool:
+    """True when the monitor's or all Lens's tokens today fill their daily limit (``lens/budget.py``)."""
+
+    from .budget import over_daily_tokens
+
+    return over_daily_tokens(store, monitor_id, now)
+
+
 def _over_budget(store: LensStore, now: datetime) -> bool:
     """True when the turns every monitor began today already fill the global budget (W6)."""
 
-    from .settings import lens_setting
+    from .budget import lens_limits
     from .store_admission import turns_today
 
-    return turns_today(store, now) >= lens_setting("daily_turn_budget")
+    # The owner's edited value (``runtime.lens.budget.set``, scope lens), else the root config's.
+    return turns_today(store, now) >= lens_limits(store)["daily_turns"]["value"]
 
 
 @dataclass
@@ -344,7 +362,8 @@ class LensForge:
         automation = manifest["automation"]
         if store.receipts_today(episode.monitor_id, now) >= automation["daily_turn_cap"]:
             return ReceiptOutcome.CAPPED.value
-        if automation["level"] == AutomationLevel.INVESTIGATE.value and _over_budget(store, now):
+        if automation["level"] == AutomationLevel.INVESTIGATE.value and (
+                _over_budget(store, now) or _over_daily_tokens(store, episode.monitor_id, now)):
             return ReceiptOutcome.NOTIFIED_OVER_BUDGET.value
         if automation["level"] == AutomationLevel.NOTIFY.value:
             return ReceiptOutcome.NOTIFIED.value
@@ -451,14 +470,26 @@ class LensForge:
             return None
         payload: dict[str, Any] = {}
         turn = {} if digest is None else {"turn_key": digest}
+        from ..turn_token_budget import TurnTokenBudget, armed_turn_budget
+        from .budget import episode_limits, record_spend
+
+        token_limit, call_limit = episode_limits(store, leader.monitor_id, now)
+        budget = TurnTokenBudget(token_limit=token_limit, call_limit=call_limit)
         try:
-            ok, payload = self.forge(manifest=manifest, episode=leader, message=message, **turn)
+            # Armed for THIS turn's client message id: every provider call of the turn is counted and the
+            # turn lands when the next call would pass a limit (``turn_token_budget``).
+            with armed_turn_budget(turn_id, budget):
+                ok, payload = self.forge(manifest=manifest, episode=leader, message=message, **turn)
             payload = payload or {}
-            outcome = (ReceiptOutcome.FORGED.value if ok
-                       else FORGE_FAILED_PREFIX + (str(payload.get("error_kind") or "") or "refused"))
+            if not ok:
+                outcome = FORGE_FAILED_PREFIX + (str(payload.get("error_kind") or "") or "refused")
+            else:  # a turn that landed on its budget says so; its reply so far is still the report
+                outcome = ReceiptOutcome.BUDGET_SPENT.value if budget.stopped_by else ReceiptOutcome.FORGED.value
         except Exception as exc:
             logger.warning("lens forge failed for episode %s", leader.id, exc_info=True)
             outcome = f"{FORGE_FAILED_PREFIX}{type(exc).__name__}"
+        record_spend(store, episode_id=leader.id, monitor_id=leader.monitor_id, started_ms=to_ms(now),
+                     summary=budget.summary())
         # The turn is read-only: its reply IS the report, written by the door before the folder is listed.
         write_reply_report(leader.id, payload.get("reply"))
         handles, files = collect(leader.id, payload.get("reply"))

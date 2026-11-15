@@ -52,7 +52,19 @@ episode.close          {episode_id, workspace_id?} -> {closed: [Episode]} (ONE o
 fold                   {workspace_id?} -> the Mission Control fold (``lens.snapshot_fold``)
 credential.set         {ref, scheme, secret, username?} -> {ref, set, rotated_at}
                        (write-only: no verb returns a credential value)
-receipt                {episode_id} -> the exit door's receipt for that Episode (stage L2)
+receipt                {episode_id} -> the exit door's receipt for that Episode (stage L2); a receipt that
+                       ran a turn carries ``budget``: {tokens_used, token_limit, calls_used,
+                       call_limit, stopped_by: null|tokens|calls}, else null
+budget.get             {monitor_id?, workspace_id?} -> {lens: {limits, today: {tokens, turns}, bounds},
+                       workspace: {workspace_id, limits, bounds}, monitor?: {monitor_id, limits,
+                       today: {tokens}, bounds}} — each limit is {value, source: monitor |
+                       workspace | lens | config}; ``workspace`` is the given one, else the
+                       monitor's, else the active one (``lens/budget.py``)
+budget.set             {scope: monitor|workspace|lens, monitor_id? | workspace_id?, limits: {key: int
+                       | null}} -> budget.get's answer for that scope (monitor/workspace keys:
+                       episode_tokens, episode_calls, daily_tokens; lens keys: daily_tokens,
+                       daily_turns; null clears back to the next layer; stored in the Lens store,
+                       so it survives a restart; takes effect from the next Episode)
 receipts               {monitor_id?, limit?, workspace_id?} -> {receipts} (newest first; limit
                        <= 256; each row carries its monitor's ``workspace_id``)
 artifact               {episode_id, name} -> {name, media_type, size_bytes, sha256, encoding, content}
@@ -436,5 +448,27 @@ def _runtime_lens_ingress_bind(rid: Any, params: dict, context: RpcContext | Non
 
         m = checked_object(params or {}, {"host", "port"})
         return bind_ingress(m["host"], m["port"])
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.budget.get", tier=TIER_CONSOLE)
+def _runtime_lens_budget_get(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from datetime import UTC, datetime
+
+        from agent_runtime.lens.budget import budget_view
+
+        return budget_view(_store(), params or {}, datetime.now(UTC))
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.budget.set", tier=TIER_CONSOLE)
+def _runtime_lens_budget_set(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from agent_runtime.lens.budget import set_limits
+
+        return set_limits(_store(), params or {})
 
     return _lens_call(rid, body)

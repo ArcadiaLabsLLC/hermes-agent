@@ -131,8 +131,11 @@ RUNTIME_NOTICE_WALL_CHECKPOINT = "wall_checkpoint"
 RUNTIME_NOTICE_TOOL_AVAILABILITY = "tool_availability"
 #: The tool-calling loop hit its iteration limit (typed on read, ``curation.py``).
 RUNTIME_NOTICE_ITERATION_LIMIT = "iteration_limit"
+#: The turn's armed token ceiling nudged or landed it (``agent_runtime/turn_token_budget.py``).
+RUNTIME_NOTICE_TOKEN_BUDGET = "token_budget"
 RUNTIME_NOTICE_CODES = frozenset({
     RUNTIME_NOTICE_WALL_CHECKPOINT, RUNTIME_NOTICE_TOOL_AVAILABILITY, RUNTIME_NOTICE_ITERATION_LIMIT,
+    RUNTIME_NOTICE_TOKEN_BUDGET,
 })
 
 

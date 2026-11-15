@@ -54,6 +54,9 @@ def _bucket(usage: Any, field: str) -> int:
 
 def record_usage(usage: Any) -> None:
     """Append one row (a token-bucket mapping or a ``CanonicalUsage``) to the bound ledger."""
+    from .turn_token_budget import on_provider_call
+
+    on_provider_call(usage)  # a turn's armed token ceiling sees every call (``turn_token_budget``)
     rows = _LEDGER.get()
     if rows is None or usage is None or len(rows) >= USAGE_LEDGER_MAX_ROWS:
         return

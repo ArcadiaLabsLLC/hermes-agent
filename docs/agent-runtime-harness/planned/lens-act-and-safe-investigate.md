@@ -74,6 +74,28 @@ Read-only tool calls in either level pay no check — the budget (§3) bounds th
 - **Shown to the owner:** tokens used / limit per Episode on its receipt, today's per-monitor and all-Lens
   totals on the monitor card; a price is shown when `turn_audit` can price it, else tokens only.
 
+**Built 2026-11-14 (RT-LENS-INVESTIGATE-TOKEN-BUDGET, lane w1114a-hlens-budget).** The ceiling is
+`agent_runtime/turn_token_budget.py`: armed by the exit door for the forged turn's client message id,
+charged from every provider call's own usage (`usage_ledger.record_usage`, i.e. the `post_api_request`
+hook), nudging at 80 % and landing while the landing reply still fits (one more working call plus the
+landing, each about the size of the last call, would pass the token limit; or the landing would be the
+last call allowed) — the iteration budget is drained, so upstream's finalizer writes the reply that is the
+report. The Episode's token ceiling is never more than what the monitor and all Lens have left today. The
+limits and the day's spend are `agent_runtime/lens/budget.py`, stored in the Lens store (tables
+`budget_limits`, `episode_spend`), so an edit survives a restart and needs no config file; the root
+config's `agent_runtime.lens.{episode_token_budget, episode_call_budget, monitor_daily_token_budget,
+daily_token_budget, daily_turn_budget}` is only the fallback. Not counted yet: upstream's iteration-summary
+call fires no `post_api_request`, so the landing reply's own tokens are not on the receipt (the stop leaves
+room for them; row `RT-ITERATION-SUMMARY-CALL-UNCOUNTED`).
+
+The RPC (settled here; the row's "get/set pair" was a guess):
+
+| verb | params → result |
+|---|---|
+| `runtime.lens.budget.get` | `{monitor_id?, workspace_id?}` → `{lens: {limits: {daily_tokens, daily_turns}, today: {tokens, turns}, bounds}, workspace: {workspace_id, limits: {episode_tokens, episode_calls, daily_tokens}, bounds}, monitor?: {monitor_id, limits: {…same three}, today: {tokens}, bounds}}`; each limit is `{value, source: monitor \| workspace \| lens \| config}`; `workspace` is the given one, else the monitor's, else the active one; `bounds` is `{key: [min, max]}` |
+| `runtime.lens.budget.set` | `{scope: monitor \| workspace \| lens, monitor_id? \| workspace_id?, limits: {key: int \| null}}` → `budget.get`'s answer for that scope; `null` clears a key back to the next layer (monitor → workspace → config); a refusal names its field (`unknown_key`, `invalid_integer`, `missing_key`, `unknown_enum`, `monitor_not_found`); takes effect from the next Episode |
+| `runtime.lens.receipt` / `receipts` | each receipt that ran a turn carries `budget: {tokens_used, token_limit, calls_used, call_limit, stopped_by: null \| tokens \| calls}`, else `null`; a landed turn's `outcome` is `budget_spent` |
+
 ## 4. Act is investigate's next step
 
 `AutomationLevel` gains `act`. An `act` monitor runs exactly as investigate (notify → check → turn, same

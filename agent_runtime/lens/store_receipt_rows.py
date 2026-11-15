@@ -26,9 +26,14 @@ RECEIPT_COLUMNS = ("episode_id", "monitor_id", "turn_id", "session_id", "started
 #: A receipt READ: the stored columns plus its Episode's ``rule_id``, joined rather than stored twice (row
 #: ``RT-LENS-RECEIPT-RULE-ID`` — a ``schedule:run`` receipt is told from a breach's by it). ``NULL`` when the
 #: Episode row is gone; callers append their own ``WHERE`` / ``ORDER BY`` over the ``r`` alias.
-RECEIPT_READ = (f"SELECT {', '.join(f'r.{column}' for column in RECEIPT_COLUMNS)}, e.rule_id "
+#: The receipt's ``budget`` block (RT-LENS-INVESTIGATE-TOKEN-BUDGET) is its Episode's ``episode_spend`` row
+#: (``lens/budget.py``), joined the same way; ``null`` for a receipt that ran no turn.
+BUDGET_COLUMNS = ("tokens_used", "token_limit", "calls_used", "call_limit", "stopped_by")
+RECEIPT_READ = (f"SELECT {', '.join(f'r.{column}' for column in RECEIPT_COLUMNS)}, e.rule_id, "
+                f"s.episode_id, {', '.join(f's.{column}' for column in BUDGET_COLUMNS)} "
                 "FROM receipts r "
-                "LEFT JOIN episodes e ON e.id = r.episode_id")
+                "LEFT JOIN episodes e ON e.id = r.episode_id "
+                "LEFT JOIN episode_spend s ON s.episode_id = r.episode_id")
 #: The log receipt a fence refusal leaves (observability is a log receipt, never a wire key).
 RECEIPTS_FULL_RECEIPT = "[LensReceiptsFull] monitor=%s episode=%s"
 
@@ -68,9 +73,12 @@ def receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:
 
 
 def receipt_json(row: tuple[Any, ...]) -> dict[str, Any]:
-    """One :data:`RECEIPT_READ` row as the receipt record (``rule_id`` last, ``None`` for a gone Episode)."""
+    """One :data:`RECEIPT_READ` row as the receipt record (``rule_id``, ``None`` for a gone Episode; ``budget``,
+    ``None`` when no turn ran)."""
 
-    out = dict(zip((*RECEIPT_COLUMNS, "rule_id"), row, strict=True))
+    spend = row[len(RECEIPT_COLUMNS) + 1:]
+    out = dict(zip((*RECEIPT_COLUMNS, "rule_id"), row[:len(RECEIPT_COLUMNS) + 1], strict=True))
+    out["budget"] = None if spend[0] is None else dict(zip(BUDGET_COLUMNS, spend[1:], strict=True))
     out["artifact_handles"] = json.loads(out["artifact_handles"])
     out["files"] = json.loads(out["files"])
     return {"version": 1, **out}
