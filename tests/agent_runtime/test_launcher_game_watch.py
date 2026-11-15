@@ -248,8 +248,27 @@ def test_the_launcher_closed_for_a_game_is_relaunched_game_ended_when_the_game_e
 # ── real processes ───────────────────────────────────────────────────────────
 
 
+def _walk_only(monkeypatch, *popens: subprocess.Popen) -> None:
+    """Confine ``psutil.process_iter`` to the test's own children (FH-GAME-WATCH-TEST-READS-THE-MACHINES-
+    REAL-PROCESSES): the real walk realpath()s every process's exe on the box, and one running from the
+    real ``~/.hermes/tools`` trips ``home_io_guard``. Each child is still read live through ``psutil``,
+    so a killed one drops out exactly as it would from the real table."""
+    import psutil
+
+    def process_iter(attrs=None, ad_value=None):
+        for child in popens:
+            try:
+                process = psutil.Process(child.pid)
+                process.info = process.as_dict(attrs, ad_value)
+            except psutil.NoSuchProcess:
+                continue
+            yield process
+
+    monkeypatch.setattr(psutil, "process_iter", process_iter)
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="copies a POSIX binary into the install folder")
-def test_a_bootstrapper_that_exits_at_once_while_its_game_runs_is_still_watched(tmp_path):
+def test_a_bootstrapper_that_exits_at_once_while_its_game_runs_is_still_watched(tmp_path, monkeypatch):
     install_dir = tmp_path / "Game"
     install_dir.mkdir()
     game_binary = install_dir / "game_bin"
@@ -257,6 +276,7 @@ def test_a_bootstrapper_that_exits_at_once_while_its_game_runs_is_still_watched(
     game = subprocess.Popen([str(game_binary), "60"])
     bootstrapper = subprocess.Popen([sys.executable, "-c", "pass"])
     bootstrapper.wait(10)
+    _walk_only(monkeypatch, game, bootstrapper)
     watcher = GameWatcher(on_ended=lambda record, still: None, poll_seconds=3600.0)
     try:
         handed = {**_GAME, "pid": bootstrapper.pid, "executable": None, "install_dir": str(install_dir)}
