@@ -263,6 +263,7 @@ class LensStore:
                 add_rules_check_columns(conn)
                 _add_workspace_column(conn)
                 _add_budget_tables(conn)
+                _add_action_tables(conn)
                 with conn:
                     yield conn
             finally:
@@ -762,6 +763,12 @@ def _add_budget_tables(conn: sqlite3.Connection) -> None:
     from .budget import add_budget_tables
 
     add_budget_tables(conn)
+
+
+def _add_action_tables(conn: sqlite3.Connection) -> None:
+    from .store_actions import add_action_tables
+
+    add_action_tables(conn)
 
 
 def _add_receipt_digest(conn: sqlite3.Connection) -> None:

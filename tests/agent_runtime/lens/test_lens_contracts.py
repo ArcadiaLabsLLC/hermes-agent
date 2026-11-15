@@ -59,7 +59,8 @@ def test_one_unknown_key_anywhere_is_refused(path):
 
 
 @pytest.mark.parametrize("mutate, code", [
-    (lambda d: d["automation"].update(level="act"), WireRefusal.UNKNOWN_ENUM),  # ruling 3: no act level
+    (lambda d: d["automation"].update(level="fix"), WireRefusal.UNKNOWN_ENUM),
+    (lambda d: d["automation"].update(actions=["write_file"]), WireRefusal.INVALID_VALUE),  # actions need act
     (lambda d: d["feeds"][0].update(kind="sql_readonly"), WireRefusal.UNKNOWN_KEY),  # L4: its own source block
     (lambda d: d["rules"][0].update(feed_id="nope"), WireRefusal.INVALID_VALUE),
     (lambda d: d["rules"][0].update(recovery_threshold=95), WireRefusal.INVALID_VALUE),  # no hysteresis

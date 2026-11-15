@@ -273,18 +273,23 @@ def _generated_tree_write(tool_name, args):
     return generated_tree_write_refusal(tool_name, args, offered=offered_to_bound_link, host_paths=host_paths)
 
 
-def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", **_context):
-    """``pre_tool_call`` hook: a blocked tool, a background review's write to a SHARED skill
+def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", tool_call_id="", **_context):
+    """``pre_tool_call`` hook: a blocked tool, a Lens ``act`` turn's mutating call its monitor's rules
+    did not allow (``agent_runtime.lens.act``), a background review's write to a SHARED skill
     (staged for the owner, ``agent_runtime.review_skill_gate``), a host write to a generated-document
     path (``agent_runtime.generated_tree_teach``), then a ``flutter build`` that collides with the live
-    Launcher (``agent_runtime.flutter_build_guard``). One callback for all four.
+    Launcher (``agent_runtime.flutter_build_guard``). One callback for all five.
     """
     from agent_runtime.flutter_build_guard import flutter_build_refusal
+    from agent_runtime.lens.act import gate_tool_call
     from agent_runtime.review_skill_gate import review_shared_skill_write
 
     blocked = refuse_blocked_tool(tool_name=tool_name, session_id=session_id)
     if blocked is not None:
         return blocked
+    lens = gate_tool_call(tool_name, args, tool_call_id)
+    if lens is not None:
+        return {"action": "block", "message": lens}
     staged = review_shared_skill_write(tool_name, args)
     if staged is not None:
         return staged
@@ -371,6 +376,7 @@ def record_turn_outcome(**kwargs):
     """``post_tool_call`` hook: a terminal call or file write folds into a bound persona turn's outcome,
     every call's measured ``duration_ms`` into the turn's review timings (``agent_runtime.review_prompts``),
     and a background review's skill write is recorded with its chat and turn (``agent_runtime.review_skill_changes``)."""
+    from agent_runtime.lens.act import finish_tool_call
     from agent_runtime.review_prompts import on_post_tool_call as fold_review_timing
     from agent_runtime.review_skill_changes import on_post_tool_call as record_review_skill_change
     from agent_runtime.turn_outcome import on_post_tool_call
@@ -378,6 +384,7 @@ def record_turn_outcome(**kwargs):
     on_post_tool_call(**kwargs)
     fold_review_timing(**kwargs)
     record_review_skill_change(**kwargs)
+    finish_tool_call(kwargs.get("tool_call_id"), kwargs.get("status"))  # a Lens act call's receipt: ran | failed
 
 
 async def answer_queue_status(**kwargs):

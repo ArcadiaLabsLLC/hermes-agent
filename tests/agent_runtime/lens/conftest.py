@@ -13,7 +13,7 @@ import pytest
 
 
 class GuardianFake:
-    """A guardian that answers ``answer`` and keeps every ``(system_prompt, user_prompt)`` it was asked."""
+    """A guardian that answers ``answer`` (a list: one answer per call, in order) and keeps every ``(system_prompt, user_prompt)`` it was asked."""
 
     def __init__(self, answer: str = "approve", tokens: int | None = 212) -> None:
         self.answer = answer
@@ -24,9 +24,10 @@ class GuardianFake:
         self.calls.append((system_prompt, user_prompt))
         if usage is not None:
             usage["total_tokens"] = self.tokens
-        if isinstance(self.answer, BaseException):
-            raise self.answer
-        return self.answer
+        answer = self.answer.pop(0) if isinstance(self.answer, list) else self.answer  # a list: one per call
+        if isinstance(answer, BaseException):
+            raise answer
+        return answer
 
 
 @pytest.fixture(autouse=True)

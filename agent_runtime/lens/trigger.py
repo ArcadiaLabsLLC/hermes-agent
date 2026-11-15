@@ -31,6 +31,11 @@ global budget reached  receipt ``notified_over_budget`` (W6: an ``investigate`` 
                        ``approve`` -> receipt ``forging`` -> the turn -> ``forged`` |
                        ``budget_spent`` | ``forge_failed:<reason>``. The verdict,
                        ``decided_by: rules`` and the check's tokens ride the receipt either way
+``level: act``         as ``investigate`` (RT-LENS-ACT-LEVEL), but the chat is held at ``bounded``
+                       and the act gate (``act.py``) judges every mutating call: listed, undoable
+                       and approved by the rules runs; denied is refused; anything else is a
+                       proposal for the owner. Receipt ``tool_admission: bounded``; each call an
+                       action receipt (``store_actions.py``)
 decided after the read receipt ``skipped_decided``, no turn: ``save_receipts`` re-checks
                        ``needs_admission`` on the STORED row (an operator dismiss/snooze
                        written between the door's read and its receipt transaction)
@@ -75,7 +80,8 @@ Episode — and held at ``read_only`` in the session-scoped permission store
 (``tool_permissions.ChatToolPermissionStore``) before the turn runs on it; the turn's tool surface
 then blocks every mutating tool (``READ_ONLY_BLOCKS``) and keeps the read-only ones, the lens tools
 among them. The receipt says so (``tool_admission: read_only``); a receipt that ran no turn says
-``none``.
+``none``. An ``act`` turn (RT-LENS-ACT-LEVEL) is held at ``bounded`` instead (``tool_admission: bounded``),
+with its mutating calls gated one by one (``act.py``).
 """
 
 from __future__ import annotations
@@ -92,7 +98,7 @@ from .artifacts import collect, episode_folder, write_reply_report
 from .episode import ADMITTED_STATES, Episode, needs_admission
 from .evidence import DEFAULT_MAXIMUM_BYTES, MAXIMUM_SPAN, EvidenceRefused, build_evidence
 from .feed import Observation
-from .manifest import AutomationLevel, AutomationWhen
+from .manifest import TURN_LEVELS, AutomationLevel, AutomationWhen
 from .provenance import lens_client_message_id, lens_requested_by
 from .rules_check import RulesCheck, RulesVerdict, check_investigate, fired_values
 from .rules import SCHEDULE_RULE_ID, Severity, is_scheduled, is_source_broken, manifest_rule, rule_feed_ids
@@ -105,6 +111,8 @@ logger = logging.getLogger(__name__)
 
 TICK_SECONDS = 1.0
 TOOL_ADMISSION_READ_ONLY = "read_only"
+#: An ``act`` turn's chat: mutating tools reachable, each call judged by the act gate (``act.py``).
+TOOL_ADMISSION_BOUNDED = "bounded"
 #: A receipt that forged no turn (notified, capped, skipped, refused before the turn).
 TOOL_ADMISSION_NONE = "none"
 _PERMISSION_SOURCE = "lens"
@@ -147,8 +155,10 @@ def _operator_client_scope(persona_id: str) -> str | None:
         return None
 
 
-def _open_episode_chat(persona_id: str, episode: Episode, turn_key: str) -> tuple[str | None, dict[str, Any]]:
-    """Mint the Episode's own chat (never selected over the operator's), titled, held ``read_only``.
+def _open_episode_chat(persona_id: str, episode: Episode, turn_key: str, mode: str | None = None
+                       ) -> tuple[str | None, dict[str, Any]]:
+    """Mint the Episode's own chat (never selected over the operator's), titled, held ``read_only``
+    (``bounded`` for an ``act`` turn, whose mutating calls the act gate judges one by one).
 
     ``(session_id, {})`` or ``(None, refusal payload)``. Keyed by the Episode, so a restart that finds the
     ``forging`` receipt and re-enters here answers the same root rather than a second one.
@@ -173,24 +183,25 @@ def _open_episode_chat(persona_id: str, episode: Episode, turn_key: str) -> tupl
     session_id = str((outcome.result or {}).get("session_id") or "")
     if not session_id:
         return None, {"ok": False, "error_kind": "open_chat_refused"}
-    ChatToolPermissionStore().set(persona_id=persona_id, session_id=session_id, mode=PERMISSION_MODE_READ_ONLY,
-                                  reason=f"unattended Lens investigate turn ({episode.id})", source=_PERMISSION_SOURCE)
+    ChatToolPermissionStore().set(persona_id=persona_id, session_id=session_id, mode=mode or PERMISSION_MODE_READ_ONLY,
+                                  reason=f"unattended Lens turn ({episode.id})", source=_PERMISSION_SOURCE)
     return session_id, {}
 
 
 def forge_episode_turn(*, manifest: dict[str, Any], episode: Episode, message: str,
-                       max_seconds: float | None = None, turn_key: str | None = None
-                       ) -> tuple[bool, dict[str, Any] | None]:
+                       max_seconds: float | None = None, turn_key: str | None = None,
+                       permission_mode: str | None = None) -> tuple[bool, dict[str, Any] | None]:
     """Run the Episode's turn as a real mission-chat turn in its own read-only chat. ``(ok, payload)``.
 
-    ``turn_key`` names the turn when it is not the Episode's own: a digest's ``digest_id`` (W6)."""
+    ``turn_key`` names the turn when it is not the Episode's own: a digest's ``digest_id`` (W6);
+    ``permission_mode`` holds the chat at ``bounded`` for an ``act`` turn (default ``read_only``)."""
 
     from ..config import mission_chat_default_max_seconds
     from ..mission_chat_door import run_mission_chat_turn
 
     # One new chat per Episode: a storm never splices into an operator's conversation.
     key = turn_key or episode.id
-    session_id, refused = _open_episode_chat(manifest["persona_id"], episode, key)
+    session_id, refused = _open_episode_chat(manifest["persona_id"], episode, key, permission_mode)
     if session_id is None:
         return False, refused
     args = SimpleNamespace(
@@ -370,7 +381,7 @@ class LensForge:
         automation = manifest["automation"]
         if store.receipts_today(episode.monitor_id, now) >= automation["daily_turn_cap"]:
             return ReceiptOutcome.CAPPED.value
-        if automation["level"] == AutomationLevel.INVESTIGATE.value and (
+        if automation["level"] in TURN_LEVELS and (
                 _over_budget(store, now) or _over_daily_tokens(store, episode.monitor_id, now)):
             return ReceiptOutcome.NOTIFIED_OVER_BUDGET.value
         if automation["level"] == AutomationLevel.NOTIFY.value:
@@ -471,17 +482,25 @@ class LensForge:
         checked = self._rules_check(store, manifest, windows, now)
         if not checked.allows:
             return self._notify_by_rules(store, members, now, digest, close, checked)
+        acts = manifest["automation"]["level"] == AutomationLevel.ACT.value
+        admission = TOOL_ADMISSION_BOUNDED if acts else TOOL_ADMISSION_READ_ONLY
+        if acts:
+            from .tool import READ_ONLY_CLOSING, act_closing
+
+            message = message.replace(READ_ONLY_CLOSING, act_closing(manifest["automation"].get("actions", [])))
         turn_key = leader.id if digest is None else digest
         turn_id = lens_client_message_id(turn_key)
         pairs = [self._digest_receipt(member, now, digest,
                                       ReceiptOutcome.FORGING.value if i == 0 else ReceiptOutcome.DIGESTED.value,
-                                      turn_id, TOOL_ADMISSION_READ_ONLY) for i, member in enumerate(members)]
+                                      turn_id, admission) for i, member in enumerate(members)]
         pairs[0][0].update(checked.receipt_fields())
         # BEFORE the turn, with every Episode's turn_id, in one transaction: the once-only guarantee.
         if not store.save_receipts(pairs, also=close):
             return None
         payload: dict[str, Any] = {}
-        turn = {} if digest is None else {"turn_key": digest}
+        turn: dict[str, Any] = {} if digest is None else {"turn_key": digest}
+        if acts:
+            turn["permission_mode"] = TOOL_ADMISSION_BOUNDED
         from ..turn_token_budget import TurnTokenBudget, armed_turn_budget
         from .budget import episode_limits, record_spend
 
@@ -491,7 +510,8 @@ class LensForge:
         try:
             # Armed for THIS turn's client message id: every provider call of the turn is counted and the
             # turn lands when the next call would pass a limit (``turn_token_budget``).
-            with armed_turn_budget(turn_id, budget):
+            with armed_turn_budget(turn_id, budget), self._armed_act(store, manifest, windows, notes, turn_id,
+                                                                     budget, acts):
                 ok, payload = self.forge(manifest=manifest, episode=leader, message=message, **turn)
             payload = payload or {}
             if not ok:
@@ -511,6 +531,28 @@ class LensForge:
                              session_id=None if session_id is None else str(session_id),
                              artifact_handles=handles, files=files)
         return outcome
+
+    def _armed_act(self, store: LensStore, manifest: dict[str, Any], windows: list, notes: dict[str, Any],
+                   turn_id: str, budget: Any, acts: bool):
+        """An ``act`` turn's gate, armed for its client message id (``act.py``); a null context otherwise."""
+
+        from contextlib import nullcontext
+
+        if not acts:
+            return nullcontext()
+        from .act import ActTurn, armed_act_turn
+        from .guidance import effective_guidance
+
+        leader = windows[0][0]
+        rules = effective_guidance(store, manifest, store.get(leader.monitor_id).get("workspace_id"))
+        # W9: source-controlled text in the opening block (a broken source's shapes) means no action alone.
+        free_text = any((notes.get(member.id) or {}).get("shapes") is not None for member, _ in windows)
+        episode = {"episode_id": leader.id, "rule_id": leader.rule_id, "count": leader.count,
+                   "members": len(windows)}
+        return armed_act_turn(ActTurn(episode_id=leader.id, monitor_id=leader.monitor_id, turn_id=turn_id,
+                                      actions=frozenset(manifest["automation"].get("actions", [])),
+                                      guidance=rules["text"], episode=episode, free_text=free_text, budget=budget,
+                                      store_factory=self.store_factory, clock=self.clock))
 
     def _rules_check(self, store: LensStore, manifest: dict[str, Any], windows: list, now: datetime) -> RulesCheck:
         """The monitor's effective rules judge what fired (design §2), before any turn is written."""

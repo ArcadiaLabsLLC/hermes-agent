@@ -67,6 +67,13 @@ budget.set             {scope: monitor|workspace|lens, monitor_id? | workspace_i
                        so it survives a restart; takes effect from the next Episode)
 receipts               {monitor_id?, limit?, workspace_id?} -> {receipts} (newest first; limit
                        <= 256; each row carries its monitor's ``workspace_id``)
+actions                {episode_id? | monitor_id?, limit?} -> {actions} (an ``act`` turn's action
+                       receipts, newest first, limit <= 256; a row is {action_id, episode_id,
+                       monitor_id, turn_id, tool, arguments_digest, arguments (a proposal's only,
+                       else null), verdict: approve|deny|escalate|null, decided_by: rules|owner,
+                       result: running|ran|failed|refused|proposed, why: null|untrusted_text|
+                       not_listed|cannot_be_undone|rules_unsure|rules_denied, undoable,
+                       undo_handle, created_ms, finished_ms} — ``lens/store_actions.py``)
 artifact               {episode_id, name} -> {name, media_type, size_bytes, sha256, encoding, content}
                        (one file from the Episode's folder only; 1 MiB, text and images)
 ingress.register       {monitor_id, kind, mapping?, auth?} -> {route_id, url, secret, kind, mapping,
@@ -389,6 +396,21 @@ def _runtime_lens_receipts(rid: Any, params: dict, context: RpcContext | None = 
         if monitor_id is not None:  # the days retention folded (RT-LENS-RECEIPT-RETENTION L3)
             reply["rollups"] = store.receipt_rollups(monitor_id)
         return reply
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.actions", tier=TIER_CONSOLE)
+def _runtime_lens_actions(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from agent_runtime.lens.store_actions import MAXIMUM_ACTIONS_PAGE, actions
+        from agent_runtime.lens.wire_value import bounded_int, checked_object, digest_value
+
+        m = checked_object(params or {}, (), {"episode_id", "monitor_id", "limit"})
+        episode_id = None if m.get("episode_id") is None else digest_value(m["episode_id"])
+        monitor_id = None if m.get("monitor_id") is None else _monitor_id(m)
+        limit = bounded_int(m.get("limit", 32), minimum=1, maximum=MAXIMUM_ACTIONS_PAGE)
+        return {"actions": actions(_store(), episode_id=episode_id, monitor_id=monitor_id, limit=limit)}
 
     return _lens_call(rid, body)
 

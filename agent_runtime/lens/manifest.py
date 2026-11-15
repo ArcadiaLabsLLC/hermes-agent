@@ -4,12 +4,16 @@ Ported from Companion's ``monitor_manifest.dart`` (``MonitorManifest``,
 ``AutomationPolicy``, ``checkManifest``), reduced to the hermes contract (plan
 ``eternia-lens-in-hermes.md`` §3, rulings §6):
 
-* ``automation`` is ``{level: notify|investigate, when: urgent|always,
+* ``automation`` is ``{level: notify|investigate|act, when: urgent|always,
   daily_turn_cap}`` plus the OPTIONAL W6 coalescing keys (``cooldown_ms``, ``digest_window_ms``; plan
   ``LENS_EXTENSIONS_2026-10-27.md`` §3 decision 1): an absent key is today's behaviour
   and is not emitted, so every manifest sealed before them keeps its canonical bytes
-  and seal digest. The ``act`` level is out (ruling 3), so it is an unknown
-  enum here, not a disabled option. The Work owner/scope/budget fields are cut.
+  and seal digest. The Work owner/scope/budget fields are cut.
+* ``act`` (design ``planned/lens-act-and-safe-investigate.md`` §4, row ``RT-LENS-ACT-LEVEL``) is
+  investigate's next step: the same turn, its chat held at ``bounded`` instead of ``read_only``, every
+  mutating tool call judged by the rules check (``act.py``). ``automation.actions`` (OPTIONAL, only on
+  an ``act`` monitor) lists the tool names it may use alone, at most :data:`MAXIMUM_ACTIONS`; absent
+  means none, so every change it would make is a proposal for the owner.
 * ``persona_id`` targets the forged turn. A DRAFT may leave it ``null``; a SEAL
   of an ``investigate`` monitor refuses ``null`` as ``persona_required``
   (:func:`check_sealable`; owner ruling 2026-10-19, plan p10-agent §5.2
@@ -81,11 +85,18 @@ MAXIMUM_SCHEDULE_EVERY_MS = 7 * DAY_MS
 MAXIMUM_SCHEDULE_BRIEF_BYTES = 1024
 #: The longest plain-language rules text one monitor (or one workspace default) carries.
 MAXIMUM_GUIDANCE_BYTES = 4096
+#: The most tool names one ``act`` monitor may use alone.
+MAXIMUM_ACTIONS = 16
 
 
 class AutomationLevel(str, Enum):
     NOTIFY = "notify"
     INVESTIGATE = "investigate"
+    ACT = "act"
+
+
+#: The levels that forge a turn: ``act`` is investigate's next step (design §4).
+TURN_LEVELS = frozenset({AutomationLevel.INVESTIGATE.value, AutomationLevel.ACT.value})
 
 
 class AutomationWhen(str, Enum):
@@ -104,7 +115,7 @@ OPTIONAL_AUTOMATION_KEYS: dict[str, int] = {"cooldown_ms": MAXIMUM_COOLDOWN_MS,
 
 
 def read_automation(value: Any) -> dict[str, Any]:
-    m = checked_object(value, AUTOMATION_KEYS, OPTIONAL_AUTOMATION_KEYS)
+    m = checked_object(value, AUTOMATION_KEYS, {*OPTIONAL_AUTOMATION_KEYS, "actions"})
     automation = {
         "level": enum_value(m["level"], AutomationLevel).value,
         "when": enum_value(m["when"], AutomationWhen).value,
@@ -113,6 +124,11 @@ def read_automation(value: Any) -> dict[str, Any]:
     for key, maximum in OPTIONAL_AUTOMATION_KEYS.items():
         if key in m:
             automation[key] = bounded_int(m[key], maximum=maximum)
+    if "actions" in m:
+        require(automation["level"] == AutomationLevel.ACT.value, "actions need the act level")
+        actions = bounded_list(m["actions"], opaque_id, maximum=MAXIMUM_ACTIONS)
+        require(len(set(actions)) == len(actions), "duplicate action")
+        automation["actions"] = actions
     return automation
 
 
@@ -137,7 +153,7 @@ def _check_schedule(manifest: dict[str, Any]) -> None:
     schedule, automation = manifest.get("schedule"), manifest["automation"]
     if schedule is None:
         return
-    if automation["level"] != AutomationLevel.INVESTIGATE.value:
+    if automation["level"] not in TURN_LEVELS:
         raise WireError(WireRefusal.SCHEDULE_NEEDS_INVESTIGATE, "schedule")
     if -(-DAY_MS // schedule["every_ms"]) > automation["daily_turn_cap"]:
         raise WireError(WireRefusal.SCHEDULE_OVER_CAP, "schedule")
@@ -203,10 +219,10 @@ def _check_typed_rules(manifest: dict[str, Any]) -> None:
 
 
 def check_sealable(manifest: dict[str, Any]) -> None:
-    """What a seal adds to :func:`read_manifest`: an ``investigate`` monitor names its persona, and a
+    """What a seal adds to :func:`read_manifest`: an ``investigate`` or ``act`` monitor names its persona, and a
     money ``best_of`` compares one product (:func:`_check_equivalence`)."""
 
-    if manifest["automation"]["level"] == AutomationLevel.INVESTIGATE.value and manifest["persona_id"] is None:
+    if manifest["automation"]["level"] in TURN_LEVELS and manifest["persona_id"] is None:
         raise WireError(WireRefusal.PERSONA_REQUIRED, "persona_id")
     _check_equivalence(manifest)
 

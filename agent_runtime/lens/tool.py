@@ -82,6 +82,19 @@ UNTRUSTED_EVIDENCE_SENTENCE = (
 )
 
 
+#: The opening block's last words for a read-only turn; an ``act`` turn's door replaces them (``act_closing``).
+READ_ONLY_CLOSING = "this turn is read-only, so do not try to write files."
+
+
+def act_closing(actions: list[str]) -> str:
+    """An ``act`` turn's last words: what it may do alone, and that anything else goes to the owner."""
+
+    listed = ", ".join(actions) if actions else "none"
+    return ("this monitor may ACT within its owner's rules. Tools it may use alone: " + listed + ". Each change "
+            "is checked against the owner's rules first; a change the rules do not allow is refused or sent to "
+            "the owner as a proposal, and the tool result says which. Change only what the evidence calls for.")
+
+
 def episode_title(episode: Episode) -> str:
     """The forged chat's title: ``<monitor_id> · <rule_id> · #<ordinal>`` (§5.2 decision 2)."""
 
@@ -227,7 +240,7 @@ def _block(header: str, intro: str, typed: dict[str, Any], feeds: list[dict[str,
         "",
         *shaped,
         f"Your reply is saved as report.md in this Episode's folder ({folder}) and listed on the receipt; "
-        "this turn is read-only, so do not try to write files.",
+        + READ_ONLY_CLOSING,
     ])
 
 
