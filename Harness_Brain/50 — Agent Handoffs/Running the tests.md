@@ -353,7 +353,7 @@ twice the step's measured wall under that load; one whole-run cap bounds the run
 | gates | 4.9 s (load 31) | 4.6 s (load 22), 6.1 s (load 16) | 10 s | 20 s (was 120) |
 | doc-cite | 2.1 s (load 31) | 1.7–1.9 s | 4 s | 10 s (was 60) |
 | contracts (only when runtime or CLI source changed) | — (not run) | 1.6 s + 0.5 s alone (load ~50, 2026-11-12) | 6 s | 20 s |
-| census (both name census gates) | 62.9 s (load 29) | 13.2 s (load 16) | 30 s (was 75) | 60 s (was 600) |
+| census (both name census gates) | 62.9 s (load 29); 33–59 s again (load 28–60, 2026-11-14) | 13.2 s (load 16); 9.1–17.2 s (load 34–50, 2026-11-14) | 30 s (was 75) | 60 s (was 600) |
 | touched (`test_prepush_sh.py`) | 21.9 s, 14 tests (load 29) | 27.9 s, 20 tests in 4 shards (load 16) | 60 s | 120 s (was 900) |
 | **whole run** | — | — | — | **cap 240 s** (none before: up to ~28 min) |
 
@@ -374,6 +374,12 @@ twice the step's measured wall under that load; one whole-run cap bounds the run
 - **The census** is fast because its walks are chunked over worker processes
   (`scripts/census_pool.py`, `HERMES_CENSUS_JOBS`, default 8; `1` = serial), never cached:
   `god_file_scope.module_bindings` is order-independent, so a chunk reads what the serial walk reads.
+  The first pass also hands every worker the BINDING SKELETON of each module the census reaches (its
+  string assignments, Enum classes and imports, `god_file_scope.binding_skeleton`; ~2,300 modules,
+  ~3 MB pickled once): the ladder workers had re-parsed every module their chunks import, ~14,000
+  parses for 1,414 files, and the ladder pass took 12.6 s of the step at load ~55 (2.2 s after). The step
+  also skips the heavy-run slot, as the gates step does: it once waited 80 s+ behind a lane's full tier
+  (FH-PREPUSH-CENSUS-OVER-BUDGET, 2026-11-14).
 - **The touched lane shards**: a file this tree last ran in `PREPUSH_SHARD_MIN` (20) s or more runs as
   `ceil(last / 10)` node-id shards (at most 4) side by side, by `scripts/_bundle_plugin/hermes_shard.py`,
   unless `scripts/test_files_unsharded.txt` lists it. The record is the runner's own

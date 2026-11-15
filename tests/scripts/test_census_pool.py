@@ -15,6 +15,7 @@ import subprocess
 import pytest
 
 from scripts import census_pool as pool
+from scripts import god_file_chunks as chunks
 from scripts import god_file_probe as probe
 from scripts import god_file_scope as scope
 from scripts import source_cache
@@ -69,6 +70,8 @@ def _forget() -> None:
     scope._TOP.clear()
     scope.module_path.cache_clear()
     scope.file_scope.cache_clear()
+    scope._SKELETONS.clear()
+    chunks._LOADED[0] = b""
     source_cache.clear()
 
 
@@ -126,3 +129,36 @@ def test_the_chunked_ladder_census_is_the_serial_one(tmp_path, monkeypatch):
     assert ("lpkg/m00.py", "route0", "ladder", "k") in serial
     assert ("lpkg/m11.py", "route11", "isinstance", "op") in serial
     assert pooled == serial
+
+
+# FH-PREPUSH-CENSUS-OVER-BUDGET: each census worker re-parsed every module its chunks import (~14,000
+# parses for a 1,414-file census, the ladder pass 12.6 s of the step at load ~55); the first pass now
+# hands each worker the reached modules' binding skeletons. KILLING MUTATIONS: make ``module_bindings``
+# ignore ``_SKELETONS`` -> the reached modules are parsed again and the parse count reds; drop the
+# ``ast.ClassDef`` arm of ``_SKELETON_PARTS`` (or the ``ast.ImportFrom`` one) -> the Enum (or the
+# re-export) is missing from the skeleton's answer and the equality reds.
+def test_a_reached_modules_bindings_are_read_off_its_skeleton_without_a_parse(tmp_path):
+    _repo(tmp_path, {
+        "pkg/__init__.py": "",
+        "pkg/kinds.py": (
+            "from enum import Enum\nfrom pkg.more import LATER\nimport pkg.more as more_mod\n"
+            "A = 'a'\nB: str = 'b'\nN = 3\nclass K(str, Enum):\n    X = 'x'\nclass Plain:\n    Y = 'y'\n"
+            "def f():\n    return 1\n"),
+        "pkg/more.py": "LATER = 'later'\n",
+    })
+    try:
+        _forget()
+        parsed = dict(scope.module_bindings(tmp_path, "pkg/kinds.py"))
+        _forget()
+        _declared, skeletons, reach = chunks.declared_chunk(["pkg/kinds.py"], tmp_path)
+        more, _ = chunks.skeleton_chunk(sorted(reach - skeletons.keys()), tmp_path)
+        skeletons.update(more)
+        _forget()
+        chunks.ladder_chunk([], tmp_path, {}, chunks.pack_skeletons(skeletons))
+        found = dict(scope.module_bindings(tmp_path, "pkg/kinds.py"))
+        assert source_cache.stats()["parses"] == 0, source_cache.stats()
+    finally:
+        _forget()
+    assert "pkg/more.py" in reach
+    assert parsed["K"] == ("enum", "", "pkg.kinds") and parsed["LATER"] == ("str", "later", "pkg.more")
+    assert found == parsed

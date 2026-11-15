@@ -308,18 +308,25 @@ def test_without_an_explicit_interpreter_the_doc_cite_step_finds_the_shared_venv
 def test_a_name_census_gate_runs_in_its_own_step_never_the_touched_lane(repo: Path):
     """FH-PREPUSH-TOUCHED-BUDGET-VS-NAME-CENSUS. KILLING MUTATION: route every path to ``LANE`` (drop
     the ``PREPUSH_CENSUS_GATES`` case) → the census gates ride the touched lane's argv and no census
-    step runs: the plan line and the argv assertions red."""
+    step runs: the plan line and the argv assertions red. FH-PREPUSH-CENSUS-OVER-BUDGET: drop the census
+    step's ``ETERNIA_HEAVY_SLOTS=off`` -> it waits on the machine-wide heavy-run slot and the slots line reds
+    (the touched lane still claims one)."""
 
     census = ("tests/tooling/test_no_ladder_routing.py", "tests/agent_runtime/test_duplicate_helper_bodies.py")
     for path in census:
         (repo / path).parent.mkdir(parents=True, exist_ok=True)
         (repo / path).write_text("x = 5\n", encoding="utf-8")
-    proc, calls = _run(repo, *census)
+    slots = repo.parent / "slots.log"
+    proc, calls = _run(repo, *census, runner_body=f'echo "slots=${{ETERNIA_HEAVY_SLOTS:-}} $*" >> "{slots}"',
+                       env_extra={"ETERNIA_HEAVY_SLOTS": "2"})
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "step census — budget 30s, deadline 60s" in proc.stdout and "✔ census" in proc.stdout
     _gates, _cite, census_argv, lane_argv = (line.split() for line in calls.splitlines())
     assert sorted(p for p in census_argv if p.startswith("tests/")) == sorted(census)
     assert not set(census) & set(lane_argv) and "tests/a/test_committed.py" in lane_argv
+    by_step = {"census" if census[0] in line else "touched": line.split()[0] for line in
+               slots.read_text(encoding="utf-8").splitlines() if "tests/" in line}
+    assert by_step == {"census": "slots=off", "touched": "slots=2"}, by_step
 
 
 def test_a_python_change_outside_tests_plans_the_name_census(repo: Path):

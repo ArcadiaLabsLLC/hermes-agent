@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import pickle
 from pathlib import Path
 from typing import Iterable
 
@@ -43,17 +44,58 @@ def vocabulary_chunk(paths: Iterable[str], root: Path) -> set[str]:
     return words
 
 
-def declared_chunk(paths: Iterable[str], root: Path) -> dict[str, frozenset[str]]:
-    """``ladder_census``'s first pass over one chunk: what each module declares."""
-    return _probe_module()._scope.declared_vocabularies(root, paths)
+Skeletons = dict[str, "tuple[ast.stmt, ...] | None"]
+
+
+def declared_chunk(paths: Iterable[str], root: Path) -> tuple[dict[str, frozenset[str]], Skeletons, set[str]]:
+    """``ladder_census``'s first pass over one chunk: what each module declares, each one's binding
+    skeleton (``god_file_scope.binding_skeleton``) and the repo files its imports, deferred ones
+    too, may reach."""
+    scope_of = _probe_module()._scope
+    paths = list(paths)
+    skeletons: Skeletons = {}
+    reach: set[str] = set()
+    for path in paths:
+        parsed = scope_of.tree(root, path)
+        skeletons[path] = scope_of.binding_skeleton(parsed)
+        if parsed is not None:
+            reach |= scope_of.reach_targets(root, path, scope_of.import_nodes(parsed))
+    return scope_of.declared_vocabularies(root, paths), skeletons, reach
+
+
+def skeleton_chunk(paths: Iterable[str], root: Path) -> tuple[Skeletons, set[str]]:
+    """The skeletons of modules the census only REACHES, and what their top-level imports reach."""
+    scope_of = _probe_module()._scope
+    skeletons: Skeletons = {}
+    reach: set[str] = set()
+    for path in paths:
+        skeleton = scope_of.binding_skeleton(scope_of._source_cache.tree(root / path, keep=False))
+        skeletons[path] = skeleton
+        reach |= scope_of.reach_targets(root, path, skeleton or ())
+    return skeletons, reach
+
+
+#: The digest of the skeleton table this process last loaded: a worker runs several chunks.
+_LOADED: list[bytes] = [b""]
+
+
+def pack_skeletons(skeletons: Skeletons) -> bytes:
+    """The table pickled ONCE for every chunk (~3 MB of nodes: re-pickled per submit, the parent
+    spent seconds serializing it)."""
+    return pickle.dumps(skeletons, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def ladder_chunk(
-    paths: Iterable[str], root: Path, declared: dict[str, frozenset[str]]
+    paths: Iterable[str], root: Path, declared: dict[str, frozenset[str]], skeletons: bytes = b""
 ) -> dict[tuple[str, str, str, str], int]:
-    """``ladder_census``'s rows for one chunk, the vocabularies in reach read off ``declared``."""
+    """``ladder_census``'s rows for one chunk, the vocabularies in reach read off ``declared`` and a
+    reached module's bindings off ``skeletons`` (:func:`pack_skeletons`; no re-parse in the worker)."""
     probe = _probe_module()
     scope_of = probe._scope
+    digest = hashlib.sha256(skeletons).digest()
+    if skeletons and _LOADED[0] != digest:
+        scope_of.preload_skeletons(root, pickle.loads(skeletons))
+        _LOADED[0] = digest
     out: dict[tuple[str, str, str, str], int] = {}
     for path in paths:
         tree = probe._tree(root, path)

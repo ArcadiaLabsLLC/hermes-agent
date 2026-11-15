@@ -203,6 +203,60 @@ _TOP: dict[tuple[Path, str], Mapping[str, Binding]] = {}
 _CUTS = [0]
 
 
+#: ``(root, path) -> the top-level statements :func:`module_bindings` reads`` (None: no parse),
+#: handed to a census worker by :func:`preload_skeletons` so it reads a REACHED module's bindings
+#: without parsing it (FH-PREPUSH-CENSUS-OVER-BUDGET): eight workers each re-parsed every module
+#: their chunks import, ~14,000 parses for a 1,414-file census. Absent -> the file is parsed.
+_SKELETONS: dict[tuple[Path, str], tuple[ast.stmt, ...] | None] = {}
+
+
+def _enum_stub(node: ast.ClassDef) -> ast.ClassDef | None:
+    if not _base_names(node) & _ENUM_BASES:
+        return None
+    return ast.ClassDef(name=node.name, bases=node.bases, keywords=[], body=[], decorator_list=[])
+
+
+#: Statement type -> the part of it a binder reads (None: it binds nothing). Routing is data, rule 12.
+_SKELETON_PARTS: Mapping[type, Callable[[ast.AST], ast.stmt | None]] = {
+    ast.Import: lambda node: node,
+    ast.ImportFrom: lambda node: node,
+    ast.Assign: lambda node: node if is_str(node.value) else None,
+    ast.AnnAssign: lambda node: node if is_str(node.value) else None,
+    ast.ClassDef: _enum_stub,
+}
+
+
+def binding_skeleton(parsed: ast.Module | None) -> tuple[ast.stmt, ...] | None:
+    """The top-level statements a binder answers for, in order: a string assignment, an Enum
+    class (its name and bases only — :func:`_class` reads no more), and every import. The rest
+    bind nothing :func:`module_bindings` keeps, so leaving them out changes no answer."""
+    if parsed is None:
+        return None
+    parts = (_SKELETON_PARTS.get(type(node), lambda _: None)(node) for node in parsed.body)
+    return tuple(part for part in parts if part is not None)
+
+
+def reach_targets(root: Path, path: str, nodes: Iterable[ast.stmt]) -> set[str]:
+    """Repo files the binders may read for ``nodes`` (a module's imports): each ``from`` base and
+    each ``base.name``, each aliased ``import``. A superset is harmless: it only pre-reads more."""
+    found: set[str] = set()
+    for node in nodes:
+        if isinstance(node, ast.ImportFrom):
+            base = resolve_from(path, node)
+            names = [base, *(f"{base}.{a.name}" for a in node.names)] if base else []
+        elif isinstance(node, ast.Import):
+            names = [a.name for a in node.names if a.asname]
+        else:
+            continue
+        found.update(t for t in map(lambda d: module_path(root, d), names) if t)
+    return found
+
+
+def preload_skeletons(root: Path, table: Mapping[str, tuple[ast.stmt, ...] | None]) -> None:
+    """Serve ``table``'s skeletons to :func:`module_bindings` in this process."""
+    _SKELETONS.update(((root, path), body) for path, body in table.items())
+
+
 def module_bindings(root: Path, path: str) -> Mapping[str, Binding]:
     """What ``path`` binds at top level that G5 can reason about, re-exports followed.
 
@@ -219,11 +273,15 @@ def module_bindings(root: Path, path: str) -> Mapping[str, Binding]:
     if top and key in _TOP:
         return _TOP[key]
     cuts = _CUTS[0]
-    parsed = tree(root, path)
+    if key in _SKELETONS:
+        body = _SKELETONS[key] or ()
+    else:
+        parsed = tree(root, path)
+        body = parsed.body if parsed is not None else ()
     out: dict[str, Binding] = {}
     _READING.add(path)
     try:
-        for node in parsed.body if parsed is not None else ():
+        for node in body:
             out.update(statement_bindings(root, path, node))
     finally:
         _READING.discard(path)

@@ -474,10 +474,19 @@ def ladder_census(root: Path = ROOT) -> dict[tuple[str, str, str, str], int]:
     """
     files = fork_production_files(root)
     declared: dict[str, frozenset[str]] = {}
-    for part in _pool.map_chunks(_chunks.declared_chunk, files, root):
+    skeletons: _chunks.Skeletons = {}
+    reach: set[str] = set()
+    for part, skeleton, reached in _pool.map_chunks(_chunks.declared_chunk, files, root):
         declared.update(part)
+        skeletons.update(skeleton)
+        reach |= reached
+    while pending := sorted(reach - skeletons.keys()):  # what the census reaches outside itself
+        reach = set()
+        for skeleton, reached in _pool.map_chunks(_chunks.skeleton_chunk, pending, root):
+            skeletons.update(skeleton)
+            reach |= reached
     out: dict[tuple[str, str, str, str], int] = {}
-    for part in _pool.map_chunks(_chunks.ladder_chunk, files, root, declared):
+    for part in _pool.map_chunks(_chunks.ladder_chunk, files, root, declared, _chunks.pack_skeletons(skeletons)):
         out.update(part)
     return out
 

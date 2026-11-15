@@ -150,6 +150,9 @@ DEADLINE_DOC_CITE="${PREPUSH_DOC_CITE_DEADLINE:-60}"
 #   doc-cite 1.9-2.1 s                         budget 4,  deadline 10
 #   census   62.9 s before (load 29); 13.2 s (load 16) with the walks chunked over worker
 #            processes (`scripts/census_pool.py`) budget 30, deadline 60
+#            2026-11-14 (FH-PREPUSH-CENSUS-OVER-BUDGET): 33-59 s again at load 28-60, the ladder
+#            workers re-parsing every module they reach (~14,000 parses) and the step waiting on the
+#            heavy-run slot; reached modules now come as binding skeletons, no slot: 9.1-17.2 s (load 34-50)
 #   touched  the pusher's own tests            budget 60, deadline 120
 # and ONE whole-run cap over them all: 240 s.
 BUDGET_GATES="${PREPUSH_GATES_BUDGET:-10}"
@@ -629,8 +632,12 @@ _contracts() {
 if [ "$CONTRACTS" = 1 ]; then
   _step contracts "$BUDGET_CONTRACTS" "$DEADLINE_CONTRACTS" _contracts
 fi
+# The census step skips the machine-wide heavy-run slot as the gates step does (above): under a busy
+# box its ~7 s of gates waited 80 s+ for a slot a lane's full tier held, past the 60 s deadline
+# (FH-PREPUSH-CENSUS-OVER-BUDGET, 2026-11-14). MUTATION: drop it and
+# test_a_name_census_gate_runs_in_its_own_step_never_the_touched_lane reddens on the slots line.
 if [ "${#CENSUS[@]}" -gt 0 ]; then
-  _step census "$BUDGET_CENSUS" "$DEADLINE_CENSUS" bash "$RUNNER" -j "$JOBS" "${CENSUS[@]}"
+  _step census "$BUDGET_CENSUS" "$DEADLINE_CENSUS" env ETERNIA_HEAVY_SLOTS=off bash "$RUNNER" -j "$JOBS" "${CENSUS[@]}"
 fi
 if [ "${#LANE[@]}" -gt 0 ]; then
   _step touched "$BUDGET_TOUCHED" "$DEADLINE_TOUCHED" _touched_lane
