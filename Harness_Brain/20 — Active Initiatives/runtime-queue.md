@@ -1337,3 +1337,4 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-14 (lane w1114a-hlens-budget)
 
+- **`RT-LENS-ACT-PERSONA-LACKS-LISTED-TOOLS` — An act monitor whose persona chat carries no write tools can never act, and nothing tells you** · group: lens-act-followups · fork / Lens · seen live 2026-11-14 (w1114a-hlensact, isolated serve, fixture model): persona qa without `chat_lane_restore_toolsets: [file, terminal]` was offered no write_file or terminal; the turn's bridged calls answered "not available in this execution context" and never reached the act gate, so the monitor sealed and forged but could do nothing · guess: seal or runtime.lens.get should say when an automation.actions name is not on the persona's lane · READY 2026-11-14
