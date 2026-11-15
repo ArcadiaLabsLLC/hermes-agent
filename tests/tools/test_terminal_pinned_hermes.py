@@ -26,10 +26,19 @@ def _launcher(directory: Path, says: str) -> Path:
     return target
 
 
+@pytest.fixture(autouse=True)
+def pin_on(monkeypatch):
+    monkeypatch.setattr("agent_runtime.terminal_pinned_hermes.PIN_OWN_LAUNCHERS", True)
+
+
 @pytest.fixture
 def fresh_bin_cache(monkeypatch):
     monkeypatch.setattr(local, "_HERMES_BIN_DIR", local._SENTINEL)
     monkeypatch.setattr(local, "_HERMES_BIN_DIR_IS_PAYLOAD", False)
+
+
+def test_the_suite_runs_with_the_checkout_pin_off(request):
+    assert "_terminal_pinned_hermes_off" in request.fixturenames
 
 
 def test_a_payload_dir_still_wins(tmp_path):

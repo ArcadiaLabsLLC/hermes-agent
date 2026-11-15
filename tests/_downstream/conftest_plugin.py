@@ -47,6 +47,7 @@ from tests._downstream.session_db_template import session_db_from_template  # au
 from tests._downstream.home_config import _home_carries_a_config  # autouse (h1-setup)
 from tests._downstream.bash_probe_memo import _bash_probe_memo  # autouse (suite speed, r-state)
 from tests._downstream.bash_resolution_reset import _bash_resolution_reset  # autouse (q-pm)
+from tests._downstream.terminal_pinned_hermes_off import _terminal_pinned_hermes_off  # autouse (RT-AGENT-TERMINAL)
 from tests._downstream.tool_registry_scope import (  # autouse mark + teardown restore (plan S3)
     _tool_registry_scope,
     pytest_runtest_teardown_tool_registry,
