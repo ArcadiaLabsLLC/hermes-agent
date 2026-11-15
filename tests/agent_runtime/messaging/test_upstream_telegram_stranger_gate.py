@@ -25,10 +25,9 @@ from agent_runtime.messaging.upstream_adapter_transport import TelegramUpstreamA
 from agent_runtime.work_store.persona_turn import PersonaTurnExecutor
 from tests.agent_runtime.messaging.fake_bot_api_server import FakeTelegram
 from tests.agent_runtime.messaging.test_upstream_telegram_end_to_end import GATE_ENV, ROOT, TOKEN, _wait
+from tests.agent_runtime.messaging._telegram_extra import require_telegram_extra
 
-pytest.importorskip(
-    "telegram", reason="python-telegram-bot is the `messaging` extra, outside `[all]` and the canonical "
-    "test venv; these tests drive the real upstream adapter (RT-MESSAGING-TESTS-NEED-THE-MESSAGING-EXTRA)")
+require_telegram_extra()
 
 TG = Platform.TELEGRAM
 
@@ -95,7 +94,7 @@ def test_with_the_open_gate_a_strangers_photo_is_downloaded_before_the_bridge_re
 
 
 def test_hardened_the_adapter_fetches_nothing_of_a_strangers_and_the_refusal_is_recorded(build):
-    """Killing mutation: ``_prepare`` stops installing ``_named_gate`` AND ``start`` stops configuring
+    """Killing mutation: ``_install_intake_gate`` stops installing ``_named_gate`` AND ``start`` stops configuring
     ``allow_from`` (the adapter then never asks the fork) → the photo is downloaded → red. The refusal
     carries the sender's NAME, which only the named gate sees."""
     rig = build(hardened=True)

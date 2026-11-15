@@ -22,7 +22,13 @@ The transport is built from :data:`TRANSPORTS` (tests swap the row for a fake; n
 when the harness setting ``messaging_telegram_transport`` is ``upstream``, from :data:`UPSTREAM_TRANSPORTS`:
 upstream's own platform adapter behind ``upstream_adapter_transport`` (opt-in, off by default,
 RT-MESSAGING-TELEGRAM-ON-UPSTREAM-ADAPTER-OPT-IN). A bot has ONE poller, so a platform runs one or the
-other, never both; a changed setting restarts the platform on the next tick. One
+other, never both; a changed setting restarts the platform on the next tick. An upstream adapter is wired
+in only for a platform whose shim subclass gates the adapter's OWN intake
+(``upstream_adapter_transport.INTAKE_GATED``); any other platform's upstream row reads ``start_failed``
+(RT-MESSAGING-SHIM-STRANGER-GATE-HOLDS-ONLY-ON-TELEGRAM). The harness setting
+``messaging_telegram_api_base`` points either Telegram transport at a local stand-in Bot API for a live
+check; it accepts a loopback origin only, since the bot token rides every request to it
+(RT-MESSAGING-SERVE-CANNOT-USE-A-LOCAL-APP-API). One
 serve runs one lane: :func:`current` is how the verbs and ``status`` reach it. Receipts
 (``work_store.receipts.emit``): ``messaging.lane`` on every state change — platform, state, reason.
 Pinned by ``tests/agent_runtime/messaging/test_serve_lane.py``.
@@ -30,6 +36,7 @@ Pinned by ``tests/agent_runtime/messaging/test_serve_lane.py``.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import threading
 import time
@@ -37,17 +44,33 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+from urllib.parse import urlsplit
 
 from ..harness_settings import harness_setting
 from ..work_store.receipts import emit
 from . import credentials
-from .models import Platform
+from .models import MessagingRefused, Platform, Reason
 from .transport import Transport, Update
+from .upstream_adapter_transport import INTAKE_GATED, has_own_intake_gate
 
 __layer__ = "lanes"
-__all__ = ["TICK_SECONDS", "TRANSPORTS", "TRANSPORT_SETTINGS", "UPSTREAM_TRANSPORTS", "LaneReason", "LaneState",
-           "MessagingLane", "TransportKind", "current", "lane_state", "poke", "start_messaging_bridge",
-           "transport_kind"]
+__all__ = [
+    "API_BASE_SETTING",
+    "TICK_SECONDS",
+    "TRANSPORTS",
+    "TRANSPORT_SETTINGS",
+    "UPSTREAM_TRANSPORTS",
+    "LaneReason",
+    "LaneState",
+    "MessagingLane",
+    "TransportKind",
+    "current",
+    "lane_state",
+    "poke",
+    "start_messaging_bridge",
+    "telegram_api_base",
+    "transport_kind",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +95,45 @@ class LaneReason(StrEnum):
     NOT_SERVING = "not_serving"
 
 
-def _telegram(token: str) -> Transport:
-    from .telegram_api import TelegramTransport
+#: The harness setting naming a local stand-in Telegram Bot API (an origin, ``http://127.0.0.1:<port>``).
+API_BASE_SETTING = "messaging_telegram_api_base"
 
-    return TelegramTransport(token)
+
+def _is_loopback(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def telegram_api_base() -> str | None:
+    """The setting's origin, or None when it is unset (the real Bot API).
+
+    A loopback origin only — ``http(s)://`` and a host of ``localhost``, ``127.0.0.0/8`` or ``::1``, a
+    port, nothing else: the bot token is in the path of every request sent to it, so a host anywhere else
+    would be handed the token. Anything else is refused (``MessagingRefused``, the setting named, never its
+    value), which the lane reads as ``start_failed`` rather than silently using the real API."""
+    value = harness_setting(API_BASE_SETTING, None)
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parts = urlsplit(text)
+        host, _port = parts.hostname or "", parts.port
+    except ValueError:
+        raise MessagingRefused(Reason.INVALID, API_BASE_SETTING) from None
+    if (parts.scheme not in ("http", "https") or not _is_loopback(host) or parts.username or parts.password
+            or parts.path not in ("", "/") or parts.query or parts.fragment):
+        raise MessagingRefused(Reason.INVALID, API_BASE_SETTING)
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def _telegram(token: str) -> Transport:
+    from .telegram_api import API_BASE, TelegramTransport
+
+    return TelegramTransport(token, api_base=telegram_api_base() or API_BASE)
 
 
 #: platform -> transport factory over its bot token. The one construction path; tests replace a row.
@@ -115,9 +173,11 @@ def _refused_at_intake(platform: Platform) -> Callable[[str, str, str], None]:
     return record
 
 
-def _telegram_upstream(token: str, scope: Callable[[], Any], *, extra: dict[str, Any] | None = None) -> Transport:
+def _telegram_upstream(token: str, scope: Callable[[], Any]) -> Transport:
     """Upstream's Telegram adapter as a plain pipe: no ``GatewayRunner``, the fork's operator list at its
-    intake gate, its typing refresh off (the bridge sends its own)."""
+    intake gate, its typing refresh off (the bridge sends its own), a local Bot API when
+    :func:`telegram_api_base` names one (the adapter's own ``base_url``, which it honours for a self-hosted
+    telegram-bot-api)."""
     from gateway.config import PlatformConfig
     from plugins.platforms.telegram.adapter import TelegramAdapter
 
@@ -125,8 +185,9 @@ def _telegram_upstream(token: str, scope: Callable[[], Any], *, extra: dict[str,
     from .operators import OperatorStore
     from .upstream_adapter_transport import TelegramUpstreamAdapterTransport
 
+    base = telegram_api_base()
     adapter = TelegramAdapter(PlatformConfig(enabled=True, token=token, typing_indicator=False,
-                                             extra=dict(extra or {})))  # ``extra``: a test's local Bot API
+                                             extra={"base_url": f"{base}/bot"} if base else {}))
     return TelegramUpstreamAdapterTransport(
         adapter, press_prefix=CALLBACK_PREFIX, scope=scope,
         is_allowed=lambda user_id: OperatorStore().is_allowed(Platform.TELEGRAM, user_id),
@@ -228,6 +289,8 @@ class MessagingLane:
         kind = transport_kind(platform)
         try:
             if kind is TransportKind.UPSTREAM:
+                if not has_own_intake_gate(INTAKE_GATED.get(platform.value)):
+                    raise RuntimeError(f"no intake gate for upstream's {platform.value} adapter")
                 transport = UPSTREAM_TRANSPORTS[platform](token or "", lambda: home_scope(self.home))
             else:
                 transport = TRANSPORTS[platform](token or "")

@@ -5,3 +5,4 @@ HERMES_TEST_BODY_PATCH_UNDO  # tests/_downstream/body_patch_scope.py: the call-e
 ETERNIA_HEAVY_SLOTS  # scripts/run_tests_bundled_slot.py: the launcher's heavy-run slot count (off disables)
 ETERNIA_HEAVY_SLOT_DIR  # scripts/run_tests_bundled_slot.py: the slot directory, named before TEMP moves (_fork_test_env.sh)
 ETERNIA_HEAVY_SLOT_HELD  # scripts/run_tests_bundled_slot.py: a parent already holds a slot (re-entrancy)
+HERMES_REQUIRE_TELEGRAM_EXTRA  # tests/agent_runtime/messaging/_telegram_extra.py: 1 = the real Telegram adapter tests fail, never skip, without python-telegram-bot (fork-gates.yml)

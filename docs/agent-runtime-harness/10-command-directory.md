@@ -260,6 +260,17 @@ starts (a bot has one poller). Any other value is `fork`. `upstream` needs the `
 formatted (Telegram MarkdownV2), messages sent in quick succession are merged into one turn, and a stranger is
 refused by the adapter before anything they sent is fetched. Evidence and the list of what is still unproven:
 `docs/agent-runtime-harness/evidence/upstream-adapter-as-transport-2026-11-14/SWITCH_AUDIT.md`.
+
+**A local stand-in Bot API, for a live check**, is the setting
+`plugins.entries.eternia-harness.settings.messaging_telegram_api_base`: an origin such as
+`http://127.0.0.1:8081`, used by either connector in place of `https://api.telegram.org`. It accepts a loopback
+host only (`localhost`, `127.0.0.0/8`, `::1`), a port and nothing else, because the bot token is in the path of
+every request; any other value leaves the lane `start_failed` rather than falling back to the real API. Unset, the
+real Bot API is used.
+
+An upstream connector is wired in only for a platform whose shim subclass puts the operator list at that
+adapter's own intake (`agent_runtime/messaging/upstream_adapter_transport.py::INTAKE_GATED`: Telegram, and
+Signal and Discord ready for their builds); any other platform's upstream row reads `start_failed`.
 [Transport](03-transport-and-wire.md) owns the verbs; [multi-device](09-multi-device-runtime.md) the
 service model.
 

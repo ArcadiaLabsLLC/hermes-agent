@@ -18,10 +18,9 @@ from agent_runtime.messaging.transport import Button, CallbackPress, Transport
 from agent_runtime.messaging.upstream_adapter_transport import TelegramUpstreamAdapterTransport
 from tests.agent_runtime.messaging.fake_bot_api_server import FakeTelegram
 from tests.agent_runtime.messaging.test_upstream_telegram_end_to_end import GATE_ENV, TOKEN, _wait
+from tests.agent_runtime.messaging._telegram_extra import require_telegram_extra
 
-pytest.importorskip(
-    "telegram", reason="python-telegram-bot is the `messaging` extra, outside `[all]` and the canonical "
-    "test venv; these tests drive the real upstream adapter (RT-MESSAGING-TESTS-NEED-THE-MESSAGING-EXTRA)")
+require_telegram_extra()
 
 
 @pytest.fixture

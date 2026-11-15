@@ -69,3 +69,6 @@ config_schema:
     type: str
     default: fork
     description: Which Telegram connector the bridge uses, "fork" (the Harness's own, the default) or "upstream" (upstream's adapter behind the shim; needs the messaging extra installed). One poller per bot, never both
+  messaging_telegram_api_base:
+    type: str
+    description: A local stand-in Telegram Bot API for a live check, as an origin (http://127.0.0.1:<port>); loopback only, since the bot token rides every request (unset = the real Bot API)

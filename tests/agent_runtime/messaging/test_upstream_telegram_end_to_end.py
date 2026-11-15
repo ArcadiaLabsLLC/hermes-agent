@@ -26,6 +26,7 @@ from agent_runtime.messaging.approvals import CALLBACK_PREFIX
 from agent_runtime.messaging.upstream_adapter_transport import TelegramUpstreamAdapterTransport
 from agent_runtime.work_store.persona_turn import PersonaTurnExecutor
 from tests.agent_runtime.messaging.fake_bot_api_server import FakeTelegram
+from tests.agent_runtime.messaging._telegram_extra import require_telegram_extra
 
 TOKEN = "1234567890:AAFakeTokenForTheAuditOnly_abcdefghijk"
 ROOT = "persona_chat_root_e2e"
@@ -48,9 +49,7 @@ def _wait(condition, timeout=20.0, what="the condition"):
 @pytest.fixture(autouse=True)
 def _needs_the_library():
     # A fixture, not a module-level skip: test_serve_lane_transport_choice imports this module's helpers.
-    pytest.importorskip(
-        "telegram", reason="python-telegram-bot is the `messaging` extra, outside `[all]` and the canonical "
-        "test venv; these tests drive the real upstream adapter (RT-MESSAGING-TESTS-NEED-THE-MESSAGING-EXTRA)")
+    require_telegram_extra()
 
 
 @pytest.fixture(autouse=True)

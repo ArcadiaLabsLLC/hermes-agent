@@ -19,6 +19,14 @@ The shape:
   configured an upstream adapter passes every sender on and leaves the decision to a runner the fork
   does not start, having already fetched whatever media they sent. A stranger therefore never reaches
   the bridge, and ``on_refused`` is where the console's Allow list is fed.
+* that intake is each adapter's OWN (RT-MESSAGING-SHIM-STRANGER-GATE-HOLDS-ONLY-ON-TELEGRAM): Telegram asks
+  ``_is_callback_user_authorized``, Discord ``_is_allowed_user`` and never the shared callback, Signal has
+  no DM sender gate and fetches attachments before ``handle_message``. So the shared
+  ``set_authorization_check`` is not a gate on its own: every platform's subclass puts ``_decide`` at its
+  adapter's intake in :meth:`UpstreamAdapterTransport._install_intake_gate`, names the test that drives that
+  intake with a stranger (``intake_gate_test``) and is listed in :data:`INTAKE_GATED`. The base class
+  refuses to start with an ``is_allowed`` and no override, and the serve lane builds no platform that is
+  not listed (both pinned by ``tests/agent_runtime/messaging/test_upstream_intake_gates.py``).
 
 Five things a naive use of the Telegram adapter gets wrong, each fixed here and pinned by a test beside
 ``tests/agent_runtime/messaging/test_upstream_telegram_end_to_end.py``: a stranger's media fetched before
@@ -39,7 +47,8 @@ from typing import Any
 from .transport import Button, CallbackPress, InboundMessage, MessageRef, OnUpdate, SendResult
 
 __layer__ = "lanes"
-__all__ = ["OnRefused", "TelegramUpstreamAdapterTransport", "UpstreamAdapterTransport", "update_id_of"]
+__all__ = ["INTAKE_GATED", "DiscordUpstreamAdapterTransport", "OnRefused", "SignalUpstreamAdapterTransport",
+           "TelegramUpstreamAdapterTransport", "UpstreamAdapterTransport", "has_own_intake_gate", "update_id_of"]
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +80,11 @@ class UpstreamAdapterTransport:
     ``home_scope``) wraps them when the stores they read are per-home. ``is_allowed=None`` lets every
     sender through to the bridge, which then refuses — only for tests of the bridge itself."""
 
+    #: ``Platform.value`` of the adapter a subclass gates; None on the generic base.
+    platform: str | None = None
+    #: The test file (repo-relative) that drives this adapter's OWN intake with a stranger and the operator.
+    intake_gate_test: str | None = None
+
     def __init__(self, adapter: Any, *, connect: bool = True,
                  is_allowed: Callable[[str], bool] | None = None, on_refused: OnRefused | None = None,
                  scope: Callable[[], Any] | None = None) -> None:
@@ -86,6 +100,9 @@ class UpstreamAdapterTransport:
     # ── lifecycle ──
 
     def start(self, on_update: OnUpdate) -> None:
+        if self._is_allowed is not None:
+            # Before the loop exists: a transport that cannot gate its adapter starts nothing at all.
+            self._install_intake_gate()
         self._on_update = on_update
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._loop.run_forever, name="messaging-upstream-adapter",
@@ -109,6 +126,15 @@ class UpstreamAdapterTransport:
             if connected is False:
                 self.stop()
                 raise RuntimeError("the upstream adapter did not connect")
+
+    def _install_intake_gate(self) -> None:
+        """Put :meth:`_decide` at the adapter's OWN intake, ahead of anything it fetches for a sender.
+
+        The base has no adapter to read, so it refuses: the shared ``set_authorization_check`` callback is
+        asked by some adapters and not by others, and an adapter that never asks it lets a stranger's media
+        be fetched (Signal) or refuses the operator too (Discord)."""
+        raise RuntimeError(f"{type(self).__name__} has no intake gate of its own for this adapter; "
+                           "a platform's subclass must override _install_intake_gate")
 
     def _prepare(self) -> None:
         """Per-platform set-up that must be in place before ``connect()``."""
@@ -248,6 +274,9 @@ class TelegramUpstreamAdapterTransport(UpstreamAdapterTransport):
     The last three are overrides of PRIVATE adapter attributes; each has a test that goes red if an
     upstream release renames what it overrides."""
 
+    platform = "telegram"
+    intake_gate_test = "tests/agent_runtime/messaging/test_upstream_telegram_stranger_gate.py"
+
     def __init__(self, adapter: Any, *, press_prefix: str, **kwargs: Any) -> None:
         super().__init__(adapter, **kwargs)
         self._press_prefix = press_prefix
@@ -270,8 +299,6 @@ class TelegramUpstreamAdapterTransport(UpstreamAdapterTransport):
             return None
 
         adapter._register_command_menu = _no_upstream_menu
-        if self._is_allowed is not None:
-            adapter._is_callback_user_authorized = self._named_gate
         register_core = adapter._register_handlers
 
         def register(app: Any) -> None:
@@ -281,6 +308,9 @@ class TelegramUpstreamAdapterTransport(UpstreamAdapterTransport):
             register_core(app)
 
         adapter._register_handlers = register
+
+    def _install_intake_gate(self) -> None:
+        self.adapter._is_callback_user_authorized = self._named_gate
 
     def _named_gate(self, user_id: Any, *, chat_id: Any = None, chat_type: Any = None, thread_id: Any = None,
                     user_name: Any = None, **_kwargs: Any) -> bool:
@@ -320,3 +350,86 @@ class TelegramUpstreamAdapterTransport(UpstreamAdapterTransport):
 
     def answer_callback(self, callback_id: str, text: str = "") -> None:
         self._call(self.adapter._bot.answer_callback_query(callback_id, text=text or None))
+
+
+_SIGNAL_INTAKE_TEST = "tests/agent_runtime/messaging/test_upstream_signal_and_discord_intake_gates.py"
+
+
+class SignalUpstreamAdapterTransport(UpstreamAdapterTransport):
+    """Upstream's Signal adapter: the fork's operator list asked before an envelope is handled.
+
+    Read in ``plugins/platforms/signal/adapter.py::SignalAdapter._handle_envelope``: a direct message has no
+    sender gate there (DM auth is the runner's), and ``_collect_attachments`` fetches every attachment over
+    signal-cli's ``getAttachment`` BEFORE ``handle_message`` — the shared callback is asked only after. The
+    override wraps the adapter's ``_handle_envelope`` and refuses a stranger's message envelope before the
+    adapter reads it. Passed through untouched, as the adapter itself handles them: an envelope with no
+    message (receipts, typing: nothing to fetch, nothing reaches the bridge), one with no sender, the
+    account's own echo, and a ``syncMessage`` — sent from the account's OWN linked devices ("Note to Self"),
+    not by a stranger; the adapter's unwrap of it consumes an echo timestamp, so it must run once, there.
+    No approval cards yet (the generic ``NotImplementedError``s stand)."""
+
+    platform = "signal"
+    intake_gate_test = _SIGNAL_INTAKE_TEST
+
+    def _install_intake_gate(self) -> None:
+        adapter = self.adapter
+        handle = adapter._handle_envelope
+
+        async def gated(envelope: dict) -> None:
+            if self._refuses_envelope(envelope):
+                return None
+            return await handle(envelope)
+
+        adapter._handle_envelope = gated
+
+    def _refuses_envelope(self, envelope: Any) -> bool:
+        data = envelope.get("envelope", envelope) if isinstance(envelope, dict) else None
+        if not isinstance(data, dict) or "syncMessage" in data:
+            return False
+        message = data.get("dataMessage") or (data.get("editMessage") or {}).get("dataMessage")
+        sender = data.get("sourceNumber") or data.get("sourceUuid") or data.get("source")
+        if not isinstance(message, dict) or not sender:
+            return False
+        if sender == getattr(self.adapter, "_account_normalized", None):
+            return False
+        group = (message.get("groupInfo") or {}).get("groupId")
+        return not self._decide(sender, f"group:{group}" if group else sender, data.get("sourceName") or "")
+
+
+class DiscordUpstreamAdapterTransport(UpstreamAdapterTransport):
+    """Upstream's Discord adapter: the fork's operator list IS its user gate.
+
+    Read in ``plugins/platforms/discord/adapter.py``: every ingress — ``_discord_message_admission`` (before
+    ``_handle_message`` and its attachment download), slash commands, reactions, voice — asks
+    ``_is_allowed_user``, never the shared callback; with no ``DISCORD_ALLOWED_*`` it refuses everyone, the
+    operator included, and the fork never hears of the refusal. The override replaces that method on the
+    instance with :meth:`_decide`, so the operator is admitted, a stranger is refused (and listed) at the same
+    place, and upstream's pairing, wildcard and role grants do not widen the fork's list. Upstream's other
+    admission rules (bots, mentions in shared channels) still run after it. No approval cards yet."""
+
+    platform = "discord"
+    intake_gate_test = _SIGNAL_INTAKE_TEST
+
+    def _install_intake_gate(self) -> None:
+        self.adapter._is_allowed_user = self._user_gate
+
+    def _user_gate(self, user_id: Any, author: Any = None, *, guild: Any = None, is_dm: bool = False,
+                   channel_ids: Any = None, **_kwargs: Any) -> bool:
+        display = getattr(author, "display_name", None) or getattr(author, "name", None) or ""
+        chat = sorted(str(c) for c in channel_ids)[0] if channel_ids else ""
+        return self._decide(user_id, chat, display)
+
+
+def has_own_intake_gate(cls: type) -> bool:
+    """True when ``cls`` overrides the base's refusing :meth:`~UpstreamAdapterTransport._install_intake_gate`
+    and names the test that drives its adapter's intake."""
+    return (isinstance(cls, type) and issubclass(cls, UpstreamAdapterTransport)
+            and cls._install_intake_gate is not UpstreamAdapterTransport._install_intake_gate
+            and bool(cls.platform) and bool(cls.intake_gate_test))
+
+
+#: ``Platform.value`` -> the transport whose adapter intake carries the fork's gate. The serve lane wires in
+#: an upstream adapter only for a platform listed here.
+INTAKE_GATED: dict[str, type[UpstreamAdapterTransport]] = {
+    cls.platform: cls for cls in (TelegramUpstreamAdapterTransport, SignalUpstreamAdapterTransport,
+                                  DiscordUpstreamAdapterTransport) if cls.platform}

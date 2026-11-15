@@ -48,3 +48,20 @@ def test_the_suite_runs_the_validated_scope():
     assert scope, "the validated-scope block names no directory"
     suites = [run.split()[1:] for run in _runs(_job()) if run.startswith("scripts/run_tests.sh")]
     assert scope in suites, (scope, suites)
+
+
+def test_the_suite_syncs_the_telegram_extra_and_fails_where_it_is_missing():
+    """RT-MESSAGING-TESTS-NEED-THE-MESSAGING-EXTRA: the shim's stranger-before-media pin drives the real
+    upstream Telegram adapter, and upstream's ``[all]`` leaves python-telegram-bot out. Killing mutations:
+    drop ``--extra telegram`` from the sync, or ``HERMES_REQUIRE_TELEGRAM_EXTRA`` from the suite's env (the
+    pin then skips in silence), or the name from ``scripts/fork_test_env.txt`` (``run_tests.sh``'s
+    ``env -i`` then drops it) → red."""
+    job = _job()
+    syncs = [str(step.get("with", {}).get("command", "")) for step in job["steps"]
+             if "uv sync" in str(step.get("with", {}).get("command", ""))]
+    assert syncs and all("--extra telegram" in command.split("--extra all", 1)[1] for command in syncs)
+    [suite] = [step for step in job["steps"] if step.get("name") == "Validated suite"]
+    assert str(suite.get("env", {}).get("HERMES_REQUIRE_TELEGRAM_EXTRA")) == "1"
+    forwarded = (ROOT / "scripts" / "fork_test_env.txt").read_text(encoding="utf-8").split()
+    assert "HERMES_REQUIRE_TELEGRAM_EXTRA" in forwarded
+    assert CONTRACT.read_text(encoding="utf-8").count("--extra parallel-web --extra telegram") == 2

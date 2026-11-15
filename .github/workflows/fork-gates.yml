@@ -185,10 +185,14 @@ jobs:
             pyproject.toml
             uv.lock
 
+      # `--extra telegram`: upstream's `[all]` leaves python-telegram-bot out (pyproject.toml's 2026-05-12
+      # policy, upstream-owned, untouched), and without it the shim's stranger-before-media pin and the
+      # token and text log pins skip in silence. HERMES_REQUIRE_TELEGRAM_EXTRA turns that skip into a red
+      # here (RT-MESSAGING-TESTS-NEED-THE-MESSAGING-EXTRA; tests/agent_runtime/messaging/_telegram_extra.py).
       - name: Install test environment
         uses: ./.github/actions/retry
         with:
-          command: uv sync --locked --python 3.14 --extra all --group dev
+          command: uv sync --locked --python 3.14 --extra all --extra telegram --group dev
 
       - name: Point the runner at the synced interpreter
         run: |
@@ -201,6 +205,7 @@ jobs:
       - name: Validated suite
         run: scripts/run_tests.sh tests/agent_runtime tests/hermes_cli tests/hermes_state
         env:
+          HERMES_REQUIRE_TELEGRAM_EXTRA: "1"
           HERMES_TEST_WORKERS: 4
           HERMES_TEST_FILE_TIMEOUT: 600
           OPENROUTER_API_KEY: ""

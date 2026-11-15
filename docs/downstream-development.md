@@ -130,12 +130,17 @@ set.
 That venv is built from the lock on CPython 3.14, with the CI test job's
 extras minus `daytona` (its `obstore` has no cp314 Windows wheel and needs
 Rust), without installing the project (the runner puts the worktree on the
-path), plus the fork's `requirements-fork-dev.txt`:
+path), plus the fork's `requirements-fork-dev.txt`. `--extra telegram` is the fork's addition
+(python-telegram-bot, outside upstream's `[all]`): the real upstream Telegram adapter's tests skip without it,
+and the fork's `validated-suite` gate, which syncs it too, fails them instead
+(`tests/agent_runtime/messaging/_telegram_extra.py`, RT-MESSAGING-TESTS-NEED-THE-MESSAGING-EXTRA). A venv built
+before 2026-11-14 takes it additively, without a re-sync:
+`uv pip install --python <venv python> "python-telegram-bot[webhooks]==22.8"` (the lock's pin):
 
 ```bash
 UV_PROJECT_ENVIRONMENT=X:/Eternia/.venvs/hermes-test-314 uv sync --locked --python 3.14 \
   --no-install-project --extra all --group dev --group test --extra anthropic \
-  --extra mistral --extra fal --extra modal --extra parallel-web
+  --extra mistral --extra fal --extra modal --extra parallel-web --extra telegram
 uv pip install --python X:/Eternia/.venvs/hermes-test-314/Scripts/python.exe -r requirements-fork-dev.txt
 ```
 
@@ -151,7 +156,7 @@ interpreter is `bin/python`), and
 ```bash
 UV_PROJECT_ENVIRONMENT=~/.venvs/hermes-test-314 uv sync --locked --python 3.14 \
   --no-install-project --extra all --group dev --group test --extra anthropic \
-  --extra mistral --extra fal --extra modal --extra parallel-web
+  --extra mistral --extra fal --extra modal --extra parallel-web --extra telegram
 uv pip install --python ~/.venvs/hermes-test-314/bin/python -r requirements-fork-dev.txt
 ln -sfn ~/.venvs/hermes-test-314 ~/.venvs/hermes-test
 ```
