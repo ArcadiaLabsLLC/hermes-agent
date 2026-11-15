@@ -169,3 +169,24 @@ def test_a_store_file_without_its_schema_lists_no_conversations(placed_agent):
 
     assert "error" not in answer, answer
     assert answer["result"]["conversations"] == []
+
+
+def test_each_row_says_whether_the_asking_client_may_open_it(placed_agent):
+    """``openable`` is the open path's own answer (``require_session_owner``), row by row."""
+
+    own, other, legacy = create(placed_agent, "own"), create(placed_agent, "other", OTHER), create(placed_agent, "legacy", None)
+    rows = {row["session_id"]: row for row in read_history(all_accounts=True)["result"]["conversations"]}
+    assert (rows[own]["openable"], rows[other]["openable"], rows[legacy]["openable"]) == (True, False, False)
+    assert all(row["openable"] for row in read_history()["result"]["conversations"])
+    # The flag agrees with the open the client would send for each row.
+    for session, row in ((own, rows[own]), (other, rows[other]), (legacy, rows[legacy])):
+        opened = _call(dict(persona_id=PERSONA, persona_instance_id=placed_agent["persona_instance_id"],
+                            session_id=session, client_scope=OWNER))
+        assert ("result" in opened) is row["openable"], (session, opened)
+    # An unscoped operator keeps its authority over every row, as the open path does.
+    install = ensure_install_identity(paths.store_root()).install_id
+    unscoped = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "history",
+        "method": "runtime.operator.conversation.list", "params": {"install_id": install, "all_accounts": True}},
+        serve_rpc.RpcContext(caller=LOCAL_CONSOLE))["result"]["conversations"]
+    assert {own, other, legacy} <= {row["session_id"] for row in unscoped}
+    assert all(row["openable"] for row in unscoped)
