@@ -52,7 +52,7 @@
       "setup": "QA Fixture workspace. Its seeded launcher clone and its local workspace brain are readable. The shared slot is bound to a separate fixture clone and unreadable as a Work brain. The hermes and backend slots are disposable clones with local-only origins and the same tips as the RPC fixture."
     },
     "measurement": "Application debug reconciliation spans. Binding, owner lookup and the composite list step are measured separately. List starts the Harness call and local file read together and includes Dart projection and reconciliation. The first Tasks mount follows workspace setup, which had already created Work worktrees. Its timestamp cache state was not observed.",
-    "mount": {"started_utc": "2026-11-15T18:48:40Z", "cpu_before": [5, 1, 3], "binding_ms": 9155, "owners_ms": 0, "list_ms": 12220, "sum_ms": 21375},
+    "mount": {"started_utc": "2026-11-15T18:48:40.460956Z", "cpu_before": [5, 1, 3], "binding_ms": 9155, "owners_ms": 0, "list_ms": 12220, "sum_ms": 21375},
     "refresh": [
       {"started_utc": "2026-11-15T18:49:39.544168Z", "cpu_before": [0, 1, 0], "cpu_after": 10, "binding_ms": 2672, "owners_ms": 0, "list_ms": 5647, "sum_ms": 8319, "local_read_ms": [2705.578]},
       {"started_utc": "2026-11-15T18:50:00.086646Z", "cpu_before": [3, 9, 18], "cpu_after": 20, "binding_ms": 1058, "owners_ms": 0, "list_ms": 3281, "sum_ms": 4339, "local_read_ms": [1043.863]},
@@ -62,6 +62,55 @@
     "serve": "The namespace-stamped transport log records one serve PID at attach and release for the entire run. The captured transport and runtime logs have no per-request dispatch, Git or reply stamps. No cause for the difference between RPC-only and app timings was assigned from these logs.",
     "result": "Open. Three of four explicit Refreshes exceeded 5 s in the composite list step alone. The repeat needs a per-phase comparison inside the actual application path.",
     "cleanup": "The QA close passed and reaped its lane serve. The app, the serve and its snapshot worker were absent afterward."
+  },
+  "app_instrumented_replay": {
+    "app_commit": "1bf69e365c73a9b37c3b30a9a32a2670dd5658bd",
+    "qa_tool_commit": "b38dea1ea42dbfb41ee24c57c88bc6ef19637480",
+    "hermes_code_base": "823c73fda585dc3800710c6a47c13322f03ca665",
+    "hermes_timing_checkout": "3997c2cc4ee665191ca0bd9282653183a5574619",
+    "namespace": "stagec-smoke-lane-7beae52cb0",
+    "fixture": {
+      "live_rows": 939,
+      "history_rows": 2985,
+      "notes": 46,
+      "board_notes_rows": {"launcher": [31, 618], "hermes": [3, 142], "backend": [11, 179], "brain": [1, 0], "shared": [0, 0]},
+      "readable_tips": {"launcher": "b8e44565a97650a60a8b4c8e21e583e1e1616dc7", "hermes": "b2a22eeb3afdca8bb4a3ce2b78feeab93b597c20", "backend": "848a91010633278d1a856285ce0d9ccbe84987a2", "brain": "2e6a310ddf088bb8c5966c9b26674ae5b98988e0"},
+      "setup_delta": "Same workspace and slot layout, with newly copied local origins for the two additional slots at the earlier tips. The launcher fixture source gained five live rows since the first recording."
+    },
+    "mount": {
+      "action_utc": "2026-11-15T19:09:26.703881Z",
+      "cpu_before": [8, 34, 22],
+      "binding_ms": 16558,
+      "owners_ms": 0,
+      "list_ms": null,
+      "observation": "The app emitted no mount list completion and the serve emitted no completed list before the first press. This is a measured incomplete mount under diagnostic code and higher host load. A contemporaneous capabilities reply spent 9880.07 ms waiting for a worker and 3271.19 ms in its handler."
+    },
+    "refresh": [
+      {
+        "action_utc": "2026-11-15T19:11:48.654877Z", "cpu_before": [3, 5, 1], "binding_ms": 3841, "owners_ms": 0, "app_list_ms": 7615,
+        "server_calls": [
+          {"start_utc_ns": 1794769912541029000, "queue_ms": 0.06, "handler_ms": 9957.73, "write_ms": 19.31, "total_ms": 9977.10, "sync_ms": 6423.92, "history_ms": 3365.66, "projection_with_history_ms": 3529.48, "path_logs": 42},
+          {"start_utc_ns": 1794769912541433000, "queue_ms": 0.06, "handler_ms": 7522.12, "write_ms": 16.47, "total_ms": 7538.66, "sync_ms": 3570.82, "history_ms": 3778.73, "projection_with_history_ms": 3947.41, "path_logs": 42}
+        ]
+      },
+      {
+        "action_utc": "2026-11-15T19:12:32.953446Z", "cpu_before": [1, 7, 1], "binding_ms": 3051, "owners_ms": 0, "app_list_ms": 9322,
+        "server_calls": [
+          {"start_utc_ns": 1794769956047894600, "queue_ms": 0.08, "handler_ms": 5811.28, "write_ms": 15.95, "total_ms": 5827.31, "sync_ms": 5653.51, "history_ms": 0.22, "projection_with_history_ms": 156.27, "path_logs": 0},
+          {"start_utc_ns": 1794769956048358000, "queue_ms": 0.17, "handler_ms": 9265.07, "write_ms": 17.56, "total_ms": 9282.80, "sync_ms": 9103.12, "history_ms": 0.28, "projection_with_history_ms": 160.72, "path_logs": 0}
+        ]
+      },
+      {
+        "action_utc": "2026-11-15T19:13:17.774042Z", "cpu_before": [17, 16, 5], "binding_ms": 3603, "owners_ms": 313, "app_list_ms": 5239,
+        "server_calls": [
+          {"start_utc_ns": 1794770001416522700, "queue_ms": 0.07, "handler_ms": 7544.18, "write_ms": 24.48, "total_ms": 7568.73, "sync_ms": 7365.42, "history_ms": 0.27, "projection_with_history_ms": 177.70, "path_logs": 0},
+          {"start_utc_ns": 1794770001729805200, "queue_ms": 0.06, "handler_ms": 5157.44, "write_ms": 23.30, "total_ms": 5180.81, "sync_ms": 4991.53, "history_ms": 0.28, "projection_with_history_ms": 164.87, "path_logs": 0}
+        ]
+      }
+    ],
+    "read_shape": "All six list replies succeeded without stale state and returned identical five-board sizes and exact tips. The requests all carried view=all and stale_ok=true, with kind and observe absent. Each spent four reset and four status Git calls across the readable boards and performed no fetch. RPC IDs and requested owner/slot were not collected. The captured serve sees the client connection, not the owning Dart call sites.",
+    "result": "Open. Every press produced two full runtime lists. The first pair started 0.404 ms apart and each resolved 42 cold note histories. The second pair started 0.4634 ms apart. The third started 313.2825 ms apart. Warm pairs hit the memo and spent 4.992-9.103 s in sync, while reply writes took 15.95-24.48 ms. The sample ended after three presses at coordination handoff.",
+    "cleanup": "QA close reaped the lane serve. The app, serve, and snapshot worker PIDs were gone. The timing hooks remain on a disposable local branch."
   },
   "validation": {"focused_windows_checks": 32}
 }
