@@ -84,7 +84,7 @@ def _runs(store: LensStore) -> list[tuple[int, str, str]]:
 def _refusal(manifest: dict) -> str:
     with pytest.raises(WireError) as raised:
         read_manifest(manifest)
-    return raised.value.code.value
+    return raised.value.reason.value
 
 
 # --- the field --------------------------------------------------------------------------------

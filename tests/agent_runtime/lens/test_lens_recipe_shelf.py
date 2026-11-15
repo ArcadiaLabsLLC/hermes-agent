@@ -284,7 +284,7 @@ def test_an_added_recipe_cannot_read_a_credential_this_pc_already_holds(monkeypa
 def test_a_renamed_ref_past_the_id_bound_is_refused_never_cut():
     with pytest.raises(WireError) as refused:
         localize(_manifest("m", _feed(credential_ref="r" * 155)))  # 9 + 155 bytes: past the 160-byte id bound
-    assert refused.value.code.value == "invalid_string"
+    assert refused.value.reason.value == "invalid_string"
     again = localize(localize(_manifest()))  # its own namespace is left alone: no stacking on a re-share
     assert again["feeds"][0]["credential_ref"] == "shared:site-health:api"
 
@@ -339,7 +339,7 @@ def test_only_portable_sources_are_shared_at_either_door(kind):
     else:
         with pytest.raises(RecipeDocumentError) as refused:
             validate_document(LENS_RECIPE_FAMILY, raw)
-        assert refused.value.code == "recipe_not_portable"
+        assert refused.value.reason.value == "recipe_not_portable"
         with pytest.raises(RecipeDocumentError):
             DocumentStore(LENS_RECIPE_FAMILY).write("ws_team/m", raw)
         _shelf_file("m").parent.mkdir(parents=True, exist_ok=True)

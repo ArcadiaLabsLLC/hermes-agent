@@ -5,7 +5,9 @@ Ported from Companion's ``eternia_monitor_contracts/lib/src/wire_value.dart``
 rules are the reference's: an unknown key, a missing key, a duplicate key, a
 non-finite number and an oversize document all REFUSE — nothing is coerced,
 dropped or defaulted. Every refusal is a :class:`WireError` carrying a typed
-:class:`WireRefusal`, so a caller branches on the code, never on prose.
+:class:`WireRefusal`, so a caller branches on the reason, never on prose.
+:class:`LensRefusal` is the base every Lens refusal is; it lives here because every Lens module
+already stands on this one.
 
 Canonical form (the digest input): keys sorted, no whitespace, an integral float
 written as an integer, UTF-8. ``canonical_digest`` is SHA-256 over those bytes.
@@ -19,7 +21,7 @@ import math
 import re
 from datetime import datetime, timezone, UTC
 from enum import Enum
-from typing import Any, Callable, Iterable, TypeVar
+from typing import Any, Callable, ClassVar, Iterable, TypeVar
 
 __layer__ = "models"
 
@@ -73,13 +75,49 @@ class WireRefusal(str, Enum):
     SCHEDULE_OVER_CAP = "schedule_over_cap"
 
 
-class WireError(ValueError):
-    """A refused value. ``code`` is typed; ``detail`` names the field, never a value."""
+class RefusalKind(Enum):
+    """What a Lens refusal IS, whichever door answers it (the RPC lane maps each to one error code)."""
 
-    def __init__(self, code: WireRefusal, detail: str = "") -> None:
-        super().__init__(f"{code.value}: {detail}" if detail else code.value)
-        self.code = code
+    INVALID = "invalid"
+    NOT_FOUND = "not_found"
+    CONFLICT = "conflict"
+
+
+class LensRefusal(ValueError):
+    """The ONE shape of a Lens refusal (row ``RT-LENS-RPC-REFUSALS-FIVE-EXCEPTION-SHAPES``).
+
+    ``reason`` is a member of the family's refusal Enum — its value is the wire word; ``detail``
+    names a field or feed, never a value, and is ``""`` when nothing is named. A Lens module that
+    refuses subclasses this and states its family's facts: ``reasons`` (the Enum; a reason outside
+    it is a ``ValueError``, so no refusal is untyped), ``summary`` (the sentence a door may show),
+    ``refused_as`` (what its refusals are) and ``not_found_reasons`` (the members that mean "no
+    such thing" instead). Every door catches this one type (``serve_rpc.lens._lens_call``,
+    ``lens.tool._tool_answer``); none reads a subclass.
+    Pinned by ``tests/agent_runtime/lens/test_lens_refusal_frames.py``."""
+
+    reasons: ClassVar[type[Enum]]
+    summary: ClassVar[str] = "The Lens request was refused."
+    refused_as: ClassVar[RefusalKind] = RefusalKind.INVALID
+    not_found_reasons: ClassVar[frozenset[Enum]] = frozenset()
+
+    def __init__(self, reason: Enum | str, detail: str = "") -> None:
+        self.reason = self.reasons(reason)
         self.detail = detail
+        super().__init__(f"{self.reason.value}: {detail}" if detail else self.reason.value)
+
+    @property
+    def not_found(self) -> bool:
+        return self.reason in self.not_found_reasons
+
+    @property
+    def kind(self) -> RefusalKind:
+        return RefusalKind.NOT_FOUND if self.not_found else self.refused_as
+
+
+class WireError(LensRefusal):
+    """A refused value. ``reason`` is a :class:`WireRefusal`; ``detail`` names the field, never a value."""
+
+    reasons = WireRefusal
 
 
 def require(condition: bool, detail: str, code: WireRefusal = WireRefusal.INVALID_VALUE) -> None:

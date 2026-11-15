@@ -124,8 +124,12 @@ all-workspaces read, and the answer these verbs always gave.
 The four ``runtime.lens.recipe.*`` verbs (share a monitor with its workspace, list, withdraw, add
 one as a DRAFT) are ``serve_rpc/lens_recipes.py``'s; their table is in that module.
 
-Every refusal carries ``data.reason`` (a ``WireRefusal``, ``StoreRefusal`` or ``RecipeRefusal`` value)
-and, for a schema refusal, ``data.detail`` naming the field — never a value.
+Every refusal is ONE frame, whichever part of Lens refused (``_lens_call``; row
+``RT-LENS-RPC-REFUSALS-FIVE-EXCEPTION-SHAPES``): ``data: {reason, detail}``. ``reason`` is the
+value of the refusing module's Enum (``WireRefusal``, ``StoreRefusal``, ``OwnerRefusal``,
+``RecipeRefusal``, ``ArtifactRefusal``); ``detail`` names the field or feed — never a value — and
+is ``""`` when the refusal names none. The error code is the refusal's kind: invalid params,
+not found, or conflict. Pinned by ``tests/agent_runtime/lens/test_lens_refusal_frames.py``.
 """
 
 from __future__ import annotations
@@ -140,31 +144,21 @@ __layer__ = "lanes"
 
 __all__ = ["_runtime_lens_list"]
 
-def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
-    """Run ``body``; turn a Lens refusal into its typed frame."""
+#: The error code of each ``lens.wire_value.RefusalKind`` value — the one rule for every Lens verb.
+_REFUSAL_CODES = {"invalid": ERR_INVALID_PARAMS, "not_found": ERR_NOT_FOUND, "conflict": ERR_CONFLICT}
 
-    from agent_runtime.lens.artifacts import ArtifactRefusal, LensArtifactError
-    from agent_runtime.lens.recipe_shelf import NOT_FOUND_RECIPE_REFUSALS, RecipeDocumentError
-    from agent_runtime.lens.store import NOT_FOUND_REFUSALS, LensStoreError
-    from agent_runtime.lens.store_owner import LensOwnerError
-    from agent_runtime.lens.wire_value import WireError
+def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
+    """Run ``body``; turn a Lens refusal — every one is a ``lens.wire_value.LensRefusal`` — into
+    its frame: the error code of its kind (:data:`_REFUSAL_CODES`), its ``summary``, and
+    ``data: {reason, detail}``."""
+
+    from agent_runtime.lens.wire_value import LensRefusal
 
     try:
         return ok(rid, body())
-    except LensOwnerError as exc:
-        return err(rid, ERR_INVALID_PARAMS, "Invalid conversation owner.", {"reason": exc.reason})
-    except WireError as exc:
-        return err(rid, ERR_INVALID_PARAMS, "The Lens request was refused.",
-                   {"reason": exc.code.value, "detail": exc.detail})
-    except LensStoreError as exc:
-        code = ERR_NOT_FOUND if exc.code in NOT_FOUND_REFUSALS else ERR_CONFLICT
-        return err(rid, code, "The Lens store refused the request.", {"reason": exc.code.value})
-    except RecipeDocumentError as exc:
-        code = ERR_NOT_FOUND if exc.code in NOT_FOUND_RECIPE_REFUSALS else ERR_CONFLICT
-        return err(rid, code, str(exc), {"reason": exc.code, "detail": exc.detail})
-    except LensArtifactError as exc:
-        code = ERR_NOT_FOUND if exc.code is ArtifactRefusal.NOT_FOUND else ERR_INVALID_PARAMS
-        return err(rid, code, "The Lens artifact was refused.", {"reason": exc.code.value})
+    except LensRefusal as exc:
+        return err(rid, _REFUSAL_CODES[exc.kind.value], exc.summary,
+                   {"reason": exc.reason.value, "detail": exc.detail})
 
 
 def _monitor_id(params: dict) -> str:

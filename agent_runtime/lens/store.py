@@ -57,7 +57,7 @@ from .store_receipt_rows import (RECEIPT_COLUMNS as _RECEIPT_COLUMNS, RECEIPT_RE
 from .feed import Observation
 from .manifest import read_manifest
 from .seal import SealedManifest, seal_manifest
-from .wire_value import WireError, WireRefusal, canonical_bytes
+from .wire_value import LensRefusal, RefusalKind, WireError, WireRefusal, canonical_bytes
 
 #: The served rows' workspace filter: a monitor's own ``workspace_id`` (``store_scope``).
 _IN_WORKSPACE = "monitor_id IN (SELECT monitor_id FROM monitors WHERE workspace_id = ?)"
@@ -215,10 +215,13 @@ CAPPED_OUTCOMES = (ReceiptOutcome.FORGING.value, ReceiptOutcome.FORGED.value, Re
                    ReceiptOutcome.NOTIFIED_BY_RULES.value)
 
 
-class LensStoreError(ValueError):
-    def __init__(self, code: StoreRefusal) -> None:
-        super().__init__(code.value)
-        self.code = code
+class LensStoreError(LensRefusal):
+    """The store refused: ``reason`` is a :class:`StoreRefusal`."""
+
+    reasons = StoreRefusal
+    summary = "The Lens store refused the request."
+    refused_as = RefusalKind.CONFLICT
+    not_found_reasons = NOT_FOUND_REFUSALS
 
 
 def lens_root() -> Path:

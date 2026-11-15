@@ -90,7 +90,7 @@ def test_only_an_open_source_broken_episode_admits_a_repair():
     store = _sealed()
     with pytest.raises(LensStoreError) as refused:
         _repair(store)
-    assert refused.value.code is StoreRefusal.SOURCE_NOT_BROKEN
+    assert refused.value.reason is StoreRefusal.SOURCE_NOT_BROKEN
     episode = _broken(store, state=EpisodeState.RECOVERED, decision=Decision.DISMISS, decided_at=T0)
     with pytest.raises(LensStoreError):
         _repair(store)
@@ -113,7 +113,7 @@ def test_a_repair_cannot_carry_rules_or_write_over_a_pending_draft_or_store_a_de
     store.create(_monitor())
     with pytest.raises(LensStoreError) as refused:
         _repair(store)
-    assert refused.value.code is StoreRefusal.DRAFT_PENDING
+    assert refused.value.reason is StoreRefusal.DRAFT_PENDING
     assert store.get("status")["draft"] == store.get("status")["sealed"]["manifest"], "the operator's draft stands"
 
 

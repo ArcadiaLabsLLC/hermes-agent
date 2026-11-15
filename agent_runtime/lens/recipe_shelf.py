@@ -47,6 +47,10 @@ from typing import Any, NamedTuple
 
 from .. import paths
 from ..realm_sync.document_family import (
+    REFUSAL_MISSING_VERSION,
+    REFUSAL_NOT_AN_OBJECT,
+    REFUSAL_TOO_LARGE,
+    REFUSAL_UNREADABLE_DOCUMENT,
     DocumentError,
     DocumentFamily,
     DocumentPullSummary,
@@ -57,7 +61,7 @@ from ..realm_sync.document_family import (
 from .feed import FeedKind, address_parts, feed_address
 from .host_budget import is_private_reader
 from .manifest import read_manifest
-from .wire_value import MAXIMUM_MANIFEST_BYTES, WireError, canonical_bytes, opaque_id
+from .wire_value import MAXIMUM_MANIFEST_BYTES, LensRefusal, RefusalKind, WireError, canonical_bytes, opaque_id
 
 __layer__ = "stores"
 
@@ -89,6 +93,13 @@ class RecipeRefusal(str, Enum):
     #: Another monitor of this workspace already shares under this recipe id (ids that differ
     #: only in characters a file name cannot carry).
     ID_TAKEN = "recipe_id_taken"
+    #: The whole-document class's own refusals (``realm_sync.document_family``), spelled by its constants.
+    UNREADABLE_DOCUMENT = REFUSAL_UNREADABLE_DOCUMENT
+    NOT_AN_OBJECT = REFUSAL_NOT_AN_OBJECT
+    MISSING_VERSION = REFUSAL_MISSING_VERSION
+    TOO_LARGE = REFUSAL_TOO_LARGE
+    #: A shelf file listed and then gone before it was read (the family's ``unreadable_reason``).
+    UNREADABLE = "lens_recipe_unreadable"
 
 
 _MESSAGES = {
@@ -100,18 +111,26 @@ _MESSAGES = {
     RecipeRefusal.NEEDS_WORKSPACE.value: "A recipe is shared with a workspace, and none is named or active.",
     RecipeRefusal.ID_TAKEN.value: "Another monitor of this workspace already shares under that recipe id.",
 }
-NOT_FOUND_RECIPE_REFUSALS = frozenset({RecipeRefusal.NOT_FOUND.value})
 
 
-class RecipeDocumentError(DocumentError):
-    """A refused recipe. ``code`` is a :class:`RecipeRefusal` value (or the document class's own:
-    ``unreadable_document``, ``document_too_large``, …); ``detail`` names a field or feed, never a value."""
+class RecipeDocumentError(LensRefusal, DocumentError):
+    """A refused recipe: a :class:`LensRefusal` whose ``reason`` is a :class:`RecipeRefusal`, and the
+    recipe family's ``DocumentError`` (``code`` is ``reason.value``, the string the whole-document
+    class spends, which is why :class:`RecipeRefusal` also carries that class's own codes).
+    ``detail`` names a field or feed, never a value."""
 
     messages = _MESSAGES
+    reasons = RecipeRefusal
+    refused_as = RefusalKind.CONFLICT
+    not_found_reasons = frozenset({RecipeRefusal.NOT_FOUND})
 
-    def __init__(self, code: str, message: str | None = None, *, detail: str = "") -> None:
-        super().__init__(getattr(code, "value", code), message)
-        self.detail = detail
+    def __init__(self, code: RecipeRefusal | str, message: str | None = None, *, detail: str = "") -> None:
+        LensRefusal.__init__(self, code, detail)
+        DocumentError.__init__(self, self.reason.value, message)
+
+    @property
+    def summary(self) -> str:  # the reason's own sentence (``_MESSAGES``), not one per family
+        return str(self)
 
 
 class LensRecipePullSummary(DocumentPullSummary):
@@ -132,7 +151,7 @@ def read_recipe_document(parsed: dict[str, Any]) -> None:
         monitor_id = opaque_id(parsed["monitor_id"])
         manifest = None if parsed["withdrawn"] else read_manifest(parsed["manifest"])
     except WireError as exc:
-        raise RecipeDocumentError(RecipeRefusal.INVALID, detail=exc.detail or exc.code.value) from exc
+        raise RecipeDocumentError(RecipeRefusal.INVALID, detail=exc.detail or exc.reason.value) from exc
     if manifest is None:
         if parsed["manifest"] is not None:
             raise RecipeDocumentError(RecipeRefusal.INVALID, detail="manifest")
@@ -175,7 +194,7 @@ LENS_RECIPE_FAMILY = DocumentFamily(
     conflict_dir=lambda realm_id: paths.lens_recipe_conflicts_root(realm_id),
     summary_type=LensRecipePullSummary,
     sync_kind=SYNC_KIND,
-    unreadable_reason="lens_recipe_unreadable",
+    unreadable_reason=RecipeRefusal.UNREADABLE.value,
     extra_check=read_recipe_document,
     glob="*/*.json",
 )
@@ -249,10 +268,10 @@ def read_shelf(workspace_id: str) -> tuple[list[ShelfRecipe], list[dict[str, str
         raw = store.read(token)
         try:
             if raw is None:
-                raise RecipeDocumentError(LENS_RECIPE_FAMILY.unreadable_reason)
+                raise RecipeDocumentError(RecipeRefusal.UNREADABLE)
             recipes.append(_shelf_recipe(token, raw))
         except RecipeDocumentError as exc:
-            refused.append({"recipe_id": token[len(prefix):], "reason": exc.code})
+            refused.append({"recipe_id": token[len(prefix):], "reason": exc.reason.value})
     return recipes, refused
 
 

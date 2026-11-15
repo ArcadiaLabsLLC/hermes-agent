@@ -223,7 +223,7 @@ def test_the_act_level_seals_with_a_persona_and_actions_only_on_act():
     assert manifest["automation"]["actions"] == ["write_file", "patch"]
     with pytest.raises(WireError) as caught:
         check_sealable(read_manifest({**_act(), "persona_id": None}))
-    assert caught.value.code is WireRefusal.PERSONA_REQUIRED
+    assert caught.value.reason is WireRefusal.PERSONA_REQUIRED
     with pytest.raises(WireError):
         read_manifest(_act(("write_file", "write_file")))
     assert "actions" not in read_manifest(_monitor(level="act"))["automation"]  # absent: none listed

@@ -55,7 +55,7 @@ def test_one_unknown_key_anywhere_is_refused(path):
     target["surprise"] = 1
     with pytest.raises(WireError) as caught:
         read_manifest(doc)
-    assert caught.value.code is WireRefusal.UNKNOWN_KEY
+    assert caught.value.reason is WireRefusal.UNKNOWN_KEY
 
 
 @pytest.mark.parametrize("mutate, code", [
@@ -72,7 +72,7 @@ def test_the_closed_schema_refuses_typed(mutate, code):
     mutate(doc)
     with pytest.raises(WireError) as caught:
         read_manifest(doc)
-    assert caught.value.code is code
+    assert caught.value.reason is code
 
 
 @pytest.mark.parametrize("source, code", [
@@ -85,7 +85,7 @@ def test_the_closed_schema_refuses_typed(mutate, code):
 def test_the_strict_decoder_refuses_what_json_loads_accepts(source, code):
     with pytest.raises(WireError) as caught:
         decode_strict_json(source)
-    assert caught.value.code is code
+    assert caught.value.reason is code
 
 
 def _minutely(values: list[float]) -> list[Observation]:
@@ -120,7 +120,7 @@ def test_a_seal_names_its_bytes_and_refuses_changed_ones():
     object.__setattr__(tampered, "body", sealed.body.replace(b"90", b"99"))
     with pytest.raises(WireError) as caught:
         tampered.manifest()
-    assert caught.value.code is WireRefusal.INVALID_DIGEST
+    assert caught.value.reason is WireRefusal.INVALID_DIGEST
 
 
 def test_runtime_lens_list_is_on_the_method_lane():

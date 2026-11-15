@@ -4426,6 +4426,23 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         "machine_roots.MachineRoots.project_roots",
         scope=_AR,
     ),
+    *rows(
+        "s-w1115k-hlens2",
+        "HEAD",
+        Form.ATTR,
+        "RT-LENS-RPC-REFUSALS-FIVE-EXCEPTION-SHAPES: a refusal family states its own not-found reasons and its reason Enum (LensRefusal)",
+        "NOT_FOUND_RECIPE_REFUSALS",
+        scope=("agent_runtime.lens.recipe_shelf",),
+    ),
+    *rows(
+        "s-w1115k-hlens2",
+        "HEAD",
+        Form.ATTR,
+        "RT-LENS-RPC-REFUSALS-FIVE-EXCEPTION-SHAPES: the seal's owner refusals are OwnerRefusal members, not module strings",
+        "INVALID_CLIENT_SCOPE",
+        "OWNER_CHANGED",
+        scope=("agent_runtime.lens.store_owner",),
+    ),
 )
 
 

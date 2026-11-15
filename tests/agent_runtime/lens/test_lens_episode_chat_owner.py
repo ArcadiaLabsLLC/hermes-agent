@@ -175,7 +175,7 @@ def test_a_malformed_scope_is_refused_and_nothing_is_sealed():
     _created()
     for bad in ("not-a-digest", None, 7):
         refused = _seal({"monitor_id": "status", "client_scope": bad})["error"]
-        assert refused["data"] == {"reason": "invalid_client_scope"}
+        assert refused["data"] == {"reason": "invalid_client_scope", "detail": ""}
     assert _call("runtime.lens.get", {"monitor_id": "status"})["result"]["sealed"] is None
 
 
@@ -186,7 +186,7 @@ def test_a_scoped_reseal_never_moves_another_accounts_monitor():
     _seal({"monitor_id": "status", "client_scope": SCOPE})
     _created()  # the next revision's draft
     refused = _seal({"monitor_id": "status", "client_scope": OTHER})["error"]
-    assert refused["data"] == {"reason": "conversation_owner_changed"}
+    assert refused["data"] == {"reason": "conversation_owner_changed", "detail": ""}
     assert monitor_client_scope("status") == SCOPE
     # An unscoped native operator's re-seal keeps the recorded owner rather than clearing it.
     assert _seal({"monitor_id": "status"})["result"]["sealed"]["revision"] == 2
@@ -199,10 +199,10 @@ def test_a_paired_device_is_held_to_its_pairing_scope():
     _created()
     # Naming another account than the one its pairing bound: refused, nothing sealed.
     refused = _seal({"monitor_id": "status", "client_scope": OTHER}, device=True, device_scope=SCOPE)["error"]
-    assert refused["data"] == {"reason": "conversation_owner_changed"}
+    assert refused["data"] == {"reason": "conversation_owner_changed", "detail": ""}
     # A device with no bound scope cannot name one.
     refused = _seal({"monitor_id": "status", "client_scope": SCOPE}, device=True, device_scope=None)["error"]
-    assert refused["data"] == {"reason": "conversation_owner_changed"}
+    assert refused["data"] == {"reason": "conversation_owner_changed", "detail": ""}
     assert monitor_client_scope("status") is None
     # Naming nothing: the pairing's own scope is what is recorded.
     assert _seal({"monitor_id": "status"}, device=True, device_scope=SCOPE)["result"]["sealed"]["revision"] == 1

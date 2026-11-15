@@ -38,8 +38,8 @@ A row is ``{recipe_id, workspace_id, monitor_id, state, manifest, summary}``:
   private_network, suggested_actions: [tool]}`` (null when withdrawn).
 
 ``share``, ``withdraw`` and ``add`` append ``lens.recipe.changed {workspace_id, recipe_id,
-change: shared|withdrawn|added}``. Refusals carry ``data.reason`` and, where one is named,
-``data.detail`` (``_lens_call``).
+change: shared|withdrawn|added}``. Refusals carry ``data.reason`` and ``data.detail`` (``""`` where
+none is named; ``_lens_call``).
 
 Pinned by ``tests/agent_runtime/lens/test_lens_recipe_shelf.py``.
 """

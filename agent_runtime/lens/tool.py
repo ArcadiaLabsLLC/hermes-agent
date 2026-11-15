@@ -63,7 +63,7 @@ from .manifest import money_best_of_members, read_manifest
 from .rules import is_source_broken, manifest_rule, source_broken_rule_id
 from .store import LensStore, LensStoreError, StoreRefusal, to_ms
 from .store_proposals import draft_digest, read_equivalence, record_evidence
-from .wire_value import WireError, bounded_int, canonical_json, checked_object, opaque_id, require
+from .wire_value import LensRefusal, bounded_int, canonical_json, checked_object, opaque_id, require
 
 __layer__ = "lanes"
 
@@ -283,7 +283,7 @@ def _range_bounds(value: Any, now: datetime) -> tuple[int, int]:
 
 
 def read_lens(args: Any, *, store: LensStore | None = None, now: datetime | None = None) -> dict[str, Any]:
-    """``lens_read``'s answer, or :class:`WireError` / ``LensStoreError``."""
+    """``lens_read``'s answer, or a :class:`LensRefusal` (``WireError`` / ``LensStoreError``)."""
 
     m = checked_object(args if args is not None else {}, {"monitor"}, {"feed", "range"})
     store, monitor_id = store or LensStore(), opaque_id(m["monitor"])
@@ -300,14 +300,13 @@ def read_lens(args: Any, *, store: LensStore | None = None, now: datetime | None
 
 
 def _tool_answer(body: Any) -> str:
-    """A tool result: the answer as JSON, or ``{error, detail}`` naming the typed refusal."""
+    """A tool result: the answer as JSON, or ``{error, detail?}`` naming the typed refusal
+    (``detail`` only when the refusal names a field)."""
 
     try:
         return json.dumps(body(), sort_keys=True)
-    except WireError as exc:
-        return json.dumps({"error": exc.code.value, "detail": exc.detail})
-    except LensStoreError as exc:
-        return json.dumps({"error": exc.code.value})
+    except LensRefusal as exc:
+        return json.dumps({"error": exc.reason.value} | ({"detail": exc.detail} if exc.detail else {}))
 
 
 def handle_lens_read(args: dict[str, Any], **kwargs: Any) -> str:
@@ -389,7 +388,7 @@ def propose_monitor(args: Any, *, store: LensStore | None = None, client: Any = 
     try:
         store.get(monitor_id)
     except LensStoreError as exc:
-        if exc.code is not StoreRefusal.NOT_FOUND:
+        if exc.reason is not StoreRefusal.NOT_FOUND:
             raise
     else:
         raise LensStoreError(StoreRefusal.EXISTS)

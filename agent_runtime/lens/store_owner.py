@@ -20,19 +20,25 @@ keep its authority without adopting anything.
 from __future__ import annotations
 
 import sqlite3
+from enum import Enum
 from typing import Any, Mapping
+
+from .wire_value import LensRefusal
 
 __layer__ = "stores"
 
-#: The refusal words, the ones ``conversation_owner`` already speaks.
-INVALID_CLIENT_SCOPE = "invalid_client_scope"
-OWNER_CHANGED = "conversation_owner_changed"
+class OwnerRefusal(str, Enum):
+    """Why a seal's account scope is refused: the words ``conversation_owner`` already speaks."""
+
+    INVALID_CLIENT_SCOPE = "invalid_client_scope"
+    OWNER_CHANGED = "conversation_owner_changed"
 
 
-class LensOwnerError(ValueError):
-    def __init__(self, reason: str) -> None:
-        super().__init__(reason)
-        self.reason = reason
+class LensOwnerError(LensRefusal):
+    """The sealing request's scope refused: ``reason`` is an :class:`OwnerRefusal`."""
+
+    reasons = OwnerRefusal
+    summary = "Invalid conversation owner."
 
 
 def add_owner_column(conn: sqlite3.Connection) -> None:
@@ -54,11 +60,11 @@ def verified_seal_scope(params: Mapping[str, Any], bound_scope: str | None, *, d
     try:
         requested = request_client_scope(params)
     except ConversationOwnerError as exc:
-        raise LensOwnerError(INVALID_CLIENT_SCOPE) from exc
+        raise LensOwnerError(OwnerRefusal.INVALID_CLIENT_SCOPE) from exc
     if not device:
         return requested
     if requested is not None and requested != bound_scope:
-        raise LensOwnerError(OWNER_CHANGED)
+        raise LensOwnerError(OwnerRefusal.OWNER_CHANGED)
     return bound_scope
 
 

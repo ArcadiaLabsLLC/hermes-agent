@@ -556,7 +556,7 @@ def test_an_investigate_manifest_without_a_persona_refuses_at_seal():
     assert read_manifest(orphan)["persona_id"] is None  # a draft may still say nothing
     with pytest.raises(WireError) as caught:
         seal_manifest(orphan, revision=1)
-    assert (caught.value.code, caught.value.detail) == (WireRefusal.PERSONA_REQUIRED, "persona_id")
+    assert (caught.value.reason, caught.value.detail) == (WireRefusal.PERSONA_REQUIRED, "persona_id")
 
     assert _rpc("runtime.lens.create", {"manifest": orphan})["result"]["draft"]["persona_id"] is None
     refused = _rpc("runtime.lens.seal", {"monitor_id": "status"})["error"]

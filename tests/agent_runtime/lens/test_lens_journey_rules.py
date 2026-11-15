@@ -447,7 +447,7 @@ def _seal(manifest: dict):
 def _refusal(manifest: dict) -> str:
     with pytest.raises(WireError) as raised:
         _seal(manifest)
-    return raised.value.code.value
+    return raised.value.reason.value
 
 
 def test_an_unlabelled_money_best_of_still_reads_but_does_not_seal():

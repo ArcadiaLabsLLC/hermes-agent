@@ -27,7 +27,7 @@ from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .wire_value import bounded_string, digest_value
+from .wire_value import LensRefusal, bounded_string, digest_value
 
 __layer__ = "stores"
 
@@ -55,10 +55,12 @@ class ArtifactRefusal(str, Enum):
     UNSUPPORTED_TYPE = "unsupported_type"
 
 
-class LensArtifactError(ValueError):
-    def __init__(self, code: ArtifactRefusal) -> None:
-        super().__init__(code.value)
-        self.code = code
+class LensArtifactError(LensRefusal):
+    """An artifact read refused: ``reason`` is an :class:`ArtifactRefusal`."""
+
+    reasons = ArtifactRefusal
+    summary = "The Lens artifact was refused."
+    not_found_reasons = frozenset({ArtifactRefusal.NOT_FOUND})
 
 
 def episodes_root() -> Path:
