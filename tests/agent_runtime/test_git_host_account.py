@@ -136,3 +136,18 @@ def test_the_token_is_absent_from_the_refusal_and_the_log(monkeypatch, caplog):
         gh.create_private_repo(account, "eternia-work-w")
     for text in (caplog.text, str(refused.value), refused.value.detail, repr(account)):
         assert TOKEN_A not in text and TOKEN_B not in text
+
+
+@pytest.mark.parametrize("status, reply, answer", [
+    (200, {"private": True, "clone_url": "https://github.com/octo/app.git"}, "https://github.com/octo/app.git"),
+    (200, {"private": False, "clone_url": "https://github.com/octo/app.git"}, None),
+    (404, {"message": "Not Found"}, None),
+])
+def test_private_repo_url_answers_only_a_private_repository(monkeypatch, status, reply, answer):
+    """MC-PROJECT-BRAIN-PRESS-LEAVES-AN-EMPTY-REPOSITORY: a retry pushes only into a PRIVATE repository of that
+    name. Mutation: drop ``reply.get("private") is True`` -> the public one is answered, red."""
+    key = _account()._auth[1]
+    fake = FakeGitHub({key: (status, reply)})
+    monkeypatch.setattr(gh, "urlopen", fake)
+    assert gh.private_repo_url(_account(), "app") == answer
+    assert fake.calls[0][:2] == ("GET", "https://api.github.com/repos/octo/app")

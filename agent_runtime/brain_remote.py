@@ -41,6 +41,9 @@ REMOTE_TICK_S = 5.0
 #: A tick's bound: at most this many checkouts are fetched per tick; the rest wait for the next.
 BRAINS_PER_TICK = 4
 FETCH_TIMEOUT_S = 30
+#: A Project brain's first push (MC-PROJECT-BRAIN-PRESS-LEAVES-AN-EMPTY-REPOSITORY): a whole checkout's history,
+#: so a large folder is given an hour, not ``git_remote_adopt``'s 300 s; the press is the person's, and waits.
+PUSH_TIMEOUT_S = 3600
 #: The brains hermes owns and may fast-forward; a ``slot`` brain is the user's repo and only counted.
 FAST_FORWARD_KINDS = frozenset({"personal", "workspace"})
 _CONFIG = ("core.longpaths=true", "credential.interactive=never")
@@ -262,10 +265,18 @@ def make_checkout_remote(path: Path) -> dict[str, Any]:
 
     ``runtime.work.create_brain {slot, promote: true}``'s git half, on the person's ask only. Refused, before
     anything is created: ``not_a_repo``; ``remote_exists`` (any remote already); ``worktree_dirty`` (tracked
-    changes); ``invalid`` (a detached HEAD: no branch to name); ``needs_git_account``. The repository is created
-    first and ``origin`` is added only once it exists (``git_remote_adopt.adopt_remote``), so a refused creation
-    leaves the checkout as it was. Only the current branch is pushed (RULED 2026-11-12: the person's other
-    branches may be private work in progress; the offer names the one it pushes).
+    changes); ``invalid`` (a detached HEAD: no branch to name); ``needs_git_account``. Only the current branch
+    is pushed (RULED 2026-11-12: the person's other branches may be private work in progress; the offer names
+    the one it pushes).
+
+    The branch is pushed to the new repository's URL BEFORE ``origin`` is added
+    (MC-PROJECT-BRAIN-PRESS-LEAVES-AN-EMPTY-REPOSITORY, seen live 2026-11-14: ``origin`` was added first, the
+    push of a ~1 GiB checkout ran out its 300 s, and the folder — now with a remote — was never offered again):
+    a push that fails or runs past :data:`PUSH_TIMEOUT_S` leaves the checkout exactly as it was, so the offer
+    stays, and refuses ``push_refused`` naming the repository it made. The next press finds that repository
+    already there (``remote_exists``) and pushes into it when it is still PRIVATE and EMPTY
+    (:func:`_reusable_repo`); any other existing repository of that name stays a ``remote_exists`` refusal.
+    ``adopt_remote`` then adds ``origin`` and sets the upstream (the remote already holds the branch).
     """
 
     from .git_host_account import GitHostRefused, connected_github, create_private_repo
@@ -280,12 +291,46 @@ def make_checkout_remote(path: Path) -> dict[str, Any]:
     name = checkout_repo_name(repo)
     try:
         url = create_private_repo(account, name)
-        adopt_remote(repo, url, branch=current)
     except GitHostRefused as refused:
-        raise WorkRefused(refused.reason, refused.detail) from None
+        url = _reusable_repo(account, name, repo) if refused.reason is Reason.REMOTE_EXISTS else None
+        if url is None:
+            raise WorkRefused(refused.reason, refused.detail) from None
+    # MUTATION: add ``origin`` here, before the push, and test_a_failed_push_leaves_the_folder_offered reddens.
+    _push_first(repo, url, current, made=f"{account.login}/{name}")
+    try:
+        adopt_remote(repo, url, branch=current)
     except AdoptRefused as refused:
         raise WorkRefused(Reason.PUSH_REFUSED, refused.detail or refused.reason) from None
     return {"url": url, "repo_name": name, "branch": current, "git_account": account.login}
+
+
+def _push_first(repo: Path, url: str, branch: str, *, made: str) -> None:
+    """Push ``branch`` to ``url`` with no remote configured; refuse ``push_refused`` (logged) when it does not land."""
+
+    from .work_store.reasons import Reason, WorkRefused
+
+    pushed = _remote_git(["push", "-q", url, f"HEAD:refs/heads/{branch}"], repo, timeout=PUSH_TIMEOUT_S)
+    if pushed is not None and pushed.returncode == 0:
+        return
+    why = (f"git did not finish within {PUSH_TIMEOUT_S} s" if pushed is None
+           else (str(pushed.stderr or "").strip().splitlines() or ["git refused the push"])[-1][:300])
+    logger.warning("brain remote: made %s but could not push %s: %s", made, branch, why)
+    raise WorkRefused(Reason.PUSH_REFUSED, f"made {made} but could not push {branch}: {why}")
+
+
+def _reusable_repo(account: Any, name: str, repo: Path) -> str | None:
+    """The clone URL of ``account``'s repository ``name`` when it is PRIVATE and holds no ref — the one an earlier
+    press made and could not push into — else None."""
+
+    from .git_host_account import private_repo_url
+
+    url = private_repo_url(account, name)
+    if url is None:
+        return None
+    listed = _remote_git(["ls-remote", url], repo)
+    if listed is None or listed.returncode != 0 or str(listed.stdout).strip():
+        return None
+    return url
 
 
 @dataclass

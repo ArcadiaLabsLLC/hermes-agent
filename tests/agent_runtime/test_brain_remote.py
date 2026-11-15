@@ -395,3 +395,130 @@ def test_capabilities_carry_each_bound_project_checkouts_offer(tmp_path, monkeyp
     assert caps["slot_brains"] == {"ws_app": {"app": {
         "state": "present", "reason": "remote_offered", "git_account": "octo", "repo_name": "my-app",
         "branch": "feature"}}}
+
+
+# ── MC-PROJECT-BRAIN-PRESS-LEAVES-AN-EMPTY-REPOSITORY: a push that does not land leaves the folder offered ──
+
+
+class _ExistingAwareHub(_FakeGitHub):
+    """Refuses ``remote_exists`` for a name made before, as GitHub does; ``private_repo_url`` answers the bare
+    repository's URL when it exists (every fake repository is private)."""
+
+    def __init__(self, root: Path, monkeypatch) -> None:
+        from agent_runtime import git_host_account
+
+        super().__init__(root, monkeypatch)
+        monkeypatch.setattr(git_host_account, "private_repo_url", self.private_url)
+
+    def create(self, account, name):
+        from agent_runtime.git_host_account import GitHostRefused
+
+        if (self.root / f"{name}.git").exists():
+            raise GitHostRefused(Reason.REMOTE_EXISTS, f"{self.HOST}{name}.git")
+        return super().create(account, name)
+
+    def private_url(self, account, name):
+        return f"{self.HOST}{name}.git" if (self.root / f"{name}.git").exists() else None
+
+    def reject_pushes(self, name: str, on: bool) -> None:
+        hook = self.root / f"{name}.git" / "hooks" / "pre-receive"
+        if on:
+            hook.write_text("#!/bin/sh\necho refused by the test host >&2\nexit 1\n", encoding="utf-8")
+            hook.chmod(0o755)
+        else:
+            hook.unlink()
+
+
+def _reject_on_create(hub: _ExistingAwareHub) -> None:
+    made = hub.create
+
+    def create(account, name):
+        url = made(account, name)
+        hub.reject_pushes(name, True)
+        return url
+
+    hub.create = create
+
+
+def test_a_failed_push_leaves_the_folder_offered(tmp_path, monkeypatch):
+    """Seen live 2026-11-14: ``origin`` was added before the push, so a push that died left a remote and the
+    offer never came back. Mutation: ``git remote add origin`` before ``_push_first`` in
+    ``make_checkout_remote`` -> the checkout keeps a remote and reads ``remote``, red."""
+    from agent_runtime import git_host_account
+    from agent_runtime.brain_remote import checkout_remote_state, make_checkout_remote
+
+    hub = _ExistingAwareHub(tmp_path / "host", monkeypatch)
+    _reject_on_create(hub)
+    monkeypatch.setattr(git_host_account, "create_private_repo", hub.create)
+    repo = _project(tmp_path)
+    with pytest.raises(WorkRefused) as refused:
+        make_checkout_remote(repo)
+    assert refused.value.reason is Reason.PUSH_REFUSED
+    assert "made octo/my-app but could not push feature" in refused.value.detail
+    assert git("remote", cwd=repo) == ""
+    assert checkout_remote_state(repo)["reason"] == "remote_offered"
+
+
+def test_a_second_press_pushes_into_the_empty_private_repo_the_first_made(tmp_path, monkeypatch):
+    """The retry: the repository the failed press made is still there and empty. Mutation: drop the
+    ``_reusable_repo`` arm (re-raise ``remote_exists``) -> the second press is refused, red."""
+    from agent_runtime import git_host_account
+    from agent_runtime.brain_remote import make_checkout_remote
+
+    hub = _ExistingAwareHub(tmp_path / "host", monkeypatch)
+    _reject_on_create(hub)
+    monkeypatch.setattr(git_host_account, "create_private_repo", hub.create)
+    repo = _project(tmp_path)
+    with pytest.raises(WorkRefused):
+        make_checkout_remote(repo)
+    hub.reject_pushes("my-app", False)
+    made = make_checkout_remote(repo)
+    bare = hub.root / "my-app.git"
+    assert made["url"] == f"{hub.HOST}my-app.git" and hub.created == ["my-app"]
+    assert git("rev-parse", "feature", cwd=bare) == git("rev-parse", "HEAD", cwd=repo)
+    assert git("rev-parse", "--abbrev-ref", "@{u}", cwd=repo).strip() == "origin/feature"
+
+
+def test_an_existing_repository_that_holds_commits_is_never_reused(tmp_path, monkeypatch):
+    """Only an EMPTY repository is pushed into. Mutation: drop the ``str(listed.stdout).strip()`` test in
+    ``_reusable_repo`` -> the press pushes into someone's repository, red."""
+    from agent_runtime import git_host_account
+    from agent_runtime.brain_remote import make_checkout_remote
+
+    hub = _ExistingAwareHub(tmp_path / "host", monkeypatch)
+    monkeypatch.setattr(git_host_account, "create_private_repo", hub.create)
+    other = _project(tmp_path, "Other")
+    bare = hub.root / "my-app.git"
+    git("init", "-q", "--bare", "-b", "main", str(bare), cwd=hub.root)
+    git("push", "-q", str(bare), "main", cwd=other)
+    repo = _project(tmp_path)
+    with pytest.raises(WorkRefused) as refused:
+        make_checkout_remote(repo)
+    assert refused.value.reason is Reason.REMOTE_EXISTS
+    assert git("remote", cwd=repo) == ""
+    assert "refs/heads/feature" not in git("for-each-ref", "--format=%(refname)", cwd=bare)
+
+
+def test_the_first_push_gets_the_long_budget(tmp_path, monkeypatch):
+    """A ~1 GiB checkout's push ran past 300 s. Mutation: drop ``timeout=PUSH_TIMEOUT_S`` in ``_push_first``
+    (the 30 s fetch budget) -> red; and a push that does not finish says so."""
+    from agent_runtime import git_host_account
+    from agent_runtime.brain_remote import PUSH_TIMEOUT_S, make_checkout_remote
+
+    hub = _ExistingAwareHub(tmp_path / "host", monkeypatch)
+    monkeypatch.setattr(git_host_account, "create_private_repo", hub.create)
+    seen = []
+    real = brain_remote._remote_git
+
+    def spy(args, repo, *, timeout=brain_remote.FETCH_TIMEOUT_S):
+        if args[0] == "push":
+            seen.append(timeout)
+            return None
+        return real(args, repo, timeout=timeout)
+
+    monkeypatch.setattr(brain_remote, "_remote_git", spy)
+    repo = _project(tmp_path)
+    with pytest.raises(WorkRefused) as refused:
+        make_checkout_remote(repo)
+    assert seen == [PUSH_TIMEOUT_S] and PUSH_TIMEOUT_S >= 3600
+    assert f"did not finish within {PUSH_TIMEOUT_S} s" in refused.value.detail

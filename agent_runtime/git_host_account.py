@@ -35,6 +35,7 @@ __all__ = [
     "GitHubAccount",
     "connected_github",
     "create_private_repo",
+    "private_repo_url",
     "reset_connected_cache",
 ]
 
@@ -156,3 +157,16 @@ def create_private_repo(account: GitHubAccount, name: str) -> str:
     if status in (401, 403):
         raise GitHostRefused(Reason.TOKEN_SCOPE, f"github answered {status} creating {name}")
     raise GitHostRefused(Reason.HOST_UNREACHABLE, f"github answered {status} creating {name}")
+
+
+def private_repo_url(account: GitHubAccount, name: str) -> str | None:
+    """``GET /repos/<login>/<name>``: its https clone URL when it exists and is PRIVATE, else None (absent, public,
+    unreadable or unreachable). A press reuses only such a repository (``brain_remote._reusable_repo``)."""
+
+    try:
+        status, reply = _request("GET", f"/repos/{account.login}/{name}", account.authorization())
+    except (OSError, ValueError):
+        return None
+    if status == 200 and reply.get("private") is True and reply.get("clone_url"):
+        return str(reply["clone_url"])
+    return None
