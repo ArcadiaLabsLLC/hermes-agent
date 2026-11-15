@@ -17,6 +17,8 @@ tags: [queue, program/fork-hygiene]
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
 
 
+## Filed on arrival — 2026-11-15 (lane w1115r-h2)
+
 ## Filed on arrival — 2026-11-15 (lane w1115k-hlens: the end-of-lane run of the Lens recipe rows)
 
 
