@@ -115,6 +115,10 @@ FIRST_TURN_MODULES = (
     # six between write_ahead and request_sent on turn 0 at the v0.23.1 sync gate, 2026-11-10).
     "agent.bot_chain", "agent.reasoning_carriers", "agent.side_question_lease", "agent.side_question_request",
     "gateway.bot_loop_guard", "gateway.response_filters",
+    # ... and the iteration-summary usage hook the phase trace installs, and the queued-turn
+    # origin the chat send reads (the counts guard saw both between write_ahead and request_sent
+    # on turn 0, run alone at hermes main 247e4c83cc, 2026-11-15).
+    "agent_runtime.summary_call_usage", "hermes_cli.harness_parts.serve.queued_turn_origin",
 )
 
 
