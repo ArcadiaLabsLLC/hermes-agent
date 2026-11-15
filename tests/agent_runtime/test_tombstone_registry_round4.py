@@ -447,7 +447,7 @@ def test_round4_deleted_tests_left_no_live_production_subject_uncovered():
 
     uncovered, unjudged = _round4_uncovered_subjects()
     assert uncovered == (), "\n".join(uncovered)
-    _fork_scope.skip_unjudged(len(unjudged), "lost reference(s) to an upstream-shipped subject")
+    _fork_scope.skip_unjudged(len(unjudged), "lost test reference(s) whose subject is")
 
 
 def test_upstreams_own_retired_test_of_its_own_code_is_upstreams_loss():
