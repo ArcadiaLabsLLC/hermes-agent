@@ -17,6 +17,10 @@ tags: [queue, program/fork-hygiene]
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
 
 
+## Filed on arrival — 2026-11-15 (lane w1115k-hlens: the end-of-lane run of the Lens recipe rows)
+
+- **`FH-PREPUSH-DEADLINE-KILL-TEST-READS-THE-GRANDCHILD-TOO-SOON` — The check that pre-push kills a stuck step and everything it started passes on a busy machine too** · group: prepush · fork tests · `tests/scripts/test_prepush_sh.py::test_a_step_at_its_deadline_is_killed_with_its_tree_and_the_run_fails_naming_it` · seen once 2026-11-15 (w1115k-hlens): red inside a 115-file serial run on a 4-core box (`grandchild 6943 survived the deadline kill`), green alone and in an 8-file rerun minutes later with no edit to prepush · read in code, not reproduced: after the run returns the test sleeps a fixed 0.2 s and then asks `kill -0` once, so a grandchild the kill has signalled but the kernel has not yet reaped under load reads as alive · likely fix (guess): wait on the pid going away with `tests.waiting.wait_until` and a bound, not a wall-clock sleep · done when: the test waits on the event and stays green under a loaded serial run · NEW 2026-11-15 · READY 2026-11-15
+
 ## Filed on arrival — 2026-11-13 (lane w1113-slotclonehome)
 
 - **`FH-REKEY-CENSUS-BRAIN-WORKTREE-RED-ON-WINDOWS` — On Windows the realm re-key census test fails moving a brain's worktree because a `.git` file is still held open** · group: hermes-test-isolation · `tests/agent_runtime/test_realm_rekey_census.py::test_the_brain_and_its_worktrees_follow_the_new_ids_and_the_past_is_not_rewritten` · seen 2026-11-13 by w1113-slotclonehome on DESKTOP-QJ7DDV2: `PermissionError: [Errno 13]` on `<tmp>/agent-runtime/work/ws_shared_<id>/.worktrees/brain-BATCH-1-l1/.git`; `run_tests_bundled.sh --confirm-red` verdict pre-existing (red alone on HEAD and on origin/main b9722a82a2); guess: a git process or handle from the earlier sync step still holds the worktree's `.git` when the rename step moves it, so either the test or `realm_rekey._step_rename` needs to wait for/close it · REQUIRES windows · READY 2026-11-13

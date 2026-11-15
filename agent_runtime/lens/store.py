@@ -22,6 +22,11 @@ sealed monitor's pending next revision (the sealed one keeps running); ``enable`
 stays). Capacity is refused, never made by eviction (W13): at most
 :data:`MAXIMUM_MONITORS` monitors that are not retired.
 
+``monitors.recipe_hash`` (plan ``planned/lens-shared-recipes-2026-11-15.md`` §4) is the semantic
+hash of the workspace's shared recipe this monitor was last added from (``create``'s
+``recipe_hash``) or shared as (``mark_shared``) — a mark, never a copy of the recipe; NULL for a
+monitor that never met the shelf. Written here and nowhere else.
+
 ``HERMES_HOME`` is resolved when a store is constructed, never at import.
 
 Events (``decision_contract_registry``): every low-churn transition — a monitor's draft written,
@@ -283,6 +288,7 @@ class LensStore:
                 _add_budget_tables(conn)
                 _add_action_tables(conn)
                 _add_owner_column(conn)
+                _add_recipe_hash(conn)
                 with conn:
                     yield conn
             finally:
@@ -295,7 +301,7 @@ class LensStore:
         return conn.execute("SELECT * FROM monitors WHERE monitor_id = ?", (monitor_id,)).fetchone()
 
     def create(self, manifest: Any, *, proposal: bool = False, proposer: str | None = None,
-               workspace_id: str | None = None) -> dict[str, Any]:
+               workspace_id: str | None = None, recipe_hash: str | None = None) -> dict[str, Any]:
         """Write ``manifest`` as the monitor's DRAFT (new, or over an existing draft).
 
         ``proposal`` (``lens_propose``): a NEW monitor is also refused ``proposals_full`` while
@@ -303,7 +309,11 @@ class LensStore:
         persona instance, when the turn names one) holds :data:`MAXIMUM_PROPOSALS_PER_PERSONA`,
         in the same transaction. Every create first retires the proposals older than
         :data:`PROPOSAL_TTL_MS`; the operator's write over a proposal adopts it (no expiry).
-        A NEW monitor belongs to ``workspace_id`` (``store_scope``); a rewrite keeps its own."""
+        A NEW monitor belongs to ``workspace_id`` (``store_scope``); a rewrite keeps its own.
+
+        ``recipe_hash`` (``runtime.lens.recipe.add``): the draft is a shared recipe's, marked with
+        the recipe's hash. A recipe only rewrites a monitor of its own workspace: the id held by
+        another workspace's monitor is refused ``monitor_exists``, in the same transaction."""
 
         doc = read_manifest(manifest)
         with self._db() as conn:
@@ -316,17 +326,20 @@ class LensStore:
                 if proposal:
                     _proposal_room(conn, proposer)
                 conn.execute("INSERT INTO monitors (monitor_id, state, draft, updated_ms, proposed, proposed_by, "
-                             "workspace_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                             "workspace_id, recipe_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                              (doc["monitor_id"], MonitorState.DRAFT.value, canonical_bytes(doc), _now_ms(),
-                              int(proposal), proposer if proposal else None, workspace_id))
+                              int(proposal), proposer if proposal else None, workspace_id, recipe_hash))
             elif row["state"] == MonitorState.RETIRED.value:
                 raise LensStoreError(StoreRefusal.RETIRED)
+            elif recipe_hash is not None and row["workspace_id"] != workspace_id:
+                raise LensStoreError(StoreRefusal.EXISTS)
             elif proposal:
                 conn.execute("UPDATE monitors SET draft = ?, updated_ms = ? WHERE monitor_id = ?",
                              (canonical_bytes(doc), _now_ms(), doc["monitor_id"]))
             else:  # the operator's write adopts a proposal: never expired, never a persona's share
-                conn.execute("UPDATE monitors SET draft = ?, updated_ms = ?, proposed = 0, proposed_by = NULL "
-                             "WHERE monitor_id = ?", (canonical_bytes(doc), _now_ms(), doc["monitor_id"]))
+                conn.execute("UPDATE monitors SET draft = ?, updated_ms = ?, proposed = 0, proposed_by = NULL, "
+                             "recipe_hash = COALESCE(?, recipe_hash) WHERE monitor_id = ?",
+                             (canonical_bytes(doc), _now_ms(), recipe_hash, doc["monitor_id"]))
         self._changed("lens.monitor.changed", monitor_id=doc["monitor_id"], change="draft")
         return self.get(doc["monitor_id"])
 
@@ -347,6 +360,14 @@ class LensStore:
                          (sealed.revision, sealed.digest, sealed.body, _now_ms(), owner, monitor_id))
         self._changed("lens.monitor.changed", monitor_id=monitor_id, change="sealed", revision=sealed.revision)
         return self.get(monitor_id)
+
+    def mark_shared(self, monitor_id: str, recipe_hash: str) -> None:
+        """Record that this monitor's sealed revision IS the workspace's shared recipe of that hash
+        (``runtime.lens.recipe.share``, the publisher's own monitor). Changes nothing else."""
+
+        with self._db() as conn:
+            self._required(conn, monitor_id)
+            conn.execute("UPDATE monitors SET recipe_hash = ? WHERE monitor_id = ?", (recipe_hash, monitor_id))
 
     def drop_draft(self, monitor_id: str) -> dict[str, Any]:
         """Forget a SEALED monitor's pending next-revision draft; the sealed revision and its
@@ -413,6 +434,7 @@ class LensStore:
             "draft": None if row["draft"] is None else json.loads(row["draft"]),
             "updated_at_ms": int(row["updated_ms"]),
             "workspace_id": row["workspace_id"],
+            "recipe_hash": row["recipe_hash"],
         }
 
     def monitors(self, *, states: tuple[MonitorState, ...] | None = None) -> list[dict[str, Any]]:
@@ -808,6 +830,13 @@ def _add_receipt_digest(conn: sqlite3.Connection) -> None:
 
     if "digest_id" not in {row[1] for row in conn.execute("PRAGMA table_info(receipts)")}:
         conn.execute("ALTER TABLE receipts ADD COLUMN digest_id TEXT")
+
+
+def _add_recipe_hash(conn: sqlite3.Connection) -> None:
+    """A store written before shared recipes gains ``monitors.recipe_hash``; its monitors read NULL."""
+
+    if "recipe_hash" not in {row[1] for row in conn.execute("PRAGMA table_info(monitors)")}:
+        conn.execute("ALTER TABLE monitors ADD COLUMN recipe_hash TEXT")
 
 
 def _add_route_auth(conn: sqlite3.Connection) -> None:

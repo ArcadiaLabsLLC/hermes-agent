@@ -77,6 +77,8 @@ settles                  lanes   ``runtime.settles.list/rearm`` (the settle-push
                                  outbox's operator verbs)
 lens                     lanes   ``runtime.lens.*`` (Eternia Lens; code under
                                  ``agent_runtime/lens/``)
+lens_recipes             lanes   ``runtime.lens.recipe.list/share/withdraw/add`` (a
+                                 workspace's shared Lens recipes; ``lens/recipe_shelf.py``)
 skills_pending           lanes   ``runtime.skills.pending.list/approve/reject`` (staged
                                  skill writes; ``agent_runtime/review_skill_pending.py``)
                                  and ``runtime.skills.changes.list`` (applied changes)
@@ -143,6 +145,7 @@ from agent_runtime.serve_rpc import (
     profiles,
     settles,
     lens,
+    lens_recipes,
     skills_pending,
     events_after,
 )

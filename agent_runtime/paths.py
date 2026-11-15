@@ -522,6 +522,42 @@ def prefab_path(profile: str, prefab_id: str) -> Path:
     return prefabs_root(profile) / f"{safe_path_token(prefab_id)}.json"
 
 
+#: The Lens RECIPE shelf: what each workspace SHARES of its Lens monitors (plan
+#: ``docs/agent-runtime-harness/planned/lens-shared-recipes-2026-11-15.md`` §2). One folder per
+#: workspace token, one document per shared monitor. It is not the Lens store (``<head
+#: home>/lens/``, what this PC runs): nothing here is ever polled.
+LENS_RECIPES_DIRNAME = "lens_recipes"
+
+
+def lens_recipes_root() -> Path:
+    """Every workspace's shelf: ``store/lens_recipes/<workspace>/`` — the recipe family's store
+    root (its token is ``<workspace>/<recipe>``)."""
+
+    return store_root() / LENS_RECIPES_DIRNAME
+
+
+def lens_recipe_path(workspace_id: str, recipe_id: str) -> Path:
+    """One shared recipe's document, keyed by the workspace's and the monitor id's path tokens."""
+
+    return lens_recipes_root() / safe_path_token(workspace_id) / f"{safe_path_token(recipe_id)}.json"
+
+
+def lens_recipe_baseline_path(realm_id: str) -> Path:
+    # realm-sync baseline sidecar for the LENS RECIPE family; NEVER synced, NEVER published
+    # (``map_baseline_path``'s reason).
+    return realm_sync_root() / safe_path_token(realm_id) / "lens_recipe_baseline.json"
+
+
+def lens_recipe_conflicts_root(realm_id: str) -> Path:
+    return realm_sync_root() / safe_path_token(realm_id) / "lens_recipe_conflicts"
+
+
+def lens_recipe_conflict_path(realm_id: str, workspace_id: str, recipe_id: str) -> Path:
+    # Where a HELD recipe's remote bytes are parked, nested by workspace like the shelf.
+    return (lens_recipe_conflicts_root(realm_id) / safe_path_token(workspace_id)
+            / f"{safe_path_token(recipe_id)}.json")
+
+
 def map_baseline_path(realm_id: str) -> Path:
     # realm-sync baseline sidecar for the MAP CATALOGUE family; NEVER synced,
     # NEVER published — under the realm-sync root rather than beside the maps it

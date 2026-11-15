@@ -121,7 +121,10 @@ ingress.bind           {host, port} -> listener (loopback or a private address o
 workspace's monitors and their Episodes and receipts; absent, every workspace — the
 all-workspaces read, and the answer these verbs always gave.
 
-Every refusal carries ``data.reason`` (a ``WireRefusal`` or ``StoreRefusal`` value)
+The four ``runtime.lens.recipe.*`` verbs (share a monitor with its workspace, list, withdraw, add
+one as a DRAFT) are ``serve_rpc/lens_recipes.py``'s; their table is in that module.
+
+Every refusal carries ``data.reason`` (a ``WireRefusal``, ``StoreRefusal`` or ``RecipeRefusal`` value)
 and, for a schema refusal, ``data.detail`` naming the field — never a value.
 """
 
@@ -141,6 +144,7 @@ def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
     """Run ``body``; turn a Lens refusal into its typed frame."""
 
     from agent_runtime.lens.artifacts import ArtifactRefusal, LensArtifactError
+    from agent_runtime.lens.recipe_shelf import NOT_FOUND_RECIPE_REFUSALS, RecipeDocumentError
     from agent_runtime.lens.store import NOT_FOUND_REFUSALS, LensStoreError
     from agent_runtime.lens.store_owner import LensOwnerError
     from agent_runtime.lens.wire_value import WireError
@@ -155,6 +159,9 @@ def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
     except LensStoreError as exc:
         code = ERR_NOT_FOUND if exc.code in NOT_FOUND_REFUSALS else ERR_CONFLICT
         return err(rid, code, "The Lens store refused the request.", {"reason": exc.code.value})
+    except RecipeDocumentError as exc:
+        code = ERR_NOT_FOUND if exc.code in NOT_FOUND_RECIPE_REFUSALS else ERR_CONFLICT
+        return err(rid, code, str(exc), {"reason": exc.code, "detail": exc.detail})
     except LensArtifactError as exc:
         code = ERR_NOT_FOUND if exc.code is ArtifactRefusal.NOT_FOUND else ERR_INVALID_PARAMS
         return err(rid, code, "The Lens artifact was refused.", {"reason": exc.code.value})
@@ -255,23 +262,24 @@ def _credentials_of(monitor: dict) -> list[dict]:
             for feed in manifest["feeds"] if feed.get("credential_ref")]
 
 
+def _monitor_answer(monitor_id: str) -> dict:
+    """``runtime.lens.get``'s answer for one monitor (also what ``runtime.lens.recipe.add`` returns)."""
+
+    from agent_runtime.lens.act_tools import act_tools
+    from agent_runtime.lens.guidance import monitor_guidance
+    from agent_runtime.lens.store_proposals import equivalence_evidence
+
+    store = _store()
+    monitor = store.get(monitor_id)
+    manifest = (monitor.get("sealed") or {}).get("manifest") or monitor.get("draft")
+    return {**monitor, "credentials": _credentials_of(monitor),
+            "equivalence_evidence": equivalence_evidence(store, monitor),
+            "guidance": monitor_guidance(store, monitor), "act_tools": act_tools(manifest)}
+
+
 @method("runtime.lens.get", tier=TIER_CONSOLE)
 def _runtime_lens_get(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    def body() -> dict:
-        from agent_runtime.lens.store_proposals import equivalence_evidence
-
-        store = _store()
-        monitor = store.get(_monitor_id(params))
-        from agent_runtime.lens.guidance import monitor_guidance
-
-        from agent_runtime.lens.act_tools import act_tools
-
-        manifest = (monitor.get("sealed") or {}).get("manifest") or monitor.get("draft")
-        return {**monitor, "credentials": _credentials_of(monitor),
-                "equivalence_evidence": equivalence_evidence(store, monitor),
-                "guidance": monitor_guidance(store, monitor), "act_tools": act_tools(manifest)}
-
-    return _lens_call(rid, body)
+    return _lens_call(rid, lambda: _monitor_answer(_monitor_id(params)))
 
 
 def _default_workspace(params: dict) -> str | None:

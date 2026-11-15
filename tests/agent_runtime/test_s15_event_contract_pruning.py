@@ -278,7 +278,10 @@ REMOVED_EVENT_TYPES = frozenset(
 # 76 (6db8a4213e, 2026-11-12, RT-REKEY-ID-MAP-FOR-ETERNIA): ``realm.rekeyed``, appended once when a left
 # realm's local copy takes its own ids (``agent_runtime.realm_rekey``). That commit left this at 75 and
 # main red; moved by lane w1112b-rjfu, who found it red alone on origin/main (--confirm-red: pre-existing).
-SURVIVING_EVENT_COUNT = 76
+# 77 (lane w1115k-hlens, 2026-11-15, RT-LENS-RECIPE-SHELF-SHARE-AND-ADD): ``lens.recipe.changed``, a
+# workspace's shared Lens recipe shared, withdrawn or added (``agent_runtime.lens.recipe_shelf.announce``).
+# Red at 76 on that commit and moved deliberately.
+SURVIVING_EVENT_COUNT = 77
 
 
 def test_the_unemittable_event_types_are_no_longer_registered():

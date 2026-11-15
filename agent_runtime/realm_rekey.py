@@ -112,6 +112,9 @@ STORE_PLACES: dict[str, PlaceClass] = {
     # Once the ``agents`` step has parked the team's rows, what is left in ``persona_instances`` is this
     # install's own and the local copy's new agents; a flow graph is its owner's canvas and follows the desk.
     "persona_instances": _M, "flow_graphs": _M,
+    # A workspace's shared Lens recipes (``lens/recipe_shelf.py``): the folder is the workspace's token and
+    # each document names its workspace, so the content and rename steps carry it like any MOVES place.
+    paths.LENS_RECIPES_DIRNAME: _M,
     PARKED_DIRNAME: _P, "persona_assignments": _P, paths.CHAT_FOLDERS_DIRNAME: _P, "workspace_chats": _P,
     "workspace_chat_fold": _P, "workspace_chat_exports": _P, "persona_chat_mint_receipts": _P,
     "chat_goal_bindings": _P, "chat_goal_parks": _P, "agent_create_reservations": _P, "state.db": _P,

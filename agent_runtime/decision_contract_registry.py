@@ -338,6 +338,10 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     "lens.monitor.changed": EventContract("lens.monitor.changed", "Lens monitor changed", ("monitor_id", "change"), ("state", "revision")),
     "lens.episode.changed": EventContract("lens.episode.changed", "Lens episode changed", ("monitor_id", "episode_id", "state"), ("rule_id", "ordinal")),
     "lens.receipt.changed": EventContract("lens.receipt.changed", "Lens receipt changed", ("monitor_id", "episode_id", "outcome"), ()),
+    # A workspace's shared-recipe shelf moved under ``runtime.lens.recipe.share`` / ``.withdraw``, or
+    # this PC added a recipe (``.add``): the cue to re-read ``runtime.lens.recipe.list``
+    # (``agent_runtime.lens.recipe_shelf.announce``; change: shared | withdrawn | added).
+    "lens.recipe.changed": EventContract("lens.recipe.changed", "Lens shared recipe changed", ("workspace_id", "recipe_id", "change"), ()),
     # Mission Office events — the OfficeStore chokepoint emits one on EVERY
     # mutation (same standing store rule as boards; realm-synced the same way).
     # See EterniaLauncher docs/archive/mission_control/2026-08-22-pre-consolidation/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md.
