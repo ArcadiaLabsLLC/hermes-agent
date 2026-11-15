@@ -3,21 +3,21 @@
   "about": "Vetted licence texts for distributions whose wheel ships none (plan D4). scripts/bundle_licenses.py copies <distribution>/<version>/<file> into the output's licence-texts/ and cites it in licenses.json. An entry names the version it was vetted against; when the shipped version differs the override is not applied and the packager's verify fails until the text is re-vetted at the new version.",
   "overrides": {
     "ctranslate2": {
-      "version": "4.8.1",
+      "version": "4.8.3",
       "licence": "MIT",
       "files": {"LICENSE": "54aa79d9fe3c09e67a16dcd95b9e88676405a6ec174efda31036983cf7672ecb"},
-      "source_url": "https://github.com/OpenNMT/CTranslate2/blob/0d8bcd362ac75ef860ef161d6f0efad0ae439ff0/LICENSE",
-      "tag": "v4.8.1",
-      "commit": "0d8bcd362ac75ef860ef161d6f0efad0ae439ff0",
+      "source_url": "https://github.com/OpenNMT/CTranslate2/blob/8d91aa08225004755360daa43deb62b35b1ed65d/LICENSE",
+      "tag": "v4.8.3",
+      "commit": "8d91aa08225004755360daa43deb62b35b1ed65d",
       "evidence": "repository LICENSE at the tag; python/setup.py at the tag declares license=\"MIT\"; no sdist on PyPI"
     },
     "fal-client": {
-      "version": "0.13.1",
+      "version": "0.14.1",
       "licence": "Apache-2.0",
       "files": {"LICENSE": "c5cd488c00dea64e15d64d4a5a7832cede329f2c31a481890cf8a272107c4c45"},
-      "source_url": "https://github.com/fal-ai/fal/blob/01170088b9e3f3de8a1966cdfd36d700bfc555f7/LICENSE",
-      "tag": "fal_client_v0.13.1",
-      "commit": "01170088b9e3f3de8a1966cdfd36d700bfc555f7",
+      "source_url": "https://github.com/fal-ai/fal/blob/d82d13d28433e36f29cad1e79810826814538065/LICENSE",
+      "tag": "fal_client_v0.14.1",
+      "commit": "d82d13d28433e36f29cad1e79810826814538065",
       "evidence": "monorepo-root LICENSE at the tag covers projects/fal_client (the sdist's Project-URL repository); the sdist and its metadata carry no licence of their own, so none contradicts it"
     },
     "firecrawl-anydoc": {
@@ -39,13 +39,13 @@
       "evidence": "repository LICENSE at the tag; python/setup.py at the tag declares license='Apache 2.0', version='25.12.19'; no sdist on PyPI"
     },
     "tokenizers": {
-      "version": "0.23.1",
+      "version": "0.23.3",
       "licence": "Apache-2.0",
       "files": {"LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"},
-      "source_url": "https://github.com/huggingface/tokenizers/blob/7f1623b90b5adfb9bc327d4c3468d2f70bbce262/LICENSE",
-      "tag": "v0.23.1",
-      "commit": "7f1623b90b5adfb9bc327d4c3468d2f70bbce262",
-      "evidence": "repository LICENSE at the tag, byte-identical to tokenizers/LICENSE in the 0.23.1 sdist (a symlink to it in the repo); tokenizers/Cargo.toml license = \"Apache-2.0\""
+      "source_url": "https://github.com/huggingface/tokenizers/blob/301277072263fb3830eb66eec7e47adadf76f1dc/LICENSE",
+      "tag": "v0.23.3",
+      "commit": "301277072263fb3830eb66eec7e47adadf76f1dc",
+      "evidence": "repository LICENSE at the tag, byte-identical to the text vetted at 0.23.1 against tokenizers/LICENSE in the 0.23.1 sdist (a symlink to it in the repo); PyPI 0.23.3 classifies it Apache Software License; tokenizers/Cargo.toml license = \"Apache-2.0\""
     }
   }
 }

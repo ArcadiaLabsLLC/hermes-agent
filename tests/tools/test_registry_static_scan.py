@@ -200,9 +200,11 @@ def test_the_scan_is_pointed_at_a_real_corpus():
     assert len(set(scan.tools.values())) >= 25
     assert scan.unresolved == [], scan.unresolved
     # Two names from opposite ends of the corpus, one of each registration form,
-    # so a reader that regressed to literals-only reds here as well.
+    # so a reader that regressed to literals-only reds here as well. The table
+    # form's anchor is kanban's ``_TOOLS`` loop: upstream v0.23.1 (68500d9ff9)
+    # deleted the ``_BROWSER_TOOL_TABLE`` loop that registered ``browser_navigate``.
     assert scan.tools["read_terminal"] == "desktop_ui"
-    assert scan.tools["browser_navigate"] == "browser"
+    assert scan.tools["kanban_show"] == "kanban"
 
 
 def test_literal_registration_tables_are_read_without_executing_handlers(tmp_path):

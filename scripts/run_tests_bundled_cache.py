@@ -52,6 +52,8 @@ RUNNER_GLOBS = (
     "scripts/_bundle_plugin/*", "scripts/run_tests.sh", "scripts/run_tests_parallel.py",
     "scripts/_activation.sh", "scripts/_fork_runner.py", "scripts/ci/list_os_marked_tests.py",
     "scripts/_fork_test_env.sh", "scripts/fork_test_env.txt", "scripts/ensure_fork_dev_deps.py",
+    # upstream v0.23.1 (ddd63dde0d) moved how the parallel runner starts each file into this module
+    "scripts/run_tests_launch.py",
 )
 #: the interpreter's lock inputs
 LOCK_FILES = ("uv.lock", "pyproject.toml", "requirements-fork-dev.txt")

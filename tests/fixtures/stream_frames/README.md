@@ -12,6 +12,12 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w1114a-hmainred-b, 2026-11-15) — launcher copy OWED (row `FH-MAIN-LANDING-GATE-RED-AT-1633EC8F55`).**
+> One generated golden moved for one reason: `094fd6b446` (RT-MISSION-CHAT-PROMPT-NAMES-SESSION-SEARCH-AS-DIRECT)
+> added the `tool_call` route clause to the Mission Control operative rules without regenerating, so the
+> operator-channel-rules block reads 9782 chars (was 9667) with a new content sha256. Copy
+> `delta_agent_create_narrow_profile.json` and `MANIFEST.sha256` into `test/fixtures/harness_stream/`.
+
 > **CROSS-STACK COPY STATUS (w1112b-turnapp, 2026-11-12) — mirrored on launcher branch `wave/w1112b-turnapp`, landing right after this one (row `FH-STREAM-GOLDENS-RED-ON-MAIN-20261112`).**
 > Seven generated goldens moved for one reason: `core.decision_contract_hash` went
 > `313d619c…` → `04fa3b83…` when `6db8a4213e` (realm re-key) added two lines to

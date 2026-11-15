@@ -227,6 +227,18 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "higher one",
         "pins_sha256": "a905a503745d5a1d7657d8c0e2f21e556de132bdcc297869f55c9721636721be",
     },
+    {
+        "id": "default-realm-pointer-and-per-realm-sync-clones",
+        "date": "2026-11-15",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (RT-ACCOUNT-DEFAULT-REALM 044af6ebba, RT-REALM-SYNC-ONE-CLONE-PER-REALM 4d344a43bd; "
+                  "pinned late by FH-MAIN-LANDING-GATE-RED-AT-1633EC8F55): the paths table names "
+                  "store/default_realm.json, the account's default-realm pointer an older edition ignores, and "
+                  "realm_sync/_clones/<realm>, each realm's own sync clone; the old shared clone is copied, "
+                  "never moved or deleted, so an older edition still finds it; no existing path moves",
+        "pins_sha256": "fb00f209aefc29c0e62c6a23cb88dccc1207d381026d4b2a22feb9100f3b2e26",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.
