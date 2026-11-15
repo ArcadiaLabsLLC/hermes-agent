@@ -44,10 +44,10 @@ _LAUNCHER_QA_EAGER = {
     "mcp__launcher_qa__mcp_launcher_qa_screenshot_window",
     "mcp__launcher_qa__mcp_launcher_qa_launch_or_attach",
 }
-#: R1 + R2: the supervisor's eager set — fifteen tools.
+#: R1 + R2: the supervisor's eager set — sixteen tools, with the plan tool (RT-PLAN-TOOL-IS-HIDDEN-BEHIND-TOOL-SEARCH).
 NEKO_EAGER = {
     "terminal", "read_file", "search_files", "skill_view", "skills_list", "clarify",
-    "agent_chat_send", "agent_chat_dispatches", "skill_search",
+    "agent_chat_send", "agent_chat_dispatches", "skill_search", "todo_list",
     "tool_search", "tool_call", "tool_describe", *_LAUNCHER_QA_EAGER,
 }
 DEV_EAGER = NEKO_EAGER | {"patch", "write_file", "execute_code", "web_search", "web_extract"}
@@ -88,10 +88,10 @@ def lane(monkeypatch):
 def test_the_recorded_lane_carries_thirty_tools_before_the_defer(lane):
     """Anti-vacuity: the fixture reproduces the recorded request's 31 eager tools, less the one
     launcher_qa promotion R2 retired, less the four the v0.22.2 vault fold removed, less ``browser_vault`` itself (the curated
-    default defers it)."""
+    default defers it), plus ``todo_list`` (fork never-defer, RT-PLAN-TOOL-IS-HIDDEN-BEHIND-TOOL-SEARCH)."""
     _raw, build_agent = lane
     agent = build_agent()
-    assert len(agent.tools) == 25, sorted(_names(agent.tools))
+    assert len(agent.tools) == 26, sorted(_names(agent.tools))
     assert "mcp__launcher_qa__mcp_launcher_qa_capture_screenshot" not in _names(agent.tools), (
         "R2: capture_screenshot rides the listing, not the eager array")
 

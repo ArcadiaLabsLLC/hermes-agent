@@ -241,6 +241,27 @@ class TestClassification:
             f"launcher_qa core verbs must never defer under their REGISTERED names; deferred={deferred}"
         )
 
+    def test_plan_tool_rides_direct_by_default(self):
+        """RT-PLAN-TOOL-IS-HIDDEN-BEHIND-TOOL-SEARCH (owner 2026-11-14): ``todo_list`` is in upstream's
+        curated defer default, and a direct call answered "does not exist" live. The fork's never-defer
+        set puts it in the direct list. Upstream's list is untouched, so a user's own ``defer`` list
+        naming it cannot hide it (never-defer is checked first) — the ruled cost. Positive control:
+        ``session_search``, from the same curated default, still defers, so the default list was read."""
+        import tools.todo_tool  # registration runs at import
+        import tools.session_search_tool  # noqa: F401
+        from tools.tool_search import ToolSearchConfig, _DEFAULT_DEFERRED_TOOLS, classify_tools
+        assert {"todo_list", "session_search"} <= _DEFAULT_DEFERRED_TOOLS, (
+            "the curated default no longer names both tools; this test would false-green")
+        defs = [_td("todo_list", "Plan"), _td("session_search", "Recall")]
+        for raw in (None, {"defer": ["todo_list", "session_search"]}):
+            cfg = ToolSearchConfig.from_raw(raw)
+            visible, deferrable = classify_tools(defs, cfg.effective_defer_tools, config=cfg)
+            names = lambda tds: {(td.get("function") or {}).get("name") for td in tds}
+            assert names(visible) == {"todo_list"}, (
+                f"config {raw!r}: todo_list must ride direct; visible={sorted(names(visible))}")
+            assert names(deferrable) == {"session_search"}, (
+                f"config {raw!r}: the control must still defer; deferred={sorted(names(deferrable))}")
+
     def test_never_defer_does_not_grant(self):
         """Un-hide, never grant. classify_tools only PARTITIONS the defs it is
         handed — a promoted name can never materialize in a lane that was not

@@ -90,7 +90,8 @@ def test_each_absent_name_carries_the_rule_that_moved_it(harness_lane):
     receipt = _surface()
     reasons = {name: row["reason"] for part in (receipt, receipt["mcp"])
                for state in ("eager", "deferred") for name, row in part[state].items()}
-    assert reasons["todo_list"] == "curated_default_defer"
+    assert reasons["process_manage"] == "curated_default_defer"
+    assert reasons["todo_list"] == "promoted_eager", "RT-PLAN-TOOL-IS-HIDDEN-BEHIND-TOOL-SEARCH: the plan tool rides direct"
     assert reasons["memory"] == "persona_defer"
     assert receipt["deferred"]["memory"]["restorable_via"].endswith("chat_lane_defer_tools")
     assert reasons["agent_chat_open"] == "non_core_rule_defer", "R3: the fork's harness tools defer by upstream's rule"
@@ -165,7 +166,7 @@ def test_tool_search_off_is_a_reason_not_a_silence(harness_lane):
     assert receipt["tool_search"] == "off"
     assert receipt["deferred"] == {} and receipt["mcp"]["deferred"] == {} and receipt["bridge"] == []
     eager = {**receipt["eager"], **receipt["mcp"]["eager"]}
-    for name in ("todo_list", "browser_vault", "agent_chat_open", CAPTURE):
+    for name in ("process_manage", "browser_vault", "agent_chat_open", CAPTURE):
         assert eager[name] == {"reason": "tool_search_off"}, name
     # Positive control: a tool no rule would defer is eager with no reason, off or not.
     assert receipt["eager"]["terminal"] == {"reason": None}

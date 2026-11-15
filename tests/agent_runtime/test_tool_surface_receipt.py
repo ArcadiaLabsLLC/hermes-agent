@@ -63,7 +63,7 @@ def test_a_persona_with_no_defer_list_still_carries_the_account(harness_lane):
     settle_turn_tool_form(agent, pin=False)
     receipt = getattr(agent, AGENT_SURFACE_ATTR, None)
     assert receipt is not None and receipt.get("state") != "not_computed", receipt
-    assert receipt["deferred"]["todo_list"]["reason"] == "curated_default_defer"
+    assert receipt["deferred"]["process_manage"]["reason"] == "curated_default_defer"
     assert receipt["deferred"]["agent_chat_open"]["reason"] == "non_core_rule_defer"
     assert [d["function"]["name"] for d in agent.tools] == shipped, "the account never moves the form"
     assert sorted([*receipt_names(receipt, "eager"), *receipt["bridge"]]) == sorted(shipped)

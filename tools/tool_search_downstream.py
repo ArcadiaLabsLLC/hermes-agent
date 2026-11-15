@@ -83,7 +83,17 @@ BOARD_TOOLS = frozenset({"board_card_add", "board_cards"})
 #: (``tests/agent_runtime/test_schedule_tool_sent_to_opted_in_agent.py`` holds the set equal to the toolset).
 SCHEDULE_TOOLS = frozenset({"schedule_manage"})
 # MUTATION: drop ``| SCHEDULE_TOOLS`` and test_schedule_tool_sent_to_opted_in_agent reddens (the tool is deferred).
-_BUILTIN_NEVER_DEFER = frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"}) | BOARD_TOOLS | SCHEDULE_TOOLS
+#: The plan tool (``RT-PLAN-TOOL-IS-HIDDEN-BEHIND-TOOL-SEARCH``, owner 2026-11-14: "yes they should see the tool").
+#: Upstream's curated ``tools.tool_search.defer`` default names ``todo_list``; a direct call then answered
+#: "does not exist" (live, 2026-11-14) and every Eternia plan surface reads what this tool writes. Promoted here,
+#: not by editing upstream's default list, so the upstream footprint does not grow — the cost of that choice: a
+#: user's own ``defer`` list cannot hide it (this set is checked first; the plan is a core surface). It grants
+#: nothing: a session without the ``todo`` toolset still has no ``todo_list``. Measured 2026-11-14 (prompt_surface render):
+#: +316 tool tokens a turn on every stock surface (its schema in, its catalog line out).
+PLAN_TOOLS = frozenset({"todo_list"})
+# MUTATION: drop ``| PLAN_TOOLS`` and test_plan_tool_rides_direct_by_default reddens (todo_list is deferred).
+_BUILTIN_NEVER_DEFER = (frozenset({"agent_chat_send", "agent_chat_dispatches", "skill_search"})
+                        | BOARD_TOOLS | SCHEDULE_TOOLS | PLAN_TOOLS)
 
 #: MCP promotions, keyed by the server that produces them and spelled as that server EXPOSES each
 #: tool. The registered name is derived below by the registry's own naming function — never typed by

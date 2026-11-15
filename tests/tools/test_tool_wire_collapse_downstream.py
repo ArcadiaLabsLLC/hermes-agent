@@ -26,13 +26,13 @@ from tools.downstream_schema import (
 )
 
 #: The recorded persona-chat lane's built-ins and fork plugin tools that stay eager under the
-#: amended R1 (both personas carry the same set; ``process_manage``/``todo_list`` are curated
-#: deferrals and the vault tool is the persona defer).
+#: amended R1 (both personas carry the same set; ``process_manage`` is a curated deferral, ``todo_list``
+#: rides the fork never-defer set, and the vault tool is the persona defer).
 _EAGER_BUILTINS = (
     "agent_chat_dispatches", "agent_chat_send", "browser_exec", "clarify", "delegate_task",
     "execute_code", "memory", "patch", "read_file", "search_files", "skill_manage", "skill_search",
     "skill_view", "skills_list", "terminal", "vision_analyze", "web_extract", "web_search",
-    "write_file",
+    "write_file", "todo_list",
 )
 _VAULT = ("browser_vault",)  # v0.22.2 folded the five browser_vault_* tools into one
 _BRIDGE = ("tool_search", "tool_call", "tool_describe")
@@ -53,7 +53,7 @@ def lane():
     discover_builtin_tools()
     discover_plugins()
     raw = []
-    for name in (*_EAGER_BUILTINS, *_VAULT, "process_manage", "todo_list"):
+    for name in (*_EAGER_BUILTINS, *_VAULT, "process_manage"):
         entry = registry.get_entry(name)
         assert entry is not None, f"{name} is not registered - the lane fixture would prove nothing"
         raw.append({"type": "function", "function": {**entry.schema, "name": name}})
