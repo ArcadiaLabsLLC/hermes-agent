@@ -82,8 +82,10 @@ jobs:
           python - <<'PY' >> "$GITHUB_ENV"
           import tomllib
           with open("uv.lock", "rb") as handle:
-              packages = [p for p in tomllib.load(handle)["package"] if p["name"] == "pillow"]
-          assert len(packages) == 1, f"uv.lock holds {len(packages)} pillow packages; expected exactly 1"
+              pillow = [p for p in tomllib.load(handle)["package"] if p["name"] == "pillow"]
+          # The registry package is the lock's version; an Android URL pin beside it is this build's own output.
+          packages = [p for p in pillow if "registry" in p["source"]]
+          assert len(packages) == 1, f"uv.lock holds {len(packages)} registry pillow packages; expected exactly 1"
           sdist = packages[0]["sdist"]
           assert sdist["hash"].startswith("sha256:"), sdist["hash"]
           print(f"PILLOW_VERSION={packages[0]['version']}")
