@@ -1,0 +1,31 @@
+{
+  "row": "RT-WINDOWS-UPDATE-RESTART-DEFAULT-IDENTITY",
+  "date": "2026-11-15",
+  "candidate": "8179f588edfa00126cd23e258511a0aa4c8f52dc",
+  "positive_control": {
+    "base": "1e7d9652a5",
+    "windows_failures": 5,
+    "root_replays_redirected_to_sticky": 4,
+    "standalone_replays_inheriting_root_bot_token": 1,
+    "same_cases_passing_on_candidate": 5
+  },
+  "isolated_windows_drill": {
+    "scope": "Production updater pause and resume across real Windows named pipes with a disposable home, a named updater and a loopback Telegram Bot API. Host-wide discovery and launcher refresh were excluded. Git and dependencies were unchanged.",
+    "saved_active_profile": "sticky",
+    "updater_profile": "sticky",
+    "socket_pause_acknowledgments": 1,
+    "paused_profiles": ["default"],
+    "relaunched_profiles": ["default"],
+    "original_pid": 27004,
+    "replacement_pid": 65900,
+    "original_and_replacement_profile": "default",
+    "original_and_replacement_served_profiles": [
+      "default", "sample-five", "sample-four", "sample-seven",
+      "sample-six", "sample-three", "sample-two", "sticky"
+    ],
+    "fleet_rows_after_resume": [{"profile": "default", "pid": 65900, "state": "current", "source": "socket"}],
+    "loopback_getupdates_tcp_owners": {"before": {"27004": 4}, "after": {"65900": 2}},
+    "separate_named_gateways_after_resume": 0,
+    "temporary_gateway_pids_gone_after_cleanup": true
+  }
+}
