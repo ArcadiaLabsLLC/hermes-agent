@@ -13,6 +13,7 @@ import os
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -116,6 +117,66 @@ def test_bound_boards_sync_at_once_and_list_in_board_order(tmp_path, workspace, 
     assert all(board["refused"] is None and board["readable"] for board in listed["boards"])
 
 
+def test_cold_board_history_reads_overlap_and_keep_board_order(tmp_path, workspace, monkeypatch):
+    scope = _bound(workspace, alpha=_repo(tmp_path, "alpha"), beta=_repo(tmp_path, "beta"))
+    history_started = threading.Barrier(2, timeout=5)
+    log_committed_at = work_store.Writer._log_committed_at
+
+    def read_history(writer, note, tip=None):
+        if note == writer.board.brain_dir:
+            history_started.wait()
+        return log_committed_at(writer, note, tip)
+
+    monkeypatch.setattr(work_store.Writer, "_log_committed_at", read_history)
+    listed = work_store.list_work(scope, {})
+
+    assert [board["slot"] for board in listed["boards"]] == ["alpha", "beta"]
+    expected = {"<board>": 1_700_000_000, "a.md": 1_700_000_000, "b.md": 1_700_000_000}
+    assert _times(listed, "alpha") == expected
+    assert _times(listed, "beta") == expected
+
+
+def test_cold_notes_on_one_board_overlap(tmp_path, workspace, monkeypatch):
+    scope = _bound(workspace, alpha=_repo(tmp_path, "alpha"))
+    history_started = threading.Barrier(2, timeout=5)
+    log_committed_at = work_store.Writer._log_committed_at
+
+    def read_history(writer, note, tip=None):
+        if note.endswith(".md"):
+            history_started.wait()
+        return log_committed_at(writer, note, tip)
+
+    monkeypatch.setattr(work_store.Writer, "_log_committed_at", read_history)
+    listed = work_store.list_work(scope, {})
+
+    assert _times(listed, "alpha") == {"<board>": 1_700_000_000, "a.md": 1_700_000_000, "b.md": 1_700_000_000}
+
+
+def test_same_tip_concurrent_reads_keep_both_memoized_times(tmp_path, workspace, monkeypatch):
+    _bound(workspace, alpha=_repo(tmp_path, "alpha"))
+    (board,) = work_store.synced(workspace).boards
+    writers = [work_store.writer_for(board), work_store.writer_for(board)]
+    notes = [f"{BRAIN}/a.md", f"{BRAIN}/b.md"]
+    history_started = threading.Barrier(2, timeout=5)
+    log_committed_at = work_store.Writer._log_committed_at
+
+    def read_history(writer, note, tip=None):
+        history_started.wait()
+        return log_committed_at(writer, note, tip)
+
+    with monkeypatch.context() as racing:
+        racing.setattr(work_store.Writer, "_log_committed_at", read_history)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            tasks = [pool.submit(writer.note_committed_at, note) for writer, note in zip(writers, notes)]
+            assert [task.result() for task in tasks] == [1_700_000_000, 1_700_000_000]
+
+    def unexpected_log(*_args):
+        raise AssertionError("a concurrent reader discarded a same-tip memo entry")
+
+    monkeypatch.setattr(work_store.Writer, "_log_committed_at", unexpected_log)
+    assert [writers[0].note_committed_at(note) for note in notes] == [1_700_000_000, 1_700_000_000]
+
+
 def test_boards_of_one_repository_sync_one_after_another(tmp_path, workspace, monkeypatch):
     """Two boards keyed by one checkout share its fetch: never synced at once.
     Mutation: group by ``board.key`` instead of ``checkout_key`` -> both sync together, red."""
@@ -175,11 +236,12 @@ def test_an_unreachable_origin_lists_stale_without_a_second_wait(tmp_path, works
     Mutation: on a failed ``ls-remote`` run the fetch anyway -> a fetch call (a second network wait), red."""
     alpha = _repo(tmp_path, "alpha")
     scope = _bound(workspace, alpha=alpha)
-    work_store.list_work(scope, {})
+    current = work_store.list_work(scope, {})
     git("remote", "set-url", "origin", str(tmp_path / "nowhere.git"), cwd=alpha.clone)
     calls = _git_calls(monkeypatch)
     listed = work_store.list_work(scope, {"stale_ok": True})
     assert listed["stale"] is True and [b["readable"] for b in listed["boards"]] == [True]
+    assert _times(listed, "alpha") == _times(current, "alpha")
     assert [args[0] for args in calls if args[0] in ("ls-remote", "fetch")] == ["ls-remote"]
 
 
@@ -199,6 +261,22 @@ def _push_from(tmp_path: Path, repo: SimpleNamespace, name: str) -> Path:
     other = tmp_path / name
     git("clone", "-q", str(repo.origin), str(other), cwd=tmp_path)
     return other
+
+
+def test_note_history_stays_at_the_synchronized_head_when_tracking_ref_advances(tmp_path, workspace):
+    alpha = _repo(tmp_path, "alpha")
+    _bound(workspace, alpha=alpha)
+    writer = work_store.synced(workspace).writers["alpha"]
+    note = f"{BRAIN}/a.md"
+    mate = _push_from(tmp_path, alpha, "mate")
+    (mate / note).write_text(HEAD + _row("ALPHA-A2"), encoding="utf-8", newline="\n")
+    git("add", note, cwd=mate)
+    _commit(mate, "a changed row", 1_700_000_100)
+    git("push", "-q", "origin", "main", cwd=mate)
+    git("fetch", "-q", "origin", "main", cwd=alpha.clone)
+
+    assert "ALPHA-A1" in (writer.worktree / note).read_text(encoding="utf-8")
+    assert writer.note_committed_at(note) == 1_700_000_000
 
 
 def test_a_moved_tip_lists_the_same_times_a_cold_read_gives(tmp_path, workspace, monkeypatch):
@@ -241,6 +319,40 @@ def test_a_moved_tip_lists_the_same_times_a_cold_read_gives(tmp_path, workspace,
     cold = {name: int(git("log", "-n", "1", "--format=%ct", "origin/main", "--", path, cwd=worktree).strip())
             for name, path in (("<board>", BRAIN), ("a.md", f"{BRAIN}/a.md"), ("b.md", f"{BRAIN}/b.md"))}
     assert merged == cold and merged["b.md"] == 1_700_001_000
+
+
+def test_cold_projection_uses_each_notes_history_after_a_rename_copy_and_rewrite(tmp_path, workspace):
+    alpha = _repo(tmp_path, "alpha")
+    scope = _bound(workspace, alpha=alpha, beta=_repo(tmp_path, "beta"))
+    original = git("rev-parse", "HEAD", cwd=alpha.clone).strip()
+    mate = _push_from(tmp_path, alpha, "mate")
+
+    def rename_and_copy(source, stamp):
+        git("mv", f"{BRAIN}/a.md", f"{BRAIN}/renamed.md", cwd=mate)
+        (mate / BRAIN / "copied.md").write_bytes((mate / BRAIN / source).read_bytes())
+        git("add", f"{BRAIN}/copied.md", cwd=mate)
+        _commit(mate, "rename and copy", stamp)
+
+    rename_and_copy("b.md", 1_700_000_100)
+    git("push", "-q", "origin", "main", cwd=mate)
+    previous = git("rev-parse", "HEAD", cwd=mate).strip()
+    first = work_store.list_work(scope, {})
+    assert _times(first, "alpha") == {
+        "<board>": 1_700_000_100, "b.md": 1_700_000_000,
+        "copied.md": 1_700_000_100, "renamed.md": 1_700_000_100,
+    }
+
+    git("reset", "-q", "--hard", original, cwd=mate)
+    rename_and_copy("renamed.md", 1_700_000_200)
+    git("push", "-q", "origin", "HEAD:refs/heads/rewrite", cwd=mate)
+    git("update-ref", "refs/heads/main", "refs/heads/rewrite", previous, cwd=alpha.origin)
+    rewritten = work_store.list_work(scope, {})
+
+    assert _times(rewritten, "alpha") == {
+        "<board>": 1_700_000_200, "b.md": 1_700_000_000,
+        "copied.md": 1_700_000_200, "renamed.md": 1_700_000_200,
+    }
+    assert _times(rewritten, "beta") == _times(first, "beta")
 
 
 def test_a_long_run_of_new_commits_reads_each_note_again(tmp_path, workspace, monkeypatch):

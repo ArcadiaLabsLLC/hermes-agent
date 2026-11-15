@@ -59,8 +59,8 @@ from .reasons import Reason, WorkRefused
 from .tasks import sibling_rows, siblings_visible, write_task_defects
 
 __layer__ = "stores"
-__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token", "drop_worktrees", "remove_worktree",
-           "work_worktree_for"]
+__all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token", "drop_worktrees",
+           "read_note_commit_times", "remove_worktree", "work_worktree_for"]
 
 REPLAY_BUDGET = 8
 REQUEST_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
@@ -84,6 +84,47 @@ _COMMITTED_AT: dict[str, tuple[str, dict[str, int | None]]] = {}
 _COMMITTED_AT_LOCK = threading.Lock()
 #: Past this many new commits the remembered times are dropped and read again note by note.
 ADVANCE_LIMIT = 400
+
+
+@dataclass
+class _NoteCommitTimes:
+    worktree: str
+    tip: str | None
+    previous: tuple[str, dict[str, int | None]] | None
+    times: dict[str, int | None]
+
+    def remember(self) -> None:
+        if self.tip is None:
+            return
+        with _COMMITTED_AT_LOCK:
+            current = _COMMITTED_AT.get(self.worktree)
+            if current is not None and current[0] == self.tip:
+                current[1].update(self.times)
+            elif current is self.previous:
+                # An in-flight read at another tip must keep its own result without replacing
+                # the cache entry a concurrent reader already published.
+                _COMMITTED_AT[self.worktree] = (self.tip, dict(self.times))
+
+
+def read_note_commit_times(
+    requested: Mapping[Writer, list[str]], *, run_jobs: Callable = map,
+) -> dict[Writer, dict[str, int | None]]:
+    """Resolve one tip per writer, then read the cold paths at their pinned tips."""
+    snapshots = dict(zip(requested, run_jobs(Writer._note_commit_time_snapshot, list(requested)), strict=True))
+    misses = [
+        (writer, note) for writer, notes in requested.items() for note in dict.fromkeys(notes)
+        if note not in snapshots[writer].times
+    ]
+
+    def read(job):
+        writer, note = job
+        return writer._log_committed_at(note, snapshots[writer].tip)
+
+    for (writer, note), stamp in zip(misses, run_jobs(read, misses), strict=True):
+        snapshots[writer].times[note] = stamp
+    for snapshot in snapshots.values():
+        snapshot.remember()
+    return {writer: {note: snapshots[writer].times[note] for note in notes} for writer, notes in requested.items()}
 
 
 @dataclass(frozen=True)
@@ -256,7 +297,7 @@ class Writer:
         self._tip_sha: str | None = None
         #: The clone's git common dir, read once per Writer (the worktree token and the worktree check share it).
         self._clone_common: str | None = None
-        #: The tip's commit as the commit-time reads resolved it; forgotten by ``sync`` and ``_push``.
+        #: The commit a note-history read uses, pinned by sync or resolved on its first read.
         self._read_tip: str | None = None
 
     # ── the git door ─────────────────────────────────────────────────────
@@ -539,6 +580,7 @@ class Writer:
             self._ensure_worktree(clone)
             self._fetch(clone, stale_ok=stale_ok)
             self._reset()
+            self._read_tip = self._tip_sha
             return self.worktree
 
     # ── step 4: idempotency ──────────────────────────────────────────────
@@ -801,25 +843,20 @@ class Writer:
         return {"commit": lines[0], "at": int(lines[1]), "subject": lines[2], "body": "\n".join(lines[3:]).strip()}
 
     def note_committed_at(self, note: str) -> int | None:
-        """The commit time of the last commit at the tip that changed ``note`` (a file or a folder).
+        """The last commit time on the exact path at this writer's tip."""
+        return read_note_commit_times({self: [note]})[self][note]
 
-        Remembered per worktree and tip (:data:`_COMMITTED_AT`): the answer is the same ``git log -n 1``
-        a cold read runs, whichever of the three paths gave it."""
-
+    def _note_commit_time_snapshot(self) -> _NoteCommitTimes:
         tip = self._tip_commit()
+        worktree = str(self.worktree)
         if tip is None:
-            return self._log_committed_at(note)
-        key = str(self.worktree)
+            return _NoteCommitTimes(worktree, None, None, {})
         with _COMMITTED_AT_LOCK:
-            seen_tip, times = _COMMITTED_AT.get(key, (tip, {}))
-            times = dict(times)
-        if seen_tip != tip:
-            times = self._advanced(seen_tip, tip, times) or {}
-        if note not in times:
-            times[note] = self._log_committed_at(note, tip)
-        with _COMMITTED_AT_LOCK:
-            _COMMITTED_AT[key] = (tip, times)
-        return times[note]
+            previous = _COMMITTED_AT.get(worktree)
+            times = dict(previous[1]) if previous is not None else {}
+        if previous is not None and previous[0] != tip:
+            times = self._advanced(previous[0], tip, times) or {}
+        return _NoteCommitTimes(worktree, tip, previous, times)
 
     def _tip_commit(self) -> str | None:
         if self._read_tip is None:

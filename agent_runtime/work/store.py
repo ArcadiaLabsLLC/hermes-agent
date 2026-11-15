@@ -13,8 +13,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
+from contextvars import copy_context
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -30,7 +33,7 @@ from agent_runtime.work_store.grammar import (
 from agent_runtime.work_store.tasks import (
     new_task_slug, sibling_rows, subtasks_of, taken_slugs, task_holds_subtasks, task_of, task_title_refusal,
 )
-from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, work_worktree_for
+from agent_runtime.work_store.writer import OPERATOR, Writer, RowOp, checkout_token, read_note_commit_times, work_worktree_for
 
 from agent_runtime.errors import NotFound
 
@@ -86,11 +89,21 @@ def worktree_brain(board: Board) -> Board:
     return board if found is None else replace(board, read_root=worktree, brain_dir=found)
 
 
-#: At most this many boards sync at once (each sync is a handful of short git processes and one fetch).
-SYNC_WORKERS = 8
+#: Both sync and projection can start Git subprocesses. Bound concurrent jobs per Work call.
+BOARD_WORKERS = 8
 
 
-def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None) -> Synced:
+def _ordered_board_jobs(operation, jobs, *, pool=None):
+    """Run independent jobs at once and return their answers in board order."""
+    if len(jobs) < 2:
+        return list(map(operation, jobs))
+    with (nullcontext(pool) if pool is not None else
+          ThreadPoolExecutor(max_workers=min(BOARD_WORKERS, len(jobs)), thread_name_prefix="work-board")) as executor:
+        pending = [executor.submit(copy_context().run, operation, job) for job in jobs]
+        return [job.result() for job in pending]
+
+
+def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None, pool=None) -> Synced:
     """Every bound board's worktree synced to its tip (``Writer.sync``), the boards read from them.
 
     The boards sync AT ONCE (RT-WORK-LIST-SYNC-SERIAL-BOARDS: one after another, four boards' fetches and
@@ -133,13 +146,8 @@ def synced(workspace_id: str, *, stale_ok: bool = False, slot: str | None = None
 
     answers = run(inline)
     batches = list(groups.values())
-    if len(batches) == 1:
-        answers.update(run(batches[0]))
-    elif batches:
-        with ThreadPoolExecutor(max_workers=min(SYNC_WORKERS, len(batches)),
-                                thread_name_prefix="work-sync") as pool:
-            for done in [pool.submit(run, batch) for batch in batches]:
-                answers.update(done.result())
+    for batch in _ordered_board_jobs(run, batches, pool=pool):
+        answers.update(batch)
     every = {board_key: writer for board_key, writer in [*inline, *(pair for batch in batches for pair in batch)]}
     for board_key in order:
         if board_key in refused:
@@ -293,18 +301,21 @@ def project(row: Row, writer: Writer | None, *, context=None, detail: bool = Fal
     return value
 
 
-def board_wire(board: Board, writer: Writer | None, refusal: WorkRefused | None = None) -> dict[str, Any]:
+def board_wire(board: Board, writer: Writer | None, refusal: WorkRefused | None = None,
+               *, committed_at: Any = _READ_COMMITTED_AT) -> dict[str, Any]:
     """A board on the wire: ``checkout`` (THIS machine's path, the disclosure ``slots.show`` makes) and
     ``board_default`` (the workspace's ``boards`` category slot, listed first).
     ``refused`` is ``{reason, detail}`` when the board's sync refused (``readable`` false, no queues),
     else None (RT-WORK-LIST-ONE-BOARD-REFUSAL)."""
 
+    if committed_at is _READ_COMMITTED_AT:
+        committed_at = writer.note_committed_at(board.brain_dir) if writer and board.brain_dir else None
     return {"slot": board.slot, "label": "Work" if board.is_default else board.slot, "brain_dir": board.brain_dir,
             "board_default": board.board_default,
             "checkout": str(board.checkout) if board.checkout is not None else None,
             "bound_here": board.bound_here, "local": board.local,
             "is_default": board.is_default, "default_branch": board.default_branch,
-            "committed_at": writer.note_committed_at(board.brain_dir) if writer and board.brain_dir else None,
+            "committed_at": committed_at,
             "readable": writer is not None,
             "refused": {"reason": refusal.reason.value, "detail": refusal.detail} if refusal is not None else None}
 
@@ -351,22 +362,45 @@ def list_work(scope, params, *, context=None, assignees: frozenset[str] | None =
     if params.get("view", "all") not in ("all", "conversation") or (
             params.get("view") == "conversation" and context is None):
         raise WorkRefused(Reason.INVALID)
-    view = (observed(scope.workspace_id) if params.get("observe") is True
-            else synced(scope.workspace_id, stale_ok=params.get("stale_ok") is True))
-    keep = _row_filter(params, context, assignees)
-    slot = params.get("slot")
-    listed = [b for b in view.boards if slot is None or b.slot == slot]
-    return {"boards": [{**board_wire(b, view.writer_of(b), view.refused.get(b.key)),
-                        "queues": _queues(b, view.writer_of(b), keep, context)} for b in listed],
+    with ThreadPoolExecutor(max_workers=BOARD_WORKERS, thread_name_prefix="work-board") as pool:
+        view = (observed(scope.workspace_id) if params.get("observe") is True
+                else synced(scope.workspace_id, stale_ok=params.get("stale_ok") is True, pool=pool))
+        keep = _row_filter(params, context, assignees)
+        slot = params.get("slot")
+        listed = [board for board in view.boards if slot is None or board.slot == slot]
+        rendered = _project_listed_boards(view, listed, keep, context, partial(_ordered_board_jobs, pool=pool))
+    return {"boards": rendered,
             "cursor": None, "read_at": _now().isoformat(timespec="seconds"), "stale": view.stale}
 
 
-def _queues(board: Board, writer: Writer | None, keep, context) -> list[dict[str, Any]]:
-    """One entry per ``type: queue`` note (a domain), its rows filtered; an empty domain is still listed.
+def _project_listed_boards(view: Synced, listed: list[Board], keep, context, run_jobs) -> list[dict[str, Any]]:
+    """Read only the history the reply needs, using the list's one bounded pool."""
+    queues = run_jobs(lambda board: _queues(board, view.writer_of(board), keep), listed)
+    board_queues = list(zip(listed, queues, strict=True))
+    requested = {}
+    for board, notes in board_queues:
+        writer = view.writer_of(board)
+        if writer is not None and board.brain_dir is not None:
+            requested[writer] = [board.brain_dir, *(note["note"] for note in notes if note["rows"])]
+    times = read_note_commit_times(requested, run_jobs=run_jobs)
 
-    Every row of a note shares the note's commit time, so it is read ONCE per note, not once per row:
-    the per-row ``git log`` was the ~5 s of a 622-row board's list (RT-WORK-LIST-OWNER-SIZE-5S)."""
+    def project_board(entry):
+        board, notes = entry
+        writer = view.writer_of(board)
+        stamps = times.get(writer, {})
+        return {
+            **board_wire(board, writer, view.refused.get(board.key), committed_at=stamps.get(board.brain_dir)),
+            "queues": [{
+                **note, "rows": [project(row, writer, context=context, program=note["program"],
+                                         committed_at=stamps.get(note["note"])) for row in note["rows"]],
+            } for note in notes],
+        }
 
+    return run_jobs(project_board, board_queues)
+
+
+def _queues(board: Board, writer: Writer | None, keep) -> list[dict[str, Any]]:
+    """Read one entry per queue note, with filtered rows ready for projection."""
     if writer is None or board.read_root is None:
         return []
     out = []
@@ -375,9 +409,7 @@ def _queues(board: Board, writer: Writer | None, keep, context) -> list[dict[str
         meta = note_meta(path)
         rows = [row for row in parse_note(path.read_bytes().decode("utf-8"), slot=board.slot, note=note)
                 if keep(row)]
-        committed_at = writer.note_committed_at(note) if rows else None
-        out.append({"note": note, **meta, "rows": [project(row, writer, context=context, program=meta["program"],
-                                                           committed_at=committed_at) for row in rows]})
+        out.append({"note": note, **meta, "rows": rows})
     return out
 
 

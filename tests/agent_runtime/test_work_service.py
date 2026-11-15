@@ -511,12 +511,14 @@ def test_an_agents_todo_is_a_view_over_every_board_it_can_see(work):
 def test_list_reads_a_notes_commit_time_once_not_once_per_row(work, monkeypatch):
     # RT-WORK-LIST-OWNER-SIZE-5S: a `git log` per ROW was ~5 s on a 622-row board; every row of a
     # note shares the note's commit time, so the list asks once per note (plus the board's own).
-    from agent_runtime.work_store.writer import Writer
+    from agent_runtime.work_store import writer
 
     ids = [start(work, f"q{n}", title=f"Row {n}")["task"]["id"] for n in range(4)]
+    monkeypatch.setattr(writer, "_COMMITTED_AT", {})
     asked = []
-    real = Writer.note_committed_at
-    monkeypatch.setattr(Writer, "note_committed_at", lambda self, note: asked.append(note) or real(self, note))
+    real = writer.Writer._log_committed_at
+    monkeypatch.setattr(writer.Writer, "_log_committed_at",
+                        lambda self, note, tip=None: asked.append(note) or real(self, note, tip))
     listed = call(work, "list")
     (board,) = listed["boards"]
     (queue,) = board["queues"]
