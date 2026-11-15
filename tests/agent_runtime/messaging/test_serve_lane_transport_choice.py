@@ -191,7 +191,7 @@ def test_a_loopback_origin_is_the_api_base(fakes, value):
                                    "http://127.0.0.1:8081/?x=1", "ftp://127.0.0.1:21", "127.0.0.1:8081",
                                    "http://127.0.0.1:notaport", "http://[::ffff:8.8.8.8]:1"])
 def test_a_host_that_is_not_loopback_is_refused_naming_the_setting_not_its_value(fakes, value):
-    """Killing mutation: ``_is_loopback`` returns True for any host → no refusal → red."""
+    """Killing mutation: ``_loopback_api_host`` returns True for any host → no refusal → red."""
     from agent_runtime.messaging.models import MessagingRefused
 
     _set(API_BASE, value)

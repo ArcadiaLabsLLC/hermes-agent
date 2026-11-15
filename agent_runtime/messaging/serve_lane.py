@@ -99,7 +99,7 @@ class LaneReason(StrEnum):
 API_BASE_SETTING = "messaging_telegram_api_base"
 
 
-def _is_loopback(host: str) -> bool:
+def _loopback_api_host(host: str) -> bool:
     if host.lower() == "localhost":
         return True
     try:
@@ -124,7 +124,7 @@ def telegram_api_base() -> str | None:
         host, _port = parts.hostname or "", parts.port
     except ValueError:
         raise MessagingRefused(Reason.INVALID, API_BASE_SETTING) from None
-    if (parts.scheme not in ("http", "https") or not _is_loopback(host) or parts.username or parts.password
+    if (parts.scheme not in ("http", "https") or not _loopback_api_host(host) or parts.username or parts.password
             or parts.path not in ("", "/") or parts.query or parts.fragment):
         raise MessagingRefused(Reason.INVALID, API_BASE_SETTING)
     return f"{parts.scheme}://{parts.netloc}"
