@@ -10,7 +10,9 @@ Each case boots the runner's base interpreter in ``-I`` mode, as the launcher do
 Killing mutation: make ``pm.environments._fork_borrowed_home_environment`` return ``None`` -> the owner
 case prints ``owner importable: False`` and the store case ``owner importable: False`` (no refusal);
 both red, recorded 2026-11-15 by lane w1114a-h3 (and again after the store check moved off the
-private launcher parse, same day).
+private launcher parse, same day). The venv case (FH-AGENT-TESTS-READ-THE-REAL-INSTALL-FACTS): delete the
+venv early return in ``borrowed_home_environment`` -> ``owner importable: True``, red, recorded 2026-11-15
+by lane w1115e-h8.
 """
 from __future__ import annotations
 
@@ -38,11 +40,11 @@ CODE = (
 )
 
 
-def _boot(tmp_path: Path, root: Path, *prefix: Path) -> str:
+def _boot(tmp_path: Path, root: Path, *prefix: Path, python: str = BASE_PYTHON) -> str:
     env = {key: value for key, value in os.environ.items()
            if key not in ("HERMES_RUNTIME_DIR", "HERMES_DEPENDENCY_ROOT", "HERMES_DEPENDENCY_CHECKOUT")}
     env["HERMES_HOME"] = str(tmp_path / "qa-copy" / ".hermes")  # the borrowed home: no state for this checkout
-    result = subprocess.run([BASE_PYTHON, "-I", "-c", CODE, str(REPO), str(root), *map(str, prefix)], env=env,
+    result = subprocess.run([python, "-I", "-c", CODE, str(REPO), str(root), *map(str, prefix)], env=env,
                             capture_output=True, text=True, timeout=60, check=False)
     assert result.returncode == 0, result.stderr
     return result.stdout.strip()
@@ -85,3 +87,12 @@ def test_a_bare_store_python_under_a_borrowed_home_refuses_like_the_unset_home_l
 def test_a_borrowed_home_with_no_owner_and_a_foreign_interpreter_keeps_upstreams_launch(tmp_path):
     # No launcher names this interpreter and no root owns the checkout: upstream's branch decides.
     assert _boot(tmp_path, _checkout(tmp_path)) == "owner importable: False"
+
+
+@pytest.mark.skipif(sys.prefix == sys.base_prefix, reason="the runner's interpreter is not a venv")
+def test_a_venv_interpreter_under_a_borrowed_home_keeps_its_own_packages(tmp_path):
+    # A venv (the test env, a developer .venv) never asks for an owner: that lookup probes the platform
+    # home, which a test's re-import of hermes_bootstrap tripped the real-home guard on.
+    root = _checkout(tmp_path)
+    _owner_environment(tmp_path / "ws" / ".hermes", root)
+    assert _boot(tmp_path, root, python=sys.executable) == "owner importable: False"

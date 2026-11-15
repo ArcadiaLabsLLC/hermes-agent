@@ -11,6 +11,7 @@ Here, before upstream's refusal runs:
 
 * the root ``owning_home_root`` names holds a committed environment -> run on it, read-only: the
   generation is leased so the owner's collector keeps it, nothing is synced or written there;
+* a venv interpreter -> ``None`` before any owner lookup: it carries its own packages;
 * no owner, and this interpreter is a bare PM store Python (whichever root's store the launcher execs)
   -> refuse exactly as the unset-home launch does (``NoCommittedEnvironment``).
 
@@ -63,6 +64,11 @@ def borrowed_home_environment(project_root: Path) -> Path | None:
     """The owner's committed environment for a borrowing launch with no state; refuses a bare store Python."""
     from pm import environments
 
+    if sys.prefix != sys.base_prefix:
+        # A venv interpreter (a developer .venv, the test env) keeps the packages it booted with, as in
+        # upstream's ``_require_own_dependencies``; asking for an owner would probe the platform home
+        # (FH-AGENT-TESTS-READ-THE-REAL-INSTALL-FACTS: a test's re-import read ~/.hermes/installs).
+        return None
     root = Path(project_root).resolve()
     owner = environments.owning_home_root(root)
     if owner is not None:
