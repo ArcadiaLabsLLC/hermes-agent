@@ -19,6 +19,12 @@ QA-A-ROW-BLOCKED-ON-TWO-REPOS-CAN-ONLY-NAME-ONE, ``EterniaLauncher/tool/queue/qu
 5cfeff2093). Each row is resolved in its own brain (:func:`blockers_of`): a hermes close steps every row of this
 brain that lists it as a hermes row, whatever the reason, and a row in another brain counts as still open — this
 brain cannot see that close, so a row it holds is never woken here, only re-pointed.
+
+A row the reason names only in its prose — ``— `A`: why; and `B` (filed …): why`` — is not on the list, but while
+it is open in this brain it still holds the row: a close of ``A`` leaves the row BLOCKED, its list re-written to
+``B``, the prose kept; a closed row named there for history holds nothing (:func:`prose_row_ids`, row
+FH-QUEUE-CLOSE-WAKES-A-ROW-ITS-REASON-STILL-NAMES, the twin of the launcher's
+QA-CLOSING-A-ROW-WAKES-A-ROW-STILL-BLOCKED-ON-ANOTHER, ``EterniaLauncher/tool/queue/queue_wake.dart`` at ce96bf5b58).
 """
 
 from __future__ import annotations
@@ -40,6 +46,8 @@ _BLOCKER_ID = re.compile(r"^`([A-Z0-9][A-Z0-9._-]*)`")
 #: lives in when it is not the reason's (``launcher`` / ``hermes`` / ``backend``), and a backticked ID.
 _NEXT_BLOCKER = re.compile(r"^(?:\s*,\s*(?:(?:and|then)\s+)?|\s+(?:then|and|&|\+)\s+)"
                            r"(?:(launcher|hermes|backend)\s+)?`([A-Z0-9][A-Z0-9._-]*)`")
+#: A row ID in a block's prose: backticked, with at least one dash (``OWED_HANDLERS`` is a name, not a row).
+_PROSE_ROW_ID = re.compile(r"`([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)`")
 
 
 def blocked_on(status_body: str) -> tuple[str, str] | None:
@@ -76,7 +84,8 @@ def _opening_list(status_body: str) -> tuple[str, list[str], list[str | None], s
 def blocker_list(status_body: str) -> tuple[str, list[str], str] | None:
     """``(head, IDs, tail)`` of a BLOCKED status body whose detail opens with one row or a list of rows: ``head``
     runs through the dash, ``tail`` is what follows the last listed ID (``head + "`A` then backend `B`" + tail`` is
-    the body). A backticked name later in the prose is not a blocker. None when the body names no row first."""
+    the body). A backticked name later in the prose is not in the list, but a live row named there still holds the
+    row (:func:`prose_row_ids`). None when the body names no row first."""
 
     listed = _opening_list(status_body)
     return None if listed is None else (listed[0], listed[1], listed[3])
@@ -92,6 +101,16 @@ def blockers_of(status_body: str) -> list[tuple[str, str]]:
         return []
     # MUTATION: `reason_brain` for every entry (the word ignored) and test_a_list_names_each_row_in_its_own_brain reds.
     return [(row_id, word or reason_brain) for row_id, word in zip(listed[1], listed[2])]
+
+
+def prose_row_ids(status_body: str) -> list[str]:
+    """The backticked row IDs a BLOCKED status body names after its opening list, in order, each once and none of
+    the list's: prose to the list, but one still open in this brain holds the row (:func:`wake_dependents`)."""
+
+    listed = _opening_list(status_body)
+    if listed is None:
+        return []
+    return [row_id for row_id in dict.fromkeys(_PROSE_ROW_ID.findall(listed[3])) if row_id not in listed[1]]
 
 
 def unblocked_segment(closed_id: str, close_date: str, how: str) -> str:
@@ -116,12 +135,14 @@ class Stepped:
 
 
 def wake_dependents(text: str, closed_id: str, close_date: str, how: str, *, live_ids: Collection[str],
-                    wake: bool = True) -> Stepped:
+                    own_live_ids: Collection[str] | None = None, wake: bool = True) -> Stepped:
     """``text`` after ``closed_id`` closed, for every row of this brain whose block lists it.
 
     A row whose list still names a row in ``live_ids`` (the IDs open after the close, in every brain read) stays
     BLOCKED with its date and its words, the list cut to the rows still open — never woken while another row holds
-    it, and never left naming the archived row. A row nothing else holds is woken — back to READY with an
+    it, and never left naming the archived row. When its list is spent, a row its prose names that is still in
+    ``own_live_ids`` (the IDs open in THIS brain after the close) holds it the same way, the list re-written to
+    those rows; None skips that read. A row nothing else holds is woken — back to READY with an
     ``unblocked`` segment — unless ``wake`` is false, when it is left as it stands and reported ``stranded``.
     The claim, rulings and every other segment are kept; a line's own ``\\r`` is kept.
     """
@@ -143,6 +164,14 @@ def wake_dependents(text: str, closed_id: str, close_date: str, how: str, *, liv
         # A row in another brain stays open: its close is that brain's to see (and the grammar check's to name).
         still_open = [blocker for blocker in brain_of
                       if blocker != closed_id and (brain_of[blocker] != OWN_BRAIN or blocker in live_ids)]
+        # A live row of this brain named only in the prose — `` `A`: why; and `B` (filed …): why `` — still holds
+        # it: never a wake on a guess (FH-QUEUE-CLOSE-WAKES-A-ROW-ITS-REASON-STILL-NAMES). A closed one holds nothing.
+        # MUTATION: drop this arm and test_a_live_row_named_only_in_the_prose_still_holds_it reddens.
+        if not still_open and own_live_ids is not None:
+            still_open = [blocker for blocker in prose_row_ids(row.status_body)
+                          if blocker not in (closed_id, row.ref.id) and blocker in own_live_ids]
+            for blocker in still_open:
+                brain_of[blocker] = OWN_BRAIN
         if still_open:
             # The new first row takes the reason: when it lives in another brain, the reason word becomes its brain.
             first_brain = brain_of[still_open[0]]
