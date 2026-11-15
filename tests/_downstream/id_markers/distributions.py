@@ -18,6 +18,7 @@ from tests._downstream.id_markers.reasons import (
     __layer__,
     _NEEDS_ACP,
     _NEEDS_CHROME_DESKTOP_ENTRY,
+    _NEEDS_GIT_ISO_STRICT_UTC_Z,
     _NEEDS_NODE,
     _NEEDS_NODE_AND_PNPM,
     _NEEDS_RIPGREP,
@@ -167,6 +168,9 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
         f"test_shim_removes_only_its_owned_profile[{outcome}]": (_NEEDS_CHROME_DESKTOP_ENTRY,)
         for outcome in ("success", "error")
     },
+    # Not a tool's absence: the host's git (2.43) spells a UTC date `+00:00`, the test pins 2.45's `Z`.
+    "tests/website/test_extract_plugins.py::"
+    "test_git_dates_added_is_first_commit_updated_is_last_and_renames_keep_added": (_NEEDS_GIT_ISO_STRICT_UTC_Z,),
     "tests/acp_adapter/test_acp_dashboard_model_switch_validation.py": (_NEEDS_ACP,),
     "tests/acp_adapter/test_edit_approval.py::"
     "test_acp_permission_tool_call_uses_edit_kind_and_diff_content": (_NEEDS_ACP,),
