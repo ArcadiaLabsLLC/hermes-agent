@@ -74,9 +74,17 @@ actions                {episode_id? | monitor_id?, limit?} -> {actions} (an ``ac
                        receipts, newest first, limit <= 256; a row is {action_id, episode_id,
                        monitor_id, turn_id, tool, arguments_digest, arguments (a proposal's only,
                        else null), verdict: approve|deny|escalate|null, decided_by: rules|owner,
-                       result: running|ran|failed|refused|proposed, why: null|untrusted_text|
-                       not_listed|cannot_be_undone|rules_unsure|rules_denied, undoable,
-                       undo_handle, created_ms, finished_ms} — ``lens/store_actions.py``)
+                       result: running|ran|failed|refused|proposed|approved|denied|expired, why: null|untrusted_text|
+                       not_listed|cannot_be_undone|rules_unsure|rules_denied|owner_approved, undoable,
+                       undo_handle, created_ms, finished_ms, answered_ms, expires_ms (an open
+                       proposal's, else null), follow_up_turn_id} — ``lens/store_actions.py``;
+                       a proposal's result moves proposed -> approved | denied | expired
+proposal.answer        {action_id, decision: approve|deny} -> the action row (result approved |
+                       denied, answered_ms). An approval owes ONE follow-up turn in the Episode's
+                       chat with that call pre-admitted once; the door claims it on its next tick
+                       (``follow_up_turn_id``), and the call itself lands as a new action row
+                       (decided_by owner, why owner_approved). ``proposal_not_found`` (not found),
+                       ``proposal_settled`` (already answered or past its 24 h), ``episode_has_no_chat``
 artifact               {episode_id, name} -> {name, media_type, size_bytes, sha256, encoding, content}
                        (one file from the Episode's folder only; 1 MiB, text and images)
 ingress.register       {monitor_id, kind, mapping?, auth?} -> {route_id, url, secret, kind, mapping,
@@ -417,6 +425,32 @@ def _runtime_lens_actions(rid: Any, params: dict, context: RpcContext | None = N
         monitor_id = None if m.get("monitor_id") is None else _monitor_id(m)
         limit = bounded_int(m.get("limit", 32), minimum=1, maximum=MAXIMUM_ACTIONS_PAGE)
         return {"actions": actions(_store(), episode_id=episode_id, monitor_id=monitor_id, limit=limit)}
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.proposal.answer", tier=TIER_CONSOLE)
+def _runtime_lens_proposal_answer(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from agent_runtime.lens import store_actions
+        from agent_runtime.lens.store import LensStoreError, StoreRefusal
+        from agent_runtime.lens.store_actions import action, answer_proposal
+        from agent_runtime.lens.wire_value import checked_object, opaque_id, require
+
+        m = checked_object(params or {}, {"action_id", "decision"})
+        action_id = opaque_id(m["action_id"])
+        require(m["decision"] in ("approve", "deny"), "decision")
+        store = _store()
+        if m["decision"] == "approve":
+            found = action(store, action_id)
+            try:
+                has_chat = found is not None and bool(store.receipt(found["episode_id"]).get("session_id"))
+            except LensStoreError:
+                has_chat = False
+            if found is not None and found["result"] == "proposed" and not has_chat:
+                raise LensStoreError(StoreRefusal.EPISODE_HAS_NO_CHAT)
+        return answer_proposal(store, action_id, approve=m["decision"] == "approve",
+                               now_ms=store_actions.wall_ms())
 
     return _lens_call(rid, body)
 

@@ -141,6 +141,16 @@ decision is an action receipt (`lens/store_actions.py`, table `lens_actions`), r
 `runtime.lens.actions {episode_id? | monitor_id?, limit?}`; an allowed call moves `running` → `ran | failed`
 on its `post_tool_call`. The check's tokens are charged to the Episode budget.
 
+**As built (RT-LENS-PROPOSAL-APPROVE-DENY, 2026-11-14).** A proposal is its `lens_actions` row
+(`result: proposed`, tool, arguments, `why`, `undoable`, `expires_ms` = made + 24 h). The owner answers with
+`runtime.lens.proposal.answer {action_id, decision: approve|deny}` -> the row (`approved | denied`,
+`answered_ms`); refusals `proposal_not_found`, `proposal_settled` (answered, or past its day),
+`episode_has_no_chat`. The door's tick expires unanswered proposals (`expired`, the row is the receipt) and
+claims each approval once (`follow_up_turn_id`), forging ONE follow-up turn in the Episode's own chat whose
+act gate pre-admits that call by tool and arguments digest, once (`decided_by: owner`, `why:
+owner_approved`, a new action row); any other call in it is judged as in an act turn. The follow-up's spend
+adds to the Episode's.
+
 ## 5. What Eternia shows
 
 - **Rules editor:** a "Rules" text field in the monitor authoring form (Mission Control → Lens), with "use

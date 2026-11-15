@@ -152,11 +152,18 @@ class StoreRefusal(str, Enum):
     EPISODE_CONTENDED = "episode_contended"
     #: ``runtime.lens.episode.close`` on an open Episode whose monitor still observes it.
     EPISODE_NOT_ORPHANED = "episode_not_orphaned"
+    #: ``runtime.lens.proposal.answer`` on an id no act proposal carries.
+    PROPOSAL_NOT_FOUND = "proposal_not_found"
+    #: ``runtime.lens.proposal.answer`` on a proposal already approved, denied or expired.
+    PROPOSAL_SETTLED = "proposal_settled"
+    #: An approval whose Episode ran no chat to follow up in.
+    EPISODE_HAS_NO_CHAT = "episode_has_no_chat"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).
 NOT_FOUND_REFUSALS = frozenset({StoreRefusal.NOT_FOUND, StoreRefusal.RECEIPT_NOT_FOUND,
-                                StoreRefusal.ROUTE_NOT_FOUND, StoreRefusal.EPISODE_NOT_FOUND})
+                                StoreRefusal.ROUTE_NOT_FOUND, StoreRefusal.EPISODE_NOT_FOUND,
+                                StoreRefusal.PROPOSAL_NOT_FOUND})
 
 
 class ReceiptOutcome(str, Enum):

@@ -16,6 +16,11 @@ definition) — is decided in this order:
    ``deny`` -> refused, the model reads that this monitor's rules refused it; ``escalate`` or a failed
    check -> **proposal**.
 
+An owner-approved proposal's follow-up turn (``trigger.LensForge._follow_up``, row
+``RT-LENS-PROPOSAL-APPROVE-DENY``) arms its ``ActTurn`` with ``preadmitted = (tool, arguments digest)``:
+that one call runs before step 1 (``decided_by: owner``, ``why: owner_approved``), ONCE; any other call
+of the follow-up is judged as above.
+
 A proposal is refused in the turn too — the model reads that it went to the owner, and carries on
 without it. Every decision is an action receipt (``store_actions.py``); an allowed call's receipt moves
 from ``running`` to ``ran`` / ``failed`` on its ``post_tool_call`` (:func:`finish_tool_call`). The
@@ -37,7 +42,7 @@ from typing import Any, Callable
 
 from .rules_check import DECIDED_BY_RULES, RulesVerdict, check_action
 from .store import LensStore, to_ms
-from .store_actions import ActionResult, finish_action, record_action
+from .store_actions import ActionResult, arguments_digest, finish_action, record_action
 
 __layer__ = "lanes"
 
@@ -57,6 +62,8 @@ WHY_NOT_LISTED = "not_listed"
 WHY_CANNOT_BE_UNDONE = "cannot_be_undone"
 WHY_RULES_UNSURE = "rules_unsure"
 WHY_RULES_DENIED = "rules_denied"
+#: The one call an owner-approved proposal pre-admits in its follow-up turn (RT-LENS-PROPOSAL-APPROVE-DENY).
+WHY_OWNER_APPROVED = "owner_approved"
 
 REFUSED_TEXT = ("Refused by this monitor's rules: '{tool}' did not run. Carry on without it; do not retry it "
                 "in another form.")
@@ -80,6 +87,8 @@ class ActTurn:
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC))
     check: Callable[..., Any] = check_action
     tainted: bool = False
+    #: ``(tool, arguments_digest)`` of the owner-approved call: admitted ONCE, then gone (one-shot).
+    preadmitted: tuple[str, str] | None = None
     _running: dict[str, str] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
@@ -87,6 +96,10 @@ class ActTurn:
         """None: the call runs. Else the message the model reads instead of a result."""
 
         undoable = tool in UNDOABLE_TOOLS
+        if self.preadmitted is not None and self.preadmitted == (tool, arguments_digest(arguments)):
+            self.preadmitted = None  # one-shot: the same call again is judged like any other
+            self._allow(tool, arguments, None, DECIDED_BY_OWNER, WHY_OWNER_APPROVED, undoable, tool_call_id)
+            return None
         why = (WHY_UNTRUSTED_TEXT if self.free_text or self.tainted
                else WHY_NOT_LISTED if tool not in self.actions
                else WHY_CANNOT_BE_UNDONE if not undoable else None)
@@ -98,11 +111,7 @@ class ActTurn:
             if self.budget is not None:
                 self.budget.charge(checked.tokens or 0)  # the check counts against the Episode (design §2)
             if checked.verdict is RulesVerdict.APPROVE:
-                row = self._record(tool, arguments, verdict, DECIDED_BY_RULES, ActionResult.RUNNING, None, undoable,
-                                   tool_call_id)
-                if tool_call_id:
-                    with self._lock:
-                        self._running[tool_call_id] = row["action_id"]
+                self._allow(tool, arguments, verdict, DECIDED_BY_RULES, None, undoable, tool_call_id)
                 return None
             if checked.verdict is RulesVerdict.DENY:
                 self._record(tool, arguments, verdict, DECIDED_BY_RULES, ActionResult.REFUSED, WHY_RULES_DENIED,
@@ -111,6 +120,13 @@ class ActTurn:
             why = WHY_RULES_UNSURE
         self._record(tool, arguments, verdict, DECIDED_BY_OWNER, ActionResult.PROPOSED, why, undoable, tool_call_id)
         return PROPOSED_TEXT.format(tool=tool, why=why.replace("_", " "))
+
+    def _allow(self, tool: str, arguments: Any, verdict: str | None, decided_by: str, why: str | None,
+               undoable: bool, tool_call_id: str | None) -> None:
+        row = self._record(tool, arguments, verdict, decided_by, ActionResult.RUNNING, why, undoable, tool_call_id)
+        if tool_call_id:
+            with self._lock:
+                self._running[tool_call_id] = row["action_id"]
 
     def finish(self, tool_call_id: str, ok: bool) -> None:
         with self._lock:

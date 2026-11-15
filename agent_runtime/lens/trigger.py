@@ -190,20 +190,30 @@ def _open_episode_chat(persona_id: str, episode: Episode, turn_key: str, mode: s
 
 def forge_episode_turn(*, manifest: dict[str, Any], episode: Episode, message: str,
                        max_seconds: float | None = None, turn_key: str | None = None,
-                       permission_mode: str | None = None) -> tuple[bool, dict[str, Any] | None]:
+                       permission_mode: str | None = None, session_id: str | None = None,
+                       client_message_id: str | None = None) -> tuple[bool, dict[str, Any] | None]:
     """Run the Episode's turn as a real mission-chat turn in its own read-only chat. ``(ok, payload)``.
 
     ``turn_key`` names the turn when it is not the Episode's own: a digest's ``digest_id`` (W6);
-    ``permission_mode`` holds the chat at ``bounded`` for an ``act`` turn (default ``read_only``)."""
+    ``permission_mode`` holds the chat at ``bounded`` for an ``act`` turn (default ``read_only``);
+    ``session_id`` runs it in the Episode's EXISTING chat (an approved proposal's follow-up), under
+    ``client_message_id``, instead of minting one."""
 
     from ..config import mission_chat_default_max_seconds
     from ..mission_chat_door import run_mission_chat_turn
 
     # One new chat per Episode: a storm never splices into an operator's conversation.
     key = turn_key or episode.id
-    session_id, refused = _open_episode_chat(manifest["persona_id"], episode, key, permission_mode)
     if session_id is None:
-        return False, refused
+        session_id, refused = _open_episode_chat(manifest["persona_id"], episode, key, permission_mode)
+        if session_id is None:
+            return False, refused
+    else:
+        from ..tool_permissions import ChatToolPermissionStore
+
+        ChatToolPermissionStore().set(persona_id=manifest["persona_id"], session_id=session_id,
+                                      mode=permission_mode or TOOL_ADMISSION_READ_ONLY,
+                                      reason=f"unattended Lens follow-up turn ({episode.id})", source=_PERMISSION_SOURCE)
     args = SimpleNamespace(
         persona_id=manifest["persona_id"],
         persona_instance_id=None,
@@ -220,7 +230,7 @@ def forge_episode_turn(*, manifest: dict[str, Any], episode: Episode, message: s
         surface_prompt="",
         intent_hint="chat",
         requested_by=lens_requested_by(episode.id, episode.monitor_id),
-        client_message_id=lens_client_message_id(key),
+        client_message_id=client_message_id or lens_client_message_id(key),
         stream=False,
         max_seconds=float(max_seconds or mission_chat_default_max_seconds()),
         json=True,
@@ -331,7 +341,7 @@ class LensForge:
         store, now = self.store_factory(), self.clock()
         if not store.exists():
             return []
-        outcomes = []
+        outcomes = self._proposals(store, now)
         for row in store.episodes(states=tuple(state.value for state in sorted(ADMITTED_STATES))):
             episode = Episode.from_json(row)
             if needs_admission(episode, now):
@@ -339,6 +349,66 @@ class LensForge:
                 if outcome is not None:
                     outcomes.append(outcome)
         return outcomes
+
+    def _proposals(self, store: LensStore, now: datetime) -> list[str]:
+        """Expire proposals unanswered for a day; run each approved one's follow-up turn, once."""
+
+        from .store_actions import claim_follow_ups, expire_proposals
+
+        expired = expire_proposals(store, to_ms(now))
+        outcomes = ["proposal_expired"] * expired
+        for proposal in claim_follow_ups(store):
+            outcomes.append(self._follow_up(store, proposal, now))
+        return outcomes
+
+    def _follow_up(self, store: LensStore, proposal: dict[str, Any], now: datetime) -> str:
+        """ONE turn in the Episode's chat with the approved call pre-admitted (design §4); the rest of the
+        turn is judged like any act turn. Its spend adds to the Episode's."""
+
+        from ..turn_token_budget import TurnTokenBudget, armed_turn_budget
+        from .act import ActTurn, armed_act_turn
+        from .budget import add_spend, episode_limits
+        from .guidance import effective_guidance
+
+        episode_id, monitor_id = proposal["episode_id"], proposal["monitor_id"]
+        try:
+            monitor = store.get(monitor_id)
+            manifest = monitor["sealed"]["manifest"]
+            from .store_episode_rows import episode_body
+
+            with store.connection() as conn:
+                body = episode_body(conn, episode_id)
+            if body is None:
+                return "follow_up_failed:episode_not_found"
+            episode = Episode.from_json(json.loads(body))
+            session_id = store.receipt(episode_id).get("session_id")
+            if not session_id:
+                return "follow_up_failed:episode_has_no_chat"
+            arguments = proposal["arguments"] or {}
+            message = (f"[LENS APPROVED ACTION — {episode_title(episode)}]\n"
+                       f"The owner approved the action this Episode proposed: run `{proposal['tool']}` once, with "
+                       "exactly these arguments, then say in one or two sentences what it did. No operator typed "
+                       "this message; Lens wrote it from the owner's approval.\n"
+                       + json.dumps(arguments, sort_keys=True, ensure_ascii=False).replace("<", "\\u003c"))
+            token_limit, call_limit = episode_limits(store, monitor_id, now)
+            budget = TurnTokenBudget(token_limit=token_limit, call_limit=call_limit)
+            rules = effective_guidance(store, manifest, monitor.get("workspace_id"))
+            turn = ActTurn(episode_id=episode_id, monitor_id=monitor_id, turn_id=proposal["follow_up_turn_id"],
+                           actions=frozenset(manifest["automation"].get("actions", [])), guidance=rules["text"],
+                           episode={"episode_id": episode_id, "rule_id": episode.rule_id, "count": episode.count,
+                                    "approved_by_owner": proposal["action_id"]},
+                           budget=budget, store_factory=self.store_factory, clock=self.clock,
+                           preadmitted=(proposal["tool"], proposal["arguments_digest"]))
+            with armed_turn_budget(turn.turn_id, budget), armed_act_turn(turn):
+                ok, _ = self.forge(manifest=manifest, episode=episode, message=message,
+                                   permission_mode=TOOL_ADMISSION_BOUNDED, session_id=str(session_id),
+                                   client_message_id=turn.turn_id)
+            add_spend(store, episode_id=episode_id, monitor_id=monitor_id, started_ms=to_ms(now),
+                      summary=budget.summary())
+            return "follow_up_forged" if ok else "follow_up_failed:refused"
+        except Exception as exc:
+            logger.warning("lens follow-up failed for proposal %s", proposal.get("action_id"), exc_info=True)
+            return f"follow_up_failed:{type(exc).__name__}"
 
     def admit(self, store: LensStore, episode: Episode, now: datetime) -> str | None:
         """Settle one owed Episode (see the module table). None when nothing was written."""

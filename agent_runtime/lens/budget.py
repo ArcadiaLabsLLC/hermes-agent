@@ -38,8 +38,8 @@ from .wire_value import WireError, WireRefusal, bounded_int, checked_object, opa
 
 __layer__ = "stores"
 
-__all__ = ["BudgetScope", "add_budget_tables", "budget_view", "episode_limits", "record_spend", "set_limits",
-           "spend_today"]
+__all__ = ["BudgetScope", "add_budget_tables", "add_spend", "budget_view", "episode_limits", "record_spend",
+           "set_limits", "spend_today"]
 
 _TABLES = """
 CREATE TABLE IF NOT EXISTS budget_limits (
@@ -167,6 +167,17 @@ def record_spend(store: LensStore, *, episode_id: str, monitor_id: str, started_
                      (episode_id, monitor_id, int(started_ms), int(summary.get("tokens_used") or 0),
                       summary.get("token_limit"), int(summary.get("calls_used") or 0), summary.get("call_limit"),
                       summary.get("stopped_by")))
+
+
+def add_spend(store: LensStore, *, episode_id: str, monitor_id: str, started_ms: int, summary: dict[str, Any]) -> None:
+    """A later turn of the same Episode (an approved proposal's follow-up): its spend ADDS to the Episode's."""
+
+    with store.connection() as conn:
+        conn.execute("INSERT INTO episode_spend (episode_id, monitor_id, started_ms, tokens_used, calls_used) "
+                     "VALUES (?, ?, ?, ?, ?) ON CONFLICT(episode_id) DO UPDATE SET "
+                     "tokens_used = tokens_used + excluded.tokens_used, calls_used = calls_used + excluded.calls_used",
+                     (episode_id, monitor_id, int(started_ms), int(summary.get("tokens_used") or 0),
+                      int(summary.get("calls_used") or 0)))
 
 
 # --- the wire -----------------------------------------------------------------
