@@ -750,3 +750,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed by review batch w1114a.9 — 2026-11-14 (qashell's NEEDS line)
 
+## Filed on arrival — 2026-11-15 (wave w1115k landing)
+
+- **`FH-FLEET-ROSTER-IMPORTS-A-PRIVATE-UPSTREAM-NAME` — The engine's import-boundary check passes on main again, so a lane's check run shows only its own mistakes** · group: engine-suite-green-followups · seen in a test 2026-11-15 (wave w1115k landing gate at branch `w1115k-hlens3` with `origin/main` merged in, and again alone): `tests/tooling/test_fork_import_layers.py` fails `W0-G6 private_upstream_imports: 1 NEW` — `hermes_cli/update_fleet_roster.py|hermes_cli.update_receipt|_profile_homes` · read in git, not traced: the file last moved in `17f2d29ac4` (2026-11-15, the update receipt's multiplexer roster), which that branch does not touch · done when: the roster reads the profile homes through a public door (or the fact moves to the module that owns it) and the check is green on `main`, with no entry added to the baseline · NEW 2026-11-15 · READY 2026-11-15
