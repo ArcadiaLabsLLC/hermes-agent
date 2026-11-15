@@ -17,13 +17,14 @@ Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §3
 step left the declaration is kept and reported ``orphaned``, never applied.
 
 **Readiness** (:func:`readiness`) is THE answer to "ready on this machine" — the probe's
-report ``status`` is computed by it too, so there is one authority:
-ready = bound ∧ ``checkout: matches`` ∧ every declared tool ``set`` (and at least its
-``min_version`` when one is declared) ∧ every REQUIRED env key ``set`` ∧ (a ``.env`` declared ⇒
-the file present ∧ every required key ``set``). Optional keys missing are NOTES. **Any unknown
-input — a probe that answered ``unknown``, or a probe the report does not carry at all — makes
-``ready: "unknown"``, never ``"yes"``** (the unknowns rule; it outranks a definite ``"no"``,
-as the probe's own status always has).
+report ``status`` is computed by it too, so there is one authority. **Only the checkout
+decides Ready** (``RT-SLOT-READY-IGNORES-TOOLS-AND-KEYS``, owner 2026-11-13):
+ready = bound ∧ the path present ∧ ``checkout: matches`` — cloned or located, and the declared
+repository. A declared tool (or its ``min_version``), a required or optional env key and the
+``.env`` are NOTES when missing (``notes``, step state ``optional_missing``): they vary by dev
+environment and never block, so ``blocking`` can only ever name the ``clone`` step. **An
+unknown checkout — a clone probe that answered ``unknown``, or a slot this machine never
+reported — makes ``ready: "unknown"``, never ``"yes"``** (the unknowns rule).
 
 No credential ever enters a recipe: a command whose argv or label, or an annotation whose hint
 or url, carries a URL with userinfo, a bearer token or a secret-shaped assignment is refused
