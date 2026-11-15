@@ -10,7 +10,17 @@ exit door like any Episode. Keyed on the slot START, not a slot index, so a rese
 
 Catch-up is one late run, never a storm: after an outage or a pause spanning several slots only the
 CURRENT slot is due; the skipped ones are not materialised (the opening block names the previous
-run's time, so the gap is visible). First enable: the current slot is due at once.
+run's time, so the gap is visible).
+
+First enable waits for the time picked (RT-LENS-FIRST-SCHEDULED-RUN-WAITS-FOR-ITS-TIME): a slot that
+began before the schedule was ARMED is never back-filled, so a monitor sealed at 04:35 for a daily
+04:36 check runs once, at 04:36 — not once for yesterday's slot at 04:35 and again at 04:36. The arming
+time is the poller's clock on the first tick that sees this ``(every_ms, offset_ms)``, kept in the
+``schedule_arming`` table this module owns (no seal time is stored, and the store's wall clock is not
+the poller's). A reseal that changes the timing re-arms it (a phase moved later does not back-fill
+the slot the old phase missed); one that keeps it, and a pause, do not, so catch-up still forges its
+one late run. A schedule seen first with runs already recorded (a store from before this table) arms
+at its latest run, so nothing changes for it.
 
 ``LensPoller.tick`` calls :func:`record_due_schedule` once per ENABLED monitor, so a paused monitor
 accrues nothing.
@@ -28,6 +38,9 @@ from .store import LensStore, from_ms, to_ms
 
 __layer__ = "stores"
 
+_SCHEMA = """CREATE TABLE IF NOT EXISTS schedule_arming (
+  monitor_id TEXT PRIMARY KEY, every_ms INTEGER NOT NULL, offset_ms INTEGER NOT NULL, armed_ms INTEGER NOT NULL)"""
+
 
 def slot_start(now_ms: int, *, every_ms: int, offset_ms: int) -> int:
     """The start (epoch ms) of the slot ``now_ms`` falls in."""
@@ -36,11 +49,12 @@ def slot_start(now_ms: int, *, every_ms: int, offset_ms: int) -> int:
 
 
 def scheduled_episode(*, monitor_id: str, schedule: dict[str, Any], now_ms: int,
-                      previous: Episode | None) -> Episode | None:
-    """The run the current slot owes, or None when the rule's latest run already started in it. Pure."""
+                      previous: Episode | None, armed_ms: int) -> Episode | None:
+    """The run the current slot owes, or None when the rule's latest run already started in it or the
+    slot began before the schedule was armed at ``armed_ms``. Pure."""
 
     start = slot_start(now_ms, every_ms=schedule["every_ms"], offset_ms=schedule["offset_ms"])
-    if previous is not None and to_ms(previous.first_seen) >= start:
+    if start < armed_ms or previous is not None and to_ms(previous.first_seen) >= start:
         return None
     return Episode(monitor_id=monitor_id, rule_id=SCHEDULE_RULE_ID,
                    ordinal=(previous.ordinal if previous else 0) + 1, first_seen=from_ms(start),
@@ -55,8 +69,28 @@ def record_due_schedule(store: LensStore, monitor_id: str, manifest: dict[str, A
     if schedule is None:
         return False
     previous = store.latest_episode(monitor_id, SCHEDULE_RULE_ID)
-    episode = scheduled_episode(monitor_id=monitor_id, schedule=schedule, now_ms=to_ms(now), previous=previous)
+    armed_ms = _armed_ms(store, monitor_id, schedule, now_ms=to_ms(now), previous=previous)
+    episode = scheduled_episode(monitor_id=monitor_id, schedule=schedule, now_ms=to_ms(now), previous=previous,
+                                armed_ms=armed_ms)
     return episode is not None and store.move_episode(previous, episode)
+
+
+def _armed_ms(store: LensStore, monitor_id: str, schedule: dict[str, Any], *, now_ms: int,
+              previous: Episode | None) -> int:
+    """When this timing was armed: read, or recorded now on the first tick that sees it."""
+
+    timing = (int(schedule["every_ms"]), int(schedule["offset_ms"]))
+    with store.connection() as conn:
+        conn.execute(_SCHEMA)
+        row = conn.execute("SELECT every_ms, offset_ms, armed_ms FROM schedule_arming WHERE monitor_id = ?",
+                           (monitor_id,)).fetchone()
+        if row is not None and (row[0], row[1]) == timing:
+            return int(row[2])
+        # A store from before this table already ran this schedule: arm at its latest run (no change).
+        armed = to_ms(previous.first_seen) if row is None and previous is not None else now_ms
+        conn.execute("INSERT OR REPLACE INTO schedule_arming (monitor_id, every_ms, offset_ms, armed_ms) "
+                     "VALUES (?, ?, ?, ?)", (monitor_id, *timing, armed))
+    return armed
 
 
 def previous_run_ms(store: LensStore, episode: Episode) -> int | None:

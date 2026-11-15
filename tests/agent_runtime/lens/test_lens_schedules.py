@@ -48,11 +48,20 @@ def _monitor(*, schedule: dict | None = None, level: str = "investigate", when: 
     return manifest
 
 
-def _enabled(manifest: dict, *, state: MonitorState = MonitorState.ENABLED) -> LensStore:
+def _enabled(manifest: dict, *, state: MonitorState = MonitorState.ENABLED,
+             armed_at: datetime | None = T0 - DAY) -> LensStore:
+    """A sealed monitor whose schedule (if any) was armed a day before ``T0``, so T0's slot is owed;
+    ``armed_at=None`` leaves it to the first tick (a schedule sealed just now)."""
+
     store = LensStore()
     store.create(manifest)
     store.seal(manifest["monitor_id"])
     store.set_state(manifest["monitor_id"], state)
+    if armed_at is not None and "schedule" in manifest:
+        from agent_runtime.lens.schedules import record_due_schedule
+
+        assert not record_due_schedule(store, manifest["monitor_id"], store.get(manifest["monitor_id"])["sealed"]["manifest"],
+                                       armed_at)  # arming opens nothing: its own slot began before it
     return store
 
 
@@ -158,9 +167,67 @@ def test_a_reseal_to_hourly_is_due_at_the_next_hourly_slot():
     _tick(store, T0)
 
     _reseal(store, _monitor(schedule={**DAILY_AT_8, "every_ms": 3_600_000, "offset_ms": 0}))
+    _tick(store, T0)  # the reseal's first tick, 09:30: the 09:00 hourly slot began before it, so nothing
+    assert len(_runs(store)) == 1
     _tick(store, T0 + HOUR)
 
     assert _runs(store)[0] == (2, "scheduled", "2026-10-27T10:00:00.000Z")
+
+
+# --- RT-LENS-FIRST-SCHEDULED-RUN-WAITS-FOR-ITS-TIME ---------------------------------------------
+# Kill: drop ``start < armed_ms or`` from ``scheduled_episode`` -> the 04:35 tick back-fills
+# yesterday's 04:36 slot (two runs two minutes apart, as seen live) and the later-phase reseal runs
+# at 07:00 and again at 09:00: both red.
+
+
+def _run(at: datetime) -> Episode:
+    """A recorded run of the daily-08:00 slot ``at`` falls in."""
+
+    start = at.replace(hour=8, minute=0)
+    return Episode(monitor_id="status", rule_id=SCHEDULE_RULE_ID, ordinal=1, first_seen=start, last_seen=at,
+                   count=1, state=EpisodeState.SCHEDULED)
+
+
+def test_a_schedule_sealed_a_minute_before_its_time_runs_once_at_that_time():
+    at_0436 = {**DAILY_AT_8, "offset_ms": (4 * 60 + 36) * 60_000}
+    sealed = datetime(2026, 11, 15, 4, 35, 19, tzinfo=UTC)
+    store = _enabled(_monitor(schedule=at_0436), armed_at=None)
+
+    _tick(store, sealed)
+    assert _runs(store) == []  # not yesterday's 04:36 slot
+    _tick(store, sealed + timedelta(minutes=1))  # 04:36:19
+    _tick(store, sealed + timedelta(minutes=3))
+    assert _runs(store) == [(1, "scheduled", "2026-11-15T04:36:00.000Z")]
+
+
+def test_a_reseal_that_moves_the_time_later_waits_for_the_new_time():
+    store = _enabled(_monitor(schedule=DAILY_AT_8), armed_at=None)
+    store.save_episode(_run(T0))  # 10-27's 08:00 run
+    _tick(store, T0)  # the daily-08:00 timing is armed (nothing owed: its slot already ran)
+    resealed = datetime(2026, 10, 28, 7, 0, tzinfo=UTC)  # before 10-28's 08:00, moved to 09:00
+
+    _reseal(store, _monitor(schedule={**DAILY_AT_8, "offset_ms": 32_400_000}))
+    _tick(store, resealed)
+    assert len(_runs(store)) == 1  # not 10-27's 09:00 slot, which began after the last run
+    _tick(store, resealed + 2 * HOUR)
+    assert [first for _, _, first in _runs(store)] == ["2026-10-28T09:00:00.000Z", "2026-10-27T08:00:00.000Z"]
+
+
+def test_a_reseal_that_keeps_the_timing_still_catches_up_one_late_run():
+    store = _enabled(_monitor(schedule=DAILY_AT_8))
+    _tick(store, T0)
+    _reseal(store, _monitor(schedule={**DAILY_AT_8, "brief": "Look for <gpu> listings too"}))
+
+    _tick(store, T0 + 2 * DAY)  # 10-29 09:30: its 08:00 slot is owed even though the reseal came after it
+    assert _runs(store)[0] == (2, "scheduled", "2026-10-29T08:00:00.000Z")
+
+
+def test_a_schedule_that_ran_before_arming_was_kept_arms_at_its_latest_run():
+    store = _enabled(_monitor(schedule=DAILY_AT_8), armed_at=None)
+    store.save_episode(_run(T0 - DAY))  # a store from before the arming table: 10-26's 08:00 run
+
+    _tick(store, T0)  # catch-up as before: today's 08:00 slot is owed at once
+    assert _runs(store)[0] == (2, "scheduled", "2026-10-27T08:00:00.000Z")
 
 
 def test_a_paused_monitor_accrues_no_runs():

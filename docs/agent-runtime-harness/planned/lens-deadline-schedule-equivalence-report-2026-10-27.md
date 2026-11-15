@@ -115,8 +115,15 @@ has no `schedule`, and nothing produces a turn on a clock.
 6. **Catch-up: one late run, never a storm.** After an outage (or a pause) spanning several slots only the
    CURRENT slot is due, so resume forges at most one run, late; the skipped slots are not materialised.
    The opening block states the previous run's time (the prior Episode's `first_seen`, or "none
-   recorded") so the gap is visible, never silent. First enable: the current slot is due at once (one run
-   on enable, then one per slot) — no seal timestamp is stored to do otherwise without a `store.py` change.
+   recorded") so the gap is visible, never silent. First enable waits for the time picked: a slot that
+   began before the schedule was ARMED is never back-filled (`RT-LENS-FIRST-SCHEDULED-RUN-WAITS-FOR-ITS-TIME`,
+   2026-11-15, replacing "the current slot is due at once", which ran a monitor sealed at 04:35 for a daily
+   04:36 check twice: once for yesterday's slot, again at 04:36). The arming time is the poller's clock on
+   the first tick that sees the schedule's `(every_ms, offset_ms)`, in a `schedule_arming` table
+   `schedules.py` owns (the `store_shapes.py` pattern; no seal time is stored, and the store's wall clock is
+   not the poller's). A reseal that changes the timing re-arms (a phase moved later never back-fills the
+   slot the old phase skipped); a reseal that keeps it, and a pause, do not, so the catch-up above holds. A
+   schedule first seen with runs already recorded (a store from before the table) arms at its latest run.
 7. **Admission through the existing door** (`LensForge.admit`): the urgency filter and `cooldown_ms` do
    not apply to `schedule:run` (they govern breaches; the sealed schedule is the operator's explicit ask
    and its spacing is its own cooldown); the daily cap and the global budget DO apply (`capped` /
@@ -150,6 +157,10 @@ has no `schedule`, and nothing produces a turn on a clock.
   block names the previous run's time. *Mutation:* materialise one run per missed slot → three, red.
 - Reseal daily → hourly → the next hourly slot is due (slot-index ordinals would wait ~days). *Mutation:*
   ordinal = slot index → red.
+- First enable waits: sealed 04:35 for daily 04:36 → no run at 04:35, exactly one at 04:36; a reseal that
+  moves 08:00 to 09:00 at 07:00 → nothing at 07:00, one run at 09:00; a reseal that keeps the timing still
+  catches up. *Mutation:* drop `start < armed_ms` from `scheduled_episode` → yesterday's slot back-fills,
+  red; arm without comparing the timing → the later-phase and hourly reseals back-fill the slot begun before them, red.
 - Door: a `when: urgent` monitor's run forges (positive control: an `attention` breach rule on the same
   monitor is `skipped_severity`); cap reached → `capped`; digest monitor → the run is its own turn while a
   breach waits in the window. *Mutation per arm:* remove the exemption / the digest skip → red.
