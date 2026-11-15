@@ -305,23 +305,21 @@ def domain_of(row: Row) -> Domain:
 
 
 def split_segments(line: str) -> list[str]:
-    """The `` · ``-separated segments of ``line``, never splitting inside a code span."""
-    out: list[str] = []
-    current: list[str] = []
-    in_code = False
-    i = 0
-    while i < len(line):
-        char = line[i]
-        if char == "`":
-            in_code = not in_code
-        if not in_code and line.startswith(SEPARATOR, i):
-            out.append("".join(current))
-            current = []
-            i += 3
+    """The `` · ``-separated segments of ``line``, never splitting inside a code span.
+
+    Split on backticks: an even-numbered piece is outside every code span, and `` · `` holds no
+    backtick, so it splits only there. One ``str.split`` per piece instead of a Python loop per
+    character (FH-PREPUSH-GATES-OVER-BUDGET): the sibling brains' ~17,000 live and archived rows
+    took 7.4 s of the prepush gates step at load ~40 through the per-character loop."""
+    out = [""]
+    for index, piece in enumerate(line.split("`")):
+        tick = "`" if index else ""
+        if index % 2:
+            out[-1] += tick + piece
             continue
-        current.append(char)
-        i += 1
-    out.append("".join(current))
+        first, *rest = piece.split(SEPARATOR)
+        out[-1] += tick + first
+        out.extend(rest)
     return out
 
 
@@ -432,15 +430,14 @@ def _claim_scan_text(line: str) -> str:
     A claim is a segment AFTER the title: a title or a pointer that QUOTES a claim mark is not one."""
 
     lead = len(split_segments(line)[0])
-    chars = ["\0"] * lead + list(line[lead:])
-    in_code = False
-    for i in range(lead, len(line)):
-        if line[i] == "`":
-            in_code = not in_code
-            chars[i] = "\0"
-        elif in_code:
-            chars[i] = "\0"
-    return "".join(chars)
+    # Per backtick piece, not per character (FH-PREPUSH-GATES-OVER-BUDGET): an odd piece is inside
+    # a code span, and every backtick is blanked with it.
+    kept = ["\0" * lead]
+    for index, piece in enumerate(line[lead:].split("`")):
+        if index:
+            kept.append("\0")
+        kept.append("\0" * len(piece) if index % 2 else piece)
+    return "".join(kept)
 
 
 def claim_mark(line: str) -> re.Match | None:
