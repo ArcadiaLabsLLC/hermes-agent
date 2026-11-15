@@ -10,7 +10,7 @@ Gates and their killing mutations (each red recorded in the commit):
   ``install_summary_usage_hook`` call from ``install_transport_phase_trace`` (no row recorded);
 * only a request whose LAST message is the nudge counts (a later turn's history holds it too) —
   killed by matching the nudge in any message (the history request records a row);
-* Anthropic's split usage merges input and output — killed by letting a 0 overwrite in ``_merge``;
+* Anthropic's split usage merges input and output — killed by letting a 0 overwrite in ``_merge_usage``;
 * the turn record's totals take in the rows past ``api_calls`` — killed by dropping the
   ``_fold_uncounted_calls`` call from ``turn_usage_block``.
 """

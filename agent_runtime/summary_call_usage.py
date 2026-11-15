@@ -44,7 +44,7 @@ def _nudge() -> str:
     return MAX_ITERATIONS_SUMMARY_REQUEST
 
 
-def _text(content: Any) -> str:
+def _message_text(content: Any) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -61,7 +61,7 @@ def is_summary_request(body: Any) -> bool:
     if not isinstance(messages, list) or not messages or not isinstance(messages[-1], dict):
         return False
     last = messages[-1]
-    return last.get("role") == "user" and _text(last.get("content")).strip() == _nudge()
+    return last.get("role") == "user" and _message_text(last.get("content")).strip() == _nudge()
 
 
 def _request_body(request: Any) -> Any:
@@ -77,7 +77,7 @@ def _request_body(request: Any) -> Any:
         return None
 
 
-def _merge(into: dict[str, Any], usage: Any) -> None:
+def _merge_usage(into: dict[str, Any], usage: Any) -> None:
     if isinstance(usage, dict):
         for key, value in usage.items():
             if value not in (None, 0) or key not in into:
@@ -109,11 +109,11 @@ def usage_from_body(raw: bytes) -> dict[str, Any] | None:
         for usage in (event.get("usage"), (event.get("response") or {}).get("usage")
                       if isinstance(event.get("response"), dict) else None,
                       (event.get("message") or {}).get("usage") if isinstance(event.get("message"), dict) else None):
-            _merge(merged, usage)
+            _merge_usage(merged, usage)
     return merged or None
 
 
-def _record(agent: Any, raw: bytes) -> None:
+def _record_summary_usage(agent: Any, raw: bytes) -> None:
     try:
         usage = usage_from_body(raw)
         if usage is None:
@@ -157,7 +157,7 @@ class _Tee(httpx.SyncByteStream):
     def _finish(self) -> None:
         if not self._done:
             self._done = True
-            _record(self._agent, b"".join(self._chunks))
+            _record_summary_usage(self._agent, b"".join(self._chunks))
 
 
 def install_summary_usage_hook(http_client: Any, agent_attr: str) -> None:
