@@ -19,7 +19,7 @@ from ..snapshot.build import build_snapshot
 from ..snapshot.receipts import BUILD_ROLE_REUSED
 
 from .build_policy import _defer_demote_build_for_active_turns, _log_snapshot_build
-from .frames import batch_carries_patch_rows, batch_is_running_work_only, batch_opens_a_chat, batch_turn_roots, delta_batch_frame, fold_variants_frame, heartbeat_frame, patch_batch_frame, persona_chat_turn_frames, running_work_section_frame
+from .frames import batch_carries_patch_rows, batch_changes_running_work_presence, batch_is_running_work_only, batch_opens_a_chat, batch_turn_roots, delta_batch_frame, fold_variants_frame, heartbeat_frame, patch_batch_frame, persona_chat_turn_frames, running_work_section_frame
 from .vocabulary import BATCH_REASON_DEMOTE, DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _SNAPSHOT_CANCEL_POLL_SECONDS
 
 __layer__ = "lanes"
@@ -261,7 +261,9 @@ def _full_core_batch_frames(
     # is no CPU to yield and nothing to wait for — and BEFORE the job so the
     # wait is not held while a worker thread is already running. Bounded by
     # ``SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS`` and a no-op on every lane but demote.
-    _defer_demote_build_for_active_turns(reason=reason, caller=caller)
+    _defer_demote_build_for_active_turns(
+        reason=reason, caller=caller, moves_running_work=batch_changes_running_work_presence(batch)
+    )
     if request_cancelled():
         return
 

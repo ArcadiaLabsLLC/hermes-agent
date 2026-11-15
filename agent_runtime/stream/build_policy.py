@@ -64,6 +64,21 @@ def _chat_turns_admitted() -> int | None:
         return None
 
 
+def _turn_presence_publishes() -> int | None:
+    """Turn START/END publishes landed in this process, or ``None`` if unaskable.
+
+    Forwarded from ``agent_runtime.turn_activity`` under the same rule as the
+    two counters above: a read, not a second authority.
+    """
+
+    try:
+        from ..turn_activity import turn_presence_publishes
+
+        return int(turn_presence_publishes())
+    except Exception:
+        return None
+
+
 def _a_turn_holds_the_gil(*, admitted: int | None, in_flight: int | None) -> bool:
     """Is a mission-chat turn occupying this process right now?
 
@@ -89,6 +104,7 @@ def _defer_demote_build_for_active_turns(
     *,
     reason: str,
     caller: str,
+    moves_running_work: bool = False,
     sleeper: Callable[[float], None] | None = None,
     clock: Callable[[], float] | None = None,
 ) -> int:
@@ -123,6 +139,17 @@ def _defer_demote_build_for_active_turns(
 
     if reason != BATCH_REASON_DEMOTE:
         return 0
+    if moves_running_work:
+        # RT-RUNNING-TURN-START-ROW-WAITS-OUT-THE-DEMOTE-HOLD: a batch that
+        # carries a turn's (or process's) own START or END is the frame a room
+        # that does not fold the ``persona_chat_turn`` overlay sees that turn
+        # by. ``snapshot_turn_yield`` already keeps this build out of the
+        # turn's hot windows (pre-admit assembly up to the published start,
+        # every provider call), and says these builds must still run between
+        # them; the cadence's 3.5 s HUD trade-off stays for every other batch,
+        # and a held batch is released once the turn's start or end lands
+        # (below), so the start row does not queue behind it.
+        return 0
     if not _a_turn_holds_the_gil(
         admitted=_chat_turns_admitted(), in_flight=_agent_runs_in_flight()
     ):
@@ -131,11 +158,17 @@ def _defer_demote_build_for_active_turns(
     _now = clock if clock is not None else time.monotonic
     started = _now()
     deadline = started + (SNAPSHOT_DEMOTE_DEFERRAL_MAX_MS / 1000.0)
+    presence_at_start = _turn_presence_publishes()
     while True:
         if request_cancelled():
             break
         now_s = _now()
         if now_s >= deadline:
+            break
+        if presence_at_start is not None and _turn_presence_publishes() != presence_at_start:
+            # A turn published its own start (or end) while this batch was
+            # held: the hub must ship this batch now so the next one — the
+            # start row — is not queued behind the rest of the bound.
             break
         if not _a_turn_holds_the_gil(
             admitted=_chat_turns_admitted(), in_flight=_agent_runs_in_flight()

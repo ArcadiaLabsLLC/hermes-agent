@@ -152,6 +152,32 @@ def current_hot_window() -> HotWindow | None:
     return _HOT_WINDOW.get()
 
 
+# ── turn presence publishes (RT-RUNNING-TURN-START-ROW-WAITS-OUT-THE-DEMOTE-HOLD)
+#
+# How many times a turn has published its own START or END on the event log in
+# this process. The demote deferral waits while a turn is ADMITTED; once that
+# turn's start (or end) is on the log, the batch the hub is holding stands
+# between a second console and the row, so the hold ends there. A counter, not a
+# flag: a reader compares the value it saw when its wait began.
+
+_PRESENCE_PUBLISHES = 0
+
+
+def note_turn_presence_published() -> None:
+    """Record that a turn's START or END landed on the event log."""
+
+    global _PRESENCE_PUBLISHES
+    with _LOCK:
+        _PRESENCE_PUBLISHES += 1
+
+
+def turn_presence_publishes() -> int:
+    """How many turn START/END publishes have landed in this process."""
+
+    with _LOCK:
+        return _PRESENCE_PUBLISHES
+
+
 def chat_turns_admitted() -> int:
     """How many mission-chat turns this process is inside RIGHT NOW.
 
