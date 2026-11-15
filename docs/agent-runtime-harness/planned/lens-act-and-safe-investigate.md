@@ -1,8 +1,7 @@
 # Planned — Lens `act`, and a safe `investigate` (2026-11-14)
 
 **Owner domain:** Lens (`agent_runtime/lens/`). Parent plan [eternia-lens-in-hermes.md](eternia-lens-in-hermes.md)
-§2.6 and W9. Row `RT-LENS-ACT-ADMISSION` (task `TASK-ETERNIA-LENS`). **Status:** design for owner review
-(lane w1114a-lensact). The build rows in §7 are NOT filed yet.
+§2.6 and W9. Row `RT-LENS-ACT-ADMISSION` (task `TASK-ETERNIA-LENS`). **Status:** owner-approved 2026-11-14 (§6); the §7 build rows are filed (lane w1114a-lensrows).
 
 The owner's ruling, 2026-11-14: act is "just an extension of the second; investigate function after the
 notify", investigate must be safe "so it doesn't just burn all your tokens", "don't over eingeer", and "a
@@ -98,7 +97,9 @@ budget), but its chat is held at `bounded` instead of `read_only`, and every mut
    instruction, and a proposal costs the owner one tap.
 5. **Proposals expire after 24 h.** *Recommend:* yes; a stale "bid now" is worse than none.
 
-## 7. Build rows it implies (not filed — the owner reviews first)
+**RULED 2026-11-14, owner:** "yes reccomendations are good , the budget limits should be easily editable" — decisions 1–5 accepted as recommended, and every budget limit (per monitor, the workspace default, the Lens-wide daily cap) must be easily editable by the owner: read and written over the runtime RPC and edited in Eternia's Lens UI, not only in a config file.
+
+## 7. Build rows it implies (filed 2026-11-14: RT-LENS-MONITOR-RULES, RT-LENS-INVESTIGATE-TOKEN-BUDGET, RT-LENS-RULES-CHECK-BEFORE-INVESTIGATE, RT-LENS-ACT-LEVEL, RT-LENS-PROPOSAL-APPROVE-DENY, RT-LENS-UNDO-ACTION; Eternia's under launcher TASK-LENS-ACT-AND-SAFE-INVESTIGATE)
 
 hermes, in order:
 1. A monitor carries plain-language rules, with a workspace default (manifest `rules`, sealed; root
