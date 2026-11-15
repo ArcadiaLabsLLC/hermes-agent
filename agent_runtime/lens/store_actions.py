@@ -31,7 +31,7 @@ import secrets
 import sqlite3
 from typing import Any
 
-from .store import LensStore
+from .store import _IN_WORKSPACE, LensStore
 from .wire_value import canonical_digest
 
 __layer__ = "stores"
@@ -153,8 +153,10 @@ def own_text_digest(store: LensStore, *, monitor_id: str, path: str) -> str | No
 
 
 def actions(store: LensStore, *, episode_id: str | None = None, monitor_id: str | None = None,
-            limit: int = 32) -> list[dict[str, Any]]:
-    """Newest first, for one Episode, one monitor, or all."""
+            limit: int = 32, workspace_id: str | None = None) -> list[dict[str, Any]]:
+    """Newest first, for one Episode, one monitor, or all; only ``workspace_id``'s monitors when it is given
+    (RT-LENS-ACTIONS-TAKE-A-WORKSPACE: the page is filled from that workspace alone, so another workspace's
+    newer actions never push one of its proposals off the page)."""
 
     if not store.exists():
         return []
@@ -163,6 +165,9 @@ def actions(store: LensStore, *, episode_id: str | None = None, monitor_id: str 
         if value is not None:
             where.append(f"{column} = ?")
             params.append(value)
+    if workspace_id is not None:
+        where.append(_IN_WORKSPACE)
+        params.append(workspace_id)
     clause = f" WHERE {' AND '.join(where)}" if where else ""
     with store.connection() as conn:
         rows = conn.execute(f"SELECT {', '.join(_COLUMNS)} FROM lens_actions{clause} "

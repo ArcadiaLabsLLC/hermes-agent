@@ -22,7 +22,10 @@ Gates and their killing mutations (each red recorded in the row's commit):
 * ``episode.close`` refuses an Episode its monitor still observes ``episode_not_orphaned`` and
   leaves it active — killed by dropping the ``orphan_reason`` guard from ``close_orphan``;
 * a second Close is ``episode_settled``, an unknown id or one outside the given workspace
-  ``episode_not_found`` — killed by dropping the ``workspace_id`` check from ``close_orphan``.
+  ``episode_not_found`` — killed by dropping the ``workspace_id`` check from ``close_orphan``;
+* a workspace's ``actions`` page lists its proposal older than a full page of another workspace's
+  newer actions, and an absent ``workspace_id`` still pages every workspace — killed by dropping the
+  ``_IN_WORKSPACE`` clause from ``store_actions.actions`` (RT-LENS-ACTIONS-TAKE-A-WORKSPACE).
 """
 
 from __future__ import annotations
@@ -219,3 +222,27 @@ def test_episode_close_refuses_a_second_close_an_unknown_id_and_another_workspac
     assert _rpc("runtime.lens.episode.close", {"episode_id": here.id, "workspace_id": "ws_a"})["closed"][0]["id"] \
         == here.id
     assert _refusal("runtime.lens.episode.close", {"episode_id": here.id}) == (ERR_CONFLICT, "episode_settled")
+
+
+def test_a_workspace_actions_page_keeps_its_own_proposal_past_another_workspaces_newer_page():
+    from agent_runtime.lens.store_actions import ActionResult, record_action
+
+    _monitor("here", "ws_a")
+    _monitor("there", "ws_b")
+    store = LensStore()
+
+    def act(monitor_id: str, created_ms: int, result: str) -> dict:
+        return record_action(store, episode_id=f"ep-{monitor_id}", monitor_id=monitor_id, turn_id="turn",
+                             tool="write_file", arguments={"path": "x"}, verdict=None, decided_by="rules",
+                             result=result, why=None, undoable=False, created_ms=created_ms)
+
+    proposal = act("here", 1_000, ActionResult.PROPOSED)
+    for n in range(4):
+        act("there", 2_000 + n, ActionResult.RAN)
+
+    scoped = _rpc("runtime.lens.actions", {"workspace_id": "ws_a", "limit": 4})["actions"]
+    assert [row["action_id"] for row in scoped] == [proposal["action_id"]]
+    assert scoped[0]["result"] == ActionResult.PROPOSED
+    every = _rpc("runtime.lens.actions", {"limit": 4})["actions"]
+    assert {row["monitor_id"] for row in every} == {"there"}
+    assert _rpc("runtime.lens.actions", {"workspace_id": "ws_b", "limit": 8})["actions"][0]["monitor_id"] == "there"

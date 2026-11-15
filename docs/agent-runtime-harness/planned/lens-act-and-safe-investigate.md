@@ -139,7 +139,7 @@ not a checkpointed file write (`write_file`, `patch`, `edit_file`, `apply_patch`
 proposal; else the act check (`rules_check.check_action`, the same fork guardian with an act prompt):
 approve runs, deny is refused with "Refused by this monitor's rules", escalate/failure → proposal. Each
 decision is an action receipt (`lens/store_actions.py`, table `lens_actions`), read with
-`runtime.lens.actions {episode_id? | monitor_id?, limit?}`; an allowed call moves `running` → `ran | failed`
+`runtime.lens.actions {episode_id? | monitor_id?, limit?, workspace_id?}` (a workspace read pages that workspace alone — RT-LENS-ACTIONS-TAKE-A-WORKSPACE); an allowed call moves `running` → `ran | failed`
 on its `post_tool_call`. The check's tokens are charged to the Episode budget.
 
 **As built (RT-LENS-PROPOSAL-APPROVE-DENY, 2026-11-14).** A proposal is its `lens_actions` row

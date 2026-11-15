@@ -70,8 +70,9 @@ budget.set             {scope: monitor|workspace|lens, monitor_id? | workspace_i
                        so it survives a restart; takes effect from the next Episode)
 receipts               {monitor_id?, limit?, workspace_id?} -> {receipts} (newest first; limit
                        <= 256; each row carries its monitor's ``workspace_id``)
-actions                {episode_id? | monitor_id?, limit?} -> {actions} (an ``act`` turn's action
-                       receipts, newest first, limit <= 256; a row is {action_id, episode_id,
+actions                {episode_id? | monitor_id?, limit?, workspace_id?} -> {actions} (an ``act`` turn's
+                       action receipts, newest first, limit <= 256, only ``workspace_id``'s monitors'
+                       when it is given — RT-LENS-ACTIONS-TAKE-A-WORKSPACE; a row is {action_id, episode_id,
                        monitor_id, turn_id, tool, arguments_digest, arguments (a proposal's only,
                        else null), verdict: approve|deny|escalate|null, decided_by: rules|owner,
                        result: running|ran|failed|refused|proposed|approved|denied|expired, why: null|untrusted_text|
@@ -426,11 +427,14 @@ def _runtime_lens_actions(rid: Any, params: dict, context: RpcContext | None = N
         from agent_runtime.lens.store_actions import MAXIMUM_ACTIONS_PAGE, actions
         from agent_runtime.lens.wire_value import bounded_int, checked_object, digest_value
 
-        m = checked_object(params or {}, (), {"episode_id", "monitor_id", "limit"})
+        from agent_runtime.lens.store_scope import workspace_param
+
+        m = checked_object(params or {}, (), {"episode_id", "monitor_id", "limit", "workspace_id"})
         episode_id = None if m.get("episode_id") is None else digest_value(m["episode_id"])
         monitor_id = None if m.get("monitor_id") is None else _monitor_id(m)
         limit = bounded_int(m.get("limit", 32), minimum=1, maximum=MAXIMUM_ACTIONS_PAGE)
-        return {"actions": actions(_store(), episode_id=episode_id, monitor_id=monitor_id, limit=limit)}
+        return {"actions": actions(_store(), episode_id=episode_id, monitor_id=monitor_id, limit=limit,
+                                   workspace_id=workspace_param(m))}
 
     return _lens_call(rid, body)
 
