@@ -221,3 +221,42 @@ def test_a_realm_sync_git_call_never_waits_on_a_username_prompt(monkeypatch):
     monkeypatch.setattr(realm_git, "run_git", lambda args, **kw: seen.update(kw["env"]))
     realm_git.run_sync_git(("fetch",), env={"PATH": "/usr/bin"})
     assert seen["GIT_TERMINAL_PROMPT"] == "0"
+
+
+@pytest.mark.parametrize(
+    ("stderr", "status"),
+    [
+        ("fatal: unable to access 'https://h/r.git/': The requested URL returned error: 403", 403),
+        ("fatal: could not read Username for 'https://h': terminal prompts disabled", 401),
+        ("remote: Invalid username or password.\nfatal: Authentication failed for 'https://h/r.git/'", 401),
+        ("remote: Permission to team/realm.git denied to bot.\nfatal: unable to access 'x'", 403),
+        ("remote: Repository not found.\nfatal: repository 'https://h/r.git/' not found", 404),
+        ("fatal: unable to access 'https://h/r.git/': The requested URL returned error: 503", 503),
+        ("fatal: unable to access 'https://h/r.git/': Could not resolve host: h", None),
+    ],
+)
+def test_a_refusal_is_decided_by_the_hosts_status_not_a_word(stderr, status):
+    """RT-REALM-SYNC-HOST-REFUSAL-DECIDES-BY-A-SECRET-WORD: the host's status (printed by git, or
+    implied by git's own error type) decides; a 5xx or an unreachable host is not an auth refusal."""
+
+    from agent_runtime.realm_sync.host_refusal import host_refusal_status, host_refused_auth
+
+    exc = RealmSyncError("sync_remote_unreachable", "git command failed for realm sync.", safe_details={"stderr": stderr})
+    assert host_refusal_status(exc) == status
+    assert host_refused_auth(exc) is (status in {401, 403, 404})
+
+
+def test_an_unreported_refusal_carries_gits_report_value_scrubbed(isolate_agent_runtime_root, monkeypatch):
+    from agent_runtime.realm_sync.host_refusal import report_host_refusal
+
+    leaked = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+    monkeypatch.setattr(membership, "_request_json", lambda *a, **k: (503, None))
+    realm = _server_realm("https://h/team/realm.git")
+    exc = RealmSyncError(
+        "sync_auth_failed", "git command failed for realm sync.",
+        safe_details={"stderr": f"remote: bad {leaked}\nfatal: unable to access 'x': The requested URL returned error: 401"},
+    )
+    answer = report_host_refusal(realm, _credential(realm.id, "https://h/team/realm.git"), exc)
+    assert answer.safe_details["auth_rejected"] == "unreported"
+    assert leaked not in answer.safe_details["stderr"]
+    assert "returned error: 401" in answer.safe_details["stderr"]

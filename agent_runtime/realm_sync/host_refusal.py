@@ -29,46 +29,71 @@ no backend to tell) and only once per verb run: the wrapper sits at the verb's e
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from ..models import Realm
+from ..redaction import scrub_secret_values
 from .models import RealmSyncError
 
 if TYPE_CHECKING:
     from ..realm_membership import RealmSyncCredential
 
 __layer__ = "stores"
-__all__ = ["host_refused_auth", "host_refusal_reported", "report_host_refusal"]
+__all__ = ["host_refusal_reported", "host_refusal_status", "host_refused_auth", "report_host_refusal"]
 
-#: git's words when the HOST refused the request's authorization (401/403), or answered a
-#: repository the token may no longer see as missing (404: GitHub's answer for a private
-#: repository the installation dropped). With terminal prompts off (``run_sync_git``) a 401 reads
-#: "could not read Username ... terminal prompts disabled"; with a helper it is "Authentication
-#: failed".
-_HOST_REFUSAL_TELLS = (
-    "authentication failed",
-    "invalid username or password",
-    "could not read username",
-    "terminal prompts disabled",
-    "returned error: 401",
-    "returned error: 403",
-    "write access to repository not granted",
-    "permission to ",
-    "repository not found",
+#: The HTTP status the host answered, as git reports it: "The requested URL returned error: 403".
+_HOST_STATUS_RE = re.compile(r"returned error:\s*(\d{3})\b", re.IGNORECASE)
+
+#: git's own error TYPES for a host answer whose status git does not print, each with the status it
+#: stands for. With terminal prompts off (``run_sync_git``) a 401 is git's refused credential prompt
+#: ("could not read Username ... terminal prompts disabled"); through a credential helper it is git's
+#: "Authentication failed for <url>". GitHub answers a private repository the installation dropped
+#: as missing (404, "remote: Repository not found") and a token without write access with "remote:
+#: Permission to <repo> denied" / "Write access to repository not granted" beside a 403.
+_GIT_ERROR_STATUS = (
+    (re.compile(r"terminal prompts disabled", re.IGNORECASE), 401),
+    (re.compile(r"^fatal: authentication failed for ", re.IGNORECASE | re.MULTILINE), 401),
+    (re.compile(r"^remote: (?:permission to \S+ denied|write access to repository not granted)", re.IGNORECASE | re.MULTILINE), 403),
+    (re.compile(r"^remote: repository not found", re.IGNORECASE | re.MULTILINE), 404),
 )
+
+#: The host statuses that refuse the request's authorization (404: a repository the token no
+#: longer sees).
+_REFUSAL_STATUSES = frozenset({401, 403, 404})
 
 #: Backend refusal codes on the report -> the host-state mark they are.
 _REPORT_MARKS = ("realms.git_host_binding_lost", "realms.git_host_unbound")
 
 
-def host_refused_auth(exc: RealmSyncError) -> bool:
-    """True when ``exc`` is a git call the host refused for its authorization."""
+def host_refusal_status(exc: RealmSyncError) -> int | None:
+    """The HTTP status the host answered ``exc``'s git call with, when git's report names one --
+    printed, or implied by git's own error type (``_GIT_ERROR_STATUS``); ``None`` otherwise.
+
+    Read from the VALUE-scrubbed report (``agent_runtime.redaction``): a status is decided by the
+    host's answer, never by a word in the text."""
 
     details = exc.safe_details or {}
-    text = f"{details.get('stderr') or ''}\n{details.get('detail') or ''}".lower()
-    return any(tell in text for tell in _HOST_REFUSAL_TELLS)
+    text = scrub_secret_values(f"{details.get('stderr') or ''}\n{details.get('detail') or ''}")
+    match = _HOST_STATUS_RE.search(text)
+    if match:
+        return int(match.group(1))
+    return next((status for pattern, status in _GIT_ERROR_STATUS if pattern.search(text)), None)
+
+
+def host_refused_auth(exc: RealmSyncError) -> bool:
+    """True when ``exc`` is a git call the host refused for its authorization (401/403/404)."""
+
+    return host_refusal_status(exc) in _REFUSAL_STATUSES
+
+
+def _scrubbed(details: dict) -> dict:
+    """``details`` with git's report VALUE-scrubbed (``agent_runtime.redaction``) before an answer carries it."""
+
+    return {key: scrub_secret_values(value) if key in {"stderr", "detail"} and isinstance(value, str) else value
+            for key, value in details.items()}
 
 
 def report_host_refusal(realm: Realm, credential: RealmSyncCredential | None, exc: RealmSyncError) -> RealmSyncError:
@@ -89,7 +114,7 @@ def report_host_refusal(realm: Realm, credential: RealmSyncCredential | None, ex
             "sync_auth_failed",
             "The git host refused this realm's credential; the next sync gets a fresh one.",
             retryable=True,
-            safe_details={**exc.safe_details, "auth_rejected": "rebroker"},
+            safe_details={**_scrubbed(exc.safe_details), "auth_rejected": "rebroker"},
         )
     if status == 409 and code in _REPORT_MARKS:
         from .revocation import BACKEND_REFUSAL_REASONS, REALM_REVOKED_CODE, mark_realm_revoked
@@ -101,7 +126,7 @@ def report_host_refusal(realm: Realm, credential: RealmSyncCredential | None, ex
             retryable=False,
             safe_details={"revoked_reason": mark.get("reason"), "host_state": True, "auth_rejected": "binding_lost"},
         )
-    exc.safe_details = {**exc.safe_details, "auth_rejected": "unreported", "report_status": status}
+    exc.safe_details = {**_scrubbed(exc.safe_details), "auth_rejected": "unreported", "report_status": status}
     return exc
 
 
