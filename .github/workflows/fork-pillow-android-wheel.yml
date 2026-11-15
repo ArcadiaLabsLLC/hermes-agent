@@ -1,11 +1,20 @@
 name: Fork — Pillow Android wheel
 
 # RT-PHONE-PILLOW-ANDROID (owner ruling 2026-10-22): no Pillow release publishes an Android wheel,
-# and the phone closure needs Pillow on both targets. This builds Pillow 12.3.0 (the version uv.lock
-# pins for every target) for CPython 3.14 / android arm64-v8a and publishes it as an asset of the
-# fork release `pillow-android-12.3.0`; pyproject.toml then pins that asset by URL with its sha256 in
+# and the phone closure needs Pillow on both targets. This builds the Pillow uv.lock pins for
+# CPython 3.14 on Android and, when asked to, publishes the wheels as assets of the fork release
+# `pillow-android-<version>`; pyproject.toml then pins those assets by URL with their sha256 in
 # uv.lock — the shape psutil's Android pin has (plan
 # docs/agent-runtime-harness/planned/bundled-phone-pool-2026-10-22.md §5.1).
+#
+# uv.lock is the one authority for WHICH Pillow: the version, the sdist URL and its sha256 are read
+# from the lock's `pillow` package, never typed here, so a lock bump cannot leave this file naming
+# an older release (it named 12.3.0 for a month after the lock moved to 13.0.0).
+#
+# Two ABIs. arm64-v8a is what phones run. x86_64 is what emulators run: it is a QA target, never a
+# shipped one, and it is the only one this runner can TEST — cibuildwheel boots a Gradle-managed
+# emulator of the host's architecture and imports the wheel there, so "it loads and encodes a JPEG
+# and a PNG on Android" is proven by running it, where the arm64 wheel is only inspected.
 #
 # The ruling named BeeWare's mobile-forge; its README documents iOS only ("currently only tested for
 # iOS") and the project is semi-retired, so this uses cibuildwheel's Android platform (Linux x86_64
@@ -14,49 +23,88 @@ name: Fork — Pillow Android wheel
 # the two required libraries supplied by root: libjpeg-turbo built STATIC with the NDK (nothing extra
 # to ship), zlib from the NDK sysroot (Android's system libz).
 #
-# Manual dispatch only; run it once per Pillow version. A re-run with the release present fails at
-# the release step rather than replacing a wheel a lock already pins.
+# Manual dispatch only. `publish` is OFF by default: a run builds, checks and uploads the wheels as
+# a run artifact and changes nothing else, so the build is proven before anything is published.
+# A publishing run refuses an unpinned libjpeg-turbo, and fails at the release step when the release
+# exists rather than replacing a wheel a lock already pins.
 
 on:
   workflow_dispatch:
     inputs:
-      pillow_version:
-        description: Pillow version (must equal uv.lock's pin)
-        default: "12.3.0"
-        required: true
+      publish:
+        description: Publish the wheels as the fork release (off — build, check and upload a run artifact only)
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: fork-pillow-android-wheel
   cancel-in-progress: false
 
 env:
-  PILLOW_VERSION: ${{ inputs.pillow_version }}
   LIBJPEG_TURBO_VERSION: "3.1.2"
+  # sha256 of libjpeg-turbo-<version>.tar.gz. Empty prints the hash and builds (a first, unpublished
+  # run is how it is learned); a publishing run refuses it empty.
+  LIBJPEG_TURBO_SHA256: ""
   ANDROID_API_LEVEL: "24"
 
 jobs:
   build:
-    name: Pillow ${{ inputs.pillow_version }} cp314 android arm64-v8a
+    name: Pillow cp314 android ${{ matrix.abi }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            cibw_arch: arm64_v8a
+            triple: aarch64-linux-android
+          - abi: x86_64
+            cibw_arch: x86_64
+            triple: x86_64-linux-android
     steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a # v7.0.1
+        with:
+          sparse-checkout: uv.lock
+          sparse-checkout-cone-mode: false
+
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
 
-      - name: Fetch Pillow's sdist from PyPI
+      - name: Read Pillow's pin from uv.lock
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip download --no-deps --no-binary :all: "pillow==${PILLOW_VERSION}" -d sdist
-          tar -xzf sdist/pillow-${PILLOW_VERSION}.tar.gz
-          sha256sum sdist/*.tar.gz | tee -a "$GITHUB_STEP_SUMMARY"
+          python - <<'PY' >> "$GITHUB_ENV"
+          import tomllib
+          with open("uv.lock", "rb") as handle:
+              packages = [p for p in tomllib.load(handle)["package"] if p["name"] == "pillow"]
+          assert len(packages) == 1, f"uv.lock holds {len(packages)} pillow packages; expected exactly 1"
+          sdist = packages[0]["sdist"]
+          assert sdist["hash"].startswith("sha256:"), sdist["hash"]
+          print(f"PILLOW_VERSION={packages[0]['version']}")
+          print(f"PILLOW_SDIST_URL={sdist['url']}")
+          print(f"PILLOW_SDIST_SHA256={sdist['hash'].removeprefix('sha256:')}")
+          PY
+
+      - name: Fetch Pillow's sdist and check it against the lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o pillow.tar.gz "$PILLOW_SDIST_URL"
+          echo "${PILLOW_SDIST_SHA256}  pillow.tar.gz" | sha256sum -c -
+          tar -xzf pillow.tar.gz
+          test -d "pillow-${PILLOW_VERSION}"
+          echo "Pillow ${PILLOW_VERSION} sdist sha256 \`${PILLOW_SDIST_SHA256}\` (uv.lock)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build libjpeg-turbo (static) and stage zlib from the NDK sysroot
         shell: bash
+        env:
+          PUBLISH: ${{ inputs.publish }}
         run: |
           set -euo pipefail
           NDK="${ANDROID_NDK_LATEST_HOME:?the runner image provides the NDK}"
@@ -64,73 +112,114 @@ jobs:
           PREFIX="$RUNNER_TEMP/android-deps"
           curl -fsSL -o jt.tar.gz \
             "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/${LIBJPEG_TURBO_VERSION}/libjpeg-turbo-${LIBJPEG_TURBO_VERSION}.tar.gz"
-          sha256sum jt.tar.gz | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ -n "$LIBJPEG_TURBO_SHA256" ]; then
+            echo "${LIBJPEG_TURBO_SHA256}  jt.tar.gz" | sha256sum -c -
+          elif [ "$PUBLISH" = "true" ]; then
+            echo "LIBJPEG_TURBO_SHA256 is empty: a publishing run needs the pinned hash" >&2
+            exit 1
+          else
+            printf 'libjpeg-turbo %s sha256 `%s` (UNPINNED — set LIBJPEG_TURBO_SHA256)\n' \
+              "$LIBJPEG_TURBO_VERSION" "$(sha256sum jt.tar.gz | cut -d' ' -f1)" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
           tar -xzf jt.tar.gz
           cmake -S "libjpeg-turbo-${LIBJPEG_TURBO_VERSION}" -B jt-build -G "Unix Makefiles" \
             -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM="android-${ANDROID_API_LEVEL}" \
+            -DANDROID_ABI="${{ matrix.abi }}" -DANDROID_PLATFORM="android-${ANDROID_API_LEVEL}" \
             -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DWITH_TURBOJPEG=OFF \
             -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib
           cmake --build jt-build -j"$(nproc)"
           cmake --install jt-build
           cp "$SYSROOT/usr/include/zlib.h" "$SYSROOT/usr/include/zconf.h" "$PREFIX/include/"
-          cp "$SYSROOT/usr/lib/aarch64-linux-android/${ANDROID_API_LEVEL}/libz.so" "$PREFIX/lib/"
+          cp "$SYSROOT/usr/lib/${{ matrix.triple }}/${ANDROID_API_LEVEL}/libz.so" "$PREFIX/lib/"
           echo "DEPS_PREFIX=$PREFIX" >> "$GITHUB_ENV"
 
-      - name: Build the wheel with cibuildwheel
+      - name: Build the wheel with cibuildwheel (and run it on the emulator where the host can)
         shell: bash
         env:
           CIBW_PLATFORM: android
-          CIBW_ARCHS: arm64_v8a
+          CIBW_ARCHS: ${{ matrix.cibw_arch }}
           CIBW_BUILD: cp314-*
           CIBW_BUILD_FRONTEND: build
           # Pillow's before-all builds desktop/iOS dependencies; the step above supplies Android's.
           CIBW_BEFORE_ALL: "true"
           CIBW_CONFIG_SETTINGS: "raqm=disable imagequant=disable platform-guessing=disable"
           CIBW_ENVIRONMENT: JPEG_ROOT=${{ env.DEPS_PREFIX }} ZLIB_ROOT=${{ env.DEPS_PREFIX }} ANDROID_API_LEVEL=${{ env.ANDROID_API_LEVEL }}
-          # An arm64 wheel cannot run on this x86_64 host's emulator; the check step below inspects it.
-          CIBW_TEST_SKIP: "*"
+          # The emulator matches the host, so only x86_64 runs; cibuildwheel skips the arm64 test
+          # itself. Pillow's own test settings want numpy and a shell script: neither exists here.
+          CIBW_TEST_REQUIRES: ""
+          CIBW_TEST_EXTRAS: ""
+          CIBW_TEST_COMMAND: >-
+            python -c "import io;
+            from PIL import Image, features;
+            assert features.check_codec('jpg'), 'no JPEG codec';
+            assert features.check_codec('zlib'), 'no zlib codec';
+            jpeg = io.BytesIO(); Image.new('RGB', (16, 16), 'red').save(jpeg, 'JPEG');
+            Image.open(io.BytesIO(jpeg.getvalue())).load();
+            png = io.BytesIO(); Image.new('RGB', (16, 16), 'red').save(png, 'PNG');
+            Image.open(io.BytesIO(png.getvalue())).load();
+            print('pillow on android: import and JPEG/PNG round trip ok')"
         run: |
           set -euo pipefail
           python -m pip install "cibuildwheel>=3.2,<4"
           python -m cibuildwheel --output-dir wheelhouse "pillow-${PILLOW_VERSION}"
 
       - name: Check the wheel
-        id: wheel
         shell: bash
         run: |
           set -euo pipefail
-          WHEEL=$(ls wheelhouse/pillow-${PILLOW_VERSION}-cp314-cp314-android_*_arm64_v8a.whl)
-          python - "$WHEEL" <<'PY'
-          import sys, zipfile
-          names = zipfile.ZipFile(sys.argv[1]).namelist()
-          core = [n for n in names if n.startswith("PIL/_imaging.") and n.endswith(".so")]
-          assert core, f"no PIL/_imaging extension in {sys.argv[1]}"
-          print("\n".join(sorted(n for n in names if n.endswith(".so"))))
+          WHEEL=$(ls wheelhouse/pillow-${PILLOW_VERSION}-cp314-cp314-android_*_${{ matrix.cibw_arch }}.whl)
+          unzip -q -o "$WHEEL" '*.so' -d check
+          python - check <<'PY'
+          import pathlib, subprocess, sys
+          libraries = sorted(pathlib.Path(sys.argv[1]).rglob("*.so"))
+          assert any(so.name.startswith("_imaging.") for so in libraries), f"no PIL/_imaging extension: {libraries}"
+          for so in libraries:
+              needed = [line for line in subprocess.check_output(["readelf", "-d", so], text=True).splitlines() if "NEEDED" in line]
+              print(so, *needed, sep="\n  ")
+              # libjpeg-turbo is linked statically: nothing extra to ship beside the wheel.
+              assert not any("libjpeg" in line for line in needed), f"{so}: libjpeg must be linked statically"
+              # Android 15+ devices may use 16 KB pages: every loadable segment is aligned to it.
+              loads = [line.split() for line in subprocess.check_output(["readelf", "-lW", so], text=True).splitlines() if line.split()[:1] == ["LOAD"]]
+              assert loads, f"{so}: no LOAD segment"
+              for fields in loads:
+                  assert int(fields[-1], 16) >= 0x4000, f"{so}: LOAD segment aligned to {fields[-1]}, below 16 KB"
           PY
-          unzip -q -o "$WHEEL" 'PIL/_imaging.*.so' -d check
-          NEEDED=$(readelf -d check/PIL/_imaging.*.so | grep NEEDED || true)
-          echo "$NEEDED"
-          if echo "$NEEDED" | grep -q libjpeg; then echo "libjpeg must be linked statically" >&2; exit 1; fi
           SHA=$(sha256sum "$WHEEL" | cut -d' ' -f1)
-          echo "path=$WHEEL" >> "$GITHUB_OUTPUT"
-          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
           printf '`%s` sha256 `%s`\n' "$(basename "$WHEEL")" "$SHA" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: pillow-android-${{ inputs.pillow_version }}
+          name: pillow-android-${{ matrix.abi }}
           path: wheelhouse/*.whl
+          if-no-files-found: error
 
-      - name: Publish the fork release
+  publish:
+    name: Publish the fork release
+    needs: build
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: pillow-android-*
+          merge-multiple: true
+          path: wheelhouse
+
+      - name: Publish
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          WHEEL: ${{ steps.wheel.outputs.path }}
-          SHA: ${{ steps.wheel.outputs.sha256 }}
         run: |
           set -euo pipefail
-          gh release create "pillow-android-${PILLOW_VERSION}" "$WHEEL" --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" --title "Pillow ${PILLOW_VERSION} for Android (fork build)" \
-            --notes "Pillow ${PILLOW_VERSION}, CPython 3.14, android arm64-v8a, API ${ANDROID_API_LEVEL}; built by .github/workflows/fork-pillow-android-wheel.yml (RT-PHONE-PILLOW-ANDROID). sha256 ${SHA}. Pin: pillow @ <this asset URL> ; sys_platform == 'android'."
+          test "$(ls wheelhouse/*.whl | wc -l)" = 2
+          VERSION=$(basename wheelhouse/*arm64_v8a.whl | cut -d- -f2)
+          NOTES="Pillow ${VERSION}, CPython 3.14, Android API ${ANDROID_API_LEVEL}; built by .github/workflows/fork-pillow-android-wheel.yml (RT-PHONE-PILLOW-ANDROID). arm64_v8a is the phone ABI; x86_64 is for emulators and is not shipped. Pin: pillow @ <asset URL> ; sys_platform == 'android'."
+          for wheel in wheelhouse/*.whl; do
+            NOTES="${NOTES}"$'\n'"$(basename "$wheel") sha256 $(sha256sum "$wheel" | cut -d' ' -f1)"
+          done
+          gh release create "pillow-android-${VERSION}" wheelhouse/*.whl --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "Pillow ${VERSION} for Android (fork build)" --notes "$NOTES"
