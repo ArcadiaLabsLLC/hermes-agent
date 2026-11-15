@@ -1136,6 +1136,10 @@ agent's own todo store (``live_turns.LiveTurn.plan`` → ``running_work/lanes_ch
 uses, ``done`` counts ``completed`` and ``cancelled``, ``current`` is the first ``in_progress`` step's text (240
 characters, ``…`` past it) or null. Absent when the turn has no plan or the row is durable-only. A summary, never
 the list. One additive key on a row the launcher parses as a map: rule (a) does not bump. No golden moved.
+RT-PLAN-PROGRESS-NAMES-THE-CURRENT-STEPS-POSITION (2026-11-15) adds ``current_index``: the in-progress step's 1-based
+place in the outline's reading order (every step after its parent, children in the agent's order — Eternia's
+``AgentPlan.outline``), null with ``current``; ``current`` is now that same step (the first ``in_progress`` one in
+the outline's order). One more additive key: rule (a) does not bump.
 
 54 KEPT (parent, 2026-11-14, RT-TODO-STATE-KEEPS-STEP-PARENT) — a ``todo_state`` item (the ``tool.finished``
 payload, ``profile_runner/tool_payloads.py::_todo_state_items``, and its saved twin
