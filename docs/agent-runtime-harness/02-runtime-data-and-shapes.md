@@ -1129,6 +1129,20 @@ steer's own turn (``steer-next-…``) gained ``steer_of`` (a list of client mess
 ``mission_chat_turns/records.py::safe_steer_of``), and so did that turn's operator row in the persona chat
 history and its operator-conversation message. Absent on every other turn. Additive: rule (a) does not bump.
 
+54 KEPT (plan, 2026-11-14, RT-RUNNING-CHAT-TURN-CARRIES-PLAN-PROGRESS) — a live ``running_work`` ``chat_turn``
+row (``source_lane: live``, read in the serve running the turn) carries ``plan: {done, total, current}`` off the
+agent's own todo store (``live_turns.LiveTurn.plan`` → ``running_work/lanes_chat.py::_plan_progress`` →
+``profile_runner/tool_payloads.py::_todo_plan_progress``): counted over the same 64-item bound ``todo_state``
+uses, ``done`` counts ``completed`` and ``cancelled``, ``current`` is the first ``in_progress`` step's text (240
+characters, ``…`` past it) or null. Absent when the turn has no plan or the row is durable-only. A summary, never
+the list. One additive key on a row the launcher parses as a map: rule (a) does not bump. No golden moved.
+
+54 KEPT (parent, 2026-11-14, RT-TODO-STATE-KEEPS-STEP-PARENT) — a ``todo_state`` item (the ``tool.finished``
+payload, ``profile_runner/tool_payloads.py::_todo_state_items``, and its saved twin
+``mission_chat_turns/records.py::_safe_todo_state``) may carry ``parent``: the id of ANOTHER item inside the
+same capped list, the todo tool's subtask link. Dropped when it names nothing kept (cut by the cap, unknown,
+itself). Live and saved stay byte-identical. Additive on a map: rule (a) does not bump.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

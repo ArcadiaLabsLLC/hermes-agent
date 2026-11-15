@@ -51,6 +51,8 @@ __all__ = [
     "_safe_skill_tool_name",
     "_terminal_timeout_seconds",
     "_todo_items_from",
+    "_todo_plan_progress",
+    "_todo_state_items",
     "_todo_state_payload",
     "_tool_finished_payload",
     "_tool_started_payload",
@@ -435,7 +437,25 @@ def _todo_state_payload(tool_name: str | None, result: Any, invocation: Any) -> 
         # comes back as ``[]`` from _todo_items_from and falls through to the
         # explicit-empty return below (T9d cleared-todo contract).
         return None
+    items = _todo_state_items(todos)
+    # T9d: return ``items`` directly (NOT ``items or None``) so a recovered but
+    # empty list stays an explicit ``[]`` — the cleared-checklist signal. ``None``
+    # is reserved for non-todo tools / unrecoverable payloads (handled above).
+    return items
+
+
+def _todo_state_items(todos: list[Any]) -> list[dict[str, str]]:
+    """The bounded ``{id, content, status, parent?}`` checklist of a raw todo list.
+
+    RT-TODO-STATE-KEEPS-STEP-PARENT: ``parent`` (the todo tool's subtask link) is kept
+    when it names ANOTHER item inside the same capped list, and dropped otherwise — a
+    parent cut off by the item cap or naming nothing would nest a step under a row the
+    client never receives. The persist re-bound (``mission_chat_turns._safe_todo_state``)
+    applies the same rule, so live and saved stay byte-identical; a client that ignores
+    the key sees today's flat list."""
+
     items: list[dict[str, str]] = []
+    parents: list[str] = []
     for raw in todos[:_TODO_STATE_MAX_ITEMS]:
         if not isinstance(raw, dict):
             continue
@@ -453,10 +473,39 @@ def _todo_state_payload(tool_name: str | None, result: Any, invocation: Any) -> 
         elif len(content) > _TODO_STATE_MAX_CONTENT:
             content = content[: _TODO_STATE_MAX_CONTENT - 1] + "…"
         items.append({"id": item_id, "content": content, "status": status})
-    # T9d: return ``items`` directly (NOT ``items or None``) so a recovered but
-    # empty list stays an explicit ``[]`` — the cleared-checklist signal. ``None``
-    # is reserved for non-todo tools / unrecoverable payloads (handled above).
+        parents.append(_collapse_todo_ws(raw.get("parent"))[:_TODO_STATE_MAX_ID])
+    ids = {item["id"] for item in items}
+    for item, parent in zip(items, parents):
+        if parent and parent != item["id"] and parent in ids:
+            item["parent"] = parent
     return items
+
+
+#: Statuses a plan summary counts as resolved — cancelled is resolved, like Eternia's
+#: ``AgentPlan.progress`` (``AGENT_PLAN_EVERYWHERE_2026-11-14.md`` §6), so the compact
+#: line and the full plan can never count differently.
+_TODO_RESOLVED_STATUS = frozenset({"completed", "cancelled"})
+
+
+def _todo_plan_progress(todos: Any) -> dict[str, Any] | None:
+    """``{done, total, current}`` of a raw todo list, or None when there is no plan.
+
+    RT-RUNNING-CHAT-TURN-CARRIES-PLAN-PROGRESS: the running-work row's plan summary.
+    Counted over the SAME bounded list :func:`_todo_state_items` emits; ``current`` is
+    the first in-progress step's text (capped like ``todo_state``), None when no step
+    is in progress. A summary, never the list: the running-work frame is frequent."""
+
+    if not isinstance(todos, (list, tuple)):
+        return None
+    items = _todo_state_items(list(todos))
+    if not items:
+        return None
+    current = next((item["content"] for item in items if item["status"] == "in_progress"), None)
+    return {
+        "done": sum(1 for item in items if item["status"] in _TODO_RESOLVED_STATUS),
+        "total": len(items),
+        "current": current,
+    }
 
 
 def _collapse_todo_ws(value: Any) -> str:

@@ -88,6 +88,9 @@ class LiveTurn:
     api_calls: int | None
     seconds_since_activity: float | None
     tools: tuple[LiveToolCall, ...] = ()
+    #: The agent's plan as of the read (its todo store's items, raw), or None when
+    #: the agent keeps no store or it cannot be read. ``()`` is an empty plan.
+    plan: tuple[dict[str, Any], ...] | None = None
 
 
 @dataclass
@@ -230,6 +233,23 @@ def _activity(agent: Any) -> tuple[int | None, float | None]:
     )
 
 
+def _todo_items_of(agent: Any) -> tuple[dict[str, Any], ...] | None:
+    """The agent's todo items off its own store (``AIAgent._todo_store``), else None.
+
+    ``TodoStore.read`` returns copies, so the reader never holds the writer's dicts."""
+
+    reader = getattr(getattr(agent, "_todo_store", None), "read", None)
+    if not callable(reader):
+        return None
+    try:
+        items = reader()
+    except Exception:
+        return None
+    if not isinstance(items, list):
+        return None
+    return tuple(item for item in items if isinstance(item, dict))
+
+
 def _foreground_by_tid() -> dict[int, Any]:
     watch = sys.modules.get(_FOREGROUND_WATCH)
     if watch is None:
@@ -275,6 +295,7 @@ def live_turn_view(turn_id: str | None) -> LiveTurn | None:
         started_at=turn.started_at,
         api_calls=api_calls,
         seconds_since_activity=quiet,
+        plan=_todo_items_of(turn.agent),
         tools=tuple(
             LiveToolCall(
                 call_id=call.call_id,
