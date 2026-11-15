@@ -175,6 +175,25 @@ def test_the_serve_import_probe_names_a_module_the_bundle_cannot_import(tmp_path
         "serve entrypoint does not import inside the bundle: rpc.registry: ImportError"), problems
 
 
+def test_the_serve_import_probe_reports_past_a_module_that_swaps_stdout(tmp_path: Path):
+    """A shipped module that points ``sys.stdout`` at stderr on import (``tui_gateway.server`` does)
+    must not hide the report: the probe writes to the stdout it saved before any import."""
+    import sys
+
+    from scripts.bundle_profile_closure import module_index
+
+    version = f"{sys.version_info.major}.{sys.version_info.minor}.0"
+    swap = "import sys\nsys.stdout = sys.stderr\nfrom . import loop\ndef run():\n    pass\n"
+    good, bad = tmp_path / "good", tmp_path / "bad"
+    for root, sibling in ((good, True), (bad, False)):
+        _serve_tree(root, with_sibling=sibling)
+        _write(root, "app/hermes_cli/harness_parts/serve/commands.py", swap)
+    index = module_index(good / "app")
+    assert serve_import_problems(good, set(index), index, version) == []
+    problems = serve_import_problems(bad, set(index), index, version)
+    assert len(problems) == 1 and "rpc.registry: ImportError" in problems[0], problems
+
+
 def test_the_serve_import_probe_refuses_an_interpreter_of_another_version(tmp_path: Path):
     problems = serve_import_problems(tmp_path, set(), {}, "2.7.18")
     assert len(problems) == 1 and "needs a CPython 2.7 interpreter" in problems[0]
