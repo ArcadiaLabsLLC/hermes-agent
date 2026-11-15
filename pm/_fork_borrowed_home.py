@@ -11,7 +11,7 @@ Here, before upstream's refusal runs:
 
 * the root ``owning_home_root`` names holds a committed environment -> run on it, read-only: the
   generation is leased so the owner's collector keeps it, nothing is synced or written there;
-* no owner, and this interpreter is the one the checkout's own launcher execs (a bare store Python)
+* no owner, and this interpreter is a bare PM store Python (whichever root's store the launcher execs)
   -> refuse exactly as the unset-home launch does (``NoCommittedEnvironment``).
 
 Anything else returns ``None`` and upstream's own branch decides. Stdlib only, as ``pm.environments``.
@@ -20,7 +20,6 @@ Anything else returns ``None`` and upstream's own branch decides. Stdlib only, a
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -42,21 +41,22 @@ def _owner_committed_venv(owner: Path, project_root: Path) -> Path | None:
     return environment
 
 
-def _launcher_store_python(project_root: Path) -> bool:
-    """Is this process the bare interpreter the checkout's own launcher execs?"""
+def _bare_store_python() -> bool:
+    """Is this process a bare interpreter from a PM tool store (any root's ``tools/``)?
+
+    A store is recognised by its own record, ``<store>/facts.json`` with a ``python`` package --
+    PM's data format, read the way ``_require_own_dependencies`` reads ``store_root``, but for
+    whichever root's store the launcher execs (an older interpreter left beside a newer entry
+    included), since a borrowed home's ``store_root`` names the borrower's.
+    """
     if sys.prefix != sys.base_prefix:
         return False  # a venv interpreter carries its own packages
-    from hermes_cli._launchers import _launcher_python
-
-    prefix = Path(sys.base_prefix).resolve()
-    for name in (("hermes.exe", "hermes.cmd") if os.name == "nt" else ("hermes",)):
-        python = _launcher_python(project_root / ".hermes" / "bin" / name)
-        try:
-            if python is not None and prefix in python.resolve().parents:
-                return True
-        except (OSError, RuntimeError):
-            continue
-    return False
+    try:
+        store = Path(sys.base_prefix).resolve().parent
+        facts = json.loads((store / "facts.json").read_text(encoding="utf-8-sig"))
+        return isinstance(facts.get("packages", {}).get("python"), dict)
+    except (OSError, ValueError, AttributeError, RuntimeError):
+        return False
 
 
 def borrowed_home_environment(project_root: Path) -> Path | None:
@@ -80,6 +80,6 @@ def borrowed_home_environment(project_root: Path) -> Path | None:
             except OSError:
                 pass  # an owner's tree this user cannot lease in: run on it unleased
             return environment
-    if _launcher_store_python(root):
+    if _bare_store_python():
         raise environments.NoCommittedEnvironment("no dependency environment is committed for this install")
     return None

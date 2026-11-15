@@ -9,7 +9,8 @@ Each case boots the runner's base interpreter in ``-I`` mode, as the launcher do
 
 Killing mutation: make ``pm.environments._fork_borrowed_home_environment`` return ``None`` -> the owner
 case prints ``owner importable: False`` and the store case ``owner importable: False`` (no refusal);
-both red, recorded 2026-11-15 by lane w1114a-h3.
+both red, recorded 2026-11-15 by lane w1114a-h3 (and again after the store check moved off the
+private launcher parse, same day).
 """
 from __future__ import annotations
 
@@ -30,17 +31,18 @@ BASE_PYTHON = getattr(sys, "_base_executable", sys.executable)
 CODE = (
     "import sys, importlib.util; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
     "from pm.environments import activate_dependencies\n"
+    "if len(sys.argv) > 3:\n    sys.prefix = sys.base_prefix = sys.argv[3]  # boot as if from that store's Python\n"
     "try:\n    activate_dependencies(Path(sys.argv[2]))\n"
     "except RuntimeError as exc:\n    print('refused:', exc); raise SystemExit(0)\n"
     "print('owner importable:', importlib.util.find_spec('owner_only') is not None)"
 )
 
 
-def _boot(tmp_path: Path, root: Path) -> str:
+def _boot(tmp_path: Path, root: Path, *prefix: Path) -> str:
     env = {key: value for key, value in os.environ.items()
            if key not in ("HERMES_RUNTIME_DIR", "HERMES_DEPENDENCY_ROOT", "HERMES_DEPENDENCY_CHECKOUT")}
     env["HERMES_HOME"] = str(tmp_path / "qa-copy" / ".hermes")  # the borrowed home: no state for this checkout
-    result = subprocess.run([BASE_PYTHON, "-I", "-c", CODE, str(REPO), str(root)], env=env,
+    result = subprocess.run([BASE_PYTHON, "-I", "-c", CODE, str(REPO), str(root), *map(str, prefix)], env=env,
                             capture_output=True, text=True, timeout=60, check=False)
     assert result.returncode == 0, result.stderr
     return result.stdout.strip()
@@ -70,14 +72,14 @@ def test_a_borrowed_home_runs_on_its_owners_committed_environment(tmp_path):
 
 
 def test_a_bare_store_python_under_a_borrowed_home_refuses_like_the_unset_home_launch(tmp_path):
-    root = _checkout(tmp_path)
-    bin_dir = root / ".hermes" / "bin"
-    bin_dir.mkdir(parents=True)
-    if os.name == "nt":
-        (bin_dir / "hermes.cmd").write_text(f'@echo off\r\n"{BASE_PYTHON}" -I -c "pass" %*\r\n', encoding="utf-8")
-    else:
-        (bin_dir / "hermes").write_text(f"#!/bin/sh\nexec '{BASE_PYTHON}' -I -c 'pass' \"$@\"\n", encoding="utf-8")
-    assert _boot(tmp_path, root) == "refused: no dependency environment is committed for this install"
+    # The launcher execs the platform root's store Python (an older entry beside the current one),
+    # while the borrowed home's own store_root names another tools/.
+    store = tmp_path / "machine" / ".hermes" / "tools"
+    (store / "python-3.14.7").mkdir(parents=True)
+    facts = {"packages": {"python": {"entry": "python-3.14.9", "version": "3.14.9"}}}
+    (store / "facts.json").write_text(json.dumps(facts), encoding="utf-8")
+    assert (_boot(tmp_path, _checkout(tmp_path), store / "python-3.14.7")
+            == "refused: no dependency environment is committed for this install")
 
 
 def test_a_borrowed_home_with_no_owner_and_a_foreign_interpreter_keeps_upstreams_launch(tmp_path):
