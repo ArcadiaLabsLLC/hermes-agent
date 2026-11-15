@@ -76,7 +76,7 @@ def _scope_key(scope: str, ident: str | None) -> str:
     return scope if scope == BudgetScope.LENS else f"{scope}:{ident}"
 
 
-def _stored(store: LensStore, scope: str, ident: str | None) -> dict[str, int]:
+def _stored_limits(store: LensStore, scope: str, ident: str | None) -> dict[str, int]:
     if not store.exists() or (scope != BudgetScope.LENS and ident is None):
         return {}
     with store.connection() as conn:
@@ -88,7 +88,7 @@ def _config(key: str) -> int:
     return lens_setting(key)
 
 
-def _resolved(keys: dict[str, str], layers: list[tuple[str, dict[str, int]]]) -> dict[str, dict[str, Any]]:
+def _resolved_limits(keys: dict[str, str], layers: list[tuple[str, dict[str, int]]]) -> dict[str, dict[str, Any]]:
     """Each key's value and where it came from (the first layer holding it, else config)."""
 
     out = {}
@@ -110,12 +110,12 @@ def monitor_limits(store: LensStore, monitor_id: str) -> dict[str, dict[str, Any
     """The monitor's three effective limits, each ``{value, source: monitor|workspace|config}``."""
 
     workspace_id = _monitor_workspace(store, monitor_id)
-    return _resolved(_MONITOR_KEYS, [(BudgetScope.MONITOR, _stored(store, BudgetScope.MONITOR, monitor_id)),
-                                     (BudgetScope.WORKSPACE, _stored(store, BudgetScope.WORKSPACE, workspace_id))])
+    return _resolved_limits(_MONITOR_KEYS, [(BudgetScope.MONITOR, _stored_limits(store, BudgetScope.MONITOR, monitor_id)),
+                                     (BudgetScope.WORKSPACE, _stored_limits(store, BudgetScope.WORKSPACE, workspace_id))])
 
 
 def lens_limits(store: LensStore) -> dict[str, dict[str, Any]]:
-    return _resolved(_LENS_KEYS, [(BudgetScope.LENS, _stored(store, BudgetScope.LENS, None))])
+    return _resolved_limits(_LENS_KEYS, [(BudgetScope.LENS, _stored_limits(store, BudgetScope.LENS, None))])
 
 
 def _day_bounds(now: datetime) -> tuple[int, int]:
@@ -217,7 +217,7 @@ def set_limits(store: LensStore, params: dict[str, Any]) -> dict[str, Any]:
     values = _limit_values(scope, m["limits"])
     if scope == BudgetScope.MONITOR:
         store.get(ident)  # monitor_not_found before anything is written
-    stored = _stored(store, scope, ident)
+    stored = _stored_limits(store, scope, ident)
     for wire, value in values.items():
         if value is None:
             stored.pop(wire, None)
@@ -257,8 +257,8 @@ def budget_view(store: LensStore, params: dict[str, Any], now: datetime) -> dict
                     else _monitor_workspace(store, monitor_id) if monitor_id is not None
                     else active_workspace_id())
     out["workspace"] = {"workspace_id": workspace_id,
-                        "limits": _resolved(_MONITOR_KEYS, [(BudgetScope.WORKSPACE,
-                                                             _stored(store, BudgetScope.WORKSPACE, workspace_id))]),
+                        "limits": _resolved_limits(_MONITOR_KEYS, [(BudgetScope.WORKSPACE,
+                                                             _stored_limits(store, BudgetScope.WORKSPACE, workspace_id))]),
                         "bounds": _bounds(_MONITOR_KEYS)}
     if monitor_id is not None:
         out["monitor"] = {"monitor_id": monitor_id, "limits": monitor_limits(store, monitor_id),

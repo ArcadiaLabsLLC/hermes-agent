@@ -20,7 +20,7 @@ Gates and their killing mutations (each red recorded in the commit):
 * the Episode's ceiling never exceeds what is left today — killed by dropping ``left_monitor`` from the
   ``min`` in ``episode_limits``;
 * a limit set over the RPC survives a restart and wins over config, ``null`` clears it, the monitor's wins
-  over its workspace's — killed by reading ``_config`` before the stored layers in ``_resolved``;
+  over its workspace's — killed by reading ``_config`` before the stored layers in ``_resolved_limits``;
 * the edited Lens-wide turn budget is the one admission reads — killed by restoring
   ``lens_setting("daily_turn_budget")`` in ``trigger._over_budget``.
 """
