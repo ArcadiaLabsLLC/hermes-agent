@@ -383,6 +383,10 @@ PY
 #    HERMES_TEST_PRECOMPILE_MAX_FILES, default 64): each process compiles only what it imports
 #    and Python caches every module on first import, so a whole-tree pass costs a small run far
 #    more than it saves. HERMES_TEST_PRECOMPILE=always|never overrides the choice.
+#  * The bundled runner's own value-taking flags (`--bundle-size 2` and kin) are skipped with their
+#    values: prepush's gates step passes `--bundle-size`, its value read as a non-file argument, and
+#    every gates step since 32668e6ecf (2026-11-12) ran the whole-tree pass — 6 s warm and 50 s+ cold
+#    of its 10 s budget at load ~40 (FH-PREPUSH-GATES-OVER-BUDGET).
 # Sets _fork_precompile_owned=1 so upstream's own whole-tree pass (kept verbatim) is skipped.
 _is_small_file_run() {
   local limit="${HERMES_TEST_PRECOMPILE_MAX_FILES:-64}" count=0 skip_next=0 arg
@@ -391,6 +395,7 @@ _is_small_file_run() {
     case "$arg" in
       --files|--files=*|--files-from|--files-from=*|--paths|--paths=*|--slice|--slice=*|--generate-slices) return 1 ;;
       -j|--jobs|--file-timeout|--file-retries|-k|-m|-p|-o|-c|-r|-W) skip_next=1; continue ;;
+      --bundle-size|--bundle-seconds|--solo-seconds|--unbundled-list|--skip-list|--manifest) skip_next=1; continue ;;
       -*) continue ;;
     esac
     case "$arg" in *.py) [ -f "$arg" ] || return 1 ;; *) return 1 ;; esac

@@ -55,6 +55,18 @@ def test_a_few_named_test_files_are_a_small_run():
     assert _small("-j", "8", *gates, "-q", "-k", "grammar")
 
 
+def test_prepush_gates_step_argv_is_a_small_run():
+    """FH-PREPUSH-GATES-OVER-BUDGET: the gates step passes the bundled runner's ``--bundle-size N``; its
+    value is a flag's, not a path, or every gates step pays the whole-tree pass (6 s warm, 50 s+ cold).
+
+    KILLING MUTATION: drop ``--bundle-size`` from the skipped value flags in ``_is_small_file_run`` ->
+    ``2`` reads as a non-file argument, the run is whole, red. (Red seen 2026-11-14, w1114a-hgates.)"""
+    gates = ["tests/tooling/test_work_queue_row_grammar.py", "tests/test_line_endings.py"]
+    assert _small("--small", "-j", "8", "--bundle-size", "2", *gates)
+    assert _small("--bundle-seconds", "30", "--solo-seconds", "60", *gates)
+    assert not _small("--bundle-size", "2", "tests/tooling")
+
+
 def test_a_directory_a_file_list_or_many_files_is_a_whole_run():
     files = sorted(str(p.relative_to(REPO)) for p in (REPO / "tests" / "agent_runtime").glob("test_*.py"))[:65]
     assert len(files) == 65
