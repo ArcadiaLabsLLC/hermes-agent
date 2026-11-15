@@ -26,6 +26,10 @@ from agent_runtime.work_store.persona_turn import PersonaTurnExecutor
 from tests.agent_runtime.messaging.fake_bot_api_server import FakeTelegram
 from tests.agent_runtime.messaging.test_upstream_telegram_end_to_end import GATE_ENV, ROOT, TOKEN, _wait
 
+pytest.importorskip(
+    "telegram", reason="python-telegram-bot is the `messaging` extra, outside `[all]` and the canonical "
+    "test venv; these tests drive the real upstream adapter (RT-MESSAGING-TESTS-NEED-THE-MESSAGING-EXTRA)")
+
 TG = Platform.TELEGRAM
 
 

@@ -75,7 +75,7 @@ class FakeTelegram:
                 self.end_headers()
                 self.wfile.write(raw)
 
-            def do_POST(self):  # noqa: N802 - http.server's name
+            def do_POST(self):  # http.server's name
                 prefix = f"/bot{fake.token}/"
                 if self.path.endswith(".png"):  # a file download, whatever root the client built for it
                     with fake._lock:
@@ -93,7 +93,7 @@ class FakeTelegram:
                 params = _params(self)
                 self._answer({"ok": True, "result": fake.handle(method, params)})
 
-            do_GET = do_POST  # noqa: N815
+            do_GET = do_POST
 
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self._server.daemon_threads = True

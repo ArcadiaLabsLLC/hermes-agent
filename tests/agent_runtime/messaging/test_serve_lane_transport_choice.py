@@ -154,6 +154,9 @@ def test_a_changed_setting_stops_the_old_transport_before_the_new_one_starts(fak
 
 @pytest.fixture
 def live(monkeypatch):
+    pytest.importorskip(
+        "telegram", reason="python-telegram-bot is the `messaging` extra, outside `[all]` and the canonical "
+        "test venv; these tests drive the real upstream adapter (RT-MESSAGING-TESTS-NEED-THE-MESSAGING-EXTRA)")
     for name in GATE_ENV:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("HERMES_TELEGRAM_DISABLE_FALLBACK_IPS", "1")

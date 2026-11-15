@@ -46,6 +46,14 @@ def _wait(condition, timeout=20.0, what="the condition"):
 
 
 @pytest.fixture(autouse=True)
+def _needs_the_library():
+    # A fixture, not a module-level skip: test_serve_lane_transport_choice imports this module's helpers.
+    pytest.importorskip(
+        "telegram", reason="python-telegram-bot is the `messaging` extra, outside `[all]` and the canonical "
+        "test venv; these tests drive the real upstream adapter (RT-MESSAGING-TESTS-NEED-THE-MESSAGING-EXTRA)")
+
+
+@pytest.fixture(autouse=True)
 def _no_direct_turns(monkeypatch):
     def refuse(args):
         raise AssertionError("the bridge ran a chat turn directly instead of queueing it")
