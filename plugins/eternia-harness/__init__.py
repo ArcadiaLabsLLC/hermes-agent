@@ -287,7 +287,7 @@ def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", tool_
     blocked = refuse_blocked_tool(tool_name=tool_name, session_id=session_id)
     if blocked is not None:
         return blocked
-    lens = gate_tool_call(tool_name, args, tool_call_id)
+    lens = gate_tool_call(tool_name, args, tool_call_id, task_id)
     if lens is not None:
         return {"action": "block", "message": lens}
     staged = review_shared_skill_write(tool_name, args)

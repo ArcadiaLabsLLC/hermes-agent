@@ -11,7 +11,8 @@ definition) — is decided in this order:
 1. the Episode carries untrusted free text, or the turn already made any read outside
    :data:`TYPED_ONLY_READS` -> **proposal** (W9: such an Episode never acts alone, whatever the rules say);
 2. the tool is not on the monitor's ``automation.actions`` list -> **proposal**;
-3. the call cannot be undone (only checkpointed file writes can, :data:`UNDOABLE_TOOLS`) -> **proposal**;
+3. the call cannot be undone (only a file write whose before image Lens took, :data:`UNDOABLE_TOOLS` and
+   ``undo.capture``) -> **proposal**;
 4. the rules check (``rules_check.check_action``, Lens's guardian): ``approve`` -> the call runs;
    ``deny`` -> refused, the model reads that this monitor's rules refused it; ``escalate`` or a failed
    check -> **proposal**.
@@ -48,7 +49,7 @@ __layer__ = "lanes"
 
 logger = logging.getLogger(__name__)
 
-#: File writes the turn's checkpoints can restore (``operator_undo.py``): the only calls that can be undone.
+#: File writes Lens can undo from the before image it takes (``undo.py``): the only calls that can be undone.
 UNDOABLE_TOOLS = frozenset({"apply_patch", "edit_file", "file.edit", "file.write", "patch", "write_file"})
 #: The only non-mutating calls that bring no outside text into the turn: Lens's own typed reads, the tool
 #: catalog bridge and a question to the owner. ANY other read (a web or browser read, an MCP read,
@@ -92,13 +93,17 @@ class ActTurn:
     _running: dict[str, str] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
-    def decide(self, tool: str, arguments: Any, tool_call_id: str | None) -> str | None:
+    def decide(self, tool: str, arguments: Any, tool_call_id: str | None, task_id: str | None = None) -> str | None:
         """None: the call runs. Else the message the model reads instead of a result."""
 
-        undoable = tool in UNDOABLE_TOOLS
+        from .undo import capture
+
+        # Undoable only when Lens holds the file's before image (``undo.py``): taken now, before the call.
+        image = capture(arguments, task_id) if tool in UNDOABLE_TOOLS else None
+        undoable = image is not None
         if self.preadmitted is not None and self.preadmitted == (tool, arguments_digest(arguments)):
             self.preadmitted = None  # one-shot: the same call again is judged like any other
-            self._allow(tool, arguments, None, DECIDED_BY_OWNER, WHY_OWNER_APPROVED, undoable, tool_call_id)
+            self._allow(tool, arguments, None, DECIDED_BY_OWNER, WHY_OWNER_APPROVED, image, tool_call_id)
             return None
         why = (WHY_UNTRUSTED_TEXT if self.free_text or self.tainted
                else WHY_NOT_LISTED if tool not in self.actions
@@ -111,7 +116,7 @@ class ActTurn:
             if self.budget is not None:
                 self.budget.charge(checked.tokens or 0)  # the check counts against the Episode (design §2)
             if checked.verdict is RulesVerdict.APPROVE:
-                self._allow(tool, arguments, verdict, DECIDED_BY_RULES, None, undoable, tool_call_id)
+                self._allow(tool, arguments, verdict, DECIDED_BY_RULES, None, image, tool_call_id)
                 return None
             if checked.verdict is RulesVerdict.DENY:
                 self._record(tool, arguments, verdict, DECIDED_BY_RULES, ActionResult.REFUSED, WHY_RULES_DENIED,
@@ -122,8 +127,13 @@ class ActTurn:
         return PROPOSED_TEXT.format(tool=tool, why=why.replace("_", " "))
 
     def _allow(self, tool: str, arguments: Any, verdict: str | None, decided_by: str, why: str | None,
-               undoable: bool, tool_call_id: str | None) -> None:
-        row = self._record(tool, arguments, verdict, decided_by, ActionResult.RUNNING, why, undoable, tool_call_id)
+               image: Any, tool_call_id: str | None) -> None:
+        from .undo import keep_image
+
+        row = self._record(tool, arguments, verdict, decided_by, ActionResult.RUNNING, why, image is not None,
+                           tool_call_id, undo_handle=None if image is None else image.handle())
+        if image is not None:
+            keep_image(self.store_factory(), row["action_id"], image)
         if tool_call_id:
             with self._lock:
                 self._running[tool_call_id] = row["action_id"]
@@ -136,11 +146,12 @@ class ActTurn:
                           finished_ms=to_ms(self.clock()))
 
     def _record(self, tool: str, arguments: Any, verdict: str | None, decided_by: str, result: str,
-                why: str | None, undoable: bool, tool_call_id: str | None) -> dict[str, Any]:
+                why: str | None, undoable: bool, tool_call_id: str | None,
+                undo_handle: dict[str, Any] | None = None) -> dict[str, Any]:
         return record_action(self.store_factory(), episode_id=self.episode_id, monitor_id=self.monitor_id,
                              turn_id=self.turn_id, tool=tool, arguments=arguments, verdict=verdict,
                              decided_by=decided_by, result=result, why=why, undoable=undoable,
-                             created_ms=to_ms(self.clock()), tool_call_id=tool_call_id)
+                             created_ms=to_ms(self.clock()), tool_call_id=tool_call_id, undo_handle=undo_handle)
 
 
 _ARMED: dict[str, ActTurn] = {}
@@ -177,7 +188,8 @@ def _mutating() -> frozenset[str]:
     return frozenset(extra_blocked_tools_for_permission_mode(PERMISSION_MODE_READ_ONLY))
 
 
-def gate_tool_call(tool_name: Any = None, args: Any = None, tool_call_id: Any = None) -> str | None:
+def gate_tool_call(tool_name: Any = None, args: Any = None, tool_call_id: Any = None,
+                   task_id: Any = None) -> str | None:
     """The ``pre_tool_call`` gate: None lets the call run; a string is the refusal the model reads."""
 
     if not _ARMED:
@@ -192,7 +204,8 @@ def gate_tool_call(tool_name: Any = None, args: Any = None, tool_call_id: Any = 
             if name not in TYPED_ONLY_READS:
                 turn.tainted = True  # outside text may now be in the turn
             return None
-        return turn.decide(name, args if isinstance(args, dict) else {}, str(tool_call_id or "") or None)
+        return turn.decide(name, args if isinstance(args, dict) else {}, str(tool_call_id or "") or None,
+                           str(task_id or "") or None)
     except Exception:
         logger.warning("lens act gate failed", exc_info=True)
         return None if turn is None else PROPOSED_TEXT.format(tool=tool_name, why="the check failed")

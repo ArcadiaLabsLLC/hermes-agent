@@ -158,12 +158,18 @@ class StoreRefusal(str, Enum):
     PROPOSAL_SETTLED = "proposal_settled"
     #: An approval whose Episode ran no chat to follow up in.
     EPISODE_HAS_NO_CHAT = "episode_has_no_chat"
+    #: ``runtime.lens.undo`` on an id no action receipt carries.
+    ACTION_NOT_FOUND = "action_not_found"
+    #: ``runtime.lens.undo`` on an action with no before image, or one that never ran.
+    ACTION_CANNOT_BE_UNDONE = "action_cannot_be_undone"
+    #: ``runtime.lens.undo`` on an action already undone.
+    ACTION_ALREADY_UNDONE = "action_already_undone"
 
 
 #: The refusals a reader answers as "not found" (the rest are conflicts).
 NOT_FOUND_REFUSALS = frozenset({StoreRefusal.NOT_FOUND, StoreRefusal.RECEIPT_NOT_FOUND,
                                 StoreRefusal.ROUTE_NOT_FOUND, StoreRefusal.EPISODE_NOT_FOUND,
-                                StoreRefusal.PROPOSAL_NOT_FOUND})
+                                StoreRefusal.PROPOSAL_NOT_FOUND, StoreRefusal.ACTION_NOT_FOUND})
 
 
 class ReceiptOutcome(str, Enum):

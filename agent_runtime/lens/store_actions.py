@@ -11,7 +11,8 @@ result, why, undoable, undo_handle, arguments, created_ms, finished_ms}``:
   denied it; the model was told) or ``proposed`` (sent to the owner; the turn carried on without it);
 * ``arguments`` — kept only on a proposal (the owner reads what they would approve), at most
   :data:`MAXIMUM_PROPOSAL_ARGUMENT_BYTES`, else null; every row keeps the digest;
-* ``undo_handle`` — null until ``RT-LENS-UNDO-ACTION`` records one;
+* ``undo_handle`` — ``{kind: file, path, existed}`` when Lens holds the file's before image (``undo.py``,
+  ``RT-LENS-UNDO-ACTION``), else null; ``undone_by`` — the undo receipt's ``action_id`` once undone;
 * a proposal's answer (row ``RT-LENS-PROPOSAL-APPROVE-DENY``, design §4, decision 5): ``result`` moves
   ``proposed`` -> ``approved`` | ``denied`` (the owner, ``answered_ms``) or ``expired`` (unanswered for
   :data:`PROPOSAL_TTL_MS`); ``expires_ms`` says when. An approval owes ONE follow-up turn in the Episode's
@@ -43,13 +44,13 @@ CREATE TABLE IF NOT EXISTS lens_actions (
   action_id TEXT PRIMARY KEY, episode_id TEXT NOT NULL, monitor_id TEXT NOT NULL, turn_id TEXT NOT NULL,
   tool_call_id TEXT, tool TEXT NOT NULL, arguments_digest TEXT NOT NULL, arguments TEXT, verdict TEXT,
   decided_by TEXT, result TEXT NOT NULL, why TEXT, undoable INTEGER NOT NULL, undo_handle TEXT,
-  created_ms INTEGER NOT NULL, finished_ms INTEGER, answered_ms INTEGER, follow_up_turn_id TEXT);
+  created_ms INTEGER NOT NULL, finished_ms INTEGER, answered_ms INTEGER, follow_up_turn_id TEXT, undone_by TEXT);
 CREATE INDEX IF NOT EXISTS lens_actions_by_episode ON lens_actions (episode_id, created_ms);
 CREATE INDEX IF NOT EXISTS lens_actions_by_monitor ON lens_actions (monitor_id, created_ms);
 """
 _COLUMNS = ("action_id", "episode_id", "monitor_id", "turn_id", "tool_call_id", "tool", "arguments_digest",
             "arguments", "verdict", "decided_by", "result", "why", "undoable", "undo_handle", "created_ms",
-            "finished_ms", "answered_ms", "follow_up_turn_id")
+            "finished_ms", "answered_ms", "follow_up_turn_id", "undone_by")
 
 
 class ActionResult:
@@ -73,9 +74,12 @@ def add_action_tables(conn: sqlite3.Connection) -> None:
 
     conn.executescript(_TABLES)
     columns = {row[1] for row in conn.execute("PRAGMA table_info(lens_actions)")}
-    for column, kind in (("answered_ms", "INTEGER"), ("follow_up_turn_id", "TEXT")):  # a store from before answers
+    for column, kind in (("answered_ms", "INTEGER"), ("follow_up_turn_id", "TEXT"), ("undone_by", "TEXT")):  # a store from before answers
         if column not in columns:
             conn.execute(f"ALTER TABLE lens_actions ADD COLUMN {column} {kind}")
+    from .undo import add_undo_tables
+
+    add_undo_tables(conn)
 
 
 def arguments_digest(arguments: Any) -> str:
@@ -89,15 +93,17 @@ def arguments_digest(arguments: Any) -> str:
 
 def record_action(store: LensStore, *, episode_id: str, monitor_id: str, turn_id: str, tool: str, arguments: Any,
                   verdict: str | None, decided_by: str | None, result: str, why: str | None, undoable: bool,
-                  created_ms: int, tool_call_id: str | None = None) -> dict[str, Any]:
+                  created_ms: int, tool_call_id: str | None = None,
+                  undo_handle: dict[str, Any] | None = None) -> dict[str, Any]:
     kept = None
     if result == ActionResult.PROPOSED:
         text = json.dumps(arguments, sort_keys=True, default=str)
         kept = text if len(text.encode("utf-8")) <= MAXIMUM_PROPOSAL_ARGUMENT_BYTES else None
     settled = result != ActionResult.RUNNING
     row = (f"lens-action-{secrets.token_hex(8)}", episode_id, monitor_id, turn_id, tool_call_id, tool,
-           arguments_digest(arguments), kept, verdict, decided_by, result, why, 1 if undoable else 0, None,
-           int(created_ms), int(created_ms) if settled else None, None, None)
+           arguments_digest(arguments), kept, verdict, decided_by, result, why, 1 if undoable else 0,
+           None if undo_handle is None else json.dumps(undo_handle, sort_keys=True),
+           int(created_ms), int(created_ms) if settled else None, None, None, None)
     with store.connection() as conn:
         conn.execute(f"INSERT INTO lens_actions ({', '.join(_COLUMNS)}) VALUES ({', '.join('?' * len(_COLUMNS))})",
                      row)
@@ -147,6 +153,12 @@ def wall_ms() -> int:
     from .store import to_ms
 
     return to_ms(datetime.now(UTC))
+
+
+def set_undone_by(store: LensStore, action_id: str, receipt_id: str) -> None:
+    with store.connection() as conn:
+        conn.execute("UPDATE lens_actions SET undone_by = ? WHERE action_id = ? AND undone_by IS NULL",
+                     (receipt_id, action_id))
 
 
 def answer_proposal(store: LensStore, action_id: str, *, approve: bool, now_ms: int) -> dict[str, Any]:
@@ -210,5 +222,6 @@ def _json(row: tuple[Any, ...]) -> dict[str, Any]:
     out["undoable"] = bool(out["undoable"])
     out["expires_ms"] = (out["created_ms"] + PROPOSAL_TTL_MS) if out["result"] == ActionResult.PROPOSED else None
     out["arguments"] = None if out["arguments"] is None else json.loads(out["arguments"])
+    out["undo_handle"] = None if out["undo_handle"] is None else json.loads(out["undo_handle"])
     out.pop("tool_call_id")
     return out

@@ -122,7 +122,8 @@ budget), but its chat is held at `bounded` instead of `read_only`, and every mut
   expired, with a receipt.
 - **W9 standing rule kept:** an Episode whose evidence carries untrusted free text (titles, scraped
   strings) may never act alone — every mutating call is a proposal.
-- **Undo:** file writes ride the existing checkpoints (`operator_undo.py`), realm writes `realm_revert*`;
+- **Undo:** file writes ride the existing checkpoints (`operator_undo.py`), realm writes `realm_revert*`
+  (as built: Lens's own before image; see the RT-LENS-UNDO-ACTION note below);
   the receipt carries the undo handle. Anything else is marked "cannot be undone" — the default ruleset
   sends those to the owner.
 - **Receipt per action:** `{episode, tool, arguments digest, verdict, decided_by, result, undo handle}`.
@@ -150,6 +151,18 @@ claims each approval once (`follow_up_turn_id`), forging ONE follow-up turn in t
 act gate pre-admits that call by tool and arguments digest, once (`decided_by: owner`, `why:
 owner_approved`, a new action row); any other call in it is judged as in an act turn. The follow-up's spend
 adds to the Episode's.
+
+**As built (RT-LENS-UNDO-ACTION, 2026-11-14).** A file write is undoable only when Lens holds its BEFORE
+image: the act gate reads the target (`path` argument, on this host, a file up to 1 MiB, or absent) before
+the call runs and keeps it (`lens/undo.py`, table `lens_action_undo`); the receipt's `undo_handle` is
+`{kind: file, path, existed}`. Not the turn's checkpoints, as first written above — read in code: the runtime
+checkpoints only a top-level `write_file`/`patch` with checkpoints enabled, and a Lens turn's file tools
+arrive through the `tool_call` bridge, which is never checkpointed. Anything without an image (`apply_patch`,
+a directory, a container path, a large file) is "cannot be undone" and goes to the owner. No realm write is
+in the mutating set, so none can be an action today. `runtime.lens.undo {action_id}` -> `{action, receipt}`
+writes the image back (or removes a file the action created), records an undo receipt (`tool: undo`,
+`decided_by: owner`, `result: ran | failed`) and marks the action `undone_by`; refusals `action_not_found`,
+`action_cannot_be_undone`, `action_already_undone`.
 
 ## 5. What Eternia shows
 

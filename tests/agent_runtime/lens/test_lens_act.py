@@ -91,7 +91,8 @@ def test_an_act_monitor_runs_a_listed_undoable_call_its_rules_approve(door, hook
     [action] = _actions()
     assert (action["tool"], action["verdict"], action["decided_by"], action["result"], action["undoable"]) == (
         "write_file", "approve", "rules", "ran", True)
-    assert action["arguments"] is None and len(action["arguments_digest"]) == 64 and action["undo_handle"] is None
+    assert action["arguments"] is None and len(action["arguments_digest"]) == 64
+    assert action["undo_handle"]["kind"] == "file" and action["undo_handle"]["existed"] is False
     assert len(guardian.calls) == 2 and "ONE action" in guardian.calls[1][0]  # investigate check, then the act check
     assert '"tool": "write_file"' in guardian.calls[1][1] and '"can_be_undone": true' in guardian.calls[1][1]
     receipt = store.receipt(_episode(1).id)

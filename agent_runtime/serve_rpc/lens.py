@@ -76,7 +76,7 @@ actions                {episode_id? | monitor_id?, limit?} -> {actions} (an ``ac
                        else null), verdict: approve|deny|escalate|null, decided_by: rules|owner,
                        result: running|ran|failed|refused|proposed|approved|denied|expired, why: null|untrusted_text|
                        not_listed|cannot_be_undone|rules_unsure|rules_denied|owner_approved, undoable,
-                       undo_handle, created_ms, finished_ms, answered_ms, expires_ms (an open
+                       undo_handle, undone_by, created_ms, finished_ms, answered_ms, expires_ms (an open
                        proposal's, else null), follow_up_turn_id} — ``lens/store_actions.py``;
                        a proposal's result moves proposed -> approved | denied | expired
 proposal.answer        {action_id, decision: approve|deny} -> the action row (result approved |
@@ -85,6 +85,12 @@ proposal.answer        {action_id, decision: approve|deny} -> the action row (re
                        (``follow_up_turn_id``), and the call itself lands as a new action row
                        (decided_by owner, why owner_approved). ``proposal_not_found`` (not found),
                        ``proposal_settled`` (already answered or past its 24 h), ``episode_has_no_chat``
+undo                   {action_id} -> {action (now with undone_by), receipt} — restores the file
+                       an act action wrote from the before image Lens took (``undo_handle``:
+                       {kind: file, path, existed}; a created file is removed) and writes an undo
+                       receipt (tool undo, decided_by owner, result ran|failed, why undo);
+                       ``action_not_found``, ``action_cannot_be_undone`` (no image, or it never
+                       ran), ``action_already_undone`` (``lens/undo.py``)
 artifact               {episode_id, name} -> {name, media_type, size_bytes, sha256, encoding, content}
                        (one file from the Episode's folder only; 1 MiB, text and images)
 ingress.register       {monitor_id, kind, mapping?, auth?} -> {route_id, url, secret, kind, mapping,
@@ -451,6 +457,19 @@ def _runtime_lens_proposal_answer(rid: Any, params: dict, context: RpcContext | 
                 raise LensStoreError(StoreRefusal.EPISODE_HAS_NO_CHAT)
         return answer_proposal(store, action_id, approve=m["decision"] == "approve",
                                now_ms=store_actions.wall_ms())
+
+    return _lens_call(rid, body)
+
+
+@method("runtime.lens.undo", tier=TIER_CONSOLE)
+def _runtime_lens_undo(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    def body() -> dict:
+        from agent_runtime.lens import store_actions
+        from agent_runtime.lens.undo import undo
+        from agent_runtime.lens.wire_value import checked_object, opaque_id
+
+        m = checked_object(params or {}, {"action_id"})
+        return undo(_store(), opaque_id(m["action_id"]), now_ms=store_actions.wall_ms())
 
     return _lens_call(rid, body)
 
