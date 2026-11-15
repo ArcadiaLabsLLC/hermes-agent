@@ -501,6 +501,8 @@ def activate_dependencies(project_root: Path) -> None:
         # Never consult VIRTUAL_ENV: it can describe the invoking shell's Python.
         environment = payload_venv(project_root)
         if environment is None:
+            environment = _fork_borrowed_home_environment(project_root)  # fork: ledger row pm/environments.py
+        if environment is None:
             return _require_own_dependencies(project_root)
         selected = site_packages(environment)
         if not selected.is_dir():
@@ -640,6 +642,16 @@ def _fork_borrowing_checkout(original):  # HERMES_DEPENDENCY_CHECKOUT: the lende
 
 
 install_state_dir = _fork_borrowing_checkout(install_state_dir)
+
+
+def _fork_borrowed_home_environment(project_root):  # a borrowed home with no state: pm/_fork_borrowed_home.py
+    try:
+        from pm._fork_borrowed_home import borrowed_home_environment
+    except ModuleNotFoundError as exc:
+        if exc.name != "pm._fork_borrowed_home":
+            raise
+        return None  # a minted boot tree that copies this file alone
+    return borrowed_home_environment(project_root)
 
 if __name__ == "__main__":
     main()
