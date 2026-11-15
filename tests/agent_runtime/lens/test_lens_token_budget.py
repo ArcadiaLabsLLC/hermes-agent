@@ -169,7 +169,8 @@ def test_a_turn_that_spends_its_budget_lands_and_its_receipt_says_so(door):
     assert agent.iteration_budget.left == 0
     receipt = _rpc("runtime.lens.receipt", {"episode_id": _episode(1).id})["result"]
     assert receipt["outcome"] == "budget_spent"
-    assert receipt["budget"] == {"tokens_used": 2_500, "token_limit": 5_000, "calls_used": 2, "call_limit": 30,
+    # The rules check (conftest's guardian: 212 tokens, one call) is the Episode's first spend.
+    assert receipt["budget"] == {"tokens_used": 2_712, "token_limit": 5_000, "calls_used": 3, "call_limit": 30,
                                  "stopped_by": "tokens"}
 
 
@@ -179,13 +180,14 @@ def test_a_turn_inside_its_budget_is_forged_and_counted(door):
 
     assert _forge().tick() == ["forged"]
 
-    assert store.receipt(_episode(1).id)["budget"] == {"tokens_used": 2_000, "token_limit": 150_000,
-                                                       "calls_used": 2, "call_limit": 30, "stopped_by": None}
+    # Two turn calls plus the rules check (212 tokens, one call; RT-LENS-RULES-CHECK-BEFORE-INVESTIGATE).
+    assert store.receipt(_episode(1).id)["budget"] == {"tokens_used": 2_212, "token_limit": 150_000,
+                                                       "calls_used": 3, "call_limit": 30, "stopped_by": None}
     from agent_runtime.lens.budget import budget_view
 
     view = budget_view(store, {"monitor_id": "status"}, T0)  # the RPC reads the real clock's day
-    assert view["monitor"]["today"] == {"tokens": 2_000}
-    assert view["lens"]["today"] == {"tokens": 2_000, "turns": 1}
+    assert view["monitor"]["today"] == {"tokens": 2_212}
+    assert view["lens"]["today"] == {"tokens": 2_212, "turns": 1}
 
 
 def test_a_notify_receipt_carries_no_budget(door):

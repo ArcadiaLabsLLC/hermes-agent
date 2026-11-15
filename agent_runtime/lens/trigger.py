@@ -25,8 +25,12 @@ global budget reached  receipt ``notified_over_budget`` (W6: an ``investigate`` 
                        also when the monitor's or all Lens's TOKENS today fill their daily
                        limit (``lens/budget.py``)
 ``level: notify``      receipt ``notified``; no turn
-``level: investigate`` receipt ``forging`` -> the turn -> ``forged`` | ``budget_spent`` |
-                       ``forge_failed:<reason>``
+``level: investigate`` the RULES CHECK (``rules_check.py``, RT-LENS-RULES-CHECK-BEFORE-INVESTIGATE):
+                       the monitor's effective rules judge what fired; ``deny``, ``escalate``
+                       or a failed check -> receipt ``notified_by_rules``, no turn (fail closed);
+                       ``approve`` -> receipt ``forging`` -> the turn -> ``forged`` |
+                       ``budget_spent`` | ``forge_failed:<reason>``. The verdict,
+                       ``decided_by: rules`` and the check's tokens ride the receipt either way
 decided after the read receipt ``skipped_decided``, no turn: ``save_receipts`` re-checks
                        ``needs_admission`` on the STORED row (an operator dismiss/snooze
                        written between the door's read and its receipt transaction)
@@ -90,6 +94,7 @@ from .evidence import DEFAULT_MAXIMUM_BYTES, MAXIMUM_SPAN, EvidenceRefused, buil
 from .feed import Observation
 from .manifest import AutomationLevel, AutomationWhen
 from .provenance import lens_client_message_id, lens_requested_by
+from .rules_check import RulesCheck, RulesVerdict, check_investigate, fired_values
 from .rules import SCHEDULE_RULE_ID, Severity, is_scheduled, is_source_broken, manifest_rule, rule_feed_ids
 from .store import FORGE_FAILED_PREFIX, LensStore, MonitorState, ReceiptOutcome, from_ms, to_ms
 from .tool import digest_opening_block, episode_title, opening_block, schedule_opening_block
@@ -109,6 +114,8 @@ _EVIDENCE_SHRINKS = 12
 Clock = Callable[[], datetime]
 #: ``(manifest, episode, message) -> (ok, payload)`` — the turn, injectable for tests.
 Forge = Callable[..., "tuple[bool, dict | None]"]
+#: ``(guidance=, monitor_name=, fired=, turns_left_today=) -> RulesCheck`` — the rules check, injectable for tests.
+Check = Callable[..., RulesCheck]
 
 
 def _utc_now() -> datetime:
@@ -305,6 +312,7 @@ class LensForge:
     store_factory: Callable[[], LensStore] = LensStore
     clock: Clock = _utc_now
     forge: Forge = forge_episode_turn
+    check: Check = check_investigate
 
     def tick(self) -> list[str]:
         """Admit every owed Episode once. Returns the outcomes written this pass."""
@@ -460,11 +468,15 @@ class LensForge:
             message = opening_block(manifest, leader, windows[0][1], folder, **notes[leader.id])
         else:
             message = digest_opening_block(manifest, windows, folder, notes=notes)
+        checked = self._rules_check(store, manifest, windows, now)
+        if not checked.allows:
+            return self._notify_by_rules(store, members, now, digest, close, checked)
         turn_key = leader.id if digest is None else digest
         turn_id = lens_client_message_id(turn_key)
         pairs = [self._digest_receipt(member, now, digest,
                                       ReceiptOutcome.FORGING.value if i == 0 else ReceiptOutcome.DIGESTED.value,
                                       turn_id, TOOL_ADMISSION_READ_ONLY) for i, member in enumerate(members)]
+        pairs[0][0].update(checked.receipt_fields())
         # BEFORE the turn, with every Episode's turn_id, in one transaction: the once-only guarantee.
         if not store.save_receipts(pairs, also=close):
             return None
@@ -475,6 +487,7 @@ class LensForge:
 
         token_limit, call_limit = episode_limits(store, leader.monitor_id, now)
         budget = TurnTokenBudget(token_limit=token_limit, call_limit=call_limit)
+        budget.charge(checked.tokens or 0)  # the rules check is the Episode's first spend (design §2)
         try:
             # Armed for THIS turn's client message id: every provider call of the turn is counted and the
             # turn lands when the next call would pass a limit (``turn_token_budget``).
@@ -497,6 +510,42 @@ class LensForge:
         store.finish_receipt(leader.id, outcome=outcome, finished_ms=to_ms(self.clock()),
                              session_id=None if session_id is None else str(session_id),
                              artifact_handles=handles, files=files)
+        return outcome
+
+    def _rules_check(self, store: LensStore, manifest: dict[str, Any], windows: list, now: datetime) -> RulesCheck:
+        """The monitor's effective rules judge what fired (design §2), before any turn is written."""
+
+        from .guidance import effective_guidance
+        from .settings import lens_setting
+        from .store_admission import turns_today
+
+        leader = windows[0][0]
+        monitor_id = leader.monitor_id
+        rules = effective_guidance(store, manifest, store.get(monitor_id).get("workspace_id"))
+        left = {"monitor": max(0, manifest["automation"]["daily_turn_cap"] - store.receipts_today(monitor_id, now)),
+                "all_lens": max(0, lens_setting("daily_turn_budget") - turns_today(store, now))}
+        fired = [fired_values(manifest_rule(manifest, member.rule_id), member, evidence) for member, evidence in windows]
+        try:
+            return self.check(guidance=rules["text"], monitor_name=monitor_id, fired=fired, turns_left_today=left)
+        except Exception:  # fail closed (owner decision 3): a check that cannot answer forges no turn
+            logger.warning("lens rules check failed for episode %s", leader.id, exc_info=True)
+            return RulesCheck(verdict=RulesVerdict.ESCALATE)
+
+    def _notify_by_rules(self, store: LensStore, members: list[Episode], now: datetime, digest: str | None,
+                         close: Callable[[Any], None] | None, checked: RulesCheck) -> str | None:
+        """The rules said no (or were unsure): ``notified_by_rules`` with the verdict, and no turn."""
+
+        outcome = ReceiptOutcome.NOTIFIED_BY_RULES.value
+        pairs = [self._digest_receipt(member, now, digest, outcome if i == 0 else ReceiptOutcome.DIGESTED.value,
+                                      outcome, TOOL_ADMISSION_NONE) for i, member in enumerate(members)]
+        pairs[0][0].update(checked.receipt_fields())
+        if not store.save_receipts(pairs, also=close):
+            return None
+        from .budget import record_spend
+
+        # No turn, but the check spent tokens: they count toward the monitor's and all Lens's day.
+        record_spend(store, episode_id=members[0].id, monitor_id=members[0].monitor_id, started_ms=to_ms(now),
+                     summary={"tokens_used": checked.tokens or 0, "calls_used": 1})
         return outcome
 
     def _refuse(self, store: LensStore, members: list[Episode], now: datetime, digest: str | None,

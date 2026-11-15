@@ -47,8 +47,8 @@ from typing import Any, Callable, Iterator
 from .episode import Episode
 from .store_episode_rows import canonical_body, episode_body, episode_state_moves, stale_pairs, write_episode
 from .store_receipt_rows import (RECEIPT_COLUMNS as _RECEIPT_COLUMNS, RECEIPT_READ as _RECEIPT_READ,
-                                 insert_receipts, receipt_json as _receipt_json, receipt_row as _receipt_row,
-                                 settle_receipts_full)
+                                 add_rules_check_columns, insert_receipts, receipt_json as _receipt_json,
+                                 receipt_row as _receipt_row, settle_receipts_full)
 from .feed import Observation
 from .manifest import read_manifest
 from .seal import SealedManifest, seal_manifest
@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS receipts (
   episode_id TEXT PRIMARY KEY, monitor_id TEXT NOT NULL, turn_id TEXT NOT NULL, session_id TEXT,
   started_ms INTEGER NOT NULL, finished_ms INTEGER, outcome TEXT NOT NULL,
   artifact_handles TEXT NOT NULL DEFAULT '[]', files TEXT NOT NULL DEFAULT '[]', tool_admission TEXT NOT NULL,
-  digest_id TEXT);
+  digest_id TEXT, rules_verdict TEXT, decided_by TEXT, rules_check_tokens INTEGER);
 CREATE INDEX IF NOT EXISTS receipts_by_monitor ON receipts (monitor_id, started_ms);
 CREATE TABLE IF NOT EXISTS receipt_rollups (
   monitor_id TEXT NOT NULL, day_ms INTEGER NOT NULL, outcome TEXT NOT NULL, count INTEGER NOT NULL,
@@ -174,6 +174,8 @@ class ReceiptOutcome(str, Enum):
     COOLED = "cooled"
     #: W6: the turn would pass the global ``daily_turn_budget`` — downgraded to a notification.
     NOTIFIED_OVER_BUDGET = "notified_over_budget"
+    #: The monitor's rules check (``rules_check.py``) denied the investigate turn, or was unsure or failed.
+    NOTIFIED_BY_RULES = "notified_by_rules"
     #: W6: a member of a digest; its leader's receipt carries the outcome, all share ``turn_id``.
     DIGESTED = "digested"
     #: The stored Episode stopped being owed (a decision, a snooze) after the door read it — no turn.
@@ -186,7 +188,8 @@ class ReceiptOutcome(str, Enum):
 FORGE_FAILED_PREFIX = "forge_failed:"
 #: The outcomes ``daily_turn_cap`` counts: a turn run, running, or a notification sent.
 CAPPED_OUTCOMES = (ReceiptOutcome.FORGING.value, ReceiptOutcome.FORGED.value, ReceiptOutcome.NOTIFIED.value,
-                   ReceiptOutcome.NOTIFIED_OVER_BUDGET.value, ReceiptOutcome.BUDGET_SPENT.value)
+                   ReceiptOutcome.NOTIFIED_OVER_BUDGET.value, ReceiptOutcome.BUDGET_SPENT.value,
+                   ReceiptOutcome.NOTIFIED_BY_RULES.value)
 
 
 class LensStoreError(ValueError):
@@ -257,6 +260,7 @@ class LensStore:
                 _add_proposal_columns(conn)
                 _add_observation_revision(conn)
                 _add_receipt_digest(conn)
+                add_rules_check_columns(conn)
                 _add_workspace_column(conn)
                 _add_budget_tables(conn)
                 with conn:

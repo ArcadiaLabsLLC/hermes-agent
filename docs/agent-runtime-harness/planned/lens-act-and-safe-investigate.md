@@ -56,6 +56,14 @@ and survives a serve restart; with none, the shipped text above applies. The RPC
 | **Before the investigate turn** (at admission, after the caps) | monitor name, rule that fired, typed values, budget left today | forge the turn | receipt `notified_by_rules`, no turn | `notified_by_rules`, no turn (fail closed) |
 | **Before each mutating tool call** in an `act` turn | tool name, its arguments, whether it can be undone, the Episode summary | the call runs | the call is refused; the model reads "refused by this monitor's rules" | the call becomes a **proposal** (§4) |
 
+**As built (RT-LENS-RULES-CHECK-BEFORE-INVESTIGATE, 2026-11-14).** The guardian's one call is
+`tools/approval_smart.py::guardian_verdict` (a fork seam split out of `_smart_approve`); the Lens prompt
+and the fenced request are `agent_runtime/lens/rules_check.py`. The door runs it in `LensForge._forge`,
+after the caps, the level and the evidence, for every investigate turn and once per digest. A refusal is
+receipt `notified_by_rules` (counted by the daily cap like `notified`); every checked receipt carries
+`rules_verdict` (`approve|deny|escalate`), `decided_by: rules` and `rules_check_tokens` (the guardian
+call's `total_tokens`, for the Episode budget to count).
+
 Read-only tool calls in either level pay no check — the budget (§3) bounds them. The check's own tokens
 (a few hundred per verdict, 16 out) count against the Episode budget. Every verdict lands on the receipt
 (`decided_by: rules | owner`).

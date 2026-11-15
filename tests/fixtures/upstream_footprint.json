@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-11-13",
+  "measured_at": "2026-11-14",
   "base": "3b42157858",
-  "files": 224,
-  "deleted_lines": 875,
+  "files": 225,
+  "deleted_lines": 884,
   "heavy": 1,
   "reasons": [
     {
@@ -1405,6 +1405,21 @@
       },
       "reason": "HELD PR: activate_dependencies routes its checkout and venv PATH prefix through compose_env so repeated boots share the same idempotent managed-path composition; otherwise nested pnpm postinstall crosses the Windows cmd environment limit after the root preinstall succeeds. Same required canonical update recovery as pm/package.py.",
       "owner_ruling": "2026-11-13 \u00b7 RT-WINDOWS-SOURCE-UPDATE-NODE-NOT-FOUND: owner requested proper shared-runtime repair and completed live verification; canonical install recovery is required to deliver it"
+    },
+    {
+      "change": "RT-LENS-RULES-CHECK-BEFORE-INVESTIGATE",
+      "before": {
+        "files": 224,
+        "deleted_lines": 875,
+        "heavy": 1
+      },
+      "after": {
+        "files": 225,
+        "deleted_lines": 884,
+        "heavy": 1
+      },
+      "reason": "fork seam: guardian_verdict(system_prompt, user_prompt, usage=) is the guardian's one auxiliary-model call split out of _smart_approve (byte-identical call, empty-answer and failure handling; the shell prompt build keeps its escalate-on-failure try), so Lens's rules check before every investigate turn (agent_runtime/lens/rules_check.py) reuses the guardian with its own prompt instead of a second classifier. Retires with an upstream public guardian entry point taking a caller's prompt.",
+      "owner_ruling": "2026-11-14 \u00b7 docs/agent-runtime-harness/planned/lens-act-and-safe-investigate.md \u00a71-\u00a72 and \u00a76 (owner RULED: the check reuses the tools/approval_smart.py guardian, no second classifier); row RT-LENS-RULES-CHECK-BEFORE-INVESTIGATE"
     }
   ]
 }

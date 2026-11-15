@@ -22,12 +22,16 @@ __layer__ = "stores"
 logger = logging.getLogger("agent_runtime.lens.store")
 
 RECEIPT_COLUMNS = ("episode_id", "monitor_id", "turn_id", "session_id", "started_ms", "finished_ms", "outcome",
-                   "artifact_handles", "files", "tool_admission", "digest_id")
+                   "artifact_handles", "files", "tool_admission", "digest_id", "rules_verdict", "decided_by",
+                   "rules_check_tokens")
+#: The rules check's columns (``rules_check.py``, RT-LENS-RULES-CHECK-BEFORE-INVESTIGATE): null on a receipt
+#: no check decided (notify, capped, skipped, a store written before the check).
+RULES_CHECK_COLUMNS = (("rules_verdict", "TEXT"), ("decided_by", "TEXT"), ("rules_check_tokens", "INTEGER"))
 #: A receipt READ: the stored columns plus its Episode's ``rule_id``, joined rather than stored twice (row
 #: ``RT-LENS-RECEIPT-RULE-ID`` — a ``schedule:run`` receipt is told from a breach's by it). ``NULL`` when the
 #: Episode row is gone; callers append their own ``WHERE`` / ``ORDER BY`` over the ``r`` alias.
 #: The receipt's ``budget`` block (RT-LENS-INVESTIGATE-TOKEN-BUDGET) is its Episode's ``episode_spend`` row
-#: (``lens/budget.py``), joined the same way; ``null`` for a receipt that ran no turn.
+#: (``lens/budget.py``), joined the same way; ``null`` for a receipt that ran no turn and no rules check.
 BUDGET_COLUMNS = ("tokens_used", "token_limit", "calls_used", "call_limit", "stopped_by")
 RECEIPT_READ = (f"SELECT {', '.join(f'r.{column}' for column in RECEIPT_COLUMNS)}, e.rule_id, "
                 f"s.episode_id, {', '.join(f's.{column}' for column in BUDGET_COLUMNS)} "
@@ -69,7 +73,18 @@ def receipt_row(receipt: dict[str, Any]) -> tuple[Any, ...]:
     values.setdefault("session_id", None)
     values.setdefault("finished_ms", None)
     values.setdefault("digest_id", None)
+    for column, _ in RULES_CHECK_COLUMNS:
+        values.setdefault(column, None)
     return tuple(values[column] for column in RECEIPT_COLUMNS)
+
+
+def add_rules_check_columns(conn: sqlite3.Connection) -> None:
+    """A store written before the rules check gains its receipt columns; its receipts read null."""
+
+    present = {row[1] for row in conn.execute("PRAGMA table_info(receipts)")}
+    for column, kind in RULES_CHECK_COLUMNS:
+        if column not in present:
+            conn.execute(f"ALTER TABLE receipts ADD COLUMN {column} {kind}")
 
 
 def receipt_json(row: tuple[Any, ...]) -> dict[str, Any]:
