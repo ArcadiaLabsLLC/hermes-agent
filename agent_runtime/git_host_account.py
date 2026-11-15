@@ -36,6 +36,7 @@ __all__ = [
     "connected_github",
     "create_private_repo",
     "private_repo_url",
+    "repo_exists",
     "reset_connected_cache",
 ]
 
@@ -157,6 +158,22 @@ def create_private_repo(account: GitHubAccount, name: str) -> str:
     if status in (401, 403):
         raise GitHostRefused(Reason.TOKEN_SCOPE, f"github answered {status} creating {name}")
     raise GitHostRefused(Reason.HOST_UNREACHABLE, f"github answered {status} creating {name}")
+
+
+def repo_exists(account: GitHubAccount, name: str) -> bool | None:
+    """``GET /repos/<login>/<name>``: True when the login already has a repository of that name (public or
+    private), False when GitHub answers 404, None when it cannot tell (unreachable, rate-limited, refused).
+    The free-name check of the default brain's offer (RT-BRAIN-REMOTE-OFFER-NAMES-A-FREE-REPOSITORY)."""
+
+    try:
+        status, _ = _request("GET", f"/repos/{account.login}/{name}", account.authorization())
+    except (OSError, ValueError):
+        return None
+    if status == 200:
+        return True
+    if status == 404:
+        return False
+    return None
 
 
 def private_repo_url(account: GitHubAccount, name: str) -> str | None:

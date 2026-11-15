@@ -147,12 +147,21 @@ class FakeHost:
         from agent_runtime import git_host_account
 
         self.root, self.created, self.connected = root, [], True
+        # Names that exist but the free-name read does not see (a repository made between the offer and the press).
+        self.unseen: set[str] = set()
+        self.probed: list[str] = []
         root.mkdir()
+        default_brain.reset_free_name_cache()
         monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
         monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{root.as_posix()}/.insteadOf")
         monkeypatch.setenv("GIT_CONFIG_VALUE_0", HOST)
         monkeypatch.setattr(git_host_account, "connected_github", self.account)
         monkeypatch.setattr(git_host_account, "create_private_repo", self.create)
+        monkeypatch.setattr(git_host_account, "repo_exists", self.exists)
+
+    def exists(self, account, name):
+        self.probed.append(name)
+        return self.bare(name).exists() and name not in self.unseen
 
     def account(self, timeout=10.0):
         from agent_runtime.git_host_account import GitHubAccount
@@ -284,7 +293,9 @@ def test_not_connected_is_a_receipt_and_the_brain_stays_local(workspace, host, c
 
 
 def test_remote_exists_is_refused_never_adopted(workspace, host):
+    """A name the free-name read saw as free but the press finds taken (made in between) is refused, never adopted."""
     host.make(default_brain.brain_repo_name(workspace))
+    host.unseen.add(default_brain.brain_repo_name(workspace))
     made = default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
     with pytest.raises(WorkRefused) as refused:
         default_brain.promote_default_brain(workspace, issued_at=ISSUED)
@@ -306,6 +317,7 @@ def test_a_refused_press_is_reported_and_the_next_press_retries_at_once(workspac
 
     name = default_brain.brain_repo_name(workspace)
     host.make(name)
+    host.unseen.add(name)
     default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
     with pytest.raises(WorkRefused):
         default_brain.promote_default_brain(workspace, issued_at=ISSUED)
@@ -568,3 +580,25 @@ def test_a_local_brain_on_a_connected_machine_is_offered_a_remote_under_its_logi
     host.connected = False
     assert default_brain.remote_state(workspace) == {"state": "present", "reason": "needs_git_account"}
     assert host.created == []
+
+
+def test_an_offer_skips_a_name_the_login_already_has(workspace, host):
+    """RT-BRAIN-REMOTE-OFFER-NAMES-A-FREE-REPOSITORY (Eternia ``MC-TASKS-BRAIN-OFFER-NAMES-A-REPOSITORY-THAT-ALREADY-EXISTS``,
+    seen 2026-11-15: the offer named ``eternia-work-default``, which the login already had, and the press could only
+    answer ``remote_exists``). With ``<name>`` and ``<name>-2`` already under the login (another machine's brains),
+    the offer names ``<name>-3``, the press creates exactly that, and neither existing repository is touched.
+    The offer is memoised (a second ``capabilities`` read asks GitHub nothing).
+
+    Mutation: treat every name as free in ``free_brain_repo_name`` -> the offer names ``<name>``, red."""
+    base = default_brain.brain_repo_name(workspace)
+    host.make(base)
+    host.make(f"{base}-2")
+    default_brain.ensure_default_brain(workspace, issued_at=ISSUED)
+    offered = default_brain.remote_state(workspace)
+    assert offered["reason"] == "remote_offered" and offered["repo_name"] == f"{base}-3"
+    probes = len(host.probed)
+    assert default_brain.remote_state(workspace)["repo_name"] == f"{base}-3" and len(host.probed) == probes
+    promoted = default_brain.promote_default_brain(workspace, issued_at=ISSUED)
+    assert host.created == [f"{base}-3"] and promoted["url"] == f"{HOST}{base}-3.git"
+    for taken in (base, f"{base}-2"):
+        assert _git(host.bare(taken), "for-each-ref").strip() == ""  # never adopted, nothing pushed

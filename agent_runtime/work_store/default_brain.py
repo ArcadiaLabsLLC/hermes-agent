@@ -17,8 +17,10 @@ binding to slot, and it opens only when the person asks (``runtime.work.create_b
 owner sitting 2026-11-02 on Eternia ``MC-BRAIN-MAKE-REMOTE-ON-GIT-CONNECT``: "never silent, never automatic",
 which retired the 2026-10-18 automatic promotion — RT-BRAIN-REMOTE-ONLY-WHEN-ASKED, after QA serves made
 repositories in a signed-in account). ``promote_default_brain``: the machine's own GitHub chain answers an account
-(``git_host_account.connected_github``) → a PRIVATE ``eternia-work-<slug>`` repo is created (an
-existing name is refused ``remote_exists``, never adopted) → ``git_remote_adopt.adopt_remote`` pushes
+(``git_host_account.connected_github``) → a PRIVATE ``eternia-work-<slug>`` repo is created — or, when the login
+already has that name, the first free ``eternia-work-<slug>-<n>`` the offer named (``free_brain_repo_name``,
+RT-BRAIN-REMOTE-OFFER-NAMES-A-FREE-REPOSITORY: a name already there may be another machine's brain; an existing
+repository is still refused ``remote_exists``, never adopted) → ``git_remote_adopt.adopt_remote`` pushes
 the brain with upstream → the binding records ``remote_url`` → slot ``brain`` is declared with
 ``workspace_slots.declare_one_slot`` and bound here where ``require_publish_right(ws, None)`` passes,
 else the entry is STAGED in the binding (``declaration.state == "pending"``) for the Launcher's next
@@ -81,6 +83,7 @@ __all__ = [
     "brain_repo_name",
     "detach_left_remote",
     "ensure_default_brain",
+    "free_brain_repo_name",
     "promote_default_brain",
     "remote_state",
     "skeleton",
@@ -212,6 +215,46 @@ def brain_repo_name(workspace_id: str) -> str:
     return ("eternia-work-" + (token or "workspace"))[:100]
 
 
+#: How many names the free-name check tries: ``eternia-work-<slug>``, then ``-2`` … ``-9``.
+FREE_NAME_TRIES = 9
+#: ``(login, workspace) -> (monotonic at, name)``: the offer's free name, memoised like the account probe
+#: (``git_host_account.CONNECTED_TTL_S``) — ``capabilities`` reads the offer often and each try is a GitHub read.
+_free_names: dict[tuple[str, str], tuple[float, str]] = {}
+
+
+def reset_free_name_cache() -> None:
+    _free_names.clear()
+
+
+def free_brain_repo_name(workspace_id: str, account: Any, *, fresh: bool = False) -> str:
+    """The repository name a press would create under ``account``: :func:`brain_repo_name` when the login has no
+    repository of that name, else the first of ``<name>-2`` … ``<name>-9`` it lacks
+    (RT-BRAIN-REMOTE-OFFER-NAMES-A-FREE-REPOSITORY; seen 2026-11-15: the offer named ``eternia-work-default``, which
+    the login already had, and the press could only answer ``remote_exists``). A name GitHub cannot answer for is
+    offered as it is (the press finds out); with every try taken the last is named and the press refuses it. Never
+    an adoption: an existing repository may be another machine's brain. The personal board's name is FIXED
+    (``PERSONAL_REPO_NAME``) and never probed. ``fresh`` (the press) skips the memo."""
+
+    from ..git_host_account import CONNECTED_TTL_S, repo_exists
+
+    base = brain_repo_name(workspace_id)
+    if workspace_id == PERSONAL_BOARD_ID:
+        return base
+    key = (str(account.login), workspace_id)
+    memo = _free_names.get(key)
+    if not fresh and memo is not None and time.monotonic() - memo[0] < CONNECTED_TTL_S:
+        return memo[1]
+    name = base
+    for attempt in range(1, FREE_NAME_TRIES + 1):
+        suffix = "" if attempt == 1 else f"-{attempt}"
+        name = base[: 100 - len(suffix)] + suffix
+        # MUTATION: treat every name as free (``if True``) and test_an_offer_skips_a_name_the_login_already_has reddens.
+        if repo_exists(account, name) is not True:
+            break
+    _free_names[key] = (time.monotonic(), name)
+    return name
+
+
 def _brain_entry(url: str) -> dict[str, Any]:
     return {"name": DEFAULT_BRAIN_SLOT, "repo": {"clone_url": url, "default_branch": "main"},
             "toolchain": {"kind": "brain"},
@@ -261,9 +304,10 @@ def promote_default_brain(workspace_id: str, *, issued_at: str) -> dict[str, Any
         raise _refuse_promotion(workspace_id, Reason.NEEDS_GIT_ACCOUNT, "no GitHub credential on this machine answers",
                                 issued_at=issued_at, back_off=False)
     try:
-        url = create_private_repo(account, brain_repo_name(workspace_id))
+        url = create_private_repo(account, free_brain_repo_name(workspace_id, account, fresh=True))
         adopt_remote(root, url, branch=str(record.get("default_branch") or "main"))
     except GitHostRefused as refused:
+        _free_names.pop((str(account.login), workspace_id), None)  # the next offer looks again
         raise _refuse_promotion(workspace_id, refused.reason, refused.detail, issued_at=issued_at,
                                 back_off=True) from None
     except AdoptRefused as refused:
@@ -397,8 +441,8 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
     ``remote`` (declared), ``remote_pending_declare`` (+ ``clone_url``, ``slot``), ``remote_refused``
     (+ ``reason``, ``retry_after``); a local brain stays ``present`` (the tree's word for the plan's ``local``)
     with ``reason: needs_git_account`` on an unconnected machine and ``reason: remote_offered`` +
-    ``git_account`` (the login a press would create the repository under) on a connected one — an offer,
-    never an action (RT-BRAIN-REMOTE-ONLY-WHEN-ASKED). A brain let go of a left server's repository
+    ``git_account`` (the login a press would create the repository under) + ``repo_name`` (the free name it would
+    create, :func:`free_brain_repo_name`) on a connected one — an offer, never an action (RT-BRAIN-REMOTE-ONLY-WHEN-ASKED). A brain let go of a left server's repository
     (``left_remote``) is not offered: its Work belongs to the team's work (owner 2026-11-12); the press still
     promotes it.
     """
@@ -429,7 +473,7 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
     if record.get("left_remote"):
         return None
     return {"state": "present", "reason": REMOTE_OFFERED, "git_account": account.login,
-            "repo_name": brain_repo_name(workspace_id)}
+            "repo_name": free_brain_repo_name(workspace_id, account)}
 
 
 def detach_left_remote(workspace_id: str, *, at: str) -> str | None:
