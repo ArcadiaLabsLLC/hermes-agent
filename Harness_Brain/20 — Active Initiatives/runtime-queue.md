@@ -1329,7 +1329,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-14 (lane w1114a-hlens-rules)
 
-- **`RT-LENS-GUARD-TEST-RED-SINCE-REALM-REKEY` — A Lens safety test has failed since the realm re-key landed, so every Lens change pushes past a red** · group: eternia-lens-followups · fork / Lens · seen 2026-11-14 (w1114a-hlens-rules prepush, on origin/main 259c191b7c-era main): `tests/agent_runtime/lens/test_lens_shared_recipes_opt_in.py::test_only_the_operator_rpc_and_the_store_move_a_monitors_state` asserts only `lens/store.py` writes the `monitors` table, and `agent_runtime/realm_rekey_outside.py::_rekey_lens` (57849a6b4d, RT-REKEY-RUNS-WHEN-IDLE-AND-AT-START) runs `UPDATE monitors SET workspace_id` · guess: the re-key is a legitimate workspace_id writer (it never moves `state`), so the guard should name it or narrow its regex to state writes; not a Lens behaviour defect · done when: the guard is green and still reds on a new state writer outside the store · READY 2026-11-14
 
 ## Filed on arrival — 2026-11-14 (lane w1114a-hlens-budget)
 
