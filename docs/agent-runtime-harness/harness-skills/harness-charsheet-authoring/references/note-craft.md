@@ -6,6 +6,12 @@ rather than from a description of what is wrong.
 
 ## Note craft
 
+**Write facing in FRAME terms, three ways at once** — which way the body points in
+frame, which shoulder is nearer, which side a sliver of face may appear on — plus
+an explicit refusal of the mirror. "The viewer's right" is ambiguous on a back
+view; "turn her the other way" and "face north-east" leave the same coin flip that
+shipped a mirrored `ne`.
+
 A note is appended to the generation prompt **and stored with the attempt** — it
 is the durable QA record and the reason an attempt is reproducible. Phrase it as
 a positive instruction about the art plus an explicit prohibition, scoped to every
