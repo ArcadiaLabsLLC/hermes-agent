@@ -607,10 +607,23 @@ RETRY_ONCE=doc-cite
 _step doc-cite "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
   "$PY" "$SCRIPT_DIR/doc_cite_adjacency.py" --exclude archive --exclude planned
 # Both contract checks run even when the first is stale: one push, the whole answer.
+# Their cost is importing the runtime and CLI graphs (~980 modules), not the comparison, so
+# (FH-PREPUSH-CONTRACTS-OVER-BUDGET, measured at load 37-42 on 52 cores):
+# * PYTHONDONTWRITEBYTECODE (agent shells export it) is dropped for this step only, as
+#   run_tests_bundled.py::prepare_child_environ drops it for test children: with it set, a tree
+#   no test run had warmed recompiled the whole graph on EVERY run (5.2-11.2 s for the manifest
+#   alone); without it only the first run in a tree compiles, and later runs import from the
+#   .pyc it wrote (manifest 1.2 s). MUTATION: keep the variable and
+#   test_the_contract_checks_write_bytecode_and_run_side_by_side reddens.
+# * the two checks run side by side, so a cold tree pays the longer of them, not the sum
+#   (cold, both: 6.1-7.8 s one after the other, 5.2-5.5 s side by side).
 _contracts() {
-  local rc=0
-  "$PY" -m tests.agent_runtime._serve_rpc_manifest || rc=1
+  local rc=0 manifest
+  unset PYTHONDONTWRITEBYTECODE  # this step's subshell only (_step runs it in the background)
+  "$PY" -m tests.agent_runtime._serve_rpc_manifest &
+  manifest=$!
   "$PY" "$SCRIPT_DIR/dump_cli_contract.py" --check || rc=1
+  wait "$manifest" || rc=1
   return "$rc"
 }
 if [ "$CONTRACTS" = 1 ]; then
