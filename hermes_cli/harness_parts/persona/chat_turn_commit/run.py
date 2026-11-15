@@ -518,16 +518,11 @@ class _RunPhases:
         # never publishing at all. Gated on the record actually persisting for
         # the same reason: a skipped or rejected journal write leaves nothing for
         # the projection to carry, and announcing it would be a claim about a row
-        # that is not there.
+        # that is not there. (Such a turn never runs: the provider boundary's
+        # ``executing`` transition has no ``pending`` record to advance and
+        # fails it.) An append that FAILS is retried at the provider boundary.
         if self.write_ahead_outcome is MissionChatTurnPersistOutcome.PERSISTED:
-            self.presence.publish_started(
-                session_id=session_id,
-                client_message_id=client_message_id,
-                turn_id=stream_emitter.turn_id,
-                persona_id=self.normalized_persona,
-                persona_instance_id=self.instance.id,
-                active_session_id=self.active_session_id,
-            )
+            self._publish_start()
         # h-chatperf: the pre-admit window closes once the start row is REAL and
         # published, so the core build that stood aside for it starts now and
         # carries the row in one build instead of being followed by a second.
@@ -567,6 +562,18 @@ class _RunPhases:
             relay_marker=self.relay_sender_marker,
         )
 
+    def _publish_start(self) -> None:
+        """Announce the turn's start; idempotent (``ChatTurnPresence`` publishes once)."""
+
+        self.presence.publish_started(
+            session_id=self.session_id,
+            client_message_id=self.client_message_id,
+            turn_id=self.stream_emitter.turn_id,
+            persona_id=self.normalized_persona,
+            persona_instance_id=self.instance.id,
+            active_session_id=self.active_session_id,
+        )
+
     def _cross_provider_boundary(self) -> None:
         """Journal ``executing`` with the request fingerprint; only then is the provider submitted."""
 
@@ -597,6 +604,12 @@ class _RunPhases:
             raise RuntimeError(
                 f"provider boundary journal transition failed: {executing_outcome.value}"
             )
+        # RT-RUNNING-TURN-START-NEVER-PUBLISHED-ONCE-UNDER-LOAD: a start whose
+        # append failed at the write-ahead (the EventLog lock is bounded too)
+        # is retried here, before the model runs, so the turn — and its END,
+        # which pairs with a landed START — is never silent on the stream lane.
+        # A no-op once the start landed.
+        self._publish_start()
         self.provider_submitted = True
         if self.runtime_registry is not None:
             self.runtime_registry.transition(self.session_id, "busy")

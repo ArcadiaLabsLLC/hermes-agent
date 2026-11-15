@@ -64,9 +64,12 @@ row is gone).
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 __layer__ = "stores"
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "EVENT_TURN_ENDED",
@@ -204,7 +207,15 @@ class ChatTurnPresence:
                     turn_id=payload.get("turn_id") or None,
                 )
             )
-        except Exception:
-            # A notification is not the turn. See the module docstring.
+        except Exception as exc:
+            # A notification is not the turn. See the module docstring. But a
+            # lost publish is named, never silent: a second console that never
+            # saw this turn is otherwise unexplainable after the fact.
+            logger.warning(
+                "chat_turn_presence.append_failed event=%s turn=%s error=%s",
+                event_type,
+                payload.get("turn_id") or "",
+                type(exc).__name__,
+            )
             return False
         return True
