@@ -44,6 +44,9 @@ Read in this order for a full picture; each stands alone for its own territory.
 
 ## planned/ — designed, not implemented
 
+- [The slot setup recipe, as its own design](planned/slot-setup-recipe-2026-11-15.md) — 2026-11-15:
+  the recipe becomes its own entry of the slot document, holds every setup step, and gates nothing; each
+  computer may mark a step not needed. Designed, waits on the owner's answer (seven decisions at its top).
 - [Sharing a Lens monitor's recipe with a workspace](planned/lens-shared-recipes-2026-11-15.md) — 2026-11-15:
   a `lens_recipe` realm-sync family that fills a per-workspace shelf; a pulled recipe becomes a draft only when
   this PC's person adds it. Designed, not built; three hermes slices and one Eternia row.
