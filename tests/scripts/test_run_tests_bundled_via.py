@@ -8,6 +8,7 @@ old first-word count did: the process silently counted as nothing) ->
 from __future__ import annotations
 
 import pickle
+import re
 
 import pytest
 
@@ -54,3 +55,22 @@ def test_the_ledger_counts_by_kind_not_by_first_word():
     ledger.processes.append(plan.Process("bundel", ["e"], 0, 1))
     with pytest.raises(ValueError, match="unknown via"):
         ledger.summary(2)
+
+
+def test_the_runners_plugin_flags_are_no_hermes_flag_in_the_test_process_argv():
+    """FH-RELAUNCH-TEST-SEES-THE-BUNDLE-RUNNER-PROFILE: the command the runner builds is the test
+    process's ``sys.argv``, and ``hermes_cli.relaunch`` carries ``-p`` (hermes's profile flag) out of
+    it. Killing mutation: ``plugin_flag`` returns ``"-p " + name`` split back into ``"-p", name`` at a
+    call site (or any runner module spells a bare ``"-p"``) -> red here, and
+    ``tests/hermes_cli/test_relaunch.py::TestRelaunch::test_calls_execvp`` red under the runner."""
+    from pathlib import Path
+
+    from hermes_cli import relaunch
+
+    confirm = bundled._confirm
+    built = [vias.plugin_flag("hermes_bundle_report"), "--hermes-bundle-events=x.jsonl", *confirm.PYTEST_ARGS]
+    assert relaunch._extract_inherited_flags(built) == []
+    scripts = Path(bundled.__file__).resolve().parent
+    plugin_pair = re.compile(r'"-p",(?!\s*"-)')  # "-p" then its plugin; a flag table's "-p", "-o" is no pair
+    bare = [p.name for p in sorted(scripts.glob("run_tests_bundled*.py")) if plugin_pair.search(p.read_text(encoding="utf-8"))]
+    assert bare == [], f"spell pytest's plugin flag with run_tests_bundled_via.plugin_flag: {bare}"

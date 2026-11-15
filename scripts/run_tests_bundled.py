@@ -386,7 +386,7 @@ class _Run:
         policy, repo_root = self.policy, self.repo_root
         timeout, tries, extra = policy.budget(path, via)
         events_path = self.scratch / f"solo-{next(self.solo_seq):05d}.jsonl"
-        args = list(self.pytest_args) + extra + ["-p", _PLUGIN_NAME, f"--hermes-bundle-events={events_path}",
+        args = list(self.pytest_args) + extra + [vias.plugin_flag(_PLUGIN_NAME), f"--hermes-bundle-events={events_path}",
                                                  *diag.PLUGIN_ARGS]
         t0 = time.time()
         fpath, rc, output, summary, wall = self.solo_runner(path, args, repo_root, timeout, tries)
@@ -405,8 +405,7 @@ class _Run:
         repo_root, ledger, lock = self.repo_root, self.ledger, self.lock
         events_path = self.scratch / f"bundle-{index:04d}.jsonl"
         args = [str(m) for m in members[1:]] + list(self.pytest_args) + [
-            "-p",
-            _PLUGIN_NAME,
+            vias.plugin_flag(_PLUGIN_NAME),
             f"--hermes-bundle-events={events_path}",
             *diag.PLUGIN_ARGS,
         ]
