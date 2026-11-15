@@ -475,3 +475,28 @@ def test_a_local_llama_preset_saved_in_mission_control_is_offered_and_selected(p
     assert (instance.provider, instance.model) == (PROVIDER_ID, saved)
     reply = inspect("model.select", {**params, "model_id": model_key(PROVIDER_ID, missing), "scope": "conversation"})
     assert reply["error"]["data"]["reason"] == "model_unavailable", reply
+
+
+
+def test_a_chat_on_another_provider_switches_to_the_model_blocks_own_endpoint(placed_agent, catalog):
+    """RT-CHAT-MODEL-SWITCH-TO-A-LISTED-CUSTOM-ENDPOINT: the QA fixture's ``model:`` block endpoint is
+    offered as ``custom:custom``; picking it from a chat on another endpoint was refused
+    ``model_unavailable`` (upstream knows no ``custom:custom``), and naming it ``custom`` alone ran the
+    pick on the FIRST configured endpoint's URL. It applies, reads back, and the next turn runs on it."""
+    from hermes_constants import get_hermes_home
+
+    config = get_hermes_home() / "config.yaml"
+    config.write_text(json.dumps({**json.loads(config.read_text(encoding="utf-8")), "model": {
+        "provider": "custom", "base_url": "http://127.0.0.1:2/v1", "default": "qa-fixture",
+        "api_key": "qa-fixture-nonbillable"}}), encoding="utf-8")
+    params = target(placed_agent["persona_instance_id"])
+    bare = model_key("custom:custom", "qa-fixture")
+    assert bare in [m["id"] for m in inspect("models", params)["result"]["facts"]["models"]]
+    assert "result" in choose(params, "first")
+
+    reply = inspect("model.select", {**params, "model_id": bare, "scope": "conversation"})
+
+    assert "result" in reply, reply
+    assert inspect("models", params)["result"]["facts"]["current_model_id"] == bare
+    turn = next_turn(params)
+    assert (turn["effective_provider"], turn["effective_model"]) == ("custom", "qa-fixture")
