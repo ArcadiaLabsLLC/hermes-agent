@@ -14,8 +14,10 @@ Gates and their killing mutations (each red recorded in the row's commit):
 * a denial refuses the call and the model is told — killed by mapping DENY to a run;
 * an unsure check, an unlisted tool and a not-undoable tool become proposals with their arguments —
   killed by dropping the ``not in self.actions`` / ``not undoable`` arms (the guardian is asked, and runs it);
-* W9: a planted instruction read through a web tool, or a broken source's shapes in the Episode, can
-  never make it act — killed by dropping the ``tainted`` / ``free_text`` arm;
+* W9: a planted instruction read through a web tool, an MCP read or ``read_file``, or a broken source's
+  shapes in the Episode, can never make it act — killed by dropping the ``tainted`` / ``free_text`` arm and
+  by reverting the taint to the old ``web_``/``browser_`` prefix test (RT-LENS-ACT-TAINT-ONLY-WEB-AND-BROWSER);
+  Lens's own typed read leaves the turn able to act;
 * the action check's tokens count against the Episode — killed by dropping ``budget.charge`` in ``decide``;
 * read-only calls and unarmed turns pass with no receipt and no check.
 """
@@ -151,6 +153,29 @@ def test_a_planted_instruction_read_from_the_web_cannot_make_it_act(door, hooks,
     [action] = _actions()
     assert (action["result"], action["why"], action["verdict"]) == ("proposed", "untrusted_text", None)
     assert len(guardian.calls) == 1  # the approving guardian is never asked about the planted action
+
+
+@pytest.mark.parametrize("reader", [("mcp_github_get_issue", {"number": 7}), ("read_file", {"path": "deal.html"}),
+                                    ("skill_view", {"name": "deals"})])
+def test_any_read_of_outside_text_means_no_action_alone(door, hooks, guardian, monkeypatch, reader):
+    _armed(_act())
+    seen = _calls(door, hooks, monkeypatch, (*reader, "ok"), ("write_file", {"path": "x", "content": PLANTED}, "ok"))
+
+    _forge().tick()
+
+    assert seen[0] is None and seen[1].startswith("Sent to the owner as a proposal")
+    assert [(a["result"], a["why"]) for a in _actions()] == [("proposed", "untrusted_text")]
+    assert len(guardian.calls) == 1
+
+
+def test_lens_own_typed_read_leaves_the_turn_able_to_act(door, hooks, guardian, monkeypatch):
+    _armed(_act())
+    seen = _calls(door, hooks, monkeypatch, ("lens_read", {"monitor": "status"}, "ok"),
+                  ("write_file", {"path": "x", "content": "cpu"}, "ok"))
+
+    _forge().tick()
+
+    assert seen == [None, None] and [a["result"] for a in _actions()] == ["ran"]
 
 
 def test_an_episode_carrying_source_text_never_acts_alone(guardian):
