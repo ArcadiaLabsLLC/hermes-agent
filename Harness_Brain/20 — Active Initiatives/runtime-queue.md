@@ -47,6 +47,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 ## Fork-owned
 
 ### Filed on arrival — 2026-11-15 (review batch w1115e.4, REVIEW_W1115E_B54 lane H2: the hermes halves of two Eternia surface rows)
+- **`RT-PERSONAL-BRAIN-PRESS-ON-A-SECOND-MACHINE-HITS-ITS-OWN-REPOSITORY` — Pressing "Make this brain remote" on your personal board on a second computer joins the personal repository your first computer made, instead of being refused** · group: workspace-absorbs-projects · read in code, not reproduced (w1115e-h5, 2026-11-15, while building `RT-BRAIN-REMOTE-OFFER-NAMES-A-FREE-REPOSITORY`): the personal name is FIXED (`PERSONAL_REPO_NAME` `eternia-work-personal`, ruled "so a second machine can find it"), but `promote_default_brain` only creates, so a second machine's press is refused `remote_exists` and nothing adopts it (guess; the owner's login already holds `nekwo/eternia-work-personal`) · architecture: fork-owned stores layer, `agent_runtime/work_store/default_brain.py` (`promote_default_brain`, `remote_state`), reusing `git_remote_adopt.adopt_remote` and the fold `_fold_local_brain`; it must adopt only a repository that is the same person's personal brain (its skeleton notes), never any other · filed NEW, waits for a review batch · READY 2026-11-15
 
 
 ### Filed on arrival — 2026-11-15 (lane w1115c-h2: tracing `FH-CHAT-REPLY-LANES-START-FRAME-WAIT-RED-UNDER-LOAD`)
