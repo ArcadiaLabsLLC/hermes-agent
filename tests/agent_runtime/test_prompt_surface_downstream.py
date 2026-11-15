@@ -207,3 +207,21 @@ def test_the_threading_bullets_live_in_agent_chat_sends_describe_doc():
     doc = full_tool_description("agent_chat_send")
     for moved in ("clarify_token", "clarify_request", "ambiguous_target", "@personainst_*", "agent_chat_threads"):
         assert moved in doc, moved
+
+
+@pytest.mark.parametrize("lean", [False, True])
+def test_with_no_authoring_teammate_base_authors_the_character_itself(root_config, lean):
+    """RT-MAKE-ME-A-CHARACTER-GETS-NO-CHARACTER, owner ruling (a) 2026-11-15: with no teammate on the roster
+    carrying the charsheet authoring skill, Base loads the skill and authors — it no longer stops to `clarify`
+    whether to place one (the live turn that then dispatched to an invented `personainst_charsheet`).
+    Killing mutation (run, see the CHANGE commit): restore either variant's "say so and `clarify` whether to
+    place" sentence -> this test reds for that variant."""
+    root_config.write_text(f"agent_runtime:\n  mission_chat:\n    lean_operative_rules: {str(lean).lower()}\n",
+                           encoding="utf-8")
+    rules = _mission_chat_operative_rules()
+    assert (rules == LEAN_OPERATIVE_RULES) is lean
+    assert "If no teammate on your HUD roster carries" in rules
+    assert "author it yourself: load the charsheet authoring skill (`harness-charsheet-authoring`)" in rules
+    assert "whether to place" not in rules and "place an authoring agent" not in rules
+    if not lean:
+        assert "never an id you memorized" in rules
