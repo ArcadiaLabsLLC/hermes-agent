@@ -61,17 +61,39 @@ def add_undo_tables(conn: Any) -> None:
     conn.executescript(_TABLES)
 
 
-def capture(arguments: Any, task_id: str | None) -> BeforeImage | None:
-    """The target file's before image, or None when it cannot be taken (the write cannot be undone)."""
+def host_path(arguments: Any, task_id: str | None) -> Path | None:
+    """The host file a file tool's ``path`` argument names, resolved as the file tools resolve it; None
+    when there is no ``path`` or it is not on this host (a container or remote path)."""
 
     raw = arguments.get("path") if isinstance(arguments, dict) else None
     if not isinstance(raw, str) or not raw:
         return None
-    try:
-        from tools.file_tools_paths import _resolve_path_for_task
+    from tools.file_tools_paths import _resolve_path_for_task
 
-        path = _resolve_path_for_task(raw, task_id or "default")
-        if not isinstance(path, Path):  # a container or remote path: not on this host
+    path = _resolve_path_for_task(raw, task_id or "default")
+    return path if isinstance(path, Path) else None
+
+
+def file_digest(path: Path) -> str | None:
+    """sha256 of a regular file of at most :data:`MAXIMUM_UNDO_BYTES`, else None."""
+
+    import hashlib
+
+    try:
+        if not path.is_file() or path.stat().st_size > MAXIMUM_UNDO_BYTES:
+            return None
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def capture(arguments: Any, task_id: str | None) -> BeforeImage | None:
+    """The target file's before image, or None when it cannot be taken (the write cannot be undone)."""
+
+    raw = arguments.get("path") if isinstance(arguments, dict) else None
+    try:
+        path = host_path(arguments, task_id)
+        if path is None:
             return None
         if not path.exists():
             return BeforeImage(str(path), False, None)

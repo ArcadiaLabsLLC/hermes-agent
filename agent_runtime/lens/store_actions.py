@@ -13,6 +13,9 @@ result, why, undoable, undo_handle, arguments, created_ms, finished_ms}``:
   :data:`MAXIMUM_PROPOSAL_ARGUMENT_BYTES`, else null; every row keeps the digest;
 * ``undo_handle`` — ``{kind: file, path, existed}`` when Lens holds the file's before image (``undo.py``,
   ``RT-LENS-UNDO-ACTION``), else null; ``undone_by`` — the undo receipt's ``action_id`` once undone;
+* ``after_digest`` (stored, never on the wire) — the sha256 of the file a ``ran`` write left, taken when
+  the call finished (``act.ActTurn.finish``): a later read of that file, still hashing to it, is the
+  monitor's own text (:func:`own_text_digest`, row ``RT-LENS-ACT-CANNOT-OVERWRITE-AN-UNREAD-FILE``);
 * a proposal's answer (row ``RT-LENS-PROPOSAL-APPROVE-DENY``, design §4, decision 5): ``result`` moves
   ``proposed`` -> ``approved`` | ``denied`` (the owner, ``answered_ms``) or ``expired`` (unanswered for
   :data:`PROPOSAL_TTL_MS`); ``expires_ms`` says when. An approval owes ONE follow-up turn in the Episode's
@@ -44,13 +47,14 @@ CREATE TABLE IF NOT EXISTS lens_actions (
   action_id TEXT PRIMARY KEY, episode_id TEXT NOT NULL, monitor_id TEXT NOT NULL, turn_id TEXT NOT NULL,
   tool_call_id TEXT, tool TEXT NOT NULL, arguments_digest TEXT NOT NULL, arguments TEXT, verdict TEXT,
   decided_by TEXT, result TEXT NOT NULL, why TEXT, undoable INTEGER NOT NULL, undo_handle TEXT,
-  created_ms INTEGER NOT NULL, finished_ms INTEGER, answered_ms INTEGER, follow_up_turn_id TEXT, undone_by TEXT);
+  created_ms INTEGER NOT NULL, finished_ms INTEGER, answered_ms INTEGER, follow_up_turn_id TEXT, undone_by TEXT,
+  after_digest TEXT);
 CREATE INDEX IF NOT EXISTS lens_actions_by_episode ON lens_actions (episode_id, created_ms);
 CREATE INDEX IF NOT EXISTS lens_actions_by_monitor ON lens_actions (monitor_id, created_ms);
 """
 _COLUMNS = ("action_id", "episode_id", "monitor_id", "turn_id", "tool_call_id", "tool", "arguments_digest",
             "arguments", "verdict", "decided_by", "result", "why", "undoable", "undo_handle", "created_ms",
-            "finished_ms", "answered_ms", "follow_up_turn_id", "undone_by")
+            "finished_ms", "answered_ms", "follow_up_turn_id", "undone_by", "after_digest")
 
 
 class ActionResult:
@@ -74,7 +78,8 @@ def add_action_tables(conn: sqlite3.Connection) -> None:
 
     conn.executescript(_TABLES)
     columns = {row[1] for row in conn.execute("PRAGMA table_info(lens_actions)")}
-    for column, kind in (("answered_ms", "INTEGER"), ("follow_up_turn_id", "TEXT"), ("undone_by", "TEXT")):  # a store from before answers
+    for column, kind in (("answered_ms", "INTEGER"), ("follow_up_turn_id", "TEXT"), ("undone_by", "TEXT"),
+                         ("after_digest", "TEXT")):  # a store from before answers
         if column not in columns:
             conn.execute(f"ALTER TABLE lens_actions ADD COLUMN {column} {kind}")
     from .undo import add_undo_tables
@@ -103,7 +108,7 @@ def record_action(store: LensStore, *, episode_id: str, monitor_id: str, turn_id
     row = (f"lens-action-{secrets.token_hex(8)}", episode_id, monitor_id, turn_id, tool_call_id, tool,
            arguments_digest(arguments), kept, verdict, decided_by, result, why, 1 if undoable else 0,
            None if undo_handle is None else json.dumps(undo_handle, sort_keys=True),
-           int(created_ms), int(created_ms) if settled else None, None, None, None)
+           int(created_ms), int(created_ms) if settled else None, None, None, None, None)
     with store.connection() as conn:
         conn.execute(f"INSERT INTO lens_actions ({', '.join(_COLUMNS)}) VALUES ({', '.join('?' * len(_COLUMNS))})",
                      row)
@@ -116,6 +121,35 @@ def finish_action(store: LensStore, action_id: str, *, result: str, finished_ms:
     with store.connection() as conn:
         conn.execute("UPDATE lens_actions SET result = ?, finished_ms = ? WHERE action_id = ? AND result = ?",
                      (result, int(finished_ms), action_id, ActionResult.RUNNING))
+
+
+def set_after_digest(store: LensStore, action_id: str, digest: str) -> None:
+    """The bytes a ``ran`` file write left on disk (sha256), kept on its receipt."""
+
+    with store.connection() as conn:
+        conn.execute("UPDATE lens_actions SET after_digest = ? WHERE action_id = ? AND result = ?",
+                     (digest, action_id, ActionResult.RAN))
+
+
+def own_text_digest(store: LensStore, *, monitor_id: str, path: str) -> str | None:
+    """What ``path`` hashes to if its text is still ``monitor_id``'s own, else None.
+
+    The LAST Lens file write of ``path`` (any monitor) decides: it must be this monitor's, ``ran``, not
+    undone, with its after digest kept. An outside edit since is caught by the caller comparing the file's
+    hash now; another monitor's later write, an undo or a failed write here answers None.
+    """
+
+    if not store.exists():
+        return None
+    with store.connection() as conn:
+        row = conn.execute(
+            "SELECT a.monitor_id, a.result, a.undone_by, a.after_digest FROM lens_actions a "
+            "JOIN lens_action_undo u ON u.action_id = a.action_id WHERE u.path = ? AND a.result IN (?, ?) "
+            "ORDER BY COALESCE(a.finished_ms, a.created_ms) DESC, a.rowid DESC LIMIT 1",
+            (path, ActionResult.RAN, ActionResult.RUNNING)).fetchone()
+    if row is None or row[0] != monitor_id or row[1] != ActionResult.RAN or row[2] is not None:
+        return None
+    return row[3]
 
 
 def actions(store: LensStore, *, episode_id: str | None = None, monitor_id: str | None = None,
@@ -224,4 +258,5 @@ def _json(row: tuple[Any, ...]) -> dict[str, Any]:
     out["arguments"] = None if out["arguments"] is None else json.loads(out["arguments"])
     out["undo_handle"] = None if out["undo_handle"] is None else json.loads(out["undo_handle"])
     out.pop("tool_call_id")
+    out.pop("after_digest")  # a stored fact for the taint test, not part of the receipt's wire shape
     return out

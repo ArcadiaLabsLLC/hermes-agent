@@ -22,6 +22,13 @@ An owner-approved proposal's follow-up turn (``trigger.LensForge._follow_up``, r
 that one call runs before step 1 (``decided_by: owner``, ``why: owner_approved``), ONCE; any other call
 of the follow-up is judged as above.
 
+The monitor's OWN text is not outside text (row ``RT-LENS-ACT-CANNOT-OVERWRITE-AN-UNREAD-FILE``): a
+:data:`OWN_TEXT_READS` read of a file whose last Lens write was this monitor's ``ran`` write, and that still
+hashes to the digest that write's receipt kept when it finished (``store_actions.own_text_digest``), does
+not taint — so the monitor can read its own notes file (which upstream's write guard demands before an
+overwrite) and edit it. The file is hashed again when the read finishes; a change in between taints. Any
+other read taints, that same file after anyone else edited it included.
+
 A proposal is refused in the turn too — the model reads that it went to the owner, and carries on
 without it. Every decision is an action receipt (``store_actions.py``); an allowed call's receipt moves
 from ``running`` to ``ran`` / ``failed`` on its ``post_tool_call`` (:func:`finish_tool_call`). The
@@ -43,7 +50,8 @@ from typing import Any, Callable
 
 from .rules_check import DECIDED_BY_RULES, RulesVerdict, check_action
 from .store import LensStore, to_ms
-from .store_actions import ActionResult, arguments_digest, finish_action, record_action
+from .store_actions import (ActionResult, arguments_digest, finish_action, own_text_digest, record_action,
+                            set_after_digest)
 
 __layer__ = "lanes"
 
@@ -56,6 +64,8 @@ UNDOABLE_TOOLS = frozenset({"apply_patch", "edit_file", "file.edit", "file.write
 #: ``read_file``, ``skill_view`` ...) may carry an instruction, so after it nothing acts alone (W9,
 #: RT-LENS-ACT-TAINT-ONLY-WEB-AND-BROWSER: a prefix list missed every read it did not name).
 TYPED_ONLY_READS = frozenset({"clarify", "lens_read", "tool_call", "tool_describe", "tool_search"})
+#: Reads that bring no outside text when the file is still the monitor's own last write (see the module doc).
+OWN_TEXT_READS = frozenset({"read_file"})
 DECIDED_BY_OWNER = "owner"
 
 WHY_UNTRUSTED_TEXT = "untrusted_text"
@@ -90,7 +100,10 @@ class ActTurn:
     tainted: bool = False
     #: ``(tool, arguments_digest)`` of the owner-approved call: admitted ONCE, then gone (one-shot).
     preadmitted: tuple[str, str] | None = None
-    _running: dict[str, str] = field(default_factory=dict)
+    #: tool_call_id -> (action_id, the written host path or None)
+    _running: dict[str, tuple[str, str | None]] = field(default_factory=dict)
+    #: tool_call_id -> (host path, digest) of an own-text read, hashed again when it finishes
+    _own_reads: dict[str, tuple[str, str]] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def decide(self, tool: str, arguments: Any, tool_call_id: str | None, task_id: str | None = None) -> str | None:
@@ -136,14 +149,53 @@ class ActTurn:
             keep_image(self.store_factory(), row["action_id"], image)
         if tool_call_id:
             with self._lock:
-                self._running[tool_call_id] = row["action_id"]
+                self._running[tool_call_id] = (row["action_id"], None if image is None else image.path)
+
+    def read(self, tool: str, arguments: Any, tool_call_id: str | None, task_id: str | None) -> None:
+        """A non-mutating call outside :data:`TYPED_ONLY_READS`: taints the turn unless it reads this
+        monitor's own, unchanged text (the module doc)."""
+
+        if tool not in OWN_TEXT_READS or not tool_call_id or not self._own_text(arguments, tool_call_id, task_id):
+            self.tainted = True  # outside text may now be in the turn
+
+    def _own_text(self, arguments: Any, tool_call_id: str, task_id: str | None) -> bool:
+        from pathlib import Path
+
+        from .undo import file_digest, host_path
+
+        try:
+            path = host_path(arguments, task_id)
+            if path is None:
+                return False
+            kept = own_text_digest(self.store_factory(), monitor_id=self.monitor_id, path=str(path))
+            if kept is None or file_digest(Path(path)) != kept:
+                return False
+        except Exception:  # a read we cannot place is outside text
+            logger.debug("lens act: own-text test failed", exc_info=True)
+            return False
+        with self._lock:
+            self._own_reads[tool_call_id] = (str(path), kept)
+        return True
 
     def finish(self, tool_call_id: str, ok: bool) -> None:
+        from pathlib import Path
+
+        from .undo import file_digest
+
         with self._lock:
-            action_id = self._running.pop(tool_call_id, None)
-        if action_id is not None:
-            finish_action(self.store_factory(), action_id, result=ActionResult.RAN if ok else ActionResult.FAILED,
-                          finished_ms=to_ms(self.clock()))
+            running = self._running.pop(tool_call_id, None)
+            own_read = self._own_reads.pop(tool_call_id, None)
+        if own_read is not None and file_digest(Path(own_read[0])) != own_read[1]:
+            self.tainted = True  # the file changed while it was read: what the turn saw may not be ours
+        if running is None:
+            return
+        action_id, path = running
+        store = self.store_factory()
+        finish_action(store, action_id, result=ActionResult.RAN if ok else ActionResult.FAILED,
+                      finished_ms=to_ms(self.clock()))
+        digest = file_digest(Path(path)) if ok and path else None
+        if digest is not None:
+            set_after_digest(store, action_id, digest)
 
     def _record(self, tool: str, arguments: Any, verdict: str | None, decided_by: str, result: str,
                 why: str | None, undoable: bool, tool_call_id: str | None,
@@ -202,7 +254,7 @@ def gate_tool_call(tool_name: Any = None, args: Any = None, tool_call_id: Any = 
         name = str(tool_name or "")
         if name not in _mutating():
             if name not in TYPED_ONLY_READS:
-                turn.tainted = True  # outside text may now be in the turn
+                turn.read(name, args, str(tool_call_id or "") or None, str(task_id or "") or None)
             return None
         return turn.decide(name, args if isinstance(args, dict) else {}, str(tool_call_id or "") or None,
                            str(task_id or "") or None)
