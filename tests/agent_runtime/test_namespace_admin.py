@@ -219,6 +219,33 @@ def test_reset_and_delete_are_refused_while_a_serve_holds_the_namespace(base: Pa
     assert (item.root / "config.yaml").is_file()  # nothing was removed
 
 
+def test_an_ended_serve_s_row_frees_the_namespace_without_the_dependency_environment(base: Path, monkeypatch):
+    """A worktree's launcher under a borrowed ``HERMES_HOME`` boots the bare store Python, where
+    ``gateway.status`` cannot import (``ruamel``): a dead serve's row must still read dead, and a
+    live one still busy (RT-NAMESPACE-BUSY-ON-AN-ENDED-SERVE-UNDER-A-WORKTREE-LAUNCHER)."""
+    from agent_runtime.serve_registry import list_serve_instances
+
+    env = _env(base)
+    seeding.seed(QA, "base", env)
+    item = ns.layout(QA, env)
+    ended = subprocess.Popen([sys.executable, "-c", "pass"])
+    ended.wait()
+    register_serve_instance(item.store_root, pid=ended.pid, argv=["hermes", "harness", "serve"])
+    with monkeypatch.context() as bare:
+        for name in ("gateway.status", "psutil"):  # the bare store Python has neither
+            bare.setitem(sys.modules, name, None)
+        rows = list_serve_instances(item.store_root)
+        assert [(r["pid"], r["classification"]) for r in rows] == [(ended.pid, "stale_dead_pid")]
+        assert admin.busy_reason(item) is None
+        admin.reset(QA, env)
+    assert _files(item.root) == {"namespace.json"}
+    register_serve_instance(item.store_root, pid=os.getpid(), argv=["hermes", "harness", "serve"])
+    with monkeypatch.context() as bare:
+        for name in ("gateway.status", "psutil"):
+            bare.setitem(sys.modules, name, None)
+        assert _refused(admin.reset, QA, env) == "namespace_busy"  # a live one still holds it
+
+
 def test_delete_refuses_base_and_this_process_s_own_namespace(base: Path):
     env = _env(base)
     seeding.seed(QA, "base", env)

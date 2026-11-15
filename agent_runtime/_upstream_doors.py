@@ -107,8 +107,17 @@ def file_tool_path_for_task(filepath: str, task_id: str = "default"):
 def pid_exists(pid: int) -> bool:
     """``gateway.status._pid_exists`` — serve_registry, the dispatch store's
     boot sweep (``dispatch_store.delivery``) and ``running_work.ownership``'s
-    PID identity read it here."""
-    from gateway.status import _pid_exists
+    PID identity read it here.
+
+    A launch without the dependency environment (a worktree's launcher under a borrowed
+    ``HERMES_HOME`` boots the bare store Python) cannot import ``gateway.status`` at all:
+    ``utils`` pulls in ``ruamel``. Upstream's own fallback, the stdlib probe, answers then —
+    an import failure is not "liveness unreadable", and reading it as that kept a dead
+    serve's registry row counted busy (RT-NAMESPACE-BUSY-ON-AN-ENDED-SERVE-UNDER-A-WORKTREE-LAUNCHER)."""
+    try:
+        from gateway.status import _pid_exists
+    except ImportError:
+        from hermes_cli._subprocess_compat import pid_exists_stdlib as _pid_exists
 
     return _pid_exists(pid)
 
