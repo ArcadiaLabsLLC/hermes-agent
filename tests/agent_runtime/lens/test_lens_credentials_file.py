@@ -32,7 +32,7 @@ from agent_runtime.lens.credentials import (
     set_credential,
 )
 
-SECRET = "zq7Wx-lens-only-Kp4Rv"
+SECRET = "zq7Wx-9cJq-Kp4Rv"  # no English word: a 4-char fragment must not match shipped text ("only" is in the default rules)
 
 
 def _fragments() -> list[str]:
