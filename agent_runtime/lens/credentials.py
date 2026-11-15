@@ -19,7 +19,7 @@ and Lens plan W12:
   (``RT-LENS-CREDENTIAL-NOT-BOUND-TO-A-HOST``). Its row records ``host`` — scheme, name and
   port (:func:`credential_host`) — and BOTH readers of a row (:func:`resolve_credential`,
   :func:`credential_status`) take the address the caller is about to use and answer through
-  one predicate (:func:`_held`): a different address is :attr:`CredentialRefusal.HOST_MISMATCH`,
+  one predicate (:func:`_saved_for`): a different address is :attr:`CredentialRefusal.HOST_MISMATCH`,
   never the value. The address is never the request's word: ``runtime.lens.credential.set``
   reads it off the monitors that name the ref (:func:`sign_in_host`). An ingress route's
   secret is saved for no address (``host=None``) and only the door reads it.
@@ -240,7 +240,7 @@ def forget_credential(ref: str) -> bool:
     return True
 
 
-def _held(ref: str, host: str | None) -> tuple[dict[str, Any] | None, CredentialRefusal | None]:
+def _saved_for(ref: str, host: str | None) -> tuple[dict[str, Any] | None, CredentialRefusal | None]:
     """``(row, refusal)``: this home's row for ``ref`` and why a caller at ``host`` may not use it
     (None when it may). The ONE place a saved address meets the address about to be used."""
 
@@ -255,7 +255,7 @@ def credential_status(ref: str, *, host: str | None) -> dict[str, Any]:
     Launcher's write-only view). ``set`` is true only when the value would be sent to ``host``;
     ``host`` is the address it is saved for (null: none, or saved before addresses were recorded)."""
 
-    row, refusal = _held(ref, host)
+    row, refusal = _saved_for(ref, host)
     return {"ref": ref, "set": refusal is None, "rotated_at": None if row is None else row.get("rotated_at"),
             "host": None if row is None else row.get("host")}
 
@@ -263,7 +263,7 @@ def credential_status(ref: str, *, host: str | None) -> dict[str, Any]:
 def resolve_credential(ref: str, *, host: str | None) -> LensCredential | CredentialRefusal:
     """The credential for one read at ``host`` (None: an ingress route's own secret), or why not."""
 
-    row, refusal = _held(ref, host)
+    row, refusal = _saved_for(ref, host)
     if refusal is not None:
         return refusal
     try:
