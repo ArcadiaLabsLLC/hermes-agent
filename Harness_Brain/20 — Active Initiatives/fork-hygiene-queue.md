@@ -18,7 +18,6 @@ tags: [queue, program/fork-hygiene]
 
 
 ## Filed on arrival — 2026-11-15 (lane w1115r-h3)
-- **`FH-ROUND4-UPSTREAM-PROBE-SKIPS-ON-A-FULL-CLONE-WITH-NO-BASE` — The round-4 coverage check's upstream probe goes red, not quiet, when a full checkout cannot read the recorded upstream release** · group: prepush · fork tests · `tests/agent_runtime/test_tombstone_registry_round4.py::test_upstreams_own_retired_test_of_its_own_code_is_upstreams_loss` · read in code, not reproduced (w1115r-h3, 2026-11-15): it calls `pytest.skip` whenever `_fork_scope.upstream_blobs()` is `None`, so on a FULL clone with a missing or invalid manifest base it skips, where the same probes in `test_no_midtest_monkeypatch_undo.py` and `test_flag_binding_boundary.py` fail closed (red) and skip only on a shallow clone (`_fork_scope.skip_when_unattributable`, landed with `FH-SOURCE-GREP-GATE-REDS-UPSTREAM-LINES-ON-A-SHALLOW-CLONE`); its skip text also still names a `upstream/main ref` the module stopped reading (manifest base since 2026-10-12) · likely fix (guess): replace the skip with `skip_when_unattributable` and an assert on `upstream_blobs()` like its two siblings · done when: the probe is red on a full clone with the manifest base removed and skips on a depth-1 clone · NEW 2026-11-15 · READY 2026-11-15
 
 ## Filed on arrival — 2026-11-15 (lane w1115r-h2)
 
