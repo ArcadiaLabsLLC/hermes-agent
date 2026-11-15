@@ -162,10 +162,30 @@ def _empty_keeping_lock(item: Layout) -> None:
         _rm(entry)
 
 
+def _resettable(ns_id: str, env: Mapping[str, str]) -> tuple[Layout, bool]:
+    """``(layout, made)``: a namespace, or a folder hermes never made one of (``made`` False).
+
+    RT-QA-LANE-FOLDER-NEITHER-SEEDABLE-NOR-RESETTABLE (ruling 2026-11-15, REVIEW_W1114A_B42): a QA lane
+    folder with NO manifest file (a launch wrote into it before any seed) is reset like a namespace, so the
+    one-time seed can follow; the seed itself never treats such a folder as fresh. Only a real directory
+    directly under the namespaces dir, named by a valid id that is not ``base`` (``layout``) and not the
+    caller's own (``reset``); an unreadable or foreign manifest stays ``namespace_not_found``.
+    """
+    item = layout(ns_id, env)
+    if _namespace_manifest(item) is not None:
+        return item, True
+    lane_folder = (item.root.is_dir() and not item.root.is_symlink() and not item.manifest_path.exists()
+                   and item.root.resolve().parent == item.namespaces_dir.resolve())
+    if not lane_folder:
+        raise NamespaceRefused(Reason.NOT_FOUND, f"no namespace {ns_id!r} at {item.root} (no {MANIFEST_NAME})")
+    return item, False
+
+
 def reset(ns_id: str, env: Mapping[str, str]) -> dict[str, Any]:
-    """Empty a namespace back to a fresh manifest (a seed is allowed again)."""
+    """Empty a namespace back to a fresh manifest (a seed is allowed again) — a manifest-less lane
+    folder under the namespaces dir too, which then becomes a namespace (``made_now``)."""
     _refuse_own(validate_id(ns_id), env)
-    item = existing_namespace(ns_id, env)
+    item, made = _resettable(ns_id, env)
     with _exclusive(item):
         _empty_keeping_lock(item)
     _rm(socket_lock_path(item.store_root))
@@ -174,7 +194,8 @@ def reset(ns_id: str, env: Mapping[str, str]) -> dict[str, Any]:
     origin = namespace_origin(_namespace_manifest(item), item.id)  # a reset keeps what kind of namespace it is
     _write_manifest(item, restamped({"schema": 1, "id": item.id, "created_at": _now(), "reset_at": _now(),
                                      "origin": origin}))
-    return {"ok": True, "verb": "reset", "id": item.id, "root": str(item.root)}
+    reply = {"ok": True, "verb": "reset", "id": item.id, "root": str(item.root)}
+    return reply if made else {**reply, "made_now": True}
 
 
 def delete(ns_id: str, env: Mapping[str, str]) -> dict[str, Any]:

@@ -18,7 +18,9 @@ when it ran — a refusal of the asked id rides its ``refusal`` field); exit 2: 
   ``--from acct-<the same hex>`` (the sanctioned copy, RT-NAMESPACE-SANDBOX-KIND). ``--dry-run`` prints that plan, refuses as
   the real seed would, and writes nothing.
 * ``reset <id>`` / ``delete <id>`` — refused while a serve holds the namespace, for ``base`` and for
-  this process's own namespace.
+  this process's own namespace. ``reset`` also takes a lane folder hermes never made a namespace of (no
+  ``namespace.json``, directly under the namespaces dir), empties it and writes a fresh manifest
+  (``made_now``), so the one-time seed can follow (RT-QA-LANE-FOLDER-NEITHER-SEEDABLE-NOR-RESETTABLE).
 * ``import-sessions <id> <export.jsonl> [--bind SRC=DST …] [--dry-run]`` — Hermes' own
   ``sessions export`` into a named namespace, each chat rebound to one of its persona instances
   (``agent_runtime/own_session_import.py``, row RT-SESSIONS-IMPORT-OWN-EXPORT); never ``base``.

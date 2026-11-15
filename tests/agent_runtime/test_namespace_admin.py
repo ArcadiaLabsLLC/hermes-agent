@@ -266,6 +266,53 @@ def test_reset_empties_and_delete_removes(base: Path):
     assert (base / "auth.json").is_file()  # the base root is never touched
 
 
+def _lane_folder(env: dict[str, str], ns_id: str = QA) -> Path:
+    """What an Eternia QA launch writes before any seed: no manifest (RT-QA-LANE-FOLDER-NEITHER-SEEDABLE-…)."""
+    root = ns.layout(ns_id, env).root
+    for rel in ("profiles/base/config.yaml", "shared/skills/lane/SKILL.md", ".qa_serve_code_root.json"):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text("lane\n", encoding="utf-8")
+    return root
+
+
+def test_reset_makes_a_manifest_less_lane_folder_a_fresh_namespace_the_seed_then_fills(base: Path):
+    """Gate (mutation: ``_resettable`` answers NOT_FOUND for every manifest-less folder -> red, the reset
+    is refused ``namespace_not_found`` as before the ruling)."""
+    env = _env(base)
+    root = _lane_folder(env)
+    assert _refused(seeding.seed, QA, "base", env) == "namespace_not_fresh"  # the seed never judges it fresh
+    reply = admin.reset(QA, env)
+    assert (reply["ok"], reply.get("made_now")) == (True, True)
+    assert _files(root) == {"namespace.json"}
+    assert json.loads((root / "namespace.json").read_text(encoding="utf-8"))["id"] == QA
+    assert seeding.seed(QA, "base", env)["ok"] is True
+    assert "made_now" not in admin.reset(QA, env)  # a namespace's own reset says nothing new
+
+
+def test_reset_of_a_manifest_less_folder_keeps_the_guards(base: Path, tmp_path: Path):
+    env = _env(base)
+    assert _refused(admin.reset, "nothing-here", env) == "namespace_not_found"  # no folder: nothing to reset
+    assert _refused(admin.reset, "base", env) == "namespace_reserved"
+    root = _lane_folder(env)
+    assert _refused(admin.reset, QA, {**env, "HERMES_NAMESPACE": QA}) == "namespace_in_use_by_this_process"
+    handle = _hold_lock(ns.layout(QA, env))
+    try:
+        assert _refused(admin.reset, QA, env) == "namespace_busy"
+    finally:
+        unlock(handle)
+        handle.close()
+    assert (root / "profiles/base/config.yaml").is_file()  # nothing was removed while refused
+    foreign = _lane_folder(env, "foreign-manifest")
+    (foreign / "namespace.json").write_text(json.dumps({"id": "someone-else"}), encoding="utf-8")
+    assert _refused(admin.reset, "foreign-manifest", env) == "namespace_not_found"
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / "keep.txt").parent.mkdir(parents=True)
+    (elsewhere / "keep.txt").write_text("keep\n", encoding="utf-8")
+    (ns.layout("linked", env).root).symlink_to(elsewhere, target_is_directory=True)
+    assert _refused(admin.reset, "linked", env) == "namespace_not_found"
+    assert (elsewhere / "keep.txt").is_file() and (foreign / "profiles/base/config.yaml").is_file()
+
+
 def test_list_reports_each_namespace_and_skips_what_is_not_one(base: Path):
     env = _env(base)
     seeding.seed(ACCT, "base", env)
