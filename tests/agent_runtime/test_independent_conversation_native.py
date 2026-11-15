@@ -25,11 +25,18 @@ def test_completed_native_turns_keep_the_selected_cockpit_root(monkeypatch):
             sent = peer.call("runtime.operator.conversation.message", **target,
                              turn_request_id=turn, message="Reply briefly. Do not use tools.", stream=True)
             assert sent["accepted"]
+            def keeps_selection():
+                assert store.get(target["persona_instance_id"]).default_chat_session_id == selected
+            # Wait on the serve's own end-of-turn signal, checking the selection at each step it
+            # takes, then read: the read is a heavy RPC (history, journal, reservation lock), and
+            # polling it every 10 ms through the turn spent the serve's CPU on the test instead
+            # of on the turn (w1115c-h2).
+            peer.wait_settled(turn, throughout=keeps_selection)
             def finished():
                 state = peer.call("runtime.operator.conversation.read", **target, turn_request_id=turn)
-                assert store.get(target["persona_instance_id"]).default_chat_session_id == selected
+                keeps_selection()
                 return state if state["delivery_observed"] and not state["active_turns"] and not state["delivery_pending"] else None
-            state = wait_until(finished, timeout=60, what="native independent turn to finish")
+            state = wait_until(finished, timeout=60, interval=0.1, what="native independent turn to finish")
             assert sum("Local native answer" in m["text"] for m in state["messages"]) == index + 1
             row = store.get(target["persona_instance_id"])
             assert row.session_id == row.default_chat_session_id == selected

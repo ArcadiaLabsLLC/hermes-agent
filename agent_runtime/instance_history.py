@@ -6,7 +6,7 @@ import math
 from contextlib import closing
 
 from . import chat_heads, chat_session_scope
-from .conversation_owner import ConversationOwnerError, request_client_scope
+from .conversation_owner import ConversationOwnerError, request_client_scope, require_session_owner
 from .instance_selection import verify_instance_install, InstanceSelectionError
 from .instance_sessions import instance_session_clause
 from .persona_assignments import PersonaInstanceStore, chat_session_owner_instance_id
@@ -84,7 +84,7 @@ def list_instance_conversations(params: dict) -> dict:
                 persona=persona, legacy_route=legacy_route, before=before, limit=limit))
                 for source in sources], limit)
             visible = raw[:limit]
-            rows = [_project_instance_history(source, item, instances, params["install_id"])
+            rows = [_project_instance_history(source, item, instances, params["install_id"], asker=owner)
                     for source, item in visible]
     cursor = None
     if len(raw) > limit:
@@ -112,7 +112,22 @@ def _merged_pages(pages, limit):
     return merged[:limit + 1]
 
 
-def _project_instance_history(db, raw, instances, install_id):
+def _openable(raw, asker):
+    """Whether the asking client may open this conversation: the open path's own check, unchanged.
+
+    ``asker`` is the request's ``client_scope`` even on an ``all_accounts`` page, so a row
+    another account (or no account) owns says ``False`` before the client offers an Open
+    the runtime would refuse (RT-HISTORY-ROWS-SAY-WHETHER-THIS-CLIENT-MAY-OPEN-THEM).
+    """
+
+    try:
+        require_session_owner(raw, asker)
+    except ConversationOwnerError:
+        return False
+    return True
+
+
+def _project_instance_history(db, raw, instances, install_id, *, asker):
     config = _model_config(raw["model_config"])
     instance_id = config.get("persona_instance_id") or chat_session_owner_instance_id(raw["id"])
     instance = instances.get(instance_id)
@@ -122,7 +137,8 @@ def _project_instance_history(db, raw, instances, install_id):
     row.update(install_id=install_id, persona_instance_id=instance_id,
                workspace_id=effective_workspace_id(instance, active_workspace_id=None) if instance else None,
                display_name=instance.display_name if instance else None,
-               available=instance is not None and instance.persona_id == persona_id)
+               available=instance is not None and instance.persona_id == persona_id,
+               openable=_openable(raw, asker))
     if row["messages"]:
         row["last_message_preview"] = row["messages"][-1]["text"][:180]
     row.pop("messages")
