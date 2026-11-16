@@ -76,6 +76,9 @@ REASON_CODES: dict[str, int] = {
     # ``runtime.realm.publishing.push`` whose folder no longer holds exactly the confirmed ``paths``; ``data.added``
     # / ``data.removed`` name the difference (RT-REALM-PUBLISHING-PUSH-SENDS-ONLY-THE-CONFIRMED-LIST).
     "publishing_list_changed": ERR_CONFLICT,
+    # ``runtime.realm.publishing.push`` on a device whose realm sync runs the pure-Python git (a phone): it has no
+    # git program to publish a folder with (RT-PHONE-REALM-PUBLISHING-SAYS-NOT-ON-THIS-DEVICE). Not retryable here.
+    "publishing_not_on_this_device": ERR_CONFLICT,
 }
 
 

@@ -133,6 +133,7 @@ def publish_folder(
     ``confirmed_paths`` (the dry run's ``paths``, as the player confirmed them) is required unless
     ``dry_run``, and a dry run ignores it."""
 
+    _require_this_device()
     source = _source_folder(folder)
     branch = _branch(branch)
     _require_connected(realm_id, credential)
@@ -159,6 +160,24 @@ def publish_folder(
 
 
 # ── the refusals ─────────────────────────────────────────────────────────────
+
+
+def _require_this_device() -> None:
+    """A device whose realm sync runs the pure-Python git (a phone: no git program) does not publish folders.
+
+    Publishing clones, commits and pushes a folder from disk with the git program (``_git``), which a phone
+    does not have, and realm sync's port leaves this verb out on purpose (plan
+    phone-realm-sync-dulwich-2026-11-16 §7). Asked ONLY of the one backend selector, before any git or
+    folder read — never a sniff of the git program or of the phone's stand-in — so the Launcher can word
+    the refusal instead of an internal error (RT-PHONE-REALM-PUBLISHING-SAYS-NOT-ON-THIS-DEVICE)."""
+
+    from ..realm_sync.git import SyncGitBackend, sync_git_backend
+
+    if sync_git_backend() is SyncGitBackend.DULWICH:
+        raise RealmSyncError(
+            "publishing_not_on_this_device",
+            "Publishing a realm's website is not available on this device; publish it from a computer.",
+        )
 
 
 def _source_folder(folder: str) -> Path:

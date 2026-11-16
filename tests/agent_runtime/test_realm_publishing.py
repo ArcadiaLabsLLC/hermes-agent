@@ -318,3 +318,28 @@ def test_the_method_lane_takes_the_confirmed_paths(tmp_path, remote, asks):
     assert (changed["error"]["data"]["added"], changed["error"]["data"]["removed"]) == ([], ["gone.html"])
     assert _git(remote, "for-each-ref") == ""
     assert call({**base, "paths": ["index.html"]})["result"]["changed"] is True
+
+
+@pytest.mark.parametrize("backend", ["binary", "dulwich"])
+def test_a_phone_says_publishing_is_not_on_this_device_before_touching_git(tmp_path, remote, asks, monkeypatch, backend):
+    """RT-PHONE-REALM-PUBLISHING-SAYS-NOT-ON-THIS-DEVICE: on the phone's backend (config ``realm_sync.git_backend:
+    dulwich``, the git program's stand-in placed as on a phone) the verb answers a typed refusal the Launcher can
+    word — on the method lane a conflict with ``data.reason`` — before git, the folder or the backend is touched.
+    ``binary`` is the positive control: the same call on the desktop's backend publishes. Red if
+    ``_require_this_device`` is dropped (the stand-in's LifecycleNotShipped escapes as an internal error)."""
+    from tests.agent_runtime.conftest import _use_realm_sync_backend
+
+    _use_realm_sync_backend(monkeypatch, backend)
+    folder = _site(tmp_path / "out", {"index.html": "x"})
+    answer = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "p", "method": "runtime.realm.publishing.push", "params": {
+        "realm_id": REALM, "folder": str(folder), "credential": _payload(remote), "yes": True, "paths": ["index.html"]}})
+    if backend == "binary":
+        assert answer["result"]["changed"] is True, answer
+        return
+    assert answer["error"]["code"] == ERR_CONFLICT, answer
+    assert answer["error"]["data"]["reason"] == "publishing_not_on_this_device"
+    assert answer["error"]["data"]["retryable"] is False
+    with pytest.raises(RealmSyncError) as direct:
+        publish_folder(REALM, str(folder), credential=RealmSyncCredential.parse(_payload(remote)), dry_run=True)
+    assert direct.value.code == "publishing_not_on_this_device"
+    assert asks == [] and _git(remote, "for-each-ref") == ""
