@@ -406,6 +406,9 @@ OP_SELECT = "launcher.mission_control.agent.select"
 OP_CHAT_LIST = "launcher.agent_chat.list"
 OP_MODEL_SET = "launcher.agent.model.set"
 OP_MODEL_LIST = "launcher.agent.model.list"
+#: Each verb must be an entry the vendored catalog lists: a renamed or retired entry fails here, at
+#: import, instead of as a plan step the Launcher no longer answers (R10).
+_tool_names(OP_NEW, OP_SEND, OP_SELECT, OP_CHAT_LIST, OP_MODEL_SET, OP_MODEL_LIST)
 OP_VERIFY = "verify_route"
 OP_WAIT = "wait_turn_settled"
 

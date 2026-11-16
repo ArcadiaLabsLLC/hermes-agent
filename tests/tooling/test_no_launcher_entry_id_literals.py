@@ -45,6 +45,12 @@ ALLOWED: dict[tuple[str, str], str] = {
         "the launcher_qa MCP server's own tool (opens a QA chat), not an app-function intent",
     ("evals/genui_first_response_ab.py", "launcher.agent_chat.send"):
         "the launcher_qa MCP server's own tool (sends a QA turn), not an app-function intent",
+    **{("evals/genui_first_response_ab.py", ident):
+        "a launcher_qa driver verb the A/B's step list names for the orchestrating session (select the "
+        "agent, set and read back the model route, read the chat list), not an intent hermes offers; "
+        "checked against the vendored catalog at import"
+       for ident in ("launcher.mission_control.agent.select", "launcher.agent.model.set",
+                     "launcher.agent.model.list", "launcher.agent_chat.list")},
 }
 
 
