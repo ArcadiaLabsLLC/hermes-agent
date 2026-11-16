@@ -14,7 +14,6 @@ from typing import Any
 from ..redaction import redact_url
 from ..store import RealmStore
 from .git import (
-    _REPO_CONFIG,
     _adopt_local_remote,
     _ensure_sync_repo,
     _looks_like_remote,
@@ -56,7 +55,7 @@ def set_realm_backup_remote(realm_id: str, url: str) -> dict[str, Any]:
             "invalid_remote", "A backup remote is a file://, https://, ssh:// or git@ repository URL."
         )
     repo = _ensure_sync_repo(realm)
-    _adopt_local_remote(realm, repo, url, config=_REPO_CONFIG)
+    _adopt_local_remote(realm, repo, url)
     return _answer(RealmStore().get(realm.id), url)
 
 

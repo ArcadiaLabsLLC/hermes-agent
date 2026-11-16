@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -111,14 +110,6 @@ def _rekey_skills(mapping: Any) -> None:
             atomic_json_write(path, {**record, "source": {**source, "realm_id": mapping.realm_new}}, indent=2, sort_keys=True)
 
 
-def _sync_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    # The realm-sync door: its robot identity, and no member's own name or address
-    # (RT-REALM-SYNC-COMMIT-LEAKS-MEMBER-EMAIL).
-    from .realm_sync.git import SYNC_IDENTITY, run_sync_git
-
-    return run_sync_git(list(args), repo=repo, config=SYNC_IDENTITY, timeout=120, stdin=subprocess.DEVNULL, encoding="utf-8")
-
-
 def _rekey_local_history(mapping: Any) -> None:
     """The realm's own clone (moved to its new id's folder by the ``rename`` step) and, on an install from
     before clones were per realm, the old shared ``local`` one."""
@@ -130,12 +121,22 @@ def _rekey_local_history(mapping: Any) -> None:
 def _rekey_history_in(repo: Path, mapping: Any) -> None:
     from .realm_rekey import token_pattern
     from .host_tools import git_runs
+    from .realm_sync.git import SyncGitBackend, sync_git, sync_git_backend
+    from .realm_sync.models import RealmSyncError
 
     old, new = (Path("realms") / paths.safe_path_token(realm) for realm in (mapping.realm_old, mapping.realm_new))
-    if not (repo / ".git").exists() or not git_runs():
+    if not (repo / ".git").exists():
         return
+    if sync_git_backend() is SyncGitBackend.BINARY and not git_runs():
+        return  # a desktop without its git program re-keys no history, as before the port
+    # The realm-sync port: its robot identity, and no member's own name or address
+    # (RT-REALM-SYNC-COMMIT-LEAKS-MEMBER-EMAIL). A step that fails is skipped, as it always was.
+    git = sync_git(repo)
     if (repo / old).exists() and not (repo / new).exists():
-        _sync_git(repo, "mv", old.as_posix(), new.as_posix())
+        try:
+            git.move(old.as_posix(), new.as_posix())
+        except RealmSyncError:
+            pass
     subtree = repo / new
     if not subtree.is_dir():
         return
@@ -154,10 +155,12 @@ def _rekey_history_in(repo: Path, mapping: Any) -> None:
         renamed = names.get(path.name) or (names[stem] + dot + rest if dot and stem in names else None)
         if renamed and not path.with_name(renamed).exists():
             path.rename(path.with_name(renamed))
-    _sync_git(repo, "add", "-A", "--", "realms")
-    if _sync_git(repo, "status", "--porcelain", "--", "realms").stdout.strip():
-        _sync_git(repo, "commit", "-q", "-m", f"realm {mapping.realm_new}: this copy's own ids (was {mapping.realm_old})",
-                  "--", "realms")
+    try:
+        git.add(["realms"], all_under=True)
+        if git.changed(["realms"]):
+            git.commit(f"realm {mapping.realm_new}: this copy's own ids (was {mapping.realm_old})", paths=["realms"])
+    except RealmSyncError:
+        pass
 
 
 _PARTS = (_rekey_machine_files, _rekey_lens, _rekey_skills, _rekey_local_history)

@@ -199,10 +199,10 @@ def _follow_server_repository(realm: Realm, repo: Path, credential: RealmSyncCre
     git.remote_remove("origin")
     from ..git_remote_adopt import AdoptRefused, adopt_remote
 
-    config = (*_REPO_CONFIG, *(_credential_git_config(credential) or ()))
+    config = _credential_git_config(credential)
     try:
-        adopt_remote(repo, url, branch=branch, config=config, merge_unrelated_if_disjoint=True,
-                     push_into_empty=False, run=run_sync_git)
+        adopt_remote(repo, url, branch=branch, merge_unrelated_if_disjoint=True, push_into_empty=False,
+                     git=git, auth=credential)
     except AdoptRefused as exc:
         # Put the old ``origin`` back, so the next verb sees the move again and retries it.
         git.remote_remove("origin", missing_ok=True)
@@ -254,11 +254,10 @@ def _adopt_credential_remote(realm: Realm, repo: Path, credential: RealmSyncCred
         return
     if not credential.admits_realm(realm):
         return
-    _adopt_local_remote(realm, repo, credential.git_url,
-                        config=(*_REPO_CONFIG, *(_credential_git_config(credential) or ())))
+    _adopt_local_remote(realm, repo, credential.git_url, credential=credential)
 
 
-def _adopt_local_remote(realm: Realm, repo: Path, url: str, *, config: Sequence[str]) -> None:
+def _adopt_local_remote(realm: Realm, repo: Path, url: str, *, credential: RealmSyncCredential | None = None) -> None:
     """``url`` becomes a server-less realm's ``sync_manifest_ref`` and ``repo``'s ``origin``.
 
     The ONE adoption path: a ``local:`` credential's ``git_url`` and ``harness realm sync
@@ -281,9 +280,10 @@ def _adopt_local_remote(realm: Realm, repo: Path, url: str, *, config: Sequence[
     from ..git_remote_adopt import AdoptRefused, adopt_remote
 
     _align_branch(repo, _LOCAL_REALM_BRANCH)
+    config = _credential_git_config(credential)
     try:
-        adopt_remote(repo, url, branch=_LOCAL_REALM_BRANCH, config=config, merge_unrelated_if_disjoint=True,
-                     push_into_empty=False, run=run_sync_git)
+        adopt_remote(repo, url, branch=_LOCAL_REALM_BRANCH, merge_unrelated_if_disjoint=True, push_into_empty=False,
+                     git=sync_git(repo), auth=credential)
     except AdoptRefused as exc:
         detail = _redact_text(_scrub_config_values(exc.detail, config))
         code = _ADOPT_REFUSAL_CODES.get(exc.reason, "sync_remote_unreachable")

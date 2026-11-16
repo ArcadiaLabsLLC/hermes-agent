@@ -178,7 +178,9 @@ def test_the_authorization_header_never_lands_in_git_config(isolate_agent_runtim
     pull_realm_sync(realm.id, credential=credential)
 
     header = credential.git_extra_config()[0]
-    assert any("remote" in cmd and "add" in cmd and header in cmd for cmd in calls)  # the adopter carried it
+    # The adopter carried it on its network step (a ``remote add`` needs no credential since the port, S2).
+    assert any("fetch" in cmd and "origin" in cmd and header in cmd for cmd in calls)
+    assert not any("remote" in cmd and "add" in cmd and header in cmd for cmd in calls)
     assert any("push" in cmd and header in cmd for cmd in calls)
     config_text = (_own_repo(realm) / ".git" / "config").read_text(encoding="utf-8").lower()
     assert "extraheader" not in config_text

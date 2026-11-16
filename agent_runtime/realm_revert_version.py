@@ -32,13 +32,11 @@ no fetch and no network; the version must already be in the local clone
 
 from __future__ import annotations
 
-import tarfile
 import tempfile
 from pathlib import Path
 from typing import Any
 
 from . import paths
-from .git_cmd import run_git
 from .realm_revert import (
     CONTAINER_FAMILIES,
     OUTCOME_RESTORED,
@@ -80,6 +78,7 @@ from .realm_sync import (
 )
 from .realm_sync.drift import DRIFT_KEY_BOARD_DEF, DRIFT_KEY_OFFICE_SURFACE
 from .realm_sync.families import SyncFamily
+from .realm_sync.git import sync_git
 from .realm_sync.status import store_drift_family_counts
 from .serde import to_jsonable
 from .store import RealmStore
@@ -118,9 +117,8 @@ def _resolve_version(repo: Path, to: str) -> str:
     if not text or text.startswith("-"):
         raise RealmSyncError("invalid_request", "--to takes a version sha from `realm sync history`.",
                              safe_details={"to": text})
-    proc = run_git(["rev-parse", "--verify", "-q", f"{text}^{{commit}}"], repo=repo)
-    sha = (proc.stdout or "").strip()
-    if proc.returncode != 0 or not sha:
+    sha = sync_git(repo).resolve(text)
+    if not sha:
         raise RealmSyncError(
             "version_not_found",
             "That version is not in the local sync clone; run `realm sync history` for the versions it holds.",
@@ -132,21 +130,18 @@ def _resolve_version(repo: Path, to: str) -> str:
 def _extract_version_subtree(repo: Path, sha: str, rel: str, dest: Path) -> Path:
     """X's ``realms/<realm>/`` tree, read-only, into ``dest``. No ref moves."""
 
-    if run_git(["cat-file", "-e", f"{sha}:{rel}"], repo=repo).returncode != 0:
+    try:
+        tree = sync_git(repo).read_tree_at(sha, rel, dest)
+    except RealmSyncError as exc:
+        raise RealmSyncError("version_not_found", "Could not read that version from the local sync clone.",
+                             safe_details={"to": sha}) from exc
+    if tree is None:
         raise RealmSyncError(
             "version_has_no_realm_subtree",
             "That version carries nothing for this realm.",
             safe_details={"to": sha},
         )
-    archive = dest / "version.tar"
-    proc = run_git(["archive", "--format=tar", "-o", str(archive), sha, rel], repo=repo)
-    if proc.returncode != 0:
-        raise RealmSyncError("version_not_found", "Could not read that version from the local sync clone.",
-                             safe_details={"to": sha})
-    tree = dest / "tree"
-    with tarfile.open(archive) as tar:
-        tar.extractall(tree, filter="data")
-    return tree.joinpath(*rel.split("/"))
+    return tree
 
 
 # --- selection: rows where the store differs from X --------------------------

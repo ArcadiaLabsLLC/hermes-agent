@@ -152,10 +152,11 @@ def _drop_clone(clone: Path) -> None:
     try:
         _remove_tree(clone)
     except OSError:
-        from .realm_sync.git import _git
+        from .realm_sync.git import sync_git
 
-        for name in _git(clone, "remote", check=False).split():
-            _git(clone, "remote", "remove", name, check=False)
+        git = sync_git(clone)
+        for name in git.remotes():
+            git.remote_remove(name, missing_ok=True)
 
 
 def _remove_tree(path: Path) -> None:

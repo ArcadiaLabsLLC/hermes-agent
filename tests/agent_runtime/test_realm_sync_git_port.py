@@ -280,3 +280,107 @@ def test_ancestry_and_history(tmp_path, remote):
     assert len(git.log(["HEAD"], "realms/r", 1)) == 1
     assert git.newest("HEAD", "realms/r") == entries[0].sha
     assert git.newest("HEAD", "realms/none") is None
+
+
+# -- the adopter's, leave's, re-key's and restore-a-version's steps (S2) -------------------------------
+
+
+def test_fetch_of_a_branch_an_empty_remote_lacks(tmp_path, remote):
+    repo = tmp_path / "fresh"
+    repo.mkdir()
+    git = sync_git(repo)
+    assert not git.is_repo()
+    git.init()
+    assert git.is_repo()
+    empty = tmp_path / "empty.git"
+    _sh(tmp_path, "init", "-q", "--bare", str(empty))
+    git.remote_add("origin", str(empty))
+    assert git.fetch(None, branch="main") is FetchOutcome.EMPTY_REMOTE
+    git.remote_remove("origin")
+    git.remote_add("origin", str(remote))
+    assert git.fetch(None, branch="main") is FetchOutcome.FETCHED
+    assert git.resolve("refs/remotes/origin/main") is not None
+    git.remote_remove("origin")
+    git.remote_add("origin", str(tmp_path / "gone.git"))
+    with pytest.raises(RealmSyncError):
+        git.fetch(None, branch="main")
+
+
+def test_reset_hard_takes_the_remote_and_set_upstream_tracks_it(tmp_path, remote):
+    repo = tmp_path / "fresh"
+    repo.mkdir()
+    git = sync_git(repo)
+    git.init()
+    git.rename_branch("main")
+    git.remote_add("origin", str(remote))
+    git.fetch(None, branch="main")
+    git.reset_hard("origin/main")
+    assert (repo / "realms/r/a.txt").read_text(encoding="utf-8") == "one\n"
+    assert git.upstream() is None
+    git.set_upstream("main")
+    assert git.upstream() == "origin/main"
+    assert git.merge_base("HEAD", "origin/main") == git.resolve("HEAD")
+
+
+def test_push_to_a_named_branch_sets_its_upstream(tmp_path):
+    repo = tmp_path / "fresh"
+    repo.mkdir()
+    git = sync_git(repo)
+    git.init()
+    git.rename_branch("main")
+    _member_commits(repo, "x.txt", "x\n")
+    bare = tmp_path / "empty.git"
+    _sh(tmp_path, "init", "-q", "--bare", str(bare))
+    git.remote_add("origin", str(bare))
+    assert git.push(None, set_upstream=True, branch="main").outcome is PushOutcome.PUSHED
+    assert git.upstream() == "origin/main"
+    assert _sh(tmp_path, "--git-dir", str(bare), "rev-parse", "main") == git.resolve("HEAD")
+
+
+def test_unrelated_histories_merge_with_ours_on_overlap(tmp_path, remote):
+    repo = tmp_path / "fresh"
+    repo.mkdir()
+    git = sync_git(repo)
+    git.init()
+    git.rename_branch("main")
+    _member_commits(repo, "mine/b.txt", "b\n")
+    _member_commits(repo, ".gitattributes", "ours\n")
+    git.remote_add("origin", str(remote))
+    git.fetch(None, branch="main")
+    assert git.merge_base("HEAD", "origin/main") is None
+    assert git.tree_paths("HEAD") == {"mine/b.txt", ".gitattributes"}
+    assert git.tree_paths("origin/main") == {"realms/r/a.txt"}
+    assert git.tree_paths("refs/heads/none") == frozenset()
+    git.merge_unrelated_ours("origin/main")
+    assert git.tree_paths("HEAD") == {"mine/b.txt", ".gitattributes", "realms/r/a.txt"}
+    assert git.is_ancestor("origin/main", "HEAD")
+
+
+def test_move_and_add_all_under_stage_the_deletions(tmp_path, remote):
+    """A re-key moves ``realms/<old>`` to ``realms/<new>`` and deletes a file under it: both reach the commit."""
+
+    repo = _clone(tmp_path, remote)
+    _member_commits(repo, "realms/r/gone.txt", "g\n")
+    git = sync_git(repo)
+    git.move("realms/r", "realms/s")
+    (repo / "realms/s/gone.txt").unlink()
+    (repo / "outside.txt").write_text("o\n", encoding="utf-8")
+    git.add(["realms"], all_under=True)
+    git.commit("re-key", paths=["realms"])
+    assert git.tree_paths("HEAD") == {"realms/s/a.txt"}
+    assert [c.path for c in git.changed()] == ["outside.txt"]
+
+
+def test_read_tree_at_writes_one_versions_subtree(tmp_path, remote):
+    repo = _clone(tmp_path, remote)
+    git = sync_git(repo)
+    first = git.resolve("HEAD")
+    _member_commits(repo, "realms/r/a.txt", "two\n")
+    dest = tmp_path / "out"
+    dest.mkdir()
+    tree = git.read_tree_at(first, "realms/r", dest)
+    assert tree is not None and (tree / "a.txt").read_text(encoding="utf-8") == "one\n"
+    assert git.read_tree_at(first, "realms/none", dest) is None
+    assert git.resolve("deadbeef" * 5) is None
+    assert git.resolve(first[:12]) == first
+    assert (repo / "realms/r/a.txt").read_text(encoding="utf-8") == "two\n"  # no ref moved

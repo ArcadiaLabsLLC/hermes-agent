@@ -16,6 +16,7 @@ This module owns the verb CONTRACT and nothing else: which backend answers is
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol
@@ -98,6 +99,7 @@ class SyncGit(Protocol):
 
     # -- the repository and its remotes ------------------------------------------------------
     def init(self) -> None: ...
+    def is_repo(self) -> bool: ...
     def clone(self, url: str, auth: RealmSyncCredential | None) -> None:
         """Make ``repo`` a clone of ``url`` (``repo`` does not exist yet)."""
     def remote_url(self, name: str) -> str | None: ...
@@ -115,22 +117,37 @@ class SyncGit(Protocol):
         """The commit ``ref`` names, or ``None`` when it names none."""
     def upstream(self) -> str | None:
         """The branch's upstream as ``<remote>/<branch>``, or ``None``."""
+    def set_upstream(self, branch: str) -> None:
+        """Track ``origin/<branch>``; never carries a credential into the config."""
     def is_ancestor(self, ancestor: str, descendant: str) -> bool: ...
+    def merge_base(self, a: str, b: str) -> str | None: ...
+    def tree_paths(self, ref: str) -> frozenset[str]:
+        """Every file path ``ref``'s tree holds (empty when ``ref`` names none)."""
+    def read_tree_at(self, sha: str, rel: str, dest: Path) -> Path | None:
+        """Write commit ``sha``'s ``rel`` subtree under ``dest`` and return where it is; ``None`` when ``sha``
+        carries no ``rel``. No ref moves."""
 
     # -- the working tree and the index ------------------------------------------------------
     def is_tracked(self, path: str) -> bool: ...
     def state(self) -> RepoState: ...
     def changed(self, paths: Sequence[str] = (), *, untracked_all: bool = False) -> tuple[ChangedPath, ...]: ...
-    def add(self, paths: Sequence[str]) -> None: ...
-    def commit(self, message: str, trailers: Sequence[str] = ()) -> None:
-        """Commit the index as ``SYNC_IDENTITY``; each trailer is its own paragraph."""
+    def add(self, paths: Sequence[str], *, all_under: bool = False) -> None:
+        """Stage ``paths``; ``all_under`` also stages the deletions under them (git's ``add -A``)."""
+    def move(self, old: str, new: str) -> None: ...
+    def commit(self, message: str, trailers: Sequence[str] = (), *, paths: Sequence[str] = ()) -> None:
+        """Commit the index (only ``paths``, when given) as ``SYNC_IDENTITY``; each trailer is its own paragraph."""
+    def reset_hard(self, ref: str) -> None: ...
 
     # -- the network -------------------------------------------------------------------------
-    def fetch(self, auth: RealmSyncCredential | None) -> FetchOutcome: ...
+    def fetch(self, auth: RealmSyncCredential | None, *, branch: str | None = None) -> FetchOutcome:
+        """Fetch every remote ref, or only ``origin/<branch>`` (``EMPTY_REMOTE`` when it has none)."""
     def pull_fast_forward(self, auth: RealmSyncCredential | None) -> None: ...
     def merge_remote_theirs(self, auth: RealmSyncCredential | None) -> MergeOutcome:
         """Fetch and merge the upstream; where both sides changed the same lines the remote wins."""
-    def push(self, auth: RealmSyncCredential | None, *, set_upstream: bool) -> PushReport: ...
+    def merge_unrelated_ours(self, tip: str) -> None:
+        """Merge an unrelated history (adopt only merges path-disjoint trees); ours wins an overlap."""
+    def push(self, auth: RealmSyncCredential | None, *, set_upstream: bool, branch: str | None = None) -> PushReport:
+        """Push the branch (``set_upstream``: to ``origin`` and track it; ``branch``: as ``origin/<branch>``, tracked)."""
 
     # -- history -----------------------------------------------------------------------------
     def log(self, refs: Sequence[str], subtree: str, limit: int) -> list[LogEntry]:
