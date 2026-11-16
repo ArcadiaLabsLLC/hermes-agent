@@ -29,7 +29,7 @@ from . import paths
 from .git_cmd import run_git
 
 __layer__ = "lanes"
-__all__ = ["LANE_WORKTREES_DIRNAME", "step_git"]
+__all__ = ["LANE_WORKTREES_DIRNAME", "git_runs", "step_git"]
 
 #: ``batch/lane_git.py`` cuts a lane beside its clone, under this name.
 LANE_WORKTREES_DIRNAME = ".worktrees"
@@ -38,6 +38,16 @@ _GITDIR = "gitdir:"
 
 def _git(repo: Path, *args: str, config: list[str] | None = None) -> subprocess.CompletedProcess[str]:
     return run_git(list(args), repo=repo, config=config, timeout=60, stdin=subprocess.DEVNULL, encoding="utf-8")
+
+
+def git_runs() -> bool:
+    """Whether the fork's git door (``git_cmd.run_git``) can run git here: the question the re-key's git
+    work needs answered, asked of the same door that then runs it. No ``which`` lookup (the reviewed-resolver
+    scan) and no private upstream resolver (the fork import-layer rule)."""
+    try:
+        return run_git(["--version"], timeout=10, stdin=subprocess.DEVNULL).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def _linked_worktrees(base: Path, forms: dict[str, str]) -> dict[Path, list[Path]]:
@@ -100,9 +110,7 @@ def _commit_new_ids(workspace_id: str, tokens: dict[str, str]) -> None:
 def step_git(root: Path, mapping: Any) -> None:
     """After the rename: per moved workspace, find its worktrees again, then the one commit. Re-run it finds
     nothing to re-point and nothing left to rewrite."""
-    from hermes_cli.boot_bootstrap import _git_binary  # the reviewed git resolver (pm's pinned git, then PATH)
-
-    if _git_binary() is None:
+    if not git_runs():
         return  # no git here: nothing cut a worktree or a brain on this machine, and the Writer recuts
     forms = mapping.forms()
     tokens = {**mapping.workspaces, **mapping.agents}

@@ -118,12 +118,11 @@ def _rekey_local_history(mapping: Any) -> None:
 
 
 def _rekey_history_in(repo: Path, mapping: Any) -> None:
-    from hermes_cli.boot_bootstrap import _git_binary  # the reviewed git resolver (pm's pinned git, then PATH)
-
     from .realm_rekey import token_pattern
+    from .realm_rekey_git import git_runs
 
     old, new = (Path("realms") / paths.safe_path_token(realm) for realm in (mapping.realm_old, mapping.realm_new))
-    if not (repo / ".git").exists() or _git_binary() is None:
+    if not (repo / ".git").exists() or not git_runs():
         return
     if (repo / old).exists() and not (repo / new).exists():
         _sync_git(repo, "mv", old.as_posix(), new.as_posix())
