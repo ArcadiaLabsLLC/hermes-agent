@@ -109,13 +109,16 @@ def realm_sync_publish(realm_id: str, *, credential: Any = None, dry_run: bool =
 
 def realm_publishing_push(
     realm_id: str, folder: str, *, credential: Any = None, branch: str | None = None, dry_run: bool = False,
+    confirmed_paths: list[str] | None = None,
 ) -> dict:
     """Publish ``folder``, as it is, to the realm's publishing repository (``agent_runtime.realm_publishing``).
-    Not realm sync: it never touches the sync clone. The caller has already passed its ``yes`` gate."""
+    Not realm sync: it never touches the sync clone. The caller has already passed its ``yes`` gate;
+    ``confirmed_paths`` is the dry run's ``paths`` the player confirmed (required unless ``dry_run``)."""
     from .realm_publishing import DEFAULT_BRANCH, publish_folder
 
     return attach_root_observability(
-        publish_folder(realm_id, folder, credential=credential, branch=branch or DEFAULT_BRANCH, dry_run=dry_run)
+        publish_folder(realm_id, folder, credential=credential, branch=branch or DEFAULT_BRANCH, dry_run=dry_run,
+                       confirmed_paths=confirmed_paths)
     )
 
 

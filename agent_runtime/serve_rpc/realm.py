@@ -73,6 +73,9 @@ REASON_CODES: dict[str, int] = {
     "realm_busy": ERR_CONFLICT,
     # ``runtime.realm.publishing.push`` with no publishing repository connected (no publishing credential).
     "publishing_not_connected": ERR_CONFLICT,
+    # ``runtime.realm.publishing.push`` whose folder no longer holds exactly the confirmed ``paths``; ``data.added``
+    # / ``data.removed`` name the difference (RT-REALM-PUBLISHING-PUSH-SENDS-ONLY-THE-CONFIRMED-LIST).
+    "publishing_list_changed": ERR_CONFLICT,
 }
 
 
@@ -258,14 +261,16 @@ def _revoked(p: dict) -> dict:
 def _publishing_push(p: dict) -> dict:
     """Params: ``realm_id``, ``folder`` (an absolute path on THIS install's disk — the folder is read where
     hermes runs), ``credential`` (the backend's ``POST /api/realms/{id}/publishing-host/credential`` answer,
-    inline; absent = ``publishing_not_connected``), ``branch`` (default ``gh-pages``), ``dry_run``, ``yes``."""
+    inline; absent = ``publishing_not_connected``), ``branch`` (default ``gh-pages``), ``dry_run``, ``yes``,
+    ``paths`` (the dry run's ``paths`` the player confirmed; required with ``yes``: absent =
+    ``confirmation_required``, a folder whose list differs now = ``publishing_list_changed``)."""
     from agent_runtime.realm_verbs import realm_publishing_push
 
     realm_id, folder = _realm(p), _param_text(p, "folder", required=True)
-    branch = _param_text(p, "branch")
+    branch, confirmed_paths = _param_text(p, "branch"), _param_strings(p, "paths")
     _confirmed(p)
     return realm_publishing_push(realm_id, folder, credential=_credential(p), branch=branch,
-                                 dry_run=_param_flag(p, "dry_run"))
+                                 dry_run=_param_flag(p, "dry_run"), confirmed_paths=confirmed_paths)
 
 
 def _occurred_at(p: dict):

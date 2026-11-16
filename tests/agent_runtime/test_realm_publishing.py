@@ -75,7 +75,7 @@ def test_a_folder_is_published_as_it_is_and_republished_on_top(tmp_path, remote,
     folder = _site(tmp_path / "out", {"index.html": "<h1>hi</h1>\r\n", "css/a.css": "a{}", ".git/HEAD": "x"})
     credential = RealmSyncCredential.parse(_payload(remote))
 
-    first = publish_folder(REALM, str(folder), credential=credential)
+    first = publish_folder(REALM, str(folder), credential=credential, confirmed_paths=["css/a.css", "index.html"])
     assert first["kind"] == "realm_publishing_push" and first["changed"] is True and first["files"] == 2
     assert _git(remote, "ls-tree", "-r", "--name-only", "gh-pages").split() == [".nojekyll", "css/a.css", "index.html"]
     assert subprocess.run(["git", "-C", str(remote), "cat-file", "blob", "gh-pages:index.html"],
@@ -86,12 +86,12 @@ def test_a_folder_is_published_as_it_is_and_republished_on_top(tmp_path, remote,
     assert paths.realm_publishing_clone_dir(REALM).is_dir()
 
     (folder / "css/a.css").unlink()
-    second = publish_folder(REALM, str(folder), credential=credential)
+    second = publish_folder(REALM, str(folder), credential=credential, confirmed_paths=["index.html"])
     assert _git(remote, "ls-tree", "-r", "--name-only", "gh-pages").split() == [".nojekyll", "index.html"]
     assert _git(remote, "rev-parse", "gh-pages^") == first["commit"]
     assert second["commit"] == _git(remote, "rev-parse", "gh-pages")
 
-    third = publish_folder(REALM, str(folder), credential=credential)
+    third = publish_folder(REALM, str(folder), credential=credential, confirmed_paths=["index.html"])
     assert third["changed"] is False and third["commit"] == second["commit"]
     assert _git(remote, "rev-list", "--count", "gh-pages") == "2"
 
@@ -141,7 +141,8 @@ def test_the_method_lane_publishes_and_names_its_refusal(tmp_path, remote, asks)
         return serve_rpc.handle_request(
             {"jsonrpc": "2.0", "id": "p", "method": "runtime.realm.publishing.push", "params": params})
 
-    published = call({"realm_id": REALM, "folder": str(folder), "credential": _payload(remote), "yes": True})
+    published = call({"realm_id": REALM, "folder": str(folder), "credential": _payload(remote), "yes": True,
+                      "paths": ["index.html"]})
     assert published["result"]["changed"] is True, published
     assert SECRET not in str(published)
     refused = call({"realm_id": REALM, "folder": str(folder), "yes": True})
@@ -169,7 +170,7 @@ def test_hidden_files_and_folders_never_go_up(tmp_path, remote, asks):
     credential = RealmSyncCredential.parse(_payload(remote))
     dry = publish_folder(REALM, str(folder), credential=credential, dry_run=True)
     assert dry["paths"] == ["a/b.js", "index.html"] and dry["files"] == 2
-    publish_folder(REALM, str(folder), credential=credential)
+    publish_folder(REALM, str(folder), credential=credential, confirmed_paths=dry["paths"])
     assert _pushed(remote) == [".nojekyll", "a/b.js", "index.html"]
 
 
@@ -184,7 +185,7 @@ def test_an_ignore_file_entry_is_left_out(tmp_path, remote, asks):
     credential = RealmSyncCredential.parse(_payload(remote))
     expected = ["deep/notes/a.txt", "index.html", "js/app.js", "notes/keep.md"]
     assert publish_folder(REALM, str(folder), credential=credential, dry_run=True)["paths"] == expected
-    publish_folder(REALM, str(folder), credential=credential)
+    publish_folder(REALM, str(folder), credential=credential, confirmed_paths=expected)
     assert _pushed(remote) == [".nojekyll", *expected]
 
 
@@ -235,7 +236,7 @@ def test_the_dry_run_paths_are_exactly_what_is_pushed(tmp_path, remote, asks, mo
     monkeypatch.setattr(push_module, "site_paths", lambda source: [p for p in real(source) if p != "b.html"])
     credential = RealmSyncCredential.parse(_payload(remote))
     dry = publish_folder(REALM, str(folder), credential=credential, dry_run=True)
-    pushed = publish_folder(REALM, str(folder), credential=credential)
+    pushed = publish_folder(REALM, str(folder), credential=credential, confirmed_paths=dry["paths"])
     assert dry["paths"] == pushed["paths"] == ["c/d.css", "index.html"]
     assert _pushed(remote) == [".nojekyll", *dry["paths"]]
 
@@ -257,3 +258,63 @@ def test_the_method_lane_names_the_secret_files(tmp_path, remote, asks):
     assert refused["error"]["code"] == ERR_CONFLICT
     assert refused["error"]["data"]["reason"] == "sync_secret_excluded"
     assert refused["error"]["data"]["paths"] == ["id_rsa"]
+
+
+# ── RT-REALM-PUBLISHING-PUSH-SENDS-ONLY-THE-CONFIRMED-LIST: a push sends the list the player confirmed, or nothing ──
+
+
+def test_a_file_added_after_the_check_is_refused_by_name(tmp_path, remote, asks):
+    """The dry run's ``paths`` handed back as ``confirmed_paths``: a file added after the check refuses the push
+    with ``publishing_list_changed`` naming it in ``added`` (a removed one in ``removed``), before the clone is
+    made; a hidden file added meanwhile is no change (it never goes up); the same list pushes. Killing
+    mutation: ``_require_confirmed_list`` returns before the compare -> the added file is pushed."""
+    folder = _site(tmp_path / "out", {"index.html": "x", "a.css": "a"})
+    credential = RealmSyncCredential.parse(_payload(remote))
+    confirmed = publish_folder(REALM, str(folder), credential=credential, dry_run=True)["paths"]
+    _site(folder, {"late.html": "added after the check", ".DS_Store": "hidden"})
+    (folder / "a.css").unlink()
+    with pytest.raises(RealmSyncError) as refused:
+        publish_folder(REALM, str(folder), credential=credential, confirmed_paths=confirmed)
+    assert refused.value.code == "publishing_list_changed"
+    assert refused.value.safe_details == {"added": ["late.html"], "removed": ["a.css"]}
+    assert "added late.html" in str(refused.value) and "removed a.css" in str(refused.value)
+    assert _git(remote, "for-each-ref") == ""
+    assert not paths.realm_publishing_clone_dir(REALM).exists()
+
+    again = publish_folder(REALM, str(folder), credential=credential, dry_run=True)["paths"]
+    assert publish_folder(REALM, str(folder), credential=credential, confirmed_paths=again)["changed"] is True
+    assert _pushed(remote) == [".nojekyll", "index.html", "late.html"]
+
+
+def test_a_push_without_the_confirmed_list_pushes_nothing(tmp_path, remote, asks):
+    """``yes`` with no ``paths`` (``confirmed_paths=None``) is ``confirmation_required`` and nothing is pushed;
+    a dry run needs no list. Killing mutation: drop the ``confirmed is None`` arm -> the bare ``yes`` pushes."""
+    folder = _site(tmp_path / "out", {"index.html": "x"})
+    credential = RealmSyncCredential.parse(_payload(remote))
+    assert publish_folder(REALM, str(folder), credential=credential, dry_run=True)["paths"] == ["index.html"]
+    with pytest.raises(RealmSyncError) as refused:
+        publish_folder(REALM, str(folder), credential=credential)
+    assert refused.value.code == "confirmation_required"
+    assert _git(remote, "for-each-ref") == ""
+
+
+def test_the_method_lane_takes_the_confirmed_paths(tmp_path, remote, asks):
+    """Over ``runtime.realm.publishing.push``: ``yes`` without ``paths`` is ``confirmation_required``, a changed
+    list is a conflict whose ``data`` carries ``added`` / ``removed``, and a ``paths`` that is not a list of
+    strings is ``invalid_request``. Killing mutations: the reason unmapped -> not ERR_CONFLICT; ``paths`` not
+    passed through -> the matching call is refused."""
+    folder = _site(tmp_path / "out", {"index.html": "x"})
+
+    def call(params):
+        return serve_rpc.handle_request(
+            {"jsonrpc": "2.0", "id": "p", "method": "runtime.realm.publishing.push", "params": params})
+
+    base = {"realm_id": REALM, "folder": str(folder), "credential": _payload(remote), "yes": True}
+    assert call(base)["error"]["data"]["reason"] == "confirmation_required"
+    assert call({**base, "paths": "index.html"})["error"]["data"]["reason"] == "invalid_request"
+    changed = call({**base, "paths": ["index.html", "gone.html"]})
+    assert changed["error"]["code"] == ERR_CONFLICT
+    assert changed["error"]["data"]["reason"] == "publishing_list_changed"
+    assert (changed["error"]["data"]["added"], changed["error"]["data"]["removed"]) == ([], ["gone.html"])
+    assert _git(remote, "for-each-ref") == ""
+    assert call({**base, "paths": ["index.html"]})["result"]["changed"] is True
