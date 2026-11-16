@@ -21,6 +21,7 @@ from agent_runtime.discussions.rpc import execute
 from agent_runtime.mission_chat_turns import transition_mission_chat_turn, MissionChatTurnPersistOutcome
 from gateway import hosted_rooms
 from agent_runtime.profile_home import get_hermes_head_home
+from tests._downstream.load_wait import wait_for
 from tests.agent_runtime.test_discussion_definitions import table_value
 
 pytestmark = pytest.mark.timeout(180)
@@ -125,13 +126,9 @@ def engine(tmp_path):
 
 
 def wait_until(predicate, timeout=45):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        result = predicate()
-        if result:
-            return result
-        time.sleep(.02)
-    raise AssertionError("condition did not become true")
+    """The discussion suites' wait: the fork's one load-scaled wait (FH-FORK-TIMING-TESTS-ON-THE-WAIT;
+    RT-FLAKE-DISCUSSION-RUNTIME-CLARIFICATION-UNDER-LOAD and its siblings timed out here under load)."""
+    return wait_for(predicate, timeout, interval=.02, what="the discussion condition")
 
 
 def begin(service, count=2, key="start", table="table"):
