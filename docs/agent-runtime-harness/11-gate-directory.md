@@ -73,6 +73,7 @@ or registry entry names something real).
 | `tests/agent_runtime/test_hermes_home_env_gate.py` | fence | only named authorities read `HERMES_HOME` from the environment |
 | `tests/agent_runtime/test_skills_root_call_time_gate.py` | runtime | the skills root resolves at call time |
 | `tests/agent_runtime/test_snapshot_contract_version_authority.py` | fence | one snapshot contract-version literal |
+| `tests/tooling/test_no_duplicate_literal_tables.py` | ratchet | no list, tuple or set of 4+ ids or names is written in a second fork production file; shrink-only baseline `tests/tooling/duplicate_literal_tables_baseline.txt` (FH-DUPLICATE-LITERAL-TABLES-REFUSED) |
 | `tests/agent_runtime/test_s55_registered_events_have_emitters.py` | fence | every registered event type has an emitter |
 | `tests/agent_runtime/test_s56_runtime_config_reader_gate.py` | fence | every `RuntimeConfig` field has a production reader or a reasoned report-only entry |
 | `tests/agent_runtime/test_no_kanban_dependency.py` | fence | only the native Work adapter imports public task APIs |

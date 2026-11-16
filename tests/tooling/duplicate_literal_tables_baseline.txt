@@ -1,0 +1,26 @@
+# Literal tables (a list, tuple or set literal of 4+ distinct str or int constants)
+# written in two or more fork production files, as seeded 2026-11-16 (lane w1115e-fh5).
+# Gate: tests/tooling/test_no_duplicate_literal_tables.py (row FH-DUPLICATE-LITERAL-TABLES-REFUSED).
+# SHRINK-ONLY: fold a copy into its owner and cut the file (or the line); never add a line.
+# `debt` = one fact in two places, owed a single owner; `exempt:` = reviewed, the copies only happen to match.
+10d03931  agent_runtime/local_llama_adapter/manager.py, agent_runtime/local_llama_adapter/rpc.py  # 4 values (expect_config_revision | expect_epoch | expect_revision …) — debt
+22d1d888  agent_runtime/console_suggestions/service.py, agent_runtime/subagents/params.py  # 6 values (client_scope | install_id | persona_id …) — debt
+2981dd3a  hermes_cli/_registry_write_fence.py, tests/_downstream/registry_write_fence.py  # 4 values (winreg.CreateKey | winreg.DeleteKey | winreg.DeleteValue …) — debt
+4810dcd9  agent_runtime/lens/act.py, agent_runtime/tool_visibility.py  # 6 values (apply_patch | edit_file | file.edit …) — debt
+4bc442ac  agent_runtime/turn_usage.py, agent_runtime/usage_ledger.py  # 6 values (cache_read_tokens | cache_write_tokens | input_tokens …) — debt
+66578506  agent_runtime/realm_sync/git.py, agent_runtime/work_store/checked_out.py, agent_runtime/work_store/writer.py  # 4 values (--verify | -q | HEAD …) — exempt: a git command line, not a table of facts
+706c6973  agent_runtime/serve_rpc/console_operations.py, hermes_cli/harness_parts/parser/persona.py  # 4 values (bounded | profile_default | read_only …) — debt
+806029ad  agent_runtime/workspace_template.py, hermes_cli/harness_parts/parser/scope.py  # 4 values (agents | board | office …) — debt
+88409a05  agent_runtime/serve_rpc/schedule.py, agent_runtime/work_store/schedule_tool.py  # 5 values (arm | disarm | list …) — debt
+ac313ebd  agent_runtime/profile_runner/tool_payloads.py, agent_runtime/prompt_observability/skills_context.py  # 5 values (input | invocation | metadata …) — debt
+adcc6f03  agent_runtime/chat_verbs/instance_create.py, agent_runtime/serve_rpc/twin_params.py  # 10 values (add_instance | client_message_id | display_name …) — debt
+b961ddf2  agent_runtime/profile_runner/tool_payloads.py, agent_runtime/prompt_observability/skills_context.py  # 4 values (identifier | name | skill …) — debt
+c3b5a60a  agent_runtime/terminal_envelope/classes.py, agent_runtime/terminal_policy.py  # 4 values (127.0.0.1 | ::1 | host.docker.internal …) — debt
+cd452ebc  agent_runtime/mission_chat_turns/records.py, agent_runtime/profile_runner/tool_payloads.py  # 4 values (cancelled | completed | in_progress …) — debt
+cf7695c9  agent_runtime/office_store/noop.py, agent_runtime/serde.py  # 4 values (created_at | revision | updated_at …) — debt
+db4eb35a  agent_runtime/builds/control.py, agent_runtime/builds/sweep.py  # 4 values (running | stalled | stalling …) — debt
+f0727172  scripts/_fork_runner.py, scripts/run_tests_bundled.py  # 7 values (-W | -c | -k …) — debt
+f1ca988a  agent_runtime/media_cache.py, agent_runtime/media_handles.py  # 4 values (MEDIA_CACHE_DIRNAME | read_cached_bytes | remote_cache_path …) — debt
+f20c475a  agent_runtime/board_models.py, hermes_cli/harness_parts/parser/surfaces.py, tools/board_tool.py  # 4 values (p0 | p1 | p2 …) — debt
+f211cb38  agent_runtime/batch/lane_git.py, agent_runtime/work_store/writer.py  # 4 values (--push | get-url | origin …) — exempt: a git command line, not a table of facts
+ffe18ea0  agent_runtime/work_store/grammar.py, agent_runtime/work_store/wake.py  # 7 values (another lane | backend | hermes …) — debt
