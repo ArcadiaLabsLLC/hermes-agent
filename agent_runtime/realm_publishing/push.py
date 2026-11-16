@@ -29,6 +29,13 @@ by :func:`site_paths` and used for the dry run's ``paths``, the count and the co
   ``realm_sync.pull.file_contains_secret_assignment``, the token-shaped text) plus the publishing name
   patterns :data:`SECRET_NAME_PATTERNS` and a private-key block (:data:`_PRIVATE_KEY_BLOCK`).
 
+A push (not a dry run) goes up only as the list the player confirmed (RT-REALM-PUBLISHING-PUSH-SENDS-ONLY-THE-
+CONFIRMED-LIST; owner layer 1 of the secret guard): the caller hands back the dry run's ``paths`` as
+``confirmed_paths``. With none, :data:`CONFIRMATION_REQUIRED`; when the folder's list, built again at the push
+by the same :func:`site_paths` and secret check, differs from it, :data:`LIST_CHANGED` with the ``added`` and
+``removed`` paths in ``safe_details`` — both before the clone is touched. A confirmed file whose CONTENT
+changed since the check still goes up (documented, not worked); the secret scan re-runs at the push.
+
 The credential's Authorization rides as a per-call ``-c`` pair and is scrubbed from every error
 (``realm_sync.git._git``).
 """
@@ -53,13 +60,27 @@ from ..realm_sync.pull import file_contains_secret_assignment
 from ..realm_sync.publish import PUBLISHER_TRAILER
 
 __layer__ = "lanes"
-__all__ = ["DEFAULT_BRANCH", "IGNORE_FILE", "NOT_CONNECTED", "SECRET_NAME_PATTERNS", "publish_folder", "site_paths"]
+__all__ = [
+    "CONFIRMATION_REQUIRED",
+    "DEFAULT_BRANCH",
+    "IGNORE_FILE",
+    "LIST_CHANGED",
+    "NOT_CONNECTED",
+    "SECRET_NAME_PATTERNS",
+    "publish_folder",
+    "site_paths",
+]
 
 #: The branch a Pages site is served from when the player picks "Deploy from a branch" (plan §3,
 #: ``build_type: legacy``). The caller may name another.
 DEFAULT_BRANCH = "gh-pages"
 #: The refusal when no publishing repository is connected (no publishing credential was handed over).
 NOT_CONNECTED = "publishing_not_connected"
+#: The refusal of a push that does not hand back the confirmed list (the dry run's ``paths``).
+CONFIRMATION_REQUIRED = "confirmation_required"
+#: The refusal of a push whose folder no longer holds exactly the confirmed list; ``safe_details`` carry
+#: ``added`` (in the folder now, not confirmed) and ``removed`` (confirmed, no longer in the folder).
+LIST_CHANGED = "publishing_list_changed"
 #: The empty file that tells Pages to serve the files as they are (no Jekyll build).
 NOJEKYLL = ".nojekyll"
 #: The folder's own ignore file: its patterns are left out of the publish (syntax: :func:`_read_ignore_file`).
@@ -105,9 +126,12 @@ def publish_folder(
     credential: RealmSyncCredential | None,
     branch: str = DEFAULT_BRANCH,
     dry_run: bool = False,
+    confirmed_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     """Publish ``folder`` to the realm's publishing repository's ``branch``. Returns the
-    ``realm_publishing_push`` envelope; raises :class:`RealmSyncError` (``code``) on every refusal."""
+    ``realm_publishing_push`` envelope; raises :class:`RealmSyncError` (``code``) on every refusal.
+    ``confirmed_paths`` (the dry run's ``paths``, as the player confirmed them) is required unless
+    ``dry_run``, and a dry run ignores it."""
 
     source = _source_folder(folder)
     branch = _branch(branch)
@@ -117,6 +141,7 @@ def publish_folder(
     _refuse_secrets(source, files)
     if dry_run:
         return _envelope(realm_id, credential, branch, files=files, changed=False, commit=None, dry_run=True)
+    _require_confirmed_list(files, confirmed_paths)
     repo = _publishing_clone(realm_id, credential)
     config = [*credential.git_extra_config(), *_PUBLISHING_CONFIG]
     tip = _fetch_tip(repo, branch, config)
@@ -181,6 +206,30 @@ def _require_permission(credential: RealmSyncCredential) -> None:
             decision.code or "membership_denied",
             decision.message or "You may not publish this realm.",
         )
+
+
+def _require_confirmed_list(files: list[str], confirmed: list[str] | None) -> None:
+    """Refuse a push unless the folder's list now is exactly the confirmed one."""
+
+    # MUTATION: return instead of raising here and test_a_push_without_the_confirmed_list_pushes_nothing reddens.
+    if confirmed is None:
+        raise RealmSyncError(
+            CONFIRMATION_REQUIRED,
+            "Publishing needs the list of files the player confirmed (the check's paths).",
+        )
+    now, kept = set(files), set(confirmed)
+    # MUTATION: return here and test_a_file_added_after_the_check_is_refused_by_name reddens.
+    if now == kept:
+        return
+    added, removed = sorted(now - kept), sorted(kept - now)
+    named = ", ".join([*(f"added {rel}" for rel in added[:5]), *(f"removed {rel}" for rel in removed[:5])])
+    more = len(added) + len(removed) - min(len(added), 5) - min(len(removed), 5)
+    raise RealmSyncError(
+        LIST_CHANGED,
+        f"The folder changed after you checked it ({named}{f' and {more} more' if more else ''}). "
+        "Check the list again, then publish.",
+        safe_details={"added": added, "removed": removed},
+    )
 
 
 def site_paths(source: Path) -> list[str]:
