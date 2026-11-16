@@ -293,6 +293,8 @@ OpenSSL trust).
 
 ## 9. Open rulings
 
+- **RULED 2026-11-16 (owner, "rest as reccomended"): charset-normalizer ships its pure wheel on both phones too.** S7 found the phone pools had been installing charset-normalizer's compiled wheels unseen; it is now on `packaging.pure_wheels` beside dulwich (hermes c398c4a2cc), keeping Pillow the only admitted compiled distribution.
+
 1. **Which dulwich wheel ships on Android.** dulwich publishes an Android wheel with compiled Rust parts, but
    none for iOS. Ship the pure wheel on both phones (one behaviour on both, 0.73 MiB, nothing compiled to admit),
    or let Android take the compiled wheel (faster pack and object parsing; a second compiled library next to
