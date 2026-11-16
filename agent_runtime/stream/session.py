@@ -9,6 +9,7 @@ from typing import Any
 
 from ..core_cache import lane as cache_lane
 from ..events import EventLog
+from ..lens.revision import lens_revision
 from ..models import Event
 from ..parity import events_watermark
 from ..patch_coverage import normalize_fold_entities
@@ -453,7 +454,7 @@ class StreamSession:
             # Still no readable tail. Emit liveness (with an honestly null
             # position) and retry the measurement — never fall back to 0, which
             # would tail the whole log from its head as if it were new.
-            if self.heartbeat_due() and (yield from self.emit(heartbeat_frame(offset=None))):
+            if self.heartbeat_due() and (yield from self.emit(heartbeat_frame(offset=None, lens_revision=lens_revision()))):
                 return _STOP
             _bounded_sleep(self.poll_interval_seconds)
             return _AGAIN
@@ -558,6 +559,6 @@ class StreamSession:
             # Skip the sleep: the next iteration reads the appended event
             # and emits the reconcile delta (which resets the heartbeat).
             return _AGAIN
-        if (yield from self.emit(heartbeat_frame(offset=self.offset))):
+        if (yield from self.emit(heartbeat_frame(offset=self.offset, lens_revision=lens_revision()))):
             return _STOP
         return None

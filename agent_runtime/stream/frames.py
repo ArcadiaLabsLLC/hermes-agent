@@ -128,7 +128,10 @@ def _resume_offset(frame: dict[str, Any]) -> int | None:
 
 
 def heartbeat_frame(
-    *, offset: int | None, activity: dict[str, Any] | None = None
+    *,
+    offset: int | None,
+    activity: dict[str, Any] | None = None,
+    lens_revision: int | None = None,
 ) -> dict[str, Any]:
     """Liveness frame that advances the stream watermark without a core delta.
 
@@ -140,6 +143,13 @@ def heartbeat_frame(
     to read the log's tail: liveness without a position. It must not be stamped
     ``0``, which every watermark-gated reader would take as a real cursor at the
     head of the log.
+
+    ``lens_revision`` is the Lens store revision (``agent_runtime/lens/revision.py``) at this
+    beat (``RT-LENS-REVISION-RIDES-THE-HEARTBEAT``). A poll's observation moves it with no
+    event by design, so an open Lens panel in Eternia compares it with the revision its data
+    was read at and re-reads when it moved past: one integer on a frame already sent, 0 new
+    messages. ``None`` leaves it off (the boot build's liveness beats); an older Eternia
+    ignores it.
     """
 
     frame = {
@@ -153,6 +163,8 @@ def heartbeat_frame(
     }
     if activity:
         frame["activity"] = activity
+    if lens_revision is not None:
+        frame["lens_revision"] = int(lens_revision)
     return frame
 
 

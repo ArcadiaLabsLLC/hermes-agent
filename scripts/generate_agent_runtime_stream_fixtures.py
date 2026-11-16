@@ -941,7 +941,7 @@ def _write_goldens() -> int:
         frames = {
             "hydrate.json": hydrate,
             "delta.json": delta_frame(first, offset=batch[0][0], snapshot=core),
-            "heartbeat.json": heartbeat_frame(offset=7),
+            "heartbeat.json": heartbeat_frame(offset=7, lens_revision=3),
             "delta_batch.json": delta_batch_frame(batch, snapshot=core),
             "hydrate_running_work_owner.json": owner_hydrate,
             "running_work.json": running_work_section,
