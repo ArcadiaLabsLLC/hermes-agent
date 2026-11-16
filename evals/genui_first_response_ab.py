@@ -22,6 +22,7 @@ the acknowledged session to its actual turn and model); G3 report applies the pa
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -30,7 +31,7 @@ import time
 from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -709,23 +710,23 @@ def _scores_from(path: str | os.PathLike[str]) -> tuple[str, list[ArmScore], Any
 
 
 def main(argv: list[str] | None = None) -> int:
-    import argparse
-    from dataclasses import asdict
-
     parser = argparse.ArgumentParser(description="GenUI first-response A/B eval (receipt reader)")
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(required=True)
     plan_cmd = sub.add_parser("plan", help="write the MCP step list (sends nothing)")
+    plan_cmd.set_defaults(run=_plan_command, parser=plan_cmd)
     plan_cmd.add_argument("--arm", required=True, choices=ARM_BUILD_COMMITS)
     plan_cmd.add_argument("--agent", action="append", required=True, metavar="NAME=INSTANCE_ID")
     plan_cmd.add_argument("--provider", action="append", required=True, metavar="PROVIDER_ID=MODEL_ID")
     plan_cmd.add_argument("--prompts", default=str(Path(__file__).with_name("genui_first_response_prompts.json")))
     plan_cmd.add_argument("--out", required=True)
     verify_cmd = sub.add_parser("verify-route", help="validate one planned chat's readbacks before sending")
+    verify_cmd.set_defaults(run=_verify_command, parser=verify_cmd)
     verify_cmd.add_argument("--plan", required=True)
     verify_cmd.add_argument("--session-ref", required=True)
     verify_cmd.add_argument("--receipts", required=True, help="sends-file object with new, model and chat results")
     verify_cmd.add_argument("--runtime-state", required=True, help="JSON tool reply from get_runtime_state")
     collect_cmd = sub.add_parser("collect", help="read the sent turns back from the QA home")
+    collect_cmd.set_defaults(run=_collect_command, parser=collect_cmd)
     collect_cmd.add_argument("--home", required=True)
     collect_cmd.add_argument("--runtime-root")
     collect_cmd.add_argument("--plan", required=True)
@@ -734,40 +735,51 @@ def main(argv: list[str] | None = None) -> int:
     collect_cmd.add_argument("--wait-seconds", type=float, default=600.0)
     collect_cmd.add_argument("--out", required=True)
     report_cmd = sub.add_parser("report", help="apply the pass bar and write the Markdown table")
+    report_cmd.set_defaults(run=_report_command, parser=report_cmd)
     report_cmd.add_argument("--results", required=True)
     report_cmd.add_argument("--baseline")
     report_cmd.add_argument("--out", required=True)
     args = parser.parse_args(argv)
 
-    if args.command == "plan":
-        plan = drive(args.arm, load_prompts(args.prompts), _assignments(plan_cmd, args.agent),
-                     _assignments(plan_cmd, args.provider))
-        Path(args.out).write_text(json.dumps(plan, indent=2), encoding="utf-8")
-        return 0
-    if args.command == "verify-route":
-        plan, _ = _arm_inputs(verify_cmd, args.plan, args.runtime_state)
-        step = next((step for step in _send_steps(plan) if step["session_ref"] == args.session_ref), None)
-        if step is None:
-            verify_cmd.error(f"no planned chat for {args.session_ref}")
-        saved = _record(json.loads(Path(args.receipts).read_text(encoding="utf-8")))
-        refusal = _route_error(step, _record(saved.get(args.session_ref)))
-        if refusal:
-            print(f"Unverified {args.session_ref}: {refusal}")
-            return 1
-        print(f"Verified {args.session_ref}")
-        return 0
-    if args.command == "collect":
-        plan, build = _arm_inputs(collect_cmd, args.plan, args.runtime_state)
-        sends = json.loads(Path(args.sends).read_text(encoding="utf-8"))
-        results = collect(args.home, plan, sends, runtime_root=args.runtime_root, wait_seconds=args.wait_seconds)
-        payload = {
-            "arm": plan["arm"],
-            "stagec_build_receipt": build,
-            "results": [{**asdict(item), "verification_error": item.verification_error} for item in results],
-            "scores": [asdict(cell) for cell in score(results)],
-        }
-        Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        return 0
+    return args.run(args)
+
+
+def _plan_command(args: argparse.Namespace) -> int:
+    plan = drive(args.arm, load_prompts(args.prompts), _assignments(args.parser, args.agent),
+                 _assignments(args.parser, args.provider))
+    Path(args.out).write_text(json.dumps(plan, indent=2), encoding="utf-8")
+    return 0
+
+
+def _verify_command(args: argparse.Namespace) -> int:
+    plan, _ = _arm_inputs(args.parser, args.plan, args.runtime_state)
+    step = next((step for step in _send_steps(plan) if step["session_ref"] == args.session_ref), None)
+    if step is None:
+        args.parser.error(f"no planned chat for {args.session_ref}")
+    saved = _record(json.loads(Path(args.receipts).read_text(encoding="utf-8")))
+    refusal = _route_error(step, _record(saved.get(args.session_ref)))
+    if refusal:
+        print(f"Unverified {args.session_ref}: {refusal}")
+        return 1
+    print(f"Verified {args.session_ref}")
+    return 0
+
+
+def _collect_command(args: argparse.Namespace) -> int:
+    plan, build = _arm_inputs(args.parser, args.plan, args.runtime_state)
+    sends = json.loads(Path(args.sends).read_text(encoding="utf-8"))
+    results = collect(args.home, plan, sends, runtime_root=args.runtime_root, wait_seconds=args.wait_seconds)
+    payload = {
+        "arm": plan["arm"],
+        "stagec_build_receipt": build,
+        "results": [{**asdict(item), "verification_error": item.verification_error} for item in results],
+        "scores": [asdict(cell) for cell in score(results)],
+    }
+    Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return 0
+
+
+def _report_command(args: argparse.Namespace) -> int:
     try:
         arm, scores, build = _scores_from(args.results)
         baseline_arm, baseline, baseline_build = _scores_from(args.baseline) if args.baseline else (None, None, None)
@@ -776,12 +788,12 @@ def main(argv: list[str] | None = None) -> int:
         text = report(scores, arm=arm, stagec_build_receipt=build, baseline=baseline,
                       baseline_build_receipt=baseline_build)
     except (KeyError, ValueError) as exc:
-        report_cmd.error(str(exc))
+        args.parser.error(str(exc))
     Path(args.out).write_text(text, encoding="utf-8")
     return 0
 
 
-def _assignments(parser, pairs: list[str]) -> dict[str, str]:
+def _assignments(parser: argparse.ArgumentParser, pairs: list[str]) -> dict[str, str]:
     values: dict[str, str] = {}
     for pair in pairs:
         name, _, value = pair.partition("=")
@@ -791,7 +803,7 @@ def _assignments(parser, pairs: list[str]) -> dict[str, str]:
     return values
 
 
-def _arm_inputs(parser, plan_path: str, state_path: str) -> tuple[Mapping[str, Any], dict[str, Any]]:
+def _arm_inputs(parser: argparse.ArgumentParser, plan_path: str, state_path: str) -> tuple[Mapping[str, Any], dict[str, Any]]:
     try:
         plan = _record(json.loads(Path(plan_path).read_text(encoding="utf-8")))
         if plan.get("schema_version") != 2 or plan.get("expected_build") != ARM_BUILD_COMMITS[plan["arm"]]:
