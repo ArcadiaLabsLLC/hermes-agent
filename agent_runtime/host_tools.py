@@ -74,8 +74,8 @@ class ToolResolution:
 
 
 @functools.lru_cache(maxsize=8)
-def _pm_git(hermes_home: str | None) -> str | None:
-    """PM's installed git for this data root (keyed on ``HERMES_HOME``: a test's sandbox is its own)."""
+def _pm_git(hermes_home: str) -> str | None:
+    """PM's installed git for this data root (keyed on the resolved home: a test's sandbox is its own)."""
     del hermes_home  # the cache key; PM reads the active root itself
     try:
         from pm import installed_package
@@ -89,7 +89,9 @@ def _pm_git(hermes_home: str | None) -> str | None:
 def _pm_git_here() -> str | None:
     if sys.platform != "win32":
         return None
-    return _pm_git(os.environ.get("HERMES_HOME"))
+    from hermes_constants import get_hermes_home  # the home authority, not a second read of the env
+
+    return _pm_git(str(get_hermes_home()))
 
 
 def git_command() -> str:
