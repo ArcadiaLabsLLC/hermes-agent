@@ -12,7 +12,13 @@ on readiness, "it should just care if its source controlled" — tools and keys 
 
 > "sounds good and its blank by default and the user has to click set up to trigger it , never on its own"
 
-All seven decisions below are accepted, with one amendment: **a slot's recipe starts blank** (no steps are derived and pre-filled from the declaration until someone writes them), and **nothing runs or is offered on its own** — the setup flow starts only when the person clicks Set up. On a build, file the three slices in §6 and Eternia's row in §3 with this amendment.
+All seven decisions below are accepted, with one amendment: **a slot's recipe starts blank** (no steps are derived and pre-filled from the declaration until someone writes them), and **nothing runs or is offered on its own** — the setup flow starts only when the person clicks Set up. Second amendment, same day:
+
+> "and it should be a setup recipe per platform , different platforms likely will have different commands to install the enviorment"
+
+So a slot has **one recipe per platform** (Windows, macOS, Linux), each with its own steps and revision, stored as `recipes.<slot>.<platform>`; a computer shows and runs only its own platform's recipe, and a platform with no recipe shows blank. This replaces decision 1's single recipe per slot and settles the "operating-system filter on each step" alternative in decision 5 the other way (whole recipes per platform, not per-step filters). Decision 5's per-computer "Not needed here" stays.
+
+On a build, file the three slices in §6 and Eternia's row in §3 with this amendment.
 
 ## Decisions taken, owner may overrule
 
