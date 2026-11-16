@@ -33,9 +33,6 @@ PROFILE = "bundled-phone"
 #: default is 60s). Under the runner's 300s per-file cap.
 pytestmark = pytest.mark.timeout(280)
 
-#: ``tests/_downstream/child_site/sitecustomize.py::ENV`` (that directory is a ``site`` dir, not a package).
-CHILD_STARTUP_ENV = "HERMES_TEST_CHILD_STARTUP"
-
 #: Shrink-only: the gate's findings per kind over every phone target, read 2026-11-16 once the
 #: phone closure built again (the 2 ``closure`` findings gone). Lower a number when a refusal is
 #: fixed; never raise one — a new refusal is fixed, or switched off in the profile.
@@ -48,19 +45,9 @@ CEILING = {
 
 @pytest.fixture(scope="module")
 def phone_gate() -> dict:
-    """The gate's probe children run without the suite's child start-up shortcut: its after-import
-    finder and the spawn stand-ins' rebinding finder each delegate to every other finder, so with
-    both installed a stand-in module's import recurses until RecursionError (seen 2026-11-16)."""
-    import os
-
     from scripts.bundle_profile_gate import gate
 
-    saved = os.environ.pop(CHILD_STARTUP_ENV, None)
-    try:
-        return gate(PROFILE)
-    finally:
-        if saved is not None:
-            os.environ[CHILD_STARTUP_ENV] = saved
+    return gate(PROFILE)
 
 
 def test_the_gate_plans_every_phone_target_the_profile_names(phone_gate):

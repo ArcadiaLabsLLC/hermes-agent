@@ -28,6 +28,7 @@ import importlib.abc
 import json
 import os
 import sys
+import threading
 
 ENV = "HERMES_TEST_CHILD_STARTUP"
 VERSION_FILE = "version.json"
@@ -183,21 +184,38 @@ class _HookedLoader(importlib.abc.Loader):
 
 
 class _AfterImport(importlib.abc.MetaPathFinder):
+    """Wraps the loader another finder returns for a hooked name.
+
+    Another delegating finder (``agent_runtime/spawn_stand_ins.py::_RebindOnImport``) also skips
+    only itself, so for a name both hook each would call the other forever (RecursionError, seen
+    2026-11-16 under the phone gate's spawn probe). The per-thread re-entry guard answers ``None``
+    to a lookup of a name this finder is already resolving: the other finder then takes the next
+    finder's spec, and both wrappers apply once.
+    """
+
     def __init__(self, hooks):
         self.hooks = hooks
+        self._resolving = threading.local()
 
     def find_spec(self, name, path, target=None):
         hook = self.hooks.get(name)
         if hook is None or not _active():
             return None
-        for finder in sys.meta_path:
-            if finder is self or not hasattr(finder, "find_spec"):
-                continue
-            spec = finder.find_spec(name, path, target)
-            if spec is not None:
-                break
-        else:
+        resolving = self._resolving.__dict__.setdefault("names", set())
+        if name in resolving:
             return None
+        resolving.add(name)
+        try:
+            for finder in sys.meta_path:
+                if finder is self or not hasattr(finder, "find_spec"):
+                    continue
+                spec = finder.find_spec(name, path, target)
+                if spec is not None:
+                    break
+            else:
+                return None
+        finally:
+            resolving.discard(name)
         if spec.loader is not None and hasattr(spec.loader, "exec_module"):
             spec.loader = _HookedLoader(spec.loader, hook)
         return spec

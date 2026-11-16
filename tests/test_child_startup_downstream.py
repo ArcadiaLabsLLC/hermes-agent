@@ -87,3 +87,27 @@ def test_another_commit_resolves_git_again(tmp_path):
     (snapshot / "version.json").write_text(json.dumps(recorded), encoding="utf-8")
     again = _child(snapshot)
     assert again["stats"]["version_miss"] == 1 and any("status" in a for a in again["git"]), again
+
+
+_BOTH_FINDERS = r"""
+import json, sys
+from agent_runtime.spawn_stand_ins import StandIn, install_spawn_stand_ins, is_spawn_stand_in
+assert "hermes_cli.version_info" not in sys.modules
+install_spawn_stand_ins((StandIn("hermes_cli.version_info", "_run_git", returns=None),))
+import hermes_cli.version_info as module
+print(json.dumps({"rebound": is_spawn_stand_in(vars(module)["_run_git"]),
+                  "hooked": hasattr(module._git_version_info, "__wrapped__")}))
+"""
+
+
+def test_a_module_both_finders_hook_imports_once_with_both_applied(tmp_path):
+    """FH-CHILD-STARTUP-FINDER-AND-SPAWN-STAND-INS-RECURSE: the start-up finder and the spawn
+    stand-ins' rebinding finder each delegate to every other finder; without ``_AfterImport``'s
+    re-entry guard a name both hook recursed until RecursionError."""
+    env = {k: v for k, v in os.environ.items() if k not in {child_startup.ENV, "PYTHONPATH"}}
+    env["PYTHONPATH"] = str(REPO)
+    child_startup.install(env, tmp_path / "snapshot")
+    done = subprocess.run([sys.executable, "-c", _BOTH_FINDERS], cwd=REPO, env=env, capture_output=True,
+                          text=True, timeout=180, check=False)
+    assert done.returncode == 0, done.stderr[-3000:]
+    assert json.loads(done.stdout.strip().splitlines()[-1]) == {"rebound": True, "hooked": True}
