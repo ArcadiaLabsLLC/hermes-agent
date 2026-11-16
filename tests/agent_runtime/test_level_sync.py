@@ -164,7 +164,7 @@ def test_a_level_this_machine_never_had_is_adopted_whole(isolate_agent_runtime_r
     raw = _document()
     subtree = _publish(tmp_path, **{WS: raw})
 
-    summary = apply_level_pull("realm_a", subtree)
+    summary = apply_level_pull("realm_a", subtree, [WS])
 
     assert summary.adopted == [WS]
     assert summary.source == "subtree"
@@ -179,7 +179,7 @@ def test_an_unchanged_local_level_takes_the_realms_edit(isolate_agent_runtime_ro
     write_level_baseline("realm_a", {level_baseline_key(WS): level_document_hash(original)})
     edited = _document(prop_x=9.0)
 
-    summary = apply_level_pull("realm_a", _publish(tmp_path, **{WS: edited}))
+    summary = apply_level_pull("realm_a", _publish(tmp_path, **{WS: edited}), [WS])
 
     assert summary.adopted == [WS]
     assert LevelStore().read(WS) == edited
@@ -191,7 +191,7 @@ def test_a_locally_edited_level_the_realm_did_not_touch_is_kept(isolate_agent_ru
     mine = _document(prop_x=5.0)
     LevelStore().write(WS, mine)
 
-    summary = apply_level_pull("realm_a", _publish(tmp_path, **{WS: published}))
+    summary = apply_level_pull("realm_a", _publish(tmp_path, **{WS: published}), [WS])
 
     assert summary.kept_local == [WS]
     assert summary.adopted == []
@@ -207,7 +207,7 @@ def test_both_sides_edited_is_a_loud_hold_with_the_remote_parked(
     theirs = _document(prop_x=9.0)
     LevelStore().write(WS, mine)
 
-    summary = apply_level_pull("realm_a", _publish(tmp_path, **{WS: theirs}))
+    summary = apply_level_pull("realm_a", _publish(tmp_path, **{WS: theirs}), [WS])
 
     assert summary.held == [WS]
     assert summary.adopted == []
@@ -232,7 +232,7 @@ def test_two_publishers_who_only_disagree_about_whitespace_converge(
     LevelStore().write(WS, _document(prop_x=9.0, indent=2))
 
     summary = apply_level_pull(
-        "realm_a", _publish(tmp_path, **{WS: _document(prop_x=9.0, indent=None)})
+        "realm_a", _publish(tmp_path, **{WS: _document(prop_x=9.0, indent=None)}), [WS]
     )
 
     assert summary.held == []
@@ -247,7 +247,7 @@ def test_a_realm_that_stopped_publishing_a_level_never_deletes_it(
     LevelStore().write(WS, mine)
     write_level_baseline("realm_a", {level_baseline_key(WS): level_document_hash(mine)})
 
-    summary = apply_level_pull("realm_a", _publish(tmp_path, other_ws=_document()))
+    summary = apply_level_pull("realm_a", _publish(tmp_path, other_ws=_document()), [WS])
 
     assert summary.upstream_absent == [WS]
     assert LevelStore().read(WS) == mine
@@ -266,7 +266,7 @@ def test_a_published_level_that_will_not_read_is_refused_not_treated_as_removed(
     LevelStore().write(WS, mine)
     write_level_baseline("realm_a", {level_baseline_key(WS): level_document_hash(mine)})
 
-    summary = apply_level_pull("realm_a", _publish(tmp_path, **{WS: b"{not json"}))
+    summary = apply_level_pull("realm_a", _publish(tmp_path, **{WS: b"{not json"}), [WS])
 
     assert [row["key"] for row in summary.refused] == [WS]
     assert summary.upstream_absent == []
@@ -284,7 +284,7 @@ def test_an_unreadable_local_level_is_refused_rather_than_adopted_over(
     paths.level_path(WS).parent.mkdir(parents=True, exist_ok=True)
     paths.level_path(WS).write_bytes(b"{half a document")
 
-    summary = apply_level_pull("realm_a", _publish(tmp_path, **{WS: _document()}))
+    summary = apply_level_pull("realm_a", _publish(tmp_path, **{WS: _document()}), [WS])
 
     assert [row["code"] for row in summary.refused] == ["unreadable_local_level"]
     assert summary.adopted == []
@@ -304,7 +304,7 @@ def test_a_subtree_with_no_level_directory_touches_nothing_and_says_so(
     empty = tmp_path / "subtree"
     empty.mkdir()
 
-    summary = apply_level_pull("realm_a", empty)
+    summary = apply_level_pull("realm_a", empty, [WS])
 
     assert summary.source is None
     assert summary.as_dict()["source"] is None

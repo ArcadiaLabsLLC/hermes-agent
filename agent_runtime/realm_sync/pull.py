@@ -319,8 +319,10 @@ def _pull_level(run: _PullRun) -> bool:
     # to get wrong. What there IS an order against is the workspace records
     # above: a level is addressed BY a workspace.
     from ..level_sync import apply_level_pull
+    from .artifacts import _workspaces_for_realm
 
-    run.level = apply_level_pull(run.realm.id, run.subtree)
+    workspace_ids = [workspace.id for workspace in _workspaces_for_realm(run.realm)]
+    run.level = apply_level_pull(run.realm.id, run.subtree, workspace_ids)
     return bool(run.level.changed)
 
 

@@ -70,6 +70,7 @@ __all__ = [
     "MAX_LEVEL_DOCUMENT_BYTES",
     "REFUSAL_MISSING_VERSION",
     "REFUSAL_NOT_AN_OBJECT",
+    "REFUSAL_OUTSIDE_REALM",
     "REFUSAL_TOO_LARGE",
     "REFUSAL_UNREADABLE_DOCUMENT",
     "REFUSAL_UNREADABLE_LOCAL",
@@ -111,6 +112,8 @@ MAX_LEVEL_DOCUMENT_BYTES = 1024 * 1024
 REFUSAL_UNREADABLE_LOCAL = "unreadable_local_level"
 #: A published level file that will not read on arrival.
 REFUSAL_UNREADABLE_REMOTE = "unreadable_remote_level"
+#: A realm pull carried a level for a workspace that is not one of that realm's: never written.
+REFUSAL_OUTSIDE_REALM = "level_outside_realm"
 
 _REFUSAL_MESSAGES = {
     REFUSAL_UNREADABLE_DOCUMENT: "level document is not readable UTF-8 JSON",
@@ -119,6 +122,7 @@ _REFUSAL_MESSAGES = {
     REFUSAL_TOO_LARGE: "level document is larger than the store accepts",
     REFUSAL_UNREADABLE_LOCAL: "stored level is not a readable document",
     REFUSAL_UNREADABLE_REMOTE: "published level is not a readable document",
+    REFUSAL_OUTSIDE_REALM: "published level is for a workspace outside this realm",
 }
 
 
@@ -286,7 +290,7 @@ def read_remote_levels(subtree) -> tuple[dict[str, bytes], list[dict[str, str]]]
     return read_remote_documents(LEVEL_FAMILY, subtree)
 
 
-def apply_level_pull(realm_id: str, subtree) -> LevelPullSummary:
+def apply_level_pull(realm_id: str, subtree, workspace_ids) -> LevelPullSummary:
     """Adopt, keep or HOLD each pulled level — whole document, never merged.
 
     Runs inside ``pull_realm_sync`` AFTER the generic overwrite loop, which is
@@ -302,6 +306,17 @@ def apply_level_pull(realm_id: str, subtree) -> LevelPullSummary:
     it, stored separately and never merged; neither applier reads the other's
     files, so this runs beside the office rather than inside its ordering
     argument.
+
+    **Scoped to the realm's workspaces** (``workspace_ids``), the publish scan's
+    rule (``publish_scans._level_publish_scan``) applied on arrival: a level
+    whose token is not one of theirs is refused ``level_outside_realm`` and never
+    written, so one realm's subtree cannot plant an environment in another
+    realm's workspace (``RT-REALM-PULL-ADMITS-ONLY-ITS-OWN-LEVELS``).
     """
 
-    return apply_document_pull(LEVEL_FAMILY, realm_id, subtree)  # type: ignore[return-value]
+    tokens = frozenset(paths.safe_path_token(workspace_id) for workspace_id in workspace_ids)
+
+    def admit(token: str, raw: bytes) -> str | None:
+        return None if token in tokens else REFUSAL_OUTSIDE_REALM
+
+    return apply_document_pull(LEVEL_FAMILY, realm_id, subtree, admit=admit)  # type: ignore[return-value]
