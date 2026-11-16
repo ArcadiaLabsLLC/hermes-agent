@@ -21,6 +21,7 @@ tags: [queue, program/fork-hygiene]
 
 
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
+- **`FH-PREPUSH-DOC-CITE-OVER-BUDGET-UNDER-LOAD` — The pre-push doc-cite check ran a little past its time budget on a busy box** · group: prepush · from: `TASK-HERMES-TEST-ISOLATION` · architecture: `scripts/prepush.sh` step budgets (fork-owned), the doc-cite step (`scripts/doc_cite_adjacency.py`); guess: box load, not the check · seen 2026-11-16 (w1115e-ts landing): doc-cite 4.2 s against its 4 s budget at load 34 (52 cores), work 1 of ceiling 1, green; the same run earlier that day was 1.3 s at load 27; ledger line in `_lane_logs/prepush_overruns.jsonl` · done when: an idle-box measurement says whether the budget fits (raise only on that measurement) · NEW 2026-11-16 · READY 2026-11-16
 
 
 ## Filed on arrival — 2026-11-16 (lane w1115e-fh3: what the hermes test seal reported)
