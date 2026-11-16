@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 from collections.abc import Callable
@@ -57,7 +58,7 @@ from .sidecar import (
     _write_timestamp,
 )
 from .skill_inbox import _held_skill_packages_for_realm, _mirror_realm_skill_inbox
-from .pull import _assert_no_secret_artifacts
+from .pull import _assert_no_secret_artifacts, _pulled_artifact_bytes
 from .workspace_changes import realm_published_in_clone
 
 logger = logging.getLogger(__name__)
@@ -543,11 +544,17 @@ def _desired_bytes(artifacts: list[RealmSyncArtifact]) -> dict[str, bytes]:
     }
 
 
-def publish_set_changes(realm: Realm, repo: Path, artifacts: list[RealmSyncArtifact]) -> list[str]:
+def publish_set_changes(
+    realm: Realm,
+    repo: Path,
+    artifacts: list[RealmSyncArtifact],
+    *,
+    counted_elsewhere: frozenset[str] = frozenset(),
+) -> list[str]:
     """The subtree paths this machine's next publish would add, rewrite or remove,
     by the publish's OWN compare (:func:`_published_artifact_changes` over
-    :func:`_desired_bytes`) — the one answer to "is anything waiting to publish"
-    that cannot forget a family, because it is the set the publish writes.
+    :func:`_desired_bytes`) — the answer to "is anything waiting to publish" that
+    cannot forget a family, because it is the set the publish writes.
 
     ``realm sync status`` asks this for ``unpublished_changes``: the status used to
     OR a hand-kept list of families, so a family publish writes and that list
@@ -555,10 +562,25 @@ def publish_set_changes(realm: Realm, repo: Path, artifacts: list[RealmSyncArtif
     A-HAND-PUBLISH; the workspace leave before it) stayed invisible to the sheet,
     its prompt and auto-publish. ``[]`` for a realm this clone never published
     (``realm_published_in_clone``): a device-only realm has no team copy to differ
-    from and must not read "unpublished". A slot document that differs only in a
-    machine's ``machines.<id>`` report does not count (owner RULED 2026-11-16,
-    ``workspace_slots_sync.without_machine_reports``); the publish itself still
-    copies it verbatim."""
+    from and must not read "unpublished".
+
+    A byte compare is right only where the bytes are the change. Three answers
+    are narrower, each because a MEMBER who changed nothing differs in bytes
+    (RT-REALM-MEMBER-TOLD-UNPUBLISHED-OVER-A-WORKSPACE-NEVER-SHARED):
+
+    * a path whose family is in ``counted_elsewhere`` is left to that family's own
+      compare — the status's rows, which compare content, where a pulled board or
+      office row differs in bytes only by ``updated_by: realm_sync``. A family no
+      caller names is counted here, so the next family a publish learns still is;
+    * the realm record counts only when pulling the team's copy would not leave
+      this machine's record as it is (:func:`_realm_record_waits`): the pull keeps
+      the authority fields, ``sync_manifest_ref`` and ``archived`` local and
+      unions the ledgers, so those never wait;
+    * a slot document that differs only in a machine's ``machines.<id>`` report
+      does not count (owner RULED 2026-11-16,
+      ``workspace_slots_sync.without_machine_reports``); the publish itself still
+      copies it verbatim.
+    """
 
     if not realm_published_in_clone(repo, realm.id):
         return []
@@ -566,18 +588,61 @@ def publish_set_changes(realm: Realm, repo: Path, artifacts: list[RealmSyncArtif
 
     subtree = _realm_subtree(repo, realm.id)
     desired = _desired_bytes(artifacts)
+    kinds = {artifact.relative_path.replace("\\", "/"): str(artifact.kind) for artifact in artifacts}
+    kind_of_root = {_path_root(rel): kind for rel, kind in kinds.items()}
+    realm_rel = f"store/realms/{paths.safe_path_token(realm.id)}.json"
 
     def _counts(rel: str) -> bool:
+        kind = kinds.get(rel) or kind_of_root.get(_path_root(rel))
+        # MUTATION: drop this test and
+        # test_a_member_reads_nothing_waiting_while_the_owner_lists_a_workspace_it_deleted reddens.
+        if kind in counted_elsewhere:
+            return False
+        if rel == realm_rel:
+            return _realm_record_waits(realm, subtree / rel, desired.get(rel))
+        if not rel.startswith(f"{SLOTS_ROOT}/"):
+            return True
         # A slot document whose only difference is a machine's report waits for the next real
         # publish (owner RULED 2026-11-16). MUTATION: answer True here and
         # test_a_re_probe_alone_leaves_the_realm_in_sync reddens.
-        if not rel.startswith(f"{SLOTS_ROOT}/"):
-            return True
         published = subtree / rel
         return without_machine_reports(desired.get(rel)) != without_machine_reports(
             published.read_bytes() if published.is_file() else None)
 
     return [rel for rel in _published_artifact_changes(subtree, desired) if _counts(rel)]
+
+
+def _path_root(rel: str) -> str:
+    """A subtree path's family root: ``store/<family>`` under ``store/``, else its first segment
+    (``skills``). How a path the clone holds and this machine no longer ships finds its family."""
+
+    parts = rel.split("/")
+    return "/".join(parts[:2]) if parts[0] == "store" else parts[0]
+
+
+def _realm_record_waits(realm: Realm, published: Path, desired: bytes | None) -> bool:
+    """Whether this machine's realm record carries something the team's copy does not: the record
+    the pull would make of the team's copy (``pull._pulled_artifact_bytes``, which keeps this
+    machine's authority fields, ``sync_manifest_ref`` and ``archived`` and unions the ledgers) is not
+    the record this machine would publish. ``archived`` never travels, so it is not compared."""
+
+    if desired is None or not published.is_file():
+        return True
+    artifact = RealmSyncArtifact(
+        kind=SyncFamily.REALM, source=published, relative_path=published.name, destination=paths.realm_path(realm.id)
+    )
+    try:
+        pulled = json.loads(_pulled_artifact_bytes(artifact, realm=realm))
+        mine = json.loads(desired)
+    except (OSError, ValueError):
+        return True
+    if not isinstance(pulled, dict) or not isinstance(mine, dict):
+        return pulled != mine
+    pulled.pop("archived", None)
+    mine.pop("archived", None)
+    # MUTATION: compare the bytes instead and
+    # test_a_member_reads_nothing_waiting_while_the_owner_lists_a_workspace_it_deleted reddens.
+    return pulled != mine
 
 
 def _published_artifact_changes(subtree: Path, desired: dict[str, bytes]) -> list[str]:

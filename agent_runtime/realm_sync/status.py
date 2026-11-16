@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 from .. import paths
 from ..models import Realm, Workspace
 from ..store import RealmStore, skill_tombstoned
+from .families import SyncFamily
 from .models import RealmMembershipProvider, RealmSyncError, _safe_display_path
 from .ledgers import _skill_tombstone_rows
 from .host_refusal import host_refusal_reported, report_host_refusal
@@ -69,6 +70,39 @@ __all__ = [
 ]
 
 
+#: The families this status already compares by CONTENT in its own rows, so the publish
+#: compare (``publish_changes``) leaves them to those rows: ``store_drift`` (boards, office,
+#: agents and their definitions, canvases, skills, levels), the ``maps`` / ``prefabs`` rows,
+#: the Lens recipe count, ``workspace_changes`` and ``skill_deletes_waiting``. A member's
+#: pulled board or office row differs from the team's in bytes only by
+#: ``updated_by: realm_sync``, which those rows rightly ignore and a byte compare does not
+#: (RT-REALM-MEMBER-TOLD-UNPUBLISHED-OVER-A-WORKSPACE-NEVER-SHARED). Every family NOT named
+#: here — the realm record, the slot documents, the profile files, the next one — is counted
+#: by the publish compare.
+_COUNTED_BY_OWN_ROWS: frozenset[str] = frozenset(
+    str(family)
+    for family in (
+        SyncFamily.SKILL,
+        SyncFamily.WORKSPACE,
+        SyncFamily.BOARD,
+        SyncFamily.BOARD_CARD,
+        SyncFamily.OFFICE,
+        SyncFamily.OFFICE_SURFACE,
+        SyncFamily.OFFICE_ACTOR,
+        SyncFamily.PERSONA_CONFIG,
+        SyncFamily.PERSONA_DEFINITION,
+        SyncFamily.PERSONA_INSTANCE_CONFIG,
+        SyncFamily.PERSONA_INSTANCE,
+        SyncFamily.FLOW_GRAPH_CONFIG,
+        SyncFamily.FLOW_GRAPH,
+        SyncFamily.LEVEL,
+        SyncFamily.MAP,
+        SyncFamily.PREFAB,
+        SyncFamily.LENS_RECIPE,
+    )
+)
+
+
 def realm_sync_status(
     realm_id: str,
     *,
@@ -103,7 +137,7 @@ def realm_sync_status(
     lens_recipe_unpublished = _lens_recipe_unpublished(realm.id, workspaces)
     workspace_changes = workspace_publish_changes(realm, repo)
     skill_deletes_waiting = _skill_deletes_waiting(realm, repo)
-    publish_changes = publish_set_changes(realm, repo, artifacts)
+    publish_changes = publish_set_changes(realm, repo, artifacts, counted_elsewhere=_COUNTED_BY_OWN_ROWS)
     checked_at = _write_sync_sidecar(
         realm,
         repo=repo,

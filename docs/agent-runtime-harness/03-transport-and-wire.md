@@ -1590,9 +1590,14 @@ absent-tolerant.
 subtree-relative paths the next publish would add, rewrite or remove, by the publish's own compare of what it
 would write against the clone (`realm_sync/publish.py::publish_set_changes`), sorted. Any path lights
 `unpublished_changes`, so a family no row names — the workspace slot documents were one — still says it waits.
-A slot document that differs only in a machine's `machines.<id>` report is left out (owner RULED 2026-11-16: a
-re-probe alone stays in sync; the reports ride the next real publish). A realm this machine never published has
-none. Additive and absent-tolerant.
+A family the status already compares by content in its own rows (boards, office, agents and their definitions,
+canvases, skills, levels, maps, prefabs, Lens recipes, workspaces) is left to those rows: a member's pulled rows
+differ in bytes only by `updated_by: realm_sync`. The realm record waits only when pulling the team's copy would
+not leave this machine's record as it is (the pull keeps the authority fields, `sync_manifest_ref` and
+`archived` local); the publish never lists a workspace on the record's own delete ledger, the rule the pull
+applies (RT-REALM-MEMBER-TOLD-UNPUBLISHED-OVER-A-WORKSPACE-NEVER-SHARED). A slot document that differs only in a
+machine's `machines.<id>` report is left out (owner RULED 2026-11-16: a re-probe alone stays in sync; the reports
+ride the next real publish). A realm this machine never published has none. Additive and absent-tolerant.
 
 Refusals ride `error.data.reason`: `invalid_request` (-32602); `workspace_not_found`, `realm_not_found` (4001);
 and at 4090 `realm_archived` (`realm_id`), `workspace_archived` (restore it first), `realm_default_workspace`

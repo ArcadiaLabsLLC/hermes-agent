@@ -33,6 +33,7 @@ __all__ = [
     "_newer_tombstone_row",
     "_skill_tombstone_rows",
     "_tombstone_transition_at",
+    "drop_left_workspace_ids",
     "merge_deleted_workspace_ledgers",
     "merge_skill_tombstone_ledgers",
     "merge_workspace_lift_ledgers",
@@ -271,3 +272,24 @@ def merge_deleted_workspace_ledgers(
             seen.add(value)
             merged.append(value)
     return merged[-DELETED_WORKSPACE_LEDGER_CAP:]
+
+
+def drop_left_workspace_ids(record: dict[str, Any]) -> bool:
+    """Take every workspace on the record's own delete ledger off its ``workspace_ids``, in place;
+    whether anything was taken.
+
+    A workspace on ``deleted_workspace_ids`` is not a member. The ONE rule for both ends of the
+    realm record: the pull applies it to the merged record (a peer who had not heard of the delete
+    may still list it), and the publish applies it to the record it ships
+    (``artifacts._published_realm_record``), so a member's record after the pull is the published
+    one byte for byte. Before the publish applied it, an owner whose record still listed a
+    workspace it had tombstoned shipped that id, every member's pull dropped it, and the
+    publish compare told each member they had "unpublished changes" nobody made
+    (RT-REALM-MEMBER-TOLD-UNPUBLISHED-OVER-A-WORKSPACE-NEVER-SHARED, seen live 2026-11-16)."""
+
+    left = {item for item in (record.get("deleted_workspace_ids") or []) if isinstance(item, str)}
+    listed = record.get("workspace_ids")
+    if not left or not isinstance(listed, list) or not any(item in left for item in listed):
+        return False
+    record["workspace_ids"] = [item for item in listed if item not in left]
+    return True
