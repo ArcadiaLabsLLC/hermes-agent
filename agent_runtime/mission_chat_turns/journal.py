@@ -137,12 +137,17 @@ def transition_mission_chat_turn(
     state: str,
     metadata: dict[str, Any] | None = None,
     elements: list[dict[str, Any]] | None = None,
+    started_at: str | None = None,
 ) -> MissionChatTurnPersistOutcome:
     """Durably advance the exactly-once persona-chat journal.
 
     The record is keyed by stable root plus client id and also carries the turn
     id.  Invalid/backwards transitions fail closed; callers may safely repeat a
     transition to its current state after a crash.
+
+    ``started_at`` is the turn's admission instant (``chat_turn_commit/turn_record.py``): the
+    record's FIRST write stamps it as the turn's start; absent, that write's own clock does.
+    A record that already has a start keeps it.
     """
 
     session_key = safe_assignment_text(session_id, limit=240)
@@ -164,7 +169,8 @@ def transition_mission_chat_turn(
         now_iso = now_iso_micro()
         record = {**stamps, **existing} if isinstance(existing, dict) else dict(stamps)
         if not record.get("started_at"):
-            record["started_at"] = now_iso
+            # MUTATION: stamp ``now_iso`` here regardless and test_turn_record's journal case reddens.
+            record["started_at"] = safe_assignment_text(started_at, limit=80) or now_iso
         record.update(
             {
                 "schema_version": TURN_RECORD_SCHEMA_VERSION,

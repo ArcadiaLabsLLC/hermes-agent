@@ -28,6 +28,7 @@ from .admit import _AdmitPhases
 from .run import _RunPhases
 from .settle import _SettlePhases
 from .stopped import _StoppedPhases
+from .turn_record import admit_turn_record
 
 __layer__ = "lanes"
 __all__ = [
@@ -68,6 +69,10 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases, _StoppedPhases):
         # actually made of; serialized onto the record by the persists that already
         # happen. Nothing in this object reads a mark back to decide anything.
         self.turn_phases = plan.phases
+        # TASK-ONE-TURN-RECORD: who sent this turn, from where, and when it was admitted — taken
+        # here, once; the write-ahead's ``started_at``, the active-turn hand-off and both leftover
+        # steer queues read it instead of re-reading the serve request (``turn_record.py``).
+        self.turn_record = admit_turn_record(plan.args)
         # chat-turn-prep CP-7: the near end of the moved-key-component window,
         # sampled at the anchor by the plan phase (see the plan's own field).
         self.bundle_diff_cursor = plan.bundle_key_material_cursor
@@ -147,11 +152,12 @@ class TurnCommit(_AdmitPhases, _RunPhases, _SettlePhases, _StoppedPhases):
         try:
             queue_leftover_steer(
                 self.args, session_id=self.session_id,
-                client_message_id=self.client_message_id, raw=raw,
+                client_message_id=self.client_message_id, raw=raw, origin=self.turn_record.origin,
             )
             requeue_undelivered_steers(
                 self.args, session_id=self.session_id, client_message_id=self.client_message_id,
                 session_db=self.session_db, turn_returned=turn_returned, raw=raw,
+                origin=self.turn_record.origin,
             )
         except Exception as exc:
             self._warn(FinalizationWarningKind.LEFTOVER_STEER_NOT_QUEUED, type(exc).__name__)

@@ -938,3 +938,16 @@ def test_a_note_that_is_not_a_queue_note_refuses_naming_the_flag(clones, capsys,
     assert "note_missing" in err and "queue note" in err and "row_gone" not in err
     assert (mine / NOTE).read_bytes() == before
     assert "path of the queue note" in work_row.build_parser().format_help()
+
+
+def test_a_close_lists_the_deferred_row_whose_waits_field_names_it(clones, capsys):
+    """FH-QUEUE-WAITS-FIELD. KILLING MUTATION: drop the listing loop in ``_apply_close`` -> nothing names RT-D, red.
+    Listed, never re-statused: RT-D stays DEFERRED."""
+    _, mine, _ = clones
+    parked = "- **`RT-D` — parked** · DEFERRED 2026-11-01: after A · waits: `RT-A`\n"
+    (mine / NOTE).write_text(HEAD + ROWS + parked, encoding="utf-8", newline="\n")
+    assert work_row.main(["close", "RT-A", "--who", "r", "--owner", "x", "--date", "2026-11-03", "--repo", str(mine),
+                          "--no-commit"]) == 0
+    said = capsys.readouterr().out
+    assert "waited on it: `RT-D` (DEFERRED, hermes / q.md): `RT-A` (hermes) is closed — for review" in said
+    assert parked in (mine / NOTE).read_text(encoding="utf-8")
