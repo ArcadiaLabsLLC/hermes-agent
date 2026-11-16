@@ -1,5 +1,5 @@
 {
-  "_doc": "FH-BARE-DEADLINE-LINT shrink-only baseline: bare <clock>() + N deadlines per FORK-owned test file, counted 2026-11-15 (w1115e-dz11). A count may only fall; lower or remove an entry when it does; never raise one.",
+  "_doc": "FH-BARE-DEADLINE-LINT shrink-only baseline: bare <clock>() + N deadlines per FORK-owned test file, counted 2026-11-15 (w1115e-dz11). A count may only fall; lower or remove an entry when it does; never raise one. wall_asserts: assert <wall time> < bound in fork test files outside scripts/test_idle_box_files.txt, counted the same day; shrink-only the same way (FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME).",
   "total": 145,
   "files": {
     "tests/_downstream/_seams.py": 1,
@@ -83,5 +83,34 @@
     "tests/scripts/test_run_tests_parallel_downstream.py": 1,
     "tests/test_child_job_downstream.py": 1,
     "tests/tools/test_long_tool_calls.py": 2
+  },
+  "wall_assert_total": 34,
+  "wall_asserts": {
+    "tests/agent/test_charsheet_provider_deadline.py": 1,
+    "tests/agent_runtime/test_agent_chat_dispatch.py": 2,
+    "tests/agent_runtime/test_boot_timeline.py": 1,
+    "tests/agent_runtime/test_build_detect.py": 1,
+    "tests/agent_runtime/test_gateway_announce.py": 1,
+    "tests/agent_runtime/test_gateway_peers_store.py": 1,
+    "tests/agent_runtime/test_locks.py": 2,
+    "tests/agent_runtime/test_mcp_admission.py": 1,
+    "tests/agent_runtime/test_mission_chat_turn_context.py": 1,
+    "tests/agent_runtime/test_pool_starve_downstream.py": 2,
+    "tests/agent_runtime/test_profile_runner.py": 1,
+    "tests/agent_runtime/test_provider_credential_source.py": 1,
+    "tests/agent_runtime/test_qa_turn_overrides.py": 1,
+    "tests/agent_runtime/test_serve_socket_lane.py": 1,
+    "tests/agent_runtime/test_snapshot_turn_yield.py": 2,
+    "tests/agent_runtime/test_store_file_io_secure_write.py": 3,
+    "tests/agent_runtime/test_stream_relay.py": 1,
+    "tests/scripts/test_daily_full_run_sh.py": 1,
+    "tests/scripts/test_prepush_sh.py": 2,
+    "tests/test_harness_usage.py": 1,
+    "tests/test_reserved_dns_downstream.py": 1,
+    "tests/tooling/test_session_chain_contract.py": 2,
+    "tests/tools/test_checkpoint_store_wait_downstream.py": 1,
+    "tests/tools/test_long_tool_calls.py": 1,
+    "tests/tools/test_process_wait_lane_clamp.py": 1,
+    "tests/tui_gateway/test_prompt_turn_reaper_downstream.py": 1
   }
 }

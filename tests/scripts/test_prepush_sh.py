@@ -260,7 +260,7 @@ def test_a_step_past_its_budget_heartbeats_and_notifies_once_and_still_passes(re
 # whole group, and the read right after the run returns proves prepush returns only once the group is
 # gone (a TERM'd grandchild the kernel has not reaped yet still answers ``kill -0``) — no sleep.
 @pytest.mark.timeout(60)
-def test_a_step_at_its_deadline_is_killed_with_its_tree_and_the_run_fails_naming_it(repo: Path):
+def test_a_step_at_its_deadline_is_killed_with_its_tree_and_owed_not_refused(repo: Path):
     pid_file = repo.parent / "grandchild.pid"
     started = time.monotonic()
     # Its output goes nowhere, so a survivor cannot hold the run's capture pipe open: the red is the
@@ -270,16 +270,19 @@ def test_a_step_at_its_deadline_is_killed_with_its_tree_and_the_run_fails_naming
         "PREPUSH_GATES_BUDGET": "1", "PREPUSH_GATES_DEADLINE": "2", "PREPUSH_HEARTBEAT": "1",
         "PREPUSH_TOUCHED_BUDGET": "1", "PREPUSH_TOUCHED_DEADLINE": "2"})
     assert time.monotonic() - started < 30, proc.stdout
-    assert proc.returncode == 1, proc.stdout
-    assert "✘ prepush: gates killed at its 2s deadline" in proc.stdout
-    assert "gates (killed at its 2s deadline)" in proc.stdout.splitlines()[-1]
+    # FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME (owner 2026-11-15 call (iii)): the deadline is a hang
+    # guard; the killed step is UNFINISHED and owed on the last line, and the push is not refused.
+    assert proc.returncode == 0, proc.stdout
+    assert "… prepush: gates killed at its 2s hang guard" in proc.stdout and "UNFINISHED, owed" in proc.stdout
+    last = proc.stdout.splitlines()[-1]
+    assert last.startswith("✔ prepush: no red — OWED") and "gates (unfinished: killed at its 2s hang guard)" in last
     grandchild = int(pid_file.read_text(encoding="utf-8").split()[0])
     # ``$!`` is a pid in the SHELL's namespace (an MSYS pid under Git Bash, not a Windows one), so
     # the shell that spoke it answers whether it lives (FH-WINDOWS-PREPUSH-SHELL).
     probe = subprocess.run([_BASH, "-c", f"kill -0 {grandchild}"], capture_output=True,
                            stdin=subprocess.DEVNULL, check=False)
     assert probe.returncode != 0, f"grandchild {grandchild} survived the deadline kill"
-    assert "prepush: RED" in _wait_for(repo.parent / "notified.log", "prepush: RED")
+    assert "prepush: OWED" in _wait_for(repo.parent / "notified.log", "prepush: OWED")
 
 
 def test_a_budget_that_is_not_a_whole_number_of_seconds_refuses_before_running(repo: Path):
@@ -378,32 +381,34 @@ def _ledger(repo: Path) -> list[dict]:
 
 
 # FH-PREPUSH-CAP-TIGHT. KILLING MUTATION: lift the whole-run cap (``left`` never shortens the
-# deadline) -> the 30 s sleep runs to its 60 s deadline, the run takes > 20 s and exits 1, not 3.
+# deadline) -> the 30 s sleep runs to its 60 s deadline and the run takes > 20 s. Since 2026-11-15
+# (FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME, owner call (iii)) the capped and unstarted steps are owed,
+# not a refusal: exit 0 with the OWED line, so a busy box never stops a correct push.
 @pytest.mark.timeout(60)
-def test_the_whole_run_cap_kills_the_running_step_starts_no_other_and_exits_3(repo: Path):
+def test_the_whole_run_cap_kills_the_running_step_starts_no_other_and_owes_them(repo: Path):
     started = time.monotonic()
     proc, calls = _run(repo, runner_body="sleep 30", env_extra={
         "PREPUSH_CAP": "3", "PREPUSH_GATES_BUDGET": "1", "PREPUSH_GATES_DEADLINE": "60",
         "PREPUSH_HEARTBEAT": "1", "PREPUSH_LIVE_LANES": "12"})
     assert time.monotonic() - started < 20, proc.stdout
-    assert proc.returncode == 3, proc.stdout
-    assert "✘ prepush: gates killed at the 3s whole-run cap" in proc.stdout
-    assert "✘ prepush: doc-cite not started — the 3s whole-run cap is spent (during gates)" in proc.stdout
+    assert proc.returncode == 0, proc.stdout
+    assert "… prepush: gates killed at the 3s whole-run cap" in proc.stdout
+    assert "… prepush: doc-cite not started — the 3s whole-run cap is spent (during gates); UNFINISHED, owed" in proc.stdout
     assert "touched not started" in proc.stdout
     assert len(calls.splitlines()) == 1, calls  # only the capped step ever ran
     last = proc.stdout.rstrip().splitlines()[-1]
-    assert last.startswith("✘ prepush: CAPPED") and "do not push" in last
+    assert last.startswith("✔ prepush: no red — OWED") and "doc-cite (not started: the whole-run cap)" in last
     (row,) = _ledger(repo)
     assert row["step"] == "gates" and row["outcome"] == "capped" and row["cap_s"] == 3
     assert row["deadline_s"] == 3 and row["live_lanes"] == 12
-    # The landing chain gates on the exit: a capped run never reaches the push.
+    # The landing chain gates on the exit: a capped run with no red is owed, and reaches the push.
     chain = subprocess.run([_BASH, "-c", f'"{_BASH}" scripts/prepush.sh && echo PUSHED'], cwd=repo,
                            env={**os.environ, "PREPUSH_CAP": "2", "PREPUSH_GATES_DEADLINE": "60",
                                 "PREPUSH_RUNNER": str(repo.parent / "runner.sh"),
                                 "PREPUSH_GATES_RUNNER": str(repo.parent / "runner.sh"),
                                 "PREPUSH_PYTHON": str(repo.parent / "cite.sh"), "PREPUSH_NOTIFY": "off"},
                            capture_output=True, text=True, encoding="utf-8", stdin=subprocess.DEVNULL, check=False)
-    assert chain.returncode == 3 and "PUSHED" not in chain.stdout, chain.stdout
+    assert chain.returncode == 0 and "PUSHED" in chain.stdout and "OWED" in chain.stdout, chain.stdout
 
 
 def test_a_cap_that_is_not_a_whole_number_refuses_before_running(repo: Path):
@@ -419,12 +424,14 @@ def test_every_overrun_and_kill_is_a_ledger_line_and_the_summary_names_its_row(r
         "PREPUSH_GATES_BUDGET": "1", "PREPUSH_GATES_DEADLINE": "30",
         "PREPUSH_TOUCHED_BUDGET": "1", "PREPUSH_TOUCHED_DEADLINE": "2", "PREPUSH_HEARTBEAT": "1",
         "PREPUSH_LIVE_LANES": "7"})
-    assert proc.returncode == 1, proc.stdout
+    assert proc.returncode == 0, proc.stdout
     rows = _ledger(repo)
-    assert [(r["step"], r["outcome"]) for r in rows] == [("gates", "slow"), ("touched", "killed")], rows
+    assert [(r["step"], r["outcome"]) for r in rows] == [("gates", "slow"), ("touched", "unfinished")], rows
     slow, killed = rows
     assert slow["budget_s"] == 1 and slow["deadline_s"] == 30 and slow["wall_s"] >= 3 and slow["exit"] == 0
+    assert (slow["work"], slow["work_ceiling"]) == (11, 11)
     assert killed["deadline_s"] == 2 and killed["exit"] != 0
+    assert (killed["work"], killed["work_ceiling"]) == (2, None)  # the pusher's own tests: no ceiling
     head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo, capture_output=True, text=True,
                           check=True).stdout.strip()
     for row in rows:
@@ -433,7 +440,7 @@ def test_every_overrun_and_kill_is_a_ledger_line_and_the_summary_names_its_row(r
         assert row["ts"].endswith("Z")
     assert "prepush: 2 overrun(s)" in proc.stdout
     assert "overrun: gates slow:" in proc.stdout and "owes row FH-PREPUSH-GATES-OVER-BUDGET" in proc.stdout
-    assert "overrun: touched killed:" in proc.stdout and "owes row FH-PREPUSH-TOUCHED-OVER-BUDGET" in proc.stdout
+    assert "overrun: touched unfinished:" in proc.stdout and "owes row FH-PREPUSH-TOUCHED-OVER-BUDGET" in proc.stdout
     # The ledger only grows: a second run appends, never rewrites.
     _run(repo, runner_body="sleep 2", env_extra={"PREPUSH_GATES_BUDGET": "1", "PREPUSH_HEARTBEAT": "1"})
     assert len(_ledger(repo)) == 3
@@ -441,10 +448,10 @@ def test_every_overrun_and_kill_is_a_ledger_line_and_the_summary_names_its_row(r
 
 # FH-PREPUSH-DOC-CITE-REDS-UNDER-LOAD (seen once 2026-11-14, w1114a-hfix: doc-cite killed at its 10 s
 # deadline at load 21, green in 1.8 s on the rerun). A doc-cite killed at its own deadline is an overrun
-# to retry, run once more, not a red; a second kill is. KILLING MUTATION: drop the ``RETRY_ONCE`` arm in
-# ``_step`` -> the first kill reds the run (exit 1) and the stub runs once.
+# to retry, run once more, not a red; a second kill is UNFINISHED and owed (2026-11-15). KILLING
+# MUTATION: drop the ``RETRY_ONCE`` arm in ``_step`` -> the stub runs once.
 @pytest.mark.timeout(60)
-def test_a_doc_cite_killed_at_its_deadline_runs_once_more_and_only_a_second_kill_is_red(repo: Path):
+def test_a_doc_cite_killed_at_its_deadline_runs_once_more_and_a_second_kill_is_owed(repo: Path):
     marker = repo.parent / "cite.first"
     slow_once = f'if [ ! -e "{marker}" ]; then : > "{marker}"; sleep 30; fi'
     env = {"PREPUSH_DOC_CITE_BUDGET": "1", "PREPUSH_DOC_CITE_DEADLINE": "2", "PREPUSH_HEARTBEAT": "1"}
@@ -458,9 +465,34 @@ def test_a_doc_cite_killed_at_its_deadline_runs_once_more_and_only_a_second_kill
 
     (repo.parent / "calls.log").unlink()
     proc, calls = _run(repo, cite_body="sleep 30", env_extra=env)
-    assert proc.returncode == 1, proc.stdout
+    assert proc.returncode == 0, proc.stdout
     assert calls.count("doc_cite_adjacency.py") == 2, calls
-    assert "doc-cite (killed at its 2s deadline)" in proc.stdout.splitlines()[-1]
+    assert "doc-cite (unfinished: killed at its 2s hang guard)" in proc.stdout.splitlines()[-1]
+
+
+# FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME: a step is judged by its work, never its wall. KILLING
+# MUTATION (recorded in the commit): in ``_step`` judge ``$ms`` against ``$budget`` instead of
+# ``$work`` against ``$ceiling`` -> this slow-but-small step goes red.
+@pytest.mark.timeout(60)
+def test_a_slow_step_inside_its_work_ceiling_is_green_and_prints_its_wall(repo: Path):
+    proc, _ = _run(repo, runner_body="sleep 3", env_extra={
+        "PREPUSH_GATES_BUDGET": "1", "PREPUSH_GATES_DEADLINE": "30", "PREPUSH_HEARTBEAT": "1"})
+    assert proc.returncode == 0, proc.stdout
+    (line,) = [line for line in proc.stdout.splitlines() if line.startswith("✔ gates ")]
+    assert "budget 1s" in line and "load " in line and "work 11 of ceiling 11" in line, line
+    assert float(line.split()[2].rstrip("s")) >= 3, line
+    assert proc.stdout.rstrip().endswith("✔ prepush: green")
+
+
+def test_a_step_over_its_work_ceiling_is_red_however_fast_it_ran(repo: Path):
+    proc, _ = _run(repo, env_extra={"PREPUSH_GATES_WORK_CEILING": "10"})
+    assert proc.returncode == 1, proc.stdout
+    assert "✘ prepush: gates did 11 units of work, over its ceiling of 10 — RED" in proc.stdout
+    assert "gates (work 11 over its ceiling 10)" in proc.stdout.splitlines()[-1]
+    assert [(r["step"], r["outcome"], r["work"], r["work_ceiling"]) for r in _ledger(repo)] == [
+        ("gates", "over_work", 11, 10)]
+    assert "step gates — budget 10s, deadline 20s, work 11 of ceiling 10 files" in _run(
+        repo, "--plan", env_extra={"PREPUSH_GATES_WORK_CEILING": "10"})[0].stdout
 
 
 def test_a_green_run_inside_budget_writes_no_ledger_line(repo: Path):
