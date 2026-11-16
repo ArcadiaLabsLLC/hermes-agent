@@ -8,6 +8,12 @@ w1115k-hdesign). No build row is filed until the decisions below are accepted.
 The owner's rulings, 2026-11-13: "a workspace slot recipe should probably be its own scoped design", and
 on readiness, "it should just care if its source controlled" — tools and keys vary by dev environment.
 
+## Owner ruling, 2026-11-15
+
+> "sounds good and its blank by default and the user has to click set up to trigger it , never on its own"
+
+All seven decisions below are accepted, with one amendment: **a slot's recipe starts blank** (no steps are derived and pre-filled from the declaration until someone writes them), and **nothing runs or is offered on its own** — the setup flow starts only when the person clicks Set up. On a build, file the three slices in §6 and Eternia's row in §3 with this amendment.
+
 ## Decisions taken, owner may overrule
 
 Standing order 2026-11-12: "if a decision comes up investigate fully and go with the recommended".
