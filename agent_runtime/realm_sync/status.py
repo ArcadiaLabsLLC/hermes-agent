@@ -54,6 +54,7 @@ from .sidecar import (
 )
 from .skill_inbox import _held_skill_packages_for_realm
 from .workspace_changes import workspace_publish_changes
+from .publish import publish_set_changes
 
 __layer__ = "lanes"
 __all__ = [
@@ -102,6 +103,7 @@ def realm_sync_status(
     lens_recipe_unpublished = _lens_recipe_unpublished(realm.id, workspaces)
     workspace_changes = workspace_publish_changes(realm, repo)
     skill_deletes_waiting = _skill_deletes_waiting(realm, repo)
+    publish_changes = publish_set_changes(realm, repo, artifacts)
     checked_at = _write_sync_sidecar(
         realm,
         repo=repo,
@@ -173,7 +175,15 @@ def realm_sync_status(
             or lens_recipe_unpublished
             or workspace_changes
             or skill_deletes_waiting
+            or publish_changes
         ),
+        # The paths the next publish would add, rewrite or remove, by the publish's
+        # OWN compare (``publish.publish_set_changes``): every family the publish
+        # writes counts toward the flag above, so a family no row below names — the
+        # workspace slot documents were one (RT-REALM-SLOTS-ADDED-WAIT-UNSEEN-UNTIL-
+        # A-HAND-PUBLISH) — still says "unpublished". The rows above stay for the
+        # sheet's names. Subtree-relative, sorted; additive and absent-tolerant.
+        "publish_changes": publish_changes,
         # Skills deleted for the whole realm here (``skill_tombstones`` above) that the team's
         # copy in this machine's sync clone still carries: the delete travels with the next
         # publish, and until then the drift walk says nothing (a tombstoned slug has no row by

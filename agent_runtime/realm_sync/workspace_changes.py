@@ -41,6 +41,7 @@ __all__ = [
     "WORKSPACE_CHANGED",
     "WORKSPACE_DELETED",
     "WORKSPACE_LEFT",
+    "realm_published_in_clone",
     "workspace_file_published",
     "workspace_publish_changes",
 ]
@@ -53,6 +54,13 @@ WORKSPACE_DELETED = "deleted"
 
 def _published_dir(repo: Path, realm_id: str) -> Path:
     return _realm_subtree(repo, realm_id) / "store" / "workspaces"
+
+
+def realm_published_in_clone(repo: Path, realm_id: str) -> bool:
+    """Whether this machine's sync clone holds the team's copy of the realm (its realm record):
+    a realm the clone never published has nothing to differ from, so nothing waits to publish."""
+
+    return (_realm_subtree(repo, realm_id) / "store" / "realms" / f"{paths.safe_path_token(realm_id)}.json").exists()
 
 
 def workspace_file_published(repo: Path, realm_id: str, workspace_id: str) -> bool:
@@ -103,8 +111,7 @@ def _alive_elsewhere(workspace_id: str, realm: Realm) -> Workspace | None:
 def workspace_publish_changes(realm: Realm, repo: Path) -> list[dict[str, Any]]:
     """The module docstring's rows, sorted by workspace id; ``[]`` for a realm this clone never published."""
 
-    subtree = _realm_subtree(repo, realm.id)
-    if not (subtree / "store" / "realms" / f"{paths.safe_path_token(realm.id)}.json").exists():
+    if not realm_published_in_clone(repo, realm.id):
         return []
     shipped = {paths.safe_path_token(workspace.id): workspace for workspace in _workspaces_for_realm(realm)}
     published_dir = _published_dir(repo, realm.id)

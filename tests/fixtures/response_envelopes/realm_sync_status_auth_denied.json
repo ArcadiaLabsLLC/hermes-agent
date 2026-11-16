@@ -49,6 +49,7 @@
       "unpublished": 0
     },
     "profile_artifacts_held": [],
+    "publish_changes": [],
     "remote_check_error": "sync_auth_failed",
     "remote_checked": false,
     "resolution": {

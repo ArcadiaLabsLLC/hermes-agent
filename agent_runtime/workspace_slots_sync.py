@@ -528,6 +528,28 @@ def _drop_newly_removed(workspace_id: str, before: dict[str, Any], after: dict[s
     drop_removed_slots(workspace_id, frozenset(was_live & now_removed))
 
 
+def without_machine_reports(data: bytes | None) -> Any:
+    """A published slot document with its ``machines.<id>`` reports left out, for the
+    "unpublished changes" compare; ``data`` itself when it will not read as a JSON object.
+
+    A machine's report is re-stamped by every re-probe (``workspace_slots_probe.report``),
+    so a compare that counted it lit the sheet after each probe. Owner RULED 2026-11-16
+    (RT-REALM-SLOTS-ADDED-WAIT-UNSEEN-UNTIL-A-HAND-PUBLISH): only a slot added, edited or
+    removed lights the flag; the reports ride the next real publish, which copies the
+    document verbatim."""
+
+    if data is None:
+        return None
+    try:
+        document = json.loads(data)
+    except ValueError:
+        return data
+    if not isinstance(document, dict):
+        return data
+    document.pop("machines", None)
+    return document
+
+
 def publish_artifacts(workspaces: list[Any]) -> list[Any]:
     """One artifact per workspace of the realm that has a slot document (copied verbatim)."""
 

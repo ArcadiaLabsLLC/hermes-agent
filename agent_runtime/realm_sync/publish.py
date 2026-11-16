@@ -58,6 +58,7 @@ from .sidecar import (
 )
 from .skill_inbox import _held_skill_packages_for_realm, _mirror_realm_skill_inbox
 from .pull import _assert_no_secret_artifacts
+from .workspace_changes import realm_published_in_clone
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ __all__ = [
     "_publish_accounting",
     "_published_artifacts_differ",
     "_published_row",
+    "publish_set_changes",
     "_record_board_baseline",
     "_record_flow_graph_baseline",
     "_record_level_baseline",
@@ -192,15 +194,7 @@ def _stage_commit_and_push(
     published bytes changed (added, changed or removed; ``manifest.json`` never)."""
 
     subtree_rel = f"realms/{paths.safe_path_token(realm.id)}"
-    # Canonicalize every published artifact to LF at this single write/copy
-    # chokepoint (binary assets pass through untouched — see
-    # ``_canonicalize_text_bytes``). The store lane writes CRLF on Windows while
-    # the pull lane writes LF; copying those raw bytes made every publish a
-    # whole-file EOL churn and reported changed=true on no-op runs.
-    desired = {
-        artifact.relative_path.replace("\\", "/"): _canonicalize_text_bytes(artifact.read_bytes())
-        for artifact in artifacts
-    }
+    desired = _desired_bytes(artifacts)
     # Content-aware change detection: only (re)write the subtree when the
     # canonical artifact bytes actually differ from what is already published.
     # manifest.json is excluded from this comparison because it carries a
@@ -533,6 +527,57 @@ def _record_skill_publish_baseline(realm: Realm, *, subtree: Path) -> None:
         )
     except Exception:  # the mirror is a cache the next pull rebuilds
         logger.exception("skill inbox re-mirror failed after publish for realm %s", realm.id)
+
+
+def _desired_bytes(artifacts: list[RealmSyncArtifact]) -> dict[str, bytes]:
+    """What the publish writes, by subtree-relative path.
+
+    Canonicalized to LF at this single write/copy chokepoint (binary assets pass
+    through untouched — see ``_canonicalize_text_bytes``). The store lane writes
+    CRLF on Windows while the pull lane writes LF; copying those raw bytes made
+    every publish a whole-file EOL churn and reported changed=true on no-op runs."""
+
+    return {
+        artifact.relative_path.replace("\\", "/"): _canonicalize_text_bytes(artifact.read_bytes())
+        for artifact in artifacts
+    }
+
+
+def publish_set_changes(realm: Realm, repo: Path, artifacts: list[RealmSyncArtifact]) -> list[str]:
+    """The subtree paths this machine's next publish would add, rewrite or remove,
+    by the publish's OWN compare (:func:`_published_artifact_changes` over
+    :func:`_desired_bytes`) — the one answer to "is anything waiting to publish"
+    that cannot forget a family, because it is the set the publish writes.
+
+    ``realm sync status`` asks this for ``unpublished_changes``: the status used to
+    OR a hand-kept list of families, so a family publish writes and that list
+    forgot (the workspace slot documents, RT-REALM-SLOTS-ADDED-WAIT-UNSEEN-UNTIL-
+    A-HAND-PUBLISH; the workspace leave before it) stayed invisible to the sheet,
+    its prompt and auto-publish. ``[]`` for a realm this clone never published
+    (``realm_published_in_clone``): a device-only realm has no team copy to differ
+    from and must not read "unpublished". A slot document that differs only in a
+    machine's ``machines.<id>`` report does not count (owner RULED 2026-11-16,
+    ``workspace_slots_sync.without_machine_reports``); the publish itself still
+    copies it verbatim."""
+
+    if not realm_published_in_clone(repo, realm.id):
+        return []
+    from ..workspace_slots_sync import PUBLISHED_ROOT as SLOTS_ROOT, without_machine_reports
+
+    subtree = _realm_subtree(repo, realm.id)
+    desired = _desired_bytes(artifacts)
+
+    def _counts(rel: str) -> bool:
+        # A slot document whose only difference is a machine's report waits for the next real
+        # publish (owner RULED 2026-11-16). MUTATION: answer True here and
+        # test_a_re_probe_alone_leaves_the_realm_in_sync reddens.
+        if not rel.startswith(f"{SLOTS_ROOT}/"):
+            return True
+        published = subtree / rel
+        return without_machine_reports(desired.get(rel)) != without_machine_reports(
+            published.read_bytes() if published.is_file() else None)
+
+    return [rel for rel in _published_artifact_changes(subtree, desired) if _counts(rel)]
 
 
 def _published_artifact_changes(subtree: Path, desired: dict[str, bytes]) -> list[str]:

@@ -1586,6 +1586,14 @@ publish's own set (`artifacts._workspaces_for_realm`, the delete ledger already 
 with the clone's realm subtree — `agent_runtime/realm_sync/workspace_changes.py`; both keys are additive and
 absent-tolerant.
 
+`publish_changes` is the backstop under every family (RT-REALM-SLOTS-ADDED-WAIT-UNSEEN-UNTIL-A-HAND-PUBLISH): the
+subtree-relative paths the next publish would add, rewrite or remove, by the publish's own compare of what it
+would write against the clone (`realm_sync/publish.py::publish_set_changes`), sorted. Any path lights
+`unpublished_changes`, so a family no row names — the workspace slot documents were one — still says it waits.
+A slot document that differs only in a machine's `machines.<id>` report is left out (owner RULED 2026-11-16: a
+re-probe alone stays in sync; the reports ride the next real publish). A realm this machine never published has
+none. Additive and absent-tolerant.
+
 Refusals ride `error.data.reason`: `invalid_request` (-32602); `workspace_not_found`, `realm_not_found` (4001);
 and at 4090 `realm_archived` (`realm_id`), `workspace_archived` (restore it first), `realm_default_workspace`
 (`realm_id` — a realm's default workspace and the reserved `ws_default` never leave),
