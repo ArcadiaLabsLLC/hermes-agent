@@ -365,6 +365,10 @@ speech-tts = [
   "onnxruntime==1.31.0; (platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin') and sys_platform != 'android'",
   "numpy==2.5.4; (platform_machine != 'ARM64' or sys_platform != 'win32') and (platform_machine != 'x86_64' or sys_platform != 'darwin') and sys_platform != 'android'",
 ]
+# Fork (bundled phone): realm sync's pure-Python git where no git program runs
+# (agent_runtime/realm_sync/git_dulwich.py; plan phone-realm-sync-dulwich-2026-11-16).
+# Never its GPL-only `merge3` extra: the remote-wins merge is stdlib (realm_sync/merge_theirs.py).
+realm-sync-pure = ["dulwich==1.2.21"]
 # WeChat voice decode (tools/transcription_tools.py self-heal path).
 silk = ["pilk==0.2.4"]
 # Wake-engine sub-extras — lazy per-engine installs so a user who only wants
@@ -586,6 +590,7 @@ dev = [
   "ty==0.0.89",
   "ruff==0.15.22",
   "setuptools==84.1.0",
+  "dulwich==1.2.21",  # fork: the realm-sync port's DULWICH arm in the desktop test env
 ] # starlette: CVE-2026-48710; setuptools: 84.1.0 (GHSA-xmj3-9gf7-h52w; torch >=2.13 requires setuptools 83+)
 # Native launcher and provider-catalog E2E dependencies belong in the test
 # environment, not the core runtime. Keep the Anthropic SDK at the same

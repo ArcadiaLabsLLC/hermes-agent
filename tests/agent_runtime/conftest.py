@@ -518,7 +518,23 @@ def _drop_tree_index_between_modules(request):
     _tree_index.clear()
 
 
-@pytest.fixture(params=["binary"])
+#: Port tests the DULWICH arm cannot run yet: they need a verb a later slice adds (plan
+#: phone-realm-sync-dulwich-2026-11-16 S4 transport, S5 merge). Shrink-only.
+DULWICH_NOT_YET = frozenset({
+    "test_clone_tracks_the_remote_branch",
+    "test_clone_of_nothing_refuses_typed",
+    "test_pull_fast_forward_takes_the_teammates_commit",
+    "test_merge_remote_theirs_takes_theirs_on_the_same_line",
+    "test_merge_remote_theirs_lists_a_shape_conflict",
+    "test_push_sets_upstream_and_a_diverged_push_is_rejected",
+    "test_push_to_nowhere_refuses_typed",
+    "test_fetch_of_a_branch_an_empty_remote_lacks",
+    "test_push_to_a_named_branch_sets_its_upstream",
+    "test_unrelated_histories_merge_with_ours_on_overlap",
+})
+
+
+@pytest.fixture(params=["binary", "dulwich"])
 def sync_git_backend(request, monkeypatch):
     """Each realm-sync port test once per git backend (plan phone-realm-sync-dulwich-2026-11-16 §5).
 
@@ -527,5 +543,7 @@ def sync_git_backend(request, monkeypatch):
     from agent_runtime.realm_sync import git as realm_git
 
     backend = realm_git.SyncGitBackend(request.param)
+    if backend is realm_git.SyncGitBackend.DULWICH and request.node.originalname in DULWICH_NOT_YET:
+        pytest.skip("this verb is not on the dulwich backend yet (DULWICH_NOT_YET)")
     monkeypatch.setattr(realm_git, "sync_git_backend", lambda: backend)
     return backend

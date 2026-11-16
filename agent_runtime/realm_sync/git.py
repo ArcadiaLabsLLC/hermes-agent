@@ -88,6 +88,10 @@ def sync_git(repo: Path) -> SyncGit:
         from .git_binary import BinarySyncGit
 
         return BinarySyncGit(repo)
+    if backend is SyncGitBackend.DULWICH:
+        from .git_dulwich import DulwichSyncGit
+
+        return DulwichSyncGit(repo)
     raise RealmSyncError("sync_backend_unknown", f"Realm sync has no git backend {backend.value!r} on this device.")
 
 

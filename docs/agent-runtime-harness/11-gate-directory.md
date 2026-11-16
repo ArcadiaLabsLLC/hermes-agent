@@ -76,6 +76,7 @@ or registry entry names something real).
 | `tests/tooling/test_no_duplicate_literal_tables.py` | ratchet | no list, tuple or set of 4+ ids or names is written in a second fork production file; shrink-only baseline `tests/tooling/duplicate_literal_tables_baseline.txt` (FH-DUPLICATE-LITERAL-TABLES-REFUSED) |
 | `tests/agent_runtime/test_s55_registered_events_have_emitters.py` | fence | every registered event type has an emitter |
 | `tests/agent_runtime/test_s56_runtime_config_reader_gate.py` | fence | every `RuntimeConfig` field has a production reader or a reasoned report-only entry |
+| `tests/agent_runtime/test_realm_sync_dulwich_spawns_nothing.py` | fence | the phone's realm-sync git (`realm_sync/git_dulwich.py`, `merge_theirs.py`) names no process spawner, no URL-guessed transport, no `porcelain` network verb, no `do_commit` and no GPL-only `merge3` (RT-PHONE-REALM-SYNC-DULWICH-LOCAL-STEPS) |
 | `tests/agent_runtime/test_no_kanban_dependency.py` | fence | only the native Work adapter imports public task APIs |
 | `tests/agent_runtime/test_office_class_key_one_fence.py` | fence | one class-key guard, at the store's write chokepoint |
 | `tests/agent_runtime/test_persona_roster_bypass_contract.py` | fence | the roster-check bypass is fenced by enumeration |

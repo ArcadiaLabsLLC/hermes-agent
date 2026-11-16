@@ -22,6 +22,7 @@ from agent_runtime.realm_sync.git_port import FetchOutcome, PushOutcome, RepoSta
 from agent_runtime.realm_sync.models import RealmSyncError
 
 pytestmark = pytest.mark.usefixtures("sync_git_backend")
+# A test the DULWICH arm cannot run yet is named in ``conftest.DULWICH_NOT_YET`` (shrink-only).
 
 _TEAMMATE = ("-c", "user.name=Teammate", "-c", "user.email=teammate@example.invalid")
 
@@ -68,8 +69,10 @@ def _teammate_publishes(tmp_path: Path, bare: Path, rel: str, text: str, name: s
 
 
 def _clone(tmp_path: Path, bare: Path) -> Path:
+    """The member's clone, made by the FIXTURE's git (``test_clone_tracks_the_remote_branch`` holds the verb)."""
+
     repo = tmp_path / "member"
-    sync_git(repo).clone(str(bare), None)
+    _sh(tmp_path, "clone", "-q", str(bare), str(repo))
     return repo
 
 
@@ -108,8 +111,9 @@ def test_rename_moves_a_branch_that_has_commits(tmp_path):
 
 
 def test_clone_tracks_the_remote_branch(tmp_path, remote):
-    repo = _clone(tmp_path, remote)
+    repo = tmp_path / "member"
     git = sync_git(repo)
+    git.clone(str(remote), None)
     assert (repo / "realms/r/a.txt").read_text(encoding="utf-8") == "one\n"
     assert git.current_branch() == "main"
     assert git.upstream() == "origin/main"
@@ -147,7 +151,7 @@ def test_state_counts_ahead_and_behind_apart(tmp_path, remote):
     _teammate_publishes(tmp_path, remote, "realms/r/c.txt", "c\n")
     _member_commits(repo, "realms/r/mine.txt", "mine\n")
     git = sync_git(repo)
-    assert git.fetch(None) is FetchOutcome.FETCHED
+    _sh(repo, "fetch", "-q")
     state = git.state()
     assert (state.ahead, state.behind) == (1, 2)
     assert state.as_dict() == {"ahead": 1, "behind": 2, "conflicts": [], "dirty": False}
@@ -313,7 +317,7 @@ def test_reset_hard_takes_the_remote_and_set_upstream_tracks_it(tmp_path, remote
     git.init()
     git.rename_branch("main")
     git.remote_add("origin", str(remote))
-    git.fetch(None, branch="main")
+    _sh(repo, "fetch", "-q", "origin", "main")
     git.reset_hard("origin/main")
     assert (repo / "realms/r/a.txt").read_text(encoding="utf-8") == "one\n"
     assert git.upstream() is None
@@ -369,6 +373,23 @@ def test_move_and_add_all_under_stage_the_deletions(tmp_path, remote):
     git.commit("re-key", paths=["realms"])
     assert git.tree_paths("HEAD") == {"realms/s/a.txt"}
     assert [c.path for c in git.changed()] == ["outside.txt"]
+
+
+def test_add_of_a_path_that_is_gone_stages_its_deletion(tmp_path, remote):
+    """Publish and re-key name a realm subtree that may no longer exist on disk; git 2.x stages its removal.
+
+    dulwich 1.2.21's ``porcelain.add`` stages deletions under a directory it is given, but is never given
+    one that is gone: the DULWICH arm's own removal is what this pins."""
+
+    repo = _clone(tmp_path, remote)
+    _member_commits(repo, "realms/q/b.txt", "b\n")
+    git = sync_git(repo)
+    (repo / "realms/q/b.txt").unlink()
+    (repo / "realms/q").rmdir()
+    git.add(["realms/q"])
+    git.commit("drop q")
+    assert git.tree_paths("HEAD") == {"realms/r/a.txt"}
+    assert git.changed() == ()
 
 
 def test_read_tree_at_writes_one_versions_subtree(tmp_path, remote):
