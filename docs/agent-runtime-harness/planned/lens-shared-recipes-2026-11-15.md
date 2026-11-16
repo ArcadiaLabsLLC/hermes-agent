@@ -22,6 +22,7 @@ Standing order 2026-11-12: "if a decision comes up investigate fully and go with
 | 4 | What an `act` recipe may do alone on arrival | Add drops `automation.actions`; the level stays `act` | Keep the publisher's list | What a monitor may change without asking on this PC is this PC's person's decision. Without the list every change is a proposal (`manifest.py`), which is the safe reading of the same recipe |
 | 5 | Which sources may be shared | `http_json`, `prometheus`, `push` | Every feed kind | `sql_readonly` names an absolute file path on the publisher's disk; `command_allowlisted` carries the argv it runs. Neither is a recipe another PC should receive in v1; refused by name, never dropped silently |
 | 6 | How a recipe stops being shared | A withdrawn document (`withdrawn: true`, no manifest) replaces it | Deleting the shelf file | In the document class `upstream_absent` is never a delete, so a removed file would stay on every peer's shelf for ever. A withdrawn document travels like any edit. A monitor a peer already added keeps running: their PC, their choice |
+| 8 | How a draft that moves a source to another site is signed in before Seal (`RT-LENS-UPDATE-MOVED-SITE-CANNOT-SIGN-IN-BEFORE-SEAL`, ruled 2026-11-15, built) | A credential name holds one sign-in **per address**, and `runtime.lens.credential.set` may name `monitor_id` + `revision: sealed\|draft` — which of a monitor's two manifests the sign-in is for. The store still reads the address off that manifest | (a) the moved feed takes a fresh ref name; (b) the one saved row is replaced before Seal; (c) the new secret waits beside the draft and is swapped in at Seal | (a) the person, or Add, would have to rewrite a draft to sign it in, an update could no longer "keep the sign-in made for it" by name, and every move leaves a dead name; (b) the sealed revision reads `credential_host_mismatch` until Seal; (c) is a second credential store. The option taken keeps every fixed point: the address is never the request's word, `_saved_for` is still the one resolver, a secret goes only to the address it was saved for, and the sealed revision reads unchanged while the draft waits |
 | 7 | Drift and revert | Built, as the last slice, on the `level` family's pattern | Status counts only (the `prefab` family's shape) | The row asks for the arms, and a publisher who edited a shared recipe needs an exit that is not "publish it" |
 
 ## 1. What exists today (read on `origin/main` 28f52558)
@@ -86,7 +87,8 @@ not touched by anything synced. The first is a shelf of documents:
   - `localize` leaves a ref already in the recipe's own namespace alone. An update of an added recipe
     therefore keeps the sign-in the person made for it (the ref is the same `shared:<monitor_id>:<ref>`),
     and a re-share of an added recipe does not stack prefixes. Where the update moved the source's
-    address, the credential's saved address refuses it (`credential_host_mismatch`). The over-long name
+    address, the credential's saved address refuses it (`credential_host_mismatch`) until the person
+    signs the draft in for the new address (decision 8). The over-long name
     is refused as `invalid_string` (the id bound is `bounded_string`'s).
   - The descriptor carries `sync_kind = "lens_recipe"` as a string (`recipe_shelf.SYNC_KIND`); slice 2
     adds `SyncFamily.LENS_RECIPE` with that value and swaps it in.
@@ -116,10 +118,19 @@ Every write is an RPC method; refusals carry `data.reason`.
 | `runtime.lens.recipe.withdraw` | `{workspace_id?, recipe_id}` → row | Writes the withdrawn document. `recipe_not_found` |
 | `runtime.lens.recipe.add` | `{workspace_id?, recipe_id}` → monitor (as `runtime.lens.get`) | `LensStore.create(localize(manifest), workspace_id=…, recipe_hash=…)` (the hash marks the DRAFT): a new DRAFT, or a sealed monitor's next-revision draft when this workspace already holds that monitor (an update). `recipe_not_found`, `recipe_withdrawn`, `monitor_exists` (the id belongs to another workspace's monitor; as built, refused inside `create`'s own transaction when it is given a `recipe_hash`), and `create`'s own `capacity_refused` / `monitor_retired` |
 
-A row is `{recipe_id, workspace_id, monitor_id, state, manifest, summary}`.
+A row is `{recipe_id, workspace_id, monitor_id, state, changed_here, manifest, summary}`.
 
 - `state` — a table over (shelf document, this PC's monitor of that id in this workspace, its
   `recipe_hash`): `not_added` · `added` (hash equal) · `update_available` (hash differs) · `withdrawn`.
+- `changed_here` (built, `RT-LENS-RESHARE-AFTER-RESEAL-HAS-NO-STATE`) — true when this PC's sealed
+  revision is on the shelf's version and its person has changed and re-sealed it since, so the shelf is a
+  version behind this PC. Derived by `recipe_shelf.changed_here` from what the store already holds, with
+  no new column: the sealed revision's mark equals the document's hash, the mark is not a waiting draft's
+  (a monitor answer carries `recipe_draft` for that), and the sealed manifest is neither the document's
+  manifest (the sharer's monitor) nor `localize` of it (an adder's). It is a field beside `state`, not a
+  fifth state: a client that knows four states drops a row whose state it cannot read, so the wire stays
+  readable and `state` stays `added`. **A re-share is `runtime.lens.recipe.share` again** — it writes the
+  sealed manifest over the recipe and re-marks the monitor; no withdraw first, and no new verb.
 - `summary` (derived, so Eternia does not parse a manifest): `{level, sources: [{feed_id, kind, host}],
   scheduled, needs_credentials: [ref], private_network, suggested_actions: [tool]}`.
 - Which recipe a monitor is on is two nullable columns, one per thing a monitor holds, written only inside
@@ -150,7 +161,12 @@ A row is `{recipe_id, workspace_id, monitor_id, state, manifest, summary}`.
 2. **Sign in the sources** — `runtime.lens.get` lists each renamed ref as `set: false`;
    `runtime.lens.credential.set {ref: "shared:<monitor_id>:<ref>", scheme, secret}` binds it here. The
    person may instead edit the draft to name a credential they already hold; that is their own write
-   through `runtime.lens.create`.
+   through `runtime.lens.create`. **An update that moves a source to another site** (decision 8): the
+   draft waits over the sealed revision, `runtime.lens.get` answers `draft_credentials` (the draft's rows,
+   `set: false` at the new address) beside `credentials` (the sealed revision's), and
+   `runtime.lens.credential.set {ref, scheme, secret, monitor_id, revision: "draft"}` saves the sign-in for
+   the draft's address. The sealed revision keeps reading with its own until Seal; without the two keys
+   the verb sees both addresses and still refuses `credential_host_ambiguous`.
 3. **Seal** (`runtime.lens.seal`) — `check_sealable` applies as for any draft (an `investigate` / `act`
    recipe whose `persona_id` this PC lacks is changed in the draft first).
 4. **Enable** (`runtime.lens.enable`) — the only step that makes this PC poll.
@@ -163,7 +179,8 @@ A "Shared with this workspace" list in the Lens panel, from `runtime.lens.recipe
 name, sources (kind and host), level, and what it asks of this PC (sign-ins needed, reads a private
 address, wants to act). Actions by `state`: `not_added` → Add; `added` → opens the monitor;
 `update_available` → Review update (Add, then the existing draft diff and Seal); `withdrawn` → a muted
-"no longer shared" line. On a sealed monitor of the active workspace: Share / Stop sharing. An added
+"no longer shared" line. On a sealed monitor of the active workspace: Share / Stop sharing; and where
+its recipe's row reads `changed_here`, "Share new version" (the same `recipe.share`) beside Stop sharing. An added
 recipe is an ordinary draft in the existing list, with the existing sign-in, Seal and Enable controls.
 
 The launcher row to file (for the orchestrator, verbatim, in the launcher's `mission-control-queue.md`):
@@ -207,8 +224,9 @@ The launcher row to file (for the orchestrator, verbatim, in the launcher's `mis
   one address (scheme, name, port) and `credentials.resolve_credential(ref, host=)` refuses any other with
   the gap `credential_host_mismatch`, so a persona's proposal, or an update that moves a source's address
   after the person signed it in, sends nothing. Decision 3's rename stays (see its row). One consequence
-  for a recipe: two feeds that share one ref at two addresses cannot be signed in with one
-  `credential.set` (`credential_host_ambiguous`); the person gives them two refs in the draft.
+  for a recipe: two feeds of ONE manifest that share one ref at two addresses cannot be signed in with one
+  `credential.set` (`credential_host_ambiguous`); the person gives them two refs in the draft. A sealed
+  revision and its draft at two addresses are not that case: decision 8 signs each in by `revision`.
 - **Version skew.** An older hermes has no row for `store/lens_recipes/`: `_destination_for_sync_path`
   answers None and it skips the files; its own publish rebuilds the subtree without them, which a newer
   peer reads as `upstream_absent` — never a delete, so the shelf stays.

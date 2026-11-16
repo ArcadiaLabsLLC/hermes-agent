@@ -58,11 +58,13 @@ def _read(env: Mapping[str, str]) -> list[tuple[str, str]] | None:
                  if k != "GIT_CONFIG_PARAMETERS" and not k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))}
     probe_env.pop("GIT_CONFIG_COUNT", None)
     probe_env["GIT_TERMINAL_PROMPT"] = "0"
+    from agent_runtime.host_tools import git_command
+
     effective: dict[str, str] = {}
     for scope in ("--system", "--global"):  # lowest precedence first; a later scope overrides
         try:
             proc = subprocess.run(
-                ["git", "config", scope, "-z", "--get-regexp", _KEYS_REGEXP],
+                [git_command(), "config", scope, "-z", "--get-regexp", _KEYS_REGEXP],
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
                 timeout=5, stdin=subprocess.DEVNULL, env=probe_env, check=False,
                 creationflags=windows_hide_flags(),

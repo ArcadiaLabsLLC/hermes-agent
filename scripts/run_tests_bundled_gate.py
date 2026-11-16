@@ -35,6 +35,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence
 import run_tests_bundled_cache as cache  # registered by run_tests_bundled._load_sibling
 import run_tests_bundled_fixtures as fixtures
 import run_tests_bundled_plan as plan
+import run_tests_bundled_via as typed_via
 import run_tests_bundled_reds as reds
 import run_tests_bundled_scope as scope
 import run_tests_bundled_via as vias
@@ -221,7 +222,7 @@ class GateRun:
     def plugin_args(self) -> list:
         if not self.enabled:
             return []
-        return ["-p", PLUGIN_NAME, f"--hermes-gate-deps={self.deps_dir}"]
+        return [typed_via.plugin_flag(PLUGIN_NAME), f"--hermes-gate-deps={self.deps_dir}"]
 
     @property
     def writes(self) -> bool:

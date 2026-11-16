@@ -44,13 +44,14 @@ Layers point down (models <- policy <- stores <- lanes <- wiring); this map is
       provider.py          stores   the provider seam: deadline, _generate_image, _draftsman
       grounding.py         policy   cutout -> magenta, cell framing, face offset, upscale/pad
       registration.py      policy   seam/registration arithmetic and the measured thresholds
-      generate.py          lanes    turnaround, direction re-roll, row strips (reject-and-retry)
+      generate.py          lanes    base from the concept, turnaround, direction re-roll, row strips (reject-and-retry)
       compose.py           lanes    palette + frame packing (the no-flip chokepoint) AND validate_sheet (SheetValidation phases)
       handedness.py        lanes    detect_mirrored_art = HandednessDetector: states -> rotation -> convict -> attribute -> summarise
       handedness_report.py lanes    the operator-facing rendering of a finding: REPORT_SECTIONS, walked in order
 
     entry point                                            opens
-    generate_turnaround / _direction_view / _row_strip     generate -> provider -> grounding
+    generate_base_from_concept / generate_turnaround / _direction_view / _row_strip
+                                                           generate -> provider -> grounding
     frame_cell, face_offset, reference_cell                grounding -> geometry
     compose_sheet / compose_draft_frames / build_palette   compose -> grounding
     register_row_cells / pack_row_strip                    compose (``characters cells``)
@@ -87,6 +88,7 @@ from .findings import (
     accept_basis_token,
 )
 from .generate import (
+    generate_base_from_concept,
     generate_direction_view,
     generate_row_strip,
     generate_turnaround,
@@ -96,6 +98,7 @@ from .geometry import (
     MAX_CONSOLE_CARD_PIXELS,
     MAX_THUMB_PIXELS,
     NON_DIRECTIONAL_VIEW,
+    PREFIX_BASE_FROM_CONCEPT,
     PREFIX_TURNAROUND,
     QA_BACKDROP,
     TRANSPARENT_BACKDROP,
@@ -146,6 +149,7 @@ __layer__ = "lanes"
 __all__ = [
     "MAGENTA",
     "MIRROR_GAIN_THRESHOLD",
+    "PREFIX_BASE_FROM_CONCEPT",
     "PREFIX_TURNAROUND",
     "PROVIDER_TIMEOUT_SECONDS",
     "REGISTRATION_WINDOW_DIVISOR",
@@ -158,6 +162,7 @@ __all__ = [
     "fits_console_budget",
     "fits_own_sheet",
     "frame_cell",
+    "generate_base_from_concept",
     "generate_direction_view",
     "generate_row_strip",
     "generate_turnaround",

@@ -44,7 +44,7 @@ def test_one_unknown_or_invalid_entry_drops_the_whole_roster(homes, bad):
     roster = [{"profile_id": str(default), "home": str(default)}, bad]
     row = _row(roster)
 
-    assert update_fleet_roster.roster_names(roster) is None
+    assert update_fleet_roster.roster_names(roster, profile_homes=update_receipt._profile_homes) is None
     assert "served_profiles" not in row
     assert update_cmd_fleet._fleet_covered_gateways([row]) == {("gateway", "default")}
 

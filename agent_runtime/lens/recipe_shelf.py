@@ -33,7 +33,8 @@ What is here:
   **filed where it says** (:func:`filed_token`; one that is not is ``recipe_misfiled``).
 * :func:`localize` — what Add writes: every ``credential_ref`` moved into this recipe's own
   namespace and ``automation.actions`` removed.
-* :func:`recipe_summary`, :func:`recipe_state` — the derived row fields Eternia draws.
+* :func:`recipe_summary`, :func:`recipe_state`, :func:`changed_here` — the derived row fields
+  Eternia draws.
 * :func:`announce` — the ``lens.recipe.changed`` event (``decision_contract_registry``).
 
 Pinned by ``tests/agent_runtime/lens/test_lens_recipe_shelf.py``.
@@ -61,6 +62,7 @@ from ..realm_sync.document_family import (
 from .feed import FeedKind, address_parts, feed_address
 from .host_budget import is_private_reader
 from .manifest import read_manifest
+from .revision import bump_lens_revision, lens_revision
 from .wire_value import MAXIMUM_MANIFEST_BYTES, LensRefusal, RefusalKind, WireError, canonical_bytes, opaque_id
 
 __layer__ = "stores"
@@ -197,6 +199,8 @@ LENS_RECIPE_FAMILY = DocumentFamily(
     unreadable_reason=RecipeRefusal.UNREADABLE.value,
     extra_check=read_recipe_document,
     glob="*/*.json",
+    # A share, a withdrawal, or a realm pull adopting one moves the Lens store revision.
+    on_change=bump_lens_revision,
 )
 
 
@@ -372,6 +376,28 @@ def recipe_state(recipe: ShelfRecipe, monitor: dict[str, Any] | None) -> RecipeS
     return RECIPE_STATES[recipe.withdrawn, None if monitor is None else monitor.get("recipe_hash") == recipe.hash]
 
 
+def changed_here(recipe: ShelfRecipe, monitor: dict[str, Any] | None) -> bool:
+    """This PC's SEALED revision is on the shelf's version of the recipe and is no longer its
+    manifest: its person changed and re-sealed it, so the shelf is behind this PC
+    (``RT-LENS-RESHARE-AFTER-RESEAL-HAS-NO-STATE``). ``runtime.lens.recipe.share`` publishes it.
+
+    Derived, never stored: the sealed revision's mark is the shelf document's (the monitor's
+    ``recipe_hash``, and not its waiting draft's — ``recipe_draft``), and the sealed manifest is
+    neither the document's manifest (the sharer's monitor) nor what Add made of it
+    (:func:`localize`, an adder's). False for every other standing — no monitor, another version
+    (``update_available``), withdrawn — where "changed since this version" says nothing."""
+
+    if recipe.withdrawn or monitor is None or monitor["recipe_draft"] or monitor["recipe_hash"] != recipe.hash:
+        return False
+    sealed = (monitor["sealed"] or {}).get("manifest")
+    if sealed is None or sealed == recipe.manifest:
+        return False
+    try:
+        return sealed != localize(recipe.manifest)
+    except WireError:  # a recipe Add would refuse (a renamed ref past the id bound) has no added form
+        return True
+
+
 class RecipeChange(str, Enum):
     SHARED = "shared"
     WITHDRAWN = "withdrawn"
@@ -383,7 +409,7 @@ def announce(recipe: ShelfRecipe, change: RecipeChange) -> None:
 
     from ..events import EventLog
     from ..store_events import emit_store_event
-
     emit_store_event(EventLog(), "lens.recipe.changed",
-                     {"workspace_id": recipe.workspace_id, "recipe_id": recipe.recipe_id, "change": change.value},
+                     {"workspace_id": recipe.workspace_id, "recipe_id": recipe.recipe_id, "change": change.value,
+                      "store_revision": lens_revision()},
                      domain="lens")

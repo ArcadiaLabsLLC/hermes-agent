@@ -11,7 +11,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 
-__layer__ = "policy"
+__layer__ = "models"  # a pure probe: the host resolver (models) asks it too
 __all__ = ["is_lifecycle_placeholder", "shipped"]
 
 

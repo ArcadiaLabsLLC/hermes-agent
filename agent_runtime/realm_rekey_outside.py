@@ -18,7 +18,6 @@ Plan ``docs/agent-runtime-harness/planned/rejoin-fresh-realm-2026-11-12.md`` §3
 from __future__ import annotations
 
 import json
-import shutil
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -64,6 +63,7 @@ def _rekey_machine_files(mapping: Any) -> None:
 
 def _rekey_lens(mapping: Any) -> None:
     from .lens.guidance import rekey_workspace_guidance
+    from .lens.revision import bump_store_revision
     from .lens.store import default_path
 
     path = default_path()
@@ -74,6 +74,8 @@ def _rekey_lens(mapping: Any) -> None:
             pairs = [(new, old) for old, new in mapping.workspaces.items()]
             connection.executemany("UPDATE monitors SET workspace_id = ? WHERE workspace_id = ?", pairs)
             rekey_workspace_guidance(connection, pairs)
+            if connection.total_changes:
+                bump_store_revision(connection)
     except sqlite3.Error as exc:
         if getattr(exc, "sqlite_errorcode", None) in _SQLITE_IN_USE:
             # The Lens poller holds the database past sqlite's own wait: the re-key waits like a refused rename.
@@ -120,9 +122,10 @@ def _rekey_local_history(mapping: Any) -> None:
 
 def _rekey_history_in(repo: Path, mapping: Any) -> None:
     from .realm_rekey import token_pattern
+    from .host_tools import git_runs
 
     old, new = (Path("realms") / paths.safe_path_token(realm) for realm in (mapping.realm_old, mapping.realm_new))
-    if not (repo / ".git").exists() or shutil.which("git") is None:
+    if not (repo / ".git").exists() or not git_runs():
         return
     if (repo / old).exists() and not (repo / new).exists():
         _sync_git(repo, "mv", old.as_posix(), new.as_posix())

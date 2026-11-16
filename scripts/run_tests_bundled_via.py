@@ -19,6 +19,18 @@ import re
 from enum import Enum
 
 
+def plugin_flag(name: str) -> str:
+    """pytest's ``-p <name>`` as ONE joined token, ``-p<name>`` (pytest reads both spellings).
+
+    A test process's ``sys.argv`` is the command the runner built, and product code reads it:
+    ``hermes_cli.relaunch`` carries ``-p``/``--profile`` (hermes's own profile flag) into the
+    command it rebuilds, so a bare ``-p hermes_bundle_report`` became a hermes profile in
+    ``tests/hermes_cli/test_relaunch.py::TestRelaunch::test_calls_execvp``
+    (FH-RELAUNCH-TEST-SEES-THE-BUNDLE-RUNNER-PROFILE). The joined token is no flag hermes knows.
+    """
+    return f"-p{name}"
+
+
 class ViaKind(Enum):
     """Every via the runner spells."""
 

@@ -561,7 +561,7 @@ class ChatTurnLane(LanePass):
             }
         plan = _plan_progress(live.plan)
         if plan is not None:
-            # RT-RUNNING-CHAT-TURN-CARRIES-PLAN-PROGRESS: ``{done, total, current}``; absent = no plan.
+            # RT-RUNNING-CHAT-TURN-CARRIES-PLAN-PROGRESS: ``{done, total, current, current_index}``; absent = no plan.
             row["plan"] = plan
         for call in live.tools:
             if call.foreground is not None:

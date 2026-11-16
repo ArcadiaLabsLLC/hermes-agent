@@ -26,7 +26,7 @@ FLAGS = frozenset({"--confirm-red", "--confirm-base"})
 DEFAULT_BASE = "origin/main"
 _FAILED = re.compile(r"^(?:FAILED|ERROR) (\S+)")
 #: pytest args of the one-file runs: every failing node id in the short summary
-PYTEST_ARGS = ("-q", "-rfE", "-p", "no:cacheprovider")
+PYTEST_ARGS = ("-q", "-rfE", "-pno:cacheprovider")  # joined, never a bare "-p": run_tests_bundled_via.plugin_flag
 
 #: (file, cwd, timeout) → (rc, output)
 Runner = Callable[[Path, Path, float], tuple[int, str]]

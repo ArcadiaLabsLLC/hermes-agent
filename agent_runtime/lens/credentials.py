@@ -26,6 +26,21 @@ and Lens plan W12:
   **A row an earlier build wrote has no ``host`` and fails closed**: it reads as not signed in
   for every address until the person saves it again (it still serves as a route's secret,
   which is sent nowhere).
+* **A name holds one sign-in PER ADDRESS** (``RT-LENS-UPDATE-MOVED-SITE-CANNOT-SIGN-IN-BEFORE-SEAL``,
+  ruled 2026-11-15). ``credentials[ref]`` is a list of rows, one per saved address, so the draft
+  of a monitor's next revision that moves a source to another site is signed in BEFORE Seal
+  while the sealed revision keeps reading with the sign-in made for its own site. Which address
+  a save is for is still the store's word: ``runtime.lens.credential.set`` names a monitor and
+  which of its two manifests (:class:`SignInRevision`), and :func:`revision_manifest` hands
+  :func:`sign_in_host` that one manifest; with neither it reads every live manifest, as before.
+  :func:`set_credential` replaces the row of its own address and, given ``live_hosts``, forgets
+  the rows of addresses no live manifest names any more (a site a sealed update moved away
+  from), so a name never gathers secrets nobody reads. Rejected: a fresh ref name for the moved
+  feed (the person, or Add, would rewrite a draft to sign it in, and every move leaves a dead
+  name), replacing the one row before Seal (the sealed revision goes dark), and holding the
+  new secret beside the draft until Seal (a second credential store).
+  A file an earlier build wrote (``version`` 1, one row per name) reads as a one-row list; an
+  earlier build reading this file sees no row and fails closed.
 * One-way migration: values an earlier build wrote to the pool's ``lens`` slice
   (stamped with this home's digest) are moved into the file and removed from the
   pool the first time this home's credentials are touched (:func:`migrate_pool_slice`).
@@ -51,7 +66,7 @@ __layer__ = "stores"
 
 #: The credential-pool provider slice earlier builds wrote; read once, to migrate out.
 LEGACY_POOL_PROVIDER = "lens"
-_FILE_VERSION = 1
+_FILE_VERSION = 2
 #: The longest secret accepted (a bearer token or a password).
 MAXIMUM_SECRET_BYTES = 8192
 
@@ -91,6 +106,36 @@ def feed_host(feed: dict[str, Any]) -> str:
     return NO_ADDRESS if address is None else credential_host(address)
 
 
+class SignInRevision(str, Enum):
+    """Which of a monitor's two manifests a sign-in is for (``credential.set``'s ``revision``)."""
+
+    SEALED = "sealed"
+    DRAFT = "draft"
+
+
+def revision_manifest(monitor: dict[str, Any], revision: SignInRevision) -> dict[str, Any]:
+    """The manifest of ``monitor`` (a ``LensStore`` summary) a sign-in for ``revision`` reads its
+    address off. Refused ``monitor_retired``, and ``not_sealed`` / ``no_draft`` when it holds none."""
+
+    from .store import LensStoreError, MonitorState, StoreRefusal
+
+    held = {SignInRevision.SEALED: ((monitor["sealed"] or {}).get("manifest"), StoreRefusal.NOT_SEALED),
+            SignInRevision.DRAFT: (monitor["draft"], StoreRefusal.NO_DRAFT)}
+    manifest, absent = held[revision]
+    if monitor["state"] == MonitorState.RETIRED.value:
+        raise LensStoreError(StoreRefusal.RETIRED)
+    if manifest is None:
+        raise LensStoreError(absent)
+    return manifest
+
+
+def named_hosts(ref: str, manifests: Iterable[dict[str, Any]]) -> set[str]:
+    """Every address the feeds naming ``ref`` in ``manifests`` read."""
+
+    return {feed_host(feed) for manifest in manifests for feed in manifest["feeds"]
+            if feed.get("credential_ref") == ref} - {NO_ADDRESS}
+
+
 def sign_in_host(ref: str, manifests: Iterable[dict[str, Any]]) -> str:
     """The one address the feeds naming ``ref`` in ``manifests`` read — what a sign-in is saved for.
 
@@ -100,8 +145,7 @@ def sign_in_host(ref: str, manifests: Iterable[dict[str, Any]]) -> str:
 
     from .store import LensStoreError, StoreRefusal
 
-    hosts = {feed_host(feed) for manifest in manifests for feed in manifest["feeds"]
-             if feed.get("credential_ref") == ref} - {NO_ADDRESS}
+    hosts = named_hosts(ref, manifests)
     if len(hosts) != 1:
         raise LensStoreError(StoreRefusal.CREDENTIAL_HOST_AMBIGUOUS if hosts else StoreRefusal.CREDENTIAL_HOST_UNKNOWN)
     return hosts.pop()
@@ -143,16 +187,19 @@ def credentials_path() -> Path:
     return _home() / "lens" / "credentials.json"
 
 
-def _read_credentials_file() -> dict[str, dict[str, Any]]:
+def _read_credentials_file() -> dict[str, list[dict[str, Any]]]:
+    """``{ref: [row per saved address]}``. A ``version`` 1 file held one row per name: a one-row list."""
+
     try:
         document = json.loads(credentials_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
-    rows = document.get("credentials") if isinstance(document, dict) else None
-    return {ref: row for ref, row in (rows or {}).items() if isinstance(row, dict)}
+    held = document.get("credentials") if isinstance(document, dict) else None
+    return {ref: [row for row in (rows if isinstance(rows, list) else [rows]) if isinstance(row, dict)]
+            for ref, rows in (held or {}).items()}
 
 
-def _write_file(rows: dict[str, dict[str, Any]]) -> None:
+def _write_file(rows: dict[str, list[dict[str, Any]]]) -> None:
     from utils import atomic_json_write
 
     path = credentials_path()
@@ -190,22 +237,27 @@ def migrate_pool_slice() -> int:
                 moved = {"scheme": row.get("lens_scheme"), "secret": secret, "rotated_at": row.get("lens_rotated_at")}
                 if row.get("lens_username") is not None:
                     moved["username"] = row["lens_username"]
-                rows[row["id"]] = moved
+                rows[row["id"]] = [moved]
             _write_file(rows)  # the file first: a crash between the two leaves a duplicate, never a loss
             write_credential_pool(LEGACY_POOL_PROVIDER, [], removed_ids=[row["id"] for row in legacy])
         _MIGRATED.add(str(home))
         return len(legacy)
 
 
-def _own_row(ref: str) -> dict[str, Any] | None:
+def _own_rows(ref: str) -> list[dict[str, Any]]:
+    """This home's usable rows for ``ref`` (one per saved address), oldest save first."""
+
     migrate_pool_slice()
-    return _read_credentials_file().get(ref)
+    return [row for row in _read_credentials_file().get(ref, [])
+            if isinstance(row.get("secret"), str) and row["secret"]]
 
 
 def set_credential(ref: str, *, scheme: str, secret: str, host: str | None, username: str | None = None,
-                   now: datetime | None = None) -> dict[str, Any]:
-    """Write (or rotate) ``ref`` in this home's file, saved for ``host`` (:func:`credential_host`;
-    None for an ingress route's secret, which is sent nowhere). Returns its status, never the value."""
+                   now: datetime | None = None, live_hosts: Iterable[str] | None = None) -> dict[str, Any]:
+    """Write (or rotate) ``ref``'s sign-in for ``host`` in this home's file (:func:`credential_host`;
+    None for an ingress route's secret, which is sent nowhere). The name's rows for other addresses
+    stay, except — given ``live_hosts``, the addresses live manifests name it at — the ones for an
+    address outside them, which nothing reads any more. Returns its status, never the value."""
 
     ref = opaque_id(ref)
     kind = CredentialScheme(scheme)
@@ -220,9 +272,11 @@ def set_credential(ref: str, *, scheme: str, secret: str, host: str | None, user
         row["username"] = username
     if host is not None:
         row["host"] = host
+    kept = None if live_hosts is None else set(live_hosts)
     with _LOCK:
         rows = _read_credentials_file()
-        rows[ref] = row
+        rows[ref] = [other for other in rows.get(ref, [])
+                     if other.get("host") != host and (kept is None or other.get("host") in kept)] + [row]
         _write_file(rows)
     return credential_status(ref, host=host)
 
@@ -242,18 +296,21 @@ def forget_credential(ref: str) -> bool:
 
 def _saved_for(ref: str, host: str | None) -> tuple[dict[str, Any] | None, CredentialRefusal | None]:
     """``(row, refusal)``: this home's row for ``ref`` and why a caller at ``host`` may not use it
-    (None when it may). The ONE place a saved address meets the address about to be used."""
+    (None when it may). The ONE place a saved address meets the address about to be used: the
+    row saved for exactly ``host``, else the name's newest row with ``credential_host_mismatch``."""
 
-    row = _own_row(opaque_id(ref))
-    if row is None or not isinstance(row.get("secret"), str) or not row["secret"]:
-        return None, CredentialRefusal.MISSING
-    return row, None if row.get("host") == host else CredentialRefusal.HOST_MISMATCH
+    rows = _own_rows(opaque_id(ref))
+    for row in rows:
+        if row.get("host") == host:
+            return row, None
+    return (rows[-1], CredentialRefusal.HOST_MISMATCH) if rows else (None, CredentialRefusal.MISSING)
 
 
 def credential_status(ref: str, *, host: str | None) -> dict[str, Any]:
     """``{ref, set, rotated_at, host}`` for a caller at ``host`` — presence and rotation only (the
     Launcher's write-only view). ``set`` is true only when the value would be sent to ``host``;
-    ``host`` is the address it is saved for (null: none, or saved before addresses were recorded)."""
+    ``host`` is the address it is saved for (null: none, or saved before addresses were recorded;
+    when ``set`` is false and the name is saved elsewhere, the address of its newest sign-in)."""
 
     row, refusal = _saved_for(ref, host)
     return {"ref": ref, "set": refusal is None, "rotated_at": None if row is None else row.get("rotated_at"),

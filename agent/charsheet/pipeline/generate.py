@@ -1,4 +1,4 @@
-"""Generation lanes: the turnaround, a direction re-roll, and the row strips (reject-and-retry)."""
+"""Generation lanes: the base from the concept, the turnaround, a direction re-roll, and the row strips (reject-and-retry)."""
 
 from __future__ import annotations
 
@@ -10,13 +10,47 @@ from agent.charsheet._upstream_doors import extract_strip_frames, remove_backgro
 from agent.charsheet.palette import as_rgba
 from agent.charsheet.spec import RowSpec, SheetSpec
 
-from .geometry import NON_DIRECTIONAL_VIEW, PREFIX_TURNAROUND, _ROW_GEN_ATTEMPTS, _save_png, row_prefix, turnaround_order, view_prefix
+from .geometry import NON_DIRECTIONAL_VIEW, PREFIX_BASE_FROM_CONCEPT, PREFIX_TURNAROUND, _ROW_GEN_ATTEMPTS, _save_png, row_prefix, turnaround_order, view_prefix
 from .grounding import recomposite_on_magenta
 from .provider import _draftsman
 
 __layer__ = "lanes"
 
 logger = logging.getLogger(__name__)
+
+
+def generate_base_from_concept(
+    concept: str,
+    *,
+    style: str | None = "auto",
+    provider=None,
+    out,
+) -> Path:
+    """ONE square, text-only generation → the draft's base image, from the words.
+
+    The owner's ruling (2026-11-15, "both don't require a picture"): a character
+    never needs a picture. A picture the operator gives still wins — this is
+    only called for a draft that has none. It is the pipeline's one generation
+    with ``reference_images=None``: there is nothing to ground on yet, so this
+    picture IS the grounding every later generation reads.
+
+    Given the same key-then-magenta treatment as a direction re-roll, so the
+    turnaround's "same flat chroma-key field as the attached reference" has an
+    anchor. Upstream ``agent/pet``'s ``generate_base_drafts`` is deliberately
+    not borrowed: it drafts n variants for a person to pick from, and would need
+    a new door in ``_upstream_doors.py``.
+    """
+    generated = _draftsman()(
+        prompts.build_base_from_concept_prompt(concept, style=style),
+        reference_images=None,
+        aspect_ratio="square",
+        prefix=PREFIX_BASE_FROM_CONCEPT,
+        provider=provider,
+    )
+    keyed = remove_background(as_rgba(generated))
+    path = _save_png(recomposite_on_magenta(keyed), Path(out))
+    logger.info("charsheet base: drawn from the concept alone -> %s", path)
+    return path
 
 
 def generate_turnaround(

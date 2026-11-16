@@ -2297,6 +2297,69 @@ def test_the_autopilot_drives_the_whole_pipeline_and_receipts_every_stage(
     assert listed["characters"][0]["installed"] is True
 
 
+def test_the_autopilot_draws_the_base_from_the_words_when_no_picture_was_given(fake, capsys):
+    """A character never needs a picture (owner 2026-11-15, "both don't require a
+    picture"; RT-CHARACTER-FROM-WORDS-ALONE-HAS-NO-BASE-IMAGE).
+
+    A draft started from words alone used to stop `auto` at the turnaround with
+    "has no base image". Now `auto` draws the anchor first — exactly ONE extra
+    generation, text-only (no reference), square — records it through the same
+    setter the `base` verb uses, and drives on to an installed sheet.
+    """
+    draft_id = start_draft(capsys)
+
+    code, lines = auto_lines(
+        ["harness", "characters", "auto", "--draft", draft_id, "--json"], capsys
+    )
+
+    assert code == 0, lines
+    assert [line["step"] for line in lines] == [
+        "base", "turnaround", "approve-direction", "rows", "compose", "auto",
+    ]
+    assert lines[-1]["ran"] == ["base", "turnaround", "approve-direction", "rows", "compose"]
+    assert lines[-1]["stage"] == "composed"
+
+    base_calls = [call for call in fake.calls if call["prefix"] == pipeline.PREFIX_BASE_FROM_CONCEPT]
+    assert len(base_calls) == 1
+    assert base_calls[0]["refs"] == []
+    assert base_calls[0]["aspect"] == "square"
+    assert "an arrow knight" in base_calls[0]["prompt"]
+    # It is the FIRST generation, and the turnaround is grounded on what it drew.
+    assert fake.calls[0]["prefix"] == pipeline.PREFIX_BASE_FROM_CONCEPT
+    turnaround = next(call for call in fake.calls if call["prefix"] == pipeline.PREFIX_TURNAROUND)
+    assert turnaround["refs"] == [lines[0]["baseImage"]]
+    assert Path(lines[0]["baseImage"]).name == "base.png"
+    assert lines[0]["baseFrom"] == "concept"
+
+
+def test_a_given_picture_wins_and_the_autopilot_draws_no_base(fake, base_image, capsys):
+    """The picture the player gave is the anchor; `auto` adds 0 generations for it."""
+    draft_id = start_draft(capsys, "--base-image", str(base_image))
+
+    code, lines = auto_lines(
+        ["harness", "characters", "auto", "--draft", draft_id, "--json"], capsys
+    )
+
+    assert code == 0
+    assert "base" not in lines[-1]["ran"]
+    assert [call for call in fake.calls if call["prefix"] == pipeline.PREFIX_BASE_FROM_CONCEPT] == []
+
+
+def test_drawing_a_base_refuses_a_draft_that_already_has_one(fake, base_image, capsys):
+    """Re-drawing someone's chosen anchor is never a side effect."""
+    from agent.charsheet.draft import CharacterDraft
+
+    draft_id = start_draft(capsys, "--base-image", str(base_image))
+    draft = CharacterDraft.load(draft_id)
+    before = draft.base_image.read_bytes()
+
+    with pytest.raises(ValueError, match="already has a base image"):
+        draft.generate_base_from_concept()
+
+    assert fake.calls == []
+    assert CharacterDraft.load(draft_id).base_image.read_bytes() == before
+
+
 def test_every_autopilot_receipt_is_exactly_one_line(fake, base_image, capsys):
     """The framing IS the newline, so no payload may ever contain one.
 

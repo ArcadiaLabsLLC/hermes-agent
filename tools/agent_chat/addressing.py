@@ -8,7 +8,13 @@ background delivery refused ``unknown persona QA_Agent_A``, after the sender had
 :func:`resolve_send_target` answers synchronously, from the same sender-scoped addressable roster
 ``agent_chat_threads`` lists:
 
-- a ``personainst_*`` handle, or an id naming a configured persona, passes as given;
+- a ``personainst_*`` handle passes as given — unless it is profile-backed (a stored instance, or a
+  ``personainst_profile_<name>`` channel) and its profile is gone (:func:`agent_runtime.roster_reach.profile_missing`,
+  the rule that already hides such an agent from the roster): then it is refused ``unsupported_persona``
+  listing the addressable handles (RT-AGENT-CHAT-SEND-ACCEPTS-AN-AGENT-WITH-NO-PROFILE, seen live
+  2026-11-15: Base's send to the invented ``personainst_profile_charsheet`` answered ``dispatched: true``
+  and failed in the background "Hermes profile 'charsheet' does not exist");
+- an id naming a configured persona passes as given;
 - otherwise a display name naming exactly ONE addressable instance (case and spacing ignored) is
   rewritten to that instance's handle;
 - two or more → refused ``ambiguous_target`` (the word and candidate shape
@@ -18,6 +24,8 @@ background delivery refused ``unknown persona QA_Agent_A``, after the sender had
 """
 
 from __future__ import annotations
+
+from types import SimpleNamespace
 
 from .lane import _looks_like_instance_handle, refusal_json
 
@@ -55,7 +63,15 @@ def resolve_send_target(persona_id: str, *, requested_by_session=None) -> tuple[
     """``(target, None)`` — the id to send to — or ``(persona_id, refusal_json)``."""
 
     if _looks_like_instance_handle(persona_id):
-        return persona_id, None
+        # Judged on its own facts (the store and the profiles folder), never deferred for an empty
+        # roster: a namespace whose only agent is the sender has no teammates to list, and that is
+        # exactly where an invented handle was accepted live (2026-11-15, w1115e-h4). The roster is
+        # read only to word a refusal: reading it mints the scope's canonical rows, which a send to a
+        # reachable handle never did.
+        why = _unreachable_handle(persona_id)
+        if why is None:
+            return persona_id, None
+        return persona_id, _no_teammate(persona_id, _addressable(requested_by_session)[2], why)
     from agent_runtime.persona_assignments import safe_assignment_token
     from hermes_cli.harness_parts.persona.chat_target import _persona_by_id
 
@@ -82,10 +98,49 @@ def resolve_send_target(persona_id: str, *, requested_by_session=None) -> tuple[
     if not roster and safe_assignment_token(persona_id) == persona_id:
         # No roster to judge an id-shaped target against (a bare home): the handler's own check decides.
         return persona_id, None
+    return persona_id, _no_teammate(persona_id, roster, None)
+
+
+def _unreachable_handle(handle: str) -> str | None:
+    """Why no message can reach the instance *handle* names, or ``None`` when one can.
+
+    The same rule the roster offer uses (``roster_reach.profile_missing``), asked at admission, so a
+    send is refused in the turn that made it instead of being accepted and failing in the background.
+    """
+    from agent_runtime.persona_assignments import PersonaInstanceStore, safe_assignment_token
+    from agent_runtime.roster_reach import profile_missing
+
+    # The same token ``_looks_like_instance_handle`` judged: seen live, the model wrote ``@personainst_…``.
+    handle = safe_assignment_token(handle)
+    try:
+        instance = PersonaInstanceStore().get(handle)
+    except FileNotFoundError:
+        instance = None
+    except Exception:  # an unreadable row is the handler's to judge, never a refusal here
+        return None
+    if instance is not None:
+        missing = profile_missing(instance)
+        return None if missing is None else f"its Hermes profile {missing!r} does not exist"
+    token = handle[len(_PROFILE_CHANNEL):] if handle.startswith(_PROFILE_CHANNEL) else ""
+    if token:
+        # A profile's canonical channel the store has not minted yet: reachable while the profile exists.
+        missing = profile_missing(SimpleNamespace(role="profile", profile_id=token))
+        return None if missing is None else f"its Hermes profile {missing!r} does not exist"
+    # Any other unstored handle (a placement the handler mints on first use, ``personainst_qa_agent_2``)
+    # is the handler's to judge: it derives the persona from the handle and refuses an unknown one.
+    return None
+
+
+#: The canonical channel id of a ``profile_<name>`` persona (``persona_instance_id_for``).
+_PROFILE_CHANNEL = "personainst_profile_"
+
+
+def _no_teammate(persona_id: str, roster, why: str | None) -> str:
     listed = [{"handle": instance.id, "display_name": getattr(instance, "display_name", None) or instance.id}
               for instance in roster][:_LISTED]
-    return persona_id, refusal_json(
-        f"no teammate is addressed as {persona_id!r}; send to a persona id or one of these handles: "
+    reason = f" ({why})" if why else ""
+    return refusal_json(
+        f"no teammate is addressed as {persona_id!r}{reason}; send to a persona id or one of these handles: "
         + (", ".join(f"{row['handle']} ({row['display_name']})" for row in listed) or "none are addressable"),
         error_kind="unsupported_persona", target_persona=persona_id, addressable=listed,
     )

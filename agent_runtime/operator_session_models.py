@@ -92,7 +92,8 @@ def _selected_model(instance, choice: str) -> tuple[str, str, str]:
     with _model_profile(instance):
         context = load_picker_context()
         with credential_pool_snapshot():
-            selection = choices(_with_local_llama_presets(build_model_options_payload(context))).get(choice)
+            inventory = _with_local_llama_presets(build_model_options_payload(context))
+        selection = choices(inventory).get(choice)
         if selection is None:
             raise OperatorConversationRefused("model_unavailable")
         provider, model = selection
@@ -100,12 +101,36 @@ def _selected_model(instance, choice: str) -> tuple[str, str, str]:
             # A preset is loaded by the adapter's whole-turn lease (``provider.turn_scope``), not resolved
             # here: upstream's switch resolves the managed endpoint and refuses a server that is not up yet.
             return PROVIDER_ID, model, provider_profile().api_mode
-        result = switch_model(model, context.current_provider, context.current_model,
-            current_base_url=context.current_base_url, explicit_provider=provider,
-            user_providers=context.user_providers, custom_providers=context.custom_providers)
+        bare_url = _bare_custom_endpoint(inventory, provider)
+        if bare_url:
+            # MUTATION: pass the named providers here and test_a_chat_on_another_provider_switches_to_the_
+            # model_blocks_own_endpoint reads back ``custom:test-endpoint``.
+            # Named providers are left out: upstream's ``resolve_custom_provider("custom", ...)`` answers
+            # the FIRST configured endpoint, so the pick ran on another endpoint's URL and key.
+            result = switch_model(model, context.current_provider, context.current_model,
+                current_base_url=bare_url, explicit_provider="custom", user_providers=None, custom_providers=None)
+        else:
+            result = switch_model(model, context.current_provider, context.current_model,
+                current_base_url=context.current_base_url, explicit_provider=provider,
+                user_providers=context.user_providers, custom_providers=context.custom_providers)
         if not result.success:
             raise OperatorConversationRefused("model_unavailable")
         return result.target_provider, result.new_model, result.api_mode
+
+
+def _bare_custom_endpoint(inventory: dict, provider: str) -> str | None:
+    """The base URL when ``provider`` is the ``model:`` block's own endpoint, else None.
+
+    That endpoint (``provider: custom`` + ``base_url``, the QA fixture's) is the picker's bare
+    ``custom`` row, keyed ``custom:custom`` by :func:`provider_id`; upstream knows no provider by that
+    name and refused the pick ``Unknown provider`` (RT-CHAT-MODEL-SWITCH-TO-A-LISTED-CUSTOM-ENDPOINT).
+    Upstream resolves it as the bare ``custom`` at its base URL."""
+    for row in inventory.get("providers", ()):
+        if (row.get("is_user_defined") and row.get("slug") == "custom" and row.get("api_url")
+                and provider_id(row) == provider):
+            # MUTATION: return None and that test reddens ``model_unavailable`` (the seen refusal).
+            return row["api_url"]
+    return None
 
 
 def operator_model_facts(params: dict) -> dict:

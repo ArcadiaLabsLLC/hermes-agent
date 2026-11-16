@@ -1139,7 +1139,7 @@ def _fleet_row(
     # RT-UPDATE-FLEET-ROSTER-DROPPED: both published roster shapes reduce to names first.
     from hermes_cli.update_fleet_roster import roster_names
 
-    served_profiles = roster_names(served_profiles)
+    served_profiles = roster_names(served_profiles, profile_homes=_profile_homes)
     if isinstance(served_profiles, list) and served_profiles and all(
         isinstance(name, str) and name for name in served_profiles
     ):

@@ -248,6 +248,52 @@ _NEEDS_CHROME_DESKTOP_ENTRY = pytest.mark.skipif(
     "an installed google-chrome.desktop, and this host has none, so it names the host's own browser",
 )
 
+class _GitSpellsUtcAsOffset:
+    """A LAZY probe (pytest ``bool()``s a skipif condition at the marked test's setup, never at
+    import): does this host's ``git log --format=%cI`` spell a UTC commit ``+00:00``?
+
+    git 2.45 made ``iso-strict`` spell UTC ``Z``; older gits (the Linux box's 2.43.0) print
+    ``+00:00``. The probe asks git itself, the way the test does: one empty commit dated UTC in a
+    throwaway repository, its ``%cI`` read back. Memoized; run only when a marked test is set up.
+    """
+
+    _answer: "bool | None" = None
+
+    def __bool__(self) -> bool:
+        if self._answer is None:
+            type(self)._answer = self._probe()
+        return bool(self._answer)
+
+    @staticmethod
+    def _probe() -> bool:
+        import subprocess
+        import tempfile
+
+        git = shutil.which("git")
+        if git is None:
+            return False  # no git: the test reds for that, which this probe does not describe
+        date = "2026-01-01T00:00:00+00:00"
+        env = {"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+               "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com", "GIT_AUTHOR_DATE": date,
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com", "GIT_COMMITTER_DATE": date}
+        with tempfile.TemporaryDirectory(prefix="git-iso-probe-") as repo:
+            for args in (["init", "-q"], ["commit", "-q", "--allow-empty", "-m", "probe"]):
+                subprocess.run([git, *args], cwd=repo, env=env, check=True, capture_output=True, timeout=30)
+            spelled = subprocess.run([git, "log", "-1", "--format=%cI"], cwd=repo, env=env, check=True,
+                                     capture_output=True, text=True, timeout=30).stdout.strip()
+        return spelled.endswith("+00:00")
+
+
+#: The host's ``git`` spells a UTC ``%cI`` date ``+00:00`` (git before 2.45), where upstream's plugin
+#: catalog test pins git 2.45's ``Z``: both are ISO 8601, so the red is the host's git, not the
+#: extractor. Runs again the day the box's git is 2.45 or later
+#: (FH-PLUGIN-DATES-TEST-RED-AGAIN-ON-GIT-ISO-SPELLING, 2026-11-15; FH-LINUX-BOX-GIT-ISO-UTC-SPELLING).
+_NEEDS_GIT_ISO_STRICT_UTC_Z = pytest.mark.skipif(
+    _GitSpellsUtcAsOffset(),
+    reason="REQUIRES git 2.45+: this git spells a UTC `%cI` date `+00:00`, the test pins `Z`; "
+    "runs once the host's git spells it `Z`",
+)
+
 _NEEDS_ACP = pytest.mark.skipif(
     importlib.util.find_spec("acp") is None,
     reason="imports `acp` inside the test (agent-client-protocol, extra [acp]), "

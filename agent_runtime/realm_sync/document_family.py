@@ -124,6 +124,10 @@ class DocumentFamily:
     require_version: bool = True
     #: Glob for the documents under a root: ``*.json`` (flat) or ``*/*.json``.
     glob: str = "*.json"
+    #: Called after :class:`DocumentStore` changes a document (a write of new bytes, a clear of
+    #: one that was there) — the verbs and the pull applier alike, since both write through that
+    #: door. Lens recipes move the Lens store revision here (``RT-LENS-STORE-HAS-ONE-REVISION``).
+    on_change: Callable[[], None] | None = None
 
     def baseline_key(self, token: str) -> str:
         return f"{self.noun}:{token}"
@@ -246,6 +250,7 @@ class DocumentStore:
         if before == raw:
             return {"path": path, "changed": False}
         atomic_write_bytes(path, raw)
+        self._changed()
         return {"path": path, "changed": True}
 
     def clear(self, token: str) -> dict[str, Any]:
@@ -262,7 +267,13 @@ class DocumentStore:
             if path.is_file():
                 raise
             existed = False
+        if existed:
+            self._changed()
         return {"path": path, "changed": existed}
+
+    def _changed(self) -> None:
+        if self.family.on_change is not None:
+            self.family.on_change()
 
     def list_tokens(self) -> list[str]:
         """Every token this store holds, sorted."""

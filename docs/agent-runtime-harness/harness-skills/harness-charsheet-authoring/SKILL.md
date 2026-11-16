@@ -43,10 +43,16 @@ ask one question per decision, and hand back an installed sheet.
   in the list, the draft does not exist on this install or your ROOT is wrong,
   and those are the only two possibilities left
   (`references/homes-and-migration.md`).
-- **Spend one cheap `image_generate` call before committing to a 16-generation
-  run.** A plan-gated account fails politely: HTTP 200, the tool silently
-  stripped, a model that says it has no such tool. Never discover it on
-  generation twelve.
+- **Probe the image provider before committing to a 16-generation run.** A
+  plan-gated account fails politely: HTTP 200, the tool silently stripped, a
+  model that says it has no such tool. Never discover it on generation twelve.
+  When this lane offers the `image_generate` tool, one cheap call is the probe.
+  **When it does not, that says nothing about the pipeline** — a chat lane often
+  carries no image toolset, and `characters` draws through its own image
+  provider. Do not stop or ask for a picture: start the draft and let its FIRST
+  generation be the probe (for a words-only character that is the base `auto`
+  draws from the concept; a refusal there names the provider and costs one
+  generation, not twelve).
 - **Pass `--authored-by` verbatim** from your own identity clause — the Mission
   Control persona id inside the parenthesis, never a slug of your display name.
   A draft with no resolvable `authored_by` refuses to resume at all.
@@ -103,7 +109,7 @@ not the slug** (`20260824-140756-cd645a` vs `anime-girl`).
 | `migrate-home` | Moves THIS home's legacy `<HERMES_HOME>/characters` store into the install-wide library. Drafts keep their directory leaf names and installed characters keep their slugs; a draft carrying no `hermes_home` is stamped with the SOURCE home before it moves. A destination collision is a per-entry refusal, never an overwrite, and nothing is deleted. Idempotent, receipted. **Operator-run — do not fire it as part of an authoring flow.** | — |
 | `payload-contract` | Prints the character PAYLOAD key set hermes publishes, measured from the producers (`--json` for the machine door the launcher's wire-contract gate reads). Read-only; touches no draft and no library. **Tooling — not an authoring verb; never fire it in an authoring flow.** | — |
 | `status --draft <id>` | Stage, spec, per-item QA history with every attempt's `path`. | any |
-| `base --draft <id> --image <path>` | Sets/replaces the identity anchor. | any |
+| `base --draft <id> --image <path>` | Sets/replaces the identity anchor with a picture. **A picture is never required** (owner 2026-11-15, RT-CHARACTER-FROM-WORDS-ALONE-HAS-NO-BASE-IMAGE): use one when the operator gives it; with none, `start` without `--base-image` and let `auto` draw the base from the concept. Do not ask the operator for a picture. | any |
 | `turnaround --draft <id>` | One generation per **authored** direction (`s se e ne n` for the 8-way scheme). | `turnaround` |
 | `reroll-direction --draft <id> --direction <d> [--note …]` | Re-draws one direction reference. | `turnaround` |
 | `approve-direction --draft <id> (--direction <d> [--attempt n] \| --all)` | Approving every authored direction advances to `rows`. **The last moment a reference can be changed.** | `turnaround` |
@@ -112,7 +118,7 @@ not the slug** (`20260824-140756-cd645a` vs `anime-girl`).
 | `thumb --draft <id> (--row <key> [--frame n] \| --direction <d>) [--attempt n] [--scale n]` | Writes a card-size QA crop of ONE frame of a row, or of ONE turnaround direction REFERENCE. Both arms carry the same two budget booleans; a reference is one pose, so `--frame` does not apply to it and is refused rather than ignored. | **any** |
 | `cells --draft <id> --row <key>` | Writes an APPROVED row's registered cells — what compose packs for that row (same extraction, shared scale, palette lock once every direction is approved) — as `frames × frameW` by `frameH`, and names the path. Read-only on the draft; refuses a row with no approved strip. | any |
 | `compose --draft <id> [--accept-handedness <row>:<basis>,…]` | Composes, validates, installs; advances to `composed`. | `rows` |
-| `auto --draft <id> [--through turnaround\|approve-direction\|rows\|compose]` | **The whole pipeline in ONE process**: turnaround → approve every direction → generate the rows that are missing → compose and install, printing a receipt as each stage lands (`--json` = one compact object per LINE; the last line is always the summary). **Only for an operator's explicit "drive it all the way" ask** — it auto-approves the turnaround, which is the last moment a reference can change. It stops on a handedness refusal and has no way to override one; it resumes rather than restarts (a stage whose work already exists is skipped, with the reason on the summary), so it is also the one-command repair after `reopen`; and it writes the same per-attempt history, so crops and `reopen` behave exactly as after a hand-driven run. **One command is still many stage changes: emit a `CHARSHEET-QA:` line for every receipt line it printed**, plus the `MEDIA:` lines. | `turnaround` or `rows` |
+| `auto --draft <id> [--through turnaround\|approve-direction\|rows\|compose]` | **The whole pipeline in ONE process**: (a draft with no base image first gets one drawn from the concept — ONE text-only generation, receipted as step `base`; a given picture wins and adds 0) → turnaround → approve every direction → generate the rows that are missing → compose and install, printing a receipt as each stage lands (`--json` = one compact object per LINE; the last line is always the summary). **Only for an operator's explicit "drive it all the way" ask** — it auto-approves the turnaround, which is the last moment a reference can change. It stops on a handedness refusal and has no way to override one; it resumes rather than restarts (a stage whose work already exists is skipped, with the reason on the summary), so it is also the one-command repair after `reopen`; and it writes the same per-attempt history, so crops and `reopen` behave exactly as after a hand-driven run. **One command is still many stage changes: emit a `CHARSHEET-QA:` line for every receipt line it printed**, plus the `MEDIA:` lines. | `turnaround` or `rows` |
 | `reopen --draft <id>` | Back to `rows` for fixes. Installed sheet untouched. | `composed` |
 | `recolour --draft <id> --from <#rrggbb> --to <#rrggbb>` | Recolours ONE palette swatch: exact RGB match, alpha kept, transparent pixels never painted. Recorded in the draft's op log, so a recompose replays it. | `composed` |
 | `add-state --draft <id> --state <name>:<frames>[:fixed]` | Adds ONE state; seeds its rows un-generated, touches no approved attempt. | `rows` |
@@ -256,15 +262,6 @@ console's QA card lays those fields out one per row.
 - **Approving the turnaround is the last moment a reference can change.**
   `reopen` goes `composed → rows` and nothing goes back to `turnaround`, so QA
   that strip hard before `approve-direction --all`.
-- **Write facing in FRAME terms, three ways at once** — which way the body points
-  in frame, which shoulder is nearer, which side a sliver of face may appear on —
-  plus an explicit refusal of the mirror. "The viewer's right" is ambiguous on a
-  back view; "turn her the other way" and "face north-east" leave the same coin
-  flip that shipped a mirrored `ne`.
-- **When an operator reports two opposite directions wrong and the other six
-  right, suspect ONE authored row and its mirror**, not the consumer. Only the
-  authored directions are drawn; the consumer flips them, so one bad row breaks
-  exactly two. A consumer bug rarely spares six.
 - **If a verb cannot run, the session is restricted — not broken.** Confirm with
   one cheap verb, then say **"this session is restricted"** and name the way
   back: `agent_runtime.personas.<id>.chat_lane_restore_toolsets: [terminal]`. Do
@@ -297,10 +294,12 @@ one from disk when its trigger fires; never read `SKILL.md` or `FIELD-NOTES.md`.
 - **`references/handedness.md`** — the measurements behind the rules above: what
   each basis can and cannot see, and why the rotation refuses to rank. **Open
   when a refusal or warning names handedness, or when you are choosing between a
-  re-roll and an acceptance.**
+  re-roll and an acceptance, or when an operator reports two opposite
+  directions wrong.**
 - **`references/note-craft.md`** — the three reroll notes proven live, including
   the "MIRROR THE REFERENCE'S TURN" phrasing that landed a facing fix after two
-  failures. **Open before writing any `--note`.**
+  failures, and how to write facing in FRAME terms. **Open before writing any
+  `--note`.**
 - **`references/homes-and-migration.md`** — ROOT and home resolution in full, the
   relative-`HERMES_HOME` second-library trap, the `401 token_expired` stale-token
   trap on the provider probe, and the operator-only `backfill-home` /

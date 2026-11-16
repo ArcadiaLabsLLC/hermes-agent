@@ -84,7 +84,7 @@ class ShardPlan:
         k = self.counts.get(rel, 1)
         if k < 2:
             return []
-        return [(typed_via.Via.shard(i, k), ["-p", SHARD_PLUGIN, f"--hermes-shard={i}/{k}"]) for i in range(k)]
+        return [(typed_via.Via.shard(i, k), [typed_via.plugin_flag(SHARD_PLUGIN), f"--hermes-shard={i}/{k}"]) for i in range(k)]
 
 
 def recorded_tests(runs: Path) -> dict[str, int]:

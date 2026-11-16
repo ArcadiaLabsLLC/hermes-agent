@@ -20,6 +20,7 @@ from pathlib import Path
 from hermes_constants import get_process_hermes_home
 from agent_runtime.windows_system_path import augment_windows_system_path  # fork seam: Windows tooling PATH
 from agent_runtime.bash_resolution_memo import memoize_find_bash  # fork seam: no bash re-probe per command
+from agent_runtime.terminal_pinned_hermes import front_move_line, pinned_launcher_dir  # fork seam: the serving code's hermes first (RT-AGENT-TERMINAL-HERMES-RUNS-ANOTHER-INSTALL)
 from tools.environments.base import BaseEnvironment
 from tools.environments.base_output import _pipe_stdin
 from hermes_cli._subprocess_compat import windows_hide_flags
@@ -679,6 +680,7 @@ def _resolve_hermes_bin_dir() -> str | None:
     # A payload's venv also holds a `hermes`, but on Windows its redirector names the
     # build machine's interpreter, so PATH order must not decide which copy children get.
     payload_dir = payload_command_dir(Path(__file__).resolve().parents[2])
+    payload_dir = pinned_launcher_dir(payload_dir, Path(__file__).resolve().parents[2])  # fork seam: else the checkout's own .hermes/bin
     if payload_dir is not None and payload_dir.is_dir():
         _HERMES_BIN_DIR, _HERMES_BIN_DIR_IS_PAYLOAD = str(payload_dir), True
         return _HERMES_BIN_DIR
@@ -906,6 +908,7 @@ def _append_dropped_path_entries(cmd_string: str, parent_path: str) -> str:
     restore = (f"for __hermes_p in {' '.join(shlex.quote(d) for d in entries)}; do "
                'case ":$PATH:" in *":$__hermes_p:"*) ;; *) PATH="${PATH:+$PATH:}$__hermes_p" ;; esac; '
                "done; unset __hermes_p; export PATH")
+    restore += front_move_line(_resolve_hermes_bin_dir(), _HERMES_BIN_DIR_IS_PAYLOAD)  # fork seam: pinned hermes first after the profile
     return restore + "\n" + cmd_string
 
 

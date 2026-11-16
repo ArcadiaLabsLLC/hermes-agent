@@ -487,24 +487,61 @@ def _todo_state_items(todos: list[Any]) -> list[dict[str, str]]:
 _TODO_RESOLVED_STATUS = frozenset({"completed", "cancelled"})
 
 
+def _todo_outline(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """``items`` in the outline's reading order: every step follows its parent, children in the agent's order,
+    top-level steps in the agent's order; a step only a cycle reaches is read as top-level where it is first met.
+
+    The order Eternia's ``AgentPlan.outline`` (``lib/features/agent_console/plan/agent_plan.dart``) lists the plan
+    in, so the place :func:`_todo_plan_progress` names is the place the plan strip counts."""
+
+    children: dict[str, list[int]] = {}
+    for index, item in enumerate(items):
+        if item.get("parent"):
+            children.setdefault(item["parent"], []).append(index)
+    placed: set[int] = set()
+    ordered: list[dict[str, Any]] = []
+
+    def place(index: int) -> None:
+        stack = [index]
+        while stack:
+            at = stack.pop()
+            if at in placed:
+                continue
+            placed.add(at)
+            ordered.append(items[at])
+            stack.extend(reversed(children.get(items[at]["id"], [])))
+
+    for index, item in enumerate(items):
+        if not item.get("parent"):
+            place(index)
+    for index in range(len(items)):
+        place(index)
+    return ordered
+
+
 def _todo_plan_progress(todos: Any) -> dict[str, Any] | None:
-    """``{done, total, current}`` of a raw todo list, or None when there is no plan.
+    """``{done, total, current, current_index}`` of a raw todo list, or None when there is no plan.
 
     RT-RUNNING-CHAT-TURN-CARRIES-PLAN-PROGRESS: the running-work row's plan summary.
     Counted over the SAME bounded list :func:`_todo_state_items` emits; ``current`` is
-    the first in-progress step's text (capped like ``todo_state``), None when no step
-    is in progress. A summary, never the list: the running-work frame is frequent."""
+    the first in-progress step's text in the outline's reading order (capped like ``todo_state``),
+    ``current_index`` its 1-based place there (RT-PLAN-PROGRESS-NAMES-THE-CURRENT-STEPS-POSITION: the count
+    Eternia's plan strip shows, so the card no longer guesses done+1 for a plan worked out of order); both None
+    when no step is in progress. A summary, never the list: the running-work frame is frequent."""
 
     if not isinstance(todos, (list, tuple)):
         return None
     items = _todo_state_items(list(todos))
     if not items:
         return None
-    current = next((item["content"] for item in items if item["status"] == "in_progress"), None)
+    outline = _todo_outline(items)
+    # MUTATION: count over ``items`` (the agent's order) and test_a_child_in_progress_is_counted_at_its_place_in_the_outline reddens.
+    at = next((index for index, item in enumerate(outline) if item["status"] == "in_progress"), None)
     return {
         "done": sum(1 for item in items if item["status"] in _TODO_RESOLVED_STATUS),
         "total": len(items),
-        "current": current,
+        "current": None if at is None else outline[at]["content"],
+        "current_index": None if at is None else at + 1,
     }
 
 

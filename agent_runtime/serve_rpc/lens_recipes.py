@@ -14,7 +14,8 @@ list        {workspace_id?} -> {workspace_id, recipes: [row], held: [recipe_id],
             names each shelf document that will not read or is not filed where it says; ``held``
             is the recipes a realm pull parked — always empty until realm sync carries the family
 share       {monitor_id} -> row. Writes the monitor's SEALED manifest (never a draft) to its
-            workspace's shelf. ``monitor_not_found``, ``not_sealed``, ``recipe_needs_workspace``
+            workspace's shelf, over the recipe it shared before (a re-share is this same verb: no
+            withdraw first). ``monitor_not_found``, ``not_sealed``, ``recipe_needs_workspace``
             (the monitor has no workspace), ``recipe_not_portable`` (``detail`` names the feed: a
             command or SQL source is never shared), ``recipe_id_taken``
 withdraw    {workspace_id?, recipe_id} -> row (state ``withdrawn``). ``recipe_not_found``. A
@@ -22,18 +23,24 @@ withdraw    {workspace_id?, recipe_id} -> row (state ``withdrawn``). ``recipe_no
 add         {workspace_id?, recipe_id} -> the monitor, as ``runtime.lens.get`` answers it. A new
             DRAFT in that workspace, or a sealed monitor's next-revision draft when the workspace
             already holds that monitor (an update; the sealed revision keeps running unchanged, and
-            ``runtime.lens.draft.drop`` of that draft puts the recipe back to ``update_available``).
+            ``runtime.lens.draft.drop`` of that draft puts the recipe back to ``update_available``; an
+            update that moved a source reads ``draft_credentials`` unset there, and is signed in
+            before Seal with ``credential.set``'s ``monitor_id`` + ``revision: draft``).
             Its credential refs are renamed ``shared:<monitor_id>:<ref>`` and read ``set: false``;
             ``automation.actions`` is dropped. ``recipe_not_found``, ``recipe_withdrawn``,
             ``monitor_exists`` (the id is another workspace's monitor), ``capacity_refused``,
             ``monitor_retired``, ``invalid_string`` (a renamed ref past the id bound)
 ==========  ======================================================================================
 
-A row is ``{recipe_id, workspace_id, monitor_id, state, manifest, summary}``:
+A row is ``{recipe_id, workspace_id, monitor_id, state, changed_here, manifest, summary}``:
 
 * ``state`` — ``recipe_shelf.RECIPE_STATES`` over the shelf document and this PC's monitor of that
   id in that workspace: ``not_added`` · ``added`` (its ``recipe_hash`` is the document's) ·
   ``update_available`` (it is not) · ``withdrawn``;
+* ``changed_here`` — true when this PC's sealed revision is on the shelf's version (``state`` is
+  ``added``) and its person has changed and re-sealed it since: the shelf is behind this PC, and
+  ``share`` publishes the new version (``recipe_shelf.changed_here``; a field beside ``state``,
+  not a fifth state, so a client that reads only ``state`` still reads ``added``);
 * ``manifest`` — the shared manifest as published (null when withdrawn);
 * ``summary`` — ``{level, sources: [{feed_id, kind, host}], scheduled, needs_credentials: [ref],
   private_network, suggested_actions: [tool]}`` (null when withdrawn).
@@ -83,13 +90,14 @@ def _recipe(params: dict, required: set[str]):
 def _row(recipe, monitors: dict[str, dict]) -> dict:
     """``monitors``: this PC's monitors by id. Only one in the recipe's own workspace counts."""
 
-    from agent_runtime.lens.recipe_shelf import recipe_state, recipe_summary
+    from agent_runtime.lens.recipe_shelf import changed_here, recipe_state, recipe_summary
 
     monitor = monitors.get(recipe.monitor_id)
     if monitor is not None and monitor["workspace_id"] != recipe.workspace_id:
         monitor = None
     return {"recipe_id": recipe.recipe_id, "workspace_id": recipe.workspace_id, "monitor_id": recipe.monitor_id,
-            "state": recipe_state(recipe, monitor).value, "manifest": recipe.manifest,
+            "state": recipe_state(recipe, monitor).value, "changed_here": changed_here(recipe, monitor),
+            "manifest": recipe.manifest,
             "summary": None if recipe.withdrawn else recipe_summary(recipe.manifest)}
 
 

@@ -37,6 +37,36 @@ class DirectionStage:
         draft._save()
         return target
 
+    def generate_base_from_concept(self, provider=None) -> Path:
+        """Draw the base image from the draft's concept, when it has none.
+
+        The owner's ruling (2026-11-15, "both don't require a picture",
+        RT-CHARACTER-FROM-WORDS-ALONE-HAS-NO-BASE-IMAGE): a picture is optional.
+        ONE square, text-only generation, recorded through
+        :meth:`set_base_image` — the same setter the ``base --draft --image``
+        verb uses, so a drawn base and a given one are the same file in the same
+        place. Refused when the draft already has a base: a given picture wins,
+        and re-drawing someone's chosen anchor is never a side effect.
+
+        Locked like the other generating verbs; the base check runs inside the
+        lock so two callers cannot both draw one.
+        """
+        draft = self.draft
+        with draft.generation_lock("base"):
+            draft._require_stage("generate_base_from_concept")
+            if draft.base_image is not None:
+                raise ValueError(
+                    f"draft {draft.id} already has a base image ({draft.base_image.name}); "
+                    "a given picture wins — swap it with `base --draft <id> --image <path>`"
+                )
+            drawn = pipeline.generate_base_from_concept(
+                draft.concept,
+                style=draft.style,
+                provider=provider,
+                out=draft.directory / "base-from-concept.png",
+            )
+            return self.set_base_image(drawn)
+
     def run_turnaround(self, provider=None) -> dict:
         """One strip → an unapproved reference per authored direction.
 

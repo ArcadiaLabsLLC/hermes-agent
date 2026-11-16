@@ -151,3 +151,19 @@ def test_private_repo_url_answers_only_a_private_repository(monkeypatch, status,
     monkeypatch.setattr(gh, "urlopen", fake)
     assert gh.private_repo_url(_account(), "app") == answer
     assert fake.calls[0][:2] == ("GET", "https://api.github.com/repos/octo/app")
+
+
+def test_repo_exists_reads_200_as_taken_404_as_free_and_anything_else_as_unknown(monkeypatch):
+    """RT-BRAIN-REMOTE-OFFER-NAMES-A-FREE-REPOSITORY: the free-name check's one read. Mutation: return False for
+    any status other than 200 -> an unreadable name is called free, red."""
+    replies = {"taken": 200, "free": 404, "limited": 403}
+    seen = []
+
+    def fake(method, path, authorization, body=None, *, timeout=10.0):
+        seen.append((method, path))
+        return replies[path.rsplit("/", 1)[1]], {}
+
+    monkeypatch.setattr(gh, "_request", fake)
+    account = gh.GitHubAccount("octo", "test")
+    assert [gh.repo_exists(account, name) for name in ("taken", "free", "limited")] == [True, False, None]
+    assert seen[0] == ("GET", "/repos/octo/taken")

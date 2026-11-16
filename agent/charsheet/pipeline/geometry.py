@@ -167,6 +167,10 @@ _ROW_GEN_ATTEMPTS = 3
 # duplicating the strings.
 PREFIX_TURNAROUND = "charsheet_turnaround"
 
+#: Provider-file prefix for the base image drawn from the concept alone
+#: (:func:`agent.charsheet.pipeline.generate.generate_base_from_concept`).
+PREFIX_BASE_FROM_CONCEPT = "charsheet_base_from_concept"
+
 
 def view_prefix(direction: str) -> str:
     """Provider-file prefix for a single-view re-roll of *direction*."""

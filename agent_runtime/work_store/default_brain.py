@@ -17,8 +17,10 @@ binding to slot, and it opens only when the person asks (``runtime.work.create_b
 owner sitting 2026-11-02 on Eternia ``MC-BRAIN-MAKE-REMOTE-ON-GIT-CONNECT``: "never silent, never automatic",
 which retired the 2026-10-18 automatic promotion — RT-BRAIN-REMOTE-ONLY-WHEN-ASKED, after QA serves made
 repositories in a signed-in account). ``promote_default_brain``: the machine's own GitHub chain answers an account
-(``git_host_account.connected_github``) → a PRIVATE ``eternia-work-<slug>`` repo is created (an
-existing name is refused ``remote_exists``, never adopted) → ``git_remote_adopt.adopt_remote`` pushes
+(``git_host_account.connected_github``) → a PRIVATE ``eternia-work-<slug>`` repo is created — or, when the login
+already has that name, the first free ``eternia-work-<slug>-<n>`` the offer named (``free_brain_repo_name``,
+RT-BRAIN-REMOTE-OFFER-NAMES-A-FREE-REPOSITORY: a name already there may be another machine's brain; an existing
+repository is still refused ``remote_exists``, never adopted) → ``git_remote_adopt.adopt_remote`` pushes
 the brain with upstream → the binding records ``remote_url`` → slot ``brain`` is declared with
 ``workspace_slots.declare_one_slot`` and bound here where ``require_publish_right(ws, None)`` passes,
 else the entry is STAGED in the binding (``declaration.state == "pending"``) for the Launcher's next
@@ -31,7 +33,11 @@ in one commit with the IDs kept, and its binding then records the remote as decl
 (``_fold_local_brain``, RT-WORK-ADOPTED-BRAIN-BESIDE-LOCAL).
 The PERSONAL board promotes the same way, only on the press, to the fixed ``eternia-work-personal``
 (RT-PERSONAL-BRAIN-PROMOTE, retiring the 2026-10-26 "never gets a remote" contract); it has no slot document, so
-its remote stays the binding's and the board stays ``default_board``'s.
+its remote stays the binding's and the board stays ``default_board``'s. With no slot document no sync brings it to a
+SECOND machine, so that machine's press meets the repository its first machine made: it JOINS it when it is private
+and carries the skeleton's two notes, appending the local rows in one commit (``_adopt_personal_remote``,
+RT-PERSONAL-BRAIN-PRESS-ON-A-SECOND-MACHINE-HITS-ITS-OWN-REPOSITORY); any other repository of that name stays
+``remote_exists``.
 Pinned by ``tests/agent_runtime/work_store/test_default_brain.py``.
 """
 
@@ -81,6 +87,7 @@ __all__ = [
     "brain_repo_name",
     "detach_left_remote",
     "ensure_default_brain",
+    "free_brain_repo_name",
     "promote_default_brain",
     "remote_state",
     "skeleton",
@@ -139,7 +146,7 @@ def IDENTITY_PAIRS(machine: str) -> tuple[str, str]:
 def skeleton(root: Path) -> list[Path]:
     """Write the two notes under ``root`` (an existing note is left as it is); the paths, TODO first."""
 
-    notes = [(root / BRAIN_FOLDER / "TODO.md", TODO_TEMPLATE), (root / QUEUE_DIR / QUEUE_NOTE, QUEUE_TEMPLATE)]
+    notes = list(zip(_skeleton_notes(root), (TODO_TEMPLATE, QUEUE_TEMPLATE), strict=True))
     for path, text in notes:
         path.parent.mkdir(parents=True, exist_ok=True)
         if not path.exists():
@@ -212,6 +219,46 @@ def brain_repo_name(workspace_id: str) -> str:
     return ("eternia-work-" + (token or "workspace"))[:100]
 
 
+#: How many names the free-name check tries: ``eternia-work-<slug>``, then ``-2`` … ``-9``.
+FREE_NAME_TRIES = 9
+#: ``(login, workspace) -> (monotonic at, name)``: the offer's free name, memoised like the account probe
+#: (``git_host_account.CONNECTED_TTL_S``) — ``capabilities`` reads the offer often and each try is a GitHub read.
+_free_names: dict[tuple[str, str], tuple[float, str]] = {}
+
+
+def reset_free_name_cache() -> None:
+    _free_names.clear()
+
+
+def free_brain_repo_name(workspace_id: str, account: Any, *, fresh: bool = False) -> str:
+    """The repository name a press would create under ``account``: :func:`brain_repo_name` when the login has no
+    repository of that name, else the first of ``<name>-2`` … ``<name>-9`` it lacks
+    (RT-BRAIN-REMOTE-OFFER-NAMES-A-FREE-REPOSITORY; seen 2026-11-15: the offer named ``eternia-work-default``, which
+    the login already had, and the press could only answer ``remote_exists``). A name GitHub cannot answer for is
+    offered as it is (the press finds out); with every try taken the last is named and the press refuses it. Never
+    an adoption: an existing repository may be another machine's brain. The personal board's name is FIXED
+    (``PERSONAL_REPO_NAME``) and never probed. ``fresh`` (the press) skips the memo."""
+
+    from ..git_host_account import CONNECTED_TTL_S, repo_exists
+
+    base = brain_repo_name(workspace_id)
+    if workspace_id == PERSONAL_BOARD_ID:
+        return base
+    key = (str(account.login), workspace_id)
+    memo = _free_names.get(key)
+    if not fresh and memo is not None and time.monotonic() - memo[0] < CONNECTED_TTL_S:
+        return memo[1]
+    name = base
+    for attempt in range(1, FREE_NAME_TRIES + 1):
+        suffix = "" if attempt == 1 else f"-{attempt}"
+        name = base[: 100 - len(suffix)] + suffix
+        # MUTATION: treat every name as free (``if True``) and test_an_offer_skips_a_name_the_login_already_has reddens.
+        if repo_exists(account, name) is not True:
+            break
+    _free_names[key] = (time.monotonic(), name)
+    return name
+
+
 def _brain_entry(url: str) -> dict[str, Any]:
     return {"name": DEFAULT_BRAIN_SLOT, "repo": {"clone_url": url, "default_branch": "main"},
             "toolchain": {"kind": "brain"},
@@ -261,9 +308,23 @@ def promote_default_brain(workspace_id: str, *, issued_at: str) -> dict[str, Any
         raise _refuse_promotion(workspace_id, Reason.NEEDS_GIT_ACCOUNT, "no GitHub credential on this machine answers",
                                 issued_at=issued_at, back_off=False)
     try:
-        url = create_private_repo(account, brain_repo_name(workspace_id))
+        url = create_private_repo(account, free_brain_repo_name(workspace_id, account, fresh=True))
         adopt_remote(root, url, branch=str(record.get("default_branch") or "main"))
     except GitHostRefused as refused:
+        _free_names.pop((str(account.login), workspace_id), None)  # the next offer looks again
+        if workspace_id == PERSONAL_BOARD_ID and refused.reason is Reason.REMOTE_EXISTS:
+            try:
+                # MUTATION: skip this join and test_a_second_machines_personal_press_joins_its_first_machines_
+                # repository reddens ``remote_exists`` (the refusal the row reported).
+                joined = _adopt_personal_remote(record, account, issued_at)
+            except WorkRefused as clash:
+                raise _refuse_promotion(workspace_id, clash.reason, clash.detail, issued_at=issued_at,
+                                        back_off=True) from None
+            if joined is not None:
+                receipt = receipts.emit("work.brain_promoted", workspace_id=workspace_id, url=joined,
+                                        declaration="personal")
+                return {"outcome": "joined", "url": joined, "declaration": {"state": "personal"},
+                        "receipt": receipt}
         raise _refuse_promotion(workspace_id, refused.reason, refused.detail, issued_at=issued_at,
                                 back_off=True) from None
     except AdoptRefused as refused:
@@ -354,9 +415,6 @@ def _fold_local_brain(workspace_id: str, issued_at: str) -> Board | None:
     None when there is nothing to fold.
     """
 
-    from .grammar import Op, RowRef
-    from .writer import RowOp, Writer
-
     record = read_binding(workspace_id)
     local = default_board(workspace_id)
     url = (_declared_brain(workspace_id).get("repo") or {}).get("clone_url")
@@ -369,26 +427,92 @@ def _fold_local_brain(workspace_id: str, issued_at: str) -> Board | None:
     if adopted is None:
         return None
     lines = [row.raw for row in board_rows(local)]
-    commit = None
-    if lines:
-        first = next((row.ref.id for row in board_rows(local) if row.ref.id), None)
-        machine = this_machine()
-        request = re.sub(r"[^A-Za-z0-9_.:-]+", "-", f"brain-fold.{paths.safe_path_token(workspace_id)}.{machine}")[:200]
-        ref = RowRef(DEFAULT_BRAIN_SLOT, f"{QUEUE_DIR}/{QUEUE_NOTE}", str(first or ""))
-        try:
-            receipt = Writer(adopted, machine_id=machine).apply(
-                RowOp(ref, Op.APPEND, "harness", request, {"rows": lines, "files": {}}))
-        except WorkRefused as refused:
-            _write_binding(workspace_id, {**record, "fold_refused": {"reason": refused.reason.value, "at": issued_at}})
-            receipts.emit("work.brain_fold_refused", workspace_id=workspace_id, reason=refused.reason.value,
-                          detail=refused.detail)
-            return None
-        commit = receipt.commit
+    try:
+        commit = _append_rows(adopted, local, workspace_id)
+    except WorkRefused as refused:
+        _write_binding(workspace_id, {**record, "fold_refused": {"reason": refused.reason.value, "at": issued_at}})
+        receipts.emit("work.brain_fold_refused", workspace_id=workspace_id, reason=refused.reason.value,
+                      detail=refused.detail)
+        return None
     _write_binding(workspace_id, {**record, "remote_url": url, "declaration": {"state": "declared"},
                                   "folded_into": url, "folded_at": issued_at, "fold_commit": commit,
                                   "fold_refused": None})
     receipts.emit("work.brain_folded", workspace_id=workspace_id, url=url, rows=len(lines), commit=commit)
     return _declared_brain_board(workspace_id, url)
+
+
+def _append_rows(adopted: Board, local: Board, workspace_id: str) -> str | None:
+    """Append every row of ``local`` to ``adopted``'s queue note in ONE writer commit, IDs and lines kept;
+    the commit (None: no rows). A clash, a grammar defect or a push failure raises :class:`WorkRefused`."""
+
+    from .grammar import Op, RowRef
+    from .writer import RowOp, Writer
+
+    rows = board_rows(local)
+    if not rows:
+        return None
+    first = next((row.ref.id for row in rows if row.ref.id), None)
+    machine = this_machine()
+    request = re.sub(r"[^A-Za-z0-9_.:-]+", "-", f"brain-fold.{paths.safe_path_token(workspace_id)}.{machine}")[:200]
+    ref = RowRef(DEFAULT_BRAIN_SLOT, f"{QUEUE_DIR}/{QUEUE_NOTE}", str(first or ""))
+    receipt = Writer(adopted, machine_id=machine).apply(
+        RowOp(ref, Op.APPEND, "harness", request, {"rows": [row.raw for row in rows], "files": {}}))
+    return receipt.commit
+
+
+def _adopt_personal_remote(record: dict[str, Any], account: Any, issued_at: str) -> str | None:
+    """The person's own ``eternia-work-personal``, made by their FIRST machine, joined by this one's press
+    (RT-PERSONAL-BRAIN-PRESS-ON-A-SECOND-MACHINE-HITS-ITS-OWN-REPOSITORY): the personal board declares no slot,
+    so no sync brings it here and the press's create met ``remote_exists``. The repository is cloned beside the
+    local brain only when it is PRIVATE and carries the personal skeleton's two notes (:func:`skeleton`); the
+    local rows are appended in one commit, IDs kept, and the binding moves to the clone. The URL, or None (not
+    the person's brain: the press stays refused ``remote_exists``). A clash or a push failure raises
+    :class:`WorkRefused` with the binding and both brains as they were."""
+
+    import shutil
+
+    from ..git_cmd import run_git
+    from ..git_host_account import private_repo_url
+    from ..git_remote_adopt import AdoptRefused, adopt_remote
+
+    url = private_repo_url(account, PERSONAL_REPO_NAME)
+    local = default_board(PERSONAL_BOARD_ID)
+    if url is None or local is None:
+        return None
+    root = Path(str(record["path"]))
+    branch = str(record.get("default_branch") or "main")
+    target = root.with_name(root.name + "-remote")
+    shutil.rmtree(target, ignore_errors=True)  # a clone an earlier refused press left
+    target.mkdir(parents=True)
+    run_git(["init", "-q", "-b", branch], repo=target, timeout=60, stdin=subprocess.DEVNULL)
+    try:
+        adopt_remote(target, url, branch=branch)
+    except AdoptRefused:
+        shutil.rmtree(target, ignore_errors=True)
+        return None
+    # MUTATION: drop this check and test_a_second_machine_never_joins_a_repository_that_is_not_a_personal_brain
+    # reddens: an unrelated private repository of that name is taken as the brain.
+    if not all(note.is_file() for note in _skeleton_notes(target)):
+        shutil.rmtree(target, ignore_errors=True)
+        return None
+    joined = {**record, "path": str(target), "remote_url": url, "promoted_at": issued_at,
+              "remote_owner": account.login, "promote_refused": None, "left_remote": None,
+              "joined_from": str(root), "joined_at": issued_at}
+    _write_binding(PERSONAL_BOARD_ID, joined)
+    try:
+        commit = _append_rows(default_board(PERSONAL_BOARD_ID), local, PERSONAL_BOARD_ID)
+    except WorkRefused:
+        _write_binding(PERSONAL_BOARD_ID, record)
+        shutil.rmtree(target, ignore_errors=True)
+        raise
+    _write_binding(PERSONAL_BOARD_ID, {**joined, "fold_commit": commit})
+    receipts.emit("work.brain_joined", workspace_id=PERSONAL_BOARD_ID, url=url, rows=len(board_rows(local)),
+                  commit=commit)
+    return url
+
+
+def _skeleton_notes(root: Path) -> list[Path]:
+    return [root / BRAIN_FOLDER / "TODO.md", root / QUEUE_DIR / QUEUE_NOTE]
 
 
 def remote_state(workspace_id: str) -> dict[str, Any] | None:
@@ -397,8 +521,8 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
     ``remote`` (declared), ``remote_pending_declare`` (+ ``clone_url``, ``slot``), ``remote_refused``
     (+ ``reason``, ``retry_after``); a local brain stays ``present`` (the tree's word for the plan's ``local``)
     with ``reason: needs_git_account`` on an unconnected machine and ``reason: remote_offered`` +
-    ``git_account`` (the login a press would create the repository under) on a connected one — an offer,
-    never an action (RT-BRAIN-REMOTE-ONLY-WHEN-ASKED). A brain let go of a left server's repository
+    ``git_account`` (the login a press would create the repository under) + ``repo_name`` (the free name it would
+    create, :func:`free_brain_repo_name`) on a connected one — an offer, never an action (RT-BRAIN-REMOTE-ONLY-WHEN-ASKED). A brain let go of a left server's repository
     (``left_remote``) is not offered: its Work belongs to the team's work (owner 2026-11-12); the press still
     promotes it.
     """
@@ -429,7 +553,7 @@ def remote_state(workspace_id: str) -> dict[str, Any] | None:
     if record.get("left_remote"):
         return None
     return {"state": "present", "reason": REMOTE_OFFERED, "git_account": account.login,
-            "repo_name": brain_repo_name(workspace_id)}
+            "repo_name": free_brain_repo_name(workspace_id, account)}
 
 
 def detach_left_remote(workspace_id: str, *, at: str) -> str | None:
