@@ -12,9 +12,11 @@ the one state the poller reads (``LensPoller._enabled``) — is the operator's
   ``runtime.lens.enable`` — killed by ``LensStore.create`` inserting ``MonitorState.ENABLED``
   (or ``seal`` setting it);
 * the only caller of ``set_state`` and the only SQL that moves a monitor's state are the
-  operator's RPC and the store itself, and no sync / remote / template module imports Lens —
-  killed by adding ``from agent_runtime.lens.store import LensStore`` to
-  ``agent_runtime/office_sync.py``.
+  operator's RPC and the store itself, and no sync / remote / template module imports Lens but
+  realm sync's four shelf carriers, through ``lens.recipe_shelf`` alone (row
+  ``RT-LENS-RECIPE-REALM-SYNC-FAMILY``) — killed by adding
+  ``from agent_runtime.lens.store import LensStore`` to ``agent_runtime/office_sync.py`` or to
+  ``agent_runtime/realm_sync/pull.py``.
 """
 
 from __future__ import annotations
@@ -88,24 +90,52 @@ def test_only_the_operator_rpc_and_the_store_move_a_monitors_state():
     assert writers == {"agent_runtime/lens/store.py"}, writers
 
 
-def test_no_sync_remote_or_template_module_reaches_lens():
+#: The realm-sync modules that carry the shared recipe SHELF (row RT-LENS-RECIPE-REALM-SYNC-FAMILY):
+#: each reaches Lens through ``lens.recipe_shelf`` and nothing else, and the shelf never imports
+#: ``lens.store`` (``test_lens_recipe_shelf.py``), so nothing synced can create, seal or enable.
+SHELF_CARRIERS = {
+    "agent_runtime/realm_sync/publish.py",
+    "agent_runtime/realm_sync/publish_scans.py",
+    "agent_runtime/realm_sync/pull.py",
+    "agent_runtime/realm_sync/status.py",
+}
+RECIPE_SHELF = "agent_runtime.lens.recipe_shelf"
+
+
+def _lens_module(name: str, node: ast.AST) -> list[str]:
+    """The ``agent_runtime.lens…`` modules one import node of ``name`` names, absolute."""
+
+    if isinstance(node, ast.Import):
+        modules = [alias.name for alias in node.names]
+    elif isinstance(node, ast.ImportFrom):
+        if node.level:
+            package = Path(name).with_suffix("").parts[: -node.level]
+            base = ".".join((*package, *(node.module.split(".") if node.module else [])))
+        else:
+            base = node.module or ""
+        modules = [f"{base}.{alias.name}" if base == "agent_runtime.lens" else base for alias in node.names]
+    else:
+        return []
+    return [module for module in modules if module == "agent_runtime.lens" or module.startswith("agent_runtime.lens.")]
+
+
+def test_no_sync_remote_or_template_module_reaches_lens_but_through_the_recipe_shelf():
     """A module that carries a workspace between machines must not write Lens rows: the recipe
-    arrives OFF only while nothing synced can reach the store. Sharing a recipe is built as its
-    own door that writes a DRAFT, and this list then names it."""
+    arrives OFF only while nothing synced can reach the store. Realm sync carries the recipe shelf,
+    and the carriers that import Lens are exactly :data:`SHELF_CARRIERS`, each importing only
+    ``lens.recipe_shelf``."""
 
     carriers = re.compile(r"(sync|remote|adopt|template|_take|_merge)")
-    reaching, checked = [], set()
+    reaching: dict[str, set[str]] = {}
+    checked = set()
     for name, text in _sources().items():
         if name.startswith("agent_runtime/lens/") or not carriers.search(name):
             continue
         checked.add(name)
         for node in ast.walk(ast.parse(text)):
-            modules = ([alias.name for alias in node.names] if isinstance(node, ast.Import)
-                       else [node.module or ""] if isinstance(node, ast.ImportFrom) else [])
-            if any(module == "agent_runtime.lens" or module.startswith("agent_runtime.lens.")
-                   or (isinstance(node, ast.ImportFrom) and node.level and module.split(".")[0] == "lens")
-                   for module in modules):
-                reaching.append(name)
+            for module in _lens_module(name, node):
+                reaching.setdefault(name, set()).add(module)
     assert {"agent_runtime/office_sync.py", "agent_runtime/git_remote_adopt.py",
             "agent_runtime/workspace_template.py"} <= checked  # the scan is not empty by accident
-    assert reaching == [], reaching
+    assert set(reaching) == SHELF_CARRIERS, reaching
+    assert all(modules == {RECIPE_SHELF} for modules in reaching.values()), reaching

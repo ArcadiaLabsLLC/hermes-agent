@@ -27,7 +27,7 @@ from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
+from agent_runtime.realm_rekey import RekeyMap
 
 from agent_runtime import paths
 from agent_runtime.events import EventLog
@@ -166,10 +166,10 @@ def test_a_realm_rekey_of_the_lens_store_moves_the_revision(isolate_agent_runtim
 
     LensStore().create(_manifest(), workspace_id="ws_old")
     before = lens_revision()
-    _rekey_lens(SimpleNamespace(workspaces={"ws_old": "ws_new"}))
+    _rekey_lens(RekeyMap(realm_old="realm_old", realm_new="realm_new", workspaces={"ws_old": "ws_new"}))
     assert LensStore().get("status")["workspace_id"] == "ws_new"
     assert lens_revision() == before + 1
-    _rekey_lens(SimpleNamespace(workspaces={"ws_absent": "ws_other"}))  # changed nothing
+    _rekey_lens(RekeyMap(realm_old="realm_old", realm_new="realm_new", workspaces={"ws_absent": "ws_other"}))  # changed nothing
     assert lens_revision() == before + 1
 
 

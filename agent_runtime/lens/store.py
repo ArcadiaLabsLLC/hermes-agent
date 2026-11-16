@@ -34,6 +34,9 @@ of it — written here and nowhere else:
   that draft: ``seal`` moves it to ``recipe_hash``, ``drop_draft`` forgets it, and a hand rewrite
   of the draft keeps it. NULL: no draft, or one no recipe wrote.
 
+A realm re-key rewrites each shelf document's ``workspace_id``, so its hash moves:
+:func:`rekey_recipe_marks` moves both marks with it, on the re-key's own connection.
+
 One mark could not say both: after an update is added over a sealed monitor, dropping its draft
 must read the OLD version and sealing it the NEW one, so both hashes are held until the person
 chooses (row ``RT-LENS-RECIPE-DROPPED-UPDATE-STILL-READS-ADDED``). A monitor ANSWERS one
@@ -881,6 +884,18 @@ def _add_recipe_hash(conn: sqlite3.Connection) -> None:
     for column in ("recipe_hash", "draft_recipe_hash"):
         if column not in held:
             conn.execute(f"ALTER TABLE monitors ADD COLUMN {column} TEXT")
+
+
+def rekey_recipe_marks(conn: sqlite3.Connection, pairs: list[tuple[str, str]]) -> None:
+    """Move each ``(new, old)`` recipe mark to the re-keyed shelf document's hash, inside the realm
+    re-key's own transaction (``realm_rekey_outside._rekey_lens``). The re-key rewrites each shelf
+    document's ``workspace_id``, so its hash moves; without this every added or shared recipe of a
+    re-keyed workspace would read ``update_available`` over the very version it runs."""
+
+    if not pairs or not {"recipe_hash", "draft_recipe_hash"} <= {row[1] for row in conn.execute("PRAGMA table_info(monitors)")}:
+        return
+    conn.executemany("UPDATE monitors SET recipe_hash = ? WHERE recipe_hash = ?", pairs)
+    conn.executemany("UPDATE monitors SET draft_recipe_hash = ? WHERE draft_recipe_hash = ?", pairs)
 
 
 def _add_route_auth(conn: sqlite3.Connection) -> None:
