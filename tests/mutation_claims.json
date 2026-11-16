@@ -2475,7 +2475,7 @@
       "path": "agent_runtime/realm_revert.py",
       "symbol": "_FAMILY_ARMS",
       "operator": "drop-the-family-from-the-revert-selector",
-      "find": "    DRIFT_FAMILY_PERSONA_INSTANCE: FamilyArm(\n        0, lambda up, _container, key: up._instance(key), \"instances\", _apply_store_row,\n        _refuse_persona_instance_door,\n    ),\n",
+      "find": "    DRIFT_FAMILY_PERSONA_INSTANCE: FamilyArm(\n        0, lambda up, _container, key: up._instance(key), \"instances\", _apply_store_row,\n        _refuse_persona_instance_door, instance_baseline_after_revert,\n    ),\n",
       "replace": "",
       "test": [
         "{python}",
@@ -3991,10 +3991,10 @@
     {
       "id": "ir-heal-records-drops-no-parent-can-repair",
       "path": "agent_runtime/persona_instance_sync/pull.py",
-      "symbol": "PullPass._record_still_absent",
+      "symbol": "_record_still_absent",
       "operator": "record-every-drop-not-just-parent-absent",
-      "find": "            {str(row.get(\"parent\") or \"\") for row in dropped if row.get(\"reason\") == \"parent_absent\"}",
-      "replace": "            {str(row.get(\"parent\") or \"\") for row in dropped}",
+      "find": "        {str(row.get(\"parent\") or \"\") for row in dropped if row.get(\"reason\") == \"parent_absent\"} - {\"\"}",
+      "replace": "        {str(row.get(\"parent\") or \"\") for row in dropped} - {\"\"}",
       "test": [
         "{python}",
         "-m",

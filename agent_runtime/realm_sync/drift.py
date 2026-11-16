@@ -551,10 +551,13 @@ def _persona_instance_store_drift_items(
         instance_baseline_key,
         persona_instance_def_hash,
         project_persona_instance,
+        read_dropped_steering_ledger,
         read_persona_instance_baseline,
     )
+    from ..persona_instance_sync.pull import body_as_pulled
 
     baseline = read_persona_instance_baseline(realm_id)
+    ledger = read_dropped_steering_ledger(realm_id)
     try:
         scan = PersonaInstanceStore().scan_all()
     except Exception:  # an unreadable listing is not evidence of removal
@@ -576,7 +579,13 @@ def _persona_instance_store_drift_items(
             continue
         current_ids.add(instance.id)
         base_hash = baseline.get(instance_baseline_key(instance.id))
-        body_hash = persona_instance_def_hash(project_persona_instance(instance))
+        body = project_persona_instance(instance)
+        # A replica the pull minted with an edge dropped (its parent is absent here) is counted
+        # against the realm's body, read from the pull's own ledger — never as a local change
+        # nobody made (RT-REALM-PULL-SHOWS-AN-UNTOUCHED-AGENT-AS-CHANGED).
+        # MUTATION: drop this read and test_the_owners_three_rounds_pull_revert_all_pull_never_show_the_agent_changed reddens.
+        body = body_as_pulled(ledger, baseline, instance.id, body) or body
+        body_hash = persona_instance_def_hash(body)
         if base_hash is None:
             kind = DRIFT_KIND_ADDED
         elif base_hash != body_hash:

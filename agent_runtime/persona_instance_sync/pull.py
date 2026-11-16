@@ -187,6 +187,91 @@ def _healable_dropped_parents(
     expected = persona_instance_def_hash(_remote_body_without_edges(remote_body, parents))
     return parents if expected == local_hash else []
 
+def _record_still_absent(store, next_ledger, instance_id: str, remote_body: dict[str, Any], dropped) -> None:
+    """Record a row's ``parent_absent`` drops for a later heal, with the body as minted.
+
+    Only ``parent_absent`` is recorded. A self edge and a cycle are refusals of
+    the remote GRAPH — no parent is ever going to arrive and make them valid — so
+    re-entering phase two for them every pull would re-report a verdict that
+    cannot change.
+
+    ``minted_hash`` (the replica's projection hash right after the drop) and
+    ``steered_by`` (the realm's list) let the drift walk, the publish projection
+    and the revert tell this lane's own lossy write from an operator's edit
+    (:func:`body_as_pulled`; RT-REALM-PULL-SHOWS-AN-UNTOUCHED-AGENT-AS-CHANGED).
+    A replica that will not read back is recorded without them: the heal still
+    works, and the row reads as drift, the old answer.
+    """
+
+    still_absent = sorted(
+        {str(row.get("parent") or "") for row in dropped if row.get("reason") == "parent_absent"} - {""}
+    )
+    if not still_absent:
+        next_ledger.pop(instance_id, None)
+        return
+    entry: dict[str, Any] = {
+        "parents": still_absent,
+        # The hash the drop was taken AGAINST, so a realm that moves the
+        # body afterwards invalidates this entry by construction rather
+        # than by an expiry rule.
+        "remote_hash": persona_instance_def_hash(remote_body),
+        "steered_by": [str(item) for item in (remote_body.get("steered_by") or [])],
+    }
+    try:
+        # MUTATION: drop this line and test_the_owners_three_rounds_pull_revert_all_pull_never_show_the_agent_changed reddens.
+        entry["minted_hash"] = persona_instance_def_hash(project_persona_instance(store.get(instance_id)))
+    except Exception:  # see the docstring: the heal half still stands
+        pass
+    next_ledger[instance_id] = entry
+
+
+def body_as_pulled(
+    ledger: dict[str, dict[str, Any]], baseline: dict[str, str], instance_id: str, local_body: dict[str, Any]
+) -> dict[str, Any] | None:
+    """The realm's body for a replica that is EXACTLY what the pull minted, else ``None``.
+
+    A pulled agent whose steering parent is absent here is minted with the edge
+    dropped, and its baseline is the REMOTE hash (``PullPass._settle``). Every
+    reader that compares the replica with the realm — the drift walk, the
+    publish projection, the revert's baseline — asks this instead of reading the
+    edge-less projection as a local change. Three checks, all from the ledger
+    this pull wrote (its one owner of what was dropped):
+
+    * the baseline is still the hash the drop was taken against (the realm has
+      not moved, and nothing re-settled the row since);
+    * the replica's projection is the body as minted (``minted_hash``) — an
+      operator's later re-steer, rename or model change is a real change;
+    * the minted body with the realm's ``steered_by`` back hashes to that remote
+      hash, so what is handed back is the realm's body byte for byte.
+    """
+
+    entry = ledger.get(instance_id)
+    if not entry or not entry.get("steered_by") or not entry.get("minted_hash"):
+        return None
+    remote_hash = entry.get("remote_hash")
+    if baseline.get(instance_baseline_key(instance_id)) != remote_hash:
+        return None
+    # MUTATION: skip this check and test_a_re_steer_on_top_of_a_dropped_edge_is_still_a_local_change reddens.
+    if persona_instance_def_hash(local_body) != entry["minted_hash"]:
+        return None
+    body = {**local_body, "steered_by": list(entry["steered_by"])}
+    return body if persona_instance_def_hash(body) == remote_hash else None
+
+
+def settle_reverted_instance(realm_id: str, store, instance_id: str, remote_body: dict[str, Any]) -> None:
+    """A revert that wrote the realm's body applies its steering through the pull's own phase-two door
+    and records any dropped edge in the ledger exactly as a pull would, so the baseline the revert then
+    takes (``body_as_pulled``) is the one the next pull agrees with — never the edge-less hash, which made
+    that pull take the body again and reset the baseline (RT-REALM-PULL-SHOWS-AN-UNTOUCHED-AGENT-AS-CHANGED).
+    The ledger is otherwise the pull's alone; this merges the one row the revert wrote."""
+
+    parents = [str(item) for item in (remote_body.get("steered_by") or [])]
+    _applied, dropped = store.apply_replicated_steering(instance_id, parents, realm_id=realm_id)
+    ledger = read_dropped_steering_ledger(realm_id)
+    _record_still_absent(store, ledger, instance_id, canonical_instance_body(remote_body), dropped)
+    write_dropped_steering_ledger(realm_id, ledger)
+
+
 @dataclass(slots=True)
 class _RowContext:
     """One pulled row as phase one decided it — the input every row handler reads."""
@@ -405,29 +490,10 @@ class PullPass:
                 continue
             for row in dropped:
                 self.summary.steering_dropped.append({"key": instance_id, **row})
-            self._record_still_absent(next_ledger, instance_id, remote_body, dropped)
+            _record_still_absent(self.store, next_ledger, instance_id, remote_body, dropped)
             if pending is not None:
                 self._settle_heal(instance_id, pending, applied)
         return next_ledger
-
-    @staticmethod
-    def _record_still_absent(next_ledger, instance_id: str, remote_body: dict[str, Any], dropped) -> None:
-        # Only ``parent_absent`` is recorded for a later heal. A self edge and a
-        # cycle are refusals of the remote GRAPH — no parent is ever going to
-        # arrive and make them valid — so re-entering phase two for them every
-        # pull would re-report a verdict that cannot change.
-        still_absent = sorted(
-            {str(row.get("parent") or "") for row in dropped if row.get("reason") == "parent_absent"}
-            - {""}
-        )
-        if still_absent:
-            next_ledger[instance_id] = {
-                "parents": still_absent,
-                # The hash the drop was taken AGAINST, so a realm that moves the
-                # body afterwards invalidates this entry by construction rather
-                # than by an expiry rule.
-                "remote_hash": persona_instance_def_hash(remote_body),
-            }
 
     def _settle_heal(self, instance_id: str, pending: list[str], applied) -> None:
         healed = [parent for parent in pending if parent in applied]

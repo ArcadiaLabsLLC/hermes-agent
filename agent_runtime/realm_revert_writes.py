@@ -223,6 +223,11 @@ def _adopt_from_upstream(
         except Exception:
             existing = None
         store.replicate_instance(entity, realm_id=str(realm_id or ""), adopt_existing=existing)
+        # The realm's steering too, through the pull's phase-two door, and any dropped edge recorded
+        # in the pull's ledger, so the baseline below is the one the next pull agrees with.
+        from .persona_instance_sync.pull import settle_reverted_instance
+
+        settle_reverted_instance(str(realm_id or ""), store, item.item_key, entity)
         return
     if item.family == DRIFT_FAMILY_OFFICE_ACTOR:
         entity.workspace_id = item.container
@@ -387,3 +392,34 @@ def _current_content_hash(item: StoreDriftItem, *, office_store, board_store) ->
     if item.family == DRIFT_FAMILY_BOARD:
         return board_models.board_content_hash(board_store.get(item.container))
     return board_models.board_content_hash(board_store.get_card(item.item_key, board_id=item.container))
+
+
+def instance_baseline_after_revert(item: Any, realm_id: str | None) -> str:
+    """The instance arm's baseline after a revert wrote the realm's body: the REALM's hash when the replica
+    is exactly what the pull's door minted from it (an absent steering parent dropped,
+    ``persona_instance_sync.pull.body_as_pulled``), else the replica's own hash as before.
+
+    Realigning to the edge-less hash made the next pull read "local unchanged, realm moved", take the body
+    again and reset the baseline: the owner's loop (RT-REALM-PULL-SHOWS-AN-UNTOUCHED-AGENT-AS-CHANGED).
+    MUTATION: answer ``local`` alone and
+    test_a_real_edit_reverted_leaves_the_baseline_the_next_pull_agrees_with reddens."""
+
+    from .persona_assignments import PersonaInstanceStore
+    from .persona_instance_sync import (
+        persona_instance_def_hash,
+        project_persona_instance,
+        read_dropped_steering_ledger,
+    )
+    from .persona_instance_sync.pull import body_as_pulled
+    from .persona_instance_sync.sidecars import instance_baseline_key
+
+    body = project_persona_instance(PersonaInstanceStore().get(item.item_key))
+    local = persona_instance_def_hash(body)
+    if not realm_id:
+        return local
+    ledger = read_dropped_steering_ledger(realm_id)
+    entry = ledger.get(item.item_key) or {}
+    # ``body_as_pulled`` reads the baseline the revert is about to replace; ask it as the pull settled it.
+    settled = {instance_baseline_key(item.item_key): str(entry.get("remote_hash") or "")}
+    pulled = body_as_pulled(ledger, settled, item.item_key, body)
+    return persona_instance_def_hash(pulled) if pulled is not None else local

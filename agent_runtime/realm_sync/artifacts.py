@@ -230,6 +230,7 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     instance_projection, instance_rows_unreadable = _persona_instance_projection(
         office_scan.instance_ids
     )
+    instance_projection = _with_pulled_steering(instance_projection, realm_id)
     if instance_projection.instances:
         artifacts.append(_persona_instance_artifact(instance_projection))
     portrait_artifacts, portrait_withheld = _instance_portrait_artifacts(instance_projection)
@@ -313,6 +314,25 @@ def _persona_instance_projection(instance_ids: list[str]):
     except Exception:  # accounted below, never a failed publish
         records, unreadable = {}, 0
     return project_persona_instances(wanted, records=records), unreadable
+
+
+def _with_pulled_steering(projection, realm_id: str):
+    """The projection with each replica the pull minted edge-less (its steering parent is absent here)
+    put back as the realm's body (``persona_instance_sync.pull.body_as_pulled``): this machine's publish
+    never strips a steering edge from the team's copy, and the publish compare the status flag asks sees
+    nothing waiting for an agent nobody touched (RT-REALM-PULL-SHOWS-AN-UNTOUCHED-AGENT-AS-CHANGED)."""
+
+    from ..persona_instance_sync import read_dropped_steering_ledger, read_persona_instance_baseline
+    from ..persona_instance_sync.pull import body_as_pulled
+
+    ledger = read_dropped_steering_ledger(realm_id)
+    if not ledger:
+        return projection
+    baseline = read_persona_instance_baseline(realm_id)
+    for instance_id, body in list(projection.instances.items()):
+        # MUTATION: skip this and test_the_members_publish_carries_the_realms_steering_back_out reddens.
+        projection.instances[instance_id] = body_as_pulled(ledger, baseline, instance_id, body) or body
+    return projection
 
 
 def realm_workspace_ids(realm: Realm) -> list[str]:

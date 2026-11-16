@@ -99,6 +99,7 @@ from .realm_revert_writes import (  # REVERT_ACTOR_REF is re-exported
     _apply_skill,
     _apply_store_row,
     _current_content_hash,
+    instance_baseline_after_revert,
     _refuse_flow_graph,
 )
 from .store import RealmStore
@@ -718,7 +719,7 @@ def _revert_one(
 
     _realign_baseline(
         item, decision.action, baseline, key, row,
-        office_store=office_store, board_store=board_store,
+        office_store=office_store, board_store=board_store, realm_id=realm_id,
     )
     return row
 
@@ -805,8 +806,8 @@ class FamilyArm:
     baseline: str
     apply: Callable[..., None]
     refuse_door: Callable[[str, Any], Any] | None = None
-    #: The post-write content hash; ``None`` = ``realm_revert_writes._current_content_hash``.
-    content_hash: Callable[[StoreDriftItem], str] | None = None
+    #: The post-write baseline hash, ``(item, realm_id)``; ``None`` = ``realm_revert_writes._current_content_hash``.
+    content_hash: Callable[[StoreDriftItem, str | None], str] | None = None
 
 
 #: Rows before containers, and the CANVAS after the agents it binds. A restored
@@ -830,7 +831,7 @@ _FAMILY_ARMS: dict[str, FamilyArm] = {
     DRIFT_FAMILY_BOARD_CARD: FamilyArm(0, _Upstream._board_card, "board", _apply_store_row),
     DRIFT_FAMILY_PERSONA_INSTANCE: FamilyArm(
         0, lambda up, _container, key: up._instance(key), "instances", _apply_store_row,
-        _refuse_persona_instance_door,
+        _refuse_persona_instance_door, instance_baseline_after_revert,
     ),
     DRIFT_FAMILY_SKILL: FamilyArm(
         0, lambda up, _container, key: up._skill(key), "skills", _apply_skill, _refuse_skill_door
@@ -846,11 +847,12 @@ _FAMILY_ARMS: dict[str, FamilyArm] = {
         _refuse_flow_graph_door,
     ),
     SyncFamily.LEVEL: FamilyArm(
-        0, _Upstream._level, "levels", apply_level, refuse_level_door, level_content_hash
+        0, _Upstream._level, "levels", apply_level, refuse_level_door,
+        lambda item, _realm_id: level_content_hash(item),
     ),
     SyncFamily.LENS_RECIPE: FamilyArm(
         0, _Upstream._lens_recipe, "lens_recipes", apply_lens_recipe, refuse_lens_recipe_door,
-        lens_recipe_content_hash,
+        lambda item, _realm_id: lens_recipe_content_hash(item),
     ),
 }
 #: The revert-addressable families and their sort bands, read off the table.
@@ -867,6 +869,7 @@ def _realign_baseline(
     *,
     office_store,
     board_store,
+    realm_id: str | None = None,
 ) -> None:
     """Record the applied row's post-write content as its new baseline."""
 
@@ -878,7 +881,7 @@ def _realign_baseline(
     try:
         content_hash = _FAMILY_ARMS[item.family].content_hash
         baseline[key] = (
-            content_hash(item) if content_hash is not None
+            content_hash(item, realm_id) if content_hash is not None
             else _current_content_hash(item, office_store=office_store, board_store=board_store)
         )
     except Exception as exc:  # the write landed; the receipt did not

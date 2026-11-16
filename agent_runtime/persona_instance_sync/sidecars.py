@@ -54,7 +54,9 @@ def write_persona_instance_baseline(realm_id: str, entries: dict[str, str]) -> N
 
 def read_dropped_steering_ledger(realm_id: str) -> dict[str, dict[str, Any]]:
     """Edges phase two dropped for an ABSENT PARENT, and what they were dropped
-    against — ``{instance_id: {"parents": [...], "remote_hash": "..."}}``.
+    against — ``{instance_id: {"parents": [...], "remote_hash": "...",
+    "minted_hash": "...", "steered_by": [...]}}`` (the last two: the replica's
+    hash as minted and the realm's steering list, when recorded).
 
     The durable half of the heal (the H3 known gap, closed 2026-09-02). Read
     beside the baseline, written by the same pass, never synced and never
@@ -87,7 +89,16 @@ def read_dropped_steering_ledger(realm_id: str) -> dict[str, dict[str, Any]]:
         remote_hash = entry.get("remote_hash")
         if not parents or not isinstance(remote_hash, str):
             continue
-        ledger[str(instance_id)] = {"parents": parents, "remote_hash": remote_hash}
+        row: dict[str, Any] = {"parents": parents, "remote_hash": remote_hash}
+        # The body as minted and the realm's own steering (RT-REALM-PULL-SHOWS-AN-UNTOUCHED-AGENT-
+        # AS-CHANGED): what ``pull.body_as_pulled`` needs to say "this replica is exactly what the
+        # pull wrote". Carried only when well-typed; an entry without them still serves the heal.
+        if isinstance(entry.get("minted_hash"), str):
+            row["minted_hash"] = entry["minted_hash"]
+        steered = entry.get("steered_by")
+        if isinstance(steered, list) and all(isinstance(item, str) and item for item in steered):
+            row["steered_by"] = list(steered)
+        ledger[str(instance_id)] = row
     return ledger
 
 
