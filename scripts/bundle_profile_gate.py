@@ -55,12 +55,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.bundle_profile_closure import (  # after the path insert, like the closure's own callers
+    TARGET_ENV,
     TARGETS,
+    GraphFacts,
+    WalkFacts,
     _guarded_ids,
     _lock,
     _norm,
-    closure,
-    profile_walk,
     refusals as closure_refusals,
 )
 
@@ -449,7 +450,12 @@ def gate(profile: str) -> dict:
     unknown = sorted(set(manifest.packaging_targets) - set(TARGETS))
     if unknown:
         raise ValueError(f"packaging.targets names no known target: {unknown}")
-    walk, index = profile_walk(manifest, parents=True)
+    # One walk for the kept modules AND every target's distribution half (the packager's own
+    # WalkFacts / GraphFacts): the full closure() report re-walked per target and added the
+    # excludable walk and the size facts, which the gate never reads (5m23s cold, 2026-11-16;
+    # RT-PHONE-PACKAGER-TESTS-NEVER-RUN-THE-REAL-CLOSURE runs this in a test).
+    facts_walk = WalkFacts(manifest, parents=True)
+    walk, index = facts_walk.result, facts_walk.index
     seams = placeholder_seams(manifest, walk, index)
     in_tree = forced_tree_seams(manifest, walk, index, seams)
     findings: list[dict] = [{"kind": "pinned", "subject": m, "module": m}
@@ -466,15 +472,17 @@ def gate(profile: str) -> dict:
     targets = manifest.packaging_targets or (None,)
     per_target = {}
     for target in targets:
-        result = closure(profile, boot=False, target=target, parents=True)
-        shipped = {row["name"] for row in result["needed"]}
+        facts = GraphFacts(facts_walk, TARGETS[target] if target is not None else TARGET_ENV)
+        selected, classes, shipped = facts.select()
         per_target[target or "win_amd64"] = {
             "shipped": sorted(shipped),
             "findings": distribution_findings(shipped, lock, manifest.admitted_native)
-            + [{"kind": "closure", "subject": reason} for reason in closure_refusals(result)],
-            "reached_via": result["reached_via"],
-            "pinned_switched_off_modules": result["pinned_switched_off_modules"],
-            "unguarded_switched_off_imports": result["unguarded_switched_off_imports"],
+            + [{"kind": "closure", "subject": reason}
+               for reason in closure_refusals(facts.refusal_facts(selected, shipped))],
+            "reached_via": {d: row["via"] for d, row in sorted(classes.items())},
+            "pinned_switched_off_modules": sorted(walk.pinned),
+            "unguarded_switched_off_imports": sorted(walk.unguarded_into_pruned,
+                                                     key=lambda r: (r["target"], r["module"], r["line"])),
         }
     refused = findings + [dict(f, target=t) for t, row in per_target.items() for f in row["findings"]]
     return {"profile": manifest.profile, "targets": list(per_target), "kept_modules": len(walk.kept),
