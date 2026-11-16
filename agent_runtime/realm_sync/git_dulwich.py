@@ -33,14 +33,15 @@ from dulwich.config import ConfigDict
 from dulwich.diff_tree import tree_changes
 from dulwich.errors import GitProtocolError, HangupException, NotGitRepository
 from dulwich.graph import can_fast_forward, find_merge_base
-from dulwich.index import ConflictedIndexEntry, commit_tree, update_working_tree
+from dulwich.index import ConflictedIndexEntry, IndexEntry, commit_tree, update_working_tree
 from dulwich.object_store import tree_lookup_path
 from dulwich.objects import Commit, Tree
 from dulwich.objectspec import parse_commit
 from dulwich.repo import Repo
 from dulwich.walk import ORDER_DATE
 
-from .git_port import ChangedPath, FetchOutcome, LogEntry, PushOutcome, PushReport, RepoState
+from .git_port import ChangedPath, FetchOutcome, LogEntry, MergeOutcome, PushOutcome, PushReport, RepoState
+from .merge_theirs import Favour, FavouringMerger
 from .models import RealmSyncError
 
 if TYPE_CHECKING:
@@ -546,6 +547,59 @@ class DulwichSyncGit:
         elif not repo.refs.set_if_equals(branch, head, theirs):
             raise _failure(step, "fatal: cannot lock ref: the branch moved during the pull")
 
+    def merge_remote_theirs(self, auth: RealmSyncCredential | None) -> MergeOutcome:
+        step = ["pull", "--no-rebase", "-X", "theirs"]
+        with self._open() as repo:
+            self._fetch(repo, auth, step)
+            upstream = self._upstream(repo)
+            if upstream is None:
+                raise _failure(step, "There is no tracking information for the current branch.")
+            theirs, head, branch = repo.refs[upstream[0]], self._resolve(repo, "HEAD"), self._head_ref(repo)
+            if head == theirs or (head is not None and can_fast_forward(repo, theirs, head)):
+                return MergeOutcome()  # already up to date
+            if head is None or can_fast_forward(repo, head, theirs):
+                self._move_to(repo, head, theirs, branch, step)  # git's pull fast-forwards when it can
+                return MergeOutcome()
+            url = _s(_get(repo.get_config(), (b"remote", b"origin"), b"url") or b"origin")
+            message = f"Merge branch '{upstream[1].split('/', 1)[-1]}' of {url}\n"
+            return self._merge(repo, head, theirs, branch, Favour.THEIRS, message, step)
+
+    def merge_unrelated_ours(self, tip: str) -> None:
+        step = ["merge", "-q", "--allow-unrelated-histories", "--no-edit", "-X", "ours", tip]
+        with self._open() as repo:
+            head, theirs, branch = self._resolve(repo, "HEAD"), self._resolve(repo, tip), self._head_ref(repo)
+            if head is None or theirs is None:
+                raise _failure(step, f"merge: {tip} - not something we can merge")
+            outcome = self._merge(repo, head, theirs, branch, Favour.OURS, f"Merge remote-tracking branch '{tip}'\n", step)
+            if outcome.conflicts:
+                raise _failure(step, "Automatic merge failed; fix conflicts and then commit the result.")
+
+    def _merge(self, repo: Repo, head: bytes, theirs: bytes, branch: bytes | None, favour: Favour, message: str,
+               step: Sequence[str]) -> MergeOutcome:
+        """Three-way merge ``theirs`` into ``head`` (``merge_theirs``): commit it, or leave its conflicts staged."""
+
+        bases = find_merge_base(repo, [head, theirs])
+        base_tree = repo[repo[bases[0]].tree] if bases else None
+        merger = FavouringMerger(repo.object_store, favour)
+        merged, conflicts = merger.merge_trees(base_tree, repo[repo[head].tree], repo[repo[theirs].tree])
+        repo.object_store.add_object(merged)
+        head_tree = repo[head].tree
+        try:
+            update_working_tree(repo, head_tree, merged.id,
+                                change_iterator=tree_changes(repo.object_store, head_tree, merged.id),
+                                allow_overwrite_modified=False)
+        except (OSError, ValueError) as exc:
+            raise _failure(step, f"error: Your local changes would be overwritten by merge: {exc}") from exc
+        if conflicts:
+            index = repo.open_index()
+            for path, info in merger.conflict_info.items():
+                index[path] = ConflictedIndexEntry(ancestor=_stage(*info.ancestor), this=_stage(*info.ours),
+                                                   other=_stage(*info.theirs))
+            index.write()
+            return MergeOutcome(conflicts=tuple(sorted(_s(path) for path in conflicts)))
+        self._write_commit(repo, merged.id, [head, theirs], message)
+        return MergeOutcome()
+
     def push(self, auth: RealmSyncCredential | None, *, set_upstream: bool, branch: str | None = None) -> PushReport:
         if branch is not None:
             step = ["push", "-q", "-u", "origin", f"HEAD:{branch}"]
@@ -635,6 +689,14 @@ def _get(config, section: tuple[bytes, ...], name: bytes) -> bytes | None:
         return config.get(section, name)
     except KeyError:
         return None
+
+
+def _stage(mode: int | None, sha: bytes | None) -> IndexEntry | None:
+    """One side of a conflicted path, as an index stage entry."""
+
+    if mode is None or sha is None:
+        return None
+    return IndexEntry(ctime=(0, 0), mtime=(0, 0), dev=0, ino=0, mode=mode, uid=0, gid=0, size=0, sha=sha)
 
 
 def _iso(stamp: int, offset: int) -> str:

@@ -521,9 +521,6 @@ def _drop_tree_index_between_modules(request):
 #: Port tests the DULWICH arm cannot run yet: they need a verb a later slice adds (plan
 #: phone-realm-sync-dulwich-2026-11-16 S5 merge). Shrink-only.
 DULWICH_NOT_YET = frozenset({
-    "test_merge_remote_theirs_takes_theirs_on_the_same_line",
-    "test_merge_remote_theirs_lists_a_shape_conflict",
-    "test_unrelated_histories_merge_with_ours_on_overlap",
 })
 
 
