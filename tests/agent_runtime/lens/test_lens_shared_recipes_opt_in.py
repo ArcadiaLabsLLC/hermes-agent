@@ -13,7 +13,7 @@ the one state the poller reads (``LensPoller._enabled``) — is the operator's
   (or ``seal`` setting it);
 * the only caller of ``set_state`` and the only SQL that moves a monitor's state are the
   operator's RPC and the store itself, and no sync / remote / template module imports Lens but
-  realm sync's four shelf carriers, through ``lens.recipe_shelf`` alone (row
+  realm sync's five shelf carriers, through ``lens.recipe_shelf`` alone (row
   ``RT-LENS-RECIPE-REALM-SYNC-FAMILY``) — killed by adding
   ``from agent_runtime.lens.store import LensStore`` to ``agent_runtime/office_sync.py`` or to
   ``agent_runtime/realm_sync/pull.py``.
@@ -94,6 +94,7 @@ def test_only_the_operator_rpc_and_the_store_move_a_monitors_state():
 #: each reaches Lens through ``lens.recipe_shelf`` and nothing else, and the shelf never imports
 #: ``lens.store`` (``test_lens_recipe_shelf.py``), so nothing synced can create, seal or enable.
 SHELF_CARRIERS = {
+    "agent_runtime/realm_sync/lens_recipe_drift.py",
     "agent_runtime/realm_sync/publish.py",
     "agent_runtime/realm_sync/publish_scans.py",
     "agent_runtime/realm_sync/pull.py",

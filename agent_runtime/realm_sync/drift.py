@@ -17,6 +17,7 @@ from ..models import Workspace
 from ..store import RealmStore, skill_tombstoned
 from .families import SyncFamily
 from .level_drift import level_drift_key, level_store_drift_items
+from .lens_recipe_drift import lens_recipe_drift_key, lens_recipe_store_drift_items
 from .publish_scans import _office_publish_scan
 from .artifacts import (
     _flow_graph_projection,
@@ -243,6 +244,7 @@ _BASELINE_KEY_OF: Final[Mapping[str, Callable[[StoreDriftItem], str]]] = {
     SyncFamily.FLOW_GRAPH: _flow_graph_drift_key,
     SyncFamily.PERSONA_DEFINITION: _persona_definition_drift_key,
     SyncFamily.LEVEL: level_drift_key,
+    SyncFamily.LENS_RECIPE: lens_recipe_drift_key,
 }
 
 #: (count name, family, kind or None for "every row of this family"). The
@@ -843,4 +845,5 @@ DRIFT_WALKS: Final[tuple[Callable[[str, list[Workspace]], list[StoreDriftItem]],
     _skill_drift_walk,
     _persona_definition_store_drift_items,
     level_store_drift_items,
+    lens_recipe_store_drift_items,
 )

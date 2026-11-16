@@ -83,6 +83,12 @@ from .realm_sync import (
     store_drift_items,
 )
 from .realm_revert_level import apply_level, level_content_hash, read_level_upstream, refuse_level_door
+from .realm_sync.lens_recipe_drift import (
+    apply_lens_recipe,
+    lens_recipe_content_hash,
+    read_lens_recipe_upstream,
+    refuse_lens_recipe_door,
+)
 from .realm_sync.families import SyncFamily
 from .realm_sync.status import store_drift_family_counts
 from .serde import to_jsonable
@@ -144,7 +150,9 @@ CONTAINER_FAMILIES = frozenset({DRIFT_FAMILY_BOARD, DRIFT_FAMILY_OFFICE_SURFACE}
 #: Families with no local-only archive lane: the containers above, plus the
 #: persona DEFINITION — a persona is referenced by placements, instances and
 #: assignments, and a revert never deletes one (the pull's ``retained`` rule).
-NO_LOCAL_ARCHIVE_FAMILIES = CONTAINER_FAMILIES | frozenset({DRIFT_FAMILY_PERSONA_DEFINITION})
+#: The shared Lens RECIPE too: a share the realm never carried is undone by
+#: ``runtime.lens.recipe.withdraw``, not archived (``realm_sync.lens_recipe_drift``).
+NO_LOCAL_ARCHIVE_FAMILIES = CONTAINER_FAMILIES | frozenset({DRIFT_FAMILY_PERSONA_DEFINITION, SyncFamily.LENS_RECIPE})
 class RevertAction(str, Enum):
     RESTORE = "restore"  # baseline row, gone locally → live again from upstream
     ADOPT = "adopt"  # local row overwritten with the upstream artifact
@@ -305,6 +313,8 @@ class _Upstream:
         self._persona_defs: tuple[dict[str, Any], bool] | None = None
         #: And the workspace levels: ``(bytes by token, unreadable tokens)``.
         self._levels: tuple[dict[str, bytes], set[str]] | None = None
+        #: And the shared Lens recipes, the same shape.
+        self._lens_recipes: tuple[dict[str, bytes], set[str]] | None = None
 
     def _office(self, workspace_id: str):
         from .office_sync import _read_remote_office
@@ -426,6 +436,12 @@ class _Upstream:
         levels, unreadable = self._levels
         return (None, True) if token in unreadable else (levels.get(token), False)
 
+    def _lens_recipe(self, _container: str, token: str) -> tuple[Any, bool]:
+        if self._lens_recipes is None:
+            self._lens_recipes = read_lens_recipe_upstream(self._subtree)
+        recipes, unreadable = self._lens_recipes
+        return (None, True) if token in unreadable else (recipes.get(token), False)
+
     def lookup(self, family: str, container: str, item_key: str) -> tuple[Any, bool]:
         """``(entity_or_None, unreadable)``. ``unreadable`` True means the
         artifact is not decodable HERE, which is never the same answer as
@@ -446,6 +462,8 @@ def _baseline_io() -> dict[str, tuple[Any, Any]]:
         write_persona_instance_baseline,
     )
     from .level_sync import read_level_baseline, write_level_baseline
+    from .lens.recipe_shelf import LENS_RECIPE_FAMILY
+    from .realm_sync.document_family import read_document_baseline, write_document_baseline
     from .skill_sync import read_skill_baseline, write_skill_baseline
 
     return {
@@ -456,6 +474,10 @@ def _baseline_io() -> dict[str, tuple[Any, Any]]:
         "skills": (read_skill_baseline, write_skill_baseline),
         "persona_defs": (read_persona_config_baseline, write_persona_config_baseline),
         "levels": (read_level_baseline, write_level_baseline),
+        "lens_recipes": (
+            lambda realm_id: read_document_baseline(LENS_RECIPE_FAMILY, realm_id),
+            lambda realm_id, entries: write_document_baseline(LENS_RECIPE_FAMILY, realm_id, entries),
+        ),
     }
 
 
@@ -825,6 +847,10 @@ _FAMILY_ARMS: dict[str, FamilyArm] = {
     ),
     SyncFamily.LEVEL: FamilyArm(
         0, _Upstream._level, "levels", apply_level, refuse_level_door, level_content_hash
+    ),
+    SyncFamily.LENS_RECIPE: FamilyArm(
+        0, _Upstream._lens_recipe, "lens_recipes", apply_lens_recipe, refuse_lens_recipe_door,
+        lens_recipe_content_hash,
     ),
 }
 #: The revert-addressable families and their sort bands, read off the table.
