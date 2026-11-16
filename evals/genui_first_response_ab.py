@@ -16,8 +16,8 @@ reads two receipts a QA serve already writes under its ``HERMES_HOME``:
   blocks and ``final_model_input.tool_schema.per_tool_chars``.
 
 Stages: G1 reader (``read_turn``, ``read_cost``, ``score``); G2 driver (``drive`` writes the
-MCP step list the orchestrating session runs; ``collect`` reads each sent turn back); G3 report
-(``report`` applies the pass bar). The owner-sitting run is ``main``'s three subcommands.
+MCP steps and ``verify-route`` checks their Console readbacks before a send; ``collect`` joins
+the acknowledged session to its actual turn and model); G3 report applies the pass bar.
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ import json
 import os
 import re
 import time
+from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -102,6 +103,7 @@ class TurnOutcome:
     created_document_id: str | None
     prose_only: bool
     tool_names: tuple[str, ...] = ()
+    persona_instance_id: str | None = None
 
     @property
     def settled(self) -> bool:
@@ -151,6 +153,7 @@ def turn_outcome(record: Mapping[str, Any]) -> TurnOutcome:
         created_document_id=created,
         prose_only=not tools and bool(answer.strip()),
         tool_names=names,
+        persona_instance_id=record.get("persona_instance_id"),
     )
 
 
@@ -228,8 +231,8 @@ def cost_receipt(row: Mapping[str, Any]) -> CostReceipt:
         per_tool_chars=per_tool,
         guidance_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest() if text is not None else None,
         comparison_in_guidance=None if text is None else bool(re.search(r"compar", text, re.IGNORECASE)),
-        provider=selection.get("effective_provider") or selection.get("chat_provider") or selection.get("default_provider"),
-        model=selection.get("effective_model") or selection.get("chat_model") or selection.get("default_model"),
+        provider=selection.get("effective_provider"),
+        model=selection.get("effective_model"),
     )
 
 
@@ -267,22 +270,18 @@ def find_context_id(
     home: str | os.PathLike[str],
     *,
     session_id: str,
-    turn_id: str | None,
+    turn_id: str,
     runtime_root: str | os.PathLike[str] | None = None,
 ) -> str | None:
-    """The ``ctx_`` row of this turn: same ``turn_id`` first, else the session's newest row."""
+    """The context receipt for this exact turn and session."""
 
-    session_rows: list[tuple[float, str]] = []
     with _home_scope(home, runtime_root):
         for directory in _context_dirs():
             for path in directory.glob("ctx_*.json") if directory.is_dir() else ():
                 row = _load_row(path)
-                if row is None or row.get("session_id") != session_id:
-                    continue
-                if turn_id and row.get("turn_id") == turn_id:
+                if row and row.get("session_id") == session_id and row.get("turn_id") == turn_id:
                     return str(row.get("context_id") or path.stem)
-                session_rows.append((path.stat().st_mtime, str(row.get("context_id") or path.stem)))
-    return max(session_rows)[1] if session_rows else None
+    return None
 
 
 # ── the score ───────────────────────────────────────────────────────────────
@@ -301,10 +300,20 @@ class PromptResult:
     outcome: TurnOutcome | None
     cost: CostReceipt | None = None
     provider: str | None = None
+    model: str | None = None
+    route_error: str | None = None
 
     @property
-    def provider_key(self) -> str:
-        return self.provider or (self.cost.provider if self.cost else None) or "unknown"
+    def verification_error(self) -> str | None:
+        if self.route_error:
+            return self.route_error
+        if self.outcome is None or not self.outcome.settled:
+            return "the fresh chat has no settled turn"
+        if not self.cost or not self.cost.provider or not self.cost.model:
+            return "this turn has no effective provider/model receipt"
+        if (self.cost.provider, self.cost.model) != (self.provider, self.model):
+            return "the observed provider/model differs from the planned route"
+        return None
 
 
 @dataclass(frozen=True)
@@ -324,6 +333,7 @@ class ArmScore:
     guidance_sha256: str | None = None
     comparison_in_guidance: bool | None = None
     create_wire_chars: int | None = None
+    model: str | None = None
 
     @property
     def cost_tokens(self) -> float | None:
@@ -331,29 +341,27 @@ class ArmScore:
 
 
 def score(results: Iterable[PromptResult]) -> list[ArmScore]:
-    """Group *results* by (agent, provider) and count hits, prose controls and cost.
-
-    A comparison scores only on a hit (``TurnOutcome.is_hit``); a control passes only
-    when no generated tool was called. An unread or unsettled turn is neither: it is
-    named in ``unread`` and counts as a miss / a failed control.
-    """
+    """Put every planned prompt in its cell and count only verified turns."""
 
     groups: dict[tuple[str, str], list[PromptResult]] = {}
     for result in results:
-        groups.setdefault((result.agent, result.provider_key), []).append(result)
+        groups.setdefault((result.agent, result.provider or "unknown"), []).append(result)
     scores: list[ArmScore] = []
     for (agent, provider), cell in sorted(groups.items()):
         comparisons = [item for item in cell if item.kind == COMPARISON]
         controls = [item for item in cell if item.kind == CONTROL]
-        unread = tuple(item.prompt_id for item in cell if item.outcome is None or not item.outcome.settled)
-        hit_ids = {item.prompt_id for item in comparisons if item.outcome and item.outcome.settled and item.outcome.is_hit}
+        verified = [item for item in cell if item.verification_error is None]
+        unread = tuple(item.prompt_id for item in cell if item.verification_error is not None)
+        hit_ids = {item.prompt_id for item in verified
+                   if item.kind == COMPARISON and item.outcome and item.outcome.is_hit}
         prose_ids = {
             item.prompt_id
-            for item in controls
-            if item.outcome and item.outcome.settled and not item.outcome.called_generated
+            for item in verified
+            if item.kind == CONTROL and item.outcome and item.outcome.prose_only
         }
-        costs = [item.cost for item in cell if item.cost is not None]
+        costs = [item.cost for item in verified if item.cost is not None]
         shas = sorted({cost.guidance_sha256 for cost in costs if cost.guidance_sha256})
+        models = {cost.model for cost in costs}
         scores.append(
             ArmScore(
                 agent=agent,
@@ -373,6 +381,7 @@ def score(results: Iterable[PromptResult]) -> list[ArmScore]:
                 create_wire_chars=max(
                     (c.per_tool_chars[CREATE_TOOL] for c in costs if CREATE_TOOL in c.per_tool_chars), default=None
                 ),
+                model=next(iter(models)) if len(models) == 1 else None,
             )
         )
     return scores
@@ -383,6 +392,11 @@ def score(results: Iterable[PromptResult]) -> list[ArmScore]:
 #: The launcher_qa MCP's agent-chat verbs the orchestrating session issues (plan §3.3).
 OP_NEW = "launcher.agent_chat.new"
 OP_SEND = "launcher.agent_chat.send"
+OP_SELECT = "launcher.mission_control.agent.select"
+OP_CHAT_LIST = "launcher.agent_chat.list"
+OP_MODEL_SET = "launcher.agent.model.set"
+OP_MODEL_LIST = "launcher.agent.model.list"
+OP_VERIFY = "verify_route"
 OP_WAIT = "wait_turn_settled"
 
 
@@ -395,92 +409,161 @@ def load_prompts(path: str | os.PathLike[str]) -> list[tuple[str, str, str]]:
     ]
 
 
-def session_ref(agent: str, provider: str | None, prompt_id: str) -> str:
+def session_ref(agent: str, provider: str, prompt_id: str) -> str:
     """One chat per (agent, provider, prompt): no prompt rides another's cached prefix."""
 
-    return f"{agent}/{provider or 'default'}/{prompt_id}"
+    return f"{agent}/{provider}/{prompt_id}"
 
 
 def drive(
     arm: str,
     prompts: list[tuple[str, str, str]],
-    agents: Iterable[str],
-    providers: Iterable[str | None] = (None,),
+    agents: Mapping[str, str],
+    providers: Mapping[str, str],
 ) -> dict[str, Any]:
     """The step list the orchestrator runs over the launcher_qa MCP, visible before approval.
 
-    Per (agent, provider, prompt): ``agent_chat.new`` (opens ``session_ref``), ``agent_chat.send``
-    of the prompt into that chat, then a wait on the turn's settle. This function sends nothing;
-    the orchestrator records each new chat's ``session_id`` and each send's
-    ``client_message_id`` under its ``session_ref`` in the sends file ``collect`` reads.
+    Select the exact Console agent, make one fresh chat, then set and verify its model route.
+    The operator stores the app-function results under ``session_ref``. The historical send
+    acknowledges its session only; collection reads the one admitted turn from that journal.
     """
 
     steps: list[dict[str, Any]] = []
-    for agent in agents:
-        for provider in providers:
+    for agent, agent_id in agents.items():
+        for provider, model in providers.items():
             for prompt_id, kind, text in prompts:
                 ref = session_ref(agent, provider, prompt_id)
-                new_args: dict[str, Any] = {"agent": agent}
-                if provider:
-                    new_args["provider"] = provider
-                common = {"session_ref": ref, "agent": agent, "provider": provider, "prompt_id": prompt_id}
-                steps.append({"op": OP_NEW, "args": new_args, **common})
-                steps.append({"op": OP_SEND, "args": {"text": text, "confirm": True}, "kind": kind, **common})
-                steps.append({"op": OP_WAIT, **common})
+                common = {"session_ref": ref, "agent": agent, "agent_id": agent_id,
+                          "provider": provider, "model": model, "prompt_id": prompt_id}
+                steps.extend([
+                    {"op": OP_SELECT, "args": {"agent_id": agent_id}, **common},
+                    {"op": OP_NEW, "args": {}, "receipt": "new", **common},
+                    {"op": OP_MODEL_SET, "args": {"provider_id": provider, "model_id": model},
+                     "approval_required": True, **common},
+                    {"op": OP_MODEL_LIST, "args": {}, "receipt": "model", **common},
+                    {"op": OP_CHAT_LIST, "args": {}, "receipt": "chat", **common},
+                    {"op": OP_VERIFY, **common},
+                    {"op": OP_SEND, "args": {"text": text}, "kind": kind,
+                     "receipt": "send", "approval_required": True, **common},
+                    {"op": OP_WAIT, **common},
+                ])
     for index, step in enumerate(steps, 1):
         step["step"] = f"s{index:03d}"
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "arm": arm,
-        "sends_file_shape": {"<session_ref>": {"session_id": "<from agent_chat.new>",
-                                               "client_message_id": "<from agent_chat.send>"}},
+        "sends_file_shape": {"<session_ref>": {key: f"<app-function result of {op}>" for key, op in (
+            ("new", OP_NEW), ("model", OP_MODEL_LIST), ("chat", OP_CHAT_LIST), ("send", OP_SEND),
+        )}},
         "steps": steps,
     }
+
+
+def _record(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _records(value: Any) -> Iterator[Mapping[str, Any]]:
+    return (item for item in value if isinstance(item, Mapping)) if isinstance(value, list) else iter(())
+
+
+def _route_error(step: Mapping[str, Any], receipts: Mapping[str, Any]) -> str | None:
+    """Accept only the intended fresh Console session and its selected model."""
+
+    opened = _record(receipts.get("new"))
+    chat = _record(receipts.get("chat"))
+    agent = _record(chat.get("agent"))
+    session_id = opened.get("session_id")
+    if not isinstance(session_id, str) or not session_id or chat.get("open_session_id") != session_id:
+        return "the Console did not confirm the fresh session"
+    if (agent.get("instance_id"), agent.get("name"), opened.get("agent")) != (
+        step["agent_id"], step["agent"], step["agent"],
+    ):
+        return "the Console selected a different agent"
+    if not any(chat_row.get("session_id") == session_id and chat_row.get("message_count") == 0
+               for chat_row in _records(chat.get("chats"))):
+        return "the Console did not read back an empty new chat"
+    model = _record(receipts.get("model"))
+    selected = [
+        (section.get("provider_id"), option.get("model_id"))
+        for section in _records(model.get("providers"))
+        for option in _records(section.get("models")) if option.get("selected") is True
+    ]
+    if model.get("agent") != step["agent"] or model.get("available") is not True or selected != [
+        (step["provider"], step["model"]),
+    ]:
+        return "the Console did not confirm the selected provider/model"
+    return None
 
 
 def _settled_turn(
     home: str | os.PathLike[str],
     session_id: str,
-    client_message_id: str,
     *,
     runtime_root: str | os.PathLike[str] | None,
     wait_seconds: float,
     poll_seconds: float = 2.0,
-) -> TurnOutcome | None:
+) -> tuple[TurnOutcome | None, str | None]:
+    from agent_runtime.mission_chat_turns.reads import mission_chat_turn_records
+
     deadline = time.monotonic() + wait_seconds
     while True:
-        outcome = read_turn(home, session_id, client_message_id, runtime_root=runtime_root)
-        if (outcome is not None and outcome.settled) or time.monotonic() >= deadline:
-            return outcome
-        time.sleep(poll_seconds)
+        with _home_scope(home, runtime_root):
+            turns = mission_chat_turn_records(session_id=session_id)
+        if len(turns) > 1:
+            return None, "the fresh session has more than one journal turn"
+        if turns and (outcome := turn_outcome(turns[0])).settled:
+            return outcome, None
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None, "the fresh session has no settled journal turn"
+        time.sleep(min(poll_seconds, remaining))
 
 
 def collect(
     home: str | os.PathLike[str],
     plan: Mapping[str, Any],
-    sends: Mapping[str, Mapping[str, str]],
+    sends: Mapping[str, Mapping[str, Any]],
     *,
     runtime_root: str | os.PathLike[str] | None = None,
     wait_seconds: float = 0.0,
 ) -> list[PromptResult]:
-    """Read every sent turn of *plan* back from the QA home (a missing send reads as unread)."""
+    """Correlate app-function acknowledgments with the exact turn and its effective model."""
 
+    if plan.get("schema_version") != 2:
+        raise ValueError("generate a new plan with selected-agent and model readbacks")
+    session_counts = Counter(
+        session_id for receipt in sends.values()
+        if isinstance(session_id := _record(_record(receipt).get("new")).get("session_id"), str)
+    )
     results: list[PromptResult] = []
-    for step in plan["steps"]:
-        if step["op"] != OP_SEND:
-            continue
-        sent = sends.get(step["session_ref"]) or {}
-        session_id, message_id = sent.get("session_id"), sent.get("client_message_id")
+    for step in _send_steps(plan):
+        receipts = _record(sends.get(step["session_ref"]))
+        session_id = _record(receipts.get("new")).get("session_id")
+        sent = _record(receipts.get("send"))
+        error = _route_error(step, receipts)
         outcome = cost = None
-        if session_id and message_id:
-            outcome = _settled_turn(home, session_id, message_id, runtime_root=runtime_root,
-                                    wait_seconds=wait_seconds)
-            context_id = find_context_id(home, session_id=session_id,
-                                         turn_id=outcome.turn_id if outcome else None, runtime_root=runtime_root)
+        if error is None and (sent.get("sent") is not True or sent.get("session_id") != session_id
+                              or sent.get("agent") != step["agent"]):
+            error = "the Console did not acknowledge a send to the verified session"
+        if error is None and session_counts[session_id] != 1:
+            error = "multiple planned prompts share the same new session"
+        if error is None:
+            outcome, error = _settled_turn(home, session_id, runtime_root=runtime_root, wait_seconds=wait_seconds)
+        if outcome is not None:
+            if outcome.persona_instance_id != step["agent_id"]:
+                error = "the journal turn belongs to a different agent"
+            context_id = find_context_id(home, session_id=session_id, turn_id=outcome.turn_id,
+                                         runtime_root=runtime_root)
             cost = read_cost(home, context_id, runtime_root=runtime_root) if context_id else None
         results.append(PromptResult(prompt_id=step["prompt_id"], kind=step["kind"], agent=step["agent"],
-                                    outcome=outcome, cost=cost, provider=step.get("provider")))
+                                    outcome=outcome, cost=cost, provider=step["provider"], model=step["model"],
+                                    route_error=error))
     return results
+
+
+def _send_steps(plan: Mapping[str, Any]) -> Iterator[Mapping[str, Any]]:
+    return (step for step in plan["steps"] if step["op"] == OP_SEND)
 
 
 # ── G3 the report: the pass bar applied ─────────────────────────────────────
@@ -492,9 +575,10 @@ COST_CEILING_TOKENS = 80
 
 
 def cell_verdict(cell: ArmScore, baseline: ArmScore | None = None) -> tuple[str, float | None]:
-    """``("PASS" | "FAIL" | "OVER COST", cost delta in tokens)``; a selection pass over the
-    cost ceiling is reported, not adopted."""
+    """The acceptance label and the comparable per-turn cost delta."""
 
+    if cell.unread or not cell.model or (baseline is not None and (baseline.unread or baseline.model != cell.model)):
+        return "UNVERIFIED", None
     selection = (
         cell.comparisons > 0
         and cell.hits * HIT_BAR[1] >= HIT_BAR[0] * cell.comparisons
@@ -539,7 +623,9 @@ def report(
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for cell in scores:
-        verdict, delta = cell_verdict(cell, base.get((cell.agent, cell.provider)) if baseline is not None else None)
+        comparison = base.get((cell.agent, cell.provider))
+        verdict, delta = (("UNVERIFIED", None) if baseline is not None and comparison is None
+                          else cell_verdict(cell, comparison))
         tokens = "—" if cell.cost_tokens is None else f"{cell.cost_tokens:.0f}"
         failed = f" (failed {', '.join(cell.control_failures)})" if cell.control_failures else ""
         lines.append(
@@ -550,7 +636,7 @@ def report(
         )
     unread = [f"{c.agent}/{c.provider}: {', '.join(c.unread)}" for c in scores if c.unread]
     if unread:
-        lines += ["", "Unread or unsettled turns (scored as misses): " + "; ".join(unread)]
+        lines += ["", "Unverified turns (cell ineligible): " + "; ".join(unread)]
     lines += ["", f"Bar: ≥ {HIT_BAR[0]}/{HIT_BAR[1]} first-tool hits, every control prose, "
               f"≤ +{COST_CEILING_TOKENS} tokens/turn over the baseline arm."]
     return "\n".join(lines) + "\n"
@@ -576,10 +662,14 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     plan_cmd = sub.add_parser("plan", help="write the MCP step list (sends nothing)")
     plan_cmd.add_argument("--arm", required=True)
-    plan_cmd.add_argument("--agent", action="append", required=True)
-    plan_cmd.add_argument("--provider", action="append")
+    plan_cmd.add_argument("--agent", action="append", required=True, metavar="NAME=INSTANCE_ID")
+    plan_cmd.add_argument("--provider", action="append", required=True, metavar="PROVIDER_ID=MODEL_ID")
     plan_cmd.add_argument("--prompts", default=str(Path(__file__).with_name("genui_first_response_prompts.json")))
     plan_cmd.add_argument("--out", required=True)
+    verify_cmd = sub.add_parser("verify-route", help="validate one planned chat's readbacks before sending")
+    verify_cmd.add_argument("--plan", required=True)
+    verify_cmd.add_argument("--session-ref", required=True)
+    verify_cmd.add_argument("--receipts", required=True, help="sends-file object with new, model and chat results")
     collect_cmd = sub.add_parser("collect", help="read the sent turns back from the QA home")
     collect_cmd.add_argument("--home", required=True)
     collect_cmd.add_argument("--runtime-root")
@@ -595,15 +685,34 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "plan":
-        plan = drive(args.arm, load_prompts(args.prompts), args.agent, args.provider or [None])
+        plan = drive(args.arm, load_prompts(args.prompts), _assignments(plan_cmd, args.agent),
+                     _assignments(plan_cmd, args.provider))
         Path(args.out).write_text(json.dumps(plan, indent=2), encoding="utf-8")
+        return 0
+    if args.command == "verify-route":
+        plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
+        if plan.get("schema_version") != 2:
+            verify_cmd.error("generate a new plan with selected-agent and model readbacks")
+        step = next((step for step in _send_steps(plan) if step["session_ref"] == args.session_ref), None)
+        if step is None:
+            verify_cmd.error(f"no planned chat for {args.session_ref}")
+        saved = _record(json.loads(Path(args.receipts).read_text(encoding="utf-8")))
+        refusal = _route_error(step, _record(saved.get(args.session_ref)))
+        if refusal:
+            print(f"Unverified {args.session_ref}: {refusal}")
+            return 1
+        print(f"Verified {args.session_ref}")
         return 0
     if args.command == "collect":
         plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
         sends = json.loads(Path(args.sends).read_text(encoding="utf-8"))
         results = collect(args.home, plan, sends, runtime_root=args.runtime_root, wait_seconds=args.wait_seconds)
-        payload = {"arm": plan["arm"], "build": args.build, "results": [asdict(item) for item in results],
-                   "scores": [asdict(cell) for cell in score(results)]}
+        payload = {
+            "arm": plan["arm"],
+            "build": args.build,
+            "results": [{**asdict(item), "verification_error": item.verification_error} for item in results],
+            "scores": [asdict(cell) for cell in score(results)],
+        }
         Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return 0
     arm, scores, build = _scores_from(args.results)
@@ -611,6 +720,16 @@ def main(argv: list[str] | None = None) -> int:
     text = report(scores, arm=arm, baseline=baseline, baseline_arm=baseline_arm, build=build)
     Path(args.out).write_text(text, encoding="utf-8")
     return 0
+
+
+def _assignments(parser, pairs: list[str]) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for pair in pairs:
+        name, _, value = pair.partition("=")
+        if not name or not value or name in values:
+            parser.error(f"expected a unique NAME=ID binding, got {pair!r}")
+        values[name] = value
+    return values
 
 
 if __name__ == "__main__":
