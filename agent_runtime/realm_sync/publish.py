@@ -314,6 +314,9 @@ def _publish_accounting(resolved: _ResolvedPublish, *, office_baseline: dict[str
     rows["level_sync"] = _published_row(resolved.level_hashes, resolved.level_refused, published=published)
     rows["map_sync"] = _published_row(resolved.map_hashes, resolved.map_refused, published=published)
     rows["prefab_sync"] = _published_row(resolved.prefab_hashes, resolved.prefab_refused, published=published)
+    rows["lens_recipe_sync"] = _published_row(
+        resolved.lens_recipe_hashes, resolved.lens_recipe_refused, published=published
+    )
     if resolved.instance_projection is not None:
         rows["persona_instance_projection"] = _persona_instance_row(
             resolved.instance_projection, resolved.instance_rows_unreadable
@@ -425,6 +428,14 @@ def _record_prefab_baseline(realm: Realm, resolved: _ResolvedPublish) -> None:
         update_prefab_baseline_after_publish(realm.id, dict(resolved.prefab_hashes))
 
 
+def _record_lens_recipe_baseline(realm: Realm, resolved: _ResolvedPublish) -> None:
+    # The prefab family's discipline: a held recipe over the bytes just shipped.
+    from ..lens.recipe_shelf import update_lens_recipe_baseline_after_publish
+
+    if resolved.lens_recipe_hashes:
+        update_lens_recipe_baseline_after_publish(realm.id, dict(resolved.lens_recipe_hashes))
+
+
 #: Every family whose baseline a publish records, in the order they are
 #: recorded. ``_record_publish_baselines`` iterates this and nothing else; the
 #: skill family is the one exception, and ``publish_realm_sync`` says why.
@@ -438,6 +449,7 @@ BASELINE_FAMILIES: Final[tuple[tuple[SyncFamily, Callable[[Realm, _ResolvedPubli
     (SyncFamily.LEVEL, _record_level_baseline),
     (SyncFamily.MAP, _record_map_baseline),
     (SyncFamily.PREFAB, _record_prefab_baseline),
+    (SyncFamily.LENS_RECIPE, _record_lens_recipe_baseline),
 )
 
 

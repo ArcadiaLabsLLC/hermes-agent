@@ -63,17 +63,24 @@ def _rekey_machine_files(mapping: Any) -> None:
 
 def _rekey_lens(mapping: Any) -> None:
     from .lens.guidance import rekey_workspace_guidance
+    from .lens.recipe_shelf import rekeyed_recipe_marks
     from .lens.revision import bump_store_revision
-    from .lens.store import default_path
+    from .lens.store import default_path, rekey_recipe_marks
+    from .realm_rekey import rewrite_json
 
     path = default_path()
     if not path.is_file():
         return
+    # The shelf's documents were rewritten by the ``content`` step and moved by ``rename``, so their
+    # hashes moved: the marks follow, or every recipe of the workspace reads ``update_available``.
+    was = {new: old for old, new in mapping.forms().items()}
+    marks = rekeyed_recipe_marks(mapping.workspaces.values(), lambda parsed: rewrite_json(parsed, was))
     try:
         with sqlite3.connect(path, timeout=LENS_WAIT_SECONDS) as connection:
             pairs = [(new, old) for old, new in mapping.workspaces.items()]
             connection.executemany("UPDATE monitors SET workspace_id = ? WHERE workspace_id = ?", pairs)
             rekey_workspace_guidance(connection, pairs)
+            rekey_recipe_marks(connection, marks)
             if connection.total_changes:
                 bump_store_revision(connection)
     except sqlite3.Error as exc:

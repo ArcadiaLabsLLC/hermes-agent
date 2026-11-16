@@ -461,8 +461,20 @@ class DocumentPullSummary:
         }
 
 
-def apply_document_pull(family: DocumentFamily, realm_id: str, subtree) -> DocumentPullSummary:
-    """Adopt, keep or HOLD each pulled document — whole document, never merged."""
+def apply_document_pull(
+    family: DocumentFamily,
+    realm_id: str,
+    subtree,
+    *,
+    admit: Callable[[str, bytes], str | None] | None = None,
+) -> DocumentPullSummary:
+    """Adopt, keep or HOLD each pulled document — whole document, never merged.
+
+    ``admit(token, raw)`` (optional) answers a refusal code, or None to admit: a
+    document it refuses is named on ``refused`` and is never written, held or
+    read as ``upstream_absent``. The Lens recipe family scopes the pull to this
+    realm's workspaces with it (``recipe_outside_realm``) and refuses a document
+    not filed where it says (``recipe_misfiled``)."""
 
     from ..sync_merge import PullAction, classify_three_way_pull
 
@@ -473,6 +485,12 @@ def apply_document_pull(family: DocumentFamily, realm_id: str, subtree) -> Docum
         return summary
     summary.source = "subtree"
     remote, refused = read_remote_documents(family, subtree)
+    if admit is not None:
+        for token in sorted(remote):
+            code = admit(token, remote[token])
+            if code is not None:
+                del remote[token]
+                refused.append(family.refusal(token, code))
     summary.refused.extend(refused)
 
     store = DocumentStore(family)

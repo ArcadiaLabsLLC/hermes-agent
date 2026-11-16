@@ -139,3 +139,26 @@ def _emit_gateway_home_receipt(emit_diag) -> dict:
     return receipt
 
 
+
+
+def explicit_profile_arg(*, profile: str | None = None, home: str | Path | None = None) -> str:
+    """``--profile <name>`` naming the profile a gateway child runs, the default one included.
+
+    Upstream ``_profile_arg`` answers "" for the default home, so an unsupervised child launched
+    with it (the elevated Windows handoff, the post-update relaunch of a manual gateway or serve)
+    followed the sticky ``active_profile`` in ``main._apply_profile_override`` and booted another
+    profile (RT-EXPLICIT-PROFILE-ARGS-SEAM). *profile* names it outright; else *home* (default:
+    this process's) is read — a ``<root>/profiles/<name>`` home gives its name, the default root
+    gives ``default``, and any other root "" (it has no profile name to carry).
+    """
+    if profile is not None:
+        return f"--profile {profile}" if profile else ""
+    gw = _gw()
+    named = gw._profile_arg(str(home) if home is not None else None)
+    if named:
+        return named
+    from hermes_constants import get_default_hermes_root
+
+    target = Path(home) if home is not None else Path(gw.get_hermes_home())
+    # MUTATION: answer "" here and every default-profile seam test reddens.
+    return "--profile default" if target.resolve() == get_default_hermes_root().resolve() else ""

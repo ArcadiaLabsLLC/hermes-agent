@@ -25,6 +25,7 @@ from .publish_scans import (
     _board_publish_scan,
     _level_publish_scan,
     _map_publish_scan,
+    _lens_recipe_publish_scan,
     _prefab_publish_scan,
     _office_publish_scan,
 )
@@ -143,6 +144,9 @@ class _ResolvedPublish:
     #: ``map_hashes``'s reason.
     prefab_hashes: dict[str, str] = ()  # type: ignore[assignment]
     prefab_refused: list[dict[str, Any]] = ()  # type: ignore[assignment]
+    #: The SHARED LENS RECIPE family's hashes and refusals, out of the same pass.
+    lens_recipe_hashes: dict[str, str] = ()  # type: ignore[assignment]
+    lens_recipe_refused: list[dict[str, Any]] = ()  # type: ignore[assignment]
 
 
 def resolve_realm_sync_artifacts(realm_id: str) -> list[RealmSyncArtifact]:
@@ -182,6 +186,10 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     # USER PREFABS: every profile's shelf, the map catalogue's no-filter rule.
     prefab_scan = _prefab_publish_scan()
     artifacts.extend(prefab_scan.artifacts)
+    # SHARED LENS RECIPES: the shelf of this realm's workspaces (never a monitor, a credential,
+    # an Episode or a receipt — none of them is on the shelf).
+    lens_recipe_scan = _lens_recipe_publish_scan(workspaces)
+    artifacts.extend(lens_recipe_scan.artifacts)
     # The repo-slot documents (build plan §3.1), one per workspace of this realm,
     # copied verbatim; the pull side merges them key-wise.
     from ..workspace_slots_sync import publish_artifacts as _workspace_slot_artifacts
@@ -250,6 +258,8 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
         map_refused=map_scan.refused,
         prefab_hashes=prefab_scan.hashes,
         prefab_refused=prefab_scan.refused,
+        lens_recipe_hashes=lens_recipe_scan.hashes,
+        lens_recipe_refused=lens_recipe_scan.refused,
     )
 
 

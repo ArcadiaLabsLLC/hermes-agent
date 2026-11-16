@@ -99,6 +99,7 @@ def realm_sync_status(
     level_row = _level_status_row(realm.id, workspaces)
     map_row = _map_status_row(realm.id)
     prefab_row = _prefab_status_row(realm.id)
+    lens_recipe_unpublished = _lens_recipe_unpublished(realm.id, workspaces)
     workspace_changes = workspace_publish_changes(realm, repo)
     skill_deletes_waiting = _skill_deletes_waiting(realm, repo)
     checked_at = _write_sync_sidecar(
@@ -169,6 +170,7 @@ def realm_sync_status(
             or level_row["unpublished"]
             or map_row["unpublished"]
             or prefab_row["unpublished"]
+            or lens_recipe_unpublished
             or workspace_changes
             or skill_deletes_waiting
         ),
@@ -360,6 +362,17 @@ def _prefab_status_row(realm_id: str) -> dict[str, Any]:
     from .document_family import document_status_row
 
     return document_status_row(PREFAB_FAMILY, realm_id, _prefab_publish_scan())
+
+
+def _lens_recipe_unpublished(realm_id: str, workspaces: list[Workspace]) -> int:
+    """How many shared Lens recipes of this realm's workspaces differ from what the realm last
+    carried: a share or a withdrawal waits for the next publish, and the flag above says so.
+    Counted into ``unpublished_changes`` only — the held recipes are answered per workspace by
+    ``runtime.lens.recipe.list``, so the status envelope carries no new row."""
+
+    from ..lens.recipe_shelf import lens_recipe_status_row
+
+    return lens_recipe_status_row(realm_id, [workspace.id for workspace in workspaces])["unpublished"]
 
 
 def _level_status_row(realm_id: str, workspaces: list[Workspace]) -> dict[str, Any]:

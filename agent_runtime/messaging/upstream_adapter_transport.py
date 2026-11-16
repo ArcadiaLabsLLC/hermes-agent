@@ -164,15 +164,16 @@ class UpstreamAdapterTransport:
 
     # ── the sender gate ──
 
-    def _decide(self, user_id: Any, chat_id: Any = None, display: Any = None) -> bool:
-        """The fork's answer for one sender; a refusal is reported once here. Fails CLOSED."""
+    def _decide(self, user_id: Any, chat_id: Any = None, display: Any = None, *, report: bool = True) -> bool:
+        """The fork's answer for one sender; a refusal is reported once here, unless ``report`` is False (a
+        sender who did not address the agent: refused the same, but not listed). Fails CLOSED."""
         if self._is_allowed is None:
             return True
         user = str(user_id or "").strip()
         try:
             with self._scope():
                 allowed = bool(user) and bool(self._is_allowed(user))
-                if not allowed and user and self._on_refused is not None:
+                if not allowed and report and user and self._on_refused is not None:
                     self._on_refused(user, str(chat_id or ""), str(display or ""))
         except Exception:
             logger.warning("the messaging sender gate failed; the sender is refused", exc_info=True)
@@ -405,19 +406,52 @@ class DiscordUpstreamAdapterTransport(UpstreamAdapterTransport):
     operator included, and the fork never hears of the refusal. The override replaces that method on the
     instance with :meth:`_decide`, so the operator is admitted, a stranger is refused (and listed) at the same
     place, and upstream's pairing, wildcard and role grants do not widen the fork's list. Upstream's other
-    admission rules (bots, mentions in shared channels) still run after it. No approval cards yet."""
+    admission rules (bots, mentions in shared channels) still run after it. No approval cards yet.
+
+    **Only who addressed the agent is listed** (RT-MESSAGING-ONE-SENDER-GATE, closing
+    RT-MESSAGING-DISCORD-GATE-LISTS-EVERY-GUILD-SENDER-AS-REFUSED). The adapter asks ``_is_allowed_user`` for
+    EVERY message, reaction and voice event on a shared server, before its mention rules, so a gate that
+    listed each refusal would put the whole server on the console's Allow list. Every stranger is still
+    refused there; one is LISTED only for a DM, or a server message that @mentions the bot or sits in a
+    thread the bot joined. The message being admitted is read by wrapping ``_discord_message_admission``
+    (synchronous, on the adapter's one loop thread); reactions and voice carry no message and list nobody."""
 
     platform = "discord"
     intake_gate_test = _SIGNAL_INTAKE_TEST
 
     def _install_intake_gate(self) -> None:
-        self.adapter._is_allowed_user = self._user_gate
+        adapter = self.adapter
+        adapter._is_allowed_user = self._user_gate
+        admit = adapter._discord_message_admission
+        self._admitting: Any = None
+
+        def admission(message: Any, *, claim: bool) -> tuple[bool, bool]:
+            self._admitting = message
+            try:
+                return admit(message, claim=claim)
+            finally:
+                self._admitting = None
+
+        adapter._discord_message_admission = admission
+
+    def _addressed(self, message: Any) -> bool:
+        """A server message aimed at the bot: an @mention, or a thread the bot joined."""
+        if message is None:
+            return False
+        adapter = self.adapter
+        try:
+            if adapter._self_is_explicitly_mentioned(message):
+                return True
+            return bool(adapter._in_bot_thread(message))
+        except Exception:  # the adapter's helpers read discord.py types; unreadable means not addressed
+            return False
 
     def _user_gate(self, user_id: Any, author: Any = None, *, guild: Any = None, is_dm: bool = False,
                    channel_ids: Any = None, **_kwargs: Any) -> bool:
         display = getattr(author, "display_name", None) or getattr(author, "name", None) or ""
         chat = sorted(str(c) for c in channel_ids)[0] if channel_ids else ""
-        return self._decide(user_id, chat, display)
+        report = bool(is_dm) or self._addressed(self._admitting)
+        return self._decide(user_id, chat, display, report=report)
 
 
 def has_own_intake_gate(cls: type) -> bool:

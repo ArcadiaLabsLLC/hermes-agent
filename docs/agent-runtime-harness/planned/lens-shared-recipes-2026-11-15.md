@@ -4,7 +4,8 @@
 [eternia-lens-in-hermes.md](eternia-lens-in-hermes.md). Row `RT-LENS-SHARE-RECIPE-TO-WORKSPACE` (task
 `TASK-ETERNIA-LENS`), ruling `OR-2026-11-09-lens-shared-recipes-opt-in`. **Status:** slice 1 built
 2026-11-15 (lane w1115k-hlens, row `RT-LENS-RECIPE-SHELF-SHARE-AND-ADD`: the shelf, the four verbs, Add
-as a DRAFT; read live on two throwaway serves); slices 2 and 3 (§9) designed, not built. §2, §4 and §7
+as a DRAFT; read live on two throwaway serves); slice 2 built 2026-11-16 (lane w1115e-fh4, row
+`RT-LENS-RECIPE-REALM-SYNC-FAMILY`: realm sync carries the shelf); slice 3 (§9) designed, not built. §2, §4 and §7
 are corrected to the tree where slice 1 differed; each difference is marked "as built".
 
 The owner's ruling, 2026-11-09: "remote workspaces with lens setups shouldn't autmatically make my pc run
@@ -113,7 +114,7 @@ Every write is an RPC method; refusals carry `data.reason`.
 
 | Verb | Params → result | Notes |
 |---|---|---|
-| `runtime.lens.recipe.list` | `{workspace_id?}` → `{workspace_id, recipes: [row], held: [recipe_id], refused: [{recipe_id, reason}]}` | Absent `workspace_id` is the active workspace (`recipe_needs_workspace` with neither, for every verb). Reads the shelf and, per row, this PC's monitor of that id. As built: `held` is always empty until slice 2 reads the realm's parked tokens |
+| `runtime.lens.recipe.list` | `{workspace_id?}` → `{workspace_id, recipes: [row], held: [recipe_id], refused: [{recipe_id, reason}]}` | Absent `workspace_id` is the active workspace (`recipe_needs_workspace` with neither, for every verb). Reads the shelf and, per row, this PC's monitor of that id. As built (slice 2): `held` is the recipe ids the workspace's realm's last pull parked (`recipe_shelf.held_recipe_ids`) |
 | `runtime.lens.recipe.share` | `{monitor_id}` → row | Writes the SEALED manifest (never a draft) to the shelf. `not_sealed`, `recipe_not_portable` (detail names the feed), `recipe_needs_workspace` (a monitor with no `workspace_id`) |
 | `runtime.lens.recipe.withdraw` | `{workspace_id?, recipe_id}` → row | Writes the withdrawn document. `recipe_not_found` |
 | `runtime.lens.recipe.add` | `{workspace_id?, recipe_id}` → monitor (as `runtime.lens.get`) | `LensStore.create(localize(manifest), workspace_id=…, recipe_hash=…)` (the hash marks the DRAFT): a new DRAFT, or a sealed monitor's next-revision draft when this workspace already holds that monitor (an update). `recipe_not_found`, `recipe_withdrawn`, `monitor_exists` (the id belongs to another workspace's monitor; as built, refused inside `create`'s own transaction when it is given a `recipe_hash`), and `create`'s own `capacity_refused` / `monitor_retired` |
@@ -216,8 +217,9 @@ The launcher row to file (for the orchestrator, verbatim, in the launcher's `mis
   and each document's `workspace_id` join the store-root JSON re-key. As built in slice 1 (the re-key
   census reds a store entry with no class): `lens_recipes` is a MOVES place in `realm_rekey.STORE_PLACES`,
   so the existing content and rename steps rewrite each document's `workspace_id` and rename the folder,
-  with no step of its own. Left for S2: a re-keyed document has a new hash, so its monitor's
-  `recipe_hash` no longer equals it and the row reads `update_available`.
+  with no step of its own. As built (slice 2): a re-keyed document has a new hash, so the `outside`
+  step moves both recipe marks with it (`recipe_shelf.rekeyed_recipe_marks` →
+  `lens.store.rekey_recipe_marks`, on the re-key's own connection) and an added recipe stays `added`.
 - **Secret-path scan.** `store/lens_recipes/…` carries none of `SECRET_PATH_MARKERS`; the ref names inside
   a document are not paths. The publish refuses a secret path as before.
 - **The credential's host (built, `RT-LENS-CREDENTIAL-NOT-BOUND-TO-A-HOST`).** A credential is saved for
@@ -230,6 +232,16 @@ The launcher row to file (for the orchestrator, verbatim, in the launcher's `mis
 - **Version skew.** An older hermes has no row for `store/lens_recipes/`: `_destination_for_sync_path`
   answers None and it skips the files; its own publish rebuilds the subtree without them, which a newer
   peer reads as `upstream_absent` — never a delete, so the shelf stays.
+
+**As built (slice 2, 2026-11-16).** `admit(token, raw)` takes the bytes as well as the token, so one
+predicate (`recipe_shelf.realm_admit`) refuses both `recipe_outside_realm` and `recipe_misfiled`; a
+document it refuses is never written and never read as `upstream_absent`. The publish scan applies the
+same scope and the same filing check. The status envelope gains no row: the shelf's unpublished count
+moves `unpublished_changes` (so Eternia's auto-publish gate sees a share or a withdrawal), and the held
+recipes are answered per workspace by `runtime.lens.recipe.list`, so the realm status fixtures and their
+Eternia mirror did not move. The ack carries `lens_recipe_sync` (pull) and `lens_recipe_sync` (publish:
+`published`, `refused`). Tests: `tests/agent_runtime/lens/test_lens_recipe_realm_sync.py` (two homes, one
+origin, through `publish_realm_sync` / `pull_realm_sync`).
 
 ## 9. Build slices, in order (rows filed 2026-11-15, `group: eternia-lens`)
 

@@ -236,6 +236,7 @@ def _current_profile_cli_args() -> list[str]:
     from hermes_cli.gateway import _profile_arg
 
     profile_arg = _profile_arg()
+    from hermes_cli.gateway_downstream import explicit_profile_arg; profile_arg = profile_arg or explicit_profile_arg()  # fork seam: RT-EXPLICIT-PROFILE-ARGS-SEAM (owner 2026-11-16)
     return shlex.split(profile_arg) if profile_arg else []
 
 

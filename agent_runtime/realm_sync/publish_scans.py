@@ -285,6 +285,15 @@ def _map_publish_scan() -> MapPublishScan:
     return document_publish_scan(MAP_FAMILY)
 
 
+def _lens_recipe_publish_scan(workspaces: list[Workspace]) -> DocumentPublishScan:
+    """SHARED LENS RECIPES: the shelf documents of this realm's workspaces only — the level scan's
+    scope rule, by the token's workspace part (``lens.recipe_shelf.lens_recipe_publish_scan``)."""
+
+    from ..lens.recipe_shelf import lens_recipe_publish_scan
+
+    return lens_recipe_publish_scan(ws.id for ws in workspaces)
+
+
 def _prefab_publish_scan() -> DocumentPublishScan:
     """USER PREFABS: every profile's shelf on this install. No realm filter, for
     the map catalogue's reason — a shelf belongs to a profile NAME, which nothing

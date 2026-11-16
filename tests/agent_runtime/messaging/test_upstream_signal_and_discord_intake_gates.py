@@ -203,3 +203,37 @@ def test_discord_hardened_upstreams_wildcard_does_not_widen_the_forks_list(disco
     monkeypatch.setenv("DISCORD_ALLOW_ALL_USERS", "true")
     rig = discord_rig(hardened=True)
     assert rig.adapter._discord_message_admission(_dm(99, "Stranger", 4), claim=True) == (False, False)
+
+
+# ── Discord on a shared server: only who addressed the agent is listed (RT-MESSAGING-ONE-SENDER-GATE) ──
+
+
+def _guild_message(user_id, name, message_id, *, content="just chatting"):
+    return SimpleNamespace(id=message_id, type="default", channel=SimpleNamespace(id=777), guild=SimpleNamespace(id=9),
+                           content=content, mentions=[],
+                           author=SimpleNamespace(id=user_id, bot=False, display_name=name, name=name.lower()))
+
+
+def test_discord_guild_chatter_from_a_stranger_is_refused_but_not_listed(discord_rig):
+    """Killing mutation: ``_user_gate`` passes ``report=True`` always (Discord routed around the
+    addressed-only rule) → every server member who speaks lands on the Allow list → red."""
+    rig = discord_rig(hardened=True)
+    assert rig.adapter._discord_message_admission(_guild_message(99, "Bystander", 5), claim=True) == (False, False)
+    assert rig.refused == []
+
+
+def test_discord_guild_stranger_who_mentions_the_bot_is_refused_and_listed(discord_rig):
+    """Killing mutation: ``_install_intake_gate`` no longer wraps ``_discord_message_admission`` (the message
+    is never seen) → the mention is invisible to the gate → nobody listed → red."""
+    rig = discord_rig(hardened=True)
+    message = _guild_message(99, "Stranger", 6, content="<@1> can you help?")
+    assert rig.adapter._discord_message_admission(message, claim=True) == (False, False)
+    assert rig.refused == [("99", "777", "Stranger")]
+
+
+def test_discord_guild_reaction_or_voice_check_lists_nobody(discord_rig):
+    """A gate call with no message being admitted (reactions, voice) refuses a stranger quietly."""
+    rig = discord_rig(hardened=True)
+    assert rig.adapter._is_allowed_user("99", guild=SimpleNamespace(id=9), is_dm=False) is False
+    assert rig.adapter._is_allowed_user("42", guild=SimpleNamespace(id=9), is_dm=False) is True
+    assert rig.refused == []
