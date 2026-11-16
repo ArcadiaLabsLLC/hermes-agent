@@ -16,7 +16,7 @@ tags: [queue, program/fork-hygiene]
 
 ## Design-fix tasks — 2026-11-15 (review batch w1115e.9, B59; filed by lane w1115e-dfile)
 
-- **`FH-QUEUE-WAITS-FIELD` — Hermes' queue tools read the same waits field and list the deferred rows a close has woken** · group: waits-are-a-field · task in Eternia: `TASK-WAITS-ARE-A-FIELD` · architecture: fork tooling — `scripts/work_row.py`, `agent_runtime/work_store/wake.py`, the grammar in `agent_runtime/work_store/grammar.py` · mutation red: drop DEFERRED from the wake scan, and a planted deferred-on-closed row is not listed · reviewed 2026-11-15 w1115e.9 · BLOCKED 2026-11-15: launcher — `BRAIN-QUEUE-WAITS-FIELD`: the field's shape is set there
+- **`FH-QUEUE-WAITS-FIELD` — Hermes' queue tools read the same waits field and list the deferred rows a close has woken** · group: waits-are-a-field · task in Eternia: `TASK-WAITS-ARE-A-FIELD` · architecture: fork tooling — `scripts/work_row.py`, `agent_runtime/work_store/wake.py`, the grammar in `agent_runtime/work_store/grammar.py` · mutation red: drop DEFERRED from the wake scan, and a planted deferred-on-closed row is not listed · reviewed 2026-11-15 w1115e.9 · note: the Windows box and the teammate close rows with the same `scripts/work_row.py` · READY 2026-11-15 · unblocked 2026-11-15: launcher `BRAIN-QUEUE-WAITS-FIELD` closed DONE d09d473e83 · **TAKEN 2026-11-15 w1115e-dz18 on nekwo-ubuntu24 as nekwo in w1115e-h7-hm**
 
 ## Design-fix tasks — 2026-11-15 (review batch w1115e.8, B58; filed by lane w1115e-dfile)
 
