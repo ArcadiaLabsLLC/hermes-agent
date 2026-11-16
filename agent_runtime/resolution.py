@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import sys
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -10,6 +9,7 @@ from collections.abc import Mapping
 
 from .parse_cache import cached_yaml_file
 from .errors import ProbeIsolationViolation
+from .host_tools import platform_default_root
 
 __layer__ = "models"
 
@@ -192,11 +192,11 @@ def _table_row(layer: str, value: object, *, winner: bool) -> dict[str, object]:
 
 def _hermes_home(env: Mapping[str, str]) -> Path:
     value = str(env.get("HERMES_HOME") or "").strip()
-    return Path(value).expanduser() if value else _platform_default_hermes_home(env)
+    return Path(value).expanduser() if value else platform_default_root(env)
 
 
 def _default_hermes_root(env: Mapping[str, str]) -> Path:
-    native_home = _platform_default_hermes_home(env)
+    native_home = platform_default_root(env)
     env_home = str(env.get("HERMES_HOME") or "").strip()
     if not env_home:
         return native_home
@@ -209,23 +209,6 @@ def _default_hermes_root(env: Mapping[str, str]) -> Path:
     if env_path.parent.name == "profiles":
         return env_path.parent.parent
     return env_path
-
-
-def _platform_default_hermes_home(env: Mapping[str, str]) -> Path:
-    """``hermes_constants._get_platform_default_hermes_home`` over ``env`` instead of ``os.environ``.
-
-    The same rule, suffix included (FH-RUNTIME-HOME-DEFAULT-DUPLICATE: without
-    ``HERMES_DATA_DIR_SUFFIX`` the store root defaulted beside a different home than every
-    other reader). The authority reads only the process environment; this module resolves
-    over a passed mapping, so it restates the rule and a parity test pins the two together
-    (``tests/agent_runtime/test_resolution_home_default_downstream.py``).
-    """
-    suffix = str(env.get("HERMES_DATA_DIR_SUFFIX") or "")
-    if sys.platform == "win32":
-        local_appdata = str(env.get("LOCALAPPDATA") or "").strip()
-        base = Path(local_appdata).expanduser() if local_appdata else Path.home() / "AppData" / "Local"
-        return base / ("hermes" + suffix)
-    return Path.home() / (".hermes" + suffix)
 
 
 # S54 took ``_normalized_path`` with ``assert_pinned``, its only caller.

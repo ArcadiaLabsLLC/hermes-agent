@@ -33,6 +33,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
+from agent_runtime.host_tools import git_command
 from agent_runtime.running_work.rows import bounded_operator_text
 
 __layer__ = "policy"
@@ -199,7 +200,7 @@ def _head_after_commit(command: str, cwd: str | None) -> str | None:
     if not repo or not os.path.isdir(repo):
         return None
     try:
-        done = subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"], capture_output=True, text=True,
+        done = subprocess.run([git_command(), "-C", repo, "rev-parse", "HEAD"], capture_output=True, text=True,
                               timeout=HEAD_PROBE_TIMEOUT_S, check=False)
     except (OSError, subprocess.SubprocessError):
         return None

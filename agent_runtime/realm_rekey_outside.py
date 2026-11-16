@@ -122,7 +122,7 @@ def _rekey_local_history(mapping: Any) -> None:
 
 def _rekey_history_in(repo: Path, mapping: Any) -> None:
     from .realm_rekey import token_pattern
-    from .realm_rekey_git import git_runs
+    from .host_tools import git_runs
 
     old, new = (Path("realms") / paths.safe_path_token(realm) for realm in (mapping.realm_old, mapping.realm_new))
     if not (repo / ".git").exists() or not git_runs():

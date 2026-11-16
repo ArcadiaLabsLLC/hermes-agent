@@ -1,5 +1,5 @@
 """The Manual verb through the real authenticated dispatcher and native history owner."""
-from tests.waiting import wait_until
+from tests._downstream.load_wait import wait_for
 from tests.agent_runtime.test_console_suggestions_native import native
 from agent_runtime import serve_rpc
 from agent_runtime.console_suggestions.service import ConsoleSuggestions
@@ -25,7 +25,7 @@ def test_manual_rpc_observation_click_and_owner_fences(native):
         denied = call(prefix + ".request", expected_policy_epoch=epoch, client_scope="b" * 64)
         assert denied["error"]["data"]["reason"] == "conversation_owner_changed"
         assert call(prefix + ".request", expected_policy_epoch=epoch)["result"]["accepted"]
-        wait_until(lambda: not service.pending and not service.running, timeout=5)
+        wait_for(lambda: not service.pending and not service.running, 5, what="the suggestion settled")
         assert call(prefix + ".read")["result"]["text"] == "Show the next example."
         assert len(calls) == 1
     finally:

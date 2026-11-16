@@ -25,7 +25,7 @@ or registry entry names something real).
 
 | run | command | role |
 | --- | --- | --- |
-| pre-push | `scripts/prepush.sh [tests]` | the queue gates, the cheap text gates and the branch's touched tests, before every push to `main` (owner 2026-10-29); each step prints its budget and deadline, heartbeats and notifies past budget, is killed at its deadline (owner 2026-10-30); one whole-run cap exits 3 so the push never runs, and each overrun appends a JSON line to `_lane_logs/prepush_overruns.jsonl` (owner 2026-11-08) |
+| pre-push | `scripts/prepush.sh [tests]` | the queue gates, the cheap text gates and the branch's touched tests, before every push to `main` (owner 2026-10-29); each step prints its budget and deadline, heartbeats and notifies past budget, is killed at its deadline, a hang guard, and owed (owner 2026-10-30; 2026-11-15 call (iii)); a step whose work is over its shrink-only ceiling is red; one whole-run cap's killed and unstarted steps are owed too (exit 0 with an OWED line, since 2026-11-15), and each overrun appends a JSON line to `_lane_logs/prepush_overruns.jsonl` (owner 2026-11-08) |
 | daily | `scripts/daily_full_run.sh [--out=<dir>] [--dry-run] [--only=<steps>]` | once a day, from Eternia's daily run: the whole fork suite less the upstream skip list (`scripts/daily_suite_files.py`), the prepush gates, doc-cite, both name census gates and `tests/tooling/`, each its own step, log, `EXIT=` line and timeout, every step after a red too; exits 0 or 1 and names each red and the row it owes (owner 2026-11-08, `FH-DAILY-FULL-RUN`) |
 | landing gate | `scripts/run_tests_bundled.sh tests` (`--scope fork`) | every fork test plus the upstream tests the change reaches; once per batch |
 | release merge | `scripts/run_tests_bundled.sh --since-merge <merge> tests` | what the merge produced |
@@ -42,6 +42,8 @@ or registry entry names something real).
 | `tests/tooling/test_downstream_size_ceiling.py` | ratchet | every fork production file ≤ 800 code lines, or grandfathered and shrinking |
 | `tests/tooling/test_function_legibility_floor.py` | ratchet | no fork function over 150 lines or nested deeper than 4, beyond a shrinking list |
 | `tests/tooling/test_fork_import_layers.py` | fence | the fork's import graph points down its layers (models → policy → stores → lanes → wiring) |
+| `tests/agent_runtime/test_host_tools_resolution.py` | ratchet | no fork product module looks up git, node, uv or python itself (any `which` binding, a bare `["git", …]` argv): it asks `agent_runtime/host_tools.py`; shrink-only baseline (FH-ONE-HOST-TOOL-RESOLVER) |
+| `tests/agent_runtime/test_bare_deadline_lint.py` | ratchet | no fork test adds a bare `monotonic() + N` deadline or a wall-time assert outside the idle-box set; waits use `tests/_downstream/load_wait.py`; shrink-only baseline (FH-BARE-DEADLINE-LINT, FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME) |
 | `tests/tooling/test_no_ladder_routing.py` | fence | routing is data: no new `if x == "…"` / `isinstance` ladder |
 | `tests/tooling/test_harness_namespace_is_thin.py` | fence | `hermes_cli.harness` has no exec'd parts and no re-export shims |
 | `tests/tooling/test_refactor_stays_downstream.py` | fence | a `refactor(` commit never touches an upstream file |

@@ -38,27 +38,35 @@
 #
 # It prints its plan first. A step past its budget prints a heartbeat naming
 # it every few seconds and raises one desktop notification; a step at its
-# deadline is killed (its whole process group) and the run fails naming it. A
-# red or a kill raises a notification at the end. A green run inside budget
+# deadline — a HANG GUARD, not a refusal — is killed (its whole process group) and
+# reported UNFINISHED and owed: the run does not fail on time (FH-PREPUSH-STEPS-
+# REPORT-WORK-NOT-TIME, owner 2026-11-15 call (iii): "3 yes agreed"). What a step is
+# judged by is its WORK: each declares a work ceiling (the gate files it runs, the
+# contract checks it makes), and a step whose work is over its ceiling is RED however
+# fast it ran; wall time and load are printed beside it. A red or an owed step raises
+# a notification at the end. A green run inside budget
 # raises nothing and probes nothing (row FH-PREPUSH-PROGRESS-BUDGET, owner
 # 2026-10-30; the launcher's PREPUSH-PROGRESS-BUDGET is the same contract).
 # Every step runs even after a red: one push, the whole answer.
 #
 # ONE whole-run cap (PREPUSH_CAP) bounds the run, whatever the steps' deadlines add up
-# to: a step that would outlive it is killed when it is spent, the steps after it do not
-# start, and the run exits 3 naming the step — so `prepush.sh && git push` never pushes
-# (FH-PREPUSH-CAP-TIGHT, owner 2026-11-08: "make it performant").
+# to: a step that would outlive it is killed when it is spent and the steps after it do
+# not start (FH-PREPUSH-CAP-TIGHT, owner 2026-11-08: "make it performant"); each is
+# UNFINISHED and owed, named on the last line, like a hang-guard kill — a busy box never
+# refuses a correct push (until 2026-11-15 the cap exited 3).
 #
 # Every step past its budget, killed at its deadline or stopped by the cap appends ONE
 # JSON line to the untracked overrun ledger (PREPUSH_LEDGER, default
 # `_lane_logs/prepush_overruns.jsonl`): step, outcome, budget, deadline, measured wall,
-# exit, load average, live lanes, HEAD, cap. The run ends with a summary naming each
+# exit, load average, live lanes, HEAD, cap, work and work ceiling. The run ends with a summary naming each
 # overrun and the fork-hygiene row it owes, so the lane's landing report carries it
 # (FH-PREPUSH-OVERRUN-LEDGER; the launcher's QA-LAND-WAVE-PROMOTE-TO-MAIN ledger is the
 # same contract).
 #
-# Exit: 0 green · 1 red (a red or a deadline kill) · 2 usage · 3 the whole-run cap ·
-# 130 interrupted.
+# Exit: 0 green, or no red with owed (unfinished) steps named on the last line ·
+# 1 red (a failing step, or a step over its work ceiling) · 2 usage · 130 interrupted.
+# The Windows box and the teammate push with this script too: since 2026-11-15 a hang-guard
+# kill or the cap is exit 0 with an OWED line, never exit 1 / 3.
 #
 # Usage:
 #   scripts/prepush.sh                      # plan, then run
@@ -74,6 +82,8 @@
 #                         the Windows toast).
 #   PREPUSH_<STEP>_BUDGET / PREPUSH_<STEP>_DEADLINE   (STEP = GATES, DOC_CITE, CONTRACTS,
 #                         CENSUS, TOUCHED; whole seconds) override one step's numbers.
+#   PREPUSH_<STEP>_WORK_CEILING   (STEP = GATES, DOC_CITE, CONTRACTS, CENSUS) the most work
+#                         the step may do: files it runs / checks it makes. Shrink-only.
 #   PREPUSH_HEARTBEAT     seconds between heartbeats past budget (default 5).
 #   PREPUSH_CAP           the whole-run cap, whole seconds (default 240).
 #   PREPUSH_LEDGER        the overrun ledger (default _lane_logs/prepush_overruns.jsonl).
@@ -167,6 +177,15 @@ DEADLINE_TOUCHED="${PREPUSH_TOUCHED_DEADLINE:-120}"
 # imports the serve-RPC registry, the dump walks the argparse tree; neither runs a test).
 BUDGET_CONTRACTS="${PREPUSH_CONTRACTS_BUDGET:-6}"
 DEADLINE_CONTRACTS="${PREPUSH_CONTRACTS_DEADLINE:-20}"
+# The work ceilings (FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME, 2026-11-15, w1115e-dz11): each step's
+# work is the count of units it runs — gate files, the doc-cite walker, contract checks, census
+# gates — known before it starts, so the verdict is deterministic and load-free. Each ceiling is
+# today's count: SHRINK-ONLY (owner 2026-11-13, never raise a ceiling; a new gate replaces one or
+# goes to the landing gate). The touched step is the pusher's own tests and has none.
+WORK_CEILING_GATES="${PREPUSH_GATES_WORK_CEILING:-11}"
+WORK_CEILING_DOC_CITE="${PREPUSH_DOC_CITE_WORK_CEILING:-1}"
+WORK_CEILING_CONTRACTS="${PREPUSH_CONTRACTS_WORK_CEILING:-2}"
+WORK_CEILING_CENSUS="${PREPUSH_CENSUS_WORK_CEILING:-2}"
 HEARTBEAT="${PREPUSH_HEARTBEAT:-5}"
 CAP="${PREPUSH_CAP:-240}"
 SHARD_MIN="${PREPUSH_SHARD_MIN:-20}"
@@ -193,9 +212,10 @@ done
 for value in "$BUDGET_GATES" "$DEADLINE_GATES" "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
     "$BUDGET_CENSUS" "$DEADLINE_CENSUS" "$BUDGET_TOUCHED" "$DEADLINE_TOUCHED" "$HEARTBEAT" "$CAP" \
     "$BUDGET_CONTRACTS" "$DEADLINE_CONTRACTS" \
+    "$WORK_CEILING_GATES" "$WORK_CEILING_DOC_CITE" "$WORK_CEILING_CONTRACTS" "$WORK_CEILING_CENSUS" \
     "$SHARD_MIN" "$SHARD_SECONDS"; do
   case "$value" in
-    ''|*[!0-9]*|0) echo "prepush: a budget, deadline, cap, heartbeat or shard number is not a positive whole number of seconds: '$value'" >&2; exit 2 ;;
+    ''|*[!0-9]*|0) echo "prepush: a budget, deadline, cap, heartbeat, work ceiling or shard number is not a positive whole number: '$value'" >&2; exit 2 ;;
   esac
 done
 
@@ -314,7 +334,8 @@ done
 _list() { local label="$1"; shift; echo "  $label ($#):"; for p in "$@"; do echo "    $p"; done; }
 echo "prepush — base $(git rev-parse --short "$BASE") (merge-base with origin/main)"
 echo "  default path: gates + doc-cite, budget $((BUDGET_GATES + BUDGET_DOC_CITE))s"
-echo "  whole-run cap ${CAP}s: past it the running step is killed, the rest do not start, exit 3"
+echo "  whole-run cap ${CAP}s: past it the running step is killed, the rest do not start — each UNFINISHED and owed, not a red"
+echo "  a step is judged by its work against its ceiling; its deadline is a hang guard (UNFINISHED, owed)"
 echo "  overrun ledger: ${LEDGER#"$REPO_ROOT"/}"
 # The gates run BUNDLED (FH-UPSTREAM-RUNNER-ONE-PROCESS-GROUP, owner 2026-11-10: fork-side, no
 # upstream change): `run_tests.sh` starts one pytest per file, and on Windows each start is
@@ -328,21 +349,21 @@ echo "  overrun ledger: ${LEDGER#"$REPO_ROOT"/}"
 # full-tier run can hold for minutes — measured 2026-11-10 at 139 s and 300 s+ of waiting for a
 # 14 s step. The per-file runner this replaces never claimed a slot, so the cap loses nothing.
 GATES_RUNNER="${PREPUSH_GATES_RUNNER:-$SCRIPT_DIR/run_tests_bundled.sh}"
-echo "  step gates — budget ${BUDGET_GATES}s, deadline ${DEADLINE_GATES}s"
+echo "  step gates — budget ${BUDGET_GATES}s, deadline ${DEADLINE_GATES}s, work ${#GATES[@]} of ceiling ${WORK_CEILING_GATES} files"
 echo "    runner: ${GATES_RUNNER#"$REPO_ROOT"/}"
 _list "queue gates" "${PREPUSH_QUEUE_GATES[@]}"
 _list "text gates" "${PREPUSH_TEXT_GATES[@]}"
-echo "  step doc-cite — budget ${BUDGET_DOC_CITE}s, deadline ${DEADLINE_DOC_CITE}s"
+echo "  step doc-cite — budget ${BUDGET_DOC_CITE}s, deadline ${DEADLINE_DOC_CITE}s, work 1 of ceiling ${WORK_CEILING_DOC_CITE} walker"
 echo "    scripts/doc_cite_adjacency.py --exclude archive --exclude planned"
 if [ "$CONTRACTS" = 1 ]; then
-  echo "  step contracts — budget ${BUDGET_CONTRACTS}s, deadline ${DEADLINE_CONTRACTS}s"
+  echo "  step contracts — budget ${BUDGET_CONTRACTS}s, deadline ${DEADLINE_CONTRACTS}s, work 2 of ceiling ${WORK_CEILING_CONTRACTS} checks"
   echo "    python -m tests.agent_runtime._serve_rpc_manifest   (stale: add --write)"
   echo "    scripts/dump_cli_contract.py --check                (stale: --write)"
 else
   echo "  step contracts — no runtime or CLI source changed, skipped"
 fi
 if [ "${#CENSUS[@]}" -gt 0 ]; then
-  echo "  step census — budget ${BUDGET_CENSUS}s, deadline ${DEADLINE_CENSUS}s"
+  echo "  step census — budget ${BUDGET_CENSUS}s, deadline ${DEADLINE_CENSUS}s, work ${#CENSUS[@]} of ceiling ${WORK_CEILING_CENSUS} files"
   _list "name census gates" "${CENSUS[@]}"
 fi
 if [ "${#LANE[@]}" -gt 0 ]; then
@@ -485,17 +506,18 @@ _live_lanes() {
 }
 _json_str() { local v="${1//\\/\\\\}"; v="${v//\"/\\\"}"; printf '"%s"' "$v"; }
 OVERRUNS=()
-# _ledger STEP OUTCOME BUDGET DEADLINE MS EXIT — one JSON line, then one summary entry.
+# _ledger STEP OUTCOME BUDGET DEADLINE MS EXIT [WORK CEILING] — one JSON line, then one summary entry.
 _ledger() {
-  local step="$1" outcome="$2" budget="$3" deadline="$4" ms="$5" rc="$6" wall load lanes head
+  local step="$1" outcome="$2" budget="$3" deadline="$4" ms="$5" rc="$6" work="${7:-null}" ceiling="${8:-null}" wall load lanes head
   wall="$(($5 / 1000)).$(( ($5 % 1000) / 100 ))"
   load="$(_load_average)"
   lanes="$(_live_lanes)"
   head="$(git rev-parse --short HEAD 2>/dev/null)"
   mkdir -p "$(dirname "$LEDGER")" 2>/dev/null
-  printf '{"ts":%s,"step":%s,"outcome":%s,"budget_s":%s,"deadline_s":%s,"wall_s":%s,"exit":%s,"load":%s,"live_lanes":%s,"head":%s,"cap_s":%s}\n' \
+  [ "$ceiling" = 0 ] && ceiling=null
+  printf '{"ts":%s,"step":%s,"outcome":%s,"budget_s":%s,"deadline_s":%s,"wall_s":%s,"exit":%s,"load":%s,"live_lanes":%s,"head":%s,"cap_s":%s,"work":%s,"work_ceiling":%s}\n' \
     "$(_json_str "$(date -u +%Y-%m-%dT%H:%M:%SZ)")" "$(_json_str "$step")" "$(_json_str "$outcome")" \
-    "$budget" "$deadline" "$wall" "$rc" "$load" "$lanes" "$(_json_str "$head")" "$CAP" >>"$LEDGER" ||
+    "$budget" "$deadline" "$wall" "$rc" "$load" "$lanes" "$(_json_str "$head")" "$CAP" "$work" "$ceiling" >>"$LEDGER" ||
     echo "✘ prepush: could not append to the overrun ledger $LEDGER" >&2
   local row
   row="FH-PREPUSH-$(printf '%s' "$step" | tr '[:lower:]-' '[:upper:]-')-OVER-BUDGET"
@@ -504,33 +526,41 @@ _ledger() {
 
 RUN_STARTED="$(_now_ms)"
 RED_STEPS=()
+OWED_STEPS=()
 RETRY_ONCE=""
 CAPPED=""
-# _step NAME BUDGET DEADLINE CMD... — the step and its watchdog each lead their
+# _step NAME BUDGET DEADLINE WORK CEILING CMD... — the step and its watchdog each lead their
 # own process group (job control is on only while they start), so a kill takes
 # the step's whole tree and nothing else. The deadline is the step's own or what is
 # left of the whole-run cap, whichever is sooner; once the cap is spent no step starts.
+# The verdict is the WORK (FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME): WORK over a non-zero CEILING
+# is red, whatever the wall; a step killed at its deadline or the cap is UNFINISHED and owed.
+# MUTATION: judge "$ms" against "$budget" instead of "$work" against "$ceiling" and
+# test_a_slow_step_inside_its_work_ceiling_is_green_and_prints_its_wall reddens.
 _step() {
-  local name="$1" budget="$2" deadline="$3" started rc wd_rc ms left why="its deadline" outcome=""
-  shift 3
+  local name="$1" budget="$2" deadline="$3" work="$4" ceiling="$5" started rc wd_rc ms left why="its deadline" \
+    outcome="" tally
+  shift 5
+  tally="work $work${ceiling:+ of ceiling $ceiling}"
+  [ "$ceiling" = 0 ] && tally="work $work"
   if [ -n "$CAPPED" ]; then
-    echo "✘ prepush: $name not started — the ${CAP}s whole-run cap is spent ($CAPPED)"
-    RED_STEPS+=("$name (not started: the whole-run cap)")
+    echo "… prepush: $name not started — the ${CAP}s whole-run cap is spent ($CAPPED); UNFINISHED, owed"
+    OWED_STEPS+=("$name (not started: the whole-run cap)")
     return
   fi
   left=$(( CAP - ( $(_now_ms) - RUN_STARTED ) / 1000 ))
   if [ "$left" -le 0 ]; then
     CAPPED="before $name"
-    echo "✘ prepush: $name not started — the ${CAP}s whole-run cap is spent"
-    RED_STEPS+=("$name (not started: the whole-run cap)")
-    _ledger "$name" capped "$budget" "$deadline" 0 124
+    echo "… prepush: $name not started — the ${CAP}s whole-run cap is spent; UNFINISHED, owed"
+    OWED_STEPS+=("$name (not started: the whole-run cap)")
+    _ledger "$name" capped "$budget" "$deadline" 0 124 "$work" "$ceiling"
     return
   fi
   if [ "$left" -lt "$deadline" ]; then
     deadline="$left"
     why="the whole-run cap"
   fi
-  echo "▶ $name (budget ${budget}s)"
+  echo "▶ $name (budget ${budget}s, $tally)"
   started="$(_now_ms)"
   set -m
   "$@" &
@@ -558,32 +588,37 @@ _step() {
     if [ "$why" = "the whole-run cap" ]; then
       outcome=capped
       CAPPED="during $name"
-      echo "✘ prepush: $name killed at the ${CAP}s whole-run cap"
-      RED_STEPS+=("$name (killed at the ${CAP}s whole-run cap)")
+      echo "… prepush: $name killed at the ${CAP}s whole-run cap (load $(_load_average), $tally) — UNFINISHED, owed, not a red"
+      OWED_STEPS+=("$name (unfinished: killed at the ${CAP}s whole-run cap)")
     elif [ "$RETRY_ONCE" = "$name" ]; then
       # A step that is only slow under load (FH-PREPUSH-DOC-CITE-REDS-UNDER-LOAD: doc-cite killed at its
-      # 10 s deadline at load 21, green in 1.8 s on the rerun) is an overrun to retry, not a red: it is
-      # ledgered and run once more; a second kill is the red.
+      # 10 s deadline at load 21, green in 1.8 s on the rerun) is run once more for a real verdict; a
+      # second kill is UNFINISHED and owed.
       RETRY_ONCE=""
       echo "… prepush: $name killed at its ${deadline}s deadline (load $(_load_average)) — an overrun, not a red; running it once more"
-      _ledger "$name" killed_retried "$budget" "$deadline" "$ms" "$rc"
-      _step "$name" "$budget" "$deadline" "$@"
+      _ledger "$name" killed_retried "$budget" "$deadline" "$ms" "$rc" "$work" "$ceiling"
+      _step "$name" "$budget" "$deadline" "$work" "$ceiling" "$@"
       return
     else
-      outcome=killed
-      echo "✘ prepush: $name killed at its ${deadline}s deadline"
-      RED_STEPS+=("$name (killed at its ${deadline}s deadline)")
+      outcome=unfinished
+      echo "… prepush: $name killed at its ${deadline}s hang guard (load $(_load_average), $tally) — UNFINISHED, owed, not a red"
+      OWED_STEPS+=("$name (unfinished: killed at its ${deadline}s hang guard)")
     fi
   elif [ "$rc" -ne 0 ]; then
-    echo "✘ prepush: $name red (exit $rc, $(_secs "$ms"))"
+    echo "✘ prepush: $name red (exit $rc, $(_secs "$ms"), $tally)"
     RED_STEPS+=("$name (exit $rc)")
   else
-    echo "✔ $name $(_secs "$ms") (budget ${budget}s)"
+    echo "✔ $name $(_secs "$ms") (budget ${budget}s, load $(_load_average), $tally)"
+  fi
+  if [ "$ceiling" -gt 0 ] && [ "$work" -gt "$ceiling" ]; then
+    echo "✘ prepush: $name did $work units of work, over its ceiling of $ceiling — RED, however fast it ran"
+    RED_STEPS+=("$name (work $work over its ceiling $ceiling)")
+    [ -n "$outcome" ] || outcome=over_work
   fi
   if [ -z "$outcome" ] && [ "$ms" -gt $((budget * 1000)) ]; then
     outcome=slow
   fi
-  [ -n "$outcome" ] && _ledger "$name" "$outcome" "$budget" "$deadline" "$ms" "$rc"
+  [ -n "$outcome" ] && _ledger "$name" "$outcome" "$budget" "$deadline" "$ms" "$rc" "$work" "$ceiling"
 }
 
 # The touched lane: the unsharded files in one runner, each shard in its own, side by side.
@@ -616,11 +651,11 @@ _touched_lane() {
 # runs each way: 46.1 / 39.3 s at 3 bundles, 33.7 / 36.5 s at 7.
 GATES_BUNDLE_SIZE=$(( (${#GATES[@]} + JOBS - 1) / JOBS ))
 [ "$GATES_BUNDLE_SIZE" -ge 2 ] || GATES_BUNDLE_SIZE=2
-_step gates "$BUDGET_GATES" "$DEADLINE_GATES" env ETERNIA_HEAVY_SLOTS=off bash "$GATES_RUNNER" --small -j "$JOBS" \
+_step gates "$BUDGET_GATES" "$DEADLINE_GATES" "${#GATES[@]}" "$WORK_CEILING_GATES" env ETERNIA_HEAVY_SLOTS=off bash "$GATES_RUNNER" --small -j "$JOBS" \
   --bundle-size "$GATES_BUNDLE_SIZE" "${GATES[@]}"
 # doc-cite is short and read-only, so a deadline kill under load is retried once (RETRY_ONCE, above).
 RETRY_ONCE=doc-cite
-_step doc-cite "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
+_step doc-cite "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" 1 "$WORK_CEILING_DOC_CITE" \
   "$PY" "$SCRIPT_DIR/doc_cite_adjacency.py" --exclude archive --exclude planned
 # Both contract checks run even when the first is stale: one push, the whole answer.
 # Their cost is importing the runtime and CLI graphs (~980 modules), not the comparison, so
@@ -643,17 +678,17 @@ _contracts() {
   return "$rc"
 }
 if [ "$CONTRACTS" = 1 ]; then
-  _step contracts "$BUDGET_CONTRACTS" "$DEADLINE_CONTRACTS" _contracts
+  _step contracts "$BUDGET_CONTRACTS" "$DEADLINE_CONTRACTS" 2 "$WORK_CEILING_CONTRACTS" _contracts
 fi
 # The census step skips the machine-wide heavy-run slot as the gates step does (above): under a busy
 # box its ~7 s of gates waited 80 s+ for a slot a lane's full tier held, past the 60 s deadline
 # (FH-PREPUSH-CENSUS-OVER-BUDGET, 2026-11-14). MUTATION: drop it and
 # test_a_name_census_gate_runs_in_its_own_step_never_the_touched_lane reddens on the slots line.
 if [ "${#CENSUS[@]}" -gt 0 ]; then
-  _step census "$BUDGET_CENSUS" "$DEADLINE_CENSUS" env ETERNIA_HEAVY_SLOTS=off bash "$RUNNER" -j "$JOBS" "${CENSUS[@]}"
+  _step census "$BUDGET_CENSUS" "$DEADLINE_CENSUS" "${#CENSUS[@]}" "$WORK_CEILING_CENSUS" env ETERNIA_HEAVY_SLOTS=off bash "$RUNNER" -j "$JOBS" "${CENSUS[@]}"
 fi
 if [ "${#LANE[@]}" -gt 0 ]; then
-  _step touched "$BUDGET_TOUCHED" "$DEADLINE_TOUCHED" _touched_lane
+  _step touched "$BUDGET_TOUCHED" "$DEADLINE_TOUCHED" "${#LANE[@]}" 0 _touched_lane
 fi
 
 if [ "${#OVERRUNS[@]}" -ne 0 ]; then
@@ -663,14 +698,15 @@ if [ "${#OVERRUNS[@]}" -ne 0 ]; then
     echo "  overrun: $line"
   done
 fi
-if [ -n "$CAPPED" ]; then
-  echo "✘ prepush: CAPPED — the ${CAP}s whole-run cap was spent $CAPPED — ${RED_STEPS[*]} — do not push"
-  _notify "prepush: CAPPED" "${CAP}s whole-run cap spent $CAPPED"
-  exit 3
-fi
 if [ "${#RED_STEPS[@]}" -ne 0 ]; then
-  echo "✘ prepush: RED — ${RED_STEPS[*]} — fix before pushing"
+  echo "✘ prepush: RED — ${RED_STEPS[*]}${OWED_STEPS[*]:+ — and OWED: ${OWED_STEPS[*]}} — fix before pushing"
   _notify "prepush: RED" "${RED_STEPS[*]}"
   exit 1
+fi
+if [ "${#OWED_STEPS[@]}" -ne 0 ]; then
+  # Not refused (owner 2026-11-15 call (iii)): the push may go; the owed checks go in the landing note.
+  echo "✔ prepush: no red — OWED (unfinished, run them again or in the full run): ${OWED_STEPS[*]}"
+  _notify "prepush: OWED" "${OWED_STEPS[*]}"
+  exit 0
 fi
 echo "✔ prepush: green"

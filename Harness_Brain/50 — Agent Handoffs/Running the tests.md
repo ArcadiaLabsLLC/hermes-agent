@@ -357,9 +357,17 @@ twice the step's measured wall under that load; one whole-run cap bounds the run
 | touched (`test_prepush_sh.py`) | 21.9 s, 14 tests (load 29) | 27.9 s, 20 tests in 4 shards (load 16) | 60 s | 120 s (was 900) |
 | **whole run** | — | — | — | **cap 240 s** (none before: up to ~28 min) |
 
-- **The cap**: a step still running when the cap is spent is killed (its process group), the steps
-  after it do not start, and the run exits **3** naming the step (`✘ prepush: CAPPED …`), so
-  `prepush.sh && git push` never pushes. A red or a deadline kill exits 1; usage 2.
+- **The cap**: a step still running when the cap is spent is killed (its process group) and the steps
+  after it do not start. Since 2026-11-15 (FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME, owner call (iii):
+  "3 yes agreed") the killed and unstarted steps — and a step killed at its own deadline, now a hang
+  guard — are UNFINISHED and owed: exit 0 with `✔ prepush: no red — OWED …` as the last line, which
+  the landing note carries; until then the cap exited 3 and a deadline kill 1. A red (a failing step,
+  or a step whose work is over its ceiling) exits 1; usage 2.
+- **Work ceilings** (same row): each step's work is the count it runs — gates 11 files, doc-cite 1
+  walker, contracts 2 checks, census 2 gates — and over its ceiling (`PREPUSH_<STEP>_WORK_CEILING`,
+  today's count, shrink-only) is red however fast it ran. Wall and load are printed beside it. The
+  touched step is the pusher's own tests and has no ceiling. The Windows box and the teammate push
+  with the same script, so these exit semantics are theirs too.
 - **The gates step runs the upstream-footprint ledger gate** (`tests/scripts/test_upstream_footprint.py`,
   since 2026-11-12, FH-FOOTPRINT-LEDGER-LAUNCHER-PUBLICATION-TEST-UNLEDGERED): ~4 s alone, and beside the
   other gates in the bundle the step measured 7.7 s without it and 7.3 / 7.6 s with it (nekwo-ubuntu24,

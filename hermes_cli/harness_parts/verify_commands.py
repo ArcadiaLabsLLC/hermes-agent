@@ -17,6 +17,7 @@ from pathlib import Path
 
 from agent_runtime import paths
 from agent_runtime.cli_format import emit_json
+from agent_runtime.host_tools import git_command
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.migrations import effective_config_summary, migration_status
 from agent_runtime.profile_context import active_profile_name
@@ -161,7 +162,7 @@ def _git_summary(root: Path) -> dict:
     def run(args: list[str]) -> str | None:
         try:
             completed = subprocess.run(
-                ["git", *args],
+                [git_command(), *args],
                 cwd=root,
                 capture_output=True,
                 text=True,

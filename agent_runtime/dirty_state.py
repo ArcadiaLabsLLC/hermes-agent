@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .build_stamp import checkout_bound_enabled
+from .host_tools import git_command
 from .repo_context import resolve_affected_repo_workdir, safe_affected_repo_labels
 from .states import RunState
 from .store import ACTIVE_RUN_STATES
@@ -115,7 +116,7 @@ def _runtime_dirty_state(*, runs, incidents) -> dict[str, Any]:
 def _git_dirty_state(*, label: str, root: Path) -> dict[str, Any]:
     try:
         completed = subprocess.run(
-            ["git", "--no-optional-locks", "-C", str(root), "status", "--short", "--untracked-files=all"],
+            [git_command(), "--no-optional-locks", "-C", str(root), "status", "--short", "--untracked-files=all"],
             capture_output=True,
             text=True,
             timeout=10,

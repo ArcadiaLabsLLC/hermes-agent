@@ -146,9 +146,12 @@ batch at its landing, never per lane.
   <tests that reference a shared symbol they changed>` (found with `grep -rl <name> tests/`): it
   prints its plan, then runs the queue gates, the cheap whole-tree text gates and every test file
   the branch touched, and exits non-zero on any red. Each step declares a budget and a deadline:
-  past budget it heartbeats and raises a desktop notification, at the deadline it is killed and
-  named (owner 2026-10-30, `FH-PREPUSH-PROGRESS-BUDGET`); one whole-run cap bounds the run (exit 3,
-  the push never runs) and every overrun is a line in `_lane_logs/prepush_overruns.jsonl`
+  past budget it heartbeats and raises a desktop notification, at the deadline (a hang guard) it is
+  killed and named UNFINISHED and owed, not a red (owner 2026-10-30, `FH-PREPUSH-PROGRESS-BUDGET`;
+  2026-11-15 call (iii), `FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME`); a step is red when its WORK (gate
+  files run, checks made) is over its shrink-only work ceiling, never for its wall; one whole-run cap
+  bounds the run (its killed and unstarted steps are owed too: exit 0 with an OWED line, which goes
+  in the landing note) and every overrun is a line in `_lane_logs/prepush_overruns.jsonl`
   (owner 2026-11-08, `FH-PREPUSH-CAP-TIGHT`, `FH-PREPUSH-OVERRUN-LEDGER`; the numbers:
   `Running the tests.md` § prepush). Any red is fixed before the push (owner
   2026-10-29, adopting the launcher's 2026-10-27 rule). It is a command, not a hook.

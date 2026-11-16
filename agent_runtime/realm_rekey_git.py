@@ -27,9 +27,10 @@ from typing import Any
 
 from . import paths
 from .git_cmd import run_git
+from .host_tools import git_runs
 
 __layer__ = "lanes"
-__all__ = ["LANE_WORKTREES_DIRNAME", "git_runs", "step_git"]
+__all__ = ["LANE_WORKTREES_DIRNAME", "step_git"]
 
 #: ``batch/lane_git.py`` cuts a lane beside its clone, under this name.
 LANE_WORKTREES_DIRNAME = ".worktrees"
@@ -38,16 +39,6 @@ _GITDIR = "gitdir:"
 
 def _git(repo: Path, *args: str, config: list[str] | None = None) -> subprocess.CompletedProcess[str]:
     return run_git(list(args), repo=repo, config=config, timeout=60, stdin=subprocess.DEVNULL, encoding="utf-8")
-
-
-def git_runs() -> bool:
-    """Whether the fork's git door (``git_cmd.run_git``) can run git here: the question the re-key's git
-    work needs answered, asked of the same door that then runs it. No ``which`` lookup (the reviewed-resolver
-    scan) and no private upstream resolver (the fork import-layer rule)."""
-    try:
-        return run_git(["--version"], timeout=10, stdin=subprocess.DEVNULL).returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
 
 
 def _linked_worktrees(base: Path, forms: dict[str, str]) -> dict[Path, list[Path]]:
