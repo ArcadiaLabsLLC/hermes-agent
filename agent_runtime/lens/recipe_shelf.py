@@ -62,6 +62,7 @@ from ..realm_sync.document_family import (
 from .feed import FeedKind, address_parts, feed_address
 from .host_budget import is_private_reader
 from .manifest import read_manifest
+from .revision import bump_lens_revision, lens_revision
 from .wire_value import MAXIMUM_MANIFEST_BYTES, LensRefusal, RefusalKind, WireError, canonical_bytes, opaque_id
 
 __layer__ = "stores"
@@ -198,6 +199,8 @@ LENS_RECIPE_FAMILY = DocumentFamily(
     unreadable_reason=RecipeRefusal.UNREADABLE.value,
     extra_check=read_recipe_document,
     glob="*/*.json",
+    # A share, a withdrawal, or a realm pull adopting one moves the Lens store revision.
+    on_change=bump_lens_revision,
 )
 
 
@@ -406,7 +409,7 @@ def announce(recipe: ShelfRecipe, change: RecipeChange) -> None:
 
     from ..events import EventLog
     from ..store_events import emit_store_event
-
     emit_store_event(EventLog(), "lens.recipe.changed",
-                     {"workspace_id": recipe.workspace_id, "recipe_id": recipe.recipe_id, "change": change.value},
+                     {"workspace_id": recipe.workspace_id, "recipe_id": recipe.recipe_id, "change": change.value,
+                      "store_revision": lens_revision()},
                      domain="lens")

@@ -51,6 +51,12 @@ settled — appends ``lens.monitor.changed`` / ``lens.episode.changed`` / ``lens
 AFTER its transaction commits, so the stream (gated on the EventLog watermark) refreshes the
 snapshot's ``lens`` section. Observations, rollups and an active Episode's ``last_seen`` /
 ``count`` ticks emit nothing: they land every poll.
+
+Store revision (``RT-LENS-STORE-HAS-ONE-REVISION``): ONE monotonically increasing number moved
+once by every transaction that changes the store (:meth:`LensStore._db`, the single commit point;
+:func:`revision.bump_store_revision` for a writer on its own connection; :func:`revision.bump_lens_revision`
+for the recipe shelf's documents). Each event above, ``lens.recipe.changed`` and every ``runtime.lens.*``
+answer carry it as ``store_revision``: 0 new messages, one integer on the ones already sent.
 """
 
 from __future__ import annotations
@@ -72,6 +78,7 @@ from .store_receipt_rows import (RECEIPT_COLUMNS as _RECEIPT_COLUMNS, RECEIPT_RE
                                  receipt_row as _receipt_row, settle_receipts_full)
 from .feed import Observation
 from .manifest import read_manifest
+from .revision import bump_store_revision, read_store_revision
 from .seal import SealedManifest, seal_manifest
 from .wire_value import LensRefusal, RefusalKind, WireError, WireRefusal, canonical_bytes
 
@@ -285,13 +292,16 @@ class LensStore:
 
         if self._event_log is None:
             self._event_log = EventLog()
-        emit_store_event(self._event_log, event_type, payload, domain="lens")
+        emit_store_event(self._event_log, event_type, payload | {"store_revision": self.store_revision()},
+                         domain="lens")
 
     def exists(self) -> bool:
         return self.path.is_file()
 
     @contextmanager
     def _db(self) -> Iterator[sqlite3.Connection]:
+        """THE commit point: every Lens write runs in one of these transactions, and a transaction
+        that changed any row moves the store revision once, inside the same transaction (``RT-LENS-STORE-HAS-ONE-REVISION``)."""
         with _LOCK:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             conn = sqlite3.connect(self.path)
@@ -309,9 +319,17 @@ class LensStore:
                 _add_owner_column(conn)
                 _add_recipe_hash(conn)
                 with conn:
+                    before = conn.total_changes
                     yield conn
+                    if conn.total_changes != before:
+                        bump_store_revision(conn)
             finally:
                 conn.close()
+
+    def store_revision(self) -> int:
+        """The Lens store revision (:func:`bump_store_revision`): 0 for a store never written."""
+
+        return read_store_revision(self.path)
 
     # --- monitors -------------------------------------------------------------
 

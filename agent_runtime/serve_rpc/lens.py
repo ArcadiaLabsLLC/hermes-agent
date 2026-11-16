@@ -160,12 +160,21 @@ _REFUSAL_CODES = {"invalid": ERR_INVALID_PARAMS, "not_found": ERR_NOT_FOUND, "co
 def _lens_call(rid: Any, body: Callable[[], dict]) -> dict:
     """Run ``body``; turn a Lens refusal — every one is a ``lens.wire_value.LensRefusal`` — into
     its frame: the error code of its kind (:data:`_REFUSAL_CODES`), its ``summary``, and
-    ``data: {reason, detail}``."""
+    ``data: {reason, detail}``.
 
+    Every answer carries ``store_revision``, the Lens store revision read BEFORE ``body`` runs
+    (``RT-LENS-STORE-HAS-ONE-REVISION``): what the answer shows is at least that fresh, so a reader
+    comparing it with an event's revision may re-read once too often, never too seldom."""
+
+    from agent_runtime.lens.revision import read_store_revision
     from agent_runtime.lens.wire_value import LensRefusal
 
+    revision = read_store_revision(_store().path)
     try:
-        return ok(rid, body())
+        result = body()
+        if isinstance(result, dict):
+            result = result | {"store_revision": revision}
+        return ok(rid, result)
     except LensRefusal as exc:
         return err(rid, _REFUSAL_CODES[exc.kind.value], exc.summary,
                    {"reason": exc.reason.value, "detail": exc.detail})

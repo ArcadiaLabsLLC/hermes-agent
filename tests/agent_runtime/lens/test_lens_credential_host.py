@@ -104,7 +104,7 @@ def test_the_saved_address_is_scheme_name_and_port(wire, url):
 def test_the_address_is_read_off_the_monitors_that_name_the_ref_never_off_the_request():
     reply = _sign_in()
     assert reply["result"] == {"ref": "k", "set": True, "rotated_at": reply["result"]["rotated_at"],
-                               "host": HOME_HOST}
+                               "host": HOME_HOST, "store_revision": reply["result"]["store_revision"]}
     assert _call("runtime.lens.credential.set", {"ref": "k", "scheme": "bearer", "secret": SECRET,
                                                 "host": ELSEWHERE})["error"]["data"]["reason"] == "unknown_key"
     assert _call("runtime.lens.credential.set", {"ref": "nobody-names-me", "scheme": "bearer",

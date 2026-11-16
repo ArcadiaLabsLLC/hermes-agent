@@ -107,7 +107,8 @@ def test_setting_the_default_to_null_restores_the_shipped_text():
     _rpc("runtime.lens.guidance.default.set", {"workspace_id": "ws_a", "text": "Workspace rules."})
     cleared = _rpc("runtime.lens.guidance.default.set", {"workspace_id": "ws_a", "text": None})
     assert cleared == {"workspace_id": "ws_a", "text": SHIPPED_GUIDANCE, "source": "shipped",
-                       "updated_at_ms": None, "shipped_text": SHIPPED_GUIDANCE}
+                       "updated_at_ms": None, "shipped_text": SHIPPED_GUIDANCE,
+                       "store_revision": cleared["store_revision"]}  # RT-LENS-STORE-HAS-ONE-REVISION
     assert _guidance("alpha")["source"] == "shipped"
     reply = _call("runtime.lens.guidance.default.set", {"workspace_id": "ws_a"})
     assert reply["error"]["data"] == {"reason": "missing_key", "detail": "text"}
