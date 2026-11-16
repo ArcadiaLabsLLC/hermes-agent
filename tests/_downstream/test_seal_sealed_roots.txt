@@ -1,0 +1,10 @@
+# The folders whose tests FAIL on a leftover thread or child (tests/_downstream/seal.py, part d).
+# One repo-relative folder per line, each added only after its run was read clean. The list only
+# grows; a folder not on it reports its leftovers on `[test-seal] leftover` lines instead.
+# Read clean 2026-11-16 (w1115e-fh3, one process over each folder): the six below.
+tests/_downstream/
+tests/computer_use/
+tests/conformance/
+tests/hermes_platform/
+tests/monitoring/
+tests/secret_sources/

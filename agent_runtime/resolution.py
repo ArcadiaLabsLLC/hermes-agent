@@ -9,7 +9,7 @@ from collections.abc import Mapping
 
 from .parse_cache import cached_yaml_file
 from .errors import ProbeIsolationViolation
-from .host_tools import platform_default_root
+from . import host_tools  # the root is read through the module, so the test seal can point it at the sandbox
 
 __layer__ = "models"
 
@@ -192,11 +192,11 @@ def _table_row(layer: str, value: object, *, winner: bool) -> dict[str, object]:
 
 def _hermes_home(env: Mapping[str, str]) -> Path:
     value = str(env.get("HERMES_HOME") or "").strip()
-    return Path(value).expanduser() if value else platform_default_root(env)
+    return Path(value).expanduser() if value else host_tools.platform_default_root(env)
 
 
 def _default_hermes_root(env: Mapping[str, str]) -> Path:
-    native_home = platform_default_root(env)
+    native_home = host_tools.platform_default_root(env)
     env_home = str(env.get("HERMES_HOME") or "").strip()
     if not env_home:
         return native_home

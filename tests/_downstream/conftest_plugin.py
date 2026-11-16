@@ -94,6 +94,14 @@ from tests._downstream.body_patch_scope import (  # hook re-exports (p10 S-A1, F
 )
 from tests._downstream.git_env_memo import _git_env_memo  # autouse (suite speed, p10-bar)
 from tests._downstream import child_startup, registry_write_fence, server_shutdown_poll
+from tests._downstream import seal  # the one test seal (FH-ONE-TEST-SEAL)
+from tests._downstream.seal import (  # autouse fixture + hook re-exports
+    _test_seal,
+    pytest_fixture_setup_test_seal,
+    pytest_runtest_setup_test_seal,
+    pytest_runtest_teardown_test_seal,
+    pytest_terminal_summary_test_seal,
+)
 from tests._downstream.fork_readonly_readers import file_reads_through
 from tests._downstream.id_markers.reasons import (
     ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK as _ALLOW_CLAUDE_CODE_CREDENTIALS_FILE_MARK,
@@ -113,6 +121,8 @@ registry_write_fence.install()
 child_startup.install()
 # Process-wide, at import: a test's socketserver notices shutdown() within 50 ms (w2-speed-b).
 server_shutdown_poll.install()
+# Process-wide, at import: the threads and children a test starts are counted (FH-ONE-TEST-SEAL).
+seal.install()
 
 
 # ── Opt-in test-temp root (suite-perf Stage 7, ruled 2026-09-01) ─────────────
