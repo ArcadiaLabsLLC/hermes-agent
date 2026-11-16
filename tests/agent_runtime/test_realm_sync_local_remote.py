@@ -1,9 +1,13 @@
 """A local realm adopts the personal repo its ``local:`` credential names (p10-work §2.6, stage B1,
 ``REALM-LOCAL-REMOTE-FROM-CREDENTIAL``).
 
-Real ``git`` throughout: a bare repo under ``tmp_path`` plays the player's personal GitHub repo,
-reached through a one-process ``url.<dir>.insteadOf`` (``GIT_CONFIG_*`` env) so the credential's
-``git_url`` is a real https-shaped remote (``_looks_like_remote``) and nothing touches the network.
+A bare repo under ``tmp_path`` plays the player's personal GitHub repo; the credential's ``git_url``
+stays a real https-shaped remote (``_looks_like_remote``) through every caller and nothing touches the
+network. Each arm reaches the bare repo at its own transport choice (fixture :func:`personal`): the git
+program through a one-process ``url.<dir>.insteadOf`` (``GIT_CONFIG_*`` env), the phone's dulwich
+through ``DulwichSyncGit._transport`` mapping :data:`HOST` to the bare repo's directory
+(RT-PHONE-REALM-SYNC-LOCAL-REMOTE-SUITE-ON-THE-PHONE-ARM; a ``file://`` remote would drop the https
+URL the credential tests assert).
 """
 
 from __future__ import annotations
@@ -42,9 +46,23 @@ def personal(tmp_path, monkeypatch) -> Path:
     host.mkdir()
     bare = host / "eternia-realms.git"
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True, capture_output=True)
+    # The git program's arm: git's own address rewrite (only the git program reads it).
     monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
     monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{host.as_posix()}/.insteadOf")
     monkeypatch.setenv("GIT_CONFIG_VALUE_0", HOST)
+    # The phone's arm: dulwich's one transport choice maps the test host to the bare repo's directory.
+    from dulwich.client import LocalGitClient
+
+    from agent_runtime.realm_sync.git_dulwich import DulwichSyncGit
+
+    real_transport = DulwichSyncGit._transport
+
+    def _transport(self, url, step):
+        if url.startswith(HOST):
+            return LocalGitClient(), str(host / url[len(HOST):])
+        return real_transport(self, url, step)
+
+    monkeypatch.setattr(DulwichSyncGit, "_transport", _transport)
     return bare
 
 
@@ -165,23 +183,44 @@ def test_a_course_credential_is_refused_before_any_git_call(isolate_agent_runtim
     assert calls == []
 
 
-def test_the_authorization_header_never_lands_in_git_config(isolate_agent_runtime_root, personal, monkeypatch):
+def test_the_authorization_header_never_lands_in_git_config(
+    isolate_agent_runtime_root, personal, monkeypatch, realm_sync_arm
+):
+    """The credential rides each network step and never the repo's config. Each arm is read at its own
+    network door: the git program's argv (``git_cmd``), dulwich's client choice (``DulwichSyncGit._client``)."""
     from agent_runtime import git_cmd
+    from agent_runtime.realm_sync.git_dulwich import DulwichSyncGit
 
     realm, credential = _local_realm()
     WorkspaceStore().create(name="Launcher", realm_id=realm.id, agent_ids=["dev"])
-    calls: list[list[str]] = []
+    header = credential.git_extra_config()[0]
+    # Each network step as (verb, carried the credential).
+    steps: list[tuple[str, bool]] = []
     real_run = git_cmd.subprocess.run
-    monkeypatch.setattr(git_cmd.subprocess, "run", lambda cmd, *a, **k: calls.append(list(cmd)) or real_run(cmd, *a, **k))
+
+    def _run(cmd, *a, **k):
+        argv = list(cmd)
+        verb = next((word for word in ("fetch", "push", "remote") if word in argv), None)
+        if verb is not None:
+            steps.append((verb, header in argv))
+        return real_run(cmd, *a, **k)
+
+    monkeypatch.setattr(git_cmd.subprocess, "run", _run)
+    real_client = DulwichSyncGit._client
+
+    def _client(self, url, auth, step):
+        steps.append((step[0], auth is not None and auth.git_authorization == SECRET))
+        return real_client(self, url, auth, step)
+
+    monkeypatch.setattr(DulwichSyncGit, "_client", _client)
 
     publish_realm_sync(realm.id, credential=credential)
     pull_realm_sync(realm.id, credential=credential)
 
-    header = credential.git_extra_config()[0]
     # The adopter carried it on its network step (a ``remote add`` needs no credential since the port, S2).
-    assert any("fetch" in cmd and "origin" in cmd and header in cmd for cmd in calls)
-    assert not any("remote" in cmd and "add" in cmd and header in cmd for cmd in calls)
-    assert any("push" in cmd and header in cmd for cmd in calls)
+    assert ("fetch", True) in steps, (realm_sync_arm, steps)
+    assert ("remote", True) not in steps, (realm_sync_arm, steps)
+    assert ("push", True) in steps, (realm_sync_arm, steps)
     config_text = (_own_repo(realm) / ".git" / "config").read_text(encoding="utf-8").lower()
     assert "extraheader" not in config_text
     assert "sekret" not in config_text

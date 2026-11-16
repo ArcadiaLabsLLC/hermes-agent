@@ -540,16 +540,6 @@ REALM_SYNC_BINARY_ONLY = frozenset({
     "test_realm_sync.py::test_git_clone_renders_extra_config",
     "test_realm_sync.py::test_git_extra_config_threads_and_never_leaks",
     "test_realm_sync.py::test_pull_threads_credential_header_per_invocation_only",
-    # The fixture reaches its "https://github.example/..." remote through git's own ``url.<x>.insteadOf``
-    # environment (GIT_CONFIG_COUNT), which only the git program reads; row
-    # RT-PHONE-REALM-SYNC-LOCAL-REMOTE-SUITE-ON-THE-PHONE-ARM rewrites the fixture for both arms.
-    "test_realm_sync_local_remote.py::test_a_local_credential_sets_sync_manifest_ref_and_adds_origin_on_the_realms_own_repo",
-    "test_realm_sync_local_remote.py::test_a_second_machine_merges_disjoint_subtrees_and_refuses_a_shared_path",
-    "test_realm_sync_local_remote.py::test_a_status_answer_carries_the_check_time_its_sidecar_holds",
-    "test_realm_sync_local_remote.py::test_first_publish_pushes_with_upstream_into_the_empty_personal_repo",
-    "test_realm_sync_local_remote.py::test_no_read_pull_or_remote_set_of_a_local_realm_fills_its_empty_backup_repo",
-    "test_realm_sync_local_remote.py::test_pull_then_fast_forwards_from_origin",
-    "test_realm_sync_local_remote.py::test_the_authorization_header_never_lands_in_git_config",
 })
 
 
