@@ -34,6 +34,7 @@ __all__ = [
     "realm_agents_set",
     "realm_agents_show",
     "realm_mark_revoked",
+    "realm_publishing_push",
     "realm_skill_selection_envelope",
     "realm_skills_set",
     "realm_skills_show",
@@ -101,6 +102,21 @@ def realm_sync_publish(realm_id: str, *, credential: Any = None, dry_run: bool =
     from .realm_sync import publish_realm_sync
 
     return attach_root_observability(publish_realm_sync(realm_id, dry_run=dry_run, credential=credential))
+
+
+# ── publishing: push a ready-made folder (RT-REALM-PUBLISHING-PUSHES-A-FOLDER) ──
+
+
+def realm_publishing_push(
+    realm_id: str, folder: str, *, credential: Any = None, branch: str | None = None, dry_run: bool = False,
+) -> dict:
+    """Publish ``folder``, as it is, to the realm's publishing repository (``agent_runtime.realm_publishing``).
+    Not realm sync: it never touches the sync clone. The caller has already passed its ``yes`` gate."""
+    from .realm_publishing import DEFAULT_BRANCH, publish_folder
+
+    return attach_root_observability(
+        publish_folder(realm_id, folder, credential=credential, branch=branch or DEFAULT_BRANCH, dry_run=dry_run)
+    )
 
 
 # ── sync: revert / resolve ───────────────────────────────────────────────────

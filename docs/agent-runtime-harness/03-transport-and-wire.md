@@ -1191,6 +1191,8 @@ chat send of a new chat was accepted only after it (`send_to_admit_ms=2564`, tur
 runs them one at a time among themselves (`_REALM_VERB_LOCK`), which is the serialization the
 inline lane used to give them for free.
 
+**`runtime.realm.publishing.push` publishes a ready-made folder to a realm's publishing repository (2026-11-16, `RT-REALM-PUBLISHING-PUSHES-A-FOLDER`, lane w1115e-ph).** Method-lane only, console tier. Params: `realm_id`, `folder` (an absolute path on the install hermes runs on), `credential` (inline: the backend's `POST /api/realms/{id}/publishing-host/credential` answer, the frozen v1 shape with `realm_id` = `publishing:<realm id>`), `branch` (default `gh-pages`), `dry_run`, `yes`. It pushes the folder as it is, plus `.nojekyll`, as a fast-forward of the branch from its own clone (`paths.realm_publishing_clone_dir`), never the sync clone, after asking the backend's `sync_permission(…, "publish")` (`realm_membership.ask_backend_permission`). Result: the `realm_publishing_push` envelope `{realm_id, repository, branch, files, changed, commit, dry_run}`. Refusals (`data.reason`): `publishing_not_connected` (no credential), `sync_auth_failed` (a credential for anything but this realm's publishing repository, or expired), the backend's `membership_denied` / `role_insufficient`, `sync_push_rejected`, `sync_remote_unreachable`, `invalid_request`, `confirmation_required`. Code: `agent_runtime/realm_publishing/`.
+
 **`runtime.realm.revoked` records backend `realm.revoked` (2026-10-18, lane w2-realm).** Hermes
 holds no realtime subscription and no credential between calls, so the launcher, which receives
 the durable `personal:` event, forwards `{realm_id, reason}` (the backend's `RealmRevokedReason`).

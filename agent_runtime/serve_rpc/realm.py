@@ -1,4 +1,4 @@
-"""``runtime.realm.*`` — the ten realm verbs the launcher runs, on the method lane (plus ``revoked``, lane-only).
+"""``runtime.realm.*`` — the ten realm verbs the launcher runs, on the method lane (plus ``revoked`` and ``publishing.push``, lane-only).
 
 Each handler validates its params, calls :mod:`agent_runtime.realm_verbs` (the
 one implementation the argv verbs also call) and returns the argv verb's
@@ -71,6 +71,8 @@ REASON_CODES: dict[str, int] = {
     "realm_revoked": ERR_CONFLICT,
     # A re-join while the local copy's owed re-key cannot run (``realm_rekey_triggers``); retryable.
     "realm_busy": ERR_CONFLICT,
+    # ``runtime.realm.publishing.push`` with no publishing repository connected (no publishing credential).
+    "publishing_not_connected": ERR_CONFLICT,
 }
 
 
@@ -253,6 +255,19 @@ def _revoked(p: dict) -> dict:
                               occurred_at=_occurred_at(p))
 
 
+def _publishing_push(p: dict) -> dict:
+    """Params: ``realm_id``, ``folder`` (an absolute path on THIS install's disk — the folder is read where
+    hermes runs), ``credential`` (the backend's ``POST /api/realms/{id}/publishing-host/credential`` answer,
+    inline; absent = ``publishing_not_connected``), ``branch`` (default ``gh-pages``), ``dry_run``, ``yes``."""
+    from agent_runtime.realm_verbs import realm_publishing_push
+
+    realm_id, folder = _realm(p), _param_text(p, "folder", required=True)
+    branch = _param_text(p, "branch")
+    _confirmed(p)
+    return realm_publishing_push(realm_id, folder, credential=_credential(p), branch=branch,
+                                 dry_run=_param_flag(p, "dry_run"))
+
+
 def _occurred_at(p: dict):
     """``occurred_at`` as an aware datetime (a naive one is read as UTC), or None when absent."""
     from datetime import UTC, datetime
@@ -287,6 +302,8 @@ REALM_METHODS: dict[str, Callable[[dict], dict]] = {
 #: subscription of its own.
 REALM_LANE_ONLY_METHODS: dict[str, Callable[[dict], dict]] = {
     "runtime.realm.revoked": _revoked,
+    # RT-REALM-PUBLISHING-PUSHES-A-FOLDER: a method only (every new write verb is one; no argv twin).
+    "runtime.realm.publishing.push": _publishing_push,
 }
 
 

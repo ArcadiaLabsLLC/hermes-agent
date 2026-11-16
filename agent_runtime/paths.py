@@ -262,6 +262,18 @@ def realm_sync_clone_dir(realm_id: str) -> Path:
     return realm_sync_root() / REALM_SYNC_CLONES_DIRNAME / safe_path_token(realm_id)
 
 
+#: Each realm's PUBLISHING clone (``agent_runtime.realm_publishing``, RT-REALM-PUBLISHING-PUSHES-A-FOLDER): the
+#: repository a realm publishes a site from, a second one beside its sync clone, so it never shares that clone's
+#: history or working tree. ``_``-led like ``_clones`` for the same reason: no realm token can be named this.
+REALM_PUBLISHING_CLONES_DIRNAME = "_publishing"
+
+
+def realm_publishing_clone_dir(realm_id: str) -> Path:
+    """The realm's own publishing clone (one per realm, never the realm id at the realm-sync root)."""
+
+    return realm_sync_root() / REALM_PUBLISHING_CLONES_DIRNAME / safe_path_token(realm_id)
+
+
 #: Git course checkouts (realm-course-subject-authoring plan §2): one clone per course per machine, never a
 #: slot and never a realm. Named here so the core cache's exclusion list imports it — a course's tree and
 #: its ``.git`` are no projection input, and a commit there must not cold the read model.

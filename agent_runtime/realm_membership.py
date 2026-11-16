@@ -62,17 +62,22 @@ class CredentialSubject(str, Enum):
     credential and never authorizes a realm; ``local:<hermes realm id>`` is a
     LOCAL (server-less) realm's credential from ``POST /api/me/realms/local:<id>/
     sync/credential`` — the personal repo's git authorization, no backend realm
-    row."""
+    row; ``publishing:<server realm id>`` is a realm's PUBLISHING repository
+    (backend ``POST /api/realms/{id}/publishing-host/credential``,
+    REALM-PUBLISHING-CREDENTIAL) and never authorizes the realm's sync — only
+    ``agent_runtime.realm_publishing`` takes it."""
 
     SERVER_REALM = "realm"
     LOCAL_REALM = "local"
     COURSE = "course"
+    PUBLISHING = "publishing"
 
 
 #: ``realm_id`` prefix -> the subject it names; no prefix is a server realm id.
 _SUBJECT_PREFIXES: dict[str, CredentialSubject] = {
     "local:": CredentialSubject.LOCAL_REALM,
     "course:": CredentialSubject.COURSE,
+    "publishing:": CredentialSubject.PUBLISHING,
 }
 
 
@@ -237,19 +242,29 @@ class BackendRealmMembershipProvider(RealmMembershipProvider):
             return MembershipDecision(False, "sync_auth_failed", "Realm sync credential was issued for a different realm.")
         if credential.is_expired():
             return MembershipDecision(False, "sync_auth_failed", "Realm sync credential is expired; request a fresh credential from the launcher.")
-        url = (
-            f"{credential.api_base.rstrip('/')}/realms/{urllib.parse.quote(realm.id, safe='')}"
-            f"/sync/permission?action={urllib.parse.quote(action, safe='')}"
+        return ask_backend_permission(credential, realm.id, action)
+
+
+def ask_backend_permission(credential: RealmSyncCredential, backend_realm_id: str, action: str) -> MembershipDecision:
+    """The backend's answer to "may this credential's member ``action`` the realm ``backend_realm_id``"
+    (``GET /realms/{id}/sync/permission``, ``sync_permission`` — the ONE authority), fail closed.
+
+    The caller has already matched the credential to the realm: ``BackendRealmMembershipProvider`` for a
+    sync credential, ``agent_runtime.realm_publishing`` for a ``publishing:`` one (whose api token is the
+    same realm's)."""
+    url = (
+        f"{credential.api_base.rstrip('/')}/realms/{urllib.parse.quote(backend_realm_id, safe='')}"
+        f"/sync/permission?action={urllib.parse.quote(action, safe='')}"
+    )
+    try:
+        status, payload = _request_json("GET", url, headers=credential.bearer_headers())
+    except RealmSyncError:
+        return MembershipDecision(
+            False,
+            "sync_remote_unreachable",
+            f"Realm sync authorization backend is unreachable; denying {action} (fail closed).",
         )
-        try:
-            status, payload = _request_json("GET", url, headers=credential.bearer_headers())
-        except RealmSyncError:
-            return MembershipDecision(
-                False,
-                "sync_remote_unreachable",
-                f"Realm sync authorization backend is unreachable; denying {action} (fail closed).",
-            )
-        return _decision_from_response(status, payload, action=action)
+    return _decision_from_response(status, payload, action=action)
 
 
 def adopt_realms(
