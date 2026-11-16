@@ -167,6 +167,13 @@ def test_a_git_pathspec_naming_gateway_run_py_is_not_a_gateway_spawn():
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+# The same for the ``scripts/hermes-gateway`` launcher read as a path operand (lane w1115e-ph, 2026-11-16).
+# Mutation: drop the ``hermes-gateway`` arm of ``_is_gateway_run_script`` -> blocked, red.
+def test_a_git_pathspec_naming_the_gateway_launcher_is_not_a_gateway_spawn():
+    subprocess.run(["git", "ls-files", "--", "scripts/hermes-gateway", "README.md"], check=True, timeout=30,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 @pytest.mark.parametrize("argv", [
     lambda tmp: [sys.executable, str(tmp / "gateway" / "run.py")],
     lambda tmp: ["env", "HERMES_X=1", sys.executable, "-X", "utf8", str(tmp / "gateway" / "run.py")],

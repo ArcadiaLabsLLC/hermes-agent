@@ -477,8 +477,12 @@ def refuse_backend_spawn(name, cmd, cmd_to_string, lookalike_ok, kwargs=None, *,
 
 
 def _is_gateway_run_script(token: str) -> bool:
+    """``gateway/run.py``, or the ``scripts/hermes-gateway`` launcher: upstream's matcher reads either one,
+    anywhere in argv, as ``run`` (the launcher tripped the line-endings gate's ``git ls-files --eol`` sample
+    on 2026-11-16, lane w1115e-ph, once two new files shifted which paths the sample takes)."""
     normalized = token.replace("\\", "/").lower()
-    return normalized == "gateway/run.py" or normalized.endswith("/gateway/run.py")
+    return (normalized == "gateway/run.py" or normalized.endswith("/gateway/run.py")
+            or normalized.rsplit("/", 1)[-1] == "hermes-gateway")
 
 
 def _runs_as_program(tokens: list, index: int) -> bool:
