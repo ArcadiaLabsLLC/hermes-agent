@@ -84,7 +84,7 @@ def publish_folder(
     member = credential.member_public_id
     trailer = ("-m", f"{PUBLISHER_TRAILER}: {member}") if member else ()
     _git(repo, "commit", "-q", "-m", f"Publish realm {realm_id}", *trailer, extra_config=config)
-    _push(repo, branch, config)
+    _push_branch(repo, branch, config)
     commit = _git(repo, "rev-parse", "HEAD").strip()
     return _envelope(realm_id, credential, branch, files=len(files), changed=True, commit=commit, dry_run=False)
 
@@ -195,7 +195,7 @@ def _replace_tree(repo: Path, source: Path) -> None:
     (repo / NOJEKYLL).touch()
 
 
-def _push(repo: Path, branch: str, config: list[str]) -> None:
+def _push_branch(repo: Path, branch: str, config: list[str]) -> None:
     proc = run_sync_git(["push", "-q", "origin", f"HEAD:refs/heads/{branch}"], repo=repo, config=config)
     if proc.returncode == 0:
         return
