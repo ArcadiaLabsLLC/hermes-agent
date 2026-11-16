@@ -25,6 +25,13 @@ from scripts import upstream_retirement_scan as scan
 pytestmark = pytest.mark.gate
 
 
+@pytest.fixture(autouse=True)
+def _blob_reader_ends_with_the_test():
+    """The scan's one long-lived ``git cat-file --batch`` ends with the test that started it."""
+    yield
+    scan._READER.close()
+
+
 class _FakeTree:
     """A tree from a dict, shaped like ``scan.Tree``: no git."""
 

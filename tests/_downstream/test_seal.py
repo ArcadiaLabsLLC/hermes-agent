@@ -126,6 +126,16 @@ def test_a_leftover_elsewhere_is_reported_and_left_alone(tmp_path):
     assert "test_cleans_up" not in out.split("test-seal", 1)[-1], out
 
 
-def test_the_sealed_roots_list_names_real_folders():
+def test_the_sealed_roots_list_names_real_folders_and_files():
     for root in seal.SEALED_ROOTS:
-        assert (REPO / root).is_dir(), root
+        assert (REPO / root).is_file() if root.endswith(".py") else (REPO / root).is_dir(), root
+
+
+def test_a_listed_file_seals_that_file_only(monkeypatch, tmp_path):
+    roots = tmp_path / "roots.txt"
+    roots.write_text("tests/a/test_one.py  # one file\ntests/b\n", encoding="utf-8")
+    monkeypatch.setattr(seal, "SEALED_ROOTS_PATH", roots)
+    monkeypatch.setattr(seal, "SEALED_ROOTS", seal._read_sealed_roots())
+    assert seal.is_sealed("tests/a/test_one.py")
+    assert not seal.is_sealed("tests/a/test_two.py")
+    assert seal.is_sealed("tests/b/test_any.py") and not seal.is_sealed("tests/bc/test_any.py")

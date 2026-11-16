@@ -682,6 +682,24 @@ def test_a_stale_lock_is_broken_rather_than_obeyed(head_env, monkeypatch):
 # ── serve wiring ─────────────────────────────────────────────────────────────
 
 
+@pytest.fixture(autouse=True)
+def _stop_the_build_sweep_a_serve_boot_started():
+    """A serve boot starts the process-wide ``build-sweep`` tick (``boot_builds``); serve shutdown
+    leaves it to the process's exit, so the test stops a sweep it started, by its own ``_STOP``."""
+    from agent_runtime.builds import sweep
+
+    before = sweep._THREAD
+    yield
+    started = sweep._THREAD
+    if started is None or started is before:
+        return
+    sweep._STOP.set()
+    started.join(10)
+    if not started.is_alive():
+        sweep._STOP.clear()
+        sweep._THREAD = None
+
+
 def _serve_frames(root_anchor) -> list[dict]:
     from hermes_cli.harness_parts.serve import serve_loop
 
