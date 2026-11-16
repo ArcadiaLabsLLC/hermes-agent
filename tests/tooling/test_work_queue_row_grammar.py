@@ -117,6 +117,12 @@ GROUP_MISSING_CEILING = 0
 #: ``TASK TITLE`` have no ceiling.
 TASK_DEFECT_CEILING = 0
 
+#: Live DEFERRED and BLOCKED rows that name no machine-read wait — no `` · waits: <ID>|<event>`` field and (BLOCKED
+#: only) no `` — `ID` `` list (:func:`agent_runtime.work_store.waits.missing_waits`; task TASK-WAITS-ARE-A-FIELD,
+#: launcher row BRAIN-QUEUE-WAITS-BACKFILL, lane w1115e-dz28 2026-11-15). Shrink-only: the rows left wait on
+#: something no row or event names, or are TAKEN by another box. Lower it as rows gain a field or close; never raise it.
+WAITS_MISSING_CEILING = 9
+
 
 def split_segments(line: str) -> list[str]:
     """The `` · ``-separated segments of ``line``, never splitting inside a code span.
@@ -596,6 +602,27 @@ def test_every_row_is_a_task_or_a_subtask_and_a_task_is_one_per_slug_with_a_plai
         + "\n".join(under_no_task))
     assert len(under_no_task) == TASK_DEFECT_CEILING, (
         f"only {len(under_no_task)} rows lack a task now; lower TASK_DEFECT_CEILING to {len(under_no_task)}")
+
+
+def _rows_missing_a_wait() -> list[str]:
+    from agent_runtime.work_store import grammar
+    from agent_runtime.work_store.waits import missing_waits
+
+    rows = [row for path, text in _queue_notes().items() for row in grammar.parse_note(text, slot="hermes", note=path)]
+    return sorted(f"{row.ref.note}  {row.ref.id}" for row in missing_waits(rows, "hermes"))
+
+
+def test_waiting_rows_naming_no_wait_only_fall() -> None:
+    """BRAIN-QUEUE-WAITS-BACKFILL. KILLING MUTATION: WAITS_MISSING_CEILING = 8 -> the first arm reds ("above the
+    ceiling"); WAITS_MISSING_CEILING = 10 -> the equality arm reds ("lower it")."""
+
+    missing = _rows_missing_a_wait()
+    assert len(missing) <= WAITS_MISSING_CEILING, (
+        f"{len(missing)} DEFERRED/BLOCKED rows name no machine-read wait (ceiling {WAITS_MISSING_CEILING}); a "
+        "deferred or blocked row carries ` · waits: <ID>|<event>` (agent_runtime/work_store/waits.py):\n"
+        + "\n".join(missing))
+    assert len(missing) == WAITS_MISSING_CEILING, (
+        f"only {len(missing)} DEFERRED/BLOCKED rows name no wait now; lower WAITS_MISSING_CEILING to {len(missing)}")
 
 
 def test_a_plan_is_cited_with_or_without_a_repo_prefix() -> None:
