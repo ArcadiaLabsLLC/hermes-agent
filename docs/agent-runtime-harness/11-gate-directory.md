@@ -42,6 +42,8 @@ or registry entry names something real).
 | `tests/tooling/test_downstream_size_ceiling.py` | ratchet | every fork production file ≤ 800 code lines, or grandfathered and shrinking |
 | `tests/tooling/test_function_legibility_floor.py` | ratchet | no fork function over 150 lines or nested deeper than 4, beyond a shrinking list |
 | `tests/tooling/test_fork_import_layers.py` | fence | the fork's import graph points down its layers (models → policy → stores → lanes → wiring) |
+| `tests/agent_runtime/test_host_tools_resolution.py` | ratchet | no fork product module looks up git, node, uv or python itself (any `which` binding, a bare `["git", …]` argv): it asks `agent_runtime/host_tools.py`; shrink-only baseline (FH-ONE-HOST-TOOL-RESOLVER) |
+| `tests/agent_runtime/test_bare_deadline_lint.py` | ratchet | no fork test adds a bare `monotonic() + N` deadline or a wall-time assert outside the idle-box set; waits use `tests/_downstream/load_wait.py`; shrink-only baseline (FH-BARE-DEADLINE-LINT, FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME) |
 | `tests/tooling/test_no_ladder_routing.py` | fence | routing is data: no new `if x == "…"` / `isinstance` ladder |
 | `tests/tooling/test_harness_namespace_is_thin.py` | fence | `hermes_cli.harness` has no exec'd parts and no re-export shims |
 | `tests/tooling/test_refactor_stays_downstream.py` | fence | a `refactor(` commit never touches an upstream file |
