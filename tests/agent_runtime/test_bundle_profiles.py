@@ -80,6 +80,18 @@ def test_invented_config_key_is_refused():
         parse_manifest(_raw(config={"updates.invented_switch": False}))
 
 
+def test_the_realm_sync_git_backend_is_a_switch_a_profile_may_set():
+    """The phone profile picks realm sync's pure-Python git (plan phone-realm-sync-dulwich-2026-11-16 S6)."""
+
+    from agent_runtime.bundle_profiles.manifest import KEYS_READ_OUTSIDE_DEFAULTS
+
+    assert parse_manifest(_raw(config={"realm_sync.git_backend": "dulwich"})).config["realm_sync.git_backend"] == "dulwich"
+    reader = KEYS_READ_OUTSIDE_DEFAULTS["realm_sync.git_backend"]
+    assert reader == "agent_runtime/realm_sync/git.py::sync_git_backend"
+    with pytest.raises(ProfileManifestError, match="config keys"):  # positive control: a neighbour is refused
+        parse_manifest(_raw(config={"realm_sync.git_backend_typo": "dulwich"}))
+
+
 def test_every_bundle_exclusion_states_its_reason():
     parse_manifest(_raw(packaging={"excluded_data": {"site-packages/x/data": "why"}}))  # positive control
     with pytest.raises(ProfileManifestError, match="non-empty reasons"):

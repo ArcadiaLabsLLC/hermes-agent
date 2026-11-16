@@ -18,6 +18,7 @@ A failing step raises the same ``RealmSyncError`` codes the binary half raises.
 
 from __future__ import annotations
 
+import heapq
 import os
 import shutil
 import time
@@ -38,7 +39,6 @@ from dulwich.object_store import tree_lookup_path
 from dulwich.objects import Commit, Tree
 from dulwich.objectspec import parse_commit
 from dulwich.repo import Repo
-from dulwich.walk import ORDER_DATE
 
 from .git_port import ChangedPath, FetchOutcome, LogEntry, MergeOutcome, PushOutcome, PushReport, RepoState
 from .merge_theirs import Favour, FavouringMerger
@@ -536,6 +536,7 @@ class DulwichSyncGit:
 
         old_tree = repo[head].tree if head is not None else None
         new_tree = repo[theirs].tree
+        _refuse_untracked_overwrite(repo, self.repo, old_tree, new_tree, step)
         try:
             update_working_tree(repo, old_tree, new_tree,
                                 change_iterator=tree_changes(repo.object_store, old_tree, new_tree),
@@ -584,6 +585,7 @@ class DulwichSyncGit:
         merged, conflicts = merger.merge_trees(base_tree, repo[repo[head].tree], repo[repo[theirs].tree])
         repo.object_store.add_object(merged)
         head_tree = repo[head].tree
+        _refuse_untracked_overwrite(repo, self.repo, head_tree, merged.id, step)
         try:
             update_working_tree(repo, head_tree, merged.id,
                                 change_iterator=tree_changes(repo.object_store, head_tree, merged.id),
@@ -659,24 +661,33 @@ class DulwichSyncGit:
 
     # -- history -----------------------------------------------------------------------------
     def log(self, refs: Sequence[str], subtree: str, limit: int) -> list[LogEntry]:
+        """``git log --date-order -n<limit> --name-only <refs> -- <subtree>``: newest first, a child never after
+        its parent (one second's commits tie on the clock), a commit listed when it changed the subtree, a
+        merge only when it differs there from every parent and then with no names, as git lists one."""
+
         with self._open() as repo:
             include = [sha for sha in (self._resolve(repo, ref) for ref in refs) if sha is not None]
-            if not include:
-                return []
             prefix = subtree.rstrip("/")
             entries: list[LogEntry] = []
-            for walk in repo.get_walker(include=include, paths=[_b(prefix)], order=ORDER_DATE, max_entries=limit):
-                commit = walk.commit
-                touched: list[str] = []
-                if len(commit.parents) <= 1:  # git's --name-only names no file of a merge
-                    for change in walk.changes():
-                        for side in (change.new, change.old):
-                            if side is not None and side.path is not None:
-                                touched.append(_s(side.path))
-                                break
-                paths = tuple(dict.fromkeys(p for p in sorted(touched) if _within_paths(p, [prefix])))
+            for commit in _date_order(repo, include):
+                parents = [repo[parent] for parent in commit.parents]
+                if len(parents) > 1:
+                    mine = _subtree_id(repo, commit.tree, prefix)
+                    if any(_subtree_id(repo, parent.tree, prefix) == mine for parent in parents):
+                        continue
+                    paths: tuple[str, ...] = ()
+                else:
+                    before = parents[0].tree if parents else None
+                    paths = tuple(sorted({_s(side.path) for change in tree_changes(repo.object_store, before, commit.tree)
+                                          for side in (change.new, change.old)
+                                          if side is not None and side.path is not None
+                                          and _within_paths(_s(side.path), [prefix])}))
+                    if not paths:
+                        continue
                 entries.append(LogEntry(sha=_s(commit.id), at=_iso(commit.author_time, commit.author_timezone),
                                         author=_s(commit.author).split(" <", 1)[0], paths=paths))
+                if len(entries) >= limit:
+                    break
             return entries
 
     def newest(self, ref: str, subtree: str) -> str | None:
@@ -697,6 +708,61 @@ def _stage(mode: int | None, sha: bytes | None) -> IndexEntry | None:
     if mode is None or sha is None:
         return None
     return IndexEntry(ctime=(0, 0), mtime=(0, 0), dev=0, ino=0, mode=mode, uid=0, gid=0, size=0, sha=sha)
+
+
+def _refuse_untracked_overwrite(repo: Repo, root: Path, old_tree: bytes | None, new_tree: bytes,
+                               step: Sequence[str]) -> None:
+    """git never writes an incoming file over one the member has and never added; neither does this."""
+
+    index = repo.open_index()
+    clobbered = sorted(_s(change.new.path) for change in tree_changes(repo.object_store, old_tree, new_tree)
+                       if change.new is not None and change.new.path is not None and (change.old is None or change.old.path is None)
+                       and change.new.path not in index and (root / _s(change.new.path)).exists())
+    if clobbered:
+        raise _failure(step, "error: The following untracked working tree files would be overwritten by merge:\n\t"
+                       + "\n\t".join(clobbered) + "\nPlease move or remove them before you merge.\nAborting")
+
+
+def _date_order(repo: Repo, include: Sequence[bytes]) -> list[Commit]:
+    """Every commit reachable from ``include``, git's ``--date-order``: newest commit time first, but never a
+    parent before any of its children; a tie keeps the order the walk met them in."""
+
+    seen: dict[bytes, Commit] = {}
+    stack = list(include)
+    while stack:
+        sha = stack.pop()
+        if sha in seen:
+            continue
+        seen[sha] = repo[sha]
+        stack.extend(seen[sha].parents)
+    waiting = dict.fromkeys(seen, 0)
+    for commit in seen.values():
+        for parent in commit.parents:
+            if parent in waiting:
+                waiting[parent] += 1
+    order = {sha: index for index, sha in enumerate(seen)}
+    ready = [(-seen[sha].commit_time, order[sha], sha) for sha in include if waiting.get(sha) == 0]
+    heapq.heapify(ready)
+    listed: list[Commit] = []
+    emitted: set[bytes] = set()
+    while ready:
+        _when, _index, sha = heapq.heappop(ready)
+        if sha in emitted:
+            continue
+        emitted.add(sha)
+        listed.append(seen[sha])
+        for parent in seen[sha].parents:
+            waiting[parent] -= 1
+            if waiting[parent] == 0:
+                heapq.heappush(ready, (-seen[parent].commit_time, order[parent], parent))
+    return listed
+
+
+def _subtree_id(repo: Repo, tree: bytes, prefix: str) -> bytes | None:
+    try:
+        return tree_lookup_path(repo.object_store.__getitem__, tree, _b(prefix))[1]
+    except KeyError:
+        return None
 
 
 def _iso(stamp: int, offset: int) -> str:

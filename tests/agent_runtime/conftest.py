@@ -2,6 +2,7 @@ import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
@@ -518,22 +519,110 @@ def _drop_tree_index_between_modules(request):
     _tree_index.clear()
 
 
-#: Port tests the DULWICH arm cannot run yet: they need a verb a later slice adds (plan
-#: phone-realm-sync-dulwich-2026-11-16 S5 merge). Shrink-only.
-DULWICH_NOT_YET = frozenset({
+#: The real-repository realm suites that run once per realm-sync git backend (plan
+#: phone-realm-sync-dulwich-2026-11-16 §5): every test in these files gets ``[binary]`` and ``[dulwich]``.
+REALM_SYNC_BOTH_ARMS = frozenset({
+    "test_realm_sync.py", "test_realm_sync_clone_per_realm.py", "test_realm_sync_clone_before_first_publish.py",
+    "test_realm_sync_eol.py", "test_realm_sync_history.py", "test_realm_sync_identity.py",
+    "test_realm_sync_local_remote.py", "test_realm_sync_publish_race.py", "test_realm_sync_publish_accounting.py",
+    "test_realm_sync_workspace_slots.py", "test_realm_sync_ledger_union.py", "test_realm_sync_level_artifact.py",
+    "test_realm_sync_skill_inbox.py", "test_realm_sync_profile_destinations.py", "test_realm_sync_tables.py",
+    "test_realm_sync_host_refusal.py", "test_git_remote_adopt.py", "test_realm_leave.py",
+    "test_realm_revert_version.py",
 })
+
+#: Tests of those files that stay on the git program alone, by ``file::test`` (a whole file by its
+#: name): they assert git's argv or stderr, or patch ``run_git``, or test the desktop's own door.
+#: SHRINK-ONLY — a test leaves it when it is rewritten to hold for both gits; nothing joins it to hide a
+#: dulwich defect.
+REALM_SYNC_BINARY_ONLY = frozenset({
+    # git's argv: the ``-c`` pairs a credential renders into (the phone's git has no argv).
+    "test_realm_sync.py::test_git_clone_renders_extra_config",
+    "test_realm_sync.py::test_git_extra_config_threads_and_never_leaks",
+    "test_realm_sync.py::test_pull_threads_credential_header_per_invocation_only",
+    # The fixture reaches its "https://github.example/..." remote through git's own ``url.<x>.insteadOf``
+    # environment (GIT_CONFIG_COUNT), which only the git program reads; row
+    # RT-PHONE-REALM-SYNC-LOCAL-REMOTE-SUITE-ON-THE-PHONE-ARM rewrites the fixture for both arms.
+    "test_realm_sync_local_remote.py::test_a_local_credential_sets_sync_manifest_ref_and_adds_origin_on_the_realms_own_repo",
+    "test_realm_sync_local_remote.py::test_a_second_machine_merges_disjoint_subtrees_and_refuses_a_shared_path",
+    "test_realm_sync_local_remote.py::test_a_status_answer_carries_the_check_time_its_sidecar_holds",
+    "test_realm_sync_local_remote.py::test_first_publish_pushes_with_upstream_into_the_empty_personal_repo",
+    "test_realm_sync_local_remote.py::test_no_read_pull_or_remote_set_of_a_local_realm_fills_its_empty_backup_repo",
+    "test_realm_sync_local_remote.py::test_pull_then_fast_forwards_from_origin",
+    "test_realm_sync_local_remote.py::test_the_authorization_header_never_lands_in_git_config",
+})
+
+
+def _place_git_stand_in(monkeypatch) -> None:
+    """The phone's loud ``git_cmd.run_git`` stand-in, at every module that bound the real one: a realm
+    verb that reaches the git program on the DULWICH arm raises ``LifecycleNotShipped``, as on a phone.
+
+    Every fork git call runs through ``git_cmd.run_git`` (the module's own docstring: the ONE fork git
+    chokepoint), so this is the "no git program" proof. ``PATH`` is left alone: the FIXTURES build
+    remotes and teammates' commits with the git program, which the plan allows (§5)."""
+
+    import sys
+
+    from agent_runtime import git_cmd
+    from agent_runtime.loop_tool_lifecycles import GIT_COMMAND, not_shipped
+
+    real, stand_in = git_cmd.run_git, not_shipped(GIT_COMMAND, "run_git")
+    for module in list(sys.modules.values()):
+        if getattr(module, "run_git", None) is real and getattr(module, "__name__", "").startswith(("agent_runtime", "hermes_cli")):
+            monkeypatch.setattr(module, "run_git", stand_in)
+
+
+def _use_realm_sync_backend(monkeypatch, backend: str) -> None:
+    """Pick ``backend`` the way a profile does: ``realm_sync.git_backend`` in this home's config.yaml."""
+
+    import hermes_yaml as yaml
+
+    from hermes_constants import get_hermes_home
+
+    home = Path(get_hermes_home())
+    home.mkdir(parents=True, exist_ok=True)
+    path = home / "config.yaml"
+    config = (yaml.safe_load(path.read_text(encoding="utf-8")) or {}) if path.exists() else {}
+    config.setdefault("realm_sync", {})["git_backend"] = backend
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    if backend == "dulwich":
+        _place_git_stand_in(monkeypatch)
 
 
 @pytest.fixture(params=["binary", "dulwich"])
 def sync_git_backend(request, monkeypatch):
-    """Each realm-sync port test once per git backend (plan phone-realm-sync-dulwich-2026-11-16 §5).
-
-    The backend is the one ``agent_runtime.realm_sync.git.sync_git_backend()`` answers for the test."""
+    """Each realm-sync port test once per git backend (plan phone-realm-sync-dulwich-2026-11-16 §5)."""
 
     from agent_runtime.realm_sync import git as realm_git
 
+    _use_realm_sync_backend(monkeypatch, request.param)
     backend = realm_git.SyncGitBackend(request.param)
-    if backend is realm_git.SyncGitBackend.DULWICH and request.node.originalname in DULWICH_NOT_YET:
-        pytest.skip("this verb is not on the dulwich backend yet (DULWICH_NOT_YET)")
-    monkeypatch.setattr(realm_git, "sync_git_backend", lambda: backend)
+    assert realm_git.sync_git_backend() is backend  # positive control: the config reached the selector
     return backend
+
+
+@pytest.fixture
+def realm_sync_arm(request, monkeypatch):
+    """The arm a ``REALM_SYNC_BOTH_ARMS`` test runs on (parametrized by ``pytest_generate_tests``)."""
+
+    node = f"{Path(request.node.fspath).name}::{request.node.originalname}"
+    if request.param == "dulwich" and (node in REALM_SYNC_BINARY_ONLY or node.split("::")[0] in REALM_SYNC_BINARY_ONLY):
+        pytest.skip("asserts the git program itself (REALM_SYNC_BINARY_ONLY)")
+    _use_realm_sync_backend(monkeypatch, request.param)
+    return request.param
+
+
+@pytest.fixture(autouse=True)
+def _realm_sync_arm_applies(request):
+    """A parametrized fixture runs only when requested: every test of a ``REALM_SYNC_BOTH_ARMS`` file asks for
+    its arm here (a parametrize alone made ``[dulwich]`` ids that still ran the git program)."""
+
+    if Path(str(request.node.fspath)).name in REALM_SYNC_BOTH_ARMS:
+        request.getfixturevalue("realm_sync_arm")
+
+
+def pytest_generate_tests(metafunc):
+    if Path(str(metafunc.module.__file__)).name in REALM_SYNC_BOTH_ARMS:
+        if "realm_sync_arm" not in metafunc.fixturenames:
+            metafunc.fixturenames.append("realm_sync_arm")
+        metafunc.parametrize("realm_sync_arm", ["binary", "dulwich"], indirect=True)

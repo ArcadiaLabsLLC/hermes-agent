@@ -405,3 +405,20 @@ def test_read_tree_at_writes_one_versions_subtree(tmp_path, remote):
     assert git.resolve("deadbeef" * 5) is None
     assert git.resolve(first[:12]) == first
     assert (repo / "realms/r/a.txt").read_text(encoding="utf-8") == "two\n"  # no ref moved
+
+
+# -- the backend is the profile's choice (S6) ---------------------------------------------------------
+
+
+def test_the_backend_is_read_from_config_per_call_and_an_unknown_one_refuses(tmp_path, sync_git_backend, monkeypatch):
+    from agent_runtime.realm_sync.git import SyncGitBackend, sync_git_backend as selector
+    from agent_runtime.realm_sync.git_binary import BinarySyncGit
+    from agent_runtime.realm_sync.git_dulwich import DulwichSyncGit
+    from tests.agent_runtime.conftest import _use_realm_sync_backend
+
+    expected = BinarySyncGit if sync_git_backend is SyncGitBackend.BINARY else DulwichSyncGit
+    assert type(sync_git(tmp_path)) is expected
+    _use_realm_sync_backend(monkeypatch, "svn")
+    with pytest.raises(RealmSyncError) as refused:
+        selector()
+    assert refused.value.code == "sync_backend_unknown"

@@ -68,6 +68,8 @@ KEYS_READ_OUTSIDE_DEFAULTS = {
     "providers.qwen-oauth.enabled": "hermes_cli/config_providers.py::is_provider_enabled",
     # The Launcher is the one model downloader (embedded-hermes plan D1-D3): default on = full Hermes.
     "local_models.downloads": "agent_runtime/bundle_profiles/model_downloads.py::model_downloads_enabled",
+    # Default ``binary`` (the git program); the phone profile picks ``dulwich`` (plan phone-realm-sync-dulwich-2026-11-16).
+    "realm_sync.git_backend": "agent_runtime/realm_sync/git.py::sync_git_backend",
     # Default OFF: sign-ins in the OS secure store (owner ruling 2026-09-28 item 4).
     "auth.os_secure_store": "agent_runtime/host_store/desktop_binding.py::os_secure_store_enabled",
 }

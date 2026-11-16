@@ -75,9 +75,30 @@ class SyncGitBackend(Enum):
 
 
 def sync_git_backend() -> SyncGitBackend:
-    """The ONE answer to "which git syncs realms here", read per call; never a sniff of the host."""
+    """The ONE answer to "which git syncs realms here": config ``realm_sync.git_backend``, read per call.
 
-    return SyncGitBackend.BINARY
+    Never a sniff of the host — not ``shutil.which``, not a failing git, not the phone's loud ``git_cmd``
+    stand-in: a desktop whose git is missing keeps failing loudly, and only a profile that says
+    ``dulwich`` (the bundled phone's) gets the pure-Python git. Absent, empty or an unreadable config is
+    ``binary`` (today's); a value that names no backend refuses ``sync_backend_unknown``, never falls back."""
+
+    from hermes_cli import config as _config
+
+    try:
+        value = _config.cfg_get(_config.load_config_readonly(), "realm_sync", "git_backend", default=None)
+    except Exception:  # health: allow BLE001 -- an unreadable config is today's backend, as every switch reads it
+        return SyncGitBackend.BINARY
+    if value is None or str(value).strip() == "":
+        return SyncGitBackend.BINARY
+    try:
+        return SyncGitBackend(str(value).strip().lower())
+    except ValueError:
+        raise RealmSyncError(
+            "sync_backend_unknown",
+            "Realm sync is configured with a git backend this version does not know.",
+            safe_details={"realm_sync.git_backend": str(value)[:40],
+                          "known": [backend.value for backend in SyncGitBackend]},
+        ) from None
 
 
 def sync_git(repo: Path) -> SyncGit:
