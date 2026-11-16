@@ -46,7 +46,7 @@ Read in this order for a full picture; each stands alone for its own territory.
 
 - [The slot setup recipe, as its own design](planned/slot-setup-recipe-2026-11-15.md) — 2026-11-15:
   the recipe lives in the repository (`.eternia/setup/`), one per platform, blank by default, gates nothing, and
-  its script runs only on a click. Accepted by the owner; slice 1 (the reader) built 2026-11-16.
+  its script runs only on a click. Accepted by the owner; slices 1 (the reader) and 2 (Run on a click) built 2026-11-16.
 - [Sharing a Lens monitor's recipe with a workspace](planned/lens-shared-recipes-2026-11-15.md) — 2026-11-15:
   a `lens_recipe` realm-sync family that fills a per-workspace shelf; a pulled recipe becomes a draft only when
   this PC's person adds it. Designed, not built; three hermes slices and one Eternia row.

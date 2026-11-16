@@ -48,6 +48,7 @@ __all__ = [
     "git_runs",
     "node_executable",
     "platform_default_root",
+    "script_shell",
 ]
 
 #: The fork's git chokepoint; a wheel that omits it has no git (``loop_tool_lifecycles.GIT_COMMAND``).
@@ -124,6 +125,18 @@ def git_runs() -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return done.returncode == 0
+
+
+def script_shell(script: Path, *, windows: bool | None = None) -> list[str]:
+    """The argv that runs a repository's install script on this host: PowerShell on Windows (``pwsh``
+    where it is installed, else Windows PowerShell), ``bash`` elsewhere (plan slot-setup-recipe §3)."""
+    if sys.platform == "win32" if windows is None else windows:
+        from hermes_platform.resolver import locate_command
+        from hermes_platform.resolver.core import LookupContext
+
+        shell = "pwsh" if locate_command("pwsh", LookupContext()).found else "powershell"
+        return [shell, "-NoProfile", "-File", str(script)]
+    return ["bash", str(script)]
 
 
 def node_executable(command: str) -> str | None:

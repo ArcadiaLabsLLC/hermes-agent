@@ -1158,6 +1158,11 @@ unknowns`` (``adopted_existing_root`` once). ``runtime.workspace.recipe.show`` a
 ``runtime.workspace.recipe.script`` (new, read-only) answers ``{slot, platform, path, commit, sha256, text}``;
 ``recipe.set`` answers ``recipe_in_repository``. Secret keys, the overlay's ``.env`` name and a Restart's
 unknowns read the recipe.
+RT-SLOT-RECIPE-SCRIPT-RUN-ON-CLICK (2026-11-16): ``runtime.workspace.recipe.run_step`` takes ``step_id: script`` and
+the ``sha256`` the person was shown (``script_changed`` otherwise, nothing spawned) and runs the platform script
+through ``host_tools.script_shell`` (``pwsh``/``powershell -NoProfile -File`` on Windows, ``bash`` elsewhere);
+``slot.env.set`` takes ``skipped`` (item ids, this computer's "Not needed here", kept in ``machine_slot_env.json``,
+never synced; absent keeps the stored list), ``fill`` shows it, and an item reads ``skipped``.
 
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead

@@ -9,12 +9,14 @@ explicit ``run_step``, never after a clone on its own.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
 import subprocess
 import types
 from argparse import Namespace
+from pathlib import Path
 
 import pytest
 
@@ -210,31 +212,119 @@ def test_a_replayed_or_concurrent_clone_is_refused(workspace, registry, tmp_path
     assert len(registry.spawned) == 2
 
 
-# ── run_step: an owner command, on an explicit request, under the slot env ───
+# ── run_step: the repository's install script, on a click, the text the person was shown ──
+
+SCRIPT = "#!/usr/bin/env bash\necho installing\n"
+SCRIPT_SHA = hashlib.sha256(SCRIPT.encode()).hexdigest()
+RECIPE = {"version": 1, "env_keys": [{"key": "FLUTTER_ROOT"}],
+          "platforms": {p: {"script": "setup.sh", "tools": [{"name": "flutter"}]} for p in ("windows", "macos", "linux")}}
+
+
+def _with_recipe(checkout) -> None:
+    setup = checkout / ".eternia" / "setup"
+    setup.mkdir(parents=True, exist_ok=True)
+    (setup / "recipe.json").write_text(json.dumps(RECIPE), encoding="utf-8")
+    (setup / "setup.sh").write_text(SCRIPT, encoding="utf-8")
 
 
 @pytest.fixture
 def bound_launcher(workspace, tmp_path):
     checkout = tmp_path / "checkouts" / "launcher"
     _cloned(checkout)
+    _with_recipe(checkout)
     call("runtime.workspace.slot.bind", {"workspace_id": workspace, "slot": "launcher", "path": str(checkout),
                                          "issued_at": ISSUED})
-    tool = str(tmp_path / "sdk" / "flutter.bat")
     call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher", "issued_at": ISSUED,
-                                            "env": {"FLUTTER_ROOT": FILL_VALUE}, "tool_paths": {"flutter": tool},
-                                            "path_prepend": [str(tmp_path / "sdk")]})
-    return checkout, tool
+                                            "env": {"FLUTTER_ROOT": FILL_VALUE}, "path_prepend": [str(tmp_path / "sdk")]})
+    return checkout
+
+
+def _run(workspace, registry, sha256=SCRIPT_SHA, step_id="script", issued_at=LATER):
+    return run_step(workspace, "launcher", step_id, sha256=sha256, issued_at=issued_at, registry=registry, watch=False)
+
+
+def test_run_needs_the_script_the_person_was_shown(workspace, registry, bound_launcher, tmp_path):
+    """§5 "Run needs the shown script". Killing mutation: skip the ``sha256`` comparison in ``run_step``
+    -> the stale request spawns, red."""
+
+    checkout = bound_launcher
+    with pytest.raises(SlotRefused) as stale:
+        _run(workspace, registry, sha256=hashlib.sha256(b"an older text").hexdigest())
+    assert stale.value.reason == "script_changed" and registry.spawned == []
+    reply = _run(workspace, registry)
+    (command, kwargs), = registry.spawned
+    assert shlex.split(command) == ["bash", str(checkout / ".eternia" / "setup" / "setup.sh")]
+    assert kwargs["cwd"] == str(checkout) and kwargs["env_vars"]["FLUTTER_ROOT"] == FILL_VALUE
+    assert kwargs["env_vars"]["PATH"].split(os.pathsep)[0] == str(tmp_path / "sdk")
+    assert reply["run"]["status"] == "running" and FILL_VALUE not in runs_path().read_text(encoding="utf-8")
+    registry.finish(reply["run"]["run_id"], 1, "install failed")
+    assert settle_runs(workspace, registry)[0]["reason"] == "command_failed"
+    shown = call("runtime.workspace.recipe.show", {"workspace_id": workspace})["result"]["slots"]["launcher"]["recipe"]
+    assert shown["script"]["last_run"]["status"] == "failed"
+
+
+def test_nothing_runs_on_its_own(workspace, registry, tmp_path, monkeypatch):
+    """§5 "Nothing runs on its own": clone, bind and read a slot whose repository carries a recipe -> the clone
+    is the only spawn. Killing mutation: have the clone's success call ``run_step`` -> a second spawn, red."""
+
+    monkeypatch.setattr(workspace_slot_setup, "spawning_registry", lambda: registry)
+    dest = tmp_path / "auto" / "launcher"
+    run = clone_slot(workspace, "launcher", str(dest), issued_at=ISSUED, registry=registry, watch=False)["run"]
+    _cloned(dest)
+    _with_recipe(dest)
+    registry.finish(run["run_id"], 0)
+    assert settle_runs(workspace, registry)[0]["status"] == "succeeded"
+    shown = call("runtime.workspace.recipe.show", {"workspace_id": workspace})["result"]["slots"]["launcher"]
+    assert shown["recipe"]["script"]["sha256"] == SCRIPT_SHA and shown["recipe"]["script"]["last_run"] is None
+    assert len(registry.spawned) == 1 and shlex.split(registry.spawned[0][0])[1] == "clone"
+
+
+def test_a_skip_is_this_computers_alone(workspace, bound_launcher):
+    """§5 "A skip is this computer's alone". Killing mutation: write ``skipped`` into the report row
+    (``machines.<me>``) -> the published document carries it, red."""
+
+    from agent_runtime.store import WorkspaceStore as _Store
+    from agent_runtime.workspace_slots_sync import publish_artifacts
+
+    before = call("runtime.workspace.recipe.show", {"workspace_id": workspace})["result"]["slots"]["launcher"]["recipe"]
+    reply = call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher", "issued_at": LATER,
+                                                    "env_keep": ["FLUTTER_ROOT"], "skipped": ["tool:flutter", "script"]})
+    assert reply["result"]["fill"]["skipped"] == ["script", "tool:flutter"]
+    after = call("runtime.workspace.recipe.show", {"workspace_id": workspace})["result"]["slots"]["launcher"]["recipe"]
+    items = {i["id"]: i["state"] for i in after["items"]}
+    assert items["tool:flutter"] == "skipped" and after["script"]["skipped"] is True
+    assert after["left"] < before["left"]
+    [artifact] = publish_artifacts([_Store().get(workspace)])
+    published = artifact.source.read_text(encoding="utf-8")
+    assert "skipped" not in published and "tool:flutter" not in published
+    assert '"checkout": "matches"' in published  # positive control: the report is there
+    # An edit that does not name skips keeps them ("Needed after all" sends the shorter list).
+    call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher", "issued_at": LATEST,
+                                            "env_keep": ["FLUTTER_ROOT"]})
+    assert call("runtime.workspace.slots.show", {"workspace_id": workspace})["result"]["here"]["launcher"]["fill"][
+        "skipped"] == ["script", "tool:flutter"]
 
 
 def test_run_step_refusals_are_typed(workspace, registry, bound_launcher):
-    def refused(step_id):
+    def refused(step_id, **kw):
         with pytest.raises(SlotRefused) as caught:
-            run_step(workspace, "launcher", step_id, issued_at=LATER, registry=registry, watch=False)
+            _run(workspace, registry, step_id=step_id, **kw)
         return caught.value.reason
 
     assert refused("clone") == "step_not_runnable"
     assert refused("nope") == "unknown_step"
+    assert refused("script", sha256="") == "script_changed"
     assert registry.spawned == []
+    _run(workspace, registry)
+    assert refused("script") == "step_running"
+
+
+def test_the_shell_door_runs_powershell_on_windows():
+    from agent_runtime.host_tools import script_shell
+
+    argv = script_shell(Path("C:/repo/.eternia/setup/windows.ps1"), windows=True)
+    assert argv[0] in ("pwsh", "powershell") and argv[1:3] == ["-NoProfile", "-File"]
+    assert script_shell(Path("/r/linux.sh"), windows=False) == ["bash", "/r/linux.sh"]
 
 
 # ── the doors ────────────────────────────────────────────────────────────────
@@ -254,7 +344,7 @@ def test_the_rpc_doors_spawn_and_show_settles_the_run(workspace, registry, tmp_p
                                                   "dest_path": str(tmp_path / "y"), "issued_at": LATEST})
     assert again["error"]["code"] == serve_rpc.ERR_CONFLICT and again["error"]["data"]["reason"] == "slot_already_bound"
     step = call("runtime.workspace.recipe.run_step", {"workspace_id": workspace, "slot": "launcher", "step_id": "clone",
-                                                      "issued_at": LATEST})
+                                                      "sha256": SCRIPT_SHA, "issued_at": LATEST})
     assert step["error"]["data"]["reason"] == "step_not_runnable"
 
 

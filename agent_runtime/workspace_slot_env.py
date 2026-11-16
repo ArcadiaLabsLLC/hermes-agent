@@ -60,6 +60,8 @@ class SlotFill:
     dotenv: str | None = None
     venv: str | None = None
     bound_at: str = ""
+    #: Recipe item ids this computer marked "Not needed here" — private to it, never synced.
+    skipped: tuple[str, ...] = ()
 
 
 def slot_env_path() -> Path:
@@ -87,6 +89,7 @@ def slot_fill(workspace_id: str | None, slot: str) -> SlotFill | None:
         dotenv=entry.get("dotenv") or None,
         venv=entry.get("venv") or None,
         bound_at=str(entry.get("bound_at") or ""),
+        skipped=tuple(str(item) for item in entry.get("skipped") or ()),
     )
 
 
@@ -109,6 +112,7 @@ def fill_shape(workspace_id: str | None, slot: str) -> dict[str, Any] | None:
         "dotenv": fill.dotenv,
         "venv": fill.venv,
         "bound_at": fill.bound_at,
+        "skipped": list(fill.skipped),
     }
 
 
@@ -132,18 +136,26 @@ def set_slot_fill(
     secret_keys: frozenset[str] = frozenset(),
     issued_at: str = "",
     env_keep: Any = None,
+    skipped: Any = None,
 ) -> SlotFill:
     """REPLACE this slot's fill. A value for a key the declaration marks secret is refused.
 
     ``env_keep`` names env keys whose STORED values carry over (a value in ``env`` wins), so
     an editor that never sees a value can change one key without clearing the others. A kept
     name with no stored value is simply absent from the result — the caller reports it.
+    ``skipped`` (recipe item ids marked "Not needed here") replaces the stored list; None keeps it.
     """
 
     env_map = {**_kept_env(workspace_id, slot, env_keep), **_string_map(env, "env")}
     leaked = sorted(key for key in env_map if key in secret_keys)
     if leaked:
         raise SlotEnvRefused(REASON_SECRET_IN_ENV, f"declared secret, belongs in the slot's .env: {', '.join(leaked)}")
+    if skipped is None:
+        skips = list((slot_fill(workspace_id, slot) or SlotFill()).skipped)
+    elif isinstance(skipped, list) and all(isinstance(item, str) and item for item in skipped):
+        skips = sorted(set(skipped))
+    else:
+        raise SlotEnvRefused(REASON_INVALID_FILL, "skipped must be a list of recipe item ids")
     prepend = list(path_prepend or [])
     if not all(isinstance(item, str) and item for item in prepend):
         raise SlotEnvRefused(REASON_INVALID_FILL, "path_prepend must be a list of paths")
@@ -154,6 +166,7 @@ def set_slot_fill(
         "dotenv": str(dotenv) if dotenv else None,
         "venv": str(venv) if venv else None,
         "bound_at": issued_at,
+        "skipped": skips,
     }
     payload = _read()
     payload["schema_version"] = SLOT_ENV_SCHEMA_VERSION

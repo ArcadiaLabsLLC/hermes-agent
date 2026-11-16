@@ -177,6 +177,7 @@ class _SlotProbe:
 ITEM_DONE = "done"
 ITEM_TODO = "todo"
 ITEM_UNKNOWN = "unknown"
+ITEM_SKIPPED = "skipped"
 _ITEM_STATES = {PROBE_SET: ITEM_DONE, PROBE_MISSING: ITEM_TODO, PROBE_UNKNOWN: ITEM_UNKNOWN}
 
 
@@ -212,6 +213,7 @@ def recipe_items(name: str, slot: dict[str, Any], fill: SlotFill | None, checkou
     import time
 
     probe = _SlotProbe(name, slot, fill, run or _run, time.time())
+    skipped = frozenset(fill.skipped if fill else ())
     items = []
     for tool in recipe.tools:
         state, why = _tool_item(probe, tool)
@@ -222,7 +224,8 @@ def recipe_items(name: str, slot: dict[str, Any], fill: SlotFill | None, checkou
     if recipe.dotenv is not None:
         state, why = _dotenv_item(probe, checkout, recipe.dotenv)
         items.append({**recipe.dotenv, "id": "dotenv", "kind": "dotenv", "state": state, "why": why})
-    return items
+    # "Not needed here" is this computer's own word on an item (``slot.env.set``, never synced).
+    return [{**item, "state": ITEM_SKIPPED, "why": None} if item["id"] in skipped else item for item in items]
 
 
 def _status(name: str, row: dict[str, Any], slot: dict[str, Any]) -> str:

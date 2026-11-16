@@ -12,10 +12,11 @@ holds the request open.
   missing sign-in FAILS (``clone_auth_required``, redacted stderr as evidence) instead of
   waiting forever on a prompt no one can see. On exit 0 the slot is bound (``slot.bind`` —
   which re-reports) and the run is ``succeeded``.
-* **Run step** (``runtime.workspace.recipe.run_step``): one owner ``command`` step, ONLY on
-  this explicit request (call 8d — nothing runs after a clone on its own), in its
-  ``cwd_slot``'s bound checkout with that slot's environment overlay (call 8e) and ``argv[0]``
-  resolved through the slot's ``tool_paths``. On exit the slot is re-reported.
+* **Run step** (``runtime.workspace.recipe.run_step``): the repository recipe's install script
+  for this platform (``.eternia/setup/``, plan slot-setup-recipe §3), ONLY on this explicit
+  request carrying the ``sha256`` of the text the person was shown (``script_changed``
+  otherwise) — nothing runs after a clone, a bind or a read on its own — in the slot's checkout
+  with its environment overlay, through ``host_tools.script_shell``. On exit the slot is re-reported.
 
 Endings are settled by a watcher thread per run and, idempotently, by :func:`settle_runs`
 (called before ``recipe.show`` answers), so a serve restart mid-run still settles from the
@@ -77,6 +78,8 @@ REASON_SLOT_UNBOUND_HERE = "slot_unbound_here"
 REASON_SLOT_LOCAL_ONLY = "slot_local_only"
 REASON_STEP_RUNNING = "step_running"
 REASON_STALE_REQUEST = "stale_request"
+#: The install script's text differs from the one the person was shown (its ``sha256``).
+REASON_SCRIPT_CHANGED = "script_changed"
 
 END_CLONE_AUTH_REQUIRED = "clone_auth_required"
 END_CLONE_REPOSITORY_NOT_FOUND = "clone_repository_not_found"
@@ -209,14 +212,43 @@ def clone_slot(workspace_id: str | None, slot: str, dest_path: str, *, issued_at
 # ── Run step ─────────────────────────────────────────────────────────────────
 
 
-def run_step(workspace_id: str | None, slot: str, step_id: str, *, issued_at: str, registry: Any = None,
+def run_step(workspace_id: str | None, slot: str, step_id: str, *, sha256: str, issued_at: str, registry: Any = None,
              watch: bool = True) -> dict[str, Any]:
-    """No step runs until the repository recipe's script door lands (plan slot-setup-recipe §6 slice 2)."""
+    """Run the repository recipe's install script for this platform, on THIS explicit request only.
+
+    ``sha256`` is the hash of the text the person was shown (``recipe.script``): a script that
+    changed since is refused ``script_changed`` and nothing spawns. The run is a visible
+    background process in the slot's checkout, under its environment overlay.
+    """
+
+    from .host_tools import script_shell
+    from .workspace_slot_overlay import SlotBinding, overlay_for
+    from .workspace_slot_recipe_store import SCRIPT_ITEM_ID, bound_recipe
+    from .workspace_slot_repo_recipe import read_script
 
     slot = _declared(workspace_id, slot).slot
     if step_id == CLONE_STEP_ID:
         raise SlotRefused(REASON_STEP_NOT_RUNNABLE, f"{step_id} is the clone step; Clone runs it")
-    raise SlotRefused(REASON_UNKNOWN_STEP, f"{slot} has no step {step_id!r}")
+    if step_id != SCRIPT_ITEM_ID:
+        raise SlotRefused(REASON_UNKNOWN_STEP, f"{slot} has no step {step_id!r}; the install script is {SCRIPT_ITEM_ID!r}")
+    path, read = bound_recipe(workspace_id, slot)
+    shown = read_script(path, read.recipe)
+    if shown is None:
+        raise SlotRefused(REASON_UNKNOWN_STEP, f"{slot}'s {read.platform} recipe names no install script")
+    if not sha256 or shown["sha256"] != sha256:
+        raise SlotRefused(REASON_SCRIPT_CHANGED, f"{shown['path']} changed since it was shown; read it again")
+    overlay = overlay_for(SlotBinding(str(workspace_id or ""), slot, str(path)))
+    argv = script_shell(path / shown["path"])
+    with LOCK:
+        _guard_replay(workspace_id, slot, step_id, issued_at)
+        registry = registry or spawning_registry()
+        session = registry.spawn_local(shlex.join(argv), cwd=str(path),
+                                       env_vars=overlay.apply({"PATH": os.environ.get("PATH", "")}),
+                                       persist_on_release=True)
+        run = _start({"workspace_id": workspace_id, "slot": slot, "step_id": step_id, "kind": RUN_KIND_COMMAND,
+                      "cwd_slot": slot, "sha256": sha256, "env_source": overlay.env_source, "issued_at": issued_at,
+                      "started_at": _now()}, session, registry, watch)
+    return {"slot": slot, "step_id": step_id, "run": run, "argv": argv, "env_source": overlay.env_source}
 
 
 # ── settling ─────────────────────────────────────────────────────────────────

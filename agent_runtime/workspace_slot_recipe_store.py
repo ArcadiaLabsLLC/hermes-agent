@@ -84,12 +84,14 @@ def recipe_block(workspace_id: str | None, name: str, slot: dict[str, Any], runs
     read = read_recipe(path, this_platform())
     if read.recipe is None or path is None:
         return {"platform": read.platform, "blank": read.blank, "why": read.why}
-    items = recipe_items(name, slot, slot_fill(workspace_id, name), path, read.recipe)
+    fill = slot_fill(workspace_id, name)
+    items = recipe_items(name, slot, fill, path, read.recipe)
     shown = read_script(path, read.recipe)
     script = None if shown is None else {"id": SCRIPT_ITEM_ID, "path": shown["path"], "sha256": shown["sha256"],
-                                         "last_run": runs.get(SCRIPT_ITEM_ID)}
+                                         "last_run": runs.get(SCRIPT_ITEM_ID),
+                                         "skipped": SCRIPT_ITEM_ID in (fill.skipped if fill else ())}
     left = sum(item["state"] == _STATE_TODO for item in items)
-    if script is not None and (script["last_run"] or {}).get("status") != _RUN_SUCCEEDED:
+    if script is not None and not script["skipped"] and (script["last_run"] or {}).get("status") != _RUN_SUCCEEDED:
         left += 1
     return {"platform": read.platform, "source": {"path": _RECIPE_SOURCE, "commit": checkout_commit(path)},
             "items": items, "script": script, "left": left}

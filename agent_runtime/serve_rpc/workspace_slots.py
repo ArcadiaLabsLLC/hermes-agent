@@ -140,7 +140,7 @@ def _slot_env_set(params):
     fill = set_slot_fill(workspace_id, slot, env=params.get("env"), tool_paths=params.get("tool_paths"),
                          path_prepend=params.get("path_prepend"), dotenv=params.get("dotenv"), venv=params.get("venv"),
                          secret_keys=secret_keys(slot_recipe(workspace_id, slot)), issued_at=_issued_at(params),
-                         env_keep=keep)
+                         env_keep=keep, skipped=params.get("skipped"))
     row = report(workspace_id)["slots"].get(slot, {})
     return {"slot": slot, "env_keys": sorted(fill.env), "tool_paths": sorted(fill.tool_paths),
             "path_prepend": len(fill.path_prepend), "report": row, "fill": fill_shape(workspace_id, slot),
@@ -176,12 +176,12 @@ def _slot_clone(params):
 @method("runtime.workspace.recipe.run_step", tier=TIER_CONSOLE)
 @_guarded
 def _recipe_run_step(params):
-    """Run ONE owner command step, on this explicit request only (call 8d), under its slot's environment."""
+    """Run the repository recipe's install script, on this explicit request only, when ``sha256`` is the one shown."""
 
     from agent_runtime.workspace_slot_setup import run_step
 
     return run_step(_workspace(params), str(params.get("slot") or ""), str(params.get("step_id") or ""),
-                    issued_at=_issued_at(params))
+                    sha256=str(params.get("sha256") or ""), issued_at=_issued_at(params))
 
 
 @method("runtime.workspace.recipe.script", tier=TIER_CONSOLE)

@@ -287,7 +287,7 @@ def test_show_answers_the_fill_shape_and_never_a_value(workspace):
     reply = call("runtime.workspace.slots.show", {"workspace_id": workspace})["result"]
     assert reply["here"]["launcher"]["fill"] == {
         "env_keys": ["FLUTTER_ROOT"], "tool_paths": {"python_probe": sys.executable},
-        "path_prepend": ["C:/flutter/bin"], "dotenv": ".env", "venv": None, "bound_at": ISSUED,
+        "path_prepend": ["C:/flutter/bin"], "dotenv": ".env", "venv": None, "bound_at": ISSUED, "skipped": [],
     }
     shown = json.dumps(reply)
     assert SECRET_VALUES[0] not in shown and json.dumps(SECRET_VALUES[0])[1:-1] not in shown
