@@ -314,6 +314,22 @@ packaging:
     - tools.mcp_oauth_device
     - tools.mcp_oauth_manager
     - tools.mcp_oauth_provider
+    # Upstream's session-authority and browser-Desktop pieces that import pydantic or fastapi, both
+    # left out above (RT-PHONE-BUNDLE-NEEDS-TWO-LIBRARIES-IT-LEAVES-OUT). Kept code reaches each only
+    # lazily, on a door a phone never opens, so each still ships (an unguarded lazy import forces it)
+    # and its feature is off: editor (ACP) MCP servers (mcp.client false); onboarding, the connection
+    # card and profile setup readiness over the gateway's session authority (their wire models are
+    # tui_gateway.contracts, off above; the readiness check reads hermes_cli.web_server_profiles, off
+    # below); a prompt forwarded to a separate gateway owner over its WebSocket (a phone runs one
+    # in-process serve, no gateway owner); the browser-hosted Desktop's staged uploads and web
+    # surface (no web server on a phone).
+    - gateway.session_local_mcp
+    - gateway.session_onboarding
+    - gateway.session_connections
+    - gateway.session_readiness
+    - tui_gateway.owner_forward
+    - hermes_cli.staged_uploads
+    - hermes_cli.web_server_surface
     # Checkout-bound.
     - gateway.code_skew
     - hermes_cli.update_cmd
