@@ -149,3 +149,111 @@ def test_the_method_lane_publishes_and_names_its_refusal(tmp_path, remote, asks)
     assert refused["error"]["data"]["reason"] == "publishing_not_connected"
     unconfirmed = call({"realm_id": REALM, "folder": str(folder), "credential": _payload(remote)})
     assert unconfirmed["error"]["data"]["reason"] == "confirmation_required"
+
+
+# ── RT-REALM-PUBLISHING-PUBLISHES-SECRETS-IN-THE-FOLDER: what goes up is one list, and no secret goes up ──
+
+
+def _pushed(remote: Path) -> list[str]:
+    return _git(remote, "ls-tree", "-r", "--name-only", "gh-pages").split()
+
+
+def test_hidden_files_and_folders_never_go_up(tmp_path, remote, asks):
+    """A dotfile (``.env``, ``.htaccess``) and a dot folder (``.ssh/``, ``.well-known/``, documented as left out)
+    are skipped at any depth; the dry run's ``paths`` and the push agree. Red if the hidden-file arm or the
+    hidden-folder arm of ``site_paths`` is dropped."""
+    folder = _site(tmp_path / "out", {
+        "index.html": "x", ".htaccess": "deny", "a/.env": "A=1", ".ssh/known_hosts": "h",
+        ".well-known/security.txt": "s", "a/b.js": "b",
+    })
+    credential = RealmSyncCredential.parse(_payload(remote))
+    dry = publish_folder(REALM, str(folder), credential=credential, dry_run=True)
+    assert dry["paths"] == ["a/b.js", "index.html"] and dry["files"] == 2
+    publish_folder(REALM, str(folder), credential=credential)
+    assert _pushed(remote) == [".nojekyll", "a/b.js", "index.html"]
+
+
+def test_an_ignore_file_entry_is_left_out(tmp_path, remote, asks):
+    """``.publishignore``: a bare name at any depth, a folder-only pattern, an anchored glob; comments and blank
+    lines skipped; the ignore file itself never goes up. Red if ``_ignored`` answers False."""
+    folder = _site(tmp_path / "out", {
+        ".publishignore": "# build leftovers\n\n*.map\ndrafts/\n/notes/*.txt\n",
+        "index.html": "x", "js/app.js": "a", "js/app.js.map": "m", "drafts/x.html": "d",
+        "notes/a.txt": "n", "notes/keep.md": "k", "deep/notes/a.txt": "kept: not anchored here",
+    })
+    credential = RealmSyncCredential.parse(_payload(remote))
+    expected = ["deep/notes/a.txt", "index.html", "js/app.js", "notes/keep.md"]
+    assert publish_folder(REALM, str(folder), credential=credential, dry_run=True)["paths"] == expected
+    publish_folder(REALM, str(folder), credential=credential)
+    assert _pushed(remote) == [".nojekyll", *expected]
+
+
+@pytest.mark.parametrize("files, named", [
+    ({"id_rsa": "ssh key"}, ["id_rsa"]),
+    ({"keys/site.pem": "x", "keys/tls.key": "y"}, ["keys/site.pem", "keys/tls.key"]),
+    ({"config.js": "const api_key = 'sk_live_0123456789abcdefXYZ';"}, ["config.js"]),
+    ({"notes.txt": "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n"}, ["notes.txt"]),
+    ({"secrets/x.json": "{}"}, ["secrets/x.json"]),
+])
+def test_a_secret_left_in_the_folder_refuses_the_publish_naming_it(tmp_path, remote, asks, files, named):
+    """``id_rsa``, ``*.pem`` / ``*.key``, token-shaped text (realm sync's ``file_contains_secret_assignment``), a
+    private-key block and a realm-sync secret marker refuse the whole publish with ``sync_secret_excluded``,
+    naming the files, for the dry run too, and nothing is pushed — the publishing clone is not even made. Red
+    if ``_refuse_secrets`` returns early."""
+    folder = _site(tmp_path / "out", {"index.html": "x", **files})
+    credential = RealmSyncCredential.parse(_payload(remote))
+    for dry_run in (True, False):
+        with pytest.raises(RealmSyncError) as refused:
+            publish_folder(REALM, str(folder), credential=credential, dry_run=dry_run)
+        assert refused.value.code == "sync_secret_excluded"
+        assert refused.value.safe_details["paths"] == named
+        assert all(name in str(refused.value) for name in named)
+    assert _git(remote, "for-each-ref") == ""
+    assert not paths.realm_publishing_clone_dir(REALM).exists()
+
+
+@pytest.mark.parametrize("rel", ["id_rsa.pub", "id_ed25519", "a/server.PEM", "cert.p12", "credentials.json"])
+def test_publishing_adds_its_own_secret_names(tmp_path, remote, asks, rel):
+    """The publishing name patterns beside realm sync's markers, case-insensitive (``SECRET_NAME_PATTERNS``):
+    none of these is a ``SECRET_PATH_MARKERS`` part, so each is refused only by publishing's own list. Red if
+    ``_secret_name`` answers False."""
+    folder = _site(tmp_path / "out", {"index.html": "x", rel: "bytes"})
+    with pytest.raises(RealmSyncError) as refused:
+        publish_folder(REALM, str(folder), credential=RealmSyncCredential.parse(_payload(remote)), dry_run=True)
+    assert refused.value.safe_details["paths"] == [rel]
+
+
+def test_the_dry_run_paths_are_exactly_what_is_pushed(tmp_path, remote, asks, monkeypatch):
+    """The list is built once: the copy takes the list the dry run answers, never a second walk. Pinned by
+    making the walk answer a strict subset of the folder (as a skip added to the walk only would): the push
+    must hold exactly that subset. Red if ``_replace_tree`` copies the folder (``shutil.copytree``) instead of
+    the list."""
+    from agent_runtime.realm_publishing import push as push_module
+
+    folder = _site(tmp_path / "out", {"index.html": "x", "b.html": "y", "c/d.css": "z"})
+    real = push_module.site_paths
+    monkeypatch.setattr(push_module, "site_paths", lambda source: [p for p in real(source) if p != "b.html"])
+    credential = RealmSyncCredential.parse(_payload(remote))
+    dry = publish_folder(REALM, str(folder), credential=credential, dry_run=True)
+    pushed = publish_folder(REALM, str(folder), credential=credential)
+    assert dry["paths"] == pushed["paths"] == ["c/d.css", "index.html"]
+    assert _pushed(remote) == [".nojekyll", *dry["paths"]]
+
+
+def test_the_method_lane_names_the_secret_files(tmp_path, remote, asks):
+    """Over ``runtime.realm.publishing.push`` the refusal is a conflict whose ``data.paths`` lists the files,
+    and the dry run's result carries ``paths``. Red if the reason is unmapped or ``paths`` leaves the
+    envelope."""
+    folder = _site(tmp_path / "out", {"index.html": "x"})
+
+    def call(params):
+        return serve_rpc.handle_request(
+            {"jsonrpc": "2.0", "id": "p", "method": "runtime.realm.publishing.push", "params": params})
+
+    params = {"realm_id": REALM, "folder": str(folder), "credential": _payload(remote), "dry_run": True}
+    assert call(params)["result"]["paths"] == ["index.html"]
+    (folder / "id_rsa").write_text("k", encoding="utf-8")
+    refused = call(params)
+    assert refused["error"]["code"] == ERR_CONFLICT
+    assert refused["error"]["data"]["reason"] == "sync_secret_excluded"
+    assert refused["error"]["data"]["paths"] == ["id_rsa"]

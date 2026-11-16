@@ -80,7 +80,7 @@ from agent_runtime.realm_sync.families import (
     SyncPathFamily,
     _destination_for_sync_path,
     _is_hard_excluded_path,
-    _is_secretish_path,
+    is_secretish_path,
     _kind_for_sync_path,
 )
 from agent_runtime.realm_sync.ledgers import (
@@ -223,7 +223,7 @@ __all__ = [
     "_git_clone",
     "_held_skill_packages_for_realm",
     "_is_hard_excluded_path",
-    "_is_secretish_path",
+    "is_secretish_path",
     "_kind_for_sync_path",
     "_mirror_realm_skill_inbox",
     "_office_publish_scan",

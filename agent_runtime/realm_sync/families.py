@@ -43,7 +43,7 @@ __all__ = [
     "_destination_for_sync_path",
     "_exactly",
     "_is_hard_excluded_path",
-    "_is_secretish_path",
+    "is_secretish_path",
     "_kind_for_sync_path",
     "_prefix",
     "_profile_file_kind",
@@ -403,7 +403,7 @@ def _kind_for_sync_path(rel: str) -> str:
     return SyncFamily.ARTIFACT
 
 
-def _is_secretish_path(rel: str) -> bool:
+def is_secretish_path(rel: str) -> bool:
     parts = {part.lower() for part in Path(rel).parts}
     return bool(parts & SECRET_PATH_MARKERS)
 

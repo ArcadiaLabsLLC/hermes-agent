@@ -170,7 +170,7 @@ def path_refusal(rel: str) -> tuple[str, str] | None:
     and the shared secret-ish / hard-excluded path markers.
     """
 
-    from .realm_sync.families import _is_hard_excluded_path, _is_secretish_path
+    from .realm_sync.families import _is_hard_excluded_path, is_secretish_path
     from .paths import is_windows_reserved_component
 
     text = str(rel or "").replace("\\", "/")
@@ -184,7 +184,7 @@ def path_refusal(rel: str) -> tuple[str, str] | None:
             return ("unsafe_path", f"unsafe path component in {text!r}")
         if is_windows_reserved_component(part):
             return ("reserved_path_component", f"reserved device name component in {text!r}")
-    if _is_secretish_path(text):
+    if is_secretish_path(text):
         return ("secretish_path", f"path matches a secret marker: {text}")
     if _is_hard_excluded_path(text):
         return ("hard_excluded_path", f"path is hard-excluded from realm sync: {text}")
@@ -334,7 +334,7 @@ def refuse_package(key: str, root: Path) -> Refusal | None:
         except OSError:
             continue
         if len(data) > 1_000_000:
-            continue  # matches ``_file_contains_secret_assignment``'s size bound
+            continue  # matches ``file_contains_secret_assignment``'s size bound
         found = content_refusal(data)
         if found is not None:
             return Refusal(key, found[0], f"{found[1]} ({rel})")

@@ -28,7 +28,7 @@ from .models import (
     RealmSyncError,
     _canonicalize_text_bytes,
 )
-from .families import SyncFamily, _is_hard_excluded_path, _is_secretish_path
+from .families import SyncFamily, _is_hard_excluded_path, is_secretish_path
 from .ledgers import (
     _REALM_AUTHORITY_FIELDS,
     _UNIONED_REALM_LEDGERS,
@@ -60,7 +60,7 @@ __all__ = [
     "_apply_workspace_tombstones",
     "_artifact_contains_secret_assignment",
     "_assert_no_secret_artifacts",
-    "_file_contains_secret_assignment",
+    "file_contains_secret_assignment",
     "_overwrite_generic_families",
     "_pull_accounting",
     "_pull_boards",
@@ -792,7 +792,7 @@ def _assert_no_secret_artifacts(artifacts: list[RealmSyncArtifact]) -> None:
     blocked: list[str] = []
     for artifact in artifacts:
         rel = artifact.relative_path.replace("\\", "/")
-        if _is_secretish_path(rel) or _is_hard_excluded_path(rel) or _artifact_contains_secret_assignment(artifact):
+        if is_secretish_path(rel) or _is_hard_excluded_path(rel) or _artifact_contains_secret_assignment(artifact):
             blocked.append(rel)
     if blocked:
         raise RealmSyncError("sync_secret_excluded", "Realm sync refused to include excluded secret/state artifacts.", safe_details={"paths": blocked[:20]})
@@ -809,10 +809,10 @@ def _artifact_contains_secret_assignment(artifact: RealmSyncArtifact) -> bool:
 
     if artifact.content is not None:
         return bool(SECRET_ASSIGNMENT_RE.search(artifact.content.decode("utf-8", errors="ignore")))
-    return _file_contains_secret_assignment(artifact.source)
+    return file_contains_secret_assignment(artifact.source)
 
 
-def _file_contains_secret_assignment(path: Path) -> bool:
+def file_contains_secret_assignment(path: Path) -> bool:
     try:
         if path.stat().st_size > 1_000_000:
             return False
