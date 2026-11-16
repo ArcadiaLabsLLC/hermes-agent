@@ -4,10 +4,11 @@ Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §3
 key-wise, never whole-document HOLD — a HOLD would block a realm's detection over a rename).
 
 * **Slot names union.** A name only one side holds is kept. A name both sides hold resolves
-  to ONE side's record: the newer ``recipe.revision``, then the newer ``issued_at``. Removal
+  to ONE side's record: the newer ``revision`` (an older writer's ``recipe.revision``), then the
+  newer ``issued_at``. Removal
   is a TOMBSTONE (``removed_at`` + the removal's ``issued_at``), so a stale peer that still
   holds the slot live loses to the newer removal instead of resurrecting it.
-* **Inside a slot**, ``repo`` / ``toolchain`` / ``context`` / ``recipe`` travel together as
+* **Inside a slot**, ``repo`` / ``toolchain`` / ``context`` / ``revision`` travel together as
   the winning record — a declaration is one decision, never spliced from two.
 * **``categories.<name>`` and ``guidance``** (RT-WS-ABSORB-CONTENT-DOC): one side's whole entry,
   the newer ``revision`` then the newer ``issued_at`` — a folder declaration is one decision, never
@@ -23,14 +24,13 @@ Publish copies the document verbatim; this applier is the only writer on pull (t
 overwrite loop never touches ``store/workspace_slots/``).
 
 **A peer's document is validated before it is merged** (:func:`held_document`), by the SAME
-validators a local edit runs — ``normalize_declaration`` for a slot record, ``normalize_owner_step``
-for each stored recipe step — one entry at a time:
+validators a local edit runs — ``normalize_declaration`` for a slot record — one entry at a time
+(an older writer's in-declaration ``recipe`` is not carried; the setup recipe lives in the repository,
+plan slot-setup-recipe §4):
 
 * a slot whose NAME is not a root name, or whose declaration fails (a clone URL carrying userinfo,
-  a malformed toolchain / context / recipe) is dropped WHOLE: the local record of that name, when
+  a malformed toolchain / context / revision) is dropped WHOLE: the local record of that name, when
   there is one, stays as it was;
-* a recipe STEP that fails (a credential-shaped argv / label / hint / url, a field a stored step
-  never carries, a malformed command) is dropped ALONE: its slot and the slot's other steps merge;
 * a category that is not one of the five, or whose slot / subpath / switch / stamps fail, drops
   ALONE (``invalid_category``); guidance past ``GUIDANCE_MAX_CHARS`` or with a non-text field drops
   (``invalid_guidance``);
@@ -46,7 +46,7 @@ for each stored recipe step — one entry at a time:
   honest write made until then, nor wedge a local ``declare`` as ``stale_revision``.
 
 Each drop is a typed row in ``WorkspaceSlotsPullSummary.refused`` — ``{document, slot | machine
-| field, step?, reason}`` — and never carries the refused value: a name or id that is not a safe
+| field, reason}`` — and never carries the refused value: a name or id that is not a safe
 identifier is named by a short digest instead, and a stamp is never printed. Because the dropped value never enters this machine's document,
 this machine's next publish (a verbatim copy) cannot carry it back out.
 """
@@ -64,12 +64,6 @@ from typing import Any
 from . import paths
 from .builds.unknowns import UnknownsIndex
 from .machine_roots import _ROOT_NAME_RE
-from .workspace_slot_recipe import (
-    REASON_DUPLICATE_STEP_ID,
-    RecipeRefused,
-    derived_by_id,
-    normalize_owner_step,
-)
 from .workspace_slots import (
     REASON_INVALID_DECLARATION,
     REASON_INVALID_SLOT_NAME,
@@ -78,6 +72,7 @@ from .workspace_slots import (
     known_machine_id,
     load_document_from,
     normalize_declaration,
+    slot_revision,
     stamp_epoch,
     stamp_horizon,
     stamp_in_future,
@@ -129,12 +124,7 @@ _SAFE_LABEL_RE = re.compile(r"^(?:(?:tool|env_key):)?[A-Za-z0-9_.+-]{1,64}$")
 
 
 def _slot_rank(slot: dict[str, Any]) -> tuple[int, float]:
-    recipe = slot.get("recipe") if isinstance(slot.get("recipe"), dict) else {}
-    try:
-        revision = int(recipe.get("revision") or 0)
-    except (TypeError, ValueError):
-        revision = 0
-    return revision, stamp_epoch(slot.get("issued_at")) or 0.0
+    return slot_revision(slot), stamp_epoch(slot.get("issued_at")) or 0.0
 
 
 def _newer(a: dict[str, Any] | None, b: dict[str, Any] | None, rank) -> dict[str, Any] | None:
@@ -211,48 +201,33 @@ def _text_or_none(value: Any) -> str | None:
     return value if isinstance(value, str) else None
 
 
-def _held_recipe(name: str, body: dict[str, Any], recipe: Any, names: frozenset[str],
-                 refused: list[dict[str, str]]) -> dict[str, Any]:
-    """The slot's recipe with every step that fails the shared validator dropped (and accounted)."""
+def _held_revision(record: dict[str, Any]) -> int:
+    """The record's ``revision`` (an older writer's ``recipe.revision``): a non-negative int, else refused whole."""
 
-    recipe = {} if recipe is None else recipe
-    if not isinstance(recipe, dict):
-        raise SlotRefused(REASON_INVALID_DECLARATION, "recipe")
-    revision, steps = recipe.get("revision", 0), recipe.get("steps")
-    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0 or not isinstance(steps, (list, type(None))):
-        raise SlotRefused(REASON_INVALID_DECLARATION, "recipe")
-    derived = derived_by_id(name, body)
-    kept: list[dict[str, Any]] = []
-    for entry in steps or []:
-        step_id = entry.get("id") if isinstance(entry, dict) else None
-        try:
-            step = normalize_owner_step(entry, name, derived, names, held=True)
-            if any(other["id"] == step["id"] for other in kept):
-                raise RecipeRefused(REASON_DUPLICATE_STEP_ID)
-        except RecipeRefused as exc:
-            refused.append({"slot": name, "step": _label(step_id), "reason": exc.reason})
-            continue
-        kept.append(step)
-    edited_by = recipe.get("edited_by")
-    return {"revision": revision, "steps": kept, "edited_at": _text_or_none(recipe.get("edited_at")),
-            "edited_by": {"machine": _text_or_none(edited_by.get("machine")),
-                          "persona_instance_id": _text_or_none(edited_by.get("persona_instance_id"))}
-            if isinstance(edited_by, dict) else None}
+    if "revision" in record:
+        revision = record["revision"]
+    else:
+        recipe = record.get("recipe") or {}
+        if not isinstance(recipe, dict):
+            raise SlotRefused(REASON_INVALID_DECLARATION, "revision")
+        revision = recipe.get("revision", 0)
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0:
+        raise SlotRefused(REASON_INVALID_DECLARATION, "revision")
+    return revision
 
 
-def _held_slot(name: str, record: Any, names: frozenset[str], refused: list[dict[str, str]],
-               now: float) -> dict[str, Any]:
+def _held_slot(name: str, record: Any, now: float) -> dict[str, Any]:
     """One peer slot record rebuilt from what the validators return, or :class:`SlotRefused`."""
 
     if not isinstance(record, dict):
         raise SlotRefused(REASON_INVALID_DECLARATION, "record")
     _, body = normalize_declaration({"name": name, "repo": record.get("repo"), "toolchain": record.get("toolchain"),
                                      "context": record.get("context")})
-    held = {**body, "recipe": _held_recipe(name, body, record.get("recipe"), names, refused),
+    held = {**body, "revision": _held_revision(record),
             "declared_at": _text_or_none(record.get("declared_at")),
             "declared_by_machine": _text_or_none(record.get("declared_by_machine")),
             "issued_at": _text_or_none(record.get("issued_at")), "removed_at": _text_or_none(record.get("removed_at"))}
-    stamps = (held["declared_at"], held["issued_at"], held["removed_at"], held["recipe"]["edited_at"])
+    stamps = (held["declared_at"], held["issued_at"], held["removed_at"])
     if any(stamp_in_future(stamp, now=now) for stamp in stamps):
         raise SlotRefused(REASON_STAMP_IN_FUTURE, "a slot stamp runs past this machine's clock")
     return held
@@ -461,8 +436,8 @@ def held_document(remote: dict[str, Any], *, me: str | None = None,
                   now: float | None = None) -> tuple[dict[str, Any], list[dict[str, str]]]:
     """``(document, refused)``: a peer's slot document with every invalid entry dropped.
 
-    ``refused`` rows are ``{slot | machine | field, step?, reason}``. A step that fails drops
-    alone; a slot whose name, declaration or stamps fail drops whole, its steps unlisted; another
+    ``refused`` rows are ``{slot | machine | field, reason}``. A slot whose name, declaration,
+    revision or stamps fail drops whole; another
     machine's entry drops whole, a row of it alone. ``machines.<me>`` is never taken from a peer,
     and a document ``issued_at`` past this machine's horizon is not merged.
     """
@@ -482,13 +457,10 @@ def held_document(remote: dict[str, Any], *, me: str | None = None,
         if name not in names:
             refused.append({"slot": _label(name), "reason": REASON_INVALID_SLOT_NAME})
             continue
-        steps_refused: list[dict[str, str]] = []
         try:
-            slots[name] = _held_slot(name, raw[name], names, steps_refused, now)
+            slots[name] = _held_slot(name, raw[name], now)
         except SlotRefused as exc:
             refused.append({"slot": name, "reason": exc.reason})
-            continue
-        refused.extend(steps_refused)
     remote = {key: value for key, value in remote.items() if key not in ("categories", "guidance")}
     return {**remote, **_held_content(raw_remote, now, refused), "issued_at": issued, "slots": slots,
             "machines": machines}, refused

@@ -8,9 +8,10 @@ device may read a workspace's slots, never write the operator's paths or environ
 ``credential`` object the realm verbs do. Every refusal is a typed ``data.reason``.
 ``slot.env.set`` REPLACES the fill; ``env_keep: [names]`` carries named stored values over, so
 an editor that reads only ``slots.show``'s non-secret ``fill`` shape can change one key.
-The setup recipe (Phase B): ``recipe.show`` is this machine's checklist read from its last
-report; ``recipe.set`` replaces one slot's owner steps from the revision the editor read
-(``stale_revision`` otherwise) and is gated on the publish right exactly like ``declare``.
+The setup recipe lives in the repository (plan ``slot-setup-recipe-2026-11-15.md`` §3):
+``recipe.show`` is this machine's readiness plus the checkout's recipe for this platform,
+``recipe.script`` the install script's text, both read-only; ``recipe.set`` is refused
+``recipe_in_repository`` (a recipe changes by a commit).
 """
 
 from agent_runtime.call_authorization import TIER_CONSOLE
@@ -27,6 +28,9 @@ _REFUSAL_CODES = {
     "invalid_path": ERR_INVALID_PARAMS,
     "invalid_fill": ERR_INVALID_PARAMS,
     "secret_in_env": ERR_INVALID_PARAMS,
+    "recipe_in_repository": ERR_INVALID_PARAMS,
+    "recipe_blank": ERR_NOT_FOUND,
+    "no_script": ERR_NOT_FOUND,
     "workspace_not_found": ERR_NOT_FOUND,
     "slot_not_declared": ERR_NOT_FOUND,
     "path_not_found": ERR_NOT_FOUND,
@@ -74,12 +78,11 @@ def _issued_at(params: dict) -> str:
 def _guarded(handler):
     def run(rid, params, context=None):
         from agent_runtime.workspace_slot_env import SlotEnvRefused
-        from agent_runtime.workspace_slot_recipe import RecipeRefused
         from agent_runtime.workspace_slots import SlotRefused
 
         try:
             return ok(rid, handler(params or {}))
-        except (SlotRefused, SlotEnvRefused, RecipeRefused) as exc:
+        except (SlotRefused, SlotEnvRefused) as exc:
             return _refused(rid, exc)
     return run
 
@@ -125,6 +128,7 @@ def _slot_bind(params):
 @_guarded
 def _slot_env_set(params):
     from agent_runtime.workspace_slot_env import fill_shape, set_slot_fill
+    from agent_runtime.workspace_slot_repo_recipe import slot_recipe
     from agent_runtime.workspace_slots import REASON_SLOT_NOT_DECLARED, SlotRefused, live_slots, load_document, secret_keys
     from agent_runtime.workspace_slots_probe import report
 
@@ -135,7 +139,8 @@ def _slot_env_set(params):
     keep = params.get("env_keep")
     fill = set_slot_fill(workspace_id, slot, env=params.get("env"), tool_paths=params.get("tool_paths"),
                          path_prepend=params.get("path_prepend"), dotenv=params.get("dotenv"), venv=params.get("venv"),
-                         secret_keys=secret_keys(declared), issued_at=_issued_at(params), env_keep=keep)
+                         secret_keys=secret_keys(slot_recipe(workspace_id, slot)), issued_at=_issued_at(params),
+                         env_keep=keep)
     row = report(workspace_id)["slots"].get(slot, {})
     return {"slot": slot, "env_keys": sorted(fill.env), "tool_paths": sorted(fill.tool_paths),
             "path_prepend": len(fill.path_prepend), "report": row, "fill": fill_shape(workspace_id, slot),
@@ -179,22 +184,24 @@ def _recipe_run_step(params):
                     issued_at=_issued_at(params))
 
 
+@method("runtime.workspace.recipe.script", tier=TIER_CONSOLE)
+@_guarded
+def _recipe_script(params):
+    """One slot's install script for this platform, ``{slot, path, commit, sha256, text}`` — read-only."""
+
+    from agent_runtime.workspace_slot_recipe_store import show_script
+
+    return show_script(_workspace(params), str(params.get("slot") or ""))
+
+
 @method("runtime.workspace.recipe.set", tier=TIER_CONSOLE)
 @_guarded
 def _recipe_set(params):
-    """Replace one slot's owner steps; gated on the realm publish right like ``slots.declare`` (call 8a)."""
+    """Refused ``recipe_in_repository``: the recipe changes by a commit to the repository (kept one release)."""
 
-    from agent_runtime.realm_membership import RealmSyncCredential
     from agent_runtime.workspace_slot_recipe_store import set_recipe
-    from agent_runtime.workspace_slots import machine_id, require_publish_right
 
-    workspace_id = _workspace(params)
-    raw = params.get("credential")
-    credential = None if raw is None else RealmSyncCredential.parse(raw)
-    require_publish_right(workspace_id, credential)
-    return set_recipe(workspace_id, str(params.get("slot") or ""), params.get("steps"),
-                      base_revision=params.get("revision"), issued_at=_issued_at(params), machine=machine_id(),
-                      persona_instance_id=params.get("persona_instance_id"))
+    return set_recipe(_workspace(params), str(params.get("slot") or ""))
 
 
 # ── the per-instance assignment (the Agent Console's editor — owner correction 2026-10-04) ──

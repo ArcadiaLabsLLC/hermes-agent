@@ -33,12 +33,15 @@ def slot(tmp_path):
     (checkout / "lib").mkdir(parents=True)
     (checkout / ".env").write_text('ETERNIA_API_BASE=https://api.test\nKEYCLOAK_CLIENT_SECRET="from-dotenv"\n',
                                    encoding="utf-8")
+    # The repository's own setup recipe names the .env and marks the secret (plan slot-setup-recipe §2).
+    (checkout / ".eternia" / "setup").mkdir(parents=True)
+    (checkout / ".eternia" / "setup" / "recipe.json").write_text(json.dumps({
+        "version": 1, "env_keys": [{"key": "FLUTTER_ROOT"}],
+        "dotenv": {"path": ".env", "keys": [{"key": "ETERNIA_API_BASE"}, {"key": "KEYCLOAK_CLIENT_SECRET", "secret": True}]},
+        "platforms": {p: {} for p in ("windows", "macos", "linux")}}), encoding="utf-8")
     write_machine_roots({"launcher": str(checkout)}, dry_run=False)
-    declare(workspace, [{
-        "name": "launcher", "repo": {"clone_url": "https://x/launcher.git"},
-        "toolchain": {"env_keys": [{"key": "FLUTTER_ROOT"}], "dotenv": {"path": ".env", "keys": [
-            {"key": "ETERNIA_API_BASE"}, {"key": "KEYCLOAK_CLIENT_SECRET", "secret": True}]}},
-    }], issued_at=ISSUED, machine="mach_test")
+    declare(workspace, [{"name": "launcher", "repo": {"clone_url": "https://x/launcher.git"}}],
+            issued_at=ISSUED, machine="mach_test")
     prepend = str(tmp_path / "flutter" / "bin")
     set_slot_fill(workspace, "launcher", env={"FLUTTER_ROOT": str(tmp_path / "flutter")}, path_prepend=[prepend])
     return workspace, checkout, prepend

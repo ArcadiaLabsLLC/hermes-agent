@@ -371,20 +371,16 @@ def scan(*, now: float, census: Any, owned: set[int], table: Iterable[Any] | Non
 
 
 def restart_unknowns(build: DetectedBuild, *, now: float) -> UnknownsIndex:
-    """What a Restart of ``build`` cannot reproduce — narrowed by the slot's declaration and fill."""
+    """What a Restart of ``build`` cannot reproduce — narrowed by the checkout's setup recipe and the fill."""
 
     from agent_runtime.workspace_slot_env import slot_fill
-    from agent_runtime.workspace_slots import resolve_slot
+    from agent_runtime.workspace_slot_repo_recipe import read_recipe, this_platform
 
     index = UnknownsIndex()
-    resolved = resolve_slot(build.slot.workspace_id, build.slot.slot)
-    declared = resolved.declaration if resolved else {}
     fill = slot_fill(build.slot.workspace_id, build.slot.slot)
-    toolchain = declared.get("toolchain") or {}
     keys = set(TOOLCHAIN_ENV_KEYS.get(getattr(build.command, "toolchain", ""), TOOLCHAIN_ENV_KEYS["flutter"]))
     if fill is not None:
-        keys -= {row.get("key") for row in toolchain.get("env_keys") or []}
-        keys -= {row.get("key") for row in (toolchain.get("dotenv") or {}).get("keys") or []}
+        keys -= read_recipe(getattr(build.slot, "path", None), this_platform()).keys
         keys -= set(fill.env)
         if fill.path_prepend:
             keys.discard("PATH")

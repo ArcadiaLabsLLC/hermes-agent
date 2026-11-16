@@ -1,6 +1,6 @@
 """The WORKSPACE_SLOTS realm-sync family (plan ``build-running-work-2026-10-04.md`` §3.1, row H5a).
 
-Key-wise at three depths: slot names union, a slot's record by newest recipe revision then
+Key-wise at three depths: slot names union, a slot's record by newest revision then
 ``issued_at`` (a tombstone is a record), machines disjoint by id.
 """
 
@@ -146,32 +146,28 @@ def test_a_peer_clone_url_carrying_userinfo_never_replaces_the_local_slot(tmp_pa
     assert load_document(workspace)["slots"]["launcher"]["repo"]["clone_url"] == "https://github.com/x/launcher.git"
 
 
-@pytest.mark.parametrize("step", [
-    _command("argv", ["git", "fetch", f"https://{SECRET}@github.com/x/y.git"], label="Fetch"),
-    _command("label", ["flutter", "pub", "get"], label=f"token={SECRET}"),
-    _command("env", ["flutter", "pub", "get"], env={"GITHUB_TOKEN": SECRET}),
-    {"id": "tool:flutter", "hint": f"Authorization: Bearer {SECRET}"},
-])
-def test_a_credential_shaped_peer_recipe_step_is_dropped_alone(tmp_path, step):
-    clean = _command("pub_get", ["flutter", "pub", "get"])
-    workspace, local, summary = _pull_into(tmp_path, {"launcher": _with_steps([step, clean])})
-    assert [s["id"] for s in local["slots"]["launcher"]["recipe"]["steps"]] == ["pub_get"]
-    assert [(r["slot"], r["step"], r["reason"]) for r in summary["refused"]] == \
-        [("launcher", step["id"], "credential_in_step")]
-    assert SECRET not in json.dumps(summary) and SECRET not in _local_bytes(workspace)
+def test_an_older_peers_recipe_steps_are_not_carried_and_its_recipe_revision_still_ranks(tmp_path):
+    """The recipe lives in the repository (plan slot-setup-recipe §4): a peer's in-declaration steps are
+    dropped on the pull — a credential among them included — while its ``recipe.revision`` is read as the
+    record's ``revision`` (read old, write new). Killing mutation: carry ``record["recipe"]`` in
+    ``_held_slot`` -> the steps (and the secret) land locally, red."""
+
+    steps = [_command("fetch", ["git", "fetch", f"https://{SECRET}@github.com/x/y.git"]),
+             {"id": "tool:flutter", "hint": f"Authorization: Bearer {SECRET}"}]
+    peer = {**_with_steps(steps, revision=3), "repo": {"clone_url": "https://x/theirs.git", "default_branch": "main"}}
+    workspace, local, summary = _pull_into(tmp_path, {"launcher": peer},
+                                           local={"launcher": {**_slot(NEW), "revision": 2, "recipe": None}})
+    held = local["slots"]["launcher"]
+    assert "recipe" not in held and held["revision"] == 3 and held["repo"]["clone_url"] == "https://x/theirs.git"
+    assert summary["refused"] == [] and SECRET not in _local_bytes(workspace)
 
 
-def test_a_valid_peer_slot_and_step_survive_beside_bad_ones(tmp_path):
-    backend = _with_steps([_command("bad", ["git", f"https://u:{SECRET}@h/r.git"]),
-                           _command("migrate", ["python", "manage.py", "migrate"]),
-                           {"id": "env_key:GONE", "hint": "orphaned by a re-declaration"}])
+def test_a_valid_peer_slot_survives_beside_a_bad_one(tmp_path):
     workspace, local, summary = _pull_into(tmp_path, {
-        "launcher": _slot(NEW, url=f"https://{SECRET}@x/launcher.git"), "backend": backend,
+        "launcher": _slot(NEW, url=f"https://{SECRET}@x/launcher.git"), "backend": _slot(NEW),
     })
     assert sorted(local["slots"]) == ["backend"]
-    assert [s["id"] for s in local["slots"]["backend"]["recipe"]["steps"]] == ["migrate", "env_key:GONE"]
-    assert sorted((r["slot"], r.get("step"), r["reason"]) for r in summary["refused"]) == [
-        ("backend", "bad", "credential_in_step"), ("launcher", None, "clone_url_carries_credential")]
+    assert [(r["slot"], r["reason"]) for r in summary["refused"]] == [("launcher", "clone_url_carries_credential")]
     assert summary["merged"] and SECRET not in _local_bytes(workspace)
 
 
@@ -285,7 +281,7 @@ def test_a_far_future_peer_stamp_is_refused_and_never_wedges_a_local_declare(tmp
     late_unknown = {**_full_row(), "unknowns": [{"kind": "slot_probe_unknown", "evidence": "x",
                                                  "seen_at": NOW.timestamp() + 10 ** 9}]}
     remote = _doc({"launcher": _slot(FAR_FUTURE, revision=1, url="https://x/forged.git"),
-                   "backend": {**_slot(_at(-60)), "recipe": {"revision": 0, "steps": [], "edited_at": FAR_FUTURE}}},
+                   "backend": {**_slot(_at(-60)), "declared_at": FAR_FUTURE}},
                   {"mach_b": {"reported_at": FAR_FUTURE, "slots": {}},
                    "mach_c": {"reported_at": _at(-60), "slots": {"launcher": late_unknown}}},
                   issued_at=FAR_FUTURE)

@@ -1,14 +1,17 @@
-"""The setup recipe ("image"), Phase B (plan ``build-running-work-2026-10-04.md`` §3.5, row H10).
+"""The slot setup recipe, read from the repository (plan ``slot-setup-recipe-2026-11-15.md`` §2–§5).
 
-Derived steps come from the declaration and cannot be deleted, only annotated; the owner adds
-``command`` steps; ``ready`` is ``unknown`` whenever any input is unknown, never optimistically
-``yes``; the higher ``recipe.revision`` wins — at the local door and in the realm merge.
+A recipe is ``.eternia/setup/recipe.json`` in the slot's checkout, read by one function per
+platform; it is blank by default, never decides Ready, and hermes never writes it. ``ready`` is
+the checkout alone and ``unknown`` whenever the checkout is unknown, never optimistically ``yes``.
 """
 
 from __future__ import annotations
 
-import copy
+import ast
+import hashlib
+import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -16,6 +19,7 @@ from agent_runtime import serve_rpc
 from agent_runtime.machine_roots import machine_roots_cache_clear
 from agent_runtime.store import WorkspaceStore
 from agent_runtime.workspace_slot_recipe import readiness
+from agent_runtime.workspace_slot_repo_recipe import read_recipe
 from agent_runtime.workspace_slots import declare, load_document, write_document
 from agent_runtime.workspace_slots_sync import merge_documents
 
@@ -23,19 +27,38 @@ CLONE_URL = "https://github.com/ArcadiaLabsLLC/EterniaLauncher.git"
 ISSUED = "2026-10-05T12:00:00+00:00"
 LATER = "2026-10-05T13:00:00+00:00"
 REMOVED = "2026-10-05T14:00:00+00:00"
+ROOT = Path(__file__).resolve().parents[2]
+
+RECIPE = {
+    "version": 1,
+    "env_keys": [{"key": "SLOT_RECIPE_TEST_KEY", "secret": True, "hint": "Ask the team", "url": "https://docs.example.com"}],
+    "dotenv": {"path": ".env", "example": ".env.example", "keys": [{"key": "API_BASE"}]},
+    "platforms": {p: {"script": "setup.sh", "tools": [{"name": "definitely_absent_tool_zz", "min_version": "3.4"}]}
+                  for p in ("windows", "macos", "linux")},
+}
 
 
 def call(method: str, params: dict) -> dict:
     return serve_rpc.handle_request({"jsonrpc": "2.0", "id": "t", "method": method, "params": params})
 
 
-def _decl(name="launcher", **toolchain) -> dict:
-    base = {"kind": "flutter", "tools": [{"name": "flutter", "min_version": "3.41"}, {"name": "dart"}],
-            "env_keys": [{"key": "FLUTTER_ROOT", "required": True}, {"key": "PUB_CACHE", "required": False}],
-            "dotenv": {"path": ".env", "keys": [{"key": "ETERNIA_API_BASE", "required": True},
-                                               {"key": "OPTIONAL_FLAG", "required": False}]}}
-    base.update(toolchain)
-    return {"name": name, "repo": {"clone_url": CLONE_URL, "default_branch": "main"}, "toolchain": base}
+def _decl(name="launcher") -> dict:
+    return {"name": name, "repo": {"clone_url": CLONE_URL, "default_branch": "main"}, "toolchain": {"kind": "flutter"}}
+
+
+def write_recipe(repo: Path, recipe=RECIPE, script: str | None = "echo set up\n") -> None:
+    setup = repo / ".eternia" / "setup"
+    setup.mkdir(parents=True, exist_ok=True)
+    (setup / "recipe.json").write_text(recipe if isinstance(recipe, str) else json.dumps(recipe), encoding="utf-8")
+    if script is not None:
+        (setup / "setup.sh").write_text(script, encoding="utf-8")
+
+
+def _checkout(path: Path) -> Path:
+    path.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    subprocess.run(["git", "-C", str(path), "remote", "add", "origin", CLONE_URL], check=True)
+    return path
 
 
 @pytest.fixture
@@ -48,205 +71,239 @@ def workspace():
     return workspace_id
 
 
-def _set(workspace, steps, revision, slot="launcher", issued_at=LATER) -> dict:
-    return call("runtime.workspace.recipe.set", {"workspace_id": workspace, "slot": slot, "steps": steps,
-                                                  "revision": revision, "issued_at": issued_at})
+@pytest.fixture
+def bound(workspace, tmp_path):
+    repo = _checkout(tmp_path / "launcher")
+    call("runtime.workspace.slot.bind", {"workspace_id": workspace, "slot": "launcher", "path": str(repo),
+                                         "issued_at": ISSUED})
+    return repo
 
 
 def _show(workspace) -> dict:
     return call("runtime.workspace.recipe.show", {"workspace_id": workspace})["result"]["slots"]
 
 
-def _ids(checklist) -> list[str]:
-    return [step["id"] for step in checklist["steps"]]
+# ── a recipe never changes Ready ─────────────────────────────────────────────
 
 
-DERIVED = ["clone", "tool:flutter", "tool:dart", "env_key:FLUTTER_ROOT", "env_key:PUB_CACHE", "dotenv"]
+@pytest.mark.parametrize("recipe", [None, RECIPE, "{not json"])
+def test_a_recipe_never_changes_ready(workspace, bound, recipe):
+    """Ready is the checkout alone, recipe present (every item to do), absent or unreadable (§5 row 1).
+    Killing mutation: ``_slot_checklist`` answering ``ready: no`` while the recipe has items ``left`` -> red."""
+
+    if recipe is not None:
+        write_recipe(bound, recipe)
+    shown = _show(workspace)["launcher"]
+    assert (shown["ready"], shown["checklist"], shown["blocking"]) == ("yes", "ready", [])
+    assert [step["id"] for step in shown["steps"]] == ["clone"]
+    if recipe is RECIPE:
+        assert shown["recipe"]["left"] >= 2  # positive control: there IS something left to do here
 
 
-# ── derived steps cannot be deleted, only annotated ──────────────────────────
+# ── blank by default ─────────────────────────────────────────────────────────
 
 
-def test_derived_steps_are_materialised_and_an_empty_owner_list_deletes_none(workspace):
-    assert _ids(_show(workspace)["launcher"]) == DERIVED
-    reply = _set(workspace, [], 0)["result"]
-    assert reply["revision"] == 1
-    assert _ids(_show(workspace)["launcher"]) == DERIVED
-    # Nothing derived is ever stored: the record holds only the owner's part.
-    assert load_document(workspace)["slots"]["launcher"]["recipe"]["steps"] == []
-
-
-def test_a_derived_step_is_annotated_never_edited(workspace):
-    edited = _set(workspace, [{"id": "tool:flutter", "min_version": "1.0"}], 0)
-    assert edited["error"]["data"]["reason"] == "derived_step_immutable"
-    rekinded = _set(workspace, [{"id": "tool:flutter", "kind": "env_key"}], 0)
-    assert rekinded["error"]["data"]["reason"] == "derived_step_immutable"
-    assert _set(workspace, [{"id": "tool:rust"}], 0)["error"]["data"]["reason"] == "unknown_step"
-    assert load_document(workspace)["slots"]["launcher"]["recipe"]["revision"] == 0  # nothing landed
-    # Positive control: the same step, annotated, lands and shows.
-    assert "result" in _set(workspace, [{"id": "tool:flutter", "hint": "Use the 3.41 SDK", "url": "https://docs.flutter.dev"}], 0)
-    flutter = next(s for s in _show(workspace)["launcher"]["steps"] if s["id"] == "tool:flutter")
-    assert flutter["hint"] == "Use the 3.41 SDK" and flutter["url"] == "https://docs.flutter.dev"
-    assert flutter["min_version"] == "3.41"  # the declaration's value, untouched
-
-
-def test_owner_commands_follow_the_derived_steps_and_never_run_on_their_own(workspace):
-    steps = [{"id": "pub_get", "kind": "command", "argv": ["flutter", "pub", "get"]},
-             {"id": "codegen", "kind": "command", "argv": ["dart", "run", "build_runner", "build"], "run": "never_auto",
-              "cwd_slot": "backend"}]
-    assert "result" in _set(workspace, steps, 0)
-    checklist = _show(workspace)["launcher"]
-    assert _ids(checklist) == DERIVED + ["pub_get", "codegen"]
-    by_id = {s["id"]: s for s in checklist["steps"]}
-    assert by_id["pub_get"]["run"] == "on_setup_click" and by_id["pub_get"]["state"] == "offered"
-    assert by_id["codegen"]["state"] == "manual" and by_id["codegen"]["cwd_slot"] == "backend"
-
-
-@pytest.mark.parametrize(("step", "reason"), [
-    ({"id": "clone", "kind": "command", "argv": ["x"]}, "invalid_step"),
-    ({"id": "a", "kind": "command", "argv": []}, "invalid_step"),
-    ({"id": "a", "kind": "command", "argv": ["x"], "run": "on_clone"}, "invalid_step"),
-    ({"id": "a", "kind": "command", "argv": ["x"], "cwd_slot": "nowhere"}, "invalid_step"),
-    ({"id": "a", "kind": "locate"}, "invalid_step"),
+@pytest.mark.parametrize(("setup", "blank", "why"), [
+    ("absent", "no_recipe", "no_recipe"),
+    ("v2", "unreadable", "unsupported_version"),
+    ("large", "unreadable", "too_large"),
+    ("not_json", "unreadable", "not_json"),
+    ("extra_field", "unreadable", "invalid_shape"),
+    ("credential_hint", "unreadable", "credential_in_step"),
+    ("credential_url", "unreadable", "credential_in_step"),
 ])
-def test_a_bad_owner_step_is_refused_typed(workspace, step, reason):
-    assert _set(workspace, [step], 0)["error"]["data"]["reason"] == reason
+def test_no_recipe_reads_blank(tmp_path, setup, blank, why):
+    """§5 row 2. Killing mutation: derive tool items from ``toolchain.kind`` when the file is missing -> red."""
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    bodies = {
+        "v2": {**RECIPE, "version": 2},
+        "large": {**RECIPE, "env_keys": [{"key": "K", "hint": "x" * (65 * 1024)}]},
+        "not_json": "{",
+        "extra_field": {**RECIPE, "steps": []},
+        "credential_hint": {**RECIPE, "env_keys": [{"key": "K", "hint": "Authorization: Bearer not-a-real-bearer-0123"}]},
+        "credential_url": {**RECIPE, "env_keys": [{"key": "K", "url": "https://user:not-a-real-pass@example.com/x"}]},
+    }
+    if setup != "absent":
+        write_recipe(repo, bodies[setup])
+    read = read_recipe(repo, "linux")
+    assert (read.recipe, read.blank, read.why) == (None, blank, why)
+    # Positive control: the well-formed recipe in the same folder reads.
+    write_recipe(repo)
+    assert read_recipe(repo, "linux").recipe is not None
 
 
-def test_a_duplicate_step_id_is_refused(workspace):
-    twice = [{"id": "a", "kind": "command", "argv": ["x"]}, {"id": "a", "kind": "command", "argv": ["y"]}]
-    assert _set(workspace, twice, 0)["error"]["data"]["reason"] == "duplicate_step_id"
+def test_an_unbound_slot_and_a_checkout_without_the_folder_show_a_blank_setup(workspace, bound):
+    shown = _show(workspace)
+    assert shown["backend"]["recipe"] == {"platform": shown["backend"]["recipe"]["platform"], "blank": "not_cloned",
+                                          "why": "not_cloned"}
+    assert shown["launcher"]["recipe"]["blank"] == "no_recipe" and "items" not in shown["launcher"]["recipe"]
+    write_recipe(bound)
+    assert [i["id"] for i in _show(workspace)["launcher"]["recipe"]["items"]] == \
+        ["tool:definitely_absent_tool_zz", "env_key:SLOT_RECIPE_TEST_KEY", "dotenv"]
 
 
-@pytest.mark.parametrize("token", [
-    "https://ghp-not-a-real-token@github.com/x/y.git",
-    "https://user:not-a-real-password@example.com/r.git",
-    "--header=Authorization: Bearer not-a-real-bearer-value",
-    "API_KEY=not-a-real-key-value",
-])
-def test_no_credential_enters_a_recipe(workspace, token):
-    assert _set(workspace, [{"id": "a", "kind": "command", "argv": ["git", token]}], 0)["error"]["data"]["reason"] == \
-        "credential_in_step"
-    # Positive control: the same step with a credential-free token lands.
-    assert "result" in _set(workspace, [{"id": "a", "kind": "command", "argv": ["git", "https://github.com/x/y.git"]}], 0)
+# ── a computer sees only its platform ────────────────────────────────────────
 
 
-@pytest.mark.parametrize("step", [
-    {"id": "a", "kind": "command", "argv": ["flutter", "pub", "get"], "label": "token=not-a-real-token-value-0123"},
-    {"id": "env_key:FLUTTER_ROOT", "hint": "Authorization: Bearer not-a-real-bearer-value"},
-])
-def test_no_credential_rides_a_label_or_a_hint(workspace, step):
-    assert _set(workspace, [step], 0)["error"]["data"]["reason"] == "credential_in_step"
-    # Positive control: the same step, its prose credential-free, lands (an env_key id is an id, not an assignment).
-    prose = {**step, **({"label": "Fetch packages"} if "label" in step else {"hint": "Set it to your SDK root"})}
-    assert "result" in _set(workspace, [prose], 0)
+def test_a_computer_sees_only_its_own_platform(tmp_path):
+    """§5 row 3. Killing mutation: fall back to the first listed platform in ``parse_recipe`` -> red."""
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    write_recipe(repo, {**RECIPE, "platforms": {"linux": RECIPE["platforms"]["linux"]}})
+    windows = read_recipe(repo, "windows")
+    assert windows.recipe is None and windows.blank == "no_recipe"
+    assert windows.secret_keys == frozenset() and windows.keys == frozenset()  # keys included
+    linux = read_recipe(repo, "linux")
+    assert linux.secret_keys == {"SLOT_RECIPE_TEST_KEY"} and linux.recipe.script == "setup.sh"
 
 
-# ── revision wins ────────────────────────────────────────────────────────────
+# ── a script outside the folder is refused ───────────────────────────────────
 
 
-def test_a_stale_editor_loses_to_the_higher_revision(workspace):
-    assert _set(workspace, [{"id": "a", "kind": "command", "argv": ["x"]}], 0)["result"]["revision"] == 1
-    stale = _set(workspace, [], 0)
-    assert stale["error"]["code"] == serve_rpc.ERR_CONFLICT and stale["error"]["data"]["reason"] == "stale_revision"
-    assert _ids(_show(workspace)["launcher"])[-1] == "a"
+@pytest.mark.parametrize("script", ["../x.sh", "sub/x.sh", "/etc/passwd", "..\\x.ps1"])
+def test_a_script_outside_the_setup_folder_is_refused(tmp_path, script):
+    """§5 row 4. Killing mutation: accept any ``script`` string in ``_script`` -> red."""
+
+    repo = tmp_path / "repo"
+    (repo / ".eternia" / "setup" / "sub").mkdir(parents=True)
+    (repo / ".eternia" / "setup" / "sub" / "x.sh").write_text("true\n", encoding="utf-8")
+    (repo / ".eternia" / "x.sh").write_text("true\n", encoding="utf-8")
+    write_recipe(repo, {**RECIPE, "platforms": {"linux": {"script": script}}}, script=None)
+    assert (read_recipe(repo, "linux").blank, read_recipe(repo, "linux").why) == ("unreadable", "script_outside_setup")
 
 
-def test_a_changed_declaration_advances_the_revision_so_an_open_editor_is_refused(workspace):
-    _set(workspace, [], 0)
-    changed = _decl(env_keys=[{"key": "FLUTTER_ROOT", "required": True}])
-    call("runtime.workspace.slots.declare", {"workspace_id": workspace, "slots": [changed, _decl("backend")],
-                                             "issued_at": LATER})
+def test_a_script_symlinked_out_of_the_folder_is_refused(tmp_path):
+    """Killing mutation: drop the resolved-path containment check in ``read_recipe`` -> red."""
+
+    repo = tmp_path / "repo"
+    write_recipe(repo, script=None)
+    outside = tmp_path / "outside.sh"
+    outside.write_text("rm -rf ~\n", encoding="utf-8")
+    (repo / ".eternia" / "setup" / "setup.sh").symlink_to(outside)
+    assert read_recipe(repo, "linux").why == "script_outside_setup"
+
+
+# ── the doors ────────────────────────────────────────────────────────────────
+
+
+def test_recipe_script_shows_the_text_and_its_hash(workspace, bound):
+    write_recipe(bound, script="echo 'install the tools'\n")
+    subprocess.run(["git", "-C", str(bound), "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q",
+                    "--allow-empty", "-m", "base"], check=True)
+    shown = call("runtime.workspace.recipe.script", {"workspace_id": workspace, "slot": "launcher"})["result"]
+    assert shown["text"] == "echo 'install the tools'\n" and shown["path"] == ".eternia/setup/setup.sh"
+    assert shown["sha256"] == hashlib.sha256(b"echo 'install the tools'\n").hexdigest() and len(shown["commit"]) == 40
+    script = _show(workspace)["launcher"]["recipe"]["script"]
+    assert (script["id"], script["sha256"], script["last_run"]) == ("script", shown["sha256"], None)
+    blank = call("runtime.workspace.recipe.script", {"workspace_id": workspace, "slot": "backend"})
+    assert blank["error"]["data"]["reason"] == "recipe_blank"
+
+
+def test_recipe_set_is_refused_the_recipe_lives_in_the_repository(workspace):
+    reply = call("runtime.workspace.recipe.set", {"workspace_id": workspace, "slot": "launcher", "steps": [],
+                                                  "revision": 0, "issued_at": LATER})
+    assert reply["error"]["data"]["reason"] == "recipe_in_repository"
+    assert "recipe" not in load_document(workspace)["slots"]["launcher"]
+
+
+# ── the slot record's revision (read old, write new) ─────────────────────────
+
+
+def test_a_changed_declaration_and_a_removal_advance_the_slot_revision(workspace):
     slots = load_document(workspace)["slots"]
-    assert slots["launcher"]["recipe"]["revision"] == 2 and slots["backend"]["recipe"]["revision"] == 0
-    assert _set(workspace, [], 1, issued_at=LATER)["error"]["data"]["reason"] == "stale_revision"
+    assert slots["launcher"]["revision"] == 0 and "recipe" not in slots["launcher"]
+    declare(workspace, [{**_decl(), "context": {"role": "frontend"}}], issued_at=LATER, machine="m1")
+    slots = load_document(workspace)["slots"]
+    assert slots["launcher"]["revision"] == 1 and slots["backend"]["revision"] == 1  # changed; removed
+    assert slots["backend"]["removed_at"] == LATER
 
 
-def test_a_peer_removal_beats_an_older_recipe_edit_in_the_realm_merge(workspace):
-    """A removal advances the revision like an edit, so the NEWER of the two decisions wins.
+def test_an_older_writers_recipe_revision_is_read_and_the_next_write_drops_it(workspace):
+    document = load_document(workspace)
+    launcher = document["slots"]["launcher"]
+    del launcher["revision"]
+    launcher["recipe"] = {"revision": 4, "steps": [{"id": "x", "kind": "command", "argv": ["x"]}]}
+    write_document(workspace, document)
+    declare(workspace, [_decl(), _decl("backend")], issued_at=LATER, machine="m1")
+    held = load_document(workspace)["slots"]["launcher"]
+    assert held["revision"] == 4 and "recipe" not in held
 
-    Without the advance the peer's tombstone (revision 0) would lose to this machine's older
-    recipe edit (revision 1) and the merge would resurrect a slot the workspace removed.
-    """
 
-    peer_before = copy.deepcopy(load_document(workspace))
-    _set(workspace, [{"id": "a", "kind": "command", "argv": ["x"]}], 0)
+def test_a_peer_removal_beats_an_older_declaration_in_the_realm_merge(workspace):
+    """A removal advances the revision like a re-declaration, so the NEWER decision wins the merge."""
+
+    before = load_document(workspace)
+    declare(workspace, [{**_decl(), "context": {"role": "edited"}}, _decl("backend")], issued_at=LATER, machine="m1")
     mine = load_document(workspace)
-    write_document(workspace, peer_before)
+    write_document(workspace, before)
     declare(workspace, [_decl("backend")], issued_at=REMOVED, machine="mach_peer")
     theirs = load_document(workspace)
-    assert theirs["slots"]["launcher"]["recipe"]["revision"] == mine["slots"]["launcher"]["recipe"]["revision"] == 1
+    assert theirs["slots"]["launcher"]["revision"] == mine["slots"]["launcher"]["revision"] == 1
     assert merge_documents(mine, theirs)["slots"]["launcher"]["removed_at"] == REMOVED
+
+
+# ── the old shape has one fate ───────────────────────────────────────────────
+
+_OLD_KEYS = {"toolchain": {"tools", "env_keys", "dotenv"}, "recipe": {"steps"}}
+
+
+def _old_shape_reads(tree: ast.AST) -> list[str]:
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):
+            receiver, key = node.value, node.slice.value
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get"
+              and node.args and isinstance(node.args[0], ast.Constant)):
+            receiver, key = node.func.value, node.args[0].value
+        else:
+            continue
+        source = ast.unparse(receiver)
+        if any(owner in source and key in keys for owner, keys in _OLD_KEYS.items()):
+            hits.append(f"{node.lineno}: {ast.unparse(node)}")
+    return hits
+
+
+def test_the_old_in_declaration_recipe_is_read_nowhere():
+    """§5's last row: ``toolchain.tools`` / ``env_keys`` / ``dotenv`` and ``recipe.steps`` are read by no fork
+    module. Killing mutation: read ``toolchain.get("tools")`` in the probe -> red, naming the line."""
+
+    files = [*sorted((ROOT / "agent_runtime").rglob("*.py")), *sorted((ROOT / "hermes_cli" / "harness_parts").rglob("*.py"))]
+    found = {str(path.relative_to(ROOT)): hits for path in files
+             if (hits := _old_shape_reads(ast.parse(path.read_text(encoding="utf-8"))))}
+    assert found == {}
+    # Positive control: the walk sees the shape it forbids.
+    assert _old_shape_reads(ast.parse('(slot.get("toolchain") or {}).get("tools")'))
 
 
 # ── readiness: the truth table ───────────────────────────────────────────────
 
 
-def _slot_body():
-    from agent_runtime.workspace_slots import normalize_declaration
-
-    return normalize_declaration(_decl())[1]
-
-
-def _row(**over) -> dict:
-    row = {"bound": True, "checkout": "matches",
-           "tools": {"flutter": {"status": "set", "version": "3.41.2"}, "dart": {"status": "set", "version": "3.11.1"}},
-           "env_keys": {"FLUTTER_ROOT": "set", "PUB_CACHE": "set"},
-           "dotenv": {"present": True, "keys": {"ETERNIA_API_BASE": "set", "OPTIONAL_FLAG": "set"}}}
-    row.update(over)
-    return row
-
-
-_TOOL_MISSING = {"flutter": {"status": "missing", "version": None}, "dart": {"status": "set", "version": "3"}}
-
-
 @pytest.mark.parametrize(("row", "ready", "checklist"), [
-    (_row(), "yes", "ready"),
+    ({"bound": True, "checkout": "matches"}, "yes", "ready"),
     (None, "unknown", "unknown"),
     ({"bound": False, "status": "not_cloned"}, "no", "not_cloned"),
     ({"bound": True, "status": "path_missing"}, "no", "path_missing"),
-    (_row(checkout="remote_mismatch"), "no", "remote_mismatch"),
-    (_row(checkout="not_a_repo"), "no", "needs_setup"),
-    (_row(checkout="unknown"), "unknown", "unknown"),
-    # Ready is the checkout alone (RT-SLOT-READY-IGNORES-TOOLS-AND-KEYS, owner 2026-11-13): tools,
-    # keys and the .env vary by dev environment, so a miss or an unknown probe there never decides it.
-    (_row(tools=_TOOL_MISSING), "yes", "ready"),
-    (_row(tools={"flutter": {"status": "set", "version": "3.40.9"}, "dart": {"status": "set", "version": "3"}}), "yes", "ready"),
-    (_row(tools={"flutter": {"status": "set", "version": None}, "dart": {"status": "set", "version": "3"}}), "yes", "ready"),
-    (_row(tools={"flutter": {"status": "unknown", "version": None}, "dart": {"status": "set", "version": "3"}}), "yes", "ready"),
-    (_row(tools={"flutter": {"status": "set", "version": "3.41.2"}}), "yes", "ready"),  # dart never probed
-    (_row(env_keys={"FLUTTER_ROOT": "missing", "PUB_CACHE": "set"}), "yes", "ready"),
-    (_row(env_keys={"FLUTTER_ROOT": "set", "PUB_CACHE": "missing"}), "yes", "ready"),
-    (_row(env_keys={"FLUTTER_ROOT": "set"}), "yes", "ready"),  # PUB_CACHE absent from the report
-    (_row(dotenv={"present": False, "keys": {"ETERNIA_API_BASE": "missing", "OPTIONAL_FLAG": "missing"}}), "yes", "ready"),
-    (_row(dotenv={"present": True, "keys": {"ETERNIA_API_BASE": "unknown", "OPTIONAL_FLAG": "unknown"}}), "yes", "ready"),
-    (_row(dotenv=None), "yes", "ready"),
-    # The checkout still decides beside an environment miss.
-    (_row(checkout="remote_mismatch", tools=_TOOL_MISSING), "no", "remote_mismatch"),
-    (_row(checkout="unknown", tools=_TOOL_MISSING), "unknown", "unknown"),
+    ({"bound": True, "checkout": "remote_mismatch"}, "no", "remote_mismatch"),
+    ({"bound": True, "checkout": "not_a_repo"}, "no", "needs_setup"),
+    ({"bound": True, "checkout": "unknown"}, "unknown", "unknown"),
+    ({"bound": True}, "unknown", "unknown"),
+    # An older peer's row with tool and key state: still the checkout alone.
+    ({"bound": True, "checkout": "matches", "tools": {"flutter": {"status": "missing", "version": None}},
+      "env_keys": {"FLUTTER_ROOT": "missing"}}, "yes", "ready"),
 ])
 def test_ready_truth_table(row, ready, checklist):
-    answer = readiness("launcher", _slot_body(), row)
+    answer = readiness("launcher", _decl(), row)
     assert (answer["ready"], answer["checklist"]) == (ready, checklist)
-    if ready == "yes":
-        assert answer["blocking"] == []
-
-
-def test_an_environment_miss_is_a_note_never_blocking():
-    answer = readiness("launcher", _slot_body(), _row(
-        tools=_TOOL_MISSING, env_keys={"FLUTTER_ROOT": "missing", "PUB_CACHE": "missing"},
-        dotenv={"present": False, "keys": {"ETERNIA_API_BASE": "missing", "OPTIONAL_FLAG": "missing"}}))
-    assert answer["ready"] == "yes" and answer["blocking"] == []
-    assert answer["notes"] == ["tool:flutter", "env_key:FLUTTER_ROOT", "env_key:PUB_CACHE", "dotenv"]
+    assert answer["blocking"] == ([] if ready != "no" else ["clone"])
 
 
 def test_a_never_reported_machine_reads_unknown_not_ready(workspace):
     checklist = _show(workspace)["launcher"]
-    assert checklist["ready"] == "unknown" and set(checklist["unknown"]) == set(DERIVED)
-    assert all(s["why"] == "not_reported" for s in checklist["steps"])
-
-
-# ── one authority: the probe's status IS the readiness answer ────────────────
+    assert checklist["ready"] == "unknown" and checklist["unknown"] == ["clone"]
+    assert checklist["steps"][0]["why"] == "not_reported"
 
 
 def test_the_report_status_is_the_readiness_answer(tmp_path):
@@ -272,7 +329,7 @@ def test_the_report_status_is_the_readiness_answer(tmp_path):
 def test_a_bound_local_folder_reports_its_real_readiness_and_offers_only_locate(tmp_path):
     """RT-PROJECT-LOCAL-FOLDER-READINESS. Mutations: probe ``.git`` before ``repo.local`` in
     ``_SlotProbe.checkout`` -> ``not_a_repo`` / needs_setup, red; keep ``clone`` in a local slot's
-    derived actions -> red."""
+    actions -> red."""
     machine_roots_cache_clear()
     workspace_id = WorkspaceStore().create(name="Notes").id
     local = {"name": "notes", "repo": {"local": True}}

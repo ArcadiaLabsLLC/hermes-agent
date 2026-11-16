@@ -157,16 +157,16 @@ def overlay_for(binding: SlotBinding) -> SlotEnvOverlay:
     """The overlay of one bound slot: the machine fill, the slot's ``.env``, the venv."""
 
     from .workspace_slot_env import slot_fill
-    from .workspace_slots import resolve_slot, secret_keys
+    from .workspace_slot_repo_recipe import read_recipe, this_platform
+    from .workspace_slots import secret_keys
 
-    resolved = resolve_slot(binding.workspace_id, binding.slot)
     fill = slot_fill(binding.workspace_id, binding.slot)
-    declared = resolved.declaration if resolved else {}
-    dotenv_name = (fill.dotenv if fill else None) or ((declared.get("toolchain") or {}).get("dotenv") or {}).get("path")
+    recipe = read_recipe(binding.path, this_platform())
+    dotenv_name = (fill.dotenv if fill else None) or ((recipe.recipe.dotenv or {}).get("path") if recipe.recipe else None)
     dotenv = read_dotenv(Path(binding.path) / dotenv_name) if dotenv_name else {}
-    # A key the declaration marks secret reaches a command ONLY from the slot's .env — never
+    # A key the repository's recipe marks secret reaches a command ONLY from the slot's .env — never
     # from the machine record, even one edited by hand past the ``secret_in_env`` door.
-    secret = secret_keys(declared)
+    secret = secret_keys(recipe)
     recorded = {key: value for key, value in (fill.env if fill else {}).items() if key not in secret}
     env = {**recorded, **dotenv}
     prepend = list(fill.path_prepend if fill else ())

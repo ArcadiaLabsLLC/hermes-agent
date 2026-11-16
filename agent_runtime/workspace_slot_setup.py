@@ -36,12 +36,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .host_tools import git_command
-from .workspace_slot_recipe import (
-    CLONE_STEP_ID,
-    STEP_COMMAND,
-    materialize,
-    url_carries_credential,
-)
+from .workspace_slot_recipe import CLONE_STEP_ID, url_carries_credential
 from .workspace_slot_runs import (
     LOCK,
     RUN_ENDED,
@@ -216,37 +211,12 @@ def clone_slot(workspace_id: str | None, slot: str, dest_path: str, *, issued_at
 
 def run_step(workspace_id: str | None, slot: str, step_id: str, *, issued_at: str, registry: Any = None,
              watch: bool = True) -> dict[str, Any]:
-    """Spawn one owner ``command`` step under its slot's environment, on THIS explicit request."""
+    """No step runs until the repository recipe's script door lands (plan slot-setup-recipe §6 slice 2)."""
 
-    from .workspace_slot_overlay import SlotBinding, overlay_for
-
-    resolved = _declared(workspace_id, slot)
-    slot, declared = resolved.slot, resolved.declaration
-    steps, _ = materialize(slot, declared)
-    step = next((s for s in steps if s["id"] == step_id), None)
-    if step is None:
-        raise SlotRefused(REASON_UNKNOWN_STEP, f"{slot} has no step {step_id!r}")
-    if step["kind"] != STEP_COMMAND:
-        raise SlotRefused(REASON_STEP_NOT_RUNNABLE, f"{step_id} is a derived {step['kind']} step; it is done by hand")
-    cwd_slot = step.get("cwd_slot") or slot
-    cwd = resolve_slot(workspace_id, cwd_slot)
-    path = bound_path(cwd_slot, workspace_id=workspace_id) if cwd is not None else None
-    if path is None or not path.is_dir():
-        raise SlotRefused(REASON_SLOT_UNBOUND_HERE, f"{cwd_slot} is not bound on this machine")
-    overlay = overlay_for(SlotBinding(str(workspace_id or ""), cwd_slot, str(path)))
-    argv = overlay.resolve_argv([str(a) for a in step["argv"]])
-    with LOCK:
-        _guard_replay(workspace_id, slot, step_id, issued_at)
-        registry = registry or spawning_registry()
-        session = registry.spawn_local(shlex.join(argv), cwd=str(path),
-                                       env_vars=overlay.apply({"PATH": os.environ.get("PATH", "")}),
-                                       persist_on_release=True)
-        run = _start({"workspace_id": workspace_id, "slot": slot,
-                      "step_id": step_id, "kind": RUN_KIND_COMMAND,
-                      "cwd_slot": cwd_slot, "env_source": overlay.env_source, "issued_at": issued_at,
-                      "started_at": _now()}, session, registry, watch)
-    return {"slot": slot, "step_id": step_id, "run": run, "argv": argv,
-            "env_source": overlay.env_source}
+    slot = _declared(workspace_id, slot).slot
+    if step_id == CLONE_STEP_ID:
+        raise SlotRefused(REASON_STEP_NOT_RUNNABLE, f"{step_id} is the clone step; Clone runs it")
+    raise SlotRefused(REASON_UNKNOWN_STEP, f"{slot} has no step {step_id!r}")
 
 
 # ── settling ─────────────────────────────────────────────────────────────────

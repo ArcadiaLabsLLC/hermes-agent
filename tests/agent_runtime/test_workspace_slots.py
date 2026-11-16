@@ -32,16 +32,27 @@ def _slot(name="launcher", **extra) -> dict:
     return {
         "name": name,
         "repo": {"clone_url": CLONE_URL, "default_branch": "main"},
-        "toolchain": {
-            "kind": "flutter",
-            "tools": [{"name": "python_probe"}, {"name": "definitely_absent_tool_zz"}],
-            "env_keys": [{"key": "FLUTTER_ROOT", "required": True}, {"key": "PUB_CACHE_SLOT_TEST", "required": False}],
-            "dotenv": {"path": ".env", "keys": [{"key": "ETERNIA_API_BASE", "required": True},
-                                               {"key": "KEYCLOAK_CLIENT_SECRET", "required": True, "secret": True}]},
-        },
+        # An older writer's tools / keys / .env ride along and are dropped: the recipe is the repository's.
+        "toolchain": {"kind": "flutter", "tools": [{"name": "python_probe"}], "env_keys": [{"key": "FLUTTER_ROOT"}]},
         "context": {"role": "launcher / frontend"},
         **extra,
     }
+
+
+#: The repository's own setup recipe (``.eternia/setup/recipe.json``), the same on every platform.
+RECIPE = {
+    "version": 1,
+    "env_keys": [{"key": "FLUTTER_ROOT"}, {"key": "PUB_CACHE_SLOT_TEST"}],
+    "dotenv": {"path": ".env", "keys": [{"key": "ETERNIA_API_BASE"}, {"key": "KEYCLOAK_CLIENT_SECRET", "secret": True}]},
+    "platforms": {p: {"tools": [{"name": "python_probe"}, {"name": "definitely_absent_tool_zz"}]}
+                  for p in ("windows", "macos", "linux")},
+}
+
+
+def write_recipe(repo, recipe=RECIPE) -> None:
+    setup = repo / ".eternia" / "setup"
+    setup.mkdir(parents=True, exist_ok=True)
+    (setup / "recipe.json").write_text(json.dumps(recipe), encoding="utf-8")
 
 
 @pytest.fixture
@@ -58,6 +69,7 @@ def checkout(tmp_path):
     subprocess.run(["git", "-C", str(repo), "remote", "add", "origin", CLONE_URL], check=True)
     (repo / ".env").write_text(f"ETERNIA_API_BASE={SECRET_VALUES[2]}\nKEYCLOAK_CLIENT_SECRET={SECRET_VALUES[1]}\n",
                                encoding="utf-8")
+    write_recipe(repo)
     return repo
 
 
@@ -115,8 +127,12 @@ def test_bind_writes_the_machine_root_and_reports(workspace, checkout):
     assert reply["bound_here"] is True and reply["warnings"] == []
     row = reply["report"]
     assert row["checkout"] == "matches"
-    assert row["dotenv"] == {"present": True, "keys": {"ETERNIA_API_BASE": "set", "KEYCLOAK_CLIENT_SECRET": "set"}}
+    # No tool or key state is published: the synced row is the checkout alone (plan slot-setup-recipe, decision 6).
+    # Killing mutation: keep ``tools`` in ``_SlotProbe.row`` -> red.
+    assert set(row) == {"bound", "checkout", "status", "unknowns"}
     assert "adopted_existing_root" not in row  # freshly bound, not adopted
+    # The declaration keeps only what the slot IS; the older writer's tools and keys were dropped.
+    assert load_document(workspace)["slots"]["launcher"]["toolchain"] == {"kind": "flutter"}
 
 
 def test_a_mismatched_remote_still_binds_with_a_typed_warning(workspace, checkout):
@@ -143,22 +159,31 @@ def test_the_written_document_carries_no_value_and_no_path(workspace, checkout, 
         "workspace_id": workspace, "slot": "launcher", "env": {"FLUTTER_ROOT": SECRET_VALUES[0]},
         "tool_paths": {"python_probe": sys.executable}, "issued_at": ISSUED,
     })["result"]
-    row = reply["report"]
-    assert row["env_keys"] == {"FLUTTER_ROOT": "set", "PUB_CACHE_SLOT_TEST": "missing"}
-    assert row["tools"]["python_probe"]["status"] == "set" and row["tools"]["python_probe"]["version"]
-    assert row["tools"]["definitely_absent_tool_zz"] == {"status": "missing", "version": None}
+    assert reply["report"]["checkout"] == "matches"
+    items = {i["id"]: i for i in call("runtime.workspace.recipe.show", {"workspace_id": workspace})["result"]["slots"]
+             ["launcher"]["recipe"]["items"]}
+    assert (items["env_key:FLUTTER_ROOT"]["state"], items["env_key:PUB_CACHE_SLOT_TEST"]["state"]) == ("done", "todo")
+    assert items["tool:python_probe"]["state"] == "done" and items["tool:definitely_absent_tool_zz"]["state"] == "todo"
+    assert items["dotenv"]["state"] == "done"
     written = paths.workspace_slots_path(workspace).read_text(encoding="utf-8")
-    for value in (*SECRET_VALUES, str(checkout), sys.executable):
+    for value in (*SECRET_VALUES, str(checkout), sys.executable, "FLUTTER_ROOT", "KEYCLOAK_CLIENT_SECRET"):
         assert value not in written and json.dumps(value)[1:-1] not in written
-    # Positive control: the keys themselves ARE in the document — the grep can see text.
-    assert "FLUTTER_ROOT" in written and "KEYCLOAK_CLIENT_SECRET" in written
+    # Positive control: the report itself IS in the document — the grep can see text.
+    assert '"checkout": "matches"' in written
 
 
-def test_a_secret_key_value_is_refused_in_the_fill(workspace):
+def test_a_secret_key_value_is_refused_in_the_fill(workspace, checkout):
+    """The repository recipe marks the key secret (plan slot-setup-recipe §5). Killing mutation: read the
+    secret keys from the declaration's ``toolchain`` again -> the fill takes the value, red."""
+
     _declare(workspace, [_slot()])
+    call("runtime.workspace.slot.bind", {"workspace_id": workspace, "slot": "launcher", "path": str(checkout), "issued_at": ISSUED})
     reply = call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher",
                                                      "env": {"KEYCLOAK_CLIENT_SECRET": "x"}, "issued_at": ISSUED})
     assert reply["error"]["data"]["reason"] == "secret_in_env"
+    # Positive control: a key the recipe does not mark secret lands.
+    assert "result" in call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher",
+                                                               "env": {"ETERNIA_API_BASE": "x"}, "issued_at": ISSUED})
 
 
 def test_a_hanging_version_probe_is_unknown_with_evidence(workspace, checkout):
@@ -174,13 +199,16 @@ def test_a_hanging_version_probe_is_unknown_with_evidence(workspace, checkout):
 
     from agent_runtime.workspace_slot_env import set_slot_fill
 
+    from agent_runtime.workspace_slot_env import slot_fill
+    from agent_runtime.workspace_slot_repo_recipe import read_recipe
+    from agent_runtime.workspace_slots_probe import recipe_items
+
     set_slot_fill(workspace, "launcher", tool_paths={"python_probe": sys.executable})
-    row = report(workspace, run=runner)["slots"]["launcher"]
-    assert row["tools"]["python_probe"]["status"] == "unknown"
-    # The checkout alone decides the status; the unknown tool is kept as evidence.
-    assert row["status"] == "ready"
-    [entry] = row["unknowns"]
-    assert entry["kind"] == "slot_probe_unknown" and "python_probe --version: TimeoutExpired" in entry["evidence"]
+    # The checkout alone decides the status; a tool is never probed for the report.
+    assert report(workspace, run=runner)["slots"]["launcher"]["status"] == "ready"
+    items = recipe_items("launcher", _slot(), slot_fill(workspace, "launcher"), checkout,
+                         read_recipe(checkout, "linux").recipe, run=runner)
+    assert next(i for i in items if i["id"] == "tool:python_probe")["state"] == "unknown"
 
 
 def test_an_unbound_slot_names_the_machines_that_bind_it(workspace):

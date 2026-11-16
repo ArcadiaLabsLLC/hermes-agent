@@ -4,7 +4,8 @@ Plan ``docs/agent-runtime-harness/archive/build-running-work-2026-10-04.md`` §3
 
 A WORKSPACE declares named **repo slots** (``launcher``, ``backend``, ``hermes``) — the
 portable identity that travels with the realm: clone URL, default branch, the toolchain
-and the environment KEYS it expects, its context files. Each MACHINE fills each slot: the
+kind, its context files (tools, keys and the ``.env`` are the repository's own setup recipe,
+``workspace_slot_repo_recipe``). Each MACHINE fills each slot: the
 local PATH (a workspace-scoped machine root, ``workspace_roots.<workspace>.<slot>``, through
 the existing single write site ``write_machine_roots``) and the environment
 (``workspace_slot_env``), both private and never synced, but ACCOUNTED FOR in this
@@ -228,49 +229,30 @@ def live_slots(document: dict[str, Any]) -> dict[str, dict[str, Any]]:
             if isinstance(slot, dict) and not slot.get("removed_at")}
 
 
-def secret_keys(slot: dict[str, Any]) -> frozenset[str]:
-    """Every key the declaration marks ``secret`` (env keys and ``.env`` keys alike)."""
+def secret_keys(recipe: Any) -> frozenset[str]:
+    """Every key the repository's setup recipe marks ``secret`` (env keys and ``.env`` keys alike).
 
-    toolchain = slot.get("toolchain") or {}
-    rows = list(toolchain.get("env_keys") or []) + list((toolchain.get("dotenv") or {}).get("keys") or [])
-    return frozenset(str(row.get("key")) for row in rows if isinstance(row, dict) and row.get("secret"))
+    ``recipe`` is this computer's read of the slot's checkout (``workspace_slot_repo_recipe.slot_recipe``);
+    a slot with no recipe has no secret keys (plan slot-setup-recipe §2).
+    """
+
+    return frozenset(getattr(recipe, "secret_keys", None) or ())
 
 
 # ── declare ──────────────────────────────────────────────────────────────────
 
 
-def _key_rows(rows: Any, *, default_required: bool) -> list[dict[str, Any]]:
-    if rows is None:
-        return []
-    if not isinstance(rows, list):
-        raise SlotRefused(REASON_INVALID_DECLARATION, "key lists must be lists")
-    out = []
-    for row in rows:
-        row = {"key": row} if isinstance(row, str) else row
-        if not isinstance(row, dict) or not isinstance(row.get("key"), str) or not row["key"].strip():
-            raise SlotRefused(REASON_INVALID_DECLARATION, "every key row names a key")
-        out.append({"key": row["key"].strip(), "required": bool(row.get("required", default_required)),
-                    "secret": bool(row.get("secret", False))})
-    return out
-
-
 def _toolchain(value: Any) -> dict[str, Any]:
+    """The declaration keeps only what the slot IS: ``toolchain.kind``.
+
+    Tools, keys and the ``.env`` live in the repository's own setup recipe (plan slot-setup-recipe
+    §4): an older writer's ``tools`` / ``env_keys`` / ``dotenv`` are dropped here, never stored.
+    """
+
     value = value or {}
     if not isinstance(value, dict):
         raise SlotRefused(REASON_INVALID_DECLARATION, "toolchain must be an object")
-    tools = []
-    for tool in value.get("tools") or []:
-        tool = {"name": tool} if isinstance(tool, str) else tool
-        if not isinstance(tool, dict) or not isinstance(tool.get("name"), str) or not tool["name"].strip():
-            raise SlotRefused(REASON_INVALID_DECLARATION, "every tool names itself")
-        tools.append({"name": tool["name"].strip(), "min_version": str(tool.get("min_version") or "") or None})
-    dotenv = value.get("dotenv")
-    if dotenv is not None:
-        if not isinstance(dotenv, dict):
-            raise SlotRefused(REASON_INVALID_DECLARATION, "dotenv must be an object")
-        dotenv = {"path": str(dotenv.get("path") or ".env"), "keys": _key_rows(dotenv.get("keys"), default_required=True)}
-    return {"kind": str(value.get("kind") or ""), "tools": tools,
-            "env_keys": _key_rows(value.get("env_keys"), default_required=True), "dotenv": dotenv}
+    return {"kind": str(value.get("kind") or "")}
 
 
 def _context(value: Any) -> dict[str, Any]:
@@ -338,29 +320,36 @@ def normalize_declaration(entry: Any) -> tuple[str, dict[str, Any]]:
     }
 
 
-#: The parts of a slot record a declaration decides (the recipe is edited by ``recipe.set``).
+#: The parts of a slot record a declaration decides.
 _DECLARED_PARTS = ("repo", "toolchain", "context")
 
 
-def _revised(recipe: Any, *, bump: bool) -> dict[str, Any]:
-    """The slot's recipe, its ``revision`` advanced when the slot record's decision changed.
+def slot_revision(slot: dict[str, Any]) -> int:
+    """The slot record's edit counter: ``revision``, else an older writer's ``recipe.revision`` (read old, write new).
 
-    ``recipe.revision`` is the slot record's edit counter and the realm merge ranks a slot by
-    it first (``workspace_slots_sync``): a changed declaration or a removal advances it exactly
-    as a recipe edit does, so neither loses to an older recipe edit on a peer.
+    The realm merge ranks a slot by it first (``workspace_slots_sync``): a changed declaration or
+    a removal advances it, so neither loses to an older decision on a peer.
     """
 
-    held = dict(recipe) if isinstance(recipe, dict) else {"revision": 0, "steps": [], "edited_at": None, "edited_by": None}
-    if bump:
-        held["revision"] = int(held.get("revision") or 0) + 1
-    return held
+    value = slot.get("revision")
+    if value is None:
+        value = (slot.get("recipe") or {}).get("revision") if isinstance(slot.get("recipe"), dict) else 0
+    try:
+        return max(int(value or 0), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _record(held: dict[str, Any], **fields: Any) -> dict[str, Any]:
+    """``held`` with ``fields`` written over it; the retired in-declaration ``recipe`` is dropped on the write."""
+
+    return {k: v for k, v in {**held, **fields}.items() if k != "recipe"}
 
 
 def declare(workspace_id: str, slots: Any, *, issued_at: str, machine: str) -> dict[str, Any]:
     """REPLACE the declared set: names missing from ``slots`` are tombstoned, never deleted.
 
-    A slot that stays keeps its ``recipe`` (Phase B's, edited separately); a tombstoned name
-    that is declared again comes back. An ``issued_at`` older than the document's last
+    A slot that stays keeps its ``revision``; a tombstoned name that is declared again comes back. An ``issued_at`` older than the document's last
     declare is refused ``stale_revision`` — a retried request cannot undo a newer edit.
     The second write site is :func:`declare_one_slot` (one name, nothing tombstoned).
     """
@@ -413,7 +402,7 @@ def apply_declared_set(document: dict[str, Any], slots: Any, *, issued_at: str,
 
     The one declare rule for a workspace slot document: names missing
     from ``slots`` are tombstoned (revision bumped), never deleted; a tombstoned name declared again
-    comes back; a slot that stays keeps its recipe. ``document["issued_at"]`` is stamped.
+    comes back; a slot that stays keeps its revision. ``document["issued_at"]`` is stamped.
     """
 
     if not isinstance(slots, list):
@@ -424,16 +413,16 @@ def apply_declared_set(document: dict[str, Any], slots: Any, *, issued_at: str,
         current[name] = _declared_record(current.get(name) or {}, body, issued_at=issued_at, machine=machine)
     tombstoned = [name for name, slot in current.items() if name not in declared and not slot.get("removed_at")]
     for name in tombstoned:
-        current[name] = {**current[name], "recipe": _revised(current[name].get("recipe"), bump=True),
-                         "removed_at": issued_at, "issued_at": issued_at}
+        current[name] = _record(current[name], revision=slot_revision(current[name]) + 1,
+                                toolchain=_toolchain(current[name].get("toolchain")), removed_at=issued_at, issued_at=issued_at)
     document["issued_at"] = issued_at
     return declared, tombstoned
 
 
 def _declared_record(held: dict[str, Any], body: dict[str, Any], *, issued_at: str, machine: str) -> dict[str, Any]:
     changed = bool(held) and (bool(held.get("removed_at")) or any(held.get(k) != body[k] for k in _DECLARED_PARTS))
-    return {**body, "recipe": _revised(held.get("recipe"), bump=changed),
-            "declared_at": issued_at, "declared_by_machine": machine, "issued_at": issued_at, "removed_at": None}
+    return _record(body, revision=slot_revision(held) + (1 if changed else 0),
+                   declared_at=issued_at, declared_by_machine=machine, issued_at=issued_at, removed_at=None)
 
 
 def declare_one_slot(workspace_id: str, entry: Any, *, issued_at: str, machine: str) -> dict[str, Any]:
@@ -739,7 +728,7 @@ __all__ = [
 
 
 def require_publish_right(workspace_id: str, credential: Any = None) -> None:
-    """``slots.declare`` (and Phase B's ``recipe.set``) — whoever may PUBLISH the realm (call 8a).
+    """``slots.declare`` — whoever may PUBLISH the realm (call 8a).
 
     The existing ``realm_sync.git._authorize(realm, "publish", membership)`` decision: a
     server-less realm answers the local allow stub; a server-bound realm needs the

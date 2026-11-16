@@ -9,15 +9,18 @@ hangs on ``--version``, git that will not run) is ``unknown`` WITH the evidence 
 and never a path** — statuses and versions only; the test greps the written document for
 every value the fixture environment set.
 
-The probes, in order: the bound path exists and ``git remote get-url origin`` matches the
+The report's one probe: the bound path exists and ``git remote get-url origin`` matches the
 declared ``repo.clone_url`` (``checkout: matches | remote_mismatch | not_a_repo``; a
 ``repo.local`` slot answers ``local`` with a ``.git`` and ``folder`` without one — a bound local folder
 is set up as it stands, no repository is invented and no remote is checked,
-RT-PROJECT-LOCAL-FOLDER-READINESS); each
-declared tool resolves (``tool_paths`` first, then ``PATH`` with the fill's
+RT-PROJECT-LOCAL-FOLDER-READINESS). The synced row carries ``bound``, ``checkout``, ``status`` and
+``unknowns`` only (plan slot-setup-recipe, decision 6).
+
+**The repository recipe's items are probed only when Set up reads them** (:func:`recipe_items`, never
+written to the document): each tool resolves (``tool_paths`` first, then ``PATH`` with the fill's
 ``path_prepend`` in front, through ``hermes_platform.resolver.locate_command``) and its
 ``--version`` is parsed where it prints one; each env key is present in the fill's ``env``
-or this process's environment; the ``.env`` file is present and each declared key appears
+or this process's environment; the ``.env`` file is present and each of its keys appears
 in it (``KEY=`` parsed, value discarded).
 """
 
@@ -144,15 +147,10 @@ class _SlotProbe:
         match = _VERSION_RE.search(f"{done.stdout}\n{done.stderr}")
         return {"status": PROBE_SET, "version": match.group(1) if match else None}
 
-    def env_keys(self) -> dict[str, str]:
-        rows = (self.slot.get("toolchain") or {}).get("env_keys") or []
-        present = set(self.fill.env) | set(os.environ)
-        return {row["key"]: PROBE_SET if row["key"] in present else PROBE_MISSING for row in rows}
+    def env_key(self, key: str) -> str:
+        return PROBE_SET if key in set(self.fill.env) | set(os.environ) else PROBE_MISSING
 
-    def dotenv(self, path: Path) -> dict[str, Any] | None:
-        declared = (self.slot.get("toolchain") or {}).get("dotenv")
-        if not declared:
-            return None
+    def dotenv(self, path: Path, declared: dict[str, Any]) -> dict[str, Any]:
         target = path / (self.fill.dotenv or declared.get("path") or ".env")
         if not target.is_file():
             return {"present": False, "keys": {row["key"]: PROBE_MISSING for row in declared.get("keys") or []}}
@@ -169,16 +167,62 @@ class _SlotProbe:
             return {"status": STATUS_NOT_CLONED, "bound": False, "unknowns": []}
         if not path.is_dir():
             return {"status": STATUS_PATH_MISSING, "bound": True, "unknowns": []}
-        row = {
-            "bound": True,
-            "checkout": self.checkout(path),
-            "tools": {str(t.get("name")): self.tool(t) for t in (self.slot.get("toolchain") or {}).get("tools") or []},
-            "env_keys": self.env_keys(),
-            "dotenv": self.dotenv(path),
-        }
+        row = {"bound": True, "checkout": self.checkout(path)}
         row["status"] = _status(self.name, row, self.slot)
         row["unknowns"] = self.unknowns.wire()
         return row
+
+
+#: An item's state on this computer (plan slot-setup-recipe §2).
+ITEM_DONE = "done"
+ITEM_TODO = "todo"
+ITEM_UNKNOWN = "unknown"
+_ITEM_STATES = {PROBE_SET: ITEM_DONE, PROBE_MISSING: ITEM_TODO, PROBE_UNKNOWN: ITEM_UNKNOWN}
+
+
+def _tool_item(probe: _SlotProbe, tool: dict[str, Any]) -> tuple[str, str | None]:
+    found = probe.tool(tool)
+    state, minimum = _ITEM_STATES[found["status"]], tool.get("min_version")
+    if state != ITEM_DONE or not minimum:
+        return state, None
+    from hermes_platform.resolver.availability import version_at_least
+
+    if not found["version"]:
+        return ITEM_UNKNOWN, "version_unreadable"
+    return (ITEM_DONE, None) if version_at_least(str(found["version"]), str(minimum)) else (ITEM_TODO, "version_too_old")
+
+
+def _dotenv_item(probe: _SlotProbe, checkout: Path, dotenv: dict[str, Any]) -> tuple[str, str | None]:
+    found = probe.dotenv(checkout, dotenv)
+    if not found["present"]:
+        return ITEM_TODO, "missing"
+    states = set(found["keys"].values())
+    if PROBE_UNKNOWN in states:
+        return ITEM_UNKNOWN, None
+    return (ITEM_TODO, "keys_missing") if PROBE_MISSING in states else (ITEM_DONE, None)
+
+
+def recipe_items(name: str, slot: dict[str, Any], fill: SlotFill | None, checkout: Path, recipe: Any,
+                 run: Runner | None = None) -> list[dict[str, Any]]:
+    """The repository recipe's tools, keys and ``.env`` with their state on THIS computer, probed now.
+
+    ``recipe`` is a ``workspace_slot_repo_recipe.RepoRecipe``. Read-only: nothing is written.
+    """
+
+    import time
+
+    probe = _SlotProbe(name, slot, fill, run or _run, time.time())
+    items = []
+    for tool in recipe.tools:
+        state, why = _tool_item(probe, tool)
+        items.append({**tool, "id": f"tool:{tool['name']}", "kind": "tool", "state": state, "why": why})
+    for row in recipe.env_keys:
+        state = _ITEM_STATES[probe.env_key(row["key"])]
+        items.append({**row, "id": f"env_key:{row['key']}", "kind": "env_key", "state": state, "why": None})
+    if recipe.dotenv is not None:
+        state, why = _dotenv_item(probe, checkout, recipe.dotenv)
+        items.append({**recipe.dotenv, "id": "dotenv", "kind": "dotenv", "state": state, "why": why})
+    return items
 
 
 def _status(name: str, row: dict[str, Any], slot: dict[str, Any]) -> str:
@@ -186,7 +230,7 @@ def _status(name: str, row: dict[str, Any], slot: dict[str, Any]) -> str:
 
     One authority for "ready on this machine", and it reads the checkout alone: its probe
     unknown ⇒ ``unknown``; not a repository, or a remote that does not match the declaration ⇒
-    ``needs_setup``; else ``ready``. A missing tool, key or .env is a note, never a block.
+    ``needs_setup``; else ``ready``. Nothing a recipe lists is read.
     """
 
     ready = readiness(name, slot, row)["ready"]

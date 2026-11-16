@@ -259,7 +259,7 @@ def test_a_console_device_may_read_slots_but_never_write_this_machines_fill():
     family = ("runtime.workspace.slot", "runtime.workspace.recipe")
     assert {name for name in tiers if name.startswith(family)} == local | {
         "runtime.workspace.slots.show", "runtime.workspace.slots.declare",
-        "runtime.workspace.recipe.show", "runtime.workspace.recipe.set"}
+        "runtime.workspace.recipe.show", "runtime.workspace.recipe.script", "runtime.workspace.recipe.set"}
     assert all(tiers[name] == TIER_CONSOLE for name in local)
     assert local <= LOCAL_CONSOLE_METHODS
     console_device = RpcCaller(kind=CALLER_DEVICE, transport=TRANSPORT_GATEWAY, device_id="dev_1", device_tier=TIER_CONSOLE)

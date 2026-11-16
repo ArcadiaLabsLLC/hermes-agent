@@ -60,8 +60,7 @@ def call(method: str, params: dict) -> dict:
 
 
 def _decl(name="launcher", url=CLONE_URL) -> dict:
-    return {"name": name, "repo": {"clone_url": url, "default_branch": "main"},
-            "toolchain": {"tools": [{"name": "flutter"}], "env_keys": [{"key": "FLUTTER_ROOT", "required": True}]}}
+    return {"name": name, "repo": {"clone_url": url, "default_branch": "main"}, "toolchain": {"kind": "flutter"}}
 
 
 @pytest.fixture
@@ -224,25 +223,7 @@ def bound_launcher(workspace, tmp_path):
     call("runtime.workspace.slot.env.set", {"workspace_id": workspace, "slot": "launcher", "issued_at": ISSUED,
                                             "env": {"FLUTTER_ROOT": FILL_VALUE}, "tool_paths": {"flutter": tool},
                                             "path_prepend": [str(tmp_path / "sdk")]})
-    steps = [{"id": "pub_get", "kind": "command", "argv": ["flutter", "pub", "get"]},
-             {"id": "seed", "kind": "command", "argv": ["python", "seed.py"], "cwd_slot": "backend", "run": "never_auto"}]
-    assert "result" in call("runtime.workspace.recipe.set", {"workspace_id": workspace, "slot": "launcher",
-                                                             "steps": steps, "revision": 0, "issued_at": ISSUED})
     return checkout, tool
-
-
-def test_run_step_spawns_under_the_slot_env_and_resolves_the_tool(workspace, registry, bound_launcher, tmp_path):
-    checkout, tool = bound_launcher
-    reply = run_step(workspace, "launcher", "pub_get", issued_at=LATER, registry=registry, watch=False)
-    (command, kwargs), = registry.spawned
-    assert shlex.split(command) == [tool, "pub", "get"] and kwargs["cwd"] == str(checkout)
-    assert kwargs["env_vars"]["FLUTTER_ROOT"] == FILL_VALUE
-    assert kwargs["env_vars"]["PATH"].split(os.pathsep)[0] == str(tmp_path / "sdk")
-    assert reply["env_source"] == "slot:launcher" and reply["run"]["status"] == "running"
-    # The run record carries no environment value.
-    assert FILL_VALUE not in runs_path().read_text(encoding="utf-8")
-    registry.finish(reply["run"]["run_id"], 1, "pub get failed")
-    assert settle_runs(workspace, registry)[0]["reason"] == "command_failed"
 
 
 def test_run_step_refusals_are_typed(workspace, registry, bound_launcher):
@@ -251,10 +232,8 @@ def test_run_step_refusals_are_typed(workspace, registry, bound_launcher):
             run_step(workspace, "launcher", step_id, issued_at=LATER, registry=registry, watch=False)
         return caught.value.reason
 
-    assert refused("tool:flutter") == "step_not_runnable"
     assert refused("clone") == "step_not_runnable"
     assert refused("nope") == "unknown_step"
-    assert refused("seed") == "slot_unbound_here"  # its cwd_slot (backend) is not bound here
     assert registry.spawned == []
 
 

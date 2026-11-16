@@ -1147,6 +1147,18 @@ payload, ``profile_runner/tool_payloads.py::_todo_state_items``, and its saved t
 same capped list, the todo tool's subtask link. Dropped when it names nothing kept (cut by the cap, unknown,
 itself). Live and saved stay byte-identical. Additive on a map: rule (a) does not bump.
 
+54 KEPT (slot setup recipe in the repository, 2026-11-16, RT-SLOT-RECIPE-READ-FROM-REPO) — no snapshot key
+moved. A slot's setup recipe is ``.eternia/setup/recipe.json`` in its checkout, read only by
+``workspace_slot_repo_recipe.read_recipe(checkout, platform)`` (closed version 1, per platform, blank by default;
+plan [slot-setup-recipe-2026-11-15.md](planned/slot-setup-recipe-2026-11-15.md) §2). The slot document's record
+keeps ``repo``, ``context``, ``toolchain: {kind}`` and ``revision`` (the realm merge's rank; an older writer's
+``recipe.revision`` is read, the next write drops ``recipe``); its machine row is ``bound, checkout, status,
+unknowns`` (``adopted_existing_root`` once). ``runtime.workspace.recipe.show`` adds ``platform`` and per slot a
+``recipe`` block (``{platform, blank, why}`` or ``{platform, source, items, script, left}``) beside its old keys;
+``runtime.workspace.recipe.script`` (new, read-only) answers ``{slot, platform, path, commit, sha256, text}``;
+``recipe.set`` answers ``recipe_in_repository``. Secret keys, the overlay's ``.env`` name and a Restart's
+unknowns read the recipe.
+
 The number itself lives at module scope as ``SNAPSHOT_CONTRACT_VERSION``
 (``agent_runtime/snapshot/context.py``) so that consumers derive it instead
 of restating it.

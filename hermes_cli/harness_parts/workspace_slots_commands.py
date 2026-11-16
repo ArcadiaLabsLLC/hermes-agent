@@ -78,6 +78,7 @@ def _cmd_workspace_slots_bind(args) -> int:
 
 def _cmd_workspace_slots_env_set(args) -> int:
     from agent_runtime.workspace_slot_env import set_slot_fill
+    from agent_runtime.workspace_slot_repo_recipe import slot_recipe
     from agent_runtime.workspace_slots import (REASON_SLOT_NOT_DECLARED, SlotRefused, live_slots, load_document,
                                                secret_keys)
     from agent_runtime.workspace_slots_probe import report
@@ -90,7 +91,7 @@ def _cmd_workspace_slots_env_set(args) -> int:
         # A fill is written whole (replace): an absent --path-prepend / --env-keep means "none".
         fill = set_slot_fill(workspace_id, slot, env=_pairs(args.env, "--env"),
                              tool_paths=_pairs(args.tool_path, "--tool-path"), path_prepend=list_flag_or_empty(args, "path_prepend"),
-                             dotenv=args.dotenv, venv=args.venv, secret_keys=secret_keys(declared),
+                             dotenv=args.dotenv, venv=args.venv, secret_keys=secret_keys(slot_recipe(workspace_id, slot)),
                              issued_at=_issued_at(args), env_keep=list_flag_or_empty(args, "env_keep"))
         return {"slot": slot, "env_keys": sorted(fill.env), "report": report(workspace_id)["slots"].get(slot, {}),
                 "env_keep_missing": sorted(set(list_flag_or_empty(args, "env_keep")) - set(fill.env))}
