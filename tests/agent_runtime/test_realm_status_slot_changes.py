@@ -131,3 +131,43 @@ def test_a_member_s_re_probe_waits_for_nothing_and_the_reports_ride_the_next_rea
     published = json.loads((team.clone("alice", "srv_team") / "realms" / paths.safe_path_token(shared.id)
                             / document).read_text(encoding="utf-8"))
     assert published["machines"], "the real publish did not carry the machine report"
+
+
+def test_a_member_reads_nothing_waiting_while_the_owner_lists_a_workspace_it_deleted(team):
+    """RT-REALM-MEMBER-TOLD-UNPUBLISHED-OVER-A-WORKSPACE-NEVER-SHARED, seen live 2026-11-16: the owner's
+    realm record still listed QA Fixture in ``workspace_ids`` while its own delete ledger held it (the
+    owner's sheet: "Removed from realm"). The owner's publish shipped that record, the member's pull
+    dropped the id (a workspace on the delete ledger is not a member), and the member's status named the
+    realm record as waiting after every pull, though the member changed nothing. Bob also pulled a board,
+    a card and an office row, and his clone lives at another path: none of it is his change.
+
+    Mutations, each red here:
+    * in ``artifacts._published_realm_record`` drop the ``drop_left_workspace_ids`` call -> the published
+      record lists QA Fixture;
+    * in ``publish._realm_record_waits`` compare the published bytes instead -> Bob's record waits (his
+      ``sync_manifest_ref`` and the dropped id);
+    * in ``publish_set_changes`` drop the ``counted_elsewhere`` test -> Bob's pulled board, card and office
+      rows wait (``updated_by: realm_sync``)."""
+    from agent_runtime.store import RealmStore
+
+    shared, _workspace = _shared_workspace(team)
+    fixture = WorkspaceStore().create(name="QA Fixture", realm_id=shared.id)
+    realm = RealmStore().get(shared.id)
+    if fixture.id not in realm.workspace_ids:
+        realm.workspace_ids.append(fixture.id)
+    realm.deleted_workspace_ids = [*(realm.deleted_workspace_ids or []), fixture.id]
+    RealmStore().save(realm)
+    assert fixture.id in RealmStore().get(shared.id).workspace_ids  # the owner's state, as read live
+    publish_realm_sync(shared.id)
+    record = f"store/realms/{paths.safe_path_token(shared.id)}.json"
+    published = json.loads((team.clone("alice", "srv_team") / "realms" / paths.safe_path_token(shared.id)
+                            / record).read_text(encoding="utf-8"))
+    assert fixture.id not in published.get("workspace_ids", [])
+    assert fixture.id in published["deleted_workspace_ids"]
+
+    team.be("bob")
+    for _ in range(2):
+        pull_realm_sync(shared.id)
+        assert _call("runtime.realm.sync.status", {"realm_id": shared.id})["publish_changes"] == []
+    team.be("alice")
+    assert _call("runtime.realm.sync.status", {"realm_id": shared.id})["publish_changes"] == []

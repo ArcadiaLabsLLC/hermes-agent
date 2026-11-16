@@ -32,6 +32,7 @@ from .families import SyncFamily, _is_hard_excluded_path, is_secretish_path
 from .ledgers import (
     _REALM_AUTHORITY_FIELDS,
     _UNIONED_REALM_LEDGERS,
+    drop_left_workspace_ids,
     merge_deleted_workspace_ledgers,
     merge_skill_tombstone_ledgers,
     merge_workspace_lift_ledgers,
@@ -779,10 +780,7 @@ def _pulled_artifact_bytes(artifact: RealmSyncArtifact, *, realm: Realm) -> byte
     # A workspace on the merged delete ledger is not a member: a peer who had not heard of the
     # delete (or the move out) may still list it, and adopting their list would have this realm
     # name a workspace its own ledger says left.
-    left = {item for item in (merged.get("deleted_workspace_ids") or []) if isinstance(item, str)}
-    listed = merged.get("workspace_ids")
-    if left and isinstance(listed, list) and any(item in left for item in listed):
-        merged["workspace_ids"] = [item for item in listed if item not in left]
+    drop_left_workspace_ids(merged)
     if merged == incoming:
         return data
     return json.dumps(merged, indent=2, sort_keys=True, default=str).encode("utf-8")

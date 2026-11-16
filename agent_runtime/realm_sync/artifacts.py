@@ -21,6 +21,7 @@ from ..models import Realm, Workspace
 from ..store import RealmStore, WorkspaceStore, skill_tombstoned
 from .models import RealmSyncArtifact, RealmSyncError
 from .families import SyncFamily, _is_hard_excluded_path
+from .ledgers import drop_left_workspace_ids
 from .publish_scans import (
     _board_publish_scan,
     _level_publish_scan,
@@ -628,18 +629,32 @@ def _append_skill_package_artifacts(
 
 
 def _published_realm_record(realm: Realm) -> bytes | None:
-    """The realm record's published bytes when they must differ from the file: ``archived`` is this
-    machine's flag (RT-REALM-ARCHIVE-RESTORE) and never travels, so an archived realm publishes its
-    record with the flag off. ``None`` = publish the file verbatim (every live realm)."""
-    if not realm.archived:
-        return None
+    """The realm record's published bytes when they must differ from the file; ``None`` = publish the
+    file verbatim.
+
+    * ``archived`` is this machine's flag (RT-REALM-ARCHIVE-RESTORE) and never travels, so an archived
+      realm publishes its record with the flag off.
+    * A workspace on the record's own delete ledger is not listed as a member
+      (``ledgers.drop_left_workspace_ids``, the rule the pull applies): every member's pull drops it,
+      so shipping it made every member's record differ from the published one and the status tell them
+      they had unpublished changes (RT-REALM-MEMBER-TOLD-UNPUBLISHED-OVER-A-WORKSPACE-NEVER-SHARED).
+    """
     try:
         record = json.loads(paths.realm_path(realm.id).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(record, dict) or not record.get("archived"):
+    if not isinstance(record, dict):
         return None
-    record["archived"] = False
+    rewritten = False
+    if record.get("archived"):
+        record["archived"] = False
+        rewritten = True
+    # MUTATION: drop this call and
+    # test_a_member_reads_nothing_waiting_while_the_owner_lists_a_workspace_it_deleted reddens.
+    if drop_left_workspace_ids(record):
+        rewritten = True
+    if not rewritten:
+        return None
     return json.dumps(record, indent=2, sort_keys=True, default=str).encode("utf-8")
 
 
