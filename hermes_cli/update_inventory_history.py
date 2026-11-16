@@ -34,7 +34,9 @@ def inventory_history(git_cmd: list[str] | None = None, root: Path | None = None
     try:
         from hermes_cli.update_history import assess_history, has_fork_ancestry
 
-        git_cmd = git_cmd or ["git"]
+        from agent_runtime.host_tools import git_command
+
+        git_cmd = git_cmd or [git_command()]
         if root is None:
             from hermes_cli.main import PROJECT_ROOT as root
         if not _origin_is_fork(git_cmd, root):

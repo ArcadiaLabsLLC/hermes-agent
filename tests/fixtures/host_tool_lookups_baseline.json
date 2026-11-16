@@ -1,0 +1,23 @@
+{
+  "_doc": "FH-ONE-HOST-TOOL-RESOLVER shrink-only baseline: bare host-tool lookups left in fork product modules on 2026-11-15 (w1115e-dz11; 13 sites moved onto agent_runtime.host_tools that day). Remove a row when its site moves; never add one.",
+  "sites": [
+    {
+      "path": "agent_runtime/repo_context.py",
+      "symbol": "remove_orphan_worktree",
+      "kind": "bare_argv",
+      "tool": "git"
+    },
+    {
+      "path": "agent_runtime/repo_context.py",
+      "symbol": "worktree_patch_text",
+      "kind": "bare_argv",
+      "tool": "git"
+    },
+    {
+      "path": "agent_runtime/repo_context.py",
+      "symbol": "worktree_source_root",
+      "kind": "bare_argv",
+      "tool": "git"
+    }
+  ]
+}

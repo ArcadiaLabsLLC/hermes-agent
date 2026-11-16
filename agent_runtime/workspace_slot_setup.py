@@ -35,6 +35,7 @@ from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any, Callable
 
+from .host_tools import git_command
 from .workspace_slot_recipe import (
     CLONE_STEP_ID,
     STEP_COMMAND,
@@ -171,7 +172,7 @@ def clone_argv(slot: dict[str, Any], dest: Path) -> list[str]:
         raise SlotRefused(REASON_CLONE_URL_CARRIES_CREDENTIAL, "the declared clone URL carries userinfo; hermes passes none")
     if not _BRANCH_RE.match(branch):
         raise SlotRefused(REASON_INVALID_DECLARATION, f"{branch!r} is not a branch name")
-    return ["git", "clone", "--branch", branch, "--", url, str(dest)]
+    return [git_command(), "clone", "--branch", branch, "--", url, str(dest)]
 
 
 def _declared(workspace_id: str | None, slot: str):

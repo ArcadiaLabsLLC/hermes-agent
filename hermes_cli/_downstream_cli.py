@@ -58,6 +58,7 @@ def cmd_postinstall(args):
     from hermes_cli.install_method import stamp_install_method
     import pm
     from hermes_cli.path_setup import register_hermes_command
+    from agent_runtime.host_tools import git_resolution
     from hermes_constants import get_hermes_home
 
     stamp_install_method("pip")
@@ -127,7 +128,7 @@ def cmd_postinstall(args):
             "note": note,
             "deps": {
                 **{key: _pm_has(package) for key, package in _POSTINSTALL_PACKAGES},
-                "git": bool(shutil.which("git")) or _pm_has("git"),
+                "git": git_resolution().found or _pm_has("git"),
                 "git-bash": git_bash_path is not None,
             },
         }

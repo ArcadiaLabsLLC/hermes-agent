@@ -44,9 +44,9 @@ def anchor_env(tmp_path, monkeypatch):
         "LOCALAPPDATA": str(appdata),
         "HERMES_AGENT_RUNTIME_ROOT": str(real_root),
     }
-    from agent_runtime.resolution import _platform_default_hermes_home
+    from agent_runtime.host_tools import platform_default_root
 
-    config_path = _platform_default_hermes_home(env) / "config.yaml"
+    config_path = platform_default_root(env) / "config.yaml"
     return env, real_root, config_path
 
 
@@ -543,9 +543,9 @@ def test_a_probe_prefixed_root_refuses_to_declare_a_head(tmp_path, monkeypatch):
 
     assert report.head.outcome is RootAnchorOutcome.PROBE_ISOLATED
     assert report.outcome is RootAnchorOutcome.PROBE_ISOLATED
-    from agent_runtime.resolution import _platform_default_hermes_home
+    from agent_runtime.host_tools import platform_default_root
 
-    assert not (_platform_default_hermes_home(env) / "config.yaml").exists()
+    assert not (platform_default_root(env) / "config.yaml").exists()
 
 
 def test_the_two_key_names_match_the_readers(head_env):
