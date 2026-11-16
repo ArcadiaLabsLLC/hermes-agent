@@ -57,6 +57,12 @@ GENERATED_TOOLS = _tool_names(
     "launcher.generated.edit",
 )
 GENERATED_PREFIX = "launcher_generated_"
+ARM_BUILD_COMMITS = {
+    "A": "8ee367c82128e9095d301a7b6aeb5fe36918d7fb",
+    "B": "469e500730b0d46b968b028038aa97396f899ac5",
+}
+RUNTIME_STATE_TOOL = "mcp_launcher_qa_get_runtime_state"
+RUNTIME_STATE_COMMAND = "ext.eternia.qa.getRuntimeState"
 TOOL_GUIDANCE_SECTION = "eternia-harness.tool-guidance"
 #: ``hermes_cli.plugins_dispatch.format_system_prompt_section`` heads every plugin section so;
 #: ``model_input_observability._prompt_block_receipts`` keys the block by that line (80 chars).
@@ -104,6 +110,7 @@ class TurnOutcome:
     prose_only: bool
     tool_names: tuple[str, ...] = ()
     persona_instance_id: str | None = None
+    has_answer: bool = False
 
     @property
     def settled(self) -> bool:
@@ -154,6 +161,7 @@ def turn_outcome(record: Mapping[str, Any]) -> TurnOutcome:
         prose_only=not tools and bool(answer.strip()),
         tool_names=names,
         persona_instance_id=record.get("persona_instance_id"),
+        has_answer=bool(answer.strip()),
     )
 
 
@@ -357,7 +365,8 @@ def score(results: Iterable[PromptResult]) -> list[ArmScore]:
         prose_ids = {
             item.prompt_id
             for item in verified
-            if item.kind == CONTROL and item.outcome and item.outcome.prose_only
+            if item.kind == CONTROL and item.outcome and item.outcome.has_answer
+            and not item.outcome.called_generated
         }
         costs = [item.cost for item in verified if item.cost is not None]
         shas = sorted({cost.guidance_sha256 for cost in costs if cost.guidance_sha256})
@@ -452,6 +461,8 @@ def drive(
     return {
         "schema_version": 2,
         "arm": arm,
+        "expected_build": ARM_BUILD_COMMITS[arm],
+        "build_receipt_tool": RUNTIME_STATE_TOOL,
         "sends_file_shape": {"<session_ref>": {key: f"<app-function result of {op}>" for key, op in (
             ("new", OP_NEW), ("model", OP_MODEL_LIST), ("chat", OP_CHAT_LIST), ("send", OP_SEND),
         )}},
@@ -465,6 +476,40 @@ def _record(value: Any) -> Mapping[str, Any]:
 
 def _records(value: Any) -> Iterator[Mapping[str, Any]]:
     return (item for item in value if isinstance(item, Mapping)) if isinstance(value, list) else iter(())
+
+
+def _build_receipt(arm: str, value: Any) -> dict[str, Any]:
+    """Keep the canonical Stage C stamp from the live Debug process only."""
+
+    expected = ARM_BUILD_COMMITS[arm]
+    reply = _record(value)
+    runtime = _record(_record(reply.get("envelope")).get("response_safe"))
+    state = _record(runtime.get("data"))
+    build = _record(state.get("build"))
+    if (
+        reply.get("tool") != RUNTIME_STATE_TOOL or reply.get("status") != "ok"
+        or runtime.get("ok") is not True or state.get("flutter_mode") != "debug"
+        or runtime.get("command") != RUNTIME_STATE_COMMAND
+        or not isinstance(runtime.get("captured_at"), str) or not runtime["captured_at"]
+        or build.get("commit") != expected or build.get("commit_source") != "dart_define"
+        or build.get("kernel_blob_present") is not True
+    ):
+        raise ValueError(f"arm {arm} requires Stage C Debug build {expected} from get_runtime_state")
+    return {
+        "tool": RUNTIME_STATE_TOOL,
+        "status": "ok",
+        "envelope": {"response_safe": {
+            "ok": True,
+            "command": RUNTIME_STATE_COMMAND,
+            "captured_at": runtime["captured_at"],
+            "data": {"flutter_mode": "debug", "build": {
+                "commit": build["commit"],
+                "commit_source": build["commit_source"],
+                "kernel_blob_present": build["kernel_blob_present"],
+                "kernel_blob_modified_at": build.get("kernel_blob_modified_at"),
+            }},
+        }},
+    }
 
 
 def _route_error(step: Mapping[str, Any], receipts: Mapping[str, Any]) -> str | None:
@@ -571,19 +616,24 @@ def _send_steps(plan: Mapping[str, Any]) -> Iterator[Mapping[str, Any]]:
 #: Pass bar per (agent, provider) cell (plan §3.2): ≥ 10/12 first-tool hits, every control
 #: prose, and the guidance's per-turn cost ≤ +80 tokens (chars/4) over the baseline arm.
 HIT_BAR = (10, 12)
+CONTROL_COUNT = 3
 COST_CEILING_TOKENS = 80
 
 
 def cell_verdict(cell: ArmScore, baseline: ArmScore | None = None) -> tuple[str, float | None]:
     """The acceptance label and the comparable per-turn cost delta."""
 
-    if cell.unread or not cell.model or (baseline is not None and (baseline.unread or baseline.model != cell.model)):
+    if cell.unread or not cell.model:
+        return "UNVERIFIED", None
+    if baseline is not None and (
+        baseline.unread or baseline.model != cell.model
+        or baseline.comparisons != HIT_BAR[1] or baseline.controls != CONTROL_COUNT
+    ):
         return "UNVERIFIED", None
     selection = (
-        cell.comparisons > 0
-        and cell.hits * HIT_BAR[1] >= HIT_BAR[0] * cell.comparisons
-        and cell.controls > 0
-        and cell.controls_prose == cell.controls
+        cell.comparisons == HIT_BAR[1]
+        and cell.hits >= HIT_BAR[0]
+        and cell.controls == cell.controls_prose == CONTROL_COUNT
     )
     delta = None
     if baseline is not None and cell.cost_tokens is not None and baseline.cost_tokens is not None:
@@ -599,16 +649,20 @@ def report(
     scores: list[ArmScore],
     *,
     arm: str,
+    stagec_build_receipt: Mapping[str, Any],
     baseline: list[ArmScore] | None = None,
-    baseline_arm: str | None = None,
-    build: str | None = None,
+    baseline_build_receipt: Mapping[str, Any] | None = None,
 ) -> str:
     """The arm's table (agent × provider: hits, misses, controls, cost, verdict) as Markdown."""
 
+    _build_receipt(arm, stagec_build_receipt)
+    if arm == "B" and baseline is None:
+        raise ValueError("arm B requires a verified arm A baseline")
+    if baseline is not None:
+        _build_receipt("A", baseline_build_receipt)
     base = {(cell.agent, cell.provider): cell for cell in baseline or []}
-    lines = [f"## Arm {arm}" + (f" vs baseline {baseline_arm}" if baseline_arm else ""), ""]
-    if build:
-        lines += [f"Launcher QA build: `{build}`", ""]
+    lines = [f"## Arm {arm}" + (" vs baseline A" if baseline is not None else ""), "",
+             f"Eternia QA build `{ARM_BUILD_COMMITS[arm]}`", ""]
     without = sorted({f"{c.agent}/{c.provider}" for c in scores if c.comparison_in_guidance is False})
     if without:
         wire = max((c.create_wire_chars for c in scores if c.create_wire_chars is not None), default=None)
@@ -645,13 +699,13 @@ def report(
 # ── the owner-sitting command line ──────────────────────────────────────────
 
 
-def _scores_from(path: str | os.PathLike[str]) -> tuple[str, list[ArmScore], str | None]:
+def _scores_from(path: str | os.PathLike[str]) -> tuple[str, list[ArmScore], Any]:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     cells = [
         ArmScore(**{**cell, **{key: tuple(cell[key]) for key in ("misses", "control_failures", "unread")}})
         for cell in data["scores"]
     ]
-    return data["arm"], cells, data.get("build")
+    return data["arm"], cells, data.get("stagec_build_receipt")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -661,7 +715,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="GenUI first-response A/B eval (receipt reader)")
     sub = parser.add_subparsers(dest="command", required=True)
     plan_cmd = sub.add_parser("plan", help="write the MCP step list (sends nothing)")
-    plan_cmd.add_argument("--arm", required=True)
+    plan_cmd.add_argument("--arm", required=True, choices=ARM_BUILD_COMMITS)
     plan_cmd.add_argument("--agent", action="append", required=True, metavar="NAME=INSTANCE_ID")
     plan_cmd.add_argument("--provider", action="append", required=True, metavar="PROVIDER_ID=MODEL_ID")
     plan_cmd.add_argument("--prompts", default=str(Path(__file__).with_name("genui_first_response_prompts.json")))
@@ -670,12 +724,13 @@ def main(argv: list[str] | None = None) -> int:
     verify_cmd.add_argument("--plan", required=True)
     verify_cmd.add_argument("--session-ref", required=True)
     verify_cmd.add_argument("--receipts", required=True, help="sends-file object with new, model and chat results")
+    verify_cmd.add_argument("--runtime-state", required=True, help="JSON tool reply from get_runtime_state")
     collect_cmd = sub.add_parser("collect", help="read the sent turns back from the QA home")
     collect_cmd.add_argument("--home", required=True)
     collect_cmd.add_argument("--runtime-root")
     collect_cmd.add_argument("--plan", required=True)
     collect_cmd.add_argument("--sends", required=True)
-    collect_cmd.add_argument("--build", help="the Launcher QA build stamp of this arm")
+    collect_cmd.add_argument("--runtime-state", required=True, help="JSON tool reply from get_runtime_state")
     collect_cmd.add_argument("--wait-seconds", type=float, default=600.0)
     collect_cmd.add_argument("--out", required=True)
     report_cmd = sub.add_parser("report", help="apply the pass bar and write the Markdown table")
@@ -690,9 +745,7 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.out).write_text(json.dumps(plan, indent=2), encoding="utf-8")
         return 0
     if args.command == "verify-route":
-        plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
-        if plan.get("schema_version") != 2:
-            verify_cmd.error("generate a new plan with selected-agent and model readbacks")
+        plan, _ = _arm_inputs(verify_cmd, args.plan, args.runtime_state)
         step = next((step for step in _send_steps(plan) if step["session_ref"] == args.session_ref), None)
         if step is None:
             verify_cmd.error(f"no planned chat for {args.session_ref}")
@@ -704,20 +757,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Verified {args.session_ref}")
         return 0
     if args.command == "collect":
-        plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
+        plan, build = _arm_inputs(collect_cmd, args.plan, args.runtime_state)
         sends = json.loads(Path(args.sends).read_text(encoding="utf-8"))
         results = collect(args.home, plan, sends, runtime_root=args.runtime_root, wait_seconds=args.wait_seconds)
         payload = {
             "arm": plan["arm"],
-            "build": args.build,
+            "stagec_build_receipt": build,
             "results": [{**asdict(item), "verification_error": item.verification_error} for item in results],
             "scores": [asdict(cell) for cell in score(results)],
         }
         Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return 0
-    arm, scores, build = _scores_from(args.results)
-    baseline_arm, baseline, _ = _scores_from(args.baseline) if args.baseline else (None, None, None)
-    text = report(scores, arm=arm, baseline=baseline, baseline_arm=baseline_arm, build=build)
+    try:
+        arm, scores, build = _scores_from(args.results)
+        baseline_arm, baseline, baseline_build = _scores_from(args.baseline) if args.baseline else (None, None, None)
+        if baseline is not None and baseline_arm != "A":
+            raise ValueError("the baseline must be arm A")
+        text = report(scores, arm=arm, stagec_build_receipt=build, baseline=baseline,
+                      baseline_build_receipt=baseline_build)
+    except (KeyError, ValueError) as exc:
+        report_cmd.error(str(exc))
     Path(args.out).write_text(text, encoding="utf-8")
     return 0
 
@@ -730,6 +789,16 @@ def _assignments(parser, pairs: list[str]) -> dict[str, str]:
             parser.error(f"expected a unique NAME=ID binding, got {pair!r}")
         values[name] = value
     return values
+
+
+def _arm_inputs(parser, plan_path: str, state_path: str) -> tuple[Mapping[str, Any], dict[str, Any]]:
+    try:
+        plan = _record(json.loads(Path(plan_path).read_text(encoding="utf-8")))
+        if plan.get("schema_version") != 2 or plan.get("expected_build") != ARM_BUILD_COMMITS[plan["arm"]]:
+            raise ValueError("generate a fresh plan for the pinned arm")
+        return plan, _build_receipt(plan["arm"], json.loads(Path(state_path).read_text(encoding="utf-8")))
+    except (KeyError, ValueError) as exc:
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":

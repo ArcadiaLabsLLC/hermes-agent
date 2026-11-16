@@ -162,6 +162,15 @@ def test_score_counts_hits_controls_and_unread() -> None:
     assert (cell.controls_prose, cell.controls, cell.control_failures) == (1, 2, ("C2",))
 
 
+def test_control_counts_prose_after_an_ordinary_tool() -> None:
+    ordinary = ab.turn_outcome({"turn_id": "t", "elements": [
+        _tool(1, "web_search"), _answer(2, "Berlin uses Central European Time."),
+    ]})
+    blank = ab.turn_outcome({"turn_id": "c", "elements": [_tool(1, "web_search")]})
+    [cell] = ab.score([_result("C1", ab.CONTROL, ordinary), _result("C2", ab.CONTROL, blank)])
+    assert cell.controls_prose == 1 and cell.control_failures == ("C2",)
+
+
 @pytest.mark.parametrize(("provider", "model"), [(None, None), ("other-provider", "m1"), ("p1", "other-model")])
 def test_unverified_receipt_cannot_pass_a_scored_cell(provider, model) -> None:
     hit = ab.turn_outcome({"turn_id": "t", "state": "completed", "elements": HIT})
@@ -190,6 +199,16 @@ AGENTS = {"Amelia": "instance_amelia", "Base": "instance_base"}
 PROVIDERS = {"p1": "m1"}
 
 
+def _stagec_state(arm: str) -> dict:
+    return {"tool": ab.RUNTIME_STATE_TOOL, "status": "ok", "envelope": {"response_safe": {
+        "ok": True, "command": ab.RUNTIME_STATE_COMMAND, "captured_at": "2026-11-15T18:00:00Z", "data": {
+            "flutter_mode": "debug", "build": {
+                "commit": ab.ARM_BUILD_COMMITS[arm], "commit_source": "dart_define", "kernel_blob_present": True,
+            },
+        },
+    }}}
+
+
 def _receipts(session_id: str, *, agent: str = "Amelia", provider: str = "p1", model: str = "m1") -> dict:
     return {
         "new": {"session_id": session_id, "agent": agent},
@@ -204,6 +223,7 @@ def _receipts(session_id: str, *, agent: str = "Amelia", provider: str = "p1", m
 
 def test_drive_opens_one_chat_per_prompt_per_agent() -> None:
     plan = ab.drive("A", ab.load_prompts(PROMPTS_PATH), AGENTS, PROVIDERS)
+    assert plan["expected_build"] == "8ee367c82128e9095d301a7b6aeb5fe36918d7fb"
     news = [step for step in plan["steps"] if step["op"] == ab.OP_NEW]
     sends = [step for step in plan["steps"] if step["op"] == ab.OP_SEND]
     assert len(news) == 30 and len(sends) == 30
@@ -272,17 +292,40 @@ def test_collect_refuses_wrong_instance_or_ambiguous_journal(home: Path) -> None
 def test_verify_route_refuses_invalid_console_readback(tmp_path: Path, source, field, value) -> None:
     plan_path = tmp_path / "plan.json"
     receipt_path = tmp_path / "receipts.json"
+    state_path = tmp_path / "runtime-state.json"
     plan = ab.drive("B", [("P01", ab.COMPARISON, "compare")], {"Base": AGENTS["Base"]}, PROVIDERS)
     plan_path.write_text(json.dumps(plan), encoding="utf-8")
     receipts = _receipts("sid-0", agent="Base")
     del receipts["send"]
     args = ["verify-route", "--plan", str(plan_path), "--session-ref", "Base/p1/P01",
-            "--receipts", str(receipt_path)]
+            "--receipts", str(receipt_path), "--runtime-state", str(state_path)]
+    state_path.write_text(json.dumps(_stagec_state("B")), encoding="utf-8")
     receipt_path.write_text(json.dumps({"Base/p1/P01": receipts}), encoding="utf-8")
     assert ab.main(args) == 0
     receipts[source][field] = value
     receipt_path.write_text(json.dumps({"Base/p1/P01": receipts}), encoding="utf-8")
     assert ab.main(args) == 1
+
+
+@pytest.mark.parametrize("case", ["wrong-arm", "unstamped", "release"])
+def test_verify_route_requires_expected_stagec_stamp(tmp_path: Path, case: str) -> None:
+    plan_path = tmp_path / "plan.json"
+    receipt_path = tmp_path / "receipts.json"
+    state_path = tmp_path / "runtime-state.json"
+    plan = ab.drive("B", [("P01", ab.COMPARISON, "compare")], {"Base": AGENTS["Base"]}, PROVIDERS)
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    receipt_path.write_text(json.dumps({"Base/p1/P01": _receipts("sid-0", agent="Base")}), encoding="utf-8")
+    state = _stagec_state("A" if case == "wrong-arm" else "B")
+    data = state["envelope"]["response_safe"]["data"]
+    if case == "unstamped":
+        data["build"]["commit_source"] = "git_head"
+    if case == "release":
+        data["flutter_mode"] = "release"
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    with pytest.raises(SystemExit) as refused:
+        ab.main(["verify-route", "--plan", str(plan_path), "--session-ref", "Base/p1/P01",
+                 "--receipts", str(receipt_path), "--runtime-state", str(state_path)])
+    assert refused.value.code == 2
 
 
 # ── G3 report ───────────────────────────────────────────────────────────────
@@ -306,18 +349,30 @@ def test_bar_arithmetic() -> None:
     assert ab.cell_verdict(_cell(10, cost_chars=None), base)[0] == "OVER COST", "an unread cost is never adopted"
 
 
+def test_a_short_cell_cannot_pass_even_with_a_perfect_ratio() -> None:
+    short = replace(_cell(1, controls_prose=1), comparisons=1, controls=1)
+    assert ab.cell_verdict(short) == ("FAIL", None)
+    missing_comparison = replace(_cell(11), comparisons=11)
+    assert ab.cell_verdict(missing_comparison) == ("FAIL", None)
+    missing_control = replace(_cell(12, controls_prose=2), controls=2)
+    assert ab.cell_verdict(missing_control) == ("FAIL", None)
+    assert ab.cell_verdict(_cell(12), short) == ("UNVERIFIED", None)
+
+
 def test_report_table_and_first_line() -> None:
-    text = ab.report([_cell(10)], arm="B", baseline=[_cell(4)], baseline_arm="A", build="qa-123")
-    assert "## Arm B vs baseline A" in text and "`qa-123`" in text
+    text = ab.report([_cell(10)], arm="B", stagec_build_receipt=_stagec_state("B"), baseline=[_cell(4)],
+                     baseline_build_receipt=_stagec_state("A"))
+    assert "## Arm B vs baseline A" in text and ab.ARM_BUILD_COMMITS["B"] in text
     assert "| Base | p1 | 10/12 |" in text and "| +0 |" in text and text.rstrip().splitlines()[-1].startswith("Bar:")
     assert "| PASS |" in text and "**First:**" not in text
-    first = ab.report([_cell(3, comparison_in_guidance=False)], arm="A")
+    first = ab.report([_cell(3, comparison_in_guidance=False)], arm="A", stagec_build_receipt=_stagec_state("A"))
     assert "**First:**" in first and "(180 chars)" in first and "| FAIL |" in first
 
 
 def test_cli_plan_collect_report_round_trip(home: Path, tmp_path: Path) -> None:
     plan_path, sends_path = tmp_path / "plan.json", tmp_path / "sends.json"
-    results_path, report_path = tmp_path / "results.json", tmp_path / "report.md"
+    results_path, baseline_path, report_path = tmp_path / "results.json", tmp_path / "baseline.json", tmp_path / "report.md"
+    state_path = tmp_path / "runtime-state.json"
     assert ab.main(["plan", "--arm", "A", "--agent", f"Base={AGENTS['Base']}", "--provider", "p1=m1",
                     "--prompts", str(PROMPTS_PATH), "--out", str(plan_path)]) == 0
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
@@ -328,9 +383,25 @@ def test_cli_plan_collect_report_round_trip(home: Path, tmp_path: Path) -> None:
         _write_ctx(home, f"ctx_{index:04d}", session_id=sid, guidance="compare", per_tool=PER_TOOL, provider="p1")
         sends[step["session_ref"]] = _receipts(sid, agent="Base")
     sends_path.write_text(json.dumps(sends), encoding="utf-8")
-    assert ab.main(["collect", "--home", str(home), "--plan", str(plan_path), "--sends", str(sends_path),
-                    "--wait-seconds", "0", "--build", "qa-1", "--out", str(results_path)]) == 0
-    assert ab.main(["report", "--results", str(results_path), "--baseline", str(results_path),
+    state_path.write_text(json.dumps(_stagec_state("A")), encoding="utf-8")
+    args = ["collect", "--home", str(home), "--plan", str(plan_path), "--sends", str(sends_path),
+            "--wait-seconds", "0", "--runtime-state", str(state_path), "--out"]
+    assert ab.main([*args, str(baseline_path)]) == 0
+    plan.update(arm="B", expected_build=ab.ARM_BUILD_COMMITS["B"])
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    state_path.write_text(json.dumps(_stagec_state("B")), encoding="utf-8")
+    assert ab.main([*args, str(results_path)]) == 0
+    assert ab.main(["report", "--results", str(results_path), "--baseline", str(baseline_path),
                     "--out", str(report_path)]) == 0
     text = report_path.read_text(encoding="utf-8")
     assert "| Base | p1 | 12/12 | — | 3/3 |" in text and "| +0 |" in text and "| PASS |" in text
+    assert ab.ARM_BUILD_COMMITS["B"] in text
+
+    report_args = ["report", "--results", str(results_path), "--out", str(report_path)]
+    with pytest.raises(SystemExit, match="2"):
+        ab.main(report_args)
+    results = json.loads(results_path.read_text(encoding="utf-8"))
+    results["stagec_build_receipt"] = _stagec_state("A")
+    results_path.write_text(json.dumps(results), encoding="utf-8")
+    with pytest.raises(SystemExit, match="2"):
+        ab.main([*report_args, "--baseline", str(baseline_path)])
