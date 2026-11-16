@@ -334,14 +334,15 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # lifecycle, an Episode opening or changing state, a receipt written or settled. They move the
     # EventLog watermark the stream is gated on, so the snapshot's ``lens`` section refreshes on the
     # write; feed reads (every poll) and an active Episode's last_seen ticks emit NOTHING — they
-    # would demote a full core per poll (the 2026-08-21 reconcile storm).
-    "lens.monitor.changed": EventContract("lens.monitor.changed", "Lens monitor changed", ("monitor_id", "change"), ("state", "revision")),
-    "lens.episode.changed": EventContract("lens.episode.changed", "Lens episode changed", ("monitor_id", "episode_id", "state"), ("rule_id", "ordinal")),
-    "lens.receipt.changed": EventContract("lens.receipt.changed", "Lens receipt changed", ("monitor_id", "episode_id", "outcome"), ()),
+    # would demote a full core per poll (the 2026-08-21 reconcile storm). Each carries the Lens
+    # store revision (``store_revision``, ``lens.store.bump_store_revision``) it was written at.
+    "lens.monitor.changed": EventContract("lens.monitor.changed", "Lens monitor changed", ("monitor_id", "change"), ("state", "revision", "store_revision")),
+    "lens.episode.changed": EventContract("lens.episode.changed", "Lens episode changed", ("monitor_id", "episode_id", "state"), ("rule_id", "ordinal", "store_revision")),
+    "lens.receipt.changed": EventContract("lens.receipt.changed", "Lens receipt changed", ("monitor_id", "episode_id", "outcome"), ("store_revision",)),
     # A workspace's shared-recipe shelf moved under ``runtime.lens.recipe.share`` / ``.withdraw``, or
     # this PC added a recipe (``.add``): the cue to re-read ``runtime.lens.recipe.list``
     # (``agent_runtime.lens.recipe_shelf.announce``; change: shared | withdrawn | added).
-    "lens.recipe.changed": EventContract("lens.recipe.changed", "Lens shared recipe changed", ("workspace_id", "recipe_id", "change"), ()),
+    "lens.recipe.changed": EventContract("lens.recipe.changed", "Lens shared recipe changed", ("workspace_id", "recipe_id", "change"), ("store_revision",)),
     # Mission Office events — the OfficeStore chokepoint emits one on EVERY
     # mutation (same standing store rule as boards; realm-synced the same way).
     # See EterniaLauncher docs/archive/mission_control/2026-08-22-pre-consolidation/OFFICE_LAYOUT_REALM_SYNC_PLAN_2026-07-17.md.
