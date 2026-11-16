@@ -71,7 +71,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.bundle_licenses import copy_first_party_licence, write_licence_records
-from scripts.bundle_profile_closure import module_index
+from scripts.bundle_profile_closure import _lock, module_index
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR
 from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS, PoolScope
 from scripts.bundles.bundle_files import (
@@ -394,7 +394,8 @@ def _build(args, manifest, index, stage: Path, probe_python) -> int:
             requirements = export_requirements((*manifest.packaging_extras, *pack_extras), args.uv)
             if selected is not None:  # a refusal returns before any install (phase plan would raise the same)
                 requirements, problems, receipt = closure_requirements(
-                    requirements, selected, refused, marker_env(args.target, args.python_version), args.seed_sites)
+                    requirements, selected, refused, marker_env(args.target, args.python_version), args.seed_sites,
+                    manifest.packaging_pure_wheels, _lock())
                 print("\n".join([receipt, *problems]), flush=True)
                 if problems:
                     return 1

@@ -412,3 +412,47 @@ def test_a_dropped_extra_is_not_followed_and_ships_only_when_its_distribution_im
     blocked_self = SimpleNamespace(omitted_distributions=({**row, "imports": ("cryptography", "jwt")},))
     refused = dropped_extra_failures(blocked_self, graph, {"pyjwt"})
     assert len(refused) == 1 and refused[0].startswith("pyjwt[crypto]: jwt does not import"), refused
+
+
+# ── A phone ships the wheel its pool installs (RT-PHONE-REALM-SYNC-PURE-WHEEL-IN-BUNDLE) ─────────────
+
+def _hashed(tag: str, digest: str) -> dict:
+    return {"url": f"https://files/dulwich-1.2.21-{tag}.whl", "hash": f"sha256:{digest}"}
+
+
+_DULWICH = {"wheels": [_hashed("cp314-cp314-android_24_arm64_v8a", "aa"), _hashed("cp314-cp314-manylinux_2_28_x86_64", "bb"),
+                       _hashed("py3-none-any", "cc")]}
+
+
+def test_the_gate_judges_the_wheel_a_phone_target_installs():
+    """dulwich has a pure wheel AND a compiled Android one; the Android pool installs the compiled one, so
+    the gate refuses it there unless ``packaging.pure_wheels`` names it (owner RULED 2026-11-16: the pure
+    wheel on both phones). Killing mutation: ``installs_pure`` answers ``is_pure`` for every target (the
+    lock-reading blind spot) -> the Android row has no ``native`` finding, red."""
+    from scripts.bundle_profile_gate import installs_pure
+
+    lock = {"dulwich": _DULWICH}
+    findings = lambda target, pure=(): {(f["kind"], f["subject"])
+                                        for f in distribution_findings({"dulwich"}, lock, {}, target, pure)}
+    assert findings("android_arm64") == {("native", "dulwich")}
+    assert findings("ios_arm64") == set()  # no iPhone wheel: the pure one installs
+    assert findings("android_arm64", ("dulwich",)) == set()
+    assert findings(None) == set()  # the desktop reading is unchanged
+    assert installs_pure({"wheels": [_hashed("cp313-cp313-android_24_arm64_v8a", "aa"), _hashed("py3-none-any", "cc")]},
+                         "android_arm64") is True  # another interpreter's wheel never installs
+
+
+def test_a_pure_listed_distribution_keeps_only_its_pure_hash_in_the_pool():
+    from scripts.bundles.requirement_blocks import closure_requirements, pure_wheel_blocks, requirement_blocks
+
+    text = ("dulwich==1.2.21 \\\n    --hash=sha256:aa \\\n    --hash=sha256:bb \\\n    --hash=sha256:cc\n"
+            "idna==3.19 \\\n    --hash=sha256:dd\n")
+    blocks, refused = pure_wheel_blocks(requirement_blocks(text), ["dulwich"], {"dulwich": _DULWICH})
+    assert refused == []
+    assert blocks[0].hashes == ("    --hash=sha256:cc",) and blocks[1].hashes == ("    --hash=sha256:dd",)
+    pool, problems, _receipt = closure_requirements(text, {"dulwich", "idna"}, [], {}, ["s"], ["dulwich"],
+                                                    {"dulwich": _DULWICH})
+    assert problems == [] and "sha256:aa" not in pool and "sha256:cc" in pool and "sha256:dd" in pool
+    _blocks, refused = pure_wheel_blocks(requirement_blocks(text), ["dulwich"],
+                                         {"dulwich": {"wheels": [_hashed("cp314-cp314-android_24_arm64_v8a", "aa")]}})
+    assert refused == ["pure_wheel_missing: dulwich"]

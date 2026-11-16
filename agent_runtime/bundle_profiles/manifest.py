@@ -143,6 +143,10 @@ class ProfileManifest:
     packaging_skill_names: tuple[str, ...] = ()
     #: compiled (non-pure-Python) distribution -> why the profile gate admits it
     admitted_native: Mapping[str, str] = dataclasses.field(default_factory=dict)
+    #: distributions a phone ships as their pure-Python (``none-any``) wheel on every target, even where a
+    #: compiled wheel exists for it: the pool keeps only that wheel's hash and the gate judges it so
+    #: (owner RULED 2026-11-16 for dulwich: one behaviour on both phones, nothing compiled to admit)
+    packaging_pure_wheels: tuple[str, ...] = ()
     #: ship the forced set's scanned-package modules under the sibling root the embedded entry mounts
     #: (``agent_runtime/bundle_profiles/forced_tree.py``), never under the scanned ``tools/`` / ``plugins/``
     packaging_forced_sibling_tree: bool = False
@@ -210,6 +214,11 @@ def _manifest_flag(value: Any, where: str) -> bool:
     return value
 
 
+def _dist(name: str) -> str:
+    """A distribution name as the lock spells it (PEP 503)."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def _reasons(value: Any, where: str) -> dict[str, str]:
     """A path -> non-empty reason mapping: every entry says why it exists."""
     value = _mapping(value, where)
@@ -268,6 +277,7 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         packaging_skill_platforms=_strings(packaging.get("skill_platforms"), "packaging.skill_platforms"),
         packaging_skill_names=_strings(packaging.get("skill_names"), "packaging.skill_names"),
         admitted_native=_reasons(packaging.get("admitted_native"), "packaging.admitted_native"),
+        packaging_pure_wheels=_strings(packaging.get("pure_wheels"), "packaging.pure_wheels"),
         packaging_forced_sibling_tree=_manifest_flag(packaging.get("forced_sibling_tree"), "packaging.forced_sibling_tree"),
         packaging_pool=_pool_scope(packaging.get("pool")),
     )
@@ -309,6 +319,9 @@ def validate_manifest(manifest: ProfileManifest) -> None:
     )
     if bad_keys:
         raise ProfileManifestError(f"config keys Hermes does not read: {bad_keys}")
+    both = sorted({_dist(n) for n in manifest.packaging_pure_wheels} & {_dist(n) for n in manifest.admitted_native})
+    if both:
+        raise ProfileManifestError(f"packaging.pure_wheels and packaging.admitted_native both name: {both}")
     unknown_targets = [t for t in manifest.packaging_targets if t not in PACKAGING_TARGETS]
     if unknown_targets:
         raise ProfileManifestError(f"packaging.targets names no packager target: {unknown_targets}")

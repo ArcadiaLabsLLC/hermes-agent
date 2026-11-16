@@ -68,13 +68,37 @@ def seed_union(plans: dict[str, tuple[set[str], list[str]]]) -> tuple[set[str], 
     return set().union(*(needed for needed, _ in plans.values())), [r for _, refused in plans.values() for r in refused]
 
 
+def pure_wheel_blocks(blocks: list[Block], pure_wheels, lock: dict[str, dict]) -> tuple[list[Block], list[str]]:
+    """``packaging.pure_wheels``: each named block keeps only the hash of its ``none-any`` wheel (from
+    ``uv.lock``), so ``uv pip install --require-hashes`` can install nothing else — the compiled wheel a
+    target also has is never the one that ships. -> (the blocks, refusals): a named distribution with no
+    pure wheel in the lock is ``pure_wheel_missing: <name>``."""
+    wanted = {_norm(name) for name in pure_wheels}
+    out, refusals = [], []
+    for block in blocks:
+        if block.name not in wanted:
+            out.append(block)
+            continue
+        pure = {wheel.get("hash", "") for wheel in (lock.get(block.name) or {}).get("wheels", [])
+                if wheel.get("url", "").endswith("-none-any.whl") and wheel.get("hash")}
+        kept = tuple(line for line in block.hashes if line.strip().removeprefix("--hash=").rstrip(" \\") in pure)
+        if not kept:
+            refusals.append(f"pure_wheel_missing: {block.name}")
+            continue
+        out.append(Block(block.name, block.head, block.marker, tuple(
+            line.rstrip(" \\") + (" \\" if index < len(kept) - 1 else "") for index, line in enumerate(kept))))
+    return out, refusals
+
+
 def closure_requirements(requirements: str, names: set[str], refused: list[str], env: dict[str, str],
-                         seed_sites) -> tuple[str, list[str], str]:
+                         seed_sites, pure_wheels=(), lock: dict[str, dict] | None = None) -> tuple[str, list[str], str]:
     """``PoolScope.CLOSURE``'s pool: the export's blocks whose marker holds for ``env``, narrowed to
     ``names`` -> (the requirements text, every problem line, the ``pool scope:`` receipt line).
-    Markers are evaluated BEFORE selecting, so another platform's hashless pin is never judged."""
+    Markers are evaluated BEFORE selecting, so another platform's hashless pin is never judged.
+    ``pure_wheels`` keeps those distributions to their pure wheel (:func:`pure_wheel_blocks`)."""
     blocks = [block for block in requirement_blocks(requirements) if block.holds(env)]
+    blocks, impure = pure_wheel_blocks(blocks, pure_wheels, lock or {})
     text, unhashed = select_blocks(blocks, names)
-    problems = [*(f"closure refusal: {line}" for line in refused), *unhashed]
+    problems = [*(f"closure refusal: {line}" for line in refused), *unhashed, *impure]
     kept = f"{len(requirement_blocks(text))} of {len(blocks)} export blocks"
     return text, problems, f"pool scope: closure — {kept} (seed: {', '.join(map(str, seed_sites))})"

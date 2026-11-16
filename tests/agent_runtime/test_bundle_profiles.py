@@ -92,6 +92,16 @@ def test_the_realm_sync_git_backend_is_a_switch_a_profile_may_set():
         parse_manifest(_raw(config={"realm_sync.git_backend_typo": "dulwich"}))
 
 
+def test_the_phone_picks_the_pure_python_git_and_ships_it_pure():
+    manifest = load_profile("bundled-phone")
+    assert manifest.config["realm_sync.git_backend"] == "dulwich"
+    assert "realm-sync-pure" in manifest.packaging_extras and "dulwich" in manifest.packaging_pure_wheels
+    assert "dulwich" not in manifest.admitted_native
+    assert not [row for row in manifest.unswitched if row.get("area") == "Realm sync"]
+    with pytest.raises(ProfileManifestError, match="pure_wheels and packaging.admitted_native"):
+        parse_manifest(_raw(packaging={"pure_wheels": ["Dulwich"], "admitted_native": {"dulwich": "why"}}))
+
+
 def test_every_bundle_exclusion_states_its_reason():
     parse_manifest(_raw(packaging={"excluded_data": {"site-packages/x/data": "why"}}))  # positive control
     with pytest.raises(ProfileManifestError, match="non-empty reasons"):

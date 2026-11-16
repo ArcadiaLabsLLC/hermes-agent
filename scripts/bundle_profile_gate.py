@@ -157,8 +157,30 @@ def is_pure(lock_entry: dict) -> bool | None:
     return any(url.endswith("-none-any.whl") for url in wheels)
 
 
-def distribution_findings(shipped, lock: dict[str, dict], admitted_native) -> list[dict]:
+#: phone target -> the platform-tag fragments of the compiled wheel the pool would install there
+#: (``uv pip install --python-platform`` takes the most specific wheel, never the pure one beside it).
+_TARGET_WHEEL_TAGS = {"android_arm64": ("-android_", "_arm64_v8a.whl"), "ios_arm64": ("-ios_", "_arm64_iphoneos.whl")}
+
+
+def installs_pure(lock_entry: dict, target: str | None, *, pure_only: bool = False) -> bool | None:
+    """The wheel the TARGET's pool installs: True when it is the pure one, False when a compiled one, None
+    when the lock has no wheel. ``pure_only`` (``packaging.pure_wheels``): the pool keeps only the
+    ``none-any`` hash (``scripts/bundles/requirement_blocks.py``), so the pure wheel is what installs.
+    A desktop target (``None``) keeps :func:`is_pure`'s reading."""
+    pure = is_pure(lock_entry)
+    if pure is None or target not in _TARGET_WHEEL_TAGS or pure_only:
+        return pure
+    platform, arch = _TARGET_WHEEL_TAGS[target]
+    python = f"-cp{TARGETS[target]['python_version'].replace('.', '')}-"
+    compiled = [url for url in (w.get("url", "") for w in lock_entry.get("wheels", []))
+                if platform in url and url.endswith(arch) and (python in url or "-abi3-" in url)]
+    return pure and not compiled
+
+
+def distribution_findings(shipped, lock: dict[str, dict], admitted_native, target: str | None = None,
+                          pure_wheels=()) -> list[dict]:
     admitted = {_norm(d) for d in admitted_native}
+    pure_only = {_norm(d) for d in pure_wheels}
     out = []
     for name in sorted(shipped):
         if name in PROVIDER_SDKS:
@@ -171,7 +193,7 @@ def distribution_findings(shipped, lock: dict[str, dict], admitted_native) -> li
         if entry is None:
             out.append({"kind": "unproven", "subject": name, "detail": "not in uv.lock"})
             continue
-        pure = is_pure(entry)
+        pure = installs_pure(entry, target, pure_only=name in pure_only)
         if pure is None:
             out.append({"kind": "unproven", "subject": name, "detail": "no wheel in uv.lock"})
         elif not pure and name not in admitted:
@@ -476,7 +498,8 @@ def gate(profile: str) -> dict:
         selected, classes, shipped = facts.select()
         per_target[target or "win_amd64"] = {
             "shipped": sorted(shipped),
-            "findings": distribution_findings(shipped, lock, manifest.admitted_native)
+            "findings": distribution_findings(shipped, lock, manifest.admitted_native, target,
+                                              manifest.packaging_pure_wheels)
             + [{"kind": "closure", "subject": reason}
                for reason in closure_refusals(facts.refusal_facts(selected, shipped))],
             "reached_via": {d: row["via"] for d, row in sorted(classes.items())},

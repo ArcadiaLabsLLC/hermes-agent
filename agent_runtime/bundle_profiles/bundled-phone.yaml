@@ -84,6 +84,9 @@ config:
   # agent.log records each turn's opening words at INFO (agent/turn_context.py); a phone keeps no
   # plaintext chat on disk, so its file log starts at WARNING.
   logging.level: WARNING
+  # Realm sync runs the pure-Python git (dulwich): no git program on a phone (plan
+  # phone-realm-sync-dulwich-2026-11-16; agent_runtime/realm_sync/git.py::sync_git_backend).
+  realm_sync.git_backend: dulwich
 
 environment:
   HF_HUB_OFFLINE: "1"
@@ -100,9 +103,7 @@ refused_routes:
     - /api/local-models/search/files
     - /api/local-models/download-browsed
 
-unswitched:
-  - area: Realm sync
-    gap: realm_sync still shells out to git; the dulwich/HTTP backend behind the realm_sync seam is not built
+unswitched: []
 
 packaging:
   # CPython 3.14's mobile platforms; markers are evaluated for each.
@@ -114,8 +115,17 @@ packaging:
     - agent_runtime.serve_rpc                     # the runtime.* method lane
     - run_agent                                   # the core agent loop (upstream's own)
     - model_tools
-  # No optional extras: phones call providers over raw HTTP (architecture §6), never an SDK.
-  extras: []
+  # No provider extras: phones call providers over raw HTTP (architecture §6), never an SDK.
+  # realm-sync-pure: dulwich, the pure-Python git realm sync runs on a phone (realm_sync.git_backend above).
+  extras: [realm-sync-pure]
+  # Shipped as their pure-Python (none-any) wheel on BOTH phones, even where a compiled one exists
+  # (dulwich has Android wheels, none for iOS): the pool keeps only that wheel's hash and the gate
+  # refuses the compiled one (owner RULED 2026-11-16, "okay yea both as reccomended").
+  # charset-normalizer (requests' charset detection): its phone wheels are mypyc-compiled and the pool
+  # installed them unseen while the gate read the lock's pure wheel (RT-PHONE-REALM-SYNC-PURE-WHEEL-IN-BUNDLE
+  # made the gate judge the installed wheel); its pure wheel is the same code uncompiled, and
+  # architecture §6 admits Pillow alone.
+  pure_wheels: [dulwich, charset-normalizer]
   # The pool installs only the closure's distributions, not the whole export: several base dependencies
   # have no phone wheel (docs/agent-runtime-harness/planned/bundled-phone-pool-2026-10-22.md).
   pool: closure

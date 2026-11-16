@@ -660,7 +660,7 @@ def _build_stubs(monkeypatch, tmp_path: Path, packs: dict):
     args = SimpleNamespace(reuse_stage=True, target="win32-x64", python_version="3.14.7", out=tmp_path / "core",
                            bake_with=None, uv="uv", offline=False, seed_sites=[tmp_path / "seed"])
     manifest = SimpleNamespace(profile="p", packaging_extras=(), packaging_packs=packs, packaging_plugins=(),
-                               packaging_pool=PoolScope.EXPORT)
+                               packaging_pool=PoolScope.EXPORT, packaging_pure_wheels=())
     (tmp_path / "core.pool").mkdir()
     return pkg, args, manifest, calls, written
 
