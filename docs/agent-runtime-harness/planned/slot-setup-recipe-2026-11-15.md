@@ -18,6 +18,18 @@ All seven decisions below are accepted, with one amendment: **a slot's recipe st
 
 So a slot has **one recipe per platform** (Windows, macOS, Linux), each with its own steps and revision, stored as `recipes.<slot>.<platform>`; a computer shows and runs only its own platform's recipe, and a platform with no recipe shows blank. This replaces decision 1's single recipe per slot and settles the "operating-system filter on each step" alternative in decision 5 the other way (whole recipes per platform, not per-step filters). Decision 5's per-computer "Not needed here" stays.
 
+Third amendment, same day — the recipe lives IN THE REPOSITORY. Proposed: a standard folder at the repository root, cloned with it:
+
+```text
+.eternia/
+  setup/
+    windows.ps1   macos.sh   linux.sh   # install steps per platform
+    recipe.json                         # what Set up lists: tools, keys, .env, which script to run
+  prompts/                              # prompts agents use in this repository
+```
+
+Owner: "yes thats a good folder name tradeoffs are good". So: the `.eternia/` folder is the only home of a recipe (this supersedes decisions 1, 3 and 7 and the per-platform `recipes.<slot>.<platform>` store above — there is no synced recipe store); a recipe changes by a commit to the repository; a repository without the folder shows a blank Set up; Set up shows a script's contents before running it and runs it only on a click; decision 5's per-computer "Not needed here" stays local; decisions 2, 4 and 6 stand. **The build's first step rewrites §2–§6 of this plan for the repo folder.**
+
 On a build, file the three slices in §6 and Eternia's row in §3 with this amendment.
 
 ## Decisions taken, owner may overrule
