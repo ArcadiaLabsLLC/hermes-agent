@@ -310,7 +310,6 @@ Reconciled against the built code and the plan, not inferred from an absent old 
 
 ### Filed on arrival — 2026-10-21 (land w1021i)
 
-- **`RT-COURSE-AUTHORING-RULINGS` — course authoring stage C3 needs two owner answers: who hands the persona the course credential during a turn, and whether the course installation token may open a PR (the App has contents+metadata only)** · group: git-course · fork / course authoring · plan `docs/agent-runtime-harness/archive/realm-course-subject-authoring-2026-10-21.md` · RULED 2026-10-22: owner — the Launcher hands the course credential inline (hermes holds no player bearer); yes, add `pull_requests: write` to eternia-server-realms · DEFERRED 2026-11-09: owner triage — Owner click; course authoring works without PRs meanwhile; until the owner reopens it · waits: owner-ruling
 
 ### Filed on arrival — 2026-10-21 (lane w1021h-rpc, branch `w1021h/rpc`)
 
