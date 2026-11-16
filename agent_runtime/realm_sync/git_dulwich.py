@@ -19,23 +19,32 @@ A failing step raises the same ``RealmSyncError`` codes the binary half raises.
 from __future__ import annotations
 
 import os
+import shutil
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+from urllib.parse import unquote, urlparse
 
 from dulwich import porcelain
-from dulwich.errors import NotGitRepository
+from dulwich.client import GitClient, HTTPUnauthorized, LocalGitClient, Urllib3HttpGitClient
+from dulwich.config import ConfigDict
+from dulwich.diff_tree import tree_changes
+from dulwich.errors import GitProtocolError, HangupException, NotGitRepository
 from dulwich.graph import can_fast_forward, find_merge_base
-from dulwich.index import ConflictedIndexEntry, commit_tree
+from dulwich.index import ConflictedIndexEntry, commit_tree, update_working_tree
 from dulwich.object_store import tree_lookup_path
 from dulwich.objects import Commit, Tree
 from dulwich.objectspec import parse_commit
 from dulwich.repo import Repo
 from dulwich.walk import ORDER_DATE
 
-from .git_port import ChangedPath, LogEntry, RepoState
+from .git_port import ChangedPath, FetchOutcome, LogEntry, PushOutcome, PushReport, RepoState
 from .models import RealmSyncError
+
+if TYPE_CHECKING:
+    from ..realm_membership import RealmSyncCredential
 
 __layer__ = "stores"
 __all__ = ["DulwichSyncGit"]
@@ -57,6 +66,25 @@ def _failure(git_args: Sequence[str], detail: str) -> RealmSyncError:
 
     return RealmSyncError("sync_remote_unreachable", "git command failed for realm sync.", retryable=True,
                           safe_details={"git_args": list(git_args), "stderr": detail[-800:]})
+
+
+class _BrokeredHttpClient(Urllib3HttpGitClient):
+    """Smart HTTP with the credential Eternia brokers for this ONE call (Decision 4: never stored).
+
+    The ``Authorization`` value (``Basic …`` or ``Bearer …``) rides dulwich's own per-origin slot, so a
+    request to any other origin — a redirect included — carries none. Never ``extra_headers=`` (stored and
+    never sent in 1.2.21) and never a config ``http.extraHeader`` (the pool sends it to every origin). An
+    empty config: nothing of the member's own git config (helpers, headers, proxies' auth) is read."""
+
+    def __init__(self, url: str, authorization: str | None) -> None:
+        super().__init__(url, config=ConfigDict(), timeout=300)
+        if authorization:
+            self._auth_header = authorization
+            self._auth_origin = self._origin(url)
+
+
+class _Diverged(Exception):
+    """The remote's branch is not an ancestor of ours: refused BEFORE anything is sent."""
 
 
 def _identity() -> bytes:
@@ -377,6 +405,203 @@ class DulwichSyncGit:
             else:
                 repo.refs[b"HEAD"] = sha
             porcelain.reset(repo, "hard", sha)
+
+    # -- the network -------------------------------------------------------------------------
+    def _transport(self, url: str, step: Sequence[str]) -> tuple[GitClient, str]:
+        """The client for ``url``, built here and never guessed from it (no process, no ssh)."""
+
+        if url.startswith(("http://", "https://")):
+            return _BrokeredHttpClient(url, None), urlparse(url).path
+        if url.startswith("file://"):
+            return LocalGitClient(), unquote(urlparse(url).path)
+        if "://" in url or url.startswith("git@") or (":" in url.split("/", 1)[0] and len(url.split(":", 1)[0]) > 1):
+            raise RealmSyncError(
+                "sync_remote_unreachable",
+                "This device syncs realms over https only; this realm's remote is not reachable from it.",
+                retryable=False,
+                safe_details={"git_args": list(step), "reason": "transport_not_on_this_device"},
+            )
+        return LocalGitClient(), url
+
+    def _client(self, url: str, auth: RealmSyncCredential | None, step: Sequence[str]) -> tuple[GitClient, str]:
+        client, path = self._transport(url, step)
+        if isinstance(client, Urllib3HttpGitClient) and auth is not None:
+            client = _BrokeredHttpClient(url, auth.git_authorization)
+        return client, path
+
+    def _wire(self, step: Sequence[str], url: str, auth: RealmSyncCredential | None, call: Callable[[], Any]) -> Any:
+        """Run one network exchange; any failure is the typed refusal git's would be, scrubbed of the credential."""
+
+        try:
+            return call()
+        except (RealmSyncError, _Diverged):
+            raise
+        except HTTPUnauthorized as exc:
+            detail = f"fatal: Authentication failed for '{url}'"
+            cause: Exception = exc
+        except NotGitRepository as exc:
+            detail = (f"remote: Repository not found.\nfatal: unable to access '{url}': The requested URL returned error: 404"
+                      if url.startswith("http") else f"fatal: '{url}' does not appear to be a git repository")
+            cause = exc
+        except GitProtocolError as exc:
+            status = str(exc).split("unexpected http resp ", 1)
+            detail = (f"fatal: unable to access '{url}': The requested URL returned error: {status[1].split()[0]}"
+                      if len(status) == 2 else f"fatal: {exc}")
+            cause = exc
+        except (HangupException, OSError, KeyError, ValueError) as exc:
+            detail = f"fatal: unable to access '{url}': {exc}"
+            cause = exc
+        from .git import _redact_text, _scrub_config_values
+
+        secrets = auth.git_extra_config() + [f"x={auth.git_authorization}"] if auth is not None else []
+        text = _redact_text(_scrub_config_values(detail, secrets))
+        code = "sync_auth_failed" if "authentication" in text.lower() else "sync_remote_unreachable"
+        raise RealmSyncError(code, "git command failed for realm sync.", retryable=True,
+                             safe_details={"git_args": list(step), "stderr": text}) from cause
+
+    def _fetch(self, repo: Repo, auth: RealmSyncCredential | None, step: Sequence[str],
+               branch: str | None = None) -> tuple[dict[bytes, bytes], dict[bytes, bytes]]:
+        """Fetch ``origin``'s branches (or one) into ``refs/remotes/origin/*``; the remote's heads and symrefs."""
+
+        url = _get(repo.get_config(), (b"remote", b"origin"), b"url")
+        if url is None:
+            raise _failure(step, "fatal: 'origin' does not appear to be a git repository")
+        location = _s(url)
+        client, path = self._client(location, auth, step)
+        only = _HEADS + _b(branch) if branch is not None else None
+
+        def wants(refs: dict[bytes, bytes], *_args: Any, **_kwargs: Any) -> list[bytes]:
+            return sorted({sha for ref, sha in refs.items() if sha and ref.startswith(_HEADS)
+                           and (only is None or ref == only) and sha not in repo.object_store})
+
+        result = self._wire(step, location, auth, lambda: client.fetch(path, repo, determine_wants=wants))
+        heads = {ref: sha for ref, sha in (result.refs or {}).items()
+                 if sha and ref.startswith(_HEADS) and (only is None or ref == only)}
+        for ref, sha in heads.items():
+            repo.refs[_REMOTES + b"origin/" + ref[len(_HEADS):]] = sha
+        return heads, dict(result.symrefs or {})
+
+    def fetch(self, auth: RealmSyncCredential | None, *, branch: str | None = None) -> FetchOutcome:
+        step = ["fetch"] if branch is None else ["fetch", "-q", "origin", branch]
+        with self._open() as repo:
+            heads, _symrefs = self._fetch(repo, auth, step, branch)
+        return FetchOutcome.EMPTY_REMOTE if branch is not None and not heads else FetchOutcome.FETCHED
+
+    def clone(self, url: str, auth: RealmSyncCredential | None) -> None:
+        made = not self.repo.exists()
+        try:
+            self.init()
+            with self._open() as repo:
+                config = repo.get_config()
+                config.set((b"remote", b"origin"), b"url", _b(url))
+                config.set((b"remote", b"origin"), b"fetch", b"+refs/heads/*:refs/remotes/origin/*")
+                config.write_to_path()
+                heads, symrefs = self._fetch(repo, auth, ["clone", url], None)
+                head = symrefs.get(b"HEAD")
+                if head not in heads:
+                    head = next((ref for ref in (_HEADS + b"main", _HEADS + b"master") if ref in heads),
+                                min(heads) if heads else head)
+                if head:
+                    repo.refs.set_symbolic_ref(b"HEAD", head)
+                if head in heads:
+                    repo.refs[head] = heads[head]
+                    section = (b"branch", head[len(_HEADS):])
+                    config.set(section, b"remote", b"origin")
+                    config.set(section, b"merge", head)
+                    config.write_to_path()
+                    porcelain.reset(repo, "hard", heads[head])
+        except RealmSyncError as exc:
+            if made:
+                shutil.rmtree(self.repo, ignore_errors=True)
+            raise RealmSyncError(exc.code, "Could not clone realm sync repository.", retryable=exc.retryable,
+                                 safe_details={key: value for key, value in exc.safe_details.items() if key != "git_args"}) from exc
+
+    def pull_fast_forward(self, auth: RealmSyncCredential | None) -> None:
+        step = ["pull", "--ff-only"]
+        with self._open() as repo:
+            self._fetch(repo, auth, step)
+            upstream = self._upstream(repo)
+            if upstream is None:
+                raise _failure(step, "There is no tracking information for the current branch.")
+            theirs, head, branch = repo.refs[upstream[0]], self._resolve(repo, "HEAD"), self._head_ref(repo)
+            if head == theirs or (head is not None and can_fast_forward(repo, theirs, head)):
+                return  # already up to date
+            if head is not None and not can_fast_forward(repo, head, theirs):
+                raise _failure(step, "fatal: Not possible to fast-forward, aborting.")
+            self._move_to(repo, head, theirs, branch, step)
+
+    def _move_to(self, repo: Repo, head: bytes | None, theirs: bytes, branch: bytes | None, step: Sequence[str]) -> None:
+        """Check ``theirs`` out over ``head`` (never over a modified file) and move the branch to it."""
+
+        old_tree = repo[head].tree if head is not None else None
+        new_tree = repo[theirs].tree
+        try:
+            update_working_tree(repo, old_tree, new_tree,
+                                change_iterator=tree_changes(repo.object_store, old_tree, new_tree),
+                                allow_overwrite_modified=False)
+        except (OSError, ValueError) as exc:
+            raise _failure(step, f"error: Your local changes would be overwritten: {exc}") from exc
+        if branch is None:
+            repo.refs[b"HEAD"] = theirs
+        elif not repo.refs.set_if_equals(branch, head, theirs):
+            raise _failure(step, "fatal: cannot lock ref: the branch moved during the pull")
+
+    def push(self, auth: RealmSyncCredential | None, *, set_upstream: bool, branch: str | None = None) -> PushReport:
+        if branch is not None:
+            step = ["push", "-q", "-u", "origin", f"HEAD:{branch}"]
+        else:
+            step = ["push", "-u", "origin", "HEAD"] if set_upstream else ["push"]
+        with self._open() as repo:
+            head_ref = self._head_ref(repo)
+            local = repo.refs[head_ref] if head_ref is not None and head_ref in repo.refs else None
+            if local is None:
+                raise _failure(step, "error: src refspec HEAD does not match any")
+            config = repo.get_config()
+            merge = _get(config, (b"branch", head_ref[len(_HEADS):]), b"merge")
+            if branch is not None:
+                target = _HEADS + _b(branch)
+            elif set_upstream:
+                target = head_ref
+            elif merge is not None:
+                target = merge
+            else:
+                raise _failure(step, f"fatal: The current branch {_s(head_ref[len(_HEADS):])} has no upstream branch.")
+            url = _get(config, (b"remote", b"origin"), b"url")
+            if url is None:
+                raise _failure(step, "fatal: 'origin' does not appear to be a git repository")
+            location = _s(url)
+            client, path = self._client(location, auth, step)
+
+            def update_refs(refs: dict[bytes, bytes]) -> dict[bytes, bytes]:
+                # dulwich's send_pack replaces a diverged remote branch (a teammate's newer publish);
+                # git refuses it client-side. So do we, before a byte is sent.
+                old = refs.get(target)
+                if old and old != local and not (old in repo.object_store and can_fast_forward(repo, old, local)):
+                    raise _Diverged(_s(old))
+                return {target: local}
+
+            def pack(have: Any, want: Any, *, ofs_delta: bool = False, progress: Any = None) -> Any:
+                return repo.generate_pack_data(set(have), set(want), progress=progress, ofs_delta=ofs_delta)
+
+            try:
+                result = self._wire(step, location, auth, lambda: client.send_pack(_b(path), update_refs, pack))
+            except _Diverged:
+                return PushReport(PushOutcome.REJECTED, {
+                    "git_args": step,
+                    "stderr": f" ! [rejected]        HEAD -> {_s(target[len(_HEADS):])} (fetch first)"})
+            refused = (getattr(result, "ref_status", None) or {}).get(target)
+            if refused:
+                text = f" ! [remote rejected] HEAD -> {_s(target[len(_HEADS):])} ({refused})"
+                if any(tell in refused for tell in ("non-fast-forward", "fetch first", "stale info")):
+                    return PushReport(PushOutcome.REJECTED, {"git_args": step, "stderr": text})
+                raise _failure(step, text)
+            repo.refs[_REMOTES + b"origin/" + target[len(_HEADS):]] = local
+            if set_upstream or branch is not None:
+                section = (b"branch", head_ref[len(_HEADS):])
+                config.set(section, b"remote", b"origin")
+                config.set(section, b"merge", target)
+                config.write_to_path()
+        return PushReport(PushOutcome.PUSHED)
 
     # -- history -----------------------------------------------------------------------------
     def log(self, refs: Sequence[str], subtree: str, limit: int) -> list[LogEntry]:
