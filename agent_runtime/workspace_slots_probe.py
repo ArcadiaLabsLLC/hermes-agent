@@ -29,6 +29,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
+from .host_tools import git_command
 from .builds.unknowns import UNKNOWN_SLOT_PROBE_UNKNOWN, UnknownsIndex
 from .workspace_slot_env import SlotFill, slot_fill
 from .workspace_slot_recipe import READY_UNKNOWN, READY_YES, readiness
@@ -92,7 +93,7 @@ def origin_matches(path: Path, slot: dict[str, Any], run: Runner | None = None) 
     if not wanted:
         return False
     try:
-        done = (run or _run)(["git", "-C", str(path), "remote", "get-url", "origin"])
+        done = (run or _run)([git_command(), "-C", str(path), "remote", "get-url", "origin"])
     except (OSError, subprocess.SubprocessError):
         return False
     return done.returncode == 0 and _normalize_remote(done.stdout) == _normalize_remote(wanted)
@@ -116,7 +117,7 @@ class _SlotProbe:
         if not (path / ".git").exists():
             return CHECKOUT_NOT_A_REPO
         try:
-            done = self.run(["git", "-C", str(path), "remote", "get-url", "origin"])
+            done = self.run([git_command(), "-C", str(path), "remote", "get-url", "origin"])
         except (OSError, subprocess.SubprocessError) as exc:
             return self.unknown("git remote get-url origin", exc)
         if done.returncode != 0:

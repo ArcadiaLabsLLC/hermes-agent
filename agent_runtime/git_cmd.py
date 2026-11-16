@@ -13,6 +13,9 @@ here, and ``agent_runtime.loop_tool_lifecycles`` answers that import there
 with a loud stand-in, so a git call on the phone fails loudly instead of the
 module failing to load.
 
+Which git it runs is the host resolver's answer (``agent_runtime.host_tools.git_command``: PM's
+Git for Windows where installed, else the bare ``git`` on the caller's PATH).
+
 ``config`` pairs are rendered as ``git -c`` arguments and never written to
 ``.git/config``; a caller that carries a credential in one scrubs it from any
 stderr it surfaces (``realm_sync.git._scrub_config_values``).
@@ -24,6 +27,8 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
+
+from .host_tools import git_command
 
 __layer__ = "stores"
 __all__ = ["run_git"]
@@ -45,7 +50,7 @@ def run_git(
     the caller reads ``returncode``.
     """
 
-    command = ["git"]
+    command = [git_command()]
     for pair in config or ():
         command.extend(["-c", str(pair)])
     if repo is not None:

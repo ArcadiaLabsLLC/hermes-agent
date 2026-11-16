@@ -17,6 +17,7 @@ import unicodedata
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
+from ..host_tools import git_command
 from .grammar import (ARCHIVE_DIR, OWNER_DECISION, STARTABLE, Row, Status, asks_owner, blocked_reason, is_queue,
                       is_queue_archive, parse_note)
 
@@ -205,7 +206,7 @@ def workspace_roots(repo: Path, environ: Mapping[str, str] | None = None) -> lis
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8",
+    return subprocess.run([git_command(), "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8",
                           errors="replace", stdin=subprocess.DEVNULL, check=False)
 
 
@@ -265,7 +266,7 @@ def _origin_blobs(repo: Path, paths: list[str]) -> dict[str, str]:
 
     if not paths:
         return {}
-    proc = subprocess.run(["git", "-C", str(repo), "cat-file", "--batch"], capture_output=True,
+    proc = subprocess.run([git_command(), "-C", str(repo), "cat-file", "--batch"], capture_output=True,
                           input="".join(f"origin/main:{path}\n" for path in paths).encode("utf-8"), check=False)
     if proc.returncode:
         return {}

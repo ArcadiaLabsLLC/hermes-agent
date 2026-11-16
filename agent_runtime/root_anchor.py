@@ -86,11 +86,11 @@ from .resolution import (
     PROBE_ROOT_PREFIX,
     STORE_MARKER_DIRS,
     RuntimeResolution,
-    _platform_default_hermes_home,
     probe_isolation_required,
     resolve_runtime,
 )
 from .namespace import namespace_named
+from .host_tools import platform_default_root
 
 __layer__ = "stores"
 
@@ -263,7 +263,7 @@ def publish_store_root_anchor(
     source = os.environ if env is None else env
     item = resolution if resolution is not None else resolve_runtime(env)
     root = item.store_root
-    config_path = _platform_default_hermes_home(source) / "config.yaml"
+    config_path = platform_default_root(source) / "config.yaml"
 
     store_plan = _guarded_plan(_store_plan, source, root, config_path)
     # The head declaration is deliberately NOT conditional on the root one:
