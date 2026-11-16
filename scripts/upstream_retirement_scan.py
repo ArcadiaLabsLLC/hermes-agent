@@ -158,6 +158,14 @@ class _BlobReader:
         data = self._proc.stdout.read(int(header[2]) + 1)[:-1]
         return data.decode("utf-8", errors="replace")
 
+    def close(self) -> None:
+        """End the ``cat-file`` process (EOF on its stdin); the next read starts a new one."""
+        proc, self._proc = self._proc, None
+        if proc is not None:
+            proc.stdin.close()
+            proc.wait()
+            proc.stdout.close()
+
 
 _READER = _BlobReader()
 

@@ -41,8 +41,8 @@ import pytest
 
 import hermes_constants
 
-#: the folders whose tests fail on a leftover thread or child (see (d)); one repo-relative
-#: folder per line, ``#`` starts a comment
+#: the folders (or single test files) whose tests fail on a leftover thread or child (see (d)); one
+#: repo-relative folder or file per line, ``#`` starts a comment
 SEALED_ROOTS_PATH = Path(os.environ.get("HERMES_TEST_SEAL_ROOTS") or Path(__file__).with_name("test_seal_sealed_roots.txt"))
 # (``HERMES_TEST_SEAL_ROOTS`` names another list: the seal's own test seals a planted folder with it.)
 #: the line prefix of a leftover report outside a sealed folder
@@ -64,7 +64,8 @@ def _read_sealed_roots() -> tuple[str, ...]:
     for line in SEALED_ROOTS_PATH.read_text(encoding="utf-8").splitlines():
         entry = line.split("#", 1)[0].strip()
         if entry:
-            roots.append(entry.rstrip("/") + "/")
+            # a ``.py`` entry seals that one file of a folder not yet read whole
+            roots.append(entry if entry.endswith(".py") else entry.rstrip("/") + "/")
     return tuple(roots)
 
 
