@@ -212,7 +212,7 @@ def _script(value: Any) -> str | None:
     return value
 
 
-def _contained(path: Path, folder: Path) -> bool:
+def _resolves_inside(path: Path, folder: Path) -> bool:
     try:
         return path.resolve().is_relative_to(folder.resolve())
     except (OSError, ValueError):
@@ -256,7 +256,7 @@ def read_recipe(checkout: Path | str | None, platform: str) -> RecipeRead:
     if not target.is_file():
         return RecipeRead(platform, blank=BLANK_NO_RECIPE, why=BLANK_NO_RECIPE)
     try:
-        if not _contained(target, root):
+        if not _resolves_inside(target, root):
             raise _Unreadable(WHY_INVALID_SHAPE)
         if target.stat().st_size > MAX_RECIPE_BYTES:
             raise _Unreadable(WHY_TOO_LARGE)
@@ -265,7 +265,7 @@ def read_recipe(checkout: Path | str | None, platform: str) -> RecipeRead:
             return RecipeRead(platform, blank=BLANK_NO_RECIPE, why=f"no {platform} recipe")
         script = recipe.script_path(root)
         if script is not None:
-            if not script.is_file() or not _contained(script, root / SETUP_DIR):
+            if not script.is_file() or not _resolves_inside(script, root / SETUP_DIR):
                 raise _Unreadable(WHY_SCRIPT_MISSING if not script.exists() else WHY_SCRIPT_OUTSIDE_SETUP)
             if script.stat().st_size > MAX_SCRIPT_BYTES:
                 raise _Unreadable(WHY_SCRIPT_TOO_LARGE)
@@ -280,7 +280,7 @@ def read_script(checkout: Path | str, recipe: RepoRecipe) -> dict[str, Any] | No
     """``{path, sha256, text}`` of ``recipe``'s script in ``checkout`` (bounded, contained); None when it has none."""
 
     path = recipe.script_path(Path(checkout))
-    if path is None or not path.is_file() or not _contained(path, Path(checkout) / SETUP_DIR):
+    if path is None or not path.is_file() or not _resolves_inside(path, Path(checkout) / SETUP_DIR):
         return None
     data = path.read_bytes()[: MAX_SCRIPT_BYTES + 1]
     if len(data) > MAX_SCRIPT_BYTES:
