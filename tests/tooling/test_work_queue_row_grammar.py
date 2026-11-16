@@ -121,7 +121,7 @@ TASK_DEFECT_CEILING = 0
 #: only) no `` — `ID` `` list (:func:`agent_runtime.work_store.waits.missing_waits`; task TASK-WAITS-ARE-A-FIELD,
 #: launcher row BRAIN-QUEUE-WAITS-BACKFILL, lane w1115e-dz28 2026-11-15). Shrink-only: the rows left wait on
 #: something no row or event names, or are TAKEN by another box. Lower it as rows gain a field or close; never raise it.
-WAITS_MISSING_CEILING = 9
+WAITS_MISSING_CEILING = 6
 
 
 def split_segments(line: str) -> list[str]:
