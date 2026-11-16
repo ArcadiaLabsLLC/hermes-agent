@@ -1606,8 +1606,10 @@ Two decisions ride with it:
   [planned/office-gesture-prediction-remainder.md](planned/office-gesture-prediction-remainder.md)
 - Collapsing the office write lane to one transport (argv-arm deletion, the
   guarded remove over a population the placement verb shrank, the unbuilt
-  restore verb) → replanned launcher-side as
-  `EterniaLauncher/docs/mission_control/planned/OFFICE_WRITE_LANE_COLLAPSE_2026-10-27.md`
+  restore verb) → replanned launcher-side; its withhold step and the guarded
+  remove are built, the argv-arm deletion was dropped by owner triage
+  (2026-11-09) and the plan archived 2026-11-15 as
+  `EterniaLauncher/docs/archive/mission_control/OFFICE_WRITE_LANE_COLLAPSE_2026-10-27.md`
   (the superseded hermes plan: [archive/office-write-lane-collapse.md](archive/office-write-lane-collapse.md))
 - The page-open write storm and the `laneAbsent` window on cold open →
   [planned/office-page-open-write-storm.md](planned/office-page-open-write-storm.md)

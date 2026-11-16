@@ -4,7 +4,7 @@ B1–B4 landed: the bundled edition subtracts its profile toolsets and opt-in is
 # Planned — the bundled edition subtracts its profile's toolsets at load time; per-agent opt-in is an approval record — 2026-10-21
 
 **Owner domain:** the bundled editions and namespaces (`docs/downstream/bundled-desktop-closure-2026-09-28.md`;
-launcher plan `EterniaLauncher/docs/embedded_hermes/planned/EDITION_SWITCH_NAMESPACE_STORE.md` §6 R6); the
+launcher plan `EterniaLauncher/docs/archive/embedded_hermes/EDITION_SWITCH_NAMESPACE_STORE_2026-10-20.md` §6 R6); the
 chat turn's tool surface ([04](../04-chat-turn.md) § Toolsets, `agent_runtime/chat_lane_tool_form.py`).
 **Status:** IMPLEMENTATION-READY (design lane w1021i-plans). One doc, no code.
 **Measured / read:** 2026-10-21 against hermes `origin/main` d087df7035;

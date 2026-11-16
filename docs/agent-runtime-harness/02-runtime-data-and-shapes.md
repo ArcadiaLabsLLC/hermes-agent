@@ -73,7 +73,7 @@ file and has no helper at all any more — `ReadModel` is deleted.
 A namespace (`<namespaces dir>/<id>/`, 04 § "Before Stage 1 — the profile namespace") is named by its
 `namespace.json`. Both editions open ONE shared namespaces dir — the launcher hands every child of
 either edition the same `HERMES_NAMESPACES_DIR` (launcher plan
-`EterniaLauncher/docs/embedded_hermes/planned/EDITION_SWITCH_NAMESPACE_STORE_2026-10-20.md` §2.1;
+`EterniaLauncher/docs/archive/embedded_hermes/EDITION_SWITCH_NAMESPACE_STORE_2026-10-20.md` §2.1;
 rule page `EterniaLauncher/docs/embedded_hermes/subsystems/EDITION_STORE_2026-10-20.md`) — so the
 manifest records which store shape last wrote it:
 

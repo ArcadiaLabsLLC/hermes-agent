@@ -1,6 +1,6 @@
 """The store epoch: the one integer an older edition compares before it opens a shared namespace.
 
-Plan: ``EterniaLauncher/docs/embedded_hermes/planned/EDITION_SWITCH_NAMESPACE_STORE_2026-10-20.md`` §4
+Plan: ``EterniaLauncher/docs/archive/embedded_hermes/EDITION_SWITCH_NAMESPACE_STORE_2026-10-20.md`` §4
 (row ``RT-STORE-EPOCH``). Owner ruling 2026-10-20: guard on a BREAKING-change epoch, never on the
 version; an additive change never raises it. Both editions open one shared namespace, so the store
 records which epoch last shaped it and a build that reads an older shape refuses to open a newer one.
