@@ -4,7 +4,6 @@ RT-TERMINAL-PAYLOAD-HERMES-LOSES-TO-THE-LOGIN-PROFILE). Seam: ``agent_runtime/te
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -13,9 +12,9 @@ import pytest
 
 import tools.environments.local as local
 from agent_runtime.terminal_pinned_hermes import front_move_line, pinned_launcher_dir
+from tests._downstream.real_bash import real_bash_or_skip
 
-posix_only = pytest.mark.skipif(sys.platform == "win32" or shutil.which("bash") is None,
-                                reason="the login prelude is POSIX bash")
+posix_only = pytest.mark.skipif(sys.platform == "win32", reason="the login prelude is POSIX bash")
 
 
 def _launcher(directory: Path, says: str) -> Path:
@@ -68,7 +67,7 @@ def test_an_unpinned_dir_adds_no_line():
 def test_resolve_pins_the_serving_checkouts_launchers(tmp_path, monkeypatch, fresh_bin_cache):
     own = _launcher(tmp_path / "root" / ".hermes" / "bin", "own").parent
     _launcher(tmp_path / "machine", "machine")
-    monkeypatch.setattr(local, "__file__", str(tmp_path / "root" / "tools" / "environments" / "local.py"))
+    monkeypatch.setattr("agent_runtime.terminal_pinned_hermes.CODE_ROOT_OVERRIDE", tmp_path / "root")
     monkeypatch.setenv("PATH", f"{tmp_path / 'machine'}{os.pathsep}{os.environ.get('PATH', '')}")
     assert local._resolve_hermes_bin_dir() == str(own)
     assert local._HERMES_BIN_DIR_IS_PAYLOAD is True
@@ -84,6 +83,6 @@ def test_the_login_profile_does_not_put_another_install_first(tmp_path, monkeypa
     command = local._append_dropped_path_entries("hermes", spawn_path)
     # What `bash -lic` does: the login profile runs first and prepends the machine install's dir.
     profile = f"PATH={machine}:\"$PATH\"; export PATH\n"
-    out = subprocess.run(["bash", "-c", profile + command], env={"PATH": spawn_path},
+    out = subprocess.run([real_bash_or_skip(), "-c", profile + command], env={"PATH": spawn_path},
                          capture_output=True, text=True, timeout=30)
     assert out.stdout.strip() == "own", out.stderr

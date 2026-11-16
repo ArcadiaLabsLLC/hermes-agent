@@ -34,6 +34,11 @@ __all__ = ["front_move_line", "pinned_launcher_dir"]
 # the runner publishes the checkout's own launchers, which are the test runner's, not a serve's.
 PIN_OWN_LAUNCHERS = True
 
+# Tests point the serving code root elsewhere through this fork name, never by patching
+# upstream's ``tools.environments.local.__file__`` (``tests/tooling/test_upstream_retirement_scan.py``).
+# Product code never sets it.
+CODE_ROOT_OVERRIDE: Path | None = None
+
 
 def _holds_hermes(directory: Path) -> bool:
     names = ("hermes.exe", "hermes.cmd", "hermes") if os.name == "nt" else ("hermes",)
@@ -51,7 +56,7 @@ def pinned_launcher_dir(payload_dir: Path | None, code_root: Path) -> Path | Non
         return payload_dir
     if not PIN_OWN_LAUNCHERS:
         return None
-    own = Path(code_root) / ".hermes" / "bin"
+    own = Path(CODE_ROOT_OVERRIDE or code_root) / ".hermes" / "bin"
     return own if own.is_dir() and _holds_hermes(own) else None
 
 
