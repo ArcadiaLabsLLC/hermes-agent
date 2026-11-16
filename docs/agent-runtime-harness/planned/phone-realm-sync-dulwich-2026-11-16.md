@@ -228,7 +228,7 @@ From the 15 `agent_runtime` modules (plus `hermes_cli`'s update/version tooling)
 
 `+` marks a file that does not exist yet. Each slice names its killing mutation; the red goes in its commit body.
 S1–S6 are hermes code only; S7 waits on lane w1115e-pb (`RT-PHONE-BUNDLE-NEEDS-TWO-LIBRARIES-IT-LEAVES-OUT`,
-which is changing `bundled-phone.yaml` and the packager tests now) and on ruling §9.1.
+which is changing `bundled-phone.yaml` and the packager tests now) and ruling §9.1 is made (owner, 2026-11-16: the pure wheel on both phones).
 
 **S1 — the port and its binary half, inside realm sync** (row `RT-PHONE-REALM-SYNC-GIT-PORT`). No behaviour
 change. Files: `+agent_runtime/realm_sync/git_port.py`, `+agent_runtime/realm_sync/git_binary.py`,
@@ -299,6 +299,8 @@ OpenSSL trust).
    Pillow, admitted under `packaging.admitted_native`, and the two phones running different code)? ·
    Recommend: the pure wheel on both — realm repositories are small JSON trees, so speed is not the limit, and
    one build is what the shared suite proves.
+   **RULED 2026-11-16:** owner — "okay yea both as reccomended": the pure wheel on both phones, no compiled
+   build on Android, and the phone gate refuses the compiled one (S7, row `RT-PHONE-REALM-SYNC-PURE-WHEEL-IN-BUNDLE`).
 
 ## 10. Out of scope
 
