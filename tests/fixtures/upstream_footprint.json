@@ -1,5 +1,5 @@
 {
-  "measured_at": "2026-11-15",
+  "measured_at": "2026-11-16",
   "base": "3b42157858",
   "files": 225,
   "deleted_lines": 874,
@@ -1435,6 +1435,51 @@
       },
       "reason": "the update receipt reduces both published roster shapes (names and {profile_id, home} objects) to names through the fork-owned update_fleet_roster.roster_names before its own check; no fork seam on the identify-to-fleet-row path",
       "owner_ruling": "2026-11-15 \u00b7 RT-UPDATE-FLEET-ROSTER-DROPPED RULED: owner \u2014 \"go as reccomended\" (yes, edit upstream)"
+    },
+    {
+      "change": "RT-EXPLICIT-PROFILE-ARGS-SEAM (lane w1115e-fh6): hermes_cli/gateway_windows.py one additive seam line",
+      "before": {
+        "files": 225,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "after": {
+        "files": 225,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "reason": "HELD (fork policy: `resolve_managed_python` is the recorded parallel of pm `selected_venv`; the pinned-wrapper refusal is fork policy, lane h12-upfix 2026-09-30). PR candidate: launcher interpreter via `resolve_managed_python`, refuse a single-pinned named-profile wrapper (G11) Lane FOOTPRINT-DROP 2026-09-27: the G11 block is `hermes_cli/gateway_windows_launcher.py`, re-exported by one line; left: two `resolve_managed_python` lines and one call. The console-less task status warning DELETED (lane h13-del 2026-09-29): upstream's Scheduled Task drift reconcile (`2097cc6b88`, #113670, the `launcher arguments` leaf) is the one authority. RT-EXPLICIT-PROFILE-ARGS-SEAM (lane w1115e-fh6, owner 2026-11-16): ONE added line in `_current_profile_cli_args` (the elevated install/uninstall handoff) names the default profile through fork `gateway_downstream.explicit_profile_arg`, so the child no longer follows the sticky `active_profile`; additive, no deleted line. Retires with an upstream PR making `_profile_arg` name the default.",
+      "owner_ruling": "2026-11-16 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md, RT-EXPLICIT-PROFILE-ARGS-SEAM RULED 2026-11-16: owner \u2014 \"Fixing it properly needs one line of upstream edit at each of four launch sites do that instead\""
+    },
+    {
+      "change": "RT-EXPLICIT-PROFILE-ARGS-SEAM (lane w1115e-fh6): hermes_cli/gateway.py one additive seam line",
+      "before": {
+        "files": 225,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "after": {
+        "files": 225,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "reason": "PR #119069 (open) = the `pwd` guard; the two `getuid` guards DROPPED (upstream marks both sites POSIX-only, `windows-footgun: ok`); the home-resolution receipt HELD (lane up-offer 2026-09-30: fork observability that reads the fork-only `HERMES_PROFILE_RESOLUTION` rung the fork's `main.py` writes and the fork `gateway-service/*.cmd` wrapper layout; fix-triage 2026-09-26 verdict CARRY). PR candidate: POSIX-only `getuid`/`pwd` guards, the gateway home-resolution receipt (`hermes_cli/gateway_home_receipt.py`) (class G11); `_command_matches_profile` RETIRED at the 2026-09-29 merge (`ee5f49b943`): upstream's pid-aware `_scan_gateway_pids._matches_current_profile` taken byte-for-byte. RECORDED PARALLEL since the 2026-09-25 merge (`067fa1a257`): `resolve_managed_python` / `ManagedPythonUnavailable` + the carried `_detect_venv_dir` (deleted upstream; its replacement `_pm_runtime_venv_dir` went too in v0.23.1, `5a583fb333`, as callerless, so the parallel has no upstream twin left) - pm's committed environment does not find the launcher's out-of-checkout venv and `hermes update` was not exercised on the merged tree (Q4); retire when the launcher's install moves onto pm bundles Lane FOOTPRINT-DROP 2026-09-27: the appended block (the `_detect_venv_dir` parallel, `resolve_managed_python`, `ManagedPythonUnavailable`, `_posix_uid_or_zero`, `_emit_gateway_home_receipt`) is `hermes_cli/gateway_downstream.py`, re-exported by one line; the dead top-level `import re` dropped. RT-EXPLICIT-PROFILE-ARGS-SEAM (lane w1115e-fh6, owner 2026-11-16): ONE added line in `_gateway_run_args_for_profile` (the post-update relaunch watcher of a manual gateway) names the default profile through fork `gateway_downstream.explicit_profile_arg`, so the child no longer follows the sticky `active_profile`; additive, no deleted line. Retires with an upstream PR making `_profile_arg` name the default.",
+      "owner_ruling": "2026-11-16 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md, RT-EXPLICIT-PROFILE-ARGS-SEAM RULED 2026-11-16: owner \u2014 \"Fixing it properly needs one line of upstream edit at each of four launch sites do that instead\""
+    },
+    {
+      "change": "RT-EXPLICIT-PROFILE-ARGS-SEAM (lane w1115e-fh6): hermes_cli/update_cmd_windows.py one additive seam line",
+      "before": {
+        "files": 225,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "after": {
+        "files": 225,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "reason": "HELD (G11 `ManagedPythonUnavailable`: fork managed-python parallel, see `hermes_cli/gateway_windows.py`). PR candidate: launcher refresh tolerates `ManagedPythonUnavailable` (G11). The venv-holder clearing family left at the 2026-09-25 merge (`067fa1a257`) (upstream `5e4a2a3d24`) Lane FOOTPRINT-DROP 2026-09-27: the ManagedPythonUnavailable guard is `hermes_cli/gateway_windows_launcher.py` (`write_task_script_or_warn`); `warn_legacy_console_task` DELETED (lane h13-del 2026-09-29, upstream's drift reconcile #113670 covers it). RT-EXPLICIT-PROFILE-ARGS-SEAM (lane w1115e-fh6, owner 2026-11-16): ONE added line in `_serve_relaunch_commands` (the post-update relaunch of a stopped serve) names the default profile through fork `gateway_downstream.explicit_profile_arg`, so the child no longer follows the sticky `active_profile`; additive, no deleted line. Retires with an upstream PR making `_profile_arg` name the default.",
+      "owner_ruling": "2026-11-16 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md, RT-EXPLICIT-PROFILE-ARGS-SEAM RULED 2026-11-16: owner \u2014 \"Fixing it properly needs one line of upstream edit at each of four launch sites do that instead\""
     }
   ]
 }

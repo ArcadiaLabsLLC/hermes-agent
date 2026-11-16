@@ -435,6 +435,7 @@ def _serve_relaunch_commands(entries: list[dict]) -> list[list[str]]:
             [hermes] + (["--profile", profile] if profile and profile != "default" else [])
             + [str(entry.get("purpose"))] + (["--host", host] if host else []) + ["--port", str(port)]
         )
+        from hermes_cli.gateway_downstream import explicit_profile_arg; commands[-1][1:1] = shlex.split(explicit_profile_arg(profile=profile)) if profile == "default" else []  # fork seam: RT-EXPLICIT-PROFILE-ARGS-SEAM (owner 2026-11-16)
     return commands
 
 

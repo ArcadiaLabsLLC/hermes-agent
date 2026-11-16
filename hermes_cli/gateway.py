@@ -930,6 +930,7 @@ def _gateway_run_args_for_profile(profile: str) -> list[str]:
     args = []
     if profile != "default":
         args.extend(["--profile", profile])
+    from hermes_cli.gateway_downstream import explicit_profile_arg; args = args or shlex.split(explicit_profile_arg(profile=profile))  # fork seam: RT-EXPLICIT-PROFILE-ARGS-SEAM (owner 2026-11-16)
     args.extend(["gateway", "run", "--replace"])
     return runtime_command(PROJECT_ROOT, args)
 
