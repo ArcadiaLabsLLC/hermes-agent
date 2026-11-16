@@ -115,13 +115,13 @@ def test_setting_the_default_to_null_restores_the_shipped_text():
 
 
 def test_a_realm_rekey_carries_the_workspace_default_with_its_monitors():
-    from types import SimpleNamespace
+    from agent_runtime.realm_rekey import RekeyMap
 
     from agent_runtime.realm_rekey_outside import _rekey_lens
 
     _monitor("alpha", "ws_old")
     _rpc("runtime.lens.guidance.default.set", {"workspace_id": "ws_old", "text": "Carried rules."})
-    _rekey_lens(SimpleNamespace(workspaces={"ws_old": "ws_new"}))
+    _rekey_lens(RekeyMap(realm_old="realm_old", realm_new="realm_new", workspaces={"ws_old": "ws_new"}))
     assert _rpc("runtime.lens.get", {"monitor_id": "alpha"})["workspace_id"] == "ws_new"
     assert _guidance("alpha") == {"text": "Carried rules.", "source": "workspace", "draft": None}
     assert _rpc("runtime.lens.guidance.default.get", {"workspace_id": "ws_old"})["source"] == "shipped"

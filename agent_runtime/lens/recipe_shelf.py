@@ -25,9 +25,13 @@ What is here:
 * :data:`LENS_RECIPE_FAMILY` — the ONE description of the family (a
   ``realm_sync.document_family.DocumentFamily``): paths, bound, refusals, and
   :func:`read_recipe_document` as its ``extra_check``, so every door that stores or reads a recipe
-  (share, list, add; later the publish scan, the pull and the revert) refuses the same documents.
-  It carries no sync wiring: no ``SyncFamily`` member, no path-family row, no applier. Those are
-  row ``RT-LENS-RECIPE-REALM-SYNC-FAMILY``'s, which swaps :data:`SYNC_KIND` for the enum member.
+  (share, list, add, the publish scan, the pull; later the revert) refuses the same documents.
+* Realm sync (row ``RT-LENS-RECIPE-REALM-SYNC-FAMILY``, plan §3): :func:`lens_recipe_publish_scan`
+  and :func:`apply_lens_recipe_pull`, both scoped to the realm's workspaces by one predicate
+  (:func:`realm_admit`); a pulled recipe lands on the SHELF only — nothing is created, sealed or
+  enabled, and :func:`held_recipe_ids` names the ones a pull parked. These and the module's
+  readers are the only Lens names realm sync imports
+  (``tests/agent_runtime/lens/test_lens_shared_recipes_opt_in.py``).
 * :func:`recipe_document` / :func:`withdrawn_document` — the bytes a share and a withdrawal write.
 * :func:`read_recipe` / :func:`read_shelf` — a workspace's shelf, each document checked and
   **filed where it says** (:func:`filed_token`; one that is not is ``recipe_misfiled``).
@@ -55,10 +59,16 @@ from ..realm_sync.document_family import (
     DocumentError,
     DocumentFamily,
     DocumentPullSummary,
+    DocumentPublishScan,
     DocumentStore,
+    apply_document_pull,
     document_hash,
+    document_publish_scan,
+    document_status_row,
+    update_document_baseline_after_publish,
     validate_document,
 )
+from ..realm_sync.families import SyncFamily
 from .feed import FeedKind, address_parts, feed_address
 from .host_budget import is_private_reader
 from .manifest import read_manifest
@@ -74,8 +84,6 @@ RECIPE_KEYS = frozenset({"version", "workspace_id", "monitor_id", "withdrawn", "
 RECIPE_VERSION = 1
 #: A manifest at its own bound plus the envelope.
 MAX_RECIPE_DOCUMENT_BYTES = MAXIMUM_MANIFEST_BYTES + 1024
-#: The publish artifact kind; ``SyncFamily.LENS_RECIPE`` takes this value when realm sync is wired.
-SYNC_KIND = "lens_recipe"
 
 
 class RecipeRefusal(str, Enum):
@@ -102,6 +110,8 @@ class RecipeRefusal(str, Enum):
     TOO_LARGE = REFUSAL_TOO_LARGE
     #: A shelf file listed and then gone before it was read (the family's ``unreadable_reason``).
     UNREADABLE = "lens_recipe_unreadable"
+    #: A realm pull carried a recipe for a workspace that is not one of that realm's: never written.
+    OUTSIDE_REALM = "recipe_outside_realm"
 
 
 _MESSAGES = {
@@ -112,6 +122,7 @@ _MESSAGES = {
     RecipeRefusal.WITHDRAWN.value: "The recipe is no longer shared.",
     RecipeRefusal.NEEDS_WORKSPACE.value: "A recipe is shared with a workspace, and none is named or active.",
     RecipeRefusal.ID_TAKEN.value: "Another monitor of this workspace already shares under that recipe id.",
+    RecipeRefusal.OUTSIDE_REALM.value: "The recipe is for a workspace outside this realm.",
 }
 
 
@@ -136,8 +147,8 @@ class RecipeDocumentError(LensRefusal, DocumentError):
 
 
 class LensRecipePullSummary(DocumentPullSummary):
-    """The recipe pull's accounting (``result["lens_recipe_sync"]`` once realm sync carries the
-    family); tokens are ``<workspace>/<recipe>``."""
+    """The recipe pull's accounting, carried on a pull ack as ``result["lens_recipe_sync"]``;
+    tokens are ``<workspace>/<recipe>``."""
 
     __slots__ = ()
 
@@ -195,7 +206,7 @@ LENS_RECIPE_FAMILY = DocumentFamily(
     conflict_path=lambda realm_id, token: paths.lens_recipe_conflict_path(realm_id, *token.split("/", 1)),
     conflict_dir=lambda realm_id: paths.lens_recipe_conflicts_root(realm_id),
     summary_type=LensRecipePullSummary,
-    sync_kind=SYNC_KIND,
+    sync_kind=SyncFamily.LENS_RECIPE,
     unreadable_reason=RecipeRefusal.UNREADABLE.value,
     extra_check=read_recipe_document,
     glob="*/*.json",
@@ -296,6 +307,99 @@ def write_recipe(raw: bytes) -> ShelfRecipe:
             raise RecipeDocumentError(RecipeRefusal.ID_TAKEN)
     store.write(token, raw)
     return entry
+
+
+# --- realm sync (plan §3: publish and pull; the shelf only) ---------------------
+
+
+def _realm_tokens(workspace_ids) -> frozenset[str]:
+    return frozenset(paths.safe_path_token(workspace_id) for workspace_id in workspace_ids)
+
+
+def realm_admit(workspace_ids):
+    """The pull's ``admit``: a recipe is taken only for one of the realm's workspaces
+    (``recipe_outside_realm``) and only filed where it says (``recipe_misfiled``) — the one
+    scope rule the publish scan applies too."""
+
+    tokens = _realm_tokens(workspace_ids)
+
+    def admit(token: str, raw: bytes) -> str | None:
+        if token.split("/", 1)[0] not in tokens:
+            return RecipeRefusal.OUTSIDE_REALM.value
+        if filed_token(json.loads(raw)) != token:
+            return RecipeRefusal.MISFILED.value
+        return None
+
+    return admit
+
+
+def lens_recipe_publish_scan(workspace_ids) -> DocumentPublishScan:
+    """The shelf documents of the realm's workspaces only, as verbatim artifacts. A document that
+    will not read, or is not filed where it says, publishes nothing and is refused typed."""
+
+    tokens = _realm_tokens(workspace_ids)
+    store = DocumentStore(LENS_RECIPE_FAMILY)
+    wanted: set[str] = set()
+    misfiled: list[dict[str, Any]] = []
+    for token in store.list_tokens():
+        if token.split("/", 1)[0] not in tokens:
+            continue
+        raw = store.read(token)
+        try:
+            if raw is not None and filed_token(validate_document(LENS_RECIPE_FAMILY, raw)) != token:
+                misfiled.append({LENS_RECIPE_FAMILY.token_field: token, "reason": RecipeRefusal.MISFILED.value,
+                                 "error": RecipeDocumentError.__name__})
+                continue
+        except RecipeDocumentError:
+            pass  # the scan names it, typed, below
+        wanted.add(token)
+    scan = document_publish_scan(LENS_RECIPE_FAMILY, wanted)
+    return DocumentPublishScan(artifacts=scan.artifacts, hashes=scan.hashes, refused=[*scan.refused, *misfiled])
+
+
+def apply_lens_recipe_pull(realm_id: str, subtree, workspace_ids) -> LensRecipePullSummary:
+    """Adopt, keep or HOLD each pulled recipe ON THE SHELF. Nothing is created, sealed or enabled:
+    a recipe becomes a DRAFT only through ``runtime.lens.recipe.add``."""
+
+    return apply_document_pull(LENS_RECIPE_FAMILY, realm_id, subtree,  # type: ignore[return-value]
+                               admit=realm_admit(workspace_ids))
+
+
+def update_lens_recipe_baseline_after_publish(realm_id: str, hashes: dict[str, str]) -> None:
+    update_document_baseline_after_publish(LENS_RECIPE_FAMILY, realm_id, hashes)
+
+
+def lens_recipe_status_row(realm_id: str, workspace_ids) -> dict[str, Any]:
+    return document_status_row(LENS_RECIPE_FAMILY, realm_id, lens_recipe_publish_scan(workspace_ids))
+
+
+def held_recipe_ids(realm_id: str, workspace_id: str) -> list[str]:
+    """The recipe ids of ``workspace_id`` a pull of ``realm_id`` parked (both sides changed them)."""
+
+    root = paths.lens_recipe_conflicts_root(realm_id) / paths.safe_path_token(workspace_id)
+    return sorted(path.stem for path in root.glob("*.json") if path.is_file()) if root.is_dir() else []
+
+
+def rekeyed_recipe_marks(workspace_ids, was) -> list[tuple[str, str]]:
+    """``(new hash, old hash)`` of every shelf document of the re-keyed ``workspace_ids`` (their NEW
+    ids), where ``was(parsed)`` is the document as it read before the re-key rewrote its ids. The
+    realm re-key moves each monitor's recipe marks by these pairs (``lens.store.rekey_recipe_marks``)."""
+
+    store = DocumentStore(LENS_RECIPE_FAMILY)
+    prefixes = tuple(f"{token}/" for token in _realm_tokens(workspace_ids))
+    pairs: list[tuple[str, str]] = []
+    for token in store.list_tokens():
+        raw = store.read(token)
+        if not token.startswith(prefixes) or raw is None:
+            continue
+        try:
+            new = document_hash(LENS_RECIPE_FAMILY, raw)
+            old = document_hash(LENS_RECIPE_FAMILY, json.dumps(was(json.loads(raw))).encode("utf-8"))
+        except RecipeDocumentError:
+            continue
+        if new != old:
+            pairs.append((new, old))
+    return pairs
 
 
 # --- what Add writes -----------------------------------------------------------------

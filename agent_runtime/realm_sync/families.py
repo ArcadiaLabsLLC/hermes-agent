@@ -89,6 +89,8 @@ class SyncFamily(StrEnum):
     LEVEL = "level"
     MAP = "map"
     PREFAB = "prefab"
+    #: A workspace's SHARED Lens recipes (``lens/recipe_shelf.py``): the shelf, never a monitor.
+    LENS_RECIPE = "lens_recipe"
     #: The repo-slot documents (build plan §3.1): key-wise at three depths.
     WORKSPACE_SLOTS = "workspace_slots"
     PROFILE_FILE = "profile_file"
@@ -335,6 +337,14 @@ SYNC_PATH_FAMILIES: Final[tuple[SyncPathFamily, ...]] = (
     # USER PREFABS: the same whole-document class, one descriptor
     # (``prefab_store.PREFAB_FAMILY``), nested ``<profile>/<prefab>.json``.
     SyncPathFamily(SyncFamily.PREFAB, _prefix("store/prefabs/"), owner="prefab_store.apply_prefab_pull"),
+    # SHARED LENS RECIPES: the same whole-document class (``lens.recipe_shelf.LENS_RECIPE_FAMILY``),
+    # nested ``<workspace>/<recipe>.json`` and scoped to this realm's workspaces. A raw write would
+    # put a peer's recipe on the shelf without its checks; nothing here ever reaches a monitor.
+    SyncPathFamily(
+        SyncFamily.LENS_RECIPE,
+        _prefix("store/lens_recipes/"),
+        owner="lens.recipe_shelf.apply_lens_recipe_pull",
+    ),
     # The repo-slot documents: a key-wise merge (slot names union, tombstones by
     # issued_at, machines disjoint by id). A raw write would drop another machine's
     # accounting or resurrect a slot a newer declaration removed.

@@ -269,6 +269,7 @@ class _PullRun:
     level: Any = None
     map: Any = None
     prefab: Any = None
+    lens_recipe: Any = None
     skill: Any = None
     skill_tombstones: dict[str, list] | None = None
     persona: Any = None
@@ -346,6 +347,20 @@ def _pull_prefab(run: _PullRun) -> bool:
 
     run.prefab = apply_prefab_pull(run.realm.id, run.subtree)
     return bool(run.prefab.changed)
+
+
+def _pull_lens_recipes(run: _PullRun) -> bool:
+    # SHARED LENS RECIPES: same exclusion (store/lens_recipes/* -> the owner applier), the
+    # prefab family's whole-document 3-way shape, onto the SHELF only — nothing is created, sealed
+    # or enabled (ruling OR-2026-11-09-lens-shared-recipes-opt-in). After the generic loop that
+    # materialized store/workspaces/*: a recipe is addressed BY a workspace, and one for a
+    # workspace outside this realm is refused (``recipe_outside_realm``).
+    from ..lens.recipe_shelf import apply_lens_recipe_pull
+    from .artifacts import _workspaces_for_realm
+
+    workspace_ids = [workspace.id for workspace in _workspaces_for_realm(run.realm)]
+    run.lens_recipe = apply_lens_recipe_pull(run.realm.id, run.subtree, workspace_ids)
+    return bool(run.lens_recipe.changed)
 
 
 def _pull_workspace_slots(run: _PullRun) -> bool:
@@ -489,6 +504,7 @@ PULL_APPLIERS: Final[tuple[PullApplier, ...]] = (
     PullApplier("level_sync", _pull_level),
     PullApplier("map_sync", _pull_map),
     PullApplier("prefab_sync", _pull_prefab),
+    PullApplier("lens_recipe_sync", _pull_lens_recipes),
     PullApplier("workspace_slots_sync", _pull_workspace_slots),
     PullApplier("workspace_chat_fold", _pull_shared_chats),
     PullApplier("skill_sync", _pull_skill_inbox),
@@ -521,6 +537,9 @@ def _pull_accounting(run: _PullRun, install_results: list[Any]) -> dict[str, Any
         "map_sync": run.map.as_dict(),
         # Unconditional for the same reason: ``source: null`` = no shelf travelled.
         "prefab_sync": run.prefab.as_dict(),
+        # Unconditional for the same reason: ``source: null`` = no shelf travelled (or an older
+        # publisher). ``adopted`` not empty is Eternia's cue to re-read ``runtime.lens.recipe.list``.
+        "lens_recipe_sync": run.lens_recipe.as_dict(),
         # Unconditional for the reason the two rows above are: ``source: null`` says
         # "this realm publishes no slot document" rather than "an older hermes".
         "workspace_slots_sync": run.workspace_slots.as_dict(),

@@ -12,7 +12,7 @@ verb        params -> result
 list        {workspace_id?} -> {workspace_id, recipes: [row], held: [recipe_id], refused:
             [{recipe_id, reason}]} (absent ``workspace_id``: the active workspace). ``refused``
             names each shelf document that will not read or is not filed where it says; ``held``
-            is the recipes a realm pull parked — always empty until realm sync carries the family
+            is the recipe ids a pull of the workspace's realm parked (changed both here and there)
 share       {monitor_id} -> row. Writes the monitor's SEALED manifest (never a draft) to its
             workspace's shelf, over the recipe it shared before (a re-share is this same verb: no
             withdraw first). ``monitor_not_found``, ``not_sealed``, ``recipe_needs_workspace``
@@ -101,6 +101,21 @@ def _row(recipe, monitors: dict[str, dict]) -> dict:
             "summary": None if recipe.withdrawn else recipe_summary(recipe.manifest)}
 
 
+def _parked_recipes(workspace_id: str) -> list[str]:
+    """The recipes of ``workspace_id`` its realm's last pull parked; none for a workspace this PC
+    has no record of, or one in no realm."""
+
+    from agent_runtime.errors import NotFound
+    from agent_runtime.lens.recipe_shelf import held_recipe_ids
+    from agent_runtime.store import WorkspaceStore
+
+    try:
+        realm_id = WorkspaceStore().get(workspace_id).realm_id
+    except NotFound:
+        return []
+    return held_recipe_ids(realm_id, workspace_id) if realm_id else []
+
+
 def _monitors() -> dict[str, dict]:
     return {row["monitor_id"]: row for row in _store().monitors()}
 
@@ -115,7 +130,7 @@ def _runtime_lens_recipe_list(rid: Any, params: dict, context: RpcContext | None
         recipes, refused = read_shelf(workspace_id)
         monitors = _monitors()
         return {"workspace_id": workspace_id, "recipes": [_row(recipe, monitors) for recipe in recipes],
-                "held": [], "refused": refused}
+                "held": _parked_recipes(workspace_id), "refused": refused}
 
     return _lens_call(rid, body)
 
