@@ -678,12 +678,33 @@ def test_closing_a_task_lists_its_open_follow_up_rows(clones, tmp_path, monkeypa
     assert "follow-up" not in capsys.readouterr().out, "TASK-P is still open: nothing to read yet"
     assert work_row.main(["close", "RT-S2", *close]) == 0
     assert capsys.readouterr().out.split("\n")[-5:] == [
-        "task `TASK-P` is closed with 3 follow-up row(s) open under `p-followups` — read them together now: one "
-        "that is a defect in what this task built goes back into the task, which reopens for it",
+        "task `TASK-P` is closed with 3 follow-up row(s) open (`from: TASK-P`, or under `p-followups`) — read them "
+        "together now: one that is a defect in what this task built goes back into the task, which reopens for it",
         "  `RT-F1` — a loose end (hermes, q.md)",
         "  `RT-F2` — a parked one (hermes, q.md)",
         "  `L-F` — a launcher loose end (launcher, mission-control-queue.md)",
         ""]
+
+
+def test_closing_a_task_lists_the_rows_that_name_it_in_a_from_segment(clones, tmp_path, monkeypatch, capsys):
+    """Owner 2026-11-15 ("yea do the cleanup"): follow-ups sit under the domain's ONE standing follow-ups task, each
+    naming its task in a ``from:`` segment. KILLING MUTATION: drop the ``mark`` arm of ``follow_up_lines`` -> only
+    the rows still under ``p-followups`` are listed, red. A row naming another task is not listed."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path, "- **`L-F` — a launcher loose end** · group: mc-followups · from: `TASK-P` · READY 2026-11-09\n")
+    _seed(mine, TASK_ROWS + "- **`TASK-Q-FOLLOWUPS` — What this queue's tasks found** · task: q-followups · READY 2026-11-09\n"
+          "- **`RT-F1` — a loose end** · group: q-followups · from: `TASK-P` · READY 2026-11-09\n"
+          "- **`RT-F3` — someone else's** · group: q-followups · from: `TASK-OTHER` · READY 2026-11-09\n")
+    close = ["--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date", "2026-11-09", "--repo", str(mine)]
+    assert work_row.main(["close", "RT-S1", *close]) == 0
+    capsys.readouterr()
+    assert work_row.main(["close", "RT-S2", *close]) == 0
+    out = capsys.readouterr().out
+    assert "2 follow-up row(s) open (`from: TASK-P`" in out
+    assert "  `RT-F1` — a loose end (hermes, q.md)" in out
+    assert "  `L-F` — a launcher loose end (launcher, mission-control-queue.md)" in out
+    assert "RT-F3" not in out
 
 
 def test_closing_a_task_with_no_follow_up_rows_prints_nothing_about_them(clones, tmp_path, monkeypatch, capsys):

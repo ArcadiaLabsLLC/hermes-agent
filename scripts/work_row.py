@@ -354,18 +354,24 @@ def close_task(repo: Path, closed: Row, task: Row, texts: dict[Path, str], archi
 
 
 def follow_up_lines(task: Row, rows: list[Row]) -> list[str]:
-    """After ``task`` is archived: the live rows under ``<slug>-followups`` in every brain read, by ID and title,
-    under one line saying to read them together — the last moment a defect parked there is in view (launcher row
+    """After ``task`` is archived: its live follow-up rows in every brain read, by ID and title, under one line
+    saying to read them together — the last moment a defect parked there is in view (launcher row
     QA-TASK-CLOSE-SHOWS-ITS-FOLLOW-UP-ROWS; the words are ``EterniaLauncher/tool/queue/close_row.dart::
-    _listFollowUps``'s). A print only: nothing when there are none, and no refusal."""
+    _listFollowUps``'s). A follow-up row is one carrying `` · from: `<task ID>` `` under its domain's standing
+    follow-ups task (owner 2026-11-15, "yea do the cleanup": one follow-ups task per domain queue), or one still
+    under a per-task ``<slug>-followups``. A print only: nothing when there are none, and no refusal. The Windows box
+    and the teammate close rows with this same tool."""
 
     slug = f"{task.task}-followups"
-    found = [row for row in rows if row.task is None and row.group is not None
-             and (row.group == slug or row.group.startswith(slug + "."))]
+    mark = f" · from: `{task.ref.id}`"
+    # MUTATION: drop the ``mark`` arm and test_closing_a_task_lists_the_rows_that_name_it_in_a_from_segment reddens.
+    found = [row for row in rows if row.task is None and (
+        (row.group is not None and (row.group == slug or row.group.startswith(slug + "."))) or mark in row.raw)]
     if not found:
         return []
-    return [f"task `{task.ref.id}` is closed with {len(found)} follow-up row(s) open under `{slug}` — read them "
-            "together now: one that is a defect in what this task built goes back into the task, which reopens for it",
+    return [f"task `{task.ref.id}` is closed with {len(found)} follow-up row(s) open (`from: {task.ref.id}`, or under "
+            f"`{slug}`) — read them together now: one that is a defect in what this task built goes back into the "
+            "task, which reopens for it",
             *(f"  `{row.ref.id}` — {row.title} ({row.ref.slot}, {Path(row.ref.note).name})" for row in found)]
 
 
