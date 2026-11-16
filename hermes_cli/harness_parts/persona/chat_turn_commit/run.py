@@ -126,14 +126,14 @@ def _resident_native_history(runtime_registry, session_db, root_session_id: str)
 
 
 
-def _is_work_turn(args) -> bool:
+def _is_work_turn(requested_by) -> bool:
     """A Work run's turn (``requested_by`` ``work:<request>``, ``work_store/persona_turn.py``).
 
     RULED 2026-11-12 (RT-STEER-ONLY-STREAMING-TURNS): a Work turn takes an operator steer though it
     streams to no screen — the operator watches it on the board; a forged delivery or relay turn does not.
     """
 
-    return is_work_requester(getattr(args, "requested_by", None))
+    return is_work_requester(requested_by)
 
 class _RunPhases:
     """The ``TurnCommit`` methods that build the turn and run it through the provider."""
@@ -211,7 +211,7 @@ class _RunPhases:
         # types the row the RUNTIME writes (profile_runner.
         # stage_persona_chat_user_row_marker) rather than a second write here.
         relay_sender_marker = _resolve_relay_sender_marker(
-            getattr(args, "requested_by", None),
+            self.turn_record.requested_by,
             instance_store=self.instance_store,
             relay_chain_in=self.relay_chain_in,
         )
@@ -263,7 +263,7 @@ class _RunPhases:
             session_model_config=session_model_config,
             max_seconds=resolve_mission_chat_turn_seconds(
                 getattr(args, "max_seconds", None),
-                attended=attended_for_requester(getattr(args, "requested_by", None))
+                attended=attended_for_requester(self.turn_record.requested_by)
                 and getattr(getattr(self, "qa_turn_overrides", None), "checkpoint_after_seconds", None) is None,
             ),
             relay_deadline_epoch=self.relay_deadline,
@@ -443,10 +443,9 @@ class _RunPhases:
         turn_phases.count_delta("registry_probe_rounds", _registry_probe_rounds())
         turn_phases.count_delta("visibility_bundle_builds", _visibility_bundle_builds())
         try:
-            if not getattr(self.args, "stream", False) and not _is_work_turn(self.args):
+            if not getattr(self.args, "stream", False) and not _is_work_turn(self.turn_record.requested_by):
                 return None
             from agent_runtime import chat_root_send_queue
-            from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
 
             handle = start_active_mission_chat_turn(
                 runtime_root=paths.store_root(),
@@ -459,7 +458,7 @@ class _RunPhases:
                 # Kept beside the watcher's ledger: a steer this turn accepts and then dies
                 # with is queued by the next serve boot from these, not after the operator's
                 # next send (RT-DEAD-TURN-STEER-WAITS-FOR-NEXT-TURN).
-                send_args=chat_root_send_queue.persistable_args(self.args, origin=send_origin()),
+                send_args=chat_root_send_queue.persistable_args(self.args, origin=self.turn_record.origin),
             )
             return handle.close
         finally:
@@ -488,6 +487,8 @@ class _RunPhases:
             turn_id=stream_emitter.turn_id,
             state=TURN_STATE_PENDING,
             elements=stream_emitter.elements,
+            # The turn's start is its admission (``turn_record``), not this write's own clock.
+            started_at=self.turn_record.started_at,
             metadata={
                 "root_chat_session_id": session_id,
                 "active_session_id": self.active_session_id,
@@ -677,7 +678,7 @@ class _RunPhases:
                 ),
                 user_image_paths=getattr(self, "user_image_paths", ()),
                 relay_sender_marker=self.relay_sender_marker,
-                attended=attended_for_requester(getattr(args, "requested_by", None)),
+                attended=attended_for_requester(self.turn_record.requested_by),
                 root_chat_session_id=self.session_id,
                 client_message_id=self.client_message_id,
                 runtime_registry=self.runtime_registry,

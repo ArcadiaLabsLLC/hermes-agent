@@ -25,7 +25,7 @@ run. Every site that mints a ``steer-next-…`` send goes through :func:`_next_t
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Mapping
 
 from agent_runtime.chat_root_send_queue import ORIGIN_ARG
 from agent_runtime.chat_turn import INTENT_HINT_DEFAULT, OPERATOR_REQUESTED_BY, SURFACE_PROMPT_DEFAULT
@@ -187,15 +187,16 @@ def leftover_steer_client_message_id(pending: Any, turn_client_message_id: str) 
     return NEXT_TURN_PREFIX + str(turn_client_message_id or "").strip()
 
 
-def queue_leftover_steer(args: Any, *, session_id: str, client_message_id: str, raw: Any) -> str | None:
+def queue_leftover_steer(args: Any, *, session_id: str, client_message_id: str, raw: Any,
+                         origin: Mapping[str, Any]) -> str | None:
     """Queue ``raw["pending_steer"]`` as the root's next operator send. Returns its id.
 
-    ``None`` when the turn left nothing over. Called under the chat-root lease, so the
-    entry is on disk before the root frees; the lease release wakes the runner.
+    ``origin`` is the turn's own sender, from its admission record (``turn_record.ChatTurnRecord``),
+    never re-read off the serve request here. ``None`` when the turn left nothing over. Called under
+    the chat-root lease, so the entry is on disk before the root frees; the lease release wakes the runner.
     """
 
     from agent_runtime import chat_root_send_queue
-    from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
 
     pending = raw.get("pending_steer") if isinstance(raw, dict) else None
     text = _next_turn_text(pending)
@@ -204,7 +205,7 @@ def queue_leftover_steer(args: Any, *, session_id: str, client_message_id: str, 
     next_id = leftover_steer_client_message_id(pending, client_message_id)
     ids = steer_ids(pending)
     persisted = _next_turn_send(
-        chat_root_send_queue.persistable_args(args, origin=send_origin()), session_id=session_id, text=text,
+        chat_root_send_queue.persistable_args(args, origin=origin), session_id=session_id, text=text,
         next_id=next_id, ids=ids, sender=_steer_sender(session_id, ids))
     chat_root_send_queue.enqueue(session_id, next_id, persisted)
     return next_id
@@ -212,7 +213,7 @@ def queue_leftover_steer(args: Any, *, session_id: str, client_message_id: str, 
 
 def requeue_undelivered_steers(
     args: Any, *, session_id: str, client_message_id: str, session_db: Any, turn_returned: bool,
-    raw: Any = None,
+    origin: Mapping[str, Any], raw: Any = None,
 ) -> list[str]:
     """Queue every accepted steer that reached neither the transcript nor a next turn. Returns their ids.
 
@@ -223,16 +224,16 @@ def requeue_undelivered_steers(
     accepting until the runner's cleanup stops it, after upstream's finalizer drained the
     buffer for the last time (RT-STEER-ACCEPTED-AS-REPLY-ENDS) — so "the run returned" alone
     accounts for nothing. Process-completion notices are not operator input and are not
-    re-sent. Called under the chat-root lease, like ``queue_leftover_steer``.
+    re-sent. ``origin`` is the turn's admission record's sender, as for ``queue_leftover_steer``.
+    Called under the chat-root lease, like ``queue_leftover_steer``.
     """
 
     from agent_runtime import chat_root_send_queue
-    from hermes_cli.harness_parts.serve.queued_turn_origin import send_origin
 
     if not session_id:
         return []
     return _requeue_from_ledger(
-        chat_root_send_queue.persistable_args(args, origin=send_origin()), session_id=session_id,
+        chat_root_send_queue.persistable_args(args, origin=origin), session_id=session_id,
         client_message_id=client_message_id, session_db=session_db, turn_returned=turn_returned,
         handed_back=raw.get("pending_steer") if isinstance(raw, dict) else None,
     )
