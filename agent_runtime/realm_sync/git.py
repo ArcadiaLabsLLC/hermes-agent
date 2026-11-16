@@ -1,6 +1,8 @@
 """The realm sync repository on disk: authorization, clone/init, git plumbing, redaction.
 
-Every subprocess realm sync runs goes through ``_git`` / ``_git_clone`` here, and
+Realm sync asks git for NAMED STEPS (``git_port.SyncGit``) through ``sync_git(repo)``,
+which hands back the backend ``sync_git_backend()`` picks for this call. The binary
+backend (``git_binary``) runs every subprocess through ``_git`` / ``_git_clone`` here, and
 the credential's ``-c`` config never leaves this module unscrubbed.
 """
 
@@ -10,6 +12,7 @@ import os
 import shutil
 import subprocess
 from collections.abc import Sequence
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -22,6 +25,7 @@ from .. import paths
 from ..git_cmd import run_git
 from ..models import Realm
 from ..redaction import SECRET_ASSIGNMENT_RE
+from .git_port import SyncGit
 from .models import (
     RealmMembershipProvider,
     RealmSyncError,
@@ -39,6 +43,7 @@ __all__ = [
     "_ensure_sync_repo",
     "_git",
     "_git_clone",
+    "_git_failure",
     "_git_state",
     "_has_remote",
     "_looks_like_remote",
@@ -53,8 +58,37 @@ __all__ = [
     "_sync_repo_path",
     "_sync_state",
     "SYNC_IDENTITY",
+    "SyncGitBackend",
     "run_sync_git",
+    "sync_git",
+    "sync_git_backend",
 ]
+
+
+class SyncGitBackend(Enum):
+    """Which git answers realm sync's steps (``git_port.SyncGit``)."""
+
+    #: The host's git program (``git_binary``): every desktop.
+    BINARY = "binary"
+    #: The pure-Python git a phone carries (plan phone-realm-sync-dulwich-2026-11-16).
+    DULWICH = "dulwich"
+
+
+def sync_git_backend() -> SyncGitBackend:
+    """The ONE answer to "which git syncs realms here", read per call; never a sniff of the host."""
+
+    return SyncGitBackend.BINARY
+
+
+def sync_git(repo: Path) -> SyncGit:
+    """The realm-sync port for the clone at ``repo``, answered by this call's backend."""
+
+    backend = sync_git_backend()
+    if backend is SyncGitBackend.BINARY:
+        from .git_binary import BinarySyncGit
+
+        return BinarySyncGit(repo)
+    raise RealmSyncError("sync_backend_unknown", f"Realm sync has no git backend {backend.value!r} on this device.")
 
 
 def _authorize(realm: Realm, action: str, membership: RealmMembershipProvider | None, credential: RealmSyncCredential | None = None) -> None:
@@ -100,10 +134,10 @@ def _ensure_sync_repo(realm: Realm, *, credential: RealmSyncCredential | None = 
     if not (repo.exists() and (repo / ".git").exists()):
         if _looks_like_remote(str(realm.sync_manifest_ref or "")):
             repo.parent.mkdir(parents=True, exist_ok=True)
-            _git_clone(str(realm.sync_manifest_ref), repo, extra_config=_credential_git_config(credential))
+            sync_git(repo).clone(str(realm.sync_manifest_ref), credential)
         else:
             repo.mkdir(parents=True, exist_ok=True)
-            _git(repo, "init")
+            sync_git(repo).init()
     _adopt_credential_remote(realm, repo, credential)
     _follow_server_repository(realm, repo, credential)
     _ensure_repo_gitattributes(repo)
@@ -153,15 +187,16 @@ def _follow_server_repository(realm: Realm, repo: Path, credential: RealmSyncCre
     url = str(realm.sync_manifest_ref or "")
     if not _looks_like_remote(url):
         return
-    origin = _git(repo, "config", "--get", "remote.origin.url", check=False).strip()
+    git = sync_git(repo)
+    origin = git.remote_url("origin")
     if not origin:
         return  # never a server clone (a pinned or re-keyed repo): not this function's to give a remote
     if origin == url:
         return
-    branch = _git(repo, "symbolic-ref", "--short", "-q", "HEAD", check=False).strip() or _LOCAL_REALM_BRANCH
-    # ``remote remove`` drops the OLD repository's tracking refs with it: a stale ``origin/<branch>`` left
+    branch = git.current_branch() or _LOCAL_REALM_BRANCH
+    # ``remote_remove`` drops the OLD repository's tracking refs with it: a stale ``origin/<branch>`` left
     # behind would read as the new repository's tip.
-    _git(repo, "remote", "remove", "origin")
+    git.remote_remove("origin")
     from ..git_remote_adopt import AdoptRefused, adopt_remote
 
     config = (*_REPO_CONFIG, *(_credential_git_config(credential) or ()))
@@ -170,8 +205,11 @@ def _follow_server_repository(realm: Realm, repo: Path, credential: RealmSyncCre
                      push_into_empty=False, run=run_sync_git)
     except AdoptRefused as exc:
         # Put the old ``origin`` back, so the next verb sees the move again and retries it.
-        _git(repo, "remote", "remove", "origin", check=False)
-        _git(repo, "remote", "add", "origin", origin, check=False)
+        git.remote_remove("origin", missing_ok=True)
+        try:
+            git.remote_add("origin", origin)
+        except RealmSyncError:
+            pass
         detail = _redact_text(_scrub_config_values(exc.detail, config))
         code = _ADOPT_REFUSAL_CODES.get(exc.reason, "sync_remote_unreachable")
         if code == "sync_remote_unreachable" and "authentication" in detail.lower():
@@ -263,13 +301,11 @@ def _align_branch(repo: Path, branch: str) -> None:
     """Name the local branch ``branch`` so ``push``/``@{u}`` match it under
     ``push.default=simple`` (a plain ``git init`` may have named it ``master``)."""
 
-    current = _git(repo, "symbolic-ref", "--short", "-q", "HEAD", check=False).strip()
+    git = sync_git(repo)
+    current = git.current_branch()
     if not current or current == branch:
         return
-    if _git(repo, "rev-parse", "-q", "--verify", "HEAD", check=False).strip():
-        _git(repo, "branch", "-M", branch)
-    else:
-        _git(repo, "symbolic-ref", "HEAD", f"refs/heads/{branch}")
+    git.rename_branch(branch)
 
 
 def _ensure_repo_gitattributes(repo: Path) -> None:
@@ -335,7 +371,8 @@ def _pull_remote_into_repo(repo: Path, *, credential: RealmSyncCredential | None
         ours = path.is_file() and _REALM_SYNC_GITATTRIBUTES_MARKER in path.read_bytes()
     except OSError:
         ours = False
-    if ours and not _git(repo, "ls-files", "--", ".gitattributes", check=False).strip():
+    git = sync_git(repo)
+    if ours and not git.is_tracked(".gitattributes"):
         try:
             path.unlink()
         except OSError:
@@ -344,7 +381,7 @@ def _pull_remote_into_repo(repo: Path, *, credential: RealmSyncCredential | None
         if _git_state(repo)["ahead"]:
             _merge_remote(repo, credential=credential)
         else:
-            _git(repo, "pull", "--ff-only", extra_config=_credential_git_config(credential))
+            git.pull_fast_forward(credential)
     finally:
         _ensure_repo_gitattributes(repo)
 
@@ -367,25 +404,13 @@ def _merge_remote(repo: Path, *, credential: RealmSyncCredential | None = None) 
     and every later sync verb reads the same state from ``_git_state`` and refuses the same
     way until they have cleared it."""
 
-    proc = run_sync_git(("pull", "--no-rebase", "--no-edit", "-X", "theirs"), repo=repo,
-                   config=(*_REPO_CONFIG, *(_credential_git_config(credential) or ())))
-    if proc.returncode == 0:
-        return
-    conflicts = [line.strip() for line in _git(repo, "diff", "--name-only", "--diff-filter=U", check=False).splitlines() if line.strip()]
-    if conflicts:
+    merged = sync_git(repo).merge_remote_theirs(credential)
+    if merged.conflicts:
         raise RealmSyncError(
             "sync_conflict",
             "Another member published changes to the same documents; resolve the conflicts in the realm sync repo, then publish again.",
-            safe_details={"conflicts": conflicts},
+            safe_details={"conflicts": list(merged.conflicts)},
         )
-    code = "sync_auth_failed" if "authentication" in (proc.stderr or "").lower() else "sync_remote_unreachable"
-    raise RealmSyncError(
-        code,
-        "git command failed for realm sync.",
-        retryable=True,
-        safe_details={"git_args": ["pull", "--no-rebase", "-X", "theirs"],
-                      "stderr": _redact_text(_scrub_config_values(proc.stderr, _credential_git_config(credential)))},
-    )
 
 
 def _credential_git_config(credential: RealmSyncCredential | None) -> list[str] | None:
@@ -437,7 +462,7 @@ def _carry_shared_clone(realm: Realm, repo: Path) -> None:
     if not (legacy / ".git").is_dir() or repo.exists() or not _realm_subtree(legacy, realm.id).exists():
         return  # nothing of this realm's is there: a realm made since clones are its own starts clean
     ref = str(realm.sync_manifest_ref or "").strip()
-    origin = run_sync_git(("config", "--get", "remote.origin.url"), repo=legacy).stdout.strip()
+    origin = sync_git(legacy).remote_url("origin") or ""
     if origin and _looks_like_remote(ref) and origin != ref:
         return
     try:
@@ -459,25 +484,27 @@ def _retire_shared_clone(legacy: Path) -> bool:
 
     realms = legacy / "realms"
     held = [entry.name for entry in realms.iterdir() if entry.is_dir()] if realms.is_dir() else []
-    head = run_sync_git(("rev-parse", "-q", "--verify", "HEAD"), repo=legacy)
-    status = run_sync_git(("status", "--porcelain", "--untracked-files=all"), repo=legacy)
-    if head.returncode != 0 or status.returncode != 0:
+    git = sync_git(legacy)
+    commit = git.resolve("HEAD")
+    if commit is None:
         return False
-    for line in status.stdout.splitlines():
-        if line.strip() == "?? .gitattributes":
+    try:
+        status = git.changed(untracked_all=True)
+    except RealmSyncError:
+        return False
+    for entry in status:
+        if entry.untracked and entry.path == ".gitattributes":
             try:
                 if _REALM_SYNC_GITATTRIBUTES_MARKER in (legacy / ".gitattributes").read_bytes():
                     continue
             except OSError:
                 pass
-        if line.strip():
-            return False  # a file only this clone has
-    commit = head.stdout.strip()
+        return False  # a file only this clone has
     for token in held:
         own = paths.realm_sync_root() / paths.REALM_SYNC_CLONES_DIRNAME / token
         if not (own / ".git").exists():
             return False  # this realm has not taken its copy yet
-        if run_sync_git(("merge-base", "--is-ancestor", commit, "HEAD"), repo=own).returncode != 0:
+        if not sync_git(own).is_ancestor(commit, "HEAD"):
             return False  # its clone lacks the shared clone's last commit
     from utils import rmtree_readonly
 
@@ -493,22 +520,12 @@ def _realm_subtree(repo: Path, realm_id: str) -> Path:
 
 
 def _git_state(repo: Path) -> dict[str, Any]:
-    conflicts = [line.strip() for line in _git(repo, "diff", "--name-only", "--diff-filter=U", check=False).splitlines() if line.strip()]
-    ahead = behind = 0
-    upstream = _git(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}", check=False).strip()
-    if upstream:
-        counts = _git(repo, "rev-list", "--left-right", "--count", "HEAD...@{u}", check=False).split()
-        if len(counts) == 2:
-            ahead, behind = int(counts[0]), int(counts[1])
-    elif _has_remote(repo):
-        # No upstream yet but a remote: a clone that followed its realm into an EMPTY new repository and pushed
-        # nothing (``_follow_server_repository``). Its commits that no remote holds are waiting to be published,
-        # so they read ``ahead`` and the next Publish carries them even with no new bytes
-        # (RT-REALM-SYNC-PULL-PUBLISHES-INTO-A-MOVED-REPO).
-        count = _git(repo, "rev-list", "--count", "HEAD", "--not", "--remotes", check=False).strip()
-        ahead = int(count) if count.isdigit() else 0
-    dirty = bool(_git(repo, "status", "--porcelain", check=False).strip())
-    return {"ahead": ahead, "behind": behind, "conflicts": conflicts, "dirty": dirty}
+    """``RepoState`` in the envelope's shape. With no upstream but a remote (a clone that followed its realm
+    into an EMPTY new repository and pushed nothing, ``_follow_server_repository``) the commits no remote
+    holds read ``ahead``, so the next Publish carries them even with no new bytes
+    (RT-REALM-SYNC-PULL-PUBLISHES-INTO-A-MOVED-REPO)."""
+
+    return sync_git(repo).state().as_dict()
 
 
 def _sync_state(git: dict[str, Any]) -> str:
@@ -522,7 +539,7 @@ def _sync_state(git: dict[str, Any]) -> str:
 
 
 def _has_remote(repo: Path) -> bool:
-    return bool(_git(repo, "remote", check=False).strip())
+    return bool(sync_git(repo).remotes())
 
 
 def _refresh_remote_tracking(repo: Path, *, credential: RealmSyncCredential | None = None) -> dict[str, Any]:
@@ -541,7 +558,7 @@ def _refresh_remote_tracking(repo: Path, *, credential: RealmSyncCredential | No
     if not _has_remote(repo):
         return {"checked": False, "error": None, "failure": None}
     try:
-        _git(repo, "fetch", extra_config=_credential_git_config(credential))
+        sync_git(repo).fetch(credential)
     except RealmSyncError as exc:
         # ``failure``: the refusal itself, so the status read can report a host auth refusal
         # (``host_refusal``) -- never part of an envelope.
@@ -586,17 +603,23 @@ def run_sync_git(args: Sequence[str], **run_kwargs: Any) -> subprocess.Completed
 def _git(repo: Path, *args: str, check: bool = True, extra_config: Sequence[str] | None = None) -> str:
     proc = run_sync_git(args, repo=repo, config=(*_REPO_CONFIG, *(extra_config or ())))
     if check and proc.returncode != 0:
-        code = "sync_auth_failed" if "authentication" in (proc.stderr or "").lower() else "sync_remote_unreachable"
-        # safe_details carries the plain subcommand args only — the -c config
-        # pairs (which can hold an Authorization header) are never included,
-        # and their values are scrubbed from stderr before redaction.
-        raise RealmSyncError(
-            code,
-            "git command failed for realm sync.",
-            retryable=True,
-            safe_details={"git_args": list(args), "stderr": _redact_text(_scrub_config_values(proc.stderr, extra_config))},
-        )
+        raise _git_failure(list(args), proc, extra_config)
     return proc.stdout
+
+
+def _git_failure(git_args: list[str], proc: subprocess.CompletedProcess[str],
+                 extra_config: Sequence[str] | None) -> RealmSyncError:
+    """The typed refusal for a git step that failed. ``safe_details`` carries the plain subcommand args
+    only — the -c config pairs (which can hold an Authorization header) are never included, and their
+    values are scrubbed from stderr before redaction."""
+
+    code = "sync_auth_failed" if "authentication" in (proc.stderr or "").lower() else "sync_remote_unreachable"
+    return RealmSyncError(
+        code,
+        "git command failed for realm sync.",
+        retryable=True,
+        safe_details={"git_args": git_args, "stderr": _redact_text(_scrub_config_values(proc.stderr, extra_config))},
+    )
 
 
 def _git_clone(ref: str, repo: Path, *, extra_config: Sequence[str] | None = None) -> None:

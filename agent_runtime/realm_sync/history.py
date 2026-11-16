@@ -27,7 +27,7 @@ from typing import Any, Callable
 from agent_runtime import paths
 from agent_runtime.realm_sync.drift import DRIFT_KEY_BOARD_DEF, DRIFT_KEY_OFFICE_SURFACE
 from agent_runtime.realm_sync.families import SyncFamily, _kind_for_sync_path
-from agent_runtime.realm_sync.git import _git, _sync_repo_path
+from agent_runtime.realm_sync.git import _sync_repo_path, sync_git
 from agent_runtime.store import RealmStore
 
 __layer__ = "lanes"
@@ -36,10 +36,6 @@ __all__ = ["DEFAULT_HISTORY_LIMIT", "realm_sync_history"]
 
 DEFAULT_HISTORY_LIMIT = 50
 _MAX_HISTORY_LIMIT = 500
-
-#: Separators ``git log --format`` writes between records and fields (ASCII RS / US),
-#: which no sha, date or author name carries.
-_RECORD, _FIELD = "\x1e", "\x1f"
 
 
 def _stem(name: str) -> str:
@@ -104,11 +100,6 @@ def _changed_item(rel: str) -> dict[str, str]:
     return {"family": str(_kind_for_sync_path(rel)), "container": "", "item_key": rel, "path": rel}
 
 
-def _newest(repo: Path, ref: str, subtree: str) -> str | None:
-    sha = _git(repo, "log", "-1", "--format=%H", ref, "--", subtree, check=False).strip()
-    return sha or None
-
-
 def realm_sync_history(realm_id: str, *, limit: int = DEFAULT_HISTORY_LIMIT) -> dict[str, Any]:
     """The realm's versions, newest first, from the local clone. Read-only, no fetch."""
 
@@ -118,26 +109,22 @@ def realm_sync_history(realm_id: str, *, limit: int = DEFAULT_HISTORY_LIMIT) -> 
     subtree = f"realms/{paths.safe_path_token(realm.id)}"
     envelope: dict[str, Any] = {"schema_version": 1, "id": realm.id, "kind": "realm_sync_history",
                                 "limit": limit, "history": []}
-    if not (repo / ".git").exists() or not _git(repo, "rev-parse", "--verify", "-q", "HEAD", check=False).strip():
+    if not (repo / ".git").exists():
         return envelope
-    upstream = _git(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}", check=False).strip()
+    git = sync_git(repo)
+    if not git.resolve("HEAD"):
+        return envelope
+    upstream = git.upstream()
     refs = ["HEAD", *([upstream] if upstream else [])]
-    local_head = _newest(repo, "HEAD", subtree)
-    upstream_head = _newest(repo, upstream, subtree) if upstream else local_head
-    # --date-order: a child never sorts after its parent; two refs' commits made in one second tie on
-    # the clock, and git's default walk then lists them in queue order.
-    log = _git(repo, "log", "--date-order", f"-n{limit}", f"--format={_RECORD}%H{_FIELD}%aI{_FIELD}%an",
-               "--name-only", *refs, "--", subtree, check=False)
+    local_head = git.newest("HEAD", subtree)
+    upstream_head = git.newest(upstream, subtree) if upstream else local_head
     prefix = subtree + "/"
-    for record in log.split(_RECORD):
-        lines = [line for line in record.splitlines() if line.strip()]
-        if not lines:
-            continue
-        sha, at, author = (lines[0].split(_FIELD) + ["", ""])[:3]
-        changed = [_changed_item(line[len(prefix):]) for line in lines[1:]
-                   if line.startswith(prefix) and line != prefix + "manifest.json"]
+    for entry in git.log(refs, subtree, limit):
+        sha = entry.sha
+        changed = [_changed_item(path[len(prefix):]) for path in entry.paths
+                   if path.startswith(prefix) and path != prefix + "manifest.json"]
         envelope["history"].append({
-            "sha": sha, "at": at, "author": author, "changed_paths": changed,
+            "sha": sha, "at": entry.at, "author": entry.author, "changed_paths": changed,
             "changed_count": len(changed),
             "is_local_head": sha == local_head, "is_upstream_head": sha == upstream_head,
         })

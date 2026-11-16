@@ -23,15 +23,14 @@ from .models import (
 from .host_refusal import host_refusal_reported
 from .git import (
     _authorize,
-    _credential_git_config,
     _ensure_sync_repo,
-    _git,
     _git_state,
     _has_remote,
-    _push_was_rejected,
     _realm_subtree,
     _refresh_remote_tracking,
+    sync_git,
 )
+from .git_port import PushOutcome
 from .persona_artifacts import (
     _assert_no_raw_profile_config,
     _assert_portable_artifacts,
@@ -216,9 +215,8 @@ def _stage_commit_and_push(
     add_paths = [subtree_rel]
     if (repo / ".gitattributes").exists():
         add_paths.append(".gitattributes")
-    gitattributes_pending = ".gitattributes" in add_paths and bool(
-        _git(repo, "status", "--porcelain", "--", ".gitattributes").strip()
-    )
+    git = sync_git(repo)
+    gitattributes_pending = ".gitattributes" in add_paths and bool(git.changed([".gitattributes"]))
     if content_changed:
         if subtree.exists():
             shutil.rmtree(subtree)
@@ -238,14 +236,14 @@ def _stage_commit_and_push(
         if _has_remote(repo) and _git_state(repo)["ahead"]:
             _push_upstream(repo, credential=credential)
         return False, []
-    _git(repo, "add", "--", *add_paths)
-    changed = bool(_git(repo, "status", "--porcelain", "--", *add_paths).strip())
+    git.add(add_paths)
+    changed = bool(git.changed(add_paths))
     if changed:
         # Who published: the member's Eternia public id as a trailer, never a name or an address
         # (owner RULED 2026-11-14, RT-REALM-SYNC-COMMITS-NAME-NOBODY); the author stays the robot.
         member = credential.member_public_id if credential is not None else ""
-        trailer = ("-m", f"{PUBLISHER_TRAILER}: {member}") if member else ()
-        _git(repo, "commit", "-m", f"Publish realm sync {realm.id}", *trailer)
+        trailer = (f"{PUBLISHER_TRAILER}: {member}",) if member else ()
+        git.commit(f"Publish realm sync {realm.id}", trailer)
         if not realm.server_id and not _has_remote(repo):
             # A local realm whose sync repository has no remote (one that never had a personal repository, or
             # a server's realm you left: ``make_realm_local`` dropped its address): the commit IS the publish.
@@ -260,12 +258,13 @@ def _stage_commit_and_push(
 def _push_upstream(repo: Path, *, credential: RealmSyncCredential | None = None) -> None:
     """Push the sync repo's branch, telling a lost race apart from an unreachable remote."""
 
+    git = sync_git(repo)
     try:
         # No upstream yet (a personal repo adopted empty, p10-work §2.6): set it.
-        upstream = _git(repo, "rev-parse", "--abbrev-ref", "@{u}", check=False).strip()
-        push = ("push",) if upstream else ("push", "-u", "origin", "HEAD")
-        _git(repo, *push, extra_config=_credential_git_config(credential))
+        report = git.push(credential, set_upstream=git.upstream() is None)
     except RealmSyncError as exc:
+        raise RealmSyncError("sync_remote_unreachable", "Realm sync publish committed locally but could not push upstream.", retryable=True, safe_details=exc.safe_details) from exc
+    if report.outcome is PushOutcome.REJECTED:
         # A REJECTED push is not an unreachable remote: another member published into this
         # realm between our fetch and our push, and the cure is to pull, not to go looking
         # at the network (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE — the mislabel sent the
@@ -275,14 +274,12 @@ def _push_upstream(repo: Path, *, credential: RealmSyncCredential | None = None)
         # MUTATION: drop this branch and
         # test_the_loser_of_a_publish_race_is_told_to_pull_and_its_pull_reconciles reddens
         # at ``sync_push_rejected``.
-        if _push_was_rejected(str(exc.safe_details.get("stderr") or "")):
-            raise RealmSyncError(
-                "sync_push_rejected",
-                "Another member published to this realm first; pull before publishing again.",
-                retryable=True,
-                safe_details=exc.safe_details,
-            ) from exc
-        raise RealmSyncError("sync_remote_unreachable", "Realm sync publish committed locally but could not push upstream.", retryable=True, safe_details=exc.safe_details) from exc
+        raise RealmSyncError(
+            "sync_push_rejected",
+            "Another member published to this realm first; pull before publishing again.",
+            retryable=True,
+            safe_details=dict(report.safe_details),
+        )
 
 
 def _publish_accounting(resolved: _ResolvedPublish, *, office_baseline: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -476,7 +473,7 @@ def _notify_publish(realm: Realm, *, repo: Path, artifacts: list[RealmSyncArtifa
         # A local realm's credential (``local:<id>``) has no backend realm row,
         # so there is no notify route and no ``realm:`` channel to fan out on.
         return []
-    commit = _git(repo, "rev-parse", "HEAD", check=False).strip()
+    commit = sync_git(repo).resolve("HEAD") or ""
     counts = artifact_kind_counts(artifacts)
     from ..realm_membership import notify_realm_published
 

@@ -17,9 +17,9 @@ from .git import (
     _REPO_CONFIG,
     _adopt_local_remote,
     _ensure_sync_repo,
-    _git,
     _looks_like_remote,
     _sync_repo_path,
+    sync_git,
 )
 from .models import RealmSyncError
 
@@ -71,5 +71,5 @@ def clear_realm_backup_remote(realm_id: str) -> dict[str, Any]:
     realm.sync_manifest_ref = None
     RealmStore().save(realm, emit_event=False)
     if (repo / ".git").exists():  # the realm's own clone: no other realm's backup rides on it
-        _git(repo, "remote", "remove", "origin", check=False)
+        sync_git(repo).remote_remove("origin", missing_ok=True)
     return _answer(realm, None)

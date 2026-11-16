@@ -24,8 +24,14 @@ families           policy  ``SyncFamily`` (the ONE family vocabulary) and
                            profile-file destination vocabulary; secret /
                            hard-excluded predicates
 ledgers            policy  the RD-11 ledger unions and the tombstone receipt rows
-git                stores  authorization, the sync repo, ``_git`` (over
-                           ``agent_runtime.git_cmd.run_git``), redaction
+git_port           models  ``SyncGit`` — the named git steps realm sync asks
+                           for, and their typed answers (the ONE verb contract)
+git                stores  authorization, the sync repo, ``sync_git`` /
+                           ``sync_git_backend`` (which git answers, per call),
+                           ``_git`` (over ``agent_runtime.git_cmd.run_git``),
+                           redaction
+git_binary         stores  ``SyncGit`` over the host's git program: today's
+                           argv, and the parse of git's text, behind the verbs
 host_refusal       stores  a git call the host refused for its authorization,
                            reported to the backend once per verb (re-broker,
                            or the ``git_host_binding_lost`` host-state mark)

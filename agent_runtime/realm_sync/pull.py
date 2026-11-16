@@ -40,11 +40,11 @@ from .host_refusal import host_refusal_reported
 from .git import (
     _authorize,
     _ensure_sync_repo,
-    _git,
     _git_state,
     _has_remote,
     _pull_remote_into_repo,
     _realm_subtree,
+    sync_git,
 )
 from .persona_artifacts import _artifacts_from_subtree
 from .artifacts import _iter_publishable_skill_packages
@@ -112,7 +112,7 @@ def _pull_realm_sync(
         raise RealmSyncError("sync_conflict", "Realm sync repo has unresolved git conflicts.", safe_details={"conflicts": git["conflicts"]})
     # An adopted personal repo that is still EMPTY (no remote-tracking ref after the
     # adopter's fetch, p10-work §2.6) has nothing to pull and no upstream to pull from.
-    if _has_remote(repo) and _git(repo, "for-each-ref", "--count=1", "refs/remotes", check=False).strip():
+    if _has_remote(repo) and sync_git(repo).has_remote_refs():
         _pull_remote_into_repo(repo, credential=credential)
     subtree = _realm_subtree(repo, realm.id)
     artifacts = _artifacts_from_subtree(subtree)

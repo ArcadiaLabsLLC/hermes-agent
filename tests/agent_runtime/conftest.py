@@ -516,3 +516,16 @@ def _drop_tree_index_between_modules(request):
     from tests.agent_runtime import _tree_index
 
     _tree_index.clear()
+
+
+@pytest.fixture(params=["binary"])
+def sync_git_backend(request, monkeypatch):
+    """Each realm-sync port test once per git backend (plan phone-realm-sync-dulwich-2026-11-16 §5).
+
+    The backend is the one ``agent_runtime.realm_sync.git.sync_git_backend()`` answers for the test."""
+
+    from agent_runtime.realm_sync import git as realm_git
+
+    backend = realm_git.SyncGitBackend(request.param)
+    monkeypatch.setattr(realm_git, "sync_git_backend", lambda: backend)
+    return backend
