@@ -40,7 +40,9 @@ open; until then a close of one of them re-points it at the rest, ``--no-wake`` 
 in another brain names it first (``— `A` and backend `B`: why``, FH-QUEUE-BLOCKED-LIST-NAMES-ROWS-IN-OTHER-BRAINS):
 each is resolved in its own brain, so a hermes close steps every row listing it as a hermes row, whatever the
 reason, and a row another brain's row still holds is re-pointed at it, never woken. Rows in the launcher or backend
-brains are theirs to wake — the launcher's ``dart tool/queue/waits_on.dart <ID> --in hermes`` lists them.
+brains are theirs to wake — the launcher's ``dart tool/queue/waits_on.dart <ID> --in hermes`` lists them. A
+DEFERRED (or BLOCKED) row in any brain read whose ``waits:`` field names ``<ID>`` is LISTED for review, never
+re-statused (``agent_runtime/work_store/waits.py``, FH-QUEUE-WAITS-FIELD): an owner deferral stays the owner's.
 
 A close also moves the row's TASK (launcher plan ``EterniaLauncher/docs/mission_control/planned/
 QUEUE_TASKS_AND_SUBTASKS_2026-11-09.md`` D3 amended, D7; the launcher's ``tool/queue/close_row.dart``;
@@ -111,6 +113,7 @@ from agent_runtime.work_store.tasks import (
     write_task_defects,
 )
 from agent_runtime.work_store.wake import unblocked_segment, wake_dependents
+from agent_runtime.work_store.waits import field_waiters_of, listing_line
 
 COMMANDS = {"claim": Op.CLAIM, "release": Op.RELEASE, "set-status": Op.SET_STATUS, "delete": Op.DELETE,
             "append": Op.APPEND, "close": Op.CLOSE}
@@ -646,6 +649,11 @@ def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, s
         print(f"warning: `{row_id}` is left BLOCKED on `{args.row_id}`, which this close archives (--no-wake): "
               "re-status it before you push, or the queue gate reds on a blocker that is no longer a row",
               file=sys.stderr)
+    # The DEFERRED and BLOCKED rows whose `waits:` field names the closed row, in every brain read: listed for
+    # review, never re-statused (FH-QUEUE-WAITS-FIELD; an owner deferral stays the owner's).
+    # MUTATION: drop this loop and test_a_close_lists_the_deferred_row_whose_waits_field_names_it reds.
+    for brain, row in field_waiters_of({"hermes": _live_rows(texts), **siblings}, args.row_id, "hermes"):
+        print(listing_line(brain, row, args.row_id, "hermes"))
     for line in said:
         print(line)
     return touched

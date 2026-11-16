@@ -407,7 +407,60 @@ def _segment_defects(segments: list[str]) -> list[str]:
     if sum(1 for s in segments[1:] if s.startswith("group:")) > 1:
         defects.append("2 group segments; at most one")
     defects += _task_defects(segments)
+    # MUTATION: drop this line and test_a_malformed_waits_field_is_a_grammar_defect reds.
+    defects += waits_segment_defects(segments[1:])
     return defects
+
+
+# ── the waits: field (FH-QUEUE-WAITS-FIELD; launcher ``tool/queue/queue_waits.dart``) ──────────────────────────
+
+#: The events a row may wait for, beside a row ID — the launcher's ``kWaitEvents``; a new one is added in all three
+#: brains in the same change.
+WAIT_EVENTS = frozenset({"mac-sitting", "phone-sitting", "v0.1", "android-box", "stripe-enrol", "owner-ruling"})
+WAITS_PREFIX = "waits:"
+_ROW_ENTRY = re.compile(r"^(?:(launcher|hermes|backend)\s+)?`([A-Z0-9][A-Z0-9._-]*)`$")
+_JOINER = re.compile(r"\s*,\s*|\s+and\s+")
+
+
+@dataclass(frozen=True)
+class WaitTarget:
+    """One entry: a row ``row_id`` of ``brain``, or an ``event``."""
+
+    row_id: str | None = None
+    brain: str | None = None
+    event: str | None = None
+
+
+def parse_waits(body: str, own: str) -> tuple[list[WaitTarget], str | None]:
+    """``(targets, problem)`` of a ``waits:`` segment's body read for a row of brain ``own``; a problem empties the
+    targets."""
+
+    text = body.strip()
+    if not text:
+        return [], "WAITS FIELD NAMES NOTHING"
+    targets: list[WaitTarget] = []
+    for entry in _JOINER.split(text):
+        if entry in WAIT_EVENTS:
+            targets.append(WaitTarget(event=entry))
+            continue
+        match = _ROW_ENTRY.match(entry)
+        # MUTATION: accept any entry here and test_an_unknown_event_or_a_bare_word_is_a_problem reds.
+        if match is None:
+            return [], (f"WAITS FIELD: {entry[:40]!r} is neither a backticked row ID (a brain word may come first) nor "
+                        f"an event ({', '.join(sorted(WAIT_EVENTS))})")
+        targets.append(WaitTarget(row_id=match.group(2), brain=match.group(1) or own))
+    return targets, None
+
+
+def waits_segment_defects(segments: Iterable[str]) -> list[str]:
+    """The grammar's verdict on a row's ``waits:`` segments (the lead excluded): a malformed one, or two."""
+
+    fields = [s for s in segments if s.startswith(WAITS_PREFIX)]
+    defects = [problem for s in fields if (problem := parse_waits(s[len(WAITS_PREFIX):], "hermes")[1])]
+    if len(fields) > 1:
+        defects.append("2 waits segments; at most one")
+    return defects
+
 
 
 def _task_defects(segments: list[str]) -> list[str]:
