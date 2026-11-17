@@ -978,7 +978,8 @@ def test_a_close_names_each_task_line_that_still_mentions_the_row(clones, tmp_pa
     """RT-CLOSE-NAMES-SIBLING-TASK-LINES-THAT-STILL-MENTION-THE-ROW (its twin: launcher
     QA-CLOSE-NAMES-TASK-LINES-THAT-STILL-MENTION-THE-ROW). Seen 2026-11-16: an Eternia task line called a hermes row
     "(READY, a hermes lane's)" six days after it closed. KILLING MUTATION: return [] from ``mentioning_task_lines``
-    -> neither task is named, red. A row line naming it, and the ``unblocked`` record the close writes, are not."""
+    -> neither task is named, red. A row line naming it, and a longer ID that starts with it, are not (the twin's
+    ``_namesId``); the ``unblocked`` record the close writes is not either (next test)."""
     monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
     _, mine, _ = clones
     _siblings(tmp_path, "- **`TASK-L` — A launcher task** · task: l · handoff 2026-11-09: waits on `RT-S1` "
@@ -989,8 +990,8 @@ def test_a_close_names_each_task_line_that_still_mentions_the_row(clones, tmp_pa
     assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date",
                           "2026-11-09", "--repo", str(mine), "--no-commit"]) == 0
     out = capsys.readouterr().out
-    assert "task `TASK-L` (launcher, mission-control-queue.md) still mentions `RT-S1` — correct its line there" in out
-    assert "task `TASK-P` (hermes, q.md) still mentions `RT-S1` — correct its line\n" in out
+    assert "task `TASK-L` (launcher) still mentions `RT-S1` — correct its line there" in out
+    assert "task `TASK-P` (hermes) still mentions `RT-S1` — correct its line there" in out
     assert "TASK-Q" not in out and "L-R" not in out
     git("checkout", "-q", "--", ".", cwd=mine)
 

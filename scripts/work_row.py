@@ -92,6 +92,7 @@ from __future__ import annotations
 
 import argparse
 import socket
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -382,12 +383,13 @@ def mentioning_task_lines(closed_id: str, rows: list[Row]) -> list[str]:
     QA-CLOSE-NAMES-TASK-LINES-THAT-STILL-MENTION-THE-ROW). The ``unblocked`` record this close writes is not prose.
     A print only, never a write: a sibling brain's line is that brain's to edit."""
 
-    mark = f"`{closed_id}`"
+    # The ID whole, as the twin's ``_namesId`` reads it: never the front or the tail of a longer ID.
+    names = re.compile(rf"(?<![A-Za-z0-9-]){re.escape(closed_id)}(?![A-Za-z0-9-])")
     # MUTATION: return [] here and test_a_close_names_each_task_line_that_still_mentions_the_row reds.
     found = [row for row in rows if row.task is not None and row.ref.id != closed_id and any(
-        mark in segment and not segment.strip().startswith("unblocked ") for segment in split_segments(row.raw))]
-    return [f"task `{row.ref.id}` ({row.ref.slot}, {Path(row.ref.note).name}) still mentions `{closed_id}` — "
-            f"correct its line{'' if row.ref.slot == 'hermes' else ' there'}" for row in found]
+        names.search(segment) and not segment.strip().startswith("unblocked ") for segment in split_segments(row.raw))]
+    return [f"task `{row.ref.id}` ({row.ref.slot}) still mentions `{closed_id}` — correct its line there"
+            for row in found]
 
 
 def queue_notes(repo: Path, note: str | None) -> list[Path]:
