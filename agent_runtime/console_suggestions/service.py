@@ -17,13 +17,15 @@ from agent_runtime.persona_chat_history.suggestion_context import suggestion_con
 from .generation import generate_suggestion
 from .settings import SuggestionRefused, SuggestionSettings, suggestion_home
 from .store import SuggestionStore, attempt_key
+from agent_runtime.subagents.params import OPERATOR_IDENTITY_PARAMS
+
 from .notifications import SuggestionNotifications
 
 __layer__ = "lanes"
 logger = logging.getLogger(__name__)
 SETTINGS_PREFIX = "runtime.console_suggestions.settings"
 CHAT_PREFIX = "runtime.operator.conversation.suggestions"
-IDENTITY_KEYS = ("install_id", "workspace_id", "persona_id", "persona_instance_id", "session_id", "client_scope")
+IDENTITY_KEYS = OPERATOR_IDENTITY_PARAMS
 
 
 def suggestion_failure_reason(exc):

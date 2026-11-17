@@ -48,6 +48,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Callable
 
+from ..tool_permissions import FILE_WRITE_TOOLS
 from .rules_check import DECIDED_BY_RULES, RulesVerdict, check_action
 from .store import LensStore, to_ms
 from .store_actions import (ActionResult, arguments_digest, finish_action, own_text_digest, record_action,
@@ -58,7 +59,7 @@ __layer__ = "lanes"
 logger = logging.getLogger(__name__)
 
 #: File writes Lens can undo from the before image it takes (``undo.py``): the only calls that can be undone.
-UNDOABLE_TOOLS = frozenset({"apply_patch", "edit_file", "file.edit", "file.write", "patch", "write_file"})
+UNDOABLE_TOOLS = FILE_WRITE_TOOLS
 #: The only non-mutating calls that bring no outside text into the turn: Lens's own typed reads, the tool
 #: catalog bridge and a question to the owner. ANY other read (a web or browser read, an MCP read,
 #: ``read_file``, ``skill_view`` ...) may carry an instruction, so after it nothing acts alone (W9,

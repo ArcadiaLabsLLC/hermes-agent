@@ -5,6 +5,7 @@ from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from .protocol import err, ok, defer_or_inline, ERR_INVALID_PARAMS, ERR_NOT_FOUND, ERR_CONFLICT
 from .registry import method
 from agent_runtime.param_readers import read_text
+from agent_runtime.permission_modes import SUPPORTED_PERMISSION_MODES
 __layer__ = "lanes"
 
 
@@ -76,7 +77,7 @@ def _permission(params, preview):
         _console_text(params, key, required=True)
     _console_text(params, "reason", required=not preview)
     _console_text(params, "expires_at")
-    if params.get("mode") not in ("profile_default", "bounded", "read_only", "unbounded"):
+    if params.get("mode") not in SUPPORTED_PERMISSION_MODES:
         raise ValueError("mode")
     for key in ("ttl_seconds", "turns"):
         if params.get(key) is not None and (type(params[key]) is not int or params[key] < 1):

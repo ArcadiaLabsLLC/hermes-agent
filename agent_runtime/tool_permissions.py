@@ -64,8 +64,9 @@ logger = logging.getLogger(__name__)
 #: (RT-COURSE-TOOLS-NOT-MUTATING): ``course_commit`` pushes to a git remote,
 #: ``course_pull_request`` opens a PR, and ``course_checkout`` writes (and
 #: fast-forwards) a local working tree — a write ``write_file`` would be blocked for.
-READ_ONLY_BLOCKS = frozenset({"apply_patch", "course_checkout", "course_commit", "course_pull_request", "edit_file",
-                              "file.edit", "file.write", "patch", "terminal", "write_file"})
+#: The tools that write a file: Lens can undo exactly these, and a turn holding one can mutate files.
+FILE_WRITE_TOOLS = frozenset({"apply_patch", "edit_file", "file.edit", "file.write", "patch", "write_file"})
+READ_ONLY_BLOCKS = FILE_WRITE_TOOLS | {"course_checkout", "course_commit", "course_pull_request", "terminal"}
 
 #: ``permission_source`` for an answer that came from the runtime default rather
 #: than from any stored record. Replaces the old ``persona_role_policy``

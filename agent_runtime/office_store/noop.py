@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
-from agent_runtime.serde import to_jsonable
+from agent_runtime.serde import SYNC_HASH_EXCLUDE, to_jsonable
 
 __layer__ = "policy"
 
@@ -28,7 +28,7 @@ __all__ = [
 
 #: The fields a write stamps rather than carries. Two rows equal everywhere
 #: else are the same content.
-VOLATILE_FIELDS: frozenset[str] = frozenset({"revision", "updated_at", "updated_by", "created_at"})
+VOLATILE_FIELDS: frozenset[str] = SYNC_HASH_EXCLUDE
 
 RowT = TypeVar("RowT")
 

@@ -10,12 +10,13 @@ __layer__ = "models"
 
 _READ = ("expected_generation", "child_ref")
 _NATIVE = ("install_id", "session_id", "client_scope", "profile")
-_OPERATOR = ("install_id", "workspace_id", "persona_id", "persona_instance_id", "session_id", "client_scope")
+#: The identity params of a ``runtime.operator.conversation.*`` method; ``console_suggestions`` reads them too.
+OPERATOR_IDENTITY_PARAMS = ("install_id", "workspace_id", "persona_id", "persona_instance_id", "session_id", "client_scope")
 METHOD_PARAMS = {
     prefix + operation: (*identity, *_READ, *(key for key in required if key not in _READ))
     for prefix, identity in (
         ("runtime.conversation.subagents.", _NATIVE),
-        ("runtime.operator.conversation.subagents.", _OPERATOR))
+        ("runtime.operator.conversation.subagents.", OPERATOR_IDENTITY_PARAMS))
     for operation, required in REQUIRED_PARAMS.items()
 }
 
@@ -34,4 +35,4 @@ METHOD_PARAMS.update({
 #: the conversation's skills, or with ``child_ref`` (from ``runtime.operator.conversation.subagents.list``)
 #: a worker child's; ``operation: lend`` always names a child (RT-SERVE-SKILLS-OPERATOR-CHILD-ADDRESS).
 METHOD_PARAMS["runtime.operator.conversation.skills"] = (
-    *_OPERATOR, "operation", "child_ref", "skill_id", "skills", "mode", "request_id")
+    *OPERATOR_IDENTITY_PARAMS, "operation", "child_ref", "skill_id", "skills", "mode", "request_id")

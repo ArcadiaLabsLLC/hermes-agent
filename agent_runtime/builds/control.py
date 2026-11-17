@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_runtime.builds.vocabulary import (
+    IN_FLIGHT_STATUSES,
     BUILD_REGISTRY_DIRNAME,
     CONTROL_ALLOWED,
     CONTROL_REASON_ARGV_UNKNOWN,
@@ -55,8 +56,6 @@ from agent_runtime.builds.vocabulary import (
 __layer__ = "lanes"
 
 RESTART_MARKS_FILENAME = "restart_marks.jsonl"
-#: Statuses a Restart stops first.
-_RUNNING = frozenset({"running", "stalling", "stalled", "unknown"})
 
 
 def _error(work_id: str, code: str, detail: str = "") -> dict[str, Any]:
@@ -230,7 +229,7 @@ def restart_build(row: dict[str, Any], *, registry: Any = None) -> dict[str, Any
     process_registry = registry or _spawning_registry()
     # Read BEFORE the stop: the first run's session is where its owner is written.
     owner = _build_owner(row, process_registry)
-    if row.get("status") in _RUNNING and row.get("outcome") is None:
+    if row.get("status") in IN_FLIGHT_STATUSES and row.get("outcome") is None:
         stopped = stop_build(row, reason="operator_restart")
         if stopped.get("status") == "error":
             return {**stopped, "code": "restart_refused", "detail": stopped.get("detail") or stopped.get("code")}

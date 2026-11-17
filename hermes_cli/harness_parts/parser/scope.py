@@ -6,6 +6,8 @@ contract fixture lists them; ``parser.PARSER_FAMILIES`` is the only reader.
 
 from __future__ import annotations
 
+from agent_runtime.workspace_template import COPY_SCOPES
+
 from .common_args import _add_stage42_global_args
 from .lazy import lazy_module
 
@@ -49,7 +51,7 @@ def add_workspace(subs) -> None:
     workspace_create.add_argument(
         "--copy",
         action="append",
-        choices=["office", "board", "agents", "settings"],
+        choices=list(COPY_SCOPES),
         default=None,
         help="Template scope to copy (repeatable). Default with --from-workspace: every scope. Requires --from-workspace.",
     )

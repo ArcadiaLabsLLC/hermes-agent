@@ -6,6 +6,8 @@ contract fixture lists them; ``parser.PARSER_FAMILIES`` is the only reader.
 
 from __future__ import annotations
 
+from agent_runtime.board_models import CARD_PRIORITIES
+
 from .common_args import _add_stage42_global_args
 from .lazy import lazy_module
 
@@ -247,7 +249,7 @@ def add_board(subs) -> None:
     card_add.add_argument("--title", required=True)
     card_add.add_argument("--description", default="")
     card_add.add_argument("--column", default=None, help="Column id or kind (default: first queued column)")
-    card_add.add_argument("--priority", default=None, choices=["p0", "p1", "p2", "p3"])
+    card_add.add_argument("--priority", default=None, choices=list(CARD_PRIORITIES))
     card_add.add_argument("--labels", default=None, help="Comma-separated labels")
     card_add.add_argument("--assignee", default=None)
     card_add.add_argument("--created-by", dest="created_by", default=None, help="operator (default) or a persona id")
@@ -260,7 +262,7 @@ def add_board(subs) -> None:
     card_edit.add_argument("--board", default=None, help="Board id (needed when two boards hold this card id)")
     card_edit.add_argument("--title", default=None)
     card_edit.add_argument("--description", default=None)
-    card_edit.add_argument("--priority", default=None, choices=["p0", "p1", "p2", "p3"])
+    card_edit.add_argument("--priority", default=None, choices=list(CARD_PRIORITIES))
     card_edit.add_argument("--labels", default=None, help="Comma-separated labels (replaces)")
     card_edit.add_argument("--assignee", default=None)
     card_edit.add_argument("--clear-assignee", dest="clear_assignee", action="store_true")

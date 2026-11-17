@@ -127,6 +127,8 @@ REGISTRY_DIR_ENV = "HERMES_BUILD_REGISTRY_DIR"
 #: The writer's own ``status`` words.
 RECORD_STATUS_QUEUED = "queued"
 RECORD_STATUS_RUNNING = "running"
+#: The statuses a build is still in flight in: what a Restart stops first and the sweep's transition baseline.
+IN_FLIGHT_STATUSES = frozenset({"running", "stalling", "stalled", "unknown"})
 #: ``controls.stop`` / ``controls.restart`` as a WRITER declares them.
 RECORD_STOP_REQUEST = "request"
 RECORD_STOP_KILL_TREE = "kill_tree"

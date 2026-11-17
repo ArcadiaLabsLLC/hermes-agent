@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .usage_ledger import CALL_FIELDS, USAGE_LEDGER_MAX_ROWS
+
 __layer__ = "policy"
 
 __all__ = ["TURN_USAGE_KEY", "TURN_USAGE_SCHEMA", "safe_turn_usage", "turn_usage_block"]
@@ -28,12 +30,8 @@ TOTAL_FIELDS = (
     "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
     "reasoning_tokens", "total_tokens",
 )
-CALL_FIELDS = (
-    "prompt_tokens", "input_tokens", "output_tokens", "cache_read_tokens",
-    "cache_write_tokens", "reasoning_tokens",
-)
-#: ``usage_ledger.USAGE_LEDGER_MAX_ROWS``; re-applied here, defence in depth.
-MAX_CALLS = 256
+#: The ledger's own bound, re-applied on read: defence in depth.
+MAX_CALLS = USAGE_LEDGER_MAX_ROWS
 #: A token count above this is a corrupt row, not a large turn.
 _MAX_TOKENS = 10**10
 _TEXT_LIMIT = 160

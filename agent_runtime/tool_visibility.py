@@ -758,11 +758,17 @@ def _tool_resolution_id(
     return f"toolres_{hashlib.sha256(encoded).hexdigest()[:16]}"
 
 
+def _file_write_tools() -> frozenset[str]:
+    from .tool_permissions import FILE_WRITE_TOOLS  # deferred: tool_permissions imports this module
+
+    return FILE_WRITE_TOOLS
+
+
 def _mutation_boundary(tool_names: list[str], mutating_tools: frozenset[str]) -> dict[str, Any]:
     names = set(tool_names)
     mutating = sorted(names & mutating_tools)
     return {
-        "can_mutate_files": bool(names & {"apply_patch", "edit_file", "file.edit", "file.write", "patch", "write_file"}),
+        "can_mutate_files": bool(names & _file_write_tools()),
         "can_run_terminal": "terminal" in names,
         "mutating_tools": mutating,
     }

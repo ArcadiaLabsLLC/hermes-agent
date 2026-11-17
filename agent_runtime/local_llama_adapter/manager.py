@@ -21,7 +21,7 @@ from agent_runtime.store_file_io import read_json_object
 from utils import atomic_json_write
 
 from . import SCHEMA, model_alias
-from .config import (ConfigStore, LocalLlamaError, identifier, integer, publish_journal,
+from .config import (OPERATION_GUARDS, ConfigStore, LocalLlamaError, identifier, integer, publish_journal,
                      recover_journal, validate_config, validate_parameters)
 from .engine import Engine, scan, validate_model
 
@@ -223,7 +223,7 @@ class LocalLlamaManager:
         if kind not in allowed:
             raise LocalLlamaError("unknown_operation", "Unknown local llama operation")
         request_id = identifier(params.get("request_id"), "request_id")
-        keys = ("request_id", "expect_epoch", "expect_revision", "expect_config_revision") + allowed[kind]
+        keys = OPERATION_GUARDS + allowed[kind]
         if set(params) - set(keys):
             raise LocalLlamaError("invalid_parameter", "Unknown local llama operation parameter")
         params = dict(params)

@@ -4,6 +4,7 @@ import logging
 import os
 import re
 from typing import Optional, Dict, Any, Tuple
+from .terminal_envelope.classes import NETWORK_ALLOWLIST
 from ._upstream_doors import (
     looks_like_help_or_version_command as _looks_like_help_or_version_command,
     strip_quotes as _strip_quotes,
@@ -13,7 +14,6 @@ __layer__ = "wiring"
 
 logger = logging.getLogger("tools.terminal_tool")
 
-_HARNESS_NETWORK_ALLOWLIST = ("localhost", "127.0.0.1", "::1", "host.docker.internal")
 
 _HARNESS_BLOCK_PATTERNS = (
     (re.compile(r"\bgit\s+push\b", re.IGNORECASE), "git_push_requires_operator_approval"),
@@ -68,7 +68,7 @@ def _harness_network_block_reason(command: str) -> str | None:
         return "network_command_requires_allowlist"
     for host in urls:
         clean_host = host.split(":", 1)[0].strip("[]").lower()
-        if clean_host not in _HARNESS_NETWORK_ALLOWLIST:
+        if clean_host not in NETWORK_ALLOWLIST:
             return "network_command_requires_allowlist"
     if re.search(r"(secret|token|password|credential|api[_-]?key|authorization|bearer)", lowered):
         return "credential_exfil_blocked"

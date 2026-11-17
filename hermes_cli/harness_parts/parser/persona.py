@@ -6,6 +6,8 @@ contract fixture lists them; ``parser.PARSER_FAMILIES`` is the only reader.
 
 from __future__ import annotations
 
+from agent_runtime.permission_modes import PERMISSION_MODES
+
 from .common_args import _add_coordinator_permission_args, _add_stage42_global_args
 from .lazy import lazy_module
 
@@ -133,7 +135,7 @@ def _add_persona_read_verbs(persona_subs) -> None:
     persona_permission_set.add_argument("--session-id", required=True)
     persona_permission_set.add_argument(
         "--mode",
-        choices=["profile_default", "bounded", "read_only", "unbounded"],
+        choices=list(PERMISSION_MODES),
         required=True,
         help=(
             "bounded = the historical bounded tier (persona-safety blocks + chat-lane "

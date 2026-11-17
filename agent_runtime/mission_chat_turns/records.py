@@ -606,7 +606,8 @@ _ELEMENT_FIELDS: Mapping[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
 # bounds this, and this is the defence-in-depth boundary for foreign/legacy rows.
 _TODO_STATE_MAX_ITEMS = 64
 _TODO_STATE_MAX_CONTENT = 240
-_TODO_STATE_VALID_STATUS = {"pending", "in_progress", "completed", "cancelled"}
+#: A todo item's statuses (upstream ``tools/todo_tool.py``'s); ``profile_runner.tool_payloads`` captures through it.
+TODO_STATUSES = frozenset({"pending", "in_progress", "completed", "cancelled"})
 
 
 def _safe_todo_state(value: Any) -> list[dict[str, str]] | None:
@@ -633,7 +634,7 @@ def _safe_todo_state(value: Any) -> list[dict[str, str]] | None:
         item_id = safe_assignment_text(raw.get("id"), limit=120) or "?"
         content = safe_assignment_text(raw.get("content"), limit=_TODO_STATE_MAX_CONTENT) or "(no description)"
         status = str(raw.get("status") or "").strip().lower()
-        if status not in _TODO_STATE_VALID_STATUS:
+        if status not in TODO_STATUSES:
             status = "pending"
         items.append({"id": item_id, "content": content, "status": status})
         parents.append(safe_assignment_text(raw.get("parent"), limit=120))

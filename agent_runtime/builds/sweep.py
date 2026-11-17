@@ -34,6 +34,7 @@ from typing import Any, Callable
 
 from agent_runtime.builds import history
 from agent_runtime.builds.vocabulary import (
+    IN_FLIGHT_STATUSES,
     DEFAULT_STALL_FAIL_SECONDS,
     EVENT_BUILD_ENDED,
     EVENT_BUILD_LIVENESS_CHANGED,
@@ -57,8 +58,6 @@ __layer__ = "lanes"
 logger = logging.getLogger(__name__)
 
 SWEEP_INTERVAL_SECONDS = 30.0
-#: Statuses a build is still "in flight" in (the sweep's transition baseline).
-_IN_FLIGHT = frozenset({"running", "stalling", "stalled", "unknown"})
 
 
 def build_rows(now: float) -> list[dict[str, Any]]:
@@ -177,7 +176,7 @@ class BuildSweep:
             if work_id not in current and work_id not in self.stall_ended:
                 self._ended(last, _vanished_outcome(last), now, result)
         self.in_flight = {wid: row for wid, row in current.items()
-                          if row.get("outcome") is None and row.get("status") in _IN_FLIGHT}
+                          if row.get("outcome") is None and row.get("status") in IN_FLIGHT_STATUSES}
         return result
 
     def _consider(self, work_id: str, row: dict[str, Any], now: float, result: SweepResult) -> None:
@@ -201,7 +200,7 @@ class BuildSweep:
         last = self.in_flight.get(work_id)
         status = row.get("status")
         if (last is None or work_id in self.stall_ended or row.get("outcome") is not None
-                or status not in _IN_FLIGHT or last.get("status") == status):
+                or status not in IN_FLIGHT_STATUSES or last.get("status") == status):
             return
         result.liveness_changed.append((work_id, status))
         self._append(row, EVENT_BUILD_LIVENESS_CHANGED, now, {

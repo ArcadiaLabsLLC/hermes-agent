@@ -19,6 +19,9 @@ from . import PROVIDER_ID
 
 __layer__ = "stores"
 
+#: The guard params every local llama operation takes beside its own.
+OPERATION_GUARDS = ("request_id", "expect_epoch", "expect_revision", "expect_config_revision")
+
 LOAD_DEFAULTS = {"context_size": 32768, "gpu_layers": "auto", "flash_attention": "auto",
                  "cache_type_k": "f16", "cache_type_v": "f16", "chat_template_path": None}
 GENERATION_DEFAULTS = {"temperature": .7, "top_p": .9, "top_k": 40,

@@ -16,6 +16,7 @@ import json
 from typing import Any
 
 from .reasons import WorkRefused
+from .schedule_ops import OPS
 
 __layer__ = "lanes"
 __all__ = ["SCHEDULE_MANAGE_SCHEMA", "SCHEDULE_TOOLSET", "handle_schedule_manage"]
@@ -36,7 +37,7 @@ SCHEDULE_MANAGE_SCHEMA: dict[str, Any] = {
     "parameters": {
         "type": "object",
         "properties": {
-            "action": {"type": "string", "enum": ["arm", "list", "disarm", "pause", "resume"]},
+            "action": {"type": "string", "enum": list(OPS)},
             "key": {"type": "string", "description": "Schedule key (letters, digits, _ . : -); arm joins an existing key."},
             "persona_instance_id": {"type": "string", "description": "arm: the instance whose chat receives the prompt."},
             "prompt": {"type": "string", "description": "arm: the message the turn starts with."},

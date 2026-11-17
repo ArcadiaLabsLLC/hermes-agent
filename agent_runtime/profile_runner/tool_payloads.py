@@ -12,6 +12,7 @@ import re
 from agent_runtime._upstream_doors import terminal_foreground_timeouts
 from agent_runtime.redaction import has_secret_value, safe_file_labels, scrub_display_text, scrub_secret_values
 from agent_runtime.serde import strict_int
+from agent_runtime.mission_chat_turns.records import TODO_STATUSES
 from agent_runtime.profile_runner.dispatch_payloads import (
     _agent_chat_dispatch_fields,
     _agent_chat_dispatch_reply_fields,
@@ -37,7 +38,6 @@ __all__ = [
     "_TODO_STATE_MAX_CONTENT",
     "_TODO_STATE_MAX_ID",
     "_TODO_STATE_MAX_ITEMS",
-    "_TODO_STATE_VALID_STATUS",
     "_candidate_file_values",
     "_collapse_todo_ws",
     "_dev_work_payload",
@@ -403,8 +403,6 @@ _TODO_STATE_MAX_CONTENT = 240
 _TODO_STATE_MAX_ID = 120
 
 
-_TODO_STATE_VALID_STATUS = {"pending", "in_progress", "completed", "cancelled"}
-
 
 def _todo_state_payload(tool_name: str | None, result: Any, invocation: Any) -> list[dict[str, str]] | None:
     """Minimal structured todo-checklist state for the operator console (T7).
@@ -466,7 +464,7 @@ def _todo_state_items(todos: list[Any]) -> list[dict[str, str]]:
         item_id = _collapse_todo_ws(raw.get("id"))[:_TODO_STATE_MAX_ID] or "?"
         content = _collapse_todo_ws(raw.get("content"))
         status = str(raw.get("status", "")).strip().lower()
-        if status not in _TODO_STATE_VALID_STATUS:
+        if status not in TODO_STATUSES:
             status = "pending"
         if not content:
             content = "(no description)"

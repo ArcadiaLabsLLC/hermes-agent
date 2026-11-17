@@ -79,7 +79,8 @@ CLASS_SUMMARY: Mapping[str, str] = {
     NETWORK_EGRESS: "reaches a network host outside the loopback allowlist",
 }
 
-_NETWORK_ALLOWLIST = ("localhost", "127.0.0.1", "::1", "host.docker.internal")
+#: The hosts a terminal command may reach without the network-egress class; ``terminal_policy`` reads it too.
+NETWORK_ALLOWLIST = ("localhost", "127.0.0.1", "::1", "host.docker.internal")
 
 #: MIRROR of ``tools/terminal_tool.py::_HARNESS_BLOCK_PATTERNS``, re-keyed from
 #: reason code to command class. We mirror rather than import because
@@ -139,7 +140,7 @@ def _network_class(command: str) -> str | None:
         return NETWORK_EGRESS
     for host in hosts:
         clean = host.split(":", 1)[0].strip("[]").lower()
-        if clean not in _NETWORK_ALLOWLIST:
+        if clean not in NETWORK_ALLOWLIST:
             return NETWORK_EGRESS
     return None
 

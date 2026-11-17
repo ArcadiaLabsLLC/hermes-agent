@@ -25,7 +25,8 @@ __layer__ = "policy"
 # ledger bound around something longer-lived.
 USAGE_LEDGER_MAX_ROWS = 256
 
-_FIELDS = (
+#: The token buckets of one per-call row, in order; ``turn_usage`` re-admits a stored row through them.
+CALL_FIELDS = (
     "prompt_tokens", "input_tokens", "output_tokens",
     "cache_read_tokens", "cache_write_tokens", "reasoning_tokens",
 )
@@ -60,7 +61,7 @@ def record_usage(usage: Any) -> None:
     rows = _LEDGER.get()
     if rows is None or usage is None or len(rows) >= USAGE_LEDGER_MAX_ROWS:
         return
-    rows.append({"call_index": len(rows) + 1, **{field: _bucket(usage, field) for field in _FIELDS}})
+    rows.append({"call_index": len(rows) + 1, **{field: _bucket(usage, field) for field in CALL_FIELDS}})
 
 
 def on_post_api_request(usage: Any = None, **_context: Any) -> None:

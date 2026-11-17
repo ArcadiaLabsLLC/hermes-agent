@@ -51,14 +51,14 @@ PERMISSION_MODE_READ_ONLY = "read_only"
 #: Full tool access. The shipped runtime default per the 2026-08-09 ruling.
 PERMISSION_MODE_UNBOUNDED = "unbounded"
 
-SUPPORTED_PERMISSION_MODES = frozenset(
-    {
-        PERMISSION_MODE_PROFILE_DEFAULT,
-        PERMISSION_MODE_BOUNDED,
-        PERMISSION_MODE_READ_ONLY,
-        PERMISSION_MODE_UNBOUNDED,
-    }
+#: Every mode, in the order a chooser lists them.
+PERMISSION_MODES = (
+    PERMISSION_MODE_PROFILE_DEFAULT,
+    PERMISSION_MODE_BOUNDED,
+    PERMISSION_MODE_READ_ONLY,
+    PERMISSION_MODE_UNBOUNDED,
 )
+SUPPORTED_PERMISSION_MODES = frozenset(PERMISSION_MODES)
 
 #: Modes that express an operator RESTRICTION when stored on a session record.
 #: ``profile_default`` is deliberately absent — it is the no-opinion sentinel.

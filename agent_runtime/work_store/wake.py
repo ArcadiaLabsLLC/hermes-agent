@@ -33,7 +33,9 @@ import re
 from collections.abc import Collection
 from dataclasses import dataclass, field
 
-from agent_runtime.work_store.grammar import SEPARATOR, STATUS, OutcomeKind, Status, parse_note, split_segments
+from agent_runtime.work_store.grammar import (
+    BLOCKED_REASONS, SEPARATOR, STATUS, OutcomeKind, Status, parse_note, split_segments,
+)
 
 __layer__ = "policy"
 
@@ -53,7 +55,7 @@ _PROSE_ROW_ID = re.compile(r"`([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)`")
 def blocked_on(status_body: str) -> tuple[str, str] | None:
     """``(reason, ID)`` of a BLOCKED status body that names a row first after its dash, else None."""
 
-    for reason in ("owner decision", "owner sitting", "backend", "hermes", "launcher", "upstream", "another lane"):
+    for reason in BLOCKED_REASONS:
         if status_body == reason or any(status_body.startswith(reason + c) for c in " :(,"):
             rest = status_body[len(reason):]
             dash = rest.find(" — ")

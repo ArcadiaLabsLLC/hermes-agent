@@ -20,6 +20,7 @@ Cards are planning state only and never start tracked work.
 import json
 import logging
 
+from agent_runtime.board_models import CARD_PRIORITIES
 from tools.registry import registry
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ BOARD_CARD_ADD_SCHEMA = {
             "title": {"type": "string", "description": "Short imperative card title."},
             "description": {"type": "string", "description": "Optional detail / context for the card."},
             "column": {"type": "string", "description": "Optional column id or kind (default: first queued column)."},
-            "priority": {"type": "string", "enum": ["p0", "p1", "p2", "p3"], "description": "Optional priority (default p2)."},
+            "priority": {"type": "string", "enum": list(CARD_PRIORITIES), "description": "Optional priority (default p2)."},
             "board_id": {"type": "string", "description": "Optional explicit board id; defaults to the active workspace's board."},
         },
         "required": ["title"],

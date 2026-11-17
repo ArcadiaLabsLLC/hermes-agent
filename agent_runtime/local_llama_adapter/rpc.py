@@ -4,14 +4,14 @@ from __future__ import annotations
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 
 from .binding import get_manager
-from .config import LocalLlamaError, identifier
+from .config import OPERATION_GUARDS, LocalLlamaError, identifier
 
 __layer__ = "lanes"
 
 METHODS = {"status": TIER_READ, "config.get": TIER_CONSOLE, "config.set": TIER_CONSOLE,
            "catalog.scan": TIER_CONSOLE, "start": TIER_CONSOLE, "stop": TIER_CONSOLE,
            "load": TIER_CONSOLE, "unload": TIER_CONSOLE, "logs.get": TIER_CONSOLE}
-GUARDS = {"request_id", "expect_epoch", "expect_revision", "expect_config_revision"}
+GUARDS = set(OPERATION_GUARDS)
 SETUP_FIELDS = {
     "setup.capabilities": set(), "setup.status": {"request_id", "operation_id"},
     "installations.detect": set(), "installations.validate": {"executable_path"},

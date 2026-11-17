@@ -12,12 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 __layer__ = "lanes"
-__all__ = ["INSTANCE_CREATE_PARAMS", "create_persona_instance"]
-
-INSTANCE_CREATE_PARAMS = (
-    "persona_id", "display_name", "title", "session_id", "add_instance",
-    "placement_id", "workspace_id", "realm_id", "client_message_id", "requested_by",
-)
+__all__ = ["create_persona_instance"]
 
 
 def create_persona_instance(params: dict, *, caller: Any | None = None) -> dict:

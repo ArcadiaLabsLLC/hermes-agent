@@ -19,12 +19,13 @@ from agent_runtime.serve_rpc.protocol import (
 )
 from agent_runtime.serve_rpc.registry import method
 from agent_runtime.work_store.reasons import Reason, WorkRefused
+from agent_runtime.work_store.schedule_ops import OPS
 
 __layer__ = "lanes"
 __all__ = ["REFUSAL_CODES", "SCHEDULE_METHOD_PREFIX", "SCHEDULE_OPS"]
 
 SCHEDULE_METHOD_PREFIX = "runtime.schedule."
-SCHEDULE_OPS = ("arm", "disarm", "list", "pause", "resume")
+SCHEDULE_OPS = tuple(OPS)
 REFUSAL_CODES: dict[Reason, int] = {Reason.INVALID: ERR_INVALID_PARAMS, Reason.SCHEDULE_INVALID: ERR_INVALID_PARAMS,
                                     Reason.SCHEDULE_NOT_FOUND: ERR_NOT_FOUND}
 
