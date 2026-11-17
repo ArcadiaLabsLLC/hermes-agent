@@ -9,11 +9,19 @@ The host supplies three credential callbacks and, on a phone, a fourth
 * ``protect_history_dir(path: str) -> None`` — REQUIRED on a phone (the embedded
   serve refuses to start without it, :meth:`HostStoreBinding.protect_history_dir`): put the OS's file
   protection and a no-cloud-backup mark on *path*, the Hermes home that holds the chat
-  history (``state.db`` and its WAL, ``sessions/``, ``logs/``). iOS: the strongest Data
-  Protection class (``NSFileProtectionComplete``, inherited by files created inside) and
+  history (``state.db`` and its WAL, ``sessions/``, ``logs/``). iOS: the Data Protection
+  class ``NSFileProtectionCompleteUntilFirstUserAuthentication`` (readable once the phone
+  has been unlocked since it booted; inherited by files created inside) and
   ``isExcludedFromBackup``; Android: an app-private directory under file-based
-  encryption, excluded from Auto Backup / device transfer (or under
-  ``noBackupFilesDir``). Idempotent — called on every embedded start. Raising refuses
+  encryption (credential-encrypted storage: the same "after first unlock" reach),
+  excluded from Auto Backup / device transfer (or under ``noBackupFilesDir``). The class
+  is the owner's ruling of 2026-11-16 (row ``RT-PHONE-HISTORY-PROTECTION-CLASS``): the
+  store keeps pooled connections open and writes from threads outside any turn, and
+  agent work, image sheets and calls run with the screen locked, so ``Complete`` (no
+  reads about ten seconds after lock) would need the whole store closed and reopened on
+  every lock. Tightening the class later needs the host's lifecycle port to deliver the
+  OS's protected-data "will become unavailable / did become available" edges to the
+  runtime; no code delivers them yet. Idempotent — called on every embedded start. Raising refuses
   the start. The history itself is upstream's plain SQLite and JSONL: Hermes seals
   nothing (owner ruling 2026-09-30); the OS's protection of the app container is the
   at-rest encryption. A store sealed by the retired app-level seal (``hsec1``
