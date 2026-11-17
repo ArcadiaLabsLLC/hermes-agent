@@ -35,6 +35,13 @@ TARGETS: dict[str, tuple[str, dict[str, str]]] = {
     "ios_arm64": ("arm64-apple-ios",
                   {"sys_platform": "ios", "platform_system": "iOS", "os_name": "posix",
                    "platform_machine": "arm64"}),
+    # QA only, never shipped (manifest.QA_ONLY_PHONE_TARGETS): the Android emulator and the iPhone simulator.
+    "android_x86_64": ("x86_64-linux-android",
+                       {"sys_platform": "android", "platform_system": "Android", "os_name": "posix",
+                        "platform_machine": "x86_64"}),
+    "ios_arm64_simulator": ("arm64-apple-ios-simulator",
+                            {"sys_platform": "ios", "platform_system": "iOS", "os_name": "posix",
+                             "platform_machine": "arm64"}),
 }
 
 

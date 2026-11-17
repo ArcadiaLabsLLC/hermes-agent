@@ -155,7 +155,7 @@ def test_a_phone_core_record_has_no_interpreter_row(tmp_path: Path):
     ``interpreters.lock.json`` pins none. Killing mutation: always add ``interpreter_row`` -> KeyError, red."""
     (tmp_path / "site-packages").mkdir()
     (tmp_path / "app").mkdir()
-    for target in ("ios_arm64", "android_arm64"):
+    for target in ("ios_arm64", "android_arm64", "ios_arm64_simulator", "android_x86_64"):
         record = write_licence_records(tmp_path, "core", set(), target, "c0ffee" * 7, core=True, wheels={})
         assert [r["kind"] for r in record["components"]] == ["first-party"]
         assert licence_problems(tmp_path, set()) == []

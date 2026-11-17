@@ -320,6 +320,43 @@ def test_a_phone_target_refuses_bake_with_and_names_its_python(monkeypatch, caps
     assert seen == ["3.14", pkg.locked_python_version()]
 
 
+def test_the_qa_only_phone_targets_build_and_are_never_shipped(monkeypatch, tmp_path: Path):
+    """RT-PHONE-EMULATOR-TARGETS: the Android emulator (x86_64) and the iPhone simulator get packager rows,
+    are phones (no interpreter pin), and are never shipped: no profile may name one in ``packaging.targets``.
+
+    Killing mutations: drop ``QA_ONLY_PHONE_TARGETS`` from ``PHONE_TARGETS`` -> the build asks no
+    ``--python-version`` and takes the desktop lock's, red; add ``android_x86_64`` to ``PACKAGING_TARGETS``
+    -> red; drop the QA-only refusal in ``validate_manifest`` -> red."""
+    import scripts.bundle_profile_package as pkg
+    from agent_runtime.bundle_profiles.manifest import (
+        PACKAGING_TARGETS, PHONE_TARGETS, QA_ONLY_PHONE_TARGETS, ProfileManifestError, load_profile,
+        parse_manifest, validate_manifest)
+    from scripts.bundles.targets import TARGETS
+
+    assert set(QA_ONLY_PHONE_TARGETS) == {"android_x86_64", "ios_arm64_simulator"}
+    assert not set(QA_ONLY_PHONE_TARGETS) & set(PACKAGING_TARGETS)  # never shipped
+    assert set(PHONE_TARGETS) <= set(TARGETS)
+    assert TARGETS["android_x86_64"][0] == "x86_64-linux-android"
+    assert TARGETS["ios_arm64_simulator"][0] == "arm64-apple-ios-simulator"
+    emulator = marker_env("android_x86_64", "3.14")
+    assert (emulator["sys_platform"], emulator["platform_machine"]) == ("android", "x86_64")
+    assert marker_env("ios_arm64_simulator", "3.14")["sys_platform"] == "ios"
+    for profile in ("bundled-phone", "bundled-desktop"):
+        assert not set(load_profile(profile).packaging_targets) & set(QA_ONLY_PHONE_TARGETS)
+    for target in QA_ONLY_PHONE_TARGETS:
+        data = {"schema_version": 1, "profile": "qa", "packaging": {"targets": [target]}}
+        with pytest.raises(ProfileManifestError, match="QA-only target, never shipped"):
+            validate_manifest(parse_manifest(data, validate=False))
+    monkeypatch.setattr(pkg, "module_index", lambda **_kw: {})
+    with pytest.raises(SystemExit):
+        pkg.main(["--profile", "bundled-phone", "--target", "android_x86_64", "--out", str(tmp_path / "x")])
+    seen: list = []
+    monkeypatch.setattr(pkg, "_build", lambda args, *_a: seen.append(args.python_version) or 0)
+    assert pkg.main(["--profile", "bundled-phone", "--target", "ios_arm64_simulator", "--python-version", "3.14",
+                     "--out", str(tmp_path / "s"), "--no-serve-probe"]) == 0
+    assert seen == ["3.14"]
+
+
 def test_a_profile_naming_a_target_the_packager_lacks_is_refused():
     from agent_runtime.bundle_profiles.manifest import (
         ProfileManifestError, load_profile, parse_manifest, validate_manifest)

@@ -73,7 +73,7 @@ if str(ROOT) not in sys.path:
 from scripts.bundle_licenses import copy_first_party_licence, write_licence_records
 from scripts.bundle_profile_closure import _lock, module_index
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR
-from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS, PoolScope
+from agent_runtime.bundle_profiles.manifest import PHONE_TARGETS, PoolScope
 from scripts.bundles.bundle_files import (
     BAKED_MARKER, BUILD_SHA_FILE, BUNDLE_MANIFEST, ENGINE_PACKS_ENV, ENGINE_PACKS_PTH, ENGINE_PACKS_PTH_LINE,
     PACK_MANIFEST, Dist, _data_file, _excluded, _in_resource, _is_noise, _is_test, _resource_file, read_site,
@@ -339,7 +339,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if args.no_serve_probe and args.python:
         parser.error("--no-serve-probe and --python contradict each other")
-    if args.target in PACKAGING_TARGETS:  # a phone: the host app embeds CPython, nothing here is pinned
+    if args.target in PHONE_TARGETS:  # a phone: the host app embeds CPython, nothing here is pinned
         if args.bake_with:
             parser.error(f"bake_refused_phone_target: {args.target} bakes with the host app's interpreter")
         if not args.python_version:

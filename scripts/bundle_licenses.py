@@ -376,11 +376,11 @@ def write_licence_records(out: Path, output: str, names, target: str, commit: st
                           override_root: Path = LICENCE_TEXTS) -> dict:
     """``licenses.json`` + ``sbom.cdx.json`` in ``out`` for ``names`` (and, for the core, the
     interpreter and first-party app). Returns the licences record."""
-    from agent_runtime.bundle_profiles.manifest import PACKAGING_TARGETS
+    from agent_runtime.bundle_profiles.manifest import PHONE_TARGETS
 
     rows = distribution_rows(out, names, wheels, overrides, override_root)
     if core:  # a phone embeds the host app's CPython: no interpreter pin, so no interpreter row here
-        interpreter = [] if target in PACKAGING_TARGETS else [interpreter_row(target)]
+        interpreter = [] if target in PHONE_TARGETS else [interpreter_row(target)]
         rows = [*interpreter, first_party_row(out, commit), *rows]
     record = {"schema": 1, "output": output, "target": target, "commit": commit,
               "review_required": [r["distribution"] for r in rows if r["review"]], "components": rows}

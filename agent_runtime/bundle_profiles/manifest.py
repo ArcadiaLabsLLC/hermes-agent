@@ -81,6 +81,16 @@ KEYS_READ_OUTSIDE_DEFAULTS = {
 #: each (``tests/scripts/test_bundle_profile_package.py`` pins it); this module never imports the packager.
 PACKAGING_TARGETS = ("android_arm64", "ios_arm64")
 
+#: Phone targets for QA only, NEVER shipped: the Android emulator (x86_64) and the iPhone simulator, so a
+#: phone bundle can be tried without a physical phone (row RT-PHONE-EMULATOR-TARGETS). A profile may not
+#: name one (:func:`validate_manifest` refuses it); the packager builds one on request. Like a shipped
+#: phone, the host app embeds CPython, so nothing is pinned. ``scripts/bundles/targets.TARGETS`` carries
+#: a row for each.
+QA_ONLY_PHONE_TARGETS = ("android_x86_64", "ios_arm64_simulator")
+
+#: Every phone target, shipped or QA-only: the host app embeds the interpreter.
+PHONE_TARGETS = (*PACKAGING_TARGETS, *QA_ONLY_PHONE_TARGETS)
+
 
 class PoolScope(Enum):
     """What the packager's pool phase installs (``packaging.pool``; plan bundled-phone-pool-2026-10-22 §2).
@@ -322,6 +332,9 @@ def validate_manifest(manifest: ProfileManifest) -> None:
     both = sorted({_dist(n) for n in manifest.packaging_pure_wheels} & {_dist(n) for n in manifest.admitted_native})
     if both:
         raise ProfileManifestError(f"packaging.pure_wheels and packaging.admitted_native both name: {both}")
+    qa_only = [t for t in manifest.packaging_targets if t in QA_ONLY_PHONE_TARGETS]
+    if qa_only:
+        raise ProfileManifestError(f"packaging.targets names a QA-only target, never shipped: {qa_only}")
     unknown_targets = [t for t in manifest.packaging_targets if t not in PACKAGING_TARGETS]
     if unknown_targets:
         raise ProfileManifestError(f"packaging.targets names no packager target: {unknown_targets}")
