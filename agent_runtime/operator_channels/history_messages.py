@@ -307,8 +307,9 @@ class HistoryMessage:
             }
         if shape.kind == PERSONA_HARNESS_DELIVERY_KIND:
             message["delivery"] = _delivery_block(row)
+        # Only the failed-turn boundary row carries one (curation's ``_carry_failed_turn``).
         surface = row.get("error_surface")
-        if shape.kind == PERSONA_FAILED_TURN_KIND and isinstance(surface, dict):
+        if isinstance(surface, dict):
             message["error_surface"] = dict(surface)
         # A titled notice (a runtime notice, any steered timeline notification) keeps
         # its operator title and category; the body is the note.
