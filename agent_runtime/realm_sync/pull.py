@@ -54,6 +54,7 @@ from .skill_inbox import apply_skill_inbox_pull
 
 __layer__ = "lanes"
 __all__ = [
+    "ARTIFACTS_UPDATED_KEY",
     "PULL_APPLIERS",
     "PullApplier",
     "_PullRun",
@@ -80,6 +81,11 @@ __all__ = [
     "_pulled_artifact_bytes",
     "pull_realm_sync",
 ]
+
+#: The pull envelope's count of the store-record artifacts this pull WROTE: 0 for a pull that brought
+#: nothing new. ``artifacts`` stays the whole list the realm holds (RT-REALM-IDLE-PULL-SAYS-ARTIFACTS-UPDATED;
+#: Eternia reads this count, MC-REALM-IDLE-PULL-SAYS-ARTIFACTS-UPDATED).
+ARTIFACTS_UPDATED_KEY = "artifacts_updated"
 
 
 def pull_realm_sync(
@@ -119,8 +125,10 @@ def _pull_realm_sync(
     artifacts = _artifacts_from_subtree(subtree)
     _assert_no_secret_artifacts(artifacts)
     if dry_run:
-        return _sync_result(realm, "pull", "dry_run", artifacts, repo=repo, git=_git_state(repo), changed=False)
-    run = _PullRun(realm=realm, subtree=subtree, changed=_overwrite_generic_families(artifacts, realm=realm))
+        return _sync_result(realm, "pull", "dry_run", artifacts, repo=repo, git=_git_state(repo), changed=False) | {
+            ARTIFACTS_UPDATED_KEY: 0}
+    written, rehomed = _overwrite_generic_families(artifacts, realm=realm)
+    run = _PullRun(realm=realm, subtree=subtree, changed=bool(written) or rehomed)
     for applier in PULL_APPLIERS:
         if applier.apply(run):
             run.changed = True
@@ -136,6 +144,8 @@ def _pull_realm_sync(
     git_after = _git_state(repo)
     result = _sync_result(run.realm, "pull", "pulled", artifacts, repo=repo, git=git_after, changed=run.changed)
     result.update(_pull_accounting(run, install_results))
+    # MUTATION: answer len(artifacts) and test_an_idle_pull_answers_no_artifact_updated reds.
+    result[ARTIFACTS_UPDATED_KEY] = written
     _write_sync_sidecar(
         run.realm,
         repo=repo,
@@ -153,11 +163,12 @@ def _pull_realm_sync(
     return result
 
 
-def _overwrite_generic_families(artifacts: list[RealmSyncArtifact], *, realm: Realm) -> bool:
+def _overwrite_generic_families(artifacts: list[RealmSyncArtifact], *, realm: Realm) -> tuple[int, bool]:
     """The generic overwrite loop: every artifact with a destination (only the
-    store-record families have one — ``families.SYNC_PATH_FAMILIES``)."""
+    store-record families have one — ``families.SYNC_PATH_FAMILIES``). Answers how many artifacts it
+    wrote and whether it re-homed a workspace out of another realm."""
 
-    changed = False
+    written = 0
     moved_out = _workspaces_moved_out(artifacts, realm=realm)
     rehomed: list[tuple[str, str]] = []
     for artifact in artifacts:
@@ -172,12 +183,10 @@ def _overwrite_generic_families(artifacts: list[RealmSyncArtifact], *, realm: Re
         # only a real content edit rewrites the destination and flags changed.
         if before is None or _canonicalize_text_bytes(before) != _canonicalize_text_bytes(data):
             artifact.destination.write_bytes(data)
-            changed = True
+            written += 1
         if held_by not in (None, realm.id) and _local_workspace_realm_id(artifact.destination) == realm.id:
             rehomed.append((artifact.destination.stem, held_by))
-    if _leave_realms_a_pull_rehomed_from(rehomed):
-        changed = True
-    return changed
+    return written, _leave_realms_a_pull_rehomed_from(rehomed)
 
 
 def _leave_realms_a_pull_rehomed_from(rehomed: list[tuple[str, str]]) -> bool:

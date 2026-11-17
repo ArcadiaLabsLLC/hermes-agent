@@ -503,3 +503,25 @@ def test_a_pull_that_reconciles_nothing_leaves_the_record_byte_identical(tmp_pat
 
     assert runtime_paths.realm_path(realm.id).read_bytes() == before
     assert result["changed"] is False
+
+
+def test_an_idle_pull_answers_no_artifact_updated(tmp_path):
+    """RT-REALM-IDLE-PULL-SAYS-ARTIFACTS-UPDATED: seen live 2026-11-16, every idle pull read "2 artifacts
+    updated" because Eternia counted ``artifacts``, the whole list the realm holds. The pull now answers
+    ``artifacts_updated``, the artifacts it WROTE. KILLING MUTATION: answer ``len(artifacts)`` -> the second,
+    idle pull answers 1, red."""
+    import json
+
+    realm, repo = _local_realm(tmp_path)
+    _publish_record(repo, realm)
+    published = repo / "realms" / realm.id / "store" / "realms" / f"{runtime_paths.safe_path_token(realm.id)}.json"
+    record = json.loads(published.read_text(encoding="utf-8"))
+    record["default_workspace_name"] = "Renamed by the owner"
+    published.write_text(json.dumps(record), encoding="utf-8")
+
+    first = pull_realm_sync(realm.id)
+    assert first["artifacts_updated"] == 1 and first["changed"] is True
+    idle = pull_realm_sync(realm.id)
+    assert len(idle["artifacts"]) == 1
+    assert idle["artifacts_updated"] == 0
+    assert pull_realm_sync(realm.id, dry_run=True)["artifacts_updated"] == 0
