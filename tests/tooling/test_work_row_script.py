@@ -972,3 +972,40 @@ def test_a_close_lists_the_deferred_row_whose_waits_field_names_it(clones, capsy
     said = capsys.readouterr().out
     assert "waited on it: `RT-D` (DEFERRED, hermes / q.md): `RT-A` (hermes) is closed — for review" in said
     assert parked in (mine / NOTE).read_text(encoding="utf-8")
+
+
+def test_a_close_names_each_task_line_that_still_mentions_the_row(clones, tmp_path, monkeypatch, capsys):
+    """RT-CLOSE-NAMES-SIBLING-TASK-LINES-THAT-STILL-MENTION-THE-ROW (its twin: launcher
+    QA-CLOSE-NAMES-TASK-LINES-THAT-STILL-MENTION-THE-ROW). Seen 2026-11-16: an Eternia task line called a hermes row
+    "(READY, a hermes lane's)" six days after it closed. KILLING MUTATION: return [] from ``mentioning_task_lines``
+    -> neither task is named, red. A row line naming it, and the ``unblocked`` record the close writes, are not."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path, "- **`TASK-L` — A launcher task** · task: l · handoff 2026-11-09: waits on `RT-S1` "
+                        "(READY, a hermes lane's) · READY 2026-11-09\n"
+                        "- **`L-R` — a launcher row** · group: l · after `RT-S1` · READY 2026-11-09\n")
+    _seed(mine, TASK_ROWS.replace("· task: p ·", "· task: p · next: `RT-S1` ·")
+          + "- **`TASK-Q` — Quiet** · task: q · READY 2026-11-09\n- **`RT-Q1` — q** · group: q · READY 2026-11-09\n")
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date",
+                          "2026-11-09", "--repo", str(mine), "--no-commit"]) == 0
+    out = capsys.readouterr().out
+    assert "task `TASK-L` (launcher, mission-control-queue.md) still mentions `RT-S1` — correct its line there" in out
+    assert "task `TASK-P` (hermes, q.md) still mentions `RT-S1` — correct its line\n" in out
+    assert "TASK-Q" not in out and "L-R" not in out
+    git("checkout", "-q", "--", ".", cwd=mine)
+
+
+def test_the_unblocked_record_a_close_writes_is_not_a_stale_mention(clones, tmp_path, monkeypatch, capsys):
+    """KILLING MUTATION: drop the ``unblocked`` arm of ``mentioning_task_lines`` -> the close names its own task for
+    the record it just wrote there, red."""
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)
+    _, mine, _ = clones
+    _siblings(tmp_path)
+    _seed(mine, TASK_ROWS.replace("· task: p · READY 2026-11-09", "· task: p · BLOCKED 2026-11-09: another lane — `RT-S1`"))
+    assert work_row.main(["close", "RT-S1", "--who", "r", "--done", "1a2b3c4", "--allow-unlanded", "--date",
+                          "2026-11-09", "--repo", str(mine), "--no-commit"]) == 0
+    out = capsys.readouterr().out
+    assert "woke `TASK-P`: READY" in out
+    assert "unblocked 2026-11-09: `RT-S1`" in (mine / NOTE).read_text(encoding="utf-8")
+    assert "still mentions" not in out
+    git("checkout", "-q", "--", ".", cwd=mine)

@@ -375,6 +375,21 @@ def follow_up_lines(task: Row, rows: list[Row]) -> list[str]:
             *(f"  `{row.ref.id}` — {row.title} ({row.ref.slot}, {Path(row.ref.note).name})" for row in found)]
 
 
+def mentioning_task_lines(closed_id: str, rows: list[Row]) -> list[str]:
+    """After a close: every live task line in the brains read whose prose still names ``closed_id`` — a handoff or
+    a count calling it READY outlives the close, and the Eternia Work board counts the IDs a task line names
+    (RT-CLOSE-NAMES-SIBLING-TASK-LINES-THAT-STILL-MENTION-THE-ROW; the launcher's twin is ``close_row.dart``'s,
+    QA-CLOSE-NAMES-TASK-LINES-THAT-STILL-MENTION-THE-ROW). The ``unblocked`` record this close writes is not prose.
+    A print only, never a write: a sibling brain's line is that brain's to edit."""
+
+    mark = f"`{closed_id}`"
+    # MUTATION: return [] here and test_a_close_names_each_task_line_that_still_mentions_the_row reds.
+    found = [row for row in rows if row.task is not None and row.ref.id != closed_id and any(
+        mark in segment and not segment.strip().startswith("unblocked ") for segment in split_segments(row.raw))]
+    return [f"task `{row.ref.id}` ({row.ref.slot}, {Path(row.ref.note).name}) still mentions `{closed_id}` — "
+            f"correct its line{'' if row.ref.slot == 'hermes' else ' there'}" for row in found]
+
+
 def queue_notes(repo: Path, note: str | None) -> list[Path]:
     if note:
         # TOOL-WORK-ROW-NOTE-FLAG-READS-AS-ROW-GONE (seen 2026-11-14): text passed as ``--note`` answered ``row_gone``
@@ -660,7 +675,7 @@ def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, s
     # MUTATION: drop this loop and test_a_close_lists_the_deferred_row_whose_waits_field_names_it reds.
     for brain, row in field_waiters_of({"hermes": _live_rows(texts), **siblings}, args.row_id, "hermes"):
         print(listing_line(brain, row, args.row_id, "hermes"))
-    for line in said:
+    for line in [*said, *mentioning_task_lines(args.row_id, _brains(texts, siblings))]:
         print(line)
     return touched
 
