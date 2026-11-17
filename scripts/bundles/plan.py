@@ -237,6 +237,11 @@ def make_plan(manifest, site: Path, target: str, python_version: str,
     the core's answer from a :func:`distribution_plans` run over ``site``, when the caller has one."""
     first_party, loaded, _ = first_party_plan(manifest, index)
     needed, refused = distributions or distribution_plan(manifest.profile, [site], target, python_version)
+    # A pinned phone wheel's companions ship wherever it does: nothing imports Pillow's image libraries,
+    # so the closure alone never reaches them (scripts/bundles/phone_wheels.py).
+    from scripts.bundles.phone_wheels import with_companions
+
+    needed = with_companions(needed, target)
     return Plan(profile=manifest.profile, target=target, python_version=python_version,
                 first_party=first_party, pinned=loaded, distributions=needed,
                 missing=needed - set(read_site(site)), refusals=refused,

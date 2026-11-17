@@ -183,3 +183,15 @@ landed" note on the launcher's `DIST-MOBILE-CORE-WHEEL-LOCK` as the preceding pl
 2. **Pillow's version on the phones** — uv.lock pins 12.3.0 (iOS wheel present); PyPI's newest iOS wheel is
    13.0.0. Keep the lock's pin or bump for the phones? · Recommend: keep 12.3.0 (one lock, one version, the
    desktop's); the bump is the weekly release merge's.
+
+**Superseded 2026-11-17 (owner RULED, row `RT-PHONE-PILLOW-ANDROID`).** Ruling 1 was decided (a) on
+2026-10-22 and is now replaced: the fork builds no Pillow. Android takes Flet's prebuilt wheels
+(`https://pypi.flet.dev/`) — Pillow 13.0.0 build 2 and the four image libraries it requires by exact
+version (`flet-libjpeg` 3.2.1, `flet-libtiff` 4.7.2, `flet-libfreetype` 2.15.0, `flet-libwebp` 1.6.0) —
+pinned by index link and sha256 in `agent_runtime/bundle_profiles/phone_wheels.lock.json`, not in
+`pyproject.toml`/`uv.lock`: uv 0.12 (CI's pin) does not know the `android_24_*` tags and refuses the
+`py3-none` library wheels under `[tool.uv] environments` (uv 0.13.9 locks them). The pool installs a pin in
+place of the lock's block (`scripts/bundles/phone_wheels.py`), the plan ships the libraries wherever Pillow
+ships, the gate judges a pinned wheel by its own file, and `agent_runtime/phone_native_libs.py` loads
+`site-packages/opt/lib` by path before Pillow, since the wheels carry no `RUNPATH`. Ruling 2 stands at
+the lock's version, now 13.0.0: the packager refuses a phone pin off `uv.lock`'s Pillow version.

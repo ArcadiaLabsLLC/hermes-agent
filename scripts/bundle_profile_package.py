@@ -80,6 +80,7 @@ from scripts.bundles.bundle_files import (
     mark_named_skill, skill_ships, tracked_files)
 from scripts.bundles.plan import (
     CORE, EXIT_RETRYABLE, Plan, PlanStalled, distribution_plans, make_plan, pack_from_plans, pack_selections)
+from scripts.bundles import phone_wheels
 from scripts.bundles.pool_install import install_pool as install_pool_into, remove_tree
 from scripts.bundles.requirement_blocks import closure_requirements, render, requirement_blocks, seed_union
 from scripts.bundles.targets import TARGETS, marker_env
@@ -153,7 +154,9 @@ def pool_selection(manifest, seed_sites: list[Path], target: str, python_version
     """``PoolScope.CLOSURE``: the union of every selection's ``needed`` (core and each engine pack), planned
     over a SEED site whose installed metadata maps import names to distributions, and the refusals.
     Phase ``plan`` re-plans over the installed pool, so a seed that mis-maps a name is a red there."""
-    return seed_union(distribution_plans(manifest.profile, [(seed_sites, pack_selections(manifest))], target, python_version)[0])
+    needed, refused = seed_union(distribution_plans(manifest.profile, [(seed_sites, pack_selections(manifest))], target,
+                                                    python_version)[0])
+    return phone_wheels.with_companions(needed, target), refused  # what ships with a pinned phone wheel
 
 
 # -- phase 3: copy ---------------------------------------------------------------------------
@@ -392,6 +395,13 @@ def _build(args, manifest, index, stage: Path, probe_python) -> int:
                 selected, refused = pool_selection(manifest, args.seed_sites, args.target, args.python_version)
         with phase("pool"):
             requirements = export_requirements((*manifest.packaging_extras, *pack_extras), args.uv)
+            # uv.lock's block for a name pinned on this target gives way to its pin (Android's Pillow and
+            # the libraries it links: scripts/bundles/phone_wheels.py), at one version with the lock.
+            version_problems = phone_wheels.version_problems(_lock())
+            if version_problems:
+                print("\n".join(version_problems), flush=True)
+                return 1
+            requirements = render(phone_wheels.pinned_blocks(requirement_blocks(requirements), args.target), marker=True)
             if selected is not None:  # a refusal returns before any install (phase plan would raise the same)
                 requirements, problems, receipt = closure_requirements(
                     requirements, selected, refused, marker_env(args.target, args.python_version), args.seed_sites,

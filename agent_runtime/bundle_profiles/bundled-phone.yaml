@@ -133,6 +133,17 @@ packaging:
   # no pure alternative). CPython's own ssl / sqlite3 are the interpreter, not distributions.
   admitted_native:
     pillow: "image sheets and image prep; the one compiled library architecture §6 admits"
+    # Android only: Flet's Pillow links these and they ship as its companions (phone_wheels.lock.json,
+    # owner RULED 2026-11-17, RT-PHONE-PILLOW-ANDROID); agent_runtime/phone_native_libs.py loads them.
+    flet-libjpeg: "Pillow's JPEG codec on Android (libjpeg-turbo)"
+    flet-libtiff: "Pillow's TIFF codec on Android (libtiff)"
+    flet-libfreetype: "Pillow's font rendering on Android (FreeType)"
+    flet-libwebp: "Pillow's WebP codec on Android (libwebp, libsharpyuv)"
+  # Files the Android image-library wheels carry that nothing loads at run time.
+  excluded_data:
+    site-packages/opt/include: "C headers of the flet-lib* wheels: for compiling against them, never loaded"
+    site-packages/opt/lib/*.a: "static archives of the flet-lib* wheels (14.8 MB in flet-libjpeg): for linking, never loaded"
+    site-packages/opt/lib/libturbojpeg.so: "libjpeg-turbo's TurboJPEG API: Pillow links libjpeg.so only"
   # Base dependencies the phone omits. Refused by the closure script unless every import site
   # in the kept modules is guarded (try/suppress ImportError).
   omitted_distributions:

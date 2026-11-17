@@ -218,6 +218,9 @@ class EmbeddedServe:
         from agent_runtime.spawn_stand_ins import ensure_spawn_stand_ins
 
         ensure_spawn_stand_ins()  # upstream functions that start a process answer as a phone must
+        from agent_runtime.phone_native_libs import load_phone_native_libs
+
+        load_phone_native_libs()  # Android: Pillow's image libraries, by path, before anything imports PIL
         self._thread = threading.Thread(target=self._run, name="hermes-embedded-serve", daemon=True)
         self._thread.start()
 

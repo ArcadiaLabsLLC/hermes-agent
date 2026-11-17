@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "comment": "The phone wheels uv.lock cannot hold: Android Pillow and the image libraries it links, Flet's prebuilt wheels from https://pypi.flet.dev/ pinned by index link and sha256 (owner RULED 2026-11-17, row RT-PHONE-PILLOW-ANDROID). Not in pyproject.toml/uv.lock: uv 0.12 (CI's pin) does not know the android_24_* wheel tags and refuses the py3-none library wheels under [tool.uv] environments; uv 0.13.9 locks them (seen 2026-11-17). The phone packager installs these in place of uv.lock's block for a name on a listed target (scripts/bundles/phone_wheels.py); a distribution's `companions` ship wherever it ships. pillow's version must equal uv.lock's (one version, the desktop's; the packager refuses a mismatch); the four libraries are the exact versions Flet's Pillow 13.0.0 build 2 requires (Requires-Dist ==). Every .so in them is 16 KB page-aligned (read 2026-11-17); flet-libjpeg 3.0.90 builds 1-2 are not. Bump all five together, for both targets.",
+  "wheels": {
+    "pillow": {
+      "version": "13.0.0",
+      "companions": [
+        "flet-libjpeg",
+        "flet-libtiff",
+        "flet-libfreetype",
+        "flet-libwebp"
+      ],
+      "targets": {
+        "android_arm64": {
+          "url": "https://pypi.flet.dev/-/ver_1eI8DJ/pillow-13.0.0-2-cp314-cp314-android_24_arm64_v8a.whl",
+          "sha256": "f246c82dc9e9b21131ee99977156f9a8ae9066b20d6dac927a6930056a8a4dd7"
+        },
+        "android_x86_64": {
+          "url": "https://pypi.flet.dev/-/ver_14ja92/pillow-13.0.0-2-cp314-cp314-android_24_x86_64.whl",
+          "sha256": "3a88f7dec34738108dbd8b7adbad539ac7bf72b93ba3ac21bafe4aa321b793c7"
+        }
+      }
+    },
+    "flet-libjpeg": {
+      "version": "3.2.1",
+      "targets": {
+        "android_arm64": {
+          "url": "https://pypi.flet.dev/-/ver_1ns2hm/flet_libjpeg-3.2.1-1-py3-none-android_24_arm64_v8a.whl",
+          "sha256": "8200405b59ddda1d0e6a6c71809267c29328f4130ad4422992b8f61fe4a0adbb"
+        },
+        "android_x86_64": {
+          "url": "https://pypi.flet.dev/-/ver_1cnlM4/flet_libjpeg-3.2.1-1-py3-none-android_24_x86_64.whl",
+          "sha256": "cd883d3c70cf1f71b1627d0d260d21519bd735d4403ec90c715a9dfbe7aec786"
+        }
+      }
+    },
+    "flet-libtiff": {
+      "version": "4.7.2",
+      "targets": {
+        "android_arm64": {
+          "url": "https://pypi.flet.dev/-/ver_8tdmo/flet_libtiff-4.7.2-1-py3-none-android_24_arm64_v8a.whl",
+          "sha256": "0e4128d79df333df871d9bf46796fb0ec9a15464b529f46e0fcc01b0af00d0ac"
+        },
+        "android_x86_64": {
+          "url": "https://pypi.flet.dev/-/ver_27M3zv/flet_libtiff-4.7.2-1-py3-none-android_24_x86_64.whl",
+          "sha256": "38a1d50d07673f1239d2734ffbcdecefd919008b9433e7b090614a2c6ee742f4"
+        }
+      }
+    },
+    "flet-libfreetype": {
+      "version": "2.15.0",
+      "targets": {
+        "android_arm64": {
+          "url": "https://pypi.flet.dev/-/ver_bKgQp/flet_libfreetype-2.15.0-1-py3-none-android_24_arm64_v8a.whl",
+          "sha256": "8779b70e6d49c322f7cd2bf978b56a943c7cee54f36a55ba003ff59f5e6629f9"
+        },
+        "android_x86_64": {
+          "url": "https://pypi.flet.dev/-/ver_HLEN/flet_libfreetype-2.15.0-1-py3-none-android_24_x86_64.whl",
+          "sha256": "8964564395c9cdf20636d5beaa40a2122776188b1e0079a00176e4799958bbc1"
+        }
+      }
+    },
+    "flet-libwebp": {
+      "version": "1.6.0",
+      "targets": {
+        "android_arm64": {
+          "url": "https://pypi.flet.dev/-/ver_1i6drl/flet_libwebp-1.6.0-1-py3-none-android_24_arm64_v8a.whl",
+          "sha256": "2377809eff07ec55c79e88525c1bfaa7735202f1bf947143b9f1c36a50b22baf"
+        },
+        "android_x86_64": {
+          "url": "https://pypi.flet.dev/-/ver_1K5QLJ/flet_libwebp-1.6.0-1-py3-none-android_24_x86_64.whl",
+          "sha256": "60f8647751ed0e6a23fba16519c598ebbc659daaa441323555c7dbcad605100e"
+        }
+      }
+    }
+  }
+}

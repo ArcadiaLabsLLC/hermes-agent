@@ -64,6 +64,7 @@ from scripts.bundle_profile_closure import (  # after the path insert, like the 
     _norm,
     refusals as closure_refusals,
 )
+from scripts.bundles.phone_wheels import pinned_wheel
 
 #: Provider SDKs: architecture §6 — phones call every provider over raw HTTP.
 PROVIDER_SDKS = frozenset({
@@ -189,6 +190,11 @@ def distribution_findings(shipped, lock: dict[str, dict], admitted_native, targe
             out.append({"kind": "process", "subject": name})
         if name in BROWSER_DISTRIBUTIONS:
             out.append({"kind": "browser", "subject": name})
+        pinned = pinned_wheel(name, target)
+        if pinned is not None:  # a phone pin replaces uv.lock's block on this target: judge the pinned wheel
+            if not pinned.endswith("-none-any.whl") and name not in admitted:
+                out.append({"kind": "native", "subject": name})
+            continue
         entry = lock.get(name)
         if entry is None:
             out.append({"kind": "unproven", "subject": name, "detail": "not in uv.lock"})
