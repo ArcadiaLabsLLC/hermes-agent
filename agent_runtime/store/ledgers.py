@@ -253,8 +253,9 @@ def lift_deleted_workspace(realm: Realm, workspace_id: str) -> bool:
 
     Mutates ``realm`` IN MEMORY and reports whether anything changed, because
     both call sites (``default_scope``) batch several realm edits behind one
-    ``realm_changed`` flag and a single save. Idempotent: an id that is neither
-    on the ledger nor already lifted writes nothing.
+    ``realm_changed`` flag and a single save. Idempotent: an id already off the
+    ledger with an active lift writes nothing; any other id is lifted (a marker
+    with no ledger entry here still wins a peer's merge that carries one).
     """
 
     clean = str(workspace_id or "").strip()

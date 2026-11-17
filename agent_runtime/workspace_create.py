@@ -162,11 +162,20 @@ def apply_workspace_create(plan: WorkspaceCreatePlan, *, workspace_id: str | Non
 
 
 def _join_realm(item) -> None:
+    """List ``item`` in its realm and lift its id off the realm's delete ledger, saved once.
+
+    The id is minted from the idempotency key, so a fixed-key caller (the QA seed) re-creates an id the
+    realm deleted; without the lift the realm lists it shared AND removed and its publish ships neither
+    (RT-REALM-OWNER-RECORD-LISTS-A-WORKSPACE-IT-DELETED). A create is the owner's intent, as a restore is."""
     if not item.realm_id:
         return
     realm = RealmStore().get(item.realm_id)
+    # MUTATION: drop the lift and test_a_create_whose_id_the_realm_deleted_lifts_it_off_the_ledger reds.
+    changed = lift_deleted_workspace(realm, item.id)
     if item.id not in realm.workspace_ids:
         realm.workspace_ids.append(item.id)
+        changed = True
+    if changed:
         RealmStore().save(realm)
 
 

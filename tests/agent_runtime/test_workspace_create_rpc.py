@@ -194,3 +194,25 @@ def test_assign_realm_homes_a_realmless_workspace_and_refuses_another_realms():
         assert _assign(**params)["error"]["data"]["reason"] == reason
     workspaces.archive(listed.id)
     assert _assign(workspace_id=listed.id, realm_id=other.id)["error"]["data"]["reason"] == "workspace_archived"
+
+
+def test_a_create_whose_id_the_realm_deleted_lifts_it_off_the_ledger():
+    """RT-REALM-OWNER-RECORD-LISTS-A-WORKSPACE-IT-DELETED: the id is minted from the idempotency key, so a
+    fixed-key caller (the QA seed) re-creates an id the realm's ledger holds. The realm then lists it shared
+    AND removed, and its owner's publish ships neither. Mutation: drop the lift in ``_join_realm`` -> the id
+    stays on ``deleted_workspace_ids`` and no lift is active, red."""
+    import hashlib
+
+    from tests._downstream._seams import active_workspace_lifts
+
+    realm = RealmStore().create(name="Shared realm")
+    reborn = "ws_" + hashlib.sha256(b"qa-fixture-seed").hexdigest()[:32]
+    held = RealmStore().get(realm.id)
+    held.deleted_workspace_ids.append(reborn)
+    RealmStore().save(held)
+    result = _rpc({"name": "QA Fixture", "idempotency_key": "qa-fixture-seed", "realm_id": realm.id})["result"]
+    assert result["id"] == reborn
+    after = RealmStore().get(realm.id)
+    assert reborn in after.workspace_ids
+    assert reborn not in after.deleted_workspace_ids
+    assert [lift.workspace_id for lift in active_workspace_lifts(after)] == [reborn]
