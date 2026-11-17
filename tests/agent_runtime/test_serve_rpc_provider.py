@@ -413,3 +413,35 @@ def test_configure_refuses_an_undeclared_provider_or_mode_and_writes_nothing(mon
         error = _error(_configure(params))
         assert (error["code"], error["data"]["reason"]) == (ERR_INVALID_PARAMS, reason)
     assert not (tmp_path / "config.yaml").exists()
+
+
+def test_a_signed_in_provider_whose_read_failed_says_so(monkeypatch):
+    """RT-USAGE-READ-FAILURE-SAYS-NO-USAGE-SOURCE: seen 2026-11-16 with a dead Anthropic token, a signed-in
+    account whose usage read failed answered ``no_usage_source`` — the words of a provider with no usage report,
+    which Eternia drops. KILLING MUTATION: ``_missing_usage_reason`` answering ``no_usage_source`` always -> the
+    signed-in Anthropic read answers it, red. A provider with no fetcher, or one signed out, keeps
+    ``no_usage_source``; the class of the failure is upstream's to swallow, so no text travels."""
+    from agent import account_usage
+    from agent_runtime import provider_account
+
+    monkeypatch.setattr(account_usage, "fetch_account_usage", lambda provider, **_: None)
+    monkeypatch.setattr(provider_account, "_signed_in", lambda provider: True)
+    failed = _result(family._runtime_provider_usage(1, {"provider": "anthropic"}))
+    assert (failed["available"], failed["unavailable_reason"]) == (False, provider_account.USAGE_READ_FAILED)
+    assert _result(family._runtime_provider_usage(1, {"provider": "qwen-oauth"}))["unavailable_reason"] == (
+        provider_account.USAGE_NO_SOURCE)
+    monkeypatch.setattr(provider_account, "_signed_in", lambda provider: False)
+    assert _result(family._runtime_provider_usage(1, {"provider": "anthropic"}))["unavailable_reason"] == (
+        provider_account.USAGE_NO_SOURCE)
+
+
+def test_the_unavailable_reasons_eternia_mirrors_are_the_runtimes():
+    """The producer of Eternia's mirror (``tool/test_quality/hermes_mirrors.json``): the words Eternia reads
+    for an unavailable usage lane are these constants. Mutation: rename ``USAGE_READ_FAILED`` -> red."""
+    from pathlib import Path
+
+    from agent_runtime import provider_account
+
+    fixture = Path(__file__).resolve().parents[1] / "fixtures" / "provider_usage_unavailable_reasons.json"
+    assert json.loads(fixture.read_text(encoding="utf-8")) == {
+        "no_usage_source": provider_account.USAGE_NO_SOURCE, "usage_read_failed": provider_account.USAGE_READ_FAILED}

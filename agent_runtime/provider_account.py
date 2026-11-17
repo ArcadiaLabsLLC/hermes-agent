@@ -62,11 +62,20 @@ def _window_view(w: Any) -> dict:
             "scope": w.scope}
 
 
-def _usage_view(provider: str, snapshot: Any) -> dict:
+#: ``unavailable_reason`` of a provider hermes has no usage report for.
+USAGE_NO_SOURCE = "no_usage_source"
+#: ``unavailable_reason`` of a signed-in provider WITH a usage fetcher whose read answered nothing (refused,
+#: timed out, a token that did not resolve): upstream swallows the cause, so only the fact travels
+#: (RT-USAGE-READ-FAILURE-SAYS-NO-USAGE-SOURCE). Both words reach Eternia through the generated mirror
+#: ``tests/fixtures/provider_usage_unavailable_reasons.json``.
+USAGE_READ_FAILED = "usage_read_failed"
+
+
+def _usage_view(provider: str, snapshot: Any, *, reason: str = USAGE_NO_SOURCE) -> dict:
     from .provider_account_view import account_view
 
     if snapshot is None:
-        return {"account": account_view(provider, snapshot), "provider": provider, "available": False, "unavailable_reason": "no_usage_source"}
+        return {"account": account_view(provider, snapshot), "provider": provider, "available": False, "unavailable_reason": reason}
     return {
         "provider": snapshot.provider,
         "account": account_view(provider, snapshot),
@@ -109,11 +118,21 @@ def provider_usage(provider: str) -> dict:
         snapshot = sourced.snapshot
     from .provider_account_metadata import usage_snapshot
 
-    view = _usage_view(provider, usage_snapshot(provider, snapshot))
+    snapshot = usage_snapshot(provider, snapshot)
+    view = _usage_view(provider, snapshot, reason=_missing_usage_reason(provider) if snapshot is None else USAGE_NO_SOURCE)
     view["credential_source"] = sourced.credential_source if sourced else None
     if sourced is not None and sourced.spends_api_key:
         view["plan_windows"] = [_window_view(w) for w in getattr(sourced.plan, "windows", ())]
     return view
+
+
+def _missing_usage_reason(provider: str) -> str:
+    """Why a provider answered no usage snapshot: a signed-in provider with a fetcher had a read fail;
+    any other has no usage source."""
+    from ._upstream_doors import has_account_usage_fetcher
+
+    # MUTATION: answer USAGE_NO_SOURCE always and test_a_signed_in_provider_whose_read_failed_says_so reds.
+    return USAGE_READ_FAILED if has_account_usage_fetcher(provider) and _signed_in(provider) else USAGE_NO_SOURCE
 
 
 def _known(provider: str) -> None:

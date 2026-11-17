@@ -24,6 +24,7 @@ from pathlib import Path
 __layer__ = "models"
 __all__ = [
     "anthropic_account_usage",
+    "has_account_usage_fetcher",
     "anthropic_env",
     "anthropic_oauth_file",
     "anthropic_pool_account_token",
@@ -611,6 +612,14 @@ def anthropic_account_usage(api_key: str):
     from agent.account_usage import _fetch_anthropic_account_usage
 
     return _fetch_anthropic_account_usage(api_key=api_key)
+
+
+def has_account_usage_fetcher(provider: str) -> bool:
+    """Whether ``fetch_account_usage`` has a fetcher of its own for *provider* (``_USAGE_FETCHERS``): its
+    None then means a read that failed, not a provider with no usage report."""
+    from agent.account_usage import _USAGE_FETCHERS
+
+    return str(provider or "").strip().lower() in _USAGE_FETCHERS
 
 
 def pool_source_is_manual(source: str) -> bool:
