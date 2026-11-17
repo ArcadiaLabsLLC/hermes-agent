@@ -43,12 +43,14 @@ def _loader(needs):
 
 
 def test_every_library_loads_whatever_order_the_folder_lists_them(tmp_path):
-    paths = _site(tmp_path, "libjpeg.so", "libtiff.so", "libwebp.so", "libsharpyuv.so")
-    load, loaded = _loader({"libtiff.so": ["libjpeg.so"], "libwebp.so": ["libsharpyuv.so"]})
+    # Flet's set happens to list each library after the ones it needs; ``libarchive.so`` sorts before
+    # ``libzstd.so`` and needs it, so a single pass in folder order would leave it unloaded.
+    paths = _site(tmp_path, "libjpeg.so", "libtiff.so", "libarchive.so", "libzstd.so")
+    load, loaded = _loader({"libtiff.so": ["libjpeg.so"], "libarchive.so": ["libzstd.so"]})
     names = phone_native_libs.load_phone_native_libs(platform="android", paths=paths, loader=load)
-    assert sorted(names) == ["libjpeg.so", "libsharpyuv.so", "libtiff.so", "libwebp.so"]
+    assert sorted(names) == ["libarchive.so", "libjpeg.so", "libtiff.so", "libzstd.so"]
     assert loaded.index("libjpeg.so") < loaded.index("libtiff.so")
-    assert loaded.index("libsharpyuv.so") < loaded.index("libwebp.so")
+    assert loaded.index("libzstd.so") < loaded.index("libarchive.so")
 
 
 def test_off_android_nothing_loads(tmp_path):

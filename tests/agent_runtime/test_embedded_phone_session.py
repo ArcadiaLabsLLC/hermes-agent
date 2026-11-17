@@ -638,6 +638,25 @@ def test_the_spawn_stand_ins_are_installed_before_the_serve_thread(app, monkeypa
     assert serve_thread not in seen[0]
 
 
+def test_the_phone_native_libraries_load_before_the_serve_thread(app, monkeypatch):
+    """Android's Pillow needs its image libraries loaded by path before anything imports ``PIL``
+    (``agent_runtime.phone_native_libs``, RT-PHONE-PILLOW-ANDROID): the phone entry loads them before
+    its serve thread starts, so no request can reach Pillow first."""
+    from agent_runtime import phone_native_libs
+
+    seen: list = []
+    monkeypatch.setattr(phone_native_libs, "load_phone_native_libs",
+                        lambda: seen.append(frozenset(threading.enumerate())) or [])
+    FakeHostSecureStore().bind(profile="phone", store_root=app)
+    serve = EmbeddedServe(lambda _line: None)
+    serve.start()
+    serve_thread = serve._thread
+    serve.close()
+    assert serve.wait(60) is not None
+    assert serve_thread is not None and len(seen) == 1
+    assert serve_thread not in seen[0]
+
+
 def test_the_phone_entry_serves_the_phone_platform_hint(app, monkeypatch):
     """The phone agent is told its limits through upstream's ``PLATFORM_HINTS["phone"]``, which the
     embedded serve (the phone's entry) fills before it serves a request — ``agent/prompt_builder.py``
