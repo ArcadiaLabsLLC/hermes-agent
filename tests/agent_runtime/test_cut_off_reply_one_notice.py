@@ -138,3 +138,62 @@ def test_an_ordinary_reply_row_is_read_as_stored_never_from_the_journal(placed_a
 
 def test_the_boundary_rows_kind_is_spelled_as_the_core_spells_it():
     assert curation._FAILED_TURN_DISPLAY_KIND == FAILED_TURN_DISPLAY_KIND
+    from agent_runtime.persona_chat_history.vocabulary import PERSONA_FAILED_TURN_KIND
+
+    assert PERSONA_FAILED_TURN_KIND == FAILED_TURN_DISPLAY_KIND
+
+
+#: What the core writes for a refused turn (``agent.error_surface``): an out-of-usage refusal and its reset.
+RATE_LIMIT_SURFACE = {"code": "rate_limit", "provider": "anthropic", "model": "claude-x", "resets_at": 1763337600,
+                      "detail": "never travels"}
+
+
+def test_a_failed_turn_row_carries_its_kind_and_surface(placed_agent, model):
+    """RT-FAILED-TURN-ROW-DROPS-ITS-ERROR-SURFACE: seen 2026-11-16, an out-of-usage turn read "Your request was not
+    processed" after a reload — the projection dropped the boundary row's kind and ``error_surface``. Both now
+    ride the persona history row and the operator conversation message. KILLING MUTATIONS: return before the stamp
+    in ``_carry_failed_turn`` -> no kind, red; drop the ``_failed_turn_shape`` rule -> the conversation reads
+    ``reply``, red. A field the surface does not list (``detail``) never travels."""
+    import json
+    import sqlite3
+
+    from hermes_state import SessionDB
+    from agent_runtime.persona_chat_history import history_evidence
+    from agent_runtime.persona_chat_history.vocabulary import PERSONA_FAILED_TURN_KIND
+
+    instance, root = _new_chat(placed_agent)
+    model.reply = lambda body: (CUT_TOOL_CALL, "length")
+    operator_turn(instance, root, "msg-1", "Run the long job.").join(120)
+    with sqlite3.connect(SessionDB().db_path) as db:
+        db.execute("UPDATE messages SET display_metadata = ? WHERE session_id = ? AND display_kind = ?",
+                   (json.dumps({"error_surface": RATE_LIMIT_SURFACE}), root, FAILED_TURN_DISPLAY_KIND))
+    real = history_evidence.history_turn_records
+
+    def _without_reply(*args, **kwargs):
+        return [{k: v for k, v in record.items() if k != "stored_reply"} for record in real(*args, **kwargs)]
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(history_evidence, "history_turn_records", _without_reply)
+        history = operator_call("read", operator_params(instance, root, None, persona=PERSONA,
+                                                        workspace=WORKSPACE))["result"]
+        conversation = _conversation_contract(
+            channel_id="channel-1", persona_id=PERSONA, persona_instance_id=instance, session_id=root, goal_id=None,
+            title="Chat", state="idle", history=history, trace=None)
+    surface = {"code": "rate_limit", "provider": "anthropic", "model": "claude-x", "resets_at": 1763337600.0}
+    [row] = [m for m in history["messages"] if str(m["role"]) == "agent"]
+    assert (row["kind"], row["error_surface"], row["text"]) == (PERSONA_FAILED_TURN_KIND, surface, FAILED_TURN_NOTICE)
+    [message] = [m for m in conversation["messages"] if str(m["role"]) == "agent"]
+    assert (message["kind"], message["error_surface"]) == (PERSONA_FAILED_TURN_KIND, surface)
+
+
+def test_the_failed_turn_row_eternia_mirrors_is_the_runtimes():
+    """The producer of Eternia's mirror (``tool/test_quality/hermes_mirrors.json``): the kind and the surface
+    fields Eternia's decoder reads. Mutation: add a field to ``FAILED_TURN_SURFACE_FIELDS`` -> red."""
+    import json
+    from pathlib import Path
+
+    from agent_runtime.persona_chat_history.vocabulary import FAILED_TURN_SURFACE_FIELDS, PERSONA_FAILED_TURN_KIND
+
+    fixture = Path(__file__).resolve().parents[1] / "fixtures" / "failed_turn_row_v1.json"
+    assert json.loads(fixture.read_text(encoding="utf-8")) == {
+        "kind": PERSONA_FAILED_TURN_KIND, "error_surface_fields": list(FAILED_TURN_SURFACE_FIELDS)}

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from ..persona_chat_history.vocabulary import (
+    PERSONA_FAILED_TURN_KIND,
     PERSONA_HARNESS_DELIVERY_KIND,
     PERSONA_LENS_EPISODE_KIND,
     PERSONA_PRE_TRACE_ACK_KIND,
@@ -100,6 +101,12 @@ def _reply_shape(row: dict[str, Any], persona_id: str, instance_id: str | None) 
     return RowShape("reply", persona_id, instance_id)
 
 
+def _failed_turn_shape(row: dict[str, Any], persona_id: str, instance_id: str | None) -> RowShape:
+    # The core's failed-turn boundary: its own kind, so a client draws why the turn failed from its
+    # ``error_surface`` (RT-FAILED-TURN-ROW-DROPS-ITS-ERROR-SURFACE).
+    return RowShape(PERSONA_FAILED_TURN_KIND, persona_id, instance_id)
+
+
 def _operator_shape(row: dict[str, Any], persona_id: str, instance_id: str | None) -> RowShape:
     return RowShape("operator_message", "operator", None)
 
@@ -123,6 +130,7 @@ HISTORY_ROW_SHAPES: tuple[tuple[Callable[[str, str], bool], ShapeBuilder], ...] 
     (lambda role, kind: role == OPERATOR and kind == PERSONA_RELAYED_MESSAGE_KIND, _relayed_shape),
     (lambda role, kind: role == AGENT and kind == PERSONA_PRE_TRACE_ACK_KIND, _pre_trace_ack_shape),
     (lambda role, kind: role == SYSTEM and kind == PERSONA_RUNTIME_NOTICE_KIND, _runtime_notice_shape),
+    (lambda role, kind: role == AGENT and kind == PERSONA_FAILED_TURN_KIND, _failed_turn_shape),
     (lambda role, kind: role == AGENT, _reply_shape),
     (lambda role, kind: role == OPERATOR, _operator_shape),
 )
@@ -299,6 +307,9 @@ class HistoryMessage:
             }
         if shape.kind == PERSONA_HARNESS_DELIVERY_KIND:
             message["delivery"] = _delivery_block(row)
+        surface = row.get("error_surface")
+        if shape.kind == PERSONA_FAILED_TURN_KIND and isinstance(surface, dict):
+            message["error_surface"] = dict(surface)
         # A titled notice (a runtime notice, any steered timeline notification) keeps
         # its operator title and category; the body is the note.
         title = safe_assignment_text(row.get("display_title"), limit=160) if self.role == SYSTEM else ""

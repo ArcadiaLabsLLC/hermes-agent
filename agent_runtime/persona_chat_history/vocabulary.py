@@ -21,6 +21,8 @@ from ..turn_visibility import SILENT_REASONS, VisibilityReason
 
 __layer__ = "policy"
 __all__ = [
+    "FAILED_TURN_SURFACE_FIELDS",
+    "PERSONA_FAILED_TURN_KIND",
     "CHAT_READ_FAILED",
     "CHAT_READ_UNAVAILABLE",
     "CHAT_REDACTION_UNKNOWN",
@@ -124,6 +126,14 @@ PERSONA_LENS_EPISODE_KIND = "lens_episode"
 # client reads a row without it as an unclassified notice. A stored row written
 # before the code existed gets it from its stored title on read.
 PERSONA_RUNTIME_NOTICE_KIND = "runtime_notice"
+
+#: The core's boundary row for a failed turn (``agent.turn_failure_copy.FAILED_TURN_DISPLAY_KIND``; this store
+#: imports no loop module, and ``test_cut_off_reply_one_notice`` holds the two equal). A history row of this
+#: kind carries ``error_surface``: the fields of :data:`FAILED_TURN_SURFACE_FIELDS` the core wrote, already
+#: redacted (RT-FAILED-TURN-ROW-DROPS-ITS-ERROR-SURFACE). Both reach Eternia through the generated mirror
+#: ``tests/fixtures/failed_turn_row_v1.json``.
+PERSONA_FAILED_TURN_KIND = "failed_turn"
+FAILED_TURN_SURFACE_FIELDS = ("code", "provider", "model", "resets_at")
 
 #: The turn's wall-budget checkpoint engaged (``profile_runner/budget.py``).
 RUNTIME_NOTICE_WALL_CHECKPOINT = "wall_checkpoint"

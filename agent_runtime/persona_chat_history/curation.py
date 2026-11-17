@@ -42,6 +42,8 @@ from .text import (
     _safe_display_body_text,
 )
 from .vocabulary import (
+    FAILED_TURN_SURFACE_FIELDS,
+    PERSONA_FAILED_TURN_KIND,
     CHAT_READ_FAILED,
     MessageRole,
     CHAT_READ_UNAVAILABLE,
@@ -549,7 +551,8 @@ class CurationState:
             from agent.steering import RUNTIME_NOTE_ENVELOPE
 
             raw_content = raw_content.removeprefix(RUNTIME_NOTE_ENVELOPE)
-        raw_content = self._failed_turn_reply(ctx) or raw_content
+        settled_reply = self._failed_turn_reply(ctx)
+        raw_content = settled_reply or raw_content
         curated = curator.printable(_curate_chat_message_text(ctx.role, raw_content))
         if not curated:
             self._silent_candidate(ctx, raw_content)
@@ -570,6 +573,8 @@ class CurationState:
         if skill_preload is not None:
             row["skill_preload"] = skill_preload
         is_pre_trace_ack = curator.annotate(row, ctx)
+        if not settled_reply:
+            _carry_failed_turn(row, ctx.raw)
         if client_message_id and not self._first_logical_row(row, ctx, text, curator.turn_seq(is_pre_trace_ack)):
             return
         curator.after_row(self, row, ctx)
@@ -670,9 +675,7 @@ class CurationState:
         return _ordered_message_rows(rows)
 
 
-#: ``agent.turn_failure_copy.FAILED_TURN_DISPLAY_KIND``: the core's boundary row for a failed turn. Spelled here
-#: (this store imports no loop module); ``test_cut_off_reply_one_notice`` holds the two equal.
-_FAILED_TURN_DISPLAY_KIND = "failed_turn"
+_FAILED_TURN_DISPLAY_KIND = PERSONA_FAILED_TURN_KIND
 #: A steer row ``native_persistence`` stored without a platform id of its own: ``<turn>:input:<n>``.
 _STEERED_INPUT_ID = re.compile(r"^(.+):input:\d+$")
 #: Transient (popped by :func:`_place_by_stored_position`): the stored index of a row placed by it.
@@ -703,6 +706,31 @@ def _place_by_stored_position(rows: list[dict[str, Any]]) -> None:
             # in-turn notice row reddens (the notice sorts after the reply).
             if anchor:
                 member["turn_seq"] = TURN_SEQ_TERMINAL - after
+
+
+def _carry_failed_turn(row: dict[str, Any], raw: Mapping[str, Any]) -> None:
+    """The core's failed-turn boundary row, drawn with its own words: ``kind`` and the ``error_surface`` the
+    core wrote (code, provider, model, ``resets_at`` epoch seconds), so a client can say why the turn failed
+    instead of "Your request was not processed" (RT-FAILED-TURN-ROW-DROPS-ITS-ERROR-SURFACE). A row whose
+    turn settled a reply of its own reads as that reply, as before."""
+
+    if raw.get("display_kind") != _FAILED_TURN_DISPLAY_KIND:
+        return
+    # MUTATION: return here and test_a_failed_turn_row_carries_its_kind_and_surface reds.
+    row["kind"] = PERSONA_FAILED_TURN_KIND
+    surface = (raw.get("display_metadata") or {}).get("error_surface")
+    if not isinstance(surface, Mapping):
+        return
+    kept: dict[str, Any] = {}
+    for key in FAILED_TURN_SURFACE_FIELDS:
+        value = surface.get(key)
+        if key == "resets_at":
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                kept[key] = float(value)
+        elif text := safe_assignment_text(value, limit=200):
+            kept[key] = text
+    if kept:
+        row["error_surface"] = kept
 
 
 def _message_row(ctx: RowContext, *, session_id: str, text: str, status: str) -> dict[str, Any]:
