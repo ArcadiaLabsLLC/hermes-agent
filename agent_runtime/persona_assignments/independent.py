@@ -52,7 +52,7 @@ def _text_from(path: Path | None, roots: tuple[Path, ...]) -> str | None:
     return data.decode("utf-8")
 
 
-def _model_config(home: Path) -> dict[str, str]:
+def _portable_model_defaults(home: Path) -> dict[str, str]:
     path = home / "config.yaml"
     if path.is_symlink() or not path.is_file():
         return {}
@@ -88,7 +88,7 @@ def _stage_profile(home: Path, source_home: Path, source: AgentPersona | None, o
         (source_home,),
     )
     soul = _text_from(source_home / "SOUL.md", (source_home,))
-    model = _model_config(source_home)
+    model = _portable_model_defaults(source_home)
     home.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=home.parent, prefix=f".{home.name}-") as temp:
         stage = Path(temp) / "profile"
