@@ -5,7 +5,7 @@ from . import paths
 from .config import ensure_persisted_personas, load_agent_runtime_config
 from .gateway_identity import read_install_identity
 from .persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
-from .persona_lifecycle import is_runtime_persona
+from .persona_lifecycle import is_independent_agent_persona, is_runtime_persona
 from .profile_context import active_profile_name, resolve_persona_profile
 from .profile_persona_discovery import reconcile_profile_personas
 
@@ -28,7 +28,8 @@ def prepare_instance_catalog() -> dict:
     personas = {p.id: p for p in ensure_persisted_personas(config) if is_runtime_persona(p)}
     for persona in personas.values():
         # The bulk snapshot helper also resets work state; discovery must not.
-        store.ensure_for_persona(persona)
+        if not is_independent_agent_persona(persona):
+            store.ensure_for_persona(persona)
     return {"install_id": install_id, "instance_conversations": 1, "agents": [
         _project(instance, personas.get(instance.persona_id), install_id)
         for instance in _read_instances(store)

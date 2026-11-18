@@ -119,18 +119,19 @@ def qa_persona(isolate_agent_runtime_root):
 
 @pytest.fixture
 def placed_agent(qa_persona):
-    """One real placement, minted by the verb that owns minting.
-
-    ``runtime.agent.create`` rather than a hand-built store row: open-chat's
-    subject is an instance that already exists, and seeding it through the
-    method that places one keeps this file from inventing a second way for a
-    persona instance to come into being.
-    """
+    """A legacy placement whose persona and chat binding must still work."""
 
     from agent_runtime.office_store import OfficeStore
 
     seed_workspace_record(WORKSPACE)
     OfficeStore().ensure_surface(WORKSPACE, created_by="seed")
+    placement_id = "qa_open_chat_agent_2"
+    PersonaInstanceStore().add_instance(
+        persona_id=PERSONA,
+        placement_id=placement_id,
+        display_name="QA Agent",
+        workspace_id=WORKSPACE,
+    )
     reply = serve_rpc.handle_request(
         {
             "jsonrpc": "2.0",
@@ -138,6 +139,7 @@ def placed_agent(qa_persona):
             "method": "runtime.agent.create",
             "params": {
                 "persona_id": PERSONA,
+                "placement_id": placement_id,
                 "workspace_id": WORKSPACE,
                 "position": [1.0, 2.0],
                 "idempotency_key": "open-chat-seed",

@@ -154,7 +154,9 @@ def test_create_returns_both_rows_and_a_phase_envelope(qa_persona):
 
     result = reply["result"]
     assert result["persona_instance_id"] == "personainst_qa_agent_2"
-    assert result["persona_id"] == "qa"
+    assert result["persona_id"] != qa_persona.id
+    assert result["profile_id"]
+    assert result["profile_id"] != qa_persona.hermes_profile
     assert result["placement_id"] == "qa_agent_2"
     assert result["workspace_id"] == WORKSPACE
     assert result["revision"] == 1
@@ -411,10 +413,14 @@ def _refuse_placement(monkeypatch, exc: Exception):
 
 def test_a_refused_placement_retires_the_instance_and_says_so(qa_persona, monkeypatch):
     from agent_runtime.errors import SyncConflict
+    from agent_runtime.store import AgentStore
+    from hermes_cli.profiles import list_profiles
 
     _seed_workspace()
     _refuse_placement(monkeypatch, SyncConflict("unresolved realm sync sidecar"))
 
+    before_personas = {persona.id for persona in AgentStore().list_all()}
+    before_profiles = {profile.name for profile in list_profiles()}
     reply = _call(_params(placement_id="qa_rollback_agent_2"))
     data = reply["error"]["data"]
 
@@ -436,6 +442,43 @@ def test_a_refused_placement_retires_the_instance_and_says_so(qa_persona, monkey
         is not None
     )
     assert _actors() == {}
+    assert {persona.id for persona in AgentStore().list_all()} == before_personas
+    assert {profile.name for profile in list_profiles()} == before_profiles
+
+
+def test_explicit_profile_creation_gets_its_own_identity_over_rpc(qa_persona):
+    def create(key, **overrides):
+        reply = serve_rpc.handle_request({
+            "jsonrpc": "2.0", "id": key, "method": "runtime.persona.instance.create",
+            "params": {
+                "persona_id": "qa", "display_name": "A new agent",
+                "client_message_id": key, "independent_agent": True, **overrides,
+            },
+        })
+        assert "result" in reply, reply
+        return reply["result"]
+
+    first = create("profile-copy")
+    retry = create("profile-copy")
+    second = create("second-profile-copy")
+    chat = create("existing-persona-chat", independent_agent=False)
+    keys = ("persona_id", "profile_id", "persona_instance_id", "session_id")
+    assert [first[key] for key in keys] == [retry[key] for key in keys]
+    assert all(first[key] != second[key] for key in keys)
+    assert chat["persona_id"] == qa_persona.id
+    assert first["persona_id"] != qa_persona.id
+
+    opened = serve_rpc.handle_request({
+        "jsonrpc": "2.0", "id": "new-chat", "method": "runtime.persona.instance.open_chat",
+        "params": {
+            "persona_id": first["persona_id"],
+            "persona_instance_id": first["persona_instance_id"],
+            "idempotency_key": "new-chat",
+            "new_session": True,
+        },
+    })["result"]
+    assert opened["persona_instance_id"] == first["persona_instance_id"]
+    assert opened["session_id"] != first["session_id"]
 
 
 def test_a_rolled_back_key_refuses_its_own_replay(qa_persona):
@@ -630,7 +673,8 @@ def test_a_profile_id_for_a_profile_that_owns_nothing_still_creates(qa_persona):
     )
 
     result = reply["result"]
-    assert result["persona_id"] == "profile_nosuchprofile"
+    assert result["persona_id"] != "profile_nosuchprofile"
+    assert result["profile_id"] != "nosuchprofile"
     assert paths.persona_instance_path("personainst_profile_lane_agent_2").exists()
     assert result["actor_key"] in _actors()
 
@@ -666,11 +710,13 @@ def test_the_emitted_events_equal_the_two_call_flow(qa_persona):
     # Flow A — what the launcher does today: the argv lane's store calls, then
     # the office lane's, with the client-side gap in between.
     marker = _event_count()
-    instance = PersonaInstanceStore().add_instance(
-        persona_id="qa",
+    from agent_runtime.persona_assignments.independent import create_independent_agent
+
+    instance = create_independent_agent(
+        PersonaInstanceStore(),
+        source_persona_id="qa",
         placement_id="qa_two_call_agent_2",
-        display_name=None,
-        default_display_name="QA Agent",
+        display_name="QA Agent",
         workspace_id=WORKSPACE,
         realm_id=None,
     )
@@ -679,12 +725,12 @@ def test_the_emitted_events_equal_the_two_call_flow(qa_persona):
     OfficeStore().upsert_actor(
         WORKSPACE,
         {
-            "persona_id": "qa",
+            "persona_id": instance.persona_id,
             "persona_instance_id": instance.id,
             "items": [
                 {
                     "item_id": instance.id,
-                    "persona_id": "qa",
+                    "persona_id": instance.persona_id,
                     "kind": "agent",
                     "position": [3.5, -1.25],
                     "folder": "Agents",
@@ -1180,7 +1226,9 @@ def test_the_invalid_placement_refusal_leaves_only_the_lock_it_took(
     assert set(paths.agent_create_reservations_dir().glob("*")) == receipts_before
     # The colliding placement still belongs to ``qa`` — the refusal did not
     # half-rewrite the row it refused to take.
-    assert _instances()["personainst_qa_taken_agent_2"].persona_id == "qa"
+    stored = _instances()["personainst_qa_taken_agent_2"]
+    assert stored.display_name == "QA Agent"
+    assert stored.persona_id not in {"qa", "dev"}
 
 
 # ── reserved_instance_missing: the arm whose honest answer is the opposite ───

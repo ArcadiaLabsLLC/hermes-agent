@@ -705,14 +705,15 @@ def _instance_as_the_send_path_stamps_it(persona: Any, instance: Any, root: str)
 
     from .auxiliary_chat import is_auxiliary_chat
     from .persona_assignments import PersonaInstanceStore
-    from .persona_lifecycle import is_runtime_persona
+    from .persona_lifecycle import is_independent_agent_persona, is_runtime_persona
 
     instance_id = str(getattr(instance, "id", "") or "")
     if not instance_id or is_auxiliary_chat(instance_id, root) or not is_runtime_persona(persona):
         return instance
     try:
         store = PersonaInstanceStore()
-        store.ensure_for_persona(persona)
+        if not is_independent_agent_persona(persona):
+            store.ensure_for_persona(persona)
         return store.get(instance_id)
     except Exception:
         logger.debug("prewarm could not re-read instance %s after the send path's stamp", instance_id,

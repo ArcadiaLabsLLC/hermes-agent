@@ -195,6 +195,7 @@ def _cmd_persona_instance_create(args) -> int:
     from agent_runtime.mission_chat_outcome import ChatErrorKind
     display_name = safe_assignment_text(getattr(args, "display_name", None), limit=120)
     add_instance = bool(getattr(args, "add_instance", False))
+    independent = bool(getattr(args, "independent_agent", False)) or add_instance
     placement_id = safe_assignment_token(getattr(args, "placement_id", None))
     cfg = load_agent_runtime_config()
     persona_id = _normalize_cli_persona_or_template_id(args.persona_id)
@@ -240,11 +241,16 @@ def _cmd_persona_instance_create(args) -> int:
                 if refusal is not None:
                     _emit_persona_verb_payload(args, refusal)
                     return 2
-                instance = PersonaInstanceStore().add_instance(
-                    persona_id=persona_id,
-                    placement_id=placement_id,
-                    display_name=display_name or safe_assignment_text(args.title, limit=120) or persona_id,
-                    session_id=getattr(args, "session_id", None),
+            if independent:
+                from agent_runtime.persona_assignments.independent import create_independent_agent
+
+                instance = create_independent_agent(
+                    PersonaInstanceStore(),
+                    source_persona_id=persona_id,
+                    source_instance_id=safe_assignment_token(getattr(args, "source_instance_id", None)) or None,
+                    placement_id=placement_id if add_instance else None,
+                    creation_key=safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or None,
+                    display_name=display_name,
                     workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
                     realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
                 )
@@ -259,6 +265,9 @@ def _cmd_persona_instance_create(args) -> int:
         except RetiredPersonaInstanceError as exc:
             data = _retired_persona_instance_payload(exc)
             _emit_persona_verb_payload(args, data)
+            return 2
+        except (ValueError, OSError) as exc:
+            _emit_persona_verb_payload(args, {"ok": False, "error_kind": "agent_create_refused", "error": str(exc)})
             return 2
         except PersonaChatPersistenceError as exc:
             # The mint itself now refuses rather than binding a root it could not
@@ -302,6 +311,7 @@ def _cmd_persona_instance_create(args) -> int:
             "source_persona_id": instance.persona_id,
             "persona_id": instance.persona_id,
             "source_profile_id": instance.profile_id,
+            "profile_id": instance.profile_id,
             "agent_profile_display_name": instance.display_name,
             "display_name": instance.display_name,
             "lifecycle_mode": instance.mode,

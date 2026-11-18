@@ -20,6 +20,8 @@ def placement_actor_payload(
     *,
     display_name: str,
     position: tuple[float, float] | None = None,
+    persona_id: str | None = None,
+    profile_id: str | None = None,
 ) -> dict[str, Any]:
     """The actor payload for a freshly minted placement.
 
@@ -45,7 +47,7 @@ def placement_actor_payload(
 
     item: dict[str, Any] = {
         "item_id": request.persona_instance_id,
-        "persona_id": request.persona_id,
+        "persona_id": persona_id or request.persona_id,
         "kind": "agent",
         "folder": request.folder,
         "display_name": display_name,
@@ -54,8 +56,9 @@ def placement_actor_payload(
         x, y = position
         item["position"] = [x, y]
     return {
-        "persona_id": request.persona_id,
+        "persona_id": persona_id or request.persona_id,
         "persona_instance_id": request.persona_instance_id,
+        **({"backing_profile": profile_id} if profile_id else {}),
         "items": [item],
     }
 
@@ -560,7 +563,7 @@ def _reply(result: dict[str, Any], *, observed: Any | None = None) -> dict[str, 
 
 
 def compensate_failed_placement(
-    reservation, *, instance_id: str, failure: dict[str, Any]
+    reservation, *, instance_id: str, placement_id: str, failure: dict[str, Any]
 ) -> dict[str, Any]:
     """Compensate a failed placement and return the ``data`` block for the reply.
 
@@ -573,13 +576,17 @@ def compensate_failed_placement(
     """
 
     from ..persona_assignments import PersonaInstanceStore
+    from ..persona_assignments.independent import archive_failed_placement_identity
 
     try:
-        PersonaInstanceStore().retire(
+        store = PersonaInstanceStore()
+        instance = store.get(instance_id)
+        store.retire(
             instance_id,
             reason="runtime.agent.create placement failed",
             requested_by="runtime.agent.create",
         )
+        archive_failed_placement_identity(store, instance, placement_id)
     except Exception as exc:  # every retire refusal lands here
         reservation.mark_rollback_failed(
             failure, rollback_error=f"{type(exc).__name__}: {exc}"

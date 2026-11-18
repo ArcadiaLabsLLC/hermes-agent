@@ -426,7 +426,8 @@
       "realm_id",
       "folder",
       "correlation_id",
-      "client_scope"
+      "client_scope",
+      "source_instance_id"
     ],
     "runtime.board.card.add": [
       "assignee",
@@ -941,11 +942,13 @@
       "add_instance",
       "client_message_id",
       "display_name",
+      "independent_agent",
       "persona_id",
       "placement_id",
       "realm_id",
       "requested_by",
       "session_id",
+      "source_instance_id",
       "title",
       "workspace_id"
     ],

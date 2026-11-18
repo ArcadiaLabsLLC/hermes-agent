@@ -175,12 +175,13 @@ def _cmd_persona_instance_open_chat(args) -> int:
             honest_default_display_name = _honest_default_display_name(
                 persona_id, persona
             )
-            instance = PersonaInstanceStore().add_instance(
-                persona_id=persona_id,
+            from agent_runtime.persona_assignments.independent import create_independent_agent
+
+            instance = create_independent_agent(
+                PersonaInstanceStore(),
+                source_persona_id=persona_id,
                 placement_id=placement_id,
-                session_id=args.session_id,
-                display_name=explicit_display_name,
-                default_display_name=honest_default_display_name,
+                display_name=explicit_display_name or honest_default_display_name,
                 workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
                 realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
                 correlation_id=getattr(args, "correlation_id", None),
@@ -306,6 +307,9 @@ def _cmd_persona_instance_open_chat(args) -> int:
         data = _retired_persona_instance_payload(exc)
         _emit_persona_verb_payload(args, data)
         return 2
+    except (ValueError, OSError) as exc:
+        _emit_persona_verb_payload(args, {"ok": False, "error": str(exc)})
+        return 2
     except PersonaChatPersistenceError as exc:
         # ``add_instance``'s mint refuses rather than binding an unpersistable
         # root, so the persist failure can now arrive BEFORE the bind. Same
@@ -352,6 +356,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
         "ok": True,
         "persona_instance_id": instance.id,
         "persona_id": instance.persona_id,
+        "profile_id": instance.profile_id,
         "mode": instance.mode,
         "default_chat_session_id": instance.default_chat_session_id,
         "session_id": instance.default_chat_session_id,

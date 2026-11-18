@@ -76,7 +76,8 @@ PLACEMENT_FAULTS: Final[
 
 
 def refuse_placement(
-    exc: Exception, reservation: Any, *, instance_id: str, workspace_id: str
+    exc: Exception, reservation: Any, *, instance_id: str, placement_id: str,
+    workspace_id: str,
 ) -> AgentCreateOutcome:
     """One placement fault, compensated and answered through its table row."""
 
@@ -87,6 +88,7 @@ def refuse_placement(
     data = compensate_failed_placement(
         reservation,
         instance_id=instance_id,
+        placement_id=placement_id,
         failure={
             "reason": "placement_failed",
             "phase": PHASE_PLACEMENT,

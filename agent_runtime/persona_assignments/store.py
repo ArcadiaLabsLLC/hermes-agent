@@ -41,7 +41,7 @@ from agent_runtime.persona_assignments.scan import (
     _note_unreadable_instance_row,
     PersonaInstanceScan,
 )
-from agent_runtime.persona_lifecycle import is_runtime_persona
+from agent_runtime.persona_lifecycle import is_independent_agent_persona, is_runtime_persona
 from agent_runtime.serde import (
     from_jsonable,
     safe_assignment_text,
@@ -590,7 +590,10 @@ class PersonaInstanceStore:
         ``chat`` / ``free_floating`` instances are still skipped: an operator
         chat binding is not stale execution state.
         """
-        personas = [persona for persona in personas if is_runtime_persona(persona)]
+        personas = [
+            persona for persona in personas
+            if is_runtime_persona(persona) and not is_independent_agent_persona(persona)
+        ]
         # One ensure per persona: ensure_for_persona already re-reads its final row.
         if read_epoch is not None:
             read_epoch.invalidate()

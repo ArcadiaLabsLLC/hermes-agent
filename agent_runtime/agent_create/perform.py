@@ -471,6 +471,7 @@ class AgentCreate:
             using_create_subphases,
         )
         from ..persona_assignments import PersonaInstanceStore
+        from ..persona_assignments.independent import create_independent_agent
 
         request = self.request
         mint_started = time.monotonic()
@@ -485,11 +486,12 @@ class AgentCreate:
         subphases = CreateSubphases()
         try:
             with using_create_subphases(subphases):
-                instance = PersonaInstanceStore().add_instance(
-                    persona_id=request.persona_id,
+                instance = create_independent_agent(
+                    PersonaInstanceStore(),
+                    source_persona_id=request.persona_id,
+                    source_instance_id=request.source_instance_id,
                     placement_id=request.placement_id,
-                    display_name=request.display_name,
-                    default_display_name=request.default_display_name,
+                    display_name=request.display_name or request.default_display_name,
                     workspace_id=request.workspace_id,
                     realm_id=request.realm_id,
                     client_scope=request.client_scope,
@@ -529,6 +531,7 @@ class AgentCreate:
         result: dict[str, Any] = {
             "persona_instance_id": self.instance.id,
             "persona_id": self.instance.persona_id,
+            "profile_id": self.instance.profile_id,
             "placement_id": self.request.placement_id,
             "display_name": self.instance.display_name,
             "default_chat_session_id": self.instance.default_chat_session_id,
@@ -556,7 +559,8 @@ class AgentCreate:
         # no point and no policy is refused by the store, so the pairing cannot
         # come apart. See ``placement_position_policy``.
         payload = placement_actor_payload(
-            request, display_name=self.instance.display_name, position=request.position
+            request, display_name=self.instance.display_name, position=request.position,
+            persona_id=self.instance.persona_id, profile_id=self.instance.profile_id,
         )
         position_policy = (
             None if request.position is not None else placement_position_policy(request)
@@ -587,6 +591,7 @@ class AgentCreate:
                 exc,
                 self.reservation,
                 instance_id=self.instance.id,
+                placement_id=request.placement_id,
                 workspace_id=request.workspace_id,
             )
 

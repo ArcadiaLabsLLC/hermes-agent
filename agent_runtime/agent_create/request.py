@@ -37,7 +37,7 @@ __layer__ = "stores"
 AGENT_CREATE_METHOD_PARAMS = (
     "persona_id", "workspace_id", "position", "skills", "idempotency_key",
     "placement_id", "display_name", "realm_id", "folder", "correlation_id",
-    "client_scope",
+    "client_scope", "source_instance_id",
 )
 
 
@@ -68,6 +68,7 @@ class AgentCreateRequest:
     folder: str
     correlation_id: str | None
     client_scope: str | None = None
+    source_instance_id: str | None = None
 
     @property
     def persona_instance_id(self) -> str:
@@ -379,7 +380,7 @@ def require_known_persona(
     }
 
 
-def mint_placement_id(persona_id: str) -> str:
+def mint_placement_id(persona_id: str, *, key: str | None = None) -> str:
     """A server-side placement id, shaped like the launcher's own.
 
     The launcher normally mints this itself (``missionMintDeliberatePlacementId``)
@@ -397,7 +398,10 @@ def mint_placement_id(persona_id: str) -> str:
     """
 
     token = safe_assignment_token(persona_id) or "persona"
-    return f"{token}_agent_{uuid.uuid4().hex[:8]}"
+    from hashlib import sha256
+
+    suffix = sha256(key.encode()).hexdigest() if key is not None else uuid.uuid4().hex
+    return f"{token}_agent_{suffix[:8]}"
 
 
 def _position(value: Any) -> tuple[float, float] | None:
@@ -586,7 +590,7 @@ def normalize_agent_create(
 
     raw_placement = params.get("placement_id")
     if raw_placement is None:
-        placement_id = mint_placement_id(persona_id)
+        placement_id = mint_placement_id(persona_id, key=f"{workspace_id}\0{idempotency_key}")
     else:
         placement_id = safe_assignment_token(raw_placement)
         if not placement_id:
@@ -640,4 +644,5 @@ def normalize_agent_create(
         folder=folder,
         correlation_id=correlation_id,
         client_scope=owner,
+        source_instance_id=safe_assignment_token(params.get("source_instance_id")) or None,
     )

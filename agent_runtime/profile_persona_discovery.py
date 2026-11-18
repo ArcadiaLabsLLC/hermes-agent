@@ -39,6 +39,7 @@ def reconcile_profile_personas(
     from hermes_cli.profiles import list_profile_names
     from hermes_constants import named_profile_has_servable_identity
     from .config import load_agent_runtime_config, persona_records_from_config
+    from .persona_lifecycle import independent_profile_persona_id
     from .store import AgentStore
 
     with _DISCOVERY_LOCK:
@@ -65,7 +66,7 @@ def reconcile_profile_personas(
         created: list[AgentPersona] = []
         for profile in profiles:
             name = str(profile.name).strip()
-            if not name or name in owned:
+            if not name or name in owned or independent_profile_persona_id(name):
                 continue
             persona_id = f"profile_{name}"
             if persona_id in roster:

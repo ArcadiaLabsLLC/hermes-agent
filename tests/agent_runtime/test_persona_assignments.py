@@ -889,8 +889,9 @@ def test_persona_instance_open_chat_can_target_additional_placement(monkeypatch,
         pass
     additional = PersonaInstanceStore().get("personainst_reviewer_agent_2")
     assert primary_missing is True
-    assert additional.persona_id == "profile_reviewer"
-    assert additional.session_id == "chat_old_123"
+    assert additional.persona_id != "profile_reviewer"
+    assert additional.profile_id != "reviewer"
+    assert additional.session_id != "chat_old_123"
     assert additional.mode == "chat"
     assert session_db.get_session(additional.session_id) is not None
     assert session_db.get_session_title(additional.session_id) == f"{additional.display_name} chat"

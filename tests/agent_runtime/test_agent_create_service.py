@@ -1878,3 +1878,50 @@ def test_the_numbering_rule_matches_the_launchers():
     assert next_distinct_display_name("QA Agent", ["qa agent"]) == "QA Agent (2)"
     assert next_distinct_display_name("QA Agent", ["QA Agent", "QA Agent (2)"]) == "QA Agent (3)"
     assert next_distinct_display_name("QA Agent (2)", ["QA Agent (2)"]) == "QA Agent (3)"
+
+
+def test_a_new_agent_copies_portable_settings_into_its_own_profile(qa_persona):
+    from hermes_cli.profiles import get_profile_dir
+
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+    from agent_runtime.store import AgentStore
+
+    _seed_workspace()
+    source = get_profile_dir("source-agent")
+    (source / "personas").mkdir(parents=True)
+    (source / "memories").mkdir()
+    (source / "config.yaml").write_text("model:\n  default: example-model\n  provider: openai\n", encoding="utf-8")
+    (source / ".env").write_text("OPENAI_API_KEY=test-key-kept-at-source\n", encoding="utf-8")
+    (source / "SOUL.md").write_text("An original soul.", encoding="utf-8")
+    (source / "personas" / "role.md").write_text("A working prompt.", encoding="utf-8")
+    (source / "memories" / "MEMORY.md").write_text("Private history.", encoding="utf-8")
+    qa_persona.hermes_profile = "source-agent"
+    qa_persona.system_prompt_path = "personas/role.md"
+    qa_persona.skills = ["example-skill"]
+    qa_persona.repo_scope = "/machine/only"
+    AgentStore().save(qa_persona)
+
+    first = perform_agent_create(_params(idempotency_key="first-independent")).result
+    second = perform_agent_create(_params(idempotency_key="second-independent")).result
+    retry = perform_agent_create(_params(idempotency_key="first-independent")).result
+
+    assert len({qa_persona.id, first["persona_id"], second["persona_id"]}) == 3
+    assert len({qa_persona.hermes_profile, first["profile_id"], second["profile_id"]}) == 3
+    assert (retry["persona_id"], retry["profile_id"]) == (first["persona_id"], first["profile_id"])
+    assert retry["idempotent_replay"]
+    instance = PersonaInstanceStore().get(first["persona_instance_id"])
+    assert (instance.persona_id, instance.profile_id) == (first["persona_id"], first["profile_id"])
+    persona = AgentStore().get(instance.persona_id)
+    assert persona.hermes_profile == first["profile_id"]
+    assert persona.skills == ["example-skill"]
+    assert persona.repo_scope is None
+    observed = PersonaInstanceStore().ensure_for_personas([persona])
+    assert [row.id for row in observed if row.persona_id == persona.id] == [instance.id]
+    home = get_profile_dir(first["profile_id"])
+    assert (home / "SOUL.md").read_text() == "An original soul."
+    assert (home / persona.system_prompt_path).read_text() == "A working prompt."
+    assert "example-model" in (home / "config.yaml").read_text()
+    assert "test-key-kept-at-source" not in (home / ".env").read_text()
+    assert not (home / "memories" / "MEMORY.md").exists()
+    (home / "SOUL.md").write_text("Independent soul.", encoding="utf-8")
+    assert (source / "SOUL.md").read_text() == "An original soul."

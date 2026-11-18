@@ -8131,6 +8131,14 @@
           "required": false,
           "type": null
         },
+        "--independent-agent": {
+          "action": "store_true",
+          "canonical": "--independent-agent",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
         "--json": {
           "action": "store_true",
           "canonical": "--json",
@@ -8174,6 +8182,14 @@
         "--session-id": {
           "action": "store",
           "canonical": "--session-id",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "--source-instance-id": {
+          "action": "store",
+          "canonical": "--source-instance-id",
           "choices": null,
           "nargs": 1,
           "required": false,

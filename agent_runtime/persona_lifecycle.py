@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -13,6 +14,18 @@ __layer__ = "policy"
 MOTHBALLED_ROLE_TOKENS: frozenset[str] = frozenset({"pm"})
 MOTHBALLED_PERSONA_IDS: frozenset[str] = frozenset({"pm"})
 DISABLED_ROLE_TOKENS: frozenset[str] = frozenset({"disabled"})
+_INDEPENDENT_PROFILE_ID = re.compile(r"agent-([a-f0-9]{24})")
+
+
+def independent_profile_persona_id(profile: str | None) -> str | None:
+    """The persona reserved for an automatically provisioned agent profile."""
+    match = _INDEPENDENT_PROFILE_ID.fullmatch(profile or "")
+    return f"agent_{match[1]}" if match else None
+
+
+def is_independent_agent_persona(persona: Any) -> bool:
+    """An authored agent already has an instance, identified by its create intent."""
+    return independent_profile_persona_id(persona.hermes_profile) == persona.id
 
 
 def is_runtime_persona(persona: Any) -> bool:
