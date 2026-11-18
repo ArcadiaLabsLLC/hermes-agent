@@ -291,7 +291,7 @@ def test_a_remote_less_checkout_gets_a_private_repo_with_only_its_current_branch
 
 @pytest.mark.parametrize("case, reason", [
     ("remote", Reason.REMOTE_EXISTS), ("dirty", Reason.WORKTREE_DIRTY), ("detached", Reason.INVALID),
-    ("refused", Reason.REMOTE_EXISTS), ("plain", Reason.NOT_A_REPO),
+    ("refused", Reason.REMOTE_EXISTS), ("missing", Reason.NOT_A_REPO),
 ])
 def test_making_a_remote_is_refused_and_leaves_the_checkout_as_it_was(tmp_path, monkeypatch, case, reason):
     """A refused creation adds no ``origin``. Mutation: add ``origin`` (``git remote add``) before
@@ -299,10 +299,8 @@ def test_making_a_remote_is_refused_and_leaves_the_checkout_as_it_was(tmp_path, 
     from agent_runtime.brain_remote import make_checkout_remote
 
     hub = _FakeGitHub(tmp_path / "host", monkeypatch)
-    repo = _project(tmp_path) if case != "plain" else tmp_path / "plain"
-    if case == "plain":
-        repo.mkdir()
-    elif case == "remote":
+    repo = _project(tmp_path) if case != "missing" else tmp_path / "missing"
+    if case == "remote":
         git("remote", "add", "upstream", "https://example.invalid/x.git", cwd=repo)
     elif case == "dirty":
         (repo / "a.md").write_text("edited\n", encoding="utf-8")
@@ -310,12 +308,12 @@ def test_making_a_remote_is_refused_and_leaves_the_checkout_as_it_was(tmp_path, 
         git("checkout", "-q", "--detach", cwd=repo)
     elif case == "refused":
         hub.refuse = Reason.REMOTE_EXISTS
-    before = git("remote", cwd=repo) if case != "plain" else ""
+    before = git("remote", cwd=repo) if case != "missing" else ""
     with pytest.raises(WorkRefused) as refused:
         make_checkout_remote(repo)
     assert refused.value.reason is reason
     assert hub.created == []
-    assert case == "plain" or git("remote", cwd=repo) == before
+    assert not repo.exists() if case == "missing" else git("remote", cwd=repo) == before
 
 
 def test_create_brain_promote_on_a_slot_is_the_door(tmp_path, monkeypatch):
@@ -345,7 +343,9 @@ def test_create_brain_promote_on_a_slot_is_the_door(tmp_path, monkeypatch):
     ("remote", {"state": "remote", "clone_url": "https://example.invalid/mine.git"}),
     ("dirty", {"state": "present", "reason": "worktree_dirty"}),
     ("detached", {"state": "present", "reason": "invalid_request"}),
-    ("plain", {"state": "present", "reason": "not_a_repo"}),
+    ("plain", {"state": "present", "reason": "remote_offered", "git_account": "octo", "repo_name": "plain",
+               "branch": "main"}),
+    ("missing", {"state": "present", "reason": "not_a_repo"}),
 ])
 def test_a_project_checkouts_offer_names_repo_branch_and_account_before_any_press(tmp_path, monkeypatch, case,
                                                                                    expected):
@@ -356,9 +356,10 @@ def test_a_project_checkouts_offer_names_repo_branch_and_account_before_any_pres
     from agent_runtime.brain_remote import checkout_remote_state
 
     hub = _FakeGitHub(tmp_path / "host", monkeypatch)
-    repo = _project(tmp_path) if case != "plain" else tmp_path / "plain"
+    repo = _project(tmp_path) if case not in ("plain", "missing") else tmp_path / case
     if case == "plain":
         repo.mkdir()
+        (repo / "notes.md").write_text("n\n", encoding="utf-8")
     elif case == "no_account":
         monkeypatch.setattr(git_host_account, "connected_github", lambda *a, **k: None)
     elif case == "remote":
@@ -369,7 +370,8 @@ def test_a_project_checkouts_offer_names_repo_branch_and_account_before_any_pres
         git("checkout", "-q", "--detach", cwd=repo)
     assert checkout_remote_state(repo) == expected
     assert hub.created == []
-    assert case in ("plain", "remote") or git("remote", cwd=repo) == ""
+    assert case != "plain" or not (repo / ".git").exists()  # the offer reads; only the press sets git up
+    assert case in ("plain", "missing", "remote") or git("remote", cwd=repo) == ""
 
 
 def test_capabilities_carry_each_bound_project_checkouts_offer(tmp_path, monkeypatch):
@@ -544,3 +546,134 @@ def test_the_first_push_gets_the_long_budget(tmp_path, monkeypatch):
         make_checkout_remote(repo)
     assert seen == [PUSH_TIMEOUT_S] and PUSH_TIMEOUT_S >= 3600
     assert f"did not finish within {PUSH_TIMEOUT_S} s" in refused.value.detail
+
+
+# ── RT-SLOT-PRESS-SETS-UP-GIT: a slot folder with no git is set up by the press itself (owner 2026-11-18) ──
+
+
+def _no_git_folder(tmp_path: Path, files: dict[str, str], name: str = "Plain App") -> Path:
+    folder = tmp_path / name
+    folder.mkdir()
+    for rel, text in files.items():
+        (folder / rel).parent.mkdir(parents=True, exist_ok=True)
+        (folder / rel).write_text(text, encoding="utf-8")
+    return folder
+
+
+def _isolated_identity(tmp_path: Path, monkeypatch, *, name: str | None) -> None:
+    """This machine's git identity, controlled: a global config holding ``name`` (or none at all)."""
+    config = tmp_path / "global.gitconfig"
+    config.write_text(f"[user]\n\tname = {name}\n\temail = {name}@example.invalid\n" if name else "",
+                      encoding="utf-8")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    for var in ("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "EMAIL"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def _host_files(bare: Path) -> list[str]:
+    return git("ls-tree", "-r", "--name-only", "main", cwd=bare).split()
+
+
+def test_a_folder_with_no_git_is_set_up_committed_and_pushed(tmp_path, monkeypatch):
+    """``git init -b main``, one first commit of the folder (its ``.gitignore`` honoured), pushed, ``origin/main``
+    its upstream. Mutation: drop the ``_has_no_git`` arm in ``_pressable_branch`` -> ``not_a_repo``, red."""
+    from agent_runtime.brain_remote import make_checkout_remote
+
+    hub = _FakeGitHub(tmp_path / "host", monkeypatch)
+    _isolated_identity(tmp_path, monkeypatch, name="Pat")
+    folder = _no_git_folder(tmp_path, {"a.md": "a\n", "src/b.py": "b = 1\n", ".gitignore": "build/\n",
+                                       "build/out.bin": "x\n"})
+    made = make_checkout_remote(folder)
+    bare = hub.root / "plain-app.git"
+    assert made == {"url": f"{hub.HOST}plain-app.git", "repo_name": "plain-app", "branch": "main",
+                    "git_account": "octo"}
+    assert _host_files(bare) == [".gitignore", "a.md", "src/b.py"]
+    assert git("rev-list", "--count", "main", cwd=bare).strip() == "1"
+    assert git("log", "-1", "--format=%an <%ae>", "main", cwd=bare).strip() == "Pat <Pat@example.invalid>"
+    assert git("rev-parse", "--abbrev-ref", "@{u}", cwd=folder).strip() == "origin/main"
+    assert git("status", "--porcelain", cwd=folder) == ""
+
+
+def test_a_folder_with_no_git_never_commits_an_env_file(tmp_path, monkeypatch):
+    """``.env*`` stays out of the first commit at any depth; with no ``.gitignore`` one ignoring ``.env*`` is
+    written and committed, and the secret stays on disk. Mutation: skip the ``.gitignore`` write in
+    ``_set_up_git`` -> no ``.gitignore`` reaches the host, red."""
+    from agent_runtime.brain_remote import make_checkout_remote
+
+    hub = _FakeGitHub(tmp_path / "host", monkeypatch)
+    _isolated_identity(tmp_path, monkeypatch, name="Pat")
+    folder = _no_git_folder(tmp_path, {"app.py": "x = 1\n", ".env": "TOKEN=secret\n",
+                                       "config/.env.local": "KEY=secret\n"})
+    make_checkout_remote(folder)
+    assert _host_files(hub.root / "plain-app.git") == [".gitignore", "app.py"]
+    assert ".env*" in (folder / ".gitignore").read_text(encoding="utf-8")
+    assert (folder / ".env").read_text(encoding="utf-8") == "TOKEN=secret\n"
+
+
+def test_an_existing_gitignore_that_misses_env_is_kept_and_env_still_skipped(tmp_path, monkeypatch):
+    """The folder's own ``.gitignore`` is never rewritten; ``.env`` files are skipped by the pathspec alone.
+    Mutation: drop ``SECRET_PATHSPEC`` from ``_set_up_git``'s ``git add`` -> ``.env`` reaches the host, red."""
+    from agent_runtime.brain_remote import make_checkout_remote
+
+    hub = _FakeGitHub(tmp_path / "host", monkeypatch)
+    _isolated_identity(tmp_path, monkeypatch, name="Pat")
+    folder = _no_git_folder(tmp_path, {"app.py": "x = 1\n", ".env": "TOKEN=secret\n",
+                                       "config/.env.prod": "KEY=secret\n", ".gitignore": "*.log\n"})
+    make_checkout_remote(folder)
+    assert _host_files(hub.root / "plain-app.git") == [".gitignore", "app.py"]
+    assert (folder / ".gitignore").read_text(encoding="utf-8") == "*.log\n"
+
+
+def test_an_empty_folder_gets_an_empty_first_commit(tmp_path, monkeypatch):
+    """Decision: an empty folder is set up with an EMPTY first commit (no file written), so the repository has a
+    ``main`` to push and to clone. Mutation: drop ``--allow-empty`` from ``_set_up_git``'s commit ->
+    ``commit_failed``, red."""
+    from agent_runtime.brain_remote import make_checkout_remote
+
+    hub = _FakeGitHub(tmp_path / "host", monkeypatch)
+    _isolated_identity(tmp_path, monkeypatch, name="Pat")
+    folder = _no_git_folder(tmp_path, {})
+    made = make_checkout_remote(folder)
+    bare = hub.root / "plain-app.git"
+    assert made["branch"] == "main" and _host_files(bare) == []
+    assert git("rev-list", "--count", "main", cwd=bare).strip() == "1"
+    assert sorted(p.name for p in folder.iterdir()) == [".git"]
+
+
+def test_with_no_git_identity_the_first_commit_carries_hermes_own(tmp_path, monkeypatch):
+    """No ``user.name``/``user.email`` on the machine: the commit carries ``IDENTITY_PAIRS(this_machine())``, the
+    default brain's identity. Mutation: return ``()`` always from ``_commit_identity`` -> the commit carries
+    git's guessed identity or is refused, red."""
+    from agent_runtime.brain_remote import make_checkout_remote
+    from agent_runtime.work_store import default_brain
+
+    hub = _FakeGitHub(tmp_path / "host", monkeypatch)
+    _isolated_identity(tmp_path, monkeypatch, name=None)
+    monkeypatch.setattr(default_brain, "this_machine", lambda: "box1")
+    folder = _no_git_folder(tmp_path, {"a.md": "a\n"})
+    make_checkout_remote(folder)
+    author = git("log", "-1", "--format=%an <%ae>", "main", cwd=hub.root / "plain-app.git").strip()
+    assert author == "Eternia Harness <harness+box1@eternia.local>"
+
+
+@pytest.mark.parametrize("case", ["no_account", "commit_fails"])
+def test_a_refused_set_up_leaves_the_folder_with_no_git(tmp_path, monkeypatch, case):
+    """``needs_git_account`` is refused before git is set up; a set-up that fails is undone (``.git`` and the
+    written ``.gitignore`` removed) and refuses ``commit_failed``, nothing made on the host. Mutations: drop the
+    cleanup in ``_set_up_git``'s ``except`` -> ``commit_fails`` leaves ``.git``, red; move ``_set_up_git`` above
+    the account check -> ``no_account`` leaves ``.git``, red."""
+    from agent_runtime import brain_remote, git_host_account
+
+    hub = _FakeGitHub(tmp_path / "host", monkeypatch)
+    _isolated_identity(tmp_path, monkeypatch, name="Pat")
+    folder = _no_git_folder(tmp_path, {"a.md": "a\n", ".env": "S=1\n"})
+    if case == "no_account":
+        monkeypatch.setattr(git_host_account, "connected_github", lambda *a, **k: None)
+    else:
+        monkeypatch.setattr(brain_remote, "_commit_identity", lambda repo: ("commit.gpgsign=true",
+                                                                            "gpg.program=no-such-gpg-program"))
+    with pytest.raises(WorkRefused) as refused:
+        brain_remote.make_checkout_remote(folder)
+    assert refused.value.reason is (Reason.NEEDS_GIT_ACCOUNT if case == "no_account" else Reason.COMMIT_FAILED)
+    assert sorted(p.name for p in folder.iterdir()) == [".env", "a.md"] and hub.created == []

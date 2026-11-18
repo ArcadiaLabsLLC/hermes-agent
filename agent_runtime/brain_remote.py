@@ -200,12 +200,31 @@ def checkout_repo_name(path: Path) -> str:
     return (token or "project")[:100]
 
 
+#: The branch a folder with no git is given when the press sets it up (RT-SLOT-PRESS-SETS-UP-GIT).
+INIT_BRANCH = "main"
+#: Never staged by the press's first commit, whatever the folder's ``.gitignore`` says: ``.env``, ``.env.local``,
+#: ``.env.production`` … at any depth (secrets by convention).
+SECRET_PATHSPEC = ":(exclude,glob)**/.env*"
+#: The ``.gitignore`` the press writes when the folder has none and holds a ``.env*`` file.
+SECRET_GITIGNORE = "# Written by Eternia when it set up this repository: never commit secrets.\n.env*\n"
+
+
+def _has_no_git(repo: Path) -> bool:
+    """An existing folder with no ``.git`` of its own: the press sets git up there (RT-SLOT-PRESS-SETS-UP-GIT)."""
+
+    return repo.is_dir() and not (repo / ".git").exists()
+
+
 def _pressable_branch(repo: Path) -> str:
-    """The branch a press would push, or the press's local refusal in its order: ``not_a_repo``,
-    ``remote_exists``, ``worktree_dirty``, ``invalid`` (a detached HEAD). Local git only, no network."""
+    """The branch a press would push, or the press's local refusal in its order: ``not_a_repo`` (no such folder,
+    or git cannot read it), ``remote_exists``, ``worktree_dirty``, ``invalid`` (a detached HEAD). A folder with no
+    git answers :data:`INIT_BRANCH`, the branch the press makes (:func:`_set_up_git`). Local git only, no network."""
 
     from .work_store.reasons import Reason, WorkRefused
 
+    # MUTATION: drop this arm and test_a_folder_with_no_git_is_set_up_committed_and_pushed reddens (not_a_repo).
+    if _has_no_git(repo):
+        return INIT_BRANCH
     remotes = _remote_git(["remote"], repo) if (repo / ".git").exists() else None
     if remotes is None or remotes.returncode != 0:
         raise WorkRefused(Reason.NOT_A_REPO, str(repo.name))
@@ -217,6 +236,88 @@ def _pressable_branch(repo: Path) -> str:
     if branch is None or branch.returncode != 0 or not str(branch.stdout).strip():
         raise WorkRefused(Reason.INVALID, "the checkout is on no branch")
     return str(branch.stdout).strip()
+
+
+def _commit_identity(repo: Path) -> tuple[str, ...]:
+    """``-c`` pairs for the first commit: none when this machine's git has an identity (the person's own, from
+    their config or ``GIT_AUTHOR_*``), else hermes's own commit identity on this machine
+    (``work_store.default_brain.IDENTITY_PAIRS``, the one the default brain's commits carry)."""
+
+    from .work_store.default_brain import IDENTITY_PAIRS, this_machine
+    from .work_store.reasons import WorkRefused
+
+    named = _remote_git(["config", "user.name"], repo)
+    mailed = _remote_git(["config", "user.email"], repo)
+    if all(done is not None and done.returncode == 0 and str(done.stdout).strip() for done in (named, mailed)):
+        return ()
+    try:
+        machine = this_machine()
+    except WorkRefused:
+        machine = "local"
+    return IDENTITY_PAIRS(machine)
+
+
+def _unignored_secrets(repo: Path) -> bool:
+    listed = _remote_git(["ls-files", "-z", "--others", "--exclude-standard"], repo, timeout=PUSH_TIMEOUT_S)
+    names = str(listed.stdout).split("\0") if listed is not None and listed.returncode == 0 else []
+    return any(Path(name).name.startswith(".env") for name in names if name)
+
+
+def _why(done: subprocess.CompletedProcess[str] | None, step: str) -> str:
+    if done is None:
+        return f"{step} did not finish"
+    return (str(done.stderr or "").strip().splitlines() or [f"{step} failed"])[-1][:300]
+
+
+def _set_up_git(repo: Path) -> None:
+    """``git init -b main`` and a first commit of what the folder holds (RT-SLOT-PRESS-SETS-UP-GIT, owner
+    2026-11-18: the press on a slot with no git sets the repository up itself).
+
+    The folder's own ``.gitignore`` is honoured; ``.env*`` files are never staged (:data:`SECRET_PATHSPEC`), and
+    when the folder has no ``.gitignore`` but holds such a file, one ignoring ``.env*`` is written and committed so
+    the person's next ``git add -A`` does not take it either. An EMPTY folder gets an empty first commit: the
+    repository then has a branch to push and to clone. A step that fails removes what the press made here (``.git``
+    and the ``.gitignore`` it wrote) and refuses ``commit_failed``: the folder is offered again as it was.
+    """
+
+    import shutil
+    import stat
+    import sys
+
+    from .work_store.reasons import Reason, WorkRefused
+
+    wrote_ignore = False
+    try:
+        done = _remote_git(["init", "-q", "-b", INIT_BRANCH], repo)
+        if done is None or done.returncode != 0:
+            raise WorkRefused(Reason.COMMIT_FAILED, _why(done, "git init"))
+        ignore = repo / ".gitignore"
+        if not ignore.exists() and _unignored_secrets(repo):
+            ignore.write_text(SECRET_GITIGNORE, encoding="utf-8", newline="\n")
+            wrote_ignore = True
+        # MUTATION: drop SECRET_PATHSPEC here and test_a_folder_with_no_git_never_commits_an_env_file reddens.
+        added = _remote_git(["add", "-A", "--", ".", SECRET_PATHSPEC], repo, timeout=PUSH_TIMEOUT_S)
+        if added is None or added.returncode != 0:
+            raise WorkRefused(Reason.COMMIT_FAILED, _why(added, "git add"))
+        identity = [arg for pair in _commit_identity(repo) for arg in ("-c", pair)]
+        # MUTATION: drop ``--allow-empty`` and test_an_empty_folder_gets_an_empty_first_commit reddens.
+        committed = _remote_git([*identity, "commit", "-q", "--allow-empty", "--no-verify", "-m", "Initial commit"],
+                                repo, timeout=PUSH_TIMEOUT_S)
+        if committed is None or committed.returncode != 0:
+            raise WorkRefused(Reason.COMMIT_FAILED, _why(committed, "git commit"))
+    except BaseException:
+        def _writable(func, target, _exc) -> None:  # git object files are read-only on Windows
+            os.chmod(target, stat.S_IWRITE)
+            func(target)
+
+        # MUTATION: ``shutil.rmtree(..., ignore_errors=True)`` here and the ``commit_fails`` case reddens on Windows.
+        if sys.version_info >= (3, 12):
+            shutil.rmtree(repo / ".git", onexc=_writable)
+        else:  # pragma: no cover - 3.11
+            shutil.rmtree(repo / ".git", onerror=lambda f, t, e: _writable(f, t, e))
+        if wrote_ignore:
+            (repo / ".gitignore").unlink(missing_ok=True)
+        raise
 
 
 def _remote_url(repo: Path) -> str | None:
@@ -236,7 +337,8 @@ def checkout_remote_state(path: Path) -> dict[str, Any]:
     (RT-SLOT-BRAIN-OFFER-NAMES-REPO-AND-BRANCH): ``capabilities.slot_brains.<ws>.<slot>``.
 
     ``remote`` (+ ``clone_url``) when the checkout already has one; else ``present`` with the press's own
-    refusal as ``reason`` (``not_a_repo`` / ``worktree_dirty`` / ``invalid_request`` for a detached HEAD),
+    refusal as ``reason`` (``not_a_repo`` for a missing folder — a folder with no git is offered, its ``branch``
+    the ``main`` the press would make /``worktree_dirty`` / ``invalid_request`` for a detached HEAD),
     or, the checks passed, ``needs_git_account`` / ``remote_offered`` + ``git_account``, with ``repo_name`` and
     ``branch``: the private repository the press would create and the one branch it would push. The same
     checks as :func:`make_checkout_remote`, in its order (one helper); no network beyond ``connected_github``.
@@ -264,8 +366,10 @@ def make_checkout_remote(path: Path) -> dict[str, Any]:
     """Give a remote-less checkout a PRIVATE GitHub repository and push its CURRENT branch (RT-SLOT-BRAIN-MAKE-REMOTE).
 
     ``runtime.work.create_brain {slot, promote: true}``'s git half, on the person's ask only. Refused, before
-    anything is created: ``not_a_repo``; ``remote_exists`` (any remote already); ``worktree_dirty`` (tracked
-    changes); ``invalid`` (a detached HEAD: no branch to name); ``needs_git_account``. Only the current branch
+    anything is created: ``not_a_repo`` (no such folder); ``remote_exists`` (any remote already);
+    ``worktree_dirty`` (an existing repository's tracked changes); ``invalid`` (a detached HEAD: no branch to
+    name); ``needs_git_account``. A folder with no git is then set up (:func:`_set_up_git`: ``git init -b main``
+    and a first commit, ``.env*`` never in it; ``commit_failed``, undone, when that does not finish). Only the current branch
     is pushed (RULED 2026-11-12: the person's other branches may be private work in progress; the offer names
     the one it pushes).
 
@@ -284,10 +388,13 @@ def make_checkout_remote(path: Path) -> dict[str, Any]:
     from .work_store.reasons import Reason, WorkRefused
 
     repo = Path(path)
+    set_up = _has_no_git(repo)
     current = _pressable_branch(repo)
     account = connected_github()
     if account is None:
         raise WorkRefused(Reason.NEEDS_GIT_ACCOUNT, "no GitHub credential on this machine answers")
+    if set_up:  # after every local refusal, before anything is made on the host
+        _set_up_git(repo)
     name = checkout_repo_name(repo)
     reused = False
     try:
