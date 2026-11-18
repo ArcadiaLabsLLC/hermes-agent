@@ -213,7 +213,7 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 
 ### Shared character assignment — 2026-10-30
-- **`RT-REALM-PULL-REFUSES-FIRST-CHARACTER-AGENT` — Pulling a realm brings in an agent with its assigned character the first time** · group: runtime-followups · from: `TASK-REALM-MEMBERS-SEE-WHAT-THE-OWNER-SHARES` · seen 2026-11-18: realm pull reported mint_failed with CharacterAssignmentRefused for an agent missing locally; reproduced the stale revision with its valid published assignment · `agent_runtime/persona_assignments/replicate.py` and `agent_runtime/character_assignment.py` · done when: a fresh replica retains the published assignment and an existing replica still rejects a genuinely stale local revision · READY 2026-11-18
+- **`RT-REALM-PULL-REFUSES-FIRST-CHARACTER-AGENT` — Pulling a realm brings in an agent with its assigned character the first time** · group: runtime-followups · from: `TASK-REALM-MEMBERS-SEE-WHAT-THE-OWNER-SHARES` · seen 2026-11-18: realm pull reported mint_failed with CharacterAssignmentRefused for an agent missing locally; reproduced the stale revision with its valid published assignment · `agent_runtime/persona_assignments/replicate.py` and `agent_runtime/character_assignment.py` · done when: a fresh replica retains the published assignment and an existing replica still rejects a genuinely stale local revision · READY 2026-11-18 · **TAKEN 2026-11-18 realm-character-replica on smb19216805.local as Tony-Arena in realm-character-replica**
 
 
 
