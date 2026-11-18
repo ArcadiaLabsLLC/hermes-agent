@@ -112,7 +112,9 @@ def replicate_instance(
     # ``steered_by`` is deliberately NOT applied here: the edges are phase
     # two (plan §3.4), because an edge may name a parent this pass has not
     # minted yet.
-    for name in sorted(PERSONA_INSTANCE_TRAVEL_FIELDS - {"id", "persona_id", "steered_by"}):
+    # CharacterAssignmentReplication owns this field. It compares against the
+    # local row under the write lock, which is empty for a brand-new replica.
+    for name in sorted(PERSONA_INSTANCE_TRAVEL_FIELDS - {"id", "persona_id", "steered_by", "character_assignment"}):
         value = body.get(name, _MISSING_TRAVEL_FIELD)
         if value is _MISSING_TRAVEL_FIELD:
             value = cleared_travel_value(name)

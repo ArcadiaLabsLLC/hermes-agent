@@ -23,6 +23,11 @@ import pytest
 from agent_runtime import yaml_io
 
 from agent_runtime import paths
+from agent_runtime.character_assignment import (
+    CharacterAssignmentChange,
+    CharacterAssignmentReason,
+    CharacterAssignmentRefused,
+)
 from agent_runtime.events import EventLog
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments import PersonaInstanceStore
@@ -139,6 +144,47 @@ def test_absent_local_absent_baseline_present_remote_mints(tmp_path):
     assert minted.state == WorkerSessionState.IDLE
     assert minted.default_chat_session_id
     assert minted.default_chat_session_id.startswith(f"persona_chat_{INSTANCE_ID}_")
+
+
+def test_first_pull_mints_agent_with_published_character_assignment(tmp_path):
+    realm_id, _ = _realm_workspace()
+    assignment = {
+        "version": 1,
+        "revision": 1,
+        "mode": "assigned",
+        "asset_reference": "amelia",
+        "operation_id": "choose-character",
+    }
+    _write_remote(tmp_path, _body(character_assignment=assignment))
+
+    summary = apply_persona_instance_pull(realm_id, tmp_path)
+
+    assert summary.refused == []
+    assert summary.replicated == [INSTANCE_ID]
+    assert PersonaInstanceStore().get(INSTANCE_ID).character_assignment == assignment
+    retry = apply_persona_instance_pull(realm_id, tmp_path)
+    assert retry.converged == [INSTANCE_ID]
+    assert not retry.changed
+
+
+def test_replica_adoption_refuses_a_concurrent_local_character_change():
+    store = PersonaInstanceStore()
+    _local()
+    before = store.set_character_assignment(
+        INSTANCE_ID, CharacterAssignmentChange(0, "assigned", "amelia", "initial-choice"),
+    )
+    local = store.set_character_assignment(
+        INSTANCE_ID, CharacterAssignmentChange(1, "unassigned", None, "local-choice"),
+    )
+    incoming = _body(display_name="Remote name", character_assignment=before.character_assignment)
+
+    with pytest.raises(CharacterAssignmentRefused) as refused:
+        store.replicate_instance(incoming, realm_id="realm_home", adopt_existing=before)
+
+    assert refused.value.reason == CharacterAssignmentReason.STALE
+    reloaded = store.get(INSTANCE_ID)
+    assert reloaded.character_assignment == local.character_assignment
+    assert reloaded.display_name == local.display_name
 
 
 def test_unchanged_local_moved_remote_adopts_only_travelling_fields(tmp_path):
