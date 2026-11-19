@@ -463,7 +463,9 @@ def test_explicit_profile_creation_gets_its_own_identity_over_rpc(qa_persona):
 
     first = create("profile-copy")
     retry = create("profile-copy")
-    second = create("second-profile-copy")
+    # Its own name: a second agent never takes the first's
+    # (RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION).
+    second = create("second-profile-copy", display_name="Another new agent")
     chat = create("existing-persona-chat", independent_agent=False)
     keys = ("persona_id", "profile_id", "persona_instance_id", "session_id")
     assert [first[key] for key in keys] == [retry[key] for key in keys]

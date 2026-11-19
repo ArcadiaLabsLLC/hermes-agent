@@ -120,6 +120,8 @@ def test_the_add_instance_twin_places_and_only_independent_agent_mints(qa_person
     assert (placed["persona_id"], placed["persona_instance_id"]) == ("qa", "personainst_qa_agent_7")
     assert _identities() == before
 
-    minted = create("new", independent_agent=True)
+    # A new agent takes a name of its own, never its source's
+    # (RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION).
+    minted = create("new", independent_agent=True, display_name="QA Agent copy")
     assert minted["persona_id"] != "qa"
     assert _identities()[0] - before[0] == {minted["persona_id"]}
