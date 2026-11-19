@@ -422,3 +422,18 @@ def test_the_backend_is_read_from_config_per_call_and_an_unknown_one_refuses(tmp
     with pytest.raises(RealmSyncError) as refused:
         selector()
     assert refused.value.code == "sync_backend_unknown"
+
+
+def test_a_backend_the_build_does_not_ship_refuses_typed(tmp_path, monkeypatch):
+    """A desktop bundle switches ``git_dulwich`` off; a hand-edited ``git_backend: dulwich`` there gets
+    a typed refusal, never a bare ImportError. Mutation: drop the ``except ImportError`` arm -> red."""
+
+    import sys
+
+    from tests.agent_runtime.conftest import _use_realm_sync_backend
+
+    _use_realm_sync_backend(monkeypatch, "dulwich")
+    monkeypatch.setitem(sys.modules, "agent_runtime.realm_sync.git_dulwich", None)  # the module is not shipped
+    with pytest.raises(RealmSyncError) as refused:
+        sync_git(tmp_path)
+    assert refused.value.code == "sync_backend_unavailable"

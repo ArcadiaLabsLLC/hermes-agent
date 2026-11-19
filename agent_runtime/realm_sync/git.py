@@ -110,7 +110,14 @@ def sync_git(repo: Path) -> SyncGit:
 
         return BinarySyncGit(repo)
     if backend is SyncGitBackend.DULWICH:
-        from .git_dulwich import DulwichSyncGit
+        try:
+            from .git_dulwich import DulwichSyncGit
+        except ImportError:  # a build that does not ship it (the desktop profile switches it off)
+            raise RealmSyncError(
+                "sync_backend_unavailable",
+                "Realm sync is configured with a git backend this build does not ship.",
+                safe_details={"realm_sync.git_backend": backend.value},
+            ) from None
 
         return DulwichSyncGit(repo)
     raise RealmSyncError("sync_backend_unknown", f"Realm sync has no git backend {backend.value!r} on this device.")

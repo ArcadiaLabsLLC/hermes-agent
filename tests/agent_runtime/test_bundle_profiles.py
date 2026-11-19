@@ -102,6 +102,28 @@ def test_the_phone_picks_the_pure_python_git_and_ships_it_pure():
         parse_manifest(_raw(packaging={"pure_wheels": ["Dulwich"], "admitted_native": {"dulwich": "why"}}))
 
 
+def test_only_the_phone_bundle_ships_the_pure_python_git():
+    """Desktop runs the git program, so its closure leaves ``git_dulwich`` (and dulwich) out; the
+    phone's keeps it (RT-DESKTOP-BUNDLE-VERIFY-REFUSES-THE-DULWICH-REALM-SYNC). Walked over the
+    realm_sync package only, with each profile's own switched-off list.
+    Mutation: drop ``agent_runtime.realm_sync.git_dulwich`` from bundled-desktop.yaml -> red."""
+
+    from scripts.bundle_profile_closure import Walk, module_index
+
+    index = {m: p for m, p in module_index().items() if m.startswith("agent_runtime.realm_sync")}
+    assert "agent_runtime.realm_sync.git_dulwich" in index  # positive control: the module exists
+
+    def kept(profile: str) -> set[str]:
+        manifest = load_profile(profile, validate=False)
+        return Walk(("agent_runtime.realm_sync",), manifest.switched_off_modules, index, {"agent_runtime"}).kept
+
+    desktop = kept("bundled-desktop")
+    assert "agent_runtime.realm_sync.git_binary" in desktop  # positive control: the walk reached the backends
+    assert "agent_runtime.realm_sync.git_dulwich" not in desktop
+    assert "agent_runtime.realm_sync.git_dulwich" in kept("bundled-phone")
+    assert "realm-sync-pure" not in load_profile("bundled-desktop", validate=False).packaging_extras
+
+
 def test_every_bundle_exclusion_states_its_reason():
     parse_manifest(_raw(packaging={"excluded_data": {"site-packages/x/data": "why"}}))  # positive control
     with pytest.raises(ProfileManifestError, match="non-empty reasons"):

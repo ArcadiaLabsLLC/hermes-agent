@@ -214,6 +214,10 @@ packaging:
     # them on a bundled edition before the guarded import (hermes_cli.namespace_cmd).
     - agent_runtime.namespace_seed
     - agent_runtime.own_session_import
+    # Realm sync's pure-Python git (dulwich) is the phone's backend only: this profile sets no
+    # realm_sync.git_backend, so it runs the git program (agent_runtime/realm_sync/git.py::sync_git_backend,
+    # the one owner of "which backend"); dulwich (extra realm-sync-pure) never ships on desktop.
+    - agent_runtime.realm_sync.git_dulwich
     - tests
     - scripts
     - evals
