@@ -214,3 +214,39 @@ def test_keeping_my_copy_of_a_held_desk_still_reads_as_mine_to_publish(team):
     pull_realm_sync(shared.id)
     OfficeStore().resolve_conflict(workspace.id, "dev", take="local")
     assert _office_drift(shared.id)["actors_changed"] == 1
+
+
+# --- a held desk says what the teammate did ---------------------------------------------------------------
+# RT-OFFICE-HELD-DESK-SAYS-WHAT-THE-TEAMMATE-DID (review w1118a.39 D8): the office snapshot row carries
+# ``conflict_kinds`` beside ``conflict_actor_keys``, read off each held desk's sidecar by ``scan_conflicts``.
+
+
+@pytest.mark.parametrize("teammate", ["deletes", "moves"])
+def test_a_held_desk_says_what_the_teammate_did(team, teammate):
+    """Bob moves the desk without publishing; Alice deletes it, or moves it elsewhere, and publishes. Bob's pull
+    holds it, and the snapshot Eternia reads says ``removed`` or ``changed``.
+
+    Mutations, each red: drop the ``kinds[key]`` line in ``scan_conflicts`` -> ``{}``; drop
+    ``conflict_kinds=conflicts.kinds`` at the snapshot call site -> ``{}``; ``of_sidecar`` always answers
+    ``changed`` -> red in the delete case."""
+
+    from agent_runtime.events import EventLog
+    from agent_runtime.snapshot import build_snapshot
+
+    shared, workspace = _shared_workspace(team, members=("bob",))
+    team.be("bob")
+    _desk(workspace.id, 9.5)
+    team.be("alice")
+    if teammate == "deletes":
+        OfficeStore().remove_actor(workspace.id, "dev")
+    else:
+        _desk(workspace.id, -4.0)
+    publish_realm_sync(shared.id)
+
+    team.be("bob")
+    pulled = pull_realm_sync(shared.id)
+    assert [row["actor_key"] for row in pulled["office_sync"]["held"]] == ["dev"]
+
+    row = build_snapshot(event_log=EventLog())["offices"][workspace.id]
+    assert row["conflict_actor_keys"] == ["dev"]
+    assert row["conflict_kinds"] == {"dev": "removed" if teammate == "deletes" else "changed"}

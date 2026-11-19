@@ -1176,6 +1176,14 @@ hands over a count and no tokens. Both keys are additive — a row from an older
 core has no such list, which reads as exactly the claim the bare list used to
 make silently.
 
+**`conflict_kinds` says what the team did to each held desk** (2026-11-19,
+RT-OFFICE-HELD-DESK-SAYS-WHAT-THE-TEAMMATE-DID): `{actor_key: "changed" | "removed"}`,
+read by `scan_conflicts` (the one sidecar reader) off the sidecar's `remote_actor`
+— the team's desk, or `null` when the team removed it — through
+`ConflictTeamSide.of_sidecar`, the field `resolve_conflict`'s take-remote arm
+branches on. A guessed key gets no kind. Additive: an older Eternia ignores it, and
+Eternia's desk-conflict dialog reads it to say "deleted" or "changed".
+
 **The `unplaced_persona_instance` warning (2026-10-18, RT-SNAPSHOT-UNPLACED-INSTANCE).**
 `_offices_summary` also gathers, per workspace, the instances an ARCHIVED actor of that
 office was bound to and no live actor there still is (`scan_actors(include_archived=True)`,

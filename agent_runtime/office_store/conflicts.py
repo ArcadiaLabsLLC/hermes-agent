@@ -16,7 +16,7 @@ from agent_runtime.errors import SyncConflict
 from agent_runtime.locks import office_lock
 from agent_runtime.models import OfficeActor
 from agent_runtime.office_store.files import _write_actor
-from agent_runtime.office_store.models import ConflictScan, OfficeActorOutcome
+from agent_runtime.office_store.models import ConflictScan, ConflictTeamSide, OfficeActorOutcome
 from agent_runtime.office_store.normalize import _safe_actor_ref
 from agent_runtime.serde import from_jsonable, read_json, safe_id
 from agent_runtime.store_conflicts import archive_conflict_sidecar, guard_no_conflict
@@ -61,6 +61,7 @@ def scan_conflicts(store: OfficeStore, workspace_id: str) -> ConflictScan:
         return ConflictScan([], [])
     keys: list[str] = []
     outcomes: list[OfficeActorOutcome] = []
+    kinds: dict[str, ConflictTeamSide] = {}
     for path in sorted(conflicts_dir.glob("*.json")):
         if path.name.endswith(".resolved.json"):
             continue
@@ -89,7 +90,9 @@ def scan_conflicts(store: OfficeStore, workspace_id: str) -> ConflictScan:
             continue
         outcomes.append(OfficeActorOutcome.conflict_read(workspace_id, key))
         keys.append(key)
-    return ConflictScan(keys, outcomes)
+        # MUTATION: drop this line and test_a_held_desk_says_what_the_teammate_did reddens.
+        kinds[key] = ConflictTeamSide.of_sidecar(payload)
+    return ConflictScan(keys, outcomes, kinds)
 
 
 def resolve_conflict(

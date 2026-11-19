@@ -384,6 +384,19 @@ class OfficeActorOutcome:
         }
 
 
+class ConflictTeamSide(StrEnum):
+    """What the TEAM did to a held desk, read off its conflict sidecar: the pull writes ``remote_actor`` as the
+    team's desk, or ``None`` when the team removed it (``office_sync._write_conflict_sidecar``) — the same field
+    ``resolve_conflict``'s take-remote arm branches on (RT-OFFICE-HELD-DESK-SAYS-WHAT-THE-TEAMMATE-DID)."""
+
+    CHANGED = "changed"
+    REMOVED = "removed"
+
+    @classmethod
+    def of_sidecar(cls, payload: dict[str, Any]) -> ConflictTeamSide:
+        return cls.CHANGED if isinstance(payload.get("remote_actor"), dict) else cls.REMOVED
+
+
 class ConflictScan(NamedTuple):
     """The conflict sidecars a workspace HAS, beside what they cost to read.
 
@@ -398,6 +411,9 @@ class ConflictScan(NamedTuple):
 
     keys: list[str]
     outcomes: list[OfficeActorOutcome]
+    #: What the team did to each held desk, for the keys READ out of a payload only: a sidecar that would not
+    #: decode answers no kind (its key is a filename guess, and so would be the kind).
+    kinds: dict[str, ConflictTeamSide] = {}
 
     @property
     def unreadable(self) -> int:

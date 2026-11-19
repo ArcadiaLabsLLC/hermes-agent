@@ -1598,7 +1598,7 @@ def test_a_resolved_sidecar_is_not_a_conflict_and_is_never_read():
     (paths.office_conflicts_dir(ws) / "dev.resolved.json").write_text(
         "{not json", encoding="utf-8"
     )
-    assert store.scan_conflicts(ws) == ([], [])
+    assert store.scan_conflicts(ws) == ([], [], {})
 
 
 def test_the_prunes_ack_is_derived_from_its_outcomes_and_cannot_disagree():
@@ -1796,6 +1796,8 @@ def test_the_snapshot_office_row_and_its_warning_mark_a_guessed_conflict_key():
     row = snap["offices"][ws]
     assert row["conflict_actor_keys"] == ["broken", "dev"]
     assert row["conflict_guessed_keys"] == ["broken"]
+    # A guessed key gets no kind: the team side is read out of a payload or not at all.
+    assert row["conflict_kinds"] == {"dev": "removed"}
 
     conflicts = {
         w["entity_id"]: w

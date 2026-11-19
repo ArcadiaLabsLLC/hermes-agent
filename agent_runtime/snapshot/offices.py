@@ -63,6 +63,7 @@ def office_summary_row(
     actors_unreadable: int,
     conflict_actor_keys=(),
     conflict_guessed_keys,
+    conflict_kinds=None,
     actor_unpublished=None,
     orphaned: bool = False,
     orphan_reason: str | None = None,
@@ -128,6 +129,9 @@ def office_summary_row(
         # such list, which reads as the claim the bare list used to make
         # silently: every key came out of a payload.
         "conflict_guessed_keys": list(conflict_guessed_keys),
+        # What the team did to each held desk — ``changed`` or ``removed`` — so Eternia's conflict dialog can say
+        # which (RT-OFFICE-HELD-DESK-SAYS-WHAT-THE-TEAMMATE-DID). Additive; a guessed key has no entry.
+        "conflict_kinds": {key: str(kind) for key, kind in (conflict_kinds or {}).items()},
         "archived_actor_keys": list(surface.archived_actor_keys),
         "revision": surface.revision,
         "updated_at": to_jsonable(surface.updated_at),
@@ -252,6 +256,7 @@ def _offices_summary(office_store, workspaces, realms=()) -> OfficesProjection:
                 actors_unreadable=scan.unreadable,
                 conflict_actor_keys=conflicts.keys,
                 conflict_guessed_keys=conflicts.guessed_keys,
+                conflict_kinds=conflicts.kinds,
                 actor_unpublished=_actor_unpublished,
                 orphaned=orphaned,
                 orphan_reason=(
