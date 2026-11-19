@@ -15,6 +15,7 @@ moving `RPC_CONTRACT_VERSION`.
 | method | tier | params | wraps |
 |---|---|---|---|
 | `runtime.provider.list` | read | `persona_instance_id?` / `persona_id?`; `prewarm_signin?` | `build_provider_visibility()` (`hermes harness providers --json`) |
+| `runtime.provider.models` | read | `catalog_ids` (list of models.dev provider ids, at most 64) | `agent/models_dev.py::fetch_models_dev()` — the engine's own models.dev cache (memory → disk cache under the home → network), called, not edited |
 | `runtime.provider.usage` | read | `provider`; `persona_instance_id?` / `persona_id?` | `agent.account_usage.fetch_account_usage`; Nous via `get_nous_portal_account_info` + `build_nous_credits_snapshot` |
 | `runtime.provider.signin.begin` | console | `provider`; `flow?`, `profile?` | one `hermes harness auth login <provider> --json --flow <flow>` child (`hermes_cli/provider_browser_login.py` driver table) |
 | `runtime.provider.signin.poll` | console | `login_id` | the session the child's NDJSON feeds |
@@ -35,7 +36,7 @@ Every method first applies the bound home `.env`'s change since its last look to
 wrote from another process is answered at once, never after a restart; a key the serve was launched with and the
 file never named is kept.
 
-`list`, `usage`, `refresh` and `signout` run on the transport's worker lane
+`list`, `models`, `usage`, `refresh` and `signout` run on the transport's worker lane
 when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
 
 ## Reply budgets
@@ -48,6 +49,7 @@ table (`HermesProviderMethod.timeoutFor`).
 
 | method | bound on the work | budget |
 |---|---|---|
+| `runtime.provider.models` | memory or disk cache read; on a cold home with no cache, one models.dev fetch under `requests.get(…, timeout=(5, 10))` behind upstream's singleflight lock | 20 s |
 | `runtime.provider.usage` | every usage fetch in `agent/account_usage.py` is an HTTP call with `timeout=15.0`; Nous reads `hermes_cli/nous_account.py` with `timeout=8` | 20 s |
 | `runtime.provider.refresh` | `hermes auth refresh`: token endpoint calls under upstream's HTTP timeouts; no single bound, and a lost reply leaves the outcome unknown | 30 s |
 | `runtime.provider.signout` | `hermes auth logout`: as refresh | 30 s |
@@ -125,6 +127,14 @@ the key first), `source_failed` (+ the exception class).
 
 **pack.activate** — `{contract, pack, site_packages, activated}`; `activated: false`
 when the pack was already on the import path.
+
+**models** — `{contract, catalog: {<catalog id>: <that id's models.dev entry>}}`, only
+the asked ids (never the whole registry). An id the registry lacks is absent, not an error;
+an empty registry (offline on a cold home) answers `{contract, catalog: {}}`. The entry is
+models.dev's own provider object (`id`, `name`, `models: {<model id>: {…}}`, …), the same
+bytes a desktop reads from the home's `models_dev_cache.json`, so a client keeps one parse.
+`catalog_ids` absent → `invalid_params` / `catalog_ids_required`; not a list of non-empty
+strings, or more than 64 → `invalid_params` / `catalog_ids_invalid` (`data.max_ids`).
 
 **usage** —
 `{contract, provider, available, source, title, plan, fetched_at,

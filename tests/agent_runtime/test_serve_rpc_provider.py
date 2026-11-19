@@ -267,6 +267,76 @@ def test_network_methods_defer_to_the_worker_lane(monkeypatch):
     assert spawned[0]()["result"]["provider"] == "openrouter"
 
 
+# ── models (RT-PHONE-PROVIDER-MODELS-FROM-THE-ENGINE) ─────────────────────────
+
+_REGISTRY = {
+    "anthropic": {"id": "anthropic", "name": "Anthropic", "models": {"claude-x": {"id": "claude-x"}}},
+    "openai": {"id": "openai", "name": "OpenAI", "models": {"gpt-x": {"id": "gpt-x"}}},
+    "openrouter": {"id": "openrouter", "name": "OpenRouter", "models": {}},
+}
+
+
+def test_models_answers_only_the_asked_ids_and_an_unknown_id_is_absent(monkeypatch):
+    """Killing mutation: ``work`` answering ``{"catalog": registry}`` (the whole registry) -> red."""
+    from agent import models_dev
+
+    monkeypatch.setattr(models_dev, "fetch_models_dev", lambda *a, **k: _REGISTRY)
+    result = _result(family._runtime_provider_models(1, {"catalog_ids": ["anthropic", "no-such-id", "anthropic"]}))
+    assert result == {"contract": 1, "catalog": {"anthropic": _REGISTRY["anthropic"]}}
+
+
+def test_models_on_an_empty_registry_is_an_empty_catalog(monkeypatch):
+    """Killing mutation: drop the ``isinstance(registry.get(cid), dict)`` filter -> KeyError ->
+    handler_failed, red."""
+    from agent import models_dev
+
+    monkeypatch.setattr(models_dev, "fetch_models_dev", lambda *a, **k: {})
+    assert _result(family._runtime_provider_models(1, {"catalog_ids": ["anthropic"]})) == {"contract": 1, "catalog": {}}
+
+
+def test_models_reads_the_engines_own_models_dev_cache(monkeypatch, tmp_path):
+    """Positive control on the real upstream reader: a cold process, a fresh disk cache under the
+    bound home, no network. Killing mutation: ``work`` answering ``{"catalog": {}}`` without
+    calling ``fetch_models_dev`` -> red."""
+    from agent import models_dev
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr(models_dev, "_models_dev_cache", {})
+    monkeypatch.setattr(models_dev, "_models_dev_cache_time", 0)
+    (tmp_path / "models_dev_cache.json").write_text(json.dumps(_REGISTRY), encoding="utf-8")
+    result = _result(family._runtime_provider_models(1, {"catalog_ids": ["openai"]}))
+    assert result["catalog"] == {"openai": _REGISTRY["openai"]}
+
+
+@pytest.mark.parametrize("params, reason", [
+    ({}, "catalog_ids_required"),
+    ({"catalog_ids": "anthropic"}, "catalog_ids_invalid"),
+    ({"catalog_ids": [""]}, "catalog_ids_invalid"),
+    ({"catalog_ids": [7]}, "catalog_ids_invalid"),
+    ({"catalog_ids": [f"p{i}" for i in range(family.MAX_CATALOG_IDS + 1)]}, "catalog_ids_invalid"),
+])
+def test_models_refuses_malformed_catalog_ids(monkeypatch, params, reason):
+    """Killing mutation: drop the ``isinstance(catalog_ids, list)`` check -> a bare string is
+    walked as its characters and answered, red (the over-cap row: drop the ``MAX_CATALOG_IDS`` bound)."""
+    from agent import models_dev
+
+    monkeypatch.setattr(models_dev, "fetch_models_dev", lambda *a, **k: _REGISTRY)
+    error = _error(family._runtime_provider_models(1, params))
+    assert (error["code"], error["data"]["reason"]) == (ERR_INVALID_PARAMS, reason)
+
+
+def test_models_defers_to_the_worker_lane(monkeypatch):
+    """Killing mutation: ``_runtime_provider_models`` returning ``_answer(...)`` instead of
+    ``_off_reader(...)`` -> answered inline, red."""
+    from agent import models_dev
+
+    monkeypatch.setattr(models_dev, "fetch_models_dev", lambda *a, **k: _REGISTRY)
+    spawned = []
+    context = RpcContext(spawn_reply=lambda build: spawned.append(build) or True)
+    assert family._runtime_provider_models(7, {"catalog_ids": ["openai"]}, context) is DEFERRED
+    assert spawned[0]()["result"]["catalog"] == {"openai": _REGISTRY["openai"]}
+
+
 # ── refresh / sign-out ───────────────────────────────────────────────────────
 
 
@@ -325,7 +395,7 @@ def test_every_provider_method_is_registered_with_its_tier():
 
     tiers = serve_rpc.method_tiers()
     assert {name: tier for name, tier in tiers.items() if name.startswith("runtime.provider.")} == {
-        "runtime.provider.list": "read", "runtime.provider.usage": "read",
+        "runtime.provider.list": "read", "runtime.provider.usage": "read", "runtime.provider.models": "read",
         "runtime.provider.signin.begin": "console", "runtime.provider.signin.poll": "console",
         "runtime.provider.signin.complete": "console", "runtime.provider.signin.cancel": "console",
         "runtime.provider.refresh": "console", "runtime.provider.signout": "console",

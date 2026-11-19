@@ -40,6 +40,7 @@ __all__ = [
     "_runtime_provider_dependency_install",
     "_runtime_provider_env_token_remove",
     "_runtime_provider_list",
+    "_runtime_provider_models",
     "_runtime_provider_pack_activate",
     "_runtime_provider_refresh",
     "_runtime_provider_signin_begin",
@@ -56,6 +57,9 @@ PROVIDER_CONTRACT = 1
 
 #: The longest pasted authorization code accepted (Anthropic's is ~100 chars).
 MAX_CODE_CHARS = 2048
+
+#: The most models.dev ids one ``runtime.provider.models`` call may ask for.
+MAX_CATALOG_IDS = 64
 
 #: Provider refusals that name a bad request rather than a failed operation.
 _INVALID_PARAM_REASONS = frozenset({"provider_unknown", "auth_mode_unsupported", "auth_mode_unknown",
@@ -147,6 +151,32 @@ def _runtime_provider_list(rid: Any, params: dict, context: RpcContext | None = 
     target = _agent_target(params)
     return _off_reader(rid, "runtime.provider.list", context,
                        lambda: answer_for_agent(target, provider_account.provider_list))
+
+
+@method("runtime.provider.models", tier=TIER_READ)
+def _runtime_provider_models(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """The models.dev entry of each asked catalog id, from the engine's own models.dev cache
+    (RT-PHONE-PROVIDER-MODELS-FROM-THE-ENGINE): a phone has no installed home to read
+    ``models_dev_cache.json`` from. Params: ``catalog_ids`` — a list of models.dev provider ids.
+    Answers ``{"catalog": {<id>: <entry>}}``; an id the registry lacks is absent, not an error,
+    and an empty registry answers ``{"catalog": {}}``. Only the asked ids ride the frame."""
+    catalog_ids = params.get("catalog_ids")
+    if catalog_ids is None:
+        return _refused(rid, "runtime.provider.models", "catalog_ids_required", ERR_INVALID_PARAMS)
+    if (not isinstance(catalog_ids, list) or len(catalog_ids) > MAX_CATALOG_IDS
+            or not all(isinstance(cid, str) and cid for cid in catalog_ids)):
+        return _refused(rid, "runtime.provider.models", "catalog_ids_invalid", ERR_INVALID_PARAMS,
+                        max_ids=MAX_CATALOG_IDS)
+    asked = list(dict.fromkeys(catalog_ids))
+
+    def work() -> dict:
+        # Upstream's registry read, called and not edited (memory -> disk cache -> network).
+        from agent.models_dev import fetch_models_dev
+
+        registry = fetch_models_dev() or {}
+        return {"catalog": {cid: registry[cid] for cid in asked if isinstance(registry.get(cid), dict)}}
+
+    return _off_reader(rid, "runtime.provider.models", context, work)
 
 
 @method("runtime.provider.usage", tier=TIER_READ)
