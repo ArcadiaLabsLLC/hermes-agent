@@ -237,6 +237,9 @@ packaging:
   resources:
     - skills
     - locales
+    # The harness skills a realm pull installs (agent_runtime.skill_install reads them from
+    # app/docs/..., beside agent_runtime/); without them Pull realm fails handler_failed.
+    - docs/agent-runtime-harness/harness-skills
   plugins:
     - model-providers
     - memory

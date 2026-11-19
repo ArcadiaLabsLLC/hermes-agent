@@ -9,6 +9,8 @@ Killing mutations (applied, red recorded, reverted — see the commit message):
   -> ``test_unknown_toolset_is_refused`` red.
 * ``ProfileRouteGate.refuses`` returns ``False``
   -> ``test_switched_off_download_route_refuses`` red.
+* ``bundled-phone.yaml`` drops ``docs/agent-runtime-harness/harness-skills`` from ``packaging.resources``
+  -> ``test_every_harness_skill_source_ships_in_the_bundle[bundled-phone]`` red.
 """
 
 from __future__ import annotations
@@ -152,6 +154,25 @@ def test_packaging_modules_name_real_modules(profile):
         if not any(m == name or m.startswith(name + ".") for m in index)
     ]
     assert not missing
+
+
+@pytest.mark.parametrize("profile", [PROFILE, "bundled-phone"])
+def test_every_harness_skill_source_ships_in_the_bundle(profile):
+    """A realm pull installs every harness skill from ``harness_skill_source_root()``, so each skill's
+    source must lie under a resource the profile ships (RT-PHONE-BUNDLE-LEAVES-OUT-THE-HARNESS-SKILLS-A-REALM-PULL-INSTALLS:
+    the phone bundle left them out and Pull realm failed handler_failed)."""
+    from pathlib import Path
+
+    from agent_runtime.skill_install import HARNESS_SKILLS, harness_skill_source
+
+    root = Path(__file__).resolve().parents[2]
+    shipped = [root / r for r in load_profile(profile).packaging_resources]
+    assert HARNESS_SKILLS
+    unshipped = [
+        skill for skill in sorted(HARNESS_SKILLS)
+        if not any(harness_skill_source(skill).is_relative_to(r) for r in shipped)
+    ]
+    assert unshipped == []
 
 
 # -- refused routes -----------------------------------------------------------------------------
