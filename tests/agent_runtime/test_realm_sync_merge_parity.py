@@ -9,6 +9,12 @@ equal conflict sets — a file/directory clash by path prefix, never by git's ``
 
 Killing mutation (recorded in the S5 commit): take theirs WHOLE in ``merge_theirs.merge_lines`` (return
 ``theirs``) -> "far hunks" and "overlap plus a far hunk of ours" red.
+
+A file one side deleted while the other edited it settles remote-wins in BOTH backends, each naming the
+path it dropped (TASK-REALM-DELETE-MEETS-AN-EDIT, review w1118a.36 D1). Killing mutations: return
+``merged, conflicts`` unchanged from ``merge_theirs.FavouringMerger._settle_modify_delete`` -> "modify/delete"
+and "delete/modify" red (the dulwich side conflicts); return ``()`` at once from
+``git_binary.BinarySyncGit._settle_modify_delete`` -> the same two red (the git side conflicts).
 """
 
 from __future__ import annotations
@@ -101,12 +107,13 @@ def _start(tmp_path: Path, base: dict, theirs: dict, ours: dict) -> Path:
     return member
 
 
-def _settle(member: Path, copy: Path, backend: Callable[[Path], object]) -> tuple[str | None, frozenset[str]]:
+def _settle(member: Path, copy: Path, backend: Callable[[Path], object]) -> tuple[str | None, frozenset[str], tuple[str, ...]]:
     shutil.copytree(member, copy, symlinks=True)
     outcome = backend(copy).merge_remote_theirs(None)  # type: ignore[attr-defined]
     if outcome.conflicts:
-        return None, frozenset(path.split("~", 1)[0] for path in outcome.conflicts)
-    return _sh(copy, "rev-parse", "HEAD^{tree}"), frozenset()
+        return None, frozenset(path.split("~", 1)[0] for path in outcome.conflicts), outcome.dropped
+    assert _sh(copy, "status", "--porcelain") == ""  # committed: no merge left half-done
+    return _sh(copy, "rev-parse", "HEAD^{tree}"), frozenset(), outcome.dropped
 
 
 @pytest.mark.parametrize("name", list(_SCENARIOS))
@@ -116,8 +123,24 @@ def test_the_phone_settles_a_race_as_the_git_program_does(tmp_path, name):
     want = _settle(member, tmp_path / "binary", BinarySyncGit)
     got = _settle(member, tmp_path / "dulwich", DulwichSyncGit)
     assert got == want
-    expect_conflict = name in {"modify/delete", "delete/modify", "file vs directory"}
+    expect_conflict = name == "file vs directory"
     assert bool(want[1]) is expect_conflict  # positive control: the scenario is the case it names
+    assert want[2] == (("r/a.txt",) if name in {"modify/delete", "delete/modify"} else ())
+
+
+def test_a_teammates_delete_wins_over_the_members_edit_in_the_tree(tmp_path):
+    """The settled tree is the TEAM's: the deleted file is gone, the teammate's restoring edit is back."""
+
+    base, theirs, ours = _SCENARIOS["modify/delete"]
+    member = _start(tmp_path, base, theirs, ours)
+    assert DulwichSyncGit(member).merge_remote_theirs(None).dropped == ("r/a.txt",)
+    assert not (member / "r/a.txt").exists()
+    assert _sh(member, "ls-tree", "-r", "--name-only", "HEAD").splitlines() == ["r/keep.txt"]
+    base, theirs, ours = _SCENARIOS["delete/modify"]
+    (tmp_path / "back").mkdir()
+    member = _start(tmp_path / "back", base, theirs, ours)
+    assert BinarySyncGit(member).merge_remote_theirs(None).dropped == ("r/a.txt",)
+    assert (member / "r/a.txt").read_text(encoding="utf-8") == _edit(3, "THEIRS")
 
 
 def test_a_settled_race_is_a_two_parent_commit_on_the_phone(tmp_path):

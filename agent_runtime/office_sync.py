@@ -209,6 +209,7 @@ def update_office_baseline_after_sync(realm_id: str, workspace_ids: list[str]) -
 
     store = OfficeStore()
     baseline = read_office_baseline(realm_id)
+    before = dict(baseline)
     summary = OfficeBaselineSummary(recorded=[], refused=[])
     for workspace_id in workspace_ids:
         exists = store.surface_exists(workspace_id)
@@ -230,6 +231,17 @@ def update_office_baseline_after_sync(realm_id: str, workspace_ids: list[str]) -
         for actor in scan.actors:
             baseline[_actor_key(workspace_id, actor.actor_key)] = office_models.office_content_hash(actor)
         summary.recorded.append(workspace_id)
+    # A desk a pull HELD keeps the entry it had: the publish carried the team's copy of it, not this store's
+    # (``realm_sync.publish_keep``, TASK-REALM-DELETE-MEETS-AN-EDIT).
+    from .realm_sync.publish_keep import held_baseline_entries
+
+    recorded = set(summary.recorded)
+
+    def _held(key: str) -> bool:
+        workspace_id, _, actor_key = key.partition(":actor:")
+        return bool(actor_key) and workspace_id in recorded and paths.office_conflict_path(workspace_id, actor_key).exists()
+
+    baseline = held_baseline_entries(sorted(set(before) | set(baseline)), _held, before, baseline)
     write_office_baseline(realm_id, baseline)
     return summary
 
@@ -271,6 +283,10 @@ class OfficePullSummary:
     #: this names the ones it took, and the ones it tried and could not.
     #: ``archived`` is this list's success count by construction.
     archive_outcomes: list[dict[str, Any]] = None  # type: ignore[assignment]
+    #: The desks this pull HELD for the member to choose (``conflicts`` is their count): each names the
+    #: workspace, the actor key and why (``edit_vs_remove``: edited here, deleted by the team), so a pull that
+    #: met a teammate's delete says which desk (TASK-REALM-DELETE-MEETS-AN-EDIT). Additive.
+    held: list[dict[str, str]] = None  # type: ignore[assignment]
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -279,6 +295,7 @@ class OfficePullSummary:
             "kept_local": self.kept_local,
             "archived": self.archived,
             "conflicts": self.conflicts,
+            "held": list(self.held or []),
             "workspaces": list(self.workspaces or []),
             "refused": list(self.refused or []),
             "unknowable": list(self.unknowable or []),
@@ -535,6 +552,7 @@ def _reconcile_actors(
                 remote_hash=remote_hash,
             )
             summary.conflicts += 1
+            summary.held.append({"workspace_id": workspace_id, "actor_key": actor_key, "kind": decision.reason})
             continue
 
 
@@ -550,7 +568,7 @@ def apply_office_pull(realm_id: str, subtree: Path, *, event_log: EventLog | Non
     store = OfficeStore(event_log=event_log)
     baseline = read_office_baseline(realm_id)
     summary = OfficePullSummary(
-        workspaces=[], refused=[], unknowable=[], delete_fenced=[], archive_outcomes=[]
+        workspaces=[], refused=[], unknowable=[], delete_fenced=[], archive_outcomes=[], held=[]
     )
     office_root = subtree / "store" / "office"
     if not office_root.exists():

@@ -55,6 +55,7 @@ from .skill_inbox import apply_skill_inbox_pull
 __layer__ = "lanes"
 __all__ = [
     "ARTIFACTS_UPDATED_KEY",
+    "DROPPED_LOCAL_CHANGES_KEY",
     "PULL_APPLIERS",
     "PullApplier",
     "_PullRun",
@@ -86,6 +87,14 @@ __all__ = [
 #: nothing new. ``artifacts`` stays the whole list the realm holds (RT-REALM-IDLE-PULL-SAYS-ARTIFACTS-UPDATED;
 #: Eternia reads this count, MC-REALM-IDLE-PULL-SAYS-ARTIFACTS-UPDATED).
 ARTIFACTS_UPDATED_KEY = "artifacts_updated"
+
+#: The pull envelope's list of this member's PUBLISHED-but-not-pushed changes the team's copy replaced: a
+#: publish that lost the race to a teammate who deleted (or edited) the same document, settled remote-wins
+#: by the merge (``git._merge_remote``, TASK-REALM-DELETE-MEETS-AN-EDIT). Realm-subtree-relative paths,
+#: sorted; ``[]`` when nothing was dropped. The member's store copy is then decided by the family appliers
+#: as any other pull's is (an edit meeting a delete is a HOLD), so this says what the clone gave up, never
+#: that the store did.
+DROPPED_LOCAL_CHANGES_KEY = "dropped_local_changes"
 
 
 def pull_realm_sync(
@@ -119,8 +128,9 @@ def _pull_realm_sync(
         raise RealmSyncError("sync_conflict", "Realm sync repo has unresolved git conflicts.", safe_details={"conflicts": git["conflicts"]})
     # An adopted personal repo that is still EMPTY (no remote-tracking ref after the
     # adopter's fetch, p10-work §2.6) has nothing to pull and no upstream to pull from.
+    dropped: tuple[str, ...] = ()
     if _has_remote(repo) and sync_git(repo).has_remote_refs():
-        _pull_remote_into_repo(repo, credential=credential)
+        dropped = _pull_remote_into_repo(repo, credential=credential)
     subtree = _realm_subtree(repo, realm.id)
     artifacts = _artifacts_from_subtree(subtree)
     _assert_no_secret_artifacts(artifacts)
@@ -153,6 +163,8 @@ def _pull_realm_sync(
     result.update(_pull_accounting(run, install_results))
     # MUTATION: answer len(artifacts) and test_an_idle_pull_answers_no_artifact_updated reds.
     result[ARTIFACTS_UPDATED_KEY] = written
+    # MUTATION: answer [] and test_a_committed_edit_meeting_a_teammates_delete_takes_the_team_copy reddens.
+    result[DROPPED_LOCAL_CHANGES_KEY] = _subtree_relative(dropped, repo=repo, subtree=subtree)
     _write_sync_sidecar(
         run.realm,
         repo=repo,
@@ -168,6 +180,13 @@ def _pull_realm_sync(
         artifacts=len(artifacts),
     )
     return result
+
+
+def _subtree_relative(dropped: tuple[str, ...], *, repo: Path, subtree: Path) -> list[str]:
+    """``dropped``'s repository paths, relative to this realm's subtree where they lie under it."""
+
+    prefix = subtree.relative_to(repo).as_posix().rstrip("/") + "/"
+    return sorted(path[len(prefix):] if path.startswith(prefix) else path for path in dropped)
 
 
 def _overwrite_generic_families(artifacts: list[RealmSyncArtifact], *, realm: Realm) -> tuple[int, bool]:

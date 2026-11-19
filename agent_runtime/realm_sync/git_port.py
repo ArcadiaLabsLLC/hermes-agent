@@ -81,9 +81,14 @@ class FetchOutcome(Enum):
 
 @dataclass(frozen=True, slots=True)
 class MergeOutcome:
-    """A merge that ran: empty ``conflicts`` means it committed."""
+    """A merge that ran: empty ``conflicts`` means it committed.
+
+    ``dropped``: the repository paths where one side deleted a file the other edited and the favoured
+    side's tree won (TASK-REALM-DELETE-MEETS-AN-EDIT) — for a pull, each a local change the team's copy
+    replaced. Sorted."""
 
     conflicts: tuple[str, ...] = ()
+    dropped: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,7 +148,8 @@ class SyncGit(Protocol):
         """Fetch every remote ref, or only ``origin/<branch>`` (``EMPTY_REMOTE`` when it has none)."""
     def pull_fast_forward(self, auth: RealmSyncCredential | None) -> None: ...
     def merge_remote_theirs(self, auth: RealmSyncCredential | None) -> MergeOutcome:
-        """Fetch and merge the upstream; where both sides changed the same lines the remote wins."""
+        """Fetch and merge the upstream; where both sides changed the same lines, or one side deleted a file the
+        other edited, the remote wins (``MergeOutcome.dropped`` names the latter)."""
     def merge_unrelated_ours(self, tip: str) -> None:
         """Merge an unrelated history (adopt only merges path-disjoint trees); ours wins an overlap."""
     def push(self, auth: RealmSyncCredential | None, *, set_upstream: bool, branch: str | None = None) -> PushReport:

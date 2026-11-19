@@ -198,10 +198,46 @@ class BinarySyncGit:
         proc = self._proc(("pull", "--no-rebase", "--no-edit", "-X", "theirs"), extra)
         if proc.returncode == 0:
             return MergeOutcome()
-        conflicts = tuple(line.strip() for line in self._step("diff", "--name-only", "--diff-filter=U", check=False).splitlines() if line.strip())
+        if not self._unmerged_stages():
+            raise _git_failure(["pull", "--no-rebase", "-X", "theirs"], proc, self._secret(extra))
+        dropped = self._settle_modify_delete()
+        conflicts = tuple(sorted(self._unmerged_stages()))
         if conflicts:
-            return MergeOutcome(conflicts=conflicts)
-        raise _git_failure(["pull", "--no-rebase", "-X", "theirs"], proc, self._secret(extra))
+            return MergeOutcome(conflicts=conflicts, dropped=dropped)
+        self._step("commit", "-q", "--no-edit")
+        return MergeOutcome(dropped=dropped)
+
+    def _unmerged_stages(self) -> dict[str, frozenset[int]]:
+        """Each conflicted path and the index stages it holds (1 base, 2 ours, 3 theirs)."""
+
+        stages: dict[str, set[int]] = {}
+        for record in self._step("ls-files", "-u", "-z", check=False).split("\0"):
+            meta, _, path = record.partition("\t")
+            fields = meta.split()
+            if path and len(fields) == 3 and fields[2].isdigit():
+                stages.setdefault(path, set()).add(int(fields[2]))
+        return {path: frozenset(held) for path, held in stages.items()}
+
+    def _settle_modify_delete(self) -> tuple[str, ...]:
+        """A file one side deleted while the other edited it takes the remote side, as ``-X theirs`` does for
+        lines (``merge_theirs``'s rule, TASK-REALM-DELETE-MEETS-AN-EDIT): base + ours alone is their delete,
+        base + theirs alone their edit. Every other stage set (a file/directory clash) is left for git.
+        MUTATION: return ``()`` at once and the parity test's modify/delete scenario reds at a conflict."""
+
+        dropped: list[str] = []
+        for path, held in sorted(self._unmerged_stages().items()):
+            if held == frozenset({1, 2}):
+                self._step("rm", "-q", "--cached", "--", path)
+                target = self.repo / path
+                if target.is_file() or target.is_symlink():
+                    target.unlink()
+            elif held == frozenset({1, 3}):
+                self._step("checkout", "--theirs", "--", path)
+                self._step("add", "--", path)
+            else:
+                continue
+            dropped.append(path)
+        return tuple(dropped)
 
     def merge_unrelated_ours(self, tip: str) -> None:
         self._step("merge", "-q", "--allow-unrelated-histories", "--no-edit", "-X", "ours", tip)

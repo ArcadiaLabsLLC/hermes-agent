@@ -40,6 +40,7 @@ from dulwich.objects import Commit, Tree
 from dulwich.objectspec import parse_commit
 from dulwich.repo import Repo
 
+from .git import _push_was_rejected
 from .git_port import ChangedPath, FetchOutcome, LogEntry, MergeOutcome, PushOutcome, PushReport, RepoState
 from .merge_theirs import Favour, FavouringMerger
 from .models import RealmSyncError
@@ -592,15 +593,16 @@ class DulwichSyncGit:
                                 allow_overwrite_modified=False)
         except (OSError, ValueError) as exc:
             raise _failure(step, f"error: Your local changes would be overwritten by merge: {exc}") from exc
+        dropped = tuple(sorted(_s(path) for path in merger.dropped))
         if conflicts:
             index = repo.open_index()
             for path, info in merger.conflict_info.items():
                 index[path] = ConflictedIndexEntry(ancestor=_stage(*info.ancestor), this=_stage(*info.ours),
                                                    other=_stage(*info.theirs))
             index.write()
-            return MergeOutcome(conflicts=tuple(sorted(_s(path) for path in conflicts)))
+            return MergeOutcome(conflicts=tuple(sorted(_s(path) for path in conflicts)), dropped=dropped)
         self._write_commit(repo, merged.id, [head, theirs], message)
-        return MergeOutcome()
+        return MergeOutcome(dropped=dropped)
 
     def push(self, auth: RealmSyncCredential | None, *, set_upstream: bool, branch: str | None = None) -> PushReport:
         if branch is not None:
@@ -648,7 +650,9 @@ class DulwichSyncGit:
             refused = (getattr(result, "ref_status", None) or {}).get(target)
             if refused:
                 text = f" ! [remote rejected] HEAD -> {_s(target[len(_HEADS):])} ({refused})"
-                if any(tell in refused for tell in ("non-fast-forward", "fetch first", "stale info")):
+                # MUTATION: test a hand-kept tuple here again and
+                # test_a_push_github_refuses_with_cannot_lock_ref_reads_as_a_lost_race reddens on this backend.
+                if _push_was_rejected(refused):
                     return PushReport(PushOutcome.REJECTED, {"git_args": step, "stderr": text})
                 raise _failure(step, text)
             repo.refs[_REMOTES + b"origin/" + target[len(_HEADS):]] = local

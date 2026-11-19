@@ -5,8 +5,11 @@ strategy option, and its own merger needs the ``merge3`` package for any file bo
 GPL-2.0-or-later only and never ships in Eternia. So the phone's merge is a stdlib ``difflib`` diff3 here:
 each side's separate hunks are kept, and where the two sides' hunks overlap (or touch, as git counts it)
 the favoured side's hunk is taken whole — ``THEIRS`` for a pull, ``OURS`` for the adopter's merge of an
-unrelated history. A tree-SHAPE clash (modify/delete, file/directory, a mode change) is not a content
-question: it stays a conflict, with its stages in the index, as git leaves it.
+unrelated history. A file one side deleted while the other edited it (modify/delete) is settled the same
+way: the favoured side's tree wins — their delete removes our edited file, their edit restores a file we
+deleted — and the merge names each such path in ``dropped`` (TASK-REALM-DELETE-MEETS-AN-EDIT, review
+w1118a.36 D1: the owner's 2026-11-13 remote-wins rule, no new reconciliation layer). Every other tree-SHAPE
+clash (file/directory, a mode change) stays a conflict, with its stages in the index, as git leaves it.
 
 Pinned by ``tests/agent_runtime/test_realm_sync_merge_parity.py`` (git's tree on every content case) and
 ``tests/agent_runtime/test_realm_sync_dulwich_spawns_nothing.py`` (no ``merge3`` named here).
@@ -71,6 +74,8 @@ class FavouringMerger(Merger):
     def __init__(self, object_store, favour: Favour) -> None:
         super().__init__(object_store)
         self.favour = favour
+        #: The paths whose losing side's change a modify/delete settlement dropped, in walk order.
+        self.dropped: list[bytes] = []
 
     def merge_blobs(self, base_blob: Blob | None, ours_blob: Blob | None, theirs_blob: Blob | None,
                     path: bytes | None = None) -> tuple[bytes, bool]:
@@ -96,6 +101,7 @@ class FavouringMerger(Merger):
         if base_tree is not None:
             ours_tree, theirs_tree = self._walk_into_deleted_dirs(base_tree, ours_tree, theirs_tree)
         merged, conflicts = super()._merge_trees(base_tree, ours_tree, theirs_tree, prefix)
+        merged, conflicts = self._settle_modify_delete(merged, conflicts, prefix)
         empty = Tree().id
         if not any(stat.S_ISDIR(entry.mode) and entry.sha == empty for entry in merged.items()):
             return merged, conflicts
@@ -104,6 +110,46 @@ class FavouringMerger(Merger):
             if not (stat.S_ISDIR(entry.mode) and entry.sha == empty):
                 pruned.add(entry.path, entry.mode, entry.sha)
         return pruned, conflicts
+
+    def _settle_modify_delete(self, merged: Tree, conflicts: list[bytes], prefix: bytes) -> tuple[Tree, list[bytes]]:
+        """A modify/delete conflict at THIS level resolves to the favoured side, as a line clash does.
+
+        Only a FILE that one side deleted while the other changed it; a clash where the surviving side is a
+        directory (or the base was one) stays a conflict. MUTATION: return ``merged, conflicts`` unchanged
+        and the parity test's modify/delete and delete/modify scenarios red at ``sync_conflict``."""
+
+        if not conflicts:
+            return merged, conflicts
+        entries = {entry.path: (entry.mode, entry.sha) for entry in merged.items()}
+        kept: list[bytes] = []
+        settled = False
+        for path in conflicts:
+            info = self.conflict_info.get(path)
+            name = path[len(prefix) + 1:] if prefix else path
+            if info is None or b"/" in name:  # a deeper level's conflict, already left as it is
+                kept.append(path)
+                continue
+            base_mode, ours, theirs = info.ancestor[0], info.ours, info.theirs
+            one_side_gone = (ours[1] is None) != (theirs[1] is None)
+            survivor = ours if theirs[1] is None else theirs
+            if not one_side_gone or base_mode is None or stat.S_ISDIR(base_mode) or stat.S_ISDIR(survivor[0] or 0):
+                kept.append(path)
+                continue
+            winner = theirs if self.favour is Favour.THEIRS else ours
+            if winner[1] is None:
+                entries.pop(name, None)
+            else:
+                entries[name] = (winner[0], winner[1])
+            del self.conflict_info[path]
+            self.dropped.append(path)
+            settled = True
+        if not settled:
+            return merged, conflicts
+        rebuilt = Tree()
+        for name, (mode, sha) in sorted(entries.items()):
+            rebuilt.add(name, mode, sha)
+        self.object_store.add_object(rebuilt)
+        return rebuilt, kept
 
     def _walk_into_deleted_dirs(self, base_tree: Tree, ours_tree: Tree, theirs_tree: Tree) -> tuple[Tree, Tree]:
         empty = Tree()

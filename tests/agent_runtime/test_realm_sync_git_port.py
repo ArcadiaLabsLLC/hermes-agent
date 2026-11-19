@@ -222,7 +222,10 @@ def test_merge_remote_theirs_takes_theirs_on_the_same_line(tmp_path, remote):
     assert git.state() == RepoState(ahead=2, behind=0, conflicts=(), dirty=False)
 
 
-def test_merge_remote_theirs_lists_a_shape_conflict(tmp_path, remote):
+def test_merge_remote_theirs_takes_a_teammates_delete_over_our_edit(tmp_path, remote):
+    """A modify/delete is settled remote-wins and named, never left in the index
+    (TASK-REALM-DELETE-MEETS-AN-EDIT). MUTATION: either backend's ``_settle_modify_delete`` a no-op -> red."""
+
     repo = _clone(tmp_path, remote)
     mate = tmp_path / "mate"
     _sh(tmp_path, "clone", "-q", str(remote), str(mate))
@@ -231,8 +234,19 @@ def test_merge_remote_theirs_lists_a_shape_conflict(tmp_path, remote):
     _sh(mate, "push", "-q", "origin", "HEAD:main")
     _member_commits(repo, "realms/r/a.txt", "ours\n")
     outcome = sync_git(repo).merge_remote_theirs(None)
-    assert outcome.conflicts == ("realms/r/a.txt",)
-    assert sync_git(repo).state().conflicts == ("realms/r/a.txt",)
+    assert outcome.conflicts == ()
+    assert outcome.dropped == ("realms/r/a.txt",)
+    assert sync_git(repo).state() == RepoState(ahead=2, behind=0, conflicts=(), dirty=False)
+    assert not (repo / "realms/r/a.txt").exists()
+
+
+def test_merge_remote_theirs_lists_a_shape_conflict(tmp_path, remote):
+    repo = _clone(tmp_path, remote)
+    _teammate_publishes(tmp_path, remote, "realms/r/p", "a file\n")
+    _member_commits(repo, "realms/r/p/inside.txt", "a directory\n")
+    outcome = sync_git(repo).merge_remote_theirs(None)
+    assert outcome.conflicts
+    assert sync_git(repo).state().conflicts
 
 
 def test_push_sets_upstream_and_a_diverged_push_is_rejected(tmp_path, remote):

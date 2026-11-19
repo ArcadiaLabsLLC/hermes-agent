@@ -661,6 +661,8 @@ def _board_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> list
         current_card_ids: set[str] = set()
         for card in store.list_cards(board.board_id):
             current_card_ids.add(card.card_id)
+            if paths.board_conflict_path(board.board_id, card.card_id).exists():
+                continue  # HELD: the conflict's to resolve, never Publish's (``publish_keep``)
             base_hash = baseline.get(f"{card_prefix}{card.card_id}")
             if base_hash is None:
                 kind = DRIFT_KIND_ADDED
@@ -677,6 +679,8 @@ def _board_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> list
                 )
             )
         for card_id in sorted(baseline_card_ids - current_card_ids):
+            if paths.board_conflict_path(board.board_id, card_id).exists():
+                continue
             items.append(
                 StoreDriftItem(
                     family=SyncFamily.BOARD_CARD,
@@ -756,6 +760,12 @@ def _office_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> lis
         current_actor_keys: set[str] = set()
         for actor in scan.actors:
             current_actor_keys.add(actor.actor_key)
+            # HELD (a pull met this desk changed on both sides, or edited here and deleted by the team): the
+            # conflict is the member's to resolve, and a drift row beside it would offer Publish as the exit,
+            # over the team's copy (TASK-REALM-DELETE-MEETS-AN-EDIT; the skill family's "both moved -> no row").
+            # MUTATION: drop this test and test_a_held_desk_is_not_published_until_the_member_chooses reddens.
+            if paths.office_conflict_path(workspace_id, actor.actor_key).exists():
+                continue
             base_hash = baseline.get(_actor_key(workspace_id, actor.actor_key))
             if base_hash is None:
                 kind = DRIFT_KIND_ADDED
@@ -772,6 +782,8 @@ def _office_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> lis
                 )
             )
         for actor_key in sorted(baseline_actor_keys - current_actor_keys):
+            if paths.office_conflict_path(workspace_id, actor_key).exists():
+                continue
             items.append(
                 StoreDriftItem(
                     family=SyncFamily.OFFICE_ACTOR,

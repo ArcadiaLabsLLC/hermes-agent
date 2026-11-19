@@ -216,3 +216,136 @@ def test_the_push_rejection_classifier_reads_gits_own_words():
     )
     assert not realm_git._push_was_rejected("fatal: could not read from remote repository")
 
+
+
+def test_githubs_cannot_lock_ref_is_a_lost_race_not_an_unreachable_remote():
+    """GitHub refuses the loser of two pushes landing at once with ``cannot lock ref``
+    (RT-REALM-PUSH-LOST-RACE-READS-REMOTE-UNREACHABLE, seen 2026-11-19); a hook's bare refusal is not a race.
+
+    Mutation: drop ``cannot lock ref`` from ``_PUSH_REJECTED_TELLS`` -> red at the first case."""
+
+    assert realm_git._push_was_rejected(
+        " ! [remote rejected] HEAD -> main (cannot lock ref 'refs/heads/main': is at 8a2a4af but expected 6e81c31)"
+    )
+    assert not realm_git._push_was_rejected(" ! [remote rejected] HEAD -> main (pre-receive hook declined)")
+
+
+def test_a_push_refused_with_cannot_lock_ref_tells_the_member_to_pull(team, monkeypatch, realm_sync_arm):
+    """Both gits read the refusal through the ONE tells list (RT-REALM-PUSH-LOST-RACE-READS-REMOTE-UNREACHABLE).
+
+    The git program meets a held ref lock on the bare remote, which it words as GitHub does; the phone's git
+    gets GitHub's per-ref refusal from a stand-in transport (a local remote never words one). Mutation: in
+    ``git_dulwich.DulwichSyncGit.push`` test the old hand-kept tuple instead of ``_push_was_rejected`` -> the
+    dulwich arm reds at ``sync_push_rejected``."""
+
+    shared, workspace = _shared_workspace(team, members=("bob",))
+    team.be("bob")
+    WorkspaceStore().rename(workspace.id, "Bob renamed")
+    if realm_sync_arm == "dulwich":
+        from dulwich.client import SendPackResult
+
+        from agent_runtime.realm_sync import git_dulwich
+
+        class _GitHub:
+            def send_pack(self, path, update_refs, generate_pack_data):
+                return SendPackResult({}, ref_status={
+                    b"refs/heads/main": "cannot lock ref 'refs/heads/main': is at 8a2a4af but expected 6e81c31"})
+
+        real_client = git_dulwich.DulwichSyncGit._client
+
+        def client(self, url, auth, step):
+            found = real_client(self, url, auth, step)
+            return (_GitHub(), found[1]) if step[0] == "push" else found
+
+        monkeypatch.setattr(git_dulwich.DulwichSyncGit, "_client", client)
+    else:
+        (team.remote(shared.server_id) / "refs" / "heads" / "main.lock").write_text("held\n", encoding="utf-8")
+
+    with pytest.raises(RealmSyncError) as refused:
+        publish_realm_sync(shared.id)
+    assert refused.value.code == "sync_push_rejected"
+
+
+def _desk(workspace_id: str, x: float) -> None:
+    from agent_runtime.office_store import OfficeStore
+
+    OfficeStore().upsert_actor(workspace_id, {"persona_id": "dev", "items": [
+        {"item_id": "dev", "persona_id": "dev", "kind": "agent", "position": [x, -2.0], "folder": "Agents"}]})
+
+
+def _remote_desks(team: _Team, shared) -> list[str]:
+    names = _git(team.remote(shared.server_id), "ls-tree", "-r", "--name-only", "main").splitlines()
+    return [name.rsplit("/", 1)[-1] for name in names if "/store/office/" in name and "/actors/" in name]
+
+
+def test_a_committed_edit_meeting_a_teammates_delete_takes_the_team_copy(team, monkeypatch):
+    """Bob's publish moves the desk and loses the race to Carol's delete of it. His pull takes the team's
+    copy instead of stopping in ``sync_conflict``, names the edit it dropped, and the desk stays deleted for
+    the team (TASK-REALM-DELETE-MEETS-AN-EDIT, review w1118a.36 D1; both gits).
+
+    Mutations: ``merge_theirs.FavouringMerger._settle_modify_delete`` / ``git_binary.BinarySyncGit.
+    _settle_modify_delete`` a no-op -> that arm reds at ``sync_conflict``; answer ``[]`` for
+    ``DROPPED_LOCAL_CHANGES_KEY`` in ``pull._pull_realm_sync`` -> red at the dropped list."""
+
+    from agent_runtime.office_store import OfficeStore
+    from agent_runtime.realm_sync.pull import DROPPED_LOCAL_CHANGES_KEY
+
+    shared, workspace = _shared_workspace(team, members=("bob", "carol"))
+    team.be("bob")
+    _desk(workspace.id, 9.5)
+
+    def carol_deletes_the_desk() -> None:
+        OfficeStore().remove_actor(workspace.id, "dev")
+
+    _race(team, monkeypatch, shared.id, racer="carol", publishes=carol_deletes_the_desk)
+    with pytest.raises(RealmSyncError) as refused:
+        publish_realm_sync(shared.id)
+    assert refused.value.code == "sync_push_rejected"
+
+    pulled = pull_realm_sync(shared.id)
+    assert pulled["state"] == "pulled"
+    assert pulled["conflicts"] == []
+    assert [path.rsplit("/", 1)[-1] for path in pulled[DROPPED_LOCAL_CHANGES_KEY]] == ["dev.json"]
+    assert all(path.startswith("store/office/") for path in pulled[DROPPED_LOCAL_CHANGES_KEY])
+    # The store's copy is the member's to choose: held, never silently dropped or re-published.
+    assert [row["actor_key"] for row in pulled["office_sync"]["held"]] == ["dev"]
+    assert publish_realm_sync(shared.id)["state"] == "published"
+    assert _remote_desks(team, shared) == []
+
+
+def test_revert_all_frees_a_clone_stuck_in_a_conflict(team, monkeypatch):
+    """A clone an older engine left mid-merge (``sync_conflict`` on every verb) is freed by Revert all: the
+    unpublished commit and the merge state go, the clone sits on the team's copy, and the next pull and
+    publish go through (TASK-REALM-DELETE-MEETS-AN-EDIT, review w1118a.36 D1; both gits).
+
+    Mutation: skip the reset in ``git._reset_clone_to_team_copy`` -> red at the pull after the revert."""
+
+    from agent_runtime.office_store import OfficeStore
+    from agent_runtime.realm_revert import revert_realm_sync
+
+    shared, workspace = _shared_workspace(team, members=("bob", "carol"))
+    team.be("bob")
+    _desk(workspace.id, 9.5)
+
+    def carol_deletes_the_desk() -> None:
+        OfficeStore().remove_actor(workspace.id, "dev")
+
+    _race(team, monkeypatch, shared.id, racer="carol", publishes=carol_deletes_the_desk)
+    with pytest.raises(RealmSyncError):
+        publish_realm_sync(shared.id)
+    clone = team.clone("bob", shared.server_id)
+    # The state an older engine left: git's own merge, which leaves a modify/delete in the index.
+    stuck = subprocess.run(["git", "-C", str(clone), "-c", "user.email=b@localhost", "-c", "user.name=B",
+                            "pull", "-q", "--no-rebase", "--no-edit", "-X", "theirs"], capture_output=True, text=True)
+    assert stuck.returncode != 0
+    with pytest.raises(RealmSyncError) as conflicted:
+        pull_realm_sync(shared.id)
+    assert conflicted.value.code == "sync_conflict"
+
+    reverted = revert_realm_sync(shared.id, revert_all=True)
+    assert reverted["clone_reset"]["conflicts"]
+    assert reverted["clone_reset"]["unpublished_commits"] == 1
+    assert realm_git._git_state(clone) == {"ahead": 0, "behind": 0, "conflicts": [], "dirty": False}
+    assert pull_realm_sync(shared.id)["state"] == "pulled"
+    assert publish_realm_sync(shared.id)["state"] == "published"
+    assert _remote_desks(team, shared) == []

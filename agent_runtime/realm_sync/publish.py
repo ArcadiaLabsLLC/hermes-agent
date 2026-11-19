@@ -145,8 +145,14 @@ def _publish_realm_sync(
         return result
 
     subtree = _realm_subtree(repo, realm.id)
+    # A board or office document the member did not change, or one a pull HELD for them to choose, is written
+    # as the team copy has it (``publish_keep``; RT-REALM-PUBLISH-RESTAMPS-UNCHANGED-FILES and
+    # TASK-REALM-DELETE-MEETS-AN-EDIT). The baselines below still read the store.
+    from .publish_keep import keep_team_copies
+
+    written = keep_team_copies(realm.id, _workspaces_for_realm(realm), subtree, artifacts)
     changed, changed_paths = _stage_commit_and_push(
-        realm, repo=repo, subtree=subtree, artifacts=artifacts, credential=credential
+        realm, repo=repo, subtree=subtree, artifacts=written, credential=credential
     )
     _write_timestamp(repo, "last_publish.txt")
     receipts = _record_publish_baselines(realm, resolved)

@@ -90,6 +90,7 @@ from .realm_sync.lens_recipe_drift import (
     refuse_lens_recipe_door,
 )
 from .realm_sync.families import SyncFamily
+from .realm_sync.git import _reset_clone_to_team_copy
 from .realm_sync.status import store_drift_family_counts
 from .serde import to_jsonable
 from .realm_revert_writes import (  # REVERT_ACTOR_REF is re-exported
@@ -154,6 +155,9 @@ CONTAINER_FAMILIES = frozenset({DRIFT_FAMILY_BOARD, DRIFT_FAMILY_OFFICE_SURFACE}
 #: The shared Lens RECIPE too: a share the realm never carried is undone by
 #: ``runtime.lens.recipe.withdraw``, not archived (``realm_sync.lens_recipe_drift``).
 NO_LOCAL_ARCHIVE_FAMILIES = CONTAINER_FAMILIES | frozenset({DRIFT_FAMILY_PERSONA_DEFINITION, SyncFamily.LENS_RECIPE})
+#: The rows whose ``changed`` copy, gone from the team's, is archived by a revert rather than kept with its
+#: baseline dropped: a desk and a card, the two a pull archives when a teammate removes them.
+DELETED_BY_THE_TEAM_FAMILIES = frozenset({DRIFT_FAMILY_OFFICE_ACTOR, DRIFT_FAMILY_BOARD_CARD})
 class RevertAction(str, Enum):
     RESTORE = "restore"  # baseline row, gone locally → live again from upstream
     ADOPT = "adopt"  # local row overwritten with the upstream artifact
@@ -186,11 +190,16 @@ def classify_revert(*, family: str, kind: str, upstream_present: bool) -> Revert
             else RevertDecision(RevertAction.DROP_BASELINE, OUTCOME_BASELINE_DROPPED)
         )
     if kind == DRIFT_KIND_CHANGED:
-        return (
-            RevertDecision(RevertAction.ADOPT, OUTCOME_REVERTED)
-            if upstream_present
-            else RevertDecision(RevertAction.DROP_BASELINE, OUTCOME_BASELINE_DROPPED)
-        )
+        if upstream_present:
+            return RevertDecision(RevertAction.ADOPT, OUTCOME_REVERTED)
+        # A desk or card this install edited that the team's copy no longer has: a teammate deleted it.
+        # Reverting to the team's copy archives it here (no tombstone), as a pull of an unedited one does;
+        # dropping only the baseline left it reading "added", and the next publish put the teammate's
+        # delete back (TASK-REALM-DELETE-MEETS-AN-EDIT). MUTATION: answer DROP_BASELINE here and
+        # test_revert_all_frees_a_clone_stuck_in_a_conflict reddens at the team's desks.
+        if family in DELETED_BY_THE_TEAM_FAMILIES:
+            return RevertDecision(RevertAction.ARCHIVE_LOCAL, OUTCOME_ARCHIVED_LOCAL_ONLY)
+        return RevertDecision(RevertAction.DROP_BASELINE, OUTCOME_BASELINE_DROPPED)
     if kind == DRIFT_KIND_ADDED:
         # No baseline entry — but "no baseline entry" is a statement about what
         # THIS install last published, not about what the realm holds. When the
@@ -600,6 +609,10 @@ def revert_realm_sync(
 
     realm = RealmStore().get(realm_id)
     repo, subtree = _require_pulled_subtree(realm)
+    # Revert ALL starts from the team's copy in the clone too: a clone stuck mid-merge (``sync_conflict``) or
+    # holding commits the team never took drops them first, so the rows below revert to what the team has
+    # (TASK-REALM-DELETE-MEETS-AN-EDIT, review w1118a.36 D1). A per-item revert never touches the clone.
+    clone_reset = _reset_clone_to_team_copy(repo, dry_run=dry_run) if revert_all else None
 
     workspaces = _workspaces_for_realm(realm)
     selected, rows = _select_items(
@@ -628,7 +641,7 @@ def revert_realm_sync(
     applied = [row for row in rows if row.applied]
     if not dry_run:
         baselines.write_touched()
-        if applied:
+        if applied or clone_reset:
             _append_realm_sync_event(
                 REVERT_EVENT_TYPE, realm, changed=True, artifacts=len(applied)
             )
@@ -649,6 +662,8 @@ def revert_realm_sync(
         # MUTATION: count only boards and office and test_realm_level_revert reddens.
         "store_drift_after": store_drift_family_counts(store_drift_items(realm.id, workspaces)),
         "sync_repo": _safe_display_path(repo),
+        # What Revert all reset the clone from and to (``None``: it already sat on the team's copy). Additive.
+        "clone_reset": clone_reset,
     }
 
 

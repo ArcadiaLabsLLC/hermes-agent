@@ -528,7 +528,7 @@ REALM_SYNC_BOTH_ARMS = frozenset({
     "test_realm_sync_workspace_slots.py", "test_realm_sync_ledger_union.py", "test_realm_sync_level_artifact.py",
     "test_realm_sync_skill_inbox.py", "test_realm_sync_profile_destinations.py", "test_realm_sync_tables.py",
     "test_realm_sync_host_refusal.py", "test_git_remote_adopt.py", "test_realm_leave.py",
-    "test_realm_revert_version.py",
+    "test_realm_revert_version.py", "test_realm_sync_publish_keeps_team_copies.py",
 })
 
 #: Tests of those files that stay on the git program alone, by ``file::test`` (a whole file by its

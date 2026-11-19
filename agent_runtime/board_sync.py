@@ -92,6 +92,7 @@ def update_board_baseline_after_sync(realm_id: str, board_ids: list[str]) -> Non
 
     store = BoardStore()
     baseline = read_board_baseline(realm_id)
+    before = dict(baseline)
     # Drop stale entries for these boards, then re-record current truth.
     prefixes = tuple(f"{board_id}:" for board_id in board_ids)
     baseline = {k: v for k, v in baseline.items() if not k.startswith(prefixes)}
@@ -102,6 +103,15 @@ def update_board_baseline_after_sync(realm_id: str, board_ids: list[str]) -> Non
         baseline[_board_key(board_id)] = board_models.board_content_hash(board)
         for card in store.list_cards(board_id):
             baseline[_card_key(board_id, card.card_id)] = board_models.board_content_hash(card)
+    # A card a pull HELD keeps the entry it had: the publish carried the team's copy of it, not this store's
+    # (``realm_sync.publish_keep``, TASK-REALM-DELETE-MEETS-AN-EDIT).
+    from .realm_sync.publish_keep import held_baseline_entries
+
+    def _held(key: str) -> bool:
+        board_id, _, card_id = key.partition(":card:")
+        return bool(card_id) and board_id in board_ids and paths.board_conflict_path(board_id, card_id).exists()
+
+    baseline = held_baseline_entries(sorted(set(before) | set(baseline)), _held, before, baseline)
     write_board_baseline(realm_id, baseline)
 
 
@@ -129,6 +139,9 @@ class BoardPullSummary:
     #: The delete-shaped decisions this pull declined to take because the remote
     #: board they would have been derived from was not fully readable.
     delete_fenced: list[dict[str, Any]] = None  # type: ignore[assignment]
+    #: The cards this pull HELD for the member to choose (``conflicts`` is their count), each with its board,
+    #: card id and why — the office summary's ``held`` twin (TASK-REALM-DELETE-MEETS-AN-EDIT). Additive.
+    held: list[dict[str, str]] = None  # type: ignore[assignment]
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -137,6 +150,7 @@ class BoardPullSummary:
             "kept_local": self.kept_local,
             "archived": self.archived,
             "conflicts": self.conflicts,
+            "held": list(self.held or []),
             "boards": list(self.boards or []),
             "refused": list(self.refused or []),
             "unreadable_remote": self.unreadable_remote,
@@ -218,7 +232,7 @@ def apply_board_pull(realm_id: str, subtree: Path, *, event_log: EventLog | None
 
     store = BoardStore(event_log=event_log)
     baseline = read_board_baseline(realm_id)
-    summary = BoardPullSummary(boards=[], refused=[], delete_fenced=[])
+    summary = BoardPullSummary(boards=[], refused=[], delete_fenced=[], held=[])
     boards_root = subtree / "store" / "boards"
     if not boards_root.exists():
         return summary
@@ -357,6 +371,7 @@ def apply_board_pull(realm_id: str, subtree: Path, *, event_log: EventLog | None
                     remote_hash=remote_hash,
                 )
                 summary.conflicts += 1
+                summary.held.append({"board_id": board_id, "card_id": card_id, "kind": decision.reason})
                 continue
 
     write_board_baseline(realm_id, baseline)

@@ -53,6 +53,7 @@ __all__ = [
     "_realm_subtree",
     "_redact_text",
     "_refresh_remote_tracking",
+    "_reset_clone_to_team_copy",
     "_retire_shared_clone",
     "_scrub_config_values",
     "_sync_repo_path",
@@ -365,8 +366,14 @@ def _ensure_repo_gitattributes(repo: Path) -> None:
 #: git's own words for "the remote moved past you" on a rejected push. The push lane
 #: classifies by THESE, never by "a push failed": a remote that is gone, an expired
 #: credential and a lost race are three different cures for the operator
-#: (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE).
-_PUSH_REJECTED_TELLS = ("[rejected]", "non-fast-forward", "fetch first", "stale info")
+#: (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE). ONE list for both backends: the dulwich push
+#: reads the server's per-ref refusal through ``_push_was_rejected`` too, so a wording added
+#: here reaches the phone (RT-REALM-PUSH-LOST-RACE-READS-REMOTE-UNREACHABLE: two hand-kept
+#: copies let the phone miss one). ``cannot lock ref`` is how GitHub refuses the loser of
+#: two pushes landing at the same instant (``! [remote rejected] HEAD -> main (cannot lock
+#: ref 'refs/heads/main': is at … but expected …)``, seen 2026-11-19). A bare
+#: ``[remote rejected]`` is NOT a tell: a hook or a protected branch refuses that way too.
+_PUSH_REJECTED_TELLS = ("[rejected]", "non-fast-forward", "fetch first", "stale info", "cannot lock ref")
 
 
 def _push_was_rejected(stderr: str) -> bool:
@@ -376,7 +383,7 @@ def _push_was_rejected(stderr: str) -> bool:
     return any(tell in text for tell in _PUSH_REJECTED_TELLS)
 
 
-def _pull_remote_into_repo(repo: Path, *, credential: RealmSyncCredential | None = None) -> None:
+def _pull_remote_into_repo(repo: Path, *, credential: RealmSyncCredential | None = None) -> tuple[str, ...]:
     """``git pull``, past the one untracked file hermes itself writes.
 
     Fast-forward while the local branch only TRAILS the remote — the ordinary case. A branch
@@ -397,6 +404,9 @@ def _pull_remote_into_repo(repo: Path, *, credential: RealmSyncCredential | None
     FIRST-PUBLISH). The untracked copy is ours to drop when it carries our marker: the incoming
     commit brings the tracked one, and the pin is re-materialized after (a remote that tracks none
     gets the untracked copy back). A foreign untracked ``.gitattributes`` is left for git to refuse.
+
+    Answers the repository paths whose local change a diverged merge dropped for the team's copy
+    (``_merge_remote``); ``()`` for a fast-forward.
     """
     path = repo / ".gitattributes"
     try:
@@ -411,15 +421,16 @@ def _pull_remote_into_repo(repo: Path, *, credential: RealmSyncCredential | None
             pass
     try:
         if _git_state(repo)["ahead"]:
-            _merge_remote(repo, credential=credential)
-        else:
-            git.pull_fast_forward(credential)
+            return _merge_remote(repo, credential=credential)
+        git.pull_fast_forward(credential)
+        return ()
     finally:
         _ensure_repo_gitattributes(repo)
 
 
-def _merge_remote(repo: Path, *, credential: RealmSyncCredential | None = None) -> None:
-    """Merge the upstream commit into our diverged branch, or refuse ``sync_conflict``.
+def _merge_remote(repo: Path, *, credential: RealmSyncCredential | None = None) -> tuple[str, ...]:
+    """Merge the upstream commit into our diverged branch, or refuse ``sync_conflict``; answers the paths
+    whose local change the team's copy replaced.
 
     ``-X theirs`` for the documents both sides rewrote, and it is not a policy about whose
     work wins: the sync repo is a TRANSPORT mirror of the member's own store, the pull's
@@ -431,10 +442,15 @@ def _merge_remote(repo: Path, *, credential: RealmSyncCredential | None = None) 
     merely-behind repo lands in — the design — and the two sides' documents are decided where
     the realm's reconciliation lives (RT-REALM-PUBLISH-RACE-SAYS-UNREACHABLE).
 
-    A conflict ``-X theirs`` cannot resolve (two sides' trees disagree on a path's SHAPE) is
-    left in the index: ``sync_conflict``'s ``safe_details.conflicts`` is the operator's list,
-    and every later sync verb reads the same state from ``_git_state`` and refuses the same
-    way until they have cleared it."""
+    A file one side deleted while the other edited it is the same clash one level up, and the
+    same rule settles it in both backends: the remote's tree wins, and the paths whose local
+    edit (or local delete) that dropped are answered, so the pull can say so
+    (TASK-REALM-DELETE-MEETS-AN-EDIT, review w1118a.36 D1). Before it, a member whose publish
+    lost the race to a teammate's delete was stuck in ``sync_conflict`` with no way out but a
+    git program. A conflict neither rule resolves (a file meeting a directory) is left in the
+    index: ``sync_conflict``'s ``safe_details.conflicts`` is the operator's list, and every
+    later sync verb reads the same state from ``_git_state`` and refuses the same way until
+    they have cleared it (Revert all does: ``realm_revert``)."""
 
     merged = sync_git(repo).merge_remote_theirs(credential)
     if merged.conflicts:
@@ -443,6 +459,7 @@ def _merge_remote(repo: Path, *, credential: RealmSyncCredential | None = None) 
             "Another member published changes to the same documents; resolve the conflicts in the realm sync repo, then publish again.",
             safe_details={"conflicts": list(merged.conflicts)},
         )
+    return merged.dropped
 
 
 def _credential_git_config(credential: RealmSyncCredential | None) -> list[str] | None:
@@ -558,6 +575,32 @@ def _git_state(repo: Path) -> dict[str, Any]:
     (RT-REALM-SYNC-PULL-PUBLISHES-INTO-A-MOVED-REPO)."""
 
     return sync_git(repo).state().as_dict()
+
+
+def _reset_clone_to_team_copy(repo: Path, *, dry_run: bool = False) -> dict[str, Any] | None:
+    """Revert all's clone half: a clone holding a merge it never finished, or commits the team never
+    took, goes back to the team's last-fetched copy (its upstream tip). Local only — no fetch.
+
+    A clone an older engine left in ``sync_conflict`` (a teammate's delete met an edit we had already
+    committed, TASK-REALM-DELETE-MEETS-AN-EDIT) refused every sync verb, and nothing in Eternia cleared it:
+    a phone has no git program to do it with. Revert all means "my unpublished state is noise, the team's
+    copy is truth", so it drops the unpublished commits and the merge state with them. Answers what it
+    reset (``None`` when the clone already sits on its upstream, or has none to go back to)."""
+
+    git = sync_git(repo)
+    state = git.state()
+    if not (state.conflicts or state.ahead):
+        return None
+    upstream = git.upstream()
+    tip = git.resolve(upstream) if upstream else None
+    head = git.resolve("HEAD")
+    if tip is None:
+        return None
+    # MUTATION: skip this reset and
+    # test_revert_all_frees_a_clone_stuck_in_a_conflict reddens at ``sync_conflict``.
+    if not dry_run:
+        git.reset_hard(tip)
+    return {"from": head, "to": tip, "unpublished_commits": state.ahead, "conflicts": list(state.conflicts)}
 
 
 def _sync_state(git: dict[str, Any]) -> str:

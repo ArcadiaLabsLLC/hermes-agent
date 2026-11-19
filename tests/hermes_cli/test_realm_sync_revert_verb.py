@@ -40,6 +40,7 @@ ENVELOPE_KEYS = {
     "items",
     "store_drift_after",
     "sync_repo",
+    "clone_reset",
     "resolution",
 }
 ROW_KEYS = {"family", "container", "item_key", "kind", "outcome", "detail"}
