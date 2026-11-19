@@ -21,6 +21,7 @@ tags: [queue, program/fork-hygiene]
 
 
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
+- **`FH-PREPUSH-TOUCHED-KILLS-THE-REAL-CLOSURE-BUNDLE-TESTS` — A lane that names the phone bundle tests in prepush gets them run instead of killed at the touched step's hang guard** · group: prepush · from: `RT-PHONE-BUNDLE-LEAVES-OUT-THE-HARNESS-SKILLS-A-REALM-PULL-INSTALLS` · `scripts/prepush.sh` (touched step, budget 60 s, deadline 120 s) · seen 2026-11-19 (w1118a-hbundle, Linux box nekwo-ubuntu24, head f38b8c32f5): `bash scripts/prepush.sh tests/agent_runtime/test_bundle_profiles.py tests/scripts/test_bundle_profile_package.py tests/agent_runtime/test_embedded_phone_session.py` killed the touched step at 120.2 s (load 37.56, work 3; the lane's own phone bundle build was running beside it), exit 0 with OWED; the same three files run alone with plain pytest took 136.5 s (79 passed, 1 skipped) at a similar load, so they cannot finish inside the deadline on a busy box · guess: the two real-closure files (`test_bundle_profile_package.py`, `test_embedded_phone_session.py`) plan the phone closure (tens of seconds each) and had no shard history in this tree, so they ran unsharded · done when: those files named in prepush finish (sharded or under a budget measured on an idle box) or the run says up front that they are owed to the full run · REQUIRES linux · filed 2026-11-19 by w1118a-hbundle · READY 2026-11-19
 
 
 ## Filed on arrival — 2026-11-16 (lane w1115e-fh3: what the hermes test seal reported)
