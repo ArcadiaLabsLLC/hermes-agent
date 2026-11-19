@@ -32,7 +32,10 @@ Refused (each a row with the evidence that convicts it):
   which the embedded entry mounts on ``tools.__path__`` / ``plugins.__path__``),
   read from the plan itself (:func:`forced_tree_seams`);
 * ``closure`` — the closure's own packaging refusals (an omitted distribution
-  imported unguarded, …).
+  imported unguarded, …);
+* ``stale_site`` — a shipped distribution installed here at a version
+  ``uv.lock`` does not pin: the plan followed its old requirements, so the
+  other findings may blame the closure for this environment.
 
 Pure-Python dependencies (``requests``, ``httpx``, …) are allowed. A profile
 that names no ``packaging.targets`` is judged for the desktop interpreter.
@@ -46,6 +49,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import importlib.metadata as md
 import json
 import sys
 import warnings
@@ -63,6 +67,7 @@ from scripts.bundle_profile_closure import (  # after the path insert, like the 
     _lock,
     _norm,
     refusals as closure_refusals,
+    stale_against_lock,
 )
 from scripts.bundles.phone_wheels import pinned_wheel
 
@@ -513,6 +518,12 @@ def gate(profile: str) -> dict:
             "unguarded_switched_off_imports": sorted(walk.unguarded_into_pruned,
                                                      key=lambda r: (r["target"], r["module"], r["line"])),
         }
+    # The plan read this interpreter's metadata: a distribution there that lags uv.lock followed its OLD
+    # requirements, so the per-target findings above blame the closure for the stale site
+    # (RT-PHONE-BUILD-STALE-SEED-BLAMES-AN-EXTRA: croniter 6.0.0 read as needing pytz, "not in uv.lock").
+    shipped_anywhere = {name for row in per_target.values() for name in row["shipped"]}
+    findings += [{"kind": "stale_site", "subject": line, "detail": "sync this environment from uv.lock"}
+                 for line in stale_against_lock(md.distributions(), shipped_anywhere)]
     refused = findings + [dict(f, target=t) for t, row in per_target.items() for f in row["findings"]]
     return {"profile": manifest.profile, "targets": list(per_target), "kept_modules": len(walk.kept),
             "placeholder_seams": seams, "forced_tree_seams": in_tree, "spawn_seams": spawned, "module_findings": findings, "targets_detail": per_target, "refusals": refused,

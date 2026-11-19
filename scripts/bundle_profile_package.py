@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import importlib.metadata as md
 import json
 import os
 import shutil
@@ -72,7 +73,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.bundle_licenses import copy_first_party_licence, write_licence_records
-from scripts.bundle_profile_closure import _lock, module_index
+from scripts.bundle_profile_closure import _lock, module_index, stale_against_lock
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR
 from agent_runtime.bundle_profiles.manifest import PHONE_TARGETS, PoolScope
 from scripts.bundles.bundle_files import (
@@ -414,6 +415,12 @@ def _build(args, manifest, index, stage: Path, probe_python) -> int:
         if manifest.packaging_pool is PoolScope.CLOSURE:
             with phase("seed plan"):
                 selected, refused = pool_selection(manifest, args.seed_sites, args.target, args.python_version)
+            stale = stale_against_lock(md.distributions(path=[str(s) for s in args.seed_sites]), selected)
+            if stale:  # its old requirements chose the pool: the plan would blame a missing extra
+                print(f"the seed site lags uv.lock: {'; '.join(stale)}", flush=True)
+                print("sync the seed from the lock (uv pip install --target <seed> --no-deps --require-hashes "
+                      "-r <uv export --frozen>), or name a current one with --seed-site", flush=True)
+                return 1
         with phase("pool"):
             requirements = export_requirements((*manifest.packaging_extras, *pack_extras), args.uv)
             # uv.lock's block for a name pinned on this target gives way to its pin (Android's Pillow and

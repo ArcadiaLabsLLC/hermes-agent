@@ -494,6 +494,33 @@ def _parsed_lock(path: Path, _mtime_ns: int, _size: int) -> dict[str, dict]:
     return {_norm(p["name"]): p for p in tomllib.loads(path.read_text(encoding="utf-8-sig")).get("package", [])}
 
 
+@functools.lru_cache(maxsize=4)
+def _locked_versions(path: Path, _mtime_ns: int, _size: int) -> dict[str, frozenset[str]]:
+    """Every version uv.lock pins per distribution (a forked resolution pins one name twice);
+    the project's own editable / virtual entry is not a pin."""
+    out: dict[str, set[str]] = {}
+    for p in tomllib.loads(path.read_text(encoding="utf-8-sig")).get("package", []):
+        if "version" in p and not {"editable", "virtual"} & set(p.get("source", {})):
+            out.setdefault(_norm(p["name"]), set()).add(p["version"])
+    return {name: frozenset(versions) for name, versions in out.items()}
+
+
+def stale_against_lock(distributions, names, path: Path = ROOT / "uv.lock") -> list[str]:
+    """Of ``distributions`` (``importlib.metadata`` objects) named in ``names`` (the closure the plan
+    reached; a stale distribution it never reaches decides nothing), those whose version uv.lock does not pin, as
+    ``"<name> <installed> (uv.lock <pins>)"`` — a site that lags the lock maps imports to the old
+    requirements, and the plan then blames the pool for what the stale site asked for
+    (RT-PHONE-BUILD-STALE-SEED-BLAMES-AN-EXTRA). A distribution uv.lock does not name is not judged."""
+    stat = path.stat()
+    pins = _locked_versions(path, stat.st_mtime_ns, stat.st_size)
+    wanted, stale = {_norm(n) for n in names}, set()
+    for dist in distributions:
+        name, version = _norm(dist.metadata["Name"] or ""), dist.version
+        if name in wanted and name in pins and version not in pins[name]:
+            stale.add(f"{name} {version} (uv.lock {', '.join(sorted(pins[name]))})")
+    return sorted(stale)
+
+
 def _wheel_size(package: dict) -> int | None:
     """The Windows wheel's size from uv.lock (preferring cp314, cp312, abi3, then any)."""
     wheels = package.get("wheels", [])
