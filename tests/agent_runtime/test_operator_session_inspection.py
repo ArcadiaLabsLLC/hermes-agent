@@ -87,7 +87,7 @@ def test_skills_use_the_named_profile_and_durable_session_evidence(placed_agent,
         persona = replace(source, id=name, hermes_profile=name)
         personas.save(persona)
         created = serve_rpc.handle_request(dict(jsonrpc="2.0", id="create",
-            method="runtime.agent.create", params=dict(persona_id=name, workspace_id=WORKSPACE,
+            method="runtime.agent.place", params=dict(persona_id=name, workspace_id=WORKSPACE,
             position=[2.0, 3.0], idempotency_key=name)))
         assert "result" in created, created
         targets.append(target(created["result"]["persona_instance_id"], persona=name))
@@ -154,7 +154,7 @@ def test_memory_reads_the_named_profile_store_and_pending_writes_without_mutatio
         (home / "memories" / "MEMORY.md").write_text(ENTRY_DELIMITER.join([f"{name} fact one", f"{name} fact two"]),
                                                      encoding="utf-8")
         personas.save(replace(source, id=name, hermes_profile=name, include_profile_memory=name == "alpha"))
-        created = serve_rpc.handle_request(dict(jsonrpc="2.0", id="create", method="runtime.agent.create",
+        created = serve_rpc.handle_request(dict(jsonrpc="2.0", id="create", method="runtime.agent.place",
             params=dict(persona_id=name, workspace_id=WORKSPACE, position=[2.0, 3.0], idempotency_key=name)))
         assert "result" in created, created
         targets[name] = target(created["result"]["persona_instance_id"], persona=name)

@@ -16,7 +16,7 @@ So every test here is about a fact the pre-S5 code could not express:
 4. **The refusal vocabulary is the store's, one to one.** A code this service
    invented would be a second vocabulary for one set of guards.
 
-Every placement is minted through ``perform_agent_create`` — the real create
+Every placement is minted through ``perform_agent_place`` — the real create
 door — rather than by hand, so the actor these tests retire is the actor a
 launcher drop writes, with the same key derivation and the same items.
 """
@@ -62,9 +62,9 @@ def seeded_workspace():
 def _place(placement_id: str = "qa_retire_1_agent_2", persona_id: str = "qa") -> dict:
     """A REAL placement through the real create door. Returns its ack."""
 
-    from agent_runtime.agent_create import perform_agent_create
+    from agent_runtime.agent_create import perform_agent_place
 
-    outcome = perform_agent_create(
+    outcome = perform_agent_place(
         {
             "persona_id": persona_id,
             "workspace_id": WORKSPACE,

@@ -7,7 +7,7 @@ verb no operator can run.
 ``harness agent retire`` was a second argv door onto the same service until
 2026-10-02, when it was deleted (owner ruling: the launcher reaches it only as
 ``runtime.agent.retire``). Agents are placed here through the service itself,
-``agent_create.perform_agent_create`` — the function ``runtime.agent.create``
+``agent_create.perform_agent_place`` — the function ``runtime.agent.create``
 answers with — because the argv ``agent create`` went in the same ruling.
 
 Nothing here spawns a ``harness serve``: the claim is precisely that none is
@@ -84,9 +84,9 @@ def _dispatch(argv: list[str]) -> int:
 
 
 def _place(capsys, placement_id: str = "qa_verb_retire_1_agent_2") -> dict:
-    from agent_runtime.agent_create import perform_agent_create
+    from agent_runtime.agent_create import perform_agent_place
 
-    outcome = perform_agent_create(
+    outcome = perform_agent_place(
         {
             "persona_id": "qa",
             "workspace_id": WORKSPACE,

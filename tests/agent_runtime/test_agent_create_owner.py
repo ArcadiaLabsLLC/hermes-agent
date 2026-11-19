@@ -9,7 +9,7 @@ import os
 import pytest
 
 from agent_runtime import paths
-from agent_runtime.agent_create import perform_agent_create
+from agent_runtime.agent_create import perform_agent_place
 from agent_runtime.conversation_access import validate_conversation_access
 from agent_runtime.conversation_owner import ConversationOwnerError, session_client_scope
 from agent_runtime.gateway_identity import ensure_install_identity
@@ -27,7 +27,7 @@ def test_created_default_chat_uses_the_native_owner_for_sends_and_suggestions(qa
     _seed_workspace()
     owner = "a" * 64
     params = _params(client_scope=owner, placement_id="qa_owned_agent_2")
-    outcome = perform_agent_create(params)
+    outcome = perform_agent_place(params)
     assert outcome.refusal is None
     result = outcome.result
     session = result["default_chat_session_id"]
@@ -43,12 +43,12 @@ def test_created_default_chat_uses_the_native_owner_for_sends_and_suggestions(qa
     with pytest.raises(ConversationOwnerError, match="conversation_owner_changed"):
         validate_conversation_access({**target, "client_scope": "b" * 64})
     receipt = _reservation_record(params["idempotency_key"])
-    replay = perform_agent_create(params)
+    replay = perform_agent_place(params)
     assert replay.result["idempotent_replay"] is True
     assert replay.result["client_scope"] == owner
     assert _reservation_record(params["idempotency_key"]) == receipt
     for scope in ("b" * 64, None):
-        refused = perform_agent_create({**params, "client_scope": scope} if scope else
+        refused = perform_agent_place({**params, "client_scope": scope} if scope else
                                       {k: v for k, v in params.items() if k != "client_scope"})
         assert refused.refusal is not None
         assert _reservation_record(params["idempotency_key"]) == receipt
@@ -57,7 +57,7 @@ def test_created_default_chat_uses_the_native_owner_for_sends_and_suggestions(qa
 def test_scoped_replay_cannot_adopt_legacy_default_chat(qa_persona):
     _seed_workspace()
     params = _params(placement_id="qa_legacy_agent_2")
-    original = perform_agent_create(params).result
-    assert perform_agent_create({**params, "client_scope": "a" * 64}).refusal is not None
+    original = perform_agent_place(params).result
+    assert perform_agent_place({**params, "client_scope": "a" * 64}).refusal is not None
     with closing(default_persona_session_db()) as db:
         assert session_client_scope(db.get_session(original["default_chat_session_id"])) is None

@@ -1,7 +1,7 @@
 """A freshly created agent's FIRST message, on its own pointer.
 
 The operator gesture, end to end: drag a QA agent into the Mission Control
-office (``runtime.agent.create`` — the RPC lane the launcher actually uses),
+office (``runtime.agent.place`` — the drop lane; ``runtime.agent.create`` before 2026-11-19),
 then send it a message on the ``default_chat_session_id`` that create handed
 back. That is one gesture to a human and two lanes to this program, and on
 2026-08-20 the seam between them was where every such agent died:
@@ -125,7 +125,9 @@ def harness_with_stub_provider(monkeypatch):
 
 
 def _drag_in_an_agent(placement_id: str) -> dict:
-    """Create through ``runtime.agent.create`` — the launcher's own lane."""
+    """Place through ``runtime.agent.place`` — the drop's own lane since 2026-11-19
+    (``RT-PLACING-A-SHIPPED-AGENT-MAKES-A-SECOND-ONE``: a drop seats the existing
+    agent; ``runtime.agent.create`` now makes a new one)."""
 
     from agent_runtime import serve_rpc
     from agent_runtime.office_store import OfficeStore
@@ -137,7 +139,7 @@ def _drag_in_an_agent(placement_id: str) -> dict:
         {
             "jsonrpc": "2.0",
             "id": "drag-1",
-            "method": "runtime.agent.create",
+            "method": "runtime.agent.place",
             "params": {
                 "persona_id": "qa",
                 "workspace_id": WORKSPACE,

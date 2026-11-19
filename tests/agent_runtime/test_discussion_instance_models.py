@@ -26,7 +26,7 @@ pytestmark = pytest.mark.timeout(90)
 
 @pytest.fixture
 def native_room(placed_agent, catalog):
-    second = serve_rpc.handle_request(dict(jsonrpc="2.0", id="second", method="runtime.agent.create",
+    second = serve_rpc.handle_request(dict(jsonrpc="2.0", id="second", method="runtime.agent.place",
         params=dict(persona_id=PERSONA, workspace_id=WORKSPACE, position=[3.0, 2.0],
                     idempotency_key="second-model-member")))["result"]
     install = ensure_install_identity(paths.store_root()).install_id

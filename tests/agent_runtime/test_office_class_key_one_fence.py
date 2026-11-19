@@ -171,7 +171,7 @@ def _agent_create_into(workspace_id: str, monkeypatch) -> object:
         # this injection is about the payload's BINDING, and swallowing the
         # kwarg keeps the substitution a stand-in for the refactor rather than
         # a TypeError one call earlier.
-        lambda request, *, display_name, position=None: _colliding_payload(),
+        lambda request, *, display_name, position=None, **_identity: _colliding_payload(),
     )
     return agent_create.perform_agent_create(
         {

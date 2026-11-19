@@ -15,7 +15,7 @@ import pytest
 
 from agent_runtime import paths as runtime_paths
 from agent_runtime import realm_rekey, serve_rpc, turn_activity
-from agent_runtime.agent_create import perform_agent_create
+from agent_runtime.agent_create import perform_agent_place
 from agent_runtime.board_models import default_board_id
 from agent_runtime.board_store import BoardStore
 from agent_runtime.flow_graph import FlowGraphStore, parse_flow_graph_doc
@@ -91,7 +91,7 @@ def _seat_two_agents(workspace_id: str, realm_id: str) -> None:
                                    api_mode=None, system_prompt_path=""))
     OfficeStore().ensure_surface(workspace_id, created_by="seed")
     for index, agent in enumerate((LEAD, HELPER)):
-        made = perform_agent_create({"persona_id": "qa", "workspace_id": workspace_id, "realm_id": realm_id,
+        made = perform_agent_place({"persona_id": "qa", "workspace_id": workspace_id, "realm_id": realm_id,
                                      "position": [float(index), 1.0], "idempotency_key": f"seat-{index}",
                                      "placement_id": agent.removeprefix("personainst_")})
         assert made.refusal is None and made.result["persona_instance_id"] == agent
