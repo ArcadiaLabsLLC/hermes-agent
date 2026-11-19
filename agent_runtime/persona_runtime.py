@@ -29,6 +29,7 @@ from .profile_runner import (
     ProfileAgentRunner,
 )
 from .progress import ChatProgressSink
+from .surface_prompt_note import with_surface_prompt_note
 from .tool_permissions import ChatToolPermissionStore
 
 __layer__ = "lanes"
@@ -225,6 +226,11 @@ class GPTPersonaRuntime:
             before_first_trace=pre_trace_callback,
             on_trace=trace_callback,
         )
+        system_message = _mission_chat_surface_message(
+            persona,
+            surface_prompt,
+            workspace_agents_content=workspace_agents_content,
+        )
         with attended_turn(attended), slot_env_scope(slot_bindings, workdir.path if workdir.grounded else None), launcher_invocation(
                 "operator", root_chat_session_id or perm_session_id, turn_id,
                 persona_instance_id=persona_instance_id, profile=binding.hermes_profile):
@@ -294,13 +300,16 @@ class GPTPersonaRuntime:
                         situational_hud_content,
                         preloaded_skill_prompt=preloaded_skill_prompt,
                     ),
-                    system_message=_mission_chat_surface_message(
-                        persona,
-                        surface_prompt,
-                        workspace_agents_content=workspace_agents_content,
-                    ),
+                    system_message=system_message,
                     stream_callback=stream_callback,
-                    agent_ready_callback=agent_ready_callback,
+                    # On a continuing chat the stored first-turn prompt is reused, so a changed
+                    # surface prompt rides this turn's tail instead (agent_runtime.surface_prompt_note).
+                    agent_ready_callback=with_surface_prompt_note(
+                        agent_ready_callback,
+                        surface_prompt=surface_prompt,
+                        system_message=system_message,
+                        conversation_history=conversation_history,
+                    ),
                     clarify_callback=clarify_capture.callback,
                     # Key chat trace on the chat ROOT: session_id is the native tip
                     # (it moves at a compression), while the permission/session
@@ -407,7 +416,10 @@ def _mission_chat_surface_message(
     ~13K-token stable prefix (system prompt + tool schema) hits the cross-turn
     prompt cache. The identity/rules are static; the persona SOUL, workspace
     AGENTS.md, and operator surface prompt change only when their source
-    actually changes (legitimate content-driven invalidation, like MEMORY.md).
+    actually changes. A continuing chat does not rebuild for that: upstream
+    reuses the prompt stored on its first turn, and a changed surface prompt
+    reaches the model on the turn's tail instead
+    (:mod:`agent_runtime.surface_prompt_note`).
     The Runtime Situation HUD — whose roster/scope/mission state rotated every
     turn — is deliberately NOT here anymore: it rides the operator's user turn
     instead (see ``_mission_chat_user_message``). Do NOT reintroduce per-turn
