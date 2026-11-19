@@ -25,8 +25,10 @@ __all__ = [
     "_prune_archived_actor_files",
     "_write_actor",
     "_write_archived_actor",
+    "_write_realm_held",
     "_write_surface",
     "read_actor_dir",
+    "read_realm_held",
 ]
 
 
@@ -93,6 +95,42 @@ def read_actor_dir(directory) -> ActorScan:
 
 def _write_surface(surface: OfficeSurface) -> None:
     atomic_json_write(paths.office_surface_path(surface.workspace_id), to_jsonable(surface), indent=2, sort_keys=True)
+
+
+def read_realm_held(workspace_id: str) -> set[str]:
+    """The keys of this surface's ``archived_actor_keys`` that the REALM put there.
+
+    Who archived a desk is one fact with two answers: this machine (a delete
+    someone made here, the resurrection guard's whole point) or the realm (a
+    peer's tombstone this machine adopted with the peer's surface). Only the
+    first is ``locally_archived``; the second follows the realm, so a teammate
+    who restores the desk gets it back on every member
+    (RT-REALM-MEMBER-DESK-ARCHIVED-BY-A-PULL-BLOCKS-THE-AGENT-COMING-BACK).
+    Kept beside ``office.json`` and never published, because it says what THIS
+    machine did not do.
+
+    A missing or unreadable file answers the empty set: every key then reads as
+    this machine's own, which is the ledger's old meaning and the safe direction
+    (a desk stays archived; nothing is resurrected on a misread).
+    """
+
+    path = paths.office_realm_held_path(workspace_id)
+    if not path.exists():
+        return set()
+    try:
+        data = read_json(path)
+    except Exception:  # the safe direction, see above
+        return set()
+    keys = data.get("actor_keys") if isinstance(data, dict) else None
+    return {str(key) for key in keys} if isinstance(keys, list) else set()
+
+
+def _write_realm_held(workspace_id: str, keys) -> None:
+    path = paths.office_realm_held_path(workspace_id)
+    if not keys:
+        path.unlink(missing_ok=True)
+        return
+    atomic_json_write(path, {"actor_keys": sorted(str(key) for key in keys)}, indent=2, sort_keys=True)
 
 
 def _write_archived_actor(actor: OfficeActor) -> None:

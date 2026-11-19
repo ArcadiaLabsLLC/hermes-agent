@@ -327,6 +327,12 @@ def office_surface_path(workspace_id: str) -> Path:
     return office_dir(workspace_id) / "office.json"
 
 
+def office_realm_held_path(workspace_id: str) -> Path:
+    # which ``archived_actor_keys`` the REALM put here, not this machine's own
+    # deletes; never published (publish walks ``office.json`` and ``actors/``)
+    return office_dir(workspace_id) / "realm_archived.json"
+
+
 def office_actors_dir(workspace_id: str) -> Path:
     return office_dir(workspace_id) / "actors"
 

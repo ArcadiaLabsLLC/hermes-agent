@@ -490,7 +490,20 @@ def _reconcile_actors(
                 )
                 continue
             try:
-                store.remove_actor(workspace_id, actor_key, reason="remote_removed", updated_by="realm_sync")
+                # No tombstone: the REALM removed this desk, not this machine.
+                # Entered as this machine's own, it blocked the desk from ever
+                # coming back and grew a ledger the realm never had (an
+                # unpublished change nobody made). The peer's own tombstone, when
+                # it wrote one, arrived with its surface as a realm-held key.
+                # MUTATION: record the tombstone again and
+                # test_realm_member_desk_archived_by_a_pull reddens.
+                store.remove_actor(
+                    workspace_id,
+                    actor_key,
+                    reason="remote_removed",
+                    updated_by="realm_sync",
+                    record_tombstone=False,
+                )
             except Exception as exc:  # accounted, never silent
                 # The loop SURVIVES one bad file — a whole realm must not stop
                 # converging because one actor would not archive — but the
@@ -591,7 +604,10 @@ def apply_office_pull(realm_id: str, subtree: Path, *, event_log: EventLog | Non
         local_actors: dict[str, OfficeActor] = {}
         archived_keys: set[str] = set()
         if local_surface is not None:
-            archived_keys = set(local_surface.archived_actor_keys)
+            # This machine's OWN archives only: a desk the realm archived here
+            # (a peer's tombstone, a removal an earlier pull applied) is not
+            # ``locally_archived``, so the realm bringing it back brings it back.
+            archived_keys = store.own_archived_actor_keys(workspace_id)
             # The scan taken above, not a second read: one authority for "what
             # this workspace locally HAS", so the completeness the gate checked
             # and the rows the merge classifies cannot come apart.

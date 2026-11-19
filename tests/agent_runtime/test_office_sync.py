@@ -172,7 +172,9 @@ def test_remote_removed_archives_never_deletes(tmp_path):
     store = OfficeStore()
     assert not store.actor_exists(ws, "dev")
     assert paths.office_archived_actor_path(ws, "dev").exists()
-    assert "dev" in store.get_surface(ws).archived_actor_keys
+    # The REALM removed it, not this machine: no tombstone of this machine's own, so the desk comes back
+    # if the realm brings it back (RT-REALM-MEMBER-DESK-ARCHIVED-BY-A-PULL-BLOCKS-THE-AGENT-COMING-BACK).
+    assert "dev" not in store.own_archived_actor_keys(ws)
 
 
 def test_resurrection_guard_blocks_pulled_copy_of_archived_actor(tmp_path):

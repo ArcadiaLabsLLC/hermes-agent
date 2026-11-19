@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING
 
 from agent_runtime.locks import office_lock
 from agent_runtime.models import OfficeActor, OfficeSurface
-from agent_runtime.office_store.files import _write_actor, _write_surface
+from agent_runtime.office_store.files import _write_actor, _write_realm_held, _write_surface, read_realm_held
 from agent_runtime.office_store.models import ARCHIVED_LEDGER_CAP
-from agent_runtime.sync_merge import merge_archived_ledgers
+from agent_runtime.sync_merge import merge_archived_ledgers_by_origin
 from agent_runtime.office_store.normalize import _safe_actor_ref
 from agent_runtime.serde import safe_id
 
@@ -61,7 +61,9 @@ def adopt_remote_surface(
     content.
 
     Verbatim in every field BUT ONE. ``archived_actor_keys`` is UNIONED with
-    the local ledger (:func:`merge_archived_ledgers`), because that field is
+    the local ledger's OWN keys (:func:`merge_archived_ledgers_by_origin`; a
+    key the realm put here follows the realm, and which keys those are is
+    rewritten beside the surface), because that field is
     not the peer's opinion about this workspace — it is the resurrection
     guard, and the pull is the one lane that can reach it from outside this
     machine. Adopting it wholesale erased any tombstone the peer had not
@@ -92,16 +94,19 @@ def adopt_remote_surface(
     surface.updated_by = _safe_actor_ref(updated_by)
     with office_lock(wsid):
         existed = store.surface_exists(wsid)
-        if existed:
-            # Read INSIDE the lock that will hold for the write: a local
-            # archive racing this pull must land on one side of the union or
-            # the other, never between the read and the write.
-            surface.archived_actor_keys = merge_archived_ledgers(
-                surface.archived_actor_keys,
-                store.get_surface(wsid).archived_actor_keys,
-                cap=ARCHIVED_LEDGER_CAP,
-            )
+        # Read INSIDE the lock that will hold for the write: a local archive
+        # racing this pull must land on one side of the union or the other,
+        # never between the read and the write. Only this machine's OWN keys
+        # outlive the peer's list; a key the realm put here leaves with it
+        # (``merge_archived_ledgers_by_origin``).
+        surface.archived_actor_keys, realm_held = merge_archived_ledgers_by_origin(
+            surface.archived_actor_keys,
+            store.get_surface(wsid).archived_actor_keys if existed else (),
+            read_realm_held(wsid),
+            cap=ARCHIVED_LEDGER_CAP,
+        )
         _write_surface(surface)
+        _write_realm_held(wsid, realm_held)
         if existed:
             # INSIDE the lock and BEFORE the domain event, like every other
             # emitter in this class — see ``_emit_surface_patch``.

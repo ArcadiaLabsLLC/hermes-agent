@@ -184,6 +184,12 @@ def merge_archived_ledgers(peer_keys, local_keys, *, cap: int) -> list[str]:
     (Track A1's hermes half), not with this merge. The board family's
     ``archive_card(..., record_tombstone=False)`` is that split's near half,
     already shipped: a ledger entry withheld never reaches this union at all.
+
+    The office family now records the RECEIVING half of the split too:
+    :func:`merge_archived_ledgers_by_origin` keeps apart the keys the realm put
+    in a member's ledger, so a tombstone the realm drops leaves the member as
+    well, and only this machine's own deletes block a resurrection. The
+    one-way paragraph above is still true of an OWN key.
     """
 
     merged: list[str] = []
@@ -195,3 +201,29 @@ def merge_archived_ledgers(peer_keys, local_keys, *, cap: int) -> list[str]:
         seen.add(text)
         merged.append(text)
     return merged[-cap:]
+
+
+def merge_archived_ledgers_by_origin(
+    peer_keys, local_keys, realm_held, *, cap: int
+) -> tuple[list[str], set[str]]:
+    """:func:`merge_archived_ledgers`, with WHO archived each key kept apart.
+
+    ``realm_held`` is the part of ``local_keys`` the realm put there (a peer's
+    tombstone adopted on an earlier pull); the rest is this machine's own. The
+    union keeps every OWN key, exactly as before, and keeps a realm-held key only
+    while the peer still carries it: a tombstone the realm dropped (a teammate
+    restored the desk) leaves here too, so the classifier never reads it as
+    ``locally_archived`` and the restored desk comes back
+    (RT-REALM-MEMBER-DESK-ARCHIVED-BY-A-PULL-BLOCKS-THE-AGENT-COMING-BACK).
+
+    Returns ``(merged, realm_held)``: the new ledger, and which of its keys are
+    the realm's — every key the peer carries that this machine did not archive
+    itself. With an empty ``realm_held`` the ledger is
+    :func:`merge_archived_ledgers`' byte for byte.
+    """
+
+    held = {str(key) for key in (realm_held or ())}
+    own = [str(key) for key in (local_keys or ()) if str(key) not in held]
+    merged = merge_archived_ledgers(peer_keys, own, cap=cap)
+    own_set = set(own)
+    return merged, {key for key in merged if key not in own_set}

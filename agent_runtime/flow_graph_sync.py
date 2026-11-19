@@ -481,6 +481,7 @@ def apply_flow_graph_pull(
     subtree,
     *,
     live_instance_ids=None,
+    published_owner_ids=None,
 ) -> FlowGraphPullSummary:
     """Adopt, keep or HOLD each pulled canvas — whole document, never merged.
 
@@ -499,6 +500,15 @@ def apply_flow_graph_pull(
 
     ``live_instance_ids`` is the caller's settled live-row set, injected so this
     stays testable without a store; ``None`` asks the instance store.
+
+    ``published_owner_ids`` is the desks this machine's next publish ships
+    (the publish's own office scan). A canvas the realm stopped carrying whose
+    owner is not among them leaves the BASELINE (never the store): the realm and
+    this machine's next publish agree it is not published, so a baseline that
+    still named it would read as "canvas no longer published", a local change
+    nobody made — the pull of a teammate's agent delete archives the desk that
+    scoped the canvas (RT-REALM-MEMBER-DESK-ARCHIVED-BY-A-PULL-BLOCKS-THE-AGENT-
+    COMING-BACK). ``None`` keeps every baseline entry, as before.
     """
 
     from .flow_graph import FlowGraphDocError, FlowGraphStore, parse_flow_graph_doc
@@ -507,15 +517,20 @@ def apply_flow_graph_pull(
     summary = FlowGraphPullSummary()
     remote, source = read_remote_flow_graphs(subtree)
     summary.source = source
-    if source is None:
-        # Not published. Never a removal — no baselined canvas is touched, so an
-        # older peer in the rotation cannot strand this machine's drawings.
-        return summary
     if source == "unreadable":
         summary.refused.append(
             _refusal(FLOW_GRAPH_PROJECTION_RELATIVE_PATH, REFUSAL_UNREADABLE_PROJECTION)
         )
         return summary
+    # MUTATION: skip this release and
+    # test_realm_member_desk_archived_by_a_pull reddens (the canvas reads removed).
+    released = _release_unshipped_baselines(realm_id, remote, published_owner_ids)
+    if source is None:
+        # Not published. Never a removal — no canvas is touched, so an older peer
+        # in the rotation cannot strand this machine's drawings; only a baseline
+        # entry this machine will not publish either has left (above).
+        return summary
+    summary.upstream_absent.extend(released)
 
     store = FlowGraphStore()
     baseline = read_flow_graph_baseline(realm_id)
@@ -533,7 +548,8 @@ def apply_flow_graph_pull(
         if remote_body is None:
             # ARCHIVE_LOCAL and edit-vs-remove are the same fact for this family:
             # the realm stopped carrying a drawing this machine still has. Held
-            # and named, baseline KEPT so a repaired publish still converges.
+            # and named, baseline KEPT so a repaired publish still converges —
+            # unless this machine will not publish it either (released above).
             summary.upstream_absent.append(graph_id)
             continue
         decision = classify_three_way_pull(
@@ -568,6 +584,38 @@ def apply_flow_graph_pull(
     if summary.adopted:
         write_flow_graph_baseline(realm_id, baseline)
     return summary
+
+
+def _release_unshipped_baselines(realm_id: str, remote, published_owner_ids) -> list[str]:
+    """Drop the baseline entry of every canvas neither side publishes any more.
+
+    A canvas the realm does not carry, whose owner desk this machine's next
+    publish does not ship either: the baseline is the only thing still saying
+    it was published, and the drift walk reads that as "canvas no longer
+    published" — a local change nobody made (see ``apply_flow_graph_pull``). The
+    canvas file is never touched. ``None`` (no publish scope given) releases
+    nothing. Returns the released graph ids.
+    """
+
+    if published_owner_ids is None:
+        return []
+    from .flow_graph import owner_instance_id_of
+
+    shipped = set(published_owner_ids)
+    baseline = read_flow_graph_baseline(realm_id)
+    prefix = flow_graph_baseline_key("")
+    released = sorted(
+        key[len(prefix):]
+        for key in baseline
+        if key.startswith(prefix)
+        and key[len(prefix):] not in remote
+        and owner_instance_id_of(key[len(prefix):]) not in shipped
+    )
+    if released:
+        for graph_id in released:
+            del baseline[flow_graph_baseline_key(graph_id)]
+        write_flow_graph_baseline(realm_id, baseline)
+    return released
 
 
 def _live_instance_ids() -> set[str]:

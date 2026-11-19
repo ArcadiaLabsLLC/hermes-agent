@@ -19,7 +19,9 @@ from agent_runtime.office_store.files import (
     _free_surface_archive_dir,
     _prune_archived_actor_files,
     _write_archived_actor,
+    _write_realm_held,
     _write_surface,
+    read_realm_held,
 )
 from agent_runtime.office_store.models import ARCHIVED_LEDGER_CAP, OfficeActorOutcome
 from agent_runtime.office_store.normalize import _safe_actor_ref
@@ -370,6 +372,12 @@ def _archive_actor_locked(
         surface.archived_actor_keys = [*surface.archived_actor_keys, actor.actor_key][-ARCHIVED_LEDGER_CAP:]
         surface.updated_at = now()
         _write_surface(surface)
+    if record_tombstone:
+        # A delete made HERE is this machine's own from now on, even where the
+        # realm had held the key: it must outlive a realm that drops it.
+        held = read_realm_held(actor.workspace_id)
+        if actor.actor_key in held:
+            _write_realm_held(actor.workspace_id, held - {actor.actor_key})
     # The archive half of the lifecycle pair, INSIDE the lock and BEFORE the
     # domain event — the same ordering ``upsert_actor`` uses, for the same
     # monotonicity reason (see ``_emit_actor_patch``).

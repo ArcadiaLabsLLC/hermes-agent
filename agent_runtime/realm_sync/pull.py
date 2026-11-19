@@ -62,7 +62,6 @@ __all__ = [
     "_apply_workspace_tombstones",
     "_artifact_contains_secret_assignment",
     "_assert_no_secret_artifacts",
-    "file_contains_secret_assignment",
     "_overwrite_generic_families",
     "_pull_accounting",
     "_pull_boards",
@@ -79,6 +78,7 @@ __all__ = [
     "_pull_skill_tombstones",
     "_pull_workspace_tombstones",
     "_pulled_artifact_bytes",
+    "file_contains_secret_assignment",
     "pull_realm_sync",
 ]
 
@@ -496,8 +496,12 @@ def _pull_flow_graphs(run: _PullRun) -> bool:
     # the pull's own ``unbound_node_agents`` accounting would name every binding
     # this same pass was about to satisfy. The ordering is pinned by a test.
     from ..flow_graph_sync import apply_flow_graph_pull
+    from .artifacts import _office_publish_scan, _workspaces_for_realm
 
-    run.flow_graph = apply_flow_graph_pull(run.realm.id, run.subtree)
+    # The desks the next publish ships, read by the publish's own scan AFTER the
+    # office lane ran: a canvas whose desk this pull archived is no longer one.
+    shipped = _office_publish_scan(_workspaces_for_realm(run.realm)).instance_ids
+    run.flow_graph = apply_flow_graph_pull(run.realm.id, run.subtree, published_owner_ids=shipped)
     return bool(run.flow_graph.changed)
 
 

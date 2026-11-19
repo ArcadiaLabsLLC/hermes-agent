@@ -60,7 +60,8 @@ def _locally_archived_actor_keys() -> set[str]:
     """Every actor key this machine has archived, across every office surface.
 
     Read from the office store's own ``archived_actor_keys`` ledger — the SAME
-    resurrection guard ``_reconcile_actors`` passes to the classifier — because
+    resurrection guard ``_reconcile_actors`` passes to the classifier, less the
+    keys the realm put there (``OfficeStore.own_archived_actor_keys``) — because
     the actor key IS the instance id for an instance-bound actor. Growing a
     second ledger for the same fact is how two authorities over one identity
     start disagreeing.
@@ -79,10 +80,9 @@ def _locally_archived_actor_keys() -> set[str]:
         keys: set[str] = set()
         for workspace_token in store.list_workspaces():
             try:
-                surface = store.get_surface(workspace_token)
+                keys.update(store.own_archived_actor_keys(workspace_token))
             except Exception:  # one unreadable surface is not the others'
                 continue
-            keys.update(str(key) for key in (surface.archived_actor_keys or []))
         return keys
     except Exception:  # see the docstring: permissive on a fault
         return set()
