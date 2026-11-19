@@ -104,9 +104,28 @@ def _persona_chat_existing_turn(
         role = str(item.get("role") or "").strip().lower()
         if role == "user" and "operator" not in result:
             result["operator"] = item
-        elif role == "assistant" and not _is_tool_step(item):
+        elif role == "assistant" and not _is_tool_step(item) and not _is_failed_turn_boundary(item):
             result["assistant"] = item
     return result
+
+
+def _is_failed_turn_boundary(message: dict) -> bool:
+    """Is this the core's failed-turn boundary row ("Your request was not processed…"), not a reply?
+
+    The core closes a failed turn's tail with a Hermes-authored notice (``display_kind: failed_turn``,
+    ``agent.turn_failure_copy``) — a transcript boundary, never the model's answer. Counted as the reply,
+    a resend of a provider-refused turn's id walked the journal ``provider_refused`` -> ``projected`` with
+    that sentence as ``stored_reply``: the resend was answered "not processed" instead of its refusal, and
+    the reopened chat lost the row's kind and ``error_surface``
+    (RT-FAILED-TURN-ROW-LOSES-ITS-SURFACE-ONCE-THE-TURN-SETTLES).
+    """
+
+    from agent.turn_failure_copy import FAILED_TURN_DISPLAY_KIND, untyped_failed_turn_display_kind
+
+    # MUTATION: return False here and test_a_refused_turns_resend_keeps_its_refusal reds.
+    return message.get("display_kind") == FAILED_TURN_DISPLAY_KIND or (
+        untyped_failed_turn_display_kind(message.get("role"), message.get("content")) is not None
+    )
 
 
 def _is_tool_step(message: dict) -> bool:

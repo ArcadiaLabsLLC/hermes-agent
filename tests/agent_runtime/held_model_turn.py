@@ -36,6 +36,8 @@ class HeldModel(ThreadingHTTPServer):
         self.requests: list[dict] = []
         #: ``reply(body) -> (text or a whole delta, finish_reason)`` for a call that is not held.
         self.reply: Callable[[dict], tuple[Any, str]] = lambda body: ("Thanks, noted.", "stop")
+        #: ``(HTTP status, error body)`` every chat call is refused with instead (a provider's 429).
+        self.refuse: tuple[int, dict] | None = None
         threading.Thread(target=self.serve_forever, daemon=True).start()
 
     def configure(self, home) -> None:
@@ -68,6 +70,15 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         self.server.requests.append(body)
+        if self.server.refuse is not None:
+            status, error = self.server.refuse
+            data = json.dumps(error).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()  # HTTP/1.0: the stream ends when the connection closes

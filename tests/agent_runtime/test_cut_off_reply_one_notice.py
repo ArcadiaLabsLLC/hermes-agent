@@ -197,3 +197,62 @@ def test_the_failed_turn_row_eternia_mirrors_is_the_runtimes():
     fixture = Path(__file__).resolve().parents[1] / "fixtures" / "failed_turn_row_v1.json"
     assert json.loads(fixture.read_text(encoding="utf-8")) == {
         "kind": PERSONA_FAILED_TURN_KIND, "error_surface_fields": list(FAILED_TURN_SURFACE_FIELDS)}
+
+
+#: What a provider out of usage answers every chat call with (the Eternia QA fixture's ``[[qa:error 429 …]]``).
+USAGE_LIMIT_429 = (429, {"error": {"message": "You have reached your usage limit", "type": "rate_limit_error",
+                                   "code": "rate_limit_exceeded"}})
+
+
+def _agent_row(instance: str, root: str) -> dict:
+    history = operator_call("read", operator_params(instance, root, None, persona=PERSONA,
+                                                    workspace=WORKSPACE))["result"]
+    [row] = [m for m in history["messages"] if str(m["role"]) == "agent"]
+    return row
+
+
+def test_a_refused_turns_resend_keeps_its_refusal(placed_agent, model):
+    """RT-FAILED-TURN-ROW-LOSES-ITS-SURFACE-ONCE-THE-TURN-SETTLES, reproduced whole: a usage-limit refusal, then
+    the same id sent again. The resend's reply recovery took the core's boundary row for the turn's reply and
+    walked the journal ``provider_refused`` -> ``projected`` with "Your request was not processed…" as its
+    ``stored_reply``; the resend was answered that sentence, and the stored chat's row read as that reply with no
+    kind and no ``error_surface``. Now the boundary row is no reply: the resend gets the turn's refusal and the
+    row keeps its kind and surface. KILLING MUTATION: ``_is_failed_turn_boundary`` returns ``False`` -> red."""
+    from agent_runtime.mission_chat_turns import mission_chat_turn_record
+    from agent_runtime.persona_chat_history.vocabulary import PERSONA_FAILED_TURN_KIND
+
+    instance, root = _new_chat(placed_agent)
+    model.refuse = USAGE_LIMIT_429
+    operator_turn(instance, root, "msg-1", "Hi.").join(150)
+    _code, resend = operator_turn(instance, root, "msg-1", "Hi.").join(150)
+
+    assert (resend.get("provider_refused"), resend.get("journal_state")) == (True, "provider_refused"), resend
+    record = mission_chat_turn_record(session_id=root, client_message_id="msg-1")
+    assert (record["state"], record.get("stored_reply")) == ("provider_refused", None), record
+    row = _agent_row(instance, root)
+    assert (row.get("kind"), (row.get("error_surface") or {}).get("code")) == (PERSONA_FAILED_TURN_KIND,
+                                                                               "rate_limit"), row
+
+
+def test_a_settled_boundary_sentence_keeps_the_rows_kind(placed_agent, model):
+    """A journal settled before the fix holds the boundary sentence as the refused turn's ``stored_reply``: that
+    is no reply of the turn's own, so the row keeps its kind and surface. KILLING MUTATION: drop the
+    boundary-sentence check in ``_failed_turn_reply`` -> the row reads as a plain reply, red."""
+    from agent_runtime.persona_chat_history import history_evidence
+    from agent_runtime.persona_chat_history.vocabulary import PERSONA_FAILED_TURN_KIND
+
+    instance, root = _new_chat(placed_agent)
+    model.refuse = USAGE_LIMIT_429
+    operator_turn(instance, root, "msg-1", "Hi.").join(150)
+    real = history_evidence.history_turn_records
+
+    def _settled_as_the_boundary(*args, **kwargs):
+        return [{**record, "state": "projected", "stored_reply": FAILED_TURN_NOTICE}
+                for record in real(*args, **kwargs)]
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(history_evidence, "history_turn_records", _settled_as_the_boundary)
+        row = _agent_row(instance, root)
+
+    assert (row.get("kind"), (row.get("error_surface") or {}).get("code"), row["text"]) == (
+        PERSONA_FAILED_TURN_KIND, "rate_limit", FAILED_TURN_NOTICE), row

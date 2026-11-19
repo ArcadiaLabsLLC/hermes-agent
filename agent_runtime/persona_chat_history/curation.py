@@ -603,7 +603,15 @@ class CurationState:
             return ""
         record = self.turn_records_by_message.get(str(ctx.logical_client_message_id or "")) or {}
         reply = record.get("stored_reply")
-        return reply if isinstance(reply, str) and reply.strip() else ""
+        if not isinstance(reply, str) or not reply.strip():
+            return ""
+        # A journal that settled the core's own boundary sentence as the turn's reply (a resend, before
+        # RT-FAILED-TURN-ROW-LOSES-ITS-SURFACE-ONCE-THE-TURN-SETTLES, walked a refused turn to ``projected``)
+        # holds no words of the turn's own: the row keeps its kind and surface.
+        from agent.turn_failure_copy import untyped_failed_turn_display_kind
+
+        # MUTATION: drop this check and test_a_settled_boundary_sentence_keeps_the_rows_kind reds.
+        return "" if untyped_failed_turn_display_kind("assistant", reply) else reply
 
     def turn_elements_for(self, logical_client_message_id: str | None) -> list[dict[str, Any]]:
         """The turn's element list, read from the journal once per logical turn."""
