@@ -246,6 +246,40 @@ def update_office_baseline_after_sync(realm_id: str, workspace_ids: list[str]) -
     return summary
 
 
+def settle_office_actor_baseline(workspace_id: str, actor_key: str, actor: OfficeActor | None) -> str | None:
+    """Settle ONE desk's baseline entry after the member took the team's copy of it (``office resolve-conflict
+    --take remote``): the entry a pull that adopted the same upstream state would leave — the adopted desk's H
+    under :func:`update_office_baseline_after_sync`'s key, or no entry for a desk the team removed (the pull's
+    archive arm pops it with the row). Without it the store kept the pre-conflict entry and the drift walk
+    offered a Publish for a choice that changes nothing for the team
+    (RT-REALM-TAKING-THE-TEAMS-COPY-OF-A-HELD-DESK-LEAVES-UNPUBLISHED-CHANGES).
+
+    That one key and nothing else: re-baselining the workspace would bless the member's other unpublished office
+    edits. The realm is the one the workspace is published into; a workspace with no realm has no baseline and
+    is left alone. Returns the realm settled, or ``None``.
+    """
+
+    from .errors import NotFound
+    from .store import WorkspaceStore
+
+    try:
+        realm_id = WorkspaceStore().get(workspace_id).realm_id
+    except NotFound:
+        return None
+    if not realm_id:
+        return None
+    baseline = read_office_baseline(realm_id)
+    key = _actor_key(workspace_id, actor_key)
+    settled = dict(baseline)
+    if actor is None:
+        settled.pop(key, None)
+    else:
+        settled[key] = office_models.office_content_hash(actor)
+    if settled != baseline:
+        write_office_baseline(realm_id, settled)
+    return realm_id
+
+
 # --- pull application ------------------------------------------------------
 
 

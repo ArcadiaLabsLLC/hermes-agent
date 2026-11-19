@@ -57,7 +57,7 @@ from __future__ import annotations
 
 import json
 
-from agent_runtime import serve_rpc
+from agent_runtime import paths, serve_rpc
 from tests.agent_runtime.office_seed import seed_workspace_record, settle_task_activity
 from tests.agent_runtime.test_serve_rpc_office import (
     SHUTDOWN,
@@ -329,7 +329,10 @@ def test_take_remote_on_a_removal_tombstone_acks_archived_with_no_revision():
     }
     assert "revision" not in reply["result"]
     assert _live_keys() == []
-    assert QA_INSTANCE in _store().get_surface(WORKSPACE).archived_actor_keys
+    # Archived as the pull archives a desk the realm removed: the archive copy, and no tombstone of this
+    # machine's (RT-REALM-TAKING-THE-TEAMS-COPY-OF-A-HELD-DESK-LEAVES-UNPUBLISHED-CHANGES).
+    assert paths.office_archived_actor_path(WORKSPACE, QA_INSTANCE).exists()
+    assert QA_INSTANCE not in _store().get_surface(WORKSPACE).archived_actor_keys
     assert not _sidecar_exists()
 
 
@@ -1164,7 +1167,7 @@ def test_the_tombstone_arm_carries_the_token_and_the_store_shows_the_archive():
         }
         assert "revision" not in reply["result"]
         assert _live_keys(workspace) == []
-        assert QA_INSTANCE in _store().get_surface(workspace).archived_actor_keys
+        assert paths.office_archived_actor_path(workspace, QA_INSTANCE).exists()
         assert _conflict_resolved_tokens(workspace) == [token]
 
 

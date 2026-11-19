@@ -105,8 +105,12 @@ def resolve_conflict(
 ) -> OfficeActor | None:
     """Resolve a realm-sync conflict sidecar for an actor. ``take=local``
     keeps the local actor; ``take=remote`` adopts the sidecar's remote copy
-    (or archives the local actor for an edit-vs-remove tombstone). Always
-    archives the sidecar and emits ``office.actor.conflict_resolved``.
+    (or archives the local actor for an edit-vs-remove tombstone, as the
+    pull's archive arm does: no tombstone of this machine's). Both
+    ``take="remote"`` arms settle that ONE desk's realm baseline entry
+    (``office_sync.settle_office_actor_baseline``), so the team's copy is not
+    offered back as an unpublished change. Always archives the sidecar and
+    emits ``office.actor.conflict_resolved``.
 
     BOTH ``take="remote"`` arms also emit their ``office_actor`` patch — the
     adopt arm an ``upsert``, the edit-vs-remove arm the ``remove``
@@ -150,6 +154,9 @@ def resolve_conflict(
     wsid = safe_id(workspace_id)
     if not wsid:
         raise ValueError("invalid_request")
+    # Deferred: ``office_sync`` imports this package.
+    from agent_runtime.office_sync import settle_office_actor_baseline
+
     with office_lock(wsid):
         sidecar_path = paths.office_conflict_path(wsid, actor_key)
         if not sidecar_path.exists():
@@ -191,6 +198,11 @@ def resolve_conflict(
                     store._emit_actor_patch(
                         actor, created=created, correlation_id=correlation_id
                     )
+                    # The team's copy is what this desk now holds, so its baseline says so — that ONE entry
+                    # (RT-REALM-TAKING-THE-TEAMS-COPY-OF-A-HELD-DESK-LEAVES-UNPUBLISHED-CHANGES).
+                    # MUTATION: drop this call and
+                    # test_taking_the_teams_edit_of_a_held_desk_leaves_nothing_to_publish reddens.
+                    settle_office_actor_baseline(wsid, actor.actor_key, actor)
             elif store.actor_exists(wsid, actor_key):
                 # Remote removed the actor (edit-vs-remove) → archive local.
                 actor = store.get_actor(wsid, actor_key)
@@ -200,6 +212,11 @@ def resolve_conflict(
                     surface = store._ensure_surface_locked(
                         wsid, created_by=updated_by
                     )
+                    # The pull's own archive arm, rule for rule (``office_sync._reconcile_actors``): the REALM
+                    # removed this desk, so no tombstone of this machine's (one minted here grew the surface's
+                    # ledger, an "office layout changed" nobody made), and the baseline entry leaves with the
+                    # row. MUTATIONS: record the tombstone again, or drop the settle, and
+                    # test_taking_the_teams_delete_of_a_held_desk_leaves_nothing_to_publish reddens.
                     store._archive_actor_locked(
                         surface,
                         actor,
@@ -207,7 +224,9 @@ def resolve_conflict(
                         updated_by=updated_by,
                         emit=False,
                         correlation_id=correlation_id,
+                        record_tombstone=False,
                     )
+                    settle_office_actor_baseline(wsid, actor_key, None)
         if dry_run:
             # take value + sidecar existence validated; return the would-be
             # resolved actor in memory. Leave the sidecar in place and emit

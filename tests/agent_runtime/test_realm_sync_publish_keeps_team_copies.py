@@ -124,3 +124,93 @@ def test_a_held_desk_is_not_published_until_the_member_chooses(team):
     assert OfficeStore().scan_actors(workspace.id).actors == []
     publish_realm_sync(shared.id)
     assert not _remote_files(team, shared, "/actors/")
+
+
+# --- taking the team's copy of a held desk leaves nothing to publish ---------------------------------------
+# RT-REALM-TAKING-THE-TEAMS-COPY-OF-A-HELD-DESK-LEAVES-UNPUBLISHED-CHANGES (review w1118a.38 D5): both take-remote
+# arms of ``office resolve-conflict`` settle that ONE desk's baseline (``office_sync.settle_office_actor_baseline``),
+# and the delete arm archives as the pull does (no tombstone of Bob's). Bob's other unpublished desk stays his.
+
+
+def _office_drift(realm_id: str) -> dict[str, int]:
+    return realm_sync_status(realm_id)["store_drift"]["office"]
+
+
+def _bobs_own_desk(workspace_id: str) -> None:
+    OfficeStore().upsert_actor(workspace_id, {"persona_id": "ops", "items": [
+        {"item_id": "ops", "persona_id": "ops", "kind": "agent", "position": [6.0, 3.0], "folder": "Agents"}]})
+
+
+@pytest.mark.parametrize("tombstone", [True, False], ids=["delete-from-eternia", "file-removed-without-tombstone"])
+def test_taking_the_teams_delete_of_a_held_desk_leaves_nothing_to_publish(team, tombstone):
+    """Bob moves the desk and adds one of his own, unpublished; Alice deletes the desk and publishes. Bob's
+    pull holds it; he takes the team's copy. Nothing is left to publish but his own desk. The second case is the
+    live read's teammate, whose delete reached the realm with no tombstone on the surface.
+
+    Mutations, each red: drop the settle in the delete arm -> ``actors_removed`` 1 (both cases); record the
+    tombstone again (``record_tombstone=False`` dropped) -> ``offices_changed`` 1 (second case); the helper also
+    records every other desk of the workspace -> ``actors_added`` 0 (Bob's own desk blessed)."""
+
+    shared, workspace = _shared_workspace(team, members=("bob",))
+    team.be("bob")
+    _desk(workspace.id, 9.5)
+    _bobs_own_desk(workspace.id)
+    team.be("alice")
+    OfficeStore().remove_actor(workspace.id, "dev", record_tombstone=tombstone)
+    publish_realm_sync(shared.id)
+
+    team.be("bob")
+    pulled = pull_realm_sync(shared.id)
+    assert pulled["office_sync"]["held"] == [{"workspace_id": workspace.id, "actor_key": "dev", "kind": "edit_vs_remove"}]
+
+    OfficeStore().resolve_conflict(workspace.id, "dev", take="remote")
+    assert [actor.actor_key for actor in OfficeStore().scan_actors(workspace.id).actors] == ["ops"]
+    drift = _office_drift(shared.id)
+    assert (drift["offices_changed"], drift["actors_changed"], drift["actors_removed"]) == (0, 0, 0)
+    assert drift["actors_added"] == 1
+
+    assert publish_realm_sync(shared.id)["state"] == "published"
+    assert [name.rsplit("/", 1)[-1] for name in _remote_files(team, shared, "/actors/")] == ["ops.json"]
+
+
+def test_taking_the_teams_edit_of_a_held_desk_leaves_nothing_to_publish(team):
+    """Bob and Alice both move the desk; Alice publishes first. Bob's pull holds it; he takes the team's copy,
+    and only his own new desk is left to publish.
+
+    Mutation: drop the settle in the adopt arm -> ``actors_changed`` 1."""
+
+    shared, workspace = _shared_workspace(team, members=("bob",))
+    team.be("bob")
+    _desk(workspace.id, 9.5)
+    _bobs_own_desk(workspace.id)
+    team.be("alice")
+    _desk(workspace.id, -4.0)
+    publish_realm_sync(shared.id)
+
+    team.be("bob")
+    pulled = pull_realm_sync(shared.id)
+    assert [row["actor_key"] for row in pulled["office_sync"]["held"]] == ["dev"]
+
+    taken = OfficeStore().resolve_conflict(workspace.id, "dev", take="remote")
+    assert taken.items[0].position[0] == -4.0
+    drift = _office_drift(shared.id)
+    assert (drift["offices_changed"], drift["actors_changed"], drift["actors_removed"]) == (0, 0, 0)
+    assert drift["actors_added"] == 1
+
+
+def test_keeping_my_copy_of_a_held_desk_still_reads_as_mine_to_publish(team):
+    """Take-local is unchanged: Bob keeps his move over Alice's delete, and it reads as his change to publish.
+
+    Mutation: settle the baseline in the take-local arm too -> ``actors_changed`` 0."""
+
+    shared, workspace = _shared_workspace(team, members=("bob",))
+    team.be("bob")
+    _desk(workspace.id, 9.5)
+    team.be("alice")
+    OfficeStore().remove_actor(workspace.id, "dev")
+    publish_realm_sync(shared.id)
+
+    team.be("bob")
+    pull_realm_sync(shared.id)
+    OfficeStore().resolve_conflict(workspace.id, "dev", take="local")
+    assert _office_drift(shared.id)["actors_changed"] == 1
