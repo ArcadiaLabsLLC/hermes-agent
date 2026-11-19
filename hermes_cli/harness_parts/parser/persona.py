@@ -28,6 +28,7 @@ lifecycle_commands = lazy_module("hermes_cli.harness_parts.persona.lifecycle_com
 model_and_skills_commands = lazy_module("hermes_cli.harness_parts.persona.model_and_skills_commands")
 query_commands = lazy_module("hermes_cli.harness_parts.query_commands")
 runtime_commands = lazy_module("hermes_cli.harness_parts.runtime_commands")
+shipped_commands = lazy_module("hermes_cli.harness_parts.persona.shipped_commands")
 slots_commands = lazy_module("hermes_cli.harness_parts.persona.slots_commands")
 
 __layer__ = "wiring"
@@ -226,6 +227,11 @@ def _add_persona_chat_and_model_verbs(persona_subs) -> None:
     persona_set_context.add_argument("--profile-memory", dest="profile_memory", choices=("on", "off"), default=None, help="Load the bound profile's MEMORY.md / USER.md into every turn: the persona inherits that profile's memory")
     persona_set_context.add_argument("--json", action="store_true")
     persona_set_context.set_defaults(func=context_memory_commands._cmd_persona_set_context)
+    sort_shipped = persona_subs.add_parser("sort-shipped", help="Once per install: turn records held under a shipped agent's id into references, keeping a changed one as a named copy")
+    sort_shipped.add_argument("--dry-run", action="store_true", help="Print the plan and write nothing")
+    sort_shipped.add_argument("--name", dest="names", action="append", default=None, metavar="ID=NAME", help="The copy's name for a changed record (default '<shipped name> Beta'; a taken name refuses that record)")
+    sort_shipped.add_argument("--json", action="store_true")
+    sort_shipped.set_defaults(func=shipped_commands._cmd_persona_sort_shipped)
 
 
 def _add_persona_instance_verbs(persona_subs) -> None:
