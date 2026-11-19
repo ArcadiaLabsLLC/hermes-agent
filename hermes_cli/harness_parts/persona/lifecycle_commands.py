@@ -192,6 +192,7 @@ def _cmd_persona_instance_create(args) -> int:
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.agent_create import require_known_persona
+    from agent_runtime.agent_create.outcome import AGENT_NAME_TAKEN_REASON, AgentCreateNameTaken
     from agent_runtime.mission_chat_outcome import ChatErrorKind
     display_name = safe_assignment_text(getattr(args, "display_name", None), limit=120)
     add_instance = bool(getattr(args, "add_instance", False))
@@ -245,18 +246,25 @@ def _cmd_persona_instance_create(args) -> int:
                     _emit_persona_verb_payload(args, refusal)
                     return 2
             if independent:
+                from agent_runtime.agent_duplicate import AGENT_NAME_LOCK
+                from agent_runtime.locks import agent_create_lock
                 from agent_runtime.persona_assignments.independent import create_independent_agent
 
-                instance = create_independent_agent(
-                    PersonaInstanceStore(),
-                    source_persona_id=persona_id,
-                    source_instance_id=safe_assignment_token(getattr(args, "source_instance_id", None)) or None,
-                    placement_id=placement_id if add_instance else None,
-                    creation_key=safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or None,
-                    display_name=display_name,
-                    workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
-                    realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
-                )
+                # The name rule ``runtime.agent.create`` keeps, under its lock:
+                # a new agent never takes a name an agent already has
+                # (RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION).
+                with agent_create_lock(AGENT_NAME_LOCK):
+                    instance = create_independent_agent(
+                        PersonaInstanceStore(),
+                        source_persona_id=persona_id,
+                        source_instance_id=safe_assignment_token(getattr(args, "source_instance_id", None)) or None,
+                        placement_id=placement_id if add_instance else None,
+                        creation_key=safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or None,
+                        display_name=display_name,
+                        workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
+                        realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
+                        refuse_taken_name=True,
+                    )
             elif add_instance:
                 instance = PersonaInstanceStore().add_instance(
                     persona_id=persona_id,
@@ -277,6 +285,12 @@ def _cmd_persona_instance_create(args) -> int:
         except RetiredPersonaInstanceError as exc:
             data = _retired_persona_instance_payload(exc)
             _emit_persona_verb_payload(args, data)
+            return 2
+        except AgentCreateNameTaken as exc:
+            _emit_persona_verb_payload(
+                args,
+                {"ok": False, "error_kind": AGENT_NAME_TAKEN_REASON, "error": str(exc), "name": exc.name},
+            )
             return 2
         except (ValueError, OSError) as exc:
             _emit_persona_verb_payload(args, {"ok": False, "error_kind": "agent_create_refused", "error": str(exc)})

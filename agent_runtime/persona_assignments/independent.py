@@ -201,8 +201,16 @@ def create_independent_agent(
     realm_id: str | None = None,
     client_scope: str | None = None,
     correlation_id: str | None = None,
+    refuse_taken_name: bool = False,
 ) -> PersonaInstance:
-    """One identity per placement or explicit create intent, including retries."""
+    """One identity per placement or explicit create intent, including retries.
+
+    ``refuse_taken_name`` raises :class:`AgentCreateNameTaken` before anything is
+    written when a FRESH mint would take a name an agent already has; a retry of
+    the same key returns its own agent first and never meets its own name. The
+    caller holds ``AGENT_NAME_LOCK`` around the call, as ``runtime.agent.create``
+    does (row ``RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION``, seen 2026-11-19: two
+    copies of Base both named "Base Agent copy")."""
 
     if placement_id is None and workspace_id is not None:
         try:
@@ -236,6 +244,12 @@ def create_independent_agent(
         if existing is not None:
             _provision(source_persona_id, persona_id, profile, display_name, source_instance)
             return existing
+        if refuse_taken_name:
+            from ..agent_create.outcome import AgentCreateNameTaken
+            from ..agent_duplicate import name_is_taken
+
+            if name_is_taken(display_name):
+                raise AgentCreateNameTaken(display_name)
         instance_id = persona_instance_id_for_placement(placement)
         store.assert_bindable(
             persona_id=persona_id,
