@@ -28,6 +28,7 @@ __all__ = [
     "_system_exit_code",
     "bind_harness_parser",
     "dispatch_argv",
+    "harness_parser_bound",
 ]
 
 
@@ -138,6 +139,12 @@ def bind_harness_parser(build_parser: Callable[[Any], None]) -> None:
     _harness_parser_builder = build_parser
 
 
+def harness_parser_bound() -> bool:
+    """Whether a parser tree is bound: the embedded entry binds its own only when none is."""
+
+    return _harness_parser_builder is not None
+
+
 def _build_harness_parser() -> argparse.ArgumentParser:
     """A fresh top-level parser holding only the harness tree. Built per
     request: cheap next to any handler, and avoids sharing one parser
@@ -146,8 +153,8 @@ def _build_harness_parser() -> argparse.ArgumentParser:
     builder = _harness_parser_builder
     if builder is None:
         raise HarnessParserUnbound(
-            "the serve argv lane has no harness parser; the serve trampoline binds it "
-            "(bind_harness_parser) before serving"
+            "the serve argv lane has no harness parser; the serve trampoline (desktop) or "
+            "EmbeddedServe.start (phone) binds it (bind_harness_parser) before serving"
         )
     parser = argparse.ArgumentParser(prog="hermes")
     subparsers = parser.add_subparsers(dest="command")

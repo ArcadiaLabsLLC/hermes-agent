@@ -16,4 +16,22 @@ rpc (lanes): ``runtime.batch.plan|start|status|stop|land|approve``, console tier
 """
 
 __layer__ = "models"
-__all__: list[str] = []
+__all__ = ["DISPATCHER_MODULES", "dispatcher_shipped"]
+
+#: The modules ``dispatcher.default_dispatcher`` builds a serve's dispatcher from that no kept module
+#: imports at module level. The phone bundle ships this package (pinned: kept code imports
+#: ``dispatcher``, ``manifest`` and others at module level) but not these, so the package's presence
+#: is not the dispatcher's (RT-PHONE-WORK-ENGINE-START-FAILS-ON-A-MISSING-BATCH-MODULE).
+DISPATCHER_MODULES = (
+    "agent_runtime.batch.board_source",
+    "agent_runtime.batch.lander",
+    "agent_runtime.batch.lane_executor",
+)
+
+
+def dispatcher_shipped() -> bool:
+    """True when this installation can build the serve's batch dispatcher (every module it imports)."""
+
+    from agent_runtime.module_presence import shipped
+
+    return all(shipped(module) for module in ("agent_runtime.batch", *DISPATCHER_MODULES))

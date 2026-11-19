@@ -324,7 +324,8 @@ _owner: DiscussionService | None = None
 
 
 def bind(root: Path, home: Path, install_id: str) -> DiscussionService:
-    """Called only while holding the existing serve socket-owner lock."""
+    """Called only by the serve that owns the root: the socket-owner lock's holder, or the embedded serve
+    (an app process holds one serve and no socket lane)."""
     global _owner
     with _owner_lock:
         if _owner is not None:

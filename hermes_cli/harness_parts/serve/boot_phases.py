@@ -193,14 +193,32 @@ class BootPhases:
         if (self.shell.kind != "embedded" or self.store_root_path is None
                 or not self.install_block.get("install_id")):
             return
+        self._bind_conversation_owners("in the embedded serve")
+
+    def _bind_conversation_owners(self, where: str) -> None:
+        """Bind the ``runtime.conversation.*`` owner and the discussion service (Intelligence Chat's
+        ``runtime.discussion.*``), each fail-open: one that cannot bind must not take the other, or the
+        ordinary chat lane, down. The daemon binds both with its socket lane, the embedded serve at
+        boot — one method, so the embedded serve cannot bind one and miss the other
+        (RT-PHONE-DISCUSSION-SERVICE-NOT-BOUND-IN-THE-APP)."""
+
+        import logging as _owner_logging
+
         try:
             from agent_runtime.conversations.binding import bind as bind_conversations
             self.conversation_owner = bind_conversations(
                 self.store_root_path, self.install_block["install_id"])
         except Exception:
-            import logging as _conversation_logging
-            _conversation_logging.getLogger(__name__).warning(
-                "independent conversations unavailable in the embedded serve")
+            _owner_logging.getLogger(__name__).warning(
+                "independent conversations unavailable %s; Mission Control remains enabled", where)
+        try:
+            from agent_runtime.discussions.service import bind as bind_discussions
+            from agent_runtime.profile_home import get_hermes_head_home
+            self.discussion_owner = bind_discussions(
+                self.store_root_path, get_hermes_head_home(), self.install_block["install_id"])
+        except Exception:
+            _owner_logging.getLogger(__name__).warning(
+                "discussion runtime unavailable %s; ordinary chat remains enabled", where, exc_info=True)
 
     def _open_socket_lane(self, lock_result: Any) -> None:
         """This serve won the per-root lock: bind the lane and advertise it."""
@@ -213,27 +231,9 @@ class BootPhases:
 
         bind_local_llama(self.store_root_path, harness_root_config_path())
         self.local_llama_bound_root = self.store_root_path
-        try:
-            from agent_runtime.conversations.binding import bind as bind_conversations
-            self.conversation_owner = bind_conversations(
-                self.store_root_path, self.install_block["install_id"])
-        except Exception:
-            import logging as _conversation_logging
-            _conversation_logging.getLogger(__name__).warning(
-                "independent conversations unavailable; Mission Control remains enabled")
         # A corrupt optional discussion store must not take the
         # ordinary native socket/chat lane down with it.
-        try:
-            from agent_runtime.discussions.service import bind as bind_discussions
-            from agent_runtime.profile_home import get_hermes_head_home
-            self.discussion_owner = bind_discussions(
-                self.store_root_path, get_hermes_head_home(), self.install_block["install_id"])
-        except Exception:
-            import logging as _discussion_logging
-            _discussion_logging.getLogger(__name__).warning(
-                "discussion runtime unavailable; ordinary chat remains enabled",
-                exc_info=True,
-            )
+        self._bind_conversation_owners("on the socket lane")
         store_root_path = self.store_root_path
         self.socket_server = ServeSocketServer(
             store_root_path,

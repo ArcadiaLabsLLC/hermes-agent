@@ -312,6 +312,15 @@ class EmbeddedServe:
         from agent_runtime.phone_tls_trust import ensure_phone_tls_trust
 
         ensure_phone_tls_trust()  # Android/iOS: certifi's anchors, before any HTTPS client is built
+        from hermes_cli.harness_parts.chat_turn_argv import build_turn_parser
+        from hermes_cli.harness_parts.serve.argv_lane import bind_harness_parser, harness_parser_bound
+
+        # A chat turn runs as `harness mission-chat message` argv through the argv lane; the desktop's
+        # serve trampoline binds the whole tree, the phone binds the two turn verbs it ships
+        # (RT-PHONE-TURN-NEEDS-THE-HARNESS-PARSER). MUTATION: drop this bind and
+        # test_embedded_phone_session's reserved chat turn ends `dispatch_failed HarnessParserUnbound`.
+        if not harness_parser_bound():
+            bind_harness_parser(build_turn_parser)
         from hermes_cli._namespace_bootstrap import namespace_stamp
 
         _SERVING_NAMESPACE[:] = [namespace_stamp()] if namespace_stamp() else []
