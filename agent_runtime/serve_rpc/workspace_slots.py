@@ -124,6 +124,14 @@ def _slot_bind(params):
                 issued_at=_issued_at(params))
 
 
+@method("runtime.workspace.slot.unbind", tier=TIER_CONSOLE)
+@_guarded
+def _slot_unbind(params):
+    from agent_runtime.workspace_slots import unbind
+
+    return unbind(_workspace(params), str(params.get("slot") or ""))
+
+
 @method("runtime.workspace.slot.env.set", tier=TIER_CONSOLE)
 @_guarded
 def _slot_env_set(params):

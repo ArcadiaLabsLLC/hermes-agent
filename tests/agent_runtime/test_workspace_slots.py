@@ -135,6 +135,27 @@ def test_bind_writes_the_machine_root_and_reports(workspace, checkout):
     assert load_document(workspace)["slots"]["launcher"]["toolchain"] == {"kind": "flutter"}
 
 
+def test_unbind_forgets_only_the_local_folder_and_can_be_retried(workspace, checkout):
+    _declare(workspace, [_slot(), _slot("backend")])
+    params = {"workspace_id": workspace, "slot": "launcher"}
+    call("runtime.workspace.slot.bind", {**params, "path": str(checkout), "issued_at": ISSUED})
+    call("runtime.workspace.slot.bind", {**params, "slot": "backend", "path": str(checkout), "issued_at": ISSUED})
+    declarations = load_document(workspace)["slots"]
+
+    for _ in range(2):
+        reply = call("runtime.workspace.slot.unbind", params)
+        assert reply["result"] == {"slot": "launcher", "bound_here": False}
+
+    held = load_machine_roots(refresh=True)
+    assert held.workspace_root(workspace, "launcher") is None
+    assert held.workspace_root(workspace, "backend") == checkout
+    assert load_document(workspace)["slots"] == declarations
+    assert (checkout / ".git").exists()
+    here = call("runtime.workspace.slots.show", {"workspace_id": workspace})["result"]["here"]["launcher"]
+    assert here["path"] is None and here["bound_here"] is False
+    assert call("runtime.workspace.slot.bind", {**params, "path": str(checkout), "issued_at": LATER})["result"]["bound_here"]
+
+
 def test_a_mismatched_remote_still_binds_with_a_typed_warning(workspace, checkout):
     subprocess.run(["git", "-C", str(checkout), "remote", "set-url", "origin", "https://example.com/fork.git"], check=True)
     _declare(workspace, [_slot()])

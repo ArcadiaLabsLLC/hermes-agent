@@ -540,17 +540,24 @@ def resolve_slot(workspace_id: str | None, slot: str) -> ResolvedSlot | None:
     return ResolvedSlot(slot, body) if body is not None else None
 
 
-def _write_fill(slot: str, path: str, *, workspace_id: str) -> None:
+def _write_fill(slot: str, path: str | None, *, workspace_id: str) -> None:
     """THE slot fill write: ``slot_folders[ws][slot]``. It never writes a config root (plan
     machine-roots-two-halves §2.2): ``${roots.<slot>}`` reads the slot folder itself."""
 
     current = scoped_roots()
     scoped = {ws: dict(slots) for ws, slots in current.workspace_roots.items()}
-    scoped.setdefault(str(workspace_id), {})[slot] = path
+    fills = scoped.setdefault(str(workspace_id), {})
+    if path is None:
+        if fills.pop(slot, None) is None:
+            return
+        if not fills:
+            del scoped[str(workspace_id)]
+    else:
+        fills[slot] = path
     write_machine_roots(dict(current.roots), workspace_roots=scoped, dry_run=False)
     from .brain_paths import changed
 
-    changed("slot.bound")
+    changed("slot.unbound" if path is None else "slot.bound")
 
 
 def _bind_target(path: str) -> Path:
@@ -578,6 +585,17 @@ def bind(workspace_id: str, slot: str, path: str, *, issued_at: str) -> dict[str
     row = report(workspace_id, fresh_binds=frozenset({slot}))["slots"].get(slot, {})
     warnings = ["remote_mismatch"] if row.get("checkout") == "remote_mismatch" else []
     return {"slot": slot, "bound_here": True, "path": str(target), "report": row, "warnings": warnings, "issued_at": issued_at}
+
+
+def unbind(workspace_id: str, slot: str) -> dict[str, Any]:
+    """Clear this machine's folder link without deleting the checkout or the slot."""
+    if slot not in live_slots(load_document(workspace_id)):
+        raise SlotRefused(REASON_SLOT_NOT_DECLARED, f"{workspace_id} declares no slot {slot!r}")
+    _write_fill(slot, None, workspace_id=workspace_id)
+    from .workspace_slots_probe import report
+
+    report(workspace_id)
+    return {"slot": slot, "bound_here": False}
 
 
 def show(workspace_id: str) -> dict[str, Any]:
