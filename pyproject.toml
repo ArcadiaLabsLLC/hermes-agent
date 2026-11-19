@@ -786,7 +786,9 @@ pm = ["lock.json", "artifact-mirror.json", "pyproject.toml", "uv.lock"]
 tools = ["bot_desktop/launcher.sh", "bot_desktop/wallpaper.png"]
 # Bundle profile manifests: agent/prompt_builder.py derives the phone platform hint from
 # bundle_profiles/bundled-phone.yaml at import, so a sealed wheel without them cannot import it.
-agent_runtime = ["bundle_profiles/*.yaml", "bundle_profiles/*.json"]
+# seed_souls/: the generic SOUL `harness init` gives a fresh root's Neko Mission Lead
+# (agent_runtime/fresh_install_seed.py reads it via Path(__file__).parent).
+agent_runtime = ["bundle_profiles/*.yaml", "bundle_profiles/*.json", "seed_souls/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
