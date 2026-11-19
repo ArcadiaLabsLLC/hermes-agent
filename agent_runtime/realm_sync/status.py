@@ -54,6 +54,7 @@ from .sidecar import (
     _write_sync_sidecar,
 )
 from .skill_inbox import _held_skill_packages_for_realm
+from .adoption import store_adopted
 from .workspace_changes import workspace_publish_changes
 from .publish import publish_set_changes
 
@@ -129,6 +130,18 @@ def realm_sync_status(
     record_converged_skill_baselines(realm.id, _realm_inbox_dir(realm.id))
     skills_drift = _held_skill_packages_for_realm(realm)
     state = _sync_state(git)
+    # The clone may hold a team commit the store has not adopted yet (``adoption``): then the
+    # store-vs-clone compares below would name the teammate's change as this machine's, so the
+    # realm reads "behind" (a pull adopts it) and nothing reads unpublished until it has
+    # (RT-REALM-STATUS-READS-AN-UNADOPTED-PULL-AS-UNPUBLISHED).
+    # MUTATION: answer True here and
+    # test_a_pull_merged_but_not_adopted_reads_pull_and_publish_refuses_until_the_pull_finishes reddens.
+    adopted = store_adopted(repo, realm.id)
+    if not adopted:
+        if state != "conflict":
+            state = "behind"
+        workspace_statuses = [
+            {**row, "state": "behind"} if row.get("state") == "unpublished" else row for row in workspace_statuses]
     store_drift = _status_store_drift(realm.id, workspaces)
     profile_artifacts_held = _held_profile_artifacts(realm, repo)
     level_row = _level_status_row(realm.id, workspaces)
@@ -151,6 +164,9 @@ def realm_sync_status(
         "id": realm.id,
         "kind": "realm_sync",
         "state": state,
+        # Additive: whether this machine's store has adopted every commit its sync clone holds for
+        # this realm. False means a pull is owed even when ``behind`` (git's count) reads 0.
+        "store_adopted": adopted,
         "ahead": git["ahead"],
         "behind": git["behind"],
         # Additive honesty pair for the fetch above (absent-tolerant consumers):
@@ -201,7 +217,7 @@ def realm_sync_status(
         # launcher had just saved, and every consumer of this flag — the
         # launcher's sheet, its chip, its auto-publish gate — then said there
         # was nothing to publish.
-        "unpublished_changes": bool(
+        "unpublished_changes": adopted and bool(
             _any_store_drift(store_drift)
             or level_row["unpublished"]
             or map_row["unpublished"]

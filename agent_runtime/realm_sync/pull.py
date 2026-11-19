@@ -132,6 +132,13 @@ def _pull_realm_sync(
     for applier in PULL_APPLIERS:
         if applier.apply(run):
             run.changed = True
+    # Every applier finished: the store now holds what the clone holds (``adoption``). A pull that
+    # raised above leaves the marker where it was, so status reads "pull", and publish refuses.
+    # MUTATION: record before the appliers and
+    # test_a_pull_merged_but_not_adopted_reads_pull_and_publish_refuses_until_the_pull_finishes reddens.
+    from .adoption import record_adopted_head
+
+    record_adopted_head(repo)
     if run.changed:
         from ..brain_paths import changed
 

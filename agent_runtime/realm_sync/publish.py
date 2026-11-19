@@ -127,6 +127,13 @@ def _publish_realm_sync(
         raise RealmSyncError("sync_conflict", "Realm sync repo has unresolved git conflicts.", safe_details={"conflicts": git["conflicts"]})
     if git["behind"] > 0:
         raise RealmSyncError("sync_behind", "Realm sync repo is behind its upstream; pull before publishing.", retryable=True, safe_details={"behind": git["behind"]})
+    from .adoption import store_adopted
+
+    if not store_adopted(repo, realm.id):
+        # The clone holds a commit the store has not adopted (a pull that did not finish, or a clone
+        # a read made before any pull): exporting the store now would write its older documents over
+        # the team's (RT-REALM-STATUS-READS-AN-UNADOPTED-PULL-AS-UNPUBLISHED). A pull adopts it.
+        raise RealmSyncError("sync_not_adopted", "This machine has fetched realm changes it has not applied yet; pull before publishing.", retryable=True, safe_details={})
     resolved = _resolve_artifacts_with_projection(realm_id)
     artifacts = resolved.artifacts
     _assert_no_secret_artifacts(artifacts)
@@ -239,6 +246,11 @@ def _stage_commit_and_push(
         member = credential.member_public_id if credential is not None else ""
         trailer = (f"{PUBLISHER_TRAILER}: {member}",) if member else ()
         git.commit(f"Publish realm sync {realm.id}", trailer)
+        # The commit's subtree is the store's export: adopted by construction (``adoption``), and
+        # recorded before the push, so a push that fails leaves the member's own commit adopted.
+        from .adoption import record_adopted_head
+
+        record_adopted_head(repo)
         if not realm.server_id and not _has_remote(repo):
             # A local realm whose sync repository has no remote (one that never had a personal repository, or
             # a server's realm you left: ``make_realm_local`` dropped its address): the commit IS the publish.

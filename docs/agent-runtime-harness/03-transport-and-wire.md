@@ -1586,6 +1586,8 @@ publish's own set (`artifacts._workspaces_for_realm`, the delete ledger already 
 with the clone's realm subtree — `agent_runtime/realm_sync/workspace_changes.py`; both keys are additive and
 absent-tolerant.
 
+`store_adopted` (RT-REALM-STATUS-READS-AN-UNADOPTED-PULL-AS-UNPUBLISHED) says whether this machine's store has adopted every commit its sync clone holds for the realm (`realm_sync/adoption.py`: the clone commit the last finished pull or the last publish's own commit recorded, against the newest commit touching the realm's subtree). False means the clone moved ahead of the store — a pull whose appliers did not finish, or a clone a read made before any pull — so `state` reads `behind` even when git's `behind` is 0, `unpublished_changes` is false, a workspace row that would read `unpublished` reads `behind`, and `publish` refuses `sync_not_adopted` until a pull adopts it.
+
 `publish_changes` is the backstop under every family (RT-REALM-SLOTS-ADDED-WAIT-UNSEEN-UNTIL-A-HAND-PUBLISH): the
 subtree-relative paths the next publish would add, rewrite or remove, by the publish's own compare of what it
 would write against the clone (`realm_sync/publish.py::publish_set_changes`), sorted. Any path lights

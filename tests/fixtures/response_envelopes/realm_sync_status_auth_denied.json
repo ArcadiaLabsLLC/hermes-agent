@@ -70,6 +70,7 @@
     "skills_published": 0,
     "skipped_workspaces": [],
     "state": "ahead",
+    "store_adopted": true,
     "store_drift": {
       "boards": {
         "boards_changed": 0,
