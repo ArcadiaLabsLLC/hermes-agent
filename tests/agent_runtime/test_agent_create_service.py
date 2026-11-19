@@ -240,25 +240,33 @@ def test_the_rpc_handler_holds_no_second_copy_of_the_sequence():
 
     from agent_runtime import serve_rpc
 
-    source = inspect.getsource(serve_rpc._runtime_agent_create)
+    from agent_runtime.serve_rpc import agent as agent_verbs
 
-    for forbidden in (
-        "add_instance",
-        "upsert_actor",
-        "reserve_agent_create",
-        "mark_instance_minted",
-        "mark_done",
-        "class_key_collision",
-        "placement_actor_payload",
+    # Both seating verbs (create, and since 2026-11-19 place) are shims over the
+    # ONE sequence and share ONE envelope, ``_placed_reply``.
+    envelope = inspect.getsource(agent_verbs._placed_reply)
+    for handler, service in (
+        (serve_rpc._runtime_agent_create, "perform_agent_create"),
+        (agent_verbs._runtime_agent_place, "perform_agent_place"),
     ):
-        assert forbidden not in source, (
-            f"{forbidden!r} is back inside the RPC handler: the create sequence "
-            "has a second copy again, and the two lanes can now drift."
-        )
-    assert "perform_agent_create" in source
+        source = inspect.getsource(handler)
+        for forbidden in (
+            "add_instance",
+            "upsert_actor",
+            "reserve_agent_create",
+            "mark_instance_minted",
+            "mark_done",
+            "class_key_collision",
+            "placement_actor_payload",
+        ):
+            assert forbidden not in source + envelope, (
+                f"{forbidden!r} is back inside the RPC handler: the create sequence "
+                "has a second copy again, and the two lanes can now drift."
+            )
+        assert service in source and "_placed_reply(" in source
     # Guard the guard: a handler that had been emptied entirely would satisfy
     # every assertion above.
-    assert "err(" in source and "ok(" in source
+    assert "err(" in envelope and "ok(" in envelope
 
 
 def test_verb_authors_no_desk(qa_persona):
