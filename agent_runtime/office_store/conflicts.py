@@ -30,6 +30,7 @@ __layer__ = "stores"
 __all__ = [
     "_guard_no_conflict",
     "resolve_conflict",
+    "retire_hold",
     "scan_conflicts",
 ]
 
@@ -251,6 +252,27 @@ def resolve_conflict(
             revision=getattr(result_actor, "revision", None),
         )
     return result_actor
+
+
+def retire_hold(store: OfficeStore, workspace_id: str, actor_key: str) -> bool:
+    """Retire a held desk's sidecar because a later PULL found the key is no longer a conflict (only one side
+    changed, both converged, or the team's copy is back at the baseline). The pull that creates a hold is the one
+    owner of retiring it (RT-REALM-HELD-DESK-THE-TEAM-PUT-BACK-STILL-SAYS-DELETED, review w1118a.40 D17): a
+    sidecar left behind said the team had deleted a desk it had put back, and Take theirs archived that desk.
+
+    Archived to ``.resolved.json`` like a resolve's, and the conflict ledger row goes to live clients the same
+    way, so the sync strip's pill clears. Returns whether there was a hold to retire.
+    """
+
+    wsid = safe_id(workspace_id)
+    if not wsid or not paths.office_conflict_path(wsid, actor_key).exists():
+        return False
+    with office_lock(wsid):
+        if not paths.office_conflict_path(wsid, actor_key).exists():
+            return False
+        _archive_actor_conflict_sidecar(wsid, actor_key)
+        store._emit_conflict_resolved_patch(wsid, actor_key)
+    return True
 
 
 def _guard_no_conflict(store: OfficeStore, workspace_id: str, actor_key: str) -> None:

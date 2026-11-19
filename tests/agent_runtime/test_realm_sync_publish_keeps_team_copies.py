@@ -284,3 +284,41 @@ def test_taking_the_teams_restored_desk_leaves_nothing_to_publish(team):
     assert taken.items[0].position[0] == -4.0
     drift = _office_drift(shared.id)
     assert (drift["offices_changed"], drift["actors_changed"], drift["actors_removed"], drift["actors_added"]) == (0, 0, 0, 0)
+
+
+def test_a_desk_the_team_put_back_is_no_longer_held(team):
+    """RT-REALM-HELD-DESK-THE-TEAM-PUT-BACK-STILL-SAYS-DELETED (review w1118a.40 D17). Bob moves the desk; Alice
+    deletes it and publishes; Bob's pull holds it. Alice puts it back as it was and publishes. Bob's next pull
+    retires the hold: no sidecar, no ``conflict_kinds`` entry, and Bob's move reads as his to publish — and
+    publishing it ships the move.
+
+    Mutation: drop the ``_retire_hold`` call in the pull's KEEP_LOCAL arm -> red: the hold is still there."""
+
+    from agent_runtime.events import EventLog
+    from agent_runtime.snapshot import build_snapshot
+
+    shared, workspace = _shared_workspace(team, members=("bob",))
+    team.be("bob")
+    _desk(workspace.id, 9.5)
+    team.be("alice")
+    OfficeStore().remove_actor(workspace.id, "dev")
+    publish_realm_sync(shared.id)
+    team.be("bob")
+    assert [row["actor_key"] for row in pull_realm_sync(shared.id)["office_sync"]["held"]] == ["dev"]
+
+    team.be("alice")
+    OfficeStore().restore_actor(workspace.id, "dev")
+    publish_realm_sync(shared.id)
+
+    team.be("bob")
+    pulled = pull_realm_sync(shared.id)["office_sync"]
+    assert pulled["held"] == []
+    assert pulled["holds_retired"] == [{"workspace_id": workspace.id, "actor_key": "dev"}]
+    assert not paths.office_conflict_path(workspace.id, "dev").exists()
+    row = build_snapshot(event_log=EventLog())["offices"][workspace.id]
+    assert (row["conflict_actor_keys"], row["conflict_kinds"]) == ([], {})
+    assert _office_drift(shared.id)["actors_changed"] == 1
+
+    assert publish_realm_sync(shared.id)["state"] == "published"
+    (body,) = _remote_files(team, shared, "/actors/").values()
+    assert json.loads(body)["items"][0]["position"][0] == 9.5

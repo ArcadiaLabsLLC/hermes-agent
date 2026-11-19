@@ -321,6 +321,9 @@ class OfficePullSummary:
     #: workspace, the actor key and why (``edit_vs_remove``: edited here, deleted by the team), so a pull that
     #: met a teammate's delete says which desk (TASK-REALM-DELETE-MEETS-AN-EDIT). Additive.
     held: list[dict[str, str]] = None  # type: ignore[assignment]
+    #: Holds an earlier pull left that this pull RETIRED because the key is no longer a conflict (review
+    #: w1118a.40 D17). Additive.
+    holds_retired: list[dict[str, str]] = None  # type: ignore[assignment]
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -330,6 +333,7 @@ class OfficePullSummary:
             "archived": self.archived,
             "conflicts": self.conflicts,
             "held": list(self.held or []),
+            "holds_retired": list(self.holds_retired or []),
             "workspaces": list(self.workspaces or []),
             "refused": list(self.refused or []),
             "unknowable": list(self.unknowable or []),
@@ -506,9 +510,14 @@ def _reconcile_actors(
             locally_archived=actor_key in archived_keys,
         )
         if decision.action == PullAction.NOOP:
+            _retire_hold(store, summary, workspace_id, actor_key)
             continue
         if decision.action == PullAction.KEEP_LOCAL:
             summary.kept_local += 1
+            # The team's side is back at the baseline (a desk it deleted, put back as it was): only this
+            # member changed it, so the hold a pull left is retired and the move stays theirs to publish.
+            # MUTATION: drop this call and test_a_desk_the_team_put_back_is_no_longer_held reddens.
+            _retire_hold(store, summary, workspace_id, actor_key)
             continue
         if decision.action == PullAction.WRITE_REMOTE and remote_actor is not None:
             remote_actor.workspace_id = workspace_id
@@ -519,6 +528,7 @@ def _reconcile_actors(
             # GAVE you one was visible to none.
             store.adopt_remote_actor(remote_actor)
             baseline[key] = remote_hash or office_models.office_content_hash(remote_actor)
+            _retire_hold(store, summary, workspace_id, actor_key)
             if decision.reason == "converged":
                 summary.converged += 1
             else:
@@ -575,6 +585,7 @@ def _reconcile_actors(
             )
             # The baseline entry leaves WITH the row, and only with it.
             baseline.pop(key, None)
+            _retire_hold(store, summary, workspace_id, actor_key)
             continue
         if decision.action == PullAction.CONFLICT:
             _write_conflict_sidecar(
@@ -590,6 +601,16 @@ def _reconcile_actors(
             continue
 
 
+def _retire_hold(store: OfficeStore, summary: OfficePullSummary, workspace_id: str, actor_key: str) -> None:
+    """A key this pull decided is no longer a conflict retires the hold an earlier pull left on it (review
+    w1118a.40 D17: the pull that creates a hold owns retiring it), and the summary names it."""
+
+    if store.retire_hold(workspace_id, actor_key):
+        if summary.holds_retired is None:
+            summary.holds_retired = []
+        summary.holds_retired.append({"workspace_id": workspace_id, "actor_key": actor_key})
+
+
 def apply_office_pull(realm_id: str, subtree: Path, *, event_log: EventLog | None = None) -> OfficePullSummary:
     """Apply the per-actor decision table across every office surface in the
     pulled realm subtree. Updates the baseline for converged/adopted actors,
@@ -602,7 +623,7 @@ def apply_office_pull(realm_id: str, subtree: Path, *, event_log: EventLog | Non
     store = OfficeStore(event_log=event_log)
     baseline = read_office_baseline(realm_id)
     summary = OfficePullSummary(
-        workspaces=[], refused=[], unknowable=[], delete_fenced=[], archive_outcomes=[], held=[]
+        workspaces=[], refused=[], unknowable=[], delete_fenced=[], archive_outcomes=[], held=[], holds_retired=[]
     )
     office_root = subtree / "store" / "office"
     if not office_root.exists():
