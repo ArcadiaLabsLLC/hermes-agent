@@ -12,8 +12,13 @@ which is the app's own folder.
 
 Host contract (the Stage 3 C shim is its caller):
 
+0. :func:`delete_namespace` for every account whose agent data the host recorded for removal
+   (RT-PHONE-NAMESPACE-DELETE-BEFORE-SERVE): the desktop's ``hermes namespace delete``, run in this
+   interpreter while it is in no namespace, answering the CLI's own JSON;
 1. :func:`configure_app_folder` once, before anything reads ``HERMES_HOME`` —
-   module-level constants resolve it at import;
+   module-level constants resolve it at import. ``namespace=`` names the signed-in account's
+   namespace (``<app>/hermes-namespaces/<id>``, resolved as the desktop CLI resolves it); without
+   it the Hermes home is the base root ``<app>/hermes``;
 2. ``agent_runtime.host_store.binding.bind_host_store(...)`` with the OS secure
    store's callbacks, over a store root that contains the app folder's Hermes home,
    INCLUDING ``protect_history_dir``: :meth:`EmbeddedServe.start` hands it the Hermes
@@ -72,6 +77,7 @@ __all__ = [
     "InMemoryPipe",
     "app_folder_environment",
     "configure_app_folder",
+    "delete_namespace",
     "protect_history_folder",
     "require_bound_host_store",
 ]
@@ -90,15 +96,94 @@ def app_folder_environment(app_dir: Path) -> dict[str, str]:
     return {"HERMES_HOME": str(home), "HERMES_AGENT_RUNTIME_ROOT": str(home / "agent-runtime")}
 
 
-def configure_app_folder(app_dir: Path,
-                         environ: MutableMapping[str, str] = os.environ) -> dict[str, str]:
-    """Point this interpreter's Hermes home and store root at ``app_dir``; create both."""
+#: The namespace the embedded serve of this process runs in, set by :meth:`EmbeddedServe.start`
+#: (empty before it, and for a serve over the base root). The serve starts once and cannot be
+#: stopped, so that namespace is held until the process ends: :func:`delete_namespace` refuses it
+#: as the CLI refuses its own.
+_SERVING_NAMESPACE: list[str] = []
 
-    values = app_folder_environment(app_dir)
-    for path in values.values():
-        Path(path).mkdir(parents=True, exist_ok=True)
+
+def _app_base_environment(app_dir: Path) -> dict[str, str]:
+    """The environment of a process in NO namespace over ``app_dir``: the base root ``<app>/hermes``,
+    whose namespaces dir is ``<app>/hermes-namespaces``. The app is its own launcher, so no active
+    record is read (``HERMES_LAUNCHER_SPAWNED=1``)."""
+
+    from hermes_cli._namespace_bootstrap import DEPENDENCY_ENV, LAUNCHER_ENV
+
+    base = app_folder_environment(app_dir)["HERMES_HOME"]
+    return {"HERMES_HOME": base, DEPENDENCY_ENV: base, LAUNCHER_ENV: "1"}
+
+
+def app_namespace_environment(app_dir: Path, namespace: str, origin: str | None = None) -> dict[str, str]:
+    """The environment that puts this interpreter in ``namespace`` over ``app_dir``, or a typed refusal.
+
+    The desktop CLI's own resolution (``_namespace_bootstrap.resolve_cli`` → ``ensure_manifest`` →
+    ``env_updates``), never a second one: the same home, store root, head home and fences. The store
+    epoch is guarded as the serve guards it, BEFORE the manifest is written, so a refusal
+    (``namespace_epoch_newer``; a phone has no consent path for a raise) writes nothing.
+    """
+
+    from agent_runtime.namespace_admin import epoch_admitted
+    from hermes_cli._namespace_bootstrap import (
+        ENV,
+        ORIGIN_ENV,
+        NamespaceRefused,
+        Reason,
+        ensure_manifest,
+        env_updates,
+        requested_origin,
+        resolve_cli,
+    )
+
+    env = {**_app_base_environment(app_dir), ENV: namespace, **({ORIGIN_ENV: origin} if origin else {})}
+    resolution = resolve_cli([], env)
+    if resolution.layout is None:
+        raise NamespaceRefused(Reason.RESERVED, f"{namespace!r} names the base root, not a namespace; "
+                                                "configure without a namespace for the base root")
+    epoch_admitted(resolution.layout, env, write=True)
+    ensure_manifest(resolution.layout, requested_origin(env))
+    return {**env, **env_updates(resolution, env)}
+
+
+def configure_app_folder(app_dir: Path,
+                         environ: MutableMapping[str, str] = os.environ, *,
+                         namespace: str | None = None, origin: str | None = None) -> dict[str, str]:
+    """Point this interpreter's Hermes home and store root at ``app_dir``; create both.
+
+    With ``namespace``, inside that namespace of ``app_dir`` (:func:`app_namespace_environment`);
+    a ``NamespaceRefused`` reaches the host with ``environ`` untouched — never a fallback to the
+    base root.
+    """
+
+    values = (app_folder_environment(app_dir) if namespace is None
+              else app_namespace_environment(app_dir, namespace, origin))
+    for key in ("HERMES_HOME", "HERMES_AGENT_RUNTIME_ROOT"):
+        Path(values[key]).mkdir(parents=True, exist_ok=True)
     environ.update(values)
     return values
+
+
+def delete_namespace(app_dir: Path, ns_id: str) -> dict[str, Any]:
+    """Remove namespace ``ns_id`` of ``app_dir``: ``hermes namespace delete``, in this interpreter.
+
+    The phone has no CLI process to spawn, so the host calls this before :meth:`EmbeddedServe.start`
+    (the process is then in no namespace). Returns the verb's dict, or the refusal's payload — the
+    same JSON the CLI prints: ``namespace_not_found``, ``namespace_reserved`` (``base``),
+    ``namespace_invalid_id``, ``namespace_busy``, and ``namespace_in_use_by_this_process`` for the
+    namespace this process's embedded serve runs in. ``os.environ`` is never read or written.
+    """
+
+    from agent_runtime import namespace_admin
+    from hermes_cli._namespace_bootstrap import ENV, NamespaceRefused
+
+    env = _app_base_environment(app_dir)
+    # MUTATION: drop this line and test_phone_namespace_delete_before_serve's "the served namespace is
+    # refused after start" reddens (the delete empties the namespace the serve runs in).
+    env.update({ENV: _SERVING_NAMESPACE[0]} if _SERVING_NAMESPACE else {})
+    try:
+        return namespace_admin.delete(ns_id, env)
+    except NamespaceRefused as exc:
+        return exc.payload()
 
 
 class InMemoryPipe:
@@ -224,6 +309,9 @@ class EmbeddedServe:
         from agent_runtime.phone_tls_trust import ensure_phone_tls_trust
 
         ensure_phone_tls_trust()  # Android/iOS: certifi's anchors, before any HTTPS client is built
+        from hermes_cli._namespace_bootstrap import namespace_stamp
+
+        _SERVING_NAMESPACE[:] = [namespace_stamp()] if namespace_stamp() else []
         self._thread = threading.Thread(target=self._run, name="hermes-embedded-serve", daemon=True)
         self._thread.start()
 

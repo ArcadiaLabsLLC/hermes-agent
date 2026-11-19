@@ -55,3 +55,33 @@ def test_the_dev_only_modules_exist_so_their_absence_is_not_vacuous():
     from scripts.bundle_profile_closure import module_index
 
     assert DEV_ONLY_MODULES <= set(module_index())
+
+
+
+#: RT-PHONE-NAMESPACE-DELETE-BEFORE-SERVE (S4): the phone host deletes a removed account's namespace in
+#: its own interpreter before the embedded serve starts, so the phone bundle carries the verb.
+PHONE_NAMESPACE_MODULES = {
+    "agent_runtime.namespace_admin",
+    "hermes_cli._namespace_bootstrap",
+    "agent_runtime.store_epoch",
+    "agent_runtime.file_locks",
+}
+PHONE_SWITCHED_OFF = ("agent_runtime.serve_registry", "agent_runtime.serve_socket")
+
+
+@pytest.mark.timeout(300)
+def test_the_phone_closure_keeps_the_namespace_delete_and_it_needs_no_daemon_module():
+    """Red when the phone walk leaves ``namespace_admin`` out (the entry's lazy import dropped), or when
+    ``namespace_admin`` reaches the switched-off serve registry / socket lane unguarded: the delete runs
+    before ``EmbeddedServe.start`` mounts anything, so such an import would fail on the phone. (Other
+    kept modules reach them lazily and unguarded today; those run only inside a started serve.)"""
+    from scripts.bundle_profile_closure import profile_walk
+
+    walk, _index = profile_walk(load_profile("bundled-phone"), parents=True)
+    assert "hermes_cli.harness_parts.serve.in_memory" in walk.kept  # positive control: the phone entry
+    assert PHONE_NAMESPACE_MODULES - walk.kept == set()
+    assert walk.unguarded_into_pruned  # positive control: the walk records unguarded edges at all
+    edges = [e for e in walk.unguarded_into_pruned
+             if e["module"] == "agent_runtime.namespace_admin" and e["target"].startswith(PHONE_SWITCHED_OFF)]
+    assert edges == []
+    assert {m for m in walk.pinned if m.startswith(PHONE_SWITCHED_OFF)} == set()

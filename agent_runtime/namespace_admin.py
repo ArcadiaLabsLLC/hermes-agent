@@ -18,11 +18,11 @@ import os
 import shutil
 import stat
 import sys
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from hermes_cli._namespace_bootstrap import (
     ENV,
@@ -40,10 +40,50 @@ from hermes_cli._namespace_bootstrap import (
 
 from . import store_epoch
 from .file_locks import LockUnavailable, try_lock_exclusive, unlock
-from .serve_registry import CLASSIFICATION_LIVE, CLASSIFICATION_UNKNOWN, list_serve_instances, serve_instances_dir
-from .serve_socket.owner_lock import socket_lock_path, socket_owner_path
 
 __layer__ = "lanes"
+
+
+class _ServeEvidence(NamedTuple):
+    """Where a SEPARATE serve process leaves its marks in a store root (each ``None`` / empty: no such mark)."""
+
+    lock_path: Callable[[Path], Path | None]
+    owner_path: Callable[[Path], Path | None]
+    busy_rows: Callable[[Path], list[dict[str, Any]]]
+    instances_dir: Callable[[Path], Path | None]
+
+
+_NO_SEPARATE_SERVE = _ServeEvidence(lambda _root: None, lambda _root: None, lambda _root: [], lambda _root: None)
+
+
+def _separate_serve_evidence() -> _ServeEvidence:
+    """The socket lock and the serve registry, or the phone's truth when they are not in this build.
+
+    RT-PHONE-NAMESPACE-DELETE-BEFORE-SERVE: the bundled phone profile switches off
+    ``agent_runtime.serve_registry`` and ``agent_runtime.serve_socket`` (``bundled-phone.yaml``,
+    ``switched_off_modules``) with the daemon shell. A phone has no separate serve process — its one
+    serve is embedded in the host's process, writes no pid row and opens no socket — so there is no
+    lock file to hold and no registry row to read. Imported here, never at module level, so the phone
+    host can run ``delete`` before ``EmbeddedServe`` starts. On the desktop both modules are always there.
+    """
+    # MUTATION: move these two imports back to module level and test_phone_namespace_delete_before_serve's
+    # "namespace_admin imports and deletes without the switched-off modules" reddens (ImportError).
+    try:
+        from .serve_registry import (
+            CLASSIFICATION_LIVE,
+            CLASSIFICATION_UNKNOWN,
+            list_serve_instances,
+            serve_instances_dir,
+        )
+        from .serve_socket.owner_lock import socket_lock_path, socket_owner_path
+    except ImportError:
+        return _NO_SEPARATE_SERVE
+
+    def busy_rows(store_root: Path) -> list[dict[str, Any]]:
+        return [row for row in list_serve_instances(store_root)
+                if row.get("classification") in (CLASSIFICATION_LIVE, CLASSIFICATION_UNKNOWN)]
+
+    return _ServeEvidence(socket_lock_path, socket_owner_path, busy_rows, serve_instances_dir)
 
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
@@ -88,8 +128,8 @@ def existing_namespace(ns_id: str, env: Mapping[str, str]) -> Layout:
 
 def busy_reason(item: Layout) -> str | None:
     """Why a serve may be using this namespace now, or ``None``. Unclassifiable counts as busy."""
-    lock = socket_lock_path(item.store_root)
-    if lock.is_file():
+    lock = _separate_serve_evidence().lock_path(item.store_root)
+    if lock is not None and lock.is_file():
         with open(lock, "a+b") as handle:
             try:
                 try_lock_exclusive(handle)
@@ -102,9 +142,9 @@ def busy_reason(item: Layout) -> str | None:
 @contextmanager
 def _exclusive(item: Layout) -> Iterator[None]:
     """Hold the namespace's socket lock for the body, or refuse ``namespace_busy``."""
-    lock = socket_lock_path(item.store_root)
+    lock = _separate_serve_evidence().lock_path(item.store_root)
     handle = None
-    if lock.is_file():
+    if lock is not None and lock.is_file():
         handle = open(lock, "a+b")
         try:
             try_lock_exclusive(handle)
@@ -123,9 +163,8 @@ def _exclusive(item: Layout) -> Iterator[None]:
 
 
 def _rows_busy(item: Layout) -> str | None:
-    for row in list_serve_instances(item.store_root):
-        if row.get("classification") in (CLASSIFICATION_LIVE, CLASSIFICATION_UNKNOWN):
-            return f"serve_instance_{row.get('classification')}:{row.get('pid')}"
+    for row in _separate_serve_evidence().busy_rows(item.store_root):
+        return f"serve_instance_{row.get('classification')}:{row.get('pid')}"
     return None
 
 
@@ -150,7 +189,7 @@ def _rm(path: Path) -> None:
 
 def _empty_keeping_lock(item: Layout) -> None:
     """Remove every entry of the namespace except the manifest and the (held) socket lock file."""
-    lock = socket_lock_path(item.store_root)
+    lock = _separate_serve_evidence().lock_path(item.store_root)
     for entry in item.root.iterdir():
         if entry.name == MANIFEST_NAME:
             continue
@@ -188,7 +227,9 @@ def reset(ns_id: str, env: Mapping[str, str]) -> dict[str, Any]:
     item, made = _resettable(ns_id, env)
     with _exclusive(item):
         _empty_keeping_lock(item)
-    _rm(socket_lock_path(item.store_root))
+    lock = _separate_serve_evidence().lock_path(item.store_root)
+    if lock is not None:
+        _rm(lock)
     if item.store_root.is_dir() and not any(item.store_root.iterdir()):
         item.store_root.rmdir()
     origin = namespace_origin(_namespace_manifest(item), item.id)  # a reset keeps what kind of namespace it is
@@ -222,9 +263,10 @@ def _namespace_bytes(root: Path) -> int:
 
 
 def _last_serve(item: Layout) -> str | None:
-    marks = [socket_owner_path(item.store_root)]
-    folder = serve_instances_dir(item.store_root)
-    if folder.is_dir():
+    evidence = _separate_serve_evidence()
+    marks = [mark for mark in (evidence.owner_path(item.store_root),) if mark is not None]
+    folder = evidence.instances_dir(item.store_root)
+    if folder is not None and folder.is_dir():
         marks.extend(folder.iterdir())
     times = [p.stat().st_mtime for p in marks if p.is_file()]
     return datetime.fromtimestamp(max(times), UTC).isoformat(timespec="seconds") if times else None

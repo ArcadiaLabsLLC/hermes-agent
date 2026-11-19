@@ -7,7 +7,7 @@ profile (`agent_runtime/bundle_profiles/bundled-phone.yaml`). Parent plan: Etern
 (RULED 2026-11-16: A, "yes namespaces like the desktop").
 **Row:** `RT-PHONE-NAMESPACE-DELETE-BEFORE-SERVE` (group `phone-harness`, Eternia's `TASK-PHONE-HARNESS`). Its close
 wakes Eternia's `MC-PHONE-ENGINE-REMOVE-AGENT-DATA-ON-NEXT-START`.
-**Status:** PLANNED (lane w1118a-hphone); nothing built. **Read:** 2026-11-19 against hermes `origin/main` 99b433cdf2.
+**Status:** BUILT 2026-11-19 (lane w1118a-hphone): S1-S4 as below; one change from S3 — after start only the served namespace is refused (the CLI's own `_refuse_own`), not every delete. **Read:** 2026-11-19 against hermes `origin/main` 99b433cdf2.
 No owner decision is needed: every choice below is harness-internal, and the one owner question (A or B) is ruled.
 
 ## 1. What is true today (read in code)
