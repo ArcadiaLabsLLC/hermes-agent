@@ -657,6 +657,25 @@ def test_the_phone_native_libraries_load_before_the_serve_thread(app, monkeypatc
     assert serve_thread not in seen[0]
 
 
+def test_the_phone_tls_anchors_are_named_before_the_serve_thread(app, monkeypatch):
+    """A phone's OpenSSL store is empty, so the phone entry names certifi's bundle
+    (``agent_runtime.phone_tls_trust``, RT-PHONE-TLS-TRUST-UNPROVEN) before its serve thread starts,
+    so no request can build an HTTPS client first."""
+    from agent_runtime import phone_tls_trust
+
+    seen: list = []
+    monkeypatch.setattr(phone_tls_trust, "ensure_phone_tls_trust",
+                        lambda: seen.append(frozenset(threading.enumerate())))
+    FakeHostSecureStore().bind(profile="phone", store_root=app)
+    serve = EmbeddedServe(lambda _line: None)
+    serve.start()
+    serve_thread = serve._thread
+    serve.close()
+    assert serve.wait(60) is not None
+    assert serve_thread is not None and len(seen) == 1
+    assert serve_thread not in seen[0]
+
+
 def test_the_phone_entry_serves_the_phone_platform_hint(app, monkeypatch):
     """The phone agent is told its limits through upstream's ``PLATFORM_HINTS["phone"]``, which the
     embedded serve (the phone's entry) fills before it serves a request — ``agent/prompt_builder.py``

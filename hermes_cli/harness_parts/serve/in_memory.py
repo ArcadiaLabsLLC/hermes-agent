@@ -221,6 +221,9 @@ class EmbeddedServe:
         from agent_runtime.phone_native_libs import load_phone_native_libs
 
         load_phone_native_libs()  # Android: Pillow's image libraries, by path, before anything imports PIL
+        from agent_runtime.phone_tls_trust import ensure_phone_tls_trust
+
+        ensure_phone_tls_trust()  # Android/iOS: certifi's anchors, before any HTTPS client is built
         self._thread = threading.Thread(target=self._run, name="hermes-embedded-serve", daemon=True)
         self._thread.start()
 
