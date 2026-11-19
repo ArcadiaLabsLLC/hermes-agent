@@ -4,6 +4,7 @@ from urllib.parse import unquote, urlparse
 import pytest
 
 from pm import packages, update
+from pm._fork_python_flavor import pbs_flavor  # fork: ledger row tests/pm/test_python_release_identity.py
 
 
 @pytest.mark.parametrize('target,triple', [
@@ -26,7 +27,7 @@ def test_python_candidate_preserves_the_advertised_patch_and_build(monkeypatch, 
     result = package.latest_versions(target, locked='3.14.7+20981231')
     assert result == [identity]
     download = urlparse(package.fetch_url(result[0], target))
-    assert unquote(download.path.rsplit('/', 1)[1]) == advertised
+    assert unquote(download.path.rsplit('/', 1)[1]) == advertised.replace('install_only', pbs_flavor(target))
     assert download.path.split('/')[-2] == tag
 
 

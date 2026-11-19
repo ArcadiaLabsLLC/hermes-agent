@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-11-16",
+  "measured_at": "2026-11-19",
   "base": "3b42157858",
-  "files": 225,
-  "deleted_lines": 874,
+  "files": 228,
+  "deleted_lines": 879,
   "heavy": 1,
   "reasons": [
     {
@@ -1480,6 +1480,51 @@
       },
       "reason": "HELD (G11 `ManagedPythonUnavailable`: fork managed-python parallel, see `hermes_cli/gateway_windows.py`). PR candidate: launcher refresh tolerates `ManagedPythonUnavailable` (G11). The venv-holder clearing family left at the 2026-09-25 merge (`067fa1a257`) (upstream `5e4a2a3d24`) Lane FOOTPRINT-DROP 2026-09-27: the ManagedPythonUnavailable guard is `hermes_cli/gateway_windows_launcher.py` (`write_task_script_or_warn`); `warn_legacy_console_task` DELETED (lane h13-del 2026-09-29, upstream's drift reconcile #113670 covers it). RT-EXPLICIT-PROFILE-ARGS-SEAM (lane w1115e-fh6, owner 2026-11-16): ONE added line in `_serve_relaunch_commands` (the post-update relaunch of a stopped serve) names the default profile through fork `gateway_downstream.explicit_profile_arg`, so the child no longer follows the sticky `active_profile`; additive, no deleted line. Retires with an upstream PR making `_profile_arg` name the default.",
       "owner_ruling": "2026-11-16 \u00b7 Harness_Brain/20 \u2014 Active Initiatives/runtime-queue.md, RT-EXPLICIT-PROFILE-ARGS-SEAM RULED 2026-11-16: owner \u2014 \"Fixing it properly needs one line of upstream edit at each of four launch sites do that instead\""
+    },
+    {
+      "change": "RT-BUNDLED-LINUX-INTERPRETER-STRIPPED-AND-PRUNED (lane w1118a-hbundle): Linux desktop bundles pin python-build-standalone's stripped build",
+      "before": {
+        "files": 225,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "after": {
+        "files": 226,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "reason": "pm/packages.py: two additive tail lines hand the Python package to pm/_fork_python_flavor.py, which makes fetch_url name the per-target build flavor (install_only_stripped on linux-x64/linux-arm64); 0 deletions. fetch_url is the one place PM builds the interpreter URL, so pm update's re-pin keeps the flavor. No fork door exists inside pm/packages.py; upstream candidate: a per-target flavor on Python.",
+      "owner_ruling": "2026-11-19 \u00b7 owner standing call for this session ('when there is a decision for this session, do an analysis on it and go with reccomended', lane w1118a-hbundle brief); the analysis is RT-BUNDLED-LINUX-INTERPRETER-STRIPPED-AND-PRUNED's decision segment (runtime-queue.md)"
+    },
+    {
+      "change": "RT-BUNDLED-LINUX-INTERPRETER-STRIPPED-AND-PRUNED (lane w1118a-hbundle): PM's python pin re-pinned through the flavor",
+      "before": {
+        "files": 226,
+        "deleted_lines": 874,
+        "heavy": 1
+      },
+      "after": {
+        "files": 227,
+        "deleted_lines": 878,
+        "heavy": 1
+      },
+      "reason": "pm/lock.json packages.python: the linux-x64 and linux-arm64 rows name python-build-standalone's install_only_stripped asset and its sha256 (read off GitHub's release digest and matched by hashing the download), written through Python.fetch_url so pm update keeps them. Data only; agent_runtime/bundle_profiles/interpreters.lock.json copies it.",
+      "owner_ruling": "2026-11-19 \u00b7 owner standing call for this session ('when there is a decision for this session, do an analysis on it and go with reccomended', lane w1118a-hbundle brief); the analysis is RT-BUNDLED-LINUX-INTERPRETER-STRIPPED-AND-PRUNED's decision segment (runtime-queue.md)"
+    },
+    {
+      "change": "RT-BUNDLED-LINUX-INTERPRETER-STRIPPED-AND-PRUNED (lane w1118a-hbundle): the release-identity test reads the per-target flavor",
+      "before": {
+        "files": 227,
+        "deleted_lines": 878,
+        "heavy": 1
+      },
+      "after": {
+        "files": 228,
+        "deleted_lines": 879,
+        "heavy": 1
+      },
+      "reason": "tests/pm/test_python_release_identity.py: the linux-x64 case's download-name assertion compares against the flavor pm/_fork_python_flavor.py pins for the target (one import line added, one assertion line changed: 1 deletion). Goes with the pm/packages.py seam; upstream candidate with it.",
+      "owner_ruling": "2026-11-19 \u00b7 owner standing call for this session ('when there is a decision for this session, do an analysis on it and go with reccomended', lane w1118a-hbundle brief); the analysis is RT-BUNDLED-LINUX-INTERPRETER-STRIPPED-AND-PRUNED's decision segment (runtime-queue.md)"
     }
   ]
 }

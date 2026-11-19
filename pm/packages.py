@@ -1449,3 +1449,8 @@ class WhisperCppCpu(BinaryPackage):
     binary_rel = {"win32-arm64": "whisper-cli.exe"}
     probe_args = ["--help"]
     url = "https://github.com/ggml-org/whisper.cpp/releases/download/{version}/whisper-bin-win-cpu-arm64.zip"
+
+
+# Fork (ledger row `pm/packages.py`): the interpreter download names the build flavor PM pins per target.
+from pm._fork_python_flavor import flavor_python_downloads
+flavor_python_downloads(Python)
