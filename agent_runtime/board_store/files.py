@@ -12,7 +12,7 @@ from typing import Any
 from hermes_time import now
 from utils import atomic_json_write
 
-from .. import paths
+from .. import paths, realm_held
 from ..errors import CardAmbiguous, NotFound
 from ..models import Board, BoardCard
 from ..serde import from_jsonable, read_json, to_jsonable
@@ -167,6 +167,12 @@ def archive_card_locked(
         board.archived_card_ids = [*board.archived_card_ids, card.card_id][-ARCHIVED_LEDGER_CAP:]
         board.updated_at = now()
         _write_board(board)
+    if record_tombstone:
+        # A delete made HERE is this machine's own from now on, even where the
+        # realm had held the card id: it must outlive a realm that drops it.
+        # MUTATION: skip this and test_realm_board_card_archived_by_a_pull's
+        # "deleted himself" case reddens.
+        realm_held.forget(paths.board_realm_held_path(board.board_id), card.card_id)
     if patch is not None:
         patch(card)
     if emit is not None:

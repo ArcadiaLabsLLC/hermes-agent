@@ -196,6 +196,13 @@ def _autonomy(persona_id: str, value: Any, current: Any) -> Any:
         return current
 
 
+#: The settings a config-declared persona that omits them takes from THIS machine's
+#: ``default_model`` / ``default_provider`` / ``default_api_mode`` (below). They are
+#: the machine's, not the persona's: a realm projection of such a persona carries
+#: only what its config states for them (``persona_config_sync.project_persona_definitions``).
+MACHINE_DEFAULT_FIELDS = ("model", "provider", "api_mode")
+
+
 def _persona_from_overrides(persona_id: str, role: str, overrides: dict[str, Any], cfg: AgentRuntimeConfig):
     from ..models import AgentPersona
 

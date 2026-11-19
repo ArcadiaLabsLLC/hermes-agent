@@ -623,7 +623,10 @@ def test_a_readable_remote_card_removal_still_archives_beside_a_fenced_one(tmp_p
     assert summary.unreadable_remote == 0
     assert summary.delete_fenced == []
     assert summary.archived == 1
-    assert drop.card_id in store.get(board_id).archived_card_ids
+    assert drop.card_id not in {card.card_id for card in store.list_cards(board_id)}
+    # The REALM removed it: no tombstone of this machine's own, so a teammate who
+    # restores it gets it back here (RT-REALM-BOARD-CARD-ARCHIVED-BY-A-PULL-BLOCKS-IT-COMING-BACK).
+    assert drop.card_id not in store.own_archived_card_ids(board_id)
 
 
 def test_an_unreadable_remote_board_def_is_counted_not_skipped(tmp_path):

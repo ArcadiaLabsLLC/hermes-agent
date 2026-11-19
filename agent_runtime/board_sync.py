@@ -261,7 +261,12 @@ def apply_board_pull(realm_id: str, subtree: Path, *, event_log: EventLog | None
         local_cards: dict[str, BoardCard] = {}
         archived_ids: set[str] = set()
         if local_board is not None:
-            archived_ids = set(local_board.archived_card_ids)
+            # This machine's OWN archives only: a card the realm archived here
+            # (a peer's tombstone, a removal an earlier pull applied) is not
+            # ``locally_archived``, so the realm bringing it back brings it back.
+            # MUTATION: read ``local_board.archived_card_ids`` and
+            # test_realm_board_card_archived_by_a_pull reddens.
+            archived_ids = store.own_archived_card_ids(board_id)
             for card in store.list_cards(board_id):
                 local_cards[card.card_id] = card
 
@@ -329,7 +334,14 @@ def apply_board_pull(realm_id: str, subtree: Path, *, event_log: EventLog | None
                     )
                     continue
                 try:
-                    store.archive_card(card_id, board_id=board_id, reason="remote_removed")
+                    # No tombstone: the REALM removed this card, not this machine.
+                    # The peer's own tombstone, when it wrote one, arrived with its
+                    # board def as a realm-held id.
+                    # MUTATION: record the tombstone again and
+                    # test_realm_board_card_archived_by_a_pull reddens.
+                    store.archive_card(
+                        card_id, board_id=board_id, reason="remote_removed", record_tombstone=False
+                    )
                     summary.archived += 1
                 except Exception:
                     pass

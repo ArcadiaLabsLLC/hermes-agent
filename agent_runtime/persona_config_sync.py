@@ -69,7 +69,7 @@ from agent_runtime import yaml_io
 
 from hermes_constants import get_config_path
 
-from .config.persona_records import LEGACY_PERSONA_TOOLSETS_KEY
+from .config.persona_records import LEGACY_PERSONA_TOOLSETS_KEY, MACHINE_DEFAULT_FIELDS
 from .sync_merge import PullAction, classify_three_way_pull
 
 __layer__ = "stores"
@@ -422,7 +422,9 @@ def local_persona_bodies(
     raw = load_raw_config(config_path)
     if records is None:
         records = resolved_persona_records(config_path)
-    return project_persona_definitions(persona_ids, raw_config=raw, records=records).personas
+    return project_persona_definitions(
+        persona_ids, raw_config=raw, records=records, stored_ids=stored_persona_ids()
+    ).personas
 
 
 def adopt_persona_def(
@@ -517,6 +519,7 @@ def project_persona_definitions(
     *,
     raw_config: dict[str, Any] | None = None,
     records: dict[str, Any] | None = None,
+    stored_ids: set[str] | None = None,
 ) -> PersonaConfigProjection:
     """Build the portable projection for exactly ``persona_ids``.
 
@@ -531,6 +534,18 @@ def project_persona_definitions(
     Pruning to the wanted set is part of the contract: the projection must not
     leak definitions for personas this realm is not publishing
     (``resolve_realm_sync_artifacts`` already computes that set).
+
+    A CONFIG-DECLARED persona (in ``config.yaml``, no store row: what a pull
+    writes on a member) carries a machine-default setting
+    (``persona_records.MACHINE_DEFAULT_FIELDS``) only where its config states it.
+    Its record fills an omitted one with THIS machine's default, which no one
+    chose for the persona: projected, a teammate's agent that chose no API mode
+    read as changed on every member right after the pull, because the body
+    hashed here was not the body the pull recorded
+    (RT-REALM-PULLED-PERSONA-WITHOUT-API-MODE-READS-CHANGED). ``stored_ids`` is
+    the store's persona ids (:func:`stored_persona_ids`), passed by the two callers
+    that resolve against this machine's store — the publish and
+    :func:`local_persona_bodies`; ``None`` treats every record as stored.
     """
 
     overrides = raw_persona_overrides(raw_config if raw_config is not None else load_raw_config())
@@ -553,6 +568,14 @@ def project_persona_definitions(
             missing.append(persona_id)
             continue
         body = _record_to_def(persona_id, record, dropped) if record is not None else {}
+        if record is not None and isinstance(raw_override, dict) and stored_ids is not None:
+            if persona_id not in stored_ids:
+                # The record's value is this machine's default unless the config
+                # states one, and a stated one comes back from the override below.
+                # MUTATION: drop this skip and
+                # test_realm_pulled_persona_machine_defaults reddens.
+                for name in MACHINE_DEFAULT_FIELDS:
+                    body.pop(name, None)
         override_body = (
             _allowlist_persona_def(persona_id, raw_override, dropped) if raw_override is not None else {}
         )
@@ -593,6 +616,14 @@ def project_persona_definitions(
         incomplete=sorted(incomplete, key=lambda row: str(row.get("persona_id"))),
         missing=sorted(set(missing)),
     )
+
+
+def stored_persona_ids() -> set[str]:
+    """The persona ids with a store row on this machine (the rest are config-declared)."""
+
+    from .store import AgentStore
+
+    return {persona.id for persona in AgentStore().list_all()}
 
 
 # --- baseline sidecar (never synced, never published) ------------------------

@@ -40,7 +40,7 @@ from __future__ import annotations
 from typing import Any
 
 
-from agent_runtime import paths
+from agent_runtime import paths, realm_held
 from agent_runtime.errors import NotFound
 from agent_runtime.events import EventLog
 from agent_runtime.models import OfficeActor, OfficeSurface
@@ -53,7 +53,7 @@ from agent_runtime.office_store import (
     patches as patches_lane,
     surface_writes as surface_writes_lane,
 )
-from agent_runtime.office_store.files import read_actor_dir, read_realm_held
+from agent_runtime.office_store.files import read_actor_dir
 from agent_runtime.office_store.models import ActorScan
 from agent_runtime.serde import from_jsonable, read_json
 from agent_runtime.store_events import emit_store_event
@@ -105,11 +105,13 @@ class OfficeStore:
 
     def own_archived_actor_keys(self, workspace_id: str) -> set[str]:
         """The desks archived BY THIS MACHINE: the surface's ledger less the
-        keys the realm put there (``files.read_realm_held``). The one answer to
+        keys the realm put there (``realm_held``). The one answer to
         "did I archive this desk", read by the office pull's classifier and the
         instance mint door alike; a realm-held key is not ``locally_archived``."""
 
-        return set(self.get_surface(workspace_id).archived_actor_keys) - read_realm_held(workspace_id)
+        return realm_held.own_archived(
+            self.get_surface(workspace_id).archived_actor_keys, paths.office_realm_held_path(workspace_id)
+        )
 
     def surface_exists(self, workspace_id: str) -> bool:
         return paths.office_surface_path(workspace_id).exists()

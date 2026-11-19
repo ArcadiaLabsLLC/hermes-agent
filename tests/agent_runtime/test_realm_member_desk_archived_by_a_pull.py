@@ -11,7 +11,7 @@ pull the canvas baseline still named a canvas neither side publishes any more (a
 after the restore's pull the office pull answered ``conflicts: 1`` (``archive_vs_edit``), no desk, no
 agent, and the surface read changed — the pull had entered the teammate's delete in the member's ledger
 as the member's own. The fix: the office ledger records who archived each desk (this machine, or the
-realm: ``office_store.files.read_realm_held``), only this machine's own archives are
+realm: ``agent_runtime.realm_held``), only this machine's own archives are
 ``locally_archived``, and a canvas neither side publishes leaves the canvas baseline. The restore is done
 the way the live read did it: the realm's git tree put back to the commit before the delete.
 Killing mutations are named per test.

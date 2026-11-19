@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING
 
 from agent_runtime.locks import office_lock
 from agent_runtime.models import OfficeActor, OfficeSurface
-from agent_runtime.office_store.files import _write_actor, _write_realm_held, _write_surface, read_realm_held
+from agent_runtime import paths, realm_held
+from agent_runtime.office_store.files import _write_actor, _write_surface
 from agent_runtime.office_store.models import ARCHIVED_LEDGER_CAP
 from agent_runtime.sync_merge import merge_archived_ledgers_by_origin
 from agent_runtime.office_store.normalize import _safe_actor_ref
@@ -99,14 +100,14 @@ def adopt_remote_surface(
         # never between the read and the write. Only this machine's OWN keys
         # outlive the peer's list; a key the realm put here leaves with it
         # (``merge_archived_ledgers_by_origin``).
-        surface.archived_actor_keys, realm_held = merge_archived_ledgers_by_origin(
+        surface.archived_actor_keys, held = merge_archived_ledgers_by_origin(
             surface.archived_actor_keys,
             store.get_surface(wsid).archived_actor_keys if existed else (),
-            read_realm_held(wsid),
+            realm_held.read_realm_held(paths.office_realm_held_path(wsid)),
             cap=ARCHIVED_LEDGER_CAP,
         )
         _write_surface(surface)
-        _write_realm_held(wsid, realm_held)
+        realm_held.write_realm_held(paths.office_realm_held_path(wsid), held)
         if existed:
             # INSIDE the lock and BEFORE the domain event, like every other
             # emitter in this class — see ``_emit_surface_patch``.

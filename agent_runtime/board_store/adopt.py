@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING
 
 from hermes_time import now
 
-from .. import paths
+from .. import paths, realm_held
 from ..errors import NotFound, SyncConflict
 from ..locks import board_lock
 from ..models import Board, BoardCard
 from ..serde import from_jsonable, read_json, safe_id
 from ..store_conflicts import archive_conflict_sidecar
-from ..sync_merge import merge_archived_ledgers
+from ..sync_merge import merge_archived_ledgers_by_origin
 from ..sync_take import SyncTake
 from .files import (
     _write_board,
@@ -62,7 +62,8 @@ def adopt_remote_board(store: BoardStore, board: Board, *, updated_by: str = "re
     remote_hash`` stays keyed off the remote CONTENT.
 
     Verbatim in every field EXCEPT ``archived_card_ids``, which is UNIONED
-    with the local ledger (:func:`sync_merge.merge_archived_ledgers`) —
+    with the local ledger's OWN ids (:func:`sync_merge.merge_archived_ledgers_by_origin`;
+    an id the realm put here follows the realm, recorded by ``realm_held``) —
     operator ruling 2026-09-03, closing the last leg of the H1 asymmetry.
     That field is not the peer's opinion about this board: it is the
     resurrection guard, and the pull is the one lane that can reach it from
@@ -89,17 +90,22 @@ def adopt_remote_board(store: BoardStore, board: Board, *, updated_by: str = "re
     board.updated_by = _safe_actor(updated_by)
     with board_lock(bid):
         existed = store.exists(bid)
-        if existed:
-            # Read INSIDE the lock that will hold for the write: a local
-            # archive racing this pull must land on one side of the union or
-            # the other, never between the read and the write. The surface
-            # twin's discipline, for the surface twin's reason.
-            board.archived_card_ids = merge_archived_ledgers(
-                board.archived_card_ids,
-                store.get(bid).archived_card_ids,
-                cap=ARCHIVED_LEDGER_CAP,
-            )
+        # Read INSIDE the lock that will hold for the write: a local archive
+        # racing this pull must land on one side of the union or the other,
+        # never between the read and the write. The surface twin's discipline,
+        # for the surface twin's reason. Only this machine's OWN card ids outlive
+        # the peer's list; one the realm put here leaves with it.
+        # MUTATION: go back to the plain ``merge_archived_ledgers`` and
+        # test_realm_board_card_archived_by_a_pull reddens (the card never comes back).
+        held_path = paths.board_realm_held_path(bid)
+        board.archived_card_ids, held = merge_archived_ledgers_by_origin(
+            board.archived_card_ids,
+            store.get(bid).archived_card_ids if existed else (),
+            realm_held.read_realm_held(held_path),
+            cap=ARCHIVED_LEDGER_CAP,
+        )
         _write_board(board)
+        realm_held.write_realm_held(held_path, held)
         if existed:
             store._emit(
                 "board.updated",

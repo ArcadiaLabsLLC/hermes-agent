@@ -215,12 +215,13 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     # pruned to exactly the personas above. Replaces the per-profile raw
     # ``config.yaml`` artifact that used to leak the base seed and every
     # machine-shaped MCP/env/path value on it.
-    from ..persona_config_sync import project_persona_definitions
+    from ..persona_config_sync import project_persona_definitions, stored_persona_ids
 
     projection = project_persona_definitions(
         published_persona_ids,
         raw_config=_raw_active_config(),
         records=personas,
+        stored_ids=stored_persona_ids(),
     )
     if projection.personas:
         artifacts.append(_persona_config_artifact(projection))

@@ -185,10 +185,11 @@ def merge_archived_ledgers(peer_keys, local_keys, *, cap: int) -> list[str]:
     ``archive_card(..., record_tombstone=False)`` is that split's near half,
     already shipped: a ledger entry withheld never reaches this union at all.
 
-    The office family now records the RECEIVING half of the split too:
+    Both families now record the RECEIVING half of the split too:
     :func:`merge_archived_ledgers_by_origin` keeps apart the keys the realm put
-    in a member's ledger, so a tombstone the realm drops leaves the member as
-    well, and only this machine's own deletes block a resurrection. The
+    in a member's ledger (recorded by ``agent_runtime.realm_held``, one helper
+    for the office and the board), so a tombstone the realm drops leaves the
+    member as well, and only this machine's own deletes block a resurrection. The
     one-way paragraph above is still true of an OWN key.
     """
 

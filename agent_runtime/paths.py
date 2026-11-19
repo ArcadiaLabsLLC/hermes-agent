@@ -184,6 +184,13 @@ def board_def_path(board_id: str) -> Path:
     return board_dir(board_id) / "board.json"
 
 
+def board_realm_held_path(board_id: str) -> Path:
+    # which ``archived_card_ids`` the REALM put here, not this machine's own
+    # deletes (``agent_runtime.realm_held``); never published (publish walks
+    # ``board.json`` and ``cards/``)
+    return board_dir(board_id) / "realm_archived.json"
+
+
 def board_cards_dir(board_id: str) -> Path:
     return board_dir(board_id) / "cards"
 

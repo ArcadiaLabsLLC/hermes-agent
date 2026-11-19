@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from hermes_time import now
 
-from agent_runtime import paths
+from agent_runtime import paths, realm_held
 from agent_runtime.errors import ActorsUnreadable, NotFound
 from agent_runtime.locks import office_lock
 from agent_runtime.models import OfficeActor, OfficeSurface
@@ -19,9 +19,7 @@ from agent_runtime.office_store.files import (
     _free_surface_archive_dir,
     _prune_archived_actor_files,
     _write_archived_actor,
-    _write_realm_held,
     _write_surface,
-    read_realm_held,
 )
 from agent_runtime.office_store.models import ARCHIVED_LEDGER_CAP, OfficeActorOutcome
 from agent_runtime.office_store.normalize import _safe_actor_ref
@@ -375,9 +373,7 @@ def _archive_actor_locked(
     if record_tombstone:
         # A delete made HERE is this machine's own from now on, even where the
         # realm had held the key: it must outlive a realm that drops it.
-        held = read_realm_held(actor.workspace_id)
-        if actor.actor_key in held:
-            _write_realm_held(actor.workspace_id, held - {actor.actor_key})
+        realm_held.forget(paths.office_realm_held_path(actor.workspace_id), actor.actor_key)
     # The archive half of the lifecycle pair, INSIDE the lock and BEFORE the
     # domain event — the same ordering ``upsert_actor`` uses, for the same
     # monotonicity reason (see ``_emit_actor_patch``).

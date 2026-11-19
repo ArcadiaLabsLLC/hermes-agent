@@ -13,7 +13,7 @@ from typing import Any
 
 from hermes_time import now
 
-from .. import board_models, paths
+from .. import board_models, paths, realm_held
 from ..errors import (
     AlreadyExists,
     NotFound,
@@ -86,6 +86,14 @@ class BoardStore:
         if not path.exists():
             raise NotFound(f"board:{board_id}")
         return from_jsonable(Board, read_json(path))
+
+    def own_archived_card_ids(self, board_id: str) -> set[str]:
+        """The cards archived BY THIS MACHINE: the board's ledger less the ids
+        the realm put there (``realm_held``). The one answer to "did I archive
+        this card", read by the board pull's classifier; a realm-held id is not
+        ``locally_archived``."""
+
+        return realm_held.own_archived(self.get(board_id).archived_card_ids, paths.board_realm_held_path(board_id))
 
     def exists(self, board_id: str) -> bool:
         return paths.board_def_path(board_id).exists()
