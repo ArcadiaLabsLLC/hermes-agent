@@ -128,7 +128,7 @@ def test_a_held_desk_is_not_published_until_the_member_chooses(team):
 
 # --- taking the team's copy of a held desk leaves nothing to publish ---------------------------------------
 # RT-REALM-TAKING-THE-TEAMS-COPY-OF-A-HELD-DESK-LEAVES-UNPUBLISHED-CHANGES (review w1118a.38 D5): both take-remote
-# arms of ``office resolve-conflict`` settle that ONE desk's baseline (``office_sync.settle_office_actor_baseline``),
+# arms of ``office resolve-conflict`` settle that ONE desk's baseline (``realm_sync.settle.settle_office_actor``),
 # and the delete arm archives as the pull does (no tombstone of Bob's). Bob's other unpublished desk stays his.
 
 

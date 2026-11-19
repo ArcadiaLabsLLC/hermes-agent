@@ -469,6 +469,14 @@ def _persona_definition_store_drift_items(
     return items
 
 
+def flow_graph_walk_scope(workspaces: list[Workspace]) -> set[str]:
+    """The drawing walk's scope: the owner desks this realm ships (the publish's own office scan). One owner —
+    the walk below and the settle that prunes baseline entries outside it
+    (``realm_sync.settle.settle_flow_graph_scope``) read it here."""
+
+    return set(_office_publish_scan(workspaces).instance_ids)
+
+
 def _flow_graph_store_drift_items(
     realm_id: str, workspaces: list[Workspace]
 ) -> list[StoreDriftItem]:
@@ -506,8 +514,7 @@ def _flow_graph_store_drift_items(
     from ..flow_graph import owner_instance_id_of
     from ..flow_graph_sync import flow_graph_baseline_key, read_flow_graph_baseline
 
-    scan = _office_publish_scan(workspaces)
-    projection = _flow_graph_projection(scan.instance_ids)
+    projection = _flow_graph_projection(flow_graph_walk_scope(workspaces))
     baseline = read_flow_graph_baseline(realm_id)
     prefix = flow_graph_baseline_key("")
     baselined_ids = {key[len(prefix):] for key in baseline if key.startswith(prefix)}

@@ -641,6 +641,13 @@ def revert_realm_sync(
     applied = [row for row in rows if row.applied]
     if not dry_run:
         baselines.write_touched()
+        # A revert takes the team's copy: what it wrote is settled within the walk's scope too
+        # (RT-REALM-ADOPTING-THE-TEAMS-COPY-SETTLES-EVERY-BASELINE) — a drawing whose desk left this realm's
+        # shipped desks stops reading "no longer published" the moment Revert says it restored it.
+        # MUTATION: drop this call and test_reverting_a_drawing_whose_desk_left_leaves_nothing_to_publish reddens.
+        from .realm_sync.settle import settle_flow_graph_scope_for_realm
+
+        settle_flow_graph_scope_for_realm(realm)
         if applied or clone_reset:
             _append_realm_sync_event(
                 REVERT_EVENT_TYPE, realm, changed=True, artifacts=len(applied)

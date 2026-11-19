@@ -246,40 +246,6 @@ def update_office_baseline_after_sync(realm_id: str, workspace_ids: list[str]) -
     return summary
 
 
-def settle_office_actor_baseline(workspace_id: str, actor_key: str, actor: OfficeActor | None) -> str | None:
-    """Settle ONE desk's baseline entry after the member took the team's copy of it (``office resolve-conflict
-    --take remote``): the entry a pull that adopted the same upstream state would leave — the adopted desk's H
-    under :func:`update_office_baseline_after_sync`'s key, or no entry for a desk the team removed (the pull's
-    archive arm pops it with the row). Without it the store kept the pre-conflict entry and the drift walk
-    offered a Publish for a choice that changes nothing for the team
-    (RT-REALM-TAKING-THE-TEAMS-COPY-OF-A-HELD-DESK-LEAVES-UNPUBLISHED-CHANGES).
-
-    That one key and nothing else: re-baselining the workspace would bless the member's other unpublished office
-    edits. The realm is the one the workspace is published into; a workspace with no realm has no baseline and
-    is left alone. Returns the realm settled, or ``None``.
-    """
-
-    from .errors import NotFound
-    from .store import WorkspaceStore
-
-    try:
-        realm_id = WorkspaceStore().get(workspace_id).realm_id
-    except NotFound:
-        return None
-    if not realm_id:
-        return None
-    baseline = read_office_baseline(realm_id)
-    key = _actor_key(workspace_id, actor_key)
-    settled = dict(baseline)
-    if actor is None:
-        settled.pop(key, None)
-    else:
-        settled[key] = office_models.office_content_hash(actor)
-    if settled != baseline:
-        write_office_baseline(realm_id, settled)
-    return realm_id
-
-
 # --- pull application ------------------------------------------------------
 
 
@@ -464,13 +430,20 @@ def _reconcile_surface(
         return
     # Through the store (H1), not ``atomic_json_write``: an event-less write is
     # invisible to the watermark-gated snapshot/serve pipeline, and the archive
-    # arm has always emitted. The baseline stays keyed off the REMOTE hash — the
-    # adopt verb stamps ``updated_by``, which ``office_content_hash`` excludes,
-    # and unions the tombstone ledger, which it does not (C1): where the union
-    # actually keeps a local-only key the surface reads as locally edited until
-    # the next publish, which is the honest state.
-    store.adopt_remote_surface(remote_surface)
-    baseline[surface_key] = remote_hash
+    # arm has always emitted. The adopt verb stamps ``updated_by``, which
+    # ``office_content_hash`` excludes, and unions the tombstone ledger (C1),
+    # which it does not — so the baseline is the WRITTEN surface's hash, never
+    # the remote's (review w1118a.40 D11 retired "reads as locally edited until
+    # the next publish": the member adopted the team's copy and changed nothing).
+    written = store.adopt_remote_surface(remote_surface)
+    # The hash of the surface AS WRITTEN, the drift walk's own (RT-REALM-ADOPTING-THE-TEAMS-COPY-SETTLES-EVERY-
+    # BASELINE): the union above keeps this machine's own tombstones, and the remote hash stamped here read
+    # that union as an "office layout changed" nobody made.
+    # MUTATION: stamp ``remote_hash`` again and test_a_pull_that_keeps_my_own_tombstone_leaves_no_office_layout_change
+    # reddens.
+    from .realm_sync.settle import settle_office_surface
+
+    settle_office_surface(baseline, written)
 
 
 def _reconcile_actors(
