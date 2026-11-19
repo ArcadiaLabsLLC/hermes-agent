@@ -222,6 +222,36 @@ def test_an_unknown_workspace_is_refused_and_NO_office_is_authored():
     assert _surface().revision == 2
 
 
+def test_a_resolving_workspace_with_no_office_yet_has_its_first_folder_edit_saved():
+    """RT-FOLDER-EDIT-ON-A-NEW-ACCOUNTS-EMPTY-OFFICE-IS-REFUSED.
+
+    A new account's Default workspace resolves but has no office until something
+    is written there. Read live 2026-11-19: Eternia's Add folder on that empty
+    office answered "Office change could not sync" and the folder never reached
+    the store, because this verb refused on "no surface" where it should refuse
+    only on "no workspace". The write now authors the office the way the actor
+    write does (``_ensure_surface_locked``) and saves the folder.
+
+    Killing mutation: gate on ``surface_exists`` alone again — the reply is the
+    4001 ``workspace_not_found`` and no ``office.json`` appears.
+    """
+
+    from agent_runtime import paths
+
+    fresh = "ws_fresh_default"
+    seed_workspace_record(fresh)
+    assert not paths.office_surface_path(fresh).exists()
+
+    reply = _update("s-fresh", {"workspace_id": fresh, "folders": ["Mission pod"]})
+
+    assert reply.get("error") is None, reply
+    assert reply["result"]["folders"] == [*DEFAULTS, "Mission pod"]
+    assert paths.office_surface_path(fresh).exists()
+    surface = _surface(fresh)
+    assert list(surface.folders) == [*DEFAULTS, "Mission pod"]
+    assert surface.revision == reply["result"]["revision"]
+
+
 def test_a_non_list_folders_is_refused_rather_than_silently_reset():
     """The store does not refuse this; it RESETS.
 

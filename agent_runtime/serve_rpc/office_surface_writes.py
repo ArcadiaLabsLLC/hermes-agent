@@ -116,7 +116,18 @@ def _runtime_office_surface_update(
         return refused.frame(rid, workspace_id=workspace_id)
 
     store = OfficeStore()
-    if not store.surface_exists(workspace_id):
+    # Refused only for an id no workspace record resolves. A workspace that
+    # resolves but has no office yet — a new account's still-empty Default
+    # office, before any agent is placed — is the player's first folder edit,
+    # not a typo: ``update_surface_outcome`` authors the surface through
+    # ``ensure_surface`` → ``_ensure_surface_locked``, the one owner of office
+    # creation the actor write uses too (RT-FOLDER-EDIT-ON-A-NEW-ACCOUNTS-
+    # EMPTY-OFFICE-IS-REFUSED; read live 2026-11-19: Eternia's Add folder on a
+    # fresh namespace answered "Office change could not sync" and the folder
+    # never reached the store).
+    if not store.surface_exists(workspace_id) and not store.workspace_resolves(
+        workspace_id
+    ):
         return unknown_workspace(rid, workspace_id)
 
     try:
