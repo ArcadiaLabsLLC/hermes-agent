@@ -265,30 +265,33 @@ def unsettled_chat_receipts(session_scope: str | set[str], *, peer_prefix: str |
 
 
 def _process_started(pid: int) -> float | None:
+    """The owner identity an accept records: psutil's create time, or the platform's own read
+    where the profile ships no psutil (the phone) — :mod:`.process_start`."""
+    from .process_start import ProcessGone, process_started
+
     try:
-        import psutil
-    except ImportError:  # the phone profile omits psutil: no create time, so ownership stays unproven
-        return None
-    try:
-        return psutil.Process(pid).create_time()
-    except psutil.Error:
+        return process_started(pid)
+    except ProcessGone:
         return None
 
 
 def _owner_proven_dead(record: ChatTurnRecord) -> bool:
-    """A reused PID is a different owner; inaccessible evidence stays unknown."""
-    try:
-        import psutil
-    except ImportError:  # the phone profile omits psutil: inaccessible evidence
-        return False
+    """A reused PID is a different owner; inaccessible evidence stays unknown.
+
+    Proof comes from :mod:`.process_start`, never from the phone's ``psutil`` stand-in, whose
+    empty process table answers "no such process" for a live owner too.
+    """
+    from .process_start import ProcessGone, process_started
+
     if record.owner_pid is None or record.owner_started is None:
         return False
     try:
-        return psutil.Process(record.owner_pid).create_time() != record.owner_started
-    except psutil.NoSuchProcess:
+        started = process_started(record.owner_pid)
+    except ProcessGone:
         return True
-    except psutil.Error:
-        return False
+    # MUTATION: return started != record.owner_started without the None arm and
+    # test_unreadable_owner_evidence_stays_unknown reddens.
+    return started is not None and started != record.owner_started
 
 
 def repair_orphaned_chat_receipts() -> list[str]:
