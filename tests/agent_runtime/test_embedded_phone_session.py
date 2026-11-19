@@ -217,8 +217,9 @@ def _chat_turn(phone: Phone, install_id: str, app: Path, home: Path) -> dict:
 def _reserved_chat_turn(phone: Phone, install_id: str) -> dict:
     """The turn a phone's chat sends: ``runtime.chat.message``, which reserves the turn (its accept
     records the serve's process identity) before a worker runs it; read to its ``exit`` frame."""
+    asked = len(Provider.requests)
     params = {"install_id": install_id, "client_scope": "c" * 64, "turn_request_id": "phone-reserved-1",
-              "persona_id": "base", "new_session": True, "message": f"Please remember {CHAT}"}
+              "persona_id": "profile_default", "new_session": True, "message": f"Please remember {CHAT}"}
     phone.serve.send(json.dumps({"jsonrpc": "2.0", "id": "reserved", "method": "runtime.chat.message",
                                  "params": params}))
     frame = phone.frames.wait_for(lambda f: f.get("id") == "reserved" and ("result" in f or "error" in f))
@@ -234,7 +235,8 @@ def _reserved_chat_turn(phone: Phone, install_id: str) -> dict:
     work = [f["line"] for f in phone.frames.frames if f.get("event") == "stderr"
             and "work engine did not start" in f.get("line", "")]
     return {"ack": ack, "exit_code": exit_frame and exit_frame.get("code"), "lines": lines[-40:],
-            "discussion": discussion, "work_engine_failed": work}
+            "discussion": discussion, "work_engine_failed": work, "model_requests": len(Provider.requests) - asked,
+            "reply_seen": any(REPLY in json.dumps(f) for f in lines)}
 
 
 def _what_the_turn_left(home: Path, store: FakeHostSecureStore) -> dict:
@@ -644,8 +646,9 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_histo
     # Intelligence Chat's discussion service answered, and the work engine started.
     assert "result" in reserved["discussion"], reserved["discussion"]
     assert reserved["work_engine_failed"] == [], reserved["work_engine_failed"]
-    assert reserved["exit_code"] == 0, reserved
-    assert any(REPLY in json.dumps(f) for f in reserved["lines"]), reserved["lines"]
+    if reserved["exit_code"] != 0:
+        pytest.fail("the reserved turn did not complete: " + "\n".join(str(f.get("line", f)) for f in reserved["lines"]))
+    assert reserved["model_requests"] >= 1 and reserved["reply_seen"], reserved
 
 
 def test_an_unbound_host_store_is_refused_before_any_request(app):

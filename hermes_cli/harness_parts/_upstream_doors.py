@@ -162,6 +162,10 @@ def ensure_terminal_env_bridged() -> None:
 
     Called by ``agent_runtime.profile_runner.workdir`` before it snapshots the ``TERMINAL_*`` scope.
     """
+    from agent_runtime.module_presence import shipped
+
+    if not shipped("tools.terminal_tool"):  # a profile with no terminal (the phone) has no env to bridge
+        return
     from tools.terminal_tool import _ensure_terminal_env_bridged
 
     _ensure_terminal_env_bridged()

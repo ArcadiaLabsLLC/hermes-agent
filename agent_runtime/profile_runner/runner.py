@@ -51,6 +51,20 @@ __all__ = [
 ]
 
 
+
+
+def _local_engine_turn_scope(request: Any):
+    """The local engine's turn scope, or none where a profile leaves the local engine out (the phone)."""
+    import contextlib
+
+    from ..module_presence import shipped
+
+    if not shipped("agent_runtime.local_llama_adapter"):
+        return contextlib.nullcontext()
+    from ..local_llama_adapter.provider import turn_scope
+
+    return turn_scope(request)
+
 class ProfileAgentRunner:
     def __init__(self, *, agent_factory: Callable[..., Any] | None = None, credential_pool=None, session_db=None):
         self._uses_default_agent_factory = agent_factory is None
@@ -70,8 +84,7 @@ class ProfileAgentRunner:
         # ``_counted_agent_run`` covers the whole method: a background prewarm
         # must see this run from its first instruction, not from the point it
         # reaches the workdir lock.
-        from ..local_llama_adapter.provider import turn_scope
-        with _counted_agent_run(), turn_scope(request):
+        with _counted_agent_run(), _local_engine_turn_scope(request):
             return self._run(request)
 
     def prewarm(self, request: AgentRunRequest) -> dict[str, Any]:

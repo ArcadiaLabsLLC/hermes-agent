@@ -322,11 +322,18 @@ def _provider_issue_cache_clear() -> None:
     _provider_issue_memo.clear()
 
 
+def _is_local_llama(provider) -> bool:
+    from .local_llama_adapter import is_local_llama_provider
+
+    return is_local_llama_provider(provider)
+
+
 def _provider_issue(persona) -> tuple[str, str] | None:
     provider = getattr(persona, "provider", None)
     model = getattr(persona, "model", None)
-    from .local_llama_adapter import is_local_llama_provider
-    if is_local_llama_provider(provider):
+    from .module_presence import shipped
+    # A profile that leaves the local engine out (the phone) has no local provider to read.
+    if shipped("agent_runtime.local_llama_adapter") and _is_local_llama(provider):
         # Saved local identity is not an API-key credential. Live readiness is
         # checked at the model lease boundary; do not hide the configurable agent
         # merely because its local server is off or this probe is out of process.

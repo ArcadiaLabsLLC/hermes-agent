@@ -250,13 +250,40 @@ def _run_transport(request: AgentRunRequest, runtime: dict) -> dict:
     return {"api_mode": request.api_mode or runtime.get("api_mode"), "base_url": base_url}
 
 
+
+def _local_engine_shipped() -> bool:
+    """Whether the local engine ships: a profile that leaves it out (the phone) has no local provider,
+    so its scopes and construction arguments are neutral there."""
+    from ..module_presence import shipped
+
+    return shipped("agent_runtime.local_llama_adapter")
+
+
+def _local_engine_prewarm_scope(*args: Any, **kwargs: Any):
+    import contextlib
+
+    if not _local_engine_shipped():
+        return contextlib.nullcontext()
+    from ..local_llama_adapter.provider import prewarm_scope
+
+    return prewarm_scope(*args, **kwargs)
+
+
+def _local_engine_construction_kwargs():
+    if not _local_engine_shipped():
+        return lambda *_args, **_kwargs: {}
+    from ..local_llama_adapter.provider import construction_kwargs
+
+    return construction_kwargs
+
 def _resolve_request_runtime(
     request: AgentRunRequest, timing: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    from ..local_llama_adapter import is_local_llama_provider
-    if is_local_llama_provider(request.provider):
-        from ..local_llama_adapter.provider import resolve
-        return resolve(request.model, root=request.runtime_root)
+    if _local_engine_shipped():
+        from ..local_llama_adapter import is_local_llama_provider
+        if is_local_llama_provider(request.provider):
+            from ..local_llama_adapter.provider import resolve
+            return resolve(request.model, root=request.runtime_root)
     if not request.provider:
         return {}
     key = _runtime_resolve_cache_key(request)
@@ -545,7 +572,6 @@ class AgentRunExecution:
         )
         from ..terminal_envelope.records import terminal_envelope_scope
         from agent_runtime.skill_resolution import skill_runtime_scope
-        from ..local_llama_adapter.provider import prewarm_scope
         from ..session_controls import session_approval_scope
 
         with (
@@ -558,7 +584,7 @@ class AgentRunExecution:
             root_run_lock(request.root_chat_session_id or request.tool_execution_scope_id),
             _posix_process_home(self.binding),
             persona_profile_context(self.binding, runtime_root=request.runtime_root),
-            prewarm_scope(request),
+            _local_engine_prewarm_scope(request),
             _agent_workdir(request.workdir),
             tool_execution_scope(request.tool_execution_scope_id),
             # Same identity, second consumer: the container scope above keys
@@ -739,7 +765,7 @@ class AgentRunExecution:
     def construct_agent(self) -> Any:
         """Build this run's agent and time it. Called at most once."""
 
-        from ..local_llama_adapter.provider import construction_kwargs
+        construction_kwargs = _local_engine_construction_kwargs()
 
         request, runtime, runner = self.request, self.runtime, self.runner
         construct_started = time.perf_counter()
