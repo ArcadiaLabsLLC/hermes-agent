@@ -303,6 +303,13 @@ def _mission_chat_soul_overlay(persona: AgentPersona) -> str | None:
     through to the operator's SOUL.
     """
 
+    from .bundled_agents import shipped_soul_for_turn
+
+    # A shipped agent's SOUL is the build's (an update reaches the next prompt with
+    # no store write), unless the install edited it under this build.
+    shipped = shipped_soul_for_turn(persona)
+    if shipped is not None:
+        return shipped
     hermes_profile = getattr(persona, "hermes_profile", None)
     configured_path = getattr(persona, "soul_overlay_path", None)
     path_value = configured_path or ("SOUL.md" if hermes_profile else None)

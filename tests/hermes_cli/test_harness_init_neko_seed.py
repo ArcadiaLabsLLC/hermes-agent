@@ -1,8 +1,9 @@
-"""``hermes harness init`` gives a fresh root Neko Mission Lead, and nothing else ever.
+"""``hermes harness init`` gives a fresh root the shipped agents, and nothing else ever.
 
-Row ``RT-FRESH-INSTALL-SEEDS-NEKO`` (owner 2026-11-18): a new install's default
+Rows ``RT-FRESH-INSTALL-SEEDS-NEKO`` (owner 2026-11-18): a new install's default
 agent is Neko; a root holding any persona gains nothing; a second init is a
-no-op; the shipped SOUL says nothing about the owner. ``base`` is untouched.
+no-op; the shipped SOUL says nothing about the owner. ``RT-BUNDLED-AGENTS-LIVE-IN-THE-BUILD``
+(owner 2026-11-19): Base Agent ships beside her, and both are references to the build.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ def _tree(root):
 def test_a_fresh_root_gets_neko_mission_lead_with_her_profile_and_soul(capsys):
     data = _init(capsys)
 
-    assert data["personas"] == ["neko_supervisor"]
+    assert data["personas"] == ["base", "neko_supervisor"]
     neko = AgentStore().get("neko_supervisor")
     assert neko.display_name == "Neko Mission Lead"
     assert neko.hermes_profile == "neko"
@@ -60,7 +61,7 @@ def test_a_second_init_changes_nothing(capsys):
     assert _tree(home) == before
     assert AgentStore().get("neko_supervisor") == record
     # Not merely the same bytes: the seed declines outright once a persona exists.
-    assert fresh_install_seed.seed_fresh_install_persona(load_agent_runtime_config()) is None
+    assert fresh_install_seed.seed_fresh_install_persona(load_agent_runtime_config()) == []
 
 
 def test_a_root_holding_any_persona_gains_no_neko(capsys):
@@ -79,7 +80,7 @@ def test_a_neko_profile_the_seed_did_not_stage_is_never_overwritten(capsys):
 
     data = _init(capsys)
 
-    assert data["personas"] == []
+    assert data["personas"] == ["base"]
     assert (home / "SOUL.md").read_text(encoding="utf-8") == "the user's own neko"
 
 

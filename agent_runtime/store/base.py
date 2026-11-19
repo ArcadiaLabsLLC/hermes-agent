@@ -15,6 +15,7 @@ from hermes_time import now
 from utils import atomic_json_write
 
 from .. import paths
+from ..bundled_agents import prepare_save, resolve_record
 from ..character_assignment import CharacterAssignmentChange, CharacterAssignmentReplication, preserve_character_assignment
 from ..locks import agent_record_write_lock
 from ..errors import NotFound
@@ -245,7 +246,7 @@ class AgentStore:
             except FileNotFoundError:
                 stored = {}
             if isinstance(character_change, CharacterAssignmentChange) and stored:
-                persona = from_jsonable(AgentPersona, stored)
+                persona = resolve_record(from_jsonable(AgentPersona, stored))
             config_only = character_change is not None and not stored
             assignment_source = stored
             if not stored:
@@ -256,6 +257,7 @@ class AgentStore:
                     if config_only:
                         persona = configured
             preserve_character_assignment(persona, assignment_source, character_change)
+            persona = prepare_save(persona, stored.get("bundled_version"))
             if config_only:
                 # Keep a config-defined persona config-defined. Materializing
                 # a whole AgentPersona here would freeze its other defaults.
@@ -272,11 +274,13 @@ class AgentStore:
         )
         return persona
 
+    # A record that references a shipped agent loads with the build's definition
+    # (``bundled_agents.resolve``): the one read every roster consumer goes through.
     def get(self, persona_id: str) -> AgentPersona:
-        return _read_model(AgentPersona, paths.agent_path(persona_id))
+        return resolve_record(_read_model(AgentPersona, paths.agent_path(persona_id)))
 
     def list_all(self) -> list[AgentPersona]:
-        return _list_models(AgentPersona, paths.agents_dir())
+        return [resolve_record(persona) for persona in _list_models(AgentPersona, paths.agents_dir())]
 
 
 class RunStore:
