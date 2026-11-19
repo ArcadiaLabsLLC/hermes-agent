@@ -200,6 +200,21 @@ def _chat_turn(phone: Phone, install_id: str, app: Path, home: Path) -> dict:
     return _settle(phone, ids, sid, "turn-1")
 
 
+def _reserved_chat_turn(phone: Phone, install_id: str) -> dict:
+    """The turn a phone's chat sends: ``runtime.chat.message``, which reserves the turn (its accept
+    records the serve's process identity) before a worker runs it; read to its ``exit`` frame."""
+    params = {"install_id": install_id, "client_scope": "c" * 64, "turn_request_id": "phone-reserved-1",
+              "persona_id": "base", "new_session": True, "message": f"Please remember {CHAT}"}
+    phone.serve.send(json.dumps({"jsonrpc": "2.0", "id": "reserved", "method": "runtime.chat.message",
+                                 "params": params}))
+    frame = phone.frames.wait_for(lambda f: f.get("id") == "reserved" and ("result" in f or "error" in f))
+    ack = frame.get("result") or {"error": frame.get("error")}
+    rid = ack.get("request_id")
+    exit_frame = phone.frames.wait_for(lambda f: f.get("id") == rid and f.get("event") == "exit", 120) if rid else None
+    lines = [f for f in phone.frames.frames if f.get("id") == rid and f.get("event") != "exit"]
+    return {"ack": ack, "exit_code": exit_frame and exit_frame.get("code"), "lines": lines[-40:]}
+
+
 def _what_the_turn_left(home: Path, store: FakeHostSecureStore) -> dict:
     """Read back the history the byte scan covers, and what the host was asked to protect."""
     from hermes_state import SessionDB
@@ -294,6 +309,7 @@ def phone_turn(app: Path, wheel: str = "phone") -> dict:
         _sign_in(phone)
         os.environ.pop(KEY_ENV, None)  # the chat must find the key through the host store, not this process
         result = _chat_turn(phone, install_id, app, home)
+        reserved = _reserved_chat_turn(phone, install_id)
         absent = _absent_features(wheel)
     finally:
         serve.close()
@@ -305,7 +321,14 @@ def phone_turn(app: Path, wheel: str = "phone") -> dict:
             if e["turn_id"] == "turn-1" and e["frame"].get("params", {}).get("type") == "message.complete"]
     return {"turn": result["turn"]["state"], "turn_tail": json.dumps(result)[-3000:],
             "reply": done[-1]["text"] if done else None, "exit_code": exit_code, "spawned": spawned,
-            "absent": absent, **_what_the_turn_left(home, store)}
+            "absent": absent, "reserved": reserved, "psutil_stand_in": _psutil_is_the_stand_in(),
+            **_what_the_turn_left(home, store)}
+
+
+def _psutil_is_the_stand_in() -> bool:
+    from agent_runtime.psutil_stand_in import is_stand_in
+
+    return is_stand_in(sys.modules.get("psutil"))
 
 
 #: The child. ``phone``: its only first-party tree is the phone wheel's app tree
@@ -334,6 +357,26 @@ if sys.platform == "win32":
     _platform._syscmd_ver = _ver_without_a_subprocess
 if wheel == "phone":
     sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != checkout]
+
+class _NoPsutil:
+    # The phone wheel ships no psutil; the test venv has one. Every finder answers "not found" for it,
+    # as on a device: an import raises ModuleNotFoundError and find_spec reads None, so the entry
+    # installs its stand-in (RT-PHONE-E2E-TURN-RUNS-WITH-THE-HOSTS-PSUTIL).
+    def __init__(self, inner):
+        self.inner = inner
+
+    def find_spec(self, name, path=None, target=None):
+        if name == "psutil" or name.startswith("psutil."):
+            return None
+        return self.inner.find_spec(name, path, target)
+
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
+
+if wheel == "phone":
+    if "psutil" in sys.modules:
+        raise SystemExit("control failed: psutil was imported before the phone child could hide it")
+    sys.meta_path[:] = [_NoPsutil(f) for f in sys.meta_path]
 attempts = []
 
 def _off(name):
@@ -529,6 +572,15 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_histo
     assert result["state_db_bytes"] > 0 and result["transcript"] == [CHAT, REPLY]
     # The phone boot asked the host to protect the history folder, once, before the serve ran.
     assert result["protected"] == [result["home"]]
+    # The turn a phone's chat sends (runtime.chat.message) is RESERVED: its accept records the serve's
+    # process identity, which on a phone (no psutil: the stand-in) comes from the platform's own read
+    # (agent_runtime/process_start.py). The host's real psutil is hidden in the phone child, so a
+    # psutil-only read refuses the accept here as it did on the Android emulator
+    # (RT-PHONE-TURN-RESERVATION-NEEDS-PROCESS-IDENTITY). Positive control: the stand-in is in place.
+    reserved = result["reserved"]
+    if wheel == "phone":
+        assert result["psutil_stand_in"], "the phone child ran on the host's psutil, not the stand-in"
+    assert reserved["ack"].get("accepted") is True, reserved
     # The phone wheel: nothing on the turn path reached a switched-off module except through a
     # module-level seam (not even into an ImportError it swallowed), and no process was started —
     # no worker, no `hermes auth login`, no python/pip probe, no git probe. Positive control: the
@@ -564,6 +616,13 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_histo
     leaks = _leaks(app)
     assert SECRET not in leaks, leaks  # the key is only in the host store
     assert CHAT in leaks, leaks  # positive control: the scan reads the (OS-protected) history
+    # Last, so every check above has run: the reserved turn then runs on the serve's argv lane, which
+    # the embedded serve never binds a harness parser for (RT-PHONE-CHAT-TURN-HAS-NO-HARNESS-PARSER,
+    # seen here 2026-11-19). That row's fix drops this branch; any other failure stays red.
+    if reserved["exit_code"] != 0 and "HarnessParserUnbound" in json.dumps(reserved["lines"]):
+        pytest.xfail("RT-PHONE-CHAT-TURN-HAS-NO-HARNESS-PARSER: the reserved turn was accepted, then "
+                     "its dispatch found no harness parser")
+    assert reserved["exit_code"] == 0, reserved
 
 
 def test_an_unbound_host_store_is_refused_before_any_request(app):
