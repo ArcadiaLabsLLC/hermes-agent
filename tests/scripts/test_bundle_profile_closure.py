@@ -468,9 +468,11 @@ def test_a_graph_reads_each_distributions_requirements_once_across_walks(monkeyp
     assert scans == []
     assert lazy.dist_for_top("fakeleaf") == "fakeleaf" and scans == [1]
 
+    import tomllib
+
     parses = []
-    real_loads = closure_script.tomllib.loads
-    monkeypatch.setattr(closure_script.tomllib, "loads", lambda text: parses.append(1) or real_loads(text))
+    real_loads = tomllib.loads
+    monkeypatch.setattr(tomllib, "loads", lambda text: parses.append(1) or real_loads(text))
     closure_script._parsed_lock.cache_clear()
     one, two = closure_script._lock(), closure_script._lock()
     assert one == two and one is not two
