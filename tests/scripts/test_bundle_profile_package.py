@@ -835,3 +835,18 @@ def test_the_pool_plan_proves_the_seed_a_dist_the_seed_missed_ends_the_build(mon
     out = capsys.readouterr().out
     assert "pool: seed plan 1 dists, pool plan 2 dists" in out
     assert "the closure needs d-dist; the pool does not hold it" in out
+
+
+def test_a_package_s_docs_directory_is_not_package_data():
+    """RT-PHONE-ENGINE-BUNDLE-FITS-THE-DOWNLOAD-LIMIT: a plugin's README screenshots
+    (``plugins/hermes-achievements/docs/assets/*.png``, 2.8 MB) shipped as its package data."""
+    from scripts.bundle_profile_closure import ROOT
+    from scripts.bundle_profile_package import first_party_files
+
+    tree = ["plugins/__init__.py", "plugins/x/__init__.py", "plugins/x/plugin.yaml",
+            "plugins/x/docs/assets/shot.png", "plugins/x/dashboard/dist/index.js"]
+    index = {"plugins": ROOT / "plugins/__init__.py", "plugins.x": ROOT / "plugins/x/__init__.py"}
+    assert first_party_files(_plan({"plugins", "plugins.x"}, set()), index, tree, ()) == sorted(
+        set(tree) - {"plugins/x/docs/assets/shot.png"})
+    # A top-level docs/ resource is a resource, not package data: it still ships.
+    assert first_party_files(_plan(set(), set()), {}, ["docs/h/SKILL.md"], ("docs/h",)) == ["docs/h/SKILL.md"]

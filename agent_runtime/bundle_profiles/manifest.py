@@ -160,6 +160,8 @@ class ProfileManifest:
     #: ship the forced set's scanned-package modules under the sibling root the embedded entry mounts
     #: (``agent_runtime/bundle_profiles/forced_tree.py``), never under the scanned ``tools/`` / ``plugins/``
     packaging_forced_sibling_tree: bool = False
+    #: ship first-party modules without their ``#`` comments, line for line (scripts/bundles/strip_comments.py)
+    packaging_strip_comments: bool = False
     #: what the packager's pool phase installs (:class:`PoolScope`); absent = the whole export
     packaging_pool: PoolScope = PoolScope.EXPORT
 
@@ -289,6 +291,7 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         admitted_native=_reasons(packaging.get("admitted_native"), "packaging.admitted_native"),
         packaging_pure_wheels=_strings(packaging.get("pure_wheels"), "packaging.pure_wheels"),
         packaging_forced_sibling_tree=_manifest_flag(packaging.get("forced_sibling_tree"), "packaging.forced_sibling_tree"),
+        packaging_strip_comments=_manifest_flag(packaging.get("strip_comments"), "packaging.strip_comments"),
         packaging_pool=_pool_scope(packaging.get("pool")),
     )
     if validate:

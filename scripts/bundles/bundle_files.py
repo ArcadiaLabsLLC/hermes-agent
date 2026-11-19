@@ -20,6 +20,11 @@ from scripts.bundle_profile_closure import ROOT, _norm
 TEST_DIRS = {"tests", "test", "testing_data"}
 NOISE_DIRS = {"__pycache__"}
 NOISE_SUFFIXES = (".pyc", ".pyo")
+#: A directory of this name inside a shipped package holds its documentation (screenshots, notes),
+#: which nothing imports or reads at run time: never package data (RT-PHONE-ENGINE-BUNDLE-FITS-THE-DOWNLOAD-LIMIT;
+#: 2.8 MB of a plugin's README screenshots shipped in the phone bundle). A resource (packaging.resources)
+#: is not package data and is not judged by this.
+DOC_DIRS = {"docs"}
 BUNDLE_MANIFEST = "bundle-manifest.json"
 BAKED_MARKER = ".hermes-baked-pycache"
 #: ``agent_runtime.build_stamp``'s baked stamp, read beside the package when no git is consulted.
@@ -155,7 +160,13 @@ def mark_named_skill(shipped: Path, skill_platforms: tuple[str, ...], skill_name
 
 def _data_file(rel: str, excluded: dict[str, str]) -> bool:
     """A tracked non-module file the packager may ship (package data or a resource)."""
-    return not (rel.endswith(".py") or _is_noise(rel) or _is_test(rel) or _excluded(f"app/{rel}", excluded))
+    return not (rel.endswith(".py") or _is_noise(rel) or _is_test(rel) or _is_package_doc(rel)
+                or _excluded(f"app/{rel}", excluded))
+
+
+def _is_package_doc(rel: str) -> bool:
+    """``rel`` lies in a :data:`DOC_DIRS` directory below the repository's top level (``plugins/x/docs/...``)."""
+    return bool(DOC_DIRS.intersection(rel.split("/")[1:-1]))
 
 
 def _resource_file(rel: str, excluded: dict[str, str]) -> bool:

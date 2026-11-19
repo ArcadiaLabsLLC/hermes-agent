@@ -188,6 +188,10 @@ packaging:
   # entry mounts it on `tools.__path__` / `plugins.__path__` (agent_runtime/bundle_profiles/
   # forced_tree.py; owner ruling 2026-09-30, option (1)).
   forced_sibling_tree: true
+  # First-party modules ship without their `#` comments, every line kept where it was (tracebacks
+  # still point at the source tree's lines; docstrings stay): about 3.3 MiB of the compressed
+  # download (RT-PHONE-ENGINE-BUNDLE-FITS-THE-DOWNLOAD-LIMIT; scripts/bundles/strip_comments.py).
+  strip_comments: true
   # Skills ship only when their frontmatter `platforms:` names a phone OS — the existing
   # per-skill OS switch (agent/skill_utils.py::skill_matches_platform), so the same marker also
   # hides an unmarked skill from a phone's skill index at run time.

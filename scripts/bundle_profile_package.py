@@ -223,6 +223,16 @@ def _copy_file(source: Path, destination: Path) -> None:
     shutil.copyfile(source, destination)
 
 
+def _comment_free_copy(source: Path, destination: Path) -> None:
+    """A first-party module without its comments (``packaging.strip_comments``); any other file as is."""
+    if source.suffix != ".py":
+        return _copy_file(source, destination)
+    from scripts.bundles.strip_comments import strip_comments
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(strip_comments(source.read_bytes(), str(source)))
+
+
 def _copy_distributions(names, dists: dict[str, Dist], stage: Path, site: Path, excluded) -> int:
     copied = 0
     for name in sorted(names):
@@ -260,11 +270,12 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
     rels = first_party_files(plan, index, tracked, manifest.packaging_resources, manifest.excluded_data,
                              manifest.packaging_skill_platforms, manifest.packaging_skill_names)
     app_rels, tree_rels = split_forced_tree(rels, plan.sibling, index)
+    copy = _comment_free_copy if manifest.packaging_strip_comments else _copy_file
     for rel in app_rels:
-        _copy_file(ROOT / rel, app / rel)
+        copy(ROOT / rel, app / rel)
         mark_named_skill(app / rel, manifest.packaging_skill_platforms, manifest.packaging_skill_names)
     for rel in tree_rels:
-        _copy_file(ROOT / rel, out / FORCED_TREE_DIR / rel)
+        copy(ROOT / rel, out / FORCED_TREE_DIR / rel)
     from scripts.build.agent import write_metadata
 
     write_metadata(ROOT / "pyproject.toml", app)
