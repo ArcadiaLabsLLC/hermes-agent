@@ -69,7 +69,12 @@ table (`HermesProviderMethod.timeoutFor`).
 source, selected, health, token_preview}]}], environment?, api_keys?,
 auth_logins?, local_llama?, catalog?, block_errors?}`. `catalog` rows are the
 real login catalog plus `browser_login: bool` and `browser_login_methods:
-[flow…]`. `token_preview` is at most the last four characters.
+[flow…]`. Every catalog row carries `sign_in_required: bool` — whether a turn on the
+provider needs a stored credential (true for anthropic, openai-codex and every keyed remote, OAuth or
+cloud-SDK provider; false for `moa`, `custom`, the managed `llamacpp` runtime and LM Studio, whose
+default endpoint is loopback and whose key is optional). Its one owner is
+`hermes_cli/provider_login_catalog.py::sign_in_required_for`; a client reads it, never derives it
+from `flows`/`key_var`. `token_preview` is at most the last four characters.
 An `env:*` credential whose token any profile under the namespace root recorded dead or
 `auth_failed` (401/403; a 429 does not count) reads `health: {state: "dead", reason:
 "login_expired", …}` in every profile: one `.env` token copied into several profiles is

@@ -185,7 +185,7 @@ def provider_login_catalog() -> list[dict]:
     catalog order first, then any override-only rows.
 
     Each row: ``{id, name, flows, key_var, models_dev_id, docs_url,
-    disconnect_command, model_picker, auth_modes}``. NEVER a credential value — this block describes what
+    disconnect_command, model_picker, auth_modes, sign_in_required}``. NEVER a credential value — this block describes what
     CAN be connected, never what is stored.
     """
     from hermes_cli.model_picker_policy import model_picker_policy_for
@@ -195,7 +195,8 @@ def provider_login_catalog() -> list[dict]:
     seen: set[str] = set()
 
     def _emit(
-        slug: str, name: str, default_flow: str, key_var: str | None, docs_url: str
+        slug: str, name: str, default_flow: str, key_var: str | None, docs_url: str,
+        sign_in_required: bool,
     ) -> None:
         if slug in seen:
             return
@@ -221,6 +222,7 @@ def provider_login_catalog() -> list[dict]:
                 "disconnect_command": disconnect_command_for(slug, flow),
                 "model_picker": model_picker_policy_for(slug),
                 "auth_modes": auth_modes_for(slug),
+                "sign_in_required": sign_in_required,
             }
         )
 
@@ -234,9 +236,13 @@ def provider_login_catalog() -> list[dict]:
             _default_flow_for(descriptor.auth_type),
             key_var,
             descriptor.signup_url,
+            sign_in_required_for(
+                descriptor.slug, descriptor.auth_type, descriptor.api_key_env_vars
+            ),
         )
     for row in OAUTH_FLOW_OVERRIDES:
-        _emit(row["id"], row["name"], row["flow"], None, row["docs_url"])
+        # An override-only row is a sign-in by definition (an OAuth or external login card).
+        _emit(row["id"], row["name"], row["flow"], None, row["docs_url"], True)
     return rows
 
 
@@ -250,3 +256,44 @@ def _default_flow_for(auth_type: str) -> str:
     if auth_type.startswith("oauth"):
         return "pkce"
     return "api_key"
+
+
+def sign_in_required_for(slug: str, auth_type: str, credential_env_vars: tuple[str, ...]) -> bool:
+    """Whether a turn on ``slug`` needs a stored credential — the catalog row's ``sign_in_required``.
+
+    The ONE owner of this fact (row RT-PROVIDER-CATALOG-SAYS-WHETHER-A-SIGN-IN-IS-NEEDED): a client
+    reads it off the catalog instead of guessing from ``flows`` / ``key_var``, which say how a
+    credential CAN be given, not whether one is needed (every non-OAuth row offers ``api_key``).
+    False for providers that answer without one:
+
+    - ``virtual`` providers (``moa``): no endpoint of their own;
+    - a provider whose default endpoint is loopback (LM Studio): its key is optional;
+    - an ``api_key`` provider with no credential env var at all (``custom``, and the managed local
+      runtime ``llamacpp``, whose reachability is the credential): a user or local endpoint whose
+      key, if any, travels with its own config.
+
+    Every OAuth / external / cloud-SDK provider, and every keyed remote provider, is True.
+    """
+    from hermes_cli.providers import HERMES_OVERLAYS
+
+    if auth_type == "virtual":
+        return False
+    # MUTATION: skip the loopback rule and LM Studio reads true (test_signed_in_providers_read_true_...).
+    if _default_base_url_is_loopback(slug, HERMES_OVERLAYS.get(slug)):
+        return False
+    # MUTATION: drop the keyless-api_key rule and test_the_managed_local_runtime_needs_no_sign_in and the
+    # custom assertion redden.
+    return not (auth_type == "api_key" and not credential_env_vars)
+
+
+def _default_base_url_is_loopback(slug: str, overlay) -> bool:
+    """The provider's shipped default endpoint (registry first, then the overlay) is on this machine."""
+    try:
+        from hermes_cli.auth import PROVIDER_REGISTRY
+        from hermes_cli.runtime_provider import _loopback_hostname
+        from utils import base_url_hostname
+    except Exception:
+        return False
+    cfg = PROVIDER_REGISTRY.get(slug)
+    url = (cfg.inference_base_url if cfg else "") or (overlay.base_url_override if overlay else "")
+    return bool(url) and _loopback_hostname(base_url_hostname(url))
