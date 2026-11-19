@@ -522,9 +522,12 @@ def apply_flow_graph_pull(
             _refusal(FLOW_GRAPH_PROJECTION_RELATIVE_PATH, REFUSAL_UNREADABLE_PROJECTION)
         )
         return summary
+    # The drawing walk's scope, settled before anything is decided (RT-REALM-ADOPTING-THE-TEAMS-COPY-SETTLES-
+    # EVERY-BASELINE): an entry whose desk this machine does not ship leaves the baseline, whether or not the realm
+    # still carries the drawing. ``None`` (no scope given) releases nothing.
     # MUTATION: skip this release and
     # test_realm_member_desk_archived_by_a_pull reddens (the canvas reads removed).
-    released = _release_unshipped_baselines(realm_id, remote, published_owner_ids)
+    released = _release_out_of_scope_baselines(realm_id, remote, published_owner_ids)
     if source is None:
         # Not published. Never a removal — no canvas is touched, so an older peer
         # in the rotation cannot strand this machine's drawings; only a baseline
@@ -534,6 +537,13 @@ def apply_flow_graph_pull(
 
     store = FlowGraphStore()
     baseline = read_flow_graph_baseline(realm_id)
+
+    def in_scope(graph_id: str) -> bool:
+        # A drawing whose desk this machine does not ship is outside the walk's scope: written, never baselined.
+        from .flow_graph import owner_instance_id_of
+
+        return published_owner_ids is None or owner_instance_id_of(graph_id) in set(published_owner_ids)
+
     live = set(live_instance_ids) if live_instance_ids is not None else _live_instance_ids()
     prefix = flow_graph_baseline_key("")
     baselined = {key[len(prefix):] for key in baseline if key.startswith(prefix)}
@@ -573,7 +583,8 @@ def apply_flow_graph_pull(
             )
             continue
         store.set_doc(doc, requested_by="realm-sync")
-        baseline[flow_graph_baseline_key(graph_id)] = remote_hash
+        if in_scope(graph_id):
+            baseline[flow_graph_baseline_key(graph_id)] = remote_hash
         summary.adopted.append(graph_id)
         for node_id in sorted(doc.node_bindings):
             agent_id = doc.node_bindings[node_id]
@@ -586,36 +597,17 @@ def apply_flow_graph_pull(
     return summary
 
 
-def _release_unshipped_baselines(realm_id: str, remote, published_owner_ids) -> list[str]:
-    """Drop the baseline entry of every canvas neither side publishes any more.
-
-    A canvas the realm does not carry, whose owner desk this machine's next
-    publish does not ship either: the baseline is the only thing still saying
-    it was published, and the drift walk reads that as "canvas no longer
-    published" — a local change nobody made (see ``apply_flow_graph_pull``). The
-    canvas file is never touched. ``None`` (no publish scope given) releases
-    nothing. Returns the released graph ids.
-    """
+def _release_out_of_scope_baselines(realm_id: str, remote, published_owner_ids) -> list[str]:
+    """The flow-graph arm of ``realm_sync.settle`` at the pull: drop every baseline entry whose owner desk this
+    machine does not ship (``published_owner_ids``). Returns the released graph ids the realm no longer carries
+    (the pull names those ``upstream_absent``); the ones it still carries are released silently — the drawing
+    stays in the store, outside the walk's scope. ``None`` releases nothing."""
 
     if published_owner_ids is None:
         return []
-    from .flow_graph import owner_instance_id_of
+    from .realm_sync.settle import settle_flow_graph_scope
 
-    shipped = set(published_owner_ids)
-    baseline = read_flow_graph_baseline(realm_id)
-    prefix = flow_graph_baseline_key("")
-    released = sorted(
-        key[len(prefix):]
-        for key in baseline
-        if key.startswith(prefix)
-        and key[len(prefix):] not in remote
-        and owner_instance_id_of(key[len(prefix):]) not in shipped
-    )
-    if released:
-        for graph_id in released:
-            del baseline[flow_graph_baseline_key(graph_id)]
-        write_flow_graph_baseline(realm_id, baseline)
-    return released
+    return [graph_id for graph_id in settle_flow_graph_scope(realm_id, published_owner_ids) if graph_id not in remote]
 
 
 def _live_instance_ids() -> set[str]:

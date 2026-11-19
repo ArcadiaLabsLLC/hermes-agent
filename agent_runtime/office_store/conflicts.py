@@ -30,6 +30,7 @@ __layer__ = "stores"
 __all__ = [
     "_guard_no_conflict",
     "resolve_conflict",
+    "retire_hold",
     "scan_conflicts",
 ]
 
@@ -111,7 +112,7 @@ def resolve_conflict(
     (or archives the local actor for an edit-vs-remove tombstone, as the
     pull's archive arm does: no tombstone of this machine's). Both
     ``take="remote"`` arms settle that ONE desk's realm baseline entry
-    (``office_sync.settle_office_actor_baseline``), so the team's copy is not
+    (``realm_sync.settle.settle_office_actor``), so the team's copy is not
     offered back as an unpublished change. Always archives the sidecar and
     emits ``office.actor.conflict_resolved``.
 
@@ -158,7 +159,7 @@ def resolve_conflict(
     if not wsid:
         raise ValueError("invalid_request")
     # Deferred: ``office_sync`` imports this package.
-    from agent_runtime.office_sync import settle_office_actor_baseline
+    from agent_runtime.realm_sync.settle import settle_flow_graph_scope_for_workspace, settle_office_actor
 
     with office_lock(wsid):
         sidecar_path = paths.office_conflict_path(wsid, actor_key)
@@ -205,7 +206,7 @@ def resolve_conflict(
                     # (RT-REALM-TAKING-THE-TEAMS-COPY-OF-A-HELD-DESK-LEAVES-UNPUBLISHED-CHANGES).
                     # MUTATION: drop this call and
                     # test_taking_the_teams_edit_of_a_held_desk_leaves_nothing_to_publish reddens.
-                    settle_office_actor_baseline(wsid, actor.actor_key, actor)
+                    settle_office_actor(wsid, actor.actor_key, actor)
             elif store.actor_exists(wsid, actor_key):
                 # Remote removed the actor (edit-vs-remove) → archive local.
                 actor = store.get_actor(wsid, actor_key)
@@ -229,7 +230,11 @@ def resolve_conflict(
                         correlation_id=correlation_id,
                         record_tombstone=False,
                     )
-                    settle_office_actor_baseline(wsid, actor_key, None)
+                    settle_office_actor(wsid, actor_key, None)
+                    # The desk left this realm's shipped desks, so its drawing left the walk's scope with it.
+                    # MUTATION: drop this call and
+                    # test_taking_the_teams_delete_of_a_desk_leaves_its_drawing_unpublished_too reddens.
+                    settle_flow_graph_scope_for_workspace(wsid)
         if dry_run:
             # take value + sidecar existence validated; return the would-be
             # resolved actor in memory. Leave the sidecar in place and emit
@@ -251,6 +256,27 @@ def resolve_conflict(
             revision=getattr(result_actor, "revision", None),
         )
     return result_actor
+
+
+def retire_hold(store: OfficeStore, workspace_id: str, actor_key: str) -> bool:
+    """Retire a held desk's sidecar because a later PULL found the key is no longer a conflict (only one side
+    changed, both converged, or the team's copy is back at the baseline). The pull that creates a hold is the one
+    owner of retiring it (RT-REALM-HELD-DESK-THE-TEAM-PUT-BACK-STILL-SAYS-DELETED, review w1118a.40 D17): a
+    sidecar left behind said the team had deleted a desk it had put back, and Take theirs archived that desk.
+
+    Archived to ``.resolved.json`` like a resolve's, and the conflict ledger row goes to live clients the same
+    way, so the sync strip's pill clears. Returns whether there was a hold to retire.
+    """
+
+    wsid = safe_id(workspace_id)
+    if not wsid or not paths.office_conflict_path(wsid, actor_key).exists():
+        return False
+    with office_lock(wsid):
+        if not paths.office_conflict_path(wsid, actor_key).exists():
+            return False
+        _archive_actor_conflict_sidecar(wsid, actor_key)
+        store._emit_conflict_resolved_patch(wsid, actor_key)
+    return True
 
 
 def _guard_no_conflict(store: OfficeStore, workspace_id: str, actor_key: str) -> None:

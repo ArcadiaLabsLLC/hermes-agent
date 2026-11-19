@@ -26,7 +26,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-19 (lane bundled-realm)
 
-- **`FH-REALM-TESTS-HANG-ON-A-LOCAL-GIT-REMOTE` — Realm tests that clone or fetch a local git remote hang until the 30-second timeout on this Windows box, on main too** · group: engine-suite-green-followups · seen 2026-11-19 (lane bundled-realm, DESKTOP-QJ7DDV2, test venv, box otherwise idle): `tests/agent_runtime/test_realm_pulled_persona_machine_defaults.py` hangs in `git clone` (`test_workspace_move_out_of_server_realm.py` team fixture `clone`) on a clean origin/main fc8da21e16 worktree and on the lane; `tests/agent_runtime/test_realm_sync.py::test_status_fetches_remote_so_upstream_changes_mark_behind` and `::test_republish_prunes_deselected_skills_from_subtree` hang in `realm_sync/git_binary.py` fetch; a hand-run `git clone` of an empty local bare repo returns at once, so the cause is in the test environment (guess: a git config or credential prompt the conftest's blanked env reaches) · done when: the three tests pass on this box within their budget · READY 2026-11-19
 
 ## Filed on arrival — 2026-11-16 (lane w1115e-fh3: what the hermes test seal reported)
 

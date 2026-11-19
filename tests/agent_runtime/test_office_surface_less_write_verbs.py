@@ -149,7 +149,9 @@ def test_resolve_conflict_edit_vs_remove_completes_on_a_surface_less_workspace(
     assert not store.actor_exists(ws, "dev")
     assert paths.office_archived_actor_path(ws, "dev").exists()
     assert store.surface_exists(ws)
-    assert "dev" in store.get_surface(ws).archived_actor_keys
+    # Archived as a pull archives a desk the realm removed: no tombstone of this machine's (cae912bae4,
+    # RT-REALM-TAKING-THE-TEAMS-COPY-OF-A-HELD-DESK-LEAVES-UNPUBLISHED-CHANGES).
+    assert "dev" not in store.get_surface(ws).archived_actor_keys
     assert not sidecar.exists()
 
 

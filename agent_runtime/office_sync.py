@@ -246,40 +246,6 @@ def update_office_baseline_after_sync(realm_id: str, workspace_ids: list[str]) -
     return summary
 
 
-def settle_office_actor_baseline(workspace_id: str, actor_key: str, actor: OfficeActor | None) -> str | None:
-    """Settle ONE desk's baseline entry after the member took the team's copy of it (``office resolve-conflict
-    --take remote``): the entry a pull that adopted the same upstream state would leave — the adopted desk's H
-    under :func:`update_office_baseline_after_sync`'s key, or no entry for a desk the team removed (the pull's
-    archive arm pops it with the row). Without it the store kept the pre-conflict entry and the drift walk
-    offered a Publish for a choice that changes nothing for the team
-    (RT-REALM-TAKING-THE-TEAMS-COPY-OF-A-HELD-DESK-LEAVES-UNPUBLISHED-CHANGES).
-
-    That one key and nothing else: re-baselining the workspace would bless the member's other unpublished office
-    edits. The realm is the one the workspace is published into; a workspace with no realm has no baseline and
-    is left alone. Returns the realm settled, or ``None``.
-    """
-
-    from .errors import NotFound
-    from .store import WorkspaceStore
-
-    try:
-        realm_id = WorkspaceStore().get(workspace_id).realm_id
-    except NotFound:
-        return None
-    if not realm_id:
-        return None
-    baseline = read_office_baseline(realm_id)
-    key = _actor_key(workspace_id, actor_key)
-    settled = dict(baseline)
-    if actor is None:
-        settled.pop(key, None)
-    else:
-        settled[key] = office_models.office_content_hash(actor)
-    if settled != baseline:
-        write_office_baseline(realm_id, settled)
-    return realm_id
-
-
 # --- pull application ------------------------------------------------------
 
 
@@ -321,6 +287,9 @@ class OfficePullSummary:
     #: workspace, the actor key and why (``edit_vs_remove``: edited here, deleted by the team), so a pull that
     #: met a teammate's delete says which desk (TASK-REALM-DELETE-MEETS-AN-EDIT). Additive.
     held: list[dict[str, str]] = None  # type: ignore[assignment]
+    #: Holds an earlier pull left that this pull RETIRED because the key is no longer a conflict (review
+    #: w1118a.40 D17). Additive.
+    holds_retired: list[dict[str, str]] = None  # type: ignore[assignment]
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -330,6 +299,7 @@ class OfficePullSummary:
             "archived": self.archived,
             "conflicts": self.conflicts,
             "held": list(self.held or []),
+            "holds_retired": list(self.holds_retired or []),
             "workspaces": list(self.workspaces or []),
             "refused": list(self.refused or []),
             "unknowable": list(self.unknowable or []),
@@ -460,13 +430,20 @@ def _reconcile_surface(
         return
     # Through the store (H1), not ``atomic_json_write``: an event-less write is
     # invisible to the watermark-gated snapshot/serve pipeline, and the archive
-    # arm has always emitted. The baseline stays keyed off the REMOTE hash — the
-    # adopt verb stamps ``updated_by``, which ``office_content_hash`` excludes,
-    # and unions the tombstone ledger, which it does not (C1): where the union
-    # actually keeps a local-only key the surface reads as locally edited until
-    # the next publish, which is the honest state.
-    store.adopt_remote_surface(remote_surface)
-    baseline[surface_key] = remote_hash
+    # arm has always emitted. The adopt verb stamps ``updated_by``, which
+    # ``office_content_hash`` excludes, and unions the tombstone ledger (C1),
+    # which it does not — so the baseline is the WRITTEN surface's hash, never
+    # the remote's (review w1118a.40 D11 retired "reads as locally edited until
+    # the next publish": the member adopted the team's copy and changed nothing).
+    written = store.adopt_remote_surface(remote_surface)
+    # The hash of the surface AS WRITTEN, the drift walk's own (RT-REALM-ADOPTING-THE-TEAMS-COPY-SETTLES-EVERY-
+    # BASELINE): the union above keeps this machine's own tombstones, and the remote hash stamped here read
+    # that union as an "office layout changed" nobody made.
+    # MUTATION: stamp ``remote_hash`` again and test_a_pull_that_keeps_my_own_tombstone_leaves_no_office_layout_change
+    # reddens.
+    from .realm_sync.settle import settle_office_surface
+
+    settle_office_surface(baseline, written)
 
 
 def _reconcile_actors(
@@ -506,9 +483,14 @@ def _reconcile_actors(
             locally_archived=actor_key in archived_keys,
         )
         if decision.action == PullAction.NOOP:
+            _retire_hold(store, summary, workspace_id, actor_key)
             continue
         if decision.action == PullAction.KEEP_LOCAL:
             summary.kept_local += 1
+            # The team's side is back at the baseline (a desk it deleted, put back as it was): only this
+            # member changed it, so the hold a pull left is retired and the move stays theirs to publish.
+            # MUTATION: drop this call and test_a_desk_the_team_put_back_is_no_longer_held reddens.
+            _retire_hold(store, summary, workspace_id, actor_key)
             continue
         if decision.action == PullAction.WRITE_REMOTE and remote_actor is not None:
             remote_actor.workspace_id = workspace_id
@@ -519,6 +501,7 @@ def _reconcile_actors(
             # GAVE you one was visible to none.
             store.adopt_remote_actor(remote_actor)
             baseline[key] = remote_hash or office_models.office_content_hash(remote_actor)
+            _retire_hold(store, summary, workspace_id, actor_key)
             if decision.reason == "converged":
                 summary.converged += 1
             else:
@@ -575,6 +558,7 @@ def _reconcile_actors(
             )
             # The baseline entry leaves WITH the row, and only with it.
             baseline.pop(key, None)
+            _retire_hold(store, summary, workspace_id, actor_key)
             continue
         if decision.action == PullAction.CONFLICT:
             _write_conflict_sidecar(
@@ -590,6 +574,16 @@ def _reconcile_actors(
             continue
 
 
+def _retire_hold(store: OfficeStore, summary: OfficePullSummary, workspace_id: str, actor_key: str) -> None:
+    """A key this pull decided is no longer a conflict retires the hold an earlier pull left on it (review
+    w1118a.40 D17: the pull that creates a hold owns retiring it), and the summary names it."""
+
+    if store.retire_hold(workspace_id, actor_key):
+        if summary.holds_retired is None:
+            summary.holds_retired = []
+        summary.holds_retired.append({"workspace_id": workspace_id, "actor_key": actor_key})
+
+
 def apply_office_pull(realm_id: str, subtree: Path, *, event_log: EventLog | None = None) -> OfficePullSummary:
     """Apply the per-actor decision table across every office surface in the
     pulled realm subtree. Updates the baseline for converged/adopted actors,
@@ -602,7 +596,7 @@ def apply_office_pull(realm_id: str, subtree: Path, *, event_log: EventLog | Non
     store = OfficeStore(event_log=event_log)
     baseline = read_office_baseline(realm_id)
     summary = OfficePullSummary(
-        workspaces=[], refused=[], unknowable=[], delete_fenced=[], archive_outcomes=[], held=[]
+        workspaces=[], refused=[], unknowable=[], delete_fenced=[], archive_outcomes=[], held=[], holds_retired=[]
     )
     office_root = subtree / "store" / "office"
     if not office_root.exists():

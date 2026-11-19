@@ -1177,6 +1177,18 @@ hands over a count and no tokens. Both keys are additive — a row from an older
 core has no such list, which reads as exactly the claim the bare list used to
 make silently.
 
+**Taking the team's copy settles every baseline it touched** (2026-11-19,
+RT-REALM-ADOPTING-THE-TEAMS-COPY-SETTLES-EVERY-BASELINE, review w1118a.40 D11). A pull
+applier, a take-remote resolve and a revert record, for each key they adopted, the
+hash the drift walk computes for the body as written, and drop a baseline entry whose
+owner left the walk's scope — one module, `agent_runtime/realm_sync/settle.py`, with
+an arm per family: the office actor (take-remote), the office surface (the pull writes
+its tombstone union, so it stamps that, not the remote hash), the drawing (the walk's
+scope, `drift.flow_graph_walk_scope`, at the pull, take-remote and revert). The
+persona-instance arm is the pull's dropped-steering ledger (308a54da63). A pull that
+finds a held desk is no longer a conflict retires its sidecar (`OfficeStore.retire_hold`,
+D17; the pull summary's `holds_retired`).
+
 **`conflict_kinds` says what the team did to each held desk** (2026-11-19,
 RT-OFFICE-HELD-DESK-SAYS-WHAT-THE-TEAMMATE-DID): `{actor_key: "changed" | "removed"}`,
 read by `scan_conflicts` (the one sidecar reader) off the sidecar's `remote_actor`

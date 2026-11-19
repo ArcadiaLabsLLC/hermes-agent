@@ -108,7 +108,7 @@ def test_a_teammates_delete_then_restore_brings_the_agent_back_and_nothing_reads
     -> the same red; in ``adopt_remote_surface`` pass an empty set for the realm-held keys -> every key reads
     as Bob's own again and the agent stays gone, red at the second ``_agent_here``; in
     ``apply_flow_graph_pull`` skip
-    ``_release_unshipped_baselines`` -> the delete's pull reads ``flow_graph ... removed``, red at the first
+    ``_release_out_of_scope_baselines`` -> the delete's pull reads ``flow_graph ... removed``, red at the first
     ``_unpublished``."""
     shared, workspace, before_delete = _shared_agent(team)
     _alice_deletes_and_publishes(team, shared)
