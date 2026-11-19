@@ -122,3 +122,38 @@ def test_the_phone_profile_empties_function_docstrings_and_the_desktop_profile_d
     assert b"Method doc" in (tmp_path / "plain" / "m.py").read_bytes()  # positive control: flag off keeps it
     _comment_free_copy(source, tmp_path / "out" / "m.py", function_docstrings=True)
     assert b"Method doc" not in (tmp_path / "out" / "m.py").read_bytes()
+
+
+def test_class_and_module_docstrings_empty_line_for_line_when_asked():
+    """Killing mutation: ``_docstring_spans`` leaves out ``ast.Module`` -> red (module doc stays);
+    a class docstring emptied to ``""`` -> red (a dataclass would build its signature doc at import)."""
+    import dataclasses
+
+    from scripts.bundles.strip_comments import strip_function_docstrings
+
+    source = DOCSTRINGS + b'\n\n@dataclasses.dataclass\nclass Row:\n    """Row doc."""\n    a: int = 0\n'
+    out = strip_function_docstrings(source, classes_and_modules=True)
+    assert out.count(b"\n") == source.count(b"\n")
+    assert b"argparse reads it" not in out and b"pydantic reads it" not in out and b"Row doc" not in out
+    namespace: dict = {"dataclasses": dataclasses}
+    exec(compile(out, "m", "exec"), namespace)
+    assert namespace["__doc__"] == ""
+    assert namespace["Model"].__doc__ == "." and namespace["Row"].__doc__ == "."
+    assert namespace["Model"]().method() == 1 and namespace["tail"]() == 2
+    assert out.split(b"\n")[9].strip() == b"return 1"
+
+
+def test_the_phone_profile_empties_class_and_module_docstrings_and_the_desktop_profile_does_not(tmp_path: Path):
+    """Killing mutation: the packager's copy ignores ``class_and_module_docstrings`` -> red."""
+    from agent_runtime.bundle_profiles.manifest import load_profile
+    from scripts.bundle_profile_package import _comment_free_copy
+
+    assert load_profile("bundled-phone").packaging_strip_class_and_module_docstrings is True
+    assert load_profile("bundled-desktop").packaging_strip_class_and_module_docstrings is False
+    source = tmp_path / "m.py"
+    source.write_bytes(DOCSTRINGS)
+    _comment_free_copy(source, tmp_path / "fn" / "m.py", function_docstrings=True)
+    assert b"argparse reads it" in (tmp_path / "fn" / "m.py").read_bytes()  # positive control
+    _comment_free_copy(source, tmp_path / "out" / "m.py", function_docstrings=True, class_and_module_docstrings=True)
+    out = (tmp_path / "out" / "m.py").read_bytes()
+    assert b"argparse reads it" not in out and b"pydantic reads it" not in out

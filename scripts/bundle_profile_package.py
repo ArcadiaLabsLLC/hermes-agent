@@ -224,17 +224,21 @@ def _copy_file(source: Path, destination: Path) -> None:
     shutil.copyfile(source, destination)
 
 
-def _comment_free_copy(source: Path, destination: Path, *, function_docstrings: bool = False) -> None:
+def _comment_free_copy(source: Path, destination: Path, *, function_docstrings: bool = False,
+                       class_and_module_docstrings: bool = False) -> None:
     """A first-party module without its comments (``packaging.strip_comments``) and, with
-    ``function_docstrings`` (``packaging.strip_function_docstrings``), its function docstrings emptied;
-    any other file as is."""
+    ``function_docstrings`` (``packaging.strip_function_docstrings``), its function docstrings emptied
+    — with ``class_and_module_docstrings`` (``packaging.strip_class_and_module_docstrings``) its class
+    and module docstrings too; any other file as is."""
     if source.suffix != ".py":
         return _copy_file(source, destination)
     from scripts.bundles.strip_comments import strip_comments, strip_function_docstrings
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     text = strip_comments(source.read_bytes(), str(source))
-    destination.write_bytes(strip_function_docstrings(text, str(source)) if function_docstrings else text)
+    if function_docstrings:
+        text = strip_function_docstrings(text, str(source), classes_and_modules=class_and_module_docstrings)
+    destination.write_bytes(text)
 
 
 def _copy_distributions(names, dists: dict[str, Dist], stage: Path, site: Path, excluded) -> int:
@@ -274,7 +278,8 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
     rels = first_party_files(plan, index, tracked, manifest.packaging_resources, manifest.excluded_data,
                              manifest.packaging_skill_platforms, manifest.packaging_skill_names)
     app_rels, tree_rels = split_forced_tree(rels, plan.sibling, index)
-    copy = (functools.partial(_comment_free_copy, function_docstrings=manifest.packaging_strip_function_docstrings)
+    copy = (functools.partial(_comment_free_copy, function_docstrings=manifest.packaging_strip_function_docstrings,
+                              class_and_module_docstrings=manifest.packaging_strip_class_and_module_docstrings)
             if manifest.packaging_strip_comments else _copy_file)
     for rel in app_rels:
         copy(ROOT / rel, app / rel)

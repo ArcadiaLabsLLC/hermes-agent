@@ -195,11 +195,15 @@ packaging:
   # still point at the source tree's lines; docstrings stay): about 3.3 MiB of the compressed
   # download (RT-PHONE-ENGINE-BUNDLE-FITS-THE-DOWNLOAD-LIMIT; scripts/bundles/strip_comments.py).
   strip_comments: true
-  # ... and every function and method docstring emptied to "", line for line (module and class
-  # docstrings stay: argparse and pydantic read those): about 2.6 MiB of the compressed download.
+  # ... and every function and method docstring emptied to "", line for line: about 2.6 MiB of the compressed download.
   # Audited 2026-11-19: no first-party code reads a function's __doc__ for its content
   # (scripts/bundles/strip_comments.py::strip_function_docstrings).
   strip_function_docstrings: true
+  # ... and every module docstring emptied to "" and class docstring to "." (a falsy one makes
+  # @dataclass build a signature docstring at import), line for line. Audited 2026-11-19: the
+  # module reads are argparse --help descriptions, which take ""; the class reader, pydantic's
+  # schema, is not shipped (omitted_distributions); nothing shipped reads either for its content.
+  strip_class_and_module_docstrings: true
   # Skills ship only when their frontmatter `platforms:` names a phone OS — the existing
   # per-skill OS switch (agent/skill_utils.py::skill_matches_platform), so the same marker also
   # hides an unmarked skill from a phone's skill index at run time.

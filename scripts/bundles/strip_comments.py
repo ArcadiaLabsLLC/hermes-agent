@@ -11,8 +11,14 @@ tokenizer cannot read, or whose stripped text does not compile, ships unchanged.
 ``packaging.strip_function_docstrings: true`` also empties every FUNCTION and method docstring
 (:func:`strip_function_docstrings`), line for line, to ``""``. Audited 2026-11-19: no first-party code
 reads a function's ``__doc__`` for its content (the reads copy one wrapper's ``__doc__`` onto
-another; tool and RPC descriptions are written out, never taken from a docstring). Module and class
-docstrings stay: argparse ``description=__doc__`` reads a module's, pydantic's schema a class's.
+another; tool and RPC descriptions are written out, never taken from a docstring).
+
+``packaging.strip_class_and_module_docstrings: true`` also empties every MODULE docstring to ``""``
+and every CLASS docstring to ``"."`` (a falsy one makes ``@dataclass`` build a signature docstring
+at import, which a phone's boot would pay for; the compiler strips a blank one to ``""``). Audited 2026-11-19 for ``bundled-phone``: the
+module reads are argparse ``description=__doc__`` (``--help`` text, which takes ``""``), and the
+class reader, pydantic's JSON schema, is not shipped (``pydantic`` is an omitted distribution);
+no shipped first-party code reads a class's or module's ``__doc__`` for its content.
 """
 
 from __future__ import annotations
@@ -57,29 +63,35 @@ def strip_comments(source: bytes, filename: str = "<bundle>") -> bytes:
     return stripped
 
 
-def _function_docstring_spans(tree: ast.AST) -> list[tuple[int, int, int, int]]:
+def _docstring_spans(tree: ast.AST, *, classes_and_modules: bool = False) -> list[tuple[int, int, int, int, bytes]]:
+    """Each docstring's span and what it empties to: functions' always, classes' and the module's
+    with ``classes_and_modules``."""
+    kinds = (ast.FunctionDef, ast.AsyncFunctionDef, *((ast.ClassDef, ast.Module) if classes_and_modules else ()))
     spans = []
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+        if isinstance(node, kinds) and node.body:
             first = node.body[0]
             if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) \
                     and isinstance(first.value.value, str):
-                spans.append((first.lineno, first.col_offset, first.end_lineno, first.end_col_offset))
+                empty = b'"."' if isinstance(node, ast.ClassDef) else b'""'
+                spans.append((first.lineno, first.col_offset, first.end_lineno, first.end_col_offset, empty))
     return spans
 
 
-def strip_function_docstrings(source: bytes, filename: str = "<bundle>") -> bytes:
-    """``source`` with every function docstring emptied to ``""``, line for line; ``source`` itself when
-    that cannot be done safely (a statement after the docstring on its last line, a file that does not
+def strip_function_docstrings(source: bytes, filename: str = "<bundle>", *, classes_and_modules: bool = False) -> bytes:
+    """``source`` with every function docstring emptied to ``""`` (and, with ``classes_and_modules``,
+    the module's to ``""`` and every class's to ``"."``), line for line; ``source`` itself when that
+    cannot be done safely (a statement after the docstring on its last line, a file that does not
     parse or no longer compiles)."""
     try:
         lines = source.split(b"\n")
-        for row, col, end_row, end_col in sorted(_function_docstring_spans(ast.parse(source)), reverse=True):
+        spans = _docstring_spans(ast.parse(source), classes_and_modules=classes_and_modules)
+        for row, col, end_row, end_col, empty in sorted(spans, reverse=True):
             tail = lines[end_row - 1][end_col:]
             if tail.strip():  # `"""doc"""; x = 1` — leave the line alone
                 continue
             first = lines[row - 1]
-            lines[row - 1] = first[:col] + b'""' + (b"\r" if first.endswith(b"\r") else b"")
+            lines[row - 1] = first[:col] + empty + (b"\r" if first.endswith(b"\r") else b"")
             for index in range(row, end_row):  # col offsets are UTF-8 byte offsets, as these lines are
                 lines[index] = b"\r" if lines[index].endswith(b"\r") else b""
         stripped = b"\n".join(lines)

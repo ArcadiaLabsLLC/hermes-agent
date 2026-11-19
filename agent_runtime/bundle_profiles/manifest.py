@@ -164,6 +164,8 @@ class ProfileManifest:
     packaging_strip_comments: bool = False
     #: ship first-party function docstrings emptied, line for line (scripts/bundles/strip_comments.py)
     packaging_strip_function_docstrings: bool = False
+    #: ... and class and module docstrings too (needs ``packaging_strip_function_docstrings``)
+    packaging_strip_class_and_module_docstrings: bool = False
     #: what the packager's pool phase installs (:class:`PoolScope`); absent = the whole export
     packaging_pool: PoolScope = PoolScope.EXPORT
 
@@ -296,6 +298,8 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         packaging_strip_comments=_manifest_flag(packaging.get("strip_comments"), "packaging.strip_comments"),
         packaging_strip_function_docstrings=_manifest_flag(packaging.get("strip_function_docstrings"),
                                                            "packaging.strip_function_docstrings"),
+        packaging_strip_class_and_module_docstrings=_manifest_flag(
+            packaging.get("strip_class_and_module_docstrings"), "packaging.strip_class_and_module_docstrings"),
         packaging_pool=_pool_scope(packaging.get("pool")),
     )
     if validate:
