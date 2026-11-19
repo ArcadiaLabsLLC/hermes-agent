@@ -209,15 +209,22 @@ def test_anthropic_pkce_driver_surfaces_the_link_and_saves_through_upstream_add(
     assert auth_mod._can_open_graphical_browser is real_can_open
 
 
-def test_anthropic_pkce_driver_refuses_a_foreign_state(tmp_path, monkeypatch, capsys):
-    """Killing mutation: ``pasted`` re-stamping the link's own state onto the code -> exchange runs, red."""
+def test_anthropic_pkce_driver_refuses_a_foreign_state_and_reads_the_next_paste(tmp_path, monkeypatch, capsys):
+    """A foreign ``#state`` is refused (``code_rejected``) and the next line read; nothing is exchanged.
+
+    Killing mutations: ``pasted`` re-stamping the link's own state onto the code -> exchange runs, red;
+    ``pasted`` returning the refused line to upstream -> no ``code_rejected`` event, red (RT-ANTHROPIC-WRONG-PASTE-ENDS-THE-SIGN-IN).
+    """
+    import io
+
     from agent import anthropic_credentials as anthropic_mod
 
     _anthropic_home(tmp_path, monkeypatch)
     monkeypatch.setattr(anthropic_mod, "_post_oauth_token", lambda *_a, **_k: pytest.fail("exchanged a CSRF code"))
-    monkeypatch.setattr("sys.stdin", _PastedCode([], state="not-the-state"))
+    # One foreign paste, one empty paste, then EOF (the session was cancelled).
+    monkeypatch.setattr("sys.stdin", io.StringIO("SENTINEL-CODE#not-the-state\n\n"))
     assert wire.browser_login_command("anthropic", home=str(tmp_path)) == 1
     rows = events(capsys)
-    assert [row["event"] for row in rows] == ["code", "pending", "error"]
-    assert rows[-1]["code"] == "login_failed"
+    assert [row["event"] for row in rows] == ["code", "pending", "code_rejected", "code_rejected", "error"]
+    assert [row["code"] for row in rows[2:]] == ["code_mismatch", "code_empty", "login_failed"]
     assert "credential_pool" not in json.loads((tmp_path / "auth.json").read_text())
