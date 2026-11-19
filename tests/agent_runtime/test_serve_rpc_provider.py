@@ -337,6 +337,157 @@ def test_models_defers_to_the_worker_lane(monkeypatch):
     assert spawned[0]()["result"]["catalog"] == {"openai": _REGISTRY["openai"]}
 
 
+# ── key.set (RT-PHONE-PROVIDER-KEY-SAVED-BY-THE-ENGINE) ───────────────────────
+
+MARKER_KEY = "sk-ant-MARKER-KEY-0123456789-never-in-a-frame"
+
+
+@pytest.fixture
+def key_home(monkeypatch, tmp_path):
+    """A fresh, unbound home with no provider key in the process environment."""
+    home = tmp_path / "hermes"
+    home.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"):
+        monkeypatch.delenv(var, raising=False)
+    return home
+
+
+def _rpc(params: dict) -> dict:
+    """Through the one dispatcher both transports use, as the local console Eternia is."""
+    from agent_runtime import serve_rpc
+    from agent_runtime.call_authorization import LOCAL_CONSOLE
+
+    frame = {"jsonrpc": "2.0", "id": 9, "method": "runtime.provider.key.set", "params": params}
+    return serve_rpc.handle_request(frame, serve_rpc.RpcContext(caller=LOCAL_CONSOLE))
+
+
+def test_key_set_saves_an_anthropic_key_the_pool_then_reads(key_home):
+    """Killing mutation: ``work`` answering the ack without calling ``set_key`` -> nothing in the
+    ``.env`` and an empty pool, red."""
+    from agent.credential_pool import load_pool
+
+    result = _result(_rpc({"provider": "Anthropic", "key": MARKER_KEY}))
+    assert result == {"contract": 1, "provider": "anthropic", "label": "ANTHROPIC_API_KEY",
+                      "key_var": "ANTHROPIC_API_KEY", "home": str(key_home)}
+    assert f"ANTHROPIC_API_KEY={MARKER_KEY}" in (key_home / ".env").read_text(encoding="utf-8")
+    assert MARKER_KEY in [entry.access_token for entry in load_pool("anthropic").entries()]
+
+
+def test_key_set_saves_a_custom_pools_key_as_its_pool_entry(key_home):
+    """Killing mutation: pass ``label=None`` to ``set_key`` -> the entry is ``api-key-1``, red."""
+    from agent.credential_pool import load_pool
+
+    result = _result(_rpc({"provider": "custom:lab", "key": MARKER_KEY, "label": "lab box"}))
+    assert (result["key_var"], result["label"]) == (None, "lab box")
+    entries = load_pool("custom:lab").entries()
+    assert [(entry.label, entry.access_token) for entry in entries] == [("lab box", MARKER_KEY)]
+
+
+@pytest.mark.parametrize("provider", ["no-such-provider", "openai-codex"])
+def test_key_set_refuses_an_unknown_or_keyless_provider_by_code(key_home, provider):
+    """Killing mutation: drop ``no_key_var`` from ``_INVALID_PARAM_REASONS`` -> ``handler_failed``, red."""
+    error = _error(_rpc({"provider": provider, "key": MARKER_KEY}))
+    assert (error["code"], error["data"]["reason"]) == (ERR_INVALID_PARAMS, "no_key_var")
+    assert not (key_home / ".env").exists()
+
+
+@pytest.mark.parametrize("params, reason", [
+    ({"key": MARKER_KEY}, "provider_required"),
+    ({"provider": "anthropic"}, "key_invalid"),
+    ({"provider": "anthropic", "key": "   "}, "key_invalid"),
+    ({"provider": "anthropic", "key": 7}, "key_invalid"),
+    ({"provider": "anthropic", "key": "x" * (family.MAX_KEY_CHARS + 1)}, "key_invalid"),
+    ({"provider": "anthropic", "key": f"{MARKER_KEY}\nEVIL=1"}, "key_invalid"),
+    ({"provider": "anthropic", "key": f"{MARKER_KEY}\rEVIL=1"}, "key_invalid"),
+    ({"provider": "anthropic", "key": f"{MARKER_KEY}\0"}, "key_invalid"),
+])
+def test_key_set_refuses_a_malformed_key(key_home, params, reason):
+    """Killing mutation: drop the CR/LF/NUL check -> a second ``.env`` line is written, red (the
+    over-long row: drop the ``MAX_KEY_CHARS`` bound)."""
+    error = _error(_rpc(params))
+    assert (error["code"], error["data"]["reason"]) == (ERR_INVALID_PARAMS, reason)
+    assert MARKER_KEY not in json.dumps(error)
+    assert not (key_home / ".env").exists()
+
+
+def test_key_set_on_a_phone_with_no_host_store_refuses_rather_than_write_a_plaintext_env(key_home, monkeypatch):
+    """Killing mutation: drop the ``host_store.bound()`` check -> saved to a plaintext ``.env``, red."""
+    monkeypatch.setattr(family, "_on_phone", lambda: True)
+    error = _error(_rpc({"provider": "anthropic", "key": MARKER_KEY}))
+    assert (error["code"], error["data"]["reason"]) == (ERR_CONFLICT, "host_store_unbound")
+    assert not (key_home / ".env").exists()
+
+
+def test_key_set_on_a_phone_lands_in_the_host_store_and_writes_no_plaintext_env(monkeypatch, tmp_path):
+    """The phone shape: a bound host store over the app folder holding the home. Killing mutation:
+    drop the bound branch of ``hermes_cli/config.py``'s ``.env`` writer (the ``_host_secrets.write_text``
+    fork seam) -> a plaintext ``.env`` at the disk path and an empty slot, red."""
+    from agent_runtime.host_store.binding import unbind_host_store
+    from agent_runtime.host_store.fake import FakeHostSecureStore
+
+    app = tmp_path / "app"
+    home = app / "hermes"
+    home.mkdir(parents=True)
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(family, "_on_phone", lambda: True)
+    store = FakeHostSecureStore()
+    binding = store.bind(profile="phone", store_root=app)
+    try:
+        result = _result(_rpc({"provider": "anthropic", "key": MARKER_KEY}))
+        slot = store.slots.get(binding.slot(home / ".env"))
+    finally:
+        unbind_host_store()
+    assert result["key_var"] == "ANTHROPIC_API_KEY"
+    assert slot is not None and f"ANTHROPIC_API_KEY={MARKER_KEY}".encode() in slot
+    assert not (home / ".env").exists()
+    assert not any(MARKER_KEY.encode() in path.read_bytes() for path in app.rglob("*") if path.is_file())
+
+
+def test_the_key_is_in_no_reply_refusal_failure_or_log_line(key_home, monkeypatch, caplog):
+    """A marker key through every outcome: saved, refused for its shape, refused by the engine,
+    refused on an unbound phone and a raise from inside ``set_key`` carrying the key in its text.
+    Killing mutations: ``_failed`` adding ``str(exc)`` to its data -> the failure frame, red; the
+    ``key_invalid`` refusal adding ``key=key`` -> that refusal, red."""
+    import logging
+
+    from hermes_cli import auth_noninteractive
+
+    caplog.set_level(logging.DEBUG)
+    frames = [
+        _rpc({"provider": "anthropic", "key": MARKER_KEY}),
+        _rpc({"provider": "anthropic", "key": f"{MARKER_KEY}\nX"}),
+        _rpc({"provider": "openai-codex", "key": MARKER_KEY}),
+    ]
+    with monkeypatch.context() as phone:
+        phone.setattr(family, "_on_phone", lambda: True)
+        frames.append(_rpc({"provider": "anthropic", "key": MARKER_KEY}))
+
+    def leaky(provider, secret, **kwargs):
+        raise RuntimeError(f"write failed for {secret}")
+
+    monkeypatch.setattr(auth_noninteractive, "set_key", leaky)
+    frames.append(_rpc({"provider": "anthropic", "key": MARKER_KEY}))
+    assert [frame.get("error", {}).get("data", {}).get("reason") for frame in frames] == [
+        None, "key_invalid", "no_key_var", "host_store_unbound", "handler_failed"]
+    assert frames[-1]["error"]["data"]["error_class"] == "RuntimeError"
+    for frame in frames:
+        assert MARKER_KEY not in json.dumps(frame)
+    assert MARKER_KEY not in caplog.text
+
+
+def test_key_set_defers_to_the_worker_lane(key_home):
+    """Killing mutation: ``_runtime_provider_key_set`` returning ``_answer(...)`` instead of
+    ``_off_reader(...)`` -> answered inline, red."""
+    spawned = []
+    context = RpcContext(spawn_reply=lambda build: spawned.append(build) or True)
+    assert family._runtime_provider_key_set(7, {"provider": "anthropic", "key": MARKER_KEY}, context) is DEFERRED
+    assert not (key_home / ".env").exists()
+    assert spawned[0]()["result"]["key_var"] == "ANTHROPIC_API_KEY"
+
+
 # ── refresh / sign-out ───────────────────────────────────────────────────────
 
 
@@ -401,7 +552,7 @@ def test_every_provider_method_is_registered_with_its_tier():
         "runtime.provider.refresh": "console", "runtime.provider.signout": "console",
         "runtime.provider.dependency.install": "console", "runtime.provider.pack.activate": "console",
         "runtime.provider.configure": "console", "runtime.provider.source.set": "console",
-        "runtime.provider.env_token.remove": "console",
+        "runtime.provider.env_token.remove": "console", "runtime.provider.key.set": "console",
     }
 
 

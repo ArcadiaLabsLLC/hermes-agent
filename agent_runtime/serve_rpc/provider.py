@@ -39,6 +39,7 @@ __all__ = [
     "_runtime_provider_configure",
     "_runtime_provider_dependency_install",
     "_runtime_provider_env_token_remove",
+    "_runtime_provider_key_set",
     "_runtime_provider_list",
     "_runtime_provider_models",
     "_runtime_provider_pack_activate",
@@ -58,12 +59,16 @@ PROVIDER_CONTRACT = 1
 #: The longest pasted authorization code accepted (Anthropic's is ~100 chars).
 MAX_CODE_CHARS = 2048
 
+#: The longest pasted API key accepted (provider keys run to a few hundred chars).
+MAX_KEY_CHARS = 4096
+
 #: The most models.dev ids one ``runtime.provider.models`` call may ask for.
 MAX_CATALOG_IDS = 64
 
 #: Provider refusals that name a bad request rather than a failed operation.
 _INVALID_PARAM_REASONS = frozenset({"provider_unknown", "auth_mode_unsupported", "auth_mode_unknown",
-                                    "base_url_invalid", "source_unsupported", "source_unknown"})
+                                    "base_url_invalid", "source_unsupported", "source_unknown",
+                                    "no_key_var", "empty_secret"})
 
 #: Provider refusals that name an agent this runtime cannot answer for (RT-PROVIDER-USAGE-PER-AGENT-PROFILE).
 _NOT_FOUND_REASONS = frozenset({"agent_unknown"})
@@ -269,6 +274,55 @@ def _runtime_provider_signin_cancel(rid: Any, params: dict, context: RpcContext 
     if refusal is not None:
         return refusal
     return _answer(rid, "runtime.provider.signin.cancel", lambda: provider_signin.registry().cancel(login_id))
+
+
+# ── API key ──────────────────────────────────────────────────────────────────
+
+
+def _on_phone() -> bool:
+    """A bound host secure store is the only home a key may land in here (no plaintext ``.env``)."""
+    import sys
+
+    from agent_runtime.phone_tls_trust import PHONE_PLATFORMS
+
+    return sys.platform in PHONE_PLATFORMS
+
+
+@method("runtime.provider.key.set", tier=TIER_CONSOLE)
+def _runtime_provider_key_set(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Save a provider's API key in the serve's own home (RT-PHONE-PROVIDER-KEY-SAVED-BY-THE-ENGINE):
+    ``hermes harness auth set-key --stdin`` without the child, for a phone that has no process to
+    spawn. Params: ``provider``, ``key``; ``label`` optional (a custom pool's entry label).
+    Calls ``hermes_cli.auth_noninteractive.set_key`` unchanged, so the write goes through the one
+    credential choke point. The key lives in this call's params and one local; no frame and no log
+    line carries it. On a phone the home ``.env`` is a host-store slot: unbound, it would be a
+    plaintext file, so the method refuses (``host_store_unbound``)."""
+    from hermes_cli.auth_noninteractive import NonInteractiveAuthError, set_key
+
+    name = "runtime.provider.key.set"
+    provider, refusal = _provider_or_refuse(rid, name, params)
+    if refusal is not None:
+        return refusal
+    key = _text_param(params, "key")
+    if key is None or len(key) > MAX_KEY_CHARS or any(ch in key for ch in "\r\n\0"):
+        return _refused(rid, name, "key_invalid", ERR_INVALID_PARAMS, max_chars=MAX_KEY_CHARS)
+    if _on_phone():
+        from agent_runtime.host_store import binding as host_store
+
+        if not host_store.bound():
+            return _refused(rid, name, "host_store_unbound", ERR_CONFLICT)
+    label = _text_param(params, "label")
+
+    def work() -> dict:
+        try:
+            ack = set_key(provider, key, label=label)
+        except NonInteractiveAuthError as refused:  # its text names the provider; the code is enough
+            from agent_runtime.provider_account import ProviderRefused
+
+            raise ProviderRefused(refused.code, f"{name} refused: {refused.code}") from None
+        return {field: ack.get(field) for field in ("provider", "label", "key_var", "home")}
+
+    return _off_reader(rid, name, context, work)
 
 
 # ── refresh / sign-out ───────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ moving `RPC_CONTRACT_VERSION`.
 | `runtime.provider.signin.cancel` | console | `login_id` | kills the child |
 | `runtime.provider.refresh` | console | `provider`; `credential?` (index, id or label) | `hermes auth refresh` (`auth_refresh_command`) |
 | `runtime.provider.signout` | console | `provider` | `hermes auth logout` (`auth_logout_command`) |
+| `runtime.provider.key.set` | console | `provider`, `key`; `label?` | `hermes_cli/auth_noninteractive.py::set_key` (what `hermes harness auth set-key --stdin` runs), called, not edited: the key variable through the credential choke point `credential_lifecycle.save_provider_env_credential`, or a manual pool entry for a `custom:` pool; for a phone, which has no process to spawn |
 | `runtime.provider.env_token.remove` | console | `provider`, `variable` | upstream's `env:*` removal (`remove_env_value` + pool `remove_index`), once per home whose `.env` sets it |
 | `runtime.provider.configure` | console | `provider`, `auth_mode`; `base_url?` | `agent_runtime/provider_account.py::provider_configure`: writes `model.provider`, `model.auth_mode` (and `model.base_url`) on the bound provider home's `config.yaml` through the round-trip YAML writer — only a provider `PROVIDER_AUTH_MODES` declares, only a declared mode, no secret (a `needs_key` mode is keyed through `auth set-key`); it selects the provider because the mode is read only for the selected one |
 | `runtime.provider.source.set` | console | `provider`, `source` | `agent_runtime/provider_account.py::provider_source_set`: writes `providers.<provider>.credential_source` on the bound provider home's `config.yaml` through the round-trip YAML writer — only a provider `PROVIDER_CREDENTIAL_SOURCES` declares, only a declared source with a credential stored; chooses which STORED credential turns spend (`agent_runtime/provider_credential_source.py`) and selects nothing else (not `model.provider`: that is `configure`) |
@@ -36,7 +37,7 @@ Every method first applies the bound home `.env`'s change since its last look to
 wrote from another process is answered at once, never after a restart; a key the serve was launched with and the
 file never named is kept.
 
-`list`, `models`, `usage`, `refresh` and `signout` run on the transport's worker lane
+`list`, `models`, `usage`, `key.set`, `refresh` and `signout` run on the transport's worker lane
 when it has one (`RpcContext.spawn_reply`); the reply arrives on the same `id`.
 
 ## Reply budgets
@@ -54,6 +55,7 @@ table (`HermesProviderMethod.timeoutFor`).
 | `runtime.provider.refresh` | `hermes auth refresh`: token endpoint calls under upstream's HTTP timeouts; no single bound, and a lost reply leaves the outcome unknown | 30 s |
 | `runtime.provider.signout` | `hermes auth logout`: as refresh | 30 s |
 | `runtime.provider.env_token.remove` | a few `.env` rewrites and pool loads, one per home | 30 s |
+| `runtime.provider.key.set` | one `.env` rewrite (or one pool save) and the config mirrors the choke point reconciles, all local; on a phone each is a host secure-store write | 15 s |
 | `runtime.provider.configure` | up to three round-trip YAML writes of one local file | 10 s |
 | `runtime.provider.source.set` | local credential-presence reads and one round-trip YAML write of one local file | 10 s |
 | `runtime.provider.signin.begin` | spawns the login child and answers in state `starting` without waiting on it | 15 s |
@@ -124,6 +126,16 @@ mode), `auth_mode_unknown` (+ `auth_modes`), `base_url_invalid` (not http(s)), `
 `source_required`, `source_unsupported` (the provider declares no sources), `source_unknown`
 (+ `sources`), `source_absent` (+ `source`: nothing of that family is stored — sign in or paste
 the key first), `source_failed` (+ the exception class).
+
+**key.set** — `{contract, provider, label, key_var, home}`: names only, never the key
+(`key_var` is the variable written, null for a `custom:` pool, whose `label` is the pool entry's).
+The key travels only in this call's params — on a phone the in-process wire, never argv, a socket
+or a log — and no reply, refusal or failure frame carries it. On a phone (`sys.platform` android /
+ios) the home `.env` and `auth.json` are host secure-store slots and no plaintext file is written;
+with no host store bound the call refuses `conflict` / `host_store_unbound` rather than write one.
+Refusals: `provider_required`; `key_invalid` (absent, blank, over 4096 chars, or holding CR, LF or
+NUL; `data.max_chars`); `no_key_var` (`invalid_params`: an unknown provider, or one with no API-key
+variable — sign it in instead); anything else is `handler_failed` with the exception class only.
 
 **pack.activate** — `{contract, pack, site_packages, activated}`; `activated: false`
 when the pack was already on the import path.
