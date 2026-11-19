@@ -439,11 +439,53 @@ def test_every_overrun_and_kill_is_a_ledger_line_and_the_summary_names_its_row(r
         assert row["load"] is None or isinstance(row["load"], float | int)
         assert row["ts"].endswith("Z")
     assert "prepush: 2 overrun(s)" in proc.stdout
-    assert "overrun: gates slow:" in proc.stdout and "owes row FH-PREPUSH-GATES-OVER-BUDGET" in proc.stdout
-    assert "overrun: touched unfinished:" in proc.stdout and "owes row FH-PREPUSH-TOUCHED-OVER-BUDGET" in proc.stdout
+    # No queue note in this partial tree: the owed line names the task's slug, never a generated ID.
+    assert "overrun: gates slow:" in proc.stdout and "overrun: touched unfinished:" in proc.stdout
+    assert proc.stdout.count("owes a new row filed under the task: prepush task row") == 2, proc.stdout
+    assert "OVER-BUDGET" not in proc.stdout
     # The ledger only grows: a second run appends, never rewrites.
     _run(repo, runner_body="sleep 2", env_extra={"PREPUSH_GATES_BUDGET": "1", "PREPUSH_HEARTBEAT": "1"})
     assert len(_ledger(repo)) == 3
+
+
+_QUEUE_NOTE = Path("Harness_Brain") / "20 — Active Initiatives" / "fork-hygiene-queue.md"
+
+
+def _queue_note(repo: Path, *rows: str) -> None:
+    note = repo / _QUEUE_NOTE
+    note.parent.mkdir(parents=True, exist_ok=True)
+    note.write_text("# Fork hygiene queue\n\n" + "".join(f"{row}\n" for row in rows), encoding="utf-8")
+
+
+_TASK_ROW = "- **`TASK-PREPUSH-X` — Pre-push runs fast** · task: prepush · READY 2026-11-19"
+_SLOW_GATES = {"PREPUSH_GATES_BUDGET": "1", "PREPUSH_GATES_DEADLINE": "30", "PREPUSH_HEARTBEAT": "1"}
+
+
+# FH-PREPUSH-OVERRUN-NAMES-A-RETIRED-ROW (seen 2026-11-18, w1118-slotstatus: the line named the archived
+# FH-PREPUSH-GATES-OVER-BUDGET and filing it reddened the queue grammar). KILLING MUTATION: restore the
+# blind build (``echo "owes row $row"`` whether or not the row is live) -> the archived ID is printed.
+@pytest.mark.timeout(60)
+def test_an_overrun_whose_row_is_archived_names_the_live_task_row_not_the_retired_id(repo: Path):
+    # The gates row is only mentioned in another row's prose, as an archived row is: not a live row.
+    _queue_note(repo, _TASK_ROW,
+                "- **`FH-OTHER` — Something** · group: prepush · folded `FH-PREPUSH-GATES-OVER-BUDGET` · READY")
+    proc, _ = _run(repo, runner_body="sleep 2", env_extra=_SLOW_GATES)
+    assert proc.returncode == 0, proc.stdout
+    (line,) = [ln for ln in proc.stdout.splitlines() if "overrun: gates slow:" in ln]
+    assert line.endswith("— owes a new row filed under TASK-PREPUSH-X (task: prepush)"), line
+    assert "OVER-BUDGET" not in line
+
+
+# KILLING MUTATION: drop the live-row arm (``grep -q '^- \*\*`'"$row"'`'``) -> the live row is not
+# named and the line points at the task instead.
+@pytest.mark.timeout(60)
+def test_an_overrun_whose_row_is_live_names_that_row_to_append_to(repo: Path):
+    _queue_note(repo, _TASK_ROW,
+                "- **`FH-PREPUSH-GATES-OVER-BUDGET` — The gates step runs in its budget** · group: prepush · READY")
+    proc, _ = _run(repo, runner_body="sleep 2", env_extra=_SLOW_GATES)
+    assert proc.returncode == 0, proc.stdout
+    (line,) = [ln for ln in proc.stdout.splitlines() if "overrun: gates slow:" in ln]
+    assert line.endswith("— owes a handoff on live row FH-PREPUSH-GATES-OVER-BUDGET (append it to that row)"), line
 
 
 # FH-PREPUSH-DOC-CITE-REDS-UNDER-LOAD (seen once 2026-11-14, w1114a-hfix: doc-cite killed at its 10 s

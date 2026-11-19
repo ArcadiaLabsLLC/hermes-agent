@@ -397,8 +397,12 @@ twice the step's measured wall under that load; one whole-run cap bounds the run
   `_lane_logs/prepush_overruns.jsonl` (untracked; `PREPUSH_LEDGER` moves it): `ts`, `step`, `outcome`,
   `budget_s`, `deadline_s`, `wall_s`, `exit`, `load`, `live_lanes` (from `PREPUSH_LIVE_LANES`, else
   null), `head`, `cap_s`. The run ends with `prepush: N overrun(s) …` and one `overrun:` line each,
-  naming the row it owes (`FH-PREPUSH-<STEP>-OVER-BUDGET`). A lane's landing report carries those lines
-  and the row is filed the same hour; a budget moves only on an idle-box measurement.
+  naming where it is owed (FH-PREPUSH-OVERRUN-NAMES-A-RETIRED-ROW): the step's own
+  `FH-PREPUSH-<STEP>-OVER-BUDGET` only while that is a live row of the fork-hygiene queue (append a
+  handoff to it); otherwise the live `task: prepush` task row, read from the queue, to file a new row
+  under. An archived or never-filed ID is never printed; a tree without the queue note names the slug
+  only. A lane's landing report carries those lines and the row is filed the same hour; a budget moves
+  only on an idle-box measurement.
 
 ## The daily full run
 

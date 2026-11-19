@@ -192,6 +192,7 @@ SHARD_MIN="${PREPUSH_SHARD_MIN:-20}"
 SHARD_SECONDS="${PREPUSH_SHARD_SECONDS:-10}"
 SHARD_MAX=4
 LEDGER="${PREPUSH_LEDGER:-$REPO_ROOT/_lane_logs/prepush_overruns.jsonl}"
+QUEUE_NOTE="Harness_Brain/20 — Active Initiatives/fork-hygiene-queue.md"
 
 PLAN_ONLY=0
 JOBS=8
@@ -519,9 +520,31 @@ _ledger() {
     "$(_json_str "$(date -u +%Y-%m-%dT%H:%M:%SZ)")" "$(_json_str "$step")" "$(_json_str "$outcome")" \
     "$budget" "$deadline" "$wall" "$rc" "$load" "$lanes" "$(_json_str "$head")" "$CAP" "$work" "$ceiling" >>"$LEDGER" ||
     echo "✘ prepush: could not append to the overrun ledger $LEDGER" >&2
-  local row
-  row="FH-PREPUSH-$(printf '%s' "$step" | tr '[:lower:]-' '[:upper:]-')-OVER-BUDGET"
-  OVERRUNS+=("$step $outcome: ${wall}s against budget ${budget}s (deadline ${deadline}s, load $load, live lanes $lanes) — owes row $row")
+  OVERRUNS+=("$step $outcome: ${wall}s against budget ${budget}s (deadline ${deadline}s, load $load, live lanes $lanes) — $(_owed_row "$step")")
+}
+# _owed_row STEP — where the overrun is filed (FH-PREPUSH-OVERRUN-NAMES-A-RETIRED-ROW): the step's own
+# FH-PREPUSH-<STEP>-OVER-BUDGET only while it is a LIVE row of the queue note (append a handoff);
+# otherwise the live `task: prepush` row read from the note, never hard-coded, to file a new row
+# under. A generated ID that is not live (archived, or never filed) is never printed: filing an
+# archived ID reds the queue grammar. An unreadable note (a partial checkout) names the slug only.
+# MUTATION: print "owes row $row" whether or not it is live and
+# test_an_overrun_whose_row_is_archived_names_the_live_task_row_not_the_retired_id reddens.
+_owed_row() {
+  local row task=""
+  row="FH-PREPUSH-$(printf '%s' "$1" | tr '[:lower:]-' '[:upper:]-')-OVER-BUDGET"
+  if [ -r "$REPO_ROOT/$QUEUE_NOTE" ]; then
+    if grep -q '^- \*\*`'"$row"'`' "$REPO_ROOT/$QUEUE_NOTE"; then
+      echo "owes a handoff on live row $row (append it to that row)"
+      return
+    fi
+    task="$(grep -m1 -E '^- \*\*`TASK-[A-Z0-9-]+`.* · task: prepush( ·|$)' "$REPO_ROOT/$QUEUE_NOTE" |
+      sed -E 's/^- \*\*`([^`]+)`.*/\1/')"
+  fi
+  if [ -n "$task" ]; then
+    echo "owes a new row filed under $task (task: prepush)"
+  else
+    echo "owes a new row filed under the task: prepush task row"
+  fi
 }
 
 RUN_STARTED="$(_now_ms)"
@@ -693,7 +716,7 @@ fi
 
 if [ "${#OVERRUNS[@]}" -ne 0 ]; then
   echo "prepush: ${#OVERRUNS[@]} overrun(s), each a JSON line in ${LEDGER#"$REPO_ROOT"/} — file each row now"
-  echo "  (Harness_Brain/20 — Active Initiatives/fork-hygiene-queue.md: check, budget, measured time, load):"
+  echo "  ($QUEUE_NOTE: check, budget, measured time, load):"
   for line in "${OVERRUNS[@]}"; do
     echo "  overrun: $line"
   done
