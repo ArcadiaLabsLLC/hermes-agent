@@ -12,6 +12,7 @@ from agent_runtime.cli_format import emit_json
 from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 from agent_runtime.default_scope import ensure_default_scope
 from agent_runtime.errors import DefaultScopeReconciliationRequired
+from agent_runtime.fresh_install_seed import seed_fresh_install_persona
 from agent_runtime.skill_install import install_harness_skills, install_harness_skills_for_personas
 from hermes_cli.harness_support import emit_harness_error
 
@@ -24,6 +25,8 @@ __all__ = [
 
 def _cmd_init(args) -> int:
     cfg = load_agent_runtime_config()
+    # A fresh root (no personas at all) gets Neko Mission Lead; any other root gains nothing.
+    seed_fresh_install_persona(cfg)
     personas = ensure_persisted_personas(cfg)
     persona_ids = [p.id for p in personas]
     try:
@@ -38,8 +41,10 @@ def _cmd_init(args) -> int:
     if args.json:
         print(emit_json(data))
     else:
-        # Personas are data now: a fresh root provisions none, so the old
-        # unconditional line rendered a dangling "personas: " with nothing after it.
+        # Personas are data: init seeds only Neko Mission Lead, only on a root with
+        # none, so the list is empty only when that seed was refused (a ``neko``
+        # profile it did not stage); the old unconditional line rendered a dangling
+        # "personas: " with nothing after it.
         print(
             f"Initialized harness personas: {', '.join(data['personas'])}"
             if data["personas"]
