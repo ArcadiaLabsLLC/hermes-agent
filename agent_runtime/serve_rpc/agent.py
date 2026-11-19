@@ -1,4 +1,4 @@
-"""``runtime.agent.create`` / ``retire`` — the two agent lifecycle verbs.
+"""``runtime.agent.create`` / ``retire`` / ``duplicate`` — the agent lifecycle verbs.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "_runtime_agent_create",
+    "_runtime_agent_duplicate",
     "_runtime_agent_retire",
 ]
 
@@ -29,6 +30,34 @@ def _runtime_agent_directory(rid: Any, params: dict, context: RpcContext | None 
         return ok(rid, prepare_instance_catalog())
     except InstanceCatalogUnavailable as exc:
         return err(rid, ERR_HANDLER_FAILED, "Agents could not be loaded. Try again.", {"reason": str(exc)})
+
+
+@method("runtime.agent.duplicate", tier=TIER_CONSOLE)
+def _runtime_agent_duplicate(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Copy an agent, memory included, under a name no other agent has (one step).
+
+    Params: ``persona_id``, ``name`` (required); ``instance_id`` (optional) — an
+    instance of that agent to move to the copy, chats and all. Result:
+    ``{persona_id, agent_name, based_on: {id, name}, profile, instance_id}``.
+    Refusals carry ``data.reason``: ``agent_name_required``, ``agent_name_taken``
+    (never a suffixed name), ``persona_not_found``, ``instance_not_of_agent``,
+    ``canonical_instance_stays``.
+    """
+    from agent_runtime.agent_duplicate import AgentDuplicateRefused, duplicate_agent
+    from agent_runtime.errors import NotFound
+    from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, ERR_NOT_FOUND
+
+    unknown = set(params) - {"persona_id", "name", "instance_id"}
+    persona_id, name, instance_id = (params.get(key) for key in ("persona_id", "name", "instance_id"))
+    if unknown or not isinstance(persona_id, str) or not isinstance(name, str) or not isinstance(instance_id, (str, type(None))):
+        return err(rid, ERR_INVALID_PARAMS, "Expected persona_id, name and an optional instance_id.", {"reason": "invalid_params"})
+    try:
+        return ok(rid, duplicate_agent(persona_id, name, instance_id=instance_id).to_wire())
+    except NotFound:
+        return err(rid, ERR_NOT_FOUND, "That instance does not exist.", {"reason": "instance_not_found"})
+    except AgentDuplicateRefused as exc:
+        code = ERR_CONFLICT if exc.reason == "agent_name_taken" else ERR_INVALID_PARAMS
+        return err(rid, code, str(exc), {"reason": exc.reason, **exc.data})
 
 
 @method("runtime.agent.templates", tier=TIER_CONSOLE)
