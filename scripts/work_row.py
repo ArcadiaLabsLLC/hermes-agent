@@ -581,13 +581,20 @@ def edited_text(text: str, args: argparse.Namespace) -> str:
     return "\n".join(lines)
 
 
+MAIN_REF = "refs/heads/main"
+
+
 def push_target(repo: Path, git: Git) -> list[str]:
-    """``[<remote>, HEAD:<ref>]``: the branch's upstream when it has one, else ``origin`` ``main``.
+    """``[<remote>, HEAD:<ref>]``: the queue's main — the branch's upstream only when that upstream IS ``main``,
+    else ``origin`` ``main``.
 
     A bare ``git push`` worked only on a branch tracking ``main``. A lane closes from its own
     branch (no upstream: git's "no upstream branch", exit 4) or a detached HEAD, and then pushed
     the close by hand (FH-WORK-ROW-CLOSE-PUSH-FROM-LANE-BRANCH); lanes land with
-    ``git push origin HEAD:main`` (CLAUDE.md § Git), so that is the default here too. Read-only
+    ``git push origin HEAD:main`` (CLAUDE.md § Git), so that is the default here too. A lane branch
+    pushed with ``-u`` tracks ``origin/lane/...``: taking that upstream sent the row op there and let
+    both guards (``unlanded_sha``, ``carried_commits``) check the lane branch instead of main
+    (FH-WORK-ROW-CLOSE-LANDS-ON-A-PUSHED-LANE-BRANCH), so any other upstream is ignored. Read-only
     git only: ``symbolic-ref`` and ``for-each-ref``.
     """
 
@@ -596,7 +603,9 @@ def push_target(repo: Path, git: Git) -> list[str]:
     if ref.startswith("refs/heads/"):
         upstream = git(["for-each-ref", "--format=%(upstream:remotename)%09%(upstream:remoteref)", ref], repo)
         remote, _, merge = str(upstream.stdout).strip().partition("\t")
-        if upstream.returncode == 0 and remote and merge:
+        # MUTATION: drop the ``== MAIN_REF`` test and test_a_lane_branch_pushed_with_u_still_closes_onto_main and
+        # test_a_close_from_a_pushed_lane_branch_refuses_a_sha_only_on_that_branch red.
+        if upstream.returncode == 0 and remote and merge == MAIN_REF:
             return [remote, f"HEAD:{merge}"]
     return ["origin", "HEAD:main"]
 

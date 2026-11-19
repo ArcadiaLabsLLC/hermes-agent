@@ -277,13 +277,54 @@ def test_a_close_from_a_lane_branch_or_a_detached_head_pushes_to_main(clones, pl
     assert git("rev-parse", "main", cwd=origin) == git("rev-parse", "HEAD", cwd=mine)
 
 
-def test_a_branch_with_an_upstream_pushes_to_that_upstream(clones):
+def test_a_branch_tracking_main_pushes_to_its_upstreams_main(clones):
+    """A local branch of any name that tracks ``main`` pushes there, through its own upstream remote."""
     origin, mine, _ = clones
-    git("push", "-q", "origin", "main:side", cwd=mine)
-    git("checkout", "-q", "-b", "mine-side", "--track", "origin/side", cwd=mine)
+    git("remote", "rename", "origin", "upstream", cwd=mine)
+    git("checkout", "-q", "-b", "mine-work", "--track", "upstream/main", cwd=mine)
+    assert work_row.push_target(mine, work_row.run_git) == ["upstream", "HEAD:refs/heads/main"]
     assert work_row.main(["claim", "RT-A", "--who", "r-lane", "--repo", str(mine)]) == 0
-    assert git("log", "-1", "--format=%s", "side", cwd=origin).strip() == "queue: claim RT-A r-lane"
-    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "seed"
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue: claim RT-A r-lane"
+
+
+def _lane_branch_pushed_with_u(mine: Path) -> None:
+    git("checkout", "-q", "-b", "lane/x", cwd=mine)
+    git("push", "-q", "-u", "origin", "lane/x", cwd=mine)
+
+
+def test_a_lane_branch_pushed_with_u_still_closes_onto_main(clones):
+    """FH-WORK-ROW-CLOSE-LANDS-ON-A-PUSHED-LANE-BRANCH: a lane branch pushed with ``-u`` tracks
+    ``origin/lane/x``; ``push_target`` took that upstream, so the row op went to the lane branch, not main.
+    KILLING MUTATION: take any upstream in ``push_target`` again -> the close lands on ``lane/x`` and main stays
+    "seed", red."""
+    origin, mine, _ = clones
+    _lane_branch_pushed_with_u(mine)
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", "3f9c2a1", "--allow-unlanded",
+                          "--date", "2026-11-19", "--repo", str(mine)]) == 0
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == "queue(q): close RT-A DONE 3f9c2a1"
+    assert git("log", "-1", "--format=%s", "lane/x", cwd=origin).strip() == "seed"
+
+
+def test_a_close_from_a_pushed_lane_branch_refuses_a_sha_only_on_that_branch(clones, capsys):
+    """FH-WORK-ROW-CLOSE-LANDS-ON-A-PUSHED-LANE-BRANCH: both guards read ``push_target``, so with the lane's
+    upstream they checked ``origin/lane/x`` and ``close --done`` accepted a sha only on the lane branch.
+    KILLING MUTATION: take any upstream in ``push_target`` again -> the close exits 0 and archives the row on a
+    commit main lacks, red."""
+    origin, mine, _ = clones
+    _lane_branch_pushed_with_u(mine)
+    (mine / "README.md").write_text("the fix, pushed only to the lane branch\n", encoding="utf-8")
+    git("commit", "-q", "-am", "the fix", cwd=mine)
+    git("push", "-q", "origin", "lane/x", cwd=mine)
+    sha = git("rev-parse", "--short=10", "HEAD", cwd=mine).strip()
+    before = (mine / NOTE).read_bytes()
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", sha, "--repo", str(mine)]) == work_row.EXIT_REFUSED
+    assert f"`{sha}` is not on origin/main" in capsys.readouterr().err
+    assert (mine / NOTE).read_bytes() == before
+    # Landed on main, the same close goes through onto main; the lane branch is left as the lane pushed it.
+    git("push", "-q", "origin", "HEAD:main", cwd=mine)
+    assert work_row.main(["close", "RT-A", "--who", "r-lane", "--done", sha, "--repo", str(mine)]) == 0
+    assert git("log", "-1", "--format=%s", "main", cwd=origin).strip() == f"queue(q): close RT-A DONE {sha}"
+    assert git("log", "-1", "--format=%s", "lane/x", cwd=origin).strip() == "the fix"
 
 
 def _sibling_repo(tmp_path: Path, name: str) -> tuple[Path, str]:
