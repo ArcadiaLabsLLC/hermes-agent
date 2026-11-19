@@ -7,7 +7,11 @@ truststore's Linux file sweep is empty, and certifi is a private CA's bundle. Th
 fix, the stdlib's default context refuses a server that CA signed (positive control: nothing selects
 certifi); AFTER :func:`ensure_phone_tls_trust`, urllib and the
 httpx clients ``resolve_httpx_verify`` configures both reach it, and both still refuse a server
-signed by a CA nothing trusts.
+signed by a CA nothing trusts. So does the realm sync client the phone engine clones and fetches with
+(``git_dulwich._BrokeredHttpClient``, dulwich over urllib3, the client the Android emulator's verified
+github.com clone used): through ``DulwichSyncGit``'s ``_wire`` it completes the handshake with the trusted
+server (the server speaks no git, so the step fails on git's answer, never on the certificate) and is
+refused the untrusted one with a certificate verification error (review w1118a.36 D5).
 
 Killing mutations (applied, red recorded, reverted — see the commit message).
 """
@@ -66,7 +70,7 @@ import os, ssl, sys, urllib.error, urllib.request
 import certifi, certifi.core, httpx
 import truststore._openssl as openssl_arm
 
-url, ca, untrusted = sys.argv[1:]
+url, ca, untrusted, workdir = sys.argv[1:]
 
 # A phone, on this host: OpenSSL's compiled-in paths name nothing (only SSL_CERT_FILE answers),
 # none of truststore's Linux bundle files exists, and certifi is the private CA's bundle.
@@ -111,6 +115,23 @@ assert not stdlib_refused(url), "urllib on a phone refused a server certifi trus
 assert httpx.get(url, verify=resolve_httpx_verify(), timeout=5).content == b"private provider"
 assert stdlib_refused(untrusted), "urllib trusted a CA nothing names"
 assert httpx_refused(untrusted), "httpx trusted a CA nothing names"
+
+from pathlib import Path
+from agent_runtime.realm_sync.git_dulwich import DulwichSyncGit
+from agent_runtime.realm_sync.models import RealmSyncError
+
+def realm_clone_failure(target, name):
+    try:
+        DulwichSyncGit(Path(workdir) / name).clone(target + "realm.git", None)
+    except RealmSyncError as exc:
+        return exc.safe_details["stderr"]
+    raise AssertionError(f"a realm clone from {target} succeeded against a server that speaks no git")
+
+trusted_failure = realm_clone_failure(url, "trusted")
+assert "CERTIFICATE_VERIFY_FAILED" not in trusted_failure, trusted_failure
+assert "Invalid info/refs" in trusted_failure, "the realm client did not reach the trusted server: " + trusted_failure
+untrusted_failure = realm_clone_failure(untrusted, "untrusted")
+assert "CERTIFICATE_VERIFY_FAILED" in untrusted_failure, "the realm client trusted a CA nothing names: " + untrusted_failure
 """
 
 
@@ -122,7 +143,7 @@ def test_a_phone_with_no_os_bundle_verifies_through_certifi_and_refuses_the_rest
             _private_https_server(untrusted_dir) as (other, _other_ca):
         child = subprocess.run(
             [sys.executable, "-c", _PHONE, f"https://127.0.0.1:{server.server_port}/", str(ca),
-             f"https://127.0.0.1:{other.server_port}/"],
+             f"https://127.0.0.1:{other.server_port}/", str(tmp_path)],
             env=_child_env(tmp_path), capture_output=True, text=True, timeout=60, check=False,
         )
     assert child.returncode == 0, child.stdout + child.stderr
