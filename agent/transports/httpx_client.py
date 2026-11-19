@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from types import SimpleNamespace
 from typing import Any
 
@@ -62,6 +62,8 @@ __all__ = [
     "iter_sse_data",
     "iter_sse_events",
     "missing_sdk",
+    "SDK_FREE_REPLACED",
+    "packages_this_build_needs",
     "provider_sdks_enabled",
     "sdk_free_async_client",
     "sdk_free_client",
@@ -211,6 +213,25 @@ def provider_sdks_enabled() -> bool:
     from hermes_cli.config_switches import config_switch
 
     return config_switch("agent", "provider_sdks", default=True)
+
+
+#: The provider SDKs these clients replace when a profile ships none (``agent.provider_sdks: false``,
+#: the phone): they speak those wires themselves, and the phone's ``openai`` stand-in carries no
+#: ``__spec__`` on purpose, so a ``find_spec`` probe reads it missing. The rest (boto3, google-auth)
+#: have no SDK-free arm and stay required.
+SDK_FREE_REPLACED = frozenset({"openai", "anthropic"})
+
+
+def packages_this_build_needs(packages: Iterable[str]) -> list[str]:
+    """``packages`` (a provider's required or missing distributions) less the SDKs this build's
+    SDK-free clients replace — the ONE answer to "which provider libraries does this build need",
+    asked by the turn preflight (``agent_runtime.provider_health``) and agent readiness
+    (``agent_runtime.profile_readiness``). The dependency report (``agent_runtime.provider_dependencies``)
+    answers a different question — what can be INSTALLED — and an SDK-free build installs nothing, so
+    it stops at ``provider_sdks_enabled`` before listing anything
+    (RT-PHONE-AGENT-READINESS-ASKS-FOR-PROVIDER-LIBRARIES-THE-PHONE-DOES-NOT-USE)."""
+    replaced = frozenset() if provider_sdks_enabled() else SDK_FREE_REPLACED
+    return [package for package in packages if package not in replaced]
 
 
 def sdk_free_client(client_kwargs: Mapping[str, Any], *, api_mode: str | None) -> SdkFreeClient | None:

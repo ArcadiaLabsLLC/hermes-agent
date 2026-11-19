@@ -443,11 +443,15 @@ def _codex_provider_issue() -> tuple[str, str] | None:
 
 
 def _runtime_dependency_issue(persona) -> tuple[str, str] | None:
-    missing = missing_runtime_packages_for(
+    from agent.transports.httpx_client import packages_this_build_needs
+
+    # MUTATION: skip packages_this_build_needs and a phone persona on openai reads "Missing runtime
+    # packages: openai" (tests/agent_runtime/test_provider_packages_one_answer.py).
+    missing = packages_this_build_needs(missing_runtime_packages_for(
         provider=getattr(persona, "provider", None),
         api_mode=getattr(persona, "api_mode", None),
         model=getattr(persona, "model", None),
-    )
+    ))
     if not missing:
         return None
     return (READINESS_RUNTIME_DEPENDENCY_MISSING, f"Missing runtime packages: {', '.join(missing)}")

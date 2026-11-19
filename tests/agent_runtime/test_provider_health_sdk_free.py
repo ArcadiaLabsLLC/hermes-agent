@@ -5,7 +5,7 @@ RT-PHONE-TURN-REFUSED-FOR-A-PROVIDER-SDK-THE-PHONE-DOES-NOT-USE: from a phone bu
 preflight probed ``find_spec("openai")`` and the phone's ``openai`` stand-in has no ``__spec__``.
 
 Killing mutation (applied, red recorded, reverted — see the commit message): drop the
-``_sdk_free_replaced()`` filter in ``provider_health_for_personas`` → the first case reddens.
+``packages_this_build_needs`` call in ``provider_health_for_personas`` → the first case reddens.
 """
 
 from __future__ import annotations
