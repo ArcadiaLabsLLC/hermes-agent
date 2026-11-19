@@ -300,6 +300,9 @@ class EmbeddedServe:
         from agent_runtime.psutil_stand_in import ensure_psutil_stand_in
 
         ensure_psutil_stand_in()  # the phone's `psutil`: upstream's process reads see an empty table
+        from agent_runtime.terminal_ui_stand_in import ensure_terminal_ui_stand_in
+
+        ensure_terminal_ui_stand_in()  # the phone's `rich`/`prompt_toolkit`: terminal-UI names, none drawable
         from agent_runtime.spawn_stand_ins import ensure_spawn_stand_ins
 
         ensure_spawn_stand_ins()  # upstream functions that start a process answer as a phone must

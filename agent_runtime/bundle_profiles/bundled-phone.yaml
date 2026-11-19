@@ -185,6 +185,18 @@ packaging:
       # hermes_constants_scratch.py resolve with upstream's bytes (FH-FOOTPRINT-PHONE-PSUTIL-STUB).
       stand_in: agent_runtime.psutil_stand_in
       degrades: nothing a phone has — it starts no sibling process; pid liveness falls back to the stdlib (hermes_cli/_subprocess_compat.py::pid_exists_stdlib), a process read raises NoSuchProcess, the scratch reap finds nothing; the fork's own sites stay ImportError-guarded (discussions/native.py, conversations/native_peer.py)
+    - distribution: rich
+      imports: [rich]
+      # The embedded entry registers this module's `rich` and `prompt_toolkit` (each name upstream
+      # imports, none drawable: a call raises an ImportError), so the CLI renderers' and plugin
+      # commands' unguarded sites resolve; the closure proves each at run time. pygments and
+      # markdown-it-py leave with them (only rich and prompt_toolkit require them).
+      stand_in: agent_runtime.terminal_ui_stand_in
+      degrades: nothing a phone has — the CLI's rich renderers, banner, journey view and plugin command tables draw a terminal, and Eternia draws every phone surface
+    - distribution: prompt-toolkit
+      imports: [prompt_toolkit]
+      stand_in: agent_runtime.terminal_ui_stand_in
+      degrades: nothing a phone has — no prompt_toolkit application ever owns a terminal (get_app_or_none() is None, so the guarded TUI reads take their no-TUI path); the CLI's modern layout, subagent monitor and slash-command completer are terminal-only
   # The forced set (switched-off code kept code imports unguarded) ships under `phone_forced/`
   # beside `app/`, never under the scanned `tools/` / `plugins/`: upstream's directory scans
   # (tools/registry.py discover_builtin_tools, the plugin loader) would import it. The embedded
