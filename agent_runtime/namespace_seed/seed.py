@@ -61,6 +61,7 @@ from ..namespace_admin import (
 from ..redaction import has_secret_value
 from .instances import HANDLED as INSTANCES_HANDLED
 from .instances import InstancePlan, plan_instances, write_instances
+from .shipped import AGENTS_DIRNAME, ShippedRecord, read_shipped, write_references
 
 __layer__ = "lanes"
 
@@ -137,10 +138,13 @@ class SeedPlan:
     skipped: tuple[dict[str, str], ...]
     borrowed: tuple[str, ...]
     instances: InstancePlan
+    #: Shipped agents resolved from the build, never copied (:mod:`.shipped`).
+    shipped: tuple[ShippedRecord, ...] = ()
 
     def payload(self) -> dict[str, Any]:
         return {"copied": [rel for _src, _dst, rel in self.copies], "skipped": list(self.skipped),
-                "borrowed": list(self.borrowed), "instances": self.instances.payload()}
+                "borrowed": list(self.borrowed), "instances": self.instances.payload(),
+                "shipped": [record.payload() for record in self.shipped]}
 
 
 def _seed_refusal(path: Path, *, nested: bool = False) -> SkipReason | None:
@@ -207,6 +211,20 @@ def _plan_dir(src: Path, dst: Path, rel: str, allowlist: tuple[str, ...], plan: 
             dirs[:] = [d for d in dirs if _seed_refusal(Path(folder) / d, nested=True) is None]
 
 
+def _plan_agents(src: Path, dst: Path, rel: str, plan: list, skipped: list) -> tuple[ShippedRecord, ...]:
+    """Plan the persona records one by one: a shipped agent's reference is resolved, never copied."""
+    shipped: list[ShippedRecord] = []
+    for entry in sorted(src.iterdir(), key=lambda p: p.name):
+        label = f"{rel}{entry.name}"
+        if (reason := _seed_refusal(entry, nested=True)) is not None:
+            _skip(skipped, label, reason)
+        elif (record := read_shipped(entry, dst / entry.name, label)) is not None:
+            shipped.append(record)
+        else:
+            plan.append((entry, dst / entry.name, label))
+    return tuple(shipped)
+
+
 def plan_seed(src_root: Path, item: Layout, *, with_memories: bool = False) -> SeedPlan:
     """Read-only: the exact seed of ``item`` from ``src_root``. Writes nothing (``--dry-run`` prints it)."""
     home = HOME_SEED + ((MEMORIES,) if with_memories else ())
@@ -216,8 +234,12 @@ def plan_seed(src_root: Path, item: Layout, *, with_memories: bool = False) -> S
     handled = frozenset({"profiles", SHARED_DIRNAME, STORE_DIRNAME, *borrowed})
     _plan_dir(src_root, item.root, "", ROOT_SEED + home, copies, skipped, handled)
     _plan_dir(src_root / SHARED_DIRNAME, item.root / SHARED_DIRNAME, f"{SHARED_DIRNAME}/", SHARED_SEED, copies, skipped)
+    agents = src_root / STORE_DIRNAME / AGENTS_DIRNAME
+    agents_listed = agents.is_dir() and not agents.is_symlink()
     _plan_dir(src_root / STORE_DIRNAME, item.store_root, f"{STORE_DIRNAME}/", STORE_SEED, copies, skipped,
-              INSTANCES_HANDLED)
+              INSTANCES_HANDLED | ({AGENTS_DIRNAME} if agents_listed else set()))
+    shipped = _plan_agents(agents, item.store_root / AGENTS_DIRNAME, f"{STORE_DIRNAME}/{AGENTS_DIRNAME}/",
+                           copies, skipped) if agents_listed else ()
     profiles = src_root / "profiles"
     listed = profiles.is_dir() and not profiles.is_symlink()
     for profile in sorted(profiles.iterdir(), key=lambda p: p.name) if listed else []:
@@ -226,7 +248,7 @@ def plan_seed(src_root: Path, item: Layout, *, with_memories: bool = False) -> S
             _skip(skipped, rel, _seed_refusal(profile) or SkipReason.NOT_ALLOWLISTED)
             continue
         _plan_dir(profile, item.root / "profiles" / profile.name, f"{rel}/", home, copies, skipped)
-    return SeedPlan(tuple(copies), tuple(skipped), borrowed, plan_instances(src_root, item))
+    return SeedPlan(tuple(copies), tuple(skipped), borrowed, plan_instances(src_root, item), shipped)
 
 
 def _copy(src: Path, dst: Path) -> None:
@@ -294,12 +316,13 @@ def seed(target_id: str, source: str, env: Mapping[str, str], *, dry_run: bool =
         for src, dst, _rel in plan.copies:
             _copy(src, dst)
         write_instances(plan.instances)
+        write_references(plan.shipped)
     result = plan.payload()
     seeded_at = _now()
     _write_manifest(item, restamped({
         **manifest, "seeded_from": source, "seeded_at": seeded_at, "seeded": result["copied"],
         "skipped": result["skipped"], "instances": [row["id"] for row in result["instances"]["carried"]],
-        "with_memories": with_memories}))
+        "with_memories": with_memories, "shipped": [row["id"] for row in result["shipped"]]}))
     if source == BASE_ID:  # RT-BASE-ROOT-STALE-AFTER-SEED: the base root's copies now read as moved
         from .superseded import record_seed
 
