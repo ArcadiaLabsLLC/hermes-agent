@@ -344,7 +344,11 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
       (``inbox`` absent or equal to the baseline). My unpublished edit: Publish
       ships it, Revert adopts the realm's copy back over it.
     * ``added`` — no baseline and no inbox copy: a package this realm has never
-      carried. Revert archives it (never deletes).
+      carried. Revert archives it (never deletes). NOT a built-in harness skill
+      byte-equal to this hermes's shipped copy: every boot and pull installs those
+      (``skill_install``), so a realm whose publisher's hermes lacked one is not
+      this member's change (RT-FIRST-PULL-INSTALLS-SKILLS-THAT-READ-AS-YOURS-TO-PUSH);
+      an edited one still is.
     * ``removed`` — baselined, and no local package at all. Revert reinstalls from
       the inbox, or drops the stale entry when the inbox has nothing.
     * **both moved → NO ROW.** That is the held card's, and a drift row beside it
@@ -367,6 +371,7 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
         realm_inbox_dir,
         skill_package_sync_hash,
     )
+    from ..skill_install import HARNESS_SKILLS, harness_skill_source_package
     from ..skill_sync import read_skill_baseline, skill_baseline_key, split_skill_baseline_key
 
     realm = RealmStore().get(realm_id)
@@ -389,13 +394,19 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
             family=SyncFamily.SKILL, container="", item_key=slug, kind=kind
         )
 
+    def shipped_hash(slug: str) -> str | None:
+        if slug not in HARNESS_SKILLS:
+            return None
+        source = harness_skill_source_package(slug)
+        return skill_package_sync_hash(source) if source.is_dir() else None
+
     items: list[StoreDriftItem] = []
     for slug, package_dir in publishable_skill_packages(realm):
         local_hash = skill_package_sync_hash(package_dir)
         base_hash = baseline.get(skill_baseline_key(slug))
         inbox_hash = inbox_hashes.get(slug)
         if base_hash is None:
-            if inbox_hash is None:
+            if inbox_hash is None and local_hash != shipped_hash(slug):
                 items.append(_row(slug, DRIFT_KIND_ADDED))
             continue
         if local_hash == base_hash:
