@@ -42,7 +42,9 @@ directory scans never see it. It also registers the agent loop's lifecycle place
 phone wheel does not ship the terminal and browser tool lifecycles it imports —
 and rebinds the upstream functions that would start a process to their phone
 stand-ins (``agent_runtime.spawn_stand_ins``; only under the phone's config).
-The profile's switches (``bundled-phone.yaml``: no provider SDK, no subprocess
+It binds the argv lane's parser to the two chat-turn verbs (``harness_parts.chat_turn_argv``)
+when nothing bound one: the desktop's serve trampoline binds the whole tree, which a phone does
+not ship. The profile's switches (``bundled-phone.yaml``: no provider SDK, no subprocess
 worker, no subprocess sign-in) are the host's config, written like any profile's.
 """
 

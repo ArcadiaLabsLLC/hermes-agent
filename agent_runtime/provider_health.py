@@ -14,6 +14,20 @@ from .provider_dependency_error import ProviderDependencyError
 __layer__ = "stores"
 
 
+#: The provider SDKs the SDK-free client (``agent/transports/httpx_client.py``) replaces when a profile
+#: ships none (``agent.provider_sdks: false``, the phone): it speaks their wires itself, and the phone's
+#: ``openai`` stand-in carries no ``__spec__`` on purpose, so a ``find_spec`` probe reads it missing.
+#: The rest (boto3, google-auth) have no SDK-free arm and stay required
+#: (RT-PHONE-TURN-REFUSED-FOR-A-PROVIDER-SDK-THE-PHONE-DOES-NOT-USE).
+SDK_FREE_REPLACED = frozenset({"openai", "anthropic"})
+
+
+def _sdk_free_replaced() -> frozenset[str]:
+    from hermes_cli.config_switches import config_switch
+
+    return frozenset() if config_switch("agent", "provider_sdks", default=True) else SDK_FREE_REPLACED
+
+
 def provider_health_for_personas(personas: list[AgentPersona]) -> dict[str, Any]:
     """Return compact redaction-safe runtime/provider dependency health.
 
@@ -31,6 +45,7 @@ def provider_health_for_personas(personas: list[AgentPersona]) -> dict[str, Any]
         ):
             if package not in packages:
                 packages.append(package)
+    packages = [package for package in packages if package not in _sdk_free_replaced()]
     env = runtime_environment_status(packages)
     issues = list(env.issues)
     return {

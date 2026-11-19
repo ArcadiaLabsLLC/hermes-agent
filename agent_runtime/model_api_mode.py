@@ -25,12 +25,19 @@ def model_api_mode(provider: str | None, model: str | None, profile_api_mode: st
     return profile_api_mode
 
 
+def _is_local_llama(provider: str) -> bool:
+    from agent_runtime.local_llama_adapter import is_local_llama_provider
+
+    return is_local_llama_provider(provider)
+
+
 def _provider_profile(provider: str | None):
     if not provider:
         return None
-    from agent_runtime.local_llama_adapter import is_local_llama_provider
+    from agent_runtime.module_presence import shipped
 
-    if is_local_llama_provider(provider):
+    # A profile that leaves the local engine out (the phone) has no local llama provider to match.
+    if shipped("agent_runtime.local_llama_adapter") and _is_local_llama(provider):
         from agent_runtime.local_llama_adapter.provider import provider_profile
 
         return provider_profile()

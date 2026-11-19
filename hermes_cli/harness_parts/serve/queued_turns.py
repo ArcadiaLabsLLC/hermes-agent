@@ -147,11 +147,11 @@ def start_serve_work_engine(session: Any) -> Any:
     home = getattr(session, "serve_request_home", None)
     with home_scope(home):
         session.work_executor = PersonaTurnExecutor(draining=lambda: session.drain_state is not None)
-        from agent_runtime.batch import dispatcher_shipped
+        from agent_runtime.module_presence import batch_dispatcher_shipped
 
         # MUTATION: back to shipped("agent_runtime.batch") and the phone closure check in
-        # test_bundle_profile_switches reddens on agent_runtime.batch.board_source.
-        hooks = _batch_hooks(session) if dispatcher_shipped() else {}
+        # test_phone_bundle_turn_closure's work-engine case reddens.
+        hooks = _batch_hooks(session) if batch_dispatcher_shipped() else {}
         session.work_engine = WorkEngine(executor=session.work_executor, **hooks)
     start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home,
                       on_tick=session.work_executor.wake_parked)

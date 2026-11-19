@@ -67,6 +67,20 @@ class Provider(BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         self.requests.append((self.headers.get("Authorization"), body))
+        if self.path.endswith("/responses"):  # the harness chat lane resolves this endpoint to the Responses wire
+            done = {"id": "resp", "object": "response", "status": "completed", "model": "test-model",
+                    "output": [{"type": "message", "id": "msg", "role": "assistant", "status": "completed",
+                                "content": [{"type": "output_text", "text": REPLY, "annotations": []}]}],
+                    "usage": {"input_tokens": 12, "output_tokens": 3, "total_tokens": 15}}
+            if not body.get("stream"):
+                return self._send("application/json", json.dumps(done).encode())
+            events = (("response.created", {"type": "response.created",
+                                            "response": {**done, "status": "in_progress", "output": []}}),
+                      ("response.output_text.delta", {"type": "response.output_text.delta", "item_id": "msg",
+                                                      "output_index": 0, "content_index": 0, "delta": REPLY}),
+                      ("response.completed", {"type": "response.completed", "response": done}))
+            return self._send("text/event-stream", "".join(f"event: {kind}\ndata: {json.dumps(event)}\n\n"
+                                                           for kind, event in events).encode())
         base = {"id": "r", "object": "chat.completion.chunk", "created": 1, "model": "test-model"}
         rows = [{**base, "choices": [{"index": 0, "delta": {"role": "assistant", "content": REPLY},
                                       "finish_reason": None}]},
@@ -212,7 +226,15 @@ def _reserved_chat_turn(phone: Phone, install_id: str) -> dict:
     rid = ack.get("request_id")
     exit_frame = phone.frames.wait_for(lambda f: f.get("id") == rid and f.get("event") == "exit", 120) if rid else None
     lines = [f for f in phone.frames.frames if f.get("id") == rid and f.get("event") != "exit"]
-    return {"ack": ack, "exit_code": exit_frame and exit_frame.get("code"), "lines": lines[-40:]}
+    # Intelligence Chat's first call (RT-PHONE-DISCUSSION-SERVICE-NOT-BOUND-IN-THE-APP).
+    phone.serve.send(json.dumps({"jsonrpc": "2.0", "id": "discussion", "method": "runtime.discussion.capabilities",
+                                 "params": {}}))
+    discussion = phone.frames.wait_for(lambda f: f.get("id") == "discussion" and ("result" in f or "error" in f))
+    # The work engine's start (RT-PHONE-WORK-ENGINE-START-FAILS-ON-A-MISSING-BATCH-MODULE).
+    work = [f["line"] for f in phone.frames.frames if f.get("event") == "stderr"
+            and "work engine did not start" in f.get("line", "")]
+    return {"ack": ack, "exit_code": exit_frame and exit_frame.get("code"), "lines": lines[-40:],
+            "discussion": discussion, "work_engine_failed": work}
 
 
 def _what_the_turn_left(home: Path, store: FakeHostSecureStore) -> dict:
@@ -616,13 +638,14 @@ def test_sign_in_and_one_chat_turn_leave_no_secret_on_disk_and_protect_the_histo
     leaks = _leaks(app)
     assert SECRET not in leaks, leaks  # the key is only in the host store
     assert CHAT in leaks, leaks  # positive control: the scan reads the (OS-protected) history
-    # Last, so every check above has run: the reserved turn then runs on the serve's argv lane, which
-    # the embedded serve never binds a harness parser for (RT-PHONE-CHAT-TURN-HAS-NO-HARNESS-PARSER,
-    # seen here 2026-11-19). That row's fix drops this branch; any other failure stays red.
-    if reserved["exit_code"] != 0 and "HarnessParserUnbound" in json.dumps(reserved["lines"]):
-        pytest.xfail("RT-PHONE-CHAT-TURN-HAS-NO-HARNESS-PARSER: the reserved turn was accepted, then "
-                     "its dispatch found no harness parser")
+    # Last, so every check above has run: the reserved turn runs on the serve's argv lane, with the turn
+    # parser the embedded entry binds (this child has no conftest binding; RT-PHONE-TURN-NEEDS-THE-HARNESS-PARSER),
+    # reaches the model (RT-PHONE-TURN-REFUSED-FOR-A-PROVIDER-SDK-THE-PHONE-DOES-NOT-USE) and replies.
+    # Intelligence Chat's discussion service answered, and the work engine started.
+    assert "result" in reserved["discussion"], reserved["discussion"]
+    assert reserved["work_engine_failed"] == [], reserved["work_engine_failed"]
     assert reserved["exit_code"] == 0, reserved
+    assert any(REPLY in json.dumps(f) for f in reserved["lines"]), reserved["lines"]
 
 
 def test_an_unbound_host_store_is_refused_before_any_request(app):

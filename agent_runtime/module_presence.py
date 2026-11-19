@@ -12,7 +12,7 @@ import importlib.util
 import sys
 
 __layer__ = "models"  # a pure probe: the host resolver (models) asks it too
-__all__ = ["is_lifecycle_placeholder", "shipped"]
+__all__ = ["BATCH_DISPATCHER_MODULES", "batch_dispatcher_shipped", "is_lifecycle_placeholder", "shipped"]
 
 
 def is_lifecycle_placeholder(module: object) -> bool:
@@ -33,3 +33,22 @@ def shipped(module: str) -> bool:
         return importlib.util.find_spec(module) is not None
     except (ImportError, ValueError):
         return False
+
+
+#: What ``agent_runtime.batch.dispatcher.default_dispatcher`` builds a serve's dispatcher from. The phone
+#: bundle ships the ``agent_runtime.batch`` package (pinned: kept code imports ``dispatcher``, ``manifest``
+#: and others at module level) but not ``board_source``, ``lander`` or ``lane_executor``, so the package's
+#: presence is not the dispatcher's (RT-PHONE-WORK-ENGINE-START-FAILS-ON-A-MISSING-BATCH-MODULE). Asked
+#: here, not in the package, so the probe never imports a package a profile switches off.
+BATCH_DISPATCHER_MODULES = (
+    "agent_runtime.batch.dispatcher",
+    "agent_runtime.batch.board_source",
+    "agent_runtime.batch.lander",
+    "agent_runtime.batch.lane_executor",
+)
+
+
+def batch_dispatcher_shipped() -> bool:
+    """True when this installation can build the serve's batch dispatcher (every module it imports)."""
+
+    return all(shipped(module) for module in BATCH_DISPATCHER_MODULES)

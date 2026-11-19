@@ -128,10 +128,10 @@ def _ensure_batch_methods():
     from ..loop_tool_lifecycles import shipped
 
     # The batch dispatcher rides Work (dispatcher plan §3). The phone wheel ships the batch package but not
-    # the dispatcher's own modules, so the package's presence is not asked (dispatcher_shipped).
-    from ..batch import dispatcher_shipped
+    # the dispatcher's own modules, so the package's presence is not asked.
+    from ..module_presence import batch_dispatcher_shipped
 
-    if "runtime.batch.plan" not in _METHODS and dispatcher_shipped() and shipped("agent_runtime.work"):
+    if "runtime.batch.plan" not in _METHODS and batch_dispatcher_shipped() and shipped("agent_runtime.work"):
         from ..batch.rpc import register
         register(method)
 
