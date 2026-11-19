@@ -36,12 +36,10 @@ Pinned by ``tests/agent_runtime/test_realm_leave.py``.
 """
 from __future__ import annotations
 
-import os
-import shutil
-import stat
-import sys
 from pathlib import Path
 from typing import Any
+
+from utils import rmtree_readonly as _remove_tree
 
 from . import paths
 from .locks import workspace_realm_assign_lock
@@ -158,13 +156,3 @@ def _drop_clone(clone: Path) -> None:
         for name in git.remotes():
             git.remote_remove(name, missing_ok=True)
 
-
-def _remove_tree(path: Path) -> None:
-    def _writable(func, target, _exc) -> None:  # git object files are read-only on Windows
-        os.chmod(target, stat.S_IWRITE)
-        func(target)
-
-    if sys.version_info >= (3, 12):
-        shutil.rmtree(path, onexc=_writable)
-    else:  # pragma: no cover - 3.11
-        shutil.rmtree(path, onerror=lambda f, t, e: _writable(f, t, e))

@@ -280,9 +280,7 @@ def _set_up_git(repo: Path) -> None:
     and the ``.gitignore`` it wrote) and refuses ``commit_failed``: the folder is offered again as it was.
     """
 
-    import shutil
-    import stat
-    import sys
+    from utils import rmtree_readonly
 
     from .work_store.reasons import Reason, WorkRefused
 
@@ -306,15 +304,8 @@ def _set_up_git(repo: Path) -> None:
         if committed is None or committed.returncode != 0:
             raise WorkRefused(Reason.COMMIT_FAILED, _why(committed, "git commit"))
     except BaseException:
-        def _writable(func, target, _exc) -> None:  # git object files are read-only on Windows
-            os.chmod(target, stat.S_IWRITE)
-            func(target)
-
         # MUTATION: ``shutil.rmtree(..., ignore_errors=True)`` here and the ``commit_fails`` case reddens on Windows.
-        if sys.version_info >= (3, 12):
-            shutil.rmtree(repo / ".git", onexc=_writable)
-        else:  # pragma: no cover - 3.11
-            shutil.rmtree(repo / ".git", onerror=lambda f, t, e: _writable(f, t, e))
+        rmtree_readonly(repo / ".git")
         if wrote_ignore:
             (repo / ".gitignore").unlink(missing_ok=True)
         raise

@@ -15,9 +15,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
-import stat
-import sys
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -37,6 +34,7 @@ from hermes_cli._namespace_bootstrap import (
     namespaces_dir,
     validate_id,
 )
+from utils import rmtree_readonly
 
 from . import store_epoch
 from .file_locks import LockUnavailable, try_lock_exclusive, unlock
@@ -174,15 +172,8 @@ def _refuse_own(ns_id: str, env: Mapping[str, str]) -> None:
 
 
 def _rm(path: Path) -> None:
-    def _writable(func, target, _exc) -> None:
-        os.chmod(target, stat.S_IWRITE)
-        func(target)
-
     if path.is_dir() and not path.is_symlink():
-        if sys.version_info >= (3, 12):
-            shutil.rmtree(path, onexc=_writable)
-        else:  # pragma: no cover - 3.11
-            shutil.rmtree(path, onerror=lambda f, t, e: _writable(f, t, e))
+        rmtree_readonly(path)
     else:
         path.unlink(missing_ok=True)
 
