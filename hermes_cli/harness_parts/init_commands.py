@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
+from agent_runtime.bundled_agents import sync_shipped_agents
 from agent_runtime.cli_format import emit_json
 from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 from agent_runtime.default_scope import ensure_default_scope
@@ -25,8 +26,11 @@ __all__ = [
 
 def _cmd_init(args) -> int:
     cfg = load_agent_runtime_config()
-    # A fresh root (no personas at all) gets Neko Mission Lead; any other root gains nothing.
+    # A fresh root (no personas at all) gets the shipped agents; any other root gains nothing.
     seed_fresh_install_persona(cfg)
+    # A reference written under an older build takes this build's definition (owner
+    # 2026-11-19: shipped agents always update; a local change is reset by the update).
+    sync_shipped_agents()
     personas = ensure_persisted_personas(cfg)
     persona_ids = [p.id for p in personas]
     try:
@@ -41,10 +45,9 @@ def _cmd_init(args) -> int:
     if args.json:
         print(emit_json(data))
     else:
-        # Personas are data: init seeds only Neko Mission Lead, only on a root with
-        # none, so the list is empty only when that seed was refused (a ``neko``
-        # profile it did not stage); the old unconditional line rendered a dangling
-        # "personas: " with nothing after it.
+        # Personas are data: init seeds only the shipped agents, only on a root with
+        # none, so the list is never empty after a seed; the old unconditional line
+        # rendered a dangling "personas: " with nothing after it.
         print(
             f"Initialized harness personas: {', '.join(data['personas'])}"
             if data["personas"]

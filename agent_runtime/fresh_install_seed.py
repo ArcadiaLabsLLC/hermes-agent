@@ -1,21 +1,22 @@
-"""The one persona a FRESH harness root starts with: Neko Mission Lead.
+"""The agents a FRESH harness root starts with: Neko Mission Lead and Base Agent.
 
-Owner ruling 2026-11-18 (``RT-FRESH-INSTALL-SEEDS-NEKO``): "new installs default
-agent should be neko mission lead". Bundled persona seeding was retired on
-2026-08-02 and personas stay data; this is the single exception, and it is
-narrow on purpose:
+Owner rulings: "new installs default agent should be neko mission lead"
+(2026-11-18, ``RT-FRESH-INSTALL-SEEDS-NEKO``); only Base Agent and Neko Mission
+Lead ship, and they always update (2026-11-19, ``RT-BUNDLED-AGENTS-LIVE-IN-THE-BUILD``).
+Personas otherwise stay data; this seed is narrow on purpose:
 
 * it runs only when the roster (persisted store merged over config records) is
   EMPTY — a root holding any persona gains nothing;
-* it never overwrites: an existing ``neko_supervisor`` record or a ``neko``
-  profile this seed did not stage is left alone (the seed then does nothing);
+* it writes REFERENCES (``origin: "eternia"``): the definition and Neko's SOUL are
+  read from the build on every load (``agent_runtime.bundled_agents``), so a later
+  build updates them with no store write;
+* it never overwrites: a ``neko`` profile this seed did not stage keeps Neko out;
 * it ships no model and no provider — the user's own sign-in decides those;
-* ``base`` is untouched: it stays the protocol-layer profile, resolved as before.
+* Base's profile is Eternia's bundled ``base`` profile: never staged or touched here.
 
-Eternia's console selects ``neko_supervisor`` first whenever it exists, so
-creating the record is all a new install needs. Caller: ``hermes harness init``
-(``hermes_cli/harness_parts/init_commands.py::_cmd_init``), before the default
-scope is reconciled so Neko joins it.
+Eternia's console selects ``neko_supervisor`` first whenever it exists. Caller:
+``hermes harness init`` (``hermes_cli/harness_parts/init_commands.py::_cmd_init``),
+before the default scope is reconciled so both join it.
 """
 
 from __future__ import annotations
@@ -28,24 +29,20 @@ from hermes_cli.profiles import get_profile_dir
 from hermes_cli.profiles_initialization import finish_profile_layout
 
 from . import yaml_io
+from .bundled_agents import reference_record, shipped_agent
 from .config import ensure_persisted_personas
 from .config.schema import AgentRuntimeConfig
 from .locks import agent_create_lock
-from .models import AgentPersona, AutonomyLevel
+from .models import AgentPersona
 from .persona_seed_defaults import persona_profile_homes, seed_persona_profile
 from .store import AgentStore
 
 __layer__ = "stores"
-__all__ = ["NEKO_PERSONA_ID", "NEKO_PROFILE", "seed_fresh_install_persona"]
+__all__ = ["BASE_PERSONA_ID", "NEKO_PERSONA_ID", "NEKO_PROFILE", "seed_fresh_install_persona"]
 
+BASE_PERSONA_ID = "base"
 NEKO_PERSONA_ID = "neko_supervisor"
 NEKO_PROFILE = "neko"
-#: The canonical spelling of the ``alice_supervisor`` / ``neko_supervisor`` pair
-#: (``personas.canonical_persona_id``): the terminal-envelope grant table keys on
-#: it (``terminal_envelope.records.canonical_role``), and existing Neko records
-#: carry it, so a grant written for Neko applies to the seeded one too.
-_NEKO_ROLE = "alice_supervisor"
-_NEKO_SKILLS = ("harness-runtime-model",)
 _SOUL_SOURCE = Path(__file__).resolve().parent / "seed_souls" / "neko.md"
 #: Written into the profile this seed stages, so a run interrupted between the
 #: profile publish and the record save finishes on the next init instead of
@@ -77,36 +74,28 @@ def _seeded_by_us(home: Path) -> bool:
     )
 
 
-def seed_fresh_install_persona(cfg: AgentRuntimeConfig) -> AgentPersona | None:
-    """Create Neko Mission Lead on a root with no personas; ``None`` when nothing was seeded."""
+def seed_fresh_install_persona(cfg: AgentRuntimeConfig) -> list[AgentPersona]:
+    """Reference the shipped agents on a root with no personas; ``[]`` when nothing was seeded."""
 
     if ensure_persisted_personas(cfg):
-        return None
+        return []
     with agent_create_lock(f"fresh-install-{NEKO_PERSONA_ID}"):
         if ensure_persisted_personas(cfg):
-            return None
+            return []
+        store = AgentStore()
+        seeded: list[AgentPersona] = []
         home = get_profile_dir(NEKO_PROFILE)
         if home.exists() or home.is_symlink():
-            if not _seeded_by_us(home):
-                return None
+            neko_ok = _seeded_by_us(home)
         else:
             _stage_neko_profile(home)
-        saved = AgentStore().save(AgentPersona(
-            id=NEKO_PERSONA_ID,
-            display_name="Neko Mission Lead",
-            role=_NEKO_ROLE,
-            model=None,
-            provider=None,
-            api_mode=None,
-            autonomy=AutonomyLevel.PROPOSE_ONLY,
-            hermes_profile=NEKO_PROFILE,
-            skills=list(_NEKO_SKILLS),
-            soul_overlay_path="SOUL.md",
-            include_profile_memory=True,
-            include_core_context_files=False,
-        ))
-    # The owner-ruled config seed keys every persona create fills (2026-10-03),
-    # through their one writer, as ``persona_profiles.promote_profile_to_persona`` does.
-    for profile_home in persona_profile_homes([saved]):
-        seed_persona_profile(profile_home)
-    return saved
+            neko_ok = True
+        if neko_ok:
+            neko = store.save(reference_record(shipped_agent(NEKO_PERSONA_ID)))
+            seeded.append(neko)
+            # The owner-ruled config seed keys every persona create fills (2026-10-03),
+            # through their one writer, as ``persona_profiles.promote_profile_to_persona`` does.
+            for profile_home in persona_profile_homes([neko]):
+                seed_persona_profile(profile_home)
+        seeded.append(store.save(reference_record(shipped_agent(BASE_PERSONA_ID))))
+    return seeded

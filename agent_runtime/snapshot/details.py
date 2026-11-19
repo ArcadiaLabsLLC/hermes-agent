@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 
+from agent_runtime.bundled_agents import directory_fields
 from agent_runtime.events import CachedEventLog
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.store import AgentStore
@@ -152,8 +153,9 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
     for instance in PersonaInstanceStore(event_log=event_log).ensure_for_personas(agents):
         if str(getattr(instance, "id", "") or "") == token:
             persona = personas_by_id.get(str(getattr(instance, "persona_id", "") or ""))
-            return persona_instance_tool_detail(instance, persona, roster=ensure_persisted_personas)
+            detail = persona_instance_tool_detail(instance, persona, roster=ensure_persisted_personas)
+            return None if detail is None else {**detail, **directory_fields(persona)}
     persona = personas_by_id.get(token)
     if persona is not None:
-        return _agent_tool_detail(persona)
+        return {**_agent_tool_detail(persona), **directory_fields(persona)}
     return None

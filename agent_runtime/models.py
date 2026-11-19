@@ -434,6 +434,15 @@ class AgentPersona:
     schema_version: int = 1
     # Existing persona authority owns the inherited character default.
     character_assignment: dict[str, Any] | None = None
+    # Shipped agents (``agent_runtime.bundled_agents``, owner 2026-11-19): ``"eternia"``
+    # on a record that REFERENCES an agent the build ships — its definition is read
+    # from the build on every load, so an update reaches it with no store write.
+    origin: str | None = None
+    # The shipped version a reference was last written under; a local edit made
+    # under an older version is reset by the update.
+    bundled_version: str | None = None
+    # ``{"id", "name"}`` of the agent this one was duplicated from.
+    based_on: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         # Every constructor and ``replace`` path lands on the enum, aliases included.
