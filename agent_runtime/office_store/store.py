@@ -190,6 +190,7 @@ class OfficeStore:
     # conflicts
     scan_conflicts = conflicts_lane.scan_conflicts
     resolve_conflict = conflicts_lane.resolve_conflict
+    retire_hold = conflicts_lane.retire_hold
     _guard_no_conflict = conflicts_lane._guard_no_conflict
 
     # actor_writes
