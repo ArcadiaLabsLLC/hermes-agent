@@ -144,6 +144,9 @@ packaging:
     site-packages/opt/include: "C headers of the flet-lib* wheels: for compiling against them, never loaded"
     site-packages/opt/lib/*.a: "static archives of the flet-lib* wheels (14.8 MB in flet-libjpeg): for linking, never loaded"
     site-packages/opt/lib/libturbojpeg.so: "libjpeg-turbo's TurboJPEG API: Pillow links libjpeg.so only"
+    app/locales/*.tui.yaml: "the TUI surface's catalogs (agent/i18n_layers.py SURFACES): served only over i18n.catalog to the Ink TUI, which a phone does not run; Eternia reads no catalog"
+    app/tools/neutts_samples: "NeuTTS's reference voice: tools/tts_tool_local.py hands it to a neutts_synth.py child process, which a phone cannot start, and neutts is not packaged"
+    app/tools/wakewords: "hey_hermes.tflite: tools.wake_word reads it, and the phone switches that module off (switched_off_modules)"
   # Base dependencies the phone omits. Refused by the closure script unless every import site
   # in the kept modules is guarded (try/suppress ImportError).
   omitted_distributions:
@@ -192,6 +195,11 @@ packaging:
   # still point at the source tree's lines; docstrings stay): about 3.3 MiB of the compressed
   # download (RT-PHONE-ENGINE-BUNDLE-FITS-THE-DOWNLOAD-LIMIT; scripts/bundles/strip_comments.py).
   strip_comments: true
+  # ... and every function and method docstring emptied to "", line for line (module and class
+  # docstrings stay: argparse and pydantic read those): about 2.6 MiB of the compressed download.
+  # Audited 2026-11-19: no first-party code reads a function's __doc__ for its content
+  # (scripts/bundles/strip_comments.py::strip_function_docstrings).
+  strip_function_docstrings: true
   # Skills ship only when their frontmatter `platforms:` names a phone OS — the existing
   # per-skill OS switch (agent/skill_utils.py::skill_matches_platform), so the same marker also
   # hides an unmarked skill from a phone's skill index at run time.

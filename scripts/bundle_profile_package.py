@@ -56,6 +56,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import shutil
@@ -223,14 +224,17 @@ def _copy_file(source: Path, destination: Path) -> None:
     shutil.copyfile(source, destination)
 
 
-def _comment_free_copy(source: Path, destination: Path) -> None:
-    """A first-party module without its comments (``packaging.strip_comments``); any other file as is."""
+def _comment_free_copy(source: Path, destination: Path, *, function_docstrings: bool = False) -> None:
+    """A first-party module without its comments (``packaging.strip_comments``) and, with
+    ``function_docstrings`` (``packaging.strip_function_docstrings``), its function docstrings emptied;
+    any other file as is."""
     if source.suffix != ".py":
         return _copy_file(source, destination)
-    from scripts.bundles.strip_comments import strip_comments
+    from scripts.bundles.strip_comments import strip_comments, strip_function_docstrings
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(strip_comments(source.read_bytes(), str(source)))
+    text = strip_comments(source.read_bytes(), str(source))
+    destination.write_bytes(strip_function_docstrings(text, str(source)) if function_docstrings else text)
 
 
 def _copy_distributions(names, dists: dict[str, Dist], stage: Path, site: Path, excluded) -> int:
@@ -270,7 +274,8 @@ def write_bundle(plan: Plan, manifest, dists: dict[str, Dist], stage: Path, out:
     rels = first_party_files(plan, index, tracked, manifest.packaging_resources, manifest.excluded_data,
                              manifest.packaging_skill_platforms, manifest.packaging_skill_names)
     app_rels, tree_rels = split_forced_tree(rels, plan.sibling, index)
-    copy = _comment_free_copy if manifest.packaging_strip_comments else _copy_file
+    copy = (functools.partial(_comment_free_copy, function_docstrings=manifest.packaging_strip_function_docstrings)
+            if manifest.packaging_strip_comments else _copy_file)
     for rel in app_rels:
         copy(ROOT / rel, app / rel)
         mark_named_skill(app / rel, manifest.packaging_skill_platforms, manifest.packaging_skill_names)

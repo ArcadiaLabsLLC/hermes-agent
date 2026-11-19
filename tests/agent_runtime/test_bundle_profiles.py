@@ -393,3 +393,17 @@ def test_the_pool_scope_is_an_enum_the_phone_declares_and_the_desktop_defaults()
     assert load_profile("bundled-desktop").packaging_pool is PoolScope.EXPORT
     with pytest.raises(ProfileManifestError, match="packaging.pool must be one of export, closure: got 'everything'"):
         parse_manifest({"schema_version": 1, "profile": "p", "packaging": {"pool": "everything"}}, validate=False)
+
+
+def test_the_phone_leaves_out_the_data_only_its_switched_off_features_read():
+    """The TUI catalogs, the wake-word model and NeuTTS's reference voice do not ship on a phone; the core
+    catalogs do (RT-PHONE-ENGINE-BUNDLE-FITS-THE-DOWNLOAD-LIMIT).
+    Mutation: drop ``app/locales/*.tui.yaml`` from bundled-phone.yaml's excluded_data -> red."""
+
+    from scripts.bundles.bundle_files import _excluded
+
+    phone = load_profile("bundled-phone").excluded_data
+    for rel in ("app/locales/de.tui.yaml", "app/tools/wakewords/hey_hermes.tflite", "app/tools/neutts_samples/jo.wav"):
+        assert _excluded(rel, phone), rel
+    assert not _excluded("app/locales/de.yaml", phone) and not _excluded("app/locales/en.yaml", phone)
+    assert not _excluded("app/locales/de.tui.yaml", load_profile("bundled-desktop").excluded_data)
