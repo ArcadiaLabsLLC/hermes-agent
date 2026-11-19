@@ -40,6 +40,12 @@ AGENT_CREATE_METHOD_PARAMS = (
     "client_scope", "source_instance_id",
 )
 
+#: ``runtime.agent.place``'s params: create's, less ``source_instance_id`` — a
+#: seat starts from its agent, never from another seat.
+AGENT_PLACE_METHOD_PARAMS = tuple(
+    name for name in AGENT_CREATE_METHOD_PARAMS if name != "source_instance_id"
+)
+
 
 
 @dataclass(frozen=True)

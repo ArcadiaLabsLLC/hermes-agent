@@ -863,7 +863,8 @@ the only registration site, so this list is
 | `runtime.office.remove` | `_runtime_office_remove` | delete |
 | `runtime.office.surface.update` | `_runtime_office_surface_update` | folder taxonomy |
 | `runtime.office.resolve_conflict` | `_runtime_office_resolve_conflict` | realm-sync resolve |
-| `runtime.agent.create` | `_runtime_agent_create` | roster row + chat root + actor |
+| `runtime.agent.create` | `_runtime_agent_create` | a NEW agent's persona + profile, then roster row + chat root + actor |
+| `runtime.agent.place` | `_runtime_agent_place` | one more instance of an EXISTING agent + chat root + actor (no persona or profile) |
 | `runtime.agent.retire` | `_runtime_agent_retire` | the inverse of the above |
 | `runtime.persona.prewarm` | `_runtime_persona_prewarm` | warm a persona |
 | `runtime.chat.message` | `_runtime_chat_message` | send one mission-chat turn |

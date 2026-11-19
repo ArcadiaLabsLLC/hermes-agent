@@ -161,6 +161,32 @@ def perform_agent_create(
     return AgentCreate(params, updated_by=updated_by, persona=persona, caller=caller).run()
 
 
+def perform_agent_place(
+    params: dict[str, Any],
+    *,
+    updated_by: str = "operator",
+    persona: Any | None = None,
+    caller: Any | None = None,
+) -> AgentCreateOutcome:
+    """``runtime.agent.place``: put an EXISTING agent on a desk — one more instance of it.
+
+    The same sequence, params, reply and refusals as :func:`perform_agent_create`
+    (reserve -> instance -> placement -> skills), with ONE difference, the
+    instance phase: the new instance is bound to ``persona_id`` itself, so no
+    persona and no profile are minted (owner 2026-11-19, row
+    ``RT-PLACING-A-SHIPPED-AGENT-MAKES-A-SECOND-ONE``: "it should create an agent
+    instance, not a duplicate copy of the profile and persona"). ``persona_id``
+    stays the reply's agent and the placed actor's. ``source_instance_id`` is not
+    a place param: a seat starts from its agent, not from another seat.
+
+    Idempotent per placement as well as per key: a placement id that already
+    names an instance of this agent re-binds that instance (``add_instance``)
+    rather than making a second one.
+    """
+
+    return AgentPlace(params, updated_by=updated_by, persona=persona, caller=caller).run()
+
+
 class _Answered(Exception):
     """A phase has the create's answer; :meth:`AgentCreate.run` returns it."""
 
@@ -172,12 +198,18 @@ class _Answered(Exception):
 class AgentCreate:
     """One ``perform_agent_create`` call, as the phases its comment map named.
 
+    ``METHOD`` and :meth:`new_instance` are the only things :class:`AgentPlace`
+    changes: creating mints the agent's own identity, placing does not.
+
     ``authorize -> normalize -> workspace_gate -> reserve -> resume_or_run ->
     mint -> place -> skills -> reply``. A phase that has the answer (a refusal,
     or a replay) raises :class:`_Answered`; the two tables it reads are
     :data:`RESUME_ACTIONS` (what a receipt already on disk means) and
     ``placement_faults.PLACEMENT_FAULTS`` (what a store fault on the placement means).
     """
+
+    #: The verb this sequence answers for: the backstop's method name.
+    METHOD: str = "runtime.agent.create"
 
     def __init__(self, params: dict[str, Any], *, updated_by: str, persona: Any, caller: Any) -> None:
         self.params = params
@@ -208,12 +240,12 @@ class AgentCreate:
         # literal reading, spelled for the same reason the eight validation arms
         # below carry it (the launcher renders a missing stamp as "the placement
         # could not be undone").
-        denied = service_backstop(self.caller, method="runtime.agent.create")
+        denied = service_backstop(self.caller, method=self.METHOD)
         if denied is not None:
             raise _Answered(
                 refused(
                     ERR_HANDLER_FAILED,
-                    f"runtime.agent.create requires the {denied.tier} tier",
+                    f"{self.METHOD} requires the {denied.tier} tier",
                     {**denied.refusal_data(), "rolled_back": True},
                 )
             )
@@ -471,7 +503,6 @@ class AgentCreate:
             using_create_subphases,
         )
         from ..persona_assignments import PersonaInstanceStore
-        from ..persona_assignments.independent import create_independent_agent
 
         request = self.request
         mint_started = time.monotonic()
@@ -486,16 +517,7 @@ class AgentCreate:
         subphases = CreateSubphases()
         try:
             with using_create_subphases(subphases):
-                instance = create_independent_agent(
-                    PersonaInstanceStore(),
-                    source_persona_id=request.persona_id,
-                    source_instance_id=request.source_instance_id,
-                    placement_id=request.placement_id,
-                    display_name=request.display_name or request.default_display_name,
-                    workspace_id=request.workspace_id,
-                    realm_id=request.realm_id,
-                    client_scope=request.client_scope,
-                )
+                instance = self.new_instance(PersonaInstanceStore(), request)
         except (RetiredPersonaInstanceError, ValueError, PersonaChatPersistenceError) as exc:
             return refuse_mint(exc, placement_id=request.placement_id)
         # The argv lane's own provenance stamp, matched so the two lanes cannot
@@ -516,6 +538,23 @@ class AgentCreate:
             placement_id=request.placement_id,
         )
         return None
+
+    def new_instance(self, store: Any, request: Any) -> Any:
+        """A NEW agent: its own persona and profile, then its first instance
+        (``TASK-INDEPENDENT-AGENT-CREATION``, 2026-11-18)."""
+
+        from ..persona_assignments.independent import create_independent_agent
+
+        return create_independent_agent(
+            store,
+            source_persona_id=request.persona_id,
+            source_instance_id=request.source_instance_id,
+            placement_id=request.placement_id,
+            display_name=request.display_name or request.default_display_name,
+            workspace_id=request.workspace_id,
+            realm_id=request.realm_id,
+            client_scope=request.client_scope,
+        )
 
     def place_and_finish(self) -> AgentCreateOutcome:
         placement_started = time.monotonic()
@@ -635,6 +674,25 @@ class AgentCreate:
 
         announce_roster_changed()
         return AgentCreateOutcome(result={**result, "idempotent_replay": False})
+
+
+class AgentPlace(AgentCreate):
+    """One ``perform_agent_place`` call: :class:`AgentCreate`'s phases, minus the identity."""
+
+    METHOD = "runtime.agent.place"
+
+    def new_instance(self, store: Any, request: Any) -> Any:
+        """One more instance of the EXISTING agent ``request.persona_id``."""
+
+        return store.add_instance(
+            persona_id=request.persona_id,
+            placement_id=request.placement_id,
+            display_name=request.display_name,
+            default_display_name=request.default_display_name,
+            workspace_id=request.workspace_id,
+            realm_id=request.realm_id,
+            client_scope=request.client_scope,
+        )
 
 
 def _mint_retired(exc: Any, placement_id: str) -> AgentCreateOutcome:

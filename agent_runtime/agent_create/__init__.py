@@ -8,6 +8,13 @@ about everything that sits ABOVE them:
   (``hermes_cli/harness_parts/persona_commands.py``), and
 * the method lane, ``runtime.agent.create`` (``serve_rpc.py``).
 
+Since 2026-11-19 the method lane has two verbs over the ONE sequence (owner:
+"the action should be split"): ``runtime.agent.create`` makes a NEW agent —
+its own persona and profile — and seats it (:class:`AgentCreate`);
+``runtime.agent.place`` seats an EXISTING agent once more, minting no persona
+or profile (:class:`AgentPlace`, which overrides only the instance phase). The
+argv ``--add-instance`` door is a place.
+
 The store methods are callable and unwelded (verified 2026-08-16), so nothing
 had to be extracted out of ``persona_assignments.py``. What DID have to move is
 the layer above them, because a handler calling the store directly drops it
@@ -164,7 +171,9 @@ from .perform import (
     MINT_FAULTS,
     RESUME_ACTIONS,
     AgentCreate,
+    AgentPlace,
     perform_agent_create,
+    perform_agent_place,
 )
 
 __layer__ = "lanes"

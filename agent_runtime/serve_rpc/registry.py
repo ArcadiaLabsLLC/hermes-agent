@@ -244,7 +244,7 @@ def manifest() -> dict[str, Any]:
     ``runtime.chat.message``'s ``files`` (RT-MISSION-CHAT-MESSAGE-TAKES).
     """
 
-    from ..agent_create.request import AGENT_CREATE_METHOD_PARAMS
+    from ..agent_create.request import AGENT_CREATE_METHOD_PARAMS, AGENT_PLACE_METHOD_PARAMS
     from ..chat_turn import CHAT_TURN_METHOD_PARAMS
     from ..instance_history import CONVERSATION_LIST_METHOD, CONVERSATION_LIST_METHOD_PARAMS
     from ..operator_files import files_limits
@@ -274,6 +274,7 @@ def manifest() -> dict[str, Any]:
             name: list(keys) for name, keys in sorted({
                 **CHAT_TURN_METHOD_PARAMS,
                 "runtime.agent.create": AGENT_CREATE_METHOD_PARAMS,
+                "runtime.agent.place": AGENT_PLACE_METHOD_PARAMS,
                 OPEN_CHAT_METHOD: OPEN_CHAT_METHOD_PARAMS,
                 "runtime.channel.message": CHANNEL_MESSAGE_METHOD_PARAMS,
                 CREATE_CONVERSATION_METHOD: CREATE_CONVERSATION_METHOD_PARAMS,

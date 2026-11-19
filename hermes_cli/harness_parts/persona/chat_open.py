@@ -175,13 +175,15 @@ def _cmd_persona_instance_open_chat(args) -> int:
             honest_default_display_name = _honest_default_display_name(
                 persona_id, persona
             )
-            from agent_runtime.persona_assignments.independent import create_independent_agent
-
-            instance = create_independent_agent(
-                PersonaInstanceStore(),
-                source_persona_id=persona_id,
+            # A PLACEMENT of the existing agent: one more instance, no new
+            # persona or profile (owner 2026-11-19,
+            # RT-PLACING-A-SHIPPED-AGENT-MAKES-A-SECOND-ONE).
+            instance = PersonaInstanceStore().add_instance(
+                persona_id=persona_id,
                 placement_id=placement_id,
-                display_name=explicit_display_name or honest_default_display_name,
+                session_id=args.session_id,
+                display_name=explicit_display_name,
+                default_display_name=honest_default_display_name,
                 workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
                 realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
                 correlation_id=getattr(args, "correlation_id", None),

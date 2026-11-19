@@ -34,6 +34,7 @@
     "runtime.agent.create",
     "runtime.agent.directory",
     "runtime.agent.duplicate",
+    "runtime.agent.place",
     "runtime.agent.retire",
     "runtime.agent.templates",
     "runtime.batch.approve",
@@ -432,6 +433,19 @@
       "correlation_id",
       "client_scope",
       "source_instance_id"
+    ],
+    "runtime.agent.place": [
+      "persona_id",
+      "workspace_id",
+      "position",
+      "skills",
+      "idempotency_key",
+      "placement_id",
+      "display_name",
+      "realm_id",
+      "folder",
+      "correlation_id",
+      "client_scope"
     ],
     "runtime.board.card.add": [
       "assignee",
@@ -1141,6 +1155,7 @@
     "runtime.agent.create": "console",
     "runtime.agent.directory": "console",
     "runtime.agent.duplicate": "console",
+    "runtime.agent.place": "console",
     "runtime.agent.retire": "console",
     "runtime.agent.templates": "console",
     "runtime.batch.approve": "console",

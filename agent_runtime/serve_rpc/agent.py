@@ -1,4 +1,8 @@
-"""``runtime.agent.create`` / ``retire`` / ``duplicate`` — the agent lifecycle verbs.
+"""``runtime.agent.create`` / ``place`` / ``retire`` / ``duplicate`` — the agent lifecycle verbs.
+
+``create`` makes a NEW agent (its own persona and profile) and seats it;
+``place`` seats an EXISTING agent once more (one instance, no new persona or
+profile — owner 2026-11-19). Both are the one ``agent_create`` sequence.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ __layer__ = "lanes"
 __all__ = [
     "_runtime_agent_create",
     "_runtime_agent_duplicate",
+    "_runtime_agent_place",
     "_runtime_agent_retire",
 ]
 
@@ -165,15 +170,41 @@ def _runtime_agent_create(
     outcome = perform_agent_create(
         params, caller=context.caller if context is not None else None
     )
+    return _placed_reply(rid, outcome, context, op="runtime.agent.create")
+
+
+@method("runtime.agent.place", tier=TIER_CONSOLE)
+def _runtime_agent_place(
+    rid: Any, params: dict, context: RpcContext | None = None
+) -> dict:
+    """ONE call puts an EXISTING agent on a desk: one more instance of it, its
+    chat root and its placement — no new persona, no new profile.
+
+    Params, result and refusals are ``runtime.agent.create``'s (less
+    ``source_instance_id``); ``persona_id`` in the reply is the agent placed.
+    A translation shim over ``agent_create.perform_agent_place``.
+    """
+
+    from agent_runtime.agent_create import perform_agent_place
+
+    outcome = perform_agent_place(
+        params, caller=context.caller if context is not None else None
+    )
+    return _placed_reply(rid, outcome, context, op="runtime.agent.place")
+
+
+def _placed_reply(rid: Any, outcome: Any, context: RpcContext | None, *, op: str) -> dict:
+    """The envelope both seating verbs answer with: refusal verbatim, else log + prewarm."""
+
     if outcome.refusal is not None:
         refusal = outcome.refusal
         return err(rid, refusal.code, refusal.message, refusal.data)
-    _log_created_placement(outcome.result)
+    _log_created_placement(outcome.result, op=op)
     _prewarm_created_chat_root(outcome.result, context)
     return ok(rid, outcome.result)
 
 
-def _log_created_placement(result: Any) -> None:
+def _log_created_placement(result: Any, *, op: str = "runtime.agent.create") -> None:
     """The create's office write in the serve child's log, as every other office write has.
 
     A palette drop's ONE token (the placement's) rode the create into the store's events,
@@ -189,7 +220,7 @@ def _log_created_placement(result: Any) -> None:
 
     # MUTATION: drop this call and test_a_create_logs_its_office_write_naming_the_token reddens.
     log_office_write(
-        op="runtime.agent.create",
+        op=op,
         correlation_id=result.get("correlation_id"),
         workspace=result.get("workspace_id"),
         actor_key=result.get("actor_key"),

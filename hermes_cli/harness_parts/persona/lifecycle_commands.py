@@ -195,7 +195,10 @@ def _cmd_persona_instance_create(args) -> int:
     from agent_runtime.mission_chat_outcome import ChatErrorKind
     display_name = safe_assignment_text(getattr(args, "display_name", None), limit=120)
     add_instance = bool(getattr(args, "add_instance", False))
-    independent = bool(getattr(args, "independent_agent", False)) or add_instance
+    # Owner 2026-11-19 (RT-PLACING-A-SHIPPED-AGENT-MAKES-A-SECOND-ONE): only an
+    # explicit ``--independent-agent`` makes a new agent. ``--add-instance`` alone
+    # PLACES the existing one: one more instance, no new persona or profile.
+    independent = bool(getattr(args, "independent_agent", False))
     placement_id = safe_assignment_token(getattr(args, "placement_id", None))
     cfg = load_agent_runtime_config()
     persona_id = _normalize_cli_persona_or_template_id(args.persona_id)
@@ -251,6 +254,15 @@ def _cmd_persona_instance_create(args) -> int:
                     placement_id=placement_id if add_instance else None,
                     creation_key=safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or None,
                     display_name=display_name,
+                    workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
+                    realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
+                )
+            elif add_instance:
+                instance = PersonaInstanceStore().add_instance(
+                    persona_id=persona_id,
+                    placement_id=placement_id,
+                    display_name=display_name,
+                    session_id=getattr(args, "session_id", None),
                     workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
                     realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
                 )

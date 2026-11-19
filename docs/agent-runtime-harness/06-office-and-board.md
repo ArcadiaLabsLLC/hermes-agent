@@ -26,7 +26,8 @@ JSON-RPC methods on the serve child today (`agent_runtime/serve_rpc/`,
 | delete | `runtime.office.remove` | `_runtime_office_remove` | `{actor_key, revision, state}` |
 | folder taxonomy | `runtime.office.surface.update` | `_runtime_office_surface_update` | `{workspace_id, folders, revision}` |
 | realm-sync resolve | `runtime.office.resolve_conflict` | `_runtime_office_resolve_conflict` | `{actor_key, take, state, revision?}` |
-| place an AGENT (roster row + chat root + actor) | `runtime.agent.create` | `_runtime_agent_create` | `{persona_instance_id, actor_key, revision, position, actor, actor_fresh, skills, skills_fresh, phases, …}` |
+| create a NEW agent (its own persona + profile, then roster row + chat root + actor) | `runtime.agent.create` | `_runtime_agent_create` | `{persona_instance_id, persona_id, profile_id, actor_key, revision, position, actor, actor_fresh, skills, skills_fresh, phases, …}` |
+| place an EXISTING agent (one more instance of its persona + chat root + actor; no persona or profile minted — owner 2026-11-19) | `runtime.agent.place` | `_runtime_agent_place` | the same as `runtime.agent.create`; `persona_id` is the agent placed |
 | retire an agent (row + every actor bound to it) | `runtime.agent.retire` | `_runtime_agent_retire` | `{persona_instance_id, archive_path, archived_actor_keys, office_archive_failures, already_retired, correlation_id?, retire_receipt_path? \| first_attempt?, …}` |
 
 **Handlers are named, never `file:line`, and the reason is this table's own
