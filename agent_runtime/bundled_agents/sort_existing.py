@@ -33,7 +33,7 @@ from .resolve import _definition, _soul_edited, reference_record, shipped_refere
 
 __layer__ = "stores"
 
-__all__ = ["apply_sort", "plan_sort"]
+__all__ = ["apply_sort", "place_shipped", "plan_sort"]
 
 
 def _differences(record: AgentPersona, shipped: ShippedAgent) -> list[str]:
@@ -87,7 +87,9 @@ def plan_sort(names: dict[str, str] | None = None) -> list[dict[str, Any]]:
     return [_entry(shipped, stored.get(shipped.id), names or {}, roster) for shipped in SHIPPED_AGENTS]
 
 
-def _place(shipped: ShippedAgent, store) -> None:
+def place_shipped(shipped: ShippedAgent, store) -> None:
+    """Add the shipped reference (staging its profile when none exists)."""
+
     from hermes_cli.profiles import get_profile_dir
 
     from ..fresh_install_seed import stage_shipped_profile
@@ -123,7 +125,7 @@ def apply_sort(names: dict[str, str] | None = None) -> list[dict[str, Any]]:
         if action == "adopt":
             store.save(replace(stored[shipped.id], origin="eternia"))
         elif action == "place":
-            _place(shipped, store)
+            place_shipped(shipped, store)
         elif action == "copy":
             entry = _copy(entry, shipped, stored[shipped.id], store)
         receipt.append({**entry, "applied": action != "none"})

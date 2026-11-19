@@ -69,6 +69,8 @@ from agent_runtime import yaml_io
 
 from hermes_constants import get_config_path
 
+from .bundled_agents import shipped_agent
+from .bundled_agents.realm import REFERENCE_BODY, is_reference_body, is_shipped_id, place_if_missing, reference_body
 from .config.persona_records import LEGACY_PERSONA_TOOLSETS_KEY, MACHINE_DEFAULT_FIELDS
 from .sync_merge import PullAction, classify_three_way_pull
 
@@ -107,6 +109,9 @@ RETIRED_PERSONA_CONFIG_KEYS: frozenset[str] = frozenset({LEGACY_PERSONA_TOOLSETS
 PERSONA_DEF_ALLOWED_KEYS: frozenset[str] = frozenset(
     {
         "api_mode",
+        # A copy names the agent it was made from (``agent_duplicate``); it
+        # travels with the copy so a member sees "Based on" too.
+        "based_on",
         "character_assignment",
         "autonomy",
         "chat_lane_restore_toolsets",
@@ -194,6 +199,9 @@ class PersonaConfigProjection:
       :data:`PERSONA_DEF_REQUIRED_KEYS` key; a member can adopt them but cannot
       fully materialize them.
     - ``missing`` — wanted ids with neither a record nor a usable override.
+    - ``shipped`` — ``{id: version}`` of the shipped agents published as a
+      reference (``bundled_agents.realm``): their body is
+      :data:`~agent_runtime.bundled_agents.realm.REFERENCE_BODY`, nothing more.
     """
 
     personas: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -204,13 +212,18 @@ class PersonaConfigProjection:
     config_shadowed_keys: list[str] = field(default_factory=list)
     incomplete: list[dict[str, Any]] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
+    shipped: dict[str, str] = field(default_factory=dict)
 
     def document(self) -> dict[str, Any]:
-        return {
+        document = {
             "kind": PROJECTION_KIND,
             "personas": self.personas,
             "schema_version": PROJECTION_SCHEMA_VERSION,
         }
+        if self.shipped:
+            # Beside the bodies, never in one: a body is hashed for drift.
+            document["shipped_agents"] = dict(sorted(self.shipped.items()))
+        return document
 
     def to_bytes(self) -> bytes:
         """Deterministic bytes: sorted keys, block style, LF. Republishing an
@@ -239,6 +252,7 @@ class PersonaConfigProjection:
             "config_shadowed_keys": list(self.config_shadowed_keys),
             "incomplete": [dict(row) for row in self.incomplete],
             "missing": list(self.missing),
+            "shipped": dict(sorted(self.shipped.items())),
         }
 
 
@@ -460,6 +474,9 @@ def adopt_persona_def(
 
     from .store import AgentStore
 
+    if is_shipped_id(persona_id):
+        # The build owns a shipped agent's definition; no realm body is written over it.
+        return "shipped"
     path = Path(config_path) if config_path is not None else get_config_path()
     local_raw = raw_persona_overrides(load_raw_config(path)).get(persona_id)
     store = store if store is not None else AgentStore()
@@ -558,11 +575,19 @@ def project_persona_definitions(
     config_shadowed: list[str] = []
     incomplete: list[dict[str, Any]] = []
     missing: list[str] = []
+    shipped: dict[str, str] = {}
     for persona_id in sorted({str(item) for item in persona_ids}):
         if not _PERSONA_ID_RE.match(persona_id):
             dropped.append(f"personas.{persona_id}")
             continue
         record = records.get(persona_id)
+        reference = reference_body(record) if record is not None else None
+        if reference is not None:
+            # A shipped agent travels as a pointer: every member's build holds its
+            # definition (RT-REALM-SHARES-A-SHIPPED-AGENT-BY-REFERENCE).
+            personas[persona_id] = reference
+            shipped[persona_id] = shipped_agent(persona_id).version
+            continue
         raw_override = overrides[persona_id] if persona_id in overrides else None
         if record is None and raw_override is None:
             missing.append(persona_id)
@@ -615,6 +640,7 @@ def project_persona_definitions(
         config_shadowed_keys=sorted(set(config_shadowed)),
         incomplete=sorted(incomplete, key=lambda row: str(row.get("persona_id"))),
         missing=sorted(set(missing)),
+        shipped=shipped,
     )
 
 
@@ -690,6 +716,10 @@ class PersonaConfigPullSummary:
     - ``refused`` — a definition the guarded door would not admit (hostile id,
       machine-shaped value, secret-shaped value). Per-entity isolation: one bad
       definition can never abort the pull.
+    - ``shipped`` — ids this build ships that the realm uses: resolved from the
+      build, nothing written. ``shipped_ignored`` — those whose realm body was a
+      full definition (an older publisher's), ignored. ``shipped_placed`` — those
+      this install held no agent for, so the shipped reference was added.
     """
 
     adopted: list[str] = field(default_factory=list)
@@ -700,10 +730,13 @@ class PersonaConfigPullSummary:
     refused: list[dict[str, str]] = field(default_factory=list)
     dropped_keys: list[str] = field(default_factory=list)
     source: str | None = None
+    shipped: list[str] = field(default_factory=list)
+    shipped_ignored: list[str] = field(default_factory=list)
+    shipped_placed: list[str] = field(default_factory=list)
 
     @property
     def changed(self) -> bool:
-        return bool(self.adopted)
+        return bool(self.adopted or self.shipped_placed)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -715,6 +748,9 @@ class PersonaConfigPullSummary:
             "refused": list(self.refused),
             "dropped_keys": sorted(set(self.dropped_keys)),
             "source": self.source,
+            "shipped": sorted(set(self.shipped)),
+            "shipped_ignored": sorted(set(self.shipped_ignored)),
+            "shipped_placed": sorted(set(self.shipped_placed)),
         }
 
 
@@ -729,7 +765,15 @@ def _projection_from_document(data: Any) -> tuple[dict[str, Any], list[str]] | N
     dropped: list[str] = []
     defs: dict[str, Any] = {}
     for persona_id in sorted(personas, key=str):
-        body = _allowlist_persona_def(str(persona_id), personas[persona_id], dropped)
+        raw = personas[persona_id]
+        if is_reference_body(raw):
+            # A reference to an agent this build does not ship has nothing to resolve to.
+            if is_shipped_id(persona_id):
+                defs[str(persona_id)] = dict(REFERENCE_BODY)
+            else:
+                dropped.append(f"personas.{persona_id}.origin")
+            continue
+        body = _allowlist_persona_def(str(persona_id), raw, dropped)
         if body:
             defs[str(persona_id)] = body
     return defs, dropped
@@ -894,6 +938,9 @@ def apply_persona_config_pull(
 
     for persona_id in sorted(set(remote) | set(baseline)):
         remote_body = remote.get(persona_id)
+        if is_shipped_id(persona_id):
+            _settle_shipped(summary, baseline, persona_id, remote_body, local.get(persona_id), dry_run=dry_run)
+            continue
         if not _PERSONA_ID_RE.match(persona_id):
             summary.refused.append(
                 _refusal(persona_id, "invalid_persona_id", "persona id is not a safe config key")
@@ -946,3 +993,30 @@ def apply_persona_config_pull(
     if not dry_run:
         write_persona_config_baseline(realm_id, baseline)
     return summary
+
+
+def _settle_shipped(
+    summary: PersonaConfigPullSummary,
+    baseline: dict[str, str],
+    persona_id: str,
+    remote_body: dict[str, Any] | None,
+    local_body: dict[str, Any] | None,
+    *,
+    dry_run: bool,
+) -> None:
+    """A shipped id in a pull: the build's definition stands; nothing is written over it.
+
+    The baseline records this install's own body, so drift never reads another
+    member's build (or an older publisher's definition) as a local change.
+    """
+
+    if remote_body is None:
+        baseline.pop(persona_id, None)
+        return
+    summary.shipped.append(persona_id)
+    if not is_reference_body(remote_body):
+        summary.shipped_ignored.append(persona_id)
+    if local_body is None and place_if_missing(persona_id, dry_run=dry_run):
+        summary.shipped_placed.append(persona_id)
+        local_body = dict(REFERENCE_BODY)
+    baseline[persona_id] = persona_def_hash(local_body or REFERENCE_BODY)

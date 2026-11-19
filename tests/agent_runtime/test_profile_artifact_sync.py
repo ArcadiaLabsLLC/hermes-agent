@@ -386,12 +386,13 @@ def test_named_profiles_stay_isolated(homes, tmp_path):
 def test_materialized_profile_homes_are_reported(homes, tmp_path):
     subtree = tmp_path / "subtree"
     _publish(subtree, "alice", MEMORY_DESTINATION, "a\n")
-    _publish(subtree, "neko", MEMORY_DESTINATION, "n\n")
+    _publish(subtree, "rook", MEMORY_DESTINATION, "n\n")
 
     summary = apply_profile_artifact_pull(REALM, subtree)
 
-    # alice is the ACTIVE profile (never "created"); neko is materialized here.
-    assert summary.created_profiles == ["neko"]
+    # alice is the ACTIVE profile (never "created"); rook is materialized here. (Not ``neko``:
+    # a shipped agent's profile home is never written by a pull, RT-REALM-SHARES-A-SHIPPED-AGENT-BY-REFERENCE.)
+    assert summary.created_profiles == ["rook"]
 
 
 def test_two_publishers_claiming_one_destination_are_refused(homes, tmp_path):

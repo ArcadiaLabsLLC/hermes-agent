@@ -82,6 +82,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .bundled_agents.realm import shipped_profile_tokens
 from .realm_sync.families import (
     CORE_CONTEXT_FILENAMES,
     KIND_PERSONA_PROMPT,
@@ -352,6 +353,9 @@ class ProfileArtifactPullSummary:
     created_profiles: list[str] = field(default_factory=list)
     kinds: dict[str, int] = field(default_factory=dict)
     source: str | None = None
+    #: Files the realm carried into a shipped agent's profile home, not written
+    #: (``bundled_agents.realm``): the build and this install own those homes.
+    shipped: list[str] = field(default_factory=list)
 
     @property
     def changed(self) -> bool:
@@ -370,6 +374,7 @@ class ProfileArtifactPullSummary:
             "created": sorted(set(self.created_profiles)),
             "kinds": dict(sorted(self.kinds.items())),
             "source": self.source,
+            "shipped": sorted(set(self.shipped)),
         }
 
 
@@ -454,7 +459,8 @@ def apply_profile_artifact_pull(
         # No profile files at all. Do NOT touch the baseline: absence here is
         # "this realm publishes none", never "the realm removed mine".
         return summary
-    summary.created_profiles = _created_profile_tokens(profiles)
+    shipped_profiles = shipped_profile_tokens()
+    summary.created_profiles = _created_profile_tokens([token for token in profiles if token not in shipped_profiles])
     for entry in remote.values():
         summary.kinds[entry.kind] = summary.kinds.get(entry.kind, 0) + 1
 
@@ -469,6 +475,13 @@ def apply_profile_artifact_pull(
             )
             continue
         profile_token, dest_rel = split
+        if profile_token in shipped_profiles:
+            # A shipped agent's SOUL and memory are this install's own; an older
+            # publisher's copy is never written over them.
+            if key in remote:
+                summary.shipped.append(key)
+            baseline.pop(key, None)
+            continue
         home = _profile_home(profile_token)
         if home is None:
             summary.refused.append(

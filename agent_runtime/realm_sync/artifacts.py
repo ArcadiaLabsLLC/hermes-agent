@@ -16,6 +16,7 @@ from agent.skill_utils import EXCLUDED_SKILL_DIRS, SKILL_SUPPORT_DIRS
 from agent_runtime.profile_home import get_shared_skills_dir
 
 from .. import paths
+from ..bundled_agents.realm import reference_body, withheld_row as shipped_withheld_row
 from ..config import ensure_persisted_personas, load_agent_runtime_config
 from ..models import Realm, Workspace
 from ..store import RealmStore, WorkspaceStore, skill_tombstoned
@@ -208,6 +209,11 @@ def _resolve_artifacts_with_projection(realm_id: str) -> _ResolvedPublish:
     for persona_id in published_persona_ids:
         persona = personas[persona_id]
         bound_profiles.add(_bound_profile_name(persona))
+        if reference_body(persona) is not None:
+            # A shipped agent's SOUL, prompt and memory never travel: every member's
+            # build holds the agent (RT-REALM-SHARES-A-SHIPPED-AGENT-BY-REFERENCE).
+            profile_files_withheld.append(shipped_withheld_row(persona_id))
+            continue
         persona_artifacts, withheld = _persona_artifacts(persona)
         artifacts.extend(persona_artifacts)
         profile_files_withheld.extend(withheld)
