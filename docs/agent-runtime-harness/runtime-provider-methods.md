@@ -147,7 +147,8 @@ argv `hermes harness usage --json` lanes carry the same two keys
 {contract, login_id, provider, flow, state, needs_code,
  started_at, updated_at,            # epoch seconds
  verification_uri?, user_code?,     # once the provider issued them
- error_code?}                       # on failed / cancelled
+ error_code?,                       # on failed / cancelled
+ code_refusal?}                     # awaiting_code again after a refused paste
 ```
 
 `flow` is one of the catalog row's `browser_login_methods`: `device_code`,
@@ -158,15 +159,16 @@ without `flow` picks `device_code` where offered, else the only method.
 |---|---|---|
 | `starting` | child running, no link yet | poll |
 | `awaiting_user` | open `verification_uri`, enter `user_code` (empty for `browser`) | poll |
-| `awaiting_code` (`needs_code: true`) | open `verification_uri`; the page shows a `code#state` string | `complete` with it |
+| `awaiting_code` (`needs_code: true`) | open `verification_uri`; the page shows a `code#state` string. With `code_refusal` ∈ `code_empty`, `code_mismatch`, the last paste was empty or its `#state` is not this link's — nothing was exchanged | `complete` with it (again) |
 | `completing` | code handed to the child | poll |
 | `succeeded` | saved to this home's credential store | refresh `list` |
-| `failed` | `error_code` ∈ `expired`, `denied`, `browser_busy`, `unsupported_flow`, `unknown_provider`, `login_failed` | offer retry |
+| `failed` | `error_code` ∈ `expired`, `denied`, `browser_busy`, `unsupported_flow`, `unknown_provider`, `exchange_failed` (Anthropic refused or timed out the pasted code's exchange), `login_failed` | offer retry |
 | `cancelled` | `cancel` was called (`error_code: "cancelled"`) | — |
 
 A session unfinished after 15 minutes becomes `failed`/`expired` on its next
 poll. Finished sessions stay pollable for 10 minutes. One active session per
-provider.
+provider. A failed session's closed `error_code`, and each `code_refusal`, is
+logged by the serve with its `login_id` — never the code or the child's text.
 
 **refresh** — `{contract, provider, credential, refreshed: true}`.
 

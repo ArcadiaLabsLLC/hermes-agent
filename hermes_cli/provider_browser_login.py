@@ -67,6 +67,27 @@ def _nous(verify: Callable[[str, str], None], flow: str, expiry=None) -> None:
 _ANTHROPIC_AUTHORIZE_URL = re.compile(r"https://claude\.ai/oauth/authorize\?\S+")
 
 
+class _SignInStepFailed(RuntimeError):
+    """A driver step that failed with a closed wire code (``run_browser_login`` reads ``.code``)."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def _paste_refusal(line: str, expected_state: str) -> str | None:
+    """Why a pasted Anthropic line cannot be the code for this link, or None when it can.
+
+    The state is split exactly as upstream's ``run_hermes_oauth_login_pure`` splits it, so a
+    line this passes is one upstream's CSRF guard passes too, and a line it refuses is one
+    upstream would have ended the whole sign-in on.
+    """
+    if not line:
+        return "code_empty"
+    parts = line.split("#")
+    return None if (parts[1] if len(parts) > 1 else "") == expected_state else "code_mismatch"
+
+
 def _anthropic(verify: Callable[[str, str], None], flow: str, expiry=None) -> None:
     """Upstream's own ``hermes auth add anthropic --type oauth``, with its terminal swapped.
 
@@ -77,12 +98,21 @@ def _anthropic(verify: Callable[[str, str], None], flow: str, expiry=None) -> No
     ``runtime.provider.signin.complete`` writes. PKCE, the state check, the
     exchange and the pool write stay upstream's. The browser is not auto-opened,
     matching every other driver's ``open_browser=False``.
+
+    A pasted line that is empty or whose ``#state`` is not the shown link's would end
+    upstream's whole sign-in; it is refused here instead (a ``code_rejected`` event with
+    ``code_empty`` / ``code_mismatch``) and the next pasted line is read. A matching code
+    that upstream then cannot exchange ends as ``exchange_failed``, not ``login_failed``.
     """
+    from urllib.parse import parse_qs, urlsplit
+
     from agent import anthropic_credentials as anthropic_mod
     from hermes_cli import auth as auth_mod
     from hermes_cli.auth_commands import auth_add_command
 
     seen: list[str] = []
+    handed: list[bool] = []
+    login = anthropic_mod.run_hermes_oauth_login_pure
 
     def shown(*values, **_kwargs) -> None:
         for match in _ANTHROPIC_AUTHORIZE_URL.finditer(" ".join(str(v) for v in values)):
@@ -93,12 +123,28 @@ def _anthropic(verify: Callable[[str, str], None], flow: str, expiry=None) -> No
     def pasted(_prompt: str = "") -> str:
         if not seen:
             raise RuntimeError("anthropic_authorize_url_missing")
-        line = _read_pasted_line()
-        if not line:
-            raise EOFError
-        return line
+        expected = parse_qs(urlsplit(seen[0]).query).get("state", [""])[0]
+        while True:
+            raw = _read_pasted_line()
+            if not raw:
+                raise EOFError
+            line = raw.strip()
+            refusal = _paste_refusal(line, expected)
+            if refusal is None:
+                handed.append(True)
+                return line
+            _emit_event({"event": "code_rejected", "code": refusal})
+
+    def login_or_closed_failure():
+        creds = login()
+        if not creds and handed:
+            # Past the state check upstream returns None only when the exchange failed
+            # or answered no access token: both are the exchange, never the paste.
+            raise _SignInStepFailed("exchange_failed")
+        return creds
 
     swaps = {(anthropic_mod, "print"): shown, (anthropic_mod, "input"): pasted,
+             (anthropic_mod, "run_hermes_oauth_login_pure"): login_or_closed_failure,
              (auth_mod, "_can_open_graphical_browser"): lambda: False}
     saved = {key: key[0].__dict__.get(key[1], _ABSENT) for key in swaps}
     try:
@@ -153,6 +199,16 @@ _READ_LINE: ContextVar[Callable[[], str] | None] = ContextVar("provider_login_re
 def _read_pasted_line() -> str:
     reader = _READ_LINE.get()
     return reader() if reader is not None else sys.stdin.readline()
+
+
+#: The running sign-in's event sink, for a driver event that is not its terminal one.
+_EMIT: ContextVar[Callable[[dict], None] | None] = ContextVar("provider_login_emit", default=None)
+
+
+def _emit_event(event: dict) -> None:
+    sink = _EMIT.get()
+    if sink is not None:
+        sink(event)
 
 
 @contextmanager
@@ -259,6 +315,7 @@ def run_browser_login(
         send({"event": "error", "ok": False, "code": "unsupported_flow"})
         return 1
     reader = _READ_LINE.set(read_line)
+    sink = _EMIT.set(send)
     try:
         with quiet():
             _DRIVERS[provider](verify, chosen, expiry)
@@ -267,11 +324,12 @@ def run_browser_login(
         codes = {"codex_browser_port_busy": "browser_busy",
                  "codex_browser_callback_timeout": "expired",
                  "codex_browser_auth_denied": "denied", "access_denied": "denied",
-                 "expired_token": "expired"}
+                 "expired_token": "expired", "exchange_failed": "exchange_failed"}
         code = "cancelled" if isinstance(error, KeyboardInterrupt) else codes.get(getattr(error, "code", None), "login_failed")
         send({"event": "error", "ok": False, "code": code, "reason": "Sign-in did not finish."})
         return 1
     finally:
+        _EMIT.reset(sink)
         _READ_LINE.reset(reader)
     send({"event": "done", "ok": True})
     return 0

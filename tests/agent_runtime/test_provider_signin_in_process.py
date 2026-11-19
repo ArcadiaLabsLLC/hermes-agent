@@ -102,3 +102,42 @@ def test_the_profile_switch_picks_the_runner():
     home.mkdir(parents=True, exist_ok=True)
     (home / "config.yaml").write_text(json.dumps({"auth": {"subprocess_signin": False}}), encoding="utf-8")
     assert provider_signin.select_login_runner() is provider_signin.run_login_in_process
+
+
+def test_a_wrong_anthropic_paste_asks_again_and_a_failed_exchange_says_so(monkeypatch, caplog, no_subprocess):
+    """RT-ANTHROPIC-WRONG-PASTE-ENDS-THE-SIGN-IN: the real driver over upstream's PKCE login, offline."""
+    from urllib.parse import parse_qs, urlsplit
+
+    from agent import anthropic_credentials
+
+    exchanged: list[dict] = []
+
+    def no_network(data, **_kwargs):
+        exchanged.append(json.loads(data))
+        raise TimeoutError("SENTINEL exchange body")
+
+    monkeypatch.setattr(anthropic_credentials, "_post_oauth_token", no_network)
+    caplog.set_level(logging.INFO, logger=provider_signin.__name__)
+    signins = provider_signin.ProviderSignIns(spawn=provider_signin.run_login_in_process)
+    login_id = signins.begin("anthropic")["login_id"]
+    view = _wait(signins, login_id, {"awaiting_code"})
+    state = parse_qs(urlsplit(view["verification_uri"]).query)["state"][0]
+    assert "code_refusal" not in view
+
+    signins.complete(login_id, "somecode#not-the-state")
+    view = _wait(signins, login_id, {"awaiting_code", "failed"})
+    assert (view["state"], view.get("code_refusal")) == ("awaiting_code", "code_mismatch")
+
+    signins.complete(login_id, "   ")
+    view = _wait(signins, login_id, {"awaiting_code", "failed"})
+    assert (view["state"], view.get("code_refusal")) == ("awaiting_code", "code_empty")
+    assert exchanged == []  # a refused paste never reaches the token endpoint
+
+    assert "code_refusal" not in signins.complete(login_id, f"right-code#{state}")
+    view = _wait(signins, login_id, {"succeeded", "failed"})
+    assert (view["state"], view.get("error_code")) == ("failed", "exchange_failed")
+    assert [(e["code"], e["state"]) for e in exchanged] == [("right-code", state)]
+    logged = caplog.text
+    assert f"{login_id} (anthropic) failed: exchange_failed" in logged
+    assert f"{login_id} (anthropic) code refused: code_mismatch" in logged
+    assert "SENTINEL" not in logged and "right-code" not in logged and "somecode" not in logged

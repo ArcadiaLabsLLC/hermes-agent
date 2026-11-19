@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import contextvars
 import json
+import logging
 import math
 import queue
 import secrets
@@ -34,6 +35,8 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Protocol
 
 __layer__ = "stores"
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "LOGIN_TTL_SECONDS",
@@ -58,8 +61,12 @@ ACTIVE_STATES = frozenset({"starting", "awaiting_user", "awaiting_code", "comple
 #: Error codes a child's terminal ``error`` event may carry; anything else is
 #: folded to ``login_failed`` so a client branches on a closed set.
 CHILD_ERROR_CODES = frozenset(
-    {"browser_busy", "expired", "denied", "cancelled", "login_failed", "unsupported_flow", "unknown_provider"}
+    {"browser_busy", "expired", "denied", "cancelled", "login_failed", "unsupported_flow", "unknown_provider",
+     "exchange_failed"}
 )
+#: Why a pasted code was refused before any exchange (the child's ``code_rejected`` event);
+#: the session goes back to ``awaiting_code`` and the view names it as ``code_refusal``.
+CODE_REFUSAL_CODES = frozenset({"code_empty", "code_mismatch"})
 
 
 class LoginChild(Protocol):
@@ -95,6 +102,7 @@ class _Session:
     provider_started_at: float | None = None
     provider_expires_at: float | None = None
     error_code: str | None = None
+    code_refusal: str | None = None
     updated_at: float = 0.0
     lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -115,6 +123,8 @@ class _Session:
             row["user_code"] = self.user_code or ""
         if self.error_code is not None:
             row["error_code"] = self.error_code
+        if self.code_refusal is not None:
+            row["code_refusal"] = self.code_refusal
         return row
 
 
@@ -288,6 +298,7 @@ class ProviderSignIns:
             if session.state != "awaiting_code":
                 raise SignInRefused("login_not_awaiting_code", "conflict", state=session.state)
             session.state = "completing"
+            session.code_refusal = None
             session.updated_at = self._clock()
             session.child.write_line(code)
             return session.view()
@@ -315,6 +326,9 @@ class ProviderSignIns:
                 del self._sessions[key]
 
     def _finish(self, session: _Session, state: str, error_code: str | None) -> None:
+        if state == "failed":
+            # The closed code only, never the child's text: it is what says which failure an operator hit.
+            logger.warning("provider sign-in %s (%s) failed: %s", session.login_id, session.provider, error_code)
         session.state = state
         session.error_code = error_code
         session.updated_at = self._clock()
@@ -364,12 +378,24 @@ class ProviderSignIns:
         if event.get("ok") is True:
             self._finish(session, "succeeded", None)
 
+    def _on_code_rejected(self, session: _Session, event: dict) -> None:
+        """A pasted code the child refused before any exchange: ask for the code again."""
+        if session.state != "completing":
+            return
+        code = event.get("code")
+        session.code_refusal = code if code in CODE_REFUSAL_CODES else "code_mismatch"
+        session.state = "awaiting_code"
+        session.updated_at = self._clock()
+        logger.info("provider sign-in %s (%s) code refused: %s", session.login_id, session.provider,
+                    session.code_refusal)
+
     def _on_error(self, session: _Session, event: dict) -> None:
         code = event.get("code")
         self._finish(session, "failed", code if code in CHILD_ERROR_CODES else "login_failed")
 
     # The child's event vocabulary, one handler per kind; unknown kinds are ignored.
-    _EVENT_HANDLERS = {"expiry": _on_expiry, "code": _on_code, "done": _on_done, "error": _on_error}
+    _EVENT_HANDLERS = {"expiry": _on_expiry, "code": _on_code, "code_rejected": _on_code_rejected,
+                       "done": _on_done, "error": _on_error}
 
 
 _REGISTRY: ProviderSignIns | None = None
