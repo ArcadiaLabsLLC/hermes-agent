@@ -7701,6 +7701,7 @@
         "set-skills",
         "show",
         "slots",
+        "sort-shipped",
         "tool-diff"
       ]
     },
@@ -9952,6 +9953,58 @@
           "type": null
         }
       ],
+      "subcommands": []
+    },
+    "harness persona sort-shipped": {
+      "exclusive_groups": [],
+      "options": {
+        "--dry-run": {
+          "action": "store_true",
+          "canonical": "--dry-run",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--name": {
+          "action": "append",
+          "canonical": "--name",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "persona",
+        "sort-shipped"
+      ],
+      "positionals": [],
       "subcommands": []
     },
     "harness persona tool-diff": {

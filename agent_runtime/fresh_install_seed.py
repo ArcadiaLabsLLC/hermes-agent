@@ -38,7 +38,7 @@ from .persona_seed_defaults import persona_profile_homes, seed_persona_profile
 from .store import AgentStore
 
 __layer__ = "stores"
-__all__ = ["BASE_PERSONA_ID", "NEKO_PERSONA_ID", "NEKO_PROFILE", "seed_fresh_install_persona"]
+__all__ = ["BASE_PERSONA_ID", "NEKO_PERSONA_ID", "NEKO_PROFILE", "seed_fresh_install_persona", "stage_shipped_profile"]
 
 BASE_PERSONA_ID = "base"
 NEKO_PERSONA_ID = "neko_supervisor"
@@ -51,7 +51,11 @@ _SEED_MARKER = ".eternia-seeded-persona"
 
 
 def _stage_neko_profile(home: Path) -> None:
-    """Publish the ``neko`` profile atomically: built in a sibling temp dir, then renamed."""
+    stage_shipped_profile(home, _SOUL_SOURCE.read_text(encoding="utf-8"), NEKO_PERSONA_ID)
+
+
+def stage_shipped_profile(home: Path, soul: str, persona_id: str) -> None:
+    """Publish a shipped agent's profile atomically: built in a sibling temp dir, then renamed."""
 
     home.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=home.parent, prefix=f".{home.name}-") as temp:
@@ -60,9 +64,9 @@ def _stage_neko_profile(home: Path) -> None:
         (stage / "config.yaml").write_text(yaml_io.dump({}), encoding="utf-8")
         finish_profile_layout(
             stage, no_skills=False, clone_all=False, description=None,
-            soul=_SOUL_SOURCE.read_text(encoding="utf-8"),
+            soul=soul,
         )
-        (stage / _SEED_MARKER).write_text(NEKO_PERSONA_ID, encoding="utf-8")
+        (stage / _SEED_MARKER).write_text(persona_id, encoding="utf-8")
         os.rename(stage, home)
 
 
