@@ -54,7 +54,7 @@ def record_adopted_head(repo: Path) -> None:
     path.write_text(head, encoding="utf-8")
 
 
-def _when(stamp: str | None) -> datetime | None:
+def _parsed_stamp(stamp: str | None) -> datetime | None:
     try:
         return datetime.fromisoformat(stamp) if stamp else None
     except ValueError:
@@ -63,8 +63,8 @@ def _when(stamp: str | None) -> datetime | None:
 
 def _legacy_adopted(repo: Path, subtree: str, shared: str) -> bool:
     entries = sync_git(repo).log([shared], subtree, 1)
-    newest_at = _when(entries[0].at) if entries else None
-    stamps = [_when(_timestamp_file(repo, name)) for name in ("last_pull.txt", "last_publish.txt")]
+    newest_at = _parsed_stamp(entries[0].at) if entries else None
+    stamps = [_parsed_stamp(_timestamp_file(repo, name)) for name in ("last_pull.txt", "last_publish.txt")]
     finished = [stamp for stamp in stamps if stamp is not None]
     if not finished:
         return False
