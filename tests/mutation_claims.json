@@ -5105,6 +5105,57 @@
         "no:cacheprovider",
         "tests/tooling/test_function_legibility_floor.py::test_depth_counts_blocks_and_not_elif"
       ]
+    },
+    {
+      "id": "hname-nameless-create-is-refused",
+      "path": "agent_runtime/agent_create/perform.py",
+      "symbol": "AgentCreate/normalize",
+      "operator": "drop-name-required-gate",
+      "find": "        if self.NAMES_A_NEW_AGENT and self.request.display_name is None:\n",
+      "replace": "        if False:\n",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/agent_runtime/test_agent_create_names_its_agent.py::test_a_create_with_no_name_is_refused_and_writes_nothing"
+      ]
+    },
+    {
+      "id": "hname-taken-name-is-refused",
+      "path": "agent_runtime/agent_create/perform.py",
+      "symbol": "AgentCreate/new_instance",
+      "operator": "drop-name-taken-check",
+      "find": "            if name_is_taken(request.display_name):\n",
+      "replace": "            if False:\n",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/agent_runtime/test_agent_create_names_its_agent.py::test_a_create_named_like_an_existing_agent_is_refused_never_numbered"
+      ]
+    },
+    {
+      "id": "hname-place-keeps-the-seat-label",
+      "path": "agent_runtime/agent_create/perform.py",
+      "symbol": "AgentPlace",
+      "operator": "place-requires-a-name",
+      "find": "    NAMES_A_NEW_AGENT = False\n",
+      "replace": "    NAMES_A_NEW_AGENT = True\n",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/agent_runtime/test_agent_create_names_its_agent.py::test_placing_without_a_name_keeps_the_seat_label"
+      ]
     }
   ]
 }

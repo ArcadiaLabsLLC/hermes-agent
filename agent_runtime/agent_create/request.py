@@ -162,8 +162,10 @@ def placed_agent_display_names(workspace_id: str) -> list[str]:
 
 
 def distinct_default_display_name(persona_id: str, persona: Any | None, workspace_id: str) -> str:
-    """The name a create with no ``display_name`` gets: the honest default, numbered
-    when an agent of that name is already placed in the workspace ("QA Agent (2)")."""
+    """The seat label a PLACE with no ``display_name`` gets: the honest default,
+    numbered when an agent of that name is already placed in the workspace ("QA
+    Agent (2)"). A create never uses it — it names a new agent, and one with no
+    name is refused ``agent_name_required`` (review w1118a.41 D8)."""
 
     base = honest_default_display_name(persona_id, persona)
     return next_distinct_display_name(base, placed_agent_display_names(workspace_id)) or base

@@ -69,7 +69,7 @@ def _shared_agent(team: _Team):
                                    api_mode="codex_responses", system_prompt_path=""))
     OfficeStore().ensure_surface(workspace.id, created_by="seed")
     made = perform_agent_create({"persona_id": "qa", "workspace_id": workspace.id, "realm_id": shared.id,
-                                 "position": [1.0, 1.0], "idempotency_key": "seat",
+                                 "position": [1.0, 1.0], "idempotency_key": "seat", "display_name": "Seat Agent",
                                  "placement_id": AGENT.removeprefix("personainst_")})
     assert made.refusal is None, made.refusal
     FlowGraphStore().set_doc(parse_flow_graph_doc(

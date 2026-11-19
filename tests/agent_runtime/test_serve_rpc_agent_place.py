@@ -43,8 +43,8 @@ def test_placing_an_existing_agent_adds_an_instance_and_mints_no_persona_or_prof
     _seed_workspace()
     before = _identities()
 
-    first = _place(_params(idempotency_key="drop-1", placement_id="qa_agent_2"))["result"]
-    second = _place(_params(idempotency_key="drop-2", position=[5.0, 1.0]))["result"]
+    first = _place(_params(display_name=None, idempotency_key="drop-1", placement_id="qa_agent_2"))["result"]
+    second = _place(_params(display_name=None, idempotency_key="drop-2", position=[5.0, 1.0]))["result"]
 
     assert _identities() == before
     assert first["persona_id"] == second["persona_id"] == "qa"
@@ -65,8 +65,8 @@ def test_a_place_replays_its_key_without_a_second_instance(qa_persona):
     # Mutation: drop ``STATE_DONE: AgentCreate.replay`` from ``RESUME_ACTIONS``
     # → the replay re-runs the mint and answers ``idempotent_replay: false``.
     _seed_workspace()
-    first = _place(_params(idempotency_key="drop-1", placement_id="qa_agent_2"))["result"]
-    replay = _place(_params(idempotency_key="drop-1", placement_id="qa_agent_2"))["result"]
+    first = _place(_params(display_name=None, idempotency_key="drop-1", placement_id="qa_agent_2"))["result"]
+    replay = _place(_params(display_name=None, idempotency_key="drop-1", placement_id="qa_agent_2"))["result"]
 
     assert replay["idempotent_replay"] is True
     assert replay["persona_instance_id"] == first["persona_instance_id"]

@@ -70,6 +70,9 @@ def _params(**overrides) -> dict:
         "idempotency_key": "gesture-1",
     }
     params.update(overrides)
+    # A create names its new agent (review w1118a.41 D8); one name per gesture,
+    # so a test's second create is a second agent, never a taken name.
+    params.setdefault("display_name", f"Agent {params['idempotency_key']}")
     return params
 
 
@@ -265,6 +268,7 @@ def test_the_method_answers_through_the_REAL_serve_loop_and_the_argv_lane_is_unt
                     "position": [3.5, -1.25],
                     "idempotency_key": "serve-loop-1",
                     "placement_id": "qa_via_serve_agent_2",
+                    "display_name": "Serve Loop Agent",
                 },
             ),
             SHUTDOWN,
@@ -300,19 +304,18 @@ def test_an_explicit_display_name_wins(qa_persona):
     assert _instances()["personainst_qa_two_agent_2"].display_name == "QA Agent (2)"
 
 
-def test_an_omitted_display_name_falls_back_to_the_persona_not_the_template(
-    qa_persona,
-):
-    """The rule with teeth. "Qa" here means the RPC lane dropped the CLI's policy
-    layer and went straight to the store template."""
+def test_the_sent_name_is_the_one_the_office_paints(qa_persona):
+    """A create names its new agent (review w1118a.41 D8: an omitted name is
+    refused ``agent_name_required`` and never falls back to the persona's or a
+    numbered one — ``test_agent_create_names_its_agent.py``)."""
 
     _seed_workspace()
-    reply = _call(_params(placement_id="qa_solo_agent_2"))
-    assert reply["result"]["display_name"] == "QA Agent"
+    reply = _call(_params(placement_id="qa_solo_agent_2", display_name="Solo Agent"))
+    assert reply["result"]["display_name"] == "Solo Agent"
     # Independent witness: the name the OFFICE item carries, which is what the
     # canvas paints — not just the roster row the reply echoes.
     actors = _actors()
-    assert actors[reply["result"]["actor_key"]].items[0].display_name == "QA Agent"
+    assert actors[reply["result"]["actor_key"]].items[0].display_name == "Solo Agent"
 
 
 # ── idempotency ──────────────────────────────────────────────────────────────
@@ -643,10 +646,7 @@ def test_a_seeded_persona_still_creates(qa_persona):
     _seed_workspace()
     reply = _call(_params(placement_id="qa_still_works_agent_2"))
     assert reply["result"]["persona_instance_id"] == "personainst_qa_still_works_agent_2"
-    # And the persona lookup that gated it is the SAME one that supplies the
-    # honest default name, so a guard consulting a different roster than the
-    # namer would show up here.
-    assert reply["result"]["display_name"] == "QA Agent"
+    assert reply["result"]["display_name"] == "Agent gesture-1"
 
 
 def test_a_profile_id_for_a_profile_that_owns_nothing_still_creates(qa_persona):
@@ -1227,7 +1227,7 @@ def test_the_invalid_placement_refusal_leaves_only_the_lock_it_took(
     # The colliding placement still belongs to ``qa`` — the refusal did not
     # half-rewrite the row it refused to take.
     stored = _instances()["personainst_qa_taken_agent_2"]
-    assert stored.display_name == "QA Agent"
+    assert stored.display_name == "Agent gesture-1"
     assert stored.persona_id not in {"qa", "dev"}
 
 

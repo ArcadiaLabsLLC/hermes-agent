@@ -30,6 +30,17 @@ JSON-RPC methods on the serve child today (`agent_runtime/serve_rpc/`,
 | place an EXISTING agent (one more instance of its persona + chat root + actor; no persona or profile minted — owner 2026-11-19) | `runtime.agent.place` | `_runtime_agent_place` | the same as `runtime.agent.create`; `persona_id` is the agent placed |
 | retire an agent (row + every actor bound to it) | `runtime.agent.retire` | `_runtime_agent_retire` | `{persona_instance_id, archive_path, archived_actor_keys, office_archive_failures, already_retired, correlation_id?, retire_receipt_path? \| first_attempt?, …}` |
 
+**A new agent is named by its maker; a seat is labelled by the runtime**
+(review w1118a.41 D8; Eternia `Launcher_Brain/20 — Active Initiatives/bundled-agents-stay-one-agent-design.md` § 4).
+`runtime.agent.create` with no (or a blank) `display_name` is refused -32602
+`{reason: agent_name_required, rolled_back: true}` before anything is written,
+and a name any agent of the install already has (case and spacing ignored, shipped
+agents included) is refused 4090 `{reason: agent_name_taken, name, placement_id,
+phase: "instance", rolled_back: true}`, checked under the same lock
+`runtime.agent.duplicate` names under. The runtime never invents a numbered name
+for an agent. `runtime.agent.place` keeps the seat label ("QA Agent (2)") when it
+is sent no name.
+
 **Handlers are named, never `file:line`, and the reason is this table's own
 history.** The retire row carried a `serve_rpc.py` line number (2055) from the day S5 landed it,
 and by the time S10 read it back the function was at line 2079 — four days, one

@@ -69,7 +69,8 @@ def _chat(instance: str, key: str) -> str:
 def test_agent_b_is_built_and_answers_while_agent_a_waits_on_its_model_call(placed_agent, model):
     a = placed_agent["persona_instance_id"]
     second = serve_rpc.handle_request(dict(jsonrpc="2.0", id="seed-2", method="runtime.agent.create", params=dict(
-        persona_id=PERSONA, workspace_id=WORKSPACE, position=[3.0, 2.0], idempotency_key="second-agent")))
+        persona_id=PERSONA, workspace_id=WORKSPACE, position=[3.0, 2.0], idempotency_key="second-agent",
+        display_name="Second Agent")))
     b = second["result"]["persona_instance_id"]
     assert a != b
     root_a, root_b = _chat(a, "chat-a"), _chat(b, "chat-b")

@@ -78,6 +78,7 @@ def _place(placement_id: str = "qa_rpc_retire_1_agent_2") -> dict:
                 "workspace_id": WORKSPACE,
                 "position": [1.0, 1.0],
                 "idempotency_key": f"rpc-retire-{placement_id}",
+                "display_name": f"Agent rpc-retire-{placement_id}",
                 "placement_id": placement_id,
             },
         }

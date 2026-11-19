@@ -143,6 +143,7 @@ def placed_agent(qa_persona):
                 "workspace_id": WORKSPACE,
                 "position": [1.0, 2.0],
                 "idempotency_key": "open-chat-seed",
+                "display_name": "Agent open-chat-seed",
             },
         }
     )
@@ -579,6 +580,7 @@ def test_a_chat_root_owned_by_another_instance_is_a_conflict(placed_agent):
                 "workspace_id": WORKSPACE,
                 "position": [4.0, 5.0],
                 "idempotency_key": "open-chat-seed-2",
+                "display_name": "Agent open-chat-seed-2",
                 "placement_id": "qa_agent_a1b2c3d4",
             },
         }

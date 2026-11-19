@@ -25,7 +25,11 @@ from .outcome import (
     ERR_INVALID_PARAMS,
     ERR_NOT_FOUND,
     PHASE_INSTANCE,
+    AGENT_NAME_REQUIRED_MESSAGE,
+    AGENT_NAME_REQUIRED_REASON,
+    AGENT_NAME_TAKEN_REASON,
     AgentCreateInvalid,
+    AgentCreateNameTaken,
     AgentCreateOutcome,
     AgentCreateSkillsRefused,
     _skills_refusal,
@@ -138,11 +142,13 @@ def perform_agent_create(
     It does not make the create foldable and it is not a speed change; the batch
     carries exactly the events the two-call flow carries, which is what lets it
     inherit D3's foldable ``persona_instance`` create for free instead of
-    colliding with it. It also does not move naming authority: an explicit
-    ``display_name`` from the client still wins (decision D-A1), and an omitted
-    one falls back through the ONE shared rule the argv lane uses
-    (:func:`honest_default_display_name`) rather than through the store
-    template, which would mint "Qa" where the operator expects "QA Agent".
+    colliding with it. It also does not move naming authority: the client names
+    the new agent (decision D-A1). A create with no ``display_name`` is refused
+    ``agent_name_required`` and one named like any agent of the install
+    ``agent_name_taken``, both ``rolled_back: true`` with nothing written — the
+    runtime never invents a numbered name for an agent (review w1118a.41 D8).
+    Only :func:`perform_agent_place` falls back to the seat label
+    (:func:`honest_default_display_name`, numbered per workspace).
 
     Every lock in the path is a cross-process FILE lock, so this is correct with
     or without a live ``harness serve`` beside it.
@@ -210,6 +216,10 @@ class AgentCreate:
 
     #: The verb this sequence answers for: the backstop's method name.
     METHOD: str = "runtime.agent.create"
+    #: Whether this verb makes a NEW agent, which its maker must name: no name
+    #: is refused ``agent_name_required`` and an agent's name ``agent_name_taken``
+    #: (review w1118a.41 D8). Placing names a seat, not an agent.
+    NAMES_A_NEW_AGENT: bool = True
 
     def __init__(self, params: dict[str, Any], *, updated_by: str, persona: Any, caller: Any) -> None:
         self.params = params
@@ -272,6 +282,18 @@ class AgentCreate:
             raise _Answered(
                 refused(ERR_INVALID_PARAMS, exc, {"reason": exc.reason, "rolled_back": True})
             ) from exc
+        if self.NAMES_A_NEW_AGENT and self.request.display_name is None:
+            # Before the reservation and before any store is built, so it writes
+            # nothing: the runtime never invents a name for a new agent (Eternia
+            # ``bundled-agents-stay-one-agent-design.md`` § 4), so the seat-label
+            # numbering ("Neko Mission Lead (2)") is never an agent's name.
+            raise _Answered(
+                refused(
+                    ERR_INVALID_PARAMS,
+                    AGENT_NAME_REQUIRED_MESSAGE,
+                    {"reason": AGENT_NAME_REQUIRED_REASON, "rolled_back": True},
+                )
+            )
 
     def workspace_gate(self) -> None:
         from ..office_store import OfficeStore
@@ -518,7 +540,9 @@ class AgentCreate:
         try:
             with using_create_subphases(subphases):
                 instance = self.new_instance(PersonaInstanceStore(), request)
-        except (RetiredPersonaInstanceError, ValueError, PersonaChatPersistenceError) as exc:
+        except (
+            AgentCreateNameTaken, RetiredPersonaInstanceError, ValueError, PersonaChatPersistenceError,
+        ) as exc:
             return refuse_mint(exc, placement_id=request.placement_id)
         # The argv lane's own provenance stamp, matched so the two lanes cannot
         # be told apart by the row they leave. Deliberately NOT ``updated_by``:
@@ -543,18 +567,26 @@ class AgentCreate:
         """A NEW agent: its own persona and profile, then its first instance
         (``TASK-INDEPENDENT-AGENT-CREATION``, 2026-11-18)."""
 
+        from ..agent_duplicate import AGENT_NAME_LOCK, name_is_taken
+        from ..locks import agent_create_lock
         from ..persona_assignments.independent import create_independent_agent
 
-        return create_independent_agent(
-            store,
-            source_persona_id=request.persona_id,
-            source_instance_id=request.source_instance_id,
-            placement_id=request.placement_id,
-            display_name=request.display_name or request.default_display_name,
-            workspace_id=request.workspace_id,
-            realm_id=request.realm_id,
-            client_scope=request.client_scope,
-        )
+        # Checked and taken under the lock ``runtime.agent.duplicate`` names
+        # under, so two makers cannot both take one free name. Only a fresh key
+        # mints, so a same-key retry never meets its own agent's name here.
+        with agent_create_lock(AGENT_NAME_LOCK):
+            if name_is_taken(request.display_name):
+                raise AgentCreateNameTaken(request.display_name)
+            return create_independent_agent(
+                store,
+                source_persona_id=request.persona_id,
+                source_instance_id=request.source_instance_id,
+                placement_id=request.placement_id,
+                display_name=request.display_name,
+                workspace_id=request.workspace_id,
+                realm_id=request.realm_id,
+                client_scope=request.client_scope,
+            )
 
     def place_and_finish(self) -> AgentCreateOutcome:
         placement_started = time.monotonic()
@@ -680,6 +712,7 @@ class AgentPlace(AgentCreate):
     """One ``perform_agent_place`` call: :class:`AgentCreate`'s phases, minus the identity."""
 
     METHOD = "runtime.agent.place"
+    NAMES_A_NEW_AGENT = False
 
     def new_instance(self, store: Any, request: Any) -> Any:
         """One more instance of the EXISTING agent ``request.persona_id``."""
@@ -819,6 +852,25 @@ def _mint_persist_failed(exc: Any, placement_id: str) -> AgentCreateOutcome:
         },
     )
 
+def _mint_name_taken(exc: Any, placement_id: str) -> AgentCreateOutcome:
+    """``agent_name_taken``: an agent of the install already has the new one's name."""
+
+    # Refused under the name lock, before ``create_independent_agent`` writes a
+    # persona, a profile or a roster row, and before ``mark_instance_minted``:
+    # nothing was written under this key, as the siblings below.
+    return refused(
+        ERR_CONFLICT,
+        exc,
+        {
+            "reason": AGENT_NAME_TAKEN_REASON,
+            "name": exc.name,
+            "placement_id": placement_id,
+            "phase": PHASE_INSTANCE,
+            "rolled_back": True,
+        },
+    )
+
+
 #: A refusal ``add_instance`` raises BEFORE its first write -> the create's
 #: answer, looked up along the exception's MRO (a subclass answers as its
 #: nearest listed base). Every row is ``rolled_back: True`` and none
@@ -826,6 +878,7 @@ def _mint_persist_failed(exc: Any, placement_id: str) -> AgentCreateOutcome:
 MINT_FAULTS: Final[Mapping[type[BaseException], Callable[[Any, str], AgentCreateOutcome]]] = (
     MappingProxyType(
         {
+            AgentCreateNameTaken: _mint_name_taken,
             RetiredPersonaInstanceError: _mint_retired,
             ValueError: _mint_invalid,
             PersonaChatPersistenceError: _mint_persist_failed,

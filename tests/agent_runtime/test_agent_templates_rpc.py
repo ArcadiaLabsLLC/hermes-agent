@@ -15,7 +15,8 @@ def test_template_catalog_drives_existing_creation_without_switching_workspace(q
     template = next(t for t in listed if t["id"] == qa_persona.id)
     assert template["name"] == "QA Agent"
     assert not _instances() and not _actors()
-    params = {"persona_id": template["id"], "workspace_id": WORKSPACE, "idempotency_key": "intelligence-create"}
+    params = {"persona_id": template["id"], "workspace_id": WORKSPACE, "idempotency_key": "intelligence-create",
+              "display_name": "Intelligence Agent"}
     created = call("runtime.agent.create", params)["result"]
     instance_id = created["persona_instance_id"]
     assert instance_id in _instances()
@@ -34,7 +35,8 @@ def test_template_catalog_refuses_injected_scope():
 def test_new_workspace_accepts_shared_agent_creation_without_an_office_visit(qa_persona):
     workspace = call("runtime.workspace.create", {"name": "New team", "idempotency_key": "setup"})["result"]
     reply = call("runtime.agent.create", {
-        "workspace_id": workspace["id"], "persona_id": qa_persona.id, "idempotency_key": "new-team-agent"})
+        "workspace_id": workspace["id"], "persona_id": qa_persona.id, "idempotency_key": "new-team-agent",
+        "display_name": "New Team Agent"})
     assert "error" not in reply, reply
     assert reply["result"]["persona_instance_id"] in _instances()
     assert reply["result"]["actor_key"] in _actors(workspace["id"])

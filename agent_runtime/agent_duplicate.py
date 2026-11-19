@@ -40,7 +40,12 @@ from .store import AgentStore
 
 __layer__ = "stores"
 
-__all__ = ["AgentDuplicateRefused", "DuplicateResult", "duplicate_agent", "name_is_taken"]
+__all__ = ["AGENT_NAME_LOCK", "AgentDuplicateRefused", "DuplicateResult", "duplicate_agent", "name_is_taken"]
+
+#: The one lock a new agent's name is checked and taken under — by a duplicate
+#: here and by ``runtime.agent.create``'s mint — so two makers cannot both take
+#: one free name.
+AGENT_NAME_LOCK = "agent-name"
 
 #: The profile entries that ARE the agent and travel with a duplicate. Sign-in
 #: (``auth.json``, ``.env``), sessions, logs and caches are the install's, not the
@@ -161,7 +166,7 @@ def duplicate_agent(persona_id: str, name: str, *, instance_id: str | None = Non
     name = " ".join(str(name or "").split())
     if not name:
         raise AgentDuplicateRefused("agent_name_required", "Give the copy a name.")
-    with agent_create_lock("agent-duplicate"):
+    with agent_create_lock(AGENT_NAME_LOCK):
         roster = ensure_persisted_personas()
         source = _source(persona_id, roster)
         if name_is_taken(name, roster):

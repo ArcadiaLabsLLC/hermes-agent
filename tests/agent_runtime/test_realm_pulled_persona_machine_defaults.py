@@ -59,7 +59,8 @@ def _shared_agent_without_settings(team: _Team, *, bob_default_model: str | None
                                    api_mode=None, system_prompt_path=""))
     OfficeStore().ensure_surface(workspace.id, created_by="seed")
     made = perform_agent_create({"persona_id": "qa", "workspace_id": workspace.id, "realm_id": shared.id,
-                                 "position": [1.0, 1.0], "idempotency_key": "seat"})
+                                 "position": [1.0, 1.0], "idempotency_key": "seat",
+                                 "display_name": "Seat Agent"})
     assert made.refusal is None, made.refusal
     publish_realm_sync(shared.id)
     assert _unpublished(shared.id) == (False, [])

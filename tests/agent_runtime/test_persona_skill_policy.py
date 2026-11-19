@@ -841,6 +841,7 @@ def _create_with_skills(*skills: str, placement: str, key: str):
             "workspace_id": _SKILL_WORKSPACE,
             "position": [0.0, 0.0],
             "idempotency_key": key,
+            "display_name": f"Agent {key}",
             "placement_id": placement,
             "skills": list(skills),
         }

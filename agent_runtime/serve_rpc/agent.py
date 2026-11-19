@@ -90,10 +90,16 @@ def _runtime_agent_create(
 ) -> dict:
     """ONE call places an agent: roster row, chat root and placement together.
 
-    Params: ``persona_id``, ``workspace_id`` and ``idempotency_key`` (required);
-    ``position: [x, y]``, ``skills: [id, ...]``, ``display_name``,
+    Params: ``persona_id``, ``workspace_id``, ``idempotency_key`` and
+    ``display_name`` (required); ``position: [x, y]``, ``skills: [id, ...]``,
     ``placement_id``, ``realm_id``, ``folder``, ``correlation_id`` (all
     optional).
+
+    The new agent's name is its maker's: no (or a blank) ``display_name`` is
+    refused -32602 ``{reason: agent_name_required, rolled_back: true}``, and a
+    name any agent of the install already has (ignoring case and spacing) 4090
+    ``{reason: agent_name_taken, name, placement_id, phase: "instance",
+    rolled_back: true}`` — never a numbered name (review w1118a.41 D8).
 
     ``position`` ABSENT (omitted or ``null``) means the client did not aim, and
     the service resolves the slot through ``agent_runtime.office_layout_policy``
@@ -181,7 +187,9 @@ def _runtime_agent_place(
     chat root and its placement — no new persona, no new profile.
 
     Params, result and refusals are ``runtime.agent.create``'s (less
-    ``source_instance_id``); ``persona_id`` in the reply is the agent placed.
+    ``source_instance_id``, and ``display_name`` stays optional: a seat with no
+    name takes the seat label, "QA Agent (2)"); ``persona_id`` in the reply is
+    the agent placed.
     A translation shim over ``agent_create.perform_agent_place``.
     """
 

@@ -98,6 +98,7 @@ def _agent_create(capsys, *, idempotency_key: str, placement_id: str | None = No
         "workspace_id": WORKSPACE,
         "position": [3.5, -1.25],
         "idempotency_key": idempotency_key,
+        "display_name": f"Agent {idempotency_key}",
     }
     if placement_id is not None:
         params["placement_id"] = placement_id

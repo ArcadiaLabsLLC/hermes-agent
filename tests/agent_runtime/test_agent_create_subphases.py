@@ -141,6 +141,7 @@ def _create(persona_id: str, placement_id: str):
             "workspace_id": WORKSPACE,
             "position": [1.5, -2.5],
             "idempotency_key": f"gesture-{placement_id}",
+            "display_name": f"Agent gesture-{placement_id}",
             "placement_id": placement_id,
         }
     )

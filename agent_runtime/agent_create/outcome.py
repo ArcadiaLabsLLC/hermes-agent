@@ -33,6 +33,25 @@ class AgentCreateInvalid(ValueError):
         self.reason = reason
 
 
+#: The create's two name refusals (row
+#: ``RT-A-NEW-AGENT-MADE-FROM-ANOTHER-IS-NAMED-WITH-A-NUMBER``, review w1118a.41
+#: D8), spelled as ``runtime.agent.duplicate`` spells them: a new agent is named
+#: by its maker, and the runtime never invents a numbered name for one (Eternia
+#: ``bundled-agents-stay-one-agent-design.md`` § 4). The seat label ("QA Agent
+#: (2)") stays ``runtime.agent.place``'s, which names a seat, not an agent.
+AGENT_NAME_REQUIRED_REASON = "agent_name_required"
+AGENT_NAME_TAKEN_REASON = "agent_name_taken"
+AGENT_NAME_REQUIRED_MESSAGE = "Give the new agent a name."
+
+
+class AgentCreateNameTaken(Exception):
+    """The new agent's name is already an agent's; raised before the mint writes."""
+
+    def __init__(self, name: str):
+        super().__init__(f"An agent is already called {name}.")
+        self.name = name
+
+
 class PersonaRosterUnavailable(RuntimeError):
     """The agent roster could not be READ. A runtime fault, not a bad id.
 

@@ -19,6 +19,7 @@ def _create_in_workspace(workspace_id: str) -> dict:
             "persona_id": "qa",
             "workspace_id": workspace_id,
             "idempotency_key": "cold-create",
+            "display_name": "Agent cold-create",
         },
     })
 

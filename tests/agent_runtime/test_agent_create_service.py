@@ -43,6 +43,9 @@ def _params(**overrides) -> dict:
         "idempotency_key": "service-1",
     }
     params.update(overrides)
+    # A create names its new agent (review w1118a.41 D8); one name per gesture,
+    # so a test's second create is a second agent, never a taken name.
+    params.setdefault("display_name", f"Agent {params['idempotency_key']}")
     return params
 
 
@@ -128,10 +131,9 @@ def test_the_service_places_an_agent_with_no_rpc_layer_involved(qa_persona):
     assert actors[result["actor_key"]].revision == 1
     assert actors[result["actor_key"]].persona_instance_id == "personainst_qa_service_agent_2"
 
-    # Witness 3 — the shared naming rule came with the sequence, not with the
-    # RPC handler. "Qa" here means the hoist dropped the policy layer.
-    assert result["display_name"] == "QA Agent"
-    assert actors[result["actor_key"]].items[0].display_name == "QA Agent"
+    # Witness 3 — the sent name reached the roster row and the office item.
+    assert result["display_name"] == "Agent service-1"
+    assert actors[result["actor_key"]].items[0].display_name == "Agent service-1"
 
 
 def test_the_service_refuses_a_bad_position_without_a_reply_envelope(qa_persona):
@@ -216,7 +218,7 @@ def test_a_caller_supplied_persona_object_settles_the_question(qa_persona):
     )
 
     assert outcome.refusal is None
-    assert outcome.result["display_name"] == "Synthesised Agent"
+    assert outcome.result["display_name"] == "Agent service-1"
 
 
 # ── the shim is a shim ───────────────────────────────────────────────────────
@@ -1852,17 +1854,21 @@ def test_a_rolled_back_key_replays_its_recorded_refusal_and_writes_nothing(
 # ── a copy is named distinctly by the server (runtime row, launcher MC ruling 2026-10-15) ──
 
 
-def test_a_second_placement_with_no_name_is_numbered_by_the_server(qa_persona):
-    """The launcher stops predicting "QA Agent (2)": an omitted ``display_name`` is
-    numbered against the agents already PLACED in the workspace. The first create is
-    the positive control: the same call into an empty office keeps the plain name."""
+def test_a_second_seat_with_no_name_is_numbered_by_the_server(qa_persona):
+    """The launcher stops predicting "QA Agent (2)": a PLACE with no ``display_name``
+    is numbered against the agents already placed in the workspace — a seat label,
+    never a new agent's name (a nameless create is refused, review w1118a.41 D8).
+    The first place is the positive control: an empty office keeps the plain name."""
+
+    from agent_runtime.agent_create import perform_agent_place
 
     _seed_workspace()
-    first = perform_agent_create(_params(placement_id="qa_service_agent_11", idempotency_key="copy-1"))
-    second = perform_agent_create(_params(placement_id="qa_service_agent_12", idempotency_key="copy-2",
-                                          position=[6.0, 1.0]))
-    third = perform_agent_create(_params(placement_id="qa_service_agent_13", idempotency_key="copy-3",
-                                         position=[9.0, 1.0]))
+    seat = {"display_name": None}
+    first = perform_agent_place(_params(placement_id="qa_service_agent_11", idempotency_key="copy-1", **seat))
+    second = perform_agent_place(_params(placement_id="qa_service_agent_12", idempotency_key="copy-2",
+                                         position=[6.0, 1.0], **seat))
+    third = perform_agent_place(_params(placement_id="qa_service_agent_13", idempotency_key="copy-3",
+                                        position=[9.0, 1.0], **seat))
 
     assert first.result["display_name"] == "QA Agent"
     assert second.result["display_name"] == "QA Agent (2)"
@@ -1875,8 +1881,8 @@ def test_a_sent_display_name_still_wins(qa_persona):
     _seed_workspace()
     perform_agent_create(_params(placement_id="qa_service_agent_11", idempotency_key="named-1"))
     named = perform_agent_create(_params(placement_id="qa_service_agent_12", idempotency_key="named-2",
-                                         position=[6.0, 1.0], display_name="QA Agent"))
-    assert named.result["display_name"] == "QA Agent"
+                                         position=[6.0, 1.0], display_name="Scout"))
+    assert named.result["display_name"] == "Scout"
 
 
 def test_the_numbering_rule_matches_the_launchers():

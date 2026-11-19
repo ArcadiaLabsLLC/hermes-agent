@@ -220,6 +220,7 @@ def placed_agent(isolate_agent_runtime_root, head_home):
                 "workspace_id": WORKSPACE,
                 "position": [1.0, 2.0],
                 "idempotency_key": "reply-lane-seed",
+                "display_name": "Agent reply-lane-seed",
             },
         }
     )

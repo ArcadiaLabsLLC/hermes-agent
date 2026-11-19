@@ -133,6 +133,7 @@ FIXTURE_DISPATCHED_AT = 1_760_000_000.0
 # instance-keyed by construction.
 FIXTURE_CREATE_PERSONA_ID = "qa"
 FIXTURE_CREATE_PERSONA_DISPLAY_NAME = "QA Agent"
+FIXTURE_CREATE_AGENT_NAME = "QA Fixture Agent"
 FIXTURE_CREATE_WORKSPACE_ID = "ws_office_pilot"
 FIXTURE_CREATE_PLACEMENT_ID = "qa_fixture_agent_2"
 FIXTURE_CREATE_INSTANCE_ID = "personainst_qa_fixture_agent_2"
@@ -711,6 +712,9 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
                 "position": list(FIXTURE_CREATE_POSITION),
                 "idempotency_key": FIXTURE_CREATE_IDEMPOTENCY_KEY,
                 "placement_id": FIXTURE_CREATE_PLACEMENT_ID,
+                # A create names its new agent (review w1118a.41 D8); the
+                # persona's own name is taken by the persona.
+                "display_name": FIXTURE_CREATE_AGENT_NAME,
             }
         )
     finally:

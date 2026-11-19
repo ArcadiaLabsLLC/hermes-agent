@@ -478,6 +478,7 @@ def _create(workspace_id: str, placement_id: str):
             "workspace_id": workspace_id,
             "position": [0.0, 0.0],
             "idempotency_key": f"census-{placement_id}",
+            "display_name": f"Agent census-{placement_id}",
             "placement_id": placement_id,
         }
     )
