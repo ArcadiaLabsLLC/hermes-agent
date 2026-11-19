@@ -1367,3 +1367,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-19 (lane w1118a-hsurf)
 
+## Filed on arrival — 2026-11-19 (lane bundled-runtime)
+
+- **`RT-SHIPPED-AGENT-SEAT-EDIT-COUNTS-AS-A-CHANGE` — Giving one seat of Neko or Base its own skills shows as a change to the agent and is reset by the next update** · group: runtime-followups · from: Eternia `TASK-BUNDLED-AGENTS-STAY-ONE-AGENT` · read in code, not reproduced (lane bundled-runtime, 2026-11-19): `agent_runtime/bundled_agents/resolve.py::is_locally_changed` reads only the persona record, while a seat's `PersonaInstance.skill_overrides`, `character_assignment` and `display_name` (`agent_runtime/models.py`) can make one seat of a shipped agent behave differently under the shipped name — design § 3 (Eternia `Launcher_Brain/20 — Active Initiatives/bundled-agents-stay-one-agent-design.md`) counts those as changing the agent; owner answer 2 keeps model and reasoning effort seat settings · done when: a seat of a shipped agent with its own skills reads `locally_changed: true` in `runtime.agent.directory`, and an update resets its definition overrides and leaves its model alone · READY 2026-11-19
