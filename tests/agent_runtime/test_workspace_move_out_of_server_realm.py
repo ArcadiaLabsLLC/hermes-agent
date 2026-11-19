@@ -29,13 +29,26 @@ def _move(**params):
 
 
 class _Team:
-    """Members of shared realms: ``be(name)`` makes that member the current machine."""
+    """Members of shared realms: ``be(name)`` makes that member the current machine — its own runtime
+    root AND its own Hermes home, so each has its own shared skills root (one shared home hid a first
+    pull's skill drift from every test built on this: RT-TWO-COMPUTER-REALM-TESTS-SHARE-ONE-SKILLS-FOLDER)."""
 
     def __init__(self, tmp_path: Path, monkeypatch):
+        import os
+
         self.tmp, self.monkeypatch = tmp_path, monkeypatch
+        #: The test's own home: its config.yaml (the realm-sync git backend a fixture picked) is every
+        #: member's, as every computer of a team runs the same configured hermes.
+        self.launch_home = Path(os.environ["HERMES_HOME"])
 
     def be(self, member: str) -> None:
         self.monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(self.tmp / member / "agent-runtime"))
+        home = self.tmp / member / "hermes"
+        config = self.launch_home / "config.yaml"
+        if config.is_file() and not (home / "config.yaml").exists():
+            home.mkdir(parents=True, exist_ok=True)
+            (home / "config.yaml").write_bytes(config.read_bytes())
+        self.monkeypatch.setenv("HERMES_HOME", str(home))
 
     def remote(self, server_id: str) -> Path:
         bare = self.tmp / f"{server_id}.git"

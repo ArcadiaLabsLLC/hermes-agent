@@ -21,17 +21,9 @@ from agent_runtime.store import WorkspaceStore
 from tests.agent_runtime.test_workspace_move_out_of_server_realm import _Team
 
 
-class _Machines(_Team):
-    """``_Team`` with one Hermes home per member, so each has its own shared skills root."""
-
-    def be(self, member: str) -> None:
-        super().be(member)
-        self.monkeypatch.setenv("HERMES_HOME", str(self.tmp / member / "hermes"))
-
-
 @pytest.fixture
 def realm(tmp_path, monkeypatch):
-    team = _Machines(tmp_path, monkeypatch)
+    team = _Team(tmp_path, monkeypatch)  # one Hermes home per member
     shared = team.found("alice", "Team Realm", "srv_team")
     WorkspaceStore().create(name="Roadmap", realm_id=shared.id)
     publish_realm_sync(shared.id)  # Alice's root holds no harness skill: the realm carries none
