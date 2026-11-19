@@ -250,3 +250,37 @@ def test_a_held_desk_says_what_the_teammate_did(team, teammate):
     row = build_snapshot(event_log=EventLog())["offices"][workspace.id]
     assert row["conflict_actor_keys"] == ["dev"]
     assert row["conflict_kinds"] == {"dev": "removed" if teammate == "deletes" else "changed"}
+
+
+def test_taking_the_teams_restored_desk_leaves_nothing_to_publish(team):
+    """The other take-remote arm, reached through a delete: Alice deletes the desk Bob moved, Bob's pull holds
+    it, then Alice puts the desk back somewhere new and publishes. Bob's next pull holds the team's restored
+    desk (``changed``); taking it adopts that desk, and nothing is left to publish.
+
+    Mutation: drop the settle in the adopt arm -> ``actors_changed`` 1."""
+
+    from agent_runtime.events import EventLog
+    from agent_runtime.snapshot import build_snapshot
+
+    shared, workspace = _shared_workspace(team, members=("bob",))
+    team.be("bob")
+    _desk(workspace.id, 9.5)
+    team.be("alice")
+    OfficeStore().remove_actor(workspace.id, "dev")
+    publish_realm_sync(shared.id)
+    team.be("bob")
+    pull_realm_sync(shared.id)
+
+    team.be("alice")
+    OfficeStore().restore_actor(workspace.id, "dev")
+    _desk(workspace.id, -4.0)
+    publish_realm_sync(shared.id)
+
+    team.be("bob")
+    pull_realm_sync(shared.id)
+    assert build_snapshot(event_log=EventLog())["offices"][workspace.id]["conflict_kinds"] == {"dev": "changed"}
+
+    taken = OfficeStore().resolve_conflict(workspace.id, "dev", take="remote")
+    assert taken.items[0].position[0] == -4.0
+    drift = _office_drift(shared.id)
+    assert (drift["offices_changed"], drift["actors_changed"], drift["actors_removed"], drift["actors_added"]) == (0, 0, 0, 0)
