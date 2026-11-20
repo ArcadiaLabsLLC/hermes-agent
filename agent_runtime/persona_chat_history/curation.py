@@ -442,6 +442,17 @@ class _AgentCurator:
         _carry_turn_outcome(row, turn_record)
         if _is_reply_row(ctx.raw):
             _carry_redo(state, row, turn_record, str(ctx.logical_client_message_id or ""))
+            _carry_cut_off(row, turn_record)
+
+
+def _carry_cut_off(row: dict[str, Any], record: Mapping[str, Any] | None) -> None:
+    """The turn's cut-off cause, off its journal record, on its reply row (``agent_runtime.reply_cut_off``)."""
+
+    from ..reply_cut_off import CUT_OFF_KEY, safe_cut_off
+
+    # MUTATION: return here and test_reply_cut_off's reload assertion reddens.
+    if cut_off := safe_cut_off((record or {}).get(CUT_OFF_KEY)):
+        row[CUT_OFF_KEY] = cut_off
 
 
 def _carry_redo(state: CurationState, row: dict[str, Any], record: Mapping[str, Any] | None, turn: str) -> None:

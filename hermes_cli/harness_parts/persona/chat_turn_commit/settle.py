@@ -42,6 +42,7 @@ from agent_runtime.mission_chat_turns.states import (
 from agent_runtime.persona_assignments import safe_assignment_text, safe_assignment_token
 from agent_runtime.persona_chat_durability import PersonaChatPersistenceError
 from agent_runtime.prompt_observability import slim_chat_final_observability
+from agent_runtime.reply_cut_off import CUT_OFF_KEY, reply_cut_off
 from agent_runtime.run_budget import turn_run_budget_metadata
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.turn_outcome import VERDICT_FAILED
@@ -381,6 +382,8 @@ class _SettlePhases:
                 # a callback. A crash must not lose a committed clarify question.
                 **auxiliary_result_metadata(self.instance.id, session_id, getattr(self.chat_result, "raw", None)),
                 "stored_reply": reply_text,
+                # A reply hermes stopped continuing at its limit, on the record a reload reads.
+                **self._cut_off_block(),
                 **run_budget_block,
                 # The runner's per-run timing breakdown, riding the SAME persist as
                 # the run-budget block above and bounded by the same store-side
@@ -412,6 +415,12 @@ class _SettlePhases:
             client_message_id=self.client_message_id,
             turn_id=stream_emitter.turn_id,
         )
+
+    def _cut_off_block(self) -> dict[str, str]:
+        """``{cut_off: <cause>}`` when the run stopped its reply short (``agent_runtime.reply_cut_off``), else {}."""
+
+        cause = reply_cut_off(getattr(self.chat_result, "raw", None))
+        return {CUT_OFF_KEY: cause} if cause else {}
 
     def _return_instance_to_idle(self) -> None:
         # Token accounting: NONE here, on purpose. This lane runs the agent
@@ -545,6 +554,9 @@ class _SettlePhases:
             "surface_prompt": safe_assignment_text(getattr(args, "surface_prompt", ""), limit=4000) or "",
             "limiting_wrapper_active": False,
             "reply": self.reply_text,
+            # The reply stopped short and says nothing of it in words (``agent_runtime.reply_cut_off``):
+            # the typed cause a client renders beside it. Absent on every other reply.
+            **self._cut_off_block(),
             # Structured clarify-back (non-blocking clarify tool on this lane):
             # when present, the agent is asking a question whose answer is the
             # operator's / caller's next message in this same session. The HUD

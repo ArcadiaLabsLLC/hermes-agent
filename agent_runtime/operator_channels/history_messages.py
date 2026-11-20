@@ -307,6 +307,11 @@ class HistoryMessage:
             }
         if shape.kind == PERSONA_HARNESS_DELIVERY_KIND:
             message["delivery"] = _delivery_block(row)
+        # A reply hermes stopped short (curation's ``_carry_cut_off``; ``agent_runtime.reply_cut_off``).
+        from agent_runtime.reply_cut_off import CUT_OFF_KEY, safe_cut_off
+
+        if self.role != OPERATOR and (cut_off := safe_cut_off(row.get(CUT_OFF_KEY))):
+            message[CUT_OFF_KEY] = cut_off
         # Only the failed-turn boundary row carries one (curation's ``_carry_failed_turn``).
         surface = row.get("error_surface")
         if isinstance(surface, dict):

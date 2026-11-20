@@ -451,6 +451,11 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     usage = safe_turn_usage(value.get(TURN_USAGE_KEY))
     if usage is not None:
         result[TURN_USAGE_KEY] = usage
+    # Why the reply stopped short, when it did (agent_runtime.reply_cut_off); absent on every other turn.
+    from ..reply_cut_off import CUT_OFF_KEY, safe_cut_off
+
+    if cut_off := safe_cut_off(value.get(CUT_OFF_KEY)):
+        result[CUT_OFF_KEY] = cut_off
     for key in (
         "provider_submitted",
         "native_committed",

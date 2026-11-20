@@ -1,0 +1,5 @@
+{
+  "field": "cut_off",
+  "causes": ["continuation_limit"],
+  "carried_on": ["mission.chat.message terminal frame", "persona history agent reply row", "operator conversation agent message"]
+}

@@ -1051,6 +1051,16 @@ work apply unchanged. An EMPTY run (upstream's `(empty)` sentinel or explainer s
 the stored `(empty)` row reads as a `turn_silent` marker (`turn_visibility.printable_reply_text`).
 Pins: `tests/agent_runtime/test_chat_turn_stopped_or_empty.py`.
 
+**A reply hermes stopped continuing is marked cut off** (2026-11-20, review w1118a.66 D2). When the model
+cuts its reply at the output limit on every call, upstream's `turn_truncation._continue_text` asks three
+continuations and ends the turn with the stitched parts (`partial`, `failure_reason: "truncated"`, error
+`Response remained truncated after 4 continuation attempts`) and no words saying so. That run keeps the
+normal walk, and one typed field names it: `cut_off: "continuation_limit"` on the terminal frame, on the
+journal record (`native_committed` onward) and on the agent's reply row on reload (persona history and the
+operator conversation message); absent on every other reply. The window-filled exit and a cut tool call
+carry none: their reply already says so. Owner: `agent_runtime/reply_cut_off.py`; Eternia's mirror
+`tests/fixtures/reply_cut_off_v1.json`. Pins: `tests/agent_runtime/test_reply_cut_off.py`.
+
 **A cut-off turn says so on reload, and a steer it accepted is not lost** (2026-11-12). The serve-boot
 sweep (`persona_chat_continuity.repair_orphaned_chat_turns`) flips a dead executor's in-flight records
 to `interrupted` before the first hydrate; the history projection then shows the `turn_interrupted`
