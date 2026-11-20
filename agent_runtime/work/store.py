@@ -761,7 +761,8 @@ def answer(scope, params, actor, *, context=None):
 def close(scope, params, actor, *, context=None):
     """``runtime.work.close`` (RT-WORK-OWNER-CLOSE-VERB): the owner marks a row done themselves — archived with
     ``CLOSED <date>: owner — <words>`` (default ``done``; ``scripts/work_row.py close --owner``) and an optional
-    ``result:``, ONE write guarded on ``line``; a claimed row closes too (the operator's override)."""
+    ``result:``, ONE write guarded on ``line``; a claimed row closes too (the operator's override). The write wakes the
+    rows BLOCKED on it and steps its task in the same commit, as a lane's close does (``Writer._close``)."""
 
     words = "done" if params.get("words") is None else text(params["words"], maximum=300).strip()
     result = "" if params.get("result") is None else text(params["result"], maximum=RESULT_LIMIT)

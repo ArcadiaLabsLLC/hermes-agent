@@ -55,6 +55,10 @@ one when none is (:func:`agent_runtime.work_store.tasks.task_status_after_close`
 brain's to move — the close prints what to set there; with a sibling brain not checked out the task is left open. A close that archives a task prints the live rows under
 ``<slug>-followups`` in every brain read, with one line saying to read them together (nothing when there are none).
 ``claim`` refuses a subtask whose task holds its subtasks back (``task_not_ready``).
+The archive, the wake and the task step are :func:`agent_runtime.work_store.close_step.close_and_step`, which the
+Work writer's close runs too — the owner's close from Eternia's board, an agent's ``runtime.work.done`` and the
+engine's done step the queue as this close does (row
+RT-A-ROW-CLOSED-FROM-THE-BOARD-LEAVES-ITS-TASK-AND-WAITING-ROWS-AS-THEY-WERE).
 
 A claim names its place (ADR 0025's 2026-10-26 amendment): ``**TAKEN <date> <lane> on <machine> as
 <git account> in <worktree>**``. ``--machine`` defaults to the hostname, ``--account`` to the
@@ -103,17 +107,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from agent_runtime.work_store.close_step import brains as _brains, close_and_step, live_rows as _live_rows
 from agent_runtime.work_store.grammar import (
-    RECOMMEND, ROW, SEPARATOR, STATUS, Op, OutcomeKind, Row, apply, archive_note_for, archive_note_text, claim_mark,
-    find, is_queue, parse_note, parse_outcome, row_defects, split_segments,
+    ROW, SEPARATOR, Op, OutcomeKind, Row, apply, claim_mark, find, is_queue, parse_note, row_defects, split_segments,
 )
 from agent_runtime.work_store.reasons import Reason, WorkRefused
 from agent_runtime.work_store.tasks import (
-    SIBLING_QUEUE_DIRS, SIBLING_REPOS, archived_rows, owning_task, parked_task, sibling_checkout, sibling_has_commit,
-    sibling_rows, siblings_visible, subtasks_of, task_of, task_refuses_done, task_status_after_close,
-    write_task_defects,
+    SIBLING_QUEUE_DIRS, SIBLING_REPOS, owning_task, parked_task, sibling_checkout, sibling_has_commit, sibling_rows,
+    siblings_visible, subtasks_of, task_of, task_refuses_done, write_task_defects,
 )
-from agent_runtime.work_store.wake import unblocked_segment, wake_dependents
 from agent_runtime.work_store.waits import field_waiters_of, listing_line
 
 COMMANDS = {"claim": Op.CLAIM, "release": Op.RELEASE, "set-status": Op.SET_STATUS, "delete": Op.DELETE,
@@ -199,37 +201,6 @@ def close_payload(args: argparse.Namespace) -> dict:
     return {**payload, "result": args.result or "", "date": args.date or date.today().isoformat()}
 
 
-def archive_row(repo: Path, note: Path, text: str, row_id: str, who: str, payload: dict,
-                archives: dict[Path, str]) -> tuple[str, Path]:
-    """``note``'s text without ``row_id``, and the archive month file its closed line was appended to in
-    ``archives`` (path -> text, read from disk the first time a path is met)."""
-
-    row = find(parse_note(text, slot="", note=""), row_id)
-    archived = apply(row.raw, Op.CLOSE, who=who, date=date.today().isoformat(), payload=payload)
-    outcome = next(o for o in map(parse_outcome, (s.strip() for s in split_segments(archived))) if o is not None)
-    archive = repo / archive_note_for(note.relative_to(repo).as_posix(), outcome.date)
-    if archive not in archives:
-        front = text.split("\n---", 1)[0].split("\n")
-        program = next((line.split(":", 1)[1].strip() for line in front if line.startswith("program:")), None)
-        archives[archive] = archive.read_bytes().decode("utf-8") if archive.is_file() else archive_note_text(
-            note.name, program, outcome.date[:7])
-    head = archives[archive]
-    archives[archive] = head + ("" if head.endswith("\n") else "\n") + archived + "\n"
-    lines = text.split("\n")
-    del lines[row.line_no - 1]
-    return "\n".join(lines), archive
-
-
-def _live_rows(texts: dict[Path, str]) -> list[Row]:
-    return [row for path, text in texts.items() for row in parse_note(text, slot="hermes", note=str(path))]
-
-
-def _brains(texts: dict[Path, str], siblings: dict[str, list[Row]]) -> list[Row]:
-    """Every live row of this brain (slot ``hermes``) then of each sibling brain read — work order."""
-
-    return _live_rows(texts) + [row for rows in siblings.values() for row in rows]
-
-
 def refuse_task_defects(repo: Path, written: dict[Path, tuple[str, str]], texts: dict[Path, str],
                         siblings: dict[str, list[Row]]) -> None:
     """Refuse a write whose CHANGED rows break the task rules, naming each defect, before anything is written
@@ -268,112 +239,6 @@ def refuse_parked_task(closed: Row, rows: list[Row]) -> None:
         raise WorkRefused(Reason.TASK_NOT_READY, f"`{closed.ref.id}` is a subtask of task `{task.ref.id}` "
                                                  f"(task: {task.task}, {task.ref.slot}), which is {why} — the task's "
                                                  "status is the owner's decision for every subtask; reopen the task first")
-
-
-def _rewrite_status(text: str, row_id: str, status: list[str]) -> str:
-    """``text`` with ``row_id``'s status segment replaced by ``status``, its earlier ``unblocked`` records dropped
-    (a task line keeps only the latest) and the ``Recommend:`` an owner-decision block carried (``status`` brings
-    its own when it asks the owner), and every other segment, a claim included, kept."""
-
-    lines = text.split("\n")
-    row = find(parse_note(text, slot="", note=""), row_id)
-    line = lines[row.line_no - 1]
-    carriage = "\r" if line.endswith("\r") else ""
-    kept: list[str] = []
-    for index, segment in enumerate(split_segments(line.rstrip("\r"))):
-        if index and STATUS.match(segment.strip()):
-            kept += status
-        elif not (index and (segment.strip().startswith("unblocked ") or RECOMMEND.match(segment.strip()))):
-            kept.append(segment)
-    lines[row.line_no - 1] = SEPARATOR.join(kept) + carriage
-    return "\n".join(lines)
-
-
-def task_step(repo: Path, closed: Row, woken: list[str], texts: dict[Path, str], archives: dict[Path, str],
-              payload: dict, siblings: dict[str, list[Row]], who: str, how: str) -> list[str]:
-    """After a close: the task of the closed row and of every row it woke, judged from the queues as they now stand
-    (the launcher's ``close_row.dart::_taskStep``). D7 archives a task left with no open subtask; otherwise its
-    status follows its subtasks (:func:`task_status_after_close`). ``texts`` / ``archives`` are edited in place;
-    what was done comes back as lines."""
-
-    rows = _brains(texts, siblings)
-    by_id = {row.ref.id: row for row in _live_rows(texts)}
-    tasks = {row.task for row in rows if row.task is not None}
-    slugs = [owning_task(closed.group, tasks) if closed.group else None]
-    slugs += [by_id[row_id].task or (owning_task(by_id[row_id].group, tasks) if by_id[row_id].group else None)
-              for row_id in woken if row_id in by_id]
-    visible = siblings_visible(siblings)
-    said: list[str] = []
-    for slug in dict.fromkeys(s for s in slugs if s is not None):
-        rows = _brains(texts, siblings)
-        task = next((row for row in rows if row.task == slug), None)
-        if task is None:
-            continue
-        subtasks = subtasks_of(task, rows)
-        if slug == slugs[0] and not subtasks:
-            said += close_task(repo, closed, task, texts, archives, payload, siblings, who)
-            continue
-        if slug == slugs[0] and all(s.ref.slot != "hermes" for s in subtasks):
-            said += [f"task `{task.ref.id}` stays open: `{s.ref.id}` is still open in {s.ref.slot}" for s in subtasks]
-        status = task_status_after_close(task, subtasks, all_visible=visible, closed_id=closed.ref.id,
-                                         date=payload["date"], unblocked=unblocked_segment(closed.ref.id,
-                                                                                           payload["date"], how))
-        if status is None:
-            continue
-        if task.ref.slot != "hermes":
-            said.append(f"task `{task.ref.id}` ({task.ref.slot}): set it to `{status[0]}` there")
-            continue
-        note = Path(task.ref.note)
-        texts[note] = _rewrite_status(texts[note], task.ref.id, status)
-        said.append(f"task `{task.ref.id}`: {status[0]}")
-    return said
-
-
-def close_task(repo: Path, closed: Row, task: Row, texts: dict[Path, str], archives: dict[Path, str], payload: dict,
-               siblings: dict[str, list[Row]], who: str) -> list[str]:
-    """D7: archive ``task``, left with no open subtask by ``closed``'s close; what was done, as lines."""
-
-    if not siblings_visible(siblings):
-        missing = ", ".join(sorted(set(SIBLING_QUEUE_DIRS) - set(siblings)))
-        return [f"task `{task.ref.id}` has no open subtask here, but the {missing} brain is not checked out beside "
-                "this repository: left open"]
-    if task.ref.slot != "hermes":
-        return [f"task `{task.ref.id}` ({task.ref.slot}) has no open subtask left: close it there with its close tool"]
-    counted = archived_rows(repo / "Harness_Brain" / "20 — Active Initiatives") + [
-        row for text in archives.values() for row in parse_note(text, slot="", note="", archived=True)]
-    done = len({row.ref.id for row in subtasks_of(task, counted)} | {closed.ref.id})
-    words = f"all {done} subtasks closed"
-    by_owner = payload["outcome"] == OutcomeKind.CLOSED
-    task_payload = ({"outcome": OutcomeKind.CLOSED.value, "words": words} if by_owner else
-                    {"outcome": OutcomeKind.DONE.value, "commit": payload["commit"], "result": words})
-    note = Path(task.ref.note)
-    texts[note], _ = archive_row(repo, note, texts[note], task.ref.id, who, {**task_payload, "date": payload["date"]},
-                                 archives)
-    done_as = f"CLOSED {payload['date']}" if by_owner else f"DONE {payload['date']} {payload['commit']}"
-    # MUTATION: drop the follow-up lines and test_closing_a_task_lists_its_open_follow_up_rows reddens.
-    return [f"closed task `{task.ref.id}` {done_as}: {words}", *follow_up_lines(task, _brains(texts, siblings))]
-
-
-def follow_up_lines(task: Row, rows: list[Row]) -> list[str]:
-    """After ``task`` is archived: its live follow-up rows in every brain read, by ID and title, under one line
-    saying to read them together — the last moment a defect parked there is in view (launcher row
-    QA-TASK-CLOSE-SHOWS-ITS-FOLLOW-UP-ROWS; the words are ``EterniaLauncher/tool/queue/close_row.dart::
-    _listFollowUps``'s). A follow-up row is one carrying `` · from: `<task ID>` `` under its domain's standing
-    follow-ups task (owner 2026-11-15, "yea do the cleanup": one follow-ups task per domain queue), or one still
-    under a per-task ``<slug>-followups``. A print only: nothing when there are none, and no refusal. The Windows box
-    and the teammate close rows with this same tool."""
-
-    slug = f"{task.task}-followups"
-    mark = f" · from: `{task.ref.id}`"
-    # MUTATION: drop the ``mark`` arm and test_closing_a_task_lists_the_rows_that_name_it_in_a_from_segment reddens.
-    found = [row for row in rows if row.task is None and (
-        (row.group is not None and (row.group == slug or row.group.startswith(slug + "."))) or mark in row.raw)]
-    if not found:
-        return []
-    return [f"task `{task.ref.id}` is closed with {len(found)} follow-up row(s) open (`from: {task.ref.id}`, or under "
-            f"`{slug}`) — read them together now: one that is a defect in what this task built goes back into the "
-            "task, which reopens for it",
-            *(f"  `{row.ref.id}` — {row.title} ({row.ref.slot}, {Path(row.ref.note).name})" for row in found)]
 
 
 def mentioning_task_lines(closed_id: str, rows: list[Row]) -> list[str]:
@@ -637,32 +502,19 @@ def commit_and_push(repo: Path, note: Path, args: argparse.Namespace, git: Git, 
 
 
 def _apply_close(repo: Path, note: Path, text: str, args, archives: dict[Path, str]) -> list[Path]:
-    """Archive *args.row_id*, wake its dependents and step its task; the notes it rewrote."""
+    """Archive *args.row_id*, wake its dependents and step its task (:func:`close_and_step`, the one close the
+    Work writer runs too); the notes it rewrote."""
     payload = close_payload(args)
     closed = find(parse_note(text, slot="hermes", note=str(note)), args.row_id)
     texts = {path: path.read_bytes().decode("utf-8") for path in queue_notes(repo, None)}
     siblings = sibling_rows(repo)
     if payload["outcome"] == OutcomeKind.DONE:
         refuse_parked_task(closed, _brains(texts, siblings))
-    closed_by_owner = payload["outcome"] == OutcomeKind.CLOSED
-    how = OutcomeKind.CLOSED.value if closed_by_owner else f"{payload['outcome']} {payload['commit']}"
     before = {**texts, note: text}
-    texts[note], _ = archive_row(repo, note, text, args.row_id, args.who, payload, archives)
-    woken: dict[Path, list[str]] = {}
-    held: dict[str, list[str]] = {}
-    stranded: list[str] = []
-    live_ids = {row.ref.id for row in _brains(texts, siblings)}
-    own_live_ids = {row.ref.id for row in _live_rows(texts)}
-    for path, current in texts.items():
-        stepped = wake_dependents(current, args.row_id, payload["date"], how, live_ids=live_ids,
-                                  own_live_ids=own_live_ids, wake=not args.no_wake)
-        texts[path] = stepped.text
-        held |= stepped.held
-        stranded += stepped.stranded
-        if stepped.woken:
-            woken[path] = stepped.woken
-    said = task_step(repo, closed, [i for ids in woken.values() for i in ids], texts, archives, payload,
-                     siblings, args.who, how)
+    done = close_and_step(repo, note, before, args.row_id, args.who, payload, siblings, today=date.today().isoformat(),
+                          wake=not args.no_wake)
+    texts, woken, held, stranded, said = done.texts, done.woken, done.held, done.stranded, done.said
+    archives.update(done.archives)
     touched = [path for path in texts if texts[path] != before.get(path)]
     refuse_task_defects(repo, {path: (before[path], texts[path]) for path in touched}, texts, siblings)
     # The archives first: a failed write must never lose a row.

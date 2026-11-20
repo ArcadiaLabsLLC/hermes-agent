@@ -47,13 +47,11 @@ from typing import Any
 
 from .. import paths
 from . import receipts
-from .board import Board, board_rows, ids_in_brain
+from .board import Board, board_rows, ids_in_brain, notes
 from .checked_out import advance
+from .close_step import brain_siblings, close_and_step
 from .default_brain import IDENTITY_PAIRS
-from .grammar import (
-    Op, Row, RowRef, apply as apply_line, archive_note_for, archive_note_text, find, local_day, parse_note, parse_outcome,
-    row_defects, split_segments,
-)
+from .grammar import Op, Row, RowRef, apply as apply_line, find, local_day, parse_note, row_defects
 from .models import OPERATOR
 from .reasons import Reason, WorkRefused
 from .tasks import sibling_rows, siblings_visible, write_task_defects
@@ -645,30 +643,33 @@ class Writer:
 
     def _close(self, op: RowOp) -> list[str]:
         """CLOSE: the archived line appended to its month file (created with the archive head) and the live line
-        dropped, both in this one commit (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan D2–D5)."""
+        dropped, both in this one commit (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan D2–D5) — and, in the same commit,
+        every row of the brain BLOCKED on it woken and its task stepped, as a lane's ``scripts/work_row.py close``
+        does: both run :func:`agent_runtime.work_store.close_step.close_and_step`
+        (RT-A-ROW-CLOSED-FROM-THE-BOARD-LEAVES-ITS-TASK-AND-WAITING-ROWS-AS-THEY-WERE, review w1118a.48 D1b). The
+        owner's close from the board, an agent's ``runtime.work.done`` and the engine's done all land here."""
 
         path, text, rows = self._note_rows(op.ref)
         row = find(rows, op.ref.id)
         _present(op, row)
         assert row is not None
-        archived = apply_line(row.raw, Op.CLOSE, who=op.who, date=local_day(self._now(), self._zone),
-                              payload=dict(op.payload))
-        assert archived is not None
-        outcome = next(o for o in map(parse_outcome, (s.strip() for s in split_segments(archived))) if o is not None)
-        note = archive_note_for(op.ref.note, outcome.date)
-        target = self.worktree / note
-        head = target.read_bytes().decode("utf-8") if target.is_file() else archive_note_text(
-            PurePosixPath(op.ref.note).name, self._program(text), outcome.date[:7])
-        _write_atomic(target, head + ("" if head.endswith("\n") else "\n") + archived + "\n")
-        lines = text.split("\n")
-        del lines[row.line_no - 1]
-        _write_atomic(path, "\n".join(lines))
-        return [op.ref.note, note]
-
-    @staticmethod
-    def _program(text: str) -> str | None:
-        front = text.split("\n---", 1)[0].split("\n")
-        return next((line.split(":", 1)[1].strip() for line in front if line.startswith("program:")), None)
+        board = replace(self.board, read_root=self.worktree)
+        texts = {note: note.read_bytes().decode("utf-8") for note in notes(board)}
+        texts[path] = text
+        brain = PurePosixPath(self.board.brain_dir or "").parts[:1]
+        found, visible = brain_siblings(brain[0] if brain else "", sibling_rows(self.board.checkout or self.worktree))
+        done = close_and_step(self.worktree, path, texts, op.ref.id, op.who, dict(op.payload), found,
+                              today=local_day(self._now(), self._zone), visible=visible)
+        changed: list[str] = []
+        # The archives first: a failed write must never lose a row.
+        for archive, archive_text in sorted(done.archives.items()):
+            _write_atomic(archive, archive_text)
+            changed.append(archive.relative_to(self.worktree).as_posix())
+        for note, note_text in sorted(done.texts.items()):
+            if note_text != texts[note]:
+                _write_atomic(note, note_text)
+                changed.append(note.relative_to(self.worktree).as_posix())
+        return changed
 
     # ── steps 7–8: commit and push ───────────────────────────────────────
 
