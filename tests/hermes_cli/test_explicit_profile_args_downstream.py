@@ -18,10 +18,30 @@ from tests.hermes_cli.test_apply_profile_override import _run_apply_profile_over
 from tests.hermes_cli.test_apply_profile_override_downstream import _pin_hermes_root
 
 
+@pytest.fixture(autouse=True)
+def _isolated_logging():
+    """Stop the CLI logging listener each test starts, including its watchdog thread."""
+    import hermes_logging
+
+    hermes_logging._reset_queued_handlers()
+    yield
+    hermes_logging._reset_queued_handlers()
+    hermes_logging._logging_initialized = False
+
+
 @pytest.fixture
 def default_home(tmp_path, monkeypatch) -> Path:
-    """This process runs the default profile (HERMES_HOME is the root); the saved one is ``sticky``."""
-    root = tmp_path / ".hermes"
+    """A default profile home inside a disposable namespace, with a sticky profile beside it."""
+    namespace_id = "acct-test"
+    namespaces_dir = tmp_path / "hermes-namespaces"
+    root = namespaces_dir / namespace_id
+    base_root = tmp_path / "base-hermes"
+    root.mkdir(parents=True)
+    base_root.mkdir()
+    monkeypatch.setenv("HERMES_NAMESPACE", namespace_id)
+    monkeypatch.setenv("HERMES_NAMESPACES_DIR", str(namespaces_dir))
+    monkeypatch.setenv("HERMES_DEPENDENCY_ROOT", str(base_root))
+    monkeypatch.setenv("HERMES_LAUNCHER_SPAWNED", "1")
     (root / "profiles" / "sticky").mkdir(parents=True)
     (root / "profiles" / "sticky" / "config.yaml").write_text("{}\n", encoding="utf-8")
     (root / "active_profile").write_text("sticky", encoding="utf-8")
@@ -30,10 +50,23 @@ def default_home(tmp_path, monkeypatch) -> Path:
     return root
 
 
-def _boots_on(tmp_path, monkeypatch, cli: list[str]) -> Path:
+def _boots_on(tmp_path, monkeypatch, cli: list[str], default_home: Path) -> Path:
     """The home the child's bootstrap selects for ``hermes <cli>`` with ``sticky`` saved."""
-    home = _run_apply_profile_override(tmp_path, monkeypatch, hermes_home=str(tmp_path / ".hermes"),
-                                       active_profile="sticky", argv=["hermes", *cli])
+    home = _run_apply_profile_override(
+        tmp_path,
+        monkeypatch,
+        hermes_home=str(default_home),
+        active_profile="sticky",
+        argv=["hermes", *cli],
+        extra_env={
+            "HERMES_NAMESPACE": "acct-test",
+            "HERMES_NAMESPACES_DIR": str(default_home.parent),
+            "HERMES_DEPENDENCY_ROOT": str(tmp_path / "base-hermes"),
+            "HERMES_HEAD_HOME": str(default_home),
+            "HERMES_AGENT_RUNTIME_ROOT": str(default_home / "agent-runtime"),
+            "HERMES_LAUNCHER_SPAWNED": "1",
+        },
+    )
     return Path(home).resolve()
 
 
@@ -58,7 +91,7 @@ def test_the_elevated_windows_handoff_keeps_the_default_profile(default_home, tm
     args = gateway_windows._current_profile_cli_args()
 
     assert args == ["--profile", "default"]
-    assert _boots_on(tmp_path, monkeypatch, [*args, "gateway", "install", "--elevated-handoff"]) == default_home.resolve()
+    assert _boots_on(tmp_path, monkeypatch, [*args, "gateway", "install", "--elevated-handoff"], default_home) == default_home.resolve()
 
 
 def test_the_post_update_relaunch_of_a_manual_default_gateway_keeps_it(default_home, tmp_path, monkeypatch):
@@ -67,7 +100,7 @@ def test_the_post_update_relaunch_of_a_manual_default_gateway_keeps_it(default_h
     argv = gateway._gateway_run_args_for_profile("default")
 
     assert _tail_from(argv, "--profile") == ["--profile", "default", "gateway", "run", "--replace"]
-    assert _boots_on(tmp_path, monkeypatch, _tail_from(argv, "--profile")) == default_home.resolve()
+    assert _boots_on(tmp_path, monkeypatch, _tail_from(argv, "--profile"), default_home) == default_home.resolve()
     assert "--profile" in gateway._gateway_run_args_for_profile("work")  # a named profile is unchanged
 
 
@@ -89,4 +122,4 @@ def test_the_launchd_detached_gateway_already_names_the_default_profile(default_
     argv = gateway._gateway_run_command()
 
     assert _tail_from(argv, "--profile")[:4] == ["--profile", "default", "gateway", "run"]
-    assert _boots_on(tmp_path, monkeypatch, _tail_from(argv, "--profile")) == default_home.resolve()
+    assert _boots_on(tmp_path, monkeypatch, _tail_from(argv, "--profile"), default_home) == default_home.resolve()

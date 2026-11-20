@@ -1,0 +1,258 @@
+Using CPython 3.14.7
+Creating virtual environment at: .venv
+   Building hermes-agent @ file:///X:/Eternia/worktrees/w1120-gw-elevated-f88f-hermes
+      Built hermes-agent @ file:///X:/Eternia/worktrees/w1120-gw-elevated-f88f-hermes
+warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+         If the cache and target directories are on different filesystems, hardlinking may not be supported.
+         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+Installed 76 packages in 17.88s
+.FF.s..x..xxx........................                                    [100%]
+================================== FAILURES ===================================
+_________ test_the_elevated_windows_handoff_keeps_the_default_profile _________
+
+argv = None, environ = None
+
+    def apply_cli_namespace(argv: list[str] | None = None, environ: MutableMapping[str, str] | None = None) -> CliResolution:
+        """``main._apply_profile_override``'s first act: resolve, strip the flag, export the env, fence.
+    
+        A refusal prints one JSON line on stderr and exits 2 — the process never starts on a guess.
+        """
+        target = os.environ if environ is None else environ
+        args = sys.argv if argv is None else argv
+        try:
+>           res = resolve_cli(args, target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+hermes_cli\_namespace_bootstrap.py:654: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+argv = ['hermes', '--profile', 'default', 'gateway', 'install', '--elevated-handoff']
+env = environ({'ACSETUPSVCPORT': '23210', 'ACSVCPORT': '17532', 'AI_AGENT': 'claude-code_2-1-328_agent', 'ALLUSERSPROFILE': ...RMINAL_CONTAINER_DISK': '51200', 'TERMINAL_CONTAINER_PERSISTENT': 'True', 'TERMINAL_DOCKER_RUN_AS_HOST_USER': 'False'})
+
+    def resolve_cli(argv: Sequence[str], env: Mapping[str, str]) -> CliResolution:
+        """Pure: what this CLI process's namespace is, or a typed refusal. Reads at most the active record."""
+        flag, rest = strip_namespace_flag(argv)
+        verb = first_verb(rest)
+        if verb == ADMIN_VERB:
+            return CliResolution(None, "admin", rest, "")
+        env_value = str(env.get(ENV) or "")
+        if flag is not None and env_value and flag != env_value:
+            raise NamespaceRefused(Reason.ARGV_ENV_MISMATCH, f"{FLAG} {flag!r} but {ENV}={env_value!r}")
+        requested, source = (flag, "argv") if flag is not None else (env_value or None, "env")
+        if requested is not None:
+            validate_id(requested)
+        if requested == BASE_ID:
+            return CliResolution(None, source, rest, "")
+        external = not launcher_spawned(env)
+        if requested is None:
+            if not external or verb in INSTALL_VERBS:
+                return CliResolution(None, "none", rest, "")
+            requested, source = read_active_record(base_root(env)), "active-file"
+            if requested is None:
+                return CliResolution(None, "none", rest, "")
+        elif external:
+            active = read_active_record(base_root(env))
+            if active is None:
+                raise NamespaceRefused(
+                    Reason.EXTERNAL_DISABLED,
+                    f"outside the launcher only the signed-in account's namespace is reachable, and only while "
+                    f"'Allow agent use outside the launcher' is on; there is no {ACTIVE_RECORD_NAME}")
+            if active != requested:
+                raise NamespaceRefused(
+                    Reason.NOT_ACTIVE, f"outside the launcher only the active namespace is reachable; asked for {requested!r}")
+        item = layout(requested, env)
+        for key in PINNED_PATH_ENVS:
+            value = str(env.get(key) or "").strip()
+            if not value:
+                continue
+            path = Path(value).expanduser()
+            if key == "HERMES_HOME" and _norm(path) == _norm(item.base_root):
+                continue  # names the install, not a home: replaced below
+            where = item.classify(path)
+            if where != "own":
+>               raise NamespaceRefused(
+                    Reason.HOME_ESCAPE, f"{key}={value} lies in {where}, not inside namespace {requested!r} ({item.root})")
+E               hermes_cli._namespace_bootstrap.NamespaceRefused: namespace_home_escape: HERMES_HOME=X:\Eternia\test-tmp\run-7msbxb3k\pytest-of-beast\pytest-0\test_the_elevated_windows_hand-1\.hermes lies in outside, not inside namespace 'acct-26858805fff7de3b' (X:\Eternia\hermes-namespaces\acct-26858805fff7de3b)
+
+hermes_cli\_namespace_bootstrap.py:471: NamespaceRefused
+
+The above exception was the direct cause of the following exception:
+
+default_home = WindowsPath('X:/Eternia/test-tmp/run-7msbxb3k/pytest-of-beast/pytest-0/test_the_elevated_windows_hand-1/.hermes')
+tmp_path = WindowsPath('X:/Eternia/test-tmp/run-7msbxb3k/pytest-of-beast/pytest-0/test_the_elevated_windows_hand-1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002AEEB8B8170>
+
+    def test_the_elevated_windows_handoff_keeps_the_default_profile(default_home, tmp_path, monkeypatch):
+        # The ShellExecuteW call is Windows-only; its argv is built here (_launch_elevated_gateway_command:
+        # ``-m hermes_cli.main *_current_profile_cli_args() gateway <command>``). Real read owed on Windows.
+        from hermes_cli import gateway_windows
+    
+        args = gateway_windows._current_profile_cli_args()
+    
+        assert args == ["--profile", "default"]
+>       assert _boots_on(tmp_path, monkeypatch, [*args, "gateway", "install", "--elevated-handoff"]) == default_home.resolve()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\hermes_cli\test_explicit_profile_args_downstream.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\hermes_cli\test_explicit_profile_args_downstream.py:35: in _boots_on
+    home = _run_apply_profile_override(tmp_path, monkeypatch, hermes_home=str(tmp_path / ".hermes"),
+tests\hermes_cli\test_apply_profile_override.py:68: in _run_apply_profile_override
+    from hermes_cli.main import _apply_profile_override
+hermes_cli\main.py:604: in <module>
+    _apply_profile_override()
+hermes_cli\main.py:521: in _apply_profile_override
+    _namespace = apply_cli_namespace().layout  # strips --namespace; homes the process inside the namespace
+                 ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+argv = None, environ = None
+
+    def apply_cli_namespace(argv: list[str] | None = None, environ: MutableMapping[str, str] | None = None) -> CliResolution:
+        """``main._apply_profile_override``'s first act: resolve, strip the flag, export the env, fence.
+    
+        A refusal prints one JSON line on stderr and exits 2 — the process never starts on a guess.
+        """
+        target = os.environ if environ is None else environ
+        args = sys.argv if argv is None else argv
+        try:
+            res = resolve_cli(args, target)
+            if res.layout is not None:
+                ensure_manifest(res.layout, requested_origin(target))
+            updates = env_updates(res, target)
+        except NamespaceRefused as exc:
+            sys.stderr.write(json.dumps(exc.payload()) + "\n")
+            sys.stderr.flush()
+>           raise SystemExit(2) from exc
+E           SystemExit: 2
+
+hermes_cli\_namespace_bootstrap.py:661: SystemExit
+---------------------------- Captured stderr call -----------------------------
+{"ok": false, "error": "namespace_refused", "reason": "namespace_home_escape", "detail": "HERMES_HOME=X:\\Eternia\\test-tmp\\run-7msbxb3k\\pytest-of-beast\\pytest-0\\test_the_elevated_windows_hand-1\\.hermes lies in outside, not inside namespace 'acct-26858805fff7de3b' (X:\\Eternia\\hermes-namespaces\\acct-26858805fff7de3b)"}
+_____ test_the_post_update_relaunch_of_a_manual_default_gateway_keeps_it ______
+
+argv = None, environ = None
+
+    def apply_cli_namespace(argv: list[str] | None = None, environ: MutableMapping[str, str] | None = None) -> CliResolution:
+        """``main._apply_profile_override``'s first act: resolve, strip the flag, export the env, fence.
+    
+        A refusal prints one JSON line on stderr and exits 2 — the process never starts on a guess.
+        """
+        target = os.environ if environ is None else environ
+        args = sys.argv if argv is None else argv
+        try:
+>           res = resolve_cli(args, target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+hermes_cli\_namespace_bootstrap.py:654: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+argv = ['hermes', '--profile', 'default', 'gateway', 'run', '--replace']
+env = environ({'ACSETUPSVCPORT': '23210', 'ACSVCPORT': '17532', 'AI_AGENT': 'claude-code_2-1-328_agent', 'ALLUSERSPROFILE': ...RMINAL_CONTAINER_DISK': '51200', 'TERMINAL_CONTAINER_PERSISTENT': 'True', 'TERMINAL_DOCKER_RUN_AS_HOST_USER': 'False'})
+
+    def resolve_cli(argv: Sequence[str], env: Mapping[str, str]) -> CliResolution:
+        """Pure: what this CLI process's namespace is, or a typed refusal. Reads at most the active record."""
+        flag, rest = strip_namespace_flag(argv)
+        verb = first_verb(rest)
+        if verb == ADMIN_VERB:
+            return CliResolution(None, "admin", rest, "")
+        env_value = str(env.get(ENV) or "")
+        if flag is not None and env_value and flag != env_value:
+            raise NamespaceRefused(Reason.ARGV_ENV_MISMATCH, f"{FLAG} {flag!r} but {ENV}={env_value!r}")
+        requested, source = (flag, "argv") if flag is not None else (env_value or None, "env")
+        if requested is not None:
+            validate_id(requested)
+        if requested == BASE_ID:
+            return CliResolution(None, source, rest, "")
+        external = not launcher_spawned(env)
+        if requested is None:
+            if not external or verb in INSTALL_VERBS:
+                return CliResolution(None, "none", rest, "")
+            requested, source = read_active_record(base_root(env)), "active-file"
+            if requested is None:
+                return CliResolution(None, "none", rest, "")
+        elif external:
+            active = read_active_record(base_root(env))
+            if active is None:
+                raise NamespaceRefused(
+                    Reason.EXTERNAL_DISABLED,
+                    f"outside the launcher only the signed-in account's namespace is reachable, and only while "
+                    f"'Allow agent use outside the launcher' is on; there is no {ACTIVE_RECORD_NAME}")
+            if active != requested:
+                raise NamespaceRefused(
+                    Reason.NOT_ACTIVE, f"outside the launcher only the active namespace is reachable; asked for {requested!r}")
+        item = layout(requested, env)
+        for key in PINNED_PATH_ENVS:
+            value = str(env.get(key) or "").strip()
+            if not value:
+                continue
+            path = Path(value).expanduser()
+            if key == "HERMES_HOME" and _norm(path) == _norm(item.base_root):
+                continue  # names the install, not a home: replaced below
+            where = item.classify(path)
+            if where != "own":
+>               raise NamespaceRefused(
+                    Reason.HOME_ESCAPE, f"{key}={value} lies in {where}, not inside namespace {requested!r} ({item.root})")
+E               hermes_cli._namespace_bootstrap.NamespaceRefused: namespace_home_escape: HERMES_HOME=X:\Eternia\test-tmp\run-7msbxb3k\pytest-of-beast\pytest-0\test_the_post_update_relaunch_-2\.hermes lies in outside, not inside namespace 'acct-26858805fff7de3b' (X:\Eternia\hermes-namespaces\acct-26858805fff7de3b)
+
+hermes_cli\_namespace_bootstrap.py:471: NamespaceRefused
+
+The above exception was the direct cause of the following exception:
+
+default_home = WindowsPath('X:/Eternia/test-tmp/run-7msbxb3k/pytest-of-beast/pytest-0/test_the_post_update_relaunch_-2/.hermes')
+tmp_path = WindowsPath('X:/Eternia/test-tmp/run-7msbxb3k/pytest-of-beast/pytest-0/test_the_post_update_relaunch_-2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002AEED9E4C00>
+
+    def test_the_post_update_relaunch_of_a_manual_default_gateway_keeps_it(default_home, tmp_path, monkeypatch):
+        from hermes_cli import gateway
+    
+        argv = gateway._gateway_run_args_for_profile("default")
+    
+        assert _tail_from(argv, "--profile") == ["--profile", "default", "gateway", "run", "--replace"]
+>       assert _boots_on(tmp_path, monkeypatch, _tail_from(argv, "--profile")) == default_home.resolve()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\hermes_cli\test_explicit_profile_args_downstream.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\hermes_cli\test_explicit_profile_args_downstream.py:35: in _boots_on
+    home = _run_apply_profile_override(tmp_path, monkeypatch, hermes_home=str(tmp_path / ".hermes"),
+tests\hermes_cli\test_apply_profile_override.py:68: in _run_apply_profile_override
+    from hermes_cli.main import _apply_profile_override
+hermes_cli\main.py:604: in <module>
+    _apply_profile_override()
+hermes_cli\main.py:521: in _apply_profile_override
+    _namespace = apply_cli_namespace().layout  # strips --namespace; homes the process inside the namespace
+                 ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+argv = None, environ = None
+
+    def apply_cli_namespace(argv: list[str] | None = None, environ: MutableMapping[str, str] | None = None) -> CliResolution:
+        """``main._apply_profile_override``'s first act: resolve, strip the flag, export the env, fence.
+    
+        A refusal prints one JSON line on stderr and exits 2 — the process never starts on a guess.
+        """
+        target = os.environ if environ is None else environ
+        args = sys.argv if argv is None else argv
+        try:
+            res = resolve_cli(args, target)
+            if res.layout is not None:
+                ensure_manifest(res.layout, requested_origin(target))
+            updates = env_updates(res, target)
+        except NamespaceRefused as exc:
+            sys.stderr.write(json.dumps(exc.payload()) + "\n")
+            sys.stderr.flush()
+>           raise SystemExit(2) from exc
+E           SystemExit: 2
+
+hermes_cli\_namespace_bootstrap.py:661: SystemExit
+---------------------------- Captured stderr call -----------------------------
+{"ok": false, "error": "namespace_refused", "reason": "namespace_home_escape", "detail": "HERMES_HOME=X:\\Eternia\\test-tmp\\run-7msbxb3k\\pytest-of-beast\\pytest-0\\test_the_post_update_relaunch_-2\\.hermes lies in outside, not inside namespace 'acct-26858805fff7de3b' (X:\\Eternia\\hermes-namespaces\\acct-26858805fff7de3b)"}
+================================== test-seal ==================================
+[test-seal] leftover: tests/hermes_cli/test_explicit_profile_args_downstream.py::test_the_post_update_relaunch_of_a_manual_default_gateway_keeps_it: thread 'gateway-startup-watchdog' started at hermes_startup_watchdog.py:416
+=========================== short test summary info ===========================
+FAILED tests/hermes_cli/test_explicit_profile_args_downstream.py::test_the_elevated_windows_handoff_keeps_the_default_profile
+FAILED tests/hermes_cli/test_explicit_profile_args_downstream.py::test_the_post_update_relaunch_of_a_manual_default_gateway_keeps_it
+2 failed, 30 passed, 1 skipped, 4 xfailed in 6.27s
+
+EXIT=1
