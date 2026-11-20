@@ -1366,7 +1366,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-19 (lane bundled-menus)
 
-- **`RT-EXTRA-AGENT-INSTANCES-ARE-NUMBERED-WITH-A-DOT` — A second instance of one agent is named "Neko Mission Lead · 2", the way the owner asked** · group: bundled-agents-stay-one-agent · from: Eternia `MC-CHAT-LIST-GROUPS-CHATS-UNDER-THEIR-AGENT-INSTANCE` · read in code (lane bundled-menus, 2026-11-19): owner 2026-11-19 "extra instances of one agent are numbered after the first, as in `Neko Mission Lead · 2` and `· 3`" ("yes sounds good"); `agent_runtime/agent_create/request.py::next_distinct_display_name` writes `QA Agent (2)` and counts only the agents placed in the one workspace (`placed_agent_display_names`), and Eternia's placement sends no name (the runtime names it) · architecture: the runtime keeps the one naming rule; the number counts the agent's live instances, not the workspace's agents (guess: confirm with the owner whether the count is per agent across workspaces) · done when: placing a second instance of an agent answers `display_name` `<name> · 2`, a third `· 3`, and a rerun never doubles the suffix · filed 2026-11-19 by bundled-menus · owner 2026-11-19 in Eternia chat: "Per agent, everywhere" — the number counts all of that agent's instances across every workspace, not per workspace · READY 2026-11-19 · **TAKEN 2026-11-19 bundled-numbers on DESKTOP-QJ7DDV2 as nekwo in bundled-numbers**
 
 ## Filed on arrival — 2026-11-19 (lane bundled-facts)
 
