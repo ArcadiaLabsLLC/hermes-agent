@@ -156,3 +156,43 @@ def test_every_persona_updated_rides_beside_its_persona_patch():
         and str(path.relative_to(root)).replace("\\", "/") not in allowed
     )
     assert offenders == []
+
+
+def test_an_agent_create_projects_its_row_before_its_record_lands(
+    delta_patches_on, isolate_agent_runtime_root, monkeypatch
+):
+    """The slow projection runs before the write, so the record never waits for its event.
+
+    Row RT-FU-ADDING-AN-AGENT-CAN-STILL-SEND-A-FULL-REFRESH-FROM-A-SCOPE-RECONCILE
+    (seen on a fixture serve 2026-11-20): the readiness walk took 3-5 s after the
+    record had landed in the watchdog's ``scope`` fingerprint, and a heartbeat in
+    that gap reconciled it as an uncovered move — a full core for 2 of 4 adds.
+    Here the projection stands in for that heartbeat: it reads the ``scope``
+    family, which must not have moved yet, and the record must not exist yet.
+
+    MUTATION: move the ``prepare_persona_updated`` call in ``AgentStore.save``
+    below ``_write_model`` (project after the write) — this goes red.
+    """
+
+    from agent_runtime import paths
+    from agent_runtime.state_patches import persona as persona_lane
+    from agent_runtime.stream.fingerprint import FAMILY_SCOPE, scope_reading
+
+    before = scope_reading(with_sessions=False).families[FAMILY_SCOPE]
+    seen: list[tuple[bool, bool]] = []
+    project = persona_lane.project_persona_wire_row
+
+    def watching(persona):
+        moved = scope_reading(with_sessions=False).families[FAMILY_SCOPE] != before
+        seen.append((paths.agent_path(_COPY_ID).exists(), moved))
+        return project(persona)
+
+    monkeypatch.setattr(persona_lane, "project_persona_wire_row", watching)
+
+    batch = _save_batch(_copy_persona())
+
+    assert seen == [(False, False)], "the row is projected before the record lands"
+    assert paths.agent_path(_COPY_ID).is_file()
+    assert scope_reading(with_sessions=False).families[FAMILY_SCOPE] != before
+    assert [event.type for event in batch] == [STATE_PATCHED_EVENT_TYPE, "persona.updated"]
+    assert (batch[0].payload["op"], batch[0].payload["created"]) == (PATCH_OP_UPSERT, True)
