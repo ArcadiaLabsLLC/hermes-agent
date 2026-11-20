@@ -39,10 +39,10 @@ def _plan_line(entry: dict) -> str:
     return line
 
 
-def _seat_line(seat: dict) -> str:
+def _seat_line(seat: dict, *, dry_run: bool) -> str:
     where = ", ".join(seat["office_actors"]) or "no office desk"
     return (f"seat {seat['instance_id']}: follows its agent {seat['persona_id']} — "
-            f"office {where}; {seat['chats']} chat(s) restamped"
+            f"office {where}; {seat['chats']} chat(s) {'to restamp' if dry_run else 'restamped'}"
             + "".join(f"; office {failed['actor']} REFUSED ({failed['error']})" for failed in seat.get("office_failed", [])))
 
 
@@ -61,5 +61,5 @@ def _cmd_persona_sort_shipped(args) -> int:
         for entry in plan:
             print(f"  {_plan_line(entry)}")
         for seat in seats:
-            print(f"  {_seat_line(seat)}")
+            print(f"  {_seat_line(seat, dry_run=bool(args.dry_run))}")
     return 1 if any("refused" in entry for entry in plan) else 0

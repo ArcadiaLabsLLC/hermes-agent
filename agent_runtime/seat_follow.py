@@ -79,7 +79,7 @@ def _chat_scopes(instance: Any) -> list[Any]:
 
 
 @contextmanager
-def _session_db(scope: Any, *, write: bool) -> Iterator[Any]:
+def _seat_chat_db(scope: Any, *, write: bool) -> Iterator[Any]:
     from .chat_session_scope import SessionDbAccess, open_chat_session_db
 
     db = open_chat_session_db(scope, access=SessionDbAccess.WRITE if write else SessionDbAccess.READ)
@@ -90,34 +90,55 @@ def _session_db(scope: Any, *, write: bool) -> Iterator[Any]:
         yield db
 
 
-def _stale_chat_ids(db: Any, instance: Any) -> list[str]:
+def _moved_from(instance: Any) -> str | None:
+    """The agent a seat was moved away from, when its record still says so: the
+    ``based_on`` of the copy it now sits under (``persona sort-shipped``'s Beta copy)."""
+
+    from .store import AgentStore
+
+    try:
+        based_on = AgentStore().get(instance.persona_id).based_on
+    except Exception:  # no record (a template seat, an unreadable file): nothing to follow from
+        return None
+    origin = based_on.get("id") if isinstance(based_on, dict) else None
+    return origin if isinstance(origin, str) and origin and origin != instance.persona_id else None
+
+
+def _stale_chat_ids(db: Any, instance: Any, moved_from: str) -> list[str]:
+    """The seat's chats stamped with ``moved_from``. Only that agent's stamp moves: a chat
+    the seat holds under any other stamp was bound to it some other way and is left alone
+    (seen 2026-11-20: a probe instance's chat bound by an id-prefix match to ``personainst_qa``)."""
+
     from .instance_sessions import instance_session_clause
 
     clause, args = instance_session_clause(instance.id)
     rows = db._read_all(
         "SELECT id FROM sessions WHERE (model_config IS NULL OR json_valid(model_config)) AND " + clause
-        + " AND COALESCE(json_extract(model_config,'$.persona_id'),'') NOT IN ('',?) ORDER BY id",
-        [*args, instance.persona_id])
+        + " AND json_extract(model_config,'$.persona_id')=? ORDER BY id", [*args, moved_from])
     return [row["id"] for row in rows]
 
 
-def _stale_chats(instance: Any) -> list[tuple[Any, list[str]]]:
+def _stale_chats(instance: Any, moved_from: str | None) -> list[tuple[Any, list[str]]]:
+    if not moved_from or moved_from == instance.persona_id:
+        return []
     found = []
     for scope in _chat_scopes(instance):
-        with _session_db(scope, write=False) as db:
-            ids = _stale_chat_ids(db, instance) if db is not None else []
+        with _seat_chat_db(scope, write=False) as db:
+            ids = _stale_chat_ids(db, instance, moved_from) if db is not None else []
         if ids:
             found.append((scope, ids))
     return found
 
 
 def seat_drift(instance: Any, *, office: Any = None) -> SeatDrift:
-    """Read only: what of ``instance`` names another agent than its record."""
+    """Read only: what of ``instance`` still names another agent than its record — any
+    office actor naming another agent, and the chats stamped with the agent it was moved
+    away from (its copy's ``based_on``)."""
 
     from .office_store.store import OfficeStore
 
     actors = _stale_actors(office or OfficeStore(), instance)
-    chats = [chat for _, ids in _stale_chats(instance) for chat in ids]
+    chats = [chat for _, ids in _stale_chats(instance, _moved_from(instance)) for chat in ids]
     return SeatDrift(instance.id, instance.persona_id,
                      tuple(f"{actor.workspace_id}/{actor.actor_key}" for actor in actors), tuple(sorted(chats)))
 
@@ -153,8 +174,11 @@ def _restamp(db: Any, ids: list[str], persona_id: str) -> None:
         [persona_id, *ids]))
 
 
-def follow_seat(instance_id: str) -> SeatDrift:
+def follow_seat(instance_id: str, *, moved_from: str | None = None) -> SeatDrift:
     """Bring the seat's office actors and chat stamps to the agent its record names.
+
+    ``moved_from`` is the agent the seat was just moved away from (the re-point knows
+    it); absent, it is the seat's copy's ``based_on`` (the repair of an earlier move).
 
     Returns what it moved (falsy when the seat was already in step); an office actor
     whose write is refused is named under ``office_failed`` and the rest still move.
@@ -176,8 +200,8 @@ def follow_seat(instance_id: str) -> SeatDrift:
         else:
             followed.append(key)
     moved: list[str] = []
-    for scope, ids in _stale_chats(instance):
-        with _session_db(scope, write=True) as db:
+    for scope, ids in _stale_chats(instance, moved_from or _moved_from(instance)):
+        with _seat_chat_db(scope, write=True) as db:
             if db is not None:
                 _restamp(db, ids, instance.persona_id)
                 moved.extend(ids)

@@ -127,7 +127,7 @@ def test_an_install_sorted_before_seats_followed_is_repaired_by_a_second_run(own
     from hermes_cli.harness_parts.persona import shipped_commands
 
     # The sort as it ran on the owner's install: the seat record moved, nothing else.
-    monkeypatch.setattr(agent_duplicate, "follow_seat", lambda instance_id: None)
+    monkeypatch.setattr(agent_duplicate, "follow_seat", lambda instance_id, **_: None)
     monkeypatch.setattr(shipped_commands, "stray_seats", lambda: [])
     _sort(capsys)
     monkeypatch.undo()
@@ -178,3 +178,28 @@ def test_a_refused_desk_is_named_and_the_seats_chats_still_move(owner_shaped_roo
     assert owner_shaped_root["chats"]["ws_testv4"] in _history(copy.id)
     drift = seat_follow.seat_drift(PersonaInstanceStore().get(seat.id))
     assert drift.office_actors == (f"ws_testv4/{seat.id}",) and drift.chats == ()
+
+
+def test_a_seat_chat_stamped_with_a_third_agent_is_left_where_it_is(owner_shaped_root, capsys):
+    # Seen 2026-11-20: a probe instance's chat bound by an id-prefix match to another seat.
+    seat = owner_shaped_root["seats"]["ws_default"]
+    stray = f"persona_chat_{seat.id}_0000000000ff"
+    _chat(stray, "qa_agent")
+
+    _sort(capsys)
+
+    assert stray in _history("qa_agent")
+    assert stray not in _history(BETA)
+    assert _sort(capsys, "--dry-run")["seats"] == []
+
+
+def test_a_seat_moved_to_an_agent_with_no_based_on_still_takes_its_chats(owner_shaped_root):
+    # The fold into a shipped reference re-points seats at an agent that records no based_on.
+    from agent_runtime.agent_duplicate import _repoint
+
+    other = AgentStore().save(AgentPersona("other", "Other Agent", "agent", None, None, None))
+    seat = owner_shaped_root["seats"]["ws_default"]
+    _repoint(seat.id, other)
+
+    assert owner_shaped_root["chats"]["ws_default"] in _history("other")
+    assert OfficeStore().get_actor("ws_default", seat.id).persona_id == "other"

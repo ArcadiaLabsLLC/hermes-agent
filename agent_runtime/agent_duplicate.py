@@ -160,12 +160,14 @@ def _check_instance(instance_id: str, source: AgentPersona) -> None:
 
 
 def _repoint(instance_id: str, copy: AgentPersona) -> str:
-    PersonaInstanceStore().patch_fields(
+    store = PersonaInstanceStore()
+    moved_from = store.get(instance_id).persona_id
+    store.patch_fields(
         instance_id, persona_id=copy.id, profile_id=copy.hermes_profile,
         display_name=copy.display_name, role=copy.role,
     )
     # The seat's office desk and its chats move with it (``seat_follow``).
-    follow_seat(instance_id)
+    follow_seat(instance_id, moved_from=moved_from)
     return instance_id
 
 
