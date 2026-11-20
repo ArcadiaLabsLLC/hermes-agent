@@ -154,7 +154,7 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
         if str(getattr(instance, "id", "") or "") == token:
             persona = personas_by_id.get(str(getattr(instance, "persona_id", "") or ""))
             detail = persona_instance_tool_detail(instance, persona, roster=ensure_persisted_personas)
-            return None if detail is None else {**detail, **directory_fields(persona)}
+            return None if detail is None else {**detail, **directory_fields(persona, instance)}
     persona = personas_by_id.get(token)
     if persona is not None:
         return {**_agent_tool_detail(persona), **directory_fields(persona)}

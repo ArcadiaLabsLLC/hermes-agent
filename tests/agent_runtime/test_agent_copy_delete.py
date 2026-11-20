@@ -128,7 +128,7 @@ def test_a_shipped_agent_is_refused(shipped, qa_persona):
 
 
 def test_a_duplicate_of_a_shipped_agent_is_a_copy_and_goes(shipped, qa_persona):
-    # MUTATION: drop the owner marker ``agent_duplicate._stage_profile`` writes -> red:
+    # MUTATION: drop the owner marker ``agent_duplicate._stage_duplicate_profile`` writes -> red:
     # the duplicate's profile is ``not_its_own`` and stays to be found again.
     dup = _rpc("runtime.agent.duplicate", persona_id="neko_supervisor", name="Neko Beta")["result"]
     home = Path(get_profile_dir(dup["profile"]))

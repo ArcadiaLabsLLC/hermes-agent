@@ -60,7 +60,7 @@ def _instances_of(persona_id: str) -> tuple[list[str], list[str]]:
     return sorted(placed), sorted(canonical)
 
 
-def _entry(shipped: ShippedAgent, stored: dict[str, AgentPersona], names: dict[str, str], roster) -> dict[str, Any]:
+def _sort_entry(shipped: ShippedAgent, stored: dict[str, AgentPersona], names: dict[str, str], roster) -> dict[str, Any]:
     from ..agent_duplicate import name_is_taken
 
     record = stored.get(shipped.id)
@@ -96,7 +96,7 @@ def plan_sort(names: dict[str, str] | None = None) -> list[dict[str, Any]]:
 
     roster = ensure_persisted_personas()
     stored = {persona.id: persona for persona in AgentStore().list_all()}
-    return [_entry(shipped, stored, names or {}, roster) for shipped in SHIPPED_AGENTS]
+    return [_sort_entry(shipped, stored, names or {}, roster) for shipped in SHIPPED_AGENTS]
 
 
 def place_shipped(shipped: ShippedAgent, store) -> dict[str, Any] | None:
@@ -121,7 +121,7 @@ def place_shipped(shipped: ShippedAgent, store) -> dict[str, Any] | None:
     return None
 
 
-def _copy(entry: dict[str, Any], shipped: ShippedAgent, record: AgentPersona, store) -> dict[str, Any]:
+def _copy_aside(entry: dict[str, Any], shipped: ShippedAgent, record: AgentPersona, store) -> dict[str, Any]:
     from ..agent_duplicate import _repoint, duplicate_agent
 
     copy = duplicate_agent(shipped.id, entry["copy_name"]).persona
@@ -129,6 +129,32 @@ def _copy(entry: dict[str, Any], shipped: ShippedAgent, record: AgentPersona, st
         _repoint(instance_id, copy)
     store.save(reference_record(shipped, settings=record))
     return {**entry, "copy_id": copy.id, "copy_profile": copy.hermes_profile}
+
+
+def _fold_found(entry: dict[str, Any], shipped: ShippedAgent, stored: dict[str, AgentPersona], store) -> dict[str, Any]:
+    """Fold the unedited agent profile discovery made over the shipped agent's profile, if any."""
+
+    if not entry.get("fold"):
+        return entry
+    return {**entry, "folded": fold_discovered(shipped, stored[entry["fold"]], store)}
+
+
+def _adopt(entry: dict[str, Any], shipped: ShippedAgent, stored: dict[str, AgentPersona], store) -> dict[str, Any]:
+    store.save(replace(stored[shipped.id], origin="eternia"))
+    return _fold_found(entry, shipped, stored, store)
+
+
+def _place(entry: dict[str, Any], shipped: ShippedAgent, stored: dict[str, AgentPersona], store) -> dict[str, Any]:
+    folded = place_shipped(shipped, store)
+    return entry if folded is None else {**entry, "folded": folded}
+
+
+def _copy_then_fold(entry: dict[str, Any], shipped: ShippedAgent, stored: dict[str, AgentPersona], store) -> dict[str, Any]:
+    return _fold_found(_copy_aside(entry, shipped, stored[shipped.id], store), shipped, stored, store)
+
+
+# What each planned action writes; an action not here ("none") or a refused entry writes nothing.
+_SORT_ACTIONS = {"adopt": _adopt, "place": _place, "copy": _copy_then_fold, "fold": _fold_found}
 
 
 def apply_sort(names: dict[str, str] | None = None) -> list[dict[str, Any]]:
@@ -141,17 +167,8 @@ def apply_sort(names: dict[str, str] | None = None) -> list[dict[str, Any]]:
     receipt: list[dict[str, Any]] = []
     for entry in plan_sort(names):
         shipped = next(agent for agent in SHIPPED_AGENTS if agent.id == entry["persona_id"])
-        action = entry["action"] if "refused" not in entry else "none"
-        folded = None
-        if action == "adopt":
-            store.save(replace(stored[shipped.id], origin="eternia"))
-        elif action == "place":
-            folded = place_shipped(shipped, store)
-        elif action == "copy":
-            entry = _copy(entry, shipped, stored[shipped.id], store)
-        if action in {"adopt", "copy", "fold"} and entry.get("fold"):
-            folded = fold_discovered(shipped, stored[entry["fold"]], store)
-        if folded is not None:
-            entry = {**entry, "folded": folded}
-        receipt.append({**entry, "applied": action != "none"})
+        apply = None if "refused" in entry else _SORT_ACTIONS.get(entry["action"])
+        if apply is not None:
+            entry = apply(entry, shipped, stored, store)
+        receipt.append({**entry, "applied": apply is not None})
     return receipt
