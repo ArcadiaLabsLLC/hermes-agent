@@ -32,7 +32,14 @@ A slot is ``hermes/v1/<profile>/<path relative to the store root>``: the profile
 host bound, then the exact store path — so ``auth.json`` under a moved
 ``HERMES_AUTH_HOME`` and the one under ``HERMES_HOME`` are different slots, and two
 profiles never share one. Paths are relative to the store root so a phone's app
-container moving (iOS re-homes it on update) keeps every slot. A path outside the
+container moving (iOS re-homes it on update) keeps every slot. Both the root and every path are
+compared by their real location (links resolved, :func:`canonical_path`), so one file reached
+through two spellings is ONE slot: Android hands the app ``/data/user/0/<app>``, a link to
+``/data/data/<app>``, and iOS's ``/var`` is a link to ``/private/var``; a reader that resolved
+its path (an agent's profile reads its sign-ins at the resolved shared-auth home,
+``agent_runtime.provider_credentials.bound_provider_home``) must find what the sign-in wrote
+under the spelling the host bound (Eternia row
+``MC-PHONE-AGENT-CANNOT-PICK-A-MODEL-FROM-A-PROVIDER-SIGNED-IN-ON-THE-PHONE``). A path outside the
 store root has no slot: reads of it are refused and writes raise, which is also what
 refuses the machine-wide borrowed stores (``~/.claude``, ``~/.codex``, ``~/.qwen``).
 """
@@ -88,8 +95,11 @@ class HostStoreBinding:
 
     def relative(self, path: os.PathLike[str] | str) -> str:
         """*path* relative to the store root, POSIX-spelled; raises :class:`OutsideStoreRoot`."""
-        target = Path(os.path.abspath(os.fspath(path)))
+        target = canonical_path(path)
         try:
+            # MUTATION: key by ``Path(os.path.abspath(...))`` here AND in ``bind_host_store`` (the binding
+            # before 2026-11-20) and test_phone_signin_reaches_every_agent's linked, own-profile case
+            # reddens with the phone's symptom: the agent is offered no Codex model.
             rel = target.relative_to(self.store_root)
         except ValueError:
             raise OutsideStoreRoot(f"{target} is outside the host store root {self.store_root}") from None
@@ -97,6 +107,10 @@ class HostStoreBinding:
         if spelled in ("", "."):
             raise OutsideStoreRoot(f"{target} is the store root itself, not a store path")
         return spelled.lower() if os.name == "nt" else spelled  # NTFS is case-insensitive: one slot per file
+
+    def contains(self, path: os.PathLike[str] | str) -> bool:
+        """Whether *path* lies under the store root (the root itself included), by real location."""
+        return canonical_path(path).is_relative_to(self.store_root)
 
     def slot(self, path: os.PathLike[str] | str) -> str:
         return f"{SLOT_PREFIX}/{self.profile}/{self.relative(path)}"
@@ -107,7 +121,7 @@ class HostStoreBinding:
         Raises :class:`HistoryProtectionMissing` when the host supplied no callback, and
         :class:`OutsideStoreRoot` when *path* is not under the store root."""
         target = Path(os.path.abspath(os.fspath(path)))
-        if not target.is_relative_to(self.store_root):
+        if not self.contains(target):
             raise OutsideStoreRoot(f"{target} is outside the host store root {self.store_root}")
         protect = self.callbacks.protect_history_dir
         if protect is None:
@@ -116,6 +130,15 @@ class HostStoreBinding:
                 "without the OS's file protection and could reach a cloud backup")
         protect(str(target))
         return target
+
+
+def canonical_path(path: os.PathLike[str] | str) -> Path:
+    """*path*'s real location: absolute, links resolved (a missing tail is kept as spelled).
+
+    The ONE path identity of the host store: the root is bound by it and every slot is keyed by
+    it, so a link in the app folder's path (see the module doc) never splits one file into two
+    slots, or puts a file inside the root "outside" it."""
+    return Path(os.path.realpath(os.fspath(path)))
 
 
 _LOCK = threading.Lock()
@@ -128,7 +151,7 @@ def bind_host_store(callbacks: HostStoreCallbacks, *, profile: str,
     global _BINDING
     if not isinstance(profile, str) or not _PROFILE_RE.match(profile):
         raise HostStoreError(f"profile {profile!r} is not a valid slot namespace")
-    root = Path(os.path.abspath(os.fspath(store_root)))
+    root = canonical_path(store_root)
     binding = HostStoreBinding(callbacks=callbacks, profile=profile, store_root=root)
     with _LOCK:
         if _BINDING is not None:

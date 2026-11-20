@@ -249,7 +249,7 @@ def require_bound_host_store(home: Path | None = None) -> None:
 
     bound = require()
     home = Path(os.path.abspath(home if home is not None else get_hermes_home()))
-    if not home.is_relative_to(bound.store_root):
+    if not bound.contains(home):
         raise OutsideStoreRoot(f"Hermes home {home} is not under the host store root {bound.store_root}")
 
 
