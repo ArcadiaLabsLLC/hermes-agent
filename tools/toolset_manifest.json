@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "tools": {
+    "agent_add_instance": "agent_chat",
     "agent_chat_dispatches": "agent_chat",
     "agent_chat_installs": "agent_chat",
     "agent_chat_log_path": "agent_chat",
@@ -84,6 +85,7 @@
   },
   "modules": {
     "agent_chat_tool": [
+      "agent_add_instance",
       "agent_chat_dispatches",
       "agent_chat_installs",
       "agent_chat_log_path",

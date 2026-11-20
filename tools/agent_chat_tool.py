@@ -59,6 +59,10 @@ from tools.agent_chat.detached import (
     agent_chat_dispatches,
     _async_delivery_available,
 )
+from tools.agent_chat.instances import (
+    AGENT_ADD_INSTANCE_SCHEMA,
+    agent_add_instance,
+)
 from tools.agent_chat.lane import (
     session_belongs_to_chat_lane,
 )
@@ -93,9 +97,10 @@ from tools.registry import registry
 __layer__ = "wiring"
 
 #: What this entry re-exports: every name a caller or test spelled on the old
-#: module. The handlers live in ``tools/agent_chat/``; this file is the seven
+#: module. The handlers live in ``tools/agent_chat/``; this file is the eight
 #: registrations upstream discovery scans for (``tools/registry.py``).
 __all__ = [
+    "AGENT_ADD_INSTANCE_SCHEMA",
     "AGENT_CHAT_DISPATCHES_SCHEMA",
     "AGENT_CHAT_INSTALLS_SCHEMA",
     "AGENT_CHAT_LOG_PATH_SCHEMA",
@@ -106,6 +111,7 @@ __all__ = [
     "_MESSAGE_LIMIT",
     "_REPLY_LIMIT",
     "_async_delivery_available",
+    "agent_add_instance",
     "agent_chat_dispatches",
     "agent_chat_installs",
     "agent_chat_log_path",
@@ -221,4 +227,18 @@ registry.register(
     ),
     description="Read-only harness lookup: roster, one instance, its chat sessions' runtime state, live QA sessions.",
     emoji="🔎",
+)
+
+registry.register(
+    name="agent_add_instance",
+    toolset="agent_chat",
+    schema=AGENT_ADD_INSTANCE_SCHEMA,
+    handler=lambda args, **kw: agent_add_instance(
+        agent=args.get("agent"),
+        workspace=args.get("workspace"),
+        count=args.get("count"),
+        requested_by_session=kw.get("session_id"),
+    ),
+    description="Add instances of an agent to a workspace (idle ones reused first).",
+    emoji="➕",
 )

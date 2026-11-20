@@ -28,6 +28,7 @@ from agent_runtime.persona_assignments.identity import (
     is_canonical_persona_channel,
     persona_chat_session_id_for,
 )
+from agent_runtime.request_actor import REALM_SYNC_ACTOR, removal_activity
 from agent_runtime.serde import dedupe_tokens, safe_assignment_text, safe_optional_token
 from agent_runtime.state_patches.persona_instance import (
     emit_persona_instance_create,
@@ -248,6 +249,12 @@ def retire_replica(
         "mode": instance.mode,
         "archive_dir": str(archive_dir),
         "source": "realm_sync",
+        # A removal synced from the realm: the realm is who removed it here, never null
+        # (RT-RETIRED-AGENT-RECORD-SAYS-WHO-REMOVED-IT).
+        "requested_by": REALM_SYNC_ACTOR,
+        "activity": removal_activity(
+            REALM_SYNC_ACTOR, agent_name=instance.display_name, workspace_id=instance.workspace_id
+        ),
     }
     if realm_id:
         payload["realm_id"] = str(realm_id)

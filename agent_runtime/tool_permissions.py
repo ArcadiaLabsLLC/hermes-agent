@@ -64,9 +64,13 @@ logger = logging.getLogger(__name__)
 #: (RT-COURSE-TOOLS-NOT-MUTATING): ``course_commit`` pushes to a git remote,
 #: ``course_pull_request`` opens a PR, and ``course_checkout`` writes (and
 #: fast-forwards) a local working tree — a write ``write_file`` would be blocked for.
+#: ``agent_add_instance`` joined 2026-11-20 (RT-AGENTS-HAVE-A-TOOL-TO-ADD-AN-INSTANCE): it seats agents
+#: on the level — an office write — so a read-only chat may not staff a workspace.
 #: The tools that write a file: Lens can undo exactly these, and a turn holding one can mutate files.
 FILE_WRITE_TOOLS = frozenset({"apply_patch", "edit_file", "file.edit", "file.write", "patch", "write_file"})
-READ_ONLY_BLOCKS = FILE_WRITE_TOOLS | {"course_checkout", "course_commit", "course_pull_request", "terminal"}
+READ_ONLY_BLOCKS = FILE_WRITE_TOOLS | {
+    "agent_add_instance", "course_checkout", "course_commit", "course_pull_request", "terminal",
+}
 
 #: ``permission_source`` for an answer that came from the runtime default rather
 #: than from any stored record. Replaces the old ``persona_role_policy``

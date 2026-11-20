@@ -55,7 +55,10 @@ HARNESS_CORE_MEMBERS = [
 # browser_vault: 44 -> 34, re-measured.
 # FH-HARNESS-CORE-BROWSER-AFTER-V0231 (RULED owner 2026-11-10): ``browser-use`` joins harness_core so
 # personas keep a browser through its successor ``browser_exec``: 34 -> 35, re-measured.
-DECLARED_TOOL_COUNT = 35
+# RT-AGENTS-HAVE-A-TOOL-TO-ADD-AN-INSTANCE (2026-11-20, review w1118a.53 D8, owner "it needs a first class
+# row"): ``agent_add_instance`` joins ``agent_chat``, so a lead agent staffs a wave without its terminal:
+# 35 -> 36, re-measured.
+DECLARED_TOOL_COUNT = 36
 # Upstream's canonical tool names and refreshed manifest: same 44 declared
 # tools, measured name/schema estimate +13 tokens (1177 -> 1190).
 # HQ1 (2026-10-01) added ``harness_query`` to ``agent_chat``: 45 tools,
@@ -85,7 +88,8 @@ DECLARED_TOOL_COUNT = 35
 # FH-HARNESS-CORE-BROWSER-AFTER-V0231 (2026-11-10): ``browser_exec``'s schema joins, re-measured: 6988 -> 7163.
 # RT-A-LEADS-STOP-TO-A-BUSY-HELPER-COMES-BACK-AS-WORK-FAILED (2026-11-20): ``agent_chat_dispatches`` takes
 # ``cancel`` (a lead stops its own running dispatch), re-measured: 7163 -> 7191.
-DECLARED_TOKEN_ESTIMATE = 7191
+# RT-AGENTS-HAVE-A-TOOL-TO-ADD-AN-INSTANCE (2026-11-20): ``agent_add_instance``'s schema joins, re-measured: 7191 -> 7322.
+DECLARED_TOKEN_ESTIMATE = 7322
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

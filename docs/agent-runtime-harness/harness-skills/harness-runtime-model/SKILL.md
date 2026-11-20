@@ -144,11 +144,11 @@ sections — gone, not missing.
 
 <!-- BEGIN GENERATED: harness_core inventory -->
 
-35 tools · generated from the registry by `scripts/emit_harness_tool_inventory.py` · do not edit by hand. If a tool exists for it, the tool is the answer; the full table with descriptions is `references/tool-inventory.md`.
+36 tools · generated from the registry by `scripts/emit_harness_tool_inventory.py` · do not edit by hand. If a tool exists for it, the tool is the answer; the full table with descriptions is `references/tool-inventory.md`.
 
 | toolset | tools | use it for |
 |---|---|---|
-| `agent_chat` | `agent_chat_dispatches` · `agent_chat_installs` · `agent_chat_log_path` · `agent_chat_open` · `agent_chat_send` · `agent_chat_threads` · `harness_query` | teammates: list, message, read, dispatches, transcript path; `harness_query` for roster / instance / sessions / live QA lookups |
+| `agent_chat` | `agent_add_instance` · `agent_chat_dispatches` · `agent_chat_installs` · `agent_chat_log_path` · `agent_chat_open` · `agent_chat_send` · `agent_chat_threads` · `harness_query` | teammates: list, message, read, dispatches, transcript path; `harness_query` for roster / instance / sessions / live QA lookups |
 | `board` | `board_card_add` · `board_cards` | record follow-up work — planning state only |
 | `clarify` | `clarify` | ask the operator a question mid-turn |
 | `delegation` | `delegate_task` | hand a bounded subtask to a helper with fresh context |
