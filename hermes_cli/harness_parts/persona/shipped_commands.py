@@ -32,7 +32,10 @@ def _line(entry: dict) -> str:
             f"kept as '{entry['copy_name']}' with instances {entry['instances_moved'] or 'none'}, "
             f"the shipped '{entry['shipped_name']}' takes the id (keeps {entry['instances_kept'] or 'no'} own channel)"
         )
-    return f"{entry['persona_id']}: {action}" + (f" — {entry['why']}" if entry.get("why") else "")
+    line = f"{entry['persona_id']}: {action}" + (f" — {entry['why']}" if entry.get("why") else "")
+    if entry.get("fold"):
+        line += f" — folds '{entry['fold']}', the agent found on its profile, into it"
+    return line
 
 
 def _cmd_persona_sort_shipped(args) -> int:

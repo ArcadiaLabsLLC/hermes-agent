@@ -17,6 +17,11 @@ boot:
   persona's old chats).
 * ``place`` — the install holds no record under the id: the shipped reference is
   added (owner: "also place the shipped Neko in the owner's namespace").
+* ``fold`` — profile discovery made an agent of the shipped agent's profile
+  (``profile_base`` over ``base``) and nobody edited it: it is folded into the
+  shipped agent (``fold_discovered``), so the install lists one Base. A ``place``
+  folds it too, and says so under ``fold``; ``place_shipped`` is the one door, so a
+  realm pull that places a shipped agent folds it as well (review w1118a.44 D4).
 
 Settings (model, provider, reasoning mode, budgets) are never a difference and
 stay on the reference. Nothing is deleted.
@@ -29,6 +34,7 @@ from typing import Any
 
 from ..models import AgentPersona
 from .catalog import SHIPPED_AGENTS, ShippedAgent
+from .fold_discovered import discovered_over, fold_discovered
 from .resolve import _definition, _soul_edited, reference_record, shipped_reference
 
 __layer__ = "stores"
@@ -54,13 +60,19 @@ def _instances_of(persona_id: str) -> tuple[list[str], list[str]]:
     return sorted(placed), sorted(canonical)
 
 
-def _entry(shipped: ShippedAgent, record: AgentPersona | None, names: dict[str, str], roster) -> dict[str, Any]:
+def _entry(shipped: ShippedAgent, stored: dict[str, AgentPersona], names: dict[str, str], roster) -> dict[str, Any]:
     from ..agent_duplicate import name_is_taken
 
+    record = stored.get(shipped.id)
     entry: dict[str, Any] = {"persona_id": shipped.id, "shipped_name": shipped.name}
+    discovered = discovered_over(shipped, stored)
+    if discovered is not None:
+        entry["fold"] = discovered.id
     if record is None:
         return {**entry, "action": "place"}
     if shipped_reference(record) is not None:
+        if discovered is not None:
+            return {**entry, "action": "fold"}
         return {**entry, "action": "none", "why": "already a reference"}
     differences = _differences(record, shipped)
     placed, canonical = _instances_of(shipped.id)
@@ -84,11 +96,15 @@ def plan_sort(names: dict[str, str] | None = None) -> list[dict[str, Any]]:
 
     roster = ensure_persisted_personas()
     stored = {persona.id: persona for persona in AgentStore().list_all()}
-    return [_entry(shipped, stored.get(shipped.id), names or {}, roster) for shipped in SHIPPED_AGENTS]
+    return [_entry(shipped, stored, names or {}, roster) for shipped in SHIPPED_AGENTS]
 
 
-def place_shipped(shipped: ShippedAgent, store) -> None:
-    """Add the shipped reference (staging its profile when none exists)."""
+def place_shipped(shipped: ShippedAgent, store) -> dict[str, Any] | None:
+    """Add the shipped reference (staging its profile when none exists).
+
+    An unedited discovered persona over its profile is folded into it; returns that
+    fold's receipt, or ``None`` when there was none.
+    """
 
     from hermes_cli.profiles import get_profile_dir
 
@@ -98,7 +114,11 @@ def place_shipped(shipped: ShippedAgent, store) -> None:
     home = get_profile_dir(shipped.definition["hermes_profile"])
     if soul is not None and not (home.exists() or home.is_symlink()):
         stage_shipped_profile(home, soul, shipped.id)
+    discovered = discovered_over(shipped, {persona.id: persona for persona in store.list_all()})
+    if discovered is not None:
+        return fold_discovered(shipped, discovered, store)
     store.save(reference_record(shipped))
+    return None
 
 
 def _copy(entry: dict[str, Any], shipped: ShippedAgent, record: AgentPersona, store) -> dict[str, Any]:
@@ -122,11 +142,16 @@ def apply_sort(names: dict[str, str] | None = None) -> list[dict[str, Any]]:
     for entry in plan_sort(names):
         shipped = next(agent for agent in SHIPPED_AGENTS if agent.id == entry["persona_id"])
         action = entry["action"] if "refused" not in entry else "none"
+        folded = None
         if action == "adopt":
             store.save(replace(stored[shipped.id], origin="eternia"))
         elif action == "place":
-            place_shipped(shipped, store)
+            folded = place_shipped(shipped, store)
         elif action == "copy":
             entry = _copy(entry, shipped, stored[shipped.id], store)
+        if action in {"adopt", "copy", "fold"} and entry.get("fold"):
+            folded = fold_discovered(shipped, stored[entry["fold"]], store)
+        if folded is not None:
+            entry = {**entry, "folded": folded}
         receipt.append({**entry, "applied": action != "none"})
     return receipt
