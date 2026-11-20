@@ -49,7 +49,7 @@ definition: display name, role, model/provider/api_mode, toolsets, skills,
 `hermes_profile`, budgets, readiness. Personas are **data**, from the config
 block (`agent_runtime/config/persona_records.py::persona_records_from_config`)
 merged with persisted store rows (`agent_runtime/config/roster.py::ensure_persisted_personas`, over
-`store.AgentStore` at `store/base.py:234`). Nothing in code declares them — S11 left
+`agent_runtime/store/base.py::AgentStore`). Nothing in code declares them — S11 left
 `DEFAULT_PERSONA_IDS`, `BASE_PERSONA_ID`, `DEFAULT_SUPERVISOR_PERSONA_ID`,
 `ALLOWED_TOOLSETS_BY_ROLE` and `PER_ROLE_TOOL_DENIES` as scoped tombstone rows
 against `agent_runtime.personas` (`tests/agent_runtime/test_tombstone_registry.py`,

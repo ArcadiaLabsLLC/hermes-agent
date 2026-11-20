@@ -300,7 +300,7 @@ class AgentStore:
         # Only appends: the record and its two events land back to back.
         # MUTATION: move the ``prepare_persona_updated`` call below ``_write_model``
         # and test_an_agent_create_projects_its_row_before_its_record_lands reddens.
-        update.emit(self.event_log)
+        update.append(self.event_log)
         return persona
 
     # A record that references a shipped agent loads with the build's definition

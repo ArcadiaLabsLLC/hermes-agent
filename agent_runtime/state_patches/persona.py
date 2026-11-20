@@ -128,7 +128,7 @@ class PreparedPersonaUpdated:
     watchdog's ``scope`` fingerprint that long with no event beside it, and a
     heartbeat in that gap reconciled it as an uncovered ``scope`` move — a full
     core for every subscriber (2 of 4 adds). So the writer projects FIRST
-    (:func:`prepare_persona_updated`), then writes, then calls :meth:`emit`, which
+    (:func:`prepare_persona_updated`), then writes, then calls :meth:`append`, which
     only appends: the record and its two events land back to back.
     """
 
@@ -149,7 +149,7 @@ class PreparedPersonaUpdated:
         self._row = row
         self._config = config
 
-    def emit(self, event_log: EventLog) -> None:
+    def append(self, event_log: EventLog) -> None:
         """Append the paired patch, then the event. No projection happens here."""
 
         try:
@@ -183,7 +183,7 @@ def prepare_persona_updated(
     created: Any = None,
     config: AgentRuntimeConfig | None = None,
 ) -> PreparedPersonaUpdated:
-    """Project the ``persona.updated`` pair now; append it later with ``emit``.
+    """Project the ``persona.updated`` pair now; append it later with ``append``.
 
     ``created`` is the persona as it will read back after its FIRST write (its
     record did not exist); anything else — an edit, a departure — is ``None`` and
@@ -228,4 +228,4 @@ def emit_persona_updated(
 
     prepare_persona_updated(
         persona_id=persona_id, display_name=display_name, created=created, config=config
-    ).emit(event_log)
+    ).append(event_log)
