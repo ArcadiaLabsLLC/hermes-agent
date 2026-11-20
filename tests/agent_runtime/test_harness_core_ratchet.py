@@ -88,8 +88,8 @@ DECLARED_TOOL_COUNT = 36
 # FH-HARNESS-CORE-BROWSER-AFTER-V0231 (2026-11-10): ``browser_exec``'s schema joins, re-measured: 6988 -> 7163.
 # RT-A-LEADS-STOP-TO-A-BUSY-HELPER-COMES-BACK-AS-WORK-FAILED (2026-11-20): ``agent_chat_dispatches`` takes
 # ``cancel`` (a lead stops its own running dispatch), re-measured: 7163 -> 7191.
-# RT-AGENTS-HAVE-A-TOOL-TO-ADD-AN-INSTANCE (2026-11-20): ``agent_add_instance``'s schema joins, re-measured: 7191 -> 7322.
-DECLARED_TOKEN_ESTIMATE = 7322
+# RT-AGENTS-HAVE-A-TOOL-TO-ADD-AN-INSTANCE (2026-11-20): ``agent_add_instance``'s schema joins, re-measured: 7191 -> 7323.
+DECLARED_TOKEN_ESTIMATE = 7323
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

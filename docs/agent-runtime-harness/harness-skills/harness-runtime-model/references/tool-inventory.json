@@ -139,7 +139,7 @@
       "toolset": "agent_chat",
       "mutating": false,
       "gated": false,
-      "description": "List your in-flight and recent background dispatches (read-only)."
+      "description": "List your in-flight and recent background dispatches, or stop one of yours."
     },
     {
       "name": "agent_chat_installs",
@@ -383,7 +383,7 @@
   "counts": {
     "tools": 36,
     "toolsets": 17,
-    "token_estimate": 7294
+    "token_estimate": 7323
   },
   "cli_only_verbs": [
     "persona instance open-chat",
