@@ -1,7 +1,7 @@
 """p10-messaging M4: an exec approval on a bound root becomes a platform card, answered through the ONE resolve path.
 
-Upstream's real approval queue (``tools.approval``) under the fork's ``session_approval_scope``; the real
-``TelegramTransport`` over the recorded fake Bot API (never the network); the real binding/operator stores
+Upstream's real approval queue (``tools.approval``) under the fork's ``session_approval_scope``; a
+``RecordingTransport`` (``recording_transport.py``, never a platform); the real binding/operator stores
 on this test's isolated home. The exact-owner identity is a fake and ``respond_operator_approval`` is wrapped
 by a recorder that resolves through upstream's queue, so the test sees which door a press went through.
 """
@@ -12,7 +12,6 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
-import httpx
 import pytest
 
 from agent_runtime import operator_session_controls, paths, session_controls
@@ -21,24 +20,15 @@ from agent_runtime.messaging.bindings import Binding, BindingStore
 from agent_runtime.messaging.bridge import MessagingBridge
 from agent_runtime.messaging.models import Platform
 from agent_runtime.messaging.operators import Operator, OperatorStore
-from agent_runtime.messaging.telegram_api import TelegramTransport
 from agent_runtime.operator_conversation import OperatorConversationRefused
 from agent_runtime.session_controls import APPROVAL_CHOICES, approval_notifiers, session_approval_scope
 from agent_runtime.work_store.persona_turn import PersonaTurnExecutor
-from tests.agent_runtime.messaging.fake_bot_api import API_BASE, FakeBotApi
+from tests.agent_runtime.messaging.recording_transport import RecordingTransport
 from tests.waiting import wait_until
 
-TOKEN = "123456789:AAFakeTokenForTestsOnly_abcdefghijk"
 TG = Platform.TELEGRAM
 ROOTS = {"inst-alice": "persona_chat_root_alice", "inst-bob": "persona_chat_root_bob"}
 ROOT = ROOTS["inst-alice"]
-
-
-@pytest.fixture(autouse=True)
-def _no_network(monkeypatch):
-    def refuse(*_args, **_kwargs):
-        raise AssertionError("a messaging test reached the network")
-    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", refuse)
 
 
 @pytest.fixture(autouse=True)
@@ -60,8 +50,7 @@ class _Instances:
 
 @pytest.fixture
 def rig(monkeypatch):
-    api = FakeBotApi(TOKEN)
-    transport = TelegramTransport(TOKEN, client=api.client(), api_base=API_BASE, wait=lambda _s: False)
+    api = transport = RecordingTransport()
     turns = PersonaTurnExecutor(instances=_Instances(), root_of=lambda store, persona_instance_id, **_:
                                 ROOTS.get(persona_instance_id), wake=lambda: None)
     cards = ApprovalCards(transport, turns, identity=lambda root, iid: {"session_id": root, "persona_instance_id": iid})

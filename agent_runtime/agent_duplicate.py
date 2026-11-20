@@ -35,7 +35,7 @@ from .config import ensure_persisted_personas
 from .locks import agent_create_lock
 from .models import AgentPersona
 from .persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
-from .persona_assignments.independent import _carried_model_config
+from .persona_assignments.independent import _OWNER_FILE, _carried_model_config
 from .store import AgentStore
 
 __layer__ = "stores"
@@ -117,7 +117,7 @@ def _copy_entry(source: Path, target: Path) -> None:
         shutil.copy2(source, target)
 
 
-def _stage_profile(home: Path, source_home: Path | None, soul: str | None) -> None:
+def _stage_profile(home: Path, source_home: Path | None, soul: str | None, source_id: str) -> None:
     home.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=home.parent, prefix=f".{home.name}-") as temp:
         stage = Path(temp) / "profile"
@@ -128,6 +128,9 @@ def _stage_profile(home: Path, source_home: Path | None, soul: str | None) -> No
         config = _carried_model_config(source_home) if source_home is not None else {}
         (stage / "config.yaml").write_text(yaml_io.dump(config), encoding="utf-8")
         finish_profile_layout(stage, no_skills=False, clone_all=False, description=None, soul=soul)
+        # The copy's own profile carries the owner marker the independent create writes, so
+        # ``agent_copy_delete`` may remove it with the copy (RT-AN-INDEPENDENT-COPY-CANNOT-BE-DELETED).
+        (stage / _OWNER_FILE).write_text(f"duplicate\n{source_id}", encoding="utf-8")
         os.rename(stage, home)
 
 
@@ -177,7 +180,7 @@ def duplicate_agent(persona_id: str, name: str, *, instance_id: str | None = Non
         profile = _free_profile(slug)
         source_home = Path(get_profile_dir(source.hermes_profile)) if source.hermes_profile else None
         soul = shipped_soul_for_turn(source)
-        _stage_profile(get_profile_dir(profile), source_home, soul)
+        _stage_profile(get_profile_dir(profile), source_home, soul, source.id)
         copy = AgentStore().save(replace(
             source,
             id=_free_id(slug, roster),

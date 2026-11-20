@@ -1,8 +1,8 @@
-"""RT-MESSAGING-TELEGRAM-ON-UPSTREAM-ADAPTER-OPT-IN: the serve lane picks ONE Telegram transport from a setting.
+"""RT-MESSAGING-RETIRE-FORK-TELEGRAM: the serve lane's one Telegram transport is upstream's adapter behind the shim.
 
-``messaging_telegram_transport`` is ``fork`` (the default: the fork's own ``TelegramTransport``) or
-``upstream`` (upstream's adapter behind ``upstream_adapter_transport``). The first tests swap both factory
-rows for fakes; the last ones run the real ``_telegram_upstream`` factory through the lane against the local
+The fork's own httpx ``TelegramTransport`` and its ``messaging_telegram_transport`` choice are gone (the opt-in
+trial of RT-MESSAGING-TELEGRAM-ON-UPSTREAM-ADAPTER-OPT-IN passed). The first tests swap the factory row for a
+fake; the last ones run the real ``_telegram_upstream`` factory through the lane against the local
 Bot API stand-in (``fake_bot_api_server.FakeTelegram``), never the network, pointed there by the harness setting
 ``messaging_telegram_api_base`` (RT-MESSAGING-SERVE-CANNOT-USE-A-LOCAL-APP-API), which takes a loopback
 origin only.
@@ -20,13 +20,13 @@ import pytest
 
 from agent_runtime import chat_root_send_queue as send_queue
 from agent_runtime import paths
-from agent_runtime.harness_settings import PLUGIN_ID, harness_setting
+from agent_runtime.harness_settings import PLUGIN_ID
 from agent_runtime.messaging import credentials, rpc, serve_lane
 from agent_runtime.messaging.bindings import Binding, BindingStore
 from agent_runtime.messaging.models import Platform
 from agent_runtime.messaging.operators import Operator, OperatorStore
 from agent_runtime.messaging.refused import RefusedSenders
-from agent_runtime.messaging.serve_lane import LaneState, MessagingLane, TransportKind, transport_kind
+from agent_runtime.messaging.serve_lane import MessagingLane
 from agent_runtime.messaging.transport import MessageRef, SendResult
 from agent_runtime.work_store.persona_turn import PersonaTurnExecutor
 from tests.agent_runtime.messaging.fake_bot_api_server import FakeTelegram
@@ -36,7 +36,7 @@ from tests.agent_runtime.messaging._telegram_extra import require_telegram_extra
 TOKEN = "1234567890:AAFakeTokenForTheLaneOnly_abcdefghijklm"
 TG = Platform.TELEGRAM
 ROOT = "persona_chat_root_lane"
-SETTING = "messaging_telegram_transport"
+RETIRED_SETTING = "messaging_telegram_transport"
 
 
 def _set(name: str, value) -> None:
@@ -94,61 +94,40 @@ def _session():
 @pytest.fixture
 def fakes(monkeypatch):
     timeline: list = []
-    monkeypatch.setitem(serve_lane.TRANSPORTS, TG, lambda token: _Fake("fork", timeline, token))
-    monkeypatch.setitem(serve_lane.UPSTREAM_TRANSPORTS, TG,
-                        lambda token, scope: _Fake("upstream", timeline, token))
+    monkeypatch.setitem(serve_lane.TRANSPORTS, TG, lambda token, scope: _Fake("upstream", timeline, token))
     monkeypatch.setattr(serve_lane, "_current", None)
     credentials.set_token(TG, TOKEN)
     rpc.execute("platform.enable", {"platform": "telegram"}, by="test")
     return timeline
 
 
-def test_the_default_is_the_forks_own_transport(fakes):
-    """Killing mutation: ``transport_kind`` returns UPSTREAM when the setting is absent → red."""
-    assert harness_setting(SETTING, None) is None and transport_kind(TG) is TransportKind.FORK
+def test_a_retired_fork_setting_left_in_a_config_still_runs_upstreams_adapter(fakes):
+    """An owner who tried the opt-in (or set ``fork``) keeps the key in config.yaml; nothing reads it now."""
+    _set(RETIRED_SETTING, "fork")
     lane = MessagingLane(_session())
     lane.tick()
-    assert fakes == [("fork", "start")]
+    lane.tick()  # a tick with nothing changed restarts nothing
+    assert fakes == [("upstream", "start")]
+    assert lane.state()["telegram"] == {"state": "running", "reason": None}
     lane.close()
 
 
-def test_the_plugin_manifest_declares_the_setting_with_the_fork_default():
+def test_the_plugin_manifest_no_longer_offers_the_transport_choice():
+    """Killing mutation: put the ``messaging_telegram_transport`` entry back in plugin.yaml → red."""
     from hermes_cli.plugins_manifest import parse_manifest_file
 
     plugin_dir = Path(serve_lane.__file__).resolve().parents[2] / "plugins" / "eternia-harness"
     schema = parse_manifest_file(plugin_dir / "plugin.yaml", plugin_dir, "bundled", "").config_schema
-    assert schema[SETTING]["default"] == "fork"
+    assert RETIRED_SETTING not in schema and "messaging_enabled" in schema
 
 
-def test_upstream_is_built_only_when_the_setting_says_upstream(fakes):
-    _set(SETTING, "upstream")
-    lane = MessagingLane(_session())
-    lane.tick()
-    assert fakes == [("upstream", "start")]
-    lane.close()
+def test_the_fork_transport_modules_are_gone():
+    """RT-MESSAGING-RETIRE-FORK-TELEGRAM: one Telegram connection, upstream's. Killing mutation: restore
+    ``agent_runtime/messaging/telegram_api.py`` → red."""
+    import importlib.util
 
-
-@pytest.mark.parametrize("value", ["both", "", "Upstream-ish", "true", 1, None])
-def test_anything_but_the_word_upstream_is_the_forks_transport(fakes, value):
-    """A typo must fall back to the transport that is known to work, never to the opt-in one."""
-    _set(SETTING, value)
-    assert transport_kind(TG) is TransportKind.FORK
-
-
-def test_a_changed_setting_stops_the_old_transport_before_the_new_one_starts(fakes):
-    """One poller per bot. Killing mutation: ``_reconcile`` starts the new transport without stopping the
-    running one → ``upstream start`` precedes ``fork stop`` (or no stop at all) → red."""
-    lane = MessagingLane(_session())
-    lane.tick()
-    _set(SETTING, "upstream")
-    lane.tick()
-    lane.tick()  # a tick with nothing changed restarts nothing
-    assert fakes == [("fork", "start"), ("fork", "stop"), ("upstream", "start")]
-    _set(SETTING, "fork")
-    lane.tick()
-    assert fakes[3:] == [("upstream", "stop"), ("fork", "start")]
-    assert lane.state()["telegram"]["state"] == LaneState.RUNNING.value
-    lane.close()
+    assert importlib.util.find_spec("agent_runtime.messaging.telegram_api") is None
+    assert importlib.util.find_spec("agent_runtime.messaging.chunks") is None
 
 
 def test_an_upstream_adapter_without_its_own_intake_gate_is_not_wired_in(fakes, monkeypatch, caplog):
@@ -157,7 +136,6 @@ def test_an_upstream_adapter_without_its_own_intake_gate_is_not_wired_in(fakes, 
     from agent_runtime.messaging import upstream_adapter_transport as shim
 
     monkeypatch.delitem(shim.INTAKE_GATED, TG.value)
-    _set(SETTING, "upstream")
     lane = MessagingLane(_session())
     lane.tick()
     assert fakes == []
@@ -200,14 +178,15 @@ def test_a_host_that_is_not_loopback_is_refused_naming_the_setting_not_its_value
     assert refused.value.detail == API_BASE and value not in str(refused.value)
 
 
-def test_a_serve_pointed_at_a_remote_host_starts_neither_transport_and_hands_it_no_token(monkeypatch):
-    """The real factories, not fakes: a refused setting is ``start_failed``, never a fall-back to the real API,
-    and no adapter or client is built. Killing mutation: ``_telegram`` ignores the setting → the fork
-    transport starts against the real Bot API → ``running`` → red."""
-    from agent_runtime.messaging import telegram_api
+def test_a_serve_pointed_at_a_remote_host_starts_no_adapter_and_hands_it_no_token(monkeypatch):
+    """The real factory, not a fake: a refused setting is ``start_failed``, never a fall-back to the real API,
+    and no adapter is built. Killing mutation: ``_telegram_upstream`` ignores the setting → the adapter is
+    built (and would start against the real Bot API) → red."""
+    from plugins.platforms.telegram import adapter as telegram_adapter
 
     built: list = []
-    monkeypatch.setattr(telegram_api.TelegramTransport, "start", lambda self, on_update: built.append(self))
+    monkeypatch.setattr(telegram_adapter, "check_telegram_requirements", lambda: True)
+    monkeypatch.setattr(telegram_adapter, "TelegramAdapter", lambda config: built.append(config))
     monkeypatch.setattr(serve_lane, "_current", None)
     credentials.set_token(TG, TOKEN)
     rpc.execute("platform.enable", {"platform": "telegram"}, by="test")
@@ -215,28 +194,42 @@ def test_a_serve_pointed_at_a_remote_host_starts_neither_transport_and_hands_it_
     lane = MessagingLane(_session())
     lane.tick()
     assert built == [] and lane.state()["telegram"] == {"state": "off", "reason": "start_failed"}
-    _set(SETTING, "upstream")
-    lane.tick()
-    assert lane.state()["telegram"] == {"state": "off", "reason": "start_failed"}
     lane.close()
 
 
-def test_the_forks_own_transport_uses_the_api_base(monkeypatch):
-    from agent_runtime.messaging import telegram_api
+def test_the_adapter_is_pointed_at_the_api_base(monkeypatch):
+    from contextlib import nullcontext
 
-    seen: list = []
-    real_init = telegram_api.TelegramTransport.__init__
-
-    def spy(self, token, **kwargs):
-        seen.append(kwargs.get("api_base"))
-        real_init(self, token, **kwargs)
-
-    monkeypatch.setattr(telegram_api.TelegramTransport, "__init__", spy)
+    require_telegram_extra()
     _set(API_BASE, "http://127.0.0.1:8081")
-    serve_lane._telegram(TOKEN)
+    assert serve_lane._telegram_upstream(TOKEN, nullcontext).adapter.config.extra["base_url"] == \
+        "http://127.0.0.1:8081/bot"
     _set(API_BASE, "")
-    serve_lane._telegram(TOKEN)
-    assert seen == ["http://127.0.0.1:8081", telegram_api.API_BASE]
+    assert "base_url" not in serve_lane._telegram_upstream(TOKEN, nullcontext).adapter.config.extra
+
+
+# ── python-telegram-bot is an opt-in extra: the factory asks upstream's lazy installer first ──
+
+
+def test_the_factory_asks_upstreams_lazy_installer_before_it_builds_the_adapter(monkeypatch):
+    """A Harness without the ``messaging`` extra gets python-telegram-bot installed on first use, as upstream's
+    ``create_adapter`` does; where it cannot be installed the lane reads ``start_failed`` and builds nothing.
+    Killing mutation: drop the ``check_telegram_requirements()`` guard in ``_telegram_upstream`` → the installer
+    is never asked and the adapter is built without its library → red."""
+    from plugins.platforms.telegram import adapter as telegram_adapter
+
+    asked: list = []
+    built: list = []
+    monkeypatch.setattr(telegram_adapter, "check_telegram_requirements", lambda: asked.append(1) or False)
+    monkeypatch.setattr(telegram_adapter, "TelegramAdapter", lambda config: built.append(config))
+    monkeypatch.setattr(serve_lane, "_current", None)
+    credentials.set_token(TG, TOKEN)
+    rpc.execute("platform.enable", {"platform": "telegram"}, by="test")
+    lane = MessagingLane(_session())
+    lane.tick()
+    assert asked == [1] and built == []
+    assert lane.state()["telegram"] == {"state": "off", "reason": "start_failed"}
+    lane.close()
 
 
 # ── the real upstream factory, through the lane, against the local Bot API ──
@@ -252,13 +245,10 @@ def live(monkeypatch):
     monkeypatch.setattr(serve_lane, "_current", None)
     server = FakeTelegram(TOKEN)
     _set(serve_lane.API_BASE_SETTING, server.base_url.removesuffix("/bot"))
-    monkeypatch.setitem(serve_lane.TRANSPORTS, TG,
-                        lambda token: (_ for _ in ()).throw(AssertionError("the fork transport was built")))
     credentials.set_token(TG, TOKEN)
     OperatorStore().allow(Operator(TG, "42", "Max", "rpc:stdio_owner", "2026-11-14T00:00:00+00:00"))
     BindingStore().set(Binding(TG, "42", None, "inst-alice", "rpc:stdio_owner", "2026-11-14T00:00:00+00:00"))
     rpc.execute("platform.enable", {"platform": "telegram"}, by="test")
-    _set(SETTING, "upstream")
     lane = MessagingLane(_session())
     lane.tick()
     try:

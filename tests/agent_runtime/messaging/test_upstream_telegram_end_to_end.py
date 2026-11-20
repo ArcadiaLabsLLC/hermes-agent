@@ -48,7 +48,7 @@ def _wait(condition, timeout=20.0, what="the condition"):
 
 @pytest.fixture(autouse=True)
 def _needs_the_library():
-    # A fixture, not a module-level skip: test_serve_lane_transport_choice imports this module's helpers.
+    # A fixture, not a module-level skip: test_serve_lane_telegram_transport imports this module's helpers.
     require_telegram_extra()
 
 

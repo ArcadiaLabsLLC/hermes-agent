@@ -18,16 +18,16 @@ same executor. The lane is one daemon thread that RECONCILES each tick (and at o
 * a running platform's approval cards are refreshed every tick (``ApprovalCards.refresh``), so a root the
   launcher moved (``/new``) is watched without waiting for a platform message.
 
-The transport is built from :data:`TRANSPORTS` (tests swap the row for a fake; never the network) — or,
-when the harness setting ``messaging_telegram_transport`` is ``upstream``, from :data:`UPSTREAM_TRANSPORTS`:
-upstream's own platform adapter behind ``upstream_adapter_transport`` (opt-in, off by default,
-RT-MESSAGING-TELEGRAM-ON-UPSTREAM-ADAPTER-OPT-IN). A bot has ONE poller, so a platform runs one or the
-other, never both; a changed setting restarts the platform on the next tick. An upstream adapter is wired
-in only for a platform whose shim subclass gates the adapter's OWN intake
-(``upstream_adapter_transport.INTAKE_GATED``); any other platform's upstream row reads ``start_failed``
-(RT-MESSAGING-SHIM-STRANGER-GATE-HOLDS-ONLY-ON-TELEGRAM). The harness setting
-``messaging_telegram_api_base`` points either Telegram transport at a local stand-in Bot API for a live
-check; it accepts a loopback origin only, since the bot token rides every request to it
+The transport is built from :data:`TRANSPORTS` (tests swap the row for a fake; never the network): upstream's
+own platform adapter behind ``upstream_adapter_transport``, the ONE transport since the fork's own httpx
+Telegram transport was retired (RT-MESSAGING-RETIRE-FORK-TELEGRAM, after the opt-in trial of
+RT-MESSAGING-TELEGRAM-ON-UPSTREAM-ADAPTER-OPT-IN). An adapter is wired in only for a platform whose shim
+subclass gates the adapter's OWN intake (``upstream_adapter_transport.INTAKE_GATED``); any other platform reads
+``start_failed`` (RT-MESSAGING-SHIM-STRANGER-GATE-HOLDS-ONLY-ON-TELEGRAM). python-telegram-bot is an opt-in
+extra, so the Telegram factory asks the adapter's own lazy installer first, as upstream's ``create_adapter``
+does; a box where it cannot be installed reads ``start_failed``. The harness setting
+``messaging_telegram_api_base`` points the adapter at a local stand-in Bot API for a live check; it accepts a
+loopback origin only, since the bot token rides every request to it
 (RT-MESSAGING-SERVE-CANNOT-USE-A-LOCAL-APP-API). One
 serve runs one lane: :func:`current` is how the verbs and ``status`` reach it. Receipts
 (``work_store.receipts.emit``): ``messaging.lane`` on every state change — platform, state, reason.
@@ -58,18 +58,14 @@ __all__ = [
     "API_BASE_SETTING",
     "TICK_SECONDS",
     "TRANSPORTS",
-    "TRANSPORT_SETTINGS",
-    "UPSTREAM_TRANSPORTS",
     "LaneReason",
     "LaneState",
     "MessagingLane",
-    "TransportKind",
     "current",
     "lane_state",
     "poke",
     "start_messaging_bridge",
     "telegram_api_base",
-    "transport_kind",
 ]
 
 logger = logging.getLogger(__name__)
@@ -130,37 +126,6 @@ def telegram_api_base() -> str | None:
     return f"{parts.scheme}://{parts.netloc}"
 
 
-def _telegram(token: str) -> Transport:
-    from .telegram_api import API_BASE, TelegramTransport
-
-    return TelegramTransport(token, api_base=telegram_api_base() or API_BASE)
-
-
-#: platform -> transport factory over its bot token. The one construction path; tests replace a row.
-TRANSPORTS: dict[Platform, Callable[[str], Transport]] = {Platform.TELEGRAM: _telegram}
-
-
-class TransportKind(StrEnum):
-    """Whose code talks to the platform: the fork's own transport, or upstream's adapter behind the shim."""
-
-    FORK = "fork"
-    UPSTREAM = "upstream"
-
-
-#: platform -> the harness setting that picks its :class:`TransportKind` (absent or unknown = ``fork``).
-TRANSPORT_SETTINGS: dict[Platform, str] = {Platform.TELEGRAM: "messaging_telegram_transport"}
-
-
-def transport_kind(platform: Platform) -> TransportKind:
-    """What the setting asks for. Anything but the exact word ``upstream`` is the fork's own transport."""
-    name = TRANSPORT_SETTINGS.get(platform)
-    value = harness_setting(name, TransportKind.FORK.value) if name else None
-    wanted = str(value or "").strip().lower()
-    if wanted == TransportKind.UPSTREAM.value and platform in UPSTREAM_TRANSPORTS:
-        return TransportKind.UPSTREAM
-    return TransportKind.FORK
-
-
 def _refused_at_intake(platform: Platform) -> Callable[[str, str, str], None]:
     """What the bridge's ``_refuse`` does for a stranger, for a transport that refuses before the bridge."""
     from .models import Reason
@@ -179,12 +144,14 @@ def _telegram_upstream(token: str, scope: Callable[[], Any]) -> Transport:
     :func:`telegram_api_base` names one (the adapter's own ``base_url``, which it honours for a self-hosted
     telegram-bot-api)."""
     from gateway.config import PlatformConfig
-    from plugins.platforms.telegram.adapter import TelegramAdapter
+    from plugins.platforms.telegram.adapter import TelegramAdapter, check_telegram_requirements
 
     from .approvals import CALLBACK_PREFIX
     from .operators import OperatorStore
     from .upstream_adapter_transport import TelegramUpstreamAdapterTransport
 
+    if not check_telegram_requirements():  # python-telegram-bot is an opt-in extra, installed on first use
+        raise RuntimeError("python-telegram-bot is not installed and could not be installed")
     base = telegram_api_base()
     adapter = TelegramAdapter(PlatformConfig(enabled=True, token=token, typing_indicator=False,
                                              extra={"base_url": f"{base}/bot"} if base else {}))
@@ -195,16 +162,14 @@ def _telegram_upstream(token: str, scope: Callable[[], Any]) -> Transport:
 
 
 #: platform -> factory of upstream's adapter behind the shim, over the bot token and the lane's home scope
-#: (the sender gate runs on the adapter's thread). Tests replace a row.
-UPSTREAM_TRANSPORTS: dict[Platform, Callable[[str, Callable[[], Any]], Transport]] = {
-    Platform.TELEGRAM: _telegram_upstream}
+#: (the sender gate runs on the adapter's thread). The one construction path; tests replace a row.
+TRANSPORTS: dict[Platform, Callable[[str, Callable[[], Any]], Transport]] = {Platform.TELEGRAM: _telegram_upstream}
 
 
 @dataclass
 class _Running:
     bridge: Any
     polling: bool = True
-    kind: TransportKind = TransportKind.FORK
 
 
 class MessagingLane:
@@ -269,10 +234,6 @@ class MessagingLane:
             self._set(platform, LaneState.OFF, why_not)
         elif running is None:
             self._start(platform)
-        elif running.kind is not transport_kind(platform):
-            # The setting changed: one poller per bot, so the old transport stops before the new one starts.
-            self._stop(platform)
-            self._start(platform)
         elif running.bridge.approvals is not None:
             # A launcher ``/new`` moves an instance's chat root without a platform message; the next tick
             # re-points the approval notifiers at the CURRENT roots.
@@ -286,26 +247,20 @@ class MessagingLane:
 
         token = credentials.bot_token(platform)
         executor = self.session.work_executor
-        kind = transport_kind(platform)
         try:
-            if kind is TransportKind.UPSTREAM:
-                if not has_own_intake_gate(INTAKE_GATED.get(platform.value)):
-                    raise RuntimeError(f"no intake gate for upstream's {platform.value} adapter")
-                transport = UPSTREAM_TRANSPORTS[platform](token or "", lambda: home_scope(self.home))
-            else:
-                transport = TRANSPORTS[platform](token or "")
+            if not has_own_intake_gate(INTAKE_GATED.get(platform.value)):
+                raise RuntimeError(f"no intake gate for upstream's {platform.value} adapter")
+            transport = TRANSPORTS[platform](token or "", lambda: home_scope(self.home))
             approvals = ApprovalCards(transport, executor, platform=platform)
             bridge = MessagingBridge(transport, executor, platform=platform, approvals=approvals)
-            running = _Running(bridge, kind=kind)
+            running = _Running(bridge)
             bridge.start(lambda update: self._inbound(running, update))
         except Exception as exc:
-            logger.warning("messaging bridge for %s (%s transport) did not start: %s", platform.value, kind.value,
-                           type(exc).__name__)
+            logger.warning("messaging bridge for %s did not start: %s", platform.value, type(exc).__name__)
             self._set(platform, LaneState.OFF, LaneReason.START_FAILED)
             return
         self._running[platform] = running
         self._set(platform, LaneState.RUNNING)
-        emit("messaging.transport", platform=platform.value, kind=kind.value)
 
     def _stop(self, platform: Platform) -> None:
         running = self._running.pop(platform, None)

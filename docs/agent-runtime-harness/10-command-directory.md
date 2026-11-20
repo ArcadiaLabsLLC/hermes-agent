@@ -248,22 +248,19 @@ bot token is set through `runtime.messaging.credential.set` from this machine's 
 `runtime.messaging.operator.allow` before the first message (a refused first message puts your user id in
 `runtime.messaging.refused.recent`), then send `/persona <name>` in the chat.
 
-**Which Telegram connector runs** is the setting
-`plugins.entries.eternia-harness.settings.messaging_telegram_transport`: `fork` (the default, the Harness's own
-`agent_runtime/messaging/telegram_api.py::TelegramTransport`) or `upstream` (upstream's Telegram adapter used
-as a plain pipe behind `agent_runtime/messaging/upstream_adapter_transport.py::TelegramUpstreamAdapterTransport`,
-with the same bridge, operator list, bindings and approval cards on top). Turn it on with
-`hermes config set plugins.entries.eternia-harness.settings.messaging_telegram_transport upstream` and back with
-`fork`; the serve lane restarts the platform on its next tick, the old connector stopped before the new one
-starts (a bot has one poller). Any other value is `fork`. `upstream` needs the `messaging` extra installed
-(`python-telegram-bot`); without it the lane reads `start_failed`. What differs under `upstream`: replies are
-formatted (Telegram MarkdownV2), messages sent in quick succession are merged into one turn, and a stranger is
-refused by the adapter before anything they sent is fetched. Evidence and the list of what is still unproven:
+**The Telegram connector** is upstream's Telegram adapter, used as a plain pipe behind
+`agent_runtime/messaging/upstream_adapter_transport.py::TelegramUpstreamAdapterTransport`, with the fork's bridge,
+operator list, bindings and approval cards on top. The Harness's own httpx connector and its
+`messaging_telegram_transport` setting were retired after the opt-in trial (RT-MESSAGING-RETIRE-FORK-TELEGRAM); a
+value left in `config.yaml` is ignored. python-telegram-bot is the opt-in `messaging` extra: the serve asks the
+adapter's own lazy installer before it builds the adapter, as upstream's gateway does, and reads `start_failed`
+where it cannot be installed. Replies are formatted (Telegram MarkdownV2), messages sent in quick succession are
+merged into one turn, and a stranger is refused by the adapter before anything they sent is fetched. Evidence:
 `docs/agent-runtime-harness/evidence/upstream-adapter-as-transport-2026-11-14/SWITCH_AUDIT.md`.
 
 **A local stand-in Bot API, for a live check**, is the setting
 `plugins.entries.eternia-harness.settings.messaging_telegram_api_base`: an origin such as
-`http://127.0.0.1:8081`, used by either connector in place of `https://api.telegram.org`. It accepts a loopback
+`http://127.0.0.1:8081`, used by the adapter in place of `https://api.telegram.org`. It accepts a loopback
 host only (`localhost`, `127.0.0.0/8`, `::1`), a port and nothing else, because the bot token is in the path of
 every request; any other value leaves the lane `start_failed` rather than falling back to the real API. Unset, the
 real Bot API is used.

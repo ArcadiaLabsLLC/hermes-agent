@@ -1,6 +1,6 @@
 """p10-messaging M3: a platform message is a QUEUED turn of the bound instance; the settle carries the reply.
 
-The transport is the real ``TelegramTransport`` over the recorded fake Bot API (never the network); the send
+The transport is a ``RecordingTransport`` (``recording_transport.py``, never a platform); the send
 queue, the settle records and the binding/operator stores are the real ones on this test's isolated home;
 the instance store and the root lookup are fakes. Updates are driven by ``poll_once(bridge.inbound)``.
 """
@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-import httpx
 import pytest
 
 from agent_runtime import chat_root_send_queue as send_queue
@@ -22,20 +21,11 @@ from agent_runtime.messaging.bindings import Binding, BindingStore
 from agent_runtime.messaging.bridge import QUEUED_NOTICE, MessagingBridge
 from agent_runtime.messaging.models import Platform
 from agent_runtime.messaging.operators import Operator, OperatorStore
-from agent_runtime.messaging.telegram_api import TelegramTransport
 from agent_runtime.work_store.persona_turn import ORIGIN_KIND_KEY, PersonaTurnExecutor
-from tests.agent_runtime.messaging.fake_bot_api import API_BASE, FakeBotApi
+from tests.agent_runtime.messaging.recording_transport import RecordingTransport
 
-TOKEN = "123456789:AAFakeTokenForTestsOnly_abcdefghijk"
 ROOT = "persona_chat_root_tg"
 TG = Platform.TELEGRAM
-
-
-@pytest.fixture(autouse=True)
-def _no_network(monkeypatch):
-    def refuse(*_args, **_kwargs):
-        raise AssertionError("a messaging test reached the network")
-    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", refuse)
 
 
 @pytest.fixture(autouse=True)
@@ -60,8 +50,7 @@ def _instance(instance_id="inst-alice", display="Alice"):
 
 @pytest.fixture
 def rig():
-    api = FakeBotApi(TOKEN)
-    transport = TelegramTransport(TOKEN, client=api.client(), api_base=API_BASE, wait=lambda _s: False)
+    api = transport = RecordingTransport()
     alice, bob = _instance(), _instance("inst-bob", "Bob")
     turns = PersonaTurnExecutor(instances=_Instances(alice, bob), root_of=lambda store, **_: ROOT, wake=lambda: None)
     busy = {"value": False}
@@ -152,15 +141,17 @@ def test_a_busy_root_holds_the_message_and_says_so_once(rig):
     assert [m["text"] for m in rig.api.sent] == [QUEUED_NOTICE]
 
 
-def test_the_settle_carries_the_reply_chunked_to_the_origin_chat(rig):
+def test_the_settle_carries_the_whole_reply_to_the_origin_chat_and_thread(rig):
+    """The platform adapter splits a long reply (``test_upstream_telegram_end_to_end.py``); the bridge hands it
+    the whole text, threaded as a reply to the message that asked."""
     _bind(thread="9")
     update_id = rig.api.push_message("write a lot", thread_id=9)
     _poll(rig)
     entry = send_queue.find(ROOT, f"msg-telegram-{update_id}")
     rig.turns.settled(entry, 0, {"ok": True, "reply": "x" * 5000})
-    assert [len(m["text"]) for m in rig.api.sent] == [4096, 904]
-    assert {m["chat_id"] for m in rig.api.sent} == {"-1001"} and {m["message_thread_id"] for m in rig.api.sent} == {9}
-    assert "reply_parameters" in rig.api.sent[0] and "reply_parameters" not in rig.api.sent[1]
+    [sent] = rig.api.sent
+    assert sent["text"] == "x" * 5000 and sent["chat_id"] == "-1001" and sent["message_thread_id"] == 9
+    assert sent["reply_parameters"]["message_id"] == int(entry.args[send_queue.ORIGIN_ARG]["messaging"]["message_id"])
     rig.turns.settled(entry, 1, {"ok": False, "error": {"kind": "provider_timeout"}, "reply": ""})
     assert rig.api.sent[-1]["text"].startswith("(no reply: the turn ended")
 
