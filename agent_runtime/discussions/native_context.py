@@ -135,10 +135,29 @@ class NativeContext:
             return result
 
     def ensure_session(self, run: Mapping[str, Any], member: Mapping[str, Any]) -> None:
+        """Write the member's room session where its turn reads it.
+
+        The chat-turn guard (``chat_turn_message``: ``unknown_chat_session``) opens
+        the store ``resolve_conversation_chat_scope`` names — the member's OWN
+        profile home for a ``per_profile`` record, which every agent
+        ``runtime.agent.create`` places has. Writing into the head home's
+        ``state.db`` here left every such member's turn refused
+        (RT-GROUP-CHAT-OF-AGENTS-WITH-THEIR-OWN-PROFILE-REFUSES-EVERY-TURN), so the
+        same resolution picks the store; a process record keeps the head home. The
+        writer is this call's own (never a request owner's lease), so it closes here.
+        """
         from hermes_state import SessionDB
+        from agent_runtime.chat_heads import resolve_conversation_chat_scope
+        from agent_runtime.chat_session_scope import SessionDbAccess, open_chat_session_db
         from agent_runtime.persona_chat_durability import ensure_persona_chat_session
         with self.scope():
-            db = SessionDB(db_path=self.home / "state.db")
+            chat = resolve_conversation_chat_scope(session_id=member["session_id"],
+                                                   persona_instance_id=member["instance_id"],
+                                                   persona_id=member["persona_id"])
+            if not chat.per_profile:
+                db = SessionDB(db_path=self.home / "state.db")
+            elif chat.refusal is not None or (db := open_chat_session_db(chat, access=SessionDbAccess.WRITE)) is None:
+                raise DiscussionError("profile_unavailable", instance_id=member["instance_id"])
             try:
                 existing = db.get_session(member["session_id"])
                 if existing is not None:

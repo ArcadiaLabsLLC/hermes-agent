@@ -153,3 +153,41 @@ def test_a_copy_on_a_legacy_named_endpoint_keeps_that_entry(source):
     # The copy's profile layout migrates the carried legacy entry to ``providers:``, as for any config.
     assert _copy_config(copy).get("providers") == {"lab": {"name": "lab", "api": ENDPOINT}}
     _no_secret_anywhere(copy)
+
+
+@pytest.fixture
+def profileless_source():
+    """An agent on the main profile (no ``hermes_profile``): its model is the head home's."""
+
+    AgentStore().save(AgentPersona(
+        id="headless", display_name="Head Agent", role="agent", model=None, provider=None, api_mode=None,
+        system_prompt_path="",
+    ))
+
+
+def test_a_duplicate_of_an_agent_on_the_main_profile_keeps_its_model_and_none_of_the_head_home(
+    profileless_source,
+):
+    # Row RT-DUPLICATING-AN-AGENT-WITH-NO-PROFILE-GIVES-A-COPY-WITH-NO-MODEL (review w1118a.48 D6).
+    # Mutation: ``model_home = source_home`` in agent_duplicate.duplicate_agent (no head-home
+    # fallback; ``_carried_model_config`` then reads nothing) -> red: the copy has no model block.
+    # Mutation: ``source_home = ... else Path(get_hermes_home())`` (the head home as the FILES
+    # source too) -> red: the head home's memory reaches the copy.
+    from hermes_constants import get_hermes_home
+
+    head = get_hermes_home()
+    head.mkdir(parents=True, exist_ok=True)
+    (head / "config.yaml").write_text(yaml_io.dump({"model": {
+        "default": "llama3.1:8b", "provider": "custom", "base_url": ENDPOINT, "api_key": SHORT_KEY,
+    }}), encoding="utf-8")
+    (head / "memories").mkdir(exist_ok=True)
+    (head / "memories" / "MEMORY.md").write_text("the head home's own memory", encoding="utf-8")
+    (head / "auth.json").write_text(f'{{"key": "{LONG_KEY}"}}', encoding="utf-8")
+
+    copy = _rpc("runtime.agent.duplicate", persona_id="headless", name="Head Copy")["result"]["persona_id"]
+
+    assert _copy_config(copy)["model"] == {"default": "llama3.1:8b", "provider": "custom", "base_url": ENDPOINT}
+    home = _copy_home(copy)
+    assert not (home / "memories" / "MEMORY.md").exists()
+    assert not (home / "auth.json").exists()
+    _no_secret_anywhere(copy)
