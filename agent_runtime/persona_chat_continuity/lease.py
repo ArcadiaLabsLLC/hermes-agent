@@ -294,7 +294,52 @@ def repair_orphaned_chat_turns() -> list[str]:
     return repaired
 
 
-def close_cut_off_transcript(root_session_id: str) -> bool:
+def end_dispatch_turn(dispatch_id: str, *, stopped: bool) -> list[str]:
+    """End the target's turn a request's killed child left in flight; the roots it settled.
+
+    RT-FU-A-STOPPED-REQUESTS-TURN-STAYS-RUNNING-AFTER-STOP (review w1118a.59). A request's turn runs
+    in a child the supervisor tree-kills on a Stop (or past its budget), so nothing in the child
+    settles the turn's journal record: it stayed ``running`` in Running work until the next send on
+    that chat or a serve restart (seen live 2026-11-20, w1118a-hrun). The supervisor calls this
+    once the child is gone and the request is settled: the turn's record is found by its request
+    id (``chat_turn.dispatch_turn_request_id``), and under that chat's root lease — free, since the
+    child that held it is dead; a held lease is a live turn and is left alone — it is settled as
+    the boot sweep settles a corpse: ``stopped`` (``stop_mission_chat_turn``) when the operator
+    stopped it, else ``interrupted``, and the transcript is closed (:func:`close_cut_off_transcript`)
+    so the next message is a turn of its own. Best-effort: never raises into the supervisor.
+    """
+
+    try:
+        from ..chat_turn import dispatch_turn_request_id
+        from ..mission_chat_turns.journal import mark_stale_inflight_turns_interrupted, stop_mission_chat_turn
+        from ..mission_chat_turns.reads import inflight_turn_rows
+
+        message = dispatch_turn_request_id(dispatch_id)
+        roots = sorted({str(row.get("session_id") or "") for row in inflight_turn_rows()
+                        if row.get("client_message_id") == message} - {""})
+    except Exception:
+        logger.warning("request %s: its turn's journal not read", dispatch_id, exc_info=True)
+        return []
+    settled: list[str] = []
+    for root in roots:
+        try:
+            with persona_chat_root_lease(root, observer_kind="dispatch_end"):
+                if stopped:
+                    stop_mission_chat_turn(session_id=root, client_message_id=message, turn_id=None)
+                mark_stale_inflight_turns_interrupted(session_id=root, active_client_message_id=None)
+                close_cut_off_transcript(
+                    root, tool_result=CUT_OFF_STOPPED_TOOL_RESULT if stopped else CUT_OFF_TOOL_RESULT
+                )
+        except PersonaChatBusyError:
+            continue
+        except Exception:
+            logger.warning("request %s: its turn on %s not ended", dispatch_id, root, exc_info=True)
+            continue
+        settled.append(root)
+    return settled
+
+
+def close_cut_off_transcript(root_session_id: str, *, tool_result: str | None = None) -> bool:
     """Close a cut-off turn in the chat's transcript, so the next message is a turn of its own.
 
     RT-FU-A-QUEUED-MESSAGE-RUN-AFTER-A-RESTART-IS-ANSWERED-AS-ITSELF (review w1118a.58 D9). A serve
@@ -326,7 +371,8 @@ def close_cut_off_transcript(root_session_id: str) -> bool:
         return False
     try:
         tip = _persona_chat_native_tip(db, root_session_id)
-        rows = _closing_rows(db.get_messages(tip, limit=CUT_OFF_TAIL_ROWS, latest=True), hidden_interrupt_placeholder_row())
+        rows = _closing_rows(db.get_messages(tip, limit=CUT_OFF_TAIL_ROWS, latest=True), hidden_interrupt_placeholder_row(),
+                             tool_result=tool_result or CUT_OFF_TOOL_RESULT)
         for row in rows:
             db.append_message(tip, row.pop("role"), row.pop("content"), **row)
         return bool(rows)
@@ -346,9 +392,11 @@ CUT_OFF_TAIL_ROWS = 64
 #: The result a cut-off turn's unanswered tool call is closed with: a structural label, like
 #: upstream's interrupt placeholder, never prose a model would echo.
 CUT_OFF_TOOL_RESULT = "[interrupt: the runtime restarted before this tool returned]"
+#: The same, for a request's turn its sender stopped (:func:`end_dispatch_turn`).
+CUT_OFF_STOPPED_TOOL_RESULT = "[interrupt: the request was stopped before this tool returned]"
 
 
-def _closing_rows(tail: list[dict], placeholder: dict) -> list[dict]:
+def _closing_rows(tail: list[dict], placeholder: dict, *, tool_result: str = CUT_OFF_TOOL_RESULT) -> list[dict]:
     """The rows that close a transcript whose newest rows are ``tail`` (oldest first); ``[]`` when it is closed.
 
     Seen live 2026-11-20 (w1118a-hrun): a turn cut while its tool ran ends on an assistant row whose
@@ -376,7 +424,7 @@ def _closing_rows(tail: list[dict], placeholder: dict) -> list[dict]:
             call_id = coalesce_tool_call_id(call) or ""
             if call_id and call_id not in answered:
                 name = ((call.get("function") or {}).get("name") if isinstance(call, dict) else None) or None
-                results.append({"role": "tool", "content": CUT_OFF_TOOL_RESULT, "tool_call_id": call_id,
+                results.append({"role": "tool", "content": tool_result, "tool_call_id": call_id,
                                 "tool_name": name})
         return [*results, dict(placeholder)]
     return [dict(placeholder)] if tail else []

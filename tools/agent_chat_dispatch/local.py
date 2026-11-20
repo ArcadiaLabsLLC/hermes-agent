@@ -549,6 +549,21 @@ def _settle_local(
         discard_dispatch_result(dispatch_id)
 
 
+def _end_killed_childs_turn(dispatch_id: str, *, stopped: bool) -> None:
+    """The target's turn a killed child left in flight ends with its request, not at the next send or boot.
+
+    RT-FU-A-STOPPED-REQUESTS-TURN-STAYS-RUNNING-AFTER-STOP: the one settle is
+    ``persona_chat_continuity.lease.end_dispatch_turn``; best-effort, as the settle above it is done.
+    """
+
+    try:
+        from agent_runtime.persona_chat_continuity.lease import end_dispatch_turn
+
+        end_dispatch_turn(dispatch_id, stopped=stopped)
+    except Exception:  # pragma: no cover - the request is settled; the boot sweep is the backstop
+        logger.warning("dispatch %s: its turn was not ended with it", dispatch_id, exc_info=True)
+
+
 def _record_local_outcome(
     dispatch_id: str,
     budget: float | None,
@@ -567,8 +582,10 @@ def _record_local_outcome(
             state=dispatch_store.STATE_CANCELLED,
             error=_cancelled_text(cancel_reason, spawned=True),
         )
+        _end_killed_childs_turn(dispatch_id, stopped=True)
         return
     if exit_reason:
+        _end_killed_childs_turn(dispatch_id, stopped=False)
         dispatch_store.record_completion(
             dispatch_id,
             state=dispatch_store.STATE_ERROR,
