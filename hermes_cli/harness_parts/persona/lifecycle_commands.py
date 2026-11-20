@@ -187,13 +187,36 @@ def _instance_session_db(instance):
     )
 
 
+def _owner_refusal_reason(exc: BaseException) -> str | None:
+    """``conversation_owner_changed`` when a chat write was refused for its owner.
+
+    The durability helper wraps every failure as a persistence error; a chat
+    another account (or no account) already owns is a refusal, not a storage
+    fault, so it keeps its own reason.
+    """
+
+    from agent_runtime.conversation_owner import ConversationOwnerError
+
+    cause = exc.__cause__
+    return cause.reason if isinstance(cause, ConversationOwnerError) else None
+
+
 def _cmd_persona_instance_create(args) -> int:
     # Function-local: the convention from before lane H1, when this file was
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.agent_create import require_known_persona
     from agent_runtime.agent_create.outcome import AGENT_NAME_TAKEN_REASON, AgentCreateNameTaken
+    from agent_runtime.conversation_owner import ConversationOwnerError, client_scope as _valid_client_scope
     from agent_runtime.mission_chat_outcome import ChatErrorKind
+    # RT-INSTANCE-CREATE-MAKES-A-CHAT-WITH-NO-ACCOUNT: the account the new chat
+    # belongs to, validated before anything is written; ``None`` keeps the
+    # operator (unscoped) behaviour for local callers.
+    try:
+        owner = _valid_client_scope(getattr(args, "client_scope", None))
+    except ConversationOwnerError as exc:
+        _emit_persona_verb_payload(args, {"ok": False, "error_kind": exc.reason, "error": "Invalid conversation owner."})
+        return 2
     display_name = safe_assignment_text(getattr(args, "display_name", None), limit=120)
     add_instance = bool(getattr(args, "add_instance", False))
     # Owner 2026-11-19 (RT-PLACING-A-SHIPPED-AGENT-MAKES-A-SECOND-ONE): only an
@@ -263,6 +286,7 @@ def _cmd_persona_instance_create(args) -> int:
                         display_name=display_name,
                         workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
                         realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
+                        client_scope=owner,
                         refuse_taken_name=True,
                     )
             elif add_instance:
@@ -273,12 +297,14 @@ def _cmd_persona_instance_create(args) -> int:
                     session_id=getattr(args, "session_id", None),
                     workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
                     realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
+                    client_scope=owner,
                 )
             else:
                 instance = PersonaInstanceStore().create_operator_chat(
                     persona_id=persona_id,
                     display_name=display_name or safe_assignment_text(args.title, limit=120) or persona_id,
                     session_id=getattr(args, "session_id", None),
+                    client_scope=owner,
                 )
             if add_instance or coordinator_id:
                 instance = _maybe_stamp_spawned_by(instance, coordinator_id=coordinator_id)
@@ -301,7 +327,7 @@ def _cmd_persona_instance_create(args) -> int:
             # the post-bind one below; there is simply no instance yet to name.
             data = {
                 "ok": False,
-                "error_kind": ChatErrorKind.CHAT_SESSION_PERSIST_FAILED,
+                "error_kind": _owner_refusal_reason(exc) or ChatErrorKind.CHAT_SESSION_PERSIST_FAILED,
                 "persistence_operation": exc.operation,
                 "error": str(exc),
                 "persona_id": persona_id,
@@ -316,11 +342,12 @@ def _cmd_persona_instance_create(args) -> int:
                 persona_id=instance.persona_id,
                 title=f"{instance.display_name} chat",
                 required=True,
+                client_scope=owner,
             )
         except PersonaChatPersistenceError as exc:
             data = {
                 "ok": False,
-                "error_kind": ChatErrorKind.CHAT_SESSION_PERSIST_FAILED,
+                "error_kind": _owner_refusal_reason(exc) or ChatErrorKind.CHAT_SESSION_PERSIST_FAILED,
                 "persistence_operation": exc.operation,
                 "error": str(exc),
                 "persona_id": instance.persona_id,
@@ -348,6 +375,7 @@ def _cmd_persona_instance_create(args) -> int:
             "chat_busy": False,
             "add_instance": add_instance,
             "placement_id": placement_id or None,
+            **({"client_scope": owner} if owner is not None else {}),
             "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
             "next_expected": "agent profile created; refresh Harness snapshot for the profile, chat, and scene placement state",
         }

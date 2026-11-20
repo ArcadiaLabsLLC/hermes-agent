@@ -8068,6 +8068,14 @@
           "required": false,
           "type": null
         },
+        "--client-scope": {
+          "action": "store",
+          "canonical": "--client-scope",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--coordinator-id": {
           "action": "store",
           "canonical": "--coordinator-id",

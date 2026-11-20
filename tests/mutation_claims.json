@@ -5156,6 +5156,91 @@
         "no:cacheprovider",
         "tests/agent_runtime/test_agent_create_names_its_agent.py::test_placing_without_a_name_keeps_the_seat_label"
       ]
+    },
+    {
+      "id": "hscope-copy-chat-stamped-with-its-maker",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
+      "symbol": "_cmd_persona_instance_create",
+      "operator": "drop-scope-on-independent-mint",
+      "find": "                        client_scope=owner,\n                        refuse_taken_name=True,",
+      "replace": "                        refuse_taken_name=True,",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/agent_runtime/test_instance_create_client_scope.py::test_a_scoped_copy_opens_for_its_maker_and_refuses_another_account"
+      ]
+    },
+    {
+      "id": "hscope-extra-instance-chat-stamped-with-its-maker",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
+      "symbol": "_cmd_persona_instance_create",
+      "operator": "drop-scope-on-add-instance",
+      "find": "                    realm_id=safe_assignment_token(getattr(args, \"realm_id\", None)) or None,\n                    client_scope=owner,\n                )",
+      "replace": "                    realm_id=safe_assignment_token(getattr(args, \"realm_id\", None)) or None,\n                )",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/agent_runtime/test_instance_create_client_scope.py::test_a_scoped_extra_instance_chat_belongs_to_its_maker"
+      ]
+    },
+    {
+      "id": "hscope-operator-chat-stamped-with-its-maker",
+      "path": "agent_runtime/persona_assignments/chat_binding.py",
+      "symbol": "create_operator_chat",
+      "operator": "drop-scope-on-operator-chat",
+      "find": "            display_name=display_name,\n            client_scope=client_scope,\n        ),",
+      "replace": "            display_name=display_name,\n        ),",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/agent_runtime/test_instance_create_client_scope.py::test_a_scoped_operator_chat_belongs_to_its_maker"
+      ]
+    },
+    {
+      "id": "hscope-rpc-refuses-a-null-scope",
+      "path": "agent_runtime/chat_verbs/instance_create.py",
+      "symbol": "create_persona_instance",
+      "operator": "skip-scope-validation",
+      "find": "owner = request_client_scope(params)",
+      "replace": "owner = params.get(\"client_scope\")",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/agent_runtime/test_instance_create_client_scope.py::test_a_malformed_scope_is_refused_before_any_write"
+      ]
+    },
+    {
+      "id": "hscope-argv-refuses-a-bad-scope-before-writing",
+      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
+      "symbol": "_cmd_persona_instance_create",
+      "operator": "skip-scope-validation",
+      "find": "owner = _valid_client_scope(getattr(args, \"client_scope\", None))",
+      "replace": "owner = getattr(args, \"client_scope\", None)",
+      "test": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/agent_runtime/test_instance_create_client_scope.py::test_the_argv_verb_refuses_a_malformed_scope_before_any_write"
+      ]
     }
   ]
 }
