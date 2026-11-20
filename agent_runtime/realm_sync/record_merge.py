@@ -48,6 +48,7 @@ from .models import RealmSyncArtifact
 __layer__ = "stores"
 __all__ = [
     "RECORD_KEY_PREFIX",
+    "STAMP_FIELDS",
     "RecordHoldResolveError",
     "RecordMerge",
     "held_record_keys",
@@ -63,7 +64,7 @@ RECORD_KEY_PREFIX: Final = "record::"
 #: The families this module merges, by the kind their artifacts carry.
 _MERGED_KINDS = (str(SyncFamily.WORKSPACE), str(SyncFamily.REALM))
 #: A stamp, never a member's edit: the newer side's wins and it never holds.
-_STAMP_FIELDS = ("updated_at",)
+STAMP_FIELDS: Final = ("updated_at",)
 #: Realm fields ``pull._pulled_artifact_bytes`` already reconciled (unioned ledgers; ``archived`` and
 #: the server authority fields are this machine's): the reconciled team copy is taken as it is.
 _REALM_RECONCILED_FIELDS = frozenset((*_UNIONED_REALM_LEDGERS, "archived"))
@@ -144,7 +145,7 @@ def merge_record(kind: str, local: dict[str, Any], remote: dict[str, Any], base:
     baseline: dict[str, Any] = {}
     realm = kind == str(SyncFamily.REALM)
     for name in sorted({*local, *remote, *base}):
-        if name in _STAMP_FIELDS:
+        if name in STAMP_FIELDS:
             stamps = [str(side[name]) for side in (local, remote) if side.get(name) is not None]
             if stamps:
                 merged[name] = max(stamps)

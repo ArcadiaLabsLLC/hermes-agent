@@ -479,16 +479,26 @@ def _sync_repo_path(realm: Realm) -> Path:
     old shared clone over (``_carry_shared_clone``), so every verb -- status and history included --
     finds the realm's unpublished work where it now lives."""
 
-    ref = str(realm.sync_manifest_ref or "").strip()
-    if ref and not _looks_like_remote(ref):
-        return Path(ref).expanduser()
-    repo = paths.realm_sync_clone_dir(realm.id)
+    repo = _sync_repo_location(realm)
+    if repo != paths.realm_sync_clone_dir(realm.id):
+        return repo
     if not (repo / ".git").exists():
         _carry_shared_clone(realm, repo)
     legacy = _legacy_shared_clone(realm)
     if (legacy / ".git").is_dir():
         _retire_shared_clone(legacy)
     return repo
+
+
+def _sync_repo_location(realm: Realm) -> Path:
+    """Where :func:`_sync_repo_path` finds the realm's repository, without carrying or retiring any
+    clone: the member's pinned local-path repo, else the realm's own clone folder. For a read that
+    must not move anything (``artifacts._team_held_workspace_ids``)."""
+
+    ref = str(realm.sync_manifest_ref or "").strip()
+    if ref and not _looks_like_remote(ref):
+        return Path(ref).expanduser()
+    return paths.realm_sync_clone_dir(realm.id)
 
 
 def _legacy_shared_clone(realm: Realm) -> Path:

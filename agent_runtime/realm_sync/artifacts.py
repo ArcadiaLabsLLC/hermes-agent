@@ -22,7 +22,7 @@ from ..models import Realm, Workspace
 from ..store import RealmStore, WorkspaceStore, skill_tombstoned
 from .models import RealmSyncArtifact, RealmSyncError
 from .families import SyncFamily, _is_hard_excluded_path
-from .ledgers import drop_left_workspace_ids
+from .ledgers import drop_left_workspace_ids, forget_leaves_the_team_never_held, team_workspace_ids
 from .publish_scans import (
     _board_publish_scan,
     _level_publish_scan,
@@ -635,6 +635,31 @@ def _append_skill_package_artifacts(
         )
 
 
+def team_held_workspace_ids(team_record: Path) -> set[str] | None:
+    """The workspaces a team copy of a realm holds or ever named (``ledgers.team_workspace_ids``), read from
+    its realm record at ``team_record`` (``<subtree>/store/realms/<realm>.json``) and the workspace files
+    beside it; None when there is no such record (a realm never published there) or it will not read."""
+
+    try:
+        team = json.loads(team_record.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(team, dict):
+        return None
+    published = team_record.parent.parent / "workspaces"
+    files = [path.stem for path in published.glob("*.json")] if published.is_dir() else []
+    return team_workspace_ids(team, files)
+
+
+def _team_held_workspace_ids(realm: Realm) -> set[str] | None:
+    """:func:`team_held_workspace_ids` of this machine's sync clone (as last pulled or published)."""
+
+    from .git import _realm_subtree, _sync_repo_location
+
+    subtree = _realm_subtree(_sync_repo_location(realm), realm.id)
+    return team_held_workspace_ids(subtree / "store" / "realms" / f"{paths.safe_path_token(realm.id)}.json")
+
+
 def _published_realm_record(realm: Realm) -> bytes | None:
     """The realm record's published bytes when they must differ from the file; ``None`` = publish the
     file verbatim.
@@ -645,6 +670,8 @@ def _published_realm_record(realm: Realm) -> bytes | None:
       (``ledgers.drop_left_workspace_ids``, the rule the pull applies): every member's pull drops it,
       so shipping it made every member's record differ from the published one and the status tell them
       they had unpublished changes (RT-REALM-MEMBER-TOLD-UNPUBLISHED-OVER-A-WORKSPACE-NEVER-SHARED).
+    * A workspace that left the realm here while the team's copy never named it is not on the shipped
+      ledgers (``ledgers.forget_leaves_the_team_never_held``).
     """
     try:
         record = json.loads(paths.realm_path(realm.id).read_text(encoding="utf-8"))
@@ -659,6 +686,11 @@ def _published_realm_record(realm: Realm) -> bytes | None:
     # MUTATION: drop this call and
     # test_a_member_reads_nothing_waiting_while_the_owner_lists_a_workspace_it_deleted reddens.
     if drop_left_workspace_ids(record):
+        rewritten = True
+    # A leave the team's copy never named is not shipped (``ledgers.forget_leaves_the_team_never_held``,
+    # the rule the pull applies). MUTATION: drop this call and
+    # test_a_workspace_that_only_passed_through_is_never_published reddens.
+    if forget_leaves_the_team_never_held(record, _team_held_workspace_ids(realm)):
         rewritten = True
     if not rewritten:
         return None

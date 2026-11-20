@@ -59,6 +59,7 @@ from .sidecar import (
 )
 from .skill_inbox import _held_skill_packages_for_realm, _mirror_realm_skill_inbox
 from .pull import _assert_no_secret_artifacts, _pulled_artifact_bytes
+from .record_merge import STAMP_FIELDS
 from .workspace_changes import realm_published_in_clone
 
 logger = logging.getLogger(__name__)
@@ -673,6 +674,13 @@ def _realm_record_waits(realm: Realm, published: Path, desired: bytes | None) ->
         return pulled != mine
     pulled.pop("archived", None)
     mine.pop("archived", None)
+    # A stamp is never a member's edit (``record_merge``'s rule): a record whose only difference is its
+    # ``updated_at`` (a workspace that only passed through re-stamped it,
+    # MC-REALM-A-WORKSPACE-THAT-ONLY-PASSED-THROUGH-ASKS-TO-BE-PUBLISHED) has nothing for the team.
+    # MUTATION: drop this loop and test_a_workspace_that_only_passed_through_leaves_the_realm_in_sync reddens.
+    for stamp in STAMP_FIELDS:
+        pulled.pop(stamp, None)
+        mine.pop(stamp, None)
     # MUTATION: compare the bytes instead and
     # test_a_member_reads_nothing_waiting_while_the_owner_lists_a_workspace_it_deleted reddens.
     return pulled != mine

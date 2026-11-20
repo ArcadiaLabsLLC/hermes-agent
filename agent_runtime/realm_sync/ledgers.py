@@ -7,7 +7,7 @@ lifts; plus the ledger's receipt rows for the status envelope.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import datetime, timezone, UTC
 from typing import Any
 
@@ -34,10 +34,12 @@ __all__ = [
     "_skill_tombstone_rows",
     "_tombstone_transition_at",
     "drop_left_workspace_ids",
+    "forget_leaves_the_team_never_held",
     "merge_deleted_workspace_ledgers",
     "merge_skill_tombstone_ledgers",
     "merge_workspace_lift_ledgers",
     "skill_tombstone_rows",
+    "team_workspace_ids",
 ]
 
 
@@ -292,4 +294,60 @@ def drop_left_workspace_ids(record: dict[str, Any]) -> bool:
     if not left or not isinstance(listed, list) or not any(item in left for item in listed):
         return False
     record["workspace_ids"] = [item for item in listed if item not in left]
+    return True
+
+
+
+def team_workspace_ids(team: dict[str, Any], published_workspace_ids: Iterable[str] = ()) -> set[str]:
+    """Every workspace the team's copy of a realm holds or ever named: a workspace file it publishes
+    (``published_workspace_ids``), or an id its record lists as a member, a delete or a lift."""
+
+    # MUTATION: start from the empty set and
+    # test_a_workspace_that_only_passed_through_is_never_published reddens (Roadmap's tombstone is forgotten).
+    held = {item for item in published_workspace_ids if isinstance(item, str)}
+    # MUTATION: drop any one of the three record terms and
+    # test_the_team_held_every_workspace_its_record_names_or_its_files_publish reddens.
+    held |= {item for item in (team.get("workspace_ids") or []) if isinstance(item, str)}
+    held |= {item for item in (team.get("deleted_workspace_ids") or []) if isinstance(item, str)}
+    held |= {
+        str(row.get("workspace_id"))
+        for row in (team.get("workspace_lifts") or [])
+        if isinstance(row, dict) and row.get("workspace_id")
+    }
+    return held
+
+
+def forget_leaves_the_team_never_held(record: dict[str, Any], held: set[str] | None) -> bool:
+    """Take off the record's ``deleted_workspace_ids`` and ``workspace_lifts``, in place, every workspace
+    that left this realm here while the team's copy of the realm never held or named it (``held``, from
+    :func:`team_workspace_ids`); whether anything was taken.
+
+    A workspace moved into a shared realm and out again, or deleted, before any publish was never the
+    team's: the leave guards no member against a copy they never had, yet it sat on the ledger as a
+    change waiting to publish, so the realm read "unpublished changes" with nothing a member could see,
+    and the next publish would have carried a tombstone for a workspace the team never saw
+    (MC-REALM-A-WORKSPACE-THAT-ONLY-PASSED-THROUGH-ASKS-TO-BE-PUBLISHED, seen live 2026-11-20).
+
+    The ONE rule for both ends of the realm record, as :func:`drop_left_workspace_ids` is: the pull
+    applies it to this machine's record against the incoming team copy, and the publish to the record
+    it ships against the clone's team copy, so the status compare of the two reads in sync. ``held`` is
+    None when this machine holds no team copy (a realm never published here): nothing is forgotten, as
+    there is nothing to tell "never shared" from.
+    """
+
+    if held is None:
+        return False
+    left = [item for item in (record.get("deleted_workspace_ids") or []) if isinstance(item, str)]
+    # MUTATION: answer the empty set here and
+    # test_a_workspace_that_only_passed_through_leaves_the_realm_in_sync reddens.
+    never = {item for item in left if item not in held}
+    if not never:
+        return False
+    record["deleted_workspace_ids"] = [item for item in left if item not in never]
+    if "workspace_lifts" in record:
+        record["workspace_lifts"] = [
+            row
+            for row in (record.get("workspace_lifts") or [])
+            if not (isinstance(row, dict) and row.get("workspace_id") in never)
+        ]
     return True
