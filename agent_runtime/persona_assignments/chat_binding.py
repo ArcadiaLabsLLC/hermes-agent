@@ -17,13 +17,13 @@ from agent_runtime import paths
 from agent_runtime.agent_create_phases import timed_create_subphase
 from agent_runtime.models import PersonaInstance
 from agent_runtime.config.roster import ensure_persisted_personas
+from agent_runtime.persona_assignments.chat_moves import chat_session_is_held_elsewhere
 from agent_runtime.persona_assignments.errors import RetiredPersonaInstanceError
 from agent_runtime.persona_assignments.identity import (
     _display_name_for_template,
     _normalize_instance_source_persona,
     _profile_id_for_persona_or_template,
     canonical_persona_instance_id,
-    chat_session_is_foreign_to_instance,
     chat_session_owner_instance_id,
     is_canonical_persona_channel,
     persona_chat_session_id_for,
@@ -266,8 +266,11 @@ def assert_bindable(
     # send/open flows through — the existing ``_session_owned_by_other_instance``
     # guard only covered ``add_instance``. Legacy/opaque ``persona_chat_*``
     # sessions (no encoded owner) and the instance's own sessions bind freely.
+    # A chat MOVED here by the move lane (``persona_chat_move.move_chat``,
+    # owner 2026-11-19 "Reuse idle, else new") is this instance's now: the
+    # move ledger, not the minted id, says who holds it.
     normalized_session = safe_assignment_text(session_id, limit=200)
-    if normalized_session and chat_session_is_foreign_to_instance(
+    if normalized_session and chat_session_is_held_elsewhere(
         normalized_session, instance_id
     ):
         owner = chat_session_owner_instance_id(normalized_session)

@@ -272,6 +272,7 @@ def _add_persona_instance_lifecycle_verbs(persona_instance_subs) -> None:
     persona_instance_open.add_argument("--session-id", default=None)
     persona_instance_open.add_argument("--new-session", action="store_true", help="Mint and select a fresh server-owned chat session for the target instance")
     persona_instance_open.add_argument("--idempotency-key", default=None, help="Stable retry key required with --new-session")
+    persona_instance_open.add_argument("--move", action="store_true", help="Move --session-id onto --persona-instance-id when another instance of the same agent holds it (its history moves with it); without it that chat is refused")
     persona_instance_open.add_argument("--add-instance", action="store_true", help="Open the chat on an additional placement-backed instance")
     persona_instance_open.add_argument("--placement-id", default=None, help="Scene itemId for an additional placement-backed instance; must end in the deliberate-placement shape <persona-token>_agent_<hex8>")
     persona_instance_open.add_argument("--workspace-id", "--workspace", dest="workspace_id", default=None, help="Mission Control workspace the placement belongs to (scope-provenance pointer; only meaningful with --add-instance)")

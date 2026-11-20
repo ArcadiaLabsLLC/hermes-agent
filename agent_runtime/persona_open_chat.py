@@ -78,7 +78,7 @@ __all__ = [
 #: the same tier with the same reasoning written out.
 OPEN_CHAT_METHOD = "runtime.persona.instance.open_chat"
 OPEN_CHAT_METHOD_PARAMS = (
-    "persona_id", "persona_instance_id", "session_id", "new_session",
+    "persona_id", "persona_instance_id", "session_id", "new_session", "move",
     "idempotency_key", "client_message_id", "requested_by",
     "correlation_id", "install_id", "client_scope",
 )
@@ -153,6 +153,8 @@ def refusal_codes_by_kind() -> dict[str, int]:
         ChatErrorKind.PERSONA_INSTANCE_MISMATCH: ERR_CONFLICT,
         ChatErrorKind.FOREIGN_CHAT_SESSION: ERR_CONFLICT,
         ChatErrorKind.RETIRED_PERSONA_INSTANCE: ERR_CONFLICT,
+        # ``move``: a turn is running in the chat, so it does not move.
+        ChatErrorKind.CHAT_BUSY: ERR_CONFLICT,
         "mint_lock_unavailable": ERR_CONFLICT,
         "conversation_owner_changed": ERR_CONFLICT,
         "conversation_owner_unreadable": ERR_HANDLER_FAILED,
@@ -205,6 +207,9 @@ def _open_chat_args(
         persona_instance_id=_first_text(params, "persona_instance_id"),
         session_id=_first_text(params, "session_id"),
         new_session=bool(params.get("new_session")),
+        # Move a saved chat of another instance of the same agent onto
+        # ``persona_instance_id`` (``persona_chat_move``); off, that chat is refused.
+        move=params.get("move") is True,
         client_scope=owner,
         # The launcher spells the replay key ``idempotency_key`` (its
         # ``ArgRef.idempotencyKey`` rides ``--idempotency-key`` on this verb),
@@ -249,7 +254,8 @@ def perform_persona_instance_open_chat(
     """The method lane's door onto ``harness persona instance open-chat``.
 
     Params: ``persona_id`` (required); ``persona_instance_id``, ``session_id``,
-    ``new_session``, ``idempotency_key`` (alias
+    ``new_session``, ``move`` (true: a saved chat of another instance of the same
+    agent moves onto ``persona_instance_id``), ``idempotency_key`` (alias
     ``client_message_id``), ``title``, ``requested_by``, ``correlation_id`` (all
     optional). ``kill_active`` is retired and REFUSED ``-32602``
     ``kill_active_retired`` (RT-KILL-ACTIVE-REFUSE): the lane ignores unknown

@@ -40,6 +40,14 @@ def persona_instance_aliases_path() -> Path:
     return store_root() / "persona_instance_aliases.json"
 
 
+def persona_chat_moves_path() -> Path:
+    """Saved chats moved to another instance of their agent: session id -> holding instance.
+
+    Written only by ``persona_assignments.chat_moves.record_chat_move``.
+    """
+    return store_root() / "persona_chat_moves.json"
+
+
 def persona_assignments_dir() -> Path:
     return store_root() / "persona_assignments"
 

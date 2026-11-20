@@ -18,6 +18,7 @@ from agent_runtime.persona_assignments import (
     safe_assignment_text,
     safe_assignment_token,
 )
+from agent_runtime.persona_assignments.chat_moves import load_chat_moves
 from agent_runtime.persona_chat_continuity import native_history_revision
 from agent_runtime.persona_chat_continuity.wire import (
     native_history_revision_of,
@@ -117,7 +118,10 @@ def _persona_chat_session_owner(session_db, session_id: str | None) -> str | Non
     history projection but impossible to open or message.
 
     New rows persist both forms.  If both are present they must agree, so a
-    corrupt metadata write cannot reassign another instance's transcript.
+    corrupt metadata write cannot reassign another instance's transcript — the
+    one exception is a chat the move lane moved to another instance of its agent
+    (``persona_chat_move.move_chat``): the metadata may then name the instance
+    the move ledger (``persona_assignments.chat_moves``) records, and no other.
     """
 
     raw = _session_row(session_db, session_id)
@@ -131,7 +135,8 @@ def _persona_chat_session_owner(session_db, session_id: str | None) -> str | Non
     metadata_owner = safe_assignment_token(config.get("persona_instance_id")) or None
     structural_owner = chat_session_owner_instance_id(session_id)
     if metadata_owner and structural_owner and metadata_owner != structural_owner:
-        return None
+        if load_chat_moves().get(safe_assignment_text(session_id, limit=200) or "") != metadata_owner:
+            return None
     owner = metadata_owner or structural_owner
     if not owner:
         return None

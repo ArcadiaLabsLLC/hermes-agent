@@ -174,6 +174,9 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     "persona_instance.reconciled": EventContract("persona_instance.reconciled", "Legacy-id persona instance row folded onto its canonical channel", ("persona_instance_id", "from_id", "to_id", "action"), ("persona_id",)),
     "persona_instance.pruned": EventContract("persona_instance.pruned", "Orphaned/legacy-role persona instance archived from the live graph", ("persona_instance_id", "reason"), ("persona_id", "role", "profile_id", "updated_at")),
     "persona_instance.chat_binding_cleared": EventContract("persona_instance.chat_binding_cleared", "Persona instance unbound from a chat session (operator delete, or a binding whose session SessionDB no longer has)", ("persona_instance_id", "session_id", "reason"), ("persona_id", "cleared_fields", "mode_before", "mode_after")),
+    # A saved chat moved to another instance of its agent (``persona_chat_move.move_chat``,
+    # RT-A-SAVED-CHAT-CAN-MOVE-TO-ANOTHER-INSTANCE-OF-ITS-AGENT); appended on the TARGET.
+    "persona_instance.chat_moved": EventContract("persona_instance.chat_moved", "Saved chat moved to another instance of the same agent", ("persona_instance_id", "session_id", "from_persona_instance_id", "to_persona_instance_id"), ("persona_id", "requested_by")),
     "persona_instance.retired": EventContract("persona_instance.retired", "Placement-backed persona instance retired (end-of-life) to the archive on placement removal", ("persona_instance_id", "reason"), ("persona_id", "mode", "requested_by", "archive_dir")),
     # The persona-instance reconciler's phase-5 graph reap
     # (persona_instance_identity._prune_owner_less_flow_graphs). A runtime flow

@@ -977,6 +977,7 @@
       "persona_instance_id",
       "session_id",
       "new_session",
+      "move",
       "idempotency_key",
       "client_message_id",
       "requested_by",

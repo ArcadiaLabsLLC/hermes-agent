@@ -8463,6 +8463,14 @@
           "required": false,
           "type": null
         },
+        "--move": {
+          "action": "store_true",
+          "canonical": "--move",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
         "--new-session": {
           "action": "store_true",
           "canonical": "--new-session",
