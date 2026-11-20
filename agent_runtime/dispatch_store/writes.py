@@ -128,6 +128,7 @@ def record_completion(
     remote: dict[str, Any] | None = None,
     media: list[dict[str, Any]] | None = None,
     clarify_request: dict[str, Any] | None = None,
+    error_kind: str = "",
     only_if_running: bool = False,
 ) -> bool:
     """Record the target turn's outcome and arm the row for delivery.
@@ -183,6 +184,13 @@ def record_completion(
     result; a background dispatch must carry it on the row, or the delivery
     hands the asking agent the question as plain text with no token to answer
     it on. Bounded by :func:`_bounded_clarify_request`; absent stays absent.
+
+    ``error_kind`` is the target turn's typed refusal (``chat_busy`` for a
+    message a busy teammate never ran), passed only by the writer that HELD the
+    child's payload; it rides the blob so the delivery can say "never ran" in a
+    typed field (``dispatch_delivery.vocabulary.delivery_outcome_state``) rather
+    than in the error's words (RT-DELIVERY-BLOCK-SAYS-A-MESSAGE-NEVER-RAN-AS-A-
+    TYPED-FIELD). Absent stays absent.
     """
 
     settled = str(state or STATE_UNKNOWN)
@@ -195,6 +203,9 @@ def record_completion(
     clarify = _bounded_clarify_request(clarify_request)
     if clarify:
         result["clarify_request"] = clarify
+    kind = bounded_text(str(error_kind or "").strip(), 64)
+    if kind:
+        result["error_kind"] = kind
     updated, prior = _completion_update(dispatch_id, settled, result, only_if_running=only_if_running)
     if updated:
         _completion_events(str(dispatch_id), prior, settled, result, remote, media_rows)

@@ -110,9 +110,10 @@ _NEXT_FIRE: dict[TriggerKind, Callable[[Trigger, datetime], datetime | None]] = 
 def _root_idle(root: str) -> bool:
     """No turn holds the root's lease and nothing waits on it — the unresolved-turn count is zero."""
 
-    from ..chat_root_send_runner import _root_is_idle
+    from ..chat_root_send_runner import QUEUED_SEND_PROBE_OWNER
+    from ..persona_chat_continuity.lease import chat_root_is_busy
 
-    return not send_queue.has_entries(root) and _root_is_idle(root)
+    return not send_queue.has_entries(root) and not chat_root_is_busy(root, probe_owner=QUEUED_SEND_PROBE_OWNER)
 
 
 def _in_flight() -> int:

@@ -12,6 +12,7 @@ __layer__ = "models"
 
 __all__ = [
     "CHAT_BINDING_CLEARED_REASON_DELETED",
+    "CHAT_BINDING_CLEARED_REASON_MOVED",
     "PERSONA_ROWS_UNREADABLE",
     "_BINDING_REPAIR_REASON",
     "_CHAT_MODES",
@@ -25,6 +26,8 @@ _CHAT_MODES = frozenset({"chat", "free_floating"})
 # Typed reasons carried on ``persona_instance.chat_binding_cleared``.
 _BINDING_REPAIR_REASON = "session_missing_from_session_db"
 CHAT_BINDING_CLEARED_REASON_DELETED = "chat_deleted"
+# The chat moved to another instance of its agent (``persona_chat_move``).
+CHAT_BINDING_CLEARED_REASON_MOVED = "chat_moved"
 
 #: The one word the persona lane spends when an arm cannot READ the rows it was
 #: asked to decide about. Minted in exactly ONE place

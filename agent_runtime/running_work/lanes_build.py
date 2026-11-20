@@ -279,6 +279,7 @@ class BuildLane(LanePass):
             finished_at=_iso(finished), started_by=_started_by(record.get("started_by")),
             restart=_restart_spec(record.get("restart")), mcp_job=_mcp_job(record.get("mcp_job")),
             announcement=_announcement(filename, record, verdict),
+            log_path=build_registry.readable_log_path(record),
         )
         self._announced_unknowns(facts, record, verdict, session)
         facts.stop, facts.restart_control = _announced_controls(record, verdict, facts.restart)

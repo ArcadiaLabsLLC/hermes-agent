@@ -15,9 +15,11 @@ from typing import Any
 from agent_runtime.persona_assignments.identity import (
     _PERSONA_CHAT_SESSION_PREFIX,
     canonical_chat_instance_id,
-    chat_session_is_foreign_to_instance,
-    chat_session_owner_instance_id,
     normalize_persona_id,
+)
+from agent_runtime.persona_assignments.chat_moves import (
+    chat_session_held_by,
+    chat_session_is_held_elsewhere,
 )
 from agent_runtime.persona_assignments.store import PersonaInstanceStore
 from agent_runtime.serde import safe_assignment_text, safe_assignment_token
@@ -61,7 +63,7 @@ def chat_session_owner_persona(session_id: str | None) -> tuple[str, str] | None
     """
 
     try:
-        instance_id = chat_session_owner_instance_id(session_id)
+        instance_id = chat_session_held_by(session_id)
     except Exception:
         return None
     if not instance_id:
@@ -156,7 +158,7 @@ def sender_scope_workspace_id(
     sender_session = safe_assignment_text(session_id, limit=200)
     if not sender_session:
         return scope_workspace_id
-    sender_instance_id = chat_session_owner_instance_id(sender_session)
+    sender_instance_id = chat_session_held_by(sender_session)
     if not sender_instance_id:
         return scope_workspace_id
     if instance_store is None:
@@ -202,11 +204,12 @@ def resolve_default_chat_session_id_for_instance(
         # adopted as this instance's default — that adoption is the sibling steal
         # that folded ``personainst_qa`` onto ``personainst_qa_agent_2``'s chat
         # lane (2026-07-18). A foreign pointer falls through to a fresh own mint,
-        # self-healing the corrupted pointer on the next send.
+        # self-healing the corrupted pointer on the next send. A chat the move
+        # lane moved HERE is this instance's own (``chat_moves``).
         if (
             existing_session
             and existing_session.startswith(_PERSONA_CHAT_SESSION_PREFIX)
-            and not chat_session_is_foreign_to_instance(existing_session, instance_id)
+            and not chat_session_is_held_elsewhere(existing_session, instance_id)
         ):
             return existing_session
     return None

@@ -13,7 +13,7 @@ Entry points and the modules to open, at most three:
   ``delivery`` → ``db``; ``rearm_delivery`` (the CLI repair verb) likewise.
 * ``restore_undelivered_dispatches`` (``serve/boot_phases``) → ``delivery`` →
   ``writes`` (the settle) → ``db``.
-* ``running_dispatches`` / ``remote_media_completions`` (``running_work``,
+* ``running_dispatches`` / ``settled_dispatches`` / ``remote_media_completions`` (``running_work``,
   ``media_handles``) → ``db``.
 
 Modules, lowest layer first (no module imports one above it — W0-G6):
@@ -132,6 +132,7 @@ from agent_runtime.dispatch_store.db import (  # the package's export floor
     remote_media_completions,
     running_dispatches,
     running_dispatches_owned_by_turn,
+    settled_dispatches,
     undeliverable_dispatches,
     _add_missing_column,
     _connect,
@@ -155,16 +156,25 @@ from agent_runtime.dispatch_store.writes import (  # the package's export floor
     _prune,
 )
 from agent_runtime.dispatch_store.delivery import (  # the package's export floor
+    CANCEL_ANSWER_WINDOW_SECONDS,
+    ack_dispatch_cancel,
     claim_delivery,
+    claim_dispatch_supervision,
     drop_delivery,
     mark_delivered,
+    owner_provably_alive,
     rearm_delivery,
     release_delivery_claim,
     request_dispatch_cancel,
     restore_undelivered_dispatches,
     set_dispatch_owner,
+    settle_if_cancel_unanswered,
+    settle_if_orphaned,
+    settle_unanswered_cancels,
+    supervisor_provably_gone,
 )
 __all__ = [
+    "CANCEL_ANSWER_WINDOW_SECONDS",
     "CLAIM_EXPIRY_SECONDS",
     "DELIVERY_DELIVERED",
     "DELIVERY_DROPPED",
@@ -182,11 +192,14 @@ __all__ = [
     "STATE_RUNNING",
     "STATE_UNKNOWN",
     "TERMINAL_STATES",
+    "ack_dispatch_cancel",
+    "claim_dispatch_supervision",
     "cancel_requested_dispatches",
     "claim_delivery",
     "dispatch_db_path",
     "list_dispatches",
     "mark_delivered",
+    "owner_provably_alive",
     "mint_dispatch_id",
     "pending_deliveries",
     "rearm_delivery",
@@ -196,9 +209,14 @@ __all__ = [
     "remote_media_completions",
     "request_dispatch_cancel",
     "restore_undelivered_dispatches",
+    "settle_if_cancel_unanswered",
+    "settle_if_orphaned",
+    "settle_unanswered_cancels",
+    "supervisor_provably_gone",
     "running_dispatches",
     "running_dispatches_owned_by_turn",
     "set_dispatch_owner",
+    "settled_dispatches",
     "undeliverable_dispatches",
 ]
 

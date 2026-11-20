@@ -741,6 +741,15 @@ class BootPhases:
         # drain starts — turns "the agent I dispatched went silent forever" into
         # a delivered "the outcome is unknown, re-send if you still need it".
         # Identity-verified (a recycled PID is not the old owner) and fail-open.
+        # A row whose child still runs under a supervisor that is gone is re-adopted FIRST
+        # (review w1118a.56 D12): this serve supervises it and its real answer lands; the
+        # restore below then settles only the rows whose child is gone.
+        try:
+            from tools.agent_chat_dispatch.local import readopt_live_dispatches
+
+            readopt_live_dispatches()
+        except Exception:
+            pass
         dispatches_restored = 0
         try:
             from agent_runtime.dispatch_store import restore_undelivered_dispatches

@@ -16,6 +16,7 @@ from agent_runtime.dispatch_store.supervision import (
     _mark_supervised,
     supervised_dispatch_ids,
 )
+from agent_runtime.persona_chat_continuity.lease import chat_root_is_busy
 from agent_runtime.subprocess_pumps import drain, release_pumps
 
 from .child import (
@@ -27,8 +28,13 @@ from .child import (
     _detached_error_text,
     _kill_child,
     build_dispatch_argv,
+    child_group,
+    end_child_group,
+    note_child_group,
+    release_child_group,
     child_environment,
     parse_child_payload,
+    payload_completion,
 )
 from .cancel_watch import CANCEL_POLL_SECONDS, ensure_cancel_watch
 from .remote import _run_remote_dispatch, request_remote_cancel
@@ -90,6 +96,9 @@ CANCEL_NOT_OWNED_HERE = "not_owned_here"
 #: D1.07 (owner ruling a): another process supervises a running child; the
 #: durable mark is written and that process's cancel watch stops it.
 CANCEL_REQUESTED = "cancel_requested"
+#: A Stop on a row no process here supervises, whose process had already ended:
+#: settled ``unknown`` at once, as the orphan sweep would a minute later.
+CANCEL_SETTLED = "settled"
 
 
 def _request_cancel_mark(dispatch_id: str, reason: str) -> None:
@@ -193,9 +202,11 @@ def _request_cancel_elsewhere(dispatch_id: str, row: dict[str, Any], reason: str
     ``cancelled`` here, exactly as its owner would (its worker reads the mark
     and runs nothing), and a running child is left to its supervisor's cancel
     watch, which stops it within :data:`CANCEL_POLL_SECONDS` —
-    ``cancel_requested`` says so rather than claiming a stop. A row no live
-    process supervises keeps the mark and settles when the orphan sweep sees its
-    child gone.
+    ``cancel_requested`` says so rather than claiming a stop. A started row whose
+    child is PROVABLY gone (dead, or a recycled number) has nothing left to stop
+    and nobody left to settle it but the orphan sweep, so it is settled here and
+    now (``settled``, row ``MC-RUNNING-NOW-LISTS-LANE-WORK-WHOSE-PROCESS-HAS-ENDED-AND-CANNOT-STOP-IT``):
+    the operator's Stop on an ended entry clears it instead of waiting a sweep.
     """
 
     from agent_runtime import dispatch_store
@@ -212,12 +223,15 @@ def _request_cancel_elsewhere(dispatch_id: str, row: dict[str, Any], reason: str
             only_if_running=True,
         )
         return {"dispatch_id": dispatch_id, "outcome": CANCEL_CANCELLED, "reason": reason}
+    if dispatch_store.settle_if_orphaned(row):
+        return {"dispatch_id": dispatch_id, "outcome": CANCEL_SETTLED, "reason": reason}
     return {
         "dispatch_id": dispatch_id,
         "outcome": CANCEL_REQUESTED,
         "reason": reason,
         "poll_seconds": CANCEL_POLL_SECONDS,
     }
+
 
 
 def _cancelled_text(reason: str, *, spawned: bool) -> str:
@@ -336,6 +350,8 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
 #: How often a dispatch waiting on a busy target looks at the target's chat root again.
 #: Each look is a zero-wait lease probe; a new child is started only once the root is free.
 BUSY_TARGET_POLL_SECONDS = 2.0
+#: The owner the busy check names while it probes the target's root.
+BUSY_TARGET_PROBE_OWNER = "dispatch-busy-target-probe"
 
 
 def _busy_target_root(stdout_text: str) -> str | None:
@@ -349,18 +365,6 @@ def _busy_target_root(stdout_text: str) -> str | None:
     return str(payload.get("root_chat_session_id") or payload.get("session_id") or "")
 
 
-def _target_root_is_free(root: str) -> bool:
-    """Whether no turn holds ``root``'s lease now: a zero-wait acquire, released at once."""
-
-    from agent_runtime.persona_chat_continuity import PersonaChatBusyError, persona_chat_root_lease
-
-    try:
-        with persona_chat_root_lease(root, owner_id="dispatch-busy-target-probe", observer_kind="serve"):
-            return True
-    except PersonaChatBusyError:
-        return False
-
-
 def _wait_for_busy_target(dispatch_id: str, root: str, wait_until: float) -> bool:
     """Wait until the busy target's root is free. False when cancelled or out of waiting time."""
 
@@ -368,7 +372,7 @@ def _wait_for_busy_target(dispatch_id: str, root: str, wait_until: float) -> boo
         time.sleep(BUSY_TARGET_POLL_SECONDS)
         if _peek_cancel_mark(dispatch_id) is not None:
             return False
-        if not root or _target_root_is_free(root):
+        if not root or not chat_root_is_busy(root, probe_owner=BUSY_TARGET_PROBE_OWNER):
             return time.time() < wait_until
     return False
 
@@ -387,7 +391,7 @@ def _run_child_once(
     # dispatch was enqueued behind the concurrency cap (or waited on a busy target).
     deadline_epoch = time.time() + budget
     argv = build_dispatch_argv(spec, deadline_epoch=deadline_epoch)
-    env = child_environment(spec)
+    env = _dispatch_child_environment(dispatch_id, spec)
 
     stdout_tail = _BoundedTail(_MAX_STREAM_CHARS)
     stderr_tail = _BoundedTail(_MAX_STREAM_CHARS)
@@ -410,7 +414,9 @@ def _run_child_once(
     started_at = _child_identity(proc.pid)
     try:
         dispatch_store.set_dispatch_owner(
-            dispatch_id, owner_pid=proc.pid, owner_started_at=started_at
+            dispatch_id, owner_pid=proc.pid, owner_started_at=started_at,
+            # The group it leads, so a Stop after this supervisor is gone can end what it left.
+            owner_group=child_group(proc.pid),
         )
     except Exception:  # pragma: no cover - bookkeeping must not abort the run
         logger.debug("dispatch %s owner stamp failed", dispatch_id, exc_info=True)
@@ -443,6 +449,12 @@ def _run_child_once(
     except Exception as exc:  # pragma: no cover - defensive
         exit_reason = f"wait_failed:{type(exc).__name__}"
         returncode = -1
+    else:
+        # The settle (D10): what the child started and left in its group ends with it —
+        # a build whose shell returned would otherwise run on, invisible to Running now and
+        # out of Stop's reach. Its own-session background processes are not in the group.
+        if child_group(proc.pid) is not None:
+            end_child_group(proc.pid, started_at)
 
     # Join the pumps so nothing the child wrote is missed, then force them loose
     # rather than leaking a thread per dispatch on a pipe a survivor holds open.
@@ -450,7 +462,35 @@ def _run_child_once(
     from agent_runtime import process_index
 
     process_index.forget_child(proc.pid)
+    release_child_group(proc.pid)
     return returncode, exit_reason, stdout_tail.text(), stderr_tail.text()
+
+
+def _dispatch_child_environment(
+    dispatch_id: str, spec: dict[str, Any], *, windows: bool | None = None
+) -> dict[str, str]:
+    """The child's environment plus its durable-answer file and, on Windows, its job's name (D12).
+
+    A result file left by an earlier child of this request (a busy-target retry) is removed
+    first, so the file only ever holds THIS child's answer.
+    """
+
+    import os
+
+    from agent_runtime.dispatch_store.result_file import (
+        JOB_NAME_ENV,
+        RESULT_FILE_ENV,
+        discard_dispatch_result,
+        dispatch_job_name,
+        dispatch_result_path,
+    )
+
+    env = child_environment(spec)
+    discard_dispatch_result(dispatch_id)
+    env[RESULT_FILE_ENV] = str(dispatch_result_path(dispatch_id))
+    if (os.name == "nt") if windows is None else windows:
+        env[JOB_NAME_ENV] = dispatch_job_name(dispatch_id)
+    return env
 
 
 def _spawn_child(argv: list[str], env: dict[str, str]) -> subprocess.Popen:
@@ -468,7 +508,9 @@ def _spawn_child(argv: list[str], env: dict[str, str]) -> subprocess.Popen:
     from agent_runtime import process_index
     from .local_child import spawn_child
 
-    proc = spawn_child(argv, env)
+    from agent_runtime.dispatch_store.result_file import JOB_NAME_ENV
+
+    proc = spawn_child(argv, env, job_name=env.get(JOB_NAME_ENV))
     # Detached by design: it may outlive this serve, so the Launcher's sweep must
     # be able to name it (D1.09). Forgotten when the supervisor has settled it.
     process_index.record_child(proc.pid)
@@ -477,25 +519,48 @@ def _spawn_child(argv: list[str], env: dict[str, str]) -> subprocess.Popen:
 
 def _settle_local(
     dispatch_id: str,
-    budget: float,
-    returncode: int,
+    budget: float | None,
+    returncode: int | None,
     exit_reason: str,
     stdout_text: str,
     stderr_text: str,
     *,
     cancel_reason: str | None = None,
 ) -> None:
-    """Record the local child's outcome: stopped, no payload, or its payload's verdict.
+    """Record the local child's outcome: stopped, no payload, or its payload's verdict; then drop its result file.
 
     ``cancel_reason`` is the mark a :func:`request_cancel` left. It decides the
     row only when the child produced NO payload: a child that had already
     replied when the kill arrived keeps its reply, because the sender asked for
     that answer before anyone stopped asking.
+
+    The payload is the child's stdout, else its result file (review w1118a.56 D12: written
+    before stdout, so it holds the answer a closed pipe lost). ``returncode`` is ``None`` for
+    a child this process re-adopted after a serve restart: nothing here waited on it.
     """
 
+    from agent_runtime.dispatch_store.result_file import discard_dispatch_result, read_dispatch_result
+
+    payload = parse_child_payload(stdout_text) or read_dispatch_result(dispatch_id)
+    try:
+        _record_local_outcome(dispatch_id, budget, returncode, exit_reason, payload, stderr_text,
+                              cancel_reason=cancel_reason)
+    finally:
+        discard_dispatch_result(dispatch_id)
+
+
+def _record_local_outcome(
+    dispatch_id: str,
+    budget: float | None,
+    returncode: int | None,
+    exit_reason: str,
+    payload: dict[str, Any] | None,
+    stderr_text: str,
+    *,
+    cancel_reason: str | None,
+) -> None:
     from agent_runtime import dispatch_store
 
-    payload = parse_child_payload(stdout_text)
     if cancel_reason is not None and payload is None:
         dispatch_store.record_completion(
             dispatch_id,
@@ -508,7 +573,7 @@ def _settle_local(
             dispatch_id,
             state=dispatch_store.STATE_ERROR,
             error=(
-                f"the dispatch exceeded its {budget:.0f}s budget (plus a "
+                f"the dispatch exceeded its {budget or 0:.0f}s budget (plus a "
                 f"{KILL_GRACE_SECONDS:.0f}s grace) and was stopped. Anything it wrote "
                 "before that is in its own chat thread."
                 if exit_reason == "budget_exceeded"
@@ -521,38 +586,133 @@ def _settle_local(
     if payload is None:
         # No payload is a runtime failure, not a result — say so rather than
         # inventing an empty reply the sender would read as "nothing to report".
+        exited = (
+            "exited after its serve restarted (its exit code is not known here)"
+            if returncode is None
+            else f"exited with code {returncode}"
+        )
         dispatch_store.record_completion(
             dispatch_id,
             state=dispatch_store.STATE_UNKNOWN,
             error=(
-                f"the dispatch process exited with code {returncode} without a reply "
-                "payload; the outcome is unknown."
+                f"the dispatch process {exited} without a reply payload; the outcome is unknown."
                 + (f" stderr: {stderr_text[-_STDERR_EXCERPT:]}" if stderr_text.strip() else "")
             ),
         )
         return
 
-    ok = bool(payload.get("ok")) and returncode == 0
     # This process is the LAST one holding the child's payload — the row is all
     # the sender ever sees — so whether that turn produced anything visible has
     # to be recorded here or it is gone. `ok` does not answer it: a turn whose
     # model returned no content comes back `ok` with an empty reply, and the
     # sender then reads the same blank as a reply that never made it out.
-    # Read, never re-derived: `agent_runtime.turn_visibility` owns the verdict.
-    from agent_runtime.turn_visibility import TurnVisibility
+    dispatch_store.record_completion(dispatch_id, **payload_completion(payload, returncode))
 
-    dispatch_store.record_completion(
-        dispatch_id,
-        state=dispatch_store.STATE_COMPLETED if ok else dispatch_store.STATE_ERROR,
-        reply=str(payload.get("reply") or ""),
-        error="" if ok else _detached_error_text(payload),
-        target_session_id=str(payload.get("session_id") or payload.get("chat_session_id") or ""),
-        total_tokens=payload.get("total_tokens"),
-        visibility=TurnVisibility.from_payload(payload).as_dict(),
-        # The teammate's clarify question and its token, or the delivery hands
-        # the asking agent a question it has no token to answer on.
-        clarify_request=payload.get("clarify_request"),
-    )
+
+#: How often a re-adopted request's child is looked at (D12). A pid-plus-start-time probe each time.
+READOPT_POLL_SECONDS = 1.0
+
+
+def readopt_live_dispatches() -> list[str]:
+    """Re-adopt every request whose child outlived its serve and still runs; the ids taken (D12).
+
+    Review w1118a.56 D12 (row ``RT-AGENT-REQUEST-STILL-RUNNING-WHEN-ITS-SERVE-RESTARTS-IS-PICKED-UP-AGAIN``):
+    a request's supervisor is a thread of the serve that spawned its child, so it always ends
+    with that serve, while the child runs on by design. At the serve's boot pass and on each
+    orphan sweep, a running local row is taken over here when its child is PROVED alive (pid
+    plus start time), its recorded supervisor is PROVED gone, and this process wins the
+    compare-and-set on the supervisor stamp; this serve then supervises it to its end — Stop,
+    the cancel watch and the settle all reach it — and settles it from the child's result
+    file. A row whose child is gone is never re-adopted: the orphan sweep settles it from its
+    result file, or ``unknown``. Never raises.
+    """
+
+    from agent_runtime import dispatch_store
+
+    adopted: list[str] = []
+    try:
+        supervised = supervised_dispatch_ids()
+        rows = dispatch_store.running_dispatches()
+    except Exception:
+        logger.debug("dispatch re-adoption pass failed", exc_info=True)
+        return adopted
+    for row in rows:
+        dispatch_id = str(row.get("dispatch_id") or "")
+        if (
+            not dispatch_id
+            or dispatch_id in supervised
+            or row.get("remote_install_id")
+            or not row.get("started_at")
+        ):
+            continue
+        try:
+            if not (dispatch_store.owner_provably_alive(row) and dispatch_store.supervisor_provably_gone(row)):
+                continue
+            if not dispatch_store.claim_dispatch_supervision(dispatch_id, row):
+                continue
+        except Exception:
+            logger.debug("dispatch %s re-adoption check failed", dispatch_id, exc_info=True)
+            continue
+        _mark_supervised(dispatch_id)
+        try:
+            threading.Thread(
+                target=_supervise_readopted, args=(dispatch_id, row),
+                name=f"agent-chat-dispatch-readopt-{dispatch_id[:24]}", daemon=True,
+            ).start()
+        except Exception:
+            _forget_supervised(dispatch_id)
+            logger.warning("dispatch %s could not be re-adopted", dispatch_id, exc_info=True)
+            continue
+        logger.info("dispatch %s re-adopted: its child %s outlived its serve", dispatch_id, row.get("owner_pid"))
+        adopted.append(dispatch_id)
+    if adopted:
+        # AFTER the marks: the watch exits only when nothing is supervised (D1.07).
+        ensure_cancel_watch()
+    return adopted
+
+
+def _supervise_readopted(dispatch_id: str, row: dict[str, Any], *, windows: bool | None = None) -> None:
+    """Supervise a re-adopted child to its end, then settle it. Its own thread; never raises.
+
+    The child is not this process's child, so nothing waits on it: it is looked at every
+    :data:`READOPT_POLL_SECONDS` until its pid-plus-start-time identity is gone. Its group (or,
+    on Windows, its job, opened by name) is noted so Stop ends what it started; what it left
+    ends with it (the D10 settle). Its exit code is not known here, so its result file's
+    payload decides. The child enforces its own ``--max-seconds``; no wall backstop runs here.
+    """
+
+    import os
+
+    windows = (os.name == "nt") if windows is None else windows
+    pid = int(row["owner_pid"])
+    started_at = row.get("owner_started_at")
+    try:
+        job = None
+        if windows:
+            from agent_runtime.dispatch_store.result_file import dispatch_job_name
+
+            from .local_child import open_job_by_name
+
+            job = open_job_by_name(dispatch_job_name(dispatch_id))
+        if job is not None or (not windows and row.get("owner_group")):
+            note_child_group(pid, job)
+        from agent_runtime.dispatch_store import delivery as store_delivery
+
+        identity = {"owner_pid": pid, "owner_started_at": started_at}
+        while not store_delivery.owner_provably_gone(identity):
+            time.sleep(READOPT_POLL_SECONDS)
+        if child_group(pid) is not None:
+            end_child_group(pid, started_at)
+        release_child_group(pid)
+        try:
+            _settle_local(dispatch_id, None, None, "", "", "", cancel_reason=_peek_cancel_mark(dispatch_id))
+        finally:
+            _take_cancel_mark(dispatch_id)
+    except BaseException:  # a re-adopted request must never vanish: the sweep settles it once forgotten
+        logger.exception("re-adopted dispatch %s failed", dispatch_id)
+        release_child_group(pid)
+    finally:
+        _forget_supervised(dispatch_id)
 
 
 def dispatch_detached_turn(

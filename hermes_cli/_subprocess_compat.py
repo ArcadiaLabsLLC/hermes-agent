@@ -15,6 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Mapping, NoReturn, Sequence
+from typing import Callable, TypeVar  # fork: popen_breaking_away
 
 __all__ = [
     "FILTER_DISCOVERY_FAILED",
@@ -28,6 +29,7 @@ __all__ = [
     "noninteractive_repo_git_env",
     "pid_exists_stdlib",
     "pid_is_hermes",
+    "popen_breaking_away",
     "resolve_node_command",
     "restore_ambient_pythonpath",
     "selected_git_env",
@@ -88,6 +90,8 @@ def harden_git_argv(args: Sequence[str]) -> list[str]:
 
 
 IS_WINDOWS = sys.platform == "win32"
+
+_T = TypeVar("_T")
 
 # Private launcher-to-child metadata. This is diagnostic state, not user config.
 _WINDOWS_GATEWAY_BREAKAWAY_ENV = "_HERMES_GATEWAY_BREAKAWAY"
@@ -208,6 +212,28 @@ def windows_detach_flags_without_breakaway() -> int:
     if not IS_WINDOWS:
         return 0
     return _CREATE_NEW_PROCESS_GROUP | _CREATE_NO_WINDOW
+
+
+def popen_breaking_away(popen: Callable[[int], _T], flags: int, *,
+                        on_refused: Callable[[OSError], None] | None = None) -> tuple[_T, bool]:
+    """``popen(flags | CREATE_BREAKAWAY_FROM_JOB)`` on Windows, then ``popen(flags)`` if the job refuses; ``(result, broke_away)``.
+
+    The one Windows spawn rule for a child that must outlive the job its parent sits in (fork:
+    review w1118a.57 D10). Breakaway is refused with ERROR_ACCESS_DENIED (a ``PermissionError``)
+    when that job lacks ``BREAKAWAY_OK``; the child then spawns inside the job, as before, and
+    ``on_refused`` hears why. Any other spawn failure propagates. Off Windows: ``popen(flags)``.
+    """
+    if not IS_WINDOWS:
+        return popen(flags), False
+    try:
+        return popen(flags | _CREATE_BREAKAWAY_FROM_JOB), True
+    except OSError as exc:
+        # MUTATION: re-raise every OSError and test_a_refused_breakaway_spawns_inside_the_job reddens.
+        if not (isinstance(exc, PermissionError) or getattr(exc, "winerror", None) == 5):
+            raise
+        if on_refused is not None:
+            on_refused(exc)
+    return popen(flags), False
 
 
 def windows_hide_flags() -> int:

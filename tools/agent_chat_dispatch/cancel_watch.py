@@ -89,6 +89,9 @@ def poll_cancel_requests() -> list[str]:
             or _peek_cancel_mark(dispatch_id) is not None
         ):
             continue
+        # Taken, durably, before it is acted on: a cancel no supervisor takes is settled
+        # by the asker's side once its answer window passes (review w1118a.55 D11).
+        dispatch_store.ack_dispatch_cancel(dispatch_id)
         request_cancel(dispatch_id, reason=str(row.get("cancel_requested") or "operator_cancel"))
         acted.append(dispatch_id)
     return acted

@@ -44,7 +44,7 @@ from .chat_coordinator import (
 from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
 from agent_runtime.persona_chat_session import _persona_chat_session_owner
 from .chat_target import _persona_by_id
-from .lifecycle_commands import _placement_discriminability_refusal
+from .lifecycle_commands import _minted_placement_id, _placement_discriminability_refusal
 
 __layer__ = "lanes"
 __all__ = [
@@ -110,13 +110,14 @@ def _cmd_persona_instance_open_chat(args) -> int:
             coordinator_scope=coordinator_scope,
         )
     previous_instance = None
+    move_to = moved_from = None
     try:
         if bool(getattr(args, "add_instance", False)):
-            placement_id = safe_assignment_token(getattr(args, "placement_id", None))
-            if not placement_id:
-                data = {"ok": False, "error": "placement_id is required when add_instance is true"}
-                _emit_persona_verb_payload(args, data)
-                return 2
+            # MUTATION: refuse a missing placement id here again and
+            # test_open_chat_add_instance_mints_the_placement_id_it_was_not_given reddens.
+            placement_id = safe_assignment_token(getattr(args, "placement_id", None)) or _minted_placement_id(
+                args, persona_id)
+            args.placement_id = placement_id  # the answer names the id this door placed, minted or sent
             # UC-H4, scoped to --add-instance ONLY. The other branches of this
             # verb REBIND an instance that already exists (and the recorded
             # 2026-07-25 recovery replayed ten of them out of the event log);
@@ -250,7 +251,10 @@ def _cmd_persona_instance_open_chat(args) -> int:
                         else None
                     )
                 except Exception:
-                    owner_instance = None
+                    # A retired holder answers from its archive (review w1118a.56
+                    # D13): its old chat can still move onto a live instance of the
+                    # same agent; without ``move`` it is refused below as before.
+                    owner_instance = PersonaInstanceStore().retired_instance_row(session_owner)
                 # Same two-normalizer defect as the mission-chat fence, one verb
                 # over: ``safe_assignment_token(owner.persona_id)`` (token form)
                 # against ``persona_id``, which is
@@ -265,7 +269,9 @@ def _cmd_persona_instance_open_chat(args) -> int:
                 persona_ok = personas_equal(owner_persona, persona_id) or (
                     pin_proves_ownership and not safe_assignment_token(owner_persona)
                 )
-                if (
+                move_to = _move_target(args, owner_instance, persona_ok,
+                                       target_instance_id, session_owner)
+                if move_to is None and (
                     owner_instance is None
                     or not persona_ok
                     or (target_instance_id and target_instance_id != session_owner)
@@ -280,7 +286,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
                     }
                     _emit_persona_verb_payload(args, data)
                     return 2
-                target_instance_id = session_owner
+                target_instance_id = move_to or session_owner
             try:
                 previous_instance = PersonaInstanceStore().get(
                     target_instance_id or persona_instance_id_for(persona_id)
@@ -288,12 +294,10 @@ def _cmd_persona_instance_open_chat(args) -> int:
             except Exception:
                 previous_instance = None
             try:
-                instance = PersonaInstanceStore().open_chat(
-                    persona_id=persona_id,
-                    persona_instance_id=target_instance_id,
-                    session_id=args.session_id,
-                    correlation_id=getattr(args, "correlation_id", None),
-                )
+                bound = _bind_for_open(args, session_db, move_to, persona_id, target_instance_id)
+                if isinstance(bound, int):
+                    return bound
+                instance, moved_from = bound
             except ValueError as exc:
                 data = {
                     "ok": False,
@@ -373,6 +377,8 @@ def _cmd_persona_instance_open_chat(args) -> int:
             "instance_updated_at": instance_updated_at,
         },
         "chat_busy": False,
+        # The instance a ``--move`` took this chat from; null when nothing moved.
+        "moved_from_persona_instance_id": moved_from,
         "add_instance": bool(getattr(args, "add_instance", False)),
         "placement_id": safe_assignment_token(getattr(args, "placement_id", None)) or None,
         "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
@@ -384,6 +390,60 @@ def _cmd_persona_instance_open_chat(args) -> int:
         plain=f"opened {instance.id} on chat {instance.default_chat_session_id}",
     )
     return 0
+
+
+def _move_target(args, owner_instance, persona_ok, target_instance_id, session_owner) -> str | None:
+    """``--move`` (owner 2026-11-19, "Reuse idle, else new"): the instance a saved
+    chat of ANOTHER instance of the same agent moves onto, or ``None`` (no move;
+    the ownership fence then refuses a foreign chat as before). A different
+    agent's chat never moves: here (``persona_ok``) and in the move lane."""
+
+    if not (bool(getattr(args, "move", False)) and owner_instance is not None and persona_ok):
+        return None
+    return target_instance_id if target_instance_id and target_instance_id != session_owner else None
+
+
+def _bind_for_open(args, session_db, move_to, persona_id, target_instance_id):
+    """``(bound instance, the instance a move took the chat from)``, or a printed refusal's exit code."""
+
+    if move_to is None:
+        instance = PersonaInstanceStore().open_chat(
+            persona_id=persona_id,
+            persona_instance_id=target_instance_id,
+            session_id=args.session_id,
+            correlation_id=getattr(args, "correlation_id", None),
+        )
+        return instance, None
+    moved = _move_chat_for_open(args, session_db, move_to, persona_id)
+    return moved if isinstance(moved, int) else (moved.instance, moved.moved_from)
+
+
+def _move_chat_for_open(args, session_db, move_to: str, persona_id: str):
+    """``--move``: the move lane's answer, or the exit code of the refusal it printed."""
+
+    from agent_runtime.mission_chat_outcome import ChatErrorKind
+    from agent_runtime.persona_chat_continuity import PersonaChatBusyError
+    from agent_runtime.persona_chat_move import ChatMoveRefused, move_chat
+
+    try:
+        return move_chat(
+            session_db=session_db,
+            session_id=args.session_id,
+            to_instance_id=move_to,
+            requested_by=getattr(args, "requested_by", None),
+            correlation_id=getattr(args, "correlation_id", None),
+        )
+    except ChatMoveRefused as exc:
+        return _emit_persona_open_chat_error(
+            args, error_kind=exc.error_kind, error=exc.error, persona_id=persona_id,
+            persona_instance_id=move_to, next_expected=exc.next_expected,
+        )
+    except PersonaChatBusyError as exc:
+        return _emit_persona_open_chat_error(
+            args, error_kind=ChatErrorKind.CHAT_BUSY, error=str(exc), persona_id=persona_id,
+            persona_instance_id=move_to,
+            next_expected="wait for the reply in this chat to finish, then open it again",
+        )
 
 
 def _persona_instance_updated_at(instance) -> str | None:

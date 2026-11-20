@@ -28,6 +28,7 @@ retire          stores  the archive layout and the retire lane
 steering        stores  the parent-set lane and its acyclic commit
 replicate       stores  the realm-sync replication door
 repair          stores  steering and chat-binding repairs
+chat_moves      stores  the ledger of saved chats moved to another instance
 chat_binding    stores  open / refuse / clear / roll back a chat binding
 profile_writes  stores  ``update_profile`` / ``set_backing_profile``
 store           stores  ``PersonaInstanceStore``: rows, mint, events, bindings

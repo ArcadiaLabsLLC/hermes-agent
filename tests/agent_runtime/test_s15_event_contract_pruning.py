@@ -281,7 +281,10 @@ REMOVED_EVENT_TYPES = frozenset(
 # 77 (lane w1115k-hlens, 2026-11-15, RT-LENS-RECIPE-SHELF-SHARE-AND-ADD): ``lens.recipe.changed``, a
 # workspace's shared Lens recipe shared, withdrawn or added (``agent_runtime.lens.recipe_shelf.announce``).
 # Red at 76 on that commit and moved deliberately.
-SURVIVING_EVENT_COUNT = 77
+# 78 (lane rt-chat-rebind, 2026-11-20, RT-A-SAVED-CHAT-CAN-MOVE-TO-ANOTHER-INSTANCE-OF-ITS-AGENT):
+# ``persona_instance.chat_moved``, a saved chat moved to another instance of its agent
+# (``agent_runtime.persona_chat_move.move_chat``). Red at 77 on that commit and moved deliberately.
+SURVIVING_EVENT_COUNT = 78
 
 
 def test_the_unemittable_event_types_are_no_longer_registered():

@@ -59,6 +59,11 @@ def _turn_row(agent):
     return row
 
 
+def _summary(plan: dict) -> dict:
+    """The plan's counts without its steps (``items``: ``test_running_work_rows_say_who_asked_where_and_steps``)."""
+    return {key: value for key, value in plan.items() if key != "items"}
+
+
 def test_a_running_turn_with_a_plan_carries_its_progress(journal):
     long_step = "word " * 100
     row = _turn_row(_Agent([
@@ -88,12 +93,12 @@ def test_a_child_in_progress_is_counted_at_its_place_in_the_outline(journal):
         {"id": "1a", "content": "Pick the day", "status": "completed", "parent": "1"},
         {"id": "1b", "content": "Book the van", "status": "in_progress", "parent": "1"},
     ]))
-    assert row["plan"] == {"done": 2, "total": 5, "current": "Book the van", "current_index": 3}
+    assert _summary(row["plan"]) == {"done": 2, "total": 5, "current": "Book the van", "current_index": 3}
 
 
 def test_a_plan_with_no_step_in_progress_has_no_current(journal):
     row = _turn_row(_Agent([{"id": "1", "content": "Done already", "status": "completed"}]))
-    assert row["plan"] == {"done": 1, "total": 1, "current": None, "current_index": None}
+    assert _summary(row["plan"]) == {"done": 1, "total": 1, "current": None, "current_index": None}
 
 
 def test_a_running_turn_with_no_plan_omits_it(journal):

@@ -100,7 +100,9 @@ class _Turn:
 
 
 def _chat_turn_ids(section: dict) -> list[str]:
-    return [row["work_id"] for row in section.get("rows") or [] if row.get("kind") == "chat_turn"]
+    # Running turns: an ended one stays a while as ended work (RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE).
+    return [row["work_id"] for row in section.get("rows") or []
+            if row.get("kind") == "chat_turn" and not row.get("finished_at")]
 
 
 def _content(frames):

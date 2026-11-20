@@ -114,14 +114,16 @@ def spawn_detached(argv: Sequence[str], environ: Mapping[str, str]) -> int | Non
     kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
                     "env": relaunch_env(environ), "close_fds": True}
     if sys.platform == "win32":
-        from hermes_cli._subprocess_compat import windows_detach_flags, windows_detach_flags_without_breakaway
+        from hermes_cli._subprocess_compat import popen_breaking_away, windows_detach_flags_without_breakaway
 
-        try:
-            return subprocess.Popen(list(argv), creationflags=windows_detach_flags(), **kwargs).pid
-        except PermissionError:  # a job that forbids breakaway
-            kwargs["creationflags"] = windows_detach_flags_without_breakaway()
-    else:
-        kwargs["start_new_session"] = True
+        try:  # out of this tree's job when it allows breakaway, else inside it (the one spawn rule, w1118a.57 D10)
+            return popen_breaking_away(
+                lambda flags: subprocess.Popen(list(argv), creationflags=flags, **kwargs),
+                windows_detach_flags_without_breakaway(),
+            )[0].pid
+        except OSError:
+            return None
+    kwargs["start_new_session"] = True
     try:
         return subprocess.Popen(list(argv), **kwargs).pid
     except OSError:

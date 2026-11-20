@@ -153,6 +153,10 @@ _MCP_JOBS_FILENAME = "mcp_jobs.json"
 #: Promoted long tool calls, written by ``tools/long_tool_calls.py`` (its ``CHECKPOINT_FILENAME``).
 _TOOL_CALLS_FILENAME = "tool_calls.json"
 _STATE_DB_FILENAME = "state.db"
+#: Where a finished background process leaves its receipt, under the home that holds the
+#: checkpoint (upstream ``tools/process_registry_results.save_completed_result``: one
+#: ``proc_*.json`` per process, written as it finishes). Read by the terminal lane's ended rows.
+_PROCESS_RESULTS_DIR = ("logs", "process-results")
 
 
 #: ``_pid_identity`` verdicts. The split between the last two matters more than

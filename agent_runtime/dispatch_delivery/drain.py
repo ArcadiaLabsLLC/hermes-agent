@@ -37,6 +37,7 @@ from .vocabulary import (
     ORPHAN_SWEEP_INTERVAL_SECONDS,
     bounce_reason,
     delivery_client_message_id,
+    delivery_outcome_state,
     terminal_forge_rejections,
     transient_forge_refusals,
 )
@@ -211,7 +212,9 @@ class DispatchDrain:
                 client_message_id=delivery_client_message_id(dispatch_id),
                 dispatch_id=dispatch_id,
                 notify_operator=bool(row.get("notify_operator")),
-                state=str(row.get("state") or ""),
+                # "not_delivered" for a message that never ran, typed rather than
+                # left to the error's words (RT-DELIVERY-BLOCK-SAYS-A-MESSAGE-NEVER-RAN-AS-A-TYPED-FIELD).
+                state=delivery_outcome_state(row),
                 # RT-DELIVERY-MARKER-NO-TARGET-SESSION: the thread the
                 # delivered row's "Open thread" opens, typed, not in prose.
                 target_session_id=str(row.get("target_session_id") or ""),
@@ -289,9 +292,33 @@ def sweep_orphaned_dispatches() -> int:
     from .. import dispatch_store
 
     try:
+        # Re-adopt first (review w1118a.56 D12): a child that outlived its serve and still
+        # runs is supervised here, never settled; the restore settles only the gone ones.
+        from tools.agent_chat_dispatch.local import readopt_live_dispatches
+
+        readopt_live_dispatches()
+    except Exception:  # pragma: no cover - a sweep must never kill the drain
+        logger.debug("dispatch re-adoption pass failed", exc_info=True)
+    try:
         return int((dispatch_store.restore_undelivered_dispatches() or {}).get("restored") or 0)
     except Exception:  # pragma: no cover - a sweep must never kill the drain
         logger.debug("dispatch orphan sweep failed", exc_info=True)
+        return 0
+
+
+def sweep_unanswered_cancels() -> int:
+    """Settle the rows whose Stop no supervisor took within its window (review w1118a.55 D11). Never raises.
+
+    On the delivery cadence, not the orphan sweep's: it is one indexed read of the rows
+    that carry a cancel, and the operator who pressed Stop is watching the row.
+    """
+
+    from .. import dispatch_store
+
+    try:
+        return int(dispatch_store.settle_unanswered_cancels() or 0)
+    except Exception:  # pragma: no cover - a sweep must never kill the drain
+        logger.debug("unanswered cancel sweep failed", exc_info=True)
         return 0
 
 
@@ -343,6 +370,7 @@ def start_delivery_drain(
                     drain_background_completions(policy=policy)
                 except Exception:  # pragma: no cover
                     logger.debug("background completion pass failed", exc_info=True)
+                sweep_unanswered_cancels()
                 # The orphan sweep runs on its own, slower cadence: it walks
                 # every running row and probes PIDs, which is far too expensive
                 # for the 5s delivery loop and far too rare for boot-only.

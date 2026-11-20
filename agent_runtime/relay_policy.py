@@ -352,20 +352,36 @@ def build_harness_delivery_marker(
     Each later segment is appended AFTER the ones before it, so a parser
     written against an earlier shape keeps reading its segments correctly:
     the state came third, then the target thread and the target's
-    name (percent-encoded, :func:`encode_delivery_segment`), emitted only when
-    a target thread is known so a marker without one keeps its old bytes."""
+    name (:func:`delivery_segments`)."""
+    return HARNESS_DELIVERY_FINISH_REASON_PREFIX + delivery_segments(
+        dispatch_id, notify_operator, state, target_session_id, target_name
+    )
+
+
+def delivery_segments(
+    dispatch_id: str | None,
+    notify_operator: bool = False,
+    state: str | None = None,
+    target_session_id: str | None = None,
+    target_name: str | None = None,
+) -> str:
+    """``<dispatch_id>:<0|1>:<state>[:<thread>:<name>]`` — the ONE spelling of a delivery's
+    segments, shared by the ``finish_reason`` marker and the ``requested_by`` provenance.
+
+    The thread and the name (percent-encoded, :func:`encode_delivery_segment`) ride when
+    either is known: a request stopped before its target opened a thread still names
+    that target, with an empty thread segment the parser reads as none
+    (RT-FU-A-STOPPED-REQUESTS-RESULT-NAMES-NO-AGENT, review w1118a.58 D5). With neither, the
+    segments keep their old bytes."""
     dispatch = (dispatch_id or "").strip()
     settled = (state or "").strip() or HARNESS_DELIVERY_UNKNOWN_STATE
-    marker = (
-        f"{HARNESS_DELIVERY_FINISH_REASON_PREFIX}{dispatch}:"
-        f"{'1' if notify_operator else '0'}:{settled}"
-    )
-    if (target_session_id or "").strip():
-        marker += (
+    segments = f"{dispatch}:{'1' if notify_operator else '0'}:{settled}"
+    if (target_session_id or "").strip() or (target_name or "").strip():
+        segments += (
             f":{encode_delivery_segment(target_session_id)}"
             f":{encode_delivery_segment(target_name)}"
         )
-    return marker
+    return segments
 
 
 def parse_harness_delivery_marker(value) -> HarnessDeliveryOrigin | None:

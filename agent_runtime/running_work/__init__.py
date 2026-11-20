@@ -186,8 +186,12 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
                                 identity (rule 2), the session owner (rule 5), the ambient block
       lanes_process.py  lanes   liveness is a PROCESS this runtime owns: TerminalLane, McpJobLane,
                                 BackgroundToolCallLane (promoted long tool calls), cron
+      ended.py          policy  ended agent work kept for a while: the retention window, the
+                                outcome tables, mark_ended / is_ended
       lanes_chat.py     lanes   keyed on a chat session's durable store: DelegationLane
                                 (DELEGATION_STATUS_BY_RECORD), chat turns, DispatchLane
+      chat_turn_facts.py lanes  what a chat-turn row reads beside the journal (titles, steer,
+                                plan, run pass, the request a turn serves)
       build_rows.py     policy  the ``build`` row: BuildFacts -> work_row + every build key (§1 of
                                 the build plan), the status derived from liveness + outcome once
       lanes_build.py    lanes   BuildLane: terminal -> build reclassification in place, the

@@ -244,7 +244,7 @@ def _probe_sender_idle(root_session_id: str) -> IdleProbe:
 
     from ..mission_chat_turns.reads import mission_chat_turn_records
     from ..mission_chat_turns.states import INFLIGHT_TURN_STATES
-    from ..persona_chat_continuity import PersonaChatBusyError, persona_chat_root_lease
+    from ..persona_chat_continuity.lease import chat_root_lease_holder
 
     try:
         records = mission_chat_turn_records(session_id=root_session_id)
@@ -262,24 +262,20 @@ def _probe_sender_idle(root_session_id: str) -> IdleProbe:
             )
 
     try:
-        # Probe ONLY: acquire with no wait and release immediately. Holding it
+        # The shared busy check: a zero-wait acquire, released at once. Holding it
         # across the forge would deadlock against the handler's own acquisition
         # of the same root.
-        with persona_chat_root_lease(
-            root_session_id, owner_id="dispatch-delivery-probe", observer_kind="serve"
-        ):
-            pass
-    except PersonaChatBusyError as exc:
-        # `owner` is populated from `<stem>.owner.json` by the lease itself; an
-        # empty payload means the lock is held with no readable owner.
-        owner = dict(getattr(exc, "owner", None) or {})
+        owner = chat_root_lease_holder(root_session_id, probe_owner="dispatch-delivery-probe")
+    except Exception as exc:
+        return IdleProbe(False, IDLE_LEASE_PROBE_ERROR, repr(exc))
+    if owner is not None:
+        # `owner` comes from `<stem>.owner.json`; empty means the lock is held
+        # with no readable owner.
         if owner:
             return IdleProbe(False, IDLE_LEASE_BUSY_OWNED, f"owner={owner}")
         return IdleProbe(
             False, IDLE_LEASE_BUSY_OWNERLESS, "lease held with no readable owner file"
         )
-    except Exception as exc:
-        return IdleProbe(False, IDLE_LEASE_PROBE_ERROR, repr(exc))
     return IdleProbe.idle()
 
 

@@ -5,11 +5,12 @@ rows (settling them through ``writes.record_completion``).
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
 from ..serde import bounded_text
-from .db import _DB_LOCK, _emit, _query, _supervised_here, _transaction, get_dispatch
+from .db import _DB_LOCK, _emit, _owner_identity, _query, _supervised_here, _transaction, get_dispatch
 from .models import (
     _TABLE,
     CLAIM_EXPIRY_SECONDS,
@@ -26,6 +27,8 @@ from .models import (
     STATE_UNKNOWN,
 )
 from .writes import record_completion
+
+logger = logging.getLogger(__name__)
 
 __layer__ = "lanes"
 
@@ -127,7 +130,8 @@ def release_delivery_claim(dispatch_id: str, *, refund_attempt: bool = False) ->
 
 
 def set_dispatch_owner(
-    dispatch_id: str, *, owner_pid: int | None, owner_started_at: int | None
+    dispatch_id: str, *, owner_pid: int | None, owner_started_at: int | None,
+    owner_group: int | None = None,
 ) -> bool:
     """Re-point a running row's owner identity at the process actually doing the work.
 
@@ -141,23 +145,57 @@ def set_dispatch_owner(
 
     Only ``running`` rows move. A completion that arrived first wins — this is
     bookkeeping, and it must never resurrect a settled row.
+
+    ``owner_group`` is the process group the child leads (review w1118a.55 D10), or
+    None: what :func:`settle_if_orphaned` may end once the child is provably gone.
     """
 
     # The owner stamp IS the moment the child exists, so it is also where the
     # queue wait ends: ``started_at`` is written here and nowhere else.
     now = time.time()
+    # The stamping process is the child's supervisor (D12, review w1118a.56).
+    supervisor_pid, supervisor_started = _owner_identity()
     with _DB_LOCK, _transaction() as conn:
         cur = conn.execute(
-            f"""UPDATE {_TABLE} SET owner_pid=?, owner_started_at=?, updated_at=?,
-                started_at=COALESCE(started_at, ?)
+            f"""UPDATE {_TABLE} SET owner_pid=?, owner_started_at=?, owner_group=?, updated_at=?,
+                started_at=COALESCE(started_at, ?), supervisor_pid=?, supervisor_started_at=?
                 WHERE dispatch_id=? AND state=?""",
             (
                 int(owner_pid) if owner_pid else None,
                 int(owner_started_at) if owner_started_at else None,
+                int(owner_group) if owner_group else None,
                 now,
                 now,
+                supervisor_pid,
+                supervisor_started,
                 str(dispatch_id),
                 STATE_RUNNING,
+            ),
+        )
+        return cur.rowcount == 1
+
+
+def claim_dispatch_supervision(dispatch_id: str, row: dict[str, Any]) -> bool:
+    """Make THIS process the supervisor of a running row it re-adopts; True when it won (D12).
+
+    Compare-and-set on the supervisor the caller read: two serves of one home booting together
+    re-adopt a request once, never twice.
+    """
+
+    pid, started = _owner_identity()
+    with _DB_LOCK, _transaction() as conn:
+        cur = conn.execute(
+            f"""UPDATE {_TABLE} SET supervisor_pid=?, supervisor_started_at=?, updated_at=?
+                WHERE dispatch_id=? AND state=?
+                  AND supervisor_pid IS ? AND supervisor_started_at IS ?""",
+            (
+                pid,
+                started,
+                time.time(),
+                str(dispatch_id),
+                STATE_RUNNING,
+                row.get("supervisor_pid"),
+                row.get("supervisor_started_at"),
             ),
         )
         return cur.rowcount == 1
@@ -172,17 +210,34 @@ def request_dispatch_cancel(dispatch_id: str, reason: str) -> bool:
     second request does not rewrite why the first one was made).
     """
 
+    now = time.time()
     with _DB_LOCK, _transaction() as conn:
         conn.execute(
-            f"""UPDATE {_TABLE} SET cancel_requested=?, updated_at=?
+            f"""UPDATE {_TABLE} SET cancel_requested=?, cancel_requested_at=?, updated_at=?
                 WHERE dispatch_id=? AND state=? AND cancel_requested=''""",
-            (str(reason or "operator_cancel")[:80], time.time(), str(dispatch_id), STATE_RUNNING),
+            (str(reason or "operator_cancel")[:80], now, now, str(dispatch_id), STATE_RUNNING),
         )
         row = conn.execute(
             f"SELECT cancel_requested FROM {_TABLE} WHERE dispatch_id=? AND state=?",
             (str(dispatch_id), STATE_RUNNING),
         ).fetchone()
     return bool(row and row[0])
+
+
+def ack_dispatch_cancel(dispatch_id: str) -> bool:
+    """The supervising process took a durable cancel (its cancel watch); True when recorded.
+
+    What tells a cancel a live supervisor is acting on from one nobody is left to
+    honour (:func:`settle_if_cancel_unanswered`, review w1118a.55 D11).
+    """
+
+    with _DB_LOCK, _transaction() as conn:
+        cur = conn.execute(
+            f"""UPDATE {_TABLE} SET cancel_seen_at=?
+                WHERE dispatch_id=? AND state=? AND cancel_requested != '' AND cancel_seen_at IS NULL""",
+            (time.time(), str(dispatch_id), STATE_RUNNING),
+        )
+        return cur.rowcount == 1
 
 
 def mark_delivered(dispatch_id: str) -> bool:
@@ -301,13 +356,6 @@ def restore_undelivered_dispatches() -> dict[str, int]:
     delivering one (#64484).
     """
 
-    try:
-        from gateway.status import get_process_start_time
-
-        from .._upstream_doors import pid_exists as _pid_exists
-    except Exception:  # pragma: no cover - defensive
-        return {"restored": 0, "checked": 0}
-
     supervised = _supervised_here()
     rows = _query("WHERE state=?", (STATE_RUNNING,))
     restored = 0
@@ -322,41 +370,109 @@ def restore_undelivered_dispatches() -> dict[str, int]:
         # by the delivery-turn replay dedup.
         if row.get("dispatch_id") in supervised:
             continue
-        pid = row.get("owner_pid")
-        if not pid:
-            continue
-        try:
-            alive = bool(_pid_exists(int(pid)))
-        except Exception:
-            continue
-        if alive:
-            baseline = row.get("owner_started_at")
-            if baseline is None:
-                # No identity baseline recorded: cannot disprove ownership.
-                continue
-            try:
-                observed = get_process_start_time(int(pid))
-            except Exception:
-                continue
-            if observed is None or int(observed) == int(baseline):
-                # Unreadable probe, or a genuine match — either way not disproof.
-                continue
-        # The dominant case after the subprocess move is a serve recycled while
-        # a HEALTHY child ran to completion: the reply exists, it is in the
-        # target's own thread, and only this bookkeeping row was orphaned. So
-        # the copy points at that thread rather than inviting the sender to
-        # duplicate work that has very likely already been done.
-        thread = row.get("target_session_id") or ""
-        where = (
-            f" Their reply, if they finished, is in thread {thread} "
-            "(agent_chat_open with that session_id)."
-            if thread
-            else (
-                " Check your thread with them (agent_chat_open / agent_chat_log_path)"
-                " before re-sending — they may well have finished."
-            )
+        if settle_if_orphaned(row) or settle_if_cancel_unanswered(row):
+            restored += 1
+    return {"restored": restored, "checked": len(rows)}
+
+
+def _identity_state(pid: Any, baseline: Any) -> str:
+    """``"alive"`` (the pid runs under its recorded start time), ``"gone"`` (dead, or a recycled
+    number), or ``"unproven"`` (no pid, no baseline, or an unreadable probe)."""
+
+    try:
+        from gateway.status import get_process_start_time
+
+        from .._upstream_doors import pid_exists as _pid_exists
+    except Exception:  # pragma: no cover - defensive
+        return "unproven"
+    if not pid:
+        return "unproven"
+    try:
+        alive = bool(_pid_exists(int(pid)))
+    except Exception:
+        return "unproven"
+    if not alive:
+        return "gone"
+    if baseline is None:
+        return "unproven"
+    try:
+        observed = get_process_start_time(int(pid))
+    except Exception:
+        return "unproven"
+    if observed is None:
+        return "unproven"
+    return "alive" if int(observed) == int(baseline) else "gone"
+
+
+def owner_provably_alive(row: dict[str, Any]) -> bool:
+    """Whether a row's child is PROVABLY the recorded process, still running: pid plus start time (D12)."""
+
+    return _identity_state(row.get("owner_pid"), row.get("owner_started_at")) == "alive"
+
+
+def supervisor_provably_gone(row: dict[str, Any]) -> bool:
+    """Whether the serve that supervised a row's child is PROVABLY gone (D12).
+
+    A row with no supervisor stamp (written before the column) is not proof: it is never re-adopted.
+    """
+
+    return _identity_state(row.get("supervisor_pid"), row.get("supervisor_started_at")) == "gone"
+
+
+def owner_provably_gone(row: dict[str, Any]) -> bool:
+    """Whether a ``running`` row's recorded owner process is PROVABLY gone.
+
+    Dead, or alive under a start time that differs from the recorded baseline
+    (a recycled number). An unreadable probe, a missing pid or a missing
+    baseline is not proof, so it answers False.
+    """
+
+    return _identity_state(row.get("owner_pid"), row.get("owner_started_at")) == "gone"
+
+
+def settle_if_orphaned(row: dict[str, Any]) -> bool:
+    """Settle ONE ``running`` row ``unknown`` when its owner is provably gone; True when it did.
+
+    The sweep's per-row step, also taken at once by a Stop on a row no process
+    here supervises (``tools/agent_chat_dispatch/local.py``): its process has
+    already ended, so the Stop is answered by settling what the sweep would
+    settle a minute later. The CALLER owns the supervised-here guard.
+    """
+
+    if not owner_provably_gone(row):
+        return False
+    _end_left_group(row)
+    # The child may have answered after its serve was gone: its result file holds the
+    # answer the closed pipe lost (review w1118a.56 D12), read through the one mapping.
+    from .result_file import discard_dispatch_result, read_dispatch_result
+
+    payload = read_dispatch_result(row["dispatch_id"])
+    if payload is not None:
+        from tools.agent_chat_dispatch.child import payload_completion
+
+        settled = bool(record_completion(
+            row["dispatch_id"], **payload_completion(payload, None), only_if_running=True
+        ))
+        discard_dispatch_result(row["dispatch_id"])
+        return settled
+    # The dominant case after the subprocess move is a serve recycled while
+    # a HEALTHY child ran to completion: the reply exists, it is in the
+    # target's own thread, and only this bookkeeping row was orphaned. So
+    # the copy points at that thread rather than inviting the sender to
+    # duplicate work that has very likely already been done.
+    thread = row.get("target_session_id") or ""
+    where = (
+        f" Their reply, if they finished, is in thread {thread} "
+        "(agent_chat_open with that session_id)."
+        if thread
+        else (
+            " Check your thread with them (agent_chat_open / agent_chat_log_path)"
+            " before re-sending — they may well have finished."
         )
-        if record_completion(
+    )
+    discard_dispatch_result(row["dispatch_id"])
+    return bool(
+        record_completion(
             row["dispatch_id"],
             state=STATE_UNKNOWN,
             error=(
@@ -367,6 +483,86 @@ def restore_undelivered_dispatches() -> dict[str, int]:
             # The sweep INFERS; it must never overwrite an outcome a supervisor
             # actually observed and recorded between the read above and here.
             only_if_running=True,
-        ):
-            restored += 1
-    return {"restored": restored, "checked": len(rows)}
+        )
+    )
+
+
+#: How long a durable cancel waits for a supervisor's cancel watch to take it before the
+#: row is settled ``unknown`` (review w1118a.55 D11). Several of the watch's 2 s polls
+#: (``tools/agent_chat_dispatch/cancel_watch.py::CANCEL_POLL_SECONDS``; a test pins the
+#: margin), so a live supervisor is never out-waited.
+CANCEL_ANSWER_WINDOW_SECONDS = 10.0
+
+
+def settle_if_cancel_unanswered(row: dict[str, Any], *, now: float | None = None) -> bool:
+    """Settle ONE ``running`` row ``unknown`` when its Stop went unanswered; True when it did.
+
+    The row whose pid is alive again but unprovable (a recycled number, another
+    session's process) stays listed by design — burying it on a probe hiccup would
+    bury a live build. A Stop on it writes a durable cancel; a live supervisor takes
+    that within a poll (``ack_dispatch_cancel``). One untaken after
+    :data:`CANCEL_ANSWER_WINDOW_SECONDS` has no process left to answer it: the operator
+    asked and nothing answered, so the row settles ``unknown`` and nothing is signalled.
+    A cross-install row is answered by the far install, never here. The CALLER owns
+    the supervised-here guard.
+    """
+
+    if (
+        row.get("state") != STATE_RUNNING
+        or row.get("remote_install_id")
+        or not row.get("cancel_requested")
+        or row.get("cancel_seen_at")
+    ):
+        return False
+    asked = row.get("cancel_requested_at")
+    if not asked or (time.time() if now is None else now) - float(asked) < CANCEL_ANSWER_WINDOW_SECONDS:
+        return False
+    return bool(
+        record_completion(
+            row["dispatch_id"],
+            state=STATE_UNKNOWN,
+            error=(
+                "Stop was asked and no process answered it, so the dispatch was cleared and "
+                "its outcome is unknown. Check your thread with them before re-sending."
+            ),
+            target_session_id=row.get("target_session_id") or "",
+            only_if_running=True,
+        )
+    )
+
+
+def settle_unanswered_cancels(*, now: float | None = None) -> int:
+    """Settle every running row whose Stop no supervisor took within its window; the count.
+
+    One indexed read of the rows carrying a cancel (``cancel_requested_dispatches``), so it
+    runs on the delivery drain's own short cadence: a Stop nobody answers clears its row
+    seconds after the window, not a sweep later. Rows a supervisor in THIS process holds
+    are skipped — its cancel watch answers them.
+    """
+
+    from .db import cancel_requested_dispatches
+
+    supervised = _supervised_here()
+    settled = 0
+    for row in cancel_requested_dispatches():
+        if row.get("dispatch_id") not in supervised and settle_if_cancel_unanswered(row, now=now):
+            settled += 1
+    return settled
+
+
+def _end_left_group(row: dict[str, Any]) -> None:
+    """End what a provably-gone child left in its process group (review w1118a.55 D10).
+
+    Only a row that names a group (a child spawned leading one) and only through the
+    child's own identity-guarded group end. Best effort: a settle never fails on it.
+    """
+
+    group = row.get("owner_group")
+    if not group:
+        return
+    try:
+        from tools.agent_chat_dispatch.child import end_child_group
+
+        end_child_group(int(group), row.get("owner_started_at"))
+    except Exception:  # pragma: no cover - best effort
+        logger.debug("dispatch %s group end failed", row.get("dispatch_id"), exc_info=True)

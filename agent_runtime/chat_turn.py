@@ -110,6 +110,20 @@ def dispatch_turn_request_id(dispatch_id: str) -> str:
     return f"{DISPATCH_TURN_REQUEST_PREFIX}{dispatch_id}"
 
 
+def dispatch_id_of_turn_request(turn_request_id: Any) -> str:
+    """The dispatch a turn runs for, from its ``turn_request_id`` — :func:`dispatch_turn_request_id`'s
+    inverse, beside it so the spelling has one owner; ``""`` for any other turn.
+
+    ``running_work`` stamps the request's turn row with ``parent_work_id: dispatch:<id>`` from this
+    (RT-FU-AN-AGENT-REQUESTS-OWN-TURN-NAMES-ITS-REQUEST, review w1118a.58 D3), so no client parses
+    the spelling."""
+
+    text = str(turn_request_id or "").strip()
+    if not text.startswith(DISPATCH_TURN_REQUEST_PREFIX):
+        return ""
+    return text[len(DISPATCH_TURN_REQUEST_PREFIX):].strip()
+
+
 #: THE chat-turn vocabulary: every method whose handler ends in
 #: :func:`perform_chat_turn`. Minted with the peer verb at gateway Stage 7 and
 #: readerless until 2026-09-01, when it was given the reader the three constants

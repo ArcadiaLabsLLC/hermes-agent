@@ -61,7 +61,7 @@ def turn_instance(root: str, named: Sequence[str], instances: list[Any]) -> Any 
     """The persona instance whose chat ``root`` is: the batch names it, else the
     instance bound to the session, else the mint's owner."""
 
-    from .persona_assignments import chat_session_owner_instance_id
+    from .persona_assignments.chat_moves import chat_session_held_by
 
     by_id = {str(getattr(item, "id", "") or ""): item for item in instances}
     for instance_id in named:
@@ -73,7 +73,7 @@ def turn_instance(root: str, named: Sequence[str], instances: list[Any]) -> Any 
             optional_text(getattr(instance, "session_id", None)),
         ):
             return instance
-    return by_id.get(chat_session_owner_instance_id(root) or "")
+    return by_id.get(chat_session_held_by(root) or "")
 
 
 def channel_for_instance(channels: list[dict[str, Any]], instance_id: str) -> dict[str, Any] | None:

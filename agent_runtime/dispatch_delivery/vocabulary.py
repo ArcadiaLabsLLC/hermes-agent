@@ -285,24 +285,52 @@ def delivery_requested_by(
     so failures genuinely travel this lane.
 
     The dispatch's target thread and the target's name ride last
-    (RT-DELIVERY-MARKER-NO-TARGET-SESSION), percent-encoded and only when a
-    thread is known, in the same order the ``finish_reason`` marker carries
-    them — so the row can draw "Open thread" from the typed block.
+    (RT-DELIVERY-MARKER-NO-TARGET-SESSION), in the same order the
+    ``finish_reason`` marker carries them (one spelling,
+    :func:`~agent_runtime.relay_policy.delivery_segments`) — so the row can draw
+    "Open thread" from the typed block, and a request stopped before any thread
+    opened still names its target.
     """
 
-    from ..relay_policy import HARNESS_DELIVERY_UNKNOWN_STATE, encode_delivery_segment
+    from ..relay_policy import delivery_segments
 
-    settled = (state or "").strip() or HARNESS_DELIVERY_UNKNOWN_STATE
-    value = (
-        f"{DELIVERY_REQUESTED_BY}:{str(dispatch_id or '').strip()}:"
-        f"{'1' if notify_operator else '0'}:{settled}"
+    return f"{DELIVERY_REQUESTED_BY}:" + delivery_segments(
+        str(dispatch_id or ""), notify_operator, state, target_session_id, target_name
     )
-    if (target_session_id or "").strip():
-        value += (
-            f":{encode_delivery_segment(target_session_id)}"
-            f":{encode_delivery_segment(target_name)}"
-        )
-    return value
+
+
+#: The delivery outcome of a dispatch whose message never ran: its target stayed
+#: busy with another turn for the whole wait (``tools/agent_chat_dispatch/local.py``
+#: ``_wait_for_busy_target``). The dispatch ROW stays ``error`` — the store's own
+#: vocabulary is unchanged — and only the delivery's ``state`` segment, and so the
+#: delivery block's ``state``, says it (RT-DELIVERY-BLOCK-SAYS-A-MESSAGE-NEVER-RAN-
+#: AS-A-TYPED-FIELD). A reader that predates the word reads it as ``unknown``,
+#: never as success, and the error's words still say "Not delivered".
+DELIVERY_STATE_NOT_DELIVERED = "not_delivered"
+
+
+def never_ran_error_kinds() -> frozenset[str]:
+    """``error_kind`` values on an ``error`` row that mean the message never ran."""
+
+    from ..mission_chat_outcome import ChatErrorKind
+
+    return frozenset({str(ChatErrorKind.CHAT_BUSY)})
+
+
+def delivery_outcome_state(row: dict[str, Any]) -> str:
+    """The ``state`` a dispatch row's delivery carries: the row's own state,
+    except :data:`DELIVERY_STATE_NOT_DELIVERED` for an ``error`` whose recorded
+    ``error_kind`` says the message never ran. A row written before the kind was
+    recorded keeps its plain ``error``."""
+
+    from ..dispatch_store.models import STATE_ERROR
+
+    state = str(row.get("state") or "")
+    result = row.get("result") or {}
+    kind = str(result.get("error_kind") or "") if isinstance(result, dict) else ""
+    if state == STATE_ERROR and kind in never_ran_error_kinds():
+        return DELIVERY_STATE_NOT_DELIVERED
+    return state
 
 
 def parse_delivery_requested_by(value):

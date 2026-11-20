@@ -16,6 +16,7 @@ from .lanes_messaging import _collect_messaging_turns
 from .lanes_schedule import _collect_scheduled_turns
 from ..builds.registry import BuildLogRefused, build_log_tail
 from ..builds.vocabulary import SOURCE_AGENT, SOURCE_ANNOUNCED, TAIL_SOURCE_TERMINAL
+from .ended import is_ended
 from .ownership import _ambient_context
 from .rows import _module, bounded_operator_text, _source, _strip_ansi
 from .vocabulary import KIND_BUILD, KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_MCP_JOB, KIND_MESSAGING_TURN, KIND_SCHEDULED_TURN, KIND_TERMINAL, KIND_TOOL_CALL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
@@ -353,6 +354,11 @@ def cancel_work(work_id: str, *, reason: str = "operator_cancel") -> dict[str, A
     row = find_work_row(work_id)
     if row is None:
         return {"status": "error", "code": "not_found", "work_id": work_id}
+    if is_ended(row):
+        # Listed for a while after it ended (RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE):
+        # nothing is left to stop, and no seam is asked to stop it.
+        return {"status": "error", "code": "already_ended", "work_id": work_id, "kind": kind,
+                "outcome": row.get("outcome")}
 
     canceller = _CANCELLERS.get(kind)
     if canceller is not None:
@@ -543,10 +549,21 @@ def _cancel_dispatch(work_id: str, kind: str, stable: str, row: dict[str, Any], 
     routes. A dispatch another serve on this machine supervises answers
     ``cancel_requested`` — the durable mark that serve's cancel watch acts on
     (D1.07), reported as a request and never as a kill. ``not_owned_here``
-    remains for a process where the lane is not resident at all.
+    remains for a process where the lane cannot be loaded at all.
+
+    A Stop is an operator's act, not a projection read, so the lane is loaded when this
+    process never dispatched anything: a serve restarted since a request's supervisor
+    ended answered ``not_owned_here`` and left the request and what it started running
+    (seen live 2026-11-20, lane w1118a-hstop) — the row's own settle and group end need
+    only the store, which any process reads.
     """
 
     lane = _module("tools.agent_chat_dispatch")
+    if lane is None:
+        try:
+            import tools.agent_chat_dispatch as lane
+        except Exception:
+            lane = None
     if lane is None:
         # The supervisor lives in that module; a process that never imported it
         # supervises nothing, so the row is simply not ours to stop.
@@ -574,6 +591,8 @@ _DISPATCH_CANCEL_ANSWERED = {
     "cancelled": "",
     "cancel_requested": "another process supervises it; that process stops it within {poll_seconds}s",
     "already_finished": "already finished; its result is kept",
+    # Its process had already ended and nothing here supervised it: settled now.
+    "settled": "its process had already ended; it is cleared, and its sender is told the outcome is unknown",
     # A paired install had not started it; the row's mark stops this install sending it.
     "not_running": "the paired install had not started it; it will not be sent",
 }

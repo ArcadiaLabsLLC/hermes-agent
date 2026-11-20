@@ -163,13 +163,60 @@ def inflight_turn_rows() -> list[dict[str, Any]]:
     ``mission_chat_turn_records`` already uses.
     """
 
+    return sorted(
+        _projected_turn_rows(lambda record: _record_state(record) in INFLIGHT_TURN_STATES),
+        key=lambda item: (
+            str(item.get("started_at") or item.get("updated_at") or ""),
+            str(item.get("client_message_id") or ""),
+        ),
+    )
+
+
+def running_work_turn_rows(
+    *, settled_states: frozenset[str], settled_since: float, settled_limit: int
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """``(in flight, settled)`` in ONE journal walk: :func:`inflight_turn_rows`' rows in its order, and
+    the records in ``settled_states`` that settled at or after ``settled_since`` (epoch), newest first, at
+    most ``settled_limit``.
+
+    ``running_work``'s ended rows (RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE): a record's
+    ``updated_at`` is its settle stamp once it leaves the in-flight set. A record with no readable
+    stamp is not listed as settled. One walk, because the projection is polled and the walk reads
+    every session file.
+    """
+
+    from agent_runtime.clock import parse_iso_utc
+
+    def _keep(record: dict[str, Any]) -> bool:
+        state = _record_state(record)
+        if state in INFLIGHT_TURN_STATES:
+            return True
+        if state not in settled_states:
+            return False
+        stamp = parse_iso_utc(safe_assignment_text(record.get("updated_at"), limit=80))
+        return stamp is not None and stamp.timestamp() >= settled_since
+
+    inflight: list[dict[str, Any]] = []
+    settled: list[dict[str, Any]] = []
+    for row in _projected_turn_rows(_keep):
+        (inflight if row.get("state") in INFLIGHT_TURN_STATES else settled).append(row)
+    inflight.sort(key=lambda item: (str(item.get("started_at") or item.get("updated_at") or ""),
+                                    str(item.get("client_message_id") or "")))
+    settled.sort(key=lambda item: (str(item.get("updated_at") or ""), str(item.get("client_message_id") or "")),
+                 reverse=True)
+    return inflight, settled[: max(0, int(settled_limit))]
+
+
+def _projected_turn_rows(keep) -> list[dict[str, Any]]:
+    """Every journal record ``keep`` accepts, bounded and safe, with its root/active ``session_id``."""
+
     _migrate_legacy_if_present()
     rows: list[dict[str, Any]] = []
     for path in _iter_session_files():
         for message_key, record in _read_session_map(path).items():
             if not isinstance(record, dict):
                 continue
-            if _record_state(record) not in INFLIGHT_TURN_STATES:
+            if not keep(record):
                 continue
             safe_key = safe_assignment_text(message_key, limit=240)
             if not safe_key:
@@ -186,13 +233,7 @@ def inflight_turn_rows() -> list[dict[str, Any]]:
                 limit=240,
             )
             rows.append(safe_record)
-    return sorted(
-        rows,
-        key=lambda item: (
-            str(item.get("started_at") or item.get("updated_at") or ""),
-            str(item.get("client_message_id") or ""),
-        ),
-    )
+    return rows
 
 
 def last_turn_started_by_instance() -> dict[str, str]:

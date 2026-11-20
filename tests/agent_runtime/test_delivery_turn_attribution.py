@@ -451,3 +451,57 @@ def test_the_history_read_carries_the_reader_parts_to_the_console():
     assert message["delivery"]["reader"] == {"reply": "It is blue.", "question": "", "choices": [], "error": ""}
     assert "reader" not in _project(_history_row(kind=PERSONA_HARNESS_DELIVERY_KIND,
                                                  delivery_dispatch_id="dispatch-abc123"))["delivery"]
+
+
+# ---------------------------------------------------------------------------
+# RT-FU-A-STOPPED-REQUESTS-RESULT-NAMES-NO-AGENT (review w1118a.58 D5)
+# ---------------------------------------------------------------------------
+# Seen live 2026-11-20 (w1118a-mclive): Neko's request to Base, stopped before Base replied, came
+# back as "Your teammate's work was stopped"; its marker was ``harness_delivery:dispatch-…:0:cancelled``
+# — the target's name was dropped because no thread had opened.
+
+
+def test_a_stopped_request_with_no_thread_still_names_its_target_to_the_console(monkeypatch):
+    """The drain's own ``requested_by`` → the handler's marker → the history row → the console block.
+
+    KILLING MUTATION (run 2026-11-20): ``delivery_segments`` appends the thread and the name only when a
+    thread is known (the old ``if (target_session_id or "").strip():``) -> ``target_name`` is ``None`` and
+    the console falls back to "Your teammate", red.
+    """
+
+    from agent_runtime.dispatch_delivery.forge import dispatch_target_name
+    from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
+    from tests.agent_runtime.test_persona_chat_history_curation import FakeSessionDB
+
+    row = {"dispatch_id": "dispatch-2b1a0ea3f539", "state": "cancelled", "target_session_id": "",
+           "target_instance_id": "personainst_base"}
+    import agent_runtime.persona_assignments as assignments
+
+    monkeypatch.setattr(assignments, "persona_instance_display_name",
+                        lambda handle: "Base" if handle == "personainst_base" else "")
+    name = dispatch_target_name(row)
+    marker = _marker_for(dispatch_delivery.delivery_requested_by(
+        row["dispatch_id"], notify_operator=False, state=row["state"],
+        target_session_id=row["target_session_id"], target_name=name))
+    assert marker == "harness_delivery:dispatch-2b1a0ea3f539:0:cancelled::Base"
+
+    db = FakeSessionDB([{
+        "id": "m1", "role": "user", "content": "[BACKGROUND DISPATCH CANCELLED]", "finish_reason": marker,
+        "platform_message_id": "dispatch-delivery-dispatch-2b1a0ea3f539", "created_at": "2026-11-20T00:00:00Z",
+    }])
+    rows, _status, _unread = _safe_recent_messages(db, session_id="persona_chat_personainst_neko_abc123def456")
+    delivered = [item for item in rows if item.get("kind") == PERSONA_HARNESS_DELIVERY_KIND][0]
+    message = _project(_history_row(
+        kind=PERSONA_HARNESS_DELIVERY_KIND, delivery_dispatch_id=delivered["delivery_dispatch_id"],
+        delivery_state=delivered["delivery_state"],
+        delivery_target_session_id=delivered["delivery_target_session_id"],
+        delivery_target_name=delivered["delivery_target_name"]))
+    assert message["delivery"]["target_name"] == "Base"
+    assert message["delivery"]["target_session_id"] == ""
+    assert message["delivery"]["state"] == "cancelled"
+
+
+def test_a_delivery_with_neither_thread_nor_name_keeps_its_old_bytes():
+    assert dispatch_delivery.delivery_requested_by("dispatch-abc123", state="cancelled", target_name="") == (
+        "harness-delivery:dispatch-abc123:0:cancelled"
+    )

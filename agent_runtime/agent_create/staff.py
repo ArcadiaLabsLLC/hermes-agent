@@ -83,15 +83,18 @@ def running_group_chat_seats(install_id: str) -> frozenset[str] | None:
     return service.runs.seated_instances(install_id)
 
 
+_IDLE_PROBE_OWNER = "agent-add-instance-idle-probe"
+
+
 def _chat_root_busy(root: str | None) -> bool:
-    """A turn holds the root's lease, or a send waits on it."""
+    """A turn holds the root's lease (the one busy check), or a send waits on it."""
 
     if not root:
         return False
     from ..chat_root_send_queue import has_entries
-    from ..chat_root_send_runner import _root_is_idle
+    from ..persona_chat_continuity import chat_root_is_busy
 
-    return has_entries(root) or not _root_is_idle(root)
+    return has_entries(root) or chat_root_is_busy(root, probe_owner=_IDLE_PROBE_OWNER)
 
 
 def _instance_busy(store: Any, instance: Any, seated: frozenset[str]) -> bool:

@@ -11,10 +11,10 @@ from agent_runtime.redaction import TEXT_SECRET_ASSIGNMENT_RE
 from agent_runtime.serde import positive_int
 from agent_runtime.persona_assignments import (
     PERSONA_INSTANCE_ID_PREFIX,
-    chat_session_owner_instance_id,
     safe_assignment_text,
     safe_assignment_token,
 )
+from agent_runtime.persona_assignments.chat_moves import chat_session_held_by
 from agent_runtime.persona_chat_durability import (
     persona_chat_persistence_failed as _persona_chat_persistence_failed,
 )
@@ -202,7 +202,9 @@ def _resolve_relay_sender_marker(
     # is the sending instance (sibling-safe: personainst_<p>_agent_2 survives).
     # Resolve the persona from the store row, never by string-parsing the
     # instance id (placement suffixes make that fragile).
-    owner = chat_session_owner_instance_id(token)
+    # The instance HOLDING the chat now: a chat moved to another instance of its
+    # agent (``persona_chat_move``) speaks for the instance it moved to.
+    owner = chat_session_held_by(token)
     if owner and owner in by_id:
         instance_id = owner
         persona_id = safe_assignment_token(by_id[owner].persona_id) or None

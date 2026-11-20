@@ -14,6 +14,7 @@ from typing import Any
 from .._upstream_doors import cron_pools_present
 from ..projection_accountant import ProjectionAccountant
 
+from .ended import MAX_ENDED_ROWS_PER_LANE, ended_since, mark_ended, terminal_outcome
 from .lanes_cron_ledger import collect_cron_ledger
 from .ownership import _head_home, _owner_of, _pid_identity
 from .rows import (
@@ -46,6 +47,7 @@ from .vocabulary import (
     STATUS_UNKNOWN,
     _CHECKPOINT_FILENAME,
     _MCP_JOBS_FILENAME,
+    _PROCESS_RESULTS_DIR,
     _TOOL_CALLS_FILENAME,
 )
 
@@ -86,6 +88,7 @@ class TerminalLane(LanePass):
         for entry in entries:
             self.durable_row(entry)
         self.enrich_live()
+        self.ended_rows(head)
         return (
             self.finish(list(self.rows.values())),
             _source(SOURCE_OK, lane=self.lane, live_enrichment_error=self.live_error),
@@ -223,6 +226,64 @@ class TerminalLane(LanePass):
             if item.get("uptime_seconds"):
                 existing["elapsed_seconds"] = int(item["uptime_seconds"])
         existing["tail_preview"] = _preview(item.get("output_preview"), self.accountant)
+
+
+    def ended_rows(self, head: Path) -> None:
+        """Background processes that finished inside the retention window, from their receipts (D2).
+
+        The receipt is written as the process finishes, by whichever process ran it, so a cold
+        reader sees the same ended row the serve does; its file time is the finish time (the
+        receipt has no stamp of its own). A process still listed as running keeps its running row.
+        """
+
+        cutoff = ended_since(self.now)
+        receipts: list[tuple[float, Path]] = []
+        try:
+            for path in head.joinpath(*_PROCESS_RESULTS_DIR).glob("proc_*.json"):
+                try:
+                    finished = path.stat().st_mtime
+                except OSError:
+                    continue
+                if finished >= cutoff:
+                    receipts.append((finished, path))
+        except OSError:
+            return
+        receipts.sort(reverse=True)
+        for finished, path in receipts[:MAX_ENDED_ROWS_PER_LANE]:
+            self.ended_row(path, finished)
+
+    def ended_row(self, path: Path, finished: float) -> None:
+        try:
+            record = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            return
+        if not isinstance(record, dict):
+            return
+        session_id = bounded_operator_text(record.get("id"), limit=200)
+        if not session_id or session_id != path.stem or f"{KIND_TERMINAL}:{session_id}" in self.rows:
+            return
+        self.consider()
+        started = record.get("started_at")
+        started = float(started) if isinstance(started, (int, float)) else None
+        owning_session = bounded_operator_text(record.get("session_key"), limit=200)
+        owner_persona, owner_instance = _owner_of(owning_session, memo=self.owners)
+        row = work_row(
+            kind=KIND_TERMINAL,
+            stable_id=session_id,
+            label=bounded_operator_text(record.get("command"), limit=120) or session_id,
+            command=bounded_operator_text(record.get("command"), limit=400),
+            status=STATUS_UNKNOWN,
+            source_lane=LANE_DURABLE,
+            persona_id=owner_persona,
+            persona_instance_id=owner_instance,
+            session_id=owning_session,
+            started_at=_iso(started),
+            progress=_progress(available=False),
+            tail_preview=_preview(record.get("output"), self.accountant),
+        )
+        mark_ended(row, outcome=terminal_outcome(record.get("completion_reason"), record.get("exit_code")),
+                   finished=finished, started=started)
+        self.rows[row["work_id"]] = row
 
 
 def _read_checkpoint(path: Path) -> tuple[list[Any], dict[str, Any] | None]:

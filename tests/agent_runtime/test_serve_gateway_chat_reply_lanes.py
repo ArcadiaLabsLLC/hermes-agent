@@ -423,8 +423,10 @@ def _publishes_the_end(turn_request_id: str):
         if not isinstance(running, dict):
             return False
         rows = running.get("rows")
+        # The turn is no longer RUNNING: an ended turn stays a while as ended work
+        # (RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE).
         return not any(
-            isinstance(row, dict) and row.get("work_id") == work_id
+            isinstance(row, dict) and row.get("work_id") == work_id and not row.get("finished_at")
             for row in rows or []
         )
 

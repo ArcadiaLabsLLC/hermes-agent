@@ -298,10 +298,9 @@ def build_log_tail(record: dict[str, Any], *, limit: int) -> tuple[str, bool, st
         if not tail:
             raise BuildLogRefused("no_log_path")
         return tail[-limit:], len(tail) > limit, TAIL_SOURCE_RECORD
-    path = Path(log_path)
-    root = str(record.get("project_root") or "").strip()
-    if not path.is_absolute() or not root or not _is_under(path, Path(root)):
+    if not readable_log_path(record):
         raise BuildLogRefused("log_path_outside_project")
+    path = Path(log_path)
     try:
         with path.open("rb") as handle:
             size = handle.seek(0, os.SEEK_END)
@@ -311,6 +310,21 @@ def build_log_tail(record: dict[str, Any], *, limit: int) -> tuple[str, bool, st
     except OSError as exc:
         raise BuildLogRefused(f"log_unreadable:{type(exc).__name__}") from exc
     return text[-limit:], size > window or len(text) > limit, TAIL_SOURCE_BUILD_LOG
+
+
+def readable_log_path(record: dict[str, Any]) -> str:
+    """The record's ``log_path`` when it may be read — absolute and under its ``project_root`` — else "".
+
+    The one rule :func:`build_log_tail` reads by, and what a Running now row names as the
+    build's full log, so the row never points at a path peek would refuse.
+    """
+
+    log_path = str(record.get("log_path") or "").strip()
+    root = str(record.get("project_root") or "").strip()
+    if not log_path or not root:
+        return ""
+    path = Path(log_path)
+    return log_path if path.is_absolute() and _is_under(path, Path(root)) else ""
 
 
 def _is_under(path: Path, root: Path) -> bool:
