@@ -125,6 +125,16 @@ ROOT_ONLY_CONFIG_KEYS: tuple[tuple[tuple[str, ...], str], ...] = (
     (("personas", "*", "chat_lane_defer_tools"), "agent_runtime.config.chat_lane_defer_tools"),
     (("personas", "*", "workdir"), "agent_runtime.config.mission_chat_workdir"),
     (("mission_chat", "lean_operative_rules"), "agent_runtime.config.mission_chat_lean_operative_rules"),
+    # The six ``mission_chat`` knobs ``knobs._root_knob`` reads; a new ``_root_knob`` name joins
+    # here (test_every_root_knob_name_is_on_the_root_only_list), and a profile copy of one is a
+    # typed ``root_only_knob_in_profile_config`` issue on each agent's declaration
+    # (RT-A-CHAT-LANE-SETTING-IN-A-PROFILE-CONFIG-DOES-NOTHING-AND-SAYS-NOTHING).
+    (("mission_chat", "compaction_threshold_tokens"), "agent_runtime.config.mission_chat_compaction_threshold_tokens"),
+    (("mission_chat", "clarify_token_binding"), "agent_runtime.config.mission_chat_clarify_token_binding"),
+    (("mission_chat", "dispatch_session_policy"), "agent_runtime.config.mission_chat_dispatch_session_policy"),
+    (("mission_chat", "default_max_seconds"), "agent_runtime.config.mission_chat_default_max_seconds"),
+    (("mission_chat", "dispatch_max_seconds"), "agent_runtime.config.mission_chat_dispatch_max_seconds"),
+    (("mission_chat", "dispatch_max_concurrent"), "agent_runtime.config.mission_chat_dispatch_max_concurrent"),
     (("scheduler", "max_parallel"), "agent_runtime.config.scheduler_max_parallel"),
 )
 
