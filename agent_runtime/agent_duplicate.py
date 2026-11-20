@@ -35,7 +35,7 @@ from .config import ensure_persisted_personas
 from .locks import agent_create_lock
 from .models import AgentPersona
 from .persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
-from .persona_assignments.independent import _portable_model_defaults
+from .persona_assignments.independent import _carried_model_config
 from .store import AgentStore
 
 __layer__ = "stores"
@@ -125,8 +125,8 @@ def _stage_profile(home: Path, source_home: Path | None, soul: str | None) -> No
         if source_home is not None and source_home.is_dir() and not source_home.is_symlink():
             for entry in _AGENT_FILES:
                 _copy_entry(source_home / entry, stage / entry)
-        model = _portable_model_defaults(source_home) if source_home is not None else {}
-        (stage / "config.yaml").write_text(yaml_io.dump({"model": model} if model else {}), encoding="utf-8")
+        config = _carried_model_config(source_home) if source_home is not None else {}
+        (stage / "config.yaml").write_text(yaml_io.dump(config), encoding="utf-8")
         finish_profile_layout(stage, no_skills=False, clone_all=False, description=None, soul=soul)
         os.rename(stage, home)
 
