@@ -247,15 +247,22 @@ class AgentStore:
                 stored = {}
             if isinstance(character_change, CharacterAssignmentChange) and stored:
                 persona = resolve_record(from_jsonable(AgentPersona, stored))
-            config_only = character_change is not None and not stored
-            assignment_source = stored
+            configured = None
             if not stored:
                 from ..config.roster import ensure_persisted_personas
                 configured = next((p for p in ensure_persisted_personas() if p.id == persona.id), None)
-                if configured is not None:
-                    assignment_source = {"character_assignment": configured.character_assignment}
-                    if config_only:
-                        persona = configured
+            # Only a persona config DECLARES stays config-defined. One neither stored nor
+            # declared is written as a record: a lone ``character_assignment`` key under its
+            # id would be a setting for an agent nobody holds, which lists nothing
+            # (RT-AN-AGENT-SETTING-IN-CONFIG-FOR-NO-AGENT-LISTS-A-PHANTOM-AGENT).
+            # MUTATION: drop ``and configured is not None`` and
+            # test_atomic_revision_and_idempotent_ack (test_agent_appearance_portrait.py) reddens.
+            config_only = character_change is not None and not stored and configured is not None
+            assignment_source = stored
+            if configured is not None:
+                assignment_source = {"character_assignment": configured.character_assignment}
+                if config_only:
+                    persona = configured
             preserve_character_assignment(persona, assignment_source, character_change)
             persona = prepare_save(persona, stored.get("bundled_version"))
             if config_only:
