@@ -99,7 +99,7 @@ def _refuse(reason: str, detail: str, caller: Any) -> CallAuthorization:
 
 
 def _aimed_instances(method: str, params: dict) -> list[str]:
-    from .persona_assignments.identity import chat_session_owner_instance_id
+    from .persona_assignments.chat_moves import chat_session_held_by
 
     targets: list[str] = []
     instance = params.get("persona_instance_id")
@@ -108,7 +108,7 @@ def _aimed_instances(method: str, params: dict) -> list[str]:
     session = params.get("session_id")
     if isinstance(session, str) and session.strip():
         # A session whose owner cannot be derived is aimed at nobody this credential holds.
-        targets.append(chat_session_owner_instance_id(session.strip()) or "")
+        targets.append(chat_session_held_by(session.strip()) or "")
     return targets
 
 

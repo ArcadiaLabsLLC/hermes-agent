@@ -10,7 +10,8 @@ uses, ``runtime.persona.instance.open_chat`` with ``move: true``:
   (``assert_bindable``, ``_persona_chat_session_owner``,
   ``resolve_default_chat_session_id_for_instance``);
 * a chat of a DIFFERENT agent is still refused, and nothing moves;
-* a chat with a turn running in it (its root lease held) does not move.
+* a chat with a turn running in it (its root lease held) does not move;
+* a relay sent from a moved chat names the instance holding it.
 
 UNCOVERED SEAM: the ``hermes harness persona instance open-chat --move`` argv
 door is the same handler (``chat_open._cmd_persona_instance_open_chat``) and is
@@ -180,3 +181,18 @@ def test_without_move_a_sibling_chat_is_refused_as_before(two_qa_instances):
                                     "session_id": first["default_chat_session_id"]})
     assert reply["error"]["data"]["reason"] == ChatErrorKind.FOREIGN_CHAT_SESSION
     assert load_chat_moves() == {}
+
+
+def test_a_relay_sent_from_a_moved_chat_names_the_instance_that_holds_it(two_qa_instances):
+    from hermes_cli.harness_parts.persona.chat_history_writes import _resolve_relay_sender_marker
+
+    first, second = two_qa_instances
+    chat = first["default_chat_session_id"]
+    _rpc(OPEN_CHAT_METHOD, {"persona_id": "qa", "persona_instance_id": second["persona_instance_id"],
+                            "session_id": chat, "move": True})
+
+    marker = _resolve_relay_sender_marker(
+        f"agent:{chat}", instance_store=PersonaInstanceStore(), relay_chain_in=None
+    )
+    assert second["persona_instance_id"] in marker
+    assert first["persona_instance_id"] not in marker
