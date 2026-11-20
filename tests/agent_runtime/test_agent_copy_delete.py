@@ -117,7 +117,7 @@ def test_a_profile_another_agent_uses_stays(qa_persona):
 
 
 def test_a_shipped_agent_is_refused(shipped, qa_persona):
-    # MUTATION: drop the ``shipped_agent`` guard in ``_plan`` -> red: the reason reads
+    # MUTATION: drop the ``shipped_agent`` guard in ``_delete_plan`` -> red: the reason reads
     # ``not_a_copy`` (the next guard), never the shipped refusal the app explains.
     before = _disk()
 

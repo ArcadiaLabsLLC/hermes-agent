@@ -149,7 +149,7 @@ def _profile_verdict(persona: AgentPersona, roster: list[AgentPersona], live: li
     return ("in_use", others) if others else (None, [])
 
 
-def _plan(persona_id: str) -> _Plan:
+def _delete_plan(persona_id: str) -> _Plan:
     cfg = load_agent_runtime_config()
     roster = ensure_persisted_personas(cfg)
     persona = next((p for p in roster if p.id == persona_id), None)
@@ -229,7 +229,7 @@ def delete_agent_copy(persona_id: str, *, correlation_id: str | None = None) -> 
 
     with agent_create_lock(AGENT_NAME_LOCK):
         try:
-            plan = _plan(persona_id)
+            plan = _delete_plan(persona_id)
         except AgentDeleteRefused as exc:
             receipt = _receipt_for(persona_id) if exc.reason == "persona_not_found" else None
             if receipt is not None:
