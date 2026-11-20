@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from agent_runtime.bundled_agents.sort_existing import apply_sort, plan_sort
 from agent_runtime.cli_format import emit_json
+from agent_runtime.seat_follow import follow_seat, stray_seats
 
 __layer__ = "lanes"
 __all__ = ["_cmd_persona_sort_shipped"]
@@ -38,16 +39,27 @@ def _plan_line(entry: dict) -> str:
     return line
 
 
+def _seat_line(seat: dict) -> str:
+    where = ", ".join(seat["office_actors"]) or "no office desk"
+    return (f"seat {seat['instance_id']}: follows its agent {seat['persona_id']} — "
+            f"office {where}; {seat['chats']} chat(s) restamped"
+            + "".join(f"; office {failed['actor']} REFUSED ({failed['error']})" for failed in seat.get("office_failed", [])))
+
+
 def _cmd_persona_sort_shipped(args) -> int:
     names = _names(args.names)
     if names is None:
         print("--name takes ID=NAME")
         return 2
     plan = plan_sort(names) if args.dry_run else apply_sort(names)
+    seats = [seat.receipt() for seat in stray_seats()] if args.dry_run else [
+        follow_seat(seat.instance_id).receipt() for seat in stray_seats()]
     if args.json:
-        print(emit_json({"dry_run": bool(args.dry_run), "plan": plan}))
+        print(emit_json({"dry_run": bool(args.dry_run), "plan": plan, "seats": seats}))
     else:
         print("Dry run — nothing written:" if args.dry_run else "Sorted:")
         for entry in plan:
             print(f"  {_plan_line(entry)}")
+        for seat in seats:
+            print(f"  {_seat_line(seat)}")
     return 1 if any("refused" in entry for entry in plan) else 0
