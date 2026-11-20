@@ -250,6 +250,7 @@ def _add_persona_instance_lifecycle_verbs(persona_instance_subs) -> None:
     persona_instance_create.add_argument("--requested-by", default="cli")
     _add_coordinator_permission_args(persona_instance_create)
     persona_instance_create.add_argument("--client-message-id", default=None)
+    persona_instance_create.add_argument("--client-scope", dest="client_scope", default=None, help="The owning account's client-scope digest (64 hex) the new agent's chat is stamped with, so it opens for that account only")
     persona_instance_create.add_argument("--independent-agent", action="store_true", help="Give the new agent its own persona and backing profile")
     persona_instance_create.add_argument("--source-instance-id", default=None, help="Use an existing agent's model and skill choices as the starting point")
     persona_instance_create.add_argument("--display-name", default=None)

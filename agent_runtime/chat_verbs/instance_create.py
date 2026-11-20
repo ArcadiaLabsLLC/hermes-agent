@@ -19,15 +19,24 @@ def create_persona_instance(params: dict, *, caller: Any | None = None) -> dict:
     """Params: ``persona_id`` and ``display_name`` (required by the verb —
     ``title`` is its fallback); ``session_id``,
     ``add_instance`` with ``placement_id`` / ``workspace_id`` / ``realm_id``,
-    ``client_message_id``, ``requested_by``. Row: ``persona_instance_id``,
+    ``client_message_id``, ``requested_by``, ``client_scope`` (the account's
+    64-hex digest the new chat is stamped with; ``invalid_client_scope`` before
+    any write when malformed; echoed on the row when sent). Row: ``persona_instance_id``,
     ``session_id`` (= ``default_chat_session_id``), ``display_name``, ``mode``,
     ``placement_id`` and the rest of the argv row."""
+    from ..conversation_owner import ConversationOwnerError, request_client_scope
     from ..mission_chat_door import INSTANCE_CREATE_VERB
     from ..persona_open_chat import KILL_ACTIVE_RETIRED, KILL_ACTIVE_RETIRED_MESSAGE, _first_text
     from .door import COORDINATOR_ARGS_CLOSED, caller_requester, run_cli_chat_verb
 
     if "kill_active" in params:  # RT-KILL-ACTIVE-REFUSE: retired, refused -32602
         return {"ok": False, "error_kind": KILL_ACTIVE_RETIRED, "error": KILL_ACTIVE_RETIRED_MESSAGE}
+    # RT-INSTANCE-CREATE-MAKES-A-CHAT-WITH-NO-ACCOUNT: validated the way
+    # ``runtime.agent.create`` validates it, before anything is written.
+    try:
+        owner = request_client_scope(params)
+    except ConversationOwnerError as exc:
+        return {"ok": False, "error_kind": exc.reason, "error": "Invalid conversation owner."}
     persona_id = _first_text(params, "persona_id")
     if not persona_id:
         return {"ok": False, "error_kind": "invalid_request", "error": "persona_id is required"}
@@ -45,5 +54,6 @@ def create_persona_instance(params: dict, *, caller: Any | None = None) -> dict:
         realm_id=_first_text(params, "realm_id"),
         client_message_id=_first_text(params, "client_message_id"),
         requested_by=caller_requester(params, caller),
+        client_scope=owner,
         **COORDINATOR_ARGS_CLOSED,
     )

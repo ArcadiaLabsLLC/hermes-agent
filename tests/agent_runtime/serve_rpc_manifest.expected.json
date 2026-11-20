@@ -959,6 +959,7 @@
     "runtime.persona.instance.create": [
       "add_instance",
       "client_message_id",
+      "client_scope",
       "display_name",
       "independent_agent",
       "persona_id",

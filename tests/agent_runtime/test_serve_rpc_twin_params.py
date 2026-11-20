@@ -36,11 +36,11 @@ class _RecordingParams(dict):
 
 _EVERY_VALUE: dict[str, Any] = {
     "action": "dismiss", "add_instance": False, "agents": None, "all": False, "before": None,
-    "client_message_id": "c1", "credential": None, "display_name": "D", "dry_run": False,
-    "items": None, "key": "k", "limit": 5, "none": False,
+    "client_message_id": "c1", "client_scope": "a" * 64, "credential": None, "display_name": "D", "dry_run": False,
+    "independent_agent": False, "items": None, "key": "k", "limit": 5, "none": False,
     "persona_id": "neko", "persona_instance_id": "pi_1", "placement_id": None, "realm_id": "r1",
     "reason": None, "requested_by": None, "server_id": None, "session_id": "s1", "skill": "sk",
-    "skills": None, "sort": None, "take": "local", "title": "T", "to": None, "turn_id": "t1",
+    "skills": None, "sort": None, "source_instance_id": None, "take": "local", "title": "T", "to": None, "turn_id": "t1",
     "workspace": False, "workspace_id": None, "yes": True,
 }
 

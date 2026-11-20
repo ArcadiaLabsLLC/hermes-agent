@@ -726,6 +726,7 @@ def create_operator_chat(
     persona_id: str,
     display_name: str,
     session_id: str | None = None,
+    client_scope: str | None = None,
 ) -> PersonaInstance:
     normalized_persona = _normalize_instance_source_persona(persona_id)
     instance_id = persona_instance_id_for(normalized_persona)
@@ -751,6 +752,7 @@ def create_operator_chat(
             # would have written — and that ensure never overwrites an
             # existing title, so the two lanes agree by construction.
             display_name=display_name,
+            client_scope=client_scope,
         ),
         display_name=display_name,
         profile_id=_profile_id_for_persona_or_template(normalized_persona, ensure_persisted_personas),
