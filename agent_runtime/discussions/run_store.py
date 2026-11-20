@@ -31,6 +31,8 @@ __layer__ = "stores"
 
 MAX_CATALOG_MEMBERS = 128
 MAX_PENDING_COMMANDS = 64
+#: A run still holds its members until it ends or fails: ``owned`` and ``seated_instances`` share it.
+_RUNNING = "phase NOT IN ('ended','failed')"
 COMMANDS = frozenset({"send", "stop", "end", "invite", "remove", "answer", "retry", "abandon"})
 
 
@@ -88,8 +90,19 @@ class RunStore:
 
     def owned(self) -> list[dict[str, Any]]:
         with closing(self.connect()) as conn:
-            ids = conn.execute("SELECT run_id FROM mc_discussion_runs WHERE phase NOT IN ('ended','failed') ORDER BY created_at").fetchall()
+            ids = conn.execute("SELECT run_id FROM mc_discussion_runs WHERE " + _RUNNING + " ORDER BY created_at").fetchall()
             return [read_run_record(conn, row[0]) for row in ids]
+
+    def seated_instances(self, install_id: str) -> frozenset[str]:
+        """Instances of *install_id* holding a seat in a running room (RT-AGENT-INSTANCE-SAYS-WHEN-IT-SITS-IN-A-RUNNING-GROUP-CHAT).
+
+        Running is ``owned``'s own phase rule; a seat is a member row not yet ``removed``. Profile-group
+        members carry no instance and never match."""
+        with closing(self.connect()) as conn:
+            rows = conn.execute("SELECT DISTINCT m.instance_id FROM mc_discussion_members m JOIN mc_discussion_runs r"
+                                " ON r.run_id=m.run_id WHERE r." + _RUNNING + " AND m.status!='removed'"
+                                " AND m.install_id=? AND m.instance_id IS NOT NULL", (install_id,)).fetchall()
+            return frozenset(row[0] for row in rows)
 
     def begin(self, workspace_id: str, table_id: str, *, expect_revision: int, key: str, topic: str,
               actor_id: str, resolve: Callable[[ParticipantRef, str], Mapping[str, Any]],

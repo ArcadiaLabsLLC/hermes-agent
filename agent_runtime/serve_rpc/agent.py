@@ -32,9 +32,21 @@ def _runtime_agent_directory(rid: Any, params: dict, context: RpcContext | None 
     if params:
         return err(rid, ERR_INVALID_PARAMS, "No parameters expected.")
     try:
-        return ok(rid, prepare_instance_catalog())
+        return ok(rid, prepare_instance_catalog(seated=_running_group_chat_seats))
     except InstanceCatalogUnavailable as exc:
         return err(rid, ERR_HANDLER_FAILED, "Agents could not be loaded. Try again.", {"reason": str(exc)})
+
+
+def _running_group_chat_seats(install_id: str) -> frozenset[str] | None:
+    """The bound discussion service's seated instances; ``None`` when this process holds none."""
+    from agent_runtime.discussions.run_values import DiscussionError
+    from agent_runtime.discussions.service import get_service
+
+    try:
+        service = get_service()
+    except DiscussionError:
+        return None
+    return service.runs.seated_instances(install_id)
 
 
 @method("runtime.agent.duplicate", tier=TIER_CONSOLE)
