@@ -90,6 +90,9 @@ CANCEL_NOT_OWNED_HERE = "not_owned_here"
 #: D1.07 (owner ruling a): another process supervises a running child; the
 #: durable mark is written and that process's cancel watch stops it.
 CANCEL_REQUESTED = "cancel_requested"
+#: A Stop on a row no process here supervises, whose process had already ended:
+#: settled ``unknown`` at once, as the orphan sweep would a minute later.
+CANCEL_SETTLED = "settled"
 
 
 def _request_cancel_mark(dispatch_id: str, reason: str) -> None:
@@ -193,9 +196,11 @@ def _request_cancel_elsewhere(dispatch_id: str, row: dict[str, Any], reason: str
     ``cancelled`` here, exactly as its owner would (its worker reads the mark
     and runs nothing), and a running child is left to its supervisor's cancel
     watch, which stops it within :data:`CANCEL_POLL_SECONDS` —
-    ``cancel_requested`` says so rather than claiming a stop. A row no live
-    process supervises keeps the mark and settles when the orphan sweep sees its
-    child gone.
+    ``cancel_requested`` says so rather than claiming a stop. A started row whose
+    child is PROVABLY gone (dead, or a recycled number) has nothing left to stop
+    and nobody left to settle it but the orphan sweep, so it is settled here and
+    now (``settled``, row ``MC-RUNNING-NOW-LISTS-LANE-WORK-WHOSE-PROCESS-HAS-ENDED-AND-CANNOT-STOP-IT``):
+    the operator's Stop on an ended entry clears it instead of waiting a sweep.
     """
 
     from agent_runtime import dispatch_store
@@ -212,6 +217,8 @@ def _request_cancel_elsewhere(dispatch_id: str, row: dict[str, Any], reason: str
             only_if_running=True,
         )
         return {"dispatch_id": dispatch_id, "outcome": CANCEL_CANCELLED, "reason": reason}
+    if dispatch_store.settle_if_orphaned(row):
+        return {"dispatch_id": dispatch_id, "outcome": CANCEL_SETTLED, "reason": reason}
     return {
         "dispatch_id": dispatch_id,
         "outcome": CANCEL_REQUESTED,

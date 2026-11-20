@@ -2091,9 +2091,10 @@ def test_an_in_flight_dispatch_surfaces_as_a_row(dispatch_home):
     assert row["owner"]["persona_id"] == "dev"
     # The SENDER's root: the thread the answer is owed to.
     assert row["owner"]["session_id"] == "persona_chat_personainst_neko_aaaaaaaaaaaa"
-    # No interrupt seam in v1 — a cancel button that cannot cancel is worse
-    # than no button.
-    assert row["cancellable"] is False
+    # Stop routes through ``request_cancel`` (surface._cancel_dispatch), which
+    # answers for every running row, so the HUD offers it (killing mutation:
+    # ``cancellable=False`` in DispatchLane.running_row).
+    assert row["cancellable"] is True
 
 
 def test_a_settled_dispatch_stops_being_running_work(dispatch_home):
@@ -2266,6 +2267,48 @@ def test_a_dispatch_whose_owner_died_is_SHOWN_as_unknown_not_hidden(
     assert rows[0]["status"] == STATUS_UNKNOWN
     assert rows[0]["pid_verified"] is False
     assert accountant.summary()["reasons"] == {}
+    # Shown AND stoppable: a Stop on it clears it (the next test).
+    assert rows[0]["cancellable"] is True
+
+
+def test_stopping_a_dispatch_whose_process_ended_settles_it_at_once(dispatch_home, monkeypatch):
+    """MC-RUNNING-NOW-LISTS-LANE-WORK-WHOSE-PROCESS-HAS-ENDED-AND-CANNOT-STOP-IT.
+
+    A started row no process here supervises, whose child is provably gone, has
+    nothing left to stop: the Stop settles it ``unknown`` now (the sweep's own
+    settle) and it leaves the next frame, instead of a ``cancel_requested`` that
+    waits on a sweep. Killing mutation: drop the ``settle_if_orphaned`` arm in
+    ``_request_cancel_elsewhere`` — the answer is ``cancel_requested`` and the
+    row stays ``running``.
+    """
+    import tools.agent_chat_dispatch  # noqa: F401 — the lane must be resident
+    from agent_runtime.dispatch_store import get_dispatch, set_dispatch_owner
+
+    dispatch_id = _record_dispatch()
+    assert set_dispatch_owner(dispatch_id, owner_pid=424242, owner_started_at=None)
+    monkeypatch.setattr("gateway.status._pid_exists", lambda pid: False)
+
+    result = cancel_work(f"dispatch:{dispatch_id}", reason="operator_stop")
+
+    assert (result["status"], result["outcome"]) == ("ok", "settled")
+    assert "already ended" in result["detail"]
+    assert get_dispatch(dispatch_id)["state"] == "unknown"
+    assert [row for row in build_running_work()["rows"] if row["kind"] == "dispatch"] == []
+
+
+def test_stopping_a_live_dispatch_nobody_here_supervises_still_only_requests(dispatch_home, monkeypatch):
+    """The settle needs PROOF the process is gone: a live owner keeps the durable request."""
+    import tools.agent_chat_dispatch  # noqa: F401
+    from agent_runtime.dispatch_store import get_dispatch, set_dispatch_owner
+
+    dispatch_id = _record_dispatch()
+    assert set_dispatch_owner(dispatch_id, owner_pid=os.getpid(), owner_started_at=None)
+    monkeypatch.setattr("gateway.status._pid_exists", lambda pid: True)
+
+    result = cancel_work(f"dispatch:{dispatch_id}", reason="operator_stop")
+
+    assert result["outcome"] == "cancel_requested"
+    assert get_dispatch(dispatch_id)["state"] == "running"
 
 
 def test_the_dispatch_lane_reports_unavailable_when_the_store_cannot_be_read(

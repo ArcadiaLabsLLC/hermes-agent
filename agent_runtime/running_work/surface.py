@@ -574,6 +574,8 @@ _DISPATCH_CANCEL_ANSWERED = {
     "cancelled": "",
     "cancel_requested": "another process supervises it; that process stops it within {poll_seconds}s",
     "already_finished": "already finished; its result is kept",
+    # Its process had already ended and nothing here supervised it: settled now.
+    "settled": "its process had already ended; it is cleared, and its sender is told the outcome is unknown",
     # A paired install had not started it; the row's mark stops this install sending it.
     "not_running": "the paired install had not started it; it will not be sent",
 }
