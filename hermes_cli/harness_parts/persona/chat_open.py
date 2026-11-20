@@ -266,19 +266,8 @@ def _cmd_persona_instance_open_chat(args) -> int:
                 persona_ok = personas_equal(owner_persona, persona_id) or (
                     pin_proves_ownership and not safe_assignment_token(owner_persona)
                 )
-                # ``--move`` (owner 2026-11-19, "Reuse idle, else new"): a saved
-                # chat of ANOTHER instance of the same agent moves onto the
-                # pinned target instead of being refused. A different agent's
-                # chat is still refused below, and by the move lane itself.
-                move_to = (
-                    target_instance_id
-                    if bool(getattr(args, "move", False))
-                    and owner_instance is not None
-                    and persona_ok
-                    and target_instance_id
-                    and target_instance_id != session_owner
-                    else None
-                )
+                move_to = _move_target(args, owner_instance, persona_ok,
+                                       target_instance_id, session_owner)
                 if move_to is None and (
                     owner_instance is None
                     or not persona_ok
@@ -302,18 +291,10 @@ def _cmd_persona_instance_open_chat(args) -> int:
             except Exception:
                 previous_instance = None
             try:
-                if move_to is not None:
-                    moved = _move_chat_for_open(args, session_db, move_to, persona_id)
-                    if isinstance(moved, int):
-                        return moved
-                    instance, moved_from = moved.instance, moved.moved_from
-                else:
-                    instance = PersonaInstanceStore().open_chat(
-                        persona_id=persona_id,
-                        persona_instance_id=target_instance_id,
-                        session_id=args.session_id,
-                        correlation_id=getattr(args, "correlation_id", None),
-                    )
+                bound = _bind_for_open(args, session_db, move_to, persona_id, target_instance_id)
+                if isinstance(bound, int):
+                    return bound
+                instance, moved_from = bound
             except ValueError as exc:
                 data = {
                     "ok": False,
@@ -406,6 +387,32 @@ def _cmd_persona_instance_open_chat(args) -> int:
         plain=f"opened {instance.id} on chat {instance.default_chat_session_id}",
     )
     return 0
+
+
+def _move_target(args, owner_instance, persona_ok, target_instance_id, session_owner) -> str | None:
+    """``--move`` (owner 2026-11-19, "Reuse idle, else new"): the instance a saved
+    chat of ANOTHER instance of the same agent moves onto, or ``None`` (no move;
+    the ownership fence then refuses a foreign chat as before). A different
+    agent's chat never moves: here (``persona_ok``) and in the move lane."""
+
+    if not (bool(getattr(args, "move", False)) and owner_instance is not None and persona_ok):
+        return None
+    return target_instance_id if target_instance_id and target_instance_id != session_owner else None
+
+
+def _bind_for_open(args, session_db, move_to, persona_id, target_instance_id):
+    """``(bound instance, the instance a move took the chat from)``, or a printed refusal's exit code."""
+
+    if move_to is None:
+        instance = PersonaInstanceStore().open_chat(
+            persona_id=persona_id,
+            persona_instance_id=target_instance_id,
+            session_id=args.session_id,
+            correlation_id=getattr(args, "correlation_id", None),
+        )
+        return instance, None
+    moved = _move_chat_for_open(args, session_db, move_to, persona_id)
+    return moved if isinstance(moved, int) else (moved.instance, moved.moved_from)
 
 
 def _move_chat_for_open(args, session_db, move_to: str, persona_id: str):
