@@ -53,6 +53,7 @@ from .persona_assignments import PersonaInstanceStore, is_canonical_persona_chan
 from .persona_assignments.independent import _OWNER_FILE
 from .persona_lifecycle import is_agent_copy
 from .profile_context import active_profile_name
+from .request_actor import removal_activity, request_actor
 from .state_patches.persona_instance import emit_persona_instance_remove
 from .store import RealmStore, WorkspaceStore
 
@@ -192,15 +193,19 @@ def _delete_plan(persona_id: str) -> _Plan:
     return _Plan(persona, mine, kept, others)
 
 
-def _retire_channel(store: PersonaInstanceStore, instance: PersonaInstance, archive_dir: Path, correlation_id: str | None) -> dict[str, Any]:
+def _retire_channel(
+    store: PersonaInstanceStore, instance: PersonaInstance, archive_dir: Path, correlation_id: str | None, actor: str,
+) -> dict[str, Any]:
     """The copy's own channel, archived as retire archives a placement (the guard is for a persona that stays)."""
 
     archived = store._archive_instance_row(instance, archive_dir)
     store._event("persona_instance.retired", instance, {
         "reason": "agent deleted", "persona_id": instance.persona_id, "mode": instance.mode, "archive_dir": str(archive_dir),
+        "requested_by": actor,
+        "activity": removal_activity(actor, agent_name=instance.display_name, workspace_id=instance.workspace_id),
     })
     emit_persona_instance_remove(store.event_log, instance)
-    office = store._archive_office_placements(instance, correlation_id=correlation_id)
+    office = store._archive_office_placements(instance, correlation_id=correlation_id, requested_by=actor)
     return {
         "persona_instance_id": instance.id,
         "archive_path": str(archived) if archived else None,
@@ -209,24 +214,31 @@ def _retire_channel(store: PersonaInstanceStore, instance: PersonaInstance, arch
     }
 
 
-def _retire_all(plan: _Plan, correlation_id: str | None) -> list[dict[str, Any]]:
+def _retire_all(plan: _Plan, correlation_id: str | None, actor: str) -> list[dict[str, Any]]:
     store = PersonaInstanceStore()
     archive_dir = paths.persona_instances_archive_dir() / f"{now().strftime('%Y%m%dT%H%M%SZ')}_retire"
     retired = []
     for instance in plan.instances:
         if is_canonical_persona_channel(instance):
-            retired.append(_retire_channel(store, instance, archive_dir, correlation_id))
+            retired.append(_retire_channel(store, instance, archive_dir, correlation_id, actor))
             continue
-        result = store.retire(instance.id, reason="agent deleted", requested_by="runtime.agent.delete",
-                              correlation_id=correlation_id)
+        # WHO deleted it, not the verb's name (RT-RETIRED-AGENT-RECORD-SAYS-WHO-REMOVED-IT).
+        # MUTATION: pass requested_by="runtime.agent.delete" again and test_a_delete_records_who_deleted_it reddens.
+        result = store.retire(instance.id, reason="agent deleted", requested_by=actor, correlation_id=correlation_id)
         retired.append({key: result.get(key) for key in
                         ("persona_instance_id", "archive_path", "archived_actor_keys", "office_archive_failures")})
     return retired
 
 
-def delete_agent_copy(persona_id: str, *, correlation_id: str | None = None) -> dict[str, Any]:
-    """Delete the copy ``persona_id``; the answer names everything it moved and what it kept."""
+def delete_agent_copy(
+    persona_id: str, *, correlation_id: str | None = None, requested_by: str | None = None,
+) -> dict[str, Any]:
+    """Delete the copy ``persona_id``; the answer names everything it moved and what it kept.
 
+    ``requested_by`` is who asked (``agent_runtime.request_actor``; ``unknown`` when nobody is named), on
+    every retired instance's record and the delete's own receipt."""
+
+    actor = request_actor(requested_by)
     with agent_create_lock(AGENT_NAME_LOCK):
         try:
             plan = _delete_plan(persona_id)
@@ -236,7 +248,7 @@ def delete_agent_copy(persona_id: str, *, correlation_id: str | None = None) -> 
                 return {**receipt, "already_deleted": True}
             raise
         persona = plan.persona
-        retired = _retire_all(plan, correlation_id)
+        retired = _retire_all(plan, correlation_id, actor)
         batch = _archive_root() / f"{now().strftime('%Y%m%dT%H%M%SZ')}_delete" / paths.safe_path_token(persona_id)
         batch.mkdir(parents=True, exist_ok=True)
         definition = batch / "persona.json"
@@ -260,6 +272,7 @@ def delete_agent_copy(persona_id: str, *, correlation_id: str | None = None) -> 
             "profile_kept": plan.profile_kept,
             "profile_used_by": plan.others,
             "chats_kept": True,
+            "requested_by": actor,
             "already_deleted": False,
         }
         if correlation_id:

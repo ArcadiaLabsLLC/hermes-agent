@@ -40,14 +40,9 @@ def _runtime_agent_directory(rid: Any, params: dict, context: RpcContext | None 
 
 def _running_group_chat_seats(install_id: str) -> frozenset[str] | None:
     """The bound discussion service's seated instances; ``None`` when this process holds none."""
-    from agent_runtime.discussions.run_values import DiscussionError
-    from agent_runtime.discussions.service import get_service
+    from agent_runtime.agent_create.staff import running_group_chat_seats
 
-    try:
-        service = get_service()
-    except DiscussionError:
-        return None
-    return service.runs.seated_instances(install_id)
+    return running_group_chat_seats(install_id)
 
 
 @method("runtime.agent.duplicate", tier=TIER_CONSOLE)
@@ -97,6 +92,7 @@ def _runtime_agent_delete(rid: Any, params: dict, context: RpcContext | None = N
     ``instances_unreadable`` (conflict). A refusal writes nothing.
     """
     from agent_runtime.agent_copy_delete import AgentDeleteRefused, delete_agent_copy
+    from agent_runtime.request_actor import request_actor
     from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, ERR_NOT_FOUND
 
     persona_id, correlation_id = params.get("persona_id"), params.get("correlation_id")
@@ -104,7 +100,9 @@ def _runtime_agent_delete(rid: Any, params: dict, context: RpcContext | None = N
             or not isinstance(correlation_id, (str, type(None)))):
         return err(rid, ERR_INVALID_PARAMS, "Expected persona_id and an optional correlation_id.", {"reason": "invalid_params"})
     try:
-        return ok(rid, delete_agent_copy(persona_id.strip(), correlation_id=correlation_id))
+        # Who asked is the caller the transport proved (Eternia over the socket is the operator).
+        actor = request_actor(caller=context.caller if context is not None else None)
+        return ok(rid, delete_agent_copy(persona_id.strip(), correlation_id=correlation_id, requested_by=actor))
     except AgentDeleteRefused as exc:
         code = ERR_NOT_FOUND if exc.reason == "persona_not_found" else ERR_CONFLICT
         return err(rid, code, str(exc), {"reason": exc.reason, **exc.data})

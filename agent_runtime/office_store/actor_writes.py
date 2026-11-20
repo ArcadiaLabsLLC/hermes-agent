@@ -524,6 +524,7 @@ def remove_actor(
     correlation_id: str | None = None,
     record_tombstone: bool = True,
     dry_run: bool = False,
+    requested_by: str | None = None,
 ) -> OfficeActor:
     """Archive one actor placement — the office's delete.
 
@@ -589,6 +590,7 @@ def remove_actor(
             updated_by=updated_by,
             correlation_id=correlation_id,
             record_tombstone=record_tombstone,
+            requested_by=requested_by,
         )
     return from_jsonable(OfficeActor, read_json(paths.office_archived_actor_path(wsid, actor_key)))
 

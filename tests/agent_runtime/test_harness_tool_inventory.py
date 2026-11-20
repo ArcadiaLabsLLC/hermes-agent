@@ -89,7 +89,8 @@ def test_every_tool_in_the_json_is_registered_and_none_is_hygiene_blocked(emitte
     # 44 -> 34: upstream v0.23.1 (68500d9ff9) deleted the ten built-in ``browser_*`` tools
     # (2026-11-10 release merge); inventory regenerated and ratchet re-measured in that commit.
     # 34 -> 35, 16 -> 17: ``browser-use`` (``browser_exec``) joins (FH-HARNESS-CORE-BROWSER-AFTER-V0231).
-    assert inventory["counts"]["tools"] == len(names) == 35
+    # 35 -> 36: ``agent_add_instance`` joins ``agent_chat`` (RT-AGENTS-HAVE-A-TOOL-TO-ADD-AN-INSTANCE).
+    assert inventory["counts"]["tools"] == len(names) == 36
     assert inventory["counts"]["toolsets"] == 17
     assert inventory["declared"] == ["harness_core"]
 

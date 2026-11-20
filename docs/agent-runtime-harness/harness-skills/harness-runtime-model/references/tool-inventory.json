@@ -7,6 +7,7 @@
     {
       "name": "agent_chat",
       "tools": [
+        "agent_add_instance",
         "agent_chat_dispatches",
         "agent_chat_installs",
         "agent_chat_log_path",
@@ -127,11 +128,18 @@
   ],
   "tools": [
     {
+      "name": "agent_add_instance",
+      "toolset": "agent_chat",
+      "mutating": true,
+      "gated": false,
+      "description": "Add instances of an agent to a workspace (idle ones reused first)."
+    },
+    {
       "name": "agent_chat_dispatches",
       "toolset": "agent_chat",
       "mutating": false,
       "gated": false,
-      "description": "List your in-flight and recent background dispatches (read-only)."
+      "description": "List your in-flight and recent background dispatches, or stop one of yours."
     },
     {
       "name": "agent_chat_installs",
@@ -373,9 +381,9 @@
     }
   ],
   "counts": {
-    "tools": 35,
+    "tools": 36,
     "toolsets": 17,
-    "token_estimate": 7163
+    "token_estimate": 7323
   },
   "cli_only_verbs": [
     "persona instance open-chat",

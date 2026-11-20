@@ -74,6 +74,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from .request_actor import request_actor
+
 __layer__ = "lanes"
 
 #: The JSON-RPC error codes this service answers in. Re-spelled rather than
@@ -191,6 +193,7 @@ def _sweep_live_placements(
     *,
     reason: str,
     correlation_id: str | None,
+    requested_by: str | None = None,
 ) -> dict[str, Any]:
     """Archive every LIVE actor still bound to an already-retired instance.
 
@@ -210,6 +213,7 @@ def _sweep_live_placements(
             instance_id,
             reason=reason,
             correlation_id=correlation_id,
+            requested_by=requested_by,
         )
     except Exception as exc:  # the retirement is authoritative regardless
         return {
@@ -293,7 +297,7 @@ def _already_retired_ack(
     # the list the replay reports. The order is the whole self-heal: reading
     # first would answer with the wedge's own empty list and then quietly fix it.
     sweep = _sweep_live_placements(
-        instance_id, reason="instance_reaped", correlation_id=correlation_id
+        instance_id, reason="instance_reaped", correlation_id=correlation_id, requested_by=requested_by
     )
     office_archive_failures = list(sweep["failures"])
     try:
@@ -423,7 +427,11 @@ def perform_agent_retire(
         )
 
     reason = (params or {}).get("reason") or "placement removed"
-    requested_by = (params or {}).get("requested_by")
+    # WHO asked, never null (RT-RETIRED-AGENT-RECORD-SAYS-WHO-REMOVED-IT, review w1118a.53 D9): the
+    # named ``requested_by``, else the caller the transport proved — Eternia over the install's socket
+    # is the operator — else ``unknown``. One helper for every removal verb.
+    # MUTATION: pass the bare param and test_eternias_retire_records_the_operator_on_the_receipt_and_both_events reddens.
+    requested_by = request_actor((params or {}).get("requested_by"), caller=caller)
     correlation_id = _correlation_id((params or {}).get("correlation_id"))
 
     store = PersonaInstanceStore()

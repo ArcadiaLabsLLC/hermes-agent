@@ -177,7 +177,7 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # A saved chat moved to another instance of its agent (``persona_chat_move.move_chat``,
     # RT-A-SAVED-CHAT-CAN-MOVE-TO-ANOTHER-INSTANCE-OF-ITS-AGENT); appended on the TARGET.
     "persona_instance.chat_moved": EventContract("persona_instance.chat_moved", "Saved chat moved to another instance of the same agent", ("persona_instance_id", "session_id", "from_persona_instance_id", "to_persona_instance_id"), ("persona_id", "requested_by")),
-    "persona_instance.retired": EventContract("persona_instance.retired", "Placement-backed persona instance retired (end-of-life) to the archive on placement removal", ("persona_instance_id", "reason"), ("persona_id", "mode", "requested_by", "archive_dir")),
+    "persona_instance.retired": EventContract("persona_instance.retired", "Placement-backed persona instance retired (end-of-life) to the archive on placement removal", ("persona_instance_id", "reason", "requested_by"), ("persona_id", "mode", "activity", "archive_dir")),
     # The persona-instance reconciler's phase-5 graph reap
     # (persona_instance_identity._prune_owner_less_flow_graphs). A runtime flow
     # graph is keyed on its OWNER instance (``runtime:<owner>``), so reaping a
@@ -352,7 +352,7 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     "office.surface.created": EventContract("office.surface.created", "Office surface created", ("workspace_id",), ()),
     "office.surface.updated": EventContract("office.surface.updated", "Office surface updated", ("workspace_id", "change"), ("revision",)),
     "office.actor.upserted": EventContract("office.actor.upserted", "Office actor placement upserted", ("workspace_id", "actor_key"), ("persona_id", "items", "revision")),
-    "office.actor.removed": EventContract("office.actor.removed", "Office actor placement archived", ("workspace_id", "actor_key", "reason"), ()),
+    "office.actor.removed": EventContract("office.actor.removed", "Office actor placement archived", ("workspace_id", "actor_key", "reason", "requested_by"), ()),
     "office.actor.restored": EventContract("office.actor.restored", "Office actor placement restored", ("workspace_id", "actor_key"), ()),
     "office.actor.conflict_resolved": EventContract("office.actor.conflict_resolved", "Office actor sync conflict resolved", ("workspace_id", "actor_key", "take"), ("revision",)),
     "persona.updated": EventContract("persona.updated", "Persona updated", ("persona_id",), ("display_name",)),

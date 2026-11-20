@@ -21,6 +21,7 @@ from agent_runtime.persona_assignments.identity import (
     canonical_chat_instance_id,
     is_canonical_persona_channel,
 )
+from agent_runtime.request_actor import removal_activity, request_actor
 from agent_runtime.serde import (
     safe_assignment_text,
     safe_assignment_token,
@@ -156,7 +157,11 @@ def _iter_archived_instance_ids() -> Iterator[str]:
 
 
 def _archive_office_placements(
-    store: PersonaInstanceStore, instance: PersonaInstance, *, correlation_id: str | None = None
+    store: PersonaInstanceStore,
+    instance: PersonaInstance,
+    *,
+    correlation_id: str | None = None,
+    requested_by: str | None = None,
 ) -> dict[str, Any]:
     """Archive office actors when a live placement is retired, and SAY what happened.
 
@@ -182,6 +187,10 @@ def _archive_office_placements(
     further than the office writes: the row archive above already carries
     its own ``persona_instance.retired`` event, and the office half is the
     part that was landing in a second, unjoinable correlation space.
+
+    ``requested_by`` is the retire's actor (``agent_runtime.request_actor``), carried onto every
+    ``office.actor.removed`` this reap emits so the office half says who removed the agent too
+    (RT-RETIRED-AGENT-RECORD-SAYS-WHO-REMOVED-IT).
     """
 
     try:
@@ -191,6 +200,7 @@ def _archive_office_placements(
             instance.id,
             reason="instance_reaped",
             correlation_id=correlation_id,
+            requested_by=requested_by,
         )
     except Exception as exc:  # the retire is authoritative regardless
         logging.getLogger(__name__).warning(
@@ -295,15 +305,20 @@ def retire(
             persona_instance_id=instance.id,
         )
     safe_reason = safe_assignment_text(reason, limit=240) or "placement removed"
-    normalized_requested_by = str(requested_by)[:80] if requested_by else None
+    # Never null (RT-RETIRED-AGENT-RECORD-SAYS-WHO-REMOVED-IT, review w1118a.53 D9): a retire
+    # nobody named an actor for records ``unknown``, and the record says so in words.
+    normalized_requested_by = request_actor(requested_by)
+    activity = removal_activity(
+        normalized_requested_by, agent_name=instance.display_name, workspace_id=instance.workspace_id
+    )
     payload: dict[str, Any] = {
         "reason": safe_reason,
         "persona_id": instance.persona_id,
         "mode": instance.mode,
         "archive_dir": str(archive_dir),
+        "requested_by": normalized_requested_by,
+        "activity": activity,
     }
-    if normalized_requested_by:
-        payload["requested_by"] = normalized_requested_by
     store._event("persona_instance.retired", instance, payload)
     # S7-A producer: the retired row leaves the active frame, so the launcher
     # deletes the keyed row (never renders it as a live idle agent). Live
@@ -320,7 +335,7 @@ def retire(
     # logs could not join the halves of a single operator action — the
     # exact defect EG-2.3 built the token to retire.
     office = store._archive_office_placements(
-        instance, correlation_id=correlation_id
+        instance, correlation_id=correlation_id, requested_by=normalized_requested_by
     )
     result = {
         "persona_instance_id": instance.id,
@@ -329,6 +344,7 @@ def retire(
         "mode": instance.mode,
         "reason": safe_reason,
         "requested_by": normalized_requested_by,
+        "activity": activity,
         "archive_path": str(archived_path),
         "archive_dir": str(archive_dir),
         # The office half, ADDITIVE and never authoritative over the row

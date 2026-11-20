@@ -23,6 +23,7 @@ from agent_runtime.office_store.files import (
 )
 from agent_runtime.office_store.models import ARCHIVED_LEDGER_CAP, OfficeActorOutcome
 from agent_runtime.office_store.normalize import _safe_actor_ref
+from agent_runtime.request_actor import request_actor
 from agent_runtime.serde import safe_id
 
 if TYPE_CHECKING:
@@ -198,6 +199,7 @@ def archive_actors_for_instance(
     *,
     reason: str = "instance_reaped",
     correlation_id: str | None = None,
+    requested_by: str | None = None,
 ) -> dict:
     """Hermes prune-lane hook: archive every active placement bound to a
     reaped persona instance so no phantom desk file re-materializes the
@@ -235,6 +237,10 @@ def archive_actors_for_instance(
     byte-identical to before this parameter existed. A default of "mint one"
     would be worse than nothing: it would join a prune to a gesture that
     never happened.
+
+    ``requested_by`` is the retire's actor, and each ``office.actor.removed``
+    names it (RT-RETIRED-AGENT-RECORD-SAYS-WHO-REMOVED-IT): ``updated_by`` stays
+    ``harness``, the writer of the archive, while this names who ASKED.
     """
 
     target = str(persona_instance_id or "").strip()
@@ -267,6 +273,7 @@ def archive_actors_for_instance(
                     reason=reason,
                     updated_by="harness",
                     correlation_id=correlation_id,
+                    requested_by=requested_by,
                 )
             except Exception as exc:  # the loop survives one bad file
                 outcomes.append(
@@ -349,6 +356,7 @@ def _archive_actor_locked(
     emit: bool = True,
     correlation_id: str | None = None,
     record_tombstone: bool = True,
+    requested_by: str | None = None,
 ) -> None:
     actor.state = "archived"
     actor.revision += 1
@@ -396,4 +404,8 @@ def _archive_actor_locked(
             workspace_id=actor.workspace_id,
             actor_key=actor.actor_key,
             reason=reason,
+            # Who asked, never null: the retire's actor when a retire reaped this desk, else the
+            # remove's own ``updated_by`` (the office verb's writer IS its asker).
+            # MUTATION: drop this line and test_an_office_reap_names_who_removed_the_agent reddens.
+            requested_by=request_actor(requested_by or updated_by),
         )

@@ -174,6 +174,7 @@ def perform_agent_place(
     updated_by: str = "operator",
     persona: Any | None = None,
     caller: Any | None = None,
+    requested_by: str = "operator",
 ) -> AgentCreateOutcome:
     """``runtime.agent.place``: put an EXISTING agent on a desk — one more instance of it.
 
@@ -189,9 +190,16 @@ def perform_agent_place(
     Idempotent per placement as well as per key: a placement id that already
     names an instance of this agent re-binds that instance (``add_instance``)
     rather than making a second one.
+
+    ``requested_by`` is who asked for the seat, stamped as the new instance's
+    ``spawned_by``: ``operator`` for the RPC door (the
+    stamp it always wrote), the asking agent instance for the agent tool
+    (``agent_create.staff``, RT-AGENTS-HAVE-A-TOOL-TO-ADD-AN-INSTANCE).
     """
 
-    return AgentPlace(params, updated_by=updated_by, persona=persona, caller=caller).run()
+    return AgentPlace(
+        params, updated_by=updated_by, persona=persona, caller=caller, requested_by=requested_by
+    ).run()
 
 
 class _Answered(Exception):
@@ -222,11 +230,14 @@ class AgentCreate:
     #: (review w1118a.41 D8). Placing names a seat, not an agent.
     NAMES_A_NEW_AGENT: bool = True
 
-    def __init__(self, params: dict[str, Any], *, updated_by: str, persona: Any, caller: Any) -> None:
+    def __init__(
+        self, params: dict[str, Any], *, updated_by: str, persona: Any, caller: Any, requested_by: str = "operator",
+    ) -> None:
         self.params = params
         self.updated_by = updated_by
         self.persona = persona
         self.caller = caller
+        self.requested_by = requested_by
         self.instance_ms = 0
 
     def run(self) -> AgentCreateOutcome:
@@ -550,7 +561,8 @@ class AgentCreate:
         # that names the author of the office WRITE, while this names who the
         # agent was spawned by, and no coordinator reaches either lane that
         # calls this function.
-        instance.spawned_by = "operator"
+        # MUTATION: stamp "operator" whatever asked and test_the_tool_places_a_numbered_instance_that_names_the_asking_instance reddens.
+        instance.spawned_by = self.requested_by
         with using_create_subphases(subphases), timed_create_subphase("spawned_by_write_ms"):
             self.instance = PersonaInstanceStore().update(instance)
         self.instance_ms = self.elapsed_ms(mint_started)
