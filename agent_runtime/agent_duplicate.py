@@ -28,6 +28,7 @@ from pathlib import Path
 
 from hermes_cli.profiles import get_profile_dir
 from hermes_cli.profiles_initialization import finish_profile_layout
+from hermes_constants import get_hermes_home
 
 from . import yaml_io
 from .bundled_agents import SHIPPED_AGENTS, shipped_soul_for_turn
@@ -117,7 +118,9 @@ def _copy_entry(source: Path, target: Path) -> None:
         shutil.copy2(source, target)
 
 
-def _stage_profile(home: Path, source_home: Path | None, soul: str | None, source_id: str) -> None:
+def _stage_profile(
+    home: Path, source_home: Path | None, model_home: Path, soul: str | None, source_id: str,
+) -> None:
     home.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=home.parent, prefix=f".{home.name}-") as temp:
         stage = Path(temp) / "profile"
@@ -125,7 +128,7 @@ def _stage_profile(home: Path, source_home: Path | None, soul: str | None, sourc
         if source_home is not None and source_home.is_dir() and not source_home.is_symlink():
             for entry in _AGENT_FILES:
                 _copy_entry(source_home / entry, stage / entry)
-        config = _carried_model_config(source_home) if source_home is not None else {}
+        config = _carried_model_config(model_home)
         (stage / "config.yaml").write_text(yaml_io.dump(config), encoding="utf-8")
         finish_profile_layout(stage, no_skills=False, clone_all=False, description=None, soul=soul)
         # The copy's own profile carries the owner marker the independent create writes, so
@@ -179,8 +182,12 @@ def duplicate_agent(persona_id: str, name: str, *, instance_id: str | None = Non
         slug = _slug(name)
         profile = _free_profile(slug)
         source_home = Path(get_profile_dir(source.hermes_profile)) if source.hermes_profile else None
+        # A source on the main profile answers through the head home's model, so the copy
+        # carries that model block — and none of the head home's own entries (memory,
+        # sign-in), as ``independent.py::_profile_source`` falls back to the head home.
+        model_home = source_home if source_home is not None else Path(get_hermes_home())
         soul = shipped_soul_for_turn(source)
-        _stage_profile(get_profile_dir(profile), source_home, soul, source.id)
+        _stage_profile(get_profile_dir(profile), source_home, model_home, soul, source.id)
         copy = AgentStore().save(replace(
             source,
             id=_free_id(slug, roster),
