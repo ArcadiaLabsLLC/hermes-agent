@@ -47,3 +47,20 @@ def test_a_helper_claims_pushed_with_room_to_finish_and_knows_its_own_claim():
     assert "never invent one from your persona id" in claiming
     assert "already yours" in claiming
     assert "never in the primary checkout" in claiming
+
+
+def test_a_brief_closes_a_finished_row_and_never_deletes_it():
+    """QA-FU-A-LEAD-AGENT-BRIEFS-HELPERS-AGAINST-THE-REPOS-OWN-RULES (seen 2026-11-20): Neko's brief
+    said "delete the row on Launcher main". The lead briefs from the repo's rules file in its context
+    and a helper closes with ``close_row.dart``. KILLING MUTATION: drop the lead's "repo's own rules
+    file" bullet, or the helper's step 5 — each reddens an assert here."""
+
+    lead = _section((_SKILLS / "harness-runtime-model" / "SKILL.md").read_text(encoding="utf-8"), "## Delegation")
+    assert "repo's own rules file" in lead
+    assert "## <slot> — CLAUDE.md" in lead
+    assert "close_row.dart <ID> --done <sha> --commit" in lead
+    assert "never tell a\n  helper to delete a row" in lead
+    helper = _section((_SKILLS / "harness-dev-delivery" / "SKILL.md").read_text(encoding="utf-8"),
+                      "## Claiming a queue row")
+    assert "close_row.dart <ID> --done <sha> --commit" in helper
+    assert "Never delete a row" in helper

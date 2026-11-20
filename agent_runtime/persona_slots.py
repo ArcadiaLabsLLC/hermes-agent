@@ -407,6 +407,25 @@ def default_context_choice(agents: str | None, claude: str | None) -> tuple[str 
     return None, DEFAULT_AGENTS_ABSENT
 
 
+def default_context_files(record: dict[str, Any], path: Path | str) -> list[str]:
+    """The files a bound slot loads when the instance made NO pick: the declaration's
+    ``context.files``, else the one file :func:`default_context_choice` picks (read through the
+    turn loader, so its byte cap counts) — what ``workspace.slots.show`` reports as
+    ``default_context_files`` so the folders sheet's CLAUDE.md / AGENTS.md switch shows the
+    file that really loads (MC-A-FOLDER-SLOT-CHOOSES-WHICH-RULES-FILE-ITS-AGENT-READS)."""
+
+    files = (record.get("context") or {}).get("files")
+    if files:
+        return [str(name) for name in files]
+    from .prompt_observability.workspace_agents import load_workspace_agents_context
+
+    root = Path(path)
+    agents = getattr(load_workspace_agents_context(str(root / "AGENTS.md"), allowed_names=None), "content", None)
+    claude = getattr(load_workspace_agents_context(str(root / "CLAUDE.md"), allowed_names=None), "content", None)
+    chosen, _reason = default_context_choice(agents, claude)
+    return [chosen] if chosen else []
+
+
 def _default_file_receipts(slot: str, path: Path, load: Any) -> tuple[list[dict[str, Any]], list[SlotContextSection]]:
     """The one-file default for one bound slot: the chosen file loaded, the other one's receipt saying why not."""
 

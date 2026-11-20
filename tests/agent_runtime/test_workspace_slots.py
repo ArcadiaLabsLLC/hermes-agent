@@ -259,6 +259,32 @@ def test_a_deleted_bound_folder_keeps_its_path_and_says_folder_missing(workspace
     assert (here["bound_here"], here["path"], here["folder_missing"]) == (False, str(checkout), True)
 
 
+def test_a_bound_row_says_which_rules_file_loads_with_no_pick(workspace, checkout):
+    """MC-A-FOLDER-SLOT-CHOOSES-WHICH-RULES-FILE-ITS-AGENT-READS: the folders sheet's CLAUDE.md / AGENTS.md
+    switch shows the file the turn really loads while no pick is set — the turn loader's own rule."""
+
+    def default_files(slot=None):
+        _declare(workspace, [slot or _slot()], issued_at=f"2026-10-04T12:{default_files.n:02d}:00+00:00")
+        default_files.n += 1
+        call("runtime.workspace.slot.bind", {"workspace_id": workspace, "slot": "launcher", "path": str(checkout),
+                                             "issued_at": ISSUED})
+        here = call("runtime.workspace.slots.show", {"workspace_id": workspace})["result"]["here"]["launcher"]
+        return here["default_context_files"]
+
+    default_files.n = 0
+    assert default_files() == []
+    (checkout / "CLAUDE.md").write_text("# Eternia\n\nClose a row with close_row.dart.\n", encoding="utf-8")
+    (checkout / "AGENTS.md").write_text("See CLAUDE.md, the single canonical agent-context file.\n", encoding="utf-8")
+    assert default_files() == ["CLAUDE.md"]  # AGENTS.md only points at CLAUDE.md
+    (checkout / "AGENTS.md").write_text("# Agents\n\nOwn rules here.\n", encoding="utf-8")
+    assert default_files() == ["AGENTS.md"]  # AGENTS.md with content of its own wins
+    declared = _slot(context={"role": "launcher", "files": ["CLAUDE.md", "AGENTS.md"]})
+    assert default_files(declared) == ["CLAUDE.md", "AGENTS.md"]  # the declaration's list
+    _declare(workspace, [_slot(name="backend")], issued_at=LATER)
+    assert "default_context_files" not in call("runtime.workspace.slots.show",
+                                               {"workspace_id": workspace})["result"]["here"]["backend"]
+
+
 def test_no_count_limit_two_hundred_slots_round_trip(workspace):
     slots = [_slot(f"s{i}") for i in range(200)]
     assert "result" in _declare(workspace, slots)

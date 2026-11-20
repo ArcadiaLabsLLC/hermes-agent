@@ -607,7 +607,8 @@ def show(workspace_id: str) -> dict[str, Any]:
 
     ``bound_here`` is true only when the bound folder exists. ``path`` is the bound root
     whenever this machine binds the slot, and ``folder_missing`` says the root is bound but
-    its folder is gone — distinct from never set up here (``path`` null). ``default_clone_path`` is where
+    its folder is gone — distinct from never set up here (``path`` null). ``default_context_files`` (bound
+    rows only) is what loads for an instance with no pick (``persona_slots.default_context_files``). ``default_clone_path`` is where
     Clone lands by default (``workspace_slot_clone_home``), null when the slot is ready here or has no URL.
     """
 
@@ -616,15 +617,20 @@ def show(workspace_id: str) -> dict[str, Any]:
     from .builds.unknowns import UNKNOWN_SLOT_UNBOUND_HERE, UnknownsIndex
     from .workspace_slot_env import fill_shape
 
+    from .persona_slots import default_context_files
+
     document = load_document(workspace_id)
     here = {}
-    for name in live_slots(document):
+    for name, record in live_slots(document).items():
         path = bound_path(name, workspace_id=workspace_id)
         bound_here = bool(path and path.is_dir())
         row = {"bound_here": bound_here, "path": str(path) if path else None,
                "folder_missing": bool(path) and not bound_here, "unknowns": [],
                "fill": fill_shape(workspace_id, name)}
-        if not bound_here:
+        if bound_here:
+            # What loads with no pick, by the turn loader's own rule (the sheet's switch reads it).
+            row["default_context_files"] = default_context_files(record, path)
+        else:
             index = UnknownsIndex()
             machines = binding_machines(document, name)
             index.add(UNKNOWN_SLOT_UNBOUND_HERE,

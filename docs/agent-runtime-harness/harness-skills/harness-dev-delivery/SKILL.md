@@ -240,6 +240,10 @@ When a brief sends you to an EterniaLauncher queue row:
    <lane>" naming any other claimant is another lane's: stop and report it.
 4. Then cut your own worktree from `origin/main` and do every edit, build and commit there —
    never in the primary checkout.
+5. When the work lands, CLOSE the row — `dart tool/queue/close_row.dart <ID> --done <sha> --commit`
+   moves it to the archive and discharges your claim. Never delete a row, even when a brief says
+   to: close it and tell your lead the brief was wrong (the repo's `CLAUDE.md`, in your context
+   as `## <slot> — CLAUDE.md`, is the rule).
 
 ## Request Context
 

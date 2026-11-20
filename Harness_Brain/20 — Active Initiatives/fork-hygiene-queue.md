@@ -743,3 +743,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-20 (review w1118a.63: what hermes lane w1118a-hrt3 reported)
 
+
+## Filed on arrival — 2026-11-20 (lane w1120a-slotrules: a red the prepush met)
+- **`FH-FU-THE-SLOT-SETUP-SHELL-TESTS-FAIL-ON-WINDOWS` — Four slot set-up script tests fail on Windows, so every Windows prepush that touches slots reads red** · group: hermes-test-isolation · from: `MC-A-FOLDER-SLOT-CHOOSES-WHICH-RULES-FILE-ITS-AGENT-READS` (EterniaLauncher, lane w1120a-slotrules) · seen 2026-11-20 on DESKTOP-QJ7DDV2 (Windows): `tests/agent_runtime/test_workspace_slot_clone.py` 4 failed (`test_run_needs_the_script_the_person_was_shown`, `test_nothing_runs_on_its_own`, `test_run_step_refusals_are_typed`, `test_the_shell_door_runs_powershell_on_windows`); one reads `script_shell(Path("/r/linux.sh"), windows=False)` as `['bash', '\r\linux.sh']`; `--confirm-red` verdict pre-existing (red on origin/main) · guess: the tests build POSIX paths with `Path` and compare strings, so Windows renders backslashes · done when: the file is green on Windows and Linux · REQUIRES windows · READY 2026-11-20
+
