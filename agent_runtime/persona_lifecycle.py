@@ -28,6 +28,16 @@ def is_independent_agent_persona(persona: Any) -> bool:
     return independent_profile_persona_id(persona.hermes_profile) == persona.id
 
 
+def is_agent_copy(persona: Any) -> bool:
+    """A copy the person made of an agent: an independent copy (its ``agent_<digest>`` persona on its own
+    ``agent-<digest>`` profile) or a duplicate (a persona recording ``based_on``). Read off the persona's own
+    record. Its profile is that agent's home, never a template to place (rows
+    ``RT-A-COPYS-OWN-PROFILE-IS-LISTED-AS-A-PROFILE-TEMPLATE``,
+    ``RT-A-DUPLICATE-YOU-MADE-MAY-ALSO-BE-LISTED-AS-A-PROFILE-TEMPLATE``, reviews w1118a.52 D3 and w1118a.53 D10),
+    and it is what ``runtime.agent.delete`` may delete (``agent_copy_delete``)."""
+    return is_independent_agent_persona(persona) or bool(getattr(persona, "based_on", None))
+
+
 def is_runtime_persona(persona: Any) -> bool:
     """Return whether a persona definition participates in the live runtime.
 

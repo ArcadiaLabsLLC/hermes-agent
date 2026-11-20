@@ -14,7 +14,7 @@ from agent_runtime.profile_home import (
 from agent_runtime import paths
 from agent_runtime.persona_assignments import persona_instance_visibility_ref
 from agent_runtime.persona_chat_history.vocabulary import _SECRET_RE
-from agent_runtime.persona_lifecycle import is_independent_agent_persona
+from agent_runtime.persona_lifecycle import is_agent_copy
 from agent_runtime.persona_profiles import effective_toolsets
 from agent_runtime.process_state import register_process_state
 from agent_runtime.realm_sync.sidecar import read_realm_sync_sidecar
@@ -311,13 +311,15 @@ def _available_persona_summary(agents) -> list[dict]:
       persona to key on) and its synthesis is INTENDED here, so the row supplies
       ``profile_<name>`` itself and the list is never empty.
 
-    A profile that is an independent agent's own home (the persona store's
-    record pairs ``agent_<digest>`` with ``agent-<digest>``,
-    :func:`persona_lifecycle.is_independent_agent_persona`) is no template: it is
-    the copy, already listed as an agent, and placing it again would offer a
-    second door to that one agent (row
-    ``RT-A-COPYS-OWN-PROFILE-IS-LISTED-AS-A-PROFILE-TEMPLATE``, review w1118a.52
-    D3: the runtime decides what a template is, never a name rule in Eternia).
+    A profile that is the home of a copy the person made — an independent copy
+    (the persona store's record pairs ``agent_<digest>`` with ``agent-<digest>``)
+    or a duplicate (its persona records ``based_on``),
+    :func:`persona_lifecycle.is_agent_copy` — is no template: it is that agent,
+    already listed, and placing it again would offer a second door to it (rows
+    ``RT-A-COPYS-OWN-PROFILE-IS-LISTED-AS-A-PROFILE-TEMPLATE`` and
+    ``RT-A-DUPLICATE-YOU-MADE-MAY-ALSO-BE-LISTED-AS-A-PROFILE-TEMPLATE``, reviews
+    w1118a.52 D3 and w1118a.53 D10: the runtime decides what a template is,
+    never a name rule in Eternia).
 
     ``backs_persona_id`` follows the same rule for the same reason. It used to
     be built by a dict comprehension keyed on profile name, which silently kept
@@ -342,7 +344,7 @@ def _available_persona_summary(agents) -> list[dict]:
     copy_homes = {
         profile
         for profile, owners in owners_by_profile.items()
-        if any(is_independent_agent_persona(owner) for owner in owners)
+        if any(is_agent_copy(owner) for owner in owners)
     }
     summaries: list[dict] = []
     for template in templates:

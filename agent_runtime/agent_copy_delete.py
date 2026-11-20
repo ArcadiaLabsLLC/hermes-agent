@@ -51,7 +51,7 @@ from .locks import agent_create_lock, agent_record_write_lock
 from .models import AgentPersona, PersonaInstance
 from .persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
 from .persona_assignments.independent import _OWNER_FILE
-from .persona_lifecycle import is_independent_agent_persona
+from .persona_lifecycle import is_agent_copy
 from .profile_context import active_profile_name
 from .state_patches.persona_instance import emit_persona_instance_remove
 from .store import RealmStore, WorkspaceStore
@@ -102,7 +102,7 @@ def _receipt_for(persona_id: str) -> dict[str, Any] | None:
 
 
 def _is_copy(persona: AgentPersona) -> bool:
-    return is_independent_agent_persona(persona) or bool(persona.based_on)
+    return is_agent_copy(persona)
 
 
 def _realm_hold(persona: AgentPersona, instances: list[PersonaInstance]) -> dict[str, str] | None:
