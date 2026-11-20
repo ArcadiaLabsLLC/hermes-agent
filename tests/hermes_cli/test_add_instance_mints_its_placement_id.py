@@ -11,7 +11,7 @@ mint with ``agent_create.mint_placement_id``. Driven through the real argparse t
 from __future__ import annotations
 
 from agent_runtime.models import looks_like_deliberate_placement
-from tests.hermes_cli.test_placement_id_discriminability import (  # noqa: F401 — fixtures
+from tests.hermes_cli.test_placement_id_discriminability import (  # the module's fixtures
     _instance_create,
     _instance_open,
     hermetic_runtime_root,
