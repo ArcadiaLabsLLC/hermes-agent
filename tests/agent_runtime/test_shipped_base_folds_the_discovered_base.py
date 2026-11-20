@@ -137,3 +137,24 @@ def test_a_discovered_base_the_person_renamed_stays_theirs(older_namespace, tmp_
     assert AgentStore().get(DISCOVERED).display_name == "My Helper"
     assert PersonaInstanceStore().get(OLD_CHANNEL).persona_id == DISCOVERED
     assert OLD_CHANNEL not in load_persona_instance_aliases()
+
+
+def test_a_leftover_setting_under_the_folded_id_brings_no_profile_base_back(older_namespace, tmp_path):
+    """RT-AN-AGENT-SETTING-IN-CONFIG-FOR-NO-AGENT-LISTS-A-PHANTOM-AGENT (review w1118a.45 D2): the
+    fold archives ``profile_base``'s record, so a setting the person (or the QA model fixture)
+    wrote under that id is all that is left of it — and it is a setting, not an agent."""
+
+    from agent_runtime.config import chat_lane_restore_toolsets
+    from agent_runtime.parse_cache import clear_parse_cache
+
+    get_config_path().write_text(yaml_io.dump({"agent_runtime": {"personas": {
+        DISCOVERED: {"chat_lane_restore_toolsets": ["file", "terminal"]},
+    }}}, sort_keys=True), encoding="utf-8")
+    clear_parse_cache()
+
+    _pull_seating_base(tmp_path)
+
+    _one_base(older_namespace["seat"])
+    assert DISCOVERED not in {row["persona_id"] for row in instance_catalog.prepare_instance_catalog()["agents"]}
+    assert DISCOVERED not in {p.id for p in ensure_persisted_personas()}
+    assert chat_lane_restore_toolsets(DISCOVERED) == ["file", "terminal"]

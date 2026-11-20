@@ -8,7 +8,7 @@ from agent_runtime.config import (
 
 
 def test_config_merges_persona_overrides(tmp_path):
-    p=tmp_path/"config.yaml"; p.write_text("agent_runtime:\n  default_model: gpt-x\n  personas:\n    pm:\n      model: gpt-y\n", encoding="utf-8")
+    p=tmp_path/"config.yaml"; p.write_text("agent_runtime:\n  default_model: gpt-x\n  personas:\n    pm:\n      role: pm\n      model: gpt-y\n", encoding="utf-8")
     cfg=load_agent_runtime_config(p)
     pm=next(p for p in persona_records_from_config(cfg) if p.id=="pm")
     assert pm.model == "gpt-y"
@@ -94,6 +94,7 @@ def test_config_allows_explicit_core_context_file_opt_in(tmp_path):
         "agent_runtime:\n"
         "  personas:\n"
         "    backend_dev:\n"
+        "      role: dev\n"
         "      include_core_context_files: true\n",
         encoding="utf-8",
     )
@@ -351,13 +352,16 @@ def test_config_persona_skills_merge_defaults_with_explicit_removals(tmp_path):
         "agent_runtime:\n"
         "  personas:\n"
         "    neko_supervisor:\n"
+        "      display_name: Neko\n"
         "      skills: [agent-runtime-harness]\n"
         "    dev:\n"
+        "      role: dev\n"
         "      skills: [launcher-stagec-mcp-screenshot]\n"
         "    backend_dev:\n"
         "      role: dev\n"
         "      skills: [backend-docker]\n"
         "    qa:\n"
+        "      role: qa\n"
         "      skills: [visual-qa]\n",
         encoding="utf-8",
     )
@@ -380,6 +384,7 @@ def test_config_persona_skills_remove_is_explicit(tmp_path):
         "agent_runtime:\n"
         "  personas:\n"
         "    qa:\n"
+        "      role: qa\n"
         "      skills: [visual-qa, retained-skill]\n"
         f"      skills_remove: [{removed}]\n",
         encoding="utf-8",
@@ -396,6 +401,7 @@ def test_neko_supervisor_does_not_inherit_head_agent_profile(tmp_path):
         "  head_agent_profile: captain\n"
         "  personas:\n"
         "    neko_supervisor:\n"
+        "      display_name: Neko\n"
         "      skills: [agent-runtime-harness]\n",
         encoding="utf-8",
     )
@@ -445,6 +451,7 @@ def test_config_accepts_json_encoded_skill_list_from_cli_config_set(tmp_path):
         "agent_runtime:\n"
         "  personas:\n"
         "    neko_supervisor:\n"
+        "      display_name: Neko\n"
         "      skills: '[\"agent-runtime-harness\", \"harness-mission-lead\"]'\n",
         encoding="utf-8",
     )
@@ -564,6 +571,7 @@ def test_explicit_persona_pin_survives_resolved_default(tmp_path):
         "agent_runtime:\n"
         "  personas:\n"
         "    pm:\n"
+        "      role: pm\n"
         "      model: gpt-5.3-codex-spark\n",
         encoding="utf-8",
     )

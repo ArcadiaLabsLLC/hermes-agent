@@ -79,7 +79,7 @@ def test_the_storage_watermark_ordering_check_is_gone_with_its_three_fields():
 
 
 def test_effective_config_summary_is_redaction_safe(isolate_agent_runtime_root):
-    cfg = AgentRuntimeConfig(personas={"dev": {"api_token": "super-secret-value", "model": "gpt"}})
+    cfg = AgentRuntimeConfig(personas={"dev": {"role": "dev", "api_token": "super-secret-value", "model": "gpt"}})
 
     summary = effective_config_summary(cfg)
 

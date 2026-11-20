@@ -62,7 +62,7 @@ def test_the_fixture_root_holds_the_four_shapes():
 @pytest.mark.parametrize("profile", _PROFILES)
 def test_a_live_shape_profile_root_loads_through_the_producer(profile, monkeypatch):
     from agent_runtime.config import load_agent_runtime_config, merge_persisted_personas, persona_records_from_config
-    from agent_runtime.config.persona_records import legacy_persona_toolsets_issues
+    from agent_runtime.config.persona_records import config_entry_declares_persona, legacy_persona_toolsets_issues
     from agent_runtime.persona_profiles import declared_lane_toolsets
     from agent_runtime.snapshot import build_snapshot
     from agent_runtime.store import AgentStore
@@ -73,7 +73,11 @@ def test_a_live_shape_profile_root_loads_through_the_producer(profile, monkeypat
     cfg = load_agent_runtime_config()
     records = persona_records_from_config(cfg)
     merged = merge_persisted_personas([], cfg)
-    assert sorted(p.id for p in merged) == sorted(p.id for p in records) == sorted(cfg.personas)
+    # An entry with no identity key is a setting for its id, not an agent: launcher-qa's
+    # lone ``neko_supervisor.chat_lane_restore_toolsets`` declares nothing there
+    # (RT-AN-AGENT-SETTING-IN-CONFIG-FOR-NO-AGENT-LISTS-A-PHANTOM-AGENT).
+    declared = sorted(pid for pid, entry in cfg.personas.items() if config_entry_declares_persona(entry))
+    assert sorted(p.id for p in merged) == sorted(p.id for p in records) == declared
 
     codes = {issue.kind.value for issue in legacy_persona_toolsets_issues(cfg.personas)}
     for persona in records:

@@ -43,8 +43,57 @@ def _expand_machine_root_tokens(value, *, field: str):
         return value
 
 
+#: The keys that make an ``agent_runtime.personas.<id>`` entry DECLARE an agent: who it is
+#: (``role``, ``display_name``), what it runs as (``hermes_profile``, ``system_prompt_path``,
+#: ``soul_overlay_path``) or what it was made from (``based_on``). Every body a realm pull
+#: writes for a config-declared agent carries ``role`` and ``display_name`` (its projection
+#: is built from a record, which always has both). An entry with none of these is a SETTING
+#: for that id (``chat_lane_restore_toolsets``, skills, model, budgets, autonomy, repo
+#: scope…): it overlays the stored record or the declaring entry of the id and declares
+#: nothing alone (RT-AN-AGENT-SETTING-IN-CONFIG-FOR-NO-AGENT-LISTS-A-PHANTOM-AGENT, seen
+#: 2026-11-19: a lone ``chat_lane_restore_toolsets`` under ``profile_base`` listed
+#: "Profile Base" and minted its channel). The knobs themselves are read from config by id
+#: (``config.chat_lane_restore_toolsets``), never through this roster.
+PERSONA_IDENTITY_KEYS: frozenset[str] = frozenset(
+    {"role", "display_name", "hermes_profile", "system_prompt_path", "soul_overlay_path", "based_on"}
+)
+
+
+def config_entry_declares_persona(overrides: Any) -> bool:
+    """True when a config persona entry declares an agent, not only a setting for its id."""
+
+    return isinstance(overrides, dict) and any(key in overrides for key in PERSONA_IDENTITY_KEYS)
+
+
 def persona_records_from_config(cfg: AgentRuntimeConfig | None = None):
+    """The agents ``config.yaml`` DECLARES (:data:`PERSONA_IDENTITY_KEYS`), as persona records.
+
+    A settings-only entry lists nothing here; over a stored record the store wins the
+    merge anyway, and the settings it carries are read by id where they apply.
+    """
+
     cfg = cfg or load_agent_runtime_config()
+    declared = _declared_ids(cfg)
+    return [
+        record
+        for record in _records_from_config(cfg)
+        # MUTATION: drop this filter and
+        # test_a_setting_for_an_id_no_record_holds_lists_no_agent_and_mints_no_channel reddens.
+        if record.id in declared
+    ]
+
+
+def _declared_ids(cfg: AgentRuntimeConfig) -> set[str]:
+    return {
+        str(pid or "").strip()
+        for pid, overrides in cfg.personas.items()
+        if config_entry_declares_persona(overrides)
+    }
+
+
+def _records_from_config(cfg: AgentRuntimeConfig):
+    """Every config persona entry as a record, settings-only entries included."""
+
     personas = {}
     for pid, overrides in cfg.personas.items():
         persona_id = str(pid or "").strip()
@@ -164,7 +213,14 @@ def skill_sources_for(stored, cfg: AgentRuntimeConfig) -> dict[str, dict[str, An
     """
 
     stored_by_id = {persona.id: persona for persona in stored}
-    catalog = {persona.id: persona for persona in persona_records_from_config(cfg)}
+    # A settings-only entry over a STORED persona still names the config skills the store
+    # row lacks; one over no record declares nothing, so it gets no row.
+    declared = _declared_ids(cfg)
+    catalog = {
+        persona.id: persona
+        for persona in _records_from_config(cfg)
+        if persona.id in stored_by_id or persona.id in declared
+    }
     rows: dict[str, dict[str, Any]] = {}
     for persona_id in set(stored_by_id) | set(catalog):
         stored_row = stored_by_id.get(persona_id)
