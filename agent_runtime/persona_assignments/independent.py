@@ -8,7 +8,7 @@ import tempfile
 import uuid
 from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from hermes_cli.profiles import get_profile_dir
 from hermes_cli.profiles_initialization import finish_profile_layout
@@ -52,22 +52,95 @@ def _text_from(path: Path | None, roots: tuple[Path, ...]) -> str | None:
     return data.decode("utf-8")
 
 
-def _portable_model_defaults(home: Path) -> dict[str, str]:
+#: The source's ``model:`` keys a copy carries: which model, through which provider
+#: and endpoint, spoken how. Never ``api_key`` (nor ``api``, which the runtime also
+#: reads as a key): the copy's turns borrow the head's sign-in, as the source's do.
+_CARRIED_MODEL_KEYS = ("default", "provider", "base_url", "api_mode")
+#: The fields of a named custom endpoint (``providers.<key>`` or a legacy
+#: ``custom_providers`` item) a copy carries. An allowlist: ``api_key``,
+#: ``key_env``, ``key_cmd``, ``extra_headers`` and ``extra_body`` can hold or fetch
+#: a credential and stay with the source.
+_CARRIED_ENDPOINT_KEYS = (
+    "name", "api", "url", "base_url", "api_mode", "transport",
+    "model", "default_model", "models", "context_length",
+)
+
+
+#: A nested field (inside ``models``, say) whose name says it holds or fetches a credential.
+_CREDENTIAL_NAME_PARTS = ("key", "token", "secret", "password", "auth", "header", "cookie", "credential", "cmd")
+
+
+def _without_credential_names(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _without_credential_names(item) for key, item in value.items()
+            if not any(part in str(key).lower() for part in _CREDENTIAL_NAME_PARTS)
+        }
+    if isinstance(value, list):
+        return [_without_credential_names(item) for item in value]
+    return value
+
+
+def _credential_free(fields: dict[str, Any]) -> dict[str, Any]:
+    """Drop credential-named nested fields, then each field whose value still
+    carries a secret-shaped assignment.
+
+    Realm portability is not this test: a copy stays on this machine, and a raw
+    profile ``config.yaml`` never publishes (``realm_sync.persona_artifacts``).
+    """
+
+    fields = {key: _without_credential_names(value) for key, value in fields.items()}
+    return {key: value for key, value in fields.items() if payload_refusal({key: value}, check_portability=False) is None}
+
+
+def _named_endpoint(config: dict[str, Any], provider: str) -> dict[str, Any]:
+    """The source's own ``custom:<name>`` endpoint entry, credential fields left out."""
+
+    from hermes_cli.providers import custom_provider_aliases
+
+    wanted = provider.strip().lower()
+    providers = config.get("providers")
+    for key, entry in (providers.items() if isinstance(providers, dict) else ()):
+        if isinstance(entry, dict) and wanted in custom_provider_aliases(str(entry.get("name") or key), str(key)):
+            carried = _credential_free({k: entry[k] for k in _CARRIED_ENDPOINT_KEYS if k in entry})
+            return {"providers": {key: carried}} if carried else {}
+    legacy = config.get("custom_providers")
+    for entry in legacy if isinstance(legacy, list) else ():
+        if isinstance(entry, dict) and wanted in custom_provider_aliases(
+            str(entry.get("name") or ""), str(entry.get("provider_key") or ""),
+        ):
+            carried = _credential_free({k: entry[k] for k in _CARRIED_ENDPOINT_KEYS if k in entry})
+            return {"custom_providers": [carried]} if carried else {}
+    return {}
+
+
+def _carried_model_config(home: Path) -> dict[str, Any]:
+    """The ``config.yaml`` a copy of the agent at ``home`` starts from.
+
+    It answers through the same model and endpoint as its source (row
+    ``RT-AGENT-COPY-DROPS-ITS-SOURCES-MODEL-ENDPOINT``), and carries no
+    credential value and no other setting the copy owns.
+    """
+
     path = home / "config.yaml"
     if path.is_symlink() or not path.is_file():
         return {}
     config = yaml_io.load(path.read_text(encoding="utf-8"))
-    model = config.get("model") if isinstance(config, dict) else None
+    if not isinstance(config, dict):
+        return {}
+    model = config.get("model")
     if isinstance(model, str):
         model = {"default": model}
     if not isinstance(model, dict):
         return {}
-    return {
-        key: value
-        for key in ("default", "provider")
-        if isinstance((value := model.get(key)), str)
-        and payload_refusal({key: value}, check_portability=True) is None
-    }
+    carried = _credential_free({
+        key: value for key in _CARRIED_MODEL_KEYS if isinstance((value := model.get(key)), str)
+    })
+    if not carried:
+        return {}
+    provider = carried.get("provider", "")
+    endpoint = _named_endpoint(config, provider) if provider.strip().lower().startswith("custom:") else {}
+    return {"model": carried, **endpoint}
 
 
 def _profile_source(source_id: str) -> tuple[AgentPersona | None, Path]:
@@ -88,12 +161,12 @@ def _stage_profile(home: Path, source_home: Path, source: AgentPersona | None, o
         (source_home,),
     )
     soul = _text_from(source_home / "SOUL.md", (source_home,))
-    model = _portable_model_defaults(source_home)
+    config = _carried_model_config(source_home)
     home.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=home.parent, prefix=f".{home.name}-") as temp:
         stage = Path(temp) / "profile"
         (stage / "personas").mkdir(parents=True)
-        (stage / "config.yaml").write_text(yaml_io.dump({"model": model} if model else {}), encoding="utf-8")
+        (stage / "config.yaml").write_text(yaml_io.dump(config), encoding="utf-8")
         if prompt is not None:
             (stage / _PROFILE_PROMPT).write_text(prompt, encoding="utf-8")
         if overlay is not None:
