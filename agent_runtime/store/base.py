@@ -6,6 +6,7 @@ files (``AgentStore``, ``RunStore``, ``IncidentStore``) with ``ACTIVE_RUN_STATES
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
@@ -81,6 +82,12 @@ def _read_model(cls: type[T], path: Path) -> T:
 def _write_model(path: Path, model) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_json_write(path, to_jsonable(model), indent=2, sort_keys=True)
+
+
+def _read_back(cls: type[T], model) -> T:
+    """``model`` as :func:`_read_model` will read it after :func:`_write_model` — without the disk."""
+
+    return resolve_record(from_jsonable(cls, json.loads(json.dumps(to_jsonable(model), sort_keys=True))))
 
 
 def _emit_active_scope_patch(event_log: EventLog) -> None:
@@ -271,22 +278,29 @@ class AgentStore:
                 from hermes_constants import get_config_path
                 from utils import atomic_roundtrip_yaml_update
                 atomic_roundtrip_yaml_update(get_config_path(), f"agent_runtime.personas.{persona.id}.character_assignment", persona.character_assignment)
-            else:
-                _write_model(path, persona)
-        from ..state_patches.persona import emit_persona_updated
+            from ..state_patches.persona import prepare_persona_updated
 
-        # The event rides beside its ``persona`` patch (row
-        # RT-FU-ADDING-AN-AGENT-SENDS-EVERY-OPEN-ETERNIA-A-FULL-REFRESH): a first
-        # record is projected as the core would read it back; anything else
-        # pairs with a refresh.
-        # MUTATION: pass ``created=None`` here and
-        # test_an_agent_create_ships_its_new_persona_as_a_patch reddens.
-        emit_persona_updated(
-            self.event_log,
-            persona_id=persona.id,
-            display_name=persona.display_name,
-            created=self.get(persona.id) if not stored and not config_only else None,
-        )
+            # The event rides beside its ``persona`` patch (row
+            # RT-FU-ADDING-AN-AGENT-SENDS-EVERY-OPEN-ETERNIA-A-FULL-REFRESH): a first
+            # record is projected as the core would read it back; anything else
+            # pairs with a refresh. Projected BEFORE the write (row
+            # RT-FU-ADDING-AN-AGENT-CAN-STILL-SEND-A-FULL-REFRESH-FROM-A-SCOPE-RECONCILE):
+            # the readiness walk takes seconds cold, and a record that waits that
+            # long for its event is an event-less ``scope`` move to the stream
+            # watchdog. The read-back is the same serde round trip, in memory.
+            # MUTATION: pass ``created=None`` here and
+            # test_an_agent_create_ships_its_new_persona_as_a_patch reddens.
+            update = prepare_persona_updated(
+                persona_id=persona.id,
+                display_name=persona.display_name,
+                created=_read_back(AgentPersona, persona) if not stored and not config_only else None,
+            )
+            if not config_only:
+                _write_model(path, persona)
+        # Only appends: the record and its two events land back to back.
+        # MUTATION: move the ``prepare_persona_updated`` call below ``_write_model``
+        # and test_an_agent_create_projects_its_row_before_its_record_lands reddens.
+        update.append(self.event_log)
         return persona
 
     # A record that references a shipped agent loads with the build's definition

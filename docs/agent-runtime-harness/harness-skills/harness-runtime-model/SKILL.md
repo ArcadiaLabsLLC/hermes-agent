@@ -230,3 +230,10 @@ Recipe and flags: `references/operations.md`, "Delegation"; why: `references/mod
   run from the repo's primary checkout with a timeout of at least 300 s, then all work in that
   worktree. A row the tool reports "TAKEN by <lane>" under your helper's lane is your
   helper's claim, not another lane's.
+- **A brief follows the repo's own rules file, never your paraphrase of it.** The rules of each
+  folder you work in are in your context under `## <slot> — CLAUDE.md` (or `AGENTS.md`) — the
+  folders sheet's checked folders, with its CLAUDE.md / AGENTS.md switch. Brief against that
+  text. A finished queue row is CLOSED, which archives it — in EterniaLauncher
+  `dart tool/queue/close_row.dart <ID> --done <sha> --commit` — never deleted: never tell a
+  helper to delete a row. No `## <slot> —` section in your context means no folder is checked
+  for you; say so instead of guessing the repo's rules.
