@@ -19,6 +19,17 @@ def _block_message(value: str, status_code: int | None) -> str:
     return f"HTTP {status_code} — {title}" if status_code else title
 
 
+def provider_detail_code(error: Exception) -> str | None:
+    """Read the provider's specific refusal code independently of retry policy."""
+    body = getattr(error, "body", None)
+    if not isinstance(body, dict):
+        return None
+    payload = body.get("error", body)
+    details = payload.get("details") if isinstance(payload, dict) else None
+    code = details.get("error_code") if isinstance(details, dict) else None
+    return code.strip() if isinstance(code, str) and code.strip() else None
+
+
 def provider_failure_block(
     classified: ClassifiedError,
     context: dict[str, Any] | None,
@@ -39,6 +50,8 @@ def provider_failure_block(
         value = evidence.get(key)
         if isinstance(value, (str, int, float)) and not isinstance(value, bool):
             block[key] = _block_message(value, classified.status_code) if key == "message" and isinstance(value, str) else value
+    if detail_code := evidence.get("provider_detail_code"):
+        block["reason"] = detail_code
     return block
 
 

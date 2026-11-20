@@ -16,7 +16,7 @@ import time
 from typing import Any, Dict, Optional
 
 from agent.api_error_summary import is_provider_stream_parse_error
-from agent.provider_failure import attach_provider_failure
+from agent.provider_failure import attach_provider_failure, provider_detail_code
 from agent_runtime.provider_retry_wait import emit_provider_retry_wait, reset_outlasts_retries
 from agent.error_classifier import RETRYABLE_CLIENT_REASONS, FailoverReason, classify_api_error
 from agent.route_verdicts import route_visit
@@ -94,6 +94,8 @@ def handle_api_error(
 
     status_code = getattr(api_error, "status_code", None)
     error_context = agent._extract_api_error_context(api_error)
+    if detail_code := provider_detail_code(api_error):
+        error_context = {**error_context, "provider_detail_code": detail_code}
 
     # A Nous 402/403 carries the same x-nous-credits-* headers as a success, and a usage-window plan's
     # "ran out for this model" / "payment paused" state is only visible on the blocking response itself

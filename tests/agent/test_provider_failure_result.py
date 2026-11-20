@@ -54,6 +54,24 @@ def test_terminal_native_result_carries_its_own_provider_evidence(agent, status,
     assert block["model"] == "test-model"
 
 
+def test_organization_refusal_reports_the_providers_code(agent):
+    error = Exception("provider refusal")
+    error.status_code = 403
+    error.body = {
+        "type": "error",
+        "error": {
+            "type": "permission_error",
+            "message": "OAuth authentication is currently not allowed for this organization.",
+            "details": {"error_code": "oauth_not_allowed_for_organization"},
+        },
+        "request_id": "req_011ChEwxi3kH4muCfmQadXWv",
+    }
+    agent.client.chat.completions.create.side_effect = error
+    block = agent.run_conversation("test")["provider_error"]
+    assert block["reason"] == "oauth_not_allowed_for_organization"
+    assert block["failure_reason"] == "auth"
+
+
 def test_recovered_error_never_labels_a_later_failure_or_turn(agent):
     quota = sdk_error(429, "usage_limit_reached")
     agent.client.chat.completions.create.side_effect = [quota, ValueError("local validation failed")]
