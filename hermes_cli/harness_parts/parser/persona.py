@@ -29,6 +29,7 @@ model_and_skills_commands = lazy_module("hermes_cli.harness_parts.persona.model_
 query_commands = lazy_module("hermes_cli.harness_parts.query_commands")
 runtime_commands = lazy_module("hermes_cli.harness_parts.runtime_commands")
 shipped_commands = lazy_module("hermes_cli.harness_parts.persona.shipped_commands")
+seat_commands = lazy_module("hermes_cli.harness_parts.persona.seat_commands")
 slots_commands = lazy_module("hermes_cli.harness_parts.persona.slots_commands")
 
 __layer__ = "wiring"
@@ -232,6 +233,10 @@ def _add_persona_chat_and_model_verbs(persona_subs) -> None:
     sort_shipped.add_argument("--name", dest="names", action="append", default=None, metavar="ID=NAME", help="The copy's name for a changed record (default '<shipped name> Beta'; a taken name refuses that record)")
     sort_shipped.add_argument("--json", action="store_true")
     sort_shipped.set_defaults(func=shipped_commands._cmd_persona_sort_shipped)
+    seat_unseated = persona_subs.add_parser("seat-unseated", help="Seat every agent instance added to a workspace that its office level does not show (an instance an argv --add-instance added before seating landed)")
+    seat_unseated.add_argument("--dry-run", action="store_true", help="List the instances it would seat and write nothing")
+    seat_unseated.add_argument("--json", action="store_true")
+    seat_unseated.set_defaults(func=seat_commands._cmd_persona_seat_unseated)
 
 
 def _add_persona_instance_verbs(persona_subs) -> None:

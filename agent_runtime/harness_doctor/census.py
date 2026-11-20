@@ -16,9 +16,10 @@ __layer__ = "lanes"
 # -- the roster/office join, as a READ (plan D1/D8) ---------------------------
 #
 # Two stores answer two different questions and neither is folded into the
-# other: the persona-instance row answers "does this agent exist" (the
-# roster-only recovery door ``persona instance create --add-instance``
-# legitimately mints rows that were never placed), and the instance-keyed
+# other: the persona-instance row answers "does this agent exist" (a row with
+# no workspace is never placed; one added to a workspace is seated by every
+# door since 2026-11-20, and ``persona seat-unseated`` seats one added before),
+# and the instance-keyed
 # office actor answers "is it on this level". Nothing had ever looked at the
 # JOIN — ``harness doctor`` reported six sections and none of them was this
 # one, and ``persona instance reconcile`` prunes orphan ROWS without ever
@@ -639,9 +640,10 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
       names a LIVE roster row. Both halves present is the only whole shape.
     * ``unplaced_rows`` — a live placement-backed row (i.e. NOT a canonical
       persona channel, per ``is_canonical_persona_channel``) that no live actor
-      references. LEGAL, not a defect: the roster-only door mints exactly this,
-      on purpose. Reported as a ``notice`` so an operator can see them without
-      the doctor calling a supported gesture broken.
+      references. Reported as a ``notice`` and not repaired here: a row with no
+      workspace is never placed, and one holding a workspace is seated by the
+      operator's ``persona seat-unseated`` (every adding door seats since
+      2026-11-20).
     * ``orphan_actors`` — a live instance-keyed actor whose instance is retired
       or missing. A DEFECT: it renders on the level as an agent nothing can
       message. Each row carries a ``reason`` (H-H4), one of the three

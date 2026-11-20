@@ -10,6 +10,7 @@ and no operator or script uses the argv form).
 from __future__ import annotations
 
 from dataclasses import asdict
+from agent_runtime.agent_create.seat import seat_added_instance
 from agent_runtime.call_authorization import CLI_CONSOLE
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.coordinator_permissions import review_coordinator_budget
@@ -386,8 +387,15 @@ def _cmd_persona_instance_create(args) -> int:
             }
             _emit_persona_verb_payload(args, data)
             return 2
+        # An instance added to a workspace stands on its level (Eternia row
+        # MC-AGENTS-A-LEAD-ADDED-LAST-NIGHT-ARE-NOT-ON-THE-OFFICE-LEVEL): this door
+        # wrote the record and no office actor. The seat is the one ``runtime.agent.place``
+        # writes; a refused one is named on the reply and the instance stays.
+        # MUTATION: drop this call and test_instance_create_add_instance_seats_it_on_its_workspace_level reddens.
+        office_seat = seat_added_instance(instance) if (add_instance or independent) else None
         data = {
             "ok": True,
+            **({"office_seat": office_seat.receipt()} if office_seat is not None else {}),
             "agent_profile_id": instance.id,
             "persona_instance_id": instance.id,
             "source_persona_id": instance.persona_id,

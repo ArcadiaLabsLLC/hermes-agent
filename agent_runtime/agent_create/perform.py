@@ -39,8 +39,6 @@ from .phases import (
     _inherited_skills_ack,
     _reply,
     _stamp_fresh_skills,
-    placement_actor_payload,
-    placement_position_policy,
     run_skills_phase,
 )
 from .placement_faults import refuse_placement
@@ -636,19 +634,13 @@ class AgentCreate:
     def place(self) -> Any:
         """The second durable write; a store fault compensates the mint away."""
 
+        from .seat import write_seat
+
         request = self.request
         # D2/M10: the aim if there was one, otherwise the policy — resolved by
         # the STORE, inside the office lock, against the exact actor set this
-        # write lands beside. The two travel together on purpose: a payload with
-        # no point and no policy is refused by the store, so the pairing cannot
-        # come apart. See ``placement_position_policy``.
-        payload = placement_actor_payload(
-            request, display_name=self.instance.display_name, position=request.position,
-            persona_id=self.instance.persona_id, profile_id=self.instance.profile_id,
-        )
-        position_policy = (
-            None if request.position is not None else placement_position_policy(request)
-        )
+        # write lands beside. ``write_seat`` is the ONE seating write: the argv
+        # ``--add-instance`` doors seat through it too (``seat.py``).
         try:
             # CI-4's FREE half (EG-2.3): this method already reserved
             # ``correlation_id`` from birth and already echoes it on the result,
@@ -663,12 +655,10 @@ class AgentCreate:
             # parser admits up to 200 characters, which is looser than the
             # payload cap, so a long id degrades to "no id" rather than riding
             # the wire.
-            return self.store.upsert_actor(
-                request.workspace_id,
-                payload,
+            return write_seat(
+                self.store, request, display_name=self.instance.display_name,
+                persona_id=self.instance.persona_id, profile_id=self.instance.profile_id,
                 updated_by=self.updated_by,
-                correlation_id=request.correlation_id,
-                position_policy=position_policy,
             )
         except Exception as exc:  # every store fault is a placement that did not land
             return refuse_placement(

@@ -7696,6 +7696,7 @@
         "instance",
         "list",
         "permission",
+        "seat-unseated",
         "set-context",
         "set-model",
         "set-skills",
@@ -9432,6 +9433,50 @@
           "type": null
         }
       ],
+      "subcommands": []
+    },
+    "harness persona seat-unseated": {
+      "exclusive_groups": [],
+      "options": {
+        "--dry-run": {
+          "action": "store_true",
+          "canonical": "--dry-run",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--help": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "--json": {
+          "action": "store_true",
+          "canonical": "--json",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        },
+        "-h": {
+          "action": "help",
+          "canonical": "--help",
+          "choices": null,
+          "nargs": 0,
+          "required": false,
+          "type": null
+        }
+      },
+      "path": [
+        "harness",
+        "persona",
+        "seat-unseated"
+      ],
+      "positionals": [],
       "subcommands": []
     },
     "harness persona set-context": {

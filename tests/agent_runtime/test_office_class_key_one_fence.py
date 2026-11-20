@@ -161,10 +161,12 @@ def _agent_create_into(workspace_id: str, monkeypatch) -> object:
     """
 
     from agent_runtime import agent_create
+    from agent_runtime.agent_create import seat
 
     _backend_dev_persona()
     monkeypatch.setattr(
-        agent_create.perform,
+        # The one seating write (``agent_create.seat``) builds the payload for every lane that seats.
+        seat,
         "placement_actor_payload",
         # ``position`` joined the real signature in S2 (the resolved slot is
         # passed in rather than re-read off the request). Accepted and ignored:

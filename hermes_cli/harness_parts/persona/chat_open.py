@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from contextlib import closing
+from agent_runtime.agent_create.seat import seat_added_instance
 from agent_runtime.conversation_owner import ConversationOwnerError, require_session_owner
 from agent_runtime.chat_session_scope import (
     is_canonical_session_persistence,
@@ -358,8 +359,18 @@ def _cmd_persona_instance_open_chat(args) -> int:
     previous_session_id, instance_updated_at, binding_changed = _binding_change(
         previous_instance, instance
     )
+    # An instance this door adds to a workspace stands on its level, seated by the
+    # one write ``runtime.agent.place`` uses (``agent_create.seat``); an instance
+    # already standing there is left where it is.
+    # MUTATION: drop this call and test_open_chat_add_instance_seats_it_on_its_workspace_level reddens.
+    office_seat = (
+        seat_added_instance(instance, correlation_id=getattr(args, "correlation_id", None))
+        if bool(getattr(args, "add_instance", False))
+        else None
+    )
     data = {
         "ok": True,
+        **({"office_seat": office_seat.receipt()} if office_seat is not None else {}),
         "persona_instance_id": instance.id,
         "persona_id": instance.persona_id,
         "profile_id": instance.profile_id,
