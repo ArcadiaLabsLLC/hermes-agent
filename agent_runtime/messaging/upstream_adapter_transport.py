@@ -172,6 +172,13 @@ class UpstreamAdapterTransport:
             self._call(self.adapter.cancel_background_tasks())
         except Exception:
             logger.warning("the upstream adapter did not stop cleanly", exc_info=True)
+        try:
+            # The loop is this shim's, so its default executor is too: ``_handle``'s ``asyncio.to_thread``
+            # starts it (``asyncio_0``), and ``loop.stop`` alone leaves its worker running past the stop
+            # (RT-MESSAGING-TESTS-LEAVE-SERVE-AND-SIGNAL-THREADS-RUNNING, review w1118a.52 D13).
+            self._call(loop.shutdown_default_executor(timeout=5))
+        except Exception:
+            logger.warning("the upstream adapter's executor did not stop cleanly", exc_info=True)
         loop.call_soon_threadsafe(loop.stop)
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=5)

@@ -15,3 +15,7 @@ tests/agent_runtime/test_root_anchor.py
 tests/providers/
 tests/tooling/
 tests/verify/
+# Sealed 2026-11-19 (w1118a-hfu3, RT-MESSAGING-TESTS-LEAVE-SERVE-AND-SIGNAL-THREADS-RUNNING): a drained serve
+# joins its settle pusher, delivery drain and queued-send dispatcher; the upstream adapter shim shuts its loop's
+# default executor down; the folder's conftest stops the build sweep and the status writer's thread.
+tests/agent_runtime/messaging/

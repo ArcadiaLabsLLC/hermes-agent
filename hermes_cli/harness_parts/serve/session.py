@@ -69,6 +69,9 @@ __layer__ = "lanes"
 
 __all__ = ["ServeSession", "serve_loop"]
 
+#: How long a serve's end waits, in all, for its background workers to finish (``_stop_background_workers``).
+_WORKER_JOIN_SECONDS = 3.0
+
 
 class ServeSession(
     BootPhases, MessageHandling, SubscriptionLanes, ArgvLanes, DrainLane, SettlePush, LivenessPump,
@@ -744,6 +747,31 @@ class ServeSession(
                     "discussion worker did not start", exc_info=True,
                 )
 
+    def _stop_background_workers(self, timeout: float = _WORKER_JOIN_SECONDS) -> None:
+        """Set ``liveness_stop``, wake the workers that sleep on their own event, and join them, bounded.
+
+        The settle pusher sleeps on ``settle_wake`` and the queued-send dispatcher on the runner's wake, so
+        ``liveness_stop`` alone ended them only at their next tick, after the serve had already returned —
+        a drained serve left its own workers running (RT-MESSAGING-TESTS-LEAVE-SERVE-AND-SIGNAL-THREADS-RUNNING,
+        review w1118a.52 D13). One deadline covers every join: a worker caught mid-pass is left to finish
+        on its daemon thread rather than hold the serve's end."""
+
+        self.liveness_stop.set()
+        wake = getattr(self, "settle_wake", None)
+        if wake is not None:
+            wake.set()
+        threads = [getattr(self, "settle_pusher_thread", None), getattr(self, "delivery_drain_thread", None)]
+        runner = getattr(self, "queued_send_runner", None)
+        if runner is not None:
+            from agent_runtime.chat_root_send_runner import wake_queued_send_runner
+
+            wake_queued_send_runner()
+            threads.append(getattr(runner, "thread", None))
+        deadline = time.monotonic() + timeout
+        for thread in threads:
+            if isinstance(thread, threading.Thread) and thread is not threading.current_thread():
+                thread.join(max(0.0, deadline - time.monotonic()))
+
     def _another_serve_owns_this_root(self) -> bool:
         """This serve asked for the socket lane and a LIVE owner holds it."""
 
@@ -761,7 +789,7 @@ class ServeSession(
 
             # Durable delegation completions are restored by upstream's
             # ProcessRegistry constructor, at the singleton's first import.
-            start_delivery_drain(stop_event=self.liveness_stop)
+            self.delivery_drain_thread = start_delivery_drain(stop_event=self.liveness_stop)
         except Exception:
             # Function-local: parts files are exec'd into harness.py's globals,
             # which carry no module logger.
@@ -983,7 +1011,7 @@ class ServeSession(
         # deadline and joining it would restore the hang. The drain's own exit
         # watchdog bounds this join; the drain owns the lane and the lock.
         self.pool.shutdown(wait=self.pool_shutdown_wait)
-        self.liveness_stop.set()
+        self._stop_background_workers()
         return self._await_drain_terminal()
 
     def _await_drain_terminal(self) -> int:

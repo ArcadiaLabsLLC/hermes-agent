@@ -135,11 +135,13 @@ class SettlePush:
 
     def _start_settle_pusher(self) -> None:
         self.settle_wake = threading.Event()
-        threading.Thread(
+        # Kept, so the serve's end joins it (``ServeSession._stop_background_workers``).
+        self.settle_pusher_thread = threading.Thread(
             target=self._settle_pusher_loop,
             name="harness-serve-settle-push",
             daemon=True,
-        ).start()
+        )
+        self.settle_pusher_thread.start()
 
     def _settle_pusher_loop(self) -> None:
         stop = self.liveness_stop
