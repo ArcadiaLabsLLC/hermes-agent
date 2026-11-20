@@ -422,6 +422,37 @@ def _group_gone(pgid: int, seconds: float) -> bool:
         time.sleep(0.05)
 
 
+def payload_completion(payload: dict[str, Any], returncode: int | None) -> dict[str, Any]:
+    """``record_completion``'s fields for a child's reply payload — THE one mapping.
+
+    Read by the live supervisor (``local._settle_local``) and by the settle of a request whose
+    child outlived its serve (``dispatch_store.settle_if_orphaned``, from the child's result
+    file; review w1118a.56 D12). ``returncode`` is ``None`` when the exit code is not known
+    (no process here waited on the child): the payload's own ``ok`` decides then.
+    """
+
+    from agent_runtime.dispatch_store.models import STATE_COMPLETED, STATE_ERROR
+    from agent_runtime.turn_visibility import TurnVisibility
+
+    ok = bool(payload.get("ok")) and returncode in (0, None)
+    return {
+        "state": STATE_COMPLETED if ok else STATE_ERROR,
+        "reply": str(payload.get("reply") or ""),
+        "error": "" if ok else _detached_error_text(payload),
+        "target_session_id": str(payload.get("session_id") or payload.get("chat_session_id") or ""),
+        "total_tokens": payload.get("total_tokens"),
+        # Read, never re-derived: `agent_runtime.turn_visibility` owns the verdict.
+        "visibility": TurnVisibility.from_payload(payload).as_dict(),
+        # The teammate's clarify question and its token, or the delivery hands
+        # the asking agent a question it has no token to answer on.
+        "clarify_request": payload.get("clarify_request"),
+        # The child's typed refusal (``chat_busy``: the target stayed busy for the
+        # whole wait, so the message never ran) — the delivery reads it, never the
+        # rewrite's words (RT-DELIVERY-BLOCK-SAYS-A-MESSAGE-NEVER-RAN-AS-A-TYPED-FIELD).
+        "error_kind": "" if ok else str(payload.get("error_kind") or ""),
+    }
+
+
 def _detached_error_text(payload: dict[str, Any]) -> str:
     """The refusal text, rewritten for the lane it will actually be READ on.
 

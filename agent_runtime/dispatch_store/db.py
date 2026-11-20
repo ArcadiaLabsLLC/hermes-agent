@@ -97,7 +97,9 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
             cancel_requested TEXT NOT NULL DEFAULT '',
             owner_group INTEGER,
             cancel_requested_at REAL,
-            cancel_seen_at REAL
+            cancel_seen_at REAL,
+            supervisor_pid INTEGER,
+            supervisor_started_at INTEGER
         )"""
     )
     # CREATE TABLE IF NOT EXISTS does nothing to a store that already exists, so
@@ -131,6 +133,11 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
     _add_missing_column(conn, "owner_group", "INTEGER")
     _add_missing_column(conn, "cancel_requested_at", "REAL")
     _add_missing_column(conn, "cancel_seen_at", "REAL")
+    # Review w1118a.56 D12: the serve supervising the child, so a serve that boots while that
+    # child still runs can tell a request whose supervisor is gone (re-adopt it) from one a
+    # live serve still holds (leave it).
+    _add_missing_column(conn, "supervisor_pid", "INTEGER")
+    _add_missing_column(conn, "supervisor_started_at", "INTEGER")
 
 
 def _add_missing_column(conn: sqlite3.Connection, name: str, decl: str) -> None:

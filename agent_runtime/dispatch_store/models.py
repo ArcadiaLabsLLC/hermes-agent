@@ -215,6 +215,8 @@ def _row_to_dict(row: tuple) -> dict[str, Any]:
         owner_group,
         cancel_requested_at,
         cancel_seen_at,
+        supervisor_pid,
+        supervisor_started_at,
     ) = row
     try:
         result = json.loads(result_json) if result_json else None
@@ -264,6 +266,10 @@ def _row_to_dict(row: tuple) -> dict[str, Any]:
         "owner_group": int(owner_group) if owner_group else None,
         "cancel_requested_at": float(cancel_requested_at) if cancel_requested_at else None,
         "cancel_seen_at": float(cancel_seen_at) if cancel_seen_at else None,
+        # D12 (review w1118a.56): the serve supervising the child, or None (a row from
+        # before the column, or one no supervisor has stamped yet).
+        "supervisor_pid": int(supervisor_pid) if supervisor_pid else None,
+        "supervisor_started_at": int(supervisor_started_at) if supervisor_started_at else None,
     }
 
 
@@ -273,5 +279,6 @@ _SELECT = f"""SELECT dispatch_id, sender_session_id, sender_persona_id, target_p
                      result_json, delivery_state, delivery_attempts, delivered_at,
                      owner_pid, owner_started_at, relay_chain_json, delivery_error,
                      remote_install_id, parent_turn_id, started_at, cancel_requested,
-                     owner_group, cancel_requested_at, cancel_seen_at
+                     owner_group, cancel_requested_at, cancel_seen_at,
+                     supervisor_pid, supervisor_started_at
               FROM {_TABLE}"""

@@ -292,6 +292,14 @@ def sweep_orphaned_dispatches() -> int:
     from .. import dispatch_store
 
     try:
+        # Re-adopt first (review w1118a.56 D12): a child that outlived its serve and still
+        # runs is supervised here, never settled; the restore settles only the gone ones.
+        from tools.agent_chat_dispatch.local import readopt_live_dispatches
+
+        readopt_live_dispatches()
+    except Exception:  # pragma: no cover - a sweep must never kill the drain
+        logger.debug("dispatch re-adoption pass failed", exc_info=True)
+    try:
         return int((dispatch_store.restore_undelivered_dispatches() or {}).get("restored") or 0)
     except Exception:  # pragma: no cover - a sweep must never kill the drain
         logger.debug("dispatch orphan sweep failed", exc_info=True)

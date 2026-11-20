@@ -9,6 +9,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Callable, Final, Mapping
 import json
+import os
 import re
 import sys
 import time
@@ -260,11 +261,37 @@ def _mission_chat_emit(args, data, plain=None, *, stream=None) -> None:
     from agent_runtime.chat_turn_settles import note_turn_payload
 
     note_turn_payload(data)
+    # A dispatch child's answer is durable before it is printed (review w1118a.56 D12): the
+    # serve reading this stdout may be gone, and whoever settles the request reads the file.
+    from agent_runtime.dispatch_store.result_file import write_claimed_result
+
+    write_claimed_result(data)
     streaming = getattr(args, "stream", False) if stream is None else stream
     if streaming:
         _emit_chat_final(data)
     else:
         print(emit_json(data) if args.json else (data["error"] if plain is None else plain))
+
+
+def claim_dispatch_child() -> None:
+    """In a dispatch child (its supervisor set the env): claim the result file, hold the job, survive the serve.
+
+    Review w1118a.56 D12. Takes :data:`RESULT_FILE_ENV` / :data:`JOB_NAME_ENV` out of the
+    environment (nothing the turn starts inherits them), opens this child's own handle to its
+    Windows Job Object by name (so a serve restart leaves the job, and the child's tree, alive),
+    and makes stdout/stderr tolerate their reader's end. A no-op in every other process.
+    """
+
+    from agent_runtime.dispatch_store.result_file import claim_dispatch_child_env, tolerate_closed_streams
+
+    path, job_name = claim_dispatch_child_env()
+    if path is None:
+        return
+    tolerate_closed_streams()
+    if job_name and os.name == "nt":
+        from tools.agent_chat_dispatch.local_child import hold_job_by_name
+
+        hold_job_by_name(job_name)
 
 
 def _emit_chat_final(payload: dict[str, object]) -> None:
