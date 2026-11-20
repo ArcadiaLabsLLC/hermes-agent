@@ -16,6 +16,7 @@ from agent_runtime.dispatch_store.supervision import (
     _mark_supervised,
     supervised_dispatch_ids,
 )
+from agent_runtime.persona_chat_continuity.lease import chat_root_is_busy
 from agent_runtime.subprocess_pumps import drain, release_pumps
 
 from .child import (
@@ -343,6 +344,8 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
 #: How often a dispatch waiting on a busy target looks at the target's chat root again.
 #: Each look is a zero-wait lease probe; a new child is started only once the root is free.
 BUSY_TARGET_POLL_SECONDS = 2.0
+#: The owner the busy check names while it probes the target's root.
+BUSY_TARGET_PROBE_OWNER = "dispatch-busy-target-probe"
 
 
 def _busy_target_root(stdout_text: str) -> str | None:
@@ -356,18 +359,6 @@ def _busy_target_root(stdout_text: str) -> str | None:
     return str(payload.get("root_chat_session_id") or payload.get("session_id") or "")
 
 
-def _target_root_is_free(root: str) -> bool:
-    """Whether no turn holds ``root``'s lease now: a zero-wait acquire, released at once."""
-
-    from agent_runtime.persona_chat_continuity import PersonaChatBusyError, persona_chat_root_lease
-
-    try:
-        with persona_chat_root_lease(root, owner_id="dispatch-busy-target-probe", observer_kind="serve"):
-            return True
-    except PersonaChatBusyError:
-        return False
-
-
 def _wait_for_busy_target(dispatch_id: str, root: str, wait_until: float) -> bool:
     """Wait until the busy target's root is free. False when cancelled or out of waiting time."""
 
@@ -375,7 +366,7 @@ def _wait_for_busy_target(dispatch_id: str, root: str, wait_until: float) -> boo
         time.sleep(BUSY_TARGET_POLL_SECONDS)
         if _peek_cancel_mark(dispatch_id) is not None:
             return False
-        if not root or _target_root_is_free(root):
+        if not root or not chat_root_is_busy(root, probe_owner=BUSY_TARGET_PROBE_OWNER):
             return time.time() < wait_until
     return False
 

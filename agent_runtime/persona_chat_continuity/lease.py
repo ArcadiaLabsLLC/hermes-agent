@@ -209,6 +209,29 @@ def persona_chat_root_lease(
         _release(fd, root, owner_path, acquired=acquired)
 
 
+def chat_root_lease_holder(root_session_id: str, *, probe_owner: str) -> dict[str, Any] | None:
+    """Who holds the root's lease right now: ``None`` when no turn does, else its owner record.
+
+    THE busy-chat check (row RT-ONE-CHECK-FOR-WHETHER-A-CHAT-IS-BUSY): a zero-wait
+    acquire, released at once, so a probe never holds the root a turn is about to
+    take. A held lease whose owner file cannot be read answers ``{}`` (busy, owner
+    unknown) — never ``None``. ``probe_owner`` names the caller in the owner file
+    for the instant the probe holds it. Anything other than "busy" propagates.
+    """
+
+    try:
+        with persona_chat_root_lease(root_session_id, owner_id=probe_owner, observer_kind="serve"):
+            return None
+    except PersonaChatBusyError as exc:
+        return dict(exc.owner)
+
+
+def chat_root_is_busy(root_session_id: str, *, probe_owner: str) -> bool:
+    """Whether a turn holds the root's lease right now (:func:`chat_root_lease_holder`)."""
+
+    return chat_root_lease_holder(root_session_id, probe_owner=probe_owner) is not None
+
+
 def repair_orphaned_chat_turns() -> list[str]:
     """Settle in-flight turn records whose executor process died (boot sweep).
 

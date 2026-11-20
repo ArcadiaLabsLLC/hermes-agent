@@ -16,7 +16,9 @@ this map is ``stores`` because the highest layer it re-exports is ``stores``.
       content.py           policy   native text/JSON redaction; provider blocks stay typed
       wire.py              policy   THE wire boundary: native_wire_row, safe_native_*,
                                     record_wire_boundary_drift, native_history_revision
-      lease.py             stores   the chat-root lease + the scopes a turn holds
+      lease.py             stores   the chat-root lease, THE busy check over it
+                                    (chat_root_is_busy / chat_root_lease_holder),
+                                    + the scopes a turn holds
                                     (tool_execution_scope, chat_root_session_key_scope),
                                     repair_orphaned_chat_turns
       mint_receipts.py     stores   mint_chat_root, the ONE chat-root mint, and its Mint
@@ -31,6 +33,7 @@ this map is ``stores`` because the highest layer it re-exports is ``stores``.
 
     entry point                                          opens
     persona_chat_root_lease / repair_orphaned_chat_turns lease
+    chat_root_is_busy / chat_root_lease_holder           lease
     mint_chat_root                                       mint_receipts (Mint)
     safe_native_history / native_wire_row                wire -> bounds
     bound_composed_user_content                          bounds
@@ -71,6 +74,8 @@ from .clarify_tickets import (
 from .lease import (
     PersonaChatBusyError,
     _lease_paths,
+    chat_root_is_busy,
+    chat_root_lease_holder,
     chat_root_session_key_scope,
     current_tool_execution_scope,
     persona_chat_root_lease,
@@ -137,6 +142,8 @@ __all__ = [
     "WireBoundaryRow",
     "bound_composed_user_content",
     "bounds",
+    "chat_root_is_busy",
+    "chat_root_lease_holder",
     "chat_root_session_key_scope",
     "clarify_index",
     "clarify_tickets",

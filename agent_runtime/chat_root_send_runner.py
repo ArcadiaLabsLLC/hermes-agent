@@ -34,6 +34,7 @@ from typing import Any, Callable, ContextManager, Protocol
 from . import chat_root_send_queue as queue
 from .chat_turn_settles import TurnOutcome, outcome_from_payload, record_settle
 from .mission_chat_outcome import ChatErrorKind
+from .persona_chat_continuity.lease import chat_root_is_busy
 
 __layer__ = "lanes"
 
@@ -49,6 +50,8 @@ MAX_RUN_EXCEPTIONS = 3
 SETTLE_REQUEST_PREFIX = "queued:"
 #: Roots whose queued turns may run at the same time. One turn per root always.
 MAX_CONCURRENT_ROOTS = 4
+#: The owner the busy check names while it probes a root for the runner.
+QUEUED_SEND_PROBE_OWNER = "queued-send-probe"
 
 _wake = threading.Event()
 
@@ -60,17 +63,7 @@ def wake_queued_send_runner() -> None:
 
 
 def _root_is_idle(root_session_id: str) -> bool:
-    """Whether no turn holds the root's lease: a zero-wait acquire, released at once."""
-
-    from .persona_chat_continuity import PersonaChatBusyError, persona_chat_root_lease
-
-    try:
-        with persona_chat_root_lease(
-            root_session_id, owner_id="queued-send-probe", observer_kind="serve"
-        ):
-            return True
-    except PersonaChatBusyError:
-        return False
+    return not chat_root_is_busy(root_session_id, probe_owner=QUEUED_SEND_PROBE_OWNER)
 
 
 def _run_turn(args: Any) -> tuple[int, dict | None]:

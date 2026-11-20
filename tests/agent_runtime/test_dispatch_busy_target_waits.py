@@ -122,7 +122,7 @@ def test_a_message_to_a_busy_teammate_waits_and_runs_once_they_are_free(store_ho
     dispatch_id = _dispatch()
     spawned = _children(monkeypatch, [_busy(), _replied()])
     looked: list[str] = []
-    monkeypatch.setattr(local, "_target_root_is_free", lambda root: looked.append(root) or True)
+    monkeypatch.setattr(local, "chat_root_is_busy", lambda root, probe_owner: looked.append(root) and False)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -137,7 +137,7 @@ def test_a_message_to_a_busy_teammate_waits_and_runs_once_they_are_free(store_ho
 def test_a_teammate_busy_the_whole_wait_is_reported_as_never_ran(store_home, monkeypatch):
     dispatch_id = _dispatch()
     _children(monkeypatch, [_busy()])
-    monkeypatch.setattr(local, "_target_root_is_free", lambda root: False)
+    monkeypatch.setattr(local, "chat_root_is_busy", lambda root, probe_owner: True)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec(max_seconds=0.05))
 
@@ -153,11 +153,11 @@ def test_a_cancel_while_waiting_settles_cancelled_not_failed(store_home, monkeyp
     dispatch_id = _dispatch()
     spawned = _children(monkeypatch, [_busy(), _replied()])
 
-    def still_busy_and_cancelled(root):
+    def still_busy_and_cancelled(root, probe_owner):
         local._request_cancel_mark(dispatch_id, "sender_cancel")
-        return False
+        return True
 
-    monkeypatch.setattr(local, "_target_root_is_free", still_busy_and_cancelled)
+    monkeypatch.setattr(local, "chat_root_is_busy", still_busy_and_cancelled)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 

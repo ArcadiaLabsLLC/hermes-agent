@@ -27,6 +27,7 @@ from typing import Any
 
 from .. import chat_root_send_queue as send_queue
 from ..chat_turn_settles import outcome_from_payload
+from ..persona_chat_continuity.lease import chat_root_is_busy
 from ..work_store.persona_turn import ORIGIN_KIND_KEY, OriginKind, PersonaTurnExecutor, runs_here
 from ..work_store.reasons import WorkRefused
 from ..work_store.receipts import emit
@@ -57,15 +58,7 @@ def messaging_origin(entry: send_queue.QueuedSend) -> dict[str, Any] | None:
 
 
 def _root_busy(root: str) -> bool:
-    """Whether a turn holds the root's lease right now (a zero-wait acquire, released at once)."""
-
-    from ..persona_chat_continuity import PersonaChatBusyError, persona_chat_root_lease
-
-    try:
-        with persona_chat_root_lease(root, owner_id="messaging-probe", observer_kind="serve"):
-            return False
-    except PersonaChatBusyError:
-        return True
+    return chat_root_is_busy(root, probe_owner="messaging-probe")
 
 
 def _instances() -> list[Any]:
