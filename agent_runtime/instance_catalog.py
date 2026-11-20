@@ -75,5 +75,5 @@ def _project(instance, persona, install_id: str) -> dict:
         "profile_home": str(binding.profile_home) if binding and binding.profile_home else None,
         "available": ready,
         "reason": None if ready else (binding.readiness if binding else "persona_not_found"),
-        **directory_fields(persona),
+        **directory_fields(persona, instance),
     }
