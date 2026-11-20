@@ -1158,6 +1158,19 @@ unknowns`` (``adopted_existing_root`` once). ``runtime.workspace.recipe.show`` a
 ``runtime.workspace.recipe.script`` (new, read-only) answers ``{slot, platform, path, commit, sha256, text}``;
 ``recipe.set`` answers ``recipe_in_repository``. Secret keys, the overlay's ``.env`` name and a Restart's
 unknowns read the recipe.
+
+54 KEPT (ended agent work, 2026-11-20, RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE) — a ``chat_turn``,
+``dispatch``, ``delegation`` or ``terminal`` row stays in ``running_work`` for
+``running_work/ended.py::ENDED_RETENTION_SECONDS`` (the finished-build window, 30 min) after the work ends:
+``status`` ``completed`` when it finished, else ``error``; ``outcome`` in the build row's words
+(``succeeded`` / ``failed`` / ``stopped`` / ``lost``); ``finished_at`` (UTC ISO); ``cancellable: false``, and
+``runtime.work.cancel`` answers ``already_ended``. Each lane reads its own store's settle (the turn journal's
+``updated_at``, the dispatch row's ``completed_at``, the delegation row's ``completed_at``, a terminal's
+``logs/process-results`` receipt time), at most 50 per lane, newest first. Additive keys and statuses the
+launcher already parses: rule (a) does not bump. A request's own turn row (``agent-dispatch-<id>``) carries
+``parent_work_id: dispatch:<id>`` (RT-FU-AN-AGENT-REQUESTS-OWN-TURN-NAMES-ITS-REQUEST), the link field a
+foreground tool call already carries. A harness-delivery marker carries the target's name with an empty thread
+segment when no thread opened (``relay_policy.delivery_segments``, RT-FU-A-STOPPED-REQUESTS-RESULT-NAMES-NO-AGENT).
 RT-SLOT-RECIPE-SCRIPT-RUN-ON-CLICK (2026-11-16): ``runtime.workspace.recipe.run_step`` takes ``step_id: script`` and
 the ``sha256`` the person was shown (``script_changed`` otherwise, nothing spawned) and runs the platform script
 through ``host_tools.script_shell`` (``pwsh``/``powershell -NoProfile -File`` on Windows, ``bash`` elsewhere);

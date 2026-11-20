@@ -45,7 +45,8 @@ def _is_judge(body: dict) -> bool:
 
 def _rows(root: str) -> list[dict]:
     return [row for row in build_running_work()["rows"]
-            if row["kind"] == KIND_CHAT_TURN and (row.get("owner") or {}).get("session_id") == root]
+            if row["kind"] == KIND_CHAT_TURN and (row.get("owner") or {}).get("session_id") == root
+            and not row.get("finished_at")]  # running rows; an ended pass stays a while as ended work
 
 
 def _a_pass_ends_and_its_check_is_held(chat, model):

@@ -76,7 +76,8 @@ def _steer(root: str, steer_id: str, text: str) -> dict:
 
 def _row(root: str) -> dict:
     [row] = [row for row in build_running_work()["rows"]
-             if row["kind"] == KIND_CHAT_TURN and row["owner"]["session_id"] == root]
+             if row["kind"] == KIND_CHAT_TURN and row["owner"]["session_id"] == root
+             and not row.get("finished_at")]  # the running turn; an ended one stays a while as ended work
     return row
 
 

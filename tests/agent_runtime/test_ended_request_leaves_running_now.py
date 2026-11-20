@@ -73,7 +73,8 @@ def _running(owner_pid: int, owner_started_at: int | None) -> str:
 
 def _listed(dispatch_id: str) -> bool:
     rows, _source = DispatchLane(now=time.time(), accountant=None).collect()
-    return any(row["work_id"].endswith(dispatch_id) for row in rows)
+    # Listed as RUNNING: an ended request stays a while as ended work (RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE).
+    return any(row["work_id"].endswith(dispatch_id) and not row.get("finished_at") for row in rows)
 
 
 def _recycled_and_unprovable(monkeypatch) -> None:

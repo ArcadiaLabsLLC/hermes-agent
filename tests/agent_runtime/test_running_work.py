@@ -1098,7 +1098,9 @@ def test_a_settled_chat_turn_is_not_running_work(home, isolate_agent_runtime_roo
         state="abandoned",
     )
 
-    assert _rows_of_kind(build_running_work(), KIND_CHAT_TURN) == []
+    # Kept for a while as ENDED work (RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE), never running.
+    rows = _rows_of_kind(build_running_work(), KIND_CHAT_TURN)
+    assert [(row["status"], row["outcome"], row["cancellable"]) for row in rows] == [("error", "stopped", False)]
 
 
 def test_an_outcome_unknown_turn_reports_unknown_not_running(
@@ -1144,8 +1146,8 @@ def test_a_chat_turn_ages_from_its_journal_stamp(home, monkeypatch):
 
     started = (datetime.now(UTC) - timedelta(seconds=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
     monkeypatch.setattr(
-        "agent_runtime.mission_chat_turns.reads.inflight_turn_rows",
-        lambda: [{"turn_id": "turn-aged", "state": "executing", "started_at": started}],
+        "agent_runtime.mission_chat_turns.reads.running_work_turn_rows",
+        lambda **_kw: ([{"turn_id": "turn-aged", "state": "executing", "started_at": started}], []),
     )
 
     rows = _rows_of_kind(build_running_work(), KIND_CHAT_TURN)
@@ -2103,7 +2105,9 @@ def test_a_settled_dispatch_stops_being_running_work(dispatch_home):
     dispatch_id = _record_dispatch()
     record_completion(dispatch_id, state=STATE_COMPLETED, reply="done")
 
-    assert [row for row in build_running_work()["rows"] if row["kind"] == "dispatch"] == []
+    # Kept for a while as ENDED work (RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE), never running.
+    rows = [row for row in build_running_work()["rows"] if row["kind"] == "dispatch"]
+    assert [(row["status"], row["outcome"], row["cancellable"]) for row in rows] == [("completed", "succeeded", False)]
 
 
 def test_an_ABANDONED_delivery_stays_visible_with_its_reason(dispatch_home):
@@ -2227,7 +2231,8 @@ def test_an_unnameable_target_keeps_the_persona_id_label(dispatch_home, monkeypa
 
 
 def test_a_DELIVERED_dispatch_does_not_linger_on_the_hud(dispatch_home):
-    """Only the abandoned ones stay. A delivered answer is not an incident."""
+    """Only the abandoned ones stay as incidents. A delivered answer is ended work: listed done for the
+    retention window (RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE), never as undelivered."""
 
     from agent_runtime.dispatch_store import (
         STATE_COMPLETED,
@@ -2239,7 +2244,9 @@ def test_a_DELIVERED_dispatch_does_not_linger_on_the_hud(dispatch_home):
     record_completion(dispatch_id, state=STATE_COMPLETED, reply="done")
     mark_delivered(dispatch_id)
 
-    assert [row for row in build_running_work()["rows"] if row["kind"] == "dispatch"] == []
+    rows = [row for row in build_running_work()["rows"] if row["kind"] == "dispatch"]
+    assert [(row["status"], row["outcome"]) for row in rows] == [("completed", "succeeded")]
+    assert "undelivered" not in rows[0]["label"]
 
 
 def test_a_dispatch_whose_owner_died_is_SHOWN_as_unknown_not_hidden(
@@ -2293,7 +2300,9 @@ def test_stopping_a_dispatch_whose_process_ended_settles_it_at_once(dispatch_hom
     assert (result["status"], result["outcome"]) == ("ok", "settled")
     assert "already ended" in result["detail"]
     assert get_dispatch(dispatch_id)["state"] == "unknown"
-    assert [row for row in build_running_work()["rows"] if row["kind"] == "dispatch"] == []
+    # Ended, not running: listed for the retention window with its outcome and no Stop.
+    rows = [row for row in build_running_work()["rows"] if row["kind"] == "dispatch"]
+    assert [(row["status"], row["outcome"], row["cancellable"]) for row in rows] == [("error", "lost", False)]
 
 
 def test_stopping_a_live_dispatch_nobody_here_supervises_still_only_requests(dispatch_home, monkeypatch):
@@ -2617,3 +2626,153 @@ def test_background_work_homes_walks_head_and_every_profile(tmp_path, monkeypatc
     monkeypatch.setattr(profiles, "get_profile_dir", profile_dir)
 
     assert background_work_homes() == [root, dirs["alice"], dirs["bob"]]
+
+
+
+# --- ended agent work stays listed for a while (RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE) ---
+#
+# Seen live 2026-11-20 (w1118a-mcact): a stopped terminal, a request that ended and a stopped request each
+# left Eternia's Running now on the next frame and never reached Finished, while an ended build did. Review
+# w1118a.58 D2: hermes keeps each settled agent row for one retention window (the finished-build window),
+# with its outcome and ``finished_at`` and no Stop, then lets it go.
+
+
+def _past_the_window(monkeypatch):
+    """Every ended row is older than the window: the cutoff moves past ``now``."""
+
+    from agent_runtime.running_work import ended
+
+    monkeypatch.setattr(ended, "ENDED_RETENTION_SECONDS", -60)
+
+
+def _ended_shape(row):
+    return (row["status"], row["outcome"], bool(row["finished_at"]), row["cancellable"])
+
+
+def test_a_settled_turn_stays_listed_with_its_outcome_then_leaves(home, isolate_agent_runtime_root, monkeypatch):
+    """KILLING MUTATIONS (run 2026-11-20): ``ChatTurnLane.collect`` skipping the settled records -> no
+    row, red; ``mark_ended`` writing ``completed`` for every outcome -> the stopped turn reads done, red;
+    ``running_work_turn_rows`` ignoring ``settled_since`` -> the row outlives the window, red."""
+
+    from agent_runtime.mission_chat_turns import persist_mission_chat_turn
+    from agent_runtime.mission_chat_turns.journal import stop_mission_chat_turn
+
+    for cmid, final in (("cmid-done", "projected"), ("cmid-stop", "interrupted"), ("cmid-fail", "provider_refused")):
+        persist_mission_chat_turn(session_id="chat-sess-e", client_message_id=cmid, turn_id=cmid, elements=None,
+                                  state="pending", write_ahead=True,
+                                  metadata={"persona_instance_id": "personainst_neko",
+                                            "root_chat_session_id": "chat-sess-e"})
+        persist_mission_chat_turn(session_id="chat-sess-e", client_message_id=cmid, turn_id=cmid, elements=None,
+                                  state="executing")
+        if final == "projected":
+            persist_mission_chat_turn(session_id="chat-sess-e", client_message_id=cmid, turn_id=cmid,
+                                      elements=None, state="native_committed")
+        if final == "interrupted":  # an operator Stop's own settle (a journal write cannot reach it)
+            stop_mission_chat_turn(session_id="chat-sess-e", client_message_id=cmid, turn_id=cmid)
+        else:
+            persist_mission_chat_turn(session_id="chat-sess-e", client_message_id=cmid, turn_id=cmid,
+                                      elements=None, state=final)
+
+    rows = {row["work_id"]: row for row in _rows_of_kind(build_running_work(), KIND_CHAT_TURN)}
+
+    assert _ended_shape(rows["chat_turn:cmid-done"]) == ("completed", "succeeded", True, False)
+    assert _ended_shape(rows["chat_turn:cmid-stop"]) == ("error", "stopped", True, False)
+    assert _ended_shape(rows["chat_turn:cmid-fail"]) == ("error", "failed", True, False)
+    assert rows["chat_turn:cmid-stop"]["owner"]["persona_instance_id"] == "personainst_neko"
+    assert rows["chat_turn:cmid-stop"]["steerable"] is False
+
+    _past_the_window(monkeypatch)
+    assert _rows_of_kind(build_running_work(), KIND_CHAT_TURN) == []
+
+
+def test_an_ended_request_stays_listed_with_how_it_ended_then_leaves(dispatch_home, monkeypatch):
+    """KILLING MUTATION (run 2026-11-20): ``DispatchLane.collect`` without ``ended_rows`` -> no row, red."""
+
+    from agent_runtime.dispatch_store import STATE_CANCELLED, STATE_ERROR, record_completion
+
+    stopped = _record_dispatch()
+    record_completion(stopped, state=STATE_CANCELLED, reply="")
+    failed = _record_dispatch()
+    record_completion(failed, state=STATE_ERROR, error="the tool timed out")
+
+    rows = {row["work_id"]: row for row in build_running_work()["rows"] if row["kind"] == "dispatch"}
+
+    assert _ended_shape(rows[f"dispatch:{stopped}"]) == ("error", "stopped", True, False)
+    assert _ended_shape(rows[f"dispatch:{failed}"]) == ("error", "failed", True, False)
+    assert running_work.cancel_work(f"dispatch:{stopped}")["code"] == "already_ended"
+
+    _past_the_window(monkeypatch)
+    assert [row for row in build_running_work()["rows"] if row["kind"] == "dispatch"] == []
+
+
+def test_a_finished_terminal_stays_listed_from_its_receipt_then_leaves(home, monkeypatch):
+    """KILLING MUTATION (run 2026-11-20): ``TerminalLane.collect`` without ``ended_rows`` -> no row, red."""
+
+    results = home / "logs" / "process-results"
+    results.mkdir(parents=True)
+    started = time.time() - 30
+    for proc, reason, code in (("proc_killed1", "killed", -9), ("proc_ok1", "exited", 0), ("proc_bad1", "exited", 2)):
+        (results / f"{proc}.json").write_text(json.dumps({
+            "id": proc, "command": f"run {proc}", "cwd": "/tmp", "task_id": "t", "owner_task_id": "t",
+            "session_key": "", "parent_session_id": None, "started_at": started, "exit_code": code,
+            "completion_reason": reason, "termination_source": "", "notify_on_complete": False,
+            "output": "tail of the output"}), encoding="utf-8")
+
+    rows = {row["work_id"]: row for row in _rows_of_kind(build_running_work(), KIND_TERMINAL)}
+
+    assert _ended_shape(rows["terminal:proc_killed1"]) == ("error", "stopped", True, False)
+    assert _ended_shape(rows["terminal:proc_ok1"]) == ("completed", "succeeded", True, False)
+    assert _ended_shape(rows["terminal:proc_bad1"]) == ("error", "failed", True, False)
+    assert rows["terminal:proc_ok1"]["label"] == "run proc_ok1"
+
+    _past_the_window(monkeypatch)
+    assert _rows_of_kind(build_running_work(), KIND_TERMINAL) == []
+
+
+def test_a_settled_delegation_stays_listed_with_its_outcome(home, monkeypatch):
+    """KILLING MUTATION (run 2026-11-20): ``DelegationLane.collect`` without the ended read -> no row, red."""
+
+    conn = sqlite3.connect(home / "state.db")
+    conn.execute("""CREATE TABLE async_delegations (delegation_id TEXT PRIMARY KEY, origin_session TEXT NOT NULL
+        DEFAULT '', parent_session_id TEXT, state TEXT NOT NULL, dispatched_at REAL NOT NULL, completed_at REAL,
+        owner_pid INTEGER, owner_started_at INTEGER, task_json TEXT)""")
+    now = time.time()
+    conn.execute("INSERT INTO async_delegations VALUES (?,?,?,?,?,?,?,?,?)",
+                 ("deleg-1", "s", "s", "interrupted", now - 20, now - 5, 1, 1, json.dumps({"goal": "Index docs"})))
+    conn.commit()
+    conn.close()
+
+    rows = _rows_of_kind(build_running_work(), KIND_DELEGATION)
+
+    assert [(row["work_id"], row["label"]) for row in rows] == [("delegation:deleg-1", "Index docs")]
+    assert _ended_shape(rows[0]) == ("error", "stopped", True, False)
+    assert rows[0]["elapsed_seconds"] == 15
+
+    _past_the_window(monkeypatch)
+    assert _rows_of_kind(build_running_work(), KIND_DELEGATION) == []
+
+
+# --- RT-FU-AN-AGENT-REQUESTS-OWN-TURN-NAMES-ITS-REQUEST (review w1118a.58 D3) ---
+
+
+def test_the_turn_an_agent_runs_for_a_request_names_that_request(home, isolate_agent_runtime_root):
+    """Seen live 2026-11-20 (w1118a-mcact): Base asking Neko drew two Neko rows, the request and Neko's turn
+    for it, and the header counted two agents. The turn now names its request through the link field a
+    tool call already carries to its turn.
+
+    KILLING MUTATION (run 2026-11-20): ``_dispatch_parent`` returning ``{}`` -> no ``parent_work_id``, red.
+    """
+
+    from agent_runtime.chat_turn import dispatch_turn_request_id
+    from agent_runtime.mission_chat_turns import persist_mission_chat_turn
+
+    request_turn = dispatch_turn_request_id("dispatch-2b1a0ea3f539")
+    for cmid in (request_turn, "cmid-operator"):
+        persist_mission_chat_turn(session_id="chat-sess-r", client_message_id=cmid, turn_id=cmid, elements=None,
+                                  state="executing", write_ahead=True,
+                                  metadata={"root_chat_session_id": "chat-sess-r"})
+
+    rows = {row["work_id"]: row for row in _rows_of_kind(build_running_work(), KIND_CHAT_TURN)}
+
+    assert rows[f"chat_turn:{request_turn}"]["parent_work_id"] == "dispatch:dispatch-2b1a0ea3f539"
+    assert "parent_work_id" not in rows["chat_turn:cmid-operator"]

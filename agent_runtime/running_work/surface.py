@@ -16,6 +16,7 @@ from .lanes_messaging import _collect_messaging_turns
 from .lanes_schedule import _collect_scheduled_turns
 from ..builds.registry import BuildLogRefused, build_log_tail
 from ..builds.vocabulary import SOURCE_AGENT, SOURCE_ANNOUNCED, TAIL_SOURCE_TERMINAL
+from .ended import is_ended
 from .ownership import _ambient_context
 from .rows import _module, bounded_operator_text, _source, _strip_ansi
 from .vocabulary import KIND_BUILD, KIND_CHAT_TURN, KIND_CRON_JOB, KIND_DELEGATION, KIND_DISPATCH, KIND_MCP_JOB, KIND_MESSAGING_TURN, KIND_SCHEDULED_TURN, KIND_TERMINAL, KIND_TOOL_CALL, KILL_NOT_FOUND, PEEK_TAIL_LIMIT, REASON_NOT_IN_PROCESS, RUNNING_WORK_KINDS, SOURCE_OK, SOURCE_UNAVAILABLE, STATUS_VALUES
@@ -353,6 +354,11 @@ def cancel_work(work_id: str, *, reason: str = "operator_cancel") -> dict[str, A
     row = find_work_row(work_id)
     if row is None:
         return {"status": "error", "code": "not_found", "work_id": work_id}
+    if is_ended(row):
+        # Listed for a while after it ended (RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE):
+        # nothing is left to stop, and no seam is asked to stop it.
+        return {"status": "error", "code": "already_ended", "work_id": work_id, "kind": kind,
+                "outcome": row.get("outcome")}
 
     canceller = _CANCELLERS.get(kind)
     if canceller is not None:

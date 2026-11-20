@@ -14,6 +14,16 @@ from typing import Any
 from ..clock import parse_iso_utc
 from ..projection_accountant import ProjectionAccountant
 
+from ..builds.vocabulary import OUTCOME_LOST
+from .ended import (
+    ENDED_TURN_STATES,
+    MAX_ENDED_ROWS_PER_LANE,
+    OUTCOME_BY_DELEGATION_STATE,
+    OUTCOME_BY_DISPATCH_STATE,
+    OUTCOME_BY_TURN_STATE,
+    ended_since,
+    mark_ended,
+)
 from .ownership import _head_home, _owner_of, _pid_identity
 from .row_context import RowContext, plan_items
 from .rows import (
@@ -26,6 +36,7 @@ from .rows import (
     _stale_thresholds,
     bounded_operator_text,
     elapsed_seconds,
+    work_id_of,
     work_row,
 )
 from .vocabulary import (
@@ -160,6 +171,8 @@ class DelegationLane(LanePass):
                 return [], refusal
             for record in fetched:
                 self.durable_row(record)
+            for record in self.read_ended(db_path):
+                self.ended_row(record)
         self.enrich_live()
         return (
             self.finish(list(self.rows.values())),
@@ -197,7 +210,46 @@ class DelegationLane(LanePass):
             except Exception:
                 pass
 
-    def durable_row(self, record: tuple[Any, ...]) -> None:
+    def read_ended(self, db_path: Path) -> list[Any]:
+        """Delegations that settled inside the retention window, newest first (D2); fail-safe: none."""
+
+        try:
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+        except Exception:
+            return []
+        try:
+            return conn.execute(
+                """SELECT delegation_id, origin_session, parent_session_id, state,
+                          dispatched_at, owner_pid, owner_started_at, task_json, completed_at
+                   FROM async_delegations
+                   WHERE state NOT IN ('running','finalizing') AND completed_at >= ?
+                   ORDER BY completed_at DESC LIMIT ?""",
+                (ended_since(self.now), MAX_ENDED_ROWS_PER_LANE),
+            ).fetchall()
+        except Exception:  # an older store or a busy one: the running rows still stand
+            return []
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    def ended_row(self, record: tuple[Any, ...]) -> None:
+        """A settled delegation's row: its outcome and end stamp, no Stop, no owner-PID check."""
+
+        *head, completed_at = record
+        delegation_id = bounded_operator_text(head[0], limit=200)
+        if not delegation_id or f"{KIND_DELEGATION}:{delegation_id}" in self.rows:
+            return
+        self.durable_row(tuple(head), ended=True)
+        row = self.rows.get(f"{KIND_DELEGATION}:{delegation_id}")
+        if row is not None:
+            started = head[4]
+            mark_ended(row, outcome=OUTCOME_BY_DELEGATION_STATE.get(str(head[3] or "").lower(), OUTCOME_LOST),
+                       finished=float(completed_at) if isinstance(completed_at, (int, float)) else None,
+                       started=float(started) if isinstance(started, (int, float)) else None)
+
+    def durable_row(self, record: tuple[Any, ...], *, ended: bool = False) -> None:
         (
             delegation_id,
             origin_session,
@@ -212,7 +264,7 @@ class DelegationLane(LanePass):
         if not delegation_id:
             return
         self.consider()
-        _alive, verified, verdict = _pid_identity(owner_pid, owner_started_at)
+        _alive, verified, verdict = (False, False, "") if ended else _pid_identity(owner_pid, owner_started_at)
         if verdict == PID_DEAD:
             # The owning process is gone. ``recover_abandoned_delegations``
             # is the authority that reclassifies these; reporting them as
@@ -293,6 +345,10 @@ class DelegationLane(LanePass):
         )
         work_id = f"{KIND_DELEGATION}:{delegation_id}"
         if status in {STATUS_COMPLETED, STATUS_ERROR}:
+            # An ended row the store already settled stays (D2); a running row the store has not
+            # settled yet leaves until the store's own settle lists it as ended.
+            if self.rows.get(work_id, {}).get("finished_at"):
+                return
             if self.rows.pop(work_id, None) is not None:
                 self.drop(
                     "delegation_settled",
@@ -404,13 +460,16 @@ class ChatTurnLane(LanePass):
 
     def collect(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         try:
-            from ..mission_chat_turns.reads import inflight_turn_rows
+            from ..mission_chat_turns.reads import running_work_turn_rows
             from ..mission_chat_turns.states import (
                 INFLIGHT_TURN_STATES,
                 TURN_STATE_OUTCOME_UNKNOWN,
             )
 
-            records = inflight_turn_rows()
+            records, settled = running_work_turn_rows(
+                settled_states=ENDED_TURN_STATES, settled_since=ended_since(self.now),
+                settled_limit=MAX_ENDED_ROWS_PER_LANE,
+            )
         except Exception as exc:
             return [], _source(
                 SOURCE_UNAVAILABLE,
@@ -422,6 +481,9 @@ class ChatTurnLane(LanePass):
         for record in records:
             if isinstance(record, dict):
                 self.turn_row(record)
+        for record in settled:
+            if isinstance(record, dict):
+                self.turn_row(record, ended=True)
         for bound in _checking_runs():
             self.checking_row(bound)
         self.attach_titles()
@@ -436,7 +498,9 @@ class ChatTurnLane(LanePass):
             self.names[instance_id] = persona_instance_display_name(instance_id)
         return self.names[instance_id]
 
-    def turn_row(self, record: dict[str, Any]) -> None:
+    def turn_row(self, record: dict[str, Any], *, ended: bool = False) -> None:
+        """One journal record's row; ``ended``: a settled record, kept for the retention window."""
+
         self.consider()
         turn_id = bounded_operator_text(record.get("turn_id") or record.get("client_message_id"), limit=200)
         if not turn_id:
@@ -465,7 +529,7 @@ class ChatTurnLane(LanePass):
         instance = instance_id or owner_instance
         # A pass of an UNTIL_DONE Work run says which pass it is, and its Stop (``runtime.work.cancel``)
         # ends the whole run (RT-WORK-CLAIM-RUNS-UNTIL-DONE); any other chat turn is unchanged.
-        run_pass = _run_pass(session_id, record.get("client_message_id"))
+        run_pass = {} if ended else _run_pass(session_id, record.get("client_message_id"))
         row = work_row(
             kind=KIND_CHAT_TURN,
             stable_id=turn_id,
@@ -491,13 +555,19 @@ class ChatTurnLane(LanePass):
             # Whether a steer sent now lands in THIS turn — the steer door's own read, so the client
             # never infers it from the turn's kind or its id (a Work turn takes one, a forged one not).
             extra={"title": "", "current_tool": None, **run_pass,
-                   "steerable": _takes_steer(session_id, record.get("client_message_id")),
+                   "steerable": not ended and _takes_steer(session_id, record.get("client_message_id")),
                    # D12: who asked and the folder are known only where the turn runs
                    # (``enrich_live``); the workspace is the instance's, read here.
-                   "asked_by": None, "cwd": None, **self.context.workspace(instance)},
+                   "asked_by": None, "cwd": None, **self.context.workspace(instance),
+                   **_dispatch_parent(record)},
         )
         self.rows.append(row)
-        if state in self.running_states:
+        if ended:
+            settled = parse_iso_utc(bounded_operator_text(record.get("updated_at"), limit=80))
+            mark_ended(row, outcome=OUTCOME_BY_TURN_STATE.get(state, OUTCOME_LOST),
+                       finished=settled.timestamp() if settled is not None else None,
+                       started=started.timestamp() if started is not None else None)
+        elif state in self.running_states:
             self.enrich_live(row, turn_id)
 
     def checking_row(self, bound: Any) -> None:
@@ -637,6 +707,24 @@ class ChatTurnLane(LanePass):
         titles = _chat_titles(sessions - {""})
         for row in turns:
             row["title"] = titles.get((row.get("owner") or {}).get("session_id") or "", "")
+
+
+def _dispatch_parent(record: dict[str, Any]) -> dict[str, Any]:
+    """``{"parent_work_id": "dispatch:<id>"}`` on the turn an agent runs for another agent's request.
+
+    RT-FU-AN-AGENT-REQUESTS-OWN-TURN-NAMES-ITS-REQUEST (review w1118a.58 D3): the request's turn runs
+    under ``chat_turn.dispatch_turn_request_id``, so the pairing is read through that spelling's own
+    inverse — the same link field a foreground tool call carries to its turn — and a client folds the
+    two into one entry instead of drawing two agents. ``{}`` for any other turn, fail-safe.
+    """
+
+    try:
+        from ..chat_turn import dispatch_id_of_turn_request
+
+        dispatch_id = dispatch_id_of_turn_request(record.get("client_message_id") or record.get("turn_id"))
+    except Exception:
+        return {}
+    return {"parent_work_id": work_id_of(KIND_DISPATCH, dispatch_id)} if dispatch_id else {}
 
 
 def _plan_progress(items: Any) -> dict[str, Any] | None:
@@ -816,7 +904,24 @@ class DispatchLane(LanePass):
         for record in rows:
             self.running_row(record)
         self.undeliverable_rows(dispatch_store)
+        self.ended_rows(dispatch_store)
         return self.finish(self.collected), _source(SOURCE_OK, lane=LANE_DURABLE)
+
+    def ended_rows(self, dispatch_store: Any) -> None:
+        """Requests that ended inside the retention window, with how they ended (D2); fail-safe."""
+
+        try:
+            ended = dispatch_store.settled_dispatches(since=ended_since(self.now), limit=MAX_ENDED_ROWS_PER_LANE)
+        except Exception:  # the running rows already collected are still true
+            ended = []
+        for record in ended:
+            row = self.running_row(record)
+            if row is None:
+                continue
+            started, finished = record.get("dispatched_at"), record.get("completed_at")
+            mark_ended(row, outcome=OUTCOME_BY_DISPATCH_STATE.get(str(record.get("state") or ""), OUTCOME_LOST),
+                       finished=float(finished) if isinstance(finished, (int, float)) else None,
+                       started=float(started) if isinstance(started, (int, float)) else None)
 
     def named(self, record: dict[str, Any]) -> str:
         """The target's display name, else its persona id, else ``""``."""
@@ -834,12 +939,12 @@ class DispatchLane(LanePass):
             self.names[handle] = persona_instance_display_name(handle)
         return self.names[handle] or persona
 
-    def running_row(self, record: Any) -> None:
+    def running_row(self, record: Any) -> dict[str, Any] | None:
         if not isinstance(record, dict):
-            return
+            return None
         dispatch_id = bounded_operator_text(record.get("dispatch_id"), limit=200)
         if not dispatch_id:
-            return
+            return None
         self.consider()
         pid = record.get("owner_pid")
         _alive, verified, verdict = _pid_identity(pid, record.get("owner_started_at"))
@@ -904,6 +1009,7 @@ class DispatchLane(LanePass):
                 extra=self.asked_where(record),
             )
         )
+        return self.collected[-1]
 
     def asked_where(self, record: dict[str, Any]) -> dict[str, Any]:
         """D12: the asking agent (the sender's chat root's owner), the target's workspace; the folder is the child's, unknown here."""

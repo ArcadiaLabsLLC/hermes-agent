@@ -284,6 +284,19 @@ def undeliverable_dispatches(
     )
 
 
+def settled_dispatches(*, since: float, limit: int = 50) -> list[dict[str, Any]]:
+    """Dispatches that ended at or after ``since`` (epoch), newest first — ``running_work``'s ended rows.
+
+    RT-FU-RUNNING-WORK-KEEPS-ENDED-AGENT-WORK-FOR-A-WHILE. A dropped delivery is left out: the
+    undeliverable read (:func:`undeliverable_dispatches`) already lists it, under the same work id.
+    """
+
+    return _query(
+        "WHERE state != ? AND delivery_state != ? AND completed_at >= ? ORDER BY completed_at DESC LIMIT ?",
+        (STATE_RUNNING, DELIVERY_DROPPED, float(since), int(limit)),
+    )
+
+
 def pending_deliveries(limit: int = 50) -> list[dict[str, Any]]:
     """Completed dispatches the sender has NOT yet been told about."""
 

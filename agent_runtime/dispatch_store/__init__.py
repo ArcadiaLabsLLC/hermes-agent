@@ -13,7 +13,7 @@ Entry points and the modules to open, at most three:
   ``delivery`` → ``db``; ``rearm_delivery`` (the CLI repair verb) likewise.
 * ``restore_undelivered_dispatches`` (``serve/boot_phases``) → ``delivery`` →
   ``writes`` (the settle) → ``db``.
-* ``running_dispatches`` / ``remote_media_completions`` (``running_work``,
+* ``running_dispatches`` / ``settled_dispatches`` / ``remote_media_completions`` (``running_work``,
   ``media_handles``) → ``db``.
 
 Modules, lowest layer first (no module imports one above it — W0-G6):
@@ -132,6 +132,7 @@ from agent_runtime.dispatch_store.db import (  # the package's export floor
     remote_media_completions,
     running_dispatches,
     running_dispatches_owned_by_turn,
+    settled_dispatches,
     undeliverable_dispatches,
     _add_missing_column,
     _connect,
@@ -215,6 +216,7 @@ __all__ = [
     "running_dispatches",
     "running_dispatches_owned_by_turn",
     "set_dispatch_owner",
+    "settled_dispatches",
     "undeliverable_dispatches",
 ]
 
