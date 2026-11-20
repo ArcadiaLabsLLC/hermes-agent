@@ -30,8 +30,10 @@ __layer__ = "lanes"
 __all__ = [
     "MAX_STAFF_COUNT",
     "StaffRefused",
+    "coordinator_scope",
     "idle_instances",
     "running_group_chat_seats",
+    "spawn_refusal",
     "staff_agent_instances",
 ]
 
@@ -252,32 +254,49 @@ def _asker_autonomy(asker: str) -> Any:
     return AutonomyLevel(getattr(persona, "autonomy", None) or AutonomyLevel.PROPOSE_ONLY) if persona else None
 
 
-def _spawn_review(asker: str) -> Any:
-    """The coordinator budget for ONE more instance, for the asking instance's agent.
+def coordinator_scope(asker: str) -> Any:
+    """The asking instance's coordinator scope, read only from the store and the settings.
 
-    Used = every instance the asker ever spawned, re-read from the store each turn, so the seats
-    this call already placed are counted once (they carry ``spawned_by``), never again on top.
+    Its agent's autonomy and ``agent_runtime.coordinator_permissions`` (``scope_for_persona``), with
+    used = every instance the asker ever spawned, re-read each time, so seats already placed are
+    counted once (they carry ``spawned_by``), never again on top. ``None`` when the asker is no
+    instance. The one scope the add-instance tool and every CLI coordinator door are held to (row
+    ``RT-AN-AGENT-THAT-ADDS-INSTANCES-FROM-ITS-TERMINAL-SKIPS-ITS-SPAWN-BUDGET``, review w1118a.62
+    D1): nothing a caller types widens it.
     """
 
     from ..config import load_agent_runtime_config
-    from ..coordinator_permissions import review_coordinator_budget, scope_for_persona
+    from ..coordinator_permissions import scope_for_persona
     from ..persona_assignments import PersonaInstanceStore
     from .request import resolve_persona
 
-    cfg = load_agent_runtime_config()
     try:
         asking = PersonaInstanceStore().get(asker)
     except Exception:
-        asking = None
-    persona = resolve_persona(asking.persona_id) if asking is not None else None
+        return None
+    cfg = load_agent_runtime_config()
     already = sum(1 for instance in PersonaInstanceStore().list_all() if instance.spawned_by == asker)
-    scope = (
-        # MUTATION: add this call's placed count again and test_a_budget_of_three_places_three reddens.
-        scope_for_persona(persona, config=getattr(cfg, "coordinator_permissions", None), spawns_used=already)
-        if asking is not None
-        else None
+    # MUTATION: add this call's placed count again and test_a_budget_of_three_places_three reddens.
+    return scope_for_persona(
+        resolve_persona(asking.persona_id), config=getattr(cfg, "coordinator_permissions", None), spawns_used=already
     )
-    return review_coordinator_budget("persona.instance.create", scope, actor=asker, coordinator_id=asker)
+
+
+def spawn_refusal(review: Any, asker: str) -> dict[str, Any]:
+    """The CLI door's half of :func:`_budget_refusal` for one seat: the sentence and the settings."""
+
+    refusal = _budget_refusal(review, asker, wanted=1, have=0)
+    return {"message": refusal["message"], "settings": refusal["settings"]}
+
+
+def _spawn_review(asker: str) -> Any:
+    """The coordinator budget for ONE more instance, for the asking instance's agent."""
+
+    from ..coordinator_permissions import review_coordinator_budget
+
+    return review_coordinator_budget(
+        "persona.instance.create", coordinator_scope(asker), actor=asker, coordinator_id=asker
+    )
 
 
 def staff_agent_instances(

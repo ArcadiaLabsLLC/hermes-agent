@@ -222,3 +222,11 @@ Recipe and flags: `references/operations.md`, "Delegation"; why: `references/mod
 - **Never slurp** the helper's transcript, logs, or reasoning — carry pointers, and
   return with `persona instance return-summary` (bounded, records `returned_to`).
 - Intervene only on a stall, a block, or scope drift, on the SAME chat root.
+- **A helper sent to a queue row gets a lane name of its own, in the brief.** Use the
+  helper's instance handle without the `@` (`personainst_dev_agent_8b319ebf`) — never its
+  bare persona id (`dev`), which every instance of that persona shares, and never
+  `persona:<id>` (that form hands the row to the Work engine). Give it the exact claim line,
+  `dart tool/queue/task.dart --claim <ID> --as <lane> --tree <its own worktree> --push`,
+  run from the repo's primary checkout with a timeout of at least 300 s, then all work in that
+  worktree. A row the tool reports "TAKEN by <lane>" under your helper's lane is your
+  helper's claim, not another lane's.

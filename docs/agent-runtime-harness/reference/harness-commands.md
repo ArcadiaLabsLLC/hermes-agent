@@ -145,6 +145,8 @@ before changing state. Alias paths share the canonical command's flags.
 - [hermes harness persona set-model](#hermes-harness-persona-set-model)
 - [hermes harness persona set-skills](#hermes-harness-persona-set-skills)
 - [hermes harness persona set-context](#hermes-harness-persona-set-context)
+- [hermes harness persona sort-shipped](#hermes-harness-persona-sort-shipped)
+- [hermes harness persona seat-unseated](#hermes-harness-persona-seat-unseated)
 - [hermes harness persona instance](#hermes-harness-persona-instance)
 - [hermes harness persona instance create](#hermes-harness-persona-instance-create)
 - [hermes harness persona instance open-chat](#hermes-harness-persona-instance-open-chat)
@@ -1606,8 +1608,8 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --key KEY             Entity key from `realm sync held` — a profile file
-                        (alice:memories/MEMORY.md) or a skill package (skill::launcher-mcp-
-                        operations)
+                        (alice:memories/MEMORY.md), a skill package (skill::launcher-mcp-operations)
+                        or a workspace or realm record (record::workspace:<id>)
   --take {local,remote}
   -o, --output {json,table,yaml,wide}
   --json                Alias for -o json
@@ -2626,10 +2628,10 @@ options:
 
 ```text
 usage: hermes harness persona [-h]
-                              {list,show,tool-diff,permission,chat,chat-head,set-model,set-skills,set-context,instance,slots} ...
+                              {list,show,tool-diff,permission,chat,chat-head,set-model,set-skills,set-context,sort-shipped,seat-unseated,instance,slots} ...
 
 positional arguments:
-  {list,show,tool-diff,permission,chat,chat-head,set-model,set-skills,set-context,instance,slots}
+  {list,show,tool-diff,permission,chat,chat-head,set-model,set-skills,set-context,sort-shipped,seat-unseated,instance,slots}
     list                List durable persona instances
     show                Show one durable persona instance
     tool-diff           Show resolved model tools and blocked tools for one persona
@@ -2644,6 +2646,11 @@ positional arguments:
                         instances inherit it)
     set-context         Turn a persona's core context files and profile memory on or off (profile-
                         default lane; the reply states each switch's cost)
+    sort-shipped        Once per install: turn records held under a shipped agent's id into
+                        references, keeping a changed one as a named copy; a seat whose office desk
+                        or chats still name another agent than its record follows its record
+    seat-unseated       Seat every agent instance added to a workspace that its office level does
+                        not show (an instance an argv --add-instance added before seating landed)
     instance            Create, open, steer, retire, and maintain persona instances (chat is the
                         only messaging lane)
     slots               A persona instance's assigned repo slots and its primary slot
@@ -2905,6 +2912,30 @@ options:
   --json
 ```
 
+## hermes harness persona sort-shipped
+
+```text
+usage: hermes harness persona sort-shipped [-h] [--dry-run] [--name ID=NAME] [--json]
+
+options:
+  -h, --help      show this help message and exit
+  --dry-run       Print the plan and write nothing
+  --name ID=NAME  The copy's name for a changed record (default '<shipped name> Beta'; a taken name
+                  refuses that record)
+  --json
+```
+
+## hermes harness persona seat-unseated
+
+```text
+usage: hermes harness persona seat-unseated [-h] [--dry-run] [--json]
+
+options:
+  -h, --help  show this help message and exit
+  --dry-run   List the instances it would seat and write nothing
+  --json
+```
+
 ## hermes harness persona instance
 
 ```text
@@ -2938,12 +2969,9 @@ options:
 usage: hermes harness persona instance create [-h] --persona PERSONA_ID --title TITLE
                                               [--requested-by REQUESTED_BY]
                                               [--coordinator-id COORDINATOR_ID]
-                                              [--coordinator-max-spawns COORDINATOR_MAX_SPAWNS]
-                                              [--coordinator-spawns-used COORDINATOR_SPAWNS_USED]
-                                              [--coordinator-may-kill-own]
-                                              [--coordinator-no-kill-own]
-                                              [--coordinator-may-kill-others]
                                               [--client-message-id CLIENT_MESSAGE_ID]
+                                              [--client-scope CLIENT_SCOPE] [--independent-agent]
+                                              [--source-instance-id SOURCE_INSTANCE_ID]
                                               [--display-name DISPLAY_NAME]
                                               [--session-id SESSION_ID] [--add-instance]
                                               [--placement-id PLACEMENT_ID]
@@ -2958,24 +2986,21 @@ options:
   --coordinator-id COORDINATOR_ID
                         Coordinator persona id when --requested-by is coordinator; coordinator:<id>
                         carries it inline
-  --coordinator-max-spawns COORDINATOR_MAX_SPAWNS
-                        In-scope create/spawn grant for this coordinator action
-  --coordinator-spawns-used COORDINATOR_SPAWNS_USED
-                        Create/spawn actions already used in this coordinator scope
-  --coordinator-may-kill-own
-                        Allow killing instances spawned by this coordinator
-  --coordinator-no-kill-own
-                        Require confirmation even for own-spawned instances
-  --coordinator-may-kill-others
-                        Allow killing non-operator instances spawned by another coordinator
   --client-message-id CLIENT_MESSAGE_ID
+  --client-scope CLIENT_SCOPE
+                        The owning account's client-scope digest (64 hex) the new agent's chat is
+                        stamped with, so it opens for that account only
+  --independent-agent   Give the new agent its own persona and backing profile
+  --source-instance-id SOURCE_INSTANCE_ID
+                        Use an existing agent's model and skill choices as the starting point
   --display-name DISPLAY_NAME
   --session-id SESSION_ID
   --add-instance        Create an additional placement-backed instance instead of targeting the
                         primary placement
   --placement-id PLACEMENT_ID
                         Scene itemId for an additional placement-backed instance; must end in the
-                        deliberate-placement shape <persona-token>_agent_<hex8>
+                        deliberate-placement shape <persona-token>_agent_<hex8>. Omitted with --add-
+                        instance, one is minted
   --workspace-id, --workspace WORKSPACE_ID
                         Mission Control workspace the placement belongs to (scope-provenance
                         pointer; only meaningful with --add-instance)
@@ -2990,18 +3015,13 @@ options:
 usage: hermes harness persona instance open-chat [-h] --persona PERSONA_ID
                                                  [--persona-instance-id PERSONA_INSTANCE_ID]
                                                  [--session-id SESSION_ID] [--new-session]
-                                                 [--idempotency-key IDEMPOTENCY_KEY]
+                                                 [--idempotency-key IDEMPOTENCY_KEY] [--move]
                                                  [--add-instance] [--placement-id PLACEMENT_ID]
                                                  [--workspace-id WORKSPACE_ID] [--realm-id REALM_ID]
                                                  [--display-name DISPLAY_NAME]
                                                  [--requested-by REQUESTED_BY]
                                                  [--correlation-id CORRELATION_ID]
-                                                 [--coordinator-id COORDINATOR_ID]
-                                                 [--coordinator-max-spawns COORDINATOR_MAX_SPAWNS]
-                                                 [--coordinator-spawns-used COORDINATOR_SPAWNS_USED]
-                                                 [--coordinator-may-kill-own]
-                                                 [--coordinator-no-kill-own]
-                                                 [--coordinator-may-kill-others] [--json]
+                                                 [--coordinator-id COORDINATOR_ID] [--json]
 
 options:
   -h, --help            show this help message and exit
@@ -3012,10 +3032,14 @@ options:
   --new-session         Mint and select a fresh server-owned chat session for the target instance
   --idempotency-key IDEMPOTENCY_KEY
                         Stable retry key required with --new-session
+  --move                Move --session-id onto --persona-instance-id when another instance of the
+                        same agent holds it (its history moves with it); without it that chat is
+                        refused
   --add-instance        Open the chat on an additional placement-backed instance
   --placement-id PLACEMENT_ID
                         Scene itemId for an additional placement-backed instance; must end in the
-                        deliberate-placement shape <persona-token>_agent_<hex8>
+                        deliberate-placement shape <persona-token>_agent_<hex8>. Omitted with --add-
+                        instance, one is minted
   --workspace-id, --workspace WORKSPACE_ID
                         Mission Control workspace the placement belongs to (scope-provenance
                         pointer; only meaningful with --add-instance)
@@ -3029,16 +3053,6 @@ options:
   --coordinator-id COORDINATOR_ID
                         Coordinator persona id when --requested-by is coordinator; coordinator:<id>
                         carries it inline
-  --coordinator-max-spawns COORDINATOR_MAX_SPAWNS
-                        In-scope create/spawn grant for this coordinator action
-  --coordinator-spawns-used COORDINATOR_SPAWNS_USED
-                        Create/spawn actions already used in this coordinator scope
-  --coordinator-may-kill-own
-                        Allow killing instances spawned by this coordinator
-  --coordinator-no-kill-own
-                        Require confirmation even for own-spawned instances
-  --coordinator-may-kill-others
-                        Allow killing non-operator instances spawned by another coordinator
   --json
 ```
 
@@ -3049,12 +3063,7 @@ Aliases: `delete`.
 ```text
 usage: hermes harness persona instance retire [-h] [--reason REASON] [--requested-by REQUESTED_BY]
                                               [--correlation-id CORRELATION_ID]
-                                              [--coordinator-id COORDINATOR_ID]
-                                              [--coordinator-max-spawns COORDINATOR_MAX_SPAWNS]
-                                              [--coordinator-spawns-used COORDINATOR_SPAWNS_USED]
-                                              [--coordinator-may-kill-own]
-                                              [--coordinator-no-kill-own]
-                                              [--coordinator-may-kill-others] [--json]
+                                              [--coordinator-id COORDINATOR_ID] [--json]
                                               persona_instance_id
 
 positional arguments:
@@ -3068,16 +3077,6 @@ options:
   --coordinator-id COORDINATOR_ID
                         Coordinator persona id when --requested-by is coordinator; coordinator:<id>
                         carries it inline
-  --coordinator-max-spawns COORDINATOR_MAX_SPAWNS
-                        In-scope create/spawn grant for this coordinator action
-  --coordinator-spawns-used COORDINATOR_SPAWNS_USED
-                        Create/spawn actions already used in this coordinator scope
-  --coordinator-may-kill-own
-                        Allow killing instances spawned by this coordinator
-  --coordinator-no-kill-own
-                        Require confirmation even for own-spawned instances
-  --coordinator-may-kill-others
-                        Allow killing non-operator instances spawned by another coordinator
   --json
 ```
 
@@ -3089,12 +3088,7 @@ usage: hermes harness persona instance steer [-h] [--parent PARENT_INSTANCE_ID]
                                              [--remove-parent REMOVE_PARENT]
                                              [--set-parents PARENT [PARENT ...]] [--goal GOAL_ID]
                                              [--detach] [--requested-by REQUESTED_BY]
-                                             [--coordinator-id COORDINATOR_ID]
-                                             [--coordinator-max-spawns COORDINATOR_MAX_SPAWNS]
-                                             [--coordinator-spawns-used COORDINATOR_SPAWNS_USED]
-                                             [--coordinator-may-kill-own]
-                                             [--coordinator-no-kill-own]
-                                             [--coordinator-may-kill-others] [--json]
+                                             [--coordinator-id COORDINATOR_ID] [--json]
                                              persona_instance_id
 
 positional arguments:
@@ -3119,16 +3113,6 @@ options:
   --coordinator-id COORDINATOR_ID
                         Coordinator persona id when --requested-by is coordinator; coordinator:<id>
                         carries it inline
-  --coordinator-max-spawns COORDINATOR_MAX_SPAWNS
-                        In-scope create/spawn grant for this coordinator action
-  --coordinator-spawns-used COORDINATOR_SPAWNS_USED
-                        Create/spawn actions already used in this coordinator scope
-  --coordinator-may-kill-own
-                        Allow killing instances spawned by this coordinator
-  --coordinator-no-kill-own
-                        Require confirmation even for own-spawned instances
-  --coordinator-may-kill-others
-                        Allow killing non-operator instances spawned by another coordinator
   --json
 ```
 
@@ -3178,12 +3162,7 @@ usage: hermes harness persona instance update-profile [-h] [--display-name DISPL
                                                       [--goal GOAL_ID] [--skill SKILLS]
                                                       [--clear-skills] [--inherit-skills]
                                                       [--requested-by REQUESTED_BY]
-                                                      [--coordinator-id COORDINATOR_ID]
-                                                      [--coordinator-max-spawns COORDINATOR_MAX_SPAWNS]
-                                                      [--coordinator-spawns-used COORDINATOR_SPAWNS_USED]
-                                                      [--coordinator-may-kill-own]
-                                                      [--coordinator-no-kill-own]
-                                                      [--coordinator-may-kill-others] [--json]
+                                                      [--coordinator-id COORDINATOR_ID] [--json]
                                                       persona_instance_id
 
 positional arguments:
@@ -3202,16 +3181,6 @@ options:
   --coordinator-id COORDINATOR_ID
                         Coordinator persona id when --requested-by is coordinator; coordinator:<id>
                         carries it inline
-  --coordinator-max-spawns COORDINATOR_MAX_SPAWNS
-                        In-scope create/spawn grant for this coordinator action
-  --coordinator-spawns-used COORDINATOR_SPAWNS_USED
-                        Create/spawn actions already used in this coordinator scope
-  --coordinator-may-kill-own
-                        Allow killing instances spawned by this coordinator
-  --coordinator-no-kill-own
-                        Require confirmation even for own-spawned instances
-  --coordinator-may-kill-others
-                        Allow killing non-operator instances spawned by another coordinator
   --json
 ```
 
@@ -3222,12 +3191,7 @@ usage: hermes harness persona instance set-model [-h] [--provider PROVIDER] [--m
                                                  [--reasoning-effort REASONING_EFFORT]
                                                  [--use-profile-default] [--issued-at ISSUED_AT]
                                                  [--requested-by REQUESTED_BY]
-                                                 [--coordinator-id COORDINATOR_ID]
-                                                 [--coordinator-max-spawns COORDINATOR_MAX_SPAWNS]
-                                                 [--coordinator-spawns-used COORDINATOR_SPAWNS_USED]
-                                                 [--coordinator-may-kill-own]
-                                                 [--coordinator-no-kill-own]
-                                                 [--coordinator-may-kill-others] [--json]
+                                                 [--coordinator-id COORDINATOR_ID] [--json]
                                                  persona_instance_id
 
 positional arguments:
@@ -3248,16 +3212,6 @@ options:
   --coordinator-id COORDINATOR_ID
                         Coordinator persona id when --requested-by is coordinator; coordinator:<id>
                         carries it inline
-  --coordinator-max-spawns COORDINATOR_MAX_SPAWNS
-                        In-scope create/spawn grant for this coordinator action
-  --coordinator-spawns-used COORDINATOR_SPAWNS_USED
-                        Create/spawn actions already used in this coordinator scope
-  --coordinator-may-kill-own
-                        Allow killing instances spawned by this coordinator
-  --coordinator-no-kill-own
-                        Require confirmation even for own-spawned instances
-  --coordinator-may-kill-others
-                        Allow killing non-operator instances spawned by another coordinator
   --json
 ```
 

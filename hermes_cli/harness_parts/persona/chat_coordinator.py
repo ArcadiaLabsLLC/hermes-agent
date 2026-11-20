@@ -11,9 +11,8 @@ from agent_runtime.operator_message import normalize_operator_message
 from dataclasses import asdict
 from agent_runtime import paths
 from agent_runtime.cli_format import emit_json
-from agent_runtime.coordinator_permissions import CoordinatorPermissionScope, scope_for_persona
+from agent_runtime.coordinator_permissions import CoordinatorPermissionScope
 from agent_runtime.mission_chat_steer import submit_mission_chat_steer
-from agent_runtime.models import AgentPersona
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
     safe_assignment_text,
@@ -27,12 +26,30 @@ __all__ = [
     "_cmd_mission_chat_steer",
     "_coordinator_actor_id",
     "_coordinator_confirm_payload",
-    "_coordinator_scope_from_args",
+    "_coordinator_scope",
+    "_coordinator_spawn_refusal",
     "_maybe_stamp_spawned_by",
 ]
 
 
 def _coordinator_actor_id(args) -> str | None:
+    """The coordinator asking at a CLI door: the agent whose terminal runs it, else the one argv names.
+
+    An agent's terminal carries its turn's ``HERMES_SESSION_ID``, so the session decides
+    (``terminal_request_actor``, the door removals already read) and nothing the agent types —
+    no ``--requested-by``, no ``--coordinator-id`` — changes or drops it (row
+    ``RT-AN-AGENT-THAT-ADDS-INSTANCES-FROM-ITS-TERMINAL-SKIPS-ITS-SPAWN-BUDGET``, review w1118a.62
+    D1). Only the operator's own shell, which carries no agent session, may name a coordinator.
+    """
+
+    from agent_runtime.request_actor import OPERATOR_ACTOR
+
+    from .lifecycle_commands import terminal_request_actor
+
+    # MUTATION: drop this session read and test_an_agents_terminal_add_instance_past_its_budget_is_refused reddens.
+    asker = terminal_request_actor()
+    if asker != OPERATOR_ACTOR:
+        return asker
     raw = str(getattr(args, "requested_by", "") or "").strip()
     if raw.lower().startswith("coordinator:"):
         return safe_assignment_token(raw.split(":", 1)[1])
@@ -41,25 +58,26 @@ def _coordinator_actor_id(args) -> str | None:
     return None
 
 
-def _coordinator_scope_from_args(args, cfg, persona: AgentPersona | None) -> CoordinatorPermissionScope:
-    scope = scope_for_persona(
-        persona,
-        config=getattr(cfg, "coordinator_permissions", None),
-        spawns_used=int(getattr(args, "coordinator_spawns_used", 0) or 0),
-    )
-    max_spawns = getattr(args, "coordinator_max_spawns", None)
-    if max_spawns is not None:
-        scope.max_spawns = max(0, int(max_spawns))
-    may_kill_own = getattr(args, "coordinator_may_kill_own", None)
-    no_kill_own = getattr(args, "coordinator_no_kill_own", None)
-    if may_kill_own is not None:
-        scope.may_kill_own = bool(may_kill_own)
-    if no_kill_own is not None:
-        scope.may_kill_own = not bool(no_kill_own)
-    may_kill_others = getattr(args, "coordinator_may_kill_others", None)
-    if may_kill_others is not None:
-        scope.may_kill_others = bool(may_kill_others)
-    return scope
+def _coordinator_scope(coordinator_id: str) -> CoordinatorPermissionScope | None:
+    """The scope a coordinator is held to: its agent's settings and its spawns, read from the store.
+
+    ``agent_create.staff.coordinator_scope`` — the one the add-instance tool reads. The five argv
+    scope flags (``--coordinator-max-spawns``, ``--coordinator-spawns-used``,
+    ``--coordinator-may-kill-own``, ``--coordinator-no-kill-own``, ``--coordinator-may-kill-others``)
+    are gone: a caller never grants itself a budget or kill rights (review w1118a.62 D1).
+    """
+
+    from agent_runtime.agent_create.staff import coordinator_scope
+
+    return coordinator_scope(coordinator_id)
+
+
+def _coordinator_spawn_refusal(action: str, coordinator_id: str, auth) -> dict[str, object]:
+    """A refused spawn: the confirm payload plus the sentence naming the settings that grant one."""
+
+    from agent_runtime.agent_create.staff import spawn_refusal
+
+    return {**_coordinator_confirm_payload(action, coordinator_id, auth), **spawn_refusal(auth, coordinator_id)}
 
 
 def _coordinator_confirm_payload(action: str, coordinator_id: str, auth) -> dict[str, object]:

@@ -263,11 +263,6 @@ def _steer_args(persona_instance_id: str, **overrides):
         detach=False,
         requested_by="operator",
         coordinator_id="neko_supervisor",
-        coordinator_max_spawns=None,
-        coordinator_spawns_used=0,
-        coordinator_may_kill_own=None,
-        coordinator_no_kill_own=None,
-        coordinator_may_kill_others=None,
         json=True,
     )
     base.update(overrides)

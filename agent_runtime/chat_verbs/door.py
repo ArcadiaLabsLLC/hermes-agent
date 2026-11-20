@@ -14,15 +14,12 @@ from typing import Any
 __layer__ = "lanes"
 __all__ = ["COORDINATOR_ARGS_CLOSED", "caller_requester", "run_cli_chat_verb"]
 
-#: The coordinator-budget flags, closed: a method caller is never a coordinator
-#: grant, so these read as the argparse defaults of a caller who passed none.
+#: The coordinator flag, closed: a method caller is never a coordinator, so it
+#: reads as the argparse default of a caller who passed none. (The argv scope
+#: flags are gone: a coordinator's scope is read from the store, review
+#: w1118a.62 D1.)
 COORDINATOR_ARGS_CLOSED = {
     "coordinator_id": None,
-    "coordinator_max_spawns": None,
-    "coordinator_spawns_used": 0,
-    "coordinator_may_kill_own": None,
-    "coordinator_no_kill_own": None,
-    "coordinator_may_kill_others": None,
 }
 
 

@@ -100,8 +100,3 @@ def _add_stage42_global_args(
 
 def _add_coordinator_permission_args(parser) -> None:
     parser.add_argument("--coordinator-id", default=None, help="Coordinator persona id when --requested-by is coordinator; coordinator:<id> carries it inline")
-    parser.add_argument("--coordinator-max-spawns", type=int, default=None, help="In-scope create/spawn grant for this coordinator action")
-    parser.add_argument("--coordinator-spawns-used", type=int, default=0, help="Create/spawn actions already used in this coordinator scope")
-    parser.add_argument("--coordinator-may-kill-own", action="store_true", default=None, help="Allow killing instances spawned by this coordinator")
-    parser.add_argument("--coordinator-no-kill-own", action="store_true", default=None, help="Require confirmation even for own-spawned instances")
-    parser.add_argument("--coordinator-may-kill-others", action="store_true", default=None, help="Allow killing non-operator instances spawned by another coordinator")
