@@ -198,6 +198,10 @@ def test_a_request_still_running_when_its_serve_restarts_is_re_adopted_and_its_r
     row = _wait_state(dispatch_id)
     assert row["state"] == dispatch_store.STATE_COMPLETED
     assert row["result"]["reply"] == "the real answer"
+    # Discarded right after the record, on the supervisor's thread.
+    deadline = time.monotonic() + 10
+    while result_file.dispatch_result_path(dispatch_id).exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
     assert not result_file.dispatch_result_path(dispatch_id).exists()
 
 
