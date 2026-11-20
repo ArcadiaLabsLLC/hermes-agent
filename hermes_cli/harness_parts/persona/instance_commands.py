@@ -22,7 +22,7 @@ from hermes_cli.flag_binding import list_flag_or_absent, list_flag_or_empty
 from .chat_coordinator import (
     _coordinator_actor_id,
     _coordinator_confirm_payload,
-    _coordinator_scope_from_args,
+    _coordinator_scope,
 )
 from .chat_target import _persona_by_id
 from .lifecycle_commands import _agent_retire_outcome
@@ -45,17 +45,15 @@ def _cmd_persona_instance_retire(args) -> int:
     a placement is the instance's end-of-life. Refusals surface the typed
     ``PersonaInstanceRetireError.code`` so the launcher/operator can distinguish
     canonical-channel / active-binding / active-assignment / not-found."""
-    cfg = load_agent_runtime_config()
     store = PersonaInstanceStore()
     coordinator_id = _coordinator_actor_id(args)
     if coordinator_id:
         try:
             target = store.get(args.persona_instance_id)
-            persona = _persona_by_id(cfg, target.persona_id)
         except Exception:
             target = None
-            persona = None
-        scope = _coordinator_scope_from_args(args, cfg, persona)
+        # MUTATION: read may-kill rights off args again and test_an_agents_terminal_retire_grants_itself_no_kill_rights reddens.
+        scope = _coordinator_scope(coordinator_id)
         auth = review_coordinator_budget(
             "persona.instance.retire",
             scope,
@@ -217,8 +215,7 @@ def _cmd_persona_instance_steer(args) -> int:
     # the contract stays uniform with create/kill paths.
     coordinator_id = _coordinator_actor_id(args)
     if coordinator_id:
-        persona = _persona_by_id(cfg, target.persona_id)
-        scope = _coordinator_scope_from_args(args, cfg, persona)
+        scope = _coordinator_scope(coordinator_id)
         auth = review_coordinator_budget("re_route", scope, target, actor=coordinator_id, coordinator_id=coordinator_id)
         if not auth.ok:
             data = _coordinator_confirm_payload("re_route", coordinator_id, auth)
@@ -283,8 +280,7 @@ def _cmd_persona_instance_update_profile(args) -> int:
         return 2
     coordinator_id = _coordinator_actor_id(args)
     if coordinator_id:
-        persona = _persona_by_id(cfg, target.persona_id)
-        scope = _coordinator_scope_from_args(args, cfg, persona)
+        scope = _coordinator_scope(coordinator_id)
         auth = review_coordinator_budget("persona.instance.update_profile", scope, target, actor=coordinator_id, coordinator_id=coordinator_id)
         if not auth.ok:
             data = _coordinator_confirm_payload("persona.instance.update_profile", coordinator_id, auth)

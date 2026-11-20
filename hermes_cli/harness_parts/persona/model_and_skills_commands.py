@@ -24,7 +24,7 @@ from hermes_cli.flag_binding import list_flag_or_absent
 from .chat_coordinator import (
     _coordinator_actor_id,
     _coordinator_confirm_payload,
-    _coordinator_scope_from_args,
+    _coordinator_scope,
 )
 from agent_runtime.persona_chat_session import _safe_chat_model_override_value, log_model_selection
 from .chat_target import _persona_by_id
@@ -183,8 +183,7 @@ def _cmd_persona_instance_set_model(args) -> int:
         return 2
     coordinator_id = _coordinator_actor_id(args)
     if coordinator_id:
-        persona = _persona_by_id(cfg, target.persona_id)
-        scope = _coordinator_scope_from_args(args, cfg, persona)
+        scope = _coordinator_scope(coordinator_id)
         auth = review_coordinator_budget("persona.instance.set_model", scope, target, actor=coordinator_id, coordinator_id=coordinator_id)
         if not auth.ok:
             data = _coordinator_confirm_payload("persona.instance.set_model", coordinator_id, auth)

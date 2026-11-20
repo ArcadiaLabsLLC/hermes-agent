@@ -39,7 +39,8 @@ from agent_runtime.persona_chat_mints import PersonaChatMintError
 from .chat_coordinator import (
     _coordinator_actor_id,
     _coordinator_confirm_payload,
-    _coordinator_scope_from_args,
+    _coordinator_scope,
+    _coordinator_spawn_refusal,
     _maybe_stamp_spawned_by,
 )
 from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
@@ -92,7 +93,7 @@ def _cmd_persona_instance_open_chat(args) -> int:
     coordinator_id = _coordinator_actor_id(args)
     coordinator_scope = None
     if coordinator_id and bool(getattr(args, "add_instance", False)):
-        coordinator_scope = _coordinator_scope_from_args(args, cfg, persona)
+        coordinator_scope = _coordinator_scope(coordinator_id)
         auth = review_coordinator_budget(
             "persona.instance.open_chat",
             coordinator_scope,
@@ -100,8 +101,8 @@ def _cmd_persona_instance_open_chat(args) -> int:
             coordinator_id=coordinator_id,
         )
         if not auth.ok:
-            data = _coordinator_confirm_payload("persona.instance.open_chat", coordinator_id, auth)
-            _emit_persona_verb_payload(args, data, plain=data["status"])
+            data = _coordinator_spawn_refusal("persona.instance.open_chat", coordinator_id, auth)
+            _emit_persona_verb_payload(args, data, plain=data["message"])
             return 2
         coordinator_scope = auth.scope
     if bool(getattr(args, "new_session", False)):

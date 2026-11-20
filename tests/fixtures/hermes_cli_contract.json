@@ -8085,46 +8085,6 @@
           "required": false,
           "type": null
         },
-        "--coordinator-max-spawns": {
-          "action": "store",
-          "canonical": "--coordinator-max-spawns",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
-        "--coordinator-may-kill-others": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-others",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-may-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-no-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-no-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-spawns-used": {
-          "action": "store",
-          "canonical": "--coordinator-spawns-used",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
         "--display-name": {
           "action": "store",
           "canonical": "--display-name",
@@ -8258,46 +8218,6 @@
           "required": false,
           "type": null
         },
-        "--coordinator-max-spawns": {
-          "action": "store",
-          "canonical": "--coordinator-max-spawns",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
-        "--coordinator-may-kill-others": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-others",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-may-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-no-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-no-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-spawns-used": {
-          "action": "store",
-          "canonical": "--coordinator-spawns-used",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
         "--correlation-id": {
           "action": "store",
           "canonical": "--correlation-id",
@@ -8383,46 +8303,6 @@
           "nargs": 1,
           "required": false,
           "type": null
-        },
-        "--coordinator-max-spawns": {
-          "action": "store",
-          "canonical": "--coordinator-max-spawns",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
-        "--coordinator-may-kill-others": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-others",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-may-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-no-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-no-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-spawns-used": {
-          "action": "store",
-          "canonical": "--coordinator-spawns-used",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
         },
         "--correlation-id": {
           "action": "store",
@@ -8643,46 +8523,6 @@
           "required": false,
           "type": null
         },
-        "--coordinator-max-spawns": {
-          "action": "store",
-          "canonical": "--coordinator-max-spawns",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
-        "--coordinator-may-kill-others": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-others",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-may-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-no-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-no-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-spawns-used": {
-          "action": "store",
-          "canonical": "--coordinator-spawns-used",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
         "--correlation-id": {
           "action": "store",
           "canonical": "--correlation-id",
@@ -8839,46 +8679,6 @@
           "required": false,
           "type": null
         },
-        "--coordinator-max-spawns": {
-          "action": "store",
-          "canonical": "--coordinator-max-spawns",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
-        "--coordinator-may-kill-others": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-others",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-may-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-no-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-no-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-spawns-used": {
-          "action": "store",
-          "canonical": "--coordinator-spawns-used",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
         "--help": {
           "action": "help",
           "canonical": "--help",
@@ -8989,46 +8789,6 @@
           "required": false,
           "type": null
         },
-        "--coordinator-max-spawns": {
-          "action": "store",
-          "canonical": "--coordinator-max-spawns",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
-        "--coordinator-may-kill-others": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-others",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-may-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-no-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-no-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-spawns-used": {
-          "action": "store",
-          "canonical": "--coordinator-spawns-used",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
         "--detach": {
           "action": "store_true",
           "canonical": "--detach",
@@ -9138,46 +8898,6 @@
           "nargs": 1,
           "required": false,
           "type": null
-        },
-        "--coordinator-max-spawns": {
-          "action": "store",
-          "canonical": "--coordinator-max-spawns",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
-        },
-        "--coordinator-may-kill-others": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-others",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-may-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-may-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-no-kill-own": {
-          "action": "store_true",
-          "canonical": "--coordinator-no-kill-own",
-          "choices": null,
-          "nargs": 0,
-          "required": false,
-          "type": null
-        },
-        "--coordinator-spawns-used": {
-          "action": "store",
-          "canonical": "--coordinator-spawns-used",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": "int"
         },
         "--current-chat-goal": {
           "action": "store",

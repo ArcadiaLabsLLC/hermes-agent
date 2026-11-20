@@ -145,8 +145,19 @@ def test_an_agents_terminal_carries_its_chat_session(monkeypatch):
 def test_an_agents_terminal_retire_records_that_agent_not_you(qa_persona, seeded_workspace, capsys, monkeypatch):
     # Mutation: drop the session check in ``request_actor`` -> the agent's own ``--requested-by
     # operator`` wins, the receipt reads "operator" and the first assert reds.
+    from agent_runtime.agent_create import perform_agent_place
+    from agent_runtime.models import AutonomyLevel
+    from agent_runtime.store import AgentStore
+
+    # Since review w1118a.62 D1 the terminal's agent is also held to its coordinator scope: an
+    # autonomous agent may retire a seat it spawned itself (an operator-placed one asks you).
+    qa_persona.autonomy = AutonomyLevel.AUTONOMOUS
+    AgentStore().save(qa_persona)
     lead = _place("qa_lead_agent_9")
-    placed = _place()
+    placed = perform_agent_place(
+        {"persona_id": "qa", "workspace_id": WORKSPACE, "idempotency_key": "lead-spawned"},
+        requested_by=lead["persona_instance_id"],
+    ).result
     monkeypatch.setenv("HERMES_SESSION_ID", lead["default_chat_session_id"])
 
     ack = _cli(["harness", "persona", "instance", "retire", placed["persona_instance_id"],

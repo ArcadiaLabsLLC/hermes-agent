@@ -453,19 +453,17 @@ def test_coordinator_create_beyond_spawn_scope_returns_confirm_without_creating(
 
     cfg = _assignment_config()
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
+    # The coordinator's scope is its own instance's, read from the store (review w1118a.62 D1): a
+    # propose-only agent's budget is zero, and no argv grants it more.
+    coordinator = PersonaInstanceStore().ensure_for_persona(_persona("neko_supervisor"))
 
     code = lifecycle_commands._cmd_persona_instance_create(
         Namespace(
             persona_id="dev",
             title="Spawn Dev",
             message="Start a child.",
-            requested_by="coordinator:neko_supervisor",
-            coordinator_id="neko_supervisor",
-            coordinator_max_spawns=0,
-            coordinator_spawns_used=0,
-            coordinator_may_kill_own=None,
-            coordinator_no_kill_own=None,
-            coordinator_may_kill_others=None,
+            requested_by=f"coordinator:{coordinator.id}",
+            coordinator_id=None,
             client_message_id=None,
             display_name="Spawned Dev",
             session_id=None,
@@ -479,7 +477,7 @@ def test_coordinator_create_beyond_spawn_scope_returns_confirm_without_creating(
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "needs_operator_confirm"
     assert payload["reason"] == "spawn_scope_exhausted"
-    assert PersonaInstanceStore().list_all() == []
+    assert [i.id for i in PersonaInstanceStore().list_all()] == [coordinator.id]
 
 
 def test_persona_instance_steer_cli_attaches_parent_and_goal(monkeypatch, isolate_agent_runtime_root):
@@ -501,11 +499,6 @@ def test_persona_instance_steer_cli_attaches_parent_and_goal(monkeypatch, isolat
             detach=False,
             requested_by="operator",
             coordinator_id="neko_supervisor",
-            coordinator_max_spawns=None,
-            coordinator_spawns_used=0,
-            coordinator_may_kill_own=None,
-            coordinator_no_kill_own=None,
-            coordinator_may_kill_others=None,
             json=True,
         )
     )
@@ -538,11 +531,6 @@ def test_persona_instance_steer_cli_detaches_to_standalone(monkeypatch, isolate_
             detach=True,
             requested_by="operator",
             coordinator_id="neko_supervisor",
-            coordinator_max_spawns=None,
-            coordinator_spawns_used=0,
-            coordinator_may_kill_own=None,
-            coordinator_no_kill_own=None,
-            coordinator_may_kill_others=None,
             json=True,
         )
     )
@@ -571,11 +559,6 @@ def test_persona_instance_steer_cli_rejects_self_steer(monkeypatch, capsys, isol
             detach=False,
             requested_by="operator",
             coordinator_id="neko_supervisor",
-            coordinator_max_spawns=None,
-            coordinator_spawns_used=0,
-            coordinator_may_kill_own=None,
-            coordinator_no_kill_own=None,
-            coordinator_may_kill_others=None,
             json=True,
         )
     )
@@ -602,11 +585,6 @@ def test_persona_instance_steer_cli_rejects_missing_parent(monkeypatch, capsys, 
             detach=False,
             requested_by="operator",
             coordinator_id="neko_supervisor",
-            coordinator_max_spawns=None,
-            coordinator_spawns_used=0,
-            coordinator_may_kill_own=None,
-            coordinator_no_kill_own=None,
-            coordinator_may_kill_others=None,
             json=True,
         )
     )

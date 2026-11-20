@@ -444,11 +444,6 @@ def test_retire_cli_happy_path_archives_row(monkeypatch, isolate_agent_runtime_r
             reason="placement deleted",
             requested_by="operator",
             coordinator_id=None,
-            coordinator_max_spawns=None,
-            coordinator_spawns_used=0,
-            coordinator_may_kill_own=None,
-            coordinator_no_kill_own=None,
-            coordinator_may_kill_others=None,
             json=True,
         )
     )
@@ -472,11 +467,6 @@ def test_retire_cli_canonical_refusal_returns_typed_error(monkeypatch, capsys, i
             reason="placement deleted",
             requested_by="operator",
             coordinator_id=None,
-            coordinator_max_spawns=None,
-            coordinator_spawns_used=0,
-            coordinator_may_kill_own=None,
-            coordinator_no_kill_own=None,
-            coordinator_may_kill_others=None,
             json=True,
         )
     )
@@ -503,11 +493,6 @@ def test_retire_cli_coordinator_operator_placed_needs_confirm(monkeypatch, capsy
             reason="coordinator tried retiring operator placement",
             requested_by="coordinator:neko_supervisor",
             coordinator_id="neko_supervisor",
-            coordinator_max_spawns=0,
-            coordinator_spawns_used=0,
-            coordinator_may_kill_own=True,
-            coordinator_no_kill_own=None,
-            coordinator_may_kill_others=True,
             json=True,
         )
     )

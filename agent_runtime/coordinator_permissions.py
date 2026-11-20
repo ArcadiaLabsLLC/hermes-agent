@@ -13,17 +13,16 @@ shape is unmistakable — ``_coordinator_confirm_payload`` in
 autonomous agent and a destructive action, and it is well shaped for that.
 
 **Why it is not authorization, stated so no future stage designs around a
-fiction.** The request carries BOTH the identity being checked and the grant it
-is checked against:
-
-* the identity is ``--requested-by`` (``_coordinator_actor_id``), which is argv;
-* the scope is seeded from the persona's ``autonomy`` and then OVERRIDDEN by four
-  argv flags (``--coordinator-max-spawns``, ``--coordinator-may-kill-own``,
-  ``--coordinator-no-kill-own``, ``--coordinator-may-kill-others``);
-* and :data:`OPERATOR_ACTORS` short-circuits everything on a NAME.
-
-Every input a caller could lie about is one the caller supplies. That is a
-self-declaration protocol, and no remote device can be held to one.
+fiction.** It runs as the same OS user as the agent it reviews. At the CLI
+doors the identity is the agent whose terminal runs the verb (its chat
+session's ``HERMES_SESSION_ID``), else ``--requested-by`` from the operator's
+own shell (``chat_coordinator._coordinator_actor_id``); the scope is read only
+from the store and the settings (``agent_create.staff.coordinator_scope``) —
+the four argv flags that once widened it are gone (review w1118a.62 D1). But
+an agent with a raw shell can still strip its session id or write the store,
+and :data:`OPERATOR_ACTORS` short-circuits everything on a NAME. That is a
+guard on the honest path, not a sandbox; the boundary against a hostile agent
+is the terminal's command approval.
 
 **Where authorization actually runs.** ``agent_runtime.call_authorization``, at
 the front door: a tier declared per method, evaluated against what the transport
