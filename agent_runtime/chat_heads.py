@@ -55,7 +55,8 @@ def resolve_conversation_chat_scope(
     the caller's pin — through :func:`resolve_instance_chat_scope`. A session
     whose owner cannot be derived (a legacy opaque id) asks the ladder, and keeps
     its answer only when a ``per_profile`` record gave it. A named owner with no
-    row (an instance being created) has no record to ask: given its
+    row (an instance being created), or with a row never bound (no chat pointer, no
+    head), has no record to ask: given its
     ``persona_id``, it answers the head its first bind will record
     (:func:`first_bind_chat_head`), so the root a create mints lands where the
     bind then stamps it; without one, the process scope. Everything else is the
@@ -67,8 +68,16 @@ def resolve_conversation_chat_scope(
     named = owner or str(persona_instance_id or "").strip()
     if instance is None:
         instance = _load_instance(named, instance_store)
-    if instance is not None:
+    if instance is not None and not _never_bound(instance):
         return _scope.resolve_instance_chat_scope(instance)
+    if instance is not None:
+        # A row that exists but was never bound (the canonical row every snapshot mints, a placed
+        # agent before its first chat) is the no-row case: its first turn's bind stamps the head
+        # ``first_bind_chat_head`` answers, so the turn writes there too
+        # (RT-FU-AN-AGENTS-FIRST-CHAT-IS-WRITTEN-TO-THE-SHARED-STORE-NOT-ITS-OWN: the first chat
+        # went to ``profiles/base`` while the bind recorded the agent's own profile).
+        named = str(getattr(instance, "id", "") or named)
+        persona_id = str(getattr(instance, "persona_id", "") or persona_id or "")
     if named and persona_id and (
         head := first_bind_chat_head(instance_id=named, persona_id=persona_id, session_id=session_id)
     ):
@@ -80,11 +89,20 @@ def resolve_conversation_chat_scope(
                 head_kind=_per_profile_kind(),
             ),
         )
+    if instance is not None:
+        return _scope.resolve_instance_chat_scope(instance)
     if session_id and str(session_id).strip() and not owner:
         scope = _scope.resolve_chat_session_scope(session_id=str(session_id))
         if scope.per_profile:
             return scope
     return _scope.resolve_process_chat_scope()
+
+
+def _never_bound(instance: Any) -> bool:
+    """Whether ``instance`` has no chat pointer and no recorded head: the one bind that may stamp
+    ``per_profile`` is its next (``persona_assignments.chat_binding.open_chat``'s ``first_bind``)."""
+
+    return not getattr(instance, "default_chat_session_id", None) and not getattr(instance, "chat_head_home", None)
 
 
 def _derived_owner(session_id: str | None) -> str:
