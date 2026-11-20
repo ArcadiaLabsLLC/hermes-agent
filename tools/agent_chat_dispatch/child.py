@@ -321,13 +321,24 @@ _RELAY_REACH_REWRITE = (
     "Nothing was executed. Ask the agent directly, or do it yourself."
 )
 
+_BUSY_TARGET_REWRITE = (
+    "Not delivered: they were still busy with another turn for the whole time this waited, "
+    "so this message never ran and they have not seen it. If that turn is work you sent them, "
+    "stop it with agent_chat_dispatches(cancel=\"<its dispatch_id>\") and send this again; "
+    "otherwise send it again once they are free."
+)
+
 #: The refusals whose guidance is lane-specific, by ``error_kind`` (rule 12).
-#: The kinds are ``agent_runtime.relay_policy``'s (recorded in
+#: The relay kinds are ``agent_runtime.relay_policy``'s (recorded in
 #: ``mission_chat_outcome.DELEGATED_ERROR_KIND_SOURCES``); named here, their one
 #: reader, rather than minted as an Enum — they ride every chat payload as
-#: strings. Every other kind passes through verbatim.
+#: strings. ``chat_busy`` is ``ChatErrorKind.CHAT_BUSY``'s value. Every other kind
+#: passes through verbatim.
 _LANE_REWRITES: Mapping[str, str] = {
     "relay_budget_exhausted": _RELAY_BUDGET_REWRITE,
     "relay_cycle": _RELAY_REACH_REWRITE,
     "relay_depth_limit": _RELAY_REACH_REWRITE,
+    # The supervisor waits out a busy target (``local._wait_for_busy_target``); this is
+    # read only when the target was still busy at the end of the dispatch's waiting time.
+    "chat_busy": _BUSY_TARGET_REWRITE,
 }
