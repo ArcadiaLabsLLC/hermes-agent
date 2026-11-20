@@ -369,7 +369,9 @@ def _delivery_block(row: dict[str, Any]) -> dict[str, Any]:
     ``state != running``, so a FAILED dispatch is delivered exactly like a
     successful one and only the prose body says which. A consumer without this
     would have to read that prose to phrase its own notification, which is the
-    sentence-matching the typed marker exists to retire.
+    sentence-matching the typed marker exists to retire. A message a busy
+    teammate never ran is ``not_delivered`` here, not ``error``
+    (``dispatch_delivery.vocabulary.DELIVERY_STATE_NOT_DELIVERED``).
     """
 
     return {

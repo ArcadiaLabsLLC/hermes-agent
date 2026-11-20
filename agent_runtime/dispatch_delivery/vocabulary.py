@@ -305,6 +305,40 @@ def delivery_requested_by(
     return value
 
 
+#: The delivery outcome of a dispatch whose message never ran: its target stayed
+#: busy with another turn for the whole wait (``tools/agent_chat_dispatch/local.py``
+#: ``_wait_for_busy_target``). The dispatch ROW stays ``error`` — the store's own
+#: vocabulary is unchanged — and only the delivery's ``state`` segment, and so the
+#: delivery block's ``state``, says it (RT-DELIVERY-BLOCK-SAYS-A-MESSAGE-NEVER-RAN-
+#: AS-A-TYPED-FIELD). A reader that predates the word reads it as ``unknown``,
+#: never as success, and the error's words still say "Not delivered".
+DELIVERY_STATE_NOT_DELIVERED = "not_delivered"
+
+
+def never_ran_error_kinds() -> frozenset[str]:
+    """``error_kind`` values on an ``error`` row that mean the message never ran."""
+
+    from ..mission_chat_outcome import ChatErrorKind
+
+    return frozenset({str(ChatErrorKind.CHAT_BUSY)})
+
+
+def delivery_outcome_state(row: dict[str, Any]) -> str:
+    """The ``state`` a dispatch row's delivery carries: the row's own state,
+    except :data:`DELIVERY_STATE_NOT_DELIVERED` for an ``error`` whose recorded
+    ``error_kind`` says the message never ran. A row written before the kind was
+    recorded keeps its plain ``error``."""
+
+    from ..dispatch_store.models import STATE_ERROR
+
+    state = str(row.get("state") or "")
+    result = row.get("result") or {}
+    kind = str(result.get("error_kind") or "") if isinstance(result, dict) else ""
+    if state == STATE_ERROR and kind in never_ran_error_kinds():
+        return DELIVERY_STATE_NOT_DELIVERED
+    return state
+
+
 def parse_delivery_requested_by(value):
     """Decode a ``requested_by`` value into a ``HarnessDeliveryOrigin`` or None.
 

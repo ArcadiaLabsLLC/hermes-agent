@@ -37,6 +37,7 @@ from .vocabulary import (
     ORPHAN_SWEEP_INTERVAL_SECONDS,
     bounce_reason,
     delivery_client_message_id,
+    delivery_outcome_state,
     terminal_forge_rejections,
     transient_forge_refusals,
 )
@@ -211,7 +212,9 @@ class DispatchDrain:
                 client_message_id=delivery_client_message_id(dispatch_id),
                 dispatch_id=dispatch_id,
                 notify_operator=bool(row.get("notify_operator")),
-                state=str(row.get("state") or ""),
+                # "not_delivered" for a message that never ran, typed rather than
+                # left to the error's words (RT-DELIVERY-BLOCK-SAYS-A-MESSAGE-NEVER-RAN-AS-A-TYPED-FIELD).
+                state=delivery_outcome_state(row),
                 # RT-DELIVERY-MARKER-NO-TARGET-SESSION: the thread the
                 # delivered row's "Open thread" opens, typed, not in prose.
                 target_session_id=str(row.get("target_session_id") or ""),

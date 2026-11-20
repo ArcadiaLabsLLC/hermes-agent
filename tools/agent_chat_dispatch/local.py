@@ -550,6 +550,10 @@ def _settle_local(
         # The teammate's clarify question and its token, or the delivery hands
         # the asking agent a question it has no token to answer on.
         clarify_request=payload.get("clarify_request"),
+        # The child's typed refusal (``chat_busy``: the target stayed busy for the
+        # whole wait, so the message never ran) — the delivery reads it, never the
+        # rewrite's words (RT-DELIVERY-BLOCK-SAYS-A-MESSAGE-NEVER-RAN-AS-A-TYPED-FIELD).
+        error_kind="" if ok else str(payload.get("error_kind") or ""),
     )
 
 
