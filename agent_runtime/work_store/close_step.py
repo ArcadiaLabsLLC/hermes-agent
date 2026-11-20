@@ -22,18 +22,17 @@ from .grammar import (
     parse_outcome, split_segments,
 )
 from .tasks import (
-    SIBLING_QUEUE_DIRS, archived_rows, owning_task, siblings_visible, subtasks_of, task_status_after_close,
+    BRAIN_QUEUE_DIRS, archived_rows, owning_task, siblings_visible, subtasks_of, task_status_after_close,
 )
 from .wake import OWN_BRAIN, unblocked_segment, wake_dependents
 
 __layer__ = "policy"
-__all__ = ["THREE_BRAINS", "Closed", "archive_row", "brain_siblings", "brains", "close_and_step", "follow_up_lines",
-           "live_rows"]
+__all__ = ["THREE_BRAINS", "Closed", "archive_row", "brain_of_folder", "brain_siblings", "brains", "close_and_step",
+           "follow_up_lines", "live_rows"]
 
 #: The brain folders of the three repositories, whose tasks may hold subtasks in one another: hermes's own and
-#: each sibling's (:data:`agent_runtime.work_store.tasks.SIBLING_QUEUE_DIRS`).
-THREE_BRAINS = {"hermes": "Harness_Brain",
-                **{brain: relative.split("/")[1] for brain, relative in SIBLING_QUEUE_DIRS.items()}}
+#: each sibling's (:data:`agent_runtime.work_store.tasks.BRAIN_QUEUE_DIRS`).
+THREE_BRAINS = {brain: relative.split("/")[1] for brain, relative in BRAIN_QUEUE_DIRS.items()}
 
 
 @dataclass
@@ -54,14 +53,22 @@ class Closed:
     said: list[str] = field(default_factory=list)
 
 
-def live_rows(texts: dict[Path, str]) -> list[Row]:
-    return [row for path, text in texts.items() for row in parse_note(text, slot=OWN_BRAIN, note=str(path))]
+def live_rows(texts: dict[Path, str], own: str = OWN_BRAIN) -> list[Row]:
+    # MUTATION: ``slot=OWN_BRAIN`` and test_a_launcher_board_close_of_the_last_subtask_archives_its_task reddens.
+    return [row for path, text in texts.items() for row in parse_note(text, slot=own, note=str(path))]
 
 
-def brains(texts: dict[Path, str], siblings: dict[str, list[Row]]) -> list[Row]:
-    """Every live row of this brain (slot ``hermes``) then of each sibling brain read — work order."""
+def brains(texts: dict[Path, str], siblings: dict[str, list[Row]], own: str = OWN_BRAIN) -> list[Row]:
+    """Every live row of this brain (slot ``own``, ``hermes`` by default) then of each sibling brain read — work
+    order."""
 
-    return live_rows(texts) + [row for rows in siblings.values() for row in rows]
+    return live_rows(texts, own) + [row for rows in siblings.values() for row in rows]
+
+
+def brain_of_folder(brain_folder: str) -> str | None:
+    """Which of :data:`THREE_BRAINS` the brain folder ``brain_folder`` (``Launcher_Brain``) is, or None."""
+
+    return next((brain for brain, folder in THREE_BRAINS.items() if folder == brain_folder), None)
 
 
 def brain_siblings(brain_folder: str, siblings: dict[str, list[Row]]) -> tuple[dict[str, list[Row]], bool]:
@@ -71,12 +78,13 @@ def brain_siblings(brain_folder: str, siblings: dict[str, list[Row]]) -> tuple[d
     - A brain outside :data:`THREE_BRAINS` (a workspace's own Work brain, a user's repo) shares no task with them:
       no sibling is read, and its tasks are judged on its own rows (visible).
     - One of the three reads the others found beside the checkout (:func:`agent_runtime.work_store.tasks.
-      sibling_rows` finds the launcher's and the backend's): the sibling copy of ITSELF is dropped (its rows are
-      this close's own notes, before the close), and it is fully read only when each other brain was — hermes's is
-      never a sibling, so a close in the launcher's or the backend's brain leaves its tasks judged not fully read.
+      sibling_rows` with ``dirs=BRAIN_QUEUE_DIRS`` finds all three): the sibling copy of ITSELF is dropped (its rows
+      are this close's own notes, before the close), and it is fully read only when each other brain was — a close
+      in the launcher's brain needs hermes's and the backend's beside it
+      (RT-A-BOARD-CLOSE-IN-THE-LAUNCHER-OR-BACKEND-BRAIN-NEVER-ARCHIVES-ITS-TASK).
     """
 
-    own = next((brain for brain, folder in THREE_BRAINS.items() if folder == brain_folder), None)
+    own = brain_of_folder(brain_folder)
     if own is None:
         return {}, True
     # MUTATION: keep the brain's own sibling copy and test_a_close_in_the_launcher_brain_reads_itself_once reds.
@@ -152,14 +160,17 @@ def follow_up_lines(task: Row, rows: list[Row]) -> list[str]:
 
 def _close_task(repo: Path, queue_dir: Path, closed: Row, task: Row, texts: dict[Path, str],
                 archives: dict[Path, str], payload: dict, siblings: dict[str, list[Row]], who: str, *, visible: bool,
-                today: str) -> list[str]:
+                today: str, own: str) -> list[str]:
     """D7: archive ``task``, left with no open subtask by ``closed``'s close; what was done, as lines."""
 
     if not visible:
-        missing = ", ".join(sorted(set(SIBLING_QUEUE_DIRS) - set(siblings)))
+        # MUTATION: `set(BRAIN_QUEUE_DIRS) - set(siblings)` and test_a_launcher_close_without_hermes_beside_it_says_so
+        # reddens (it names the launcher's own brain as missing).
+        missing = ", ".join(sorted(set(BRAIN_QUEUE_DIRS) - set(siblings) - {own}))
         return [f"task `{task.ref.id}` has no open subtask here, but the {missing} brain is not checked out beside "
                 "this repository: left open"]
-    if task.ref.slot != OWN_BRAIN:
+    # MUTATION: compare with ``OWN_BRAIN`` and test_a_launcher_close_leaves_a_task_in_hermess_brain_to_hermes reddens.
+    if task.ref.slot != own:
         return [f"task `{task.ref.id}` ({task.ref.slot}) has no open subtask left: close it there with its close tool"]
     counted = archived_rows(queue_dir) + [
         row for text in archives.values() for row in parse_note(text, slot="", note="", archived=True)]
@@ -173,42 +184,42 @@ def _close_task(repo: Path, queue_dir: Path, closed: Row, task: Row, texts: dict
                                  archives, today=today)
     done_as = f"CLOSED {payload['date']}" if by_owner else f"DONE {payload['date']} {payload['commit']}"
     # MUTATION: drop the follow-up lines and test_closing_a_task_lists_its_open_follow_up_rows reddens.
-    return [f"closed task `{task.ref.id}` {done_as}: {words}", *follow_up_lines(task, brains(texts, siblings))]
+    return [f"closed task `{task.ref.id}` {done_as}: {words}", *follow_up_lines(task, brains(texts, siblings, own))]
 
 
 def _task_step(repo: Path, queue_dir: Path, closed: Row, woken: list[str], texts: dict[Path, str],
                archives: dict[Path, str], payload: dict, siblings: dict[str, list[Row]], who: str, how: str, *,
-               visible: bool, today: str) -> list[str]:
+               visible: bool, today: str, own: str) -> list[str]:
     """After a close: the task of the closed row and of every row it woke, judged from the queues as they now stand
     (the launcher's ``close_row.dart::_taskStep``). D7 archives a task left with no open subtask; otherwise its
     status follows its subtasks (:func:`task_status_after_close`). ``texts`` / ``archives`` are edited in place;
     what was done comes back as lines."""
 
-    rows = brains(texts, siblings)
-    by_id = {row.ref.id: row for row in live_rows(texts)}
+    rows = brains(texts, siblings, own)
+    by_id = {row.ref.id: row for row in live_rows(texts, own)}
     tasks = {row.task for row in rows if row.task is not None}
     slugs = [owning_task(closed.group, tasks) if closed.group else None]
     slugs += [by_id[row_id].task or (owning_task(by_id[row_id].group, tasks) if by_id[row_id].group else None)
               for row_id in woken if row_id in by_id]
     said: list[str] = []
     for slug in dict.fromkeys(s for s in slugs if s is not None):
-        rows = brains(texts, siblings)
+        rows = brains(texts, siblings, own)
         task = next((row for row in rows if row.task == slug), None)
         if task is None:
             continue
         subtasks = subtasks_of(task, rows)
         if slug == slugs[0] and not subtasks:
             said += _close_task(repo, queue_dir, closed, task, texts, archives, payload, siblings, who,
-                                visible=visible, today=today)
+                                visible=visible, today=today, own=own)
             continue
-        if slug == slugs[0] and all(s.ref.slot != OWN_BRAIN for s in subtasks):
+        if slug == slugs[0] and all(s.ref.slot != own for s in subtasks):
             said += [f"task `{task.ref.id}` stays open: `{s.ref.id}` is still open in {s.ref.slot}" for s in subtasks]
         status = task_status_after_close(task, subtasks, all_visible=visible, closed_id=closed.ref.id,
                                          date=payload["date"], unblocked=unblocked_segment(closed.ref.id,
                                                                                            payload["date"], how))
         if status is None:
             continue
-        if task.ref.slot != OWN_BRAIN:
+        if task.ref.slot != own:
             said.append(f"task `{task.ref.id}` ({task.ref.slot}): set it to `{status[0]}` there")
             continue
         note = Path(task.ref.note)
@@ -219,7 +230,7 @@ def _task_step(repo: Path, queue_dir: Path, closed: Row, woken: list[str], texts
 
 def close_and_step(repo: Path, note: Path, texts: dict[Path, str], row_id: str, who: str, payload: dict,
                    siblings: dict[str, list[Row]], *, today: str, wake: bool = True,
-                   visible: bool | None = None) -> Closed:
+                   visible: bool | None = None, own: str = OWN_BRAIN) -> Closed:
     """Close ``row_id`` of ``note`` (a key of ``texts``, every live queue note of this brain under ``repo``): its
     line archived with ``payload``'s outcome (``Op.CLOSE``), every row of this brain BLOCKED on it woken or
     re-pointed (:func:`agent_runtime.work_store.wake.wake_dependents`; ``wake=False`` leaves them, ``stranded``),
@@ -227,19 +238,22 @@ def close_and_step(repo: Path, note: Path, texts: dict[Path, str], row_id: str, 
     brains' live rows (:func:`agent_runtime.work_store.tasks.sibling_rows`): a task in one is that brain's to move.
     ``visible`` says whether every brain a task's subtasks may live in was read (default: both siblings were,
     :func:`agent_runtime.work_store.tasks.siblings_visible`; :func:`brain_siblings` for a brain that is not
-    hermes's) — a task is archived, or BLOCKED on its waiting subtasks, only then. ``payload`` gets its ``date`` from
+    hermes's) — a task is archived, or BLOCKED on its waiting subtasks, only then. ``own`` is which of
+    :data:`THREE_BRAINS` the notes are (:func:`brain_of_folder`; ``hermes`` by default): their rows carry it as
+    their slot, so a sibling brain's rows — hermes's, for a close in the launcher's brain — are never taken for
+    this brain's own. ``payload`` gets its ``date`` from
     ``today`` when it has none. ``texts`` is copied, never edited."""
 
     payload = {**payload, "date": payload.get("date") or today}
     texts = dict(texts)
     archives: dict[Path, str] = {}
-    closed = find(parse_note(texts[note], slot=OWN_BRAIN, note=str(note)), row_id)
+    closed = find(parse_note(texts[note], slot=own, note=str(note)), row_id)
     closed_by_owner = payload["outcome"] == OutcomeKind.CLOSED
     how = OutcomeKind.CLOSED.value if closed_by_owner else f"{payload['outcome']} {payload['commit']}"
     texts[note], _ = archive_row(repo, note, texts[note], row_id, who, payload, archives, today=today)
     done = Closed(texts, archives)
-    live_ids = {row.ref.id for row in brains(texts, siblings)}
-    own_live_ids = {row.ref.id for row in live_rows(texts)}
+    live_ids = {row.ref.id for row in brains(texts, siblings, own)}
+    own_live_ids = {row.ref.id for row in live_rows(texts, own)}
     for path, current in texts.items():
         stepped = wake_dependents(current, row_id, payload["date"], how, live_ids=live_ids,
                                   own_live_ids=own_live_ids, wake=wake)
@@ -251,5 +265,5 @@ def close_and_step(repo: Path, note: Path, texts: dict[Path, str], row_id: str, 
     visible = siblings_visible(siblings) if visible is None else visible
     # MUTATION: skip the task step and test_an_owner_close_from_the_board_steps_its_task_and_wakes_its_waiter reds.
     done.said = _task_step(repo, note.parent, closed, [i for ids in done.woken.values() for i in ids], texts,
-                           archives, payload, siblings, who, how, visible=visible, today=today)
+                           archives, payload, siblings, who, how, visible=visible, today=today, own=own)
     return done

@@ -49,12 +49,13 @@ from .. import paths
 from . import receipts
 from .board import Board, board_rows, ids_in_brain, notes
 from .checked_out import advance
-from .close_step import brain_siblings, close_and_step
+from .close_step import brain_of_folder, brain_siblings, close_and_step
 from .default_brain import IDENTITY_PAIRS
 from .grammar import Op, Row, RowRef, apply as apply_line, find, local_day, parse_note, row_defects
 from .models import OPERATOR
 from .reasons import Reason, WorkRefused
-from .tasks import sibling_rows, siblings_visible, write_task_defects
+from .tasks import BRAIN_QUEUE_DIRS, sibling_rows, write_task_defects
+from .wake import OWN_BRAIN
 
 __layer__ = "stores"
 __all__ = ["OPERATOR", "REPLAY_BUDGET", "Receipt", "RowOp", "Writer", "checkout_token", "drop_worktrees", "remove_worktree",
@@ -641,6 +642,22 @@ class Writer:
         _write_atomic(path, updated)
         return [op.ref.note, *written]
 
+    def _siblings(self) -> tuple[dict[str, list[Row]], bool, str]:
+        """The other brains this board's brain reads beside its checkout, whether every brain its tasks may span
+        was read, and which of the three brains it is (``hermes`` for one that is none of them).
+
+        Every brain is looked for, hermes's too: a board in the launcher's or the backend's brain needs it, and its
+        own copy found beside the checkout is dropped (:func:`brain_siblings`;
+        RT-A-BOARD-CLOSE-IN-THE-LAUNCHER-OR-BACKEND-BRAIN-NEVER-ARCHIVES-ITS-TASK)."""
+
+        brain = PurePosixPath(self.board.brain_dir or "").parts[:1]
+        folder = brain[0] if brain else ""
+        # MUTATION: drop ``dirs=BRAIN_QUEUE_DIRS`` and test_a_launcher_board_close_of_the_last_subtask_archives_its_task
+        # reddens.
+        found, visible = brain_siblings(folder, sibling_rows(self.board.checkout or self.worktree,
+                                                             dirs=BRAIN_QUEUE_DIRS))
+        return found, visible, brain_of_folder(folder) or OWN_BRAIN
+
     def _close(self, op: RowOp) -> list[str]:
         """CLOSE: the archived line appended to its month file (created with the archive head) and the live line
         dropped, both in this one commit (RT-QUEUE-ARCHIVE-GRAMMAR, launcher plan D2–D5) — and, in the same commit,
@@ -656,10 +673,9 @@ class Writer:
         board = replace(self.board, read_root=self.worktree)
         texts = {note: note.read_bytes().decode("utf-8") for note in notes(board)}
         texts[path] = text
-        brain = PurePosixPath(self.board.brain_dir or "").parts[:1]
-        found, visible = brain_siblings(brain[0] if brain else "", sibling_rows(self.board.checkout or self.worktree))
+        found, visible, own = self._siblings()
         done = close_and_step(self.worktree, path, texts, op.ref.id, op.who, dict(op.payload), found,
-                              today=local_day(self._now(), self._zone), visible=visible)
+                              today=local_day(self._now(), self._zone), visible=visible, own=own)
         changed: list[str] = []
         # The archives first: a failed write must never lose a row.
         for archive, archive_text in sorted(done.archives.items()):
@@ -764,9 +780,11 @@ class Writer:
             prior = self._git(["show", f"HEAD:{note}"], repo=self.worktree)
             written[note] = (prior.stdout if prior.returncode == 0 else "", path.read_bytes().decode("utf-8"))
         brain = [row for row in board_rows(replace(self.board, read_root=self.worktree)) if row.ref.note not in written]
-        siblings = sibling_rows(self.board.checkout or self.worktree)
+        # MUTATION: read ``sibling_rows`` raw (the board's own brain kept as its sibling) and
+        # test_a_launcher_board_close_without_hermes_beside_it_leaves_the_task_open reddens (TWO TASKS).
+        siblings, visible, _ = self._siblings()
         defects = write_task_defects(written, brain, [row for rows in siblings.values() for row in rows],
-                                     siblings_visible=siblings_visible(siblings))
+                                     siblings_visible=visible)
         if defects:
             self._reset_to_tip()
             self._git(["clean", "-fdq"], repo=self.worktree)

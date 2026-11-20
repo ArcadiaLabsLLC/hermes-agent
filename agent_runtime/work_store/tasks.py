@@ -5,7 +5,8 @@ Launcher plan ``EterniaLauncher/docs/mission_control/subsystems/QUEUE_TASKS_AND_
 slug (:attr:`grammar.Row.task`); a row with ``group: <slug>`` is a SUBTASK of the task that owns the slug — its own
 slug or a dotted prefix of it (a task owns ``<slug>`` and every ``<slug>.<sub>``). One task per slug across the
 brains; every row is a task or a subtask. The checks across brains run only where the siblings are visible:
-:func:`sibling_rows` reads the launcher's and the backend's live queues checked out beside this repository.
+:func:`sibling_rows` reads the launcher's and the backend's live queues checked out beside this repository (and,
+with ``dirs=BRAIN_QUEUE_DIRS``, hermes's too, for a close in a sibling brain's board).
 """
 
 from __future__ import annotations
@@ -30,6 +31,10 @@ SIBLING_QUEUE_DIRS = {
     "launcher": "EterniaLauncher/Launcher_Brain/20 — Active Initiatives",
     "backend": "eternia-backend/EterniaBackend_brain/20 — Active Initiatives",
 }
+#: Every brain's live queue directory, hermes's own with the siblings': what a close in a SIBLING brain (a board
+#: bound to the launcher's or the backend's checkout) reads beside it, hermes's included
+#: (RT-A-BOARD-CLOSE-IN-THE-LAUNCHER-OR-BACKEND-BRAIN-NEVER-ARCHIVES-ITS-TASK).
+BRAIN_QUEUE_DIRS = {"hermes": "hermes-agent/Harness_Brain/20 — Active Initiatives", **SIBLING_QUEUE_DIRS}
 #: The sibling checkouts a close may name as where its outcome commit lives (``--done <repo>@<sha>``).
 SIBLING_REPOS = tuple(dict.fromkeys(relative.split("/", 1)[0] for relative in SIBLING_QUEUE_DIRS.values()))
 #: Extra directories that may hold the checkouts (``:``-separated; ``;`` on Windows), the launcher's variable.
@@ -290,14 +295,16 @@ def _queue_rows(texts: Mapping[str, str], slot: str) -> dict[str, Row]:
             for row in parse_note(text, slot=slot, note=name)}
 
 
-def sibling_rows(repo: Path, environ: Mapping[str, str] | None = None) -> dict[str, list[Row]]:
-    """The live rows of each sibling brain checked out beside ``repo``, by brain (``launcher`` / ``backend``); a
-    brain not found is left out. Read from the working tree joined with ``origin/main``'s rows (a row either holds
-    is known; the ``origin/main`` copy wins)."""
+def sibling_rows(repo: Path, environ: Mapping[str, str] | None = None, *,
+                 dirs: Mapping[str, str] = SIBLING_QUEUE_DIRS) -> dict[str, list[Row]]:
+    """The live rows of each sibling brain checked out beside ``repo``, by brain (``launcher`` / ``backend``; with
+    ``dirs=BRAIN_QUEUE_DIRS`` hermes's too, for a close in a sibling brain); a brain not found is left out. Read
+    from the working tree joined with ``origin/main``'s rows (a row either holds is known; the ``origin/main`` copy
+    wins)."""
 
     found: dict[str, list[Row]] = {}
     for root in workspace_roots(repo, environ):
-        for brain, relative in SIBLING_QUEUE_DIRS.items():
+        for brain, relative in dirs.items():
             directory = root / relative
             if brain in found or not directory.is_dir():
                 continue

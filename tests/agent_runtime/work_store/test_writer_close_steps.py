@@ -14,9 +14,9 @@ from types import SimpleNamespace
 import pytest
 
 from agent_runtime.work_store.board import boards
-from agent_runtime.work_store.close_step import brain_siblings
+from agent_runtime.work_store.close_step import brain_siblings, close_and_step
 from agent_runtime.work_store.grammar import Op, RowRef, parse_note
-from agent_runtime.work_store.tasks import SIBLING_QUEUE_DIRS
+from agent_runtime.work_store.tasks import BRAIN_QUEUE_DIRS, SIBLING_QUEUE_DIRS
 from agent_runtime.work_store.writer import RowOp, Writer
 
 from work_store_support import bind_here, declare_slots, slot_decl
@@ -38,21 +38,22 @@ def git(*args: str, cwd: Path) -> str:
                           encoding="utf-8").stdout
 
 
-def _seed(tmp_path: Path, workspace: str, rows: str) -> SimpleNamespace:
+def _seed(tmp_path: Path, workspace: str, rows: str, *, note: str = NOTE, slot: str = "hermes",
+          clone_name: str = "clone") -> SimpleNamespace:
     origin = tmp_path / "origin.git"
     git("init", "-q", "--bare", "-b", "main", str(origin), cwd=tmp_path)
     seed = tmp_path / "seed"
     git("clone", "-q", str(origin), str(seed), cwd=tmp_path)
-    (seed / NOTE).parent.mkdir(parents=True)
-    (seed / NOTE).write_text(HEAD + rows, encoding="utf-8", newline="\n")
+    (seed / note).parent.mkdir(parents=True)
+    (seed / note).write_text(HEAD + rows, encoding="utf-8", newline="\n")
     git("add", "-A", cwd=seed)
     git("commit", "-q", "-m", "seed", cwd=seed)
     git("push", "-q", "origin", "main", cwd=seed)
-    clone = tmp_path / "clone"
+    clone = tmp_path / clone_name
     git("clone", "-q", str(origin), str(clone), cwd=tmp_path)
-    declare_slots(workspace, slot_decl("hermes"))
-    bind_here(workspace, hermes=clone)
-    board = next(b for b in boards(workspace) if b.slot == "hermes")
+    declare_slots(workspace, slot_decl(slot))
+    bind_here(workspace, **{slot: clone})
+    board = next(b for b in boards(workspace) if b.slot == slot)
     return SimpleNamespace(origin=origin, seed=seed, board=board)
 
 
@@ -62,17 +63,18 @@ def repo(tmp_path: Path, workspace: str, monkeypatch) -> SimpleNamespace:
     return _seed(tmp_path, workspace, ROWS)
 
 
-def _siblings_beside(tmp_path: Path) -> None:
-    """The launcher's and the backend's brains checked out beside the clone, each a queue holding no row of task p."""
+def _siblings_beside(tmp_path: Path, dirs=SIBLING_QUEUE_DIRS, rows: dict[str, str] | None = None) -> None:
+    """The ``dirs`` brains (by default the launcher's and the backend's) checked out beside the clone, each a queue
+    holding ``rows[brain]`` (by default no row of task p)."""
 
-    for relative in SIBLING_QUEUE_DIRS.values():
+    for brain, relative in dirs.items():
         directory = tmp_path / relative
-        directory.mkdir(parents=True)
-        (directory / "q.md").write_text(HEAD, encoding="utf-8", newline="\n")
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "q.md").write_text(HEAD + (rows or {}).get(brain, ""), encoding="utf-8", newline="\n")
 
 
-def _close(row_id: str, rid: str, **payload) -> RowOp:
-    return RowOp(RowRef("hermes", NOTE, row_id), Op.CLOSE, "operator", rid, payload)
+def _close(row_id: str, rid: str, *, slot: str = "hermes", note: str = NOTE, **payload) -> RowOp:
+    return RowOp(RowRef(slot, note, row_id), Op.CLOSE, "operator", rid, payload)
 
 
 def _at_origin(repo: SimpleNamespace, path: str) -> str:
@@ -144,8 +146,88 @@ def test_a_workspace_brain_judges_its_tasks_on_its_own_rows():
 
 def test_a_close_in_the_launcher_brain_reads_itself_once():
     """A board bound to the launcher's checkout finds its own brain among the siblings: that copy (its rows from
-    before the close) is dropped. hermes's brain is never among the siblings read, so the launcher's tasks are not
-    judged fully read (a subtask may live in hermes). KILLING MUTATION: keep the copy -> red."""
+    before the close) is dropped, and its tasks are fully read only when hermes's and the backend's brains were
+    read too (RT-A-BOARD-CLOSE-IN-THE-LAUNCHER-OR-BACKEND-BRAIN-NEVER-ARCHIVES-ITS-TASK). KILLING MUTATION: keep
+    the copy -> red."""
 
     own = parse_note(HEAD + ROWS, slot="launcher", note="q.md")
     assert brain_siblings("Launcher_Brain", {"launcher": own, "backend": []}) == ({"backend": []}, False)
+    assert brain_siblings("Launcher_Brain", {"launcher": own, "backend": [], "hermes": []}) == (
+        {"backend": [], "hermes": []}, True)
+
+
+LAUNCHER_NOTE = "Launcher_Brain/20 — Active Initiatives/q.md"
+LAUNCHER_ARCHIVE = "Launcher_Brain/80 — Archive/Queues/q-2026-11.md"
+
+
+@pytest.fixture
+def launcher_repo(tmp_path: Path, workspace: str, monkeypatch) -> SimpleNamespace:
+    """A board bound to a launcher checkout (``EterniaLauncher``, its ``Launcher_Brain``) holding task p."""
+
+    monkeypatch.delenv("ETERNIA_WORKSPACE_ROOTS", raising=False)  # never this box's real sibling queues
+    return _seed(tmp_path, workspace, ROWS, note=LAUNCHER_NOTE, slot="launcher", clone_name="EterniaLauncher")
+
+
+def test_a_launcher_board_close_of_the_last_subtask_archives_its_task(launcher_repo, tmp_path):
+    """The owner archives the last subtask of a launcher-brain task from Eternia's board with hermes's and the
+    backend's brains beside the checkout: the task is archived in the same commit, as a hermes close's is
+    (RT-A-BOARD-CLOSE-IN-THE-LAUNCHER-OR-BACKEND-BRAIN-NEVER-ARCHIVES-ITS-TASK). KILLING MUTATION: drop
+    ``dirs=BRAIN_QUEUE_DIRS`` in ``Writer._siblings`` (hermes's brain never read) -> TASK-P stays live, red; and
+    parse the board's own rows as ``hermes`` whatever ``own`` says -> its own task is taken for a sibling's, red."""
+
+    _siblings_beside(tmp_path, BRAIN_QUEUE_DIRS)
+    writer = Writer(launcher_repo.board, machine_id="m1")
+    for rid, row_id in (("l1", "RT-A"), ("l2", "RT-W")):
+        writer.apply(_close(row_id, rid, slot="launcher", note=LAUNCHER_NOTE, outcome="CLOSED", words="done",
+                            result="", date="2026-11-19"))
+    assert parse_note(_at_origin(launcher_repo, LAUNCHER_NOTE), slot="launcher", note=LAUNCHER_NOTE) == []
+    archived = {r.ref.id: r for r in parse_note(_at_origin(launcher_repo, LAUNCHER_ARCHIVE), slot="launcher",
+                                                 note=LAUNCHER_ARCHIVE)}
+    assert list(archived) == ["RT-A", "RT-W", "TASK-P"]
+    assert archived["TASK-P"].outcome.render() == "CLOSED 2026-11-19: owner — all 2 subtasks closed"
+
+
+def test_a_launcher_board_close_without_hermes_beside_it_leaves_the_task_open(launcher_repo, tmp_path):
+    """With only the backend's brain beside the launcher checkout, the last subtask's close leaves the task live (a
+    subtask of it may live in hermes's brain) — the rule a hermes close keeps for its missing siblings."""
+
+    _siblings_beside(tmp_path, {"backend": BRAIN_QUEUE_DIRS["backend"]})
+    writer = Writer(launcher_repo.board, machine_id="m1")
+    for rid, row_id in (("m1", "RT-A"), ("m2", "RT-W")):
+        writer.apply(_close(row_id, rid, slot="launcher", note=LAUNCHER_NOTE, outcome="CLOSED", words="done",
+                            result="", date="2026-11-19"))
+    assert [r.ref.id for r in parse_note(_at_origin(launcher_repo, LAUNCHER_NOTE), slot="launcher",
+                                         note=LAUNCHER_NOTE)] == ["TASK-P"]
+
+
+def _launcher_close(tmp_path: Path, rows: str, siblings: dict, visible: bool):
+    note = tmp_path / LAUNCHER_NOTE
+    note.parent.mkdir(parents=True)
+    texts = {note: HEAD + rows}
+    return close_and_step(tmp_path, note, texts, "RT-A", "operator",
+                          {"outcome": "CLOSED", "words": "done", "result": ""}, siblings, today="2026-11-19",
+                          visible=visible, own="launcher")
+
+
+def test_a_launcher_close_without_hermes_beside_it_says_so(tmp_path):
+    """The line a launcher close leaves an unread task with names the brain that was not read — hermes's, never the
+    launcher's own. KILLING MUTATION: count the missing brains from ``BRAIN_QUEUE_DIRS`` without dropping ``own``
+    -> it names ``hermes, launcher``, red."""
+
+    rows = "- **`TASK-P` — Pills** · task: p · READY 2026-11-18\n- **`RT-A` — first** · group: p · READY 2026-11-18\n"
+    done = _launcher_close(tmp_path, rows, {"backend": []}, visible=False)
+    assert done.said == ["task `TASK-P` has no open subtask here, but the hermes brain is not checked out beside "
+                         "this repository: left open"]
+
+
+def test_a_launcher_close_leaves_a_task_in_hermess_brain_to_hermes(tmp_path):
+    """A launcher-brain subtask of a task that lives in hermes's brain: its last close says to close the task there
+    and never takes hermes's row for one of the launcher's own (the rows carry their brain as their slot). KILLING
+    MUTATION: judge the task's brain against ``OWN_BRAIN`` instead of ``own`` in ``_close_task`` -> the hermes task
+    is taken for this brain's and its note looked up here (KeyError), red."""
+
+    hermes_task = parse_note(HEAD + "- **`TASK-P` — Pills** · task: p · READY 2026-11-18\n", slot="hermes",
+                             note="runtime-queue.md")
+    done = _launcher_close(tmp_path, "- **`RT-A` — first** · group: p · READY 2026-11-18\n",
+                           {"backend": [], "hermes": hermes_task}, visible=True)
+    assert done.said == ["task `TASK-P` (hermes) has no open subtask left: close it there with its close tool"]
