@@ -93,3 +93,15 @@ def test_an_invented_handle_is_refused_when_the_sender_has_no_teammates(handled,
     assert (data["ok"], data["error_kind"]) == (False, "unsupported_persona")
     assert "none are addressable" in data["error"]
     assert handled == []
+
+
+
+def test_an_at_handle_is_forwarded_as_the_clean_instance_id(handled):
+    """MC-RUNNING-NOW-AN-AGENT-REQUEST-NAMES-ITS-TARGET-BY-A-RAW-HANDLE (reported by the owner 2026-11-20):
+    a request addressed "@personainst_…" was owned by that raw spelling, so Running now read the handle
+    instead of the agent's name. ``Send.relay_args`` forwards the clean handle; the detached dispatch
+    reads the same ``target_instance_id`` (its dispatch row's owner key). Killing mutation: forward
+    ``self.persona_id`` there when it looks like a handle -> the handler gets "@personainst_dev", red."""
+
+    assert json.loads(agent_chat_send(persona_id="@personainst_dev", message="hi"))["ok"] is True
+    assert [instance for _, instance in handled] == ["personainst_dev"]
