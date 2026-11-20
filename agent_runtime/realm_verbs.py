@@ -153,13 +153,18 @@ def realm_sync_subtree(realm_id: str):
 
 def realm_sync_resolve(realm_id: str, *, key: str, take: str, dry_run: bool = False) -> dict:
     """Resolve ONE hold, dispatched on the key: ``skill::<slug>`` is a skill
-    package, ``<profile>:<path>`` a profile file. Raises the resolve error of
+    package, ``record::<workspace|realm>:<id>`` a workspace or realm record, ``<profile>:<path>`` a profile file. Raises the resolve error of
     the arm it took (``code`` names the refusal)."""
     from .profile_artifact_sync import resolve_profile_artifact
     from .skill_sync import SKILL_KEY_PREFIX, resolve_held_skill
 
+    from .realm_sync.record_merge import RECORD_KEY_PREFIX, resolve_record_hold
+
     if str(key or "").startswith(SKILL_KEY_PREFIX):
         envelope = object_envelope("skill_hold", resolve_held_skill(realm_id, key, take=take, dry_run=dry_run))
+    elif str(key or "").startswith(RECORD_KEY_PREFIX):
+        row = resolve_record_hold(realm_id, key, take=take, dry_run=dry_run)
+        envelope = object_envelope("record_hold", {"id": row["key"], **row})
     else:
         row = resolve_profile_artifact(realm_id, realm_sync_subtree(realm_id), key, take=take, dry_run=dry_run)
         envelope = object_envelope("profile_artifact_hold", {"id": row["key"], **row})

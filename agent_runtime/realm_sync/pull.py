@@ -50,6 +50,7 @@ from .git import (
 from .persona_artifacts import _artifacts_from_subtree
 from .artifacts import _iter_publishable_skill_packages
 from .sidecar import _append_realm_sync_event, _sync_result, _write_sync_sidecar, _write_timestamp
+from .record_merge import held_record_keys, merge_record_pull
 from .skill_inbox import apply_skill_inbox_pull
 
 __layer__ = "lanes"
@@ -165,6 +166,8 @@ def _pull_realm_sync(
     result[ARTIFACTS_UPDATED_KEY] = written
     # MUTATION: answer [] and test_a_committed_edit_meeting_a_teammates_delete_takes_the_team_copy reddens.
     result[DROPPED_LOCAL_CHANGES_KEY] = _subtree_relative(dropped, repo=repo, subtree=subtree)
+    # The workspace and realm records a pull held: changed here and by the team (``record_merge``).
+    result["records_held"] = held_record_keys(run.realm.id)
     _write_sync_sidecar(
         run.realm,
         repo=repo,
@@ -203,7 +206,9 @@ def _overwrite_generic_families(artifacts: list[RealmSyncArtifact], *, realm: Re
         held_by = _local_workspace_realm_id(artifact.destination) if artifact.kind == SyncFamily.WORKSPACE else None
         artifact.destination.parent.mkdir(parents=True, exist_ok=True)
         before = artifact.destination.read_bytes() if artifact.destination.exists() else None
-        data = _pulled_artifact_bytes(artifact, realm=realm)
+        # The workspace and realm records merge field-wise against their baseline (``record_merge``,
+        # RT-A-TEAM-PULL-PUTS-BACK-A-WORKSPACE-OR-REALM-CHANGED-HERE): a change made here is kept.
+        data = merge_record_pull(realm.id, artifact, _pulled_artifact_bytes(artifact, realm=realm))
         # Compare canonically so a CRLF local store file vs an LF published
         # artifact is not mistaken for a change (the JSON parses identically);
         # only a real content edit rewrites the destination and flags changed.

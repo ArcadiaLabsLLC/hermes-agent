@@ -151,11 +151,16 @@ def _publish_realm_sync(
     from .publish_keep import keep_team_copies
 
     written = keep_team_copies(realm.id, _workspaces_for_realm(realm), subtree, artifacts)
+    # A workspace or realm field a pull HELD ships as the team has it until the member resolves it.
+    from .record_merge import keep_team_fields, record_baselines_after_publish
+
+    written = keep_team_fields(realm.id, written)
     changed, changed_paths = _stage_commit_and_push(
         realm, repo=repo, subtree=subtree, artifacts=written, credential=credential
     )
     _write_timestamp(repo, "last_publish.txt")
     receipts = _record_publish_baselines(realm, resolved)
+    record_baselines_after_publish(realm.id, written)
     # The SKILL family: the same baseline discipline as every family in
     # ``BASELINE_FAMILIES``, plus one step none of them needs. The skill lane
     # decides against a MIRROR of the realm (the per-realm inbox), not against

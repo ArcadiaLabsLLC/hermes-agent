@@ -629,6 +629,21 @@ def prefab_conflict_path(realm_id: str, profile: str, prefab_id: str) -> Path:
     return prefab_conflicts_root(realm_id) / safe_path_token(profile) / f"{safe_path_token(prefab_id)}.json"
 
 
+def record_baseline_path(realm_id: str) -> Path:
+    # realm-sync baseline sidecar for the WORKSPACE and REALM records (``realm_sync.record_merge``);
+    # NEVER synced, NEVER published: the copy of each record this machine last published or adopted.
+    return realm_sync_root() / safe_path_token(realm_id) / "record_baseline.json"
+
+
+def record_conflicts_root(realm_id: str) -> Path:
+    return realm_sync_root() / safe_path_token(realm_id) / "record_conflicts"
+
+
+def record_conflict_path(realm_id: str, kind: str, record_id: str) -> Path:
+    # Where a HELD workspace or realm record's two values of each field it holds are parked.
+    return record_conflicts_root(realm_id) / f"{safe_path_token(kind)}_{safe_path_token(record_id)}.json"
+
+
 def flow_graph_baseline_path(realm_id: str) -> Path:
     # realm-sync baseline sidecar for the replicated CANVAS family; NEVER synced,
     # NEVER published. Under the realm-sync root rather than beside the graphs it

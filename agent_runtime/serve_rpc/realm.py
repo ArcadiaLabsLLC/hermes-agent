@@ -101,6 +101,7 @@ def _run_verb(rid: Any, call: Callable[[], dict]) -> dict:
     from agent_runtime.realm_sync import RealmSyncError
     from agent_runtime.realm_verbs import RealmSelectionInvalid
     from agent_runtime.skill_sync import SkillResolveError
+    from agent_runtime.realm_sync.record_merge import RecordHoldResolveError
 
     try:
         return ok(rid, call())
@@ -108,7 +109,7 @@ def _run_verb(rid: Any, call: Callable[[], dict]) -> dict:
         return _refusal(rid, exc.reason, str(exc))
     except RealmSyncError as exc:
         return _refusal(rid, exc.code, str(exc), exc.safe_details, exc.retryable)
-    except (SkillResolveError, ProfileArtifactResolveError, RealmSelectionInvalid) as exc:
+    except (SkillResolveError, ProfileArtifactResolveError, RecordHoldResolveError, RealmSelectionInvalid) as exc:
         return _refusal(rid, exc.code, str(exc))
     except NotFound:
         # Never the store's message: it is the realm JSON's ABSOLUTE PATH, which

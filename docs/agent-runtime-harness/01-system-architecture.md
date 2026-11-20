@@ -356,6 +356,19 @@ it here, so that realm stops listing and publishing it. And the pulled realm
 record never lists an id its merged delete ledger names (`_pulled_artifact_bytes`
 filters `workspace_ids`): a peer who had not heard of the leave may still list it.
 
+**A workspace or realm record changed here is merged, not overwritten**
+(RT-A-TEAM-PULL-PUTS-BACK-A-WORKSPACE-OR-REALM-CHANGED-HERE, review w1118a.50 D7).
+Before the loop writes a workspace or realm record, `realm_sync/record_merge.py`
+merges it field by field against the copy this machine last published or adopted
+(`record_baseline.json` under the realm's sync state; never synced): a field changed
+only here is kept and published next, one changed only by the team is taken, one
+both changed is HELD — the local value stays, both values are parked in
+`record_conflicts/`, the publish ships the team's value (`keep_team_fields`), and
+`realm sync resolve record::<workspace|realm>:<id> --take local|remote` ends it.
+`updated_at` takes the newer stamp; the realm's ledgers, `archived` and authority
+fields keep the reconciliation below, and its `workspace_ids` merge as a list. A
+record with no baseline yet is adopted as the team has it.
+
 **Both of those ledgers are UNIONED on pull, not adopted** (RD-11, 2026-08-31,
 `4a8d398268`). `_UNIONED_REALM_LEDGERS` (`realm_sync/ledgers.py`) names them and
 `_pulled_artifact_bytes` merges each by its own rule — set-union for

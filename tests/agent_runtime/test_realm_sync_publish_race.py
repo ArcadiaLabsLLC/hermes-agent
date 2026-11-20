@@ -114,8 +114,16 @@ def test_a_race_on_the_very_same_document_ends_where_a_plain_pull_ends(team, mon
 
     pulled = pull_realm_sync(shared.id)
     assert pulled["state"] == "pulled"
-    assert WorkspaceStore().get(workspace.id).name == "Carol renamed"
+    # Both renamed it since the last publish: the pull HOLDS the name (``record_merge``,
+    # RT-A-TEAM-PULL-PUTS-BACK-A-WORKSPACE-OR-REALM-CHANGED-HERE) where it used to put Carol's back.
+    key = f"record::workspace:{workspace.id}"
+    assert pulled["records_held"] == [key]
+    assert WorkspaceStore().get(workspace.id).name == "Bob renamed"
     assert publish_realm_sync(shared.id)["state"] == "published"
+    from agent_runtime.realm_verbs import realm_sync_resolve
+
+    realm_sync_resolve(shared.id, key=key, take="remote")
+    assert WorkspaceStore().get(workspace.id).name == "Carol renamed"
 
 
 def test_the_publish_after_the_pull_carries_the_losers_own_commit_upstream(team, monkeypatch):

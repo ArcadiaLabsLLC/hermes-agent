@@ -97,10 +97,12 @@ class SyncFamily(StrEnum):
     ARTIFACT = "artifact"
 
 
-#: The loop in ``pull.pull_realm_sync`` that overwrites a destination wholesale.
-#: Only the two store-record families still ride it; every other family's pull
-#: is owned by an applier that merges against a never-synced baseline.
-GENERIC_PULL = "pull.pull_realm_sync (generic overwrite loop)"
+#: The loop in ``pull.pull_realm_sync`` that writes the two store-record families'
+#: destinations. It no longer overwrites wholesale: each record is merged field-wise
+#: against its never-synced baseline first (``record_merge.merge_record_pull``,
+#: RT-A-TEAM-PULL-PUTS-BACK-A-WORKSPACE-OR-REALM-CHANGED-HERE); every other family's
+#: pull is owned by an applier that merges against a baseline of its own.
+GENERIC_PULL = "pull.pull_realm_sync (generic loop, record_merge.merge_record_pull)"
 
 
 @dataclass(frozen=True, slots=True)

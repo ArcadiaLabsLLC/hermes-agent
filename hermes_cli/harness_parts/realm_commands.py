@@ -348,6 +348,7 @@ def _cmd_realm_sync_resolve(args) -> int:
     """
 
     from agent_runtime.profile_artifact_sync import ProfileArtifactResolveError
+    from agent_runtime.realm_sync.record_merge import RecordHoldResolveError
     from agent_runtime.skill_sync import SkillResolveError
 
     if not _require_yes(args):
@@ -356,7 +357,7 @@ def _cmd_realm_sync_resolve(args) -> int:
         envelope = realm_verbs.realm_sync_resolve(
             args.realm_id, key=args.key, take=args.take, dry_run=bool(getattr(args, "dry_run", False))
         )
-    except (SkillResolveError, ProfileArtifactResolveError) as exc:
+    except (SkillResolveError, ProfileArtifactResolveError, RecordHoldResolveError) as exc:
         return emit_harness_error(exc, args=args, code=exc.code)
     _print_stage42(envelope, args=args, default_output="json")
     return 0

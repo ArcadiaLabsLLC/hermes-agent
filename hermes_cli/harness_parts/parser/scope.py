@@ -295,7 +295,7 @@ def _add_realm_sync_verbs(realm_subs) -> None:
         help="Resolve one held profile file or skill package: --take local keeps the member's content (and leaves it to publish), --take remote adopts the realm's",
     )
     realm_sync_resolve.add_argument("realm_id")
-    realm_sync_resolve.add_argument("--key", required=True, help="Entity key from `realm sync held` — a profile file (alice:memories/MEMORY.md) or a skill package (skill::launcher-mcp-operations)")
+    realm_sync_resolve.add_argument("--key", required=True, help="Entity key from `realm sync held` — a profile file (alice:memories/MEMORY.md), a skill package (skill::launcher-mcp-operations) or a workspace or realm record (record::workspace:<id>)")
     realm_sync_resolve.add_argument("--take", required=True, choices=["local", "remote"])
     _add_stage42_global_args(
         realm_sync_resolve, controls=frozenset({"dry_run", "yes"})

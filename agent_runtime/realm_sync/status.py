@@ -54,6 +54,7 @@ from .sidecar import (
     _write_sync_sidecar,
 )
 from .skill_inbox import _held_skill_packages_for_realm
+from .record_merge import held_record_keys
 from .adoption import store_adopted
 from .workspace_changes import workspace_publish_changes
 from .publish import publish_set_changes
@@ -251,6 +252,9 @@ def realm_sync_status(
         # is the same as a loss, so it is surfaced here and resolvable with
         # ``hermes harness realm sync resolve <realm> --key <k> --take …``.
         "profile_artifacts_held": profile_artifacts_held,
+        # Additive: the workspace and realm records a pull held (changed here and by the team), as
+        # ``realm sync resolve`` keys (``record_merge``).
+        "records_held": held_record_keys(realm.id),
         # The canvas family's accounting, so "this chart is empty because the
         # drawing did not travel / is held / would not read" is answerable from
         # the envelope rather than from a store walk. Additive and
