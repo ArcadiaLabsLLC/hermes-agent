@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from agent_runtime.dispatch_session_policy import coerce_optional_flag
 from agent_runtime.profile_home import get_hermes_head_home
 
-from .lane import _canonical_persona_token, _chat_lane_session_ids, _looks_like_instance_handle, refusal_json, scope_off, session_belongs_to_chat_lane
+from .lane import _canonical_persona_token, _chat_lane_session_ids, _instance_handle, refusal_json, scope_off, session_belongs_to_chat_lane
 from .remote import _remote_roster_rows, _remote_thread_read
 
 __layer__ = "lanes"
@@ -53,8 +53,9 @@ def agent_chat_threads(*, persona_id=None, requested_by_session=None):
             wanted_persona = _chat_target._resolve_mission_chat_persona_id(filter_token, filter_token)
         except ValueError as exc:
             return refusal_json(safe_assignment_text(str(exc), limit=240), error_kind="unsupported_persona")
-        if _looks_like_instance_handle(filter_token):
-            wanted_instance_id = canonical_persona_instance_id(filter_token, persona_id=wanted_persona)
+        filter_handle = _instance_handle(filter_token)
+        if filter_handle is not None:
+            wanted_instance_id = canonical_persona_instance_id(filter_handle, persona_id=wanted_persona)
 
     cfg = load_agent_runtime_config(get_hermes_head_home() / "config.yaml")
     store = PersonaInstanceStore()
@@ -176,8 +177,13 @@ def resolve_chat_lane_target(persona_id, *, requested_by_session=None, verb="age
     # A personainst_* handle targets THAT specific instance's thread (a persona may
     # run several) and is used as-is; a BARE persona id is resolved through the
     # sender-scoped addressable roster below (placements shadow canonical), not
-    # collapsed straight onto the canonical channel.
-    target_instance_id = target if _looks_like_instance_handle(target) else None
+    # collapsed straight onto the canonical channel. The handle is forwarded as
+    # ``lane._instance_handle`` spells it: a model writes "@personainst_…", and the
+    # raw spelling misses the instance (row
+    # RT-FU-AN-AGENTS-THREAD-READ-OF-AN-AT-HANDLE-MISSES-THAT-AGENTS-THREAD).
+    # MUTATION: forward ``target`` when this is not None and
+    # test_an_at_handle_opens_that_agents_thread reddens.
+    target_instance_id = _instance_handle(target)
 
     cfg = load_agent_runtime_config(get_hermes_head_home() / "config.yaml")
     store = PersonaInstanceStore()

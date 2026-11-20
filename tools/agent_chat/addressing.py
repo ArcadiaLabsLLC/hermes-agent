@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from .lane import _looks_like_instance_handle, refusal_json
+from .lane import _instance_handle, refusal_json
 
 __layer__ = "lanes"
 __all__ = ["resolve_send_target"]
@@ -62,15 +62,18 @@ def _addressable(requested_by_session):
 def resolve_send_target(persona_id: str, *, requested_by_session=None) -> tuple[str, str | None]:
     """``(target, None)`` — the id to send to — or ``(persona_id, refusal_json)``."""
 
-    if _looks_like_instance_handle(persona_id):
+    handle = _instance_handle(persona_id)
+    if handle is not None:
         # Judged on its own facts (the store and the profiles folder), never deferred for an empty
         # roster: a namespace whose only agent is the sender has no teammates to list, and that is
         # exactly where an invented handle was accepted live (2026-11-15, w1115e-h4). The roster is
         # read only to word a refusal: reading it mints the scope's canonical rows, which a send to a
         # reachable handle never did.
-        why = _unreachable_handle(persona_id)
+        # The clean handle is what is judged AND what is sent on (``lane._instance_handle``, the one
+        # spelling owner): a model writes "@personainst_…".
+        why = _unreachable_handle(handle)
         if why is None:
-            return persona_id, None
+            return handle, None
         return persona_id, _no_teammate(persona_id, _addressable(requested_by_session)[2], why)
     from agent_runtime.persona_assignments import safe_assignment_token
     from hermes_cli.harness_parts.persona.chat_target import _persona_by_id
@@ -104,14 +107,14 @@ def resolve_send_target(persona_id: str, *, requested_by_session=None) -> tuple[
 def _unreachable_handle(handle: str) -> str | None:
     """Why no message can reach the instance *handle* names, or ``None`` when one can.
 
+    *handle* arrives clean, as ``lane._instance_handle`` spelled it: this function strips nothing.
+
     The same rule the roster offer uses (``roster_reach.profile_missing``), asked at admission, so a
     send is refused in the turn that made it instead of being accepted and failing in the background.
     """
-    from agent_runtime.persona_assignments import PersonaInstanceStore, safe_assignment_token
+    from agent_runtime.persona_assignments import PersonaInstanceStore
     from agent_runtime.roster_reach import profile_missing
 
-    # The same token ``_looks_like_instance_handle`` judged: seen live, the model wrote ``@personainst_…``.
-    handle = safe_assignment_token(handle)
     try:
         instance = PersonaInstanceStore().get(handle)
     except FileNotFoundError:

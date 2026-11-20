@@ -14,21 +14,18 @@ def refusal_json(error: str, **extra) -> str:
     return json.dumps({"ok": False, "error": error, **extra})
 
 
-def _looks_like_instance_handle(value) -> bool:
-    """True when *value* is a ``personainst_*`` instance handle (not a bare
-    persona id). A persona can run more than one live instance, so a handle in a
-    persona slot must TARGET THAT INSTANCE — it is forwarded as the instance id
-    rather than collapsed to the persona's canonical channel."""
-    return _instance_handle(value) is not None
-
-
 def _instance_handle(value) -> str | None:
     """The ``personainst_*`` handle *value* names, spelled clean, or ``None`` for a bare persona id.
 
-    The ONE spelling a handle is forwarded in: ``safe_assignment_token`` (it drops the "@" a model
-    writes, as in "@personainst_…"). Judging the cleaned token but forwarding the raw one made "@…"
-    the dispatch row's owner key, and Running now read the handle instead of the agent's name
-    (row MC-RUNNING-NOW-AN-AGENT-REQUEST-NAMES-ITS-TARGET-BY-A-RAW-HANDLE).
+    A persona can run more than one live instance, so a handle in a persona slot TARGETS THAT
+    INSTANCE: it is forwarded as the instance id rather than collapsed to the persona's canonical
+    channel. The ONE judge and the ONE spelling a handle is forwarded in, for every agent_chat door
+    (send, addressing, threads): ``safe_assignment_token`` (it drops the "@" a model writes, as in
+    "@personainst_…"). Judging the cleaned token but forwarding the raw one made "@…" the dispatch
+    row's owner key, and Running now read the handle instead of the agent's name (row
+    MC-RUNNING-NOW-AN-AGENT-REQUEST-NAMES-ITS-TARGET-BY-A-RAW-HANDLE); the thread read missed the
+    agent's thread the same way (review w1118a.64 D9, which folded the separate yes/no judge
+    ``_looks_like_instance_handle`` into this value, so the two cannot drift).
     """
     from agent_runtime.persona_assignments import safe_assignment_token
 

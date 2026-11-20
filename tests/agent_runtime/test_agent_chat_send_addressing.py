@@ -105,3 +105,42 @@ def test_an_at_handle_is_forwarded_as_the_clean_instance_id(handled):
 
     assert json.loads(agent_chat_send(persona_id="@personainst_dev", message="hi"))["ok"] is True
     assert [instance for _, instance in handled] == ["personainst_dev"]
+
+
+def test_an_at_handle_is_judged_and_sent_on_clean_by_addressing(handled):
+    """Review w1118a.64 D9: addressing judges the "@…" handle and forwards the value it judged, with
+    no strip of its own. Killing mutation: ``resolve_send_target`` returns ``persona_id`` for a reachable
+    handle -> the handler's persona slot gets "@personainst_dev", red."""
+
+    from tools.agent_chat.addressing import resolve_send_target
+
+    assert resolve_send_target("@personainst_dev") == ("personainst_dev", None)
+    assert json.loads(agent_chat_send(persona_id="@personainst_dev", message="hi"))["ok"] is True
+    assert handled == [("personainst_dev", "personainst_dev")]
+
+
+def test_an_at_spelled_invented_profile_handle_is_refused_too(handled):
+    """The reach check reads the clean handle it is handed. Killing mutation: hand ``_unreachable_handle``
+    the raw ``persona_id`` -> "@personainst_profile_…" misses the profile-channel test and the send reaches
+    the handler, red."""
+
+    data = json.loads(agent_chat_send(persona_id="@personainst_profile_charsheet", message="hi", wait=False))
+    assert data["ok"] is False
+    assert "charsheet" in data["error"]
+    assert handled == []
+
+
+def test_an_at_handle_opens_that_agents_thread():
+    """RT-FU-AN-AGENTS-THREAD-READ-OF-AN-AT-HANDLE-MISSES-THAT-AGENTS-THREAD (read in code 2026-11-20): the
+    thread read judged "@personainst_…" a handle but forwarded the raw spelling as the instance id.
+    Killing mutation: in ``threads.resolve_chat_lane_target`` forward ``target`` when it is a handle ->
+    the lane's instance is "@personainst_dev", red."""
+
+    from tools.agent_chat.threads import resolve_chat_lane_target
+
+    clean, refusal = resolve_chat_lane_target("personainst_dev")
+    target, refusal_at = resolve_chat_lane_target("@personainst_dev")
+
+    assert refusal is None and refusal_at is None
+    assert target.instance_id == "personainst_dev"
+    assert (target.handle, target.default_session) == (clean.handle, clean.default_session)
