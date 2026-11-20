@@ -94,7 +94,10 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
             remote_install_id TEXT NOT NULL DEFAULT '',
             parent_turn_id TEXT NOT NULL DEFAULT '',
             started_at REAL,
-            cancel_requested TEXT NOT NULL DEFAULT ''
+            cancel_requested TEXT NOT NULL DEFAULT '',
+            owner_group INTEGER,
+            cancel_requested_at REAL,
+            cancel_seen_at REAL
         )"""
     )
     # CREATE TABLE IF NOT EXISTS does nothing to a store that already exists, so
@@ -122,6 +125,12 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
     # or "" for no request. Durable because the asker and the supervisor are two
     # processes, and a column because the request exists while the row runs.
     _add_missing_column(conn, "cancel_requested", "TEXT NOT NULL DEFAULT ''")
+    # Review w1118a.55. D10: the process group the child leads, so a Stop that finds its
+    # supervisor gone can end what it left. D11: when a cancel was asked and when a
+    # supervisor took it, so a cancel no process answers settles the row.
+    _add_missing_column(conn, "owner_group", "INTEGER")
+    _add_missing_column(conn, "cancel_requested_at", "REAL")
+    _add_missing_column(conn, "cancel_seen_at", "REAL")
 
 
 def _add_missing_column(conn: sqlite3.Connection, name: str, decl: str) -> None:
@@ -204,7 +213,7 @@ def _emit(event_type: str, **payload: Any) -> None:
     emit_store_event(EventLog(), event_type, payload, domain="dispatch store")
 
 
-def _query(where: str, params: tuple) -> list[dict[str, Any]]:
+def _query(where: str, params: tuple, *, _migrated: bool = False) -> list[dict[str, Any]]:
     path = dispatch_db_path()
     if not path.exists():
         # Read-only by contract: a projection asking "what is running" must
@@ -219,7 +228,14 @@ def _query(where: str, params: tuple) -> list[dict[str, Any]]:
     except sqlite3.OperationalError as exc:
         # A state.db that predates this table is a store with no dispatches, not
         # an unreadable store.
-        if "no such table" not in str(exc).lower():
+        text = str(exc).lower()
+        if "no such column" in text and not _migrated:
+            # A store an older build wrote, read before this build wrote to it: the
+            # writer's connect adds the missing columns, then the read runs once more.
+            conn.close()
+            _connect().close()
+            return _query(where, params, _migrated=True)
+        if "no such table" not in text:
             raise
         rows = []
     finally:

@@ -9,6 +9,8 @@ import json
 import logging
 import os
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -273,13 +275,19 @@ def _child_identity(pid: int) -> int | None:
 
 
 def _kill_child(pid: int, started_at: int | None) -> None:
-    """Identity-verified tree-kill through the repo's ONE implementation.
+    """Identity-verified tree-kill through the repo's ONE implementation, then the child's group.
 
     ``ProcessRegistry._terminate_host_pid`` (reached through the
     ``agent_runtime._upstream_doors.terminate_host_pid`` door) re-validates the recorded start time
     before it signals anything, which is what stops a recycled PID from turning
     a budget timeout into a killed stranger. A second tree-kill here would be a
     second place for that guard to be forgotten.
+
+    The tree-kill walks a LIVE parent's descendants only, so what the child started and
+    left behind (a build whose shell already returned) was reached on no platform
+    (RT-STOP-REACHES-WHAT-AN-AGENT-REQUEST-STARTED-AFTER-ITS-PROCESS-ENDS). A child this
+    process spawned leads its own group (:func:`note_child_group`); that group is ended
+    after the tree-kill — Stop and the budget kill both land here.
     """
 
     try:
@@ -288,6 +296,130 @@ def _kill_child(pid: int, started_at: int | None) -> None:
         terminate_host_pid(int(pid), started_at)
     except Exception:  # pragma: no cover - best effort by contract
         logger.debug("dispatch child %s tree-kill failed", pid, exc_info=True)
+    if child_group(pid) is not None:
+        end_child_group(int(pid), started_at)
+
+
+# --------------------------------------------------------------------------
+# the child's process group (D10, review w1118a.55)
+# --------------------------------------------------------------------------
+
+#: How long the group gets between TERM and KILL. Short: the leader already had its
+#: orderly window in the tree-kill, and what is left is what it left behind.
+GROUP_END_GRACE_SECONDS = 3.0
+
+#: Children THIS process spawned as group leaders: pid -> the Windows Job Object handle
+#: (``None`` on POSIX, where the group's id is the pid). Written only by
+#: ``local_child.spawn_child``; a pid not here (a stand-in, another process's child) is
+#: never treated as a group by the supervisor.
+_GROUPS: dict[int, Any] = {}
+_GROUPS_LOCK = threading.Lock()
+
+
+def note_child_group(pid: int, job: Any = None) -> None:
+    """Record that ``pid`` leads its own process group (POSIX) or Job Object ``job`` (Windows)."""
+
+    with _GROUPS_LOCK:
+        _GROUPS[int(pid)] = job
+
+
+def child_group(pid: Any) -> int | None:
+    """The group a child this process spawned leads (its pid), or None for any other pid."""
+
+    try:
+        key = int(pid)
+    except (TypeError, ValueError):
+        return None
+    with _GROUPS_LOCK:
+        return key if key in _GROUPS else None
+
+
+def release_child_group(pid: int) -> None:
+    """Forget a settled child's group; closes its Job Object handle on Windows."""
+
+    with _GROUPS_LOCK:
+        job = _GROUPS.pop(int(pid), None)
+    if job is not None and os.name == "nt":
+        try:
+            from .local_child import close_job
+
+            close_job(job)
+        except Exception:  # pragma: no cover - best effort
+            logger.debug("dispatch child %s job close failed", pid, exc_info=True)
+
+
+def end_child_group(pgid: int, leader_started_at: int | None, *, grace: float = GROUP_END_GRACE_SECONDS) -> bool:
+    """End every process left in the child's group; True when the group is gone.
+
+    POSIX: TERM the group, wait ``grace``, KILL. The identity guard stays on the
+    leader's recorded start time (review w1118a.55 D10): a live leader must be the
+    recorded one, still leading the group; a dead leader's group can only be the
+    child's, because a pid is never handed out while a group of that number exists.
+    A process the child put in a session of its own (a registered background process,
+    which shows in Running now and stops from there; a grandchild that left on purpose)
+    is not in the group and is not touched. Windows: the child's Job Object is ended,
+    when this process holds it (``local_child``).
+    """
+
+    pgid = int(pgid)
+    if os.name == "nt":
+        with _GROUPS_LOCK:
+            job = _GROUPS.get(pgid)
+        if job is None:
+            return False
+        from .local_child import end_job
+
+        return end_job(job)
+    if not _group_is_the_childs(pgid, leader_started_at):
+        return False
+    import signal
+
+    for sig, wait in ((signal.SIGTERM, grace), (signal.SIGKILL, 1.0)):  # windows-footgun: ok — POSIX-only, Windows returned above
+        try:
+            os.killpg(pgid, sig)  # windows-footgun: ok — POSIX-only, Windows returned above
+        except ProcessLookupError:
+            return True
+        except OSError:
+            return False
+        if _group_gone(pgid, wait):
+            return True
+    return False
+
+
+def _group_is_the_childs(pgid: int, leader_started_at: int | None) -> bool:
+    try:
+        os.killpg(pgid, 0)  # windows-footgun: ok — POSIX-only (end_child_group returns on Windows)
+    except OSError:
+        return False  # no such group, or not ours to signal
+    try:
+        from agent_runtime._upstream_doors import pid_exists
+
+        leader_alive = bool(pid_exists(pgid))
+    except Exception:
+        return False
+    if not leader_alive:
+        return True
+    observed = _child_identity(pgid)
+    if leader_started_at is not None and (observed is None or int(observed) != int(leader_started_at)):
+        return False
+    try:
+        return os.getpgid(pgid) == pgid  # windows-footgun: ok — POSIX-only (end_child_group returns on Windows)
+    except OSError:
+        return True  # the leader exited between the two reads: the group is the child's
+
+
+def _group_gone(pgid: int, seconds: float) -> bool:
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            os.killpg(pgid, 0)  # windows-footgun: ok — POSIX-only (end_child_group returns on Windows)
+        except ProcessLookupError:
+            return True
+        except OSError:
+            return False
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.05)
 
 
 def _detached_error_text(payload: dict[str, Any]) -> str:

@@ -298,6 +298,22 @@ def sweep_orphaned_dispatches() -> int:
         return 0
 
 
+def sweep_unanswered_cancels() -> int:
+    """Settle the rows whose Stop no supervisor took within its window (review w1118a.55 D11). Never raises.
+
+    On the delivery cadence, not the orphan sweep's: it is one indexed read of the rows
+    that carry a cancel, and the operator who pressed Stop is watching the row.
+    """
+
+    from .. import dispatch_store
+
+    try:
+        return int(dispatch_store.settle_unanswered_cancels() or 0)
+    except Exception:  # pragma: no cover - a sweep must never kill the drain
+        logger.debug("unanswered cancel sweep failed", exc_info=True)
+        return 0
+
+
 def sweep_skill_lends() -> int:
     """Drop the ``skill_lends`` records of children that are gone (p10-work S2); the count. Never raises."""
 
@@ -346,6 +362,7 @@ def start_delivery_drain(
                     drain_background_completions(policy=policy)
                 except Exception:  # pragma: no cover
                     logger.debug("background completion pass failed", exc_info=True)
+                sweep_unanswered_cancels()
                 # The orphan sweep runs on its own, slower cadence: it walks
                 # every running row and probes PIDs, which is far too expensive
                 # for the 5s delivery loop and far too rare for boot-only.

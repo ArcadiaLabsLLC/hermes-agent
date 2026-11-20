@@ -103,6 +103,8 @@ class BuildFacts:
     announcement: dict[str, Any] | None = None
     mcp_job: dict[str, str] | None = None
     restart_of: str | None = None
+    #: The build's full log (``registry.readable_log_path``: under its project root), or "".
+    log_path: str = ""
     unknowns: UnknownsIndex = field(default_factory=UnknownsIndex)
 
 
@@ -226,6 +228,8 @@ def build_extra(facts: BuildFacts, accountant: ProjectionAccountant | None) -> d
         "announcement": facts.announcement,
         "mcp_job": facts.mcp_job,
         "restart_of": facts.restart_of,
+        # RT-RUNNING-WORK-ROWS-SAY-WHO-ASKED-WHERE-AND-WHICH-STEPS: the card's Open full log.
+        "log_path": facts.log_path or None,
     }
 
 

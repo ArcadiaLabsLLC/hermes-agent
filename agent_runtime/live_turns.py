@@ -91,6 +91,10 @@ class LiveTurn:
     #: The agent's plan as of the read (its todo store's items, raw), or None when
     #: the agent keeps no store or it cannot be read. ``()`` is an empty plan.
     plan: tuple[dict[str, Any], ...] | None = None
+    #: The folder the turn runs in (its run request's ``workdir``), or "" when none was set.
+    workdir: str = ""
+    #: The marker on the turn's user message (``relay_policy``): who asked; "" for the operator.
+    asked_by_marker: str = ""
 
 
 @dataclass
@@ -116,6 +120,8 @@ class _Turn:
     agent: Any
     started_at: float = field(default_factory=time.time)
     calls: dict[str, _Call] = field(default_factory=dict)
+    workdir: str = ""
+    asked_by_marker: str = ""
 
 
 _lock = threading.Lock()
@@ -123,7 +129,10 @@ _turns: dict[str, _Turn] = {}
 
 
 @contextmanager
-def live_turn(*, turn_id: str, session_id: str, persona_instance_id: str, agent: Any) -> Iterator[None]:
+def live_turn(
+    *, turn_id: str, session_id: str, persona_instance_id: str, agent: Any,
+    workdir: str = "", asked_by_marker: str = "",
+) -> Iterator[None]:
     """Register a turn for the duration of its conversation. A blank id is a no-op."""
 
     key = str(turn_id or "").strip()
@@ -135,6 +144,8 @@ def live_turn(*, turn_id: str, session_id: str, persona_instance_id: str, agent:
         session_id=str(session_id or ""),
         persona_instance_id=str(persona_instance_id or ""),
         agent=agent,
+        workdir=str(workdir or ""),
+        asked_by_marker=str(asked_by_marker or ""),
     )
     with _lock:
         _turns[key] = turn
@@ -296,6 +307,8 @@ def live_turn_view(turn_id: str | None) -> LiveTurn | None:
         api_calls=api_calls,
         seconds_since_activity=quiet,
         plan=_todo_items_of(turn.agent),
+        workdir=turn.workdir,
+        asked_by_marker=turn.asked_by_marker,
         tools=tuple(
             LiveToolCall(
                 call_id=call.call_id,

@@ -155,6 +155,8 @@ from agent_runtime.dispatch_store.writes import (  # the package's export floor
     _prune,
 )
 from agent_runtime.dispatch_store.delivery import (  # the package's export floor
+    CANCEL_ANSWER_WINDOW_SECONDS,
+    ack_dispatch_cancel,
     claim_delivery,
     drop_delivery,
     mark_delivered,
@@ -163,9 +165,12 @@ from agent_runtime.dispatch_store.delivery import (  # the package's export floo
     request_dispatch_cancel,
     restore_undelivered_dispatches,
     set_dispatch_owner,
+    settle_if_cancel_unanswered,
     settle_if_orphaned,
+    settle_unanswered_cancels,
 )
 __all__ = [
+    "CANCEL_ANSWER_WINDOW_SECONDS",
     "CLAIM_EXPIRY_SECONDS",
     "DELIVERY_DELIVERED",
     "DELIVERY_DROPPED",
@@ -183,6 +188,7 @@ __all__ = [
     "STATE_RUNNING",
     "STATE_UNKNOWN",
     "TERMINAL_STATES",
+    "ack_dispatch_cancel",
     "cancel_requested_dispatches",
     "claim_delivery",
     "dispatch_db_path",
@@ -197,7 +203,9 @@ __all__ = [
     "remote_media_completions",
     "request_dispatch_cancel",
     "restore_undelivered_dispatches",
+    "settle_if_cancel_unanswered",
     "settle_if_orphaned",
+    "settle_unanswered_cancels",
     "running_dispatches",
     "running_dispatches_owned_by_turn",
     "set_dispatch_owner",

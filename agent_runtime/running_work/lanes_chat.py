@@ -15,6 +15,7 @@ from ..clock import parse_iso_utc
 from ..projection_accountant import ProjectionAccountant
 
 from .ownership import _head_home, _owner_of, _pid_identity
+from .row_context import RowContext, plan_items
 from .rows import (
     LanePass,
     _iso,
@@ -399,6 +400,7 @@ class ChatTurnLane(LanePass):
         self.lane = LANE_DURABLE
         self.idle_stale, self.in_tool_stale = _stale_thresholds()
         self.running_states: frozenset[str] = frozenset()
+        self.context = RowContext()
 
     def collect(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         try:
@@ -489,7 +491,10 @@ class ChatTurnLane(LanePass):
             # Whether a steer sent now lands in THIS turn — the steer door's own read, so the client
             # never infers it from the turn's kind or its id (a Work turn takes one, a forged one not).
             extra={"title": "", "current_tool": None, **run_pass,
-                   "steerable": _takes_steer(session_id, record.get("client_message_id"))},
+                   "steerable": _takes_steer(session_id, record.get("client_message_id")),
+                   # D12: who asked and the folder are known only where the turn runs
+                   # (``enrich_live``); the workspace is the instance's, read here.
+                   "asked_by": None, "cwd": None, **self.context.workspace(instance)},
         )
         self.rows.append(row)
         if state in self.running_states:
@@ -559,10 +564,13 @@ class ChatTurnLane(LanePass):
                 # The running card's "Send to background" (``runtime.work.background.promote``).
                 "promotable": _promotable(turn_id, current.call_id),
             }
+        row["asked_by"] = self.context.asked_by_marker(live.asked_by_marker)
+        row["cwd"] = bounded_operator_text(live.workdir, limit=1024) or None
         plan = _plan_progress(live.plan)
         if plan is not None:
             # RT-RUNNING-CHAT-TURN-CARRIES-PLAN-PROGRESS: ``{done, total, current, current_index}``; absent = no plan.
-            row["plan"] = plan
+            # D12: and its steps, each with its state (no time per step is kept).
+            row["plan"] = {**plan, "items": plan_items(live.plan)}
         for call in live.tools:
             if call.foreground is not None:
                 self.foreground_row(row, turn_id, call)
@@ -796,6 +804,7 @@ class DispatchLane(LanePass):
         # as "" too — a name that cannot be read now will not read on the next row
         # either, and retrying it per row is how a slow store becomes a slow panel.
         self.names: dict[str, str] = {}
+        self.context = RowContext()
 
     def collect(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         try:
@@ -892,8 +901,19 @@ class DispatchLane(LanePass):
                 # left a dead or running request on the HUD with no way to stop
                 # it (MC-RUNNING-NOW-LISTS-LANE-WORK-WHOSE-PROCESS-HAS-ENDED-AND-CANNOT-STOP-IT).
                 cancellable=True,
+                extra=self.asked_where(record),
             )
         )
+
+    def asked_where(self, record: dict[str, Any]) -> dict[str, Any]:
+        """D12: the asking agent (the sender's chat root's owner), the target's workspace; the folder is the child's, unknown here."""
+
+        sender_persona, sender_instance = _owner_of(record.get("sender_session_id"), memo=self.owners)
+        return {
+            "asked_by": self.context.agent(record.get("sender_persona_id") or sender_persona, sender_instance),
+            "cwd": None,
+            **self.context.workspace(record.get("target_instance_id")),
+        }
 
     def undeliverable_rows(self, dispatch_store: Any) -> None:
         # UNDELIVERABLE completions ride this lane too, and they are the reason it

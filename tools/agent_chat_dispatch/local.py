@@ -28,6 +28,9 @@ from .child import (
     _detached_error_text,
     _kill_child,
     build_dispatch_argv,
+    child_group,
+    end_child_group,
+    release_child_group,
     child_environment,
     parse_child_payload,
 )
@@ -228,6 +231,7 @@ def _request_cancel_elsewhere(dispatch_id: str, row: dict[str, Any], reason: str
     }
 
 
+
 def _cancelled_text(reason: str, *, spawned: bool) -> str:
     where = "before it replied" if spawned else "before it started"
     return f"the dispatch was cancelled {where} ({reason}); nothing was delivered"
@@ -408,7 +412,9 @@ def _run_child_once(
     started_at = _child_identity(proc.pid)
     try:
         dispatch_store.set_dispatch_owner(
-            dispatch_id, owner_pid=proc.pid, owner_started_at=started_at
+            dispatch_id, owner_pid=proc.pid, owner_started_at=started_at,
+            # The group it leads, so a Stop after this supervisor is gone can end what it left.
+            owner_group=child_group(proc.pid),
         )
     except Exception:  # pragma: no cover - bookkeeping must not abort the run
         logger.debug("dispatch %s owner stamp failed", dispatch_id, exc_info=True)
@@ -441,6 +447,12 @@ def _run_child_once(
     except Exception as exc:  # pragma: no cover - defensive
         exit_reason = f"wait_failed:{type(exc).__name__}"
         returncode = -1
+    else:
+        # The settle (D10): what the child started and left in its group ends with it —
+        # a build whose shell returned would otherwise run on, invisible to Running now and
+        # out of Stop's reach. Its own-session background processes are not in the group.
+        if child_group(proc.pid) is not None:
+            end_child_group(proc.pid, started_at)
 
     # Join the pumps so nothing the child wrote is missed, then force them loose
     # rather than leaking a thread per dispatch on a pipe a survivor holds open.
@@ -448,6 +460,7 @@ def _run_child_once(
     from agent_runtime import process_index
 
     process_index.forget_child(proc.pid)
+    release_child_group(proc.pid)
     return returncode, exit_reason, stdout_tail.text(), stderr_tail.text()
 
 

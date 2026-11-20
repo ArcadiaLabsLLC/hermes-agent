@@ -212,6 +212,9 @@ def _row_to_dict(row: tuple) -> dict[str, Any]:
         parent_turn_id,
         started_at,
         cancel_requested,
+        owner_group,
+        cancel_requested_at,
+        cancel_seen_at,
     ) = row
     try:
         result = json.loads(result_json) if result_json else None
@@ -255,6 +258,12 @@ def _row_to_dict(row: tuple) -> dict[str, Any]:
         # D1.07 (owner ruling a). The durable cancel a process that does NOT
         # supervise this row leaves for the one that does: the reason, or "".
         "cancel_requested": cancel_requested or "",
+        # D10 (review w1118a.55): the process group the child leads (its pid on POSIX),
+        # or None for a child spawned without one; what a Stop after its supervisor is
+        # gone may end. D11: when the cancel was asked, and when a supervisor took it.
+        "owner_group": int(owner_group) if owner_group else None,
+        "cancel_requested_at": float(cancel_requested_at) if cancel_requested_at else None,
+        "cancel_seen_at": float(cancel_seen_at) if cancel_seen_at else None,
     }
 
 
@@ -263,5 +272,6 @@ _SELECT = f"""SELECT dispatch_id, sender_session_id, sender_persona_id, target_p
                      notify_operator, dispatched_at, completed_at, updated_at,
                      result_json, delivery_state, delivery_attempts, delivered_at,
                      owner_pid, owner_started_at, relay_chain_json, delivery_error,
-                     remote_install_id, parent_turn_id, started_at, cancel_requested
+                     remote_install_id, parent_turn_id, started_at, cancel_requested,
+                     owner_group, cancel_requested_at, cancel_seen_at
               FROM {_TABLE}"""

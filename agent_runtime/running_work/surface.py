@@ -543,10 +543,21 @@ def _cancel_dispatch(work_id: str, kind: str, stable: str, row: dict[str, Any], 
     routes. A dispatch another serve on this machine supervises answers
     ``cancel_requested`` — the durable mark that serve's cancel watch acts on
     (D1.07), reported as a request and never as a kill. ``not_owned_here``
-    remains for a process where the lane is not resident at all.
+    remains for a process where the lane cannot be loaded at all.
+
+    A Stop is an operator's act, not a projection read, so the lane is loaded when this
+    process never dispatched anything: a serve restarted since a request's supervisor
+    ended answered ``not_owned_here`` and left the request and what it started running
+    (seen live 2026-11-20, lane w1118a-hstop) — the row's own settle and group end need
+    only the store, which any process reads.
     """
 
     lane = _module("tools.agent_chat_dispatch")
+    if lane is None:
+        try:
+            import tools.agent_chat_dispatch as lane
+        except Exception:
+            lane = None
     if lane is None:
         # The supervisor lives in that module; a process that never imported it
         # supervises nothing, so the row is simply not ours to stop.
