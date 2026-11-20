@@ -113,62 +113,78 @@ def honest_default_display_name(persona_id: str, persona: Any | None = None) -> 
     return _display_name_for_template(str(persona_id or ""))
 
 
-#: A trailing copy number, ``" (2)"``: stripped before counting so a re-run never
-#: yields ``"QA Agent (2) (2)"``.
-_COPY_NUMBER_TAIL = re.compile(r"\s*\(\d+\)$")
+#: A trailing instance number — ``" · 2"``, or the retired ``" (2)"`` a seat
+#: placed before 2026-11-19 still wears — stripped before counting so a re-run
+#: never yields ``"Neko Mission Lead · 2 · 2"``.
+_INSTANCE_NUMBER_TAIL = re.compile(r"\s*(?:·\s*(\d+)|\((\d+)\))$")
+#: The separator an extra instance's number wears (owner 2026-11-19, row
+#: ``RT-EXTRA-AGENT-INSTANCES-ARE-NUMBERED-WITH-A-DOT``).
+INSTANCE_NUMBER_SEPARATOR = " · "
 
 
-def next_distinct_display_name(base: str, existing: Sequence[str]) -> str:
-    """``base`` when free, else the first unused ``base (2)``, ``base (3)``, ….
+def numbered_instance_name(base: str, existing: Sequence[str]) -> str:
+    """THE seat-naming rule: ``base`` when no instance wears it, else
+    ``base · 2``, ``base · 3`` — the first number no instance wears.
 
-    Case-insensitive against ``existing``. The launcher's own
-    ``missionOfficeNextDistinctName`` rule, so a server-named copy reads exactly
-    as a client-named one did.
+    ``existing`` is the names the agent's other instances wear. Case-insensitive;
+    a number in ``base`` itself, or a legacy ``base (2)``, is read as the same
+    count, so a retry never doubles the suffix.
     """
 
     trimmed = (base or "").strip()
     if not trimmed:
         return ""
-    taken = {str(name).strip().lower() for name in existing if name and str(name).strip()}
-    if trimmed.lower() not in taken:
-        return trimmed
-    root = _COPY_NUMBER_TAIL.sub("", trimmed).strip() or trimmed
+    root = _INSTANCE_NUMBER_TAIL.sub("", trimmed).strip() or trimmed
+    worn: set[int] = set()
+    for name in existing:
+        text = str(name or "").strip()
+        if not text:
+            continue
+        if text.lower() == root.lower():
+            worn.add(1)
+            continue
+        match = _INSTANCE_NUMBER_TAIL.search(text)
+        if match and text[: match.start()].strip().lower() == root.lower():
+            worn.add(int(match.group(1) or match.group(2)))
+    if 1 not in worn:
+        return root
     number = 2
-    while f"{root} ({number})".lower() in taken:
+    while number in worn:
         number += 1
-    return f"{root} ({number})"
+    return f"{root}{INSTANCE_NUMBER_SEPARATOR}{number}"
 
 
-def placed_agent_display_names(workspace_id: str) -> list[str]:
-    """The names of the agents already placed in ``workspace_id``'s office.
+def placed_instance_display_names(persona_id: str) -> list[str]:
+    """The names every placed instance of ``persona_id`` wears, in EVERY
+    workspace (owner 2026-11-19: "Per agent, everywhere").
 
-    The counter is per workspace and counts PLACED agents, as the launcher's did:
-    the first placement in a fresh workspace keeps the plain name. An unreadable
-    or missing surface counts nothing (the workspace gate refuses the create).
+    An instance is placed when it carries a ``workspace_id``; the agent's
+    canonical roster row carries none and is not a seat, so the first placement
+    keeps the plain name. An unreadable store counts nothing.
     """
 
-    from ..office_store import OfficeStore
+    from ..persona_assignments import PersonaInstanceStore
 
+    persona = _normalize_instance_source_persona(persona_id)
     try:
-        actors = OfficeStore().scan_actors(workspace_id).actors
+        instances = PersonaInstanceStore().list_all()
     except Exception:
         return []
     return [
-        item.display_name
-        for actor in actors
-        for item in (actor.items or [])
-        if getattr(item, "kind", "agent") == "agent" and item.display_name
+        instance.display_name
+        for instance in instances
+        if instance.persona_id == persona and instance.workspace_id and instance.display_name
     ]
 
 
-def distinct_default_display_name(persona_id: str, persona: Any | None, workspace_id: str) -> str:
+def distinct_default_display_name(persona_id: str, persona: Any | None) -> str:
     """The seat label a PLACE with no ``display_name`` gets: the honest default,
-    numbered when an agent of that name is already placed in the workspace ("QA
-    Agent (2)"). A create never uses it — it names a new agent, and one with no
-    name is refused ``agent_name_required`` (review w1118a.41 D8)."""
+    numbered across the agent's placed instances ("Neko Mission Lead · 2"). A
+    create never uses it — it names a new agent, and one with no name is refused
+    ``agent_name_required`` (review w1118a.41 D8)."""
 
     base = honest_default_display_name(persona_id, persona)
-    return next_distinct_display_name(base, placed_agent_display_names(workspace_id)) or base
+    return numbered_instance_name(base, placed_instance_display_names(persona_id)) or base
 
 
 def persona_roster() -> list[Any]:
@@ -647,7 +663,7 @@ def normalize_agent_create(
         idempotency_key=idempotency_key,
         placement_id=placement_id,
         display_name=display_name,
-        default_display_name=distinct_default_display_name(persona_id, persona, workspace_id),
+        default_display_name=distinct_default_display_name(persona_id, persona),
         realm_id=realm_id,
         folder=folder,
         correlation_id=correlation_id,

@@ -148,7 +148,8 @@ def perform_agent_create(
     ``agent_name_taken``, both ``rolled_back: true`` with nothing written — the
     runtime never invents a numbered name for an agent (review w1118a.41 D8).
     Only :func:`perform_agent_place` falls back to the seat label
-    (:func:`honest_default_display_name`, numbered per workspace).
+    (:func:`honest_default_display_name`, numbered across the agent's placed
+    instances: "Neko Mission Lead · 2").
 
     Every lock in the path is a cross-process FILE lock, so this is correct with
     or without a live ``harness serve`` beside it.
@@ -286,7 +287,7 @@ class AgentCreate:
             # Before the reservation and before any store is built, so it writes
             # nothing: the runtime never invents a name for a new agent (Eternia
             # ``bundled-agents-stay-one-agent-design.md`` § 4), so the seat-label
-            # numbering ("Neko Mission Lead (2)") is never an agent's name.
+            # numbering ("Neko Mission Lead · 2") is never an agent's name.
             raise _Answered(
                 refused(
                     ERR_INVALID_PARAMS,

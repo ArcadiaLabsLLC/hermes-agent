@@ -233,7 +233,7 @@ def _runtime_agent_place(
 
     Params, result and refusals are ``runtime.agent.create``'s (less
     ``source_instance_id``, and ``display_name`` stays optional: a seat with no
-    name takes the seat label, "QA Agent (2)"); ``persona_id`` in the reply is
+    name takes the seat label, "QA Agent · 2"); ``persona_id`` in the reply is
     the agent placed.
     A translation shim over ``agent_create.perform_agent_place``.
     """
