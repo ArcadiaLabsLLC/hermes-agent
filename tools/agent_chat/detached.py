@@ -229,8 +229,10 @@ def _dispatch_detached(
         "next_expected": (
             "Their reply is NOT in this result — they are working on it now. It will arrive "
             "as a new message in this conversation when they finish and you are idle. Carry "
-            "on with something else; do not re-send. Use agent_chat_dispatches to check "
-            "whether it is still running."
+            "on with something else; do not re-send. If they are still busy with an earlier "
+            "turn, this waits for it to end and then runs. Use agent_chat_dispatches to check "
+            "whether it is still running, or agent_chat_dispatches(cancel=<dispatch_id>) to "
+            "stop work of yours they are still doing."
         ),
     }
     if auto_detached:
@@ -244,8 +246,8 @@ def _dispatch_detached(
     return json.dumps(handle, indent=2, default=str)
 
 
-def agent_chat_dispatches(*, limit=10, state=None, requested_by_session=None):
-    """List the caller's background dispatches. Read-only; creates nothing."""
+def agent_chat_dispatches(*, limit=10, state=None, cancel=None, requested_by_session=None):
+    """List the caller's background dispatches, or stop one of them (``cancel``)."""
 
     if scope_off():
         return refusal_json(
@@ -257,6 +259,8 @@ def agent_chat_dispatches(*, limit=10, state=None, requested_by_session=None):
     from tools.agent_chat_dispatch import summarize_for_caller
 
     scope = str(requested_by_session or "").strip()
+    if str(cancel or "").strip():
+        return _cancel_own_dispatch(str(cancel).strip(), scope)
     if not scope:
         # Scoped to the caller's own chat root. With no caller identity the
         # honest answer is "I cannot tell which are yours", NOT everyone's.
@@ -297,6 +301,51 @@ def agent_chat_dispatches(*, limit=10, state=None, requested_by_session=None):
                 else "nothing in flight"
             ),
         },
+        indent=2,
+        default=str,
+    )
+
+
+#: What the sender is told after its cancel, by ``request_cancel``'s outcome.
+_CANCEL_NEXT: Mapping[str, str] = MappingProxyType({
+    "stopping": "their turn is being ended now; a short 'cancelled' result arrives as a new message",
+    "cancelled": "it had not started; nothing ran and nothing more will arrive",
+    "cancel_requested": "another process runs it and stops it within seconds; a 'cancelled' result arrives as a new message",
+    "already_finished": "it had already finished; its result is kept and delivered as usual",
+    "not_running": "the paired install had not started it; it will not be sent",
+})
+
+
+def _cancel_own_dispatch(dispatch_id: str, scope: str) -> str:
+    """Stop one of the CALLER's running dispatches (RT-A-LEADS-STOP-TO-A-BUSY-HELPER-COMES-BACK-AS-WORK-FAILED).
+
+    The same stop the operator's running-work Stop uses (``agent_chat_dispatch.request_cancel``),
+    offered to the agent that sent the work: a lead halting a lane was left only another
+    message, which waits behind the very turn it meant to stop. Scoped to the caller's chat
+    root — another agent's dispatch is refused, never stopped.
+    """
+
+    from agent_runtime.dispatch_store import get_dispatch
+    from tools.agent_chat_dispatch import request_cancel
+
+    row = get_dispatch(dispatch_id) if scope else None
+    if row is None or str(row.get("sender_session_id") or "") != scope:
+        return refusal_json(
+            f"{dispatch_id} is not a dispatch of yours; nothing was stopped. "
+            "List yours with agent_chat_dispatches.",
+            error_kind="dispatch_not_yours",
+        )
+    answer = request_cancel(dispatch_id, reason="sender_cancel")
+    outcome = str(answer.get("outcome") or "")
+    next_expected = _CANCEL_NEXT.get(outcome)
+    if next_expected is None:
+        return refusal_json(
+            f"{dispatch_id} could not be stopped ({outcome or 'unknown'}). "
+            + str(answer.get("detail") or "Tell the operator."),
+            error_kind=outcome or "cancel_failed",
+        )
+    return json.dumps(
+        {"ok": True, "dispatch_id": dispatch_id, "outcome": outcome, "next_expected": next_expected},
         indent=2,
         default=str,
     )
