@@ -56,9 +56,10 @@ def test_placing_an_existing_agent_adds_an_instance_and_mints_no_persona_or_prof
         assert (instance.persona_id, instance.workspace_id) == ("qa", WORKSPACE)
         assert instance.default_chat_session_id == result["default_chat_session_id"]
         assert _actors()[result["actor_key"]].persona_id == "qa"
-    # The seat still gets the persona's honest name, numbered against the desk.
+    # The seat still gets the persona's honest name, numbered against the agent's
+    # other placed instances — the unplaced canonical ``personainst_qa`` is not one.
     assert first["display_name"] == "QA Agent"
-    assert second["display_name"] == "QA Agent (2)"
+    assert second["display_name"] == "QA Agent · 2"
 
 
 def test_a_place_replays_its_key_without_a_second_instance(qa_persona):

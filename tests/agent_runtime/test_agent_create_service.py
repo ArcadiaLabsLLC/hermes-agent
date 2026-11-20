@@ -1854,27 +1854,38 @@ def test_a_rolled_back_key_replays_its_recorded_refusal_and_writes_nothing(
 # ── a copy is named distinctly by the server (runtime row, launcher MC ruling 2026-10-15) ──
 
 
-def test_a_second_seat_with_no_name_is_numbered_by_the_server(qa_persona):
-    """The launcher stops predicting "QA Agent (2)": a PLACE with no ``display_name``
-    is numbered against the agents already placed in the workspace — a seat label,
-    never a new agent's name (a nameless create is refused, review w1118a.41 D8).
-    The first place is the positive control: an empty office keeps the plain name."""
+def test_extra_seats_are_numbered_with_a_dot_across_every_workspace(qa_persona):
+    """A PLACE with no ``display_name`` is numbered against the agent's OTHER
+    placed instances in EVERY workspace (owner 2026-11-19: "Per agent,
+    everywhere"; row ``RT-EXTRA-AGENT-INSTANCES-ARE-NUMBERED-WITH-A-DOT``) — a
+    seat label, never a new agent's name (a nameless create is refused, review
+    w1118a.41 D8). The first place is the positive control: the plain name. The
+    third lands in a second workspace and still counts the first two; a replay
+    of the second's key and a re-place of its placement id mint no number."""
 
     from agent_runtime.agent_create import perform_agent_place
 
     _seed_workspace()
+    _seed_workspace("ws-qa-other")
     seat = {"display_name": None}
     first = perform_agent_place(_params(placement_id="qa_service_agent_11", idempotency_key="copy-1", **seat))
     second = perform_agent_place(_params(placement_id="qa_service_agent_12", idempotency_key="copy-2",
                                          position=[6.0, 1.0], **seat))
     third = perform_agent_place(_params(placement_id="qa_service_agent_13", idempotency_key="copy-3",
-                                        position=[9.0, 1.0], **seat))
+                                        workspace_id="ws-qa-other", position=[9.0, 1.0], **seat))
+    replay = perform_agent_place(_params(placement_id="qa_service_agent_12", idempotency_key="copy-2",
+                                         position=[6.0, 1.0], **seat))
+    replaced = perform_agent_place(_params(placement_id="qa_service_agent_12", idempotency_key="copy-2b",
+                                           position=[6.0, 1.0], **seat))
 
     assert first.result["display_name"] == "QA Agent"
-    assert second.result["display_name"] == "QA Agent (2)"
-    assert third.result["display_name"] == "QA Agent (3)"
-    names = {actor.items[0].display_name for actor in _actors().values()}
-    assert names == {"QA Agent", "QA Agent (2)", "QA Agent (3)"}
+    assert second.result["display_name"] == "QA Agent · 2"
+    assert third.result["display_name"] == "QA Agent · 3"
+    assert replay.result["display_name"] == "QA Agent · 2"
+    assert replaced.result["display_name"] == "QA Agent · 2"
+    here = {actor.items[0].display_name for actor in _actors().values()}
+    there = {actor.items[0].display_name for actor in _actors("ws-qa-other").values()}
+    assert (here, there) == ({"QA Agent", "QA Agent · 2"}, {"QA Agent · 3"})
 
 
 def test_a_sent_display_name_still_wins(qa_persona):
@@ -1885,13 +1896,19 @@ def test_a_sent_display_name_still_wins(qa_persona):
     assert named.result["display_name"] == "Scout"
 
 
-def test_the_numbering_rule_matches_the_launchers():
-    from agent_runtime.agent_create.request import next_distinct_display_name
+def test_the_instance_numbering_rule():
+    from agent_runtime.agent_create.request import numbered_instance_name
 
-    assert next_distinct_display_name("QA Agent", []) == "QA Agent"
-    assert next_distinct_display_name("QA Agent", ["qa agent"]) == "QA Agent (2)"
-    assert next_distinct_display_name("QA Agent", ["QA Agent", "QA Agent (2)"]) == "QA Agent (3)"
-    assert next_distinct_display_name("QA Agent (2)", ["QA Agent (2)"]) == "QA Agent (3)"
+    assert numbered_instance_name("Neko", []) == "Neko"
+    assert numbered_instance_name("Neko", ["neko"]) == "Neko · 2"
+    assert numbered_instance_name("Neko", ["Neko", "Neko · 2"]) == "Neko · 3"
+    # a retry that hands back a numbered name never doubles the suffix
+    assert numbered_instance_name("Neko · 2", ["Neko", "Neko · 2"]) == "Neko · 3"
+    # the first number no instance wears; a seat placed before the dot still counts
+    assert numbered_instance_name("Neko", ["Neko", "Neko · 3"]) == "Neko · 2"
+    assert numbered_instance_name("Neko", ["Neko", "Neko (2)"]) == "Neko · 3"
+    # another agent's numbered seat is not this agent's
+    assert numbered_instance_name("Neko", ["Neko Lead · 2", "Nekomata"]) == "Neko"
 
 
 def test_a_new_agent_copies_portable_settings_into_its_own_profile(qa_persona):

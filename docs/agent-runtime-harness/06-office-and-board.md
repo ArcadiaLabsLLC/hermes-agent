@@ -38,8 +38,10 @@ and a name any agent of the install already has (case and spacing ignored, shipp
 agents included) is refused 4090 `{reason: agent_name_taken, name, placement_id,
 phase: "instance", rolled_back: true}`, checked under the same lock
 `runtime.agent.duplicate` names under. The runtime never invents a numbered name
-for an agent. `runtime.agent.place` keeps the seat label ("QA Agent (2)") when it
-is sent no name.
+for an agent. `runtime.agent.place` keeps the seat label when it is sent no name:
+the agent's name, then "Neko Mission Lead · 2", "· 3" — the first number none of
+that agent's placed instances wears, counted across every workspace (owner
+2026-11-19, `agent_create.request.numbered_instance_name`).
 
 **Handlers are named, never `file:line`, and the reason is this table's own
 history.** The retire row carried a `serve_rpc.py` line number (2055) from the day S5 landed it,
