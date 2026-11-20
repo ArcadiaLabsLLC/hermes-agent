@@ -500,9 +500,7 @@ class AgentRunExecution:
                 session_id=self.request.root_chat_session_id or self.request.session_id or "",
                 persona_instance_id=self.request.persona_instance_id or "",
                 agent=self.agent,
-                # RT-RUNNING-WORK-ROWS-SAY-WHO-ASKED-WHERE-AND-WHICH-STEPS: the card's folder and asker.
-                workdir=str(self.request.workdir or ""),
-                asked_by_marker=self.request.persona_chat_user_finish_reason or "",
+                request=self.request,  # the card's folder and asker (RT-RUNNING-WORK-ROWS-SAY-WHO-ASKED-…)
             ))
             idle_turn_keeper.note_active_agent(self.agent)  # h-idle-turn: the chat whose socket stays warm
             agent_ready_cleanup = _notify_agent_ready(self.request, self.agent)

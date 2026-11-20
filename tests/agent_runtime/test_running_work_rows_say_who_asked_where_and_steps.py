@@ -20,6 +20,7 @@ Killing mutations (reds recorded in the commit body):
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -53,7 +54,10 @@ def test_a_live_turn_says_who_asked_its_workspace_folder_and_steps(journal, name
     ])
     with live_turns.live_turn(
         turn_id=TURN, session_id=SESSION, persona_instance_id=INSTANCE, agent=agent,
-        workdir="/work/launcher", asked_by_marker=build_relay_sender_marker("lead", "personainst_lead"),
+        request=SimpleNamespace(
+            workdir="/work/launcher",
+            persona_chat_user_finish_reason=build_relay_sender_marker("lead", "personainst_lead"),
+        ),
     ):
         [row] = [row for row in build_running_work()["rows"] if row["kind"] == KIND_CHAT_TURN]
 

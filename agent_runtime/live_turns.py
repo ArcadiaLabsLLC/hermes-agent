@@ -130,10 +130,13 @@ _turns: dict[str, _Turn] = {}
 
 @contextmanager
 def live_turn(
-    *, turn_id: str, session_id: str, persona_instance_id: str, agent: Any,
-    workdir: str = "", asked_by_marker: str = "",
+    *, turn_id: str, session_id: str, persona_instance_id: str, agent: Any, request: Any = None,
 ) -> Iterator[None]:
-    """Register a turn for the duration of its conversation. A blank id is a no-op."""
+    """Register a turn for the duration of its conversation. A blank id is a no-op.
+
+    ``request`` is the run's request: its ``workdir`` is the folder the card shows and its
+    ``persona_chat_user_finish_reason`` the relay marker that says who asked.
+    """
 
     key = str(turn_id or "").strip()
     if not key:
@@ -144,8 +147,8 @@ def live_turn(
         session_id=str(session_id or ""),
         persona_instance_id=str(persona_instance_id or ""),
         agent=agent,
-        workdir=str(workdir or ""),
-        asked_by_marker=str(asked_by_marker or ""),
+        workdir=str(getattr(request, "workdir", "") or ""),
+        asked_by_marker=str(getattr(request, "persona_chat_user_finish_reason", "") or ""),
     )
     with _lock:
         _turns[key] = turn

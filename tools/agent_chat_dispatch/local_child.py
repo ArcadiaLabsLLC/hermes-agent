@@ -62,7 +62,7 @@ def spawn_child(argv: list[str], env: dict[str, str]) -> subprocess.Popen:
 # --------------------------------------------------------------------------
 
 
-def _kernel32() -> Any:
+def _job_kernel32() -> Any:
     import ctypes
     from ctypes import wintypes
 
@@ -82,7 +82,7 @@ def _assign_job(proc: subprocess.Popen) -> Any:
     """A new Job Object holding ``proc``, or None (the tree-kill alone then, as before)."""
 
     try:
-        kernel32 = _kernel32()
+        kernel32 = _job_kernel32()
         job = kernel32.CreateJobObjectW(None, None)
         if not job:
             return None
@@ -99,7 +99,7 @@ def end_job(job: Any) -> bool:
     """End every process in the child's Job Object; True when Windows accepted it."""
 
     try:
-        return bool(_kernel32().TerminateJobObject(job, 1))
+        return bool(_job_kernel32().TerminateJobObject(job, 1))
     except Exception:
         logger.debug("dispatch child job end failed", exc_info=True)
         return False
@@ -109,6 +109,6 @@ def close_job(job: Any) -> None:
     """Close this process's handle to a settled child's Job Object."""
 
     try:
-        _kernel32().CloseHandle(job)
+        _job_kernel32().CloseHandle(job)
     except Exception:
         logger.debug("dispatch child job close failed", exc_info=True)
