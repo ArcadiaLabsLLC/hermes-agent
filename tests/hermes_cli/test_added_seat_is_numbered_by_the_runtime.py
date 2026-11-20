@@ -12,6 +12,8 @@ MUTATION: return ``display_name`` unchanged from ``PersonaInstanceStore._numbere
 and "a second seat … is numbered" reds (seen 2026-11-20: 3 failed). Dropping the clash check
 (numbering every name) reds the verbatim-name pins in ``test_persona_assignments.py`` and
 ``test_serve_rpc_agent_create.py::test_an_explicit_display_name_wins`` (seen: 5 failed).
+Dropping the ``default_display_name`` numbering reds "the open-chat door numbers a seat it
+names itself" (seen: 1 failed).
 """
 
 from __future__ import annotations
@@ -57,6 +59,20 @@ def test_a_third_seat_takes_the_next_number(qa_persona, capsys):
     _add(capsys, "QA Agent", "ws_a")
     _add(capsys, "QA Agent", "ws_b")
     assert _add(capsys, "QA Agent", "ws_c")["display_name"] == "QA Agent · 3"
+
+
+def test_the_open_chat_door_numbers_a_seat_it_names_itself_and_says_so(qa_persona, capsys):
+    _add(capsys, "QA Agent", "ws_a")
+    code = _dispatch([
+        "harness", "persona", "instance", "open-chat",
+        "--persona", "qa",
+        "--add-instance",
+        "--workspace-id", "ws_b",
+        "--json",
+    ])
+    data = json.loads(capsys.readouterr().out)
+    assert code == 0, data
+    assert data["display_name"] == "QA Agent · 2"
 
 
 def test_a_retried_add_keeps_its_own_number(qa_persona, capsys):

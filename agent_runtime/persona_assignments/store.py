@@ -478,6 +478,7 @@ class PersonaInstanceStore:
         if normalized_session and self._session_owned_by_other_instance(normalized_session, instance_id):
             normalized_session = None
         display_name = self._numbered_seat_name(display_name, normalized_persona, instance_id)
+        default_display_name = self._numbered_seat_name(default_display_name, normalized_persona, instance_id)
         # Reproduce ``open_chat``'s naming rule HERE so the chat title this mint
         # writes is the one the argv lane's post-hoc ensure would have written:
         # explicit name wins, an existing instance keeps its own, and the

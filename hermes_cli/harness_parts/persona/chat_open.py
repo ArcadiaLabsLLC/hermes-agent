@@ -380,6 +380,9 @@ def _cmd_persona_instance_open_chat(args) -> int:
         # The instance a ``--move`` took this chat from; null when nothing moved.
         "moved_from_persona_instance_id": moved_from,
         "add_instance": bool(getattr(args, "add_instance", False)),
+        # The name the runtime gave the instance (an added seat is numbered
+        # "Name · 2"), so a caller shows it rather than one of its own.
+        "display_name": instance.display_name,
         "placement_id": safe_assignment_token(getattr(args, "placement_id", None)) or None,
         "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
         "next_expected": "resume or send on this chat session to boot the persona instance history",
