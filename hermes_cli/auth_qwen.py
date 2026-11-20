@@ -31,6 +31,9 @@ def _read_qwen_cli_tokens() -> dict[str, Any]:
     auth_path = _qwen_cli_auth_path()
     from agent_runtime.host_store import secret_files as _host_secrets  # fork seam: borrowed store refused when bound
     auth_path = _host_secrets.view(auth_path)
+    from agent_runtime.provider_credential_source import refuse_borrowed_login  # fork seam: no borrowed CLI login
+    if fenced := refuse_borrowed_login("qwen-oauth"):  # in a process Eternia spawned (BORROWED_LOGINS)
+        raise _qwen_err(fenced, "qwen_auth_missing")
     if not auth_path.exists():
         raise _qwen_err("Qwen CLI credentials not found. Run 'qwen auth qwen-oauth' first.", "qwen_auth_missing")
     try:

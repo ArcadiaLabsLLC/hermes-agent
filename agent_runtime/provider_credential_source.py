@@ -30,6 +30,16 @@ ladder never reaches ``~/.claude/.credentials.json`` / the Keychain, and the sta
 (:func:`present_credential_sources`, :func:`visible_entries`, :func:`account_signed_in`) never
 count it. Upstream's readers still SEE the file; nothing here spends or reports it. Outside
 Eternia (a CLI user) the ladder is upstream's, byte for byte.
+
+**The fence is one table, per provider** (:data:`BORROWED_LOGINS`, review w1118a.66 D3,
+``RT-FU-A-QA-COPYS-QWEN-AND-COPILOT-SIGN-INS-COME-FROM-THIS-COMPUTERS-OWN-CLI-LOGINS``): a QA
+copy runs with the machine user's HOME, so every other program's login under it is the
+owner's. Qwen's is the Qwen CLI's ``~/.qwen/oauth_creds.json``: fenced, its one reader
+(``hermes_cli/auth_qwen.py::_read_qwen_cli_tokens``) refuses it through
+:func:`refuse_borrowed_login`, so the pool never seeds it, the runtime ladder never spends or
+refreshes (rotates) it, and its status reads signed out; a Qwen row the profile's own pool
+holds is what a turn spends. Copilot ACP runs the Copilot CLI on that CLI's own login: fenced,
+it reads not connected (:func:`account_signed_in`) unless the pool holds a row of its own.
 """
 
 from __future__ import annotations
@@ -42,6 +52,7 @@ __layer__ = "stores"
 __all__ = [
     "ACCOUNT",
     "API_KEY",
+    "BORROWED_LOGINS",
     "BORROWED_SOURCES",
     "account_signed_in",
     "account_usage_token",
@@ -52,6 +63,7 @@ __all__ = [
     "credential_source_ids",
     "entry_family",
     "present_credential_sources",
+    "refuse_borrowed_login",
     "resolve_chosen_anthropic_token",
     "visible_entries",
 ]
@@ -69,13 +81,24 @@ _ANTHROPIC_SOURCE_FAMILY = {
     "env:ANTHROPIC_API_KEY": API_KEY,
 }
 
-#: Pool sources that are another program's login, mirrored in: never Eternia's Anthropic Account.
-BORROWED_SOURCES = frozenset({"claude_code"})
+#: The ONE fence table: per provider, the pool sources that are another program's own login on
+#: this computer, mirrored in. A provider listed here never borrows in a process Eternia spawned
+#: (:func:`borrowed_login_fenced`); an empty set means that program's login is never a pool row
+#: (the Copilot CLI runs on its own) and the provider reads connected only through its pool.
+BORROWED_LOGINS: dict[str, frozenset[str]] = {
+    "anthropic": frozenset({"claude_code"}),  # Claude Code's ~/.claude/.credentials.json / Keychain
+    "qwen-oauth": frozenset({"qwen-cli"}),  # the Qwen CLI's ~/.qwen/oauth_creds.json
+    "copilot-acp": frozenset(),  # the Copilot CLI's own login (``copilot --acp``)
+}
+
+#: Every borrowed pool source, whatever its provider.
+BORROWED_SOURCES = frozenset().union(*BORROWED_LOGINS.values())
 
 
 def borrowed_login_fenced(provider: str = "anthropic") -> bool:
     """True in a process Eternia spawned: the provider's account never borrows another CLI's login."""
-    if provider != "anthropic":
+    # MUTATION: drop "qwen-oauth" from BORROWED_LOGINS and test_qwen_cli_login_borrow_fence reddens.
+    if provider not in BORROWED_LOGINS:
         return False
     import os
 
@@ -85,8 +108,18 @@ def borrowed_login_fenced(provider: str = "anthropic") -> bool:
     return launcher_spawned(os.environ)
 
 
-def _borrowed(entry: Any) -> bool:
-    return str(getattr(entry, "source", "") or "") in BORROWED_SOURCES
+def refuse_borrowed_login(provider: str) -> Optional[str]:
+    """Why a fenced provider's borrowed-login reader must not read, else None (read as upstream does).
+
+    The one door an upstream reader of another program's login file asks, beside the file's path."""
+    if not borrowed_login_fenced(provider):
+        return None
+    return (f"Eternia never signs in to {provider} with this computer's own command-line login; "
+            "sign in through this profile's own credential pool.")
+
+
+def _borrowed(entry: Any, provider: str = "anthropic") -> bool:
+    return str(getattr(entry, "source", "") or "") in BORROWED_LOGINS.get(provider, frozenset())
 
 
 def visible_entries(provider: str, entries: Iterable[Any]) -> list[Any]:
@@ -94,7 +127,7 @@ def visible_entries(provider: str, entries: Iterable[Any]) -> list[Any]:
     entries = list(entries)
     if not borrowed_login_fenced(provider):
         return entries
-    return [entry for entry in entries if not _borrowed(entry)]
+    return [entry for entry in entries if not _borrowed(entry, provider)]
 
 
 def credential_source_ids(provider: str) -> tuple[tuple[str, str], ...]:
@@ -179,11 +212,11 @@ def benched_entry_ids(provider: str, entries: Iterable[Any]) -> frozenset[str]:
     like one in cooldown, so neither ``select`` nor a 401/429 rotation can lease it. With
     nothing stored for the chosen family the bench lifts, matching
     :func:`resolve_chosen_anthropic_token`'s fall-through."""
-    if provider != "anthropic":
-        return frozenset()
     entries = list(entries)
     fenced = frozenset(str(entry.id) for entry in entries
-                       if _borrowed(entry)) if borrowed_login_fenced(provider) else frozenset()
+                       if _borrowed(entry, provider)) if borrowed_login_fenced(provider) else frozenset()
+    if provider != "anthropic":
+        return fenced
     chosen = chosen_credential_source(provider)
     if chosen is None:
         return fenced
@@ -344,10 +377,21 @@ def account_usage_token() -> Optional[str]:
     return str(stored or "").strip() or None
 
 
+def _pool_signed_in(provider: str) -> bool:
+    """A row of the provider's own pool, with a secret, that is not a borrowed login."""
+    from agent.credential_pool import load_pool
+
+    return any(_has_secret(entry) and not _borrowed(entry, provider) for entry in load_pool(provider).entries())
+
+
 def account_signed_in(provider: str) -> Optional[bool]:
     """A fenced provider's sign-in fact (a stored credential of its own), else None (ask upstream).
 
-    Upstream's ``get_auth_status`` counts every pool row, the borrowed one included."""
+    Upstream's ``get_auth_status`` counts every pool row, the borrowed one included; for Qwen and
+    Copilot ACP it reads the CLI's own login, which a fenced process never counts."""
     if not borrowed_login_fenced(provider):
         return None
-    return any(present_credential_sources(provider).values())
+    if provider == "anthropic":
+        return any(present_credential_sources(provider).values())
+    # MUTATION: answer None here and test_copilot_acp_reads_not_connected_on_its_cli_login reddens.
+    return _pool_signed_in(provider)
