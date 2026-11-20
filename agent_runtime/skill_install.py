@@ -45,6 +45,22 @@ def harness_skill_source_package(skill: str) -> Path:
     return harness_skill_source_root() / skill
 
 
+def shipped_harness_skill_sync_hash(slug: str) -> str | None:
+    """This install's shipped copy of a built-in harness skill, as the realm sync hashes it; None for any other slug.
+
+    The build owns a built-in skill's text (RT-FU-A-HERMES-UPDATE-MAKES-EVERY-REALM-ASK-TO-PUBLISH-ITS-BUILT-IN-SKILL,
+    review w1118a.63 D5 (a)): every boot and pull reinstalls it, so a local copy equal to it is never the member's
+    change and is never published. The ONE read of that fact, for the drift walk's arms and the publish.
+    """
+
+    if slug not in HARNESS_SKILLS:
+        return None
+    from agent_runtime.skill_promotion import skill_package_sync_hash
+
+    source = harness_skill_source_package(slug)
+    return skill_package_sync_hash(source) if source.is_dir() else None
+
+
 def harness_skill_destination(skill: str, *, hermes_home: Path | None = None) -> Path:
     # Built-in Harness skills install to the shared canonical root so every
     # persona references one copy and realm sync publishes it. ``hermes_home``

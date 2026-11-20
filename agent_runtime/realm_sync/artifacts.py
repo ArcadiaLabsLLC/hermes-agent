@@ -61,6 +61,7 @@ __all__ = [
     "realm_workspace_ids",
     "tombstoned_workspace_ids",
     "publishable_skill_packages",
+    "published_skill_packages",
     "realm_agent_selection_state",
     "resolve_realm_sync_artifacts",
     "sync_artifacts_for_workspace_agent",
@@ -511,11 +512,51 @@ def _skill_artifacts(realm: Realm) -> list[RealmSyncArtifact]:
     # retried publish neither contains the skill nor could include it — this is
     # why no server-side hook is needed: every writer is a hermes running this
     # code, and the git host can only gate WHO writes, never WHAT is written.
+    #
+    # A built-in harness skill equal to this install's shipped copy never ships
+    # this member's copy (``published_skill_packages``): the team copy travels
+    # unchanged, or nothing when the team has none.
     root = get_shared_skills_dir()
     artifacts: list[RealmSyncArtifact] = []
     for slug, package_dir in publishable_skill_packages(realm):
-        _append_skill_package_artifacts(artifacts, root, slug, package_dir)
+        shipped = _published_skill_package(realm, slug, package_dir)
+        if shipped == package_dir:
+            _append_skill_package_artifacts(artifacts, root, slug, package_dir)
+        elif shipped is not None:
+            _append_skill_files(artifacts, root, slug, shipped)
     return artifacts
+
+
+def published_skill_packages(realm: Realm) -> dict[str, Path]:
+    """slug → the package dir a publish of ``realm`` ships for it, which is what its baseline records.
+
+    ``publishable_skill_packages`` with ONE substitution (review w1118a.63 D5 (a), the build owns a built-in
+    skill's text): a built-in harness skill whose local copy equals this install's shipped copy ships the team's
+    copy (the realm inbox mirror) unchanged, or is left out when the team carries none. Shipping it would push
+    this hermes's version of the text to every member, whose next boot reinstalls their own and reads it as
+    theirs to publish back — a flip-flop between installs of different versions with no end
+    (RT-FU-A-HERMES-UPDATE-MAKES-EVERY-REALM-ASK-TO-PUBLISH-ITS-BUILT-IN-SKILL). A member's own edit ships.
+    """
+
+    shipped: dict[str, Path] = {}
+    for slug, package_dir in publishable_skill_packages(realm):
+        chosen = _published_skill_package(realm, slug, package_dir)
+        if chosen is not None:
+            shipped[slug] = chosen
+    return shipped
+
+
+def _published_skill_package(realm: Realm, slug: str, package_dir: Path) -> Path | None:
+    from ..skill_install import shipped_harness_skill_sync_hash
+    from ..skill_promotion import realm_inbox_dir, skill_package_sync_hash
+
+    shipped_hash = shipped_harness_skill_sync_hash(slug)
+    # MUTATION: return ``package_dir`` always and
+    # test_a_publish_never_ships_this_installs_built_in_skill_text reddens.
+    if shipped_hash is None or skill_package_sync_hash(package_dir) != shipped_hash:
+        return package_dir
+    team = realm_inbox_dir(realm.id).joinpath(*slug.split("/"))
+    return team if (team / "SKILL.md").is_file() else None
 
 
 def publishable_skill_packages(realm: Realm) -> list[tuple[str, Path]]:
@@ -612,7 +653,10 @@ def _append_skill_package_artifacts(
                 "candidate_count": len(resolution.candidates),
             },
         )
-    skill_dir = selected.skill_dir or selected.skill_md.parent
+    _append_skill_files(artifacts, root, slug, selected.skill_dir or selected.skill_md.parent)
+
+
+def _append_skill_files(artifacts: list[RealmSyncArtifact], root: Path, slug: str, skill_dir: Path) -> None:
     safe_parts = [paths.safe_path_token(part) for part in slug.split("/")]
     prefix = "/".join(safe_parts)
     dest_root = root.joinpath(*safe_parts)
