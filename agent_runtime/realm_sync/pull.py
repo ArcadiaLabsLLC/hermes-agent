@@ -33,6 +33,7 @@ from .ledgers import (
     _REALM_AUTHORITY_FIELDS,
     _UNIONED_REALM_LEDGERS,
     drop_left_workspace_ids,
+    forget_leaves_the_team_never_held,
     merge_deleted_workspace_ledgers,
     merge_skill_tombstone_ledgers,
     merge_workspace_lift_ledgers,
@@ -48,7 +49,7 @@ from .git import (
     sync_git,
 )
 from .persona_artifacts import _artifacts_from_subtree
-from .artifacts import _iter_publishable_skill_packages
+from .artifacts import _iter_publishable_skill_packages, team_held_workspace_ids
 from .sidecar import _append_realm_sync_event, _sync_result, _write_sync_sidecar, _write_timestamp
 from .record_merge import held_record_keys, merge_record_pull
 from .skill_inbox import apply_skill_inbox_pull
@@ -800,6 +801,12 @@ def _pulled_artifact_bytes(artifact: RealmSyncArtifact, *, realm: Realm) -> byte
         for field in _REALM_AUTHORITY_FIELDS:
             if field in current:
                 merged[field] = current[field]
+    # A workspace that left this realm here while the team's copy never named it (moved in and out, or
+    # deleted, before any publish) leaves nothing behind: its leave is not unioned in, so the pull writes
+    # this machine's record without it (``ledgers.forget_leaves_the_team_never_held``; the publish ships
+    # the same). MUTATION: drop this call and
+    # test_a_workspace_that_only_passed_through_leaves_the_realm_in_sync reddens.
+    forget_leaves_the_team_never_held(current, team_held_workspace_ids(artifact.source))
     mergers = {
         "skill_tombstones": merge_skill_tombstone_ledgers,
         "workspace_lifts": merge_workspace_lift_ledgers,

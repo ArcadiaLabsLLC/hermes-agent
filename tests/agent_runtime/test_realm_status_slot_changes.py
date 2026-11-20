@@ -152,6 +152,9 @@ def test_a_member_reads_nothing_waiting_while_the_owner_lists_a_workspace_it_del
 
     shared, _workspace = _shared_workspace(team)
     fixture = WorkspaceStore().create(name="QA Fixture", realm_id=shared.id)
+    # The team held QA Fixture before the owner deleted it (as live): a leave the team never held is not
+    # published at all (MC-REALM-A-WORKSPACE-THAT-ONLY-PASSED-THROUGH-ASKS-TO-BE-PUBLISHED).
+    publish_realm_sync(shared.id)
     realm = RealmStore().get(shared.id)
     if fixture.id not in realm.workspace_ids:
         realm.workspace_ids.append(fixture.id)

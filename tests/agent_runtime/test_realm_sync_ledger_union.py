@@ -423,8 +423,12 @@ def test_a_pull_adopts_a_delete_that_lands_after_a_restore(tmp_path):
 
 
 def test_a_pull_unions_the_deleted_workspace_ledger(tmp_path):
+    # The team held ws_mine (a member in its published record) before this machine deleted it: a delete
+    # of a workspace the team never held is not kept at all
+    # (MC-REALM-A-WORKSPACE-THAT-ONLY-PASSED-THROUGH-ASKS-TO-BE-PUBLISHED).
     realm, repo = _local_realm(tmp_path)
     item = RealmStore().get(realm.id)
+    item.workspace_ids = [*item.workspace_ids, "ws_mine"]
     item.deleted_workspace_ids = ["ws_theirs"]
     RealmStore().save(item)
     _publish_record(repo, realm)
