@@ -740,7 +740,6 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-20 (Eternia lane w1120a-unseated)
 
-- **`FH-PREPUSH-TOUCHED-OVERRAN-WITH-44-NAMED-TEST-FILES` — The pre-push touched step stays inside its budget for a lane that names the tests of the shared symbols it changed** · group: prepush · from: `RT-AN-AGENT-THAT-ADDS-INSTANCES-FROM-ITS-TERMINAL-SKIPS-ITS-SPAWN-BUDGET` · seen 2026-11-20 19:34 UTC (w1118a-hsec, Linux box, `_lane_logs/prepush_overruns.jsonl`): step `touched`, budget 60 s, deadline 120 s, 111.5 s wall, work 44 files (the ones `grep -rl` found for the changed coordinator and create symbols, as prepush asks), load 25.52 · guess: a budget sized for the diff-found files cannot hold the named shared-symbol files; the named ones may want their own budget line · done when: the step is re-measured with a named set on an idle box and either fits or its budget says how named files count · READY 2026-11-20
 
 ## Filed on arrival — 2026-11-20 (review w1118a.63: what hermes lane w1118a-hrt3 reported)
 
