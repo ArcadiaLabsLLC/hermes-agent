@@ -477,6 +477,8 @@ class PersonaInstanceStore:
         normalized_session = safe_assignment_text(session_id, limit=200) if session_id is not None else None
         if normalized_session and self._session_owned_by_other_instance(normalized_session, instance_id):
             normalized_session = None
+        display_name = self._numbered_seat_name(display_name, normalized_persona, instance_id)
+        default_display_name = self._numbered_seat_name(default_display_name, normalized_persona, instance_id)
         # Reproduce ``open_chat``'s naming rule HERE so the chat title this mint
         # writes is the one the argv lane's post-hoc ensure would have written:
         # explicit name wins, an existing instance keeps its own, and the
@@ -520,6 +522,42 @@ class PersonaInstanceStore:
             realm_id=realm_id,
             correlation_id=correlation_id,
         )
+
+    def _numbered_seat_name(self, display_name: str | None, persona_id: str, instance_id: str) -> str | None:
+        """The name a placed seat wears: ``display_name`` — numbered by THE seat rule
+        (``numbered_instance_name``: ``Neko Mission Lead · 2``) when another placed
+        instance of the agent, in any workspace, already wears it.
+
+        Row Eternia ``MC-OLD-PLACEMENT-PATH-NAMES-A-SECOND-SEAT-WITH-PARENTHESES``
+        (owner 2026-11-19: "numbered per agent across every workspace"; the runtime
+        owns instance names): the argv ``--add-instance`` doors stored the caller's
+        name verbatim, so Eternia counted ``(2)`` itself there. Every placing door
+        passes here, so none keeps a rule of its own. The seat being written is not
+        counted, so a retry keeps its number; an unreadable store numbers nothing.
+        """
+
+        name = safe_assignment_text(display_name, limit=120)
+        if not name:
+            return display_name
+        from agent_runtime.agent_create.request import numbered_instance_name
+
+        try:
+            others = [
+                instance.display_name
+                for instance in self.list_all()
+                if instance.persona_id == persona_id
+                and instance.id != instance_id
+                and instance.workspace_id
+                and instance.display_name
+            ]
+        except Exception:
+            return name
+        # A name no other seat wears is the caller's own and is kept verbatim (a new
+        # agent's name, a deliberate seat label); only a clash is numbered.
+        key = " ".join(name.split()).casefold()
+        if all(" ".join(other.split()).casefold() != key for other in others):
+            return name
+        return numbered_instance_name(name, others) or name
 
     def _session_owned_by_other_instance(self, session_id: str, instance_id: str) -> bool:
         """Is this chat session already the default of a DIFFERENT instance?

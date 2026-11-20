@@ -176,6 +176,14 @@ def preserve_character_assignment(model: Any, stored: dict[str, Any], change: Ch
     )
 
 
+def follows_persona(record: Any) -> bool:
+    """A seat's own character record leaves the agent's choice in charge: none, or an inheriting mode."""
+    if not isinstance(record, dict):
+        return True
+    rules = _CHARACTER_MODE_RULES.get(record.get("mode"))
+    return rules is None or rules.inherits_persona
+
+
 def resolve_character_assignment(instance: Any, persona: Any) -> dict[str, Any]:
     """A read projection; inheritance follows the persona live, never a copy."""
     try:

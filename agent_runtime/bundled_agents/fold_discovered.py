@@ -33,7 +33,7 @@ from typing import Any
 
 from ..models import AgentPersona
 from .catalog import DEFINITION_FIELDS, ShippedAgent
-from .resolve import _plain, reference_record, shipped_reference
+from .resolve import _definition_value, reference_record, shipped_reference
 
 __layer__ = "stores"
 
@@ -74,7 +74,7 @@ def discovered_over(shipped: ShippedAgent, stored: dict[str, AgentPersona]) -> A
         return None
     if record.origin or record.based_on or record.character_assignment:
         return None
-    mine = {name: _plain(getattr(record, name)) for name in DEFINITION_FIELDS}
+    mine = {name: _definition_value(getattr(record, name)) for name in DEFINITION_FIELDS}
     return record if mine == _discovered_definition(profile) else None
 
 

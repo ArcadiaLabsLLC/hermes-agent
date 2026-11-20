@@ -134,9 +134,10 @@ def _soul_overlay_prompt_chars(persona: Any) -> int | None:
     SOUL.md row's in-prompt number is exact, not a re-derivation."""
 
     try:
+        from ..account_name import fill_user
         from ..mission_chat_prompts import _mission_chat_soul_overlay
 
-        soul = _mission_chat_soul_overlay(persona)
+        soul = fill_user(_mission_chat_soul_overlay(persona))
         return len(soul) if isinstance(soul, str) and soul else None
     except Exception:
         return None
