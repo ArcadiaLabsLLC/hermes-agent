@@ -61,16 +61,16 @@ __all__ = [
 #: The resolve key's prefix: ``record::workspace:<id>`` / ``record::realm:<id>``.
 RECORD_KEY_PREFIX: Final = "record::"
 #: The families this module merges, by the kind their artifacts carry.
-_MERGED_KINDS: Final = (str(SyncFamily.WORKSPACE), str(SyncFamily.REALM))
+_MERGED_KINDS = (str(SyncFamily.WORKSPACE), str(SyncFamily.REALM))
 #: A stamp, never a member's edit: the newer side's wins and it never holds.
-_STAMP_FIELDS: Final = ("updated_at",)
+_STAMP_FIELDS = ("updated_at",)
 #: Realm fields ``pull._pulled_artifact_bytes`` already reconciled (unioned ledgers; ``archived`` and
 #: the server authority fields are this machine's): the reconciled team copy is taken as it is.
-_REALM_RECONCILED_FIELDS: Final = frozenset((*_UNIONED_REALM_LEDGERS, "archived"))
+_REALM_RECONCILED_FIELDS = frozenset((*_UNIONED_REALM_LEDGERS, "archived"))
 #: A workspace's realm is the move rules' (``pull._workspaces_moved_out`` skips a workspace that left the
 #: pulled realm before this merge; one the loop writes the team placed there, re-homed by
 #: ``_leave_realms_a_pull_rehomed_from``): the team copy's value is taken as it is.
-_WORKSPACE_RECONCILED_FIELDS: Final = frozenset(("realm_id",))
+_WORKSPACE_RECONCILED_FIELDS = frozenset(("realm_id",))
 
 
 class RecordHoldResolveError(ValueError):
@@ -110,6 +110,32 @@ def _merge_id_list(local: Any, remote: Any, base: Any) -> list[Any]:
     return merged
 
 
+#: The held sidecar's two sides of a field.
+_MINE = "mine"
+_THEIRS = "theirs"
+#: Which side's value a field takes, by the classifier's action: the team's when it is taken, none when the
+#: team dropped a field left as it was here, this machine's otherwise (kept, unchanged, or HELD).
+_SIDE_BY_ACTION = {
+    PullAction.WRITE_REMOTE: lambda local, remote: remote,
+    PullAction.ARCHIVE_LOCAL: lambda local, remote: {},
+    PullAction.KEEP_LOCAL: lambda local, remote: local,
+    PullAction.NOOP: lambda local, remote: local,
+    PullAction.CONFLICT: lambda local, remote: local,
+}
+
+
+def _with_team_values(record: dict[str, Any], held: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """``record`` with each held field set to the team's value (dropped where the team has none)."""
+
+    out = dict(record)
+    for name, sides in held.items():
+        if sides.get(_THEIRS) is None:
+            out.pop(name, None)
+        else:
+            out[name] = sides[_THEIRS]
+    return out
+
+
 def merge_record(kind: str, local: dict[str, Any], remote: dict[str, Any], base: dict[str, Any]) -> RecordMerge:
     """Merge one record, field by field, against ``base`` (the copy last published or adopted here)."""
 
@@ -133,21 +159,15 @@ def merge_record(kind: str, local: dict[str, Any], remote: dict[str, Any], base:
             merged[name] = _merge_id_list(local.get(name), remote.get(name), base.get(name))
             baseline[name] = remote.get(name, [])
             continue
-        decision = classify_three_way_pull(_hash(local, name), _hash(remote, name), _hash(base, name))
-        if decision.action == PullAction.CONFLICT:
-            if name in local:
-                merged[name] = local[name]
-            held[name] = {"local": local.get(name), "remote": remote.get(name)}
+        action = classify_three_way_pull(_hash(local, name), _hash(remote, name), _hash(base, name)).action
+        side = _SIDE_BY_ACTION[action](local, remote)
+        if name in side:
+            merged[name] = side[name]
+        if action is PullAction.CONFLICT:
+            held[name] = {_MINE: local.get(name), _THEIRS: remote.get(name)}
             if name in base:
                 baseline[name] = base[name]
-            continue
-        if decision.action == PullAction.WRITE_REMOTE:
-            merged[name] = remote[name]
-        elif decision.action == PullAction.ARCHIVE_LOCAL:
-            pass  # the team dropped a field this machine left as it was
-        elif name in local:  # KEEP_LOCAL, NOOP
-            merged[name] = local[name]
-        if name in remote:
+        elif name in remote:
             baseline[name] = remote[name]
     if realm:
         drop_left_workspace_ids(merged)
@@ -232,7 +252,7 @@ def _record_id(destination: Path) -> str:
     return destination.stem
 
 
-def _load(data: bytes) -> dict[str, Any] | None:
+def _load_record(data: bytes) -> dict[str, Any] | None:
     try:
         value = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
@@ -254,10 +274,10 @@ def merge_record_pull(realm_id: str, artifact: RealmSyncArtifact, team: bytes) -
         return team
     record_id = _record_id(artifact.destination)
     key = _record_key(kind, record_id)
-    remote = _load(team)
+    remote = _load_record(team)
     baselines = _read_baseline(realm_id)
     base = baselines.get(key)
-    local = _load(artifact.destination.read_bytes()) if artifact.destination.is_file() else None
+    local = _load_record(artifact.destination.read_bytes()) if artifact.destination.is_file() else None
     if remote is None:
         return team
     if local is None or base is None:
@@ -290,15 +310,11 @@ def keep_team_fields(realm_id: str, artifacts: list[RealmSyncArtifact]) -> list[
     for artifact in artifacts:
         kind = str(artifact.kind)
         held = _read_hold(realm_id, kind, _record_id(artifact.destination)) if kind in _MERGED_KINDS else {}
-        record = _load(artifact.read_bytes()) if held else None
+        record = _load_record(artifact.read_bytes()) if held else None
         if record is None:
             out.append(artifact)
             continue
-        for name, sides in held.items():
-            if "remote" in sides and sides["remote"] is not None:
-                record[name] = sides["remote"]
-            else:
-                record.pop(name, None)
+        record = _with_team_values(record, held)
         out.append(replace(artifact, content=json.dumps(record, indent=2, sort_keys=True, default=str).encode("utf-8")))
     return out
 
@@ -312,7 +328,7 @@ def record_baselines_after_publish(realm_id: str, published: Iterable[RealmSyncA
         kind = str(artifact.kind)
         if kind not in _MERGED_KINDS:
             continue
-        record = _load(artifact.read_bytes())
+        record = _load_record(artifact.read_bytes())
         if record is None:
             continue
         record_id = _record_id(artifact.destination)
@@ -355,23 +371,13 @@ def resolve_record_hold(realm_id: str, key: str, *, take: str, dry_run: bool = F
         return row
     destination = _destination(kind, record_id)
     if side is SyncTake.REMOTE:
-        record = _load(destination.read_bytes()) if destination.is_file() else None
+        record = _load_record(destination.read_bytes()) if destination.is_file() else None
         if record is None:
             raise RecordHoldResolveError("not_found", f"{key} is not on this machine")
-        for name, sides in held.items():
-            if sides.get("remote") is not None:
-                record[name] = sides["remote"]
-            else:
-                record.pop(name, None)
+        record = _with_team_values(record, held)
         destination.write_text(json.dumps(record, indent=2, sort_keys=True, default=str), encoding="utf-8")
     baselines = _read_baseline(realm_id)
-    entry = dict(baselines.get(_record_key(kind, record_id), {}))
-    for name, sides in held.items():
-        if sides.get("remote") is not None:
-            entry[name] = sides["remote"]
-        else:
-            entry.pop(name, None)
-    baselines[_record_key(kind, record_id)] = entry
+    baselines[_record_key(kind, record_id)] = _with_team_values(baselines.get(_record_key(kind, record_id), {}), held)
     _write_baseline(realm_id, baselines)
     _clear_hold(realm_id, kind, record_id)
     return row
