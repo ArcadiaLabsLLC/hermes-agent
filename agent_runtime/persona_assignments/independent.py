@@ -247,9 +247,17 @@ def _archive_unbound_identity(store: PersonaInstanceStore, persona_id: str, prof
         # active persona and profile inventories.
         archive = home.parent / ".retired-independent-agents" / uuid.uuid4().hex
         archive.mkdir(parents=True)
-        if persona_file.exists():
+        retired_persona = persona_file.exists()
+        if retired_persona:
             os.replace(persona_file, archive / "persona.json")
         os.replace(home, archive / "profile")
+    if retired_persona:
+        from ..events import EventLog
+        from ..state_patches.persona import emit_persona_updated
+
+        # The failed create's record is gone: a client that folded its create
+        # patch re-reads the catalog from the full core this refresh demotes to.
+        emit_persona_updated(EventLog(), persona_id=persona_id, display_name=None)
 
 
 def archive_failed_placement_identity(

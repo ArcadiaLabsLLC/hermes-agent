@@ -12,6 +12,21 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w1118a-hstream, 2026-11-20) — launcher copy OWED, and it needs a fold first (row `RT-FU-ADDING-AN-AGENT-SENDS-EVERY-OPEN-ETERNIA-A-FULL-REFRESH`).**
+> Regenerated; the generator runs clean again with its no-demote assert. Three reasons moved bytes.
+> (1) An agent create now writes the new agent's own persona (03a63a0010), and its `persona.updated` rides beside a
+> new `persona` patch: a complete `agents` row stamped `created: true`, keyed by `persona_id`. `persona.updated` is
+> covered only for a subscriber declaring `persona` (token-gated, like `scope`). So `patch_agent_create.json` gains a
+> third patch row (`persona`, first), `coalesced_count` 6, and the `events[]` key hrt3 owed (now three events:
+> `persona.updated`, `persona_instance.chat_opened`, `office.actor.upserted`); `delta_agent_create_narrow_profile.json`
+> carries the new persona in `core.agents` and the instance re-pointed at it. (2) `core.decision_contract_hash` moved
+> (registry edits on main that did not regenerate) in every core-carrying golden. Copy `delta.json`,
+> `delta_agent_create_narrow_profile.json`, `delta_batch.json`, `hydrate.json`, `hydrate_authoritative_same_offset.json`,
+> `hydrate_running_work_owner.json`, `hydrate_stale_first.json`, `patch_agent_create.json`, `patch_coverage_manifest.json`
+> (hand-pinned: `persona.updated` joins `covered_domain_events`, with a `persona` upsert case and a `persona.edit` refresh
+> case) and `MANIFEST.sha256` into `test/fixtures/harness_stream/`. The `persona` row is an entity Eternia's fold does not know yet
+> (`patch_unknown_entity`): the copy lands WITH the Eternia fold that upserts it into `agents` and declares `persona`.
+
 > **CROSS-STACK COPY STATUS (w1118a-hrt3, 2026-11-20) — NOT regenerated; launcher copy owed at the next regeneration (row `RT-ANOTHER-REMOVAL-REACHES-ETERNIA-ONLY-WHEN-ITS-BATCH-FALLS-BACK`).**
 > A patch frame now carries its batch's covered domain events as `events[]` (the `delta_batch_frame` entity shape),
 > present only when the batch holds one. `patch_agent_create.json`'s batch holds two (`persona_instance.chat_opened`,

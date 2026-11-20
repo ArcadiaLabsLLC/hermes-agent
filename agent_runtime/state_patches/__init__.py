@@ -200,6 +200,7 @@ from agent_runtime.state_patches.models import (  # the package's export floor
     PATCH_OP_REMOVE,
     PATCH_OP_UPSERT,
     PATCH_VALUE_BUDGET_BYTES,
+    PERSONA_ENTITY,
     PERSONA_INSTANCE_ENTITY,
     SCOPE_ENTITY,
     SCOPE_PATCH_FIELDS,

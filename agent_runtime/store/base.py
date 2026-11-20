@@ -273,11 +273,19 @@ class AgentStore:
                 atomic_roundtrip_yaml_update(get_config_path(), f"agent_runtime.personas.{persona.id}.character_assignment", persona.character_assignment)
             else:
                 _write_model(path, persona)
-        emit_store_event(
+        from ..state_patches.persona import emit_persona_updated
+
+        # The event rides beside its ``persona`` patch (row
+        # RT-FU-ADDING-AN-AGENT-SENDS-EVERY-OPEN-ETERNIA-A-FULL-REFRESH): a first
+        # record is projected as the core would read it back; anything else
+        # pairs with a refresh.
+        # MUTATION: pass ``created=None`` here and
+        # test_an_agent_create_ships_its_new_persona_as_a_patch reddens.
+        emit_persona_updated(
             self.event_log,
-            "persona.updated",
-            {"persona_id": persona.id, "display_name": persona.display_name},
-            domain="store",
+            persona_id=persona.id,
+            display_name=persona.display_name,
+            created=self.get(persona.id) if not stored and not config_only else None,
         )
         return persona
 

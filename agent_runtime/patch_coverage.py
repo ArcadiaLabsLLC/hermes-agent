@@ -98,6 +98,7 @@ from .state_patches import (
     OFFICE_SURFACE_ENTITY,
     PATCH_OP_REMOVE,
     PATCH_OP_UPSERT,
+    PERSONA_ENTITY,
     PERSONA_INSTANCE_ENTITY,
     SCOPE_ENTITY,
     STATE_PATCHED_EVENT_TYPE,
@@ -526,6 +527,22 @@ LIVE_COVERED_DOMAIN_EVENT_TYPES: frozenset[str] = frozenset(
         "board.rebalanced",
         "board.card.archived",
         "board.card.restored",
+        # The PERSONA-RECORD half (row
+        # RT-FU-ADDING-AN-AGENT-SENDS-EVERY-OPEN-ETERNIA-A-FULL-REFRESH, review
+        # w1118a.63 D2, 2026-11-20). Since 03a63a0010 an agent create writes a
+        # persona of its own, and its uncovered ``persona.updated`` demoted every
+        # add to a full core for every subscriber — the O-H3 cost back.
+        #
+        # NEVER covered bare. Eternia reads the catalog row the create adds to
+        # ``agents`` (the library's Local list, the roster's readiness join), so
+        # the event pairs with a ``persona`` patch, appended first by the ONE
+        # emitter, ``state_patches.persona.emit_persona_updated``: a complete-row
+        # ``created: true`` upsert for an agent copy's first record, a
+        # ``refresh`` for every other write and every departure. A ``refresh``
+        # is never foldable, so an edit's batch keeps its full core; only the
+        # create rides the patch. The derivability audit is that module's
+        # docstring. Token-gated on the entity name below.
+        "persona.updated",
     }
 )
 
@@ -576,6 +593,9 @@ TOKEN_GATED_DOMAIN_EVENT_TYPES: dict[str, str] = {
     # EVENT has to carry the gate the ledger mirror needs.
     "board.card.archived": BOARD_CARD_LIFECYCLE_CAPABILITY,
     "board.card.restored": BOARD_CARD_LIFECYCLE_CAPABILITY,
+    # ``persona`` takes WS1's trade too: a brand-new entity, so a client that
+    # cannot fold the catalog row never free-rides the event beside it.
+    "persona.updated": PERSONA_ENTITY,
 }
 
 COVERED_DOMAIN_EVENT_TYPES: frozenset[str] = (

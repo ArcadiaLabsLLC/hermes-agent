@@ -157,6 +157,9 @@ FIXTURE_WIDE_FOLD_ENTITIES = frozenset(
         "office_actor",
         "office_actor_lifecycle",
         "persona_instance_create",
+        # The create's own persona record (row
+        # RT-FU-ADDING-AN-AGENT-SENDS-EVERY-OPEN-ETERNIA-A-FULL-REFRESH).
+        "persona",
     }
 )
 #: The NARROW arm: a subscriber that declares only the historical two. It is
@@ -736,7 +739,11 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
     # started emitting a fifth event — or stopped emitting one of these — would
     # otherwise silently regenerate a golden that no longer describes the
     # gesture the plan's D3 is about.
+    # Since 03a63a0010 the create writes the new agent's own persona first, and
+    # its ``persona.updated`` rides beside a ``persona`` create patch.
     assert [event.type for _, event in batch] == [
+        STATE_PATCHED_EVENT_TYPE,
+        "persona.updated",
         STATE_PATCHED_EVENT_TYPE,
         "persona_instance.chat_opened",
         STATE_PATCHED_EVENT_TYPE,
@@ -745,7 +752,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
     patched = [
         event.payload for _, event in batch if event.type == STATE_PATCHED_EVENT_TYPE
     ]
-    assert [row["entity"] for row in patched] == ["persona_instance", "office_actor"], patched
+    assert [row["entity"] for row in patched] == ["persona", "persona_instance", "office_actor"], patched
     assert all(row["op"] == "upsert" for row in patched), patched
     # D3's load-bearing stamp: the launcher's generic persona-instance fold
     # inserts-on-absent ONLY when ``created`` is present, so a create that
@@ -784,7 +791,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
         f"answer is no. Frame type: {patch_frame.get('type')!r}. The remedy is "
         "in patch_coverage or the read model, not in this generator."
     )
-    assert [row["entity"] for row in patch_frame["patches"]] == ["persona_instance", "office_actor"], patch_frame["patches"]
+    assert [row["entity"] for row in patch_frame["patches"]] == ["persona", "persona_instance", "office_actor"], patch_frame["patches"]
     assert all(row.get("created") is True for row in patch_frame["patches"])
     assert patch_frame["base_offset"] == base_offset
 

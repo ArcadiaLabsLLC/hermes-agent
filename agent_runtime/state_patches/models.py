@@ -165,6 +165,20 @@ _CORRELATION_ID_RE = re.compile(r"^[A-Za-z0-9_.:\-]+$")
 
 OFFICE_ACTOR_ENTITY = "office_actor"
 
+#: One row of the core's ``agents`` list: the persona-catalog row
+#: ``snapshot.summaries._agent_summary`` builds, keyed by ``persona_id``
+#: (row RT-FU-ADDING-AN-AGENT-SENDS-EVERY-OPEN-ETERNIA-A-FULL-REFRESH, 2026-11-20).
+#:
+#: Since 03a63a0010 every authored agent gets a persona of its own, so an agent
+#: create writes a persona record and ``AgentStore.save`` appends
+#: ``persona.updated``. That event was uncovered, so every add demoted its
+#: batch to a full core for every subscriber — the cost O-H3 removed. Eternia
+#: READS that row (the library's Local list and the roster's readiness join key
+#: on it), so the event cannot ride bare: it pairs with this entity's patch
+#: (``state_patches.persona.emit_persona_updated``) and, like ``scope`` and
+#: ``board_card``, the brand-new entity's name is its own token.
+PERSONA_ENTITY = "persona"
+
 #: One Mission Board card (plan ``board-card-fold-2026-10-15.md``). A
 #: brand-new entity whose name is also its token — the WS1 ``scope`` argument:
 #: no fielded client declares it, so "can you fold the row" and "may the paired

@@ -667,7 +667,9 @@ def test_the_agent_create_patch_golden_carries_exactly_the_two_creates():
     row and the placement — or demotes, or is dropped at the fold. It does not
     demote: this golden is what the promotion decision produced for a
     subscriber declaring the launcher's own fold set, and it carries exactly
-    two rows, both stamped ``created``.
+    three rows, all stamped ``created``: since 03a63a0010 the create writes the
+    new agent's own persona first, and its catalog row rides as a ``persona``
+    patch (row RT-FU-ADDING-AN-AGENT-SENDS-EVERY-OPEN-ETERNIA-A-FULL-REFRESH).
 
     ``created`` is asserted rather than assumed because it is part of the FOLD
     contract, not merely of the negotiation: the launcher's generic
@@ -686,12 +688,16 @@ def test_the_agent_create_patch_golden_carries_exactly_the_two_creates():
 
     rows = frame["patches"]
     assert [(row["entity"], row["op"]) for row in rows] == [
+        ("persona", "upsert"),
         ("persona_instance", "upsert"),
         ("office_actor", "upsert"),
     ], rows
     assert all(row["created"] is True for row in rows), rows
+    persona, rows = rows[0], rows[1:]
     assert rows[0]["id"] == "personainst_qa_fixture_agent_2"
     assert rows[1]["id"] == "ws_office_pilot/personainst_qa_fixture_agent_2"
+    # The new agent's own persona, and the instance stands on it.
+    assert persona["changed"]["persona_id"] == persona["id"] == rows[0]["changed"]["persona_id"]
     # The placement is instance-keyed by construction
     # (``agent_create.placement_actor_payload``), which is what keeps the office
     # store's class-key fence unreachable from this method.
@@ -706,7 +712,7 @@ def test_the_agent_create_patch_golden_carries_exactly_the_two_creates():
     # watermark equals ``base_offset``, and its sequence gate is strict ``>``.
     base = frame["base_offset"]
     watermark = frame["watermark"]["event_offset"]
-    assert base < rows[0]["seq"] < rows[1]["seq"] <= watermark, frame
+    assert base < persona["seq"] < rows[0]["seq"] < rows[1]["seq"] <= watermark, frame
 
 
 def test_the_narrow_profile_golden_is_the_honest_full_core():
@@ -751,13 +757,15 @@ def test_the_agent_create_pair_is_one_batch_seen_two_ways():
     patch = _fixture("patch_agent_create.json")
     demoted = _fixture("delta_agent_create_narrow_profile.json")
 
-    assert patch["coalesced_count"] == demoted["coalesced_count"] == 4
+    assert patch["coalesced_count"] == demoted["coalesced_count"] == 6
     assert (
         patch["watermark"]["event_offset"]
         == demoted["watermark"]["event_offset"]
         == demoted["seq"]
     ), (patch["watermark"], demoted["watermark"], demoted["seq"])
     assert [row["event"]["type"] for row in demoted["events"]] == [
+        "state.patched",
+        "persona.updated",
         "state.patched",
         "persona_instance.chat_opened",
         "state.patched",

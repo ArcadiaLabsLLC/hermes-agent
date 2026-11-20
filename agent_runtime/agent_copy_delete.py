@@ -279,10 +279,10 @@ def delete_agent_copy(
             receipt["correlation_id"] = correlation_id
         atomic_json_write(batch / _RECEIPT, receipt)
     from .events import EventLog
-    from .store_events import emit_store_event
+    from .state_patches.persona import emit_persona_updated
 
     # The persona authority moved: the same cue ``AgentStore.save`` gives, so every
-    # roster-fed section re-reads and finds the copy gone.
-    emit_store_event(EventLog(), "persona.updated", {"persona_id": persona_id, "display_name": persona.display_name},
-                     domain="store")
+    # roster-fed section re-reads and finds the copy gone. Its pair is a refresh:
+    # the departure takes the full core it always did.
+    emit_persona_updated(EventLog(), persona_id=persona_id, display_name=persona.display_name)
     return receipt

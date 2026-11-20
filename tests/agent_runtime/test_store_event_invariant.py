@@ -23,7 +23,9 @@ import agent_runtime.store as store_module
 # Write primitives whose presence marks a function as a store writer.
 _WRITE_CALLS = {"_write_model", "atomic_json_write"}
 # Calls that count as coupling an event to the mutation.
-_EVENT_CALLS = {"append", "emit_store_event"}
+# ``emit_persona_updated`` appends ``persona.updated`` beside its paired
+# ``persona`` patch (state_patches/persona.py) — the one door for that event.
+_EVENT_CALLS = {"append", "emit_store_event", "emit_persona_updated"}
 
 # Functions allowed to write WITHOUT appending an event, each with the reason
 # the exemption is sound. Adding a name here is a reviewed decision, not a
