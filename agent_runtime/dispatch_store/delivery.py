@@ -301,13 +301,6 @@ def restore_undelivered_dispatches() -> dict[str, int]:
     delivering one (#64484).
     """
 
-    try:
-        from gateway.status import get_process_start_time
-
-        from .._upstream_doors import pid_exists as _pid_exists
-    except Exception:  # pragma: no cover - defensive
-        return {"restored": 0, "checked": 0}
-
     supervised = _supervised_here()
     rows = _query("WHERE state=?", (STATE_RUNNING,))
     restored = 0
@@ -322,41 +315,74 @@ def restore_undelivered_dispatches() -> dict[str, int]:
         # by the delivery-turn replay dedup.
         if row.get("dispatch_id") in supervised:
             continue
-        pid = row.get("owner_pid")
-        if not pid:
-            continue
-        try:
-            alive = bool(_pid_exists(int(pid)))
-        except Exception:
-            continue
-        if alive:
-            baseline = row.get("owner_started_at")
-            if baseline is None:
-                # No identity baseline recorded: cannot disprove ownership.
-                continue
-            try:
-                observed = get_process_start_time(int(pid))
-            except Exception:
-                continue
-            if observed is None or int(observed) == int(baseline):
-                # Unreadable probe, or a genuine match — either way not disproof.
-                continue
-        # The dominant case after the subprocess move is a serve recycled while
-        # a HEALTHY child ran to completion: the reply exists, it is in the
-        # target's own thread, and only this bookkeeping row was orphaned. So
-        # the copy points at that thread rather than inviting the sender to
-        # duplicate work that has very likely already been done.
-        thread = row.get("target_session_id") or ""
-        where = (
-            f" Their reply, if they finished, is in thread {thread} "
-            "(agent_chat_open with that session_id)."
-            if thread
-            else (
-                " Check your thread with them (agent_chat_open / agent_chat_log_path)"
-                " before re-sending — they may well have finished."
-            )
+        if settle_if_orphaned(row):
+            restored += 1
+    return {"restored": restored, "checked": len(rows)}
+
+
+def owner_provably_gone(row: dict[str, Any]) -> bool:
+    """Whether a ``running`` row's recorded owner process is PROVABLY gone.
+
+    Dead, or alive under a start time that differs from the recorded baseline
+    (a recycled number). An unreadable probe, a missing pid or a missing
+    baseline is not proof, so it answers False.
+    """
+
+    try:
+        from gateway.status import get_process_start_time
+
+        from .._upstream_doors import pid_exists as _pid_exists
+    except Exception:  # pragma: no cover - defensive
+        return False
+    pid = row.get("owner_pid")
+    if not pid:
+        return False
+    try:
+        alive = bool(_pid_exists(int(pid)))
+    except Exception:
+        return False
+    if not alive:
+        return True
+    baseline = row.get("owner_started_at")
+    if baseline is None:
+        # No identity baseline recorded: cannot disprove ownership.
+        return False
+    try:
+        observed = get_process_start_time(int(pid))
+    except Exception:
+        return False
+    # Unreadable probe, or a genuine match — either way not disproof.
+    return observed is not None and int(observed) != int(baseline)
+
+
+def settle_if_orphaned(row: dict[str, Any]) -> bool:
+    """Settle ONE ``running`` row ``unknown`` when its owner is provably gone; True when it did.
+
+    The sweep's per-row step, also taken at once by a Stop on a row no process
+    here supervises (``tools/agent_chat_dispatch/local.py``): its process has
+    already ended, so the Stop is answered by settling what the sweep would
+    settle a minute later. The CALLER owns the supervised-here guard.
+    """
+
+    if not owner_provably_gone(row):
+        return False
+    # The dominant case after the subprocess move is a serve recycled while
+    # a HEALTHY child ran to completion: the reply exists, it is in the
+    # target's own thread, and only this bookkeeping row was orphaned. So
+    # the copy points at that thread rather than inviting the sender to
+    # duplicate work that has very likely already been done.
+    thread = row.get("target_session_id") or ""
+    where = (
+        f" Their reply, if they finished, is in thread {thread} "
+        "(agent_chat_open with that session_id)."
+        if thread
+        else (
+            " Check your thread with them (agent_chat_open / agent_chat_log_path)"
+            " before re-sending — they may well have finished."
         )
-        if record_completion(
+    )
+    return bool(
+        record_completion(
             row["dispatch_id"],
             state=STATE_UNKNOWN,
             error=(
@@ -367,6 +393,5 @@ def restore_undelivered_dispatches() -> dict[str, int]:
             # The sweep INFERS; it must never overwrite an outcome a supervisor
             # actually observed and recorded between the read above and here.
             only_if_running=True,
-        ):
-            restored += 1
-    return {"restored": restored, "checked": len(rows)}
+        )
+    )

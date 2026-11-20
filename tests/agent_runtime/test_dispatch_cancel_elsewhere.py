@@ -105,6 +105,10 @@ def test_a_running_child_another_process_supervises_is_requested_not_killed(stor
     monkeypatch.setattr(
         agent_chat_dispatch.local, "_kill_child", lambda *a: pytest.fail("a non-owner killed by pid")
     )
+    # The child is RUNNING (pid 4242 is a stand-in): a provably-gone one is
+    # settled instead (test_running_work's ...whose_process_ended_settles_it_at_once).
+    monkeypatch.setattr("gateway.status._pid_exists", lambda pid: True)
+    monkeypatch.setattr("gateway.status.get_process_start_time", lambda pid: 777)
 
     answer = agent_chat_dispatch.request_cancel(dispatch_id, reason="operator_stop")
 

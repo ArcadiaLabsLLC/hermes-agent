@@ -882,12 +882,16 @@ class DispatchLane(LanePass):
                 # survives to this store, so say so rather than emit zeros.
                 progress=_progress(available=False),
                 tail_preview=_preview(record.get("ask"), self.accountant),
-                # No interrupt seam in v1. The turn runs in a child process this
-                # projection could signal, but a cancel has to unwind the store
-                # row and the sender's pending delivery too, and half a cancel is
-                # worse than none. Claiming cancellable here would put a button
-                # on the HUD that cannot keep its promise.
-                cancellable=False,
+                # Stop is ``surface._cancel_dispatch`` → ``request_cancel``: the
+                # supervisor tree-kills the child and settles the row and the
+                # sender's delivery; a row another process supervises gets the
+                # durable mark its cancel watch acts on; and a row whose process
+                # has already ended (this row's ``unknown``) is settled at once.
+                # Every one of those answers, so the button keeps its promise —
+                # it used to be False here long after that seam landed, which
+                # left a dead or running request on the HUD with no way to stop
+                # it (MC-RUNNING-NOW-LISTS-LANE-WORK-WHOSE-PROCESS-HAS-ENDED-AND-CANNOT-STOP-IT).
+                cancellable=True,
             )
         )
 

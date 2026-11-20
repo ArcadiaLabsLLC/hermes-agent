@@ -163,6 +163,7 @@ from agent_runtime.dispatch_store.delivery import (  # the package's export floo
     request_dispatch_cancel,
     restore_undelivered_dispatches,
     set_dispatch_owner,
+    settle_if_orphaned,
 )
 __all__ = [
     "CLAIM_EXPIRY_SECONDS",
@@ -196,6 +197,7 @@ __all__ = [
     "remote_media_completions",
     "request_dispatch_cancel",
     "restore_undelivered_dispatches",
+    "settle_if_orphaned",
     "running_dispatches",
     "running_dispatches_owned_by_turn",
     "set_dispatch_owner",

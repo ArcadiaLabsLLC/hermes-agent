@@ -83,7 +83,9 @@ DECLARED_TOOL_COUNT = 35
 # CDP pair), re-measured: 8205 -> 7244 (-961); the catalog-length lead sentences on nine fork tool
 # descriptions (v0.23.1 tool_search 80-char rule): 7244 -> 6988.
 # FH-HARNESS-CORE-BROWSER-AFTER-V0231 (2026-11-10): ``browser_exec``'s schema joins, re-measured: 6988 -> 7163.
-DECLARED_TOKEN_ESTIMATE = 7163
+# RT-A-LEADS-STOP-TO-A-BUSY-HELPER-COMES-BACK-AS-WORK-FAILED (2026-11-20): ``agent_chat_dispatches`` takes
+# ``cancel`` (a lead stops its own running dispatch), re-measured: 7163 -> 7191.
+DECLARED_TOKEN_ESTIMATE = 7191
 MISSION_PERSONAS = ("neko_supervisor", "dev", "backend_dev", "qa")
 
 

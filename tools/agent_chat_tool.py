@@ -151,9 +151,10 @@ registry.register(
     handler=lambda args, **kw: agent_chat_dispatches(
         limit=args.get("limit", 10),
         state=args.get("state"),
+        cancel=args.get("cancel"),
         requested_by_session=kw.get("session_id"),
     ),
-    description="List your in-flight and recent background dispatches (read-only).",
+    description="List your in-flight and recent background dispatches, or stop one of yours.",
     emoji="📡",
 )
 

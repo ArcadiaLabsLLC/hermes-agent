@@ -115,7 +115,7 @@ AGENT_CHAT_SEND_SCHEMA = {
 AGENT_CHAT_DISPATCHES_SCHEMA = {
     "name": "agent_chat_dispatches",
     "description": (
-        "List the background dispatches YOU sent with agent_chat_send(wait=false). Shows who they went to, what you asked, whether they are still running or finished, and whether their answer has been delivered back to you yet. Read-only, bounded. Use it to check on long-running work without pestering the teammate. Disambiguator: this lists YOUR background dispatches; agent_chat_threads lists your threads; agent_chat_open reads one."
+        "List the background dispatches YOU sent with agent_chat_send(wait=false). Shows who they went to, what you asked, whether they are still running or finished, and whether their answer has been delivered back to you yet. Bounded. Use it to check on long-running work without pestering the teammate. Disambiguator: this lists YOUR background dispatches; agent_chat_threads lists your threads; agent_chat_open reads one."
     ),
     "parameters": {
         "type": "object",
@@ -131,6 +131,10 @@ AGENT_CHAT_DISPATCHES_SCHEMA = {
                     "Optional filter: 'running' for only what is still in flight, 'done' for only "
                     "what has finished. Omit for both."
                 ),
+            },
+            "cancel": {
+                "type": "string",
+                "description": "A running dispatch_id of yours to stop now (its unsent reply is lost).",
             },
         },
         "required": [],

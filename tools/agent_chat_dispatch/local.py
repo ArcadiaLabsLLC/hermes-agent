@@ -16,6 +16,7 @@ from agent_runtime.dispatch_store.supervision import (
     _mark_supervised,
     supervised_dispatch_ids,
 )
+from agent_runtime.persona_chat_continuity.lease import chat_root_is_busy
 from agent_runtime.subprocess_pumps import drain, release_pumps
 
 from .child import (
@@ -90,6 +91,9 @@ CANCEL_NOT_OWNED_HERE = "not_owned_here"
 #: D1.07 (owner ruling a): another process supervises a running child; the
 #: durable mark is written and that process's cancel watch stops it.
 CANCEL_REQUESTED = "cancel_requested"
+#: A Stop on a row no process here supervises, whose process had already ended:
+#: settled ``unknown`` at once, as the orphan sweep would a minute later.
+CANCEL_SETTLED = "settled"
 
 
 def _request_cancel_mark(dispatch_id: str, reason: str) -> None:
@@ -193,9 +197,11 @@ def _request_cancel_elsewhere(dispatch_id: str, row: dict[str, Any], reason: str
     ``cancelled`` here, exactly as its owner would (its worker reads the mark
     and runs nothing), and a running child is left to its supervisor's cancel
     watch, which stops it within :data:`CANCEL_POLL_SECONDS` —
-    ``cancel_requested`` says so rather than claiming a stop. A row no live
-    process supervises keeps the mark and settles when the orphan sweep sees its
-    child gone.
+    ``cancel_requested`` says so rather than claiming a stop. A started row whose
+    child is PROVABLY gone (dead, or a recycled number) has nothing left to stop
+    and nobody left to settle it but the orphan sweep, so it is settled here and
+    now (``settled``, row ``MC-RUNNING-NOW-LISTS-LANE-WORK-WHOSE-PROCESS-HAS-ENDED-AND-CANNOT-STOP-IT``):
+    the operator's Stop on an ended entry clears it instead of waiting a sweep.
     """
 
     from agent_runtime import dispatch_store
@@ -212,6 +218,8 @@ def _request_cancel_elsewhere(dispatch_id: str, row: dict[str, Any], reason: str
             only_if_running=True,
         )
         return {"dispatch_id": dispatch_id, "outcome": CANCEL_CANCELLED, "reason": reason}
+    if dispatch_store.settle_if_orphaned(row):
+        return {"dispatch_id": dispatch_id, "outcome": CANCEL_SETTLED, "reason": reason}
     return {
         "dispatch_id": dispatch_id,
         "outcome": CANCEL_REQUESTED,
@@ -304,8 +312,77 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
     # the same key two ways (subscript here, ``.get(...) or 1800`` there) is how
     # a spec-shape bug hides behind a default that looks deliberate.
     budget = float(spec["max_seconds"])
+    # A target still in another turn refuses the child ``chat_busy`` before anything
+    # runs. That is a wait, never a result: the dispatch waits for the target's turn
+    # to end and runs then, for at most its own budget of waiting
+    # (RT-A-LEADS-STOP-TO-A-BUSY-HELPER-COMES-BACK-AS-WORK-FAILED: a lead's stop order
+    # to a lane still on the lead's first task was delivered as "work failed").
+    wait_until = time.time() + budget
+    while True:
+        ran = _run_child_once(dispatch_id, spec, budget)
+        if ran is None:
+            return
+        returncode, exit_reason, stdout_text, stderr_text = ran
+        busy_root = None if exit_reason else _busy_target_root(stdout_text)
+        if busy_root is None or not _wait_for_busy_target(dispatch_id, busy_root, wait_until):
+            break
+    cancel_reason = _peek_cancel_mark(dispatch_id)
+    if busy_root is not None and cancel_reason is not None:
+        # Cancelled while it waited: nothing ran, so the cancel is the outcome.
+        stdout_text = ""
+    try:
+        _settle_local(
+            dispatch_id, budget, returncode, exit_reason, stdout_text, stderr_text,
+            cancel_reason=cancel_reason,
+        )
+    finally:
+        # Taken only once the row is settled: a cancel watch pass between a take
+        # and the settle would read "running, no mark here" and ask again.
+        _take_cancel_mark(dispatch_id)
+
+
+#: How often a dispatch waiting on a busy target looks at the target's chat root again.
+#: Each look is a zero-wait lease probe; a new child is started only once the root is free.
+BUSY_TARGET_POLL_SECONDS = 2.0
+#: The owner the busy check names while it probes the target's root.
+BUSY_TARGET_PROBE_OWNER = "dispatch-busy-target-probe"
+
+
+def _busy_target_root(stdout_text: str) -> str | None:
+    """The chat root that refused this child ``chat_busy`` (``""`` when unnamed); ``None`` for any other answer."""
+
+    from agent_runtime.mission_chat_outcome import ChatErrorKind
+
+    payload = parse_child_payload(stdout_text) or {}
+    if payload.get("ok") or str(payload.get("error_kind") or "") != ChatErrorKind.CHAT_BUSY:
+        return None
+    return str(payload.get("root_chat_session_id") or payload.get("session_id") or "")
+
+
+def _wait_for_busy_target(dispatch_id: str, root: str, wait_until: float) -> bool:
+    """Wait until the busy target's root is free. False when cancelled or out of waiting time."""
+
+    while time.time() < wait_until:
+        time.sleep(BUSY_TARGET_POLL_SECONDS)
+        if _peek_cancel_mark(dispatch_id) is not None:
+            return False
+        if not root or not chat_root_is_busy(root, probe_owner=BUSY_TARGET_PROBE_OWNER):
+            return time.time() < wait_until
+    return False
+
+
+def _run_child_once(
+    dispatch_id: str, spec: dict[str, Any], budget: float
+) -> tuple[int, str, str, str] | None:
+    """Spawn one child turn and wait for it: ``(returncode, exit_reason, stdout, stderr)``.
+
+    ``None`` when the child could not be started; the row is settled then.
+    """
+
+    from agent_runtime import dispatch_store
+
     # Minted HERE: the turn's clock starts when the turn starts, not when the
-    # dispatch was enqueued behind the concurrency cap.
+    # dispatch was enqueued behind the concurrency cap (or waited on a busy target).
     deadline_epoch = time.time() + budget
     argv = build_dispatch_argv(spec, deadline_epoch=deadline_epoch)
     env = child_environment(spec)
@@ -321,7 +398,7 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
             state=dispatch_store.STATE_ERROR,
             error=f"the dispatch process could not be started: {type(exc).__name__}: {exc}",
         )
-        return
+        return None
 
     # The row's owner becomes the CHILD the moment it exists. That is what keeps
     # the orphan sweep coherent without this supervisor: "is the work still
@@ -371,15 +448,7 @@ def _run_dispatch_guarded(dispatch_id: str, spec: dict[str, Any]) -> None:
     from agent_runtime import process_index
 
     process_index.forget_child(proc.pid)
-    try:
-        _settle_local(
-            dispatch_id, budget, returncode, exit_reason, stdout_tail.text(), stderr_tail.text(),
-            cancel_reason=_peek_cancel_mark(dispatch_id),
-        )
-    finally:
-        # Taken only once the row is settled: a cancel watch pass between a take
-        # and the settle would read "running, no mark here" and ask again.
-        _take_cancel_mark(dispatch_id)
+    return returncode, exit_reason, stdout_tail.text(), stderr_tail.text()
 
 
 def _spawn_child(argv: list[str], env: dict[str, str]) -> subprocess.Popen:
