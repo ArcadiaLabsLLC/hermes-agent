@@ -19,7 +19,10 @@ Agent from testv4").
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
+
+from .call_authorization import CALLER_DEVICE, CALLER_LOCAL_CONSOLE, CALLER_PEER, CALLER_STDIO_OWNER
 
 __layer__ = "stores"
 __all__ = [
@@ -42,21 +45,28 @@ REALM_SYNC_ACTOR = "realm_sync"
 _ACTOR_LIMIT = 80
 
 
+def _named(prefix: str, field: str) -> Callable[[Any], str]:
+    def actor(caller: Any) -> str:
+        value = getattr(caller, field, None)
+        return _capped(f"{prefix}:{value}") if value else UNKNOWN_ACTOR
+
+    return actor
+
+
+#: Caller kind -> the actor it is. A kind not listed (``unknown``) is :data:`UNKNOWN_ACTOR`.
+_CALLER_ACTORS: dict[str, Callable[[Any], str]] = {
+    CALLER_LOCAL_CONSOLE: lambda _caller: OPERATOR_ACTOR,
+    CALLER_STDIO_OWNER: lambda _caller: OPERATOR_ACTOR,
+    CALLER_DEVICE: _named("device", "device_id"),
+    CALLER_PEER: _named("install", "peer_install_id"),
+}
+
+
 def actor_from_caller(caller: Any) -> str:
     """The actor a transport-proven caller is; :data:`UNKNOWN_ACTOR` for none or an unplaced one."""
 
-    from .call_authorization import CALLER_DEVICE, CALLER_LOCAL_CONSOLE, CALLER_PEER, CALLER_STDIO_OWNER
-
-    kind = getattr(caller, "kind", None)
-    if kind in (CALLER_LOCAL_CONSOLE, CALLER_STDIO_OWNER):
-        return OPERATOR_ACTOR
-    device_id = getattr(caller, "device_id", None)
-    if kind == CALLER_DEVICE and device_id:
-        return _capped(f"device:{device_id}")
-    install_id = getattr(caller, "peer_install_id", None)
-    if kind == CALLER_PEER and install_id:
-        return _capped(f"install:{install_id}")
-    return UNKNOWN_ACTOR
+    actor = _CALLER_ACTORS.get(getattr(caller, "kind", None) or "")
+    return actor(caller) if actor is not None else UNKNOWN_ACTOR
 
 
 def request_actor(requested_by: Any = None, *, caller: Any = None) -> str:
