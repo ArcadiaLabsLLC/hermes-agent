@@ -44,7 +44,7 @@ from .chat_coordinator import (
 from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
 from agent_runtime.persona_chat_session import _persona_chat_session_owner
 from .chat_target import _persona_by_id
-from .lifecycle_commands import _placement_discriminability_refusal
+from .lifecycle_commands import _minted_placement_id, _placement_discriminability_refusal
 
 __layer__ = "lanes"
 __all__ = [
@@ -113,11 +113,11 @@ def _cmd_persona_instance_open_chat(args) -> int:
     move_to = moved_from = None
     try:
         if bool(getattr(args, "add_instance", False)):
-            placement_id = safe_assignment_token(getattr(args, "placement_id", None))
-            if not placement_id:
-                data = {"ok": False, "error": "placement_id is required when add_instance is true"}
-                _emit_persona_verb_payload(args, data)
-                return 2
+            # MUTATION: refuse a missing placement id here again and
+            # test_open_chat_add_instance_mints_the_placement_id_it_was_not_given reddens.
+            placement_id = safe_assignment_token(getattr(args, "placement_id", None)) or _minted_placement_id(
+                args, persona_id)
+            args.placement_id = placement_id  # the answer names the id this door placed, minted or sent
             # UC-H4, scoped to --add-instance ONLY. The other branches of this
             # verb REBIND an instance that already exists (and the recorded
             # 2026-07-25 recovery replayed ten of them out of the event log);

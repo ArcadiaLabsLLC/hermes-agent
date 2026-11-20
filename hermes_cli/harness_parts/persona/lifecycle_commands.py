@@ -146,6 +146,22 @@ def _agent_retire_outcome(args):
     )
 
 
+def _minted_placement_id(args: object, persona_id: str) -> str:
+    """The placement id an ``--add-instance`` door mints when the caller sent none.
+
+    The minter ``agent create`` uses (``agent_create.mint_placement_id``), so the shared
+    refusal's "omit --placement-id to have one minted" is true at every placement door
+    (review w1118a.57 D13). Keyed on the send's ``client_message_id`` (else its
+    ``idempotency_key``) when it has one, so a retried request converges on one instance.
+    """
+
+    from agent_runtime.agent_create import mint_placement_id
+
+    key = safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or safe_assignment_text(
+        getattr(args, "idempotency_key", None), limit=200)
+    return mint_placement_id(persona_id, key=f"add_instance\0{persona_id}\0{key}" if key else None)
+
+
 def _placement_discriminability_refusal(placement_id: str) -> dict | None:
     """R1's fence for the two ``--add-instance`` doors, or ``None`` to proceed.
 
@@ -153,9 +169,8 @@ def _placement_discriminability_refusal(placement_id: str) -> dict | None:
     neither of them; the SHAPE and the SENTENCE still come from the one
     authority in ``agent_runtime.models`` rather than being re-spelled per door.
 
-    Returns a payload rather than raising because both callers already answer
-    their own placement refusals this way (``placement_id is required when
-    add_instance is true``), and neither catches ``ValueError`` around the
+    Returns a payload rather than raising because both callers answer their
+    refusals with a payload, and neither catches ``ValueError`` around the
     store call — a raise here would surface as a traceback, not a refusal.
     """
 
@@ -260,10 +275,9 @@ def _cmd_persona_instance_create(args) -> int:
     if display_name:
         try:
             if add_instance:
-                if not placement_id:
-                    data = {"ok": False, "error": "placement_id is required when add_instance is true"}
-                    _emit_persona_verb_payload(args, data)
-                    return 2
+                # MUTATION: restore the "placement_id is required" refusal here and
+                # test_instance_create_mints_the_placement_id_it_was_not_given reddens.
+                placement_id = placement_id or _minted_placement_id(args, persona_id)
                 refusal = _placement_discriminability_refusal(placement_id)
                 if refusal is not None:
                     _emit_persona_verb_payload(args, refusal)
