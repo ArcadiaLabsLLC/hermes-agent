@@ -118,7 +118,7 @@ def _copy_entry(source: Path, target: Path) -> None:
         shutil.copy2(source, target)
 
 
-def _stage_profile(
+def _stage_duplicate_profile(
     home: Path, source_home: Path | None, model_home: Path, soul: str | None, source_id: str,
 ) -> None:
     home.parent.mkdir(parents=True, exist_ok=True)
@@ -137,7 +137,7 @@ def _stage_profile(
         os.rename(stage, home)
 
 
-def _source(persona_id: str, roster: list[AgentPersona]) -> AgentPersona:
+def _duplicate_source(persona_id: str, roster: list[AgentPersona]) -> AgentPersona:
     source = next((persona for persona in roster if persona.id == persona_id), None)
     if source is None:
         raise AgentDuplicateRefused("persona_not_found", "That agent does not exist.", persona_id=persona_id)
@@ -174,7 +174,7 @@ def duplicate_agent(persona_id: str, name: str, *, instance_id: str | None = Non
         raise AgentDuplicateRefused("agent_name_required", "Give the copy a name.")
     with agent_create_lock(AGENT_NAME_LOCK):
         roster = ensure_persisted_personas()
-        source = _source(persona_id, roster)
+        source = _duplicate_source(persona_id, roster)
         if name_is_taken(name, roster):
             raise AgentDuplicateRefused("agent_name_taken", f"An agent is already called {name}.", name=name)
         if instance_id:
@@ -187,7 +187,7 @@ def duplicate_agent(persona_id: str, name: str, *, instance_id: str | None = Non
         # sign-in), as ``independent.py::_profile_source`` falls back to the head home.
         model_home = source_home if source_home is not None else Path(get_hermes_home())
         soul = shipped_soul_for_turn(source)
-        _stage_profile(get_profile_dir(profile), source_home, model_home, soul, source.id)
+        _stage_duplicate_profile(get_profile_dir(profile), source_home, model_home, soul, source.id)
         copy = AgentStore().save(replace(
             source,
             id=_free_id(slug, roster),

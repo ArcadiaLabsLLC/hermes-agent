@@ -50,7 +50,7 @@ def shipped_reference(persona: Any) -> ShippedAgent | None:
     return shipped_agent(getattr(persona, "id", None))
 
 
-def _plain(value: Any) -> Any:
+def _definition_value(value: Any) -> Any:
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, (list, tuple)):
@@ -59,7 +59,7 @@ def _plain(value: Any) -> Any:
 
 
 def _definition(persona: AgentPersona) -> dict[str, Any]:
-    return {name: _plain(getattr(persona, name)) for name in DEFINITION_FIELDS}
+    return {name: _definition_value(getattr(persona, name)) for name in DEFINITION_FIELDS}
 
 
 def _current(persona: AgentPersona, shipped: ShippedAgent) -> bool:
@@ -96,7 +96,7 @@ def resolve_record(persona: AgentPersona) -> AgentPersona:
         return persona
     if _current(persona, shipped) and _definition(persona) != shipped.definition:
         return persona
-    return replace(persona, **{name: _plain(value) for name, value in shipped.definition.items()})
+    return replace(persona, **{name: _definition_value(value) for name, value in shipped.definition.items()})
 
 
 def is_locally_changed(persona: AgentPersona) -> bool:
@@ -142,7 +142,7 @@ def reference_record(shipped: ShippedAgent, settings: AgentPersona | None = None
         origin=ORIGIN_ETERNIA,
         bundled_version=shipped.version,
         based_on=None,
-        **{name: _plain(value) for name, value in shipped.definition.items()},
+        **{name: _definition_value(value) for name, value in shipped.definition.items()},
     )
 
 

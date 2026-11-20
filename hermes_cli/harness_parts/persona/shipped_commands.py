@@ -24,7 +24,7 @@ def _names(pairs: list[str] | None) -> dict[str, str] | None:
     return names
 
 
-def _line(entry: dict) -> str:
+def _plan_line(entry: dict) -> str:
     action = entry["action"] if "refused" not in entry else f"refused ({entry['refused']})"
     if entry["action"] == "copy":
         return (
@@ -49,5 +49,5 @@ def _cmd_persona_sort_shipped(args) -> int:
     else:
         print("Dry run — nothing written:" if args.dry_run else "Sorted:")
         for entry in plan:
-            print(f"  {_line(entry)}")
+            print(f"  {_plan_line(entry)}")
     return 1 if any("refused" in entry for entry in plan) else 0
