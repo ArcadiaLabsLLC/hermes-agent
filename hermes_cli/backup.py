@@ -29,6 +29,7 @@ from hermes_cli.archive_safe import normalize_archive_parts
 from hermes_cli.backup_sqlite import _close_quietly, _safe_copy_db
 from hermes_cli.config_backend import require_file_tooling, supports_file_tooling
 from hermes_cli.home_data_layout import PM_RUNTIME_ROOT_DIRS, SECRET_CACHE_FILES, profile_root_entry
+from agent_runtime.account_name import ACCOUNT_PROFILE_FILENAME as _account_profile_file  # fork seam
 from hermes_cli.sizefmt import format_bytes as _format_size
 
 from hermes_cli.backup_restore import (
@@ -102,6 +103,7 @@ _EXCLUDED_ROOT_DIRS = LOCAL_RUNTIME_ROOT_DIRS | (PM_RUNTIME_ROOT_DIRS - {"cache"
 # the secret caches and Photon sidecar token. Root-scoped like models/ — a skill's own browser_profiles/ is
 # user data. Backup-only: do not fold into LOCAL_RUNTIME_ROOT_DIRS (clone-all identity contract).
 _EXCLUDED_BACKUP_ROOT_DIRS = frozenset({"browser_profiles", *SECRET_CACHE_FILES})
+_EXCLUDED_BACKUP_ROOT_DIRS |= {_account_profile_file}  # fork seam: the account name stays on this machine (RT-BUNDLED-NEKO-USER-INJECTOR).
 
 # ``cache/`` at those same roots mixes regenerable state (model/plugin catalogs, stamps, browser
 # profiles with locked SQLite, tool-output spill) with durable artifacts nothing can rebuild: media

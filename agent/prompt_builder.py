@@ -1564,6 +1564,8 @@ def load_soul_md(context_length: Optional[int] = None, home_override: Path | Non
             content = strip_legacy_protocol(content).strip()
         if not content:
             return None
+        from agent_runtime.account_name import fill_user  # fork seam: RT-BUNDLED-NEKO-USER-INJECTOR `{user}`.
+        content = fill_user(content)
         # `hermes profile install <git-url>` / `profile update` plant a third-party SOUL.md into a
         # distribution profile (hermes_cli/profile_distribution.py, DEFAULT_DIST_OWNED) with no scan and no
         # approval gate, so it is NOT the user's own file: when distribution.yaml owns SOUL.md (a manifest

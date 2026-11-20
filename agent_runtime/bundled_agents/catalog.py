@@ -109,6 +109,9 @@ SHIPPED_AGENTS: tuple[ShippedAgent, ...] = (
             "include_core_context_files": False,
         },
         soul_file="neko.md",
+        # The SOUL before it said `{user}` (RT-BUNDLED-NEKO-USER-INJECTOR): a profile still holding it is
+        # unedited, so the build's text replaces it.
+        earlier_soul_sha256=("e5dcea99714463d85389ab103cc15d65afc974479e571f93b0974900a3c1cb70",),
     ),
     ShippedAgent(
         id="base",

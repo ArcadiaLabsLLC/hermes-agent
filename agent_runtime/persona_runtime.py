@@ -11,6 +11,7 @@ from .mcp_admission import LANE_MISSION_CHAT
 from .model_api_mode import turn_api_mode
 from .launcher_invocation import launcher_invocation
 from .turn_attendance import attended_turn
+from .account_name import fill_user
 from .models import AgentPersona
 from .mission_chat_clarify import MissionChatClarifyCapture
 from .mission_chat_prompts import (
@@ -441,7 +442,9 @@ def _mission_chat_surface_message(
     # that field, so a perfectly valid profile SOUL could be observed yet not
     # injected. `_mission_chat_soul_overlay` makes the profile's canonical
     # SOUL.md the default while preserving explicit safe relative overrides.
-    soul = _mission_chat_soul_overlay(persona)
+    # `{user}` becomes the signed-in account's name here, at turn time; the stored SOUL keeps the
+    # placeholder (RT-BUNDLED-NEKO-USER-INJECTOR). A rename reaches a NEW chat; a running one keeps its prompt.
+    soul = fill_user(_mission_chat_soul_overlay(persona))
     parts = [identity, soul or "", rules]
     if workspace_agents:
         parts.append(MISSION_CHAT_WORKSPACE_AGENTS_PREAMBLE + workspace_agents)
