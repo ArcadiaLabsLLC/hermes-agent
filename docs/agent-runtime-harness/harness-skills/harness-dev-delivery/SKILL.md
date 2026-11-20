@@ -225,6 +225,22 @@ For product edits:
 
 No-edit investigation work is exempt: do not invent commits for work that changed nothing.
 
+## Claiming a queue row
+
+When a brief sends you to an EterniaLauncher queue row:
+
+1. Claim it under the lane name your brief gives you. If it gives none, ask your lead for one
+   in the same thread before claiming — never invent one from your persona id (`dev`), which
+   every instance of your persona shares.
+2. Run `dart tool/queue/task.dart --claim <ID> --as <lane> --tree <your worktree> --push`
+   from the repo's primary checkout with a timeout of at least 300 s — it fetches every brain's
+   origin first, and a shorter timeout gives up while the claim keeps running and commits.
+3. A claim that timed out or failed: run the SAME line again. Your own claim (same `--as`,
+   `--tree`, machine) answers "already yours" and exits 0 — carry on. "already TAKEN by
+   <lane>" naming any other claimant is another lane's: stop and report it.
+4. Then cut your own worktree from `origin/main` and do every edit, build and commit there —
+   never in the primary checkout.
+
 ## Request Context
 
 For a large file, read a bounded window instead of repeating whole-file reads — ask for
