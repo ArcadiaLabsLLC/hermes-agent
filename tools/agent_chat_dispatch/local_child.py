@@ -48,24 +48,42 @@ def spawn_child(argv: list[str], env: dict[str, str], *, job_name: str | None = 
         "errors": "replace",
         "bufsize": 1,
     }
-    if os.name == "nt":
-        try:
-            from hermes_cli._subprocess_compat import windows_hide_flags
-
-            popen_kwargs["creationflags"] = windows_hide_flags()
-        except Exception:
-            pass
-    else:
+    if os.name != "nt":
         # detached-spawn: ok — the group exists so Stop, the budget kill and the settle end what the child left (child.end_child_group); a dispatch child may outlive its serve by design (its row settles when it exits)
         popen_kwargs["start_new_session"] = True
     job = _create_job(job_name) if os.name == "nt" else None
     try:
-        proc = subprocess.Popen(argv, **popen_kwargs)
+        proc = _popen_child(argv, popen_kwargs)
     except BaseException:
         if job is not None:
             close_job(job)
         raise
     note_child_group(proc.pid, _assign_job(proc, job) if os.name == "nt" else None)
+    return proc
+
+
+def _popen_child(argv: list[str], popen_kwargs: dict[str, Any]) -> subprocess.Popen:
+    """The spawn itself; on Windows hidden and out of the serve's own job when that job allows it.
+
+    The serve runs inside the venv redirector's kill-on-close job, which allows breakaway
+    (``hermes_cli.process_identity``). A child left in it ended with the serve, so a restarted
+    serve had no request to re-adopt (review w1118a.57 D10). It breaks away through the one
+    spawn rule, ``_subprocess_compat.popen_breaking_away``; a job that refuses keeps it inside,
+    as before. Its own named job (D12) is assigned after, in either case.
+    """
+    if os.name != "nt":
+        return subprocess.Popen(argv, **popen_kwargs)
+    from hermes_cli._subprocess_compat import popen_breaking_away, windows_hide_flags
+
+    def refused(exc: OSError) -> None:
+        logger.warning("dispatch child: the serve's job refused breakaway (%s); it ends with this serve", exc)
+
+    # MUTATION: pass ``windows_hide_flags()`` straight to ``subprocess.Popen`` (no breakaway) and
+    # test_a_windows_request_child_breaks_away_from_the_serves_job reddens.
+    proc, _broke_away = popen_breaking_away(
+        lambda flags: subprocess.Popen(argv, **popen_kwargs, creationflags=flags), windows_hide_flags(),
+        on_refused=refused,
+    )
     return proc
 
 
