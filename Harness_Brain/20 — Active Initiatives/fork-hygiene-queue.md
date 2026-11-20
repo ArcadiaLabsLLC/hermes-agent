@@ -24,7 +24,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-20 (lane rt-never-ran-field)
 
-- **`FH-IMPORT-LAYER-CHECK-RED-ON-MAIN` — The check that the agent engine's modules import only downward is red on main, so every lane that runs it meets four failures it did not cause** · group: engine-suite-green-followups · seen 2026-11-20 by lane rt-never-ran-field (Windows, test venv): `scripts/run_tests_bundled.sh --confirm-red tests/tooling/test_fork_import_layers.py` red alone on origin/main 9945060236 and on the lane branch alike, 4 nodes — `test_declared_layers_are_bound_at_runtime_and_point_down` (`agent_runtime.realm_sync.git_port` (models) imports `agent_runtime.realm_membership` (stores), an upward import), `test_no_new_site[undeclared]` (`agent_runtime/surface_prompt_note.py`), `test_no_new_site[private_upstream_imports]` (`agent_runtime/_upstream_doors.py` → `agent.account_usage._USAGE_FETCHERS`, `hermes_cli/provider_login_catalog.py` → `hermes_cli.runtime_provider._loopback_hostname`), `test_no_new_site[private_upstream_attributes]` (`tests/_downstream/seal.py` → `hermes_constants._get_platform_default_hermes_home`) · guess: landed by the realm-sync and provider-login lanes without the layer check · done when: the file is green on main — each site declared, moved behind a door or its layer fixed — and the four nodes are named in the landing commit · READY 2026-11-20
 
 ## Filed on arrival — 2026-11-20 (lane rt-chat-rebind)
 
