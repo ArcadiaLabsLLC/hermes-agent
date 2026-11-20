@@ -22,6 +22,10 @@ tags: [queue, program/fork-hygiene]
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
 
 
+## Filed on arrival — 2026-11-20 (lane rt-chat-rebind)
+
+- **`FH-QUEUE-GRAMMAR-RED-ON-MAIN-SIX-ROWS-WAIT-ON-NOTHING` — The queue check every hermes landing runs is red on main because six deferred or blocked rows name nothing they wait on** · group: engine-suite-green-followups · seen 2026-11-20 by lane rt-chat-rebind (Windows): `tests/tooling/test_work_queue_row_grammar.py` fails `6 DEFERRED/BLOCKED rows name no machine-read wait (ceiling 5)` on origin/main a2d08b7bcb (the rows: `FH-BUNDLE-OPENTELEMETRY-API-KNOWN-VULNERABILITY`, `RT-CONNECTIONS-TRACE-MISSING`, `RT-MACOS-LINUX-BUNDLED-DESKTOP`, `RT-RECHECK-AFTER-THE-PRE-LAUNCH-HERMES-UPDATE`, `RT-SCRUB-THE-OWNERS-OLD-NEKO-MEMORY-FROM-THE-TEAM-REPO-HISTORY`, `RT-WIN-CONSOLE-FLASH-CODEX-SWITCH`); none is this lane's · done when: each of the six carries ` · waits: <ID>|<event>` or a status it can leave by, and the test is green on main · READY 2026-11-20
+
 ## Filed on arrival — 2026-11-19 (lane bundled-facts)
 
 
