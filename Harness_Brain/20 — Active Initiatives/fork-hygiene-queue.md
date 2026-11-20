@@ -27,7 +27,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-20 (lane rt-chat-rebind)
 
-- **`FH-PREPUSH-GATES-AND-CENSUS-KILLED-AT-THEIR-GUARD-ON-A-LOADED-WINDOWS-BOX` — Pre-push stops its queue gates and name census unfinished on a busy Windows box, so a landing ships with both owed** · group: prepush · seen 2026-11-20 by lane rt-chat-rebind (Windows, `bash scripts/prepush.sh`): `gates` killed at its 20 s guard after 20.8 s (budget 10 s, load 13.64) and `census` at its 60 s guard after 63.0 s (budget 30 s, load 39.71); both in `_lane_logs/prepush_overruns.jsonl` of that tree · seen also 2026-11-20 on Linux by lane w1118a-hstop (52-core box under heavy_run): `gates` 19.3 s at load 49.95 then 11.4 s at load 31.71 (budget 10 s), `doc-cite` 4.3 s at load 35.10 (budget 4 s), none killed — so not Windows-only · guess: box load from other lanes, not the steps' own work — not measured on an idle box · done when: on an idle Windows box both finish inside budget, or the budget moves on that measurement · READY 2026-11-20
 
 ## Filed on arrival — 2026-11-19 (lane bundled-facts)
 
