@@ -236,9 +236,7 @@ class PersonaTurnExecutor:
             persona_id=instance.persona_id, persona_instance_id=instance.id, session_id=None, new_session=True,
             select_session=True, client_scope=None, idempotency_key=f"work-open-{request_id}",
             requested_by=f"work:{request_id}", add_instance=False, placement_id=None, display_name=None,
-            workspace_id=None, realm_id=None, coordinator_id=None, coordinator_max_spawns=None,
-            coordinator_spawns_used=0, coordinator_may_kill_own=None, coordinator_no_kill_own=None,
-            coordinator_may_kill_others=None, json=True, stream=False,
+            workspace_id=None, realm_id=None, coordinator_id=None, json=True, stream=False,
         )
         try:
             _code, payload = (self._open_chat or run_open_chat)(args)

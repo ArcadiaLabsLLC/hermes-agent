@@ -31,7 +31,8 @@ from agent_runtime.chat_session_scope import resolve_instance_chat_scope
 from .chat_coordinator import (
     _coordinator_actor_id,
     _coordinator_confirm_payload,
-    _coordinator_scope_from_args,
+    _coordinator_scope,
+    _coordinator_spawn_refusal,
     _maybe_stamp_spawned_by,
 )
 from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
@@ -261,7 +262,7 @@ def _cmd_persona_instance_create(args) -> int:
     coordinator_id = _coordinator_actor_id(args)
     coordinator_scope = None
     if coordinator_id and (display_name or add_instance):
-        coordinator_scope = _coordinator_scope_from_args(args, cfg, persona)
+        coordinator_scope = _coordinator_scope(coordinator_id)
         auth = review_coordinator_budget(
             "persona.instance.create",
             coordinator_scope,
@@ -269,8 +270,8 @@ def _cmd_persona_instance_create(args) -> int:
             coordinator_id=coordinator_id,
         )
         if not auth.ok:
-            data = _coordinator_confirm_payload("persona.instance.create", coordinator_id, auth)
-            _emit_persona_verb_payload(args, data, plain=data["status"])
+            data = _coordinator_spawn_refusal("persona.instance.create", coordinator_id, auth)
+            _emit_persona_verb_payload(args, data, plain=data["message"])
             return 2
         coordinator_scope = auth.scope
     # UC-H4. Until now this handler minted a roster row and a chat root for any

@@ -236,11 +236,6 @@ def _open_chat_args(
         # unreachable with ``add_instance`` off anyway; they are
         # spelled so no arm of the handler ever sees a missing attribute.
         coordinator_id=None,
-        coordinator_max_spawns=None,
-        coordinator_spawns_used=0,
-        coordinator_may_kill_own=None,
-        coordinator_no_kill_own=None,
-        coordinator_may_kill_others=None,
         # ``json`` is what the handler would print WITHOUT a sink; with one it
         # prints nothing at all. It is set true so a sink that somehow went
         # missing degrades to a JSON line rather than to prose.
