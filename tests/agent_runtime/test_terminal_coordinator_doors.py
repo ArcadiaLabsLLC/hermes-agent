@@ -245,8 +245,8 @@ def test_an_agents_terminal_office_remove_of_a_seat_you_placed_asks_you(local_on
                                                                         monkeypatch):
     # Row RT-FU-AN-AGENTS-TERMINAL-OFFICE-REMOVE-SKIPS-THE-COORDINATOR-REVIEW: the office verb archived
     # the desk with no coordinator review; ``--local-only`` is a removal too.
-    # Mutation: return None at the top of ``office._office_remove_coordinator_refusal`` -> the desk is
-    # archived (exit 0) and every assert reds.
+    # Mutation: return None at the top of ``chat_coordinator._coordinator_removal_refusal`` (the one
+    # removal review, review w1118a.64 D8) -> the desk is archived (exit 0) and every assert reds.
     from agent_runtime.agent_create import perform_agent_place
 
     lead = _lead(dev_persona, AutonomyLevel.PROPOSE_ONLY)
@@ -288,8 +288,8 @@ def test_an_agents_terminal_office_remove_of_anothers_seat_is_a_kill(qa_persona,
 
 def test_the_operators_shell_office_remove_is_not_asked(qa_persona, dev_persona, capsys, monkeypatch):
     # No agent session in the operator's shell: the verb archives the desk as before.
-    # Mutation: in ``_office_remove_coordinator_refusal`` replace the ``if not coordinator_id`` return
-    # with ``coordinator_id = coordinator_id or "neko"`` (the shell judged as an agent) -> refused, red.
+    # Mutation: in ``chat_coordinator._coordinator_removal_refusal`` replace the ``if not coordinator_id``
+    # return with ``coordinator_id = coordinator_id or "neko"`` (the shell judged as an agent) -> refused, red.
     from agent_runtime.agent_create import perform_agent_place
 
     _seed_workspace()
@@ -301,3 +301,120 @@ def test_the_operators_shell_office_remove_is_not_asked(qa_persona, dev_persona,
 
     assert code == 0
     assert not _desk_is_active(desk)
+
+
+# ── realm sync revert: the third removal door (row RT-FU-AN-AGENTS-TERMINAL-REALM-SYNC-REVERT-…, D8) ──
+
+
+def _realm_over_workspace(tmp_path) -> str:
+    """A realm holding ``WORKSPACE`` whose pulled subtree carries the office surface and no desks.
+
+    Every desk and instance placed after this is local-only: ``realm sync revert``'s ``archive_local``
+    arm would archive it.
+    """
+
+    from agent_runtime import paths
+    from agent_runtime.office_store import OfficeStore
+    from agent_runtime.serde import to_jsonable
+    from agent_runtime.store import RealmStore, WorkspaceStore
+    from utils import atomic_json_write
+
+    _seed_workspace()
+    realm = RealmStore().create(name="Revert Realm")
+    realm = RealmStore().get(realm.id)
+    realm.workspace_ids.append(WORKSPACE)
+    realm.sync_manifest_ref = str(tmp_path / "sync_repo")
+    RealmStore().save(realm)
+    workspace = WorkspaceStore().get(WORKSPACE)
+    workspace.realm_id = realm.id
+    WorkspaceStore().save(workspace)
+    subtree = tmp_path / "sync_repo" / "realms" / paths.safe_path_token(realm.id)
+    office_dir = subtree / "store" / "office" / paths.safe_path_token(WORKSPACE)
+    atomic_json_write(office_dir / "office.json", to_jsonable(OfficeStore().get_surface(WORKSPACE)), indent=2,
+                      sort_keys=True)
+    return realm.id
+
+
+def _place_local_seat(tmp_path) -> tuple[str, str, str]:
+    """``(realm_id, desk, instance)``: an operator-placed qa seat the realm's pulled copy lacks."""
+
+    from agent_runtime.agent_create import perform_agent_place
+
+    realm_id = _realm_over_workspace(tmp_path)
+    yours = perform_agent_place({"persona_id": "qa", "workspace_id": WORKSPACE, "idempotency_key": "yours"})
+    assert yours.refusal is None, yours.refusal
+    return realm_id, yours.result["actor_key"], yours.result["persona_instance_id"]
+
+
+def _revert_argv(realm_id: str, *selection: str) -> list[str]:
+    # The agent types ``--yes``, as it may: that gate was the door's only one.
+    return ["harness", "realm", "sync", "revert", realm_id, *selection, "--yes"]
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_an_agents_terminal_realm_revert_that_would_archive_a_seat_asks_you(dry_run, qa_persona, dev_persona,
+                                                                           capsys, monkeypatch, tmp_path):
+    # Row RT-FU-AN-AGENTS-TERMINAL-REALM-SYNC-REVERT-ARCHIVES-AGENTS-WITH-NO-COORDINATOR-REVIEW: an agent's
+    # terminal ``realm sync revert --all --yes`` archived every local-only agent and desk unreviewed.
+    # Mutation: return None at the top of ``chat_coordinator._coordinator_removal_refusal`` -> the revert
+    # runs (exit 0), the seat is archived and every assert reds.
+    lead = _lead(dev_persona, AutonomyLevel.PROPOSE_ONLY)
+    realm_id, desk, instance = _place_local_seat(tmp_path)
+    _in_terminal_of(lead, monkeypatch)
+
+    code, payload = _run(_revert_argv(realm_id, "--all", *(["--dry-run"] if dry_run else [])), capsys)
+
+    assert code == 2
+    assert payload["status"] == "needs_operator_confirm"
+    assert payload["coordinator_id"] == lead["persona_instance_id"]
+    assert payload["reason"] == "operator_placed_target"
+    assert _desk_is_active(desk)
+    assert instance in _instances()
+
+
+def test_an_agents_terminal_realm_revert_that_would_archive_an_agent_asks_you(qa_persona, dev_persona, capsys,
+                                                                             monkeypatch, tmp_path):
+    # The instance arm alone: ``retire_replica`` is a retire, judged as one.
+    # Mutation: skip the ``persona_instance`` arm in ``realm_commands._realm_revert_coordinator_refusal``
+    # -> the agent is archived (exit 0) and this reds.
+    lead = _lead(dev_persona, AutonomyLevel.AUTONOMOUS)
+    realm_id, _desk, instance = _place_local_seat(tmp_path)
+    _in_terminal_of(lead, monkeypatch)
+
+    code, payload = _run(_revert_argv(realm_id, "--item", f"persona_instance:{WORKSPACE}:{instance}"), capsys)
+
+    assert code == 2
+    assert payload["action"] == "persona.instance.retire"
+    assert payload["reason"] == "operator_placed_target"
+    assert instance in _instances()
+
+
+def test_an_agents_terminal_realm_revert_that_would_archive_a_desk_asks_you(qa_persona, dev_persona, capsys,
+                                                                           monkeypatch, tmp_path):
+    # The desk arm alone, judged on the instance the desk seats, as ``office actor-remove`` is.
+    # Mutation: skip the ``office_actor`` arm in ``realm_commands._realm_revert_coordinator_refusal``
+    # -> the desk is archived (exit 0) and this reds.
+    lead = _lead(dev_persona, AutonomyLevel.AUTONOMOUS)
+    realm_id, desk, _instance = _place_local_seat(tmp_path)
+    _in_terminal_of(lead, monkeypatch)
+
+    code, payload = _run(_revert_argv(realm_id, "--item", f"office_actor:{WORKSPACE}:{desk}"), capsys)
+
+    assert code == 2
+    assert payload["action"] == "office.actor.remove"
+    assert payload["reason"] == "operator_placed_target"
+    assert _desk_is_active(desk)
+
+
+def test_the_operators_shell_realm_revert_is_not_asked(qa_persona, dev_persona, capsys, monkeypatch, tmp_path):
+    # No agent session in the operator's shell: the revert archives the local-only seat as before.
+    # Mutation: in ``chat_coordinator._coordinator_removal_refusal`` replace the ``if not coordinator_id`` return with
+    # ``coordinator_id = coordinator_id or "neko"`` (the shell judged as an agent) -> refused, red.
+    realm_id, desk, instance = _place_local_seat(tmp_path)
+    monkeypatch.delenv("HERMES_SESSION_ID", raising=False)
+
+    code, payload = _run(_revert_argv(realm_id, "--all"), capsys)
+
+    assert code == 0, payload
+    assert not _desk_is_active(desk)
+    assert instance not in _instances()

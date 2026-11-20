@@ -26,6 +26,7 @@ __all__ = [
     "_cmd_mission_chat_steer",
     "_coordinator_actor_id",
     "_coordinator_confirm_payload",
+    "_coordinator_removal_refusal",
     "_coordinator_scope",
     "_coordinator_spawn_refusal",
     "_maybe_stamp_spawned_by",
@@ -91,6 +92,41 @@ def _coordinator_confirm_payload(action: str, coordinator_id: str, auth) -> dict
         "permission_scope": asdict(auth.scope) if auth.scope is not None else None,
         "next_expected": "operator confirmation or a wider coordinator permission scope is required before this warning/destructive action can run",
     }
+
+
+def _coordinator_removal_refusal(args, removals) -> dict[str, object] | None:
+    """An agent's terminal asks you before it removes an agent or a desk; ``None`` lets it run.
+
+    The ONE "may this agent remove that seat" review every CLI removal door calls (review w1118a.64
+    D8): ``office actor-remove`` and ``realm sync revert``. The asker is the terminal's session
+    (:func:`_coordinator_actor_id`), the scope the store's (:func:`_coordinator_scope`), and each
+    removal is judged by ``review_coordinator_budget`` on its own target; the first refused one
+    answers for the run, before any write. The operator's own shell carries no agent session and
+    is never asked — ``removals`` is not even read then.
+
+    ``removals`` is a callable returning ``(action, persona_instance_id)`` pairs, read only for an
+    agent's terminal (a revert's comes from its dry plan). An id of ``None`` — a desk that will not
+    read, or seats no instance — has no owner to judge, so the review asks you.
+    """
+
+    from agent_runtime.coordinator_permissions import review_coordinator_budget
+
+    # MUTATION: return None here and test_an_agents_terminal_office_remove_of_a_seat_you_placed_asks_you
+    # and test_an_agents_terminal_realm_revert_that_would_archive_a_seat_asks_you redden.
+    coordinator_id = _coordinator_actor_id(args)
+    if not coordinator_id:
+        return None
+    scope = None
+    for action, instance_id in removals():
+        try:
+            target = PersonaInstanceStore().get(instance_id) if instance_id else None
+        except Exception:
+            target = None
+        scope = scope or _coordinator_scope(coordinator_id)
+        auth = review_coordinator_budget(action, scope, target, actor=coordinator_id, coordinator_id=coordinator_id)
+        if not auth.ok:
+            return _coordinator_confirm_payload(action, coordinator_id, auth)
+    return None
 
 
 def _maybe_stamp_spawned_by(instance, *, coordinator_id: str | None, operator_source: str = "operator"):

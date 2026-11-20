@@ -383,41 +383,23 @@ def _cmd_office_actor_upsert(args) -> int:
 def _office_remove_coordinator_refusal(store, workspace: str, args) -> dict | None:
     """An agent's terminal removing a desk asks you as its retire does; ``None`` lets it run.
 
-    The one coordinator review (``review_coordinator_budget``), with the asker from the terminal's
-    session and the scope from the store (``chat_coordinator``), on the instance the desk seats —
-    ``--local-only`` and ``--dry-run`` included: an archive is a removal whatever the ledger does
-    (row ``RT-FU-AN-AGENTS-TERMINAL-OFFICE-REMOVE-SKIPS-THE-COORDINATOR-REVIEW``, review w1118a.63).
-    The operator's own shell carries no agent session and is never asked.
+    The one removal review (``chat_coordinator._coordinator_removal_refusal``, review w1118a.64 D8)
+    on the instance the desk seats — ``--local-only`` and ``--dry-run`` included: an archive is a
+    removal whatever the ledger does (row
+    ``RT-FU-AN-AGENTS-TERMINAL-OFFICE-REMOVE-SKIPS-THE-COORDINATOR-REVIEW``, review w1118a.63).
     """
 
-    from agent_runtime.coordinator_permissions import OFFICE_ACTOR_REMOVE_ACTION, review_coordinator_budget
-    from agent_runtime.persona_assignments import PersonaInstanceStore
-    from hermes_cli.harness_parts.persona.chat_coordinator import (
-        _coordinator_actor_id,
-        _coordinator_confirm_payload,
-        _coordinator_scope,
-    )
+    from agent_runtime.coordinator_permissions import OFFICE_ACTOR_REMOVE_ACTION
+    from hermes_cli.harness_parts.persona.chat_coordinator import _coordinator_removal_refusal
 
-    # MUTATION: return None here and test_an_agents_terminal_office_remove_of_a_seat_you_placed_asks_you reddens.
-    coordinator_id = _coordinator_actor_id(args)
-    if not coordinator_id:
-        return None
-    # A desk that will not read, or seats no instance, has no owner to judge: the review asks you.
-    try:
-        instance_id = store.get_actor(workspace, args.actor).persona_instance_id
-        target = PersonaInstanceStore().get(instance_id) if instance_id else None
-    except Exception:
-        target = None
-    auth = review_coordinator_budget(
-        OFFICE_ACTOR_REMOVE_ACTION,
-        _coordinator_scope(coordinator_id),
-        target,
-        actor=coordinator_id,
-        coordinator_id=coordinator_id,
-    )
-    if auth.ok:
-        return None
-    return _coordinator_confirm_payload(OFFICE_ACTOR_REMOVE_ACTION, coordinator_id, auth)
+    def _removals():
+        try:
+            instance_id = store.get_actor(workspace, args.actor).persona_instance_id
+        except Exception:
+            instance_id = None
+        return [(OFFICE_ACTOR_REMOVE_ACTION, instance_id)]
+
+    return _coordinator_removal_refusal(args, _removals)
 
 
 def _cmd_office_actor_remove(args) -> int:

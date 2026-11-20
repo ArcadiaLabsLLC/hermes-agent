@@ -15,6 +15,7 @@ from agent_runtime.default_scope import (
     preview_default_scope_migration,
     reconcile_default_scope_to_legacy,
 )
+from agent_runtime.cli_format import emit_json
 from agent_runtime.errors import NotFound
 from agent_runtime.root_observability import attach_root_observability
 from agent_runtime import realm_verbs
@@ -363,6 +364,44 @@ def _cmd_realm_sync_resolve(args) -> int:
     return 0
 
 
+def _realm_revert_coordinator_refusal(args, selection: dict) -> dict | None:
+    """An agent's terminal reverting realm changes asks you before it archives an agent or a desk.
+
+    The revert's ``archive_local`` arm retires a locally-authored instance the realm lacks and
+    archives a desk (``realm_revert_writes._archive_local_only``). Each one the revert WOULD archive
+    is read from its dry plan, before any write, and judged by the one removal review
+    (``chat_coordinator._coordinator_removal_refusal``, review w1118a.64 D8) — ``--dry-run``
+    included, as the office door does. The operator's own shell runs no plan and is never asked;
+    the ``runtime.realm.sync.revert`` RPC (Eternia's transport) does not pass through here.
+    """
+
+    from agent_runtime.coordinator_permissions import OFFICE_ACTOR_REMOVE_ACTION
+    from agent_runtime.office_store import OfficeStore
+    from agent_runtime.realm_revert import OUTCOME_ARCHIVED_LOCAL_ONLY
+    from agent_runtime.realm_sync import DRIFT_FAMILY_OFFICE_ACTOR, DRIFT_FAMILY_PERSONA_INSTANCE
+    from hermes_cli.harness_parts.persona.chat_coordinator import _coordinator_removal_refusal
+
+    def _desk_seat(workspace: str, actor_key: str) -> str | None:
+        try:
+            return OfficeStore().get_actor(workspace, actor_key).persona_instance_id
+        except Exception:
+            return None
+
+    def _removals():
+        plan = realm_verbs.realm_sync_revert(args.realm_id, dry_run=True, **selection)
+        for row in plan.get("items") or []:
+            if row.get("outcome") != OUTCOME_ARCHIVED_LOCAL_ONLY:
+                continue
+            # MUTATION: skip the instance arm and
+            # test_an_agents_terminal_realm_revert_that_would_archive_an_agent_asks_you reddens.
+            if row.get("family") == DRIFT_FAMILY_PERSONA_INSTANCE:
+                yield "persona.instance.retire", row.get("item_key")
+            elif row.get("family") == DRIFT_FAMILY_OFFICE_ACTOR:
+                yield OFFICE_ACTOR_REMOVE_ACTION, _desk_seat(row.get("container"), row.get("item_key"))
+
+    return _coordinator_removal_refusal(args, _removals)
+
+
 def _cmd_realm_sync_revert(args) -> int:
     """`realm sync revert` — the SECOND exit from unpublished local changes.
 
@@ -375,13 +414,18 @@ def _cmd_realm_sync_revert(args) -> int:
 
     if not _require_yes(args):
         return 8
+    selection = {
+        "items": list_flag_or_empty(args, "items"),
+        "revert_all": bool(getattr(args, "revert_all", False)),
+        "to": getattr(args, "to", None),
+    }
     try:
+        refused = _realm_revert_coordinator_refusal(args, selection)
+        if refused is not None:
+            print(emit_json(refused) if getattr(args, "json", False) else refused["status"])
+            return 2
         envelope = realm_verbs.realm_sync_revert(
-            args.realm_id,
-            items=list_flag_or_empty(args, "items"),
-            revert_all=bool(getattr(args, "revert_all", False)),
-            to=getattr(args, "to", None),
-            dry_run=bool(getattr(args, "dry_run", False)),
+            args.realm_id, dry_run=bool(getattr(args, "dry_run", False)), **selection
         )
     except RealmSyncError as exc:
         return emit_harness_error(exc, args=args)
