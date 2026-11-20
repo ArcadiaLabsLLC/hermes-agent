@@ -172,3 +172,33 @@ assertion, an id-marker set) — the rest were not read one by one.
 
 Still unproven: a day of ordinary use on the owner's real bot, and the two upstream Windows
 stuck-poll tests.
+
+## 2026-11-19: re-checked on `main`, and the fork transport retired
+
+Owner ruling 2026-11-19, in chat: "undefer it and have an aggent see and fix if need be"
+(lane w1118a-htele).
+
+**Re-check, against the local Bot API stand-in** (seen; real Telegram not driven: no staging or
+throwaway bot token is provisioned on this box, the credential store reads `absent`):
+`scripts/live_telegram_check.py`, unchanged, was driven end to end by a scratch harness over
+`tests/agent_runtime/messaging/fake_bot_api_server.py` on `main` 17485839f2 — connect; the step-1
+reply threaded to the code message and notifying (no `disable_notification`); the formatted reply
+sent as MarkdownV2; the 130-line reply split into 3 messages, none over 4,096, the last ending at
+line 130; the approval card sent, its press answered and the card edited; the operator's photo
+fetched and handed on; a stranger's photo and text refused at the adapter's intake with no
+`getFile` and no download, and no answer. With the root logger at DEBUG, neither the bot token
+(whole or its secret half) nor any message text appeared in the log or the console. All passed;
+the script exited 0.
+
+**Retired** (RT-MESSAGING-RETIRE-FORK-TELEGRAM): `agent_runtime/messaging/telegram_api.py` and its
+only user `chunks.py` are gone with their tests; upstream's adapter behind the shim is the one
+Telegram transport, and the `messaging_telegram_transport` setting is gone (no opt-out: no supported
+path loses Telegram — both bundle manifests switch messaging off, and a full Harness without the
+`messaging` extra now gets python-telegram-bot from the adapter's own lazy installer, which the serve
+asks first). `transport.py` stays: it is the `Transport` protocol and value types the bridge, the
+approval cards and the shim share, not the httpx transport. The token redactor moved into the shim.
+The lane test is now `tests/agent_runtime/messaging/test_serve_lane_telegram_transport.py`; the bridge
+and card tests run over `tests/agent_runtime/messaging/recording_transport.py`.
+
+Still unproven: a day of ordinary use on the owner's real bot (the trial row's LIVE CHECK), and the
+two upstream Windows stuck-poll tests.

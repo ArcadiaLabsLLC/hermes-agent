@@ -1,8 +1,7 @@
 """An UPSTREAM platform adapter behind the fork's ``Transport`` (RT-MESSAGING-TELEGRAM-ON-UPSTREAM-ADAPTER-OPT-IN).
 
-Opt-in and off by default: ``serve_lane`` builds this only when the harness setting
-``messaging_telegram_transport`` is ``upstream``; the fork's own ``telegram_api.TelegramTransport`` stays
-the default. The adapter is used as a plain pipe — no ``GatewayRunner``, no upstream session — and
+The one transport: ``serve_lane`` builds every platform through this shim since the fork's own httpx
+Telegram transport was retired (RT-MESSAGING-RETIRE-FORK-TELEGRAM). The adapter is used as a plain pipe — no ``GatewayRunner``, no upstream session — and
 ``MessagingBridge`` sits on top unchanged, so the persona system, the operator list, the bindings and the
 approval cards are the fork's in both. Evidence:
 ``docs/agent-runtime-harness/evidence/upstream-adapter-as-transport-2026-11-14/SWITCH_AUDIT.md``.
@@ -53,6 +52,30 @@ __all__ = ["INTAKE_GATED", "DiscordUpstreamAdapterTransport", "OnRefused", "Sign
 logger = logging.getLogger(__name__)
 
 _CALL_TIMEOUT_S = 30.0
+REDACTED = "<redacted>"
+
+
+class _Redact(logging.Filter):
+    """Rewrites any record carrying a registered bot token. One instance, on the ``httpx`` logger: the
+    library's HTTP client logs every request URL there at INFO, and a Bot API URL is ``/bot<token>/…``."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.secrets: set[str] = set()
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if self.secrets:
+            message = record.getMessage()
+            redacted = message
+            for secret in self.secrets:
+                redacted = redacted.replace(secret, REDACTED)
+            if redacted != message:
+                record.msg, record.args = redacted, None
+        return True
+
+
+_REDACTOR = _Redact()
+logging.getLogger("httpx").addFilter(_REDACTOR)
 
 #: ``(user_id, chat_id, display)`` of a sender the adapter refused at intake.
 OnRefused = Callable[[str, str, str], None]
@@ -262,11 +285,11 @@ class TelegramUpstreamAdapterTransport(UpstreamAdapterTransport):
     **The sender gate with a name.** The adapter's ``set_authorization_check`` callback gets ids only.
     The adapter also consults an instance-level ``_is_callback_user_authorized`` for both messages and
     button presses, and passes the sender's display name to it — that is what feeds the console's Allow
-    list a name, as the fork's own transport does.
+    list a name (the retired fork transport read it from the update).
 
     **The log.** python-telegram-bot's HTTP client logs every request URL at INFO on the ``httpx`` logger
     — the URL carries the bot token — and its own loggers print whole updates and sends, message text
-    included, at DEBUG. The token goes to the redactor the fork's own transport uses and the library's
+    included, at DEBUG. The token goes to :data:`_REDACTOR` on the ``httpx`` logger and the library's
     loggers are held at INFO.
 
     **The command menu.** The adapter pushes UPSTREAM's slash-command menu to the bot after connect, with
@@ -281,8 +304,6 @@ class TelegramUpstreamAdapterTransport(UpstreamAdapterTransport):
     def __init__(self, adapter: Any, *, press_prefix: str, **kwargs: Any) -> None:
         super().__init__(adapter, **kwargs)
         self._press_prefix = press_prefix
-        from .telegram_api import _REDACTOR
-
         token = str(getattr(getattr(adapter, "config", None), "token", "") or "")
         if token:
             _REDACTOR.secrets.add(token)

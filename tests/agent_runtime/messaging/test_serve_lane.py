@@ -32,7 +32,7 @@ class FakeTransport:
 
     def __init__(self, token: str) -> None:
         if not token:
-            raise ValueError("a bot token is required")  # as TelegramTransport does
+            raise ValueError("a bot token is required")
         self.on_update = None
         self.starts = 0
         self.stops = 0
@@ -80,7 +80,7 @@ def _no_network(monkeypatch):
 def built(monkeypatch):
     made: list[FakeTransport] = []
 
-    def factory(token):
+    def factory(token, scope):
         transport = FakeTransport(token)
         made.append(transport)
         return transport

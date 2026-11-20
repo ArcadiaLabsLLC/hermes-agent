@@ -1,6 +1,6 @@
 """A local HTTP stand-in for the Telegram Bot API (audit of RT-MESSAGING-NEXT-APPS-REUSE-UPSTREAM-CONNECTORS).
 
-Unlike ``fake_bot_api.py`` (an ``httpx.MockTransport`` for the fork's own transport), this is a real
+Unlike ``recording_transport.py`` (an in-memory ``Transport`` for the bridge tests), this is a real
 socket on 127.0.0.1, because the UPSTREAM adapter talks through python-telegram-bot's own HTTP client and
 only takes a ``base_url``. It serves ``/bot<token>/<method>``: ``getMe``, ``getUpdates`` (returns what
 :meth:`FakeTelegram.push_message` queued, honouring ``offset``), ``sendMessage`` (records and answers a
@@ -46,6 +46,18 @@ def _params(handler: BaseHTTPRequestHandler) -> dict:
         return {part.get_param("name", header="content-disposition"): _decode(part.get_content())
                 for part in message.iter_parts()}
     return {key: _decode(values[-1]) for key, values in parse_qs(body.decode("utf-8")).items()}
+
+
+class _QuietServer(ThreadingHTTPServer):
+    """A client that hung up mid-answer (the adapter's long poll cancelled at stop) is not an error: printing
+    its traceback from a daemon thread at interpreter shutdown aborted the whole pytest process (exit 134)."""
+
+    def handle_error(self, request, client_address):
+        import sys
+
+        if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
 
 
 class FakeTelegram:
@@ -95,7 +107,7 @@ class FakeTelegram:
 
             do_GET = do_POST
 
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._server = _QuietServer(("127.0.0.1", 0), Handler)
         self._server.daemon_threads = True
         self._thread = threading.Thread(target=self._server.serve_forever, name="fake-telegram", daemon=True)
         self._thread.start()

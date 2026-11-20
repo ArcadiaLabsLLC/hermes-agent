@@ -4,7 +4,7 @@ its own intake gate and a test of it.
 The shim's shared ``set_authorization_check`` is asked by some adapters' intake and not by others, so it is
 not a gate alone. These pins hold the two places that close that: the base transport refuses to start with an
 operator list and no per-adapter override, and every platform the serve lane can build an upstream adapter for
-(``serve_lane.UPSTREAM_TRANSPORTS``) is listed in ``INTAKE_GATED`` with an override and an existing test that
+(``serve_lane.TRANSPORTS``) is listed in ``INTAKE_GATED`` with an override and an existing test that
 drives that adapter's intake. Adding a platform's factory without both reds here.
 """
 
@@ -25,8 +25,8 @@ REPO = Path(shim.__file__).resolve().parents[2]
 def test_every_platform_the_serve_can_run_on_upstream_has_its_own_intake_gate_and_a_test_of_it():
     """Killing mutation: ``has_own_intake_gate`` drops the override comparison, or a platform's subclass loses
     its ``_install_intake_gate`` → red here (and the lane would wire the adapter in)."""
-    assert serve_lane.UPSTREAM_TRANSPORTS, "no upstream platform to check"
-    for platform in serve_lane.UPSTREAM_TRANSPORTS:
+    assert serve_lane.TRANSPORTS, "no upstream platform to check"
+    for platform in serve_lane.TRANSPORTS:
         cls = shim.INTAKE_GATED.get(platform.value)
         assert cls is not None, f"{platform.value}: no intake-gated transport"
         assert shim.has_own_intake_gate(cls), f"{platform.value}: {cls.__name__} has no intake gate of its own"
