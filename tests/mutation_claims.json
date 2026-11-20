@@ -1377,7 +1377,7 @@
       "path": "agent_runtime/agent_create/perform.py",
       "symbol": "AgentCreate.authorize",
       "operator": "skip-service-backstop",
-      "find": "        denied = service_backstop(self.caller, method=\"runtime.agent.create\")",
+      "find": "        denied = service_backstop(self.caller, method=self.METHOD)",
       "replace": "        denied = None",
       "test": [
         "{python}",
