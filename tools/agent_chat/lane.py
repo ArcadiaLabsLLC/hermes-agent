@@ -19,9 +19,21 @@ def _looks_like_instance_handle(value) -> bool:
     persona id). A persona can run more than one live instance, so a handle in a
     persona slot must TARGET THAT INSTANCE — it is forwarded as the instance id
     rather than collapsed to the persona's canonical channel."""
+    return _instance_handle(value) is not None
+
+
+def _instance_handle(value) -> str | None:
+    """The ``personainst_*`` handle *value* names, spelled clean, or ``None`` for a bare persona id.
+
+    The ONE spelling a handle is forwarded in: ``safe_assignment_token`` (it drops the "@" a model
+    writes, as in "@personainst_…"). Judging the cleaned token but forwarding the raw one made "@…"
+    the dispatch row's owner key, and Running now read the handle instead of the agent's name
+    (row MC-RUNNING-NOW-AN-AGENT-REQUEST-NAMES-ITS-TARGET-BY-A-RAW-HANDLE).
+    """
     from agent_runtime.persona_assignments import safe_assignment_token
 
-    return safe_assignment_token(value).startswith("personainst_")
+    handle = safe_assignment_token(value)
+    return handle if handle.startswith("personainst_") else None
 
 
 #: The ``HERMES_AGENT_CHAT_SCOPE`` value that disables every agent_chat tool.

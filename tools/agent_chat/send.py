@@ -14,7 +14,7 @@ from agent_runtime.dispatch_session_policy import coerce_optional_flag
 from agent_runtime.mission_chat_door import MissionChatDoorUnbound, run_mission_chat_turn
 
 from .detached import _async_delivery_available, _dispatch_detached, _persona_of_chat_root
-from .lane import _looks_like_instance_handle, refusal_json, scope_off
+from .lane import _instance_handle, refusal_json, scope_off
 from .schemas import _MESSAGE_LIMIT, _REPLY_LIMIT
 
 __layer__ = "lanes"
@@ -420,7 +420,9 @@ class Send:
         target_instance_id = (
             None
             if self.remote_target is not None
-            else (self.persona_id if _looks_like_instance_handle(self.persona_id) else None)
+            # MUTATION: forward ``self.persona_id`` when it looks like a handle (the raw "@…") and
+            # test_an_at_handle_is_forwarded_as_the_clean_instance_id reddens.
+            else _instance_handle(self.persona_id)
         )
 
         args = SimpleNamespace(

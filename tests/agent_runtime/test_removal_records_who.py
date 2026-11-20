@@ -181,8 +181,22 @@ def test_the_operators_own_shell_still_records_you(qa_persona, seeded_workspace,
 def test_an_agents_terminal_office_remove_records_that_agent(qa_persona, seeded_workspace, capsys, monkeypatch):
     # Mutation: drop ``requested_by=terminal_request_actor()`` in ``_cmd_office_actor_remove`` -> the
     # event reads "operator" (the verb's own ``updated_by``) and this reds.
+    # The desk is one the lead spawned and its agent may remove its own (autonomous): since row
+    # RT-FU-AN-AGENTS-TERMINAL-OFFICE-REMOVE-SKIPS-THE-COORDINATOR-REVIEW a seat you placed asks you.
+    from agent_runtime.agent_create import perform_agent_place
+    from agent_runtime.models import AutonomyLevel
+    from agent_runtime.store import AgentStore
+
+    qa_persona.autonomy = AutonomyLevel.AUTONOMOUS
+    AgentStore().save(qa_persona)
     lead = _place("qa_lead_agent_9")
-    placed = _place()
+    spawned = perform_agent_place(
+        {"persona_id": "qa", "workspace_id": WORKSPACE, "idempotency_key": "own-seat",
+         "placement_id": "qa_retire_1_agent_2"},
+        requested_by=lead["persona_instance_id"],
+    )
+    assert spawned.refusal is None, spawned.refusal
+    placed = spawned.result
     monkeypatch.setenv("HERMES_SESSION_ID", lead["default_chat_session_id"])
 
     _cli(["harness", "office", "actor-remove", "--workspace", WORKSPACE, "--actor", placed["actor_key"]], capsys)

@@ -52,7 +52,10 @@ STEER_ACTIONS = frozenset(
     }
 )
 CREATE_ACTIONS = frozenset({"persona.instance.create", "persona.instance.open_chat"})
-KILL_ACTIONS = frozenset({"persona.instance.close", "persona.instance.retire"})
+#: ``office actor-remove``: archiving the desk an instance sits at is a kill of that seat
+#: (row RT-FU-AN-AGENTS-TERMINAL-OFFICE-REMOVE-SKIPS-THE-COORDINATOR-REVIEW).
+OFFICE_ACTOR_REMOVE_ACTION = "office.actor.remove"
+KILL_ACTIONS = frozenset({"persona.instance.close", "persona.instance.retire", OFFICE_ACTOR_REMOVE_ACTION})
 #: Names that mean "a human placed this" — used twice, and for two things.
 #:
 #: As an ACTOR it short-circuits the review: a human is not asked to confirm

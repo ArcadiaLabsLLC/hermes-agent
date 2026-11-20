@@ -232,3 +232,72 @@ def test_no_coordinator_door_takes_a_scope_flag(verb, flag, value):
 
     with pytest.raises(SystemExit):
         _parser().parse_args(argv)
+
+
+def _desk_is_active(actor_key: str) -> bool:
+    from agent_runtime.office_store import OfficeStore
+
+    return OfficeStore().actor_exists(WORKSPACE, actor_key)
+
+
+@pytest.mark.parametrize("local_only", [False, True], ids=["authored", "local-only"])
+def test_an_agents_terminal_office_remove_of_a_seat_you_placed_asks_you(local_only, qa_persona, dev_persona, capsys,
+                                                                        monkeypatch):
+    # Row RT-FU-AN-AGENTS-TERMINAL-OFFICE-REMOVE-SKIPS-THE-COORDINATOR-REVIEW: the office verb archived
+    # the desk with no coordinator review; ``--local-only`` is a removal too.
+    # Mutation: return None at the top of ``office._office_remove_coordinator_refusal`` -> the desk is
+    # archived (exit 0) and every assert reds.
+    from agent_runtime.agent_create import perform_agent_place
+
+    lead = _lead(dev_persona, AutonomyLevel.PROPOSE_ONLY)
+    yours = perform_agent_place({"persona_id": "qa", "workspace_id": WORKSPACE, "idempotency_key": "yours"})
+    assert yours.refusal is None, yours.refusal
+    desk = yours.result["actor_key"]
+    _in_terminal_of(lead, monkeypatch)
+
+    code, payload = _run(["harness", "office", "actor-remove", "--workspace", WORKSPACE, "--actor", desk,
+                          *(["--local-only"] if local_only else [])], capsys)
+
+    assert code == 2
+    assert payload["status"] == "needs_operator_confirm"
+    assert payload["action"] == "office.actor.remove"
+    assert payload["coordinator_id"] == lead["persona_instance_id"]
+    assert payload["reason"] == "operator_placed_target"
+    assert _desk_is_active(desk)
+
+
+def test_an_agents_terminal_office_remove_of_anothers_seat_is_a_kill(qa_persona, dev_persona, capsys, monkeypatch):
+    # The office verb is a KILL in the one review, not a non-restructure action it waves through.
+    # Mutation: drop ``OFFICE_ACTOR_REMOVE_ACTION`` from ``coordinator_permissions.KILL_ACTIONS`` -> the
+    # review answers ``non_restructure_action``, the desk is archived and the asserts red.
+    from agent_runtime.agent_create import perform_agent_place
+
+    lead = _lead(dev_persona, AutonomyLevel.AUTONOMOUS)
+    other = perform_agent_place({"persona_id": "qa", "workspace_id": WORKSPACE, "idempotency_key": "other"},
+                                requested_by="personainst_some_other_lead")
+    assert other.refusal is None, other.refusal
+    desk = other.result["actor_key"]
+    _in_terminal_of(lead, monkeypatch)
+
+    code, payload = _run(["harness", "office", "actor-remove", "--workspace", WORKSPACE, "--actor", desk], capsys)
+
+    assert code == 2
+    assert payload["reason"] == "kill_other_not_granted"
+    assert _desk_is_active(desk)
+
+
+def test_the_operators_shell_office_remove_is_not_asked(qa_persona, dev_persona, capsys, monkeypatch):
+    # No agent session in the operator's shell: the verb archives the desk as before.
+    # Mutation: in ``_office_remove_coordinator_refusal`` replace the ``if not coordinator_id`` return
+    # with ``coordinator_id = coordinator_id or "neko"`` (the shell judged as an agent) -> refused, red.
+    from agent_runtime.agent_create import perform_agent_place
+
+    _seed_workspace()
+    yours = perform_agent_place({"persona_id": "qa", "workspace_id": WORKSPACE, "idempotency_key": "yours"})
+    desk = yours.result["actor_key"]
+    monkeypatch.delenv("HERMES_SESSION_ID", raising=False)
+
+    code, _ = _run(["harness", "office", "actor-remove", "--workspace", WORKSPACE, "--actor", desk], capsys)
+
+    assert code == 0
+    assert not _desk_is_active(desk)
