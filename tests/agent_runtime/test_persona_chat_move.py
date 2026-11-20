@@ -196,3 +196,55 @@ def test_a_relay_sent_from_a_moved_chat_names_the_instance_that_holds_it(two_qa_
     )
     assert second["persona_instance_id"] in marker
     assert first["persona_instance_id"] not in marker
+
+
+def test_an_old_chat_of_a_retired_instance_opens_on_another_instance_of_its_agent(two_qa_instances):
+    """RT-FU-A-DELETED-INSTANCES-OLD-CHAT-OPENS-ON-ANOTHER-INSTANCE (review w1118a.56 D13): the holder's
+    agent is read from its retirement archive, so the chat moves with its history.
+    Mutation: ``_holder_agent`` without the archive fallback → ``foreign_chat_session``."""
+
+    first, second = two_qa_instances
+    chat = first["default_chat_session_id"]
+    _db(chat).append_message(chat, "user", "written before the retire")
+    store = PersonaInstanceStore()
+    store.retire(first["persona_instance_id"], reason="chat panel x")
+    assert store.retired_instance_row(first["persona_instance_id"]).persona_id == "qa"
+
+    reply = _rpc(OPEN_CHAT_METHOD, {"persona_id": "qa", "persona_instance_id": second["persona_instance_id"],
+                                    "session_id": chat, "move": True})
+
+    assert "result" in reply, reply
+    assert reply["result"]["persona_instance_id"] == second["persona_instance_id"]
+    assert reply["result"]["moved_from_persona_instance_id"] == first["persona_instance_id"]
+    assert PersonaInstanceStore().get(second["persona_instance_id"]).default_chat_session_id == chat
+    db = _db(chat)
+    assert [m["content"] for m in db.get_messages(chat)] == ["written before the retire"]
+    assert _persona_chat_session_owner(db, chat) == second["persona_instance_id"]
+    again = _rpc(OPEN_CHAT_METHOD, {"persona_id": "qa", "persona_instance_id": second["persona_instance_id"],
+                                    "session_id": chat})
+    assert again["result"]["persona_instance_id"] == second["persona_instance_id"]
+
+
+def test_a_retired_instances_chat_never_moves_to_a_different_agent(two_qa_instances):
+    """Mutation: ``move_chat``'s agent check reduced to ``holder_persona is None`` → the move goes through."""
+
+    first, _second = two_qa_instances
+    _save_persona("qb", "QB Agent")
+    other = _place("qb", "move-d")
+    chat = first["default_chat_session_id"]
+    PersonaInstanceStore().retire(first["persona_instance_id"], reason="chat panel x")
+
+    for persona in ("qa", "qb"):
+        reply = _rpc(OPEN_CHAT_METHOD, {"persona_id": persona, "persona_instance_id": other["persona_instance_id"],
+                                        "session_id": chat, "move": True})
+        assert reply["error"]["data"]["reason"] == ChatErrorKind.FOREIGN_CHAT_SESSION, reply
+    assert load_chat_moves() == {}
+
+
+def test_a_retired_instances_chat_without_move_is_still_refused(two_qa_instances):
+    first, second = two_qa_instances
+    PersonaInstanceStore().retire(first["persona_instance_id"], reason="chat panel x")
+    reply = _rpc(OPEN_CHAT_METHOD, {"persona_id": "qa", "persona_instance_id": second["persona_instance_id"],
+                                    "session_id": first["default_chat_session_id"]})
+    assert "error" in reply, reply
+    assert load_chat_moves() == {}

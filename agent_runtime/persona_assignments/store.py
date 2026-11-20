@@ -775,3 +775,4 @@ class PersonaInstanceStore:
     _archive_instance_row = retire_lane._archive_instance_row
     retired_instance_ids = retire_lane.retired_instance_ids
     retired_instance_archive_path = retire_lane.retired_instance_archive_path
+    retired_instance_row = retire_lane.retired_instance_row

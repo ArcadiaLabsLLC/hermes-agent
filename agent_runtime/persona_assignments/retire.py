@@ -45,6 +45,7 @@ __all__ = [
     "retire_receipt_path",
     "retired_instance_archive_path",
     "retired_instance_ids",
+    "retired_instance_row",
     "retired_persona_instance_ids",
 ]
 
@@ -520,5 +521,32 @@ def retired_instance_archive_path(
             "treating the target as NOT retired",
             instance_id,
             exc_info=True,
+        )
+        return None
+
+
+def retired_instance_row(
+    store: PersonaInstanceStore,
+    persona_instance_id: str | None,
+) -> PersonaInstance | None:
+    """The row a retired instance had when it retired, read from its tombstone, or ``None``.
+
+    Review w1118a.56 D13 (row ``RT-FU-A-DELETED-INSTANCES-OLD-CHAT-OPENS-ON-ANOTHER-INSTANCE``):
+    a chat whose instance was retired still belongs to that instance's AGENT, and
+    the instance store (live row, else its archive) stays the one authority for
+    which agent that is — never the transcript's own ``persona_id``. ``None`` for
+    a live id (ask :meth:`PersonaInstanceStore.get`), an id that never retired,
+    or an archive that cannot be read. Never creates, mutates or resurrects a row.
+    """
+    from agent_runtime.persona_assignments.store import _decode_stored_instance
+
+    archive = retired_instance_archive_path(store, persona_instance_id)
+    if archive is None:
+        return None
+    try:
+        return _decode_stored_instance(json.loads(archive.read_text(encoding="utf-8")))
+    except (OSError, ValueError, TypeError, KeyError):
+        logging.getLogger(__name__).warning(
+            "retired instance archive %s could not be read", archive, exc_info=True
         )
         return None

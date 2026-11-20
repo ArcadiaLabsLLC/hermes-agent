@@ -251,7 +251,10 @@ def _cmd_persona_instance_open_chat(args) -> int:
                         else None
                     )
                 except Exception:
-                    owner_instance = None
+                    # A retired holder answers from its archive (review w1118a.56
+                    # D13): its old chat can still move onto a live instance of the
+                    # same agent; without ``move`` it is refused below as before.
+                    owner_instance = PersonaInstanceStore().retired_instance_row(session_owner)
                 # Same two-normalizer defect as the mission-chat fence, one verb
                 # over: ``safe_assignment_token(owner.persona_id)`` (token form)
                 # against ``persona_id``, which is

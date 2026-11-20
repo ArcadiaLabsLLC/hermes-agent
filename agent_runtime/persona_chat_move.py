@@ -23,7 +23,8 @@ else —
 Refused: a chat of a DIFFERENT agent (typed ``foreign_chat_session``, as before),
 a chat with a turn running in it (the turn holds the chat's root lease, so the
 move answers ``chat_busy`` and never cuts the reply off), a retired target (its
-tombstone). A failure after the first write puts the ledger and the transcript
+tombstone). A chat whose holder was retired still moves: the holder's agent is
+read from its retirement archive (review w1118a.56 D13). A failure after the first write puts the ledger and the transcript
 field back, so a half move never strands the chat.
 """
 
@@ -84,6 +85,20 @@ def _write_owner(session_db: Any, session_id: str, config: dict[str, Any]) -> No
     )
 
 
+def _holder_agent(store: PersonaInstanceStore, holder_id: str) -> str | None:
+    """The agent of the instance holding the chat: its live row, else its retirement archive (D13).
+
+    A retired instance's chats stay its agent's, so they can move onto another
+    instance of that agent; the instance store stays the one authority for an
+    instance's agent (never the transcript's own ``persona_id``)."""
+
+    try:
+        return store.get(holder_id).persona_id
+    except Exception:
+        retired = store.retired_instance_row(holder_id)
+        return retired.persona_id if retired is not None else None
+
+
 def move_chat(
     *,
     session_db: Any,
@@ -127,10 +142,7 @@ def move_chat(
             f"no instance {target_id!r} to move the chat to",
             next_expected="place an instance of this agent, then open the chat on it",
         )
-    try:
-        holder_persona = store.get(holder_id).persona_id
-    except Exception:
-        holder_persona = None
+    holder_persona = _holder_agent(store, holder_id)
     if not personas_equal(holder_persona, target.persona_id):
         raise ChatMoveRefused(
             ChatErrorKind.FOREIGN_CHAT_SESSION,
