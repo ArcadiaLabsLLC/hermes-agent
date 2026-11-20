@@ -20,7 +20,6 @@ tags: [queue, program/fork-hygiene]
 
 
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
-- **`FH-PREPUSH-GATES-STEP-KILLED-AT-ITS-HANG-GUARD-UNDER-LOAD-28` — A landing on a busy box leaves its pre-push queue and text checks unfinished, so the lane has to run them again by hand** · group: prepush · from: `TASK-PREPUSH` (overrun ledger) · seen 2026-11-20 by w1120a-rtship (DESKTOP-QJ7DDV2, Windows): `scripts/prepush.sh` step `gates` (11 files, work 11 of ceiling 11) ran 22.9 s against its 10 s budget and was killed at its 20 s hang guard at load 28.00 (live lanes null) — UNFINISHED, owed; the same 11 files run alone through `scripts/run_tests.sh` passed in 16.0 s wall (173 tests, 8 workers) on the same box minutes later · cause: guess — the 20 s deadline leaves no room for runner start-up under heavy parallel load; the overrun line is in that run's `_lane_logs/prepush_overruns.jsonl` · done when: the gates step finishes, or its deadline is raised on an idle-box measurement, so a loaded landing does not owe it · READY 2026-11-20
 
 
 ## Filed on arrival — 2026-11-20 (lane rt-never-ran-field)
