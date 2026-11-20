@@ -170,16 +170,19 @@ census reads it, which is what gives "row archived, desk still live" a standing
 detector rather than a one-shot ack (H-H4).
 
 **"Placed" is the JOIN, and neither store is folded into the other** (placement
-plan D1). Entity 2 answers *does this agent exist* — `persona instance create
---add-instance` is the roster-only recovery door and mints rows with no
-placement, on purpose — while entity 4 answers *is it on this level*. So:
+plan D1). Entity 2 answers *does this agent exist* — every adding door seats
+the instance it mints on its workspace's level since 2026-11-20, and
+`persona seat-unseated` seats one added before — while entity 4 answers *is it
+on this level*. So:
 
 - **placed** — a live instance-keyed `OfficeActor` whose `persona_instance_id`
   names a live `PersonaInstance` row. Both halves, or it is not placed.
 - **unplaced row** — a live placement-backed row (`is_canonical_persona_channel`
   is the discriminator; a canonical operator channel is not a placement and
-  never was) that no live actor references. **Legal**, and the recovery door's
-  normal output.
+  never was) that no live actor references. A **notice**, not a defect: one
+  holding a workspace is seated by `harness persona seat-unseated` (or, when its
+  desk was deleted, restored with `harness office actor-restore`); one with no
+  workspace stands on no level by design.
 - **orphan actor** — a live instance-keyed actor whose instance is retired or
   missing. A **defect**: it renders as an agent nothing can message.
 

@@ -583,6 +583,52 @@ def test_an_unplaced_row_alone_raises_the_census_to_notice_and_no_further(isolat
     assert report["summary"]["needs_fix"] is False
 
 
+def test_the_doctor_names_the_repairs_that_clear_an_unplaced_row(isolate_agent_runtime_root):
+    """RT-FU-THE-DOCTOR-STILL-CALLS-AN-UNSEATED-AGENT-A-DESIGNED-ROSTER-ONLY-ROW.
+
+    Every adding door seats since 2026-11-20, so a row holding a workspace and
+    standing on no level is no longer "the roster-only recovery door working as
+    designed" — it is an agent its level does not show, and the doctor names the
+    repair. Both repairs it names are run here and seen to clear the row: an
+    instance never seated is seated by ``persona seat-unseated``; one whose desk
+    was deleted is refused there (``actor_archived``) and comes back with
+    ``office actor-restore``.
+
+    Mutation: put back "is either awaiting a placement or is the roster-only
+    recovery door working as designed" → the first assertion reddens.
+    """
+
+    from agent_runtime.agent_create.seat import REFUSED, seat_unseated
+    from agent_runtime.harness_doctor.census import CENSUS_REMEDIATION
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+
+    assert "`harness persona seat-unseated`" in CENSUS_REMEDIATION
+    assert "actor_archived" in CENSUS_REMEDIATION and "`harness office actor-restore" in CENSUS_REMEDIATION
+    assert "working as designed" not in CENSUS_REMEDIATION
+
+    workspace = "ws_census_seat_unseated"
+    _qa_persona_saved()
+    store = _seed_office(workspace)
+    never_seated = PersonaInstanceStore().add_instance(
+        persona_id="qa", placement_id="qa_agent_5eed0001", workspace_id=workspace
+    )
+    deleted_desk = _create(workspace, "qa_deleted_desk_agent_2")
+    store.remove_actor(workspace, deleted_desk["actor_key"], reason="census fixture")
+    _report, census = _census()
+    assert sorted(row["persona_instance_id"] for row in census["unplaced_rows"]) == sorted(
+        [never_seated.id, deleted_desk["persona_instance_id"]]
+    )
+
+    outcomes = {seat.instance_id: seat for seat in seat_unseated(dry_run=False)}
+    assert outcomes[never_seated.id].seated
+    assert outcomes[deleted_desk["persona_instance_id"]].reason == REFUSED
+    assert "actor_archived" in (outcomes[deleted_desk["persona_instance_id"]].error or "")
+    store.restore_actor(workspace, deleted_desk["actor_key"])
+
+    _report, census = _census()
+    assert census["unplaced_rows"] == []
+
+
 def test_the_orphan_remediation_names_the_verb_that_works_for_a_pulled_orphan(
     isolate_agent_runtime_root,
 ):

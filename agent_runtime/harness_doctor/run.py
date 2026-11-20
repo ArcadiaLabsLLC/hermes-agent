@@ -247,10 +247,11 @@ DOCTOR_SECTIONS: tuple[DoctorSection, ...] = (
         counts=(("misplaced_root_only_keys", "misplaced"),),
     ),
     # The census contributes THREE counts because they are three different
-    # verdicts: an orphan actor is a defect, an unplaced row is a legal state of
-    # a supported door, and a duplicate placement is two live actors claiming
-    # one item id. Folding them into one number would make the doctor's headline
-    # count climb every time the roster-only recovery door is used correctly.
+    # verdicts: an orphan actor is a defect, an unplaced row is a notice (an
+    # agent its level does not show, which `persona seat-unseated` seats, or
+    # one with no workspace), and a duplicate placement is two live actors
+    # claiming one item id. Folding them into one number would make the
+    # doctor's headline count climb for a row that mis-renders nothing.
     # A fourth, ``desk_litter``, left on 2026-09-18 with the pairing it counted.
     DoctorSection(
         name="placement_census",

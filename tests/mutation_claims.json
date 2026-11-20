@@ -972,8 +972,8 @@
       "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "CENSUS_REMEDIATION",
       "operator": "drop-pulled-orphan-repair",
-      "find": "    \"re-creating its agent still clears it, and the retire's replay \"\n    \"sweeps live placements \u2014 or evict the desk from this install with \"\n    \"`harness office actor-remove --workspace <ws> --actor <key> \"\n    \"--local-only`; one reading instance_retired is cleared the same \"\n    \"two ways; one reading instance_unknown \u2014 a realm-pulled placement \"\n    \"this install never held, whose instance stayed on the peer \u2014 has \"\n    \"nothing to retire and is cleared with actor-remove --local-only \"\n    \"or `runtime.office.remove` alone (drop --local-only only if you \"\n    \"mean to delete the placement realm-wide, which is what the \"\n    \"launcher's own delete does); an unplaced row is either awaiting a \"",
-      "replace": "    \"re-creating its agent still clears it; an unplaced row is either awaiting a \"",
+      "find": "    \"re-creating its agent still clears it, and the retire's replay \"\n    \"sweeps live placements \u2014 or evict the desk from this install with \"\n    \"`harness office actor-remove --workspace <ws> --actor <key> \"\n    \"--local-only`; one reading instance_retired is cleared the same \"\n    \"two ways; one reading instance_unknown \u2014 a realm-pulled placement \"\n    \"this install never held, whose instance stayed on the peer \u2014 has \"\n    \"nothing to retire and is cleared with actor-remove --local-only \"\n    \"or `runtime.office.remove` alone (drop --local-only only if you \"\n    \"mean to delete the placement realm-wide, which is what the \"\n    \"launcher's own delete does); an unplaced row holding a workspace is \"",
+      "replace": "    \"re-creating its agent still clears it; an unplaced row holding a workspace is \"",
       "test": [
         "{python}",
         "-m",
@@ -1113,8 +1113,8 @@
       "path": "agent_runtime/harness_doctor/census.py",
       "symbol": "CENSUS_REMEDIATION",
       "operator": "drop-the-diagnostic-qualifier",
-      "find": "    \"nothing to retire and is cleared with actor-remove --local-only \"\n    \"or `runtime.office.remove` alone (drop --local-only only if you \"\n    \"mean to delete the placement realm-wide, which is what the \"\n    \"launcher's own delete does); an unplaced row is either awaiting a \"",
-      "replace": "    \"nothing to retire and is cleared with actor-remove \"\n    \"or `runtime.office.remove` alone; an unplaced row is either awaiting a \"",
+      "find": "    \"nothing to retire and is cleared with actor-remove --local-only \"\n    \"or `runtime.office.remove` alone (drop --local-only only if you \"\n    \"mean to delete the placement realm-wide, which is what the \"\n    \"launcher's own delete does); an unplaced row holding a workspace is \"",
+      "replace": "    \"nothing to retire and is cleared with actor-remove \"\n    \"or `runtime.office.remove` alone; an unplaced row holding a workspace is \"",
       "test": [
         "{python}",
         "-m",
