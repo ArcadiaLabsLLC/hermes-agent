@@ -179,6 +179,45 @@ def legacy_persona_toolsets_issues(
     return tuple(issues)
 
 
+def root_only_knob_issues(persona_id: str) -> tuple[DeclarationIssue, ...]:
+    """One ``root_only_knob_in_profile_config`` issue per profile-config copy of a root-only knob.
+
+    The keys are ``config.ROOT_ONLY_CONFIG_KEYS`` (one list; a new root-only knob joins by
+    being on it). Examined: every ``profiles/<name>/config.yaml`` plus the active home's
+    config, never the root itself. A per-agent key (``personas.<id>.…``) is this agent's
+    only under its id or an alias of it; a harness-wide key (``mission_chat.…``) is every
+    agent's, since every lane runs by the root value. Raises like any read — the caller
+    (``persona_profiles``) turns a fault into no rows, as it does for the twin above.
+    """
+
+    from hermes_constants import get_config_path
+
+    from ..personas import persona_id_aliases
+    from .loader import _profile_config_paths, scan_misplaced_root_only_keys
+
+    ids = {persona_id, *persona_id_aliases(persona_id)}
+    paths = _profile_config_paths()
+    active = get_config_path()
+    if active not in paths:
+        paths.append(active)
+    issues: list[DeclarationIssue] = []
+    for row in scan_misplaced_root_only_keys(paths)["rows"]:
+        # MUTATION: drop this filter and
+        # test_a_per_agent_root_only_key_is_only_its_own_agents_issue reddens.
+        if row["persona_id"] is not None and row["persona_id"] not in ids:
+            continue
+        issues.append(
+            DeclarationIssue(
+                DeclarationIssueKind.ROOT_ONLY_KNOB_IN_PROFILE_CONFIG,
+                row["key"],
+                row["config_path"],
+                root_config_path=row["root_config_path"],
+                set_in_root=bool(row["set_in_root"]),
+            )
+        )
+    return tuple(issues)
+
+
 def _log_legacy_toolsets_key_once(persona_id: str, overrides: dict[str, Any]) -> None:
     if LEGACY_PERSONA_TOOLSETS_KEY not in overrides or persona_id in _LOGGED_LEGACY_KEYS:
         return

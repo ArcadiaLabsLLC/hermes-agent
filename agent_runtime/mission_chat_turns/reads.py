@@ -195,6 +195,29 @@ def inflight_turn_rows() -> list[dict[str, Any]]:
     )
 
 
+def last_turn_started_by_instance() -> dict[str, str]:
+    """The newest turn start per persona instance, ``{instance_id: started_at}`` (the directory's ``last_used_at``).
+
+    RT-AGENT-INSTANCE-SAYS-WHEN-IT-WAS-LAST-USED: the journal is the one record of a chat turn on an
+    instance, so "last used" is derived here, never stored twice. A turn counts from its admission
+    (``started_at``, else ``updated_at`` for a pre-C8 record), whatever state it reached. Stamps are
+    the journal's own ``now_iso_micro`` strings, which order lexically. An instance whose sessions were
+    all archived by the retention GC has no entry. Read-only; a torn file is skipped.
+    """
+
+    _migrate_legacy_if_present()
+    newest: dict[str, str] = {}
+    for path in _iter_session_files():
+        for record in _read_session_map(path).values():
+            if not isinstance(record, dict):
+                continue
+            instance_id = safe_assignment_text(record.get("persona_instance_id"), limit=200)
+            stamp = safe_assignment_text(record.get("started_at") or record.get("updated_at"), limit=80)
+            if instance_id and stamp and stamp > newest.get(instance_id, ""):
+                newest[instance_id] = stamp
+    return newest
+
+
 def all_mission_chat_turn_records() -> list[dict[str, Any]]:
     """Every turn record across every session file, bounded and safe (the audit read).
 

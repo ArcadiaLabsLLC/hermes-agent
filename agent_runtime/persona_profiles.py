@@ -101,6 +101,7 @@ def declared_lane_toolsets(persona: AgentPersona) -> ToolsetDeclaration:
             for name in unknown
         )
         issues += _legacy_persona_toolsets_issues(persona)
+        issues += _root_only_knob_issues(persona)
         return ToolsetDeclaration(
             toolsets=toolsets,
             declared=declared,
@@ -198,6 +199,20 @@ def _legacy_persona_toolsets_issues(persona: AgentPersona) -> tuple[DeclarationI
         )
     except Exception as exc:  # a declaration read must never break a turn
         _LOGGER.debug("legacy persona toolsets scan skipped: %s", type(exc).__name__)
+        return ()
+
+
+def _root_only_knob_issues(persona: AgentPersona) -> tuple[DeclarationIssue, ...]:
+    """The rows naming each profile-config copy of a ROOT-only knob for this agent
+    (``config.persona_records.root_only_knob_issues``). Best-effort like its twin above:
+    a read fault yields no rows, never a raise out of the declaration."""
+
+    try:
+        from .config.persona_records import root_only_knob_issues
+
+        return root_only_knob_issues(str(getattr(persona, "id", "") or ""))
+    except Exception as exc:  # a declaration read must never break a turn
+        _LOGGER.debug("root-only knob scan skipped: %s", type(exc).__name__)
         return ()
 
 
