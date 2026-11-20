@@ -15,7 +15,7 @@ __layer__ = "lanes"
 __all__ = ["_cmd_persona_seat_unseated"]
 
 
-def _line(seat: dict, *, dry_run: bool) -> str:
+def _unseated_line(seat: dict, *, dry_run: bool) -> str:
     if dry_run:
         return f"{seat['instance_id']}: would seat on {seat['workspace_id']}"
     if seat["seated"]:
@@ -31,7 +31,7 @@ def _cmd_persona_seat_unseated(args) -> int:
     else:
         print("Dry run — nothing written:" if dry_run else "Seated:")
         for seat in seats:
-            print(f"  {_line(seat, dry_run=dry_run)}")
+            print(f"  {_unseated_line(seat, dry_run=dry_run)}")
         if not seats:
             print("  every instance added to a workspace stands on its level")
     return 1 if any(not seat["seated"] for seat in seats) and not dry_run else 0
