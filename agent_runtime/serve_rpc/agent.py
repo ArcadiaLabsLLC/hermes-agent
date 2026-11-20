@@ -1,4 +1,4 @@
-"""``runtime.agent.create`` / ``place`` / ``retire`` / ``duplicate`` — the agent lifecycle verbs.
+"""``runtime.agent.create`` / ``place`` / ``retire`` / ``duplicate`` / ``delete`` — the agent lifecycle verbs.
 
 ``create`` makes a NEW agent (its own persona and profile) and seats it;
 ``place`` seats an EXISTING agent once more (one instance, no new persona or
@@ -18,6 +18,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "_runtime_agent_create",
+    "_runtime_agent_delete",
     "_runtime_agent_duplicate",
     "_runtime_agent_place",
     "_runtime_agent_retire",
@@ -74,6 +75,38 @@ def _runtime_agent_duplicate(rid: Any, params: dict, context: RpcContext | None 
         return err(rid, ERR_NOT_FOUND, "That instance does not exist.", {"reason": "instance_not_found"})
     except AgentDuplicateRefused as exc:
         code = ERR_CONFLICT if exc.reason == "agent_name_taken" else ERR_INVALID_PARAMS
+        return err(rid, code, str(exc), {"reason": exc.reason, **exc.data})
+
+
+@method("runtime.agent.delete", tier=TIER_CONSOLE)
+def _runtime_agent_delete(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Delete an agent COPY you made, in one step (``agent_copy_delete.delete_agent_copy``).
+
+    Params: ``persona_id`` (required); ``correlation_id`` (optional). Every
+    instance is retired (desks archived, chats kept), the definition archived, and
+    the copy's own profile archived unless another agent uses it. Result:
+    ``{persona_id, agent_name, profile, retired_instances: [{persona_instance_id,
+    archive_path, archived_actor_keys, office_archive_failures}], definition_archive,
+    profile_archive, profile_kept, profile_used_by, chats_kept, already_deleted}``;
+    ``profile_kept`` is ``null`` when the profile went, else ``in_use`` /
+    ``not_its_own`` / ``no_own_profile``. A retry of a done delete answers its receipt
+    with ``already_deleted: true``. Refusals carry ``data.reason``:
+    ``invalid_params``; ``persona_not_found`` (not found); ``shipped_agent``,
+    ``not_a_copy``, ``held_by_realm`` (``realm_id``, ``held_by``:
+    ``agent_selection`` / ``workspace_roster`` / ``realm_desk``), ``instance_active``,
+    ``instances_unreadable`` (conflict). A refusal writes nothing.
+    """
+    from agent_runtime.agent_copy_delete import AgentDeleteRefused, delete_agent_copy
+    from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, ERR_NOT_FOUND
+
+    persona_id, correlation_id = params.get("persona_id"), params.get("correlation_id")
+    if (set(params) - {"persona_id", "correlation_id"} or not isinstance(persona_id, str) or not persona_id.strip()
+            or not isinstance(correlation_id, (str, type(None)))):
+        return err(rid, ERR_INVALID_PARAMS, "Expected persona_id and an optional correlation_id.", {"reason": "invalid_params"})
+    try:
+        return ok(rid, delete_agent_copy(persona_id.strip(), correlation_id=correlation_id))
+    except AgentDeleteRefused as exc:
+        code = ERR_NOT_FOUND if exc.reason == "persona_not_found" else ERR_CONFLICT
         return err(rid, code, str(exc), {"reason": exc.reason, **exc.data})
 
 
