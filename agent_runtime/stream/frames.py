@@ -17,7 +17,7 @@ from hermes_time import now
 from ..chat_turn_presence import EVENT_TURN_ENDED, EVENT_TURN_STARTED
 from ..events import EventLog
 from ..models import Event
-from ..patch_coverage import normalize_fold_entities
+from ..patch_coverage import COVERED_DOMAIN_EVENT_TYPES, normalize_fold_entities
 from ..builds.vocabulary import BUILD_RUNNING_WORK_EVENT_TYPES, EVENT_BUILD_LIVENESS_CHANGED
 from ..running_work import build_running_work
 from ..running_work.process_presence import PROCESS_PRESENCE_EVENT_TYPES
@@ -751,7 +751,10 @@ def patch_batch_frame(
     full-core lane does. ``patches`` is the ordered list of the batch's
     ``{seq, ts, entity, id, op, changed?}`` entries (the op-based wire contract —
     ``changed`` present only for ``upsert``); ``coalesced_count`` is the whole
-    batch length (parity with :func:`delta_batch_frame`).
+    batch length (parity with :func:`delta_batch_frame`). ``events``, present
+    only when the batch holds covered domain events, lists them in the
+    :func:`delta_batch_frame` entity shape — the facts only the event carries
+    (a removal's ``requested_by`` / ``activity``) reach a listener on this lane too.
 
     Refuses an EMPTY FILTERED LIST as well as an empty batch — a frame that
     advances a watermark must carry the state that justifies it, and a batch of
@@ -777,7 +780,22 @@ def patch_batch_frame(
             "patch_batch_frame requires at least one state.patched row: "
             f"{len(batch)} events, none of them {STATE_PATCHED_EVENT_TYPE}"
         )
-    return {
+    # The batch's covered domain events ride beside the rows (review w1118a.62
+    # D2 (a)): the event is the one carrier of facts no row holds — who removed
+    # an agent (``requested_by``) and the sentence saying so (``activity``) — and
+    # Eternia's one event door (`hermes_stream_event_announcements.dart`) reads
+    # ``events[]`` off any frame. Same entity shape as :func:`delta_batch_frame`
+    # (one :func:`_delta_entity`), so the patch lane and the full-core lane hand
+    # a listener the same event. Absent when the batch holds only rows, so a
+    # rows-only frame keeps its bytes.
+    # MUTATION: drop the ``events`` key below and test_stream_patch's
+    # "a removal's covered event rides the patch frame" reddens.
+    events = [
+        _delta_entity(event)
+        for _, event in batch
+        if event.type in COVERED_DOMAIN_EVENT_TYPES
+    ]
+    frame = {
         "type": FRAME_PATCH,
         "schema_version": STREAM_PATCH_SCHEMA_VERSION,
         "generated_at": now(),
@@ -790,6 +808,9 @@ def patch_batch_frame(
         "patches": patches,
         "coalesced_count": len(batch),
     }
+    if events:
+        frame["events"] = events
+    return frame
 
 
 def fold_variants_frame(

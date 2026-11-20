@@ -12,6 +12,14 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w1118a-hrt3, 2026-11-20) — NOT regenerated; launcher copy owed at the next regeneration (row `RT-ANOTHER-REMOVAL-REACHES-ETERNIA-ONLY-WHEN-ITS-BATCH-FALLS-BACK`).**
+> A patch frame now carries its batch's covered domain events as `events[]` (the `delta_batch_frame` entity shape),
+> present only when the batch holds one. `patch_agent_create.json`'s batch holds two (`persona_instance.chat_opened`,
+> `office.actor.upserted`), so its next regeneration adds that key; the hand-pinned `patch*.json` hold rows only and do
+> not move. It was not regenerated here because the generator stops on origin/main before it (the create trail now
+> starts with `persona.updated`; red on main, not this lane's). Eternia reads the key through
+> `hermes_stream_event_announcements.dart` and its fold ignores it, so the copy is bytes only.
+
 > **CROSS-STACK COPY STATUS (w1114a-hmainred-b, 2026-11-15) — launcher copy OWED (row `FH-MAIN-LANDING-GATE-RED-AT-1633EC8F55`).**
 > One generated golden moved for one reason: `094fd6b446` (RT-MISSION-CHAT-PROMPT-NAMES-SESSION-SEARCH-AS-DIRECT)
 > added the `tool_call` route clause to the Mission Control operative rules without regenerating, so the

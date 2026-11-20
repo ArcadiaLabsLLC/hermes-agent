@@ -229,6 +229,54 @@ def test_stream_flag_on_profile_update_emits_patch_frame(set_delta_patches, isol
     assert patch["changed"]["model_is_override"] is True
 
 
+def test_a_removals_covered_event_rides_the_patch_frame(set_delta_patches, isolate_agent_runtime_root):
+    """RT-ANOTHER-REMOVAL-REACHES-ETERNIA-ONLY-WHEN-ITS-BATCH-FALLS-BACK (review w1118a.62 D2 (a)).
+
+    An agent's removal of another is a covered batch, so it ships as a patch
+    frame; the ``persona_instance.retired`` event — the one carrier of who
+    removed it and the sentence saying so — rides that frame's ``events[]`` in
+    the same entity shape a full-core delta batch uses, which is what Eternia's
+    one event door reads (``hermesStreamEventsOf``: ``entity["event"]["type"]``).
+    Mutation: drop the ``events`` key in ``patch_batch_frame`` → this reddens.
+    """
+
+    set_delta_patches(True)
+    store = PersonaInstanceStore()
+    instance = store.add_instance(persona_id="dev", placement_id="scene_child_2_agent_1", display_name="Dev (2)")
+
+    frames = _stream(max_frames=2)
+    assert next(frames)["type"] == "hydrate"
+    store.retire(instance.id, reason="placement deleted", requested_by="personainst_lead_agent")
+    frame = next(frames)
+
+    assert frame["type"] == "patch", f"expected a patch frame, got {frame['type']}"
+    assert any(row["op"] == "remove" and row["id"] == instance.id for row in frame["patches"])
+    retired = [entity for entity in frame.get("events", []) if entity["event"]["type"] == "persona_instance.retired"]
+    assert len(retired) == 1, "the removal's event rides the patch frame"
+    payload = retired[0]["event"]["payload"]
+    assert payload["persona_instance_id"] == instance.id
+    assert payload["requested_by"] == "personainst_lead_agent"
+    assert payload["activity"], "the sentence Eternia shows rides with it"
+    # One shape on both lanes: the delta batch frame's entity for the same event.
+    assert set(retired[0]) == set(delta_batch_frame([(1, Event(
+        ts=datetime(2026, 11, 20, tzinfo=UTC), type="persona_instance.retired",
+        task_id=None, run_id=None, persona_id=None, payload={},
+    ))], snapshot={})["events"][0])
+    # Only covered domain events ride; the rows are not listed twice.
+    assert all(entity["event"]["type"] != STATE_PATCHED_EVENT_TYPE for entity in frame["events"])
+
+
+def test_a_rows_only_patch_frame_carries_no_events_key():
+    """A batch of rows alone keeps its bytes: no empty ``events`` list.
+
+    Mutation: always set ``frame["events"]`` → this reddens (and the
+    byte-pinned ``patch*.json`` goldens would no longer be what the builder makes).
+    """
+
+    frame = patch_batch_frame([_op_event(400, "incident", "inc_x", PATCH_OP_REMOVE)], base_offset=399)
+    assert "events" not in frame
+
+
 def test_stream_flag_on_task_transition_falls_back_to_full_core(set_delta_patches, isolate_agent_runtime_root):
     import agent_runtime.models as runtime_models
 
