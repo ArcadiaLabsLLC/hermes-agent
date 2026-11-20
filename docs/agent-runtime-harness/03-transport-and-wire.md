@@ -2240,13 +2240,20 @@ repository under `repos/<realm folder>/`, its path is the default — it exists,
 `<slot>-2`, `-3` …. Reading it writes only the realm folder mapping; nothing is cloned. Additive: a client that
 does not read the key is unchanged.
 
+`default_context_files` (bound rows only, row `MC-A-FOLDER-SLOT-CHOOSES-WHICH-RULES-FILE-ITS-AGENT-READS`, owner ruling
+2026-11-20) is the list of the slot's files that load for an assigned instance with NO pick of its own: the
+declaration's `context.files`, else the ONE file the default rule picks (`AGENTS.md` with content of its own, else
+`CLAUDE.md`; `persona_slots.default_context_files`, the same loader and rule the turn uses), `[]` when neither
+exists. The folders sheet's CLAUDE.md / AGENTS.md switch shows it while no pick is set; a pick is written through
+`runtime.persona.instance.slots.set`'s `context_files`. Additive.
+
 Sample (`<namespace>` stands for the absolute namespace folder on the machine):
 
 ```json
 {"here": {"launcher": {"bound_here": false, "path": null, "folder_missing": false, "unknowns": [], "fill": null,
                        "default_clone_path": "<namespace>/repos/Team-Alpha/launcher"},
           "backend":  {"bound_here": true, "path": "<this machine's checkout>", "folder_missing": false, "unknowns": [],
-                       "fill": null, "default_clone_path": null}}}
+                       "fill": null, "default_clone_path": null, "default_context_files": ["CLAUDE.md"]}}}
 ```
 
 `runtime.workspace.slot.clone {workspace_id, slot, dest_path, issued_at}` (local console) clones into `dest_path`
