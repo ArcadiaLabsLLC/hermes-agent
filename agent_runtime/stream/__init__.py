@@ -25,9 +25,10 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
       frames.py        lanes   one frame each: hydrate, heartbeat, delta, delta batch,
                                patch batch, running_work (the section alone, on a turn's
                                end), persona_chat_turn (one root's turn sections, at
-                               flush; + batch_turn_roots), fold variants
-                               (+ resolve_fold_variant); the
+                               flush; + batch_turn_roots); the
                                watchdog append, _delta_op, _identity_map
+      fold_variants.py stores  the fold-variants envelope (a mixed room's patch + core)
+                               and resolve_fold_variant, its per-subscriber half
       build.py         lanes   one core build with liveness: _is_one_shot,
                                _SnapshotBuildJob, _build_with_liveness, the batch frames
       fingerprint.py   stores  _scope_fingerprint: the watchdog's stat of event-less state,
@@ -39,10 +40,10 @@ Modules, lowest layer first; no module imports one above it (W0-G6)::
     entry point                                        opens
     stream_frames (serve subscriptions, harness stream) session -> build -> frames
                                                         (+ fingerprint, one call a pass)
-    _build_with_liveness / _batch_frames_with_liveness  build -> frames -> build_policy
+    _build_with_liveness / _batch_frames_with_liveness  build -> frames, fold_variants -> build_policy
     the frame builders (fixture generator, stream_resume) frames
     log_stream_attach / log_stream_denied (serve)       build_policy
-    resolve_fold_variant (serve_stream_hub)             frames
+    resolve_fold_variant (serve_stream_hub)             fold_variants
 
 No module here names a package MAP: ``core_cache.lane`` / ``.shadow`` /
 ``.walk``, ``profile_runner.workdir``, ``snapshot.build`` / ``.receipts`` and
@@ -88,11 +89,13 @@ from .frames import (
     batch_turn_roots,
     delta_batch_frame,
     delta_frame,
-    fold_variants_frame,
     heartbeat_frame,
     hydrate_frame,
     patch_batch_frame,
     persona_chat_turn_frames,
+)
+from .fold_variants import (
+    fold_variants_frame,
     resolve_fold_variant,
 )
 from .session import (

@@ -19,7 +19,8 @@ from ..snapshot.build import build_snapshot
 from ..snapshot.receipts import BUILD_ROLE_REUSED
 
 from .build_policy import _defer_demote_build_for_active_turns, _log_snapshot_build
-from .frames import batch_carries_patch_rows, batch_changes_running_work_presence, batch_is_running_work_only, batch_opens_a_chat, batch_turn_roots, delta_batch_frame, fold_variants_frame, heartbeat_frame, patch_batch_frame, persona_chat_turn_frames, running_work_section_frame
+from .frames import batch_carries_patch_rows, batch_changes_running_work_presence, batch_is_running_work_only, batch_opens_a_chat, batch_turn_roots, delta_batch_frame, heartbeat_frame, patch_batch_frame, persona_chat_turn_frames, running_work_section_frame
+from .fold_variants import fold_variants_frame
 from .vocabulary import BATCH_REASON_DEMOTE, DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _SNAPSHOT_CANCEL_POLL_SECONDS
 
 __layer__ = "lanes"
