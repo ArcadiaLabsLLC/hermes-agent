@@ -375,6 +375,37 @@ def test_a_python_change_outside_tests_plans_the_name_census(repo: Path):
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert sum(census[0] in line for line in calls.splitlines()) == 1
 
+def test_a_change_to_a_claimed_file_plans_the_mutation_anchor_test(repo: Path):
+    """FH-PREPUSH-NEVER-CHECKS-THAT-MUTATION-CLAIMS-STILL-ANCHOR (eight claims went dark on main because no
+    step before landing read them). KILLING MUTATION: never set ``EXTRA_ANCHOR`` -> an edit to a claimed file
+    plans no anchor test, red. An unclaimed file plans none; the registry alone plans it; it runs once, in the
+    touched lane, never as a gates-step file."""
+    anchor = "tests/scripts/test_mutation_claims_still_anchor.py"
+    registry = repo / "tests" / "mutation_claims.json"
+    (repo / "tests" / "scripts").mkdir(parents=True, exist_ok=True)
+    (repo / anchor).write_text("x = 7\n", encoding="utf-8")
+    (repo / "agent_runtime").mkdir()
+    (repo / "agent_runtime" / "claimed.py").write_text("y = 1\n", encoding="utf-8")
+    (repo / "agent_runtime" / "unclaimed.py").write_text("z = 1\n", encoding="utf-8")
+    registry.write_text(json.dumps({"claims": [{"id": "c", "path": "agent_runtime/claimed.py", "symbol": "module",
+                                                 "find": "y = 1", "replace": "y = 2", "test": []}]}, indent=2) + "\n",
+                        encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "registry")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    (repo / "agent_runtime" / "unclaimed.py").write_text("z = 2\n", encoding="utf-8")
+    assert anchor not in _run(repo, "--plan")[0].stdout
+    (repo / "agent_runtime" / "claimed.py").write_text("y = 3\n", encoding="utf-8")  # unstaged: still planned
+    proc, calls = _run(repo)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert f"mutation-claim anchor test (the registry or a claimed file changed): {anchor}" in proc.stdout
+    assert sum(anchor in line for line in calls.splitlines()) == 1, calls
+    assert "--small" not in next(line for line in calls.splitlines() if anchor in line)  # the touched lane's runner
+    _git(repo, "checkout", "-q", "--", "agent_runtime")
+    registry.write_text(registry.read_text(encoding="utf-8").replace("y = 2", "y = 9"), encoding="utf-8")
+    assert anchor in _run(repo, "--plan")[0].stdout
+
+
 def _ledger(repo: Path) -> list[dict]:
     path = repo / "_lane_logs" / "prepush_overruns.jsonl"
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []

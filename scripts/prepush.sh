@@ -35,6 +35,9 @@
 #            own `test_durations.json`) runs as shards, side by side, split by node
 #            id (`scripts/_bundle_plugin/hermes_shard.py`), unless it is listed in
 #            `scripts/test_files_unsharded.txt` (FH-PREPUSH-CAP-TIGHT).
+#            The mutation-claim anchor test (`tests/scripts/test_mutation_claims_still_anchor.py`)
+#            joins it when `tests/mutation_claims.json` or a file a claim names changed
+#            (FH-PREPUSH-NEVER-CHECKS-THAT-MUTATION-CLAIMS-STILL-ANCHOR).
 #
 # It prints its plan first. A step past its budget prints a heartbeat naming
 # it every few seconds and raises one desktop notification; a step at its
@@ -203,7 +206,7 @@ while [ $# -gt 0 ]; do
     --list-gates) printf '%s\n' "${PREPUSH_QUEUE_GATES[@]}" "${PREPUSH_TEXT_GATES[@]}"; exit 0 ;;
     --list-census) printf '%s\n' "${PREPUSH_CENSUS_GATES[@]}"; exit 0 ;;
     -j|--jobs) shift; JOBS="${1:?-j needs a number}" ;;
-    -h|--help) sed -n '2,75p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,78p' "${BASH_SOURCE[0]}"; exit 0 ;;
     -*) echo "prepush: unknown option $1" >&2; exit 2 ;;
     *) EXTRA+=("$1") ;;
   esac
@@ -283,6 +286,24 @@ else
   EXTRA_CENSUS=()
 fi
 
+# The mutation-claim anchor test joins the touched lane whenever the branch (committed, staged or
+# unstaged) changed the claims registry or any file a claim's `path` names: an edit around a needle
+# makes its claim guard nothing, and the only other reader is `fork-gates.yml`, which main does not
+# trigger — eight claims went dark between releases unseen (FH-PREPUSH-NEVER-CHECKS-THAT-MUTATION-
+# CLAIMS-STILL-ANCHOR). A file read per claim, ~2-4 s; never a gates-step file (its ceiling is
+# shrink-only). The registry is the one owner of which files are claimed.
+# MUTATION: never set EXTRA_ANCHOR and test_a_change_to_a_claimed_file_plans_the_mutation_anchor_test
+# reddens.
+MUTATION_REGISTRY=tests/mutation_claims.json
+MUTATION_ANCHOR_TEST=tests/scripts/test_mutation_claims_still_anchor.py
+EXTRA_ANCHOR=()
+if [ -f "$MUTATION_REGISTRY" ] && [ -f "$MUTATION_ANCHOR_TEST" ]; then
+  CLAIMED=$'\n'"$MUTATION_REGISTRY"$'\n'"$(sed -n 's/^ *"path": "\([^"]*\)".*/\1/p' "$MUTATION_REGISTRY" | sort -u)"$'\n'
+  while IFS= read -r path; do
+    case "$CLAIMED" in *$'\n'"$path"$'\n'*) EXTRA_ANCHOR=("$MUTATION_ANCHOR_TEST"); break ;; esac
+  done < <(git diff --name-only "$BASE" --)
+fi
+
 # Each file once, in plan order: a gate is never re-run in the touched lane.
 GATES=()
 CENSUS=()
@@ -292,7 +313,8 @@ for path in "${PREPUSH_QUEUE_GATES[@]}" "${PREPUSH_TEXT_GATES[@]}"; do
   SEEN="$SEEN$path"$'\n'
   GATES+=("$path")
 done
-for path in ${TOUCHED[@]+"${TOUCHED[@]}"} ${NAMED[@]+"${NAMED[@]}"} ${EXTRA_CENSUS[@]+"${EXTRA_CENSUS[@]}"}; do
+for path in ${TOUCHED[@]+"${TOUCHED[@]}"} ${NAMED[@]+"${NAMED[@]}"} ${EXTRA_CENSUS[@]+"${EXTRA_CENSUS[@]}"} \
+    ${EXTRA_ANCHOR[@]+"${EXTRA_ANCHOR[@]}"}; do
   case "$SEEN" in *$'\n'"$path"$'\n'*) continue ;; esac
   SEEN="$SEEN$path"$'\n'
   case " ${PREPUSH_CENSUS_GATES[*]} " in
@@ -377,6 +399,9 @@ else
 fi
 _list "touched tests" ${TOUCHED[@]+"${TOUCHED[@]}"}
 _list "named by you" ${NAMED[@]+"${NAMED[@]}"}
+if [ "${#EXTRA_ANCHOR[@]}" -gt 0 ]; then
+  echo "  mutation-claim anchor test (the registry or a claimed file changed): $MUTATION_ANCHOR_TEST"
+fi
 for path in ${NOT_TESTS[@]+"${NOT_TESTS[@]}"}; do
   echo "  skipped, not a test file (a named file is test_*.py; name its directory to run that): $path"
 done
