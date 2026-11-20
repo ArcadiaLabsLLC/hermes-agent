@@ -143,13 +143,18 @@ def test_delete_answers_what_the_cli_prints(tmp_path, monkeypatch, capsys):
     assert os.environ == before
 
 
-def test_one_process_deletes_one_namespace_then_serves_another(tmp_path, monkeypatch, capsys):
+def test_one_process_deletes_one_namespace_then_serves_another(tmp_path, monkeypatch, capsys, request):
     """The row's done-when: delete B, configure A, start the embedded serve in A — in one process.
     After start, A is held: its delete is refused as the CLI refuses the namespace it runs in."""
     app = tmp_path / "app"
     gone = _make(app, B)
     assert delete_namespace(app, B)["ok"] is True
     assert not gone.exists()
+    # The serve reads the process environment, so the namespace is configured INTO it; the environment is
+    # put back after, or every later test in this process runs inside namespace A (a bundle-mate's
+    # NamespaceIsolationViolation, seen 2026-11-20 by w1120a-phonemodels).
+    before = dict(os.environ)
+    request.addfinalizer(lambda: (os.environ.clear(), os.environ.update(before)))
     values = configure_app_folder(app, namespace=A)
     assert os.environ["HERMES_HOME"] == values["HERMES_HOME"]
     store = FakeHostSecureStore()
