@@ -27,13 +27,13 @@ slot-identity test reddens too.
 from __future__ import annotations
 
 import os
-import time
 from pathlib import Path
 
 import pytest
 
 from agent_runtime.host_store import binding
 from agent_runtime.host_store.fake import FakeHostSecureStore
+from tests._downstream.load_wait import wait_for
 from tests.agent_runtime.test_instance_conversation_owner import chat_head  # noqa: F401 (autouse)
 from tests.agent_runtime.test_operator_session_inspection import inspect, target
 from tests.agent_runtime.test_serve_rpc_open_chat import PERSONA, placed_agent, qa_persona  # noqa: F401
@@ -97,12 +97,13 @@ def _sign_in_codex_like_the_phone(monkeypatch) -> None:
 
     monkeypatch.setitem(provider_browser_login._DRIVERS, CODEX, driver)
     signins = ProviderSignIns(spawn=run_login_in_process)
-    view = signins.begin(CODEX)
-    deadline = time.monotonic() + 30
-    while view["state"] not in {"succeeded", "failed", "cancelled", "expired"}:
-        assert time.monotonic() < deadline, view
-        time.sleep(.02)
-        view = signins.poll(view["login_id"])
+    login_id = signins.begin(CODEX)["login_id"]
+
+    def finished():
+        view = signins.poll(login_id)
+        return view if view["state"] not in {"starting", "awaiting_user", "awaiting_code", "completing"} else None
+
+    view = wait_for(finished, 30, what="the in-process Codex sign-in to finish")
     assert view["state"] == "succeeded", view
 
 
