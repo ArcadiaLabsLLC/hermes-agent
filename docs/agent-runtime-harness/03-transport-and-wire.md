@@ -574,6 +574,21 @@ inbound agent message. There is no distributed row and no two-phase state.
 Cross-install sends are the DETACHED lane only: `wait: true` on a qualified
 target is refused `remote_requires_detached`.
 
+**A local child outlives its serve; its answer does not depend on it** (review w1118a.56 D12).
+The supervisor is a thread of the serve that spawned the child (`tools/agent_chat_dispatch/local.py`),
+so it ends with that serve while the child runs on. The child writes its reply payload to a
+per-dispatch result file (`agent_runtime/dispatch_store/result_file.py`, temp + rename) BEFORE its
+stdout, and survives a closed stdout. The row records the supervising serve (`supervisor_pid`,
+`supervisor_started_at`). At the serve's boot pass and on the drain's orphan sweep,
+`local.readopt_live_dispatches` re-adopts a running local row whose child is proved alive (pid plus
+start time) and whose supervisor is proved gone, by compare-and-set on that stamp, and supervises it
+to its end (Stop, the cancel watch and the settle reach it). A row whose child is gone is never
+re-adopted: `settle_if_orphaned` settles it from the result file (one payload mapping,
+`child.payload_completion`), or `unknown`. Windows names a Job Object per dispatch
+(`Local\hermes-dispatch-<id>`, `KILL_ON_JOB_CLOSE`): the serve and the child each hold a handle (the
+child opens its own by name), a re-adopting serve opens it by name, and the tree ends with the last
+of the two. Acceptance: `tests/agent_runtime/test_dispatch_readopt_after_serve_restart.py`.
+
 **Who asked comes off the CONNECTION.** B derives the calling install from
 `context.caller.peer_install_id` — set only for a connection whose peer HMAC
 verified — and lowers it to `--requested-by peer:<install_id>`. There is no
