@@ -582,7 +582,7 @@ def publish_set_changes(
     (``realm_published_in_clone``): a device-only realm has no team copy to differ
     from and must not read "unpublished".
 
-    A byte compare is right only where the bytes are the change. Three answers
+    A byte compare is right only where the bytes are the change. Four answers
     are narrower, each because a MEMBER who changed nothing differs in bytes
     (RT-REALM-MEMBER-TOLD-UNPUBLISHED-OVER-A-WORKSPACE-NEVER-SHARED):
 
@@ -597,12 +597,16 @@ def publish_set_changes(
     * a slot document that differs only in a machine's ``machines.<id>`` report
       does not count (owner RULED 2026-11-16,
       ``workspace_slots_sync.without_machine_reports``); the publish itself still
-      copies it verbatim.
+      copies it verbatim;
+    * a shipped agent's profile file the team copy holds and this publish does not
+      send (an older build's upload, ``bundled_agents.realm.is_shipped_profile_path``)
+      does not count; the next real publish removes it.
     """
 
     if not realm_published_in_clone(repo, realm.id):
         return []
     from ..workspace_slots_sync import PUBLISHED_ROOT as SLOTS_ROOT, without_machine_reports
+    from ..bundled_agents.realm import is_shipped_profile_path
 
     subtree = _realm_subtree(repo, realm.id)
     desired = _desired_bytes(artifacts)
@@ -615,6 +619,12 @@ def publish_set_changes(
         # MUTATION: drop this test and
         # test_a_member_reads_nothing_waiting_while_the_owner_lists_a_workspace_it_deleted reddens.
         if kind in counted_elsewhere:
+            return False
+        # A shipped agent's SOUL or memory an older build published: no publish sends one, so it is
+        # not this member's change; the next real publish drops it from the team copy
+        # (RT-SHIPPED-NEKO-FILES-LISTED-AS-CHANGES-TO-PUSH). MUTATION: drop this test and
+        # test_a_shipped_agents_older_files_in_the_team_copy_are_not_changes_to_push reddens.
+        if rel not in desired and is_shipped_profile_path(rel):
             return False
         if rel == realm_rel:
             return _realm_record_waits(realm, subtree / rel, desired.get(rel))

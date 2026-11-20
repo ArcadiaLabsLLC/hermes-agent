@@ -179,3 +179,67 @@ def test_a_pulled_copy_keeps_its_based_on(tmp_path):
     assert summary.adopted == [COPY]
     copy = next(p for p in ensure_persisted_personas() if p.id == COPY)
     assert copy.based_on == {"id": NEKO, "name": "Neko Mission Lead"}
+
+
+def _status_changes(realm_id: str) -> tuple[bool, list[str]]:
+    """``(unpublished_changes, publish_changes)`` as the app reads them, through its door."""
+
+    from agent_runtime import serve_rpc
+
+    reply = serve_rpc.handle_request(
+        {"jsonrpc": "2.0", "id": "t", "method": "runtime.realm.sync.status", "params": {"realm_id": realm_id}})
+    assert "error" not in reply, reply
+    return reply["result"]["unpublished_changes"], reply["result"]["publish_changes"]
+
+
+def _older_build_republishes_neko(team: Path) -> None:
+    """A member on a build from before Neko shipped publishes: its subtree carries Neko's files again."""
+
+    import subprocess
+
+    for dest, text in (("SOUL.md", "An older build's Neko SOUL."), ("memories/MEMORY.md", "An older build's memory.")):
+        path = team.joinpath(*published_relative_path("neko", dest).split("/"))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    repo = team.parent.parent
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "older build"],
+                   check=True, capture_output=True)
+    from agent_runtime.realm_sync.adoption import record_adopted_head
+
+    record_adopted_head(repo)
+
+
+@pytest.mark.timeout(150)  # three publishes and four status reads, each a dozen git calls
+def test_a_shipped_agents_older_files_in_the_team_copy_are_not_changes_to_push(tmp_path):
+    """RT-SHIPPED-NEKO-FILES-LISTED-AS-CHANGES-TO-PUSH (seen 2026-11-19 on the owner's realm): the
+    team copy holds the shipped Neko's SOUL and memory from an older build's publish, and status
+    listed them as this member's changes to push. Now: nothing waits; a publish sends none of the
+    shipped Neko's files (its memory written since never reaches the team copy) and drops the old
+    ones; a real edit to the member's own agent still lists and travels.
+
+    Mutation: drop the shipped-path test in ``publish_set_changes._counts`` -> the status after the
+    older build's publish lists ``store/profile_files/neko/SOUL.md`` and ``…/memories/MEMORY.md``,
+    red."""
+    from agent_runtime.realm_sync import publish_realm_sync
+
+    _install_with_shipped_agents()
+    _profile("rook", "Rook's SOUL.")
+    AgentStore().save(AgentPersona("rook", "Rook", "alice_supervisor", None, None, None, hermes_profile="rook",
+                                   soul_overlay_path="SOUL.md", include_profile_memory=True))
+    realm_id = _realm(tmp_path, [NEKO, "rook"])
+    publish_realm_sync(realm_id)
+    team = tmp_path / "sync_repo" / "realms" / paths.safe_path_token(realm_id)
+    _older_build_republishes_neko(team)
+    (get_profile_dir("neko") / "memories" / "MEMORY.md").write_text("Written on this build.", encoding="utf-8")
+
+    assert _status_changes(realm_id) == (False, [])
+
+    (get_profile_dir("rook") / "memories" / "MEMORY.md").write_text("Rook learned something.", encoding="utf-8")
+    rook_memory = published_relative_path("rook", "memories/MEMORY.md")
+    assert _status_changes(realm_id) == (True, [rook_memory])
+
+    publish_realm_sync(realm_id)
+    assert team.joinpath(*rook_memory.split("/")).read_text(encoding="utf-8") == "Rook learned something."
+    assert not [p for p in team.rglob("*") if "profile_files/neko" in p.as_posix()]
+    assert _status_changes(realm_id) == (False, [])

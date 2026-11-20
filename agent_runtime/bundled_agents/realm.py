@@ -11,6 +11,7 @@ definition for one is ignored and accounted. Each member reads their own
 build's version (no pinning, owner answer 6).
 
 Callers: ``realm_sync.artifacts`` (publish: no profile files),
+``realm_sync.publish`` (status: a team copy's older file for one is not a change),
 ``persona_config_sync`` (the projection body, the pull, the adopt door) and
 ``profile_artifact_sync`` (the pull's profile-file lane).
 """
@@ -29,6 +30,7 @@ __all__ = [
     "WITHHELD_REASON",
     "is_reference_body",
     "is_shipped_id",
+    "is_shipped_profile_path",
     "place_if_missing",
     "reference_body",
     "shipped_profile_tokens",
@@ -79,6 +81,28 @@ def shipped_profile_tokens() -> frozenset[str]:
         for agent in SHIPPED_AGENTS
         if agent.definition.get("hermes_profile")
     )
+
+
+def is_shipped_profile_path(rel: str) -> bool:
+    """``rel`` (a realm-subtree path) is a file in a shipped agent's profile home.
+
+    No publish sends one, so in a team copy it is only an older build's upload
+    (RT-SHIPPED-NEKO-FILES-LISTED-AS-CHANGES-TO-PUSH): never this member's change
+    to push. Both layouts: ``store/profile_files/<home>/…`` and the legacy
+    ``profiles/<home>/…``.
+    """
+
+    from ..realm_sync.families import PROFILE_FILES_ROOT
+
+    parts = str(rel).replace("\\", "/").split("/")
+    root = PROFILE_FILES_ROOT.split("/")
+    if parts[: len(root)] == root and len(parts) > len(root) + 1:
+        home = parts[len(root)]
+    elif parts[0] == "profiles" and len(parts) > 2:
+        home = parts[1]
+    else:
+        return False
+    return home in shipped_profile_tokens()
 
 
 def place_if_missing(persona_id: str, *, dry_run: bool) -> bool:
