@@ -342,7 +342,9 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
 
     * ``changed`` — baselined, local moved, and the realm's copy did NOT
       (``inbox`` absent or equal to the baseline). My unpublished edit: Publish
-      ships it, Revert adopts the realm's copy back over it.
+      ships it, Revert adopts the realm's copy back over it. NOT a built-in
+      harness skill equal to this hermes's shipped copy: a hermes update moved
+      it, not the member, and the publish never ships it (review w1118a.63 D5).
     * ``added`` — no baseline and no inbox copy: a package this realm has never
       carried. Revert archives it (never deletes). NOT a built-in harness skill
       byte-equal to this hermes's shipped copy: every boot and pull installs those
@@ -371,7 +373,7 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
         realm_inbox_dir,
         skill_package_sync_hash,
     )
-    from ..skill_install import HARNESS_SKILLS, harness_skill_source_package
+    from ..skill_install import shipped_harness_skill_sync_hash as shipped_hash
     from ..skill_sync import read_skill_baseline, skill_baseline_key, split_skill_baseline_key
 
     realm = RealmStore().get(realm_id)
@@ -394,12 +396,6 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
             family=SyncFamily.SKILL, container="", item_key=slug, kind=kind
         )
 
-    def shipped_hash(slug: str) -> str | None:
-        if slug not in HARNESS_SKILLS:
-            return None
-        source = harness_skill_source_package(slug)
-        return skill_package_sync_hash(source) if source.is_dir() else None
-
     items: list[StoreDriftItem] = []
     for slug, package_dir in publishable_skill_packages(realm):
         local_hash = skill_package_sync_hash(package_dir)
@@ -409,7 +405,10 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
             if inbox_hash is None and local_hash != shipped_hash(slug):
                 items.append(_row(slug, DRIFT_KIND_ADDED))
             continue
-        if local_hash == base_hash:
+        # A built-in skill equal to this install's shipped copy is the build's text, whichever side is newer
+        # (review w1118a.63 D5 (a)). MUTATION: drop the shipped test and
+        # test_a_hermes_update_s_built_in_skill_reads_as_nothing_to_push reddens.
+        if local_hash in (base_hash, shipped_hash(slug)):
             continue
         if inbox_hash is None or inbox_hash == base_hash:
             items.append(_row(slug, DRIFT_KIND_CHANGED))

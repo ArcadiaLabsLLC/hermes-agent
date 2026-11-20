@@ -47,7 +47,7 @@ from .artifacts import (
     _resolve_artifacts_with_projection,
     _workspaces_for_realm,
     artifact_kind_counts,
-    publishable_skill_packages,
+    published_skill_packages,
 )
 from .drift import store_drift_items
 from .sidecar import (
@@ -515,8 +515,9 @@ def _record_skill_publish_baseline(realm: Realm, *, subtree: Path) -> None:
     TWO steps, in this order, and the order is the argument:
 
     1. ``update_skill_baseline_after_publish`` over every package this realm
-       publishes (``publishable_skill_packages`` — the publish's own iteration),
-       hashed from the canonical package, which is what was published. Entries for
+       publishes (``published_skill_packages`` — the publish's own iteration),
+       hashed from the package it shipped (the canonical one, or the team's copy
+       of an unchanged built-in skill, review w1118a.63 D5). Entries for
        packages no longer published are dropped by that function, so a de-selected
        or deleted slug stops being accounted.
     2. re-mirror the inbox from the subtree. The subtree is the realm's state now
@@ -539,7 +540,7 @@ def _record_skill_publish_baseline(realm: Realm, *, subtree: Path) -> None:
             realm.id,
             {
                 slug: skill_package_sync_hash(package_dir)
-                for slug, package_dir in publishable_skill_packages(realm)
+                for slug, package_dir in published_skill_packages(realm).items()
             },
         )
     except Exception:  # baseline is best-effort; never fail publish

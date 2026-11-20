@@ -17,7 +17,7 @@ from agent_runtime import serve_rpc
 from agent_runtime.profile_home import get_shared_skills_dir
 from agent_runtime.realm_sync import publish_realm_sync
 from agent_runtime.skill_install import HARNESS_SKILLS
-from agent_runtime.store import WorkspaceStore
+from agent_runtime.store import RealmStore, WorkspaceStore
 from tests.agent_runtime.test_workspace_move_out_of_server_realm import _Team
 
 
@@ -57,3 +57,103 @@ def test_an_edited_built_in_skill_still_reads_as_the_members_change(realm):
     skill = get_shared_skills_dir() / slug / "SKILL.md"
     skill.write_text(skill.read_text(encoding="utf-8") + "\nMy own rule.\n", encoding="utf-8")
     assert _skill_rows(_status(realm.id)) == [(slug, "added")]
+
+
+# --- a hermes update (RT-FU-A-HERMES-UPDATE-MAKES-EVERY-REALM-ASK-TO-PUBLISH-ITS-BUILT-IN-SKILL) ---------------
+#
+# Review w1118a.63 D5 (a): the build owns a built-in skill's text. Seen live 2026-11-20 on account B: the team
+# carried one harness skill as an older hermes shipped it, the member's newer hermes reinstalled its own on boot,
+# and the status read that skill ``changed`` (``unpublished_changes: true``, ``publish_changes`` empty) after
+# every pull. A harness skill equal to this install's shipped copy is never drift, whichever side is newer, and
+# never published; a member's own edit still reads changed and ships.
+
+_UPDATED = "harness-runtime-model"
+
+
+def _variant_source(tmp_path, monkeypatch):
+    """Point this hermes's shipped harness skills at a copy whose ``_UPDATED`` differs: a different version."""
+    import shutil
+
+    from agent_runtime import skill_install
+
+    real = skill_install.harness_skill_source_root()
+    variant = tmp_path / "other-hermes-harness-skills"
+    shutil.copytree(real, variant)
+    skill = variant / _UPDATED / "SKILL.md"
+    skill.write_text(skill.read_text(encoding="utf-8") + "\nA line another hermes version ships.\n", encoding="utf-8")
+    monkeypatch.setattr(skill_install, "harness_skill_source_root", lambda: variant)
+
+
+def _team_copy(realm) -> str | None:
+    from agent_runtime import paths
+    from tests.agent_runtime.test_workspace_move_out_of_server_realm import _git
+
+    remote = realm.sync_manifest_ref  # Bob's clone; fetch what the remote holds
+    _git(remote, "fetch", "-q", "origin")
+    path = f"origin/main:realms/{paths.safe_path_token(realm.id)}/skills/{_UPDATED}/SKILL.md"
+    try:
+        return _git(remote, "show", path)
+    except Exception:
+        return None
+
+
+@pytest.fixture(params=["team-older", "team-newer"])
+def updated(request, tmp_path, monkeypatch):
+    """Bob's realm whose team copy of ``_UPDATED`` is another hermes version's text, and Bob's root holding his
+    own shipped copy. ``team-older``: the team copy came from an older hermes; ``team-newer``: from a newer one."""
+    from agent_runtime import skill_install
+    from agent_runtime.realm_sync import pull_realm_sync
+
+    team = _Team(tmp_path, monkeypatch)
+    shared = team.found("alice", "Team Realm", "srv_team")
+    WorkspaceStore().create(name="Roadmap", realm_id=shared.id)
+    publish_realm_sync(shared.id)
+    real_root = skill_install.harness_skill_source_root
+    if request.param == "team-older":
+        _variant_source(tmp_path, monkeypatch)
+    team.join("bob", shared)
+    # The team copy was published by a hermes from before the rule, which shipped its own text.
+    real_hash = skill_install.shipped_harness_skill_sync_hash
+    monkeypatch.setattr(skill_install, "shipped_harness_skill_sync_hash", lambda slug: None)
+    publish_realm_sync(shared.id)
+    monkeypatch.setattr(skill_install, "shipped_harness_skill_sync_hash", real_hash)
+    # Bob's hermes is now another version than the one that published.
+    if request.param == "team-newer":
+        _variant_source(tmp_path, monkeypatch)
+    else:
+        monkeypatch.setattr(skill_install, "harness_skill_source_root", real_root)
+    pull_realm_sync(shared.id)  # the pull reinstalls this hermes's shipped skills, as every boot does
+    team_text = _team_copy(RealmStore().get(shared.id))
+    local_text = (get_shared_skills_dir() / _UPDATED / "SKILL.md").read_text(encoding="utf-8")
+    assert team_text is not None and team_text != local_text  # the two versions really differ
+    return RealmStore().get(shared.id), team_text
+
+
+def test_a_hermes_update_s_built_in_skill_reads_as_nothing_to_push(updated):
+    """Mutation: drop the shipped test from ``_skill_store_drift_items``'s ``changed`` arm -> ``_UPDATED`` reads
+    ``changed`` and ``unpublished_changes`` is true, red (team-older and team-newer)."""
+    realm, _team_text = updated
+    status = _status(realm.id)
+    assert _skill_rows(status) == []
+    assert status["unpublished_changes"] is False
+
+
+def test_a_publish_never_ships_this_installs_built_in_skill_text(updated):
+    """Mutation: ``_published_skill_package`` returns the local package always -> the team copy becomes this
+    hermes's text, red; and the status after it still reads nothing."""
+    realm, team_text = updated
+    publish_realm_sync(realm.id)
+    assert _team_copy(realm) == team_text
+    assert _skill_rows(_status(realm.id)) == []
+
+
+def test_an_edited_built_in_skill_still_reads_changed_and_ships(updated):
+    """Mutation: skip every harness slug in the ``changed`` arm whatever its content -> the edit reads as
+    nothing, red."""
+    realm, _team_text = updated
+    skill = get_shared_skills_dir() / _UPDATED / "SKILL.md"
+    edited = skill.read_text(encoding="utf-8") + "\nMy own rule.\n"
+    skill.write_text(edited, encoding="utf-8")
+    assert _skill_rows(_status(realm.id)) == [(_UPDATED, "changed")]
+    publish_realm_sync(realm.id)
+    assert _team_copy(realm) == edited.strip()  # ``_git`` strips its output
