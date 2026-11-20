@@ -28,7 +28,9 @@ def _root_knob(cfg: AgentRuntimeConfig | None, name: str, coerce: Callable[[Any]
     the ROOT config (harness-wide policy — see :func:`harness_root_config_path`).
 
     The six ``mission_chat_*`` readers below are this one shape; a root-config
-    fault degrades to the built-in default rather than failing the turn.
+    fault degrades to the built-in default rather than failing the turn. Every
+    ``name`` read here is on ``schema.ROOT_ONLY_CONFIG_KEYS`` (the one root-only
+    list), so a profile copy of it is reported, not silently dead.
     """
 
     default = getattr(MissionChatConfig(), name)

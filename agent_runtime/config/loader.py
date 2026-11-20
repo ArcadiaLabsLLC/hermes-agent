@@ -291,7 +291,7 @@ def _key_present(raw: dict[str, Any], path: tuple[str, ...]) -> list[tuple[str, 
     return [(head,) + tail for tail in _key_present(raw[head], rest)]
 
 
-def scan_misplaced_root_only_keys() -> dict[str, Any]:
+def scan_misplaced_root_only_keys(config_paths: list[Path] | None = None) -> dict[str, Any]:
     """Root-only keys that an operator has set in a PROFILE config, where they
     are inert.
 
@@ -315,6 +315,9 @@ def scan_misplaced_root_only_keys() -> dict[str, Any]:
 
     from ..parse_cache import cached_yaml_file
 
+    # ``config_paths`` names the configs to examine (default: every profile's); the
+    # agent-declaration issue adds the active home's, and the root itself is never
+    # one (a config that IS the root carries its keys where they are read).
     root_path = harness_root_config_path()
     root_loaded = cached_yaml_file(root_path, default=None)
     root_raw = (
@@ -323,7 +326,9 @@ def scan_misplaced_root_only_keys() -> dict[str, Any]:
 
     rows: list[dict[str, Any]] = []
     profiles_examined = 0
-    for config_path in _profile_config_paths():
+    for config_path in _profile_config_paths() if config_paths is None else config_paths:
+        if Path(config_path) == root_path:
+            continue
         loaded = cached_yaml_file(config_path, default=None)
         raw = (loaded or {}).get("agent_runtime") or {} if isinstance(loaded, dict) else {}
         if not isinstance(raw, dict):
@@ -339,6 +344,8 @@ def scan_misplaced_root_only_keys() -> dict[str, Any]:
                         "profile": config_path.parent.name,
                         "config_path": str(config_path),
                         "key": "agent_runtime." + ".".join(concrete),
+                        # The agent a per-agent key is for; None for a harness-wide key.
+                        "persona_id": concrete[1] if concrete[0] == "personas" else None,
                         "read_only_by": reader,
                         "root_config_path": str(root_path),
                         "set_in_root": bool(_key_present(root_raw, concrete)),

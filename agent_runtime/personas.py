@@ -241,6 +241,11 @@ class DeclarationIssueKind(StrEnum):
     #: row, never a raise out of the config read (a raise took the live snapshot
     #: producer down on every rebuild, 2026-10-09). ``detail`` is the dotted key.
     LEGACY_PERSONA_TOOLSETS_KEY = "persona_toolsets_key_refused"
+    #: A ROOT-only knob (``config.ROOT_ONLY_CONFIG_KEYS``) written in a PROFILE config,
+    #: where nothing reads it; ``detail`` is the dotted key, ``config_path`` the profile
+    #: config carrying it, ``root_config_path`` where it is read. One row per carrier,
+    #: never a raise (RT-A-CHAT-LANE-SETTING-IN-A-PROFILE-CONFIG-DOES-NOTHING-AND-SAYS-NOTHING).
+    ROOT_ONLY_KNOB_IN_PROFILE_CONFIG = "root_only_knob_in_profile_config"
 
 
 @dataclass(frozen=True)
@@ -254,6 +259,10 @@ class DeclarationIssue:
     #: ``config_read_failed`` (never the message — it can carry a path or YAML text).
     detail: str
     config_path: str | None = None
+    #: ``root_only_knob_in_profile_config`` only: the root config the key is read from,
+    #: and whether that root already sets the same key (the copy is then a leftover).
+    root_config_path: str | None = None
+    set_in_root: bool = False
 
     def row(self, *, entry_point_lane: str = "") -> dict[str, object]:
         where = self.config_path or "the bound profile's config.yaml"
@@ -273,6 +282,19 @@ class DeclarationIssue:
                 f"Delete {self.detail} from {self.config_path or 'the config.yaml that carries it'} (the plugin's startup migration strips it "
                 "from every profiles/*/config.yaml); declare toolsets in the bound profile's "
                 "own config.yaml (top-level `toolsets:`)."
+            )
+        elif self.kind is DeclarationIssueKind.ROOT_ONLY_KNOB_IN_PROFILE_CONFIG:
+            root = self.root_config_path or "the root config.yaml"
+            summary = (
+                f"{self.detail} in {where} is never read: this setting is read only from "
+                f"{root}, so "
+                + ("the root's own value applies and this copy does nothing."
+                   if self.set_in_root else "the value written here has no effect.")
+            )
+            fix_hint = (
+                f"Delete {self.detail} from {where}; the root already sets it."
+                if self.set_in_root
+                else f"Move {self.detail} from {where} into {root}."
             )
         else:
             summary = (
