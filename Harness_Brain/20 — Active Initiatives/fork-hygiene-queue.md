@@ -737,3 +737,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 
 ## Filed on arrival — 2026-11-18 (side session w1118-slotstatus)
 
+
+## Filed on arrival — 2026-11-20 (Eternia lane w1120a-unseated)
+
+- **`FH-A-MUTATION-CLAIM-NAMES-A-CREATE-BACKSTOP-LINE-THAT-IS-GONE` — The recorded mutation that proves the agent-create backstop can run again, because its target line exists** · group: prepush · from: Eternia `MC-AGENTS-A-LEAD-ADDED-LAST-NIGHT-ARE-NOT-ON-THE-OFFICE-LEVEL` · seen 2026-11-20 (w1120a-unseated, reading `tests/mutation_claims.json` against origin/main fb2da51be6): claim `hh13-the-create-service-loses-its-backstop` finds `denied = service_backstop(self.caller, method="runtime.agent.create")` in `agent_runtime/agent_create/perform.py`, which hermes `2a82ef38d5` rewrote to `method=self.METHOD`, so the claim's find matches nothing; whether the changed-line mutation check reports a missing find was not checked · done when: the claim targets the current line and is seen red under its mutation · READY 2026-11-20
