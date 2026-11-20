@@ -94,6 +94,21 @@ def _console_denial(action: str) -> dict | None:
     }
 
 
+def terminal_request_actor(requested_by: object = None) -> str:
+    """Who asked at a CLI removal door: the agent whose terminal runs it, else the named, else you.
+
+    An agent's terminal tool exports its turn's ``HERMES_SESSION_ID`` (``tools.environments.local.
+    _inject_session_context_env``), so the session decides — through ``request_actor``, the one
+    owner of "who asked" — and an agent's own ``--requested-by`` never overrides it (review
+    w1118a.61 D7). The operator's shell carries no agent session and records ``operator``.
+    """
+
+    from agent_runtime.request_actor import request_actor
+    from gateway.session_context import get_session_env
+
+    return request_actor(requested_by, caller=CLI_CONSOLE, session=get_session_env("HERMES_SESSION_ID"))
+
+
 def _agent_retire_outcome(args):
     """The ONE retire the CLI performs: ``harness persona instance retire``'s.
 
@@ -136,7 +151,7 @@ def _agent_retire_outcome(args):
         {
             "persona_instance_id": getattr(args, "persona_instance_id", None),
             "reason": getattr(args, "reason", None),
-            "requested_by": getattr(args, "requested_by", None),
+            "requested_by": terminal_request_actor(getattr(args, "requested_by", None)),
             "correlation_id": getattr(args, "correlation_id", None),
         },
         # Stage A6's backstop gets this door's identity too — the SAME constant

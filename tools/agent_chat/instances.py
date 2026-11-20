@@ -22,7 +22,9 @@ AGENT_ADD_INSTANCE_SCHEMA = {
     "name": "agent_add_instance",
     "description": (
         "Add instances of an agent to a workspace, e.g. to staff a wave. Idle instances already there are "
-        "reused first; the runtime places and names the rest. Ask for every instance you need in ONE call."
+        "reused first; the runtime places and names the rest. Ask for every instance you need in ONE call. "
+        "New instances count against your spawn budget (your agent's autonomy and the install's "
+        "coordinator_permissions.max_spawns); past it the answer says what to ask the person for."
     ),
     "parameters": {
         "type": "object",

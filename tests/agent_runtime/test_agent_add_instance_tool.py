@@ -127,10 +127,66 @@ def test_an_agent_that_only_proposes_places_nothing(lead, dev_persona, monkeypat
     dev_persona.autonomy = AutonomyLevel.PROPOSE_ONLY
     AgentStore().save(dev_persona)
 
-    answer = _add(lead, agent="qa")
+    answer = _add(lead, agent="qa", count=2)
 
     assert answer["stopped"]["budget_reason"] == "spawn_scope_exhausted"
     assert _qa_seats() == []
+
+
+def test_a_shipped_leads_refusal_names_the_setting_and_what_was_left(lead, dev_persona, monkeypatch):
+    # RT-A-SHIPPED-LEAD-AGENT-CANNOT-ADD-ANY-INSTANCE-WITHOUT-ASKING-YOU, RULED (b): the zero budget
+    # stays; the refusal says which settings grant one and how many seats are still wanted.
+    # Mutation: answer the old fixed sentence from ``staff_agent_instances`` -> no ``settings`` or
+    # ``still_wanted`` and the message names neither setting; the asserts red.
+    from agent_runtime.agent_create import perform_agent_place, staff
+    from agent_runtime.store import AgentStore
+
+    monkeypatch.setattr(staff, "running_group_chat_seats", _no_seats)
+    dev_persona.autonomy = AutonomyLevel.PROPOSE_ONLY
+    AgentStore().save(dev_persona)
+    idle = perform_agent_place({"persona_id": "qa", "workspace_id": WORKSPACE, "idempotency_key": "seat-1"})
+    assert idle.refusal is None
+
+    stopped = _add(lead, agent="qa", count=3)["stopped"]
+
+    assert stopped["still_wanted"] == 2  # one idle seat reused, two more wanted
+    assert stopped["settings"] == {"autonomy": "propose_only", "max_spawns": 0, "spawns_used": 0}
+    assert "autonomy is propose_only" in stopped["message"]
+    assert "agent_runtime.coordinator_permissions.max_spawns" in stopped["message"]
+    assert "the other 2" in stopped["message"]
+
+
+def test_an_autonomous_leads_refusal_names_its_budget(lead, monkeypatch):
+    from agent_runtime.agent_create import staff
+
+    monkeypatch.setattr(staff, "running_group_chat_seats", _no_seats)
+
+    stopped = _add(lead, agent="qa", count=2)["stopped"]
+
+    # ``scope_for_persona``: an autonomous agent's budget is max(1, the install's max_spawns=0).
+    assert stopped["settings"] == {"autonomy": "autonomous", "max_spawns": 1, "spawns_used": 1}
+    assert "Your spawn budget is 1 and you have used 1" in stopped["message"]
+    assert stopped["still_wanted"] == 1
+
+
+def test_a_budget_of_three_places_three(lead, monkeypatch):
+    # Seen in code 2026-11-20 (w1118a-hrt2): each loop turn counted the seats this call placed twice
+    # (the store's ``spawned_by`` count AND the call's own), so a budget of 3 stopped after 2.
+    # Mutation: add the call's placed count to ``spawns_used`` again -> two seats and a ``stopped``.
+    from agent_runtime import config as runtime_config
+    from agent_runtime.agent_create import staff
+    from agent_runtime.runtime_config import CoordinatorPermissionConfig
+
+    monkeypatch.setattr(staff, "running_group_chat_seats", _no_seats)
+    loaded = runtime_config.load_agent_runtime_config()
+    loaded.coordinator_permissions = CoordinatorPermissionConfig(max_spawns=3)
+    monkeypatch.setattr(runtime_config, "load_agent_runtime_config", lambda *a, **k: loaded)
+
+    answer = _add(lead, agent="qa", count=3)
+
+    assert "stopped" not in answer, answer.get("stopped")
+    assert answer["placed"] == 3
+    assert len(_qa_seats()) == 3
 
 
 def test_an_unknown_agent_or_a_bad_count_is_refused_before_any_write(lead):
@@ -147,3 +203,47 @@ def test_a_read_only_chat_may_not_add_instances():
     from agent_runtime.tool_permissions import PERMISSION_MODE_READ_ONLY, extra_blocked_tools_for_permission_mode
 
     assert "agent_add_instance" in extra_blocked_tools_for_permission_mode(PERMISSION_MODE_READ_ONLY)
+
+
+def _idle_verb(params: dict) -> dict:
+    from agent_runtime import serve_rpc
+
+    return serve_rpc.handle_request(
+        {"jsonrpc": "2.0", "id": "idle", "method": "runtime.agent.idle_instances", "params": params}
+    )
+
+
+def test_the_verb_answers_the_tools_order(lead, monkeypatch):
+    # Row RT-ETERNIA-ASKS-THE-RUNTIME-WHICH-IDLE-INSTANCE-A-NEW-CHAT-REUSES: Eternia reads the order
+    # the tool reuses in, from the one owner. Mutation: answer ``idle_instances(...)[::-1]`` in
+    # ``_runtime_agent_idle_instances`` -> the verb names the older seat first and the first assert reds.
+    from agent_runtime import mission_chat_turns
+    from agent_runtime.agent_create import perform_agent_place, staff
+
+    seats = [
+        perform_agent_place({"persona_id": "qa", "workspace_id": WORKSPACE, "idempotency_key": f"seat-{n}"})
+        .result["persona_instance_id"]
+        for n in (1, 2, 3)
+    ]
+    older, newer, busy = seats
+    monkeypatch.setattr(
+        mission_chat_turns,
+        "last_turn_started_by_instance",
+        lambda: {older: "2026-11-20T01:00:00.000000Z", newer: "2026-11-20T02:00:00.000000Z"},
+    )
+    monkeypatch.setattr(staff, "running_group_chat_seats", lambda _install: frozenset({busy}))
+
+    reply = _idle_verb({"persona_id": "qa", "workspace_id": WORKSPACE})
+    named = [row["persona_instance_id"] for row in reply["result"]["instances"]]
+    tool = _add(lead, agent="qa", count=2)
+
+    assert named == [newer, older]
+    assert named == [row["persona_instance_id"] for row in tool["instances"] if row["reused"]]
+    assert reply["result"]["workspace_id"] == WORKSPACE
+
+
+def test_the_verb_refuses_a_call_that_names_no_agent_or_workspace():
+    for params in ({}, {"persona_id": "qa"}, {"persona_id": " ", "workspace_id": WORKSPACE},
+                   {"persona_id": "qa", "workspace_id": WORKSPACE, "extra": 1}):
+        reply = _idle_verb(params)
+        assert reply["error"]["data"]["reason"] == "invalid_params", params

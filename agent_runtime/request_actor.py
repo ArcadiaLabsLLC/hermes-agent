@@ -6,6 +6,10 @@ retire receipt read ``requested_by: null``, so the removal read as possibly the 
 
 The actor is, in this order:
 
+0. the agent instance whose chat SESSION runs the door: a CLI removal an agent types in its own
+   terminal carries that turn's ``HERMES_SESSION_ID`` (row
+   ``RT-AN-AGENT-THAT-REMOVES-ANOTHER-FROM-ITS-TERMINAL-IS-RECORDED-AS-YOU``, review w1118a.61 D7),
+   and no ``requested_by`` the agent passes overrides it — a self-named actor is spoofable;
 1. what the caller NAMED (``requested_by``): the agent instance whose tool call asked, or an operator
    lane's own name (``harness persona instance retire --requested-by``);
 2. otherwise what the TRANSPORT proved (:class:`agent_runtime.call_authorization.RpcCaller`, never a
@@ -69,10 +73,19 @@ def actor_from_caller(caller: Any) -> str:
     return actor(caller) if actor is not None else UNKNOWN_ACTOR
 
 
-def request_actor(requested_by: Any = None, *, caller: Any = None) -> str:
-    """The actor a lifecycle write records: named, else proven, else :data:`UNKNOWN_ACTOR`."""
+def request_actor(requested_by: Any = None, *, caller: Any = None, session: Any = None) -> str:
+    """The actor a lifecycle write records: the session's agent, else named, else proven, else :data:`UNKNOWN_ACTOR`.
 
-    from .persona_assignments import safe_assignment_text
+    ``session`` is the chat session a CLI door runs under (an agent's terminal); a session that is
+    no agent instance's chat (the operator's own shell, a CLI chat) leaves the rest of the order.
+    """
+
+    from .persona_assignments import chat_session_owner_instance_id, safe_assignment_text
+
+    # MUTATION: drop this check and test_an_agents_terminal_retire_records_that_agent_not_you reddens.
+    asking_instance = chat_session_owner_instance_id(session) if session else None
+    if asking_instance:
+        return _capped(asking_instance)
 
     # MUTATION: return requested_by unchanged and test_a_removal_nobody_named_records_unknown reddens.
     named = safe_assignment_text(requested_by, limit=_ACTOR_LIMIT) if requested_by is not None else ""

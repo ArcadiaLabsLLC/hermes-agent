@@ -395,6 +395,8 @@ def _cmd_office_actor_remove(args) -> int:
     runs differ in exactly one invisible byte otherwise.
     """
 
+    from hermes_cli.harness_parts.persona.lifecycle_commands import terminal_request_actor
+
     store = _office_store()
     workspace = _office_workspace_for(args)
     if not workspace:
@@ -410,6 +412,8 @@ def _cmd_office_actor_remove(args) -> int:
         expect_revision=getattr(args, "expect_revision", None),
         record_tombstone=not local_only,
         dry_run=dry_run,
+        # Who asked: the agent whose terminal runs this, else you (review w1118a.61 D7).
+        requested_by=terminal_request_actor(),
     )
     warnings: list[dict] = []
     if local_only:

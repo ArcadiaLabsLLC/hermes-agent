@@ -120,9 +120,10 @@ def idle_instances(
 ) -> list[Any]:
     """The agent's idle instances seated in ``workspace_id``, the most recently used first.
 
-    The ONE reuse rule (Eternia's ``reusableAgentInstance`` is the same rule over the directory
-    it reads): newest ``last_used_at`` first, an instance never used last, the store's order
-    breaking ties; a busy instance is never returned.
+    The ONE reuse rule: newest ``last_used_at`` first, an instance never used last, the store's
+    order breaking ties; a busy instance is never returned. The ``agent_add_instance`` tool reads
+    it here, and Eternia asks it over ``runtime.agent.idle_instances`` (row
+    ``RT-ETERNIA-ASKS-THE-RUNTIME-WHICH-IDLE-INSTANCE-A-NEW-CHAT-REUSES``) instead of keeping a copy.
     """
 
     from .. import paths
@@ -201,8 +202,62 @@ def _resolve_workspace(workspace: str | None, *, asking_session: str | None) -> 
     raise StaffRefused("workspace_not_found", f"No single workspace is called {wanted!r}.", workspace=wanted)
 
 
-def _spawn_review(asker: str, spawned: int) -> Any:
-    """The coordinator budget for ONE more instance, for the asking instance's agent."""
+#: Where the person grants an agent a spawn budget: the agent's own autonomy, and the install's cap.
+SPAWN_BUDGET_SETTINGS = ("autonomy", "agent_runtime.coordinator_permissions.max_spawns")
+
+
+def _budget_refusal(review: Any, asker: str, *, wanted: int, have: int) -> dict[str, Any]:
+    """The ``needs_operator_confirm`` answer: which setting grants a budget, and what is still wanted.
+
+    Row ``RT-A-SHIPPED-LEAD-AGENT-CANNOT-ADD-ANY-INSTANCE-WITHOUT-ASKING-YOU`` (RULED (b): the shipped
+    lead keeps its zero budget; the person grants one). Every number is the budget owner's
+    (``coordinator_permissions.scope_for_persona``, carried on the review), never a copy.
+    """
+
+    from ..models import AutonomyLevel
+
+    scope = getattr(review, "scope", None)
+    autonomy = _asker_autonomy(asker)
+    still_wanted = wanted - have
+    if scope is None:
+        why = "Your agent instance could not be read, so no spawn budget applies."
+    elif autonomy is AutonomyLevel.PROPOSE_ONLY:
+        why = (f"Your agent's autonomy is {autonomy.value}, which allows no new instances; set it to "
+               f"{AutonomyLevel.AUTONOMOUS.value} and {SPAWN_BUDGET_SETTINGS[1]} to grant a budget.")
+    else:
+        why = (f"Your spawn budget is {scope.max_spawns} and you have used {scope.spawns_used}; raise "
+               f"{SPAWN_BUDGET_SETTINGS[1]} to grant more.")
+    return {
+        "reason": "needs_operator_confirm",
+        "budget_reason": review.reason,
+        "still_wanted": still_wanted,
+        "settings": {
+            "autonomy": autonomy.value if autonomy is not None else None,
+            "max_spawns": scope.max_spawns if scope is not None else None,
+            "spawns_used": scope.spawns_used if scope is not None else None,
+        },
+        "message": f"{why} Ask the person to change it or to add the other {still_wanted} themselves.",
+    }
+
+
+def _asker_autonomy(asker: str) -> Any:
+    from ..models import AutonomyLevel
+    from ..persona_assignments import PersonaInstanceStore
+    from .request import resolve_persona
+
+    try:
+        persona = resolve_persona(PersonaInstanceStore().get(asker).persona_id)
+    except Exception:
+        return None
+    return AutonomyLevel(getattr(persona, "autonomy", None) or AutonomyLevel.PROPOSE_ONLY) if persona else None
+
+
+def _spawn_review(asker: str) -> Any:
+    """The coordinator budget for ONE more instance, for the asking instance's agent.
+
+    Used = every instance the asker ever spawned, re-read from the store each turn, so the seats
+    this call already placed are counted once (they carry ``spawned_by``), never again on top.
+    """
 
     from ..config import load_agent_runtime_config
     from ..coordinator_permissions import review_coordinator_budget, scope_for_persona
@@ -217,7 +272,8 @@ def _spawn_review(asker: str, spawned: int) -> Any:
     persona = resolve_persona(asking.persona_id) if asking is not None else None
     already = sum(1 for instance in PersonaInstanceStore().list_all() if instance.spawned_by == asker)
     scope = (
-        scope_for_persona(persona, config=getattr(cfg, "coordinator_permissions", None), spawns_used=already + spawned)
+        # MUTATION: add this call's placed count again and test_a_budget_of_three_places_three reddens.
+        scope_for_persona(persona, config=getattr(cfg, "coordinator_permissions", None), spawns_used=already)
         if asking is not None
         else None
     )
@@ -249,22 +305,18 @@ def staff_agent_instances(
     staffing = _Staffing(persona.id, persona.display_name, workspace_id, requested_by)
     for instance in idle_instances(persona.id, workspace_id, seated=seated)[:count]:
         staffing.instances.append(_row(instance, reused=True))
-    placed = 0
     while len(staffing.instances) < count:
-        review = _spawn_review(requested_by, placed)
+        review = _spawn_review(requested_by)
         if not review.ok:
-            return staffing.answer(wanted=count, refusal={
-                "reason": "needs_operator_confirm",
-                "budget_reason": review.reason,
-                "message": "Your budget for adding agent instances is used up; ask the operator to add the rest.",
-            })
+            # MUTATION: answer the old fixed sentence and test_a_shipped_leads_refusal_names_the_setting_and_what_was_left reddens.
+            refusal = _budget_refusal(review, requested_by, wanted=count, have=len(staffing.instances))
+            return staffing.answer(wanted=count, refusal=refusal)
         outcome = _place(persona.id, workspace_id, requested_by=requested_by)
         if outcome.refusal is not None:
             return staffing.answer(wanted=count, refusal={
                 "reason": (outcome.refusal.data or {}).get("reason") or "place_refused",
                 "message": str(outcome.refusal.message),
             })
-        placed += 1
         staffing.instances.append(_placed_row(outcome.result))
     return staffing.answer(wanted=count)
 

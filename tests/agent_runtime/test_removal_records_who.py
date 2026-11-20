@@ -109,3 +109,71 @@ def test_a_delete_records_who_deleted_it(qa_persona):
 
     assert reply["requested_by"] == "operator"
     assert {p["requested_by"] for p in _payloads("persona_instance.retired")} == {"operator"}
+
+
+# ── an agent's own terminal (row RT-AN-AGENT-THAT-REMOVES-ANOTHER-FROM-ITS-TERMINAL-IS-RECORDED-AS-YOU) ──
+
+
+def _cli(argv: list[str], capsys) -> dict:
+    import argparse
+
+    from hermes_cli import harness
+
+    root = argparse.ArgumentParser(prog="hermes")
+    harness.build_parser(root.add_subparsers(dest="command"))
+    args = root.parse_args([*argv, "--json"])
+    assert args.func(args) == 0
+    return json.loads(capsys.readouterr().out)
+
+
+def test_an_agents_terminal_carries_its_chat_session(monkeypatch):
+    # Review w1118a.61 D7's premise, checked: the env the terminal tool hands its child
+    # (``_make_run_env``, the foreground path) exports the turn's ``HERMES_SESSION_ID``. Mutation:
+    # skip ``_inject_session_context_env`` in ``_finalize_child_env`` -> the child gets the
+    # process's own id ("operator-shell") and this reds.
+    from gateway.session_context import scoped_current_session_id
+    from tools.environments.local import _make_run_env
+
+    session = "persona_chat_personainst_lead_0123456789ab"
+    monkeypatch.setenv("HERMES_SESSION_ID", "operator-shell")
+    with scoped_current_session_id(session):
+        child = _make_run_env({})
+
+    assert child["HERMES_SESSION_ID"] == session
+
+
+def test_an_agents_terminal_retire_records_that_agent_not_you(qa_persona, seeded_workspace, capsys, monkeypatch):
+    # Mutation: drop the session check in ``request_actor`` -> the agent's own ``--requested-by
+    # operator`` wins, the receipt reads "operator" and the first assert reds.
+    lead = _place("qa_lead_agent_9")
+    placed = _place()
+    monkeypatch.setenv("HERMES_SESSION_ID", lead["default_chat_session_id"])
+
+    ack = _cli(["harness", "persona", "instance", "retire", placed["persona_instance_id"],
+                "--requested-by", "operator"], capsys)["persona_instance_retired"]
+
+    assert _receipt(ack)["requested_by"] == lead["persona_instance_id"]
+    (retired,) = _payloads("persona_instance.retired")
+    assert retired["activity"] == f"{lead['display_name']} removed {placed['display_name']} from seed {WORKSPACE}"
+
+
+def test_the_operators_own_shell_still_records_you(qa_persona, seeded_workspace, capsys, monkeypatch):
+    placed = _place()
+    monkeypatch.delenv("HERMES_SESSION_ID", raising=False)
+
+    _cli(["harness", "persona", "instance", "retire", placed["persona_instance_id"]], capsys)
+
+    # The verb's own default actor (``--requested-by cli``) is one of the operator's names.
+    assert _payloads("persona_instance.retired")[0]["activity"].startswith("You removed QA Agent")
+
+
+def test_an_agents_terminal_office_remove_records_that_agent(qa_persona, seeded_workspace, capsys, monkeypatch):
+    # Mutation: drop ``requested_by=terminal_request_actor()`` in ``_cmd_office_actor_remove`` -> the
+    # event reads "operator" (the verb's own ``updated_by``) and this reds.
+    lead = _place("qa_lead_agent_9")
+    placed = _place()
+    monkeypatch.setenv("HERMES_SESSION_ID", lead["default_chat_session_id"])
+
+    _cli(["harness", "office", "actor-remove", "--workspace", WORKSPACE, "--actor", placed["actor_key"]], capsys)
+
+    assert [p["requested_by"] for p in _payloads("office.actor.removed")] == [lead["persona_instance_id"]]

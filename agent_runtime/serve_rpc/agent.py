@@ -1,4 +1,5 @@
-"""``runtime.agent.create`` / ``place`` / ``retire`` / ``duplicate`` / ``delete`` — the agent lifecycle verbs.
+"""``runtime.agent.create`` / ``place`` / ``retire`` / ``duplicate`` / ``delete`` — the agent lifecycle verbs,
+and ``idle_instances``, the reuse read a new chat asks before placing one more.
 
 ``create`` makes a NEW agent (its own persona and profile) and seats it;
 ``place`` seats an EXISTING agent once more (one instance, no new persona or
@@ -20,6 +21,7 @@ __all__ = [
     "_runtime_agent_create",
     "_runtime_agent_delete",
     "_runtime_agent_duplicate",
+    "_runtime_agent_idle_instances",
     "_runtime_agent_place",
     "_runtime_agent_retire",
 ]
@@ -36,6 +38,43 @@ def _runtime_agent_directory(rid: Any, params: dict, context: RpcContext | None 
         return ok(rid, prepare_instance_catalog(seated=_running_group_chat_seats))
     except InstanceCatalogUnavailable as exc:
         return err(rid, ERR_HANDLER_FAILED, "Agents could not be loaded. Try again.", {"reason": str(exc)})
+
+
+@method("runtime.agent.idle_instances", tier=TIER_CONSOLE)
+def _runtime_agent_idle_instances(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Which idle instances of an agent a new chat reuses, in the order to try them.
+
+    Params: ``persona_id``, ``workspace_id`` (both required). Result:
+    ``{persona_id, workspace_id, instances: [{persona_instance_id, display_name,
+    default_chat_session_id}]}``, the first the one to reuse; an empty list means
+    place a new instance. Refusal: ``invalid_params``.
+
+    A TRANSLATION SHIM over ``agent_create.staff.idle_instances`` — the ONE "reuse
+    idle, else new" rule the ``agent_add_instance`` tool also reads (row
+    ``RT-ETERNIA-ASKS-THE-RUNTIME-WHICH-IDLE-INSTANCE-A-NEW-CHAT-REUSES``, review
+    w1118a.53 D8). Busy and order are decided there and nowhere here.
+    """
+    from agent_runtime.agent_create.staff import idle_instances
+    from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS
+
+    persona_id, workspace_id = params.get("persona_id"), params.get("workspace_id")
+    if (set(params) - {"persona_id", "workspace_id"} or not isinstance(persona_id, str) or not persona_id.strip()
+            or not isinstance(workspace_id, str) or not workspace_id.strip()):
+        return err(rid, ERR_INVALID_PARAMS, "Expected persona_id and workspace_id.", {"reason": "invalid_params"})
+    # MUTATION: answer ``idle_instances(...)[::-1]`` and test_the_verb_answers_the_tools_order reddens.
+    instances = idle_instances(persona_id.strip(), workspace_id.strip(), seated=_running_group_chat_seats)
+    return ok(rid, {
+        "persona_id": persona_id.strip(),
+        "workspace_id": workspace_id.strip(),
+        "instances": [
+            {
+                "persona_instance_id": instance.id,
+                "display_name": instance.display_name,
+                "default_chat_session_id": instance.default_chat_session_id,
+            }
+            for instance in instances
+        ],
+    })
 
 
 def _running_group_chat_seats(install_id: str) -> frozenset[str] | None:
