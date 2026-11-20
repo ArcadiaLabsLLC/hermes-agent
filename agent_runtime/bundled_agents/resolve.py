@@ -13,6 +13,10 @@ the build's, or a profile ``SOUL.md`` no build shipped, on a record stamped with
 the CURRENT version; it is kept and shown as ``locally_changed``. Once a newer
 build ships, the stamp is stale and the edit is reset: the build's definition
 wins on load, and the next save (or :func:`sync_shipped_agents`) persists it.
+
+A seat counts too (row ``RT-SHIPPED-AGENT-SEAT-EDIT-COUNTS-AS-A-CHANGE``): its own
+skills, character or operator-given name make that seat's agent ``locally_changed``,
+and the update's reset clears those three seat fields and keeps its model lane.
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from ..character_assignment import follows_persona
 from ..models import AgentPersona
 from .catalog import DEFINITION_FIELDS, ORIGIN_ETERNIA, ShippedAgent, normalized_soul_sha, shipped_agent
 
@@ -99,11 +104,34 @@ def resolve_record(persona: AgentPersona) -> AgentPersona:
     return replace(persona, **{name: _definition_value(value) for name, value in shipped.definition.items()})
 
 
-def is_locally_changed(persona: AgentPersona) -> bool:
+def _seat_changes(seat: Any, shipped: ShippedAgent) -> list[str]:
+    """The seat fields that make this seat's agent differ from the shipped one.
+
+    Design § 3: a seat's skills, character and name are the agent's definition, so a
+    seat with its own is a changed agent. Model, provider and reasoning effort are
+    the seat's settings and never count (owner answer 2).
+    """
+
+    changes = []
+    own_skills = getattr(seat, "skill_overrides", None)
+    if own_skills is not None and sorted(own_skills) != sorted(shipped.definition.get("skills") or []):
+        changes.append("skill_overrides")
+    if not follows_persona(getattr(seat, "character_assignment", None)):
+        changes.append("character_assignment")
+    if getattr(seat, "display_name_custom", False) and (seat.display_name or "").strip().casefold() != shipped.name.casefold():
+        changes.append("display_name")
+    return changes
+
+
+def is_locally_changed(persona: AgentPersona, seat: Any = None) -> bool:
+    """A current local edit of the agent — on its record, its profile SOUL, or ``seat``."""
+
     shipped = shipped_reference(persona)
     if shipped is None or not _current(persona, shipped):
         return False
-    return _definition(persona) != shipped.definition or _soul_edited(shipped)
+    if _definition(persona) != shipped.definition or _soul_edited(shipped):
+        return True
+    return seat is not None and bool(_seat_changes(seat, shipped))
 
 
 def shipped_soul_for_turn(persona: AgentPersona) -> str | None:
@@ -118,15 +146,18 @@ def shipped_soul_for_turn(persona: AgentPersona) -> str | None:
     return text.strip() if text is not None else None
 
 
-def directory_fields(persona: AgentPersona | None) -> dict[str, Any]:
-    """The additive directory / instance-detail keys (design § 5); absent means "no"."""
+def directory_fields(persona: AgentPersona | None, seat: Any = None) -> dict[str, Any]:
+    """The additive directory / instance-detail keys (design § 5); absent means "no".
+
+    ``seat`` is the persona instance the row is for: its own skills, character or
+    name make ``locally_changed`` true for that seat."""
 
     if persona is None:
         return {}
     fields: dict[str, Any] = {"agent_name": persona.display_name}
     if shipped_reference(persona) is not None:
         fields["origin"] = ORIGIN_ETERNIA
-        fields["locally_changed"] = is_locally_changed(persona)
+        fields["locally_changed"] = is_locally_changed(persona, seat)
     if persona.based_on:
         fields["based_on"] = dict(persona.based_on)
     return fields
@@ -154,6 +185,33 @@ def _reset_stale_soul(shipped: ShippedAgent) -> None:
     path.write_text(soul, encoding="utf-8")
 
 
+def _reset_stale_seats(shipped: ShippedAgent) -> None:
+    """Clear a changed seat's skills, character and name; its model lane stays (owner answer 2)."""
+
+    from ..character_assignment import CharacterAssignmentChange, CharacterAssignmentMode
+    from ..persona_assignments import PersonaInstanceStore
+
+    store = PersonaInstanceStore()
+    for seat in store.scan_all().instances:
+        if seat.persona_id != shipped.id:
+            continue
+        changes = _seat_changes(seat, shipped)
+        fields: dict[str, Any] = {}
+        if "skill_overrides" in changes:
+            fields["skill_overrides"] = None
+        if "display_name" in changes:
+            fields.update(display_name=shipped.name, display_name_custom=False)
+        if fields:
+            store.patch_fields(seat.id, **fields)
+        if "character_assignment" in changes:
+            revision = seat.character_assignment.get("revision", 0)
+            store.set_character_assignment(
+                seat.id, CharacterAssignmentChange(revision, CharacterAssignmentMode.INHERIT, None, f"shipped-update-{shipped.version}"),
+            )
+        if changes:
+            _LOG.info("shipped agent %s updated: seat %s reset %s", shipped.id, seat.id, ", ".join(changes))
+
+
 def prepare_save(persona: AgentPersona, stored_version: str | None) -> AgentPersona:
     """Stamp a reference with this build's version as it is written.
 
@@ -167,6 +225,7 @@ def prepare_save(persona: AgentPersona, stored_version: str | None) -> AgentPers
         return persona
     if stored_version != shipped.version:
         _reset_stale_soul(shipped)
+        _reset_stale_seats(shipped)
     return replace(persona, bundled_version=shipped.version)
 
 
