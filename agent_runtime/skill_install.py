@@ -50,7 +50,7 @@ def shipped_harness_skill_sync_hash(slug: str) -> str | None:
 
     The build owns a built-in skill's text (RT-FU-A-HERMES-UPDATE-MAKES-EVERY-REALM-ASK-TO-PUBLISH-ITS-BUILT-IN-SKILL,
     review w1118a.63 D5 (a)): every boot and pull reinstalls it, so a local copy equal to it is never the member's
-    change and is never published. The ONE read of that fact, for the drift walk's arms and the publish.
+    change and is never published. Read through :func:`is_shipped_harness_skill_copy`, the one predicate.
     """
 
     if slug not in HARNESS_SKILLS:
@@ -59,6 +59,22 @@ def shipped_harness_skill_sync_hash(slug: str) -> str | None:
 
     source = harness_skill_source_package(slug)
     return skill_package_sync_hash(source) if source.is_dir() else None
+
+
+def is_shipped_harness_skill_copy(slug: str, sync_hash: str | None) -> bool:
+    """Is ``sync_hash`` this install's shipped copy of the built-in harness skill ``slug``?
+
+    THE shipped-copy predicate (review w1118a.64 D10 (a)), read alike by the drift walk
+    (``realm_sync.drift``), the publish (``realm_sync.artifacts``) and the pull classifier
+    (``skill_sync.classify_inbox_package``): the build owns a built-in skill's text, so a local copy
+    equal to the shipped one is never drift, never published, and never held or adopted by a pull,
+    whichever side is newer. False for any other slug and for an absent copy.
+    """
+
+    if not sync_hash:
+        return False
+    shipped = shipped_harness_skill_sync_hash(slug)
+    return shipped is not None and sync_hash == shipped
 
 
 def harness_skill_destination(skill: str, *, hermes_home: Path | None = None) -> Path:

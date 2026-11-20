@@ -373,7 +373,7 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
         realm_inbox_dir,
         skill_package_sync_hash,
     )
-    from ..skill_install import shipped_harness_skill_sync_hash as shipped_hash
+    from ..skill_install import is_shipped_harness_skill_copy as is_shipped
     from ..skill_sync import read_skill_baseline, skill_baseline_key, split_skill_baseline_key
 
     realm = RealmStore().get(realm_id)
@@ -402,13 +402,13 @@ def _skill_store_drift_items(realm_id: str) -> list[StoreDriftItem]:
         base_hash = baseline.get(skill_baseline_key(slug))
         inbox_hash = inbox_hashes.get(slug)
         if base_hash is None:
-            if inbox_hash is None and local_hash != shipped_hash(slug):
+            if inbox_hash is None and not is_shipped(slug, local_hash):
                 items.append(_row(slug, DRIFT_KIND_ADDED))
             continue
         # A built-in skill equal to this install's shipped copy is the build's text, whichever side is newer
         # (review w1118a.63 D5 (a)). MUTATION: drop the shipped test and
         # test_a_hermes_update_s_built_in_skill_reads_as_nothing_to_push reddens.
-        if local_hash in (base_hash, shipped_hash(slug)):
+        if local_hash == base_hash or is_shipped(slug, local_hash):
             continue
         if inbox_hash is None or inbox_hash == base_hash:
             items.append(_row(slug, DRIFT_KIND_CHANGED))

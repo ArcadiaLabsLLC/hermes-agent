@@ -547,13 +547,12 @@ def published_skill_packages(realm: Realm) -> dict[str, Path]:
 
 
 def _published_skill_package(realm: Realm, slug: str, package_dir: Path) -> Path | None:
-    from ..skill_install import shipped_harness_skill_sync_hash
+    from ..skill_install import is_shipped_harness_skill_copy
     from ..skill_promotion import realm_inbox_dir, skill_package_sync_hash
 
-    shipped_hash = shipped_harness_skill_sync_hash(slug)
     # MUTATION: return ``package_dir`` always and
     # test_a_publish_never_ships_this_installs_built_in_skill_text reddens.
-    if shipped_hash is None or skill_package_sync_hash(package_dir) != shipped_hash:
+    if not is_shipped_harness_skill_copy(slug, skill_package_sync_hash(package_dir)):
         return package_dir
     team = realm_inbox_dir(realm.id).joinpath(*slug.split("/"))
     return team if (team / "SKILL.md").is_file() else None

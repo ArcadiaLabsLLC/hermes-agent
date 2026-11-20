@@ -89,6 +89,14 @@ _REASON_BUCKETS = {
     "new_both": BUCKET_HELD,
 }
 
+#: The pull reason for a built-in harness skill whose local copy is this install's shipped one while the
+#: team's differs (review w1118a.64 D10 (a), review w1118a.63 D5's rule carried to the pull): the build owns
+#: that text, so the pull writes nothing, holds nothing, and records the team's copy as seen (``converged``
+#: advances the baseline) — a member's later edit then reads as theirs to publish, and meeting a changed
+#: team copy still holds.
+REASON_SHIPPED_COPY = "shipped_copy"
+_REASON_BUCKETS[REASON_SHIPPED_COPY] = BUCKET_CONVERGED
+
 #: The buckets whose baseline entry advances to the REMOTE hash on a pull. A
 #: ``kept_local`` package deliberately does NOT advance: its baseline is the
 #: still-true statement "the realm's copy has not moved since I last saw it", and
@@ -305,6 +313,19 @@ def classify_inbox_package(
             baseline_hash=baseline_hash,
         )
 
+    from .skill_install import is_shipped_harness_skill_copy
+
+    # MUTATION: drop this shipped-copy arm and
+    # test_a_built_in_skill_equal_to_the_shipped_copy_is_never_held_on_pull reddens.
+    if plan.canonical_hash != plan.source_hash and is_shipped_harness_skill_copy(slug, plan.canonical_hash):
+        return SkillInboxDecision(
+            skill=slug,
+            bucket=BUCKET_CONVERGED,
+            reason=REASON_SHIPPED_COPY,
+            local_hash=plan.canonical_hash,
+            remote_hash=plan.source_hash,
+            baseline_hash=baseline_hash,
+        )
     decision = classify_three_way_pull(plan.canonical_hash, plan.source_hash, baseline_hash)
     return SkillInboxDecision(
         skill=slug,
