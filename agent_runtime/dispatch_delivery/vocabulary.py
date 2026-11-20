@@ -285,24 +285,18 @@ def delivery_requested_by(
     so failures genuinely travel this lane.
 
     The dispatch's target thread and the target's name ride last
-    (RT-DELIVERY-MARKER-NO-TARGET-SESSION), percent-encoded and only when a
-    thread is known, in the same order the ``finish_reason`` marker carries
-    them — so the row can draw "Open thread" from the typed block.
+    (RT-DELIVERY-MARKER-NO-TARGET-SESSION), in the same order the
+    ``finish_reason`` marker carries them (one spelling,
+    :func:`~agent_runtime.relay_policy.delivery_segments`) — so the row can draw
+    "Open thread" from the typed block, and a request stopped before any thread
+    opened still names its target.
     """
 
-    from ..relay_policy import HARNESS_DELIVERY_UNKNOWN_STATE, encode_delivery_segment
+    from ..relay_policy import delivery_segments
 
-    settled = (state or "").strip() or HARNESS_DELIVERY_UNKNOWN_STATE
-    value = (
-        f"{DELIVERY_REQUESTED_BY}:{str(dispatch_id or '').strip()}:"
-        f"{'1' if notify_operator else '0'}:{settled}"
+    return f"{DELIVERY_REQUESTED_BY}:" + delivery_segments(
+        str(dispatch_id or ""), notify_operator, state, target_session_id, target_name
     )
-    if (target_session_id or "").strip():
-        value += (
-            f":{encode_delivery_segment(target_session_id)}"
-            f":{encode_delivery_segment(target_name)}"
-        )
-    return value
 
 
 #: The delivery outcome of a dispatch whose message never ran: its target stayed
