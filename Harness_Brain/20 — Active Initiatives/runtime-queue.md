@@ -13,6 +13,7 @@ tags: [queue, program/mission-control, runtime]
 
 ## Shipped agents stay one agent — 2026-11-19 (owner; task row in Eternia `mission-control-queue`)
 
+- **`RT-A-SECOND-SEAT-IS-NUMBERED-AT-EVERY-PLACING-DOOR` — A second seat of an agent placed through the command-line doors reads "Name · 2", as one placed through Eternia's one-call door does** · group: bundled-agents-stay-one-agent · from: Eternia `MC-OLD-PLACEMENT-PATH-NAMES-A-SECOND-SEAT-WITH-PARENTHESES` · read in code 2026-11-20 (lane w1120a-mccopy): `harness persona instance create --add-instance` and `persona instance open-chat --add-instance` stored the caller's `--display-name` verbatim (`PersonaInstanceStore.add_instance`), so Eternia's argv lane counted "QA Agent (2)" itself, and the open-chat door's own default name was never numbered; only `runtime.agent.place` applied `numbered_instance_name` · architecture: the floor every placing door passes (`agent_runtime/persona_assignments/store.py` `add_instance`) numbers a name another placed seat of the agent already wears; a name no other seat wears is kept verbatim; the open-chat reply carries `display_name` · done when: a second seat placed through either argv door reads `<agent> · 2` and its reply says so; Eternia adopts it · defect in the task's own work · READY 2026-11-20
 
 
 ## Tasks — 2026-11-09 (owner: every row belongs to a task; plan QUEUE_TASKS_AND_SUBTASKS)
