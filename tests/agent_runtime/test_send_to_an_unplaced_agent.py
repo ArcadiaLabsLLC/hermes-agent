@@ -144,3 +144,22 @@ def test_an_operator_send_from_another_workspace_reuses_the_idle_default_instanc
     before = _stored_ids()
     assert _resolve() == (idle.id, None)
     assert _stored_ids() == before
+
+
+def test_a_refused_open_places_nothing():
+    """Seen in the lane's CLI read: ``open-chat --persona dev --new-session`` with no idempotency key
+    placed an instance, then refused ``idempotency_key_required``. The key is checked first now.
+    Kill-mutation: drop the key check before ``reuse_or_place`` in the open → red."""
+    from hermes_cli.harness_parts.persona.chat_open import _cmd_persona_instance_open_chat
+
+    ensure_default_scope(seed_active_pointers=False)
+    before = _stored_ids()
+    payloads = []
+    args = SimpleNamespace(
+        persona_id=DEV, persona_instance_id=None, session_id=None, new_session=True, add_instance=False,
+        idempotency_key=None, title=None, select_session=True, client_scope=None, json=True,
+        payload_sink=payloads.append,
+    )
+    assert _cmd_persona_instance_open_chat(args) == 2
+    assert payloads[-1]["error_kind"] == "idempotency_key_required"
+    assert _stored_ids() == before
