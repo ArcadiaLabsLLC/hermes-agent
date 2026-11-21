@@ -127,7 +127,8 @@ def test_the_text_mode_names_the_source(
     # ``browser_vault`` (2026-10-15 release merge); the ratchet reads 41 in the same wave.
     # 41 -> 44: RT-COURSE-PERSONA-TOOLS (``0c4361389d``) added the ``course`` toolset's
     # three tools to ``harness_core``; the ratchet reads DECLARED_TOOL_COUNT = 44.
-    assert "(35 callable by name)" in out
+    # 35 -> 36: ``agent_add_instance`` joined ``agent_chat`` (2ae02cbf29); the ratchet reads 36.
+    assert "(36 callable by name)" in out
     assert "toolsets: harness_core (" in out
     assert "persona-level toolsets list ignored" not in out
 
