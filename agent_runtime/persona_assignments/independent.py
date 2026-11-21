@@ -21,6 +21,7 @@ from ..locks import agent_create_lock, agent_record_write_lock
 from ..models import AgentPersona, PersonaInstance, apply_instance_model_overrides
 from ..persona_chat_durability import PersonaChatPersistenceError
 from ..prompt_sources import resolve_persona_system_prompt_path
+from ..redaction import is_secret_field_name
 from ..store import AgentStore, WorkspaceStore
 from ..sync_admission import content_refusal, payload_refusal
 from .errors import RetiredPersonaInstanceError
@@ -66,15 +67,14 @@ _CARRIED_ENDPOINT_KEYS = (
 )
 
 
-#: A nested field (inside ``models``, say) whose name says it holds or fetches a credential.
-_CREDENTIAL_NAME_PARTS = ("key", "token", "secret", "password", "auth", "header", "cookie", "credential", "cmd")
-
-
 def _without_credential_names(value: Any) -> Any:
+    """``value`` without any nested field (inside ``models``, say) the one key rule
+    (``redaction.is_secret_field_name``) names a secret; a secret VALUE under another name is
+    :func:`_credential_free`'s second step."""
+
     if isinstance(value, dict):
         return {
-            key: _without_credential_names(item) for key, item in value.items()
-            if not any(part in str(key).lower() for part in _CREDENTIAL_NAME_PARTS)
+            key: _without_credential_names(item) for key, item in value.items() if not is_secret_field_name(key)
         }
     if isinstance(value, list):
         return [_without_credential_names(item) for item in value]
