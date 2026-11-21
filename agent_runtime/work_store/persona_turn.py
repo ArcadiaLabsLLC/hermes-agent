@@ -38,7 +38,7 @@ from enum import StrEnum
 from types import SimpleNamespace
 from typing import Any, NamedTuple
 
-from .. import chat_goal
+from .. import chat_goal, chat_goal_loop
 from .. import chat_root_send_queue as send_queue
 from .. import paths
 from ..chat_turn_settles import outcome_from_payload, read_settle, settle_id_for
@@ -288,7 +288,7 @@ class PersonaTurnExecutor:
                   **({goal_turns.SKILLS_ORIGIN: list(a.skills)} if a.skills else {})}
         if a.skills:
             self._lend(instance, root, a)
-        # An until-done run's turn args are the template of every later pass (``goal_turns._forge``),
+        # An until-done run's turn args are the template of every later pass (``goal_turns._send_pass``),
         # so the pass budget set here is each pass's (RT-UNTIL-DONE-PASS-FOUR-MINUTE-CLOCK).
         # MUTATION: pass ``None`` here and test_persona_turn's "an until-done pass runs on the pass
         # budget" reddens.
@@ -444,8 +444,8 @@ class PersonaTurnExecutor:
                      outcome_of(exit_code, payload, rows))
 
     def _goal_settled(self, entry: send_queue.QueuedSend, _exit_code: int, payload: dict | None) -> None:
-        goal_turns.after_chat_goal_turn(entry, payload, goals=self._goals, enqueue=self._enqueue,
-                                        wake=self._wake or _wake_runner)
+        chat_goal_loop.after_turn(entry, payload, goals=self._goals, enqueue=self._enqueue,
+                                  wake_runner=self._wake or _wake_runner)
 
     def direct_settled(self, root: str, cmid: str, exit_code: int, payload: dict | None,
                        args_of: Callable[[], Mapping[str, Any]]) -> None:

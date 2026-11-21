@@ -13,7 +13,7 @@ from __future__ import annotations
 import threading
 from types import SimpleNamespace
 
-from agent_runtime import chat_goal
+from agent_runtime import chat_goal, chat_goal_loop
 from agent_runtime import chat_root_send_queue as send_queue
 from agent_runtime.work_store import engine as work_engine
 from agent_runtime.work_store import goal_turns
@@ -151,7 +151,7 @@ def test_a_lifted_barrier_continues_a_chat_goal_from_the_settled_turn():
     [entry] = send_queue.entries(CHAT_ROOT)
     assert entry.args["persona_id"] == "neko" and "idempotency_key" not in entry.args
     assert entry.args["message"].startswith("[Continuing toward your standing goal]")
-    assert entry.args[send_queue.ORIGIN_ARG][goal_turns.CHAT_GOAL_ORIGIN] is True
+    assert entry.args[send_queue.ORIGIN_ARG][chat_goal_loop.CHAT_GOAL_ORIGIN] is True
     assert executor.wake_parked() == 0  # one continuation, never two
 
 

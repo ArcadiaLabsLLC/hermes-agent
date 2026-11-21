@@ -5,7 +5,7 @@ The RPC tests drive the registered handlers with the REAL ``GoalManager`` on thi
 (SessionDB ``state_meta``); the slot test uses the goal fakes and the real send queue.
 
 Killing mutation: the after-turn hook forges the continuation while an operator send is queued (drop
-the ``waiting`` hold in ``goal_turns._forge``) → ``test_operator_send_wins_slot`` red.
+the ``waiting`` hold in ``chat_goal_loop.step``) → ``test_operator_send_wins_slot`` red.
 """
 
 from __future__ import annotations
@@ -70,8 +70,8 @@ def test_refusals_are_typed(verb, params, code, reason):
 
 
 def test_status_names_the_work_run_that_owns_the_goal():
-    chat_goal.bind(chat_goal.GoalBinding(SESSION, "rid-9", (("s", "n", "RT-9"),)))
     _call("set", session_id=SESSION, goal="Own it")
+    chat_goal.bind(chat_goal.GoalBinding(SESSION, "rid-9", (("s", "n", "RT-9"),)))
     assert _call("status", session_id=SESSION)["result"]["goal"]["run"] == "rid-9"
 
 
