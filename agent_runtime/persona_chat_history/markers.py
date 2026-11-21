@@ -8,14 +8,27 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..api_key_check import API_KEY_CONTROL_CHARACTER
 from ..clock import iso_timestamp
 from ..mission_chat_outcome import LOCAL_MODEL_NOT_READY_REASON, refusal_never_left_hermes
 from ..module_presence import shipped
+from ..provider_login_expiry import CHOSEN_CREDENTIAL_UNUSABLE
 from ..mission_chat_turns.reads import mission_chat_turn_records
 from ..serde import safe_assignment_text, safe_assignment_token
 from ..run_budget import ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY
 from ..transcript_order import TURN_SEQ_TERMINAL, order_transcript_rows
 from ..turn_outcome import TURN_OUTCOME_KEY, turn_outcome_block
+
+#: A never-sent turn's marker words by the credential reason hermes named (review w1118a.69):
+#: a saved key with a hidden character (RT-FU-AN-API-KEY-WITH-A-HIDDEN-CONTROL-CHARACTER-IS-REFUSED-
+#: WHEN-IT-IS-SAVED) and a used-up chosen sign-in while a saved key is never spent (D1).
+_CREDENTIAL_MARKER_TEXT = {
+    API_KEY_CONTROL_CHARACTER: ("This request never left Hermes because the saved API key has a hidden "
+                                "character in it. Save the key again, then send a new message."),
+    CHOSEN_CREDENTIAL_UNUSABLE: ("This request never left Hermes because the provider's chosen sign-in "
+                                 "cannot be used right now; a saved API key is not used unless you switch "
+                                 "to it. Switch credentials or wait, then send a new message."),
+}
 from ..turn_visibility import TURN_VISIBILITY_KEY, classify_persisted_turn_row
 from .vocabulary import (
     PERSONA_TURN_SILENT_KIND,
@@ -245,6 +258,10 @@ def _terminal_turn_marker_rows(
                     # A picked local model with llama off or unloaded (RT-LLAMA-OFF-MARKER-NAMES-LLAMA;
                     # the block is typed by RT-LLAMA-OFF-REFUSAL-NAMES-LLAMA).
                     marker_row["text"] = LLAMA_OFF_MARKER_TEXT
+                elif refusal_never_left_hermes(refusal) and refusal.get("failure_reason") in _CREDENTIAL_MARKER_TEXT:
+                    # Why the provider's credential could not serve (review w1118a.69), so a reload
+                    # does not say "the provider was unavailable".
+                    marker_row["text"] = _CREDENTIAL_MARKER_TEXT[refusal["failure_reason"]]
                 elif refusal_never_left_hermes(refusal):
                     # Harness-authored (status 0): provider unavailable or a runtime dependency
                     # missing (RT-DEPENDENCY-REFUSAL-RESEND-REPLAYS-REFUSED).
