@@ -154,3 +154,72 @@ def test_a_served_core_carries_the_sticky_profile_of_now_not_of_its_build(monkey
 
     assert core["parity"]["profile"]["cli_active_profile"] == "alice"
     assert core["parity"]["profile"]["cli_active_profile_differs"] is True
+
+
+# ── a sign-in gives an install with no default model one (RT-FU-A-PHONE-SIGNED-IN-TO-ONE-PROVIDER-…) ──
+
+from agent_runtime import runtime_default_model as rdm  # noqa: E402
+
+
+@pytest.fixture
+def recommended(monkeypatch):
+    asked: list[str] = []
+
+    def recommend(provider_id):
+        asked.append(provider_id)
+        return "gpt-6-luna"
+
+    monkeypatch.setattr(rdm, "_recommended_default", recommend)
+    return asked
+
+
+def test_a_sign_in_on_an_install_with_no_default_writes_the_recommended_model(accepted_switch, recommended):
+    """Killing mutation: ``seed_default_model_after_signin`` returning before the write -> no
+    ``model.default``, red (the phone's agents then have no model)."""
+    _write_config({"model": {"provider": "openai-codex"}})
+
+    answer = rdm.seed_default_model_after_signin("OpenAI-Codex", requested_by="runtime.provider.signin")
+
+    assert answer is not None and answer["changed"] is True
+    assert recommended == ["openai-codex"]
+    cfg = load_agent_runtime_config()
+    assert (cfg.default_provider, cfg.default_model) == ("openai-codex", "gpt-6-luna")
+    assert _events()[0].payload["requested_by"] == "runtime.provider.signin"
+
+
+@pytest.mark.parametrize("config", [
+    {"model": {"default": "kept-model", "provider": "anthropic"}},
+    {"model": {"provider": "openai-codex"}, "agent_runtime": {"default_model": "pinned"}},
+], ids=["names-a-default", "pinned"])
+def test_an_install_that_names_a_default_keeps_it(accepted_switch, recommended, config):
+    """Killing mutation: drop the ``_current_pair(cfg)[1]`` check -> the kept default is replaced, red."""
+    _write_config(config)
+
+    assert rdm.seed_default_model_after_signin("openai-codex", requested_by="t") is None
+    assert accepted_switch == [] and recommended == [] and _events() == []
+
+
+def test_an_empty_recommendation_writes_nothing(accepted_switch, monkeypatch):
+    _write_config({})
+    monkeypatch.setattr(rdm, "_recommended_default", lambda provider_id: "")
+
+    assert rdm.seed_default_model_after_signin("openai-codex", requested_by="t") is None
+    assert accepted_switch == [] and _events() == []
+
+
+def test_the_recommendation_is_upstreams_silent_pick_from_the_providers_curated_list(monkeypatch):
+    """The model comes from upstream's picker and ``pick_silent_default_model``, never a fork list."""
+    import hermes_cli.inventory as inventory
+
+    monkeypatch.setattr(inventory, "load_picker_context", lambda: object())
+    monkeypatch.setattr(inventory, "build_models_payload", lambda ctx: {"providers": [
+        {"slug": "other", "models": ["x"]},
+        {"slug": "openai-codex", "models": ["gpt-a", "gpt-b"]},
+    ]})
+    picked = []
+    monkeypatch.setattr("hermes_cli.models.pick_silent_default_model",
+                        lambda models, provider: picked.append((models, provider)) or models[-1])
+
+    assert rdm._recommended_default("openai-codex") == "gpt-b"
+    assert picked == [(["gpt-a", "gpt-b"], "openai-codex")]
+    assert rdm._recommended_default("absent") == ""

@@ -269,9 +269,11 @@ class ProviderSignIns:
         self,
         spawn: Callable[[str, str, str | None], LoginChild] = run_login_in_process,
         clock: Callable[[], float] = time.time,
+        signed_in: Callable[[str], Any] | None = None,
     ) -> None:
         self._spawn = spawn
         self._clock = clock
+        self._signed_in = signed_in or _seed_default_model
         self._sessions: dict[str, _Session] = {}
         self._lock = threading.Lock()
 
@@ -359,6 +361,9 @@ class ProviderSignIns:
         with session.lock:
             if session.state in ACTIVE_STATES:
                 self._finish(session, "failed", "login_failed")
+            succeeded = session.state == "succeeded"
+        if succeeded:
+            self._signed_in(session.provider)
 
     def _apply(self, session: _Session, line: str) -> None:
         try:
@@ -412,6 +417,14 @@ class ProviderSignIns:
     # The child's event vocabulary, one handler per kind; unknown kinds are ignored.
     _EVENT_HANDLERS = {"expiry": _on_expiry, "code": _on_code, "code_rejected": _on_code_rejected,
                        "done": _on_done, "error": _on_error}
+
+
+def _seed_default_model(provider: str) -> None:
+    """A signed-in provider gives an install with no default model upstream's recommended one
+    (RT-FU-A-PHONE-SIGNED-IN-TO-ONE-PROVIDER-GIVES-ITS-AGENTS-NO-MODEL; never raises)."""
+    from agent_runtime.runtime_default_model import seed_default_model_after_signin
+
+    seed_default_model_after_signin(provider, requested_by="runtime.provider.signin")
 
 
 _REGISTRY: ProviderSignIns | None = None

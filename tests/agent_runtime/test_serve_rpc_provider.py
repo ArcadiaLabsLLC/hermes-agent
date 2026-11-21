@@ -70,7 +70,8 @@ def signins(monkeypatch):
         children.append(FakeChild(provider, flow, profile))
         return children[-1]
 
-    registry = provider_signin.ProviderSignIns(spawn=spawn, clock=lambda: clock["now"])
+    # No default-model seeding here (its own test below): it would read a provider catalog.
+    registry = provider_signin.ProviderSignIns(spawn=spawn, clock=lambda: clock["now"], signed_in=lambda provider: None)
     monkeypatch.setattr(provider_signin, "_REGISTRY", registry)
     yield children, clock
     for child in children:
@@ -660,3 +661,55 @@ def test_the_unavailable_reasons_eternia_mirrors_are_the_runtimes():
     fixture = Path(__file__).resolve().parents[1] / "fixtures" / "provider_usage_unavailable_reasons.json"
     assert json.loads(fixture.read_text(encoding="utf-8")) == {
         "no_usage_source": provider_account.USAGE_NO_SOURCE, "usage_read_failed": provider_account.USAGE_READ_FAILED}
+
+
+# ── a sign-in gives an install with no default model one (RT-FU-A-PHONE-SIGNED-IN-TO-ONE-PROVIDER-…) ──
+
+
+def test_a_succeeded_sign_in_and_a_saved_key_each_seed_the_default_model(monkeypatch, key_home):
+    """Killing mutations, each red: drop ``self._signed_in(session.provider)`` from ``_pump`` (the
+    sign-in seeds nothing); drop the seed call from ``runtime.provider.key.set``'s ``work``."""
+    from agent_runtime import runtime_default_model
+
+    seeded: list[tuple[str, str]] = []
+    monkeypatch.setattr(runtime_default_model, "seed_default_model_after_signin",
+                        lambda provider, *, requested_by, event_log=None: seeded.append((provider, requested_by)))
+    children: list[FakeChild] = []
+
+    def spawn(provider, flow, profile):
+        children.append(FakeChild(provider, flow, profile))
+        return children[-1]
+
+    monkeypatch.setattr(provider_signin, "_REGISTRY", provider_signin.ProviderSignIns(spawn=spawn))
+    try:
+        view = _result(_begin(provider="nous"))
+        children[0].emit(event="done", ok=True, access_token=SECRET)
+        _await_state(view["login_id"], "succeeded")
+        children[0].exit()
+        deadline = time.monotonic() + 5
+        while not seeded and time.monotonic() < deadline:
+            time.sleep(0.01)
+    finally:
+        for child in children:
+            child.exit()
+    assert seeded == [("nous", "runtime.provider.signin")]
+
+    _result(_rpc({"provider": "Anthropic", "key": MARKER_KEY}))
+    assert seeded[-1] == ("anthropic", "runtime.provider.key.set")
+
+
+def test_a_failed_sign_in_seeds_nothing(monkeypatch):
+    from agent_runtime import runtime_default_model
+
+    seeded: list = []
+    monkeypatch.setattr(runtime_default_model, "seed_default_model_after_signin",
+                        lambda provider, **_k: seeded.append(provider))
+    children: list[FakeChild] = []
+    monkeypatch.setattr(provider_signin, "_REGISTRY", provider_signin.ProviderSignIns(
+        spawn=lambda provider, flow, profile: children.append(FakeChild(provider, flow, profile)) or children[-1]))
+    view = _result(_begin(provider="nous"))
+    children[0].emit(event="error", code="login_failed")
+    _await_state(view["login_id"], "failed")
+    children[0].exit()
+    time.sleep(0.2)
+    assert seeded == []
