@@ -27,8 +27,9 @@ class SessionExecution:
         return self._recovered(row, record=record) if row is not None else None
 
     def _recovered(self, row, *, record):
-        # ProfileTurns' recovery has no view mode yet: a group room's view still projects and writes.
-        return self.turns.recover(row, fresh=True, wait=False)
+        # ``record`` is the adapter contract: both NativeTurns and ProfileTurns fold a view in memory.
+        # MUTATION: drop ``record=record`` and test_a_group_room_view_folds_and_never_writes reddens.
+        return self.turns.recover(row, fresh=True, wait=False, record=record)
 
     def attempt_rows(self, run_id):
         """Every attempt of ``run_id`` on ONE connection, keyed ``(task_id, generation)`` for ``row``."""
@@ -59,9 +60,6 @@ class InstanceExecution(SessionExecution):
                 if any(live[k] != member[k] for k in ("persona_id", "profile")):
                     raise DiscussionError("profile_binding_changed")
             self.context.ensure_session(run, member)
-
-    def _recovered(self, row, *, record):
-        return self.turns.recover(row, fresh=True, wait=False, record=record)
 
     def answer(self, run, member, row, key, body, callback):
         row = self.attempts.answer(run["run_id"], body["task_id"], body["generation"],

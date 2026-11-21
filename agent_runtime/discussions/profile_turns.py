@@ -71,8 +71,13 @@ class ProfileTurns:
         if current["stage"] == "terminal" and on_terminal is not None:
             on_terminal(current["receipt"])
 
-    def recover(self, row, *, fresh=False, wait=True):
+    def recover(self, row, *, fresh=False, wait=True, record=True):
         """``fresh``: ``row`` was read from the store just now, so it is not read again.
+
+        ``record=False`` is a VIEW, as in ``NativeTurns.recover``: the conversation's answer is folded
+        into the returned row in memory and never written, so opening a busy group room never queues
+        behind, or fails on, the members' receipt commits (RT-FU-A-GROUP-DISCUSSION-ROOM-VIEW-STILL-WRITES-
+        ITS-TURNS-RECEIPTS). The decision paths keep the default and record before they decide.
 
         ``wait=False`` is a read that never queues behind a dispatch: ``launch`` holds the admission
         across the member's worker and compute-host start (seconds; tens of seconds on a loaded box), and
@@ -83,45 +88,48 @@ class ProfileTurns:
         if not self._admission.acquire(blocking=wait):
             return self._current(row)
         try:
-            return self._recover(row, fresh=fresh)
+            return self._recover(row, fresh=fresh, record=record)
         finally:
             self._admission.release()
 
-    def _recover(self, row, *, fresh=False):
+    def _recover(self, row, *, fresh=False, record=True):
         current = row if fresh else self._current(row)
         if current["stage"] in {"pending", "terminal"}:
             return current
         try:
             _, _, scope = self._binding(current)
             snapshot = self.conversations().observe_execution(scope, current["session_id"], current["native_id"])
-            self._project(current, snapshot)
+            answer = self._answer(current, snapshot)
         except (ConversationError, OSError, RuntimeError):
-            self.attempts.update(current, stage="uncertain")
+            answer = {"stage": "uncertain"}
+        # The fold mirrors ``attempts.update``: a receipt or question the answer does not name is cleared.
+        answer = {"receipt": None, "question": None, **answer}
+        if not record:
+            # MUTATION: write here too and test_a_group_room_view_folds_and_never_writes reddens.
+            return {**current, **answer}
+        self.attempts.update(current, **answer)
         return self._current(current)
 
-    def _project(self, row, snapshot):
+    def _answer(self, row, snapshot):
+        """What the member's conversation proves about ``row``: its next ``stage`` with its ``receipt``
+        or ``question``. Computed only; the caller decides whether it is written."""
         if snapshot.get("admitted") is False:
-            self.attempts.update(row, stage="terminal", receipt={"status": "failed", "text": "",
-                "error": "dispatch_not_admitted", "message_id": row["native_id"]})
-            return
+            return {"stage": "terminal", "receipt": {"status": "failed", "text": "",
+                "error": "dispatch_not_admitted", "message_id": row["native_id"]}}
         native = snapshot["recovery"].get("execution") or {}
         expected = (snapshot.get("turn") or {}).get("execution_id")
         if not expected or native.get("id") != expected:
-            self.attempts.update(row, stage="uncertain")
-            return
+            return {"stage": "uncertain"}
         status, result = native.get("status"), native.get("result")
         if status in _OUTCOMES:
             if status == "complete" and not isinstance(result, dict):
-                self.attempts.update(row, stage="uncertain")
-                return
-            self.attempts.update(row, stage="terminal", receipt={"status": _OUTCOMES[status],
+                return {"stage": "uncertain"}
+            return {"stage": "terminal", "receipt": {"status": _OUTCOMES[status],
                 "text": (result or {}).get("text", ""), "error": (result or {}).get("error"),
-                "message_id": row["native_id"], "settlement_id": expected})
-            return
+                "message_id": row["native_id"], "settlement_id": expected}}
         requests = snapshot.get("requests") or []
         question = {"request": requests[0]} if requests else None
-        stage = "waiting_input" if question else _IN_FLIGHT.get(status, "uncertain")
-        self.attempts.update(row, stage=stage, question=question)
+        return {"stage": "waiting_input" if question else _IN_FLIGHT.get(status, "uncertain"), "question": question}
 
     def is_live(self, row):
         return self.recover(row)["stage"] in _LIVE_STAGES
