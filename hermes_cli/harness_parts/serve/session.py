@@ -158,6 +158,9 @@ class ServeSession(
     Last because the provider warmup has already discovered plugins by then, and
     injected because a loop unit test must not run plugin discovery.
 
+    ``default_model_reconcile`` (``reconcile_default_model_at_start``) writes ``config.yaml``: OFF
+    here, on in ``_cmd_serve`` and ``EmbeddedServe``, run once after ``ready`` on its own thread.
+
     ``skill_install`` re-joins the runtime's installed canonical skill packages
     to this repo's copies (:func:`install_harness_skills_at_boot`) and takes the
     SAME injection contract as ``root_anchor``, for the same reason and with more
@@ -186,6 +189,7 @@ class ServeSession(
         toolset_census: Callable[[], Any] | None = None,
         root_anchor: Callable[[], Any] | None = None,
         skill_install: Callable[[], str] | None = None,
+        default_model_reconcile: Callable[[], Any] | None = None,
         drain_deadline_seconds: float = DEFAULT_DRAIN_DEADLINE_SECONDS,
         drain_socket_minimum_deadline_seconds: float = (
             _DRAIN_SOCKET_MINIMUM_DEADLINE_SECONDS
@@ -223,6 +227,7 @@ class ServeSession(
         self.toolset_census = toolset_census
         self.root_anchor = root_anchor
         self.skill_install = skill_install
+        self.default_model_reconcile = default_model_reconcile
         self.drain_deadline_seconds = drain_deadline_seconds
         self.drain_socket_minimum_deadline_seconds = drain_socket_minimum_deadline_seconds
         self.drain_poll_interval_seconds = drain_poll_interval_seconds
@@ -740,6 +745,7 @@ class ServeSession(
                 _discussion_logging.getLogger(__name__).warning(
                     "discussion worker did not start", exc_info=True,
                 )
+        self._start_default_model_reconcile()
 
     def _stop_background_workers(self, timeout: float = _WORKER_JOIN_SECONDS) -> None:
         """Set ``liveness_stop``, wake the workers that sleep on their own event, and join them, bounded.
@@ -754,7 +760,8 @@ class ServeSession(
         wake = getattr(self, "settle_wake", None)
         if wake is not None:
             wake.set()
-        threads = [getattr(self, "settle_pusher_thread", None), getattr(self, "delivery_drain_thread", None)]
+        threads = [getattr(self, name, None) for name in (
+            "settle_pusher_thread", "delivery_drain_thread", "default_model_reconcile_thread")]
         runner = getattr(self, "queued_send_runner", None)
         if runner is not None:
             from agent_runtime.chat_root_send_runner import wake_queued_send_runner

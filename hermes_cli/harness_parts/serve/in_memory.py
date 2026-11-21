@@ -270,17 +270,26 @@ def protect_history_folder(home: Path | None = None) -> Path:
     return require().protect_history_dir(home)
 
 
+def _reconcile_default_model() -> Any:
+    """Imported at call time, after ``start`` mounted the phone's stand-ins (it runs after ``ready``)."""
+    from agent_runtime.runtime_default_model import reconcile_default_model_at_start
+
+    return reconcile_default_model_at_start()
+
+
 class EmbeddedServe:
     """One embedded runtime: ``serve_loop`` on its own thread over an :class:`InMemoryPipe`.
 
     ``options`` are ``ServeSession``'s keyword arguments; the embedded shell
     refuses the daemon levers (socket, service, end-reason sidecar, parent pid).
+    ``default_model_reconcile`` is ON by default, as in ``_cmd_serve``: a phone signed in before
+    its default model was seeded gets one at start (RT-FU-A-PHONE-SIGNED-IN-BEFORE-AN-UPGRADE-GETS-A-DEFAULT-MODEL-TOO).
     """
 
     def __init__(self, on_frame: Callable[[str], None], **options: Any) -> None:
         self._pipe = InMemoryPipe()
         self._sink = _LineSink(on_frame)
-        self._options = {"shell": EmbeddedShell(), **options}
+        self._options = {"shell": EmbeddedShell(), "default_model_reconcile": _reconcile_default_model, **options}
         self._thread: threading.Thread | None = None
         self._exit_code: int | None = None
         self._error: BaseException | None = None

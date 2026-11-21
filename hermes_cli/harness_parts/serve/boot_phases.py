@@ -985,3 +985,31 @@ class BootPhases:
         # requests are in flight: pure liveness telemetry on the shared
         # stdout, independent of every pool worker, so the launcher can
         # distinguish "busy running your turn" from "gone".
+
+    def _start_default_model_reconcile(self) -> None:
+        """Run the injected ``default_model_reconcile`` once, on its own daemon thread after ``ready``.
+
+        Off the boot critical path because the recommendation it writes may read a provider catalog
+        over the network. Bound to this serve's own home (``process_home_scope``), never the ambient
+        one a persona prewarm can mirror. Not on a serve that found another live owner of the root:
+        the owner's reconcile writes the same profile. Never raises.
+        """
+
+        reconcile = getattr(self, "default_model_reconcile", None)
+        if reconcile is None or self._another_serve_owns_this_root():
+            return
+
+        def _reconcile() -> None:
+            try:
+                from agent_runtime.profile_context import process_home_scope
+
+                with process_home_scope(self.serve_request_home, head_home=getattr(self, "serve_head_home", None)):
+                    reconcile()
+            except Exception:  # the serve runs on; the next start reconciles again
+                import logging as _logging
+
+                _logging.getLogger(__name__).warning("default model reconcile did not run", exc_info=True)
+
+        self.default_model_reconcile_thread = threading.Thread(
+            target=_reconcile, name="harness-serve-default-model", daemon=True)
+        self.default_model_reconcile_thread.start()

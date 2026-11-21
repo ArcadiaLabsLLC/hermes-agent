@@ -204,6 +204,11 @@ def supports_browser_login(provider: str) -> bool:
     return provider in _DRIVERS
 
 
+def sign_in_providers() -> tuple[str, ...]:
+    """Every provider this driver table can sign in, in table order."""
+    return tuple(_DRIVERS)
+
+
 def browser_login_methods(provider: str) -> list[str]:
     if provider == "openai-codex":
         return ["browser", "device_code"]
