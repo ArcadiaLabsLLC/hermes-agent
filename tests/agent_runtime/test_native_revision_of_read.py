@@ -28,6 +28,7 @@ from agent_runtime.persona_chat_session import (
     _persona_chat_native_revision,
     _persona_chat_native_revision_of_read,
 )
+from hermes_cli.harness_parts.persona.chat_turn_commit.turn_record import ChatTurnRecord
 
 ROOT = "persona_chat_personainst_dev_agent_root"
 TIP = "persona_chat_personainst_dev_agent_root_child"
@@ -142,6 +143,7 @@ def test_build_context_reads_the_lineage_once_and_keeps_the_revision(
         message="hello",
         client_message_id=None,
         redo_of=None,
+        turn_record=ChatTurnRecord(),
         turn_phases=types.SimpleNamespace(mark=marks.append, label=lambda name, value: None),
     )
 

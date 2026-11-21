@@ -18,6 +18,7 @@ import time
 import types
 
 from agent_runtime.context_build_receipt import CONTEXT_BUILD_PARTS, ContextBuildLaps
+from hermes_cli.harness_parts.persona.chat_turn_commit.turn_record import ChatTurnRecord
 from tests.agent_runtime.test_native_revision_of_read import HISTORY, ROOT, _CountingSessionDB
 
 
@@ -40,7 +41,7 @@ def _run_build_context(monkeypatch, builder_sleep_s: float):
         args=types.SimpleNamespace(), session_db=_CountingSessionDB(HISTORY), session_id=ROOT,
         pre_admit_timings={}, instance_store=None, relay_chain_in=None, persona=None, instance=None,
         cfg=None, model_selection={}, relay_deadline=None, turn_relay_chain=(), message="hello",
-        client_message_id="turn-ctx-1", redo_of=None,
+        client_message_id="turn-ctx-1", redo_of=None, turn_record=ChatTurnRecord(),
         turn_phases=types.SimpleNamespace(mark=lambda name: None, label=lambda name, value: None),
     )
     run_module._RunPhases._build_context(commit)
