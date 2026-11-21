@@ -59,7 +59,7 @@ A session opened for an operator chat root carries `source="eternia_operator"` a
 
 ## The slices
 
-- **F1** — `operator_turn_policy.py` (construction + turn scopes above) and an operator turn client
+- **F1** (with F2; see "Read while starting F1") — `operator_turn_policy.py` (construction + turn scopes above) and an operator turn client
   that opens (or reuses) the chat root's session on the serve's in-process gateway and submits
   `prompt.submit`, consuming frames into the existing progress / stream / clarify callbacks and
   returning `AgentRunResult`. `ProfileAgentRunner.run` calls it; `execute.py` stays only for the
@@ -76,6 +76,38 @@ A session opened for an operator chat root carries `source="eternia_operator"` a
   registry's operator half, `persona_chat_actor_prewarm` and `chat_root_send_queue` /
   `chat_root_send_runner` (the gateway session's queue holds a busy root's sends; the durable "queued"
   answer becomes the session's queued prompt plus the mission-chat journal's write-ahead row).
+
+## Read while starting F1 (2026-11-21, w1118a-onepath-fold)
+
+Three facts in code change the F1 step list above; each was read, none reproduced yet.
+
+1. **The operator chat lives in the head store, not the persona's.** `chat_turn_commit/run.py` builds
+   `GPTPersonaRuntime(session_db=self.session_db)` on the head home, and `profile_runner` hands that
+   handle to the agent; the persona's profile is bound only for tools, secrets and the workdir
+   (`persona_profile_context`). A gateway session opened with the persona's `profile` reads and writes
+   that profile's `state.db` (`session_registry._start_agent_build` → `_open_profile_session_db`). So the
+   operator's gateway session is opened on the head profile (the launch scope of the serve), and the
+   persona binding stays inside the turn scope, as today. `InProcessPeer` refuses a non-profile home
+   (`_profile_for`), so F1 gives it a launch-scope mode instead of a second peer.
+2. **The gateway writes the submitted text as a user row and the agent adopts it.**
+   `prompt.submit` persists the text into the session key and `_adopt_submit_user_row` hands it to the
+   agent as `_pending_cli_user_message`. The operator's scratch row today carries the composed user
+   message (HUD, preloaded skill), the relay sender marker (`stage_persona_chat_user_row_marker`) and
+   image `MEDIA:` lines, and a replayed pending turn reuses its row (`reuse_current_user_message`).
+   RECOMMENDED, awaiting the owner (2026-11-21; built on the branch meanwhile, reworked there before
+   landing if the owner rules otherwise): the gateway session is resumed on the chat's
+   native TIP, the submitted text is the composed user message, and the agent adopts the gateway's
+   row (upstream's transcript model wins — the ruling's "reuse upstream's machinery"); the relay marker
+   and image lines are staged onto that adopted row by the construction policy, and a replay submits
+   nothing new (the turn scope clears the adoption). Alternatives weighed: a hidden phantom session
+   (rejected: a second copy of every operator message in the head store) and an upstream "submit
+   without a row" flag (rejected: footprint, and it keeps two transcript models).
+3. **F1 and F2 cannot land apart.** A chat goal arms upstream's `GoalManager` on the chat ROOT
+   (`chat_goal.arm(root_session_id, …)`); the gateway's loop evaluates the goal of the session KEY. On a
+   chat that never compressed, root == tip == key, so with F1 alone both `goal_turns.after_turn` and
+   `prompt_turn._goal_followup_after_turn` would judge and continue the same goal. F1 therefore lands
+   with F2's switch of the operator's chat-goal continuation onto the gateway loop (Work runs keep their
+   binding and continue as queued prompts on the session).
 
 ## What can go wrong
 
