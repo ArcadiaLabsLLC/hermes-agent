@@ -458,7 +458,7 @@ def open_actor(execution: Any) -> Any:
 def _ensure_session_row(execution: Any, home: Path, tip: str) -> None:
     """The tip's row in its store: the gateway resumes only a stored session. An operator chat's root is
     minted with its row (``persona_chat_continuity.mint_receipts``); a run on a session nothing minted
-    gets the row the agent would write at its first message."""
+    gets the row the agent would write at its first message. A stored mint placeholder prompt is cleared."""
 
     from agent_runtime.persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE
 
@@ -471,6 +471,12 @@ def _ensure_session_row(execution: Any, home: Path, tip: str) -> None:
     try:
         if not db.get_session(tip):
             db.create_session(tip, source=PERSONA_CHAT_SCRATCH_SOURCE)
+        else:
+            # A chat still holding the old mint placeholder builds its agent's prompt on this turn
+            # instead of replaying the placeholder (RT-FU-A-CHAT-WHOSE-FIRST-TURNS-FAILED-…).
+            from agent_runtime.persona_chat_durability import heal_mint_stub_prompt
+
+            heal_mint_stub_prompt(db, tip)
     finally:
         if owned is not None:
             from hermes_state_registry import release_or_close

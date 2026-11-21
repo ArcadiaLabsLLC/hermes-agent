@@ -36,9 +36,10 @@ class _LineTooLong(Exception):
 class _LineReader:
     """NDJSON line assembly over a byte stream, with a hard per-line bound."""
 
-    def __init__(self, sock: Any, *, max_line_bytes: int = MAX_LINE_BYTES) -> None:
+    def __init__(self, sock: Any, *, max_line_bytes: int = MAX_LINE_BYTES, initial: bytes = b"") -> None:
         self._sock = sock
-        self._buffer = b""
+        #: ``initial``: bytes a previous reader of this socket read past its last line.
+        self._buffer = bytes(initial)
         self._max = int(max_line_bytes)
 
     def read_line(self, *, deadline_seconds: float | None) -> str | None:
@@ -76,6 +77,12 @@ class _LineReader:
                     return line.decode("utf-8", errors="replace")
                 return None
             self._buffer += chunk
+
+    def take_buffered(self) -> bytes:
+        """Hand over the bytes read past the last line, when the socket changes hands."""
+
+        buffered, self._buffer = self._buffer, b""
+        return buffered
 
 
 def _parse_object(line: str) -> dict[str, Any] | None:

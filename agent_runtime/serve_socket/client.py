@@ -121,8 +121,13 @@ class ServeSocketClient:
         client: str,
         client_build: str | None = None,
         expect_hello_contract: int | None = HELLO_CONTRACT_VERSION,
+        reverse_attach: str | None = None,
     ) -> dict[str, Any] | None:
         """Answer the server's challenge and return the single reply frame.
+
+        ``reverse_attach`` names a paired device whose parked reverse lane the
+        machine owner attaches to (``agent_runtime.reverse_lane``): the reply is then
+        ``reverse_attached`` with the lane id, and every byte after it is the device's.
 
         The SERVER speaks first, so this reads before it writes: one
         ``server_hello`` carrying the nonce, then the proof. **The token never
@@ -150,6 +155,7 @@ class ServeSocketClient:
                 # relay that forwards our answer to a different port cannot
                 # use it.
                 "proof": hello_proof(token, nonce, port=self._port),
+                **({"reverse_attach": reverse_attach} if reverse_attach else {}),
             }
         )
         return self.read_frame()
@@ -162,8 +168,13 @@ class ServeSocketClient:
         client: str,
         client_build: str | None = None,
         expect_hello_contract: int | None = HELLO_CONTRACT_VERSION,
+        reverse_lane: str | None = None,
     ) -> dict[str, Any] | None:
         """The GATEWAY lane's hello: same frames, a per-device credential.
+
+        ``reverse_lane`` offers this connection back as a reverse lane, under the
+        lane id this device minted (``agent_runtime.reverse_lane``): the reply is then
+        ``reverse_lane_parked``, and the install holds the connection for its owner.
 
         Structurally identical to :meth:`hello` — server speaks first, one
         ``server_hello`` carrying a fresh nonce, one answer carrying a proof —
@@ -193,6 +204,38 @@ class ServeSocketClient:
                 "proof": device_proof(
                     token, nonce, port=self._port, device_id=device_id
                 ),
+                **({"reverse_lane": reverse_lane} if reverse_lane else {}),
+            }
+        )
+        return self.read_frame()
+
+    def lane_hello(
+        self,
+        *,
+        computer_id: str,
+        token: str,
+        lane_id: str,
+        client: str,
+        client_build: str | None = None,
+        expect_hello_contract: int | None = HELLO_CONTRACT_VERSION,
+    ) -> dict[str, Any] | None:
+        """A granted computer's hello to a phone's engine, over a reverse lane already attached.
+
+        The device hello's shape, with the proof bound to the LANE ID the computer's own
+        Hermes reported when it attached (``serve_gateway_auth.reverse_lane_proof``): the
+        port this client dialled is the computer's own loopback, which the phone never sees.
+        """
+
+        from ..serve_gateway_auth.proof import reverse_lane_proof
+
+        nonce = self._challenge_nonce(expect_hello_contract)
+        self.send(
+            {
+                "op": "hello",
+                "client": client,
+                "client_build": client_build,
+                "device_id": computer_id,
+                "proof": reverse_lane_proof(token, nonce, lane_id=lane_id, device_id=computer_id),
             }
         )
         return self.read_frame()
@@ -433,6 +476,19 @@ class ServeSocketClient:
             if not line.strip():
                 continue
             return _parse_object(line)
+
+    def detach(self) -> tuple[Any, bytes]:
+        """Give up the connected socket and the bytes read past the last frame.
+
+        For a reverse lane, whose socket changes hands after the hello: the bytes
+        this client read ahead belong to whoever reads the socket next.
+        """
+
+        sock, self._sock = self._sock, None
+        reader, self._reader = self._reader, None
+        if sock is None or reader is None:
+            raise RuntimeError("connect() first")
+        return sock, reader.take_buffered()
 
     def close(self) -> None:
         sock, self._sock = self._sock, None

@@ -85,6 +85,24 @@ def _safe_final_model_input(value: dict[str, Any] | None) -> dict[str, Any] | No
         # row — dropping it here would make a refreshed budget silently fall
         # back to the static window x ratio number the lane cap overrides.
         "context_compaction": _safe_context_compaction(value.get("context_compaction")),
+        # Present only when the turn sent the chat's stored prompt (``_system_prompt_reuse``).
+        **(
+            {"system_prompt_reuse": reuse}
+            if (reuse := _safe_system_prompt_reuse(value.get("system_prompt_reuse"))) is not None
+            else {}
+        ),
+    }
+
+
+def _safe_system_prompt_reuse(value: Any) -> dict[str, Any] | None:
+    """The reused-prompt receipt: a flag and the slot headings the sent prompt carries. Tokens only."""
+
+    if not isinstance(value, dict) or value.get("restored") is not True:
+        return None
+    sections = value.get("slot_sections") if isinstance(value.get("slot_sections"), list) else []
+    return {
+        "restored": True,
+        "slot_sections": [text for item in sections[:64] if (text := safe_assignment_text(item, limit=200))],
     }
 
 

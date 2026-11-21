@@ -81,6 +81,7 @@ from typing import Any
 __layer__ = "models"
 
 __all__ = [
+    "CALLER_COMPUTER",
     "CALLER_DEVICE",
     "CALLER_LOCAL_CONSOLE",
     "CALLER_PEER",
@@ -88,6 +89,10 @@ __all__ = [
     "CALLER_UNKNOWN",
     "CHANNEL_METHOD_ALLOWLIST",
     "CLI_CONSOLE",
+    "COMPUTER_CHAT_METHOD_ALLOWLIST",
+    "COMPUTER_GRANT_CHAT",
+    "COMPUTER_GRANT_LOOK",
+    "COMPUTER_LOOK_METHOD_ALLOWLIST",
     "DEVICE_KINDS",
     "DEVICE_KIND_CHANNEL",
     "DEVICE_KIND_DEVICE",
@@ -151,6 +156,10 @@ CALLER_DEVICE = "device"
 #: tier and is answered from :data:`PEER_METHOD_ALLOWLIST` instead — see
 #: :func:`authorize_call`.
 CALLER_PEER = "peer"
+#: A paired COMPUTER driving this phone over a lane the phone dialled
+#: (``agent_runtime.reverse_lane``). Its authority is the phone's grant, answered from an
+#: allowlist per grant level by :func:`_computer_arm` — never a device tier.
+CALLER_COMPUTER = "computer"
 #: A caller the transport could not place. Minted by tests, by the defensive arm
 #: of :func:`caller_for_connection`, and — the arm Stage A5 adds — by a gateway
 #: connection that somehow reached the dispatcher without a device stamp.
@@ -336,6 +345,11 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         # agent map (Eternia marks both localOnly).
         "runtime.harness.skills.sync",
         "runtime.flow.apply",
+        # The reverse lane (MC-PHONE-DRIVEN-THE-PHONE-DIALS-OUT-…): only this install's owner
+        # starts, stops or reads its dials, which carry its own credential on the computer.
+        "runtime.gateway.reverse.dial",
+        "runtime.gateway.reverse.hangup",
+        "runtime.gateway.reverse.lanes",
     }
 )
 
@@ -347,6 +361,53 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
 #: tools; ``serve_rpc/chat.py`` says why nothing lower is honest), and its KIND narrows it twice:
 #: to :data:`CHANNEL_METHOD_ALLOWLIST`, and (``agent_runtime.gateway_channel``) to its bound
 #: instances. Scope narrows WHICH agent, never what the agent may do.
+#: The phone's two grant levels for a computer that drives it (review w1118a.79): what each
+#: may call is the allowlist below, and the tier a verb declares does not enter into it.
+#: A grant mapped to a tier would be wrong both ways: ``console`` admits the phone's
+#: provider sign-in and keys (``serve_rpc/provider.py`` is plain console tier), and
+#: ``read`` admits every read verb written later.
+COMPUTER_GRANT_LOOK = "look"
+COMPUTER_GRANT_CHAT = "chat"
+
+#: Look: the phone's agents, their chats and history, and the office stream. Reads only.
+COMPUTER_LOOK_METHOD_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "runtime.health",
+        "runtime.office.get",
+        "runtime.office.subscribe",
+        "runtime.office.unsubscribe",
+        "runtime.events.after",
+        "runtime.agent.directory",
+        "runtime.persona.instance.detail",
+        "runtime.persona.chat.history",
+        "runtime.persona.chat.history.search",
+        "runtime.persona.chat.content",
+        "runtime.workspace.conversations",
+        "runtime.character.portrait",
+        "runtime.characters.thumb",
+        "runtime.profiles.avatar",
+    }
+)
+
+#: Look, and run chat turns: start, steer and settle one, and declare the computer's Eternia
+#: as the answerer of the app functions its turns call. Never the phone's sign-ins, keys,
+#: pairing, settings, namespaces or secure store.
+COMPUTER_CHAT_METHOD_ALLOWLIST: frozenset[str] = COMPUTER_LOOK_METHOD_ALLOWLIST | frozenset(
+    {
+        "runtime.chat.message",
+        "runtime.chat.steer",
+        "runtime.chat.turn.resolve",
+        "runtime.persona.instance.open_chat",
+        "runtime.agent.conversation.create",
+        "runtime.client.capabilities",
+    }
+)
+
+_COMPUTER_ALLOWLISTS: dict[str, frozenset[str]] = {
+    COMPUTER_GRANT_LOOK: COMPUTER_LOOK_METHOD_ALLOWLIST,
+    COMPUTER_GRANT_CHAT: COMPUTER_CHAT_METHOD_ALLOWLIST,
+}
+
 DEVICE_KIND_DEVICE = "device"
 DEVICE_KIND_CHANNEL = "channel"
 DEVICE_KINDS: tuple[str, ...] = (DEVICE_KIND_DEVICE, DEVICE_KIND_CHANNEL)
@@ -419,6 +480,8 @@ class RpcCaller:
     #: a membership in :data:`PEER_METHOD_ALLOWLIST`, and a tier field that
     #: nothing read would be a field that looked like a door.
     peer_install_id: str | None = None
+    computer_id: str | None = None
+    computer_grant: str | None = None
 
     def describe(self) -> dict[str, Any]:
         """The caller as it appears on a log line or a refusal's ``data``.
@@ -443,6 +506,9 @@ class RpcCaller:
             payload["bound_instances"] = list(self.bound_instances)
         if self.peer_install_id is not None:
             payload["peer_install_id"] = self.peer_install_id
+        if self.computer_id is not None:
+            payload["computer_id"] = self.computer_id
+            payload["computer_grant"] = self.computer_grant
         return payload
 
 
@@ -518,8 +584,23 @@ def caller_for_connection(connection: Any) -> RpcCaller:
     peer_install_id = (
         peer_install_id if isinstance(peer_install_id, str) and peer_install_id else None
     )
-    if peer_install_id is not None and device_id is not None:
+    computer_id = getattr(connection, "computer_id", None)
+    computer_id = computer_id if isinstance(computer_id, str) and computer_id else None
+    computer_grant = getattr(connection, "computer_grant", None)
+    computer_grant = computer_grant if computer_grant in _COMPUTER_ALLOWLISTS else None
+    stamps = sum(value is not None for value in (peer_install_id, device_id, computer_id))
+    if stamps > 1 or (computer_id is not None and computer_grant is None):
+        # Two identities, or a computer without a grant it may hold: the transport does
+        # not produce either, and the answer is the least authority.
         return RpcCaller(kind=CALLER_UNKNOWN, connection_key=key, transport=transport)
+    if computer_id is not None:
+        return RpcCaller(
+            kind=CALLER_COMPUTER,
+            connection_key=key,
+            transport=transport,
+            computer_id=computer_id,
+            computer_grant=computer_grant,
+        )
     if peer_install_id is not None:
         return RpcCaller(
             kind=CALLER_PEER,
@@ -615,6 +696,33 @@ def _channel_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization
         detail=None if admitted else (
             f"{name or 'this call'} is not a chat verb; a channel credential may only relay "
             "chat turns to the persona instances it is bound to"
+        ),
+    )
+
+
+def _computer_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization | None:
+    """The computer arm (review w1118a.79), ``None`` for any other caller.
+
+    Placed like the peer arm, BEFORE the read opening: a computer answered after it would
+    inherit every read verb the phone has and every one written later. Its grant names an
+    allowlist; the verb's declared tier does not enter into it, so the chat grant never
+    reaches a console verb that is not a chat verb (the phone's sign-ins, keys, settings).
+    """
+
+    if resolved.kind != CALLER_COMPUTER:
+        return None
+    allowlist = _COMPUTER_ALLOWLISTS.get(str(resolved.computer_grant or ""), frozenset())
+    # MUTATION: admit `tier == TIER_CONSOLE` for the chat grant (the grant mapped to the console
+    # tier) and test_reverse_lane's never-served test sees sign-in and key set answered.
+    admitted = bool(name) and name in allowlist
+    return CallAuthorization(
+        ok=admitted,
+        reason="computer_allowlisted" if admitted else REASON_SCOPE_DENIED,
+        tier=tier,
+        caller_kind=resolved.kind,
+        detail=None if admitted else (
+            f"{name or 'this call'} is not open to a computer this phone granted "
+            f"{resolved.computer_grant or 'nothing'}"
         ),
     )
 
@@ -721,6 +829,8 @@ def authorize_call(
         )
     if (channel := _channel_arm(resolved, name, normalized)) is not None:
         return channel
+    if (computer := _computer_arm(resolved, name, normalized)) is not None:
+        return computer
     if resolved.kind == CALLER_PEER:
         if name and name in PEER_METHOD_ALLOWLIST:
             return CallAuthorization(

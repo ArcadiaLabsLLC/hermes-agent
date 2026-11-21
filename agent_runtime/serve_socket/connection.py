@@ -55,6 +55,13 @@ class SocketConnection:
     #: BEFORE the device pair, refusing a connection that somehow carries both.
     #: Set once, in ``_handshake``, after the proof verified.
     peer_install_id: str | None = None
+    #: WHICH granted computer drives this phone over a reverse lane, and the
+    #: grant level it holds (``look`` | ``chat``) — ``None`` on every other
+    #: connection. ``caller_for_connection`` reads them through ``getattr`` to
+    #: mint a ``computer`` caller. Set once, in ``_handshake``, after the lane
+    #: proof verified.
+    computer_id: str | None = None
+    computer_grant: str | None = None
     #: ONE-SHOT, and the only secrets this dataclass ever holds. Set by
     #: ``_handshake`` when a pairing code was redeemed, read and CLEARED by the
     #: ``hello_payload`` builder on the very next statement. Both are
@@ -159,6 +166,11 @@ class SocketConnection:
                 # because a peer holds an allowlist rather than a tier — a
                 # ``peer_tier: null`` here would invite a reader to look for one.
                 payload["peer_install_id"] = self.peer_install_id
+            if self.computer_id is not None:
+                # Additive on a reverse lane's row only: which granted computer is
+                # driving this phone, and at which grant. Neither is a secret.
+                payload["computer_id"] = self.computer_id
+                payload["computer_grant"] = self.computer_grant
             return payload
 
     def close(self, reason: str | None = None, *, linger_seconds: float = 0.0) -> None:

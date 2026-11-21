@@ -270,12 +270,13 @@ def _generated_tree_write(tool_name, args):
 
 
 def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", tool_call_id="", **_context):
-    """``pre_tool_call`` hook: a blocked tool, a Lens ``act`` turn's mutating call its monitor's rules
+    """``pre_tool_call`` hook: a blocked tool, a bundled install's write to the namespace root's or another
+    profile's config (``agent_runtime.namespace_config_guard``), a Lens ``act`` turn's mutating call its monitor's rules
     did not allow (``agent_runtime.lens.act``), a background review's write to a SHARED skill
     (staged for the owner, ``agent_runtime.review_skill_gate``), a host write to a generated-document
     path (``agent_runtime.generated_tree_teach``), then a ``flutter build`` that collides with the live
     Launcher (``agent_runtime.flutter_build_guard``); a paused profile's new ``delegate_task`` spawn
-    (``agent_runtime.subagents.spawning``) right after the block. One callback for all six.
+    (``agent_runtime.subagents.spawning``) right after the block. One callback for all seven.
     """
     from agent_runtime.plugin_doors.harness import (
         flutter_build_refusal, gate_tool_call, review_shared_skill_write, spawn_pause_refusal,
@@ -284,6 +285,11 @@ def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", tool_
     blocked = refuse_blocked_tool(tool_name=tool_name, session_id=session_id)
     if blocked is not None:
         return blocked
+    from agent_runtime.plugin_doors.harness import namespace_config_write_refusal
+
+    config_write = namespace_config_write_refusal(tool_name, args, task_id)  # bundled installs only
+    if config_write is not None:
+        return config_write
     paused = spawn_pause_refusal(tool_name, args)  # a paused profile's worker, in the serve's process
     if paused is not None:
         return {"action": "block", "message": paused}
