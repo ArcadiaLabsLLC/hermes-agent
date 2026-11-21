@@ -671,3 +671,5 @@ from tools.tool_search_downstream import admit_direct_in_resolve, admit_direct_i
 resolve_underlying_call = admit_direct_in_resolve(resolve_underlying_call)  # fork, additive: an in-scope eager name is dispatched, not refused
 scoped_deferrable_names = admit_direct_in_scope(scoped_deferrable_names)  # fork, additive: the bridge's scope is deferred OR eager, in scope
 dispatch_tool_search = mark_direct_hits(dispatch_tool_search)  # fork, additive: eager hits reported as directly_available
+from tools.tool_search_downstream import keep_tied_intent_words  # fork
+search_catalog = keep_tied_intent_words(search_catalog)  # fork seam: a rarity tie in the query keeps every tied word's tools (red-fix 2026-11-21)

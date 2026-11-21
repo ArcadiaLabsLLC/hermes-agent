@@ -706,3 +706,50 @@ class TestDirectCallToDeferredTool:
         # Without the bridge there is no route to name.
         assert _invalid_tool_name_error_content("session_search", ["terminal"]) == (
             "Tool 'session_search' does not exist. Available tools: terminal")
+
+
+class TestRarityTieKeepsEveryTiedWord:
+    """Red-fix pass 2026-11-21: upstream admits only tools carrying the query's single rarest
+    word, so when two words tie on rarity the tools matching only the other were dropped.
+    "owned echo" over a catalog where ``owned`` and ``echo`` each sit in one tool returned
+    ``process_manage`` and never the editor's ``echo`` (seen as a hang in
+    ``tests/acp_adapter/test_gateway_editor_mcp.py``). The fork rebind
+    (``tool_search_downstream.keep_tied_intent_words``) ranks both instead."""
+
+    _register = staticmethod(_UpstreamToolsetScoping._register)
+
+    @staticmethod
+    def _defs():
+        return [
+            _td("mcp_tie_process_manage", "Manage subagent-owned background processes."),
+            _td("mcp__editor_tie__echo", "drifted echo"),
+            *(_td(f"mcp_tie_filler_{i}", f"Filler widget number {i}.") for i in range(6)),
+        ]
+
+    def test_a_rarity_tie_returns_the_tools_of_every_tied_word(self):
+        from tools.tool_search import build_catalog, search_catalog
+
+        names = [hit.name for hit in search_catalog(build_catalog(self._defs()), "owned echo", limit=5)]
+
+        assert set(names) == {"mcp_tie_process_manage", "mcp__editor_tie__echo"}, names
+
+    def test_the_bridge_search_finds_the_tool_a_tie_used_to_drop(self):
+        from tools.tool_search import ToolSearchConfig, dispatch_tool_search
+
+        defs = self._defs()
+        for td in defs:
+            self._register(td["function"]["name"], "mcp-tie")
+        parsed = json.loads(dispatch_tool_search(
+            {"queries": ["owned echo"], "limit": 5}, current_tool_defs=defs,
+            config=ToolSearchConfig.from_raw({"enabled": "on"}),
+        ))
+
+        assert "mcp__editor_tie__echo" in parsed["results"][0]["matches"], parsed["results"]
+
+    def test_a_query_with_one_rarest_word_is_upstreams_answer(self):
+        from tools.tool_search import build_catalog, search_catalog
+        from tools.tool_search_catalog import search_catalog as upstream_search
+
+        catalog = build_catalog(self._defs())
+        for query in ("filler widget", "echo", "owned echo nothing", "mcp__editor_tie__echo", "widget 3"):
+            assert search_catalog(catalog, query, limit=3) == upstream_search(catalog, query, limit=3), query

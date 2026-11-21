@@ -347,6 +347,55 @@ def direct_describe_defs(current_tool_defs):
     return out
 
 
+def keep_tied_intent_words(upstream):
+    """``search_catalog`` that keeps every tool carrying ANY of the query's tied rarest words.
+
+    Upstream admits only the tools carrying the query's single rarest word
+    (``tools.tool_search_catalog._gate_token``); ``max`` keeps the first word of a rarity tie
+    and drops, rather than ranks, the tools matching only the other. Since 6a44a81915 moved
+    ``todo_list`` onto the direct list, ``owned`` and ``echo`` each sit in one tool, and
+    "owned echo" returned ``process_manage`` ("subagent-owned") and never the editor's
+    ``echo``: an agent could not find a tool it had (red-fix pass 2026-11-21, owner: "Fix the
+    tie-break in the search itself, fork-side first").
+
+    On a tie this runs upstream once per tied word with that word made the only rarest one
+    (the other tied words' document frequency raised by a half, so they rank just below it,
+    and upstream's admission and coverage rules apply unchanged), unions what the runs admit,
+    and ranks the union by upstream's BM25 over the real statistics, the exact name first. A
+    query with one rarest word, or whose rarest word no tool carries, is upstream's answer.
+    """
+    from tools.tool_search_catalog import _bm25_score, _corpus_stats, _tokenize
+
+    @functools.wraps(upstream)
+    def search_catalog(catalog, query, limit=5, *, corpus_stats=None):
+        query_tokens = _tokenize(query) if catalog and limit > 0 else []
+        stats = (corpus_stats or _corpus_stats(catalog)) if query_tokens else None
+        doc_freq = stats[2] if stats else {}
+        rarest = min((doc_freq.get(t, 0) for t in query_tokens), default=0)
+        tied = sorted({t for t in query_tokens if doc_freq.get(t, 0) == rarest})
+        if rarest == 0 or len(tied) < 2:
+            return upstream(catalog, query, limit, corpus_stats=corpus_stats)
+        admitted: set[int] = set()
+        for word in tied:
+            nudged = {**doc_freq, **{t: doc_freq[t] + 0.5 for t in tied if t != word}}
+            run = upstream(catalog, query, len(catalog), corpus_stats=(stats[0], stats[1], nudged, stats[3]))
+            admitted.update(id(entry) for entry in run)
+        exact_name = query.strip().lower()
+
+        def _rank(entry) -> float:
+            if entry.name.lower() == exact_name:
+                return float("inf")
+            return _bm25_score(query_tokens, entry._tokens, *stats)
+
+        pool = [entry for entry in catalog if id(entry) in admitted]
+        pool.sort(key=_rank, reverse=True)
+        return pool[:limit]
+
+    search_catalog.__doc__ = (upstream.__doc__ or "") + (
+        "\n\nFork: a rarity tie keeps every tied word's tools (tool_search_downstream.keep_tied_intent_words).")
+    return search_catalog
+
+
 def mark_direct_hits(upstream):
     """``dispatch_tool_search`` that also says which EAGER tools answer a query.
 
@@ -368,7 +417,8 @@ def mark_direct_hits(upstream):
         results = payload.get("results") if isinstance(payload, dict) else None
         if not isinstance(results, list):
             return raw
-        from tools.tool_search_catalog import build_catalog, search_catalog
+        from tools.tool_search import search_catalog  # the tie-keeping rebind, as the deferred search
+        from tools.tool_search_catalog import build_catalog
 
         direct = directly_available_names(current_tool_defs)
         eager_defs = [td for td in current_tool_defs or () if _chat_def_name(td) in direct]
