@@ -18,13 +18,14 @@ queue stays the authority: the relay only carries a request to it and a choice b
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import os
 import threading
 import time
 from pathlib import Path
 from typing import Any
+
+from .serde import read_json_dict, write_json_atomic
 
 __layer__ = "lanes"
 __all__ = ["answer_relayed", "publish", "relayed_approvals"]
@@ -49,21 +50,6 @@ def _safe_id(request_id: Any) -> str | None:
     return text if text and len(text) <= 64 and text.isalnum() else None
 
 
-def _write(path: Path, value: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + f".{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(value, sort_keys=True), encoding="utf-8")
-    os.replace(tmp, path)
-
-
-def _read(path: Path) -> dict[str, Any] | None:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return value if isinstance(value, dict) else None
-
-
 def _writer_alive(record: dict[str, Any]) -> bool:
     from .parent_watch import process_alive, process_create_time
 
@@ -84,7 +70,7 @@ def publish(session_id: str, data: dict[str, Any]) -> None:
         from .parent_watch import process_create_time
 
         folder = _session_dir(session_id)
-        _write(folder / f"{request_id}{_RECORD}", {
+        write_json_atomic(folder / f"{request_id}{_RECORD}", {
             "schema_version": 1, "session_id": session_id, "request_id": request_id,
             "command": str(data.get("command") or ""), "description": str(data.get("description") or ""),
             "owner_pid": os.getpid(), "owner_started": process_create_time(os.getpid()),
@@ -93,7 +79,7 @@ def publish(session_id: str, data: dict[str, Any]) -> None:
     except Exception:
         logger.warning("approval relay: could not record %s", request_id, exc_info=True)
         return
-    threading.Thread(target=_watch, args=(session_id, request_id, folder), daemon=True,
+    threading.Thread(target=_carry_answer, args=(session_id, request_id, folder), daemon=True,
                      name=f"approval-relay-{request_id[:8]}").start()
 
 
@@ -103,7 +89,7 @@ def _pending_here(session_id: str, request_id: str) -> bool:
     return any(row.get("request_id") == request_id for row in list_gateway_approvals(session_id))
 
 
-def _watch(session_id: str, request_id: str, folder: Path) -> None:
+def _carry_answer(session_id: str, request_id: str, folder: Path) -> None:
     """Carry an answer file's choice to the local queue; clean up once the wait has ended."""
 
     from tools.approval import resolve_gateway_approval
@@ -111,7 +97,7 @@ def _watch(session_id: str, request_id: str, folder: Path) -> None:
     record, answer = folder / f"{request_id}{_RECORD}", folder / f"{request_id}{_ANSWER}"
     try:
         while _pending_here(session_id, request_id):
-            reply = _read(answer)
+            reply = read_json_dict(answer)
             if reply is not None:
                 resolve_gateway_approval(session_id, str(reply.get("choice") or "deny"), request_id=request_id)
                 break
@@ -124,7 +110,7 @@ def _watch(session_id: str, request_id: str, folder: Path) -> None:
                 pass
 
 
-def _records(session_id: str) -> list[dict[str, Any]]:
+def _pending_records(session_id: str) -> list[dict[str, Any]]:
     folder = _session_dir(session_id)
     try:
         paths = sorted(folder.glob(f"*{_RECORD}"))
@@ -134,7 +120,7 @@ def _records(session_id: str) -> list[dict[str, Any]]:
     for path in paths:
         if path.name.endswith(_ANSWER):
             continue
-        record = _read(path)
+        record = read_json_dict(path)
         if record and record.get("session_id") == session_id and _safe_id(record.get("request_id")):
             rows.append(record)
     return sorted(rows, key=lambda row: float(row.get("created_at") or 0.0))
@@ -145,7 +131,7 @@ def relayed_approvals(session_id: str) -> list[dict[str, Any]]:
 
     return [{"request_id": row["request_id"], "command": row.get("command") or "",
              "description": row.get("description") or ""}
-            for row in _records(session_id)
+            for row in _pending_records(session_id)
             if row.get("owner_pid") != os.getpid() and _writer_alive(row)]
 
 
@@ -156,9 +142,9 @@ def answer_relayed(session_id: str, request_id: str, choice: str) -> bool:
     if safe is None:
         return False
     folder = _session_dir(session_id)
-    record = _read(folder / f"{safe}{_RECORD}")
+    record = read_json_dict(folder / f"{safe}{_RECORD}")
     if (record is None or record.get("session_id") != session_id or record.get("owner_pid") == os.getpid()
             or not _writer_alive(record) or (folder / f"{safe}{_ANSWER}").exists()):
         return False
-    _write(folder / f"{safe}{_ANSWER}", {"choice": choice, "answered_at": time.time()})
+    write_json_atomic(folder / f"{safe}{_ANSWER}", {"choice": choice, "answered_at": time.time()})
     return True

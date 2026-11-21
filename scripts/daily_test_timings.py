@@ -80,13 +80,13 @@ class _Recorder:
     def pytest_runtest_logfinish(self, nodeid, location) -> None:
         reports = self._phases.pop(nodeid, [])
         self._write({"e": "end", "id": nodeid, "s": round(sum(r.duration for r in reports), 4),
-                     "o": _outcome(reports), "t": round(time.time(), 3)})
+                     "o": _worst_phase(reports), "t": round(time.time(), 3)})
 
     def pytest_unconfigure(self, config) -> None:
         self._out.close()
 
 
-def _outcome(reports) -> str:
+def _worst_phase(reports) -> str:
     """One word per test: the worst of its phases (a teardown error beats a passed call)."""
 
     word = "passed"

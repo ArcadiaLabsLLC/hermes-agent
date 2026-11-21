@@ -251,14 +251,6 @@ def _context_dirs() -> list[Path]:
     return [paths.prompt_observability_dir(), paths.prompt_observability_archive_dir()]
 
 
-def _load_row(path: Path) -> dict[str, Any] | None:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return data if isinstance(data, dict) else None
-
-
 def read_cost(
     home: str | os.PathLike[str],
     context_id: str,
@@ -267,9 +259,11 @@ def read_cost(
 ) -> CostReceipt | None:
     """The cost receipt of row *context_id* (live dir, then archive), or ``None``."""
 
+    from agent_runtime.serde import read_json_dict
+
     with _home_scope(home, runtime_root):
         for directory in _context_dirs():
-            row = _load_row(directory / f"{context_id}.json")
+            row = read_json_dict(directory / f"{context_id}.json")
             if row is not None:
                 return cost_receipt(row)
     return None
@@ -284,10 +278,12 @@ def find_context_id(
 ) -> str | None:
     """The context receipt for this exact turn and session."""
 
+    from agent_runtime.serde import read_json_dict
+
     with _home_scope(home, runtime_root):
         for directory in _context_dirs():
             for path in directory.glob("ctx_*.json") if directory.is_dir() else ():
-                row = _load_row(path)
+                row = read_json_dict(path)
                 if row and row.get("session_id") == session_id and row.get("turn_id") == turn_id:
                     return str(row.get("context_id") or path.stem)
     return None

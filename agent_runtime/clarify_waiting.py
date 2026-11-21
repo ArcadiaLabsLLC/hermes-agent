@@ -57,14 +57,14 @@ def clarify_question_moved_past(ticket: dict[str, Any]) -> bool:
         if not current or current == str(ticket.get("chat_session_id") or ""):
             return False
         # The journal's own order key: a turn's start, else its settle time (``mission_chat_turn_records``).
-        return any(_epoch(turn.get("started_at") or turn.get("updated_at")) > asked
+        return any(_stamp_seconds(turn.get("started_at") or turn.get("updated_at")) > asked
                    and not str(turn.get("client_message_id") or "").startswith(_RUNTIME_DELIVERED)
                    for turn in mission_chat_turn_records(session_id=current))
     except Exception:
         return False
 
 
-def _epoch(stamp: Any) -> float:
+def _stamp_seconds(stamp: Any) -> float:
     try:
         return datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).timestamp()
     except ValueError:
