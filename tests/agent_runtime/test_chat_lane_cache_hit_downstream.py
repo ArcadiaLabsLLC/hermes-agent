@@ -95,7 +95,7 @@ def chat(lane, monkeypatch):  # the imported fixture
     from agent.turn_context import _refresh_mcp_tools_between_turns
     from agent_runtime.cache_routing import persona_cache_scope_id
     from agent_runtime.persona_turn_binding import bind_persona_turn_agent
-    from agent_runtime.profile_runner.runner import _default_agent_factory
+    from agent_runtime.operator_turn_policy import build_agent as _default_agent_factory
     from tools.registry import registry
 
     raw, _build = lane

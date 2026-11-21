@@ -7,16 +7,19 @@ Intelligence conversation runs ``tui_gateway``'s ``prompt.submit`` on an in-proc
 gateway session of its own with ``source`` :data:`OPERATOR_SOURCE`, resumed on the chat's tip in the
 store that holds the chat (the runner's ``session_db``: the persona's profile store, or the head's).
 
-What the operator lane decides about a turn (``profile_runner.execute.AgentRunExecution``: scopes,
-budgets, MCP admission, the persona's prompt policy, the tool block, the live-turn registry) is
-supplied to the gateway as session policy through fork seams it calls:
+What the operator lane decides about a turn (``operator_turn_policy.OperatorTurn``: scopes, budgets,
+MCP admission, the persona's prompt policy, the tool block, the live-turn registry) is supplied to the
+gateway as session policy through fork seams it calls:
 
 * construction — the gateway's ``agent_factory._make_agent`` asks ``worker_app_functions.operator_agent``
-  first, which hands an operator session's build to :func:`construct`: the agent the execution builds,
-  with the turn door installed;
+  first, which hands an operator session's build to :func:`construct`: the agent the turn's policy builds
+  (``OperatorTurn.construct_agent``, the one builder of an operator chat's agent), with the turn door
+  installed;
 * the turn — ``worker_app_functions.bind`` pins the session's model (:func:`pin_session`), and the door
   wraps the agent's ``run_conversation``: the gateway calls it from its own turn thread and the door runs
-  the execution's phases around the real call there.
+  the turn's policy (``OperatorTurn.converse``) around the real call there. The policy's scopes go in the
+  door, not in ``bind``: the gateway binds its own profile scope after ``bind``, and the persona's profile
+  must be the innermost binding of the turn.
 
 The caller (:func:`run_turn`) acquires the chat's actor (the resident registry still decides when one
 is built), submits an empty-text turn to the session (the agent writes the turn's user row, one
@@ -88,6 +91,8 @@ class _Turn:
     home: Path | None = None
     #: The chat's goal as the turn found it: the judge ran on this turn when it moved.
     goal_before: tuple | None = None
+    #: Set when the door took the turn: a gateway refusal after it is the turn's own, not a refused submit.
+    started: bool = False
 
 
 _building: ContextVar[_Build | None] = ContextVar("operator_gateway_build", default=None)
@@ -125,8 +130,8 @@ def construct(sid: str) -> Any:
     """Build an operator session's agent (the gateway's ``_make_agent`` asks ``worker_app_functions.
     operator_agent`` first).
 
-    The build is the execution that asked for the session (:func:`open_actor`), so the agent is the
-    one ``AgentRunExecution.construct_agent`` builds on the runner path, under the same scopes.
+    The build is the turn that asked for the session (:func:`open_actor`), so the agent is the one its
+    policy builds (``OperatorTurn.construct_agent``), under the persona's scopes.
     """
 
     build = _building.get()
@@ -179,8 +184,8 @@ def _install_door(agent: Any, sid: str) -> None:
             if turn is None:
                 return _gateway_turn(agent, sid, args, kwargs)
             try:
-                turn.execution.given_agent = agent
-                turn.outcome = turn.execution.run()
+                turn.started = True
+                turn.outcome = turn.execution.converse(agent)
             except BaseException as exc:
                 turn.error = exc
                 with _lock:
@@ -362,7 +367,7 @@ def _on_frame(frame: dict) -> None:
     with _lock:
         queue = _pending.get(sid)
         turn = queue[0] if queue else None
-    if turn is not None and not turn.done.is_set() and turn.execution.given_agent is None:
+    if turn is not None and not turn.done.is_set() and not turn.started:
         # The gateway refused the turn before it reached the door (context injection, a build that
         # failed): nothing ran, the caller hears why.
         with _lock:

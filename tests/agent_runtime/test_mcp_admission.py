@@ -1237,7 +1237,7 @@ def _run_capturing(**request_kwargs):
     from agent_runtime.profile_runner import AgentRunRequest, ProfileAgentRunner
 
     ProfileAgentRunner(agent_factory=_CapturingAgent).run(
-        AgentRunRequest(profile=None, user_message="hi", **request_kwargs)
+        AgentRunRequest(profile=None, user_message="hi", **{"root_chat_session_id": "chat-mcp", **request_kwargs})
     )
     return _CapturingAgent.last_kwargs
 

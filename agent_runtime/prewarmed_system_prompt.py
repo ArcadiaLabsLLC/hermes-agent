@@ -58,7 +58,7 @@ def stash_prewarmed_system_prompt(
 ) -> bool:
     """Build ``agent``'s first-turn system prompt now and keep it for that turn.
 
-    Called by the prewarm (``AgentRunExecution.run``'s ``prewarm_only`` branch),
+    Called by the prewarm (``operator_turn_policy.OperatorTurn.finish_prewarm``),
     inside the run's scope stack, so the build sees the profile, workdir and MCP
     admission the turn will see. Skipped when the actor already has a prompt (it
     ran a turn) or a stash for the same ``system_message``. Fail-open: a build

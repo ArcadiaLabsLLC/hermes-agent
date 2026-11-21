@@ -155,14 +155,21 @@ A Mission Control chat's turn runs on the same engine as an independent conversa
 `planned/operator-chat-on-the-gateway-engine-2026-11-21.md`). The chat has a gateway
 session of its own (`source="eternia_operator"`), resumed on the chat's tip in the store
 that holds the chat (the persona's profile store, or the head's), built by the operator
-lane through the gateway's factory seam (`worker_app_functions.operator_agent`). The
-runner (`ProfileAgentRunner._converse`) submits an empty-text `prompt.submit` to it, and
-the gateway's turn thread runs the operator lane's own turn (`AgentRunExecution`: scopes,
-budgets, MCP admission, prompt policy, the tool block) through a door on the agent's
-`run_conversation`; the agent writes the turn's user row, so the chat keeps one
-transcript. The turn-scope seam pins the model the operator lane resolved, keeps the
-Launcher link the request carries, and keeps the install's first-contact onboarding note
-out. A run with no chat root (a one-shot) converses directly and opens no session.
+lane through the gateway's factory seam (`worker_app_functions.operator_agent` →
+`OperatorTurn.construct_agent` → `operator_turn_policy.build_agent`, the one builder of an
+operator chat's agent). The runner (`ProfileAgentRunner._converse`) acquires the session
+and submits an empty-text `prompt.submit` to it, and the gateway's turn thread runs the
+operator lane's turn policy (`agent_runtime/operator_turn_policy.py::OperatorTurn.converse`:
+scopes, budgets, MCP admission, prompt policy, the tool block) through a door on the
+agent's `run_conversation`; the agent writes the turn's user row, so the chat keeps one
+transcript. The policy's scopes sit in the door rather than in the turn-scope seam
+(`worker_app_functions.bind`) because the gateway binds its own profile scope after that
+seam, and the persona's profile must be the turn's innermost binding. The turn-scope seam
+pins the model the operator lane resolved, keeps the Launcher link the request carries,
+and keeps the install's first-contact onboarding note out. There is no turn outside the
+engine: a request with no chat root is refused (the operator chat's own host,
+`profile_runner/execute.py`, `resident_actor.py` and `runner._default_agent_factory`, was
+folded into these seams and deleted, owner 2026-11-21 "Yes, fold and delete").
 
 - **One goal loop.** The gateway judges a chat goal once, after the turn; the operator
   settle reads that decision (`EngineJudgedGoal`) instead of judging again, and turns a
@@ -1181,7 +1188,7 @@ operator has to grep prose to learn a fact was clipped.
 rides the terminal record as ONE optional block, `turn_outcome {schema: 1, tests[{command, exit_code,
 verdict}], commits[{command, sha, pushed}], files[{path, op}], truncated}`. The persona runner binds a
 fold around `run_conversation` (`agent_runtime/turn_outcome.py::bind_turn_outcome`, beside the usage
-ledger in `profile_runner/execute.py::_run_conversation_with_usage_ledger`); the eternia-harness
+ledger in `operator_turn_runtime.py::_run_conversation_with_usage_ledger`); the eternia-harness
 plugin's `post_tool_call` hook feeds it (`turn_outcome.py::on_post_tool_call`), classifying a terminal
 command by the `COMMAND_SHAPES` table. Failed calls are included (a red test is what a turn left
 behind); `verdict` comes from the exit code only (`null` → `unknown`); `pushed` is `true` or `null`,

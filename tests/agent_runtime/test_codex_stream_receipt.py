@@ -244,7 +244,7 @@ def test_armed_turns_share_one_registration_and_the_last_one_out_disposes_it():
 
 
 def test_the_profile_runner_turn_runs_with_the_observers_armed():
-    from agent_runtime.profile_runner.execute import _run_conversation_with_usage_ledger
+    from agent_runtime.operator_turn_runtime import _run_conversation_with_usage_ledger
 
     _plugin, hooks = _plugin_hooks()
     seen = []

@@ -7,7 +7,7 @@ per-agent tool block, so the block reaches upstream's code through three doors:
 * **construction** — :func:`prune_agent_tools` drops the names from the constructed
   agent's ``tools`` / ``valid_tool_names`` once, so upstream's tool-conditional prompt
   guidance, memory/skill review nudges and invalid-tool-name handling see the same
-  set the model does (``profile_runner.runner._default_agent_factory``);
+  set the model does (``operator_turn_policy.build_agent``);
 * **the wire** — the eternia-harness ``llm_request`` middleware drops a blocked
   definition from the provider payload (a tool set refreshed after construction
   cannot bring one back);

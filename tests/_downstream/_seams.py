@@ -703,7 +703,7 @@ def reset_runtime_resolve_cache() -> None:
     caller; ``tests/agent_runtime/conftest.py`` resets around every test.
     """
 
-    from agent_runtime.profile_runner import execute as _execute
+    from agent_runtime import operator_turn_runtime as _execute
 
     with _execute._RUNTIME_RESOLVE_CACHE_LOCK:
         _execute._RUNTIME_RESOLVE_CACHE.clear()

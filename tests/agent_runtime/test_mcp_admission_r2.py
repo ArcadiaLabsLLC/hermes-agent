@@ -1006,6 +1006,7 @@ def _admitted_request(**kwargs):
         server_names=("launcher_qa",),
         server_configs={"launcher_qa": {"command": "noop"}},
     )
+    kwargs.setdefault("root_chat_session_id", "chat-mcp-r2")
     return AgentRunRequest(
         profile=None, user_message="hi", mcp_admission=admission, **kwargs
     )
@@ -1031,24 +1032,29 @@ def torn_down(monkeypatch):
     return seen
 
 
-def _stub_admission(monkeypatch, outcome: McpAdmissionOutcome):
+def _stub_admission(monkeypatch, outcome: McpAdmissionOutcome) -> list:
+    """Stub the admission; the list it returns grows by one per admission the run made."""
     from agent_runtime import profile_runner
 
-    monkeypatch.setattr(
-        profile_runner.ProfileAgentRunner,
-        "_admit_mcp_servers",
-        lambda self, request, timing, **_kwargs: outcome,
-    )
+    admitted: list = []
+
+    def _admit(self, request, timing, **_kwargs):
+        admitted.append(outcome.admitted)
+        return outcome
+
+    monkeypatch.setattr(profile_runner.ProfileAgentRunner, "_admit_mcp_servers", _admit)
+    return admitted
 
 
 def test_the_runner_tears_the_scope_down_when_the_run_completes(monkeypatch, torn_down):
     from agent_runtime.profile_runner import ProfileAgentRunner
 
-    _stub_admission(monkeypatch, McpAdmissionOutcome(attempted=True, admitted=("launcher_qa",)))
+    admitted = _stub_admission(monkeypatch, McpAdmissionOutcome(attempted=True, admitted=("launcher_qa",)))
 
     ProfileAgentRunner(agent_factory=_SteerRecordingAgent).run(_admitted_request())
 
-    assert torn_down == [("launcher_qa",)]
+    # Every admission is released: the session's build and the turn on the engine each admit.
+    assert admitted and torn_down == admitted
 
 
 def test_the_runner_tears_the_scope_down_when_the_run_raises(monkeypatch, torn_down):
@@ -1060,12 +1066,13 @@ def test_the_runner_tears_the_scope_down_when_the_run_raises(monkeypatch, torn_d
 
     from agent_runtime.profile_runner import ProfileAgentRunner
 
-    _stub_admission(monkeypatch, McpAdmissionOutcome(attempted=True, admitted=("launcher_qa",)))
+    admitted = _stub_admission(monkeypatch, McpAdmissionOutcome(attempted=True, admitted=("launcher_qa",)))
 
     with pytest.raises(Exception):
         ProfileAgentRunner(agent_factory=_RaisingAgent).run(_admitted_request())
 
-    assert torn_down == [("launcher_qa",)]
+    # Every admission is released, the raised turn's included.
+    assert admitted and torn_down == admitted
 
 
 def test_a_run_that_admitted_nothing_tears_nothing_down(monkeypatch, torn_down):

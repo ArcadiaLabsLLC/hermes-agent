@@ -2,7 +2,7 @@
 from contextlib import contextmanager
 from types import SimpleNamespace
 
-from agent_runtime.profile_runner.execute import AgentRunExecution
+from agent_runtime.operator_turn_policy import OperatorTurn
 from agent_runtime.turn_budget import TurnWallBudget
 from tools.checkpoint_manager import CheckpointManager
 
@@ -35,14 +35,14 @@ def test_checkpoint_and_write_waits_share_remaining_turn_budget(tmp_path, monkey
         request=SimpleNamespace(root_chat_session_id=None),
         wall_checkpoint=SimpleNamespace(budget=TurnWallBudget(60, 160)),
     )
-    AgentRunExecution.bind_chat_root(execution)
+    OperatorTurn.bind_chat_root(execution)
     assert manager.ensure_checkpoint(str(work))
     clock[0] = 159.75
     manager.record_agent_write(str(file))
     clock[0] = 161
     manager.record_agent_write(str(file))
     execution.wall_checkpoint = SimpleNamespace(budget=TurnWallBudget(2, 163))
-    AgentRunExecution.bind_chat_root(execution)
+    OperatorTurn.bind_chat_root(execution)
     manager.record_agent_write(str(file))
     assert waits == [30, .25, 0, 2]
 

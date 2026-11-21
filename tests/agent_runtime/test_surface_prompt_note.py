@@ -2,7 +2,7 @@
 
 A two-turn persona chat through ``GPTPersonaRuntime.mission_chat_reply``. The runner stands in for
 the profile runner around the parts that decide what the model reads, which stay upstream's own:
-the agent-ready hook fires first (as ``profile_runner.execute`` does), then upstream's
+the agent-ready hook fires first (as ``operator_turn_policy`` does), then upstream's
 ``_restore_or_build_system_prompt`` on a real ``SessionDB`` restores the stored first-turn prompt,
 and ``_merge_gateway_notes`` reads the one-shot note channel into the turn's ``api_content``.
 

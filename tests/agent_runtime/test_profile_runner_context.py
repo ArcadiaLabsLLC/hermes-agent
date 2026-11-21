@@ -40,7 +40,7 @@ def test_runner_binds_the_profile_in_context_and_leaves_the_process_env_alone(tm
             seen["env_HERMES_AGENT_RUNTIME_ROOT"] = os.environ.get("HERMES_AGENT_RUNTIME_ROOT")
             return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
 
-    ProfileAgentRunner(agent_factory=EnvAgent).run(AgentRunRequest(profile="pm", runtime_root=runtime_root, user_message="hi"))
+    ProfileAgentRunner(agent_factory=EnvAgent).run(AgentRunRequest(root_chat_session_id="chat-run-43", profile="pm", runtime_root=runtime_root, user_message="hi"))
 
     # Run-serialization S5: the profile, home and root reach the run through its
     # context; the process env is never rewritten — except POSIX HOME, which has no
@@ -73,7 +73,7 @@ def test_runner_executes_agent_inside_requested_workdir_and_restores_caller(tmp_
             seen["agent_cwd"] = resolve_agent_cwd()
             return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
 
-    ProfileAgentRunner(agent_factory=CwdAgent).run(AgentRunRequest(profile=None, user_message="hi", workdir=repo))
+    ProfileAgentRunner(agent_factory=CwdAgent).run(AgentRunRequest(root_chat_session_id="chat-run-76", profile=None, user_message="hi", workdir=repo))
 
     # Run-serialization S4: the run is grounded through its terminal scope; the process
     # cwd and the process env never move, during the run or after it.
@@ -87,7 +87,7 @@ def test_runner_executes_agent_inside_requested_workdir_and_restores_caller(tmp_
 
 def test_runner_asks_the_chosen_credential_check_in_the_profile_before_any_agent(tmp_path, monkeypatch):
     """Review w1118a.69 D1: the run is refused before an agent exists, reading the persona profile's
-    pool and choice. MUTATION (kill): drop the call in ``AgentRunExecution.run`` — red (the agent runs)."""
+    pool and choice. MUTATION (kill): drop the call in ``OperatorTurn.run`` — red (the agent runs)."""
     import pytest
 
     from agent_runtime.provider_login_expiry import NamedProviderNotConfiguredError
@@ -110,8 +110,8 @@ def test_runner_asks_the_chosen_credential_check_in_the_profile_before_any_agent
         def __init__(self, *args, **kwargs):
             raise AssertionError("an agent was built for a refused run")
 
-    monkeypatch.setattr("agent_runtime.profile_runner.execute.refuse_an_unusable_chosen_credential", refuse)
+    monkeypatch.setattr("agent_runtime.operator_turn_policy.refuse_an_unusable_chosen_credential", refuse)
     with pytest.raises(NamedProviderNotConfiguredError):
-        ProfileAgentRunner(agent_factory=MustNotRun).run(AgentRunRequest(
+        ProfileAgentRunner(agent_factory=MustNotRun).run(AgentRunRequest(root_chat_session_id="chat-run-115", 
             profile="pm", runtime_root=tmp_path / "runtime", user_message="hi", provider="anthropic"))
     assert seen["hermes_home"] == profile_home

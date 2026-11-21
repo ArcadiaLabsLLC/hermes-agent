@@ -132,7 +132,7 @@ def test_warm_turns_over_live_sized_skill_roots_walk_nothing_before_request_sent
     from agent_runtime.persona_chat_continuity.runtime_registry import (
         initialize_persona_chat_runtime_registry,
     )
-    from agent_runtime.profile_runner import execute
+    from agent_runtime import operator_turn_runtime as execute
 
     root_logger = logging.getLogger()
     log = guard._Log()

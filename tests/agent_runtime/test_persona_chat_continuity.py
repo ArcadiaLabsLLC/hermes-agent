@@ -29,7 +29,7 @@ from agent_runtime.persona_chat_continuity import (
     tool_execution_scope,
 )
 from agent_runtime.states import WorkerSessionState
-from agent_runtime.profile_runner import _finish_resident_persona_chat_agent
+from agent_runtime.operator_turn_policy import _finish_resident_persona_chat_agent
 from hermes_state import SessionDB
 from hermes_cli.harness_parts.persona import chat_history_writes
 

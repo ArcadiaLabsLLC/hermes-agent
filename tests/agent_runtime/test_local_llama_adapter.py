@@ -15,7 +15,7 @@ import uuid
 
 import pytest
 
-from agent_runtime import serve_rpc
+from agent_runtime import operator_turn_runtime, serve_rpc
 from agent_runtime.call_authorization import CALLER_PEER, UNKNOWN_CALLER, RpcCaller
 from agent_runtime.local_llama_adapter import (
     FLOOR_EXEMPTION_REQUESTED_PROVIDER,
@@ -373,11 +373,11 @@ def test_generation_parameters_ride_the_factory_and_bust_the_resident_actor():
 
 def test_the_runner_resolves_a_local_persona_through_the_adapter_never_the_cloud(monkeypatch):
     from agent_runtime import profile_runner
-    monkeypatch.setattr(profile_runner.execute, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
+    monkeypatch.setattr(operator_turn_runtime, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
     calls = []
     monkeypatch.setattr(provider, "resolve", lambda model, *, root=None: calls.append(model) or runtime_row())
-    request = profile_runner.AgentRunRequest(profile=None, provider=PROVIDER_ID, model="saved-id")
-    assert profile_runner._resolve_request_runtime(request)["model"] == "hermes-local-example"
+    request = profile_runner.AgentRunRequest(root_chat_session_id="chat-run-379", profile=None, provider=PROVIDER_ID, model="saved-id")
+    assert operator_turn_runtime._resolve_request_runtime(request)["model"] == "hermes-local-example"
     assert calls == ["saved-id"]
 
 
@@ -656,11 +656,11 @@ def test_a_cloud_provider_takes_no_lease(monkeypatch):
 @pytest.mark.parametrize("provider_id", [PROVIDER_ID])
 def test_either_provider_id_resolves_through_the_adapter(provider_id, monkeypatch):
     from agent_runtime import profile_runner
-    monkeypatch.setattr(profile_runner.execute, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
+    monkeypatch.setattr(operator_turn_runtime, "resolve_runtime_provider", lambda **kw: pytest.fail("reached the cloud resolver"))
     calls = []
     monkeypatch.setattr(provider, "resolve", lambda model, *, root=None: calls.append(model) or runtime_row())
-    request = profile_runner.AgentRunRequest(profile=None, provider=provider_id, model="preset-id")
-    assert profile_runner._resolve_request_runtime(request)["model"] == "hermes-local-example"
+    request = profile_runner.AgentRunRequest(root_chat_session_id="chat-run-662", profile=None, provider=provider_id, model="preset-id")
+    assert operator_turn_runtime._resolve_request_runtime(request)["model"] == "hermes-local-example"
     assert calls == ["preset-id"]
 
 

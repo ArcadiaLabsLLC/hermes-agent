@@ -45,7 +45,7 @@ def test_rpc_checkpoint_round_trip_is_workspace_pinned(tmp_path, monkeypatch):
 
 
 def test_factory_uses_native_profile_checkpoint_settings(tmp_path, monkeypatch):
-    from agent_runtime.profile_runner.runner import _default_agent_factory
+    from agent_runtime.operator_turn_policy import build_agent as _default_agent_factory
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HERMES_HOME", str(home))

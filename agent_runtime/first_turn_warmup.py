@@ -32,7 +32,7 @@ turns:
   ``observability_catalog_walk_ms=312 / 330`` -- the serve's skill-catalog memo
   is COLD on its first chat turn, because the hub's snapshot builds (the only
   other readers) run in the snapshot worker process. The memo is process-wide,
-  so the prewarm reads it once (the caller's ``skill_catalog`` step, ``profile_runner.execute``).
+  so the prewarm reads it once (the caller's ``skill_catalog`` step, ``operator_turn_policy``).
 
 h-turn1-conn adds the response side: the SDK's first parse of a streamed
 Responses event (``openai._models.construct_type`` building the

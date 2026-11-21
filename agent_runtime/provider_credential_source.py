@@ -283,7 +283,7 @@ def chosen_unusable_message(provider: str) -> str:
 def refuse_an_unusable_chosen_credential(request: Any) -> None:
     """Refuse a run, before any token, while its provider's CHOSEN credential cannot serve and one of
     the other kind is saved: named, typed :data:`CHOSEN_CREDENTIAL_UNUSABLE`, and the other kind is
-    never spent. The runner calls it inside the persona's profile (``profile_runner/execute.py``), so
+    never spent. The runner calls it inside the persona's profile (``operator_turn_policy.OperatorTurn``), so
     that profile's pool and choice are what is read; a prewarm is never refused."""
     if getattr(request, "prewarm_only", False) or not getattr(request, "provider", None):
         return

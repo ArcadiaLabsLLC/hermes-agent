@@ -8,7 +8,7 @@ turn — the shape of a turn blocked on an operator approval — until root B's 
 finished; root B is bound to a different profile, and each records the home and runtime
 root it resolves while the other is bound.
 
-Kill-mutation: in ``AgentRunExecution.scopes`` replace
+Kill-mutation: in ``OperatorTurn.scopes`` replace
 ``root_run_lock(request.root_chat_session_id or request.tool_execution_scope_id)`` with
 ``root_run_lock(None)`` (every run shares one key, the old process-wide behaviour). Root
 B then cannot start until root A gives up waiting, and the overlap test reds.

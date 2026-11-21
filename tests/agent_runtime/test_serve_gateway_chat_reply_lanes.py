@@ -144,18 +144,18 @@ class _ScriptedAgent:
 def scripted_model(monkeypatch):
     """No network, and patched where PRODUCTION resolves it.
 
-    ``ProfileAgentRunner`` binds ``_default_agent_factory`` at construction, so
+    A runner with no injected factory builds through ``operator_turn_policy.build_agent``, so
     the patch has to be on the module attribute rather than on a runner
     instance — a runner built later on the serve's worker thread must pick it
     up, and one built with an explicit factory would be exercising the seam
     instead of the send path.
     """
 
-    from agent_runtime import profile_runner
+    from agent_runtime import operator_turn_policy, operator_turn_runtime
 
-    monkeypatch.setattr(profile_runner.runner, "_default_agent_factory", _ScriptedAgent)
+    monkeypatch.setattr(operator_turn_policy, "build_agent", lambda factory=None, **kwargs: _ScriptedAgent(**kwargs))
     monkeypatch.setattr(
-        profile_runner.execute,
+        operator_turn_runtime,
         "resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested or "scripted",

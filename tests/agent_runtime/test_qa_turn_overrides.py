@@ -17,7 +17,7 @@ from agent_runtime import qa_turn_overrides as qa
 from agent_runtime.mission_chat_outcome import ChatErrorKind, ExecutionState
 from agent_runtime.mission_chat_turns import mission_chat_turn_record
 from agent_runtime.persona_runtime import _qa_request_fields
-from agent_runtime.profile_runner.execute import _qa_silence
+from agent_runtime.operator_turn_runtime import _qa_silence
 from agent_runtime.profile_runner.models import AgentRunRequest
 from agent_runtime.turn_budget import TurnBudgetPhase, TurnWallBudget
 from hermes_cli import _namespace_bootstrap as bootstrap

@@ -2,8 +2,9 @@
 
 Entry points (what calls in):
 
-* ``runner.ProfileAgentRunner`` (``run`` / ``prewarm``) — the chat turn lane,
-  the persona runtime and the dispatch lanes run an agent through it.
+* ``runner.ProfileAgentRunner`` (``run`` / ``prewarm``) — the chat turn lane and the
+  persona runtime run a chat's turn through it, on the serve's one turn engine
+  (``agent_runtime.operator_gateway_turn``, the policy ``agent_runtime.operator_turn_policy``).
 * ``models.AgentRunRequest`` / ``AgentRunResult`` — the request and the answer.
 * ``errors.RunBudgetExceeded`` — a run that spent its budget.
 * ``workdir.agent_runs_in_flight`` — the in-flight census.
@@ -23,16 +24,13 @@ tool_payloads              stores  tool/dev-work/todo payloads, safe labels
 dispatch_payloads          stores  dispatch payload fields (reads a persona label)
 progress                   stores  callback -> progress payloads
 model_input_observability  stores  compaction and model-input receipts
-resident_actor             lanes   the resident chat actor around a run
 mcp_lane                   lanes   MCP admission notices in a run
-execute                    lanes   ``AgentRunExecution`` (one run, phase by phase);
-                                   blocked tools, enabled toolsets; the per-request
-                                   runtime resolution memo
-runner                     lanes   ``ProfileAgentRunner`` (admit MCP, run, tear down)
+runner                     lanes   ``ProfileAgentRunner`` (the caller: submit the turn,
+                                   normalize, post-run budgets, MCP admission calls)
 =========================  ======  ============================================
 
-Stores written: none of its own beyond the process memos (``workdir``,
-``execute``'s runtime-resolution memo); receipts ride the progress callback and the observability
+Stores written: none of its own beyond the process memo of ``workdir`` (the runtime-resolution
+memo is ``agent_runtime.operator_turn_runtime``'s); receipts ride the progress callback and the observability
 records. Never imported from here: ``hermes_cli.harness``.
 """
 
@@ -46,9 +44,7 @@ from agent_runtime.profile_runner import (  # every family, in the original defi
     errors,
     models,
     budget,
-    resident_actor,
     runner,
-    execute,
     mcp_lane,
     workdir,
     status,
@@ -65,20 +61,9 @@ from agent_runtime.profile_runner.errors import (
 )
 from agent_runtime.profile_runner.models import AgentRunRequest, AgentRunResult
 from agent_runtime.profile_runner.budget import WallBudgetCheckpoint, _ToolBudgetGuard
-from agent_runtime.profile_runner.resident_actor import (
-    _finish_resident_persona_chat_agent,
-    stage_persona_chat_user_row_marker,
-)
 from agent_runtime.profile_runner.runner import (
     ProfileAgentRunner,
-    _default_agent_factory,
     _normalize_result,
-)
-from agent_runtime.profile_runner.execute import (
-    RUNTIME_RESOLVE_CACHE_TTL_SECONDS,
-    _resolve_request_runtime,
-    _run_conversation_with_usage_ledger,
-    _runtime_resolve_cache_key,
 )
 from agent_runtime.profile_runner.workdir import (
     _WORKDIR_LOCK,
@@ -110,7 +95,6 @@ from agent_runtime.profile_runner.model_input_observability import (
 __layer__ = "lanes"
 
 __all__ = [
-    "RUNTIME_RESOLVE_CACHE_TTL_SECONDS",
     "_TODO_STATE_MAX_CONTENT",
     "_TODO_STATE_MAX_ITEMS",
     "_WORKDIR_LOCK",
@@ -127,16 +111,11 @@ __all__ = [
     "_apply_chat_compaction_threshold",
     "_binding_for_profile",
     "_counted_agent_run",
-    "_default_agent_factory",
-    "_finish_resident_persona_chat_agent",
     "_is_error_result",
     "_normalize_result",
     "_profile_status_callback",
     "_progress_adapter",
     "_rendered_skills_prompt_chars",
-    "_resolve_request_runtime",
-    "_run_conversation_with_usage_ledger",
-    "_runtime_resolve_cache_key",
     "_system_prompt_section_receipts",
     "_todo_items_from",
     "_todo_state_payload",
@@ -148,6 +127,5 @@ __all__ = [
     "persona_profile_context",
     "profile_exists",
     "resolve_runtime_provider",
-    "stage_persona_chat_user_row_marker",
     "time",
 ]

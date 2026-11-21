@@ -229,7 +229,7 @@ def test_without_usage_the_frames_and_record_carry_no_counts(monkeypatch, capsys
 
 
 def test_generic_provider_usage_reports_reasoning_without_fabricating_time():
-    from agent_runtime.profile_runner.execute import _run_conversation_with_usage_ledger
+    from agent_runtime.operator_turn_runtime import _run_conversation_with_usage_ledger
     from agent_runtime.usage_ledger import record_usage
     def run(**kwargs):
         record_usage({"reasoning_tokens": 17})

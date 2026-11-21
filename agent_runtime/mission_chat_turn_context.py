@@ -803,7 +803,7 @@ def mission_chat_runtime_signature_components(
         "reasoning_effort": model_selection.get("effective_reasoning_effort"),
         "profile": getattr(persona, "hermes_profile", None),
         # STAYS, and may not be dropped: the actor is CONSTRUCTED from these two
-        # lists (``profile_runner._enabled_toolsets_for_run`` /
+        # lists (``operator_turn_runtime._enabled_toolsets_for_run`` /
         # ``_blocked_tool_names_for_run``) and
         # ``_prepare_resident_persona_chat_agent`` does not re-apply them on
         # reuse — it refreshes callbacks, the cache scope and the iteration cap

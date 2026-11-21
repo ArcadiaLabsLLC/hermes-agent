@@ -85,7 +85,7 @@
   "agent_runtime/pool_rotation.py|_rotation_persist_warned": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/process_index.py|_RECORDED": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/profile_readiness.py|_provider_issue_memo": "seeded 2026-10-16 from the census; reason owed",
-  "agent_runtime/profile_runner/execute.py|_RUNTIME_RESOLVE_CACHE": "seeded 2026-10-16 from the census; reason owed",
+  "agent_runtime/operator_turn_runtime.py|_RUNTIME_RESOLVE_CACHE": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/profile_runner/workdir.py|_ACTIVE_RUNS": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/prompt_guidance.py|_miss_warned": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/prompt_observability/skills_resolver.py|_TURN_SHARED_CATALOG": "seeded 2026-10-16 from the census; reason owed",

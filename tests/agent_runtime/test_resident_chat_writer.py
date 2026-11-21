@@ -8,7 +8,7 @@ from agent_runtime.chat_session_writer import ChatSessionWriterLease, chat_sessi
 from agent_runtime.mission_chat_outcome import MissionChatDeferredFinalization
 from agent_runtime.persona_chat_durability import default_persona_session_db
 from agent_runtime.persona_chat_continuity import runtime_registry as residents
-from agent_runtime.profile_runner.execute import AgentRunExecution
+from agent_runtime.operator_turn_policy import OperatorTurn
 from agent_runtime.profile_runner.models import AgentRunRequest
 from tests.agent_runtime.test_chat_session_writer import canonical_scope, assert_closed
 
@@ -17,12 +17,12 @@ def owned_execution(registry, db, factory=None, *, root="root", signature="conte
     request = AgentRunRequest(profile=None, root_chat_session_id=root, session_id=tip,
         persona_chat_runtime_registry=registry, persona_chat_runtime_signature=signature,
         persona_chat_native_revision=revision, prewarm_only=prewarm)
-    execution = AgentRunExecution(SimpleNamespace(_session_db=db), None, request)
+    execution = OperatorTurn(SimpleNamespace(_session_db=db), None, request)
     execution.runtime = dict(provider="custom", model="test", api_mode="chat_completions")
     # The leaf of an acquisition is the actor build (a gateway session around the constructed agent,
-    # ``AgentRunExecution.build_actor``); the registry and writer bookkeeping above it is what is tested.
-    execution.build_actor = factory or (lambda: SimpleNamespace(db=db, close=Mock()))
-    execution.acquire_agent()
+    # ``OperatorTurn.open_session``); the registry and writer bookkeeping above it is what is tested.
+    execution.open_session = factory or (lambda: SimpleNamespace(db=db, close=Mock()))
+    execution.acquire_session()
     return execution
 
 
@@ -244,7 +244,7 @@ def test_actual_prewarm_runner_and_first_run_keep_constructor_writer(canonical_s
     def factory(**kwargs):
         agent = _Agent(**kwargs); agent.db = kwargs["session_db"]
         agents.append(agent); return agent
-    monkeypatch.setattr("agent_runtime.profile_runner.execute.resolve_runtime_provider", lambda provider, model: dict(provider=provider, model=model, api_mode="chat_completions"))
+    monkeypatch.setattr("agent_runtime.operator_turn_runtime.resolve_runtime_provider", lambda provider, model: dict(provider=provider, model=model, api_mode="chat_completions"))
     monkeypatch.setattr(prewarm, "_stand_down_outcome", lambda: None)
     def prepare(root, instance):
         db = default_persona_session_db()

@@ -100,12 +100,12 @@ def reset_fake_agent_response():
 
 
 def test_runner_passes_toolsets_and_blocked_tools_to_ai_agent(monkeypatch):
-    monkeypatch.setattr("agent_runtime.profile_runner.execute.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
+    monkeypatch.setattr("agent_runtime.operator_turn_runtime.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
     progress_events = []
 
     result = runner.run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id="chat-run-108",
             profile=None,
             provider="openai-codex",
             model="gpt-5.5",
@@ -179,7 +179,7 @@ def test_runner_binds_and_resets_skill_runtime_surface():
             )
 
     result = ProfileAgentRunner(agent_factory=ContextAgent).run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id="chat-run-182",
             profile=None,
             user_message="route skills",
             skill_surface="mission_chat",
@@ -214,7 +214,7 @@ def test_runner_binds_chat_root_session_key_for_the_run():
             )
 
     result = ProfileAgentRunner(agent_factory=KeyAgent).run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id=root,
             profile=None,
             user_message="attribute my spawns",
             tool_execution_scope_id=root,
@@ -295,7 +295,7 @@ def test_persona_chat_runner_applies_one_turn_compression_proof_overrides():
 
 def test_runner_attaches_redaction_safe_model_input(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested,
             "model": target_model,
@@ -308,7 +308,7 @@ def test_runner_attaches_redaction_safe_model_input(monkeypatch):
             return f"core prompt\napi_key: should-not-leak\n{system_message or ''}"
 
     result = ProfileAgentRunner(agent_factory=PromptAgent).run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id="chat-run-311",
             profile=None,
             provider="openai-codex",
             model="gpt-5.5",
@@ -396,7 +396,7 @@ def test_system_prompt_section_receipts_fail_closed_on_cached_prompt_drift(
 
 def test_runner_attaches_agent_owned_final_cache_routing_observability(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested,
             "model": target_model,
@@ -427,7 +427,7 @@ def test_runner_attaches_agent_owned_final_cache_routing_observability(monkeypat
             )
 
     result = ProfileAgentRunner(agent_factory=CacheRoutingAgent).run(
-        AgentRunRequest(profile=None, user_message="hello")
+        AgentRunRequest(root_chat_session_id="chat-run-430", profile=None, user_message="hello")
     )
 
     routing = result.raw["model_input_observability"]["cache_routing"]
@@ -459,7 +459,7 @@ def test_runner_forwards_stream_callback_to_agent():
     deltas = []
     callback = deltas.append
     result = ProfileAgentRunner(agent_factory=StreamingAgent).run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id="chat-run-462",
             profile=None,
             user_message="hi",
             stream_callback=callback,
@@ -479,7 +479,7 @@ def test_runner_calls_agent_ready_callback_and_cleanup():
         return lambda: events.append(("cleanup", agent.session_id))
 
     result = ProfileAgentRunner(agent_factory=FakeAgent).run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id="chat-run-482",
             profile=None,
             user_message="hi",
             session_id="session_ready",
@@ -495,7 +495,7 @@ def test_runner_persists_provider_conversation_timing_from_agent_status_callback
     progress_events = []
 
     result = ProfileAgentRunner(agent_factory=ProviderTimingAgent).run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id="chat-run-498",
             profile=None,
             user_message="hi",
             progress_callback=progress_events.append,
@@ -513,7 +513,7 @@ def test_runner_persists_provider_conversation_timing_from_agent_status_callback
 
 def test_runner_resolves_runtime_credentials_for_explicit_provider(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested,
             "model": target_model,
@@ -524,7 +524,7 @@ def test_runner_resolves_runtime_credentials_for_explicit_provider(monkeypatch):
     )
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
 
-    runner.run(AgentRunRequest(profile=None, provider="openai-codex", model="gpt-5.5", user_message="hello"))
+    runner.run(AgentRunRequest(root_chat_session_id="chat-run-527", profile=None, provider="openai-codex", model="gpt-5.5", user_message="hello"))
 
     assert FakeAgent.last_kwargs["api_key"] == "runtime-key"
     assert FakeAgent.last_kwargs["base_url"] == "https://chatgpt.com/backend-api/codex/responses"
@@ -544,14 +544,14 @@ def test_runner_reports_missing_profile_before_agent_construction(monkeypatch):
     runner = ProfileAgentRunner(agent_factory=ShouldNotConstruct)
 
     with pytest.raises(ProfileRunnerError):
-        runner.run(AgentRunRequest(profile="missing", user_message="hi"))
+        runner.run(AgentRunRequest(root_chat_session_id="chat-run-547", profile="missing", user_message="hi"))
 
     assert constructed is False
 
 
 @pytest.mark.parametrize("evidence", [None, {"status_code": 401, "failure_reason": "auth_permanent"}])
 def test_runner_raises_failed_agent_results_before_decision_parsing(monkeypatch, evidence):
-    monkeypatch.setattr("agent_runtime.profile_runner.execute.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
+    monkeypatch.setattr("agent_runtime.operator_turn_runtime.resolve_runtime_provider", lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"})
     FakeAgent.response = {
         "final_response": None,
         "messages": [],
@@ -565,7 +565,7 @@ def test_runner_raises_failed_agent_results_before_decision_parsing(monkeypatch,
     }
 
     with pytest.raises(ProfileRunnerError, match="HTTP 401") as caught:
-        ProfileAgentRunner(agent_factory=FakeAgent).run(AgentRunRequest(profile=None, provider="openai-codex", user_message="hi"))
+        ProfileAgentRunner(agent_factory=FakeAgent).run(AgentRunRequest(root_chat_session_id="chat-run-568", profile=None, provider="openai-codex", user_message="hi"))
     assert caught.value.provider_error == evidence
 
 
@@ -1139,7 +1139,7 @@ def test_runner_interrupts_agent_when_wall_clock_budget_exceeded():
     runner = ProfileAgentRunner(agent_factory=SlowInterruptibleAgent)
 
     with pytest.raises(RunBudgetExceeded, match="wall_seconds=0.01"):
-        runner.run(AgentRunRequest(profile=None, user_message="hi", max_wall_seconds=0.01))
+        runner.run(AgentRunRequest(root_chat_session_id="chat-run-1142", profile=None, user_message="hi", max_wall_seconds=0.01))
 
     assert SlowInterruptibleAgent.ran_for is not None and SlowInterruptibleAgent.ran_for < 0.2
     assert SlowInterruptibleAgent.interrupted is True
@@ -1155,7 +1155,7 @@ def test_runner_rejects_result_that_exceeds_api_call_budget():
 
     with pytest.raises(RunBudgetExceeded, match="api_calls=6/5"):
         ProfileAgentRunner(agent_factory=FakeAgent).run(
-            AgentRunRequest(profile=None, user_message="hi", max_api_calls=5)
+            AgentRunRequest(root_chat_session_id="chat-run-1158", profile=None, user_message="hi", max_api_calls=5)
         )
 
 
@@ -1169,7 +1169,7 @@ def test_runner_rejects_result_that_exceeds_total_token_budget():
 
     with pytest.raises(RunBudgetExceeded, match="total_tokens=101/100"):
         ProfileAgentRunner(agent_factory=FakeAgent).run(
-            AgentRunRequest(profile=None, user_message="hi", max_total_tokens=100)
+            AgentRunRequest(root_chat_session_id="chat-run-1172", profile=None, user_message="hi", max_total_tokens=100)
         )
 
 
@@ -1184,7 +1184,7 @@ def test_runner_emits_budget_pressure_warning_before_total_token_cap():
     }
 
     result = ProfileAgentRunner(agent_factory=FakeAgent).run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id="chat-run-1187",
             profile=None,
             user_message="hi",
             max_total_tokens=100,
@@ -1209,7 +1209,7 @@ def test_runner_allows_under_budget_result():
     }
 
     result = ProfileAgentRunner(agent_factory=FakeAgent).run(
-        AgentRunRequest(profile=None, user_message="hi", max_api_calls=5, max_total_tokens=100, max_wall_seconds=1)
+        AgentRunRequest(root_chat_session_id="chat-run-1212", profile=None, user_message="hi", max_api_calls=5, max_total_tokens=100, max_wall_seconds=1)
     )
 
     assert result.final_response == "ok"
@@ -1226,7 +1226,7 @@ def test_runner_rejects_missing_workdir_before_agent_construction(tmp_path):
 
     with pytest.raises(ProfileRunnerError, match="workdir"):
         ProfileAgentRunner(agent_factory=ShouldNotConstruct).run(
-            AgentRunRequest(profile=None, user_message="hi", workdir=tmp_path / "missing")
+            AgentRunRequest(root_chat_session_id="chat-run-1229", profile=None, user_message="hi", workdir=tmp_path / "missing")
         )
 
     assert constructed is False
@@ -1973,13 +1973,13 @@ def test_runner_threads_cache_scope_id_to_agent_factory(monkeypatch):
     kwarg while session_id is left None (persona-chat shape). It must not be
     conflated with session_id — the transcript-load key stays untouched."""
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider",
         lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"},
     )
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
 
     runner.run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id="chat-run-1982",
             profile=None,
             provider="openai-codex",
             model="gpt-5.6-luna",
@@ -2001,13 +2001,13 @@ def test_runner_defaults_cache_scope_id_none_for_worker_lanes(monkeypatch):
     """Lanes that don't set cache_scope_id thread None — the codex transport
     then falls back to session_id, so worker/mission-run behavior is unchanged."""
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider",
         lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"},
     )
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
 
     runner.run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id="chat-run-2010",
             profile=None,
             provider="openai-codex",
             model="gpt-5.6-luna",
@@ -2022,10 +2022,10 @@ def test_runner_defaults_cache_scope_id_none_for_worker_lanes(monkeypatch):
 
 
 def test_default_agent_factory_applies_cache_scope_without_ctor_kwarg(monkeypatch):
-    """_default_agent_factory pops cache_scope_id and sets it on the constructed
-    agent — it is NEVER forwarded to the (upstream) AIAgent constructor, and it
-    never touches the session_id the agent loads its transcript from."""
-    from agent_runtime import profile_runner as pr
+    """The operator chat's one builder (``operator_turn_policy.build_agent``) pops cache_scope_id and
+    sets it on the constructed agent — it is NEVER forwarded to the (upstream) AIAgent constructor, and
+    it never touches the session_id the agent loads its transcript from."""
+    from agent_runtime import operator_turn_policy
 
     seen_kwargs = {}
 
@@ -2036,7 +2036,7 @@ def test_default_agent_factory_applies_cache_scope_without_ctor_kwarg(monkeypatc
 
     monkeypatch.setattr("run_agent.AIAgent", _RecordingAgent, raising=False)
 
-    agent = pr._default_agent_factory(session_id=None, cache_scope_id="chat-persona-xyz")
+    agent = operator_turn_policy.build_agent(session_id=None, cache_scope_id="chat-persona-xyz")
 
     # Applied as an attribute the codex seam reads…
     assert agent.cache_scope_id == "chat-persona-xyz"
@@ -2046,7 +2046,7 @@ def test_default_agent_factory_applies_cache_scope_without_ctor_kwarg(monkeypatc
 
     # Unset scope leaves no attribute (getattr default None at the seam).
     seen_kwargs.clear()
-    agent2 = pr._default_agent_factory(session_id="worker-1", cache_scope_id=None)
+    agent2 = operator_turn_policy.build_agent(session_id="worker-1", cache_scope_id=None)
     assert getattr(agent2, "cache_scope_id", None) is None
     assert "cache_scope_id" not in seen_kwargs
 
@@ -2095,10 +2095,10 @@ def test_a_failing_agent_ready_callback_is_a_typed_warning_not_a_failed_run():
     or on cleanup surfaces as one ``run.progress`` warning naming the phase and the
     exception class, and never fails the run."""
 
-    from agent_runtime.profile_runner import execute
+    from agent_runtime import operator_turn_runtime as execute
 
     seen: list[dict] = []
-    request = AgentRunRequest(
+    request = AgentRunRequest(root_chat_session_id="chat-run-2101",
         profile="default",
         user_message="hi",
         progress_callback=seen.append,
@@ -2118,7 +2118,7 @@ def test_runner_opencode_persisted_api_mode_does_not_split_url_from_transport(mo
     # must build the Anthropic client against /zen, not a chat/completions client against /zen
     # (POST /zen/chat/completions -> 404, owner serve 2026-10-15).
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested,
             "model": target_model,
@@ -2129,7 +2129,7 @@ def test_runner_opencode_persisted_api_mode_does_not_split_url_from_transport(mo
     )
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
 
-    runner.run(AgentRunRequest(profile=None, provider="opencode-zen", model="claude-opus-5-5",
+    runner.run(AgentRunRequest(root_chat_session_id="chat-run-2132", profile=None, provider="opencode-zen", model="claude-opus-5-5",
                                api_mode="chat_completions", user_message="hello"))
 
     assert FakeAgent.last_kwargs["api_mode"] == "anthropic_messages"
@@ -2139,7 +2139,7 @@ def test_runner_opencode_persisted_api_mode_does_not_split_url_from_transport(mo
 def test_runner_opencode_chat_model_keeps_v1_for_chat_completions(monkeypatch):
     # Positive control: a chat/completions Zen model under the same persisted mode keeps /v1.
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider",
         lambda requested, target_model: {
             "provider": requested, "model": target_model, "api_mode": "chat_completions",
             "api_key": "zen-key", "base_url": "https://opencode.ai/zen/v1",
@@ -2147,7 +2147,7 @@ def test_runner_opencode_chat_model_keeps_v1_for_chat_completions(monkeypatch):
     )
     runner = ProfileAgentRunner(agent_factory=FakeAgent)
 
-    runner.run(AgentRunRequest(profile=None, provider="opencode-zen", model="glm-4.7-free",
+    runner.run(AgentRunRequest(root_chat_session_id="chat-run-2150", profile=None, provider="opencode-zen", model="glm-4.7-free",
                                api_mode="chat_completions", user_message="hello"))
 
     assert FakeAgent.last_kwargs["api_mode"] == "chat_completions"

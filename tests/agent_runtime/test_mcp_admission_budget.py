@@ -613,6 +613,7 @@ class _Agent:
 def _request(**kwargs):
     from agent_runtime.profile_runner import AgentRunRequest
 
+    kwargs.setdefault("root_chat_session_id", "chat-mcp-budget")
     return AgentRunRequest(
         profile=None, user_message="hi", mcp_admission=_admission(limit=9), **kwargs
     )

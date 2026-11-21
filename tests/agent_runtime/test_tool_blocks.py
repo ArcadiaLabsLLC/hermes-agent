@@ -1,7 +1,7 @@
 """A run's blocked tools, enforced through the plugin surface (plugin-fit PF-1).
 
 Three doors, one block: the constructed agent is pruned
-(``profile_runner.runner._default_agent_factory``), the eternia-harness
+(``operator_turn_policy.build_agent``), the eternia-harness
 ``llm_request`` middleware drops the definition from the provider payload, and its
 ``pre_tool_call`` hook refuses the call — a ``tool_call``-unwrapped one included.
 Every negative below has its positive control: the same input, the block unbound.
@@ -150,7 +150,7 @@ def test_prune_drops_the_names_from_tools_and_valid_tool_names():
 
 def test_the_default_factory_prunes_and_never_hands_the_kwarg_to_upstream(monkeypatch):
     import run_agent
-    from agent_runtime.profile_runner.runner import _default_agent_factory
+    from agent_runtime.operator_turn_policy import build_agent as _default_agent_factory
 
     seen: dict = {}
 
@@ -182,11 +182,11 @@ def test_the_runner_binds_the_block_for_the_run(monkeypatch):
             return {"final_response": "ok", "session_id": self.session_id, "messages": []}
 
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider",
         lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "chat_completions"},
     )
     ProfileAgentRunner(agent_factory=_RunAgent).run(
-        AgentRunRequest(profile=None, provider="p", model="m", blocked_tool_names=["send_message"], user_message="hi")
+        AgentRunRequest(root_chat_session_id="chat-run-189", profile=None, provider="p", model="m", blocked_tool_names=["send_message"], user_message="hi")
     )
     assert "send_message" in observed["during"]
     assert blocked_tools_for("s-run") == frozenset()

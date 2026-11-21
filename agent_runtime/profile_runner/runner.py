@@ -1,6 +1,9 @@
-"""``ProfileAgentRunner`` — admit MCP servers, execute one agent run, tear down;
-moved whole in the MOVE (ruling Q8), its ``_execute_agent_run`` becomes
-``execute.AgentRunExecution`` in the CHANGE (the class delegates each run to it).
+"""``ProfileAgentRunner`` — the operator lane's caller of a Mission Control chat turn.
+
+The turn itself runs on the serve's one turn engine (``agent_runtime.operator_gateway_turn``), under the
+operator lane's turn policy (``agent_runtime.operator_turn_policy.OperatorTurn``); this class validates the
+request, submits the turn, normalizes its result, enforces the post-run budgets and owns the MCP
+admission calls the policy makes.
 """
 
 from __future__ import annotations
@@ -26,10 +29,6 @@ from agent_runtime.profile_runner.budget import (
     _emit_budget_pressure_warning,
     _enforce_result_budgets,
 )
-from agent_runtime.profile_runner.resident_actor import (
-    _finish_resident_persona_chat_agent,
-)
-from agent_runtime.profile_runner.execute import AgentRunExecution
 from agent_runtime.profile_runner.mcp_lane import (
     _on_mcp_budget_exhausted,
 )
@@ -47,7 +46,6 @@ __layer__ = "lanes"
 
 __all__ = [
     "ProfileAgentRunner",
-    "_default_agent_factory",
     "_normalize_result",
 ]
 
@@ -69,7 +67,9 @@ def _local_engine_turn_scope(request: Any):
 class ProfileAgentRunner:
     def __init__(self, *, agent_factory: Callable[..., Any] | None = None, credential_pool=None, session_db=None):
         self._uses_default_agent_factory = agent_factory is None
-        self._agent_factory = agent_factory or _default_agent_factory
+        #: An injected stand-in for upstream's ``AIAgent`` (a test's fake); None builds the real one
+        #: (``operator_turn_policy.build_agent``).
+        self._agent_factory = agent_factory
         self._credential_pool = credential_pool
         self._session_db = session_db
 
@@ -94,10 +94,10 @@ class ProfileAgentRunner:
         The ONLY entry point for ``prewarm_only`` requests, and deliberately not
         ``run``: ``run`` normalizes a result, finishes the resident agent and
         enforces post-run budgets, none of which exist for a construction. What
-        it DOES share is everything that decides what the agent IS —
-        ``_execute_agent_run``'s whole scope stack and its ``acquire()`` call —
-        so the actor this leaves in the registry is the actor the next real turn
-        would have built for itself.
+        it DOES share is everything that decides what the agent IS — the turn
+        policy's whole scope stack and its session acquisition
+        (``OperatorTurn.prewarm``) — so the actor this leaves in the registry is
+        the actor the next real turn would have built for itself.
 
         Returns the run's ``profile_timing`` dict; ``resident_actor_reused``
         tells the caller whether it built (``0``) or found one already resident
@@ -116,7 +116,9 @@ class ProfileAgentRunner:
         binding = _binding_for_profile(request.profile)
         if binding.readiness != "ready":
             raise ProfileRunnerError(binding.summary)
-        _, agent, profile_timing = AgentRunExecution(self, binding, request).run()
+        from agent_runtime.operator_turn_policy import OperatorTurn
+
+        _, agent, profile_timing = OperatorTurn(self, binding, request).prewarm()
         # h-turn1 A4: the process's first resolve + handshake happen here, on
         # the prewarm thread, AFTER the run released `_WORKDIR_LOCK` -- a turn
         # arriving now never waits on the network for it.
@@ -163,6 +165,8 @@ class ProfileAgentRunner:
             )
         finally:
             if resident:
+                from agent_runtime.operator_turn_policy import _finish_resident_persona_chat_agent
+
                 _finish_resident_persona_chat_agent(agent)
         result.latency_ms = _elapsed_ms(started)
         profile_timing["run_budget"] = ledger.accounting()
@@ -196,30 +200,23 @@ class ProfileAgentRunner:
         """A chat's turn on the serve's one turn engine (``agent_runtime.operator_gateway_turn``).
 
         The chat's actor (a gateway session) is acquired here, the turn is submitted to it, and the
-        gateway's turn thread runs this run's execution through the session's door.
+        engine's turn thread runs the turn's policy (``OperatorTurn.converse``) through the session's door.
+        A run names its chat: there is no turn outside the engine.
         """
 
         from agent_runtime import operator_gateway_turn
+        from agent_runtime.operator_turn_policy import OperatorTurn
 
         if not request.root_chat_session_id:
-            # Not a chat (a one-shot run): no chat session to run on, so no engine session either; a
-            # minted one would leave a phantom row in the store for every such run.
-            return AgentRunExecution(self, binding, request, ledger=ledger).run()
+            raise ProfileRunnerError("an agent run is a chat's turn: the request names no chat root")
+        turn = OperatorTurn(self, binding, request, ledger=ledger)
         inline = operator_gateway_turn.inline_turn(request)
         if inline is not None:
-            # A completion the gateway delivered to this chat: already on its turn thread, on its agent.
-            execution = AgentRunExecution(self, binding, request, ledger=ledger)
-            execution.given_agent = inline.agent
-            inline.outcome = execution.run()
+            # A completion the engine delivered to this chat: already on its turn thread, on its agent.
+            inline.outcome = turn.converse(inline.agent)
             return inline.outcome
-
-        # Acquisition has its own ledger: the turn's bounds are declared once, by the turn.
-        acquisition = AgentRunExecution(self, binding, request, ledger=RunBudgetLedger())
-        agent = acquisition.acquire_actor()
-        execution = AgentRunExecution(self, binding, request, ledger=ledger)
-        # One resolve per turn: the turn converses on the runtime its actor was acquired for.
-        execution.acquired = acquisition
-        return operator_gateway_turn.run_turn(execution, agent)
+        agent = turn.acquire()
+        return operator_gateway_turn.run_turn(turn, agent)
 
     def _admit_mcp_servers(
         self,
@@ -422,34 +419,3 @@ def _normalize_result(result: Any, *, agent) -> AgentRunResult:
         messages=[],
         raw={"result_type": type(result).__name__},
     )
-
-
-def _default_agent_factory(**kwargs):
-    from run_agent import AIAgent
-    from agent_runtime.checkpoint_config import checkpoint_constructor_kwargs
-
-    # ``cache_scope_id`` is a fork-runtime, header-only codex cache-scope hint —
-    # NOT part of the upstream AIAgent constructor. Pop it before construction so
-    # the upstream signature is untouched, then apply it as an attribute the
-    # codex build seam reads via ``getattr(agent, "cache_scope_id", None)``. It
-    # never participates in session/transcript loading.
-    cache_scope_id = kwargs.pop("cache_scope_id", None)
-    # The run's blocked tools are not an upstream constructor parameter either: the
-    # agent is pruned once here, and the wire and the call are guarded by the
-    # eternia-harness plugin against the block the run binds (agent_runtime.tool_blocks).
-    blocked_tool_names = kwargs.pop("blocked_tool_names", None)
-    # The chat lane's per-persona defer (agent_runtime.chat_lane_defer) is not one either:
-    # the eager list is re-assembled with the persona's names deferred, BEFORE the block is
-    # pruned, since the re-assembly starts from the lane's unpruned definitions.
-    chat_lane_defer_tools = kwargs.pop("chat_lane_defer_tools", None)
-    agent = AIAgent(**{**checkpoint_constructor_kwargs(), **kwargs})
-    if cache_scope_id:
-        agent.cache_scope_id = cache_scope_id
-    # The tool form has one owner (agent_runtime.chat_lane_tool_form, settled in the
-    # eternia-harness pre_llm_call hook): upstream's between-turns MCP refresh is switched off
-    # through its own per-agent door; the owner lands this run's admitted MCP scope instead.
-    agent._skip_mcp_refresh = True
-    from agent_runtime.chat_lane_tool_form import apply_chat_lane_defer
-
-    apply_chat_lane_defer(agent, chat_lane_defer_tools, blocked=blocked_tool_names)
-    return agent

@@ -15,7 +15,7 @@ import pytest
 from agent_runtime import operator_images as oi
 from agent_runtime.chat_turn import ChatTurnInvalid, normalize_chat_message
 from agent_runtime.mission_chat_outcome import ChatErrorKind
-from agent_runtime.profile_runner.execute import AgentRunExecution
+from agent_runtime.operator_turn_policy import OperatorTurn
 from agent_runtime.profile_runner.models import AgentRunRequest
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
@@ -95,7 +95,7 @@ def test_vision_capability_is_upstreams_decision(monkeypatch):
 def test_the_provider_sees_image_parts_and_the_transcript_keeps_media_lines(store, tmp_path):
     (path,) = oi.resolve_refs(oi.store_images([oi.OperatorImage("image/png", PNG)]))
     request = AgentRunRequest(profile=None, user_message="HUD\n\nwhat is this?", user_image_paths=(str(path),))
-    kwargs = AgentRunExecution.conversation_kwargs(SimpleNamespace(request=request))
+    kwargs = OperatorTurn.conversation_kwargs(SimpleNamespace(request=request))
     parts = kwargs["user_message"]
     assert parts[0]["type"] == "text" and "what is this?" in parts[0]["text"]
     assert parts[1]["type"] == "image_url" and parts[1]["image_url"]["url"].startswith("data:image/png;base64,")
@@ -105,7 +105,7 @@ def test_the_provider_sees_image_parts_and_the_transcript_keeps_media_lines(stor
 
 def test_a_turn_without_images_keeps_its_plain_message():
     request = AgentRunRequest(profile=None, user_message="hi")
-    kwargs = AgentRunExecution.conversation_kwargs(SimpleNamespace(request=request))
+    kwargs = OperatorTurn.conversation_kwargs(SimpleNamespace(request=request))
     assert kwargs["user_message"] == "hi" and "persist_user_message" not in kwargs
 
 

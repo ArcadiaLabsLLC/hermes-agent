@@ -123,7 +123,7 @@ def stub_runtime(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider", _resolve
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider", _resolve
     )
 
 
@@ -811,7 +811,7 @@ def test_the_run_gauge_is_zero_outside_a_run_and_nonzero_inside(stub_runtime):
 
     assert agent_runs_in_flight() == 0
     ProfileAgentRunner(agent_factory=_Peeking).run(
-        _request(prewarm_only=False, registry=None, root_chat_session_id=None)
+        _request(prewarm_only=False, registry=None, root_chat_session_id="chat_root_turn")
     )
 
     assert observed == [1]
@@ -848,7 +848,7 @@ def test_a_prewarm_stands_down_while_a_real_turn_is_in_flight(stub_runtime, monk
             return super().run_conversation(*args, **kwargs)
 
     ProfileAgentRunner(agent_factory=_Reentrant).run(
-        _request(prewarm_only=False, registry=None, root_chat_session_id=None)
+        _request(prewarm_only=False, registry=None, root_chat_session_id="chat_root_turn")
     )
 
     assert outcomes == [OUTCOME_SKIPPED_TURN_ACTIVE]
@@ -1386,7 +1386,7 @@ def test_the_first_turn_after_a_prewarm_adopts_the_prompt_it_built(stub_runtime,
     """A3: ``profile_conversation_system_prompt_build_ms`` is absent on turn 1, as on turn 2.
 
     *Killing mutation:* drop ``stash_prewarmed_system_prompt`` from the prewarm
-    branch of ``AgentRunExecution.run`` (or the seam in ``conversation_loop``):
+    branch of ``OperatorTurn.run`` (or the seam in ``conversation_loop``):
     the turn builds again and carries the build key.
     """
 

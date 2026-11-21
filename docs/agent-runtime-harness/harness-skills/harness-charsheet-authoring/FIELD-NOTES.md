@@ -2089,7 +2089,7 @@ first two correct the plan I was handed rather than confirming it.
   switch: the module resolves a `PersonaProfileBinding`, puts `profile=binding.hermes_profile`
   on an `AgentRunRequest`, and hands it to `ProfileAgentRunner.prewarm`. The bind happens one
   layer down, then in `_execute_agent_run` (now
-  `agent_runtime/profile_runner/execute.py::AgentRunExecution.scopes`), inside the
+  `agent_runtime/operator_turn_policy.py::OperatorTurn.scopes`), inside the
   `with` stack a REAL TURN uses — same `_WORKDIR_LOCK`, same `persona_profile_context`,
   same everything, deliberately, because that module's whole premise is that an actor built
   under different scopes is a different actor. So there is no prewarm-only knob; the only

@@ -118,7 +118,7 @@ Entry points, and the modules an agent opens to follow each:
 * ``explain_terminal_envelope`` (``runtime_hud``, ``terminal_envelope_explain``)
   -> ``decision`` -> ``grants``;
 * ``scope_for_persona`` / ``terminal_envelope_scope`` (``persona_runtime``,
-  ``profile_runner/execute``) -> ``records``.
+  ``operator_turn_policy``) -> ``records``.
 
 Modules, lowest layer first (no module imports one above it — W0-G6):
 

@@ -490,7 +490,7 @@ def _run_guard(monkeypatch, capsys) -> tuple[list[str], list[str], list[str]]:
     from agent_runtime.persona_chat_continuity.runtime_registry import (
         initialize_persona_chat_runtime_registry,
     )
-    from agent_runtime.profile_runner import execute
+    from agent_runtime import operator_turn_runtime as execute
     from agent_runtime.prompt_observability import skills_resolver
     from agent_runtime.snapshot_worker import executor as executor_mod
     from hermes_constants import get_hermes_home

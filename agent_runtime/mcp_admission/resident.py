@@ -44,7 +44,7 @@ SLOT_ATTR = "_mcp_admission_budget_slot"
 
 
 #: The call budget of the run this context belongs to. Set by the run on its own thread
-#: (``AgentRunExecution.admit_mcp``) and inherited by the tool threads it starts, so a metered
+#: (``OperatorTurn.admit_mcp``) and inherited by the tool threads it starts, so a metered
 #: handler can tell WHICH bound run is calling.
 _RUN_CALL_BUDGET: ContextVar[Any] = ContextVar("mcp_admission_run_call_budget", default=None)
 

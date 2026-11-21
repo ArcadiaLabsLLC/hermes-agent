@@ -886,7 +886,7 @@ everywhere (`messaging_enabled` false). Pinned by `tests/agent_runtime/messaging
 9. **Adding a receipt to the core-cache lane means adding a ROW to the channel table**, and the
    test drives both directions (`core_cache/__init__.py:84-88`).
 10. **Turns serialize per chat ROOT, not per process** (run-serialization S5, 2026-10-16).
-    `AgentRunExecution.scopes` holds `profile_runner.workdir.root_run_lock` for the whole
+    `operator_turn_policy.OperatorTurn.scopes` holds `profile_runner.workdir.root_run_lock` for the whole
     run; another root runs alongside, including while one waits on an operator approval.
     That is sound because a turn writes no process state: the profile home, auth home and
     runtime root are bound in ContextVars (`persona_profile_context`,

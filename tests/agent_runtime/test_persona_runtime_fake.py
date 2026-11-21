@@ -184,7 +184,7 @@ def test_chat_reply_can_disable_internal_session_persistence(tmp_path, monkeypat
         persist_agent_session=False,
     )
 
-    runtime.mission_chat_reply(neko, "hi", session_id=None)
+    runtime.mission_chat_reply(neko, "hi", session_id="chat_no_persist")
 
     fake = FakeAIAgent.instances[0]
     assert fake.kwargs["session_db"] is None
@@ -1191,7 +1191,10 @@ def test_mission_chat_reply_honors_core_context_file_opt_in(tmp_path, monkeypatc
 
 
 def test_mission_chat_reply_without_session_records_no_trace(tmp_path, monkeypatch):
-    # A sandbox chat turn with no durable session must not synthesize trace.
+    # A chat turn with no session is refused before the engine (there is no turn outside it since the
+    # fold, 2026-11-21), and it must not synthesize trace on the way out.
+    from agent_runtime.profile_runner import ProfileRunnerError
+
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
     FakeAIAgent.instances.clear()
     neko = next(persona for persona in sample_personas() if persona.id == "neko_supervisor")
@@ -1209,8 +1212,10 @@ def test_mission_chat_reply_without_session_records_no_trace(tmp_path, monkeypat
         default_provider="openai-codex", default_model="gpt-5.5", agent_factory=ToolCallingAgent
     )
 
-    runtime.mission_chat_reply(neko, "hi", session_id=None)
+    with pytest.raises(ProfileRunnerError, match="names no chat root"):
+        runtime.mission_chat_reply(neko, "hi", session_id=None)
 
+    assert ToolCallingAgent.instances == []
     assert EventLog().tail(10) == []
 
 

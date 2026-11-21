@@ -109,7 +109,7 @@ def test_profile_runner_blocks_kanban_feishu_on_the_worker_lane_shape():
     # (node_tools.py / root_node_engine.py). The chokepoint must still block the
     # hygiene set so those lanes cannot resolve kanban / feishu either.
     ProfileAgentRunner(agent_factory=_CapturingAgent).run(
-        AgentRunRequest(profile=None, blocked_tool_names=[], user_message="hi")
+        AgentRunRequest(root_chat_session_id="chat-run-112", profile=None, blocked_tool_names=[], user_message="hi")
     )
     blocked = set(_CapturingAgent.last_kwargs["blocked_tool_names"])
     assert REGISTRY_HYGIENE_BLOCKED_TOOLS.issubset(blocked)
