@@ -159,6 +159,10 @@ def _characters_auto_write(args, data: dict, human: str) -> None:
     from agent_runtime.root_observability import attach_characters_home
 
     data = attach_characters_home(dict(data))  # each line states the home it read (D3.17)
+    sink = getattr(args, "operation_result_sink", None)
+    if sink is not None:  # the typed ``runtime.characters.auto`` door collects every line
+        sink({**data, **draftsman()})
+        return
     sys.stdout.write(
         (emit_json_line({**data, **draftsman()}) if getattr(args, "json", False) else human) + "\n"
     )
