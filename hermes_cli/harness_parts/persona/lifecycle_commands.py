@@ -26,7 +26,7 @@ from agent_runtime.persona_chat_durability import (
     ensure_persona_chat_session as _ensure_persona_chat_session,
     persona_session_db_for,
 )
-from agent_runtime.chat_session_scope import resolve_instance_chat_scope
+from agent_runtime.chat_heads import resolve_conversation_chat_scope
 from .chat_coordinator import (
     _coordinator_actor_id,
     _coordinator_confirm_payload,
@@ -210,10 +210,19 @@ def _placement_discriminability_refusal(placement_id: str) -> dict | None:
 
 
 def _instance_session_db(instance):
-    """The writer for *instance*'s own chat head (process scope unless per-profile)."""
+    """THE writer for *instance*'s own chat head: the create's root and the new-chat mint.
+
+    Acquired through the one conversation resolver, so a never-bound instance (no
+    chat pointer, no recorded head) writes where its first bind will stamp the head
+    (``chat_heads.first_bind_chat_head``) and the send and the model read find the
+    root there (RT-FU-A-NEW-CHAT-WITH-AN-AGENT-ON-ITS-OWN-PROFILE-CANNOT-TAKE-ITS-FIRST-MESSAGE:
+    the mint asked ``resolve_instance_chat_scope``, which has no first-bind rule, and
+    wrote Neko's new chat into ``profiles/base``). A bound instance gets the answer
+    ``resolve_instance_chat_scope`` gives, unchanged.
+    """
 
     return persona_session_db_for(
-        resolve_instance_chat_scope(instance), process=_default_persona_session_db
+        resolve_conversation_chat_scope(instance=instance), process=_default_persona_session_db
     )
 
 

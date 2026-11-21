@@ -1594,6 +1594,15 @@ publish's own set (`artifacts._workspaces_for_realm`, the delete ledger already 
 with the clone's realm subtree — `agent_runtime/realm_sync/workspace_changes.py`; both keys are additive and
 absent-tolerant.
 
+**What a pull would change is on the status read too** (RT-FU-A-REALM-STATUS-SAYS-WHAT-A-PULL-WOULD-CHANGE).
+`incoming_artifact_counts` counts, by kind, the realm artifacts the team's copy (`@{u}`, refreshed by the status's
+own fetch) holds differently since the clone's merge base with it — added, changed and deleted — each path classified
+by the one path table (`families._kind_for_sync_path`), the paths the pull refuses (`is_secretish_path`,
+`_is_hard_excluded_path`) left out and a skill counted once per package. Counts only, never a remote path.
+`artifact_counts` stays the whole realm, for the sheet. No upstream or no merge base answers `{}`; a clone holding an
+unadopted team commit (`behind` 0) answers `{}` too. Additive and absent-tolerant
+(`agent_runtime/realm_sync/status.py::_incoming_artifact_counts`, the git port's `changed_between`).
+
 `store_adopted` (RT-REALM-STATUS-READS-AN-UNADOPTED-PULL-AS-UNPUBLISHED) says whether this machine's store has adopted every commit its sync clone holds for the realm (`realm_sync/adoption.py`: the clone commit the last finished pull or the last publish's own commit recorded, against the newest commit touching the realm's subtree). False means the clone moved ahead of the store — a pull whose appliers did not finish, or a clone a read made before any pull — so `state` reads `behind` even when git's `behind` is 0, `unpublished_changes` is false, a workspace row that would read `unpublished` reads `behind`, and `publish` refuses `sync_not_adopted` until a pull adopts it.
 
 `publish_changes` is the backstop under every family (RT-REALM-SLOTS-ADDED-WAIT-UNSEEN-UNTIL-A-HAND-PUBLISH): the

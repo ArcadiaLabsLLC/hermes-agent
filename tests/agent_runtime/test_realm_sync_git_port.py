@@ -421,6 +421,23 @@ def test_read_tree_at_writes_one_versions_subtree(tmp_path, remote):
     assert (repo / "realms/r/a.txt").read_text(encoding="utf-8") == "two\n"  # no ref moved
 
 
+def test_changed_between_lists_a_subtrees_adds_changes_and_deletes(tmp_path, remote):
+    """RT-FU-A-REALM-STATUS-SAYS-WHAT-A-PULL-WOULD-CHANGE: what a pull would bring, by path. Killing mutation
+    (run 2026-11-21): either backend dropping the ``old`` side -> the deleted ``a.txt`` is missing, red."""
+
+    repo = _clone(tmp_path, remote)
+    git = sync_git(repo)
+    first = git.resolve("HEAD")
+    _member_commits(repo, "realms/r/b.txt", "b\n", "add")
+    _member_commits(repo, "outside.txt", "o\n", "not the realm")
+    (repo / "realms/r/a.txt").unlink()
+    git.add(["realms/r/a.txt"])
+    git.commit("delete")
+    assert git.changed_between(first, "HEAD", "realms/r/") == ("realms/r/a.txt", "realms/r/b.txt")
+    assert git.changed_between("HEAD", "HEAD", "realms/r/") == ()
+    assert git.changed_between("deadbeef" * 5, "HEAD", "realms/r/") == ()
+
+
 # -- the backend is the profile's choice (S6) ---------------------------------------------------------
 
 

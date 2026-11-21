@@ -204,7 +204,7 @@ class RoomState:
         execution = self.executions.for_run(run)
         attempts = execution.attempt_rows(run_id)
         for task in driver.list_tasks(self.db_path, room_id=run_id):
-            row = execution.row(run_id, task, attempts)
+            row = execution.row(run_id, task, attempts, record=False)  # a view folds, never writes
             tasks.append({"task_id": task["identity"].task_id, "member_id": task["payload"]["target_member_id"],
                 "round_index": policy.task_round_index(task["identity"], limits=limits),
                 "source_event_seq": task["payload"]["source_event_seq"],

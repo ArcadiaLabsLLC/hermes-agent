@@ -262,6 +262,17 @@ class DulwichSyncGit:
             tree = repo[sha].tree
             return frozenset(_s(entry.path) for entry in repo.object_store.iter_tree_contents(tree))
 
+    def changed_between(self, old: str, new: str, subtree: str) -> tuple[str, ...]:
+        with self._open() as repo:
+            before, after = self._resolve(repo, old), self._resolve(repo, new)
+            if not (before and after):
+                return ()
+            prefix = subtree.rstrip("/")
+            return tuple(sorted({_s(side.path) for change in tree_changes(repo.object_store, repo[before].tree,
+                                                                           repo[after].tree)
+                                 for side in (change.old, change.new)
+                                 if side is not None and side.path is not None and _within_paths(_s(side.path), [prefix])}))
+
     def read_tree_at(self, sha: str, rel: str, dest: Path) -> Path | None:
         with self._open() as repo:
             commit = self._resolve(repo, sha)

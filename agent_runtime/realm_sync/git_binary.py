@@ -129,6 +129,12 @@ class BinarySyncGit:
     def tree_paths(self, ref: str) -> frozenset[str]:
         return frozenset(line for line in self._out("ls-tree", "-r", "--name-only", ref).splitlines() if line)
 
+    def changed_between(self, old: str, new: str, subtree: str) -> tuple[str, ...]:
+        if not (self.resolve(old) and self.resolve(new)):
+            return ()
+        text = self._step("diff", "--name-only", "--no-renames", "-z", old, new, "--", subtree)
+        return tuple(sorted(path for path in text.split("\0") if path))
+
     def read_tree_at(self, sha: str, rel: str, dest: Path) -> Path | None:
         if not self._ok("cat-file", "-e", f"{sha}:{rel}"):
             return None

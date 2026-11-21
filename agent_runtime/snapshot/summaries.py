@@ -175,6 +175,7 @@ def _agent_summary(agent, *, include_tool_details: bool = False, readiness=None)
         "provider_configured": bool(agent.provider),
         "default_model": _safe_model_label(getattr(agent, "model", None)),
         "default_provider": _safe_model_label(getattr(agent, "provider", None)),
+        **_first_chat_model(agent),
         "autonomy": agent.autonomy,
         "core_context_files": "enabled" if getattr(agent, "include_core_context_files", False) else "isolated",
         "repo_scope_label": _safe_text(getattr(agent, "repo_scope_label", None)) or _safe_repo_scope_label(getattr(agent, "repo_scope", None)),
@@ -209,6 +210,33 @@ def _agent_summary(agent, *, include_tool_details: bool = False, readiness=None)
             }
         )
     return summary
+
+
+def _first_chat_model(agent) -> dict[str, str | None]:
+    """``effective_model`` / ``effective_provider``: what an agent's FIRST chat runs on, before any instance.
+
+    Asked of the one resolver every turn folds (``persona_chat_session.next_turn_model_selection``, no chat,
+    no instance), so the persona's own model, its profile config's default and the runtime default rank as
+    a turn ranks them and Eternia never works the tiers out itself for an agent with no instance yet
+    (RT-AN-AGENT-WITH-NO-INSTANCE-YET-PUBLISHES-THE-MODEL-ITS-FIRST-CHAT-RUNS-ON). Both config reads are the
+    loader's mtime-cached parse, so a build pays one parse per profile. A resolver failure publishes
+    ``None`` (no answer), never a guess.
+    """
+
+    from agent_runtime.config import load_agent_runtime_config
+    from agent_runtime.persona_chat_session import next_turn_model_selection
+
+    try:
+        selection = next_turn_model_selection(
+            session_db=None, session_id=None, persona=agent, config=load_agent_runtime_config(), instance=None,
+        )
+    except Exception:
+        logger.debug("first-chat model resolution failed for %s", getattr(agent, "id", "?"), exc_info=True)
+        selection = {}
+    return {
+        "effective_model": _safe_model_label(selection.get("effective_model")),
+        "effective_provider": _safe_model_label(selection.get("effective_provider")),
+    }
 
 
 # Profile-template discovery re-parses every profile YAML (~0.7s of one

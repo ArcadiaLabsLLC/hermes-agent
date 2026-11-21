@@ -27,6 +27,7 @@
       "unreadable": []
     },
     "id": "realm_fixture_denied",
+    "incoming_artifact_counts": {},
     "kind": "realm_sync",
     "last_publish": null,
     "last_pull": null,
