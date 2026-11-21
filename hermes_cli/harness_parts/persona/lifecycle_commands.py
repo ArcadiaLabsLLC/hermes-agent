@@ -13,7 +13,6 @@ from dataclasses import asdict
 from agent_runtime.agent_create.seat import seat_added_instance
 from agent_runtime.call_authorization import CLI_CONSOLE
 from agent_runtime.config import load_agent_runtime_config
-from agent_runtime.coordinator_permissions import review_coordinator_budget
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
     RetiredPersonaInstanceError,
@@ -31,8 +30,7 @@ from agent_runtime.chat_session_scope import resolve_instance_chat_scope
 from .chat_coordinator import (
     _coordinator_actor_id,
     _coordinator_confirm_payload,
-    _coordinator_scope,
-    _coordinator_spawn_refusal,
+    _coordinator_spawn_scope,
     _maybe_stamp_spawned_by,
 )
 from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
@@ -260,20 +258,11 @@ def _cmd_persona_instance_create(args) -> int:
     persona_id = _normalize_cli_persona_or_template_id(args.persona_id)
     persona = _persona_by_id(cfg, persona_id)
     coordinator_id = _coordinator_actor_id(args)
-    coordinator_scope = None
-    if coordinator_id and (display_name or add_instance):
-        coordinator_scope = _coordinator_scope(coordinator_id)
-        auth = review_coordinator_budget(
-            "persona.instance.create",
-            coordinator_scope,
-            actor=coordinator_id,
-            coordinator_id=coordinator_id,
-        )
-        if not auth.ok:
-            data = _coordinator_spawn_refusal("persona.instance.create", coordinator_id, auth)
-            _emit_persona_verb_payload(args, data, plain=data["message"])
-            return 2
-        coordinator_scope = auth.scope
+    coordinator_scope, refused = _coordinator_spawn_scope(
+        "persona.instance.create", coordinator_id, spawns=bool(display_name or add_instance))
+    if refused is not None:
+        _emit_persona_verb_payload(args, refused, plain=refused["message"])
+        return 2
     # UC-H4. Until now this handler minted a roster row and a chat root for any
     # id that TOKENISED — `--persona qa_agent` against a roster of
     # base/backend_dev/dev/neko_supervisor/qa produced durable artifacts bound
@@ -300,26 +289,10 @@ def _cmd_persona_instance_create(args) -> int:
                     _emit_persona_verb_payload(args, refusal)
                     return 2
             if independent:
-                from agent_runtime.agent_duplicate import AGENT_NAME_LOCK
-                from agent_runtime.locks import agent_create_lock
-                from agent_runtime.persona_assignments.independent import create_independent_agent
-
-                # The name rule ``runtime.agent.create`` keeps, under its lock:
-                # a new agent never takes a name an agent already has
-                # (RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION).
-                with agent_create_lock(AGENT_NAME_LOCK):
-                    instance = create_independent_agent(
-                        PersonaInstanceStore(),
-                        source_persona_id=persona_id,
-                        source_instance_id=safe_assignment_token(getattr(args, "source_instance_id", None)) or None,
-                        placement_id=placement_id if add_instance else None,
-                        creation_key=safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or None,
-                        display_name=display_name,
-                        workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
-                        realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
-                        client_scope=owner,
-                        refuse_taken_name=True,
-                    )
+                instance = _create_independent_instance(
+                    args, persona_id, placement_id=placement_id if add_instance else None,
+                    display_name=display_name, owner=owner,
+                )
             elif add_instance:
                 instance = PersonaInstanceStore().add_instance(
                     persona_id=persona_id,
@@ -394,31 +367,70 @@ def _cmd_persona_instance_create(args) -> int:
         # writes; a refused one is named on the reply and the instance stays.
         # MUTATION: drop this call and test_instance_create_add_instance_seats_it_on_its_workspace_level reddens.
         office_seat = seat_added_instance(instance) if (add_instance or independent) else None
-        data = {
-            "ok": True,
-            **({"office_seat": office_seat.receipt()} if office_seat is not None else {}),
-            "agent_profile_id": instance.id,
-            "persona_instance_id": instance.id,
-            "source_persona_id": instance.persona_id,
-            "persona_id": instance.persona_id,
-            "source_profile_id": instance.profile_id,
-            "profile_id": instance.profile_id,
-            "agent_profile_display_name": instance.display_name,
-            "display_name": instance.display_name,
-            "lifecycle_mode": instance.mode,
-            "mode": instance.mode,
-            "default_chat_session_id": instance.default_chat_session_id,
-            "chat_session_id": instance.default_chat_session_id,
-            "session_id": instance.default_chat_session_id,
-            "chat_busy": False,
-            "add_instance": add_instance,
-            "placement_id": placement_id or None,
-            **({"client_scope": owner} if owner is not None else {}),
-            "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
-            "next_expected": "agent profile created; refresh Harness snapshot for the profile, chat, and scene placement state",
-        }
+        data = _instance_created_reply(
+            instance, office_seat=office_seat, add_instance=add_instance, placement_id=placement_id,
+            owner=owner, coordinator_scope=coordinator_scope,
+        )
         _emit_persona_verb_payload(args, data, plain=f"created {instance.id} on chat {instance.default_chat_session_id}")
         return 0
+    return _retired_assignment_lane_refusal(args, persona_id)
+
+
+def _instance_created_reply(instance, *, office_seat, add_instance: bool, placement_id, owner,
+                            coordinator_scope) -> dict:
+    """The ``persona instance create`` reply for a minted instance."""
+
+    return {
+        "ok": True,
+        **({"office_seat": office_seat.receipt()} if office_seat is not None else {}),
+        "agent_profile_id": instance.id,
+        "persona_instance_id": instance.id,
+        "source_persona_id": instance.persona_id,
+        "persona_id": instance.persona_id,
+        "source_profile_id": instance.profile_id,
+        "profile_id": instance.profile_id,
+        "agent_profile_display_name": instance.display_name,
+        "display_name": instance.display_name,
+        "lifecycle_mode": instance.mode,
+        "mode": instance.mode,
+        "default_chat_session_id": instance.default_chat_session_id,
+        "chat_session_id": instance.default_chat_session_id,
+        "session_id": instance.default_chat_session_id,
+        "chat_busy": False,
+        "add_instance": add_instance,
+        "placement_id": placement_id or None,
+        **({"client_scope": owner} if owner is not None else {}),
+        "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
+        "next_expected": "agent profile created; refresh Harness snapshot for the profile, chat, and scene placement state",
+    }
+
+
+def _create_independent_instance(args, persona_id: str, *, placement_id, display_name: str, owner):
+    """A new agent of its own from *persona_id*, under the name rule ``runtime.agent.create`` keeps."""
+
+    from agent_runtime.agent_duplicate import AGENT_NAME_LOCK
+    from agent_runtime.locks import agent_create_lock
+    from agent_runtime.persona_assignments.independent import create_independent_agent
+
+    # The name rule ``runtime.agent.create`` keeps, under its lock:
+    # a new agent never takes a name an agent already has
+    # (RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION).
+    with agent_create_lock(AGENT_NAME_LOCK):
+        return create_independent_agent(
+            PersonaInstanceStore(),
+            source_persona_id=persona_id,
+            source_instance_id=safe_assignment_token(getattr(args, "source_instance_id", None)) or None,
+            placement_id=placement_id,
+            creation_key=safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or None,
+            display_name=display_name,
+            workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
+            realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
+            client_scope=owner,
+            refuse_taken_name=True,
+        )
+
+
+def _retired_assignment_lane_refusal(args, persona_id: str) -> int:
     # S70: the display-name-less branch used to queue a "free-floating persona
     # assignment" (and optionally auto-run one bounded turn beside the canonical
     # chat lane). The queue's only durable consumer was the tick loop the

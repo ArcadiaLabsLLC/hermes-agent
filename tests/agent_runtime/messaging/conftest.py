@@ -70,8 +70,9 @@ def stop_the_build_sweep():
     daemon with no stop of its own (a serve process ends with it). Each test here ends the one it started: set the
     module's ``_STOP``, join the thread, and reset both for the next boot
     (RT-MESSAGING-TESTS-LEAVE-SERVE-AND-SIGNAL-THREADS-RUNNING, review w1118a.52 D13). No edit to the sweep.
-    KILLING MUTATION: drop this fixture and ``test_serve_lane.py::test_a_service_serve_runs_the_lane_and_a_socket_
-    drain_stops_it`` leaves ``build-sweep`` running (the seal's ``leftover`` line; red once the folder is sealed)."""
+    KILLING MUTATION: drop this fixture and
+    ``test_serve_lane.py::test_a_service_serve_runs_the_lane_and_a_socket_drain_stops_it`` leaves ``build-sweep``
+    running (the seal's ``leftover`` line; red once the folder is sealed)."""
 
     from agent_runtime.builds import sweep
 

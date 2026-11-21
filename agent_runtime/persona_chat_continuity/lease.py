@@ -302,7 +302,7 @@ def end_dispatch_turn(dispatch_id: str, *, stopped: bool) -> list[str]:
     settles the turn's journal record: it stayed ``running`` in Running work until the next send on
     that chat or a serve restart (seen live 2026-11-20, w1118a-hrun). The supervisor calls this
     once the child is gone and the request is settled: the turn's record is found by its request
-    id (``chat_turn.dispatch_turn_request_id``), and under that chat's root lease — free, since the
+    id (``dispatch_store.models.dispatch_turn_request_id``), and under that chat's root lease — free, since the
     child that held it is dead; a held lease is a live turn and is left alone — it is settled as
     the boot sweep settles a corpse: ``stopped`` (``stop_mission_chat_turn``) when the operator
     stopped it, else ``interrupted``, and the transcript is closed (:func:`close_cut_off_transcript`)
@@ -310,7 +310,7 @@ def end_dispatch_turn(dispatch_id: str, *, stopped: bool) -> list[str]:
     """
 
     try:
-        from ..chat_turn import dispatch_turn_request_id
+        from ..dispatch_store.models import dispatch_turn_request_id
         from ..mission_chat_turns.journal import mark_stale_inflight_turns_interrupted, stop_mission_chat_turn
         from ..mission_chat_turns.reads import inflight_turn_rows
 

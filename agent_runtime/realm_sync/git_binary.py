@@ -21,7 +21,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from . import git as _sync
-from .git import _credential_git_config, _git_clone, _git_failure, _push_was_rejected, _redact_text, _scrub_config_values
+from .git import (
+    MERGE_REMOTE_THEIRS_STEP, _credential_git_config, _git_clone, _git_failure, _push_was_rejected, _redact_text,
+    _scrub_config_values, push_step,
+)
 from .git_port import ChangedPath, FetchOutcome, LogEntry, MergeOutcome, PushOutcome, PushReport, RepoState
 
 if TYPE_CHECKING:
@@ -199,7 +202,7 @@ class BinarySyncGit:
         if proc.returncode == 0:
             return MergeOutcome()
         if not self._unmerged_stages():
-            raise _git_failure(["pull", "--no-rebase", "-X", "theirs"], proc, self._secret(extra))
+            raise _git_failure(list(MERGE_REMOTE_THEIRS_STEP), proc, self._secret(extra))
         dropped = self._settle_modify_delete()
         conflicts = tuple(sorted(self._unmerged_stages()))
         if conflicts:
@@ -243,10 +246,7 @@ class BinarySyncGit:
         self._step("merge", "-q", "--allow-unrelated-histories", "--no-edit", "-X", "ours", tip)
 
     def push(self, auth: RealmSyncCredential | None, *, set_upstream: bool, branch: str | None = None) -> PushReport:
-        if branch is not None:
-            args: tuple[str, ...] = ("push", "-q", "-u", "origin", f"HEAD:{branch}")
-        else:
-            args = ("push", "-u", "origin", "HEAD") if set_upstream else ("push",)
+        args = push_step(set_upstream=set_upstream, branch=branch)
         extra = _credential_git_config(auth)
         proc = self._proc(args, extra)
         if proc.returncode == 0:

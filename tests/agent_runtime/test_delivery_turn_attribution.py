@@ -25,6 +25,7 @@ from agent_runtime.relay_policy import (
     parse_relay_sender_marker,
 )
 from hermes_cli.harness_parts.persona import chat_history_writes
+from tests._downstream.split_package_source import patch_where_bound
 
 
 # ---------------------------------------------------------------------------
@@ -477,7 +478,7 @@ def test_a_stopped_request_with_no_thread_still_names_its_target_to_the_console(
            "target_instance_id": "personainst_base"}
     import agent_runtime.persona_assignments as assignments
 
-    monkeypatch.setattr(assignments, "persona_instance_display_name",
+    patch_where_bound(monkeypatch, assignments, "persona_instance_display_name",
                         lambda handle: "Base" if handle == "personainst_base" else "")
     name = dispatch_target_name(row)
     marker = _marker_for(dispatch_delivery.delivery_requested_by(

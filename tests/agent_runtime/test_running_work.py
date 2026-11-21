@@ -2763,7 +2763,7 @@ def test_the_turn_an_agent_runs_for_a_request_names_that_request(home, isolate_a
     KILLING MUTATION (run 2026-11-20): ``_dispatch_parent`` returning ``{}`` -> no ``parent_work_id``, red.
     """
 
-    from agent_runtime.chat_turn import dispatch_turn_request_id
+    from agent_runtime.dispatch_store.models import dispatch_turn_request_id
     from agent_runtime.mission_chat_turns import persist_mission_chat_turn
 
     request_turn = dispatch_turn_request_id("dispatch-2b1a0ea3f539")

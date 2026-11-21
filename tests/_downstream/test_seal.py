@@ -48,11 +48,17 @@ def test_no_fork_module_binds_the_platform_root_by_name():
                 tree = ast.parse(path.read_text(encoding="utf-8"))
             except (SyntaxError, UnicodeDecodeError):
                 continue
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and (node.module or "").endswith("host_tools"):
-                    if any(alias.name == "platform_default_root" for alias in node.names):
-                        found.append(f"{path.relative_to(REPO).as_posix()}:{node.lineno}")
+            found += [f"{path.relative_to(REPO).as_posix()}:{line}" for line in _platform_root_bindings(tree)]
     assert not found, "read the root as host_tools.platform_default_root(...): " + ", ".join(found)
+
+
+def _platform_root_bindings(tree: ast.AST) -> list[int]:
+    """The lines of each ``from …host_tools import platform_default_root`` in *tree*."""
+    return [
+        node.lineno for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and (node.module or "").endswith("host_tools")
+        and any(alias.name == "platform_default_root" for alias in node.names)
+    ]
 
 
 # ── (c) launch arguments ─────────────────────────────────────────────────────

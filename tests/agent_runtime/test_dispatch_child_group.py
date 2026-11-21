@@ -20,7 +20,6 @@ import os
 import signal
 import subprocess
 import sys
-import time
 
 import psutil
 import pytest
@@ -30,6 +29,7 @@ from agent_runtime.dispatch_store import get_dispatch, mint_dispatch_id, record_
 from tools import agent_chat_dispatch
 from tools.agent_chat_dispatch import child as child_mod
 from tools.agent_chat_dispatch.local_child import spawn_child
+from tests._downstream.load_wait import wait_for
 
 pytestmark = [
     pytest.mark.skipif(os.name != "posix", reason="POSIX process groups; the Windows Job Object half is on the owed Windows checks"),
@@ -79,15 +79,8 @@ def strays():
 
 
 def _gone(pid: int, seconds: float = 8.0) -> bool:
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        try:
-            if psutil.Process(pid).status() == psutil.STATUS_ZOMBIE:
-                return True
-        except psutil.NoSuchProcess:
-            return True
-        time.sleep(0.05)
-    return False
+    """True once ``pid`` has exited (or is a zombie); a load-scaled wait that fails naming the pid."""
+    return wait_for(lambda: not _alive(pid), seconds, interval=0.05, what=f"pid {pid} to exit")
 
 
 def _alive(pid: int) -> bool:
@@ -98,13 +91,13 @@ def _alive(pid: int) -> bool:
 
 
 def _pids(path) -> dict[str, int]:
-    deadline = time.monotonic() + 20
-    while time.monotonic() < deadline:
+    def written() -> dict[str, int] | None:
         try:
             return json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            time.sleep(0.05)
-    raise AssertionError("the child never wrote its grandchildren's pids")
+            return None
+
+    return wait_for(written, 20, interval=0.05, what="the child to write its grandchildren's pids")
 
 
 def _spawn_and_exit(tmp_path, strays):

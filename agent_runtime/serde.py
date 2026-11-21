@@ -373,6 +373,17 @@ def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def read_json_dict(path: Path) -> dict[str, Any] | None:
+    """``path``'s JSON object, or ``None`` when it is missing, unreadable, undecodable or not an
+    object. Never raises: the lenient form of :func:`read_json` for a row a reader may skip."""
+
+    try:
+        value = read_json(path)
+    except (OSError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def read_versioned_receipt(
     path: Path, *, schema_version: int, valid_states: frozenset[str] | set[str]
 ) -> tuple[dict[str, Any], str]:

@@ -221,6 +221,22 @@ def _write_conflict_sidecar(board_id: str, card_id: str, *, kind: str, remote_ca
     )
 
 
+def _refuse_remote_cards(board_id: str, remote_cards: dict, summary: BoardPullSummary) -> set[str]:
+    """The pulled cards the admission door refuses, one by one: each is named on *summary* and taken
+    out of *remote_cards*; the ids are returned."""
+
+    from .sync_admission import refuse_entity
+
+    refused: set[str] = set()
+    for card_id in sorted(remote_cards):
+        card_refusal = refuse_entity(_card_key(board_id, card_id), payload=to_jsonable(remote_cards[card_id]))
+        if card_refusal is not None:
+            summary.refused.append(card_refusal.as_dict())
+            refused.add(card_id)
+            remote_cards.pop(card_id, None)
+    return refused
+
+
 def apply_board_pull(realm_id: str, subtree: Path, *, event_log: EventLog | None = None) -> BoardPullSummary:
     """Apply the per-card decision table across every board in the pulled realm
     subtree. Updates the baseline for converged/adopted cards, archives remote
@@ -262,13 +278,7 @@ def apply_board_pull(realm_id: str, subtree: Path, *, event_log: EventLog | None
         if board_refusal is not None:
             summary.refused.append(board_refusal.as_dict())
             continue
-        refused_card_ids: set[str] = set()
-        for card_id in sorted(remote_cards):
-            card_refusal = refuse_entity(_card_key(board_id, card_id), payload=to_jsonable(remote_cards[card_id]))
-            if card_refusal is not None:
-                summary.refused.append(card_refusal.as_dict())
-                refused_card_ids.add(card_id)
-                remote_cards.pop(card_id, None)
+        refused_card_ids = _refuse_remote_cards(board_id, remote_cards, summary)
         summary.boards.append(board_id)
 
         local_board = store.get(board_id) if store.exists(board_id) else None

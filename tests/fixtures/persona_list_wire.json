@@ -50,6 +50,7 @@
         "can_mutate_files": true,
         "can_run_terminal": true,
         "mutating_tools": [
+          "agent_add_instance",
           "course_checkout",
           "course_commit",
           "course_pull_request",
@@ -98,7 +99,7 @@
       "state": "idle",
       "steered_by": [],
       "token_budget_used": 0,
-      "tool_count": 35,
+      "tool_count": 36,
       "toolset_declaration": {
         "config_path": "<tmp>/hermes-home/profiles/beta/config.yaml",
         "declared": [
@@ -211,6 +212,7 @@
         "can_mutate_files": true,
         "can_run_terminal": true,
         "mutating_tools": [
+          "agent_add_instance",
           "course_checkout",
           "course_commit",
           "course_pull_request",
@@ -255,7 +257,7 @@
       "state": "idle",
       "steered_by": [],
       "token_budget_used": 0,
-      "tool_count": 35,
+      "tool_count": 36,
       "toolset_declaration": {
         "config_path": "<tmp>/hermes-home/profiles/alpha/config.yaml",
         "declared": [
@@ -368,6 +370,7 @@
         "can_mutate_files": true,
         "can_run_terminal": true,
         "mutating_tools": [
+          "agent_add_instance",
           "course_checkout",
           "course_commit",
           "course_pull_request",
@@ -410,7 +413,7 @@
       "state": "idle",
       "steered_by": [],
       "token_budget_used": 0,
-      "tool_count": 35,
+      "tool_count": 36,
       "toolset_declaration": {
         "config_path": "<tmp>/hermes-home/profiles/alpha/config.yaml",
         "declared": [

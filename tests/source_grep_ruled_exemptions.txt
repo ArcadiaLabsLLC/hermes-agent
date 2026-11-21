@@ -14,7 +14,7 @@
 # closed and its count only ever goes down; reopening it to absorb a later
 # batch would retire the one property that makes it readable.
 #
-# ruled exemptions: 11
+# ruled exemptions: 8
 #
 # THIS REGISTER IS ALSO CLOSED TO ADDITIONS. A new positive source grep is a
 # red build, not a new line here. The number above only ever goes down.
@@ -37,9 +37,6 @@
 # never a justification-by-authority. The key is split off at the LAST " # " in
 # the line, so an assertion may contain that sequence and a reason may not.
 #
-tests/agent_runtime/test_agent_create_service.py::test_the_rpc_handler_holds_no_second_copy_of_the_sequence::'err(' in source # Guards the guard beside it: an RPC handler emptied entirely would satisfy all seven of the absence assertions this test is actually built on.
-tests/agent_runtime/test_agent_create_service.py::test_the_rpc_handler_holds_no_second_copy_of_the_sequence::'ok(' in source # The other half of that same emptied-handler guard — the handler still answers on both arms.
-tests/agent_runtime/test_agent_create_service.py::test_the_rpc_handler_holds_no_second_copy_of_the_sequence::'perform_agent_create' in source # Pins that the RPC handler DELEGATES to the extracted create sequence rather than holding a second copy of it; the seven `not in` assertions above it are the load-bearing half.
 tests/agent_runtime/test_office_class_key_one_fence.py::test_every_production_writer_of_a_live_actor_file_is_enumerated_and_dispositioned::'_guard_class_keyed_' in source # Checks the disposition table's word FENCED against the two entry points it names, so `upsert_actor`/`resolve_conflict` cannot be listed as fenced while consulting no fence.
 tests/agent_runtime/test_office_class_key_one_fence.py::test_every_production_writer_of_a_live_actor_file_is_enumerated_and_dispositioned::'allow_class_key' in source # Pins that both fenced entry points keep the explicit override PARAMETER — an override that is not a parameter is a caller that forgot to pass it.
 tests/agent_runtime/test_office_class_key_one_fence.py::test_no_lane_holds_a_second_copy_of_the_predicate::'ClassKeyedPlacementRefused' in source # Pins that each of the four upsert lanes still names the store's typed refusal at all, rather than having quietly stopped handling it; the `not in` halves beside it carry the one-fence claim.

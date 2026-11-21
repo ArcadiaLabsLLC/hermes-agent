@@ -11,7 +11,8 @@ Two pins:
 * the reply is byte-identical to what it was before the cut, on a fixture home
   (``tests/fixtures/persona_list_wire.json``, generated from ``69305cc48a`` with
   this file's own builder; volatile timestamps normalised; re-saved 2026-11-14
-  for harness_core's ``browser-use`` toolset, d572176d5c, 34 -> 35 tools);
+  for harness_core's ``browser-use`` toolset, d572176d5c, 34 -> 35 tools; re-saved 2026-11-21
+  for its ``agent_add_instance`` tool, 2ae02cbf29, 35 -> 36);
 * the listing reaches no readiness and no credential pool, with a POSITIVE
   CONTROL: ``persona-instance detail`` — which does emit readiness — trips the
   same recorders on the same home, so a zero here is not an instrument that sees

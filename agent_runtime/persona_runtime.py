@@ -71,6 +71,23 @@ class GPTPersonaRuntime:
             session_db=runner_session_db,
         )
 
+    def _turn_provider_model(
+        self, persona: AgentPersona, provider_override: str | None, model_override: str | None,
+    ) -> tuple[str, str]:
+        """The turn's provider and model, refused before the runner when no model resolves or the
+        provider is unhealthy."""
+
+        runtime_provider, runtime_model = turn_provider_model(
+            persona, provider_override, model_override, self._default_provider, self._default_model,
+        )
+        if not runtime_model:
+            # An empty model id reached anthropic and came back 404 (RT-NO-MODEL-CHAT-SENDS-AND-404S).
+            from .provider_dependency_error import ChatModelUnsetError
+
+            raise ChatModelUnsetError(provider=runtime_provider)
+        _assert_turn_provider_health(persona, runtime_provider, runtime_model)
+        return runtime_provider, runtime_model
+
     def mission_chat_reply(
         self,
         persona: AgentPersona,
@@ -165,13 +182,7 @@ class GPTPersonaRuntime:
         binding = resolve_persona_profile(persona)
         if binding.readiness == "missing_profile":
             raise ValueError(binding.summary)
-        runtime_provider, runtime_model = turn_provider_model(persona, provider_override, model_override, self._default_provider, self._default_model)
-        if not runtime_model:
-            # An empty model id reached anthropic and came back 404 (RT-NO-MODEL-CHAT-SENDS-AND-404S).
-            from .provider_dependency_error import ChatModelUnsetError
-
-            raise ChatModelUnsetError(provider=runtime_provider)
-        _assert_turn_provider_health(persona, runtime_provider, runtime_model)
+        runtime_provider, runtime_model = self._turn_provider_model(persona, provider_override, model_override)
         # Non-blocking clarify bridge for this lane: a clarify call records the
         # question and ends the turn instead of blocking on a human queue the
         # spawn does not have. Read back after the run and threaded to the

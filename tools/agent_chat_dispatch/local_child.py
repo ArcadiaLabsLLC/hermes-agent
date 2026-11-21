@@ -14,7 +14,7 @@ from typing import Any
 
 from .child import note_child_group
 
-__layer__ = "lanes"
+__layer__ = "policy"
 __all__ = ["close_job", "end_job", "hold_job_by_name", "open_job_by_name", "spawn_child"]
 
 logger = logging.getLogger(__name__)
@@ -123,16 +123,11 @@ def _job_structs() -> tuple[Any, Any]:
             ("SchedulingClass", ctypes.c_uint32),
         ]
 
-    class _IoCounters(ctypes.Structure):
-        _fields_ = [(name, ctypes.c_uint64) for name in (
-            "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
-            "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
-        )]
-
     class _ExtendedLimits(ctypes.Structure):
         _fields_ = [
             ("BasicLimitInformation", _BasicLimits),
-            ("IoInfo", _IoCounters),
+            # IO_COUNTERS: six ULONGLONG counters nothing here reads; only the struct's size matters.
+            ("IoInfo", ctypes.c_uint64 * 6),
             ("ProcessMemoryLimit", ctypes.c_size_t),
             ("JobMemoryLimit", ctypes.c_size_t),
             ("PeakProcessMemoryUsed", ctypes.c_size_t),

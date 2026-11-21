@@ -139,7 +139,7 @@ def _dispatch_detached(
     business and not this row's.
     """
 
-    from agent_runtime.chat_turn import dispatch_turn_request_id
+    from agent_runtime.dispatch_store.models import dispatch_turn_request_id
     from agent_runtime.config import mission_chat_dispatch_max_concurrent
     from agent_runtime.dispatch_store import mint_dispatch_id, record_dispatch
     from tools.agent_chat_dispatch import dispatch_detached_turn

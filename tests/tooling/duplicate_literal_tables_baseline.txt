@@ -4,7 +4,7 @@
 # SHRINK-ONLY: fold a copy into its owner and cut the file (or the line); never add a line.
 # `debt` = one fact in two places, owed a single owner; `exempt:` = reviewed, the copies only happen to match.
 2981dd3a  hermes_cli/_registry_write_fence.py, tests/_downstream/registry_write_fence.py  # 4 values (winreg.CreateKey | winreg.DeleteKey | winreg.DeleteValue …) — exempt: the session-chain plugin imports no Hermes package by design, so it spells the fence's events itself
-66578506  agent_runtime/realm_sync/git.py, agent_runtime/work_store/checked_out.py, agent_runtime/work_store/writer.py  # 4 values (--verify | -q | HEAD …) — exempt: a git command line, not a table of facts
+66578506  agent_runtime/work_store/checked_out.py, agent_runtime/work_store/writer.py  # 4 values (--verify | -q | HEAD …) — exempt: a git command line, not a table of facts
 ac313ebd  agent_runtime/profile_runner/tool_payloads.py, agent_runtime/prompt_observability/skills_context.py  # 5 values (input | invocation | metadata …) — debt (RT-SKILL-NAME-READ-TWO-WAYS)
 b961ddf2  agent_runtime/profile_runner/tool_payloads.py, agent_runtime/prompt_observability/skills_context.py  # 4 values (identifier | name | skill …) — debt (RT-SKILL-NAME-READ-TWO-WAYS)
 f0727172  scripts/_fork_runner.py, scripts/run_tests_bundled.py  # 7 values (-W | -c | -k …) — exempt: pytest's own value-taking short flags, a fact of pytest's command line each runner script parses for itself

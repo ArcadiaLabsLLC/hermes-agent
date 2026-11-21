@@ -22,6 +22,8 @@ from typing import Any, Callable
 
 from agent.message_content import flatten_message_text
 
+__layer__ = "policy"
+
 NOTE_OPEN = (
     "[System: Surface instructions for this turn. They replace the surface instructions in the "
     "system prompt above and any given earlier in this conversation:]"

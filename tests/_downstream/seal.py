@@ -28,18 +28,19 @@ Eternia half is ``EterniaLauncher/test/support/test_seal.dart``, the same four p
 
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 import sys
 import sysconfig
 import threading
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
 
-import hermes_constants
+from agent_runtime import host_tools as _host_tools
+from tests._downstream.load_wait import wait_for
 
 #: the folders (or single test files) whose tests fail on a leftover thread or child (see (d)); one
 #: repo-relative folder or file per line, ``#`` starts a comment
@@ -56,7 +57,7 @@ _NOT_REPO = tuple(
                                       sysconfig.get_paths()["platlib"], sys.prefix, sys.base_prefix)}
 )
 #: the platform-default root's parent at import, before any test moves HOME (the upstream pin's rule)
-_NATIVE_PARENT = hermes_constants._get_platform_default_hermes_home().parent
+_NATIVE_PARENT = _host_tools.platform_default_root().parent
 
 
 def _read_sealed_roots() -> tuple[str, ...]:
@@ -147,23 +148,20 @@ def is_sealed(relpath: str) -> bool:
 
 
 def leftovers(running: _Running, *, grace: float) -> list[str]:
-    """Each thread or child of *running* still alive once *grace* seconds are spent waiting for it."""
-    deadline = time.monotonic() + grace
-    found = []
-    for thread, site in running.threads:
-        if thread.is_alive():
-            thread.join(max(0.0, deadline - time.monotonic()))
-        if thread.is_alive():
-            found.append(f"thread {thread.name!r} started at {site}")
-    for child, site in running.children:
-        if child.poll() is None:
-            try:
-                child.wait(max(0.0, deadline - time.monotonic()))
-            except subprocess.TimeoutExpired:
-                pass
-        if child.poll() is None:
-            found.append(f"child pid {child.pid} ({_argv0(child)}) started at {site}")
-    return found
+    """Each thread or child of *running* still alive once *grace* seconds (load-scaled, ``load_wait``)
+    are spent waiting for it."""
+
+    def alive() -> list[str]:
+        return [
+            *(f"thread {thread.name!r} started at {site}" for thread, site in running.threads if thread.is_alive()),
+            *(f"child pid {child.pid} ({_argv0(child)}) started at {site}"
+              for child, site in running.children if child.poll() is None),
+        ]
+
+    if grace > 0:
+        with contextlib.suppress(AssertionError):  # the leftovers ARE the answer, not a failed wait
+            wait_for(lambda: not alive(), grace, interval=0.02, what="the test's threads and children to end")
+    return alive()
 
 
 def _argv0(child) -> str:

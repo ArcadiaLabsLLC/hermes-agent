@@ -40,7 +40,7 @@ from dulwich.objects import Commit, Tree
 from dulwich.objectspec import parse_commit
 from dulwich.repo import Repo
 
-from .git import _push_was_rejected
+from .git import MERGE_REMOTE_THEIRS_STEP, _push_was_rejected, push_step
 from .git_port import ChangedPath, FetchOutcome, LogEntry, MergeOutcome, PushOutcome, PushReport, RepoState
 from .merge_theirs import Favour, FavouringMerger
 from .models import RealmSyncError
@@ -550,7 +550,7 @@ class DulwichSyncGit:
             raise _failure(step, "fatal: cannot lock ref: the branch moved during the pull")
 
     def merge_remote_theirs(self, auth: RealmSyncCredential | None) -> MergeOutcome:
-        step = ["pull", "--no-rebase", "-X", "theirs"]
+        step = list(MERGE_REMOTE_THEIRS_STEP)
         with self._open() as repo:
             self._fetch(repo, auth, step)
             upstream = self._upstream(repo)
@@ -605,10 +605,7 @@ class DulwichSyncGit:
         return MergeOutcome(dropped=dropped)
 
     def push(self, auth: RealmSyncCredential | None, *, set_upstream: bool, branch: str | None = None) -> PushReport:
-        if branch is not None:
-            step = ["push", "-q", "-u", "origin", f"HEAD:{branch}"]
-        else:
-            step = ["push", "-u", "origin", "HEAD"] if set_upstream else ["push"]
+        step = list(push_step(set_upstream=set_upstream, branch=branch))
         with self._open() as repo:
             head_ref = self._head_ref(repo)
             local = repo.refs[head_ref] if head_ref is not None and head_ref in repo.refs else None

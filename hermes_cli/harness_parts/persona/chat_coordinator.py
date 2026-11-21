@@ -11,7 +11,7 @@ from agent_runtime.operator_message import normalize_operator_message
 from dataclasses import asdict
 from agent_runtime import paths
 from agent_runtime.cli_format import emit_json
-from agent_runtime.coordinator_permissions import CoordinatorPermissionScope
+from agent_runtime.coordinator_permissions import CoordinatorPermissionScope, review_coordinator_budget
 from agent_runtime.mission_chat_steer import submit_mission_chat_steer
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
@@ -29,6 +29,7 @@ __all__ = [
     "_coordinator_removal_refusal",
     "_coordinator_scope",
     "_coordinator_spawn_refusal",
+    "_coordinator_spawn_scope",
     "_maybe_stamp_spawned_by",
 ]
 
@@ -79,6 +80,22 @@ def _coordinator_spawn_refusal(action: str, coordinator_id: str, auth) -> dict[s
     from agent_runtime.agent_create.staff import spawn_refusal
 
     return {**_coordinator_confirm_payload(action, coordinator_id, auth), **spawn_refusal(auth, coordinator_id)}
+
+
+def _coordinator_spawn_scope(
+    action: str, coordinator_id: str | None, *, spawns: bool,
+) -> tuple[CoordinatorPermissionScope | None, dict[str, object] | None]:
+    """``(scope, refusal)`` for a coordinator's spawn at a CLI door: ``(None, None)`` when no coordinator
+    spawns here, the reviewed scope when its budget allows it, else the refusal the door emits."""
+
+    if not (coordinator_id and spawns):
+        return None, None
+    auth = review_coordinator_budget(
+        action, _coordinator_scope(coordinator_id), actor=coordinator_id, coordinator_id=coordinator_id,
+    )
+    if not auth.ok:
+        return None, _coordinator_spawn_refusal(action, coordinator_id, auth)
+    return auth.scope, None
 
 
 def _coordinator_confirm_payload(action: str, coordinator_id: str, auth) -> dict[str, object]:

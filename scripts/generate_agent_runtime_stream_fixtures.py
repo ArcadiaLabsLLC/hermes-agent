@@ -671,7 +671,6 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
     from agent_runtime.persona_assignments import persona_instance_id_for_placement
     from agent_runtime.state_patches import STATE_PATCHED_EVENT_TYPE
     from agent_runtime.store import AgentStore, WorkspaceStore
-    from agent_runtime.stream import _batch_frames_with_liveness
 
     assert FIXTURE_NARROW_FOLD_ENTITIES == HISTORICAL_FOLD_ENTITIES, (
         "the narrow arm is supposed to BE the historical default set; it has "
@@ -770,17 +769,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
         "arrangement 3"
     )
 
-    wide = list(
-        _batch_frames_with_liveness(
-            batch,
-            base_offset=base_offset,
-            delta_patches=True,
-            resync=False,
-            heartbeat_interval_seconds=5.0,
-            fold_entities=FIXTURE_WIDE_FOLD_ENTITIES,
-            caller="cli",
-        )
-    )
+    wide = _create_frames(batch, base_offset, FIXTURE_WIDE_FOLD_ENTITIES)
     assert len(wide) == 1, [frame.get("type") for frame in wide]
     patch_frame = wide[0]
     # THE S0 QUESTION, asked of the promotion decision itself. A demote here is
@@ -795,17 +784,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
     assert all(row.get("created") is True for row in patch_frame["patches"])
     assert patch_frame["base_offset"] == base_offset
 
-    narrow = list(
-        _batch_frames_with_liveness(
-            batch,
-            base_offset=base_offset,
-            delta_patches=True,
-            resync=False,
-            heartbeat_interval_seconds=5.0,
-            fold_entities=FIXTURE_NARROW_FOLD_ENTITIES,
-            caller="cli",
-        )
-    )
+    narrow = _create_frames(batch, base_offset, FIXTURE_NARROW_FOLD_ENTITIES)
     assert len(narrow) == 1, [frame.get("type") for frame in narrow]
     demoted = narrow[0]
     assert demoted["type"] == "delta", demoted["type"]
@@ -817,6 +796,24 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
         actor["actor_key"] == FIXTURE_CREATE_INSTANCE_ID for actor in actors
     ), actors
     return patch_frame, demoted
+
+
+def _create_frames(batch: list, base_offset: int, fold_entities: Any) -> list[dict]:
+    """The S0 create batch as one subscriber declaring *fold_entities* is sent it (the promotion decision)."""
+
+    from agent_runtime.stream import _batch_frames_with_liveness
+
+    return list(
+        _batch_frames_with_liveness(
+            batch,
+            base_offset=base_offset,
+            delta_patches=True,
+            resync=False,
+            heartbeat_interval_seconds=5.0,
+            fold_entities=fold_entities,
+            caller="cli",
+        )
+    )
 
 
 def _write_json(name: str, value: Any) -> None:

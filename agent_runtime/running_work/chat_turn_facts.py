@@ -22,13 +22,13 @@ def _dispatch_parent(record: dict[str, Any]) -> dict[str, Any]:
     """``{"parent_work_id": "dispatch:<id>"}`` on the turn an agent runs for another agent's request.
 
     RT-FU-AN-AGENT-REQUESTS-OWN-TURN-NAMES-ITS-REQUEST (review w1118a.58 D3): the request's turn runs
-    under ``chat_turn.dispatch_turn_request_id``, so the pairing is read through that spelling's own
+    under ``dispatch_store.models.dispatch_turn_request_id``, so the pairing is read through that spelling's own
     inverse — the same link field a foreground tool call carries to its turn — and a client folds the
     two into one entry instead of drawing two agents. ``{}`` for any other turn, fail-safe.
     """
 
     try:
-        from ..chat_turn import dispatch_id_of_turn_request
+        from ..dispatch_store.models import dispatch_id_of_turn_request
 
         dispatch_id = dispatch_id_of_turn_request(record.get("client_message_id") or record.get("turn_id"))
     except Exception:

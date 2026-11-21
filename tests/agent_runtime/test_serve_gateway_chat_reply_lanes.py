@@ -926,6 +926,7 @@ def _run_a_slow_turn(
         print(f"  {key}: {value}")
     return {
         "instance_id": instance_id,
+        "persona_id": placed_agent["persona_id"],
         "payload": payload,
         "exited_early": exited_early,
         "mid": mid,
@@ -960,7 +961,9 @@ def _assert_the_turn_published_its_own_start_and_end(run: dict) -> None:
     assert row["owner"]["persona_instance_id"] == run["instance_id"]
     # C1h measured this field NULL beside the two above it. A console rendering
     # "who is talking" reads it, so it is asserted rather than described.
-    assert row["owner"]["persona_id"] == PERSONA
+    # The placed agent's own id: since 2a82ef38d5 the create verb mints an agent of its own from the
+    # roster persona it names, so this is not ``PERSONA``.
+    assert row["owner"]["persona_id"] == run["persona_id"]
 
     # And the two publishes are on the record as the turn's OWN, by type.
     assert "persona_chat.turn_started" in whole["event_types"], whole

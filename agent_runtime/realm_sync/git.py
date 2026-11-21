@@ -35,6 +35,7 @@ from .models import (
 
 __layer__ = "stores"
 __all__ = [
+    "MERGE_REMOTE_THEIRS_STEP",
     "_adopt_credential_remote",
     "_adopt_local_remote",
     "_authorize",
@@ -50,6 +51,7 @@ __all__ = [
     "_merge_remote",
     "_pull_remote_into_repo",
     "_push_was_rejected",
+    "push_step",
     "_realm_subtree",
     "_redact_text",
     "_refresh_remote_tracking",
@@ -381,6 +383,19 @@ def _push_was_rejected(stderr: str) -> bool:
 
     text = (stderr or "").lower()
     return any(tell in text for tell in _PUSH_REJECTED_TELLS)
+
+
+#: The ``git pull`` a merge that favours the remote is, as both backends name the step it failed at
+#: (``git_binary`` runs it with ``--no-edit``; ``git_dulwich`` answers it in-process).
+MERGE_REMOTE_THEIRS_STEP = ("pull", "--no-rebase", "-X", "theirs")
+
+
+def push_step(*, set_upstream: bool, branch: str | None) -> tuple[str, ...]:
+    """The ``git push`` argv of :meth:`SyncGit.push`: what ``git_binary`` runs and ``git_dulwich`` names."""
+
+    if branch is not None:
+        return ("push", "-q", "-u", "origin", f"HEAD:{branch}")
+    return ("push", "-u", "origin", "HEAD") if set_upstream else ("push",)
 
 
 def _pull_remote_into_repo(repo: Path, *, credential: RealmSyncCredential | None = None) -> tuple[str, ...]:

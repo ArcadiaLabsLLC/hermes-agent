@@ -16,7 +16,7 @@ import time
 import pytest
 
 from agent_runtime import dispatch_store
-from agent_runtime.chat_turn import dispatch_turn_request_id
+from agent_runtime.dispatch_store.models import dispatch_turn_request_id
 from agent_runtime.dispatch_store import mint_dispatch_id, record_dispatch
 from agent_runtime.mission_chat_turns import mission_chat_turn_record, transition_mission_chat_turn
 from agent_runtime.persona_chat_continuity.lease import persona_chat_root_lease

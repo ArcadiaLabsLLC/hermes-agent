@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Callable
+from typing import Any
 
 __all__ = ["read_only_code"]
 
@@ -168,39 +170,82 @@ def _inline_code(args: list[str]) -> str | None:
 
 
 def _reads_only(tree: ast.Module) -> bool:
+    # Two passes over one table each, keyed by node type: the first binds every name the code
+    # imports or assigns (refusing a rebound builtin or constructor), the second checks every use
+    # against what was bound. A node type with no row needs no check beyond being in _NODES.
     bound: set[str] = set(_BUILTINS)
     for node in ast.walk(tree):
         if not isinstance(node, _NODES):
             return False
-        if isinstance(node, ast.Import):
-            if any(alias.name not in _IMPORTS for alias in node.names):
-                return False
-            names = {(alias.asname or alias.name).split(".")[0] for alias in node.names}
-            if names & (_BUILTINS | _CONSTRUCTORS) - set(_IMPORTS):
-                return False
-            bound.update(names)
-        elif isinstance(node, ast.ImportFrom):
-            allowed = _IMPORTS.get(node.module or "", frozenset())
-            if node.level or node.module not in _IMPORTS or any(
-                    alias.name == "*" or (allowed is not None and alias.name not in allowed) for alias in node.names):
-                return False
-            if any(alias.asname and alias.asname in _BUILTINS | _CONSTRUCTORS for alias in node.names):
-                return False
-            bound.update(alias.asname or alias.name for alias in node.names)
-        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-            if node.id in _BUILTINS or node.id in _CONSTRUCTORS:
-                return False
-            bound.add(node.id)
-        elif isinstance(node, ast.Attribute) and not isinstance(node.ctx, ast.Load):
+        binds = _BINDS.get(type(node))
+        if binds is not None and not binds(node, bound):
             return False
     for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
-            return False
-        if isinstance(node, ast.Name) and (node.id.startswith("_") or node.id not in bound):
-            return False
-        if isinstance(node, ast.Call) and not _reader_call(node.func, bound):
+        uses = _USES.get(type(node))
+        if uses is not None and not uses(node, bound):
             return False
     return True
+
+
+def _binds_import(node: ast.Import, bound: set[str]) -> bool:
+    if any(alias.name not in _IMPORTS for alias in node.names):
+        return False
+    names = {(alias.asname or alias.name).split(".")[0] for alias in node.names}
+    if names & (_BUILTINS | _CONSTRUCTORS) - set(_IMPORTS):
+        return False
+    bound.update(names)
+    return True
+
+
+def _binds_import_from(node: ast.ImportFrom, bound: set[str]) -> bool:
+    allowed = _IMPORTS.get(node.module or "", frozenset())
+    if node.level or node.module not in _IMPORTS or any(
+            alias.name == "*" or (allowed is not None and alias.name not in allowed) for alias in node.names):
+        return False
+    if any(alias.asname and alias.asname in _BUILTINS | _CONSTRUCTORS for alias in node.names):
+        return False
+    bound.update(alias.asname or alias.name for alias in node.names)
+    return True
+
+
+def _binds_name(node: ast.Name, bound: set[str]) -> bool:
+    if not isinstance(node.ctx, ast.Store):
+        return True
+    if node.id in _BUILTINS or node.id in _CONSTRUCTORS:
+        return False
+    bound.add(node.id)
+    return True
+
+
+def _reads_attribute(node: ast.Attribute, bound: set[str]) -> bool:
+    return isinstance(node.ctx, ast.Load)
+
+
+def _uses_attribute(node: ast.Attribute, bound: set[str]) -> bool:
+    return not node.attr.startswith("_")
+
+
+def _uses_name(node: ast.Name, bound: set[str]) -> bool:
+    return not node.id.startswith("_") and node.id in bound
+
+
+def _uses_call(node: ast.Call, bound: set[str]) -> bool:
+    return _reader_call(node.func, bound)
+
+
+#: Pass one of :func:`_reads_only`: what a node binds, or False when it may not bind it.
+_BINDS: dict[type[ast.AST], Callable[[Any, set[str]], bool]] = {
+    ast.Import: _binds_import,
+    ast.ImportFrom: _binds_import_from,
+    ast.Name: _binds_name,
+    ast.Attribute: _reads_attribute,
+}
+#: Pass two of :func:`_reads_only`: whether a node's use of a name, attribute or call is a read.
+_USES: dict[type[ast.AST], Callable[[Any, set[str]], bool]] = {
+    ast.Attribute: _uses_attribute,
+    ast.Name: _uses_name,
+    ast.Call: _uses_call,
+}
 
 
 def _reader_call(func: ast.expr, bound: set[str]) -> bool:

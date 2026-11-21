@@ -122,6 +122,8 @@ STORE_PLACES: dict[str, PlaceClass] = {
     "events_archive": _H, "prompt_observability": _H, "prompt_observability_archive": _H, "patch_diffs": _H,
     "patch_diffs_archive": _H, paths.DELETED_ARCHIVE_DIRNAME: _H, "runs": _H, "incidents": _H, "agents": _H,
     "migration_backups": _H, JOURNAL_DIRNAME: _H, "flow_graphs_stale": _H,
+    # A deleted or folded agent's record, filed by when (``agent_copy_delete``, ``bundled_agents.fold_discovered``).
+    "agents_archive": _H,
     "snapshot.json": _D, paths.DERIVED_CACHE_DIRNAME: _D, "locks": _D,
     # Entries no ``paths.py`` function with an id parameter names (the census reads the source for them).
     # Chat bookkeeping is keyed by session and parks with the chats; a messaging binding routes to an agent.
@@ -129,6 +131,9 @@ STORE_PLACES: dict[str, PlaceClass] = {
     "mission_chat_turns.legacy.json": _P, "chat_turn_reservations": _P, "chat_turn_settles": _P,
     "chat_root_send_queue": _P, "persona_chat_clarify_tickets": _P, "session_controls": _P,
     "tool_turn_context": _P, "history_recovery": _P, "chat_head_home.json": _P, "messaging": _P,
+    # A chat moved to another instance of its agent (session -> instance), and a turn's pending approval
+    # requests (``approval_relay``, one folder per session digest): both are a chat's, so both wait with it.
+    "persona_chat_moves.json": _P, "approval_relay": _P,
     "events_journal.json": _H, "events_manifest.json": _H, "prompt_observability_catalogs": _H,
     "prompt_observability_index.json": _H, "worktree_events.jsonl": _H, "wt_reaped_patches": _H,
     "workspace_creates": _H, "projects": _H, "migrations": _H,

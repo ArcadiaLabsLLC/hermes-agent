@@ -122,15 +122,15 @@ def test_the_shipped_nekos_history_lists_only_her_own_chats_and_beta_lists_the_s
     assert _history(BETA) == seat_chats >= {chats["ws_testv4"], chats["ws_default"]}
 
 
-def test_an_install_sorted_before_seats_followed_is_repaired_by_a_second_run(owner_shaped_root, capsys, monkeypatch):
+def test_an_install_sorted_before_seats_followed_is_repaired_by_a_second_run(owner_shaped_root, capsys):
     from agent_runtime import agent_duplicate
     from hermes_cli.harness_parts.persona import shipped_commands
 
     # The sort as it ran on the owner's install: the seat record moved, nothing else.
-    monkeypatch.setattr(agent_duplicate, "follow_seat", lambda instance_id, **_: None)
-    monkeypatch.setattr(shipped_commands, "stray_seats", lambda: [])
-    _sort(capsys)
-    monkeypatch.undo()
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(agent_duplicate, "follow_seat", lambda instance_id, **_: None)
+        patched.setattr(shipped_commands, "stray_seats", lambda: [])
+        _sort(capsys)
     assert _history(NEKO) >= set(owner_shaped_root["chats"].values())
 
     seats = owner_shaped_root["seats"]
@@ -162,7 +162,7 @@ def test_copying_an_agent_onto_one_seat_moves_that_seats_desk_and_chats(owner_sh
     assert OfficeStore().get_actor("ws_default", owner_shaped_root["seats"]["ws_default"].id).persona_id == NEKO
 
 
-def test_a_refused_desk_is_named_and_the_seats_chats_still_move(owner_shaped_root, monkeypatch):
+def test_a_refused_desk_is_named_and_the_seats_chats_still_move(owner_shaped_root):
     from agent_runtime import seat_follow
     from agent_runtime.agent_duplicate import duplicate_agent
     from agent_runtime.errors import WorkspaceUnresolved
@@ -170,10 +170,10 @@ def test_a_refused_desk_is_named_and_the_seats_chats_still_move(owner_shaped_roo
     def refused(office, actor, instance):
         raise WorkspaceUnresolved("held", safe_details={"workspace_id": actor.workspace_id})
 
-    monkeypatch.setattr(seat_follow, "_follow_actor", refused)
     seat = owner_shaped_root["seats"]["ws_testv4"]
-    copy = duplicate_agent(NEKO, "Neko Two", instance_id=seat.id).persona
-    monkeypatch.undo()
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(seat_follow, "_follow_actor", refused)
+        copy = duplicate_agent(NEKO, "Neko Two", instance_id=seat.id).persona
 
     assert owner_shaped_root["chats"]["ws_testv4"] in _history(copy.id)
     drift = seat_follow.seat_drift(PersonaInstanceStore().get(seat.id))
