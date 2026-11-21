@@ -1418,3 +1418,6 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 ## Filed on arrival — 2026-11-21 (Eternia lane w1118a-sw71-el: the realm banner and the composer refusal line)
 
+
+## Filed on arrival — 2026-11-21 (lane w1118a-onepath-el2: the hermes half of Eternia MC-ONE-DOOR-PLACES-AN-AGENT-FROM-EVERY-SURFACE)
+
