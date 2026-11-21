@@ -802,7 +802,13 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     # stale pointer on a canonical row is cleared before the adoption writes the real one.
     from .persona_instance_adoption import ADOPTED, WOULD_ADOPT, adopt_global_rows
 
-    adoption = adopt_global_rows(apply=apply, store=store)
+    leaving = frozenset(
+        {item["from_id"] for item in actions if item["action"] in {"merged", "renamed"}}
+        | {item["persona_instance_id"] for item in pruned_actions}
+        | {item["persona_instance_id"] for item in unplaced_pruned}
+        | {item["persona_instance_id"] for item in task_bound["archived"]}
+    )
+    adoption = adopt_global_rows(apply=apply, store=store, leaving=leaving)
 
     return {
         "applied": bool(apply),

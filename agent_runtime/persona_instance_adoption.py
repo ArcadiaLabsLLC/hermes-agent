@@ -166,19 +166,26 @@ def _default_scope() -> tuple[Any, Any, str | None]:
     return workspace, realm, None
 
 
-def adopt_global_rows(*, apply: bool = True, store: Any = None, today: str | None = None) -> list[dict[str, Any]]:
+def adopt_global_rows(
+    *, apply: bool = True, store: Any = None, today: str | None = None, leaving: frozenset[str] = frozenset()
+) -> list[dict[str, Any]]:
     """Adopt every runtime-global row that holds anything; one fate per row, sorted by id.
 
     ``apply=False`` names each row's fate (``would_adopt``, ``skipped`` with its reason,
     ``left_empty``) and writes nothing. A second applied run finds nothing to do: an adopted
-    row is no longer canonical."""
+    row is no longer canonical. ``leaving`` names rows an earlier reconcile phase archives in
+    this run: a dry run still lists them, so they are discounted here and the preview matches
+    what an applied run does."""
 
     from .agent_create.seat import ALREADY_SEATED, SEATED, WOULD_SEAT, seat_added_instance
     from .persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
     from .persona_assignments.chat_moves import load_chat_moves
 
     store = store or PersonaInstanceStore()
-    rows = sorted((i for i in store.list_all() if is_canonical_persona_channel(i)), key=lambda i: i.id)
+    # MUTATION: drop the ``leaving`` test and test_the_dry_run_does_not_adopt_a_row_an_earlier_phase_archives reddens.
+    rows = sorted(
+        (i for i in store.list_all() if is_canonical_persona_channel(i) and i.id not in leaving), key=lambda i: i.id
+    )
     if not rows:
         return []
     moves = load_chat_moves()

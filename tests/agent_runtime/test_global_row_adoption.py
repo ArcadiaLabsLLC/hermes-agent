@@ -247,3 +247,15 @@ def test_peer_thread_read_refuses_an_adopted_agent():
     assert refused["ok"] is False and refused["error_kind"] == "unsupported_persona"
     local = read_chat_lane_tail(CANONICAL, session_id=CHAT)
     assert local.get("error_kind") != "unsupported_persona"
+
+
+def test_the_dry_run_does_not_adopt_a_row_an_earlier_phase_archives():
+    """A row of a persona this runtime no longer has is pruned by phase 2; the dry run's phase 7
+    must not preview it as ``would_adopt`` (seen in the lane's CLI read on a bare home).
+    Kill-mutation: drop the ``leaving`` test in ``adopt_global_rows`` → red."""
+    ensure_default_scope(seed_active_pointers=False)
+    ghost = persona_instance_id_for("ghost_persona")
+    _seed(ghost, persona_id="ghost_persona", default_chat_session_id=f"persona_chat_{ghost}_0123456789ab")
+    applied_twin = reconcile_persona_instances(apply=False)
+    assert ghost in {item["persona_instance_id"] for item in applied_twin["pruned"]}
+    assert ghost not in {item["persona_instance_id"] for item in applied_twin["adoption"]}
