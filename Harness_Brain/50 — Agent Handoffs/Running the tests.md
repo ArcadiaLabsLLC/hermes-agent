@@ -224,6 +224,14 @@ unchanged since its red is not run at all: it prints `known-red, skipped` and st
 `scripts/run_tests_bundled.py`: quiet 16-thread box 2026-10-18, --scope fork, 0 reds at 8/10/12/16,
 646.7 / 585.2 / 539.2 / 512.1 s, CPU avg 64 / 71 / 78 / 88 %; do not raise it further).
 
+Every run that does not activate (the shared test venv, or an explicit `HERMES_PYTHON`) puts pm's
+managed Node and pnpm on PATH first, as activation would (owner ruling 2026-11-21): one start line
+`▶ managed node/pnpm on PATH: …`, or `▶ no managed node/pnpm recorded … — PATH unchanged` when the
+tool store holds no node/pnpm for the checkout's pins. The one copy is `scripts/_managed_node_path.sh`
+(`pm.install.env_for("node", "pnpm")` under the bootstrap interpreter, ~0.2 s, exported as
+`__HERMES_MANAGED_NODE_PATH` so nested runs reuse it); `scripts/_fork_test_env.sh` and
+`scripts/daily_full_run.sh` both call it.
+
 A test whose wait bound exceeds 30 seconds declares `@pytest.mark.timeout(N)`: `addopts` carry
 `--timeout=30`, and pytest-timeout kills a longer test before it can say what went wrong.
 

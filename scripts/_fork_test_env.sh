@@ -11,6 +11,9 @@
 # stays auditable in one tracked file. A line that is not a variable name fails
 # the run (exit 2) rather than forwarding something unintended.
 
+# shellcheck source=scripts/_managed_node_path.sh
+. "$(dirname "${BASH_SOURCE[0]}")/_managed_node_path.sh"
+
 fork_test_env_extend() {
   local list="$1" line name
   [ -f "$list" ] || return 0
@@ -100,6 +103,12 @@ fork_shared_test_venv_fallback() {
     fi
     fork_refuse_unbuilt_shared_venv "$HERMES_PYTHON" "$_SHARED_VENV" || exit 1
     echo "▶ no HERMES_PYTHON — using the shared test venv: $HERMES_PYTHON"
+  fi
+  # Owner ruling 2026-11-21: a run that will not activate (this shared venv, or an explicit
+  # HERMES_PYTHON with pytest: run_tests.sh's next branch) still gets pm's managed node/pnpm
+  # on PATH, which the runner hands every pytest child. An activated run already has them.
+  if [ -z "${__HERMES_ACTIVATED:-}" ] && _has_pytest "${HERMES_PYTHON:-}"; then
+    fork_managed_node_on_path "$REPO_ROOT"
   fi
 }
 
