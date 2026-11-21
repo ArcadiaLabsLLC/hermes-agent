@@ -17,7 +17,10 @@ Killing mutations (reds recorded in the commit body):
   side-by-side gate test red;
 * the same line admits any value (``or True``) → "a run saw another profile's HOME";
 * the line drops its place check (``self._line[0] is place``) → "…jumped the line";
-* the nested branch skips its wait for the other holders → "…while another run was still inside".
+* the nested branch skips its wait for the other holders → "…while another run was still inside";
+* ``_holds_anything`` answers ``home_dir.exists()`` again (the gate as ee38f8cf1b met it, when every new
+  agent got upstream's empty ``home/``) → the whole-turn test red ("agent B's turn is still waiting…") and
+  the empty-home test red.
 """
 
 from __future__ import annotations
@@ -98,9 +101,13 @@ def test_agent_b_is_built_and_answers_while_agent_a_waits_on_its_model_call(plac
 # ── the gate itself: what still waits, and that HOME never crosses ──────────────────────────────
 
 
-def _profile(tmp_path, name: str, *, with_home: bool) -> SimpleNamespace:
+def _profile(tmp_path, name: str, *, with_home: bool, empty_home: bool = False) -> SimpleNamespace:
+    """A profile; ``with_home`` gives it a ``home/`` holding a file (what ``~`` would find)."""
+
     root = tmp_path / "profiles" / name
-    (root / "home").mkdir(parents=True) if with_home else root.mkdir(parents=True)
+    (root / "home").mkdir(parents=True) if with_home or empty_home else root.mkdir(parents=True)
+    if with_home:
+        (root / "home" / ".gitconfig").write_text("[user]\n", encoding="utf-8")
     return SimpleNamespace(profile_home=root)
 
 
@@ -133,6 +140,18 @@ def test_runs_that_write_no_home_stand_inside_together_and_home_is_left_alone(tm
     assert second.entered.wait(_WAIT), "a second run that writes no HOME waited for the first"
     first.out(), second.out()
     assert (first.home, second.home, os.environ["HOME"]) == ("/the/process/home",) * 3
+
+
+def test_an_empty_home_dir_writes_nothing_and_stands_beside_a_run_that_writes_none(tmp_path, monkeypatch):
+    """Upstream's ``create_profile`` gives every new agent an EMPTY ``home/`` (ee38f8cf1b): nothing for ``~``."""
+
+    monkeypatch.setenv("HOME", "/the/process/home")
+    first = _Inside(_profile(tmp_path, "a", with_home=False))
+    assert first.entered.wait(_WAIT)
+    fresh = _Inside(_profile(tmp_path, "new-agent", with_home=False, empty_home=True))
+    assert fresh.entered.wait(_WAIT), "a new agent's empty home/ made its run wait for another agent's"
+    first.out(), fresh.out()
+    assert (first.home, fresh.home, os.environ["HOME"]) == ("/the/process/home",) * 3
 
 
 def test_a_run_never_sees_another_profiles_home_and_nobody_jumps_the_line(tmp_path, monkeypatch):

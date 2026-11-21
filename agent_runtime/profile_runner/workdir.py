@@ -250,7 +250,7 @@ _PROCESS_HOME = _ProcessHomeGate()
 def _posix_process_home(binding):
     """POSIX: point ``HOME`` at the profile's ``home/`` for the run, beside every run that wants the same.
 
-    A profile without a ``home/`` writes nothing and runs beside every other such run; see
+    A profile without a ``home/``, or with an empty one, writes nothing and runs beside every other such run; see
     :class:`_ProcessHomeGate` for what waits and why that is all the write needs.
     Native Windows: a no-op — ``ntpath.expanduser`` reads ``USERPROFILE``, never ``HOME``
     (measured, field notes S1), and every factory-built child computes its own ``HOME``.
@@ -261,8 +261,29 @@ def _posix_process_home(binding):
         return
     profile_home = getattr(binding, "profile_home", None)
     home_dir = Path(profile_home) / "home" if profile_home is not None else None
-    with _PROCESS_HOME.hold(str(home_dir) if home_dir is not None and home_dir.exists() else None):
+    with _PROCESS_HOME.hold(str(home_dir) if _holds_anything(home_dir) else None):
         yield
+
+
+def _holds_anything(home_dir: Path | None) -> bool:
+    """The profile's ``home/`` exists AND holds an entry: only then is there anything for ``~`` to find.
+
+    Upstream's ``create_profile`` makes every new profile an empty ``home/`` (``_PROFILE_DIRS``), and every
+    agent is made through it since ee38f8cf1b. Pointing ``HOME`` at an empty directory finds nothing an
+    in-process ``~`` reader could use (the ``~/.codex`` / ``~/.qwen`` files are not there), yet made each
+    new agent want its own ``HOME``, so it waited for every other agent's run to leave the gate: one
+    agent's held model call froze another's turn again (RT-NEW-TURN-WAITS-ON-ANOTHER-AGENTS-MODEL-CALL,
+    red from 13a0bd0784). Children still get the profile's ``home/`` as theirs (``hermes_constants``'
+    ``_profile_home_path`` checks only that it exists); once one writes into it, the next run writes it.
+    """
+
+    if home_dir is None:
+        return False
+    try:
+        with os.scandir(home_dir) as entries:
+            return next(entries, None) is not None
+    except OSError:
+        return False
 
 
 #: Real agent runs currently between ``ProfileAgentRunner.run``'s entry and its
