@@ -51,3 +51,20 @@ def test_llama_off_refusal_marker_says_turn_llama_on_and_load_the_model():
     )
     assert rows["off"]["provider_refusal"] == llama_off
     assert "provider setup" in rows["other"]["text"]
+
+
+def test_a_credential_refusal_marker_says_why_the_credential_could_not_serve():
+    """Review w1118a.69: read live 2026-11-21 (w1118a-sw69-keys), a turn refused for a saved key with
+    a hidden character or a used-up chosen sign-in read "the model provider was unavailable" on the
+    transcript. MUTATION (kill): drop the `_CREDENTIAL_MARKER_TEXT` arm — red."""
+    def block(why):
+        return {"status_code": 0, "reason": "provider_unavailable", "provider": "anthropic", "failure_reason": why}
+
+    records = [
+        {"state": "provider_refused", "client_message_id": "key", "provider_refusal": block("api_key_control_character")},
+        {"state": "provider_refused", "client_message_id": "chosen", "provider_refusal": block("chosen_credential_unusable")},
+    ]
+    rows = {row["client_message_id"]: row for row in _terminal_turn_marker_rows(
+        session_id="base", assistant_client_message_ids=set(), records=records)}
+    assert "hidden character" in rows["key"]["text"] and "Save the key again" in rows["key"]["text"]
+    assert "chosen sign-in" in rows["chosen"]["text"] and "not used unless you switch" in rows["chosen"]["text"]
