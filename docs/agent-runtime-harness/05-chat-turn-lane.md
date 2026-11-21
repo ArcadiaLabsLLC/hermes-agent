@@ -137,8 +137,7 @@ is opened; a valid but stale revision remains `content_changed`.
 `agent_runtime/conversations/service.py::ConversationService` admits exact
 actor/account/profile/session scopes and delegates to runtime-owned native
 workers, run inside the serve process (`in_process_peer.py`; no worker child —
-`RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT`, which goes on to
-fold the operator chat's own host onto the same engine). Those workers reuse the canonical Desktop/TUI engine, SessionDB,
+`RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT`). Those workers reuse the canonical Desktop/TUI engine, SessionDB,
 provider/model resolution, permissions and skill reader. They never enter the
 operator-channel prompt policy or overwrite its default chat pointer.
 `worker_skills.py` binds catalog/detail/history to the worker's exact session;
@@ -148,6 +147,34 @@ skill-load evidence proves a load, not ongoing model reasoning.
 discussion participants. The same executor serves office and non-spatial rooms;
 the operator root remains independent. Launcher Compare instead fans out to
 independent native conversations, with failure and queues scoped per participant.
+
+## One turn engine for the operator chat
+
+A Mission Control chat's turn runs on the same engine as an independent conversation
+(`agent_runtime/operator_gateway_turn.py`; plan
+`planned/operator-chat-on-the-gateway-engine-2026-11-21.md`). The chat has a gateway
+session of its own (`source="eternia_operator"`), resumed on the chat's tip in the store
+that holds the chat (the persona's profile store, or the head's), built by the operator
+lane through the gateway's factory seam (`worker_app_functions.operator_agent`). The
+runner (`ProfileAgentRunner._converse`) submits an empty-text `prompt.submit` to it, and
+the gateway's turn thread runs the operator lane's own turn (`AgentRunExecution`: scopes,
+budgets, MCP admission, prompt policy, the tool block) through a door on the agent's
+`run_conversation`; the agent writes the turn's user row, so the chat keeps one
+transcript. The turn-scope seam pins the model the operator lane resolved, keeps the
+Launcher link the request carries, and keeps the install's first-contact onboarding note
+out. A run with no chat root (a one-shot) converses directly and opens no session.
+
+- **One goal loop.** The gateway judges a chat goal once, after the turn; the operator
+  settle reads that decision (`EngineJudgedGoal`) instead of judging again, and turns a
+  `continue` into the next queued send. The gateway's own follow-up turn on an operator
+  session runs nothing.
+- **One completion drain per chat.** A completion for a chat whose engine session is open
+  is the engine's notification poller's, delivered as an operator turn of the chat run
+  inline on its agent. A completion for a chat with no open session (retired, or never
+  reopened since boot) is the operator lane's (`dispatch_delivery.completions`), taken
+  from the queue or from the poller's park, and forged as the turn that reopens it.
+- **The busy-root send queue stands** (`chat_root_send_queue` / `chat_root_send_runner`):
+  it is the durable admission ahead of the engine, which has no durable queue of its own.
 
 ## Existing operator conversations
 

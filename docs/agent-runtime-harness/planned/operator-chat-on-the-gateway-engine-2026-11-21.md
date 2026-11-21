@@ -109,6 +109,45 @@ Three facts in code change the F1 step list above; each was read, none reproduce
    with F2's switch of the operator's chat-goal continuation onto the gateway loop (Work runs keep their
    binding and continue as queued prompts on the session).
 
+## Built on the branch (2026-11-21, w1118a-onepath-fold)
+
+What the build found, and where it departs from the steps above.
+
+1. **Fact 1 was wrong.** The operator transcript lives in the runner's `session_db`: the persona's
+   own profile store when the persona has one, the head's otherwise. The chat's gateway session is
+   resumed in THAT store, through one in-process peer per store home (`operator_gateway_turn.
+   _store_home`); `InProcessPeer` needed no launch-scope mode.
+2. **The transcript choice is an empty submit, not the adopted gateway row.** The turn is
+   submitted with `text=""`: the gateway writes no submit row, the door hands the composed message
+   to the operator lane's own execution, and the agent writes the user row exactly as before (relay
+   marker, image lines, replay reuse unchanged). One transcript, no upstream edit, and none of the
+   row-adoption staging the recommendation needed. RECOMMENDED, awaiting the owner, in place of 2.
+3. **The policy rides a door, not bind/reset.** The gateway calls the agent's `run_conversation` on
+   its turn thread; the operator agent's is wrapped (`_install_door`) so that call runs the
+   operator lane's `AgentRunExecution` around the real one. Its scopes nest as context managers
+   around the conversation, which bind/reset (two calls) would have had to split. The engine still
+   runs every turn; `execute.py` is the operator lane's turn policy inside it.
+4. **Two seams beyond the two the plan named, both additive:** the gateway's factory asks
+   `worker_app_functions.operator_agent` before it resolves a model (the `create_agent` wrapper runs
+   after, and refused 5000 when the gateway config resolves no runtime), and the first-contact
+   onboarding note skips a `first_contact_owned` session (it latched onboarding into the store
+   home's `config.yaml`). Both are on the footprint ledger.
+5. **A completion for a chat with no open session.** The poller parks an event whose owner session is
+   not live and drops it after ten minutes; an operator chat whose actor was retired would never
+   hear it. The operator lane keeps exactly those (queue and park) and forges the turn that reopens
+   the chat; the engine's poller has every completion for an open chat.
+6. **Found on the way:** importing `tui_gateway.server` swaps `sys.stdout` for stderr; in the serve
+   every reply line printed after the first in-process session became a stderr frame. The
+   in-process peer now imports it keeping the serve's stdout.
+7. **F4 is held.** `persona_chat_actor_prewarm` already opens the chat's session (`session.resume`
+   with `eager_build`), and the resident registry's actor IS that session (closing one closes the
+   other). Not retired, with the reason:
+   - `chat_root_send_queue` / `chat_root_send_runner`: the durable admission ahead of the engine. The
+     engine's queue is in memory; retiring the durable one means a boot replay over the journal,
+     which is the same durable queue under another name. Owner decision.
+   - `execute.py` / `_default_agent_factory`: the door (3) runs them on the engine's turn; moving the
+     same calls into bind/reset changes no engine. RECOMMENDED: keep, awaiting the owner.
+
 ## What can go wrong
 
 - **History source.** The operator loads its transcript through `persona_chat_history` (compression
