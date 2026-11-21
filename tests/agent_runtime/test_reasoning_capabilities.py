@@ -195,3 +195,25 @@ def test_every_reported_claude_level_is_sent_as_itself(model):
         wire = sent["output_config"]["effort"] if adaptive else sent["thinking"]["budget_tokens"]
         expected = level if adaptive else THINKING_BUDGET[level]
         assert wire == expected, f"{model}: reports {level!r}, the adapter sends {wire!r}"
+
+
+def test_the_upstream_codex_profile_reads_the_fork_catalog_and_an_overriding_one_keeps_its_answer():
+    """The openai-codex vocabulary is answered by ``reasoning_capabilities`` (fork-owned) for upstream's
+    plain profile, not by a subclass carried in upstream's provider plugin (row
+    RT-FU-THE-FORK-PLUGINS-REACH-HERMES-CORE-ONLY-THROUGH-ITS-PUBLIC-DOORS).
+    KILLING MUTATIONS: drop the ``_codex_catalog_profile`` branch in ``read_declared_efforts`` -> the plain
+    profile answers None -> red; drop its override test -> the overriding profile's answer is lost -> red."""
+    from providers import get_provider_profile
+    from providers.base import ProviderProfile
+    from agent_runtime.reasoning_capabilities import read_declared_efforts
+
+    record_control_catalog("openai-codex", [{"slug": "door-model", "supported_reasoning_levels": ["low", "xhigh"]}])
+    plain = get_provider_profile("openai-codex")
+    assert type(plain) is ProviderProfile  # upstream's bytes: no fork subclass in the plugin
+    assert read_declared_efforts(plain, "door-model") == ("low", "xhigh")
+
+    class Overriding(ProviderProfile):
+        def supported_reasoning_efforts(self, model):
+            return ("high",)
+
+    assert read_declared_efforts(Overriding(name="openai-codex"), "door-model") == ("high",)

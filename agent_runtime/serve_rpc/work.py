@@ -104,3 +104,57 @@ def _runtime_work_background_promote(rid, params, context=None):
         return ok(rid, {**answer, "work_id": params.get("work_id")})
     return err(rid, ERR_CONFLICT, "That tool call cannot be sent to the background.",
                {"reason": answer.get("code") or "not_promotable", "detail": answer.get("detail") or ""})
+
+
+# ── what is running now: the list and the peek (RT-EVERY-ACTION-ETERNIA-SENDS-HAS-A-TYPED-CALL-ON-THE-
+# RUNNING-HERMES). ``runtime.work.list`` is the BOARD's (``agent_runtime/work/rpc.py``); these two are
+# ``running.``-named so the two id spaces never share a method.
+
+_RUNNING_LIST_PARAMS = frozenset({"kind", "limit", "sort"})
+
+
+@method("runtime.work.running.list", tier=TIER_CONSOLE)
+def runtime_work_running_list(rid, params, context=None):
+    """What is running now (argv twin ``harness work list``): params ``kind``, ``limit`` (a positive int),
+    ``sort`` (all optional) -> the argv verb's JSON envelope, verbatim — ``{schema_version, kind: "list",
+    item_kind: "running_work", count, items, cursor, truncated, sources, counts, completeness}`` plus
+    ``ambient`` when published (``running_work.surface.running_work_listing``, one builder). Refusal:
+    ``invalid_request`` (+ ``supported`` for an unknown kind). Read off the running Hermes, so its own
+    in-process lanes are counted from where they run."""
+    from agent_runtime.running_work.surface import UnknownWorkKind, running_work_listing
+
+    if not isinstance(params, dict) or not set(params) <= _RUNNING_LIST_PARAMS:
+        return err(rid, ERR_INVALID_PARAMS, "Only kind, limit and sort are accepted.", {"reason": "invalid_request"})
+    kind, limit, sort = params.get("kind"), params.get("limit"), params.get("sort")
+    if (kind is not None and not isinstance(kind, str)) or (sort is not None and not isinstance(sort, str)) or (
+            limit is not None and (type(limit) is not int or limit < 1)):
+        return err(rid, ERR_INVALID_PARAMS, "kind and sort are text; limit is a positive whole number.",
+                   {"reason": "invalid_request"})
+    try:
+        # MUTATION: drop ``limit=limit`` and test_the_list_cuts_at_its_limit reddens.
+        return ok(rid, running_work_listing(kind=kind or "", limit=limit, sort=sort))
+    except UnknownWorkKind as exc:
+        return err(rid, ERR_INVALID_PARAMS, str(exc), {"reason": "invalid_request", "supported": exc.supported})
+
+
+@method("runtime.work.running.peek", tier=TIER_CONSOLE)
+def runtime_work_running_peek(rid, params, context=None):
+    """A bounded read-only look at one running thing (argv twin ``harness work peek``): exactly
+    ``work_id`` -> ``running_work.peek_work``'s payload (``work_id``, ``work_kind``, ``found: true``,
+    ``row``, ``tail_available``, ``tail``, ``tail_limit``, ``consumed: false``, ``tail_reason``).
+    Consumes nothing. Refusals: ``invalid_request`` (no id, or a malformed one), ``not_found``. On the
+    running Hermes the in-process output buffers are its own, so a tail the cold child could not read is
+    available here."""
+    from agent_runtime.running_work import peek_work
+
+    work_id = params.get("work_id") if isinstance(params, dict) else None
+    if set(params or {}) != {"work_id"} or not isinstance(work_id, str) or not work_id.strip():
+        return err(rid, ERR_INVALID_PARAMS, "work_id is required.", {"reason": "invalid_request"})
+    payload = peek_work(work_id.strip())
+    if payload.get("found"):
+        return ok(rid, payload)
+    if payload.get("error") == "malformed_work_id":
+        return err(rid, ERR_INVALID_PARAMS, "That is not a running-now id.",
+                   {"reason": "invalid_request", "work_id": payload.get("work_id")})
+    return err(rid, ERR_NOT_FOUND, "Nothing running now has that id (a task id is not a running-now id).",
+               {"reason": "not_found", "work_id": payload.get("work_id")})

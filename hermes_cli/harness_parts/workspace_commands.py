@@ -17,7 +17,7 @@ from agent_runtime.errors import NotFound, WorkspaceDeleteBlocked
 from agent_runtime.realm_sync import sync_artifacts_for_workspace_agent
 from agent_runtime.root_observability import attach_root_observability
 from agent_runtime.scope_activation import activate_workspace, workspace_row as _scope_workspace_row
-from agent_runtime.store import RealmStore, WorkspaceStore
+from agent_runtime.store import WorkspaceStore
 from hermes_cli.harness_support import (
     _list_envelope,
     _object_envelope,
@@ -27,7 +27,6 @@ from hermes_cli.harness_support import (
     emit_harness_error,
 )
 
-from .realm_commands import _reconcile_active_workspace_to_realm
 
 __layer__ = "lanes"
 __all__ = [
@@ -125,20 +124,14 @@ def _cmd_workspace_delete(args) -> int:
         row["dry_run"] = True
         _print_stage42(_object_envelope("workspace", row), args=args, default_output="json")
         return 0
-    was_active = store.active_id() == item.id
-    realm_id = item.realm_id
+    # One implementation with ``runtime.workspace.delete``: the cascade, then the
+    # active pointer's fall back to the realm's default.
+    from agent_runtime.workspace_manage import delete_workspace
+
     try:
-        row = store.delete(args.workspace_id)
+        row, _flags = delete_workspace(item.id)
     except WorkspaceDeleteBlocked as exc:
         return emit_harness_error(exc, args=args, code=exc.code)
-    # Deleting the ACTIVE workspace falls back to the realm's default (same
-    # reconcile rule as a realm switch) instead of leaving the operator on a
-    # cleared pointer.
-    if was_active and realm_id:
-        try:
-            _reconcile_active_workspace_to_realm(RealmStore().get(realm_id))
-        except Exception:  # pointer reconcile is best-effort; the delete already landed
-            pass
     _print_stage42(_object_envelope("workspace", row), args=args, default_output="json")
     return 0
 

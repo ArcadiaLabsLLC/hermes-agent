@@ -119,6 +119,8 @@ def test_an_unseated_create_keeps_the_name_rule(qa_persona):
     taken = _create(idempotency_key="unseated-2", display_name="unseated  ORCHID")
     assert taken["error"]["data"]["reason"] == "agent_name_taken"
     assert taken["error"]["data"]["rolled_back"] is True
+    # No seat, so no placement id to name (an empty one reads as a placement that has none).
+    assert "placement_id" not in taken["error"]["data"]
 
     nameless = _create(idempotency_key="unseated-3", display_name="")
     assert nameless["error"]["data"]["reason"] == "agent_name_required"

@@ -809,7 +809,7 @@ def _mint_retired(exc: Any, placement_id: str) -> AgentCreateOutcome:
         exc,
         {
             "reason": "instance_retired",
-            "placement_id": placement_id,
+            **({"placement_id": placement_id} if placement_id else {}),  # an unseated create has none
             "phase": PHASE_INSTANCE,
             "rolled_back": True,
         },
@@ -832,7 +832,7 @@ def _mint_invalid(exc: Any, placement_id: str) -> AgentCreateOutcome:
         exc,
         {
             "reason": "instance_invalid",
-            "placement_id": placement_id,
+            **({"placement_id": placement_id} if placement_id else {}),  # an unseated create has none
             "phase": PHASE_INSTANCE,
             "rolled_back": True,
         },
@@ -899,7 +899,7 @@ def _mint_persist_failed(exc: Any, placement_id: str) -> AgentCreateOutcome:
         {
             "reason": str(ChatErrorKind.CHAT_SESSION_PERSIST_FAILED),
             "persistence_operation": exc.operation,
-            "placement_id": placement_id,
+            **({"placement_id": placement_id} if placement_id else {}),  # an unseated create has none
             "phase": PHASE_INSTANCE,
             "rolled_back": True,
             "next_expected": (
@@ -922,7 +922,7 @@ def _mint_name_taken(exc: Any, placement_id: str) -> AgentCreateOutcome:
         {
             "reason": AGENT_NAME_TAKEN_REASON,
             "name": exc.name,
-            "placement_id": placement_id,
+            **({"placement_id": placement_id} if placement_id else {}),  # an unseated create has none
             "phase": PHASE_INSTANCE,
             "rolled_back": True,
         },
