@@ -9,7 +9,7 @@ from tests.agent_runtime.subagent_read_provider import SubagentProvider
 pytestmark = pytest.mark.timeout(120)
 
 
-@pytest.mark.parametrize("mode", ["native-worker", "in-process"])
+@pytest.mark.parametrize("mode", ["in-process"])
 @pytest.mark.parametrize("action", ["steer", "stop"])
 def test_owned_child_reads_across_execution_hosts(tmp_path, mode, action):
     """The isolated-compute host runs from ``test_subagent_compute_roundtrip.py``."""
@@ -21,10 +21,10 @@ def run_owned_child_reads(tmp_path, mode, action):
     from agent_runtime.conversations.in_process_peer import start_in_process_worker
 
     provider = SubagentProvider()
-    home = get_profile_dir("subagent-proof") if mode == "in-process" else tmp_path / "profile"
+    home = get_profile_dir("subagent-proof")  # every mode serves in process now (no worker child)
     home.mkdir(parents=True, exist_ok=True)
     provider.configure(home, mode == "isolated-compute")
-    options = {"worker_factory": start_in_process_worker} if mode == "in-process" else {}
+    options = {"worker_factory": start_in_process_worker}
     service = ConversationService(tmp_path / "runtime", "proof-install", profile_home=lambda _: home, **options)
     scope = ConversationScope("operator", "proof-account", "subagent-proof")
     try:

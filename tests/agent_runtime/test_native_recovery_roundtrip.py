@@ -10,8 +10,10 @@ pytestmark = pytest.mark.timeout(120)
 
 @pytest.mark.parametrize("compute", [False, True], ids=["inline", "compute-child"])
 def test_reopen_live_question_and_stream_then_stop_same_execution(tmp_path, compute):
-    home = tmp_path / "profile"
-    home.mkdir()
+    from hermes_cli.profiles import get_profile_dir
+
+    home = get_profile_dir("profile")  # a canonical profile home: the in-process worker serves by name
+    home.mkdir(parents=True)
     provider = RecoveryProvider()
     provider.configure(home, compute=compute)
     service = ConversationService(tmp_path, "isolated", profile_home=lambda _: home)

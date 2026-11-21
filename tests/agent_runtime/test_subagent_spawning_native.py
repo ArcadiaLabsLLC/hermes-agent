@@ -18,8 +18,10 @@ def test_paused_worker_refuses_spawn(tmp_path):
     from tools.delegate_tool_registry import is_spawn_paused
 
     provider = SubagentProvider()
-    home = tmp_path / "profile"
-    home.mkdir()
+    from hermes_cli.profiles import get_profile_dir
+
+    home = get_profile_dir("subagent-proof")  # a canonical profile home: the in-process worker serves by name
+    home.mkdir(parents=True)
     provider.configure(home, False)
     service = ConversationService(tmp_path / "runtime", "proof-install", profile_home=lambda _: home)
     scope = ConversationScope("operator", "proof-account", "subagent-proof")

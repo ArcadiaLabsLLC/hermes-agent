@@ -14,8 +14,10 @@ from tests.agent_runtime.native_recovery_provider import RecoveryProvider, until
 @pytest.mark.timeout(180)
 @pytest.mark.parametrize("compute", [False, True], ids=["inline", "compute-child"])
 def test_large_terminal_response_reopens_after_worker_and_service_restart(tmp_path, compute):
-    home = tmp_path / "profile"
-    home.mkdir()
+    from hermes_cli.profiles import get_profile_dir
+
+    home = get_profile_dir("profile")  # a canonical profile home: the in-process worker serves by name
+    home.mkdir(parents=True)
     text = random.Random(17).randbytes(5 * 1024 * 1024).hex()
     provider = RecoveryProvider(text=text)
     provider.configure(home, compute=compute)

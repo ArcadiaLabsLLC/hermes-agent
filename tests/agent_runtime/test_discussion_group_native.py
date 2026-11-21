@@ -21,24 +21,31 @@ def test_real_group_compare_discuss_target_and_reopen(tmp_path):
     provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
     thread = threading.Thread(target=provider.serve_forever, daemon=True)
     thread.start()
-    for name in ("runtime", "home", "a", "b", "work"):
+    from hermes_cli.profiles import get_profile_dir
+
+    # The members' homes are canonical profile homes: the in-process worker serves a profile by name.
+    profiles = get_profile_dir("a").parent
+    profiles.mkdir(parents=True, exist_ok=True)
+    for name in ("runtime", "home"):
         (tmp_path / name).mkdir()
+    for name in ("a", "b", "work"):
+        (profiles / name).mkdir()
     owner = tmp_path / "home"
     (owner / "config.yaml").write_text(
         f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n"
         "    key_env: PRIVATE_LLM_KEY\n    models: [test-model]\n    discover_models: false\n", encoding="utf-8")
     (owner / ".env").write_text("PRIVATE_LLM_KEY=isolated-group\n", encoding="utf-8")
     for profile in ("a", "b"):
-        (tmp_path / profile / "config.yaml").write_text(
+        (profiles / profile / "config.yaml").write_text(
             ("model:\n  default: test-model\n  provider: custom:local-test\n" if profile == "a" else "") +
             "dashboard:\n  turn_isolation: false\nmcp_servers: {}\n", encoding="utf-8")
     root = tmp_path / "runtime"
-    conversations = ConversationService(root, "install", profile_home=lambda p: tmp_path / p, auth_home=owner)
+    conversations = ConversationService(root, "install", profile_home=lambda p: profiles / p, auth_home=owner)
     context = NativeContext(root, owner, "install")
     service = DiscussionService(context, **room_timings(.05, lease_ttl=NATIVE_LEASE_TTL), conversations=lambda: conversations)
     service.start()
     try:
-        run = create((service, conversations, None, tmp_path))
+        run = create((service, conversations, None, profiles))
         member_b = service.runs.members(run["run_id"])[1]
         facts = model_call(service, run, member_b)
         assert facts["model_selection_required"]
@@ -62,14 +69,14 @@ def test_real_group_compare_discuss_target_and_reopen(tmp_path):
         service.close()
         conversations.close()
         requests = len(Provider.requests)
-        conversations = ConversationService(root, "install", profile_home=lambda p: tmp_path / p, auth_home=owner)
+        conversations = ConversationService(root, "install", profile_home=lambda p: profiles / p, auth_home=owner)
         service = DiscussionService(context, **room_timings(.05, lease_ttl=NATIVE_LEASE_TTL), conversations=lambda: conversations)
         service.start()
         after = service.view(run["workspace_id"], run["run_id"])
         assert after["log"]["events"] == before["log"]["events"]
         assert len(Provider.requests) == requests
         assert all(auth == "Bearer isolated-group" for auth, _ in Provider.requests)
-        assert not (tmp_path / "b" / "auth.json").exists()
+        assert not (profiles / "b" / "auth.json").exists()
     finally:
         service.close()
         conversations.close()

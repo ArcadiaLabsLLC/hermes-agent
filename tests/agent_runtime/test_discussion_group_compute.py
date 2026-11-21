@@ -13,16 +13,23 @@ pytestmark = pytest.mark.timeout(120)
 
 
 def test_compute_question_lost_answer_ack_and_confirmed_stop(tmp_path, monkeypatch):
-    for name in ("runtime", "home", "a", "b", "work"):
+    from hermes_cli.profiles import get_profile_dir
+
+    # The members' homes are canonical profile homes: the in-process worker serves a profile by name.
+    profiles = get_profile_dir("a").parent
+    profiles.mkdir(parents=True, exist_ok=True)
+    for name in ("runtime", "home"):
         (tmp_path / name).mkdir()
+    for name in ("a", "b", "work"):
+        (profiles / name).mkdir()
     provider = RecoveryProvider()
-    provider.configure(tmp_path / "a", compute=True)
-    conversations = ConversationService(tmp_path / "runtime", "install", profile_home=lambda p: tmp_path / p)
+    provider.configure(profiles / "a", compute=True)
+    conversations = ConversationService(tmp_path / "runtime", "install", profile_home=lambda p: profiles / p)
     context = NativeContext(tmp_path / "runtime", tmp_path / "home", "install")
     service = DiscussionService(context, **room_timings(.05, lease_ttl=NATIVE_LEASE_TTL), conversations=lambda: conversations)
     service.start()
     try:
-        run = create((service, conversations, None, tmp_path))
+        run = create((service, conversations, None, profiles))
         member = service.runs.members(run["run_id"])[0]["member_id"]
         act(service, run, "send", "question", message="Ask whether to continue.",
             response={"mode": "reply", "members": [member]})

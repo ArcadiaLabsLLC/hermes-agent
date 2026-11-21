@@ -60,7 +60,7 @@ class Provider(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-@pytest.mark.parametrize("mode", ["native-worker", "isolated-compute", "in-process"])
+@pytest.mark.parametrize("mode", ["isolated-compute", "in-process"])
 def test_real_agent_discovers_and_calls_once_without_replaying_on_reopen(tmp_path, mode):
     compute = mode == "isolated-compute"
     provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
@@ -69,13 +69,13 @@ def test_real_agent_discovers_and_calls_once_without_replaying_on_reopen(tmp_pat
     thread.start()
     from hermes_cli.profiles import get_profile_dir
     from agent_runtime.conversations.in_process_peer import start_in_process_worker
-    home = get_profile_dir("native-proof") if mode == "in-process" else tmp_path / "profile"
+    home = get_profile_dir("native-proof")  # every mode serves in process now (no worker child)
     home.mkdir(parents=True, exist_ok=True)
     (home / "config.yaml").write_text(
         "model:\n  default: test-model\n  provider: custom:native-test\n"
         f"providers:\n  native-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n    api_key: isolated-test\n"
         f"dashboard:\n  turn_isolation: {str(compute).lower()}\nmcp_servers: {{}}\n", encoding="utf-8")
-    options = {"worker_factory": start_in_process_worker} if mode == "in-process" else {}
+    options = {"worker_factory": start_in_process_worker}
     service = ConversationService(tmp_path, "isolated", profile_home=lambda _: home, **options)
     scope = ConversationScope("operator", "account", "native-proof")
     calls = []

@@ -1,4 +1,4 @@
-"""Actual native worker/agent over a loopback-only deterministic provider."""
+"""Actual native worker/agent over a loopback-only deterministic provider, served in process (no worker child)."""
 import json
 import threading
 import time
@@ -75,9 +75,11 @@ def run_profile_a_b_a(tmp_path, compute, shared):
     thread.start()
     root = tmp_path / "runtime"
     root.mkdir()
+    from hermes_cli.profiles import get_profile_dir
+
     for profile in ("a", "b"):
-        home = tmp_path / profile
-        home.mkdir()
+        home = get_profile_dir(profile)  # canonical: the in-process worker serves a profile by name
+        home.mkdir(parents=True)
         definitions = ("" if shared else
             f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n    api_key: isolated-{profile}\n")
         (home / "config.yaml").write_text(
@@ -94,14 +96,14 @@ def run_profile_a_b_a(tmp_path, compute, shared):
         f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n"
         "    key_env: PRIVATE_LLM_KEY\n    models: [test-model, alternate-model]\n    discover_models: false\n", encoding="utf-8")
     (owner / ".env").write_text("PRIVATE_LLM_KEY=shared-provider\n", encoding="utf-8")
-    service = ConversationService(root, "isolated-install", profile_home=lambda p: tmp_path / p,
+    service = ConversationService(root, "isolated-install", profile_home=get_profile_dir,
                                   auth_home=owner if shared else None,
                                   retention_options={"clock": lambda: now[0]})
     sessions = {}
     try:
         for number, profile in enumerate(("a", "b", "a")):
             scope = ConversationScope("operator", "isolated-account", profile)
-            opened = service.open(scope, key="chat", cwd=str(tmp_path), expected_home=str(tmp_path / profile))
+            opened = service.open(scope, key="chat", cwd=str(tmp_path), expected_home=str(get_profile_dir(profile)))
             sid = opened["session_id"]
             if profile in sessions:
                 assert sessions[profile] == sid
@@ -145,10 +147,11 @@ def run_profile_a_b_a(tmp_path, compute, shared):
                 assert body["model"] == "alternate-model"
             other = "b" if expected == "a" else "a"
             assert f"marker-{other}-" not in json.dumps(body)
-        assert (tmp_path / "a" / "state.db").is_file()
-        assert (tmp_path / "b" / "state.db").is_file()
+        assert (get_profile_dir("a") / "state.db").is_file()
+        assert (get_profile_dir("b") / "state.db").is_file()
         peers = [entry.live.peer for entry in service._bindings._entries.values()]
-        children = [child for peer in peers for child in psutil.Process(peer.process.pid).children(recursive=True)]
+        # In process: a compute host is this process's child, no worker in between.
+        children = psutil.Process().children(recursive=True)
         compute_children = [child for child in children if "tui_gateway.compute_host" in child.cmdline()]
         assert bool(compute_children) == compute, [child.cmdline() for child in children]
         # Native turn.done can follow message.complete; retirement must wait for it.
@@ -159,14 +162,14 @@ def run_profile_a_b_a(tmp_path, compute, shared):
             assert time.monotonic() < deadline, "settled sessions did not retire"
             time.sleep(.05)
         assert all(not peer.execution_possible for peer in peers)
-        # A retired worker stops its compute host before it exits (worker_entry.stop_compute_host), so
-        # "no execution possible" already means no compute process left — no wait.
+        # The last retired worker stops the compute host (InProcessPeer.close), so "no execution
+        # possible" already means no compute process left — no wait.
         assert not any(_still_running(child) for child in compute_children)
         assert not service._workers._workers
         requests_before = len(Provider.requests)
         scope = ConversationScope("operator", "isolated-account", "a")
         reopened = service.open(scope, key="chat", cwd=str(tmp_path),
-            expected_home=str(tmp_path / "a"), resume=sessions["a"])
+            expected_home=str(get_profile_dir("a")), resume=sessions["a"])
         assert reopened["session_id"] == sessions["a"]
         assert reopened["turn"]["state"] == "completed"
         assert reopened["recovery"]["execution"]["status"] == "complete"
@@ -192,14 +195,16 @@ def test_real_native_turn_carries_a_reviewed_file_and_its_digest_guards_resend(t
     provider = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
     thread = threading.Thread(target=provider.serve_forever, daemon=True)
     thread.start()
-    root, home = tmp_path / "runtime", tmp_path / "a"
+    from hermes_cli.profiles import get_profile_dir
+
+    root, home = tmp_path / "runtime", get_profile_dir("a")
     root.mkdir()
-    home.mkdir()
+    home.mkdir(parents=True)
     (home / "config.yaml").write_text(
         "model:\n  default: test-model\n  provider: custom:local-test\n"
         f"providers:\n  local-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n    api_key: isolated-a\n"
         "mcp_servers: {}\n", encoding="utf-8")
-    service = ConversationService(root, "isolated-install", profile_home=lambda p: tmp_path / p)
+    service = ConversationService(root, "isolated-install", profile_home=get_profile_dir)
     scope = ConversationScope("operator", "isolated-account", "a")
     content = b"reviewed-file-marker-7f3a\n"
     reviewed = {"name": "review-notes.txt", "media_type": "text/plain",
