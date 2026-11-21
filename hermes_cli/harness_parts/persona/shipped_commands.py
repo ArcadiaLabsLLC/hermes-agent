@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from agent_runtime.bundled_agents.sort_existing import apply_sort, plan_sort
 from agent_runtime.cli_format import emit_json
+from agent_runtime.root_observability import attach_root_observability
 from agent_runtime.seat_follow import follow_seat, stray_seats
 
 __layer__ = "lanes"
@@ -55,7 +56,7 @@ def _cmd_persona_sort_shipped(args) -> int:
     seats = [seat.receipt() for seat in stray_seats()] if args.dry_run else [
         follow_seat(seat.instance_id).receipt() for seat in stray_seats()]
     if args.json:
-        print(emit_json({"dry_run": bool(args.dry_run), "plan": plan, "seats": seats}))
+        print(emit_json(attach_root_observability({"dry_run": bool(args.dry_run), "plan": plan, "seats": seats})))
     else:
         print("Dry run — nothing written:" if args.dry_run else "Sorted:")
         for entry in plan:

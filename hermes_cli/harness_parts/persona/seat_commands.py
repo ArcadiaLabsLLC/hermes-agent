@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from agent_runtime.agent_create.seat import seat_unseated
 from agent_runtime.cli_format import emit_json
+from agent_runtime.root_observability import attach_root_observability
 
 __layer__ = "lanes"
 __all__ = ["_cmd_persona_seat_unseated"]
@@ -27,7 +28,7 @@ def _cmd_persona_seat_unseated(args) -> int:
     dry_run = bool(args.dry_run)
     seats = [seat.receipt() for seat in seat_unseated(dry_run=dry_run)]
     if args.json:
-        print(emit_json({"dry_run": dry_run, "seats": seats}))
+        print(emit_json(attach_root_observability({"dry_run": dry_run, "seats": seats})))
     else:
         print("Dry run — nothing written:" if dry_run else "Seated:")
         for seat in seats:
