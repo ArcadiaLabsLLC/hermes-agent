@@ -32,9 +32,11 @@
 #            run as a test: three rounds were lost to "no tests ran"
 #            (RT-PREPUSH-RUNS-A-NAMED-FIXTURE-AS-A-TEST). A named directory still runs.
 #            A file this tree last ran in PREPUSH_SHARD_MIN s or more (the runner's
-#            own `test_durations.json`) runs as shards, side by side, split by node
-#            id (`scripts/_bundle_plugin/hermes_shard.py`), unless it is listed in
-#            `scripts/test_files_unsharded.txt` (FH-PREPUSH-CAP-TIGHT).
+#            own `test_durations.json`; a file it has no record for reads the clone's
+#            shared record, the daily run's per-test fold) runs as shards, side by side,
+#            split by node id (`scripts/_bundle_plugin/hermes_shard.py`), unless it is
+#            listed in `scripts/test_files_unsharded.txt` (FH-PREPUSH-CAP-TIGHT) or its
+#            cost is one test (FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-OVER-BUDGET).
 #            The mutation-claim anchor test (`tests/scripts/test_mutation_claims_still_anchor.py`)
 #            joins it when `tests/mutation_claims.json` or a file a claim names changed
 #            (FH-PREPUSH-NEVER-CHECKS-THAT-MUTATION-CLAIMS-STILL-ANCHOR).
@@ -78,6 +80,7 @@
 #   scripts/prepush.sh -j 4 ...             # worker cap (default 8)
 #   scripts/prepush.sh --list-gates         # the gates step's files, one per line (and
 #   scripts/prepush.sh --list-census        #   the census gates): scripts/daily_full_run.sh reads them
+#   scripts/prepush.sh --shared-timings-path  # the shared per-file timing record the daily run writes
 #
 # Environment:
 #   PREPUSH_NOTIFY        `off`, or a command run as `<cmd> <title> <body>`
@@ -94,6 +97,9 @@
 #   PREPUSH_SHARD_MIN / PREPUSH_SHARD_SECONDS   a touched file last run this many
 #                         seconds or more is sharded, one shard per SHARD_SECONDS of
 #                         its last run, at most 4 (defaults 20 and 10).
+#   PREPUSH_SHARED_TIMINGS  the shared per-file record (default
+#                         `<git common dir>/hermes-test-timings.json`; `--shared-timings-path`
+#                         prints it, and `scripts/daily_full_run.sh` writes it).
 #   PREPUSH_RUNNER / PREPUSH_PYTHON   the test runner (default
 #                         scripts/run_tests.sh) and the doc-cite interpreter;
 #                         both exist so the script's own test can drive it
@@ -194,6 +200,11 @@ CAP="${PREPUSH_CAP:-240}"
 SHARD_MIN="${PREPUSH_SHARD_MIN:-20}"
 SHARD_SECONDS="${PREPUSH_SHARD_SECONDS:-10}"
 SHARD_MAX=4
+# The clone's shared per-file timing record (FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-OVER-BUDGET): the
+# daily run's per-test fold (`scripts/daily_test_timings.py --shared-record`) keeps it in the git common
+# directory, which every worktree of the clone shares, so a fresh lane tree has an answer on its first push.
+COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || COMMON_DIR=""
+SHARED_TIMINGS="${PREPUSH_SHARED_TIMINGS:-${COMMON_DIR:+$COMMON_DIR/hermes-test-timings.json}}"
 LEDGER="${PREPUSH_LEDGER:-$REPO_ROOT/_lane_logs/prepush_overruns.jsonl}"
 QUEUE_NOTE="Harness_Brain/20 — Active Initiatives/fork-hygiene-queue.md"
 
@@ -205,8 +216,9 @@ while [ $# -gt 0 ]; do
     --plan) PLAN_ONLY=1 ;;
     --list-gates) printf '%s\n' "${PREPUSH_QUEUE_GATES[@]}" "${PREPUSH_TEXT_GATES[@]}"; exit 0 ;;
     --list-census) printf '%s\n' "${PREPUSH_CENSUS_GATES[@]}"; exit 0 ;;
+    --shared-timings-path) echo "$SHARED_TIMINGS"; exit 0 ;;
     -j|--jobs) shift; JOBS="${1:?-j needs a number}" ;;
-    -h|--help) sed -n '2,78p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,84p' "${BASH_SOURCE[0]}"; exit 0 ;;
     -*) echo "prepush: unknown option $1" >&2; exit 2 ;;
     *) EXTRA+=("$1") ;;
   esac
@@ -326,6 +338,13 @@ done
 # The touched lane's shards. A file this tree last ran (the runner's own `test_durations.json`) in
 # SHARD_MIN s or more runs as k = min(SHARD_MAX, ceil(last / SHARD_SECONDS)) node-id shards side by
 # side, unless `scripts/test_files_unsharded.txt` lists it (its tests depend on each other's order).
+# A file the tree has no record for reads the clone's shared record (SHARED_TIMINGS, the daily run's
+# per-test fold) instead: a fresh lane tree ran every heavy file whole on one worker
+# (FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-OVER-BUDGET). The shared record also knows the file's
+# slowest test and its test count: k never exceeds the test count, and a file whose tests beyond its
+# slowest one add up to under SHARD_MIN runs whole — its cost is one test, or one whole-tree walk paid
+# once per process, which no node-id shard divides and every shard would pay again
+# (`tests/agent_runtime/test_persona_roster_bypass_contract.py`, review w1118a.75).
 _last_seconds() {
   local record="$REPO_ROOT/test_durations.json"
   [ -f "$record" ] || { echo 0; return; }
@@ -335,6 +354,14 @@ _last_seconds() {
   sed 's#\\\\#/#g' "$record" 2>/dev/null | grep -o "\"${1//./\\.}\": *[0-9.]*" 2>/dev/null |
     awk -F': *' 'NR == 1 { v = $2 + 0; printf "%d\n", (v == int(v)) ? v : int(v) + 1; found = 1 } END { if (!found) print 0 }'
 }
+# "<seconds, rounded up> <rest: seconds beyond the slowest test, rounded down> <tests>" from the shared
+# record, or nothing. Its writer puts one file per line: `  "tests/a/test_x.py": [72.82, 36.5, 2],`.
+_shared_seconds() {
+  [ -n "$SHARED_TIMINGS" ] && [ -f "$SHARED_TIMINGS" ] || return 0
+  grep -F "\"$1\": [" "$SHARED_TIMINGS" 2>/dev/null |
+    awk -F'[][,]' 'NR == 1 { t = $2 + 0; s = $3 + 0; n = $4 + 0
+      printf "%d %d %d\n", (t == int(t)) ? t : int(t) + 1, t - s, n }'
+}
 _unsharded() {
   [ -f "$REPO_ROOT/scripts/test_files_unsharded.txt" ] &&
     awk -v p="$1" '$1 == p { found = 1 } END { exit !found }' "$REPO_ROOT/scripts/test_files_unsharded.txt"
@@ -342,16 +369,32 @@ _unsharded() {
 PLAIN=()
 SHARD_FILES=()
 SHARD_COUNTS=()
+SHARD_WHY=()
+WHOLE_NOTES=()
 for path in ${LANE[@]+"${LANE[@]}"}; do
   last="$(_last_seconds "$path")"
+  why="last run ${last}s"
+  read -r shared_total shared_rest shared_tests <<<"$(_shared_seconds "$path")"
+  # MUTATION: drop this fallback and test_a_fresh_tree_shards_a_slow_file_from_the_shared_record reddens.
+  if [ "$last" -eq 0 ] && [ -n "${shared_total:-}" ]; then
+    last="$shared_total"
+    why="${last}s in the shared record"
+  fi
   shards=$(( (last + SHARD_SECONDS - 1) / SHARD_SECONDS ))
   [ "$shards" -gt "$SHARD_MAX" ] && shards="$SHARD_MAX"
-  if [ "$last" -ge "$SHARD_MIN" ] && [ "$shards" -ge 2 ] && ! _unsharded "$path"; then
+  [ -n "${shared_tests:-}" ] && [ "$shared_tests" -gt 0 ] && [ "$shards" -gt "$shared_tests" ] && shards="$shared_tests"
+  if [ "$last" -ge "$SHARD_MIN" ] && [ -n "${shared_rest:-}" ] && [ "$shared_rest" -lt "$SHARD_MIN" ]; then
+    # MUTATION: drop this arm and test_a_file_whose_cost_is_one_test_runs_whole reddens.
+    PLAIN+=("$path")
+    WHOLE_NOTES+=("$path ($why; its tests beyond the slowest add up to ${shared_rest}s, so a shard would only repeat it)")
+  elif [ "$last" -ge "$SHARD_MIN" ] && [ "$shards" -ge 2 ] && ! _unsharded "$path"; then
     SHARD_FILES+=("$path")
     SHARD_COUNTS+=("$shards")
+    SHARD_WHY+=("$why")
   else
     PLAIN+=("$path")
   fi
+  shared_total="" shared_rest="" shared_tests=""
 done
 
 _list() { local label="$1"; shift; echo "  $label ($#):"; for p in "$@"; do echo "    $p"; done; }
@@ -392,7 +435,10 @@ fi
 if [ "${#LANE[@]}" -gt 0 ]; then
   echo "  step touched (the slower lane) — budget ${BUDGET_TOUCHED}s, deadline ${DEADLINE_TOUCHED}s"
   for index in "${!SHARD_FILES[@]}"; do
-    echo "    sharded: ${SHARD_FILES[$index]} into ${SHARD_COUNTS[$index]} (last run $(_last_seconds "${SHARD_FILES[$index]}")s)"
+    echo "    sharded: ${SHARD_FILES[$index]} into ${SHARD_COUNTS[$index]} (${SHARD_WHY[$index]})"
+  done
+  for note in ${WHOLE_NOTES[@]+"${WHOLE_NOTES[@]}"}; do
+    echo "    runs whole: $note"
   done
 else
   echo "  step touched (the slower lane) — nothing touched or named, skipped"

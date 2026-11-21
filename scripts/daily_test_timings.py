@@ -180,13 +180,95 @@ def _one(result: dict) -> str:
     return f"{result['seconds']:.2f}s {result['outcome']} {result['nodeid']}{tries}"
 
 
+# ── the shared per-file record ──────────────────────────────────────────────────────────────────
+#
+# FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-OVER-BUDGET: ``scripts/prepush.sh`` splits a slow touched file
+# into node-id shards, but read only the tree's own untracked ``test_durations.json``, so a fresh lane
+# tree ran every heavy file whole on one worker. The daily run's per-test times are the record a fresh
+# tree falls back to: the fold below writes each file's seconds, its slowest test and its test count
+# into ONE file in the clone's git common directory, which every worktree of the clone shares. It is
+# this machine's record (a Windows box keeps its own), and it is not a second timing system: it is
+# this module's own fold, kept current by each daily run.
+
+#: the shared record's name, in ``git rev-parse --git-common-dir``.
+SHARED_RECORD_NAME = "hermes-test-timings.json"
+
+
+def file_timings(folded: dict) -> dict[str, list]:
+    """``{file: [seconds, slowest test's seconds, tests]}`` from one fold.
+
+    A test timed on several attempts counts at its slowest; a test that never finished counts at
+    the seconds it ran before it was killed, so a file cut off at its timeout is never recorded as
+    fast."""
+
+    per_test: dict[str, float] = {}
+    for result in folded["results"]:
+        nodeid = result["nodeid"]
+        per_test[nodeid] = max(per_test.get(nodeid, 0.0), float(result["seconds"]))
+    for entry in folded["unfinished"]:
+        nodeid = entry["nodeid"]
+        if nodeid not in per_test:
+            per_test[nodeid] = float(entry["running_seconds"])
+    files: dict[str, list] = {}
+    for nodeid, seconds in per_test.items():
+        path = nodeid.split("::", 1)[0].replace("\\", "/")
+        row = files.setdefault(path, [0.0, 0.0, 0])
+        row[0] += seconds
+        row[1] = max(row[1], seconds)
+        row[2] += 1
+    return {path: [round(row[0], 2), round(row[1], 2), row[2]] for path, row in files.items()}
+
+
+def read_shared_record(record: Path) -> dict[str, list]:
+    try:
+        data = json.loads(record.read_text(encoding="utf-8"))
+        files = data["files"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+    return {k: v for k, v in files.items() if isinstance(v, list) and len(v) == 3} if isinstance(files, dict) else {}
+
+
+def update_shared_record(folded: dict, record: Path, now: float | None = None) -> int:
+    """Merge one fold's files into *record*; files this fold did not run keep their last entry.
+
+    One line per file (``"tests/a/test_x.py": [72.82, 36.5, 2],``) so the shell reads a file's entry
+    with one ``grep``. Written whole and swapped in, so a reader never sees half a record."""
+
+    merged = read_shared_record(record)
+    fresh = file_timings(folded)
+    if not fresh:
+        return 0
+    merged.update(fresh)
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() if now is None else now))
+    lines = [f'{{"schema": 1, "updated": "{stamp}", "files": {{']
+    rows = [f"  {json.dumps(path)}: {json.dumps(merged[path])}" for path in sorted(merged)]
+    lines.append(",\n".join(rows))
+    lines.append("}}")
+    staged = record.with_name(f"{record.name}.{os.getpid()}.tmp")
+    staged.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    os.replace(staged, record)
+    return len(fresh)
+
+
 def main(argv: list[str]) -> int:
+    shared = None
+    if len(argv) == 4 and argv[2] == "--shared-record":
+        shared, argv = Path(argv[3]), argv[:2]
     if len(argv) != 2:
-        print("usage: python scripts/daily_test_timings.py <timings-dir> <out.json>", file=sys.stderr)
+        print("usage: python scripts/daily_test_timings.py <timings-dir> <out.json> [--shared-record <file>]",
+              file=sys.stderr)
         return 2
     where, out = Path(argv[0]), Path(argv[1])
     folded = fold(where)  # a missing directory globs to nothing
     out.write_text(json.dumps(folded, indent=1) + "\n", encoding="utf-8")
+    if shared is not None:
+        try:
+            count = update_shared_record(folded, shared)
+        except OSError as exc:  # the record is a convenience for prepush; the step's own report stands
+            print(f"    shared timings: not written ({exc})")
+        else:
+            if count:
+                print(f"    shared timings: {count} file(s) into {shared}")
     if not where.is_dir():
         print(f"    timings: none recorded (no {where}) — {out}")
         return 0

@@ -76,19 +76,41 @@ def test_a_shard_the_hash_leaves_empty_reports_one_skipped_placeholder_not_exit_
     """FH-PREPUSH-NAMED-FILE-NO-TESTS-RAN: prepush runs each shard as its own runner, and a shard
     holding none of a small file's tests exited 5 -> the runner's "NO TESTS RAN" guard redded a green
     file. Mutation: drop the placeholder arm -> the empty shard exits 5 with nothing collected, red."""
-    import zlib
+    sys.path.insert(0, str(_PLUGIN_DIR))
+    try:
+        from hermes_shard import shards_of
+    finally:
+        sys.path.remove(str(_PLUGIN_DIR))
 
     (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
-    names = [f"test_n{n}" for n in range(40)]
-    # Two tests whose node ids land in one shard of 3: the other two shards hold none.
-    home = zlib.crc32(f"test_twelve.py::{names[0]}".encode()) % 3
-    pair = [name for name in names if zlib.crc32(f"test_twelve.py::{name}".encode()) % 3 == home][:2]
+    pair = ["test_n0", "test_n1"]
+    # Two tests over 3 shards: one shard holds none.
+    homes = shards_of([f"test_twelve.py::{name}" for name in pair], 3)
+    home = homes["test_twelve.py::test_n0"]
     (tmp_path / "test_twelve.py").write_text(
         "".join(f"def {name}():\n    pass\n" for name in pair), encoding="utf-8")
-    empty = next(i for i in range(3) if i != home)
+    empty = next(i for i in range(3) if i not in homes.values())
 
     proc = _run(tmp_path, f"--hermes-shard={empty}/3")
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "1 skipped, 1 deselected" in proc.stdout and f"runs in shard {home}/3" in proc.stdout
     held = _run(tmp_path, f"--hermes-shard={home}/3")
-    assert held.returncode == 0 and "2 passed" in held.stdout, held.stdout
+    assert held.returncode == 0 and "1 passed, 1 deselected" in held.stdout, held.stdout
+
+
+@pytest.mark.timeout(120)
+def test_a_two_test_file_split_in_two_runs_one_test_per_shard(tmp_path):
+    """FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-OVER-BUDGET: ``crc32(nodeid) % k`` alone put both cases of
+    ``test_native_large_recovery.py`` in shard 1/2 (62.6 s) and none in 0/2, so the split saved nothing. Two
+    tests whose hashes agree mod 2 still run one per shard. Killing mutation in the plugin's comment."""
+    import zlib
+
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    names = [f"test_n{n}" for n in range(40)]
+    same = zlib.crc32(f"test_twelve.py::{names[0]}".encode()) % 2
+    pair = [name for name in names if zlib.crc32(f"test_twelve.py::{name}".encode()) % 2 == same][:2]
+    (tmp_path / "test_twelve.py").write_text(
+        "".join(f"def {name}():\n    pass\n" for name in pair), encoding="utf-8")
+    for index in range(2):
+        proc = _run(tmp_path, f"--hermes-shard={index}/2")
+        assert proc.returncode == 0 and "1 passed, 1 deselected" in proc.stdout, proc.stdout + proc.stderr

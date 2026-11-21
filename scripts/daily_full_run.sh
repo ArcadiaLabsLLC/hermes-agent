@@ -114,6 +114,10 @@ _native() {  # a path a native Windows python can open (Git Bash's /c/... is not
   if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi
 }
 _timed() { case "$1" in suite|gates|census|tooling) return 0 ;; esac; return 1; }
+# The fold also writes each file's seconds into the clone's shared timing record, the one prepush's
+# touched step reads when a tree has no record of its own (FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-
+# OVER-BUDGET); prepush names the path, so the writer and the reader cannot drift apart.
+SHARED_TIMINGS="$(bash "$SCRIPT_DIR/prepush.sh" --shared-timings-path 2>/dev/null)" || SHARED_TIMINGS=""
 
 _command() {
   local timing=(-- -p scripts.daily_test_timings "--daily-test-timings=$(_native "$OUT/$1.timings.d")")
@@ -130,7 +134,10 @@ _command() {
 # per-process files go once the JSON holds them.
 _fold_timings() {
   local dir="$OUT/$1.timings.d" json="$OUT/$1.timings.json" line rc=0 report
-  report="$("$PY" "$SCRIPT_DIR/daily_test_timings.py" "$(_native "$dir")" "$(_native "$json")")" || rc=$?
+  local shared=()
+  [ -n "$SHARED_TIMINGS" ] && shared=(--shared-record "$(_native "$SHARED_TIMINGS")")
+  report="$("$PY" "$SCRIPT_DIR/daily_test_timings.py" "$(_native "$dir")" "$(_native "$json")" \
+    ${shared[@]+"${shared[@]}"})" || rc=$?
   if [ "$rc" -ne 0 ]; then
     SUMMARY+=("    timings: scripts/daily_test_timings.py failed (exit $rc); raw lines kept in $dir")
     return

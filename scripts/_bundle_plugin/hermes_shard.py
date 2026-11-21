@@ -1,14 +1,19 @@
 """pytest plugin: run ONE shard of the collected tests (``--hermes-shard=i/k``).
 
 Loaded by ``scripts/run_tests_bundled.py`` (``-p hermes_shard``) when it splits
-a slow file across ``k`` processes (fast-gate plan §3). A test belongs to shard
-``crc32(nodeid) % k``: a stable hash of the NODE ID, never a precomputed list,
-so a new test lands in exactly one shard, parametrised ids split across
-shards, and module/class fixtures run once per shard (the cost that bounds k).
+a slow file across ``k`` processes (fast-gate plan §3). The collected node ids
+are ranked by a stable hash (``crc32(nodeid)``, the id breaking a tie) and the
+test at rank ``r`` belongs to shard ``r % k``: every shard process collects the
+same ids, so each test lands in exactly one shard, never by a precomputed list;
+parametrised ids split across shards, and module/class fixtures run once per
+shard (the cost that bounds k). The shards differ by at most one test: with
+``crc32(nodeid) % k`` alone, a two-test file split in two put both tests in one
+shard half the time (``tests/agent_runtime/test_native_large_recovery.py`` ran
+62.6 s in shard 1/2 while 0/2 held nothing,
+FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-OVER-BUDGET).
 The other shards' items are deselected through ``pytest_deselected``.
 
-A shard the hash leaves EMPTY (a few tests over k shards: 5 tests over 4 left
-shard 1 with none) keeps ONE other shard's item, marked skip, instead of
+A shard left EMPTY (fewer tests than shards) keeps ONE other shard's item, marked skip, instead of
 exiting 5. Exit 5 alone is a per-file pass, but a run that is just that shard
 (``scripts/prepush.sh`` starts each shard as its own runner) collected nothing,
 and the runner's nothing-ran guard reds it: "NO TESTS RAN — 0 collected" over a
@@ -33,7 +38,7 @@ def pytest_addoption(parser):
         dest="hermes_shard",
         default=None,
         metavar="I/K",
-        help="Run only the tests whose crc32(node id) % K == I.",
+        help="Run only shard I of K: the collected ids ranked by crc32(node id), dealt round K shards.",
     )
 
 
@@ -48,7 +53,16 @@ def parse_shard(value: str) -> tuple[int, int]:
 
 
 def shard_of(nodeid: str, k: int) -> int:
+    """The hash a test is ranked by (kept for callers that spread their own work the same way)."""
+
     return zlib.crc32(nodeid.encode("utf-8")) % k
+
+
+def shards_of(nodeids, k: int) -> dict[str, int]:
+    """Each id's shard: ranked by ``crc32``, then dealt round the ``k`` shards, so sizes differ by ≤ 1."""
+
+    ranked = sorted(set(nodeids), key=lambda nodeid: (zlib.crc32(nodeid.encode("utf-8")), nodeid))
+    return {nodeid: rank % k for rank, nodeid in enumerate(ranked)}
 
 
 def pytest_configure(config):
@@ -65,13 +79,16 @@ def pytest_collection_modifyitems(session, config, items):
     if shard is None:
         return
     i, k = shard
-    keep = [item for item in items if shard_of(item.nodeid, k) == i]
-    drop = [item for item in items if shard_of(item.nodeid, k) != i]
+    # MUTATION: rank nothing (``home = {n: shard_of(n, k) ...}``) and
+    # test_a_two_test_file_split_in_two_runs_one_test_per_shard reddens.
+    home = shards_of([item.nodeid for item in items], k)
+    keep = [item for item in items if home[item.nodeid] == i]
+    drop = [item for item in items if home[item.nodeid] != i]
     if not keep and drop:
         placeholder = drop.pop(0)
         placeholder.add_marker(pytest.mark.skip(
             reason=f"{_OPTION}={i}/{k} holds none of these {len(items)} tests; "
-                   f"this one runs in shard {shard_of(placeholder.nodeid, k)}/{k}"
+                   f"this one runs in shard {home[placeholder.nodeid]}/{k}"
         ))
         keep = [placeholder]
     if drop:

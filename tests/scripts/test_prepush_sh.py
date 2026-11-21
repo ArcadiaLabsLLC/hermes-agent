@@ -607,6 +607,46 @@ def test_a_windows_keyed_duration_record_still_shards(repo: Path):
     assert calls.count("--hermes-shard=") == 3, calls
 
 
+# FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-OVER-BUDGET: a fresh lane tree has no `test_durations.json`, so
+# every heavy touched file ran whole on one worker (`test_native_large_recovery.py` 72.8 s against the 60 s
+# budget). With no record of its own the tree reads the clone's shared record, the daily run's per-test fold
+# in the git common directory. Killing mutation in the script's comment (drop the fallback).
+def test_a_fresh_tree_shards_a_slow_file_from_the_shared_record(repo: Path):
+    assert not (repo / "test_durations.json").exists()
+    (repo / ".git" / "hermes-test-timings.json").write_text(
+        '{"schema": 1, "updated": "2026-11-21T00:00:00Z", "files": {\n'
+        '  "tests/a/test_committed.py": [72.82, 36.5, 2],\n'
+        '  "tests/a/test_untracked.py": [3.0, 1.0, 3]\n}}\n', encoding="utf-8")
+    proc, calls = _run(repo)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    # Two tests: never more shards than tests, though 73 s would make four.
+    assert "sharded: tests/a/test_committed.py into 2 (73s in the shared record)" in proc.stdout
+    shards = sorted(line for line in calls.splitlines() if "--hermes-shard=" in line)
+    assert shards == [f"-j 1 tests/a/test_committed.py -- -p scripts._bundle_plugin.hermes_shard --hermes-shard={i}/2"
+                      for i in range(2)], calls
+    # The tree's own record, when it has one, still answers first.
+    (repo / "test_durations.json").write_text(json.dumps({"tests/a/test_committed.py": 5.0}), encoding="utf-8")
+    (repo.parent / "calls.log").unlink()
+    proc, calls = _run(repo)
+    assert proc.returncode == 0 and "sharded:" not in proc.stdout and "--hermes-shard" not in calls
+
+
+# Review w1118a.75 (the roster-bypass contract file merged into the row above): a file whose cost is one
+# test, or one whole-tree walk paid once per process, is never split: every shard would pay the walk again
+# and run into its timeout. Killing mutation in the script's comment (drop the run-whole arm).
+def test_a_file_whose_cost_is_one_test_runs_whole(repo: Path):
+    (repo / "test_durations.json").write_text(json.dumps({"tests/a/test_committed.py": 31.0}), encoding="utf-8")
+    (repo / ".git" / "hermes-test-timings.json").write_text(
+        '{"schema": 1, "updated": "2026-11-21T00:00:00Z", "files": {\n'
+        '  "tests/a/test_committed.py": [31.0, 30.2, 3]\n}}\n', encoding="utf-8")
+    proc, calls = _run(repo)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "sharded:" not in proc.stdout and "--hermes-shard" not in calls
+    assert ("runs whole: tests/a/test_committed.py (last run 31s; its tests beyond the slowest add up to 0s, "
+            "so a shard would only repeat it)") in proc.stdout
+    assert "tests/a/test_committed.py" in calls.splitlines()[-1].split()
+
+
 def test_a_red_shard_reds_the_touched_step(repo: Path):
     (repo / "test_durations.json").write_text(json.dumps({"tests/a/test_committed.py": 40}), encoding="utf-8")
     proc, _ = _run(repo, runner_body='case "$*" in *--hermes-shard=2/4*) exit 1 ;; esac')
