@@ -29,7 +29,7 @@ def _gate_model_downloads() -> None:
 
     app = getattr(sys.modules.get("hermes_cli.web_server"), "app", None)
     if app is not None:
-        from agent_runtime.bundle_profiles.model_downloads import gate_model_download_routes
+        from agent_runtime.plugin_doors.harness import gate_model_download_routes
 
         gate_model_download_routes(app)
 
@@ -54,14 +54,12 @@ async def promote_profile_endpoint(name: str, body: ProfilePromoteRequest):
     persona is minted from the agent-runtime defaults while the supplied
     ``slot_role`` is retained as data.
     """
-    from hermes_cli import profiles as profiles_mod
+    from agent_runtime.plugin_doors.harness import normalize_profile_name, profile_exists, promote_profile_to_persona
 
     try:
-        profile_name = profiles_mod.normalize_profile_name(name)
-        if not profiles_mod.profile_exists(profile_name):
+        profile_name = normalize_profile_name(name)
+        if not profile_exists(profile_name):
             raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' does not exist")
-        from agent_runtime.blueprints.resolve import promote_profile_to_persona
-
         persona = promote_profile_to_persona(profile_name, slot_role=body.slot_role)
         return {
             "ok": True,
