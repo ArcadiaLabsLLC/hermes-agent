@@ -69,6 +69,7 @@ DOOR: dict[str, str] = {
     "gate_tool_call": "agent_runtime.lens.act",
     "finish_tool_call": "agent_runtime.lens.act",
     "review_shared_skill_write": "agent_runtime.review_skill_gate",
+    "namespace_config_write_refusal": "agent_runtime.namespace_config_guard",
     "attribute_commits": "agent_runtime.agent_commit_attribution",
     "default_background_notify": "agent_runtime.background_completion",
     "remember_stream_agent": "agent_runtime.codex_observability",
