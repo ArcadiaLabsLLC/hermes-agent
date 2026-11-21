@@ -105,7 +105,6 @@ from pathlib import Path
 import pytest
 
 from agent_runtime.decision_contract_registry import event_catalog
-from scripts import source_cache
 
 pytestmark = pytest.mark.gate
 
@@ -178,21 +177,8 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-@functools.lru_cache(maxsize=1)
-def _production_trees_cached() -> tuple[tuple[str, ast.Module], ...]:
-    return tuple(_production_trees_uncached().items())
-
-
-def _production_trees() -> dict[str, ast.Module]:
-    """Parsing the whole production tree is the expensive step; several cases
-    need it, so it is parsed once per session."""
-
-    return dict(_production_trees_cached())
-
-
-def _production_trees_uncached() -> dict[str, ast.Module]:
+def _production_paths() -> list[str]:
     root = _repo_root()
-    trees: dict[str, ast.Module] = {}
     paths: list[Path] = []
     for package in PRODUCTION_PACKAGES:
         directory = root / package
@@ -204,37 +190,55 @@ def _production_trees_uncached() -> dict[str, ast.Module]:
             ]
             paths += [Path(dirpath) / name for name in filenames if name.endswith(".py")]
     paths += [p for p in root.glob("*.py")]
-    for path in paths:
-        tree = source_cache.tree(path)  # shared with every whole-tree walker; read-only
-        if tree is not None:
-            trees[str(path)] = tree
-    return trees
+    return [str(path) for path in paths]
 
 
-def _module_string_constants(trees: dict[str, ast.Module]) -> dict[str, str]:
-    """Idiom 4: module-level ``NAME = "literal"``."""
+@functools.lru_cache(maxsize=1)
+def _production_census_cached() -> tuple[tuple[str, tuple, tuple], ...]:
+    """Every parsed production file as plain data: ``(path, constants, functions)``.
+
+    Parsing and flattening the whole production tree is the expensive step (~13 s + ~12.7 s here, 103.9 s
+    as a touched file under load, FH-PREPUSH-TOUCHED-OVER-BUDGET-ON-THE-REGISTERED-EVENTS-EMITTER-FILE), so
+    it runs once per session and over worker processes: ``scripts/census_pool.py`` maps
+    ``scripts/god_file_chunks.py::emitter_census_chunk`` over contiguous chunks and the chunks come back in
+    walk order, as the name census gates' walks do. ``HERMES_CENSUS_JOBS=1`` runs it in-process."""
+
+    from scripts import census_pool, god_file_chunks
+
+    return tuple(
+        entry
+        for part in census_pool.map_chunks(god_file_chunks.emitter_census_chunk, _production_paths())
+        for entry in part
+    )
+
+
+def _production_census() -> dict[str, tuple[tuple, tuple]]:
+    """``{path: (constants, functions)}`` over every parsed production file (session-cached)."""
+
+    return {path: (constants, functions) for path, constants, functions in _production_census_cached()}
+
+
+def _module_string_constants(census: dict[str, tuple[tuple, tuple]]) -> dict[str, str]:
+    """Idiom 4: module-level ``NAME = "literal"`` (a later file's binding wins, as the walk order gives)."""
 
     constants: dict[str, str] = {}
-    for tree in trees.values():
-        for node in tree.body:
-            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
-                if isinstance(node.value.value, str):
-                    for target in node.targets:
-                        if isinstance(target, ast.Name):
-                            constants[target.id] = node.value.value
+    for file_constants, _functions in census.values():
+        constants.update(file_constants)
     return constants
 
 
-def _slot_value(call: ast.Call, index: int | None, keyword: str | None) -> ast.expr | None:
+def _slot_value(args: tuple, keywords: tuple, index: int | None, keyword: str | None) -> tuple[str, str] | None:
+    """The fact (``scripts/god_file_chunks.py::_arg_fact``) a call passes in one sink slot, or ``None``."""
+
     if keyword:
-        for kw in call.keywords:
-            if kw.arg == keyword:
-                return kw.value
+        for arg, fact in keywords:
+            if arg == keyword:
+                return fact
     # A negative index is never a call-site slot: it is the bound receiver a
     # method forwarded (``self``/``cls`` at position 0, minus the dropped self).
-    if index is not None and 0 <= index < len(call.args):
-        if not any(isinstance(arg, ast.Starred) for arg in call.args[: index + 1]):
-            return call.args[index]
+    if index is not None and 0 <= index < len(args):
+        if not any(fact is not None and fact[0] == "*" for fact in args[: index + 1]):
+            return args[index]
     return None
 
 
@@ -251,10 +255,9 @@ def emitted_event_types() -> dict[str, list[str]]:
 
 #: One function, flattened into everything the resolver needs about it:
 #: ``(path, func_name, positional, keyword_only, is_method, calls)`` where
-#: ``calls`` is ``((callee_name, call_node), ...)``.
-_FunctionRecord = tuple[
-    str, str, tuple[str, ...], tuple[str, ...], bool, tuple[tuple[str, ast.Call], ...]
-]
+#: ``calls`` is ``((callee_name, lineno, args, keywords), ...)`` in plain data
+#: (``scripts/god_file_chunks.py::emitter_census_chunk``).
+_FunctionRecord = tuple[str, str, tuple[str, ...], tuple[str, ...], bool, tuple[tuple, ...]]
 
 
 @functools.lru_cache(maxsize=1)
@@ -278,30 +281,16 @@ def _production_call_index() -> tuple[_FunctionRecord, ...]:
 
     The structure is deliberately a flat tuple of records rather than anything
     cleverer: the rounds below do nothing but re-read it, and a record that
-    carries its own arg lists means the loop never touches an AST node it did
-    not already index.
+    carries its own arg facts means the loop never touches an AST node at all.
+    Since FH-PREPUSH-TOUCHED-OVER-BUDGET-ON-THE-REGISTERED-EVENTS-EMITTER-FILE the
+    flattening itself runs in the census workers (:func:`_production_census_cached`).
     """
 
-    records: list[_FunctionRecord] = []
-    for path, tree in _production_trees().items():
-        for func in [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
-            args = func.args
-            positional = tuple(a.arg for a in (*args.posonlyargs, *args.args))
-            keyword_only = tuple(a.arg for a in args.kwonlyargs)
-            is_method = bool(positional) and positional[0] in {"self", "cls"}
-            calls: list[tuple[str, ast.Call]] = []
-            for call in [n for n in ast.walk(func) if isinstance(n, ast.Call)]:
-                func_node = call.func
-                if isinstance(func_node, ast.Name):
-                    name = func_node.id
-                elif isinstance(func_node, ast.Attribute):
-                    name = func_node.attr
-                else:
-                    continue
-                calls.append((name, call))
-            if calls:
-                records.append((path, func.name, positional, keyword_only, is_method, tuple(calls)))
-    return tuple(records)
+    return tuple(
+        (path, *function)
+        for path, (_constants, functions) in _production_census().items()
+        for function in functions
+    )
 
 
 def _emitted_event_types() -> dict[str, list[str]]:
@@ -310,7 +299,7 @@ def _emitted_event_types() -> dict[str, list[str]]:
     Returns ``{event_type: [\"path:line\", ...]}`` so a failure names the site.
     """
 
-    constants = _module_string_constants(_production_trees())
+    constants = _module_string_constants(_production_census())
 
     # A sink is (callee_name, positional_index, keyword_name). Seeded with the
     # Event dataclass itself: ``type`` is keyword ``type`` or positional 1.
@@ -323,29 +312,30 @@ def _emitted_event_types() -> dict[str, list[str]]:
     for _round in range(8):
         discovered: set[tuple[str, int | None, str | None]] = set()
         for path, func_name, positional, keyword_only, is_method, calls in _production_call_index():
-            for name, call in calls:
+            for name, lineno, args, keywords in calls:
                 slots = slots_by_name.get(name)
                 if not slots:
                     continue
                 for index, keyword in slots:
-                    value = _slot_value(call, index, keyword)
+                    value = _slot_value(args, keywords, index, keyword)
                     if value is None:
                         continue
-                    if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                        emitted.setdefault(value.value, []).append(f"{path}:{call.lineno}")
-                    elif isinstance(value, ast.Name) and value.id in constants:
-                        emitted.setdefault(constants[value.id], []).append(f"{path}:{call.lineno}")
-                    elif isinstance(value, ast.Name):
+                    kind, text = value
+                    if kind == "s":
+                        emitted.setdefault(text, []).append(f"{path}:{lineno}")
+                    elif kind == "n" and text in constants:
+                        emitted.setdefault(constants[text], []).append(f"{path}:{lineno}")
+                    elif kind == "n":
                         # This function forwards a parameter into a sink, so
                         # it IS a sink (idiom 3). Bound methods drop `self`
                         # from the call-site argument list.
-                        if value.id in positional:
-                            at = positional.index(value.id)
+                        if text in positional:
+                            at = positional.index(text)
                             slot = at - 1 if is_method else at
                             # Forwarding the receiver itself has no positional slot.
-                            discovered.add((func_name, slot if slot >= 0 else None, value.id))
-                        elif value.id in keyword_only:
-                            discovered.add((func_name, None, value.id))
+                            discovered.add((func_name, slot if slot >= 0 else None, text))
+                        elif text in keyword_only:
+                            discovered.add((func_name, None, text))
         if discovered <= sinks:
             break
         sinks |= discovered
@@ -383,14 +373,14 @@ def _emitted_event_types() -> dict[str, list[str]]:
 #
 # The resolver rewrite above is what makes the cost merely large rather than
 # unbounded (42.6s -> 8.2s). This warm is what makes it not a test's problem.
-_production_trees_cached()
+_production_census_cached()
 _emitted_event_types_cached()
 
 #: Cache occupancy AS OF IMPORT. Read by the guard below: if the two warm calls
 #: are ever deleted, this records (0, 0) no matter which test runs first, so the
 #: guard fails deterministically instead of depending on collection order.
 _CACHE_SIZES_AT_IMPORT = (
-    _production_trees_cached.cache_info().currsize,
+    _production_census_cached.cache_info().currsize,
     _emitted_event_types_cached.cache_info().currsize,
 )
 
@@ -422,8 +412,10 @@ def test_the_two_expensive_builders_run_exactly_once_per_session():
 
     MEASURED, because the intuition was wrong and a first draft of this test
     guarded the wrong thing. The whole cost of this file is in two places:
-    parsing 934 production modules (:func:`_production_trees_cached`, ~13s) and
-    flattening them into the call index (:func:`_production_call_index`, ~12.7s).
+    parsing 934 production modules and flattening them into plain-data records
+    (:func:`_production_census_cached`, ~13s + ~12.7s in one process before
+    they were pooled over census workers), and the call index built from them
+    (:func:`_production_call_index`).
     The fixed-point resolve on top of a warm index is **0.33s**. So a caller that
     bypassed ``_emitted_event_types_cached`` entirely would cost a third of a
     second and is not worth a gate; a caller that rebuilt either builder would
@@ -440,16 +432,30 @@ def test_the_two_expensive_builders_run_exactly_once_per_session():
     ``cache_info``, which is the bluntest and most reliable kill available.
     """
 
-    trees = _production_trees_cached.cache_info()
+    trees = _production_census_cached.cache_info()
     index = _production_call_index.cache_info()
 
     assert (trees.misses, index.misses) == (1, 1), (
         "the expensive builders did not run exactly once: "
-        f"_production_trees_cached={trees}, _production_call_index={index}. "
+        f"_production_census_cached={trees}, _production_call_index={index}. "
         "Each miss is a full re-parse or re-index of the production tree "
         "(~13s and ~12.7s here). More than one means a caller is going around "
         "the cache and every test in this file is paying for the walk again."
     )
+
+
+def test_the_whole_tree_walk_runs_over_the_census_pool(monkeypatch):
+    """FH-PREPUSH-TOUCHED-OVER-BUDGET-ON-THE-REGISTERED-EVENTS-EMITTER-FILE: one process parsed and flattened
+    the whole production tree, 98-117 s as a touched file (7 s pooled at load ~4, same 8,708 resolved types).
+    The walk goes through ``scripts/census_pool.py``, as the name census gates' do. KILLING MUTATION: build
+    the census in-process (``[god_file_chunks.emitter_census_chunk(_production_paths())]``) -> the pool is
+    never asked and this reds."""
+    from scripts import census_pool, god_file_chunks
+
+    asked = []
+    monkeypatch.setattr(census_pool, "map_chunks", lambda fn, items, *args: asked.append((fn, items)) or [])
+    assert _production_census_cached.__wrapped__() == ()
+    assert asked == [(god_file_chunks.emitter_census_chunk, _production_paths())]
 
 
 def test_every_registered_event_type_has_a_production_emitter():
@@ -829,7 +835,7 @@ def test_no_test_only_append_can_satisfy_the_gate():
 
     root = _repo_root()
     assert all(not package.startswith("tests") for package in PRODUCTION_PACKAGES)
-    scanned = _production_trees()
+    scanned = _production_census()
     assert scanned, "resolver scanned no files — the gate would pass vacuously"
     assert not [path for path in scanned if (root / "tests") in Path(path).parents]
 
