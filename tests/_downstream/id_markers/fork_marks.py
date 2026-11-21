@@ -759,6 +759,138 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     },
 }
 
+
+# Upstream real-gateway end-to-end files (each test boots one or more python -m gateway.run
+# daemons, often twice across a restart, or runs real managed-worker / pm subprocesses) whose
+# slowest test fills the fork's 30 s per-test default on this box. Upstream's runner sets no
+# per-test default; these files are bounded upstream by their own waits and the runner's file cap.
+# Seen 2026-11-21 (daily full run, hermes origin/main, -j 24): 57 such files killed at 30 s with
+# no result ("never ended") and 64 more killed once and green on the serial retry, which then
+# outran the step's 5400 s cap. Run again at -j 24 with --timeout=600 (lane w1118a-hmA), every
+# one finished: none blocks; the wall is real daemon boots (~5-12 s each), turns and restarts.
+# Each value is the slowest test's wall (s) in that -j 24 run; the bound is three times it
+# (the runner's own file-cap rule), never under 90 s, so a test that truly blocks is still
+# killed with its stacks, and each bound sits above the shared daemon helpers' own ready waits
+# (40 s in test_native_http_auth.daemon, 120 s in fixtures/local_recovery_probe.daemon only
+# for files measured past 40 s).
+# Each row is (wall, upstream blob): the file's blob at the upstream base the wall was measured
+# against -- the upstream manifest's `# base` (tests/fixtures/upstream_manifest.txt), which every
+# release merge re-bases. These are upstream-owned files, so a merge that brings a new version of
+# one turns tests/tooling/test_measured_e2e_limits_track_upstream.py red until its wall is
+# re-measured and its blob moved (owner 2026-11-21: "a don't forget to track upstream code";
+# Harness_Brain/50 — Agent Handoffs/Merging upstream.md, step 5e).
+# The first measurement (2026-11-21) was on base 3b42157858 (v0.23.1).
+_MEASURED_E2E_WALLS: dict[str, tuple[int, str]] = {
+    "tests/acp_adapter/test_gateway_editor_mcp.py": (60, "ea980db1d98a"),
+    "tests/acp_adapter/test_gateway_new_cold.py": (26, "4df587ba1e0e"),
+    "tests/cron/test_scheduled_occurrence.py": (11, "743d5c506eec"),
+    "tests/gateway/test_api_authority_controls.py": (11, "852438730f57"),
+    "tests/gateway/test_api_authority_daemon.py": (12, "c42f839fa339"),
+    "tests/gateway/test_api_authority_execution.py": (10, "770ef3367a5f"),
+    "tests/gateway/test_api_authority_retry.py": (11, "938950737783"),
+    "tests/gateway/test_api_authority_runs.py": (10, "a3dfc95a47b9"),
+    "tests/gateway/test_api_crash_recovery.py": (24, "a0ff847d571b"),
+    "tests/gateway/test_api_hosted_daemon.py": (22, "202c7e5bef59"),
+    "tests/gateway/test_api_pending_daemon.py": (12, "610a80795df7"),
+    "tests/gateway/test_authority_automation.py": (85, "22f03fda1e22"),
+    "tests/gateway/test_authority_stream.py": (43, "e5dd7a7ccecf"),
+    "tests/gateway/test_bot_authority.py": (22, "05b04638abd1"),
+    "tests/gateway/test_bot_roster_fleet.py": (12, "474ab3213e90"),
+    "tests/gateway/test_branch_after_compressed_root_delete.py": (14, "8c1bc97846c3"),
+    "tests/gateway/test_child_notice_profile_admission.py": (13, "9d087129c9ab"),
+    "tests/gateway/test_clarify_lock_owner.py": (20, "4ef67a57c08b"),
+    "tests/gateway/test_cli_plugin_command_in_gateway.py": (17, "0134017579a5"),
+    "tests/gateway/test_command_discovery.py": (19, "28b12bdadaca"),
+    "tests/gateway/test_config_policy_daemon.py": (32, "5070e4e855c8"),
+    "tests/gateway/test_failure_writer_ownership.py": (22, "23bc4e86ccfc"),
+    "tests/gateway/test_handoff_completion_parent_context.py": (45, "a776db27e541"),
+    "tests/gateway/test_hosted_room_auth_daemon.py": (25, "e7ebeaec43e3"),
+    "tests/gateway/test_journey_restart_open_prompts.py": (25, "ef79235df501"),
+    "tests/gateway/test_kanban_recovery.py": (22, "53b71141bdcc"),
+    "tests/gateway/test_local_automation.py": (50, "aa1ed2b16996"),
+    "tests/gateway/test_local_review_without_cached_agent.py": (15, "86670b948d7f"),
+    "tests/gateway/test_local_session.py": (12, "e53ce157497c"),
+    "tests/gateway/test_local_session_recovery.py": (28, "b89a6894cc40"),
+    "tests/gateway/test_local_session_voice_tts.py": (12, "b9e9fc998599"),
+    "tests/gateway/test_managed_worker_background_output.py": (25, "87264f5431a0"),
+    "tests/gateway/test_managed_worker_checkpoint_limits.py": (26, "680b6166df59"),
+    "tests/gateway/test_managed_worker_construct.py": (34, "894b1574ddef"),
+    "tests/gateway/test_managed_worker_delegation.py": (34, "4940d35f11f6"),
+    "tests/gateway/test_managed_worker_frozen_config.py": (28, "92076093c07f"),
+    "tests/gateway/test_managed_worker_images.py": (24, "c65f0f000ed3"),
+    "tests/gateway/test_managed_worker_launch.py": (29, "681040f79a41"),
+    "tests/gateway/test_managed_worker_lineage.py": (32, "7c88c1d89eb0"),
+    "tests/gateway/test_managed_worker_turn_flags.py": (39, "8155db0b004f"),
+    "tests/gateway/test_multiplex_hot_serve_live.py": (38, "58597615315b"),
+    "tests/gateway/test_native_fifo_compression_identity.py": (26, "a3b8158a30a8"),
+    "tests/gateway/test_native_http_auth.py": (19, "8ba94e22e4bb"),
+    "tests/gateway/test_native_ingress_media.py": (13, "484d69404999"),
+    "tests/gateway/test_native_pause_notice.py": (22, "6c9181d28f72"),
+    "tests/gateway/test_native_profile_registry_grant.py": (12, "c6d6e3a9e061"),
+    "tests/gateway/test_native_reply_crash_recovery.py": (33, "9588d716790c"),
+    "tests/gateway/test_native_startup_recovery.py": (45, "b2322786b668"),
+    "tests/gateway/test_native_telegram_startup_recovery.py": (42, "b5427423905a"),
+    "tests/gateway/test_plugin_keyless_inject.py": (27, "accf2ebf10c4"),
+    "tests/gateway/test_pre_command_in_gateway.py": (26, "cb418661d2aa"),
+    "tests/gateway/test_session_approval_commands.py": (17, "29f36b37f4ce"),
+    "tests/gateway/test_session_authoring_commands.py": (13, "71f925088467"),
+    "tests/gateway/test_session_authority.py": (26, "d55e77bf48b7"),
+    "tests/gateway/test_session_commands.py": (14, "9479e36fa2cc"),
+    "tests/gateway/test_session_deferred_pick_restart.py": (36, "bceba35fc33a"),
+    "tests/gateway/test_session_events_overflow.py": (16, "00565c581ae1"),
+    "tests/gateway/test_session_group_peer_approvals.py": (33, "aefcc419b220"),
+    "tests/gateway/test_session_group_peer_daemons.py": (59, "b924a1f4caa2"),
+    "tests/gateway/test_session_group_peer_setup_daemons.py": (70, "5ed5e4c3048b"),
+    "tests/gateway/test_session_hosted_daemon.py": (56, "7fb8d5b4e6d1"),
+    "tests/gateway/test_session_kanban.py": (30, "9acaa0f5b21b"),
+    "tests/gateway/test_session_llm_oneshot.py": (13, "c1894cd66f35"),
+    "tests/gateway/test_session_model_command_commits.py": (11, "ed78bc8419ce"),
+    "tests/gateway/test_session_mutation_branch.py": (26, "40e2db178956"),
+    "tests/gateway/test_session_mutation_cold.py": (20, "f6b2a94f5bd6"),
+    "tests/gateway/test_session_mutation_compress.py": (106, "d15ecb722076"),
+    "tests/gateway/test_session_mutation_compress_managed.py": (152, "6342d5798a52"),
+    "tests/gateway/test_session_mutation_compress_plugin_engine.py": (18, "c629e8b4a2de"),
+    "tests/gateway/test_session_mutation_import_owner.py": (10, "4cd72041a057"),
+    "tests/gateway/test_session_mutation_lineage_delete.py": (12, "356acbfcb999"),
+    "tests/gateway/test_session_mutation_model.py": (24, "e43d941a8588"),
+    "tests/gateway/test_session_mutation_reset.py": (21, "07522cbfb677"),
+    "tests/gateway/test_session_mutation_retirement.py": (20, "1354cd85f469"),
+    "tests/gateway/test_session_open_hook.py": (21, "6c6a3553bd22"),
+    "tests/gateway/test_session_policy_workspace_readiness.py": (15, "9435da42c2e2"),
+    "tests/gateway/test_session_read_commands.py": (13, "fab483c1db03"),
+    "tests/gateway/test_session_setting_commands.py": (14, "cccb2f527507"),
+    "tests/gateway/test_session_subagent_live.py": (12, "bdc9a4f8714d"),
+    "tests/gateway/test_session_transcript_handoff_owner.py": (19, "71da892f3a32"),
+    "tests/gateway/test_session_tui_config.py": (22, "d24340fdf6d1"),
+    "tests/gateway/test_session_tui_ops.py": (22, "41ab48187ab9"),
+    "tests/gateway/test_static_token_session_mutations.py": (17, "77d36b22126f"),
+    "tests/gateway/test_surface_admission.py": (34, "5b959a10cf8d"),
+    "tests/gateway/test_terminal_commit_crash.py": (21, "912d8d516b38"),
+    "tests/gateway/test_unified_gateway_native_live.py": (40, "3f51f172971f"),
+    "tests/gateway/test_used_delete_restart.py": (21, "228c3c34a516"),
+    "tests/gateway/test_worker_compression_admission.py": (72, "c09965d9ceee"),
+    "tests/gateway/test_worker_rotation_adoption.py": (24, "fb3f5914314b"),
+    "tests/hermes_cli/test_gateway_chat_flags_live.py": (28, "e37eb42b34b3"),
+    "tests/hermes_cli/test_oneshot_streamed_live.py": (16, "9e0f7ea87ae8"),
+    "tests/hermes_cli/test_update_restore_authority.py": (19, "cd107321e309"),
+    "tests/pm/test_cold_runtime_e2e.py": (21, "6d54429edbde"),
+    "tests/pm/test_pip_check.py": (33, "368325434663"),
+    "tests/pm/test_takeover_preparation.py": (25, "9d5131b1982e"),
+    "tests/scripts/test_boundary_lint.py": (88, "9950df74bf6a"),
+    "tests/tools/test_bot_desktop_idle_self_stop.py": (33, "cf93c65dacbb"),
+    "tests/tui_gateway/test_hosted_room_discussion_limits.py": (25, "b58930747025"),
+    "tests/tui_gateway/test_hosted_room_discussion_retry_budget.py": (15, "de838b9c6d51"),
+}
+
+
+def _measured_bound(wall: int) -> int:
+    """Three times the measured wall, rounded up to 30 s, floor 90 s."""
+    return max(90, -(-3 * wall // 30) * 30)
+
+
+ROWS.update({path: (pytest.mark.timeout(_measured_bound(wall)),)
+             for path, (wall, _blob) in _MEASURED_E2E_WALLS.items()})
+
 if _WIN:
     ROWS.update({
         "tests/tools/test_local_env_blocklist.py::TestSanePathIncludesHomebrew::"

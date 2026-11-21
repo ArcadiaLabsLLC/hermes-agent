@@ -64,6 +64,66 @@ A door module is still an import of `agent_runtime`, so the lint must learn it i
 | 3 | `agent_runtime/messaging/serve_lane.py:147` → `plugins.platforms.telegram.adapter` | upstream's own discovery door: `hermes_cli.plugins.discover_plugins()` + the published `gateway.platform_registry.platform_registry.create_adapter("telegram", …)` (its factory also applies the operator's notifications mode, which the direct construction skipped) | 1 |
 | 4 | `agent_runtime/_upstream_doors.py::has_account_usage_fetcher` → private `agent.account_usage._USAGE_FETCHERS` | the fork's own layer: `agent_runtime/provider_account.py` keeps the providers that report usage; a test compares that set with upstream's table, so an upstream merge that adds a fetcher reds the test, not the product | 1 |
 
+## A fork-only seam for the publication: tried, none works (lane w1118a-hdoorseam, 2026-11-21)
+
+The owner asked (2026-11-21, "fork only seam if possible always") for the 3-line hunk in
+`hermes_cli/plugin_validate_private_imports.py` to go, with upstream's private-import check and
+`scripts/boundary_lint.py` still accepting the doors, `test_boundary_lint` and the import-layers gate
+green, and no baseline or grandfather edit. Read at origin/main 8163b397d1 (merge base 3b42157858) and
+at `upstream/main` 25a1302eac. Without the hunk, the census reds on 3 keys: `plugins/eternia-harness/__init__.py
+agent_runtime.plugin_doors.harness`, `plugins/eternia-harness/dashboard/plugin_api.py
+agent_runtime.plugin_doors.harness_dashboard`, `plugins/eternia-lens/__init__.py agent_runtime.plugin_doors.lens`.
+
+What upstream's verdict reads, and nothing else: the plugin's own files (`_parsed_files`,
+`_local_modules`), the published list `hermes_cli/data/plugin_api.json` (`_public_api`, a module-level
+path constant, no override), the Hermes package set from `pyproject.toml`'s `packages.find` include
+(`_hermes_packages`), and the baseline `scripts/boundary_lint_baseline.json`. No environment variable,
+config key, plugin manifest field, entry point or second data file. `upstream/main`'s rewrite of the same
+file (`is_public_import`, `hermes_agent/compat/moves.py` via `tree_moves`) adds none either: `MOVES` maps
+renamed upstream modules and is upstream-owned.
+
+The seams, in the brief's order, and why each fails:
+
+1. **A plugin or config hook upstream already reads.** None exists (list above). The one input the fork
+   already edits, `pyproject.toml`'s include list, decides what is a Hermes package; dropping
+   `agent_runtime` from it would stop installs shipping the fork runtime. The plugin discovery sources
+   (user `~/.hermes/plugins/`, project `.hermes/plugins/`, `hermes_agent.plugins` entry points) would take the
+   fork plugins out of `plugins/`, where the lint does not look: that is the plan's Stage 7 move,
+   already rejected above (a reinstall, the bundles list plugin directories, gated on the detach read).
+2. **An allowlist file upstream already loads.** `plugin_api.json` is an upstream file (same footprint
+   as the hunk, `files` unchanged) and renders upstream's user docs page; `boundary_lint_baseline.json`
+   is upstream's and the brief forbids editing it. There is no third.
+3. **A fork-owned wrapper that runs the check.** A fork test could call `collect()` / `regressions()` and
+   drop the door keys, but upstream's own `tests/scripts/test_boundary_lint.py` and `boundary_lint.py
+   --check` would still red on the 3 keys; keeping them green means skip-listing an upstream test the
+   fork made red, which is not green. Rebinding `_public_api` / `_PLUGIN_API` at runtime (a pytest
+   plugin, a startup hook) is a fork module reaching a `_private` upstream name (a new
+   `private_upstream_imports` site in `test_fork_import_layers`, refused without a grandfather edit),
+   a core override by catalog rule 9, and it would make the test disagree with `hermes plugins
+   validate`, which the shared rule exists to prevent. `hermes_cli/__init__.py` has no fork import
+   hook to hang it on anyway.
+4. **The fork's own census replacing the check for fork plugins.** The fork's fence
+   (`tests/tooling/test_plugin_imports_public_surface.py`) already covers them, but replacing upstream's
+   check needs upstream's check to stop counting them, which is route 1's move or route 3's skip.
+
+Loopholes read and rejected, because each changes how the lint sees the import without changing the
+coupling (the same reason the computed `importlib.import_module` was rejected):
+
+- a door module inside a package upstream publishes whole (`providers`, `pm`, `hermes_platform`,
+  `agent.transports`, `hermes_cli.dashboard_auth`): `from providers import eternia_doors` passes the
+  `module in public_api` rule, but files fork internals under upstream's published API namespace and
+  its docs page;
+- a plugin file at a shadow path (`plugins/eternia-harness/agent_runtime/plugin_doors/…`) so the target
+  reads as one of the plugin's own modules (`_local_modules`);
+- a door import under `TYPE_CHECKING`, in a skipped directory (`tests`, `site-packages`, …), or a
+  manifest the lint does not glob.
+
+**Result: no fork-only seam can do the job; nothing changed.** The hunk stays (ledger row
+`hermes_cli/plugin_validate_private_imports.py`, 3 added / 0 deleted), `[up-fp]` stays `files=228
+deleted_lines=878 heavy=1`. What would remove it: an upstream PR giving `_public_api` an extension
+point (an extra-lists directory or an entry-point group read beside `plugin_api.json`), or the Stage 7
+entry-point move.
+
 ## Not this lane's
 
 - `tools/agent_chat_dispatch` and the turn path belong to lane w1118a-onepath-hm; no crossing is
