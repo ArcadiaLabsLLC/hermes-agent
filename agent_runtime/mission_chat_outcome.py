@@ -462,6 +462,24 @@ class ProviderRefusal:
                 f"again (`hermes auth add {self.provider}`), then send a NEW client_message_id — this "
                 "turn is settled and needs NO turn-resolve"
             )
+        from agent_runtime.api_key_check import API_KEY_CONTROL_CHARACTER
+        from agent_runtime.provider_credential_source import CHOSEN_CREDENTIAL_UNUSABLE
+
+        if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
+                and self.failure_reason == CHOSEN_CREDENTIAL_UNUSABLE):
+            return (
+                f"the {self.provider} credential chosen for turns cannot be used now and the request "
+                "never left Hermes; a saved credential of the other kind is not spent unless you switch "
+                f"to it (`runtime.provider.source.set`), or wait for the chosen one to recover, then send "
+                "a NEW client_message_id — this turn is settled and needs NO turn-resolve"
+            )
+        if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
+                and self.failure_reason == API_KEY_CONTROL_CHARACTER):
+            return (
+                f"the saved {self.provider} API key contains a hidden character and the request never "
+                f"left Hermes; save the key again (`hermes auth add {self.provider}`), then send a NEW "
+                "client_message_id — this turn is settled and needs NO turn-resolve"
+            )
         if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
                 and self.failure_reason == LOCAL_MODEL_NOT_READY_REASON):
             return (

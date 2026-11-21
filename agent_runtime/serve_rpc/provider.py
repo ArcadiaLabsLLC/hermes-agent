@@ -68,7 +68,7 @@ MAX_CATALOG_IDS = 64
 #: Provider refusals that name a bad request rather than a failed operation.
 _INVALID_PARAM_REASONS = frozenset({"provider_unknown", "auth_mode_unsupported", "auth_mode_unknown",
                                     "base_url_invalid", "source_unsupported", "source_unknown",
-                                    "no_key_var", "empty_secret"})
+                                    "no_key_var", "empty_secret", "api_key_control_character"})
 
 #: Provider refusals that name an agent this runtime cannot answer for (RT-PROVIDER-USAGE-PER-AGENT-PROFILE).
 _NOT_FOUND_REASONS = frozenset({"agent_unknown"})
@@ -302,8 +302,10 @@ def _runtime_provider_key_set(rid: Any, params: dict, context: RpcContext | None
     if refusal is not None:
         return refusal
     key = _text_param(params, "key")
-    if key is None or len(key) > MAX_KEY_CHARS or any(ch in key for ch in "\r\n\0"):
+    if key is None or len(key) > MAX_KEY_CHARS:
         return _refused(rid, name, "key_invalid", ERR_INVALID_PARAMS, max_chars=MAX_KEY_CHARS)
+    # A CR, LF, NUL or other hidden character is the one key check's, in ``set_key``
+    # (``agent_runtime/api_key_check.py``): trimmed at the ends, refused ``api_key_control_character`` inside.
     if _on_phone():
         from agent_runtime.host_store import binding as host_store
 

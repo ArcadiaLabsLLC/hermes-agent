@@ -313,3 +313,50 @@ def test_a_custom_pool_key_without_a_label_takes_upstreams_default_label(home):
 
     assert ack["key_var"] is None
     assert ack["label"] == "api-key-1"
+
+
+# --- the one key check (RT-FU-AN-API-KEY-WITH-A-HIDDEN-CONTROL-CHARACTER-IS-REFUSED-WHEN-IT-IS-SAVED) ---
+
+
+@pytest.mark.parametrize("hidden", ["\0", "\x1b", "\x7f", "​", "﻿"])
+@pytest.mark.parametrize("where", ["end", "inside"])
+def test_set_key_refuses_a_hidden_character(home, monkeypatch, hidden, where):
+    """A NUL (the 2026-11-20 key), an escape, a DEL, a zero-width space or a BOM,
+    trailing or inside, is refused ``api_key_control_character`` and nothing is written; the
+    refusal never carries the key.
+
+    MUTATION (kill): store ``secret`` unchecked in ``set_key`` — red (the key is written)."""
+    import hermes_cli.credential_lifecycle as lifecycle
+
+    writes = []
+    monkeypatch.setattr(lifecycle, "save_provider_env_credential",
+                        lambda env_var, value: writes.append(env_var) or {"ok": True})
+    secret = SENTINEL + hidden if where == "end" else SENTINEL[:8] + hidden + SENTINEL[8:]
+    with pytest.raises(nia.NonInteractiveAuthError) as excinfo:
+        nia.set_key("openrouter", secret)
+    assert excinfo.value.code == "api_key_control_character"
+    assert SENTINEL not in str(excinfo.value) and SENTINEL[:8] not in str(excinfo.value)
+    assert writes == []
+
+
+def test_set_key_trims_a_trailing_space_and_newline(home, monkeypatch):
+    """Whitespace around a pasted key is trimmed, not refused.
+
+    MUTATION (kill): drop ``.strip()`` in ``agent_runtime/api_key_check.py::clean_api_key`` — red
+    (the newline is a control character, so the save is refused)."""
+    import hermes_cli.credential_lifecycle as lifecycle
+
+    seen = {}
+    monkeypatch.setattr(lifecycle, "save_provider_env_credential",
+                        lambda env_var, value: seen.update(value=value) or {"ok": True})
+    nia.set_key("openrouter", f"  {SENTINEL} \n")
+    assert seen["value"] == SENTINEL
+
+
+def test_set_key_refusal_is_a_json_error_on_the_stdin_door(home, monkeypatch, capsys):
+    """`hermes harness auth set-key --stdin` answers the reason as JSON and never echoes the key."""
+    _feed_stdin(monkeypatch, SENTINEL + "\0\n")
+    assert nia.auth_set_key_command(_args(provider="openrouter")) == 1
+    out = capsys.readouterr().out
+    assert json.loads(out)["code"] == "api_key_control_character"
+    assert SENTINEL not in out

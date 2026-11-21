@@ -398,13 +398,15 @@ def test_key_set_refuses_an_unknown_or_keyless_provider_by_code(key_home, provid
     ({"provider": "anthropic", "key": "   "}, "key_invalid"),
     ({"provider": "anthropic", "key": 7}, "key_invalid"),
     ({"provider": "anthropic", "key": "x" * (family.MAX_KEY_CHARS + 1)}, "key_invalid"),
-    ({"provider": "anthropic", "key": f"{MARKER_KEY}\nEVIL=1"}, "key_invalid"),
-    ({"provider": "anthropic", "key": f"{MARKER_KEY}\rEVIL=1"}, "key_invalid"),
-    ({"provider": "anthropic", "key": f"{MARKER_KEY}\0"}, "key_invalid"),
+    ({"provider": "anthropic", "key": f"{MARKER_KEY}\nEVIL=1"}, "api_key_control_character"),
+    ({"provider": "anthropic", "key": f"{MARKER_KEY}\rEVIL=1"}, "api_key_control_character"),
+    ({"provider": "anthropic", "key": f"{MARKER_KEY}\0"}, "api_key_control_character"),
+    ({"provider": "anthropic", "key": f"{MARKER_KEY}\u200b"}, "api_key_control_character"),
 ])
 def test_key_set_refuses_a_malformed_key(key_home, params, reason):
-    """Killing mutation: drop the CR/LF/NUL check -> a second ``.env`` line is written, red (the
-    over-long row: drop the ``MAX_KEY_CHARS`` bound)."""
+    """Killing mutation: store the key unchecked in ``set_key`` (the one key check,
+    ``agent_runtime/api_key_check.py``) -> a second ``.env`` line is written, red (the over-long row:
+    drop the ``MAX_KEY_CHARS`` bound)."""
     error = _error(_rpc(params))
     assert (error["code"], error["data"]["reason"]) == (ERR_INVALID_PARAMS, reason)
     assert MARKER_KEY not in json.dumps(error)
@@ -471,7 +473,7 @@ def test_the_key_is_in_no_reply_refusal_failure_or_log_line(key_home, monkeypatc
     monkeypatch.setattr(auth_noninteractive, "set_key", leaky)
     frames.append(_rpc({"provider": "anthropic", "key": MARKER_KEY}))
     assert [frame.get("error", {}).get("data", {}).get("reason") for frame in frames] == [
-        None, "key_invalid", "no_key_var", "host_store_unbound", "handler_failed"]
+        None, "api_key_control_character", "no_key_var", "host_store_unbound", "handler_failed"]
     assert frames[-1]["error"]["data"]["error_class"] == "RuntimeError"
     for frame in frames:
         assert MARKER_KEY not in json.dumps(frame)
