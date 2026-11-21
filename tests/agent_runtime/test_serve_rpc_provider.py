@@ -639,6 +639,17 @@ def test_a_signed_in_provider_whose_read_failed_says_so(monkeypatch):
         provider_account.USAGE_NO_SOURCE)
 
 
+
+def test_the_fork_knows_every_provider_upstream_reads_usage_for():
+    """The fork's ``USAGE_FETCHER_PROVIDERS`` stands in for upstream's private ``_USAGE_FETCHERS`` (production
+    code never reads it: row RT-FU-THE-FORK-PLUGINS-REACH-HERMES-CORE-ONLY-THROUGH-ITS-PUBLIC-DOORS). An
+    upstream merge that adds or drops a fetcher reds here. KILLING MUTATION: drop ``openrouter`` from the
+    fork's set -> red (and a failed OpenRouter read would say ``no_usage_source``)."""
+    from agent import account_usage
+    from agent_runtime import provider_account
+
+    assert provider_account.USAGE_FETCHER_PROVIDERS == frozenset(account_usage._USAGE_FETCHERS)
+
 def test_the_unavailable_reasons_eternia_mirrors_are_the_runtimes():
     """The producer of Eternia's mirror (``tool/test_quality/hermes_mirrors.json``): the words Eternia reads
     for an unavailable usage lane are these constants. Mutation: rename ``USAGE_READ_FAILED`` -> red."""
