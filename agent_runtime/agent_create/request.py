@@ -40,6 +40,10 @@ AGENT_CREATE_METHOD_PARAMS = (
     "client_scope", "source_instance_id",
 )
 
+#: The seat's params: an unseated create (no ``workspace_id``) sending one is
+#: refused ``workspace_id_required`` rather than silently making no seat.
+UNSEATED_REFUSED_PARAMS = ("position", "placement_id", "skills")
+
 #: ``runtime.agent.place``'s params: create's, less ``source_instance_id`` — a
 #: seat starts from its agent, never from another seat.
 AGENT_PLACE_METHOD_PARAMS = tuple(
@@ -75,6 +79,12 @@ class AgentCreateRequest:
     correlation_id: str | None
     client_scope: str | None = None
     source_instance_id: str | None = None
+
+    @property
+    def seated(self) -> bool:
+        """``False`` for an unseated create: no workspace, so no placement and no skills phase."""
+
+        return bool(self.workspace_id)
 
     @property
     def persona_instance_id(self) -> str:
@@ -530,7 +540,7 @@ def _skills(value: Any) -> tuple[str, ...] | None:
 
 
 def normalize_agent_create(
-    params: dict[str, Any], *, persona: Any | None = None
+    params: dict[str, Any], *, persona: Any | None = None, seat_optional: bool = False
 ) -> AgentCreateRequest:
     """Validate + normalise one create request. Raises :class:`AgentCreateInvalid`.
 
@@ -538,6 +548,13 @@ def normalize_agent_create(
     That property is why the roster check (UC-H2) belongs here and not in the
     store: until this returns, the create has left no roster row, no chat root,
     no placement and no reservation receipt to clean up.
+
+    ``seat_optional`` is the create's (not the place's): with no ``workspace_id``
+    the request makes an UNSEATED agent (``workspace_id`` and ``placement_id``
+    are ``""``), and the seat's own params — ``position``, ``placement_id``,
+    ``skills`` — are refused ``workspace_id_required``, the reason a client
+    already reads for "this needs a workspace" (row
+    ``RT-ONE-CREATE-VERB-MAKES-AN-AGENT-WITH-OR-WITHOUT-A-WORKSPACE``).
     """
 
     persona_raw = params.get("persona_id")
@@ -590,10 +607,17 @@ def normalize_agent_create(
     if not workspace_id:
         # The same reason string the office legs spend, on purpose: one client
         # branch covers "the launcher forgot the workspace" on every method.
-        raise AgentCreateInvalid(
-            "workspace_id_required",
-            "invalid params: workspace_id must be a non-empty string",
-        )
+        # An unseated create sends none of the seat's params; one that does
+        # meant a seat and forgot where.
+        # MUTATION: drop ``not seat_optional or`` and
+        # test_a_place_with_no_workspace_is_still_refused reddens.
+        if not seat_optional or any(
+            params.get(name) is not None for name in UNSEATED_REFUSED_PARAMS
+        ):
+            raise AgentCreateInvalid(
+                "workspace_id_required",
+                "invalid params: workspace_id must be a non-empty string",
+            )
 
     position = _position(params.get("position"))
     skills = _skills(params.get("skills"))
@@ -613,7 +637,11 @@ def normalize_agent_create(
         )
 
     raw_placement = params.get("placement_id")
-    if raw_placement is None:
+    if not workspace_id:
+        # No seat, so no placement: ``create_independent_agent`` names the
+        # unseated agent's first instance from the idempotency key.
+        placement_id = ""
+    elif raw_placement is None:
         placement_id = mint_placement_id(persona_id, key=f"{workspace_id}\0{idempotency_key}")
     else:
         placement_id = safe_assignment_token(raw_placement)

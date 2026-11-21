@@ -5126,10 +5126,10 @@
     {
       "id": "hname-taken-name-is-refused",
       "path": "agent_runtime/agent_create/perform.py",
-      "symbol": "AgentCreate/new_instance",
+      "symbol": "mint_new_agent",
       "operator": "drop-name-taken-check",
-      "find": "            if name_is_taken(request.display_name):\n",
-      "replace": "            if False:\n",
+      "find": "create_independent_agent(store, refuse_taken_name=True, **identity)",
+      "replace": "create_independent_agent(store, refuse_taken_name=False, **identity)",
       "test": [
         "{python}",
         "-m",
@@ -5162,8 +5162,8 @@
       "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
       "symbol": "_create_independent_instance",
       "operator": "drop-scope-on-independent-mint",
-      "find": "            client_scope=owner,\n            refuse_taken_name=True,",
-      "replace": "            refuse_taken_name=True,",
+      "find": "        client_scope=owner,\n    )",
+      "replace": "    )",
       "test": [
         "{python}",
         "-m",
