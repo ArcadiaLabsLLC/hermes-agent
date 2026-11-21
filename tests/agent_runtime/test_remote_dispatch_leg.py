@@ -71,6 +71,14 @@ def runtime_root(tmp_path, monkeypatch):
     root = tmp_path / "runtime"
     root.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("HERMES_AGENT_RUNTIME_ROOT", str(root))
+    # The install's personas live in its runtime root, and a local send's admission asks the
+    # turn's own resolver, which reads them (RT-FU-A-SEND-TO-AN-UNPLACED-AGENT-…): the samples the
+    # module's mark persisted went to the root this fixture replaced, so they are persisted here too.
+    from agent_runtime.store import AgentStore
+    from tests.agent_runtime.persona_samples import sample_personas
+
+    for persona in sample_personas():
+        AgentStore().save(persona)
     return root
 
 

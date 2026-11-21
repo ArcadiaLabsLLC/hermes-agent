@@ -106,6 +106,26 @@ def _send(**overrides):
 # --------------------------------------------------------------------------
 
 
+def test_a_send_to_the_senders_own_instance_is_refused_and_never_queued(store_home, deliverable_lane, queued):
+    """RT-FU-A-SEND-TO-AN-UNPLACED-AGENT-GOES-BACK-TO-THE-SENDER-AND-A-REFUSED-SEND-SAYS-OK (seen live
+    2026-11-21, dispatch-c58c34703868; replayed at 96569d9544^, before native dispatch: accepted and
+    queued there too). On a lane that CAN deliver, a ``wait=false`` send onto the sender's own
+    instance is refused ``ok: false, relay_cycle`` by the turn's own resolver, writes no row and
+    queues nothing. Killing mutation: ``Send.local_target`` returns None instead of
+    ``admit_send(...)`` -> ``ok: true, dispatched: true`` and one queued turn, red."""
+
+    token = RELAY_CHAIN.set(("personainst_dev",))
+    try:
+        result = _send(persona_id="@personainst_dev")
+    finally:
+        RELAY_CHAIN.reset(token)
+
+    assert (result["ok"], result["error_kind"]) == (False, "relay_cycle")
+    assert "dispatched" not in result
+    assert queued == []
+    assert running_dispatches() == []
+
+
 def test_wait_false_returns_a_handle_without_the_reply(store_home, deliverable_lane, queued):
     result = _send()
 

@@ -721,6 +721,11 @@ def test_send_forwards_a_personainst_handle_as_the_target_instance(monkeypatch):
         return 0
 
     monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
+    # A real sibling placement: admission asks the turn's own resolver, which refuses an
+    # instance no row backs (``unknown persona qa_agent_2``), as the turn itself would.
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+
+    PersonaInstanceStore().add_instance(persona_id="qa", placement_id="qa_agent_2", display_name="QA Agent 2")
 
     assert json.loads(agent_chat_send(persona_id="personainst_qa_agent_2", message="hi"))["ok"]
     assert seen["persona_id"] == "personainst_qa_agent_2"

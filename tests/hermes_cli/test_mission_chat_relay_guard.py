@@ -352,4 +352,17 @@ def test_a_sibling_instance_of_the_speaking_profile_is_not_a_cycle(tmp_path, mon
 
 
 def test_the_handler_rekeys_the_turn_onto_its_resolved_instance():
-    assert "bind_turn_instance" in _mission_chat_message_call_names()
+    # The re-key lives in the turn's one target resolver (``chat_turn_target.bind_turn``), which the
+    # handler and agent_chat_send's admission both call (RT-FU-A-SEND-TO-AN-UNPLACED-AGENT-…).
+    import ast
+    import inspect
+
+    from hermes_cli.harness_parts.persona import chat_turn_target
+
+    assert "bind_turn" in _mission_chat_message_call_names()
+    bind_calls = {
+        getattr(node.func, "attr", None)
+        for node in ast.walk(ast.parse(inspect.getsource(chat_turn_target.bind_turn)))
+        if isinstance(node, ast.Call)
+    }
+    assert "bind_turn_instance" in bind_calls
