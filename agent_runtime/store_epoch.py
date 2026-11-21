@@ -250,6 +250,18 @@ MIGRATION_REGISTRY: tuple[dict[str, Any], ...] = (
                   "path moves",
         "pins_sha256": "040598973cbacb60ba7ac8aab77900897f8432691ba322f2d5b4d950a69ea7f1",
     },
+    {
+        "id": "realm-held-records-chat-moves-and-publishing-clones",
+        "date": "2026-11-21",
+        "store": "all",
+        "breaking": False,
+        "reason": "additive (6383c64d89 RT-REALM-PUBLISHING-PUSHES-A-FOLDER, ce3b47fc6a, 68a504deb7, a72387f645, "
+                  "66c9e5bc4d; pinned late by the 2026-11-21 red-fix pass): the paths table names "
+                  "store/persona_chat_moves.json, each board's and office's realm_archived.json, "
+                  "realm_sync/_publishing/<realm>, and realm_sync/<realm>/record_baseline.json and record_conflicts/; "
+                  "an older edition has no reader for them and ignores them; no existing path moves",
+        "pins_sha256": "37c66753af1b6b6db4838cff487743f4b9dd840e9b9ed5432e580595b1ca258d",
+    },
 )
 
 #: ``1 + count(breaking entries)`` — ``tests/agent_runtime/test_store_epoch_gate.py`` holds it to that.
