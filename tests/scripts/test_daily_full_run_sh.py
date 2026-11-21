@@ -42,7 +42,7 @@ def _stub(path: Path, log: Path, body: str = "", prelude: str = "") -> Path:
 def tree(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
     (root / "scripts").mkdir(parents=True)
-    for name in ("daily_full_run.sh", "prepush.sh", "daily_test_timings.py"):
+    for name in ("daily_full_run.sh", "prepush.sh", "daily_test_timings.py", "_managed_node_path.sh"):
         shutil.copy2(REPO / "scripts" / name, root / "scripts" / name)
     subprocess.run(["git", "init", "-q"], cwd=root, check=True, stdin=subprocess.DEVNULL)
     return root
@@ -64,7 +64,7 @@ def _timing(out: Path, step: str) -> str:
 def _run(tree: Path, *args: str, runner_body: str = "", cite_body: str = "", suite_list: str = _SUITE_LIST,
          env_extra: dict[str, str] | None = None):
     log = tree.parent / "calls.log"
-    env = {**os.environ,
+    env = {**{k: v for k, v in os.environ.items() if k != "__HERMES_MANAGED_NODE_PATH"},
            "DAILY_RUNNER": str(_stub(tree.parent / "runner.sh", log, runner_body)),
            "DAILY_PYTHON": str(_stub(tree.parent / "cite.sh", log, cite_body, prelude=suite_list)),
            **(env_extra or {})}
@@ -172,29 +172,42 @@ def _pm_python(tree: Path, prints: str) -> str:
     return str(stub)
 
 
-#: the runner stub's record of the PATH it was handed, one line per step
-_PATH_RUNNER = 'printf "%s\\n" "$PATH" >> "$(dirname "$0")/paths.log"'
+#: the runner stub's record of the PATH it was handed, one line per step, and of the exported answer
+_PATH_RUNNER = ('printf "%s\\n" "$PATH" >> "$(dirname "$0")/paths.log"; '
+                'printf "%s\\n" "${__HERMES_MANAGED_NODE_PATH-unset}" >> "$(dirname "$0")/answers.log"')
 
 
-# KILLING MUTATION: drop the prepend (``PATH="$managed_path:$PATH"`` -> ``:``) -> the runner sees the
+# KILLING MUTATION: drop the prepend in scripts/_managed_node_path.sh (``PATH="$managed:$PATH"`` -> ``:``) -> the runner sees the
 # caller's PATH, the suite's node/pnpm tests red on a box whose shell has no node, and this reds.
 def test_every_runner_step_gets_the_managed_node_and_pnpm_pm_resolves(tree: Path):
     out = tree.parent / "out"
     managed = f"{tree.parent}/tools/pnpm-9-linux-x64:{tree.parent}/tools/node-9-linux-x64/bin"
     proc, _calls = _run(tree, f"--out={out}", "--only=suite,tooling", runner_body=_PATH_RUNNER,
-                        env_extra={"DAILY_PM_PYTHON": _pm_python(tree, managed)})
+                        env_extra={"HERMES_TEST_PM_PYTHON": _pm_python(tree, managed)})
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert f"▶ managed node/pnpm on PATH: {managed}" in proc.stdout
     paths = (tree.parent / "paths.log").read_text(encoding="utf-8").splitlines()
     assert paths == [f"{managed}:{os.environ['PATH']}"] * 2  # suite and tooling, ahead of the caller's PATH
-    asked = (tree.parent / "pm.log").read_text(encoding="utf-8")
-    assert 'from pm.install import env_for; print(env_for("node", "pnpm", base_env={})' in asked  # pm's resolver
+    asked = (tree.parent / "pm.log").read_text(encoding="utf-8").splitlines()
+    assert len(asked) == 1  # resolved once for the whole run
+    assert 'from pm.install import env_for; print(env_for("node", "pnpm", base_env={})' in asked[0]  # pm's resolver
+
+
+# KILLING MUTATION: drop the ``export __HERMES_MANAGED_NODE_PATH=…`` in scripts/_managed_node_path.sh
+# -> every runner step starts pm's resolver again (scripts/_fork_test_env.sh), and this reds.
+def test_the_steps_inherit_the_answer_so_no_runner_resolves_again(tree: Path):
+    out = tree.parent / "out"
+    managed = f"{tree.parent}/tools/node-9-linux-x64/bin"
+    proc, _calls = _run(tree, f"--out={out}", "--only=suite,tooling", runner_body=_PATH_RUNNER,
+                        env_extra={"HERMES_TEST_PM_PYTHON": _pm_python(tree, managed)})
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert (tree.parent / "answers.log").read_text(encoding="utf-8").splitlines() == [managed] * 2
 
 
 def test_nothing_recorded_leaves_path_as_it_was(tree: Path):
     out = tree.parent / "out"
     proc, _calls = _run(tree, f"--out={out}", "--only=tooling", runner_body=_PATH_RUNNER,
-                        env_extra={"DAILY_PM_PYTHON": _pm_python(tree, "")})
+                        env_extra={"HERMES_TEST_PM_PYTHON": _pm_python(tree, "")})
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "no managed node/pnpm recorded" in proc.stdout
     assert (tree.parent / "paths.log").read_text(encoding="utf-8").splitlines() == [os.environ["PATH"]]
