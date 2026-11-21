@@ -116,6 +116,10 @@ def record_dispatch(
     return row
 
 
+#: How many still-running background jobs a completion names (the rest are in the target's Running now).
+BACKGROUND_JOBS_LIMIT = 8
+
+
 def record_completion(
     dispatch_id: str,
     *,
@@ -129,6 +133,7 @@ def record_completion(
     media: list[dict[str, Any]] | None = None,
     clarify_request: dict[str, Any] | None = None,
     error_kind: str = "",
+    background_jobs: list[dict[str, Any]] | None = None,
     only_if_running: bool = False,
 ) -> bool:
     """Record the target turn's outcome and arm the row for delivery.
@@ -191,6 +196,11 @@ def record_completion(
     typed field (``dispatch_delivery.vocabulary.delivery_outcome_state``) rather
     than in the error's words (RT-DELIVERY-BLOCK-SAYS-A-MESSAGE-NEVER-RAN-AS-A-
     TYPED-FIELD). Absent stays absent.
+
+    ``background_jobs`` are the background processes the target's turn started and left running when
+    it ended (``session_id``, ``command``), passed by the local supervisor
+    (RT-FU-A-HELPERS-BACKGROUND-JOB-DIES-WHEN-ITS-TURN-ENDS): they keep running in the serve, and the
+    delivery tells the sender so. Bounded to :data:`BACKGROUND_JOBS_LIMIT`; absent stays absent.
     """
 
     settled = str(state or STATE_UNKNOWN)
@@ -206,6 +216,11 @@ def record_completion(
     kind = bounded_text(str(error_kind or "").strip(), 64)
     if kind:
         result["error_kind"] = kind
+    jobs = [{"session_id": bounded_text(str(job.get("session_id") or ""), 64),
+             "command": bounded_text(str(job.get("command") or ""), 200)}
+            for job in (background_jobs or [])[:BACKGROUND_JOBS_LIMIT] if isinstance(job, dict)]
+    if jobs:
+        result["background_jobs"] = jobs
     updated, prior = _completion_update(dispatch_id, settled, result, only_if_running=only_if_running)
     if updated:
         _completion_events(str(dispatch_id), prior, settled, result, remote, media_rows)

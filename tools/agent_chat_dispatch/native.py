@@ -62,6 +62,8 @@ class TurnRun:
     abandoned: bool = False
     #: The supervisor reached the turn's interrupt seam.
     interrupted: bool = False
+    #: When the turn's thread started (epoch seconds).
+    started_at: float = 0.0
 
 
 def turn_args(spec: dict[str, Any], *, deadline_epoch: float) -> SimpleNamespace:
@@ -178,7 +180,7 @@ def run_turn(
 
     deadline_epoch = time.time() + float(budget)
     args = turn_args(spec, deadline_epoch=deadline_epoch)
-    run = TurnRun()
+    run = TurnRun(started_at=time.time())
     thread = threading.Thread(
         target=_turn_body, args=(spec, args, run), daemon=True,
         name=f"agent-chat-dispatch-turn-{str(args.client_message_id or '')[:28]}",
@@ -205,3 +207,32 @@ def run_turn(
                 args.client_message_id, abandon_seconds,
             )
             return run
+
+
+def jobs_left_running(payload: dict[str, Any] | None, started_at: float) -> list[dict[str, Any]]:
+    """The background processes a finished turn started and left running in this serve; ``[]`` when none.
+
+    RT-FU-A-HELPERS-BACKGROUND-JOB-DIES-WHEN-ITS-TURN-ENDS: a helper's job (a two-hour bisect) died with the
+    child Hermes its turn ran in. A native turn's job stays in the serve's process registry, keyed by the
+    helper's chat root (``chat_root_session_key_scope``), and its completion comes back to the helper as a
+    turn of its own; this names it so the lead is told at once that the work goes on. Never raises.
+    """
+
+    root = str((payload or {}).get("root_chat_session_id") or (payload or {}).get("chat_session_id")
+               or (payload or {}).get("session_id") or "")
+    if not root:
+        return []
+    try:
+        from tools.process_registry import process_registry
+
+        rows = process_registry.list_sessions(session_key=root)
+    except Exception:
+        logger.debug("dispatched turn on %s: its background jobs were not read", root, exc_info=True)
+        return []
+    # A job this turn started has run no longer than the turn has (a second of slack for the clock).
+    age = max(0.0, time.time() - float(started_at or 0.0)) + 1.0
+    return [{"session_id": row.get("session_id"), "command": row.get("command")}
+            for row in rows
+            if isinstance(row, dict) and row.get("status") == "running"
+            and float(row.get("uptime_seconds") or 0) <= age]
+

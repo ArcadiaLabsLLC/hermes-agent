@@ -144,6 +144,7 @@ def format_dispatch_delivery(row: dict[str, Any]) -> str:
         lines.append(DELIVERY_REPLY_HEADER)
         lines.append(reply)
     lines.extend(_clarify_lines(result.get("clarify_request"), target))
+    lines.extend(_background_job_lines(result.get("background_jobs"), target))
     if error:
         lines.append(DELIVERY_ERROR_HEADER)
         lines.append(error[:600])
@@ -175,6 +176,21 @@ def format_dispatch_delivery(row: dict[str, Any]) -> str:
             "asked for, what came back, and what you are doing about it."
         )
     return "\n".join(lines)
+
+
+def _background_job_lines(jobs: Any, target: str) -> list[str]:
+    """Background work the teammate's turn left running (RT-FU-A-HELPERS-BACKGROUND-JOB-DIES-WHEN-ITS-TURN-ENDS)."""
+
+    rows = [job for job in (jobs or []) if isinstance(job, dict) and job.get("session_id")]
+    if not rows:
+        return []
+    lines = ["", f"Still running after their turn ended ({len(rows)}):"]
+    lines += [f"- {job['session_id']}: {str(job.get('command') or '')[:160]}" for job in rows]
+    lines.append(
+        f"It keeps running. When it finishes, {target} gets its result as a new message in their own "
+        "thread and carries on from there; ask them for the outcome, or check it with agent_chat_open."
+    )
+    return lines
 
 
 def _clarify_lines(clarify: Any, target: str) -> list[str]:
