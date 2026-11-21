@@ -2,7 +2,7 @@
 
 The turn-cleanup rows of 2026-11-12 (``TASK-TURN-CLEANUP``) each shipped once on a result a test typed by
 hand and missed the live path. This rig is the live path without the client: a real persona instance and
-chat root, the real mission-chat door (``_cmd_mission_chat_message`` → ``profile_runner.execute`` →
+chat root, the real mission-chat door (``_cmd_mission_chat_message`` → ``operator_turn_policy`` →
 ``AIAgent``), and a real HTTP model — the Eternia QA fixture's ``[[qa:hold]]`` is :attr:`HeldModel.hold`.
 Not a test module; the files that import it are its pins.
 """

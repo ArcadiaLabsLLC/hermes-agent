@@ -116,7 +116,7 @@ def test_the_first_turn_after_an_idle_pause_rebuilds_no_memo_and_rides_a_warm_so
     from agent_runtime.persona_chat_continuity.runtime_registry import (
         initialize_persona_chat_runtime_registry,
     )
-    from agent_runtime.profile_runner import execute
+    from agent_runtime import operator_turn_runtime as execute
     from agent_runtime.snapshot_worker import executor as executor_mod
     from hermes_constants import get_hermes_home
     from tools import skills_tool

@@ -9,7 +9,7 @@ import pytest
 from agent_runtime.persona_chat_continuity.runtime_registry import (
     PersonaChatRuntimeRegistry,
 )
-from agent_runtime.profile_runner.execute import AgentRunExecution
+from agent_runtime.operator_turn_policy import OperatorTurn
 from agent_runtime.profile_runner.models import AgentRunRequest
 
 
@@ -22,7 +22,7 @@ def _execution(registry, runtime, factory):
         persona_chat_runtime_signature="context",
         persona_chat_native_revision="revision",
     )
-    execution = AgentRunExecution(None, None, request)
+    execution = OperatorTurn(None, None, request)
     execution.runtime = deepcopy(runtime)
     # The actor build is the leaf (``build_actor``: a gateway session around the constructed agent).
     execution.build_actor = factory

@@ -253,7 +253,7 @@ def test_the_runner_binds_one_join_to_both_callbacks(monkeypatch):
     from agent_runtime.profile_runner import AgentRunRequest, ProfileAgentRunner
 
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider",
         lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "codex_responses"},
     )
     events = []

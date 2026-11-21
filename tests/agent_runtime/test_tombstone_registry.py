@@ -3698,7 +3698,7 @@ TOMBSTONES: tuple[Tombstone, ...] = (
         Form.CODE,
         "a tests-only reset of the runtime-resolve memo with no production "
         "caller; it lives in tests/_downstream/_seams.py and clears "
-        "profile_runner.execute's cache under its lock the same way",
+        "operator_turn_runtime's cache under its lock the same way",
         "reset_runtime_resolve_cache",
         scope=_AR,
     ),

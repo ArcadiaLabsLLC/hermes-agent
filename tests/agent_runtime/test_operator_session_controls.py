@@ -112,7 +112,7 @@ def test_speed_is_route_and_transport_specific_and_normal_clears_paid_overrides(
 
 @pytest.mark.parametrize("choice,approved", [("once", True), ("deny", False)])
 def test_real_runner_waits_for_exact_owner_approval_then_honors_the_answer(chat, monkeypatch, choice, approved):
-    from agent_runtime.profile_runner import execute
+    from agent_runtime import operator_turn_runtime as execute
     from tools.approval import check_all_command_guards, unregister_gateway_notify
 
     SessionControlStore().update(chat["session_id"], "approval_mode", "manual")

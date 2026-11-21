@@ -188,7 +188,7 @@ def skills_tool_inspection_doors():
 
 def sanitize_surrogates(text: str) -> str:
     """``agent.message_sanitization._sanitize_surrogates`` — read by
-    ``profile_runner.resident_actor._sanitized_user_message_text``. Held widening
+    ``operator_turn_policy._sanitized_user_message_text``. Held widening
     row (ruling Q7, ``upstream-footprint-ledger.md``): publish
     ``sanitize_surrogates``. Raises what the upstream helper raises, and
     ImportError if it relocates — the caller keeps its own fallback."""

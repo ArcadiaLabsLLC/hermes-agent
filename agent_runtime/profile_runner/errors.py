@@ -37,7 +37,7 @@ class RunBudgetExceeded(ProfileRunnerError):
 class PrewarmYielded(ProfileRunnerError):
     """A ``prewarm_only`` run stood down INSIDE the run lock (h-turn-wait).
 
-    Raised by ``AgentRunExecution`` when the request's ``prewarm_yield`` answers a
+    Raised by ``OperatorTurn`` when the request's ``prewarm_yield`` answers a
     reason; unwinding the scope stack releases ``_WORKDIR_LOCK`` to the turn that
     is waiting for it. ``phase`` is where it stood down, ``reason`` what it yielded to.
     """

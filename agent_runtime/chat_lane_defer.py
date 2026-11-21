@@ -11,7 +11,7 @@ doors, both fork-only:
 
 * **construction and every turn** — the tool form's one owner,
   :mod:`agent_runtime.chat_lane_tool_form` (:func:`apply_chat_lane_defer` from
-  ``profile_runner.runner._default_agent_factory``, ``settle_turn_tool_form`` from the
+  ``operator_turn_policy.build_agent``, ``settle_turn_tool_form`` from the
   eternia-harness ``pre_llm_call`` hook): upstream's ``assemble_tool_defs`` over the lane's
   raw definitions with the persona's names deferred;
 * **the bridge** — the run binds the same names for its turn

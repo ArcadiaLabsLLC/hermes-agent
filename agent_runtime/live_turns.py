@@ -14,7 +14,7 @@ is the honest durable answer (hermes ``runtime-queue.md`` RW1-RW3).
 An MCP tool's server-reported progress joins the same way, on the same
 thread id, through :mod:`tools.mcp_progress_relay`.
 
-Writers: ``profile_runner.execute`` registers a turn around its conversation and
+Writers: ``operator_turn_policy`` registers a turn around its conversation and
 feeds the runner's ``run.tool.started`` / ``run.tool.finished`` callbacks in.
 Those callbacks fire on the tool's worker thread, so the thread id recorded at
 start is the one ``BaseEnvironment.execute`` waits on — the exact join to

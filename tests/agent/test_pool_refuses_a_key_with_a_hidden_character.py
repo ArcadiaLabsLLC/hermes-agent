@@ -105,9 +105,10 @@ def test_the_runner_raises_the_named_refusal_in_place_of_the_bare_failure(tmp_pa
     pool = _pool(_row(BAD))
     pool.select()
     monkeypatch.setattr("agent.credential_pool.load_pool", lambda p: pool)
-    monkeypatch.setattr("agent_runtime.profile_runner.execute.AgentRunExecution.run",
+    monkeypatch.setattr("agent_runtime.operator_turn_policy.OperatorTurn.acquire",
                         lambda self: (_ for _ in ()).throw(AuthError("No Anthropic credentials found.")))
     with pytest.raises(NamedProviderNotConfiguredError) as excinfo:
         ProfileAgentRunner(agent_factory=Boom).run(AgentRunRequest(
-            profile=None, user_message="hi", provider="anthropic", runtime_root=tmp_path))
+            profile=None, user_message="hi", provider="anthropic", runtime_root=tmp_path,
+            root_chat_session_id="chat-pool-key"))
     assert excinfo.value.credentials_reason == "api_key_control_character"

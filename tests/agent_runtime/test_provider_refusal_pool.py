@@ -71,7 +71,7 @@ class _RefusingAgent:
 @pytest.fixture
 def runner(monkeypatch):
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider",
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider",
         lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "chat_completions"},
     )
     _RefusingAgent.block = LIVE_BLOCK

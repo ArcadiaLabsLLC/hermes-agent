@@ -4,7 +4,7 @@ Live 2026-10-06 20:23:58 (serve 5c0f130723): turn 1 on the Neko root logged
 ``send_prep_receipt total_ms=18549 largest=agent_ready`` while the boot prewarm of the
 dev-agent root ran 20:23:54 -> 20:24:16. That prewarm sat in MCP admission for the
 persona's ``dart`` server (``connect_timeout_seconds: 20``) INSIDE
-``AgentRunExecution.scopes`` -- holding ``_WORKDIR_LOCK`` -- and the turn's
+``OperatorTurn.scopes`` -- holding ``_WORKDIR_LOCK`` -- and the turn's
 ``ProfileAgentRunner.run`` blocked on that lock until the admission timed out and the
 construction finished (the turn's ``chat_turn_effort`` 0.9 s after the prewarm's).
 

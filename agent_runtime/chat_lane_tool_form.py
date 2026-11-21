@@ -4,7 +4,7 @@ Plan ``docs/agent-runtime-harness/archive/tool-form-one-owner-2026-10-08.md``. A
 chat turn's ``tools[]`` is derived ONCE, here, from the lane's raw definitions, the
 constructor's post-build extras and the persona's defer list (``chat_lane_defer_tools``),
 through the one assembly upstream's tool search runs (``assemble_tool_defs``) — at
-construction (:func:`apply_chat_lane_defer`, from ``profile_runner.runner._default_agent_factory``)
+construction (:func:`apply_chat_lane_defer`, from ``operator_turn_policy.build_agent``)
 and before every turn's first request (:func:`settle_turn_tool_form`, from the
 eternia-harness ``pre_llm_call`` hook). The bridge (``tool_search``'s listing and count) is
 re-derived from the current catalog, never frozen to the built bytes: the chats of one

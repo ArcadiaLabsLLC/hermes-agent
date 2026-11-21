@@ -11,7 +11,7 @@ landing instead of a trip. This module is that bound:
 * every provider call's usage reaches :func:`on_provider_call` (``usage_ledger.record_usage``
   calls it: the ``post_api_request`` hook and the Codex accrual site both go through there),
   which finds the running turn through the persona-turn binding — the agent carries the
-  turn's ``client_message_id`` (``profile_runner.execute.bind_chat_root``) — so the budget is
+  turn's ``client_message_id`` (``operator_turn_policy.OperatorTurn.bind_chat_root``) — so the budget is
   found whichever thread the turn runs on;
 * at :data:`NUDGE_RATIO` of either limit the model is told, in-band, to write what it has
   (one steered ``runtime_notice``, code ``token_budget``);

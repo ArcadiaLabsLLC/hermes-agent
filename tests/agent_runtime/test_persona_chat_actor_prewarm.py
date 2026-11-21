@@ -123,7 +123,7 @@ def stub_runtime(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider", _resolve
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider", _resolve
     )
 
 
@@ -1386,7 +1386,7 @@ def test_the_first_turn_after_a_prewarm_adopts_the_prompt_it_built(stub_runtime,
     """A3: ``profile_conversation_system_prompt_build_ms`` is absent on turn 1, as on turn 2.
 
     *Killing mutation:* drop ``stash_prewarmed_system_prompt`` from the prewarm
-    branch of ``AgentRunExecution.run`` (or the seam in ``conversation_loop``):
+    branch of ``OperatorTurn.run`` (or the seam in ``conversation_loop``):
     the turn builds again and carries the build key.
     """
 

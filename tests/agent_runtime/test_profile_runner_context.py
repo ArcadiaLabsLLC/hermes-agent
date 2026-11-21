@@ -87,7 +87,7 @@ def test_runner_executes_agent_inside_requested_workdir_and_restores_caller(tmp_
 
 def test_runner_asks_the_chosen_credential_check_in_the_profile_before_any_agent(tmp_path, monkeypatch):
     """Review w1118a.69 D1: the run is refused before an agent exists, reading the persona profile's
-    pool and choice. MUTATION (kill): drop the call in ``AgentRunExecution.run`` — red (the agent runs)."""
+    pool and choice. MUTATION (kill): drop the call in ``OperatorTurn.run`` — red (the agent runs)."""
     import pytest
 
     from agent_runtime.provider_login_expiry import NamedProviderNotConfiguredError
@@ -110,7 +110,7 @@ def test_runner_asks_the_chosen_credential_check_in_the_profile_before_any_agent
         def __init__(self, *args, **kwargs):
             raise AssertionError("an agent was built for a refused run")
 
-    monkeypatch.setattr("agent_runtime.profile_runner.execute.refuse_an_unusable_chosen_credential", refuse)
+    monkeypatch.setattr("agent_runtime.operator_turn_policy.refuse_an_unusable_chosen_credential", refuse)
     with pytest.raises(NamedProviderNotConfiguredError):
         ProfileAgentRunner(agent_factory=MustNotRun).run(AgentRunRequest(
             profile="pm", runtime_root=tmp_path / "runtime", user_message="hi", provider="anthropic"))

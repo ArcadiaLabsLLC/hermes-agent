@@ -9,7 +9,7 @@ connection; the next turn, 10 s later, 481 ms on a pooled one. Two causes, both 
   (``prompt_observability.skills_resolver``, 15 s TTL) answered stale and started its refresh walk
   on a thread at the turn's read -- the walk (upstream ``find_all_skills``, a frontmatter parse per
   skill) then held the GIL beside the turn through ``turn_context_built``; offline, 180 skills,
-  ``cpu_ms`` 484 over a 386 ms window. The runtime-resolve memo (``profile_runner.execute``, 30 s
+  ``cpu_ms`` 484 over a 386 ms window. The runtime-resolve memo (``operator_turn_policy``, 30 s
   TTL) re-resolved inline in ``agent_ready``.
 * **The socket expired.** The shared transport reaps an idle connection after 20 s
   (``keepalive_expiry``, ``agent/process_bootstrap.py``) and the prewarm's keep-warm stops at the

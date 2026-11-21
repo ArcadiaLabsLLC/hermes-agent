@@ -148,6 +148,30 @@ What the build found, and where it departs from the steps above.
    - `execute.py` / `_default_agent_factory`: the door (3) runs them on the engine's turn; moving the
      same calls into bind/reset changes no engine. RECOMMENDED: keep, awaiting the owner.
 
+## Fold and delete (2026-11-21, w1118a-enginefold)
+
+Owner rulings 2026-11-21: keep the durable send queue ("yes"); fold and delete the old turn code ("if
+its not used it should be removed no?", then "Yes, fold and delete"). Item 7's `execute.py` hold is
+lifted; the send queue stays. Every duty of `AgentRunExecution` and `_default_agent_factory`, by where
+it now lives:
+
+| duty | the gateway already does it? | now |
+|---|---|---|
+| the chat's resident actor | yes: the session record holds the agent | the session is the actor; the registry only pools sessions (signature rebuild, bounds, observations, chat delete) |
+| one turn at a time on a chat | yes: the session's `running` admission and queued prompt | the gateway's; `root_run_lock` stays in the scopes, since it also orders the acquisition and the prewarm, which are not gateway turns |
+| who builds the agent | yes: `_make_agent` | `_make_agent` → `operator_agent` → `OperatorTurn.construct_agent` → `operator_turn_policy.build_agent`, the one builder (was `runner._default_agent_factory`) |
+| the turn's run | yes: `_run_prompt_submit` → `run_conversation` | the engine's; the door runs `OperatorTurn.converse` around the real call. The second execution (`given_agent` / `acquired`) and the direct converse of a request with no chat root are deleted: such a request is refused |
+| prewarm | partly: `session.resume` with `eager_build` builds the agent | `OperatorTurn.prewarm` opens the session through the registry and stashes the first prompt; `persona_chat_actor_prewarm` stays as the scheduler (byte-match signature, yields to turns) — nothing upstream opens a session before a chat's first message |
+| scopes (turnstile, root lock, posix home, persona profile, workdir, tool / chat-root / approval / envelope / skill scopes, MCP stack) | no: the gateway binds the store's profile, not the persona's | `OperatorTurn.scopes`, entered in the door (inside the gateway's own profile binding) |
+| credential refusal, runtime resolve + memo, wall checkpoint + timers, MCP admission + call budget, the turn's callbacks, reasoning, speed, chat-root binding, compaction threshold, tool block, steer notice, live turn, idle keeper, agent ready, usage ledger, model-input observability | no | `operator_turn_policy.OperatorTurn` and `operator_turn_runtime` (operator rules) |
+| construction policy (cache scope id, blocked-tool prune, chat-lane defer, MCP refresh off, checkpoint kwargs, skill scope) | no | `build_agent` / `construct_agent` |
+| durable admission of a busy chat's sends | no: the gateway's queue is in memory | `chat_root_send_queue` / `chat_root_send_runner`, kept (owner: "yes") |
+
+Deleted: `profile_runner/execute.py`, `profile_runner/resident_actor.py`, `runner._default_agent_factory`,
+the second (acquisition) execution and the non-chat direct path. Nothing in the list was deletable in
+favour of an upstream copy without changing what a turn does: each remaining duty is the operator
+chat's own rule, and each now runs inside the engine's turn or build. No upstream file changed.
+
 ## What can go wrong
 
 - **History source.** The operator loads its transcript through `persona_chat_history` (compression

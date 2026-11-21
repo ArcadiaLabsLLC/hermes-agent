@@ -287,7 +287,7 @@ def next_request_effort(params, model="gpt-5.6-luna"):
     from agent.transports.codex import _resolve_reasoning
     from agent_runtime.operator_session_models import _model_profile
     from agent_runtime.profile_runner.models import AgentRunRequest
-    from agent_runtime.profile_runner.resident_actor import log_turn_effort, turn_reasoning_config
+    from agent_runtime.operator_turn_policy import log_turn_effort, turn_reasoning_config
     from types import SimpleNamespace
 
     instance = PersonaInstanceStore().get(params["persona_instance_id"])

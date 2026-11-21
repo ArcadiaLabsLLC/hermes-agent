@@ -171,7 +171,7 @@ def test_a_stopped_message_is_not_sent_to_the_model_again_inside_the_next_one(tm
 
 def test_a_run_budget_that_ends_a_waiting_model_call_keeps_the_notice(tmp_path, monkeypatch):
     """The harness wall ends the turn through the same interrupt seam, softly and with its own
-    words (``profile_runner.execute``): not a person's stop."""
+    words (``operator_turn_policy``): not a person's stop."""
     result, rows = _run_and_stop(
         tmp_path, monkeypatch, lambda agent, _console_stop: agent.interrupt("live run budget exceeded"))
 

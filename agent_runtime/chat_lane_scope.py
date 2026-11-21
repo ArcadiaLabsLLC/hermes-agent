@@ -109,7 +109,7 @@ def _enabled_toolsets_for_chat(
     reaches it unless the profile named one — and it stays, because "no permission
     mode can widen the admitted MCP set" must be true by construction rather than
     by the shape of today's declarations. The same pure helper
-    runs again at agent construction (``profile_runner._enabled_toolsets_for_run``)
+    runs again at agent construction (``operator_turn_runtime._enabled_toolsets_for_run``)
     so no lane can bypass it; running it here keeps the operator-facing preview
     honest about the same boundary."""
 

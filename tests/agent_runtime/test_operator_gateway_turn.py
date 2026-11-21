@@ -6,6 +6,8 @@ Each test names the mutation that turns it red.
 import threading
 import traceback
 
+import pytest
+
 from agent_runtime import operator_gateway_turn
 from agent_runtime.profile_runner import AgentRunRequest, ProfileAgentRunner
 from tests.agent_runtime.test_profile_runner import FakeAgent
@@ -39,14 +41,35 @@ def _run(message="hi", **kwargs):
 
 
 def test_an_operator_turn_runs_inside_the_gateways_prompt_turn():
-    # Red when ProfileAgentRunner._converse runs the execution itself (``return execution.run()`` in
-    # place of ``operator_gateway_turn.run_turn``): the agent then converses off the gateway's turn.
+    # Red when ProfileAgentRunner._converse runs the turn's policy itself (``return turn.converse(agent)``
+    # in place of ``operator_gateway_turn.run_turn``): the agent then converses off the gateway's turn.
     result = _run()
 
     assert result.final_response == "ok"
     assert len(_StackAgent.stacks) == 1
     assert "tui_gateway/prompt_turn.py" in _StackAgent.stacks[0]
     assert "in _invoke_agent" in _StackAgent.stacks[0]
+
+
+def test_an_operator_chats_agent_is_built_once_by_the_engines_agent_build(monkeypatch):
+    # Red when ``OperatorTurn.open_session`` builds the agent itself (``return self.construct_agent()``
+    # in place of ``open_actor(self)``): a second builder beside the gateway's ``_make_agent``, and an
+    # actor with no gateway session (the turn is then refused "the chat's gateway session is gone").
+    stacks = []
+    original = _StackAgent.__init__
+
+    def recording_init(self, **kwargs):
+        stacks.append("".join(traceback.format_stack()))
+        original(self, **kwargs)
+
+    monkeypatch.setattr(_StackAgent, "__init__", recording_init)
+
+    result = _run(root_chat_session_id="root_built_once")
+
+    assert result.final_response == "ok"
+    assert len(stacks) == 1
+    assert "tui_gateway/agent_factory.py" in stacks[0] and "in _make_agent" in stacks[0]
+    assert "operator_turn_policy.py" in stacks[0] and "in build_agent" in stacks[0]
 
 
 def test_the_gateway_session_is_an_operator_session_with_the_message_from_the_operator_lane():
@@ -191,10 +214,9 @@ def test_the_gateway_turn_waits_for_the_operator_settle_before_it_judges():
     operator_gateway_turn._install_door(agent, "sid-3")
 
     class _Execution:
-        given_agent = None
         request = type("R", (), {"root_chat_session_id": None})()
 
-        def run(self):
+        def converse(self, agent):
             return ({"final_response": "ok"}, agent, {})
 
     turn = operator_gateway_turn._Turn(_Execution(), "")
@@ -209,17 +231,20 @@ def test_the_gateway_turn_waits_for_the_operator_settle_before_it_judges():
     operator_gateway_turn._settling.pop("sid-3", None)
 
 
-def test_a_run_that_is_no_chat_converses_directly_and_leaves_no_session_row():
-    # Red when ``ProfileAgentRunner._converse`` sends a run with no chat root to the engine too (the
-    # ``if not request.root_chat_session_id`` guard removed): it then needs a session, and a minted one
-    # is a phantom row in the store for every one-shot run.
+def test_a_run_that_is_no_chat_is_refused_and_leaves_no_session_row():
+    # Red when ``ProfileAgentRunner._converse`` runs a request with no chat root outside the engine again
+    # (the second turn path the fold deleted: the agent then converses, here or on the engine), or mints
+    # a session for it (a phantom row in the store).
     from hermes_constants import get_hermes_home
     from hermes_state import SessionDB
 
-    _run(root_chat_session_id=None, session_id=None)
+    from agent_runtime.profile_runner import ProfileRunnerError
 
-    assert len(_StackAgent.stacks) == 1
-    assert "in _invoke_agent" not in _StackAgent.stacks[0]
+    _StackAgent.stacks.clear()
+    with pytest.raises(ProfileRunnerError, match="names no chat root"):
+        _run(root_chat_session_id=None, session_id=None)
+
+    assert _StackAgent.stacks == []
     db_path = get_hermes_home() / "state.db"
     if db_path.exists():
         db = SessionDB(db_path=db_path)

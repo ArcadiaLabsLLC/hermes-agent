@@ -119,7 +119,7 @@ def stub_runtime(monkeypatch):
         }
 
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.resolve_runtime_provider", _resolve
+        "agent_runtime.operator_turn_runtime.resolve_runtime_provider", _resolve
     )
     return calls
 
@@ -540,7 +540,7 @@ def test_an_expired_memo_re_resolves(stub_runtime, monkeypatch):
         "agent_runtime.profile_runner.runner.time.monotonic", lambda: clock
     )
     monkeypatch.setattr(
-        "agent_runtime.profile_runner.execute.time.monotonic", lambda: clock
+        "agent_runtime.operator_turn_runtime.time.monotonic", lambda: clock
     )
     monkeypatch.setattr(
         "agent_runtime.profile_runner.status.time.monotonic", lambda: clock
