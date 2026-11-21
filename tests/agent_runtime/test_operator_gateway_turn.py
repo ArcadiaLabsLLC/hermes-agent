@@ -308,3 +308,28 @@ def test_a_completion_parked_for_a_closed_chat_wakes_it_through_this_lane(store_
     assert tally["delivered"] == 1
     assert [call["root_session_id"] for call in forge.calls] == [SENDER_ROOT]
     assert notification_park.parked() == []
+
+
+def test_importing_the_engine_in_process_leaves_the_serves_stdout_alone(monkeypatch):
+    # Red when ``_import_gateway_keeping_stdout`` stops putting stdout back: the gateway's import swaps
+    # ``sys.stdout`` for stderr (its stdio guard), and every reply line the serve prints afterwards
+    # becomes a stderr frame the client never reads as the reply.
+    import sys
+
+    from agent_runtime.conversations import in_process_peer
+
+    serve_stdout = object()
+    monkeypatch.setattr(sys, "stdout", serve_stdout)
+    monkeypatch.delitem(sys.modules, "tui_gateway.server", raising=False)
+    imported = []
+
+    def import_module(name):
+        imported.append(name)
+        sys.stdout = sys.stderr  # what tui_gateway/server.py does at import
+
+    monkeypatch.setattr(in_process_peer, "_import_module", import_module)
+
+    in_process_peer._import_gateway_keeping_stdout()
+
+    assert imported == ["tui_gateway.server"]
+    assert sys.stdout is serve_stdout

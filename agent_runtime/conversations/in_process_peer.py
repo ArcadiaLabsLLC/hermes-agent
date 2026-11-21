@@ -24,7 +24,9 @@ generation, answered by the worker itself (:mod:`.process_evidence`).
 """
 from __future__ import annotations
 
+import importlib
 import json
+import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -69,12 +71,32 @@ def _install_gateway_methods() -> None:
     global _installed
     with _install_lock:
         if not _installed:
+            _import_gateway_keeping_stdout()
             from .worker_skills import install
 
             install()
             from .worker_app_functions import install as install_app_functions
             install_app_functions()
             _installed = True
+
+
+def _import_gateway_keeping_stdout() -> None:
+    """Import ``tui_gateway.server`` without its stdio guard taking the process's stdout.
+
+    The gateway's import reserves the real stdout for its stdio JSON-RPC (``sys.stdout = sys.stderr``).
+    An in-process peer speaks no stdio, and the serve that hosts it answers every request on stdout
+    (``harness_parts.serve.frames``): left in place, the swap turns each later reply line into a stderr
+    frame (a Mission Control reply printed after the first conversation opened never reached the client).
+    """
+    if "tui_gateway.server" in sys.modules:
+        return
+    held = sys.stdout
+    _import_module("tui_gateway.server")
+    if sys.stdout is not held:
+        sys.stdout = held
+
+
+_import_module = importlib.import_module
 
 
 def _gateway_dispatch(request: dict, transport) -> dict | None:

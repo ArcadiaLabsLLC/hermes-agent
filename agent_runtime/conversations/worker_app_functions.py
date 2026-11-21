@@ -202,10 +202,15 @@ def bind(sid, session):
 
     from . import worker_permissions
 
-    operator_gateway_turn.pin_session(session)
-
-    binding, _ = _binding(sid, session)
-    launcher = app.bind_launcher_link(binding.link if binding else None)
+    if operator_gateway_turn.is_operator(session):
+        # A Mission Control chat's turn carries the Launcher link of the request that sent it (the
+        # operator lane binds it around the submit, and the turn thread inherits it): the session never
+        # gets a link record of its own, which would answer the chat's Launcher tools on a sink nobody reads.
+        operator_gateway_turn.pin_session(session)
+        launcher = app.bind_launcher_link(app.current_launcher_link())
+    else:
+        binding, _ = _binding(sid, session)
+        launcher = app.bind_launcher_link(binding.link if binding else None)
     try:
         permission = worker_permissions.bind(sid, session)
     except BaseException:
