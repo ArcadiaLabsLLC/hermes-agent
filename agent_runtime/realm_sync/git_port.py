@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from ..realm_membership import RealmSyncCredential
 
-__layer__ = "models"
+__layer__ = "stores"
 __all__ = [
     "ChangedPath",
     "FetchOutcome",

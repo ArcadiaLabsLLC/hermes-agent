@@ -14,7 +14,7 @@ from typing import Any
 
 from .child import note_child_group
 
-__layer__ = "lanes"
+__layer__ = "policy"
 __all__ = ["close_job", "end_job", "hold_job_by_name", "open_job_by_name", "spawn_child"]
 
 logger = logging.getLogger(__name__)

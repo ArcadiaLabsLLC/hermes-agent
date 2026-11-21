@@ -39,8 +39,7 @@ from pathlib import Path
 
 import pytest
 
-import hermes_constants
-
+from agent_runtime.host_tools import platform_default_root
 from tests._downstream.load_wait import wait_for
 
 #: the folders (or single test files) whose tests fail on a leftover thread or child (see (d)); one
@@ -58,7 +57,7 @@ _NOT_REPO = tuple(
                                       sysconfig.get_paths()["platlib"], sys.prefix, sys.base_prefix)}
 )
 #: the platform-default root's parent at import, before any test moves HOME (the upstream pin's rule)
-_NATIVE_PARENT = hermes_constants._get_platform_default_hermes_home().parent
+_NATIVE_PARENT = platform_default_root().parent
 
 
 def _read_sealed_roots() -> tuple[str, ...]:

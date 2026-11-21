@@ -289,11 +289,11 @@ def sign_in_required_for(slug: str, auth_type: str, credential_env_vars: tuple[s
 def _default_base_url_is_loopback(slug: str, overlay) -> bool:
     """The provider's shipped default endpoint (registry first, then the overlay) is on this machine."""
     try:
+        from agent.proxy_bypass import is_loopback_host
         from hermes_cli.auth import PROVIDER_REGISTRY
-        from hermes_cli.runtime_provider import _loopback_hostname
         from utils import base_url_hostname
     except Exception:
         return False
     cfg = PROVIDER_REGISTRY.get(slug)
     url = (cfg.inference_base_url if cfg else "") or (overlay.base_url_override if overlay else "")
-    return bool(url) and _loopback_hostname(base_url_hostname(url))
+    return bool(url) and is_loopback_host(base_url_hostname(url))
