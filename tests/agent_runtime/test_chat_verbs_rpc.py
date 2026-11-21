@@ -229,9 +229,12 @@ def test_create_refusals_carry_the_argv_rows_reason(chat_db):
     assert missing["code"] == ERR_INVALID_PARAMS and missing["data"]["reason"] == "invalid_request"
     unknown = _rpc("runtime.persona.instance.create", {"persona_id": "no_such_persona", "display_name": "x"})["error"]
     assert unknown["code"] == ERR_NOT_FOUND and unknown["data"]["reason"] == "persona_not_found"
-    placement = _rpc("runtime.persona.instance.create",
-                     {"persona_id": "profile:reviewer", "display_name": "x", "add_instance": True})["error"]
-    assert placement["code"] == ERR_INVALID_PARAMS and "placement_id" in placement["message"]
+    # An add without a placement id mints one now (89d8b736a5); a GIVEN id the store cannot tell
+    # apart from a persona token is still the argv row's typed refusal.
+    placement = _rpc("runtime.persona.instance.create", {"persona_id": "profile:reviewer", "display_name": "x",
+                                                         "add_instance": True, "placement_id": "desk"})["error"]
+    assert placement["code"] == ERR_INVALID_PARAMS
+    assert placement["data"]["reason"] == "placement_id_not_discriminable"
 
 
 def test_an_unbound_door_is_a_typed_refusal_not_a_silent_success(chat_db):
