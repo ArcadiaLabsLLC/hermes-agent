@@ -182,11 +182,10 @@ def test_a_serve_pointed_at_a_remote_host_starts_no_adapter_and_hands_it_no_toke
     """The real factory, not a fake: a refused setting is ``start_failed``, never a fall-back to the real API,
     and no adapter is built. Killing mutation: ``_telegram_upstream`` ignores the setting → the adapter is
     built (and would start against the real Bot API) → red."""
-    from plugins.platforms.telegram import adapter as telegram_adapter
+    from gateway.platform_registry import platform_registry
 
     built: list = []
-    monkeypatch.setattr(telegram_adapter, "check_telegram_requirements", lambda: True)
-    monkeypatch.setattr(telegram_adapter, "TelegramAdapter", lambda config: built.append(config))
+    monkeypatch.setattr(platform_registry, "create_adapter", lambda name, config: built.append(config))
     monkeypatch.setattr(serve_lane, "_current", None)
     credentials.set_token(TG, TOKEN)
     rpc.execute("platform.enable", {"platform": "telegram"}, by="test")
@@ -208,28 +207,44 @@ def test_the_adapter_is_pointed_at_the_api_base(monkeypatch):
     assert "base_url" not in serve_lane._telegram_upstream(TOKEN, nullcontext).adapter.config.extra
 
 
-# ── python-telegram-bot is an opt-in extra: the factory asks upstream's lazy installer first ──
+# ── the adapter comes from upstream's platform registry, which owns the opt-in extra's lazy install ──
 
 
-def test_the_factory_asks_upstreams_lazy_installer_before_it_builds_the_adapter(monkeypatch):
-    """A Harness without the ``messaging`` extra gets python-telegram-bot installed on first use, as upstream's
-    ``create_adapter`` does; where it cannot be installed the lane reads ``start_failed`` and builds nothing.
-    Killing mutation: drop the ``check_telegram_requirements()`` guard in ``_telegram_upstream`` → the installer
-    is never asked and the adapter is built without its library → red."""
-    from plugins.platforms.telegram import adapter as telegram_adapter
+def test_the_adapter_is_built_by_upstreams_platform_registry():
+    """No module of the Telegram plugin is named by fork core: the plugin's registry entry builds the
+    adapter (row RT-FU-THE-FORK-PLUGINS-REACH-HERMES-CORE-ONLY-THROUGH-ITS-PUBLIC-DOORS).
+    Killing mutation: restore ``from plugins.platforms.telegram.adapter import TelegramAdapter`` in
+    ``_telegram_upstream`` → the plugin module is named in serve_lane → red."""
+    from contextlib import nullcontext
+    from gateway.platform_registry import platform_registry
+
+    require_telegram_extra()
+    transport = serve_lane._telegram_upstream(TOKEN, nullcontext)
+    entry = platform_registry.get(serve_lane.TELEGRAM_PLATFORM)
+    assert entry is not None and type(transport.adapter).__module__ == entry.adapter_factory.__module__
+    assert "plugins.platforms" not in Path(serve_lane.__file__).read_text(encoding="utf-8")
+
+
+def test_a_missing_telegram_library_starts_nothing(monkeypatch):
+    """Where the registry cannot build the adapter (python-telegram-bot absent and not installable), the lane
+    reads ``start_failed``. Killing mutation: drop the ``adapter is None`` guard in ``_telegram_upstream`` →
+    the factory hands back a transport over None instead of refusing → red."""
+    from gateway.platform_registry import platform_registry
 
     asked: list = []
-    built: list = []
-    monkeypatch.setattr(telegram_adapter, "check_telegram_requirements", lambda: asked.append(1) or False)
-    monkeypatch.setattr(telegram_adapter, "TelegramAdapter", lambda config: built.append(config))
+    monkeypatch.setattr(platform_registry, "create_adapter", lambda name, config: asked.append(name))
     monkeypatch.setattr(serve_lane, "_current", None)
     credentials.set_token(TG, TOKEN)
     rpc.execute("platform.enable", {"platform": "telegram"}, by="test")
     lane = MessagingLane(_session())
     lane.tick()
-    assert asked == [1] and built == []
+    assert asked == ["telegram"]
     assert lane.state()["telegram"] == {"state": "off", "reason": "start_failed"}
     lane.close()
+    from contextlib import nullcontext
+
+    with pytest.raises(RuntimeError, match="could not build an adapter"):
+        serve_lane._telegram_upstream(TOKEN, nullcontext)
 
 
 # ── the real upstream factory, through the lane, against the local Bot API ──

@@ -69,6 +69,13 @@ USAGE_NO_SOURCE = "no_usage_source"
 #: (RT-USAGE-READ-FAILURE-SAYS-NO-USAGE-SOURCE). Both words reach Eternia through the generated mirror
 #: ``tests/fixtures/provider_usage_unavailable_reasons.json``.
 USAGE_READ_FAILED = "usage_read_failed"
+#: The providers upstream's ``agent.account_usage.fetch_account_usage`` has a built-in usage fetcher for:
+#: its None for one of these is a read that failed. Held here because upstream publishes no "has a
+#: fetcher" accessor and its table (``_USAGE_FETCHERS``) is private (row
+#: RT-FU-THE-FORK-PLUGINS-REACH-HERMES-CORE-ONLY-THROUGH-ITS-PUBLIC-DOORS);
+#: ``tests/agent_runtime/test_serve_rpc_provider.py`` compares it with upstream's table, so an upstream
+#: merge that adds a fetcher reds that test, not the reason Eternia shows.
+USAGE_FETCHER_PROVIDERS = frozenset({"anthropic", "openai-codex", "openrouter"})
 
 
 def _usage_view(provider: str, snapshot: Any, *, reason: str = USAGE_NO_SOURCE) -> dict:
@@ -129,10 +136,9 @@ def provider_usage(provider: str) -> dict:
 def _missing_usage_reason(provider: str) -> str:
     """Why a provider answered no usage snapshot: a signed-in provider with a fetcher had a read fail;
     any other has no usage source."""
-    from ._upstream_doors import has_account_usage_fetcher
-
+    has_fetcher = str(provider or "").strip().lower() in USAGE_FETCHER_PROVIDERS
     # MUTATION: answer USAGE_NO_SOURCE always and test_a_signed_in_provider_whose_read_failed_says_so reds.
-    return USAGE_READ_FAILED if has_account_usage_fetcher(provider) and _signed_in(provider) else USAGE_NO_SOURCE
+    return USAGE_READ_FAILED if has_fetcher and _signed_in(provider) else USAGE_NO_SOURCE
 
 
 def _known(provider: str) -> None:

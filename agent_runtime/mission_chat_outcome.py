@@ -394,8 +394,7 @@ def _unsent_remedies() -> dict[str, str]:
     other kind is saved (review w1118a.69 D1) and a saved key with a hidden character
     (RT-FU-AN-API-KEY-WITH-A-HIDDEN-CONTROL-CHARACTER-IS-REFUSED-WHEN-IT-IS-SAVED)."""
     from agent_runtime.api_key_check import API_KEY_CONTROL_CHARACTER
-    from agent_runtime.provider_credential_source import CHOSEN_CREDENTIAL_UNUSABLE
-    from agent_runtime.provider_login_expiry import LOGIN_EXPIRED_REASON
+    from agent_runtime.provider_login_expiry import CHOSEN_CREDENTIAL_UNUSABLE, LOGIN_EXPIRED_REASON
 
     return {
         LOGIN_EXPIRED_REASON: ("the {provider} sign-in has expired and the request never left Hermes; sign in "
