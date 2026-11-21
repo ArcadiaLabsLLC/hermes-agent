@@ -13,6 +13,7 @@ import json
 import pytest
 
 from agent_runtime.models import AutonomyLevel
+from tests._downstream.split_package_source import patch_where_bound
 from tests.agent_runtime.test_serve_rpc_agent_create import (
     WORKSPACE,
     _instances,
@@ -180,7 +181,7 @@ def test_a_budget_of_three_places_three(lead, monkeypatch):
     monkeypatch.setattr(staff, "running_group_chat_seats", _no_seats)
     loaded = runtime_config.load_agent_runtime_config()
     loaded.coordinator_permissions = CoordinatorPermissionConfig(max_spawns=3)
-    monkeypatch.setattr(runtime_config, "load_agent_runtime_config", lambda *a, **k: loaded)
+    patch_where_bound(monkeypatch, runtime_config, "load_agent_runtime_config", lambda *a, **k: loaded)
 
     answer = _add(lead, agent="qa", count=3)
 
@@ -226,7 +227,8 @@ def test_the_verb_answers_the_tools_order(lead, monkeypatch):
         for n in (1, 2, 3)
     ]
     older, newer, busy = seats
-    monkeypatch.setattr(
+    patch_where_bound(
+        monkeypatch,
         mission_chat_turns,
         "last_turn_started_by_instance",
         lambda: {older: "2026-11-20T01:00:00.000000Z", newer: "2026-11-20T02:00:00.000000Z"},
