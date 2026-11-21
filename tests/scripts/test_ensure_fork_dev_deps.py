@@ -11,7 +11,7 @@ from scripts.ensure_fork_dev_deps import REQUIREMENTS, main, pins, unmet
 
 
 def test_the_committed_file_names_the_fork_tools():
-    assert set(pins(REQUIREMENTS.read_text(encoding="utf-8"))) == {"coverage", "pytest-timeout"}
+    assert set(pins(REQUIREMENTS.read_text(encoding="utf-8"))) == {"coverage", "dulwich", "pytest-timeout"}
 
 
 def test_unmet_reports_missing_and_mismatched_pins_and_nothing_else():
