@@ -855,9 +855,9 @@ def ensure_install_launchers(repo_root: Path, out_dir: Path) -> list[str]:
         # install); per-home outputs below stay unguarded. Upgrade to a stamped
         # owning store if shared checkouts ever need cross-home repins.
         kept = None if owner else _kept_shared_launcher(name, local, store, own)
+        from hermes_cli.kept_launcher_refresh import checkout_launcher  # fork seam: RT-PUBLISHED-LAUNCHER-OBSOLETE-BOOTSTRAP, RT-FU-A-QA-COPY-REWRITES-THE-OWNERS-CHECKOUT-LAUNCHERS
+        kept = None if owner else checkout_launcher(name, root, local, kept)
         if kept is not None:
-            from hermes_cli.kept_launcher_refresh import refresh_kept_launcher  # fork seam: RT-PUBLISHED-LAUNCHER-OBSOLETE-BOOTSTRAP
-            kept = refresh_kept_launcher(name, root, local, kept)
             written.append(str(kept))
             continue
         if (path := stage_launcher(name, root, local)) is not None:

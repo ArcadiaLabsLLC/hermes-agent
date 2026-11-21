@@ -21,6 +21,54 @@ from __future__ import annotations
 from pathlib import Path
 
 
+def checkout_launcher(name: str, root: Path, local: Path, kept: Path | None) -> Path | None:
+    """The checkout launcher ``ensure_install_launchers`` reports for *name*, or None to let it stage one.
+
+    Only the checkout's own store interpreter publishes the checkout's ``.hermes/bin``
+    (RT-FU-A-QA-COPY-REWRITES-THE-OWNERS-CHECKOUT-LAUNCHERS). A home that BORROWS the checkout
+    (``pm.environments.owning_home_root`` names another data root: a Stage C QA copy, a test's or a
+    task's ``HERMES_HOME``) used to stage a missing launcher on its own interpreter, and the #123238
+    keep then held that binding for good: the owner's ``hermes`` ran the QA tree's interpreter, and
+    exited before Hermes started once that tree was deleted. Under a borrower the launcher is
+    published on the OWNING root's store interpreter (``<owner>/tools``), which also re-binds one an
+    earlier borrower left; the borrower's own commands go to its own bin (the caller's ``out_dir``).
+    A home that owns the checkout, or a root no owner is known for, keeps upstream's rule: a kept
+    launcher is re-minted on the interpreter it already names (:func:`refresh_kept_launcher`).
+    Edge, documented: an owner whose store records no interpreter falls back to that rule too.
+    """
+    from pm.environments import owning_home_root
+
+    try:
+        owner = owning_home_root(root)
+    except Exception:  # health: allow BLE001 -- no owner read: upstream's rule, as before this seam
+        owner = None
+    if owner is not None:
+        published = _publish_on_owner_store(name, root, local, Path(owner))
+        if published is not None:
+            return published
+    return None if kept is None else refresh_kept_launcher(name, root, local, kept)
+
+
+def _publish_on_owner_store(name: str, root: Path, local: Path, owner: Path) -> Path | None:
+    """*name* in the checkout's bin bound to *owner*'s store interpreter; None when it has none."""
+    from hermes_cli import _launchers
+
+    python = _launchers._store_python(owner / "tools")
+    if python is None:
+        return None
+    try:
+        minted = _launchers.mint_launcher(name, root, local, python, None)
+    except Exception:  # health: allow BLE001 -- never publish the borrower's interpreter over a failed mint
+        return None
+    if minted is not None and minted.suffix.lower() == ".cmd":
+        # cmd.exe resolves the .exe first: a borrower's .exe must not shadow the owner's command.
+        try:
+            (local / f"{name}.exe").unlink(missing_ok=True)
+        except OSError:
+            return None
+    return minted
+
+
 def refresh_kept_launcher(name: str, root: Path, local: Path, kept: Path) -> Path:
     """*kept* re-minted on its own interpreter with the current bootstrap; *kept* when it cannot be."""
     from hermes_cli import _launchers
