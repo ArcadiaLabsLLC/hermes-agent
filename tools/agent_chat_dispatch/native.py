@@ -99,7 +99,7 @@ def turn_args(spec: dict[str, Any], *, deadline_epoch: float) -> SimpleNamespace
     )
 
 
-def _home_scope(spec: dict[str, Any]):
+def _dispatch_homes_scope(spec: dict[str, Any]):
     """The homes the dispatch was made from, bound context-locally on the turn's thread.
 
     Captured in the sender's turn (``tools/agent_chat/detached.py::_dispatch_homes``): the head home, so
@@ -121,7 +121,7 @@ def _turn_body(spec: dict[str, Any], args: SimpleNamespace, run: TurnRun) -> Non
     from agent_runtime.mission_chat_door import run_mission_chat_turn
 
     try:
-        with _home_scope(spec):
+        with _dispatch_homes_scope(spec):
             run.exit_code, run.payload = run_mission_chat_turn(args)
     except BaseException as exc:  # the supervisor records it; the thread never raises into nothing
         logger.exception("dispatched turn %s raised", getattr(args, "client_message_id", ""))

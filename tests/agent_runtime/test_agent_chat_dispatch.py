@@ -448,7 +448,7 @@ def test_the_turn_resolves_on_the_head_home_not_the_senders_profile_home(tmp_pat
 def test_the_turn_binds_the_dispatch_homes_on_its_own_thread_only(store_home, tmp_path, monkeypatch):
     """The homes captured in the sender's turn are bound context-locally on the turn's thread.
 
-    *Killing mutation:* ``_home_scope`` returning ``nullcontext()`` -> the turn reads the
+    *Killing mutation:* ``_dispatch_homes_scope`` returning ``nullcontext()`` -> the turn reads the
     ambient ``HERMES_HOME`` instead of the captured head home.
     """
 
