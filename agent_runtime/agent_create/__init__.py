@@ -172,6 +172,7 @@ from .perform import (
     RESUME_ACTIONS,
     AgentCreate,
     AgentPlace,
+    mint_new_agent,
     perform_agent_create,
     perform_agent_place,
 )

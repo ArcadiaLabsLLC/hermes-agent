@@ -143,6 +143,17 @@ def set_key(
     normalized = _normalize_provider(provider)
     if not secret:
         raise NonInteractiveAuthError("No API key provided.", code="empty_secret")
+    # The one key check (RT-FU-AN-API-KEY-WITH-A-HIDDEN-CONTROL-CHARACTER-IS-REFUSED-WHEN-IT-IS-SAVED):
+    # whitespace trimmed, a hidden character refused with its reason, never stored.
+    from agent_runtime.api_key_check import ApiKeyRefused, clean_api_key
+
+    try:
+        # MUTATION: store ``secret`` unchecked and test_set_key_refuses_a_hidden_character reddens.
+        secret = clean_api_key(secret)
+    except ApiKeyRefused as refused:
+        raise NonInteractiveAuthError(str(refused), code=refused.reason) from None
+    if not secret:
+        raise NonInteractiveAuthError("No API key provided.", code="empty_secret")
 
     home, applied_profile = resolve_target_home(profile)
 

@@ -22,6 +22,7 @@ from agent_runtime import idle_turn_keeper, live_turns, turn_budget
 from agent_runtime.persona_chat_identity import resolved_runtime_revision
 from agent_runtime.personas import _blocked_tool_names_with_registry_hygiene
 from agent_runtime.profile_context import PersonaProfileBinding, persona_profile_context
+from agent_runtime.provider_credential_source import refuse_an_unusable_chosen_credential
 from agent_runtime.run_budget import (
     UNIT_CALLS,
     UNIT_SECONDS,
@@ -44,9 +45,7 @@ from agent_runtime.profile_runner.errors import (
     RunBudgetExceeded,
     _NO_WALL_BUDGET_SECONDS,
 )
-from agent_runtime.profile_runner.models import (
-    AgentRunRequest,
-)
+from agent_runtime.profile_runner.models import AgentRunRequest
 from agent_runtime.profile_runner.budget import (
     WallBudgetCheckpoint,
     _ToolBudgetGuard,
@@ -477,6 +476,7 @@ class AgentRunExecution:
         with self.scopes() as mcp_scope:
             self.mcp_scope = mcp_scope
             self.yield_point("lock_acquired")
+            refuse_an_unusable_chosen_credential(self.request)  # review w1118a.69 D1, before any token
             self.resolve_runtime()
             self.arm_wall_checkpoint()
             self.yield_point("runtime_resolved")

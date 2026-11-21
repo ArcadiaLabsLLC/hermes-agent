@@ -8,6 +8,7 @@ from agent_runtime.pool_rotation import PoolRotationMixin, PoolRotationCursor
 from agent.credential_pool_timestamps import _parse_absolute_timestamp
 from agent_runtime import credential_pool_snapshot as _fork_pool_snapshot  # fork seam: picker pool snapshot (RT-PICKER-AUTH-REREAD)
 from agent_runtime import provider_credential_source as _fork_source  # fork seam: credential_source bench
+from agent_runtime import api_key_check as _fork_key  # fork seam: a stored key with a hidden character
 
 import logging
 import os
@@ -2067,6 +2068,11 @@ class CredentialPool(PoolRotationMixin, CredentialPoolAdminMixin, CredentialPool
             synced = self._resync_stale_entry(entry)
             if synced is not entry:
                 entry = synced
+                cleared_any = True
+            if entry.last_status != STATUS_DEAD and entry.auth_type == AUTH_TYPE_API_KEY and (  # fork seam:
+                    _reason := _fork_key.api_key_refusal(entry.runtime_api_key)):  # a key with a hidden character
+                entry = self._adopt(entry, persist=False, last_status=STATUS_DEAD, last_status_at=now,
+                                    last_error_reason=_reason)
                 cleared_any = True
             if entry.last_status == STATUS_DEAD:
                 # Manual DEAD credentials are pruned after a 24h quiet window;

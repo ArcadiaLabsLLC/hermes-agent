@@ -9,6 +9,7 @@ from typing import NamedTuple
 from agent_runtime import paths
 from agent_runtime.serde import section_rows, to_jsonable
 
+from agent_runtime.redaction import mask_known_key_shapes
 from agent_runtime.snapshot.receipts import _ARCHIVED_CONVERSATION_SECRET_RE
 
 __layer__ = "stores"
@@ -42,7 +43,11 @@ def _mask_board_secrets(text) -> str:
 
     if not text:
         return "" if text is None else text
-    return _ARCHIVED_CONVERSATION_SECRET_RE.sub(lambda m: f"{m.group(1)}: [redacted]", str(text))
+    # MUTATION: return the assignment pass alone and
+    # test_a_board_card_s_bare_key_is_masked_in_the_snapshot reddens.
+    return mask_known_key_shapes(
+        _ARCHIVED_CONVERSATION_SECRET_RE.sub(lambda m: f"{m.group(1)}: [redacted]", str(text))
+    )
 
 
 def board_card_row(card, *, unpublished: bool | None = None) -> dict:

@@ -20,7 +20,10 @@ from .scope_activation import reconcile_active_workspace_to_realm, workspace_row
 from .store import RealmStore, WorkspaceStore, lift_deleted_workspace, record_deleted_workspace
 
 __layer__ = "lanes"
-__all__ = ["WorkspaceManageReason", "WorkspaceManageRefused", "move_workspace_realm", "unarchive_workspace"]
+__all__ = [
+    "WorkspaceManageReason", "WorkspaceManageRefused", "archive_workspace", "delete_workspace",
+    "move_workspace_realm", "rename_workspace", "unarchive_workspace",
+]
 
 
 class WorkspaceManageReason(StrEnum):
@@ -58,6 +61,48 @@ def _managed_workspace(workspaces: WorkspaceStore, workspace_id: Any):
         return workspaces.get(_clean_id(workspace_id))
     except NotFound:
         raise WorkspaceManageRefused(WorkspaceManageReason.WORKSPACE_NOT_FOUND) from None
+
+
+def rename_workspace(workspace_id: Any, name: Any) -> tuple[dict, dict]:
+    """``harness workspace rename`` / ``runtime.workspace.rename``: ``(workspace_row, {})``.
+
+    Refused ``invalid_request`` for a blank or non-string name (the store would
+    otherwise keep a nameless workspace) and ``workspace_not_found``.
+    """
+    if not isinstance(name, str) or not name.strip():
+        raise WorkspaceManageRefused(WorkspaceManageReason.INVALID)
+    workspaces = WorkspaceStore()
+    workspace = _managed_workspace(workspaces, workspace_id)
+    return workspace_row(workspaces.rename(workspace.id, name)), {}
+
+
+def archive_workspace(workspace_id: Any) -> tuple[dict, dict]:
+    """``harness workspace archive`` / ``runtime.workspace.archive``: ``(workspace_row(full), {})``.
+    Reversible (:func:`unarchive_workspace`); its content stays on disk."""
+    workspaces = WorkspaceStore()
+    workspace = _managed_workspace(workspaces, workspace_id)
+    return workspace_row(workspaces.archive(workspace.id), full=True), {}
+
+
+def delete_workspace(workspace_id: Any) -> tuple[dict, dict]:
+    """``harness workspace delete`` / ``runtime.workspace.delete``: ``(deleted_row, {})``.
+
+    The store's cascade (``WorkspaceStore.delete``; its guards raise
+    ``WorkspaceDeleteBlocked`` with a typed ``code``), then the active pointer:
+    deleting the ACTIVE workspace falls back to its realm's default (the realm
+    switch's reconcile) instead of leaving a cleared pointer. The reconcile is
+    best-effort; the delete already landed.
+    """
+    workspaces = WorkspaceStore()
+    workspace = _managed_workspace(workspaces, workspace_id)
+    was_active = workspaces.active_id() == workspace.id
+    row = workspaces.delete(workspace.id)
+    if was_active and workspace.realm_id:
+        try:
+            reconcile_active_workspace_to_realm(RealmStore().get(workspace.realm_id))
+        except Exception:  # pointer reconcile is best-effort; the delete already landed
+            pass
+    return row, {}
 
 
 def unarchive_workspace(workspace_id: Any) -> tuple[dict, bool]:
