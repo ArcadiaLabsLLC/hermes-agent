@@ -186,8 +186,7 @@ class BootPhases:
         """An embedded serve's host app is its only client and it has no socket lane: bind
         the ``runtime.conversation.*`` owner here, where a daemon binds it with its socket.
 
-        The worker factory is the profile's (``conversations.subprocess_worker``): on a phone,
-        the in-process worker behind ``NativePeer``.
+        The worker is the in-process one behind ``NativePeer`` on every profile (no worker child).
         """
 
         if (self.shell.kind != "embedded" or self.store_root_path is None

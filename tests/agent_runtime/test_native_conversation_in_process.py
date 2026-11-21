@@ -16,8 +16,9 @@ Killing mutations (applied, red recorded, reverted — see the commit message):
 * ``InProcessPeer._send`` stops injecting ``profile``            -> red (both profiles share one home).
 * ``InProcessPeer.close`` skips ``session.close``                 -> red (execution stays possible).
 * ``execution_possible`` answers True for a registered in-process worker -> red (retired peers).
-* ``select_worker_factory`` always returns ``start_worker``        -> red.
+* ``select_worker_factory`` returns ``start_worker`` (the subprocess) -> red.
 """
+import inspect
 import json
 import threading
 import time
@@ -179,13 +180,18 @@ def test_a_home_that_is_not_its_profiles_home_is_refused(tmp_path):
     assert refused.value.reason is Refusal.WRONG_OWNER
 
 
-def test_the_profile_switch_picks_the_worker():
+def test_every_profile_serves_its_conversations_in_process():
+    """RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT: a desktop profile (no switch at all) and one
+    that still names the retired ``conversations.subprocess_worker: true`` both get the in-process worker."""
+
     from hermes_constants import get_hermes_home
 
-    from agent_runtime.conversations.worker import select_worker_factory, start_worker
+    from agent_runtime.conversations.service import ConversationService
+    from agent_runtime.conversations.worker import select_worker_factory
 
-    assert select_worker_factory() is start_worker  # desktop control
+    assert select_worker_factory() is start_in_process_worker
     home = Path(get_hermes_home())
     home.mkdir(parents=True, exist_ok=True)
-    (home / "config.yaml").write_text(json.dumps({"conversations": {"subprocess_worker": False}}), encoding="utf-8")
+    (home / "config.yaml").write_text(json.dumps({"conversations": {"subprocess_worker": True}}), encoding="utf-8")
     assert select_worker_factory() is start_in_process_worker
+    assert inspect.signature(ConversationService).parameters["worker_factory"].default is start_in_process_worker

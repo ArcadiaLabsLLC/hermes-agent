@@ -64,11 +64,12 @@ config:
   auth.adopt_external_logins: false
   providers.qwen-oauth.enabled: false
   telemetry.shared_metrics.enabled: false
-  # Stage 2 steps 6-7: no provider SDK (raw-HTTP client, agent/transports/httpx_client.py), no
-  # conversation worker subprocess (the in-process worker behind NativePeer). Provider sign-in
-  # runs in process on every profile (RT-PROVIDER-SIGN-IN-RUNS-INSIDE-THE-RUNNING-HERMES).
+  # Stage 2 steps 6-7: no provider SDK (raw-HTTP client, agent/transports/httpx_client.py). The
+  # conversation worker and provider sign-in run in process on every profile
+  # (RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT, RT-PROVIDER-SIGN-IN-RUNS-INSIDE-THE-RUNNING-HERMES);
+  # the snapshot build is a separate process off the phone only.
   agent.provider_sdks: false
-  conversations.subprocess_worker: false
+  snapshot.subprocess_worker: false
   # The in-process gateway reads its wire contracts from the catalog generated from the pydantic
   # models (agent_runtime/gateway/contract_seam.py), never from pydantic itself.
   tui_gateway.pydantic_contracts: false

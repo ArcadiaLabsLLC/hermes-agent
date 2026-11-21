@@ -136,7 +136,9 @@ is opened; a valid but stale revision remains `content_changed`.
 
 `agent_runtime/conversations/service.py::ConversationService` admits exact
 actor/account/profile/session scopes and delegates to runtime-owned native
-workers. Those workers reuse the canonical Desktop/TUI engine, SessionDB,
+workers, run inside the serve process (`in_process_peer.py`; no worker child —
+`RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT`, which goes on to
+fold the operator chat's own host onto the same engine). Those workers reuse the canonical Desktop/TUI engine, SessionDB,
 provider/model resolution, permissions and skill reader. They never enter the
 operator-channel prompt policy or overwrite its default chat pointer.
 `worker_skills.py` binds catalog/detail/history to the worker's exact session;

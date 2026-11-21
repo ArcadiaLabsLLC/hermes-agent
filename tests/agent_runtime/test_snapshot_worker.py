@@ -293,7 +293,10 @@ def test_switch_off_starts_no_worker(monkeypatch):
     assert executor_mod.execute_build().executor == "in_process"
 
 
-def test_the_switch_follows_conversations_by_default(monkeypatch):
+def test_the_build_is_its_own_process_by_default(monkeypatch):
+    """The snapshot build stays a separate process (owner 2026-11-21) now the conversations run in process:
+    its switch defaults on by itself. Mutation: the default reads the conversations' (gone) choice -> red."""
+
     from agent_runtime.snapshot_worker import worker
 
     seen = {}
@@ -303,9 +306,8 @@ def test_the_switch_follows_conversations_by_default(monkeypatch):
         return default
 
     monkeypatch.setattr("hermes_cli.config_switches.config_switch", switch)
-    monkeypatch.setattr("agent_runtime.conversations.worker.subprocess_worker_enabled", lambda: False)
-    assert worker.subprocess_worker_enabled() is False
-    assert seen[("snapshot", "subprocess_worker")] is False
+    assert worker.subprocess_worker_enabled() is True
+    assert seen[("snapshot", "subprocess_worker")] is True
 
 
 # ── the receipts ──────────────────────────────────────────────────────────────

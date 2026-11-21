@@ -45,14 +45,13 @@ def start_worker(home: Path) -> SnapshotPeer:
 
 
 def subprocess_worker_enabled() -> bool:
-    """``snapshot.subprocess_worker`` -- default: whatever ``conversations.subprocess_worker`` is.
+    """``snapshot.subprocess_worker`` -- default on: the build is its own process.
 
-    One rule (ruling R8): a profile that may start no conversation subprocess starts no
-    snapshot subprocess either, and builds in process exactly as before.
+    Its own switch since the conversations stopped having one (ruling R8 tied the two; the owner
+    2026-11-21 kept the snapshot build a separate process: "its just a build right thats fine it speeds
+    it up if its on another thread"). A profile that may start no subprocess (the phone) says off.
     """
 
     from hermes_cli.config_switches import config_switch
 
-    from agent_runtime.conversations.worker import subprocess_worker_enabled as conversations_on
-
-    return config_switch("snapshot", "subprocess_worker", default=conversations_on())
+    return config_switch("snapshot", "subprocess_worker", default=True)

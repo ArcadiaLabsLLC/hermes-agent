@@ -81,17 +81,10 @@ def stamp_fresh_scratch(home: Path) -> None:
         pass  # the worker prunes as upstream does
 
 
-def subprocess_worker_enabled() -> bool:
-    """``conversations.subprocess_worker`` — off in a profile that may start no subprocess."""
-    from hermes_cli.config_switches import config_switch
-
-    return config_switch("conversations", "subprocess_worker", default=True)
-
-
 def select_worker_factory():
-    """The worker factory the profile allows: this subprocess worker, or its in-process twin."""
-    if subprocess_worker_enabled():
-        return start_worker
+    """The worker factory: the in-process worker, on every profile (``RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-
+    INTELLIGENCE-CHAT``, RULED 2026-11-21 "One engine": the conversations run on upstream's engine inside the
+    serve, as on the phone). ``conversations.subprocess_worker`` is retired: no ``worker_entry`` child."""
     from .in_process_peer import start_in_process_worker
 
     return start_in_process_worker
