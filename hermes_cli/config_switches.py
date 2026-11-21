@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 #: other key a bundle profile's ``config`` sets is the install's (census on
 #: RT-FU-A-BUNDLED-INSTALLS-SWITCHES-HOLD-ON-EVERY-PROFILE).
 PER_PROFILE_KEYS: Mapping[str, str] = {
-    "mcp.stdio_servers": "bundled-desktop.yaml: an agent's profile may turn them on, with approvals",
+    "mcp.stdio_servers": ("bundled-desktop.yaml: an agent's profile may turn them on in its own config, as "
+                          "upstream does (the operator adds the server; untrusted servers ask per call)"),
 }
 
 _UNSET: Any = object()

@@ -48,7 +48,10 @@ config:
   # Local LLM engine supervision: on.
   local_runtime.enabled: true
   # MCP stdio servers (local processes): present, off; an agent's profile may
-  # turn them on, with approvals. HTTP servers are unaffected.
+  # turn them on in its own config, as upstream does: a stdio server runs because
+  # the operator added it (`hermes mcp add` confirms), and a write-capable call on
+  # a `trust: untrusted` server asks first. No separate approval record (owner
+  # 2026-11-21). HTTP servers are unaffected.
   mcp.stdio_servers: false
   # Piper: never fetch a voice by name; the Launcher downloads voice files.
   tts.piper.download_voices: false
