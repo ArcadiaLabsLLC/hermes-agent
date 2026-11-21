@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 from .. import paths
 from ..models import Realm, Workspace
 from ..store import RealmStore, skill_tombstoned
-from .families import SyncFamily, _is_hard_excluded_path, _kind_for_sync_path, is_secretish_path
+from .families import SyncFamily, _is_hard_excluded_path, _kind_for_sync_path, is_realm_bookkeeping_path, is_secretish_path
 from .models import RealmMembershipProvider, RealmSyncError, _safe_display_path
 from .ledgers import _skill_tombstone_rows
 from .host_refusal import host_refusal_reported, report_host_refusal
@@ -281,7 +281,10 @@ def _incoming_artifact_counts(repo: Path, realm_id: str) -> dict[str, int]:
     skills: set[str] = set()
     for path in git.changed_between(base, upstream, prefix):
         rel = path[len(prefix):]
-        if not path.startswith(prefix) or is_secretish_path(rel) or _is_hard_excluded_path(rel):
+        # MUTATION: drop the bookkeeping clause and
+        # test_a_publish_that_changed_one_workspace_counts_no_artifact reddens.
+        if (not path.startswith(prefix) or is_realm_bookkeeping_path(rel) or is_secretish_path(rel)
+                or _is_hard_excluded_path(rel)):
             continue
         kind = _kind_for_sync_path(rel)
         if kind == SyncFamily.SKILL:

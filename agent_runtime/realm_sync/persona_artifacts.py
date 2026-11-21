@@ -18,7 +18,7 @@ from .. import paths
 from ..models import AgentPersona, Workspace
 from ..profile_context import active_profile_name, resolve_persona_profile
 from .models import BASE_PROFILE_NAME, RealmSyncArtifact, RealmSyncError
-from .families import SyncFamily, _destination_for_sync_path, _kind_for_sync_path
+from .families import SyncFamily, _destination_for_sync_path, _kind_for_sync_path, is_realm_bookkeeping_path
 from .git import _redact_text
 from .publish_scans import _office_publish_scan
 
@@ -499,7 +499,8 @@ def _artifacts_from_subtree(subtree: Path) -> list[RealmSyncArtifact]:
     if not subtree.exists():
         return []
     artifacts: list[RealmSyncArtifact] = []
-    for source in sorted(path for path in subtree.rglob("*") if path.is_file() and path.name != "manifest.json"):
+    for source in sorted(path for path in subtree.rglob("*")
+                         if path.is_file() and not is_realm_bookkeeping_path(path.relative_to(subtree).as_posix())):
         rel = source.relative_to(subtree).as_posix()
         destination = _destination_for_sync_path(rel)
         if destination is None:

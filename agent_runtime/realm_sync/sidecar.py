@@ -18,6 +18,7 @@ from utils import atomic_json_write
 from .. import paths
 from ..events import EventLog
 from ..models import Event, Realm
+from .families import REALM_MANIFEST_FILENAME
 from .models import RealmSyncArtifact, _canonicalize_text_bytes, _safe_display_path
 from .ledgers import _skill_tombstone_rows
 from .git import _realm_subtree, _sync_state
@@ -197,7 +198,7 @@ def _write_sync_metadata(subtree: Path, *, realm: Realm, artifacts: list[RealmSy
         "generated_at": now().isoformat(),
         "artifacts": [artifact.row() for artifact in artifacts],
     }
-    (subtree / "manifest.json").write_bytes(
+    (subtree / REALM_MANIFEST_FILENAME).write_bytes(
         _canonicalize_text_bytes(json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8"))
     )
 

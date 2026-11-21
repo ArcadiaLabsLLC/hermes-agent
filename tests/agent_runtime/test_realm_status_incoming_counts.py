@@ -15,6 +15,13 @@ Killing mutations (run 2026-11-21):
   (the ``.env`` counts as an ``artifact``).
 - the git port's ``changed_between`` listing only adds and changes (the ``old`` side dropped) ->
   ``test_a_deleted_workspace_counts_as_incoming`` red.
+
+RT-FU-A-REALM-PULL-PREVIEW-COUNTS-THE-REALM-MANIFEST-AS-AN-ARTIFACT (review w1118a.74): seen live 2026-11-21, a pull
+whose net change was one workspace file and the realm's ``manifest.json`` read "1 artifact, 1 workspace". The
+manifest is realm bookkeeping (``families.is_realm_bookkeeping_path``, the one reader the publish compare, the subtree
+walk and history share). Killing mutation (run 2026-11-21):
+- dropping ``is_realm_bookkeeping_path(rel)`` from the incoming filter ->
+  ``test_a_publish_that_changed_one_workspace_counts_no_artifact`` red (``{workspace: 1, artifact: 1}``).
 """
 
 from __future__ import annotations
@@ -26,6 +33,7 @@ import pytest
 
 from agent_runtime import paths as runtime_paths
 from agent_runtime.realm_sync import publish_realm_sync, realm_sync_status
+from agent_runtime.realm_sync.families import REALM_MANIFEST_FILENAME
 from agent_runtime.store import WorkspaceStore
 from tests.agent_runtime.test_realm_sync import _git_in, _realm_with_remote
 
@@ -88,5 +96,19 @@ def test_a_deleted_workspace_counts_as_incoming(published):
     _git_in(other, "rm", "-q", str(workspaces[0].relative_to(other)))
     _git_in(other, "commit", "-q", "-m", "delete a workspace")
     _git_in(other, "push", "-q")
+
+    assert realm_sync_status(realm.id)["incoming_artifact_counts"] == {"workspace": 1}
+
+
+def test_a_publish_that_changed_one_workspace_counts_no_artifact(published):
+    realm, other, subtree = published
+    workspaces = sorted((subtree / "store" / "workspaces").glob("*"))
+    assert workspaces and (subtree / REALM_MANIFEST_FILENAME).is_file()
+    workspace = workspaces[0] if workspaces[0].is_file() else sorted(p for p in workspaces[0].rglob("*") if p.is_file())[0]
+    workspace.write_text(workspace.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    manifest = subtree / REALM_MANIFEST_FILENAME
+    manifest.write_text(manifest.read_text(encoding="utf-8").replace("generated_at", "generated_at ", 1),
+                        encoding="utf-8")
+    _push(other, "a teammate's publish: one workspace and the realm's own manifest")
 
     assert realm_sync_status(realm.id)["incoming_artifact_counts"] == {"workspace": 1}

@@ -35,6 +35,7 @@ __all__ = [
     "MEMORY_DESTINATION",
     "PERSONA_PROMPT_DIR",
     "PROFILE_FILES_ROOT",
+    "REALM_MANIFEST_FILENAME",
     "SYNC_PATH_FAMILIES",
     "_LEGACY_PROFILE_FILE_KINDS",
     "SyncFamily",
@@ -43,6 +44,7 @@ __all__ = [
     "_destination_for_sync_path",
     "_exactly",
     "_is_hard_excluded_path",
+    "is_realm_bookkeeping_path",
     "is_secretish_path",
     "_kind_for_sync_path",
     "_prefix",
@@ -394,6 +396,21 @@ def _destination_for_sync_path(rel: str) -> Path | None:
             if target is not None:
                 return target
     return None
+
+
+#: The realm subtree's own bookkeeping file: ``sidecar._write_sync_metadata`` rewrites it on every
+#: publish (its ``generated_at`` is volatile). It is never an artifact.
+REALM_MANIFEST_FILENAME: Final = "manifest.json"
+
+
+def is_realm_bookkeeping_path(rel: str) -> bool:
+    """True when the realm-subtree-relative ``rel`` is the realm's own bookkeeping, not a shared
+    artifact: no family claims it, the publish never compares or carries it as an artifact, the
+    pull never applies it, and history and the incoming counts never name it. The ONE reader of
+    that fact (RT-FU-A-REALM-PULL-PREVIEW-COUNTS-THE-REALM-MANIFEST-AS-AN-ARTIFACT): the publish
+    compare, the subtree walk, the history rows and the incoming counts each read it here."""
+
+    return Path(rel).name == REALM_MANIFEST_FILENAME
 
 
 def _kind_for_sync_path(rel: str) -> str:

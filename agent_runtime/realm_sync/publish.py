@@ -41,7 +41,7 @@ from .persona_artifacts import (
     _profile_files_row,
     _published_profile_file_hashes,
 )
-from .families import SyncFamily
+from .families import SyncFamily, is_realm_bookkeeping_path
 from .artifacts import (
     _ResolvedPublish,
     _resolve_artifacts_with_projection,
@@ -698,8 +698,9 @@ def _published_artifact_changes(subtree: Path, desired: dict[str, bytes]) -> lis
     existing: dict[str, bytes] = {}
     if subtree.exists():
         for path in subtree.rglob("*"):
-            if path.is_file() and path.name != "manifest.json":
-                existing[path.relative_to(subtree).as_posix()] = path.read_bytes()
+            rel = path.relative_to(subtree).as_posix()
+            if path.is_file() and not is_realm_bookkeeping_path(rel):
+                existing[rel] = path.read_bytes()
     return sorted(rel for rel in existing.keys() | desired.keys() if existing.get(rel) != desired.get(rel))
 
 

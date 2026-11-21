@@ -26,7 +26,7 @@ from typing import Any, Callable
 
 from agent_runtime import paths
 from agent_runtime.realm_sync.drift import DRIFT_KEY_BOARD_DEF, DRIFT_KEY_OFFICE_SURFACE
-from agent_runtime.realm_sync.families import SyncFamily, _kind_for_sync_path
+from agent_runtime.realm_sync.families import SyncFamily, _kind_for_sync_path, is_realm_bookkeeping_path
 from agent_runtime.realm_sync.git import _sync_repo_path, sync_git
 from agent_runtime.store import RealmStore
 
@@ -122,7 +122,7 @@ def realm_sync_history(realm_id: str, *, limit: int = DEFAULT_HISTORY_LIMIT) -> 
     for entry in git.log(refs, subtree, limit):
         sha = entry.sha
         changed = [_changed_item(path[len(prefix):]) for path in entry.paths
-                   if path.startswith(prefix) and path != prefix + "manifest.json"]
+                   if path.startswith(prefix) and not is_realm_bookkeeping_path(path[len(prefix):])]
         envelope["history"].append({
             "sha": sha, "at": entry.at, "author": entry.author, "changed_paths": changed,
             "changed_count": len(changed),
