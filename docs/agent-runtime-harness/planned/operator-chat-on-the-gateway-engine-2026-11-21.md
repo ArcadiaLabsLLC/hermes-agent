@@ -94,8 +94,8 @@ Three facts in code change the F1 step list above; each was read, none reproduce
    agent as `_pending_cli_user_message`. The operator's scratch row today carries the composed user
    message (HUD, preloaded skill), the relay sender marker (`stage_persona_chat_user_row_marker`) and
    image `MEDIA:` lines, and a replayed pending turn reuses its row (`reuse_current_user_message`).
-   Decision, per the wave rule (RULED 2026-11-19: owner said "when there is a decision for this
-   session, do an analysis on it and go with reccomended"): the gateway session is resumed on the chat's
+   RECOMMENDED, awaiting the owner (2026-11-21; built on the branch meanwhile, reworked there before
+   landing if the owner rules otherwise): the gateway session is resumed on the chat's
    native TIP, the submitted text is the composed user message, and the agent adopts the gateway's
    row (upstream's transcript model wins — the ruling's "reuse upstream's machinery"); the relay marker
    and image lines are staged onto that adopted row by the construction policy, and a replay submits
