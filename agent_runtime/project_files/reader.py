@@ -122,15 +122,22 @@ def _walk_project_folder(folder: _Folder, actual: str, relative: str, depth: int
                 add({"path": path, "kind": "file", "size": child.stat(follow_symlinks=False).st_size})
 
 
-def tree(root: str, path: str | None = None, *, depth: int = DEFAULT_DEPTH, offset: int = 0) -> dict:
-    """The entries under ``path`` (the root when None) to ``depth``, pre-order."""
+def tree_entries(root: str, path: str | None = None, *, depth: int = DEFAULT_DEPTH) -> tuple[str, list[dict]]:
+    """``(the listed folder's relative path, every entry under it to depth)``, pre-order, unpaged."""
 
     if not isinstance(depth, int) or isinstance(depth, bool) or not 1 <= depth <= MAX_DEPTH:
         raise ProjectFileRefusal("bad_argument", f"depth must be 1-{MAX_DEPTH}, not {depth!r}")
     folder = _listed_folder(root, path)
     entries: list[dict] = []
     _walk_project_folder(folder, folder.actual, folder.relative, depth, entries.append)
-    return page({"path": folder.relative}, "entries", entries, offset, MAX_ENTRIES)
+    return folder.relative, entries
+
+
+def tree(root: str, path: str | None = None, *, depth: int = DEFAULT_DEPTH, offset: int = 0) -> dict:
+    """The entries under ``path`` (the root when None) to ``depth``, pre-order."""
+
+    relative, entries = tree_entries(root, path, depth=depth)
+    return page({"path": relative}, "entries", entries, offset, MAX_ENTRIES)
 
 
 def read(root: str, path: str, *, offset: int = 0) -> dict:
@@ -152,8 +159,8 @@ def read(root: str, path: str, *, offset: int = 0) -> dict:
     return read_reply(shown, len(data), decode_text(data, shown), offset)
 
 
-def grep(root: str, pattern: str, path: str | None = None, *, offset: int = 0) -> dict:
-    """Every line holding the literal ``pattern`` in the text files under ``path``."""
+def grep_matches(root: str, pattern: str, path: str | None = None) -> tuple[str, list[dict]]:
+    """``(the searched folder's relative path, every line holding the literal pattern)``, unpaged."""
 
     check_pattern(pattern)
     folder = _listed_folder(root, path)
@@ -175,5 +182,11 @@ def grep(root: str, pattern: str, path: str | None = None, *, offset: int = 0) -
         except ProjectFileRefusal:
             continue
         matches.extend(grep_lines(entry["path"], text, pattern))
-    return page({"pattern": pattern, "path": folder.relative}, "matches", matches, offset,
-                MAX_MATCHES)
+    return folder.relative, matches
+
+
+def grep(root: str, pattern: str, path: str | None = None, *, offset: int = 0) -> dict:
+    """Every line holding the literal ``pattern`` in the text files under ``path``."""
+
+    relative, matches = grep_matches(root, pattern, path)
+    return page({"pattern": pattern, "path": relative}, "matches", matches, offset, MAX_MATCHES)
