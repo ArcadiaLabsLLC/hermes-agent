@@ -69,3 +69,45 @@ def test_a_turn_on_a_refused_key_names_the_hidden_character(monkeypatch):
     block = classify_turn_failure(exc, provider_submitted=True, request_started=False).provider_refusal
     assert block.as_dict()["failure_reason"] == "api_key_control_character"
     assert "hidden character" in block.next_expected()
+
+
+def test_a_run_that_found_no_credential_names_the_refused_key(monkeypatch):
+    """Read live 2026-11-21 (lane w1118a-sw69-keys): the anthropic resolve raised ``AuthError`` "No
+    Anthropic credentials found" before agent init's seam, so the turn said nothing of the key. The
+    runner asks ``refused_key_error`` on failure; any other error is left alone.
+
+    MUTATION (kill): ``refused_key_error`` answering None — red."""
+    from agent_runtime.provider_login_expiry import refused_key_error
+    from hermes_cli.auth_constants import AuthError
+
+    pool = _pool(_row(BAD))
+    monkeypatch.setattr("agent.credential_pool.load_pool", lambda p: pool)
+    assert pool.select() is None
+    named = refused_key_error(AuthError("No Anthropic credentials found."), "anthropic")
+    assert (named.provider, named.credentials_reason) == ("anthropic", "api_key_control_character")
+    assert refused_key_error(RuntimeError("boom"), "anthropic") is None
+    assert refused_key_error(AuthError("x"), None) is None
+    good = _pool(_row(GOOD))
+    monkeypatch.setattr("agent.credential_pool.load_pool", lambda p: good)
+    assert refused_key_error(AuthError("No Anthropic credentials found."), "anthropic") is None
+
+
+def test_the_runner_raises_the_named_refusal_in_place_of_the_bare_failure(tmp_path, monkeypatch):
+    """MUTATION (kill): drop the ``refused_key_error`` arm in ``ProfileAgentRunner._run`` — red."""
+    from agent_runtime.profile_runner import AgentRunRequest, ProfileAgentRunner
+    from agent_runtime.provider_login_expiry import NamedProviderNotConfiguredError
+    from hermes_cli.auth_constants import AuthError
+
+    class Boom:
+        def __init__(self, *a, **k):
+            raise AuthError("No Anthropic credentials found.")
+
+    pool = _pool(_row(BAD))
+    pool.select()
+    monkeypatch.setattr("agent.credential_pool.load_pool", lambda p: pool)
+    monkeypatch.setattr("agent_runtime.profile_runner.execute.AgentRunExecution.run",
+                        lambda self: (_ for _ in ()).throw(AuthError("No Anthropic credentials found.")))
+    with pytest.raises(NamedProviderNotConfiguredError) as excinfo:
+        ProfileAgentRunner(agent_factory=Boom).run(AgentRunRequest(
+            profile=None, user_message="hi", provider="anthropic", runtime_root=tmp_path))
+    assert excinfo.value.credentials_reason == "api_key_control_character"
