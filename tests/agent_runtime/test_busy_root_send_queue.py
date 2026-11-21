@@ -647,3 +647,22 @@ def test_on_settle_is_called_once_after_a_terminal_settle_and_not_for_queued(iso
                           on_settle=lambda *_: 1 / 0)
     run_queued_sends_once(broken)
     assert chat_root_send_queue.find(root, "cm-hook-2") is None
+
+
+def test_a_queued_turn_refused_before_sending_settles_with_its_refusal_block(isolate_agent_runtime_root):
+    """RT-FU-A-TURN-SETTLE-CARRIES-THE-PROVIDERS-REFUSAL: the queued writer (``chat_root_send_runner``) reads the
+    same terminal payload, so its settle carries the block too. Killing mutation (run 2026-11-21): ``_outcome_from``
+    not reading the block -> this test red."""
+
+    from agent_runtime.mission_chat_outcome import ProviderRefusal
+
+    root = "persona_chat_root_refused"
+    block = ProviderRefusal(status_code=0, failure_reason="api_key_control_character",
+                            message="the key holds a control character").as_dict()
+    chat_root_send_queue.enqueue(root, "cm-refused", {})
+    policy = RunnerPolicy(root_is_idle=lambda _root: True, run_turn=lambda args: (1, {
+        "ok": False, "error_kind": "chat_turn_provider_unavailable", "provider_refusal": block}))
+    run_queued_sends_once(policy)
+    settled = chat_turn_settles.read_settle(chat_turn_settles.settle_id_for(root, "cm-refused"))
+    assert settled.provider_refusal == block
+    assert settled.frame()["provider_refusal"]["failure_reason"] == "api_key_control_character"

@@ -102,6 +102,9 @@ class TurnOutcome:
     # the persona's current/default chat pointer (which may name a sibling).
     persona_instance_id: str | None = None
     persona_id: str | None = None
+    #: The turn's ``provider_refusal`` block (``ProviderRefusal.as_dict()`` on its terminal
+    #: payload), copied redacted by :func:`_refusal_block`; ``None`` when the turn ended on none.
+    provider_refusal: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -134,6 +137,11 @@ class SettleRecord:
     recorded_by: str | None = None
     persona_instance_id: str | None = None
     persona_id: str | None = None
+    #: The turn's redacted ``provider_refusal`` block (RT-FU-A-TURN-SETTLE-CARRIES-THE-PROVIDERS-REFUSAL):
+    #: a turn refused before it was sent and whose stream then went quiet reaches Eternia only through
+    #: this settle, and without the block its composer said "send again to retry" over the provider's
+    #: reason. Additive: an older record reads ``None`` and the schema version does not move.
+    provider_refusal: dict[str, Any] | None = None
 
     def as_row(self) -> dict[str, Any]:
         """The stored record as one listing row (the operator verbs' shape)."""
@@ -159,6 +167,8 @@ class SettleRecord:
             "summary": self.summary,
             "settled_at": self.settled_at,
             "attempt": self.attempts + 1,
+            # Sent only when present, so a settle with no refusal keeps its frame byte for byte.
+            **({"provider_refusal": dict(self.provider_refusal)} if self.provider_refusal else {}),
         }
 
 
@@ -261,7 +271,34 @@ def _outcome_from(data: dict[str, Any]) -> TurnOutcome:
         queued=data.get("queued") is True,
         persona_instance_id=_settle_text(data.get("persona_instance_id")),
         persona_id=_settle_text(data.get("persona_id")),
+        provider_refusal=_refusal_block(data.get("provider_refusal")),
     )
+
+
+#: The block's free text: a provider error can carry a key in either, so each passes ``_scrubbed``.
+_REFUSAL_FREE_TEXT = ("message", "repair_hint")
+#: Relative to the moment the payload was built, so stale on every re-push; ``reset_at`` stays, raw.
+_REFUSAL_NOT_STORED = frozenset({"resets_in_seconds"})
+
+
+def _refusal_block(block: Any) -> dict[str, Any] | None:
+    """The terminal payload's ``provider_refusal`` (its one owner is ``ProviderRefusal.as_dict()``),
+    COPIED for the durable record, never rebuilt: the free text redacted, a field whose redaction
+    fails dropped (fail closed), ``resets_in_seconds`` left out; the codes pass as they are."""
+
+    if not isinstance(block, dict) or not block:
+        return None
+    copied: dict[str, Any] = {}
+    for key, value in block.items():
+        if key in _REFUSAL_NOT_STORED:
+            continue
+        if key in _REFUSAL_FREE_TEXT:
+            # MUTATION: store ``value`` raw and test_a_refusal_message_holding_a_key_is_stored_redacted reddens.
+            value = _scrubbed(value if isinstance(value, str) else None)
+            if value is None:
+                continue
+        copied[key] = value
+    return copied
 
 
 def _scrubbed(value: str | None) -> str | None:
@@ -327,6 +364,7 @@ def record_settle(
             recorded_by=_settle_text(recorded_by),
             persona_instance_id=outcome.persona_instance_id,
             persona_id=outcome.persona_id,
+            provider_refusal=outcome.provider_refusal,
         )
         _write(record)
         return record

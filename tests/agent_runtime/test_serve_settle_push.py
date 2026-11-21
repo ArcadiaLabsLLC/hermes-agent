@@ -413,3 +413,80 @@ def test_missing_owner_stays_unknown_instead_of_borrowing_a_persona_default():
         request_id="old-runtime", exit_code=0, outcome=outcome)
     assert record.frame()["persona_instance_id"] is None
     assert record.frame()["persona_id"] is None
+
+
+# ── RT-FU-A-TURN-SETTLE-CARRIES-THE-PROVIDERS-REFUSAL: the settle carries the provider's reason ──
+#
+# Seen live 2026-11-21: a turn refused before it was sent (`api_key_control_character`) whose stream then
+# went quiet reached Eternia only through its settle, and the settle carried class and summary only, so the
+# composer said "send again to retry" with no refusal card. The settle now copies the terminal payload's
+# `provider_refusal` block (its one owner is `ProviderRefusal.as_dict()`), redacted, without
+# `resets_in_seconds`.
+#
+# Killing mutations (run 2026-11-21): `_outcome_from` not reading the block (`provider_refusal=None`) ->
+# test_a_settle_for_a_turn_refused_before_sending_names_the_refusal_block red; `frame()` sending the key
+# always -> test_a_settle_with_no_refusal_sends_no_block red; storing `message` raw ->
+# test_a_refusal_message_holding_a_key_is_stored_redacted red; keeping `resets_in_seconds` -> the first red.
+
+
+def _refused_before_sending(**overrides):
+    from agent_runtime.mission_chat_outcome import ProviderRefusal
+
+    fields = {"status_code": 0, "provider": "anthropic", "model": "claude-test",
+              "failure_reason": "api_key_control_character",
+              "message": "The Anthropic key holds a control character, so the request was never sent.",
+              "repair_hint": "Paste the key again in Settings > Providers.",
+              "reset_at": "2999-01-01T00:00:00Z", **overrides}
+    refusal = ProviderRefusal(**fields)
+    block = refusal.as_dict()
+    assert "resets_in_seconds" in block  # positive control: the payload carries the relative form
+    return {"ok": False, "error_kind": "chat_turn_provider_unavailable", "next_expected": "fix the key",
+            "session_id": SESSION, "turn_id": "turn-refused", "provider_refusal": block}
+
+
+def test_a_settle_for_a_turn_refused_before_sending_names_the_refusal_block():
+    payload = _refused_before_sending()
+
+    def _turn(argv):
+        sys.stdout.write(json.dumps(payload) + "\n")
+        return 1
+
+    with running_serve(dispatch=_turn) as handle:
+        with client(handle, name="launcher") as (connection, _hello):
+            connection.send({"id": "turn-refused", "argv": TURN_ARGV})
+            assert _read_until(connection, "exit")["code"] == 1
+            settled = _read_until(connection, "turn_settled")
+    expected = {key: value for key, value in payload["provider_refusal"].items() if key != "resets_in_seconds"}
+    assert settled["provider_refusal"] == expected
+    assert settled["provider_refusal"]["failure_reason"] == "api_key_control_character"
+    assert settled["provider_refusal"]["reset_at"] == "2999-01-01T00:00:00Z"
+    # Durable, and it reads back the same after a re-read (a re-push sends the stored copy).
+    stored = read_settle(settle_id_for(SESSION, CMID))
+    assert stored.provider_refusal == expected
+    assert stored.frame()["provider_refusal"] == expected
+
+
+def test_a_settle_with_no_refusal_sends_no_block():
+    record = record_settle(client_message_id=CMID, session_id=SESSION, request_id="plain", exit_code=0,
+                           outcome=settles.outcome_from_payload({"ok": True, "session_id": SESSION}))
+    assert record.provider_refusal is None
+    assert "provider_refusal" not in record.frame()
+
+
+def test_a_refusal_message_holding_a_key_is_stored_redacted():
+    payload = _refused_before_sending(message=f"key {_LEAKED_KEY} rejected")
+    outcome = settles.outcome_from_payload(payload)
+    assert outcome.provider_refusal["message"]  # positive control: the text is kept, redacted
+    assert _LEAKED_KEY not in json.dumps(outcome.provider_refusal)
+
+
+def test_a_refusal_whose_redaction_fails_drops_its_free_text(monkeypatch):
+    import agent.redact
+
+    def _broken(*_args, **_kwargs):
+        raise RuntimeError("redaction unavailable")
+
+    monkeypatch.setattr(agent.redact, "redact_sensitive_text", _broken)
+    block = settles.outcome_from_payload(_refused_before_sending()).provider_refusal
+    assert "message" not in block and "repair_hint" not in block
+    assert block["failure_reason"] == "api_key_control_character"  # the codes pass as they are
