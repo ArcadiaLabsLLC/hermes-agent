@@ -13,6 +13,7 @@ from __future__ import annotations
 from agent_runtime.mission_chat_door import (
     CHAT_DELETE_VERB,
     INSTANCE_CREATE_VERB,
+    TURN_TARGET_VERB,
     bind_chat_verb,
     bind_mission_chat_turn,
     bind_open_chat,
@@ -22,22 +23,37 @@ __layer__ = "lanes"
 __all__ = ["bind_mission_chat_door"]
 
 
-def _mission_chat_turn_via_cli(args) -> int:
+def _head_scope():
+    """The runtime head's home, bound for a caller inside the sender's profile.
+
+    Inline relays (and a send's admission) arrive inside the sender's profile. Admission belongs to
+    the runtime head; the chosen persona binds its own profile for execution. Do not invent an
+    override for an already-head caller: without an explicit head authority, transcript durability
+    must refuse an unbound override.
+    """
     from contextlib import nullcontext
 
     from agent_runtime.profile_context import process_home_scope
     from agent_runtime.profile_home import get_hermes_head_home
-    from hermes_cli.harness_parts.persona import chat_turn_message
     from hermes_constants import get_hermes_home
 
-    # Inline relays arrive inside the sender's profile. Admission belongs to
-    # the runtime head; the chosen persona binds its own profile for execution.
-    # Do not invent an override for an already-head caller: without an explicit
-    # head authority, transcript durability must refuse an unbound override.
     head = get_hermes_head_home()
-    scope = nullcontext() if head == get_hermes_home() else process_home_scope(head)
-    with scope:
+    return nullcontext() if head == get_hermes_home() else process_home_scope(head)
+
+
+def _mission_chat_turn_via_cli(args) -> int:
+    from hermes_cli.harness_parts.persona import chat_turn_message
+
+    with _head_scope():
         return chat_turn_message._cmd_mission_chat_message(args)
+
+
+def _turn_target_via_cli(args) -> int:
+    """The turn's own target resolver, asked before a send is accepted (``chat_turn_target``)."""
+    from hermes_cli.harness_parts.persona import chat_turn_target
+
+    with _head_scope():
+        return chat_turn_target._cmd_mission_chat_target(args)
 
 
 def _open_chat_via_cli(args) -> int:
@@ -63,3 +79,4 @@ def bind_mission_chat_door() -> None:
     bind_open_chat(_open_chat_via_cli)
     bind_chat_verb(CHAT_DELETE_VERB, _chat_delete_via_cli)
     bind_chat_verb(INSTANCE_CREATE_VERB, _instance_create_via_cli)
+    bind_chat_verb(TURN_TARGET_VERB, _turn_target_via_cli)

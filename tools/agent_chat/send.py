@@ -253,13 +253,24 @@ class Send:
         return None
 
     def local_target(self):
-        """A local target must address a teammate NOW, not fail in the background (``addressing``)."""
+        """A local target must address a teammate NOW, not fail in the background (``addressing``):
+        the name is resolved to a handle, then the turn's own target resolver judges it."""
         if self.install_qualifier is not None:
             return None
-        from .addressing import resolve_send_target
+        from .addressing import admit_send, resolve_send_target
 
         self.persona_id, refusal = resolve_send_target(self.persona_id, requested_by_session=self.requested_by_session)
-        return refusal
+        if refusal is not None:
+            return refusal
+        # MUTATION: return None here and test_a_send_to_the_sender_itself_is_refused_now reddens.
+        return admit_send(
+            self.persona_id,
+            instance_id=_instance_handle(self.persona_id),
+            session_id=self.resolved_session_id,
+            clarify_token=self.resolved_clarify_token,
+            requested_by_session=self.requested_by_session,
+            chain=self.chain,
+        )
 
     def admit_detached(self):
         """The three preconditions a ``wait=false`` promise needs before any work starts."""

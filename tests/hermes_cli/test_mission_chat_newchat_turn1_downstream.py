@@ -28,7 +28,7 @@ from tests.hermes_cli.test_mission_chat_turn_phases import (  # type: ignore
     scripted_marks,  # (re-exported fixture)
 )
 from tests.hermes_cli.test_mission_chat_budget_payload import _seed  # type: ignore
-from hermes_cli.harness_parts.persona import chat_turn_message
+from hermes_cli.harness_parts.persona import chat_target, chat_turn_message
 
 
 def _prewarm_the_bundle(monkeypatch) -> None:
@@ -41,7 +41,7 @@ def _prewarm_the_bundle(monkeypatch) -> None:
 
     _seed(monkeypatch, _streaming_provider())
     _ensure_plugin_tools_registered()  # the serve discovered its plugins long before the open
-    persona = chat_turn_message._persona_by_id(AgentRuntimeConfig(), "dev")
+    persona = chat_target._persona_by_id(AgentRuntimeConfig(), "dev")
     worker = threading.Thread(target=lambda: chat_lane_bundle(persona, session_id=_SESSION_ID))
     worker.start()
     worker.join(30)

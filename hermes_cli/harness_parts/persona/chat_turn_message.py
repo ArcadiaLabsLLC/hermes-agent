@@ -24,11 +24,8 @@ from agent_runtime.dispatch_session_policy import (
     session_established_payload,
 )
 from agent_runtime.persona_assignments import (
-    PERSONA_INSTANCE_ID_PREFIX,
     PersonaInstanceStore,
     RetiredPersonaInstanceError,
-    canonical_chat_instance_id,
-    canonical_persona_instance_id,
     personas_equal,
     resolve_default_chat_session_id_for_instance,
     safe_assignment_text,
@@ -66,81 +63,21 @@ from .chat_request import (
 from agent_runtime.persona_chat_session import _persona_chat_session_owner
 from .chat_target import (
     _display_name_for_profile,
-    _mission_chat_bare_persona_target,
-    _mission_chat_target_decision,
-    _persona_by_id,
-    _resolve_mission_chat_persona_id,
 )
 from .chat_send_queue import _mission_chat_queue_gate, _wake_queued_send_runner
 from .chat_turn_commit import _mission_chat_commit_turn
+from .chat_turn_target import (
+    _session_target,
+    bind_turn,
+    caller_instance_pin,
+    resolve_turn_instance,
+    resolve_turn_persona,
+)
 
 __layer__ = "lanes"
 __all__ = [
     "_cmd_mission_chat_message",
 ]
-
-
-def _session_target(args, persona_instance_id: str | None, normalized_persona: str) -> tuple[str, str | None]:
-    """``(session_id, persona_instance_id)`` this send targets, as the caller wrote it — or adopted.
-
-    An operator CHANNEL id handed back as the session (``<persona>::<tail>``,
-    the conversation's own thread id) is adopted. A fresh seeded instance has
-    no chat, so its channel's tail is its INSTANCE id, and the first send
-    before "new chat" arrived as ``profile_base::personainst_profile_base`` and
-    was refused ``unknown_chat_session`` (2026-10-02). It names a thread hermes
-    minted: a session tail becomes the session; an instance tail becomes the
-    instance pin with the session omitted, so resolve-or-mint opens the root.
-    A channel of another persona, or one disagreeing with an explicit pin, is
-    left as written and refused by the guards downstream. Adopted values are
-    written back onto ``args`` so every later reader agrees with the turn.
-    """
-
-    from agent_runtime.operator_channels.instances import split_operator_channel_id
-
-    session_id = safe_assignment_text(getattr(args, "session_id", None), limit=200)
-    channel = split_operator_channel_id(session_id)
-    if channel is None:
-        return session_id, persona_instance_id
-    channel_persona, tail = channel
-    if not personas_equal(channel_persona, normalized_persona):
-        return session_id, persona_instance_id
-    if tail.startswith(PERSONA_INSTANCE_ID_PREFIX):
-        tail_instance = canonical_persona_instance_id(tail, persona_id=normalized_persona)
-        if not tail_instance or (persona_instance_id and persona_instance_id != tail_instance):
-            return session_id, persona_instance_id
-        args.session_id = None
-        args.persona_instance_id = tail_instance
-        return "", tail_instance
-    args.session_id = tail
-    return tail, persona_instance_id
-
-
-def _caller_instance_pin(args, normalized_persona: str) -> str | None:
-    """The canonical instance id the caller pinned, recovered from either slot."""
-    # Canonicalize a caller-supplied instance id at THIS boundary (the same
-    # chokepoint open_chat uses), so an instance-shaped target can never mint a
-    # variant row.
-    #
-    # An instance-shaped `--persona` (`personainst_qa_agent_f24601ba`) IS a
-    # caller pin, and it arrives in the persona slot constantly (Mission Control
-    # payloads, agent @handle targeting, legacy SessionDB rows).
-    # `_resolve_mission_chat_persona_id` above canonicalizes it DOWN to the
-    # persona id so every persona-keyed lookup works — and the instance half
-    # used to be dropped right here, leaving the caller's explicit pin to be
-    # re-decided by the bare-persona placement resolver below. Recover the pin
-    # at this same chokepoint (no second resolver: `canonical_persona_instance_id`
-    # remains the one derivation authority) so an explicit @handle is
-    # authoritative BEFORE "placements shadow canonical" runs — which is what
-    # that ruling already documents: it never fires when the caller already
-    # disambiguated with a `personainst_*` target.
-    requested_instance_id = getattr(args, "persona_instance_id", None)
-    if not safe_assignment_token(requested_instance_id):
-        raw_persona_target = safe_assignment_token(getattr(args, "persona_id", None))
-        if raw_persona_target.startswith(PERSONA_INSTANCE_ID_PREFIX):
-            requested_instance_id = raw_persona_target
-    return canonical_persona_instance_id(
-        requested_instance_id, persona_id=normalized_persona
-    )
 
 
 @_within_admitted_turn
@@ -193,69 +130,15 @@ def _cmd_mission_chat_message(args) -> int:
     _bind_mission_chat_delivery_capability()
     _normalize_deferred_thread_policy(args)
     cfg = load_agent_runtime_config()
-    try:
-        normalized_persona = _resolve_mission_chat_persona_id(
-            args.persona_id, getattr(args, "persona_instance_id", None)
-        )
-    except ValueError as exc:
-        data = {
-            "ok": False,
-            "capability_id": "mission.chat.message",
-            "execution_state": ExecutionState.REJECTED,
-            "error_kind": ChatErrorKind.UNSUPPORTED_PERSONA,
-            "error": safe_assignment_text(str(exc), limit=240),
-            "persona_id": safe_assignment_token(args.persona_id),
-            "next_expected": "pass a configured persona id, profile_<name>, or a known personainst_* instance id",
-        }
-        _mission_chat_emit(args, data)
+    # Steps 1-3 of the turn's target are ``chat_turn_target``'s, the ONE resolver
+    # ``agent_chat_send``'s admission asks too (RT-FU-A-SEND-TO-AN-UNPLACED-AGENT-…).
+    turn_target, refusal = resolve_turn_persona(args, cfg)
+    if refusal is not None:
+        _mission_chat_emit(args, refusal)
         return 2
-
-    # Relay-chain guard at the canonical persona chokepoint. The chain is
-    # explicit envelope provenance (relay_chain / relay_deadline_epoch), so
-    # every transport into this handler gets the same depth/cycle/budget
-    # answer; agent_chat_send carries the envelope but does not re-decide.
-    from agent_runtime import relay_policy
-
-    relay_chain_in = relay_policy.normalize_chain(getattr(args, "relay_chain", None))
-    relay_deadline = relay_policy.parse_deadline_epoch(getattr(args, "relay_deadline_epoch", None))
-    # Keyed on the INSTANCE the caller named when it named one: two instances of
-    # one profile are two speakers (RT-RELAY-CYCLE-SAME-PROFILE-INSTANCES).
-    relay_decision = relay_policy.evaluate_relay(
-        chain=relay_chain_in,
-        target_persona_id=normalized_persona,
-        target_instance_id=_caller_instance_pin(args, normalized_persona),
-        deadline_epoch=relay_deadline,
-    )
-    if not relay_decision.allowed:
-        data = {
-            "ok": False,
-            "capability_id": "mission.chat.message",
-            "execution_state": ExecutionState.REJECTED,
-            "error_kind": relay_decision.error_kind,
-            "error": safe_assignment_text(relay_decision.reason, limit=400),
-            "persona_id": normalized_persona,
-            "relay_chain": list(relay_decision.chain),
-            "next_expected": "answer your caller directly; do not relay onward on this chain",
-        }
-        _mission_chat_emit(args, data)
-        return 2
-    # Chain for THIS turn: envelope chain + the persona now speaking. Seeded
-    # into the ContextVars around the model turn so the turn's own
-    # agent_chat_send calls (tool workers run under copy_context) inherit it.
-    turn_relay_chain = relay_decision.chain
-    persona = _persona_by_id(cfg, normalized_persona)
-    if persona is None:
-        data = {
-            "ok": False,
-            "capability_id": "mission.chat.message",
-            "execution_state": ExecutionState.REJECTED,
-            "error_kind": ChatErrorKind.UNSUPPORTED_PERSONA,
-            "error": f"unknown persona {safe_assignment_token(args.persona_id)}",
-            "persona_id": safe_assignment_token(args.persona_id),
-            "next_expected": "persist the persona, use profile_<name>, or address a known personainst_* instance",
-        }
-        _mission_chat_emit(args, data)
-        return 2
+    normalized_persona, persona = turn_target.normalized_persona, turn_target.persona
+    relay_chain_in, turn_relay_chain = turn_target.relay_chain_in, turn_target.turn_relay_chain
+    relay_deadline = turn_target.relay_deadline
 
     from agent_runtime.preparation_reads import InstanceReadEpoch
     instance_read_epoch = InstanceReadEpoch()
@@ -266,7 +149,7 @@ def _cmd_mission_chat_message(args) -> int:
     # Auxiliary sessions were admitted against an existing exact instance.
     # They must not run the catalog's repairing projection writer (including
     # display/profile fields) while another operator may be editing that row.
-    persona_instance_id = _caller_instance_pin(args, normalized_persona)
+    persona_instance_id = caller_instance_pin(args, normalized_persona)
     session_id, persona_instance_id = _session_target(args, persona_instance_id, normalized_persona)
     # What the CALLER named, before anything on this turn overwrites it. Kept so
     # the settlement can tell "they answered in the right thread because they
@@ -348,20 +231,10 @@ def _cmd_mission_chat_message(args) -> int:
     # recursion; that recursion is gone.)
     args.client_message_id = client_message_id
 
-    # Ambiguous-target guard at the canonical persona chokepoint (sibling of the
-    # relay-chain guard above; same envelope, evaluated for every transport so an
-    # instance-id target cannot dodge it). A BARE persona id names a persona, not
-    # an instance; when the persona runs more than one live instance and the
-    # caller pinned none, the omitted-session default below silently threads onto
-    # the canonical primary and DROPS the message for every sibling (live
-    # 2026-07-19: bare `qa` with two live `qa` instances landed only in
-    # `personainst_qa`). Refuse with the candidate @handles so the caller can
-    # retry against an exact instance. Never fires when the caller already
-    # disambiguated (an explicit `persona_instance_id`, a `personainst_*` target,
-    # or ANY caller-chosen session id — the operator console always carries an
-    # instance-bearing session id, so its chats to every sibling keep working),
-    # for a `profile_<name>` target, or for a single-instance persona.
-    target_decision = _mission_chat_target_decision(
+    # The ambiguous-target guard, then the omitted-session target (decided BEFORE
+    # the SessionDB open so the open can resolve this instance's chat head,
+    # chat-head plan §7.2 decision 5): ONE instance identity for the turn.
+    persona_instance_id, refusal = resolve_turn_instance(
         instance_store=instance_store,
         normalized_persona=normalized_persona,
         raw_persona_id=getattr(args, "persona_id", None),
@@ -373,37 +246,10 @@ def _cmd_mission_chat_message(args) -> int:
     )
     # Target projection reuse ends before authoritative admission/binding.
     instance_read_epoch.close()
-    if not target_decision.allowed:
-        data = {
-            "ok": False,
-            "capability_id": "mission.chat.message",
-            "execution_state": ExecutionState.REJECTED,
-            "error_kind": target_decision.error_kind,
-            "error": safe_assignment_text(target_decision.reason, limit=400),
-            "persona_id": normalized_persona,
-            "relay_chain": list(target_decision.chain),
-            "candidates": [candidate.as_dict() for candidate in target_decision.candidates],
-            "next_expected": (
-                "re-send to a specific instance by the @personainst_ handle listed in candidates"
-            ),
-        }
-        _mission_chat_emit(args, data)
+    if refusal is not None:
+        _mission_chat_emit(args, refusal)
         return 2
 
-    if not session_id:
-        # The omitted-session target, decided BEFORE the SessionDB open so the
-        # open can resolve this instance's chat head (chat-head plan §7.2
-        # decision 5). Read-only; see the omitted-session branch below for why
-        # it is ONE instance identity for the turn.
-        persona_instance_id = (
-            persona_instance_id
-            or _mission_chat_bare_persona_target(
-                instance_store,
-                normalized_persona=normalized_persona,
-                requested_by_session=requested_by_session,
-            )
-            or canonical_chat_instance_id(normalized_persona, None)
-        )
     # The open runs once the target instance is known: the instance's chat head
     # (its own profile for a ``per_profile`` record, the process head otherwise)
     # names the store this turn writes. The timing moved with it.
@@ -533,20 +379,13 @@ def _cmd_mission_chat_message(args) -> int:
             _mission_chat_emit(args, data)
             return 2
         persona_instance_id = owner
-    # The turn's instance is final here: its chain entry becomes that instance, and
-    # a bare target that resolved onto an instance already on the chain is a cycle.
-    relay_decision = relay_policy.bind_turn_instance(
-        chain_in=relay_chain_in, turn_chain=turn_relay_chain, instance_id=persona_instance_id)
-    if not relay_decision.allowed:
-        _mission_chat_emit(args, {
-            "ok": False, "capability_id": "mission.chat.message", "execution_state": ExecutionState.REJECTED,
-            "error_kind": relay_decision.error_kind, "error": safe_assignment_text(relay_decision.reason, limit=400),
-            "persona_id": normalized_persona, "persona_instance_id": persona_instance_id,
-            "relay_chain": list(relay_decision.chain),
-            "next_expected": "answer your caller directly; do not relay onward on this chain",
-        })
+    turn_relay_chain, refusal = bind_turn(
+        relay_chain_in=relay_chain_in, turn_relay_chain=turn_relay_chain,
+        persona_instance_id=persona_instance_id, normalized_persona=normalized_persona,
+    )
+    if refusal is not None:
+        _mission_chat_emit(args, refusal)
         return 2
-    turn_relay_chain = relay_decision.chain
     if not session_id:
         # Omitted session (agent_chat_send dispatch lane, and any first-turn
         # open): the thread target is decided by policy below, not by this

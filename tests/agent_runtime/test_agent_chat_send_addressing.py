@@ -144,3 +144,78 @@ def test_an_at_handle_opens_that_agents_thread():
     assert refusal is None and refusal_at is None
     assert target.instance_id == "personainst_dev"
     assert (target.handle, target.default_session) == (clean.handle, clean.default_session)
+
+
+@pytest.fixture
+def on_chain():
+    """Run the send inside a turn whose relay chain is *speakers* (the sender's own turn sets it)."""
+    from agent_runtime import relay_policy
+
+    tokens = []
+
+    def enter(*speakers):
+        tokens.append(relay_policy.RELAY_CHAIN.set(tuple(speakers)))
+
+    yield enter
+    for token in reversed(tokens):
+        relay_policy.RELAY_CHAIN.reset(token)
+
+
+def test_a_send_to_the_sender_itself_is_refused_now(handled, on_chain):
+    """RT-FU-A-SEND-TO-AN-UNPLACED-AGENT-GOES-BACK-TO-THE-SENDER-AND-A-REFUSED-SEND-SAYS-OK (seen live
+    2026-11-21, dispatch-c58c34703868): Base's ``wait=false`` send to ``@personainst_base`` answered
+    ``ok: true, dispatched: true`` and the background turn refused it ``relay_cycle``. Admission asks the
+    turn's own resolver, so it is refused in the sending turn and never queued. Killing mutation:
+    ``Send.local_target`` returns None instead of ``admit_send(...)`` -> the send goes on, red."""
+
+    on_chain("personainst_dev")
+    for wait in (False, True):
+        data = json.loads(agent_chat_send(persona_id="@personainst_dev", message="hi", wait=wait))
+        assert (data["ok"], data["error_kind"]) == (False, "relay_cycle"), wait
+        assert "personainst_dev" in data["error"] and data["relay_chain"] == ["personainst_dev"]
+    assert handled == []
+
+
+def test_a_bare_persona_that_resolves_onto_the_sender_is_refused_now(handled, on_chain):
+    """The cycle the bare key hides: ``dev`` names no instance, the turn's resolver lands it on the
+    canonical ``personainst_dev``, which is the sender. Admission runs the turn's instance resolution
+    and ``bind_turn_instance``, not just the persona-keyed check. Killing mutation: drop the
+    ``bind_turn`` step in ``chat_turn_target.admit_turn_target`` -> admitted, red."""
+
+    on_chain("personainst_dev")
+    data = json.loads(agent_chat_send(persona_id="dev", message="hi"))
+    assert (data["ok"], data["error_kind"]) == (False, "relay_cycle")
+    assert data["persona_instance_id"] == "personainst_dev"
+    assert handled == []
+
+
+def test_a_send_to_another_agents_unplaced_instance_still_goes_through(handled, on_chain):
+    """The other half of the row: a send to an instance placed nowhere reaches that instance."""
+
+    on_chain("personainst_qa")
+    assert json.loads(agent_chat_send(persona_id="@personainst_dev", message="hi"))["ok"] is True
+    assert handled == [("personainst_dev", "personainst_dev")]
+
+
+def test_admission_and_the_turn_refuse_with_the_same_words(on_chain):
+    """One resolver: the refusal admission returns is the turn handler's own payload, for the cycle
+    only the instance resolution finds (a bare ``dev`` landing on the speaking ``personainst_dev``).
+    Killing mutation: ``admit_turn_target`` rewords ``bind_turn``'s refusal (a second judge's words)
+    -> the texts part, red."""
+
+    from types import SimpleNamespace
+
+    from agent_runtime.mission_chat_door import TURN_TARGET_VERB, run_chat_verb, run_mission_chat_turn
+
+    fields = dict(persona_id="dev", persona_instance_id=None, session_id=None,
+                  clarify_token=None, requested_by_session=None, relay_chain=["personainst_dev"])
+    _, admitted = run_chat_verb(TURN_TARGET_VERB, SimpleNamespace(**fields))
+    turn_args = SimpleNamespace(
+        **fields, message="hi", new_session=None, task_id=None, goal_id=None, title=None, provider=None,
+        model=None, use_agent_default=False, surface_prompt="", intent_hint="chat",
+        requested_by="agent-chat-relay", client_message_id="agent-relay-parity", stream=False,
+        max_seconds=60.0, json=True, relay_deadline_epoch=None,
+    )
+    exit_code, turn = run_mission_chat_turn(turn_args)
+    assert exit_code == 2 and admitted["ok"] is False and turn["persona_instance_id"] == "personainst_dev"
+    assert (admitted["error_kind"], admitted["error"]) == (turn["error_kind"], turn["error"])

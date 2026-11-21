@@ -30,7 +30,7 @@ from types import SimpleNamespace
 from .lane import _instance_handle, refusal_json
 
 __layer__ = "lanes"
-__all__ = ["resolve_send_target"]
+__all__ = ["admit_send", "resolve_send_target"]
 
 #: How many addressable handles a refusal lists (a roster is small; the bound keeps a reply short).
 _LISTED = 20
@@ -102,6 +102,57 @@ def resolve_send_target(persona_id: str, *, requested_by_session=None) -> tuple[
         # No roster to judge an id-shaped target against (a bare home): the handler's own check decides.
         return persona_id, None
     return persona_id, _no_teammate(persona_id, roster, None)
+
+
+def admit_send(
+    persona_id: str,
+    *,
+    instance_id: str | None,
+    session_id: str | None,
+    clarify_token: str | None,
+    requested_by_session,
+    chain,
+) -> str | None:
+    """The turn's OWN target resolver, asked now: ``None`` when the turn would run, else its refusal.
+
+    Row RT-FU-A-SEND-TO-AN-UNPLACED-AGENT-GOES-BACK-TO-THE-SENDER-AND-A-REFUSED-SEND-SAYS-OK (seen live
+    2026-11-21, dispatch-c58c34703868): Base's ``wait=false`` send to ``@personainst_base`` (itself)
+    answered ``ok: true, dispatched: true`` and the background turn refused it ``relay_cycle``. The
+    cycle, depth, unknown-persona, ambiguous-target and retired-target answers belong to the turn's
+    front door; this asks that door's resolver (``chat_turn_target``, through the door's
+    :data:`~agent_runtime.mission_chat_door.TURN_TARGET_VERB`) with the very fields the turn will be
+    handed, so the two cannot disagree, and a refused send is never queued. No rule is restated here.
+    """
+    from agent_runtime.mission_chat_door import TURN_TARGET_VERB, MissionChatDoorUnbound, run_chat_verb
+
+    args = SimpleNamespace(
+        persona_id=persona_id,
+        persona_instance_id=instance_id,
+        session_id=session_id,
+        clarify_token=clarify_token,
+        requested_by_session=str(requested_by_session or "").strip() or None,
+        relay_chain=list(chain or ()),
+    )
+    try:
+        _, payload = run_chat_verb(TURN_TARGET_VERB, args)
+    except MissionChatDoorUnbound as exc:
+        return refusal_json(str(exc), error_kind="mission_chat_door_unbound", target_persona=persona_id)
+    except Exception as exc:  # the turn could not be resolved: nothing is promised on it
+        return refusal_json(
+            f"could not check the target before sending ({type(exc).__name__}); nothing was sent.",
+            error_kind="send_target_unresolved", target_persona=persona_id,
+        )
+    if payload is not None and payload.get("ok"):
+        return None
+    payload = payload or {}
+    extra = {key: payload[key] for key in ("relay_chain", "candidates", "persona_instance_id")
+             if payload.get(key) is not None}
+    return refusal_json(
+        str(payload.get("error") or "the send was refused before it was queued"),
+        error_kind=str(payload.get("error_kind") or "send_target_unresolved"),
+        target_persona=persona_id,
+        **extra,
+    )
 
 
 def _unreachable_handle(handle: str) -> str | None:

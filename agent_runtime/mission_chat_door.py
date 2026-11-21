@@ -20,7 +20,10 @@ with CLI-side helpers — ``persona chat delete`` and ``persona instance create`
 (lane h-twins, the ``runtime.persona.chat.delete`` / ``runtime.persona.instance
 .create`` methods): :func:`bind_chat_verb` / :func:`run_chat_verb`, same
 contract. A name is the verb's capability id, spelled once in
-:data:`CHAT_DELETE_VERB` / :data:`INSTANCE_CREATE_VERB`.
+:data:`CHAT_DELETE_VERB` / :data:`INSTANCE_CREATE_VERB`. The turn's own
+target resolver rides the same slot as :data:`TURN_TARGET_VERB`: the agent-chat
+tool asks it before accepting a send, so a send the turn would refuse is refused
+in the turn that made it (row RT-FU-A-SEND-TO-AN-UNPLACED-AGENT-…).
 
 So the CLI registers what the runtime needs. :func:`bind_mission_chat_turn` is
 called at plugin registration (``plugins/eternia-harness`` ``register``) and at
@@ -41,6 +44,7 @@ __layer__ = "models"
 __all__ = [
     "CHAT_DELETE_VERB",
     "INSTANCE_CREATE_VERB",
+    "TURN_TARGET_VERB",
     "MissionChatDoorUnbound",
     "bind_chat_verb",
     "bind_mission_chat_turn",
@@ -53,6 +57,7 @@ __all__ = [
 
 CHAT_DELETE_VERB = "persona.chat.delete"
 INSTANCE_CREATE_VERB = "persona.instance.create"
+TURN_TARGET_VERB = "mission.chat.target"
 
 _turn: Callable[[Any], int] | None = None
 _open_chat: Callable[[Any], int] | None = None
