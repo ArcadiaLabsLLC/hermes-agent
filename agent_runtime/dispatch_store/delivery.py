@@ -133,27 +133,25 @@ def set_dispatch_owner(
     dispatch_id: str, *, owner_pid: int | None, owner_started_at: int | None,
     owner_group: int | None = None,
 ) -> bool:
-    """Re-point a running row's owner identity at the process actually doing the work.
+    """Stamp a running row's owner identity: the process actually running its turn.
 
-    A dispatch is RECORDED by the tool (in the sender's process) and then
-    EXECUTED by a child process. The row's owner has to become the child, because
-    "is this dispatch still running?" is a question about the process running the
-    turn — not about the supervisor thread waiting on it, and not about the
-    sender that asked. Stamping the child here is what keeps the orphan sweep
-    coherent when the supervisor itself dies: the row settles when the CHILD is
-    gone, which is exactly when the work is gone.
+    A dispatch is RECORDED by the tool and then EXECUTED as a native turn by a
+    supervisor of the serve (``tools/agent_chat_dispatch/native.py``). "Is this
+    dispatch still running?" is a question about the process running the turn,
+    so the stamp names it: the row settles when that process is gone, which is
+    exactly when the work is gone.
 
     Only ``running`` rows move. A completion that arrived first wins — this is
     bookkeeping, and it must never resurrect a settled row.
 
-    ``owner_group`` is the process group the child leads (review w1118a.55 D10), or
-    None: what :func:`settle_if_orphaned` may end once the child is provably gone.
+    ``owner_group`` is kept for rows a child-process dispatch wrote before
+    2026-11-21 (review w1118a.55 D10); a native turn leads no group and passes None.
     """
 
-    # The owner stamp IS the moment the child exists, so it is also where the
+    # The owner stamp IS the moment the turn starts, so it is also where the
     # queue wait ends: ``started_at`` is written here and nowhere else.
     now = time.time()
-    # The stamping process is the child's supervisor (D12, review w1118a.56).
+    # The stamping process is the turn's supervisor (D12, review w1118a.56).
     supervisor_pid, supervisor_started = _owner_identity()
     with _DB_LOCK, _transaction() as conn:
         cur = conn.execute(
@@ -175,37 +173,11 @@ def set_dispatch_owner(
         return cur.rowcount == 1
 
 
-def claim_dispatch_supervision(dispatch_id: str, row: dict[str, Any]) -> bool:
-    """Make THIS process the supervisor of a running row it re-adopts; True when it won (D12).
-
-    Compare-and-set on the supervisor the caller read: two serves of one home booting together
-    re-adopt a request once, never twice.
-    """
-
-    pid, started = _owner_identity()
-    with _DB_LOCK, _transaction() as conn:
-        cur = conn.execute(
-            f"""UPDATE {_TABLE} SET supervisor_pid=?, supervisor_started_at=?, updated_at=?
-                WHERE dispatch_id=? AND state=?
-                  AND supervisor_pid IS ? AND supervisor_started_at IS ?""",
-            (
-                pid,
-                started,
-                time.time(),
-                str(dispatch_id),
-                STATE_RUNNING,
-                row.get("supervisor_pid"),
-                row.get("supervisor_started_at"),
-            ),
-        )
-        return cur.rowcount == 1
-
-
 def request_dispatch_cancel(dispatch_id: str, reason: str) -> bool:
     """Leave a durable cancel on a ``running`` row for the process supervising it.
 
     D1.07 (owner ruling a). The canceller holds no handle and never kills by pid;
-    the supervisor's cancel watch reads the mark and stops its own child. True
+    the supervisor's cancel watch reads the mark and stops its own turn. True
     when the row is running and now carries a mark (a first reason is kept: a
     second request does not rewrite why the first one was made).
     """
@@ -404,21 +376,6 @@ def _identity_state(pid: Any, baseline: Any) -> str:
     return "alive" if int(observed) == int(baseline) else "gone"
 
 
-def owner_provably_alive(row: dict[str, Any]) -> bool:
-    """Whether a row's child is PROVABLY the recorded process, still running: pid plus start time (D12)."""
-
-    return _identity_state(row.get("owner_pid"), row.get("owner_started_at")) == "alive"
-
-
-def supervisor_provably_gone(row: dict[str, Any]) -> bool:
-    """Whether the serve that supervised a row's child is PROVABLY gone (D12).
-
-    A row with no supervisor stamp (written before the column) is not proof: it is never re-adopted.
-    """
-
-    return _identity_state(row.get("supervisor_pid"), row.get("supervisor_started_at")) == "gone"
-
-
 def owner_provably_gone(row: dict[str, Any]) -> bool:
     """Whether a ``running`` row's recorded owner process is PROVABLY gone.
 
@@ -441,25 +398,10 @@ def settle_if_orphaned(row: dict[str, Any]) -> bool:
 
     if not owner_provably_gone(row):
         return False
-    _end_left_group(row)
-    # The child may have answered after its serve was gone: its result file holds the
-    # answer the closed pipe lost (review w1118a.56 D12), read through the one mapping.
-    from .result_file import discard_dispatch_result, read_dispatch_result
-
-    payload = read_dispatch_result(row["dispatch_id"])
-    if payload is not None:
-        from tools.agent_chat_dispatch.child import payload_completion
-
-        settled = bool(record_completion(
-            row["dispatch_id"], **payload_completion(payload, None), only_if_running=True
-        ))
-        discard_dispatch_result(row["dispatch_id"])
-        return settled
-    # The dominant case after the subprocess move is a serve recycled while
-    # a HEALTHY child ran to completion: the reply exists, it is in the
-    # target's own thread, and only this bookkeeping row was orphaned. So
-    # the copy points at that thread rather than inviting the sender to
-    # duplicate work that has very likely already been done.
+    # The serve running the turn is gone (a restart, a crash): the turn may have
+    # written a reply into the target's own thread before it went, so the copy
+    # points at that thread rather than inviting the sender to duplicate work
+    # that may already have been done.
     thread = row.get("target_session_id") or ""
     where = (
         f" Their reply, if they finished, is in thread {thread} "
@@ -470,7 +412,6 @@ def settle_if_orphaned(row: dict[str, Any]) -> bool:
             " before re-sending — they may well have finished."
         )
     )
-    discard_dispatch_result(row["dispatch_id"])
     return bool(
         record_completion(
             row["dispatch_id"],
@@ -548,21 +489,3 @@ def settle_unanswered_cancels(*, now: float | None = None) -> int:
         if row.get("dispatch_id") not in supervised and settle_if_cancel_unanswered(row, now=now):
             settled += 1
     return settled
-
-
-def _end_left_group(row: dict[str, Any]) -> None:
-    """End what a provably-gone child left in its process group (review w1118a.55 D10).
-
-    Only a row that names a group (a child spawned leading one) and only through the
-    child's own identity-guarded group end. Best effort: a settle never fails on it.
-    """
-
-    group = row.get("owner_group")
-    if not group:
-        return
-    try:
-        from tools.agent_chat_dispatch.child import end_child_group
-
-        end_child_group(int(group), row.get("owner_started_at"))
-    except Exception:  # pragma: no cover - best effort
-        logger.debug("dispatch %s group end failed", row.get("dispatch_id"), exc_info=True)

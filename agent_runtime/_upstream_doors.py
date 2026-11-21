@@ -200,8 +200,8 @@ def sanitize_surrogates(text: str) -> str:
 
 def terminate_host_pid(pid: int, expected_start: int | None) -> None:
     """``tools.process_registry.ProcessRegistry._terminate_host_pid`` — the
-    identity-verified tree-kill, read by
-    ``tools/agent_chat_dispatch/child.py::_kill_child``. Held widening row
+    identity-verified tree-kill, read by the build sweep and build control
+    (``agent_runtime/builds``). Held widening row
     (ruling Q7, ``upstream-footprint-ledger.md``): publish
     ``ProcessRegistry.terminate_host_pid``. Raises what the upstream helper
     raises; the caller is best-effort by contract."""

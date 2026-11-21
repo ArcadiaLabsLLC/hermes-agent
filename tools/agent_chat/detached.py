@@ -61,7 +61,7 @@ def _persona_of_chat_root(root_session_id) -> str:
 
 
 def _dispatch_homes() -> tuple[str, str]:
-    """``(ambient_home, background_work_home)`` for the child process.
+    """``(ambient_home, background_work_home)`` for the dispatched turn.
 
     The ambient home is the HEAD home — the same authority the inline relay
     enters (``mission_chat_door_binding._mission_chat_turn_via_cli`` wraps the
@@ -69,8 +69,8 @@ def _dispatch_homes() -> tuple[str, str]:
     sender persona's profile home. The two differ inside a persona turn, and the
     difference is the roster: the launcher pins the serve's head to
     ``profiles/base``, whose ``config.yaml`` is where the configured personas
-    (``qa``, ``neko_supervisor``, ``backend_dev``, ``dev``) are defined. A child
-    booted onto the SENDER's profile home loads a config with no persona block
+    (``qa``, ``neko_supervisor``, ``backend_dev``, ``dev``) are defined. A turn
+    resolved on the SENDER's profile home loads a config with no persona block
     and answers ``unknown persona`` for every one of them — which is what every
     background relay did on 2026-10-08 (Amelia turn ``agent-chat-send-994a2059``,
     four dispatches, four ``unknown persona`` deliveries), while the same
@@ -78,7 +78,8 @@ def _dispatch_homes() -> tuple[str, str]:
     at boot. This function used to read ``get_hermes_home()`` here on purpose,
     to mirror the ORIGINAL inline lane that ran nested in the sender's flipped
     environment; the inline lane has since moved to head-home admission, and
-    the child follows it so one target resolves the same way on both lanes.
+    the dispatched turn follows it so one target resolves the same way on both lanes
+    (``tools/agent_chat_dispatch/native.py`` binds both homes context-locally).
 
     Read HERE, inside the sender's turn, because by the time the supervisor
     thread spawns another persona turn may have flipped the process-global out
@@ -86,7 +87,7 @@ def _dispatch_homes() -> tuple[str, str]:
     head first, so a nested hop cannot escape the operator that started it.
 
     ``get_hermes_background_work_home()`` is the one resolver for where
-    background work is recorded, so the child's own background writers land
+    background work is recorded, so the turn's own background writers land
     exactly where this parent, the drain and the Activity projection read.
     """
 
@@ -111,7 +112,7 @@ def _dispatch_detached(
     parent_turn_id="",
     auto_detached=False,
 ):
-    """Record a detached dispatch durably, queue its child turn, return the handle.
+    """Record a detached dispatch durably, queue its native turn, return the handle.
 
     ``parent_turn_id`` is the sending turn (``relay_policy.RELAY_PARENT_TURN``),
     recorded on the row so the operator's Stop on that turn can cancel this
@@ -133,8 +134,8 @@ def _dispatch_detached(
     SENDER's install, and the sender's operator sees the outstanding ask in
     Activity exactly as they do for a local one. What changes is one key on the
     spec, and therefore which leg the supervisor takes: a spec carrying
-    ``remote_install_id`` is performed by a peer-tier call instead of by a child
-    process. There is no distributed row and no two-phase state to reconcile;
+    ``remote_install_id`` is performed by a peer-tier call instead of by a local
+    native turn. There is no distributed row and no two-phase state to reconcile;
     install B records the turn it ran in its own chat store, which is its own
     business and not this row's.
     """

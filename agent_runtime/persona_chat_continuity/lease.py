@@ -294,51 +294,6 @@ def repair_orphaned_chat_turns() -> list[str]:
     return repaired
 
 
-def end_dispatch_turn(dispatch_id: str, *, stopped: bool) -> list[str]:
-    """End the target's turn a request's killed child left in flight; the roots it settled.
-
-    RT-FU-A-STOPPED-REQUESTS-TURN-STAYS-RUNNING-AFTER-STOP (review w1118a.59). A request's turn runs
-    in a child the supervisor tree-kills on a Stop (or past its budget), so nothing in the child
-    settles the turn's journal record: it stayed ``running`` in Running work until the next send on
-    that chat or a serve restart (seen live 2026-11-20, w1118a-hrun). The supervisor calls this
-    once the child is gone and the request is settled: the turn's record is found by its request
-    id (``dispatch_store.models.dispatch_turn_request_id``), and under that chat's root lease — free, since the
-    child that held it is dead; a held lease is a live turn and is left alone — it is settled as
-    the boot sweep settles a corpse: ``stopped`` (``stop_mission_chat_turn``) when the operator
-    stopped it, else ``interrupted``, and the transcript is closed (:func:`close_cut_off_transcript`)
-    so the next message is a turn of its own. Best-effort: never raises into the supervisor.
-    """
-
-    try:
-        from ..dispatch_store.models import dispatch_turn_request_id
-        from ..mission_chat_turns.journal import mark_stale_inflight_turns_interrupted, stop_mission_chat_turn
-        from ..mission_chat_turns.reads import inflight_turn_rows
-
-        message = dispatch_turn_request_id(dispatch_id)
-        roots = sorted({str(row.get("session_id") or "") for row in inflight_turn_rows()
-                        if row.get("client_message_id") == message} - {""})
-    except Exception:
-        logger.warning("request %s: its turn's journal not read", dispatch_id, exc_info=True)
-        return []
-    settled: list[str] = []
-    for root in roots:
-        try:
-            with persona_chat_root_lease(root, observer_kind="dispatch_end"):
-                if stopped:
-                    stop_mission_chat_turn(session_id=root, client_message_id=message, turn_id=None)
-                mark_stale_inflight_turns_interrupted(session_id=root, active_client_message_id=None)
-                close_cut_off_transcript(
-                    root, tool_result=CUT_OFF_STOPPED_TOOL_RESULT if stopped else CUT_OFF_TOOL_RESULT
-                )
-        except PersonaChatBusyError:
-            continue
-        except Exception:
-            logger.warning("request %s: its turn on %s not ended", dispatch_id, root, exc_info=True)
-            continue
-        settled.append(root)
-    return settled
-
-
 def close_cut_off_transcript(root_session_id: str, *, tool_result: str | None = None) -> bool:
     """Close a cut-off turn in the chat's transcript, so the next message is a turn of its own.
 
@@ -392,8 +347,6 @@ CUT_OFF_TAIL_ROWS = 64
 #: The result a cut-off turn's unanswered tool call is closed with: a structural label, like
 #: upstream's interrupt placeholder, never prose a model would echo.
 CUT_OFF_TOOL_RESULT = "[interrupt: the runtime restarted before this tool returned]"
-#: The same, for a request's turn its sender stopped (:func:`end_dispatch_turn`).
-CUT_OFF_STOPPED_TOOL_RESULT = "[interrupt: the request was stopped before this tool returned]"
 
 
 def _closing_rows(tail: list[dict], placeholder: dict, *, tool_result: str = CUT_OFF_TOOL_RESULT) -> list[dict]:

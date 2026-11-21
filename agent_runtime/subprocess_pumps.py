@@ -1,12 +1,10 @@
 """The child-process pipe pumps: ONE owner for draining a pipe and releasing its reader.
 
 Program §3.1d helper owner (``agent_runtime/subprocess_pumps``), created by lane
-2B-C for ``tools/agent_chat_dispatch``; ``persona_chat_actor_prewarm`` and
+2B-C for ``tools/agent_chat_dispatch`` (whose child process retired 2026-11-21: a
+dispatched turn runs natively in the serve); ``persona_chat_actor_prewarm`` and
 ``persona_prewarm`` fold their ``_drain`` copies in their own lanes. ``sink`` is
-anything with ``append(text)`` — the dispatch lane passes a tail-keeping bound
-(``tools/agent_chat_dispatch/child.py::_BoundedTail``), and it is handed ONE
-LINE per call, because that bound keeps a single chunk whole and the child's
-payload is a single line.
+anything with ``append(text)``, and it is handed ONE LINE per call.
 
 WHY A PUMP NEVER BLOCKS IN ``read`` (lane Q-RUNTIME, 2026-09-25). The first
 shape was ``for line in iter(stream.readline, "")`` plus a release that closed

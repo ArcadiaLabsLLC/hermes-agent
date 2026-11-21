@@ -2,12 +2,12 @@
 
 Seen live 2026-11-19: a lead sent its lane a stop order with
 ``agent_chat_send(wait=false)`` while the lane was still on the lead's first
-dispatch. The stop's child turn was refused ``chat_busy`` before anything ran,
+dispatch. The stop's turn was refused ``chat_busy`` before anything ran,
 the supervisor recorded that refusal as the dispatch's failure, and the lead's
 chat read "Launcher Dev Agent's work failed: persona chat root is busy: …".
 
 Pinned here, through the supervisor's real body (``_run_dispatch``) with only
-the child process faked: a busy target is waited out and the message runs once
+the mission-chat door stubbed (the dispatched turn runs natively through it): a busy target is waited out and the message runs once
 the target is free; a target busy for the whole wait is reported as "never
 ran", not as raw lease text; a cancel during the wait settles ``cancelled``;
 and the sending agent can stop its own dispatch from ``agent_chat_dispatches``.
@@ -15,14 +15,13 @@ and the sending agent can stop its own dispatch from ``agent_chat_dispatches``.
 Named sabotage (each red recorded in the landing commit):
 
 * ``local._run_dispatch_guarded``: ``busy_root = None`` (never wait) →
-  the first and third tests red (the row is ``error`` after one child).
-* ``child._LANE_REWRITES``: drop the ``chat_busy`` entry → the second red.
+  the first and third tests red (the row is ``error`` after one turn).
+* ``outcome._LANE_REWRITES``: drop the ``chat_busy`` entry → the second red.
 * ``detached.agent_chat_dispatches``: drop the ``cancel`` arm → the last two red.
 """
 
 from __future__ import annotations
 
-import io
 import json
 
 import pytest
@@ -35,8 +34,8 @@ from agent_runtime.dispatch_store import (
     mint_dispatch_id,
     record_dispatch,
 )
+from agent_runtime import mission_chat_door
 from tools import agent_chat_dispatch
-import tools.agent_chat_dispatch.local_child  # the spawn the tests patch
 from tools.agent_chat_dispatch import local
 from tools.agent_chat_tool import agent_chat_dispatches
 
@@ -51,25 +50,12 @@ def store_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(home))
     monkeypatch.setenv("HERMES_HEAD_HOME", str(home))
     monkeypatch.setattr(local, "BUSY_TARGET_POLL_SECONDS", 0.0)
-    monkeypatch.setattr(local, "_child_identity", lambda pid: 777)
-    monkeypatch.setattr(local, "_kill_child", lambda pid, started: None)
     return home
 
 
-class _Proc:
-    def __init__(self, payload: dict, returncode: int):
-        self.pid = 4242
-        self.stdout = io.StringIO(json.dumps(payload))
-        self.stderr = io.StringIO("")
-        self.returncode = returncode
-
-    def wait(self, timeout=None):
-        return self.returncode
-
-
-def _busy() -> _Proc:
+def _busy() -> dict:
     # The chat lane's own refusal shape (``chat_admission._busy_refused``).
-    return _Proc(
+    return dict(
         {
             "ok": False,
             "capability_id": "mission.chat.message",
@@ -79,28 +65,27 @@ def _busy() -> _Proc:
             "session_id": TARGET_ROOT,
             "error": f"persona chat root is busy: {TARGET_ROOT}",
         },
-        2,
     )
 
 
-def _replied() -> _Proc:
-    return _Proc(
-        {"ok": True, "capability_id": "mission.chat.message", "reply": "stopped at abc123",
-         "session_id": TARGET_ROOT},
-        0,
-    )
+def _replied() -> dict:
+    return {"ok": True, "capability_id": "mission.chat.message", "reply": "stopped at abc123",
+            "session_id": TARGET_ROOT}
 
 
-def _children(monkeypatch, procs: list[_Proc]) -> list[_Proc]:
-    spawned: list[_Proc] = []
+def _children(monkeypatch, payloads: list[dict]) -> list[dict]:
+    """Bind the door to hand back ``payloads`` in turn, one per native turn; the ones it ran."""
 
-    def popen(*a, **k):
-        proc = procs.pop(0)
-        spawned.append(proc)
-        return proc
+    ran: list[dict] = []
 
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", popen)
-    return spawned
+    def turn(args):
+        payload = payloads.pop(0)
+        ran.append(payload)
+        args.payload_sink(payload)
+        return 0 if payload.get("ok") else 2
+
+    monkeypatch.setattr(mission_chat_door, "_turn", turn)
+    return ran
 
 
 def _dispatch(sender: str = SENDER_ROOT) -> str:

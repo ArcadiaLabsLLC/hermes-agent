@@ -162,19 +162,6 @@ def test_every_send_option_reaches_the_serve_and_round_trips():
     assert reparsed.in_process is False
 
 
-def test_the_detached_dispatch_child_runs_its_own_turn():
-    import sys
-
-    from tools.agent_chat_dispatch.child import build_dispatch_argv
-
-    argv = build_dispatch_argv(
-        {"persona_id": "qa", "message": "m", "max_seconds": 60.0}, deadline_epoch=1.0
-    )
-    assert argv[0] == sys.executable
-    parsed = _parser().parse_args(argv[3:])
-    assert parsed.in_process is True
-
-
 @pytest.fixture(autouse=True)
 def _isolated(isolate_agent_runtime_root):
     return isolate_agent_runtime_root

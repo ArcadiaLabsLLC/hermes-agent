@@ -18,8 +18,8 @@ What is REAL here
 * ``peer.agent_chat.execute`` dialled A→B over B's gateway listener with the
   credential the ceremony minted, authorized on B as caller kind ``peer``, and
   ACCEPTED — then the turn's own frames read back on the same socket to their
-  exit, and the ``--json`` payload parsed out of them by the same
-  ``parse_child_payload`` a local child's stdout goes through.
+  exit, and the ``--json`` payload parsed out of them by the remote leg's own
+  ``parse_reply_payload``.
 * B answering out of ITS OWN roster. The two roots are fresh, so the persona
   named does not exist on B and B refuses — which is the proof that matters
   here: the argv reached B's real mission-chat handler, in B's runtime, and was
@@ -76,7 +76,7 @@ from agent_runtime.gateway_targets import (
     peer_store_root,
     resolve_install_target,
 )
-from tools.agent_chat_dispatch import SERVE_STDOUT_EVENT, parse_child_payload
+from tools.agent_chat_dispatch import SERVE_STDOUT_EVENT, parse_reply_payload
 
 spelling, turn_request_id, method = sys.argv[1], sys.argv[2], sys.argv[3]
 root = peer_store_root()
@@ -138,7 +138,7 @@ print(json.dumps({
     "hello_install": (hello.get("install") or {}).get("install_id"),
     "ack": ack,
     "exit_code": exit_code,
-    "payload": parse_child_payload("\n".join(lines)),
+    "payload": parse_reply_payload("\n".join(lines)),
     "stdout_lines": lines[-40:],
     # Every frame the turn produced, event names included. Carried so a failure
     # here can say WHY the payload is missing rather than only that it is —
@@ -195,7 +195,7 @@ def _last_json(output: str) -> dict:
     """The last JSON object in a child's combined output.
 
     Scanned from the end rather than taken as the last LINE, for the reason
-    ``parse_child_payload`` exists: a cold interpreter in this repo legitimately
+    ``parse_reply_payload`` exists: a cold interpreter in this repo legitimately
     prints other things around the payload — the SQLite WAL advisory lands on
     stderr after it — and a test that assumed the payload was last would fail on
     an unrelated warning.

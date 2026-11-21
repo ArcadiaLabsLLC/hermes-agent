@@ -256,21 +256,35 @@ inline registry/handler and stores with two sender homes and sibling targets;
 only model execution is stubbed. Live relay and thread-opening acceptance is
 tracked separately in the Launcher's console live-contract audit.
 
-**A relay sent from inside a run is detached, never waited on.** The sender's run holds
-`profile_runner._WORKDIR_LOCK` for its whole body and a tool runs on a worker thread, so an
-inline `agent_chat_send` would wait for a child turn that needs the lock the sender holds; the
-wait ended only when the sender's wall budget killed the sender (203 s of a 240 s turn,
-`agent-chat-send-db7a2d34`, 2026-10-08). `tools/agent_chat/send.py::Send.envelope` reads
+**A dispatched turn is a native turn of the serve** (owner ruling 2026-11-21, row
+`RT-AGENT-DISPATCH-RUNS-AS-A-NATIVE-TURN-IN-THE-SAME-HERMES`). `agent_chat_send(wait=false)` records
+its row and hands the turn to the dispatch supervisor (`tools/agent_chat_dispatch`), which runs it
+through the mission-chat door on a thread of the serve (`native.run_turn`), as the inline relay and
+the delivery forge do. It never spawns a second Hermes. So the helper's turn shares the serve's
+memory, its approvals land in the serve's own per-session queue on the helper's chat root (no
+relay), its model resolves as any chat's, a background job it starts stays in the serve's process
+registry after the turn ends, and Stop reaches it through `live_turns`. Crash and hang isolation is
+cooperative, as for upstream's `delegate_task` children: the turn lands itself at its own budget; the
+supervisor interrupts it on a Stop or at budget plus `KILL_GRACE_SECONDS`, and settles the request
+without it (its thread left to return on its own) when it has not ended `ABANDON_GRACE_SECONDS`
+later. A fault that takes the interpreter down takes the serve, as for any turn.
+
+**A relay sent from inside a run is detached, never waited on.** A tool runs on a worker thread,
+so an inline `agent_chat_send` from inside a run would wait for a target turn that needs a lock the
+sender holds (its chat root's lock, or on POSIX the process `HOME` between profiles with different
+`home/` directories); the wait ended only when the sender's wall budget killed the sender (203 s of a
+240 s turn, `agent-chat-send-db7a2d34`, 2026-10-08). `tools/agent_chat/send.py::Send.envelope` reads
 `agent_runs_in_flight()` — the gauge the actor prewarm already yields on — and routes the send
-onto the dispatch lane, whose child is its own process. The handle says `auto_detached: true`
-and tells the model to finish its reply; the reply arrives as its own message. The admission
-refusals (no delivery channel, no sender session) are reworded for that case as
-`inline_relay_unavailable`, because "send it with wait=true" is the deadlock. The detached
-budget rule is unchanged: the child's clock starts when it starts, and the row now records
-`started_at` so the wait behind the concurrency cap is a visible `queued_seconds`. The child is
-booted onto the HEAD home (`get_hermes_head_home()`, the launcher's `profiles/base` pin), the same
-home the inline shim enters, because that config is where the configured personas live; booted
-onto the sender's profile home it answered `unknown persona` for every target (2026-10-08).
+onto the dispatch lane, whose turn starts on its own thread after the sender's tool call returned.
+The handle says `auto_detached: true` and tells the model to finish its reply; the reply arrives as
+its own message. The admission refusals (no delivery channel, no sender session) are reworded for
+that case as `inline_relay_unavailable`, because "send it with wait=true" is the deadlock. The
+detached budget rule is unchanged: the turn's clock starts when it starts, and the row records
+`started_at` so the wait behind the concurrency cap is a visible `queued_seconds`. The turn resolves
+on the HEAD home (`get_hermes_head_home()`, the launcher's `profiles/base` pin), bound
+context-locally on its thread, the same home the inline shim enters, because that config is where
+the configured personas live; on the sender's profile home it answered `unknown persona` for every
+target (2026-10-08).
 
 **Stop reaches the work the turn started, and nothing else.** A dispatch records the sending
 turn's `client_message_id` as `parent_turn_id` (`relay_policy.RELAY_PARENT_TURN`, seeded beside
@@ -278,18 +292,19 @@ the chain). `runtime.operator.conversation.stop` on a turn that is `stop_request
 that turn's `running` dispatches through `running_work.cancel_work` and answers
 `dependent_dispatches`; a turn that finished on its own keeps its children, and a job the
 operator started has no parent and is never reached. A dispatch cancels to the typed
-`cancelled` state: not yet spawned → settled at once and the worker runs nothing; running →
-identity-guarded tree-kill, reported `stopping` until the supervisor settles it; already
-replied when the kill lands → the reply is kept.
+`cancelled` state: not yet started → settled at once and the worker runs nothing; running →
+the supervisor carries the Stop to the turn's interrupt seam (`live_turns`, re-sent each poll
+until the turn has registered), reported `stopping` until the supervisor settles it; already
+replied when the Stop lands → the reply is kept.
 
 **A cancel is a request to the supervisor** (D1.07, owner rulings 2026-10-10). A process that
 does not supervise a dispatch never kills by pid. On the same machine it writes the row's
-durable `cancel_requested` (`dispatch_store.request_dispatch_cancel`): a row whose child never
+durable `cancel_requested` (`dispatch_store.request_dispatch_cancel`): a row whose turn never
 started is settled `cancelled` at once; a running one answers `cancel_requested`, and the
 supervising serve's cancel watch (`tools/agent_chat_dispatch/cancel_watch.py`, one thread per
-process while anything is supervised, a 2 s poll) turns the mark into its own identity-guarded
-cancel. The supervisor also reads the mark before the spawn and after stamping the owner, so a
-cancel racing a spawn is caught by one side. A dispatch whose turn runs on a PAIRED install is
+process while anything is supervised, a 2 s poll) turns the mark into its own cancel. The
+supervisor also reads the mark before the turn starts and at each poll after, so a cancel racing
+the start is never dropped. A dispatch whose turn runs on a PAIRED install is
 asked of that install with `peer.agent_chat.cancel` ([03](03-transport-and-wire.md)) from
 whichever process holds the Stop, and answers its typed outcome (`stopping`,
 `already_finished`, `not_running`, `peer_unreachable`, `peer_refused`); a turn stopped there

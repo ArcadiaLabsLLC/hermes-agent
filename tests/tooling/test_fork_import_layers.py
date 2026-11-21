@@ -184,7 +184,7 @@ def test_fork_only_trees_are_discovered_not_listed():
     """Positive control both ways: a directory with no upstream file is walked; one
     sharing a directory with upstream is not, and the live tree finds the two known."""
     upstream = frozenset({"tools/registry.py", "agent/pet/generate/core.py"})
-    assert probe.fork_only_tree("tools/agent_chat_dispatch/child.py", upstream) == "tools/agent_chat_dispatch/"
+    assert probe.fork_only_tree("tools/agent_chat_dispatch/outcome.py", upstream) == "tools/agent_chat_dispatch/"
     assert probe.fork_only_tree("agent/charsheet/sub/x.py", upstream) == "agent/charsheet/"
     assert probe.fork_only_tree("tools/agent_chat_tool.py", upstream) is None
     assert probe.fork_only_tree("agent/pet/generate/fork_only.py", upstream) is None

@@ -1,4 +1,4 @@
-"""D1.09 S1 — hermes children the Launcher's sweep can name: the chokepoint and two spawn sites.
+"""D1.09 S1 — hermes children the Launcher's sweep can name: the chokepoint and its spawn site.
 
 ``agent_runtime.process_index`` is the one writer of hermes' entries in the
 Launcher's machine-wide process index. The byte format is pinned against
@@ -11,7 +11,8 @@ since the epoch off Linux (``round(psutil create_time * 100)``).
 
 Killing mutations: ``process_start_ticks`` answers seconds instead of
 centiseconds -> the unit test reds; ``record_child`` stops being called at the
-dispatch spawn -> the dispatch test reds; ``to_json_text`` drops the key order
+sign-in spawn -> the sign-in test reds (the dispatch spawn retired 2026-11-21: a
+dispatched turn runs natively in the serve); ``to_json_text`` drops the key order
 or the compact separators -> the fixture compare reds.
 
 The autouse ``_isolate_launcher_process_index`` fixture
@@ -114,42 +115,6 @@ def test_the_directory_follows_the_launchers_rule():
         Path(r"C:\Users\op\AppData\Local") / "EterniaLauncher" / "process_index")
     assert resolve({"LOCALAPPDATA": "  ", "HOME": "/home/op"}) == Path("/home/op") / ".eternia_launcher" / "process_index"
     assert resolve({}) is None
-
-
-class _FakeProc:
-    def __init__(self, pid: int, seen: list):
-        self.pid = pid
-        self.stdout = io.StringIO(json.dumps({"ok": True, "reply": "done", "session_id": "s"}))
-        self.stderr = io.StringIO("")
-        self.returncode = 0
-        self._seen = seen
-
-    def wait(self, timeout=None):
-        self._seen.append(_entry_file(self.pid).exists())
-        return self.returncode
-
-
-def test_a_dispatch_child_is_named_while_it_runs_and_forgotten_once_settled(tmp_path, monkeypatch):
-    from agent_runtime.dispatch_store import get_dispatch, mint_dispatch_id, record_dispatch
-    from tools import agent_chat_dispatch
-    import tools.agent_chat_dispatch.local_child  # the spawn patched below
-
-    home = tmp_path / "bg-home"
-    home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
-    monkeypatch.setenv("HERMES_HEAD_HOME", str(home))
-    seen: list[bool] = []
-    proc = _FakeProc(os.getpid(), seen)
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
-    dispatch_id = mint_dispatch_id()
-    record_dispatch(dispatch_id=dispatch_id, sender_session_id="persona_chat_x", target_persona="dev", ask="go")
-
-    agent_chat_dispatch._run_dispatch(dispatch_id, {"persona_id": "dev", "message": "go", "max_seconds": 1.0})
-
-    assert get_dispatch(dispatch_id)["state"] == "completed"
-    assert seen == [True], "the entry must exist while the supervisor waits on the child"
-    assert not _entry_file(os.getpid()).exists(), "a settled dispatch leaves no entry"
 
 
 def test_a_sign_in_child_is_named_while_it_runs_and_forgotten_when_it_ends():

@@ -6,16 +6,16 @@ words "Not delivered: … never ran", and its ``error_kind`` (``chat_busy``) was
 dropped before the delivery — so Eternia could tell "never ran" from a real
 failure only by matching those words.
 
-Pinned through the real chain, with only the child process and the forge's
-chat turn faked: the supervisor (``local._run_dispatch``) records the child's
-typed refusal on the row, the drain (``drain_once``) forges the delivery with
+Pinned through the real chain, with only the dispatched turn's door and the
+forge's chat turn faked: the supervisor (``local._run_dispatch``) records the
+turn's typed refusal on the row, the drain (``drain_once``) forges the delivery with
 ``state="not_delivered"``, the chat handler's marker carries it, and the
 history projection's delivery block says it. A real failure (positive control)
 still delivers ``error``.
 
 Named sabotage (each red recorded in the landing commit):
 
-* ``local._settle_local``: drop the ``error_kind=`` argument → the first test
+* ``outcome.payload_completion``: drop the ``error_kind`` field → the first test
   red (the block says ``error``).
 * ``vocabulary.delivery_outcome_state``: return the row's state unchanged →
   the first test red.
@@ -26,7 +26,6 @@ Named sabotage (each red recorded in the landing commit):
 
 from __future__ import annotations
 
-import io
 import json
 
 import pytest
@@ -42,8 +41,8 @@ from agent_runtime.operator_channels import _conversation_history_message
 from agent_runtime.persona_chat_history import PERSONA_HARNESS_DELIVERY_KIND
 from agent_runtime.relay_policy import parse_harness_delivery_marker
 from hermes_cli.harness_parts.persona import chat_history_writes
+from tests.agent_runtime.dispatch_turn_stub import StubTurn, bind_stub_turn
 from tools import agent_chat_dispatch
-import tools.agent_chat_dispatch.local_child  # the spawn the tests patch
 from tools.agent_chat_dispatch import local
 
 SENDER_ROOT = "persona_chat_personainst_neko_aaaaaaaaaaaa"
@@ -57,25 +56,12 @@ def store_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(home))
     monkeypatch.setenv("HERMES_HEAD_HOME", str(home))
     monkeypatch.setattr(local, "BUSY_TARGET_POLL_SECONDS", 0.0)
-    monkeypatch.setattr(local, "_child_identity", lambda pid: 777)
-    monkeypatch.setattr(local, "_kill_child", lambda pid, started: None)
     monkeypatch.setattr(local, "chat_root_is_busy", lambda root, probe_owner: True)
     return home
 
 
-class _Proc:
-    def __init__(self, payload: dict, returncode: int):
-        self.pid = 4242
-        self.stdout = io.StringIO(json.dumps(payload))
-        self.stderr = io.StringIO("")
-        self.returncode = returncode
-
-    def wait(self, timeout=None):
-        return self.returncode
-
-
-def _refused(error_kind: str, error: str) -> _Proc:
-    return _Proc(
+def _refused(error_kind: str, error: str) -> StubTurn:
+    return StubTurn(
         {
             "ok": False,
             "capability_id": "mission.chat.message",
@@ -84,7 +70,7 @@ def _refused(error_kind: str, error: str) -> _Proc:
             "session_id": TARGET_ROOT,
             "error": error,
         },
-        2,
+        exit_code=2,
     )
 
 
@@ -97,11 +83,11 @@ class _Forge:
         return True, {"ok": True}
 
 
-def _delivered_block(monkeypatch, child: _Proc) -> tuple[dict, dict]:
-    """Run one dispatch whose child answers *child*, deliver it, and project the
+def _delivered_block(monkeypatch, turn: StubTurn) -> tuple[dict, dict]:
+    """Run one dispatch whose native turn answers as *turn*, deliver it, and project the
     delivered row the way the history read does. Returns (row, delivery block)."""
 
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: child)
+    bind_stub_turn(monkeypatch, turn)
     dispatch_id = mint_dispatch_id()
     record_dispatch(
         dispatch_id=dispatch_id,

@@ -190,7 +190,7 @@ def _last_json(output: str) -> dict:
 
     A child's stdout legitimately carries other lines (a SQLite WAL advisory,
     a provider warning), so this is a decode-from-every-brace scan rather than
-    a line read — ``agent_chat_dispatch.parse_child_payload``'s shape, for its
+    a line read — ``agent_chat_dispatch.parse_reply_payload``'s shape, for its
     reason.
     """
 

@@ -175,8 +175,9 @@ class Send:
         # lands in the sender's own root needs the root lock the sender holds.
         # Either one waits until the sender's wall budget kills the sender
         # (measured 203 s on 2026-10-08, before S5). The detached lane runs the
-        # target in its own PROCESS, where neither lock reaches, so the send goes
-        # there and the result says so. ``agent_runs_in_flight`` is the gauge the
+        # target on its own thread AFTER the sender's tool call has returned, so
+        # either wait ends when the sender's turn does instead of holding it; the
+        # send goes there and the result says so. ``agent_runs_in_flight`` is the gauge the
         # prewarm already reads for "is a run in flight here".
         auto_detached = False
         if not detached and _inside_agent_run():
@@ -286,7 +287,7 @@ class Send:
             # lane that most needs it. `async_delivery_supported()` is False here for
             # a concrete reason — this turn's process ends when the turn does, and
             # nothing in it will be alive to notice a background result — and a
-            # dispatch accepted on such a lane would leave an orphaned child process
+            # dispatch accepted on such a lane would leave orphaned work
             # writing into a chat thread with no recorder left to settle its row.
             #
             # This is exactly the reasoning `delegate_task` follows when the same
@@ -370,8 +371,8 @@ class Send:
             except (TypeError, ValueError):
                 stated = None
             wall_budget = float(resolve_mission_chat_dispatch_max_seconds(stated))
-            # NO deadline is minted here. The child mints it when the turn actually
-            # starts (``agent_chat_dispatch.build_dispatch_argv``), because a
+            # NO deadline is minted here. The supervisor mints it when the turn actually
+            # starts (``agent_chat_dispatch.native.run_turn``), because a
             # dispatch queued behind the concurrency cap would otherwise burn its
             # wall budget sitting in a queue — the budget the sender was told about
             # and the budget the turn got would drift apart with nothing reporting it.
@@ -470,10 +471,10 @@ class Send:
         return args
 
     def dispatch(self):
-        """``wait=false``: hand the turn to a detached child and return its handle."""
-        # The child is a separate PROCESS, so it takes argv and an environment,
-        # not an args object. The spec below is that invocation's whole input;
-        # nothing about the turn is smuggled through ambient state.
+        """``wait=false``: hand the turn to the native dispatch supervisor and return its handle."""
+        # The turn runs later on another thread, so it takes a plain spec rather
+        # than this send's context: the spec below is that turn's whole input;
+        # nothing about it is smuggled through ambient state.
         return _dispatch_detached(
             spec={
                 "persona_id": self.persona_id,

@@ -6,22 +6,21 @@ Live 2026-10-25 22:29: Base called ``clarify`` on a dispatched turn and the
 text — no ``clarify_request``, no ``clarify_token``, no choices — so the
 answer could never land on the token.
 
-Drives the supervisor's real settle (``_settle_local``) over the child's
-printed payload, then the delivery formatter over the stored row.
+Drives the supervisor's real settle (``_record_local_outcome``) over the native
+turn's payload, then the delivery formatter over the stored row.
 
-Named sabotage: drop ``clarify_request=`` from ``_settle_local``'s
-``record_completion`` call → the block carries no token (red).
+Named sabotage: drop ``clarify_request`` from ``outcome.payload_completion``
+→ the block carries no token (red).
 """
 
 from __future__ import annotations
-
-import json
 
 import pytest
 
 from agent_runtime.dispatch_delivery import format_dispatch_delivery
 from agent_runtime.dispatch_store import get_dispatch, mint_dispatch_id, record_dispatch
-from tools.agent_chat_dispatch.local import _settle_local
+from tools.agent_chat_dispatch.local import _record_local_outcome
+from tools.agent_chat_dispatch.native import TurnRun
 
 TOKEN = "clarify_tok_0123456789abcdef"
 
@@ -57,7 +56,7 @@ def _settle(dispatch_id: str, clarify_request: dict | None) -> None:
         "session_id": "persona_chat_personainst_base_bbbbbbbbbbbb",
         "clarify_request": clarify_request,
     }
-    _settle_local(dispatch_id, 600.0, 0, "", "noise\n" + json.dumps(payload) + "\n", "")
+    _record_local_outcome(dispatch_id, 600.0, TurnRun(exit_code=0, payload=payload), cancel_reason=None)
 
 
 def test_the_delivery_carries_the_teammates_clarify_token_and_choices(store_home):

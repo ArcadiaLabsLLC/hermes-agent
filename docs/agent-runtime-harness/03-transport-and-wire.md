@@ -566,28 +566,20 @@ to the hostname and two roots on one machine really do collide.
 
 **The dispatch row lives on the SENDER install.** `agent_chat_send(wait=false)`
 records it exactly as it does for a local target, and the supervisor
-(`tools/agent_chat_dispatch`) substitutes a peer-tier call for the child
-PROCESS it would otherwise spawn — `peer.agent_chat.execute`, whose ack is an
+(`tools/agent_chat_dispatch`) substitutes a peer-tier call for the native
+turn it would otherwise run here — `peer.agent_chat.execute`, whose ack is an
 ACCEPT and whose turn's frames ride the per-request lane the local launcher
 already reads. B records the executed turn in its own chat store like any
 inbound agent message. There is no distributed row and no two-phase state.
 Cross-install sends are the DETACHED lane only: `wait: true` on a qualified
 target is refused `remote_requires_detached`.
 
-**A local child outlives its serve; its answer does not depend on it** (review w1118a.56 D12).
-The supervisor is a thread of the serve that spawned the child (`tools/agent_chat_dispatch/local.py`),
-so it ends with that serve while the child runs on. The child writes its reply payload to a
-per-dispatch result file (`agent_runtime/dispatch_store/result_file.py`, temp + rename) BEFORE its
-stdout, and survives a closed stdout. The row records the supervising serve (`supervisor_pid`,
-`supervisor_started_at`). At the serve's boot pass and on the drain's orphan sweep,
-`local.readopt_live_dispatches` re-adopts a running local row whose child is proved alive (pid plus
-start time) and whose supervisor is proved gone, by compare-and-set on that stamp, and supervises it
-to its end (Stop, the cancel watch and the settle reach it). A row whose child is gone is never
-re-adopted: `settle_if_orphaned` settles it from the result file (one payload mapping,
-`child.payload_completion`), or `unknown`. Windows names a Job Object per dispatch
-(`Local\hermes-dispatch-<id>`, `KILL_ON_JOB_CLOSE`): the serve and the child each hold a handle (the
-child opens its own by name), a re-adopting serve opens it by name, and the tree ends with the last
-of the two. Acceptance: `tests/agent_runtime/test_dispatch_readopt_after_serve_restart.py`.
+**A local dispatch ends with its serve.** Its turn runs natively on a thread of the serve
+(`tools/agent_chat_dispatch/native.py`, 2026-11-21), so a serve that stops mid-dispatch takes the turn
+with it, as it takes an operator's own turn. The row's owner is that serve; at the next boot and on the
+drain's orphan sweep `settle_if_orphaned` settles it `unknown`, pointing the sender at the target's
+thread. (Until 2026-11-21 a dispatch ran in a child process that could outlive its serve, with a result
+file, a re-adoption pass and a Windows Job Object per dispatch; all three retired with the child.)
 
 **Who asked comes off the CONNECTION.** B derives the calling install from
 `context.caller.peer_install_id` — set only for a connection whose peer HMAC

@@ -12,8 +12,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 
 import pytest
 from hermes_cli.harness_parts.persona import chat_turn_message
@@ -32,8 +30,9 @@ from agent_runtime.dispatch_store import (
     running_dispatches,
 )
 from agent_runtime.relay_policy import RELAY_CHAIN, RELAY_DEADLINE
+from tests.agent_runtime.dispatch_turn_stub import StubTurn, bind_stub_turn
 from tools import agent_chat_dispatch
-import tools.agent_chat_dispatch.local_child  # the spawn the tests patch
+from tools.agent_chat_dispatch import native
 from tools.agent_chat_tool import (
     AGENT_CHAT_DISPATCHES_SCHEMA,
     AGENT_CHAT_SEND_SCHEMA,
@@ -181,7 +180,7 @@ def test_a_cold_cli_lane_refuses_instead_of_orphaning_the_work(store_home, monke
     """The capability contract, enforced by the tool that makes the promise.
 
     ``async_delivery_supported()`` is False when this turn's process ends with
-    the turn. Accepting a dispatch there would leave a child process writing into
+    the turn. Accepting a dispatch there would leave orphaned work writing into
     a chat thread with no recorder left to settle its row — so the tool refuses,
     exactly as ``delegate_task`` falls back to its inline path on the same signal.
     """
@@ -290,15 +289,16 @@ def test_a_detached_dispatch_gets_the_background_budget_not_the_chain_remainder(
     assert queued[0]["spec"]["max_seconds"] >= 1800
 
 
-def test_the_deadline_is_minted_when_the_child_starts_not_when_it_is_queued(
+def test_the_deadline_is_minted_when_the_turn_starts_not_when_it_is_queued(
     store_home, deliverable_lane, queued
 ):
     """Budget erosion: a queued dispatch must not burn its window waiting.
 
     The spec carries a BUDGET, never a deadline; the absolute epoch is computed
-    inside ``build_dispatch_argv`` at spawn. Minting it at enqueue made the
-    budget the sender was told about and the budget the turn actually got drift
-    apart, silently, by however long the concurrency cap held it.
+    by the supervisor when the turn starts (``native.run_turn`` -> ``turn_args``).
+    Minting it at enqueue made the budget the sender was told about and the budget
+    the turn actually got drift apart, silently, by however long the concurrency
+    cap held it.
     """
 
     import time
@@ -307,20 +307,17 @@ def test_the_deadline_is_minted_when_the_child_starts_not_when_it_is_queued(
     spec = queued[0]["spec"]
 
     assert "relay_deadline_epoch" not in spec
-    argv = agent_chat_dispatch.build_dispatch_argv(
-        spec, deadline_epoch=time.time() + spec["max_seconds"]
-    )
-    minted = float(argv[argv.index("--relay-deadline-epoch") + 1])
-    assert minted >= time.time() + spec["max_seconds"] - 5
+    args = native.turn_args(spec, deadline_epoch=time.time() + spec["max_seconds"])
+    assert args.relay_deadline_epoch >= time.time() + spec["max_seconds"] - 5
 
 
 def test_a_detached_dispatch_still_forwards_the_chain(store_home, deliverable_lane, queued):
     """Fresh CLOCK, same CHAIN — the budget is what resets, never the reach.
 
     Depth and cycle detection read the chain, not the deadline, and they are
-    decided downstream by ``evaluate_relay`` at the handler chokepoint inside the
-    child. Dropping the chain here would turn "buy more time" into "escape the
-    cycle guard".
+    decided downstream by ``evaluate_relay`` at the handler chokepoint the native
+    turn enters. Dropping the chain here would turn "buy more time" into "escape
+    the cycle guard".
     """
 
     chain_token = RELAY_CHAIN.set(("neko_supervisor", "qa"))
@@ -330,8 +327,7 @@ def test_a_detached_dispatch_still_forwards_the_chain(store_home, deliverable_la
         RELAY_CHAIN.reset(chain_token)
 
     assert result["relay_chain"] == ["neko_supervisor", "qa"]
-    argv = agent_chat_dispatch.build_dispatch_argv(queued[0]["spec"], deadline_epoch=1.0)
-    assert argv[argv.index("--relay-chain") + 1] == "neko_supervisor,qa"
+    assert native.turn_args(queued[0]["spec"], deadline_epoch=1.0).relay_chain == ["neko_supervisor", "qa"]
 
 
 def test_an_exhausted_chain_budget_still_fast_fails_a_WAITING_send(store_home):
@@ -376,11 +372,11 @@ def test_a_refusal_is_rewritten_for_the_lane_it_will_be_read_on():
 
 
 # --------------------------------------------------------------------------
-# the child invocation
+# the native turn's arguments
 # --------------------------------------------------------------------------
 
 
-def test_the_child_argv_is_a_plain_mission_chat_turn():
+def test_the_turn_args_are_a_plain_mission_chat_turn():
     spec = {
         "persona_id": "dev",
         "message": "run the suite",
@@ -390,39 +386,41 @@ def test_the_child_argv_is_a_plain_mission_chat_turn():
         "requested_by_session": SENDER_ROOT,
         "relay_chain": ["neko_supervisor"],
     }
-    argv = agent_chat_dispatch.build_dispatch_argv(spec, deadline_epoch=1000.0)
+    args = native.turn_args(spec, deadline_epoch=1000.0)
 
-    assert argv[0] == sys.executable
-    assert argv[1:6] == ["-m", "hermes_cli.main", "harness", "mission-chat", "message"]
-    assert "--json" in argv
-    assert argv[argv.index("--persona") + 1] == "dev"
-    assert argv[argv.index("--max-seconds") + 1] == "1800.000"
-    assert argv[argv.index("--requested-by-session") + 1] == SENDER_ROOT
+    assert args.persona_id == "dev"
+    assert args.json is True and args.stream is False
+    assert args.max_seconds == 1800.0
+    assert args.relay_deadline_epoch == 1000.0
+    assert args.requested_by_session == SENDER_ROOT
+    assert args.client_message_id == "agent-dispatch-x"
+    assert args.intent_hint == "chat"
 
 
-def test_the_thread_tri_state_survives_the_process_boundary():
-    """argparse can say True and False but not UNSET, and UNSET is the default.
+def test_the_thread_tri_state_reaches_the_handler_uncoerced():
+    """UNSET is the default and must stay UNSET, never read as "continue".
 
-    Without its own spelling every dispatch would silently stop opening its own
-    task thread and pile back into one sticky per-pair thread.
+    Without it every dispatch would silently stop opening its own task thread
+    and pile back into one sticky per-pair thread.
+
+    *Killing mutation:* ``new_session=bool(spec.get("new_session"))`` in ``turn_args``.
     """
 
-    def flags(new_session):
-        return agent_chat_dispatch.build_dispatch_argv(
-            {"persona_id": "dev", "message": "x", "max_seconds": 1.0, "new_session": new_session},
+    def new_session(value):
+        return native.turn_args(
+            {"persona_id": "dev", "message": "x", "max_seconds": 1.0, "new_session": value},
             deadline_epoch=1.0,
-        )
+        ).new_session
 
-    assert "--new-session" in flags(True) and "--defer-thread-policy" not in flags(True)
-    assert "--defer-thread-policy" in flags(None) and "--new-session" not in flags(None)
-    # False is argparse's own absent-default; stating it would be a second spelling.
-    assert "--new-session" not in flags(False) and "--defer-thread-policy" not in flags(False)
+    assert new_session(True) is True
+    assert new_session(None) is None
+    assert new_session(False) is False
 
 
-def test_the_child_is_booted_onto_the_head_home_not_the_senders_profile_home(tmp_path, monkeypatch):
+def test_the_turn_resolves_on_the_head_home_not_the_senders_profile_home(tmp_path, monkeypatch):
     """The roster lives in the head home's config (the launcher pins it to ``profiles/base``);
-    a child booted onto the sender persona's profile home answers ``unknown persona`` for
-    every configured target (2026-10-08, four dispatches). The child follows the inline
+    a turn resolved on the sender persona's profile home answers ``unknown persona`` for
+    every configured target (2026-10-08, four dispatches). The dispatched turn follows the inline
     lane's head-home admission instead.
 
     *Killing mutation:* read ``get_hermes_home()`` for the ambient home again.
@@ -443,27 +441,33 @@ def test_the_child_is_booted_onto_the_head_home_not_the_senders_profile_home(tmp
 
     ambient, _background = _dispatch_homes()
 
-    assert ambient == str(head), "the child must resolve personas where the serve does"
+    assert ambient == str(head), "the turn must resolve personas where the serve does"
     assert ambient != str(sender_profile)
 
 
-def test_the_child_environment_states_both_homes_and_pins_the_tree(tmp_path):
-    env = agent_chat_dispatch.child_environment(
-        {"hermes_home": str(tmp_path / "ambient"), "head_home": str(tmp_path / "head")}
+def test_the_turn_binds_the_dispatch_homes_on_its_own_thread_only(store_home, tmp_path, monkeypatch):
+    """The homes captured in the sender's turn are bound context-locally on the turn's thread.
+
+    *Killing mutation:* ``_home_scope`` returning ``nullcontext()`` -> the turn reads the
+    ambient ``HERMES_HOME`` instead of the captured head home.
+    """
+
+    from hermes_constants import get_hermes_home
+
+    ambient, head = tmp_path / "ambient", tmp_path / "head"
+    ambient.mkdir()
+    head.mkdir()
+    stub = bind_stub_turn(monkeypatch, StubTurn({"ok": True, "reply": "ok"}))
+
+    run = native.run_turn(
+        _spec(hermes_home=str(ambient), head_home=str(head), client_message_id="agent-dispatch-h"),
+        budget=5.0, stop_requested=lambda: False,
     )
 
-    # Stated, never inherited: the ambient home at DISPATCH time, and the
-    # background-work home the parent and the projection read.
-    assert env["HERMES_HOME"] == str(tmp_path / "ambient")
-    assert env["HERMES_HEAD_HOME"] == str(tmp_path / "head")
-    # And the child runs THIS tree's code, not whatever the interpreter would
-    # otherwise import — a serve booted from a worktree spawns from it.
-    import pathlib
-
-    import hermes_cli
-
-    root = str(pathlib.Path(hermes_cli.__file__).resolve().parents[1])
-    assert env["PYTHONPATH"].split(os.pathsep)[0] == root
+    assert run.payload == {"ok": True, "reply": "ok"}
+    assert stub.observed[0]["home"] == str(ambient)
+    # Nothing leaked into this thread.
+    assert str(get_hermes_home()) == str(store_home)
 
 
 def test_the_payload_survives_noise_on_both_sides_of_it():
@@ -479,31 +483,14 @@ def test_the_payload_survives_noise_on_both_sides_of_it():
         '{\n  "ok": true,\n  "reply": "done"\n}\n'
         "some trailing chatter\n"
     )
-    assert agent_chat_dispatch.parse_child_payload(text) == {"ok": True, "reply": "done"}
-    assert agent_chat_dispatch.parse_child_payload("") is None
-    assert agent_chat_dispatch.parse_child_payload("no json at all") is None
+    assert agent_chat_dispatch.parse_reply_payload(text) == {"ok": True, "reply": "done"}
+    assert agent_chat_dispatch.parse_reply_payload("") is None
+    assert agent_chat_dispatch.parse_reply_payload("no json at all") is None
 
 
 # --------------------------------------------------------------------------
-# the supervisor: spawn → wait → record
+# the supervisor: stamp → run natively → record
 # --------------------------------------------------------------------------
-
-
-class _FakeProc:
-    def __init__(self, *, stdout="", stderr="", returncode=0, hang=False):
-        import io
-
-        self.pid = 4242
-        self.stdout = io.StringIO(stdout)
-        self.stderr = io.StringIO(stderr)
-        self.returncode = returncode
-        self._hang = hang
-
-    def wait(self, timeout=None):
-        if self._hang:
-            self._hang = False  # the post-kill wait succeeds
-            raise subprocess.TimeoutExpired(cmd="child", timeout=timeout or 0)
-        return self.returncode
 
 
 def _armed_dispatch(**overrides):
@@ -519,16 +506,19 @@ def _armed_dispatch(**overrides):
 
 
 def _spec(**overrides):
-    spec = {"persona_id": "dev", "message": "run the suite", "max_seconds": 1.0}
+    import uuid
+
+    # The request id the tool stamps on every spec (``dispatch_turn_request_id``): the key a
+    # Stop finds the native turn by.
+    spec = {"persona_id": "dev", "message": "run the suite", "max_seconds": 1.0,
+            "client_message_id": f"agent-dispatch-test-{uuid.uuid4().hex[:12]}"}
     spec.update(overrides)
     return spec
 
 
-def test_a_child_that_replies_is_recorded_as_completed(store_home, monkeypatch):
+def test_a_turn_that_replies_is_recorded_as_completed(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
-    proc = _FakeProc(stdout=json.dumps({"ok": True, "reply": "3 failures", "session_id": "s-dev"}))
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
+    stub = bind_stub_turn(monkeypatch, StubTurn({"ok": True, "reply": "3 failures", "session_id": "s-dev"}))
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -537,77 +527,94 @@ def test_a_child_that_replies_is_recorded_as_completed(store_home, monkeypatch):
     assert row["result"]["reply"] == "3 failures"
     assert row["target_session_id"] == "s-dev"
     assert row["delivery_state"] == DELIVERY_PENDING
-    # The row's owner became the CHILD, which is what keeps the orphan sweep
-    # coherent when this supervisor is not around to answer for it.
-    assert row["owner_pid"] == 4242
-    assert row["owner_started_at"] == 777
+    # The turn ran HERE, natively: this process owns the row, and no second Hermes existed.
+    assert row["owner_pid"] == os.getpid()
+    assert stub.observed[0]["thread"].startswith("agent-chat-dispatch-turn-")
 
 
-def test_a_child_that_prints_nothing_is_unknown_not_a_silent_success(store_home, monkeypatch):
+def test_a_turn_that_hands_back_nothing_is_unknown_not_a_silent_success(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
-    proc = _FakeProc(stdout="", stderr="Traceback: boom\n", returncode=1)
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
+    bind_stub_turn(monkeypatch, StubTurn(None, exit_code=1))
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
     row = get_dispatch(dispatch_id)
     assert row["state"] == "unknown"
-    # stderr rides into the record: a failure with no diagnosis is unactionable.
-    assert "boom" in row["result"]["error"]
+    assert "exit code 1" in row["result"]["error"]
 
 
-def test_a_child_that_overruns_its_budget_is_killed_and_recorded(store_home, monkeypatch):
+def test_a_turn_that_overruns_its_budget_is_interrupted_and_recorded(store_home, monkeypatch):
+    """Past its budget plus grace the supervisor reaches the turn's own interrupt seam.
+
+    *Killing mutation:* drop the ``budget_exceeded`` arm in ``native.run_turn`` -> the
+    supervisor waits for ever on a turn that does not end itself (the test times out).
+    """
+
     dispatch_id = _armed_dispatch()
-    proc = _FakeProc(hang=True)
-    killed = []
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
-    monkeypatch.setattr(
-        agent_chat_dispatch.local, "_kill_child", lambda pid, started: killed.append((pid, started))
-    )
+    stub = bind_stub_turn(monkeypatch, StubTurn(block=True))
+    monkeypatch.setattr(native, "KILL_GRACE_SECONDS", 0.05)
+    monkeypatch.setattr(native, "SUPERVISE_POLL_SECONDS", 0.02)
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec(max_seconds=0.01))
 
-    # Identity-verified kill: the recorded start time travels with the pid, so a
-    # recycled number can never turn a timeout into a killed stranger.
-    assert killed == [(4242, 777)]
+    assert stub.interrupted.is_set()
     row = get_dispatch(dispatch_id)
     assert row["state"] == STATE_ERROR
     assert "budget" in row["result"]["error"]
     assert row["delivery_state"] == DELIVERY_PENDING
 
 
-def test_a_spawn_failure_settles_the_row(store_home, monkeypatch):
+def test_a_turn_whose_door_raises_settles_the_row(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
-
-    def boom(*a, **k):
-        raise OSError("no exec for you")
-
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", boom)
+    bind_stub_turn(monkeypatch, StubTurn(raises=OSError("no door for you")))
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
     row = get_dispatch(dispatch_id)
     assert row["state"] == STATE_ERROR
-    assert "could not be started" in row["result"]["error"]
+    assert "failed before it replied" in row["result"]["error"]
+    assert "no door for you" in row["result"]["error"]
+
+
+def test_a_turn_that_ignores_its_interrupt_is_left_and_the_request_settles(store_home, monkeypatch):
+    """Crash/hang isolation, decided 2026-11-21: a wedged turn keeps its thread, never the request.
+
+    *Killing mutation:* drop the abandon arm in ``native.run_turn`` -> ``_run_dispatch`` never
+    returns while the turn ignores its interrupt.
+    """
+
+    dispatch_id = _armed_dispatch()
+    stub = bind_stub_turn(monkeypatch, StubTurn(block=True, ignore_interrupt=True))
+    monkeypatch.setattr(native, "KILL_GRACE_SECONDS", 0.05)
+    monkeypatch.setattr(native, "ABANDON_GRACE_SECONDS", 0.1)
+    monkeypatch.setattr(native, "SUPERVISE_POLL_SECONDS", 0.02)
+    try:
+        agent_chat_dispatch._run_dispatch(dispatch_id, _spec(max_seconds=0.01))
+
+        assert stub.interrupted.is_set() and not stub.finished.is_set()
+        row = get_dispatch(dispatch_id)
+        assert row["state"] == STATE_ERROR
+        assert "budget" in row["result"]["error"]
+        assert dispatch_id not in agent_chat_dispatch.supervised_dispatch_ids()
+    finally:
+        stub.release.set()
+        assert stub.finished.wait(5)
+    # The turn's late end writes nothing over the settled row.
+    assert get_dispatch(dispatch_id)["state"] == STATE_ERROR
 
 
 def test_a_typed_chokepoint_refusal_still_reaches_the_sender(store_home, monkeypatch):
     """A cycle refusal on a detached hop must not vanish.
 
-    The guard runs where it always ran (the handler, now inside the child);
+    The guard runs where it always ran (the handler the native turn enters);
     detaching only changes WHEN the sender hears about it. The refusal becomes
     the dispatch's recorded outcome, which the drain then delivers.
     """
 
     dispatch_id = _armed_dispatch()
-    proc = _FakeProc(
-        stdout=json.dumps(
-            {"ok": False, "error_kind": "relay_cycle", "error": "relay cycle detected"}
-        ),
-        returncode=2,
-    )
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
+    bind_stub_turn(monkeypatch, StubTurn(
+        {"ok": False, "error_kind": "relay_cycle", "error": "relay cycle detected"}, exit_code=2,
+    ))
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -617,40 +624,40 @@ def test_a_typed_chokepoint_refusal_still_reaches_the_sender(store_home, monkeyp
     assert row["delivery_state"] == DELIVERY_PENDING
 
 
-def test_a_real_child_process_runs_and_uses_the_homes_it_was_given(store_home, tmp_path):
-    """One end-to-end pass through the ACTUAL subprocess mechanics.
+def test_a_real_turn_runs_through_the_bound_door_in_this_process(store_home, monkeypatch):
+    """One pass through the REAL handler, in this process, with no second Hermes.
 
-    Everything above stubs ``Popen``, which proves the bookkeeping and proves
-    nothing about whether the command line is real. This spawns the genuine argv
-    against a persona that does not exist, so the child boots the real CLI,
-    reaches the real handler, and refuses in a second or two without a provider
-    call. It proves exactly what the stubs cannot: the argv is valid, the child
-    starts, BOTH pipes drain, the indented multi-line payload parses back out,
-    and the completion is recorded — with the child resolving the homes it was
-    handed rather than inheriting this process's.
+    Everything above stubs the door. This binds the CLI's real turn handler (as serve
+    boot does) and dispatches to a persona that does not exist, so the real handler
+    refuses in well under a second without a provider call. It proves what the stubs
+    cannot: the arguments are the handler's real namespace, its payload comes back
+    through the sink, and the completion is recorded — and no process was spawned.
+
+    *Killing mutation:* ``native._turn_body`` dropping ``run.payload`` -> state ``unknown``.
     """
 
-    child_head = tmp_path / "child-head"
-    child_head.mkdir()
+    import subprocess
+
+    from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
+    from agent_runtime import mission_chat_door
+
+    monkeypatch.setattr(mission_chat_door, "_turn", None)
+    bind_mission_chat_door()
+
+    def no_spawn(*a, **k):
+        raise AssertionError("a dispatched turn must not start a process")
+
+    monkeypatch.setattr(subprocess, "Popen", no_spawn)
     dispatch_id = _armed_dispatch()
 
-    agent_chat_dispatch._run_dispatch(
-        dispatch_id,
-        _spec(
-            persona_id="no_such_persona_wp_h2",
-            max_seconds=120.0,
-            hermes_home=str(tmp_path / "child-ambient"),
-            head_home=str(child_head),
-        ),
-    )
+    agent_chat_dispatch._run_dispatch(dispatch_id, _spec(persona_id="no_such_persona_wp_h2", max_seconds=120.0))
 
     row = get_dispatch(dispatch_id)
     # A refused turn is a RESULT, not a hang: terminal, deliverable, and typed.
     assert row["state"] == STATE_ERROR
     assert row["delivery_state"] == DELIVERY_PENDING
     assert "persona" in row["result"]["error"].lower()
-    # The child was a real, separate process: its own pid, not this one's.
-    assert row["owner_pid"] and row["owner_pid"] != os.getpid()
+    assert row["owner_pid"] == os.getpid()
 
 
 # --------------------------------------------------------------------------
@@ -740,25 +747,21 @@ def test_the_send_schema_teaches_when_to_detach():
 
 
 def test_a_dispatch_runs_while_another_thread_holds_the_workdir_lock(store_home):
-    """THE regression this whole execution model exists to prevent.
+    """THE regression the old child process existed to prevent, now pinned for the native turn.
 
-    ``profile_runner._WORKDIR_LOCK`` is a PROCESS-WIDE RLock held for the entire
-    duration of a persona turn. The first implementation ran detached dispatches
-    in-process, so one 30-minute dispatch froze every foreground operator turn,
-    the sender's own next turn, the delivery drain, and every other queued
-    dispatch — with the wall budget only starting INSIDE the lock, so nothing
-    could even expire the wait.
-
-    Here the lock is held by another thread for the whole test. A dispatch that
-    still needed it would block until the timeout and fail; a dispatch that runs
-    in its own process does not care at all. That difference is the fix, and
-    this is what proves it.
+    The first in-process implementation ran under ``profile_runner._WORKDIR_LOCK``, a
+    PROCESS-WIDE lock held for a whole turn, so one 30-minute dispatch froze every
+    other turn. Run-serialization S5 retired that whole-run hold; a native turn now
+    holds only its own chat root's lock. Here another thread holds the legacy lock for
+    the whole test, and the dispatch still runs to a terminal outcome.
     """
 
     import threading
 
     from agent_runtime import profile_runner
+    from hermes_cli.harness_parts.mission_chat_door_binding import bind_mission_chat_door
 
+    bind_mission_chat_door()
     dispatch_id = _armed_dispatch()
     holding = threading.Event()
     release = threading.Event()
@@ -772,8 +775,6 @@ def test_a_dispatch_runs_while_another_thread_holds_the_workdir_lock(store_home)
     holder.start()
     try:
         assert holding.wait(10), "could not take the workdir lock"
-        # The lock is held by ANOTHER thread right now (an RLock would let the
-        # same thread straight through, which is why this is not inline).
         agent_chat_dispatch._run_dispatch(
             dispatch_id,
             _spec(persona_id="no_such_persona_wp_h2", max_seconds=120.0),
@@ -782,8 +783,6 @@ def test_a_dispatch_runs_while_another_thread_holds_the_workdir_lock(store_home)
         release.set()
         holder.join(timeout=10)
 
-    # It ran, it finished, and it recorded a terminal outcome — all while the
-    # process-wide turn lock was held by someone else.
     row = get_dispatch(dispatch_id)
     assert row["state"] == STATE_ERROR
     assert row["delivery_state"] == DELIVERY_PENDING
@@ -791,90 +790,42 @@ def test_a_dispatch_runs_while_another_thread_holds_the_workdir_lock(store_home)
 
 # --------------------------------------------------------------------------
 # payload integrity: a silent wrong answer is the failure class here
+# (the peer frame reader, ``parse_reply_payload``, and the one payload mapping)
 # --------------------------------------------------------------------------
 
 
-def test_an_over_cap_chatty_child_still_yields_its_payload(store_home, monkeypatch):
-    """The bound keeps the TAIL, because the payload is printed LAST.
-
-    Head-keeping was a data-loss bug, not a tuning choice: reproduced at 583,070
-    characters in and 512,033 captured, with the payload past the cap and gone —
-    so a SUCCESSFUL thirty-minute dispatch was recorded `unknown`, and the stderr
-    excerpt was empty because all the noise was on stdout.
-    """
-
-    dispatch_id = _armed_dispatch()
-    noise = "x" * 200 + "\n"
-    payload = json.dumps(
-        {"ok": True, "capability_id": "mission.chat.message", "reply": "3 failures", "session_id": "s-dev"}
-    )
-    stdout = noise * 3000 + payload  # ~600KB, well past the 512KB cap
-    assert len(stdout) > agent_chat_dispatch._MAX_STREAM_CHARS
-    proc = _FakeProc(stdout=stdout)
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
-
-    agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
-
-    row = get_dispatch(dispatch_id)
-    assert row["state"] == "completed"
-    assert row["result"]["reply"] == "3 failures"
-
-
-def test_the_tail_buffer_drops_the_head_and_bounds_itself():
-    tail = agent_chat_dispatch._BoundedTail(100)
-    for _ in range(50):
-        tail.append("y" * 10)
-
-    text = tail.text()
-    assert len(text) <= 110  # bounded (one chunk of slack by construction)
-    assert tail.dropped_chars > 0
-    # The END survived, which is the only property that matters here.
-    tail.append("PAYLOAD")
-    assert tail.text().endswith("PAYLOAD")
-
-
-def test_trailing_json_after_the_payload_does_not_become_the_result(store_home, monkeypatch):
+def test_trailing_json_after_the_payload_does_not_become_the_result():
     """"Last object wins" was wrong in BOTH directions, and both were live.
 
     A shutdown notice printed after a successful turn turned it into an error; a
     trailing `{}` turned it into a success with an EMPTY reply, which reads to an
     agent as "they had nothing to report". The handler's own `capability_id` is
-    the discriminator, so ordering stops deciding.
+    the discriminator, so ordering stops deciding (a peer's printed frames).
     """
 
-    dispatch_id = _armed_dispatch()
-    payload = json.dumps(
-        {"ok": True, "capability_id": "mission.chat.message", "reply": "3 failures"}
-    )
-    stdout = payload + '\n{"event":"mcp_shutdown","ok":false}\n'
-    proc = _FakeProc(stdout=stdout)
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
-
-    agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
-
-    row = get_dispatch(dispatch_id)
-    assert row["state"] == "completed"
-    assert row["result"]["reply"] == "3 failures"
+    payload = {"ok": True, "capability_id": "mission.chat.message", "reply": "3 failures"}
+    text = json.dumps(payload) + '\n{"event":"mcp_shutdown","ok":false}\n'
+    assert agent_chat_dispatch.parse_reply_payload(text) == payload
 
 
 def test_a_trailing_empty_object_does_not_become_an_empty_success():
     payload = {"ok": True, "capability_id": "mission.chat.message", "reply": "done"}
-    assert agent_chat_dispatch.parse_child_payload(json.dumps(payload) + "\n{}\n") == payload
+    assert agent_chat_dispatch.parse_reply_payload(json.dumps(payload) + "\n{}\n") == payload
     assert (
-        agent_chat_dispatch.parse_child_payload(json.dumps(payload) + '\n{"ok": true}\n')
+        agent_chat_dispatch.parse_reply_payload(json.dumps(payload) + '\n{"ok": true}\n')
         == payload
     )
     # A payload with no marker at all is still better than reporting nothing.
-    assert agent_chat_dispatch.parse_child_payload('{"ok": true, "reply": "hi"}') == {
+    assert agent_chat_dispatch.parse_reply_payload('{"ok": true, "reply": "hi"}') == {
         "ok": True,
         "reply": "hi",
     }
 
 
-def test_a_prespawn_failure_still_settles_the_row(store_home, monkeypatch):
-    """"Never raises" is now structural, not a docstring promise.
+def test_a_failure_before_the_turn_still_settles_the_row(store_home, monkeypatch):
+    """"Never raises" is structural, not a docstring promise.
 
-    A raise before the spawn used to escape entirely — `executor.submit` never
+    A raise before the turn used to escape entirely — `executor.submit` never
     retrieves the Future, so nothing observed it — leaving the row `running` and
     owned by the sender's still-live serve PID, which the orphan sweep can
     therefore never settle. Running forever, silently.
@@ -883,8 +834,8 @@ def test_a_prespawn_failure_still_settles_the_row(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
     monkeypatch.setattr(
         agent_chat_dispatch.local,
-        "build_dispatch_argv",
-        lambda spec, deadline_epoch: (_ for _ in ()).throw(KeyError("persona_id")),
+        "run_turn",
+        lambda spec, **kw: (_ for _ in ()).throw(KeyError("persona_id")),
     )
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())  # must not raise
@@ -898,9 +849,9 @@ def test_a_prespawn_failure_still_settles_the_row(store_home, monkeypatch):
 def test_a_supervised_dispatch_is_not_an_orphan(store_home, monkeypatch):
     """THE race the periodic sweep introduced.
 
-    Between the child exiting and the supervisor's `record_completion` — across
-    `proc.wait()` and two pump joins — the sweep sees a dead PID on a running
-    row. If it answers there, the sender is told "the outcome is unknown" for a
+    Between the owner stamp and the supervisor's `record_completion` the sweep may
+    read a running row whose owner probe says "gone" (a recycled number, a probe
+    hiccup). If it answers there, the sender is told "the outcome is unknown" for a
     dispatch that COMPLETED, and the real answer arriving moments later is
     swallowed by the delivery-turn replay dedup: told nothing, never corrected.
     """
@@ -940,12 +891,7 @@ def test_the_supervisors_observed_outcome_beats_the_sweeps_guess(store_home, mon
     assert get_dispatch(dispatch_id)["state"] == "unknown"
 
     # The supervisor then reports what it actually observed.
-    proc = _FakeProc(
-        stdout=json.dumps(
-            {"ok": True, "capability_id": "mission.chat.message", "reply": "3 failures"}
-        )
-    )
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
+    bind_stub_turn(monkeypatch, StubTurn({"ok": True, "capability_id": "mission.chat.message", "reply": "3 failures"}))
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
     row = get_dispatch(dispatch_id)
@@ -954,33 +900,26 @@ def test_the_supervisors_observed_outcome_beats_the_sweeps_guess(store_home, mon
     assert row["delivery_state"] == DELIVERY_PENDING
 
 
-def test_a_child_that_answered_with_nothing_records_the_silence(store_home, monkeypatch):
+def test_a_turn_that_answered_with_nothing_records_the_silence(store_home, monkeypatch):
     """`ok` + an empty reply is a SILENT turn, and the row is the only witness.
 
-    This supervisor is the last process holding the child's payload. If the
-    verdict is not recorded here it is gone, and the sender reads the same
+    If the verdict is not recorded here it is gone, and the sender reads the same
     blank for "they answered with nothing" as for "their answer never made it
     back" — one of which is worth re-dispatching and the other is not.
     """
 
     dispatch_id = _armed_dispatch()
-    proc = _FakeProc(
-        stdout=json.dumps(
-            {
-                "ok": True,
-                "reply": "",
-                "session_id": "s-dev",
-                "turn_visibility": {
-                    "state": "silent",
-                    "reason": "truncated",
-                    "finish_reason": "incomplete",
-                    "reply_chars": 0,
-                },
-            }
-        )
-    )
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
+    bind_stub_turn(monkeypatch, StubTurn({
+        "ok": True,
+        "reply": "",
+        "session_id": "s-dev",
+        "turn_visibility": {
+            "state": "silent",
+            "reason": "truncated",
+            "finish_reason": "incomplete",
+            "reply_chars": 0,
+        },
+    }))
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -991,39 +930,39 @@ def test_a_child_that_answered_with_nothing_records_the_silence(store_home, monk
     assert row["result"]["visibility"]["finish_reason"] == "incomplete"
 
 
-def test_a_child_from_an_older_runtime_still_gets_a_verdict(store_home, monkeypatch):
-    """No block on the payload -> classified from the reply it did send.
-
-    A child process that predates the typed block is exactly the case a deploy
-    produces, and it must not degrade to "unknown" while the evidence is right
-    there in the reply.
-    """
+def test_a_payload_without_the_typed_block_still_gets_a_verdict(store_home, monkeypatch):
+    """No block on the payload -> classified from the reply it did send."""
 
     dispatch_id = _armed_dispatch()
-    proc = _FakeProc(stdout=json.dumps({"ok": True, "reply": "3 failures", "session_id": "s"}))
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
+    bind_stub_turn(monkeypatch, StubTurn({"ok": True, "reply": "3 failures", "session_id": "s"}))
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
     assert get_dispatch(dispatch_id)["result"]["visibility"]["state"] == "visible"
 
 
-def test_a_child_that_printed_no_payload_records_no_verdict(store_home, monkeypatch):
-    """Absent stays absent: with no payload there is nothing to have a verdict about.
-
-    Writing one here would be the manufactured-from-nothing failure this whole
-    lane exists to retire — and `unknown` on the row would read as a claim
-    rather than as the silence of a process that never spoke.
-    """
+def test_a_turn_that_handed_back_no_payload_records_no_verdict(store_home, monkeypatch):
+    """Absent stays absent: with no payload there is nothing to have a verdict about."""
 
     dispatch_id = _armed_dispatch()
-    proc = _FakeProc(stdout="", stderr="Traceback: boom\n", returncode=1)
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
+    bind_stub_turn(monkeypatch, StubTurn(None, exit_code=1))
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
     assert "visibility" not in get_dispatch(dispatch_id)["result"]
+
+
+class _Sink:
+    """A pump sink: one ``append`` per line."""
+
+    def __init__(self):
+        self.lines: list[str] = []
+
+    def append(self, text):
+        self.lines.append(text)
+
+    def text(self):
+        return "".join(self.lines)
 
 
 class _QuickJoin:
@@ -1047,10 +986,10 @@ def _piped_pumps():
     proc = type("Proc", (), {})()
     proc.stdout = os.fdopen(out_r, "r", encoding="utf-8")
     proc.stderr = os.fdopen(err_r, "r", encoding="utf-8")
-    tail = agent_chat_dispatch._BoundedTail(1000)
+    tail = _Sink()
     threads = [
         subprocess_pumps.drain(proc.stdout, tail),
-        subprocess_pumps.drain(proc.stderr, agent_chat_dispatch._BoundedTail(1000)),
+        subprocess_pumps.drain(proc.stderr, _Sink()),
     ]
     return proc, tail, threads, out_w, err_w
 
@@ -1058,8 +997,7 @@ def _piped_pumps():
 def test_a_pump_hands_the_sink_whole_lines_across_split_writes():
     """The sink contract: one append per line even when a line arrives in two
     writes, CRLF folded to LF as the text-mode stream did, and an unterminated
-    tail flushed at EOF — the tail bound keeps a single chunk whole, so a
-    payload split across appends is a payload it can drop."""
+    tail flushed at EOF."""
 
     import time
 
@@ -1079,7 +1017,7 @@ def test_a_pump_hands_the_sink_whole_lines_across_split_writes():
 def test_the_pumps_release_when_the_writers_close():
     """Positive control for the pump pair (sheet agent_chat_dispatch.md §6.3),
     the cooperative arm: every writer closes, both pumps end inside the join
-    bound, and nothing the child wrote is lost."""
+    bound, and nothing the writer wrote is lost."""
 
     import time
 
@@ -1127,36 +1065,16 @@ def test_the_pumps_are_forced_loose_when_a_survivor_holds_the_pipe():
 # relay inside a run: detach, own, cancel (runtime-queue rows of 2026-10-08)
 # --------------------------------------------------------------------------
 #
-# The sender's run holds ``profile_runner._WORKDIR_LOCK`` for its whole body and
-# the tool runs on a worker thread, so an inline relay's child turn can never
-# take that lock until the sender dies: measured 203 s on Amelia turn
-# ``agent-chat-send-db7a2d34`` (2026-10-08). These tests pin the repair at the
-# level the guarantee lives at — the lock — and the Stop contract beside it:
-# normal completion keeps a child, Stop on the parent cancels that turn's own
-# dispatches, a child that already replied keeps its reply.
+# An inline relay from inside a run waits on locks the sender holds (measured
+# 203 s on Amelia turn ``agent-chat-send-db7a2d34``, 2026-10-08), so it is
+# detached. These tests pin that repair and the Stop contract beside it: normal
+# completion keeps a dispatch, Stop on the parent cancels that turn's own
+# dispatches, a turn that already replied keeps its reply.
 
 import threading
 import time
 
 from agent_runtime.relay_policy import RELAY_PARENT_TURN
-
-
-class _BlockingProc:
-    """A child whose ``wait`` returns only when ``release`` is set — a kill, or a reply."""
-
-    def __init__(self, *, stdout=""):
-        import io
-
-        self.pid = 4242
-        self.stdout = io.StringIO(stdout)
-        self.stderr = io.StringIO("")
-        self.returncode = -9
-        self.release = threading.Event()
-
-    def wait(self, timeout=None):
-        if not self.release.wait(timeout=timeout):
-            raise subprocess.TimeoutExpired(cmd="child", timeout=timeout or 0)
-        return self.returncode
 
 
 def _never_called(*a, **k):
@@ -1264,10 +1182,10 @@ def test_an_auto_detached_send_that_cannot_deliver_names_the_turn_not_wait_true(
     assert queued == [] and running_dispatches() == []
 
 
-def test_cancel_before_spawn_settles_cancelled_and_the_worker_runs_nothing(store_home, monkeypatch):
+def test_cancel_before_start_settles_cancelled_and_the_worker_runs_nothing(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
     agent_chat_dispatch._mark_supervised(dispatch_id)
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", _never_called)
+    stub = bind_stub_turn(monkeypatch, StubTurn({"ok": True, "reply": "ran anyway"}))
 
     answer = agent_chat_dispatch.request_cancel(dispatch_id, reason="operator_stop")
 
@@ -1278,60 +1196,59 @@ def test_cancel_before_spawn_settles_cancelled_and_the_worker_runs_nothing(store
     assert row["delivery_state"] == DELIVERY_PENDING  # the sender is still told
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())  # the queued worker arrives late
+    assert stub.calls == []
     assert get_dispatch(dispatch_id)["state"] == "cancelled"
     assert dispatch_id not in agent_chat_dispatch.supervised_dispatch_ids()
 
 
-def _run_in_background(dispatch_id, proc, monkeypatch, *, on_kill):
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
-    monkeypatch.setattr(agent_chat_dispatch.local, "_kill_child", on_kill)
+def _run_in_background(dispatch_id, stub, monkeypatch):
+    bind_stub_turn(monkeypatch, stub)
+    monkeypatch.setattr(native, "SUPERVISE_POLL_SECONDS", 0.02)
     agent_chat_dispatch._mark_supervised(dispatch_id)
     worker = threading.Thread(
         target=agent_chat_dispatch._run_dispatch, args=(dispatch_id, _spec(max_seconds=30)), daemon=True
     )
     worker.start()
-    deadline = time.time() + 5
-    while time.time() < deadline and not (get_dispatch(dispatch_id) or {}).get("started_at"):
-        time.sleep(0.01)
-    assert get_dispatch(dispatch_id)["started_at"], "the owner stamp must record when the child started"
+    assert stub.started.wait(5), "the native turn did not start"
+    assert get_dispatch(dispatch_id)["started_at"], "the owner stamp must record when the turn started"
     return worker
 
 
-def test_cancel_of_a_running_child_kills_it_and_settles_cancelled(store_home, monkeypatch):
+def test_cancel_of_a_running_turn_interrupts_it_and_settles_cancelled(store_home, monkeypatch):
+    """Stop reaches the native turn through its agent's own interrupt seam (``live_turns``).
+
+    *Killing mutation:* ``native.run_turn`` never calling ``interrupt`` on a Stop -> the turn
+    runs on and the worker is still alive after the join.
+    """
+
     dispatch_id = _armed_dispatch()
-    proc = _BlockingProc()
-    killed = []
-
-    def on_kill(pid, started):
-        killed.append((pid, started))
-        proc.release.set()  # the tree-kill lands; the child dies without a payload
-
-    worker = _run_in_background(dispatch_id, proc, monkeypatch, on_kill=on_kill)
+    stub = StubTurn(block=True)
+    worker = _run_in_background(dispatch_id, stub, monkeypatch)
 
     answer = agent_chat_dispatch.request_cancel(dispatch_id, reason="operator_stop")
     assert answer["outcome"] == "stopping"  # reported until the supervisor settles it
     worker.join(5)
     assert not worker.is_alive()
 
-    assert killed == [(4242, 777)]  # identity-guarded, never a bare pid
+    assert stub.interrupted.is_set()
     row = get_dispatch(dispatch_id)
     assert row["state"] == "cancelled"
     assert "operator_stop" in row["result"]["error"]
 
 
-def test_a_cancel_between_the_owner_stamp_and_the_spawns_mark_check_kills_once(store_home, monkeypatch):
-    """FORK-FLAKE-CANCEL-KILLS-TWICE, made deterministic: the cancel lands after the spawn stamped the
-    owner and before the spawn checked the mark, so BOTH sides saw a kill to make. One claims it.
+def test_a_cancel_that_lands_before_the_turn_registered_still_stops_it(store_home, monkeypatch):
+    """The Stop is re-sent each poll until the turn has registered to take it.
 
-    Killing mutation: drop the ``_claim_kill`` test from either kill site -> ``[(4242, 777), (4242, 777)]``.
+    *Killing mutation:* send the interrupt once only -> a Stop that lands between the owner
+    stamp and the turn's ``live_turns`` registration is lost and the worker runs on.
     """
 
     from agent_runtime import dispatch_store
 
     dispatch_id = _armed_dispatch()
-    proc = _BlockingProc()
-    killed, stamped, cancelled = [], threading.Event(), threading.Event()
+    # The turn registers a while after it starts: the first interrupt finds nothing to stop.
+    stub = StubTurn(block=True, register_after=0.3)
+    stamped, cancelled = threading.Event(), threading.Event()
     real_stamp = dispatch_store.set_dispatch_owner
 
     def stamp_then_wait_for_the_cancel(*args, **kwargs):
@@ -1340,33 +1257,33 @@ def test_a_cancel_between_the_owner_stamp_and_the_spawns_mark_check_kills_once(s
         assert cancelled.wait(5)
         return result
 
-    def on_kill(pid, started):
-        killed.append((pid, started))
-        proc.release.set()
-
     monkeypatch.setattr(dispatch_store, "set_dispatch_owner", stamp_then_wait_for_the_cancel)
-    worker = _run_in_background(dispatch_id, proc, monkeypatch, on_kill=on_kill)
+    bind_stub_turn(monkeypatch, stub)
+    monkeypatch.setattr(native, "SUPERVISE_POLL_SECONDS", 0.02)
+    agent_chat_dispatch._mark_supervised(dispatch_id)
+    worker = threading.Thread(
+        target=agent_chat_dispatch._run_dispatch, args=(dispatch_id, _spec(max_seconds=30)), daemon=True
+    )
+    worker.start()
     assert stamped.wait(5)
     assert agent_chat_dispatch.request_cancel(dispatch_id, reason="operator_stop")["outcome"] == "stopping"
     cancelled.set()
     worker.join(5)
 
     assert not worker.is_alive()
-    assert killed == [(4242, 777)]
+    assert stub.interrupted.is_set()
     assert get_dispatch(dispatch_id)["state"] == "cancelled"
 
 
-def test_cancel_that_lands_after_the_child_replied_keeps_the_reply(store_home, monkeypatch):
+def test_cancel_that_lands_after_the_turn_replied_keeps_the_reply(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
-    proc = _BlockingProc(stdout=json.dumps({"ok": True, "reply": "done already", "session_id": "s-dev"}))
-    proc.returncode = 0
-
-    def on_kill(pid, started):
-        proc.release.set()
-
-    worker = _run_in_background(dispatch_id, proc, monkeypatch, on_kill=on_kill)
+    stub = StubTurn(block=True, ignore_interrupt=True,
+                    payload_on_release={"ok": True, "reply": "done already", "session_id": "s-dev"})
+    worker = _run_in_background(dispatch_id, stub, monkeypatch)
 
     assert agent_chat_dispatch.request_cancel(dispatch_id)["outcome"] == "stopping"
+    assert stub.interrupted.wait(5)
+    stub.release.set()  # the reply was already on its way out
     worker.join(5)
 
     row = get_dispatch(dispatch_id)
@@ -1388,8 +1305,8 @@ def test_cancel_of_a_finished_dispatch_reports_already_finished_and_keeps_its_re
 
 def test_cancel_of_a_queued_dispatch_another_process_supervises_is_settled_through_the_row(store_home):
     """D1.07 (owner ruling a) replaced ``not_owned_here`` here: the canceller
-    leaves the durable mark and, the child not having started, settles the row
-    as its owner would. The running-child half is ``test_dispatch_cancel_elsewhere``."""
+    leaves the durable mark and, the turn not having started, settles the row
+    as its owner would. The running half is ``test_dispatch_cancel_elsewhere``."""
 
     dispatch_id = _armed_dispatch()  # recorded, never marked supervised here
 
@@ -1432,11 +1349,9 @@ def test_stop_cancels_only_the_stopped_turns_own_dispatches(store_home, monkeypa
     assert get_dispatch(other_turn)["state"] == STATE_RUNNING
 
 
-def test_started_at_and_the_queue_wait_are_recorded_at_spawn(store_home, monkeypatch):
+def test_started_at_and_the_queue_wait_are_recorded_when_the_turn_starts(store_home, monkeypatch):
     dispatch_id = _armed_dispatch()
-    proc = _FakeProc(stdout=json.dumps({"ok": True, "reply": "ok"}))
-    monkeypatch.setattr(agent_chat_dispatch.local_child.subprocess, "Popen", lambda *a, **k: proc)
-    monkeypatch.setattr(agent_chat_dispatch.local, "_child_identity", lambda pid: 777)
+    bind_stub_turn(monkeypatch, StubTurn({"ok": True, "reply": "ok"}))
 
     agent_chat_dispatch._run_dispatch(dispatch_id, _spec())
 
@@ -1445,3 +1360,5 @@ def test_started_at_and_the_queue_wait_are_recorded_at_spawn(store_home, monkeyp
     summary = agent_chat_dispatch.summarize_for_caller(row)
     assert summary["queued_seconds"] == int(row["started_at"] - row["dispatched_at"])
     assert summary["parent_turn_id"] is None
+
+

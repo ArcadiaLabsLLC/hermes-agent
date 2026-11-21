@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from .child import KILL_GRACE_SECONDS, SERVE_STDOUT_EVENT, _detached_error_text, parse_child_payload
+from .outcome import KILL_GRACE_SECONDS, SERVE_STDOUT_EVENT, _detached_error_text, parse_reply_payload
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +38,8 @@ PEER_RETRY_BACKOFF_SECONDS = 5.0
 def build_peer_execute_params(dispatch_id: str, spec: dict[str, Any]) -> dict[str, Any]:
     """The ``peer.agent_chat.execute`` params for one cross-install dispatch.
 
-    The mirror of :func:`build_dispatch_argv`, and the differences between the
-    two are the whole of what "the far side runs it" costs:
+    The mirror of the local leg's door arguments (:func:`~.native.turn_args`), and the
+    differences between the two are the whole of what "the far side runs it" costs:
 
     * ``turn_request_id`` is derived from the DISPATCH ID rather than minted per
       attempt, and that is what makes R8's retry posture safe. A dial that dies
@@ -90,9 +90,8 @@ def _remote_reply_payload(connection: Any, request_id: str) -> dict[str, Any] | 
     dispatcher answers the method lane inline, so it cannot run a turn there),
     and the turn's real output rides the per-request frame lane under the
     returned ``request_id``. The lines are re-joined and handed to
-    :func:`parse_child_payload` — the same function the local child's stdout
-    goes through — so a remote turn's payload and a local turn's payload are
-    read by one implementation rather than two that agree today.
+    :func:`~.outcome.parse_reply_payload`, which finds the handler's payload by its marker among
+    whatever else the far turn printed.
 
     ``None`` means the connection ended before the exit frame. The caller treats
     that as TRANSPORT, not as a result, which is the whole R8 distinction.
@@ -119,7 +118,7 @@ def _remote_reply_payload(connection: Any, request_id: str) -> dict[str, Any] | 
             lines.append(str(frame.get("line") or ""))
         elif event == "exit":
             return {
-                "payload": parse_child_payload("\n".join(lines)),
+                "payload": parse_reply_payload("\n".join(lines)),
                 "code": frame.get("code"),
             }
 
@@ -207,7 +206,7 @@ def request_remote_cancel(row: dict[str, Any], *, reason: str) -> dict[str, Any]
 def _run_remote_dispatch(dispatch_id: str, spec: dict[str, Any]) -> None:
     """Perform a dispatch whose target lives on a PAIRED INSTALL (Stage 7).
 
-    The substitution is for the child PROCESS and for nothing else. The row was
+    The substitution is for the local native turn and for nothing else. The row was
     written before this ran, is written again when this finishes, and the
     delivery drain forges the answer into the sender's chat afterwards — all
     unchanged. What changes is that the turn happens on install B, under B's

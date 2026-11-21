@@ -646,10 +646,11 @@ def test_a_local_spec_never_takes_the_remote_leg(monkeypatch):
         "_run_remote_dispatch",
         lambda *args: taken.append("remote"),
     )
+    from agent_runtime import mission_chat_door
+
+    # The local leg's native turn: a door that fails, so the row settles without a provider.
     monkeypatch.setattr(
-        agent_chat_dispatch.local.subprocess,
-        "Popen",
-        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("spawned")),
+        mission_chat_door, "_turn", lambda args: (_ for _ in ()).throw(RuntimeError("ran locally")),
     )
 
     from agent_runtime import dispatch_store as store

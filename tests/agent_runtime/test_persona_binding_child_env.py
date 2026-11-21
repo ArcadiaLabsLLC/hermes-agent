@@ -175,26 +175,6 @@ def test_factory_resolves_at_call_time_not_import_time(tmp_path, factory_name):
     assert Path(second).name == "base"
 
 
-def test_agent_chat_dispatch_child_states_the_home_rather_than_inheriting(tmp_path):
-    """The one hermes-CLI child the runtime spawns names its home explicitly.
-
-    ``build_dispatch_argv`` carries no ``--profile``; the home rides the env
-    instead, and ``child_environment`` STATES it rather than letting the child
-    re-derive one. Kill-mutation: drop the explicit ``HERMES_HOME`` assignment
-    in ``child_environment`` — the child then falls back to whatever ambient
-    resolution it lands on.
-
-    Anti-vacuity: the expected value is the SENDER's resolved home, captured
-    inside a persona context, and compared against a spec value this test set to
-    a path that appears nowhere in ``os.environ``.
-    """
-    from tools.agent_chat_dispatch import child_environment
-
-    stated = str(tmp_path / "profiles" / "alice")
-    env = child_environment({"hermes_home": stated})
-    assert env["HERMES_HOME"] == stated
-
-
 # ---------------------------------------------------------------------------
 # RT-PERSONA-BINDING-ENV-REPLAN: a default-bound turn's child keeps the root
 # ---------------------------------------------------------------------------

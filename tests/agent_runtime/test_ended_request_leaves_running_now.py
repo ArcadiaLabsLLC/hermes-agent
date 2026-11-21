@@ -5,7 +5,8 @@ orphan sweep. One test per candidate cause, on Linux with the pid and start-time
 faked where a recycled number is needed:
 
 1. the supervising process still holds the id (the sweep skips it) — it lets go once its
-   child exits, even while a survivor in a session of its own holds the child's pipe;
+   native turn has ended (until 2026-11-21: once its child exited, though a survivor held
+   the child's pipe);
 2. the delivery drain was not running the sweep — its loop runs the orphan sweep on its
    first pass and the unanswered-cancel sweep on every pass;
 3. the sweep read another store than the projection — under a persona turn's flipped
@@ -26,7 +27,6 @@ Killing mutations (reds recorded in the commit body):
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import threading
@@ -45,6 +45,7 @@ from agent_runtime.dispatch_store import (
     settle_unanswered_cancels,
 )
 from agent_runtime.running_work.lanes_chat import DispatchLane
+from tests.agent_runtime.dispatch_turn_stub import StubTurn, bind_stub_turn
 from tools import agent_chat_dispatch
 from tools.agent_chat_dispatch import cancel_watch
 
@@ -86,42 +87,17 @@ def _recycled_and_unprovable(monkeypatch) -> None:
 # 1 ---------------------------------------------------------------------------
 
 
-@pytest.mark.live_system_guard_bypass  # kills the one survivor this test started
-def test_1_the_supervisor_lets_go_once_its_child_exits_though_a_survivor_holds_the_pipe(
-    store_home, tmp_path, monkeypatch
-):
-    pid_file = tmp_path / "pid"
-    script = (
-        "import subprocess, sys, json\n"
-        # A survivor in a session of its own (not the group's), holding the child's stdout.
-        "p = subprocess.Popen(['sleep', '300'], start_new_session=True)\n"
-        "open(sys.argv[1], 'w').write(str(p.pid))\n"
-        "print(json.dumps({'capability_id': 'x', 'ok': True, 'reply': 'done'}), flush=True)\n"
-    )
-    monkeypatch.setattr(
-        agent_chat_dispatch.local, "build_dispatch_argv",
-        lambda spec, deadline_epoch: [sys.executable, "-c", script, str(pid_file)],
-    )
+def test_1_the_supervisor_lets_go_once_its_native_turn_ends(store_home, monkeypatch):
+    bind_stub_turn(monkeypatch, StubTurn({"capability_id": "x", "ok": True, "reply": "done"}))
     dispatch_id = mint_dispatch_id()
     record_dispatch(dispatch_id=dispatch_id, sender_session_id=SENDER_ROOT, target_persona="dev", ask="x")
     agent_chat_dispatch._mark_supervised(dispatch_id)
-    try:
-        agent_chat_dispatch._run_dispatch(dispatch_id, {"persona_id": "dev", "message": "x", "max_seconds": 60})
 
-        # Returned while the survivor (a 300 s sleep) still holds the child's stdout, so the call did not
-        # wait for the pipe to close; a supervisor that did hangs here past the per-test timeout.
-        os.kill(int(pid_file.read_text()), 0)  # windows-footgun: ok — POSIX-only test; raises if the survivor is gone
-        assert dispatch_id not in agent_chat_dispatch.supervised_dispatch_ids()
-        assert get_dispatch(dispatch_id)["state"] == dispatch_store.STATE_COMPLETED
-        assert not _listed(dispatch_id)
-    finally:
-        try:
-            os.kill(int(pid_file.read_text()), 9)  # windows-footgun: ok — POSIX-only stop of this test's survivor
-        except (OSError, ValueError):
-            pass
+    agent_chat_dispatch._run_dispatch(dispatch_id, {"persona_id": "dev", "message": "x", "max_seconds": 60})
 
-
-# 2 ---------------------------------------------------------------------------
+    assert dispatch_id not in agent_chat_dispatch.supervised_dispatch_ids()
+    assert get_dispatch(dispatch_id)["state"] == dispatch_store.STATE_COMPLETED
+    assert not _listed(dispatch_id)
 
 
 def test_2_the_delivery_drain_runs_both_sweeps(store_home, monkeypatch):
@@ -208,7 +184,6 @@ def test_4_the_supervisors_watch_takes_the_cancel_before_acting(store_home, monk
     dispatch_id = _running(424242, 777)
     dispatch_store.request_dispatch_cancel(dispatch_id, "operator_stop")
     agent_chat_dispatch._mark_supervised(dispatch_id)
-    monkeypatch.setattr(agent_chat_dispatch.local, "_kill_child", lambda pid, started: None)
     try:
         assert cancel_watch.poll_cancel_requests() == [dispatch_id]
         assert get_dispatch(dispatch_id)["cancel_seen_at"] is not None
