@@ -243,6 +243,8 @@ def _cmd_mission_chat_message(args) -> int:
         relay_chain=turn_relay_chain,
         requested_by_session=requested_by_session,
         instance_read_epoch=instance_read_epoch,
+        relay_chain_in=relay_chain_in,
+        place=True,
     )
     # Target projection reuse ends before authoritative admission/binding.
     instance_read_epoch.close()

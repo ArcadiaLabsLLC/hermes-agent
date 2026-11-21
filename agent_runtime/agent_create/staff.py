@@ -32,6 +32,7 @@ __all__ = [
     "StaffRefused",
     "coordinator_scope",
     "idle_instances",
+    "reuse_or_place",
     "running_group_chat_seats",
     "spawn_refusal",
     "staff_agent_instances",
@@ -151,6 +152,36 @@ def idle_instances(
     ordered = used + [instance for instance in candidates if not last_used.get(instance.id)]
     # MUTATION: drop the busy test and test_a_busy_instance_is_never_reused reddens.
     return [instance for instance in ordered if not _instance_busy(store, instance, seats)]
+
+
+def reuse_or_place(
+    persona_id: str, *, place: bool = True, seated: Callable[[str], frozenset[str] | None] | None = None
+) -> tuple[str | None, dict[str, Any] | None]:
+    """The operator's own open of an agent with no instance in reach: ``(instance id, None)`` or ``(None, refusal)``.
+
+    Row ``RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED`` (plan
+    ``agent-template-vs-canonical-instance-2026-11-21`` §4): the ONE "reuse idle, else place" rule
+    Eternia's New chat asks for, in the local Default workspace only — :func:`idle_instances`, then
+    :func:`perform_agent_place` (the in-process body of ``runtime.agent.place``), never the hidden copy
+    ``personainst_<persona>``. ``place=False`` is the read-only probe: an idle instance or ``(None, None)``
+    ("the turn places one"). Only an operator door calls this; an agent's send never places.
+    """
+
+    from ..default_scope import DEFAULT_WORKSPACE_ID
+
+    idle = idle_instances(persona_id, DEFAULT_WORKSPACE_ID, seated=seated)
+    # MUTATION: drop the reuse and test_an_operator_send_from_another_workspace_reuses_the_idle_default_instance reddens.
+    if idle:
+        return idle[0].id, None
+    if not place:  # MUTATION: drop it and test_the_read_only_admission_places_nothing reddens.
+        return None, None
+    outcome = _place(persona_id, DEFAULT_WORKSPACE_ID, requested_by="operator")
+    if outcome.refusal is not None:
+        return None, {
+            "reason": (outcome.refusal.data or {}).get("reason") or "place_refused",
+            "message": str(outcome.refusal.message),
+        }
+    return outcome.result["persona_instance_id"], None
 
 
 def _resolve_agent(agent: str) -> Any:
