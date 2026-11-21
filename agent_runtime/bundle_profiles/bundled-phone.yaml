@@ -249,9 +249,15 @@ packaging:
     - video_gen
   switched_off_modules:
     # The desktop serve's daemon shell: pid registry (psutil), sidecars, git stamp, socket lane.
+    # The socket lane's LISTENER families only: a phone runs no listener (D3), while its
+    # admit, handshake, connection and client families serve the lane it dials out to a
+    # computer it granted (agent_runtime.reverse_lane, review w1118a.79).
     - hermes_cli.harness_parts.serve.daemon_shell
     - agent_runtime.serve_registry
-    - agent_runtime.serve_socket
+    - agent_runtime.serve_socket.server
+    - agent_runtime.serve_socket.owner_lock
+    - agent_runtime.serve_socket.target
+    - agent_runtime.serve_socket.cli_route
     - agent_runtime.parent_watch
     # Launcher supervision (beats, the relaunch, the game watch): the phone has no desktop launcher
     # to watch, and its watchdog imports parent_watch at module level (FH-PHONE-GATE-SPAWN-PROBE-CRASH).

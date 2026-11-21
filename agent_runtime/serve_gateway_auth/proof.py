@@ -64,3 +64,30 @@ def proof_from_verifier(verifier: str, nonce: str, *, port: int, device_id: str)
     return hmac.new(
         str(verifier).encode("ascii"), message.encode("utf-8"), hashlib.sha256
     ).hexdigest()
+
+
+# ── the reverse lane's proof (review w1118a.79) ──────────────────────────────
+
+
+def reverse_lane_proof(token: str, nonce: str, *, lane_id: str, device_id: str) -> str:
+    """A granted computer's answer to a phone's challenge over a lane the phone dialled.
+
+    ``HMAC-SHA256(key=sha256(token), msg="gwvr<contract>|<lane id>|<device_id>|<nonce>")``:
+    the device proof's shape (:func:`device_proof`) with the LANE ID in place of the
+    port. Through the computer's splice the computer's Eternia dials a loopback port the
+    phone never sees, so the port binds nothing here; the lane id is the value each end
+    knows from its own side — the phone minted it, the computer's Eternia read it from
+    its own Hermes when it attached. A proof answered for one lane does not verify on
+    another, and the ``gwvr`` prefix keeps it from ever verifying as a device proof.
+    """
+
+    return reverse_proof_from_verifier(device_verifier(token), nonce, lane_id=lane_id, device_id=device_id)
+
+
+def reverse_proof_from_verifier(verifier: str, nonce: str, *, lane_id: str, device_id: str) -> str:
+    """The phone's half: it holds the grant's verifier, never the token."""
+
+    message = f"gwvr{GATEWAY_PROOF_CONTRACT}|{lane_id!s}|{device_id!s}|{nonce}"
+    return hmac.new(
+        str(verifier).encode("ascii"), message.encode("utf-8"), hashlib.sha256
+    ).hexdigest()

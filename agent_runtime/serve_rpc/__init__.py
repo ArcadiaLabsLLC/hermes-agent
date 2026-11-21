@@ -49,6 +49,8 @@ gateway_peers            lanes   ``runtime.gateway.peers.*``
 gateway_actions          lanes   ``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` /
                                  ``.peers.revoke`` / ``.devices.list`` (the ``harness gateway``
                                  verbs, run in process)
+reverse_lane             lanes   ``runtime.gateway.reverse.dial`` / ``.hangup`` / ``.lanes`` (a
+                                 phone's outbound lane to a computer it granted)
 provider                 lanes   ``runtime.provider.*`` (catalog, sign-in, usage)
 default_model            lanes   ``runtime.default_model.set`` (the serve profile's
                                  ``model.default`` / ``model.provider``)
@@ -133,6 +135,7 @@ from agent_runtime.serve_rpc import (
     peer,
     gateway_peers,
     gateway_actions,
+    reverse_lane,
     provider,
     default_model,
     speech,

@@ -555,7 +555,7 @@ class SubscriptionLanes:
         added once.
         """
 
-        for server in (self.socket_server, self.gateway_server):
+        for server in (self.socket_server, self.gateway_server, getattr(self, "reverse_lanes", None)):
             if server is None:
                 continue
             try:
@@ -593,11 +593,21 @@ class SubscriptionLanes:
             # door — so a teardown that closed one and not the other would
             # leave a runtime that has drained still accepting devices.
             gateway, self.gateway_server = self.gateway_server, None
+            # The reverse lanes too: a drained runtime must not keep serving a computer
+            # over a lane it dialled, or keep a phone's lane parked.
+            reverse, self.reverse_lanes = getattr(self, "reverse_lanes", None), None
             lock, self.socket_lock = self.socket_lock, None
             self.stream_fold_entities.clear()
         if gateway is not None:
             try:
                 gateway.close(reason=reason)
+            except Exception:
+                pass
+        if reverse is not None:
+            from hermes_cli.harness_parts.serve.reverse_lanes import close_reverse_lanes
+
+            try:
+                close_reverse_lanes(reverse, reason)
             except Exception:
                 pass
         if hub is not None:
