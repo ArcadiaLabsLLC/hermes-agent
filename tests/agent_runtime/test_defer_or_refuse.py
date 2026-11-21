@@ -1,8 +1,9 @@
 """``serve_rpc.protocol.defer_or_refuse`` — the one door for "run the reply on the worker lane, else refuse".
 
-The three families that refuse rather than answer inline (``runtime.chat.goal.*``, ``runtime.work.*``,
-``runtime.conversation.*``) go through it, and their refusal frame is pinned to the BYTES it had when each
-family hand-wrote it (RT-RPC-DEFER-OR-STOPPING-HANDWRITTEN).
+The families that refuse rather than answer inline (``runtime.chat.goal.*``, ``runtime.work.*``,
+``runtime.schedule.*``) go through it, and their refusal frame is pinned to the BYTES it had when each
+family hand-wrote it (RT-RPC-DEFER-OR-STOPPING-HANDWRITTEN; ``runtime.conversation.*``, the third, is retired
+with its turn path, RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT).
 """
 
 from __future__ import annotations
@@ -16,13 +17,11 @@ from agent_runtime.serve_rpc import handle_request
 from agent_runtime.serve_rpc.protocol import DEFERRED, RpcContext
 
 _UNAVAILABLE = '{"code": 4090, "message": "The runtime is unavailable.", "data": {"reason": "runtime_stopping"}}'
-_CANNOT_ACCEPT = ('{"code": 4090, "message": "The runtime cannot accept this request.", '
-                  '"data": {"reason": "runtime_stopping"}}')
 
 FAMILIES = [
     ("runtime.chat.goal.status", {"session_id": "s1"}, _UNAVAILABLE),
     ("runtime.work.list", {}, _UNAVAILABLE),
-    ("runtime.conversation.read", {}, _CANNOT_ACCEPT),
+    ("runtime.schedule.list", {}, _UNAVAILABLE),
 ]
 
 

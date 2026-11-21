@@ -57,11 +57,3 @@ def claim_table_member(conn: sqlite3.Connection, run_id: str, ref: ParticipantRe
         conn.execute("INSERT INTO mc_discussion_instance_claims VALUES(?,?,?)", (ref.install_id, ref.instance_id, run_id))
     except sqlite3.IntegrityError as exc:
         raise DiscussionError("instance_busy", instance_id=ref.instance_id) from exc
-
-
-def add_profile_member(conn: sqlite3.Connection, run_id: str, item: Mapping[str, Any], *, ordinal: int) -> None:
-    mid = item["member_id"]
-    conn.execute("INSERT INTO mc_discussion_members VALUES(?,?,?,?,NULL,NULL,?,?,?,?,?,'joining',?)",
-                 (run_id, mid, ordinal, item["install_id"], item["profile"], item["display_name"],
-                  "agent-" + mid[2:14], item["session_id"], ordinal,
-                  json.dumps(item["binding"], sort_keys=True)))

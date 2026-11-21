@@ -10,8 +10,7 @@ from agent_runtime.discussions.compare_archive import CHUNK_BYTES, read_archive
 from agent_runtime.discussions.rpc import execute
 from agent_runtime.discussions.run_values import DiscussionError
 from agent_runtime.persona_assignments import PersonaInstanceStore
-from tests.agent_runtime.test_discussion_group_migration import adoption, prepare, OWNER, WORKSPACE
-from tests.agent_runtime.test_discussion_profile_groups import sends
+from tests.agent_runtime.test_discussion_group_migration import adoption, saved_group, OWNER, WORKSPACE
 from tests.agent_runtime.test_discussion_runtime import wait_until
 
 __all__ = ["adoption"]
@@ -49,7 +48,7 @@ def upload(a, source, raw):
 
 def test_archive_survives_partial_completion_and_native_compare_uses_exact_imported_context(adoption, monkeypatch):
     a = adoption
-    prepare(a)
+    saved_group(a)
     source, raw = source_archive(a, padding=CHUNK_BYTES * 8)
     defaults = {p: PersonaInstanceStore().get(i.id).default_chat_session_id for p, i in a.agents.items()}
     run = upload(a, source, raw)
@@ -80,11 +79,11 @@ def test_archive_survives_partial_completion_and_native_compare_uses_exact_impor
     rpc(a, "send", run_id=run["run_id"], expect_revision=completed["revision"], idempotency_key="next",
         message="Continue Compare", response={"mode": "compare", "members": []})
     wait_until(lambda: len(a.native_calls) == 2)
-    assert len(sends(a.factory)) == 2
 
 
 def test_incomplete_or_retargeted_archive_never_admits_execution_and_wrong_account_cannot_read(adoption):
     a = adoption
+    saved_group(a, history=False)
     source, raw = source_archive(a, empty=True)
     run = rpc(a, "prepare_compare", source=source)["run"]
     with pytest.raises(DiscussionError, match="archive incomplete"):
@@ -99,14 +98,14 @@ def test_incomplete_or_retargeted_archive_never_admits_execution_and_wrong_accou
     completed = rpc(a, "finish_compare", run_id=run["run_id"])["run"]
     assert completed["phase"] == "paused"
     assert len(a.service.runs.members(run["run_id"])) == 1
-    assert not a.native_calls and not sends(a.factory)
+    assert not a.native_calls
     with pytest.raises(DiscussionError, match="archive sealed"):
         rpc(a, "append_compare", run_id=run["run_id"], index=0, data=base64.b64encode(raw).decode())
 
 
 def test_digest_failure_keeps_original_routes_executable_and_native_sessions_unminted(adoption):
     a = adoption
-    prepare(a)
+    saved_group(a)
     source, raw = source_archive(a)
     source["sha256"] = "0" * 64
     run = upload(a, source, raw)
@@ -124,6 +123,7 @@ def test_prepare_recovers_room_creation_and_cannot_fork_same_source_into_another
     from tests.agent_runtime.office_seed import seed_workspace_record
 
     a = adoption
+    saved_group(a, history=False)
     source, raw = source_archive(a, empty=True)
     with monkeypatch.context() as patch:
         patch.setattr(compare_import, "_ensure_history_room", lambda *args: (_ for _ in ()).throw(OSError("after admission")))
@@ -137,4 +137,4 @@ def test_prepare_recovers_room_creation_and_cannot_fork_same_source_into_another
         execute(a.service, "run.prepare_compare", {"workspace_id": "ws_other_compare", "client_scope": OWNER,
             "source": source}, actor_id="operator", conversation_actor_id="operator")
     assert rpc(a, "finish_compare", run_id=recovered["run_id"])["run"]["phase"] == "paused"
-    assert not a.native_calls and not sends(a.factory)
+    assert not a.native_calls

@@ -48,7 +48,6 @@ class LivenessPump:
         # only "is it working?" test the frame offered — was true on a service
         # doing nothing at all. ``work`` is the number that goes back to zero,
         # and it is what the liveness pump keys on.
-        native = native_pending_count(self.conversation_owner)
         discussions = native_pending_count(self.discussion_owner)
         return {
             "event": "busy",
@@ -56,8 +55,7 @@ class LivenessPump:
             "long_runs": long_runs,
             "pending": pending,
             "subscriptions": subscriptions,
-            "work": pending - subscriptions + native + discussions,
-            "native_conversations": native,
+            "work": pending - subscriptions + discussions,
             "discussions": discussions,
         }
 

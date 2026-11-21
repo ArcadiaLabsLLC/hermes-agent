@@ -28,7 +28,6 @@
     "tests/agent_runtime/test_local_llama_adapter_gateway.py": 1,
     "tests/agent_runtime/test_mission_chat_turn_context.py": 2,
     "tests/agent_runtime/test_native_conversation_in_process.py": 2,
-    "tests/agent_runtime/test_native_conversation_roundtrip.py": 4,
     "tests/agent_runtime/test_persona_prewarm.py": 1,
     "tests/agent_runtime/test_pool_starve_downstream.py": 2,
     "tests/agent_runtime/test_process_index_native_peer.py": 1,

@@ -1,4 +1,5 @@
-"""Real route receipts, canonical SessionDB imports and authenticated dispatch."""
+"""A retired profile conversation's route is adopted into an agent's chat: real route receipts and
+canonical SessionDB imports, with no worker and no turn (``conversations.legacy_routes``)."""
 from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -11,18 +12,17 @@ import pytest
 from agent_runtime import paths, serve_rpc
 from agent_runtime.call_authorization import LOCAL_CONSOLE
 from agent_runtime.conversation_owner import session_client_scope
-from agent_runtime.conversations import binding, migration
-from agent_runtime.conversations.model import MIGRATE_METHOD, MIGRATE_PARAMS, ConversationError, Refusal, TurnState, caller_scope
-from agent_runtime.conversations.service import ConversationService
-from agent_runtime.execution_identity import execution_identity
+from agent_runtime.conversations import migration
+from agent_runtime.conversations.legacy_routes import LegacyRoutes
+from agent_runtime.conversations.model import ConversationError, Refusal, TurnState, caller_scope
 from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_chat_durability import default_persona_session_db
 from agent_runtime.persona_chat_mints import PersonaChatMintTransaction
 from hermes_state import SessionDB
-from tests.agent_runtime.conversation_support import WorkerFactory
+from tests.agent_runtime.legacy_conversation_seed import seed_route, seed_turn, set_worker
 from tests.agent_runtime.test_instance_conversation_owner import OWNER, OTHER, chat_head
-from tests.agent_runtime.test_serve_rpc_open_chat import PERSONA, WORKSPACE, _device, qa_persona, placed_agent
+from tests.agent_runtime.test_serve_rpc_open_chat import PERSONA, WORKSPACE, qa_persona, placed_agent
 
 
 @pytest.fixture
@@ -30,16 +30,12 @@ def legacy(placed_agent, tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_PROFILE", "default")
     home = tmp_path / "old-profile"
     home.mkdir()
-    factory = WorkerFactory()
     install = ensure_install_identity(paths.store_root()).install_id
-    service = ConversationService(tmp_path / "receipts", install, profile_home=lambda _: home,
-                                  worker_factory=factory)
+    (tmp_path / "receipts").mkdir()
+    service = LegacyRoutes(tmp_path / "receipts", install, profile_home=lambda _: home)
     scope = caller_scope(LOCAL_CONSOLE, OWNER, "default")
-    route, _ = service.store.reserve(scope, "old-thread", str(tmp_path), str(home))
-    route = service.store.replace_unused(route, "legacy-root")
-    service.store.admit(route, "old-turn", {"text": "Read only"})
-    service.store.settle(route.id, "old-turn", TurnState.COMPLETED)
-    service.store.worker(route, 2147480000, 1.0)
+    route = seed_route(service.store, scope, "old-thread", str(tmp_path), home, native_id="legacy-root",
+                       turns=[("old-turn", TurnState.COMPLETED)], worker=(2147480000, 1.0))
     params = {"install_id": install, "client_scope": OWNER, "profile": "default", "session_id": route.id,
               "persona_id": PERSONA, "persona_instance_id": placed_agent["persona_instance_id"]}
     with closing(SessionDB(db_path=home / "state.db")) as db:
@@ -54,13 +50,11 @@ def legacy(placed_agent, tmp_path, monkeypatch):
                  {"role": "assistant", "content": "Current answer", "timestamp": 3}]},
         ])
         assert result["ok"] and result["imported"] == 2
-    monkeypatch.setattr(binding, "_owner", service)
-    yield service, scope, params, factory, home
-    service.close()
+    yield service, scope, params, home
 
 
 def migrate(legacy, **changes):
-    service, scope, params, _, _ = legacy
+    service, scope, params, _ = legacy
     return service.migrate(scope, params["session_id"], {**params, **changes})
 
 
@@ -74,7 +68,7 @@ def test_imported_choice_is_used_by_native_inspection_and_next_turn_without_chan
     from agent_runtime.persona_chat_session import _chat_model_override_from_config, _session_model_config
     from tests.agent_runtime.test_operator_session_models import next_turn
 
-    _, _, params, factory, home = legacy
+    _, _, params, home = legacy
     before = PersonaInstanceStore().get(params["persona_instance_id"])
     with closing(SessionDB(db_path=home / "state.db")) as db:
         db.update_session_meta("legacy-root", json.dumps({"provider": "anthropic"}), "earlier-model")
@@ -95,13 +89,12 @@ def test_imported_choice_is_used_by_native_inspection_and_next_turn_without_chan
         assert override["provider"] == "openai-codex" and override["model"] == "gpt-6-luna"
         assert override["source"] == "profile_migration"
     assert PersonaInstanceStore().get(params["persona_instance_id"]) == before
-    assert factory.workers == []
     with closing(SessionDB(db_path=home / "state.db", read_only=True)) as db:
         assert db.export_session_lineage("legacy-root", include_inactive=True) == donor
 
 
 def test_directory_resolves_adopted_source_before_paging_and_with_account_isolation(legacy):
-    _, _, params, _, _ = legacy
+    _, _, params, _ = legacy
     result = migrate(legacy)
     newer = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "newer",
         "method": "runtime.agent.conversation.create", "params": {
@@ -126,7 +119,7 @@ def test_directory_resolves_adopted_source_before_paging_and_with_account_isolat
 
 
 def test_import_is_atomic_retry_stable_owned_and_keeps_compression_history(legacy):
-    service, scope, params, factory, home = legacy
+    service, scope, params, home = legacy
     before = selected(params["persona_instance_id"])
     with closing(SessionDB(db_path=home / "state.db", read_only=True)) as db:
         donor = db.export_session_lineage("legacy-root", include_inactive=True)
@@ -135,7 +128,6 @@ def test_import_is_atomic_retry_stable_owned_and_keeps_compression_history(legac
     assert first["session_id"] == replay["session_id"] and replay["idempotent_replay"]
     assert first["legacy_session_id"] == params["session_id"] and first["workspace_id"] == WORKSPACE
     assert selected(params["persona_instance_id"]) == before
-    assert factory.workers == []  # Import never attaches a profile worker.
     with closing(default_persona_session_db()) as db:
         root = first["session_id"]
         exported = db.export_session_lineage(root, include_inactive=True)
@@ -152,15 +144,11 @@ def test_import_is_atomic_retry_stable_owned_and_keeps_compression_history(legac
     with closing(SessionDB(db_path=home / "state.db", read_only=True)) as db:
         assert db.export_session_lineage("legacy-root", include_inactive=True) == donor
     route = service.store.get(params["session_id"], scope)
-    with pytest.raises(ConversationError, match=Refusal.MIGRATED):
-        service.store.admit(route, "new-turn", {"text": "must not dispatch"})
-    with pytest.raises(ConversationError, match=Refusal.MIGRATED):
-        service.open(scope, key="old-thread", cwd=route.cwd, expected_home=route.home, resume=route.id)
-    assert factory.workers == []
+    assert service.store.migration_target(route) == (PERSONA, params["persona_instance_id"])
 
 
 def test_import_continues_through_existing_operator_lane_without_selecting_default(legacy):
-    _, _, params, _, _ = legacy
+    _, _, params, _ = legacy
     result = migrate(legacy)
     target = {key: result[key] for key in (
         "install_id", "client_scope", "persona_id", "persona_instance_id", "workspace_id", "session_id")}
@@ -177,7 +165,7 @@ def test_import_continues_through_existing_operator_lane_without_selecting_defau
 
 
 def test_missing_owner_wrong_profile_and_foreign_route_cannot_fence_or_import(legacy):
-    service, scope, params, factory, _ = legacy
+    service, scope, params, _ = legacy
     with pytest.raises(ConversationError):
         service.migrate(replace(scope, client=OTHER), params["session_id"], params)
     with pytest.raises(ConversationError):
@@ -185,27 +173,25 @@ def test_missing_owner_wrong_profile_and_foreign_route_cannot_fence_or_import(le
     with pytest.raises(ConversationError):
         migrate(legacy, persona_id="other-agent")
     route = service.store.get(params["session_id"], scope)
-    service.store.require_executable(route)
-    assert factory.workers == []
+    assert service.store.migration_target(route) is None
     assert migrate(legacy)["client_scope"] == OWNER
 
 
 def test_uncertain_dead_execution_is_preserved_without_replay_but_live_owner_refuses(legacy):
-    service, scope, params, factory, _ = legacy
+    service, scope, params, _ = legacy
     route = service.store.get(params["session_id"], scope)
-    service.store.admit(route, "uncertain-turn", {"text": "Unconfirmed execution"})
+    seed_turn(service.store, route, "uncertain-turn", TurnState.RUNNING)
     service.store.recover()
-    service.store.worker(route, os.getpid(), psutil.Process().create_time())
+    set_worker(service.store, route, os.getpid(), psutil.Process().create_time())
     with pytest.raises(ConversationError, match=Refusal.BUSY):
         migrate(legacy)
-    service.store.require_executable(route)
-    service.store.worker(route, 2147480000, 1.0)
-    assert len(service.store.unsettled()) == len(service.store.unsettled_workers()) == 1
+    assert service.store.migration_target(route) is None
+    set_worker(service.store, route, 2147480000, 1.0)
+    assert len(service.store.unsettled()) == 1
     result = migrate(legacy)
     assert result["turns"][-1]["state"] == "unknown"
-    assert service.store.unsettled() == service.store.unsettled_workers() == []
-    assert service.store.turn(route, "uncertain-turn").state == TurnState.UNKNOWN
-    assert factory.workers == []
+    assert service.store.unsettled() == []
+    assert service.store.turn_receipts(route)[-1]["state"] == TurnState.UNKNOWN
     with closing(default_persona_session_db()) as db:
         config = json.loads(db.get_session(result["session_id"])["model_config"])
         assert config["legacy_conversation"]["turns"][-1]["turn_id"] == "uncertain-turn"
@@ -231,61 +217,18 @@ def test_lost_commit_ack_recovers_same_root_and_does_not_resurrect_deleted_histo
         assert db.get_session(recovered["session_id"]) is None
 
 
-def test_dispatch_manifest_and_console_authorization(legacy):
-    _, _, params, _, _ = legacy
-    assert set(serve_rpc.manifest()["params"][MIGRATE_METHOD]) == set(MIGRATE_PARAMS)
-    frame = {"jsonrpc": "2.0", "id": "migration", "method": MIGRATE_METHOD, "params": params,
-             "execution_id": execution_identity()["execution_id"]}
-    assert "error" in serve_rpc.handle_request(frame, serve_rpc.RpcContext(caller=_device("read")))
-    replies = []
-    def spawn_reply(build):
-        replies.append(build())
-        return True
-    accepted = serve_rpc.handle_request(frame, serve_rpc.RpcContext(caller=LOCAL_CONSOLE, spawn_reply=spawn_reply))
-    assert serve_rpc.is_deferred(accepted)
-    accepted = replies[0]
-    assert "result" in accepted, accepted
-    assert accepted["result"]["legacy_session_id"] == params["session_id"]
-
-
-def test_active_binding_refuses_then_quiescent_binding_migrates_without_new_worker(legacy):
-    service, scope, params, factory, home = legacy
-    route = service.store.get(params["session_id"], scope)
-    service.open(scope, key="old-thread", cwd=route.cwd, expected_home=str(home), resume=route.id)
-    worker = factory.workers[0]
-    service.send(scope, route.id, "active-turn", {"text": "Working", "images": []})
-    with pytest.raises(ConversationError, match=Refusal.BUSY):
-        migrate(legacy)
-    service.store.require_executable(route)
-    worker.event("legacy-root", "message.complete", text="done", status="complete")
-    assert service.read(scope, route.id, 0)["turn"]["state"] == "completed"
-    result = migrate(legacy)
-    assert "legacy-root" in worker.retired
-    assert len(factory.workers) == 1 and result["legacy_session_id"] == route.id
-    with pytest.raises(ConversationError, match=Refusal.MIGRATED):
-        service.send(scope, route.id, "blocked-turn", {"text": "Must not send", "images": []})
-    assert len([c for c in worker.calls if c[0] == "prompt.submit"]) == 1
-
-
 def test_parallel_migration_and_restart_use_one_root(legacy):
-    service, scope, params, _, home = legacy
+    service, scope, params, home = legacy
     with ThreadPoolExecutor(max_workers=2) as pool:
         replies = list(pool.map(lambda _: migrate(legacy), range(2)))
     assert replies[0]["session_id"] == replies[1]["session_id"]
-    service.close()
-    other_factory = WorkerFactory()
-    restarted = ConversationService(service.root, service.install_id, profile_home=lambda _: home,
-                                    worker_factory=other_factory)
-    try:
-        result = restarted.migrate(scope, params["session_id"], params)
-        assert result["session_id"] == replies[0]["session_id"]
-        assert other_factory.workers == []
-    finally:
-        restarted.close()
+    restarted = LegacyRoutes(service.root, service.install_id, profile_home=lambda _: home)
+    result = restarted.migrate(scope, params["session_id"], params)
+    assert result["session_id"] == replies[0]["session_id"]
 
 
 def test_failed_import_keeps_durable_fence_and_requires_original_instance(legacy, monkeypatch):
-    service, scope, params, _, _ = legacy
+    service, scope, params, _ = legacy
     original = migration._source_segments
     def unavailable(*_):
         raise OSError("Source temporarily unreadable")
@@ -293,8 +236,7 @@ def test_failed_import_keeps_durable_fence_and_requires_original_instance(legacy
     with pytest.raises(OSError):
         migrate(legacy)
     route = service.store.get(params["session_id"], scope)
-    with pytest.raises(ConversationError, match=Refusal.MIGRATED):
-        service.store.admit(route, "new-turn", {"text": "No replay"})
+    assert service.store.migration_target(route) == (PERSONA, params["persona_instance_id"])
     with pytest.raises(ConversationError, match=Refusal.CONFLICT):
         service.store.reserve_migration(route, PERSONA, "another-instance")
     monkeypatch.setattr(migration, "_source_segments", original)
@@ -306,7 +248,7 @@ def test_session_permissions_keep_expiry_and_remaining_turns_without_overwriting
     from agent_runtime.tool_permissions import ChatToolPermissionStore, permission_state_for_subject
     from agent_runtime.permission_modes import profile_permission_subject
 
-    _, _, params, _, _ = legacy
+    _, _, params, _ = legacy
     permissions = ChatToolPermissionStore()
     permissions.set(persona_id=profile_permission_subject("default"), session_id=params["session_id"],
                     mode="read_only", reason="Existing restriction", expires_at=expires, turns_remaining=1)

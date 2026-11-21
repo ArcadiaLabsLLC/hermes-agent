@@ -61,7 +61,7 @@ class NativeTurns:
     def recover(self, row: Mapping[str, Any], *, fresh: bool = False, wait: bool = True,
                 record: bool = True) -> dict[str, Any]:
         """``fresh``: ``row`` was read from the store just now, so it is not read again. ``wait`` is
-        ProfileTurns' (a read that never queues behind a dispatch); native recovery takes no lock to wait on.
+        the adapter contract's (a read that never queues behind a dispatch); native recovery takes no lock to wait on.
 
         ``record=False`` is a VIEW: the journal's answer is folded into the returned row in memory and the
         receipt is not written, so a view never queues behind the room workers' ``synchronous=FULL`` commits

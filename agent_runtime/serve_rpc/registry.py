@@ -21,7 +21,6 @@ __all__ = [
     "_METHODS",
     "_METHOD_TIERS",
     "_ensure_batch_methods",
-    "_ensure_conversation_methods",
     "_ensure_discussion_methods",
     "_ensure_local_llama_methods",
     "_ensure_messaging_methods",
@@ -110,12 +109,6 @@ def _ensure_local_llama_methods():
         register(method, ok, err)
 
 
-def _ensure_conversation_methods():
-    if "runtime.conversation.capabilities" not in _METHODS:
-        from ..conversations.rpc import register
-        register(method, ok, err)
-
-
 def _ensure_work_methods():
     from ..loop_tool_lifecycles import shipped
 
@@ -152,7 +145,6 @@ def _ensure_messaging_methods():
 _LAZY_FAMILIES: tuple[Callable[[], None], ...] = (
     _ensure_local_llama_methods,
     _ensure_discussion_methods,
-    _ensure_conversation_methods,
     _ensure_work_methods,
     _ensure_batch_methods,
     _ensure_messaging_methods,
@@ -256,7 +248,6 @@ def manifest() -> dict[str, Any]:
     from .twin_params import (COURSE_METHOD_PARAMS, PERSONA_TOOLSET_METHOD_PARAMS, SKILL_CHANGES_METHOD_PARAMS,
                               TWIN_METHOD_PARAMS)
     from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
-    from ..conversations.model import MIGRATE_METHOD, MIGRATE_PARAMS
     from ..loop_tool_lifecycles import shipped
 
     # The Work read params ride beside the Work methods: a wheel without the package (the
@@ -289,7 +280,6 @@ def manifest() -> dict[str, Any]:
                 **WORKSPACE_CONTENT_METHOD_PARAMS,
                 # Listed with the workspace content contract the launcher mirrors.
                 "runtime.persona.instance.recall.set": ("persona_instance_id", "enabled", "issued_at"),
-                MIGRATE_METHOD: MIGRATE_PARAMS,
             }.items())
         },
         "limits": {"operator_text": operator_text_admission(), "files": files_limits()},

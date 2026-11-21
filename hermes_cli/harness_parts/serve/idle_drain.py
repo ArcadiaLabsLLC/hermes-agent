@@ -1,7 +1,7 @@
 """Automatic maintenance may claim idle, never turn active work into a drain.
 
 **What holds an idle drain is a TURN, not a request.** A chat turn, a long
-run, a native conversation turn and a discussion round each refuse the claim;
+run and a discussion round each refuse the claim;
 a read, a status call, a prewarm or the very request whose arrival made the
 launcher attach do not. Those finish inside the drain — it closes admission
 and waits for every in-flight request before the process exits — so refusing
@@ -33,7 +33,6 @@ class IdleDrainHold(str, Enum):
 
     CHAT_TURN = "chat_turn"
     LONG_RUN = "long_run"
-    CONVERSATION_TURN = "conversation_turn"
     DISCUSSION = "discussion"
     CRON_JOB = "cron_job"
     SCHEDULED_TURN = "scheduled_turn"
@@ -46,12 +45,8 @@ class IdleDrainHold(str, Enum):
         return "unavailable" if self is IdleDrainHold.UNREADABLE else "busy"
 
 
-class _ConversationBusy(Exception):
-    """Raised inside the discussion fence so it reopens admission on the way out."""
-
-
 def claim_idle_drain(session: Any) -> IdleDrainHold | None:
-    """Called under the serve admission lock; the native owner fences its own."""
+    """Called under the serve admission lock; the discussion owner fences its own."""
     items = list(session.inflight.values())
     if any(getattr(item, "is_chat_turn", False) for item in items):
         return IdleDrainHold.CHAT_TURN
@@ -62,14 +57,9 @@ def claim_idle_drain(session: Any) -> IdleDrainHold | None:
         return cron_hold
     try:
         discussion = session.discussion_owner
-        # Lock order: serve admission -> discussions -> conversations.
-        # An exception leaves discussion admission open when another owner refuses.
+        # Lock order: serve admission -> discussions.
         with discussion.idle_drain() if discussion is not None else nullcontext():
-            owner = session.conversation_owner
-            if owner is not None and not owner.begin_idle_drain():
-                raise _ConversationBusy
-    except _ConversationBusy:
-        return IdleDrainHold.CONVERSATION_TURN
+            pass
     except DiscussionError as exc:
         return IdleDrainHold.DISCUSSION if exc.reason == "busy" else IdleDrainHold.UNREADABLE
     except Exception:

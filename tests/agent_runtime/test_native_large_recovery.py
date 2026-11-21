@@ -1,19 +1,25 @@
-"""A response larger than the disposable replay ring remains recoverable."""
+"""A response larger than the disposable replay ring remains recoverable, across an engine restart.
+
+Driven on the in-process engine directly (``engine_session``): the profile-scoped conversation service that
+used to carry it is retired (RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT); the recovery it
+pins is the gateway's. The reopened engine is a new worker generation, so its replay epoch differs
+(``recovery_history._epoch`` carries ``serving_worker``), and closing the last in-process worker stops the
+compute host (``in_process_peer.stop_compute_host``) — the compute-child case reopens on a fresh one.
+"""
 import json
 import random
 import time
 
 import pytest
 
-from agent_runtime.conversations.model import ConversationScope
-from agent_runtime.conversations.service import ConversationService
-from tests.agent_runtime.native_recovery_provider import RecoveryProvider, until
+from tests.agent_runtime.engine_session import EngineSession, until
+from tests.agent_runtime.native_recovery_provider import RecoveryProvider
 
 
 @pytest.mark.slow_native
 @pytest.mark.timeout(180)
 @pytest.mark.parametrize("compute", [False, True], ids=["inline", "compute-child"])
-def test_large_terminal_response_reopens_after_worker_and_service_restart(tmp_path, compute):
+def test_large_terminal_response_reopens_after_an_engine_restart(tmp_path, compute):
     from hermes_cli.profiles import get_profile_dir
 
     home = get_profile_dir("profile")  # a canonical profile home: the in-process worker serves by name
@@ -21,53 +27,32 @@ def test_large_terminal_response_reopens_after_worker_and_service_restart(tmp_pa
     text = random.Random(17).randbytes(5 * 1024 * 1024).hex()
     provider = RecoveryProvider(text=text)
     provider.configure(home, compute=compute)
-    service = ConversationService(tmp_path, "isolated", profile_home=lambda _: home)
-    scope = ConversationScope("operator", "account", "profile")
-    def open_():
-        return service.open(scope, key="large-chat", cwd=str(tmp_path), expected_home=str(home))
+    engine = EngineSession(home, cwd=str(tmp_path))
     try:
-        opened = open_()
-        sid, epoch = opened["session_id"], opened["epoch"]
-        service.send(scope, sid, "original", {"text": "Ask whether to continue.", "images": []})
-        pending = until(open_, lambda p: bool(p["recovery"].get("open_requests")))
-        question = pending["recovery"]["open_requests"][0]
-        service.respond(scope, sid, question["id"], {
-            "answers": {question["params"]["questions"][0]["qid"]: "Yes"}})
+        epoch = engine.recover()["epoch"]
+        engine.submit("Ask whether to continue.", "large-execution")
+        pending = until(engine.recover, lambda r: any(q["method"] == "clarify" for q in r.get("open_requests", ())))
+        question = next(q for q in pending["open_requests"] if q["method"] == "clarify")
+        assert engine.answer(question["id"], {
+            "answers": {question["params"]["questions"][0]["qid"]: "Yes"}})["status"] == "ok"
         provider.release.set()
-        def outcome():
-            page = open_()
-            return {"turn": page["turn"], "execution": page["recovery"].get("execution"),
-                    "inflight": page["recovery"].get("inflight_position"),
-                    "messages": page["recovery"].get("message_count")}
         # Native rendering/persistence of 10 MiB takes longer under suite CPU load.
-        until(outcome, lambda p: p["turn"]["state"] == "completed", timeout=90)
-        recovered = service.read(scope, sid, 0, "original", epoch=epoch)
-        assert recovered["recovery"]["execution"]["status"] == "complete"
-        assert recovered["turn"]["state"] == "completed"
-        service.close()
-        service = ConversationService(tmp_path, "isolated", profile_home=lambda _: home)
-        reopened = open_()
-        assert reopened["session_id"] == sid and reopened["epoch"] != epoch
-        assert reopened["turn"]["state"] == "completed"
+        done = until(lambda: engine.recover("large-execution"),
+                     lambda r: (r.get("execution") or {}).get("status") == "complete", timeout=90)
+        assert done["execution"]["id"] == "large-execution"
+        stored = engine.stored
+        engine.close()
+        engine = EngineSession(home, resume=stored)
+        reopened = engine.recover("large-execution")
+        assert reopened["epoch"] != epoch
+        assert reopened["execution"]["status"] == "complete"
         started = time.monotonic()
-        pages = 0
-        index, offset, rows = 0, 0, {}
-        while True:
-            page = service.history(scope, sid, reopened["recovery"]["history"], index, offset)
-            pages += 1
-            for chunk in page["chunks"]:
-                prior = rows.get(chunk["index"], "")
-                assert len(prior) == chunk["offset"]
-                rows[chunk["index"]] = prior + chunk["data"]
-            index, offset = page["message_index"], page["offset"]
-            if not page["more"]:
-                break
-        messages = [json.loads(row) for row in rows.values()]
+        messages = [json.loads(row) for row in engine.history(reopened["history"])]
         answers = [m["text"] for m in messages if m["role"] == "assistant"]
         assert answers == [text + " after release"]
         assert len(provider.requests) == 2
-        print(f"history: {len(text)} characters, {pages} pages, {time.monotonic() - started:.3f}s")
+        print(f"history: {len(text)} characters, {time.monotonic() - started:.3f}s")
     finally:
         provider.release.set()
-        service.close()
+        engine.close()
         provider.close()

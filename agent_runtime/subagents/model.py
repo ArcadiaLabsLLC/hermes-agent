@@ -28,11 +28,11 @@ OPERATIONS = tuple(REQUIRED_PARAMS)
 
 
 def public_capabilities(operation, reply):
-    """What the two serve routes (``runtime.conversation`` / ``runtime.operator.conversation``) add.
+    """What the serve route (``runtime.operator.conversation``) adds.
 
-    Only they serve stored observations and profile defaults, not workers; and only they sit behind
+    Only it serves stored observations and profile defaults, not workers; and only it sits behind
     the serve dispatcher, which refuses any request whose ``execution_id`` names another checkout
-    (``execution_identity_mismatch``), so only they declare ``execution_identity_guard``
+    (``execution_identity_mismatch``), so only it declares ``execution_identity_guard``
     (RT-SUBAGENTS-CAPS-EXECUTION-GUARD). A worker's ``eternia.subagents.capabilities`` does not.
     """
     if operation == "capabilities":

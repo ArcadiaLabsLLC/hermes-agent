@@ -9,7 +9,6 @@ from typing import Any
 
 __layer__ = "models"
 
-MIGRATE_METHOD = "runtime.conversation.migrate"
 MIGRATE_PARAMS = ("install_id", "client_scope", "profile", "session_id", "persona_id", "persona_instance_id")
 
 

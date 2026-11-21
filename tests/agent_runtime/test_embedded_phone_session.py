@@ -8,8 +8,8 @@ store bound over the folder; then, over ``EmbeddedServe`` frames only:
 1. ``runtime.provider.signin.*`` signs in a fake provider — the in-process runner
    (every profile's, since RT-PROVIDER-SIGN-IN-RUNS-INSIDE-THE-RUNNING-HERMES) runs the provider's driver, which saves the key
    through Hermes's own ``.env`` writer (the host-store seam);
-2. ``runtime.conversation.open`` / ``send`` / ``read`` runs one chat turn — the in-process
-   worker (``conversations.subprocess_worker: false``) and the SDK-free client
+2. ``runtime.chat.message`` runs one chat turn — the in-process engine (the one every chat with an
+   agent runs on, RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT) and the SDK-free client
    (``agent.provider_sdks: false``) against a loopback provider, which must receive the key;
 3. a byte scan of the whole app folder finds no key, and the host was asked to protect the
    Hermes home (``protect_history_dir``) before the serve ran.
@@ -184,16 +184,6 @@ def _leaks(root: Path) -> dict[str, list[str]]:
     return found
 
 
-def _settle(phone: Phone, ids: dict, session_id: str, turn_id: str) -> dict:
-    deadline = time.monotonic() + 90
-    while True:
-        result = phone.call("runtime.conversation.read", {**ids, "session_id": session_id, "turn_id": turn_id})
-        if result["turn"]["state"] not in {"dispatching", "running"}:
-            return result
-        assert time.monotonic() < deadline, "the in-process turn did not settle"
-        time.sleep(.05)
-
-
 def _sign_in(phone: Phone) -> None:
     login = phone.call("runtime.provider.signin.begin", {"provider": PROVIDER})
     deadline = time.monotonic() + 30
@@ -202,16 +192,6 @@ def _sign_in(phone: Phone) -> None:
         assert time.monotonic() < deadline, view
         time.sleep(.05)
     assert view["state"] == "succeeded", view
-
-
-def _chat_turn(phone: Phone, install_id: str, app: Path, home: Path) -> dict:
-    ids = {"install_id": install_id, "client_scope": "phone-account", "profile": "default"}
-    opened = phone.call("runtime.conversation.open", {**ids, "key": "chat", "cwd": str(app),
-                                                      "profile_home": str(home)})
-    sid = opened["session_id"]
-    phone.call("runtime.conversation.send", {**ids, "session_id": sid, "turn_id": "turn-1",
-                                             "prompt": {"text": f"Please remember {CHAT}", "images": []}})
-    return _settle(phone, ids, sid, "turn-1")
 
 
 def _reserved_chat_turn(phone: Phone, install_id: str) -> dict:
@@ -279,13 +259,13 @@ def _absent_features(wheel: str) -> dict:
     after the turn: D3 the secrets vault (``vault.*``), D5 typed slash commands (``slash.exec``: the
     worker it would start is a stand-in), D4 DuckDuckGo search (``plugins.web.ddgs``)."""
     from agent.web_search_registry import list_providers
-    from agent_runtime.conversations.binding import get_service
+    from agent_runtime import operator_gateway_turn
 
     out = {"web_providers": sorted(p.name for p in list_providers()),
            "ddgs_loaded": sorted(m for m in sys.modules if m.startswith("plugins.web.ddgs"))}
     if wheel != "phone":  # the full wheel's vault is real: listing it would open an OS keyring
         return out
-    peer = next(iter(get_service()._workers._workers.values())).peer
+    peer = next(iter(operator_gateway_turn._peers.values()))  # the engine the reserved turn ran on
     session_id = next(iter(peer._sessions))
     out["vault"] = {m: _gateway_answer(peer, m, {}) for m in ("vault.list", "vault.sources", "vault.lock")}
     out["slash"] = _gateway_answer(peer, "slash.exec", {"session_id": session_id, "command": "/help"})
@@ -332,7 +312,6 @@ def phone_turn(app: Path, wheel: str = "phone") -> dict:
         assert install_id
         _sign_in(phone)
         os.environ.pop(KEY_ENV, None)  # the chat must find the key through the host store, not this process
-        result = _chat_turn(phone, install_id, app, home)
         reserved = _reserved_chat_turn(phone, install_id)
         absent = _absent_features(wheel)
     finally:
@@ -341,10 +320,9 @@ def phone_turn(app: Path, wheel: str = "phone") -> dict:
         provider.shutdown()
         provider.server_close()
         subprocess.Popen = real_popen
-    done = [e["frame"]["params"]["payload"] for e in result["events"]
-            if e["turn_id"] == "turn-1" and e["frame"].get("params", {}).get("type") == "message.complete"]
-    return {"turn": result["turn"]["state"], "turn_tail": json.dumps(result)[-3000:],
-            "reply": done[-1]["text"] if done else None, "exit_code": exit_code, "spawned": spawned,
+    return {"turn": "completed" if reserved["exit_code"] == 0 else reserved["exit_code"],
+            "turn_tail": json.dumps(reserved["lines"])[-3000:],
+            "reply": REPLY if reserved["reply_seen"] else None, "exit_code": exit_code, "spawned": spawned,
             "absent": absent, "reserved": reserved, "psutil_stand_in": _psutil_is_the_stand_in(),
             **_what_the_turn_left(home, store)}
 

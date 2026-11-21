@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 from .model import Reason, WorkRefused, text
 
@@ -24,33 +23,12 @@ class WorkContext:
 def resolve(reference, client, caller, install):
     if not isinstance(reference, dict):
         raise WorkRefused(Reason.INVALID)
-    resolver = {"native": _native, "operator": _operator}.get(reference.get("kind"))
+    # ``native`` (a profile-scoped conversation) is retired with its turn path (RT-ONE-TURN-ENGINE-FOR-OPERATOR-
+    # CHAT-AND-INTELLIGENCE-CHAT): every chat a work item names is an operator chat.
+    resolver = {"operator": _operator}.get(reference.get("kind"))
     if resolver is None:
         raise WorkRefused(Reason.INVALID)
     return resolver(reference, text(client), caller, install)
-
-
-def _native(reference, client, caller, install):
-    from agent_runtime.conversations.binding import get_service
-    from agent_runtime.conversations.model import ConversationError, caller_scope
-
-    service = get_service()
-    profile = text(reference.get("profile"))
-    if service.install_id != install:
-        raise WorkRefused(Reason.OWNER_CHANGED)
-    try:
-        home = service.profile_home(profile).resolve(strict=True)
-        if home != Path(text(reference.get("profile_home"), maximum=4096)).resolve(strict=True):
-            raise WorkRefused(Reason.OWNER_CHANGED)
-        session = reference.get("session_id")
-        if session is None:
-            return WorkContext(None, profile)
-        route = service.store.get(text(session, maximum=512), caller_scope(caller, client, profile))
-        if Path(route.home) != home:
-            raise WorkRefused(Reason.OWNER_CHANGED)
-        return WorkContext(route.native_id or None, profile, service.store.has_turns(route))
-    except (ConversationError, OSError) as exc:
-        raise WorkRefused(Reason.OWNER_CHANGED) from exc
 
 
 def _operator(reference, client, caller, install):

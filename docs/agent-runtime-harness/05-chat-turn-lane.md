@@ -132,25 +132,20 @@ rewrite. Full reads use the same curation; tool reads retain native redaction.
 Missing or malformed continuation revisions are invalid requests before storage
 is opened; a valid but stale revision remains `content_changed`.
 
-## Independent native conversations
-
-`agent_runtime/conversations/service.py::ConversationService` admits exact
-actor/account/profile/session scopes and delegates to runtime-owned native
-workers, run inside the serve process (`in_process_peer.py`; no worker child —
-`RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT`). Those workers reuse the canonical Desktop/TUI engine, SessionDB,
-provider/model resolution, permissions and skill reader. They never enter the
-operator-channel prompt policy or overwrite its default chat pointer.
-`worker_skills.py` binds catalog/detail/history to the worker's exact session;
-skill-load evidence proves a load, not ongoing model reasoning.
+## Discussion participants
 
 `agent_runtime/discussions/native.py` uses auxiliary chat sessions for
 discussion participants. The same executor serves office and non-spatial rooms;
-the operator root remains independent. Launcher Compare instead fans out to
-independent native conversations, with failure and queues scoped per participant.
+the operator root remains independent. An Intelligence conversation with one agent is that
+agent's operator chat (the shared Agent Console); there is no second, profile-scoped
+conversation engine — `ConversationService` and `runtime.conversation.*` are retired
+(`RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT`, owner 2026-11-21 "yea retire the old
+path"), and a saved profile group reads as failed `profile_group_retired` until it is adopted
+(`executions.RetiredGroupTurns`; doc 04 § The in-process engine).
 
 ## One turn engine for the operator chat
 
-A Mission Control chat's turn runs on the same engine as an independent conversation
+A Mission Control chat's turn runs on the one in-process engine
 (`agent_runtime/operator_gateway_turn.py`; plan
 `planned/operator-chat-on-the-gateway-engine-2026-11-21.md`). The chat has a gateway
 session of its own (`source="eternia_operator"`), resumed on the chat's tip in the store

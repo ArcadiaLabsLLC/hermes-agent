@@ -1,20 +1,10 @@
 """Room model controls delegate to each exact session's existing owner."""
 from __future__ import annotations
 
-from .profile_groups import member_scope
 from .run_values import DiscussionError
 from .room_owner import room_client_scope
 
 __layer__ = "lanes"
-
-
-def open_member(conversations, run, member):
-    scope = member_scope(run, member)
-    opened = conversations.open(scope, key=run["run_id"], cwd=run["initial"]["group"]["cwd"],
-                                expected_home=member["binding"]["home"])
-    if opened["session_id"] != member["session_id"]:
-        raise DiscussionError("session_binding_mismatch")
-    return scope, opened["facts"]
 
 
 def member_models(service, params, *, select=False):
@@ -25,15 +15,11 @@ def member_models(service, params, *, select=False):
                    if m["member_id"] == params["member_id"] and m["status"] == "active"), None)
     if member is None:
         raise DiscussionError("member_not_found")
-    if "group" not in run["initial"]:
-        return {"member_id": member["member_id"],
-                "facts": _instance_models(service, run, member, params, select=select)}
-    conversations = service.executions.profiles.turns.conversations()
-    scope, facts = open_member(conversations, run, member)
-    if select:
-        facts = conversations.select_model(scope, member["session_id"], params["model_id"],
-                                            save_default=params.get("save_default", False))
-    return {"member_id": member["member_id"], "facts": facts}
+    if "group" in run["initial"]:
+        # A legacy profile group's member ran on the retired profile-scoped conversation: no model to show.
+        raise DiscussionError("profile_group_retired")
+    return {"member_id": member["member_id"],
+            "facts": _instance_models(service, run, member, params, select=select)}
 
 
 def _instance_models(service, run, member, params, *, select):

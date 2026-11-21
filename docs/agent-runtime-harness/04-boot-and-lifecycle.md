@@ -15,25 +15,27 @@ measuring another home measures another runtime. Launcher composition lives in
 `EterniaLauncher/lib/app/hermes/`, transport ownership in
 `EterniaLauncher/lib/core/services/hermes/`.
 
-## Native conversation workers
+## The in-process engine
 
-`agent_runtime/conversations/binding.py` binds one conversation service to the
-existing runtime owner. Every profile's conversations run IN the serve process
-(`in_process_peer.py::start_in_process_worker`, the phone's path on every profile
-since `RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT`, owner ruling
-2026-11-21 "One engine"): upstream's Desktop/TUI engine (`tui_gateway`) is
-dispatched in-process behind the same peer seam, and each request names its
-profile, so the gateway binds that profile's home, secrets and SessionDB. No
-`worker_entry` child is started; `conversations.subprocess_worker` is retired.
-The snapshot build stays a separate process (`snapshot.subprocess_worker`,
-default on, owner 2026-11-21).
+Every chat with an agent runs IN the serve process, on upstream's Desktop/TUI engine
+(`tui_gateway`) dispatched in-process behind the peer seam
+(`conversations/in_process_peer.py::start_in_process_worker`, the phone's path on every profile
+since `RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT`, owner ruling 2026-11-21 "One
+engine"); `operator_gateway_turn.py` holds one peer per store home. Each request names its profile,
+so the gateway binds that profile's home, secrets and SessionDB. No `worker_entry` child is started;
+`conversations.subprocess_worker` is retired. The snapshot build stays a separate process
+(`snapshot.subprocess_worker`, default on, owner 2026-11-21).
 
-Closing a view or losing a client connection leaves execution running.
-`ConversationService.begin_drain` and `execution_possible` protect unfinished
-or uncertain workers. Stop is confirmed only by the matching native terminal
-event, not the acknowledgement that an interrupt request was written. Route
-receipts survive service restart; unknown dispatches block automatic replay.
-These records are routing evidence, never a second transcript store.
+The profile-scoped conversation owner the serve used to bind beside the discussion service
+(`ConversationService` and its binding) is retired with its turn path (owner 2026-11-21
+"yea retire the old path"); the serve binds only the discussion service
+(`boot_phases._bind_discussion_owner`), and neither the drain, the idle claim nor the `busy` frame
+counts a conversation owner any more. At the discussion service's start every saved profile-group
+room is adopted into an agent room (`discussions/group_migration.py::adopt_legacy_groups`): paused,
+and — when each member's profile names exactly one agent — moved into the Conversations workspace
+with its room log, member ids and receipts, each member's transcript imported into its agent's chat
+(`conversations/legacy_routes.py`). A group it cannot place stays paused and whole, its `error`
+`no_single_agent_for_profile`, for an explicit `run.migrate_group`.
 
 ---
 

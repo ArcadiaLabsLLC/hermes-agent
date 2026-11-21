@@ -330,16 +330,6 @@
           "client_scope"
         ]
       },
-      "runtime.discussion.run.start_group": {
-        "tier": "console",
-        "required": [
-          "workspace_id",
-          "client_scope",
-          "spec",
-          "idempotency_key"
-        ],
-        "optional": []
-      },
       "runtime.discussion.run.start_room": {
         "tier": "console",
         "required": [
@@ -456,10 +446,10 @@
       "same_profile_instances": true,
       "presets": true,
       "message_response_policy": true,
-      "profile_groups": true,
+      "profile_groups": false,
       "group_migration": true,
       "compare_import": true,
-      "group_models": true,
+      "group_models": false,
       "instance_models": true,
       "scheduled_conclusion": true,
       "non_spatial_discussions": true,

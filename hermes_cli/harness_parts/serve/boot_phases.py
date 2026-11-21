@@ -182,34 +182,24 @@ class BootPhases:
             self.socket_block = {"outcome": f"error:{type(exc).__name__}"}
         return None
 
-    def _boot_embedded_conversations(self) -> None:
+    def _boot_embedded_discussions(self) -> None:
         """An embedded serve's host app is its only client and it has no socket lane: bind
-        the ``runtime.conversation.*`` owner here, where a daemon binds it with its socket.
-
-        The worker is the in-process one behind ``NativePeer`` on every profile (no worker child).
-        """
+        the discussion service here, where a daemon binds it with its socket."""
 
         if (self.shell.kind != "embedded" or self.store_root_path is None
                 or not self.install_block.get("install_id")):
             return
-        self._bind_conversation_owners("in the embedded serve")
+        self._bind_discussion_owner("in the embedded serve")
 
-    def _bind_conversation_owners(self, where: str) -> None:
-        """Bind the ``runtime.conversation.*`` owner and the discussion service (Intelligence Chat's
-        ``runtime.discussion.*``), each fail-open: one that cannot bind must not take the other, or the
-        ordinary chat lane, down. The daemon binds both with its socket lane, the embedded serve at
-        boot — one method, so the embedded serve cannot bind one and miss the other
-        (RT-PHONE-DISCUSSION-SERVICE-NOT-BOUND-IN-THE-APP)."""
+    def _bind_discussion_owner(self, where: str) -> None:
+        """Bind the discussion service (Intelligence Chat's ``runtime.discussion.*``), fail-open: a store
+        that cannot bind must not take the ordinary chat lane down. The daemon binds it with its socket
+        lane, the embedded serve at boot — one method, so neither misses it
+        (RT-PHONE-DISCUSSION-SERVICE-NOT-BOUND-IN-THE-APP). The profile-scoped conversation owner that
+        was bound beside it is retired (RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT)."""
 
         import logging as _owner_logging
 
-        try:
-            from agent_runtime.conversations.binding import bind as bind_conversations
-            self.conversation_owner = bind_conversations(
-                self.store_root_path, self.install_block["install_id"])
-        except Exception:
-            _owner_logging.getLogger(__name__).warning(
-                "independent conversations unavailable %s; Mission Control remains enabled", where)
         try:
             from agent_runtime.discussions.service import bind as bind_discussions
             from agent_runtime.profile_home import get_hermes_head_home
@@ -232,7 +222,7 @@ class BootPhases:
         self.local_llama_bound_root = self.store_root_path
         # A corrupt optional discussion store must not take the
         # ordinary native socket/chat lane down with it.
-        self._bind_conversation_owners("on the socket lane")
+        self._bind_discussion_owner("on the socket lane")
         store_root_path = self.store_root_path
         self.socket_server = ServeSocketServer(
             store_root_path,

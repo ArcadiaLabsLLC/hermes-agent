@@ -304,18 +304,13 @@ class ServeSession(
             except Exception:  # pragma: no cover - shutdown is best effort
                 pass
             try:
-                if self.conversation_owner is not None:
-                    from agent_runtime.conversations.binding import shutdown as shutdown_conversations
-                    shutdown_conversations(root=self.conversation_owner.root)
+                if self.discussion_owner is not None:
+                    from agent_runtime.discussions.service import shutdown as shutdown_discussions
+                    shutdown_discussions(root=self.discussion_owner.context.root)
             finally:
-                try:
-                    if self.discussion_owner is not None:
-                        from agent_runtime.discussions.service import shutdown as shutdown_discussions
-                        shutdown_discussions(root=self.discussion_owner.context.root)
-                finally:
-                    if self.local_llama_bound_root is not None:  # bound only with the socket lane
-                        from agent_runtime.local_llama_adapter.binding import shutdown as shutdown_local_llama
-                        shutdown_local_llama(root=self.local_llama_bound_root)
+                if self.local_llama_bound_root is not None:  # bound only with the socket lane
+                    from agent_runtime.local_llama_adapter.binding import shutdown as shutdown_local_llama
+                    shutdown_local_llama(root=self.local_llama_bound_root)
 
     def _boot_and_serve(self) -> int:
         """Everything between the stdio swap and the unwind, in boot order."""
@@ -326,7 +321,7 @@ class ServeSession(
         exit_code = self._boot_socket_lane()
         if exit_code is not None:
             return exit_code
-        self._boot_embedded_conversations()
+        self._boot_embedded_discussions()
         self._boot_gateway_lane()
         self._boot_register_instance()
         self._arm_service_stderr_log()
@@ -688,7 +683,6 @@ class ServeSession(
         self.original_stdout, self.original_stderr = sys.stdout, sys.stderr
         self.local_llama_bound_root = None
         self.discussion_owner = None
-        self.conversation_owner = None
         self.queued_send_runner = None
         sys.stdout, sys.stderr = self.stdout_proxy, self.stderr_proxy
 

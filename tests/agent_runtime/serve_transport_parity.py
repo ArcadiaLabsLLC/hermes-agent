@@ -2,7 +2,7 @@
 (stdio, daemon shell) and the embedded serve (in-memory pipe, embedded shell) produce identical
 frames. Plan Stage 2 step 10.
 
-For any P1 lane (``runtime.conversation.*``, ``runtime.chat.message``, the history seam)::
+For any P1 lane (``runtime.chat.message``, the history seam)::
 
     from tests.agent_runtime.serve_transport_parity import assert_transport_parity, rpc
 

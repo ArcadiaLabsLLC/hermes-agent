@@ -327,11 +327,6 @@ class DrainLane:
                 long_run_ids = sorted(
                     key for key, item in self.inflight.items() if item.is_long_run
                 )
-            owner = getattr(self, "conversation_owner", None)
-            if owner is not None:
-                native_ids = owner.drain_pending(close_idle=not remaining)
-                remaining.extend(native_ids)
-                chat_turn_ids.extend(native_ids)
             # A queued chat turn (the busy-root send queue's runner) is a chat
             # turn in flight with no serve request of its own: the drain waits
             # for it exactly as it waits for a sent one.

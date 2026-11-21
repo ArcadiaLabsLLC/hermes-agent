@@ -15,8 +15,7 @@ verbatim on success.
 
 **Tiers.** All five are ``console``. Four write. History is the one row worth
 arguing: it writes nothing, but it hands back transcript text, and the read tier
-is open to ``unknown`` — ``runtime.conversation.read`` says ``console`` for the
-same reason. None is on ``LOCAL_CONSOLE_METHODS``: a paired console device
+is open to ``unknown`` — every transcript read is ``console`` for the same reason. None is on ``LOCAL_CONSOLE_METHODS``: a paired console device
 working the chats of the install it is aimed at is the feature.
 """
 

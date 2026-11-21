@@ -45,7 +45,7 @@ def resolve_compare(service, params, actor_id):
 
 
 def _targets(service, source, workspace, owner, actor_id):
-    conversations = service.executions.profiles.turns.conversations()
+    conversations = service.legacy_routes()
     result = {}
     for row in source["members"]:
         ref = ParticipantRef.parse(row["participant"])

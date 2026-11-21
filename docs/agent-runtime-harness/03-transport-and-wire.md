@@ -7,53 +7,26 @@ code-verified contract for each: the frames, how a consumer negotiates what it
 can fold, and which parts of the wire are pinned byte-for-byte across the repo
 boundary. The old goal/task mission lane remains removed.
 
-## Native conversation methods
+## Retired: the profile-scoped conversation methods
 
-`agent_runtime/conversations/rpc.py` registers `runtime.conversation.*` on the
-existing authenticated JSON-RPC lane, at console tier. Capabilities, open,
-send, read, Stop, questions, model facts/selection and skill inspection are
-focused conversation operations, not a universal Work/Observation protocol.
-`execution_identity.py::execution_identity` identifies the executing checkout;
-the native dispatch guard requires the selected executable's matching identity.
-The actor credential, client account scope, profile/home and session must also
-match. Sharing a profile store does not permit switching installations.
+`runtime.conversation.*` (a conversation scoped to a profile rather than an agent, with its own turn
+path, model answer and approval mode) is retired (`RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT`,
+owner 2026-11-21 "yea retire the old path"): every chat with an agent is an operator chat
+(`runtime.operator.conversation.*`, `runtime.chat.message`) on the one engine, and no Eternia screen
+called them. The methods are gone from the manifest, as is `runtime.discussion.run.start_group`, and a
+Work `conversation` reference of kind `native` is refused `invalid`.
 
-`open`'s `cwd` is optional (capability `minted_chat_folder`). Omitted, the service mints the route's
-chat folder `<store_root>/chat_folders/profile-<profile>/<route_id>/` (`paths.chat_folder`) and stores
-it on the route; a resume that omits it is checked against the same path. A given `cwd` must be an
-existing absolute directory and is stored as before. Plan:
-[chat-folder-in-namespace](archive/chat-folder-in-namespace-2026-10-26.md) §2.2.
+What those conversations left stays readable and adoptable, never runnable:
+`conversations/legacy_routes.py::LegacyRoutes` keeps the route and turn receipts
+(`native_conversation_routes.db`, `ConversationStore`) and imports a route's transcript into an agent's
+chat (`conversations/migration.py::migrate_conversation`) for a group adoption or a compare import.
 `hermes harness conversation chat-folder migrate [--apply] --json`
-(`conversations/chat_folder_migration.py`, §2.4) moves routes off the launcher's
-`eternia_launcher/agents/workspaces/<hash>` folders: dry run by default, an empty folder removed, a
-non-empty one moved, the route's `cwd` rewritten — or, for a route `migrate_conversation` bound, the
-folder moved to the persona chat's and the route row deleted. A route with unsettled work or a live
-worker is skipped. The operator applies it after the launcher stops passing its AppData folder.
-
-`ConversationStore` persists dispatch identity before execution. Duplicate
-requests return their existing receipt; uncertain outcomes are never silently
-replayed. Native worker messages stay behind `NativePeer`; consumers receive
-bounded event projections, not provider credentials or raw diagnostics.
-
-Provider access follows the service's captured auth owner; tools, skills and
-history stay profile-scoped. Model facts expose provider labels, current/default
-model IDs, `can_save_model_default` and `model_selection_required`;
-`runtime.operator.conversation.models` also carries `image_input_mode` (`native`: the model sees an
-attached image; `text`: an auxiliary vision model describes it first; null: no model resolved), the
-turn's own `decide_image_input_mode` under the persona's profile config. The `.model`
-operation changes only the session unless `save_default: true` is explicit;
-both identities must be confirmed before success. Existing config/model and
-compute owners perform the write. [Shared-provider evidence](../downstream/shared-provider-authority-2026-09-29.md).
-
-Each admitted send carries its permission: the service resolves
-`permission_options_for_subject("profile:<name>", session_id=<route id>)` — the
-operator lane's resolver — and calls the worker method `eternia.permission.bind`
-(`conversations/worker_permissions.py`) with the turn's execution id and MODE
-before `prompt.submit`; the worker derives the block from its own Launcher
-catalog and binds it for that turn through `worker_app_functions.bind`. A turn
-whose mode never arrived binds `read_only` and logs `permission_bind_missing`
-(owner ruling 2026-10-15: read-only unless allowed); a turns-bounded grant is
-spent only by a turn that reached `streaming`.
+(`conversations/chat_folder_migration.py`, plan
+[chat-folder-in-namespace](archive/chat-folder-in-namespace-2026-10-26.md) §2.4) still moves saved
+routes off the launcher's `eternia_launcher/agents/workspaces/<hash>` folders: dry run by default, an
+empty folder removed, a non-empty one moved, the route's `cwd` rewritten — or, for a route
+`migrate_conversation` bound, the folder moved to the persona chat's and the route row deleted. A route
+with unsettled work or a live worker is skipped.
 
 `agent_runtime/discussions/rpc.py` exposes the same discussion service to both
 consumers. Non-spatial room admission uses explicit workspace and persona-instance
@@ -151,9 +124,6 @@ session held at `read_only` blocks every entry the Launcher marks
 `requires_confirmation` through the same `permission_options_for_chat`
 chokepoint that blocks `READ_ONLY_BLOCKS`.
 
-- `conversation`: `conversations/service.py` supplies the admitted native route,
-  turn and account scope; `conversations/app_functions.py` carries them across
-  the worker relay without changing execution, deduplication or tool ownership.
 - `operator`: `GPTPersonaRuntime.mission_chat_reply` binds the root chat session
   and runtime turn, never the caller's request ID.
 - `discussion`: `discussions/app_functions.py` binds the admitted Launcher
@@ -2373,9 +2343,9 @@ route=… auth=… reason=…`. Stores written before `auth` existed gain the co
 
 ### Conversation-scoped Work
 
-`agent_runtime/work/context.py` resolves optional `conversation` references through existing
-conversation authorities. A native reference is `{kind: native, profile, profile_home, session_id}`
-(browse only; it names no assignee). An operator reference is `{kind: operator, workspace_id, persona_id,
+`agent_runtime/work/context.py` resolves optional `conversation` references through the operator
+conversation authority (a `native` reference named a retired profile-scoped conversation and is refused
+`invalid`). An operator reference is `{kind: operator, workspace_id, persona_id,
 persona_instance_id, session_id}`; it passes `validate_operator_conversation`, and its persona instance
 IS the assignee: `context.assignee = persona:<persona_instance_id>`, the default `who` of a claim, the
 default `assignee` of a `start` (a row started there for that instance is written `TAKEN` by it), and the

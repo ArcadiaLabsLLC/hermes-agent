@@ -15,14 +15,10 @@ tests/agent/test_run_agent_codex_responses.py
 tests/agent/test_system_prompt.py
 tests/agent/transports/test_provider_wire_snapshot.py
 tests/agent_runtime/test_discussion_conclusion.py
-tests/agent_runtime/test_discussion_group_native.py
-tests/agent_runtime/test_discussion_group_recovery.py
 tests/agent_runtime/test_discussion_runtime.py
 tests/agent_runtime/test_embedded_phone_session.py
 tests/agent_runtime/test_gateway_peer_cross_install_chat_e2e.py
 tests/agent_runtime/test_gateway_peer_two_roots_e2e.py
-tests/agent_runtime/test_native_app_functions.py
-tests/agent_runtime/test_native_conversation_roundtrip.py
 tests/agent_runtime/test_native_large_recovery.py
 tests/agent_runtime/test_operator_session_models.py
 tests/agent_runtime/test_persona_assignments.py

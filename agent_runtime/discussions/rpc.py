@@ -38,7 +38,7 @@ def execute(service: DiscussionService, operation: str, raw: Any, *, actor_id: s
     params = validate_params(operation, raw)
     if "workspace_id" in params:
         scope = params["workspace_id"]
-        if is_group_scope(scope) or operation == "run.start_group":
+        if is_group_scope(scope):
             if (not params.get("client_scope") or scope != group_scope(actor_id, params["client_scope"])
                     or not operation.startswith("run.")):
                 raise DiscussionError("conversation_owner_changed")

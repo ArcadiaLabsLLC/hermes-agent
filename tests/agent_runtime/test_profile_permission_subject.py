@@ -1,18 +1,16 @@
-"""A PROFILE conversation's permission: ``permission.set(persona_id="profile:<name>")`` and
-``runtime.conversation.facts.permission`` (design D2.07 decisions 2, 7, 8; w1015b-con-x)."""
+"""A PROFILE subject's permission: ``permission.set(persona_id="profile:<name>")`` (design D2.07 decisions
+2, 7, 8; w1015b-con-x). A retired profile conversation's grant is what its adoption copies
+(``conversations.migration._preserve_permission``)."""
 
 from __future__ import annotations
 
 import pytest
 
-from agent_runtime.conversations.model import ConversationScope
-from agent_runtime.conversations.service import ConversationService
 from agent_runtime.serve_rpc import console_operations as rpc
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT
 from agent_runtime.tool_permissions import (
-    READ_ONLY_BLOCKS, ChatToolPermissionStore, default_permission_mode,
+    READ_ONLY_BLOCKS, ChatToolPermissionStore,
 )
-from tests.agent_runtime.conversation_support import WorkerFactory
 
 pytestmark = pytest.mark.timeout(45)
 
@@ -45,23 +43,3 @@ def test_preview_names_the_requested_modes_blocked_tools_without_writing():
     assert state["mode"] == "read_only"
     assert set(READ_ONLY_BLOCKS) <= set(state["blocked_tools"])
     assert ChatToolPermissionStore().get(persona_id="profile:default", session_id="conversation-2") is None
-
-
-def test_conversation_facts_carry_the_profile_permission(tmp_path):
-    for name in ("runtime", "work", "a"):
-        (tmp_path / name).mkdir()
-    service = ConversationService(tmp_path / "runtime", "install", profile_home=lambda p: tmp_path / p,
-                                  worker_factory=WorkerFactory())
-    try:
-        scope = ConversationScope("operator", "account-a", "a")
-        route = service.open(scope, key="thread", cwd=str(tmp_path / "work"),
-                             expected_home=str(tmp_path / "a"))["session_id"]
-        before = service.facts(scope, route)["permission"]
-        assert before["subject"] == "profile:a" and before["mode"] == default_permission_mode()
-        ChatToolPermissionStore().set(persona_id="profile:a", session_id=route, mode="read_only",
-                                      reason="operator", turns_remaining=2)
-        after = service.facts(scope, route)["permission"]
-        assert (after["mode"], after["source"], after["turns_remaining"]) == ("read_only", "operator", 2)
-        assert service.facts(scope, route)["permission"]["turns_remaining"] == 2, "a read never consumes"
-    finally:
-        service.close()

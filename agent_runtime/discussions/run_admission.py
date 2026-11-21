@@ -11,7 +11,7 @@ from hermes_cli.sqlite_util import transaction
 from .definition_store import DefinitionKind, _encode, _expect, _key, _required
 from .definitions import ParticipantRef, identifier, plan_seats
 from .room_definition import RoomSpec
-from .run_records import _add_member, add_profile_member, read_run_record
+from .run_records import _add_member, read_run_record
 from .run_values import DiscussionError, digest, text, discussion_run_id
 
 __layer__ = "stores"
@@ -79,8 +79,5 @@ def admit(connect: Callable[[], sqlite3.Connection], workspace: str, *, key: str
         if admission.table_id is not None:
             conn.execute("INSERT INTO mc_discussion_table_claims VALUES(?,?,?)", (workspace, admission.table_id, run_id))
         for index, (ref, item) in enumerate(zip(admission.participants, catalog, strict=True)):
-            if "group" in admission.initial:
-                add_profile_member(conn, run_id, item, ordinal=index)
-            else:
-                _add_member(conn, run_id, item, ordinal=index, seat=admission.positions[ref])
+            _add_member(conn, run_id, item, ordinal=index, seat=admission.positions[ref])
         return read_run_record(conn, run_id)

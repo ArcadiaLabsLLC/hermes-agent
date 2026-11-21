@@ -10,6 +10,19 @@ from .run_values import DiscussionError
 __layer__ = "stores"
 
 
+def pause_retired(runs, run):
+    """Pause a saved profile group at the store: its queued commands fail ``profile_group_retired`` (nothing can
+    run them) and an open or stopping room becomes paused. Any other phase is left as it is."""
+    with transaction(runs.connect(), immediate=True) as conn:
+        current = read_run_record(conn, run["run_id"])
+        if "group" not in current["initial"] or current["phase"] not in {"open", "stopping"}:
+            return current
+        conn.execute("UPDATE mc_discussion_commands SET state='failed:profile_group_retired' "
+                     "WHERE run_id=? AND state='pending'", (run["run_id"],))
+        _advance(conn, current, phase="paused")
+        return read_run_record(conn, run["run_id"])
+
+
 def reserve(runs, run, intent, expected):
     with transaction(runs.connect(), immediate=True) as conn:
         current = read_run_record(conn, run["run_id"])

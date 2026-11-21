@@ -27,7 +27,7 @@ class SessionExecution:
         return self._recovered(row, record=record) if row is not None else None
 
     def _recovered(self, row, *, record):
-        # ``record`` is the adapter contract: both NativeTurns and ProfileTurns fold a view in memory.
+        # ``record`` is the adapter contract: NativeTurns and RetiredGroupTurns fold a view in memory.
         # MUTATION: drop ``record=record`` and test_a_group_room_view_folds_and_never_writes reddens.
         return self.turns.recover(row, fresh=True, wait=False, record=record)
 
@@ -67,24 +67,65 @@ class InstanceExecution(SessionExecution):
         self.turns.launch(run, member, row, callback)
 
 
-class ProfileExecution(SessionExecution):
-    def __init__(self, context, attempts, runs, conversations):
-        from .profile_turns import ProfileTurns
+class RetiredGroupTurns:
+    """A legacy profile-group room's turns, after the profile-scoped conversation path was retired
+    (RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT, owner 2026-11-21 "yea retire the old
+    path"). Nothing can run one: a turn the room still shows as unsettled ran on a worker that is gone,
+    so it reads as failed ``profile_group_retired`` — which is what lets the room pause and its
+    adoption into an agent room (``group_migration``) proceed. Its room log and receipts are kept."""
 
-        super().__init__(context, attempts, ProfileTurns(context, attempts, runs, conversations))
+    REASON = "profile_group_retired"
 
-    def initialize(self, run, members):
-        # Opening a group does not launch workers or depend on every route being online.
+    def __init__(self, attempts):
+        self.attempts = attempts
+
+    def recover(self, row, *, fresh=False, wait=True, record=True):
+        current = row if fresh else (self.attempts.get(row["run_id"], row["task_id"], row["generation"]) or row)
+        if current["stage"] == "terminal":
+            return current
+        answer = {"stage": "terminal", "question": None, "receipt": {"status": "failed", "text": "",
+                  "error": self.REASON, "message_id": current["native_id"]}}
+        if not record:
+            return {**current, **answer}
+        # MUTATION: return the row unchanged here and test_a_retired_groups_unsettled_turn_reads_failed reddens.
+        self.attempts.update(current, **answer)
+        return self.attempts.get(current["run_id"], current["task_id"], current["generation"])
+
+    def is_live(self, row):
+        return False
+
+    def execution_absent(self, row):
+        return True
+
+    def launch(self, run, member, row, on_terminal=None):
+        raise DiscussionError(self.REASON)
+
+    def interrupt(self, row):
+        self.recover(row)
+        return True
+
+    def abandon(self, row):
         return None
 
+    def close(self):
+        return None
+
+
+class RetiredGroupExecution(SessionExecution):
+    def __init__(self, context, attempts):
+        super().__init__(context, attempts, RetiredGroupTurns(attempts))
+
+    def initialize(self, run, members):
+        raise DiscussionError(RetiredGroupTurns.REASON)  # never reached: ``_bring_to_hosted`` skips one
+
+
 class Executions:
-    def __init__(self, context, attempts, runs, conversations=None):
+    def __init__(self, context, attempts):
         self.instances = InstanceExecution(context, attempts)
-        self.profiles = ProfileExecution(context, attempts, runs, conversations)
+        self.retired_groups = RetiredGroupExecution(context, attempts)
 
     def for_run(self, run):
-        return self.profiles if "group" in run["initial"] else self.instances
+        return self.retired_groups if "group" in run["initial"] else self.instances
 
     def close(self):
         self.instances.turns.close()
-        self.profiles.turns.close()

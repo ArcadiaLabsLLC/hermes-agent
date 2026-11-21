@@ -20,7 +20,6 @@
   "agent_runtime/codex_observability.py|_CLOSED": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/codex_observability.py|_STREAMS": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/config/persona_records.py|_LOGGED_LEGACY_KEYS": "seeded 2026-10-16 from the census; reason owed",
-  "agent_runtime/conversations/binding.py|_owner": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/conversations/in_process_peer.py|_installed": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/conversations/process_evidence.py|_IN_PROCESS": "seeded 2026-10-16 from the census; reason owed",
   "agent_runtime/conversations/process_evidence.py|_last_generation": "seeded 2026-10-16 from the census; reason owed",

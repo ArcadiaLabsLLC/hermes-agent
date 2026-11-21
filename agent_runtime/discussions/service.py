@@ -27,8 +27,7 @@ from .session_rpc import NativeSessionRPC
 from .run_store import DiscussionError, RunStore
 from .room_definition import RoomSpec
 from .executions import Executions
-from .profile_groups import ProfileGroupSpec, is_group_scope
-from .group_admission import admit_group
+from .profile_groups import is_group_scope
 from .room_state import RoomState
 from .room_commands import RoomCommands
 from .room_owner import room_client_scope
@@ -37,13 +36,18 @@ __layer__ = "lanes"
 
 logger = logging.getLogger(__name__)
 
+#: Why a legacy profile-group room refuses work (RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT).
+RETIRED_GROUP = "profile_group_retired"
+
 
 class DiscussionService:
-    def __init__(self, context: NativeContext, *, active_poll_interval: float = 0.5, conversations=None,
+    def __init__(self, context: NativeContext, *, active_poll_interval: float = 0.5, legacy_routes=None,
                  lease_ttl: float = 30.0) -> None:
         """``lease_ttl`` is the room driver lease's lifetime: a successor serve adopts a room
         whose previous owner left a task running only once that lease expires, so this
-        bounds restart recovery (tests shorten it rather than wait the production 30 s)."""
+        bounds restart recovery (tests shorten it rather than wait the production 30 s).
+        ``legacy_routes`` (tests) supplies the retired profile conversations' saved routes; by default
+        they are opened under this service's root the first time an adoption needs them."""
         self.context = context
         self.db_path = context.home / "state.db"
         self.definitions = DefinitionStore(self.db_path)
@@ -56,7 +60,9 @@ class DiscussionService:
         # The checkpoint's DDL indexes hosted_room_events: open the room store (its schema) first.
         rooms.list_rooms(self.db_path, limit=1)
         self.checkpoints = HostedRoomPolicyCheckpoint(self.db_path, max_active_events=256)
-        self.executions = Executions(context, self.attempts, self.runs, conversations)
+        self._legacy_routes_factory = legacy_routes
+        self._legacy_routes = None
+        self.executions = Executions(context, self.attempts)
         self.turns = self.executions.instances.turns
         self.state = RoomState(self.db_path, context.install_id, self.runs,
             self.attempts, self.executions, self.checkpoints)
@@ -87,6 +93,22 @@ class DiscussionService:
                 logger.warning("Discussion start-up clean-up failed", exc_info=True)
             self.runtime.start()
             self._started = True
+            # Under the lock the room worker's ``bindings`` takes, so a legacy room is paused before it plans.
+            from .group_migration import adopt_legacy_groups
+            try:
+                adopt_legacy_groups(self)
+            except Exception:
+                logger.warning("Legacy group adoption failed; the rooms are kept as they were", exc_info=True)
+
+    def legacy_routes(self):
+        """The retired profile conversations' saved routes (``conversations.legacy_routes``): what a legacy
+        group's adoption and a compare import read a member's transcript from. Never runs a turn."""
+        if self._legacy_routes_factory is not None:
+            return self._legacy_routes_factory()
+        if self._legacy_routes is None:
+            from agent_runtime.conversations.legacy_routes import LegacyRoutes
+            self._legacy_routes = LegacyRoutes(self.context.root, self.context.install_id)
+        return self._legacy_routes
 
     def close(self) -> None:
         with self._lock:
@@ -179,17 +201,6 @@ class DiscussionService:
             self.runtime.wakeup()
             return self.runs.get(run["run_id"])
 
-
-    def begin_group(self, spec: ProfileGroupSpec, *, key: str, actor_id: str, client: str) -> dict[str, Any]:
-        with self._lock:
-            if not self.accepting:
-                raise DiscussionError("runtime_stopping")
-            run = admit_group(self.runs, spec, key=key, actor=actor_id, client=client,
-                              install_id=self.context.install_id)
-            self.context.launcher.bind(run["run_id"], client_scope=client)
-            self.runtime.wakeup()
-            return run
-
     def validate_scope(self, scope: str) -> None:
         if not is_group_scope(scope):
             self.context.workspace(scope)
@@ -213,6 +224,8 @@ class DiscussionService:
         """Bring one owned run to its hosted state; False when it is not (yet, or any longer) a room to bind."""
         if run["initial"].get("compare_import", {}).get("state") == "pending":
             return False
+        if "group" in run["initial"] and run["phase"] == "initializing":
+            return False  # a legacy group that never opened has no room to keep, and none is made for it now
         if run["phase"] == "initializing":
             self.state.initialize(run)
         elif run["phase"] == "ending" and self._room_disbanded(run):
@@ -277,6 +290,9 @@ class DiscussionService:
             continuation = operation in {"answer", "stop", "end", "remove", "abandon"}
             if self._closed or not self._started or (self._draining and not continuation):
                 raise DiscussionError("runtime_stopping")
+            # A legacy profile group runs nothing any more: it can be stopped or ended, never sent to.
+            if "group" in self.runs.get(run_id, workspace_id)["initial"] and operation not in {"stop", "end", "abandon"}:
+                raise DiscussionError(RETIRED_GROUP)
             if operation == "send" and (response := response_from_payload(body)) is not None:
                 response.validate_audience((m["member_id"] for m in self.runs.members(run_id) if m["status"] == "active"),
                                            error=lambda _: DiscussionError("member_not_found"))
@@ -299,15 +315,8 @@ class DiscussionService:
             if self._closed or not self._started:
                 raise DiscussionError("runtime_stopping")
             run = self.runs.get(body["run_id"], body["workspace_id"])
-            if "group" not in run["initial"]:
-                raise DiscussionError("unsupported_answer")
-            task = self.state.task(run["run_id"], body["task_id"], body["generation"])
-            row = self.executions.profiles.row(run["run_id"], task)
-            if row is None:
-                raise DiscussionError("attempt_not_found")
-            self.executions.profiles.turns.answer(row, body)
-            self.runtime.wakeup()
-            return self.state.view(body["workspace_id"], body["run_id"])
+            # Only a profile group's turn asked through ``run.respond``; that path is retired.
+            raise DiscussionError(RETIRED_GROUP if "group" in run["initial"] else "unsupported_answer")
 
     def active(self, workspace_id: str, *, client_scope: str | None = None,
                include_owned: bool = True) -> list[dict[str, Any]]:

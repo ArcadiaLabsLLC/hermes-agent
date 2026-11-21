@@ -11,8 +11,6 @@ from hermes_state import SessionDB
 from tools import async_delegation as ad
 from tools.delegate_tool_child_run import _build_result_entry, _SchemaOutcome
 from tests.waiting import wait_until
-from agent_runtime.conversations.model import ConversationScope, ConversationError
-from agent_runtime.conversations.service import ConversationService
 from agent_runtime.subagents.model import Refusal, SubagentError
 from agent_runtime.subagents.history import inspect_history
 from tests.agent_runtime.test_operator_session_inspection import target, inspect
@@ -101,28 +99,6 @@ def test_async_completion_is_read_without_delivery_ack_or_worker(stored):
         assert ad.get_durable_delegation(handle["delegation_id"]) == before
     finally:
         ad._reset_for_tests()
-
-
-def test_native_route_history_never_acquires_an_execution_worker(stored, tmp_path):
-    home, db = stored
-    store_result(db, "parent")
-    def forbidden_worker(*args, **kwargs):
-        pytest.fail("history started an execution worker")
-    service = ConversationService(tmp_path / "runtime", "install", profile_home=lambda _: home, worker_factory=forbidden_worker)
-    scope = ConversationScope("actor", "client", "profile")
-    route, _ = service.store.reserve(scope, "chat", str(tmp_path), str(home))
-    route = service.store.replace_unused(route, "parent")
-    try:
-        reply = service.subagents(scope, route.id, "history", {})
-        assert reply["session_id"] == route.id and len(reply["results"]) == 1
-        saved_tree(home)
-        capture_history(tmp_path / "native-history.json", lambda op, args: service.subagents(scope, route.id, op, args))
-        for wrong in (ConversationScope("other", "client", "profile"), ConversationScope("actor", "other", "profile"),
-                      ConversationScope("actor", "client", "other")):
-            with pytest.raises(ConversationError):
-                service.subagents(wrong, route.id, "history", {})
-    finally:
-        service.close()
 
 
 def saved_tree(home, session="parent", name="saved.json"):
@@ -221,20 +197,15 @@ def test_native_async_head_store_and_profile_transcript_are_both_read(stored, tm
     monkeypatch.setenv("HERMES_HEAD_HOME", str(head))
     store_result(db, "parent", "Synchronous")
     ad._reset_for_tests()
-    service = ConversationService(tmp_path / "runtime", "install", profile_home=lambda _: home,
-        worker_factory=lambda *args, **kwargs: pytest.fail("borrowed worker"))
-    scope = ConversationScope("actor", "client", "profile")
-    route, _ = service.store.reserve(scope, "chat", str(tmp_path), str(home))
-    route = service.store.replace_unused(route, "parent")
     try:
         handle = ad.dispatch_async_delegation(goal="Async head", context=None, toolsets=None, role="worker",
             model="model", session_key="parent", parent_session_id="parent", runner=lambda: native_result())
         wait_until(lambda: (ad.get_durable_delegation(handle["delegation_id"]) or {}).get("state") == "completed")
-        reply = service.subagents(scope, route.id, "history", {})
+        reply = inspect_history("history", {}, owner="owner", db=db, session_id="parent", home=home,
+                                revalidate=lambda: None, delegation_db_path=head / "state.db")
         assert len(reply["results"]) == 2
         assert {row["source"] for row in reply["results"]} == {"delegation", "transcript"}
     finally:
-        service.close()
         ad._reset_for_tests()
 
 

@@ -1,13 +1,11 @@
-"""The profile worker behind ``runtime.conversation.*``, run inside this process.
+"""The native gateway (``tui_gateway``) run inside this process, behind the peer seam.
 
-Embedded-hermes plan Stage 2 step 8 (architecture §3). The desktop serves each
-profile's conversations from a worker subprocess running the native gateway
-(``tui_gateway``) over stdio. A phone may start no subprocess, so there the SAME
-gateway dispatcher runs in-process behind the same peer seam: this class is a
-:class:`~.native_peer.PeerCore` whose wire is ``tui_gateway``'s own in-process
-door — ``server.dispatch(request, transport)``, the one the WebSocket sidecar
-already uses — instead of a pipe. Same RPC, same sessions, same recovery; the
-conversation service above it cannot tell the two apart.
+Embedded-hermes plan Stage 2 step 8 (architecture §3), and since
+RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT the one engine every chat with an
+agent runs on (``operator_gateway_turn``), on the desktop and the phone alike. This class is a
+:class:`~.native_peer.PeerCore` whose wire is ``tui_gateway``'s own in-process door —
+``server.dispatch(request, transport)``, the one the WebSocket sidecar already uses — instead of
+a pipe: same RPC, same sessions, same recovery as the retired worker subprocess.
 
 What the subprocess got from its own ``HERMES_HOME``, this peer gets from the
 gateway's multi-profile hosting: every request whose contract admits ``profile``

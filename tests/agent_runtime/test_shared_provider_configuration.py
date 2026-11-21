@@ -1,8 +1,5 @@
 """Provider definitions stay shared; preferences and tool configuration stay local."""
-import json
-
-from agent_runtime.conversations.model_preferences import default_id
-from agent_runtime.provider_configuration import provider_configuration
+from agent_runtime.provider_configuration import configuration_at, provider_configuration
 from tests.agent_runtime.test_shared_provider_credentials import bound
 
 
@@ -43,10 +40,10 @@ def test_shared_custom_provider_resolves_without_copying_profile_config(tmp_path
             assert custom_provider_pool_key_candidates("https://example.invalid/v1", "custom:shared")[0] == "shared"
             assert path.read_bytes() == original
             assert not (profile / "auth.json").exists()
-    assert default_id(profile, owners[0]) == json.dumps(["custom:shared", "agent-model"], separators=(",", ":"))
+    assert configuration_at(profile)["model"] == {"default": "agent-model", "provider": "custom:shared"}
 
 
-def test_default_inheritance_uses_existing_writer_and_never_copies_credentials(tmp_path):
+def test_a_model_choice_uses_the_existing_writer_and_never_copies_credentials(tmp_path):
     from hermes_cli.model_switch import ModelSwitchResult, persist_model_selection
 
     owner, a, b = [tmp_path / name for name in ("owner", "a", "b")]
@@ -54,13 +51,12 @@ def test_default_inheritance_uses_existing_writer_and_never_copies_credentials(t
         home.mkdir()
     (owner / "config.yaml").write_text('model: {default: base, provider: openrouter}\n', encoding="utf-8")
     (a / "config.yaml").write_text('terminal: {backend: docker}\n', encoding="utf-8")
-    for home in (a, b, a):
-        assert default_id(home, owner) == '["openrouter","base"]'
     with bound(a, owner):
         persist_model_selection(ModelSwitchResult(success=True, new_model="chosen",
             target_provider="openrouter", api_key="synthetic-do-not-copy"))
-    assert default_id(a, owner) == '["openrouter","chosen"]'
-    assert default_id(b, owner) == '["openrouter","base"]'
-    assert default_id(owner, owner) == '["openrouter","base"]'
+    chosen = configuration_at(a)["model"]
+    assert (chosen.get("default"), chosen.get("provider")) == ("chosen", "openrouter")
+    assert not configuration_at(b).get("model")
+    assert configuration_at(owner)["model"] == {"default": "base", "provider": "openrouter"}
     saved = (a / "config.yaml").read_text(encoding="utf-8")
     assert "docker" in saved and "synthetic-do-not-copy" not in saved

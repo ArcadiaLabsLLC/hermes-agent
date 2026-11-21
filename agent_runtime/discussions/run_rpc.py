@@ -40,11 +40,6 @@ def _start_room(service, params, actor_id):
         client_scope=params.get("client_scope"))}
 
 
-def _start_group(service, params, actor_id):
-    return {"run": service.begin_group(params["spec"], key=params["idempotency_key"],
-        actor_id=actor_id, client=params["client_scope"])}
-
-
 def _respond(service, params, _actor_id):
     return service.respond(params)
 
@@ -58,7 +53,7 @@ _CATALOG_READS = {"active": _active, "list": _list}
 _READS_AND_STARTS = {"get": _get,
                     "member_models": lambda s, p, a: member_models(s, p),
                     "member_model": lambda s, p, a: member_models(s, p, select=True),
-                    "start": _start, "start_room": _start_room, "start_group": _start_group, "respond": _respond,
+                    "start": _start, "start_room": _start_room, "respond": _respond,
                     "migrate_group": _migrate_group,
                     "resolve_compare": resolve_compare, "append_compare": append_compare}
 _SOURCE_IMPORTS = {"prepare_compare": prepare_compare, "finish_compare": finish_compare}
