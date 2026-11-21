@@ -190,3 +190,96 @@ def test_the_warm_read_costs_at_most_a_millisecond(home):
     for _ in range(runs):
         chosen_credential_source("anthropic")
     assert (time.perf_counter() - started) / runs < 0.001
+
+
+# ── the chosen kind cannot serve (review w1118a.69 D1) ───────────────────────
+# RT-FU-A-SAVED-API-KEY-IS-NEVER-USED-WHILE-THE-CHOSEN-SIGN-IN-IS-EXHAUSTED: the choice is kept, the
+# saved key is never spent, and the pick and the turn refuse ``chosen_credential_unusable``.
+
+
+def _exhaust_the_grant(pool) -> None:
+    assert pool.select().source == "hermes_pkce"
+    ctx = {"message": "This request would exceed your account's rate limit."}
+    pool.mark_exhausted_and_rotate(status_code=429, error_context=ctx, api_key_hint=GRANT, failure_reason="rate_limit")
+
+
+def test_an_exhausted_chosen_sign_in_keeps_the_key_benched_and_reads_unusable(home, monkeypatch):
+    from agent.credential_pool import load_pool
+    from agent_runtime.provider_credential_source import chosen_credential_unusable
+
+    _choose(home, "account")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
+    pool = load_pool("anthropic")
+    assert chosen_credential_unusable("anthropic", pool) is False
+    _exhaust_the_grant(pool)
+
+    assert pool.select() is None  # D1 (a): nothing is spent from the other kind
+    assert chosen_credential_unusable("anthropic", pool) is True
+    assert chosen_credential_unusable("anthropic") is True  # loaded from the home, as the turn reads it
+
+
+def test_a_usable_chosen_row_is_not_refused(home, monkeypatch):
+    from agent_runtime.provider_credential_source import chosen_credential_unusable
+
+    _choose(home, "account")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
+    assert chosen_credential_unusable("anthropic") is False
+
+
+def test_no_saved_other_kind_keeps_the_usual_refusal(home):
+    from agent.credential_pool import load_pool
+    from agent_runtime.provider_credential_source import chosen_credential_unusable
+
+    _choose(home, "account")  # no key saved: nothing to point at
+    pool = load_pool("anthropic")
+    _exhaust_the_grant(pool)
+    assert chosen_credential_unusable("anthropic", pool) is False
+
+
+def test_no_choice_set_is_never_this_refusal(home, monkeypatch):
+    from agent_runtime.provider_credential_source import chosen_credential_unusable
+
+    _choose(home, None)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
+    assert chosen_credential_unusable("anthropic") is False
+    assert chosen_credential_unusable("openrouter") is False
+
+
+def test_a_pick_on_an_exhausted_chosen_sign_in_says_why(home, monkeypatch):
+    from agent.credential_pool import load_pool
+    from agent_runtime.operator_session_models import _choice_provider, _model_unavailable_reason
+
+    _choose(home, "account")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
+    assert _model_unavailable_reason("anthropic", MODEL) == "model_unavailable"
+    _exhaust_the_grant(load_pool("anthropic"))
+
+    assert _model_unavailable_reason("anthropic", MODEL) == "chosen_credential_unusable"
+    assert _model_unavailable_reason(_choice_provider('["anthropic","claude-sonnet-5"]')) == "chosen_credential_unusable"
+    assert _model_unavailable_reason(_choice_provider("not json")) == "model_unavailable"
+
+
+def test_a_turn_on_an_exhausted_chosen_sign_in_is_refused_typed(home, monkeypatch):
+    from types import SimpleNamespace
+
+    from agent.credential_pool import load_pool
+    from agent_runtime.mission_chat_outcome import ChatErrorKind, classify_turn_failure
+    from agent_runtime.provider_credential_source import refuse_an_unusable_chosen_credential
+    from agent_runtime.provider_login_expiry import NamedProviderNotConfiguredError
+
+    _choose(home, "account")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
+    request = SimpleNamespace(prewarm_only=False, provider="anthropic", model=MODEL)
+    refuse_an_unusable_chosen_credential(request)  # usable: the turn goes on
+    _exhaust_the_grant(load_pool("anthropic"))
+
+    with pytest.raises(NamedProviderNotConfiguredError) as excinfo:
+        refuse_an_unusable_chosen_credential(request)
+    assert KEY not in str(excinfo.value) and GRANT not in str(excinfo.value)
+    outcome = classify_turn_failure(excinfo.value, provider_submitted=True, request_started=False)
+    assert outcome.error_kind == ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE
+    block = outcome.provider_refusal.as_dict()
+    assert (block["status_code"], block["provider"], block["failure_reason"]) == (
+        0, "anthropic", "chosen_credential_unusable")
+    assert "is not spent unless you switch" in outcome.provider_refusal.next_expected()
+    refuse_an_unusable_chosen_credential(SimpleNamespace(prewarm_only=True, provider="anthropic", model=MODEL))

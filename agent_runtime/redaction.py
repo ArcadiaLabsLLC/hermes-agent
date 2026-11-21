@@ -185,17 +185,37 @@ REDACTED_SECRET_LINE = "[redacted line — contained a secret]"
 
 def mask_secret_lines(text: str) -> str:
     """``text`` with every line that carries a secret assignment
-    (:func:`has_text_secret_assignment`) replaced by :data:`REDACTED_SECRET_LINE`.
+    (:func:`has_text_secret_assignment`) replaced by :data:`REDACTED_SECRET_LINE`,
+    then every bare key shape upstream knows hidden (:func:`mask_known_key_shapes`).
 
     The ONE per-line masker: the whole line goes, never a surgical cut, so a
     value the pattern half-matched cannot survive beside the key. Split and
-    joined on ``\n`` only; callers normalize line endings, strip and bound.
+    joined on ``\n`` only; callers normalize line endings, strip and bound --
+    after this, so a cut never halves a key the scrubber would have seen whole.
     """
 
-    return "\n".join(
+    # MUTATION: return the joined lines without mask_known_key_shapes and
+    # test_a_child_s_returned_bare_key_is_masked_in_the_live_chat_log reddens.
+    return mask_known_key_shapes("\n".join(
         REDACTED_SECRET_LINE if has_text_secret_assignment(line) else line
         for line in text.split("\n")
-    )
+    ))
+
+
+def mask_known_key_shapes(text: str) -> str:
+    """``text`` with every bare credential shape upstream's scrubber knows
+    (``hf_…``, ``glpat-…``, ``sk-…`` …) replaced by its non-reusable
+    ``«redacted:<prefix>…»`` marker, and nothing else changed.
+
+    For the display lanes whose own rule is assignment-shaped (a ``key: value``
+    line or message is hidden whole): a key written bare beside prose never
+    matched that rule (RT-FU-A-BARE-KEY-IN-A-STREAM-FRAME-OR-CHAT-LOG-LINE-IS-NOT-ASKED-OF-THE-ONE-SCRUBBER,
+    seen 2026-11-21 through a child's returned summary into the live chat log and
+    the chat history, and a board card into the snapshot). No fork pattern list:
+    upstream decides (:func:`_redact_upstream`), so a shape it learns is hidden
+    here with no fork edit. Idempotent."""
+
+    return _redact_upstream(str(text))
 
 
 def scrub_tree(

@@ -52,6 +52,7 @@ __layer__ = "stores"
 __all__ = [
     "ACCOUNT",
     "API_KEY",
+    "CHOSEN_CREDENTIAL_UNUSABLE",
     "BORROWED_LOGINS",
     "BORROWED_SOURCES",
     "account_signed_in",
@@ -59,10 +60,13 @@ __all__ = [
     "borrowed_login_fenced",
     "benched_entry_ids",
     "chosen_credential_source",
+    "chosen_credential_unusable",
+    "chosen_unusable_message",
     "credential_source_block",
     "credential_source_ids",
     "entry_family",
     "present_credential_sources",
+    "refuse_an_unusable_chosen_credential",
     "refuse_borrowed_login",
     "resolve_chosen_anthropic_token",
     "visible_entries",
@@ -224,6 +228,72 @@ def benched_entry_ids(provider: str, entries: Iterable[Any]) -> frozenset[str]:
     if not any(entry_family(entry) == chosen for entry in rows):
         return fenced
     return fenced | frozenset(str(entry.id) for entry in rows if entry_family(entry) != chosen)
+
+
+# ── the chosen kind cannot serve (review w1118a.69 D1) ───────────────────────
+
+#: The typed reason a model pick and a turn refuse with while every stored row of the CHOSEN kind
+#: is exhausted or refused and a saved credential of the other kind exists
+#: (RT-FU-A-SAVED-API-KEY-IS-NEVER-USED-WHILE-THE-CHOSEN-SIGN-IN-IS-EXHAUSTED, D1 (a)). The bench
+#: stays: ``credential_source`` is a spending choice (a plan's limits against paid API credits), so
+#: nothing is spent from the other kind until the person switches (``runtime.provider.source.set``).
+CHOSEN_CREDENTIAL_UNUSABLE = "chosen_credential_unusable"
+
+
+def chosen_credential_unusable(provider: str, pool: Any = None, *, model: Optional[str] = None) -> bool:
+    """True when the chosen kind holds rows but none can serve *model*, and the other kind holds one.
+
+    False (the usual refusal stands) when no choice is set, when the chosen kind has nothing stored
+    (the bench lifts, :func:`benched_entry_ids`), when nothing of the other kind is saved, or when a
+    chosen row is usable. *pool* is an already-loaded pool, else the provider's is loaded in the
+    caller's profile. Never raises: a pool that cannot be read is not proof of anything."""
+    if provider != "anthropic" or chosen_credential_source(provider) is None:
+        return False
+    chosen = chosen_credential_source(provider)
+    try:
+        if pool is None:
+            from agent.credential_pool import load_pool
+
+            pool = load_pool(provider)
+        fenced = borrowed_login_fenced(provider)
+        rows = [entry for entry in pool.entries()
+                if _has_secret(entry) and not (fenced and _borrowed(entry, provider))]
+        if not any(entry_family(entry) == chosen for entry in rows):
+            return False
+        # MUTATION: drop this guard and test_no_saved_other_kind_keeps_the_usual_refusal reddens.
+        if not any(entry_family(entry) != chosen for entry in rows):
+            return False
+        # The unchosen rows are benched while a chosen row is stored, so this is the chosen kind's answer.
+        # MUTATION: return True here and test_a_usable_chosen_row_is_not_refused reddens.
+        return not pool.has_available(model=model)
+    except Exception:
+        return False
+
+
+def chosen_unusable_message(provider: str) -> str:
+    """The refusal's words: which kind was chosen, and that the other kind is not spent. No secret."""
+    labels = dict(credential_source_ids(provider))
+    chosen = chosen_credential_source(provider) or ""
+    other = next((label for source_id, label in labels.items() if source_id != chosen), "the other credential")
+    return (f"Provider '{provider}': the credential chosen for its turns ({labels.get(chosen, chosen)}) cannot "
+            f"be used right now, so the request was not sent. A saved {other} is not spent unless you "
+            "switch to it; switch which credential this provider uses, or wait for the chosen one to recover.")
+
+
+def refuse_an_unusable_chosen_credential(request: Any) -> None:
+    """Refuse a run, before any token, while its provider's CHOSEN credential cannot serve and one of
+    the other kind is saved: named, typed :data:`CHOSEN_CREDENTIAL_UNUSABLE`, and the other kind is
+    never spent. The runner calls it inside the persona's profile (``profile_runner/execute.py``), so
+    that profile's pool and choice are what is read; a prewarm is never refused."""
+    if getattr(request, "prewarm_only", False) or not getattr(request, "provider", None):
+        return
+    provider = str(request.provider)
+    # MUTATION: return before this check and test_a_turn_on_an_exhausted_chosen_sign_in_is_refused_typed reddens.
+    if chosen_credential_unusable(provider, model=getattr(request, "model", None)):
+        from .provider_login_expiry import NamedProviderNotConfiguredError
+
+        raise NamedProviderNotConfiguredError(chosen_unusable_message(provider), provider=provider,
+                                              credentials_reason=CHOSEN_CREDENTIAL_UNUSABLE)
 
 
 # ── the resolver ─────────────────────────────────────────────────────────────

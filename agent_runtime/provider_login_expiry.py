@@ -14,6 +14,8 @@ from typing import Any, Optional
 
 from agent.auxiliary_unavailable import ProviderNotConfiguredError, missing_provider_credentials_message
 
+from .api_key_check import API_KEY_CONTROL_CHARACTER
+
 __layer__ = "models"
 
 __all__ = [
@@ -21,7 +23,9 @@ __all__ = [
     "NamedProviderNotConfiguredError",
     "expired_login_message",
     "named_missing_provider_error",
+    "pool_key_refused",
     "pool_login_expired",
+    "refused_key_message",
 ]
 
 #: The credentials reason of a refusal whose provider's sign-in itself is gone: every usable entry
@@ -82,4 +86,33 @@ def named_missing_provider_error(provider_id: str, exhausted_pool: Optional[Any]
     if pool_login_expired(exhausted_pool):
         return NamedProviderNotConfiguredError(
             expired_login_message(provider_id), provider=provider_id, credentials_reason=LOGIN_EXPIRED_REASON)
+    if pool_key_refused(exhausted_pool):
+        return NamedProviderNotConfiguredError(
+            refused_key_message(provider_id), provider=provider_id, credentials_reason=API_KEY_CONTROL_CHARACTER)
     return NamedProviderNotConfiguredError(missing_provider_credentials_message(provider_id), provider=provider_id)
+
+
+def pool_key_refused(pool: Optional[Any]) -> bool:
+    """True when ``pool`` has no usable entry and holds a key the one key check refused at lease.
+
+    RT-FU-AN-API-KEY-WITH-A-HIDDEN-CONTROL-CHARACTER-IS-REFUSED-WHEN-IT-IS-SAVED: such a row reads
+    DEAD with :data:`agent_runtime.api_key_check.API_KEY_CONTROL_CHARACTER` (the pool's fork seam),
+    so the turn names it instead of 21 transport retries. Never raises."""
+    if pool is None:
+        return False
+    from agent.credential_pool import STATUS_DEAD
+
+    try:
+        if pool.has_available():
+            return False
+        # MUTATION: answer False here and test_a_turn_on_a_refused_key_names_the_hidden_character reddens.
+        return any(e.last_status == STATUS_DEAD and e.last_error_reason == API_KEY_CONTROL_CHARACTER
+                   for e in pool.entries())
+    except Exception:
+        return False
+
+
+def refused_key_message(provider_id: str) -> str:
+    """The error for a provider whose saved API key holds a hidden character (never the key)."""
+    return (f"Provider '{provider_id}' API key contains a hidden character (often picked up when it was "
+            "copied), so it was never sent; save the key again.")
