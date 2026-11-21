@@ -14,13 +14,13 @@ moving `RPC_CONTRACT_VERSION`.
 
 | method | tier | params | wraps |
 |---|---|---|---|
-| `runtime.provider.list` | read | `persona_instance_id?` / `persona_id?`; `prewarm_signin?` | `build_provider_visibility()` (`hermes harness providers --json`) |
+| `runtime.provider.list` | read | `persona_instance_id?` / `persona_id?` | `build_provider_visibility()` (`hermes harness providers --json`) |
 | `runtime.provider.models` | read | `catalog_ids` (list of models.dev provider ids, at most 64) | `agent/models_dev.py::fetch_models_dev()` — the engine's own models.dev cache (memory → disk cache under the home → network), called, not edited |
 | `runtime.provider.usage` | read | `provider`; `persona_instance_id?` / `persona_id?` | `agent.account_usage.fetch_account_usage`; Nous via `get_nous_portal_account_info` + `build_nous_credits_snapshot` |
-| `runtime.provider.signin.begin` | console | `provider`; `flow?`, `profile?` | one `hermes harness auth login <provider> --json --flow <flow>` child (`hermes_cli/provider_browser_login.py` driver table) |
-| `runtime.provider.signin.poll` | console | `login_id` | the session the child's NDJSON feeds |
-| `runtime.provider.signin.complete` | console | `login_id`, `code` | writes `code` as one line to the child's stdin |
-| `runtime.provider.signin.cancel` | console | `login_id` | kills the child |
+| `runtime.provider.signin.begin` | console | `provider`; `flow?`, `profile?` | one sign-in on a thread of the serve: `run_browser_login`, the `hermes_cli/provider_browser_login.py` driver table `hermes harness auth login <provider> --json` also runs |
+| `runtime.provider.signin.poll` | console | `login_id` | the session the driver's NDJSON events feed |
+| `runtime.provider.signin.complete` | console | `login_id`, `code` | hands `code` to the driver's pasted-line reader |
+| `runtime.provider.signin.cancel` | console | `login_id` | stops the driver's thread where it stands |
 | `runtime.provider.refresh` | console | `provider`; `credential?` (index, id or label) | `hermes auth refresh` (`auth_refresh_command`) |
 | `runtime.provider.signout` | console | `provider` | `hermes auth logout` (`auth_logout_command`) |
 | `runtime.provider.key.set` | console | `provider`, `key`; `label?` | `hermes_cli/auth_noninteractive.py::set_key` (what `hermes harness auth set-key --stdin` runs), called, not edited: the key variable through the credential choke point `credential_lifecycle.save_provider_env_credential`, or a manual pool entry for a `custom:` pool; for a phone, which has no process to spawn |
@@ -58,11 +58,11 @@ table (`HermesProviderMethod.timeoutFor`).
 | `runtime.provider.key.set` | one `.env` rewrite (or one pool save) and the config mirrors the choke point reconciles, all local; on a phone each is a host secure-store write | 15 s |
 | `runtime.provider.configure` | up to three round-trip YAML writes of one local file | 10 s |
 | `runtime.provider.source.set` | local credential-presence reads and one round-trip YAML write of one local file | 10 s |
-| `runtime.provider.signin.begin` | spawns the login child and answers in state `starting` without waiting on it | 15 s |
+| `runtime.provider.signin.begin` | starts the sign-in thread and answers in state `starting` without waiting on it | 15 s |
 | `runtime.provider.list` | local files, plus — only for a credential in cooldown — upstream's throttled Codex quota probe (`_probe_codex_quota_restored`, `timeout=10.0`, after an expired-token refresh) | 30 s |
 | `runtime.provider.signin.poll` | in-memory session read | 10 s |
-| `runtime.provider.signin.complete` | one line written to the child's stdin | 10 s |
-| `runtime.provider.signin.cancel` | kills the child | 10 s |
+| `runtime.provider.signin.complete` | one line handed to the driver | 10 s |
+| `runtime.provider.signin.cancel` | stops the driver's thread | 10 s |
 | `runtime.provider.dependency.install` | one `uv pip install` bounded at 300 s, re-run twice on `os error 32` (2 s, 5 s), or a `pm` sync | 960 s |
 | `runtime.provider.pack.activate` | two small file reads and one `site.addsitedir` | 10 s |
 
@@ -184,10 +184,10 @@ without `flow` picks `device_code` where offered, else the only method.
 
 | state | meaning | client does |
 |---|---|---|
-| `starting` | child running, no link yet | poll |
+| `starting` | driver running, no link yet | poll |
 | `awaiting_user` | open `verification_uri`, enter `user_code` (empty for `browser`) | poll |
 | `awaiting_code` (`needs_code: true`) | open `verification_uri`; the page shows a `code#state` string. With `code_refusal` ∈ `code_empty`, `code_mismatch`, the last paste was empty or its `#state` is not this link's — nothing was exchanged | `complete` with it (again) |
-| `completing` | code handed to the child | poll |
+| `completing` | code handed to the driver | poll |
 | `succeeded` | saved to this home's credential store | refresh `list` |
 | `failed` | `error_code` ∈ `expired`, `denied`, `browser_busy`, `unsupported_flow`, `unknown_provider`, `exchange_failed` (Anthropic refused or timed out the pasted code's exchange), `login_failed` | offer retry |
 | `cancelled` | `cancel` was called (`error_code: "cancelled"`) | — |
@@ -195,17 +195,19 @@ without `flow` picks `device_code` where offered, else the only method.
 A session unfinished after 15 minutes becomes `failed`/`expired` on its next
 poll. Finished sessions stay pollable for 10 minutes. One active session per
 provider. A failed session's closed `error_code`, and each `code_refusal`, is
-logged by the serve with its `login_id` — never the code or the child's text.
+logged by the serve with its `login_id` — never the code or the driver's text.
 
 **refresh** — `{contract, provider, credential, refreshed: true}`.
 
-**list `prewarm_signin: true`** (send it when Connections opens) also starts ONE warm
-sign-in child for the serve's home (`agent_runtime/provider_signin_warm.py`): it has already
-paid the cold child's 3.7–4.4 s of imports and waits on one stdin line `{provider, flow,
-profile}`, then runs the same `auth_login_command` NDJSON. The next `signin.begin` whose
-target home matches takes it (single use); another home discards it and starts cold. It is
-a process, so a cancel still kills it whole; unused, it exits after 600 s or when the serve
-closes its stdin. Profiles with `auth.subprocess_signin: false` warm nothing.
+**Sign-in runs inside the serve** (RT-PROVIDER-SIGN-IN-RUNS-INSIDE-THE-RUNNING-HERMES):
+every profile's `signin.begin` starts the driver on a thread of the serve
+(`agent_runtime/provider_signin.py::_ThreadChild`), never a second Hermes, so no import wait
+precedes the link and the credential lands through the serve's own config. A `cancel` (or the
+15-minute expiry) raises `SignInCancelled` — a `KeyboardInterrupt`, how upstream's drivers are
+stopped at a terminal — in that thread: the driver's own handlers and `finally` blocks run, so
+the Codex browser flow closes its loopback listener (a retry finds port 1455 free) and a
+device-code poll never saves a grant after its cancel. The retired `prewarm_signin` list
+parameter is ignored.
 
 **signout** — `{contract, provider, was_signed_in, signed_in, env_tokens}` (booleans read
 from `get_auth_status` before and after). `env_tokens` is `[{variable, files}]`: each
@@ -264,29 +266,30 @@ and removes the `env:VAR` pool entry, as `hermes auth remove` does for that sour
 No token, refresh token, API key or provider response body is in any result,
 error or log line: results are catalog rows, session state, booleans and
 usage windows; failures carry a closed reason or an exception class name,
-never `str(exc)`. Tokens exist only inside the sign-in child and the store
-upstream's save path writes. The child's stdout is the NDJSON wire of
-`provider_browser_login.browser_login_command` (helper prints discarded,
-logging disabled, exceptions never serialized); its stderr is discarded.
+never `str(exc)`. Tokens exist only inside the driver's call and the store
+upstream's save path writes. The driver's thread is silenced for its own prints
+and root-handled log records (`quiet_current_thread`), its events carry no
+exception text, and the session reads only those events.
 
 `signin.complete`'s `code` is the one-time authorization code; it is written
-to the child's stdin and never echoed or stored. `verification_uri` and
+to the driver's pasted-line reader and never echoed or stored. `verification_uri` and
 `user_code` are what the operator must see and are not credentials.
 
 ## Anthropic (`paste_code`)
 
 The driver runs upstream's `hermes auth add anthropic --type oauth`
-(`run_hermes_oauth_login_pure` → the credential pool) inside the child,
-shadowing that module's `print` (to capture the authorize link) and `input`
-(to read the pasted code from stdin) for the one call. PKCE, the CSRF state
+(`run_hermes_oauth_login_pure` → the credential pool), routing that module's
+`print` (to capture the authorize link) and `input` (to read the pasted code)
+for the sign-in's own context only (`provider_browser_login._route`): any other
+caller, on any thread, gets the real builtins. PKCE, the CSRF state
 check, the token exchange and the pool write are upstream's. The browser is
 not auto-opened; the client opens `verification_uri`.
 
 ## Profiles
 
-`signin.begin`'s `profile` becomes the child's `--profile` (the same resolution
-as `hermes harness auth login --profile`); the child otherwise runs under the serve's
-`HERMES_HOME`. The other methods act on the serve's own home, except that `list`
+`signin.begin`'s `profile` is resolved as `hermes harness auth login --profile`
+resolves it (`resolve_target_home`) and bound to the driver's thread only; otherwise the
+driver runs under the serve's `HERMES_HOME`. The other methods act on the serve's own home, except that `list`
 and `usage` given an agent (`persona_instance_id`, or `persona_id`) answer under
 that agent's profile: the read runs inside the same `resolve_persona_profile` +
 `persona_profile_context` binding a turn of that agent runs in
@@ -294,9 +297,6 @@ that agent's profile: the read runs inside the same `resolve_persona_profile` +
 spends, and the result gains `agent: {persona_id, persona_instance_id, profile}`
 (`profile` is the bound Hermes profile, or the serve's own for an agent that
 binds none). Without either id the result is unchanged and has no `agent` key.
-
-The sign-in child is a subprocess; a profile that cannot spawn one binds a
-different runner through `ProviderSignIns(spawn=…)`.
 
 ## `runtime.default_model.set` — the runtime default pair
 

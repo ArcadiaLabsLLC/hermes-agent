@@ -1,17 +1,21 @@
-"""Provider sign-in with no subprocess: the in-process runner behind ``ProviderSignIns(spawn=…)``.
+"""Provider sign-in runs inside the running Hermes: the in-process runner behind ``ProviderSignIns``.
 
-The phone profile (``auth.subprocess_signin: false``) may not spawn ``hermes auth
-login``; the registry binds ``run_login_in_process`` instead, which runs the same
-``run_browser_login`` on a thread. Only the provider grant is faked (the driver in
-``_DRIVERS``); the session state machine, the NDJSON events, the pasted-code path
-and the thread-scoped silence are the real ones.
+RT-PROVIDER-SIGN-IN-RUNS-INSIDE-THE-RUNNING-HERMES: every profile's registry runs
+``run_browser_login`` on a thread of the serve (``run_login_in_process``); no sign-in child
+and no warm child exist. Only the provider grant is faked (the driver in ``_DRIVERS``);
+the session state machine, the NDJSON events, the pasted-code path, the thread-scoped
+silence, the stop and the per-context routing of the Anthropic paste are the real ones.
 
 Killing mutations (applied, red recorded, reverted — see the commit message):
 
 * ``_ThreadChild._run`` drops ``quiet=quiet_current_thread`` (the process-wide silence) -> red
   (the host's own print is swallowed with the driver's).
 * ``_QuietThreadStream.write`` forwards every thread                                -> red.
-* ``select_login_runner`` always returns ``spawn_login_child``                          -> red.
+* ``ProviderSignIns``'s default runner anything but ``run_login_in_process``            -> red.
+* ``_ThreadChild.terminate`` not raising into the driver's thread                     -> red (the
+  driver's poll runs on past the cancel and its ``finally`` never runs).
+* ``_route``'s stand-in calling the route whatever the context                       -> red (another
+  thread's ``input`` reads the sign-in's paste queue).
 """
 
 from __future__ import annotations
@@ -94,14 +98,56 @@ def test_cancel_ends_the_session_and_fails_the_pending_paste(monkeypatch, no_sub
     assert signins.poll(login["login_id"])["state"] == "cancelled"
 
 
-def test_the_profile_switch_picks_the_runner():
-    from hermes_constants import get_hermes_home
+def test_every_profile_signs_in_inside_this_hermes():
+    assert provider_signin.ProviderSignIns()._spawn is provider_signin.run_login_in_process
+    assert provider_signin.registry()._spawn is provider_signin.run_login_in_process
 
-    assert provider_signin.select_login_runner() is provider_signin.spawn_login_child  # desktop control
-    home = Path(get_hermes_home())
-    home.mkdir(parents=True, exist_ok=True)
-    (home / "config.yaml").write_text(json.dumps({"auth": {"subprocess_signin": False}}), encoding="utf-8")
-    assert provider_signin.select_login_runner() is provider_signin.run_login_in_process
+
+def test_cancel_stops_the_driver_where_it_stands(monkeypatch, no_subprocess):
+    """A cancelled poll stops at once: its ``finally`` runs (a listener closes) and it saves nothing."""
+    released, saved = threading.Event(), []
+
+    def driver(verify, flow, expiry=None):
+        verify("https://provider.example/device", "ABCD-EFGH")
+        try:
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:  # a device-code poll, or the loopback wait
+                time.sleep(0.05)
+            saved.append("grant")
+        finally:
+            released.set()
+
+    monkeypatch.setitem(wire._DRIVERS, "xai-oauth", driver)
+    signins = provider_signin.ProviderSignIns(spawn=provider_signin.run_login_in_process)
+    login_id = signins.begin("xai-oauth")["login_id"]
+    _wait(signins, login_id, {"awaiting_user"})
+    started = time.monotonic()
+    assert signins.cancel(login_id)["state"] == "cancelled"
+    assert released.wait(5), "the driver ran on past its cancel"
+    assert time.monotonic() - started < 5
+    assert saved == []
+    assert signins.poll(login_id)["state"] == "cancelled"
+
+
+def test_a_routed_name_is_the_original_outside_the_sign_in(monkeypatch):
+    """The Anthropic paste routes ``input`` for its own context only; every other caller is untouched."""
+    import builtins
+
+    from agent import anthropic_credentials
+
+    wire._route(anthropic_credentials, "input")
+    monkeypatch.setattr(builtins, "input", lambda prompt="": "operator typed")
+    seen: list[str] = []
+    bound = wire._ROUTES.set({wire._route_key(anthropic_credentials, "input"): lambda prompt="": "pasted"})
+    try:
+        other = threading.Thread(target=lambda: seen.append(anthropic_credentials.input()))
+        other.start()
+        other.join(5)
+        assert anthropic_credentials.input() == "pasted"
+    finally:
+        wire._ROUTES.reset(bound)
+    assert seen == ["operator typed"]
+    assert anthropic_credentials.input() == "operator typed"
 
 
 def test_a_wrong_anthropic_paste_asks_again_and_a_failed_exchange_says_so(monkeypatch, caplog, no_subprocess):

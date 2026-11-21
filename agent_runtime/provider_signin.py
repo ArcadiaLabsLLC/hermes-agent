@@ -1,29 +1,32 @@
-"""Provider sign-in as a pollable session over the one machine sign-in child.
+"""Provider sign-in as a pollable session, run inside this Hermes.
 
-``runtime.provider.signin.*`` never runs OAuth itself. Each session is one
-``hermes harness auth login <provider> --json`` child — ``hermes_cli.provider_browser_login``,
-whose driver table wraps upstream's flows and whose NDJSON wire already
-discards helper output, disables logging and never serializes an exception.
-This module turns that stream into state a client can poll:
+``runtime.provider.signin.*`` never runs OAuth itself. Each session runs
+``hermes_cli.provider_browser_login.run_browser_login`` — the driver table over upstream's
+own flows, the same thing ``hermes harness auth login --json`` runs from a terminal — on a
+thread of this process (:class:`_ThreadChild`), never in a second Hermes
+(RT-PROVIDER-SIGN-IN-RUNS-INSIDE-THE-RUNNING-HERMES). Its events arrive on a queue as the
+same NDJSON the command prints, and this module turns them into state a client can poll:
 
 ``starting`` -> ``awaiting_user`` (open the link, enter the code) or
 ``awaiting_code`` (open the link, paste the code back through ``complete``) ->
 ``completing`` -> ``succeeded`` | ``failed`` | ``cancelled``.
 
-A session holds the verification link and user code the driver's
-``on_verification`` callback surfaced, never a token: the tokens stay inside
-the child and land in the store upstream's own save path picks. The child is
-the isolation boundary on purpose — a driver's prints and a provider's error
-bodies die with its stdout, so nothing here has to redact them.
+A session holds the verification link and user code the driver's ``on_verification``
+callback surfaced, never a token: the tokens land in the store upstream's own save path
+picks. The driver's prints and log records are dropped for its thread only
+(``quiet_current_thread``), and the queue carries nothing but the events, so nothing here
+has to redact them. A cancel or an expiry stops the driver's thread where it stands
+(:meth:`_ThreadChild.terminate`), so a cancelled browser sign-in frees its loopback port and
+a cancelled device-code poll never saves a grant afterwards.
 
-The spawner is injectable (:class:`ProviderSignIns`) so tests drive fakes, and
-a profile with no subprocess (``auth.subprocess_signin: false``, the phone)
-binds :func:`run_login_in_process` — the same sign-in on a thread, same events.
+The runner is injectable (:class:`ProviderSignIns`) so tests drive fakes.
 """
 
 from __future__ import annotations
 
+import contextlib
 import contextvars
+import ctypes
 import json
 import logging
 import math
@@ -32,7 +35,7 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Protocol
+from typing import Any, Callable, Iterable, Iterator, Protocol
 
 __layer__ = "stores"
 
@@ -42,12 +45,10 @@ __all__ = [
     "LOGIN_TTL_SECONDS",
     "LoginChild",
     "ProviderSignIns",
+    "SignInCancelled",
     "SignInRefused",
-    "prewarm_signin",
     "registry",
     "run_login_in_process",
-    "select_login_runner",
-    "spawn_login_child",
 ]
 
 
@@ -128,30 +129,37 @@ class _Session:
         return row
 
 
-def spawn_login_child(provider: str, flow: str, profile: str | None) -> LoginChild:
-    """Start ``hermes harness auth login <provider> --json --flow <flow>`` under this home.
+class SignInCancelled(KeyboardInterrupt):
+    """Raised inside a sign-in's thread when its session is cancelled or expires.
 
-    The spawn lives in :mod:`agent_runtime.provider_signin_child`, imported only here: a
-    profile that starts no subprocess (``auth.subprocess_signin: false``, the phone) never
-    selects this runner (:func:`select_login_runner`) and leaves that module out.
+    A ``KeyboardInterrupt`` because that is how upstream's drivers are told to stop at a
+    terminal: each one's own handler and ``finally`` run (the Codex browser flow shuts its
+    loopback listener down), and a driver's ``except Exception`` cannot swallow it.
     """
-    from .provider_signin_child import spawn_login_child as spawn
 
-    return spawn(provider, flow, profile)
+
+def _raise_in_thread(ident: int, exc_type: type[BaseException]) -> bool:
+    """Ask CPython to raise ``exc_type`` in thread ``ident`` at its next bytecode; True when queued.
+
+    The thread's own ``except`` / ``finally`` blocks run; a blocking call (a ``sleep``, a socket
+    read with its timeout) finishes first. False where the interpreter offers no such call.
+    """
+    try:
+        setter = ctypes.pythonapi.PyThreadState_SetAsyncExc
+    except AttributeError:
+        return False
+    return setter(ctypes.c_ulong(ident), ctypes.py_object(exc_type)) == 1
 
 
 class _ThreadChild:
-    """The in-process :class:`LoginChild`: the same sign-in, on a thread, over queues.
+    """One sign-in on a thread of this process: NDJSON events on one queue, the pasted code on another.
 
-    A profile that may start no subprocess (the phone) runs
-    ``hermes_cli.provider_browser_login.run_browser_login`` — what
-    ``hermes harness auth login --json`` runs — on a daemon thread in the caller's context,
-    its NDJSON events on one queue and the pasted code on another. The child's
-    isolation is kept by ``quiet_current_thread``: the driver's prints and log
-    records are dropped for that thread only, and the queue carries nothing but
-    the events. A thread cannot be killed: ``terminate`` ends the stream and fails
-    a pending paste, while a device-code poll already in flight runs to the
-    provider's own expiry, its outcome discarded (the session is already final).
+    Runs ``hermes_cli.provider_browser_login.run_browser_login`` — what
+    ``hermes harness auth login --json`` runs — on a daemon thread in the caller's context. The
+    driver's prints and log records are dropped for that thread only (``quiet_current_thread``).
+    ``terminate`` ends the stream, fails a pending paste and raises :class:`SignInCancelled` in the
+    driver's thread while the driver is running, so the flow stops where it stands instead of
+    running to the provider's expiry.
     """
 
     _END = object()
@@ -160,28 +168,53 @@ class _ThreadChild:
         self._events: queue.Queue = queue.Queue()
         self._pasted: queue.Queue = queue.Queue()
         self._terminated = threading.Event()
+        #: Held while the driver's thread may be stopped: ``terminate`` raises into it only then.
+        self._driver_lock = threading.Lock()
+        self._driver_ident: int | None = None
         context = contextvars.copy_context()
-        threading.Thread(target=context.run, args=(self._run, provider, flow, profile),
-                         daemon=True, name="provider-signin-in-process").start()
+        self._thread = threading.Thread(target=context.run, args=(self._run, provider, flow, profile),
+                                        daemon=True, name="provider-signin-in-process")
+        self._thread.start()
 
     def _run(self, provider: str, flow: str, profile: str | None) -> None:
+        try:
+            self._drive(provider, flow, profile)
+        except BaseException:  # a runner that cannot start, or a stop landing late, is a silent exit
+            pass
+        finally:
+            self._events.put(self._END)
+
+    def _drive(self, provider: str, flow: str, profile: str | None) -> None:
         from hermes_cli.auth_noninteractive import resolve_target_home
         from hermes_cli.provider_browser_login import quiet_current_thread, run_browser_login
         from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
+        home, applied_profile = resolve_target_home(profile)
+        token = set_hermes_home_override(home) if applied_profile is not None else None
         try:
-            home, applied_profile = resolve_target_home(profile)
-            token = set_hermes_home_override(home) if applied_profile is not None else None
-            try:
-                run_browser_login(provider, home=home, flow=flow, emit=lambda e: self._events.put(json.dumps(e)),
-                                  read_line=self._read_pasted, quiet=quiet_current_thread)
-            finally:
-                if token is not None:
-                    reset_hermes_home_override(token)
-        except Exception:  # a runner that cannot start is a silent exit: login_failed
-            pass
+            run_browser_login(provider, home=home, flow=flow, emit=lambda e: self._events.put(json.dumps(e)),
+                              read_line=self._read_pasted, quiet=lambda: self._stoppable(quiet_current_thread()))
         finally:
-            self._events.put(self._END)
+            if token is not None:
+                reset_hermes_home_override(token)
+
+    @contextlib.contextmanager
+    def _stoppable(self, quiet: contextlib.AbstractContextManager[None]) -> Iterator[None]:
+        """The driver's span, inside its quiet scope: the only span ``terminate`` raises into.
+
+        Entered after the thread is silenced and left before it is unsilenced, so a stop never
+        lands inside the quiet scope's own bookkeeping.
+        """
+        with quiet:
+            with self._driver_lock:
+                if self._terminated.is_set():
+                    raise SignInCancelled()
+                self._driver_ident = threading.get_ident()
+            try:
+                yield
+            finally:
+                with self._driver_lock:
+                    self._driver_ident = None
 
     def _read_pasted(self) -> str:
         line = self._pasted.get()
@@ -198,40 +231,23 @@ class _ThreadChild:
         self._pasted.put(text)
 
     def terminate(self) -> None:
-        self._terminated.set()
+        with self._driver_lock:
+            first = not self._terminated.is_set()
+            self._terminated.set()
+            if first and self._driver_ident is not None:
+                _raise_in_thread(self._driver_ident, SignInCancelled)
         self._pasted.put(None)  # a pending paste reads EOF and the driver fails
         self._events.put(self._END)
 
+    def join(self, timeout: float | None = None) -> bool:
+        """Wait for the driver's thread; True when it has ended (tests, and a clean serve stop)."""
+        self._thread.join(timeout)
+        return not self._thread.is_alive()
+
 
 def run_login_in_process(provider: str, flow: str, profile: str | None) -> LoginChild:
-    """:func:`spawn_login_child`'s in-process twin: same arguments, same NDJSON."""
+    """Start one sign-in on a thread of this Hermes (see :class:`_ThreadChild`)."""
     return _ThreadChild(provider, flow, profile)
-
-
-def subprocess_signin_enabled() -> bool:
-    """``auth.subprocess_signin`` — off in a profile that may start no subprocess."""
-    from hermes_cli.config_switches import config_switch
-
-    return config_switch("auth", "subprocess_signin", default=True)
-
-
-def select_login_runner() -> Callable[[str, str, str | None], LoginChild]:
-    return spawn_login_child if subprocess_signin_enabled() else run_login_in_process
-
-
-def prewarm_signin() -> bool:
-    """Start a warm sign-in child ahead of the press (RT-PROVIDER-SIGNIN-COLD-CHILD); True when one started.
-
-    Only where sign-in runs as a child: the in-process runner has nothing to warm. Never raises.
-    """
-    if not subprocess_signin_enabled():
-        return False
-    try:
-        from .provider_signin_child import prewarm_login_child
-
-        return prewarm_login_child()
-    except Exception:
-        return False
 
 
 def _advertised_methods(provider: str) -> list[str]:
@@ -251,7 +267,7 @@ class ProviderSignIns:
 
     def __init__(
         self,
-        spawn: Callable[[str, str, str | None], LoginChild] = spawn_login_child,
+        spawn: Callable[[str, str, str | None], LoginChild] = run_login_in_process,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._spawn = spawn
@@ -407,5 +423,5 @@ def registry() -> ProviderSignIns:
     global _REGISTRY
     with _REGISTRY_LOCK:
         if _REGISTRY is None:
-            _REGISTRY = ProviderSignIns(spawn=select_login_runner())
+            _REGISTRY = ProviderSignIns()
         return _REGISTRY

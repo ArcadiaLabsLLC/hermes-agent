@@ -145,14 +145,12 @@ def _agent_target(params: dict):
 @method("runtime.provider.list", tier=TIER_READ)
 def _runtime_provider_list(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """The real provider catalog with pools, logins and sign-in methods.
-    Params: ``persona_instance_id`` / ``persona_id`` optional — answer under that agent's profile;
-    ``prewarm_signin: true`` (Connections opening) also starts a warm sign-in child, so a press
-    does not wait on a cold child's imports (RT-PROVIDER-SIGNIN-COLD-CHILD)."""
-    from agent_runtime import provider_account, provider_signin
+    Params: ``persona_instance_id`` / ``persona_id`` optional — answer under that agent's profile.
+    Sign-in runs inside this serve, so there is nothing to warm (``prewarm_signin``, which an older
+    Eternia still sends, is ignored — RT-PROVIDER-SIGN-IN-RUNS-INSIDE-THE-RUNNING-HERMES)."""
+    from agent_runtime import provider_account
     from agent_runtime.provider_agent_scope import answer_for_agent
 
-    if params.get("prewarm_signin") is True:
-        provider_signin.prewarm_signin()
     target = _agent_target(params)
     return _off_reader(rid, "runtime.provider.list", context,
                        lambda: answer_for_agent(target, provider_account.provider_list))

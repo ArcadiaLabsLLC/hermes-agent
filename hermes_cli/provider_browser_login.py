@@ -89,15 +89,16 @@ def _paste_refusal(line: str, expected_state: str) -> str | None:
 
 
 def _anthropic(verify: Callable[[str, str], None], flow: str, expiry=None) -> None:
-    """Upstream's own ``hermes auth add anthropic --type oauth``, with its terminal swapped.
+    """Upstream's own ``hermes auth add anthropic --type oauth``, with its terminal routed.
 
-    ``run_hermes_oauth_login_pure`` prints the authorize link and ``input()``s the
-    pasted code; both names are shadowed on that one module for this one call,
-    so the link reaches ``verify`` and the code comes from the pasted-line reader —
-    this child's stdin, or the in-process runner's queue — which
-    ``runtime.provider.signin.complete`` writes. PKCE, the state check, the
-    exchange and the pool write stay upstream's. The browser is not auto-opened,
-    matching every other driver's ``open_browser=False``.
+    ``run_hermes_oauth_login_pure`` prints the authorize link and ``input()``s the pasted code.
+    For this sign-in's context only (:func:`_route`), its ``print`` hands the link to ``verify``
+    and its ``input`` reads the pasted-line reader — the command's stdin, or the serve's
+    in-process runner's queue, which ``runtime.provider.signin.complete`` writes. Every other
+    caller of those names, on any other thread, gets the real builtins: nothing is swapped
+    process-wide (RT-PROVIDER-SIGN-IN-RUNS-INSIDE-THE-RUNNING-HERMES). PKCE, the state check,
+    the exchange and the pool write stay upstream's. The browser is not auto-opened, matching
+    every other driver's ``open_browser=False``.
 
     A pasted line that is empty or whose ``#state`` is not the shown link's would end
     upstream's whole sign-in; it is refused here instead (a ``code_rejected`` event with
@@ -112,7 +113,6 @@ def _anthropic(verify: Callable[[str, str], None], flow: str, expiry=None) -> No
 
     seen: list[str] = []
     handed: list[bool] = []
-    login = anthropic_mod.run_hermes_oauth_login_pure
 
     def shown(*values, **_kwargs) -> None:
         for match in _ANTHROPIC_AUTHORIZE_URL.finditer(" ".join(str(v) for v in values)):
@@ -135,6 +135,8 @@ def _anthropic(verify: Callable[[str, str], None], flow: str, expiry=None) -> No
                 return line
             _emit_event({"event": "code_rejected", "code": refusal})
 
+    login = _route(anthropic_mod, "run_hermes_oauth_login_pure")
+
     def login_or_closed_failure():
         creds = login()
         if not creds and handed:
@@ -143,20 +145,53 @@ def _anthropic(verify: Callable[[str, str], None], flow: str, expiry=None) -> No
             raise _SignInStepFailed("exchange_failed")
         return creds
 
-    swaps = {(anthropic_mod, "print"): shown, (anthropic_mod, "input"): pasted,
-             (anthropic_mod, "run_hermes_oauth_login_pure"): login_or_closed_failure,
-             (auth_mod, "_can_open_graphical_browser"): lambda: False}
-    saved = {key: key[0].__dict__.get(key[1], _ABSENT) for key in swaps}
+    routes = {_route_key(anthropic_mod, "print"): shown, _route_key(anthropic_mod, "input"): pasted,
+              _route_key(anthropic_mod, "run_hermes_oauth_login_pure"): login_or_closed_failure,
+              _route_key(auth_mod, "_can_open_graphical_browser"): lambda: False}
+    for module, name in ((anthropic_mod, "print"), (anthropic_mod, "input"), (auth_mod, "_can_open_graphical_browser")):
+        _route(module, name)
+    bound = _ROUTES.set({**(_ROUTES.get() or {}), **routes})
     try:
-        for (module, name), value in swaps.items():
-            setattr(module, name, value)
         auth_add_command(SimpleNamespace(provider="anthropic", auth_type="oauth", label=None, priority=None))
     finally:
-        for (module, name), value in saved.items():
-            if value is _ABSENT:
-                delattr(module, name)
-            else:
-                setattr(module, name, value)
+        _ROUTES.reset(bound)
+
+
+#: The running sign-in's routes for names :func:`_route` stood in for, keyed by :func:`_route_key`.
+_ROUTES: ContextVar[dict | None] = ContextVar("provider_login_routes", default=None)
+_ROUTE_LOCK = threading.Lock()
+
+
+def _route_key(module, name: str) -> str:
+    return f"{module.__name__}.{name}"
+
+
+def _route(module, name: str) -> Callable:
+    """Stand in for ``module.<name>`` with a callable that runs this context's route, else the original.
+
+    Installed once and kept (re-installed if something replaced it): outside a sign-in's context
+    it calls what was there — a module global, or the builtin of that name when the module had
+    none — so no other caller sees a change. Returns the original it delegates to.
+    """
+    import builtins
+
+    key = _route_key(module, name)
+    with _ROUTE_LOCK:
+        current = module.__dict__.get(name, _ABSENT)
+        if getattr(current, "_provider_login_route", None) == key:
+            return current.__wrapped__
+        original = current
+
+        def routed(*args, **kwargs):
+            route = (_ROUTES.get() or {}).get(key)
+            if route is None:
+                route = getattr(builtins, name) if original is _ABSENT else original
+            return route(*args, **kwargs)
+
+        routed._provider_login_route = key
+        routed.__wrapped__ = (lambda *a, **kw: getattr(builtins, name)(*a, **kw)) if original is _ABSENT else original
+        setattr(module, name, routed)
+        return routed.__wrapped__
 
 
 _ABSENT = object()

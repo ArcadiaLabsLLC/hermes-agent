@@ -13,7 +13,7 @@ from datetime import datetime, timezone, UTC
 
 import pytest
 
-from agent_runtime import provider_signin, provider_signin_child
+from agent_runtime import provider_signin
 from agent_runtime.serve_rpc import DEFERRED, RpcContext
 from agent_runtime.serve_rpc import provider as family
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, ERR_NOT_FOUND
@@ -554,25 +554,6 @@ def test_every_provider_method_is_registered_with_its_tier():
         "runtime.provider.configure": "console", "runtime.provider.source.set": "console",
         "runtime.provider.env_token.remove": "console", "runtime.provider.key.set": "console",
     }
-
-
-def test_the_default_child_is_the_machine_sign_in_verb(monkeypatch, tmp_path):
-    """Killing mutation: drop ``--json`` from ``spawn_login_child``'s argv -> red."""
-    captured = {}
-
-    class Popen:
-        def __init__(self, argv, **kwargs):
-            captured.update(argv=argv, **kwargs)
-
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    monkeypatch.setattr(provider_signin_child.subprocess, "Popen", Popen)
-    provider_signin.spawn_login_child("anthropic", "paste_code", "work")
-    # The fork-owned door since d97ad57e96 (plugin-owned auth commands): ``harness auth login``.
-    assert captured["argv"][1:] == ["-m", "hermes_cli.main", "harness", "auth", "login", "anthropic", "--json",
-                                    "--flow", "paste_code", "--profile", "work"]
-    assert captured["stdin"] is provider_signin_child.subprocess.PIPE
-    assert captured["stderr"] is provider_signin_child.subprocess.DEVNULL
-    assert captured["env"]["HERMES_HOME"] == str(tmp_path)
 
 
 def test_the_contract_publishes_a_reply_budget_for_every_provider_method():

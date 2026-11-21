@@ -64,12 +64,11 @@ config:
   auth.adopt_external_logins: false
   providers.qwen-oauth.enabled: false
   telemetry.shared_metrics.enabled: false
-  # Stage 2 steps 6-8: no provider SDK (raw-HTTP client, agent/transports/httpx_client.py), no
-  # conversation worker subprocess (the in-process worker behind NativePeer), no `hermes auth
-  # login` child (the in-process sign-in runner).
+  # Stage 2 steps 6-7: no provider SDK (raw-HTTP client, agent/transports/httpx_client.py), no
+  # conversation worker subprocess (the in-process worker behind NativePeer). Provider sign-in
+  # runs in process on every profile (RT-PROVIDER-SIGN-IN-RUNS-INSIDE-THE-RUNNING-HERMES).
   agent.provider_sdks: false
   conversations.subprocess_worker: false
-  auth.subprocess_signin: false
   # The in-process gateway reads its wire contracts from the catalog generated from the pydantic
   # models (agent_runtime/gateway/contract_seam.py), never from pydantic itself.
   tui_gateway.pydantic_contracts: false
@@ -580,11 +579,10 @@ packaging:
     # fork caller imports run_git from it; agent_runtime/loop_tool_lifecycles.py answers that import
     # with a loud stand-in, so realm sync and the build stamp fail loudly — the `unswitched` gap
     # above), and the switched-off siblings that now hold each fork module's own spawn: the store
-    # files' Windows ACL narrowing, the sign-in child (auth.subprocess_signin false), the gateway's
-    # routing-table command, the local dispatch child (conversations.subprocess_worker false).
+    # files' Windows ACL narrowing, the gateway's routing-table command, the local dispatch child
+    # (conversations.subprocess_worker false).
     - agent_runtime.git_cmd
     - agent_runtime.store_file_io_windows
-    - agent_runtime.provider_signin_child
     - agent_runtime.gateway_endpoints.route_command
     - tools.agent_chat_dispatch.local_child
     # Doors with fork carry (phone-gate plan 2026-09-30, bucket D4): the launch relaunch lives in

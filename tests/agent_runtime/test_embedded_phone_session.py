@@ -6,7 +6,7 @@ through the entry the phone shim calls rather than through each seam on its own.
 store bound over the folder; then, over ``EmbeddedServe`` frames only:
 
 1. ``runtime.provider.signin.*`` signs in a fake provider — the in-process runner
-   (``auth.subprocess_signin: false``) runs the provider's driver, which saves the key
+   (every profile's, since RT-PROVIDER-SIGN-IN-RUNS-INSIDE-THE-RUNNING-HERMES) runs the provider's driver, which saves the key
    through Hermes's own ``.env`` writer (the host-store seam);
 2. ``runtime.conversation.open`` / ``send`` / ``read`` runs one chat turn — the in-process
    worker (``conversations.subprocess_worker: false``) and the SDK-free client

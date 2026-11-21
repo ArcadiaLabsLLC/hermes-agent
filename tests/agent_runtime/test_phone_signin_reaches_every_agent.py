@@ -83,7 +83,7 @@ def _phone_home(app: Path, monkeypatch) -> Path:
 
 
 def _sign_in_codex_like_the_phone(monkeypatch) -> None:
-    """``runtime.provider.signin.*``'s in-process runner (``auth.subprocess_signin: false``) over the
+    """``runtime.provider.signin.*``'s in-process runner (every profile's) over the
     Codex driver, with only the network step faked: the tokens land through ``_save_codex_tokens``
     exactly as ``provider_browser_login._codex`` saves them."""
     from agent_runtime.provider_signin import ProviderSignIns, run_login_in_process

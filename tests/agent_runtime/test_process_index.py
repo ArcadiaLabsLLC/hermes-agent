@@ -10,10 +10,10 @@ unit, which the Launcher's ``missionServeObservedStart`` compares: centiseconds
 since the epoch off Linux (``round(psutil create_time * 100)``).
 
 Killing mutations: ``process_start_ticks`` answers seconds instead of
-centiseconds -> the unit test reds; ``record_child`` stops being called at the
-sign-in spawn -> the sign-in test reds (the dispatch spawn retired 2026-11-21: a
-dispatched turn runs natively in the serve); ``to_json_text`` drops the key order
-or the compact separators -> the fixture compare reds.
+centiseconds -> the unit test reds; ``to_json_text`` drops the key order or the
+compact separators -> the fixture compare reds. The one spawn site left, the
+conversation worker, is pinned by ``test_process_index_native_peer.py`` (the
+dispatch and sign-in children retired 2026-11-21: both run inside the serve).
 
 The autouse ``_isolate_launcher_process_index`` fixture
 (``tests/_downstream/conftest_plugin.py``) points ``index_directory`` at a
@@ -115,21 +115,3 @@ def test_the_directory_follows_the_launchers_rule():
         Path(r"C:\Users\op\AppData\Local") / "EterniaLauncher" / "process_index")
     assert resolve({"LOCALAPPDATA": "  ", "HOME": "/home/op"}) == Path("/home/op") / ".eternia_launcher" / "process_index"
     assert resolve({}) is None
-
-
-def test_a_sign_in_child_is_named_while_it_runs_and_forgotten_when_it_ends():
-    from agent_runtime.provider_signin_child import _PopenChild
-
-    child = _PopenChild([sys.executable, "-c", "print('ready')"], dict(os.environ))
-    pid = child._proc.pid
-    stored = json.loads(_entry_file(pid).read_text(encoding="utf-8"))
-    assert stored["pid"] == pid and stored["purpose"] == "hermes_child"
-
-    assert [line.strip() for line in child.lines()] == ["ready"]
-    assert not _entry_file(pid).exists()
-
-    killed = _PopenChild([sys.executable, "-c", "import time; time.sleep(30)"], dict(os.environ))
-    assert _entry_file(killed._proc.pid).exists()
-    killed.terminate()
-    killed._proc.wait(timeout=10)
-    assert not _entry_file(killed._proc.pid).exists()
