@@ -1074,9 +1074,18 @@ def test_inflight_chat_turns_are_listed_with_their_owner(home, isolate_agent_run
     assert rows[0]["owner"]["persona_instance_id"] == "personainst_neko"
     assert rows[0]["owner"]["session_id"] == "chat-sess-1"
     assert rows[0]["started_at"]
-    # Chat turns are settled by the chat lane's own authority; this verb must
-    # not advertise a kill it cannot honestly perform.
+    # No reply this process can reach: the row must not advertise a Stop it cannot honestly perform.
     assert rows[0]["cancellable"] is False
+    # RT-STOP-REACHES-EVERY-RUNNING-REPLY-THROUGH-ONE-SEAM: while the reply's stop handle is here, the
+    # row offers the conversation's Stop. Mutation: the row's cancellable reads ``bool(run_pass)`` alone
+    # (the projection as it was) -> red.
+    from types import SimpleNamespace
+
+    from agent_runtime.live_turns import turn_stop_handle
+
+    with turn_stop_handle(SimpleNamespace(client_message_id="turn-1", session_id="chat-sess-1")):
+        [live] = _rows_of_kind(build_running_work(), KIND_CHAT_TURN)
+    assert live["cancellable"] is True
 
 
 def test_a_settled_chat_turn_is_not_running_work(home, isolate_agent_runtime_root):

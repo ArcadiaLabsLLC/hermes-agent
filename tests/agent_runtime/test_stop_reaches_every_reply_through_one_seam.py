@@ -178,9 +178,15 @@ DOORS = {"conversation Stop": _conversation_stop, "Activity cancel": _activity_c
 SAME = ("outcome", "owner_observed", "ends", "stopped")
 
 
-@pytest.mark.parametrize("door", DOORS, ids=list(DOORS))
 @pytest.mark.parametrize("starter", STARTERS, ids=list(STARTERS))
-def test_stop_ends_the_reply_the_same_way_whoever_started_it(chat, model, starter, door):
+def test_the_conversation_stop_ends_the_reply_whoever_started_it(chat, model, starter):
+    stop_the_reply(chat, model, starter, "conversation Stop")
+
+
+def stop_the_reply(chat, model, starter: str, door: str) -> None:
+    """One row of the table: the Activity door's half runs in its own file
+    (``test_stop_reaches_every_reply_from_activity.py``) so the two halves run side by side."""
+
     cmid, turn, lead = STARTERS[starter](chat)
     assert model.entered.wait(60), f"the {starter}'s reply never reached the model"
 
