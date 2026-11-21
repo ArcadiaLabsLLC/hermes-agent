@@ -16,7 +16,9 @@ $id -Timeout 570 … } catch { Write-Output … }; if (-not (Get-Process -Id $id
 -Tail 80 }'`` (waiting on its own background test) was blocked the same way, so its lead ran the test.
 :func:`_reads_only_powershell` admits a PowerShell script whose every command is a reader or a wait
 from :data:`_PS_COMMANDS` (statement keywords aside), with no redirection, call operator, static
-member (``::``), method call, backtick escape or ``-EncodedCommand``; single-quoted text is data.
+member (``::``), method call, backtick escape or ``-EncodedCommand``; quoted text is data, except a
+double-quoted string holding ``$(...)``, which is scanned as code
+(RT-FU-A-READ-ONLY-SELECT-STRING-STILL-ASKS-FOR-APPROVAL: a ``-Pattern "a|Expected:"`` read as a pipe).
 
 Only on an Eternia chat turn: the admission applies while a harness surface has bound its approval
 policy (``agent_runtime.approval_surface_policy.surface_mode``, bound by every persona chat turn's
@@ -85,6 +87,9 @@ _PS_COMMAND_START = re.compile(r"(?:^|[;{}(|\n]|=)\s*([A-Za-z][\w-]*)")
 _PS_VERB_NOUN = re.compile(r"\b[A-Za-z]+-[A-Za-z]+\b")
 #: Redirection, the call operator, static members, method calls, backtick escapes, dot-sourcing.
 _PS_REFUSED = re.compile(r"[<>&`]|::|\.\s*[A-Za-z_]\w*\s*\(|(?:^|[;{}(|\n])\s*\.")
+#: Quoted strings, leftmost first: single-quoted ('' its escape) or double-quoted ("" its escape; a
+#: backtick ends the match early, so the string is left in the code and refused).
+_PS_QUOTED = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"`]|\"\")*\"")
 
 
 def read_only_code(family: str, args: list[str]) -> bool:
@@ -126,14 +131,23 @@ def _powershell_command(args: list[str]) -> str | None:
 
 
 def _reads_only_powershell(script: str) -> bool:
-    # Single-quoted text is data in PowerShell ('' is its only escape); everything else is scanned,
-    # double-quoted text included, since "$(...)" inside it runs commands.
-    code = re.sub(r"'(?:[^']|'')*'", "''", script)
+    # Single-quoted text is data in PowerShell ('' is its only escape). Double-quoted text is data
+    # too unless it holds "$(...)", which runs commands, so that string is scanned as code; a
+    # backtick escape stays in and is refused. Without this a -Pattern "a|Expected:" read its "|" as a
+    # pipe into a command "Expected" (RT-FU-A-READ-ONLY-SELECT-STRING-STILL-ASKS-FOR-APPROVAL).
+    code = _PS_QUOTED.sub(_quoted_as_data, script)
     if "'" in code.replace("''", "") or _PS_REFUSED.search(code):
         return False
     commands = {match.group(1).lower() for match in _PS_COMMAND_START.finditer(code)}
     commands |= {match.group(0).lower() for match in _PS_VERB_NOUN.finditer(code)}
     return commands <= _PS_COMMANDS
+
+
+def _quoted_as_data(match: re.Match[str]) -> str:
+    text = match.group(0)
+    if text.startswith("'"):
+        return "''"
+    return text if "$(" in text else '""'
 
 
 def _inline_code(args: list[str]) -> str | None:

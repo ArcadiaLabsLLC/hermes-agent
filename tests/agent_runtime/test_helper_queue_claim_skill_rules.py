@@ -86,3 +86,19 @@ def test_a_helper_cuts_its_worktree_outside_the_checkout_and_names_its_own_lane(
     assert "`EterniaLauncher-worktrees/<lane>`" in helper and "`.worktrees/<lane>` beside" in helper
     assert "pick a `wNNNNx-<slug>`" in helper and "never ask" in helper
     assert "ask your lead" not in helper
+
+
+def test_one_unanswered_approval_neither_stops_a_helper_nor_releases_its_claim():
+    """RT-FU-A-HELPER-GIVES-UP-ITS-ROW-AFTER-ONE-UNANSWERED-STEP (seen 2026-11-21 05:25Z): a helper
+    whose one log read went unanswered released its row, on a brief that said "If you hit a real
+    block, name it and stop". KILLING MUTATIONS: drop the helper's paragraph under "Report Blocker",
+    or the lead's "never a stop condition" sentence — each reddens an assert here."""
+
+    helper = " ".join(_section((_SKILLS / "harness-dev-delivery" / "SKILL.md").read_text(encoding="utf-8"),
+                               "## Report Blocker").split())
+    assert "(`block_class: unanswered`) is not a blocker" in helper
+    assert "keep the task and your claim" in helper
+    assert "Release a claim only when the task itself cannot go on" in helper
+    lead = " ".join(_section((_SKILLS / "harness-runtime-model" / "SKILL.md").read_text(encoding="utf-8"),
+                             "## Delegation").split())
+    assert "One unanswered approval is never a stop condition" in lead

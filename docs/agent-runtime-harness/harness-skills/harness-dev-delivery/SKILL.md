@@ -204,6 +204,10 @@ Use after one bounded self-service attempt, or immediately when the blocker is e
 human, or environmental. Name the exact prerequisite and give redaction-safe evidence — a
 command label and its failure mode, never raw logs or absolute local paths.
 
+One command whose approval went unanswered (`block_class: unanswered`) is not a blocker: keep
+the task and your claim, read what it was for another way that runs unasked, finish the rest,
+and name the command in your reply. Release a claim only when the task itself cannot go on.
+
 ## Request Proof Recipe
 
 **Retired.** There is no Harness proof runner to ask for a recipe, no

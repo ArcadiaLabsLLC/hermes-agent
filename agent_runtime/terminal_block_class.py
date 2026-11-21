@@ -12,7 +12,15 @@ RT-FU-A-READ-ONLY-CHECK-IN-A-HELPERS-TERMINAL-WAITS-ON-AN-APPROVAL: an approval 
 is its own class, ``unanswered``. It used to read ``final``, whose guidance ends the turn, and
 upstream's timeout text told the agent to "Stop the current workflow", so a dispatched helper
 whose one check timed out stopped its whole job. The command still never runs and is never
-retried or worked around; only the rest of the job goes on.
+retried or reworded; only the rest of the job goes on.
+
+RT-FU-A-HELPER-GIVES-UP-ITS-ROW-AFTER-ONE-UNANSWERED-STEP: that was not enough. Seen 2026-11-21
+05:23Z: a helper whose one read (failures out of its own test log) went unanswered was still told
+"do NOT attempt the same outcome via a different command" here, and "reach its result another way"
+was forbidden by the guidance; its job needed that read, its brief said "name it and stop", so it
+released its queue row and stopped. An unanswered step now forbids only a CHANGE by another route:
+what it would only have read may be read another way that runs unasked, and the task and its claim
+are kept.
 """
 
 from __future__ import annotations
@@ -33,22 +41,33 @@ UNANSWERED_PREFIXES = (
     "BLOCKED: Command timed out without user response.",
     "BLOCKED: Action timed out without user response.",
 )
-#: Upstream's sentence that ends the whole job, and what an unanswered approval says instead.
+#: Upstream's sentences that forbid every other route and end the whole job, and what an
+#: unanswered approval says instead (``tools.approval._STOP_COMMAND``).
+NO_OTHER_ROUTE_SENTENCE = (
+    "Do NOT retry this command, do NOT rephrase it, and do NOT attempt the same outcome via a "
+    "different command."
+)
+CHANGE_NO_OTHER_ROUTE_SENTENCE = (
+    "Do NOT retry this command or rephrase it, and make no change it would have made by a different "
+    "command."
+)
 STOP_WORKFLOW_SENTENCE = (
     "Stop the current workflow and wait for the user to respond before taking any further "
     "destructive or irreversible action."
 )
 CARRY_ON_SENTENCE = (
-    "Only this step is blocked: carry on with the steps that do not need it, and name this command "
-    "in your reply so the user can approve it later."
+    "Only this step is blocked, not your task: keep the task and any claim on it, read what it would "
+    "only have read another way that runs without an approval, carry on with the steps that do not "
+    "need it, and name this command in your reply so the user can approve it later."
 )
 
 SAFETY_BLOCK_GUIDANCE = (
     "A terminal result with `status: blocked` carries `block_class`: on `fixable`, respell the command "
     "once in this same turn as its error says (spell the directory out, or assign the variable in an "
     "earlier statement); on `unanswered`, nobody answered its approval: that command did not run, do not "
-    "retry or reword it or reach its result another way, carry on with the rest of the work and name it "
-    "in your reply; on `final`, do not retry or reword it -- say in your reply what was blocked and "
+    "retry or reword it or make its change another way, but it does not end your task -- keep the task "
+    "and any claim, read what it would only have read another way that runs unasked, carry on with the "
+    "rest of the work and name it in your reply; on `final`, do not retry or reword it -- say in your reply what was blocked and "
     "why, and offer to continue in a new turn."
 )
 
@@ -67,7 +86,8 @@ def classify_terminal_block(tool_name: Any = None, result: Any = None, **_kwargs
     error = payload.get("error")
     if isinstance(error, str) and error.startswith(UNANSWERED_PREFIXES):
         payload["block_class"] = BLOCK_UNANSWERED
-        payload["error"] = error.replace(STOP_WORKFLOW_SENTENCE, CARRY_ON_SENTENCE)
+        payload["error"] = error.replace(NO_OTHER_ROUTE_SENTENCE, CHANGE_NO_OTHER_ROUTE_SENTENCE).replace(
+            STOP_WORKFLOW_SENTENCE, CARRY_ON_SENTENCE)
         return json.dumps(payload, ensure_ascii=False)
     from tools.self_repo_guard_vars import block_class
 

@@ -201,7 +201,7 @@ stalled or failed chat turn" (the why: `references/persona-chat.md`).
 Recipe and flags: `references/operations.md`, "Delegation"; why: `references/model-notes.md`.
 
 - Message ONE helper at a time; the message is the whole handoff (objective, stop
-  condition, parent session id).
+  condition, parent session id). One unanswered approval is never a stop condition.
 - **Never slurp** the helper's transcript, logs, or reasoning — carry pointers, and
   return with `persona instance return-summary` (bounded, records `returned_to`).
 - Intervene only on a stall, a block, or scope drift, on the SAME chat root.

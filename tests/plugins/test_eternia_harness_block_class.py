@@ -97,6 +97,12 @@ def test_an_unanswered_approval_blocks_only_its_step():
         assert "Stop the current workflow" not in payload["error"]
         assert "carry on with the steps that do not need it" in payload["error"]
         assert "Do NOT retry this command" in payload["error"]
+        # RT-FU-A-HELPER-GIVES-UP-ITS-ROW-AFTER-ONE-UNANSWERED-STEP: only a CHANGE is barred another
+        # route; a read is not, and the task and its claim are kept. Killing mutation (recorded in the
+        # landing commit): drop the ``NO_OTHER_ROUTE_SENTENCE`` replace -> the first two asserts red.
+        assert "do NOT attempt the same outcome via a different command" not in payload["error"]
+        assert "make no change it would have made by a different command" in payload["error"]
+        assert "keep the task and any claim on it" in payload["error"]
 
 
 def test_a_denied_command_still_stops_the_workflow():
@@ -106,3 +112,13 @@ def test_a_denied_command_still_stops_the_workflow():
     (answer,) = _classified(_blocked_json(_COMMAND_GATE.cli_denied.format(description="x", breaker=""), "blocked"))
     payload = json.loads(answer)
     assert payload["block_class"] == "final" and "Stop the current workflow" in payload["error"]
+
+
+def test_the_guidance_lets_an_unanswered_step_keep_the_task_and_read_another_way():
+    """RT-FU-A-HELPER-GIVES-UP-ITS-ROW-AFTER-ONE-UNANSWERED-STEP. Killing mutation: restore "reach its
+    result another way" in ``SAFETY_BLOCK_GUIDANCE`` -> reds."""
+
+    unanswered = SAFETY_BLOCK_GUIDANCE.split("on `unanswered`", 1)[1].split("on `final`", 1)[0]
+    assert "reach its result another way" not in unanswered
+    assert "does not end your task" in unanswered and "keep the task and any claim" in unanswered
+    assert "make its change another way" in unanswered

