@@ -21,30 +21,30 @@ _POSTINSTALL_DESCRIPTION = (
 
 
 def _setup_harness_parser(parser) -> None:
-    from hermes_cli.harness_cli_setup import setup_harness_parser
+    from agent_runtime.plugin_doors.harness import setup_harness_parser
 
     setup_harness_parser(parser)
 
 
 def _setup_postinstall_parser(parser) -> None:
-    from hermes_cli.subcommands.postinstall import add_postinstall_arguments
+    from agent_runtime.plugin_doors.harness import add_postinstall_arguments
 
     add_postinstall_arguments(parser)
 
 
 def _cmd_postinstall(args):
-    from hermes_cli._downstream_cli import cmd_postinstall
+    from agent_runtime.plugin_doors.harness import cmd_postinstall
 
     return cmd_postinstall(args)
 
 
 def _work_clause_gate() -> tuple[str, ...]:
-    from agent_runtime.prompt_guidance import WORK_SUBMIT_TOOLS
+    from agent_runtime.plugin_doors.harness import WORK_SUBMIT_TOOLS
 
     return ("delegate_task", "agent_chat_send", *sorted(WORK_SUBMIT_TOOLS))
 
 
-# (gate, guidance attribute in ``agent_runtime.prompt_guidance``), in render order. A gate
+# (gate, guidance attribute, read through the plugin's door from ``agent_runtime.prompt_guidance``), in render order. A gate
 # is one tool name or a tuple of them; the line renders when EVERY name is present.
 _TOOL_GUIDANCE = (
     ("tool_describe", "TOOL_DESCRIBE_GUIDANCE"),
@@ -64,7 +64,7 @@ def _gate_open(gate: str | tuple[str, ...], tools: set[str]) -> bool:
 
 
 def _fixed_guidance_lines(tools: set[str]) -> list[str]:
-    from agent_runtime import prompt_guidance
+    from agent_runtime.plugin_doors import harness as prompt_guidance
 
     lines: dict[str, str] = {}
     for gate, attr in _TOOL_GUIDANCE:
@@ -89,7 +89,7 @@ def render_tool_guidance(session_info) -> str:
     Launcher's app-function ``guidance`` lines render for any session whose list
     holds the tool. Nothing present gets an empty section, which core skips.
     """
-    from agent_runtime.launcher_app_functions import app_function_guidance_lines
+    from agent_runtime.plugin_doors.harness import app_function_guidance_lines
 
     tools = set(str(session_info.get("tool_names") or "").split(","))
     lines = _fixed_guidance_lines(tools) if "tool_describe" in tools else []
@@ -100,7 +100,7 @@ def render_tool_guidance(session_info) -> str:
     # RT-SAFETY-BLOCK-CLASS-FIELD: what each block_class asks of the model -- on the T6b wire only,
     # like the fixed lines, so a session without `tool_describe` keeps upstream's exact prompt bytes.
     if "terminal" in tools and "tool_describe" in tools:
-        from agent_runtime.terminal_block_class import SAFETY_BLOCK_GUIDANCE
+        from agent_runtime.plugin_doors.harness import SAFETY_BLOCK_GUIDANCE
 
         lines.append(SAFETY_BLOCK_GUIDANCE)
     return "\n".join(lines)
@@ -118,11 +118,11 @@ def render_windows_tooling(session_info=None) -> str:
     if sys.platform != "win32":
         return ""
     from hermes_constants import is_wsl
-    from tools.terminal_scope import terminal_env
+    from agent_runtime.plugin_doors.harness import terminal_env
 
     if is_wsl() or (terminal_env("TERMINAL_ENV", "local") or "local").strip().lower() != "local":
         return ""
-    from agent_runtime.prompt_guidance import WINDOWS_NATIVE_TOOLING_HINT
+    from agent_runtime.plugin_doors.harness import WINDOWS_NATIVE_TOOLING_HINT
 
     return WINDOWS_NATIVE_TOOLING_HINT
 
@@ -169,7 +169,7 @@ SKILL_SEARCH_SCHEMA = {
 
 
 def _handle_skill_search(args, **kw):
-    from agent_runtime.skill_search import skill_search
+    from agent_runtime.plugin_doors.harness import skill_search
 
     return skill_search(
         query=args.get("query", ""),
@@ -181,7 +181,7 @@ def _handle_skill_search(args, **kw):
 
 
 def _check_skill_search() -> bool:
-    from tools.skills_tool import check_skills_requirements
+    from agent_runtime.plugin_doors.harness import check_skills_requirements
 
     return check_skills_requirements()
 
@@ -197,10 +197,10 @@ def brief_tool_descriptions(request=None, **_context):
     ``description`` by tool name in the final provider kwargs, for the chat, Responses
     and Anthropic payload shapes. Parameters are never touched.
     """
-    from agent_runtime.cache_routing import route_persona_cache
-    from agent_runtime.prompt_guidance import rewrite_request_safety_sentence
-    from agent_runtime.tool_blocks import drop_blocked_request_tools, reprune_turn_agent
-    from tools.downstream_schema import brief_request_tools
+    from agent_runtime.plugin_doors.harness import (
+        brief_request_tools, drop_blocked_request_tools, reprune_turn_agent, rewrite_request_safety_sentence,
+        route_persona_cache,
+    )
 
     # A registry refresh since the last request may have put blocked names back on the agent.
     reprune_turn_agent(_context.get("session_id"))
@@ -216,7 +216,7 @@ def brief_tool_descriptions(request=None, **_context):
     current = safety if safety is not None else current
     routed = route_persona_cache(current, **_context)
     current = routed if routed is not None else current
-    from agent_runtime.persona_turn_binding import capture_final_request_tools
+    from agent_runtime.plugin_doors.harness import capture_final_request_tools
     capture_final_request_tools(current)
     steps = (
         ("blocked tools dropped", unblocked), ("tool wire briefs", briefed),
@@ -241,14 +241,12 @@ def settle_turn_tools(session_id=None, **_context):
     (``agent_runtime.chat_lane_tool_form.settle_turn_tool_form``): derived once from a
     content-keyed memo, published and pinned only when its bytes moved.
     """
-    from agent_runtime.chat_lane_tool_form import settle_turn_tool_form
-    from agent_runtime.persona_turn_binding import current_persona_turn_agent
-    from agent_runtime.tool_blocks import blocked_tools_for, reprune_turn_agent
+    from agent_runtime.plugin_doors.harness import blocked_tools_for, current_persona_turn_agent, reprune_turn_agent, settle_turn_tool_form
 
     agent = current_persona_turn_agent()
     if agent is not None:
         settle_turn_tool_form(agent, blocked=blocked_tools_for(session_id or getattr(agent, "session_id", None)))
-        from agent_runtime.review_prompts import arm_review_prompts
+        from agent_runtime.plugin_doors.harness import arm_review_prompts
 
         arm_review_prompts(agent)  # the harness review prompts, before any tool call (RT-REVIEW-WRITE-BIAS-UPSTREAM)
     reprune_turn_agent(session_id)
@@ -256,7 +254,7 @@ def settle_turn_tools(session_id=None, **_context):
 
 def refuse_blocked_tool(tool_name=None, session_id="", **_context):
     """``pre_tool_call`` hook: refuse a tool the run blocked, ``tool_call``-unwrapped names included."""
-    from agent_runtime.tool_blocks import blocked_call_message
+    from agent_runtime.plugin_doors.harness import blocked_call_message
 
     message = blocked_call_message(tool_name, session_id=session_id)
     return None if message is None else {"action": "block", "message": message}
@@ -265,9 +263,7 @@ def refuse_blocked_tool(tool_name=None, session_id="", **_context):
 def _generated_tree_write(tool_name, args):
     if tool_name not in ("write_file", "patch"):
         return None
-    from agent_runtime.generated_tree_teach import generated_tree_write_refusal
-    from agent_runtime.launcher_app_functions import offered_to_bound_link
-    from tools.terminal_scope import terminal_env
+    from agent_runtime.plugin_doors.harness import generated_tree_write_refusal, offered_to_bound_link, terminal_env
 
     host_paths = terminal_env("TERMINAL_ENV", "local").strip().lower() in ("", "local")
     return generated_tree_write_refusal(tool_name, args, offered=offered_to_bound_link, host_paths=host_paths)
@@ -280,9 +276,7 @@ def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", tool_
     path (``agent_runtime.generated_tree_teach``), then a ``flutter build`` that collides with the live
     Launcher (``agent_runtime.flutter_build_guard``). One callback for all five.
     """
-    from agent_runtime.flutter_build_guard import flutter_build_refusal
-    from agent_runtime.lens.act import gate_tool_call
-    from agent_runtime.review_skill_gate import review_shared_skill_write
+    from agent_runtime.plugin_doors.harness import flutter_build_refusal, gate_tool_call, review_shared_skill_write
 
     blocked = refuse_blocked_tool(tool_name=tool_name, session_id=session_id)
     if blocked is not None:
@@ -313,9 +307,8 @@ def default_background_notify(tool_name=None, args=None, **_context):
     args (``hermes_cli.middleware._apply_request_chain``): a second rewriter would silently
     replace the first one's result.
     """
-    from agent_runtime.agent_commit_attribution import attribute_commits
-    from agent_runtime.background_completion import default_background_notify as _default
-    from agent_runtime.persona_turn_binding import current_persona_turn_agent
+    from agent_runtime.plugin_doors.harness import attribute_commits, current_persona_turn_agent
+    from agent_runtime.plugin_doors.harness import default_background_notify as _default
 
     reasons = []
     current = args
@@ -335,8 +328,8 @@ def time_provider_dispatch(**kwargs):
 
     It runs in the turn's thread, so it also names the bound persona agent for the
     stream observers below, which run on upstream's hook dispatcher thread."""
-    from agent_runtime.codex_observability import remember_stream_agent
-    from agent_runtime.conversation_observability import time_provider_dispatch as _time
+    from agent_runtime.plugin_doors.harness import remember_stream_agent
+    from agent_runtime.plugin_doors.harness import time_provider_dispatch as _time
 
     remember_stream_agent()
     return _time(**kwargs)
@@ -344,14 +337,14 @@ def time_provider_dispatch(**kwargs):
 
 def skill_view_result(**kwargs):
     """``transform_tool_result`` hook: the runtime-compat refusal and the three stamps on ``skill_view``."""
-    from agent_runtime.skill_view_result import transform_skill_view_result
+    from agent_runtime.plugin_doors.harness import transform_skill_view_result
 
     return transform_skill_view_result(**kwargs)
 
 
 def terminal_block_result(**kwargs):
     """``transform_tool_result`` hook: a blocked terminal result says ``block_class`` (fixable / unanswered / final)."""
-    from agent_runtime.terminal_block_class import classify_terminal_block
+    from agent_runtime.plugin_doors.harness import classify_terminal_block
 
     return classify_terminal_block(**kwargs)
 
@@ -359,15 +352,14 @@ def terminal_block_result(**kwargs):
 def generated_tree_result(**kwargs):
     """``transform_tool_result`` hook: a host miss on a generated-document path names the
     Launcher's tree verb (``agent_runtime.generated_tree_teach``); teach, never route."""
-    from agent_runtime.generated_tree_teach import generated_tree_read_result
-    from agent_runtime.launcher_app_functions import offered_to_bound_link
+    from agent_runtime.plugin_doors.harness import generated_tree_read_result, offered_to_bound_link
 
     return generated_tree_read_result(**kwargs, offered=offered_to_bound_link)
 
 
 def record_usage_ledger_row(**kwargs):
     """``post_api_request`` hook: one per-call usage row for a bound persona-turn ledger."""
-    from agent_runtime.usage_ledger import on_post_api_request
+    from agent_runtime.plugin_doors.harness import on_post_api_request
 
     on_post_api_request(**kwargs)
 
@@ -376,12 +368,9 @@ def record_turn_outcome(**kwargs):
     """``post_tool_call`` hook: a terminal call or file write folds into a bound persona turn's outcome,
     every call's measured ``duration_ms`` into the turn's review timings (``agent_runtime.review_prompts``),
     and a background review's skill write is recorded with its chat and turn (``agent_runtime.review_skill_changes``)."""
-    from agent_runtime.lens.act import finish_tool_call
-    from agent_runtime.review_prompts import on_post_tool_call as fold_review_timing
-    from agent_runtime.review_skill_changes import on_post_tool_call as record_review_skill_change
-    from agent_runtime.turn_outcome import on_post_tool_call
+    from agent_runtime.plugin_doors.harness import finish_tool_call, fold_review_timing, fold_turn_outcome, record_review_skill_change
 
-    on_post_tool_call(**kwargs)
+    fold_turn_outcome(**kwargs)
     fold_review_timing(**kwargs)
     record_review_skill_change(**kwargs)
     finish_tool_call(kwargs.get("tool_call_id"), kwargs.get("status"))  # a Lens act call's receipt: ran | failed
@@ -389,7 +378,7 @@ def record_turn_outcome(**kwargs):
 
 async def answer_queue_status(**kwargs):
     """``pre_gateway_dispatch`` hook: answer ``/queue-status`` (``/qstatus``), busy path included."""
-    from agent_runtime.gateway_queue_status import answer_queue_status as _answer
+    from agent_runtime.plugin_doors.harness import answer_queue_status as _answer
 
     return await _answer(**kwargs)
 
@@ -401,16 +390,16 @@ async def answer_queue_status(**kwargs):
 
 
 def register(ctx) -> None:
-    from agent_runtime.console_suggestions.generation import register_suggestion_task
+    from agent_runtime.plugin_doors.harness import register_suggestion_task
 
     register_suggestion_task(ctx)
-    from agent_runtime.text_summary import register_summary_tasks
+    from agent_runtime.plugin_doors.harness import register_summary_tasks
 
     register_summary_tasks(ctx)  # runtime.text.summarize's auxiliary slots (message_digest)
-    from agent_runtime.provider_access import SharedProviderAccess
+    from agent_runtime.plugin_doors.harness import SharedProviderAccess
 
     ctx.register_provider_access(SharedProviderAccess())
-    from hermes_cli.harness_parts.start_time_setup import run_start_time_setup
+    from agent_runtime.plugin_doors.harness import run_start_time_setup
 
     run_start_time_setup()  # the door, the start-time migrations, harness_core, process presence
     ctx.register_system_prompt_section("eternia-harness.tool-guidance", render_tool_guidance)
@@ -422,13 +411,13 @@ def register(ctx) -> None:
     ctx.register_hook("pre_tool_call", refuse_tool_call)
     ctx.register_hook("post_api_request", record_usage_ledger_row)
     ctx.register_hook("post_tool_call", record_turn_outcome)
-    from agent_runtime.provider_challenge import classify_challenge_refusal
+    from agent_runtime.plugin_doors.harness import classify_challenge_refusal
 
     # A 403 challenge page, typed (transport_mismatch / upstream_blocked) and named by its path.
     ctx.register_hook("transform_api_error_classification", classify_challenge_refusal)
     # The on_stream_* receipt observers register only while a persona turn runs: any
     # registered one makes upstream treat EVERY agent in the process as a stream consumer.
-    from agent_runtime.codex_observability import install_stream_observers
+    from agent_runtime.plugin_doors.harness import install_stream_observers
 
     install_stream_observers(ctx.register_hook)
     ctx.register_hook("transform_tool_result", skill_view_result)
@@ -444,9 +433,7 @@ def register(ctx) -> None:
     )
     # The serve scheduler's one tool (dispatcher plan §4, B4), in the opt-in `schedule` toolset — never
     # harness_core: a persona schedules only when the operator opted its profile in.
-    from agent_runtime.work_store.schedule_tool import (
-        SCHEDULE_MANAGE_SCHEMA, SCHEDULE_TOOLSET, handle_schedule_manage,
-    )
+    from agent_runtime.plugin_doors.harness import SCHEDULE_MANAGE_SCHEMA, SCHEDULE_TOOLSET, handle_schedule_manage
 
     ctx.register_tool("schedule_manage", toolset=SCHEDULE_TOOLSET, schema=SCHEDULE_MANAGE_SCHEMA,
                       handler=handle_schedule_manage, emoji="⏰")

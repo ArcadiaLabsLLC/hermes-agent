@@ -9,6 +9,7 @@
     {
       "source": "fork plugins (plugins/eternia-*) — agent_runtime/plugin_doors/",
       "entries": [
+        "agent_runtime.plugin_doors.harness",
         "agent_runtime.plugin_doors.lens"
       ]
     }

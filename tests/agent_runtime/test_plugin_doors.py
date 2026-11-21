@@ -78,3 +78,37 @@ def test_the_lens_plugin_registers_its_tools_through_the_door():
     plugin.register(Ctx())
     assert registered == [("lens_read", "lens", "handle_lens_read"), ("lens_propose", "lens", "handle_lens_propose"),
                           ("lens_propose_repair", "lens", "handle_lens_propose_repair")]
+
+
+def test_every_harness_door_name_is_the_runtime_object_it_names():
+    """KILLING MUTATION: point ``fold_turn_outcome`` at ``agent_runtime.review_prompts:on_post_tool_call`` (a
+    collision the renamed entries exist to avoid) -> red."""
+    door = importlib.import_module("agent_runtime.plugin_doors.harness")
+    assert sorted(door.__all__) == sorted(door.DOOR)
+    for name, spec in door.DOOR.items():
+        source, _, attr = spec.partition(":")
+        assert getattr(door, name) is getattr(importlib.import_module(source), attr or name), name
+    assert door.fold_turn_outcome is importlib.import_module("agent_runtime.turn_outcome").on_post_tool_call
+
+
+def test_loading_the_harness_door_imports_no_runtime_module():
+    """The plugin stays free to load: the door imports a name's module only when the name is read.
+    KILLING MUTATION: an eager ``from agent_runtime.tool_blocks import blocked_call_message`` in the door -> red."""
+    import subprocess
+    import sys
+
+    probe = ("import sys, agent_runtime.plugin_doors.harness as d; "
+             "print(sorted(m for m in ('agent_runtime.tool_blocks', 'agent_runtime.skill_search', "
+             "'agent_runtime.lens.act', 'tools.downstream_schema') if m in sys.modules))")
+    out = subprocess.run([sys.executable, "-c", probe], cwd=ROOT, capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "[]", out.stdout + out.stderr
+
+
+def test_the_harness_plugins_files_import_the_runtime_only_through_the_door():
+    """Every import the harness plugin (and its dashboard) makes of a Hermes package goes through its door.
+    KILLING MUTATION: restore ``from agent_runtime.tool_blocks import blocked_call_message`` in the plugin -> red."""
+    from hermes_cli.plugin_validate_private_imports import _public_api, private_import_findings
+
+    _public_api.cache_clear()
+    assert private_import_findings(ROOT / "plugins" / "eternia-harness") == []
+    assert private_import_findings(ROOT / "plugins" / "eternia-lens") == []
