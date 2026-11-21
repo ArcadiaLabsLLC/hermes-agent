@@ -552,9 +552,23 @@ w1118a.79). `agent_runtime/reverse_lane/`:
 - **The grant is bound to the pairing.** A dial whose device id is not the grant's pairing finds
   no grant (a re-pair starts with none); a dial refused `bad_proof` (the computer unpaired the
   phone) deletes the phone's grant for that computer; turning a grant off closes its lane.
+- **The grant, offer and accept (two consents)** (Eternia row
+  `MC-PHONE-DRIVEN-A-PHONE-LETS-A-PAIRED-COMPUTER-USE-ITS-AGENTS`, plan §15). The phone's owner
+  asks its engine to grant (`runtime.gateway.reverse.grant`: the computer's address, pin and the
+  phone's credential on it, plus `look` | `chat`). The engine mints the grant and offers the
+  computer its credential ONCE over its own pinned device connection
+  (`runtime.gateway.reverse.offer`, read tier, answered only to a plain paired device, as
+  itself); the minted token never reaches the phone's Eternia. An offer that does not land
+  deletes the grant. The computer holds offers in memory (`reverse_lane/accepts.py`); its owner
+  answers with `runtime.gateway.reverse.accept` (the token once, for Eternia's credential store,
+  and a non-secret accept row in `gateway/reverse_accepts.json`) or `.decline`. An accept whose
+  device is no longer paired is dropped on read. `runtime.gateway.reverse.revoke` is the phone's
+  switch off and the phone's unpair of that computer. `.lanes` also answers the held offers, the
+  accepted phones, the phone's grants and when each phone's lane was last here (`seen`); a parked
+  lane whose phone hung up is evicted on that read. Every verb but `offer` is local console.
 
 Acceptance: `tests/agent_runtime/test_reverse_lane.py` (the real phone `serve_loop`, the
-computer's real listeners).
+computer's real listeners) and `tests/agent_runtime/test_reverse_grant.py`.
 
 ### 1.3 What an edge CARRIES — cross-install chat (gateway Stage 7)
 
