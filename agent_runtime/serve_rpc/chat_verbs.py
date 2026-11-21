@@ -44,9 +44,11 @@ __all__ = [
     "_runtime_chat_queue_skill",
     "_runtime_chat_turn_audit",
     "_runtime_chat_turn_resolve",
+    "_runtime_persona_chat_archive",
     "_runtime_persona_chat_delete",
     "_runtime_persona_chat_history",
     "_runtime_persona_chat_history_search",
+    "_runtime_persona_chat_unarchive",
     "_runtime_persona_instance_create",
     "row_reply",
 ]
@@ -60,6 +62,8 @@ REFUSAL_CODES: dict[str, int] = {
     "skills_not_loadable": ERR_INVALID_PARAMS,
     "placement_id_not_discriminable": ERR_INVALID_PARAMS,
     "placing_door_moved": ERR_INVALID_PARAMS,
+    "chat_is_loaded": ERR_CONFLICT,
+    "invalid_client_scope": ERR_INVALID_PARAMS,
     "not_found": ERR_NOT_FOUND,
     "persona_not_found": ERR_NOT_FOUND,
     "persona_instance_not_found": ERR_NOT_FOUND,
@@ -196,6 +200,25 @@ def _runtime_persona_chat_delete(rid: Any, params: dict, context: RpcContext | N
     from agent_runtime.chat_verbs.delete import delete_persona_chat
 
     return row_reply(rid, delete_persona_chat(_params(params), caller=_caller(context)), "delete")
+
+
+@method("runtime.persona.chat.archive", tier=TIER_CONSOLE)
+def _runtime_persona_chat_archive(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Hide one saved agent chat from the Chat history; recoverable — see
+    :mod:`agent_runtime.chat_verbs.archive`. Refused on a running turn and on an instance's loaded chat."""
+    from agent_runtime.chat_verbs import archive
+
+    return row_reply(rid, archive.set_persona_chat_archived(_params(params), archived=True, caller=_caller(context)),
+                     "archive")
+
+
+@method("runtime.persona.chat.unarchive", tier=TIER_CONSOLE)
+def _runtime_persona_chat_unarchive(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Bring an archived agent chat back into the Chat history (its whole lineage, every message kept)."""
+    from agent_runtime.chat_verbs import archive
+
+    return row_reply(rid, archive.set_persona_chat_archived(_params(params), archived=False, caller=_caller(context)),
+                     "unarchive")
 
 
 @method("runtime.persona.chat.content", tier=TIER_CONSOLE)

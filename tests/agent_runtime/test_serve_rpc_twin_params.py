@@ -49,10 +49,10 @@ def _row(*_args: Any, **_kwargs: Any) -> dict:
     return {"ok": True}
 
 
-def test_all_seventeen_are_published_sorted():
+def test_all_nineteen_are_published_sorted():
     published = serve_rpc.manifest()["params"]
     rows = {**HEALTH_METHOD_PARAMS, **CHAT_VERB_METHOD_PARAMS, **REALM_METHOD_PARAMS}
-    assert len(rows) == 17
+    assert len(rows) == 19
     assert set(REALM_METHOD_PARAMS) == set(REALM_METHODS)
     for name, keys in rows.items():
         assert name in serve_rpc.registry._METHODS
@@ -61,13 +61,14 @@ def test_all_seventeen_are_published_sorted():
 
 @pytest.mark.parametrize("name", sorted(CHAT_VERB_METHOD_PARAMS))
 def test_a_chat_twin_publishes_exactly_the_keys_it_reads(name, monkeypatch):
-    from agent_runtime.chat_verbs import door, history, queue_skill, turn_audit, turn_resolve
+    from agent_runtime.chat_verbs import archive, door, history, queue_skill, turn_audit, turn_resolve
 
     monkeypatch.setattr(door, "run_cli_chat_verb", _row)
     monkeypatch.setattr(history, "persona_chat_history_page", _row)
     monkeypatch.setattr(turn_resolve, "resolve_chat_turn", _row)
     monkeypatch.setattr(queue_skill, "queue_skills_next_turn", _row)
     monkeypatch.setattr(turn_audit, "turn_audit", _row)
+    monkeypatch.setattr(archive, "apply_persona_chat_archived", _row)
     recorder = _RecordingParams({key: _EVERY_VALUE[key] for key in CHAT_VERB_METHOD_PARAMS[name]})
     reply = serve_rpc.registry._METHODS[name]("r", recorder)
     assert reply.get("result") == {"ok": True}, reply
