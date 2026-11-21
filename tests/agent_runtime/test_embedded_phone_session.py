@@ -492,6 +492,18 @@ def _stage_phone_wheel(dest: Path) -> tuple[str, ...]:
     switched-off name, staged or not). Returns the switched-off prefixes."""
     import shutil
 
+    from tests._downstream.import_rows_memo import memoized_import_rows
+
+    # The closure walk's per-file import rows come from a content-keyed memo shared by the clone's worktrees:
+    # re-parsing ~3,300 unchanged modules was 24 s of this case's ~58 s on every push
+    # (FH-PREPUSH-TOUCHED-OVER-BUDGET-ON-THE-EMBEDDED-PHONE-SESSION-FILE). An edited file is parsed again.
+    with memoized_import_rows():
+        return _stage_phone_wheel_uncached(dest)
+
+
+def _stage_phone_wheel_uncached(dest: Path) -> tuple[str, ...]:
+    import shutil
+
     from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR
     from agent_runtime.bundle_profiles.manifest import load_profile
     from scripts.bundle_profile_closure import profile_walk
