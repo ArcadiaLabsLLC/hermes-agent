@@ -10,7 +10,7 @@ adds two things the runtime needs and upstream does not hold:
   continuations are forged from, and where its gates run — so the after-turn hook
   (``work_store/persona_turn.py``) can continue or settle the run after a restart;
 * a :class:`ChatGoalPark` per root whose goal NO run owns and the judge parked on ``wait`` — the
-  settled turn's arguments, so the serve's waker (``goal_turns.wake_parked``) can forge its
+  settled turn's arguments, so the serve's waker (``chat_goal_loop.wake``) can forge its
   continuation when the barrier lifts.
 
 ``arm`` is ``GoalManager.set`` with a ``GoalContract`` drawn from the brief's acceptance, then one
@@ -185,6 +185,11 @@ def _set(goal: Any, params: Mapping[str, Any]) -> None:
     if not text or not isinstance(gates, list) or not all(isinstance(g, str) for g in gates) or (
             max_turns is not None and (not isinstance(max_turns, int) or max_turns < 1)):
         raise WorkRefused(Reason.INVALID, "goal text, gates as strings, max_turns >= 1")
+    bound = binding(_session(params))
+    # MUTATION: drop this refusal and test_chat_goal_rpc's set-on-a-run's-chat row reddens (the run's goal
+    # is replaced under it).
+    if bound is not None:
+        raise WorkRefused(Reason.EXECUTOR_BUSY, f"the chat's goal is Work run {bound.request_id}'s")
     contract = params.get("contract") if isinstance(params.get("contract"), Mapping) else {}
     goal.set(text, max_turns=max_turns, contract=_contract(contract))
     _add_gates(goal, gates)

@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agent_runtime import chat_goal
+from agent_runtime import chat_goal, chat_goal_loop
 from agent_runtime import chat_root_send_queue as send_queue
 from agent_runtime.work_store import goal_turns
 from agent_runtime.work_store.persona_turn import PersonaTurnExecutor
@@ -92,7 +92,7 @@ def test_a_chat_goal_with_no_work_run_continues_as_a_queued_send_and_judges_its_
     [entry] = send_queue.entries(ROOT)
     assert entry.args["message"] == "continue please" and entry.args["persona_id"] == "neko"
     assert "idempotency_key" not in entry.args
-    assert entry.args[send_queue.ORIGIN_ARG][goal_turns.CHAT_GOAL_ORIGIN] is True
+    assert entry.args[send_queue.ORIGIN_ARG][chat_goal_loop.CHAT_GOAL_ORIGIN] is True
     # RT-UNTIL-DONE-PASS-FOUR-MINUTE-CLOCK: the settled send stated no budget, so the pass carries its own.
     assert entry.args["max_seconds"] == goal_turns.pass_max_seconds() == 1800.0
     executor.settled(entry, 0, {"ok": True, "reply": "all done"})  # the runner's on_settle

@@ -184,3 +184,19 @@ chat's own rule, and each now runs inside the engine's turn or build. No upstrea
   requeues events it does not own, so no event is lost, but ownership must stay exclusive per root.
 - **Footprint.** Every step above uses the two existing seams; an upstream edit is a footprint row with
   an owner ruling, never a raised ceiling.
+
+## The chat's goal is its own (2026-11-21, w1118a-goal)
+
+Row `RT-A-CHATS-STANDING-GOAL-IS-ITS-OWN-THING-AND-UNTIL-DONE-IS-ONE-USER-OF-IT` (owner: "yea that logic
+should be decoupled from tasks so it could be a slash command"). F2's one judge stands (the engine's,
+read through `EngineJudgedGoal`); what follows the decision is now one loop, keyed by the chat:
+`agent_runtime/chat_goal_loop.py` (`step`: continue, hold, park or settle; `wake`: one waker over every
+parked goal). A plain chat goal (`runtime.chat.goal.set`) queues its continuation from the settled turn;
+a Work run's Until done calls the same `step` and sends the continuation as its next pass, keeping only
+its bookkeeping (rows, report, stop). `after_chat_goal_turn`, `_forge` and the two wakers retired. The
+chat's goal verbs drive the run that uses it: `set` on a run's chat refuses `executor_busy`, and `pause` /
+`clear` stop the run (`goal_turns.stop_with_goal`); a goal put down under a running pass ends the run
+`STOPPED` at that pass's settle instead of holding it forever.
+Edge cases documented, not worked: a Work run parked on a judge `wait` before this change holds a
+`held` binding with no park record, so the one waker does not see it until another turn settles on its
+chat; a goal set on a chat whose instance is busy; a goal left armed when its chat moves instance.

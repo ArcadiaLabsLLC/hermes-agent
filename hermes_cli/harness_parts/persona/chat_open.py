@@ -392,7 +392,15 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         # never the hidden copy ``personainst_<persona>``.
         # MUTATION: answer persona_instance_id_for here and test_an_operator_open_of_an_unplaced_agent_places_it reddens.
         from agent_runtime.agent_create.staff import reuse_or_place
+        from agent_runtime.persona_chat_mints import _validated_key
 
+        # The mint's own key check, asked BEFORE anything is placed, so a refused open leaves no
+        # instance behind (seen in the lane's CLI read: an open with no key placed one, then refused).
+        # MUTATION: drop this check and test_a_refused_open_places_nothing reddens.
+        try:
+            _validated_key(getattr(args, "idempotency_key", None))
+        except PersonaChatMintError as exc:
+            return _emit_persona_open_chat_error(args, error_kind=exc.code, error=str(exc), persona_id=persona_id)
         target_instance_id, refusal = reuse_or_place(persona_id)
         if refusal is not None:
             return _emit_persona_open_chat_error(
