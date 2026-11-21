@@ -240,3 +240,18 @@ def test_a_failed_quiet_commit_claims_no_sha(tmp_path):
     with bind_turn_outcome() as fold:
         _terminal(f'git -C "{repo}" commit -q -m y', exit_code=1)
     assert fold.block()["commits"][0]["sha"] is None
+
+
+def test_the_module_imports_first_in_a_fresh_interpreter():
+    """Red-fix pass 2026-11-21: ``running_work`` came to import ``mission_chat_turns`` (f2f183a6db),
+    whose ``records`` imports this module, so a module-level ``running_work.rows`` import here made
+    ``import agent_runtime.turn_outcome`` alone a circular ImportError — the phone bundle's closure
+    refused it. Killing mutation: move the ``bounded_operator_text`` import back to module level."""
+
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    done = subprocess.run([sys.executable, "-c", "import agent_runtime.turn_outcome"], capture_output=True,
+                          text=True, cwd=Path(__file__).resolve().parents[2], timeout=60, check=False)
+    assert done.returncode == 0, done.stderr[-2000:]

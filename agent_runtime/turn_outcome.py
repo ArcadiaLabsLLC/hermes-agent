@@ -34,7 +34,6 @@ from types import MappingProxyType
 from typing import Any
 
 from agent_runtime.host_tools import git_command
-from agent_runtime.running_work.rows import bounded_operator_text
 
 __layer__ = "policy"
 
@@ -280,6 +279,11 @@ def on_post_tool_call(tool_name: Any = None, args: Any = None, result: Any = Non
     fold = _FOLD.get()
     if fold is None:
         return
+    # Read here, not at import: ``running_work``'s package imports ``mission_chat_turns``
+    # (``running_work/ended.py``), whose ``records`` imports this module, so a module-level
+    # import makes ``import agent_runtime.turn_outcome`` alone a circular ImportError.
+    from agent_runtime.running_work.rows import bounded_operator_text
+
     args = args if isinstance(args, dict) else {}
     if tool_name == TERMINAL_TOOL:
         command = bounded_operator_text(args.get("command"), limit=TURN_OUTCOME_TEXT_LIMIT)
