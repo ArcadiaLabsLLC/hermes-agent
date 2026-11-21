@@ -66,6 +66,7 @@ __all__ = [
     "credential_source_ids",
     "entry_family",
     "present_credential_sources",
+    "refuse_an_unusable_chosen_credential",
     "refuse_borrowed_login",
     "resolve_chosen_anthropic_token",
     "visible_entries",
@@ -277,6 +278,22 @@ def chosen_unusable_message(provider: str) -> str:
     return (f"Provider '{provider}': the credential chosen for its turns ({labels.get(chosen, chosen)}) cannot "
             f"be used right now, so the request was not sent. A saved {other} is not spent unless you "
             "switch to it; switch which credential this provider uses, or wait for the chosen one to recover.")
+
+
+def refuse_an_unusable_chosen_credential(request: Any) -> None:
+    """Refuse a run, before any token, while its provider's CHOSEN credential cannot serve and one of
+    the other kind is saved: named, typed :data:`CHOSEN_CREDENTIAL_UNUSABLE`, and the other kind is
+    never spent. The runner calls it inside the persona's profile (``profile_runner/execute.py``), so
+    that profile's pool and choice are what is read; a prewarm is never refused."""
+    if getattr(request, "prewarm_only", False) or not getattr(request, "provider", None):
+        return
+    provider = str(request.provider)
+    # MUTATION: return before this check and test_a_turn_on_an_exhausted_chosen_sign_in_is_refused_typed reddens.
+    if chosen_credential_unusable(provider, model=getattr(request, "model", None)):
+        from .provider_login_expiry import NamedProviderNotConfiguredError
+
+        raise NamedProviderNotConfiguredError(chosen_unusable_message(provider), provider=provider,
+                                              credentials_reason=CHOSEN_CREDENTIAL_UNUSABLE)
 
 
 # ── the resolver ─────────────────────────────────────────────────────────────

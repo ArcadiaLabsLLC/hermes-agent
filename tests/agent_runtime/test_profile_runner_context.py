@@ -81,3 +81,35 @@ def test_runner_executes_agent_inside_requested_workdir_and_restores_caller(tmp_
     assert seen["env_TERMINAL_CWD"] == "before_terminal_cwd"
     assert Path.cwd() == caller_cwd
     assert os.environ["TERMINAL_CWD"] == "before_terminal_cwd"
+
+
+def test_runner_asks_the_chosen_credential_check_in_the_profile_before_any_agent(tmp_path, monkeypatch):
+    """Review w1118a.69 D1: the run is refused before an agent exists, reading the persona profile's
+    pool and choice. MUTATION (kill): drop the call in ``AgentRunExecution.run`` — red (the agent runs)."""
+    import pytest
+
+    from agent_runtime.provider_login_expiry import NamedProviderNotConfiguredError
+
+    profile_home = tmp_path / "profiles" / "pm"
+    (profile_home / "home").mkdir(parents=True)
+    monkeypatch.setattr("agent_runtime.profile_runner.status.profile_exists", lambda name: True)
+    monkeypatch.setattr("agent_runtime.profile_runner.status.get_profile_dir", lambda name: profile_home)
+    monkeypatch.setattr("agent_runtime.profile_runner.status.normalize_profile_name", lambda name: name)
+    seen = {}
+
+    def refuse(request):
+        from hermes_constants import get_hermes_home
+
+        seen["hermes_home"] = get_hermes_home()
+        raise NamedProviderNotConfiguredError("chosen unusable", provider="anthropic",
+                                              credentials_reason="chosen_credential_unusable")
+
+    class MustNotRun(FakeAgent):
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("an agent was built for a refused run")
+
+    monkeypatch.setattr("agent_runtime.profile_runner.execute.refuse_an_unusable_chosen_credential", refuse)
+    with pytest.raises(NamedProviderNotConfiguredError):
+        ProfileAgentRunner(agent_factory=MustNotRun).run(AgentRunRequest(
+            profile="pm", runtime_root=tmp_path / "runtime", user_message="hi", provider="anthropic"))
+    assert seen["hermes_home"] == profile_home

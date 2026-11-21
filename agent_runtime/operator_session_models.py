@@ -95,7 +95,7 @@ def _selected_model(instance, choice: str) -> tuple[str, str, str]:
             inventory = _with_local_llama_presets(build_model_options_payload(context))
         selection = choices(inventory).get(choice)
         if selection is None:
-            raise OperatorConversationRefused(_unavailable_reason(_choice_provider(choice)))
+            raise OperatorConversationRefused(_model_unavailable_reason(_choice_provider(choice)))
         provider, model = selection
         if provider == PROVIDER_ID and model in _local_llama_presets():
             # A preset is loaded by the adapter's whole-turn lease (``provider.turn_scope``), not resolved
@@ -114,7 +114,7 @@ def _selected_model(instance, choice: str) -> tuple[str, str, str]:
                 current_base_url=context.current_base_url, explicit_provider=provider,
                 user_providers=context.user_providers, custom_providers=context.custom_providers)
         if not result.success:
-            raise OperatorConversationRefused(_unavailable_reason(provider, model))
+            raise OperatorConversationRefused(_model_unavailable_reason(provider, model))
         return result.target_provider, result.new_model, result.api_mode
 
 
@@ -129,7 +129,7 @@ def _choice_provider(choice: str) -> str | None:
     return decoded[0] if isinstance(decoded, list) and len(decoded) == 2 and isinstance(decoded[0], str) else None
 
 
-def _unavailable_reason(provider: str | None, model: str | None = None) -> str:
+def _model_unavailable_reason(provider: str | None, model: str | None = None) -> str:
     """``model_unavailable``, or the typed reason when the provider's CHOSEN credential cannot serve
     while one of the other kind is saved (review w1118a.69 D1). Called inside ``_model_profile``."""
     from .provider_credential_source import CHOSEN_CREDENTIAL_UNUSABLE, chosen_credential_unusable

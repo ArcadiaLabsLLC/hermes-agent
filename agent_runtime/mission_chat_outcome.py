@@ -45,6 +45,7 @@ record and stay typed at their source.
 from __future__ import annotations
 
 import contextvars
+import functools
 import threading
 import time
 from dataclasses import dataclass, field, replace
@@ -384,6 +385,32 @@ _RESET_AT_EPOCH_FLOOR = 1_000_000_000
 _RESET_AT_EPOCH_MS_FLOOR = 1_000_000_000_000
 
 
+@functools.cache
+def _unsent_remedies() -> dict[str, str]:
+    """``failure_reason`` → what to do, for a named provider whose request never left Hermes.
+
+    One table, not a branch per reason: an expired sign-in (RT-EXPIRED-LOGIN-REFUSAL-UNNAMED), a local
+    model not ready (RT-LLAMA-OFF-REFUSAL-NAMES-LLAMA), the chosen credential unusable while one of the
+    other kind is saved (review w1118a.69 D1) and a saved key with a hidden character
+    (RT-FU-AN-API-KEY-WITH-A-HIDDEN-CONTROL-CHARACTER-IS-REFUSED-WHEN-IT-IS-SAVED)."""
+    from agent_runtime.api_key_check import API_KEY_CONTROL_CHARACTER
+    from agent_runtime.provider_credential_source import CHOSEN_CREDENTIAL_UNUSABLE
+    from agent_runtime.provider_login_expiry import LOGIN_EXPIRED_REASON
+
+    return {
+        LOGIN_EXPIRED_REASON: ("the {provider} sign-in has expired and the request never left Hermes; sign in "
+                               "again (`hermes auth add {provider}`)"),
+        LOCAL_MODEL_NOT_READY_REASON: ("the local {provider} server is off or its model is not loaded and the "
+                                       "request never left Hermes; turn llama on and load the model"),
+        CHOSEN_CREDENTIAL_UNUSABLE: ("the {provider} credential chosen for turns cannot be used now and the "
+                                     "request never left Hermes; a saved credential of the other kind is not "
+                                     "spent unless you switch to it (`runtime.provider.source.set`), or wait "
+                                     "for the chosen one to recover"),
+        API_KEY_CONTROL_CHARACTER: ("the saved {provider} API key contains a hidden character and the request "
+                                    "never left Hermes; save the key again (`hermes auth add {provider}`)"),
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class ProviderRefusal:
     """The provider's own verdict on a request it declined to run.
@@ -453,40 +480,10 @@ class ProviderRefusal:
                 "model for this chat or agent, then send a NEW client_message_id — this turn is "
                 "settled and needs NO turn-resolve"
             )
-        from agent_runtime.provider_login_expiry import LOGIN_EXPIRED_REASON
-
-        if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
-                and self.failure_reason == LOGIN_EXPIRED_REASON):
-            return (
-                f"the {self.provider} sign-in has expired and the request never left Hermes; sign in "
-                f"again (`hermes auth add {self.provider}`), then send a NEW client_message_id — this "
-                "turn is settled and needs NO turn-resolve"
-            )
-        from agent_runtime.api_key_check import API_KEY_CONTROL_CHARACTER
-        from agent_runtime.provider_credential_source import CHOSEN_CREDENTIAL_UNUSABLE
-
-        if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
-                and self.failure_reason == CHOSEN_CREDENTIAL_UNUSABLE):
-            return (
-                f"the {self.provider} credential chosen for turns cannot be used now and the request "
-                "never left Hermes; a saved credential of the other kind is not spent unless you switch "
-                f"to it (`runtime.provider.source.set`), or wait for the chosen one to recover, then send "
-                "a NEW client_message_id — this turn is settled and needs NO turn-resolve"
-            )
-        if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
-                and self.failure_reason == API_KEY_CONTROL_CHARACTER):
-            return (
-                f"the saved {self.provider} API key contains a hidden character and the request never "
-                f"left Hermes; save the key again (`hermes auth add {self.provider}`), then send a NEW "
-                "client_message_id — this turn is settled and needs NO turn-resolve"
-            )
-        if (self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider
-                and self.failure_reason == LOCAL_MODEL_NOT_READY_REASON):
-            return (
-                f"the local {self.provider} server is off or its model is not loaded and the request never "
-                "left Hermes; turn llama on and load the model, then send a NEW client_message_id — this "
-                "turn is settled and needs NO turn-resolve"
-            )
+        remedy = _unsent_remedies().get(self.failure_reason or "")
+        if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE and self.provider and remedy:
+            return (f"{remedy.format(provider=self.provider)}, then send a NEW client_message_id — this "
+                    "turn is settled and needs NO turn-resolve")
         if self.status_code == PROVIDER_UNAVAILABLE_STATUS_CODE:
             return (
                 "no model provider could take this request and it never left Hermes; "

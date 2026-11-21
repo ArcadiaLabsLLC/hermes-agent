@@ -247,16 +247,16 @@ def test_no_choice_set_is_never_this_refusal(home, monkeypatch):
 
 def test_a_pick_on_an_exhausted_chosen_sign_in_says_why(home, monkeypatch):
     from agent.credential_pool import load_pool
-    from agent_runtime.operator_session_models import _choice_provider, _unavailable_reason
+    from agent_runtime.operator_session_models import _choice_provider, _model_unavailable_reason
 
     _choose(home, "account")
     monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
-    assert _unavailable_reason("anthropic", MODEL) == "model_unavailable"
+    assert _model_unavailable_reason("anthropic", MODEL) == "model_unavailable"
     _exhaust_the_grant(load_pool("anthropic"))
 
-    assert _unavailable_reason("anthropic", MODEL) == "chosen_credential_unusable"
-    assert _unavailable_reason(_choice_provider('["anthropic","claude-sonnet-5"]')) == "chosen_credential_unusable"
-    assert _unavailable_reason(_choice_provider("not json")) == "model_unavailable"
+    assert _model_unavailable_reason("anthropic", MODEL) == "chosen_credential_unusable"
+    assert _model_unavailable_reason(_choice_provider('["anthropic","claude-sonnet-5"]')) == "chosen_credential_unusable"
+    assert _model_unavailable_reason(_choice_provider("not json")) == "model_unavailable"
 
 
 def test_a_turn_on_an_exhausted_chosen_sign_in_is_refused_typed(home, monkeypatch):
@@ -264,17 +264,17 @@ def test_a_turn_on_an_exhausted_chosen_sign_in_is_refused_typed(home, monkeypatc
 
     from agent.credential_pool import load_pool
     from agent_runtime.mission_chat_outcome import ChatErrorKind, classify_turn_failure
-    from agent_runtime.profile_runner.execute import AgentRunExecution
+    from agent_runtime.provider_credential_source import refuse_an_unusable_chosen_credential
     from agent_runtime.provider_login_expiry import NamedProviderNotConfiguredError
 
     _choose(home, "account")
     monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
-    run = SimpleNamespace(request=SimpleNamespace(prewarm_only=False, provider="anthropic", model=MODEL))
-    AgentRunExecution.refuse_an_unusable_chosen_credential(run)  # usable: the turn goes on
+    request = SimpleNamespace(prewarm_only=False, provider="anthropic", model=MODEL)
+    refuse_an_unusable_chosen_credential(request)  # usable: the turn goes on
     _exhaust_the_grant(load_pool("anthropic"))
 
     with pytest.raises(NamedProviderNotConfiguredError) as excinfo:
-        AgentRunExecution.refuse_an_unusable_chosen_credential(run)
+        refuse_an_unusable_chosen_credential(request)
     assert KEY not in str(excinfo.value) and GRANT not in str(excinfo.value)
     outcome = classify_turn_failure(excinfo.value, provider_submitted=True, request_started=False)
     assert outcome.error_kind == ChatErrorKind.CHAT_TURN_PROVIDER_UNAVAILABLE
@@ -282,3 +282,4 @@ def test_a_turn_on_an_exhausted_chosen_sign_in_is_refused_typed(home, monkeypatc
     assert (block["status_code"], block["provider"], block["failure_reason"]) == (
         0, "anthropic", "chosen_credential_unusable")
     assert "is not spent unless you switch" in outcome.provider_refusal.next_expected()
+    refuse_an_unusable_chosen_credential(SimpleNamespace(prewarm_only=True, provider="anthropic", model=MODEL))
