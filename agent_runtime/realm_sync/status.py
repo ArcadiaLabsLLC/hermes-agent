@@ -139,10 +139,7 @@ def realm_sync_status(
     # test_a_pull_merged_but_not_adopted_reads_pull_and_publish_refuses_until_the_pull_finishes reddens.
     adopted = store_adopted(repo, realm.id)
     if not adopted:
-        if state != "conflict":
-            state = "behind"
-        workspace_statuses = [
-            {**row, "state": "behind"} if row.get("state") == "unpublished" else row for row in workspace_statuses]
+        state, workspace_statuses = _behind_until_adopted(state, workspace_statuses)
     store_drift = _status_store_drift(realm.id, workspaces)
     profile_artifacts_held = _held_profile_artifacts(realm, repo)
     level_row = _level_status_row(realm.id, workspaces)
@@ -212,22 +209,9 @@ def realm_sync_status(
         # ``state``/``ahead``/``behind`` are UNCHANGED — other consumers key off
         # them — this only ADDS store-vs-baseline drift accounting on top.
         "store_drift": store_drift,
-        # The map family is a top-level row, not a ``store_drift`` family (no
-        # revert arm yet), so the flag asks it directly (the level row too, for
-        # its held/refused-free count while both shapes ship). Reading ``store_drift`` alone answered False over a map the
-        # launcher had just saved, and every consumer of this flag — the
-        # launcher's sheet, its chip, its auto-publish gate — then said there
-        # was nothing to publish.
-        "unpublished_changes": adopted and bool(
-            _any_store_drift(store_drift)
-            or level_row["unpublished"]
-            or map_row["unpublished"]
-            or prefab_row["unpublished"]
-            or lens_recipe_unpublished
-            or workspace_changes
-            or skill_deletes_waiting
-            or publish_changes
-        ),
+        "unpublished_changes": adopted and _has_unpublished(store_drift, (level_row, map_row, prefab_row),
+                                                            lens_recipe_unpublished, workspace_changes,
+                                                            skill_deletes_waiting, publish_changes),
         # The paths the next publish would add, rewrite or remove, by the publish's
         # OWN compare (``publish.publish_set_changes``): every family the publish
         # writes counts toward the flag above, so a family no row below names — the
@@ -271,6 +255,29 @@ def realm_sync_status(
         # USER PREFABS: the same row, the same absent-tolerant contract.
         "prefabs": prefab_row,
     }
+
+
+def _behind_until_adopted(state: str, workspace_statuses: list[dict]) -> tuple[str, list[dict]]:
+    """A clone holding a team commit the store has not adopted: the realm reads ``behind`` (a pull
+    adopts it), a conflict stays one, and no workspace reads ``unpublished`` until it has."""
+
+    workspace_statuses = [
+        {**row, "state": "behind"} if row.get("state") == "unpublished" else row for row in workspace_statuses]
+    return (state if state == "conflict" else "behind"), workspace_statuses
+
+
+def _has_unpublished(store_drift: Any, rows: tuple[dict, ...], *changes: Any) -> bool:
+    """Whether the next publish has anything to carry.
+
+    The map family is a top-level row, not a ``store_drift`` family (no revert arm yet), so the flag
+    asks it directly (the level and prefab rows too, for their held/refused-free count while both
+    shapes ship). Reading ``store_drift`` alone answered False over a map the launcher had just
+    saved, and every consumer of this flag — the launcher's sheet, its chip, its auto-publish gate —
+    then said there was nothing to publish. *changes* are the lens recipes, workspace changes,
+    waiting skill deletes and the publish's own changed paths.
+    """
+
+    return bool(_any_store_drift(store_drift) or any(row["unpublished"] for row in rows) or any(changes))
 
 
 def _status_repo(

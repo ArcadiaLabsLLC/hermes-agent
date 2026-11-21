@@ -37,7 +37,7 @@
   },
   {
    "depth": 1,
-   "lines": 257,
+   "lines": 255,
    "unit": "agent_runtime/persona_runtime.py|GPTPersonaRuntime.mission_chat_reply"
   },
   {
@@ -91,18 +91,13 @@
    "unit": "hermes_cli/harness_parts/persona/chat_turn_message.py|_cmd_mission_chat_message"
   },
   {
-   "depth": 4,
-   "lines": 155,
-   "unit": "hermes_cli/harness_parts/persona/lifecycle_commands.py|_cmd_persona_instance_create"
-  },
-  {
    "depth": 5,
    "lines": 84,
    "unit": "scripts/doc_cite_report.py|run"
   },
   {
    "depth": 2,
-   "lines": 220,
+   "lines": 204,
    "unit": "scripts/generate_agent_runtime_stream_fixtures.py|_build_agent_create_frames"
   }
  ],

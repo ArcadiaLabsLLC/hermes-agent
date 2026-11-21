@@ -159,7 +159,7 @@ def resolve_conflict(
     if not wsid:
         raise ValueError("invalid_request")
     # Deferred: ``office_sync`` imports this package.
-    from agent_runtime.realm_sync.settle import settle_flow_graph_scope_for_workspace, settle_office_actor
+    from agent_runtime.realm_sync.settle import settle_office_actor
 
     with office_lock(wsid):
         sidecar_path = paths.office_conflict_path(wsid, actor_key)
@@ -209,32 +209,8 @@ def resolve_conflict(
                     settle_office_actor(wsid, actor.actor_key, actor)
             elif store.actor_exists(wsid, actor_key):
                 # Remote removed the actor (edit-vs-remove) → archive local.
-                actor = store.get_actor(wsid, actor_key)
-                if not dry_run:
-                    # Locked variant — see remove_actor: office_lock is not
-                    # reentrant.
-                    surface = store._ensure_surface_locked(
-                        wsid, created_by=updated_by
-                    )
-                    # The pull's own archive arm, rule for rule (``office_sync._reconcile_actors``): the REALM
-                    # removed this desk, so no tombstone of this machine's (one minted here grew the surface's
-                    # ledger, an "office layout changed" nobody made), and the baseline entry leaves with the
-                    # row. MUTATIONS: record the tombstone again, or drop the settle, and
-                    # test_taking_the_teams_delete_of_a_held_desk_leaves_nothing_to_publish reddens.
-                    store._archive_actor_locked(
-                        surface,
-                        actor,
-                        reason="remote_removed",
-                        updated_by=updated_by,
-                        emit=False,
-                        correlation_id=correlation_id,
-                        record_tombstone=False,
-                    )
-                    settle_office_actor(wsid, actor_key, None)
-                    # The desk left this realm's shipped desks, so its drawing left the walk's scope with it.
-                    # MUTATION: drop this call and
-                    # test_taking_the_teams_delete_of_a_desk_leaves_its_drawing_unpublished_too reddens.
-                    settle_flow_graph_scope_for_workspace(wsid)
+                _take_remote_removal(store, wsid, actor_key, updated_by=updated_by,
+                                     correlation_id=correlation_id, dry_run=dry_run)
         if dry_run:
             # take value + sidecar existence validated; return the would-be
             # resolved actor in memory. Leave the sidecar in place and emit
@@ -256,6 +232,43 @@ def resolve_conflict(
             revision=getattr(result_actor, "revision", None),
         )
     return result_actor
+
+
+def _take_remote_removal(store: OfficeStore, wsid: str, actor_key: str, *, updated_by: str,
+                         correlation_id: str | None, dry_run: bool) -> None:
+    """``take=remote`` on an edit-vs-remove hold, under the held ``office_lock``: the team removed the
+    desk, so the local one is archived as the pull's archive arm would (nothing on a dry run)."""
+
+    # Deferred: ``office_sync`` imports this package.
+    from agent_runtime.realm_sync.settle import settle_flow_graph_scope_for_workspace, settle_office_actor
+
+    actor = store.get_actor(wsid, actor_key)
+    if dry_run:
+        return
+    # Locked variant — see remove_actor: office_lock is not
+    # reentrant.
+    surface = store._ensure_surface_locked(
+        wsid, created_by=updated_by
+    )
+    # The pull's own archive arm, rule for rule (``office_sync._reconcile_actors``): the REALM
+    # removed this desk, so no tombstone of this machine's (one minted here grew the surface's
+    # ledger, an "office layout changed" nobody made), and the baseline entry leaves with the
+    # row. MUTATIONS: record the tombstone again, or drop the settle, and
+    # test_taking_the_teams_delete_of_a_held_desk_leaves_nothing_to_publish reddens.
+    store._archive_actor_locked(
+        surface,
+        actor,
+        reason="remote_removed",
+        updated_by=updated_by,
+        emit=False,
+        correlation_id=correlation_id,
+        record_tombstone=False,
+    )
+    settle_office_actor(wsid, actor_key, None)
+    # The desk left this realm's shipped desks, so its drawing left the walk's scope with it.
+    # MUTATION: drop this call and
+    # test_taking_the_teams_delete_of_a_desk_leaves_its_drawing_unpublished_too reddens.
+    settle_flow_graph_scope_for_workspace(wsid)
 
 
 def retire_hold(store: OfficeStore, workspace_id: str, actor_key: str) -> bool:

@@ -16,7 +16,6 @@ from agent_runtime.chat_session_scope import (
 )
 from agent_runtime.chat_heads import resolve_conversation_chat_scope
 from agent_runtime.config import load_agent_runtime_config
-from agent_runtime.coordinator_permissions import review_coordinator_budget
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
     RetiredPersonaInstanceError,
@@ -39,8 +38,7 @@ from agent_runtime.persona_chat_mints import PersonaChatMintError
 from .chat_coordinator import (
     _coordinator_actor_id,
     _coordinator_confirm_payload,
-    _coordinator_scope,
-    _coordinator_spawn_refusal,
+    _coordinator_spawn_scope,
     _maybe_stamp_spawned_by,
 )
 from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
@@ -91,20 +89,11 @@ def _cmd_persona_instance_open_chat(args) -> int:
     persona_id = _normalize_cli_persona_or_template_id(args.persona_id)
     persona = _persona_by_id(cfg, persona_id)
     coordinator_id = _coordinator_actor_id(args)
-    coordinator_scope = None
-    if coordinator_id and bool(getattr(args, "add_instance", False)):
-        coordinator_scope = _coordinator_scope(coordinator_id)
-        auth = review_coordinator_budget(
-            "persona.instance.open_chat",
-            coordinator_scope,
-            actor=coordinator_id,
-            coordinator_id=coordinator_id,
-        )
-        if not auth.ok:
-            data = _coordinator_spawn_refusal("persona.instance.open_chat", coordinator_id, auth)
-            _emit_persona_verb_payload(args, data, plain=data["message"])
-            return 2
-        coordinator_scope = auth.scope
+    coordinator_scope, refused = _coordinator_spawn_scope(
+        "persona.instance.open_chat", coordinator_id, spawns=bool(getattr(args, "add_instance", False)))
+    if refused is not None:
+        _emit_persona_verb_payload(args, refused, plain=refused["message"])
+        return 2
     if bool(getattr(args, "new_session", False)):
         return _cmd_persona_instance_open_new_chat(
             args,
