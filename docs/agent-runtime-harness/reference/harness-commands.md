@@ -2944,8 +2944,9 @@ usage: hermes harness persona instance [-h]
 
 positional arguments:
   {create,open-chat,retire,delete,steer,repair-steering,return-summary,update-profile,set-model}
-    create              Create an Agent Profile (operator chat channel) or an additional placement-
-                        backed instance (--add-instance); requires --display-name
+    create              Create an Agent Profile (operator chat channel; requires --display-name),
+                        place one more instance of an agent (--add-instance, runtime.agent.place) or
+                        make a new agent (--independent-agent, runtime.agent.create)
     open-chat           Bind a persona instance to a durable chat session without ticking
     retire (delete)     Delete (end-of-life) a placement-backed persona instance: archive its row
                         (chat history preserved)
@@ -2990,22 +2991,23 @@ options:
   --client-scope CLIENT_SCOPE
                         The owning account's client-scope digest (64 hex) the new agent's chat is
                         stamped with, so it opens for that account only
-  --independent-agent   Give the new agent its own persona and backing profile
+  --independent-agent   Make a NEW agent with its own persona and backing profile, through
+                        runtime.agent.create's sequence (seated when --workspace-id is given)
   --source-instance-id SOURCE_INSTANCE_ID
                         Use an existing agent's model and skill choices as the starting point
   --display-name DISPLAY_NAME
   --session-id SESSION_ID
-  --add-instance        Create an additional placement-backed instance instead of targeting the
-                        primary placement
+  --add-instance        Place one more instance of the agent in --workspace-id, through
+                        runtime.agent.place's sequence (it names the seat when --display-name is
+                        omitted)
   --placement-id PLACEMENT_ID
-                        Scene itemId for an additional placement-backed instance; must end in the
-                        deliberate-placement shape <persona-token>_agent_<hex8>. Omitted with --add-
-                        instance, one is minted
+                        Scene itemId for the placement; must end in the deliberate-placement shape
+                        <persona-token>_agent_<hex8>. Omitted, one is minted
   --workspace-id, --workspace WORKSPACE_ID
-                        Mission Control workspace the placement belongs to (scope-provenance
-                        pointer; only meaningful with --add-instance)
-  --realm-id REALM_ID   Mission Control realm the placement belongs to (scope-provenance pointer;
-                        only meaningful with --add-instance)
+                        Mission Control workspace to seat the agent in (required with --add-
+                        instance)
+  --realm-id REALM_ID   Mission Control realm the placement belongs to (with --add-instance or
+                        --independent-agent)
   --json
 ```
 
@@ -3016,10 +3018,7 @@ usage: hermes harness persona instance open-chat [-h] --persona PERSONA_ID
                                                  [--persona-instance-id PERSONA_INSTANCE_ID]
                                                  [--session-id SESSION_ID] [--new-session]
                                                  [--idempotency-key IDEMPOTENCY_KEY] [--move]
-                                                 [--add-instance] [--placement-id PLACEMENT_ID]
-                                                 [--workspace-id WORKSPACE_ID] [--realm-id REALM_ID]
-                                                 [--display-name DISPLAY_NAME]
-                                                 [--requested-by REQUESTED_BY]
+                                                 [--add-instance] [--requested-by REQUESTED_BY]
                                                  [--correlation-id CORRELATION_ID]
                                                  [--coordinator-id COORDINATOR_ID] [--json]
 
@@ -3035,19 +3034,8 @@ options:
   --move                Move --session-id onto --persona-instance-id when another instance of the
                         same agent holds it (its history moves with it); without it that chat is
                         refused
-  --add-instance        Open the chat on an additional placement-backed instance
-  --placement-id PLACEMENT_ID
-                        Scene itemId for an additional placement-backed instance; must end in the
-                        deliberate-placement shape <persona-token>_agent_<hex8>. Omitted with --add-
-                        instance, one is minted
-  --workspace-id, --workspace WORKSPACE_ID
-                        Mission Control workspace the placement belongs to (scope-provenance
-                        pointer; only meaningful with --add-instance)
-  --realm-id REALM_ID   Mission Control realm the placement belongs to (scope-provenance pointer;
-                        only meaningful with --add-instance)
-  --display-name DISPLAY_NAME
-                        Authoritative name for a deliberately placed additional instance; ignored
-                        unless --add-instance
+  --add-instance        Retired: refused placing_door_moved; place with `persona instance create
+                        --add-instance` (runtime.agent.place)
   --requested-by REQUESTED_BY
   --correlation-id CORRELATION_ID
   --coordinator-id COORDINATOR_ID

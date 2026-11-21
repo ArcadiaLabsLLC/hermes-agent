@@ -450,23 +450,23 @@ def test_a_refused_placement_retires_the_instance_and_says_so(qa_persona, monkey
 
 
 def test_explicit_profile_creation_gets_its_own_identity_over_rpc(qa_persona):
-    def create(key, **overrides):
+    def create(key, method="runtime.agent.create", **overrides):
         reply = serve_rpc.handle_request({
-            "jsonrpc": "2.0", "id": key, "method": "runtime.persona.instance.create",
-            "params": {
-                "persona_id": "qa", "display_name": "A new agent",
-                "client_message_id": key, "independent_agent": True, **overrides,
-            },
+            "jsonrpc": "2.0", "id": key, "method": method,
+            "params": {"persona_id": "qa", "display_name": "A new agent", "idempotency_key": key, **overrides},
         })
         assert "result" in reply, reply
-        return reply["result"]
+        return {**reply["result"], "session_id": reply["result"]["default_chat_session_id"]}
 
     first = create("profile-copy")
     retry = create("profile-copy")
     # Its own name: a second agent never takes the first's
     # (RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION).
     second = create("second-profile-copy", display_name="Another new agent")
-    chat = create("existing-persona-chat", independent_agent=False)
+    chat = serve_rpc.handle_request({
+        "jsonrpc": "2.0", "id": "chat", "method": "runtime.persona.instance.create",
+        "params": {"persona_id": "qa", "display_name": "A new agent", "client_message_id": "existing-persona-chat"},
+    })["result"]
     keys = ("persona_id", "profile_id", "persona_instance_id", "session_id")
     assert [first[key] for key in keys] == [retry[key] for key in keys]
     assert all(first[key] != second[key] for key in keys)

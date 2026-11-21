@@ -838,45 +838,6 @@ def test_persona_instance_open_chat_new_session_rejects_idempotency_scope_confli
     assert PersonaInstanceStore().get(qa.id).session_id == qa.session_id
 
 
-def test_persona_instance_open_chat_can_target_additional_placement(monkeypatch, isolate_agent_runtime_root):
-    from argparse import Namespace
-
-    cfg = _assignment_config()
-    session_db = _TranscriptDB()
-    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
-    monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
-
-    code = chat_open._cmd_persona_instance_open_chat(
-        Namespace(
-            persona_id="profile_reviewer",
-            session_id="chat_old_123",
-            add_instance=True,
-            placement_id="reviewer_agent_2",
-            json=True,
-        )
-    )
-
-    assert code == 0
-    primary_missing = True
-    try:
-        PersonaInstanceStore().get("personainst_profile_reviewer")
-        primary_missing = False
-    except Exception:
-        pass
-    additional = PersonaInstanceStore().get("personainst_reviewer_agent_2")
-    assert primary_missing is True
-    # A placement of the EXISTING agent: no new persona or profile (owner
-    # 2026-11-19, RT-PLACING-A-SHIPPED-AGENT-MAKES-A-SECOND-ONE).
-    assert additional.persona_id == "profile_reviewer"
-    assert additional.profile_id == "reviewer"
-    assert additional.session_id == "chat_old_123"
-    assert additional.mode == "chat"
-    assert session_db.get_session(additional.session_id) is not None
-    assert session_db.get_session_title(additional.session_id) == f"{additional.display_name} chat"
-
-
 def test_persona_instance_open_chat_session_persistence_failure_is_typed_and_not_silent(
     monkeypatch,
     capsys,
@@ -1089,76 +1050,6 @@ def test_add_instance_default_never_overwrites_a_deliberate_name(
         default_display_name="QA Agent",  # the persona default a later open passes
     )
     assert reopened.display_name == "QA Agent (2)"
-
-
-def test_open_chat_cli_add_instance_threads_explicit_display_name(
-    monkeypatch, isolate_agent_runtime_root
-):
-    # END-TO-END SEAM: the occupied-chat placement path sends the distinct name
-    # through --display-name; the open-chat CLI must forward it to the new
-    # placement instead of dropping it (the exact seam that minted the live
-    # "Qa" — add_instance was called with no display_name).
-    from argparse import Namespace
-
-    cfg = _assignment_config()
-    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
-
-    code = chat_open._cmd_persona_instance_open_chat(
-        Namespace(
-            persona_id="qa",
-            session_id=None,
-            add_instance=True,
-            placement_id="qa_agent_2",
-            display_name="QA Agent (2)",
-            json=True,
-        )
-    )
-
-    assert code == 0
-    placed = PersonaInstanceStore().get("personainst_qa_agent_2")
-    assert placed.display_name == "QA Agent (2)"
-
-
-def test_open_chat_cli_add_instance_omitted_name_uses_persona_config_not_title_case(
-    monkeypatch, isolate_agent_runtime_root
-):
-    # HONEST FALLBACK at the CLI seam: with --display-name omitted, the new
-    # placement takes the persona's CONFIGURED display name ("QA Agent"), never
-    # the store template's title-cased persona id ("Qa").
-    from argparse import Namespace
-
-    cfg = _assignment_config()
-    monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
-    qa_persona = AgentPersona(
-        id="qa",
-        display_name="QA Agent",
-        role="qa",
-        model="gpt-test",
-        provider="openai-codex",
-        api_mode="codex_responses",
-        system_prompt_path="agent_runtime/prompts/qa.md",
-        hermes_profile="profile-qa",
-    )
-    monkeypatch.setattr(chat_open, "_persona_by_id", lambda _cfg, _pid: qa_persona)
-    monkeypatch.setattr(lifecycle_commands, "_persona_by_id", lambda _cfg, _pid: qa_persona)
-
-    code = chat_open._cmd_persona_instance_open_chat(
-        Namespace(
-            persona_id="qa",
-            session_id=None,
-            add_instance=True,
-            placement_id="qa_agent_2",
-            display_name=None,
-            json=True,
-        )
-    )
-
-    assert code == 0
-    placed = PersonaInstanceStore().get("personainst_qa_agent_2")
-    assert placed.display_name == "QA Agent"
-    assert placed.display_name != "Qa"
 
 
 def _seed_live_run_binding(instance_store) -> AgentRun:

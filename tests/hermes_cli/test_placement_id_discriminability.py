@@ -7,13 +7,13 @@ it into the operator-channel dedupe on the shared key
 `(profile:alice, "Alice Agent")`, and — newer-wins — evicted the operator's own
 `personainst_profile_alice` from the roster.
 
-The two `persona instance` verbs are driven through the REAL argparse tree and
-`args.func`: a handler nothing routes to is a verb no operator can run. The third
-placement door is `agent_create.perform_agent_create` itself — the function
-`runtime.agent.create` answers with — since the argv `harness agent create` was
-deleted 2026-10-02 (owner ruling: method-only). All three are exercised, because
-the fence had to land in three places — the two `persona instance` verbs do not
-pass through `agent_create` at all.
+The argv `persona instance create --add-instance` is driven through the REAL argparse tree and
+`args.func`: a handler nothing routes to is a verb no operator can run. The other placement
+door is `agent_create.perform_agent_create` itself — the function `runtime.agent.create`
+answers with — since the argv `harness agent create` was deleted 2026-10-02 (owner ruling:
+method-only). Since RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT (review w1118a.74) the
+argv door places through that same sequence, so the fence is ONE fence; `open-chat --add-instance`
+no longer places at all.
 """
 
 from __future__ import annotations
@@ -115,17 +115,7 @@ def _instance_create(capsys, *extra: str):
         "--title", "QA Agent (2)",
         "--display-name", "QA Agent (2)",
         "--add-instance",
-        "--json",
-        *extra,
-    ])
-    return code, json.loads(capsys.readouterr().out)
-
-
-def _instance_open(capsys, *extra: str):
-    code = _dispatch([
-        "harness", "persona", "instance", "open-chat",
-        "--persona", "qa",
-        "--add-instance",
+        "--workspace-id", WORKSPACE,
         "--json",
         *extra,
     ])
@@ -257,34 +247,22 @@ def test_agent_create_accepts_an_omitted_placement_id(
     assert looks_like_deliberate_placement(data["persona_instance_id"])
 
 
-# ── doors 2 and 3: the two persona instance verbs ────────────────────────────
+# ── door 2: the argv twin, persona instance create --add-instance ──────────────
 
 
-def test_persona_instance_create_refuses_the_incident_id(qa_persona, capsys):
+def test_persona_instance_create_refuses_the_incident_id(qa_persona, seeded_workspace, capsys):
     code, data = _instance_create(capsys, "--placement-id", INCIDENT_ID)
     assert code != 0
     assert data["reason"] == "placement_id_not_discriminable"
 
 
-def test_persona_instance_create_accepts_a_launcher_mint(qa_persona, capsys):
+def test_persona_instance_create_accepts_a_launcher_mint(qa_persona, seeded_workspace, capsys):
     code, data = _instance_create(capsys, "--placement-id", LAUNCHER_HEX_ID)
     assert code == 0, data
     assert data["persona_instance_id"] == f"personainst_{LAUNCHER_HEX_ID}"
 
 
-def test_persona_instance_open_chat_refuses_the_incident_id(qa_persona, capsys):
-    code, data = _instance_open(capsys, "--placement-id", INCIDENT_ID)
-    assert code != 0
-    assert data["reason"] == "placement_id_not_discriminable"
-
-
-def test_persona_instance_open_chat_accepts_a_launcher_mint(qa_persona, capsys):
-    code, data = _instance_open(capsys, "--placement-id", LAUNCHER_HEX_ID)
-    assert code == 0, data
-    assert data["persona_instance_id"] == f"personainst_{LAUNCHER_HEX_ID}"
-
-
-def test_the_refusal_is_the_same_reason_on_all_three_doors(
+def test_the_refusal_is_the_same_reason_on_both_doors(
     qa_persona, seeded_workspace, capsys
 ):
     """One incident, one branch point.
@@ -299,7 +277,5 @@ def test_the_refusal_is_the_same_reason_on_all_three_doors(
     )
     reasons.add(data["reason"])
     _, data = _instance_create(capsys, "--placement-id", INCIDENT_ID)
-    reasons.add(data["reason"])
-    _, data = _instance_open(capsys, "--placement-id", INCIDENT_ID)
     reasons.add(data["reason"])
     assert reasons == {"placement_id_not_discriminable"}

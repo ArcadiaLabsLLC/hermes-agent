@@ -4,16 +4,19 @@ Two callers reach the same durable chokepoints — ``PersonaInstanceStore.
 add_instance`` and ``OfficeStore.upsert_actor`` — and would silently disagree
 about everything that sits ABOVE them:
 
-* the argv lane, ``harness persona instance open-chat --add-instance``
-  (``hermes_cli/harness_parts/persona_commands.py``), and
-* the method lane, ``runtime.agent.create`` (``serve_rpc.py``).
+* the argv lane, ``harness persona instance create --add-instance`` /
+  ``--independent-agent`` (``hermes_cli/harness_parts/persona/lifecycle_commands.py``), which
+  since RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT maps argv onto the method's params
+  and runs :func:`perform_agent_place` / :func:`perform_agent_create` (``open-chat
+  --add-instance`` and ``runtime.persona.instance.create``'s placing keys are refused), and
+* the method lane, ``runtime.agent.create`` / ``runtime.agent.place`` (``serve_rpc.py``).
 
 Since 2026-11-19 the method lane has two verbs over the ONE sequence (owner:
 "the action should be split"): ``runtime.agent.create`` makes a NEW agent —
 its own persona and profile — and seats it (:class:`AgentCreate`);
 ``runtime.agent.place`` seats an EXISTING agent once more, minting no persona
 or profile (:class:`AgentPlace`, which overrides only the instance phase). The
-argv ``--add-instance`` door is a place.
+argv ``--add-instance`` door is a place, through this sequence.
 
 The store methods are callable and unwelded (verified 2026-08-16), so nothing
 had to be extracted out of ``persona_assignments.py``. What DID have to move is

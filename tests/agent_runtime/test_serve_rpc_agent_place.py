@@ -102,23 +102,35 @@ def test_the_place_verb_is_advertised_without_a_source_instance(qa_persona):
     assert set(manifest["params"]["runtime.agent.create"]) - set(params) == {"source_instance_id"}
 
 
-def test_the_add_instance_twin_places_and_only_independent_agent_mints(qa_persona):
+def test_the_add_instance_twin_places_and_only_independent_agent_mints(qa_persona, capsys):
+    # The argv twins (RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT): ``persona instance create
+    # --add-instance`` is ``runtime.agent.place``'s sequence, ``--independent-agent`` the create's.
     # Mutation: restore ``or add_instance`` on ``independent`` in
     # ``lifecycle_commands._cmd_persona_instance_create`` → the add-instance
     # call mints an ``agent_<hex>`` persona and the first assert reds.
+    import json
+    from argparse import Namespace
+
+    from hermes_cli.harness_parts.persona.lifecycle_commands import _cmd_persona_instance_create
+
     _seed_workspace()
     before = _identities()
 
     def create(key, **overrides):
-        reply = serve_rpc.handle_request({
-            "jsonrpc": "2.0", "id": key, "method": "runtime.persona.instance.create",
-            "params": {"persona_id": "qa", "display_name": "QA Agent", "client_message_id": key, **overrides},
-        })
-        assert "result" in reply, reply
-        return reply["result"]
+        args = Namespace(**{
+            "json": True, "persona_id": "qa", "title": "QA Agent", "display_name": "QA Agent", "requested_by": "cli",
+            "coordinator_id": None, "client_message_id": key, "client_scope": None, "session_id": None,
+            "workspace_id": None, "realm_id": None, "placement_id": None, "source_instance_id": None,
+            "add_instance": False, "independent_agent": False, **overrides})
+        code = _cmd_persona_instance_create(args)
+        row = json.loads(capsys.readouterr().out)
+        assert code == 0 and row["ok"] is True, row
+        return row
 
     placed = create("seat", add_instance=True, placement_id="qa_agent_7", workspace_id=WORKSPACE)
     assert (placed["persona_id"], placed["persona_instance_id"]) == ("qa", "personainst_qa_agent_7")
+    # Seated by the place's own write, not a second seat helper.
+    assert placed["actor_key"] and placed["workspace_id"] == WORKSPACE
     assert _identities() == before
 
     # A new agent takes a name of its own, never its source's

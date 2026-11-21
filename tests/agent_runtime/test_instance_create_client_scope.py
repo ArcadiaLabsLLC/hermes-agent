@@ -1,4 +1,4 @@
-"""A copy or an extra instance made through the instance verb belongs to the account that made it.
+"""A chat made through the instance verb, or a copy made through the one create, belongs to the account that made it.
 
 Row ``RT-INSTANCE-CREATE-MAKES-A-CHAT-WITH-NO-ACCOUNT`` (review w1118a.44 D3,
 security): ``runtime.persona.instance.create`` and ``harness persona instance
@@ -7,6 +7,14 @@ belonged to no account; Eternia's console read "saved conversation is not
 linked to this account". Both doors now take ``client_scope`` (validated as
 ``runtime.agent.create`` validates it), stamp it on the chat all three mints
 make, and echo it. A send under another account is refused.
+
+RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT (review w1118a.74): the instance verb no longer places or
+copies. A copy is ``runtime.agent.create``'s (its own scope tests live with it; this file keeps the copy's
+send refusal), and an ask to place or copy here is refused ``placing_door_moved`` naming the door, with nothing
+written. Killing mutation (run 2026-11-21): drop the ``PLACING_DOORS`` refusal in
+``chat_verbs.instance_create.create_persona_instance`` ->
+``test_a_create_that_asks_to_place_or_copy_is_refused_naming_the_door`` red (both params: a result, and a new
+instance written).
 """
 
 from __future__ import annotations
@@ -42,6 +50,14 @@ def _create(**params) -> dict:
     })
 
 
+def _make(**params) -> dict:
+    """Eternia's Create independent copy: the one create, with no workspace."""
+    return serve_rpc.handle_request({
+        "jsonrpc": "2.0", "id": "make", "method": "runtime.agent.create",
+        "params": {"persona_id": "qa", **params},
+    })
+
+
 def _owner_of(row: dict) -> str | None:
     """The owner stamped on the chat, read from the instance's own chat head
     (an independent copy keeps its chat in its own profile's head)."""
@@ -50,7 +66,7 @@ def _owner_of(row: dict) -> str | None:
 
     instance = PersonaInstanceStore().get(row["persona_instance_id"])
     with closing(_instance_session_db(instance)) as db:
-        return session_client_scope(db.get_session(row["session_id"]))
+        return session_client_scope(db.get_session(row.get("session_id") or row["default_chat_session_id"]))
 
 
 def _personas() -> set[str]:
@@ -65,14 +81,9 @@ def test_the_manifest_publishes_the_scope_so_a_client_can_refuse_an_older_runtim
 
 
 def test_a_scoped_copy_opens_for_its_maker_and_refuses_another_account(qa_persona):
-    # Mutation: drop ``client_scope=owner`` from the ``create_independent_agent``
-    # call in ``lifecycle_commands._cmd_persona_instance_create`` -> red: the
-    # copy's chat has no owner and the other account's send is not refused.
-    reply = _create(display_name="Scout", independent_agent=True, client_message_id="copy-1",
-                    client_scope=OWNER)
+    reply = _make(display_name="Scout", idempotency_key="copy-1", client_scope=OWNER)
     row = reply["result"]
-    assert row["client_scope"] == OWNER
-    session = row["session_id"]
+    session = row["default_chat_session_id"]
     assert _owner_of(row) == OWNER
 
     effects: list = []
@@ -85,13 +96,17 @@ def test_a_scoped_copy_opens_for_its_maker_and_refuses_another_account(qa_person
     assert effects == []
 
 
-def test_a_scoped_extra_instance_chat_belongs_to_its_maker(qa_persona):
-    # Mutation: drop ``client_scope=owner`` from the ``add_instance`` call in
-    # ``_cmd_persona_instance_create`` -> red: owner is None.
-    row = _create(display_name="QA desk", add_instance=True, placement_id="qa_agent_0a1b2c3d",
-                  client_scope=OWNER)["result"]
-    assert row["client_scope"] == OWNER
-    assert _owner_of(row) == OWNER
+@pytest.mark.parametrize(("key", "door"), [("add_instance", "runtime.agent.place"),
+                                           ("independent_agent", "runtime.agent.create")])
+def test_a_create_that_asks_to_place_or_copy_is_refused_naming_the_door(qa_persona, key, door):
+    before = (_personas(), set(_instances()))
+
+    reply = _create(display_name="QA desk", client_scope=OWNER, **{key: True})
+
+    assert "result" not in reply, reply
+    assert reply["error"]["data"]["reason"] == "placing_door_moved"
+    assert reply["error"]["data"]["use"] == door
+    assert (_personas(), set(_instances())) == before
 
 
 def test_a_scoped_operator_chat_belongs_to_its_maker(qa_persona):
@@ -103,7 +118,7 @@ def test_a_scoped_operator_chat_belongs_to_its_maker(qa_persona):
 
 
 def test_an_unscoped_create_keeps_the_operator_behaviour(qa_persona):
-    row = _create(display_name="Lone", independent_agent=True, client_message_id="copy-u")["result"]
+    row = _make(display_name="Lone", idempotency_key="copy-u")["result"]
     assert "client_scope" not in row
     assert _owner_of(row) is None
 
@@ -114,8 +129,7 @@ def test_a_malformed_scope_is_refused_before_any_write(qa_persona, owner):
     # ``chat_verbs.instance_create.create_persona_instance`` -> red on ``None``:
     # a JSON null passes the argv door's check and an unowned copy is minted.
     before = (_personas(), set(_instances()))
-    reply = _create(display_name="Scout", independent_agent=True, client_message_id="copy-bad",
-                    client_scope=owner)
+    reply = _create(display_name="Scout", client_message_id="chat-bad", client_scope=owner)
     assert reply["error"]["data"]["reason"] == "invalid_client_scope", reply
     assert (_personas(), set(_instances())) == before
 

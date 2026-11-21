@@ -59,6 +59,7 @@ REFUSAL_CODES: dict[str, int] = {
     "invalid_request": ERR_INVALID_PARAMS,
     "skills_not_loadable": ERR_INVALID_PARAMS,
     "placement_id_not_discriminable": ERR_INVALID_PARAMS,
+    "placing_door_moved": ERR_INVALID_PARAMS,
     "not_found": ERR_NOT_FOUND,
     "persona_not_found": ERR_NOT_FOUND,
     "persona_instance_not_found": ERR_NOT_FOUND,

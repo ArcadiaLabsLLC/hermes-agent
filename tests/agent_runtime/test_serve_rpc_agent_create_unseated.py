@@ -156,33 +156,48 @@ def test_a_place_with_no_workspace_is_still_refused(qa_persona):
     assert set(_instances()) == before
 
 
-def test_the_cli_independent_agent_lowers_to_the_one_maker(monkeypatch):
-    """KILLING MUTATION: put the CLI's own ``agent_create_lock`` +
-    ``create_independent_agent`` back in ``_create_independent_instance`` and the
-    one maker is never asked."""
+@pytest.mark.parametrize(("flag", "service"), [("independent_agent", "perform_agent_create"),
+                                               ("add_instance", "perform_agent_place")])
+def test_the_cli_create_flags_lower_to_the_one_sequence(monkeypatch, capsys, flag, service):
+    """``--independent-agent`` and ``--add-instance`` are argv twins of ``runtime.agent.create`` /
+    ``runtime.agent.place`` (RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT): the door maps
+    argv onto the method's params and the one sequence does the rest.
+
+    KILLING MUTATION (run 2026-11-21): send ``--add-instance`` back to
+    ``PersonaInstanceStore().add_instance`` in ``_cmd_persona_instance_create`` -> the
+    ``add_instance`` case reds (the sequence is never asked)."""
 
     import agent_runtime.agent_create as agent_create
+    from agent_runtime.agent_create.outcome import AgentCreateOutcome
     from hermes_cli.harness_parts.persona import lifecycle_commands
 
-    asked: list[dict] = []
+    asked: list[tuple[str, dict, dict]] = []
 
-    def spy(store, **identity):
-        asked.append(identity)
-        return "made"
+    def spy(name):
+        def run(params, **kwargs):
+            asked.append((name, params, kwargs))
+            return AgentCreateOutcome(result={"persona_instance_id": "personainst_made", "persona_id": "made",
+                                              "default_chat_session_id": "persona_chat_made"})
+        return run
 
-    monkeypatch.setattr(agent_create, "mint_new_agent", spy)
-    args = SimpleNamespace(source_instance_id=None, client_message_id="cli-key", workspace_id=None, realm_id=None)
-    made = lifecycle_commands._create_independent_instance(
-        args, "qa", placement_id=None, display_name="Cli Orchid", owner=None
+    for name in ("perform_agent_create", "perform_agent_place"):
+        monkeypatch.setattr(agent_create, name, spy(name))
+    monkeypatch.setattr(lifecycle_commands, "_persona_by_id", lambda cfg, persona_id: SimpleNamespace(id="qa"))
+    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: None)
+    args = SimpleNamespace(
+        json=True, persona_id="qa", title="t", display_name="Cli Orchid", requested_by="cli", coordinator_id=None,
+        client_message_id="cli-key", client_scope=None, session_id=None, workspace_id="ws_1", realm_id=None,
+        placement_id=None, source_instance_id=None, add_instance=flag == "add_instance",
+        independent_agent=flag == "independent_agent",
     )
-    assert made == "made"
-    assert asked == [{
-        "source_persona_id": "qa",
-        "source_instance_id": None,
-        "placement_id": None,
-        "creation_key": "cli-key",
-        "display_name": "Cli Orchid",
-        "workspace_id": None,
-        "realm_id": None,
-        "client_scope": None,
-    }]
+
+    assert lifecycle_commands._cmd_persona_instance_create(args) == 0
+    assert [name for name, _params, _kw in asked] == [service]
+    _name, params, kwargs = asked[0]
+    assert params == {"persona_id": "qa", "display_name": "Cli Orchid", "workspace_id": "ws_1",
+                      "idempotency_key": "cli-key"}
+    if service == "perform_agent_place":
+        assert kwargs["requested_by"] == "operator"
+    row = json.loads(capsys.readouterr().out)
+    assert (row["ok"], row["session_id"], row["persona_instance_id"]) == (True, "persona_chat_made",
+                                                                          "personainst_made")

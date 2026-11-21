@@ -46,6 +46,30 @@ AGENT_NAME_REQUIRED_MESSAGE = "Give the new agent a name."
 #: source, an unwritable home): ``persona instance create`` answers it as ``error_kind``.
 AGENT_CREATE_REFUSED_REASON = "agent_create_refused"
 
+#: A placing or copying ask sent to a door that no longer places or copies
+#: (RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT, review w1118a.74): this
+#: package is the one owner of making and placing an agent, so ``runtime.persona.
+#: instance.create`` and the open-chat argv name the door that does it instead.
+PLACING_DOOR_MOVED_REASON = "placing_door_moved"
+#: The key a retired door was sent -> the one door that does that job now.
+PLACING_DOORS: dict[str, str] = {
+    "add_instance": "runtime.agent.place",
+    "independent_agent": "runtime.agent.create",
+}
+
+
+def placing_door_moved(key: str) -> dict[str, object]:
+    """The refusal row for a placing key (``add_instance`` / ``independent_agent``) sent to a
+    door that no longer places: nothing is written, and ``use`` names the door to send it to."""
+
+    door = PLACING_DOORS[key]
+    return {
+        "ok": False,
+        "error_kind": PLACING_DOOR_MOVED_REASON,
+        "error": f"{key} is not taken here any more: {door} places or makes an agent.",
+        "use": door,
+    }
+
 
 class AgentCreateNameTaken(Exception):
     """The new agent's name is already an agent's; raised before the mint writes."""

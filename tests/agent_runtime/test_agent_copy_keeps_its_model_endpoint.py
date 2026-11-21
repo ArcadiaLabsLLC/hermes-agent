@@ -7,8 +7,8 @@ custom endpoint (local, Ollama, vLLM, llama.cpp) lost its ``base_url``. Review w
 (and a duplicate) carries ``default``, ``provider``, ``base_url``, ``api_mode`` and, for a
 ``custom:<name>`` provider, that named endpoint entry — never a credential value.
 
-Driven through the two doors the app uses: ``runtime.persona.instance.create`` with
-``independent_agent`` (Create independent copy) and ``runtime.agent.duplicate`` (Duplicate agent).
+Driven through the two doors the app uses: ``runtime.agent.create`` with
+no workspace (Create independent copy) and ``runtime.agent.duplicate`` (Duplicate agent).
 """
 
 from __future__ import annotations
@@ -43,8 +43,8 @@ def _rpc(method: str, **params) -> dict:
 
 def _copy_by_create() -> str:
     reply = _rpc(
-        "runtime.persona.instance.create",
-        persona_id="src", display_name="Scout", independent_agent=True, client_message_id="copy-endpoint",
+        "runtime.agent.create",
+        persona_id="src", display_name="Scout", idempotency_key="copy-endpoint",
     )
     return reply["result"]["persona_id"]
 

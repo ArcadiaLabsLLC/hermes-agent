@@ -683,21 +683,6 @@
       ]
     },
     {
-      "id": "r1-persona-instance-doors-stop-refusing",
-      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
-      "symbol": "_placement_discriminability_refusal",
-      "operator": "collapse-refusal-to-accept",
-      "find": "    if looks_like_deliberate_placement(placement_id):\n        return None",
-      "replace": "    return None",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "tests/hermes_cli/test_placement_id_discriminability.py::test_the_refusal_is_the_same_reason_on_all_three_doors"
-      ]
-    },
-    {
       "id": "d1-tombstone-fence-never-fires",
       "path": "agent_runtime/office_store/guards.py",
       "symbol": "_guard_archived_actor",
@@ -5155,23 +5140,6 @@
         "-p",
         "no:cacheprovider",
         "tests/agent_runtime/test_agent_create_names_its_agent.py::test_placing_without_a_name_keeps_the_seat_label"
-      ]
-    },
-    {
-      "id": "hscope-copy-chat-stamped-with-its-maker",
-      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
-      "symbol": "_create_independent_instance",
-      "operator": "drop-scope-on-independent-mint",
-      "find": "        client_scope=owner,\n    )",
-      "replace": "    )",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "-p",
-        "no:cacheprovider",
-        "tests/agent_runtime/test_instance_create_client_scope.py::test_a_scoped_copy_opens_for_its_maker_and_refuses_another_account"
       ]
     },
     {

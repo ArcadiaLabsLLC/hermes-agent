@@ -9,8 +9,8 @@ and no operator or script uses the argv form).
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import asdict
-from agent_runtime.agent_create.seat import seat_added_instance
 from agent_runtime.call_authorization import CLI_CONSOLE
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.persona_assignments import (
@@ -41,7 +41,6 @@ __all__ = [
     "_agent_retire_outcome",
     "_cmd_persona_instance_create",
     "_console_denial",
-    "_placement_discriminability_refusal",
 ]
 
 
@@ -161,54 +160,6 @@ def _agent_retire_outcome(args):
     )
 
 
-def _minted_placement_id(args: object, persona_id: str) -> str:
-    """The placement id an ``--add-instance`` door mints when the caller sent none.
-
-    The minter ``agent create`` uses (``agent_create.mint_placement_id``), so the shared
-    refusal's "omit --placement-id to have one minted" is true at every placement door
-    (review w1118a.57 D13). Keyed on the send's ``client_message_id`` (else its
-    ``idempotency_key``) when it has one, so a retried request converges on one instance.
-    """
-
-    from agent_runtime.agent_create import mint_placement_id
-
-    key = safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or safe_assignment_text(
-        getattr(args, "idempotency_key", None), limit=200)
-    return mint_placement_id(persona_id, key=f"add_instance\0{persona_id}\0{key}" if key else None)
-
-
-def _placement_discriminability_refusal(placement_id: str) -> dict | None:
-    """R1's fence for the two ``--add-instance`` doors, or ``None`` to proceed.
-
-    These verbs do not pass through ``agent_create``, so the fence there covers
-    neither of them; the SHAPE and the SENTENCE still come from the one
-    authority in ``agent_runtime.models`` rather than being re-spelled per door.
-
-    Returns a payload rather than raising because both callers answer their
-    refusals with a payload, and neither catches ``ValueError`` around the
-    store call — a raise here would surface as a traceback, not a refusal.
-    """
-
-    from agent_runtime.models import (
-        PLACEMENT_ID_NOT_DISCRIMINABLE_REASON,
-        looks_like_deliberate_placement,
-        placement_id_not_discriminable_message,
-    )
-
-    if looks_like_deliberate_placement(placement_id):
-        return None
-    return {
-        "ok": False,
-        "reason": PLACEMENT_ID_NOT_DISCRIMINABLE_REASON,
-        "error": placement_id_not_discriminable_message(placement_id),
-        "placement_id": placement_id,
-        "next_expected": (
-            "re-run without --placement-id to have a discriminable one minted, "
-            "or send the <persona-token>_agent_<hex8> shape"
-        ),
-    }
-
-
 def _instance_session_db(instance):
     """THE writer for *instance*'s own chat head: the create's root and the new-chat mint.
 
@@ -245,7 +196,7 @@ def _cmd_persona_instance_create(args) -> int:
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.agent_create import require_known_persona
-    from agent_runtime.agent_create.outcome import AGENT_CREATE_REFUSED_REASON, AGENT_NAME_TAKEN_REASON, AgentCreateNameTaken
+    from agent_runtime.agent_create.outcome import AGENT_CREATE_REFUSED_REASON
     from agent_runtime.conversation_owner import ConversationOwnerError, client_scope as _valid_client_scope
     from agent_runtime.mission_chat_outcome import ChatErrorKind
     # RT-INSTANCE-CREATE-MAKES-A-CHAT-WITH-NO-ACCOUNT: the account the new chat
@@ -262,7 +213,6 @@ def _cmd_persona_instance_create(args) -> int:
     # explicit ``--independent-agent`` makes a new agent. ``--add-instance`` alone
     # PLACES the existing one: one more instance, no new persona or profile.
     independent = bool(getattr(args, "independent_agent", False))
-    placement_id = safe_assignment_token(getattr(args, "placement_id", None))
     cfg = load_agent_runtime_config()
     persona_id = _normalize_cli_persona_or_template_id(args.persona_id)
     persona = _persona_by_id(cfg, persona_id)
@@ -287,49 +237,29 @@ def _cmd_persona_instance_create(args) -> int:
     if refusal is not None:
         _emit_persona_verb_payload(args, refusal)
         return 2
+    if add_instance or independent:
+        # RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT: placing and copying
+        # are ``agent_create.perform``'s, the sequence ``runtime.agent.place`` /
+        # ``runtime.agent.create`` run — its reservation, name lock and seat.
+        # MUTATION: send --add-instance back to ``PersonaInstanceStore().add_instance``
+        # and test_the_cli_create_flags_lower_to_the_one_sequence[add_instance-perform_agent_place] reddens.
+        return _place_or_make_through_agent_create(
+            args, persona_id=persona_id, persona=persona, independent=independent, display_name=display_name,
+            owner=owner, coordinator_id=coordinator_id, coordinator_scope=coordinator_scope,
+        )
     if display_name:
         try:
-            if add_instance:
-                # MUTATION: restore the "placement_id is required" refusal here and
-                # test_instance_create_mints_the_placement_id_it_was_not_given reddens.
-                placement_id = placement_id or _minted_placement_id(args, persona_id)
-                refusal = _placement_discriminability_refusal(placement_id)
-                if refusal is not None:
-                    _emit_persona_verb_payload(args, refusal)
-                    return 2
-            if independent:
-                instance = _create_independent_instance(
-                    args, persona_id, placement_id=placement_id if add_instance else None,
-                    display_name=display_name, owner=owner,
-                )
-            elif add_instance:
-                instance = PersonaInstanceStore().add_instance(
-                    persona_id=persona_id,
-                    placement_id=placement_id,
-                    display_name=display_name,
-                    session_id=getattr(args, "session_id", None),
-                    workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
-                    realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
-                    client_scope=owner,
-                )
-            else:
-                instance = PersonaInstanceStore().create_operator_chat(
-                    persona_id=persona_id,
-                    display_name=display_name or safe_assignment_text(args.title, limit=120) or persona_id,
-                    session_id=getattr(args, "session_id", None),
-                    client_scope=owner,
-                )
-            if add_instance or coordinator_id:
+            instance = PersonaInstanceStore().create_operator_chat(
+                persona_id=persona_id,
+                display_name=display_name or safe_assignment_text(args.title, limit=120) or persona_id,
+                session_id=getattr(args, "session_id", None),
+                client_scope=owner,
+            )
+            if coordinator_id:
                 instance = _maybe_stamp_spawned_by(instance, coordinator_id=coordinator_id)
         except RetiredPersonaInstanceError as exc:
             data = _retired_persona_instance_payload(exc)
             _emit_persona_verb_payload(args, data)
-            return 2
-        except AgentCreateNameTaken as exc:
-            _emit_persona_verb_payload(
-                args,
-                {"ok": False, "error_kind": AGENT_NAME_TAKEN_REASON, "error": str(exc), "name": exc.name},
-            )
             return 2
         except (ValueError, OSError) as exc:
             _emit_persona_verb_payload(args, {"ok": False, "error_kind": AGENT_CREATE_REFUSED_REASON, "error": str(exc)})
@@ -370,28 +300,17 @@ def _cmd_persona_instance_create(args) -> int:
             }
             _emit_persona_verb_payload(args, data)
             return 2
-        # An instance added to a workspace stands on its level (Eternia row
-        # MC-AGENTS-A-LEAD-ADDED-LAST-NIGHT-ARE-NOT-ON-THE-OFFICE-LEVEL): this door
-        # wrote the record and no office actor. The seat is the one ``runtime.agent.place``
-        # writes; a refused one is named on the reply and the instance stays.
-        # MUTATION: drop this call and test_instance_create_add_instance_seats_it_on_its_workspace_level reddens.
-        office_seat = seat_added_instance(instance) if (add_instance or independent) else None
-        data = _instance_created_reply(
-            instance, office_seat=office_seat, add_instance=add_instance, placement_id=placement_id,
-            owner=owner, coordinator_scope=coordinator_scope,
-        )
+        data = _instance_created_reply(instance, owner=owner, coordinator_scope=coordinator_scope)
         _emit_persona_verb_payload(args, data, plain=f"created {instance.id} on chat {instance.default_chat_session_id}")
         return 0
     return _retired_assignment_lane_refusal(args, persona_id)
 
 
-def _instance_created_reply(instance, *, office_seat, add_instance: bool, placement_id, owner,
-                            coordinator_scope) -> dict:
-    """The ``persona instance create`` reply for a minted instance."""
+def _instance_created_reply(instance, *, owner, coordinator_scope) -> dict:
+    """The ``persona instance create`` reply for a minted operator chat channel."""
 
     return {
         "ok": True,
-        **({"office_seat": office_seat.receipt()} if office_seat is not None else {}),
         "agent_profile_id": instance.id,
         "persona_instance_id": instance.id,
         "source_persona_id": instance.persona_id,
@@ -406,34 +325,79 @@ def _instance_created_reply(instance, *, office_seat, add_instance: bool, placem
         "chat_session_id": instance.default_chat_session_id,
         "session_id": instance.default_chat_session_id,
         "chat_busy": False,
-        "add_instance": add_instance,
-        "placement_id": placement_id or None,
+        "add_instance": False,
+        "placement_id": None,
         **({"client_scope": owner} if owner is not None else {}),
         "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
         "next_expected": "agent profile created; refresh Harness snapshot for the profile, chat, and scene placement state",
     }
 
 
-def _create_independent_instance(args, persona_id: str, *, placement_id, display_name: str, owner):
-    """A new agent of its own from *persona_id*, under the name rule ``runtime.agent.create`` keeps."""
+def _place_or_make_through_agent_create(args, *, persona_id: str, persona, independent: bool, display_name: str,
+                                       owner, coordinator_id, coordinator_scope) -> int:
+    """``--add-instance`` / ``--independent-agent``: the argv twin of ``runtime.agent.place`` /
+    ``runtime.agent.create``, through the one sequence (``agent_create.perform``).
 
-    from agent_runtime.agent_create import mint_new_agent
+    ``--add-instance`` places one more instance of the EXISTING agent in ``--workspace-id``;
+    ``--independent-agent`` makes a NEW agent (seated when a workspace is named). The service
+    answers and refuses exactly as the method does; this door only maps argv onto its params,
+    stamps who asked, and prints the row. ``--client-message-id`` is the idempotency key (a
+    retry converges on one agent); without one, every call is its own key.
+    """
 
-    # The one maker ``runtime.agent.create`` calls, with its name rule under its
-    # lock: a new agent never takes a name an agent already has
-    # (RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION; review w1118a.69: no door keeps
-    # its own lock-and-create).
-    return mint_new_agent(
-        PersonaInstanceStore(),
-        source_persona_id=persona_id,
-        source_instance_id=safe_assignment_token(getattr(args, "source_instance_id", None)) or None,
-        placement_id=placement_id,
-        creation_key=safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or None,
-        display_name=display_name,
-        workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
-        realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
-        client_scope=owner,
-    )
+    from agent_runtime.agent_create import perform_agent_create, perform_agent_place
+
+    if safe_assignment_text(getattr(args, "session_id", None), limit=200):
+        _emit_persona_verb_payload(args, {
+            "ok": False, "error_kind": "invalid_request",
+            "error": "--session-id is not taken with --add-instance or --independent-agent: "
+                     "a placed or new agent starts on its own chat",
+        })
+        return 2
+    key = safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or f"argv-{uuid.uuid4().hex}"
+    params = {
+        name: value for name, value in {
+            "persona_id": persona_id,
+            "display_name": display_name or None,
+            "workspace_id": safe_assignment_token(getattr(args, "workspace_id", None)) or None,
+            "realm_id": safe_assignment_token(getattr(args, "realm_id", None)) or None,
+            "placement_id": safe_assignment_token(getattr(args, "placement_id", None)) or None,
+            "client_scope": owner,
+            "idempotency_key": key,
+            "correlation_id": getattr(args, "correlation_id", None),
+        }.items() if value is not None
+    }
+    asker = coordinator_id or "operator"
+    if independent:
+        source = safe_assignment_token(getattr(args, "source_instance_id", None))
+        outcome = perform_agent_create({**params, **({"source_instance_id": source} if source else {})},
+                                       persona=persona)
+    else:
+        outcome = perform_agent_place(params, persona=persona, requested_by=asker)
+    if outcome.refusal is not None:
+        refusal = outcome.refusal
+        data = {**refusal.data, "ok": False, "error_kind": refusal.data.get("reason"), "error": refusal.message}
+        _emit_persona_verb_payload(args, data, plain=refusal.message)
+        return 2
+    result = dict(outcome.result or {})
+    if independent and coordinator_id and result.get("persona_instance_id"):
+        _maybe_stamp_spawned_by(PersonaInstanceStore().get(result["persona_instance_id"]),
+                                coordinator_id=coordinator_id)
+    session_id = result.get("default_chat_session_id")
+    data = {
+        **result,
+        "ok": True,
+        "agent_profile_id": result.get("persona_instance_id"),
+        "session_id": session_id,
+        "chat_session_id": session_id,
+        "add_instance": not independent,
+        "independent_agent": independent,
+        **({"client_scope": owner} if owner is not None else {}),
+        "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
+        "next_expected": "send on session_id with `harness mission-chat message`",
+    }
+    _emit_persona_verb_payload(args, data, plain=f"created {data['agent_profile_id']} on chat {session_id}")
+    return 0
 
 
 def _retired_assignment_lane_refusal(args, persona_id: str) -> int:

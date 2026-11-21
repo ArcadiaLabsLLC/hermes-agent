@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from contextlib import closing
-from agent_runtime.agent_create.seat import seat_added_instance
 from agent_runtime.conversation_owner import ConversationOwnerError, require_session_owner
 from agent_runtime.chat_session_scope import is_canonical_session_persistence
 from agent_runtime.chat_heads import resolve_conversation_chat_scope
-from agent_runtime.config import load_agent_runtime_config
+# Patched by the open-chat tests' config seam; the open itself no longer reads the roster.
+from agent_runtime.config import load_agent_runtime_config  # noqa: F401
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
     RetiredPersonaInstanceError,
@@ -32,20 +32,9 @@ from agent_runtime.persona_chat_durability import (
 )
 from agent_runtime.persona_chat_continuity import mint_chat_root
 from agent_runtime.persona_chat_mints import PersonaChatMintError
-from .chat_coordinator import (
-    _coordinator_actor_id,
-    _coordinator_confirm_payload,
-    _coordinator_spawn_scope,
-    _maybe_stamp_spawned_by,
-)
 from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
 from agent_runtime.persona_chat_session import _persona_chat_session_owner
-from .chat_target import _persona_by_id
-from .lifecycle_commands import (
-    _instance_session_db,
-    _minted_placement_id,
-    _placement_discriminability_refusal,
-)
+from .lifecycle_commands import _instance_session_db
 
 __layer__ = "lanes"
 __all__ = [
@@ -78,15 +67,21 @@ def _cmd_persona_instance_open_chat(args) -> int:
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.mission_chat_outcome import ChatErrorKind
-    cfg = load_agent_runtime_config()
     persona_id = _normalize_cli_persona_or_template_id(args.persona_id)
-    persona = _persona_by_id(cfg, persona_id)
-    coordinator_id = _coordinator_actor_id(args)
-    coordinator_scope, refused = _coordinator_spawn_scope(
-        "persona.instance.open_chat", coordinator_id, spawns=bool(getattr(args, "add_instance", False)))
-    if refused is not None:
-        _emit_persona_verb_payload(args, refused, plain=refused["message"])
+    if bool(getattr(args, "add_instance", False)):
+        # RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT (review w1118a.74): opening a
+        # chat no longer places an agent. Nothing sent it any more (Eternia's argv lane is gone
+        # and the method lane pins the key closed); a seat is ``runtime.agent.place``'s, or its
+        # argv twin ``persona instance create --add-instance``. Refused before any write.
+        # MUTATION: drop this refusal and test_open_chat_add_instance_is_refused_naming_the_place reddens.
+        from agent_runtime.agent_create.outcome import placing_door_moved
+
+        refusal = {**placing_door_moved("add_instance"),
+                   "next_expected": "place the agent with `harness persona instance create --add-instance "
+                                    "--workspace-id <id>` (runtime.agent.place), then open its chat"}
+        _emit_persona_verb_payload(args, refusal, plain=refusal["error"])
         return 2
+    coordinator_scope = None
     if bool(getattr(args, "new_session", False)):
         return _cmd_persona_instance_open_new_chat(
             args,
@@ -96,203 +91,124 @@ def _cmd_persona_instance_open_chat(args) -> int:
     previous_instance = None
     move_to = moved_from = None
     try:
-        if bool(getattr(args, "add_instance", False)):
-            # MUTATION: refuse a missing placement id here again and
-            # test_open_chat_add_instance_mints_the_placement_id_it_was_not_given reddens.
-            placement_id = safe_assignment_token(getattr(args, "placement_id", None)) or _minted_placement_id(
-                args, persona_id)
-            args.placement_id = placement_id  # the answer names the id this door placed, minted or sent
-            # UC-H4, scoped to --add-instance ONLY. The other branches of this
-            # verb REBIND an instance that already exists (and the recorded
-            # 2026-07-25 recovery replayed ten of them out of the event log);
-            # they mint nothing, so a roster check there would refuse a repair
-            # for a persona whose config row went away — the exact workflow the
-            # refusal must not break. Minting is the thing being fenced.
-            from agent_runtime.agent_create import require_known_persona
-
-            refusal = require_known_persona(persona_id, persona)
-            if refusal is not None:
-                _emit_persona_verb_payload(args, refusal)
-                return 2
-            # AFTER the roster check, matching the order `persona instance
-            # create` already had: "that agent does not exist" is the more
-            # fundamental answer than "that id is the wrong shape", and an
-            # operator who typed both mistakes should hear the one that is
-            # about the agent. Both still refuse before any store write.
-            placement_refusal = _placement_discriminability_refusal(placement_id)
-            if placement_refusal is not None:
-                _emit_persona_verb_payload(args, placement_refusal)
-                return 2
+        if not safe_assignment_text(getattr(args, "session_id", None), limit=200):
+            data = {"ok": False, "error": "session_id is required unless new_session is true"}
+            _emit_persona_verb_payload(args, data)
+            return 2
+        # RETIREMENT, asked before the session-existence cutoff below.
+        # Retiring a placement archives the row but deliberately leaves its
+        # chat on disk, so an operator (or a stale launcher frame) re-opening
+        # that thread is asking about something that HAS a typed end-of-life
+        # answer — the tombstone and "history preserved". It used to get
+        # `unknown_chat_session` instead, which names the wrong fact and
+        # offers the wrong next step ("open a server-minted chat root").
+        #
+        # The owner comes from the session id itself (`persona_chat_<
+        # instance>_<hex>` encodes it), so this answers even when the row is
+        # archived and no SessionDB entry survives — precisely the case that
+        # read as "unknown". Read-only, through the ONE bind seam, so a live
+        # row always wins and a legitimately re-created placement is never
+        # refused by its own history. A bare persona resolves to the
+        # canonical channel, which cannot be retired.
+        PersonaInstanceStore().assert_bindable(
+            persona_id=persona_id,
+            # No session_id: the sibling-steal refusal is a ValueError, and
+            # the `foreign_chat_session` guard below already owns that answer
+            # with the envelope the operator needs.
+            persona_instance_id=(
+                safe_assignment_token(getattr(args, "persona_instance_id", None))
+                or chat_session_owner_instance_id(args.session_id)
+                or None
+            ),
+        )
+        session_db = _conversation_session_db(args)
+        if (
+            is_canonical_session_persistence(session_db)
+            and session_db.get_session(args.session_id) is None
+        ):
+            data = {
+                "ok": False,
+                "error_kind": ChatErrorKind.UNKNOWN_CHAT_SESSION,
+                "error": f"unknown explicit persona chat root: {args.session_id}",
+            }
+            _emit_persona_verb_payload(args, data)
+            return 2
+        target_instance_id = safe_assignment_token(
+            getattr(args, "persona_instance_id", None)
+        ) or None
+        if is_canonical_session_persistence(session_db):
             try:
-                # Local import. Before lane H1 this file was exec'd into
-                # harness.py's globals, and as a free name this raised NameError
-                # on every --add-instance and the except below swallowed it,
-                # silently disabling the named-placement preservation described in
-                # the comment that follows (found by the 2026-07-31 audit).
-                from agent_runtime.persona_assignments import (
-                    persona_instance_id_for_placement,
-                )
-
-                previous_instance = PersonaInstanceStore().get(
-                    persona_instance_id_for_placement(placement_id)
+                require_session_owner(session_db.get_session(args.session_id),
+                                      getattr(args, "client_scope", None))
+            except ConversationOwnerError as exc:
+                return _emit_persona_open_chat_error(args, error_kind=exc.reason,
+                    error="This conversation belongs to another account.", persona_id=persona_id)
+            session_owner = _persona_chat_session_owner(session_db, args.session_id)
+            try:
+                owner_instance = (
+                    PersonaInstanceStore().get(session_owner)
+                    if session_owner
+                    else None
                 )
             except Exception:
-                previous_instance = None
-            # A deliberately-placed additional instance ("QA Agent (2)") carries
-            # its distinct name so the operator's placement cue survives into the
-            # store, the launcher conversational fold (keyed on
-            # persona+display_name), and the HUD roster. When the client omits it
-            # the honest fallback is the persona's OWN configured display name
-            # ("QA Agent"), never the title-cased persona id ("Qa") the store
-            # template fallback would otherwise mint.
-            #
-            # That rule is now ONE copy, in ``agent_runtime.agent_create``, because
-            # ``runtime.agent.create`` mints the same placements over the method
-            # lane and calling the store directly would have dropped it silently.
-            # This lane still passes the persona object it already resolved
-            # through its own richer ``_persona_by_id``, so its behaviour is
-            # unchanged; the shared function only supplies the fallback ladder.
-            from agent_runtime.agent_create import (
-                honest_default_display_name as _honest_default_display_name,
+                # A retired holder answers from its archive (review w1118a.56
+                # D13): its old chat can still move onto a live instance of the
+                # same agent; without ``move`` it is refused below as before.
+                owner_instance = PersonaInstanceStore().retired_instance_row(session_owner)
+            # Same two-normalizer defect as the mission-chat fence, one verb
+            # over: ``safe_assignment_token(owner.persona_id)`` (token form)
+            # against ``persona_id``, which is
+            # ``_normalize_cli_persona_or_template_id`` output (colon form).
+            # ``personas_equal`` folds both sides through one authority; the
+            # pin leg is bounded exactly as it is there (ownership proof, not
+            # persona proof).
+            owner_persona = getattr(owner_instance, "persona_id", None)
+            pin_proves_ownership = bool(target_instance_id) and (
+                target_instance_id == session_owner
             )
-
-            explicit_display_name = safe_assignment_text(getattr(args, "display_name", None), limit=120)
-            honest_default_display_name = _honest_default_display_name(
-                persona_id, persona
+            persona_ok = personas_equal(owner_persona, persona_id) or (
+                pin_proves_ownership and not safe_assignment_token(owner_persona)
             )
-            # A PLACEMENT of the existing agent: one more instance, no new
-            # persona or profile (owner 2026-11-19,
-            # RT-PLACING-A-SHIPPED-AGENT-MAKES-A-SECOND-ONE).
-            instance = PersonaInstanceStore().add_instance(
-                persona_id=persona_id,
-                placement_id=placement_id,
-                session_id=args.session_id,
-                display_name=explicit_display_name,
-                default_display_name=honest_default_display_name,
-                workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
-                realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
-                correlation_id=getattr(args, "correlation_id", None),
-            )
-            instance = _maybe_stamp_spawned_by(instance, coordinator_id=coordinator_id)
-        else:
-            if not safe_assignment_text(getattr(args, "session_id", None), limit=200):
-                data = {"ok": False, "error": "session_id is required unless add_instance is true"}
-                _emit_persona_verb_payload(args, data)
-                return 2
-            # RETIREMENT, asked before the session-existence cutoff below.
-            # Retiring a placement archives the row but deliberately leaves its
-            # chat on disk, so an operator (or a stale launcher frame) re-opening
-            # that thread is asking about something that HAS a typed end-of-life
-            # answer — the tombstone and "history preserved". It used to get
-            # `unknown_chat_session` instead, which names the wrong fact and
-            # offers the wrong next step ("open a server-minted chat root").
-            #
-            # The owner comes from the session id itself (`persona_chat_<
-            # instance>_<hex>` encodes it), so this answers even when the row is
-            # archived and no SessionDB entry survives — precisely the case that
-            # read as "unknown". Read-only, through the ONE bind seam, so a live
-            # row always wins and a legitimately re-created placement is never
-            # refused by its own history. A bare persona resolves to the
-            # canonical channel, which cannot be retired.
-            PersonaInstanceStore().assert_bindable(
-                persona_id=persona_id,
-                # No session_id: the sibling-steal refusal is a ValueError, and
-                # the `foreign_chat_session` guard below already owns that answer
-                # with the envelope the operator needs.
-                persona_instance_id=(
-                    safe_assignment_token(getattr(args, "persona_instance_id", None))
-                    or chat_session_owner_instance_id(args.session_id)
-                    or None
-                ),
-            )
-            session_db = _conversation_session_db(args)
-            if (
-                is_canonical_session_persistence(session_db)
-                and session_db.get_session(args.session_id) is None
+            move_to = _move_target(args, owner_instance, persona_ok,
+                                   target_instance_id, session_owner)
+            if move_to is None and (
+                owner_instance is None
+                or not persona_ok
+                or (target_instance_id and target_instance_id != session_owner)
             ):
                 data = {
                     "ok": False,
-                    "error_kind": ChatErrorKind.UNKNOWN_CHAT_SESSION,
-                    "error": f"unknown explicit persona chat root: {args.session_id}",
-                }
-                _emit_persona_verb_payload(args, data)
-                return 2
-            target_instance_id = safe_assignment_token(
-                getattr(args, "persona_instance_id", None)
-            ) or None
-            if is_canonical_session_persistence(session_db):
-                try:
-                    require_session_owner(session_db.get_session(args.session_id),
-                                          getattr(args, "client_scope", None))
-                except ConversationOwnerError as exc:
-                    return _emit_persona_open_chat_error(args, error_kind=exc.reason,
-                        error="This conversation belongs to another account.", persona_id=persona_id)
-                session_owner = _persona_chat_session_owner(session_db, args.session_id)
-                try:
-                    owner_instance = (
-                        PersonaInstanceStore().get(session_owner)
-                        if session_owner
-                        else None
-                    )
-                except Exception:
-                    # A retired holder answers from its archive (review w1118a.56
-                    # D13): its old chat can still move onto a live instance of the
-                    # same agent; without ``move`` it is refused below as before.
-                    owner_instance = PersonaInstanceStore().retired_instance_row(session_owner)
-                # Same two-normalizer defect as the mission-chat fence, one verb
-                # over: ``safe_assignment_token(owner.persona_id)`` (token form)
-                # against ``persona_id``, which is
-                # ``_normalize_cli_persona_or_template_id`` output (colon form).
-                # ``personas_equal`` folds both sides through one authority; the
-                # pin leg is bounded exactly as it is there (ownership proof, not
-                # persona proof).
-                owner_persona = getattr(owner_instance, "persona_id", None)
-                pin_proves_ownership = bool(target_instance_id) and (
-                    target_instance_id == session_owner
-                )
-                persona_ok = personas_equal(owner_persona, persona_id) or (
-                    pin_proves_ownership and not safe_assignment_token(owner_persona)
-                )
-                move_to = _move_target(args, owner_instance, persona_ok,
-                                       target_instance_id, session_owner)
-                if move_to is None and (
-                    owner_instance is None
-                    or not persona_ok
-                    or (target_instance_id and target_instance_id != session_owner)
-                ):
-                    data = {
-                        "ok": False,
-                        "error_kind": ChatErrorKind.FOREIGN_CHAT_SESSION,
-                        "error": f"explicit chat root is not owned by the target instance: {args.session_id}",
-                        "persona_id": persona_id,
-                        "session_id": args.session_id,
-                        "next_expected": "use the server-minted root returned for this exact persona instance",
-                    }
-                    _emit_persona_verb_payload(args, data)
-                    return 2
-                target_instance_id = move_to or session_owner
-            try:
-                previous_instance = PersonaInstanceStore().get(
-                    target_instance_id or persona_instance_id_for(persona_id)
-                )
-            except Exception:
-                previous_instance = None
-            try:
-                bound = _bind_for_open(args, session_db, move_to, persona_id, target_instance_id)
-                if isinstance(bound, int):
-                    return bound
-                instance, moved_from = bound
-            except ValueError as exc:
-                data = {
-                    "ok": False,
                     "error_kind": ChatErrorKind.FOREIGN_CHAT_SESSION,
-                    "error": safe_assignment_text(str(exc), limit=320),
+                    "error": f"explicit chat root is not owned by the target instance: {args.session_id}",
                     "persona_id": persona_id,
                     "session_id": args.session_id,
-                    "next_expected": "open the instance that owns this chat session, or start a fresh thread",
+                    "next_expected": "use the server-minted root returned for this exact persona instance",
                 }
                 _emit_persona_verb_payload(args, data)
                 return 2
+            target_instance_id = move_to or session_owner
+        try:
+            previous_instance = PersonaInstanceStore().get(
+                target_instance_id or persona_instance_id_for(persona_id)
+            )
+        except Exception:
+            previous_instance = None
+        try:
+            bound = _bind_for_open(args, session_db, move_to, persona_id, target_instance_id)
+            if isinstance(bound, int):
+                return bound
+            instance, moved_from = bound
+        except ValueError as exc:
+            data = {
+                "ok": False,
+                "error_kind": ChatErrorKind.FOREIGN_CHAT_SESSION,
+                "error": safe_assignment_text(str(exc), limit=320),
+                "persona_id": persona_id,
+                "session_id": args.session_id,
+                "next_expected": "open the instance that owns this chat session, or start a fresh thread",
+            }
+            _emit_persona_verb_payload(args, data)
+            return 2
     except RetiredPersonaInstanceError as exc:
         data = _retired_persona_instance_payload(exc)
         _emit_persona_verb_payload(args, data)
@@ -342,18 +258,8 @@ def _cmd_persona_instance_open_chat(args) -> int:
     previous_session_id, instance_updated_at, binding_changed = _binding_change(
         previous_instance, instance
     )
-    # An instance this door adds to a workspace stands on its level, seated by the
-    # one write ``runtime.agent.place`` uses (``agent_create.seat``); an instance
-    # already standing there is left where it is.
-    # MUTATION: drop this call and test_open_chat_add_instance_seats_it_on_its_workspace_level reddens.
-    office_seat = (
-        seat_added_instance(instance, correlation_id=getattr(args, "correlation_id", None))
-        if bool(getattr(args, "add_instance", False))
-        else None
-    )
     data = {
         "ok": True,
-        **({"office_seat": office_seat.receipt()} if office_seat is not None else {}),
         "persona_instance_id": instance.id,
         "persona_id": instance.persona_id,
         "profile_id": instance.profile_id,
@@ -373,11 +279,9 @@ def _cmd_persona_instance_open_chat(args) -> int:
         "chat_busy": False,
         # The instance a ``--move`` took this chat from; null when nothing moved.
         "moved_from_persona_instance_id": moved_from,
-        "add_instance": bool(getattr(args, "add_instance", False)),
-        # The name the runtime gave the instance (an added seat is numbered
-        # "Name · 2"), so a caller shows it rather than one of its own.
+        "add_instance": False,
         "display_name": instance.display_name,
-        "placement_id": safe_assignment_token(getattr(args, "placement_id", None)) or None,
+        "placement_id": None,
         "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
         "next_expected": "resume or send on this chat session to boot the persona instance history",
     }

@@ -13,8 +13,10 @@ and absent from the testv4 level. ``runtime.agent.place`` (the
 
 This module is the ONE seating write: :func:`write_seat` builds the actor payload
 and lets the store pick the free desk inside its lock. ``AgentCreate.place`` calls
-it; :func:`seat_added_instance` calls it for the argv doors after their mint and
-for the repair (:func:`unseated_instances` / :func:`seat_unseated`). An instance
+it; :func:`seat_added_instance` calls it for the repair (:func:`unseated_instances` /
+:func:`seat_unseated`) of what the old argv doors left. Those doors no longer mint on their own
+(RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT): ``persona instance create --add-instance``
+runs ``runtime.agent.place``'s sequence, and ``open-chat --add-instance`` is refused. An instance
 already standing in its workspace is never seated twice, so a re-bind, a resumed
 create, or a launcher upsert onto the same actor key never makes a second desk.
 """

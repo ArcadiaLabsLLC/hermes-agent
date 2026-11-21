@@ -1,12 +1,10 @@
 """``harness persona instance open-chat --correlation-id`` (correlation-id plan
 P2, row RT-CORRELATION-ID-CI3-ACCEPTANCE).
 
-The launcher's add-instance placement still takes this argv door (the method
-lane pins the minting keys closed), and before P2 it was the one placement door
-that dropped the gesture token: ``PersonaInstanceStore.add_instance`` took none.
-The token now rides ``persona_instance.chat_opened`` and its paired
-``state.patched`` row on both branches that bind — the ``--add-instance`` mint
-and the ``--session-id`` rebind — and an absent flag leaves both byte-identical.
+The token rides ``persona_instance.chat_opened`` and its paired ``state.patched``
+row on the ``--session-id`` rebind, and an absent flag leaves both byte-identical.
+(The ``--add-instance`` mint branch this file also pinned is retired:
+RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT.)
 
 Everything drives the REAL argparse tree (a flag no parser declares is a flag
 no launcher can send).
@@ -107,14 +105,27 @@ def _since(offset: int) -> list:
     return [e for o, e in EventLog().iter_from_offset(0) if o > offset]
 
 
-def _open_add_instance(capsys, placement: str, *extra: str) -> tuple[int, dict]:
+def _placed():
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+
+    return PersonaInstanceStore().add_instance(
+        persona_id="qa", placement_id="qa_corr_agent_3", display_name="QA Agent (2)")
+
+
+def _rebind(capsys, instance, *extra: str) -> tuple[int, dict]:
+    """A placed instance's chat re-bound to a second root: the open-chat branch that binds and
+    emits. (The ``--add-instance`` mint branch is retired: RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-
+    COPIES-AN-AGENT; a placement's own token rides ``runtime.agent.place``.)"""
+
+    bound = instance.default_chat_session_id
+    # A second root for the same instance, so the rebind MOVES the pointer (an
+    # idempotent re-open is an observation and emits nothing).
     code = _dispatch(
         [
             "harness", "persona", "instance", "open-chat",
             "--persona", "qa",
-            "--add-instance",
-            "--placement-id", placement,
-            "--display-name", "QA Agent (2)",
+            "--persona-instance-id", instance.id,
+            "--session-id", f"{bound}_rebind",
             "--json",
             *extra,
         ]
@@ -132,50 +143,20 @@ def _opened_pair(events) -> tuple[dict, dict]:
     return opened, patch
 
 
-def test_the_add_instance_mint_carries_the_token_on_its_event_and_its_row(capsys):
+def test_the_session_rebind_carries_the_token(capsys):
+    instance = _placed()
     before = _log_end()
-    code, data = _open_add_instance(capsys, "qa_corr_agent_2", "--correlation-id", TOKEN)
+    code, data = _rebind(capsys, instance, "--correlation-id", TOKEN)
     assert code == 0, data
-    opened, patch = _opened_pair(_since(before))
-    assert opened["correlation_id"] == TOKEN
-    assert patch["correlation_id"] == TOKEN
-    assert patch.get("created") is True
-
-
-def test_the_session_rebind_carries_the_token_too(capsys):
-    code, data = _open_add_instance(capsys, "qa_corr_agent_3")
-    assert code == 0, data
-    instance_id = "personainst_qa_corr_agent_3"
-    from agent_runtime.persona_assignments import PersonaInstanceStore
-
-    bound = PersonaInstanceStore().get(instance_id).default_chat_session_id
-    # A second root for the same instance, so the rebind MOVES the pointer (an
-    # idempotent re-open is an observation and emits nothing).
-    other = f"{bound}_rebind"
-    before = _log_end()
-    PersonaInstanceStore().open_chat(
-        persona_id="qa", persona_instance_id=instance_id, session_id=bound
-    )
-    code = _dispatch(
-        [
-            "harness", "persona", "instance", "open-chat",
-            "--persona", "qa",
-            "--persona-instance-id", instance_id,
-            "--session-id", other,
-            "--correlation-id", TOKEN,
-            "--json",
-        ]
-    )
-    out = capsys.readouterr().out
-    assert code == 0, out
     opened, patch = _opened_pair(_since(before))
     assert opened["correlation_id"] == TOKEN
     assert patch["correlation_id"] == TOKEN
 
 
 def test_no_flag_leaves_the_event_and_row_without_the_key(capsys):
+    instance = _placed()
     before = _log_end()
-    code, data = _open_add_instance(capsys, "qa_corr_agent_4")
+    code, data = _rebind(capsys, instance)
     assert code == 0, data
     opened, patch = _opened_pair(_since(before))
     assert "correlation_id" not in opened
@@ -183,8 +164,9 @@ def test_no_flag_leaves_the_event_and_row_without_the_key(capsys):
 
 
 def test_an_illegal_token_degrades_to_no_token_never_rides_the_wire(capsys):
+    instance = _placed()
     before = _log_end()
-    code, data = _open_add_instance(capsys, "qa_corr_agent_5", "--correlation-id", "x" * 300)
+    code, data = _rebind(capsys, instance, "--correlation-id", "x" * 300)
     assert code == 0, data
     opened, patch = _opened_pair(_since(before))
     assert "correlation_id" not in opened

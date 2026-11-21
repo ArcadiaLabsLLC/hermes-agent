@@ -8312,14 +8312,6 @@
           "required": false,
           "type": null
         },
-        "--display-name": {
-          "action": "store",
-          "canonical": "--display-name",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": null
-        },
         "--help": {
           "action": "help",
           "canonical": "--help",
@@ -8376,22 +8368,6 @@
           "required": false,
           "type": null
         },
-        "--placement-id": {
-          "action": "store",
-          "canonical": "--placement-id",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": null
-        },
-        "--realm-id": {
-          "action": "store",
-          "canonical": "--realm-id",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": null
-        },
         "--requested-by": {
           "action": "store",
           "canonical": "--requested-by",
@@ -8403,22 +8379,6 @@
         "--session-id": {
           "action": "store",
           "canonical": "--session-id",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": null
-        },
-        "--workspace": {
-          "action": "store",
-          "canonical": "--workspace-id",
-          "choices": null,
-          "nargs": 1,
-          "required": false,
-          "type": null
-        },
-        "--workspace-id": {
-          "action": "store",
-          "canonical": "--workspace-id",
           "choices": null,
           "nargs": 1,
           "required": false,

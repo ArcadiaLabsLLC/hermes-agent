@@ -2,7 +2,7 @@
 
 Row ``RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION`` (w1118a-hcopy, seen 2026-11-19
 in a lane namespace on hermes 0faac6b423): Eternia's "Create independent copy"
-reaches ``runtime.persona.instance.create`` with ``independent_agent: true`` and
+reached ``runtime.persona.instance.create`` with ``independent_agent: true`` (now ``runtime.agent.create``) and
 the name "<source> copy". Two copies of Base made two agents both called "Base
 Agent copy", while ``runtime.agent.create`` refuses a taken name
 ``agent_name_taken`` (review w1118a.41 D8). The copy door now keeps the same
@@ -20,12 +20,11 @@ from tests.agent_runtime.test_serve_rpc_agent_create import (
 
 def _copy(key: str, name: str) -> dict:
     return serve_rpc.handle_request({
-        "jsonrpc": "2.0", "id": key, "method": "runtime.persona.instance.create",
+        "jsonrpc": "2.0", "id": key, "method": "runtime.agent.create",
         "params": {
             "persona_id": "qa",
             "display_name": name,
-            "independent_agent": True,
-            "client_message_id": key,
+            "idempotency_key": key,
         },
     })
 

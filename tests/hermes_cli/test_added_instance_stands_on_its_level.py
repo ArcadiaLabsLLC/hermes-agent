@@ -7,9 +7,14 @@ record held the workspace and no office actor was written, so Launcher Dev Agent
 level. ``runtime.agent.place`` wrote the actor; the argv doors did not. Every witness here is the office
 store, read beside the instance store, through the real argparse tree.
 
+Since RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT (review w1118a.74) the argv door IS the
+place: ``--add-instance`` runs ``runtime.agent.place``'s sequence, which writes the seat with the instance
+and refuses an unknown workspace before either; ``open-chat --add-instance`` no longer places. The
+repair (``seat-unseated``) still seats what the old doors left.
+
 MUTATIONS (each seen red, then restored):
-- drop ``seat_added_instance`` from ``_cmd_persona_instance_create`` -> the create-door test reds;
-- drop it from ``_cmd_persona_instance_open_chat`` -> the open-chat-door test reds;
+- send ``--add-instance`` back to ``PersonaInstanceStore().add_instance`` -> the create-door test reds
+  (no actor, no ``actor_key``);
 - drop the ``_stands_in`` check in ``seat_added_instance`` -> the re-seat test reds (a second write).
 """
 
@@ -61,21 +66,7 @@ def test_instance_create_add_instance_seats_it_on_its_workspace_level(qa_persona
     (actor,) = _standing(data["persona_instance_id"])
     assert actor.persona_id == "qa"
     assert [item.display_name for item in actor.items if item.kind == "agent"] == [data["display_name"]]
-    assert data["office_seat"] == {
-        "instance_id": data["persona_instance_id"], "workspace_id": WORKSPACE,
-        "seated": True, "reason": "seated", "actor_key": actor.actor_key,
-    }
-
-
-def test_open_chat_add_instance_seats_it_on_its_workspace_level(qa_persona, capsys):
-    _seed()
-    data = _run(capsys, [
-        "harness", "persona", "instance", "open-chat", "--persona", "qa", "--add-instance",
-        "--workspace-id", WORKSPACE, "--json",
-    ])
-
-    assert len(_standing(data["persona_instance_id"])) == 1
-    assert data["office_seat"]["seated"] is True
+    assert (data["actor_key"], data["workspace_id"]) == (actor.actor_key, WORKSPACE)
 
 
 def test_a_reseat_of_a_standing_instance_writes_nothing(qa_persona, capsys):
@@ -88,18 +79,23 @@ def test_a_reseat_of_a_standing_instance_writes_nothing(qa_persona, capsys):
     (actor,) = _standing(data["persona_instance_id"])
 
     again = seat_added_instance(PersonaInstanceStore().get(data["persona_instance_id"]))
-    rerun = _create(capsys, "--placement-id", "qa_agent_5e1f0a2b")
 
     assert again.reason == "already_seated"
-    assert rerun["office_seat"]["reason"] == "already_seated"
     assert OfficeStore().get_actor(WORKSPACE, actor.actor_key).revision == actor.revision
 
 
-def test_an_add_with_no_known_workspace_is_kept_and_says_why_it_stands_nowhere(qa_persona, capsys):
-    data = _create(capsys)  # WORKSPACE is never seeded here
+def test_an_add_with_no_known_workspace_is_refused_and_writes_nothing(qa_persona, capsys):
+    from agent_runtime.persona_assignments import PersonaInstanceStore
 
-    assert data["ok"] is True
-    assert data["office_seat"]["reason"] == "workspace_not_found"
+    before = {row.id for row in PersonaInstanceStore().list_all()}
+    code = _dispatch([  # WORKSPACE is never seeded here
+        "harness", "persona", "instance", "create", "--persona", "qa", "--title", "New operator chat",
+        "--display-name", "QA Agent", "--add-instance", "--workspace-id", WORKSPACE, "--json",
+    ])
+    data = json.loads(capsys.readouterr().out)
+
+    assert (code, data["ok"], data["error_kind"]) == (2, False, "workspace_not_found")
+    assert {row.id for row in PersonaInstanceStore().list_all()} == before
 
 
 def test_seat_unseated_lists_on_a_dry_run_then_seats_what_the_old_door_left(qa_persona, capsys):
@@ -113,6 +109,7 @@ def test_seat_unseated_lists_on_a_dry_run_then_seats_what_the_old_door_left(qa_p
     assert _standing(old.id) == []
 
     dry = _run(capsys, ["harness", "persona", "seat-unseated", "--dry-run", "--json"])
+    dry.pop("resolution")  # the store root it read (59f30ab791), not a seat
     assert dry == {"dry_run": True, "seats": [
         {"instance_id": old.id, "workspace_id": WORKSPACE, "seated": False, "reason": "would_seat"},
     ]}

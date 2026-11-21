@@ -44,10 +44,10 @@ def _delete(persona_id: str) -> dict:
 
 
 def _copy(name: str = "QA Agent copy") -> dict:
-    """Eternia's "Create independent copy" (``runtime.persona.instance.create``)."""
+    """Eternia's "Create independent copy" (``runtime.agent.create`` with no workspace)."""
 
-    reply = _rpc("runtime.persona.instance.create", rid=name, persona_id="qa", display_name=name,
-                 independent_agent=True, client_message_id=f"key-{name}")
+    reply = _rpc("runtime.agent.create", rid=name, persona_id="qa", display_name=name,
+                 idempotency_key=f"key-{name}")
     instance = reply["result"]
     persona = AgentStore().get(instance["persona_id"])
     return {"persona": persona, "instance_id": instance["persona_instance_id"], "home": Path(get_profile_dir(persona.hermes_profile))}

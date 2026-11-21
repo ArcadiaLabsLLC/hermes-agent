@@ -249,21 +249,21 @@ def _add_persona_instance_verbs(persona_subs) -> None:
 
 def _add_persona_instance_lifecycle_verbs(persona_instance_subs) -> None:
     """``hermes harness persona instance create / open-chat / retire``."""
-    persona_instance_create = persona_instance_subs.add_parser("create", help="Create an Agent Profile (operator chat channel) or an additional placement-backed instance (--add-instance); requires --display-name")
+    persona_instance_create = persona_instance_subs.add_parser("create", help="Create an Agent Profile (operator chat channel; requires --display-name), place one more instance of an agent (--add-instance, runtime.agent.place) or make a new agent (--independent-agent, runtime.agent.create)")
     persona_instance_create.add_argument("--persona", dest="persona_id", required=True)
     persona_instance_create.add_argument("--title", required=True, help="Fallback display name when --display-name is empty (launcher wire-compat)")
     persona_instance_create.add_argument("--requested-by", default="cli")
     _add_coordinator_permission_args(persona_instance_create)
     persona_instance_create.add_argument("--client-message-id", default=None)
     persona_instance_create.add_argument("--client-scope", dest="client_scope", default=None, help="The owning account's client-scope digest (64 hex) the new agent's chat is stamped with, so it opens for that account only")
-    persona_instance_create.add_argument("--independent-agent", action="store_true", help="Give the new agent its own persona and backing profile")
+    persona_instance_create.add_argument("--independent-agent", action="store_true", help="Make a NEW agent with its own persona and backing profile, through runtime.agent.create's sequence (seated when --workspace-id is given)")
     persona_instance_create.add_argument("--source-instance-id", default=None, help="Use an existing agent's model and skill choices as the starting point")
     persona_instance_create.add_argument("--display-name", default=None)
     persona_instance_create.add_argument("--session-id", default=None)
-    persona_instance_create.add_argument("--add-instance", action="store_true", help="Create an additional placement-backed instance instead of targeting the primary placement")
-    persona_instance_create.add_argument("--placement-id", default=None, help="Scene itemId for an additional placement-backed instance; must end in the deliberate-placement shape <persona-token>_agent_<hex8>. Omitted with --add-instance, one is minted")
-    persona_instance_create.add_argument("--workspace-id", "--workspace", dest="workspace_id", default=None, help="Mission Control workspace the placement belongs to (scope-provenance pointer; only meaningful with --add-instance)")
-    persona_instance_create.add_argument("--realm-id", dest="realm_id", default=None, help="Mission Control realm the placement belongs to (scope-provenance pointer; only meaningful with --add-instance)")
+    persona_instance_create.add_argument("--add-instance", action="store_true", help="Place one more instance of the agent in --workspace-id, through runtime.agent.place's sequence (it names the seat when --display-name is omitted)")
+    persona_instance_create.add_argument("--placement-id", default=None, help="Scene itemId for the placement; must end in the deliberate-placement shape <persona-token>_agent_<hex8>. Omitted, one is minted")
+    persona_instance_create.add_argument("--workspace-id", "--workspace", dest="workspace_id", default=None, help="Mission Control workspace to seat the agent in (required with --add-instance)")
+    persona_instance_create.add_argument("--realm-id", dest="realm_id", default=None, help="Mission Control realm the placement belongs to (with --add-instance or --independent-agent)")
     # S70 removed `--auto-run` / `--stream` / `--max-actions` / `--max-seconds`,
     # and S-DUP5 finished the set with `--message`: all five belonged to the
     # retired free-floating assignment queue (argparse now rejects them cleanly
@@ -278,15 +278,12 @@ def _add_persona_instance_lifecycle_verbs(persona_instance_subs) -> None:
     persona_instance_open.add_argument("--new-session", action="store_true", help="Mint and select a fresh server-owned chat session for the target instance")
     persona_instance_open.add_argument("--idempotency-key", default=None, help="Stable retry key required with --new-session")
     persona_instance_open.add_argument("--move", action="store_true", help="Move --session-id onto --persona-instance-id when another instance of the same agent holds it (its history moves with it); without it that chat is refused")
-    persona_instance_open.add_argument("--add-instance", action="store_true", help="Open the chat on an additional placement-backed instance")
-    persona_instance_open.add_argument("--placement-id", default=None, help="Scene itemId for an additional placement-backed instance; must end in the deliberate-placement shape <persona-token>_agent_<hex8>. Omitted with --add-instance, one is minted")
-    persona_instance_open.add_argument("--workspace-id", "--workspace", dest="workspace_id", default=None, help="Mission Control workspace the placement belongs to (scope-provenance pointer; only meaningful with --add-instance)")
-    persona_instance_open.add_argument("--realm-id", dest="realm_id", default=None, help="Mission Control realm the placement belongs to (scope-provenance pointer; only meaningful with --add-instance)")
-    persona_instance_open.add_argument("--display-name", default=None, help="Authoritative name for a deliberately placed additional instance; ignored unless --add-instance")
+    # RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT: opening a chat no longer places an
+    # agent; the flag stays so a caller hears the typed refusal naming the place, not an argparse
+    # error. Its four companions (placement, workspace, realm, display name) went with the arm.
+    persona_instance_open.add_argument("--add-instance", action="store_true", help="Retired: refused placing_door_moved; place with `persona instance create --add-instance` (runtime.agent.place)")
     persona_instance_open.add_argument("--requested-by", default="cli")
-    # Correlation-id plan P2: the gesture token, on the door the launcher's
-    # add-instance placement still takes (its method lane pins the minting
-    # keys closed). Rides ``persona_instance.chat_opened`` and its paired row;
+    # Correlation-id plan P2: the gesture token. Rides ``persona_instance.chat_opened`` and its paired row;
     # absent → both byte-identical. Not on ``--new-session``: that branch is a
     # chat-root mint with no placement gesture behind it.
     persona_instance_open.add_argument("--correlation-id", dest="correlation_id", default=None)

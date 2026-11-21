@@ -2,6 +2,8 @@
 
 `harness persona instance create --add-instance` and `... open-chat
 --add-instance` called ``_persona_by_id`` and then never looked at the answer.
+(Since RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT the create's flag places through
+``runtime.agent.place``'s sequence in a seeded workspace, and the open-chat flag no longer places.)
 An id that merely TOKENISED minted a durable roster row and a chat root bound
 to a persona that does not exist — reproduced live on 2026-08-16 with
 ``--persona qa_agent`` against a roster of base/backend_dev/dev/
@@ -131,7 +133,15 @@ def _instance_ids() -> set[str]:
     return {path.name for path in directory.iterdir()}
 
 
+WORKSPACE = "ws_roster_fence"
+
+
 def _create(capsys, persona: str, placement: str = "ph_one_agent_2", **flags):
+    from agent_runtime.office_store import OfficeStore
+    from tests.agent_runtime.office_seed import seed_workspace_record
+
+    seed_workspace_record(WORKSPACE)
+    OfficeStore().ensure_surface(WORKSPACE, created_by="seed")
     argv = [
         "harness", "persona", "instance", "create",
         "--persona", persona,
@@ -139,20 +149,8 @@ def _create(capsys, persona: str, placement: str = "ph_one_agent_2", **flags):
         "--display-name", "Placed Agent",
         "--add-instance",
         "--placement-id", placement,
+        "--workspace-id", WORKSPACE,
         "--json",
-    ]
-    code = _dispatch(argv)
-    return code, json.loads(capsys.readouterr().out)
-
-
-def _open_chat(capsys, persona: str, placement: str = "ph_open_agent_2", extra: list | None = None):
-    argv = [
-        "harness", "persona", "instance", "open-chat",
-        "--persona", persona,
-        "--add-instance",
-        "--placement-id", placement,
-        "--json",
-        *(extra or []),
     ]
     code = _dispatch(argv)
     return code, json.loads(capsys.readouterr().out)
@@ -192,21 +190,6 @@ def test_create_add_instance_with_an_unknown_persona_exits_2_and_mints_nothing(
     assert session_db.created == []
 
 
-def test_open_chat_add_instance_with_an_unknown_persona_exits_2_and_mints_nothing(
-    qa_persona, session_db, capsys
-):
-    """Same fence, other door. Same anti-vacuity argument."""
-
-    before = _instance_ids()
-
-    code, data = _open_chat(capsys, "qa_agent")
-
-    assert code == 2
-    assert data["reason"] == "persona_not_found"
-    assert _instance_ids() == before
-    assert session_db.created == []
-
-
 # ── the non-breaking witnesses, one per caller class in the plan's §4 ────────
 
 
@@ -225,7 +208,6 @@ def test_create_with_a_roster_persona_still_mints(qa_persona, session_db, capsys
     assert data["ok"] is True
     assert data["persona_instance_id"] == "personainst_ph_real_agent_2"
     assert paths.persona_instance_path("personainst_ph_real_agent_2").exists()
-    assert session_db.created == [data["default_chat_session_id"]]
 
 
 def test_a_profile_id_for_a_profile_that_owns_nothing_still_instantiates(

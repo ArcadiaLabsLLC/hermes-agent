@@ -8,8 +8,8 @@ had tombstoned was born deleted, and neither the memory provider nor a running
 multiplexer heard of the new profile. Both doors now go through
 ``agent_runtime.agent_profile_create.create_agent_profile``.
 
-Driven through the two doors the app uses: ``runtime.persona.instance.create`` with
-``independent_agent`` (Create independent copy) and ``runtime.agent.duplicate``.
+Driven through the two doors the app uses: ``runtime.agent.create`` with
+no workspace (Create independent copy) and ``runtime.agent.duplicate``.
 """
 
 from __future__ import annotations
@@ -64,8 +64,8 @@ def _rpc(method: str, **params) -> dict:
 
 def _copy_by_create() -> str:
     reply = _rpc(
-        "runtime.persona.instance.create",
-        persona_id="src", display_name="Scout", independent_agent=True, client_message_id="one-creator",
+        "runtime.agent.create",
+        persona_id="src", display_name="Scout", idempotency_key="one-creator",
     )
     return reply["result"]["persona_id"]
 

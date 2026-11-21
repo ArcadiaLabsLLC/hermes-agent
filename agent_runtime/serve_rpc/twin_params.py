@@ -55,9 +55,10 @@ CHAT_VERB_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
         "action", "client_message_id", "persona_instance_id", "reason", "session_id", "turn_id"),
     "runtime.persona.chat.delete": ("persona_id", "persona_instance_id", "requested_by", "session_id"),
     "runtime.persona.chat.history": ("before", "limit", "session_id"),
+    # ``add_instance`` / ``independent_agent`` are refused ``placing_door_moved``, not honoured
+    # (RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT); their seat params went with them.
     "runtime.persona.instance.create": (
-        "add_instance", "client_message_id", "client_scope", "display_name", "independent_agent", "persona_id", "placement_id",
-        "realm_id", "requested_by", "session_id", "source_instance_id", "title", "workspace_id"),
+        "client_message_id", "client_scope", "display_name", "persona_id", "requested_by", "session_id", "title"),
 }
 
 #: The ten ``runtime.realm.*`` twins (``serve_rpc/realm.py`` ``REALM_METHODS``).

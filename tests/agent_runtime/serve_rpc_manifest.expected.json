@@ -980,19 +980,13 @@
       "session_id"
     ],
     "runtime.persona.instance.create": [
-      "add_instance",
       "client_message_id",
       "client_scope",
       "display_name",
-      "independent_agent",
       "persona_id",
-      "placement_id",
-      "realm_id",
       "requested_by",
       "session_id",
-      "source_instance_id",
-      "title",
-      "workspace_id"
+      "title"
     ],
     "runtime.persona.instance.open_chat": [
       "persona_id",

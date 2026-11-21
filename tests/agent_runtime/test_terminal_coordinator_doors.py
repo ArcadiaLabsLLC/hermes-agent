@@ -99,19 +99,20 @@ def test_an_agents_terminal_add_instance_past_its_budget_is_refused(qa_persona, 
     assert _qa_seats() == []
 
 
-def test_open_chat_add_instance_from_an_agents_terminal_is_refused_too(qa_persona, dev_persona, capsys, monkeypatch):
-    # The second --add-instance door reads the same asker and scope.
-    # Mutation: hand ``_cmd_persona_instance_open_chat`` a scope not read from the store
-    # (``CoordinatorPermissionScope(max_spawns=99)``) -> the seat is placed and the asserts red.
-    lead = _lead(dev_persona, AutonomyLevel.PROPOSE_ONLY)
+def test_open_chat_add_instance_is_refused_naming_the_place(qa_persona, dev_persona, capsys, monkeypatch):
+    # Opening a chat no longer places an agent (RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT):
+    # the retired door answers the same to an agent's terminal and to the operator, and seats nobody.
+    # Mutation (run 2026-11-21): drop the ``add_instance`` refusal in ``_cmd_persona_instance_open_chat``
+    # -> red (the open runs on and answers ``session_id is required``, not the door to use).
+    lead = _lead(dev_persona, AutonomyLevel.AUTONOMOUS)
     _in_terminal_of(lead, monkeypatch)
 
-    code, payload = _run(["harness", "persona", "instance", "open-chat", "--persona", "qa", "--add-instance",
-                          "--workspace", WORKSPACE, "--display-name", "QA Extra"], capsys)
+    code, payload = _run(["harness", "persona", "instance", "open-chat", "--persona", "qa", "--add-instance"],
+                         capsys)
 
     assert code == 2
-    assert payload["status"] == "needs_operator_confirm"
-    assert "autonomy is propose_only" in payload["message"]
+    assert payload["error_kind"] == "placing_door_moved"
+    assert payload["use"] == "runtime.agent.place"
     assert _qa_seats() == []
 
 

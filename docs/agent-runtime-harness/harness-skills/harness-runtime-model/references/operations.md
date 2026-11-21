@@ -248,7 +248,7 @@ python -m hermes_cli.main harness persona instance open-chat `
   --new-session --idempotency-key <key> --json
 ```
 
-   `--session-id` is required unless `--new-session` or `--add-instance` is given. Hermes
+   `--session-id` is required unless `--new-session` is given. Hermes
    mints every root; a caller may use a local draft identity only while awaiting the result.
 5. **The rest of the verb surface** — `mission-chat steer`, `mission-chat queue-skill`,
    `persona instance return-summary`, `persona instance steer` / `flow set` (re-wire the
@@ -264,7 +264,7 @@ so the CLI is the answer. Where a row names a tool in `SKILL.md`'s Operate table
 
 | Do | CLI |
 |---|---|
-| continue an existing chat root | `hermes harness persona instance open-chat --persona-instance-id <instance> --persona <id> --session-id <root> --json` (`--session-id` is required unless `--new-session` or `--add-instance`) |
+| continue an existing chat root | `hermes harness persona instance open-chat --persona-instance-id <instance> --persona <id> --session-id <root> --json` (`--session-id` is required unless `--new-session`) |
 | create a new server-minted chat on an existing instance | `hermes harness persona instance open-chat --persona-instance-id <instance> --persona <id> --new-session --idempotency-key <key> --json` |
 | find the on-level chat instances an OPERATOR can message | `hermes harness persona list --json` → chat-mode `personainst_<role>_agent_<hash>` rows (cross-check Stage C `mission_control.agent` buttons) |
 | steer an in-flight streamed turn | `hermes harness mission-chat steer --session-id <root> --client-message-id <id> --message … --json` |

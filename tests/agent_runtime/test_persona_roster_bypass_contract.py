@@ -90,10 +90,14 @@ PERSONA_ARGUMENT_CONTRACT = {
         "_cmd_persona_instance_create",
         "_persona_by_id(cfg, persona_id)",
     ),
+    # The argv twins of the create and the place forward the persona
+    # ``_cmd_persona_instance_create`` resolved strictly and checked with
+    # ``require_known_persona`` (RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT);
+    # the open-chat door no longer mints, so it no longer passes one.
     (
-        "hermes_cli/harness_parts/persona/chat_open.py",
-        "_cmd_persona_instance_open_chat",
-        "_persona_by_id(cfg, persona_id)",
+        "hermes_cli/harness_parts/persona/lifecycle_commands.py",
+        "_place_or_make_through_agent_create",
+        "param:persona",
     ),
 }
 
