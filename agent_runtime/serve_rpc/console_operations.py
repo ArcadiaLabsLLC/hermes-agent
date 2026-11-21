@@ -244,7 +244,7 @@ def instance_update_profile(rid, params, context=None):
     return _operation(rid, params, context, "runtime.persona.instance.update_profile", _update_profile)
 
 
-def _set_skills(params):
+def _persona_template_skills(params):
     from hermes_cli.harness_parts.persona.model_and_skills_commands import set_skills_operation_result
 
     _exact(params, _SET_SKILLS_PARAMS)
@@ -261,7 +261,7 @@ def persona_set_skills(rid, params, context=None):
     argv payload (``ok, status, applied, changed, scope, cleared, persona_id, applied_to_persona_id, skills,
     unresolved, persistence, next_expected``). Its typed refusals (``nothing_to_write``, ``conflicting_args``,
     ``persona_not_found`` …) ride the 4090 payload."""
-    return _operation(rid, params, context, "runtime.persona.set_skills", _set_skills)
+    return _operation(rid, params, context, "runtime.persona.set_skills", _persona_template_skills)
 
 
 def _skills_sync(params):
