@@ -152,13 +152,14 @@ def _stamp_source(instance: Any, session_id: Any, source: str, channel_key: str)
 
     from contextlib import closing
 
-    from agent_runtime.chat_session_scope import resolve_instance_chat_scope
+    from agent_runtime.chat_heads import resolve_conversation_chat_scope
     from agent_runtime.persona_chat_durability import default_persona_session_db, persona_session_db_for
 
     if not isinstance(session_id, str) or not session_id:
         return
     try:
-        db = persona_session_db_for(resolve_instance_chat_scope(instance), process=default_persona_session_db)
+        db = persona_session_db_for(resolve_conversation_chat_scope(session_id=session_id, instance=instance),
+                                    process=default_persona_session_db)
         with closing(db) as session_db:
             session_db.patch_session_model_config(
                 session_id, {"channel_source": source, "channel_key": channel_key})

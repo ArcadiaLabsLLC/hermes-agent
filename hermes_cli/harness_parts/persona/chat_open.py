@@ -10,10 +10,7 @@ from dataclasses import asdict
 from contextlib import closing
 from agent_runtime.agent_create.seat import seat_added_instance
 from agent_runtime.conversation_owner import ConversationOwnerError, require_session_owner
-from agent_runtime.chat_session_scope import (
-    is_canonical_session_persistence,
-    resolve_instance_chat_scope,
-)
+from agent_runtime.chat_session_scope import is_canonical_session_persistence
 from agent_runtime.chat_heads import resolve_conversation_chat_scope
 from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.persona_assignments import (
@@ -44,7 +41,11 @@ from .chat_coordinator import (
 from .chat_request import _emit_persona_verb_payload, _retired_persona_instance_payload
 from agent_runtime.persona_chat_session import _persona_chat_session_owner
 from .chat_target import _persona_by_id
-from .lifecycle_commands import _minted_placement_id, _placement_discriminability_refusal
+from .lifecycle_commands import (
+    _instance_session_db,
+    _minted_placement_id,
+    _placement_discriminability_refusal,
+)
 
 __layer__ = "lanes"
 __all__ = [
@@ -69,14 +70,6 @@ def _conversation_session_db(args):
             ) or None,
         ),
         process=_default_persona_session_db,
-    )
-
-
-def _instance_session_db(instance):
-    """The writer for *instance*'s own chat head (process scope unless per-profile)."""
-
-    return persona_session_db_for(
-        resolve_instance_chat_scope(instance), process=_default_persona_session_db
     )
 
 
