@@ -724,10 +724,11 @@ class BootPhases:
         except Exception:
             task_bound_retired = 0
         self.timeline.mark("task_bound_retire_ms")
-        # Reconcile phase 7 (RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE): a
-        # runtime-global row holding anything is adopted into the Default workspace (made above), keeping
-        # its id. Before the drain, so no turn is mid-flight; a no-op once adopted; each row's fate is
-        # logged. Fail-open: a skipped row is retried at the next boot.
+        # Reconcile phase 7: every hidden copy ``personainst_<persona>`` is settled — adopted into the
+        # Default workspace (made above) keeping its id, archived when it holds nothing, or held
+        # machine-local (RT-AGENTS-THAT-LIVED-NOWHERE-…, RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT).
+        # Before the drain, so no turn is mid-flight; a no-op once settled; each row's fate is logged.
+        # Fail-open: a held row is retried at the next boot.
         try:
             from agent_runtime.persona_instance_adoption import adopt_global_rows
 
@@ -736,6 +737,12 @@ class BootPhases:
             import logging as _adopt_logging
 
             _adopt_logging.getLogger(__name__).warning("persona_instance_adoption failed at boot", exc_info=True)
+            try:  # the security gate holds even then: no hidden copy is left unstamped
+                from agent_runtime.persona_instance_adoption import hold_unstamped_hidden_copies
+
+                hold_unstamped_hidden_copies()
+            except Exception:
+                _adopt_logging.getLogger(__name__).error("hidden copies could not be held machine-local", exc_info=True)
         self.timeline.mark("global_row_adoption_ms")
         # Same moment, same reason, for detached dispatches: a row still marked
         # ``running`` whose owning process is provably gone can never finish, and
