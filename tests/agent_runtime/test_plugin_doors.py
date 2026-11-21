@@ -112,3 +112,24 @@ def test_the_harness_plugins_files_import_the_runtime_only_through_the_door():
     _public_api.cache_clear()
     assert private_import_findings(ROOT / "plugins" / "eternia-harness") == []
     assert private_import_findings(ROOT / "plugins" / "eternia-lens") == []
+
+
+def test_the_dashboard_has_its_own_door_at_its_own_layer():
+    """The dashboard is a ``stores`` module, so its door may sit no higher (W0-G6); the plugin's ``wiring`` door
+    was an upward import. KILLING MUTATION: point the dashboard back at ``agent_runtime.plugin_doors.harness``
+    -> red. Upstream's profile names are read at call time, so a replaced profile store is the one asked."""
+    import ast
+
+    door = importlib.import_module("agent_runtime.plugin_doors.harness_dashboard")
+    dashboard = ROOT / "plugins" / "eternia-harness" / "dashboard" / "plugin_api.py"
+    tree = ast.parse(dashboard.read_text(encoding="utf-8"))
+    layer = next(n.value.value for n in tree.body if isinstance(n, ast.Assign)
+                 and getattr(n.targets[0], "id", None) == "__layer__")
+    assert door.__layer__ == layer == "stores"
+    doors = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and (n.module or "").startswith("agent_runtime")}
+    assert doors == {"agent_runtime.plugin_doors.harness_dashboard"}
+    from hermes_cli import profiles
+
+    for name in door.__all__:
+        source = profiles if name in ("normalize_profile_name", "profile_exists") else None
+        assert source is None or getattr(door, name) is getattr(source, name), name
