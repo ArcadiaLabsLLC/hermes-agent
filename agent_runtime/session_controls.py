@@ -42,8 +42,12 @@ def unregister_approval_notifier(session_id: str, cb: Callable[[dict], None] | N
 
 
 def _notify_root(session_id: str, data: dict) -> None:
-    """The gateway notify callback of a root's turn: the root's notifier, if any. Never raises: a
+    """The gateway notify callback of a root's turn: the relay record a serve can read when this turn
+    runs in another process (``approval_relay``), then the root's notifier, if any. Never raises: a
     raising notify would make upstream deny the approval for every surface (``notify_failed``)."""
+    from .approval_relay import publish
+
+    publish(session_id, data)
     with _notifiers_lock:
         cb = approval_notifiers.get(session_id)
     if cb is None:
@@ -158,11 +162,18 @@ def pending_session_approvals(session_id: str) -> list[dict]:
     from agent.redact import redact_sensitive_text
     from tools.approval import list_gateway_approvals
 
+    from .approval_relay import relayed_approvals
+
+    # This process's own queue, then what a dispatched turn's process waits on in this chat
+    # (MC-A-HELPERS-APPROVAL-NEVER-REACHES-THE-LEADS-CHAT); one request is listed once.
+    rows = list_gateway_approvals(session_id)
+    known = {row.get("request_id") for row in rows}
+    rows += [row for row in relayed_approvals(session_id) if row["request_id"] not in known]
     return [{"id": row["request_id"],
              "command": redact_sensitive_text(str(row.get("command") or ""), force=True),
              "description": redact_sensitive_text(str(row.get("description") or "Approval required"), force=True),
              "choices": [{"id": choice, "label": _CHOICE_LABELS[choice]} for choice in APPROVAL_CHOICES]}
-            for row in list_gateway_approvals(session_id)]
+            for row in rows]
 
 
 @contextmanager

@@ -14,7 +14,7 @@ from .conversation_owner import require_session_owner
 from .locks import HarnessLockUnavailable, chat_history_admission_lock, chat_history_mutation_lock
 from .operator_conversation import OperatorConversationRefused
 from .operator_session_inspection import inspection_identity, operator_session_read
-from .persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
+from .clarify_waiting import waiting_clarify_ticket
 from .persona_chat_continuity.lease import PersonaChatBusyError, persona_chat_root_lease
 from .mission_chat_turns.reads import mission_chat_turn_records
 from .mission_chat_turns.states import INFLIGHT_TURN_STATES, SETTLING_TURN_STATES
@@ -53,7 +53,7 @@ def require_history_idle(params):
     protected = INFLIGHT_TURN_STATES | SETTLING_TURN_STATES
     if (any(turn["state"] in protected for turn in mission_chat_turn_records(session_id=session))
             or unsettled_chat_receipts(set(_scopes(params)), peer_prefix=PEER_REQUESTED_BY_PREFIX)
-            or PersonaChatClarifyTicketStore().open_ticket_for_session(session)):
+            or waiting_clarify_ticket(session)):
         raise OperatorConversationRefused("conversation_busy")
 
 

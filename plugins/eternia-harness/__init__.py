@@ -350,7 +350,7 @@ def skill_view_result(**kwargs):
 
 
 def terminal_block_result(**kwargs):
-    """``transform_tool_result`` hook: a blocked terminal result says ``block_class`` (fixable / final)."""
+    """``transform_tool_result`` hook: a blocked terminal result says ``block_class`` (fixable / unanswered / final)."""
     from agent_runtime.terminal_block_class import classify_terminal_block
 
     return classify_terminal_block(**kwargs)

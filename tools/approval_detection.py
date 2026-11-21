@@ -14,6 +14,8 @@ import shlex
 import tempfile
 import unicodedata
 
+from tools.approval_read_only_code import read_only_code  # fork: RT-FU-A-READ-ONLY-CHECK-IN-A-HELPERS-TERMINAL-WAITS-ON-AN-APPROVAL
+
 logger = logging.getLogger("tools.approval")
 
 # Sensitive write targets, matched via ~ / $HOME / $HERMES_HOME spellings. The resolved absolute
@@ -1243,6 +1245,8 @@ def _execution_flag_findings(command: str):
                 continue
             args = tokens[1:]
             if family and _interpreter_exec_flag(family, args):
+                if read_only_code(family, args):  # fork: tools/approval_read_only_code.py
+                    continue
                 yield ("script execution via -e/-c flag", None)
             elif family and any(token.startswith("<<") for token in args):
                 yield ("script execution via heredoc", None)

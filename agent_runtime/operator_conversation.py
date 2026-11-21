@@ -13,7 +13,7 @@ from agent_runtime.mission_chat_turns.reads import mission_chat_turn_records
 from agent_runtime.mission_chat_turns.states import (
     INFLIGHT_TURN_STATES, SETTLING_TURN_STATES,
 )
-from agent_runtime.persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
+from agent_runtime.clarify_waiting import waiting_clarify_ticket
 from agent_runtime.workspace_scope import effective_workspace_id
 from agent_runtime.chat_turn_reservations import unsettled_chat_receipts
 from agent_runtime.operator_execution import execution_status, operator_execution_reservation
@@ -71,7 +71,7 @@ def read_operator_conversation(params: dict[str, Any], *, can_interrupt: bool = 
         raise OperatorConversationRefused(str(history.get("error_kind") or "history_unavailable"))
     turns = mission_chat_turn_records(session_id=session)
     active = [turn for turn in turns if turn["state"] in INFLIGHT_TURN_STATES | SETTLING_TURN_STATES]
-    ticket = PersonaChatClarifyTicketStore().open_ticket_for_session(session)
+    ticket = waiting_clarify_ticket(session)
     requested = params.get("turn_request_id")
     receipt = None
     if requested is not None:

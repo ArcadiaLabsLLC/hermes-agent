@@ -17,7 +17,7 @@ from .operator_session_inspection import (
     _inspection_persona, inspect_operator_settings, operator_session_read,
 )
 from .persona_assignments import PersonaInstanceStore
-from .persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
+from .clarify_waiting import waiting_clarify_ticket
 from .persona_chat_continuity.lease import PersonaChatBusyError, persona_chat_root_lease
 from .persona_chat_session import (
     _chat_model_override_from_config, _persist_chat_model_override, _session_model_config,
@@ -201,7 +201,7 @@ def _require_idle(session_id: str) -> None:
     protected = INFLIGHT_TURN_STATES | SETTLING_TURN_STATES
     if (any(turn["state"] in protected for turn in mission_chat_turn_records(session_id=session_id))
             or unsettled_chat_receipts(session_id)
-            or PersonaChatClarifyTicketStore().open_ticket_for_session(session_id)):
+            or waiting_clarify_ticket(session_id)):
         raise OperatorConversationRefused("conversation_busy")
 
 

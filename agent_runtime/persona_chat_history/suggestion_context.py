@@ -13,7 +13,7 @@ import time
 from agent_runtime.mission_chat_turns.reads import mission_chat_turn_records
 from agent_runtime.mission_chat_turns.states import TURN_STATE_PROJECTED, INFLIGHT_TURN_STATES, SETTLING_TURN_STATES
 from agent_runtime.operator_session_inspection import operator_session_read, inspection_identity
-from agent_runtime.persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
+from agent_runtime.clarify_waiting import waiting_clarify_ticket
 from .operator_envelopes import strip_operator_envelopes
 from .text import _curate_chat_message_text
 from .vocabulary import logical_persona_chat_client_message_id, MessageRole
@@ -64,7 +64,7 @@ def suggestion_context(params: dict, window: int, *, now: float | None = None) -
         current = db.get_session(tip)
         if current is None or _session_turn_is_active(db, params["session_id"]):
             return {"identity": identity, "reason": "turn_active"}
-        if PersonaChatClarifyTicketStore().open_ticket_for_session(params["session_id"]):
+        if waiting_clarify_ticket(params["session_id"]):
             return {"identity": identity, "reason": "manual_confirmation_required"}
         records = mission_chat_turn_records(session_id=params["session_id"])
         if not records or any(row["state"] in INFLIGHT_TURN_STATES | SETTLING_TURN_STATES for row in records):
