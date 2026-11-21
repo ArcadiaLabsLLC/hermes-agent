@@ -19,7 +19,7 @@ from .live import LiveConversation
 from .model import (UNSETTLED, ConversationError, ConversationScope, Refusal, TurnState,
                     conversation_route_id, identifier)
 from .store import ConversationStore
-from .worker import start_worker
+from .in_process_peer import start_in_process_worker
 from .workers import Workers
 from .process_evidence import execution_possible
 
@@ -28,7 +28,7 @@ __layer__ = "lanes"
 
 class ConversationService:
     def __init__(self, root: Path, install_id: str, *, profile_home: Callable[[str], Path],
-                 worker_factory=start_worker, retention_options=None, auth_home: Path | None = None):
+                 worker_factory=start_in_process_worker, retention_options=None, auth_home: Path | None = None):
         self.root, self.install_id = root.resolve(), install_id
         self.auth_home = auth_home.resolve() if auth_home is not None else None
         self.store = ConversationStore(self.root / "native_conversation_routes.db")

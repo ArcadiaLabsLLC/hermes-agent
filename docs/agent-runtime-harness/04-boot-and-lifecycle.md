@@ -18,10 +18,15 @@ measuring another home measures another runtime. Launcher composition lives in
 ## Native conversation workers
 
 `agent_runtime/conversations/binding.py` binds one conversation service to the
-existing runtime owner. `worker.py::start_worker` launches the selected Python
-with the canonical served-profile environment and owned process containment.
-Each profile has an isolated Desktop/TUI engine; the serve coordinator does not
-import that engine or replace its SessionDB/provider services.
+existing runtime owner. Every profile's conversations run IN the serve process
+(`in_process_peer.py::start_in_process_worker`, the phone's path on every profile
+since `RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT`, owner ruling
+2026-11-21 "One engine"): upstream's Desktop/TUI engine (`tui_gateway`) is
+dispatched in-process behind the same peer seam, and each request names its
+profile, so the gateway binds that profile's home, secrets and SessionDB. No
+`worker_entry` child is started; `conversations.subprocess_worker` is retired.
+The snapshot build stays a separate process (`snapshot.subprocess_worker`,
+default on, owner 2026-11-21).
 
 Closing a view or losing a client connection leaves execution running.
 `ConversationService.begin_drain` and `execution_possible` protect unfinished
