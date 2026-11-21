@@ -19,6 +19,7 @@ from .api_key_check import API_KEY_CONTROL_CHARACTER
 __layer__ = "models"
 
 __all__ = [
+    "CHOSEN_CREDENTIAL_UNUSABLE",
     "LOGIN_EXPIRED_REASON",
     "NamedProviderNotConfiguredError",
     "expired_login_message",
@@ -34,6 +35,12 @@ __all__ = [
 #: (``invalid_grant`` and kin). Rides the refusal block's ``failure_reason``, so a client can say
 #: "sign in again", not "configure one".
 LOGIN_EXPIRED_REASON = "login_expired"
+
+#: The credentials reason of a pick or a run refused while every stored row of the provider's CHOSEN
+#: credential kind is exhausted or refused and a saved credential of the other kind exists (review
+#: w1118a.69 D1); decided in ``agent_runtime/provider_credential_source.py``, kept here, in the models
+#: layer, so the refusal's words (``mission_chat_outcome``) read it without reaching up to a store.
+CHOSEN_CREDENTIAL_UNUSABLE = "chosen_credential_unusable"
 
 
 class NamedProviderNotConfiguredError(ProviderNotConfiguredError):
