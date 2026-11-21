@@ -579,12 +579,11 @@ packaging:
     # fork caller imports run_git from it; agent_runtime/loop_tool_lifecycles.py answers that import
     # with a loud stand-in, so realm sync and the build stamp fail loudly — the `unswitched` gap
     # above), and the switched-off siblings that now hold each fork module's own spawn: the store
-    # files' Windows ACL narrowing, the gateway's routing-table command, the local dispatch child
-    # (conversations.subprocess_worker false).
+    # files' Windows ACL narrowing and the gateway's routing-table command. (The local dispatch
+    # child and the sign-in child retired 2026-11-21: both run inside the serve on every profile.)
     - agent_runtime.git_cmd
     - agent_runtime.store_file_io_windows
     - agent_runtime.gateway_endpoints.route_command
-    - tools.agent_chat_dispatch.local_child
     # Doors with fork carry (phone-gate plan 2026-09-30, bucket D4): the launch relaunch lives in
     # the fork's launch_relaunch, which imports venv_sync (hermes_bootstrap imports it guarded and
     # only recovers without it: an app-store wheel is never re-launched). PDF attach (pdftoppm)
