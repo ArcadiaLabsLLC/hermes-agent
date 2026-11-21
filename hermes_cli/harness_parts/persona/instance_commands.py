@@ -8,6 +8,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Any, Callable, Final, Mapping
 from agent_runtime.cli_format import emit_json
+from agent_runtime.operation_result import emit_operation_result
 from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 from agent_runtime.continuity import return_summary_to_parent_session
 from agent_runtime.coordinator_permissions import review_coordinator_budget
@@ -269,14 +270,14 @@ def _cmd_persona_instance_update_profile(args) -> int:
     persona_instance_id = safe_assignment_token(args.persona_instance_id)
     if not persona_instance_id:
         data = {"ok": False, "error": "persona_instance_id is required"}
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data)
         return 2
     store = PersonaInstanceStore()
     try:
         target = store.get(persona_instance_id)
     except Exception:
         data = {"ok": False, "error": f"persona instance not found: {persona_instance_id}"}
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data)
         return 2
     coordinator_id = _coordinator_actor_id(args)
     if coordinator_id:
@@ -284,7 +285,7 @@ def _cmd_persona_instance_update_profile(args) -> int:
         auth = review_coordinator_budget("persona.instance.update_profile", scope, target, actor=coordinator_id, coordinator_id=coordinator_id)
         if not auth.ok:
             data = _coordinator_confirm_payload("persona.instance.update_profile", coordinator_id, auth)
-            print(emit_json(data) if args.json else data["status"])
+            emit_operation_result(args, data, data["status"])
             return 2
     requested_skills = list_flag_or_absent(args, "skills")
     try:
@@ -324,7 +325,7 @@ def _cmd_persona_instance_update_profile(args) -> int:
         )
     except ValueError as exc:
         data = {"ok": False, "error": str(exc)}
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data)
         return 2
     try:
         persona = _persona_by_id(cfg, updated.persona_id)
@@ -340,5 +341,29 @@ def _cmd_persona_instance_update_profile(args) -> int:
         ),
         "next_expected": "refresh Harness snapshot; runtime instance overrides should be visible without modifying the backing Hermes profile",
     }
-    print(emit_json(data) if args.json else f"updated runtime profile {updated.id}")
+    emit_operation_result(args, data, f"updated runtime profile {updated.id}")
     return 0
+
+
+def update_profile_operation_result(params: dict) -> dict:
+    """``runtime.persona.instance.update_profile``: the argv handler's own payload, no stdout capture
+    (the ``model_operation_result`` seam). Same store write, same refusals (``ok: false`` + ``error``)."""
+    from types import SimpleNamespace
+
+    rows: list[dict] = []
+    args = SimpleNamespace(
+        persona_instance_id=params.get("persona_instance_id"),
+        display_name=params.get("display_name"),
+        current_chat_goal=params.get("current_chat_goal"),
+        goal_id=params.get("goal_id"),
+        skills=params.get("skills"),
+        clear_skills=params.get("clear_skills", False),
+        inherit_skills=params.get("inherit_skills", False),
+        requested_by="operator", json=True, operation_result_sink=rows.append)
+    _cmd_persona_instance_update_profile(args)
+    if len(rows) != 1:
+        raise RuntimeError("update_profile did not produce exactly one result")
+    # Through the argv's own encoder, so the reply is byte-for-byte what ``--json`` prints (datetimes included).
+    import json
+
+    return json.loads(emit_json(rows[0]))

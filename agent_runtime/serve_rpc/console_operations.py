@@ -188,3 +188,128 @@ def _toolset_list(params):
 @method("runtime.persona.toolset.list", tier=TIER_CONSOLE)
 def toolset_list(rid, params, context=None):
     return _operation(rid, params, context, "runtime.persona.toolset.list", _toolset_list)
+
+
+# ── persona and skills: the argv verbs Eternia ran as a command line (RT-EVERY-ACTION-ETERNIA-SENDS-HAS-A-TYPED-
+# CALL-ON-THE-RUNNING-HERMES). Each runs the argv handler's own code through the operation-result sink, so the
+# store write, the refusals and the reply are that verb's; ``ok: false`` answers 4090 with the payload as data.
+
+_UPDATE_PROFILE_PARAMS = frozenset({"persona_instance_id", "display_name", "current_chat_goal", "goal_id",
+                                    "skills", "clear_skills", "inherit_skills"})
+_SET_SKILLS_PARAMS = frozenset({"persona_id", "skills", "clear_skills", "issued_at"})
+
+
+def _exact(params, allowed):
+    unknown = sorted(set(params) - allowed)
+    if unknown:
+        raise ValueError(unknown[0])
+
+
+def _skill_list(params):
+    """``skills``: absent/null (no opinion) or a list of id strings — never a bare string, which the argv
+    path would have read as one skill per flag."""
+    raw = params.get("skills")
+    if raw is None:
+        return
+    if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
+        raise ValueError("skills")
+
+
+def _flags(params, *names):
+    for name in names:
+        if name in params and type(params[name]) is not bool:
+            raise ValueError(name)
+
+
+def _update_profile(params):
+    from hermes_cli.harness_parts.persona.instance_commands import update_profile_operation_result
+
+    _exact(params, _UPDATE_PROFILE_PARAMS)
+    _console_text(params, "persona_instance_id", required=True)
+    for key in ("display_name", "goal_id"):
+        _console_text(params, key)
+    # A blank goal is a deliberate clear (the store keeps "" as no goal), so it is text, empty allowed.
+    _console_text(params, "current_chat_goal")
+    _skill_list(params)
+    _flags(params, "clear_skills", "inherit_skills")
+    return update_profile_operation_result(params)
+
+
+@method("runtime.persona.instance.update_profile", tier=TIER_CONSOLE)
+def instance_update_profile(rid, params, context=None):
+    """``harness persona instance update-profile``'s twin: ``{persona_instance_id, display_name?,
+    current_chat_goal?, goal_id?, skills?: [id], clear_skills?, inherit_skills?}`` -> the argv payload
+    (``ok, persona_instance_id, persona_id, backing_profile, updated_instance, next_expected``). An absent
+    ``skills`` leaves the overrides alone; ``[]`` is never sent for "no opinion"."""
+    return _operation(rid, params, context, "runtime.persona.instance.update_profile", _update_profile)
+
+
+def _set_skills(params):
+    from hermes_cli.harness_parts.persona.model_and_skills_commands import set_skills_operation_result
+
+    _exact(params, _SET_SKILLS_PARAMS)
+    _console_text(params, "persona_id", required=True)
+    _console_text(params, "issued_at")
+    _skill_list(params)
+    _flags(params, "clear_skills")
+    return set_skills_operation_result(params)
+
+
+@method("runtime.persona.set_skills", tier=TIER_CONSOLE)
+def persona_set_skills(rid, params, context=None):
+    """``harness persona set-skills``'s twin: ``{persona_id, skills?: [id], clear_skills?, issued_at?}`` -> the
+    argv payload (``ok, status, applied, changed, scope, cleared, persona_id, applied_to_persona_id, skills,
+    unresolved, persistence, next_expected``). Its typed refusals (``nothing_to_write``, ``conflicting_args``,
+    ``persona_not_found`` …) ride the 4090 payload."""
+    return _operation(rid, params, context, "runtime.persona.set_skills", _set_skills)
+
+
+def _skills_sync(params):
+    from dataclasses import asdict
+
+    from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
+    from agent_runtime.skill_install import install_harness_skills, install_harness_skills_for_personas
+
+    _exact(params, frozenset({"active_profile_only"}))
+    _flags(params, "active_profile_only")
+    if params.get("active_profile_only"):
+        results = install_harness_skills()
+    else:
+        results = install_harness_skills_for_personas(ensure_persisted_personas(load_agent_runtime_config()))
+    # ``ok`` is a RESULT here, never the refusal flag: a skill that failed to install is reported per row.
+    return {"installed": [asdict(result) for result in results], "all_ok": all(result.ok for result in results)}
+
+
+@method("runtime.harness.skills.sync", tier=TIER_CONSOLE)
+def harness_skills_sync(rid, params, context=None):
+    """``harness install-harness-skills``'s twin: ``{active_profile_only?}`` -> ``{installed: [{skill, changed,
+    ok, …}], all_ok}``. Rewrites this machine's installed Harness skill copies, so local console only."""
+    return _operation(rid, params, context, "runtime.harness.skills.sync", _skills_sync)
+
+
+def _flow_apply(params):
+    import json
+
+    from agent_runtime.flow_graph import FlowGraphDocError, ingest_flow_graph
+
+    _exact(params, frozenset({"graph"}))
+    graph = params.get("graph")
+    if isinstance(graph, dict):
+        text = json.dumps(graph)
+    elif isinstance(graph, str) and graph.strip():
+        text = graph
+    else:
+        raise ValueError("graph")
+    try:
+        return ingest_flow_graph(text, requested_by="operator")
+    except FlowGraphDocError as exc:
+        return {"ok": False, "reason": "invalid_flow_graph", "error": str(exc)}
+
+
+@method("runtime.flow.apply", tier=TIER_CONSOLE)
+def flow_apply(rid, params, context=None):
+    """``harness flow set --graph``'s twin: ``{graph: {graph_id, nodes, edges, …} | JSON text}`` -> the ingest
+    report (``graph_id, owner_instance_id, changed_count, failed_count, bound_agent_count, reconciled, …``). An
+    invalid document stores nothing and answers 4090 ``invalid_flow_graph``. Local console only: no remote
+    surface authors a flow map."""
+    return _operation(rid, params, context, "runtime.flow.apply", _flow_apply)
