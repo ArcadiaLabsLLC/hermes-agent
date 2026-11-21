@@ -3,7 +3,7 @@
 **Owner domain:** the embedded entry (`hermes_cli/harness_parts/serve/in_memory.py`), the namespace verbs
 (`agent_runtime/namespace_admin.py`) and their bootstrap (`hermes_cli/_namespace_bootstrap.py`), the bundled phone
 profile (`agent_runtime/bundle_profiles/bundled-phone.yaml`). Parent plan: Eternia
-`EterniaLauncher/docs/embedded_hermes/planned/IN_PROCESS_WIRE_2026-11-15.md` §4.1 (removal) and §4.7 question 2
+`EterniaLauncher/docs/embedded_hermes/subsystems/IN_PROCESS_WIRE_2026-11-15.md` §4.1 (removal) and §4.7 question 2
 (RULED 2026-11-16: A, "yes namespaces like the desktop").
 **Row:** `RT-PHONE-NAMESPACE-DELETE-BEFORE-SERVE` (group `phone-harness`, Eternia's `TASK-PHONE-HARNESS`). Its close
 wakes Eternia's `MC-PHONE-ENGINE-REMOVE-AGENT-DATA-ON-NEXT-START`.
