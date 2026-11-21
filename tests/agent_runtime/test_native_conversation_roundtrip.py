@@ -89,6 +89,9 @@ def run_profile_a_b_a(tmp_path, compute, shared):
         skill = home / "skills" / f"review-{profile}" / "SKILL.md"
         skill.parent.mkdir(parents=True)
         skill.write_text(f"---\nname: review-{profile}\ndescription: Profile review\n---\nRead only {profile}.\n", encoding="utf-8")
+    from tests.agent_runtime.native_recovery_provider import serve_turn_isolation
+
+    serve_turn_isolation(compute)
     now = [0.0]
     owner = tmp_path / "owner"
     owner.mkdir()

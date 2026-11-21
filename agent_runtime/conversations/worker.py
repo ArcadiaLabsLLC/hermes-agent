@@ -1,84 +1,11 @@
-"""One native engine per served profile, owned by the Hermes service."""
+"""The conversation worker: upstream's engine, served in THIS process for every profile.
+
+The worker child (``python -m agent_runtime.conversations.worker_entry``) is retired
+(RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT, RULED 2026-11-21 "One engine").
+"""
 from __future__ import annotations
 
-import subprocess
-import sys
-from collections.abc import Callable
-from pathlib import Path
-
-from .native_peer import NativePeer
-
 __layer__ = "lanes"
-
-
-def start_worker(home: Path, *, receive: Callable[[dict], None],
-                 lost: Callable[[], None], auth_home: Path | None = None) -> NativePeer:
-    from tools.environments.local import served_profile_child_env
-    from hermes_cli.local_runtime.processes import spawn_server
-    from hermes_cli.process_identity import spawn_env, register_child
-
-    fresh_scratch = not (home / "cache" / "scratch").exists()
-    environment = served_profile_child_env(target_home=home, inherit_credentials=True)
-    if fresh_scratch:
-        stamp_fresh_scratch(home)
-    if auth_home is not None:
-        environment["HERMES_AUTH_HOME"] = str(auth_home)
-    environment["PYTHONUNBUFFERED"] = "1"
-    environment["PYTHONUTF8"] = "1"
-    from agent_runtime.process_env_defaults import apply_harness_process_env_defaults
-
-    apply_harness_process_env_defaults(environment)
-    environment.update(spawn_env("native-conversation"))
-    # This interpreter is the selected, already-running Hermes installation.
-    # No PATH probe, second install selection, shell or terminal window.
-    options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
-    process, containment = spawn_server(
-        [sys.executable, "-u", "-m", "agent_runtime.conversations.worker_entry"],
-        cwd=Path(__file__).resolve().parents[2], env=environment,
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        **options,
-    )
-    try:
-        register_child(process.pid, "native-conversation-launcher")
-        peer = NativePeer(process, receive=receive, lost=lost, containment=containment,
-                          worker_purpose="native-conversation")
-    except Exception:
-        if containment is not None:
-            containment.close()
-        process.kill()
-        process.wait(timeout=10)
-        raise
-    try:
-        peer.call("client.capabilities", {"server_requests": True})
-        peer.process_identity  # The interpreter receipt must precede the successful handshake.
-    except Exception:
-        peer.close()
-        raise
-    return peer
-
-
-#: Upstream's prune stamp in ``<home>/cache/scratch`` (``hermes_constants``): a stamp younger than
-#: an hour skips the scratch prune. Pinned by behaviour in ``test_native_worker_scratch_stamp.py``.
-SCRATCH_PRUNE_STAMP = ".last_prune"
-
-
-def stamp_fresh_scratch(home: Path) -> None:
-    """Mark a home's just-created scratch dir as pruned, so its worker skips the prune.
-
-    RT-NATIVE-WORKER-ENGINE-CPU: upstream's once-per-process scratch prune reads the cwd of
-    every process on the host through ``psutil`` (0.4-5 s, by box load) to reap processes
-    rooted in the scratch dir. A scratch dir that did not exist before this spawn holds no
-    entry and no live process can be rooted in it, so that pass finds nothing; the stamp says
-    so. (A process left in a scratch dir deleted by hand waits for the next hourly pass, as it
-    does whenever another process pruned within the hour.) The caller decides freshness BEFORE anything creates the dir. An existing scratch dir is
-    never stamped here: its worker prunes as upstream does.
-    """
-    from hermes_constants import get_scratch_dir
-
-    try:
-        (get_scratch_dir(home, prune=False) / SCRATCH_PRUNE_STAMP).touch()
-    except OSError:
-        pass  # the worker prunes as upstream does
 
 
 def select_worker_factory():

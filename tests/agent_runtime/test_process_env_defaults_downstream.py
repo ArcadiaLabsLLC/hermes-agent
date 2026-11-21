@@ -19,26 +19,19 @@ from agent_runtime.process_env_defaults import HARNESS_PROCESS_ENV_DEFAULTS
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_the_conversation_worker_composer_carries_the_defaults(monkeypatch, tmp_path):
-    from hermes_cli.local_runtime import processes
-    from agent_runtime.conversations import worker
+def test_the_serve_composer_carries_the_defaults_its_conversation_engine_reads(monkeypatch):
+    """Conversations run in the serve's own process now (the worker process is retired),
+    so the serve's composer is the one that must write the defaults."""
+    import types
 
-    captured = {}
+    from hermes_cli.harness_parts.serve import commands
 
-    class _Stop(Exception):
-        pass
-
-    def _spawn(argv, **kwargs):
-        captured.update(kwargs["env"])
-        raise _Stop
-
-    monkeypatch.setattr(processes, "spawn_server", _spawn)
     for key in HARNESS_PROCESS_ENV_DEFAULTS:
         monkeypatch.delenv(key, raising=False)
-    with pytest.raises(_Stop):
-        worker.start_worker(tmp_path, receive=lambda _m: None, lost=lambda: None)
+    # A non-ndjson transport is refused right after the composer step, before any boot.
+    assert commands._cmd_serve(types.SimpleNamespace(ndjson=False)) != 0
     for key, value in HARNESS_PROCESS_ENV_DEFAULTS.items():
-        assert captured[key] == value, key
+        assert os.environ.get(key) == value, key
 
 
 @pytest.mark.timeout(180)

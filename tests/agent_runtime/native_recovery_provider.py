@@ -29,6 +29,28 @@ class RecoveryProvider(ThreadingHTTPServer):
             f"providers:\n  recovery:\n    api: http://127.0.0.1:{self.server_port}/v1\n    api_key: isolated-recovery\n"
             f"dashboard:\n  turn_isolation: {str(compute).lower()}\n"
             "mcp_servers: {}\n", encoding="utf-8")
+        serve_turn_isolation(compute)
+
+
+def serve_turn_isolation(on: bool) -> None:
+    """``dashboard.turn_isolation`` on the SERVE's own config: the workers run in its process, and the gateway
+    reads that host setting there (one compute host per process), never from a member profile's config."""
+
+    import sys
+
+    from hermes_constants import get_hermes_home
+
+    # One test process plays many serves, each with its own home: the gateway's compute-host supervisor
+    # is one per process and pinned to the home it was made under, so a test starts without one.
+    server = sys.modules.get("tui_gateway.server")
+    if server is not None and getattr(server, "_compute_host_supervisor", None) is not None:
+        server._compute_host_supervisor.shutdown()
+        server._compute_host_supervisor = None
+    path = get_hermes_home() / "config.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    assert "dashboard:" not in text, "the serve config already names a dashboard block"
+    path.write_text(text + f"\ndashboard:\n  turn_isolation: {str(bool(on)).lower()}\n", encoding="utf-8")
 
 
 def until(read, predicate, timeout=30):

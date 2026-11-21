@@ -64,6 +64,7 @@ DOOR: dict[str, str] = {
     "generated_tree_write_refusal": "agent_runtime.generated_tree_teach",
     "generated_tree_read_result": "agent_runtime.generated_tree_teach",
     "flutter_build_refusal": "agent_runtime.flutter_build_guard",
+    "spawn_pause_refusal": "agent_runtime.subagents.spawning",
     "gate_tool_call": "agent_runtime.lens.act",
     "finish_tool_call": "agent_runtime.lens.act",
     "review_shared_skill_write": "agent_runtime.review_skill_gate",

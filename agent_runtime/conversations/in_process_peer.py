@@ -38,6 +38,30 @@ __layer__ = "lanes"
 _SESSION_OPENERS = frozenset({"session.create", "session.resume"})
 _install_lock = threading.Lock()
 _installed = False
+#: The in-process workers not yet closed. The gateway's compute host (``dashboard.turn_isolation``) is one
+#: per process and serves them all, so the last one out stops it.
+_open_peers: set[int] = set()
+_open_lock = threading.Lock()
+
+
+def stop_compute_host() -> None:
+    """Stop the gateway's compute-host child, if this process made one (RT-NATIVE-PEER-RETIRE-ORPHANS-COMPUTE-HOST).
+
+    What the retired worker child did on its way out (``worker_entry.stop_compute_host``), now that the
+    workers run in this process: ``HostSupervisor.shutdown`` is the supervisor's own stop (a ``shutdown``
+    frame, then terminate on timeout) and reaps the child. Reads the singleton without making one: a
+    process that never isolated a turn has no child to stop.
+    """
+    import sys
+
+    server = sys.modules.get("tui_gateway.server")  # never imported here: no server, no child
+    supervisor = server.existing_compute_host_supervisor() if server is not None else None
+    if supervisor is None:
+        return
+    try:
+        supervisor.shutdown()
+    except Exception:  # the child then exits on its stdin EOF
+        _log().warning("in-process worker could not stop the compute host", exc_info=True)
 
 
 def _install_gateway_methods() -> None:
@@ -123,6 +147,8 @@ class InProcessPeer(PeerCore):
         self._close_lock = threading.Lock()
         self._disposed = False
         self.process_identity = in_process_identity(self)
+        with _open_lock:
+            _open_peers.add(id(self))
 
     @property
     def alive(self) -> bool:
@@ -168,12 +194,14 @@ class InProcessPeer(PeerCore):
             self._transport.write(response)
 
     def _dispatch_scoped(self, request: dict):
+        from agent_runtime.gateway.recovery_history import serving_worker
         from agent_runtime.profile_home import (
             reset_hermes_auth_home_override, set_hermes_auth_home_override,
         )
         token = set_hermes_auth_home_override(self.auth_home)
         try:
-            return self._dispatch(request, self._transport)
+            with serving_worker(repr(self.process_identity[1])):
+                return self._dispatch(request, self._transport)
         finally:
             reset_hermes_auth_home_override(token)
 
@@ -207,6 +235,11 @@ class InProcessPeer(PeerCore):
                 with self._lock:
                     self._unclosed.discard(session_id)
         self._transport.close()
+        with _open_lock:
+            _open_peers.discard(id(self))
+            last = not _open_peers
+        if last:
+            stop_compute_host()  # after its sessions closed: they may still talk to the child
         self._ended()
 
 

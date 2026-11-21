@@ -15,7 +15,7 @@ from agent_runtime.gateway.contract_seam import catalog_forced_in_this_process
 # turn reaching into code its wheel does not ship.
 try:
     if catalog_forced_in_this_process():
-        # A conversation worker (agent_runtime.conversations.worker_entry) reads the generated catalog:
+        # A process serving the gateway on the generated catalog (the phone's embedded serve):
         # the serve forwards it no connectors.* method, and methods_connectors_account would import
         # pydantic's whole contract package at module level (RT-WORKER-BOOT-PYDANTIC-CONTRACTS).
         raise ImportError("connector RPCs are served by the serve, not by a catalog worker")

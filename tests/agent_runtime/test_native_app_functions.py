@@ -75,6 +75,9 @@ def test_real_agent_discovers_and_calls_once_without_replaying_on_reopen(tmp_pat
         "model:\n  default: test-model\n  provider: custom:native-test\n"
         f"providers:\n  native-test:\n    api: http://127.0.0.1:{provider.server_port}/v1\n    api_key: isolated-test\n"
         f"dashboard:\n  turn_isolation: {str(compute).lower()}\nmcp_servers: {{}}\n", encoding="utf-8")
+    from tests.agent_runtime.native_recovery_provider import serve_turn_isolation
+
+    serve_turn_isolation(compute)
     options = {"worker_factory": start_in_process_worker}
     service = ConversationService(tmp_path, "isolated", profile_home=lambda _: home, **options)
     scope = ConversationScope("operator", "account", "native-proof")

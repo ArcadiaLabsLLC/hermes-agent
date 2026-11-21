@@ -3,8 +3,8 @@
 The switch is ``auth.os_secure_store`` (default off: full Hermes is unchanged; on in
 ``bundled-desktop.yaml``). On, every Hermes process of the install binds the same store
 before it reads a credential — the ``hermes_cli.main`` entry (so ``harness serve`` on
-stdio or the socket, and the ``auth login`` sign-in child it spawns) and the conversation
-worker (``agent_runtime.conversations.worker_entry``). A store that is not available is a
+stdio or the socket, and the ``auth login`` sign-in child it spawns); the conversations run in
+the serve's own process (the worker child is retired), so they read under the serve's binding. A store that is not available is a
 typed refusal (:class:`~agent_runtime.host_store.desktop.SecureStoreUnavailable`): the
 process exits rather than writing a sign-in in plaintext.
 

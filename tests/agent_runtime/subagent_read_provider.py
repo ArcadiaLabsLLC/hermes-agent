@@ -25,6 +25,9 @@ class SubagentProvider(ThreadingHTTPServer):
             f"providers:\n  subagent-proof:\n    api: http://127.0.0.1:{self.server_port}/v1\n    api_key: isolated-proof\n"
             f"dashboard:\n  turn_isolation: {str(compute).lower()}\n"
             "delegation:\n  max_iterations: 2\nmcp_servers: {}\n", encoding="utf-8")
+        from tests.agent_runtime.native_recovery_provider import serve_turn_isolation
+
+        serve_turn_isolation(compute)
 
 
 class _Handler(BaseHTTPRequestHandler):

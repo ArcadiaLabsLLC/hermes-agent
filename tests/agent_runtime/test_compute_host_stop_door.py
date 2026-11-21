@@ -1,4 +1,7 @@
-"""RT-SEAM-COMPUTE-HOST-STOP-DOOR: the worker's compute-host stop goes through a public door.
+"""RT-SEAM-COMPUTE-HOST-STOP-DOOR: the in-process worker's compute-host stop goes through a public door.
+
+The worker child that once made this stop on its way out (``worker_entry``) is retired; the last in-process
+worker to close makes it now (RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT).
 
 ``tui_gateway.compute_host_bridge.existing_compute_host_supervisor`` is rebound onto
 ``tui_gateway.server``'s globals by ``bind_module``, where upstream's own getter keeps the
@@ -11,7 +14,7 @@ from __future__ import annotations
 import pytest
 
 from agent_runtime import _upstream_doors
-from agent_runtime.conversations import worker_entry
+from agent_runtime.conversations import in_process_peer
 
 
 class _Supervisor:
@@ -41,12 +44,12 @@ def test_the_worker_stops_the_supervisor_upstreams_getter_made(server):
 
     assert server.existing_compute_host_supervisor() is made
     assert _upstream_doors.subagent_compute_supervisor() is made
-    worker_entry.stop_compute_host()
+    in_process_peer.stop_compute_host()
     assert made.stopped == 1
 
 
 def test_no_supervisor_is_made_to_be_stopped(server):
-    worker_entry.stop_compute_host()
+    in_process_peer.stop_compute_host()
 
     assert _Supervisor.made == []
     assert server.existing_compute_host_supervisor() is None
@@ -120,3 +123,21 @@ def test_retirement_without_a_supervisor_refuses_instead_of_making_one():
     with pytest.raises(RuntimeError, match="compute host is not running"):
         session_retirement.retire(server, "sid-1", session, "exec-1")
     assert server._sessions == {"sid-1": session} and server.torn_down == []
+
+
+def test_the_last_in_process_worker_to_close_stops_the_compute_host_and_no_earlier_one(server, tmp_path):
+    """Mutation: ``InProcessPeer.close`` never calls ``stop_compute_host`` (the retired worker's step with no
+    in-process twin) -> red; it calls it on every close -> red (the second worker loses its compute host)."""
+
+    from hermes_cli.profiles import get_profile_dir
+
+    made = server._get_compute_host_supervisor()
+    peers = []
+    for name in ("one", "two"):
+        get_profile_dir(name).mkdir(parents=True, exist_ok=True)
+        peers.append(in_process_peer.InProcessPeer(get_profile_dir(name), receive=lambda _f: None,
+                                                    lost=lambda: None, dispatch=lambda *_a: None))
+    peers[0].close()
+    assert made.stopped == 0, "the compute host was stopped while another worker still served"
+    peers[1].close()
+    assert made.stopped == 1

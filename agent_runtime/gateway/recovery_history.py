@@ -3,6 +3,8 @@ from __future__ import annotations
 __layer__ = "stores"
 
 import json
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 from agent_runtime.gateway.recovery_history_delivery import HistoryDeliveries
 
@@ -38,13 +40,42 @@ def history_page(server, session, params):
     return result
 
 
+#: The in-process worker serving this request (``conversations.in_process_peer``), as its generation.
+_WORKER_GENERATION: ContextVar[str | None] = ContextVar("hermes_in_process_worker_generation", default=None)
+
+
+@contextmanager
+def serving_worker(generation: str):
+    """Bind the in-process worker that serves the requests in this context."""
+
+    token = _WORKER_GENERATION.set(str(generation))
+    try:
+        yield
+    finally:
+        _WORKER_GENERATION.reset(token)
+
+
+def _epoch(process_epoch: str) -> str:
+    """The replay epoch a client holds: the process's, and in process the serving worker's too.
+
+    Upstream's epoch names one server process's seq numbering. A worker child had one process per life,
+    so a closed and reopened conversation came back under a new epoch and the client reset its
+    watermarks. In process the server outlives its workers: a retired worker forgets its sessions' replay
+    rings, so the epoch must change with the worker or a client keeps a watermark into a ring that is
+    gone (RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT).
+    """
+
+    generation = _WORKER_GENERATION.get()
+    return process_epoch if generation is None else f"{process_epoch}.{generation}"
+
+
 def checkpoint(sid: str, last_seen: int, *, include_events: bool = True) -> dict:
     """Read one replay position and page under the same lock."""
     from tui_gateway import event_replay as replay  # private ring state; no upstream door yet (lane H)
     with replay._replay_lock:
         snapshots = [(seq, payload) for seq, payload, _ in replay._replay_buffers.get(sid, ())
                      if seq > last_seen] if include_events else []
-        position = {"latest_seq": replay._replay_next_seq.get(sid, 0), "epoch": replay._REPLAY_EPOCH,
+        position = {"latest_seq": replay._replay_next_seq.get(sid, 0), "epoch": _epoch(replay._REPLAY_EPOCH),
                     "truncated": last_seen < replay._replay_evicted_through.get(sid, 0)}
     return {"events": [replay._thaw_params(payload, seq) for seq, payload in snapshots], **position}
 

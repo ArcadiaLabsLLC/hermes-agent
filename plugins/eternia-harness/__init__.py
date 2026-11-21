@@ -274,13 +274,19 @@ def refuse_tool_call(tool_name=None, args=None, task_id="", session_id="", tool_
     did not allow (``agent_runtime.lens.act``), a background review's write to a SHARED skill
     (staged for the owner, ``agent_runtime.review_skill_gate``), a host write to a generated-document
     path (``agent_runtime.generated_tree_teach``), then a ``flutter build`` that collides with the live
-    Launcher (``agent_runtime.flutter_build_guard``). One callback for all five.
+    Launcher (``agent_runtime.flutter_build_guard``); a paused profile's new ``delegate_task`` spawn
+    (``agent_runtime.subagents.spawning``) right after the block. One callback for all six.
     """
-    from agent_runtime.plugin_doors.harness import flutter_build_refusal, gate_tool_call, review_shared_skill_write
+    from agent_runtime.plugin_doors.harness import (
+        flutter_build_refusal, gate_tool_call, review_shared_skill_write, spawn_pause_refusal,
+    )
 
     blocked = refuse_blocked_tool(tool_name=tool_name, session_id=session_id)
     if blocked is not None:
         return blocked
+    paused = spawn_pause_refusal(tool_name, args)  # a paused profile's worker, in the serve's process
+    if paused is not None:
+        return {"action": "block", "message": paused}
     lens = gate_tool_call(tool_name, args, tool_call_id, task_id)
     if lens is not None:
         return {"action": "block", "message": lens}
