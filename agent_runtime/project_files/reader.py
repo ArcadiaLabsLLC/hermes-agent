@@ -50,7 +50,7 @@ def resolve_within_root(root: str, relative: str) -> str | None:
     return None
 
 
-def _root(root: str) -> str:
+def _canonical_root(root: str) -> str:
     if not isinstance(root, str) or not os.path.isabs(root):
         raise ProjectFileRefusal("invalid_path", "the root must be an absolute folder")
     try:
@@ -62,7 +62,7 @@ def _root(root: str) -> str:
     return actual
 
 
-def _resolve(base: str, segments: tuple[str, ...]) -> str:
+def _resolve_in_root(base: str, segments: tuple[str, ...]) -> str:
     shown = "/".join(segments)
     if is_never_listed(segments):
         raise ProjectFileRefusal("ignored", f".git is never listed or read: {shown}")
@@ -93,16 +93,16 @@ def _skip_rules_of(base: str) -> SkipRules:
         return SkipRules()
 
 
-def _folder(root: str, path: str | None) -> _Folder:
+def _listed_folder(root: str, path: str | None) -> _Folder:
     segments = parse_path(path)
-    base = _root(root)
-    actual = _resolve(base, segments)
+    base = _canonical_root(root)
+    actual = _resolve_in_root(base, segments)
     if not os.path.isdir(actual):
         raise ProjectFileRefusal("not_a_directory", f"not a folder: {'/'.join(segments)}")
     return _Folder(actual, "/".join(segments), _skip_rules_of(base))
 
 
-def _walk(folder: _Folder, actual: str, relative: str, depth: int,
+def _walk_project_folder(folder: _Folder, actual: str, relative: str, depth: int,
           add: Callable[[dict], None]) -> None:
     with os.scandir(actual) as scan:
         children = sorted(scan, key=lambda entry: entry.name)
@@ -116,7 +116,7 @@ def _walk(folder: _Folder, actual: str, relative: str, depth: int,
                 continue
             add({"path": path, "kind": "dir"})
             if depth > 1:
-                _walk(folder, child.path, path, depth - 1, add)
+                _walk_project_folder(folder, child.path, path, depth - 1, add)
         elif child.is_file(follow_symlinks=False):
             if not folder.skip.skips(path, is_directory=False):
                 add({"path": path, "kind": "file", "size": child.stat(follow_symlinks=False).st_size})
@@ -127,9 +127,9 @@ def tree(root: str, path: str | None = None, *, depth: int = DEFAULT_DEPTH, offs
 
     if not isinstance(depth, int) or isinstance(depth, bool) or not 1 <= depth <= MAX_DEPTH:
         raise ProjectFileRefusal("bad_argument", f"depth must be 1-{MAX_DEPTH}, not {depth!r}")
-    folder = _folder(root, path)
+    folder = _listed_folder(root, path)
     entries: list[dict] = []
-    _walk(folder, folder.actual, folder.relative, depth, entries.append)
+    _walk_project_folder(folder, folder.actual, folder.relative, depth, entries.append)
     return page({"path": folder.relative}, "entries", entries, offset, MAX_ENTRIES)
 
 
@@ -138,7 +138,7 @@ def read(root: str, path: str, *, offset: int = 0) -> dict:
 
     segments = parse_path(path)
     shown = "/".join(segments)
-    actual = _resolve(_root(root), segments)
+    actual = _resolve_in_root(_canonical_root(root), segments)
     if not os.path.isfile(actual):
         raise ProjectFileRefusal("not_a_file", f"not a file: {shown}")
     if os.path.getsize(actual) > MAX_READ_BYTES:
@@ -156,9 +156,9 @@ def grep(root: str, pattern: str, path: str | None = None, *, offset: int = 0) -
     """Every line holding the literal ``pattern`` in the text files under ``path``."""
 
     check_pattern(pattern)
-    folder = _folder(root, path)
+    folder = _listed_folder(root, path)
     files: list[dict] = []
-    _walk(folder, folder.actual, folder.relative, _UNBOUNDED,
+    _walk_project_folder(folder, folder.actual, folder.relative, _UNBOUNDED,
           lambda entry: files.append(entry) if entry["kind"] == "file" else None)
     prefix = len(folder.relative) + 1 if folder.relative else 0
     matches: list[dict] = []

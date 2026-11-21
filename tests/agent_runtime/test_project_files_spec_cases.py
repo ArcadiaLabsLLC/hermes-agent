@@ -9,7 +9,7 @@ Killing mutations (2026-11-21, w1118a-spec):
 - drop the symlink check: ``resolve_within_root`` returns ``actual`` without the prefix
   test -> the five ``*_out_of_the_root`` cases red (a symlink out of the root read, listed
   or searched);
-- follow links while walking: ``_walk`` drops its ``is_symlink`` branch ->
+- follow links while walking: ``_walk_project_folder`` drops its ``is_symlink`` branch ->
   ``tree_lists_links_and_never_follows_them`` red;
 - drop the ``.gitignore`` read: ``_skip_rules_of`` returns ``SkipRules()`` ->
   ``tree_skips_git_the_skip_list_and_gitignore`` and ``grep_skips_what_tree_skips`` red.
