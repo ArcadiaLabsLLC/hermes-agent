@@ -141,10 +141,7 @@ class ProfileAgentRunner:
         # keeps its own enforcement; only the bookkeeping is shared.
         ledger = RunBudgetLedger()
         try:
-            raw_result, agent, profile_timing = AgentRunExecution(
-                self,
-                binding, request, ledger=ledger
-            ).run()
+            raw_result, agent, profile_timing = self._converse(binding, request, ledger)
         except Exception as exc:
             if resident:
                 request.persona_chat_runtime_registry.evict(
@@ -194,6 +191,27 @@ class ProfileAgentRunner:
                 record_provider_refusal(error, agent=agent)
             raise error
         return result
+
+    def _converse(self, binding, request: AgentRunRequest, ledger: RunBudgetLedger):
+        """The turn on the serve's one turn engine (``agent_runtime.operator_gateway_turn``).
+
+        The chat's actor (a gateway session) is acquired here, the turn is submitted to it, and the
+        gateway's turn thread runs this run's execution through the session's door. A turn the gateway
+        started itself on the chat (``inline_agent``) is already on that thread: it converses there.
+        """
+
+        from agent_runtime import operator_gateway_turn
+
+        inline = operator_gateway_turn.inline_agent()
+        execution = AgentRunExecution(self, binding, request, ledger=ledger)
+        if inline is not None:
+            execution.given_agent = inline
+            return execution.run()
+        # Acquisition has its own ledger: the turn's bounds are declared once, by the turn.
+        acquisition = AgentRunExecution(self, binding, request, ledger=RunBudgetLedger())
+        agent = acquisition.acquire_actor()
+        execution.timing.update(acquisition.timing)
+        return operator_gateway_turn.run_turn(execution, agent)
 
     def _admit_mcp_servers(
         self,

@@ -221,6 +221,11 @@ def reset(token):
 
 def create_agent(factory, sid, session, **kwargs):
     """Snapshot tools before the first prompt; later turns retain that prefix."""
+    from agent_runtime import operator_gateway_turn
+
+    if operator_gateway_turn.is_operator(session):
+        # A Mission Control chat's session: its own lane builds the agent (one turn engine).
+        return operator_gateway_turn.construct(sid, session)
     if not enabled(session):
         close(session)
         return factory(**kwargs)

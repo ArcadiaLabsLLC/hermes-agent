@@ -132,13 +132,17 @@ def _log():
 
 
 class InProcessPeer(PeerCore):
-    def __init__(self, home: Path, *, receive: Callable[[dict], None], lost: Callable[[], None],
+    """``home=None`` serves the launch scope: no ``profile`` is injected, so the gateway binds no
+    profile and its sessions read and write the serve's own store (the operator chat's, which lives in
+    the head home: ``agent_runtime.operator_gateway_turn``)."""
+
+    def __init__(self, home: Path | None, *, receive: Callable[[dict], None], lost: Callable[[], None],
                  dispatch: Callable[[dict, object], dict | None] = _gateway_dispatch,
                  auth_home: Path | None = None):
         super().__init__(receive=receive, lost=lost)
-        self.home = Path(home)
+        self.home = None if home is None else Path(home)
         self.auth_home = auth_home
-        self.profile = _profile_for(self.home)
+        self.profile = None if self.home is None else _profile_for(self.home)
         self._dispatch = dispatch
         self._transport = _Transport(self._route)
         self._sessions: set[str] = set()
@@ -173,8 +177,8 @@ class InProcessPeer(PeerCore):
         request = json.loads(encoded)
         method = request.get("method")
         params = request.get("params")
-        if isinstance(method, str) and isinstance(params, dict) and "profile" not in params \
-                and _admits_profile(method):
+        if self.profile is not None and isinstance(method, str) and isinstance(params, dict) \
+                and "profile" not in params and _admits_profile(method):
             params["profile"] = self.profile
         if method in _SESSION_OPENERS and isinstance(request.get("id"), str):
             with self._lock:
@@ -243,7 +247,7 @@ class InProcessPeer(PeerCore):
         self._ended()
 
 
-def start_in_process_worker(home: Path, *, receive: Callable[[dict], None],
+def start_in_process_worker(home: Path | None, *, receive: Callable[[dict], None],
                             lost: Callable[[], None], auth_home: Path | None = None) -> InProcessPeer:
     """``start_worker``'s in-process twin: same arguments, same handshake."""
     from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders

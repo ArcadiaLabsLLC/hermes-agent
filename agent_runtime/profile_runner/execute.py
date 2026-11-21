@@ -469,8 +469,27 @@ class AgentRunExecution:
         self.turn_state: dict[str, Any] = {}
         self.agent: Any = None
         self.mcp_scope: ExitStack | None = None
+        #: The chat's actor, handed in by the gateway's turn door (``operator_gateway_turn``): this
+        #: run converses with it instead of acquiring one.
+        self.given_agent: Any = None
 
     # ── the run ─────────────────────────────────────────────────────────────
+
+    def acquire_actor(self) -> Any:
+        """The chat's actor for a turn, under the run's scopes, without conversing (the caller then
+        submits the turn to the actor's gateway session). Built or reused exactly as :meth:`run`
+        acquires one; ``timing`` carries the acquisition's facts to the turn."""
+
+        with self.scopes() as mcp_scope:
+            self.mcp_scope = mcp_scope
+            refuse_an_unusable_chosen_credential(self.request)
+            self.resolve_runtime()
+            self.arm_wall_checkpoint()
+            self.admit_mcp()
+            self.build_turn_state()
+            self.acquire_agent()
+            _finish_resident_persona_chat_agent(self.agent)
+            return self.agent
 
     def run(self) -> tuple[Any, Any, dict[str, Any]]:
         with self.scopes() as mcp_scope:
@@ -812,10 +831,25 @@ class AgentRunExecution:
             **_run_transport(self.request, self.runtime))
         apply_session_speed(agent, controls)
 
+    def build_actor(self) -> Any:
+        """A new actor: a gateway session whose agent :meth:`construct_agent` builds."""
+
+        from agent_runtime.operator_gateway_turn import open_actor
+
+        return open_actor(self)
+
     def acquire_agent(self) -> None:
         request, timing = self.request, self.timing
+        if self.given_agent is not None:
+            # The gateway's turn door hands the chat's actor in: refresh it as a reused one.
+            self.agent = self.given_agent
+            _prepare_resident_persona_chat_agent(self.agent, self.turn_state)
+            self.agent.reasoning_config = self.reasoning_kwargs.get("reasoning_config")
+            self.apply_chat_speed(self.agent)
+            timing.setdefault("resident_actor_reused", 1)
+            return
         if request.persona_chat_runtime_registry is None or not request.root_chat_session_id:
-            self.agent = self.construct_agent()
+            self.agent = self.build_actor()
             # This run BUILT its agent — there was no resident registry to
             # ask (the default: `persona_chat.hot_sessions_enabled` is off
             # unless the root config turns it on), or no chat root to key
@@ -845,12 +879,12 @@ class AgentRunExecution:
         owner = current_chat_session_writer_owner()
         def owned_factory():
             if writer is None:
-                return self.construct_agent()
+                return self.build_actor()
             if owner is None:
                 raise RuntimeError("resident constructor writer has no request owner")
             pin = owner.resident_pin(writer)
             try:
-                return OwnedResidentActor(self.construct_agent(), pin)
+                return OwnedResidentActor(self.build_actor(), pin)
             except BaseException:
                 pin.close()
                 raise
