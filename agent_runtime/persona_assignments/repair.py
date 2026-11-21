@@ -319,8 +319,11 @@ def clear_canonical_scope_pointers(store: PersonaInstanceStore, *, apply: bool =
             raw = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue  # an unreadable row is scan_all's to account, not this phase's
-        if not isinstance(raw, dict) or not row_is_canonical_persona_channel(raw.get("id"), raw.get("persona_id")):
-            continue
+        if not isinstance(raw, dict) or not row_is_canonical_persona_channel(
+            raw.get("id"), raw.get("persona_id"), raw.get("adopted_from_global")
+        ):
+            continue  # an adopted row's pointers are its placement (MUTATION: drop the stamp arg ->
+            # test_a_reconcile_keeps_an_adopted_rows_workspace reddens)
         if not (raw.get("workspace_id") or raw.get("realm_id")):
             continue
         item = {"persona_instance_id": raw["id"], "workspace_id": raw.get("workspace_id"),
@@ -362,7 +365,9 @@ def retire_task_bound_rows(store: PersonaInstanceStore, *, apply: bool = True) -
         if not isinstance(raw, dict) or raw.get("mode") != "task_bound":
             continue
         task_id, goal_id = raw.get("current_task_id") or None, raw.get("goal_id") or None
-        mission = task_id != goal_id and not row_is_canonical_persona_channel(raw.get("id"), raw.get("persona_id"))
+        mission = task_id != goal_id and not row_is_canonical_persona_channel(
+            raw.get("id"), raw.get("persona_id"), raw.get("adopted_from_global")
+        )
         action = "task_bound_archived" if mission else "task_bound_normalised"
         item = {"persona_instance_id": raw.get("id"), "current_task_id": task_id, "goal_id": goal_id, "action": action}
         report["archived" if mission else "normalised"].append(item)

@@ -153,8 +153,15 @@ def _office_publish_scan(workspaces: list[Workspace]) -> OfficePublishScan:
     from ..office_store import OfficeStore
     from ..office_sync import OfficeSyncRefusal
 
+    from ..persona_instance_adoption import adopted_local_instance_ids
+
     workspace_ids = {ws.id for ws in workspaces}
     store = OfficeStore()
+    # A desk of an agent the Default-workspace adoption stamped stays on this machine (plan
+    # agent-template-vs-canonical-instance-2026-11-21 §6 rule 2): its desk, its persona's place in
+    # this scan and its instance id are left out, so neither the office, the persona config and
+    # profile files, the instance projection, the drawings nor drift carry it.
+    local_only = adopted_local_instance_ids()
     artifacts: list[RealmSyncArtifact] = []
     persona_ids: list[str] = []
     instance_ids: list[str] = []
@@ -204,6 +211,9 @@ def _office_publish_scan(workspaces: list[Workspace]) -> OfficePublishScan:
         # this publish has no reading of, and shipping it verbatim would put a
         # row on every peer's canvas that no local reader ever admitted existed.
         for actor in scan.actors:
+            # MUTATION: drop this skip and test_an_adopted_agents_desk_is_not_published reddens.
+            if actor.persona_instance_id and actor.persona_instance_id in local_only:
+                continue
             actor_path = paths.office_actor_path(workspace_token, actor.actor_key)
             artifacts.append(
                 RealmSyncArtifact(

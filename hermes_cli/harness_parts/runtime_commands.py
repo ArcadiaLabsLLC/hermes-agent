@@ -182,8 +182,15 @@ def _cmd_persona_instance_reconcile(args) -> int:
             f"task_bound_normalised={data.get('task_bound_normalised_count', 0)} "
             f"task_bound_archived={data.get('task_bound_archived_count', 0)} "
             f"canonical_scope_cleared={data.get('canonical_scope_cleared_count', 0)} "
+            f"adopted={data.get('adopted_count', 0)} "
             f"aliases={data['alias_count']}"
         )
+        # Phase 7: every runtime-global row and its fate (adopted / would_adopt, skipped with its
+        # reason, left_empty for the mint row to archive).
+        for item in data.get("adoption") or []:
+            reason = f" ({item['reason']})" if item.get("reason") else ""
+            print(f"  - {item['fate']}{reason}: {item['persona_instance_id']} "
+                  f"holds={','.join(item['holds']) or '-'}")
         for item in data["actions"]:
             print(f"  - {item['action']}: {item['from_id']} -> {item['to_id']}")
         for item in [*(data.get("task_bound_normalised") or []), *(data.get("task_bound_archived") or [])]:

@@ -728,7 +728,7 @@ def _peer_thread_read(rid: Any, params: dict, context: RpcContext | None = None)
             {"reason": PEER_UNSUPPORTED_PERSONA_REASON},
         )
 
-    data = read_chat_lane_tail(target, session_id=session_id, limit=limit or 20)
+    data = read_chat_lane_tail(target, session_id=session_id, limit=limit or 20, peer=True)
     if data.get("ok") is False:
         kind = str(data.get("error_kind") or "")
         # Three distinct refusals, in this order, because an operator (and a

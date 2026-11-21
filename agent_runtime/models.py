@@ -573,6 +573,13 @@ class PersonaInstance:
     # snapshot build and a persona renamed in config still renames an instance
     # nobody named. Local-only: an older member's pull door refuses unknown keys.
     display_name_custom: bool = False
+    # RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE: the date
+    # (ISO) a runtime-global ``personainst_<persona>`` row holding something was adopted into
+    # the local Default workspace, keeping its id (``persona_instance_adoption``). A stamped
+    # row is an ordinary placed instance (``is_canonical_persona_channel`` answers False) that
+    # stays machine-local: realm publish, drift, the peer roster and ``peer.thread.read`` skip
+    # it, as they skipped the hidden copy it was. Local-only: it never travels.
+    adopted_from_global: str | None = None
     # Repo slots (build plan §3.3, OWNER 2026-10-04): the subset of this
     # instance's workspace's declared slots it works in — the AUTHORITY the
     # launcher's Agent Console edits. Empty means NONE (never "all"); a slot may

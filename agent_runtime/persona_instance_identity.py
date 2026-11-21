@@ -406,7 +406,7 @@ def classify_unplaced_persona_instances(
         if not workspace_id:
             continue
         persona_id = str(_row_get(row, "persona_id") or "").strip()
-        if row_is_canonical_persona_channel(instance_id, persona_id):
+        if row_is_canonical_persona_channel(instance_id, persona_id, _row_get(row, "adopted_from_global")):
             continue
         canonical = canonical_persona_instance_id(instance_id, persona_id=persona_id) or instance_id
         if canonical in live_ids:
@@ -614,10 +614,10 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     durable registry regardless, so the ``identity_map`` keeps resolving old
     ids in archived history. Running twice is a no-op the second time.
 
-    Eight phases run in order: (0) stored ``task_bound`` retirement, (1) legacy-id fold, (2) orphan / legacy-role
+    Nine phases run in order: (0) stored ``task_bound`` retirement, (1) legacy-id fold, (2) orphan / legacy-role
     prune, (2b) unplaced-instance prune, (3) missing steering-parent repair,
     (4) missing chat-session-binding repair, (5) owner-less flow-graph prune, (6) canonical
-    scope-pointer clear.
+    scope-pointer clear, (7) the Default-workspace adoption of runtime-global rows that hold anything.
     ``apply=False`` (the CLI's ``--dry-run``) reports every phase and writes
     nothing — no store rows, no graph docs, no events.
 
@@ -796,6 +796,13 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     # Phase 6 — canonical scope hygiene: a canonical channel stores no workspace/realm pointer
     # (RT-GLOBAL-SINGLETON-CANONICAL). The decode already hides them; this clears what is stored.
     canonical_scope_cleared = store.clear_canonical_scope_pointers(apply=apply)
+    # Phase 7 — a runtime-global row that holds anything becomes an ordinary agent in the Default
+    # workspace, keeping its id; an empty one is left as it is (``persona_instance_adoption``,
+    # RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE). After phase 6, so a
+    # stale pointer on a canonical row is cleared before the adoption writes the real one.
+    from .persona_instance_adoption import ADOPTED, WOULD_ADOPT, adopt_global_rows
+
+    adoption = adopt_global_rows(apply=apply, store=store)
 
     return {
         "applied": bool(apply),
@@ -840,6 +847,8 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         "task_bound_archived_count": len(task_bound["archived"]),
         "canonical_scope_cleared": canonical_scope_cleared,
         "canonical_scope_cleared_count": len(canonical_scope_cleared),
+        "adoption": adoption,
+        "adopted_count": sum(1 for item in adoption if item["fate"] in {ADOPTED, WOULD_ADOPT}),
         "alias_count": len(aliases),
         "archive_dir": str(archive_dir) if apply and actions else None,
         "prune_archive_dir": str(prune_archive_dir) if apply and pruned_actions else None,

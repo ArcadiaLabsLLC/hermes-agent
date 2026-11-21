@@ -226,7 +226,7 @@ def project_persona_instances(
       an authored ``display_name`` is this one's.
     """
 
-    from ..persona_assignments.identity import is_canonical_persona_channel
+    from ..persona_assignments.identity import is_adopted_local_instance, is_canonical_persona_channel
     from ..sync_admission import find_nonportable_values
 
     records = records or {}
@@ -250,7 +250,9 @@ def project_persona_instances(
             )
             continue
         try:
-            if is_canonical_persona_channel(record):
+            # An adopted row (stamped ``adopted_from_global``) was the hidden copy and stays as
+            # machine-local as it was (plan agent-template-vs-canonical-instance-2026-11-21 §6).
+            if is_canonical_persona_channel(record) or is_adopted_local_instance(record):
                 skipped_canonical.append(instance_id)
                 continue
         except Exception:  # a record that cannot answer is not projectable

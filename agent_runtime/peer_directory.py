@@ -151,6 +151,7 @@ def peer_roster_projection(*, scope_workspace_id: str | None) -> dict[str, Any]:
     from .config import ensure_persisted_personas, load_agent_runtime_config
     from .persona_assignments import (
         PersonaInstanceStore,
+        is_adopted_local_instance,
         is_canonical_persona_channel,
         resolve_default_chat_session_id_for_instance,
         safe_assignment_text,
@@ -161,11 +162,18 @@ def peer_roster_projection(*, scope_workspace_id: str | None) -> dict[str, Any]:
 
     store = PersonaInstanceStore()
     store.ensure_for_personas(list(ensure_persisted_personas(load_agent_runtime_config())))
-    instances = addressable_roster(
-        store.list_all(),
-        scope_workspace_id=scope_workspace_id,
-        is_canonical=is_canonical_persona_channel,
-    )
+    instances = [
+        instance
+        for instance in addressable_roster(
+            store.list_all(),
+            scope_workspace_id=scope_workspace_id,
+            is_canonical=is_canonical_persona_channel,
+        )
+        # An adopted row stays off every far install's roster, as the hidden copy it was
+        # (plan agent-template-vs-canonical-instance-2026-11-21 §6 rule 2).
+        # MUTATION: drop this filter and test_a_peer_roster_omits_an_adopted_agent reddens.
+        if not is_adopted_local_instance(instance)
+    ]
 
     history_by_session: dict[str, dict] = {}
     try:
@@ -224,14 +232,28 @@ def peer_roster_projection(*, scope_workspace_id: str | None) -> dict[str, Any]:
 # ── the thread ───────────────────────────────────────────────────────────────
 
 
+def _is_adopted_handle(handle: Any) -> bool:
+    from .persona_assignments import PersonaInstanceStore, is_adopted_local_instance
+
+    try:
+        return is_adopted_local_instance(PersonaInstanceStore().get(str(handle or "")))
+    except Exception:
+        return False
+
+
 def read_chat_lane_tail(
     persona_id: Any,
     *,
     session_id: Any = None,
     limit: Any = 20,
     requested_by_session: Any = None,
+    peer: bool = False,
 ) -> dict[str, Any]:
     """The bounded tail of ONE chat lane, as a dict. ONE implementation, two doors.
+
+    ``peer=True`` is ``peer.thread.read``'s door: a target that resolves to an agent the
+    Default-workspace adoption stamped is no teammate to a far install (``unsupported_persona``),
+    as the hidden copy it was (plan agent-template-vs-canonical-instance-2026-11-21 §6 rule 2).
 
     Lifted out of ``agent_chat_open`` rather than reimplemented beside it, which
     is the whole reason it is a function: the lane guard
@@ -272,6 +294,13 @@ def read_chat_lane_tail(
     resolved_persona = target.persona
     handle = target.handle
     default_session = target.default_session
+    # MUTATION: drop this refusal and test_peer_thread_read_refuses_an_adopted_agent reddens.
+    if peer and _is_adopted_handle(handle):
+        return {
+            "ok": False,
+            "error": f"{persona_id!r} is not a teammate this install shares.",
+            "error_kind": "unsupported_persona",
+        }
 
     try:
         bounded = max(1, min(int(limit or 20), MAX_PERSONA_CHAT_MESSAGE_TAIL))

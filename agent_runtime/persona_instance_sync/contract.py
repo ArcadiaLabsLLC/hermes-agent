@@ -173,6 +173,7 @@ PERSONA_INSTANCE_DERIVED_KEYS: frozenset[str] = frozenset(
 PERSONA_INSTANCE_LOCAL_ONLY_KEYS: frozenset[str] = frozenset(
     {
         "active_run_id",
+        "adopted_from_global",
         "chat_head_home",
         "chat_head_kind",
         "current_assignment_id",

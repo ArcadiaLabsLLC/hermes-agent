@@ -563,7 +563,11 @@ def _persona_instance_store_drift_items(
       simply does not produce a row for it.
     """
 
-    from ..persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
+    from ..persona_assignments import (
+        PersonaInstanceStore,
+        is_adopted_local_instance,
+        is_canonical_persona_channel,
+    )
     from ..persona_instance_sync import (
         instance_baseline_key,
         persona_instance_def_hash,
@@ -590,7 +594,7 @@ def _persona_instance_store_drift_items(
     by_id = {instance.id: instance for instance in scan.instances}
 
     for instance in scan.instances:
-        if is_canonical_persona_channel(instance):
+        if is_canonical_persona_channel(instance) or is_adopted_local_instance(instance):
             continue
         if instance.workspace_id not in workspace_ids:
             continue
@@ -733,8 +737,11 @@ def _office_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> lis
     from ..office_store import OfficeStore
     from ..office_sync import _actor_key, _surface_key, read_office_baseline
 
+    from ..persona_instance_adoption import adopted_local_instance_ids
+
     baseline = read_office_baseline(realm_id)
     store = OfficeStore()
+    local_only = adopted_local_instance_ids()
     items: list[StoreDriftItem] = []
     for workspace in workspaces:
         workspace_id = workspace.id
@@ -766,6 +773,10 @@ def _office_store_drift_items(realm_id: str, workspaces: list[Workspace]) -> lis
         current_actor_keys: set[str] = set()
         for actor in scan.actors:
             current_actor_keys.add(actor.actor_key)
+            # The publish leaves an adopted agent's desk out (``_office_publish_scan``), so it is no drift.
+            # MUTATION: drop this skip and test_an_adopted_agents_desk_is_no_drift reddens.
+            if actor.persona_instance_id and actor.persona_instance_id in local_only:
+                continue
             # HELD (a pull met this desk changed on both sides, or edited here and deleted by the team): the
             # conflict is the member's to resolve, and a drift row beside it would offer Publish as the exit,
             # over the team's copy (TASK-REALM-DELETE-MEETS-AN-EDIT; the skill family's "both moved -> no row").

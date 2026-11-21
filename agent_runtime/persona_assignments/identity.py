@@ -30,6 +30,7 @@ __all__ = [
     "canonical_persona_instance_id",
     "chat_session_is_foreign_to_instance",
     "chat_session_owner_instance_id",
+    "is_adopted_local_instance",
     "is_canonical_persona_channel",
     "normalize_persona_id",
     "persona_chat_session_id_for",
@@ -59,8 +60,13 @@ def persona_instance_id_for_placement(placement_id: str) -> str:
     return f"{PERSONA_INSTANCE_ID_PREFIX}{safe_assignment_token(placement_id) or 'persona'}"
 
 
-def row_is_canonical_persona_channel(instance_id: Any, persona_id: Any) -> bool:
-    """:func:`is_canonical_persona_channel`, asked of two STRINGS.
+def row_is_canonical_persona_channel(instance_id: Any, persona_id: Any, adopted_from_global: Any = None) -> bool:
+    """:func:`is_canonical_persona_channel`, asked of STRINGS (a raw row's fields).
+
+    ``adopted_from_global`` is the row's adoption stamp: a stamped row kept the id
+    ``personainst_<persona>`` but stands in the Default workspace as an ordinary
+    placed instance, so it is not the canonical channel
+    (RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE).
 
     THE derivation; the typed predicate below delegates to it. A second shape
     was needed by the reconciler's unplaced-instance classifier, which is pure
@@ -70,6 +76,9 @@ def row_is_canonical_persona_channel(instance_id: Any, persona_id: Any) -> bool:
     disagreeing about which."""
     token = safe_assignment_token(persona_id)
     if not token:
+        return False
+    # MUTATION: drop this test and test_an_adopted_row_is_not_the_canonical_channel reddens.
+    if adopted_from_global:
         return False
     return str(instance_id or "").strip() == persona_instance_id_for(str(persona_id))
 
@@ -92,7 +101,16 @@ def is_canonical_persona_channel(instance: PersonaInstance) -> bool:
     by ``persona instance create`` (``personainst_chara_a2_7b31d0e4``, no
     ``_agent_`` marker) answers False correctly rather than being mistaken for a
     channel because its tail looks wrong."""
-    return row_is_canonical_persona_channel(instance.id, instance.persona_id)
+    return row_is_canonical_persona_channel(
+        instance.id, instance.persona_id, getattr(instance, "adopted_from_global", None)
+    )
+
+
+def is_adopted_local_instance(instance: Any) -> bool:
+    """True for a row the Default-workspace adoption stamped: machine-local, never
+    published, drifted, rostered to a peer or read by ``peer.thread.read``."""
+
+    return bool(getattr(instance, "adopted_from_global", None))
 
 
 def canonical_persona_instance_id(raw_id: Any, *, persona_id: str | None = None) -> str | None:
