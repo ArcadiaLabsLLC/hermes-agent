@@ -11,7 +11,7 @@ import re
 from typing import Any
 
 from ..serde import safe_assignment_text, safe_assignment_token
-from ..redaction import has_text_secret_assignment, mask_secret_lines
+from ..redaction import has_text_secret_assignment, mask_known_key_shapes, mask_secret_lines
 from ..redaction_mode import redaction_observe_enabled
 
 __layer__ = "stores"
@@ -91,7 +91,10 @@ def _safe_display_text(
     limit: int | None,
     redacted_fallback: str | None = None,
 ) -> tuple[str, str]:
-    text = safe_assignment_text(value, limit=limit)
+    # A bare key is hidden BEFORE the cut, so a bound never halves one past the scrubber.
+    # MUTATION: pass ``value`` straight to safe_assignment_text and
+    # test_a_bare_key_in_a_chat_title_and_preview_is_masked reddens.
+    text = safe_assignment_text(mask_known_key_shapes(str(value or "")), limit=limit)
     if not text:
         return fallback, "safe"
     if has_text_secret_assignment(text):
@@ -123,7 +126,9 @@ def _mask_secret_lines(value: str, *, limit: int | None) -> str:
 
 
 def _safe_chat_body_text(value: Any, *, limit: int | None) -> str:
-    text = str(value or "").replace("\x00", " ")
+    # MUTATION: drop mask_known_key_shapes here and
+    # test_a_child_s_returned_bare_key_is_masked_in_the_chat_history reddens.
+    text = mask_known_key_shapes(str(value or "").replace("\x00", " "))
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     return text if limit is None else text[:limit]
 
