@@ -12,11 +12,9 @@ from enum import Enum, auto
 from hermes_cli.harness_support import (
     ERROR_EXIT_CODES,
     _error_envelope,
-    _list_envelope,
     _object_envelope,
     _print_stage42,
     _require_yes,
-    _sort_rows,
 )
 
 __layer__ = "lanes"
@@ -63,60 +61,23 @@ def _work_target_details(row: dict) -> dict:
 
 
 def _cmd_work_list(args) -> int:
-    from agent_runtime.projection_accountant import ProjectionAccountant
-    from agent_runtime.running_work import RUNNING_WORK_KINDS, build_running_work
+    # One builder with ``runtime.work.running.list`` (RT-EVERY-ACTION-ETERNIA-SENDS-HAS-A-TYPED-CALL-ON-THE-
+    # RUNNING-HERMES): the projection, the filter, the accounting and the health blocks.
+    from agent_runtime.running_work.surface import UnknownWorkKind, running_work_listing
 
-    kind = str(getattr(args, "kind", None) or "").strip()
-    if kind and kind not in RUNNING_WORK_KINDS:
+    try:
+        envelope = running_work_listing(
+            kind=str(getattr(args, "kind", None) or ""),
+            limit=getattr(args, "limit", None),
+            sort=getattr(args, "sort", None),
+        )
+    except UnknownWorkKind as exc:
         _print_stage42(
-            _error_envelope(
-                "invalid_request",
-                f"unknown work kind {kind!r}",
-                safe_details={"supported": list(RUNNING_WORK_KINDS)},
-            ),
+            _error_envelope("invalid_request", str(exc), safe_details={"supported": exc.supported}),
             args=args,
             default_output="json",
         )
         return ERROR_EXIT_CODES["invalid_request"]
-
-    # The snapshot lane accounts its drops through the parity envelope; without
-    # an accountant here the CLI lane silently shed the same rows (exited PIDs,
-    # recycled PIDs, capped lanes) with nothing to say so. Same projection, same
-    # accounting.
-    accountant = ProjectionAccountant("running_work")
-    projection = build_running_work(accountant)
-    rows = [row for row in projection["rows"] if not kind or row.get("kind") == kind]
-    rows = _sort_rows(rows, getattr(args, "sort", None))
-
-    limit = getattr(args, "limit", None)
-    truncated = False
-    if isinstance(limit, int) and limit > 0 and len(rows) > limit:
-        rows = rows[:limit]
-        truncated = True
-
-    envelope = _list_envelope("running_work", rows, truncated=truncated)
-    # Per-source health rides the SAME envelope as the rows, never a separate
-    # call: a consumer that reads the rows without the health block would read
-    # an unreadable lane as "nothing running", which is the one answer this
-    # projection exists to make impossible.
-    envelope["sources"] = projection["sources"]
-    envelope["counts"] = projection["counts"]
-    # Machine-local context, carried in its OWN block rather than folded into a
-    # lane's health prose. It is what tells an operator staring at an empty list
-    # WHICH home the projection read — the difference between "nothing is
-    # running" and "nothing is running over there". Not contract: a consumer
-    # renders it, never branches on it.
-    #
-    # Attached only when the projection published it, and never defaulted. This
-    # block is a DIAGNOSTIC, so it must not be able to take the verb down (a
-    # required-key read here would turn a missing diagnostic into a dead
-    # `work list`), and it must not be fabricated either — a producer that
-    # stopped publishing it should be visible by its absence, not papered over
-    # with an invented home.
-    ambient = projection.get("ambient")
-    if isinstance(ambient, dict):
-        envelope["ambient"] = ambient
-    envelope["completeness"] = accountant.summary()
     _print_stage42(envelope, args=args, default_output="json")
     return 0
 
