@@ -131,8 +131,9 @@ STORE_PLACES: dict[str, PlaceClass] = {
     "mission_chat_turns.legacy.json": _P, "chat_turn_reservations": _P, "chat_turn_settles": _P,
     "chat_root_send_queue": _P, "persona_chat_clarify_tickets": _P, "session_controls": _P,
     "tool_turn_context": _P, "history_recovery": _P, "chat_head_home.json": _P, "messaging": _P,
-    # A chat moved to another instance of its agent (session -> instance), and a turn's pending approval
-    # requests (``approval_relay``, one folder per session digest): both are a chat's, so both wait with it.
+    # A chat moved to another instance of its agent (session -> instance), and the pending approval
+    # requests a dispatch child once left (``approval_relay``, retired 2026-11-21; a folder an older build
+    # wrote may still exist): both are a chat's, so both wait with it.
     "persona_chat_moves.json": _P, "approval_relay": _P,
     "events_journal.json": _H, "events_manifest.json": _H, "prompt_observability_catalogs": _H,
     "prompt_observability_index.json": _H, "worktree_events.jsonl": _H, "wt_reaped_patches": _H,

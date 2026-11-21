@@ -42,12 +42,13 @@ def unregister_approval_notifier(session_id: str, cb: Callable[[dict], None] | N
 
 
 def _notify_root(session_id: str, data: dict) -> None:
-    """The gateway notify callback of a root's turn: the relay record a serve can read when this turn
-    runs in another process (``approval_relay``), then the root's notifier, if any. Never raises: a
-    raising notify would make upstream deny the approval for every surface (``notify_failed``)."""
-    from .approval_relay import publish
+    """The gateway notify callback of a root's turn: the root's notifier, if any. Never raises: a
+    raising notify would make upstream deny the approval for every surface (``notify_failed``).
 
-    publish(session_id, data)
+    Every turn of a chat root runs in the serve — a dispatched helper's too, since 2026-11-21 (row
+    ``RT-AGENT-DISPATCH-RUNS-AS-A-NATIVE-TURN-IN-THE-SAME-HERMES``) — so the serve's own queue holds
+    every request; the file relay that carried a dispatch child's requests (``approval_relay``)
+    retired with the child."""
     with _notifiers_lock:
         cb = approval_notifiers.get(session_id)
     if cb is None:
@@ -162,13 +163,8 @@ def pending_session_approvals(session_id: str) -> list[dict]:
     from agent.redact import redact_sensitive_text
     from tools.approval import list_gateway_approvals
 
-    from .approval_relay import relayed_approvals
-
-    # This process's own queue, then what a dispatched turn's process waits on in this chat
-    # (MC-A-HELPERS-APPROVAL-NEVER-REACHES-THE-LEADS-CHAT); one request is listed once.
+    # The serve's own queue holds every request of this chat, a dispatched helper turn's included.
     rows = list_gateway_approvals(session_id)
-    known = {row.get("request_id") for row in rows}
-    rows += [row for row in relayed_approvals(session_id) if row["request_id"] not in known]
     return [{"id": row["request_id"],
              "command": redact_sensitive_text(str(row.get("command") or ""), force=True),
              "description": redact_sensitive_text(str(row.get("description") or "Approval required"), force=True),

@@ -75,15 +75,12 @@ def operator_approval_facts(params: dict) -> dict:
 def respond_operator_approval(params: dict) -> dict:
     from tools.approval import resolve_gateway_approval
 
-    from .approval_relay import answer_relayed
-
     request_id, choice = params.get("approval_id"), params.get("choice")
     if not isinstance(request_id, str) or not request_id or choice not in APPROVAL_CHOICES:
         raise OperatorConversationRefused("invalid_approval_response")
     with operator_session_read(params) as (_, session):
-        # A request this process waits on, else one a dispatched turn's process waits on.
-        if (resolve_gateway_approval(params["session_id"], choice, request_id=request_id) != 1
-                and not answer_relayed(params["session_id"], request_id, choice)):
+        # Every turn of the chat runs in this process, so its queue is the one to answer.
+        if resolve_gateway_approval(params["session_id"], choice, request_id=request_id) != 1:
             raise OperatorConversationRefused("approval_expired")
         return {**inspection_identity(params, session.owner), "approval_id": request_id,
                 "choice": choice, "accepted": True}
