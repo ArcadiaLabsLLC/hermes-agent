@@ -241,3 +241,70 @@ def test_the_gateways_factory_builds_only_operator_sessions_through_the_operator
     assert worker_app_functions.operator_agent("sid-a", "desktop") is None
     assert worker_app_functions.operator_agent("sid-b", operator_gateway_turn.OPERATOR_SOURCE) == "agent"
     assert built == ["sid-b"]
+
+
+# ── the completion drain: the engine's poller for an open chat, this lane's wake for a closed one ──
+
+from tests.agent_runtime.test_dispatch_delivery import SENDER_ROOT, resolvable_sender, store_home  # noqa: E402,F401
+
+
+def _completion():
+    return {"type": "completion", "session_id": SENDER_ROOT, "session_key": SENDER_ROOT,
+            "command": "sleep 1", "exit_code": 0, "output": "done"}
+
+
+class _Forge:
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, **kwargs):
+        self.calls.append(kwargs)
+        return True, {"ok": True}
+
+
+def _empty_queue():
+    from tools.process_registry import process_registry
+
+    while not process_registry.completion_queue.empty():
+        process_registry.completion_queue.get_nowait()
+    return process_registry
+
+
+def test_a_completion_for_a_chat_with_an_open_engine_session_is_left_to_the_engine(store_home, resolvable_sender, monkeypatch):
+    # Red when ``_chat_root_of_completion`` stops asking ``_engine_session_open`` (the lane would then
+    # forge a second delivery of a completion the open session's own poller delivers).
+    from agent_runtime import dispatch_delivery
+    from agent_runtime.dispatch_delivery import DrainPolicy
+
+    registry = _empty_queue()
+    actor = operator_gateway_turn._SessionActor("sid-open", SENDER_ROOT, None, SENDER_ROOT)
+    monkeypatch.setitem(operator_gateway_turn._actors, SENDER_ROOT, actor)
+    registry.completion_queue.put(_completion())
+    forge = _Forge()
+
+    tally = dispatch_delivery.drain_background_completions(
+        policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=lambda root: True), forge=forge)
+
+    assert forge.calls == [] and tally["delivered"] == 0
+    assert not registry.completion_queue.empty()
+    _empty_queue()
+
+
+def test_a_completion_parked_for_a_closed_chat_wakes_it_through_this_lane(store_home, resolvable_sender):
+    # Red when ``BackgroundDrain.run`` stops claiming parked completions (``self._parked()``): the
+    # engine's poller parks a completion whose chat has no open session, and nothing else opens it.
+    from agent_runtime import dispatch_delivery
+    from agent_runtime.dispatch_delivery import DrainPolicy
+    from tui_gateway import notification_park
+
+    _empty_queue()
+    notification_park.clear()
+    assert notification_park.park(_completion())
+    forge = _Forge()
+
+    tally = dispatch_delivery.drain_background_completions(
+        policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=lambda root: True), forge=forge)
+
+    assert tally["delivered"] == 1
+    assert [call["root_session_id"] for call in forge.calls] == [SENDER_ROOT]
+    assert notification_park.parked() == []

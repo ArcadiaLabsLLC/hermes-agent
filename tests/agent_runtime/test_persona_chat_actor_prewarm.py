@@ -1347,10 +1347,18 @@ class _PromptAgent(_Agent):
         self.enabled_toolsets = self.disabled_toolsets = None
 
     def __getattr__(self, name):
+        import sys
         from unittest.mock import MagicMock
 
         if name.startswith("__"):
             raise AttributeError(name)
+        # The chat's turn engine (``tui_gateway``) reads what an agent has with defaults (session info,
+        # usage): to it, this fake has only what it set. The mocks are for upstream's prompt build.
+        frame = sys._getframe(1)
+        while frame is not None:
+            if "/tui_gateway/" in frame.f_code.co_filename.replace("\\", "/"):
+                raise AttributeError(name)
+            frame = frame.f_back
         value = MagicMock(name=name)
         object.__setattr__(self, name, value)
         return value

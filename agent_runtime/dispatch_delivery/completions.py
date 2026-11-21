@@ -112,8 +112,16 @@ def _chat_root_of_completion(
         if not candidate.startswith("persona_chat_"):
             continue
         if sender_persona(candidate) is not None:
-            return candidate
+            # One turn engine: a chat whose engine session is open hears its completions through the
+            # engine's own notification poller; this lane wakes a chat that has none.
+            return None if _engine_session_open(candidate) else candidate
     return None
+
+
+def _engine_session_open(root: str) -> bool:
+    from agent_runtime.operator_gateway_turn import has_open_session
+
+    return has_open_session(root)
 
 
 def _orphaned_persona_root(
@@ -363,6 +371,8 @@ class BackgroundDrain:
 
     def run(self) -> dict[str, int]:
         _telemetry.note_pass_start()  # A — a pass with no finish is a HUNG pass
+        for evt, text in self._parked():
+            self.deliver_one(evt, text)
         try:
             pairs = self.registry.drain_notifications(
                 # D — the boolean is byte-identical to the `lambda evt:
@@ -381,6 +391,24 @@ class BackgroundDrain:
             self.deliver_one(evt, text)
         _telemetry.note_pass_finished(self.tally)  # A
         return self.tally
+
+    def _parked(self) -> list[tuple[dict[str, Any], str]]:
+        """Completions the engine's poller parked for a chat whose engine session is not open (its
+        ``notification_park``: kept for the owner's return): this lane is that return."""
+
+        try:
+            from tools.process_registry_notifications import format_process_notification
+            from tui_gateway import notification_park
+
+            sender = self.policy.sender_persona
+            claimed = notification_park.claim(lambda evt: _chat_root_of_completion(evt, sender) is not None)
+        except Exception:
+            logger.debug("parked completion claim failed", exc_info=True)
+            return []
+        try:
+            return [(evt, text) for evt in claimed if (text := format_process_notification(evt))]
+        finally:
+            notification_park.unhold(claimed)
 
     def deliver_one(self, evt: dict[str, Any], text: str) -> None:
         # A — a probe stashed for a PREVIOUS event must never be attributed to

@@ -46,6 +46,7 @@ __all__ = [
     "close_actor",
     "construct",
     "engine_judged_goals",
+    "has_open_session",
     "inline_turn",
     "is_operator",
     "open_actor",
@@ -67,6 +68,8 @@ _WAIT_GRACE_SECONDS = 60.0
 class _Build:
     execution: Any
     agent: Any = None
+    #: What the construction raised: the gateway answers a failed build with a bare 5000.
+    error: BaseException | None = None
 
 
 @dataclass
@@ -134,8 +137,12 @@ def construct(sid: str) -> Any:
     execution = build.execution
     # The gateway binds its own (launch) scope around a build; the persona's profile is bound again
     # here so the agent is constructed where the runner path constructs it.
-    with persona_profile_context(execution.binding, runtime_root=execution.request.runtime_root):
-        agent = execution.construct_agent()
+    try:
+        with persona_profile_context(execution.binding, runtime_root=execution.request.runtime_root):
+            agent = execution.construct_agent()
+    except BaseException as exc:
+        build.error = exc
+        raise
     _install_door(agent, sid)
     build.agent = agent
     return agent
@@ -307,7 +314,8 @@ def _gateway_call(home: Path, method: str, params: dict, *, timeout: float = 60)
     try:
         return _gateway_peer(home).call(method, params, timeout=timeout)
     except ConversationError as exc:
-        detail = f"{method} refused: {exc} native_code={getattr(exc, 'native_code', None)}"
+        detail = (f"{method} refused: {exc} native_code={getattr(exc, 'native_code', None)} "
+                  f"native_message={getattr(exc, 'native_message', None)}")
         logger.warning("operator_gateway_refused %s", detail)
         raise ProfileRunnerError(detail) from exc
 
@@ -414,6 +422,11 @@ def open_actor(execution: Any) -> Any:
     try:
         result = _gateway_call(home, "session.resume", {"session_id": tip, "source": OPERATOR_SOURCE,
                                                 "eager_build": True, "omit_messages": True}, timeout=600)
+    except ProfileRunnerError:
+        if build.error is not None:
+            # The construction's own failure, not the gateway's 5000 around it.
+            raise build.error from None
+        raise
     finally:
         _building.reset(token)
     agent = build.agent
@@ -458,6 +471,13 @@ def _ensure_session_row(execution: Any, home: Path, tip: str) -> None:
             from hermes_state_registry import release_or_close
 
             release_or_close(owned)
+
+
+def has_open_session(root: str) -> bool:
+    """Whether chat ``root`` has an open engine session (its completions are then the engine poller's)."""
+
+    with _lock:
+        return any(actor.root == root and not actor.closed for actor in _actors.values())
 
 
 def close_actor(actor: _SessionActor) -> None:

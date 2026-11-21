@@ -24,7 +24,8 @@ def _execution(registry, runtime, factory):
     )
     execution = AgentRunExecution(None, None, request)
     execution.runtime = deepcopy(runtime)
-    execution.construct_agent = factory
+    # The actor build is the leaf (``build_actor``: a gateway session around the constructed agent).
+    execution.build_actor = factory
     execution.acquire_agent()
     return execution
 

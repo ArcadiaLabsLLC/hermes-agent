@@ -77,9 +77,11 @@ class PeerCore:
                 code, data = response["error"].get("code"), response["error"].get("data")
                 if code == 4130:
                     raise ConversationError(Refusal.RESPONSE_TOO_LARGE)
+                message = response["error"].get("message")
                 raise ConversationError(Refusal.NATIVE_REFUSAL,
                                         native_code=code if type(code) is int else None,
-                                        native_data=data if isinstance(data, dict) else None)
+                                        native_data=data if isinstance(data, dict) else None,
+                                        native_message=message if isinstance(message, str) else None)
             result = response.get("result")
             if not isinstance(result, dict):
                 raise ConversationError(Refusal.NATIVE_REFUSAL)

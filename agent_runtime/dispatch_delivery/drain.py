@@ -18,6 +18,7 @@ from .accounting import (
     _write_drain_state,
     read_delivery_drain_state,
 )
+from .completions import drain_background_completions
 from .forge import (
     DEFAULT_DRAIN_POLICY,
     DrainPolicy,
@@ -357,6 +358,10 @@ def start_delivery_drain(
                     drain_once(policy=policy)
                 except Exception:  # pragma: no cover - a drain must never die
                     logger.debug("dispatch delivery pass failed", exc_info=True)
+                try:
+                    drain_background_completions(policy=policy)
+                except Exception:  # pragma: no cover
+                    logger.debug("background completion pass failed", exc_info=True)
                 sweep_unanswered_cancels()
                 # The orphan sweep runs on its own, slower cadence: it walks
                 # every running row and probes PIDs, which is far too expensive

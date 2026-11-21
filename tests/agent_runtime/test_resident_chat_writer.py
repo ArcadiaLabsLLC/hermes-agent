@@ -19,7 +19,9 @@ def owned_execution(registry, db, factory=None, *, root="root", signature="conte
         persona_chat_native_revision=revision, prewarm_only=prewarm)
     execution = AgentRunExecution(SimpleNamespace(_session_db=db), None, request)
     execution.runtime = dict(provider="custom", model="test", api_mode="chat_completions")
-    execution.construct_agent = factory or (lambda: SimpleNamespace(db=db, close=Mock()))
+    # The leaf of an acquisition is the actor build (a gateway session around the constructed agent,
+    # ``AgentRunExecution.build_actor``); the registry and writer bookkeeping above it is what is tested.
+    execution.build_actor = factory or (lambda: SimpleNamespace(db=db, close=Mock()))
     execution.acquire_agent()
     return execution
 
@@ -228,6 +230,15 @@ def test_actual_prewarm_runner_and_first_run_keep_constructor_writer(canonical_s
     from agent_runtime import persona_chat_actor_prewarm as prewarm
     from agent_runtime.profile_runner import ProfileAgentRunner
     from tests.agent_runtime.test_persona_chat_actor_prewarm import _Agent, _request
+    import agent_runtime.chat_session_scope as scopes
+    from hermes_cli.profiles import get_profile_dir
+    from tests.agent_runtime.test_chat_session_writer import scope_at
+    # The chat's turn engine opens a chat only in a profile's own store, not in a bare directory: the
+    # writer under test is a profile store's (not the head's, which the engine's launch scope holds).
+    home = get_profile_dir("writerchat")
+    home.mkdir(parents=True, exist_ok=True)
+    chat = scope_at(home)
+    monkeypatch.setattr(scopes, "resolve_process_chat_scope", lambda: chat)
     actors = residents.initialize_persona_chat_runtime_registry()
     agents = []
     def factory(**kwargs):
@@ -251,7 +262,11 @@ def test_actual_prewarm_runner_and_first_run_keep_constructor_writer(canonical_s
             assert len(agents) == 1 and agents[0].db is current is original
             assert agents[0].conversations == 1
     finally: residents.initialize_persona_chat_runtime_registry(enabled=False)
-    assert_closed(original)
+    # Retirement released every reference the turn and the resident held. What is left is the chat
+    # engine's own handle on the store it serves (the gateway keeps one per served profile store, as it
+    # does for any conversation): one reference, on this very generation.
+    generation = writers._generations.get(home.resolve() / "state.db")
+    assert generation is not None and generation.db is original and generation.refcount == 1
 
 
 def test_concurrent_turn_tail_and_retirement_keep_independent_references(canonical_scope, monkeypatch):
