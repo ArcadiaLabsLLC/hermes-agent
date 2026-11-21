@@ -447,6 +447,7 @@ def _provider_visibility_auth_logins() -> list[dict]:
         get_nous_auth_status,
         get_qwen_auth_status,
     )
+    from hermes_cli.provider_login_catalog import provider_disabled
 
     logins: list[dict] = []
     for provider_id, name, probe in (
@@ -455,6 +456,8 @@ def _provider_visibility_auth_logins() -> list[dict]:
         ("qwen-oauth", "Qwen", get_qwen_auth_status),
         ("minimax-oauth", "MiniMax", get_minimax_oauth_auth_status),
     ):
+        if provider_disabled(provider_id):
+            continue  # a switched-off provider's login is never probed (RT-FU-A-SWITCHED-OFF-PROVIDER-STAYS-OUT-OF-THE-PROVIDER-LISTS-SIGN-INS)
         try:
             status = probe() or {}
         except Exception:
