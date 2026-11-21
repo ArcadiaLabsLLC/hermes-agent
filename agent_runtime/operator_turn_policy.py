@@ -32,6 +32,7 @@ from typing import Any
 from agent_runtime import idle_turn_keeper, live_turns, turn_budget
 from agent_runtime._upstream_doors import sanitize_surrogates
 from agent_runtime.first_turn_warmup import warm_first_turn_paths
+from agent_runtime import operator_turn_runtime
 from agent_runtime.operator_turn_runtime import (
     _FIRST_TURN_STORE_STEPS,
     _blocked_tool_names_for_run,
@@ -41,7 +42,6 @@ from agent_runtime.operator_turn_runtime import (
     _local_engine_prewarm_scope,
     _notify_agent_ready,
     _qa_silence,
-    _resolve_request_runtime,
     _run_conversation_with_usage_ledger,
     _run_transport,
 )
@@ -495,7 +495,8 @@ class OperatorTurn:
         self._resolved = True
         try:
             runtime_started = time.perf_counter()
-            self.runtime = _resolve_request_runtime(request, timing)
+            # Read through the module: the memo's one owner, and the seam a test patches.
+            self.runtime = operator_turn_runtime._resolve_request_runtime(request, timing)
             timing["runtime_resolve_ms"] = _emit_request_timing(request, "runtime_resolve", runtime_started)
         except Exception:
             if self.runner._uses_default_agent_factory:
@@ -544,7 +545,12 @@ class OperatorTurn:
         # so every degradation comes back as a typed row and the turn
         # continues on the fallback lane.
         request = self.request
+        # A turn admits twice when its session is built (the build, then the turn on the engine): the
+        # second finds the scope the first registered, and the turn's record keeps that it paid for one.
+        registered_before = self.timing.get("mcp_admission_reused") == 0
         self.admission_outcome = self.runner._admit_mcp_servers(request, self.timing, ledger=ledger)
+        if registered_before:
+            self.timing["mcp_admission_reused"] = 0
         self.admitted_servers = self.admission_outcome.admitted if self.admission_outcome else ()
         if not self.admitted_servers:
             return

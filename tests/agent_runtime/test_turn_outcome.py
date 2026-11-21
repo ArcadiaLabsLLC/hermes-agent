@@ -95,7 +95,7 @@ def test_caps_bound_the_rows_and_mark_truncated():
 # S2 binding. Mutation: drop ``raw_result["turn_outcome"] = outcome.block()`` -> the
 # key is missing; drop the runner copy -> AgentRunResult.turn_outcome stays None.
 def test_the_persona_runner_binds_the_fold_around_the_turn_and_carries_the_block():
-    from agent_runtime.profile_runner import _run_conversation_with_usage_ledger
+    from agent_runtime.operator_turn_runtime import _run_conversation_with_usage_ledger
     from agent_runtime.profile_runner.runner import _normalize_result
 
     class _Agent:

@@ -366,7 +366,7 @@ def test_importing_the_engine_in_process_leaves_the_serves_stdout_alone(monkeypa
 def _secret_probe(monkeypatch):
     """Record what ``get_secret`` answers inside the run's scopes, wherever the run is."""
     from agent.secret_scope import get_secret
-    from agent_runtime.profile_runner import execute
+    from agent_runtime import operator_turn_policy
 
     reads = []
 
@@ -376,7 +376,7 @@ def _secret_probe(monkeypatch):
         except Exception as exc:  # UnscopedSecretError: the run had no scope while the serve multiplexed
             reads.append((request.profile, type(exc).__name__))
 
-    monkeypatch.setattr(execute, "refuse_an_unusable_chosen_credential", probe)
+    monkeypatch.setattr(operator_turn_policy, "refuse_an_unusable_chosen_credential", probe)
     return reads
 
 

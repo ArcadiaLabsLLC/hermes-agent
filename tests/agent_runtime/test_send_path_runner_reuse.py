@@ -19,12 +19,8 @@ import time
 import pytest
 
 from agent_runtime.persona_chat_continuity import PersonaChatRuntimeRegistry
-from agent_runtime.profile_runner import (
-    RUNTIME_RESOLVE_CACHE_TTL_SECONDS,
-    AgentRunRequest,
-    ProfileAgentRunner,
-    _runtime_resolve_cache_key,
-)
+from agent_runtime.profile_runner import AgentRunRequest, ProfileAgentRunner
+from agent_runtime.operator_turn_runtime import RUNTIME_RESOLVE_CACHE_TTL_SECONDS, _runtime_resolve_cache_key
 from tests._downstream._seams import reset_runtime_resolve_cache
 
 
@@ -136,6 +132,7 @@ def _request(**overrides) -> AgentRunRequest:
         + "</skill_preload>",
         system_message=None,
         task_id="turn_1",
+        root_chat_session_id="chat_root_1",
     )
     fields.update(overrides)
     return AgentRunRequest(**fields)

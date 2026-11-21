@@ -186,7 +186,7 @@ def test_the_runner_binds_the_block_for_the_run(monkeypatch):
         lambda requested, target_model: {"provider": requested, "model": target_model, "api_mode": "chat_completions"},
     )
     ProfileAgentRunner(agent_factory=_RunAgent).run(
-        AgentRunRequest(profile=None, provider="p", model="m", blocked_tool_names=["send_message"], user_message="hi")
+        AgentRunRequest(root_chat_session_id="chat-run-189", profile=None, provider="p", model="m", blocked_tool_names=["send_message"], user_message="hi")
     )
     assert "send_message" in observed["during"]
     assert blocked_tools_for("s-run") == frozenset()

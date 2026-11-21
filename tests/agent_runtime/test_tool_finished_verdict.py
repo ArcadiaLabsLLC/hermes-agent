@@ -258,7 +258,7 @@ def test_the_runner_binds_one_join_to_both_callbacks(monkeypatch):
     )
     events = []
     ProfileAgentRunner(agent_factory=_ToolCallingAgent).run(
-        AgentRunRequest(
+        AgentRunRequest(root_chat_session_id="chat-run-261", 
             profile=None, provider="openai-codex", model="gpt-5.5", api_mode="codex_responses",
             session_id="session_1", user_message="build it", system_message="system",
             task_id="run_1", progress_callback=events.append,

@@ -119,7 +119,7 @@ def test_the_runner_records_a_reused_admission_and_the_record_keeps_it(monkeypat
     events: list[dict] = []
 
     def _run():
-        request = AgentRunRequest(profile=None, user_message="hi", mcp_admission=_admission(),
+        request = AgentRunRequest(root_chat_session_id="chat-run-122", profile=None, user_message="hi", mcp_admission=_admission(),
                                   progress_callback=events.append)
         return ProfileAgentRunner(agent_factory=_Agent).run(request).profile_timing
 
@@ -129,5 +129,8 @@ def test_the_runner_records_a_reused_admission_and_the_record_keeps_it(monkeypat
     assert second["mcp_admission_reused"] == 1
     assert safe_turn_profile_timing(second)["mcp_admission_reused"] == 1
     summaries = [e["summary"] for e in events if e.get("step") == "mcp_admission_resolved"]
-    assert summaries == [f"MCP admission (registered): {_SERVER}", f"MCP admission (reused): {_SERVER}"]
+    # The first admission registers; every later one (the turn after its session's build, the next turn)
+    # reuses the resident scope.
+    assert summaries[0] == f"MCP admission (registered): {_SERVER}"
+    assert len(summaries) > 2 and set(summaries[1:]) == {f"MCP admission (reused): {_SERVER}"}
     assert json.dumps(second)  # the flag is a plain int, safe on the wire

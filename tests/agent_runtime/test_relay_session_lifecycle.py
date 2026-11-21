@@ -939,10 +939,8 @@ def test_the_runner_stages_the_marker_where_the_prologue_will_adopt_it():
     # SANITIZED copy of this turn's message, so the staged content is asserted
     # against that same sanitizer rather than the raw string.
     from agent.message_sanitization import _sanitize_surrogates
-    from agent_runtime.profile_runner import (
-        AgentRunRequest,
-        stage_persona_chat_user_row_marker,
-    )
+    from agent_runtime.profile_runner import AgentRunRequest
+    from agent_runtime.operator_turn_policy import stage_persona_chat_user_row_marker
 
     class _Agent:
         pass
@@ -966,10 +964,8 @@ def test_an_operator_send_stages_nothing_and_clears_a_resident_leftover():
     # The byte-identical guarantee, and the resident-agent hazard that comes
     # with it: a marker staged for one relay turn must never be adopted by the
     # NEXT turn on the same resident chat actor.
-    from agent_runtime.profile_runner import (
-        AgentRunRequest,
-        stage_persona_chat_user_row_marker,
-    )
+    from agent_runtime.profile_runner import AgentRunRequest
+    from agent_runtime.operator_turn_policy import stage_persona_chat_user_row_marker
 
     class _Agent:
         pass
@@ -1001,10 +997,8 @@ def test_the_staged_row_survives_the_native_projection_and_attributes(
     from agent_runtime.operator_channels import operator_channel_summary
     from agent_runtime.persona_chat_continuity import safe_native_message
     from agent_runtime.persona_chat_history import PERSONA_RELAYED_MESSAGE_KIND
-    from agent_runtime.profile_runner import (
-        AgentRunRequest,
-        stage_persona_chat_user_row_marker,
-    )
+    from agent_runtime.profile_runner import AgentRunRequest
+    from agent_runtime.operator_turn_policy import stage_persona_chat_user_row_marker
 
     store = PersonaInstanceStore()
     sender_session = _session_for_test(store, persona_id="neko")

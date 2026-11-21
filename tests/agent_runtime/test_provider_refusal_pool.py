@@ -43,8 +43,13 @@ def _seed(keys: list[str]) -> CredentialPool:
 
 
 def _health(entry_id: str) -> dict:
-    entry = next(e for e in load_pool(PROVIDER).entries() if e.id == entry_id)
-    return _credential_health(entry)
+    # Read as the serve's own profile: a turn on the engine leaves the process multiplexed, and an
+    # unscoped secret read then fails closed (``profile_context.profile_secret_fallback``).
+    from agent_runtime.profile_context import profile_secret_fallback
+
+    with profile_secret_fallback(None):
+        entry = next(e for e in load_pool(PROVIDER).entries() if e.id == entry_id)
+        return _credential_health(entry)
 
 
 class _RefusingAgent:
@@ -80,7 +85,7 @@ def runner(monkeypatch):
 
 def _run(runner) -> None:
     with pytest.raises(ProfileRunnerError, match="usage limit"):
-        runner.run(AgentRunRequest(profile=None, provider=PROVIDER, user_message="hi"))
+        runner.run(AgentRunRequest(root_chat_session_id="chat-run-83", profile=None, provider=PROVIDER, user_message="hi"))
 
 
 def test_a_single_credential_refusal_makes_the_probe_say_so(runner):

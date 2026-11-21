@@ -20,9 +20,9 @@ def owned_execution(registry, db, factory=None, *, root="root", signature="conte
     execution = OperatorTurn(SimpleNamespace(_session_db=db), None, request)
     execution.runtime = dict(provider="custom", model="test", api_mode="chat_completions")
     # The leaf of an acquisition is the actor build (a gateway session around the constructed agent,
-    # ``OperatorTurn.build_actor``); the registry and writer bookkeeping above it is what is tested.
-    execution.build_actor = factory or (lambda: SimpleNamespace(db=db, close=Mock()))
-    execution.acquire_agent()
+    # ``OperatorTurn.open_session``); the registry and writer bookkeeping above it is what is tested.
+    execution.open_session = factory or (lambda: SimpleNamespace(db=db, close=Mock()))
+    execution.acquire_session()
     return execution
 
 

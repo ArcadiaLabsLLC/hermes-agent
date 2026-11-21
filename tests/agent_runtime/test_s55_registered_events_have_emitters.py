@@ -673,8 +673,13 @@ def test_each_allowlisted_type_is_witnessed_on_the_dynamic_dispatch_path():
     # old form additionally required the first argument to be spelled
     # `request.progress_callback` on the same line — neither of which the
     # guarantee cares about.
-    # profile_runner is a package since lane R3; its modules read as one text.
+    # profile_runner is a package since lane R3; its modules read as one text. The turn's callbacks
+    # are built by the operator chat's turn policy since the fold onto the engine (2026-11-21), so its
+    # module joins the text.
+    from agent_runtime import operator_turn_policy
+
     runner_tree = package_tree(profile_runner)
+    runner_tree.body.extend(ast.parse(inspect.getsource(operator_turn_policy)).body)
     adapter_labels = {
         args[1]
         for args in (_const_args(c) for c in _calls_to(runner_tree, "_progress_adapter"))

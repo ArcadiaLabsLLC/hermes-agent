@@ -133,7 +133,7 @@ def test_the_plugin_feeds_the_ledger_from_post_api_request():
 
 
 def test_the_persona_runner_binds_the_ledger_around_the_turn():
-    from agent_runtime.profile_runner import _run_conversation_with_usage_ledger
+    from agent_runtime.operator_turn_runtime import _run_conversation_with_usage_ledger
 
     class _Agent:
         def run_conversation(self, **kwargs):

@@ -105,7 +105,7 @@ def _sleeping_agent(seconds: float):
 
 def _run(agent_factory, **kwargs):
     return ProfileAgentRunner(agent_factory=agent_factory).run(
-        AgentRunRequest(profile=None, user_message="hi", **kwargs)
+        AgentRunRequest(profile=None, user_message="hi", **{"root_chat_session_id": "chat-run-budget", **kwargs})
     )
 
 

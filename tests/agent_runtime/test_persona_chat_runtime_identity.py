@@ -24,9 +24,9 @@ def _execution(registry, runtime, factory):
     )
     execution = OperatorTurn(None, None, request)
     execution.runtime = deepcopy(runtime)
-    # The actor build is the leaf (``build_actor``: a gateway session around the constructed agent).
-    execution.build_actor = factory
-    execution.acquire_agent()
+    # The actor build is the leaf (``open_session``: a gateway session around the constructed agent).
+    execution.open_session = factory
+    execution.acquire_session()
     return execution
 
 
@@ -78,6 +78,9 @@ def test_unchanged_client_reuses_but_clears_turn_state_and_keeps_usage_anchor():
     )
     assert second.agent is agent and factory.call_count == 1
     assert second.timing["resident_actor_reused"] == 1
+    # The engine's turn adopts the reused actor (``OperatorTurn.adopt_actor``, in the door): that is
+    # where the last turn's state is cleared and the usage anchor kept.
+    second.adopt_actor(second.agent)
     assert agent._usage_anchor is anchor
     assert agent.session_prompt_tokens == 0
     assert not agent._interrupt_requested and agent._current_turn_id is None

@@ -38,11 +38,14 @@ def _make_runner(monkeypatch, captured: dict):
 
     monkeypatch.setattr(pr.status, "_binding_for_profile", lambda profile: _Binding())
     monkeypatch.setattr(pr.runner, "_binding_for_profile", lambda profile: _Binding())
-    monkeypatch.setattr(pr.execute, "_resolve_request_runtime", lambda request: {})
-    monkeypatch.setattr(pr.execute, "_resolve_request_runtime", lambda request: {})
-    monkeypatch.setattr(pr.execute, "persona_profile_context", lambda *a, **k: contextlib.nullcontext())
+    from agent_runtime import operator_turn_policy, operator_turn_runtime
+
+    monkeypatch.setattr(operator_turn_runtime, "_resolve_request_runtime", lambda request, timing=None: {})
+    monkeypatch.setattr(operator_turn_policy, "persona_profile_context", lambda *a, **k: contextlib.nullcontext())
+    # The engine's agent build binds the persona's profile again around the construction.
+    monkeypatch.setattr("agent_runtime.profile_context.persona_profile_context", lambda *a, **k: contextlib.nullcontext())
     monkeypatch.setattr(pr.workdir, "_agent_workdir", lambda *a, **k: contextlib.nullcontext())
-    monkeypatch.setattr(pr.execute, "_agent_workdir", lambda *a, **k: contextlib.nullcontext())
+    monkeypatch.setattr(operator_turn_policy, "_agent_workdir", lambda *a, **k: contextlib.nullcontext())
     return pr.ProfileAgentRunner(agent_factory=fake_factory)
 
 
@@ -50,7 +53,7 @@ def test_reasoning_effort_becomes_reasoning_config(monkeypatch):
     captured: dict = {}
     runner = _make_runner(monkeypatch, captured)
     runner.run(
-        pr.AgentRunRequest(
+        pr.AgentRunRequest(root_chat_session_id="chat-run-53", 
             profile="p",
             provider="openai-codex",
             model="gpt-5.6-luna",
@@ -65,7 +68,7 @@ def test_reasoning_none_disables_thinking(monkeypatch):
     captured: dict = {}
     runner = _make_runner(monkeypatch, captured)
     runner.run(
-        pr.AgentRunRequest(
+        pr.AgentRunRequest(root_chat_session_id="chat-run-68", 
             profile="p",
             provider="openai-codex",
             model="gpt-5.6-luna",
@@ -80,7 +83,7 @@ def test_unset_reasoning_leaves_config_untouched(monkeypatch):
     captured: dict = {}
     runner = _make_runner(monkeypatch, captured)
     runner.run(
-        pr.AgentRunRequest(
+        pr.AgentRunRequest(root_chat_session_id="chat-run-83", 
             profile="p",
             provider="openai-codex",
             model="gpt-5.6-luna",
