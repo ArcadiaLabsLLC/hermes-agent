@@ -751,6 +751,41 @@ def test_the_phone_tls_anchors_are_named_before_the_serve_thread(app, monkeypatc
     assert serve_thread not in seen[0]
 
 
+def test_a_turn_on_a_second_profile_reads_the_catalog_the_serve_root_chose(app, monkeypatch):
+    """The phone bundle turns pydantic's contracts off in the serve root's config; a turn on an agent
+    with its own profile reads that profile's config, which names no switch. The embedded serve pins
+    the catalog for the process at start, so the second profile reads it too and never imports
+    pydantic (RT-FU-A-PHONE-AGENT-WITH-ITS-OWN-PROFILE-SENDS-WITHOUT-PYDANTIC: every such turn on the
+    owner's phone ended "No module named 'pydantic'"). Positive control: before the serve starts, the
+    second profile reads the default (on). Killing mutation: ``pin_contract_registry`` returns before
+    pinning -> red."""
+    from agent_runtime.gateway import contract_seam
+
+    monkeypatch.setattr(contract_seam, "_catalog_forced", False)
+    root = Path(os.environ["HERMES_HOME"])
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "config.yaml").write_text("tui_gateway:\n  pydantic_contracts: false\n", encoding="utf-8")
+    agent_home = root / "profiles" / "neko"
+    agent_home.mkdir(parents=True)
+    (agent_home / "config.yaml").write_text("model:\n  default: gpt-6.2-sol\n", encoding="utf-8")
+
+    def on_agent_profile() -> bool:
+        with monkeypatch.context() as scoped:
+            scoped.setenv("HERMES_HOME", str(agent_home))
+            return contract_seam.pydantic_contracts_enabled()
+
+    assert contract_seam.pydantic_contracts_enabled() is False  # the serve root's own switch
+    assert on_agent_profile() is True  # positive control: the agent's profile alone reads "on"
+
+    FakeHostSecureStore().bind(profile="phone", store_root=app)
+    serve = EmbeddedServe(lambda _line: None)
+    serve.start()
+    serve.close()
+    assert serve.wait(60) is not None
+    assert on_agent_profile() is False
+    assert contract_seam.contract_registry().__name__ == "agent_runtime.gateway.contract_catalog"
+
+
 def test_the_phone_entry_serves_the_phone_platform_hint(app, monkeypatch):
     """The phone agent is told its limits through upstream's ``PLATFORM_HINTS["phone"]``, which the
     embedded serve (the phone's entry) fills before it serves a request — ``agent/prompt_builder.py``

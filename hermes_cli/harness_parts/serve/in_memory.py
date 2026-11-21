@@ -270,6 +270,28 @@ def protect_history_folder(home: Path | None = None) -> Path:
     return require().protect_history_dir(home)
 
 
+def pin_contract_registry() -> bool:
+    """Which contract registry this process's gateway reads, decided once from the serve root's config.
+
+    ``tui_gateway.pydantic_contracts`` says what the BUNDLE ships (the phone profile: false, no
+    pydantic), so it is a fact of the process, not of a profile. Read per call, it follows the profile a
+    turn is scoped to: a turn on an agent with its own profile (``neko``) read that profile's config, found
+    no switch, took the default (on) and imported pydantic's contract package, so every such turn on the
+    owner's phone ended "No module named 'pydantic'"
+    (RT-FU-A-PHONE-AGENT-WITH-ITS-OWN-PROFILE-SENDS-WITHOUT-PYDANTIC). The retired worker child pinned the
+    catalog for its process; the embedded serve, which now runs every conversation in-process, pins it
+    here, while ``HERMES_HOME`` is still the serve root. Returns whether the catalog was pinned.
+    MUTATION: return before pinning and test_embedded_phone_session's
+    ``test_a_turn_on_a_second_profile_reads_the_catalog_the_serve_root_chose`` reddens.
+    """
+    from agent_runtime.gateway.contract_seam import pydantic_contracts_enabled, use_catalog_in_this_process
+
+    if pydantic_contracts_enabled():
+        return False
+    use_catalog_in_this_process()
+    return True
+
+
 def _reconcile_default_model() -> Any:
     """Imported at call time, after ``start`` mounted the phone's stand-ins (it runs after ``ready``)."""
     from agent_runtime.runtime_default_model import reconcile_default_model_at_start
@@ -302,6 +324,7 @@ class EmbeddedServe:
         mount_forced_tree()  # the wheel's forced set resolves by import; the directory scans never see it
         require_bound_host_store()
         protect_history_folder()  # before anything writes history: the OS protection + no cloud backup
+        pin_contract_registry()  # before any request can import tui_gateway
         from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders
 
         ensure_lifecycle_placeholders()  # before any request can import the agent loop
