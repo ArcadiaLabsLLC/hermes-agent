@@ -320,6 +320,10 @@ def _runtime_provider_key_set(rid: Any, params: dict, context: RpcContext | None
             from agent_runtime.provider_account import ProviderRefused
 
             raise ProviderRefused(refused.code, f"{name} refused: {refused.code}") from None
+        from agent_runtime.runtime_default_model import seed_default_model_after_signin
+
+        # An install that names no default model gets the provider's recommended one (never raises).
+        seed_default_model_after_signin(ack.get("provider") or provider, requested_by=name)
         return {field: ack.get(field) for field in ("provider", "label", "key_var", "home")}
 
     return _off_reader(rid, name, context, work)

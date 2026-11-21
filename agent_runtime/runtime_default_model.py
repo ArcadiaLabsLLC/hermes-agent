@@ -46,6 +46,7 @@ __layer__ = "stores"
 __all__ = [
     "DEFAULT_MODEL_REFUSAL_REASONS",
     "DefaultModelRefused",
+    "seed_default_model_after_signin",
     "set_runtime_default_model",
 ]
 
@@ -198,3 +199,59 @@ def set_runtime_default_model(
         "previous": {"provider": before_provider, "model": before_model},
         "warning": str(result.warning_message or "") or None,
     }
+
+
+def _recommended_default(provider_id: str) -> str:
+    """Upstream's "default for a freshly-authenticated provider", the plain functions under
+    ``GET /api/model/recommended-default`` (``hermes_cli/web_routers/models.py::get_recommended_default_model``,
+    whose module needs the web stack a phone does not ship): the Nous tier read for ``nous``, else the
+    picker's curated list for the provider through ``pick_silent_default_model``. ``""`` when none."""
+
+    if provider_id == "nous":
+        from hermes_cli.models import recommended_nous_default_model
+
+        return str((recommended_nous_default_model() or {}).get("model") or "")
+    from hermes_cli.inventory import build_models_payload, load_picker_context
+    from hermes_cli.models import pick_silent_default_model
+
+    for row in build_models_payload(load_picker_context()).get("providers", []):
+        if str(row.get("slug", "")).lower() == provider_id:
+            return pick_silent_default_model([str(m) for m in (row.get("models") or [])], provider=provider_id)
+    return ""
+
+
+def seed_default_model_after_signin(provider: Any, *, requested_by: str, event_log: EventLog | None = None) -> dict | None:
+    """After a successful provider sign-in or saved key: give an install that names no default model
+    upstream's recommended default for that provider (RT-FU-A-PHONE-SIGNED-IN-TO-ONE-PROVIDER-GIVES-ITS-AGENTS-NO-MODEL).
+
+    Written only through :func:`set_runtime_default_model` (the one writer, refused under a managed
+    config), and only when the serve profile's ``config.yaml`` names no ``model.default`` and no
+    ``agent_runtime.default_*`` pin: an install that already names a default keeps it. An empty
+    recommendation writes nothing. Never raises: the sign-in already succeeded. Returns the write's
+    answer, or None when nothing was written.
+    Edges, documented and not worked: a second provider signed in later leaves the first default in
+    place; a sign-out leaves the default naming a provider with no credential.
+    """
+
+    provider_id = str(provider or "").strip().lower() if isinstance(provider, str) else ""
+    if not provider_id:
+        return None
+    try:
+        from hermes_cli.config import is_managed, load_config
+
+        if is_managed():
+            return None
+        cfg = load_config()
+        if not isinstance(cfg, dict) or _shadowing_pins(cfg) or _current_pair(cfg)[1]:
+            return None
+        model = _recommended_default(provider_id)
+        if not model:
+            return None
+        return set_runtime_default_model(provider=provider_id, model=model, requested_by=requested_by,
+                                         event_log=event_log)
+    except Exception as exc:  # health: allow BLE001 -- a sign-in never fails over its default model
+        import logging
+
+        logging.getLogger(__name__).warning("default model not seeded after %s sign-in: %s", provider_id,
+                                            type(exc).__name__)
+        return None
