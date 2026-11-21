@@ -31,7 +31,10 @@ from typing import Any
 from .host_tools import git_command
 
 __layer__ = "stores"
-__all__ = ["run_git"]
+__all__ = ["UNTRACKED_PATHS_Z", "run_git"]
+
+#: ``git ls-files`` of the untracked, unignored paths, NUL-separated: the one spelling of that question.
+UNTRACKED_PATHS_Z = ("ls-files", "--others", "--exclude-standard", "-z")
 
 
 def run_git(

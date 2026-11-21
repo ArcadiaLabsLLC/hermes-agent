@@ -258,7 +258,9 @@ def _commit_identity(repo: Path) -> tuple[str, ...]:
 
 
 def _unignored_secrets(repo: Path) -> bool:
-    listed = _remote_git(["ls-files", "-z", "--others", "--exclude-standard"], repo, timeout=PUSH_TIMEOUT_S)
+    from .git_cmd import UNTRACKED_PATHS_Z
+
+    listed = _remote_git(list(UNTRACKED_PATHS_Z), repo, timeout=PUSH_TIMEOUT_S)
     names = str(listed.stdout).split("\0") if listed is not None and listed.returncode == 0 else []
     return any(Path(name).name.startswith(".env") for name in names if name)
 

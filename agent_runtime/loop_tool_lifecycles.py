@@ -154,7 +154,7 @@ _LOOP_NAMES: dict[str, dict[str, Any]] = {
                         "_load_kittentts_model_for_config", "_load_piper_voice_for_config")},
     LOCAL_RUNTIME_CAPABILITIES: {"is_managed_provider": _not_managed,
                                  **_loud(LOCAL_RUNTIME_CAPABILITIES, "managed_model_supports_vision")},
-    GIT_COMMAND: _loud(GIT_COMMAND, "run_git"),
+    GIT_COMMAND: _loud(GIT_COMMAND, "UNTRACKED_PATHS_Z", "run_git"),
     # The secrets vault (owner decision D3, 2026-09-30: the phone drops the local store and the
     # password managers; the host's secure store is its vault). Every turn wires the managers'
     # per-thread prompt callbacks (tui_gateway.agent_callbacks, tools.thread_context) and a session's

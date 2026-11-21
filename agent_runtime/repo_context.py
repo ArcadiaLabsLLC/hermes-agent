@@ -12,7 +12,7 @@ from typing import Any
 from hermes_time import now
 
 from . import paths
-from .git_cmd import run_git
+from .git_cmd import UNTRACKED_PATHS_Z, run_git
 from .machine_roots import load_machine_roots
 
 __layer__ = "stores"
@@ -194,7 +194,7 @@ def worktree_patch_size_estimate(worktree: Path, *, timeout_seconds: int = 60) -
             check=False,
         )
         untracked = run_git(
-            ["ls-files", "--others", "--exclude-standard", "-z"],
+            list(UNTRACKED_PATHS_Z),
             cwd=root,
             text=False,
             timeout=timeout_seconds,
