@@ -195,6 +195,11 @@ def test_an_unqualified_target_is_untouched_by_any_of_this(
     """The compatibility assertion. A bare persona never reaches the peer
     resolver, so a machine with no peers at all still dispatches locally."""
 
+    # An instance in reach: a bare persona is no longer sent to its hidden copy
+    # (RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED).
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    mint_placed_instance("dev")
     result = _send(persona_id="dev")
 
     assert result["ok"] is True

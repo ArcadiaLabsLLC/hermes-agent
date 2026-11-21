@@ -50,6 +50,11 @@ def store_home(tmp_path, monkeypatch):
     home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("HERMES_HOME", str(home))
     monkeypatch.setenv("HERMES_HEAD_HOME", str(home))
+    # A bare ``dev`` send needs an instance in reach: it is no longer sent to the hidden copy
+    # (RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED).
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    mint_placed_instance("dev")
     return home
 
 

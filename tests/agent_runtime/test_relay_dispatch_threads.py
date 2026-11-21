@@ -151,7 +151,10 @@ def _dispatch_args(message: str, client_message_id: str, **overrides):
 
     base = dict(
         persona_id="dev",
-        persona_instance_id=None,
+        # The dispatch addresses dev's instance by handle: a bare ``dev`` with no instance in reach is
+        # no longer sent to the hidden copy (RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-
+        # OR-REFUSED), and these tests are about the thread lane, not the target pick.
+        persona_instance_id=persona_instance_id_for("dev"),
         session_id=None,
         task_id=None,
         goal_id=None,
@@ -1203,7 +1206,7 @@ def test_a_chat_mode_instance_root_is_still_accepted(
     root = _seed_chat_root(db, on_level)
 
     payload = _send(
-        capsys, _dispatch_args("status please", "cm-chat-mode-1", session_id=root)
+        capsys, _dispatch_args("status please", "cm-chat-mode-1", session_id=root, persona_instance_id=None)
     )
 
     assert payload["session_id"] == root

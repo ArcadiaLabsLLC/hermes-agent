@@ -35,6 +35,10 @@ from dataclasses import dataclass
 __layer__ = "policy"
 
 AMBIGUOUS_TARGET = "ambiguous_target"
+#: An AGENT's send names a persona with no instance in the sender's scope
+#: (RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED): refused at once, naming
+#: ``agent_add_instance``; never placed and never sent to the persona's hidden copy.
+NO_INSTANCE_IN_SCOPE = "no_instance_in_scope"
 
 
 @dataclass(frozen=True)
