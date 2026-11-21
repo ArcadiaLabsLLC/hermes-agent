@@ -29,7 +29,7 @@ def _gate_model_downloads() -> None:
 
     app = getattr(sys.modules.get("hermes_cli.web_server"), "app", None)
     if app is not None:
-        from agent_runtime.plugin_doors.harness import gate_model_download_routes
+        from agent_runtime.plugin_doors.harness_dashboard import gate_model_download_routes
 
         gate_model_download_routes(app)
 
@@ -54,7 +54,7 @@ async def promote_profile_endpoint(name: str, body: ProfilePromoteRequest):
     persona is minted from the agent-runtime defaults while the supplied
     ``slot_role`` is retained as data.
     """
-    from agent_runtime.plugin_doors.harness import normalize_profile_name, profile_exists, promote_profile_to_persona
+    from agent_runtime.plugin_doors.harness_dashboard import normalize_profile_name, profile_exists, promote_profile_to_persona
 
     try:
         profile_name = normalize_profile_name(name)

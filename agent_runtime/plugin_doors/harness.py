@@ -1,4 +1,5 @@
-"""``plugins/eternia-harness``'s door: every runtime name the harness plugin and its dashboard use.
+"""``plugins/eternia-harness``'s door: every runtime name the harness plugin uses (its dashboard has its own,
+``harness_dashboard.py``, at the dashboard's lower layer).
 
 LAZY (:func:`agent_runtime.plugin_doors.lazy_door`): the plugin imports from here inside its setup,
 render and hook bodies, and a name's module is imported only when that name is read, so loading the
@@ -6,7 +7,7 @@ plugin still costs nothing until its own command is built or a hook runs. A name
 so a test that replaces the runtime function on its own module is what the hook calls. Published in
 ``hermes_cli/data/plugin_api_fork.json``. The fork-only modules that sit in upstream packages
 (``hermes_cli.harness_*``, ``hermes_cli._downstream_cli``, ``hermes_cli.subcommands.postinstall``,
-``tools.downstream_schema``) and the three upstream names the plugin reads (``hermes_cli.profiles``,
+``tools.downstream_schema``) and the upstream names the plugin reads (
 ``tools.skills_tool.check_skills_requirements``, ``tools.terminal_scope.terminal_env``) are reached here,
 in fork core, so no plugin file names them.
 """
@@ -81,11 +82,6 @@ DOOR: dict[str, str] = {
     "register_suggestion_task": "agent_runtime.console_suggestions.generation",
     "register_summary_tasks": "agent_runtime.text_summary",
     "SharedProviderAccess": "agent_runtime.provider_access",
-    # dashboard (plugins/eternia-harness/dashboard/plugin_api.py)
-    "gate_model_download_routes": "agent_runtime.bundle_profiles.model_downloads",
-    "promote_profile_to_persona": "agent_runtime.blueprints.resolve",
-    "normalize_profile_name": "hermes_cli.profiles",
-    "profile_exists": "hermes_cli.profiles",
 }
 
 __all__ = sorted(DOOR)
