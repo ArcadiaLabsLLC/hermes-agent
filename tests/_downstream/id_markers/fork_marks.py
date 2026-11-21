@@ -748,6 +748,131 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     },
 }
 
+
+# Upstream real-gateway end-to-end files (each test boots one or more python -m gateway.run
+# daemons, often twice across a restart, or runs real managed-worker / pm subprocesses) whose
+# slowest test fills the fork's 30 s per-test default on this box. Upstream's runner sets no
+# per-test default; these files are bounded upstream by their own waits and the runner's file cap.
+# Seen 2026-11-21 (daily full run, hermes origin/main, -j 24): 57 such files killed at 30 s with
+# no result ("never ended") and 64 more killed once and green on the serial retry, which then
+# outran the step's 5400 s cap. Run again at -j 24 with --timeout=600 (lane w1118a-hmA), every
+# one finished: none blocks; the wall is real daemon boots (~5-12 s each), turns and restarts.
+# Each value is the slowest test's wall (s) in that -j 24 run; the bound is three times it
+# (the runner's own file-cap rule), never under 90 s, so a test that truly blocks is still
+# killed with its stacks, and each bound sits above the shared daemon helpers' own ready waits
+# (40 s in test_native_http_auth.daemon, 120 s in fixtures/local_recovery_probe.daemon only
+# for files measured past 40 s).
+_MEASURED_E2E_WALLS: dict[str, int] = {
+    "tests/acp_adapter/test_gateway_editor_mcp.py": 60,
+    "tests/acp_adapter/test_gateway_new_cold.py": 26,
+    "tests/cron/test_scheduled_occurrence.py": 11,
+    "tests/gateway/test_api_authority_controls.py": 11,
+    "tests/gateway/test_api_authority_daemon.py": 12,
+    "tests/gateway/test_api_authority_execution.py": 10,
+    "tests/gateway/test_api_authority_retry.py": 11,
+    "tests/gateway/test_api_authority_runs.py": 10,
+    "tests/gateway/test_api_crash_recovery.py": 24,
+    "tests/gateway/test_api_hosted_daemon.py": 22,
+    "tests/gateway/test_api_pending_daemon.py": 12,
+    "tests/gateway/test_authority_automation.py": 85,
+    "tests/gateway/test_authority_stream.py": 43,
+    "tests/gateway/test_bot_authority.py": 22,
+    "tests/gateway/test_bot_roster_fleet.py": 12,
+    "tests/gateway/test_branch_after_compressed_root_delete.py": 14,
+    "tests/gateway/test_child_notice_profile_admission.py": 13,
+    "tests/gateway/test_clarify_lock_owner.py": 20,
+    "tests/gateway/test_cli_plugin_command_in_gateway.py": 17,
+    "tests/gateway/test_command_discovery.py": 19,
+    "tests/gateway/test_config_policy_daemon.py": 32,
+    "tests/gateway/test_failure_writer_ownership.py": 22,
+    "tests/gateway/test_handoff_completion_parent_context.py": 45,
+    "tests/gateway/test_hosted_room_auth_daemon.py": 25,
+    "tests/gateway/test_journey_restart_open_prompts.py": 25,
+    "tests/gateway/test_kanban_recovery.py": 22,
+    "tests/gateway/test_local_automation.py": 50,
+    "tests/gateway/test_local_review_without_cached_agent.py": 15,
+    "tests/gateway/test_local_session.py": 12,
+    "tests/gateway/test_local_session_recovery.py": 28,
+    "tests/gateway/test_local_session_voice_tts.py": 12,
+    "tests/gateway/test_managed_worker_background_output.py": 25,
+    "tests/gateway/test_managed_worker_checkpoint_limits.py": 26,
+    "tests/gateway/test_managed_worker_construct.py": 34,
+    "tests/gateway/test_managed_worker_delegation.py": 34,
+    "tests/gateway/test_managed_worker_frozen_config.py": 28,
+    "tests/gateway/test_managed_worker_images.py": 24,
+    "tests/gateway/test_managed_worker_launch.py": 29,
+    "tests/gateway/test_managed_worker_lineage.py": 32,
+    "tests/gateway/test_managed_worker_turn_flags.py": 39,
+    "tests/gateway/test_multiplex_hot_serve_live.py": 38,
+    "tests/gateway/test_native_fifo_compression_identity.py": 26,
+    "tests/gateway/test_native_http_auth.py": 19,
+    "tests/gateway/test_native_ingress_media.py": 13,
+    "tests/gateway/test_native_pause_notice.py": 22,
+    "tests/gateway/test_native_profile_registry_grant.py": 12,
+    "tests/gateway/test_native_reply_crash_recovery.py": 33,
+    "tests/gateway/test_native_startup_recovery.py": 45,
+    "tests/gateway/test_native_telegram_startup_recovery.py": 42,
+    "tests/gateway/test_plugin_keyless_inject.py": 27,
+    "tests/gateway/test_pre_command_in_gateway.py": 26,
+    "tests/gateway/test_session_approval_commands.py": 17,
+    "tests/gateway/test_session_authoring_commands.py": 13,
+    "tests/gateway/test_session_authority.py": 26,
+    "tests/gateway/test_session_commands.py": 14,
+    "tests/gateway/test_session_deferred_pick_restart.py": 36,
+    "tests/gateway/test_session_events_overflow.py": 16,
+    "tests/gateway/test_session_group_peer_approvals.py": 33,
+    "tests/gateway/test_session_group_peer_daemons.py": 59,
+    "tests/gateway/test_session_group_peer_setup_daemons.py": 70,
+    "tests/gateway/test_session_hosted_daemon.py": 56,
+    "tests/gateway/test_session_kanban.py": 30,
+    "tests/gateway/test_session_llm_oneshot.py": 13,
+    "tests/gateway/test_session_model_command_commits.py": 11,
+    "tests/gateway/test_session_mutation_branch.py": 26,
+    "tests/gateway/test_session_mutation_cold.py": 20,
+    "tests/gateway/test_session_mutation_compress.py": 106,
+    "tests/gateway/test_session_mutation_compress_managed.py": 152,
+    "tests/gateway/test_session_mutation_compress_plugin_engine.py": 18,
+    "tests/gateway/test_session_mutation_import_owner.py": 10,
+    "tests/gateway/test_session_mutation_lineage_delete.py": 12,
+    "tests/gateway/test_session_mutation_model.py": 24,
+    "tests/gateway/test_session_mutation_reset.py": 21,
+    "tests/gateway/test_session_mutation_retirement.py": 20,
+    "tests/gateway/test_session_open_hook.py": 21,
+    "tests/gateway/test_session_policy_workspace_readiness.py": 15,
+    "tests/gateway/test_session_read_commands.py": 13,
+    "tests/gateway/test_session_setting_commands.py": 14,
+    "tests/gateway/test_session_subagent_live.py": 12,
+    "tests/gateway/test_session_transcript_handoff_owner.py": 19,
+    "tests/gateway/test_session_tui_config.py": 22,
+    "tests/gateway/test_session_tui_ops.py": 22,
+    "tests/gateway/test_static_token_session_mutations.py": 17,
+    "tests/gateway/test_surface_admission.py": 34,
+    "tests/gateway/test_terminal_commit_crash.py": 21,
+    "tests/gateway/test_unified_gateway_native_live.py": 40,
+    "tests/gateway/test_used_delete_restart.py": 21,
+    "tests/gateway/test_worker_compression_admission.py": 72,
+    "tests/gateway/test_worker_rotation_adoption.py": 24,
+    "tests/hermes_cli/test_gateway_chat_flags_live.py": 28,
+    "tests/hermes_cli/test_oneshot_streamed_live.py": 16,
+    "tests/hermes_cli/test_update_restore_authority.py": 19,
+    "tests/pm/test_cold_runtime_e2e.py": 21,
+    "tests/pm/test_pip_check.py": 33,
+    "tests/pm/test_takeover_preparation.py": 25,
+    "tests/scripts/test_boundary_lint.py": 88,
+    "tests/tools/test_bot_desktop_idle_self_stop.py": 33,
+    "tests/tui_gateway/test_hosted_room_discussion_limits.py": 25,
+    "tests/tui_gateway/test_hosted_room_discussion_retry_budget.py": 15,
+}
+
+
+def _measured_bound(wall: int) -> int:
+    """Three times the measured wall, rounded up to 30 s, floor 90 s."""
+    return max(90, -(-3 * wall // 30) * 30)
+
+
+ROWS.update({path: (pytest.mark.timeout(_measured_bound(wall)),)
+             for path, wall in _MEASURED_E2E_WALLS.items()})
+
 if _WIN:
     ROWS.update({
         "tests/tools/test_local_env_blocklist.py::TestSanePathIncludesHomebrew::"
