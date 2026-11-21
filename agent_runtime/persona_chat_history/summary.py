@@ -157,6 +157,11 @@ class HistorySummary:
     #: Instance id -> its ``per_profile`` head (``chat_heads.HeadRead``);
     #: an instance absent here reads from the process handle.
     head_reads: dict[str, Any] = field(default_factory=dict)
+    #: Sessions listed under a RETIRED holder (their row is the holder's archive record), and the
+    #: archive rows read so far, one read per retired holder per build
+    #: (RT-AN-AGENTS-SAVED-CHATS-STAY-IN-CHAT-HISTORY-AFTER-THE-COPY-THAT-HELD-THEM-IS-RETIRED).
+    retired_holder_sessions: set[str] = field(default_factory=set)
+    retired_rows: dict[str, Any] = field(default_factory=dict)
 
     def _head_of(self, instance: Any) -> Any:
         return self.head_reads.get(safe_assignment_text(getattr(instance, "id", None), limit=160) or "")
@@ -241,15 +246,19 @@ class HistorySummary:
                 continue
             persisted_instance_id = _persisted_persona_instance_id(raw)
             inferred_persona = _infer_persona_id(raw, session_id=session_id)
-            instance = (
-                self.bound_by_session.get(session_id)
-                or self.instances_by_id.get(persisted_instance_id or "")
-                or (
-                    self.instances_by_persona.get(inferred_persona)
-                    if is_source_chat and inferred_persona
-                    else None
-                )
+            instance = self.bound_by_session.get(session_id) or self.instances_by_id.get(
+                persisted_instance_id or ""
             )
+            if instance is None and head is None:
+                # A saved chat whose holder was retired stays its AGENT's chat, listed under that
+                # holder and flagged, never re-attributed to another live instance of the persona
+                # nor dropped (owner RULED 2026-11-21: "chat history is still a thing").
+                # MUTATION: drop this arm and test_a_retired_holders_chat_lists_under_its_agent reddens.
+                instance = self._retired_holder(session_id, persisted_instance_id)
+                if instance is not None:
+                    self.retired_holder_sessions.add(session_id)
+            if instance is None and is_source_chat and inferred_persona:
+                instance = self.instances_by_persona.get(inferred_persona)
             if (instance is None and head is not None) or (
                 instance is not None and self._head_of(instance) is not head
             ):
@@ -264,6 +273,31 @@ class HistorySummary:
                 continue
             self.candidates.append((raw, instance, session_id))
             self.seen.add(session_id)
+
+    def _retired_holder(self, session_id: str, persisted_instance_id: str | None) -> Any:
+        """The archive row of the retired instance holding ``session_id``, or ``None``.
+
+        The holder is the transcript's persisted instance, else the move ledger's or the minted id's
+        (``chat_session_held_by``). Asked only after the live indexes missed, against the archive
+        listing read at most once per build; one archive read per retired holder."""
+
+        from ..persona_assignments import PersonaInstanceStore
+        from ..persona_assignments.chat_moves import chat_session_held_by
+        from ..persona_assignments.retire import retired_instance_row
+
+        holder = persisted_instance_id or chat_session_held_by(session_id)
+        if not holder or holder in self.instances_by_id:
+            return None
+        if self.retired_instance_ids is None:
+            self.retired_instance_ids = retired_persona_instance_ids()
+        if holder not in self.retired_instance_ids:
+            return None
+        if holder not in self.retired_rows:
+            try:
+                self.retired_rows[holder] = retired_instance_row(PersonaInstanceStore(), holder)
+            except Exception:
+                self.retired_rows[holder] = None
+        return self.retired_rows[holder]
 
     def _drop_unmatched(self, session_id: str, persisted_instance_id: str | None) -> None:
         accountant = self.accountant
@@ -411,6 +445,10 @@ class HistorySummary:
                 session_db=self._db_for(instance, db),
                 message_tail=self.message_tail,
             )
+            if session_id in self.retired_holder_sessions:
+                # The holder is retired: the row is its agent's saved chat. Opening it is
+                # ``runtime.persona.instance.open_chat`` with ``move: true`` onto a live instance.
+                row["holder_retired"] = True
             visible.append(row)
         if self.accountant is not None:
             self.accountant.include(len(visible))

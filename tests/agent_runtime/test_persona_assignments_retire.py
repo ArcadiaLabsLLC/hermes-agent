@@ -423,9 +423,11 @@ def test_retire_excludes_instance_from_snapshot_projection(monkeypatch, isolate_
 
     after = build_snapshot()
     assert instance.id not in after["persona_instances"]
-    # The chat-history projection reads the live instances, so it drops too.
+    # The retired instance's saved chat stays in Chat history, flagged as its retired holder's
+    # (RT-AN-AGENTS-SAVED-CHATS-STAY-IN-CHAT-HISTORY-AFTER-THE-COPY-THAT-HELD-THEM-IS-RETIRED); it is
+    # never listed as a live instance's chat.
     history = persona_chat_history_summary(persona_instances=store.list_all())
-    assert instance.id not in {row.get("persona_instance_id") for row in history}
+    assert all(row.get("holder_retired") for row in history if row.get("persona_instance_id") == instance.id)
 
 
 def test_retire_cli_happy_path_archives_row(monkeypatch, isolate_agent_runtime_root):

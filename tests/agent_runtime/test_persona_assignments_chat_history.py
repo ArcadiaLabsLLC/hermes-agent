@@ -225,22 +225,11 @@ def test_persona_chat_history_accounting_ignores_unrelated_session_sources(isola
     assert summary["reasons"] == {"no_instance_match": 1}
 
 
-def test_persona_chat_history_separates_a_retired_instance_from_a_lost_binding(
-    isolate_agent_runtime_root,
-):
-    # HC-H2: the "projection drops" chip must count LOST data, not the residue of
-    # the operator's own first-class retires. A retire archives the row and leaves
-    # the chat session behind by design (history is never destroyed), so an
-    # undifferentiated orphan count grew by one on every retire, forever — and
-    # buried the drops that actually mean something. Three sessions, three
-    # outcomes, one archive listing telling them apart.
-    from agent_runtime.projection_accountant import ProjectionAccountant
+def _retired_and_lost_sessions(store):
+    """(live, retiring, the retired holder's session rows): one live chat, one whose holder the
+    operator retired through the first-class verb, one bound to an id that exists NOWHERE."""
 
-    store = PersonaInstanceStore()
-    # (a) bound to a live instance.
     live = store.open_chat(persona_id="dev", session_id="chat_live_1")
-    # (b) bound to an instance the operator retired through the first-class verb:
-    # the row exists ONLY in the archive now, and its chat session is the residue.
     retiring = store.add_instance(
         persona_id="qa",
         placement_id="scene_child_9_agent_2",
@@ -249,50 +238,74 @@ def test_persona_chat_history_separates_a_retired_instance_from_a_lost_binding(
     retired_session_id = retiring.session_id
     assert retired_session_id
     store.retire(retiring.id, reason="placement deleted")
-    # (c) bound to an id that exists NOWHERE — live roster or archive. This is the
-    # genuinely anomalous orphan, and it must stay counted.
-    lost_instance_id = "personainst_never_placed_c30e16a4"
+    sessions = [
+        {"id": "chat_live_1", "title": "live", "message_count": 1},
+        {
+            "id": retired_session_id,
+            "source": "agent_runtime_persona_chat",
+            "title": "retired placement chat",
+            "model_config": {"persona_instance_id": retiring.id},
+        },
+        {
+            "id": "chat_lost_1",
+            "source": "agent_runtime_persona_chat",
+            "title": "lost binding",
+            "model_config": {"persona_instance_id": "personainst_never_placed_c30e16a4"},
+        },
+    ]
+    return live, retiring, sessions
 
+
+def test_persona_chat_history_keeps_a_retired_holders_chat_and_drops_a_lost_binding(
+    isolate_agent_runtime_root,
+):
+    # HC-H2 told a retired holder's chat apart from a lost binding by dropping the first by design.
+    # RT-AN-AGENTS-SAVED-CHATS-STAY-IN-CHAT-HISTORY-AFTER-THE-COPY-THAT-HELD-THEM-IS-RETIRED (owner
+    # RULED 2026-11-21: "chat history is still a thing"): the retired holder's chat now LISTS, under
+    # its agent and flagged ``holder_retired``; the lost binding is still the one anomaly.
+    from agent_runtime.projection_accountant import ProjectionAccountant
+
+    store = PersonaInstanceStore()
+    live, retiring, sessions = _retired_and_lost_sessions(store)
     accountant = ProjectionAccountant("persona_chat_history")
     rows = persona_chat_history_summary(
-        persona_instances=[live],
-        session_db=_FakeSessionDB(
-            [
-                {"id": "chat_live_1", "title": "live", "message_count": 1},
-                {
-                    "id": retired_session_id,
-                    "source": "agent_runtime_persona_chat",
-                    "title": "retired placement chat",
-                    "model_config": {"persona_instance_id": retiring.id},
-                },
-                {
-                    "id": "chat_lost_1",
-                    "source": "agent_runtime_persona_chat",
-                    "title": "lost binding",
-                    "model_config": {"persona_instance_id": lost_instance_id},
-                },
-            ]
-        ),
-        accountant=accountant,
+        persona_instances=[live], session_db=_FakeSessionDB(sessions), accountant=accountant,
+    )
+
+    by_session = {row["session_id"]: row for row in rows}
+    assert set(by_session) == {"chat_live_1", retiring.session_id}
+    kept = by_session[retiring.session_id]
+    assert (kept["persona_id"], kept["persona_instance_id"], kept["holder_retired"]) == ("qa", retiring.id, True)
+    assert "holder_retired" not in by_session["chat_live_1"]
+    summary = accountant.summary()
+    assert (summary["considered"], summary["included"], summary["dropped"]) == (3, 2, 1)
+    assert summary["reasons"] == {"no_instance_match": 1}
+
+
+def test_a_retired_holder_whose_archive_cannot_be_read_is_still_dropped_by_design(
+    isolate_agent_runtime_root, monkeypatch,
+):
+    """HC-H2's split survives for the one case the history cannot list: the holder is retired but its
+    archive row will not read. Still ``instance_retired``, by design, never ``no_instance_match``."""
+    from agent_runtime.persona_assignments import retire as retire_module
+    from agent_runtime.projection_accountant import ProjectionAccountant
+
+    store = PersonaInstanceStore()
+    live, retiring, sessions = _retired_and_lost_sessions(store)
+    monkeypatch.setattr(retire_module, "retired_instance_row", lambda store, instance_id: None)
+    accountant = ProjectionAccountant("persona_chat_history")
+    rows = persona_chat_history_summary(
+        persona_instances=[live], session_db=_FakeSessionDB(sessions), accountant=accountant,
     )
 
     assert [row["session_id"] for row in rows] == ["chat_live_1"]
     summary = accountant.summary()
-    assert summary["considered"] == 3
-    assert summary["included"] == 1
-    assert summary["dropped"] == 2
-    # The whole stage in two lines: the retire is by-design lifecycle, the lost
-    # binding is still an anomaly, and neither one absorbed the other.
     assert summary["reasons"] == {"instance_retired": 1, "no_instance_match": 1}
     assert summary["by_design"] == ["instance_retired"]
-    # …and the codes are not merely present in the right counts, they are on the
-    # right sessions: a mutant that swapped them keeps both tallies at 1.
     samples = {sample["entity_id"]: sample for sample in accountant.drop_samples()}
-    assert samples[retired_session_id]["code"] == "instance_retired"
-    assert samples[retired_session_id]["by_design"] is True
-    assert samples[retired_session_id]["detail"] == retiring.id
+    assert samples[retiring.session_id]["code"] == "instance_retired"
+    assert samples[retiring.session_id]["detail"] == retiring.id
     assert samples["chat_lost_1"]["code"] == "no_instance_match"
-    assert samples["chat_lost_1"]["by_design"] is False
 
 
 def test_retired_persona_instance_ids_lists_only_retirement_tombstones(

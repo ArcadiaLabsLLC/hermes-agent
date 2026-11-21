@@ -91,6 +91,11 @@ def operator_channel_summary(
             builder = channels.setdefault(key, _OperatorChannelBuilder(key))
             if session_id:
                 by_session[session_id] = builder
+            if row.get("holder_retired"):
+                # A retired holder's saved chat: no live instance by design, not a defect.
+                # MUTATION: drop this arm and test_an_operator_channel_does_not_warn_about_a_retired_holders_chat reddens.
+                builder.add_history(row)
+                continue
             builder.warn(
                 "history_without_instance",
                 "chat history row had no matching persona instance",
