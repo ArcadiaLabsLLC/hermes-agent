@@ -42,6 +42,9 @@ class AgentCreateInvalid(ValueError):
 AGENT_NAME_REQUIRED_REASON = "agent_name_required"
 AGENT_NAME_TAKEN_REASON = "agent_name_taken"
 AGENT_NAME_REQUIRED_MESSAGE = "Give the new agent a name."
+#: The argv create's refusal when the store refuses the new agent itself (a bad
+#: source, an unwritable home): ``persona instance create`` answers it as ``error_kind``.
+AGENT_CREATE_REFUSED_REASON = "agent_create_refused"
 
 
 class AgentCreateNameTaken(Exception):

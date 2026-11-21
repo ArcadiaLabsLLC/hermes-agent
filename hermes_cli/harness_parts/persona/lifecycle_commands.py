@@ -238,7 +238,7 @@ def _cmd_persona_instance_create(args) -> int:
     # exec'd into harness.py's globals. The turn-outcome vocabulary is owned by
     # agent_runtime.mission_chat_outcome; nothing re-spells its values.
     from agent_runtime.agent_create import require_known_persona
-    from agent_runtime.agent_create.outcome import AGENT_NAME_TAKEN_REASON, AgentCreateNameTaken
+    from agent_runtime.agent_create.outcome import AGENT_CREATE_REFUSED_REASON, AGENT_NAME_TAKEN_REASON, AgentCreateNameTaken
     from agent_runtime.conversation_owner import ConversationOwnerError, client_scope as _valid_client_scope
     from agent_runtime.mission_chat_outcome import ChatErrorKind
     # RT-INSTANCE-CREATE-MAKES-A-CHAT-WITH-NO-ACCOUNT: the account the new chat
@@ -350,7 +350,7 @@ def _cmd_persona_instance_create(args) -> int:
             )
             return 2
         except (ValueError, OSError) as exc:
-            _emit_persona_verb_payload(args, {"ok": False, "error_kind": "agent_create_refused", "error": str(exc)})
+            _emit_persona_verb_payload(args, {"ok": False, "error_kind": AGENT_CREATE_REFUSED_REASON, "error": str(exc)})
             return 2
         except PersonaChatPersistenceError as exc:
             # The mint itself now refuses rather than binding a root it could not
