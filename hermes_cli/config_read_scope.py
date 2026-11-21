@@ -16,5 +16,9 @@ def readonly_config_scope(project):
 
 
 def project_readonly_config(config):
+    """The read view: the context's projection, then a bundled install's switches held from the serve
+    root (``config_switches.with_install_switches``), last so no projection can turn one back on."""
+    from hermes_cli.config_switches import with_install_switches
+
     project = _projection.get()
-    return config if project is None else project(deepcopy(config))
+    return with_install_switches(config if project is None else project(deepcopy(config)))
