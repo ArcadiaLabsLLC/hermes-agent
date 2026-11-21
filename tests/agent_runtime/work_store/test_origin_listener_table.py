@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agent_runtime import chat_goal, paths
+from agent_runtime import chat_goal, chat_goal_loop, paths
 from agent_runtime import chat_root_send_queue as send_queue
 from agent_runtime.work_store import goal_turns
 from agent_runtime.work_store.persona_turn import (
@@ -28,7 +28,7 @@ class _Instances:
 @pytest.fixture
 def arms(monkeypatch):
     told: list[tuple[str, str]] = []
-    monkeypatch.setattr(goal_turns, "after_chat_goal_turn",
+    monkeypatch.setattr(chat_goal_loop, "after_turn",
                         lambda entry, payload, **_: told.append(("goal", entry.client_message_id)))
     executor = PersonaTurnExecutor(instances=_Instances(), root_of=lambda store, **_: ROOT, wake=lambda: None)
     executor.on_settle(lambda run, outcome: told.append(("work", run.request_id)))
@@ -45,7 +45,7 @@ def _settle(executor, cmid, origin):
 
 def test_origin_kind_routes_by_table(arms):
     """Killing mutation: ``settled`` routes every non-``work`` origin to the goal arm (today's ladder) →
-    the ``messaging`` settle reaches ``after_chat_goal_turn`` and not its listener → red."""
+    the ``messaging`` settle reaches ``chat_goal_loop.after_turn`` and not its listener → red."""
     executor, told = arms
     _settle(executor, "msg-telegram-1", {ORIGIN_KIND_KEY: "messaging", "messaging": {"platform": "telegram"}})
     assert told == [("messaging", "msg-telegram-1")]

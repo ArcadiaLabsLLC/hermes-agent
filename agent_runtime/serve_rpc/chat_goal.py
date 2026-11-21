@@ -29,7 +29,13 @@ def _goal_reply(rid: Any, op: str, params: dict) -> dict:
     from agent_runtime.chat_goal import execute
 
     try:
-        return ok(rid, execute(op, params))
+        reply = execute(op, params)
+        if op in (GoalOp.PAUSE, GoalOp.CLEAR):
+            from agent_runtime.work_store.goal_turns import stop_with_goal
+
+            # MUTATION: drop this call and test_chat_goal_rpc's pause-stops-the-run row reddens.
+            stop_with_goal(str(params.get("session_id")))
+        return ok(rid, reply)
     except WorkRefused as refusal:
         return err(rid, REFUSAL_CODES.get(refusal.reason, ERR_CONFLICT), "This goal request could not be accepted.",
                    {"reason": refusal.reason.value, "detail": refusal.detail})
