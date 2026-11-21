@@ -408,26 +408,23 @@ def _instance_created_reply(instance, *, office_seat, add_instance: bool, placem
 def _create_independent_instance(args, persona_id: str, *, placement_id, display_name: str, owner):
     """A new agent of its own from *persona_id*, under the name rule ``runtime.agent.create`` keeps."""
 
-    from agent_runtime.agent_duplicate import AGENT_NAME_LOCK
-    from agent_runtime.locks import agent_create_lock
-    from agent_runtime.persona_assignments.independent import create_independent_agent
+    from agent_runtime.agent_create import mint_new_agent
 
-    # The name rule ``runtime.agent.create`` keeps, under its lock:
-    # a new agent never takes a name an agent already has
-    # (RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION).
-    with agent_create_lock(AGENT_NAME_LOCK):
-        return create_independent_agent(
-            PersonaInstanceStore(),
-            source_persona_id=persona_id,
-            source_instance_id=safe_assignment_token(getattr(args, "source_instance_id", None)) or None,
-            placement_id=placement_id,
-            creation_key=safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or None,
-            display_name=display_name,
-            workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
-            realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
-            client_scope=owner,
-            refuse_taken_name=True,
-        )
+    # The one maker ``runtime.agent.create`` calls, with its name rule under its
+    # lock: a new agent never takes a name an agent already has
+    # (RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION; review w1118a.69: no door keeps
+    # its own lock-and-create).
+    return mint_new_agent(
+        PersonaInstanceStore(),
+        source_persona_id=persona_id,
+        source_instance_id=safe_assignment_token(getattr(args, "source_instance_id", None)) or None,
+        placement_id=placement_id,
+        creation_key=safe_assignment_text(getattr(args, "client_message_id", None), limit=200) or None,
+        display_name=display_name,
+        workspace_id=safe_assignment_token(getattr(args, "workspace_id", None)) or None,
+        realm_id=safe_assignment_token(getattr(args, "realm_id", None)) or None,
+        client_scope=owner,
+    )
 
 
 def _retired_assignment_lane_refusal(args, persona_id: str) -> int:

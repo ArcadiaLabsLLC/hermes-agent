@@ -345,7 +345,9 @@ def _read_create_record(path, *, digest: str) -> AgentCreateRecord:
         )
         if record.key_digest != digest:
             raise ValueError("key digest does not match receipt path")
-        if not all((record.persona_id, record.workspace_id, record.created_at)):
+        # ``workspace_id`` may be blank: an unseated create's receipt is keyed
+        # without one (RT-ONE-CREATE-VERB-MAKES-AN-AGENT-WITH-OR-WITHOUT-A-WORKSPACE).
+        if not all((record.persona_id, record.created_at)):
             raise ValueError("required field is blank")
         return record
     except AgentCreateReservationError:

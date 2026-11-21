@@ -1,7 +1,8 @@
 """``runtime.agent.create`` / ``place`` / ``retire`` / ``duplicate`` / ``delete`` — the agent lifecycle verbs,
 and ``idle_instances``, the reuse read a new chat asks before placing one more.
 
-``create`` makes a NEW agent (its own persona and profile) and seats it;
+``create`` makes a NEW agent (its own persona and profile) and seats it, or,
+with no ``workspace_id``, makes it unseated;
 ``place`` seats an EXISTING agent once more (one instance, no new persona or
 profile — owner 2026-11-19). Both are the one ``agent_create`` sequence.
 """
@@ -172,10 +173,19 @@ def _runtime_agent_create(
 ) -> dict:
     """ONE call places an agent: roster row, chat root and placement together.
 
-    Params: ``persona_id``, ``workspace_id``, ``idempotency_key`` and
-    ``display_name`` (required); ``position: [x, y]``, ``skills: [id, ...]``,
-    ``placement_id``, ``realm_id``, ``folder``, ``correlation_id`` (all
-    optional).
+    Params: ``persona_id``, ``idempotency_key`` and ``display_name``
+    (required); ``workspace_id``, ``position: [x, y]``, ``skills: [id, ...]``,
+    ``placement_id``, ``realm_id``, ``folder``, ``correlation_id``,
+    ``source_instance_id`` (all optional).
+
+    With NO ``workspace_id`` the agent is made and seated nowhere (row
+    ``RT-ONE-CREATE-VERB-MAKES-AN-AGENT-WITH-OR-WITHOUT-A-WORKSPACE``): the same
+    maker, name rule and idempotency receipt, no placement and no skills phase,
+    answering ``{persona_instance_id, persona_id, profile_id, display_name,
+    default_chat_session_id, phases: {instance_ms, total_ms},
+    idempotent_replay}`` with no placement fields. ``position``,
+    ``placement_id`` or ``skills`` sent with no workspace is refused -32602
+    ``workspace_id_required``.
 
     The new agent's name is its maker's: no (or a blank) ``display_name`` is
     refused -32602 ``{reason: agent_name_required, rolled_back: true}``, and a
