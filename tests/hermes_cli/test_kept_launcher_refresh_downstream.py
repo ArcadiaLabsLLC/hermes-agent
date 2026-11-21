@@ -184,3 +184,36 @@ def test_a_borrowing_home_never_binds_the_checkouts_launchers_to_its_own_interpr
         assert _launchers._launcher_python(_launcher_that_runs(local, name)) == owner_python, name
     assert not any(_launchers._launcher_python(path) == qa_python for path in local.iterdir()
                    if path.is_file())
+
+
+@pytest.mark.platforms("any")
+def test_a_borrowing_home_whose_stamp_names_its_own_store_publishes_nothing_on_the_owners_behalf(tmp_path, monkeypatch):
+    # The owner's interpreter is read through upstream's public ``resolve_store_python`` (no private
+    # reach, W0-G6). That door answers the stamp's store; a stamp naming another root's store must not
+    # pass for the owner's. Red when ``_publish_on_owner_store`` drops its ``owner / "tools"`` check:
+    # the borrower's interpreter is minted in the owner's name.
+    import json
+
+    from hermes_cli.kept_launcher_refresh import _publish_on_owner_store
+
+    repo = _make_repo(tmp_path)
+    owner_home, owner_python = _make_home(tmp_path, ".hermes")
+    qa_home, qa_python = _make_home(tmp_path, "qa")
+    (repo / "install-stamp.json").write_text(
+        json.dumps({"updateMechanism": "self", "runtimeDir": str(qa_home / "tools")}), encoding="utf-8")
+    local = repo / ".hermes" / "bin"
+    local.mkdir(parents=True)
+    _isolate(tmp_path, monkeypatch, qa_home)
+
+    assert _publish_on_owner_store("hermes", repo, local, owner_home) is None
+    assert not any(path.is_file() for path in local.iterdir())
+
+    # The stamp that names no store resolves to the owner's: published on the owner's interpreter.
+    (repo / "install-stamp.json").write_text(json.dumps({"updateMechanism": "self"}), encoding="utf-8")
+    from pm.environments import install_key
+
+    (owner_home / "installs" / install_key(repo)).mkdir(parents=True)
+    (owner_home / "installs" / install_key(repo) / "facts.json").write_text("{}", encoding="utf-8")
+    minted = _publish_on_owner_store("hermes", repo, local, owner_home)
+    assert minted is not None
+    assert _launchers._launcher_python(minted) == owner_python != qa_python

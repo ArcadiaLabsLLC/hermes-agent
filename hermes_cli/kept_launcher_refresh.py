@@ -53,8 +53,12 @@ def _publish_on_owner_store(name: str, root: Path, local: Path, owner: Path) -> 
     """*name* in the checkout's bin bound to *owner*'s store interpreter; None when it has none."""
     from hermes_cli import _launchers
 
-    python = _launchers._store_python(owner / "tools")
-    if python is None:
+    # The checkout's publication store is the owning root's ``tools/`` (``pm.environments.store_root``:
+    # a source stamp names no store, so the owner's is used) -- read through upstream's public door, and
+    # taken only when it IS that store: a tree whose stamp names another store, or none at all, would
+    # otherwise hand back the borrower's interpreter.
+    python = _launchers.resolve_store_python(root, publication=True)
+    if python is None or not _is_within(python, owner / "tools"):
         return None
     try:
         minted = _launchers.mint_launcher(name, root, local, python, None)
@@ -67,6 +71,13 @@ def _publish_on_owner_store(name: str, root: Path, local: Path, owner: Path) -> 
         except OSError:
             return None
     return minted
+
+
+def _is_within(path: Path, directory: Path) -> bool:
+    try:
+        return path.resolve().is_relative_to(directory.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
 
 
 def refresh_kept_launcher(name: str, root: Path, local: Path, kept: Path) -> Path:
