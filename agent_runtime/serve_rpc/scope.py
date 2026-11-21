@@ -16,6 +16,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "_runtime_realm_archive",
+    "_runtime_realm_create",
     "_runtime_realm_set_default",
     "_runtime_realm_unarchive",
     "_runtime_realm_use",
@@ -182,6 +183,33 @@ def _realm_manage(rid: Any, params: dict, verb: str) -> dict:
         code = _REALM_MANAGE_CODES.get(exc.reason.value, ERR_CONFLICT)
         return err(rid, code, "The realm was not changed.", {"reason": exc.reason.value, **exc.details})
     return ok(rid, dict(to_jsonable({**row, "changed": changed})))
+
+
+@method("runtime.realm.create", tier=TIER_CONSOLE)
+def _runtime_realm_create(
+    rid: Any, params: dict, context: RpcContext | None = None
+) -> dict:
+    """Create a local realm (argv twin ``harness realm create --name``; RT-EVERY-ACTION-ETERNIA-SENDS-HAS-A-TYPED-
+    CALL-ON-THE-RUNNING-HERMES).
+
+    Params: exactly ``name``. Result: the realm row (``scope_activation.realm_row``), as the argv verb prints
+    it. It moves no active pointer and binds no server. Refusal: ``invalid_request`` (-32602) for a missing or
+    blank name. Not replay-fenced, like the argv verb: a client sends it once (``neverAfterDispatch``).
+    """
+
+    from agent_runtime.scope_activation import realm_row
+    from agent_runtime.serde import to_jsonable
+    from agent_runtime.store import RealmStore
+
+    name = params.get("name") if isinstance(params, dict) else None
+    if set(params or {}) != {"name"} or not isinstance(name, str) or not name.strip():
+        return err(rid, ERR_INVALID_PARAMS, "A realm name is required.", {"reason": "invalid_request"})
+    try:
+        # MUTATION: pass ``server_id=name`` and test_realm_create_answers_a_local_realm reddens.
+        item = RealmStore().create(name=name)
+    except ValueError:
+        return err(rid, ERR_INVALID_PARAMS, "A realm name is required.", {"reason": "invalid_request"})
+    return ok(rid, dict(to_jsonable(realm_row(item))))
 
 
 @method("runtime.realm.archive", tier=TIER_CONSOLE)

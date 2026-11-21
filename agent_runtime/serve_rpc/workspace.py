@@ -1,5 +1,6 @@
 """Workspace setup and management over the existing store: the conversations home, the create door, the realm
-assign, the realm move and unarchive."""
+assign, the realm move, unarchive, and rename / archive / delete (RT-EVERY-ACTION-ETERNIA-SENDS-HAS-A-TYPED-CALL-ON-
+THE-RUNNING-HERMES: the argv verbs' typed twins, one implementation each in ``agent_runtime.workspace_manage``)."""
 from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, ERR_NOT_FOUND, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -78,6 +79,7 @@ def _manage(rid, keys, params, call, optional=frozenset()):
     plus its outcome flags, or the typed refusal on ``error.data`` (``reason`` and the refusal's details). A
     realm-sync refusal (the publish gate of a move out of a shared realm) answers the same shape, with
     ``RealmSyncError.code`` as the reason."""
+    from agent_runtime.errors import WorkspaceDeleteBlocked
     from agent_runtime.realm_sync import RealmSyncError
     from agent_runtime.serde import to_jsonable
     from agent_runtime.workspace_manage import WorkspaceManageRefused
@@ -92,7 +94,44 @@ def _manage(rid, keys, params, call, optional=frozenset()):
     except RealmSyncError as exc:
         return err(rid, ERR_CONFLICT, "The workspace was not changed.",
                    {"reason": exc.code, "retryable": bool(exc.retryable)})
+    except WorkspaceDeleteBlocked as exc:
+        # A delete guard: ``realm_default_workspace`` (+ ``realm_id``), ``workspace_boards_unreadable``
+        # (+ ``unreadable``) — the code the argv envelope carries, with its safe details.
+        return err(rid, ERR_CONFLICT, "The workspace was not changed.", {"reason": exc.code, **exc.safe_details})
     return ok(rid, dict(to_jsonable({**row, **flags})))
+
+
+@method("runtime.workspace.rename", tier=TIER_CONSOLE)
+def runtime_workspace_rename(rid, params, context=None):
+    """Rename a workspace (argv twin ``harness workspace rename``): ``{workspace_id, name}`` -> the workspace
+    row. Refusals: ``invalid_request`` (a blank name too), ``workspace_not_found``."""
+    from agent_runtime.workspace_manage import rename_workspace
+
+    # MUTATION: pass ``params["workspace_id"]`` as the name and test_rename_answers_the_renamed_row reddens.
+    return _manage(rid, {"workspace_id", "name"}, params,
+                   lambda: rename_workspace(params["workspace_id"], params["name"]))
+
+
+@method("runtime.workspace.archive", tier=TIER_CONSOLE)
+def runtime_workspace_archive(rid, params, context=None):
+    """Put a workspace away, reversibly (argv twin ``harness workspace archive --yes``): ``{workspace_id}`` ->
+    the full workspace row (``archived: true``). The confirm is the client's; the method is the acked intent.
+    Refusals: ``invalid_request``, ``workspace_not_found``. Local console only (``LOCAL_CONSOLE_METHODS``)."""
+    from agent_runtime.workspace_manage import archive_workspace
+
+    return _manage(rid, {"workspace_id"}, params, lambda: archive_workspace(params["workspace_id"]))
+
+
+@method("runtime.workspace.delete", tier=TIER_CONSOLE)
+def runtime_workspace_delete(rid, params, context=None):
+    """Delete a workspace for good (argv twin ``harness workspace delete --yes``): ``{workspace_id}`` -> the
+    store's delete row; deleting the active workspace moves the pointer to its realm's default. Refusals:
+    ``invalid_request``, ``workspace_not_found``, and the store's delete guards at 4090
+    (``realm_default_workspace`` + ``realm_id``, ``workspace_boards_unreadable`` + ``unreadable``). Local
+    console only (``LOCAL_CONSOLE_METHODS``)."""
+    from agent_runtime.workspace_manage import delete_workspace
+
+    return _manage(rid, {"workspace_id"}, params, lambda: delete_workspace(params["workspace_id"]))
 
 
 @method("runtime.workspace.unarchive", tier=TIER_CONSOLE)
