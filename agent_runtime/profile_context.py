@@ -286,7 +286,7 @@ def persona_profile_context(
         )
         rows_token = _PROFILE_CONTEXT_ROWS.set(tuple(rows))
         try:
-            with run_runtime_root_scope(resolved_root):
+            with run_runtime_root_scope(resolved_root), profile_secret_fallback(None):
                 yield
         finally:
             _PROFILE_CONTEXT_ROWS.reset(rows_token)
@@ -305,13 +305,53 @@ def persona_profile_context(
     auth_token = set_hermes_auth_home_override(head_auth_home or None)
     rows_token = _PROFILE_CONTEXT_ROWS.set(tuple(rows))
     try:
-        with run_runtime_root_scope(resolved_root):
+        with run_runtime_root_scope(resolved_root), profile_secret_fallback(binding.profile_home):
             yield
     finally:
         _PROFILE_CONTEXT_ROWS.reset(rows_token)
         reset_hermes_auth_home_override(auth_token)
         reset_hermes_home_override(token)
         reset_hermes_head_home(head_home_token)
+
+
+@contextmanager
+def profile_secret_fallback(profile_home: Path | str | None) -> Iterator[None]:
+    """The secrets an unscoped read in this run resolves from once the serve multiplexes.
+
+    The serve hosts the in-process turn engine (``operator_gateway_turn``, ``conversations/in_process_peer``):
+    the first session it opens on another profile's store flips the process to fail-closed multi-profile
+    hosting (``tui_gateway.server._profile_home`` -> ``activate_multi_profile_hosting``). From then on
+    ``get_secret`` raises ``UnscopedSecretError`` on every read with no secret scope bound, and a run's
+    work outside the engine's own turn (the runner's runtime resolve, provider refusal records) had none:
+    the turn after a helper's first turn on a second profile was refused "provider unavailable"
+    (RT-FU-A-HELPERS-FIXTURE-TURN-AND-A-QUEUED-FOLLOW-UP-ARE-REFUSED-AS-PROVIDER-UNAVAILABLE).
+
+    The run's profile owns its secrets, exactly as the engine binds them around its own turn
+    (``tui_gateway.model_switch._profile_runtime_scope_tokens``): the launch profile's own mapping for the
+    serve's home (``profile_home`` None), else that profile's own files (``owner_secret_scope``), never
+    another profile's and never the ambient ``os.environ``. It rides upstream's fail-closed fallback
+    (``agent.secret_scope.set_launch_body_scope``): consulted only while multiplexing is on and no scope is
+    bound, so a single-profile serve reads exactly what it read before and a bound scope still wins.
+    """
+
+    from agent.secret_scope import reset_launch_body_scope, set_launch_body_scope
+    from hermes_constants import get_process_hermes_home
+
+    home = Path(profile_home) if profile_home else get_process_hermes_home()
+    built: list[Any] = []
+
+    def resolve() -> Any:
+        if not built:
+            from tui_gateway.launch_profile_policy import owner_secret_scope
+
+            built.append(owner_secret_scope(home))
+        return built[0]
+
+    token = set_launch_body_scope(resolve)
+    try:
+        yield
+    finally:
+        reset_launch_body_scope(token)
 
 
 @contextmanager

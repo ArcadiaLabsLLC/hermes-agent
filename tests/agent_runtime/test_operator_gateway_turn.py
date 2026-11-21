@@ -333,3 +333,73 @@ def test_importing_the_engine_in_process_leaves_the_serves_stdout_alone(monkeypa
 
     assert imported == ["tui_gateway.server"]
     assert sys.stdout is serve_stdout
+
+
+# ── a second profile's turn on the engine reads its own secrets (RT-FU-A-HELPERS-FIXTURE-TURN-…) ──
+
+
+def _secret_probe(monkeypatch):
+    """Record what ``get_secret`` answers inside the run's scopes, wherever the run is."""
+    from agent.secret_scope import get_secret
+    from agent_runtime.profile_runner import execute
+
+    reads = []
+
+    def probe(request):
+        try:
+            reads.append((request.profile, get_secret("SW75_PROBE_SECRET")))
+        except Exception as exc:  # UnscopedSecretError: the run had no scope while the serve multiplexed
+            reads.append((request.profile, type(exc).__name__))
+
+    monkeypatch.setattr(execute, "refuse_an_unusable_chosen_credential", probe)
+    return reads
+
+
+def test_a_second_profiles_helper_turn_and_a_queued_follow_up_run_under_their_own_secrets(monkeypatch):
+    # The helper's chat lives in its own profile's store, so the engine opens a gateway session on that
+    # profile and the whole serve starts multiplexing (fail-closed ``get_secret``). Seen live: every
+    # later operator turn was refused "provider unavailable" with UnscopedSecretError.
+    # Red when ``persona_profile_context`` stops entering ``profile_secret_fallback`` (the reads raise
+    # UnscopedSecretError), and red when the fallback binds the launch profile for every run
+    # (``home = get_process_hermes_home()``: the helper's second turn then reads the launch profile's
+    # secret while its actor is acquired).
+    from agent.secret_scope import is_multiplex_active, set_multiplex_active
+    from hermes_cli.profiles import get_profile_dir
+    from hermes_constants import get_hermes_home
+    from hermes_state import SessionDB
+    from tui_gateway import launch_profile_policy, server
+
+    (get_hermes_home() / ".env").write_text("SW75_PROBE_SECRET=launch-value\n", encoding="utf-8")
+    helper_home = get_profile_dir("sw75helper")
+    helper_home.mkdir(parents=True)
+    (helper_home / "config.yaml").write_text("model:\n  default: m\n", encoding="utf-8")
+    (helper_home / ".env").write_text("SW75_PROBE_SECRET=helper-value\n", encoding="utf-8")
+    reads = _secret_probe(monkeypatch)
+    helper_db = SessionDB(db_path=helper_home / "state.db")
+    assert not is_multiplex_active()
+    try:
+        FakeAgent.response = None
+        helper = ProfileAgentRunner(agent_factory=_StackAgent, session_db=helper_db).run(AgentRunRequest(
+            profile="sw75helper", user_message="helper", root_chat_session_id="root_helper_chat",
+            session_id="root_helper_chat"))
+        assert helper.final_response == "ok"
+        assert is_multiplex_active(), "the helper's gateway session made the serve multiplex"
+        # The helper's next turn: its actor is acquired on this (serve) thread, outside the engine's
+        # own turn scope, so the run's fallback is what answers there.
+        again = ProfileAgentRunner(agent_factory=_StackAgent, session_db=helper_db).run(AgentRunRequest(
+            profile="sw75helper", user_message="helper again", root_chat_session_id="root_helper_chat_2",
+            session_id="root_helper_chat_2"))
+        assert again.final_response == "ok"
+        follow_up = _run("the queued follow-up", root_chat_session_id="root_lead_chat")
+        assert follow_up.final_response == "ok"
+    finally:
+        set_multiplex_active(False)
+        launch_profile_policy._snapshot = None
+        server._served_profile_homes.discard(helper_home)
+        helper_db.close()
+
+    assert reads, "the probe ran"
+    assert ("sw75helper", "helper-value") in reads, reads
+    assert (None, "launch-value") in reads, reads
+    assert not [value for _profile, value in reads if value == "UnscopedSecretError"], reads
+    assert ("sw75helper", "launch-value") not in reads, reads
