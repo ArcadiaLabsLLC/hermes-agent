@@ -13,6 +13,19 @@ from tools.agent_chat_tool import agent_chat_send
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
+#: The placed instances in reach. Reading the roster no longer mints the hidden copies, and a bare
+#: persona is no longer sent to one (RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED).
+QA = "personainst_qa_agent_2"
+DEV = "personainst_dev_agent_2"
+
+
+@pytest.fixture(autouse=True)
+def _placed():
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    mint_placed_instance("qa", display_name="QA Agent")
+    mint_placed_instance("dev", display_name="Dev Agent")
+
 
 @pytest.fixture
 def handled(monkeypatch):
@@ -34,7 +47,7 @@ def test_a_display_name_is_resolved_to_its_instance_handle(handled):
 
     data = json.loads(agent_chat_send(persona_id="  qa   AGENT ", message="hi"))
     assert data["ok"] is True
-    assert handled == [("personainst_qa", "personainst_qa")]
+    assert handled == [(QA, QA)]
 
 
 def test_an_unknown_name_is_refused_now_listing_the_addressable_handles(handled):
@@ -43,7 +56,7 @@ def test_an_unknown_name_is_refused_now_listing_the_addressable_handles(handled)
     data = json.loads(agent_chat_send(persona_id="QA Agent A", message="hi", wait=False))
     assert (data["ok"], data["error_kind"]) == (False, "unsupported_persona")
     handles = [row["handle"] for row in data["addressable"]]
-    assert "personainst_qa" in handles and "personainst_qa" in data["error"]
+    assert QA in handles and QA in data["error"]
     assert handled == []
 
 
@@ -63,7 +76,7 @@ def test_an_invented_profile_handle_is_refused_now_not_in_the_background(handled
         data = json.loads(agent_chat_send(persona_id=target, message="hi", wait=False))
         assert (data["ok"], data["error_kind"]) == (False, "unsupported_persona"), target
         assert "'charsheet' does not exist" in data["error"]
-        assert "personainst_qa" in [row["handle"] for row in data["addressable"]]
+        assert QA in [row["handle"] for row in data["addressable"]]
     assert handled == []
 
 
@@ -177,15 +190,15 @@ def test_a_send_to_the_sender_itself_is_refused_now(handled, on_chain):
 
 
 def test_a_bare_persona_that_resolves_onto_the_sender_is_refused_now(handled, on_chain):
-    """The cycle the bare key hides: ``dev`` names no instance, the turn's resolver lands it on the
-    canonical ``personainst_dev``, which is the sender. Admission runs the turn's instance resolution
+    """The cycle the bare key hides: ``dev`` names no instance, the turn's resolver lands it on dev's
+    one placement in reach, which is the sender. Admission runs the turn's instance resolution
     and ``bind_turn_instance``, not just the persona-keyed check. Killing mutation: drop the
     ``bind_turn`` step in ``chat_turn_target.admit_turn_target`` -> admitted, red."""
 
-    on_chain("personainst_dev")
+    on_chain(DEV)
     data = json.loads(agent_chat_send(persona_id="dev", message="hi"))
     assert (data["ok"], data["error_kind"]) == (False, "relay_cycle")
-    assert data["persona_instance_id"] == "personainst_dev"
+    assert data["persona_instance_id"] == DEV
     assert handled == []
 
 
@@ -199,7 +212,7 @@ def test_a_send_to_another_agents_unplaced_instance_still_goes_through(handled, 
 
 def test_admission_and_the_turn_refuse_with_the_same_words(on_chain):
     """One resolver: the refusal admission returns is the turn handler's own payload, for the cycle
-    only the instance resolution finds (a bare ``dev`` landing on the speaking ``personainst_dev``).
+    only the instance resolution finds (a bare ``dev`` landing on the speaking ``DEV`` placement).
     Killing mutation: ``admit_turn_target`` rewords ``bind_turn``'s refusal (a second judge's words)
     -> the texts part, red."""
 
@@ -208,7 +221,7 @@ def test_admission_and_the_turn_refuse_with_the_same_words(on_chain):
     from agent_runtime.mission_chat_door import TURN_TARGET_VERB, run_chat_verb, run_mission_chat_turn
 
     fields = dict(persona_id="dev", persona_instance_id=None, session_id=None,
-                  clarify_token=None, requested_by_session=None, relay_chain=["personainst_dev"])
+                  clarify_token=None, requested_by_session=None, relay_chain=[DEV])
     _, admitted = run_chat_verb(TURN_TARGET_VERB, SimpleNamespace(**fields))
     turn_args = SimpleNamespace(
         **fields, message="hi", new_session=None, task_id=None, goal_id=None, title=None, provider=None,
@@ -217,5 +230,5 @@ def test_admission_and_the_turn_refuse_with_the_same_words(on_chain):
         max_seconds=60.0, json=True, relay_deadline_epoch=None,
     )
     exit_code, turn = run_mission_chat_turn(turn_args)
-    assert exit_code == 2 and admitted["ok"] is False and turn["persona_instance_id"] == "personainst_dev"
+    assert exit_code == 2 and admitted["ok"] is False and turn["persona_instance_id"] == DEV
     assert (admitted["error_kind"], admitted["error"]) == (turn["error_kind"], turn["error"])

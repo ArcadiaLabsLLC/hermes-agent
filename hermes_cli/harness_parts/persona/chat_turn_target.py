@@ -21,8 +21,8 @@ The steps:
 1. :func:`resolve_turn_persona` — the canonical persona, the relay chain's depth / cycle / budget
    answer for what the caller named, and the configured persona.
 2. :func:`resolve_turn_instance` — the ambiguous-target guard and, for a send that names no session,
-   the instance the turn runs as (the caller's pin, the single in-scope placement, or the canonical
-   channel).
+   the instance the turn runs as (the caller's pin, the single in-scope placement, else the operator's
+   reuse-or-place or an agent's ``no_instance_in_scope`` refusal; never the hidden copy).
 3. :func:`bind_turn` — the chain re-keyed onto that instance; a target that lands on an instance
    already speaking on the chain (the sender itself included) is a ``relay_cycle``.
 
@@ -218,11 +218,23 @@ def resolve_turn_instance(
     relay_chain,
     requested_by_session: str | None,
     instance_read_epoch=None,
+    relay_chain_in=(),
+    place: bool = False,
 ) -> tuple[str | None, dict[str, Any] | None]:
-    """Step 2: ``(instance, None)`` or ``(None, the ambiguous-target refusal)``.
+    """Step 2: ``(instance, None)`` or ``(None, the handler's refusal)``.
 
     For a send that names no session, *instance* is the instance the turn runs as: the caller's pin,
-    else the single in-scope placement ("placements shadow canonical"), else the canonical channel.
+    else the single in-scope placement ("placements shadow canonical"). With none
+    (RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED), never the hidden copy:
+
+    - an AGENT's send (it names its own chat root, or arrives on a relay chain) is refused
+      ``no_instance_in_scope``, naming ``agent_add_instance``; an agent's send never places;
+    - the OPERATOR's own send runs hermes's one "reuse idle, else place in the Default workspace"
+      rule (``agent_create.staff.reuse_or_place``). ``place=False`` is the read-only admission:
+      it answers an idle instance, or ``None`` for "the turn places one".
+
+    A ``profile_<name>`` target keeps its profile channel (documented edge, not worked: a profile
+    persona is not placeable through ``runtime.agent.place``).
     For a send that names a session, *instance* is the pin (or ``None``): the session's owner decides.
     """
 
@@ -255,15 +267,39 @@ def resolve_turn_instance(
         return persona_instance_id, None
     # The omitted-session target: ONE instance identity for the turn (the instance
     # the root/mint resolves to is the one `open_chat` binds).
-    return (
-        persona_instance_id
-        or _mission_chat_bare_persona_target(
-            instance_store,
-            normalized_persona=normalized_persona,
-            requested_by_session=requested_by_session,
+    resolved = persona_instance_id or _mission_chat_bare_persona_target(
+        instance_store,
+        normalized_persona=normalized_persona,
+        requested_by_session=requested_by_session,
+    )
+    if resolved:
+        return resolved, None
+    if normalized_persona.startswith("profile_"):
+        return canonical_chat_instance_id(normalized_persona, None), None
+    if requested_by_session or tuple(relay_chain_in or ()):
+        # MUTATION: answer the hidden copy here and test_an_agents_send_to_an_unplaced_persona_is_refused reddens.
+        from agent_runtime.target_policy import NO_INSTANCE_IN_SCOPE
+
+        return None, _rejected(
+            NO_INSTANCE_IN_SCOPE,
+            f"'{normalized_persona}' has no instance in your workspace, so there is no one to send to. "
+            "Add one with agent_add_instance, or address an agent that is placed here.",
+            persona_id=normalized_persona, relay_chain=list(relay_chain or ()),
+            next_expected="call agent_add_instance for this agent, then send to the instance it returns",
         )
-        or canonical_chat_instance_id(normalized_persona, None)
-    ), None
+    from agent_runtime.agent_create.staff import reuse_or_place
+
+    # MUTATION: answer the hidden copy here and test_an_operator_bare_send_places_in_the_default_workspace reddens.
+    instance_id, refusal = reuse_or_place(normalized_persona, place=place)
+    if refusal is not None:
+        from agent_runtime.target_policy import NO_INSTANCE_IN_SCOPE
+
+        return None, _rejected(
+            NO_INSTANCE_IN_SCOPE, safe_assignment_text(refusal.get("message"), limit=400),
+            persona_id=normalized_persona, place_refused=refusal.get("reason"),
+            next_expected="place the agent in a workspace (runtime.agent.place), then send to it",
+        )
+    return instance_id, None
 
 
 def bind_turn(
@@ -316,11 +352,11 @@ def admit_turn_target(args) -> dict[str, Any]:
         instance_store=store, normalized_persona=target.normalized_persona,
         raw_persona_id=getattr(probe, "persona_id", None), persona_instance_id=pin,
         session_id=session_id, relay_chain=target.turn_relay_chain,
-        requested_by_session=requested_by_session,
+        requested_by_session=requested_by_session, relay_chain_in=target.relay_chain_in,
     )
     if refusal is not None:
         return refusal
-    if not session_id:
+    if not session_id and instance:
         refusal = _mission_chat_retired_target_refusal(
             store, persona_id=target.normalized_persona, persona_instance_id=instance)
         if refusal is not None:

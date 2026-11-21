@@ -8,6 +8,16 @@ from hermes_cli.harness_parts.persona import chat_turn_message
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
+
+@pytest.fixture(autouse=True)
+def _instances_in_reach():
+    """A bare persona send needs an instance in reach: it is no longer sent to the hidden copy
+    (RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED)."""
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    for persona_id in ("dev", "neko_supervisor"):
+        mint_placed_instance(persona_id)
+
 from agent_runtime.relay_policy import RELAY_CHAIN, RELAY_DEADLINE
 from tools.agent_chat_tool import (
     AGENT_CHAT_OPEN_SCHEMA,

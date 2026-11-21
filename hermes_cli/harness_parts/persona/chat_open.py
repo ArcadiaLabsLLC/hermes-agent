@@ -382,11 +382,25 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
     requested_instance_id = safe_assignment_token(
         getattr(args, "persona_instance_id", None)
     )
-    target_instance_id = (
-        canonical_persona_instance_id(requested_instance_id, persona_id=persona_id)
-        if requested_instance_id
-        else persona_instance_id_for(persona_id)
-    )
+    if requested_instance_id:
+        target_instance_id = canonical_persona_instance_id(requested_instance_id, persona_id=persona_id)
+    elif persona_id.startswith("profile_"):
+        target_instance_id = persona_instance_id_for(persona_id)  # a profile's channel (documented edge)
+    else:
+        # RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED: an operator's open that
+        # names only the agent runs the one "reuse idle, else place in the Default workspace" rule,
+        # never the hidden copy ``personainst_<persona>``.
+        # MUTATION: answer persona_instance_id_for here and test_an_operator_open_of_an_unplaced_agent_places_it reddens.
+        from agent_runtime.agent_create.staff import reuse_or_place
+
+        target_instance_id, refusal = reuse_or_place(persona_id)
+        if refusal is not None:
+            return _emit_persona_open_chat_error(
+                args, error_kind=ChatErrorKind.PERSONA_INSTANCE_NOT_FOUND,
+                error=f"no instance of {persona_id!r} could be placed: {refusal['message']}",
+                persona_id=persona_id,
+                next_expected="place the agent in a workspace (runtime.agent.place), then open its chat",
+            )
     store = PersonaInstanceStore()
     try:
         current = store.get(target_instance_id)

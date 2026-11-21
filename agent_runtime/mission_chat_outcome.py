@@ -301,7 +301,7 @@ DELEGATED_ERROR_KIND_SOURCES = {
         "relay_cycle",
         "relay_budget_exhausted",
     ),
-    "agent_runtime.target_policy": ("ambiguous_target",),
+    "agent_runtime.target_policy": ("ambiguous_target", "no_instance_in_scope"),
     "agent_runtime.persona_chat_mint": ("PersonaChatMintError.code",),
     # The dispatch DELIVERY QUEUE's own refusals, spoken only by
     # ``harness mission-chat dispatch redeliver``. They describe a queue row's

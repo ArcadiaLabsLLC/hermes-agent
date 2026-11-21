@@ -112,3 +112,35 @@ def mint_free_floating(
         instance.updated_at = now()
         store._write(instance)
     return store.get(instance_id)
+
+
+def mint_placed_instance(
+    persona_id: str,
+    *,
+    placement: str = "agent_2",
+    display_name: str | None = None,
+    workspace_id: str | None = None,
+    store: PersonaInstanceStore | None = None,
+) -> PersonaInstance:
+    """A placed (non-canonical) instance ``personainst_<persona>_<placement>`` for send tests.
+
+    Since RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED a bare persona send no
+    longer lands on the hidden copy ``personainst_<persona>``: it needs an instance in reach. With no
+    ``workspace_id`` the row is a runtime-global placement, in reach from every scope.
+    """
+
+    store = store or PersonaInstanceStore()
+    instance = PersonaInstance(
+        id=f"{persona_instance_id_for(persona_id)}_{placement}",
+        persona_id=persona_id,
+        role=persona_id,
+        display_name=display_name or persona_id,
+        profile_id=None,
+        runtime_root=str(paths.store_root()),
+        state=WorkerSessionState.IDLE,
+        mode="configured",
+        workspace_id=workspace_id,
+        updated_at=now(),
+    )
+    store._write(instance)
+    return store.get(instance.id)

@@ -50,7 +50,9 @@ def _addressable(requested_by_session):
     cfg = load_agent_runtime_config()  # the CLI lane's own read (``chat_turn_message``): one answer
     personas = list(ensure_persisted_personas(cfg))
     store = PersonaInstanceStore()
-    store.ensure_for_personas(personas)
+    # Reading the roster writes no row (RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED):
+    # it used to mint the scope's hidden copies as a side effect.
+    # MUTATION: call store.ensure_for_personas(personas) here and test_reading_the_addressable_roster_writes_no_row reddens.
     roster = workspace_scope.addressable_roster(
         store.list_all(),
         scope_workspace_id=sender_scope_workspace_id(requested_by_session, instance_store=store),
@@ -67,8 +69,7 @@ def resolve_send_target(persona_id: str, *, requested_by_session=None) -> tuple[
         # Judged on its own facts (the store and the profiles folder), never deferred for an empty
         # roster: a namespace whose only agent is the sender has no teammates to list, and that is
         # exactly where an invented handle was accepted live (2026-11-15, w1115e-h4). The roster is
-        # read only to word a refusal: reading it mints the scope's canonical rows, which a send to a
-        # reachable handle never did.
+        # read only to word a refusal.
         # The clean handle is what is judged AND what is sent on (``lane._instance_handle``, the one
         # spelling owner): a model writes "@personainst_…".
         why = _unreachable_handle(handle)
