@@ -645,6 +645,11 @@ def _make_agent(
     synthetic = maybe_build_synthetic_agent(session_id or key, model_override)
     if synthetic is not None:
         return synthetic
+    # Fork seam (one turn engine): a Mission Control chat's session is built by its own lane, before any
+    # model resolution here (``agent_runtime.operator_gateway_turn``); None for every other session.
+    from agent_runtime.conversations.worker_app_functions import operator_agent
+    if (operator := operator_agent(sid, platform_override)) is not None:
+        return operator
     from agent.onboarding_session import onboarding_toolsets
     from run_agent import AIAgent
     # MCP discovery runs in a daemon thread (a dead server can't freeze the shell); the agent snapshots its tool

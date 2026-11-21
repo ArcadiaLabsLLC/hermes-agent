@@ -223,13 +223,18 @@ def reset(token):
     app.reset_launcher_link(token)
 
 
-def create_agent(factory, sid, session, **kwargs):
-    """Snapshot tools before the first prompt; later turns retain that prefix."""
+def operator_agent(sid, source):
+    """A Mission Control chat's agent, built by its own lane (``agent_runtime.operator_gateway_turn``),
+    or None: ``tui_gateway.agent_factory._make_agent`` asks before it resolves a model of its own."""
     from agent_runtime import operator_gateway_turn
 
-    if operator_gateway_turn.is_operator(session):
-        # A Mission Control chat's session: its own lane builds the agent (one turn engine).
-        return operator_gateway_turn.construct(sid, session)
+    if not operator_gateway_turn.is_operator({"source": source}):
+        return None
+    return operator_gateway_turn.construct(sid)
+
+
+def create_agent(factory, sid, session, **kwargs):
+    """Snapshot tools before the first prompt; later turns retain that prefix."""
     if not enabled(session):
         close(session)
         return factory(**kwargs)

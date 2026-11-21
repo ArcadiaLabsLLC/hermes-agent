@@ -113,8 +113,9 @@ def is_operator(session: dict | None) -> bool:
 # ── the gateway seam ────────────────────────────────────────────────────────
 
 
-def construct(sid: str, session: dict) -> Any:
-    """Build an operator session's agent (``worker_app_functions.create_agent``'s operator branch).
+def construct(sid: str) -> Any:
+    """Build an operator session's agent (the gateway's ``_make_agent`` asks ``worker_app_functions.
+    operator_agent`` first).
 
     The build is the execution that asked for the session (:func:`open_actor`), so the agent is the
     one ``AgentRunExecution.construct_agent`` builds on the runner path, under the same scopes.
@@ -137,10 +138,14 @@ def construct(sid: str, session: dict) -> Any:
 
 def pin_session(session: dict | None) -> None:
     """Before an operator session's turn (``worker_app_functions.bind``): its agent runs the model the
-    operator lane resolved, so the gateway's per-turn config-model sync must leave it where it is."""
+    operator lane resolved, so the gateway's per-turn config-model sync must leave it where it is, and the
+    gateway's first-contact onboarding note stays out of it."""
 
     if not is_operator(session):
         return
+    # The operator lane builds its own turn context (Eternia's onboarding, not the install's first-message
+    # note), and that note's latch would write the store home's config.yaml on a fresh store.
+    session["first_contact_owned"] = True
     agent = session.get("agent")
     if agent is not None:
         session["model_override"] = {"model": getattr(agent, "model", None),
@@ -261,7 +266,7 @@ def inline_turn(request: Any) -> _Inline | None:
     inline = _inline_turn.get()
     if inline is None or inline.outcome is not None:
         return None
-    if request.session_id not in {inline.key, getattr(inline.agent, "session_id", None)}:
+    if not request.session_id or request.session_id not in {inline.key, getattr(inline.agent, "session_id", None)}:
         return None
     return inline
 
@@ -288,7 +293,7 @@ def _take(sid: str, message: Any) -> _Turn | None:
 # ── the actor: a gateway session per chat root ──────────────────────────────
 
 
-def _call(home: Path, method: str, params: dict, *, timeout: float = 60) -> dict:
+def _gateway_call(home: Path, method: str, params: dict, *, timeout: float = 60) -> dict:
     """One gateway request; a refusal is the runner's typed error, naming what the gateway said."""
 
     from agent_runtime.conversations.model import ConversationError
@@ -381,27 +386,29 @@ class _SessionActor:
 def open_actor(execution: Any) -> Any:
     """Open the chat's gateway session, building its agent through ``execution``; return the agent.
 
-    The session is resumed on the chat's native tip (the session the turn's rows go to), so the
-    gateway's submit row and history are the turn's own.
+    The session is resumed on the chat's native tip (the session the turn's rows go to), in the store
+    that holds it, so the gateway's session key, history and goal are the chat's own. A run that names
+    no session gets one minted, as the agent would have minted it.
     """
 
-    from agent_runtime.profile_runner.errors import ProfileRunnerError
+    import uuid
 
     request = execution.request
-    tip = request.session_id or request.root_chat_session_id
-    if not tip:
-        raise ProfileRunnerError("an operator turn on the gateway engine needs its chat session")
+    # A run on no session (no chat) still needs a gateway session to run on; its agent keeps minting
+    # its own transcript id, as it always has.
+    tip = request.session_id or request.root_chat_session_id or f"operator_{uuid.uuid4().hex[:16]}"
+    home = _store_home(execution)
+    _ensure_session_row(execution, home, tip)
     with _lock:
         previous = _actors.pop(tip, None)
     if previous is not None:
         # One session per key: the gateway would hand the old one back (a fresh-actor turn, or a
         # rebuild whose old actor the registry retires after its factory returns).
         close_actor(previous)
-    home = _store_home(execution)
     build = _Build(execution)
     token = _building.set(build)
     try:
-        result = _call(home, "session.resume", {"session_id": tip, "source": OPERATOR_SOURCE,
+        result = _gateway_call(home, "session.resume", {"session_id": tip, "source": OPERATOR_SOURCE,
                                                 "eager_build": True, "omit_messages": True}, timeout=600)
     finally:
         _building.reset(token)
@@ -409,7 +416,7 @@ def open_actor(execution: Any) -> Any:
     sid = str(result.get("session_id") or "")
     if agent is None or getattr(agent, "_operator_gateway_sid", None) != sid:
         with contextlib.suppress(Exception):
-            _call(home, "session.close", {"session_id": sid})
+            _gateway_call(home, "session.close", {"session_id": sid})
         raise ProfileRunnerError("the gateway reused a session this turn did not build")
     actor = _SessionActor(sid, tip, home, request.root_chat_session_id)
     with _lock:
@@ -424,6 +431,29 @@ def open_actor(execution: Any) -> Any:
     agent.close = close
     agent._operator_gateway_actor = actor
     return agent
+
+
+def _ensure_session_row(execution: Any, home: Path, tip: str) -> None:
+    """The tip's row in its store: the gateway resumes only a stored session. An operator chat's root is
+    minted with its row (``persona_chat_continuity.mint_receipts``); a run on a session nothing minted
+    gets the row the agent would write at its first message."""
+
+    from agent_runtime.persona_runtime import PERSONA_CHAT_SCRATCH_SOURCE
+
+    db = getattr(execution.runner, "_session_db", None)
+    owned = None
+    if db is None:
+        from hermes_state_registry import acquire
+
+        db = owned = acquire(home / "state.db")
+    try:
+        if not db.get_session(tip):
+            db.create_session(tip, source=PERSONA_CHAT_SCRATCH_SOURCE)
+    finally:
+        if owned is not None:
+            from hermes_state_registry import release_or_close
+
+            release_or_close(owned)
 
 
 def close_actor(actor: _SessionActor) -> None:
@@ -470,7 +500,7 @@ def run_turn(execution: Any, agent: Any) -> tuple[Any, Any, dict]:
         else:
             turn.released.set()
     try:
-        reply = _call(actor.home, "prompt.submit", {"session_id": actor.sid, "text": "", "queued": True})
+        reply = _gateway_call(actor.home, "prompt.submit", {"session_id": actor.sid, "text": "", "queued": True})
     except BaseException:
         _withdraw(actor.sid, turn)
         raise

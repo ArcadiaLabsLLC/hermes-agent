@@ -1112,28 +1112,36 @@ def test_progress_adapter_reads_reasoning_text_from_structured_callback_shape():
 
 class SlowInterruptibleAgent(FakeAgent):
     interrupted = False
+    ran_for = None
 
     def interrupt(self, message=None):
         type(self).interrupted = True
 
     def run_conversation(self, user_message, system_message=None, task_id=None):
-        deadline = time.monotonic() + 0.25
-        while time.monotonic() < deadline:
-            if type(self).interrupted:
-                return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
-            time.sleep(0.005)
-        return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
+        started = time.monotonic()
+        deadline = started + 0.25
+        try:
+            while time.monotonic() < deadline:
+                if type(self).interrupted:
+                    return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
+                time.sleep(0.005)
+            return super().run_conversation(user_message, system_message=system_message, task_id=task_id)
+        finally:
+            type(self).ran_for = time.monotonic() - started
 
 
 def test_runner_interrupts_agent_when_wall_clock_budget_exceeded():
+    # The turn runs on the chat's gateway session (one turn engine), whose open is not the agent's run:
+    # the bound is on the agent's own run, which goes the full 0.25 s unless the budget interrupts it.
+    # Red when the wall checkpoint stops interrupting the agent (RunBudgetExceeded still raised after it).
     SlowInterruptibleAgent.interrupted = False
+    SlowInterruptibleAgent.ran_for = None
     runner = ProfileAgentRunner(agent_factory=SlowInterruptibleAgent)
 
-    started = time.monotonic()
     with pytest.raises(RunBudgetExceeded, match="wall_seconds=0.01"):
         runner.run(AgentRunRequest(profile=None, user_message="hi", max_wall_seconds=0.01))
 
-    assert time.monotonic() - started < 0.2
+    assert SlowInterruptibleAgent.ran_for is not None and SlowInterruptibleAgent.ran_for < 0.2
     assert SlowInterruptibleAgent.interrupted is True
 
 

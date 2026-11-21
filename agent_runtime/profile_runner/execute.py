@@ -472,6 +472,9 @@ class AgentRunExecution:
         #: The chat's actor, handed in by the gateway's turn door (``operator_gateway_turn``): this
         #: run converses with it instead of acquiring one.
         self.given_agent: Any = None
+        #: The acquisition this turn's actor came from (``ProfileAgentRunner._converse``): its runtime
+        #: resolve and its actor facts are this run's, so neither is paid twice.
+        self.acquired: AgentRunExecution | None = None
 
     # ── the run ─────────────────────────────────────────────────────────────
 
@@ -638,6 +641,12 @@ class AgentRunExecution:
 
     def resolve_runtime(self) -> None:
         request, timing = self.request, self.timing
+        if self.acquired is not None:
+            self.runtime = dict(self.acquired.runtime)
+            for name in ("runtime_resolve_ms", "runtime_resolve_cached"):
+                if name in self.acquired.timing:
+                    timing[name] = self.acquired.timing[name]
+            return
         try:
             runtime_started = time.perf_counter()
             self.runtime = _resolve_request_runtime(request, timing)
@@ -841,11 +850,17 @@ class AgentRunExecution:
     def acquire_agent(self) -> None:
         request, timing = self.request, self.timing
         if self.given_agent is not None:
-            # The gateway's turn door hands the chat's actor in: refresh it as a reused one.
+            # The gateway's turn door hands the chat's actor in: refresh it as a reused one. What the
+            # acquisition learned about it (built or reused, why rebuilt) is this turn's to report.
             self.agent = self.given_agent
             _prepare_resident_persona_chat_agent(self.agent, self.turn_state)
             self.agent.reasoning_config = self.reasoning_kwargs.get("reasoning_config")
             self.apply_chat_speed(self.agent)
+            acquired = self.acquired.timing if self.acquired is not None else {}
+            for name, value in acquired.items():
+                if name in {"agent_construct_ms", "resident_actor_reused", "resident_registry_absent"} \
+                        or name.startswith("resident_rebuild_"):
+                    timing[name] = value
             timing.setdefault("resident_actor_reused", 1)
             return
         if request.persona_chat_runtime_registry is None or not request.root_chat_session_id:

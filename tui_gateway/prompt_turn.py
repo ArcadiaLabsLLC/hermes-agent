@@ -648,6 +648,8 @@ def _stage_first_contact_onboarding_note(session: dict, agent, history_empty: bo
     invariant). Fires at most once per install: the directive path persists
     ``onboarding.seen.profile_build_offered`` before the turn runs.
     """
+    if session.get("first_contact_owned"):  # fork seam: a lane that owns its own turn context (agent_runtime.operator_gateway_turn)
+        return
     try:
         from agent.onboarding import first_contact_turn_note
         from hermes_cli.config import load_config as _load_onboarding_config

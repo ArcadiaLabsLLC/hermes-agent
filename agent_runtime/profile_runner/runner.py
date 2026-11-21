@@ -213,7 +213,8 @@ class ProfileAgentRunner:
         acquisition = AgentRunExecution(self, binding, request, ledger=RunBudgetLedger())
         agent = acquisition.acquire_actor()
         execution = AgentRunExecution(self, binding, request, ledger=ledger)
-        execution.timing.update(acquisition.timing)
+        # One resolve per turn: the turn converses on the runtime its actor was acquired for.
+        execution.acquired = acquisition
         return operator_gateway_turn.run_turn(execution, agent)
 
     def _admit_mcp_servers(
