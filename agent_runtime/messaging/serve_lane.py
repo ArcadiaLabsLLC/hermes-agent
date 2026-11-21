@@ -138,23 +138,34 @@ def _refused_at_intake(platform: Platform) -> Callable[[str, str, str], None]:
     return record
 
 
+#: upstream's platform-registry name for Telegram.
+TELEGRAM_PLATFORM = "telegram"
+
+
 def _telegram_upstream(token: str, scope: Callable[[], Any]) -> Transport:
     """Upstream's Telegram adapter as a plain pipe: no ``GatewayRunner``, the fork's operator list at its
     intake gate, its typing refresh off (the bridge sends its own), a local Bot API when
     :func:`telegram_api_base` names one (the adapter's own ``base_url``, which it honours for a self-hosted
-    telegram-bot-api)."""
+    telegram-bot-api).
+
+    The adapter comes through upstream's discovery door — the platform plugin registers itself and
+    ``platform_registry.create_adapter`` builds it — never by naming the plugin's module (upstream's
+    boundary lint; row RT-FU-THE-FORK-PLUGINS-REACH-HERMES-CORE-ONLY-THROUGH-ITS-PUBLIC-DOORS). The
+    registry runs the plugin's own lazy installer when python-telegram-bot is absent (an opt-in extra)."""
     from gateway.config import PlatformConfig
-    from plugins.platforms.telegram.adapter import TelegramAdapter, check_telegram_requirements
+    from gateway.platform_registry import platform_registry
+    from hermes_cli.plugins import discover_plugins
 
     from .approvals import CALLBACK_PREFIX
     from .operators import OperatorStore
     from .upstream_adapter_transport import TelegramUpstreamAdapterTransport
 
-    if not check_telegram_requirements():  # python-telegram-bot is an opt-in extra, installed on first use
-        raise RuntimeError("python-telegram-bot is not installed and could not be installed")
     base = telegram_api_base()
-    adapter = TelegramAdapter(PlatformConfig(enabled=True, token=token, typing_indicator=False,
-                                             extra={"base_url": f"{base}/bot"} if base else {}))
+    discover_plugins()  # idempotent: the Telegram platform plugin registers its entry
+    adapter = platform_registry.create_adapter(TELEGRAM_PLATFORM, PlatformConfig(
+        enabled=True, token=token, typing_indicator=False, extra={"base_url": f"{base}/bot"} if base else {}))
+    if adapter is None:  # MUTATION: drop this guard and test_a_missing_telegram_library_starts_nothing reds
+        raise RuntimeError("Telegram's platform plugin could not build an adapter (python-telegram-bot missing?)")
     return TelegramUpstreamAdapterTransport(
         adapter, press_prefix=CALLBACK_PREFIX, scope=scope,
         is_allowed=lambda user_id: OperatorStore().is_allowed(Platform.TELEGRAM, user_id),
