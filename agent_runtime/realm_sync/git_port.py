@@ -131,6 +131,9 @@ class SyncGit(Protocol):
     def read_tree_at(self, sha: str, rel: str, dest: Path) -> Path | None:
         """Write commit ``sha``'s ``rel`` subtree under ``dest`` and return where it is; ``None`` when ``sha``
         carries no ``rel``. No ref moves."""
+    def changed_between(self, old: str, new: str, subtree: str) -> tuple[str, ...]:
+        """The file paths under ``subtree`` that commit ``new``'s tree holds differently from ``old``'s: added,
+        changed and deleted, renames as a delete and an add. Sorted; empty when either names no commit."""
 
     # -- the working tree and the index ------------------------------------------------------
     def is_tracked(self, path: str) -> bool: ...

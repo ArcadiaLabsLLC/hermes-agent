@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 from .. import paths
 from ..models import Realm, Workspace
 from ..store import RealmStore, skill_tombstoned
-from .families import SyncFamily
+from .families import SyncFamily, _is_hard_excluded_path, _kind_for_sync_path, is_secretish_path
 from .models import RealmMembershipProvider, RealmSyncError, _safe_display_path
 from .ledgers import _skill_tombstone_rows
 from .host_refusal import host_refusal_reported, report_host_refusal
@@ -24,6 +24,7 @@ from .git import (
     _refresh_remote_tracking,
     _sync_repo_path,
     _sync_state,
+    sync_git,
 )
 from .publish_scans import _level_publish_scan, _map_publish_scan, _office_publish_scan, _prefab_publish_scan
 from .artifacts import (
@@ -198,6 +199,11 @@ def realm_sync_status(
         # int above it said nothing was counted after every Check now. The int
         # stays for older readers.
         "artifact_counts": artifact_kind_counts(artifacts),
+        # Additive: what a pull would change, by kind — the realm artifacts the team's copy
+        # (``@{u}``, refreshed above) holds differently since this clone's merge base with it,
+        # deletions included (RT-FU-A-REALM-STATUS-SAYS-WHAT-A-PULL-WOULD-CHANGE). ``artifact_counts``
+        # keeps its meaning (the whole realm, for the sheet); Eternia's update banner reads this.
+        "incoming_artifact_counts": _incoming_artifact_counts(repo, realm.id),
         # When this realm was last checked: the stamp this read just wrote to the
         # sidecar (RT-REALM-SYNC-STATUS-CARRIES-CHECKED-AT). Without it Eternia's
         # "Last checked" went blank after every Check now.
@@ -255,6 +261,37 @@ def realm_sync_status(
         # USER PREFABS: the same row, the same absent-tolerant contract.
         "prefabs": prefab_row,
     }
+
+
+def _incoming_artifact_counts(repo: Path, realm_id: str) -> dict[str, int]:
+    """How many realm artifacts of each kind a pull would add, change or delete: the realm subtree's paths
+    ``HEAD...@{u}`` changes, classified by the one path table (``families._kind_for_sync_path``), the paths
+    the pull refuses left out, and a skill counted once per package. Counts only: the remote's paths are
+    untrusted and never leave this function. No upstream, or no merge base with it, answers ``{}``; a fetch
+    that failed answers from the last fetched ref, as ``ahead``/``behind`` do. A clone holding a team commit
+    the store has not adopted (``behind`` 0) answers ``{}`` too (documented, not worked: review w1118a.72)."""
+
+    git = sync_git(repo)
+    upstream = git.upstream()
+    base = git.merge_base("HEAD", upstream) if upstream else None
+    if base is None:
+        return {}
+    prefix = _realm_subtree(repo, realm_id).relative_to(repo).as_posix() + "/"
+    counts: dict[str, int] = {}
+    skills: set[str] = set()
+    for path in git.changed_between(base, upstream, prefix):
+        rel = path[len(prefix):]
+        if not path.startswith(prefix) or is_secretish_path(rel) or _is_hard_excluded_path(rel):
+            continue
+        kind = _kind_for_sync_path(rel)
+        if kind == SyncFamily.SKILL:
+            # MUTATION: count every skill file and test_a_three_file_skill_change_counts_one_skill reddens.
+            package = rel.split("/")[1] if rel.count("/") >= 1 else rel
+            if package in skills:
+                continue
+            skills.add(package)
+        counts[str(kind)] = counts.get(str(kind), 0) + 1
+    return counts
 
 
 def _behind_until_adopted(state: str, workspace_statuses: list[dict]) -> tuple[str, list[dict]]:
