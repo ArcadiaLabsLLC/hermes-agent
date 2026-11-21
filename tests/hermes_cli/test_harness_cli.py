@@ -28,6 +28,7 @@ from hermes_cli.harness_parts import agent_commands
 from hermes_cli.harness_parts import doctor_commands
 from hermes_cli.harness_parts import init_commands
 from hermes_cli.harness_parts import workspace_commands
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def parser():
@@ -343,7 +344,6 @@ def test_harness_init_human_branch_states_when_no_personas_are_provisioned(monke
     monkeypatch.setattr(init_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(workspace_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(chat_target, "ensure_persisted_personas", lambda cfg: [])
-    monkeypatch.setattr(chat_turn_message, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(inspect_commands, "ensure_persisted_personas", lambda cfg: [])
     monkeypatch.setattr(
         init_commands,
@@ -778,7 +778,7 @@ def _seed_rebind_fixture(tmp_path, monkeypatch):
             hermes_profile="alpha",
         )
     )
-    PersonaInstanceStore().ensure_for_persona(persona)
+    mint_hidden_copy(store=PersonaInstanceStore(), persona=persona)
     return persona
 
 

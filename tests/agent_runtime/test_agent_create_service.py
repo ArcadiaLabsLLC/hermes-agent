@@ -22,6 +22,7 @@ from agent_runtime import paths
 from agent_runtime.agent_create import perform_agent_create
 from tests.agent_runtime.office_seed import seed_workspace_record
 from tests._downstream.split_package_source import patch_where_bound
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 WORKSPACE = "ws_agent_create_service"
 
@@ -1957,7 +1958,7 @@ def test_a_new_agent_copies_portable_settings_into_its_own_profile(qa_persona):
     assert persona.hermes_profile == first["profile_id"]
     assert persona.skills == ["example-skill"]
     assert persona.repo_scope is None
-    observed = PersonaInstanceStore().ensure_for_personas([persona])
+    observed = _ensure_hidden_copies(PersonaInstanceStore(), [persona])
     assert [row.id for row in observed if row.persona_id == persona.id] == [instance.id]
     home = get_profile_dir(first["profile_id"])
     assert (home / "SOUL.md").read_text() == "An original soul."
@@ -1967,3 +1968,12 @@ def test_a_new_agent_copies_portable_settings_into_its_own_profile(qa_persona):
     assert not (home / "memories" / "MEMORY.md").exists()
     (home / "SOUL.md").write_text("Independent soul.", encoding="utf-8")
     assert (source / "SOUL.md").read_text() == "An original soul."
+
+
+def _ensure_hidden_copies(store, personas, **_):
+    from agent_runtime.persona_lifecycle import is_independent_agent_persona, is_runtime_persona
+
+    for persona in personas:
+        if is_runtime_persona(persona) and not is_independent_agent_persona(persona):
+            mint_hidden_copy(persona, store=store)
+    return store.list_all()

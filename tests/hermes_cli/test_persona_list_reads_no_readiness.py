@@ -34,6 +34,7 @@ from pathlib import Path
 import pytest
 
 from hermes_cli.harness import build_parser
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 GOLDEN = Path(__file__).resolve().parents[1] / "fixtures" / "persona_list_wire.json"
 _TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:\d{2})?$")
@@ -95,7 +96,7 @@ def roster_home(tmp_path, monkeypatch):
     ]
     store = AgentStore()
     for persona in personas:
-        PersonaInstanceStore().ensure_for_persona(store.save(persona))
+        mint_hidden_copy(store=PersonaInstanceStore(), persona=store.save(persona))
     return home
 
 

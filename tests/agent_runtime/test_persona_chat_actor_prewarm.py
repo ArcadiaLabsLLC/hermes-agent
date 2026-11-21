@@ -52,6 +52,7 @@ from agent_runtime.profile_runner import (
     ProfileRunnerError,
     agent_runs_in_flight,
 )
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 # ── fakes ────────────────────────────────────────────────────────────────────
@@ -331,7 +332,7 @@ def _live_chat_root(persona_id: str = "dev") -> tuple[str, object, object]:
     from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 
     store = PersonaInstanceStore()
-    store.ensure_for_personas(ensure_persisted_personas(load_agent_runtime_config()))
+    _ensure_hidden_copies(store, ensure_persisted_personas(load_agent_runtime_config()))
     instance = store.get(instance.id)
     return instance.default_chat_session_id, instance, session_db
 
@@ -1631,3 +1632,12 @@ def test_one_prepare_resolves_the_turn_workspace_once(
     prewarm_module._prepare(root, None)
 
     assert len(loads) == 1, f"the slot context was loaded {len(loads)} times in one prepare"
+
+
+def _ensure_hidden_copies(store, personas, **_):
+    from agent_runtime.persona_lifecycle import is_independent_agent_persona, is_runtime_persona
+
+    for persona in personas:
+        if is_runtime_persona(persona) and not is_independent_agent_persona(persona):
+            mint_hidden_copy(persona, store=store)
+    return store.list_all()

@@ -2351,18 +2351,18 @@
       ]
     },
     {
-      "id": "ir-h4-canonical-rows-enter-the-drift-walk",
+      "id": "ir-h4-adopted-rows-enter-the-drift-walk",
       "path": "agent_runtime/realm_sync/drift.py",
       "symbol": "_persona_instance_store_drift_items",
-      "operator": "stop-excluding-canonical-channels",
-      "find": "        if is_canonical_persona_channel(instance):\n            continue",
+      "operator": "stop-excluding-adopted-rows",
+      "find": "        if is_adopted_local_instance(instance):  # machine-local, as the hidden copy it was\n            continue",
       "replace": "        if False:\n            continue",
       "test": [
         "{python}",
         "-m",
         "pytest",
         "-q",
-        "tests/agent_runtime/test_persona_instance_drift.py::test_a_canonical_channel_is_never_reported_as_drift"
+        "tests/agent_runtime/test_persona_instance_drift.py::test_an_adopted_machine_local_row_is_never_reported_as_drift"
       ]
     },
     {

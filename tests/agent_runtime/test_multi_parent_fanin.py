@@ -22,6 +22,7 @@ from hermes_cli.harness_parts.persona import (
     lifecycle_commands,
     model_and_skills_commands,
 )
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def _persona(persona_id: str = "dev") -> AgentPersona:
@@ -44,7 +45,7 @@ def _assignment_config() -> AgentRuntimeConfig:
 
 
 def _make(store: PersonaInstanceStore, persona_id: str, *, goal_id: str = "g1") -> PersonaInstance:
-    instance = store.ensure_for_persona(_persona(persona_id))
+    instance = mint_hidden_copy(store=store, persona=_persona(persona_id))
     instance.goal_id = goal_id
     return store.update(instance)
 
@@ -287,9 +288,9 @@ def test_cli_steer_verbs_and_json_shape(monkeypatch, capsys):
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", _assignment_config)
     monkeypatch.setattr(model_and_skills_commands, "load_agent_runtime_config", _assignment_config)
     store = PersonaInstanceStore()
-    store.ensure_for_persona(_persona("qa"))
-    store.ensure_for_persona(_persona("dev"))
-    store.ensure_for_persona(_persona("backend_dev"))
+    mint_hidden_copy(store=store, persona=_persona("qa"))
+    mint_hidden_copy(store=store, persona=_persona("dev"))
+    mint_hidden_copy(store=store, persona=_persona("backend_dev"))
     child, p1, p2 = "personainst_qa", "personainst_dev", "personainst_backend_dev"
 
     # --set-parents: declarative replace (fan-in).

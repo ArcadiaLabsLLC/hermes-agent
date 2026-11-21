@@ -7,6 +7,7 @@ from agent_runtime.events import EventLog
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from tests.agent_runtime.persona_samples import sample_personas
 from hermes_cli.harness_parts.persona import instance_commands
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def _persona(persona_id: str):
@@ -27,8 +28,8 @@ def test_return_summary_posts_bounded_parent_message_and_records_lineage():
     # database, not in a profile-scoped one (defect D2,
     # docs/agent-runtime-harness/archive/2026-08-22-pre-consolidation/chat-session-presence-authority.md).
     store = PersonaInstanceStore()
-    parent = store.ensure_for_persona(_persona("neko_supervisor"))
-    child = store.ensure_for_persona(_persona("dev"))
+    parent = mint_hidden_copy(store=store, persona=_persona("neko_supervisor"))
+    child = mint_hidden_copy(store=store, persona=_persona("dev"))
     child = store.set_parents(child.id, [parent.id], goal_id="task_r3")
     summary = "R3 continuity proof " + ("x" * (SUMMARY_LIMIT + 200))
     proof_ids = [f"proof_{idx}_{'p' * 200}" for idx in range(20)]
@@ -84,7 +85,7 @@ def test_return_summary_cli_uses_first_class_primitive(tmp_path, monkeypatch, ca
     """
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
-    child = PersonaInstanceStore().ensure_for_persona(_persona("dev"))
+    child = mint_hidden_copy(store=PersonaInstanceStore(), persona=_persona("dev"))
 
     code = instance_commands._cmd_persona_instance_return_summary(
         SimpleNamespace(
@@ -121,8 +122,8 @@ def test_returned_summary_reaches_the_parent_thread_live_log():
     reset_chat_live_log_state()
     try:
         store = PersonaInstanceStore()
-        parent = store.ensure_for_persona(_persona("neko_supervisor"))
-        child = store.ensure_for_persona(_persona("dev"))
+        parent = mint_hidden_copy(store=store, persona=_persona("neko_supervisor"))
+        child = mint_hidden_copy(store=store, persona=_persona("dev"))
         child = store.set_parents(child.id, [parent.id], goal_id="task_mirror")
 
         return_summary_to_parent_session(
@@ -169,8 +170,8 @@ def test_a_failed_return_summary_append_is_not_mirrored():
     continuity._session_db = lambda *_args: _ExplodingDB()
     try:
         store = PersonaInstanceStore()
-        parent = store.ensure_for_persona(_persona("neko_supervisor"))
-        child = store.ensure_for_persona(_persona("dev"))
+        parent = mint_hidden_copy(store=store, persona=_persona("neko_supervisor"))
+        child = mint_hidden_copy(store=store, persona=_persona("dev"))
         store.set_parents(child.id, [parent.id], goal_id="task_mirror_fail")
 
         try:

@@ -21,6 +21,7 @@ from agent_runtime.models import AgentPersona
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.store import AgentStore
 from hermes_cli.profiles import get_profile_dir
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 NEKO = "neko_supervisor"
 OWNER_SKILLS = ["eternia-backend-tests", "eternia-hermes-agent", "harness-runtime-model", "systematic-debugging"]
@@ -49,12 +50,12 @@ def owner_shaped_root():
         hermes_profile="neko", skills=list(OWNER_SKILLS), soul_overlay_path="SOUL.md", include_profile_memory=True,
     ))
     instances = PersonaInstanceStore()
-    personal = instances.ensure_for_persona(store.get(NEKO))
+    personal = mint_hidden_copy(store=instances, persona=store.get(NEKO))
     seats = [
         instances.add_instance(persona_id=NEKO, placement_id=f"neko_{ws}_agent_1", workspace_id=ws)
         for ws in ("ws_testv4", "ws_default")
     ]
-    base_seat = instances.ensure_for_persona(store.get("base"))
+    base_seat = mint_hidden_copy(store=instances, persona=store.get("base"))
     return {"personal": personal, "seats": seats, "base_seat": base_seat}
 
 

@@ -35,6 +35,7 @@ import json
 import pytest
 
 from hermes_cli.harness import build_parser
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def parser() -> argparse.ArgumentParser:
@@ -77,7 +78,7 @@ def persona_home(tmp_path, monkeypatch):
             hermes_profile="alpha",
         )
     )
-    PersonaInstanceStore().ensure_for_persona(persona)
+    mint_hidden_copy(store=PersonaInstanceStore(), persona=persona)
     return persona
 
 

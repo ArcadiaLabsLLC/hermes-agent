@@ -59,7 +59,7 @@ def _cmd_persona_list(args) -> int:
     # always-true shape AX2 took off the snapshot wire in `s76` — so they are
     # gone from this reply too. The keys a caller actually branches on (`ok`,
     # the rows) are untouched.
-    instances = store.ensure_for_personas(personas)
+    instances = store.list_all()
     data = {
         "persona_instances": [
             persona_instance_summary(
@@ -80,10 +80,8 @@ def _cmd_persona_list(args) -> int:
 
 def _cmd_persona_show(args) -> int:
     cfg = load_agent_runtime_config()
-    store = PersonaInstanceStore()
     personas = ensure_persisted_personas(cfg)
     personas_by_id = {str(getattr(persona, "id", "") or ""): persona for persona in personas}
-    store.ensure_for_personas(personas)
     value = str(args.persona_id_or_instance_id or "").strip()
     # ONE resolver for "which instance does this token name": the harness
     # query core's, which the `harness query` verb and the in-turn tool use too.

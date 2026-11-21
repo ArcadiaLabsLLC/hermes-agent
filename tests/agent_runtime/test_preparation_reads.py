@@ -175,28 +175,22 @@ def test_skill_create_delete_corruption_and_root_isolation(tmp_path):
     assert SkillPreparationEpoch().frontmatter(a.skill_md)["metadata"]["hermes"]["surfaces"] == ["mission_chat"]
 
 
-def test_roster_ensure_and_actual_target_share_one_projection_scan(instances, monkeypatch):
-    from tests.agent_runtime.persona_samples import sample_personas
+def test_the_actual_target_reads_one_projection_scan(instances, monkeypatch):
+    # The roster ensure that once shared this scan is gone with the hidden copies
+    # (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT); the target decision still reads the
+    # instance directory exactly once per epoch.
     from agent_runtime import persona_assignments
     from hermes_cli.harness_parts.persona.chat_target import _mission_chat_target_decision
     epoch = InstanceReadEpoch(); store = PersonaInstanceStore(preparation_epoch=epoch)
-    personas = sample_personas()[:2]; calls = []
-    def ensure(persona):
-        calls.append(persona.id)
-        return PersonaInstance(id=persona.id, persona_id=persona.id, role="developer", display_name=persona.id,
-                               profile_id=None, runtime_root=str(instances), state=WorkerSessionState.IDLE, mode="chat")
-    monkeypatch.setattr(store, "ensure_for_persona", ensure)
     monkeypatch.setattr(persona_assignments, "sender_scope_workspace_id", lambda *args, **kwargs: None)
     original = Path.read_text; reads = []
     def read(path, *args, **kwargs):
         if path.parent == instances: reads.append(path)
         return original(path, *args, **kwargs)
     monkeypatch.setattr(Path, "read_text", read)
-    store.ensure_for_personas(personas, read_epoch=epoch)
     result = _mission_chat_target_decision(instance_store=store, normalized_persona="i0", raw_persona_id="i0",
                                          persona_instance_id=None, session_id=None, relay_chain=[], instance_read_epoch=epoch)
     assert result.allowed
-    assert len(calls) == len(personas)
     assert len(reads) == 256
 
 

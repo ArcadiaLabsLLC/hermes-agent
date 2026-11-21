@@ -130,200 +130,27 @@ def test_scope_roster_all_out_of_scope_yields_empty():
 
 
 # --------------------------------------------------------------------------- #
-# shadow_canonical_by_placement: drop a persona's canonical row when a         #
-# PLACEMENT of it is present; keep it when alone; never touch identity/order.  #
-# The canonical discriminator is a passed predicate (here a plain flag), so    #
-# the table is pure and independent of the harness row model.                 #
+# addressable_roster: scope, then drop held hidden copies                       #
+# (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT retired the canonical    #
+# shadow and exclusion rules with the predicate they took)                      #
 # --------------------------------------------------------------------------- #
 
 
-def _srow(id, persona_id, *, canonical=False, workspace_id="__unset__"):
-    base = {"id": id, "persona_id": persona_id, "canonical": canonical}
-    if workspace_id != "__unset__":
-        base["workspace_id"] = workspace_id
-    return SimpleNamespace(**base)
+def _row(id, persona_id, *, workspace_id=None, stamp=None):
+    return SimpleNamespace(id=id, persona_id=persona_id, workspace_id=workspace_id, adopted_from_global=stamp)
 
 
-def _is_canonical(inst):
-    return bool(getattr(inst, "canonical", False))
-
-
-def test_shadow_drops_canonical_when_a_placement_is_present():
-    canonical = _srow("personainst_dev", "dev", canonical=True)
-    placement = _srow("personainst_dev_agent_2", "dev")
-    out = workspace_scope.shadow_canonical_by_placement(
-        [canonical, placement], is_canonical=_is_canonical
-    )
-    assert [i.id for i in out] == ["personainst_dev_agent_2"]
-
-
-def test_shadow_keeps_canonical_when_it_stands_alone():
-    canonical = _srow("personainst_dev", "dev", canonical=True)
-    out = workspace_scope.shadow_canonical_by_placement([canonical], is_canonical=_is_canonical)
-    assert [i.id for i in out] == ["personainst_dev"]
-
-
-def test_shadow_keeps_two_placements_when_there_is_no_canonical():
-    p1 = _srow("personainst_dev_agent_2", "dev")
-    p2 = _srow("personainst_dev_agent_3", "dev")
-    out = workspace_scope.shadow_canonical_by_placement([p1, p2], is_canonical=_is_canonical)
-    assert [i.id for i in out] == ["personainst_dev_agent_2", "personainst_dev_agent_3"]
-
-
-def test_shadow_multi_persona_mix_preserves_input_order():
-    # dev: canonical + one placement → placement only.
-    # qa: canonical alone → kept.
-    # ops: two placements, no canonical → both kept.
-    dev_c = _srow("personainst_dev", "dev", canonical=True)
-    dev_p = _srow("personainst_dev_agent_2", "dev")
-    qa_c = _srow("personainst_qa", "qa", canonical=True)
-    ops_p1 = _srow("personainst_ops_a", "ops")
-    ops_p2 = _srow("personainst_ops_b", "ops")
-    rows = [dev_c, ops_p1, qa_c, dev_p, ops_p2]  # deliberately interleaved
-    out = workspace_scope.shadow_canonical_by_placement(rows, is_canonical=_is_canonical)
-    # Only dev's canonical is dropped; survivors keep their original order.
-    assert [i.id for i in out] == [
-        "personainst_ops_a",
-        "personainst_qa",
-        "personainst_dev_agent_2",
-        "personainst_ops_b",
-    ]
-
-
-def test_shadow_never_mutates_input():
-    canonical = _srow("personainst_dev", "dev", canonical=True)
-    placement = _srow("personainst_dev_agent_2", "dev")
-    rows = [canonical, placement]
-    workspace_scope.shadow_canonical_by_placement(rows, is_canonical=_is_canonical)
-    assert rows == [canonical, placement]
-
-
-def test_shadow_empty_input_is_empty():
-    assert workspace_scope.shadow_canonical_by_placement(None, is_canonical=_is_canonical) == []
-    assert workspace_scope.shadow_canonical_by_placement([], is_canonical=_is_canonical) == []
-
-
-# --------------------------------------------------------------------------- #
-# exclude_global_canonicals: pointerless canonical plumbing rows are not "on   #
-# the level" — dropped under a real scope, untouched on the None-scope degrade #
-# path (instance = in-level placement; operator ruling 2026-07-18).            #
-# --------------------------------------------------------------------------- #
-
-
-def test_exclude_global_canonicals_drops_pointerless_canonical_under_real_scope():
-    qa_c = _srow("personainst_qa", "qa", canonical=True, workspace_id=None)
-    dev_p = _srow("personainst_dev_agent_2", "dev", workspace_id="ws_a")
-    out = workspace_scope.exclude_global_canonicals(
-        [qa_c, dev_p], scope_workspace_id="ws_a", is_canonical=_is_canonical
-    )
-    assert [i.id for i in out] == ["personainst_dev_agent_2"]
-
-
-def test_exclude_global_canonicals_keeps_pointer_bearing_canonical():
-    # A canonical row that made a scene claim is treated by its pointer, not
-    # blanket-dropped — only the pointerless plumbing rows are excluded.
-    dev_c = _srow("personainst_dev", "dev", canonical=True, workspace_id="ws_a")
-    out = workspace_scope.exclude_global_canonicals(
-        [dev_c], scope_workspace_id="ws_a", is_canonical=_is_canonical
-    )
-    assert [i.id for i in out] == ["personainst_dev"]
-
-
-def test_exclude_global_canonicals_keeps_global_placements():
-    # A pre-pointer PLACEMENT row (non-canonical, no workspace claim) is data
-    # debt, not plumbing — it stays addressable until the backfill homes it.
-    dev_p = _srow("personainst_dev_agent_2", "dev", workspace_id=None)
-    out = workspace_scope.exclude_global_canonicals(
-        [dev_p], scope_workspace_id="ws_a", is_canonical=_is_canonical
-    )
-    assert [i.id for i in out] == ["personainst_dev_agent_2"]
-
-
-def test_exclude_global_canonicals_none_scope_is_noop():
-    qa_c = _srow("personainst_qa", "qa", canonical=True, workspace_id=None)
-    dev_p = _srow("personainst_dev_agent_2", "dev", workspace_id="ws_b")
-    out = workspace_scope.exclude_global_canonicals(
-        [qa_c, dev_p], scope_workspace_id=None, is_canonical=_is_canonical
-    )
-    assert [i.id for i in out] == ["personainst_qa", "personainst_dev_agent_2"]
-
-
-def test_exclude_global_canonicals_never_mutates_and_handles_empty():
-    qa_c = _srow("personainst_qa", "qa", canonical=True, workspace_id=None)
-    rows = [qa_c]
-    workspace_scope.exclude_global_canonicals(
-        rows, scope_workspace_id="ws_a", is_canonical=_is_canonical
-    )
-    assert rows == [qa_c]
-    assert (
-        workspace_scope.exclude_global_canonicals(
-            None, scope_workspace_id="ws_a", is_canonical=_is_canonical
-        )
-        == []
-    )
-
-
-# --------------------------------------------------------------------------- #
-# addressable_roster: scope FIRST, then exclude global canonicals, then shadow #
-# — so an out-of-scope placement cannot shadow a pointer-bearing canonical     #
-# that is still reachable from here, and an unplaced persona's global          #
-# canonical never advertises onto the level.                                   #
-# --------------------------------------------------------------------------- #
-
-
-def test_addressable_roster_scopes_before_shadowing():
-    # dev: pointer-bearing (ws_a) canonical + an in-scope (ws_a) placement →
-    #      the placement shadows the canonical.
-    # qa:  pointer-bearing (ws_a) canonical + an OUT-of-scope (ws_b) placement →
-    #      the placement is filtered by scope first, so nothing shadows qa's
-    #      canonical (it stays — it made a scene claim for THIS workspace).
-    dev_c = _srow("personainst_dev", "dev", canonical=True, workspace_id="ws_a")
-    dev_a = _srow("personainst_dev_agent_2", "dev", workspace_id="ws_a")
-    qa_c = _srow("personainst_qa", "qa", canonical=True, workspace_id="ws_a")
-    qa_b = _srow("personainst_qa_agent_2", "qa", workspace_id="ws_b")
-    out = workspace_scope.addressable_roster(
-        [dev_c, dev_a, qa_c, qa_b],
-        scope_workspace_id="ws_a",
-        is_canonical=_is_canonical,
-    )
-    assert [i.id for i in out] == ["personainst_dev_agent_2", "personainst_qa"]
-
-
-def test_addressable_roster_excludes_unplaced_global_canonicals():
-    # The 2026-07-24 live repro: a level with two dev placements (+ the sender's
-    # own placement) must advertise exactly those placements — the unplaced
-    # personas' global canonical rows (qa/base/alice) are runtime plumbing, not
-    # level presence, and no longer ride the old "reachability fallback" onto
-    # every level's HUD.
-    backend_p = _srow("personainst_backend_dev_agent_1", "backend_dev", workspace_id="ws_a")
-    dev_p = _srow("personainst_dev_agent_1", "dev", workspace_id="ws_a")
-    neko_p = _srow("personainst_neko_agent_1", "neko_supervisor", workspace_id="ws_a")
-    backend_c = _srow("personainst_backend_dev", "backend_dev", canonical=True, workspace_id=None)
-    dev_c = _srow("personainst_dev", "dev", canonical=True, workspace_id=None)
-    qa_c = _srow("personainst_qa", "qa", canonical=True, workspace_id=None)
-    base_c = _srow("personainst_base", "base", canonical=True, workspace_id=None)
-    alice_c = _srow("personainst_profile_alice", "profile:alice", canonical=True, workspace_id=None)
-    out = workspace_scope.addressable_roster(
-        [backend_c, backend_p, base_c, dev_c, dev_p, neko_p, alice_c, qa_c],
-        scope_workspace_id="ws_a",
-        is_canonical=_is_canonical,
-    )
-    assert [i.id for i in out] == [
-        "personainst_backend_dev_agent_1",
-        "personainst_dev_agent_1",
-        "personainst_neko_agent_1",
-    ]
-
-
-def test_addressable_roster_none_scope_shadows_across_everything():
-    # No active workspace (scope None): every row is in scope, so a placement
-    # shadows its canonical exactly as the bare shadow does.
-    dev_c = _srow("personainst_dev", "dev", canonical=True, workspace_id="ws_a")
-    dev_p = _srow("personainst_dev_agent_2", "dev", workspace_id="ws_b")
-    out = workspace_scope.addressable_roster(
-        [dev_c, dev_p], scope_workspace_id=None, is_canonical=_is_canonical
-    )
-    assert [i.id for i in out] == ["personainst_dev_agent_2"]
+def test_addressable_roster_scopes_and_drops_held_copies_in_input_order():
+    held = _row("personainst_qa", "qa", stamp="2026-11-21")
+    adopted = _row("personainst_dev", "dev", workspace_id="ws_a", stamp="2026-11-21")
+    elsewhere = _row("personainst_dev_agent_2", "dev", workspace_id="ws_b")
+    unseated = _row("personainst_dev_k1", "dev")
+    rows = [held, adopted, elsewhere, unseated]
+    assert [i.id for i in workspace_scope.addressable_roster(rows, scope_workspace_id="ws_a")] == [
+        "personainst_dev", "personainst_dev_k1"]
+    assert [i.id for i in workspace_scope.addressable_roster(rows, scope_workspace_id=None)] == [
+        "personainst_dev", "personainst_dev_agent_2", "personainst_dev_k1"]
+    assert workspace_scope.addressable_roster(None, scope_workspace_id="ws_a") == []
 
 
 # --------------------------------------------------------------------------- #

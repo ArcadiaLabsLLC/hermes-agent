@@ -40,6 +40,7 @@ from agent_runtime.running_work import (
     running_work_store_paths,
     split_work_id,
 )
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def _patch_bound(monkeypatch, name, value):
@@ -2164,7 +2165,7 @@ def _named_instance():
     from agent_runtime.models import AgentPersona
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
-    return PersonaInstanceStore().ensure_for_persona(
+    return mint_hidden_copy(store=PersonaInstanceStore(), persona=
         AgentPersona(
             id="neko_supervisor_agent",
             display_name="Neko Mission Lead",

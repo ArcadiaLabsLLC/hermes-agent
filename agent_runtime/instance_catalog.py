@@ -14,8 +14,8 @@ from .bundled_agents import directory_fields, sync_shipped_agents
 from .config import ensure_persisted_personas, load_agent_runtime_config
 from .gateway_identity import read_install_identity
 from .mission_chat_turns import last_turn_started_by_instance
-from .persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
-from .persona_lifecycle import is_independent_agent_persona, is_runtime_persona
+from .persona_assignments import PersonaInstanceStore
+from .persona_lifecycle import is_runtime_persona
 from .profile_context import active_profile_name, resolve_persona_profile
 from .profile_persona_discovery import reconcile_profile_personas
 
@@ -27,7 +27,7 @@ class InstanceCatalogUnavailable(ValueError):
 
 
 def prepare_instance_catalog(seated: Callable[[str], frozenset[str] | None] = lambda _install_id: None) -> dict:
-    """Discover profiles and materialize canonical identities without starting work.
+    """Discover profiles and list the install's instances without starting work (no hidden copy is made).
 
     *seated* answers an install's instances seated in a running room, or ``None`` when it cannot say;
     the RPC door passes the discussion run store's answer (a lane, above this store)."""
@@ -40,10 +40,6 @@ def prepare_instance_catalog(seated: Callable[[str], frozenset[str] | None] = la
     reconcile_profile_personas(config)
     sync_shipped_agents()
     personas = {p.id: p for p in ensure_persisted_personas(config) if is_runtime_persona(p)}
-    for persona in personas.values():
-        # The bulk snapshot helper also resets work state; discovery must not.
-        if not is_independent_agent_persona(persona):
-            store.ensure_for_persona(persona)
     last_used = last_turn_started_by_instance()
     seated_ids = seated(install_id)
     return {"install_id": install_id, "instance_conversations": 1, "agents": [
@@ -70,7 +66,9 @@ def _project(instance, persona, install_id: str) -> dict:
         "persona_id": instance.persona_id,
         "display_name": instance.display_name,
         "workspace_id": instance.workspace_id,
-        "canonical": is_canonical_persona_channel(instance),
+        # Retired with the canonical predicate (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): no
+        # instance is an agent's hidden copy. Kept False for the codec that requires the key.
+        "canonical": False,
         "profile": (binding.hermes_profile or active_profile_name()) if binding else None,
         "profile_home": str(binding.profile_home) if binding and binding.profile_home else None,
         "available": ready,

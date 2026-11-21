@@ -260,15 +260,16 @@ def test_the_projection_is_deterministic_and_lf():
     assert project_persona_instances(sorted(records), records=reversed_records).to_bytes() == first
 
 
-def test_a_canonical_row_is_skipped_not_refused():
-    """Replication is scoped to placement-backed rows (plan §2). Every machine
-    derives its own canonical channel, so withholding it is the scoping ruling
-    working — a different fact from a refusal, and it gets its own word."""
+def test_a_machine_local_row_is_skipped_not_refused():
+    """Replication is scoped to placement-backed rows (plan §2). A hidden copy the
+    migration adopted or held (stamped ``adopted_from_global``) stays on this machine,
+    so withholding it is the scoping ruling working — a different fact from a refusal,
+    and it gets its own word (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT)."""
 
-    canonical = _placement_instance(id="personainst_dev", persona_id="dev")
+    canonical = _placement_instance(id="personainst_dev", persona_id="dev", adopted_from_global="2026-11-21")
     projection = project_persona_instances(["personainst_dev"], records={"personainst_dev": canonical})
     assert projection.instances == {}
-    assert projection.skipped_canonical == ["personainst_dev"]
+    assert projection.skipped_local == ["personainst_dev"]
     assert projection.refused == []
 
 

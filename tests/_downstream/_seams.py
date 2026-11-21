@@ -43,7 +43,6 @@ __all__ = [
     "reset_core_cache_process_state",
     "reset_fingerprint_home",
     "reset_runtime_resolve_cache",
-    "reset_unreadable_instance_rows",
     "run_queued_sends_once",
 ]
 
@@ -79,22 +78,6 @@ IN_MODULE_SEAMS = (
 #: compiled from (``agent_runtime.mcp_admission.vocabulary.READ_ONLY_INCLUDED_TOOLS``).
 #: Production never read it; the parity tests look the row up by it.
 READ_ONLY_ALLOWLIST_PROFILE = "reviewer"
-
-
-def reset_unreadable_instance_rows() -> None:
-    """Forget the persona-instance re-mint history, as a fresh process would.
-
-    Same shape and same reason as :func:`reset_core_cache_process_state`: a property
-    of the PROCESS has to be resettable for a test to exercise a second
-    process's behaviour without spawning one — and, here, so that one case's
-    corrupt row cannot silence the next case's first legitimate repair when the
-    two happen to resolve the same path.
-    """
-
-    from agent_runtime.persona_assignments import scan
-
-    with scan._unreadable_instance_lock:
-        scan._unreadable_instance_rows.clear()
 
 
 def active_workspace_lifts(realm):
@@ -687,12 +670,11 @@ def _build_self_perturbed_classes() -> tuple[str, ...]:
 
     return (
         _restat.SELF_PERTURBED_SESSION_DB,
-        _restat.SELF_PERTURBED_PERSONA_INSTANCES,
         _restat.SELF_PERTURBED_LIVE_EVENTS,
     )
 
 
-#: The three classes the build itself moves (restat.py argues each one).
+#: The two classes the build itself moves (restat.py argues each one).
 BUILD_SELF_PERTURBED_CLASSES = _build_self_perturbed_classes()
 
 

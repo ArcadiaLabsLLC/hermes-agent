@@ -66,7 +66,11 @@ def _session_for_test(
     persona_instance_id: str | None = None,
     mint: bool = False,
 ) -> str:
-    """Seed a chat id with the same primitives used by live dispatch."""
+    """Seed a chat id with the same primitives used by live dispatch.
+
+    A bare agent names no instance since RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT, so the
+    suite names the row ``create_operator_chat`` binds (its held ``personainst_<persona>``) explicitly."""
+    persona_instance_id = persona_instance_id or persona_instance_id_for(persona_id)
     existing = None if mint else resolve_default_chat_session_id_for_instance(
         store,
         persona_id=persona_id,
@@ -210,7 +214,7 @@ def test_resolve_default_never_mints_for_a_never_chatted_target(
     # The read verbs (agent_chat_threads / agent_chat_open) resolve WITHOUT
     # minting: a never-chatted target reports None, and no instance row is written.
     store = PersonaInstanceStore()
-    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa") is None
+    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=persona_instance_id_for("qa")) is None
     assert PersonaInstanceStore().list_all() == [], "resolving must not create a session/row"
 
 
@@ -259,7 +263,7 @@ def test_new_session_mint_is_canonical_and_visible_in_the_projection(
     fresh = _relay("thread two — clean", "ack two", mint=True)
     assert fresh != first, "new_session must start a distinct thread"
     # The fresh session became the instance's default going forward.
-    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa") == fresh
+    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=persona_instance_id_for("qa")) == fresh
     assert _session_for_test(store, persona_id="qa") == fresh
 
     rows = persona_chat_history_summary(persona_instances=store.list_all(), session_db=db)
@@ -323,7 +327,7 @@ def test_open_chat_refuses_binding_a_siblings_session_onto_the_canonical(
     with pytest.raises(ValueError, match="belongs to instance"):
         store.open_chat(persona_id="qa", session_id=sibling.session_id)
     # The canonical primary's pointer was never written.
-    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa") is None
+    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=persona_instance_id_for("qa")) is None
 
 
 def test_resolve_default_ignores_a_foreign_pointer_and_self_heals(
@@ -343,7 +347,7 @@ def test_resolve_default_ignores_a_foreign_pointer_and_self_heals(
 
     # Read side ignores the foreign legacy scalar and keeps the dedicated root.
     own_root = primary.default_chat_session_id
-    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa") == own_root
+    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=persona_instance_id_for("qa")) == own_root
     healed = _session_for_test(store, persona_id="qa")
     assert healed == own_root
     store.open_chat(persona_id="qa", session_id=healed)

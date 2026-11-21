@@ -10,11 +10,12 @@ boot:
 * ``copy`` — it differs: it is duplicated, memory and SOUL included, under a new
   name (default ``"<shipped name> Beta"``, owner 2026-11-19 for his Neko; never a
   suffix — a taken name refuses that record), the duplicate records ``based_on``,
-  every placement instance moves to it with its chats, and the original id
-  becomes the shipped reference beside it. The agent's own channel (the
-  canonical instance, whose id IS the original's) stays with the shipped agent;
-  its chats stay openable there (owner 2026-11-19: an instance opens its
-  persona's old chats).
+  every placed instance moves to it with its chats, and the original id becomes
+  the shipped reference beside it. An adopted hidden copy (whose id names the
+  original, now placed) is an ordinary instance and moves too; a copy the
+  adoption held machine-local (no workspace) is no placement and stays with the
+  shipped agent, its chats openable there (owner 2026-11-19: an instance opens
+  its persona's old chats; RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT).
 * ``place`` — the install holds no record under the id: the shipped reference is
   added (owner: "also place the shipped Neko in the owner's namespace").
 * ``fold`` — profile discovery made an agent of the shipped agent's profile
@@ -49,15 +50,17 @@ def _differences(record: AgentPersona, shipped: ShippedAgent) -> list[str]:
 
 
 def _instances_of(persona_id: str) -> tuple[list[str], list[str]]:
-    """(placement instance ids, canonical instance ids) of ``persona_id``."""
+    """(placed instance ids, held instance ids) of ``persona_id``: a row standing in no workspace is held."""
 
-    from ..persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
+    from ..persona_assignments import PersonaInstanceStore
 
-    placed, canonical = [], []
+    placed, held = [], []
     for instance in PersonaInstanceStore().scan_all().instances:
         if instance.persona_id == persona_id:
-            (canonical if is_canonical_persona_channel(instance) else placed).append(instance.id)
-    return sorted(placed), sorted(canonical)
+            # MUTATION: file every row under ``placed`` and
+            # test_the_shipped_nekos_history_lists_only_her_own_chats_and_beta_lists_the_seats reddens.
+            (placed if instance.workspace_id else held).append(instance.id)
+    return sorted(placed), sorted(held)
 
 
 def _sort_entry(shipped: ShippedAgent, stored: dict[str, AgentPersona], names: dict[str, str], roster) -> dict[str, Any]:
@@ -75,13 +78,13 @@ def _sort_entry(shipped: ShippedAgent, stored: dict[str, AgentPersona], names: d
             return {**entry, "action": "fold"}
         return {**entry, "action": "none", "why": "already a reference"}
     differences = _differences(record, shipped)
-    placed, canonical = _instances_of(shipped.id)
+    placed, held = _instances_of(shipped.id)
     if not differences:
-        return {**entry, "action": "adopt", "instances_kept": placed + canonical}
+        return {**entry, "action": "adopt", "instances_kept": placed + held}
     copy_name = names.get(shipped.id) or f"{shipped.name} Beta"
     entry.update(
         action="copy", differences=differences, current_name=record.display_name, copy_name=copy_name,
-        instances_moved=placed, instances_kept=canonical,
+        instances_moved=placed, instances_kept=held,
     )
     if name_is_taken(copy_name, roster):
         entry["refused"] = "agent_name_taken"

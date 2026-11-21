@@ -189,12 +189,13 @@ def test_a_baselined_agent_that_is_gone_locally_is_removed_drift(tmp_path):
     assert [(i.kind, i.item_key) for i in items] == [(DRIFT_KIND_REMOVED, INSTANCE_ID)]
 
 
-def test_a_canonical_channel_is_never_reported_as_drift():
-    """Every member derives its own, so offering the operator a publish for one
-    would be offering a write the pull door on the other end refuses by design."""
+def test_an_adopted_machine_local_row_is_never_reported_as_drift():
+    """An adopted row stays machine-local, as the hidden copy it was: offering
+    the operator a publish for it would be offering a write the pull door on
+    the other end refuses by design."""
 
     realm_id, ws = _realm_workspace()
-    _local(ws, "personainst_dev")
+    _local(ws, "personainst_dev_agent_0a1b2c3d", adopted_from_global="2026-11-21")
     assert _drift(realm_id, ws) == []
 
 

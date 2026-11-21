@@ -150,7 +150,7 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
     event_log = event_log or CachedEventLog()
     agents = AgentStore().list_all()
     personas_by_id = {str(getattr(a, "id", "") or ""): a for a in agents}
-    for instance in PersonaInstanceStore(event_log=event_log).ensure_for_personas(agents):
+    for instance in PersonaInstanceStore(event_log=event_log).list_all():
         if str(getattr(instance, "id", "") or "") == token:
             persona = personas_by_id.get(str(getattr(instance, "persona_id", "") or ""))
             detail = persona_instance_tool_detail(instance, persona, roster=ensure_persisted_personas)

@@ -15,6 +15,7 @@ from tests.agent_runtime.test_persona_assignments import (
 from tests.agent_runtime.test_persona_assignments_chat_history import _mission_chat_test_args
 from hermes_cli.harness_parts.persona import chat_turn_message
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 pytestmark = [pytest.mark.usefixtures("persisted_persona_samples"), pytest.mark.timeout(90)]
 ROOM = "persona_chat_personainst_dev_a01234567890"
@@ -30,7 +31,7 @@ def test_native_room_turn_preserves_operator_pointer_and_concurrent_row_fields(
         "persona_id": "dev", "persona_instance_id": "personainst_dev",
     }))
     store = PersonaInstanceStore()
-    instance = store.ensure_for_persona(_persona("dev"))
+    instance = mint_hidden_copy(store=store, persona=_persona("dev"))
     instance.default_chat_session_id = "persona_chat_personainst_dev_b01234567890"
     instance.mode = "chat"
     store.update(instance)

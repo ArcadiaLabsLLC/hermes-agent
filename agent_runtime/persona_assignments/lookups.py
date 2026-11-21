@@ -187,6 +187,8 @@ def resolve_default_chat_session_id_for_instance(
     ``agent_chat_open``) surface instead of fabricating a session. Never writes.
     """
     instance_id = canonical_chat_instance_id(persona_id, persona_instance_id)
+    if not instance_id:
+        return None  # a bare agent names no instance, so it has no thread
     try:
         existing = store.get(instance_id)
     except Exception:

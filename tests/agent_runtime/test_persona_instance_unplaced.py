@@ -55,8 +55,6 @@ from agent_runtime import paths
 from agent_runtime.office_store import OfficeStore
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
-    persona_instance_id_for,
-    row_is_canonical_persona_channel,
 )
 from agent_runtime.persona_instance_identity import (
     PRUNE_REASON_UNPLACED,
@@ -236,10 +234,6 @@ def test_the_live_defect_archiving_the_actor_alone_leaves_a_ghost(seeded_workspa
     placed = _place()
     instance_id = placed["persona_instance_id"]
     assert instance_id == f"personainst_{PLACEMENT_ID}", instance_id
-    assert not row_is_canonical_persona_channel(instance_id, "qa"), (
-        "the fixture's row must not BE the qa operator channel, or clause 2 of "
-        "the classifier is what is being tested rather than the placement"
-    )
 
     seeded_workspaces.remove_actor(WORKSPACE, placed["actor_key"])
     _age_row(instance_id, days=5)
@@ -344,58 +338,8 @@ def test_an_instance_bound_to_live_work_is_HELD(seeded_workspaces):
     assert classified["held"][0]["reason"] == HELD_REASON_ACTIVE
 
 
-# ── 4: the canonical operator channel ───────────────────────────────────────
-
-
-def test_the_canonical_persona_channel_is_never_classified(seeded_workspaces):
-    """The base-profile foundation gives every agent a free PROFILE row. Those
-    are operator chat channels, not placements, and the discriminator is the
-    one ``agent retire`` refuses on — never an id shape."""
-
-    canonical = persona_instance_id_for("qa")
-    assert row_is_canonical_persona_channel(canonical, "qa")
-
-    from agent_runtime.models import PersonaInstance
-    from agent_runtime.states import WorkerSessionState
-
-    instance = PersonaInstance(
-        id=canonical,
-        persona_id="qa",
-        role="qa",
-        display_name="QA Agent",
-        profile_id=None,
-        runtime_root=str(paths.store_root()),
-        state=WorkerSessionState.IDLE,
-        mode="chat",
-        workspace_id=WORKSPACE,
-        updated_at=now() - timedelta(days=5),
-    )
-    path = paths.persona_instance_path(canonical)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(to_jsonable(instance), indent=2, sort_keys=True), encoding="utf-8")
-
-    # Give it an ARCHIVED actor and no live one — i.e. every other clause holds.
-    seeded_workspaces.upsert_actor(
-        WORKSPACE,
-        {
-            "actor_key": canonical,
-            "persona_id": "qa",
-            "persona_instance_id": canonical,
-            "items": [
-                {
-                    "item_id": canonical,
-                    "kind": "agent",
-                    "position": [3.0, 3.0],
-                    "folder": "Agents",
-                }
-            ],
-        },
-    )
-    seeded_workspaces.remove_actor(WORKSPACE, canonical)
-
-    classified = _classify(seeded_workspaces)
-    assert canonical not in _ids(classified["prunable"])
-    assert canonical not in _ids(classified["held"])
+# ── 4: (retired) the canonical operator channel — RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT
+#    deleted the predicate; an adopted hidden copy is an ordinary placed instance.
 
 
 # ── 5: an unreadable store classifies nothing ───────────────────────────────

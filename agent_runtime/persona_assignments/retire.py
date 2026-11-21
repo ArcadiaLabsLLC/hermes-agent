@@ -17,10 +17,7 @@ from utils import atomic_json_write
 from agent_runtime import paths
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments.errors import PersonaInstanceRetireError
-from agent_runtime.persona_assignments.identity import (
-    canonical_chat_instance_id,
-    is_canonical_persona_channel,
-)
+from agent_runtime.persona_assignments.identity import canonical_chat_instance_id
 from agent_runtime.request_actor import removal_activity, request_actor
 from agent_runtime.serde import (
     safe_assignment_text,
@@ -258,10 +255,10 @@ def retire(
     could be written.
 
     Refuses with a typed :class:`PersonaInstanceRetireError` (never a silent
-    no-op) when the row is the canonical persona/profile channel
-    (``canonical_persona_channel`` — the global-singleton retirement is the
-    queued workspace-scoping redesign), or when a live run/worker still
-    resolves (``instance_active`` — never archive a working agent). The two
+    no-op) when a live run/worker still resolves (``instance_active`` — never
+    archive a working agent). Any instance retires: there is no hidden copy to
+    guard (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT; the archive is what
+    keeps an archived ``personainst_<persona>`` archived, now that nothing mints it). The two
     ASSIGNMENT guards this method used to carry left with AX2; the class
     docstring above carries the argument."""
     try:
@@ -272,19 +269,6 @@ def retire(
             f"persona instance not found: {persona_instance_id}",
             persona_instance_id=safe_assignment_token(persona_instance_id) or str(persona_instance_id),
         ) from exc
-
-    if is_canonical_persona_channel(instance):
-        raise PersonaInstanceRetireError(
-            "canonical_persona_channel",
-            (
-                f"{instance.id} is the canonical persona channel for "
-                f"{instance.persona_id!r}; the global-singleton channel cannot be "
-                "retired here (that is the queued workspace-scoping redesign) — "
-                "retire a placement-backed instance instead"
-            ),
-            persona_instance_id=instance.id,
-            detail={"persona_id": instance.persona_id},
-        )
 
     if store._has_live_binding(instance):
         raise PersonaInstanceRetireError(

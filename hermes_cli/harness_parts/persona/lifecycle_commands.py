@@ -248,12 +248,25 @@ def _cmd_persona_instance_create(args) -> int:
             owner=owner, coordinator_id=coordinator_id, coordinator_scope=coordinator_scope,
         )
     if display_name:
+        target_instance_id = None
+        if not persona_id.startswith("profile_"):
+            # RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT: the chat opens on an instance placed by the
+            # one "reuse idle, else place in the Default workspace" rule, never on a hidden copy.
+            # MUTATION: skip this and test_the_cli_operator_chat_opens_on_a_placed_instance reddens.
+            from agent_runtime.agent_create.staff import reuse_or_place
+
+            target_instance_id, place_refusal = reuse_or_place(persona_id)
+            if place_refusal is not None:
+                _emit_persona_verb_payload(args, {"ok": False, "error_kind": AGENT_CREATE_REFUSED_REASON,
+                                                  "error": place_refusal["message"]})
+                return 2
         try:
             instance = PersonaInstanceStore().create_operator_chat(
                 persona_id=persona_id,
                 display_name=display_name or safe_assignment_text(args.title, limit=120) or persona_id,
                 session_id=getattr(args, "session_id", None),
                 client_scope=owner,
+                persona_instance_id=target_instance_id,
             )
             if coordinator_id:
                 instance = _maybe_stamp_spawned_by(instance, coordinator_id=coordinator_id)

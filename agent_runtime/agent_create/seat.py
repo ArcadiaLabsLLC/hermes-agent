@@ -191,13 +191,13 @@ def unseated_instances() -> list[SeatOutcome]:
     """Read only: every live placed instance whose workspace's level does not show it."""
 
     from ..office_store.store import OfficeStore
-    from ..persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
+    from ..persona_assignments import PersonaInstanceStore
 
     office = OfficeStore()
     found = []
     for instance in PersonaInstanceStore().scan_all().instances:
-        if is_canonical_persona_channel(instance):
-            continue  # an agent's global channel is not a placement
+        if not instance.workspace_id:
+            continue  # a row standing in no workspace is not a placement
         seat = seat_added_instance(instance, dry_run=True, office=office)
         if seat.reason == WOULD_SEAT:
             found.append(seat)

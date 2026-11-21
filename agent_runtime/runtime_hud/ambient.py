@@ -113,7 +113,7 @@ def situational_hud_for_instance(
         # Deferred imports keep module load order robust (context_builder, the
         # stores, and daemon all pull sizeable graphs).
         from .. import workspace_scope
-        from ..persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
+        from ..persona_assignments import PersonaInstanceStore
         from ..store import RealmStore, WorkspaceStore
 
         # The FULL roster stays available for identity (steering) resolution; the
@@ -137,7 +137,6 @@ def situational_hud_for_instance(
         scoped_roster = workspace_scope.addressable_roster(
             identity_roster,
             scope_workspace_id=scope_workspace_id,
-            is_canonical=is_canonical_persona_channel,
         )
         realm = next(
             (

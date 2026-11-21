@@ -31,6 +31,7 @@ from hermes_cli import profiles as profile_mod
 from hermes_cli.profiles import get_profile_dir
 from hermes_constants import get_config_path
 import hermes_constants
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 DISCOVERED = "profile_base"
 OLD_CHANNEL = "personainst_profile_base"
@@ -56,7 +57,7 @@ def older_namespace(monkeypatch):
     monkeypatch.setattr(instance_catalog, "read_install_identity", lambda root: SimpleNamespace(install_id="install"))
     assert [persona.id for persona in reconcile_profile_personas()] == [DISCOVERED]
     instances = PersonaInstanceStore()
-    channel = instances.ensure_for_persona(AgentStore().get(DISCOVERED))
+    channel = mint_hidden_copy(store=instances, persona=AgentStore().get(DISCOVERED))
     seat = instances.add_instance(
         persona_id=DISCOVERED, placement_id="profile_base_ws_default_agent_1", workspace_id="ws_default",
         session_id=SEAT_CHAT,
@@ -91,16 +92,16 @@ def _one_base(seat) -> None:
     directory = instance_catalog.prepare_instance_catalog()["agents"]
     on_base = [row for row in directory if row["profile"] == "base"]
     assert {row["persona_id"] for row in on_base} == {"base"}
-    assert [row["instance_id"] for row in on_base if row["canonical"]] == ["personainst_base"]
+    assert not any(row["canonical"] for row in on_base)  # no hidden copy is minted for the shipped Base
     assert [p.id for p in ensure_persisted_personas() if p.hermes_profile == "base"] == ["base"]
     instances = PersonaInstanceStore()
     moved = instances.get(seat.id)
     assert (moved.persona_id, moved.session_id) == ("base", SEAT_CHAT)
-    # The old channel's chats open on the shipped Base's channel.
-    assert load_persona_instance_aliases()[OLD_CHANNEL] == "personainst_base"
-    assert instances.get(OLD_CHANNEL).id == "personainst_base"
-    # Nothing deleted: the old channel and the old record are archived.
-    assert list(paths.persona_instances_archive_dir().rglob(f"{OLD_CHANNEL}.json"))
+    # The old channel is an instance of the shipped Base under its own id, its chats with it: there is
+    # no hidden copy of Base to fold it onto (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT).
+    assert instances.get(OLD_CHANNEL).persona_id == "base"
+    assert OLD_CHANNEL not in load_persona_instance_aliases()
+    # Nothing deleted: the old record is archived.
     assert list((paths.store_root() / "agents_archive").rglob(f"{DISCOVERED}.json"))
     # Discovery does not make it again: the shipped Base owns the profile.
     assert reconcile_profile_personas() == []
@@ -122,8 +123,7 @@ def test_sort_shipped_plans_a_fold_when_the_store_holds_both(older_namespace, ca
     assert AgentStore().get(DISCOVERED).id == DISCOVERED
 
     receipt = _sort(capsys)
-    assert receipt["base"]["folded"]["channels_folded"] == {OLD_CHANNEL: "personainst_base"}
-    assert receipt["base"]["folded"]["instances_moved"] == [older_namespace["seat"].id]
+    assert receipt["base"]["folded"]["instances_moved"] == sorted([OLD_CHANNEL, older_namespace["seat"].id])
     _one_base(older_namespace["seat"])
 
 

@@ -19,6 +19,7 @@ import json
 import uuid
 
 from hermes_cli.harness import build_parser
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def _parser():
@@ -50,7 +51,7 @@ def _seed_two_instances(monkeypatch, tmp_path, persona="dev"):
     cfg = load_agent_runtime_config()
     AgentStore().save(sample_persona(persona))
     store = PersonaInstanceStore()
-    store.ensure_for_personas(list(ensure_persisted_personas(cfg)))
+    _ensure_hidden_copies(store, list(ensure_persisted_personas(cfg)))
     store.add_instance(persona_id=persona, placement_id="dev_agent_2", display_name=f"{persona} (2)")
     store.add_instance(persona_id=persona, placement_id="dev_agent_3", display_name=f"{persona} (3)")
 
@@ -255,7 +256,7 @@ def _seed_dev_scoped(monkeypatch, tmp_path, placements, *, active="ws_home"):
     ws_store.set_active(active)
 
     store = PersonaInstanceStore()
-    store.ensure_for_personas(list(ensure_persisted_personas(cfg)))
+    _ensure_hidden_copies(store, list(ensure_persisted_personas(cfg)))
     for placement_id, workspace_id in placements:
         store.add_instance(
             persona_id="dev",
@@ -357,7 +358,7 @@ def test_sender_session_scopes_candidates_to_sender_workspace(tmp_path, monkeypa
     ws_store.set_active("ws_home")  # active is neither sender's ws nor a target's
 
     store = PersonaInstanceStore()
-    store.ensure_for_personas(list(ensure_persisted_personas(cfg)))
+    _ensure_hidden_copies(store, list(ensure_persisted_personas(cfg)))
     # TWO dev placements in ws_a (so the sender-scoped set stays ambiguous under
     # "placements shadow canonical"; canonical + one placement would auto-route)
     # plus one in ws_b that must never leak into ws_a's candidates.
@@ -459,3 +460,12 @@ def test_bare_persona_canonical_with_no_placement_routes_to_canonical(tmp_path, 
         _mission_chat_bare_persona_target(store, normalized_persona="dev", requested_by_session=None)
         is None
     )
+
+
+def _ensure_hidden_copies(store, personas, **_):
+    from agent_runtime.persona_lifecycle import is_independent_agent_persona, is_runtime_persona
+
+    for persona in personas:
+        if is_runtime_persona(persona) and not is_independent_agent_persona(persona):
+            mint_hidden_copy(persona, store=store)
+    return store.list_all()

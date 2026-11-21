@@ -94,11 +94,14 @@ def channel_identity(builder: Any) -> ChannelIdentity:
         trace.get("persona_id") if trace else None,
     )
     persona_id = canonical_chat_persona_id(persona_id) or persona_id or "unknown"
+    # No fallback to ``persona_instance_id_for(persona_id)``: a channel nothing names an instance for is
+    # not filed under an agent's hidden copy (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT); its
+    # history row keeps the ``history_without_instance`` warning.
+    # MUTATION: restore the fallback and test_a_channel_naming_no_instance_is_not_filed_under_a_hidden_copy reddens.
     canonical_id = first_present_text(
         attr("id"),
         history.get("persona_instance_id") if history else None,
         trace.get("persona_instance_id") if trace else None,
-        persona_instance_id_for(persona_id),
     )
     session_id = first_present_text(
         history.get("session_id") if history else None,

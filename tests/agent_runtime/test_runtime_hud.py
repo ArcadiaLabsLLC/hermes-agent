@@ -654,15 +654,12 @@ def test_situational_hud_thread_count_uses_scoped_roster():
     assert hud["mission"]["thread_count"] == 2
 
 
-def test_situational_hud_on_level_shadows_canonical_when_placement_in_scope():
-    # "Placements shadow canonical" at the HUD roster: when an in-scope PLACEMENT
-    # of a persona exists, its plumbing canonical row is dropped from "On level"
-    # (and from the mission thread count), so the agent sees the deliberate
-    # placement, not the runtime-global canonical. Composes the real
-    # addressable_roster the HUD wrapper uses (scope + shadow), keyed on the
-    # sanctioned canonical discriminator.
+def test_situational_hud_on_level_omits_a_held_hidden_copy():
+    # A hidden copy the migration held machine-local (stamped, in no workspace) is
+    # dropped from "On level" (and from the mission thread count), so the agent sees
+    # the placement (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT). Composes the real
+    # addressable_roster the HUD wrapper uses.
     from agent_runtime import workspace_scope
-    from agent_runtime.persona_assignments import is_canonical_persona_channel
 
     target = _instance(
         id="personainst_neko", persona_id="neko_supervisor", display_name="Neko Mission Lead",
@@ -671,7 +668,7 @@ def test_situational_hud_on_level_shadows_canonical_when_placement_in_scope():
     # dev's runtime-global canonical row + an in-scope placement, both on goal_1.
     dev_canonical = _instance(
         id="personainst_dev", persona_id="dev", display_name="Dev",
-        goal_id="goal_1", workspace_id=None,
+        goal_id="goal_1", workspace_id=None, adopted_from_global="2026-11-21",
     )
     dev_placement = _instance(
         id="personainst_dev_agent_2", persona_id="dev", display_name="Dev (2)",
@@ -680,9 +677,7 @@ def test_situational_hud_on_level_shadows_canonical_when_placement_in_scope():
     full = [target, dev_canonical, dev_placement]
 
     scope_ws = workspace_scope.effective_workspace_id(target, active_workspace_id="ws_a")
-    addressable = workspace_scope.addressable_roster(
-        full, scope_workspace_id=scope_ws, is_canonical=is_canonical_persona_channel
-    )
+    addressable = workspace_scope.addressable_roster(full, scope_workspace_id=scope_ws)
     hud = resolve_situational_hud(
         target,
         roster=addressable,

@@ -10,6 +10,7 @@ import pytest
 from hermes_cli.harness_parts.persona import chat_turn_message
 
 from tools.agent_chat_tool import agent_chat_send
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -86,7 +87,7 @@ def test_a_stored_profile_backed_instance_whose_profile_is_gone_is_refused(handl
     from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
-    PersonaInstanceStore().ensure_for_personas(list(ensure_persisted_personas(load_agent_runtime_config())))
+    _ensure_hidden_copies(PersonaInstanceStore(), list(ensure_persisted_personas(load_agent_runtime_config())))
     monkeypatch.setattr(roster_reach, "profile_missing", lambda instance: "gone")
     data = json.loads(agent_chat_send(persona_id="personainst_dev", message="hi"))
     assert (data["ok"], data["error_kind"]) == (False, "unsupported_persona")
@@ -232,3 +233,12 @@ def test_admission_and_the_turn_refuse_with_the_same_words(on_chain):
     exit_code, turn = run_mission_chat_turn(turn_args)
     assert exit_code == 2 and admitted["ok"] is False and turn["persona_instance_id"] == DEV
     assert (admitted["error_kind"], admitted["error"]) == (turn["error_kind"], turn["error"])
+
+
+def _ensure_hidden_copies(store, personas, **_):
+    from agent_runtime.persona_lifecycle import is_independent_agent_persona, is_runtime_persona
+
+    for persona in personas:
+        if is_runtime_persona(persona) and not is_independent_agent_persona(persona):
+            mint_hidden_copy(persona, store=store)
+    return store.list_all()
