@@ -4,23 +4,27 @@ Row ``RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT``; plan
 ``docs/agent-runtime-harness/planned/operator-chat-on-the-gateway-engine-2026-11-21.md``. An
 Intelligence conversation runs ``tui_gateway``'s ``prompt.submit`` on an in-process session
 (``conversations/in_process_peer.py``); a Mission Control chat turn now runs the SAME function on a
-gateway session of its own, opened on the serve's launch scope (the operator transcript lives in the
-head store) with ``source`` :data:`OPERATOR_SOURCE`.
+gateway session of its own with ``source`` :data:`OPERATOR_SOURCE`, resumed on the chat's tip in the
+store that holds the chat (the runner's ``session_db``: the persona's profile store, or the head's).
 
 What the operator lane decides about a turn (``profile_runner.execute.AgentRunExecution``: scopes,
 budgets, MCP admission, the persona's prompt policy, the tool block, the live-turn registry) is
-supplied to the gateway as session policy through the two fork seams it already calls:
+supplied to the gateway as session policy through fork seams it calls:
 
-* construction — ``worker_app_functions.create_agent`` hands an operator session's build to
-  :func:`construct`, which builds the agent the execution would have built and installs the turn door;
-* the turn — the door wraps that agent's ``run_conversation``: the gateway calls it from its own turn
-  thread and the door runs the execution's phases around the real call there.
+* construction — the gateway's ``agent_factory._make_agent`` asks ``worker_app_functions.operator_agent``
+  first, which hands an operator session's build to :func:`construct`: the agent the execution builds,
+  with the turn door installed;
+* the turn — ``worker_app_functions.bind`` pins the session's model (:func:`pin_session`), and the door
+  wraps the agent's ``run_conversation``: the gateway calls it from its own turn thread and the door runs
+  the execution's phases around the real call there.
 
-The caller (:func:`run_turn`) acquires the chat root's actor (the resident registry still decides
-when one is built), submits the composed user message to the session, and waits for the door to hand
-back the turn's ``(raw result, agent, timing)`` or its exception. A turn the gateway starts by itself on
-an operator session (its goal continuation, a completion notice) reaches the door with no pending
-operator turn and runs as an operator turn through :data:`ON_GATEWAY_TURN` (``chat_goal_door``).
+The caller (:func:`run_turn`) acquires the chat's actor (the resident registry still decides when one
+is built), submits an empty-text turn to the session (the agent writes the turn's user row, one
+transcript), and waits for the door to hand back the turn's ``(raw result, agent, timing)`` or its
+exception. A turn the gateway starts by itself on an operator session reaches the door with no pending
+operator turn: its goal continuation runs nothing (the gateway judged; the operator settle continues,
+:class:`EngineJudgedGoal`), and a completion its notification poller claimed is delivered as an operator
+turn of the chat, run inline on this session's agent (:func:`inline_turn`).
 """
 
 from __future__ import annotations
@@ -46,6 +50,7 @@ __all__ = [
     "is_operator",
     "open_actor",
     "pin_session",
+    "release_turn",
     "run_turn",
 ]
 
@@ -387,16 +392,15 @@ def open_actor(execution: Any) -> Any:
     """Open the chat's gateway session, building its agent through ``execution``; return the agent.
 
     The session is resumed on the chat's native tip (the session the turn's rows go to), in the store
-    that holds it, so the gateway's session key, history and goal are the chat's own. A run that names
-    no session gets one minted, as the agent would have minted it.
+    that holds it, so the gateway's session key, history and goal are the chat's own.
     """
 
-    import uuid
+    from agent_runtime.profile_runner.errors import ProfileRunnerError
 
     request = execution.request
-    # A run on no session (no chat) still needs a gateway session to run on; its agent keeps minting
-    # its own transcript id, as it always has.
-    tip = request.session_id or request.root_chat_session_id or f"operator_{uuid.uuid4().hex[:16]}"
+    tip = request.session_id or request.root_chat_session_id
+    if not tip:
+        raise ProfileRunnerError("only a chat's turn runs on a gateway session")
     home = _store_home(execution)
     _ensure_session_row(execution, home, tip)
     with _lock:

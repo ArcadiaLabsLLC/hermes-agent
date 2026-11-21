@@ -193,7 +193,7 @@ class ProfileAgentRunner:
         return result
 
     def _converse(self, binding, request: AgentRunRequest, ledger: RunBudgetLedger):
-        """The turn on the serve's one turn engine (``agent_runtime.operator_gateway_turn``).
+        """A chat's turn on the serve's one turn engine (``agent_runtime.operator_gateway_turn``).
 
         The chat's actor (a gateway session) is acquired here, the turn is submitted to it, and the
         gateway's turn thread runs this run's execution through the session's door.
@@ -201,6 +201,10 @@ class ProfileAgentRunner:
 
         from agent_runtime import operator_gateway_turn
 
+        if not request.root_chat_session_id:
+            # Not a chat (a one-shot run): no chat session to run on, so no engine session either; a
+            # minted one would leave a phantom row in the store for every such run.
+            return AgentRunExecution(self, binding, request, ledger=ledger).run()
         inline = operator_gateway_turn.inline_turn(request)
         if inline is not None:
             # A completion the gateway delivered to this chat: already on its turn thread, on its agent.

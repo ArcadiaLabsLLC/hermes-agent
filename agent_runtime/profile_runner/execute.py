@@ -841,8 +841,10 @@ class AgentRunExecution:
         apply_session_speed(agent, controls)
 
     def build_actor(self) -> Any:
-        """A new actor: a gateway session whose agent :meth:`construct_agent` builds."""
+        """A new actor: for a chat, a gateway session whose agent :meth:`construct_agent` builds."""
 
+        if not self.request.root_chat_session_id:
+            return self.construct_agent()
         from agent_runtime.operator_gateway_turn import open_actor
 
         return open_actor(self)
