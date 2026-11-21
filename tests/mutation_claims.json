@@ -5160,10 +5160,10 @@
     {
       "id": "hscope-copy-chat-stamped-with-its-maker",
       "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
-      "symbol": "_cmd_persona_instance_create",
+      "symbol": "_create_independent_instance",
       "operator": "drop-scope-on-independent-mint",
-      "find": "                        client_scope=owner,\n                        refuse_taken_name=True,",
-      "replace": "                        refuse_taken_name=True,",
+      "find": "            client_scope=owner,\n            refuse_taken_name=True,",
+      "replace": "            refuse_taken_name=True,",
       "test": [
         "{python}",
         "-m",
