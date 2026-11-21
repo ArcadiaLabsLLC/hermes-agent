@@ -21,6 +21,7 @@ tags: [queue, program/fork-hygiene]
 
 
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
+- **`FH-PREPUSH-TOUCHED-OVER-BUDGET-ON-THE-EMBEDDED-PHONE-SESSION-FILE` — A push that touches provider sign-in waits a minute on one phone test file, past the touched step's budget** · group: prepush · from: lane w1118a-onepath-hm landing 6550288611 · seen 2026-11-21 (`scripts/prepush.sh`, Linux box, load 2.58): step `touched` 62.1 s against budget 60 s (deadline 120 s), its whole wall `tests/agent_runtime/test_embedded_phone_session.py` alone (4 tests, 61.4 s, 1 worker); the step stayed green · guessed: the file boots an embedded serve per test; not profiled · done when: the file runs inside the touched budget on this box, or the touched step splits it across workers · READY 2026-11-21
 
 
 ## Filed on arrival — 2026-11-20 (lane rt-never-ran-field)
