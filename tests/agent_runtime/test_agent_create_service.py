@@ -238,11 +238,22 @@ def test_the_rpc_handler_holds_no_second_copy_of_the_sequence():
     so it cannot pass by also satisfying the probe.
     """
 
+    import ast
     import inspect
+    import textwrap
 
     from agent_runtime import serve_rpc
 
     from agent_runtime.serve_rpc import agent as agent_verbs
+
+    def called(function) -> set[str]:
+        """The names the function's own body CALLS (``f(...)`` and ``x.f(...)``), read off its AST."""
+        tree = ast.parse(textwrap.dedent(inspect.getsource(function)))
+        return {
+            node.func.id if isinstance(node.func, ast.Name) else node.func.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, (ast.Name, ast.Attribute))
+        }
 
     # Both seating verbs (create, and since 2026-11-19 place) are shims over the
     # ONE sequence and share ONE envelope, ``_placed_reply``.
@@ -265,10 +276,10 @@ def test_the_rpc_handler_holds_no_second_copy_of_the_sequence():
                 f"{forbidden!r} is back inside the RPC handler: the create sequence "
                 "has a second copy again, and the two lanes can now drift."
             )
-        assert service in source and "_placed_reply(" in source
+        assert {service, "_placed_reply"} <= called(handler)
     # Guard the guard: a handler that had been emptied entirely would satisfy
     # every assertion above.
-    assert "err(" in envelope and "ok(" in envelope
+    assert {"err", "ok"} <= called(agent_verbs._placed_reply)
 
 
 def test_verb_authors_no_desk(qa_persona):
