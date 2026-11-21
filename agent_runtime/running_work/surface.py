@@ -116,6 +116,51 @@ def split_work_id(work_id: str) -> tuple[str, str]:
     return kind, stable
 
 
+class UnknownWorkKind(ValueError):
+    """A ``kind`` filter that names no running-now kind; ``supported`` lists those that exist."""
+
+    def __init__(self, kind: str):
+        super().__init__(f"unknown work kind {kind!r}")
+        self.kind = kind
+        self.supported = list(RUNNING_WORK_KINDS)
+
+
+def running_work_listing(*, kind: str = "", limit: int | None = None, sort: str | None = None) -> dict[str, Any]:
+    """``harness work list`` / ``runtime.work.running.list``: the running-now list envelope, ONE builder.
+
+    The stage42 list envelope of the projection's rows (filtered by ``kind``, sorted by ``sort``, cut
+    at ``limit`` with ``truncated``), plus the per-source health (``sources``), ``counts``, the
+    projection's ``ambient`` block when it published one, and the accountant's ``completeness``.
+    Raises :class:`UnknownWorkKind` for a kind no lane produces.
+    """
+
+    from ..cli_format import list_envelope, sort_rows
+
+    kind = str(kind or "").strip()
+    if kind and kind not in RUNNING_WORK_KINDS:
+        raise UnknownWorkKind(kind)
+    # The snapshot lane accounts its drops through the parity envelope; the list
+    # accounts the same rows (exited PIDs, recycled PIDs, capped lanes) the same way.
+    accountant = ProjectionAccountant("running_work")
+    projection = build_running_work(accountant)
+    rows = [row for row in projection["rows"] if not kind or row.get("kind") == kind]
+    rows = sort_rows(rows, sort)
+    truncated = False
+    if isinstance(limit, int) and not isinstance(limit, bool) and limit > 0 and len(rows) > limit:
+        rows, truncated = rows[:limit], True
+    envelope = list_envelope("running_work", rows, truncated=truncated)
+    # Health rides the SAME envelope as the rows: a reader of the rows without it
+    # would read an unreadable lane as "nothing running".
+    envelope["sources"] = projection["sources"]
+    envelope["counts"] = projection["counts"]
+    # A diagnostic, attached only when published and never defaulted.
+    ambient = projection.get("ambient")
+    if isinstance(ambient, dict):
+        envelope["ambient"] = ambient
+    envelope["completeness"] = accountant.summary()
+    return envelope
+
+
 def peek_work(work_id: str) -> dict[str, Any]:
     """Bounded read-only look at what one piece of work is doing.
 
