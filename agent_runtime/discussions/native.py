@@ -58,29 +58,47 @@ class NativeTurns:
                 self._live.pop(key, None)
                 raise
 
-    def recover(self, row: Mapping[str, Any], *, fresh: bool = False, wait: bool = True) -> dict[str, Any]:
+    def recover(self, row: Mapping[str, Any], *, fresh: bool = False, wait: bool = True,
+                record: bool = True) -> dict[str, Any]:
         """``fresh``: ``row`` was read from the store just now, so it is not read again. ``wait`` is
-        ProfileTurns' (a read that never queues behind a dispatch); native recovery takes no lock to wait on."""
+        ProfileTurns' (a read that never queues behind a dispatch); native recovery takes no lock to wait on.
+
+        ``record=False`` is a VIEW: the journal's answer is folded into the returned row in memory and the
+        receipt is not written, so a view never queues behind the room workers' ``synchronous=FULL`` commits
+        (RT-FU-A-DISCUSSION-ROOM-VIEW-WRITES-RECEIPTS-AND-TIMES-OUT-UNDER-LOAD: a twelve-member room's view
+        failed ``database is locked``). The write stays with the worker and the decision paths
+        (``unresolved``, ``retry``, ``abandon``, ``interrupt``), which record before they decide, so a turn
+        whose worker died is still recorded by the next decision."""
         current = dict(row) if fresh else self.attempts.get(*self._key(row)) or dict(row)
         if current["stage"] in {"terminal", "waiting_input"}:
             return current
+        answer = self._journal_answer(current)
+        if answer is None:
+            return current
+        if not record:
+            return {**current, **answer}
+        self.attempts.update(current, **answer)
+        return self.attempts.get(*self._key(current)) or current
+
+    def _journal_answer(self, current: Mapping[str, Any]) -> dict[str, Any] | None:
+        """What the turn journal proves about ``current``: its next ``stage`` with its ``receipt`` or
+        ``question``, or ``None`` when it proves nothing yet."""
         record = self.context.journal(current["session_id"], current["native_id"])
         if record is not None and record.get("native_committed") is True:
             meta = record.get("auxiliary_result")
             if not isinstance(meta, dict) or "clarify" not in meta:
-                return current  # Cannot prove whether a committed turn asked a question.
+                return None  # Cannot prove whether a committed turn asked a question.
             question = meta["clarify"]
             if question:
-                self.attempts.update(current, stage="waiting_input", question=question)
-            else:
-                receipt = {"status": "settled", "text": record.get("stored_reply", ""),
-                           "settlement_id": current["native_id"], "message_id": current["native_id"]}
-                self.attempts.update(current, stage="terminal", receipt=receipt)
-        elif record is not None and record.get("state") in {"interrupted", "failed", "budget_exhausted"}:
-            self.attempts.update(current, stage="terminal", receipt={
+                return {"stage": "waiting_input", "question": question}
+            return {"stage": "terminal", "receipt": {
+                "status": "settled", "text": record.get("stored_reply", ""),
+                "settlement_id": current["native_id"], "message_id": current["native_id"]}}
+        if record is not None and record.get("state") in {"interrupted", "failed", "budget_exhausted"}:
+            return {"stage": "terminal", "receipt": {
                 "status": "cancelled" if record["state"] == "interrupted" else "failed",
-                "error": "Native turn " + record["state"], "text": "", "message_id": current["native_id"]})
-        return self.attempts.get(*self._key(current)) or current
+                "error": "Native turn " + record["state"], "text": "", "message_id": current["native_id"]}}
+        return None
 
     def _execute(self, run, member, row, scope, callback) -> None:
         try:
@@ -141,7 +159,7 @@ class NativeTurns:
         """Positive process-exit proof. Unreadable owner identity is never idle."""
         if self.is_live(row):
             return False
-        current = self.attempts.get(*self._key(row)) or row
+        current = self.recover(row)  # a decision records what the journal proves before judging (views do not)
         if current["stage"] in {"terminal", "pending", "waiting_input"}:
             return True
         if (current.get("owner_pid"), current.get("owner_started")) == (self.pid, self.started):
