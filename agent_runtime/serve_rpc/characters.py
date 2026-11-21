@@ -48,6 +48,16 @@ from agent_runtime.serve_rpc.registry import method
 __layer__ = "lanes"
 
 __all__ = [
+    "_runtime_characters_add_state",
+    "_runtime_characters_approve_direction",
+    "_runtime_characters_auto",
+    "_runtime_characters_base",
+    "_runtime_characters_compose",
+    "_runtime_characters_reopen",
+    "_runtime_characters_reroll_direction",
+    "_runtime_characters_reroll_row",
+    "_runtime_characters_rows",
+    "_runtime_characters_turnaround",
     "_runtime_characters_cells",
     "_runtime_characters_list",
     "_runtime_characters_recolour",
@@ -253,3 +263,160 @@ def _runtime_characters_sprite(rid: Any, params: dict, context=None) -> dict:
     except _expected() as exc:
         return _charsheet_refusal(rid, exc, slug=slug)
     return ok(rid, _payload(result))
+
+
+# ── the generation verbs (RT-EVERY-ACTION-ETERNIA-SENDS-HAS-A-TYPED-CALL-ON-THE-RUNNING-HERMES) ───────────────
+#
+# ``runtime.characters.<verb>`` for the ten ``harness characters`` verbs Eternia ran as a command line. Each
+# runs the argv handler itself (``hermes_cli.harness_parts.characters.operation``), so the payload is the
+# verb's ``--json`` payload. The IMAGE-GENERATING ones (turnaround, reroll_direction, rows, reroll_row,
+# compose, auto) take the serve's long-run posture: the worker lane through ``defer_or_refuse`` — never the
+# reader loop, refused ``runtime_stopping`` when no worker lane takes it — and are bounded only at their
+# source (the provider timeouts), as every unbounded method on this serve is. The quick ones (base,
+# approve_direction, reopen, add_state) go to the worker lane when there is one (``defer_or_inline``).
+#
+# A refusal the verb itself answers (``ok: false``) is a 4090 whose ``data`` is that payload plus
+# ``reason`` (its typed ``code`` when it has one, else ``characters_refused``). A malformed call is
+# -32602 ``invalid_request`` (+ ``field``) before any draft is loaded. All ten are ``console`` tier.
+
+_LONG_RUNNING = frozenset({"turnaround", "reroll_direction", "rows", "reroll_row", "compose", "auto"})
+
+#: verb -> (required text params, optional params)
+_GENERATION_PARAMS: dict[str, tuple[frozenset, frozenset]] = {
+    "base": (frozenset({"draft", "image"}), frozenset()),
+    "turnaround": (frozenset({"draft"}), frozenset()),
+    "reroll_direction": (frozenset({"draft", "direction"}), frozenset({"note"})),
+    "approve_direction": (frozenset({"draft"}), frozenset({"direction", "all", "attempt"})),
+    "rows": (frozenset({"draft"}), frozenset({"only"})),
+    "reroll_row": (frozenset({"draft", "row"}), frozenset({"note"})),
+    "compose": (frozenset({"draft"}), frozenset({"accept_handedness"})),
+    "auto": (frozenset({"draft"}), frozenset({"through"})),
+    "reopen": (frozenset({"draft"}), frozenset()),
+    "add_state": (frozenset({"draft", "state"}), frozenset()),
+}
+
+
+class _Malformed(ValueError):
+    def __init__(self, field: str):
+        super().__init__(field)
+        self.field = field
+
+
+def _generation_params(verb: str, params: Any) -> None:
+    from hermes_cli.harness_parts.characters.auto import _CHARACTERS_AUTO_STEPS
+
+    required, optional = _GENERATION_PARAMS[verb]
+    if not isinstance(params, dict):
+        raise _Malformed("params")
+    for key in sorted(set(params) - required - optional):
+        raise _Malformed(key)
+    for key in sorted(required):
+        if not isinstance(params.get(key), str) or not params[key].strip():
+            raise _Malformed(key)
+    for key in ("note", "direction"):
+        if key in params and key not in required and not isinstance(params[key], str):
+            raise _Malformed(key)
+    for key in ("only", "accept_handedness"):
+        if key in params and (not isinstance(params[key], list)
+                              or not all(isinstance(item, str) and item.strip() for item in params[key])):
+            raise _Malformed(key)
+    if verb == "approve_direction":
+        approve_all = params.get("all", False)
+        if type(approve_all) is not bool:
+            raise _Malformed("all")
+        direction = str(params.get("direction") or "").strip()
+        # Exactly one of the argv's mutually exclusive pair.
+        if approve_all == bool(direction):
+            raise _Malformed("direction")
+        attempt = params.get("attempt", -1)
+        if type(attempt) is not int or attempt < -1 or (approve_all and attempt != -1):
+            raise _Malformed("attempt")
+    if verb == "auto" and params.get("through", "compose") not in _CHARACTERS_AUTO_STEPS:
+        raise _Malformed("through")
+
+
+def _generation(rid: Any, params: dict, context: Any, verb: str) -> dict:
+    from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, defer_or_inline, defer_or_refuse
+
+    method_name = f"runtime.characters.{verb}"
+    try:
+        _generation_params(verb, params)
+    except _Malformed as exc:
+        return err(rid, ERR_INVALID_PARAMS, "Invalid character request.", {"reason": "invalid_request", "field": exc.field})
+
+    def build() -> dict:
+        from hermes_cli.harness_parts.characters.operation import characters_operation_result
+
+        payload = characters_operation_result(verb, params)
+        if payload.get("ok") is False:
+            return err(rid, ERR_CONFLICT, str(payload.get("error") or "The character step was refused."),
+                       {**payload, "reason": payload.get("code") or "characters_refused"})
+        return ok(rid, payload)
+
+    if verb in _LONG_RUNNING:
+        from agent_runtime.serve_rpc.protocol import RpcContext
+
+        # MUTATION: answer ``defer_or_inline`` here and test_a_generation_never_runs_on_the_reader_loop reddens.
+        return defer_or_refuse(rid, method_name, context if context is not None else RpcContext(), build,
+                               message="The runtime cannot take a character generation now.")
+    return defer_or_inline(rid, method_name, context, build)
+
+
+@method("runtime.characters.base", tier=TIER_CONSOLE)
+def _runtime_characters_base(rid: Any, params: dict, context: Any = None) -> dict:
+    """``harness characters base``: ``{draft, image}`` (a path on THIS machine) -> ``{ok, draft, stage, baseImage}``."""
+    return _generation(rid, params, context, "base")
+
+
+@method("runtime.characters.turnaround", tier=TIER_CONSOLE)
+def _runtime_characters_turnaround(rid: Any, params: dict, context: Any = None) -> dict:
+    """``harness characters turnaround``: ``{draft}`` -> the proposed direction references. Long-run."""
+    return _generation(rid, params, context, "turnaround")
+
+
+@method("runtime.characters.reroll_direction", tier=TIER_CONSOLE)
+def _runtime_characters_reroll_direction(rid: Any, params: dict, context: Any = None) -> dict:
+    """``harness characters reroll-direction``: ``{draft, direction, note?}``. Long-run."""
+    return _generation(rid, params, context, "reroll_direction")
+
+
+@method("runtime.characters.approve_direction", tier=TIER_CONSOLE)
+def _runtime_characters_approve_direction(rid: Any, params: dict, context: Any = None) -> dict:
+    """``harness characters approve-direction``: ``{draft, direction, attempt?}`` or ``{draft, all: true}``."""
+    return _generation(rid, params, context, "approve_direction")
+
+
+@method("runtime.characters.rows", tier=TIER_CONSOLE)
+def _runtime_characters_rows(rid: Any, params: dict, context: Any = None) -> dict:
+    """``harness characters rows``: ``{draft, only?: [row key]}``; a batch that died names its resume in ``next``. Long-run."""
+    return _generation(rid, params, context, "rows")
+
+
+@method("runtime.characters.reroll_row", tier=TIER_CONSOLE)
+def _runtime_characters_reroll_row(rid: Any, params: dict, context: Any = None) -> dict:
+    """``harness characters reroll-row``: ``{draft, row, note?}``. Long-run."""
+    return _generation(rid, params, context, "reroll_row")
+
+
+@method("runtime.characters.compose", tier=TIER_CONSOLE)
+def _runtime_characters_compose(rid: Any, params: dict, context: Any = None) -> dict:
+    """``harness characters compose``: ``{draft, accept_handedness?: ['<row>:<basis>']}``. Long-run."""
+    return _generation(rid, params, context, "compose")
+
+
+@method("runtime.characters.auto", tier=TIER_CONSOLE)
+def _runtime_characters_auto(rid: Any, params: dict, context: Any = None) -> dict:
+    """``harness characters auto``: ``{draft, through?}`` -> the SUMMARY line plus ``receipts`` (every earlier line). Long-run."""
+    return _generation(rid, params, context, "auto")
+
+
+@method("runtime.characters.reopen", tier=TIER_CONSOLE)
+def _runtime_characters_reopen(rid: Any, params: dict, context: Any = None) -> dict:
+    """``harness characters reopen``: ``{draft}``."""
+    return _generation(rid, params, context, "reopen")
+
+
+@method("runtime.characters.add_state", tier=TIER_CONSOLE)
+def _runtime_characters_add_state(rid: Any, params: dict, context: Any = None) -> dict:
+    """``harness characters add-state``: ``{draft, state}`` (``'jumping:6'`` / ``'cheer:4:fixed'``)."""
+    return _generation(rid, params, context, "add_state")

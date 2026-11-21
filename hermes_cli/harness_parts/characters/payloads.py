@@ -42,6 +42,10 @@ def _characters_error(args, exc: BaseException, **extra) -> int:
 
     data = {"ok": False, "error": str(exc)}
     data.update(extra)
+    sink = getattr(args, "operation_result_sink", None)
+    if sink is not None:  # the typed ``runtime.characters.*`` door: the same payload, no stdout
+        sink({**data, **draftsman()})
+        return 2
     print(emit_json({**data, **draftsman()}) if getattr(args, "json", False) else data["error"])
     return 2
 
@@ -85,6 +89,10 @@ def _characters_print(args, data: dict, human: str) -> int:
     """Print one payload as it stands: ``--json`` with the draftsman stamp, else the human line."""
     from agent.charsheet.draft.payloads import draftsman
 
+    sink = getattr(args, "operation_result_sink", None)
+    if sink is not None:  # the typed ``runtime.characters.*`` door: the same payload, no stdout
+        sink({**data, **draftsman()})
+        return 0
     print(emit_json({**data, **draftsman()}) if getattr(args, "json", False) else human)
     return 0
 
