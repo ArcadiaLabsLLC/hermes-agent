@@ -192,10 +192,14 @@ def read_declared_efforts(profile: Any, model: str | None, base_url: Any = None,
     only to a hook whose signature takes them. ``None`` profile -> ``None``.
 
     Called by ``agent/transports/codex.py::_profile_declared_efforts`` for the endpoint-inferred
-    profile and the named one.
+    profile and the named one, and by :func:`codex_declared_or_static_efforts`.
     """
     if profile is None:
         return None
+    if _codex_catalog_profile(profile):
+        from agent_runtime.reasoning_control_catalog import cached_control_efforts
+
+        return cached_control_efforts(profile.name, model, base_url=base_url or None)
     hook = profile.supported_reasoning_efforts
     options = {}
     if not allow_warm or base_url:
@@ -206,6 +210,20 @@ def read_declared_efforts(profile: Any, model: str | None, base_url: Any = None,
         if base_url and "base_url" in parameters:
             options["base_url"] = base_url
     return hook(model, **options)
+
+
+def _codex_catalog_profile(profile: Any) -> bool:
+    """An ``openai-codex`` profile that declares no vocabulary of its own: its efforts are the fork's
+    serving-catalog read (``reasoning_control_catalog``), answered here rather than by a subclass carried
+    in upstream's provider plugin, which reached fork core past the published plugin API (row
+    RT-FU-THE-FORK-PLUGINS-REACH-HERMES-CORE-ONLY-THROUGH-ITS-PUBLIC-DOORS). A profile that overrides the
+    hook (a ``$HERMES_HOME`` plugin) keeps its own answer."""
+    from providers.base import ProviderProfile
+
+    # MUTATION: drop the override test and
+    # test_the_upstream_codex_profile_reads_the_fork_catalog_and_an_overriding_one_keeps_its_answer reds.
+    return getattr(profile, "name", None) == "openai-codex" and (
+        type(profile).supported_reasoning_efforts is ProviderProfile.supported_reasoning_efforts)
 
 
 def declared_reasoning_efforts(provider: str, model: str, base_url: str | None = None) -> tuple | None:
@@ -238,5 +256,5 @@ def codex_declared_or_static_efforts(model: str | None) -> tuple[str, ...]:
     from providers import get_provider_profile
 
     profile = get_provider_profile("openai-codex")
-    declared = profile.supported_reasoning_efforts(model) if profile is not None else None
+    declared = read_declared_efforts(profile, model)
     return tuple(declared) if declared is not None else codex_supported_efforts(model)

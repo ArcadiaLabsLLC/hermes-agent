@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-11-19",
+  "measured_at": "2026-11-21",
   "base": "3b42157858",
   "files": 228,
-  "deleted_lines": 879,
+  "deleted_lines": 878,
   "heavy": 1,
   "reasons": [
     {
@@ -1525,6 +1525,21 @@
       },
       "reason": "tests/pm/test_python_release_identity.py: the linux-x64 case's download-name assertion compares against the flavor pm/_fork_python_flavor.py pins for the target (one import line added, one assertion line changed: 1 deletion). Goes with the pm/packages.py seam; upstream candidate with it.",
       "owner_ruling": "2026-11-19 \u00b7 owner standing call for this session ('when there is a decision for this session, do an analysis on it and go with reccomended', lane w1118a-hbundle brief); the analysis is RT-BUNDLED-LINUX-INTERPRETER-STRIPPED-AND-PRUNED's decision segment (runtime-queue.md)"
+    },
+    {
+      "change": "RT-FU-THE-FORK-PLUGINS-REACH-HERMES-CORE-ONLY-THROUGH-ITS-PUBLIC-DOORS (lane w1118a-sw69-doors): the fork plugins' doors are published; the openai-codex hunk leaves upstream's plugin",
+      "before": {
+        "files": 228,
+        "deleted_lines": 879,
+        "heavy": 1
+      },
+      "after": {
+        "files": 228,
+        "deleted_lines": 878,
+        "heavy": 1
+      },
+      "reason": "A swap, no raise: plugins/model-providers/openai-codex/__init__.py is back at upstream bytes (-1 file, -1 deleted line; its catalog read moved into fork-owned agent_runtime/reasoning_capabilities.py, which both callers already reach), and hermes_cli/plugin_validate_private_imports.py gains an additive seam (+1 file, 0 deleted) reading the fork-owned hermes_cli/data/plugin_api_fork.json, so upstream's boundary lint sees agent_runtime/plugin_doors/ as published. What was tried first is in the plan docs/agent-runtime-harness/planned/fork-plugins-public-doors-2026-11-21.md.",
+      "owner_ruling": "2026-11-19 \u00b7 owner standing call for this session ('when there is a decision for this session, do an analysis on it and go with reccomended', LANE_RULES_W1118A); the analysis is the plan's 'The publication seam' section; the row's own RULED 2026-11-21 segment (runtime-queue.md)"
     }
   ]
 }

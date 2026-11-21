@@ -1,0 +1,16 @@
+{
+  "_comment": [
+    "Fork-owned: the fork plugins' published doors, read beside plugin_api.json by",
+    "hermes_cli/plugin_validate_private_imports.py::_public_api (so scripts/boundary_lint.py and `hermes plugins validate` agree).",
+    "Only modules under agent_runtime/plugin_doors/ belong here, one per fork plugin; tests/agent_runtime/test_plugin_doors.py holds it so.",
+    "Plan: docs/agent-runtime-harness/planned/fork-plugins-public-doors-2026-11-21.md."
+  ],
+  "groups": [
+    {
+      "source": "fork plugins (plugins/eternia-*) — agent_runtime/plugin_doors/",
+      "entries": [
+        "agent_runtime.plugin_doors.lens"
+      ]
+    }
+  ]
+}
