@@ -106,10 +106,11 @@ def test_1_the_supervisor_lets_go_once_its_child_exits_though_a_survivor_holds_t
     record_dispatch(dispatch_id=dispatch_id, sender_session_id=SENDER_ROOT, target_persona="dev", ask="x")
     agent_chat_dispatch._mark_supervised(dispatch_id)
     try:
-        started = time.monotonic()
         agent_chat_dispatch._run_dispatch(dispatch_id, {"persona_id": "dev", "message": "x", "max_seconds": 60})
 
-        assert time.monotonic() - started < 60  # within a sweep
+        # Returned while the survivor (a 300 s sleep) still holds the child's stdout, so the call did not
+        # wait for the pipe to close; a supervisor that did hangs here past the per-test timeout.
+        os.kill(int(pid_file.read_text()), 0)  # windows-footgun: ok — POSIX-only test; raises if the survivor is gone
         assert dispatch_id not in agent_chat_dispatch.supervised_dispatch_ids()
         assert get_dispatch(dispatch_id)["state"] == dispatch_store.STATE_COMPLETED
         assert not _listed(dispatch_id)

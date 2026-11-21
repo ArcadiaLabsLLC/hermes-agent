@@ -21,7 +21,6 @@ import os
 import sqlite3
 import subprocess
 import sys
-import time
 from types import SimpleNamespace
 
 import pytest
@@ -39,6 +38,7 @@ from tools import agent_chat_dispatch
 from tools.agent_chat_dispatch import child as child_mod
 from tools.agent_chat_dispatch import local as local_mod
 from tools.agent_chat_dispatch import local_child
+from tests._downstream.load_wait import wait_for
 
 SENDER_ROOT = "persona_chat_personainst_neko_aaaaaaaaaaaa"
 
@@ -119,13 +119,11 @@ def _start_child(dispatch_id, tmp_path, children):
 
 
 def _wait_state(dispatch_id, seconds=20.0):
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
+    def settled():
         row = get_dispatch(dispatch_id)
-        if row["state"] != dispatch_store.STATE_RUNNING:
-            return row
-        time.sleep(0.05)
-    raise AssertionError(f"dispatch {dispatch_id} never settled")
+        return row if row["state"] != dispatch_store.STATE_RUNNING else None
+
+    return wait_for(settled, seconds, interval=0.05, what=f"dispatch {dispatch_id} to settle")
 
 
 # --------------------------------------------------------------------------- the child side
@@ -199,10 +197,8 @@ def test_a_request_still_running_when_its_serve_restarts_is_re_adopted_and_its_r
     assert row["state"] == dispatch_store.STATE_COMPLETED
     assert row["result"]["reply"] == "the real answer"
     # Discarded right after the record, on the supervisor's thread.
-    deadline = time.monotonic() + 10
-    while result_file.dispatch_result_path(dispatch_id).exists() and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert not result_file.dispatch_result_path(dispatch_id).exists()
+    wait_for(lambda: not result_file.dispatch_result_path(dispatch_id).exists(), 10, interval=0.05,
+             what="the result file to be discarded")
 
 
 @posix_only
