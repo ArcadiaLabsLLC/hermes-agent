@@ -18,7 +18,7 @@ from agent_runtime.dispatch_store.supervision import (
 from agent_runtime.persona_chat_continuity.lease import chat_root_is_busy
 
 from .cancel_watch import CANCEL_POLL_SECONDS, ensure_cancel_watch
-from .native import TurnRun, run_turn
+from .native import TurnRun, jobs_left_running, run_turn
 from .outcome import KILL_GRACE_SECONDS, payload_completion
 from .remote import _run_remote_dispatch, request_remote_cancel
 
@@ -417,7 +417,10 @@ def _record_local_outcome(
     # payload: a turn whose model returned no content comes back `ok` with an empty
     # reply, and the sender would then read the same blank as a reply that never
     # made it out.
-    dispatch_store.record_completion(dispatch_id, **payload_completion(payload, run.exit_code))
+    dispatch_store.record_completion(
+        dispatch_id, **payload_completion(payload, run.exit_code),
+        background_jobs=jobs_left_running(payload, run.started_at),
+    )
 
 
 def dispatch_detached_turn(

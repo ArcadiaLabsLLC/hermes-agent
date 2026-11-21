@@ -150,12 +150,56 @@ def _instance(args: dict[str, Any]) -> dict[str, Any]:
             "steered_by": list(instance.steered_by),
             "chat_head_home": instance.chat_head_home,
             "chat_head_kind": instance.chat_head_kind,
+            # The instance's OWN tier only; what its chats run on is ``next_models``.
             "model": instance.model,
             "provider": instance.provider,
             "reasoning_effort": instance.reasoning_effort,
         },
+        "next_models": _next_models(instance),
         "mcp": _mcp_resolution(instance),
     }
+
+
+def _model_answer(selection: dict[str, Any]) -> dict[str, Any]:
+    return {key: selection.get(key) for key in (
+        "effective_provider", "effective_model", "effective_reasoning_effort", "model_source")}
+
+
+def _next_models(instance: Any) -> dict[str, Any]:
+    """What this instance's chats run next, read through the one resolver the turn folds.
+
+    RT-FU-A-LEAD-CANNOT-READ-ITS-HELPERS-MODEL-BEFORE-DISPATCHING: a lead read only the instance's own
+    override (``instance.model``) while the helper's chat ran another the operator picked in the console.
+    ``default_chat`` is that chat's next turn; ``new_dispatch`` is the fresh thread a dispatch to this
+    instance mints by default (``dispatch_session_policy``), which inherits the default chat's pick
+    (``persona_chat_session.next_turn_model_selection``). An unreadable answer says so, never guesses.
+    """
+
+    try:
+        from ..chat_session_scope import resolve_instance_chat_scope
+        from ..config import ensure_persisted_personas, load_agent_runtime_config
+        from ..models import apply_instance_model_overrides
+        from ..persona_chat_durability import persona_session_db_for
+        from ..persona_chat_session import next_turn_model_selection
+
+        config = load_agent_runtime_config()
+        persona = next((row for row in ensure_persisted_personas(config) if row.id == instance.persona_id), None)
+        if persona is None:
+            return {"basis": "unresolved", "reason": "persona_not_in_roster"}
+        persona = apply_instance_model_overrides(persona, instance)
+        session_db = persona_session_db_for(resolve_instance_chat_scope(instance))
+        default_chat = str(instance.default_chat_session_id or "") or None
+        common = {"session_db": session_db, "persona": persona, "config": config, "instance": instance}
+        answers = {
+            "basis": "resolved_now",
+            "default_chat_session_id": default_chat,
+            "default_chat": _model_answer(next_turn_model_selection(session_id=default_chat, **common)),
+            "new_dispatch": _model_answer(next_turn_model_selection(
+                session_id=None, dispatched_from={"predecessor_chat_session_id": default_chat or ""}, **common)),
+        }
+        return answers
+    except Exception as exc:  # a read must answer; the turn's own receipt stays the record
+        return {"basis": "unresolved", "reason": f"{type(exc).__name__}"}
 
 
 def _session_rows(instance_ids: frozenset[str], limit: int) -> list[dict[str, Any]]:

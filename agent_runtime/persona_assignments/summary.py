@@ -108,11 +108,12 @@ def persona_instance_summary(
         else None
     )
     from agent_runtime.config import load_agent_runtime_config
-    from agent_runtime.persona_chat_session import _chat_effective_model_payload
+    from agent_runtime.persona_chat_session import next_turn_model_selection
 
-    model_selection = _chat_effective_model_payload(
-        persona=visibility_persona, config=load_agent_runtime_config(),
-        override=None, instance=instance,
+    # The agent's own answer (no chat yet: a draft), through the one resolver every chat reads.
+    model_selection = next_turn_model_selection(
+        session_db=None, session_id=None, persona=visibility_persona, config=load_agent_runtime_config(),
+        instance=instance,
     )
     summary = {
         "character_assignment": resolve_character_assignment(instance, visibility_persona),

@@ -65,12 +65,13 @@ def _persona_instance_wire_row(instance: Any, persona: Any) -> dict[str, Any]:
     ``getattr(visibility_persona, ...)`` exactly."""
 
     from ..config import load_agent_runtime_config
-    from ..persona_chat_session import _chat_effective_model_payload
+    from ..persona_chat_session import next_turn_model_selection
 
     overrides = instance.skill_overrides
     persona_skills = list(getattr(persona, "skills", []) or [])
-    selection = _chat_effective_model_payload(
-        persona=persona, config=load_agent_runtime_config(), override=None, instance=instance,
+    # The agent's own answer (no chat yet: a draft), through the one resolver every chat reads.
+    selection = next_turn_model_selection(
+        session_db=None, session_id=None, persona=persona, config=load_agent_runtime_config(), instance=instance,
     )
     effective_model = selection["effective_model"]
     # ``persona_instance_summary`` derives all three profile names from this one
