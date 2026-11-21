@@ -96,6 +96,28 @@ def _identity() -> bytes:
     return _b(f"{pairs['user.name']} <{pairs['user.email']}>")
 
 
+def _fold_untracked_folders(untracked: set[str], index: Any) -> set[str]:
+    """git's normal untracked mode over an "all" listing: a file under a folder that holds no tracked file is
+    listed as that folder, the outermost such one, once (``loose/a/b.txt`` -> ``loose/``)."""
+
+    tracked_folders: set[str] = set()
+    for key in index:
+        parts = _s(key).split("/")[:-1]
+        for depth in range(1, len(parts) + 1):
+            tracked_folders.add("/".join(parts[:depth]))
+    folded: set[str] = set()
+    for path in untracked:
+        parts = path.split("/")
+        for depth in range(1, len(parts)):
+            folder = "/".join(parts[:depth])
+            if folder not in tracked_folders:
+                folded.add(folder + "/")
+                break
+        else:
+            folded.add(path)
+    return folded
+
+
 def _within_paths(path: str, prefixes: Sequence[str]) -> bool:
     if not prefixes:
         return True
@@ -317,7 +339,7 @@ class DulwichSyncGit:
             elif head is not None and self._remote_tips(repo) is not None:
                 tips = self._remote_tips(repo) or []
                 ahead = sum(1 for _ in repo.get_walker(include=[head], exclude=tips))
-        return RepoState(ahead=ahead, behind=behind, conflicts=conflicts, dirty=bool(self.changed()))
+        return RepoState(ahead=ahead, behind=behind, conflicts=conflicts, dirty=bool(self.changed(untracked_all=True)))
 
     def _remote_tips(self, repo: Repo) -> list[bytes] | None:
         """Every remote-tracking tip, or ``None`` when the repository names no remote at all."""
@@ -327,12 +349,19 @@ class DulwichSyncGit:
         return [repo.refs[ref] for ref in repo.refs.allkeys() if ref.startswith(_REMOTES) and not ref.endswith(b"/HEAD")]
 
     def changed(self, paths: Sequence[str] = (), *, untracked_all: bool = False) -> tuple[ChangedPath, ...]:
+        # Always dulwich's "all" listing, folded here into git's normal mode: dulwich's own "normal" is 2-4 times
+        # slower and walks into a tracked symlink to a folder, listing it as a new folder (seen live 2026-11-21,
+        # RT-PHONE-GIT-STATUS-SHOWS-ONLY-REAL-CHANGES-AND-COMES-BACK-IN-SECONDS).
+        # MUTATION: ask porcelain.status for "normal" again and
+        # test_a_tracked_symlink_to_a_folder_is_no_new_folder reddens on this backend.
         with self._open() as repo:
-            status = porcelain.status(repo, untracked_files="all" if untracked_all else "normal")
+            status = porcelain.status(repo, untracked_files="all")
             tracked = {_s(p) for group in status.staged.values() for p in group}
             tracked |= {_s(p) for p in status.unstaged}
             tracked |= set(self._conflicts(repo))
             untracked = {_s(p) for p in status.untracked}
+            if not untracked_all and untracked:
+                untracked = _fold_untracked_folders(untracked, repo.open_index())
         rows = [ChangedPath(path=p, untracked=False) for p in tracked if _within_paths(p, paths)]
         rows += [ChangedPath(path=p, untracked=True) for p in untracked - tracked if _within_paths(p, paths)]
         return tuple(sorted(rows, key=lambda row: row.path))

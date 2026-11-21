@@ -187,6 +187,28 @@ def test_changed_lists_tracked_and_untracked(tmp_path, remote):
     assert not git.is_tracked("loose/new.txt")
 
 
+def test_a_tracked_symlink_to_a_folder_is_no_new_folder(tmp_path, remote):
+    # RT-PHONE-GIT-STATUS-SHOWS-ONLY-REAL-CHANGES-AND-COMES-BACK-IN-SECONDS: dulwich's own "normal" untracked mode
+    # walked into a tracked symlink to a folder and listed it as a new folder (``.claude/skills/``, seen live).
+    seed = tmp_path / "linker"
+    _sh(tmp_path, "clone", "-q", str(remote), str(seed))
+    (seed / "realms/r/link").symlink_to("../r", target_is_directory=True)
+    _sh(seed, "add", "--", "realms/r/link")
+    _sh(seed, "commit", "-q", "-m", "a link to a folder")
+    _sh(seed, "push", "-q", "origin", "HEAD:main")
+    repo = _clone(tmp_path, remote)
+    git = sync_git(repo)
+    assert (repo / "realms/r/link").is_symlink()
+    assert git.changed() == ()
+    assert git.changed(untracked_all=True) == ()
+    assert not git.state().dirty
+    (repo / "loose/deeper").mkdir(parents=True)
+    (repo / "loose/deeper/new.txt").write_text("n\n", encoding="utf-8")
+    (repo / "realms/r/new.txt").write_text("n\n", encoding="utf-8")
+    assert {(c.path, c.untracked) for c in git.changed()} == {("loose/", True), ("realms/r/new.txt", True)}
+    assert {c.path for c in git.changed(untracked_all=True)} == {"loose/deeper/new.txt", "realms/r/new.txt"}
+
+
 def test_commit_is_the_sync_identity_with_trailers(tmp_path, remote):
     repo = _clone(tmp_path, remote)
     (repo / "realms/r/a.txt").write_text("two\n", encoding="utf-8")
