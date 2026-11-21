@@ -2,9 +2,11 @@
 
 **Status:** plan written 2026-11-21 by lane w1118a-tplplan for row
 `RT-AN-AGENTS-TEMPLATE-IS-ITS-PERSONA-AND-EVERY-LIVE-AGENT-IS-A-PLACED-INSTANCE`
-(`Harness_Brain/20 — Active Initiatives/runtime-queue.md`, review w1118a.77). **No code before the
-owner rules.** The recommendation at the end is **RECOMMENDED, awaiting the owner**. Nothing in this
-plan is a ruling.
+(`Harness_Brain/20 — Active Initiatives/runtime-queue.md`, review w1118a.77).
+
+**RULED 2026-11-21 by the owner: option (iii), template-only, keeping the copies in use.** The owner's
+words and what they change are in §8. One answer changed: §3(a), channels (a live chat belongs to an
+instance; the agent's saved chat history stays the agent's). The build rows of §7 are filed.
 
 The owner's five points on the row are **questions**, not rulings (the owner said so). Each is answered
 below with what the code does today and what it would become.
@@ -149,9 +151,12 @@ one nobody has chatted with. That entry is the "Base Agent — New chat" row in 
 `channel_identity`, the last-resort channel key is `persona_instance_id_for(persona_id)`. A channel
 with nothing else to name it is therefore filed under the hidden copy.
 
-**What it would become.** An instance owns its chats: none, one or many, with one loaded at a time. A
-chat (an operator channel) always belongs to exactly one instance. Nothing about a channel requires a
-hidden copy to exist:
+**What it would become (as ruled 2026-11-21, §8).** A **live** chat belongs to an instance: the chat
+an instance has loaded and is running turns in. An instance has at most one chat loaded at a time. The
+agent's **saved chat history** is not owned by an instance. It stays the agent's (the persona's), and
+an instance loads one of those chats on demand (§3(b): `move_chat`, the move ledger). So an operator
+channel entry is a live chat on an instance, and a saved chat is listed under its agent until an
+instance loads it. Nothing about either requires a hidden copy to exist:
 
 - A placed instance with no chat yet shows as that instance with a New chat action, not as an empty
   channel. Eternia's Chat list already lists seated instances this way.
@@ -430,7 +435,9 @@ Why (iii) over the others:
 
 Answers this recommendation gives the five questions, for the owner to accept or change:
 
-- **(a)** A chat belongs to an instance. A persona with no instance has no chat.
+- **(a)** A chat belongs to an instance. A persona with no instance has no chat. *Changed by the owner
+  (§8): a **live** chat belongs to an instance; the agent's saved chat history stays the agent's and is
+  loaded into an instance on demand. A persona with no instance has no live chat, but may have history.*
 - **(b)** Yes, already true. Nothing moves under (iii).
 - **(c)** The guards exist only because of the mint, and they are deleted with it.
 - **(d)** Sends address an instance. A persona id means its one in-scope placement. Zero placements is
@@ -484,3 +491,36 @@ Order: 1 → 2 → 3 in hermes, then 4 in Eternia. 5 is queue housekeeping.
 
 If the owner picks another option, rows 1 and 4 survive under (iv), and all four survive under (ii)
 with row 2 rewritten as retire-and-move.
+
+## 8. Owner ruling — 2026-11-21
+
+The owner's words, recorded on the plan row as `RULED 2026-11-21: owner`:
+
+- On the recommendation: "happy with the Recommendation: template-only, keeping the existing copies
+  that are in use." So option (iii): no hidden copy is made; existing canonical rows that hold something
+  are adopted in place into the Default workspace, keeping their id; the rest are archived.
+- On channels: "a better framing would be a live chat belongs to an instance, because chat history is
+  still a thing". So §3(a) now reads: a live chat belongs to an instance; the agent's saved chat
+  history stays the agent's and is loaded into an instance on demand.
+- The owner's summary: "keeping the rule that new instances get a workspace would be coherent and no
+  need to hide base because there would be no need to instance it in the first place". So every new
+  instance gets a workspace, and Base is a template like any persona, with no hidden copy.
+- On adoption, after the coordinator explained that a hidden Base copy holding chats becomes an
+  ordinary, visible agent in Default: "thats fine we should clean it up though". The coordinator's
+  interpretation, for the owner to correct, is written into build row 2's done-when: adoption is a
+  one-time migration; an adopted copy whose only content is saved chats is then cleaned up (its chats
+  stay in the agent's saved history, loadable into an instance on demand through `move_chat`, and the
+  leftover instance is retired); a copy in live use (an open or running chat, a goal, a Work
+  assignment, folder slots or a gateway binding) stays an ordinary placed agent; no chat or memory is
+  lost. This narrows §5(iii), which kept every chat-holding row: chat-only copies now lean on the move
+  ledger, so the §5(ii) question (does Chat history list chats of a retired holder? **guess**) is read
+  first by that row.
+
+Filed 2026-11-21 (lane w1118a-tplrows), in this order:
+
+1. hermes `RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED` (§7 row 1);
+2. hermes `RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE` (§7 row 2);
+3. hermes `RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT` (§7 row 3), after 1 and 2;
+4. Eternia `MC-THE-CHAT-LIST-AND-AGENT-PICKERS-SHOW-PLACED-AGENTS-AND-TEMPLATES-ONLY` (§7 row 4), after 3.
+
+§7 row 5 (housekeeping) was done in the same pass; each cluster row says what happened to it.
