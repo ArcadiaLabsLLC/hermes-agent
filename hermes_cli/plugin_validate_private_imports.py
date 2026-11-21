@@ -19,6 +19,7 @@ from pathlib import Path
 from hermes_cli.plugin_validate_core_override import _hermes_top_level, _python_files
 
 _PLUGIN_API = Path(__file__).resolve().parent / "data" / "plugin_api.json"
+_PLUGIN_API_FORK = _PLUGIN_API.with_name("plugin_api_fork.json")  # fork: the Eternia plugins' doors
 
 
 @lru_cache(maxsize=1)
@@ -27,6 +28,8 @@ def _public_api() -> frozenset:
     module (underscore names excepted), ``module:Name`` entries allow one name. The docs page
     ``developer-guide/plugins/public-api.md`` is generated from the same file."""
     data = json.loads(_PLUGIN_API.read_text(encoding="utf-8-sig"))
+    if _PLUGIN_API_FORK.is_file():  # fork: agent_runtime/plugin_doors/, one module per fork plugin
+        data["groups"] += json.loads(_PLUGIN_API_FORK.read_text(encoding="utf-8-sig"))["groups"]
     return frozenset(entry for group in data["groups"] for entry in group["entries"])
 
 
