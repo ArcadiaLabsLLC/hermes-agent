@@ -51,6 +51,7 @@ __all__ = [
     "persona_instance_of",
     "set_call_worker",
     "stop_live_turn",
+    "stoppable_here",
     "stop_when_started",
     "tool_finished",
     "tool_started",
@@ -445,6 +446,16 @@ def stop_live_turn(turn_id: str, *, session_id: str, reason: str, any_session: b
     agent_reached = turn is not None and (any_session or turn_session == session) \
         and interrupt_turn(key, reason=reason, session_id=None if any_session else session)
     return bool(handles) or agent_reached
+
+
+def stoppable_here(turn_id: str | None) -> bool:
+    """A Stop sent now reaches the reply ``turn_id`` in this process: its handle or its agent is here."""
+
+    key = str(turn_id or "").strip()
+    if not key:
+        return False
+    with _lock:
+        return key in _turns or any(handle.turn_id() == key for handle in _handles)
 
 
 def stop_when_started(turn_id: str, *, session_id: str) -> bool:
