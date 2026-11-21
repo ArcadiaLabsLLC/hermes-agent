@@ -17,6 +17,8 @@ from tests.agent_runtime.test_profile_runner import FakeAgent
 def test_runner_binds_the_profile_in_context_and_leaves_the_process_env_alone(tmp_path, monkeypatch):
     profile_home = tmp_path / "profiles" / "pm"
     (profile_home / "home").mkdir(parents=True)
+    # A USED home: an empty one writes nothing (workdir._holds_anything; create_profile makes an empty home/).
+    (profile_home / "home" / ".gitconfig").write_text("[user]\n", encoding="utf-8")
     runtime_root = tmp_path / "runtime"
     monkeypatch.setenv("HERMES_HOME", "before_home")
     monkeypatch.setenv("HOME", "before_user_home")
