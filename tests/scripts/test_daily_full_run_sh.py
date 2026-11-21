@@ -162,6 +162,44 @@ def test_a_suite_list_that_cannot_be_built_reds_the_suite_and_never_runs_it(tree
     assert "✘ suite red (no suite list, exit 2)" in (out / "summary.txt").read_text(encoding="utf-8")
 
 
+def _pm_python(tree: Path, prints: str) -> str:
+    """A stand-in for the bootstrap interpreter: records its argv and answers pm's resolver with *prints*."""
+
+    stub = tree.parent / "pm_python.sh"
+    stub.write_text(f'#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "{tree.parent}/pm.log"\nprintf "%s\\n" "{prints}"\n',
+                    encoding="utf-8", newline="\n")
+    stub.chmod(0o755)
+    return str(stub)
+
+
+#: the runner stub's record of the PATH it was handed, one line per step
+_PATH_RUNNER = 'printf "%s\\n" "$PATH" >> "$(dirname "$0")/paths.log"'
+
+
+# KILLING MUTATION: drop the prepend (``PATH="$managed_path:$PATH"`` -> ``:``) -> the runner sees the
+# caller's PATH, the suite's node/pnpm tests red on a box whose shell has no node, and this reds.
+def test_every_runner_step_gets_the_managed_node_and_pnpm_pm_resolves(tree: Path):
+    out = tree.parent / "out"
+    managed = f"{tree.parent}/tools/pnpm-9-linux-x64:{tree.parent}/tools/node-9-linux-x64/bin"
+    proc, _calls = _run(tree, f"--out={out}", "--only=suite,tooling", runner_body=_PATH_RUNNER,
+                        env_extra={"DAILY_PM_PYTHON": _pm_python(tree, managed)})
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert f"▶ managed node/pnpm on PATH: {managed}" in proc.stdout
+    paths = (tree.parent / "paths.log").read_text(encoding="utf-8").splitlines()
+    assert paths == [f"{managed}:{os.environ['PATH']}"] * 2  # suite and tooling, ahead of the caller's PATH
+    asked = (tree.parent / "pm.log").read_text(encoding="utf-8")
+    assert 'from pm.install import env_for; print(env_for("node", "pnpm", base_env={})' in asked  # pm's resolver
+
+
+def test_nothing_recorded_leaves_path_as_it_was(tree: Path):
+    out = tree.parent / "out"
+    proc, _calls = _run(tree, f"--out={out}", "--only=tooling", runner_body=_PATH_RUNNER,
+                        env_extra={"DAILY_PM_PYTHON": _pm_python(tree, "")})
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "no managed node/pnpm recorded" in proc.stdout
+    assert (tree.parent / "paths.log").read_text(encoding="utf-8").splitlines() == [os.environ["PATH"]]
+
+
 def _suite_files_module():
     spec = importlib.util.spec_from_file_location("daily_suite_files", REPO / "scripts" / "daily_suite_files.py")
     module = importlib.util.module_from_spec(spec)

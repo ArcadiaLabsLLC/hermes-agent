@@ -32,7 +32,7 @@
 #   DAILY_JOBS            the runner's worker cap (default 24, the box's measured best).
 #   DAILY_RUNNER / DAILY_PYTHON   the test runner (default scripts/run_tests.sh) and the
 #                         doc-cite, suite-list and timings interpreter; both exist so the script's own test can drive it
-#                         without running the suite.
+#                         without running the suite; DAILY_PM_PYTHON, the managed node/pnpm resolver's.
 
 set -uo pipefail
 
@@ -152,6 +152,37 @@ done
 [ "$DRY" = 1 ] && exit 0
 
 mkdir -p "$OUT" || { echo "daily_full_run: cannot create $OUT" >&2; exit 2; }
+
+# The managed Node and pnpm on PATH (red-fix pass 2026-11-21): the suite's Node tests
+# (tests/scripts/test_bundle_pnpm.py, tests/scripts/test_webapp_renderer_freshness.py,
+# tests/plugins/platforms/photon/test_url_send_path.py) run `node`/`pnpm` off PATH, and the
+# workstation runner's shared-venv route skips activation, the one thing that puts pm's tool dirs
+# there; the runner hands its PATH to every pytest child. The dirs come from pm's own resolver
+# (`pm.install.env_for`, what `pm env node pnpm` prints), run under the bootstrap interpreter
+# activation itself composes with (`hermes_bootstrap_python`); a checkout whose pins the store
+# does not hold resolves nothing, and PATH stays as it was. DAILY_PM_PYTHON replaces that
+# interpreter so the script's own test can drive it.
+_managed_node_path() {
+  local python
+  if [ -n "${DAILY_PM_PYTHON:-}" ]; then
+    python="$DAILY_PM_PYTHON"
+  else
+    [ -f "$SCRIPT_DIR/_activation.sh" ] || return 1
+    # shellcheck source=scripts/_activation.sh
+    python="$(. "$SCRIPT_DIR/_activation.sh" && hermes_bootstrap_python "$REPO_ROOT")" || return 1
+  fi
+  PYTHONHOME= PYTHONPATH="$(_native "$REPO_ROOT")" "$python" -c \
+    'from pm.install import env_for; print(env_for("node", "pnpm", base_env={}).get("PATH", ""))' 2>/dev/null
+}
+if managed_path="$(_managed_node_path)" && [ -n "$managed_path" ]; then
+  # A native Windows python prints `C:\a;C:\b`; bash splits PATH on ':'.
+  if command -v cygpath >/dev/null 2>&1; then managed_path="$(cygpath -u -p "$managed_path")"; fi
+  PATH="$managed_path:$PATH"
+  export PATH
+  echo "▶ managed node/pnpm on PATH: $managed_path"
+else
+  echo "▶ no managed node/pnpm recorded for this checkout's pins — PATH unchanged"
+fi
 if command -v timeout >/dev/null 2>&1; then
   HAVE_TIMEOUT=1
 else
