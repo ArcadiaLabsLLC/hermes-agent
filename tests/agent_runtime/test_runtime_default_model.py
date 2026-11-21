@@ -192,7 +192,8 @@ def test_a_sign_in_on_an_install_with_no_default_writes_the_recommended_model(ac
     {"model": {"provider": "openai-codex"}, "agent_runtime": {"default_model": "pinned"}},
 ], ids=["names-a-default", "pinned"])
 def test_an_install_that_names_a_default_keeps_it(accepted_switch, recommended, config):
-    """Killing mutation: drop the ``_current_pair(cfg)[1]`` check -> the kept default is replaced, red."""
+    """Killing mutation: drop the ``_current_pair(cfg)[1]`` check in ``_install_names_no_default`` -> the
+    kept default is replaced, red."""
     _write_config(config)
 
     assert rdm.seed_default_model_after_signin("openai-codex", requested_by="t") is None
@@ -223,3 +224,87 @@ def test_the_recommendation_is_upstreams_silent_pick_from_the_providers_curated_
     assert rdm._recommended_default("openai-codex") == "gpt-b"
     assert picked == [(["gpt-a", "gpt-b"], "openai-codex")]
     assert rdm._recommended_default("absent") == ""
+
+
+# ── RT-FU-A-PHONE-SIGNED-IN-BEFORE-AN-UPGRADE-GETS-A-DEFAULT-MODEL-TOO: the serve-start reconcile ──
+
+
+@pytest.fixture
+def signed_in(monkeypatch):
+    """The sign-in table and which of its providers read signed in; records every status probe."""
+    import agent_runtime.provider_account as provider_account
+    import hermes_cli.provider_browser_login as browser_login
+
+    state = {"table": ("openai-codex", "xai-oauth", "nous"), "in": set(), "probed": []}
+    monkeypatch.setattr(browser_login, "sign_in_providers", lambda: state["table"])
+
+    def probe(provider):
+        state["probed"].append(provider)
+        return provider in state["in"]
+
+    monkeypatch.setattr(provider_account, "_signed_in", probe)
+    return state
+
+
+def test_an_install_signed_in_before_the_seed_existed_gets_the_default_at_serve_start(
+        accepted_switch, recommended, signed_in):
+    """The owner's phone: signed in to Codex before the sign-in seed shipped, no ``model.default``.
+    Killing mutation: ``reconcile_default_model_at_start`` returning None before its seed call -> no
+    default written, red."""
+    _write_config({})
+    signed_in["in"] = {"openai-codex"}
+
+    answer = rdm.reconcile_default_model_at_start()
+
+    assert answer is not None and answer["changed"] is True
+    assert recommended == ["openai-codex"]
+    cfg = load_agent_runtime_config()
+    assert (cfg.default_provider, cfg.default_model) == ("openai-codex", "gpt-6-luna")
+    assert _events()[0].payload["requested_by"] == "serve.start"
+
+
+@pytest.mark.parametrize("config", [
+    {"model": {"default": "kept-model", "provider": "anthropic"}},
+    {"agent_runtime": {"default_model": "pinned"}},
+], ids=["names-a-default", "pinned"])
+def test_the_reconcile_keeps_an_existing_default_and_reads_no_sign_in(accepted_switch, recommended, signed_in,
+                                                                     config):
+    """Killing mutation: drop the reconcile's own ``_install_names_no_default()`` guard -> every serve
+    start on an install that names a default probes each provider's sign-in status, red."""
+    _write_config(config)
+    signed_in["in"] = {"openai-codex"}
+
+    assert rdm.reconcile_default_model_at_start() is None
+    assert signed_in["probed"] == [] and accepted_switch == [] and recommended == [] and _events() == []
+    assert load_agent_runtime_config().default_model in {"kept-model", "pinned"}
+
+
+def test_the_reconcile_does_nothing_with_no_signed_in_provider(accepted_switch, recommended, signed_in):
+    """A one-provider table, signed out. Killing mutation: drop the ``_signed_in`` filter in
+    ``_signed_in_providers`` (a signed-out provider counted) -> its default is seeded, red."""
+    _write_config({})
+    signed_in["table"] = ("openai-codex",)
+
+    assert rdm.reconcile_default_model_at_start() is None
+    assert signed_in["probed"] == ["openai-codex"]
+    assert accepted_switch == [] and recommended == [] and _events() == []
+
+
+def test_the_reconcile_does_not_choose_between_two_signed_in_providers(accepted_switch, recommended, signed_in):
+    """Killing mutation: ``len(signed_in) != 1`` -> ``len(signed_in) < 1`` (seed the first of several)
+    -> a default the operator never chose is written, red."""
+    _write_config({})
+    signed_in["in"] = {"openai-codex", "nous"}
+
+    assert rdm.reconcile_default_model_at_start() is None
+    assert accepted_switch == [] and recommended == [] and _events() == []
+
+
+def test_the_reconcile_never_raises(monkeypatch):
+    _write_config({})
+
+    def unreadable_status():
+        raise OSError("status")
+
+    monkeypatch.setattr(rdm, "_signed_in_providers", unreadable_status)
+    assert rdm.reconcile_default_model_at_start() is None

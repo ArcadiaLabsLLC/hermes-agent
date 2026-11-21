@@ -146,6 +146,7 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
     # harness.py's globals; that stopped at H4 `d567f07f62` — it is an ordinary module now.)
     from agent_runtime.root_anchor import publish_store_root_anchor
     from agent_runtime.toolset_census import log_serve_toolset_census
+    from agent_runtime.runtime_default_model import reconcile_default_model_at_start
 
     def _wake_reader() -> None:
         """Unblock a reader parked on an idle protocol pipe after a drain.
@@ -188,6 +189,9 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
             # the same reason: this one WRITES into the machine's shared skills
             # root, so a ``serve_loop`` unit test must never be able to fire it.
             skill_install=install_harness_skills_at_boot,
+            # An install signed in before its default model was seeded gets one. It writes
+            # config.yaml, so ON here and in ``EmbeddedServe``, never in a loop unit test.
+            default_model_reconcile=reconcile_default_model_at_start,
             drain_wakeup=_wake_reader,
             # ``os._exit``, not ``sys.exit``: after a drain TIMEOUT the
             # interpreter cannot be trusted to come down at all — the

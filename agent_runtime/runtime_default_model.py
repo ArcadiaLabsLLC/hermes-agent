@@ -46,6 +46,7 @@ __layer__ = "stores"
 __all__ = [
     "DEFAULT_MODEL_REFUSAL_REASONS",
     "DefaultModelRefused",
+    "reconcile_default_model_at_start",
     "seed_default_model_after_signin",
     "set_runtime_default_model",
 ]
@@ -220,6 +221,19 @@ def _recommended_default(provider_id: str) -> str:
     return ""
 
 
+def _install_names_no_default() -> bool:
+    """True when the serve profile's ``config.yaml`` reads, is not managed, and names neither a
+    ``model.default`` nor an ``agent_runtime.default_*`` pin — the one condition every seed below
+    writes under (an install that names a default keeps it)."""
+
+    from hermes_cli.config import is_managed, load_config
+
+    if is_managed():
+        return False
+    cfg = load_config()
+    return isinstance(cfg, dict) and not _shadowing_pins(cfg) and not _current_pair(cfg)[1]
+
+
 def seed_default_model_after_signin(provider: Any, *, requested_by: str, event_log: EventLog | None = None) -> dict | None:
     """After a successful provider sign-in or saved key: give an install that names no default model
     upstream's recommended default for that provider (RT-FU-A-PHONE-SIGNED-IN-TO-ONE-PROVIDER-GIVES-ITS-AGENTS-NO-MODEL).
@@ -230,19 +244,16 @@ def seed_default_model_after_signin(provider: Any, *, requested_by: str, event_l
     recommendation writes nothing. Never raises: the sign-in already succeeded. Returns the write's
     answer, or None when nothing was written.
     Edges, documented and not worked: a second provider signed in later leaves the first default in
-    place; a sign-out leaves the default naming a provider with no credential.
+    place; a sign-out leaves the default naming a provider with no credential. An install signed in
+    BEFORE this seed existed (or whose config lost its default) is reconciled at serve start by
+    :func:`reconcile_default_model_at_start`.
     """
 
     provider_id = str(provider or "").strip().lower() if isinstance(provider, str) else ""
     if not provider_id:
         return None
     try:
-        from hermes_cli.config import is_managed, load_config
-
-        if is_managed():
-            return None
-        cfg = load_config()
-        if not isinstance(cfg, dict) or _shadowing_pins(cfg) or _current_pair(cfg)[1]:
+        if not _install_names_no_default():
             return None
         model = _recommended_default(provider_id)
         if not model:
@@ -254,4 +265,48 @@ def seed_default_model_after_signin(provider: Any, *, requested_by: str, event_l
 
         logging.getLogger(__name__).warning("default model not seeded after %s sign-in: %s", provider_id,
                                             type(exc).__name__)
+        return None
+
+
+def _signed_in_providers() -> list[str]:
+    """The in-serve sign-in's providers (``provider_browser_login.sign_in_providers``) this profile is
+    signed in to, read as ``runtime.provider.signout`` reads it (``provider_account._signed_in``: a
+    borrowed CLI login never counts). Local reads only: the status builders never refresh a token."""
+
+    from hermes_cli.provider_browser_login import sign_in_providers
+
+    from agent_runtime.provider_account import _signed_in
+
+    return [provider for provider in sign_in_providers() if _signed_in(provider)]
+
+
+def reconcile_default_model_at_start(*, requested_by: str = "serve.start",
+                                     event_log: EventLog | None = None) -> dict | None:
+    """At serve start: an install that names no default model but is already signed in gets the
+    default a sign-in would have seeded (RT-FU-A-PHONE-SIGNED-IN-BEFORE-AN-UPGRADE-GETS-A-DEFAULT-MODEL-TOO).
+
+    The upgrade edge :func:`seed_default_model_after_signin` cannot see: a phone signed in before that
+    seed existed never signs in again, so its agents showed "Choose model" forever. Same condition
+    (``_install_names_no_default``), same pick, same one writer — this only supplies the provider.
+
+    Which provider, conservatively: seeded only when EXACTLY ONE of the sign-in providers reads signed
+    in. Two or more is an operator choice this does not guess (the picker still offers them); none is
+    nothing to do. Saved API keys and ambient env keys are not candidates (an env key on a desktop is
+    not a choice the operator made in Eternia; a key saved in-serve was already seeded by
+    ``runtime.provider.key.set``). Never raises; returns the write's answer or None. Run off the boot
+    critical path (``BootPhases._start_default_model_reconcile``): the recommendation may read a
+    provider catalog over the network.
+    """
+
+    try:
+        if not _install_names_no_default():
+            return None
+        signed_in = _signed_in_providers()
+        if len(signed_in) != 1:
+            return None
+        return seed_default_model_after_signin(signed_in[0], requested_by=requested_by, event_log=event_log)
+    except Exception as exc:  # health: allow BLE001 -- a serve start never fails over its default model
+        import logging
+
+        logging.getLogger(__name__).warning("default model not reconciled at serve start: %s", type(exc).__name__)
         return None
