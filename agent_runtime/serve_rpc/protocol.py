@@ -410,6 +410,9 @@ class RpcContext:
     launcher_request: Callable[[str, dict], dict] | None = None
     batch_dispatcher: Callable[[], Any] | None = None
     console_suggestions: Callable[[], Any] | None = None
+    #: The serve's reverse lanes (``hermes_cli.harness_parts.serve.reverse_lanes``), read
+    #: when called: ``runtime.gateway.reverse.*``'s door. ``None`` with no serve behind it.
+    reverse_lanes: Callable[[], Any] | None = None
 
     def push(self, method_name: str, params: dict) -> bool:
         """Send one notification to THIS caller. False when there is no channel.

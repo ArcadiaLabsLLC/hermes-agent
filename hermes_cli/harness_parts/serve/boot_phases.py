@@ -30,6 +30,7 @@ from hermes_cli.harness_parts.serve.gateway_listener import (
 from hermes_cli.harness_parts.serve.manifest import ops_manifest
 from agent_runtime.namespace import namespace_stamp
 
+
 __layer__ = "lanes"
 
 __all__ = ["BootPhases"]
@@ -218,6 +219,8 @@ class BootPhases:
         from agent_runtime.serve_socket.vocabulary import SOCKET_HOST
         from agent_runtime.serve_socket.server import ServeSocketServer
 
+        from hermes_cli.harness_parts.serve.reverse_lanes import reverse_handoff
+
         bind_local_llama(self.store_root_path, harness_root_config_path())
         self.local_llama_bound_root = self.store_root_path
         # A corrupt optional discussion store must not take the
@@ -242,6 +245,8 @@ class BootPhases:
             frame_contract=SERVE_SCHEMA_VERSION,
             on_disconnect=self._on_connection_closed,
             log=self._service_log,
+            # The owner's attach to a paired phone's reverse lane (``reverse_attach``).
+            handoff=reverse_handoff(self),
         )
         port = self.socket_server.bind()
         self.socket_lock.publish_owner(
@@ -353,6 +358,7 @@ class BootPhases:
         # respawned, and the greeting told it the feature was off.
         # ``gateway_block_when_no_listener`` splits those apart.
         from agent_runtime.gateway_capabilities import with_capabilities
+        from hermes_cli.harness_parts.serve.reverse_lanes import reverse_handoff
 
         self.gateway_block: dict[str, Any]
         if self.socket_server is not None and self.store_root_path is not None:
@@ -369,6 +375,7 @@ class BootPhases:
                 on_disconnect=lambda connection: self._on_connection_closed(connection),
                 log=self._service_log,
                 frame_contract=SERVE_SCHEMA_VERSION,
+                handoff=reverse_handoff(self),
             )
             self.gateway_block = with_capabilities(self.gateway_block)
             if self.gateway_server is not None and self.socket_lock is not None:

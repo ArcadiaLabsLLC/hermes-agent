@@ -675,7 +675,7 @@ class MessageHandling:
         waits on them, so they are reclaimed now, as a closed connection would
         (plan h-turn1 stage D2)."""
 
-        for _lane in (self.socket_server, self.gateway_server):
+        for _lane in (self.socket_server, self.gateway_server, getattr(self, "reverse_lanes", None)):
             if _lane is None:
                 continue
             try:
@@ -882,6 +882,7 @@ class MessageHandling:
                 launcher_request=self._launcher_requester(connection, sink),
                 batch_dispatcher=partial(getattr, self, "batch_dispatcher", None),
                 console_suggestions=self._console_suggestions_service,
+                reverse_lanes=partial(getattr, self, "reverse_lanes", None),
             ),
         )
         # The ONE frame this lane does not write: the handler took the

@@ -38,11 +38,17 @@ __layer__ = "lanes"
 __all__ = ["authenticate_hello", "handshake", "read_loop", "reject", "wrap_tls"]
 
 if TYPE_CHECKING:
-    from agent_runtime.serve_socket.server import ServeSocketServer
+    from agent_runtime.serve_socket.admit import ConnectionAdmitter as ServeSocketServer
 
 
 def handshake(
-    server: ServeSocketServer, connection: SocketConnection, sock: socket.socket, key: str
+    server: ServeSocketServer,
+    connection: SocketConnection,
+    sock: socket.socket,
+    key: str,
+    *,
+    binding: Any = None,
+    initial_bytes: bytes = b"",
 ) -> _LineReader | None:
     """Challenge, verify, admit. Returns the reader, or None on rejection.
 
@@ -60,7 +66,7 @@ def handshake(
     handshake, and it is a per-boot random value that authorises nothing.
     """
 
-    reader = _LineReader(sock)
+    reader = _LineReader(sock, initial=initial_bytes)
     nonce = secrets.token_hex(NONCE_BYTES)
     try:
         connection.emit(
@@ -103,9 +109,12 @@ def handshake(
     if message.get("op") != "hello":
         reject(server, connection, REJECT_HELLO_REQUIRED)
         return None
-    # `server._port` — what this server actually listens on — never a value
-    # from the peer's frame, which is the whole point of the binding.
-    outcome = authenticate_hello(server, message, nonce, server._port or 0)
+    # `binding` — the port this server actually listens on, or the lane id a
+    # phone minted for the lane it dialled — never a value from the peer's
+    # frame, which is the whole point of the binding.
+    if binding is None:
+        binding = server._port or 0
+    outcome = authenticate_hello(server, message, nonce, binding)
     if not outcome.ok:
         # ONE typed frame, and nothing else: a rejected connection never
         # learns anything about the runtime it failed to reach. On the
@@ -122,6 +131,8 @@ def handshake(
     connection.peer_install_id = outcome.peer_install_id
     connection.peer_secret = outcome.issued_peer_secret
     connection.peer_secret_expires_at = outcome.issued_peer_secret_expires_at
+    connection.computer_id = outcome.computer_id
+    connection.computer_grant = outcome.computer_grant
     server._rate_limiter.record_success()
     # Symmetry the first pass missed: a completed handshake proves the lane
     # is reachable and answering, so the SILENCE throttle has nothing left
@@ -132,6 +143,11 @@ def handshake(
     server._timeout_limiter.record_success()
     connection.client = _client_text(message.get("client"))
     connection.client_build = _client_text(message.get("client_build"))
+    handoff = server._handoff
+    if handoff is not None and handoff(server, connection, reader, message):
+        # The hook TOOK the socket (a reverse lane parked or attached): it never
+        # joins this table and no read loop runs on it here.
+        return None
     connection.authenticated = True
     with server._lock:
         server._connections[key] = connection
@@ -175,7 +191,7 @@ def handshake(
 
 
 def authenticate_hello(
-    server: ServeSocketServer, message: dict[str, Any], nonce: str, port: int
+    server: ServeSocketServer, message: dict[str, Any], nonce: str, port: Any
 ) -> HelloAuthOutcome:
     """Who is this? The per-root token by default; a device when injected.
 
@@ -207,6 +223,10 @@ def authenticate_hello(
         token = server._token_provider()
     except Exception:
         token = None
+    if not isinstance(port, int):
+        # The per-root token is bound to a listening port; a lane id is no port,
+        # and a lane is always admitted by an authenticator.
+        return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
     ok = verify_hello_proof(message.get("proof"), nonce, token, port=port)
     del token
     return HelloAuthOutcome(ok=ok, reject_reason=REJECT_BAD_PROOF)

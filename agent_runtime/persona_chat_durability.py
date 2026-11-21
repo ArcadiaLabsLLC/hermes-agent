@@ -42,6 +42,7 @@ private spellings, so its four pre-existing call sites are unchanged.
 
 from __future__ import annotations
 
+import logging
 from contextlib import contextmanager
 from typing import Any, Iterator
 
@@ -53,6 +54,8 @@ from .persona_assignments import (
 )
 from .persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 from .conversation_owner import client_scope as validate_client_scope, require_session_owner
+
+logger = logging.getLogger(__name__)
 
 __layer__ = "stores"
 
@@ -185,6 +188,44 @@ def persona_chat_ownership(
     return ownership
 
 
+#: The one-line placeholder the mint stored as a chat's system prompt until 2026-11-21. Upstream reuses a
+#: stored prompt verbatim once the chat has history, so a chat whose first turns failed before the built
+#: prompt persisted sent this line, not its agent's prompt, on every turn after.
+MINT_STUB_PROMPT_PREFIX = "Mission Control persona chat for "
+
+
+def is_mint_stub_prompt(prompt: Any) -> bool:
+    """Whether ``prompt`` is the old mint placeholder (one line, nothing a build ever writes alone)."""
+
+    return (
+        isinstance(prompt, str)
+        and prompt.startswith(MINT_STUB_PROMPT_PREFIX)
+        and "\n" not in prompt
+        and len(prompt) <= len(MINT_STUB_PROMPT_PREFIX) + 160
+    )
+
+
+def heal_mint_stub_prompt(session_db: Any, session_id: str | None) -> bool:
+    """Clear a stored mint placeholder so the chat's next turn builds its agent's prompt; True when cleared.
+
+    A chat minted before the mint stopped storing one keeps the placeholder until a turn rebuilds it,
+    and a chat whose first turns failed never does: upstream reads NULL as "build", so clearing it is
+    the whole repair. Never raises: a turn must not fail on it (it retries at the next actor open).
+    """
+
+    if session_db is None or not session_id:
+        return False
+    try:
+        row = session_db.get_session(session_id)
+        if not isinstance(row, dict) or not is_mint_stub_prompt(row.get("system_prompt")):
+            return False
+        session_db.update_system_prompt(session_id, None)
+        return True
+    except Exception:
+        logger.warning("could not clear the mint placeholder prompt of chat %s", session_id, exc_info=True)
+        return False
+
+
 def ensure_persona_chat_session(
     *,
     session_db,
@@ -208,7 +249,9 @@ def ensure_persona_chat_session(
             source=PERSONA_CHAT_SESSION_SOURCE,
             model=None,
             model_config=ownership,
-            system_prompt=f"Mission Control persona chat for {ownership['persona_id']}",
+            # No prompt: the turn's build owns it. A stored stub was replayed verbatim by a chat whose
+            # first turns failed (RT-FU-A-CHAT-WHOSE-FIRST-TURNS-FAILED-…); ownership is model_config.
+            system_prompt=None,
         )
         if client_scope is not None:
             require_session_owner(session_db.get_session(session_id), client_scope)
@@ -292,10 +335,13 @@ def ensure_durable_persona_chat_root(
 
 
 __all__ = [
+    "MINT_STUB_PROMPT_PREFIX",
     "PersonaChatPersistenceError",
     "default_persona_session_db",
     "ensure_durable_persona_chat_root",
     "ensure_persona_chat_session",
+    "heal_mint_stub_prompt",
+    "is_mint_stub_prompt",
     "persona_chat_ownership",
     "persona_chat_persistence_failed",
     "persona_session_db_for",

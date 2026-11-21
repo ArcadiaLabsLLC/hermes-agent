@@ -65,6 +65,7 @@ def attach_prompt_observability_turn_results(
     # final_model_input is sanitized/evicted.
     _attach_skills_prompt_contribution(context, final_model_input)
     context["final_model_input"] = _safe_final_model_input(final_model_input)
+    _workspace_receipt_for_reused_prompt(context)
     if model_selection is not None:
         context["model_selection"] = _safe_model_selection(model_selection)
     context["turn_usage"] = _safe_turn_usage(turn_usage)
@@ -83,6 +84,43 @@ def attach_prompt_observability_turn_results(
         turn_usage,
     )
     return context
+
+
+#: A workspace file the receipt resolved, but the sent prompt is the chat's stored one and lacks it.
+NOT_IN_REUSED_PROMPT = "not_in_reused_prompt"
+
+
+def _workspace_receipt_for_reused_prompt(context: dict[str, Any]) -> None:
+    """On a turn that sent the chat's STORED prompt, the receipt claims only what that prompt carries.
+
+    The receipt is built before the turn from what this turn's build RESOLVED; upstream then reused
+    the stored prompt verbatim, so a resolved file reached the model only if the stored prompt holds
+    its slot heading. The rest are marked :data:`NOT_IN_REUSED_PROMPT` (their resolved status kept as
+    ``built_status``); a single-file alias has no heading to check, so it is never claimed on reuse.
+    MUTATION: return early here and a stuck chat's record claims ``CLAUDE.md`` its input lacked.
+    """
+
+    final = context.get("final_model_input")
+    reuse = final.get("system_prompt_reuse") if isinstance(final, dict) else None
+    receipt = context.get("workspace_context_receipt")
+    if not isinstance(reuse, dict) or not isinstance(receipt, dict):
+        return
+    sent = set(reuse.get("slot_sections") or ())
+    receipt["system_prompt"] = "reused_from_session"
+
+    def unclaim(item: dict[str, Any]) -> None:
+        item["built_status"] = item.get("status")
+        item.update(included=False, status=NOT_IN_REUSED_PROMPT)
+
+    slots = receipt.get("slots")
+    if isinstance(slots, list):
+        for item in slots:
+            if isinstance(item, dict) and item.get("included") is True and (
+                f"{item.get('slot')} — {item.get('file')}" not in sent
+            ):
+                unclaim(item)
+    elif receipt.get("included") is True:
+        unclaim(receipt)
 
 
 #: C3 (2026-07-17): the slim typed subset of the per-turn observability row that

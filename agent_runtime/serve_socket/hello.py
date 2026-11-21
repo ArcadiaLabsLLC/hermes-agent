@@ -240,3 +240,9 @@ class HelloAuthOutcome:
     #: the redeeming side is the one that decided it: an edge whose two ends
     #: computed their own expiry would lapse at two different moments.
     issued_peer_secret_expires_at: str | None = None
+    #: Set only when ``ok`` and only by a reverse lane's authenticator
+    #: (``agent_runtime.reverse_lane``): which granted COMPUTER is driving this
+    #: phone over the lane the phone dialled, and the grant level it holds
+    #: (``look`` | ``chat``). Never set beside a device or a peer stamp.
+    computer_id: str | None = None
+    computer_grant: str | None = None

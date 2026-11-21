@@ -19,6 +19,7 @@ from ..persona_assignments import (
 )
 from ..serde import positive_int
 from ..conversation_owner import session_client_scope
+from ..persona_chat_durability import MINT_STUB_PROMPT_PREFIX, is_mint_stub_prompt
 from .curation import _safe_curated_messages
 from .text import _INTERNAL_SCAFFOLDING_MARKERS, _safe_display_text
 from .trace_rows import _bounded_message_tail
@@ -431,10 +432,16 @@ def _token_usage_fields(raw: dict[str, Any]) -> dict[str, int]:
 
 
 def _infer_persona_id(raw: dict[str, Any], *, session_id: str) -> str | None:
-    system_prompt = safe_assignment_text(raw.get("system_prompt"), limit=240)
-    marker = "Mission Control persona chat for "
-    if marker in system_prompt:
-        return canonical_chat_persona_id(system_prompt.split(marker, 1)[1])
+    """The chat's persona: the ownership the mint writes to ``model_config``, else the session-id prefix.
+
+    The stored system prompt is the turn's, not an ownership field; the old mint placeholder is read
+    only for a legacy row that carries neither (MUTATION: drop the model_config read and a chat whose
+    id names no persona and whose prompt was built loses its owner).
+    """
+
+    owned = _model_config(raw.get("model_config")).get("persona_id")
+    if isinstance(owned, str) and (persona := canonical_chat_persona_id(owned)):
+        return persona
     prefix = "persona_chat_personainst_"
     if session_id.startswith(prefix):
         return _persona_token_from_chat_session_tail(session_id[len(prefix) :])
@@ -443,6 +450,9 @@ def _infer_persona_id(raw: dict[str, Any], *, session_id: str) -> str | None:
         value = session_id[len(prefix) :]
         value = value.removeprefix("personainst_")
         return _persona_token_from_chat_session_tail(value)
+    system_prompt = safe_assignment_text(raw.get("system_prompt"), limit=240)
+    if is_mint_stub_prompt(system_prompt):
+        return canonical_chat_persona_id(system_prompt[len(MINT_STUB_PROMPT_PREFIX) :])
     return None
 
 

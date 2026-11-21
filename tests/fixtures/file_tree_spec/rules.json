@@ -1,0 +1,60 @@
+{
+  "spec_version": 1,
+  "about": "The rule spec both local readers of a project folder follow: Eternia's (Dart, lib/core/io/project_folder_reader.dart) and hermes' (Python, agent_runtime/project_files/). Plan docs/embedded_hermes/planned/PHONE_PROJECT_FOLDERS_FILE_TREE_2026-11-21.md section 6. Each reader keeps these values as constants and a test pins them to this file; the cases in cases/*.json run on both readers.",
+  "path_grammar": {
+    "rule": "A request path is root-relative, '/'-separated and case-exact. It is never empty, never starts with '/', holds no '\\\\', no control character (U+0000-U+001F, U+007F), no empty, '.' or '..' segment, and its first segment is not a drive letter ('C:'). An absent path means the root itself.",
+    "max_length": 2048,
+    "refusal": "invalid_path"
+  },
+  "confinement": {
+    "rule": "A path is resolved through every symlink before it is used; a resolved path outside the canonical root is refused 'outside_root'. While listing or searching, a symlink is listed with kind 'link' and never followed, wherever it points. A revoked grant or a stale bookmark refuses 'grant_revoked' and never falls back to a wider path."
+  },
+  "ignore": {
+    "never_listed_or_read": [".git"],
+    "skip_directories": [".dart_tool", ".gradle", ".pytest_cache", ".venv", "__pycache__", "build", "node_modules"],
+    "gitignore": "Only the root's .gitignore is honoured, when listing and searching (a read by explicit path is not refused for it). A line is trimmed of trailing spaces; a blank line or one starting with '#' is skipped; a line starting with '!' is not honoured (negation is a documented edge case, not worked). A trailing '/' matches directories only. A pattern holding a '/' (other than a trailing one) is anchored at the root, a leading '/' dropped; otherwise it matches an entry's name at any depth. '**/' matches any run of leading directories, a trailing '/**' everything inside, '*' any run of characters but '/', '?' one character but '/'; every other character, '[' included, is literal.",
+    "applies": "The skip list and .gitignore apply to entries met while walking (tree, grep). '.git' is never listed, searched or read, by any path, through a symlink or not."
+  },
+  "size_and_type": {
+    "max_read_bytes": 5242880,
+    "binary_probe_bytes": 8192,
+    "rule": "A file whose first binary_probe_bytes hold a NUL byte is binary: listed with its size, refused 'binary' as text and skipped by grep. Text is UTF-8, decoded strictly: undecodable bytes are refused 'not_text', never replaced. A file over max_read_bytes is refused 'too_large' and skipped by grep."
+  },
+  "verbs": {
+    "tree": {
+      "arguments": {"path": "a directory, absent for the root", "depth": "1 to max_depth, default default_depth", "offset": "default 0"},
+      "default_depth": 2,
+      "max_depth": 6,
+      "max_entries": 200,
+      "reply": "{path, entries, total, offset, next?}: path is the listed directory ('' for the root); entries are pre-order, each directory's children sorted by name, a file as {path, kind: 'file', size}, a directory as {path, kind: 'dir'} followed by its own entries while within depth, a symlink as {path, kind: 'link'}; at most max_entries from offset; next is present while entries remain."
+    },
+    "read": {
+      "arguments": {"path": "a file", "offset": "in code points, default 0"},
+      "page_code_points": 20000,
+      "reply": "{path, size, chars, offset, content, next?}: size in bytes, chars the text's length in Unicode code points, content at most page_code_points code points from offset; next is present while text remains."
+    },
+    "grep": {
+      "arguments": {"pattern": "a literal string, case-sensitive", "path": "a directory, absent for the root", "offset": "default 0"},
+      "min_pattern": 1,
+      "max_pattern": 256,
+      "max_matches": 200,
+      "line_code_points": 240,
+      "reply": "{pattern, path, matches, total, offset, next?}: every text file under path in tree order, its lines split on '\\n' with one trailing '\\r' dropped; a match is {path, line (1-based), text (the line's first line_code_points code points)}; at most max_matches from offset."
+    }
+  },
+  "refusals": {
+    "invalid_path": "the path breaks the grammar",
+    "outside_root": "the path resolves outside the root (a symlink out of it)",
+    "not_found": "nothing exists at the path",
+    "ignored": "the path is inside .git, which is never listed or read",
+    "not_a_file": "read named a directory",
+    "not_a_directory": "tree or grep named a file",
+    "too_large": "the file is over max_read_bytes",
+    "binary": "the file is binary",
+    "not_text": "the file is not UTF-8",
+    "bad_argument": "depth, offset or pattern is out of bounds",
+    "grant_revoked": "a granted folder's grant or bookmark no longer holds",
+    "virtual_root_read_only": "a write sent to a reader of a virtual root"
+  },
+  "write_ops": ["write", "patch", "move", "delete"]
+}

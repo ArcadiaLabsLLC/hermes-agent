@@ -1,0 +1,13 @@
+{
+  "source_commit": "917c195c1b24ad60b775b7e6c9f77d333bc4c8eb",
+  "sha256": "b40e8200bca09d6a3c3b50615b0965b85df20f2100324492466b584c0ccb92a7",
+  "files": {
+    "cases/README.md": "396ce900bb270042a035b88617fef788cdc40c5be7f0ae4d66c8b76e5f1f9fa0",
+    "cases/confinement.json": "ffca2dd44eb55540721812d79b383393e9d34e33f00ff340bda11de2d97062ad",
+    "cases/grammar.json": "304e78e270ca6241ce220cf8eeb390bc59d744f984b3e296ce63e6b48a984b34",
+    "cases/ignore.json": "6c7b1aa6dce9c7bec0f0273e9992a7920d71c96339a1348317b20ab07b2d40bf",
+    "cases/paging.json": "c8ea2372b7129dedd4b93da4b329f0b49e8e4f8cd8e5f2a4475245b69ceedc19",
+    "cases/size_and_type.json": "42bf1100a94df302f7464597c23a57f1d6cabff34ef35953c035987b961092a5",
+    "rules.json": "f6cc3a26b9ed07603e8d5c465372495bcb531e9056c24178af4bd23104d0070b"
+  }
+}

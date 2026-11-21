@@ -1,0 +1,31 @@
+{
+  "fixtures": {
+    "many": {
+      "series": [
+        {"dir": "many", "prefix": "f", "count": 201, "width": 3, "suffix": ".txt", "text": ""},
+        {"dir": "hits", "prefix": "h", "count": 201, "width": 3, "suffix": ".txt", "text": "hit\n"}
+      ]
+    }
+  },
+  "cases": [
+    {"name": "tree_first_page", "about": "at most 200 entries a page, next names the rest",
+     "fixture": "many", "request": {"verb": "tree", "path": "many"},
+     "expect": {"reply_keys": {"path": "many", "total": 201, "offset": 0, "next": 200}}},
+    {"name": "tree_last_page", "about": "the last page from an offset, with no next",
+     "fixture": "many", "request": {"verb": "tree", "path": "many", "offset": 199},
+     "expect": {"reply": {"path": "many", "entries": [
+       {"path": "many/f199.txt", "kind": "file", "size": 0},
+       {"path": "many/f200.txt", "kind": "file", "size": 0}
+     ], "total": 201, "offset": 199}}},
+    {"name": "tree_offset_past_the_end", "about": "an offset past the listing is refused",
+     "fixture": "many", "request": {"verb": "tree", "path": "many", "offset": 202}, "expect": {"refusal": "bad_argument"}},
+    {"name": "grep_first_page", "about": "at most 200 matches a page",
+     "fixture": "many", "request": {"verb": "grep", "pattern": "hit", "path": "hits"},
+     "expect": {"reply_keys": {"pattern": "hit", "path": "hits", "total": 201, "offset": 0, "next": 200}}},
+    {"name": "grep_last_page", "about": "the last match from an offset",
+     "fixture": "many", "request": {"verb": "grep", "pattern": "hit", "path": "hits", "offset": 200},
+     "expect": {"reply": {"pattern": "hit", "path": "hits", "matches": [
+       {"path": "hits/h200.txt", "line": 1, "text": "hit"}
+     ], "total": 201, "offset": 200}}}
+  ]
+}

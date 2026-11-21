@@ -1,0 +1,49 @@
+{
+  "fixtures": {
+    "basic": {
+      "files": {"a.txt": "alpha\n", "src/b.txt": "beta\n"},
+      "outside": {"secret.txt": "secret\n"}
+    }
+  },
+  "cases": [
+    {"name": "grammar_empty_path", "about": "an empty path is refused, never read as the root",
+     "fixture": "basic", "request": {"verb": "read", "path": ""}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_absolute_path", "about": "a caller-given absolute path is refused",
+     "fixture": "basic", "request": {"verb": "read", "path": "/etc/hostname"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_dot_dot_out_of_the_root", "about": "a .. segment is refused before any I/O",
+     "fixture": "basic", "request": {"verb": "read", "path": "../outside/secret.txt"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_dot_dot_inside", "about": "a .. segment is refused even when it would stay inside",
+     "fixture": "basic", "request": {"verb": "read", "path": "src/../a.txt"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_dot_segment", "about": "a . segment is refused",
+     "fixture": "basic", "request": {"verb": "read", "path": "./a.txt"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_backslash", "about": "a backslash is refused, never read as a separator",
+     "fixture": "basic", "request": {"verb": "read", "path": "src\\b.txt"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_drive_letter", "about": "a drive letter is refused",
+     "fixture": "basic", "request": {"verb": "read", "path": "C:/a.txt"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_nul", "about": "a control character is refused",
+     "fixture": "basic", "request": {"verb": "read", "path": "a.txt\u0000.md"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_empty_segment", "about": "an empty segment is refused",
+     "fixture": "basic", "request": {"verb": "read", "path": "src//b.txt"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_trailing_slash", "about": "a trailing / is an empty segment",
+     "fixture": "basic", "request": {"verb": "tree", "path": "src/"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_too_long", "about": "a path over 2048 characters is refused",
+     "fixture": "basic", "request": {"verb": "read", "path": {"$repeat": "a", "count": 2049}}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_absolute_tree", "about": "tree refuses an absolute path too",
+     "fixture": "basic", "request": {"verb": "tree", "path": "/"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "grammar_absolute_grep", "about": "grep refuses an absolute path too",
+     "fixture": "basic", "request": {"verb": "grep", "pattern": "a", "path": "/tmp"}, "expect": {"refusal": "invalid_path"}},
+    {"name": "missing_file", "about": "nothing at the path",
+     "fixture": "basic", "request": {"verb": "read", "path": "missing.txt"}, "expect": {"refusal": "not_found"}},
+    {"name": "missing_directory", "about": "tree of a folder that is not there",
+     "fixture": "basic", "request": {"verb": "tree", "path": "nope"}, "expect": {"refusal": "not_found"}},
+    {"name": "read_a_directory", "about": "read names a folder",
+     "fixture": "basic", "request": {"verb": "read", "path": "src"}, "expect": {"refusal": "not_a_file"}},
+    {"name": "tree_a_file", "about": "tree names a file",
+     "fixture": "basic", "request": {"verb": "tree", "path": "a.txt"}, "expect": {"refusal": "not_a_directory"}},
+    {"name": "grep_a_file", "about": "grep names a file",
+     "fixture": "basic", "request": {"verb": "grep", "pattern": "a", "path": "a.txt"}, "expect": {"refusal": "not_a_directory"}},
+    {"name": "read_nested", "about": "a plain read of a nested file",
+     "fixture": "basic", "request": {"verb": "read", "path": "src/b.txt"},
+     "expect": {"reply": {"path": "src/b.txt", "size": 5, "chars": 5, "offset": 0, "content": "beta\n"}}}
+  ]
+}

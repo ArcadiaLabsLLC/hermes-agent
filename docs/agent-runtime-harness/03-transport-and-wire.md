@@ -524,6 +524,38 @@ Staleness is R8's retry posture, built in Stage 7. Acceptance:
 `tests/agent_runtime/test_gateway_peer_two_roots_e2e.py` — two real serve
 children, two isolated roots, both CLI verbs, `peer.ping` A→B.
 
+### 1.2a The reverse lane — a computer drives a phone over the lane the PHONE dialled
+
+A phone runs no listener (D3 2026-09-30), so a computer reaches a phone's engine over a
+connection the phone opens (Eternia row `MC-PHONE-DRIVEN-THE-PHONE-DIALS-OUT-SO-A-COMPUTER-CAN-REACH-ITS-ENGINE`,
+plan `EterniaLauncher/docs/embedded_hermes/planned/PHONE_DRIVEN_BY_A_COMPUTER_2026-11-21.md`, review
+w1118a.79). `agent_runtime/reverse_lane/`:
+
+- **Park.** The phone's engine (`runtime.gateway.reverse.dial`, asked by its owner) dials the
+  computer's gateway, pinned, with its own device hello plus `reverse_lane: <lane id>` (32 hex,
+  minted per dial). The computer's hello hook (`ConnectionAdmitter`'s `handoff`) parks the
+  connection by device id and answers `reverse_lane_parked`.
+- **Attach.** The computer's owner says the loopback hello with `reverse_attach: <device id>`.
+  The hook answers `reverse_attached` with the lane id, tells the phone, and copies bytes both
+  ways. The hooks run after the credential verified and on the connection's own thread; a park
+  off the gateway or by anything but a plain device, or an attach by anything but the loopback
+  owner, is `reverse_lane_refused`; no lane, or a device unpaired since it parked, is
+  `reverse_lane_absent`. The splice is trusted as the owner's process: the lane's TLS ends there.
+- **The lane hello.** The phone hands the socket to a listener-less `ConnectionAdmitter`
+  (`serve_socket/admit.py`, split from `server.py`'s bind and accept) on the `gateway` transport,
+  which runs this section's hello with the proof bound to the lane id instead of a port:
+  `HMAC(sha256(token) hex, "gwvr<contract>|<lane id>|<computer id>|<nonce>")`
+  (`serve_gateway_auth/proof.py::reverse_lane_proof`), verified against the phone's grant
+  (`reverse_lane/grants.py`). The caller is `computer` with the grant level `look` or `chat`,
+  answered from an allowlist per level by `call_authorization`'s computer arm, placed like the
+  peer arm before the read opening; `LOCAL_CONSOLE_METHODS` stay refused.
+- **The grant is bound to the pairing.** A dial whose device id is not the grant's pairing finds
+  no grant (a re-pair starts with none); a dial refused `bad_proof` (the computer unpaired the
+  phone) deletes the phone's grant for that computer; turning a grant off closes its lane.
+
+Acceptance: `tests/agent_runtime/test_reverse_lane.py` (the real phone `serve_loop`, the
+computer's real listeners).
+
 ### 1.3 What an edge CARRIES — cross-install chat (gateway Stage 7)
 
 An agent on install A addresses an agent on install B by qualifying the target

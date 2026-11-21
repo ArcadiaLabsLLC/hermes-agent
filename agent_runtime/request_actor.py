@@ -26,7 +26,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from .call_authorization import CALLER_DEVICE, CALLER_LOCAL_CONSOLE, CALLER_PEER, CALLER_STDIO_OWNER
+from .call_authorization import CALLER_COMPUTER, CALLER_DEVICE, CALLER_LOCAL_CONSOLE, CALLER_PEER, CALLER_STDIO_OWNER
 
 __layer__ = "stores"
 __all__ = [
@@ -63,6 +63,7 @@ _CALLER_ACTORS: dict[str, Callable[[Any], str]] = {
     CALLER_STDIO_OWNER: lambda _caller: OPERATOR_ACTOR,
     CALLER_DEVICE: _named("device", "device_id"),
     CALLER_PEER: _named("install", "peer_install_id"),
+    CALLER_COMPUTER: _named("computer", "computer_id"),
 }
 
 

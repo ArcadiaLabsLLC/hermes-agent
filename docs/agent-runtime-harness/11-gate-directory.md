@@ -58,6 +58,8 @@ or registry entry names something real).
 | `tests/tooling/test_no_launcher_entry_id_literals.py` | fence | no hermes code names a Launcher entry id |
 | `tests/tooling/test_no_launcher_tool_name_literals.py` | fence | no hermes code names a Launcher tool (the underscore spelling), by the vendored catalog |
 | `tests/agent_runtime/test_launcher_catalog_fixture_parses.py` | runtime | every vendored Launcher catalog entry parses as the wire does; names follow the id rule |
+| `tests/agent_runtime/test_project_files_spec_mirror.py` | runtime | the vendored project-folder rule spec matches its pin (no hand edit) and, with an Eternia checkout beside, Eternia's spec |
+| `tests/agent_runtime/test_project_files_rules_pin.py` | runtime | the project-folder reader's constants equal the vendored rule spec's `rules.json` |
 | `tests/tooling/test_no_silent_package_patches.py` | fence | a monkeypatch on a package attribute reaches a reader |
 | `tests/tooling/test_rebind_seams_have_positive_controls.py` | fence | a fork seam that rebinds an upstream attribute names a test driving upstream's own caller |
 | `tests/agent_runtime/test_duplicate_helper_bodies.py` | ratchet | one authority per helper body |

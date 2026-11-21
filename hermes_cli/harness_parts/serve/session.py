@@ -665,6 +665,10 @@ class ServeSession(
         #: lock, its pool, its stream hub and its drain; what it does not share is
         #: the credential (per device, not per root) and the encryption (TLS).
         self.gateway_server: Any = None
+        #: The reverse lanes (``reverse_lanes.open_reverse_lanes``): a paired phone's
+        #: parked lane and its splice when this serve is the computer, and the lanes this
+        #: engine dialled when it is the phone. Opened beside the pool, on every serve.
+        self.reverse_lanes: Any = None
         #: The ONE stream producer, built on the first ``subscribe`` and stopped
         #: when the last subscriber leaves. Never per client: a delta batch rebuilds
         #: a full snapshot core, so N generators would cost N of them.
@@ -936,6 +940,12 @@ class ServeSession(
     def _start_pool_and_accepting(self) -> None:
 
         self.pool = RequestPool(self.pool_size)
+        # Beside the pool, for the reason the socket waits for it: a computer's call over a
+        # reverse lane dispatches into this pool. Opens no socket by itself.
+        from hermes_cli.harness_parts.serve.reverse_lanes import open_reverse_lanes
+
+        with self.lane_lock:
+            self.reverse_lanes = open_reverse_lanes(self)
         # The socket starts ACCEPTING only now: the listener has been bound
         # since before the ready frame (so the port could be published), but a
         # connection whose first request landed before this pool existed would

@@ -45,6 +45,8 @@ __all__ = [
     "REJECT_BAD_PROOF",
     "REJECT_DRAINING",
     "REJECT_EXTERNAL_ACCESS_OFF",
+    "REJECT_REVERSE_LANE_ABSENT",
+    "REJECT_REVERSE_LANE_REFUSED",
     "REJECT_HANDSHAKE_THROTTLED",
     "REJECT_HELLO_MALFORMED",
     "REJECT_HELLO_REQUIRED",
@@ -164,6 +166,17 @@ class RejectReason(StrEnum):
     #: is right about its credential and backs off until the owner turns the switch on.
     EXTERNAL_ACCESS_OFF = "external_access_off"
 
+    #: A hello that asked for a reverse lane (``reverse_lane`` / ``reverse_attach``,
+    #: ``agent_runtime.reverse_lane``) from a caller or door that may not have one: a
+    #: park asked off the gateway or by anything but a paired device, an attach asked
+    #: by anything but this machine's owner on the loopback lane, or both at once.
+    #: Said only after the credential verified, and NOT an auth failure.
+    REVERSE_LANE_REFUSED = "reverse_lane_refused"
+
+    #: The machine owner asked to attach to a device's reverse lane and none is
+    #: parked, or the device that parked it is no longer paired: the phone is away.
+    REVERSE_LANE_ABSENT = "reverse_lane_absent"
+
 
 #: The module-level names every importer and test reads — aliases of the members.
 REJECT_TOO_MANY_CONNECTIONS = RejectReason.TOO_MANY_CONNECTIONS
@@ -178,6 +191,8 @@ REJECT_HELLO_TOO_LONG = RejectReason.HELLO_TOO_LONG
 REJECT_BAD_PROOF = RejectReason.BAD_PROOF
 REJECT_TLS_HANDSHAKE_FAILED = RejectReason.TLS_HANDSHAKE_FAILED
 REJECT_EXTERNAL_ACCESS_OFF = RejectReason.EXTERNAL_ACCESS_OFF
+REJECT_REVERSE_LANE_REFUSED = RejectReason.REVERSE_LANE_REFUSED
+REJECT_REVERSE_LANE_ABSENT = RejectReason.REVERSE_LANE_ABSENT
 
 
 #: The ONLY reasons that charge the auth rate limiter: a peer that presented a

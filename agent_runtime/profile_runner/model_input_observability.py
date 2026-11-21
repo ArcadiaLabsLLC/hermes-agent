@@ -276,6 +276,9 @@ def _model_input_observability(*, agent, request: AgentRunRequest) -> dict[str, 
             if system_prompt_sections
             else {}
         ),
+        # The turn sent the chat's STORED prompt (upstream reused it verbatim), not this turn's build:
+        # the slot headings it actually carries let the record's workspace receipt claim only those.
+        **_system_prompt_reuse(agent, str(system_prompt or "")),
         # T8 (2026-07-18): the rendered compact skills-index text's char count —
         # what ``.skills_prompt_snapshot.json`` ACTUALLY contributed to the
         # prompt this turn, distinct from the loaded-file byte estimate the
@@ -290,6 +293,23 @@ def _model_input_observability(*, agent, request: AgentRunRequest) -> dict[str, 
             else {}
         ),
     }
+
+
+#: A slot section's heading line, as ``persona_slots.SlotContextSection.heading`` renders it.
+_SLOT_HEADING_RE = re.compile(r"^## (\S+) — (\S+)$", re.MULTILINE)
+
+
+def _system_prompt_reuse(agent: Any, system_prompt: str) -> dict[str, Any]:
+    """``{"system_prompt_reuse": …}`` when the turn sent a stored prompt, else nothing.
+
+    ``_system_prompt_restored_from_session`` is upstream's own flag (``agent/conversation_loop.py``);
+    the headings are read off the FULL prompt, not the bounded preview above.
+    """
+
+    if not getattr(agent, "_system_prompt_restored_from_session", False):
+        return {}
+    headings = sorted({f"{slot} — {file}" for slot, file in _SLOT_HEADING_RE.findall(system_prompt)})
+    return {"system_prompt_reuse": {"restored": True, "slot_sections": headings[:64]}}
 
 
 def _current_turn_user_row(agent: Any) -> tuple[dict[str, Any] | None, str | None]:

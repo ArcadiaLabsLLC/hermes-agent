@@ -15,6 +15,7 @@ from hermes_cli.harness_parts.serve.constants import (
     GATEWAY_TRANSPORT,
 )
 
+
 __layer__ = "lanes"
 
 __all__ = [
@@ -103,6 +104,7 @@ def start_gateway_listener(
     on_disconnect: Any,
     log: Any,
     frame_contract: int,
+    handoff: Any = None,
 ) -> tuple[Any, dict[str, Any]]:
     """Bind the second listener, or say precisely why there is none.
 
@@ -169,6 +171,8 @@ def start_gateway_listener(
         frame_contract=frame_contract,
         on_disconnect=on_disconnect,
         log=log,
+        # A paired phone offering its connection back as a reverse lane (``reverse_lane``).
+        handoff=handoff,
     )
     try:
         bound = server.bind()
