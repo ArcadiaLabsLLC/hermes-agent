@@ -30,7 +30,11 @@ def test_space_separated_bearer_token_is_masked_and_the_assignment_rules_miss_it
 
 @pytest.mark.parametrize("header", ["Cookie", "Set-Cookie", "X-Api-Key", "Proxy-Authorization"])
 def test_credential_headers_are_masked(header):
-    assert redact_transport_text(f"{header}: s3cr3tvalue; next") == f"{header}: {REDACTED_VALUE}; next"
+    # Upstream's header pass decides how far the value runs (an API-key header line
+    # is masked to its end), so the pin is the name kept and the value gone
+    # (RT-ONE-SECRET-SCRUBBER-DECIDES-WHAT-IS-HIDDEN).
+    out = redact_transport_text(f"{header}: s3cr3tvalue; next")
+    assert out.startswith(f"{header}: {REDACTED_VALUE}") and "s3cr3tvalue" not in out
 
 
 def test_signed_url_query_values_are_masked_and_userinfo_dropped():

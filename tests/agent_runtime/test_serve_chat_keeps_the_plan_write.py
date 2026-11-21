@@ -74,7 +74,7 @@ def test_only_the_bounded_plan_shape_passes_the_sink():
         "not an item",
     ]})
     assert safe["todo_state"] == [
-        {"id": "a", "content": "use [REDACTED] now", "status": "pending"},
+        {"id": "a", "content": "use «redacted:sk-…» now", "status": "pending"},
         {"id": "b", "content": "two", "status": "pending", "parent": "a"},
         {"id": "c", "content": "three", "status": "pending"},
     ]

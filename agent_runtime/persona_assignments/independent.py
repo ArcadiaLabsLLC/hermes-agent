@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import os
-import tempfile
 import uuid
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from hermes_cli.profiles import get_profile_dir
-from hermes_cli.profiles_initialization import finish_profile_layout
 from hermes_constants import get_hermes_home
 
 from .. import paths, yaml_io
+from ..agent_profile_create import OWNER_FILE, create_agent_profile
 from ..config.roster import ensure_persisted_personas
 from ..errors import NotFound
 from ..locks import agent_create_lock, agent_record_write_lock
@@ -32,7 +31,7 @@ if TYPE_CHECKING:
 
 __layer__ = "stores"
 
-_OWNER_FILE = ".eternia-agent-owner"
+_OWNER_FILE = OWNER_FILE
 _PROFILE_PROMPT = "personas/system-prompt.md"
 _PROFILE_SOUL = "personas/soul-overlay.md"
 
@@ -161,19 +160,16 @@ def _stage_profile(home: Path, source_home: Path, source: AgentPersona | None, o
         (source_home,),
     )
     soul = _text_from(source_home / "SOUL.md", (source_home,))
-    config = _carried_model_config(source_home)
-    home.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=home.parent, prefix=f".{home.name}-") as temp:
-        stage = Path(temp) / "profile"
-        (stage / "personas").mkdir(parents=True)
-        (stage / "config.yaml").write_text(yaml_io.dump(config), encoding="utf-8")
+
+    def populate(made: Path) -> None:
+        (made / "personas").mkdir(parents=True, exist_ok=True)
         if prompt is not None:
-            (stage / _PROFILE_PROMPT).write_text(prompt, encoding="utf-8")
+            (made / _PROFILE_PROMPT).write_text(prompt, encoding="utf-8")
         if overlay is not None:
-            (stage / _PROFILE_SOUL).write_text(overlay, encoding="utf-8")
-        finish_profile_layout(stage, no_skills=False, clone_all=False, description=None, soul=soul)
-        (stage / _OWNER_FILE).write_text(owner, encoding="utf-8")
-        os.rename(stage, home)
+            (made / _PROFILE_SOUL).write_text(overlay, encoding="utf-8")
+
+    # The one profile creator (``agent_profile_create``), never a hand staging.
+    create_agent_profile(home.name, owner=owner, config=_carried_model_config(source_home), soul=soul, populate=populate)
     return _PROFILE_PROMPT if prompt is not None else "", _PROFILE_SOUL if overlay is not None else None
 
 

@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from agent.redact import is_secret_field_name as _upstream_is_secret_field_name
+from agent.redact import redact_sensitive_text
+
 __layer__ = "models"
 
 
@@ -289,16 +292,37 @@ def redact_url(url: str) -> str:
     return urlunsplit((parts.scheme, host, parts.path, urlencode(query), parts.fragment))
 
 
-def redact_transport_text(value: str, *, secrets: tuple[str, ...] = ()) -> str:
-    """Transport diagnostic text with bearer tokens, credential headers, signed
-    URLs and each exact ``secrets`` value masked."""
+def _redact_upstream(text: str) -> str:
+    """``text`` through upstream's one scrubber: every credential SHAPE it knows.
 
+    ``force`` — the operator's ``security.redact_secrets`` opt-out is for tool
+    output, never a fork surface. ``file_read`` — a prefixed key becomes the
+    non-reusable ``«redacted:ghp_…»`` (no head/tail characters on a display), and
+    upstream's word-keyed assignment pass is skipped: it reads
+    ``credential_profile: stagec-smoke`` as a secret, the word-for-a-value
+    defect the tool-IO lane retired (2026-10-02). Assignments stay the fork's
+    value-shaped :data:`TEXT_SECRET_VALUE_ASSIGNMENT_RE`. RULED 2026-11-21 in
+    RT-ONE-SECRET-SCRUBBER-DECIDES-WHAT-IS-HIDDEN: owner said "when there is a
+    decision for this session, do an analysis on it and go with reccomended"."""
+
+    return redact_sensitive_text(text, force=True, file_read=True)
+
+
+def _fork_transport_passes(value: str, secrets: tuple[str, ...]) -> str:
     text = BEARER_TOKEN_RE.sub(f"Bearer {REDACTED_VALUE}", str(value))
     text = CREDENTIAL_HEADER_RE.sub(lambda match: f"{match.group(1)}: {REDACTED_VALUE}", text)
     text = _URL_RE.sub(lambda match: redact_url(match.group(0)), text)
     for secret in filter(None, secrets):
         text = text.replace(secret, REDACTED_VALUE)
     return text
+
+
+def redact_transport_text(value: str, *, secrets: tuple[str, ...] = ()) -> str:
+    """Transport diagnostic text with bearer tokens, credential headers, signed
+    URLs and each exact ``secrets`` value masked, after every shape upstream's
+    scrubber knows (:func:`_redact_upstream`)."""
+
+    return _fork_transport_passes(_redact_upstream(str(value)), secrets)
 
 
 # ── secret VALUES in a tool's input or result (the operator tool-IO lane) ─────
@@ -310,44 +334,41 @@ def redact_transport_text(value: str, *, secrets: tuple[str, ...] = ()) -> str:
 # failure_class, message and next step included — while no secret was in it.
 # A word is not a secret; a value is. So this lane scrubs VALUES: a mapping
 # value under a secret-named field, a value written as a secret assignment in
-# prose, a bearer/header credential, a signed URL, and the token shapes below.
-# Field names and prose survive.
+# prose, a bearer/header credential, a signed URL, and every credential shape
+# upstream's ``agent.redact`` knows. Field names and prose survive.
 
-#: Field-name TAILS whose value is a secret, after camelCase/``-``/``.`` fold to
-#: ``_``. A tail, not a substring: ``credential_profile`` and ``token_count``
-#: name things that are not secrets; ``access_token`` and ``client_secret`` do.
-SECRET_FIELD_TAILS = (
-    "token", "secret", "password", "passwd", "passphrase", "authorization",
-    "cookie", "credential", "credentials", "api_key", "apikey", "private_key",
-    "access_key", "secret_key",
-)
+#: Field-name tails upstream's :func:`agent.redact.is_secret_field_name` does not
+#: know (RT-ONE-SECRET-SCRUBBER-DECIDES-WHAT-IS-HIDDEN): every other tail the fork
+#: once listed here (``token``, ``secret``, ``password``, ``api_key``,
+#: ``private_key``, ``access_key`` …) is upstream's to decide.
+FORK_ONLY_SECRET_FIELD_TAILS = ("passphrase", "authorization", "cookie")
 
-#: Credential SHAPES that are secrets wherever they appear, whatever they are
-#: called: OpenAI/Anthropic-style ``sk-`` keys, GitHub tokens, Slack tokens, AWS
-#: access key ids, Google API keys and JWTs.
-SECRET_VALUE_SHAPE_RE = re.compile(
-    r"(?<![A-Za-z0-9])(?:"
-    r"sk-[A-Za-z0-9_-]{16,}"
-    r"|gh[pousr]_[A-Za-z0-9]{20,}"
-    r"|github_pat_[A-Za-z0-9_]{20,}"
-    r"|xox[abprs]-[A-Za-z0-9-]{10,}"
-    r"|AKIA[0-9A-Z]{16}"
-    r"|AIza[0-9A-Za-z_-]{30,}"
-    r"|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
-    r")"
+#: A JWT whose header segment is 8 or 9 characters after ``eyJ``: upstream's JWT
+#: shape starts at 10, the fork's at 8, so this is the one value shape the fork
+#: still holds. Every other credential shape (``sk-``, ``ghp_``, ``xox?-``,
+#: ``AKIA``, ``AIza``, provider prefixes, key blocks …) is upstream's.
+_SHORT_JWT_RE = re.compile(
+    r"(?<![A-Za-z0-9])eyJ[A-Za-z0-9_-]{8,9}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
 )
 
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]+")
 
 
 def is_secret_field_name(key: Any) -> bool:
-    """Is ``key`` a field whose VALUE is a secret? Control characters are removed
-    first, so ``"pass\\nword"`` is read as ``password``."""
+    """Is ``key`` a field whose VALUE is a secret? Upstream's
+    :func:`agent.redact.is_secret_field_name` decides, after control characters
+    are removed (``"pass\\nword"`` is read as ``password``), on the name as
+    written and as folded; the fork adds only
+    :data:`FORK_ONLY_SECRET_FIELD_TAILS`, matched as a whole name or an ``_``-tail
+    after camelCase/``-``/``.``/space fold to ``_``."""
 
     text = _CONTROL_CHARS_RE.sub("", str(key))
-    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", text).lower()
-    text = re.sub(r"[\s.\-]+", "_", text).strip("_")
-    return any(text == tail or text.endswith(f"_{tail}") for tail in SECRET_FIELD_TAILS)
+    folded = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", text).lower()
+    folded = re.sub(r"[\s.\-]+", "_", folded).strip("_")
+    # The folded name goes to upstream too: ``x-api-key`` is ``x_api_key`` there.
+    if _upstream_is_secret_field_name(text) or _upstream_is_secret_field_name(folded):
+        return True
+    return any(folded == tail or folded.endswith(f"_{tail}") for tail in FORK_ONLY_SECRET_FIELD_TAILS)
 
 
 def _redact_assignment_value(match: re.Match[str]) -> str:
@@ -358,12 +379,23 @@ def _redact_assignment_value(match: re.Match[str]) -> str:
 
 
 def scrub_secret_values(text: str) -> str:
-    """``text`` with every secret VALUE replaced by :data:`REDACTED_VALUE` and
-    everything else -- field names, prose, line structure -- kept. Idempotent."""
+    """``text`` with every secret VALUE hidden and everything else -- field
+    names, prose, line structure -- kept. Idempotent.
 
-    text = redact_transport_text(str(text))
+    ONE decider (RT-ONE-SECRET-SCRUBBER-DECIDES-WHAT-IS-HIDDEN): upstream's
+    :func:`agent.redact.redact_sensitive_text` (``force=True``, so the operator's
+    ``security.redact_secrets`` opt-out never reaches a fork surface) owns every
+    credential shape it knows, and a shape upstream learns is hidden here with no
+    fork edit. The fork's passes run after it and add only what upstream lacks: a
+    bare ``Bearer <token>``, a ``name=value`` credential header, signed URL
+    query values, prose ``key: value`` assignments (:func:`_redact_upstream`
+    says why upstream's are skipped), and an 8-9 character JWT header. Where a
+    fork pass matches upstream's output (``X-Api-Key: ***``) it writes its own
+    :data:`REDACTED_VALUE`, so a reader sees one marker per fork rule."""
+
+    text = _fork_transport_passes(_redact_upstream(str(text)), ())
     text = TEXT_SECRET_VALUE_ASSIGNMENT_RE.sub(_redact_assignment_value, text)
-    return SECRET_VALUE_SHAPE_RE.sub(REDACTED_VALUE, text)
+    return _SHORT_JWT_RE.sub(REDACTED_VALUE, text)
 
 
 def scrub_secret_value_tree(value: Any) -> Any:

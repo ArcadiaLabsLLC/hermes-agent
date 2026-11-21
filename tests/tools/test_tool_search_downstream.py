@@ -753,3 +753,18 @@ class TestRarityTieKeepsEveryTiedWord:
         catalog = build_catalog(self._defs())
         for query in ("filler widget", "echo", "owned echo nothing", "mcp__editor_tie__echo", "widget 3"):
             assert search_catalog(catalog, query, limit=3) == upstream_search(catalog, query, limit=3), query
+
+    def test_the_fork_tie_path_scores_and_tokenizes_exactly_as_upstream(self):
+        """W0-G6 keeps the tie path off upstream's ``_private`` names; its twins must not drift.
+        Upstream's privates are read here, in a test, only to pin that parity."""
+        from tools.tool_search_catalog import _bm25_score, _corpus_stats, _tokenize, build_catalog
+        from tools.tool_search_downstream import _bm25, _bm25_corpus_stats, _query_tokens
+
+        catalog = build_catalog(self._defs())
+        stats = _bm25_corpus_stats(catalog)
+        assert stats == _corpus_stats(catalog)
+        for query in ("owned echo", "Managing Issues, e.g. GitHub's", "filler widget 3", "", "  _ - "):
+            tokens = _query_tokens(query)
+            assert tokens == _tokenize(query), query
+            for entry in catalog:
+                assert _bm25(tokens, entry._tokens, *stats) == _bm25_score(tokens, entry._tokens, *stats)
