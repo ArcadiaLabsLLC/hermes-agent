@@ -9,6 +9,7 @@ real script without running the suite.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -41,7 +42,7 @@ def _stub(path: Path, log: Path, body: str = "", prelude: str = "") -> Path:
 def tree(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
     (root / "scripts").mkdir(parents=True)
-    for name in ("daily_full_run.sh", "prepush.sh"):
+    for name in ("daily_full_run.sh", "prepush.sh", "daily_test_timings.py"):
         shutil.copy2(REPO / "scripts" / name, root / "scripts" / name)
     subprocess.run(["git", "init", "-q"], cwd=root, check=True, stdin=subprocess.DEVNULL)
     return root
@@ -50,7 +51,14 @@ def tree(tmp_path: Path) -> Path:
 #: the stub interpreter's answer for ``scripts/daily_suite_files.py <list-out>``: a one-file list and
 #: one node row's ``--deselect``; it is not logged, so ``calls`` holds only the steps.
 _SUITE_LIST = ('case "$1" in *daily_suite_files.py) printf \'tests/a/test_x.py\\n\' > "$2";'
-               ' echo "--deselect=tests/n/test_z.py::test_flaky[p0]"; exit 0 ;; esac')
+               ' echo "--deselect=tests/n/test_z.py::test_flaky[p0]"; exit 0 ;;'
+               ' *daily_test_timings.py) exit 0 ;; esac')
+
+
+def _timing(out: Path, step: str) -> str:
+    """What every pytest step's argv ends with: the per-test timing plugin (FH-DAILY-RUN-TIMES-EVERY-TEST)."""
+
+    return f" -- -p scripts.daily_test_timings --daily-test-timings={out}/{step}.timings.d"
 
 
 def _run(tree: Path, *args: str, runner_body: str = "", cite_body: str = "", suite_list: str = _SUITE_LIST,
@@ -137,7 +145,8 @@ def test_the_suite_runs_the_skip_list_free_list_and_deselects_each_node_row(tree
     out = tree.parent / "out"
     proc, calls = _run(tree, f"--out={out}", "--only=suite")
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert calls == [f"-j 24 --files-from={out}/suite.files --deselect=tests/n/test_z.py::test_flaky[p0]"]
+    assert calls == [f"-j 24 --files-from={out}/suite.files --deselect=tests/n/test_z.py::test_flaky[p0]"
+                     + _timing(out, "suite")]
     assert (out / "suite.files").read_text(encoding="utf-8") == "tests/a/test_x.py\n"
 
 
@@ -146,9 +155,9 @@ def test_the_suite_runs_the_skip_list_free_list_and_deselects_each_node_row(tree
 def test_a_suite_list_that_cannot_be_built_reds_the_suite_and_never_runs_it(tree: Path):
     out = tree.parent / "out"
     proc, calls = _run(tree, f"--out={out}", "--only=suite,tooling",
-                       suite_list='case "$1" in *daily_suite_files.py) exit 2 ;; esac')
+                       suite_list='case "$1" in *daily_suite_files.py) exit 2 ;; *daily_test_timings.py) exit 0 ;; esac')
     assert proc.returncode == 1, proc.stdout
-    assert calls == ["-j 24 tests/tooling"], calls  # the suite never ran; the next step still did
+    assert calls == ["-j 24 tests/tooling" + _timing(out, "tooling")], calls  # the suite never ran; the next step still did
     assert (out / "suite.log").read_text(encoding="utf-8").rstrip().endswith("EXIT=2")
     assert "✘ suite red (no suite list, exit 2)" in (out / "summary.txt").read_text(encoding="utf-8")
 
@@ -174,3 +183,41 @@ def test_the_suite_list_is_the_runners_discovery_minus_every_skip_list_file_row(
     assert "tests/scripts/test_daily_full_run_sh.py" in kept  # a fork file always runs
     assert "tests/hermes_cli/test_source_check.py" not in kept  # a P0 freeze file never does
     assert deselects == [f"--deselect={row.path}" for row in rows.values() if row.node]
+
+
+#: a runner stub that records what a timed pytest step would: one fast test, one past the threshold and
+#: one that started and never finished, into the directory its ``--daily-test-timings=`` names.
+_TIMED_RUNNER = r'''
+for arg in "$@"; do case "$arg" in --daily-test-timings=*) dir="${arg#--daily-test-timings=}" ;; esac; done
+mkdir -p "$dir"
+{
+  echo '{"e":"start","id":"tests/t.py::test_fast","t":1000.0}'
+  echo '{"e":"end","id":"tests/t.py::test_fast","s":0.01,"o":"passed","t":1000.0}'
+  echo '{"e":"start","id":"tests/t.py::test_slow","t":1000.0}'
+  echo '{"e":"end","id":"tests/t.py::test_slow","s":12.5,"o":"passed","t":1012.5}'
+  echo '{"e":"start","id":"tests/t.py::test_hang","t":1013.0}'
+} > "$dir/4242.jsonl"
+case "$*" in *test_queue_row_guard*) exit 1 ;; esac
+'''
+
+
+# KILLING MUTATIONS: drop the green branch's ``_fold_timings`` call (``! _timed "$step" || _fold_timings
+# "$step"`` before ``continue``) -> tooling has no timings.json and this reds; drop the red branch's call
+# (after the red-file loop) -> the red gates step has none and this reds.
+def test_every_pytest_step_writes_its_timings_and_the_summary_names_the_hung_and_the_slow_tests(tree: Path):
+    out = tree.parent / "out"
+    proc, _calls = _run(tree, f"--out={out}", "--only=gates,doc-cite,tooling", runner_body=_TIMED_RUNNER,
+                       env_extra={"DAILY_PYTHON": sys.executable})
+    assert proc.returncode == 1, proc.stdout + proc.stderr  # gates red, by the stub
+    summary = (out / "summary.txt").read_text(encoding="utf-8")
+    for step in ("gates", "tooling"):  # the red step and the green one
+        timings = json.loads((out / f"{step}.timings.json").read_text(encoding="utf-8"))
+        assert [(r["nodeid"], r["seconds"], r["outcome"]) for r in timings["results"]] == [
+            ("tests/t.py::test_slow", 12.5, "passed"), ("tests/t.py::test_fast", 0.01, "passed")]
+        assert [u["nodeid"] for u in timings["unfinished"]] == ["tests/t.py::test_hang"]
+        assert not (out / f"{step}.timings.d").exists()  # the raw lines go once the JSON holds them
+        assert f"{out}/{step}.timings.json" in summary
+    assert not (out / "doc-cite.timings.json").exists()  # not a pytest step
+    assert summary.count("NEVER FINISHED (hung or killed): tests/t.py::test_hang") == 2
+    assert summary.count("over 10s: 12.50s passed tests/t.py::test_slow") == 2
+    assert "NEVER FINISHED (hung or killed): tests/t.py::test_hang" in proc.stdout  # said at once, too

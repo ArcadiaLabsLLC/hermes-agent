@@ -414,6 +414,14 @@ gates), `doc-cite`, `tooling` (`tests/tooling`). Each writes `<dir>/<step>.log` 
 under its own timeout (`DAILY_<STEP>_TIMEOUT`); every step runs after a red; `<dir>/summary.txt`
 names each red, the red files its log names, and the row it owes. Every red is filed and fixed the
 same day, on `main` already or not. `--dry-run` prints the plan; `--only=<step>,…` runs a subset.
+Every pytest step (`suite`, `gates`, `census`, `tooling`) also times each test (`FH-DAILY-RUN-TIMES-EVERY-TEST`,
+owner 2026-11-20: a timing log for every test, to catch what hangs or runs long): the run passes
+`-- -p scripts.daily_test_timings --daily-test-timings=<dir>/<step>.timings.d`, so every pytest process
+appends a start and an end line per test, and `scripts/daily_test_timings.py` folds them into
+`<dir>/<step>.timings.json` (node id, seconds, outcome, slowest first) and adds to `summary.txt` every test
+that STARTED but never finished (`NEVER FINISHED (hung or killed)`, a file killed at its timeout included),
+every test at or over `SLOW_TEST_SECONDS` (10 s) and the slowest ten. The same two flags time a hand run of
+`scripts/run_tests.sh` or `scripts/run_tests_bundled.sh` (the bundled run then skips its green cache).
 
 ## What a landing runs, once
 

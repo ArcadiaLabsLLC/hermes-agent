@@ -13,6 +13,10 @@
 #   doc-cite  `scripts/doc_cite_adjacency.py --exclude archive --exclude planned`
 #   census    both name census gates whatever was touched (`scripts/prepush.sh --list-census`)
 #   tooling   every whole-tree gate: `scripts/run_tests.sh tests/tooling`
+# Every pytest step (suite, gates, census, tooling) also times each test: `<out>/<step>.timings.json`
+# holds every test's node id, seconds and outcome, slowest first, and every test that started but never
+# finished (hung, or killed at a timeout); the summary names those, every test over
+# `SLOW_TEST_SECONDS` and the slowest few (`scripts/daily_test_timings.py`).
 # Every step runs even after a red. The run ends with a summary (`<out>/summary.txt` too) naming
 # each red, its log, the red test files the log names, and the row it owes: every red is filed
 # into its domain queue and fixed the same day, whether or not it was already on main.
@@ -27,7 +31,7 @@
 #   DAILY_<STEP>_TIMEOUT  whole seconds (STEP = SUITE, GATES, DOC_CITE, CENSUS, TOOLING).
 #   DAILY_JOBS            the runner's worker cap (default 24, the box's measured best).
 #   DAILY_RUNNER / DAILY_PYTHON   the test runner (default scripts/run_tests.sh) and the
-#                         doc-cite and suite-list interpreter; both exist so the script's own test can drive it
+#                         doc-cite, suite-list and timings interpreter; both exist so the script's own test can drive it
 #                         without running the suite.
 
 set -uo pipefail
@@ -56,7 +60,7 @@ for arg in "$@"; do
     --out=*) OUT="${arg#--out=}" ;;
     --dry-run) DRY=1 ;;
     --only=*) ONLY="${arg#--only=}" ;;
-    -h|--help) sed -n '2,31p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,35p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "daily_full_run: unknown argument $arg (use --out=<dir>, --dry-run, --only=<steps>)" >&2; exit 2 ;;
   esac
 done
@@ -100,14 +104,42 @@ if [ "${#GATES[@]}" -eq 0 ] || [ "${#CENSUS[@]}" -eq 0 ]; then
   exit 2
 fi
 
+# Every pytest step times each test (row FH-DAILY-RUN-TIMES-EVERY-TEST, owner 2026-11-20): the plugin
+# rides after `--`, which both runners forward to every pytest process unvalidated, and appends a
+# start and an end line per test to `<out>/<step>.timings.d/<pid>.jsonl`; after the step,
+# `scripts/daily_test_timings.py` folds them into `<out>/<step>.timings.json` and the summary lines.
+case "$OUT" in /*|[A-Za-z]:*) ;; *) OUT="$REPO_ROOT/$OUT" ;; esac
+_native() {  # a path a native Windows python can open (Git Bash's /c/... is not one)
+  if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi
+}
+_timed() { case "$1" in suite|gates|census|tooling) return 0 ;; esac; return 1; }
+
 _command() {
+  local timing=(-- -p scripts.daily_test_timings "--daily-test-timings=$(_native "$OUT/$1.timings.d")")
   case "$1" in
-    suite) CMD=(bash "$RUNNER" -j "$JOBS" --files-from="$OUT/suite.files" ${SUITE_DESELECTS[@]+"${SUITE_DESELECTS[@]}"}) ;;
-    gates) CMD=(bash "$RUNNER" -j "$JOBS" "${GATES[@]}") ;;
+    suite) CMD=(bash "$RUNNER" -j "$JOBS" --files-from="$OUT/suite.files" ${SUITE_DESELECTS[@]+"${SUITE_DESELECTS[@]}"} "${timing[@]}") ;;
+    gates) CMD=(bash "$RUNNER" -j "$JOBS" "${GATES[@]}" "${timing[@]}") ;;
     doc-cite) CMD=("$PY" "$SCRIPT_DIR/doc_cite_adjacency.py" --exclude archive --exclude planned) ;;
-    census) CMD=(bash "$RUNNER" -j "$JOBS" "${CENSUS[@]}") ;;
-    tooling) CMD=(bash "$RUNNER" -j "$JOBS" tests/tooling) ;;
+    census) CMD=(bash "$RUNNER" -j "$JOBS" "${CENSUS[@]}" "${timing[@]}") ;;
+    tooling) CMD=(bash "$RUNNER" -j "$JOBS" tests/tooling "${timing[@]}") ;;
   esac
+}
+
+# The step's timing lines into SUMMARY (a never-finished test is echoed at once too); the raw
+# per-process files go once the JSON holds them.
+_fold_timings() {
+  local dir="$OUT/$1.timings.d" json="$OUT/$1.timings.json" line rc=0 report
+  report="$("$PY" "$SCRIPT_DIR/daily_test_timings.py" "$(_native "$dir")" "$(_native "$json")")" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    SUMMARY+=("    timings: scripts/daily_test_timings.py failed (exit $rc); raw lines kept in $dir")
+    return
+  fi
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    SUMMARY+=("$line")
+    case "$line" in *"NEVER FINISHED"*) echo "$line" ;; esac
+  done <<<"$report"
+  rm -rf "$dir"
 }
 
 SUITE_DESELECTS=()
@@ -165,6 +197,7 @@ for step in "${SELECTED[@]}"; do
   if [ "$rc" -eq 0 ]; then
     SUMMARY+=("✔ $step ${wall}s")
     echo "✔ $step ${wall}s"
+    ! _timed "$step" || _fold_timings "$step"
     continue
   fi
   if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
@@ -179,6 +212,7 @@ for step in "${SELECTED[@]}"; do
   while IFS= read -r file; do
     [ -n "$file" ] && SUMMARY+=("    red: $file")
   done < <(grep -oE '^(  ║ )?FAILED [^: ]+' "$log" | sed -E 's/^(  ║ )?FAILED //' | sort -u)
+  ! _timed "$step" || _fold_timings "$step"
 done
 
 {
