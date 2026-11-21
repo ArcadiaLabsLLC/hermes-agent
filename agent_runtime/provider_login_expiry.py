@@ -19,12 +19,14 @@ from .api_key_check import API_KEY_CONTROL_CHARACTER
 __layer__ = "models"
 
 __all__ = [
+    "CHOSEN_CREDENTIAL_UNUSABLE",
     "LOGIN_EXPIRED_REASON",
     "NamedProviderNotConfiguredError",
     "expired_login_message",
     "named_missing_provider_error",
     "pool_key_refused",
     "pool_login_expired",
+    "refused_key_error",
     "refused_key_message",
 ]
 
@@ -33,6 +35,12 @@ __all__ = [
 #: (``invalid_grant`` and kin). Rides the refusal block's ``failure_reason``, so a client can say
 #: "sign in again", not "configure one".
 LOGIN_EXPIRED_REASON = "login_expired"
+
+#: The credentials reason of a pick or a run refused while every stored row of the provider's CHOSEN
+#: credential kind is exhausted or refused and a saved credential of the other kind exists (review
+#: w1118a.69 D1); decided in ``agent_runtime/provider_credential_source.py``, kept here, in the models
+#: layer, so the refusal's words (``mission_chat_outcome``) read it without reaching up to a store.
+CHOSEN_CREDENTIAL_UNUSABLE = "chosen_credential_unusable"
 
 
 class NamedProviderNotConfiguredError(ProviderNotConfiguredError):
@@ -116,3 +124,28 @@ def refused_key_message(provider_id: str) -> str:
     """The error for a provider whose saved API key holds a hidden character (never the key)."""
     return (f"Provider '{provider_id}' API key contains a hidden character (often picked up when it was "
             "copied), so it was never sent; save the key again.")
+
+
+def refused_key_error(exc: BaseException, provider: Optional[str]) -> Optional[NamedProviderNotConfiguredError]:
+    """The named refusal a run that failed for want of a credential raises instead, when *provider*'s
+    pool (read in the caller's profile) has nothing usable and holds a key the one key check refused.
+
+    The runner asks it on failure only, so a turn pays no pool read; an error that already names a
+    reason, or any other failure, is left as it is (None). Never raises."""
+    if not provider or getattr(exc, "credentials_reason", None):
+        return None
+    from hermes_cli.auth_constants import AuthError
+
+    if not isinstance(exc, (ProviderNotConfiguredError, AuthError)):
+        return None
+    try:
+        from agent.credential_pool import load_pool
+
+        pool = load_pool(str(provider))
+    except Exception:
+        return None
+    # MUTATION: return None here and test_a_run_that_found_no_credential_names_the_refused_key reddens.
+    if not pool_key_refused(pool):
+        return None
+    return NamedProviderNotConfiguredError(refused_key_message(str(provider)), provider=str(provider),
+                                           credentials_reason=API_KEY_CONTROL_CHARACTER)

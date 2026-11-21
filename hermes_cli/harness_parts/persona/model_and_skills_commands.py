@@ -498,20 +498,20 @@ def _cmd_persona_set_skills(args) -> int:
         # root refuses exactly as plausibly as one out of the right one — and this
         # verb writes the template every later placement inherits.
         data = attach_root_observability({"ok": False, "error_code": "persona_not_found", "error": f"unknown persona: {safe_assignment_token(raw_id)}"})
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data)
         return 2
     persona_id = str(getattr(persona, "id", "") or raw_id)
     try:
         request = _validated_set_skills_request(args)
     except _SetModelRequestError as exc:
         data = attach_root_observability(_set_skills_error_payload(exc.error_code, str(exc), persona_id=persona_id))
-        print(emit_json(data) if args.json else data["error"])
+        emit_operation_result(args, data)
         return 2
     store = AgentStore()
     target, refusal = _template_write_store_target(store, persona_id, what="persona default skills")
     if target is None:
         refusal = attach_root_observability(refusal)
-        print(emit_json(refusal) if args.json else refusal["error"])
+        emit_operation_result(args, refusal)
         return 2
     status = "applied"
     issued_at = request["issued_at"]
@@ -549,8 +549,27 @@ def _cmd_persona_set_skills(args) -> int:
             else "refresh Harness snapshot; instances whose skill_overrides is null follow this set live on their next resolution, and instances carrying their own overrides keep them"
         ),
     })
-    print(emit_json(data) if args.json else f"{status}: {target.id} skills={','.join(stored_skills) or '(none)'}")
+    emit_operation_result(args, data, f"{status}: {target.id} skills={','.join(stored_skills) or '(none)'}")
     return 0
+
+
+def set_skills_operation_result(params: dict) -> dict:
+    """``runtime.persona.set_skills``: the argv handler's own payload, no stdout capture (the
+    ``model_operation_result`` seam). Same tier, supersede clock and refusals (``ok: false``)."""
+    from types import SimpleNamespace
+
+    rows: list[dict] = []
+    args = SimpleNamespace(
+        persona_id=params.get("persona_id"), skills=params.get("skills"),
+        clear_skills=params.get("clear_skills", False), issued_at=params.get("issued_at"),
+        requested_by="operator", json=True, operation_result_sink=rows.append)
+    _cmd_persona_set_skills(args)
+    if len(rows) != 1:
+        raise RuntimeError("set_skills did not produce exactly one result")
+    # Through the argv's own encoder, so the reply is byte-for-byte what ``--json`` prints (datetimes included).
+    import json
+
+    return json.loads(emit_json(rows[0]))
 
 
 def _unresolvable_skill_ids(skills: list[str]) -> list[str]:

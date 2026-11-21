@@ -9,6 +9,7 @@ import time
 from typing import Any, Callable
 
 from agent_runtime.profile_context import persona_profile_context
+from agent_runtime.provider_login_expiry import refused_key_error
 from agent_runtime.provider_refusal_pool import record_provider_refusal
 from agent_runtime.run_budget import (
     RunBudgetLedger,
@@ -144,11 +145,18 @@ class ProfileAgentRunner:
                 self,
                 binding, request, ledger=ledger
             ).run()
-        except Exception:
+        except Exception as exc:
             if resident:
                 request.persona_chat_runtime_registry.evict(
                     request.root_chat_session_id
                 )
+            # A run that found no usable credential names a saved key the one key check refused
+            # (RT-FU-AN-API-KEY-WITH-A-HIDDEN-CONTROL-CHARACTER-IS-REFUSED-WHEN-IT-IS-SAVED): read
+            # live, the anthropic resolve raised "no credentials found" before agent init's seam.
+            with persona_profile_context(binding, runtime_root=request.runtime_root):
+                refused = refused_key_error(exc, request.provider)
+            if refused is not None:
+                raise refused from exc
             raise
         normalize_started = time.perf_counter()
         try:

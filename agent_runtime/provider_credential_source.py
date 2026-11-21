@@ -234,10 +234,10 @@ def benched_entry_ids(provider: str, entries: Iterable[Any]) -> frozenset[str]:
 
 #: The typed reason a model pick and a turn refuse with while every stored row of the CHOSEN kind
 #: is exhausted or refused and a saved credential of the other kind exists
-#: (RT-FU-A-SAVED-API-KEY-IS-NEVER-USED-WHILE-THE-CHOSEN-SIGN-IN-IS-EXHAUSTED, D1 (a)). The bench
-#: stays: ``credential_source`` is a spending choice (a plan's limits against paid API credits), so
-#: nothing is spent from the other kind until the person switches (``runtime.provider.source.set``).
-CHOSEN_CREDENTIAL_UNUSABLE = "chosen_credential_unusable"
+#: (RT-FU-A-SAVED-API-KEY-IS-NEVER-USED-WHILE-THE-CHOSEN-SIGN-IN-IS-EXHAUSTED, D1 (a)); the constant
+#: lives in the models layer. The bench stays: ``credential_source`` is a spending choice, so nothing
+#: is spent from the other kind until the person switches (``runtime.provider.source.set``).
+from .provider_login_expiry import CHOSEN_CREDENTIAL_UNUSABLE  # noqa: E402  (models layer, points down)
 
 
 def chosen_credential_unusable(provider: str, pool: Any = None, *, model: Optional[str] = None) -> bool:
