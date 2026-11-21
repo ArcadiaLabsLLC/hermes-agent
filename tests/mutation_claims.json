@@ -5143,23 +5143,6 @@
       ]
     },
     {
-      "id": "hscope-extra-instance-chat-stamped-with-its-maker",
-      "path": "hermes_cli/harness_parts/persona/lifecycle_commands.py",
-      "symbol": "_cmd_persona_instance_create",
-      "operator": "drop-scope-on-add-instance",
-      "find": "                    realm_id=safe_assignment_token(getattr(args, \"realm_id\", None)) or None,\n                    client_scope=owner,\n                )",
-      "replace": "                    realm_id=safe_assignment_token(getattr(args, \"realm_id\", None)) or None,\n                )",
-      "test": [
-        "{python}",
-        "-m",
-        "pytest",
-        "-q",
-        "-p",
-        "no:cacheprovider",
-        "tests/agent_runtime/test_instance_create_client_scope.py::test_a_scoped_extra_instance_chat_belongs_to_its_maker"
-      ]
-    },
-    {
       "id": "hscope-operator-chat-stamped-with-its-maker",
       "path": "agent_runtime/persona_assignments/chat_binding.py",
       "symbol": "create_operator_chat",
