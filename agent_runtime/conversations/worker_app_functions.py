@@ -198,7 +198,11 @@ class TurnScopes:
 
 
 def bind(sid, session):
+    from agent_runtime import operator_gateway_turn
+
     from . import worker_permissions
+
+    operator_gateway_turn.pin_session(session)
 
     binding, _ = _binding(sid, session)
     launcher = app.bind_launcher_link(binding.link if binding else None)

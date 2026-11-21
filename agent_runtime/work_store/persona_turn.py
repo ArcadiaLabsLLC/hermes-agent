@@ -163,6 +163,12 @@ def runs_here(runtime_root: str) -> bool:
     return bool(str(runtime_root or "").strip()) and _norm(runtime_root) == _norm(paths.store_root())
 
 
+def _engine_judged_goals(root: str) -> Any:
+    from ..operator_gateway_turn import engine_judged_goals
+
+    return engine_judged_goals(root)
+
+
 def _run_id(root: str, cmid: str) -> str:
     return f"{root}/{cmid}"
 
@@ -181,7 +187,7 @@ class PersonaTurnExecutor:
         instances: Any = None,
         root_of: Callable[..., str | None] | None = None,
         draining: Callable[[], bool] = lambda: False,
-        goals: Callable[[str], Any] = chat_goal.manager,
+        goals: Callable[[str], Any] | None = None,
         workdir_of: Callable[[Any], str | None] | None = None,
         queue_skills: Callable[..., dict] | None = None,
     ) -> None:
@@ -191,7 +197,8 @@ class PersonaTurnExecutor:
         self._instances = instances
         self._root_of = root_of
         self._draining = draining
-        self._goals = goals
+        # The chat's goal, judged by the turn engine's one goal loop (``operator_gateway_turn``).
+        self._goals = goals or _engine_judged_goals
         self._workdir_of = workdir_of or _persona_workdir
         self._queue_skills = queue_skills
         self._callbacks: list[Callable[[Run, Outcome], None]] = []

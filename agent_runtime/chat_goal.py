@@ -70,11 +70,56 @@ class GoalOp(StrEnum):
 
 
 def manager(session_id: str) -> Any:
-    """``GoalManager(session_id)`` — imported on use: the goal engine is upstream's, loaded per call."""
+    """``GoalManager(session_id)`` in the chat's own store — imported on use: the goal engine is upstream's.
 
-    from hermes_cli.goals import GoalManager
+    The goal lives with the chat's session, in the store that holds its transcript
+    (``chat_heads.resolve_conversation_chat_scope``): that is where the turn engine's goal loop reads it
+    (``tui_gateway.prompt_turn._goal_followup_after_turn``, on the session's profile scope) and where a
+    compression moves it (``agent.compression_automation``). Every call into the manager runs bound to
+    that store's home (:class:`_ChatStoreGoal`).
+    """
 
-    return GoalManager(session_id)
+    return _ChatStoreGoal(session_id)
+
+
+def _chat_store_home(session_id: str) -> Any:
+    from pathlib import Path
+
+    from .chat_heads import resolve_conversation_chat_scope
+
+    path = getattr(resolve_conversation_chat_scope(session_id=session_id), "db_path", None)
+    return Path(path).parent if path else None
+
+
+class _ChatStoreGoal:
+    """Upstream's ``GoalManager`` for one chat, every call bound to the chat store's home."""
+
+    def __init__(self, session_id: str) -> None:
+        from hermes_cli.goals import GoalManager
+
+        self._home = _chat_store_home(session_id)
+        with self._bound():
+            self._manager = GoalManager(session_id)
+
+    def _bound(self):
+        import contextlib
+
+        if self._home is None:
+            return contextlib.nullcontext()
+        from .profile_context import process_home_scope
+
+        return process_home_scope(self._home)
+
+    def __getattr__(self, name: str) -> Any:
+        value = getattr(self._manager, name)
+        if not callable(value):
+            return value
+
+        def call(*args: Any, **kwargs: Any) -> Any:
+            with self._bound():
+                return value(*args, **kwargs)
+
+        return call
 
 
 def _contract(fields: Mapping[str, Any]) -> Any:

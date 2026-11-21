@@ -533,8 +533,15 @@ def _within_admitted_turn(handler):
         # (``turn_overlap_watch``): the handler writes a minted id back to ``args``.
         # Every reply's ONE stop handle, whoever started it (RT-STOP-REACHES-EVERY-
         # RUNNING-REPLY-THROUGH-ONE-SEAM): a Stop reaches it from the first line on.
-        with admitted_turn(turn_id=lambda: getattr(args, "client_message_id", None)), turn_stop_handle(args):
-            return handler(args)
+        from agent_runtime.operator_gateway_turn import release_turn
+
+        try:
+            with admitted_turn(turn_id=lambda: getattr(args, "client_message_id", None)), turn_stop_handle(args):
+                return handler(args)
+        finally:
+            # The turn engine holds the turn's goal judge until the turn has settled here
+            # (``operator_gateway_turn``): every exit of the handler lets it go.
+            release_turn(getattr(args, "client_message_id", None))
 
     return _admitted
 

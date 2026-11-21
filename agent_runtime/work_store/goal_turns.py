@@ -338,6 +338,9 @@ def after_turn(bound: chat_goal.GoalBinding, entry: send_queue.QueuedSend, paylo
                parse_report: Callable[[str], RowEnding | None]) -> RowEnding | None:
     """One terminal turn on a bound root: the run's ending, or None when it goes on."""
 
+    # The turn engine marks a pass that ended as checking before its judge runs
+    # (``operator_gateway_turn._mark_checking``); every bind below starts from an unmarked ``bound``.
+    bound = bound.advanced(checking_since=None)
     reply = str((payload or {}).get("reply") or "")
     report = parse_report(reply)
     origin = entry.args.get(send_queue.ORIGIN_ARG)

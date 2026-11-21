@@ -196,20 +196,15 @@ class ProfileAgentRunner:
         """The turn on the serve's one turn engine (``agent_runtime.operator_gateway_turn``).
 
         The chat's actor (a gateway session) is acquired here, the turn is submitted to it, and the
-        gateway's turn thread runs this run's execution through the session's door. A turn the gateway
-        started itself on the chat (``inline_agent``) is already on that thread: it converses there.
+        gateway's turn thread runs this run's execution through the session's door.
         """
 
         from agent_runtime import operator_gateway_turn
 
-        inline = operator_gateway_turn.inline_agent()
-        execution = AgentRunExecution(self, binding, request, ledger=ledger)
-        if inline is not None:
-            execution.given_agent = inline
-            return execution.run()
         # Acquisition has its own ledger: the turn's bounds are declared once, by the turn.
         acquisition = AgentRunExecution(self, binding, request, ledger=RunBudgetLedger())
         agent = acquisition.acquire_actor()
+        execution = AgentRunExecution(self, binding, request, ledger=ledger)
         execution.timing.update(acquisition.timing)
         return operator_gateway_turn.run_turn(execution, agent)
 

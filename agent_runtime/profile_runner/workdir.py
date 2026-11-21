@@ -75,10 +75,16 @@ def _agent_workdir(workdir: Path | None):
 
         ensure_terminal_env_bridged()
         current = {key: value for key, value in os.environ.items() if key.startswith("TERMINAL_")}
+    from agent.runtime_cwd import reset_session_cwd, set_session_cwd
+
     token = set_terminal_scope({**current, "TERMINAL_CWD": str(path)})
+    # The run's turn thread is the gateway's (one turn engine), which pins its session's cwd for the
+    # turn; that pin outranks TERMINAL_CWD in ``resolve_agent_cwd``, so the run pins its own over it.
+    cwd_token = set_session_cwd(str(path))
     try:
         yield
     finally:
+        reset_session_cwd(cwd_token)
         reset_terminal_scope(token)
 
 
