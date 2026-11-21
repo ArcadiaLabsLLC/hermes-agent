@@ -23,10 +23,10 @@ start is the one ``BaseEnvironment.execute`` waits on — the exact join to
 Reads never block a writer for longer than a dict copy, and nothing here signals
 a process: :func:`interrupt_tool_call` sets ONE call's thread interrupt bit — the bit the
 command's own wait loop reads — and the turn carries on; ending a turn is the agent's own
-``interrupt`` (``/stop``, the conversation's Stop), reached from here by :func:`interrupt_turn`
-for a turn the serve's in-flight table does not hold: a pass of an until-done Work run
-(``running_work.surface._cancel_run_pass``, ``operator_execution._stop_run_pass``) and any other turn the
-runtime started or ran from the send queue (``operator_execution._stop_live_turn``).
+``interrupt`` (``/stop``, the conversation's Stop), reached from here by :func:`stop_live_turn`: every reply
+registers ONE stop handle when its handler starts (:func:`turn_stop_handle`, upstream's ``InterruptScope``),
+whoever started it, and both Stop doors reach it through ``agent_runtime.turn_stop.stop_turn``
+(``RT-STOP-REACHES-EVERY-RUNNING-REPLY-THROUGH-ONE-SEAM``).
 """
 
 from __future__ import annotations
@@ -50,8 +50,11 @@ __all__ = [
     "live_turn_view",
     "persona_instance_of",
     "set_call_worker",
+    "stop_live_turn",
+    "stop_when_started",
     "tool_finished",
     "tool_started",
+    "turn_stop_handle",
 ]
 
 _FOREGROUND_WATCH = "tools.environments.foreground_watch"
@@ -126,6 +129,76 @@ class _Turn:
 
 _lock = threading.Lock()
 _turns: dict[str, _Turn] = {}
+
+
+@dataclass(eq=False)
+class _StopHandle:
+    """One reply's stop handle, from the turn handler's first line to its last: upstream's ``InterruptScope``.
+
+    ``args`` is the handler's namespace, read when a Stop looks: the handler mints a missing client message
+    id and resolves the conversation as it goes, so neither is fixed at registration.
+    """
+
+    scope: Any
+    args: Any
+
+    def turn_id(self) -> str:
+        from agent_runtime.serde import safe_assignment_token
+
+        return safe_assignment_token(getattr(self.args, "client_message_id", None) or "")
+
+    def session_id(self) -> str:
+        return str(getattr(self.args, "session_id", None) or "")
+
+
+class _ScopeLink:
+    """The reply's own scope, tracked in the scope it was started under (a serve request's, or the turn of
+    the agent that relayed it): a stop of the outer work still reaches this reply, never the reverse."""
+
+    def __init__(self, scope: Any) -> None:
+        self._scope = scope
+
+    def hard_interrupt(self, message: str | None = None, *, tool_reason: str | None = None) -> None:
+        self._scope.cancel(message or "Stopped", tool_reason=tool_reason)
+
+
+_handles: list[_StopHandle] = []
+#: Stops told to a reply still waiting in its conversation's send queue: ``turn id -> (conversation,
+#: monotonic)``. Taken by the reply's handle when it starts; a stale one (the reply never started) expires.
+_pending_stops: dict[str, tuple[str, float]] = {}
+_PENDING_STOP_SECONDS = 6 * 3600.0
+_STOP_REASON = "Stopped by the user"
+
+
+@contextmanager
+def turn_stop_handle(args: Any) -> Iterator[None]:
+    """Register the reply's ONE stop handle for the handler's whole life (``RT-STOP-REACHES-EVERY-RUNNING-
+    REPLY-THROUGH-ONE-SEAM``), whoever started it.
+
+    A fresh ``InterruptScope`` is bound for the reply, so every agent its ``run_conversation`` builds joins
+    it (``turn_facade``'s ``track_in_interrupt_scope``), and a cancel before the agent exists still lands —
+    upstream interrupts an agent that joins a cancelled scope at once. The scope is tracked in the one the
+    reply was started under, so the serve request's own cancel (a paired install's cancel, a disconnect)
+    still reaches it. A stop told while the reply waited in its queue cancels the scope here.
+    """
+
+    from agent.interrupt_scope import InterruptScope, bind_interrupt_scope, track_in_interrupt_scope
+
+    scope = InterruptScope()
+    handle = _StopHandle(scope=scope, args=args)
+    with _lock:
+        _handles.append(handle)
+        pending = _pending_stops.pop(handle.turn_id(), None)
+    if pending is not None and pending[0] in ("", handle.session_id()) \
+            and time.monotonic() - pending[1] < _PENDING_STOP_SECONDS:
+        scope.cancel(_STOP_REASON, tool_reason=None)
+    try:
+        with track_in_interrupt_scope(_ScopeLink(scope)), bind_interrupt_scope(scope):
+            yield
+    finally:
+        with _lock:
+            if handle in _handles:
+                _handles.remove(handle)
 
 
 @contextmanager
@@ -347,6 +420,47 @@ def interrupt_tool_call(turn_id: str | None, call_id: Any, *, reason: str) -> bo
         if call is None:
             return False
         _interrupt.set_interrupt(True, call.exec_tid or call.tid, reason=reason)
+    return True
+
+
+def stop_live_turn(turn_id: str, *, session_id: str, reason: str, any_session: bool = False) -> bool:
+    """Stop the reply ``turn_id`` of conversation ``session_id`` running in this process: True when reached.
+
+    Its stop handle's scope is cancelled (the human stop: no tool reason), and the agent registered for the
+    turn, if any, gets its own interrupt too — a turn whose agent runs on a thread the scope's context did
+    not follow is still reached. ``any_session``: the caller proved the turn's conversation already, so a
+    handle that has not resolved its conversation yet matches. ``reason`` is the caller's record.
+    """
+
+    key, session = str(turn_id or "").strip(), str(session_id or "")
+    if not key:
+        return False
+    with _lock:
+        turn = _turns.get(key)
+        turn_session = turn.session_id if turn is not None else None
+        handles = [handle for handle in _handles if handle.turn_id() == key
+                   and (any_session or session in (handle.session_id(), turn_session))]
+    for handle in handles:
+        handle.scope.cancel(_STOP_REASON, tool_reason=None)
+    agent_reached = turn is not None and (any_session or turn_session == session) \
+        and interrupt_turn(key, reason=reason, session_id=None if any_session else session)
+    return bool(handles) or agent_reached
+
+
+def stop_when_started(turn_id: str, *, session_id: str) -> bool:
+    """Tell a reply still waiting in its queue to stop the moment it starts. True: recorded; False when it
+    has started meanwhile (its handle is registered: stop it as a running reply) or names nothing."""
+
+    key = str(turn_id or "").strip()
+    if not key:
+        return False
+    now = time.monotonic()
+    with _lock:
+        if any(handle.turn_id() == key for handle in _handles):
+            return False
+        for stale in [k for k, (_s, at) in _pending_stops.items() if now - at >= _PENDING_STOP_SECONDS]:
+            del _pending_stops[stale]
+        _pending_stops[key] = (str(session_id or ""), now)
     return True
 
 

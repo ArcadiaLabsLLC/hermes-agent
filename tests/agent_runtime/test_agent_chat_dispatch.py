@@ -1332,8 +1332,9 @@ def test_stop_cancels_only_the_stopped_turns_own_dispatches(store_home, monkeypa
     for dispatch_id in (own, other_turn, other_session):
         agent_chat_dispatch._mark_supervised(dispatch_id)
     monkeypatch.setattr(operator_execution, "execution_status", lambda *a, **k: {"outcome": "stop_requested"})
+    monkeypatch.setattr(operator_execution, "read_chat_turn_receipt", lambda turn: object())  # an admitted send
 
-    result = operator_execution.stop_operator_execution(SENDER_ROOT, "turn-A", lambda turn: True)
+    result = operator_execution.stop_operator_execution(SENDER_ROOT, "turn-A")
 
     assert result["dependent_dispatches"] == [
         {"dispatch_id": own, "target_persona": "dev", "outcome": "cancelled"}
@@ -1344,7 +1345,7 @@ def test_stop_cancels_only_the_stopped_turns_own_dispatches(store_home, monkeypa
 
     # A turn that finished on its own keeps its children: Stop reaches nothing.
     monkeypatch.setattr(operator_execution, "execution_status", lambda *a, **k: {"outcome": "finished"})
-    result = operator_execution.stop_operator_execution(SENDER_ROOT, "turn-B", lambda turn: True)
+    result = operator_execution.stop_operator_execution(SENDER_ROOT, "turn-B")
     assert "dependent_dispatches" not in result
     assert get_dispatch(other_turn)["state"] == STATE_RUNNING
 

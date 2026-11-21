@@ -526,11 +526,14 @@ def _within_admitted_turn(handler):
     @functools.wraps(handler)
     def _admitted(args) -> int:
         # Function-local, like every other import in this file.
+        from agent_runtime.live_turns import turn_stop_handle
         from agent_runtime.turn_activity import admitted_turn
 
         # The turn's id, read when a build receipt names the turns it overlapped
         # (``turn_overlap_watch``): the handler writes a minted id back to ``args``.
-        with admitted_turn(turn_id=lambda: getattr(args, "client_message_id", None)):
+        # Every reply's ONE stop handle, whoever started it (RT-STOP-REACHES-EVERY-
+        # RUNNING-REPLY-THROUGH-ONE-SEAM): a Stop reaches it from the first line on.
+        with admitted_turn(turn_id=lambda: getattr(args, "client_message_id", None)), turn_stop_handle(args):
             return handler(args)
 
     return _admitted

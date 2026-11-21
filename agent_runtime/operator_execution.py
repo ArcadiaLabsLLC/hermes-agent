@@ -1,7 +1,6 @@
 """Execution-scoped control through the existing operator admission receipt."""
 from __future__ import annotations
 
-from collections.abc import Callable
 from contextlib import contextmanager
 
 from agent_runtime.chat_observation_policy import chat_observation_guidance
@@ -108,85 +107,37 @@ def _journal_by_turn_id(session_id: str, turn_id: str) -> dict | None:
                  if record.get("turn_id") == token), None)
 
 
-def _stop_live_turn(session_id: str, turn_id: str) -> dict | None:
-    """Stop on a turn of THIS conversation that runs in this process with no admission receipt; else None.
+def stop_operator_execution(session_id: str, turn_id: str) -> dict:
+    """The conversation's Stop: :func:`agent_runtime.turn_stop.stop_turn`, in this door's envelope.
 
-    ``RT-STOP-ON-RUNTIME-STARTED-TURN-IS-REFUSED``. Only an operator send is admitted. A turn the runtime
-    starts for itself — a helper's or a background command's result coming back (``bg-completion-…``), a
-    dispatch reply delivered (``delivery-…``), a schedule's fire, a Work run's pass, a goal's next turn, a
-    steer left over from the turn before, a platform message — is forged straight through the mission-chat
-    door or run from the send queue: no receipt, not in the serve's in-flight table, so this door refused
-    its Stop ``execution_not_admitted`` and the turn ran on (live 2026-11-12, Eternia lane w1112b-turn3).
-    Every persona turn registers in ``live_turns`` whoever started it, so that table is the one place
-    that knows them all: a turn it holds FOR THIS CONVERSATION under the named id (the client message id
-    or the turn id) is interrupted through its agent's own seam. A turn id that names no running turn of
-    this conversation is not answered here and keeps its refusal.
+    One path for every reply, whoever started it (``RT-STOP-REACHES-EVERY-RUNNING-REPLY-THROUGH-ONE-SEAM``).
+    An admitted send's receipt is the only thing told first: it records the stop durably (a send still
+    waiting on the serve's pool reads it when it starts, ``operator_interrupt_scope``) and proves the turn is
+    this conversation's. A turn with no receipt that names no reply of this conversation is refused
+    ``execution_not_admitted``, as before.
     """
 
-    from agent_runtime.live_turns import interrupt_turn
+    from agent_runtime.turn_stop import stop_turn
 
-    live_id = safe_assignment_token(turn_id)
-    if not live_id or not interrupt_turn(live_id, reason="operator_stop", session_id=session_id):
-        return None
-    return {"turn_request_id": turn_id, "outcome": "stop_requested", "admitted": False, "stop_requested": True,
-            "owner_observed": True, "dependent_dispatches": cancel_turn_dispatches(session_id, live_id),
-            **chat_observation_guidance(terminal=False)}
-
-
-def _stop_run_pass(session_id: str, turn_id: str) -> dict | None:
-    """Stop on a pass of an ``UNTIL_DONE`` Work run ends the WHOLE run; None for any other turn.
-
-    ``RT-UNTIL-DONE-CHAT-STOP-DOES-NOT-END-RUN``. A pass is a send the Work engine queued and the serve's
-    queued-send runner runs: it holds no admission receipt and is not in the serve's in-flight table, so
-    this door used to refuse its Stop ``execution_not_admitted`` and the run went on to the next pass. The
-    run is marked stopping (``goal_turns.stop_from_conversation``) and a pass running in this process is
-    interrupted through its agent's own seam; ``ends`` says which: ``now`` (interrupted, or no pass was
-    running) or ``after_pass`` (the pass runs where this process cannot reach it and ends the run when it
-    settles). The answer is ``runtime.work.cancel``'s for the same row, in this door's envelope.
-    """
-
-    from agent_runtime.live_turns import interrupt_turn
-    from agent_runtime.work_store.goal_turns import stop_from_conversation
-
-    hit = stop_from_conversation(session_id, str(turn_id or ""))
-    if hit is None:
-        return None
-    bound, running = hit
-    journal = mission_chat_turn_record(session_id=session_id, client_message_id=bound.cmid) if running else None
-    live_id = (journal or {}).get("turn_id") or safe_assignment_token(bound.cmid)
-    interrupted = running and interrupt_turn(live_id, reason="operator_stop")
-    return {"turn_request_id": turn_id, "outcome": "stop_requested", "admitted": False, "stop_requested": True,
-            "owner_observed": bool(interrupted), "stopped": "work_run", "work_request": bound.request_id,
-            "ends": "now" if interrupted or not running else "after_pass",
-            "dependent_dispatches": cancel_turn_dispatches(session_id, live_id),
-            **chat_observation_guidance(terminal=False)}
-
-
-def stop_operator_execution(session_id: str, turn_id: str,
-                            interrupt: Callable[[str], bool]) -> dict:
-    # MUTATION: drop these two lines and test_until_done_conversation_stop reddens (execution_not_admitted).
-    stopped_run = _stop_run_pass(session_id, turn_id)
-    if stopped_run is not None:
-        return stopped_run
-    if read_chat_turn_receipt(str(turn_id or "").strip()) is None:
-        # MUTATION: drop these three lines and test_stop_on_runtime_started_turn reddens (execution_not_admitted).
-        stopped_turn = _stop_live_turn(session_id, turn_id)
-        if stopped_turn is not None:
-            return stopped_turn
-    result = execution_status(session_id, turn_id, stop=True)
-    if result["outcome"] == "stop_requested":
-        # A disconnected owner is uncertainty, never evidence that work stopped. An admitted send that
-        # waited for its root is run by the queued-send runner, not a serve request: the in-flight table
-        # does not hold it and the live-turn table does.
-        result["owner_observed"] = interrupt(turn_id) or _stop_live_turn(session_id, turn_id) is not None
-        # Stop reaches the work this turn started and nothing else: the
-        # dispatches it made (an explicit wait=false, or an inline relay the
-        # lane detached because the turn held the run lock) are cancelled with
-        # it. A turn that finished on its own keeps its children running —
-        # their answers still arrive — which is why this sits under
+    key = str(turn_id or "").strip()
+    admitted = read_chat_turn_receipt(key) is not None
+    status = execution_status(session_id, turn_id, stop=True) if admitted else None
+    stop = stop_turn(session_id, key, reason="operator_stop", scope_checked=admitted)
+    if status is None:
+        if stop is None:
+            raise ChatTurnReservationError("execution_not_admitted", "This turn has no admission receipt.")
+        return {"turn_request_id": turn_id, "admitted": False, **stop.block(),
+                **chat_observation_guidance(terminal=False)}
+    if status["outcome"] == "stop_requested":
+        # A disconnected owner is uncertainty, never evidence that work stopped. Stop reaches the work this
+        # turn started and nothing else: the dispatches it made are cancelled with it; a turn that finished on
+        # its own keeps its children running — their answers still arrive — which is why this sits under
         # ``stop_requested`` and not beside every outcome.
-        result["dependent_dispatches"] = cancel_turn_dispatches(session_id, turn_id)
-    return result
+        block = stop.block() if stop is not None else {
+            "owner_observed": False, "dependent_dispatches": cancel_turn_dispatches(session_id, turn_id)}
+        block.pop("outcome", None)
+        status.update(block)
+    return status
 
 
 def cancel_turn_dispatches(session_id: str, turn_id: str, *,

@@ -50,8 +50,7 @@ def stop(rid, params: dict, context: RpcContext | None = None) -> dict:
         return err(rid, 4090, "Stop is unavailable on this connection.", {"reason": "control_unavailable"})
     try:
         validate_operator_conversation(params)
-        return ok(rid, stop_operator_execution(params["session_id"], params.get("turn_request_id"),
-                                               context.interrupt_operator))
+        return ok(rid, stop_operator_execution(params["session_id"], params.get("turn_request_id")))
     except (OperatorConversationRefused, ChatTurnReservationError) as exc:
         reason = exc.reason if isinstance(exc, OperatorConversationRefused) else exc.code
         return err(rid, 4090, "This turn could not be stopped.", {"reason": reason})

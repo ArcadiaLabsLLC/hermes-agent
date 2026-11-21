@@ -1666,8 +1666,8 @@ def test_a_pass_of_an_until_done_run_says_its_pass_and_can_be_stopped(home, isol
 
 def test_stop_on_an_until_done_pass_marks_the_whole_run_stopping_and_interrupts_the_turn(
         home, isolate_agent_runtime_root):
-    """Killing mutation: ``_cancel_run_pass`` never binds ``stopping`` → the pass's settle asks the judge and
-    the run goes on, red."""
+    """Killing mutation: ``goal_turns.stop_from_conversation`` never binds ``stopping`` → the pass's settle asks
+    the judge and the run goes on, red."""
 
     from agent_runtime import chat_goal
     from agent_runtime.live_turns import live_turn
@@ -1685,7 +1685,10 @@ def test_stop_on_an_until_done_pass_marks_the_whole_run_stopping_and_interrupts_
     assert here["status"] == "cancelled" and here["ends"] == "now" and interrupts == [1]
 
 
-def test_cancel_refuses_a_kind_with_no_interrupt_seam(home, isolate_agent_runtime_root):
+def test_cancel_of_a_reply_this_process_does_not_run_is_refused_as_owned_elsewhere(home, isolate_agent_runtime_root):
+    """RT-STOP-REACHES-EVERY-RUNNING-REPLY-THROUGH-ONE-SEAM: a chat turn's cancel is the conversation's Stop,
+    so a reply with no stop handle here answers ``cancel_unavailable`` (owned elsewhere), not ``cancel_unsupported``."""
+
     from agent_runtime.mission_chat_turns import persist_mission_chat_turn
 
     persist_mission_chat_turn(
@@ -1700,7 +1703,7 @@ def test_cancel_refuses_a_kind_with_no_interrupt_seam(home, isolate_agent_runtim
     result = cancel_work("chat_turn:turn-c")
 
     assert result["status"] == "error"
-    assert result["code"] == "cancel_unsupported"
+    assert result["code"] == "cancel_unavailable"
 
 
 def test_cancel_reports_not_found_for_unknown_work(home):

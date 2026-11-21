@@ -505,30 +505,27 @@ def _cancel_delegation(work_id: str, kind: str, stable: str, row: dict[str, Any]
     }
 
 
-def _cancel_run_pass(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
-    """Stop on a pass of an ``UNTIL_DONE`` Work run ends the WHOLE run (``RT-WORK-CLAIM-RUNS-UNTIL-DONE``).
+def _cancel_chat_turn(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
+    """A reply's row: the conversation's own Stop, ONE function (``agent_runtime.turn_stop.stop_turn``).
 
-    The run is marked ``stopping`` (its pass's settle then ends it ``STOPPED — operator stop``, no judge,
-    no further pass) and the pass is interrupted through its agent's own seam when it runs in this
-    process (``ends: now``); a pass running elsewhere ends on its own and the run with it
-    (``ends: after_pass``). Any other chat turn has no interrupt seam here — it is stopped by its
-    conversation's Stop — and answers ``cancel_unsupported`` as before.
+    ``RT-STOP-REACHES-EVERY-RUNNING-REPLY-THROUGH-ONE-SEAM``: whoever started the reply, the Activity cancel
+    and the chat's Stop reach it the same way and answer the same block (``outcome``, ``owner_observed``,
+    ``ends``, ``stopped``); a pass of an until-done Work run ends the WHOLE run, as the chat's Stop does
+    (``RT-WORK-CLAIM-RUNS-UNTIL-DONE``). ``status`` is ``cancelled`` when a reply was reached (running here,
+    or told to stop as it starts) and ``cancel_requested`` when only the run was marked. A reply this process
+    neither runs nor holds in its queue is ``cancel_unavailable`` (``REASON_NOT_IN_PROCESS``), as for every
+    other kind of work owned by another process.
     """
 
-    from .. import chat_goal
-    from ..live_turns import interrupt_turn
+    from ..turn_stop import stop_turn
 
-    request = row.get("work_request")
     session = str((row.get("owner") or {}).get("session_id") or "")
-    bound = chat_goal.binding(session) if request and session else None
-    if bound is None or bound.request_id != request:
-        return {"status": "error", "code": "cancel_unsupported", "work_id": work_id, "kind": kind,
-                "detail": f"{kind} work has no interrupt seam in v1"}
-    chat_goal.bind(bound.advanced(stopping=True))
-    interrupted = interrupt_turn(stable, reason=reason)
-    return {"status": "cancelled" if interrupted else "cancel_requested", "code": "", "work_id": work_id,
-            "kind": kind, "stopped": "work_run", "work_request": request,
-            "ends": "now" if interrupted else "after_pass"}
+    stop = stop_turn(session, stable, reason=reason)
+    if stop is None:
+        return {"status": "error", "code": "cancel_unavailable", "work_id": work_id, "kind": kind,
+                "detail": REASON_NOT_IN_PROCESS, "owning_lane": "serve"}
+    return {"status": "cancelled" if stop.owner_observed else "cancel_requested", "code": "", "work_id": work_id,
+            "kind": kind, **stop.block()}
 
 
 def _cancel_tool_call_arm(work_id: str, kind: str, stable: str, row: dict[str, Any], *, reason: str) -> dict[str, Any]:
@@ -651,7 +648,7 @@ _DISPATCH_CANCEL_REFUSAL_DETAIL = {
 
 #: ``cancel_work``'s interrupt seams by work kind; a kind absent here is ``cancel_unsupported``.
 _CANCELLERS = {
-    KIND_CHAT_TURN: _cancel_run_pass,
+    KIND_CHAT_TURN: _cancel_chat_turn,
     KIND_TERMINAL: _cancel_terminal,
     KIND_DELEGATION: _cancel_delegation,
     KIND_TOOL_CALL: _cancel_tool_call_arm,
