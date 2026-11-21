@@ -35,6 +35,7 @@ from ..serve_socket.vocabulary import (
     REJECT_REVERSE_LANE_ABSENT,
     REJECT_REVERSE_LANE_REFUSED,
 )
+from . import accepts as _accepts
 from . import grants as _grants
 
 __layer__ = "lanes"
@@ -100,6 +101,10 @@ class ReverseLanes:
         self._admitter: Any = None
         self._dialers: dict[str, Any] = {}
         self._draining = False
+        #: Phones' offers this computer's owner has not answered (``accepts``), in memory.
+        self.offers = _accepts.ReverseOffers()
+        #: When each phone's lane was last here, parked or attached (the Away line's time).
+        self._seen: dict[str, float] = {}
         self._remove_listener = _grants.add_revoke_listener(self._grants_revoked)
 
     @property
@@ -121,6 +126,7 @@ class ReverseLanes:
             if old is None and len(self._parked) >= MAX_PARKED_LANES:
                 return REJECT_REVERSE_LANE_REFUSED
             self._parked[device_id] = _Parked(device_id, lane_id, connection.sock, reader.take_buffered())
+            self._seen[device_id] = time.time()
         if old is not None:
             _close_quietly(old.sock)
         try:
@@ -166,6 +172,7 @@ class ReverseLanes:
                 with self._lock:
                     if self._splices.get(device_id) == (phone, owner):
                         self._splices.pop(device_id, None)
+                    self._seen[device_id] = time.time()
                 _close_quietly(phone)
                 _close_quietly(owner)
                 self._emit({"event": "reverse_lane_detached", "device_id": device_id})
@@ -259,11 +266,35 @@ class ReverseLanes:
     # ── both ────────────────────────────────────────────────────────────────
 
     def status(self) -> dict[str, Any]:
+        """Both roles' state, and no secret: lanes, offers held, phones accepted, grants made.
+
+        A parked lane whose phone hung up (it left the foreground, or pressed Disconnect) is
+        evicted here, so the computer reads it Away at once rather than at its next attach.
+        """
+
         with self._lock:
+            # MUTATION: skip this eviction and the hang-up test still reads the phone parked.
+            ended = [p for p in self._parked.values() if not _still_open(p.sock)]
+            for lane in ended:
+                self._parked.pop(lane.device_id, None)
+                self._seen[lane.device_id] = time.time()
             parked = [{"device_id": p.device_id, "parked_at": p.parked_at} for p in self._parked.values()]
             attached = sorted(self._splices)
             dialers = [d.status() for d in self._dialers.values()]
-        return {"parked": parked, "attached": attached, "dialing": dialers}
+            seen = dict(self._seen)
+        for lane in ended:
+            _close_quietly(lane.sock)
+        return {
+            "parked": parked,
+            "attached": attached,
+            "dialing": dialers,
+            "seen": seen,
+            "offers": [offer.describe() for offer in self.offers.pending()],
+            "accepted": [accept.describe() for accept in _accepts.list_accepts(self._store_root)],
+            "grants": [{"computer_install_id": g.computer_install_id, "computer_id": g.computer_id,
+                        "level": g.level, "pairing_device_id": g.pairing_device_id}
+                       for g in _grants.list_grants(self._store_root)],
+        }
 
     def broadcast(self, frame: dict[str, Any]) -> int:
         with self._lock:
@@ -284,6 +315,7 @@ class ReverseLanes:
         self.hangup()
         for dialer in dialers:
             dialer.join(2.0)
+        self.offers.clear()
         with self._lock:
             self._draining = True
             parked = list(self._parked.values())
@@ -298,6 +330,11 @@ class ReverseLanes:
                 _close_quietly(sock)
         if admitter is not None:
             admitter.close(reason)
+
+    def emit_event(self, payload: dict[str, Any]) -> None:
+        """One line on the serve's service log (never a secret)."""
+
+        self._emit(payload)
 
     def _emit(self, payload: dict[str, Any]) -> None:
         if self._log is not None:
