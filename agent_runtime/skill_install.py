@@ -317,7 +317,8 @@ SKILL_SIZE_CEILINGS: dict[str, SkillSizeCeiling] = {
     "harness-dev-delivery": SkillSizeCeiling(
         14_336,
         "12,932 B on 2026-09-02; every dev persona pays it on every turn, so "
-        "1,404 B (11%) of headroom and no references/ lane yet to spill into.",
+        "1,404 B (11%) of headroom. Grew past it to 15,230 B (2026-11-20); the "
+        "contract packet moved to references/, which is where new prose goes.",
     ),
     "harness-qa-verdict": SkillSizeCeiling(
         11_264,

@@ -256,6 +256,24 @@ python -m hermes_cli.main harness persona instance open-chat `
    `board card add` (planning state only, and say so when you report it) — is spelled out
    in this package's `SKILL.md` Operate table. Use it from there rather than from memory.
 
+## CLI verbs with no tool
+
+Moved out of the preloaded `SKILL.md` Operate table on 2026-11-20 (hermes row
+`RT-FU-TWO-SHARED-SKILLS-RUN-OVER-THEIR-PER-TURN-SIZE-LIMIT`): these verbs have no in-turn tool,
+so the CLI is the answer. Where a row names a tool in `SKILL.md`'s Operate table, the tool wins.
+
+| Do | CLI |
+|---|---|
+| continue an existing chat root | `hermes harness persona instance open-chat --persona-instance-id <instance> --persona <id> --session-id <root> --json` (`--session-id` is required unless `--new-session` or `--add-instance`) |
+| create a new server-minted chat on an existing instance | `hermes harness persona instance open-chat --persona-instance-id <instance> --persona <id> --new-session --idempotency-key <key> --json` |
+| find the on-level chat instances an OPERATOR can message | `hermes harness persona list --json` → chat-mode `personainst_<role>_agent_<hash>` rows (cross-check Stage C `mission_control.agent` buttons) |
+| steer an in-flight streamed turn | `hermes harness mission-chat steer --session-id <root> --client-message-id <id> --message … --json` |
+| abandon an outcome-unknown turn | `hermes harness mission-chat turn-resolve --session-id <root> --client-message-id <id> --turn-id <turn> --action abandon --json` |
+| load a skill on the next turn | `hermes harness mission-chat queue-skill --persona <id> --session-id <root> --skill <name> --json` |
+| re-route a steering edge in the agent graph | `hermes harness persona instance steer …` (supports multi-parent fan-in) |
+| replace a whole agent-graph document | `hermes harness flow set …` (reconciles `steered_by` for the instances it references; never creates instances) |
+| return a child's bounded summary to a parent chat | `hermes harness persona instance return-summary …` |
+
 ## Diagnosing a stalled or failed chat turn
 
 Work the receipts, in this order. Do not code-spelunk first.

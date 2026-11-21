@@ -10,17 +10,9 @@ metadata:
 
 # Harness Dev Delivery
 
-> **Scope note (2026-07-30).** This skill was written for a worker/stage lane that no
-> longer exists: Mission HUD (`agent_hud`, `status_lane`, `recommended_action`,
-> `evidence_stack`, `repo_bundles`, `current_assignment`), stage IDs and `proof_gate`,
-> `handoff_packet` / `delivery` packets, `checklist_updates`, Harness-managed
-> `request_test_run` and the final gate, `validation_repair`, and `decision_contract_mode`.
-> All of it was removed with the mission lane — see
-> `docs/agent-runtime-harness/16-mission-lane-removal.md`. There is no HUD to read, no
-> action menu to pick from, no packet to fill in, and no Harness gate that runs after you.
-> What survives is the engineering discipline below: work in one repo, patch narrowly, run
-> the focused command yourself, commit exactly your slice, and report the real result in
-> the chat.
+The worker/stage lane this skill was written for is gone (2026-07-30,
+`docs/agent-runtime-harness/16-mission-lane-removal.md`): no HUD, packet, stage or Harness gate
+runs after you. What survives is the discipline below.
 
 **This is the always-on contract, not an occasional process.** It applies to every
 Backend Dev or Launcher Dev chat turn — a one-line fix as much as a feature slice.
@@ -133,64 +125,9 @@ contract.
 
 ### Contract packet
 
-Post this in the chat reply so the next agent and the operator both see it. Document the
-contract durably too when it is reusable — the `EterniaBackend_brain` note, or the project's
-OpenAPI/schema file; inline test fixtures only when the contract is narrow and already obvious
-from the tests.
-
-```yaml
-contract_owner: backend_dev
-consumer: dev
-contract_status: proposed|implemented|tested|blocked
-endpoint:
-  method: GET|POST|PATCH|DELETE
-  path: /api/...
-  route_name: optional_name
-auth:
-  required: true|false
-  roles:
-    - user|admin|owner
-request_schema:
-  path_params: {}
-  query_params: {}
-  body: {}
-response_schema:
-  type: object|array
-  fields:
-    field_name:
-      type: string|number|integer|boolean|object|array|null
-      required: true|false
-      nullable: true|false
-      description: stable semantic meaning
-errors:
-  - status: 400
-    code: validation.some_code
-    shape: {detail: string, code: string}
-examples:
-  happy_path: {}
-  empty_state: {}
-  validation_error: {}
-compatibility:
-  additive: true|false
-  migration_required: true|false
-  frontend_fallback: required|not_required
-backend_evidence:
-  targeted_tests:
-    - command: scripts/test.sh app.tests.ContractTests
-      result: PASS|FAIL (exit code, test count)
-  full_gate:
-    command: scripts/test.sh
-    result: PASS|FAIL|not_run:<exact reason>
-frontend_unblock_criteria:
-  - Contract status is `tested` or explicitly accepted as fixture-frozen.
-  - Example payloads are present.
-  - Error/null/empty semantics are defined.
-```
-
-A command you did not run is not evidence. Backend proof must cover validation/error/null/
-empty behavior, not only the happy path — every frontend-visible behavior. Frontend maps
-contract fields through domain models/adapters and provider/repository tests using the
-packet's fixture payloads, not ad-hoc maps inside widgets.
+Backend posts the packet **in the chat** before Frontend integrates; its YAML shape, what counts
+as backend evidence and the frontend unblock criteria are `references/contract-packet.md` —
+read it before writing or consuming one. A command you did not run is not evidence.
 
 ## Deployment Is Not Local Delivery
 
@@ -229,16 +166,18 @@ No-edit investigation work is exempt: do not invent commits for work that change
 
 When a brief sends you to an EterniaLauncher queue row:
 
-1. Claim it under the lane name your brief gives you. If it gives none, ask your lead for one
-   in the same thread before claiming — never invent one from your persona id (`dev`), which
-   every instance of your persona shares.
+1. Claim it under the lane name your brief gives you. If it gives none, pick a `wNNNNx-<slug>`
+   name yourself (date, wave letter, slug: `w1120a-qaclaimwin`) and go on — never ask, and
+   never invent one from your persona id (`dev`), which every instance of your persona shares.
 2. Run `dart tool/queue/task.dart --claim <ID> --as <lane> --tree <your worktree> --push`
    from the repo's primary checkout with a timeout of at least 300 s — it fetches every brain's
    origin first, and a shorter timeout gives up while the claim keeps running and commits.
 3. A claim that timed out or failed: run the SAME line again. Your own claim (same `--as`,
    `--tree`, machine) answers "already yours" and exits 0 — carry on. "already TAKEN by
    <lane>" naming any other claimant is another lane's: stop and report it.
-4. Then cut your own worktree from `origin/main` and do every edit, build and commit there —
+4. Then cut your own worktree from `origin/main`, OUTSIDE every primary checkout —
+   EterniaLauncher's sibling `EterniaLauncher-worktrees/<lane>`, hermes's `.worktrees/<lane>` beside
+   the clone, never a `worktrees/` inside one — and do every edit, build and commit there,
    never in the primary checkout.
 5. When the work lands, CLOSE the row — `dart tool/queue/close_row.dart <ID> --done <sha> --commit`
    moves it to the archive and discharges your claim. Never delete a row, even when a brief says

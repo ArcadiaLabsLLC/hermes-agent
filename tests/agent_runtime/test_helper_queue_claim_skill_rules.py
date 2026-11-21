@@ -64,3 +64,25 @@ def test_a_brief_closes_a_finished_row_and_never_deletes_it():
                       "## Claiming a queue row")
     assert "close_row.dart <ID> --done <sha> --commit" in helper
     assert "Never delete a row" in helper
+
+
+def test_a_helper_cuts_its_worktree_outside_the_checkout_and_names_its_own_lane():
+    """QA-FU-A-HELPERS-WORKTREE-LANDS-INSIDE-THE-SHARED-CHECKOUT (EterniaLauncher, seen 2026-11-20): a
+    helper ran ``git worktree add … EterniaLauncher/worktrees/w1120a-qaclaimwin`` (the primary then
+    showed ``?? worktrees/``), and stopped 49 s in to ``clarify`` a lane name its brief left as
+    ``<lane>``. The lead's brief names the folder and the lane (or says pick one); the helper picks a
+    ``wNNNNx-<slug>`` lane itself and cuts outside every primary checkout. KILLING MUTATIONS: drop the
+    lead's "OUTSIDE every primary checkout" clause, or restore the helper's "ask your lead" step 1 —
+    each reddens an assert here."""
+
+    lead = " ".join(_section((_SKILLS / "harness-runtime-model" / "SKILL.md").read_text(encoding="utf-8"),
+                             "## Delegation").split())
+    assert "OUTSIDE every primary checkout" in lead
+    assert "`EterniaLauncher-worktrees/`" in lead and "`.worktrees/` beside the clone" in lead
+    assert "pick a `wNNNNx-<slug>` lane yourself, without asking" in lead
+    helper = " ".join(_section((_SKILLS / "harness-dev-delivery" / "SKILL.md").read_text(encoding="utf-8"),
+                               "## Claiming a queue row").split())
+    assert "OUTSIDE every primary checkout" in helper
+    assert "`EterniaLauncher-worktrees/<lane>`" in helper and "`.worktrees/<lane>` beside" in helper
+    assert "pick a `wNNNNx-<slug>`" in helper and "never ask" in helper
+    assert "ask your lead" not in helper

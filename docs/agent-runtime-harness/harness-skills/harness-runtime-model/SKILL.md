@@ -49,8 +49,7 @@ that matches BEFORE acting:
   identity, `agent_chat_send` and the relay policy.
 - `references/proof.md` — Backend/Launcher proof commands and the Stage C MCP recipe.
 - `references/debugging.md` — snapshot parity envelope, UI⟷harness divergence classes.
-- `references/model-notes.md` — the explanation behind the work contracts, the
-  removed surface, chat continuity and delegation sections below.
+- `references/model-notes.md` — the why behind the sections below.
 
 ## The work contracts — load by role and order size
 
@@ -85,13 +84,10 @@ QA judges work, never patches code.
 - **A screenshot request is a `launcher_qa` call, never a build.** A screenshot of a
   tab is ONE call, `mcp_launcher_qa_open_app_tab(tab: <tab>, screenshot: true)`: it
   attaches, navigates, settles and captures, and is already in your tool list (no
-  `tool_search`). `mcp_launcher_qa_screenshot_window` is only "what is on screen now"
-  in an ALREADY-attached session. If a call answers a typed blocker
-  (`app_not_attached`, `launch_stale_stagec_copy`, …), REPORT it — do not run
-  `flutter build windows` to clear it. Any build or other multi-minute command runs as
-  `terminal(background=true, notify=true)` in your own worktree — never in
-  the operator's primary checkout (a live Launcher locks its DLLs), never as a
-  foreground call (that blocks the turn up to its 180 s default with nothing on screen).
+  `tool_search`); `mcp_launcher_qa_screenshot_window` is "what is on screen now" in an
+  ALREADY-attached session. A typed blocker (`app_not_attached`, `launch_stale_stagec_copy`,
+  …) is REPORTED, never cleared with `flutter build windows`. A build runs in the background
+  in your own worktree (`harness-dev-delivery`, "Launcher Commands").
 - **QA sign-in is REAL**: `get_auth_state` first; a guest → `launch_or_attach` with
   `browser_login:true` (stored QA account). `dev_login` = chrome only. A `launcher_qa` reply that opens
   "Note: the launcher QA tool is out of date …" means its answers may be wrong: relay it
@@ -123,10 +119,9 @@ QA judges work, never patches code.
 | level agents shown in Mission Control | Stage C MCP `mcp_launcher_qa_get_buttons` with `scope=mission_control.agent` |
 | compact Mission Control graph probe | Stage C MCP `mcp_launcher_qa_get_widget_state` with `widget=mission_control.graph` |
 
-**Do not use for level agents:** `status.agents` and `hermes harness agent list --json`
-rosters show configured/installed Harness agents. They do not show which instances are
-placed on a Mission Control level. Use `harness_query` `roster` for the live roster and
-Stage C MCP `mission_control.agent` for the visible level-agent selection surface.
+**Not for level agents:** `status.agents` and `agent list` show
+configured/installed Harness agents, not what is placed on a level — use the `roster` and
+`mission_control.agent` rows above.
 
 ## Removed — unlearn these
 
@@ -136,9 +131,8 @@ verb; `blueprint list/run --bind` and the `.mission_plan` field (`.stages`, `.ed
 `.agent_topology`); the old default graph **Neko scope → Backend Dev → Launcher Dev**
 and the rule that **QA is a node only if the selected blueprint binds it**; `run show`,
 `proof list`, `worker list`, `lane list`, `swarm status|enable`, `tick`,
-`run-until-settled`; the `mission_goal_create` tool and `--allow-mission-goal`.
-`harness snapshot --json` is contract 54 with no goal, stage, run, proof, or incident
-sections — gone, not missing.
+`run-until-settled`; the `mission_goal_create` tool and `--allow-mission-goal`; the
+snapshot's goal, stage, run, proof and incident sections — gone, not missing.
 
 ## In-turn tools
 
@@ -186,32 +180,21 @@ for rows where no tool exists.
 | track follow-up work | `board_card_add` · `board_cards` — planning state only | `hermes harness board card add …` (operator path) |
 | ask the operator a question | `clarify` | — |
 | hand a bounded subtask to a helper with fresh context | `delegate_task` | — |
-| continue an existing chat root | — | `hermes harness persona instance open-chat --persona-instance-id <instance> --persona <id> --session-id <root> --json` (`--session-id` is required unless `--new-session` or `--add-instance`) |
-| create a new server-minted chat on an existing instance | — | `hermes harness persona instance open-chat --persona-instance-id <instance> --persona <id> --new-session --idempotency-key <key> --json` |
-| find the on-level chat instances an OPERATOR can message | — | `hermes harness persona list --json` → chat-mode `personainst_<role>_agent_<hash>` rows (cross-check Stage C `mission_control.agent` buttons) |
-| steer an in-flight streamed turn | — | `hermes harness mission-chat steer --session-id <root> --client-message-id <id> --message … --json` |
-| abandon an outcome-unknown turn | — | `hermes harness mission-chat turn-resolve --session-id <root> --client-message-id <id> --turn-id <turn> --action abandon --json` |
-| load a skill on the next turn | — | `hermes harness mission-chat queue-skill --persona <id> --session-id <root> --skill <name> --json` |
-| re-route a steering edge in the agent graph | — | `hermes harness persona instance steer …` (supports multi-parent fan-in) |
-| replace a whole agent-graph document | — | `hermes harness flow set …` (reconciles `steered_by` for the instances it references; never creates instances) |
-| return a child's bounded summary to a parent chat | — | `hermes harness persona instance return-summary …` |
+| continue a chat root · mint a new one | — | `hermes harness persona instance open-chat` (`--session-id <root>`, or `--new-session --idempotency-key <key>`) |
+| steer an in-flight turn · abandon an outcome-unknown one | — | `hermes harness mission-chat steer` · `mission-chat turn-resolve --action abandon` |
+| load a skill on the next turn | — | `hermes harness mission-chat queue-skill` |
+| re-route a steering edge · replace a whole graph document | — | `hermes harness persona instance steer` · `flow set` (never creates instances) |
+| return a child's bounded summary to a parent chat | — | `hermes harness persona instance return-summary` |
 
-The complete inventory with descriptions, and the list of verbs that genuinely have
-no tool, is `references/tool-inventory.md`.
+Every flag of the CLI rows: `references/operations.md`, "CLI verbs with no tool"; the
+complete inventory with descriptions: `references/tool-inventory.md`.
 
 ## Persona chat continuity
 
-Detail and the why: `references/persona-chat.md` and `references/model-notes.md`;
-triage: `references/operations.md`, "Diagnosing a stalled or failed chat turn".
-
-- Message the on-level instance; `default_chat_session_id` is its operator-chat
-  pointer, and Hermes mints every new root. `session_id` is the stable root.
-- `unknown_chat_session`: do not retry — `open-chat --new-session
-  --idempotency-key <key>` and message the fresh root.
-- `chat_turn_outcome_unknown`: do not retry — `turn-resolve ... --action abandon`,
-  then send a new turn with a fresh id.
-- `chat_turn_provider_refused`: definite "did not run"; read
-  `provider_refusal.reason`, fix or wait, send a NEW client message id.
+Message the on-level instance; `session_id` is the stable root and Hermes mints every new one.
+On `unknown_chat_session`, `chat_turn_outcome_unknown` or `chat_turn_provider_refused` never
+retry the same turn: each has its own repair in `references/operations.md`, "Diagnosing a
+stalled or failed chat turn" (the why: `references/persona-chat.md`).
 
 ## Delegation — helpers without context bloat
 
@@ -222,14 +205,15 @@ Recipe and flags: `references/operations.md`, "Delegation"; why: `references/mod
 - **Never slurp** the helper's transcript, logs, or reasoning — carry pointers, and
   return with `persona instance return-summary` (bounded, records `returned_to`).
 - Intervene only on a stall, a block, or scope drift, on the SAME chat root.
-- **A helper sent to a queue row gets a lane name of its own, in the brief.** Use the
-  helper's instance handle without the `@` (`personainst_dev_agent_8b319ebf`) — never its
-  bare persona id (`dev`), which every instance of that persona shares, and never
-  `persona:<id>` (that form hands the row to the Work engine). Give it the exact claim line,
-  `dart tool/queue/task.dart --claim <ID> --as <lane> --tree <its own worktree> --push`,
-  run from the repo's primary checkout with a timeout of at least 300 s, then all work in that
-  worktree. A row the tool reports "TAKEN by <lane>" under your helper's lane is your
-  helper's claim, not another lane's.
+- **A helper sent to a queue row gets a lane name of its own, in the brief**: a
+  `wNNNNx-<slug>` (date, wave letter, slug: `w1120a-qaclaimwin`) or the helper's instance handle
+  without the `@` — never its bare persona id (`dev`), shared by every instance, and never
+  `persona:<id>` (that hands the row to the Work engine). With none to give, the brief says
+  "pick a `wNNNNx-<slug>` lane yourself, without asking". Give it the claim line,
+  `dart tool/queue/task.dart --claim <ID> --as <lane> --tree <its own worktree> --push`, run
+  from the repo's primary checkout with a timeout of at least 300 s, and the worktree folder:
+  OUTSIDE every primary checkout (EterniaLauncher's sibling `EterniaLauncher-worktrees/`,
+  hermes's `.worktrees/` beside the clone). "TAKEN by <lane>" under that lane is your helper's.
 - **A brief follows the repo's own rules file, never your paraphrase of it.** The rules of each
   folder you work in are in your context under `## <slot> — CLAUDE.md` (or `AGENTS.md`) — the
   folders sheet's checked folders, with its CLAUDE.md / AGENTS.md switch. Brief against that
