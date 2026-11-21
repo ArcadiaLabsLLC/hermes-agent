@@ -82,7 +82,9 @@ def test_every_persona_instance_field_is_classified():
     # 40 since RT-SLOT-CONTEXT-FILE-PICKS (2026-11-01): slot_context_files travels,
     # slot_context_custom (a local path) is local-only.
     # 41 since RT-PERSONA-ENSURE-REVERTS-INSTANCE-RENAME (2026-11-10): display_name_custom, local-only.
-    assert len(names) == 41, "the contract classifies the operator-rename mark with the existing 40 fields"
+    # 42 since RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE (2026-11-21):
+    # adopted_from_global, local-only (an adopted row never travels).
+    assert len(names) == 42, "the contract classifies the adoption stamp with the existing 41 fields"
 
     # Fields, so the travelling set in FIELD names (one set with the allowlist since
     # RT-WS-RECALL-RENAME-S3-PUBLISH: every field publishes under its own name).
@@ -110,8 +112,9 @@ def test_every_persona_instance_field_is_classified():
     # +1 slot_context_files (RT-SLOT-CONTEXT-FILE-PICKS); character assignment is portable identity.
     assert len(PERSONA_INSTANCE_ALLOWED_KEYS) == 20
     # +1 chat_head_kind (RT-CHAT-HEAD-CH2-LADDER), +1 slot_context_custom (RT-SLOT-CONTEXT-FILE-PICKS).
-    # +1 display_name_custom (RT-PERSONA-ENSURE-REVERTS-INSTANCE-RENAME).
-    assert len(PERSONA_INSTANCE_NEVER_TRAVELS_KEYS) == 21
+    # +1 display_name_custom (RT-PERSONA-ENSURE-REVERTS-INSTANCE-RENAME), +1 adopted_from_global
+    # (RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE).
+    assert len(PERSONA_INSTANCE_NEVER_TRAVELS_KEYS) == 22
     assert len(PERSONA_INSTANCE_DERIVED_KEYS) == 6
 
 

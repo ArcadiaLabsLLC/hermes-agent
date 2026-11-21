@@ -594,7 +594,9 @@ def _persona_instance_store_drift_items(
     by_id = {instance.id: instance for instance in scan.instances}
 
     for instance in scan.instances:
-        if is_canonical_persona_channel(instance) or is_adopted_local_instance(instance):
+        if is_canonical_persona_channel(instance):
+            continue
+        if is_adopted_local_instance(instance):  # machine-local, as the hidden copy it was
             continue
         if instance.workspace_id not in workspace_ids:
             continue
