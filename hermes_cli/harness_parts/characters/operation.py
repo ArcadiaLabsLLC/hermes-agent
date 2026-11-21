@@ -40,26 +40,29 @@ CHARACTER_VERBS = ("base", "turnaround", "reroll_direction", "approve_direction"
                    "compose", "auto", "reopen", "add_state")
 
 
+def _joined(params: dict, key: str) -> str:
+    return ",".join(params.get(key) or [])
+
+
+#: verb -> the argv flags it reads beyond ``--draft``, built from the method's params (a list joined the way
+#: the comma-separated flag takes it). A table, so a new verb is one row.
+_FLAGS: dict[str, Any] = {
+    "base": lambda p: {"image": p["image"]},
+    "turnaround": lambda p: {},
+    "reroll_direction": lambda p: {"direction": p["direction"], "note": p.get("note") or ""},
+    "approve_direction": lambda p: {"direction": p.get("direction") or "", "approve_all": bool(p.get("all")),
+                                    "attempt": p.get("attempt", -1)},
+    "rows": lambda p: {"only": _joined(p, "only")},
+    "reroll_row": lambda p: {"row": p["row"], "note": p.get("note") or ""},
+    "compose": lambda p: {"accept_handedness": _joined(p, "accept_handedness")},
+    "auto": lambda p: {"through": p.get("through") or "compose"},
+    "reopen": lambda p: {},
+    "add_state": lambda p: {"state": p["state"]},
+}
+
+
 def _namespace(verb: str, params: dict) -> SimpleNamespace:
-    values: dict[str, Any] = {"draft": params["draft"]}
-    if verb == "base":
-        values["image"] = params["image"]
-    elif verb == "reroll_direction":
-        values.update(direction=params["direction"], note=params.get("note") or "")
-    elif verb == "approve_direction":
-        values.update(direction=params.get("direction") or "", approve_all=bool(params.get("all")),
-                      attempt=params.get("attempt", -1))
-    elif verb == "rows":
-        values["only"] = ",".join(params.get("only") or [])
-    elif verb == "reroll_row":
-        values.update(row=params["row"], note=params.get("note") or "")
-    elif verb == "compose":
-        values["accept_handedness"] = ",".join(params.get("accept_handedness") or [])
-    elif verb == "auto":
-        values["through"] = params.get("through") or "compose"
-    elif verb == "add_state":
-        values["state"] = params["state"]
-    return SimpleNamespace(**values, json=True)
+    return SimpleNamespace(draft=params["draft"], **_FLAGS[verb](params), json=True)
 
 
 def characters_operation_result(verb: str, params: dict) -> dict:
