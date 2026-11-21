@@ -81,6 +81,17 @@ ROWS: dict[str, tuple[pytest.MarkDecorator, ...]] = {
     "tests/agent/test_session_prompt_refresh.py::test_refresh_keeps_the_sessions_tools_pin": (
         _UPSTREAM_WIRE_UNBRIEFED,
     ),
+    # Upstream's journey pins PRESSURE_1 as the summarised middle; the fork's larger system prompt
+    # fires the compaction one pressure turn earlier, so the middle is ACK_PRESSURE_0 and PRESSURE_1
+    # stays in the protected tail (merge-caused since v0.23.1 c042b98019; green on upstream parent
+    # 3b42157858). The sibling derives the middle from the transcript (red-fix pass 2026-11-21).
+    "tests/gateway/test_journey_compress_restart_fifo.py::"
+    "test_followers_survive_compression_and_restart_in_order_exactly_once": (
+        _fork_replaces(
+            "system prompt (larger than upstream's, so the compaction fires a pressure turn earlier)",
+            "tests/gateway/test_journey_compress_restart_fifo_downstream.py",
+        ),
+    ),
     # v0.23.1's gateway delegation-mode tests read delegate_task's registry text (END YOUR TURN /
     # "results return in this tool call") off the provider request the brief collapsed.
     "tests/gateway/test_gateway_delegation_mode.py": (_UPSTREAM_WIRE_UNBRIEFED,),
