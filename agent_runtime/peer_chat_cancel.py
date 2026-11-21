@@ -3,7 +3,7 @@
 Cancel is owned by the process that supervises the work, and for a cross-install
 dispatch that is THIS install: the sender's row lives on install A, the turn runs
 here. A asks with the dispatch id; this module re-derives the turn request id the
-execute carried (:func:`agent_runtime.chat_turn.dispatch_turn_request_id`), proves
+execute carried (:func:`agent_runtime.dispatch_store.models.dispatch_turn_request_id`), proves
 the receipt belongs to the asking install, and stops the turn through the chat
 Stop door (the serve's ``interrupt_operator`` seam plus the receipt's durable
 ``stop_requested``, which a turn still queued on the pool reads when it starts).
@@ -55,7 +55,8 @@ def cancel_peer_turn(
     asked for, and is not told that one exists.
     """
 
-    from agent_runtime.chat_turn import PEER_CHAT_EXECUTE_METHOD, dispatch_turn_request_id
+    from agent_runtime.chat_turn import PEER_CHAT_EXECUTE_METHOD
+    from agent_runtime.dispatch_store.models import dispatch_turn_request_id
     from agent_runtime.chat_turn_reservations import (
         STATE_ACCEPTED,
         STATE_SETTLED,

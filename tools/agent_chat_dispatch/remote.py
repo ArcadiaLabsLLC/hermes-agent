@@ -65,7 +65,7 @@ def build_peer_execute_params(dispatch_id: str, spec: dict[str, Any]) -> dict[st
       second is the field install B decides for itself, from the connection.
     """
 
-    from agent_runtime.chat_turn import dispatch_turn_request_id
+    from agent_runtime.dispatch_store.models import dispatch_turn_request_id
 
     params: dict[str, Any] = {
         "turn_request_id": str(spec.get("client_message_id") or dispatch_turn_request_id(dispatch_id)),

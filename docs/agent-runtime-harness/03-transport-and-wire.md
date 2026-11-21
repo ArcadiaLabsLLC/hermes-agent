@@ -904,7 +904,7 @@ the turn. The sender (`tools/agent_chat_dispatch/remote.request_remote_cancel`,
 reached from `running_work.cancel_work("dispatch:…")` in any process) writes the
 row's durable `cancel_requested`, dials ONCE at the dial timeout and sends
 `{dispatch_id, reason}`. The owner (`agent_runtime/peer_chat_cancel.cancel_peer_turn`)
-re-derives the execute's `turn_request_id` (`chat_turn.dispatch_turn_request_id`,
+re-derives the execute's `turn_request_id` (`dispatch_store.models.dispatch_turn_request_id`,
 `agent-dispatch-<id>` — a wire literal between builds), refuses to see a receipt
 whose replay scope names another install, and answers `stopping` (the receipt's
 `stop_requested` made durable for a queued turn, then the serve's
