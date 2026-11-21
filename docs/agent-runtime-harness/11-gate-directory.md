@@ -112,6 +112,7 @@ or registry entry names something real).
 | `tests/test_coverage_claims_resolve.py` | claims | a coverage claim names a test that exists |
 | `tests/scripts/test_mutation_claims_still_anchor.py` | claims | every registered mutation claim still anchors |
 | `tests/tooling/test_upstream_reds_rows_resolve.py` | claims | every upstream-red marker row names an upstream test that exists |
+| `tests/tooling/test_measured_e2e_limits_track_upstream.py` | claims | every measured e2e time limit was measured on the upstream copy of its file that `main` holds (blob at the manifest base, and in the tree) |
 | `tests/tooling/test_gate_directory_current.py` | claims | this page |
 | `tests/test_byte_pinned_fixture_families.py` | fence | a `MANIFEST.sha256` fixture family is pinned `-text` |
 | `tests/test_line_endings.py` | ratchet | no tracked text blob carries a CR; the count only falls |

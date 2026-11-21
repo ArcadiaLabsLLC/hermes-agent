@@ -4,3 +4,8 @@
 # gitignored test_durations.json only when the file has no entry (scripts/_fork_test_env.sh).
 tests/scripts/test_icon_flavors.py 281  # 12 passed alone, 2026-10-25 lane w1025b-h-misc (generate fixture 159 s setup)
 tests/scripts/install/test_install_ps1_native_calls.py 171  # 5 passed alone, 2026-10-25 lane w1025b-h-misc
+tests/gateway/test_session_mutation_compress_managed.py 266  # 2 passed at -j 4 --timeout=300, 2026-11-21 lane w1118a-hmA (17 managed-worker turns per test)
+tests/acp_adapter/test_gateway_editor_mcp.py 260  # 4 passed 1 failed at -j 4 --timeout=300, 2026-11-21 lane w1118a-hmA
+tests/scripts/test_boundary_lint.py 176  # 6 passed 1 failed at -j 4 --timeout=300, 2026-11-21 lane w1118a-hmA (whole-tree import walk)
+tests/gateway/test_session_mutation_compress.py 164  # 3 passed at -j 4 --timeout=300, 2026-11-21 lane w1118a-hmA
+tests/gateway/test_local_automation.py 155  # 5 passed at -j 4 --timeout=300, 2026-11-21 lane w1118a-hmA
