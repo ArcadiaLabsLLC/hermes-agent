@@ -318,6 +318,9 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         # workspace the desktop operator may be standing in (Eternia marks them localOnly).
         "runtime.workspace.archive",
         "runtime.workspace.delete",
+        # This machine's own LAN listen address and port: the desktop operator's network, never a
+        # paired device's (the peer-directory verbs above are refused for the same reason).
+        "runtime.gateway.listen.set",
     }
 )
 

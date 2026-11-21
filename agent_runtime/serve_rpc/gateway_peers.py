@@ -1,5 +1,6 @@
 """``runtime.gateway.peers.subscribe`` / ``list`` / ``roster`` — the gateway peer
-directory verbs a local client calls.
+directory verbs a local client calls — and ``runtime.gateway.listen.set``, this
+machine's LAN listen pair (``agent_runtime.gateway_listen_setting``).
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from agent_runtime.clock import iso_stamp as _now_iso
 
 from agent_runtime.serve_rpc.protocol import (
+    ERR_CONFLICT,
     ERR_HANDLER_FAILED,
     ERR_INVALID_PARAMS,
     RpcContext,
@@ -25,6 +27,7 @@ from agent_runtime.serve_rpc.params import (
 __layer__ = "lanes"
 
 __all__ = [
+    "_runtime_gateway_listen_set",
     "_runtime_gateway_peers_list",
     "_runtime_gateway_peers_roster",
     "_runtime_gateway_peers_subscribe",
@@ -262,3 +265,28 @@ def _runtime_gateway_peers_roster(
     if correlation_id is not None:
         reply["correlation_id"] = correlation_id
     return ok(rid, reply)
+
+
+_LISTEN_CODES = {"invalid_request": ERR_INVALID_PARAMS}
+
+
+@method("runtime.gateway.listen.set", tier=TIER_CONSOLE)
+def _runtime_gateway_listen_set(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """The LAN gateway's listen pair, and NOTHING else (RT-EVERY-ACTION-ETERNIA-SENDS-HAS-A-TYPED-CALL-ON-THE-
+    RUNNING-HERMES; the twin of Eternia's two ``hermes config set`` children).
+
+    Params: ``listen`` (required: an IP address literal such as ``"0.0.0.0"``, or ``false`` for off) and
+    ``port`` (optional, 1-65535; absent leaves the stored port). Result: ``{listen, port, changed}`` — the two
+    keys after the call. It never writes any other key: a generic config write over RPC is refused by design.
+    Takes effect when the serve respawns. Refusals: ``invalid_request`` (+ ``field``) -32602,
+    ``config_managed`` / ``config_unreadable`` / ``config_write_failed`` 4090. Local console only.
+    """
+    from agent_runtime.gateway_listen_setting import GatewayListenRefused, set_gateway_listen
+
+    if not isinstance(params, dict) or "listen" not in params or not set(params) <= {"listen", "port"}:
+        return err(rid, ERR_INVALID_PARAMS, "listen is required; port is optional.", {"reason": "invalid_request"})
+    try:
+        return ok(rid, set_gateway_listen(listen=params["listen"], port=params.get("port")))
+    except GatewayListenRefused as exc:
+        data = {"reason": exc.reason.value, **({"field": exc.field} if exc.field else {})}
+        return err(rid, _LISTEN_CODES.get(exc.reason.value, ERR_CONFLICT), "The gateway listen setting was not changed.", data)
