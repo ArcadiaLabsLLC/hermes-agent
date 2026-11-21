@@ -347,6 +347,49 @@ def direct_describe_defs(current_tool_defs):
     return out
 
 
+def _query_tokens(query: str) -> list[str]:
+    """``query`` in upstream's index tokens (lowercased, Snowball-stemmed), read through the
+    PUBLIC ``build_catalog``: a def named ``_`` (no name words; no registry toolset, so no
+    source label) whose description is the query indexes exactly the query's tokens. The
+    stemmer stays upstream's, so an upstream tokenizer change cannot split the fork's tie
+    path from upstream's admission (W0-G6: no ``_tokenize`` reach)."""
+    from tools.tool_search_catalog import build_catalog
+
+    entries = build_catalog([{"type": "function", "function": {"name": "_", "description": query}}])
+    return list(entries[0]._tokens) if entries else []
+
+
+def _bm25_corpus_stats(catalog) -> tuple[list[int], float, dict[str, int], int]:
+    """The BM25 statistics ``search_catalog(corpus_stats=...)`` takes: doc lengths, average
+    length, document frequency, document count. Fork-owned twin of upstream's private
+    ``_corpus_stats`` (W0-G6); parity pinned in ``tests/tools/test_tool_search_downstream.py``."""
+    doc_lengths = [len(entry._tokens) for entry in catalog]
+    avg_dl = sum(doc_lengths) / max(len(doc_lengths), 1)
+    doc_freq: dict[str, int] = {}
+    for entry in catalog:
+        for token in set(entry._tokens):
+            doc_freq[token] = doc_freq.get(token, 0) + 1
+    return doc_lengths, avg_dl, doc_freq, len(catalog)
+
+
+def _bm25(query_tokens, doc_tokens, doc_lengths, avg_dl, doc_freq, n_docs, k1=1.5, b=0.75) -> float:
+    """Standard BM25 of one document, the constants upstream's search ranks with. Fork-owned
+    twin of upstream's private ``_bm25_score`` (W0-G6); parity pinned in
+    ``tests/tools/test_tool_search_downstream.py``."""
+    import math
+    from collections import Counter
+
+    score = 0.0
+    dl = len(doc_tokens)
+    doc_tf = Counter(doc_tokens)
+    for q in query_tokens:
+        df, tf = doc_freq.get(q, 0), doc_tf.get(q, 0)
+        if df and tf:
+            idf = math.log(1 + (n_docs - df + 0.5) / (df + 0.5))
+            score += idf * tf * (k1 + 1) / (tf + k1 * (1 - b + b * dl / max(avg_dl, 1.0)))
+    return score
+
+
 def keep_tied_intent_words(upstream):
     """``search_catalog`` that keeps every tool carrying ANY of the query's tied rarest words.
 
@@ -364,12 +407,11 @@ def keep_tied_intent_words(upstream):
     and ranks the union by upstream's BM25 over the real statistics, the exact name first. A
     query with one rarest word, or whose rarest word no tool carries, is upstream's answer.
     """
-    from tools.tool_search_catalog import _bm25_score, _corpus_stats, _tokenize
 
     @functools.wraps(upstream)
     def search_catalog(catalog, query, limit=5, *, corpus_stats=None):
-        query_tokens = _tokenize(query) if catalog and limit > 0 else []
-        stats = (corpus_stats or _corpus_stats(catalog)) if query_tokens else None
+        query_tokens = _query_tokens(query) if catalog and limit > 0 else []
+        stats = (corpus_stats or _bm25_corpus_stats(catalog)) if query_tokens else None
         doc_freq = stats[2] if stats else {}
         rarest = min((doc_freq.get(t, 0) for t in query_tokens), default=0)
         tied = sorted({t for t in query_tokens if doc_freq.get(t, 0) == rarest})
@@ -385,7 +427,7 @@ def keep_tied_intent_words(upstream):
         def _rank(entry) -> float:
             if entry.name.lower() == exact_name:
                 return float("inf")
-            return _bm25_score(query_tokens, entry._tokens, *stats)
+            return _bm25(query_tokens, entry._tokens, *stats)
 
         pool = [entry for entry in catalog if id(entry) in admitted]
         pool.sort(key=_rank, reverse=True)
