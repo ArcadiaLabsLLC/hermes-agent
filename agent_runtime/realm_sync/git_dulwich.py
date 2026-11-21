@@ -19,10 +19,11 @@ A failing step raises the same ``RealmSyncError`` codes the binary half raises.
 from __future__ import annotations
 
 import heapq
+import itertools
 import os
 import shutil
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -702,16 +703,21 @@ class DulwichSyncGit:
 
     # -- history -----------------------------------------------------------------------------
     def log(self, refs: Sequence[str], subtree: str, limit: int) -> list[LogEntry]:
-        """``git log --date-order -n<limit> --name-only <refs> -- <subtree>``: newest first, a child never after
-        its parent (one second's commits tie on the clock), a commit listed when it changed the subtree, a
-        merge only when it differs there from every parent and then with no names, as git lists one."""
+        """``git log -n<limit> --name-only <refs> -- <subtree>``: git's default walk (``git_port.SyncGit.log``),
+        a commit listed when it changed the subtree, a merge only when it differs there from every parent and
+        then with no names, as git lists one. Lazy: it reads only the commits it walks past before ``limit``,
+        and a commit ``.git/shallow`` names is a root, as git treats one."""
 
         with self._open() as repo:
-            include = [sha for sha in (self._resolve(repo, ref) for ref in refs) if sha is not None]
+            include = list(dict.fromkeys(sha for sha in (self._resolve(repo, ref) for ref in refs) if sha is not None))
+            # git_port.SyncGit.log: a start another start reaches is dropped (``merge-base --independent``).
+            # MUTATION: keep every start and test_history_lists_local_and_upstream_versions_with_their_items (one
+            # second's publish ahead upstream) reddens on this backend.
+            include = [sha for sha in include
+                       if not any(other != sha and can_fast_forward(repo, sha, other) for other in include)]
             prefix = subtree.rstrip("/")
             entries: list[LogEntry] = []
-            for commit in _date_order(repo, include):
-                parents = [repo[parent] for parent in commit.parents]
+            for commit, parents in _newest_first(repo, include):
                 if len(parents) > 1:
                     mine = _subtree_id(repo, commit.tree, prefix)
                     if any(_subtree_id(repo, parent.tree, prefix) == mine for parent in parents):
@@ -719,7 +725,10 @@ class DulwichSyncGit:
                     paths: tuple[str, ...] = ()
                 else:
                     before = parents[0].tree if parents else None
-                    paths = tuple(sorted({_s(side.path) for change in tree_changes(repo.object_store, before, commit.tree)
+                    if prefix and before is not None and _subtree_id(repo, before, prefix) == _subtree_id(
+                            repo, commit.tree, prefix):
+                        continue  # the subtree is the same object on both sides: nothing under it changed
+                    paths =tuple(sorted({_s(side.path) for change in tree_changes(repo.object_store, before, commit.tree)
                                           for side in (change.new, change.old)
                                           if side is not None and side.path is not None
                                           and _within_paths(_s(side.path), [prefix])}))
@@ -764,39 +773,33 @@ def _refuse_untracked_overwrite(repo: Repo, root: Path, old_tree: bytes | None, 
                        + "\n\t".join(clobbered) + "\nPlease move or remove them before you merge.\nAborting")
 
 
-def _date_order(repo: Repo, include: Sequence[bytes]) -> list[Commit]:
-    """Every commit reachable from ``include``, git's ``--date-order``: newest commit time first, but never a
-    parent before any of its children; a tie keeps the order the walk met them in."""
+def _newest_first(repo: Repo, include: Sequence[bytes]) -> Iterator[tuple[Commit, list[Commit]]]:
+    """git's default ``log`` walk, lazily: newest commit time first from one queue fed by ``include`` (each commit
+    once), a commit's parents read only when it is listed. A tie keeps the order the walk queued them in, and
+    under clock skew a parent may come before a child, as in git. Parents come from ``repo.get_parents``, which
+    answers none for a commit ``.git/shallow`` names, so a shallow clone's boundary is a root.
 
-    seen: dict[bytes, Commit] = {}
-    stack = list(include)
-    while stack:
-        sha = stack.pop()
-        if sha in seen:
-            continue
-        seen[sha] = repo[sha]
-        stack.extend(seen[sha].parents)
-    waiting = dict.fromkeys(seen, 0)
-    for commit in seen.values():
-        for parent in commit.parents:
-            if parent in waiting:
-                waiting[parent] += 1
-    order = {sha: index for index, sha in enumerate(seen)}
-    ready = [(-seen[sha].commit_time, order[sha], sha) for sha in include if waiting.get(sha) == 0]
-    heapq.heapify(ready)
-    listed: list[Commit] = []
-    emitted: set[bytes] = set()
-    while ready:
-        _when, _index, sha = heapq.heappop(ready)
-        if sha in emitted:
-            continue
-        emitted.add(sha)
-        listed.append(seen[sha])
-        for parent in seen[sha].parents:
-            waiting[parent] -= 1
-            if waiting[parent] == 0:
-                heapq.heappush(ready, (-seen[parent].commit_time, order[parent], parent))
-    return listed
+    Yields each commit with its parents."""
+
+    # MUTATION: collect every reachable commit (repo[sha] for each parent) before the first yield again and
+    # test_log_reads_no_further_back_than_its_limit and test_a_shallow_clone_lists_its_history redden on this
+    # backend (RT-PHONE-GIT-HISTORY-OPENS-WITHOUT-READING-THE-WHOLE-HISTORY).
+    queue: list[tuple[int, int, bytes]] = []
+    queued: dict[bytes, Commit] = {}
+    order = itertools.count()
+
+    def enqueue(sha: bytes) -> Commit:
+        if sha not in queued:
+            queued[sha] = repo[sha]
+            heapq.heappush(queue, (-queued[sha].commit_time, next(order), sha))
+        return queued[sha]
+
+    for sha in include:
+        enqueue(sha)
+    while queue:
+        _when, _index, sha = heapq.heappop(queue)
+        commit = queued[sha]
+        yield commit, [enqueue(parent) for parent in repo.get_parents(sha, commit)]
 
 
 def _subtree_id(repo: Repo, tree: bytes, prefix: str) -> bytes | None:

@@ -265,10 +265,11 @@ class BinarySyncGit:
 
     # -- history -----------------------------------------------------------------------------
     def log(self, refs: Sequence[str], subtree: str, limit: int) -> list[LogEntry]:
-        # --date-order: a child never sorts after its parent; two refs' commits made in one second tie on
-        # the clock, and git's default walk then lists them in queue order.
-        text = self._step("log", "--date-order", f"-n{limit}", f"--format={_RECORD}%H{_FIELD}%aI{_FIELD}%an",
-                          "--name-only", *refs, "--", subtree, check=False)
+        # git's default walk, the port's one order (``git_port.SyncGit.log``): no --date-order, which must read
+        # every reachable commit before it lists the first (RT-PHONE-GIT-HISTORY-OPENS-WITHOUT-READING-THE-WHOLE-HISTORY).
+        # MUTATION: pass --date-order again and test_log_order_is_the_default_walks_under_clock_skew reddens here.
+        text = self._step("log", f"-n{limit}", f"--format={_RECORD}%H{_FIELD}%aI{_FIELD}%an",
+                          "--name-only", *self._independent(refs), "--", subtree, check=False)
         entries: list[LogEntry] = []
         for record in text.split(_RECORD):
             lines = [line for line in record.splitlines() if line.strip()]
@@ -277,6 +278,22 @@ class BinarySyncGit:
             sha, at, author = (lines[0].split(_FIELD) + ["", ""])[:3]
             entries.append(LogEntry(sha=sha, at=at, author=author, paths=tuple(lines[1:])))
         return entries
+
+    def _independent(self, refs: Sequence[str]) -> list[str]:
+        """``refs`` less each one another of them reaches (``merge-base --independent``), in their order: a walk
+        fed a ref's own ancestor as a second start lists that ancestor first when the two share a second.
+        MUTATION: hand ``log`` the refs as given and test_history_lists_local_and_upstream_versions_with_their_items
+        reddens here."""
+
+        shas = [self.resolve(ref) for ref in refs]
+        if len(refs) < 2 or None in shas or len(set(shas)) < 2:
+            return list(refs)
+        kept = set(self._out("merge-base", "--independent", *shas).split())
+        independent: dict[str, str] = {}
+        for ref, sha in zip(refs, shas):
+            if sha in kept and sha not in independent:
+                independent[sha] = ref
+        return list(independent.values())
 
     def newest(self, ref: str, subtree: str) -> str | None:
         return self._out("log", "-1", "--format=%H", ref, "--", subtree) or None

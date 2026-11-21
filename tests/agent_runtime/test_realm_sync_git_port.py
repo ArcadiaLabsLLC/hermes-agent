@@ -12,6 +12,7 @@ Killing mutation (recorded in the S1 commit): swap ``ahead`` and ``behind`` in
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -320,6 +321,73 @@ def test_ancestry_and_history(tmp_path, remote):
     assert len(git.log(["HEAD"], "realms/r", 1)) == 1
     assert git.newest("HEAD", "realms/r") == entries[0].sha
     assert git.newest("HEAD", "realms/none") is None
+
+
+def _commit_at(cwd: Path, rel: str, when: int, message: str) -> str:
+    """A FIXTURE commit whose author and committer clock read ``when`` seconds into the test's epoch."""
+
+    path = cwd / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(message + "\n", encoding="utf-8")
+    _sh(cwd, "add", "--", rel)
+    stamp = f"@{1_700_000_000 + when} +0000"
+    subprocess.run(["git", *_TEAMMATE, "commit", "-q", "-m", message], cwd=cwd, check=True, capture_output=True,
+                   env={**os.environ, "GIT_AUTHOR_DATE": stamp, "GIT_COMMITTER_DATE": stamp})
+    return _sh(cwd, "rev-parse", "HEAD")
+
+
+def test_log_order_is_the_default_walks_under_clock_skew(tmp_path):
+    # RT-PHONE-GIT-HISTORY-OPENS-WITHOUT-READING-THE-WHOLE-HISTORY: one order for both backends, git's default
+    # walk (git_port.SyncGit.log). ``y2``'s clock ran behind its parent's, so the walk lists the shared base
+    # (time 1000) before ``y2`` (500) and ``y1`` (2000); ``--date-order`` would hold the base back to the end.
+    repo = tmp_path / "skew"
+    repo.mkdir()
+    _sh(repo, "init", "-q")
+    base = _commit_at(repo, "realms/r/base.txt", 1_000, "base")
+    _sh(repo, "checkout", "-q", "-b", "y")
+    y1 = _commit_at(repo, "realms/r/y1.txt", 2_000, "y1")
+    y2 = _commit_at(repo, "realms/r/y2.txt", 500, "y2")
+    _sh(repo, "checkout", "-q", "-b", "x", base)
+    x1 = _commit_at(repo, "realms/r/x1.txt", 3_000, "x1")
+    x2 = _commit_at(repo, "realms/r/x2.txt", 3_000, "x2")
+    git = sync_git(repo)
+    assert [e.sha for e in git.log(["x", "y"], "realms/r", 10)] == [x2, x1, base, y2, y1]
+    assert [e.sha for e in git.log(["x", "y"], "realms/r", 2)] == [x2, x1]
+    assert git.newest("y", "realms/r") == y2
+    # A start another start reaches is dropped first: x1 (x2's parent, made in the same second) named before x2
+    # still lists after it, as History's ``HEAD`` then upstream does when the team's copy is one publish ahead.
+    assert [e.sha for e in git.log([x1, "x"], "realms/r", 2)] == [x2, x1]
+
+
+def test_a_shallow_clone_lists_its_history(tmp_path, remote):
+    # The port's log raised KeyError on a shallow clone (seen live 2026-11-21 on flutter/flutter and nodejs/node):
+    # it read the boundary commit's parents, which a shallow clone does not hold. Its boundary is a root, as in git.
+    _teammate_publishes(tmp_path, remote, "realms/r/b.txt", "b\n")
+    newest = _teammate_publishes(tmp_path, remote, "realms/r/c.txt", "c\n")
+    repo = tmp_path / "shallow"
+    _sh(tmp_path, "clone", "-q", "--depth", "2", f"file://{remote}", str(repo))
+    assert (repo / ".git/shallow").is_file()
+    git = sync_git(repo)
+    entries = git.log(["HEAD"], "realms/r", 10)
+    assert [e.paths for e in entries] == [("realms/r/c.txt",), ("realms/r/a.txt", "realms/r/b.txt")]
+    assert entries[0].sha == newest
+    assert git.newest("HEAD", "realms/r") == newest
+
+
+def test_log_reads_no_further_back_than_its_limit(tmp_path):
+    # A long history's newest entries open without reading the rest: the oldest commit is gone from the object
+    # store, and a log that stops at its limit never asks for it.
+    repo = tmp_path / "long"
+    repo.mkdir()
+    _sh(repo, "init", "-q")
+    root = _commit_file(repo, "realms/r/a.txt", "a\n", "root")
+    _commit_file(repo, "realms/r/b.txt", "b\n", "second")
+    _commit_file(repo, "realms/r/c.txt", "c\n", "third")
+    newest = _commit_file(repo, "realms/r/d.txt", "d\n", "fourth")
+    (repo / ".git/objects" / root[:2] / root[2:]).unlink()
+    git = sync_git(repo)
+    assert [e.paths for e in git.log(["HEAD"], "realms/r", 1)] == [("realms/r/d.txt",)]
+    assert git.newest("HEAD", "realms/r") == newest
 
 
 # -- the adopter's, leave's, re-key's and restore-a-version's steps (S2) -------------------------------

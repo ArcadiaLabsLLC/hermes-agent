@@ -160,5 +160,13 @@ class SyncGit(Protocol):
 
     # -- history -----------------------------------------------------------------------------
     def log(self, refs: Sequence[str], subtree: str, limit: int) -> list[LogEntry]:
-        """Commits reachable from ``refs`` that touch ``subtree``, newest first (date order)."""
+        """Commits reachable from ``refs`` that touch ``subtree``, at most ``limit``, in git's default walk order.
+
+        The one order both backends answer (review w1118a.81, RT-PHONE-GIT-HISTORY-OPENS-WITHOUT-READING-THE-WHOLE-HISTORY):
+        one queue fed by ``refs`` (less each ref another of them reaches, ``git merge-base --independent``, so
+        a ref's own ancestor never jumps the queue when the two were made in one second), the newest commit time
+        listed next, a commit's parents queued when it is
+        listed; a tie keeps queue order. So it is newest first while clocks agree, and it is lazy: nothing behind
+        the ``limit``-th entry is read. Under clock skew a parent can come before a child; ``--date-order``'s promise that it never does needs the whole history first, which a
+        phone cannot afford. A commit a shallow clone's ``.git/shallow`` names is a root."""
     def newest(self, ref: str, subtree: str) -> str | None: ...
