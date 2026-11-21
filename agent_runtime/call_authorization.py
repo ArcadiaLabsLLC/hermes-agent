@@ -322,8 +322,10 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         # paired device's (the peer-directory verbs above are refused for the same reason).
         "runtime.gateway.listen.set",
         # RT-PETS-PAIRING-GATEWAY-ID-AND-UNPAIR-HAVE-THEIR-OWN-CALLS-ON-THE-RUNNING-HERMES (review w1118a.77): pairing
-        # and unpairing write the operator's network map, and ``gateway id``'s answer carries the store root path.
+        # and unpairing write the operator's network map (its paired devices included), and ``gateway id``'s answer
+        # carries the store root path.
         # A tier alone would let a paired console-tier device pair or unpair this install.
+        "runtime.gateway.devices.list",
         "runtime.gateway.id",
         "runtime.gateway.introduce",
         "runtime.gateway.peers.join",

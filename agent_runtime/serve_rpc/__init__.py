@@ -47,7 +47,8 @@ media                    lanes   ``runtime.media.index/get``
 peer                     lanes   the ``peer.*`` verbs
 gateway_peers            lanes   ``runtime.gateway.peers.*``
 gateway_actions          lanes   ``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` /
-                                 ``.peers.revoke`` (the ``harness gateway`` verbs, run in process)
+                                 ``.peers.revoke`` / ``.devices.list`` (the ``harness gateway``
+                                 verbs, run in process)
 provider                 lanes   ``runtime.provider.*`` (catalog, sign-in, usage)
 default_model            lanes   ``runtime.default_model.set`` (the serve profile's
                                  ``model.default`` / ``model.provider``)

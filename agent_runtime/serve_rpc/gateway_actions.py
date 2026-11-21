@@ -1,4 +1,4 @@
-"""``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` / ``.peers.revoke`` — the pairing verbs' own calls.
+"""``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` / ``.peers.revoke`` / ``.devices.list`` — the gateway verbs' own calls.
 
 RT-PETS-PAIRING-GATEWAY-ID-AND-UNPAIR-HAVE-THEIR-OWN-CALLS-ON-THE-RUNNING-HERMES. Eternia handed the running serve
 a command line for each of these; each is now a typed method that runs the SAME verb handler in process
@@ -7,14 +7,15 @@ a command line for each of these; each is now a typed method that runs the SAME 
 * ``runtime.gateway.id`` — ``harness gateway id`` (``gateway_identity_commands._cmd_gateway_id``);
 * ``runtime.gateway.introduce`` — ``harness gateway introduce`` (``introduce.cmd_gateway_introduce``);
 * ``runtime.gateway.peers.join`` — ``harness gateway peers join`` (``join.cmd_gateway_peers_join``);
-* ``runtime.gateway.peers.revoke`` — ``harness gateway peers revoke`` (``peers.cmd_gateway_peers_revoke``).
+* ``runtime.gateway.peers.revoke`` — ``harness gateway peers revoke`` (``peers.cmd_gateway_peers_revoke``);
+* ``runtime.gateway.devices.list`` — ``harness gateway devices list`` (``devices.cmd_gateway_devices_list``).
 
 A success answers the verb's own Stage-42 envelope, byte for byte the object ``--json`` prints. A refusal is
 the verb's own error: its ``code`` (the family) and ``reason`` (the store's word) ride ``error.data``, and its
 sentence is ``error.message``. JSON-RPC code: ``invalid_payload`` -32602, ``not_found`` 4001, else 4090.
 
-**Security (review w1118a.77).** All four are in ``LOCAL_CONSOLE_METHODS``: the peer directory and pairing
-are the desktop operator's own network map, and ``gateway id``'s answer carries the store root path
+**Security (review w1118a.77).** All five are in ``LOCAL_CONSOLE_METHODS``: the peer directory and pairing
+are the desktop operator's own network map (the paired-device list too), and ``gateway id``'s answer carries the store root path
 (``attach_root_observability``). A tier alone would let a paired console-tier device pair or unpair. The
 pairing code in ``introduce``'s answer and in ``join``'s ``payload`` param is the verb's one appearance of it:
 the dispatcher logs no params, and no event or receipt carries it.
@@ -45,6 +46,7 @@ from agent_runtime.serve_rpc.registry import method
 __layer__ = "lanes"
 
 __all__ = [
+    "_runtime_gateway_devices_list",
     "_runtime_gateway_id",
     "_runtime_gateway_introduce",
     "_runtime_gateway_peers_join",
@@ -63,7 +65,7 @@ def _refuse(key: str, sentence: str) -> ParamRefused:
     return ParamRefused(f"invalid params: {sentence}", RpcRefusal.PARAM_TYPE_INVALID)
 
 
-def _answer(rid: Any, envelope: dict) -> dict:
+def _verb_reply(rid: Any, envelope: dict) -> dict:
     """The verb's envelope as a reply: itself on success, its error as the RPC error."""
 
     if envelope.get("kind") != "error":
@@ -78,7 +80,7 @@ def _answer(rid: Any, envelope: dict) -> dict:
 def _run(rid: Any, name: str, context: RpcContext | None, handler: Callable[[], Callable], **flags) -> dict:
     from hermes_cli.harness_support import stage42_operation_result
 
-    return defer_or_inline(rid, name, context, lambda: _answer(rid, stage42_operation_result(handler(), **flags)))
+    return defer_or_inline(rid, name, context, lambda: _verb_reply(rid, stage42_operation_result(handler(), **flags)))
 
 
 def _texts(params: Any, *keys: str, required: tuple[str, ...] = (), limit: int = _TEXT_LIMIT) -> dict:
@@ -159,3 +161,16 @@ def _runtime_gateway_peers_revoke(rid: Any, params: dict, context: RpcContext | 
         return cmd_gateway_peers_revoke
 
     return _run(rid, "runtime.gateway.peers.revoke", context, handler, **flags)
+
+
+@method("runtime.gateway.devices.list", tier=TIER_READ)
+def _runtime_gateway_devices_list(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """``harness gateway devices list``: every paired device and channel credential, revoked included, as the
+    verb's list envelope (no credential field exists on a row). Params: none."""
+
+    def handler():
+        from hermes_cli.harness_parts.gateway_commands.devices import cmd_gateway_devices_list
+
+        return cmd_gateway_devices_list
+
+    return _run(rid, "runtime.gateway.devices.list", context, handler)

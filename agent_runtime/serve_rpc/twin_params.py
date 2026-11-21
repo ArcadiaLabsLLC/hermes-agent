@@ -44,6 +44,7 @@ PETS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 #: ``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` / ``.peers.revoke`` (``serve_rpc/gateway_actions.py``),
 #: the method twins of the ``harness gateway`` verbs; each key is the verb's own argparse destination.
 GATEWAY_ACTION_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.gateway.devices.list": (),
     "runtime.gateway.id": (),
     "runtime.gateway.introduce": ("correlation", "for_device", "for_install", "note"),
     "runtime.gateway.peers.join": ("correlation", "expect_fingerprint", "host", "payload", "port"),

@@ -161,6 +161,7 @@
     "runtime.embed.texts",
     "runtime.events.after",
     "runtime.flow.apply",
+    "runtime.gateway.devices.list",
     "runtime.gateway.id",
     "runtime.gateway.introduce",
     "runtime.gateway.listen.set",
@@ -812,6 +813,7 @@
       "persona_id",
       "title"
     ],
+    "runtime.gateway.devices.list": [],
     "runtime.gateway.id": [],
     "runtime.gateway.introduce": [
       "correlation",
@@ -1355,6 +1357,7 @@
     "runtime.embed.texts": "console",
     "runtime.events.after": "read",
     "runtime.flow.apply": "console",
+    "runtime.gateway.devices.list": "read",
     "runtime.gateway.id": "read",
     "runtime.gateway.introduce": "console",
     "runtime.gateway.listen.set": "console",

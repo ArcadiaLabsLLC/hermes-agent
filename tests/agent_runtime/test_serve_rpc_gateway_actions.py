@@ -1,9 +1,9 @@
 """RT-PETS-PAIRING-GATEWAY-ID-AND-UNPAIR-HAVE-THEIR-OWN-CALLS-ON-THE-RUNNING-HERMES: the gateway verbs' typed calls.
 
-``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` / ``.peers.revoke`` each run the verb's own handler in
+``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` / ``.peers.revoke`` / ``.devices.list`` each run the verb's own handler in
 process (``stage42_operation_result``), so the claims here are: the method answers the envelope the verb prints
 (one body, two doors), a refusal is the verb's own word on ``error.data``, the typed params reach the verb as
-its flags, and only this install's own console may call any of the four (review w1118a.77).
+its flags, and only this install's own console may call any of the five (review w1118a.77).
 
 Killing mutations, each seen red:
 
@@ -13,8 +13,9 @@ Killing mutations, each seen red:
   ``test_revoking_an_install_nobody_paired_is_not_found`` red;
 * drop ``flags["port"] = port`` in ``_runtime_gateway_peers_join`` -> the verb never sees the port,
   ``test_join_hands_the_verb_its_flags`` red;
-* drop ``"runtime.gateway.peers.revoke"`` from ``LOCAL_CONSOLE_METHODS`` -> a console-tier device may unpair,
-  ``test_only_this_installs_console_may_call_them`` red.
+* drop ``"runtime.gateway.peers.revoke"`` (or ``"runtime.gateway.devices.list"``) from ``LOCAL_CONSOLE_METHODS`` ->
+  a console-tier device may unpair (or read the paired-device list), ``test_only_this_installs_console_may_call_them``
+  red.
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ METHODS = (
     "runtime.gateway.introduce",
     "runtime.gateway.peers.join",
     "runtime.gateway.peers.revoke",
+    "runtime.gateway.devices.list",
 )
 
 
@@ -155,6 +157,16 @@ def test_revoking_an_install_nobody_paired_is_not_found(root, monkeypatch):
     assert reply["error"]["data"]["reason"] == "unknown_peer"
 
 
+def test_devices_list_answers_the_verbs_own_envelope(root, capsys):
+    from agent_runtime.serve_gateway_auth import mint_pairing_code, redeem_pairing_code
+
+    redeem_pairing_code(root, mint_pairing_code(root, name="phone", tier="console").code, device_name="phone")
+    result = _rpc("runtime.gateway.devices.list")["result"]
+    assert result["kind"] == "list" and result["item_kind"] == "gateway_device" and result["count"] == 1
+    assert "token" not in json.dumps(result) and "verifier" not in json.dumps(result)
+    assert _without_volatile(result) == _without_volatile(_cli(capsys, "devices", "list"))
+
+
 def test_join_hands_the_verb_its_flags(monkeypatch):
     from hermes_cli.harness_parts.gateway_commands import join
     from hermes_cli.harness_support import _object_envelope, _print_stage42
@@ -220,7 +232,8 @@ def test_the_manifest_publishes_them_with_their_tiers_and_params():
     published = serve_rpc.manifest()
     assert set(METHODS) <= set(published["methods"])
     assert published["tiers"]["runtime.gateway.id"] == TIER_READ
-    for method in METHODS[1:]:
+    assert published["tiers"]["runtime.gateway.devices.list"] == TIER_READ
+    for method in METHODS[1:4]:
         assert published["tiers"][method] == TIER_CONSOLE
     assert published["params"]["runtime.gateway.peers.revoke"] == ["peer_install_id"]
     assert published["params"]["runtime.gateway.peers.join"] == [
