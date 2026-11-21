@@ -42,6 +42,7 @@ __all__ = [
     "close_actor",
     "construct",
     "engine_judged_goals",
+    "inline_turn",
     "is_operator",
     "open_actor",
     "pin_session",
@@ -182,19 +183,87 @@ def _install_door(agent: Any, sid: str) -> None:
     agent.run_conversation = run_conversation
 
 
-def _gateway_turn(agent: Any, sid: str, args: tuple, kwargs: dict) -> Any:
-    """A turn the gateway started by itself on an operator chat: its goal continuation.
+@dataclass
+class _Inline:
+    """A turn the gateway started on an operator chat, run as that chat's operator turn on this thread."""
 
-    The chat's goal loop is the gateway's (its judge ran on the turn before); the operator lane turns
-    the decision into its next turn, a queued send with the turn's own arguments
-    (``work_store.goal_turns``), so the continuation here runs nothing: an interrupted, empty turn,
-    which the gateway neither judges nor records.
+    agent: Any
+    key: str
+    outcome: tuple | None = None
+
+
+_inline_turn: ContextVar[_Inline | None] = ContextVar("operator_gateway_inline_turn", default=None)
+
+
+def _gateway_turn(agent: Any, sid: str, args: tuple, kwargs: dict) -> Any:
+    """A turn the gateway started by itself on an operator chat.
+
+    * Its goal continuation: the chat's goal loop is the gateway's (its judge ran on the turn before),
+      and the operator lane turns the decision into its next turn, a queued send with the turn's own
+      arguments (``work_store.goal_turns``). This turn runs nothing: an interrupted, empty turn, which
+      the gateway neither judges nor records.
+    * A completion the gateway's notification poller claimed for the chat (the one completion drain):
+      delivered as an operator turn of the chat, through the mission-chat door like any delivery
+      (``dispatch_delivery.forge``), and run right here, on this session's agent (:func:`inline_turn`).
     """
 
-    logger.info("operator_gateway_followup sid=%s: continued by the operator lane", sid)
+    text = args[0] if args else kwargs.get("user_message")
+    actor = getattr(agent, "_operator_gateway_actor", None)
+    if actor is None or not isinstance(text, str) or _is_goal_continuation(actor, agent, text):
+        logger.info("operator_gateway_followup sid=%s: continued by the operator lane", sid)
+        return _empty_turn(kwargs)
+    return _deliver(agent, actor, text, kwargs)
+
+
+def _empty_turn(kwargs: dict) -> dict:
     history = kwargs.get("conversation_history")
     return {"final_response": "", "interrupted": True, "completed": False,
             "messages": list(history) if isinstance(history, list) else []}
+
+
+def _is_goal_continuation(actor: Any, agent: Any, text: str) -> bool:
+    from hermes_cli.goals import GoalManager
+
+    from agent_runtime.profile_context import process_home_scope
+
+    with process_home_scope(actor.home):
+        prompt = GoalManager(str(getattr(agent, "session_id", "") or actor.key)).next_continuation_prompt()
+    return bool(prompt) and prompt.strip() == text.strip()
+
+
+def _deliver(agent: Any, actor: Any, text: str, kwargs: dict) -> Any:
+    import uuid
+
+    from agent_runtime.dispatch_delivery.forge import _sender_persona, forge_delivery_turn
+
+    owner = _sender_persona(actor.root) if actor.root else None
+    if owner is None:
+        logger.warning("operator_gateway_notice_unowned root=%s: no persona instance owns the chat", actor.root)
+        return _empty_turn(kwargs)
+    inline = _Inline(agent, actor.key)
+    token = _inline_turn.set(inline)
+    try:
+        ok, _payload = forge_delivery_turn(root_session_id=actor.root, persona_id=owner[0],
+                                           persona_instance_id=owner[1], message=text,
+                                           client_message_id=f"notice-{uuid.uuid4().hex[:16]}")
+    finally:
+        _inline_turn.reset(token)
+    if inline.outcome is None:
+        logger.warning("operator_gateway_notice_not_run root=%s ok=%s", actor.root, ok)
+        return _empty_turn(kwargs)
+    return inline.outcome[0]
+
+
+def inline_turn(request: Any) -> _Inline | None:
+    """The gateway turn this thread is running for ``request``'s chat, else None: the runner then runs
+    the request's execution on that turn's agent instead of submitting it."""
+
+    inline = _inline_turn.get()
+    if inline is None or inline.outcome is not None:
+        return None
+    if request.session_id not in {inline.key, getattr(inline.agent, "session_id", None)}:
+        return None
+    return inline
 
 
 def _take(sid: str, message: Any) -> _Turn | None:
@@ -304,8 +373,8 @@ def _on_lost(home: Path) -> None:
 class _SessionActor:
     """Closing the actor closes its gateway session (the registry closes actors it retires)."""
 
-    def __init__(self, sid: str, key: str, home: Path) -> None:
-        self.sid, self.key, self.home = sid, key, home
+    def __init__(self, sid: str, key: str, home: Path, root: str | None) -> None:
+        self.sid, self.key, self.home, self.root = sid, key, home, root
         self.closed = False
 
 
@@ -342,7 +411,7 @@ def open_actor(execution: Any) -> Any:
         with contextlib.suppress(Exception):
             _call(home, "session.close", {"session_id": sid})
         raise ProfileRunnerError("the gateway reused a session this turn did not build")
-    actor = _SessionActor(sid, tip, home)
+    actor = _SessionActor(sid, tip, home, request.root_chat_session_id)
     with _lock:
         _actors[tip] = actor
     original_close = getattr(agent, "close", None)

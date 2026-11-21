@@ -201,6 +201,14 @@ class ProfileAgentRunner:
 
         from agent_runtime import operator_gateway_turn
 
+        inline = operator_gateway_turn.inline_turn(request)
+        if inline is not None:
+            # A completion the gateway delivered to this chat: already on its turn thread, on its agent.
+            execution = AgentRunExecution(self, binding, request, ledger=ledger)
+            execution.given_agent = inline.agent
+            inline.outcome = execution.run()
+            return inline.outcome
+
         # Acquisition has its own ledger: the turn's bounds are declared once, by the turn.
         acquisition = AgentRunExecution(self, binding, request, ledger=RunBudgetLedger())
         agent = acquisition.acquire_actor()
