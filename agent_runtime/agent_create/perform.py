@@ -227,6 +227,10 @@ class AgentCreate:
     #: is refused ``agent_name_required`` and an agent's name ``agent_name_taken``
     #: (review w1118a.41 D8). Placing names a seat, not an agent.
     NAMES_A_NEW_AGENT: bool = True
+    #: Whether the seat is optional: a create with no ``workspace_id`` makes an
+    #: UNSEATED agent (row ``RT-ONE-CREATE-VERB-MAKES-AN-AGENT-WITH-OR-WITHOUT-A-WORKSPACE``).
+    #: Placing IS a seat, so a place still requires one.
+    SEAT_OPTIONAL: bool = True
 
     def __init__(
         self, params: dict[str, Any], *, updated_by: str, persona: Any, caller: Any, requested_by: str = "operator",
@@ -272,7 +276,9 @@ class AgentCreate:
 
     def normalize(self, persona: Any) -> None:
         try:
-            self.request = normalize_agent_create(self.params, persona=persona)
+            self.request = normalize_agent_create(
+                self.params, persona=persona, seat_optional=self.SEAT_OPTIONAL
+            )
         except AgentCreateInvalid as exc:
             # ``rolled_back: True`` on EVERY arm of this except, and the claim is
             # structural rather than per-reason: :func:`normalize_agent_create`
@@ -308,6 +314,9 @@ class AgentCreate:
     def workspace_gate(self) -> None:
         from ..office_store import OfficeStore
 
+        if not self.request.seated:
+            # An unseated create opens no office surface and has none to find.
+            return
         self.store = OfficeStore()
         # Before the reservation, and before any store write: an unknown
         # workspace is the ONE refusal that must leave no receipt behind, or a
@@ -387,6 +396,9 @@ class AgentCreate:
         return self.place_and_finish()
 
     def replay(self, record: Any) -> AgentCreateOutcome:
+        if not self.request.seated:
+            # No actor to re-read: the recorded reply IS the agent as it was made.
+            return AgentCreateOutcome(result={**record.result, "idempotent_replay": True})
         # The recorded reply, through THE builder with nothing observed — so the
         # actor is re-read and a client that adopts it adopts the row as it is
         # NOW, not as it was when this key first completed (:func:`_reply`).
@@ -578,28 +590,24 @@ class AgentCreate:
         """A NEW agent: its own persona and profile, then its first instance
         (``TASK-INDEPENDENT-AGENT-CREATION``, 2026-11-18)."""
 
-        from ..agent_duplicate import AGENT_NAME_LOCK, name_is_taken
-        from ..locks import agent_create_lock
-        from ..persona_assignments.independent import create_independent_agent
-
-        # Checked and taken under the lock ``runtime.agent.duplicate`` names
-        # under, so two makers cannot both take one free name. Only a fresh key
-        # mints, so a same-key retry never meets its own agent's name here.
-        with agent_create_lock(AGENT_NAME_LOCK):
-            if name_is_taken(request.display_name):
-                raise AgentCreateNameTaken(request.display_name)
-            return create_independent_agent(
-                store,
-                source_persona_id=request.persona_id,
-                source_instance_id=request.source_instance_id,
-                placement_id=request.placement_id,
-                display_name=request.display_name,
-                workspace_id=request.workspace_id,
-                realm_id=request.realm_id,
-                client_scope=request.client_scope,
-            )
+        # Only a fresh key mints, so a same-key retry never meets its own
+        # agent's name here. An unseated create has no placement: its first
+        # instance is named from the idempotency key instead.
+        return mint_new_agent(
+            store,
+            source_persona_id=request.persona_id,
+            source_instance_id=request.source_instance_id,
+            placement_id=request.placement_id or None,
+            creation_key=None if request.seated else request.idempotency_key,
+            display_name=request.display_name,
+            workspace_id=request.workspace_id or None,
+            realm_id=request.realm_id,
+            client_scope=request.client_scope,
+        )
 
     def place_and_finish(self) -> AgentCreateOutcome:
+        if not self.request.seated:
+            return self.finish_unseated()
         placement_started = time.monotonic()
         actor = self.place()
         if isinstance(actor, AgentCreateOutcome):
@@ -711,11 +719,58 @@ class AgentCreate:
         return AgentCreateOutcome(result={**result, "idempotent_replay": False})
 
 
+    def finish_unseated(self) -> AgentCreateOutcome:
+        """The unseated create's answer: the agent, and no placement or skills phase.
+
+        No ``placement_id``, ``actor_key``, ``workspace_id``, ``position``,
+        ``actor``, ``revision``, ``actor_fresh`` or ``skills``: nothing was
+        seated, and the agent inherits its persona's skills.
+        """
+
+        result: dict[str, Any] = {
+            "persona_instance_id": self.instance.id,
+            "persona_id": self.instance.persona_id,
+            "profile_id": self.instance.profile_id,
+            "display_name": self.instance.display_name,
+            "default_chat_session_id": self.instance.default_chat_session_id,
+            **({"client_scope": self.request.client_scope} if self.request.client_scope is not None else {}),
+            "phases": {"instance_ms": self.instance_ms, "total_ms": self.elapsed_ms(self.started)},
+        }
+        if self.request.correlation_id:
+            result["correlation_id"] = self.request.correlation_id
+        self.reservation.mark_done(result, skills=None)
+        from ..gateway_announce import announce_roster_changed
+
+        announce_roster_changed()
+        return AgentCreateOutcome(result={**result, "idempotent_replay": False})
+
+
+def mint_new_agent(store: Any, **identity: Any) -> Any:
+    """THE making of a new agent: its own persona and profile, then its first
+    instance (``TASK-INDEPENDENT-AGENT-CREATION``), under the name rule.
+
+    Checked and taken under the lock ``runtime.agent.duplicate`` names under, so
+    two makers cannot both take one free name; a retry of the same placement or
+    key returns its own agent before the name is asked
+    (``create_independent_agent(refuse_taken_name=True)``). The one owner:
+    ``runtime.agent.create`` and the argv ``--independent-agent`` both call it,
+    so no door keeps its own lock-and-create (review w1118a.69).
+    """
+
+    from ..agent_duplicate import AGENT_NAME_LOCK
+    from ..locks import agent_create_lock
+    from ..persona_assignments.independent import create_independent_agent
+
+    with agent_create_lock(AGENT_NAME_LOCK):
+        return create_independent_agent(store, refuse_taken_name=True, **identity)
+
+
 class AgentPlace(AgentCreate):
     """One ``perform_agent_place`` call: :class:`AgentCreate`'s phases, minus the identity."""
 
     METHOD = "runtime.agent.place"
     NAMES_A_NEW_AGENT = False
+    SEAT_OPTIONAL = False
 
     def new_instance(self, store: Any, request: Any) -> Any:
         """One more instance of the EXISTING agent ``request.persona_id``."""
