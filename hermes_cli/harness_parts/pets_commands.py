@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from agent_runtime.cli_format import emit_json
+from agent_runtime.operation_result import emit_operation_result
 
 __layer__ = "lanes"
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "_pet_sheet_revision",
     "_pet_sprite_payload_for_launcher",
     "_pet_state_rows",
+    "pets_operation_result",
 ]
 
 
@@ -92,8 +94,25 @@ def _cmd_pets_gallery(args) -> int:
     data = {"ok": True, "localOnly": local_only, "pets": rows}
     if manifest_error:
         data["manifestError"] = manifest_error
-    print(emit_json(data) if getattr(args, "json", False) else json.dumps(data, indent=2))
+    emit_operation_result(args, data, json.dumps(data, indent=2))
     return 0
+
+
+def pets_operation_result(verb: str, **flags) -> dict:
+    """``harness pets <verb>``'s ``--json`` payload, run in process with ``flags`` as its parsed arguments.
+
+    The one body ``runtime.pets.gallery`` / ``.sprite`` / ``.install`` answer with
+    (RT-PETS-PAIRING-GATEWAY-ID-AND-UNPAIR-HAVE-THEIR-OWN-CALLS-ON-THE-RUNNING-HERMES): the verb keeps every rule,
+    and a refusal is its own ``{ok: false, error}`` payload.
+    """
+    from types import SimpleNamespace
+
+    handler = {"gallery": _cmd_pets_gallery, "sprite": _cmd_pets_sprite, "install": _cmd_pets_install}[verb]
+    rows: list[dict] = []
+    handler(SimpleNamespace(**flags, json=True, operation_result_sink=rows.append))
+    if len(rows) != 1:
+        raise RuntimeError(f"pets {verb} produced {len(rows)} results, not one")
+    return json.loads(emit_json(rows[0]))
 
 
 def _cmd_pets_install(args) -> int:
@@ -105,10 +124,10 @@ def _cmd_pets_install(args) -> int:
         pet = store.install_pet(slug, force=bool(getattr(args, "force", False)))
     except (store.PetStoreError, ManifestError) as exc:
         data = {"ok": False, "slug": slug, "error": str(exc)}
-        print(emit_json(data) if getattr(args, "json", False) else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     data = {"ok": True, "pet": _installed_pet_gallery_row(pet)}
-    print(emit_json(data) if getattr(args, "json", False) else json.dumps(data, indent=2))
+    emit_operation_result(args, data, json.dumps(data, indent=2))
     return 0
 
 
@@ -119,7 +138,7 @@ def _cmd_pets_sprite(args) -> int:
     pet = store.load_pet(slug)
     if pet is None or not pet.exists:
         data = {"ok": False, "slug": slug, "error": f"pet '{slug}' is not installed"}
-        print(emit_json(data) if getattr(args, "json", False) else data["error"])
+        emit_operation_result(args, data, data["error"])
         return 2
     data = {
         "ok": True,
@@ -127,7 +146,7 @@ def _cmd_pets_sprite(args) -> int:
             pet, include_sheet=not bool(getattr(args, "no_sheet", False))
         ),
     }
-    print(emit_json(data) if getattr(args, "json", False) else json.dumps(data, indent=2))
+    emit_operation_result(args, data, json.dumps(data, indent=2))
     return 0
 
 

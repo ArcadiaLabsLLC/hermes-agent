@@ -162,3 +162,24 @@ def test_a_reached_modules_bindings_are_read_off_its_skeleton_without_a_parse(tm
     assert "pkg/more.py" in reach
     assert parsed["K"] == ("enum", "", "pkg.kinds") and parsed["LATER"] == ("str", "later", "pkg.more")
     assert found == parsed
+
+
+def test_the_emitter_census_chunk_reads_each_call_as_plain_facts(tmp_path):
+    """FH-PREPUSH-TOUCHED-OVER-BUDGET-ON-THE-REGISTERED-EVENTS-EMITTER-FILE: S55's resolver now reads its calls
+    as facts a census worker sends back, never AST nodes. A starred argument must stay a fact of its own: the
+    resolver refuses any slot after one. KILLING MUTATION: drop the ``ast.Starred`` arm of ``_arg_fact`` ->
+    the starred argument reads as ``None`` and this reds."""
+    module = tmp_path / "emitters.py"
+    module.write_text(
+        'KIND = "run.closed"\n'
+        'OTHER = 3\n'
+        'class Board:\n'
+        '    def _event(self, kind, *, extra=None):\n'
+        '        return Event(now(), kind, *rest, type=KIND, **more)\n',
+        encoding="utf-8")
+    [(path, constants, functions)] = chunks.emitter_census_chunk([str(module)])
+    assert path == str(module) and constants == (("KIND", "run.closed"),)
+    [(name, positional, keyword_only, is_method, calls)] = functions
+    assert (name, positional, keyword_only, is_method) == ("_event", ("self", "kind"), ("extra",), True)
+    event = next(call for call in calls if call[0] == "Event")
+    assert event == ("Event", 5, (None, ("n", "kind"), ("*", "")), (("type", ("n", "KIND")), (None, ("n", "more"))))

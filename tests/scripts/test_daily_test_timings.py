@@ -162,3 +162,40 @@ def test_the_report_cli_writes_the_json_and_exits_0_even_with_nothing_recorded(t
     assert proc.stdout.startswith("    timings: none recorded")
     assert subprocess.run([sys.executable, str(REPO / "scripts" / "daily_test_timings.py")], capture_output=True,
                           stdin=subprocess.DEVNULL, timeout=60, check=False).returncode == 2
+
+
+# FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-OVER-BUDGET: the fold also keeps the clone's shared per-file
+# record, which prepush's touched step reads when a tree has none of its own. KILLING MUTATIONS: start the
+# merge from nothing (``merged = {}``) -> the file this fold did not run is dropped and this reds; drop the
+# never-finished loop in ``file_timings`` -> the killed file is recorded as 2 s and this reds.
+def test_the_fold_keeps_each_files_seconds_slowest_test_and_count_in_the_shared_record(tmp_path: Path):
+    where = tmp_path / "timings.d"
+    where.mkdir()
+    (where / "1.jsonl").write_text(_lines(
+        {"e": "start", "id": "tests/a/test_x.py::test_one", "t": 1.0},
+        {"e": "end", "id": "tests/a/test_x.py::test_one", "s": 30.0, "o": "failed", "t": 31.0},
+        {"e": "start", "id": "tests/a/test_x.py::test_two[p]", "t": 31.0},
+        {"e": "end", "id": "tests/a/test_x.py::test_two[p]", "s": 12.5, "o": "passed", "t": 43.5},
+        {"e": "start", "id": "tests/b/test_killed.py::test_quick", "t": 50.0},
+        {"e": "end", "id": "tests/b/test_killed.py::test_quick", "s": 2.0, "o": "passed", "t": 52.0},
+        {"e": "start", "id": "tests/b/test_killed.py::test_hangs", "t": 52.0},
+    ), encoding="utf-8")
+    (where / "2.jsonl").write_text(_lines(  # the retry: test_one counts at its slowest attempt
+        {"e": "start", "id": "tests/a/test_x.py::test_one", "t": 60.0},
+        {"e": "end", "id": "tests/a/test_x.py::test_one", "s": 3.0, "o": "passed", "t": 63.0},
+    ), encoding="utf-8")
+    record = tmp_path / "hermes-test-timings.json"
+    record.write_text('{"schema": 1, "updated": "x", "files": {\n  "tests/c/test_old.py": [40.0, 10.0, 4]\n}}\n',
+                      encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(REPO / "scripts" / "daily_test_timings.py"), str(where),
+                           str(tmp_path / "out.json"), "--shared-record", str(record)],
+                          capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=60, check=False)
+    assert proc.returncode == 0, proc.stderr
+    assert f"    shared timings: 2 file(s) into {record}" in proc.stdout.splitlines()
+    files = json.loads(record.read_text(encoding="utf-8"))["files"]
+    assert files["tests/a/test_x.py"] == [42.5, 30.0, 2]
+    assert files["tests/c/test_old.py"] == [40.0, 10.0, 4]  # not run today: kept
+    killed = files["tests/b/test_killed.py"]
+    assert killed[2] == 2 and killed[0] > 2.0  # the hung test counts at what it ran before the kill
+    # One file per line, the shape prepush's one-line grep reads.
+    assert '  "tests/a/test_x.py": [42.5, 30.0, 2],' in record.read_text(encoding="utf-8").splitlines()

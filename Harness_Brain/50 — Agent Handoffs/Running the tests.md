@@ -399,7 +399,15 @@ twice the step's measured wall under that load; one whole-run cap bounds the run
 - **The touched lane shards**: a file this tree last ran in `PREPUSH_SHARD_MIN` (20) s or more runs as
   `ceil(last / 10)` node-id shards (at most 4) side by side, by `scripts/_bundle_plugin/hermes_shard.py`,
   unless `scripts/test_files_unsharded.txt` lists it. The record is the runner's own
-  `test_durations.json` (git-ignored), so a fresh tree's first push runs whole.
+  `test_durations.json` (git-ignored); a file the tree has no record for reads the clone's shared
+  record, `<git common dir>/hermes-test-timings.json`, which every worktree of the clone shares and the
+  daily run's per-test fold keeps current (`scripts/daily_test_timings.py --shared-record`; one line per
+  file: seconds, slowest test, test count). A fresh tree's first push used to run every heavy file whole
+  (FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-OVER-BUDGET). From the shared record a file never gets more
+  shards than tests, and a file whose tests beyond its slowest add up to under `PREPUSH_SHARD_MIN` runs
+  whole: its cost is one test or one whole-tree walk per process, which every shard would pay again. To
+  seed or refresh the record by hand, fold a daily run's timings:
+  `python scripts/daily_test_timings.py <out>/suite.timings.d <out>/suite.timings.json --shared-record "$(bash scripts/prepush.sh --shared-timings-path)"`.
 - **The overrun ledger** (FH-PREPUSH-OVERRUN-LEDGER): every step past its budget (`slow`), killed at its
   deadline (`killed`) or stopped by the cap (`capped`) appends one JSON line to
   `_lane_logs/prepush_overruns.jsonl` (untracked; `PREPUSH_LEDGER` moves it): `ts`, `step`, `outcome`,

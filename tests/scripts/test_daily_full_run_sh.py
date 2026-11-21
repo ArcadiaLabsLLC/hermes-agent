@@ -272,3 +272,8 @@ def test_every_pytest_step_writes_its_timings_and_the_summary_names_the_hung_and
     assert summary.count("NEVER FINISHED (hung or killed): tests/t.py::test_hang") == 2
     assert summary.count("over 10s: 12.50s passed tests/t.py::test_slow") == 2
     assert "NEVER FINISHED (hung or killed): tests/t.py::test_hang" in proc.stdout  # said at once, too
+    # The fold also keeps the clone's shared per-file record, the one prepush's touched step falls back to
+    # (FH-PREPUSH-TOUCHED-NATIVE-LARGE-RECOVERY-OVER-BUDGET). KILLING MUTATION: drop ``shared=(--shared-record
+    # …)`` from ``_fold_timings`` -> no record and this reds.
+    shared = tree / ".git" / "hermes-test-timings.json"
+    assert json.loads(shared.read_text(encoding="utf-8"))["files"]["tests/t.py"][2] == 3

@@ -8,7 +8,11 @@ split their whole-tree walks over worker processes and merge the chunks in file 
   and ``ladder_census``);
 * :func:`duplicate_chunk` — W0-G3 fork-wide (``god_file_probe.duplicate_census``);
 * :func:`signature_hash_chunk` — W0-G3's agent_runtime arm, the test's ``_GRANDFATHERED`` rows:
-  module-level functions only, the signature normalized and the other locals left alone.
+  module-level functions only, the signature normalized and the other locals left alone;
+* :func:`emitter_census_chunk` — S55's emitter gate (``tests/agent_runtime/test_s55_registered_events_have_emitters.py``):
+  each file's module string constants and its functions' calls, as plain data the resolver re-reads
+  (FH-PREPUSH-TOUCHED-OVER-BUDGET-ON-THE-REGISTERED-EVENTS-EMITTER-FILE: one process parsed and indexed the
+  whole production tree, 103.9 s as a touched file under load).
 
 They live outside ``god_file_probe.py`` so the probe stays under its own size ceiling; the probe
 is imported when a chunk runs (it imports this module at its top).
@@ -199,4 +203,60 @@ def signature_hash_chunk(paths: Iterable[str], root: Path, min_lines: int) -> li
                 continue
             _normalize_signature(clone)
             out.append((hashlib.sha256(ast.unparse(clone).encode()).hexdigest()[:12], path, node.name))
+    return out
+
+
+def _arg_fact(node: ast.expr) -> tuple[str, str] | None:
+    """One call argument as the S55 resolver reads it: ``("s", literal)`` a string constant, ``("n", name)``
+    a bare name, ``("*", "")`` a starred argument, ``None`` anything else."""
+    if _is_str(node):
+        return ("s", node.value)
+    if isinstance(node, ast.Name):
+        return ("n", node.id)
+    if isinstance(node, ast.Starred):
+        return ("*", "")
+    return None
+
+
+def emitter_census_chunk(paths: Iterable[str]) -> list[tuple[str, tuple, tuple]]:
+    """``(path, constants, functions)`` per parsed file of a chunk, in order, for the S55 emitter resolver.
+
+    ``constants``: the module-level ``NAME = "literal"`` pairs, in source order. ``functions``: one
+    ``(name, positional, keyword_only, is_method, calls)`` per function that calls anything, where a call is
+    ``(callee_name, lineno, args, keywords)`` and each argument a fact (:func:`_arg_fact`); ``keywords`` keeps
+    ``(arg, fact)`` with ``arg`` ``None`` for ``**kwargs``. Plain data, so it pickles back from a worker."""
+    from scripts import source_cache
+
+    out: list[tuple[str, tuple, tuple]] = []
+    for path in paths:
+        tree = source_cache.tree(path, keep=False)
+        if tree is None:
+            continue
+        constants = tuple(
+            (target.id, node.value.value)
+            for node in tree.body
+            if isinstance(node, ast.Assign) and _is_str(node.value)
+            for target in node.targets
+            if isinstance(target, ast.Name)
+        )
+        functions = []
+        for func in [n for n in ast.walk(tree) if isinstance(n, _FUNCS)]:
+            args = func.args
+            positional = tuple(a.arg for a in (*args.posonlyargs, *args.args))
+            keyword_only = tuple(a.arg for a in args.kwonlyargs)
+            is_method = bool(positional) and positional[0] in {"self", "cls"}
+            calls = []
+            for call in [n for n in ast.walk(func) if isinstance(n, ast.Call)]:
+                callee = call.func
+                if isinstance(callee, ast.Name):
+                    name = callee.id
+                elif isinstance(callee, ast.Attribute):
+                    name = callee.attr
+                else:
+                    continue
+                calls.append((name, call.lineno, tuple(_arg_fact(a) for a in call.args),
+                              tuple((kw.arg, _arg_fact(kw.value)) for kw in call.keywords)))
+            if calls:
+                functions.append((func.name, positional, keyword_only, is_method, tuple(calls)))
+        out.append((path, constants, tuple(functions)))
     return out
