@@ -61,8 +61,8 @@ def model(chat_head):
     held.close()
 
 
-def _chat(instance: str, key: str) -> str:
-    return _call(dict(persona_id=PERSONA, persona_instance_id=instance, new_session=True,
+def _chat(instance: str, key: str, persona: str = PERSONA) -> str:
+    return _call(dict(persona_id=persona, persona_instance_id=instance, new_session=True,
                       idempotency_key=key, client_scope=OWNER))["result"]["session_id"]
 
 
@@ -73,7 +73,8 @@ def test_agent_b_is_built_and_answers_while_agent_a_waits_on_its_model_call(plac
         display_name="Second Agent")))
     b = second["result"]["persona_instance_id"]
     assert a != b
-    root_a, root_b = _chat(a, "chat-a"), _chat(b, "chat-b")
+    # An authored agent is its own private persona now (03a63a0010), so B's chat names B's persona.
+    root_a, root_b = _chat(a, "chat-a"), _chat(b, "chat-b", second["result"]["persona_id"])
     held = operator_turn(a, root_a, "msg-a", HELD)
     assert model.entered.wait(60), "agent A's turn never reached the model"
 
