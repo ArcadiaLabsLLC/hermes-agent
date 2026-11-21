@@ -85,11 +85,28 @@ def _import_gateway_keeping_stdout() -> None:
     An in-process peer speaks no stdio, and the serve that hosts it answers every request on stdout
     (``harness_parts.serve.frames``): left in place, the swap turns each later reply line into a stderr
     frame (a Mission Control reply printed after the first conversation opened never reached the client).
+
+    The import runs under the PROCESS's own home, never the profile a turn is scoped to: the gateway
+    captures its launch home at import (``server._hermes_home``), and a named profile whose home equals it
+    is read as the launch profile, whose sessions are the launch store's. On a phone the first import
+    is the first chat turn, under the agent's own profile (``neko``), so the gateway took ``neko`` for
+    its launch home, read the agent's chats from the serve root's store and refused every resume
+    "session not found" (RT-FU-A-PHONE-AGENT-WITH-ITS-OWN-PROFILE-SENDS-WITHOUT-PYDANTIC).
+    MUTATION: import without the scope and test_operator_gateway_turn's
+    ``test_the_gateway_is_imported_under_the_process_home_not_the_turns_profile`` reddens.
     """
     if "tui_gateway.server" in sys.modules:
         return
+    from hermes_constants import (
+        get_routing_process_hermes_home, reset_hermes_home_override, set_hermes_home_override,
+    )
+
     held = sys.stdout
-    _import_module("tui_gateway.server")
+    token = set_hermes_home_override(get_routing_process_hermes_home())
+    try:
+        _import_module("tui_gateway.server")
+    finally:
+        reset_hermes_home_override(token)
     if sys.stdout is not held:
         sys.stdout = held
 
