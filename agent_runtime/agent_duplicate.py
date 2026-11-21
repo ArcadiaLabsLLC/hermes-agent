@@ -18,25 +18,22 @@ holds keeps opening. The persona's own canonical instance is never re-pointed
 
 from __future__ import annotations
 
-import os
 import re
 import shutil
-import tempfile
 import uuid
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from hermes_cli.profiles import get_profile_dir
-from hermes_cli.profiles_initialization import finish_profile_layout
 from hermes_constants import get_hermes_home
 
-from . import yaml_io
+from .agent_profile_create import create_agent_profile, free_profile_name
 from .bundled_agents import SHIPPED_AGENTS, shipped_soul_for_turn
 from .config import ensure_persisted_personas
 from .locks import agent_create_lock
 from .models import AgentPersona
 from .persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
-from .persona_assignments.independent import _OWNER_FILE, _carried_model_config
+from .persona_assignments.independent import _carried_model_config
 from .seat_follow import follow_seat
 from .store import AgentStore
 
@@ -105,9 +102,7 @@ def _free_id(slug: str, roster: list[AgentPersona]) -> str:
 
 
 def _free_profile(slug: str) -> str:
-    profile = slug.replace("_", "-")
-    home = get_profile_dir(profile)
-    return profile if not (home.exists() or home.is_symlink()) else f"{profile}-{uuid.uuid4().hex[:8]}"
+    return free_profile_name(slug.replace("_", "-"))
 
 
 def _copy_entry(source: Path, target: Path) -> None:
@@ -120,22 +115,26 @@ def _copy_entry(source: Path, target: Path) -> None:
 
 
 def _stage_duplicate_profile(
-    home: Path, source_home: Path | None, model_home: Path, soul: str | None, source_id: str,
+    profile: str, source_home: Path | None, model_home: Path, soul: str | None, source_id: str,
 ) -> None:
-    home.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=home.parent, prefix=f".{home.name}-") as temp:
-        stage = Path(temp) / "profile"
-        stage.mkdir()
-        if source_home is not None and source_home.is_dir() and not source_home.is_symlink():
-            for entry in _AGENT_FILES:
-                _copy_entry(source_home / entry, stage / entry)
-        config = _carried_model_config(model_home)
-        (stage / "config.yaml").write_text(yaml_io.dump(config), encoding="utf-8")
-        finish_profile_layout(stage, no_skills=False, clone_all=False, description=None, soul=soul)
-        # The copy's own profile carries the owner marker the independent create writes, so
-        # ``agent_copy_delete`` may remove it with the copy (RT-AN-INDEPENDENT-COPY-CANNOT-BE-DELETED).
-        (stage / _OWNER_FILE).write_text(f"duplicate\n{source_id}", encoding="utf-8")
-        os.rename(stage, home)
+    """The copy's home, made by the one profile creator (``agent_profile_create``), then
+    filled with the source's agent files. A given ``soul`` (the shipped one) wins over the
+    source's ``SOUL.md``, as ``finish_profile_layout(soul=…)`` did after the old copy."""
+
+    def populate(stage: Path) -> None:
+        if source_home is None or not source_home.is_dir() or source_home.is_symlink():
+            return
+        for entry in _AGENT_FILES:
+            if entry == "SOUL.md" and soul is not None:
+                continue
+            _copy_entry(source_home / entry, stage / entry)
+
+    # The copy's own profile carries the owner marker the independent create writes, so
+    # ``agent_copy_delete`` may remove it with the copy (RT-AN-INDEPENDENT-COPY-CANNOT-BE-DELETED).
+    create_agent_profile(
+        profile, owner=f"duplicate\n{source_id}", config=_carried_model_config(model_home), soul=soul,
+        populate=populate,
+    )
 
 
 def _duplicate_source(persona_id: str, roster: list[AgentPersona]) -> AgentPersona:
@@ -192,7 +191,7 @@ def duplicate_agent(persona_id: str, name: str, *, instance_id: str | None = Non
         # sign-in), as ``independent.py::_profile_source`` falls back to the head home.
         model_home = source_home if source_home is not None else Path(get_hermes_home())
         soul = shipped_soul_for_turn(source)
-        _stage_duplicate_profile(get_profile_dir(profile), source_home, model_home, soul, source.id)
+        _stage_duplicate_profile(profile, source_home, model_home, soul, source.id)
         copy = AgentStore().save(replace(
             source,
             id=_free_id(slug, roster),
