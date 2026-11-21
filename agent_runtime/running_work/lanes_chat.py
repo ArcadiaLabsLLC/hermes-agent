@@ -104,6 +104,11 @@ DELEGATION_STATUS_BY_RECORD: Mapping[str, str] = MappingProxyType(
 DELEGATION_RECORD_RUNNING = "running"
 
 
+def _stoppable_here(turn_id: str) -> bool:
+    from agent_runtime.live_turns import stoppable_here
+
+    return stoppable_here(turn_id)
+
 def _delegation_status(
     record: dict[str, Any], *, idle_stale: float, in_tool_stale: float
 ) -> str:
@@ -559,10 +564,10 @@ class ChatTurnLane(LanePass):
                 started.timestamp() if started is not None else None, now=self.now
             ),
             progress=_progress(available=False),
-            # Chat turns are interrupted through the chat lane's own authority
-            # (turn-resolve / the steer marker), never by this verb — see
-            # ``cancel_work``. Their foreground ``tool_call`` children are.
-            cancellable=bool(run_pass),
+            # The conversation's Stop, through ``cancel_work`` (RT-STOP-REACHES-EVERY-RUNNING-REPLY-
+            # THROUGH-ONE-SEAM): offered for a Work pass (it ends the run) and for any reply this
+            # process can reach now — never advertised for one it cannot.
+            cancellable=bool(run_pass) or (not ended and _stoppable_here(turn_id)),
             # Whether a steer sent now lands in THIS turn — the steer door's own read, so the client
             # never infers it from the turn's kind or its id (a Work turn takes one, a forged one not).
             extra={"title": "", "current_tool": None, **run_pass,
