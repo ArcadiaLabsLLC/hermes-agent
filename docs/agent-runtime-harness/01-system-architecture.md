@@ -64,17 +64,31 @@ still travels on realm publish, and admits nothing.
 
 **2 — Durable persona instance (the placement).** `PersonaInstance`
 (`models.py:310`). Stable identity, outlives any one chat. Ids are structurally
-prefixed `personainst_` (`models.py:15`), and there are exactly two derivations:
+prefixed `personainst_` (`models.py:15`).
 
-- the **canonical operator channel** — `persona_instance_id_for(persona_id)`
-  (in `persona_assignments.py`), e.g. `personainst_profile_alice`;
-- a **placement-backed** row — `persona_instance_id_for_placement(placement_id)`
-  (its neighbour there), whose tail is the scene `itemId`.
+**An agent's template is its persona; every live agent is a placed instance** (owner RULED
+2026-11-21, plan [planned/agent-template-vs-canonical-instance-2026-11-21.md](planned/agent-template-vs-canonical-instance-2026-11-21.md);
+row `RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT`). Hermes makes no hidden copy of an agent:
+a persona with no instance is a template (Base included), and a new instance is placed in a
+workspace — `persona_instance_id_for_placement(placement_id)`, whose tail is the scene `itemId`,
+or one named from the create key. There is no canonical predicate and no special instance:
+retire, duplicate and delete act on any instance alike.
 
-`is_canonical_persona_channel` is the live discriminator between them. A canonical
-channel carries no scene claim: the store's decode (`persona_assignments/store.py::_decode_stored_instance`)
-reads its `workspace_id` / `realm_id` as `None`, the bind stamps none, and the reconciler's
-phase 6 clears any an older bind stored (`canonical_scope_cleared`).
+The hidden copy `personainst_<persona>` (`persona_instance_id_for(persona_id)`) every agent used to
+get is settled by the reconciler's phase 7 and at every serve boot (`persona_instance_adoption.py`):
+a copy holding anything (a chat, a goal, Work, folder slots, a gateway binding) is adopted into the
+Default workspace keeping its id; an empty one, or one holding only saved chats known from their
+transcripts, is archived through retire's archive, its chats still listed under its agent in Chat
+history; one neither can take is held machine-local. Adopted and held rows carry the
+`adopted_from_global` stamp, which keeps them off realm publish, drift, peer rosters and
+`peer.thread.read`. The one id of that shape still opened is a profile's own channel
+`personainst_profile_<name>` (a `profile_<name>` persona is not placeable), stamped machine-local
+when it is minted.
+
+**Channels.** A **live** chat belongs to an instance: the chat it has loaded and runs turns in. The
+agent's **saved chat history** stays the agent's, and an instance loads one of those chats on
+demand (`persona_chat_move.move_chat`, the move ledger). An operator channel entry is a live chat on
+an instance; a saved chat whose holder was retired lists under its agent, flagged `holder_retired`.
 Every id arriving from outside the store passes the single derivation authority
 `canonical_persona_instance_id` (both in the same file), which folds the two structurally
 recognizable drift schemes; ids predating that chokepoint are folded by
@@ -177,9 +191,8 @@ on this level*. So:
 
 - **placed** — a live instance-keyed `OfficeActor` whose `persona_instance_id`
   names a live `PersonaInstance` row. Both halves, or it is not placed.
-- **unplaced row** — a live placement-backed row (`is_canonical_persona_channel`
-  is the discriminator; a canonical operator channel is not a placement and
-  never was) that no live actor references. A **notice**, not a defect: one
+- **unplaced row** — a live placement-backed row (one standing in a workspace)
+  that no live actor references. A **notice**, not a defect: one
   holding a workspace is seated by `harness persona seat-unseated` (or, when its
   desk was deleted, restored with `harness office actor-restore`); one with no
   workspace stands on no level by design.
@@ -301,12 +314,12 @@ bare-persona resolution only** (`agent_runtime/workspace_scope.py`):
 - A non-`None` pointer is a "belongs to THIS workspace" claim.
 - A scope of `None` (no active workspace) degrades to unscoped rather than
   hiding the roster.
-- `exclude_global_canonicals` (`:191`) — a persona's auto-derived canonical row
-  is never advertised into a real workspace scope, because instance means
-  in-level placement.
-- `shadow_canonical_by_placement` (`:150`) — where an in-scope placement
-  exists, a bare persona id lands on the deliberate placement, not the plumbing
-  row.
+- `exclude_held_copies` — a hidden copy the migration held machine-local
+  (stamped, in no workspace) is never advertised nor bare-persona-resolved; its
+  handle still reaches it.
+- A bare persona id with no instance in reach is placed (the operator's own open
+  or send: reuse idle, else place in the Default workspace) or refused
+  `no_instance_in_scope` (an agent's send), never sent to a hidden copy.
 
 Explicit `personainst_*` targeting stays legal cross-workspace, and identity
 lookups always read the full unfiltered roster — a steering edge into another
@@ -608,11 +621,11 @@ The lane that closes it is one more family applier, and nothing else:
   family × kind. The revert routes through the FAMILY's admission door, not just
   the shared scan, or a revert would admit a body its own pull would refuse.
 
-Scope is placement-backed rows only. Canonical channel rows
-(`is_canonical_persona_channel`) are derived identically on every machine
-already; publish SKIPS them and the pull door REFUSES them
-(`canonical_channel_not_replicable`), which is what keeps the lane independent of
-the queued global-singleton redesign. The ack is
+Scope is placement-backed rows only. A machine-local row (an adopted or held
+hidden copy, stamped `adopted_from_global`) is SKIPPED by publish (`skipped_local`),
+and the pull door REFUSES a body under a hidden-copy id
+(`canonical_channel_not_replicable`): nothing mints one, so a peer sending one is
+an older id scheme or an attack that would collide with a machine-local row here. The ack is
 `result["persona_instance_sync"]`, emitted unconditionally with
 `source: "projection" | "unreadable" | null` — an omitted key cannot tell an
 older PEER apart from an older local hermes, and the launcher has to tell them
@@ -1038,8 +1051,9 @@ and the final acceptance are in
 - **One template, one Library card; instances are never rendered as templates.**
   Level multiplicity is a feature; Library dedupe is a different surface. The
   "double Alice" defect was the two being conflated.
-- **A persona-instance id is derived, never invented** — canonical from the
-  persona id, or placement-derived from the scene `itemId`. Never a per-call
+- **A persona-instance id is derived, never invented** — placement-derived from
+  the scene `itemId`, or named from the create key (the hidden-copy id
+  `personainst_<persona>` is no longer minted, a profile's own channel aside). Never a per-call
   UUID: that is what minted the duplicate rows the reconciler now folds, and it
   is why level multiplicity is attributed rather than orphaned.
 - **The chat root is independent of everything else on the row.** Opening
@@ -1116,8 +1130,10 @@ Each links to a `planned/` file carrying its evidence and the gate to open it.
   Charter's four questions are unanswered for every candidate →
   [archive/graph-node-taxonomy-and-subgraphs.md](archive/graph-node-taxonomy-and-subgraphs.md) (parked 2026-10-27)
 - 2026-10-27 — **the global-singleton persona-instance redesign**: canonical channels
-  are global in storage (S1 shipped); the bare-persona SEND fallback stays →
-  [planned/canonical-channel-global-storage-2026-10-27.md](planned/canonical-channel-global-storage-2026-10-27.md)
+  are global in storage (S1 shipped) → superseded 2026-11-21 by the template ruling
+  (no hidden copy, every live agent placed; the bare-persona send fallback is gone) →
+  [planned/canonical-channel-global-storage-2026-10-27.md](planned/canonical-channel-global-storage-2026-10-27.md),
+  [planned/agent-template-vs-canonical-instance-2026-11-21.md](planned/agent-template-vs-canonical-instance-2026-11-21.md)
 - 2026-08-24 — **a character's state vocabulary is fixed at `start`**: there is
   no `characters add-state`, so adding a strip to an installed sheet means
   re-authoring the character →
