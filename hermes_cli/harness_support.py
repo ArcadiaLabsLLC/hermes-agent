@@ -69,6 +69,7 @@ __all__ = [
     "_table_output",
     "emit_harness_error",
     "harness_repo_root",
+    "stage42_operation_result",
 ]
 
 
@@ -551,6 +552,12 @@ def _load_request_json(raw: str) -> dict:
 
 
 def _print_stage42(data: dict, *, args, default_output: str | None = None) -> None:
+    sink = getattr(args, "operation_result_sink", None)
+    if sink is not None:
+        # The typed serve door (``stage42_operation_result``): the same envelope, handed over instead of
+        # printed. MUTATION: drop this branch and test_gateway_actions' methods find no envelope, red.
+        sink(data)
+        return
     output = "json" if getattr(args, "json", False) else (getattr(args, "output", None) or default_output or ("table" if sys.stdout.isatty() else "json"))
     data = _apply_fields(data, getattr(args, "fields", None))
     if getattr(args, "quiet", False):
@@ -564,6 +571,26 @@ def _print_stage42(data: dict, *, args, default_output: str | None = None) -> No
         print(yaml_io.dump(json.loads(emit_json(data)), sort_keys=False, allow_unicode=True))
     else:
         print(_table_output(data, wide=output == "wide"))
+
+
+def stage42_operation_result(handler, **flags) -> dict:
+    """Run one Stage-42 verb in process and answer the ONE envelope it would have printed.
+
+    The translation shim the running serve's typed methods use (RT-PETS-PAIRING-GATEWAY-ID-AND-UNPAIR-HAVE-THEIR-
+    OWN-CALLS-ON-THE-RUNNING-HERMES): the verb's own handler runs with ``flags`` as its parsed arguments, every
+    rule and refusal stays the verb's, and nothing reaches stdout. A refusal is the verb's own error envelope
+    (``kind: "error"``). ``flags`` are the verb's argparse destinations; anything it does not read is ignored.
+    """
+
+    from types import SimpleNamespace
+
+    rows: list[dict] = []
+    args = SimpleNamespace(json=True, output="json", fields=None, quiet=False, **flags)
+    args.operation_result_sink = rows.append
+    handler(args)
+    if len(rows) != 1:
+        raise RuntimeError(f"{getattr(handler, '__name__', 'verb')} produced {len(rows)} envelopes, not one")
+    return json.loads(emit_json(rows[0]))
 
 
 def _apply_fields(data: dict, fields_text: str | None) -> dict:

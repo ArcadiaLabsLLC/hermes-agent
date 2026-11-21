@@ -12,6 +12,7 @@ __all__ = [
     "CHARACTERS_METHOD_PARAMS",
     "CHAT_VERB_METHOD_PARAMS",
     "COURSE_METHOD_PARAMS",
+    "GATEWAY_ACTION_METHOD_PARAMS",
     "HEALTH_METHOD_PARAMS",
     "PERSONA_TOOLSET_METHOD_PARAMS",
     "PETS_METHOD_PARAMS",
@@ -33,7 +34,21 @@ CHARACTERS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 }
 
 #: ``runtime.pets.thumb`` (``serve_rpc/pets.py``), the method twin of ``harness pets thumb``.
-PETS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.pets.thumb": ("slug", "url")}
+PETS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.pets.gallery": ("limit", "local_only", "query"),
+    "runtime.pets.install": ("force", "slug"),
+    "runtime.pets.sprite": ("include_sheet", "slug"),
+    "runtime.pets.thumb": ("slug", "url"),
+}
+
+#: ``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` / ``.peers.revoke`` (``serve_rpc/gateway_actions.py``),
+#: the method twins of the ``harness gateway`` verbs; each key is the verb's own argparse destination.
+GATEWAY_ACTION_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    "runtime.gateway.id": (),
+    "runtime.gateway.introduce": ("correlation", "for_device", "for_install", "note"),
+    "runtime.gateway.peers.join": ("correlation", "expect_fingerprint", "host", "payload", "port"),
+    "runtime.gateway.peers.revoke": ("peer_install_id",),
+}
 
 #: ``runtime.profiles.avatar`` (``serve_rpc/profiles.py``), a profile's avatar bytes for a remote reader.
 PROFILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
@@ -108,6 +123,7 @@ PERSONA_TOOLSET_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 TWIN_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     **CHARACTERS_METHOD_PARAMS,
     **PETS_METHOD_PARAMS,
+    **GATEWAY_ACTION_METHOD_PARAMS,
     **PROFILES_METHOD_PARAMS,
     **HEALTH_METHOD_PARAMS,
     **CHAT_VERB_METHOD_PARAMS,

@@ -161,8 +161,12 @@
     "runtime.embed.texts",
     "runtime.events.after",
     "runtime.flow.apply",
+    "runtime.gateway.id",
+    "runtime.gateway.introduce",
     "runtime.gateway.listen.set",
+    "runtime.gateway.peers.join",
     "runtime.gateway.peers.list",
+    "runtime.gateway.peers.revoke",
     "runtime.gateway.peers.roster",
     "runtime.gateway.peers.subscribe",
     "runtime.harness.skills.sync",
@@ -325,6 +329,9 @@
     "runtime.persona.set_skills",
     "runtime.persona.toolset.approve",
     "runtime.persona.toolset.list",
+    "runtime.pets.gallery",
+    "runtime.pets.install",
+    "runtime.pets.sprite",
     "runtime.pets.thumb",
     "runtime.prefab.clear",
     "runtime.prefab.get",
@@ -805,6 +812,23 @@
       "persona_id",
       "title"
     ],
+    "runtime.gateway.id": [],
+    "runtime.gateway.introduce": [
+      "correlation",
+      "for_device",
+      "for_install",
+      "note"
+    ],
+    "runtime.gateway.peers.join": [
+      "correlation",
+      "expect_fingerprint",
+      "host",
+      "payload",
+      "port"
+    ],
+    "runtime.gateway.peers.revoke": [
+      "peer_install_id"
+    ],
     "runtime.health": [],
     "runtime.operator.conversation.list": [
       "all_accounts",
@@ -1031,6 +1055,19 @@
     ],
     "runtime.persona.toolset.list": [
       "persona_id"
+    ],
+    "runtime.pets.gallery": [
+      "limit",
+      "local_only",
+      "query"
+    ],
+    "runtime.pets.install": [
+      "force",
+      "slug"
+    ],
+    "runtime.pets.sprite": [
+      "include_sheet",
+      "slug"
     ],
     "runtime.pets.thumb": [
       "slug",
@@ -1318,8 +1355,12 @@
     "runtime.embed.texts": "console",
     "runtime.events.after": "read",
     "runtime.flow.apply": "console",
+    "runtime.gateway.id": "read",
+    "runtime.gateway.introduce": "console",
     "runtime.gateway.listen.set": "console",
+    "runtime.gateway.peers.join": "console",
     "runtime.gateway.peers.list": "read",
+    "runtime.gateway.peers.revoke": "console",
     "runtime.gateway.peers.roster": "console",
     "runtime.gateway.peers.subscribe": "read",
     "runtime.harness.skills.sync": "console",
@@ -1482,6 +1523,9 @@
     "runtime.persona.set_skills": "console",
     "runtime.persona.toolset.approve": "console",
     "runtime.persona.toolset.list": "console",
+    "runtime.pets.gallery": "read",
+    "runtime.pets.install": "console",
+    "runtime.pets.sprite": "read",
     "runtime.pets.thumb": "read",
     "runtime.prefab.clear": "console",
     "runtime.prefab.get": "console",

@@ -46,6 +46,8 @@ work                     lanes   ``runtime.work.cancel`` / ``.restart`` (Stop an
 media                    lanes   ``runtime.media.index/get``
 peer                     lanes   the ``peer.*`` verbs
 gateway_peers            lanes   ``runtime.gateway.peers.*``
+gateway_actions          lanes   ``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` /
+                                 ``.peers.revoke`` (the ``harness gateway`` verbs, run in process)
 provider                 lanes   ``runtime.provider.*`` (catalog, sign-in, usage)
 default_model            lanes   ``runtime.default_model.set`` (the serve profile's
                                  ``model.default`` / ``model.provider``)
@@ -69,7 +71,9 @@ course                   lanes   ``runtime.course.*`` (agent authoring on a git
 characters               lanes   ``runtime.characters.list/status/thumb/sprite/recolour``
                                  (the character-sheet read twins; recolour writes)
 pets                     lanes   ``runtime.pets.thumb`` (a pet's idle-frame portrait,
-                                 bytes inline; ``agent/pet/store.py``)
+                                 bytes inline; ``agent/pet/store.py``) and
+                                 ``runtime.pets.gallery`` / ``.sprite`` / ``.install`` (the
+                                 ``harness pets`` verbs' payloads, run in process)
 profiles                 lanes   ``runtime.profiles.avatar`` (a profile's avatar image,
                                  bytes inline; ``profile_context._profile_home_for_token``)
 character_assignment     lanes   ``runtime.character.assignment.*`` (shared agent identity)
@@ -127,6 +131,7 @@ from agent_runtime.serve_rpc import (
     media,
     peer,
     gateway_peers,
+    gateway_actions,
     provider,
     default_model,
     speech,
