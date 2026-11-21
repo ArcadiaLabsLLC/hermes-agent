@@ -360,6 +360,37 @@ def test_importing_the_engine_in_process_leaves_the_serves_stdout_alone(monkeypa
     assert sys.stdout is serve_stdout
 
 
+def test_the_gateway_is_imported_under_the_process_home_not_the_turns_profile(monkeypatch, tmp_path):
+    # The gateway captures its launch home at import (``server._hermes_home``). On a phone the first
+    # import is an agent's first chat turn, scoped to its own profile; captured there, the gateway read
+    # that profile as the launch one and refused every resume "session not found" (the owner's phone,
+    # RT-FU-A-PHONE-AGENT-WITH-ITS-OWN-PROFILE-SENDS-WITHOUT-PYDANTIC). Positive control: the turn's own
+    # scope reads the agent's home. Red when the import runs without the process-home scope.
+    import sys
+
+    from hermes_constants import get_hermes_home, reset_hermes_home_override, set_hermes_home_override
+
+    from agent_runtime.conversations import in_process_peer
+
+    root, agent_home = tmp_path / "root", tmp_path / "root" / "profiles" / "neko"
+    agent_home.mkdir(parents=True)
+    monkeypatch.setenv("HERMES_HOME", str(root))
+    monkeypatch.setattr(sys, "stdout", sys.stdout)
+    monkeypatch.delitem(sys.modules, "tui_gateway.server", raising=False)
+    seen = []
+    monkeypatch.setattr(in_process_peer, "_import_module", lambda name: seen.append(get_hermes_home()))
+
+    token = set_hermes_home_override(agent_home)  # the agent's turn
+    try:
+        assert get_hermes_home() == agent_home
+        in_process_peer._import_gateway_keeping_stdout()
+        assert get_hermes_home() == agent_home  # the turn's own scope is put back
+    finally:
+        reset_hermes_home_override(token)
+
+    assert seen == [root]
+
+
 # ── a second profile's turn on the engine reads its own secrets (RT-FU-A-HELPERS-FIXTURE-TURN-…) ──
 
 
