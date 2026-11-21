@@ -12,6 +12,15 @@ from tests.agent_runtime.operator_lane_fixture import OperatorLane
 from tests.agent_runtime.test_operator_conversation_attachment import call, fixture
 
 SEND = "runtime.chat.message"
+
+
+def _handler(target, key):
+    """The turn handler's stop handle, which every real turn registers (RT-STOP-REACHES-EVERY-RUNNING-REPLY-
+    THROUGH-ONE-SEAM): Stop reaches a reply through it, not through the serve's in-flight table."""
+
+    from agent_runtime.live_turns import turn_stop_handle
+
+    return turn_stop_handle(SimpleNamespace(client_message_id=key, session_id=target["session_id"]))
 STOP = "runtime.operator.conversation.stop"
 
 
@@ -32,7 +41,8 @@ def test_resolved_console_send_stops_without_tools_and_keeps_admission_identity(
             elements=[], metadata={"root_chat_session_id": target["session_id"],
                                   "persona_instance_id": target["persona_instance_id"]})
         agent = SimpleNamespace(hard_interrupt=lambda reason, **kw: stopped.append(reason))
-        with track_in_interrupt_scope(agent):
+        # The handler's own stop handle (chat_admission._within_admitted_turn) — this fake stands in for it.
+        with _handler(target, "resolved-send"), track_in_interrupt_scope(agent):
             response = lane.rpc(STOP, {**target, "turn_request_id": "resolved-send"})
             responses.append(response)
             if "result" not in response:
@@ -149,7 +159,7 @@ def test_running_stop_uses_upstream_scope_and_completion_wins_late_stop(tmp_path
         persist_mission_chat_turn(session_id=target["session_id"], client_message_id=key,
                                  turn_id=key, elements=[], state="running")
         agent = SimpleNamespace(interrupt=lambda reason: interrupted.append(reason))
-        with track_in_interrupt_scope(agent):
+        with _handler(target, key), track_in_interrupt_scope(agent):
             wrong = lane.rpc(STOP, {**params, "workspace_id": "other"})
             assert wrong["error"]["data"]["reason"] == "workspace_changed"
             assert not interrupted
