@@ -74,12 +74,12 @@ def test_turn_registration_cannot_cross_an_accepted_drain(rig, monkeypatch, lane
 def test_discussion_rpc_cannot_start_after_idle_drain_and_failed_claim_leaves_it_open(
     rig, engine, monkeypatch, busy,
 ):
-    session, owner, scope, sid, *_ = rig
+    session, _ = rig
     service, context = engine
     session.discussion_owner = service
     monkeypatch.setattr(rpc, "get_service", lambda: service)
-    if busy:
-        owner.send(scope, sid, "turn", {"text": "hello", "images": []})
+    if busy:  # a chat turn in flight refuses the claim before the discussion fence closes anything
+        session.inflight["turn"] = SimpleNamespace(is_chat_turn=True, is_long_run=False, is_runtime_stream=False)
     assert request(rig)["event"] == ("drain_deferred" if busy else "draining")
     assert service.accepting is busy
     result = handle_request({"jsonrpc": "2.0", "id": 1,

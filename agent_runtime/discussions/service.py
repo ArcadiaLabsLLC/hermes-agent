@@ -38,6 +38,8 @@ logger = logging.getLogger(__name__)
 
 #: Why a legacy profile-group room refuses work (RT-ONE-TURN-ENGINE-FOR-OPERATOR-CHAT-AND-INTELLIGENCE-CHAT).
 RETIRED_GROUP = "profile_group_retired"
+#: What a legacy profile group still accepts: ending it, never work.
+_RETIRED_GROUP_COMMANDS = frozenset({"stop", "end", "abandon"})
 
 
 class DiscussionService:
@@ -224,8 +226,8 @@ class DiscussionService:
         """Bring one owned run to its hosted state; False when it is not (yet, or any longer) a room to bind."""
         if run["initial"].get("compare_import", {}).get("state") == "pending":
             return False
-        if "group" in run["initial"] and run["phase"] == "initializing":
-            return False  # a legacy group that never opened has no room to keep, and none is made for it now
+        if _never_opened_legacy_group(run):
+            return False  # it has no room to keep, and none is made for it now
         if run["phase"] == "initializing":
             self.state.initialize(run)
         elif run["phase"] == "ending" and self._room_disbanded(run):
@@ -290,9 +292,7 @@ class DiscussionService:
             continuation = operation in {"answer", "stop", "end", "remove", "abandon"}
             if self._closed or not self._started or (self._draining and not continuation):
                 raise DiscussionError("runtime_stopping")
-            # A legacy profile group runs nothing any more: it can be stopped or ended, never sent to.
-            if "group" in self.runs.get(run_id, workspace_id)["initial"] and operation not in {"stop", "end", "abandon"}:
-                raise DiscussionError(RETIRED_GROUP)
+            self._refuse_work_on_a_retired_group(workspace_id, run_id, operation)
             if operation == "send" and (response := response_from_payload(body)) is not None:
                 response.validate_audience((m["member_id"] for m in self.runs.members(run_id) if m["status"] == "active"),
                                            error=lambda _: DiscussionError("member_not_found"))
@@ -305,6 +305,11 @@ class DiscussionService:
             self.commands.process(run)
             self.runtime.wakeup()
             return self.state.view(workspace_id, run_id)
+
+    def _refuse_work_on_a_retired_group(self, workspace_id: str, run_id: str, operation: str) -> None:
+        """A legacy profile group runs nothing any more: it can be stopped or ended, never sent to."""
+        if "group" in self.runs.get(run_id, workspace_id)["initial"] and operation not in _RETIRED_GROUP_COMMANDS:
+            raise DiscussionError(RETIRED_GROUP)
 
     def view(self, workspace_id: str, run_id: str, *, since_seq: int = 0, limit: int = 100) -> dict[str, Any]:
         return self.state.view(workspace_id, run_id, since_seq=since_seq, limit=limit)
@@ -327,6 +332,10 @@ class DiscussionService:
                 for run in self.runs.owned() if run["workspace_id"] == workspace_id
                 and (include_owned or room_client_scope(run) is None)
                 and (client_scope is None or room_client_scope(run) == client_scope)]
+
+def _never_opened_legacy_group(run: Mapping[str, Any]) -> bool:
+    return "group" in run["initial"] and run["phase"] == "initializing"
+
 
 _owner_lock = threading.RLock()
 _owner: DiscussionService | None = None
