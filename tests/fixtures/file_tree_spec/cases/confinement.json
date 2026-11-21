@@ -1,0 +1,65 @@
+{
+  "fixtures": {
+    "links": {
+      "files": {"a.txt": "alpha\n", "src/b.txt": "beta\n", ".git/config": "[core]\n"},
+      "links": {
+        "out_file": "../outside/secret.txt",
+        "out_dir": "../outside",
+        "in_file": "a.txt",
+        "in_dir": "src",
+        "src/up": "../../outside/secret.txt",
+        "git_cfg": ".git/config",
+        "dangling": "nowhere.txt"
+      },
+      "outside": {"secret.txt": "secret alpha\n"}
+    }
+  },
+  "cases": [
+    {"name": "symlink_file_out_of_the_root", "about": "a read through a symlink whose target leaves the root is refused",
+     "fixture": "links", "request": {"verb": "read", "path": "out_file"}, "expect": {"refusal": "outside_root"}},
+    {"name": "symlink_dir_out_of_the_root", "about": "a read through a linked folder outside the root is refused",
+     "fixture": "links", "request": {"verb": "read", "path": "out_dir/secret.txt"}, "expect": {"refusal": "outside_root"}},
+    {"name": "nested_symlink_out_of_the_root", "about": "a link deeper in the tree that climbs out is refused",
+     "fixture": "links", "request": {"verb": "read", "path": "src/up"}, "expect": {"refusal": "outside_root"}},
+    {"name": "tree_through_a_link_out_of_the_root", "about": "tree of a linked folder outside the root is refused",
+     "fixture": "links", "request": {"verb": "tree", "path": "out_dir"}, "expect": {"refusal": "outside_root"}},
+    {"name": "grep_through_a_link_out_of_the_root", "about": "grep of a linked folder outside the root is refused",
+     "fixture": "links", "request": {"verb": "grep", "pattern": "secret", "path": "out_dir"}, "expect": {"refusal": "outside_root"}},
+    {"name": "symlink_inside_the_root_reads", "about": "a link whose target stays inside the root reads its target",
+     "fixture": "links", "request": {"verb": "read", "path": "in_file"},
+     "expect": {"reply": {"path": "in_file", "size": 6, "chars": 6, "offset": 0, "content": "alpha\n"}}},
+    {"name": "dangling_symlink", "about": "a link to nothing is not found",
+     "fixture": "links", "request": {"verb": "read", "path": "dangling"}, "expect": {"refusal": "not_found"}},
+    {"name": "git_folder_is_never_read", "about": ".git is never read by its own path",
+     "fixture": "links", "request": {"verb": "read", "path": ".git/config"}, "expect": {"refusal": "ignored"}},
+    {"name": "git_folder_is_never_listed", "about": ".git is never listed by its own path",
+     "fixture": "links", "request": {"verb": "tree", "path": ".git"}, "expect": {"refusal": "ignored"}},
+    {"name": "git_folder_is_never_read_through_a_link", "about": "a link into .git is refused too",
+     "fixture": "links", "request": {"verb": "read", "path": "git_cfg"}, "expect": {"refusal": "ignored"}},
+    {"name": "tree_lists_links_and_never_follows_them", "about": "every symlink is listed as a link, wherever it points, and .git is not listed",
+     "fixture": "links", "request": {"verb": "tree"},
+     "expect": {"reply": {"path": "", "entries": [
+       {"path": "a.txt", "kind": "file", "size": 6},
+       {"path": "dangling", "kind": "link"},
+       {"path": "git_cfg", "kind": "link"},
+       {"path": "in_dir", "kind": "link"},
+       {"path": "in_file", "kind": "link"},
+       {"path": "out_dir", "kind": "link"},
+       {"path": "out_file", "kind": "link"},
+       {"path": "src", "kind": "dir"},
+       {"path": "src/b.txt", "kind": "file", "size": 5},
+       {"path": "src/up", "kind": "link"}
+     ], "total": 10, "offset": 0}}},
+    {"name": "tree_of_a_link_inside_the_root", "about": "tree through a link that stays inside the root lists under the asked path",
+     "fixture": "links", "request": {"verb": "tree", "path": "in_dir"},
+     "expect": {"reply": {"path": "in_dir", "entries": [
+       {"path": "in_dir/b.txt", "kind": "file", "size": 5},
+       {"path": "in_dir/up", "kind": "link"}
+     ], "total": 2, "offset": 0}}},
+    {"name": "grep_never_follows_links", "about": "grep searches no file reached through a link, so neither the inside nor the outside target is searched twice",
+     "fixture": "links", "request": {"verb": "grep", "pattern": "alpha"},
+     "expect": {"reply": {"pattern": "alpha", "path": "", "matches": [
+       {"path": "a.txt", "line": 1, "text": "alpha"}
+     ], "total": 1, "offset": 0}}}
+  ]
+}

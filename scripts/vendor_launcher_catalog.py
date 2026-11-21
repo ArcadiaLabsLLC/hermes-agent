@@ -17,12 +17,25 @@ changed::
 export does not sit inside it. The pinning tests are
 ``tests/agent_runtime/test_launcher_catalog_fixture_parses.py`` and
 ``tests/tooling/test_no_launcher_tool_name_literals.py``.
+
+The project-folder rule spec (Eternia ``packages/eternia_file_tree_spec/spec/``, row
+``MC-PHONE-FILES-BOTH-LOCAL-READERS-FOLLOW-ONE-RULE-SPEC``) is vendored the same way, as a
+generated mirror, never a hand copy::
+
+    python scripts/vendor_launcher_catalog.py --file-tree-spec <launcher>/packages/eternia_file_tree_spec/spec
+
+It replaces ``tests/fixtures/file_tree_spec/`` with the spec folder's files and writes
+``PIN.json`` (the Launcher commit, each file's sha256 and :func:`spec_digest` over them).
+``tests/agent_runtime/test_project_files_spec_mirror.py`` reds a hand edit of
+the mirror, and a Launcher spec that moved without being vendored here.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone, UTC
@@ -30,6 +43,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = ROOT / "tests" / "fixtures" / "launcher_app_functions_catalog.json"
+FILE_TREE_SPEC = ROOT / "tests" / "fixtures" / "file_tree_spec"
+SPEC_PIN = "PIN.json"
 
 #: The fixture's per-entry keys, in order, and the type(s) each must carry. The Launcher
 #: exports ``guidance_sha256: null`` for an entry with no guidance text (since its
@@ -102,13 +117,66 @@ def build_fixture(raw: object, source_commit: str) -> dict:
             "entries": normalize_entries(raw)}
 
 
+def spec_files(folder: Path) -> dict[str, str]:
+    """Every file of a spec folder but the pin, by ``/``-relative path, to its sha256."""
+
+    return {path.relative_to(folder).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(folder.rglob("*"))
+            if path.is_file() and path.relative_to(folder).as_posix() != SPEC_PIN}
+
+
+def spec_digest(files: dict[str, str]) -> str:
+    """One sha256 over a spec folder's ``{path: sha256}``, in path order."""
+
+    joined = "".join(f"{path}\0{digest}\n" for path, digest in sorted(files.items()))
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
+def vendor_file_tree_spec(source: Path, out: Path, source_commit: str) -> dict:
+    """Replace ``out`` with the spec folder ``source`` and its pin; the pin written."""
+
+    if not (source / "rules.json").is_file() or not (source / "cases").is_dir():
+        raise ValueError(f"{source} is not the rule spec folder (no rules.json and cases/)")
+    files = spec_files(source)
+    if out.exists():
+        shutil.rmtree(out)
+    for relative in files:
+        target = out / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((source / relative).read_bytes())
+    pin = {"source_commit": source_commit, "sha256": spec_digest(files), "files": files}
+    (out / SPEC_PIN).write_text(json.dumps(pin, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return pin
+
+
+def _main_file_tree_spec(source: Path, launcher: Path | None, out: Path) -> int:
+    old = {}
+    if (out / SPEC_PIN).is_file():
+        old = json.loads((out / SPEC_PIN).read_text(encoding="utf-8")).get("files", {})
+    pin = vendor_file_tree_spec(source, out, launcher_head(launcher or source))
+    changed = [f"+ {p}" for p in sorted(pin["files"].keys() - old.keys())]
+    changed += [f"- {p}" for p in sorted(old.keys() - pin["files"].keys())]
+    changed += [f"~ {p}" for p in sorted(pin["files"].keys() & old.keys()) if pin["files"][p] != old[p]]
+    print(f"vendored {len(pin['files'])} spec files from launcher {pin['source_commit'][:10]}")
+    print("\n".join(changed) if changed else "no spec file changed")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("export", type=Path, help="the Launcher's app_function_catalog.json")
+    parser.add_argument("export", type=Path, nargs="?",
+                        help="the Launcher's app_function_catalog.json")
+    parser.add_argument("--file-tree-spec", type=Path, default=None,
+                        help="the Launcher's packages/eternia_file_tree_spec/spec folder")
     parser.add_argument("--launcher", type=Path, default=None,
                         help="the Launcher checkout to stamp (default: the export's directory)")
-    parser.add_argument("--out", type=Path, default=FIXTURE)
+    parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args(argv)
+    if (args.export is None) == (args.file_tree_spec is None):
+        parser.error("give the catalog export or --file-tree-spec, one of them")
+    if args.file_tree_spec is not None:
+        return _main_file_tree_spec(args.file_tree_spec, args.launcher, args.out or FILE_TREE_SPEC)
+    args.out = args.out or FIXTURE
 
     raw = json.loads(args.export.read_text(encoding="utf-8-sig"))
     fixture = build_fixture(raw, launcher_head(args.launcher or args.export.resolve().parent))

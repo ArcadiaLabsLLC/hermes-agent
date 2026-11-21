@@ -1,0 +1,88 @@
+{
+  "fixtures": {
+    "sizes": {
+      "files": {
+        "big.txt": {"$repeat": "a", "count": 5242881},
+        "edge.txt": {"$repeat": "a", "count": 5242880},
+        "late_nul.txt": {"$join": [{"$repeat": "a", "count": 8192}, "\u0000x"]},
+        "crlf.txt": "one\r\ntwo hit\r\n",
+        "long.txt": {"$join": [{"$repeat": "x", "count": 300}, "\n"]},
+        "emoji.txt": "😀a\n",
+        "pages.txt": {"$repeat": "b", "count": 20001},
+        "empty.txt": "",
+        "regexy.txt": "abc\na.c\n"
+      },
+      "bytes": {"bin.dat": "6869006a", "latin1.txt": "636166e90a"}
+    }
+  },
+  "cases": [
+    {"name": "tree_lists_every_kind_with_its_size", "about": "binary, oversized and non-UTF-8 files are listed with their byte size",
+     "fixture": "sizes", "request": {"verb": "tree", "depth": 1},
+     "expect": {"reply": {"path": "", "entries": [
+       {"path": "big.txt", "kind": "file", "size": 5242881},
+       {"path": "bin.dat", "kind": "file", "size": 4},
+       {"path": "crlf.txt", "kind": "file", "size": 14},
+       {"path": "edge.txt", "kind": "file", "size": 5242880},
+       {"path": "emoji.txt", "kind": "file", "size": 6},
+       {"path": "empty.txt", "kind": "file", "size": 0},
+       {"path": "late_nul.txt", "kind": "file", "size": 8194},
+       {"path": "latin1.txt", "kind": "file", "size": 5},
+       {"path": "long.txt", "kind": "file", "size": 301},
+       {"path": "pages.txt", "kind": "file", "size": 20001},
+       {"path": "regexy.txt", "kind": "file", "size": 8}
+     ], "total": 11, "offset": 0}}},
+    {"name": "read_binary", "about": "a NUL in the first 8 KiB makes a file binary",
+     "fixture": "sizes", "request": {"verb": "read", "path": "bin.dat"}, "expect": {"refusal": "binary"}},
+    {"name": "read_nul_past_the_probe", "about": "a NUL past the first 8 KiB does not make a file binary",
+     "fixture": "sizes", "request": {"verb": "read", "path": "late_nul.txt"},
+     "expect": {"reply": {"path": "late_nul.txt", "size": 8194, "chars": 8194, "offset": 0,
+       "content": {"$join": [{"$repeat": "a", "count": 8192}, "\u0000x"]}}}},
+    {"name": "read_too_large", "about": "one byte over 5 MiB is refused",
+     "fixture": "sizes", "request": {"verb": "read", "path": "big.txt"}, "expect": {"refusal": "too_large"}},
+    {"name": "read_exactly_the_cap", "about": "exactly 5 MiB reads, paged",
+     "fixture": "sizes", "request": {"verb": "read", "path": "edge.txt"},
+     "expect": {"reply_keys": {"size": 5242880, "chars": 5242880, "offset": 0, "next": 20000}}},
+    {"name": "read_not_utf8", "about": "undecodable bytes are refused, never replaced",
+     "fixture": "sizes", "request": {"verb": "read", "path": "latin1.txt"}, "expect": {"refusal": "not_text"}},
+    {"name": "read_counts_code_points", "about": "chars and offsets count Unicode code points",
+     "fixture": "sizes", "request": {"verb": "read", "path": "emoji.txt"},
+     "expect": {"reply": {"path": "emoji.txt", "size": 6, "chars": 3, "offset": 0, "content": "😀a\n"}}},
+    {"name": "read_offset_in_code_points", "about": "an offset of 1 starts after the emoji",
+     "fixture": "sizes", "request": {"verb": "read", "path": "emoji.txt", "offset": 1},
+     "expect": {"reply": {"path": "emoji.txt", "size": 6, "chars": 3, "offset": 1, "content": "a\n"}}},
+    {"name": "read_empty", "about": "an empty file reads as empty text",
+     "fixture": "sizes", "request": {"verb": "read", "path": "empty.txt"},
+     "expect": {"reply": {"path": "empty.txt", "size": 0, "chars": 0, "offset": 0, "content": ""}}},
+    {"name": "read_first_page", "about": "a page is 20,000 code points and next names the rest",
+     "fixture": "sizes", "request": {"verb": "read", "path": "pages.txt"},
+     "expect": {"reply_keys": {"chars": 20001, "offset": 0, "next": 20000}}},
+    {"name": "read_last_page", "about": "the last page has no next",
+     "fixture": "sizes", "request": {"verb": "read", "path": "pages.txt", "offset": 19999},
+     "expect": {"reply": {"path": "pages.txt", "size": 20001, "chars": 20001, "offset": 19999, "content": "bb"}}},
+    {"name": "read_offset_past_the_end", "about": "an offset past the text is refused",
+     "fixture": "sizes", "request": {"verb": "read", "path": "pages.txt", "offset": 20002}, "expect": {"refusal": "bad_argument"}},
+    {"name": "grep_skips_binary_oversized_and_non_utf8", "about": "grep reads only text files within the cap; a long line is clipped to 240 code points",
+     "fixture": "sizes", "request": {"verb": "grep", "pattern": "a"},
+     "expect": {"reply": {"pattern": "a", "path": "", "matches": [
+       {"path": "edge.txt", "line": 1, "text": {"$repeat": "a", "count": 240}},
+       {"path": "emoji.txt", "line": 1, "text": "😀a"},
+       {"path": "late_nul.txt", "line": 1, "text": {"$repeat": "a", "count": 240}},
+       {"path": "regexy.txt", "line": 1, "text": "abc"},
+       {"path": "regexy.txt", "line": 2, "text": "a.c"}
+     ], "total": 5, "offset": 0}}},
+    {"name": "grep_is_literal", "about": "a pattern is a literal string, never a regular expression",
+     "fixture": "sizes", "request": {"verb": "grep", "pattern": "a.c"},
+     "expect": {"reply": {"pattern": "a.c", "path": "", "matches": [
+       {"path": "regexy.txt", "line": 2, "text": "a.c"}
+     ], "total": 1, "offset": 0}}},
+    {"name": "grep_drops_a_trailing_carriage_return", "about": "lines split on \\n with one trailing \\r dropped",
+     "fixture": "sizes", "request": {"verb": "grep", "pattern": "two"},
+     "expect": {"reply": {"pattern": "two", "path": "", "matches": [
+       {"path": "crlf.txt", "line": 2, "text": "two hit"}
+     ], "total": 1, "offset": 0}}},
+    {"name": "grep_empty_pattern", "about": "an empty pattern is refused",
+     "fixture": "sizes", "request": {"verb": "grep", "pattern": ""}, "expect": {"refusal": "bad_argument"}},
+    {"name": "grep_long_pattern", "about": "a pattern over 256 characters is refused",
+     "fixture": "sizes", "request": {"verb": "grep", "pattern": {"$repeat": "a", "count": 257}}, "expect": {"refusal": "bad_argument"}}
+  ]
+}
