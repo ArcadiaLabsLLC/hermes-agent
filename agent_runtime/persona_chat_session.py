@@ -42,6 +42,7 @@ __all__ = [
     "_persona_chat_session_owner",
     "_resolve_chat_model_override",
     "_resolve_turn_model_selection",
+    "next_turn_model_selection",
     "_safe_chat_model_override_value",
     "_session_model_config",
     "chat_model_source",
@@ -380,7 +381,7 @@ def _resolve_turn_model_selection(
     turn_override: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """The model ONE chat turn runs: apply the turn's own override request, read
-    the session's stored one, fold the cascade, and receipt the result.
+    the session's stored one, fold the cascade (:func:`_fold_turn_model`), and receipt the result.
 
     ``turn_override`` (RT-CHAT-TURN-MODEL-AND-REDO, ``_requested_turn_model``) is folded over the
     stored override for this turn only: nothing is written, so the next turn runs on the chat's own."""
@@ -390,7 +391,55 @@ def _resolve_turn_model_selection(
     )
     if turn_override:
         override = {**(override or {}), **turn_override}
-    lineage = _dispatch_lineage(session_db, session_id) if not (override or {}).get("model") else {}
+    selection = _fold_turn_model(session_db=session_db, session_id=session_id, override=override,
+                                 persona=persona, config=config, instance=instance)
+    _logger.info(
+        TURN_MODEL_RECEIPT, session_id or "-", selection.get("effective_provider") or "-",
+        selection.get("effective_model") or "-", selection["model_source"],
+    )
+    return selection
+
+
+def next_turn_model_selection(
+    *,
+    session_db,
+    session_id: str | None,
+    persona,
+    config,
+    instance,
+    dispatched_from: dict[str, str] | None = None,
+) -> dict[str, object]:
+    """THE answer to "which model and effort would this chat's next turn run on, and why" — read-only.
+
+    RT-THE-MODEL-A-CHAT-SHOWS-IS-THE-MODEL-ITS-NEXT-REPLY-RUNS-ON: the turn resolves its model through
+    :func:`_resolve_turn_model_selection`, which adds the dispatch-lineage tiers the plain cascade lacks;
+    every reader (what Eternia shows for a chat, the prewarm's key, a lead reading its helper) asks this
+    function, which folds the same tiers over the chat's STORED override and writes nothing. ``session_id``
+    ``None`` is a chat not yet made (a draft); ``dispatched_from`` (``predecessor_chat_session_id``,
+    ``requested_by_session``) is the lineage a thread not yet minted will carry, so a lead reads the model a
+    dispatch to its helper would run on before it sends it. ``model_source`` says which tier chose it.
+    """
+
+    override = _chat_model_override_from_config(_session_model_config(session_db, session_id)) if session_id else None
+    return _fold_turn_model(session_db=session_db, session_id=session_id, override=override, persona=persona,
+                            config=config, instance=instance, dispatched_from=dispatched_from)
+
+
+def _fold_turn_model(
+    *,
+    session_db,
+    session_id: str | None,
+    override: dict[str, object] | None,
+    persona,
+    config,
+    instance,
+    dispatched_from: dict[str, str] | None = None,
+) -> dict[str, object]:
+    """The cascade with the dispatch-lineage tiers folded in: the ONE fold the turn and every reader share."""
+
+    lineage: dict[str, str] = {}
+    if not (override or {}).get("model"):
+        lineage = dict(dispatched_from) if dispatched_from is not None else _dispatch_lineage(session_db, session_id)
     own_effort = (override or {}).get("reasoning_effort")
     inherited = _predecessor_override(session_db, lineage.get("predecessor_chat_session_id"))
     if inherited is not None:
@@ -407,12 +456,9 @@ def _resolve_turn_model_selection(
             selection = _chat_effective_model_payload(
                 persona=persona, config=config, override=override, instance=instance,
             )
-    _logger.info(
-        TURN_MODEL_RECEIPT, session_id or "-", selection.get("effective_provider") or "-",
-        selection.get("effective_model") or "-",
-        (override or {}).get("source") if (override or {}).get("source") in (*_LINEAGE_SOURCES, "turn")
-        else chat_model_source(selection),
-    )
+    source = (override or {}).get("source")
+    selection["model_source"] = (source if source in (*_LINEAGE_SOURCES, "turn")
+                                 else chat_model_source(selection))
     return selection
 
 

@@ -15,8 +15,7 @@ from .persona_chat_history.messages import (
 )
 from .persona_chat_history.history_rows import _lineage_aggregate, _token_usage_fields
 from .persona_chat_session import (
-    _chat_effective_model_payload, _chat_model_override_from_config,
-    _persona_chat_native_history, _persona_chat_native_tip, _session_model_config,
+    _persona_chat_native_history, _persona_chat_native_tip, next_turn_model_selection,
 )
 from .profile_context import persona_profile_context, resolve_persona_profile
 
@@ -44,15 +43,15 @@ def inspect_operator_settings(params: dict[str, Any]) -> dict[str, Any]:
     with operator_session_read(params) as (instance, session):
         config = load_agent_runtime_config()
         persona = _inspection_persona(instance, config)
-        override = _chat_model_override_from_config(
-            _session_model_config(session.db, params["session_id"]))
         tip = _persona_chat_native_tip(session.db, params["session_id"])
         usage = _lineage_aggregate(session.db, root_session_id=params["session_id"],
                                    active_session_id=tip)
         return {
             **inspection_identity(params, session.owner),
-            "model": _chat_effective_model_payload(persona=persona, config=config,
-                                                   override=override, instance=instance),
+            # The one answer the turn itself folds (RT-THE-MODEL-A-CHAT-SHOWS-IS-THE-MODEL-ITS-NEXT-REPLY-RUNS-ON):
+            # a dispatched thread's inherited model shows here as it runs.
+            "model": next_turn_model_selection(session_db=session.db, session_id=params["session_id"],
+                                               persona=persona, config=config, instance=instance),
             "usage": _token_usage_fields({**session.row, **usage}),
         }
 

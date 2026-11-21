@@ -41,7 +41,7 @@ Three rules follow, and they explain every awkward-looking import below:
    reproduce the INPUTS, and it reproduces each of them through the turn's own
    resolver as well: ``_persona_by_id`` for the persona,
    ``apply_instance_model_overrides`` for the instance tier,
-   ``_chat_effective_model_payload`` for the model cascade,
+   ``next_turn_model_selection`` for the model (the cascade and the dispatch-lineage tiers),
    ``_session_model_config`` for the chat-scoped override,
    ``load_agent_runtime_config`` for the config, ``chat_lane_bundle`` (through
    the signature's own resolvers) for the tool contract and permission state.
@@ -522,11 +522,10 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     """
 
     from agent_runtime.persona_chat_session import (
-        _chat_effective_model_payload,
-        _chat_model_override_from_config,
         _persona_chat_native_revision,
         _persona_chat_native_tip,
         _session_model_config,
+        next_turn_model_selection,
     )
     from hermes_cli.harness_parts.persona.chat_target import _persona_by_id
 
@@ -573,11 +572,10 @@ def _prepare(root: str, instance: Any) -> tuple[Any, Any]:
     # The root's own head (its instance's), the store its first turn writes.
     session_db = persona_session_db_for(resolve_instance_chat_scope(instance))
     session_model_config = _session_model_config(session_db, root)
-    model_selection = _chat_effective_model_payload(
-        persona=persona,
-        config=cfg,
-        override=_chat_model_override_from_config(session_model_config),
-        instance=instance,
+    # The one answer the turn folds (RT-THE-MODEL-A-CHAT-SHOWS-IS-THE-MODEL-ITS-NEXT-REPLY-RUNS-ON): a
+    # dispatched thread's inherited model is the one warmed, so its first reply pays no rebuild.
+    model_selection = next_turn_model_selection(
+        session_db=session_db, session_id=root, persona=persona, config=cfg, instance=instance,
     )
     runtime_provider = model_selection.get("effective_provider") or getattr(
         persona, "provider", None
