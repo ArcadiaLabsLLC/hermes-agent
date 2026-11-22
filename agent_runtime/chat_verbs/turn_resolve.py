@@ -75,12 +75,34 @@ def _resolve_exact_turn(session_id: str, client_message_id: str, turn_id: str, a
     }
 
 
+def _scope_refusal(session: str, client_scope: Any) -> dict | None:
+    """A scoped caller resolves a turn only in a chat its scope owns: the send path's own access rule.
+
+    Hermes row RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE (review w1122d.2): a computer at
+    Run chats is stamped its grant's scope at dispatch, so it cannot abandon or dismiss a turn in the
+    phone owner's chat; an unscoped operator (this install's own Eternia, the CLI) is unchanged.
+    """
+    from ..conversation_access import validate_conversation_access
+    from ..conversation_owner import ConversationOwnerError
+    from ..mission_chat_outcome import ChatErrorKind
+
+    if client_scope is None:
+        return None
+    try:
+        # MUTATION: skip this check and test_computer_scope's turn-resolve refusal is answered.
+        validate_conversation_access({"session_id": session, "client_scope": client_scope})
+    except ConversationOwnerError as exc:
+        return _refusal(ChatErrorKind.FOREIGN_CHAT_SESSION, "chat root is not owned by this client scope",
+                        session_id=session, reason=exc.reason)
+    return None
+
+
 def resolve_chat_turn(
     *, session_id: Any, client_message_id: Any, turn_id: Any, action: Any,
-    persona_instance_id: Any, reason: Any = None,
+    persona_instance_id: Any, reason: Any = None, client_scope: Any = None,
 ) -> dict:
     """The verb's row. Refusals (``error_kind``): ``invalid_request``,
-    ``foreign_chat_session``, ``chat_busy`` (with ``lease_owner``),
+    ``foreign_chat_session`` (also for a chat another ``client_scope`` owns), ``chat_busy`` (with ``lease_owner``),
     ``chat_turn_resolution_mismatch``. A journal write that did not persist is
     ``ok: false`` on the success row's shape, as the argv verb has always said."""
     from ..mission_chat_outcome import ChatErrorKind
@@ -100,6 +122,8 @@ def resolve_chat_turn(
     if _owner_instance_id(session) != instance:
         return _refusal(ChatErrorKind.FOREIGN_CHAT_SESSION, "chat root is not owned by the requested persona instance",
                         session_id=session, persona_instance_id=instance)
+    if (refused := _scope_refusal(session, client_scope)) is not None:
+        return refused
     try:
         with persona_chat_root_lease(session, owner_id=instance, observer_kind="turn_resolve"):
             # Asked again under the lease: ownership may have moved while the

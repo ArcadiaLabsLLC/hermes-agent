@@ -677,6 +677,7 @@
     "runtime.chat.turn.resolve": [
       "action",
       "client_message_id",
+      "client_scope",
       "persona_instance_id",
       "reason",
       "session_id",

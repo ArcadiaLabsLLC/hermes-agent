@@ -68,7 +68,7 @@ CHAT_VERB_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.chat.queue_skill": ("persona_id", "persona_instance_id", "session_id", "skill", "skills"),
     "runtime.chat.turn_audit": ("limit", "persona_instance_id", "session_id", "turn_id"),
     "runtime.chat.turn.resolve": (
-        "action", "client_message_id", "persona_instance_id", "reason", "session_id", "turn_id"),
+        "action", "client_message_id", "client_scope", "persona_instance_id", "reason", "session_id", "turn_id"),
     "runtime.persona.chat.archive": ("client_scope", "persona_id", "persona_instance_id", "requested_by", "session_id"),
     "runtime.persona.chat.delete": ("persona_id", "persona_instance_id", "requested_by", "session_id"),
     "runtime.persona.chat.history": ("before", "limit", "session_id"),

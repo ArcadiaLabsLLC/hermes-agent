@@ -40,6 +40,7 @@ __all__ = [
     "manifest",
     "method",
     "method_computer_reach",
+    "method_computer_scoped",
     "method_names",
     "method_tier",
     "method_tiers",
@@ -83,8 +84,13 @@ _METHOD_TIERS: dict[str, str] = {}
 #: RT-A-COMPUTERS-REACH-ON-A-PHONE-IS-STATED-ONCE-PER-VERB-AND-CHECKED-AGAINST-WHAT-ETERNIA-CALLS).
 _METHOD_COMPUTER_REACH: dict[str, str] = {}
 
+#: The verbs a computer below the account grant calls under ITS OWN ``client_scope``: the
+#: dispatcher stamps the grant's scope over whatever the request names (row
+#: RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE). Written only by :func:`method`.
+_METHOD_COMPUTER_SCOPED: set[str] = set()
 
-def method(name: str, tier: str, computer: str | None = None):
+
+def method(name: str, tier: str, computer: str | None = None, computer_scoped: bool = False):
     """Register a handler AND declare the tier a caller must hold to run it.
 
     ``tier`` is REQUIRED and has no default. A default is what turns a
@@ -104,6 +110,10 @@ def method(name: str, tier: str, computer: str | None = None):
     and today's meaning of a verb nobody listed — refused to both. It is the ONE place a verb's reach
     is said; the gate reads it through the dispatcher, the manifest publishes it as
     ``computer_reach``. A verb only this install's console may call cannot state one.
+
+    ``computer_scoped`` says the verb takes a ``client_scope`` that a computer below the account
+    grant may only fill with its own (the grant's, ``reverse_lane.grants.computer_client_scope``):
+    the dispatcher stamps it over the request's. Only a verb with a reach can say it.
     """
 
     if tier not in TIERS:
@@ -116,6 +126,8 @@ def method(name: str, tier: str, computer: str | None = None):
         )
     if computer is not None and name in LOCAL_CONSOLE_METHODS:
         raise ValueError(f"{name} answers only this install's console; it cannot state a computer reach")
+    if computer_scoped and computer is None:
+        raise ValueError(f"{name} states no computer reach, so no computer calls it under a scope")
 
     def dec(fn):
         _METHODS[name] = fn
@@ -124,6 +136,10 @@ def method(name: str, tier: str, computer: str | None = None):
             _METHOD_COMPUTER_REACH.pop(name, None)
         else:
             _METHOD_COMPUTER_REACH[name] = computer
+        if computer_scoped:
+            _METHOD_COMPUTER_SCOPED.add(name)
+        else:
+            _METHOD_COMPUTER_SCOPED.discard(name)
         return fn
 
     return dec
@@ -222,6 +238,12 @@ def method_computer_reach(name: str) -> str | None:
     """The computer reach *name* states, or ``None`` (refused to Look and Run chats)."""
 
     return _METHOD_COMPUTER_REACH.get(name)
+
+
+def method_computer_scoped(name: str) -> bool:
+    """Does a computer below the account grant call *name* under its own ``client_scope``?"""
+
+    return name in _METHOD_COMPUTER_SCOPED
 
 
 def computer_reach() -> dict[str, str]:

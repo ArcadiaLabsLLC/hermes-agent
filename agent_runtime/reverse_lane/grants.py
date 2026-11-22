@@ -15,6 +15,7 @@ offer, the accept and the switch on top of :func:`grant_computer` and :func:`rev
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import secrets
 import threading
@@ -43,6 +44,7 @@ __all__ = [
     "add_level_listener",
     "add_revoke_listener",
     "change_level",
+    "computer_client_scope",
     "grant_computer",
     "grant_for_install",
     "list_grants",
@@ -189,6 +191,21 @@ def _grant_id_text(value: Any) -> str:
     if not text or len(text) > _ID_LIMIT or not text.isprintable() or "|" in text:
         raise ValueError(f"not a usable id: {text!r}")
     return text
+
+
+def computer_client_scope(computer_id: str) -> str:
+    """The ``client_scope`` a granted computer acts under on this phone: ONE owner, this grant.
+
+    Hermes row RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE (review w1122d.2): the chats a
+    computer at Look or Run chats starts are owned by this scope, never by one its requests name
+    (a request's scope is self-declared). It is derived from the grant's ``computer_id``, which
+    :func:`grant_computer` mints: so it holds across a level change (the id is kept,
+    :func:`change_level`) and a new grant (a new id) starts a new one, with no store migration for
+    rows written before it. It is a namespace, not a secret: the dispatcher stamps it over whatever
+    the request names, so knowing it opens nothing. 64 hex, the ``client_scope`` shape.
+    """
+
+    return hashlib.sha256(f"hermes-reverse-grant-client-scope|{computer_id}".encode("utf-8")).hexdigest()
 
 
 def grant_computer(store_root: Path | str, *, computer_install_id: str, pairing_device_id: str,

@@ -26,28 +26,46 @@ def list_conversations(rid, params: dict, context: RpcContext | None = None):
 
 def _list_reply(rid, params, caller=None):
     try:
-        page = list_instance_conversations(params)
-        return ok(rid, _for_caller(page, request_client_scope(params), caller))
+        named = request_client_scope(params)
+        own = _computer_scope(caller)
+        # A computer below the account grant lists as the scope its chats are stamped with at dispatch
+        # (RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE), whatever scope its request names:
+        # its own page is the chats it started, and only those say ``openable``.
+        page = list_instance_conversations(params if own is None else {**params, "client_scope": own})
+        return ok(rid, _for_caller(page, named, own, caller))
     except (InstanceHistoryRefused, ConversationOwnerError) as exc:
         return err(rid, 4090, "Conversations could not be loaded.", {"reason": str(exc)})
 
 
-def _for_caller(page: dict, asker, caller) -> dict:
+def _computer_scope(caller) -> str | None:
+    if not is_computer_below_account(caller):
+        return None
+    from agent_runtime.reverse_lane.grants import computer_client_scope
+
+    return computer_client_scope(caller.computer_id)
+
+
+def _for_caller(page: dict, named, own, caller) -> dict:
     """The page as *caller* may see it (review w1122d.1 of RT-FU-A-LOOK-COMPUTER-LISTS-THE-PHONES-EXISTING-CHATS).
 
     ``readable``: may this caller read the row's transcript (``openable`` says whether it may OPEN it,
     as its owner); a Look computer reads every phone chat, read-only, and opens none it did not start.
-    A computer below the account grant is never handed the owning ``client_scope`` of a row it does
-    not own: the scope is self-declared on requests, so naming it would be a key to that chat.
+    A computer below the account grant (*own* is its grant's scope) is never handed the owning
+    ``client_scope`` of a row it does not own; a row it does own answers with the scope its request
+    named (*named*, Eternia's account key), so Eternia's own-page check and its Open keep working,
+    and the dispatcher stamps the grant's scope back over it on the open.
     """
 
     readable = row_readable_by(caller)
-    hide_scope = is_computer_below_account(caller)
     for row in page.get("conversations", ()):
         row["readable"] = readable
+        if own is None:
+            continue
         # MUTATION: drop this pop and test_a_look_computer_lists_every_phone_chat_read_only reddens.
-        if hide_scope and row.get("client_scope") != asker:
+        if row.get("client_scope") != own:
             row.pop("client_scope", None)
+        elif named is not None:
+            row["client_scope"] = named
     return page
 
 

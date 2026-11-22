@@ -206,11 +206,16 @@ def test_a_look_computer_lists_every_phone_chat_read_only(placed_agent):
 
     MUTATIONS: state no ``computer=`` reach on ``runtime.operator.conversation.list`` and
     the list is refused ``scope_denied``; drop the ``client_scope`` pop in
-    ``serve_rpc/instance_history._for_caller`` and the phone owner's scope is handed to the computer.
+    ``serve_rpc/instance_history._for_caller`` and the phone owner's scope is handed to the computer;
+    list with the request's scope instead of the grant's (``_list_reply``) and the computer's own chat
+    leaves its own page.
     """
 
-    mine = OTHER  # the computer's own client_scope (self-declared, as Eternia sends it)
-    phone_chat, computer_chat = create(placed_agent, "phone"), create(placed_agent, "computer", mine)
+    mine = OTHER  # the scope the computer's Eternia names (its account key); hermes stamps the grant's
+    phone_chat = create(placed_agent, "phone")
+    computer_chat = _call(dict(persona_id=PERSONA, persona_instance_id=placed_agent["persona_instance_id"],
+                               new_session=True, idempotency_key="computer", client_scope=mine),
+                          caller=_computer("chat"))["result"]["session_id"]
     for grant in ("look", "chat"):
         page = read_history(caller=_computer(grant), client_scope=mine, all_accounts=True)
         assert "result" in page, (grant, page)
@@ -224,6 +229,10 @@ def test_a_look_computer_lists_every_phone_chat_read_only(placed_agent):
         own = read_history(caller=_computer(grant), client_scope=mine)["result"]["conversations"]
         assert [row["session_id"] for row in own] == [computer_chat]
         assert own[0]["client_scope"] == mine
+        # Naming the phone owner's scope lists the computer's own chats all the same (RT-FU-A-COMPUTER-SENDS-
+        # ONLY-UNDER-ITS-OWN-CHAT-SCOPE): the list answers a computer as its grant's scope.
+        named = read_history(caller=_computer(grant), client_scope=OWNER)["result"]["conversations"]
+        assert [row["session_id"] for row in named] == [computer_chat]
     # The phone's own Eternia (and an account-level computer) keep every scope, as before.
     for caller in (LOCAL_CONSOLE, _computer("account")):
         rows = {row["session_id"]: row for row in read_history(caller=caller, all_accounts=True)["result"]["conversations"]}

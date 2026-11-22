@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import authorize_call
+from agent_runtime.call_authorization import authorize_call, is_computer_below_account
 from agent_runtime.gateway_channel import channel_target_refusal
 from agent_runtime.execution_identity import execution_identity
 
@@ -24,6 +24,7 @@ from agent_runtime.serve_rpc.registry import (
     _METHODS,
     ensure_lazy_families,
     method_computer_reach,
+    method_computer_scoped,
     method_names,
     method_tier,
 )
@@ -32,6 +33,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "_normalize_request",
+    "bind_computer_scope",
     "handle_request",
     "is_rpc_frame",
 ]
@@ -94,6 +96,27 @@ def _normalize_request(req: Any) -> tuple[Any, str, dict] | dict:
         )
 
     return rid, name, params
+
+
+def bind_computer_scope(caller: Any, name: str, params: dict) -> dict:
+    """The ``client_scope`` a computer below the account grant acts under, bound once, here.
+
+    Hermes row RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE (review w1122d.2): a request's
+    scope is self-declared, so on every verb that states ``computer_scoped`` the grant's own scope
+    (``reverse_lane.grants.computer_client_scope``) is stamped over whatever the request names —
+    the phone owner's scope, its account key (what Eternia's reverse route sends,
+    ``agent_console_send_lane.dart`` ``conversationClientScope``) or none. Stamped over, never
+    refused, so the computer's own sends keep working; with it no such verb reaches the unscoped
+    operator path or a chat another scope owns. Look reads are not stamped (owner 2026-11-21: Look
+    reads every phone chat); the account grant is answered as a console paired device and is not.
+    """
+
+    # MUTATION: return params unstamped and test_computer_scope's three refusals are answered.
+    if not is_computer_below_account(caller) or not method_computer_scoped(name):
+        return params
+    from agent_runtime.reverse_lane.grants import computer_client_scope
+
+    return {**params, "client_scope": computer_client_scope(caller.computer_id)}
 
 
 def handle_request(req: Any, context: RpcContext | None = None) -> dict:
@@ -170,6 +193,7 @@ def handle_request(req: Any, context: RpcContext | None = None) -> dict:
             decision.detail or f"{name} requires the {decision.tier} tier",
             decision.refusal_data(),
         )
+    params = bind_computer_scope(context.caller, name, params)
     try:
         if "execution_id" in req and req["execution_id"] != execution_identity()["execution_id"]:
             return err(rid, 4090, "The connected service belongs to another Hermes installation.",
