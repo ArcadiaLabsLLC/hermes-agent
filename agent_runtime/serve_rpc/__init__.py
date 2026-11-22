@@ -44,6 +44,7 @@ workspace_slots          lanes   ``runtime.workspace.slots.*`` / ``.slot.*`` (re
                                  ``.artifacts.list``, ``.chat.share``, ``.chat.fold``)
 work                     lanes   ``runtime.work.cancel`` / ``.restart`` (Stop and Restart a row)
 media                    lanes   ``runtime.media.index/get``
+project_files            lanes   ``runtime.files.status`` / ``.diff`` (git on this device's folder; local console)
 peer                     lanes   the ``peer.*`` verbs
 gateway_peers            lanes   ``runtime.gateway.peers.*``
 gateway_actions          lanes   ``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` /
@@ -132,6 +133,7 @@ from agent_runtime.serve_rpc import (
     workspace_slots,
     work,
     media,
+    project_files,
     peer,
     gateway_peers,
     gateway_actions,

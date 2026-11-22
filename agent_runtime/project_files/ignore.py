@@ -7,6 +7,8 @@ not worked.
 
 from __future__ import annotations
 
+__layer__ = "models"
+
 import re
 from dataclasses import dataclass
 

@@ -14,6 +14,8 @@ runs in Eternia's process.
 
 from __future__ import annotations
 
+__layer__ = "stores"
+
 import os
 from collections.abc import Callable
 from dataclasses import dataclass

@@ -528,6 +528,31 @@ def test_changed_between_lists_a_subtrees_adds_changes_and_deletes(tmp_path, rem
     assert git.changed_between("deadbeef" * 5, "HEAD", "realms/r/") == ()
 
 
+def test_diff_shows_an_edit_and_a_new_file_the_same_on_both_backends(tmp_path, remote):
+    """MC-PHONE-FILES-GIT-STATUS-AND-DIFF-ON-A-PHONE-PROJECT-FOLDER: the path-scoped diff, ``HEAD``'s blob against
+    the file, answered byte for byte alike by both backends (one expected text, run per backend). Killing
+    mutation (run 2026-11-21, w1118a-pfiles): ``git_dulwich.diff`` answering the working file for both sides ->
+    the edit reads ``unchanged``, red on the dulwich arm only."""
+
+    repo = _clone(tmp_path, remote)
+    git = sync_git(repo)
+    (repo / "realms/r/a.txt").write_text("one\ntwo", encoding="utf-8")
+    (repo / "new.txt").write_text("fresh\n", encoding="utf-8")
+    (repo / "blob.bin").write_bytes(b"\x00\x01")
+    edit, new, binary = git.diff(["realms/r/a.txt", "new.txt", "blob.bin"])
+    assert (edit.change, edit.body) == ("modified", "text")
+    assert edit.text == ("--- a/realms/r/a.txt\n+++ b/realms/r/a.txt\n@@ -1 +1,2 @@\n one\n+two\n"
+                         "\\ No newline at end of file\n")
+    assert (new.change, new.body, new.text) == ("added", "text", "--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1 @@\n+fresh\n")
+    assert (binary.change, binary.body, binary.text) == ("added", "binary", "")
+    (repo / "realms/r/a.txt").unlink()
+    (gone,) = git.diff(["realms/r/a.txt"])
+    assert (gone.change, gone.text) == ("deleted", "--- a/realms/r/a.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-one\n")
+    assert git.diff(["realms/r", "nowhere.txt"]) == ()  # a folder and an absent path are left out
+    assert git.changed() != ()  # nothing was staged or committed by a diff
+    assert git.resolve("HEAD") == _sh(repo, "rev-parse", "HEAD")
+
+
 # -- the backend is the profile's choice (S6) ---------------------------------------------------------
 
 

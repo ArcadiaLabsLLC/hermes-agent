@@ -26,6 +26,7 @@ from .git import (
     _scrub_config_values, push_step,
 )
 from .git_port import ChangedPath, FetchOutcome, LogEntry, MergeOutcome, PushOutcome, PushReport, RepoState
+from .path_diff import PathDiff, path_diff, working_bytes
 
 if TYPE_CHECKING:
     from ..realm_membership import RealmSyncCredential
@@ -171,6 +172,23 @@ class BinarySyncGit:
             args.extend(["--", *paths])
         lines = [line for line in self._step(*args).splitlines() if line.strip()]
         return tuple(ChangedPath(path=line[3:].strip(), untracked=line.startswith("??")) for line in lines)
+
+    def _head_blob(self, path: str) -> bytes | None:
+        """``HEAD``'s blob at ``path`` as bytes, or None (no commit, no such path, or a folder there)."""
+
+        run = self._run or _sync.run_sync_git
+        config = self._config if self._config is not None else _sync._REPO_CONFIG
+        proc = run(["cat-file", "blob", f"HEAD:{path}"], repo=self.repo, config=config,
+                   **{**self._run_kwargs, "text": False})
+        return bytes(proc.stdout) if proc.returncode == 0 else None
+
+    def diff(self, paths: Sequence[str]) -> tuple[PathDiff, ...]:
+        rows = []
+        for path in paths:
+            old, new = self._head_blob(path), working_bytes(self.repo, path)
+            if old is not None or new is not None:
+                rows.append(path_diff(path, old, new))
+        return tuple(rows)
 
     def add(self, paths: Sequence[str], *, all_under: bool = False) -> None:
         self._step("add", *(("-A",) if all_under else ()), "--", *paths)

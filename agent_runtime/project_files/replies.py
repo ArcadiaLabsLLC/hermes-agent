@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__layer__ = "models"
+
 from agent_runtime.project_files.rules import (
     BINARY_PROBE_BYTES, LINE_CODE_POINTS, MAX_PATTERN, MIN_PATTERN, READ_PAGE_CODE_POINTS,
     ProjectFileRefusal,
