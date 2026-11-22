@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from agent_runtime.bundle_profiles.forced_tree import sibling_modules
-from scripts.bundle_profile_closure import ROOT, _imports, _owner, profile_walk
+from scripts.bundle_profile_closure import ROOT, _imports, facade_exports, profile_walk, resolve_owner
 from scripts.bundles.bundle_files import read_site
 from scripts.bundles.targets import marker_env
 
@@ -41,6 +41,7 @@ class Plan:
 def _eager_first_party_closure(start: set[str], index: dict[str, Path]) -> set[str]:
     """Modules loaded by importing ``start``: follow MODULE-LEVEL first-party imports only."""
     done: set[str] = set()
+    facades = facade_exports()
     queue = deque(m for m in start if m in index)
     while queue:
         module = queue.popleft()
@@ -53,7 +54,7 @@ def _eager_first_party_closure(start: set[str], index: dict[str, Path]) -> set[s
                      if p in index and p not in done)
         path = index[module]
         for dotted, eager, _guarded, _line in _imports(path, module, path.name == "__init__.py"):
-            owner = _owner(dotted, index)
+            owner = resolve_owner(dotted, index, facades)
             if eager and owner and owner not in done:
                 queue.append(owner)
     return done

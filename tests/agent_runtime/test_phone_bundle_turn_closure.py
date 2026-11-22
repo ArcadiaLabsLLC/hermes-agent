@@ -19,6 +19,8 @@ Killing mutations (applied, red recorded, reverted — see the commit message):
 * drop ``build_turn_parser``'s import and bind from ``EmbeddedServe.start`` → the turn case reddens
   (``hermes_cli.harness_parts.chat_turn_argv`` is no longer in the bundle);
 * ``start_serve_work_engine`` back to ``shipped("agent_runtime.batch")`` → the work-engine case reddens.
+* drop ``"tools.connectors"`` from ``scripts/bundle_profile_closure.py::FACADE_TABLES`` → the tool-call
+  case reddens (``tools.connectors.dispatch`` is no longer in the bundle).
 """
 
 from __future__ import annotations
@@ -60,6 +62,17 @@ def test_a_phone_turn_and_the_discussion_service_are_in_the_bundle(phone_modules
     # Positive control: the set is the phone's, not a checkout's — the full parser tree is not in it.
     assert "hermes_cli.harness_parts.parser" not in phone_modules
     assert "hermes_cli.harness" not in phone_modules
+
+
+#: What every tool call imports on its way to its handler: upstream ``model_tools._execute_tool``'s
+#: ``from tools.connectors import dispatch_connector_call, is_connector_name``, through the PEP 562 facade.
+TOOL_CALL = ("tools.connectors.dispatch", "tools.connectors.gateway.names")
+
+
+def test_a_phone_tool_calls_facade_import_is_in_the_bundle(phone_modules):
+    """RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS: every tool call on the emulator failed
+    ``No module named 'tools.connectors.dispatch'``; the walk read only ``pm``'s facade table."""
+    assert [m for m in TOOL_CALL if m not in phone_modules] == []
 
 
 def _start_work_engine(monkeypatch, present) -> list[str]:
