@@ -359,15 +359,15 @@ def _persona_instance_updated_at(instance) -> str | None:
 
 
 def _names_an_unplaced_hidden_copy(instance_id: str, persona_id: str) -> bool:
-    """Whether ``instance_id`` is a non-profile agent's hidden-copy id with no placed row under it."""
+    """Whether ``instance_id`` is a non-profile agent's hidden-copy id with no row under it at all.
+
+    A row that exists under the id (adopted and placed, or held machine-local) is opened as itself."""
 
     if persona_id.startswith("profile_") or instance_id != persona_instance_id_for(persona_id):
         return False
-    try:
-        row = PersonaInstanceStore().get(instance_id)
-    except Exception:
-        return True
-    return not getattr(row, "workspace_id", None)
+    from agent_runtime import paths
+
+    return not paths.persona_instance_path(instance_id).exists()
 
 
 def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_scope) -> int:
@@ -398,7 +398,7 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         # A client that still names the agent's hidden copy ``personainst_<persona>`` (Eternia's template
         # console, seen live 2026-11-21 w1118a-mint: "persona instance not found: personainst_base") means
         # the agent: nothing mints that row any more (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT),
-        # so its open runs the bare-agent rule below. An adopted copy, placed under that id, is still opened.
+        # so its open runs the bare-agent rule below. A row that exists under that id is still opened.
         # MUTATION: drop this test and test_an_open_naming_a_missing_hidden_copy_places_the_agent reddens.
         requested_instance_id = None
     if requested_instance_id:

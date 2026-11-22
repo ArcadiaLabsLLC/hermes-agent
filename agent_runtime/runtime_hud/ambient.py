@@ -137,6 +137,7 @@ def situational_hud_for_instance(
         scoped_roster = workspace_scope.addressable_roster(
             identity_roster,
             scope_workspace_id=scope_workspace_id,
+            self_id=getattr(instance, "id", None),
         )
         realm = next(
             (

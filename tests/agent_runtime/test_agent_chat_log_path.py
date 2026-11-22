@@ -19,6 +19,16 @@ from tools.agent_chat_tool import AGENT_CHAT_LOG_PATH_SCHEMA, agent_chat_log_pat
 from tools.registry import registry
 
 
+def _placed_chat(persona_id: str, turns):
+    """A chat on a placed instance of ``persona_id``: a teammate is reached through its placement, since
+    nothing mints its hidden copy any more (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT)."""
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+    from tests.agent_runtime.test_agent_chat_tool import _seed_persona_chat
+
+    placed = mint_placed_instance(persona_id, placement="agent_1")
+    return _seed_persona_chat(persona_id, turns, persona_instance_id=placed.id)
+
+
 @pytest.fixture(autouse=True)
 def _clean_mirror_state():
     reset_chat_live_log_state()
@@ -56,7 +66,7 @@ def test_returns_a_live_path_backfilled_from_the_same_projection(
     # backfill's self-resolved read refuses it (chat_scope_unresolved) instead
     # of answering from a guessed state.db.
     monkeypatch.setenv("HERMES_HEAD_HOME", os.environ["HERMES_HOME"])
-    session_id = _seed_persona_chat("qa", [("hi there", "QA here — hi."), ("more", "ack")])
+    session_id = _placed_chat("qa", [("hi there", "QA here — hi."), ("more", "ack")])
 
     data = json.loads(agent_chat_log_path(persona_id="qa"))
     assert data["ok"] is True
@@ -92,7 +102,7 @@ def test_the_file_keeps_growing_after_the_path_is_handed_out(isolate_agent_runti
     from hermes_state import SessionDB
     from tests.agent_runtime.test_agent_chat_tool import _seed_persona_chat
 
-    session_id = _seed_persona_chat("qa", [("hi", "ack")])
+    session_id = _placed_chat("qa", [("hi", "ack")])
     thread = json.loads(agent_chat_log_path(persona_id="qa"))["threads"][0]
     path = Path(thread["path"])
     before = path.read_text(encoding="utf-8")
@@ -147,8 +157,8 @@ def test_sibling_prefix_collision_is_still_refused(isolate_agent_runtime_root):
 def test_all_threads_lists_only_this_lane(isolate_agent_runtime_root):
     from tests.agent_runtime.test_agent_chat_tool import _seed_persona_chat
 
-    qa_session = _seed_persona_chat("qa", [("hi", "ack")])
-    dev_session = _seed_persona_chat("dev", [("hi", "ack")])
+    qa_session = _placed_chat("qa", [("hi", "ack")])
+    dev_session = _placed_chat("dev", [("hi", "ack")])
 
     data = json.loads(agent_chat_log_path(persona_id="qa", all_threads=True))
     assert data["ok"] is True

@@ -167,25 +167,31 @@ def is_held_copy(instance: Any) -> bool:
     ) is None
 
 
-def exclude_held_copies(instances: Iterable[Any]) -> list:
-    """Drop every held hidden copy (:func:`is_held_copy`); order preserved, inputs never mutated."""
+def exclude_held_copies(instances: Iterable[Any], *, keep_id: str | None = None) -> list:
+    """Drop every held hidden copy (:func:`is_held_copy`) but ``keep_id``; order preserved, inputs never mutated.
+
+    ``keep_id`` is the lane asking: a held row that runs turns (a profile's own channel) still sees
+    itself in its own roster, as it did when the canonical rule listed it under no workspace."""
 
     # MUTATION: return the input unfiltered and test_a_held_copy_is_never_addressable reddens.
-    return [instance for instance in (instances or ()) if not is_held_copy(instance)]
+    return [instance for instance in (instances or ())
+            if not is_held_copy(instance) or (keep_id is not None and getattr(instance, "id", None) == keep_id)]
 
 
 def addressable_roster(
     instances: Iterable[Any],
     *,
     scope_workspace_id: str | None,
+    self_id: str | None = None,
 ) -> list:
     """The roster a lane may ADVERTISE / bare-persona-resolve, order preserved.
 
     The single composition every addressable surface uses so the rule lives in
     exactly one place: :func:`scope_roster` narrows to the sender's workspace,
-    then :func:`exclude_held_copies` drops the held hidden copies. Never mutates
+    then :func:`exclude_held_copies` drops the held hidden copies (``self_id``, the
+    lane asking, stays in its own roster). Never mutates
     inputs. The FULL roster (for identity/steering) must be kept separately by the
     caller — this returns only the addressable view.
     """
 
-    return exclude_held_copies(scope_roster(instances, scope_workspace_id=scope_workspace_id))
+    return exclude_held_copies(scope_roster(instances, scope_workspace_id=scope_workspace_id), keep_id=self_id)
