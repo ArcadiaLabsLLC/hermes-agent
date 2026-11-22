@@ -602,9 +602,8 @@ def _seed_fixture_qa_channel() -> None:
     """
 
     from agent_runtime import paths
-    from agent_runtime.models import PersonaInstance
+    from agent_runtime.models import PersonaInstance, WorkerSessionState
     from agent_runtime.persona_assignments import PersonaInstanceStore, persona_instance_id_for
-    from agent_runtime.states import WorkerSessionState
     from agent_runtime.store import AgentStore
     from hermes_time import now
 
