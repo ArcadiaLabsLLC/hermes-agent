@@ -35,7 +35,7 @@ def _rpc(method: str, **params) -> dict:
 def _neko_row() -> dict:
     ensure_install_identity(paths.store_root())
     rows = _rpc("runtime.agent.directory")["agents"]
-    return next(row for row in rows if row["persona_id"] == NEKO and row["canonical"])
+    return next(row for row in rows if row["persona_id"] == NEKO)
 
 
 def _ship_update(monkeypatch, tmp_path) -> None:
@@ -51,6 +51,8 @@ def _ship_update(monkeypatch, tmp_path) -> None:
 @pytest.fixture
 def seat():
     seed_fresh_install_persona(load_agent_runtime_config())
+    # A placed seat: nothing mints Neko's hidden copy any more (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT).
+    PersonaInstanceStore().add_instance(persona_id=NEKO, placement_id="neko_agent_1", workspace_id="ws_default")
     return _neko_row()["instance_id"]
 
 

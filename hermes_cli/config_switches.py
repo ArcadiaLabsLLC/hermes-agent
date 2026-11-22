@@ -1,8 +1,9 @@
 """``config_switch``: the one boolean reader behind the switches a distribution turns off, and
-``with_install_switches``: the seam that holds a bundled install's switches on every profile."""
+``with_install_switches``: the seam that holds a bundled install's shipped switches on every read."""
 
 from __future__ import annotations
 
+import copy
 import logging
 import sys
 import threading
@@ -18,12 +19,22 @@ PER_PROFILE_KEYS: Mapping[str, str] = {
                           "upstream does (the operator adds the server; untrusted servers ask per call)"),
 }
 
+#: Keys a bundle profile sets that the edition only DEFAULTS: never held over the config, each with its
+#: reason (owner ruling on RT-FU-A-BUNDLED-DESKTOP-WRITES-ITS-PROFILE-SWITCHES-TO-ITS-CONFIG, 2026-11-21).
+#: A person changes the first two in the normal config; holding them would make that change never take
+#: effect. The third binds the OS store and moves sign-ins, and waits for its own row.
+HELD_OUT_KEYS: Mapping[str, str] = {
+    "local_runtime.enabled": "the dashboard's Local LLM Stop writes it (web_routers/local_models.py::_set_runtime_enabled)",
+    "delegation.worktree_isolation": "Eternia's sub-agent settings write it (agent_runtime/subagents/settings.py::write_settings)",
+    "auth.os_secure_store": "held means the secure-store sign-in move runs; it waits for its own row",
+}
+
 _UNSET: Any = object()
-_install_keys: Any = _UNSET
+_install_switches: Any = _UNSET
 _overlay_lock = threading.Lock()
-#: ``(id(scoped), id(root)) -> (scoped, root, overlaid)``: the loader hands back its cached dicts, so one
-#: overlay per pair is reused; the strong refs keep an id from being reused while its entry lives.
-_overlays: dict[tuple[int, int], tuple[dict, dict, dict]] = {}
+#: ``id(config) -> (config, overlaid)``: ``load_config_readonly`` hands back the loader's cached dict, so
+#: one overlay per cached dict is reused; the strong ref keeps an id from being reused while its entry lives.
+_overlays: dict[int, tuple[dict, dict]] = {}
 _OVERLAYS_MAX = 16
 
 
@@ -34,7 +45,7 @@ def config_switch(*keys: str, default: bool = True) -> bool:
     ``mcp.stdio_servers``, ``terminal.external_backends``, ``gateway.platform_adapters``,
     ``voice.mode_enabled``, ``sessions.git_probe``): absent, ``null`` or an unreadable config is
     ``default`` (today's behaviour), a truthy word is on, anything else is off. Never raises.
-    On a bundled install an install-only key reads the serve root's value under any profile
+    On a bundled install an install-only key reads the shipped profile's value under any profile
     (:func:`with_install_switches`, applied by ``load_config_readonly``)."""
     from hermes_cli import config as _config
     from utils import is_truthy_value
@@ -60,55 +71,41 @@ def _installed_profile_config() -> Mapping[str, Any] | None:
     return bundled_toolsets.bundled_profile().config
 
 
-def install_only_keys() -> tuple[tuple[str, ...], ...]:
-    """The install-only keys of the installed bundle profile, split on dots; ``()`` on a developer install.
+def install_switches() -> tuple[tuple[tuple[str, ...], Any], ...]:
+    """The installed bundle profile's install-only switches as ``(path, value)``; ``()`` on a developer install.
 
-    Read once per process (the install does not change under a running process). Never raises: an
-    unreadable profile is a developer install, today's behaviour."""
-    global _install_keys
-    keys = _install_keys
-    if keys is not _UNSET:
-        return keys
-    _install_keys = ()  # a config read while the profile loads holds nothing (no re-entry)
+    Every key the shipped profile's ``config`` sets, minus :data:`PER_PROFILE_KEYS` and
+    :data:`HELD_OUT_KEYS`, with the profile's own value. Read once per process (the install does not
+    change under a running process); the values are private copies no caller can reach. Never raises:
+    an unreadable profile is a developer install, today's behaviour."""
+    global _install_switches
+    switches = _install_switches
+    if switches is not _UNSET:
+        return switches
+    _install_switches = ()  # a config read while the profile loads holds nothing (no re-entry)
     try:
         config = _installed_profile_config()
-        keys = () if not config else tuple(
-            tuple(dotted.split(".")) for dotted in config if dotted not in PER_PROFILE_KEYS)
+        switches = () if not config else tuple(
+            (tuple(dotted.split(".")), copy.deepcopy(value)) for dotted, value in config.items()
+            if dotted not in PER_PROFILE_KEYS and dotted not in HELD_OUT_KEYS)
     except Exception:  # health: allow BLE001 -- the read seam never raises; no profile is today's behaviour
         logger.warning("install switches: the bundle profile is unreadable; no key is held", exc_info=True)
-        keys = ()
-    _install_keys = keys
-    return keys
+        switches = ()
+    _install_switches = switches
+    return switches
+
+
+def install_only_keys() -> tuple[tuple[str, ...], ...]:
+    """The paths :func:`install_switches` holds, split on dots; ``()`` on a developer install."""
+    return tuple(path for path, _value in install_switches())
 
 
 def reset_install_switches() -> None:
-    """Forget the install's keys and the cached overlays (tests that install a profile)."""
-    global _install_keys
+    """Forget the install's switches and the cached overlays (tests that install a profile)."""
+    global _install_switches
     with _overlay_lock:
-        _install_keys = _UNSET
+        _install_switches = _UNSET
         _overlays.clear()
-
-
-def _root_config() -> dict | None:
-    """The serve root's merged config, or ``None`` when the call is not scoped away from the root."""
-    from hermes_cli import config as _config
-    from hermes_constants import (
-        get_hermes_home,
-        get_routing_process_hermes_home,
-        hermes_home_key,
-        reset_hermes_home_override,
-        set_hermes_home_override,
-    )
-
-    root = get_routing_process_hermes_home()
-    if hermes_home_key(get_hermes_home()) == hermes_home_key(root):
-        return None
-    token = set_hermes_home_override(root)
-    try:
-        # The loader itself, not ``load_config_readonly``: the root's own config, never re-projected.
-        return _config._load_config_impl(want_deepcopy=False, ensure_home=False)
-    finally:
-        reset_hermes_home_override(token)
 
 
 def _lookup(config: Mapping[str, Any], path: tuple[str, ...]) -> tuple[bool, Any]:
@@ -122,44 +119,45 @@ def _lookup(config: Mapping[str, Any], path: tuple[str, ...]) -> tuple[bool, Any
 
 def _put(node: Any, path: tuple[str, ...], value: Any) -> dict:
     """A copy of ``node`` with ``path`` set to ``value``: only the mappings along the path are copied."""
-    copy = dict(node) if isinstance(node, Mapping) else {}
+    copy_ = dict(node) if isinstance(node, Mapping) else {}
     head, *rest = path
-    copy[head] = value if not rest else _put(copy.get(head), tuple(rest), value)
-    return copy
+    copy_[head] = copy.deepcopy(value) if not rest else _put(copy_.get(head), tuple(rest), value)
+    return copy_
 
 
-def with_install_switches(config: dict) -> dict:
-    """``config`` with each install-only key the serve root's config sets taken from the root.
+def _overlay(config: dict, switches: tuple) -> dict:
+    result = config
+    for path, value in switches:
+        if _lookup(result, path) != (True, value):
+            result = _put(result, path, value)
+    return result
 
-    THE seam that holds a bundled install's switches on every profile: a bundle profile's switches are
-    written to the serve root's config, and a call scoped to a second profile reads that profile's
-    home, so without this a second profile reads the default (on) of every switch the install turned
-    off (``tui_gateway.pydantic_contracts``, ``auth.adopt_external_logins``, ...). Only the keys the
-    installed profile forces, minus :data:`PER_PROFILE_KEYS`, and only where the root sets them; a
-    developer install, a call scoped to the root, and an unreadable root config keep ``config`` as is.
-    ``config`` is the loader's cached dict and is never mutated. Never raises."""
-    keys = install_only_keys()
-    if not keys:
+
+def with_install_switches(config: dict, *, cache: bool = True) -> dict:
+    """``config`` with each install-only switch of the shipped bundle profile held at the profile's value.
+
+    THE seam that holds a bundled install's switches on every read, every profile and the serve root
+    alike: the shipped profile (``bundled-desktop.yaml`` / ``bundled-phone.yaml``) is read once
+    (:func:`install_switches`) and laid over the config in memory. Nothing is written: the bundled
+    desktop's serve root is the account's shared namespace home, which the Developer Edition opens too,
+    so a written switch would lock the Developer Edition down as well (owner ruling on
+    RT-FU-A-BUNDLED-DESKTOP-WRITES-ITS-PROFILE-SWITCHES-TO-ITS-CONFIG). :data:`PER_PROFILE_KEYS` and
+    :data:`HELD_OUT_KEYS` follow the config. A developer install keeps ``config`` as is. ``config`` is
+    never mutated; ``cache`` reuses one overlay per cached dict (``load_config_readonly``'s), and a
+    caller holding a fresh copy passes ``cache=False``. Never raises."""
+    switches = install_switches()
+    if not switches or not isinstance(config, Mapping):
         return config
-    try:
-        root_config = _root_config()
-    except Exception:  # health: allow BLE001 -- the read seam never raises; an unreadable root holds nothing
-        logger.debug("install switches: the serve root's config is unreadable", exc_info=True)
-        return config
-    if not isinstance(root_config, Mapping):
-        return config
-    slot = (id(config), id(root_config))
+    if not cache:
+        return _overlay(config, switches)
+    slot = id(config)
     with _overlay_lock:
         hit = _overlays.get(slot)
-    if hit is not None and hit[0] is config and hit[1] is root_config:
-        return hit[2]
-    result = config
-    for path in keys:
-        found, value = _lookup(root_config, path)
-        if found and _lookup(result, path) != (True, value):
-            result = _put(result, path, value)
+    if hit is not None and hit[0] is config:
+        return hit[1]
+    result = _overlay(config, switches)
     with _overlay_lock:
         if len(_overlays) >= _OVERLAYS_MAX:
             _overlays.clear()
-        _overlays[slot] = (config, root_config, result)
+        _overlays[slot] = (config, result)
     return result

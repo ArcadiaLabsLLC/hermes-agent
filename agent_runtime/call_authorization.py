@@ -318,6 +318,10 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         # Phase B (row H11): Clone and a recipe command step SPAWN on this machine.
         "runtime.workspace.slot.clone",
         "runtime.workspace.recipe.run_step",
+        # MC-PHONE-FILES-GIT-STATUS-AND-DIFF-ON-A-PHONE-PROJECT-FOLDER: git status and a diff on a folder named by its
+        # path on THIS device — the device's own Eternia only; a paired caller never names this disk.
+        "runtime.files.status",
+        "runtime.files.diff",
         # p10-messaging §2.4: a platform bot token is a secret of THIS runtime; a paired device
         # holding ``console`` may bind chats and allow operators, never write or clear the token.
         "runtime.messaging.credential.set",

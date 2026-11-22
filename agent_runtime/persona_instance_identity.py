@@ -788,16 +788,10 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         live_instance_ids=live_instance_ids,
         apply=apply,
     )
-    # Phase 7 — every hidden copy ``personainst_<persona>`` is settled (``persona_instance_adoption``):
-    # one that holds anything becomes an ordinary agent in the Default workspace, keeping its id
-    # (RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE); an empty one is archived
-    # through retire's archive; one neither can take is held machine-local
-    # (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT), its stale pointers cleared. The dry run is the census.
+    # Phases 7 and 8 — every hidden copy ``personainst_<persona>`` is settled, then an adopted copy
+    # holding only old saved chats is retired (``persona_instance_adoption.settle_hidden_copies``).
     # Phase 6 (the canonical scope-pointer clear) went with the canonical predicate: phase 7 clears them.
-    from .persona_instance_adoption import (
-        ADOPTED, ARCHIVED, HELD_LOCAL, WOULD_ADOPT, WOULD_ARCHIVE, WOULD_HOLD_LOCAL, adopt_global_rows,
-        unstamped_hidden_copies,
-    )
+    from .persona_instance_adoption import settle_hidden_copies
 
     leaving = frozenset(
         {item["from_id"] for item in actions if item["action"] in {"merged", "renamed"}}
@@ -805,10 +799,9 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         | {item["persona_instance_id"] for item in unplaced_pruned}
         | {item["persona_instance_id"] for item in task_bound["archived"]}
     )
-    adoption = adopt_global_rows(apply=apply, store=store, leaving=leaving)
-    for item in adoption:
-        if item["fate"] == ARCHIVED:
-            by_id.pop(item["persona_instance_id"], None)
+    settled = settle_hidden_copies(apply=apply, store=store, leaving=leaving)
+    for instance_id in settled.pop("gone"):
+        by_id.pop(instance_id, None)
 
     return {
         "applied": bool(apply),
@@ -851,12 +844,7 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         "task_bound_archived": task_bound["archived"],
         "task_bound_normalised_count": len(task_bound["normalised"]),
         "task_bound_archived_count": len(task_bound["archived"]),
-        "adoption": adoption,
-        "adopted_count": sum(1 for item in adoption if item["fate"] in {ADOPTED, WOULD_ADOPT}),
-        "hidden_copies_archived_count": sum(1 for item in adoption if item["fate"] in {ARCHIVED, WOULD_ARCHIVE}),
-        "hidden_copies_held_count": sum(1 for item in adoption if item["fate"] in {HELD_LOCAL, WOULD_HOLD_LOCAL}),
-        # The security gate (review w1118a.78): zero after an applied run.
-        "unstamped_hidden_copies": unstamped_hidden_copies(store.list_all()) if apply else None,
+        **settled,
         "alias_count": len(aliases),
         "archive_dir": str(archive_dir) if apply and actions else None,
         "prune_archive_dir": str(prune_archive_dir) if apply and pruned_actions else None,

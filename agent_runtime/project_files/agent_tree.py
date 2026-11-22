@@ -25,6 +25,8 @@ reader's, with each ``path`` prefixed by its root's name.
 
 from __future__ import annotations
 
+__layer__ = "stores"
+
 import os
 from dataclasses import dataclass
 

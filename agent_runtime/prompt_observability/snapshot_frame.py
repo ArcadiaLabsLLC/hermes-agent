@@ -145,6 +145,7 @@ class SnapshotFrame:
             scoped_roster = workspace_scope.addressable_roster(
                 self.roster,
                 scope_workspace_id=scope_workspace_id,
+                self_id=getattr(instance, "id", None),
             )
             return resolve_situational_hud(
                 instance,

@@ -737,9 +737,12 @@ class BootPhases:
         # Before the drain, so no turn is mid-flight; a no-op once settled; each row's fate is logged.
         # Fail-open: a held row is retried at the next boot.
         try:
-            from agent_runtime.persona_instance_adoption import adopt_global_rows
+            from agent_runtime.persona_instance_adoption import adopt_global_rows, clean_up_chat_only_copies
 
             adopt_global_rows(apply=True)
+            # Phase 8: an adopted copy holding only saved chats is retired, its chats staying with the agent
+            # (RT-OLD-HIDDEN-COPIES-THAT-ONLY-HOLD-SAVED-CHATS-ARE-CLEANED-UP-AND-THEIR-CHATS-STAY-WITH-THE-AGENT).
+            clean_up_chat_only_copies(apply=True)
         except Exception:
             import logging as _adopt_logging
 

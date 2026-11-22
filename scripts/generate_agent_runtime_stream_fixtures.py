@@ -592,6 +592,30 @@ def _pin_chat_session_mint(persona_assignments: Any, mint: Any) -> list[tuple[An
     return [(module, original) for module in modules]
 
 
+def _seed_fixture_qa_channel() -> None:
+    """The ``personainst_qa`` row the narrow-profile frame's core carries, written as fixture data.
+
+    Until RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT every snapshot build minted it (the hidden
+    copy of the seeded ``qa`` persona). The frame pins the create's demotion, not that mint, so the row
+    is seeded here, held machine-local as the migration leaves one (off every roster), and the golden's
+    bytes do not move for a reason unrelated to it.
+    """
+
+    from agent_runtime import paths
+    from agent_runtime.models import PersonaInstance, WorkerSessionState
+    from agent_runtime.persona_assignments import PersonaInstanceStore, persona_instance_id_for
+    from agent_runtime.store import AgentStore
+    from hermes_time import now
+
+    persona = AgentStore().get(FIXTURE_CREATE_PERSONA_ID)
+    PersonaInstanceStore()._write(PersonaInstance(
+        id=persona_instance_id_for(persona.id), persona_id=persona.id, role=str(persona.role),
+        display_name=persona.display_name, profile_id=persona.hermes_profile,
+        runtime_root=str(paths.store_root()), state=WorkerSessionState.IDLE, updated_at=now(),
+        adopted_from_global="2026-11-21",  # held machine-local, as the migration leaves such a row
+    ))
+
+
 def _build_agent_create_frames() -> tuple[dict, dict]:
     """S0: ONE ``perform_agent_create``, rendered for two different subscribers.
 
@@ -692,6 +716,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
             system_prompt_path="",
         )
     )
+    _seed_fixture_qa_channel()
     WorkspaceStore().create(
         name="Office Pilot", workspace_id=FIXTURE_CREATE_WORKSPACE_ID
     )

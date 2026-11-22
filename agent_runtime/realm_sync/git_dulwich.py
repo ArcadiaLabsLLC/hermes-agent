@@ -44,6 +44,7 @@ from dulwich.repo import Repo
 from .git import MERGE_REMOTE_THEIRS_STEP, _push_was_rejected, push_step
 from .git_port import ChangedPath, FetchOutcome, LogEntry, MergeOutcome, PushOutcome, PushReport, RepoState
 from .merge_theirs import Favour, FavouringMerger
+from .path_diff import PathDiff, path_diff, working_bytes
 from .models import RealmSyncError
 
 if TYPE_CHECKING:
@@ -366,6 +367,29 @@ class DulwichSyncGit:
         rows = [ChangedPath(path=p, untracked=False) for p in tracked if _within_paths(p, paths)]
         rows += [ChangedPath(path=p, untracked=True) for p in untracked - tracked if _within_paths(p, paths)]
         return tuple(sorted(rows, key=lambda row: row.path))
+
+    def diff(self, paths: Sequence[str]) -> tuple[PathDiff, ...]:
+        # Built from objects: the HEAD tree's blob, looked up by path, against the file. Never dulwich's
+        # whole-tree diff (twenty seconds on a 32k-file clone, plan §5) and never a process.
+        # MUTATION: answer the working file for both sides and
+        # test_diff_shows_an_edit_and_a_new_file_the_same_on_both_backends reddens on this backend.
+        rows: list[PathDiff] = []
+        with self._open() as repo:
+            head = self._resolve(repo, "HEAD")
+            tree = repo[head].tree if head is not None else None
+            for path in paths:
+                old = None
+                if tree is not None:
+                    try:
+                        _mode, sha = tree_lookup_path(repo.object_store.__getitem__, tree, _b(path))
+                    except KeyError:
+                        sha = None
+                    if sha is not None and not isinstance(repo[sha], Tree):
+                        old = repo[sha].as_raw_string()
+                new = working_bytes(self.repo, path)
+                if old is not None or new is not None:
+                    rows.append(path_diff(path, old, new))
+        return tuple(rows)
 
     def add(self, paths: Sequence[str], *, all_under: bool = False) -> None:
         # ``all_under`` is git's ``add -A``; since git 2.0 ``add <path>`` stages the deletions under it too,

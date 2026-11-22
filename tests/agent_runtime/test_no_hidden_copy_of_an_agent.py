@@ -109,6 +109,10 @@ def test_a_held_copy_is_never_addressable():
     for scope in (None, "ws_a"):
         roster = workspace_scope.addressable_roster([held, adopted, unseated], scope_workspace_id=scope)
         assert [i.id for i in roster] == ["personainst_qa", "personainst_dev_k1"]
+    # The lane asking keeps itself: a held row that runs turns (a profile's own channel) sees itself in its
+    # own HUD roster. Kill-mutation: drop the ``keep_id`` test in ``exclude_held_copies`` → red.
+    roster = workspace_scope.addressable_roster([held, adopted, unseated], scope_workspace_id=None, self_id=held.id)
+    assert [i.id for i in roster] == ["personainst_dev", "personainst_qa", "personainst_dev_k1"]
 
 
 def test_a_channel_naming_no_instance_is_not_filed_under_a_hidden_copy():

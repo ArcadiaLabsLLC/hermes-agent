@@ -603,9 +603,11 @@ def _commit_chat_opened(
     if created:
         with timed_create_subphase("create_patch_ms"):
             emit_persona_instance_create(store.event_log, updated, correlation_id=token)
-        if updated.id == persona_instance_id_for(updated.persona_id):
-            # The row a bind that named no instance made (``_load_or_mint_chat_instance``), announced as the
-            # retired store mint announced it.
+        if updated.id == persona_instance_id_for(updated.persona_id) and not str(updated.persona_id).startswith(
+                "profile_"):
+            # The held row a bind that named no instance made (``_load_or_mint_chat_instance``, logged
+            # ``persona_instance_bind_named_no_instance``), announced as the retired store mint announced it.
+            # A profile's own channel never was (its create batch stays patch-coverable, D3).
             store._event("persona_instance.created", updated, {})
     else:
         moved = [

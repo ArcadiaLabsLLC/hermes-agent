@@ -120,6 +120,27 @@ def test_an_operator_open_of_an_unplaced_agent_places_it():
     assert PersonaInstanceStore().get(opened).workspace_id == DEFAULT_WORKSPACE_ID
 
 
+def test_an_open_naming_a_missing_hidden_copy_places_the_agent():
+    """Eternia's template console names ``personainst_<persona>`` on its New chat (read live 2026-11-21,
+    w1118a-mint: "persona instance not found: personainst_base"). With no row under that id the open means
+    the agent and places it. Kill-mutation: drop ``_names_an_unplaced_hidden_copy`` in
+    ``_cmd_persona_instance_open_new_chat`` → refused ``persona_instance_not_found``, red."""
+    from hermes_cli.harness_parts.persona.chat_open import _cmd_persona_instance_open_chat
+
+    ensure_default_scope(seed_active_pointers=False)
+    payloads = []
+    args = SimpleNamespace(
+        persona_id=DEV, persona_instance_id=HIDDEN, session_id=None, new_session=True, add_instance=False,
+        idempotency_key="open-hidden-1", title=None, select_session=True, client_scope=None, json=True,
+        payload_sink=payloads.append,
+    )
+    assert _cmd_persona_instance_open_chat(args) == 0, payloads
+    opened = payloads[-1]["persona_instance_id"]
+    assert opened != HIDDEN and opened.startswith(f"{HIDDEN}_agent_")
+    assert PersonaInstanceStore().get(opened).workspace_id == DEFAULT_WORKSPACE_ID
+    assert HIDDEN not in _stored_ids()
+
+
 def test_reading_the_addressable_roster_writes_no_row():
     """Kill-mutation: mint the scope's rows in ``addressing._addressable`` again → red."""
     from tools.agent_chat.addressing import _addressable
