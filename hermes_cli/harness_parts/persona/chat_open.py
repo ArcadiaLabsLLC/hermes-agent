@@ -14,6 +14,7 @@ from agent_runtime.chat_heads import resolve_conversation_chat_scope
 # Patched by the open-chat tests' config seam; the open itself no longer reads the roster.
 from agent_runtime.config import load_agent_runtime_config  # noqa: F401
 from agent_runtime.persona_assignments import (
+    AgentNotPlacedError,
     PersonaInstanceStore,
     RetiredPersonaInstanceError,
     canonical_persona_instance_id,
@@ -170,8 +171,20 @@ def _cmd_persona_instance_open_chat(args) -> int:
             persona_ok = personas_equal(owner_persona, persona_id) or (
                 pin_proves_ownership and not safe_assignment_token(owner_persona)
             )
-            move_to = _move_target(args, owner_instance, persona_ok,
-                                   target_instance_id, session_owner)
+            # A saved chat held by the agent's bare id (its old hidden copy, no row under it) opens on the
+            # agent's placed instance: an idle one takes it as its live chat, else a new one is placed
+            # (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW, owner RULED 2026-11-22).
+            # MUTATION: skip this arm and test_a_saved_chat_on_an_agents_bare_name_replaces_the_idle_instances_chat reddens.
+            bare_agent = (_unplaced_agent_named_by(session_owner, persona_id)
+                          if owner_instance is None and target_instance_id in (None, session_owner) else None)
+            if bare_agent is not None:
+                placed = _place_for_bare_open(args, bare_agent)
+                if isinstance(placed, int):
+                    return placed
+                move_to = placed
+            else:
+                move_to = _move_target(args, owner_instance, persona_ok,
+                                       target_instance_id, session_owner)
             if move_to is None and (
                 owner_instance is None
                 or not persona_ok
@@ -188,6 +201,18 @@ def _cmd_persona_instance_open_chat(args) -> int:
                 _emit_persona_verb_payload(args, data)
                 return 2
             target_instance_id = move_to or session_owner
+        if move_to is None:
+            # The bind would land on the agent's bare id (no instance named, or its old hidden copy named
+            # with no row under it): the door places first, by the one reuse-or-place rule, so the store's
+            # ``agent_not_placed`` guard never answers an operator's open.
+            # MUTATION: drop this placement and test_a_bare_open_with_no_idle_instance_places_one_and_announces_it reddens.
+            bare_agent = _unplaced_agent_named_by(
+                target_instance_id or persona_instance_id_for(persona_id), persona_id)
+            if bare_agent is not None:
+                placed = _place_for_bare_open(args, bare_agent)
+                if isinstance(placed, int):
+                    return placed
+                target_instance_id = placed
         try:
             # The instance the chat opens on, else the agent's placed instance: never the hidden copy
             # ``personainst_<persona>`` nothing mints any more
@@ -362,6 +387,36 @@ def _persona_instance_updated_at(instance) -> str | None:
     if hasattr(value, "isoformat"):
         return value.isoformat()
     return safe_assignment_text(value, limit=80) or None
+
+
+def _unplaced_agent_named_by(instance_id: str | None, persona_id: str) -> str | None:
+    """The agent ``persona_id`` when ``instance_id`` is its bare id with no row under it; else ``None``.
+
+    A profile's own channel keeps its id (documented edge), and another agent's bare id is not this open's
+    to place: the ownership fence answers that one."""
+
+    hidden = _unplaced_hidden_copy_persona(instance_id, persona_id) if instance_id else None
+    return hidden if hidden is not None and personas_equal(hidden, persona_id) else None
+
+
+def _place_for_bare_open(args, persona_id: str) -> str | int:
+    """The instance a bare open lands on: the agent's idle instance in the Default workspace (its live chat
+    is then replaced by the one selected, and nothing is announced), else a newly placed one (whose
+    placement announces ``persona_instance.created``). A refused placement answers ``agent_not_placed``
+    and returns the exit code."""
+
+    from agent_runtime.agent_create.staff import reuse_or_place
+
+    placed, refusal = reuse_or_place(persona_id)
+    if refusal is None:
+        return placed
+    # MUTATION: answer foreign_chat_session here and test_a_bare_open_whose_placement_is_refused_says_it_is_not_placed reddens.
+    refused = AgentNotPlacedError(persona_id, persona_instance_id_for(persona_id))
+    return _emit_persona_open_chat_error(
+        args, error_kind=refused.code,
+        error=f"{persona_id} is not placed in a workspace and could not be placed: {refusal['message']}",
+        persona_id=persona_id, persona_instance_id=refused.persona_instance_id,
+        next_expected="place the agent in a workspace (runtime.agent.place), then open its chat")
 
 
 def _unplaced_hidden_copy_persona(instance_id: str, persona_id: str) -> str | None:

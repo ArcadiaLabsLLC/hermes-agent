@@ -273,6 +273,8 @@ def test_open_chat_without_add_instance_is_untouched_by_the_fence(
         [
             "harness", "persona", "instance", "open-chat",
             "--persona", "qa_agent",
+            # A named placement: a bind on the bare id is refused agent_not_placed, a separate fence.
+            "--persona-instance-id", "personainst_qa_agent_1",
             "--session-id", "no_such_session",
             "--json",
         ]

@@ -75,6 +75,7 @@ from agent_runtime.persona_assignments.vocabulary import (
 )
 
 from agent_runtime.persona_assignments.errors import (
+    AgentNotPlacedError,
     PersonaInstanceRetireError,
     RetiredPersonaInstanceError,
     StaleModelOverrideWrite,
@@ -148,6 +149,7 @@ __all__ = [
     "PERSONA_ROWS_UNREADABLE",
     "RETIRE_RECEIPTS_DIRNAME",
     "TERMINAL_ASSIGNMENT_STATES",
+    "AgentNotPlacedError",
     "PersonaInstanceRetireError",
     "PersonaInstanceScan",
     "PersonaInstanceStore",

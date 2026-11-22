@@ -575,6 +575,7 @@ def test_open_chat_create_resolves_the_backing_persona_like_the_snapshot_does(
     before = _log_end()
     instance = store.open_chat(
         persona_id=persona.id,
+        persona_instance_id=f"personainst_{persona.id}_agent_1",
         session_id="persona_chat_open_create_backed",
         display_name="Backed Agent",
     )

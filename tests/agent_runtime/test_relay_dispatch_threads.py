@@ -38,6 +38,10 @@ from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run,
 from tests.agent_runtime.test_relay_session_lifecycle import _persist_explicit_chat_persona_data
 from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
+# dev's named placed instance: a bind on the bare hidden copy (`personainst_dev`) is refused
+# with agent_not_placed, and an explicit non-hidden-copy id is minted on open.
+_DEV_INSTANCE = "personainst_dev_agent_1"
+
 
 # --------------------------------------------------------------------------- #
 # Task-scoped dispatch sessions (2026-07-27)                                  #
@@ -155,7 +159,7 @@ def _dispatch_args(message: str, client_message_id: str, **overrides):
         # The dispatch addresses dev's instance by handle: a bare ``dev`` with no instance in reach is
         # no longer sent to the hidden copy (RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-
         # OR-REFUSED), and these tests are about the thread lane, not the target pick.
-        persona_instance_id=persona_instance_id_for("dev"),
+        persona_instance_id=_DEV_INSTANCE,
         session_id=None,
         task_id=None,
         goal_id=None,
@@ -247,7 +251,7 @@ def _refused(capsys, args) -> dict:
 
 
 def _dev_chat_sessions(db) -> list[str]:
-    prefix = f"persona_chat_{persona_instance_id_for('dev')}_"
+    prefix = f"persona_chat_{_DEV_INSTANCE}_"
     return [session_id for session_id in db.sessions if session_id.startswith(prefix)]
 
 
@@ -277,11 +281,11 @@ def test_fresh_dispatch_thread_is_canonical_pointed_and_visible(
 
     payload = _send(capsys, _dispatch_args("investigate the cold-start cost", "cm-dispatch-3"))
     session_id = payload["session_id"]
-    handle = persona_instance_id_for("dev")
+    handle = _DEV_INSTANCE
 
     assert session_id.startswith(f"persona_chat_{handle}_")
     store = PersonaInstanceStore()
-    assert resolve_default_chat_session_id_for_instance(store, persona_id="dev", persona_instance_id=persona_instance_id_for("dev")) == session_id
+    assert resolve_default_chat_session_id_for_instance(store, persona_id="dev", persona_instance_id=_DEV_INSTANCE) == session_id
     rows = persona_chat_history_summary(persona_instances=store.list_all(), session_db=db)
     visible = [row for row in rows if row["session_id"] == session_id]
     assert len(visible) == 1
@@ -420,7 +424,7 @@ def test_a_dispatch_refused_on_its_own_arguments_mints_nothing(
 
     assert _dev_chat_sessions(db) == [], "a refused dispatch must not create a thread"
     assert (
-        resolve_default_chat_session_id_for_instance(PersonaInstanceStore(), persona_id="dev", persona_instance_id=persona_instance_id_for("dev"))
+        resolve_default_chat_session_id_for_instance(PersonaInstanceStore(), persona_id="dev", persona_instance_id=_DEV_INSTANCE)
         is None
     ), "a refused dispatch must not establish a default-thread pointer"
 
@@ -445,7 +449,7 @@ def test_a_refused_dispatch_leaves_an_established_thread_pointed_where_it_was(
 
     assert _dev_chat_sessions(db) == [established["session_id"]]
     assert resolve_default_chat_session_id_for_instance(
-        PersonaInstanceStore(), persona_id="dev", persona_instance_id=persona_instance_id_for("dev")
+        PersonaInstanceStore(), persona_id="dev", persona_instance_id=_DEV_INSTANCE
     ) == established["session_id"]
 
 
@@ -610,14 +614,14 @@ def test_clarify_round_trip_stays_in_one_session_under_the_new_default(
     chat_sessions = [
         session_id
         for session_id in db.sessions
-        if session_id.startswith(f"persona_chat_{persona_instance_id_for('dev')}_")
+        if session_id.startswith(f"persona_chat_{_DEV_INSTANCE}_")
     ]
     assert chat_sessions == [dispatched["session_id"]]
     # …and the answer did not mint a second one behind the caller's back.
     assert answer["session_established"]["fresh"] is False
     assert answer["session_established"]["predecessor_session_id"] is None
     assert resolve_default_chat_session_id_for_instance(
-        PersonaInstanceStore(), persona_id="dev", persona_instance_id=persona_instance_id_for("dev")
+        PersonaInstanceStore(), persona_id="dev", persona_instance_id=_DEV_INSTANCE
     ) == dispatched["session_id"]
 
 
@@ -643,7 +647,7 @@ def _mint_clarify_ticket(session_id: str, **overrides) -> str:
 
     token = PersonaChatClarifyTicketStore().mint(
         chat_session_id=session_id,
-        persona_instance_id=persona_instance_id_for("dev"),
+        persona_instance_id=_DEV_INSTANCE,
         persona_id="dev",
         asked_by_client_message_id="agent-relay-aaaaaaaaaaaa",
         **overrides,
@@ -959,7 +963,7 @@ def test_a_dispatch_whose_transcript_write_fails_refuses_instead_of_binding_a_ph
     # …and no phantom pointer survives to poison every later send.
     assert (
         resolve_default_chat_session_id_for_instance(
-            PersonaInstanceStore(), persona_id="dev", persona_instance_id=persona_instance_id_for("dev")
+            PersonaInstanceStore(), persona_id="dev", persona_instance_id=_DEV_INSTANCE
         )
         is None
     )
@@ -988,7 +992,7 @@ def test_a_dispatch_to_a_retired_placement_leaves_live_threads_alone(
     assert list(db.sessions) == [established["session_id"]]
     assert _mint_receipt_files() == receipts_before
     assert resolve_default_chat_session_id_for_instance(
-        PersonaInstanceStore(), persona_id="dev", persona_instance_id=persona_instance_id_for("dev")
+        PersonaInstanceStore(), persona_id="dev", persona_instance_id=_DEV_INSTANCE
     ) == established["session_id"]
 
 
@@ -1081,7 +1085,7 @@ def test_a_retired_target_is_refused_before_the_mint_lane_is_ever_entered(
 #                                                                             #
 # Persona instances carry a lifecycle. The chat-mode on-level instances       #
 # (`personainst_<role>_agent_<hash>`) are the operator's chat targets; the    #
-# bare task-bound rows (`personainst_qa`, `personainst_goal_*`, …) belong to  #
+# bare task-bound rows (`personainst_qa_agent_1`, `personainst_goal_*`, …) belong to  #
 # the goal graph and its daemon. Messaging a task-bound row's chat root       #
 # WORKED mechanically — which is what made it worth removing, because the     #
 # Mission Control console then misattributed the thread and the operator's    #
@@ -1175,7 +1179,10 @@ def test_a_bare_operator_send_to_a_legacy_instance_root_is_accepted(
     assert on_level.mode == "chat"
 
     payload = _send(
-        capsys, _dispatch_args("status please", "cm-task-bound-1", session_id=root)
+        capsys,
+        _dispatch_args(
+            "status please", "cm-task-bound-1", session_id=root, persona_instance_id=goal_instance.id
+        ),
     )
     assert payload["session_id"] == root
     assert payload["persona_instance_id"] == goal_instance.id
@@ -1235,6 +1242,7 @@ def test_a_relay_hop_reaches_a_legacy_instance_root(
             "stage 2 is ready for you",
             "cm-task-bound-relay",
             session_id=root,
+            persona_instance_id=goal_instance.id,
             relay_chain=["neko_supervisor"],
         ),
     )
@@ -1266,6 +1274,7 @@ def test_an_explicit_legacy_goal_argument_does_not_change_chat_routing(
             "stage 2 is ready for you",
             "cm-task-bound-goal",
             session_id=root,
+            persona_instance_id=goal_instance.id,
             goal_id="goal_alpha",
         ),
     )

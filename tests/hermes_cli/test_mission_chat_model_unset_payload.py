@@ -148,7 +148,7 @@ class _RunnerWritesItsRowThenFails:
     db = None
 
     def run(self, request, **kwargs):
-        type(self).db.append_message("persona_chat_personainst_dev", "user", "please answer",
+        type(self).db.append_message("persona_chat_personainst_dev_agent_1", "user", "please answer",
                                      platform_message_id="native_turn")
         raise RuntimeError("the agent never sent a request")
 

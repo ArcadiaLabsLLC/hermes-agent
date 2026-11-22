@@ -91,7 +91,7 @@ def _bind(monkeypatch, runtime_root, *, lane=_serve_lane, session_id: str = SESS
     lane(monkeypatch, runtime_root)
     log = _CaptureLog()
     store = PersonaInstanceStore(event_log=log)
-    instance = store.open_chat(persona_id="qa", session_id=session_id)
+    instance = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=session_id)
     return store, instance, log
 
 
@@ -131,7 +131,7 @@ def test_reopening_with_the_same_head_stays_an_idempotent_no_op(
     store, first, log = _bind(monkeypatch, runtime_root)
     events_before = len(log.events)
 
-    second = store.open_chat(persona_id="qa", session_id=SESSION_ID)
+    second = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=SESSION_ID)
 
     assert second.chat_head_home == first.chat_head_home
     assert second.updated_at == first.updated_at
@@ -147,7 +147,7 @@ def test_a_rebind_under_a_different_authoritative_head_restamps_and_is_audited(
     store, _, log = _bind(monkeypatch, runtime_root)
 
     monkeypatch.setenv("HERMES_HEAD_HOME", str(runtime_root["other_home"]))
-    rebound = store.open_chat(persona_id="qa", session_id=SESSION_ID)
+    rebound = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=SESSION_ID)
 
     assert rebound.chat_head_home == str(runtime_root["other_home"])
     opened = [event for event in log.events if event.type == "persona_instance.chat_opened"]

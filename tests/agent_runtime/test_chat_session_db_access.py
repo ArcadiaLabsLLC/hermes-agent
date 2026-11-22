@@ -56,7 +56,7 @@ def test_a_bound_session_in_an_absent_store_is_a_typed_drop(scope, isolate_agent
 
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
-    bound = PersonaInstanceStore().open_chat(persona_id="dev", session_id="chat_bound")
+    bound = PersonaInstanceStore().open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="chat_bound")
     accountant = ProjectionAccountant("persona_chat_history")
 
     rows = persona_chat_history_summary(persona_instances=[bound], accountant=accountant)
@@ -74,7 +74,7 @@ def test_a_present_store_missing_the_row_is_still_session_not_in_db(scope, isola
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
     open_chat_session_db(scope, access=SessionDbAccess.WRITE).close()
-    bound = PersonaInstanceStore().open_chat(persona_id="dev", session_id="chat_bound")
+    bound = PersonaInstanceStore().open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="chat_bound")
     accountant = ProjectionAccountant("persona_chat_history")
 
     persona_chat_history_summary(persona_instances=[bound], accountant=accountant)
@@ -96,7 +96,7 @@ def test_a_store_file_with_no_sessions_table_reads_as_absent(scope, isolate_agen
     scope.db_path.touch()  # what a writer leaves before its schema
     assert open_chat_session_db(scope, access=SessionDbAccess.READ) is None
     assert not chat_session_scope.chat_session_store_exists(scope)
-    bound = PersonaInstanceStore().open_chat(persona_id="dev", session_id="chat_bound")
+    bound = PersonaInstanceStore().open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="chat_bound")
     accountant = ProjectionAccountant("persona_chat_history")
 
     assert persona_chat_history_summary(persona_instances=[bound], accountant=accountant) == []

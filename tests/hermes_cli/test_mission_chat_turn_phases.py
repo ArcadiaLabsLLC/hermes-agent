@@ -221,7 +221,7 @@ def _never_reaches_the_provider():
 def _args(client_message_id: str, *, stream: bool):
     return SimpleNamespace(
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         session_id=_SESSION_ID,
         message="please answer",
         surface_prompt="",

@@ -189,19 +189,20 @@ def test_a_bound_root_is_read_from_its_per_profile_instances_head(tmp_path, monk
     root = paths.store_root()
     root.mkdir(parents=True, exist_ok=True)
     instances = PersonaInstanceStore()
-    instance = instances.open_chat(persona_id="qa", session_id="personainst_qa_root", persona_instance_id="personainst_qa")
+    # A named placed instance: a bind on the agent's bare id is refused (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW).
+    instance = instances.open_chat(persona_id="qa", session_id="personainst_qa_root", persona_instance_id="personainst_qa_agent_1")
     instance.chat_head_home, instance.chat_head_kind = str(alice), kind
     instances.update(instance)
     store = ConversationStore(root / "native_conversation_routes.db")
     route = _launcher_route(store, tmp_path / "eternia_launcher" / "agents" / "workspaces", "ggg")
-    store.reserve_migration(route, "qa", "personainst_qa")
+    store.reserve_migration(route, "qa", "personainst_qa_agent_1")
     db = open_chat_session_db(ChatSessionScope(alice, ChatHeadSource.INSTANCE_RECORDED), access=SessionDbAccess.WRITE)
     db.create_session("personainst_qa_root", "agent_runtime_persona_chat", model_config={
         "legacy_conversation": {"route_id": route.id}})
     db.close()
     receipt = paths.persona_chat_mint_receipt_path("digest2")
     receipt.parent.mkdir(parents=True, exist_ok=True)
-    receipt.write_text(_json.dumps({"persona_instance_id": "personainst_qa", "session_id": "personainst_qa_root",
+    receipt.write_text(_json.dumps({"persona_instance_id": "personainst_qa_agent_1", "session_id": "personainst_qa_root",
                                     "state": "bound"}), encoding="utf-8")
-    expected = ("personainst_qa", "personainst_qa_root") if kind == "per_profile" else None
+    expected = ("personainst_qa_agent_1", "personainst_qa_root") if kind == "per_profile" else None
     assert _bound_persona_root(store, route) == expected

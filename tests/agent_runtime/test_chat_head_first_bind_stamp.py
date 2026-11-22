@@ -115,7 +115,7 @@ def test_a_rebind_of_an_already_bound_process_instance_never_stamps_per_profile(
 
 
 def test_a_created_agent_mints_its_root_in_its_profile_and_none_in_base(heads):
-    instance = PersonaInstanceStore().create_operator_chat(persona_id="qa", display_name="QA")
+    instance = PersonaInstanceStore().create_operator_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", display_name="QA")
 
     root = instance.default_chat_session_id
     assert instance.chat_head_kind == CHAT_HEAD_KIND_PER_PROFILE
@@ -126,7 +126,7 @@ def test_a_created_agent_mints_its_root_in_its_profile_and_none_in_base(heads):
 def test_positive_control_a_persona_that_inherits_the_process_profile_mints_in_base(heads):
     heads.persona.hermes_profile = None
 
-    instance = PersonaInstanceStore().create_operator_chat(persona_id="qa", display_name="QA")
+    instance = PersonaInstanceStore().create_operator_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", display_name="QA")
 
     root = instance.default_chat_session_id
     assert instance.chat_head_kind != CHAT_HEAD_KIND_PER_PROFILE

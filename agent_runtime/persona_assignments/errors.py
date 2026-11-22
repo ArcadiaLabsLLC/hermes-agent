@@ -14,6 +14,7 @@ from agent_runtime.models import PersonaInstance
 __layer__ = "models"
 
 __all__ = [
+    "AgentNotPlacedError",
     "PersonaInstanceRetireError",
     "RetiredPersonaInstanceError",
     "StaleModelOverrideWrite",
@@ -72,6 +73,22 @@ class PersonaInstanceRetireError(AgentRuntimeError):
         self.message = message
         self.persona_instance_id = persona_instance_id
         self.detail = detail or {}
+
+
+class AgentNotPlacedError(AgentRuntimeError, ValueError):
+    """A chat bind named an agent by its bare id (its old hidden copy ``personainst_<persona>``) and no row
+    stands under it: nothing mints that copy any more, so the store refuses instead of making a row
+    nobody can address (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW). It is a
+    guard: the operator's doors place the agent first (``agent_create.staff.reuse_or_place``), and the
+    open-chat door answers ``agent_not_placed`` only when that placement is refused. A profile's own
+    channel keeps its id. A ``ValueError`` so every bind caller that refuses a bad bind refuses this one.
+    """
+
+    def __init__(self, persona_id: str, persona_instance_id: str):
+        super().__init__("agent_not_placed")
+        self.code = "agent_not_placed"
+        self.persona_id = persona_id
+        self.persona_instance_id = persona_instance_id
 
 
 class RetiredPersonaInstanceError(AgentRuntimeError):

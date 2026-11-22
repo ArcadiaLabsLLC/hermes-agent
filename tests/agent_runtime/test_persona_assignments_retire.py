@@ -649,7 +649,7 @@ def test_a_cleared_binding_is_not_stale_because_its_own_event_demotes_the_batch(
     )
 
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="dev", session_id="persona_chat_clear_wire")
+    instance = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="persona_chat_clear_wire")
     base = len(list(EventLog().iter_from_offset(0)))
 
     record = store.clear_chat_session_binding(
@@ -710,7 +710,7 @@ def test_covering_the_clear_would_drop_the_chat_history_row_it_also_moves(
 
     db = _TranscriptDB()
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="dev", session_id="persona_chat_history_move")
+    instance = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="persona_chat_history_move")
     db.create_session("persona_chat_history_move", "agent_runtime_persona_chat")
 
     before = persona_chat_history_summary(
@@ -799,7 +799,7 @@ def test_both_live_clear_callers_reach_a_client_through_the_full_core(
     assert frames and all(isinstance(frame.get("core"), dict) for frame in frames)
 
     # -- caller 2: the reconcile sweep ---------------------------------------
-    orphan = store.open_chat(persona_id="qa", session_id="persona_chat_orphaned_root")
+    orphan = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id="persona_chat_orphaned_root")
     # The sweep clears only on a POSITIVE "absent" from an enumerating
     # SessionDB, so the probe must see a live database that simply does not
     # hold this root.

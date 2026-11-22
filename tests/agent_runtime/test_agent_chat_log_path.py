@@ -121,9 +121,7 @@ def test_the_file_keeps_growing_after_the_path_is_handed_out(isolate_agent_runti
 
 
 def test_refuses_a_foreign_session(isolate_agent_runtime_root):
-    from tests.agent_runtime.test_agent_chat_tool import _seed_persona_chat
-
-    _seed_persona_chat("qa", [("hi", "ack")])
+    _placed_chat("qa", [("hi", "ack")])
     # Handing over a FILE PATH is at least as strong a capability as reading a
     # tail, so it gets the identical guard and the identical typed refusal.
     data = json.loads(
@@ -138,11 +136,12 @@ def test_refuses_a_foreign_session(isolate_agent_runtime_root):
 
 def test_sibling_prefix_collision_is_still_refused(isolate_agent_runtime_root):
     from agent_runtime.persona_assignments import PersonaInstanceStore
-    from tests.agent_runtime.test_agent_chat_tool import _seed_persona_chat
+    from tests.agent_runtime.test_agent_chat_tool import _legacy_canonical, _seed_persona_chat
 
     sibling = PersonaInstanceStore().add_instance(
         persona_id="qa", placement_id="qa_agent_2", display_name="QA Agent 2"
     )
+    _legacy_canonical("qa")  # the prefix of the sibling's id; a bare-name bind no longer mints it
     _seed_persona_chat("qa", [("primary hi", "primary ack")])
     sibling_session = _seed_persona_chat(
         "qa", [("sib", "ok")], persona_instance_id=sibling.id
@@ -239,7 +238,7 @@ def test_mission_chat_turn_mirrors_the_order_and_the_recorded_reply(
     assert chat_turn_message._cmd_mission_chat_message(_mission_chat_test_args("cm-live-1")) == 0
     capsys.readouterr()
 
-    rows = [row for row in _mirror_rows("persona_chat_personainst_dev") if row.get("kind") == "message"]
+    rows = [row for row in _mirror_rows("persona_chat_personainst_dev_agent_1") if row.get("kind") == "message"]
     assert [(row["role"], row["text"]) for row in rows] == [
         ("operator", "please answer"),
         ("agent", "the recorded reply"),
@@ -288,7 +287,7 @@ def test_mission_chat_resend_does_not_double_the_mirrored_order(
     chat_turn_message._cmd_mission_chat_message(_mission_chat_test_args("cm-resend"))
     capsys.readouterr()
 
-    rows = [row for row in _mirror_rows("persona_chat_personainst_dev") if row.get("kind") == "message"]
+    rows = [row for row in _mirror_rows("persona_chat_personainst_dev_agent_1") if row.get("kind") == "message"]
     assert [row["text"] for row in rows].count("please answer") == 1
 
 

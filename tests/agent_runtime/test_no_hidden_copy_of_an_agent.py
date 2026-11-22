@@ -59,19 +59,49 @@ def test_a_bare_agent_names_no_hidden_copy():
     assert canonical_chat_instance_id("profile_alice") == persona_instance_id_for("profile_alice")
 
 
-def test_an_open_naming_no_instance_makes_a_held_row():
-    """The one door left: a bind naming no instance makes a row HELD machine-local, never an ordinary
-    unscoped one. Kill-mutation: drop the stamp in ``chat_binding._load_or_mint_chat_instance`` → red."""
-    from agent_runtime.persona_instance_adoption import unstamped_hidden_copies
+def test_a_bind_on_an_agents_bare_name_is_refused():
+    """RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW: a bind naming an agent by its
+    bare id (its old hidden copy) refuses ``agent_not_placed`` and writes nothing; a profile's own channel
+    keeps its id and is made HELD machine-local as before. Kill-mutations: drop the refusal in
+    ``chat_binding._load_or_mint_chat_instance`` → red (a held row is made); drop the profile stamp → red."""
+    from agent_runtime.persona_assignments import AgentNotPlacedError
 
     copy = persona_instance_id_for("dev")
-    opened = PersonaInstanceStore().open_chat(persona_id="dev", session_id=f"persona_chat_{copy}_0123456789ab")
-    assert opened.id == copy and opened.adopted_from_global and opened.workspace_id is None
-    assert unstamped_hidden_copies() == []
+    with pytest.raises(AgentNotPlacedError) as refused:
+        PersonaInstanceStore().open_chat(persona_id="dev", session_id=f"persona_chat_{copy}_0123456789ab")
+    assert refused.value.code == "agent_not_placed"
+    assert _hidden_copies() == []
     channel = persona_instance_id_for("profile_alice")
     opened = PersonaInstanceStore().open_chat(persona_id="profile_alice", session_id=f"persona_chat_{channel}_0123456789ab")
     assert opened.id == channel and opened.adopted_from_global
 
+
+
+def test_a_cli_open_on_an_agents_bare_name_says_it_is_not_placed(monkeypatch, capsys):
+    """The CLI open of a saved root on an agent's bare id goes through placement; with no Default workspace
+    to place in it refuses in its own words (``agent_not_placed``, naming the place step), never "foreign
+    chat session", and makes no row. Kill-mutation: answer ``foreign_chat_session`` in
+    ``chat_open._place_for_bare_open`` → red. The placed and reused arms:
+    ``test_bare_name_chat_open.py``."""
+    import json
+    from argparse import Namespace
+
+    from hermes_cli.harness_parts.persona import chat_open, lifecycle_commands
+    from tests.agent_runtime.persona_assignments_helpers import _assignment_config, _TranscriptDB
+
+    db = _TranscriptDB()
+    for module in (chat_open, lifecycle_commands):
+        monkeypatch.setattr(module, "load_agent_runtime_config", _assignment_config)
+        monkeypatch.setattr(module, "_default_persona_session_db", lambda: db)
+
+    code = chat_open._cmd_persona_instance_open_chat(
+        Namespace(persona_id="dev", session_id="chat_old_123", json=True))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 2
+    assert payload["error_kind"] == "agent_not_placed"
+    assert payload["persona_instance_id"] == persona_instance_id_for("dev")
+    assert _hidden_copies() == []
 
 def test_retire_and_duplicate_act_on_an_adopted_hidden_copy_with_no_guard():
     """Plan §3(c): with no mint the retire and duplicate guards are deleted; an adopted copy is ordinary.

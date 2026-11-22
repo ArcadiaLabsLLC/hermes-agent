@@ -167,7 +167,7 @@ def test_created_by_resolves_persona_from_session():
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
     instance = PersonaInstanceStore().create_operator_chat(
-        persona_id="dev", display_name="Dev", session_id="sess_board_attr"
+        persona_id="dev", persona_instance_id="personainst_dev_agent_1", display_name="Dev", session_id="sess_board_attr"
     )
     result = json.loads(
         registry.dispatch(

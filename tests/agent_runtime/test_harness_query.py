@@ -149,7 +149,7 @@ def test_sessions_report_the_registrys_state_when_this_process_owns_it(resident_
 
 
 def test_live_qa_with_no_qa_instance_says_so(no_resident_registry):
-    PersonaInstanceStore().open_chat(persona_id="dev", session_id=DEV_ROOT)
+    PersonaInstanceStore().open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id=DEV_ROOT)
     _session(DEV_ROOT)
 
     reply = harness_query.answer("live_qa")
@@ -257,8 +257,8 @@ def test_the_verb_reads_directly_and_says_why_when_no_serve_is_live(capsys):
 
 
 def test_the_serve_runs_the_direct_form_so_it_never_dials_itself():
-    assert harness_query.query_argv("sessions", "personainst_qa", 5) == [
-        "harness", "query", "sessions", "personainst_qa", "--limit", "5", "--direct", "--json",
+    assert harness_query.query_argv("sessions", "personainst_qa_agent_1", 5) == [
+        "harness", "query", "sessions", "personainst_qa_agent_1", "--limit", "5", "--direct", "--json",
     ]
 
 

@@ -29,7 +29,8 @@ from tests._downstream.split_package_source import patch_where_bound
 from tests.agent_runtime.stream_liveness_helpers import is_boot_liveness
 
 PERSONA = "dev"
-INSTANCE = "personainst_dev"
+# A named placement: a bind on the bare id ``personainst_dev`` is refused (agent_not_placed).
+INSTANCE = "personainst_dev_agent_1"
 ROOT = f"persona_chat_{INSTANCE}_0123456789ab"
 OTHER_ROOT = f"persona_chat_{INSTANCE}_fedcba987654"
 DECLARING = sorted(HISTORICAL_FOLD_ENTITIES | {PERSONA_CHAT_TURN_CAPABILITY})
@@ -62,7 +63,9 @@ def _seed_chat(root: str = ROOT, *, messages: int = 2):
         ensure_persona_chat_session,
     )
 
-    instance = PersonaInstanceStore().open_chat(persona_id=PERSONA, session_id=root)
+    instance = PersonaInstanceStore().open_chat(
+        persona_id=PERSONA, persona_instance_id=INSTANCE, session_id=root
+    )
     db = default_persona_session_db()
     assert ensure_persona_chat_session(
         session_db=db, session_id=root, persona_id=PERSONA, title="turn section", required=True

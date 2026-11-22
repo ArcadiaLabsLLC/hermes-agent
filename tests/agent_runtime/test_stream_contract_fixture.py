@@ -757,7 +757,9 @@ def test_the_agent_create_pair_is_one_batch_seen_two_ways():
     patch = _fixture("patch_agent_create.json")
     demoted = _fixture("delta_agent_create_narrow_profile.json")
 
-    assert patch["coalesced_count"] == demoted["coalesced_count"] == 6
+    # 7 since every placement announces ``persona_instance.created`` beside its create upsert
+    # (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW).
+    assert patch["coalesced_count"] == demoted["coalesced_count"] == 7
     assert (
         patch["watermark"]["event_offset"]
         == demoted["watermark"]["event_offset"]
@@ -767,6 +769,7 @@ def test_the_agent_create_pair_is_one_batch_seen_two_ways():
         "state.patched",
         "persona.updated",
         "state.patched",
+        "persona_instance.created",
         "persona_instance.chat_opened",
         "state.patched",
         "office.actor.upserted",

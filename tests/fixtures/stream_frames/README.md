@@ -12,6 +12,14 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w1118a-pick, 2026-11-22) — launcher copy OWED, bytes only (Eternia row `MC-FU-ETERNIAS-STREAM-GOLDENS-CARRY-THE-PLACEMENTS-NEW-ANNOUNCE`).**
+> Every placement now announces `persona_instance.created` beside its create upsert (row
+> `RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW`), and the event is a covered domain event, so
+> the create batch stays a patch frame. `patch_agent_create.json` gains it in `events[]` (`coalesced_count` 7),
+> `delta_agent_create_narrow_profile.json` carries it in its batch, and `patch_coverage_manifest.json` (hand-pinned) lists
+> it in `covered_domain_events`. Eternia's fold ignores `events[]`, so the copy is bytes only: copy those three and
+> `MANIFEST.sha256` into `test/fixtures/harness_stream/`.
+
 > **CROSS-STACK COPY STATUS (w1118a-hstream, 2026-11-20) — launcher copy OWED, and it needs a fold first (row `RT-FU-ADDING-AN-AGENT-SENDS-EVERY-OPEN-ETERNIA-A-FULL-REFRESH`).**
 > Regenerated; the generator runs clean again with its no-demote assert. Three reasons moved bytes.
 > (1) An agent create now writes the new agent's own persona (03a63a0010), and its `persona.updated` rides beside a

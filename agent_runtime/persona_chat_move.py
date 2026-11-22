@@ -38,8 +38,10 @@ from hermes_time import now
 
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments import (
+    PERSONA_INSTANCE_ID_PREFIX,
     PersonaInstanceStore,
     RetiredPersonaInstanceError,
+    persona_instance_id_for,
     personas_equal,
     safe_assignment_text,
     safe_assignment_token,
@@ -96,7 +98,17 @@ def _holder_agent(store: PersonaInstanceStore, holder_id: str) -> str | None:
         return store.get(holder_id).persona_id
     except Exception:
         retired = store.retired_instance_row(holder_id)
-        return retired.persona_id if retired is not None else None
+    if retired is not None:
+        return retired.persona_id
+    # A chat held by an agent's bare id (its old hidden copy ``personainst_<persona>``, no row under it) is
+    # that agent's by construction: the open of such a chat moves it onto the agent's placed instance
+    # (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW). A profile's own channel
+    # keeps its row, so it never reaches here.
+    # MUTATION: drop this arm and test_a_saved_chat_on_an_agents_bare_name_replaces_the_idle_instances_chat reddens.
+    agent = holder_id.removeprefix(PERSONA_INSTANCE_ID_PREFIX)
+    if agent != holder_id and not agent.startswith("profile_") and persona_instance_id_for(agent) == holder_id:
+        return agent
+    return None
 
 
 def move_chat(

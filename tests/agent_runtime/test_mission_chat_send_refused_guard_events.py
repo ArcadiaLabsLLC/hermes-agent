@@ -91,8 +91,11 @@ def _chat_lane(monkeypatch, db):
 
 
 def _owned_root(db, *, persona_id="dev", display_name="Dev"):
+    # A bind on the agent's bare id is refused (agent_not_placed): own the root on a named placement.
     instance = PersonaInstanceStore().create_operator_chat(
-        persona_id=persona_id, display_name=display_name
+        persona_id=persona_id,
+        persona_instance_id=f"personainst_{persona_id}_agent_1",
+        display_name=display_name,
     )
     db.create_session(
         instance.session_id,

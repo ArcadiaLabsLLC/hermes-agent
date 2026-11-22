@@ -138,11 +138,15 @@ def _chat_lane(monkeypatch, db):
     return harness
 
 
-def _owned_root(db, *, persona_id="profile_alice", display_name="Alice"):
-    """An instance plus the canonical chat root it owns, as the store mints it."""
+def _owned_root(db, *, persona_id="profile_alice", display_name="Alice", persona_instance_id=None):
+    """An instance plus the canonical chat root it owns, as the store mints it.
+
+    A profile's own channel keeps its canonical id; an agent persona needs a named
+    ``persona_instance_id`` (a bind on its bare id is refused ``agent_not_placed``).
+    """
 
     instance = PersonaInstanceStore().create_operator_chat(
-        persona_id=persona_id, display_name=display_name
+        persona_id=persona_id, persona_instance_id=persona_instance_id, display_name=display_name
     )
     db.create_session(
         instance.session_id,
@@ -243,7 +247,9 @@ def test_a_plain_persona_id_is_still_accepted(
 
     db = _canonical_db()
     _chat_lane(monkeypatch, db)
-    owner = _owned_root(db, persona_id="dev", display_name="Dev")
+    owner = _owned_root(
+        db, persona_id="dev", display_name="Dev", persona_instance_id="personainst_dev_agent_1"
+    )
     assert owner.persona_id == "dev"
 
     code = chat_turn_message._cmd_mission_chat_message(
@@ -782,7 +788,7 @@ def test_chat_delete_accepts_a_pin_to_the_personas_live_instance_for_a_retired_o
 
     db = _canonical_db()
     _chat_lane(monkeypatch, db)
-    live = PersonaInstanceStore().create_operator_chat(persona_id="dev", display_name="Dev")
+    live = PersonaInstanceStore().create_operator_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", display_name="Dev")
     retired = _retired_root(db)
 
     code = chat_delete._cmd_persona_chat_delete(
