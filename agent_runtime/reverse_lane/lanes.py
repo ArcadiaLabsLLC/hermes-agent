@@ -41,6 +41,7 @@ from . import grants as _grants
 __layer__ = "lanes"
 
 __all__ = [
+    "ComputerWay",
     "LANE_ID_PATTERN",
     "MAX_PARKED_LANES",
     "ReverseLanes",
@@ -55,6 +56,28 @@ MAX_PARKED_LANES = 16
 _COPY_CHUNK = 65536
 #: The hello fields a computer's hello over a lane may carry besides its id and proof.
 _FOREIGN_CREDENTIALS = ("pairing_code", "peer_code", "peer_install_id", "reverse_lane", "reverse_attach")
+
+
+@dataclass(frozen=True, slots=True)
+class ComputerWay:
+    """How this phone reaches one paired computer: its address, pin and the phone's credential on it.
+
+    Held in memory only, for the life of this serve (the dialer holds the same for its redials), so
+    the switch off can tell the computer (``offer.withdraw_accept``) even while no lane is up. The
+    token is never written, logged or rendered."""
+
+    host: str
+    port: int
+    cert_fingerprint: str
+    device_id: str
+    token: str
+
+    def __repr__(self) -> str:  # the token never reaches a log through a repr
+        return f"ComputerWay(host={self.host!r}, port={self.port!r}, device_id={self.device_id!r})"
+
+    def params(self) -> dict[str, Any]:
+        return {"host": self.host, "port": self.port, "cert_fingerprint": self.cert_fingerprint,
+                "device_id": self.device_id, "token": self.token}
 
 
 @dataclass
@@ -100,6 +123,8 @@ class ReverseLanes:
         self._splices: dict[str, tuple[Any, Any]] = {}
         self._admitter: Any = None
         self._dialers: dict[str, Any] = {}
+        #: The last way the owner gave to each computer (``remember_way``), by computer install id.
+        self._ways: dict[str, ComputerWay] = {}
         self._draining = False
         #: Phones' offers this computer's owner has not answered (``accepts``), in memory.
         self.offers = _accepts.ReverseOffers()
@@ -202,6 +227,21 @@ class ReverseLanes:
                 self._admitter = self._admitter_factory()
             return self._admitter
 
+    def remember_way(self, computer_install_id: str, *, host: str, port: int, cert_fingerprint: str,
+                     device_id: str, token: str) -> None:
+        """Keep, in memory, how to reach this computer (a grant or a dial named it)."""
+
+        way = ComputerWay(host=str(host), port=int(port), cert_fingerprint=str(cert_fingerprint),
+                          device_id=str(device_id), token=str(token))
+        with self._lock:
+            self._ways[str(computer_install_id)] = way
+
+    def take_way(self, computer_install_id: str) -> ComputerWay | None:
+        """The way to this computer, forgotten here as it is handed out (the switch off)."""
+
+        with self._lock:
+            return self._ways.pop(str(computer_install_id), None)
+
     def dial(self, *, computer_install_id: str, host: str, port: int, cert_fingerprint: str,
              device_id: str, token: str) -> dict[str, Any]:
         """Dial a granted computer and keep a lane open to it until :meth:`hangup`."""
@@ -215,6 +255,8 @@ class ReverseLanes:
             grant = None
         if grant is None:
             return {"ok": False, "reason": "no_grant"}
+        self.remember_way(computer_install_id, host=host, port=port, cert_fingerprint=cert_fingerprint,
+                          device_id=device_id, token=token)
         with self._lock:
             if self._draining:
                 return {"ok": False, "reason": "draining"}
@@ -327,6 +369,8 @@ class ReverseLanes:
         for dialer in dialers:
             dialer.join(2.0)
         self.offers.clear()
+        with self._lock:
+            self._ways.clear()
         with self._lock:
             self._draining = True
             parked = list(self._parked.values())

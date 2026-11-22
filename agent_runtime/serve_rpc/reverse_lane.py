@@ -21,18 +21,21 @@ The grant (row ``MC-PHONE-DRIVEN-A-PHONE-LETS-A-PAIRED-COMPUTER-USE-ITS-AGENTS``
   computer's credential and offer it over the phone's own pinned connection
   (``agent_runtime.reverse_lane.offer``). The minted token is never in the answer.
 * ``revoke`` (phone) — param ``computer_install_id``: delete that computer's grant (the switch
-  turned off, or the phone unpaired it); its open lane closes at once.
+  turned off, or the phone unpaired it); its open lane closes at once, and the computer is told
+  (``withdraw``) over the phone's pinned device connection when this serve knows the way to it.
 * ``offer`` (computer) — answered to a paired DEVICE only, as that device: hold its offer
   until this computer's owner answers. Params ``computer_id``, ``token``, ``level``,
   ``phone_install_id``.
+* ``withdraw`` (computer) — answered to a paired DEVICE only, as that device, with no params:
+  forget that device's accept and any offer it still holds here.
 * ``accept`` / ``decline`` (computer) — param ``device_id``: the owner's answer. ``accept``
   hands the token to Eternia ONCE and writes down the non-secret accept.
 
-**Security.** Every verb but ``offer`` is in ``LOCAL_CONSOLE_METHODS``: only this install's
-owner grants, dials, accepts or reads, and no device, peer or computer reaches them.
-``offer`` is a read-tier verb that answers only a paired device caller, as itself: its device
-id is the transport's, never a param, and a channel, a peer or a computer is refused by its
-allowlist arm before the tier is read.
+**Security.** Every verb but ``offer`` and ``withdraw`` is in ``LOCAL_CONSOLE_METHODS``: only
+this install's owner grants, dials, accepts or reads, and no device, peer or computer reaches
+them. ``offer`` and ``withdraw`` are read-tier verbs that answer only a paired device caller, as
+itself: its device id is the transport's, never a param, and a channel, a peer or a computer is
+refused by its allowlist arm before the tier is read.
 """
 
 from __future__ import annotations
@@ -60,6 +63,7 @@ __all__ = [
     "_runtime_gateway_reverse_grant",
     "_runtime_gateway_reverse_offer",
     "_runtime_gateway_reverse_revoke",
+    "_runtime_gateway_reverse_withdraw",
     "_runtime_gateway_reverse_hangup",
     "_runtime_gateway_reverse_lanes",
 ]
@@ -167,6 +171,9 @@ def _runtime_gateway_reverse_grant(rid: Any, params: dict, context: RpcContext |
 
     def run() -> dict:
         answer = grant_and_offer(root, level=level, phone_install_id=phone_install_id, **texts)
+        if answer.get("ok") and lanes is not None:
+            way = dict(texts)
+            lanes.remember_way(way.pop("computer_install_id"), **way)
         if not answer.get("ok"):
             reason = str(answer.get("reason") or "refused")
             return err(rid, ERR_CONFLICT, "The computer did not take this phone's offer.", {"reason": reason})
@@ -178,9 +185,11 @@ def _runtime_gateway_reverse_grant(rid: Any, params: dict, context: RpcContext |
 
 @method("runtime.gateway.reverse.revoke", tier=TIER_CONSOLE)
 def _runtime_gateway_reverse_revoke(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    """The phone's switch, off (or the phone unpaired that computer): its grant goes, its lane closes."""
+    """The phone's switch, off (or the phone unpaired that computer): its grant goes, its lane closes,
+    and the computer is told to forget its accept (``withdraw``) when this serve knows the way to it."""
 
     from agent_runtime.reverse_lane.grants import revoke_install_grants
+    from agent_runtime.reverse_lane.offer import withdraw_accept
 
     try:
         install = read_text(params if isinstance(params, dict) else {}, "computer_install_id", refuse=_refuse,
@@ -189,9 +198,25 @@ def _runtime_gateway_reverse_revoke(rid: Any, params: dict, context: RpcContext 
         return refused.frame(rid)
     lanes = _lanes(context)
     revoked = revoke_install_grants(_store_root(context, lanes), install)
+    way = None
     if lanes is not None:
         lanes.hangup(install)
-    return ok(rid, {"revoked": len(revoked)})
+        way = lanes.take_way(install)
+    if way is None:
+        # No grant or dial named this computer in this serve's life: nothing to tell it with (the
+        # offline edge the row's review triaged out; its owner's Decline or an unpair drops the line).
+        return ok(rid, {"revoked": len(revoked), "withdrawn": False})
+
+    def run() -> dict:
+        # MUTATION: skip this call and test_reverse_grant's switch-off test reads the accept still there.
+        answer = withdraw_accept(**way.params())
+        result: dict[str, Any] = {"revoked": len(revoked), "withdrawn": bool(answer.get("ok"))}
+        if not answer.get("ok"):
+            result["withdraw_reason"] = str(answer.get("reason") or "computer_refused")
+        return ok(rid, result)
+
+    # It dials the computer: the worker lane, never the reader's thread.
+    return defer_or_inline(rid, "runtime.gateway.reverse.revoke", context, run)
 
 
 def _offering_device(context: RpcContext | None) -> str | None:
@@ -225,6 +250,30 @@ def _runtime_gateway_reverse_offer(rid: Any, params: dict, context: RpcContext |
         return _refuse("offer", "an offer names computer_id, level, phone_install_id and its token").frame(rid)
     lanes.emit_event({"event": "reverse_offer_held", "device_id": device_id})
     return ok(rid, {"held": True})
+
+
+@method("runtime.gateway.reverse.withdraw", tier=TIER_READ)
+def _runtime_gateway_reverse_withdraw(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """A paired phone switched this computer off: forget its accept (and any offer still held).
+
+    Row ``RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT``. Keyed only by the device
+    the transport authenticated, never a param, and it only removes that device's own rows."""
+
+    from agent_runtime.reverse_lane.accepts import forget_accept
+
+    device_id = _offering_device(context)
+    # MUTATION: accept any caller here and the owner-withdraw test forgets an accept nobody withdrew.
+    if device_id is None:
+        return err(rid, ERR_CONFLICT, "Only a paired device withdraws its agents from this computer.",
+                   {"reason": REASON_NOT_A_DEVICE})
+    lanes = _lanes(context)
+    if lanes is None:
+        return _unbound(rid)
+    dropped = lanes.offers.drop(device_id)
+    forgot = forget_accept(lanes.store_root, device_id)
+    if dropped or forgot:
+        lanes.emit_event({"event": "reverse_accept_withdrawn", "device_id": device_id})
+    return ok(rid, {"withdrawn": forgot, "declined": dropped})
 
 
 def _device_param(params: Any) -> str:

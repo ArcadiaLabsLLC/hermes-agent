@@ -10,7 +10,8 @@ gateway as the phone's device, and offers the credential ONCE
 log or a disk: it exists here, on that one connection, and in the computer's held offer.
 
 An offer that does not land deletes the grant it minted, so the phone never holds a grant
-its computer could not have received.
+its computer could not have received. The switch off is the same one-shot the other way
+(``runtime.gateway.reverse.withdraw``): the computer forgets its accept of this phone.
 """
 
 from __future__ import annotations
@@ -24,9 +25,11 @@ from . import grants as _grants
 
 __layer__ = "lanes"
 
-__all__ = ["OFFER_METHOD", "grant_and_offer"]
+__all__ = ["OFFER_METHOD", "WITHDRAW_METHOD", "grant_and_offer", "withdraw_accept"]
 
 OFFER_METHOD = "runtime.gateway.reverse.offer"
+#: The phone's switch off, told to the computer (``withdraw_accept``).
+WITHDRAW_METHOD = "runtime.gateway.reverse.withdraw"
 _TIMEOUT = 10.0
 #: How long the offer's answer may take: a computer's first call after its serve started
 #: loads its method families (seen live 2026-11-21: the first offer after a restart was
@@ -46,13 +49,12 @@ def _offer_reply(client: ServeSocketClient, rid: str) -> dict[str, Any] | None:
     return None
 
 
-def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, port: int,
-                    cert_fingerprint: str, device_id: str, token: str, level: str,
-                    phone_install_id: str) -> dict[str, Any]:
-    """Grant *computer_install_id* at *level* and offer it its credential. ``ok`` or ``reason``."""
+def _one_shot(*, host: str, port: int, cert_fingerprint: str, device_id: str, token: str, method: str,
+              params: dict[str, Any]) -> str | None:
+    """Open the phone's pinned device connection to the computer, call *method* once, close.
 
-    credential = _grants.grant_computer(store_root, computer_install_id=computer_install_id,
-                                        pairing_device_id=device_id, level=level)
+    ``None`` when the computer answered a result; else the refusal's ``reason``."""
+
     client = ServeSocketClient(host, int(port), timeout_seconds=_TIMEOUT, tls=True,
                                cert_fingerprint=str(cert_fingerprint or "").strip().lower())
     reason: str | None = None
@@ -64,10 +66,8 @@ def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, por
             reason = "unpaired" if refused == "bad_proof" else "computer_refused"
         else:
             client.set_timeout(_REPLY_TIMEOUT)
-            rid = f"offer-{secrets.token_hex(4)}"
-            client.send({"jsonrpc": "2.0", "id": rid, "method": OFFER_METHOD, "params": {
-                "computer_id": credential.computer_id, "token": credential.token,
-                "level": credential.level, "phone_install_id": phone_install_id}})
+            rid = f"{method.rsplit('.', 1)[-1]}-{secrets.token_hex(4)}"
+            client.send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
             reply = _offer_reply(client, rid)
             if reply is None:
                 reason = "computer_unreachable"
@@ -83,6 +83,20 @@ def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, por
         reason = "computer_unreachable"
     finally:
         client.close()
+    return reason
+
+
+def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, port: int,
+                    cert_fingerprint: str, device_id: str, token: str, level: str,
+                    phone_install_id: str) -> dict[str, Any]:
+    """Grant *computer_install_id* at *level* and offer it its credential. ``ok`` or ``reason``."""
+
+    credential = _grants.grant_computer(store_root, computer_install_id=computer_install_id,
+                                        pairing_device_id=device_id, level=level)
+    reason = _one_shot(host=host, port=port, cert_fingerprint=cert_fingerprint, device_id=device_id,
+                       token=token, method=OFFER_METHOD, params={
+                           "computer_id": credential.computer_id, "token": credential.token,
+                           "level": credential.level, "phone_install_id": phone_install_id})
     if reason is not None:
         # MUTATION: keep the grant here and the unreachable-offer test finds a grant the
         # computer never received.
@@ -91,3 +105,16 @@ def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, por
             _grants.revoke_install_grants(store_root, computer_install_id)
         return {"ok": False, "reason": reason}
     return {"ok": True, "computer_id": credential.computer_id, "level": credential.level}
+
+
+def withdraw_accept(*, host: str, port: int, cert_fingerprint: str, device_id: str,
+                    token: str) -> dict[str, Any]:
+    """The phone's switch, off: tell the computer to forget its accept of this phone. ``ok`` or ``reason``.
+
+    Row ``RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT``: the same one-shot as the
+    offer, over the same pinned device connection. The computer keys the withdraw by the device the
+    transport authenticated, so the call names nothing; a withdraw that cannot land is not retried."""
+
+    reason = _one_shot(host=host, port=port, cert_fingerprint=cert_fingerprint, device_id=device_id,
+                       token=token, method=WITHDRAW_METHOD, params={})
+    return {"ok": True} if reason is None else {"ok": False, "reason": reason}

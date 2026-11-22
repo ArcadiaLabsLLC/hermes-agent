@@ -569,9 +569,14 @@ w1118a.79). `agent_runtime/reverse_lane/`:
   answers with `runtime.gateway.reverse.accept` (the token once, for Eternia's credential store,
   and a non-secret accept row in `gateway/reverse_accepts.json`) or `.decline`. An accept whose
   device is no longer paired is dropped on read. `runtime.gateway.reverse.revoke` is the phone's
-  switch off and the phone's unpair of that computer. `.lanes` also answers the held offers, the
+  switch off and the phone's unpair of that computer; when the phone's serve knows the way to that
+  computer (a grant or dial named it since it started, held in memory only), the engine then calls
+  `runtime.gateway.reverse.withdraw` over its pinned device connection, and the computer forgets that
+  device's accept and any offer it still holds (read tier, answered only to a plain paired device, keyed
+  by the transport's device id; row `RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT`;
+  a phone whose serve no longer knows the way tells nothing, and the computer's owner declines or unpairs). `.lanes` also answers the held offers, the
   accepted phones, the phone's grants and when each phone's lane was last here (`seen`); a parked
-  lane whose phone hung up is evicted on that read. Every verb but `offer` is local console.
+  lane whose phone hung up is evicted on that read. Every verb but `offer` and `withdraw` is local console.
 
 Acceptance: `tests/agent_runtime/test_reverse_lane.py` (the real phone `serve_loop`, the
 computer's real listeners) and `tests/agent_runtime/test_reverse_grant.py`.

@@ -15,7 +15,12 @@ Killing mutations (each named at its line):
 * ``reverse_lane.accepts.list_accepts``: answer a row whose device was unpaired, and the
   computer-unpair test still lists the phone as accepted;
 * ``ReverseLanes.status``: skip the parked-lane eviction, and the hang-up test reads the phone
-  still parked.
+  still parked;
+* ``serve_rpc.reverse_lane._runtime_gateway_reverse_revoke``: skip the withdraw (no way taken), and
+  the switch-off test reads the computer's accept still there (red seen 2026-11-22);
+* ``serve_rpc.reverse_lane._runtime_gateway_reverse_withdraw``: take the device id from the params
+  when the caller is not a device, and the owner's withdraw forgets the phone's accept (red seen
+  2026-11-22).
 """
 
 from __future__ import annotations
@@ -338,3 +343,56 @@ def test_the_phone_grants_account_and_the_computer_accepts_it(phone, computer):
     # A revoke drops it like any grant.
     assert phone.rpc("runtime.gateway.reverse.revoke", {"computer_install_id": INSTALL})["result"]["revoked"] == 1
     assert phone.rpc("runtime.gateway.reverse.lanes")["result"]["grants"] == []
+
+
+# ── the switch off, told to the computer (hermes row RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT)
+
+
+def _accepted(phone, computer: _Computer, level: str = grants.GRANT_CHAT) -> DeviceCredential:
+    device, answer = _grant(phone, computer, level)
+    assert "result" in answer, answer
+    assert "result" in computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})
+    assert [a["device_id"] for a in computer.owner("runtime.gateway.reverse.lanes")["result"]["accepted"]] == \
+        [device.device_id]
+    return device
+
+
+def test_the_phones_switch_off_tells_the_computer_to_forget_its_accept(phone, computer):
+    """Seen live 2026-11-22 (w1122b-emu): after the phone's Off the computer still read "You can use this
+    phone's agents". MUTATION (``_runtime_gateway_reverse_revoke``): skip the withdraw and the accept stays."""
+
+    device = _accepted(phone, computer)
+    answer = phone.rpc("runtime.gateway.reverse.revoke", {"computer_install_id": INSTALL})["result"]
+    assert answer == {"revoked": 1, "withdrawn": True}, answer
+    assert computer.owner("runtime.gateway.reverse.lanes")["result"]["accepted"] == []
+    assert accepts.list_accepts(computer.root) == []
+    # The way to the computer went with the grant: a second Off has nothing to tell it with.
+    again = phone.rpc("runtime.gateway.reverse.revoke", {"computer_install_id": INSTALL})["result"]
+    assert again == {"revoked": 0, "withdrawn": False}
+
+
+def test_only_the_paired_device_itself_withdraws_and_only_its_own_accept(phone, computer):
+    """MUTATION (``_runtime_gateway_reverse_withdraw``): accept any caller and the owner's own withdraw
+    forgets the phone's accept. The device id is the transport's: another paired device that withdraws
+    removes nothing of this phone's."""
+
+    from agent_runtime.reverse_lane.offer import withdraw_accept
+
+    device = _accepted(phone, computer)
+    owner = computer.owner("runtime.gateway.reverse.withdraw", {"device_id": device.device_id})
+    assert owner["error"]["data"]["reason"] == "not_a_device", owner
+    other = computer.pair_phone()
+    sent = withdraw_accept(host="127.0.0.1", port=computer.gateway_port, cert_fingerprint=computer.fingerprint,
+                           device_id=other.device_id, token=other.token)
+    assert sent == {"ok": True}, sent
+    assert [a.device_id for a in accepts.list_accepts(computer.root)] == [device.device_id]
+    # A wrong credential never reaches the verb at all.
+    refused = withdraw_accept(host="127.0.0.1", port=computer.gateway_port, cert_fingerprint=computer.fingerprint,
+                              device_id=device.device_id, token="0" * 64)
+    assert refused == {"ok": False, "reason": "unpaired"}, refused
+    assert [a.device_id for a in accepts.list_accepts(computer.root)] == [device.device_id]
+
+
+def test_the_withdraw_is_a_device_verb_never_a_local_console_or_computer_one():
+    assert "runtime.gateway.reverse.withdraw" not in ca.LOCAL_CONSOLE_METHODS
+    assert "runtime.gateway.reverse.withdraw" not in ca.COMPUTER_CHAT_METHOD_ALLOWLIST
