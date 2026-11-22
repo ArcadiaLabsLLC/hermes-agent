@@ -289,12 +289,23 @@ class ReverseLanes:
             "attached": attached,
             "dialing": dialers,
             "seen": seen,
-            "offers": [offer.describe() for offer in self.offers.pending()],
-            "accepted": [accept.describe() for accept in _accepts.list_accepts(self._store_root)],
+            "offers": [self._with_account(offer.describe()) for offer in self.offers.pending()],
+            "accepted": [self._with_account(accept.describe())
+                         for accept in _accepts.list_accepts(self._store_root)],
             "grants": [{"computer_install_id": g.computer_install_id, "computer_id": g.computer_id,
                         "level": g.level, "pairing_device_id": g.pairing_device_id}
                        for g in _grants.list_grants(self._store_root)],
         }
+
+    def _with_account(self, row: dict[str, Any]) -> dict[str, Any]:
+        """The phone's ACCOUNT device id beside its gateway device id: the label Eternia
+        joins the row to the account's device list by (``DeviceRecord.account_device_id``)."""
+
+        from ..serve_gateway_auth import lookup_device
+
+        record = lookup_device(self._store_root, row["device_id"])
+        account = getattr(record, "account_device_id", None) if record is not None else None
+        return {**row, "account_device_id": account}
 
     def broadcast(self, frame: dict[str, Any]) -> int:
         with self._lock:
