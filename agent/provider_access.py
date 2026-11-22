@@ -78,8 +78,14 @@ def provider_credential_file(name: str, profile_home: Path) -> Path:
 
 
 def provider_configuration(profile: dict) -> dict:
+    """The provider read view of ``profile`` (``load_config()``'s copy): the bound access's projection,
+    then a bundled install's shipped switches (``providers.qwen-oauth.enabled``, ...), so the runtime
+    resolver's ``rp.load_config()`` readers see them as ``load_config_readonly`` readers do. A read view
+    only: the writer's ``load_config()`` stays the file's own."""
+    from hermes_cli.config_switches import with_install_switches
+
     access = current_access()
-    return profile if access is None else access.configuration(profile)
+    return with_install_switches(profile if access is None else access.configuration(profile), cache=False)
 
 
 def authentication_owner_stamps() -> tuple:
