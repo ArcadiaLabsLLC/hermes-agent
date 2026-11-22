@@ -434,6 +434,15 @@ COMPUTER_CHAT_METHOD_ALLOWLIST: frozenset[str] = COMPUTER_LOOK_METHOD_ALLOWLIST 
         "runtime.persona.instance.open_chat",
         "runtime.agent.conversation.create",
         "runtime.client.capabilities",
+        # The Agent Console's attach read of the chat this computer started, and New chat's
+        # instance resolver (RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT,
+        # review w1122b.5): Run chats only, never Look — idle_instances serves only starting a chat,
+        # and the attach read answers a turn's clarify token and execution ids, which only a chat
+        # verb can use. The attach read REQUIRES the computer's own client_scope
+        # (``serve_rpc/operator_conversation.py``), so it opens only chats that scope owns.
+        # MUTATION: leave these two out and test_reverse_lane's Run chats attach test is refused scope_denied.
+        "runtime.operator.conversation.read",
+        "runtime.agent.idle_instances",
     }
 )
 

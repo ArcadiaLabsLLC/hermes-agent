@@ -1,5 +1,5 @@
 """Observation and continuation of an existing operator conversation."""
-from agent_runtime.call_authorization import TIER_CONSOLE
+from agent_runtime.call_authorization import CALLER_COMPUTER, COMPUTER_GRANT_ACCOUNT, TIER_CONSOLE
 from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD, perform_chat_turn
 from agent_runtime.operator_conversation import (
     OperatorConversationRefused, read_operator_conversation,
@@ -15,7 +15,28 @@ __layer__ = "lanes"
 
 @method("runtime.operator.conversation.read", tier=TIER_CONSOLE)
 def read(rid, params: dict, context: RpcContext | None = None) -> dict:
+    if _computer_without_its_scope(params, context):
+        return err(rid, 4090, "This conversation could not be attached.", {"reason": "client_scope_required"})
     return defer_or_inline(rid, "runtime.operator.conversation.read", context, lambda: _read_operator_reply(rid, params, context))
+
+
+def _computer_without_its_scope(params: dict, context: RpcContext | None) -> bool:
+    """A computer driving this phone below the account grant names its own ``client_scope``.
+
+    An absent ``client_scope`` is the unscoped operator path, which reads every chat on the
+    phone (``conversation_owner.require_session_owner``); the desktop operator keeps it, a
+    computer at Run chats never takes it. With its scope it opens only the chats it started,
+    and the phone owner's answer ``conversation_owner_changed`` (review w1122b.5,
+    RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT). The
+    account grant is answered as a paired console device, so it is not asked.
+    """
+
+    caller = context.caller if context is not None else None
+    if caller is None or caller.kind != CALLER_COMPUTER or caller.computer_grant == COMPUTER_GRANT_ACCOUNT:
+        return False
+    # MUTATION: return False here and test_operator_conversation_attachment's computer test reads
+    # the phone owner's unscoped chat with no client_scope.
+    return params.get("client_scope") is None
 
 
 def _read_operator_reply(rid, params: dict, context: RpcContext | None) -> dict:

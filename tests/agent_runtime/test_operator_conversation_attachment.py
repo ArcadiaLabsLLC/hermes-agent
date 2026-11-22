@@ -90,3 +90,41 @@ def test_attachment_refuses_retargeting_or_missing_sessions_without_mint(tmp_pat
         assert result["error"]["data"]["reason"] == reason, result
     assert spawned == []
     assert PersonaInstanceStore().get(target["persona_instance_id"]).default_chat_session_id == target["session_id"]
+
+
+def test_a_run_chats_computer_opens_only_the_chat_its_own_scope_started(tmp_path, monkeypatch):
+    """Hermes row RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT
+    (review w1122b.5): a computer at Run chats must name its own client_scope; through it the
+    attach read opens the chat that scope owns, and the phone owner's chat answers
+    conversation_owner_changed. The account grant and the desktop operator keep the unscoped path.
+
+    MUTATION (``serve_rpc.operator_conversation._computer_without_its_scope``): return False, and the
+    scope-less read below opens the phone owner's chat.
+    """
+
+    from agent_runtime.call_authorization import CALLER_COMPUTER, TRANSPORT_GATEWAY, RpcCaller
+
+    owners = fixture(tmp_path / "phone", monkeypatch, "Owner")
+    mine = "c" * 64
+    computers = f"persona_chat_{owners['persona_instance_id']}_c0ffee000001"
+    with closing(SessionDB(db_path=tmp_path / "phone" / "state.db")) as db:
+        db.create_session(computers, source="mission_chat", model_config={"client_scope": mine})
+        db.append_message(computers, "user", "from the computer")
+
+    def as_computer(grant, params):
+        caller = RpcCaller(kind=CALLER_COMPUTER, connection_key="c1", transport=TRANSPORT_GATEWAY,
+                           computer_id="cmp_far", computer_grant=grant)
+        return serve_rpc.handle_request(dict(jsonrpc="2.0", id="read",
+            method="runtime.operator.conversation.read", params=params), serve_rpc.RpcContext(caller=caller))
+
+    for params in (owners, {**owners, "client_scope": None}):
+        refused = as_computer("chat", params)
+        assert refused["error"]["data"] == {"reason": "client_scope_required"}, refused
+    other = as_computer("chat", {**owners, "client_scope": mine})
+    assert other["error"]["data"]["reason"] == "conversation_owner_changed", other
+    started = as_computer("chat", {**owners, "session_id": computers, "client_scope": mine})
+    assert started["result"]["messages"][0]["text"] == "from the computer", started
+    # Look never reaches it; the account grant reads like a paired console device.
+    assert as_computer("look", {**owners, "client_scope": mine})["error"]["data"]["reason"] == "scope_denied"
+    assert as_computer("account", owners)["result"]["messages"][0]["text"].startswith("Owner")
+    assert call("read", owners)["result"]["messages"][0]["text"].startswith("Owner")

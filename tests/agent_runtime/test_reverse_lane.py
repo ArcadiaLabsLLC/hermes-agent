@@ -337,6 +337,33 @@ def test_a_look_computer_is_handed_a_picture_from_the_phones_chats_by_handle(pho
         media_handles.reset_digest_memo()
 
 
+def test_run_chats_reaches_the_attach_read_with_its_own_scope_and_new_chat_by_agent_and_look_neither(phone, computer):
+    """Hermes row RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT:
+    over the real lane, Run chats is answered ``runtime.agent.idle_instances`` and the attach read,
+    which refuses it without a ``client_scope``; Look is refused both. Which chats the scope opens
+    is pinned in ``test_operator_conversation_attachment``.
+
+    MUTATION (``COMPUTER_CHAT_METHOD_ALLOWLIST``): leave the two reads out, and both are refused
+    ``scope_denied`` here at Run chats.
+    """
+
+    attach = {"install_id": "i", "persona_id": "p", "persona_instance_id": "personainst_p", "session_id": "s"}
+    with _driven(phone, computer, grants.GRANT_CHAT) as (client, *_):
+        idle = _rpc(client, "runtime.agent.idle_instances", {})
+        assert not _scope_denied(idle), idle
+        unscoped = _rpc(client, "runtime.operator.conversation.read", attach)
+        assert unscoped["error"]["data"] == {"reason": "client_scope_required"}, unscoped
+        scoped = _rpc(client, "runtime.operator.conversation.read", {**attach, "client_scope": "c" * 64})
+        assert not _scope_denied(scoped), scoped
+        assert scoped.get("error", {}).get("data", {}).get("reason") != "client_scope_required", scoped
+
+
+def test_look_is_refused_the_attach_read_and_new_chat_by_agent(phone, computer):
+    with _driven(phone, computer) as (client, *_):
+        assert _scope_denied(_rpc(client, "runtime.agent.idle_instances", {}))
+        assert _scope_denied(_rpc(client, "runtime.operator.conversation.read", {"client_scope": "c" * 64}))
+
+
 NEVER_SERVED = (
     # The review's three, by name.
     "runtime.provider.signin.begin",
