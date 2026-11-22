@@ -20,8 +20,11 @@ fallback is ``fallback_match``, and Python ``re`` never runs on a caller's patte
   does that today, so in a turn one call is bounded by its per-file cap (``MAX_READ_BYTES``, 5 MiB:
   about 1-9 ms on the Linux box, ran) and by the milliseconds it was handed.
 * **Where the library is.** ``ETERNIA_PROJECT_FILES_MATCH_LIB`` names it (CI's host build, a lane's live
-  read). With no library this module is unavailable, says why once in the log, and the search falls
-  back. How a phone ships the library is row ``RT-PHONE-REGEX-SEARCH-SHIPS-ON-ANDROID``.
+  read); else the ``eternia-project-files-match`` wheel's locator, ``eternia_project_files_match.LIBRARY``,
+  imported inside an ImportError guard (an Android phone's bundle: row
+  ``RT-PHONE-REGEX-SEARCH-SHIPS-ON-ANDROID``, built by ``scripts/native/build_project_files_match.py`` and
+  pinned in ``agent_runtime/bundle_profiles/phone_wheels.lock.json``). With neither this module is
+  unavailable, says why once in the log, and the search falls back (a desktop has no wheel).
 """
 
 from __future__ import annotations
@@ -128,15 +131,32 @@ _state_lock = threading.Lock()
 _loaded: dict[str, _Library | str] = {}  # library path (or "") -> the library, or why it is not there
 
 
-def _library() -> _Library | str:
-    """The library named by ``LIBRARY_ENV``, loaded once per path; else the reason, logged once."""
+def _library_path() -> str:
+    """``LIBRARY_ENV`` when it is set, else the installed wheel's ``LIBRARY``, else ``""``."""
 
     path = os.environ.get(LIBRARY_ENV, "").strip()
+    if path:
+        return path
+    try:
+        from eternia_project_files_match import LIBRARY
+    except ImportError:
+        return ""
+    # MUTATION: return "" here and a phone with the wheel installed never loads the library
+    # (test_project_files_native_match: test_the_installed_wheels_locator_is_the_second_source).
+    return str(LIBRARY)
+
+
+def _library() -> _Library | str:
+    """The library named by ``LIBRARY_ENV`` or the wheel's locator, loaded once per path; else the reason,
+    logged once."""
+
+    path = _library_path()
     with _state_lock:
         if path in _loaded:
             return _loaded[path]
         if not path:
-            found: _Library | str = f"{LIBRARY_ENV} is not set"
+            found: _Library | str = (f"{LIBRARY_ENV} is not set and the eternia-project-files-match wheel "
+                                     "is not installed")
         else:
             try:
                 found = _Library(path)

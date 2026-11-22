@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "comment": "The phone wheels uv.lock cannot hold: Android Pillow and the image libraries it links, Flet's prebuilt wheels from https://pypi.flet.dev/ pinned by index link and sha256 (owner RULED 2026-11-17, row RT-PHONE-PILLOW-ANDROID). Not in pyproject.toml/uv.lock: uv 0.12 (CI's pin) does not know the android_24_* wheel tags and refuses the py3-none library wheels under [tool.uv] environments; uv 0.13.9 locks them (seen 2026-11-17). The phone packager installs these in place of uv.lock's block for a name on a listed target (scripts/bundles/phone_wheels.py); a distribution's `companions` ship wherever it ships. pillow's version must equal uv.lock's (one version, the desktop's; the packager refuses a mismatch); the four libraries are the exact versions Flet's Pillow 13.0.0 build 2 requires (Requires-Dist ==). Every .so in them is 16 KB page-aligned (read 2026-11-17); flet-libjpeg 3.0.90 builds 1-2 are not. Bump all five together, for both targets.",
+  "comment": "The phone wheels uv.lock cannot hold: Android Pillow and the image libraries it links, Flet's prebuilt wheels from https://pypi.flet.dev/ pinned by index link and sha256 (owner RULED 2026-11-17, row RT-PHONE-PILLOW-ANDROID). Not in pyproject.toml/uv.lock: uv 0.12 (CI's pin) does not know the android_24_* wheel tags and refuses the py3-none library wheels under [tool.uv] environments; uv 0.13.9 locks them (seen 2026-11-17). The phone packager installs these in place of uv.lock's block for a name on a listed target (scripts/bundles/phone_wheels.py); a distribution's `companions` ship wherever it ships. pillow's version must equal uv.lock's (one version, the desktop's; the packager refuses a mismatch); the four libraries are the exact versions Flet's Pillow 13.0.0 build 2 requires (Requires-Dist ==). Every .so in them is 16 KB page-aligned (read 2026-11-17); flet-libjpeg 3.0.90 builds 1-2 are not. Bump all five together, for both targets. eternia-project-files-match is ripgrep's matcher for regex search_files (row RT-PHONE-REGEX-SEARCH-SHIPS-ON-ANDROID): built here by scripts/native/build_project_files_match.py (rustc 1.100.0, NDK 28.2, API 24, --locked, paths remapped), committed under crates/project_files_match/dist/ and pinned by repo-relative path (owner RULED 2026-11-21: \"yea commit them to the hermes fork which is public\"); a cold rebuild reproduced both sha256s bit for bit (2026-11-21), and the build script refuses one that does not. loaded_by names the module that loads it: it ships wherever that module ships. Bump its version with the crate's, for both targets.",
   "wheels": {
     "pillow": {
       "version": "13.0.0",
@@ -70,6 +70,20 @@
         "android_x86_64": {
           "url": "https://pypi.flet.dev/-/ver_1K5QLJ/flet_libwebp-1.6.0-1-py3-none-android_24_x86_64.whl",
           "sha256": "60f8647751ed0e6a23fba16519c598ebbc659daaa441323555c7dbcad605100e"
+        }
+      }
+    },
+    "eternia-project-files-match": {
+      "version": "1.0.0",
+      "loaded_by": "agent_runtime.project_files.native_match",
+      "targets": {
+        "android_arm64": {
+          "path": "crates/project_files_match/dist/eternia_project_files_match-1.0.0-py3-none-android_24_arm64_v8a.whl",
+          "sha256": "b5e0acf0a13b6b4d737638a7af6dd7218a0d2bf645e4b583dc637d3b270dad34"
+        },
+        "android_x86_64": {
+          "path": "crates/project_files_match/dist/eternia_project_files_match-1.0.0-py3-none-android_24_x86_64.whl",
+          "sha256": "1ba4e83159a12362373a09f3cd877551172957cc93d023fc7b7440d49c47db9f"
         }
       }
     }
