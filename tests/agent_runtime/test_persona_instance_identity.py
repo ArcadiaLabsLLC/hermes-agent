@@ -108,10 +108,12 @@ def test_open_chat_cannot_mint_actor_token_drift_rows():
     instance = store.open_chat(
         persona_id="neko_supervisor",
         session_id="persona_chat_test_session",
-        persona_instance_id="persona:personainst_neko_supervisor",
+        persona_instance_id="persona:personainst_neko_supervisor_agent_1",
     )
-    assert instance.id == "personainst_neko_supervisor"
-    assert "persona_personainst_neko_supervisor" not in _live_row_ids()
+    # A placed instance's id: the agent's bare id is refused, never minted
+    # (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW).
+    assert instance.id == "personainst_neko_supervisor_agent_1"
+    assert "persona_personainst_neko_supervisor_agent_1" not in _live_row_ids()
 
 
 def test_reconcile_folds_the_live_four_scheme_corpus():

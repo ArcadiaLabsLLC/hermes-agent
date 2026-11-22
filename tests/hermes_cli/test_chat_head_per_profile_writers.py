@@ -19,7 +19,7 @@ from hermes_cli.harness_parts.persona import chat_turn_message
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
 
 REPO = Path(__file__).resolve().parents[2]
-BOUND_ROOT = "persona_chat_personainst_qa_0123456789ab"
+BOUND_ROOT = "persona_chat_personainst_qa_agent_1_0123456789ab"
 
 
 class _ProviderReached(RuntimeError):
@@ -62,7 +62,7 @@ def _stamp(kind: str, home: Path):
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="qa", session_id=BOUND_ROOT)
+    instance = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=BOUND_ROOT)
     instance.chat_head_home = str(home)
     instance.chat_head_kind = kind
     return store.update(instance)

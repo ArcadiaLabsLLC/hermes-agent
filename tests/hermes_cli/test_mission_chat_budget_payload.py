@@ -65,7 +65,7 @@ _NEGATIONS = (
     "without turn-resolve",
 )
 
-_SESSION_ID = "persona_chat_personainst_dev"
+_SESSION_ID = "persona_chat_personainst_dev_agent_1"
 
 
 @pytest.fixture
@@ -87,7 +87,7 @@ def isolate_agent_runtime_root(tmp_path, monkeypatch):
 def _args(client_message_id: str):
     return SimpleNamespace(
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         session_id=_SESSION_ID,
         message="please answer",
         surface_prompt="",

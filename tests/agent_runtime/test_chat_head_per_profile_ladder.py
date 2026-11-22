@@ -44,7 +44,7 @@ def heads(tmp_path, monkeypatch):
 
 def _stamped(kind: str | None, home) -> tuple[PersonaInstanceStore, object]:
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="qa", session_id=SESSION_ID)
+    instance = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=SESSION_ID)
     instance.chat_head_home = str(home)
     instance.chat_head_kind = kind
     return store, store.update(instance)
@@ -103,7 +103,7 @@ def test_the_instance_door_gives_the_ladders_answer(heads):
 def test_the_turn_stamp_never_downgrades_a_per_profile_record(heads):
     store, _ = _stamped(CHAT_HEAD_KIND_PER_PROFILE, heads["alice"])
 
-    reopened = store.open_chat(persona_id="qa", session_id=SESSION_ID)
+    reopened = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=SESSION_ID)
 
     assert reopened.chat_head_home == str(heads["alice"])
     assert reopened.chat_head_kind == CHAT_HEAD_KIND_PER_PROFILE
@@ -113,7 +113,7 @@ def test_the_turn_stamp_never_downgrades_a_per_profile_record(heads):
 def test_positive_control_the_turn_stamp_still_corrects_a_process_record(heads):
     store, _ = _stamped(CHAT_HEAD_KIND_PROCESS, heads["alice"])
 
-    reopened = store.open_chat(persona_id="qa", session_id=SESSION_ID)
+    reopened = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=SESSION_ID)
 
     assert reopened.chat_head_home == str(heads["base"])
 

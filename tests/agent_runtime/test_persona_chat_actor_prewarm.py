@@ -226,7 +226,7 @@ class _Persona:
 
 @dataclass
 class _Instance:
-    id: str = "personainst_dev"
+    id: str = "personainst_dev_agent_1"
     persona_id: str = "dev"
     role: str = "dev"
     display_name: str = "Launcher Dev"
@@ -316,8 +316,11 @@ def _live_chat_root(persona_id: str = "dev") -> tuple[str, object, object]:
         ensure_persona_chat_session,
     )
 
+    # A bind on the agent's bare id is refused (agent_not_placed): bind a named placement.
     instance = PersonaInstanceStore().open_chat(
-        persona_id=persona_id, session_id=f"persona_chat_personainst_{persona_id}_warm"
+        persona_id=persona_id,
+        persona_instance_id=f"personainst_{persona_id}_agent_1",
+        session_id=f"persona_chat_personainst_{persona_id}_agent_1_warm",
     )
     session_db = default_persona_session_db()
     ensure_persona_chat_session(

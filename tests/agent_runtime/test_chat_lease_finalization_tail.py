@@ -54,7 +54,7 @@ from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run,
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
 
-ROOT = "persona_chat_personainst_dev"
+ROOT = "persona_chat_personainst_dev_agent_1"
 OPERATOR_TEXT = "please answer"
 
 

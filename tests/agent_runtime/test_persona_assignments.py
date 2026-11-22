@@ -267,7 +267,7 @@ def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatc
     # gone; a chat instance carrying a live goal/assignment is the surviving way
     # in (``ensure_for_personas`` settles every non-chat instance back to idle).
     instance_store = PersonaInstanceStore()
-    live = instance_store.create_operator_chat(persona_id="dev", display_name="dev worker")
+    live = instance_store.create_operator_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", display_name="dev worker")
     live.goal_id = "task_1"
     live.current_assignment_id = "assign_1"
     instance_store.update(live)
@@ -303,28 +303,28 @@ def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatc
     # (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT).
     assert {item["persona_id"] for item in status["persona_instances"]} == {"dev"}
     status_lane_agents = {item["persona_id"]: item for item in status["agents"]}
-    assert "personainst_dev" in status_lane_agents
-    assert status_lane_agents["personainst_dev"]["source_persona_id"] == "dev"
+    assert "personainst_dev_agent_1" in status_lane_agents
+    assert status_lane_agents["personainst_dev_agent_1"]["source_persona_id"] == "dev"
     # Residue-slim R2: the fat tool payloads (tool_resolution) + the retired
     # agent_hud_state leave the row; the head keeps a typed visibility_ref pointer
     # + the always-visible scalars, fetched in full via `harness persona-instance
     # detail`.
-    assert "agent_hud_state" not in status_lane_agents["personainst_dev"]
-    assert "tool_resolution" not in status_lane_agents["personainst_dev"]
-    assert isinstance(status_lane_agents["personainst_dev"]["visibility_ref"], dict)
-    assert status_lane_agents["personainst_dev"]["visibility_ref"]["evicted"] is True
-    assert isinstance(status_lane_agents["personainst_dev"]["mutation_boundary"], dict)
+    assert "agent_hud_state" not in status_lane_agents["personainst_dev_agent_1"]
+    assert "tool_resolution" not in status_lane_agents["personainst_dev_agent_1"]
+    assert isinstance(status_lane_agents["personainst_dev_agent_1"]["visibility_ref"], dict)
+    assert status_lane_agents["personainst_dev_agent_1"]["visibility_ref"]["evicted"] is True
+    assert isinstance(status_lane_agents["personainst_dev_agent_1"]["mutation_boundary"], dict)
     assert snapshot["persona_instance_runtime"]["enabled"] is True
     assert {item["persona_id"] for item in list(snapshot["persona_instances"].values())} == {"dev"}
     snapshot_lane_agents = {item["persona_id"]: item for item in snapshot["agents"]}
-    # S56 INVERSION: this used to pin "personainst_dev not in the snapshot agent
+    # S56 INVERSION: this used to pin "personainst_dev_agent_1 not in the snapshot agent
     # catalog", but that only held because build_snapshot seeded ``workers = []``
     # so the instance derived IDLE while build_status (handed the real worker
     # store) saw it active. Both projections now share one unconditional roster,
     # so an ACTIVE instance appears in both agent lanes; idle ones still don't
     # (see test_snapshot_exposes_operator_created_idle_persona_instance).
-    assert "personainst_dev" in snapshot_lane_agents
-    assert snapshot_lane_agents["personainst_dev"]["source_persona_id"] == "dev"
+    assert "personainst_dev_agent_1" in snapshot_lane_agents
+    assert snapshot_lane_agents["personainst_dev_agent_1"]["source_persona_id"] == "dev"
 
 
 def test_snapshot_exposes_operator_created_idle_persona_instance(monkeypatch, isolate_agent_runtime_root):
@@ -685,7 +685,7 @@ def test_persona_instance_open_chat_new_session_mints_exact_instance_and_replays
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
     existing = PersonaInstanceStore().create_operator_chat(
-        persona_id="dev",
+        persona_id="dev", persona_instance_id="personainst_dev_agent_1",
         display_name="Launcher Dev Agent",
     )
     original_session = existing.session_id
@@ -740,7 +740,7 @@ def test_persona_instance_open_chat_new_session_retry_recovers_reserved_root(
     monkeypatch.setattr(chat_open, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     existing = PersonaInstanceStore().create_operator_chat(
-        persona_id="dev",
+        persona_id="dev", persona_instance_id="personainst_dev_agent_1",
         display_name="Launcher Dev Agent",
     )
     original_session = existing.session_id
@@ -803,8 +803,8 @@ def test_persona_instance_open_chat_new_session_rejects_idempotency_scope_confli
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
     store = PersonaInstanceStore()
-    dev = store.create_operator_chat(persona_id="dev", display_name="Dev")
-    qa = store.create_operator_chat(persona_id="qa", display_name="QA")
+    dev = store.create_operator_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", display_name="Dev")
+    qa = store.create_operator_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", display_name="QA")
 
     def args_for(persona_id, instance_id):
         return Namespace(
@@ -849,6 +849,7 @@ def test_persona_instance_open_chat_session_persistence_failure_is_typed_and_not
     code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id="dev",
+            persona_instance_id="personainst_dev_agent_1",
             session_id="chat_persist_failure_123",
             json=True,
         )
@@ -860,7 +861,7 @@ def test_persona_instance_open_chat_session_persistence_failure_is_typed_and_not
     assert payload["error_kind"] == "chat_session_persist_failed"
     assert payload["persistence_operation"] == "session_create"
     assert payload["persona_id"] == "dev"
-    assert payload["persona_instance_id"] == "personainst_dev"
+    assert payload["persona_instance_id"] == "personainst_dev_agent_1"
     assert payload["session_id"] == "chat_persist_failure_123"
 
 
@@ -938,9 +939,9 @@ def test_open_chat_same_authoritative_binding_is_a_true_no_op(
 
     events = EventLog()
     store = PersonaInstanceStore(event_log=events)
-    session_id = "persona_chat_personainst_dev_aaaaaaaaaaaa"
+    session_id = "persona_chat_personainst_dev_agent_1_aaaaaaaaaaaa"
     first = store.open_chat(
-        persona_id="dev",
+        persona_id="dev", persona_instance_id="personainst_dev_agent_1",
         session_id=session_id,
         default_display_name="Dev",
     )
@@ -951,7 +952,7 @@ def test_open_chat_same_authoritative_binding_is_a_true_no_op(
     ]
 
     reopened = store.open_chat(
-        persona_id="dev",
+        persona_id="dev", persona_instance_id="personainst_dev_agent_1",
         session_id=session_id,
         default_display_name="Dev",
     )
@@ -970,9 +971,9 @@ def test_open_chat_default_display_name_names_a_first_ever_holder(isolate_agent_
     # A brand-new chat holder with no name yet DOES take the persona default —
     # stamping only happens when the instance has none.
     store = PersonaInstanceStore()
-    minted = persona_chat_session_id_for(persona_instance_id_for("qa"))
+    minted = persona_chat_session_id_for("personainst_qa_agent_1")
     instance = store.open_chat(
-        persona_id="qa", session_id=minted, default_display_name="QA Agent"
+        persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=minted, default_display_name="QA Agent"
     )
     assert instance.display_name == "QA Agent"
 
@@ -982,9 +983,9 @@ def test_open_chat_authoritative_display_name_still_renames(isolate_agent_runtim
     # explicit name) is unchanged by the fix — it always applies, so deliberate
     # (re)naming through those paths keeps working.
     store = PersonaInstanceStore()
-    first = store.create_operator_chat(persona_id="qa", display_name="QA One")
+    first = store.create_operator_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", display_name="QA One")
     assert first.display_name == "QA One"
-    second = store.create_operator_chat(persona_id="qa", display_name="QA Two")
+    second = store.create_operator_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", display_name="QA Two")
     assert second.id == first.id
     assert second.display_name == "QA Two"  # authoritative rename honored
 

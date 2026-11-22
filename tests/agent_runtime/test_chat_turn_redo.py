@@ -147,5 +147,5 @@ def test_the_redone_reply_names_its_redo_and_the_redo_reply_names_its_model(isol
     assert (replies["cm-redo"]["turn_provider"], replies["cm-redo"]["turn_model"]) == ("openrouter", "second-model")
     assert "retried_as" not in replies["cm-redo"] and "turn_model" not in replies["cm-orig"]
     projected = _conversation_history_message(replies["cm-redo"], channel_id="chan-1", index=0, persona_id="neko",
-                                              persona_instance_id="personainst_neko", display_names={})
+                                              persona_instance_id="personainst_neko_agent_1", display_names={})
     assert projected["turn_model"] == "second-model" and projected["turn_provider"] == "openrouter"

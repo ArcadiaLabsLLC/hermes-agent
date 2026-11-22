@@ -33,7 +33,6 @@ from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
     canonical_chat_instance_id,
     persona_chat_session_id_for,
-    persona_instance_id_for,
     resolve_default_chat_session_id_for_instance,
 )
 from agent_runtime.persona_chat_history import (
@@ -59,6 +58,12 @@ def _persist_explicit_chat_persona_data():
         store.save(persona)
 
 
+def _placed(persona_id: str) -> str:
+    """The named placed instance the suite binds for *persona_id* (never the bare hidden copy)."""
+
+    return f"personainst_{persona_id}_agent_1"
+
+
 def _session_for_test(
     store: PersonaInstanceStore,
     *,
@@ -68,9 +73,10 @@ def _session_for_test(
 ) -> str:
     """Seed a chat id with the same primitives used by live dispatch.
 
-    A bare agent names no instance since RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT, so the
-    suite names the row ``create_operator_chat`` binds (its held ``personainst_<persona>``) explicitly."""
-    persona_instance_id = persona_instance_id or persona_instance_id_for(persona_id)
+    A bare agent names no instance since RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT, and a
+    bind on the bare hidden copy is refused (``agent_not_placed``), so the suite names the placed row
+    ``open_chat``/``create_operator_chat`` bind (``personainst_<persona>_agent_1``) explicitly."""
+    persona_instance_id = persona_instance_id or _placed(persona_id)
     existing = None if mint else resolve_default_chat_session_id_for_instance(
         store,
         persona_id=persona_id,
@@ -87,7 +93,7 @@ def test_omitted_session_reuses_targets_existing_default_chat_session(
     store = PersonaInstanceStore()
     # The target already has a bound default chat session (e.g. an earlier
     # operator/clarify chat). An omitted-session relay must CONTINUE it.
-    existing = store.create_operator_chat(persona_id="qa", display_name="QA")
+    existing = store.create_operator_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", display_name="QA")
 
     first = _session_for_test(store, persona_id="qa")
     second = _session_for_test(store, persona_id="qa")
@@ -103,13 +109,13 @@ def test_omitted_session_mints_canonical_default_when_target_never_chatted(
 
     minted = _session_for_test(store, persona_id="qa")
 
-    # The minted default embeds the CANONICAL instance id (personainst_qa), not a
+    # The minted default embeds the CANONICAL instance id (personainst_qa_agent_1), not a
     # phantom personainst_qa_<hex>: prefix + single 12-hex session suffix.
-    assert minted.startswith(f"persona_chat_{persona_instance_id_for('qa')}_")
-    tail = minted[len(f"persona_chat_{persona_instance_id_for('qa')}_") :]
+    assert minted.startswith(f"persona_chat_{_placed("qa")}_")
+    tail = minted[len(f"persona_chat_{_placed("qa")}_") :]
     assert len(tail) == 12 and all(ch in "0123456789abcdef" for ch in tail)
-    # No phantom double-hex instance segment.
-    assert "personainst_qa_" not in minted[: minted.rfind("_")]
+    # No phantom double-hex instance segment: everything before the session suffix is the instance.
+    assert minted[: minted.rfind("_")] == f"persona_chat_{_placed('qa')}"
 
 
 def test_two_relays_thread_after_the_first_creates_the_session(
@@ -121,30 +127,30 @@ def test_two_relays_thread_after_the_first_creates_the_session(
     store = PersonaInstanceStore()
 
     relay1 = _session_for_test(store, persona_id="qa")
-    instance = store.open_chat(persona_id="qa", session_id=relay1)
-    assert instance.id == persona_instance_id_for("qa")  # canonical, no phantom mint
+    instance = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=relay1)
+    assert instance.id == _placed("qa")  # canonical, no phantom mint
 
     relay2 = _session_for_test(store, persona_id="qa")
     assert relay2 == relay1
     # The pointer is the canonical instance, updated through the normal write
     # path — no stray personainst_qa_<hex> row was created.
-    assert {inst.id for inst in store.list_all()} == {persona_instance_id_for("qa")}
-    assert store.get(persona_instance_id_for("qa")).session_id == relay1
+    assert {inst.id for inst in store.list_all()} == {_placed("qa")}
+    assert store.get(_placed("qa")).session_id == relay1
 
 
 def test_instance_shaped_target_canonicalizes_and_does_not_mint_a_variant(
     isolate_agent_runtime_root,
 ):
     store = PersonaInstanceStore()
-    existing = store.create_operator_chat(persona_id="qa", display_name="QA")
+    existing = store.create_operator_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", display_name="QA")
 
     # A caller may hand an instance id (with actor-token drift) instead of a
     # persona id; it must resolve to the SAME canonical instance's session.
     from_instance = _session_for_test(
-        store, persona_id="qa", persona_instance_id="personainst_qa"
+        store, persona_id="qa", persona_instance_id="personainst_qa_agent_1"
     )
     from_drift = _session_for_test(
-        store, persona_id="qa", persona_instance_id="persona_personainst_qa"
+        store, persona_id="qa", persona_instance_id="persona_personainst_qa_agent_1"
     )
     assert from_instance == existing.session_id
     assert from_drift == existing.session_id
@@ -155,7 +161,7 @@ def test_task_bound_session_pointer_is_not_absorbed_as_a_chat_lane(
 ):
     # A legacy worker pointer cannot displace the dedicated chat pointer.
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="qa", session_id="persona_chat_seed_000000000000")
+    instance = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id="persona_chat_seed_000000000000")
     instance.session_id = "worker_session_task_42"  # not a persona_chat_* id
     store.update(instance)
 
@@ -177,7 +183,7 @@ def test_relay_exchange_is_visible_in_the_snapshot_projection(
 
     def _relay(message: str, reply: str) -> str:
         session_id = _session_for_test(store, persona_id="qa")
-        store.open_chat(persona_id="qa", session_id=session_id, display_name="QA")
+        store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=session_id, display_name="QA")
         db.create_session(
             session_id=session_id,
             source=PERSONA_CHAT_SESSION_SOURCE,
@@ -197,7 +203,7 @@ def test_relay_exchange_is_visible_in_the_snapshot_projection(
     assert len(qa_rows) == 1, "the relay exchange must render as one visible chat row"
     row = qa_rows[0]
     assert row["session_id"] == first_session
-    assert row["persona_instance_id"] == persona_instance_id_for("qa")
+    assert row["persona_instance_id"] == _placed("qa")
     texts = [message["text"] for message in row["messages"]]
     assert "From Neko: hi" in texts and "QA here — hi Neko." in texts
     assert "From Neko: follow up" in texts and "QA here — ack." in texts
@@ -214,7 +220,7 @@ def test_resolve_default_never_mints_for_a_never_chatted_target(
     # The read verbs (agent_chat_threads / agent_chat_open) resolve WITHOUT
     # minting: a never-chatted target reports None, and no instance row is written.
     store = PersonaInstanceStore()
-    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=persona_instance_id_for("qa")) is None
+    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=_placed("qa")) is None
     assert PersonaInstanceStore().list_all() == [], "resolving must not create a session/row"
 
 
@@ -225,13 +231,13 @@ def test_mint_mode_forces_a_fresh_canonical_session_even_with_a_default(
     # fresh canonical session even when a default already exists — no parallel
     # pipeline, just skip the reuse read.
     store = PersonaInstanceStore()
-    existing = store.create_operator_chat(persona_id="qa", display_name="QA")
+    existing = store.create_operator_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", display_name="QA")
 
     assert _session_for_test(store, persona_id="qa") == existing.session_id
     fresh = _session_for_test(store, persona_id="qa", mint=True)
     assert fresh != existing.session_id
-    assert fresh.startswith(f"persona_chat_{persona_instance_id_for('qa')}_")
-    tail = fresh[len(f"persona_chat_{persona_instance_id_for('qa')}_"):]
+    assert fresh.startswith(f"persona_chat_{_placed("qa")}_")
+    tail = fresh[len(f"persona_chat_{_placed("qa")}_"):]
     assert len(tail) == 12 and all(ch in "0123456789abcdef" for ch in tail)
 
 
@@ -248,7 +254,7 @@ def test_new_session_mint_is_canonical_and_visible_in_the_projection(
 
     def _relay(message: str, reply: str, *, mint: bool) -> str:
         session_id = _session_for_test(store, persona_id="qa", mint=mint)
-        store.open_chat(persona_id="qa", session_id=session_id, display_name="QA")
+        store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=session_id, display_name="QA")
         db.create_session(
             session_id=session_id,
             source=PERSONA_CHAT_SESSION_SOURCE,
@@ -263,19 +269,19 @@ def test_new_session_mint_is_canonical_and_visible_in_the_projection(
     fresh = _relay("thread two — clean", "ack two", mint=True)
     assert fresh != first, "new_session must start a distinct thread"
     # The fresh session became the instance's default going forward.
-    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=persona_instance_id_for("qa")) == fresh
+    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=_placed("qa")) == fresh
     assert _session_for_test(store, persona_id="qa") == fresh
 
     rows = persona_chat_history_summary(persona_instances=store.list_all(), session_db=db)
     fresh_rows = [row for row in rows if row["session_id"] == fresh]
     assert len(fresh_rows) == 1, "the fresh thread must render as a visible chat row"
-    assert fresh_rows[0]["persona_instance_id"] == persona_instance_id_for("qa")
+    assert fresh_rows[0]["persona_instance_id"] == _placed("qa")
 
 
 # --------------------------------------------------------------------------- #
 # Sibling-instance chat-session ownership (2026-07-18 channel-fold incident)   #
 #                                                                             #
-# Two live instances of one persona (canonical personainst_qa + placement      #
+# Two live instances of one persona (canonical personainst_qa_agent_1 + placement      #
 # personainst_qa_agent_2) folded onto ONE operator channel: the console's      #
 # open-chat of the sibling bound its session onto the canonical primary's      #
 # pointer, then a bare-persona relay ADOPTED that poisoned pointer, so both     #
@@ -306,10 +312,10 @@ def test_bare_persona_relay_never_adopts_a_sibling_session(
     # SEND #2 — bare persona id → the canonical primary. It must NOT adopt the
     # sibling's session; it mints the primary's own.
     s2 = _session_for_test(store, persona_id="qa")
-    store.open_chat(persona_id="qa", session_id=s2)
+    store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=s2)
 
     assert s2 != sibling_session, "bare-persona send stole the sibling's session"
-    primary = store.get(persona_instance_id_for("qa"))
+    primary = store.get(_placed("qa"))
     assert primary.session_id == s2
     assert primary.session_id != store.get("personainst_qa_agent_2").session_id
     assert store.get("personainst_qa_agent_2").session_id == sibling_session
@@ -325,9 +331,9 @@ def test_open_chat_refuses_binding_a_siblings_session_onto_the_canonical(
         persona_id="qa", placement_id="qa_agent_2", display_name="QA Agent (2)"
     )
     with pytest.raises(ValueError, match="belongs to instance"):
-        store.open_chat(persona_id="qa", session_id=sibling.session_id)
+        store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=sibling.session_id)
     # The canonical primary's pointer was never written.
-    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=persona_instance_id_for("qa")) is None
+    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=_placed("qa")) is None
 
 
 def test_resolve_default_ignores_a_foreign_pointer_and_self_heals(
@@ -340,18 +346,18 @@ def test_resolve_default_ignores_a_foreign_pointer_and_self_heals(
     )
     # Poison the canonical pointer directly (bypassing the write-guard) to model
     # the on-disk corrupted state.
-    primary = store.open_chat(persona_id="qa", session_id=_session_for_test(store, persona_id="qa"))
+    primary = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=_session_for_test(store, persona_id="qa"))
     primary.session_id = sibling.session_id
     store.update(primary)
-    assert store.get(persona_instance_id_for("qa")).session_id == sibling.session_id
+    assert store.get(_placed("qa")).session_id == sibling.session_id
 
     # Read side ignores the foreign legacy scalar and keeps the dedicated root.
     own_root = primary.default_chat_session_id
-    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=persona_instance_id_for("qa")) == own_root
+    assert resolve_default_chat_session_id_for_instance(store, persona_id="qa", persona_instance_id=_placed("qa")) == own_root
     healed = _session_for_test(store, persona_id="qa")
     assert healed == own_root
-    store.open_chat(persona_id="qa", session_id=healed)
-    assert store.get(persona_instance_id_for("qa")).default_chat_session_id == healed
+    store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=healed)
+    assert store.get(_placed("qa")).default_chat_session_id == healed
     assert store.get("personainst_qa_agent_2").session_id == sibling.session_id
 
 
@@ -500,7 +506,7 @@ def test_relay_under_profile_override_persists_transcript_to_the_projection_home
 
     with persona_profile_context(_qa_profile_binding(profile_home)):
         session_id = _session_for_test(store, persona_id="qa")
-        store.open_chat(persona_id="qa", session_id=session_id, default_display_name="QA Agent")
+        store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=session_id, default_display_name="QA Agent")
         db = chat_delete._default_persona_session_db()
         # The write path resolved the head home even though the override is live.
         assert Path(db.db_path) == head_home / "state.db"
@@ -588,8 +594,8 @@ def test_resolve_sender_tier1_chat_session_owner_full_identity(isolate_agent_run
 
     store = PersonaInstanceStore()
     sender_session = _session_for_test(store, persona_id="neko")
-    store.open_chat(persona_id="neko", session_id=sender_session, display_name="Neko Mission Lead")
-    sender_id = persona_instance_id_for("neko")
+    store.open_chat(persona_id="neko", persona_instance_id="personainst_neko_agent_1", session_id=sender_session, display_name="Neko Mission Lead")
+    sender_id = _placed("neko")
 
     marker = chat_history_writes._resolve_relay_sender_marker(
         f"agent:{sender_session}", instance_store=store, relay_chain_in=("neko",)
@@ -608,7 +614,7 @@ def test_resolve_sender_tier2_bound_session_scan(isolate_agent_runtime_root):
 
     store = PersonaInstanceStore()
     inst = store.open_chat(
-        persona_id="dev", session_id="persona_chat_seed_000000000000", display_name="Dev"
+        persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="persona_chat_seed_000000000000", display_name="Dev"
     )
     assert inst.default_chat_session_id == "persona_chat_seed_000000000000"
 
@@ -643,11 +649,11 @@ def test_relay_incoming_row_carries_marker_and_projects_relayed_with_sender_name
 
     store = PersonaInstanceStore()
     sender_session = _session_for_test(store, persona_id="neko")
-    store.open_chat(persona_id="neko", session_id=sender_session, display_name="Neko Mission Lead")
-    sender_id = persona_instance_id_for("neko")
+    store.open_chat(persona_id="neko", persona_instance_id="personainst_neko_agent_1", session_id=sender_session, display_name="Neko Mission Lead")
+    sender_id = _placed("neko")
 
     target_session = _session_for_test(store, persona_id="qa")
-    store.open_chat(persona_id="qa", session_id=target_session, display_name="QA")
+    store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=target_session, display_name="QA")
 
     marker = chat_history_writes._resolve_relay_sender_marker(
         f"agent:{sender_session}", instance_store=store, relay_chain_in=("neko",)
@@ -704,7 +710,7 @@ def test_operator_row_carries_no_marker_and_projects_as_operator(isolate_agent_r
 
     store = PersonaInstanceStore()
     target_session = _session_for_test(store, persona_id="qa")
-    store.open_chat(persona_id="qa", session_id=target_session, display_name="QA")
+    store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=target_session, display_name="QA")
 
     marker = chat_history_writes._resolve_relay_sender_marker(
         "operator", instance_store=store, relay_chain_in=()
@@ -755,7 +761,7 @@ def test_unresolvable_sender_projects_as_agent_without_a_name(isolate_agent_runt
 
     store = PersonaInstanceStore()
     target_session = _session_for_test(store, persona_id="qa")
-    store.open_chat(persona_id="qa", session_id=target_session, display_name="QA")
+    store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=target_session, display_name="QA")
 
     marker = chat_history_writes._resolve_relay_sender_marker(
         "agent:worker_session_bogus_999", instance_store=store, relay_chain_in=()
@@ -928,12 +934,12 @@ def test_mission_chat_reply_puts_the_marker_on_the_run_request(monkeypatch):
             permission_session_id="persona_chat_personainst_qa_deadbeef",
             root_chat_session_id="persona_chat_personainst_qa_deadbeef",
             client_message_id="cm-relay-wire",
-            relay_sender_marker="relay_from:neko:personainst_neko",
+            relay_sender_marker="relay_from:neko:personainst_neko_agent_1",
             # A turn with no model is refused before the runner (RT-NO-MODEL-CHAT-SENDS-AND-404S).
             model_override="test-model",
         )
     assert captured["request"].persona_chat_user_finish_reason == (
-        "relay_from:neko:personainst_neko"
+        "relay_from:neko:personainst_neko_agent_1"
     )
 
 
@@ -955,12 +961,12 @@ def test_the_runner_stages_the_marker_where_the_prologue_will_adopt_it():
         user_message="From Neko: status?\ud800",
         root_chat_session_id="persona_chat_personainst_qa_deadbeef",
         client_message_id="cm-relay-wire",
-        persona_chat_user_finish_reason="relay_from:neko:personainst_neko",
+        persona_chat_user_finish_reason="relay_from:neko:personainst_neko_agent_1",
     )
     staged = stage_persona_chat_user_row_marker(agent, request)
     assert staged is agent._pending_cli_user_message
     assert staged["role"] == "user"
-    assert staged["finish_reason"] == "relay_from:neko:personainst_neko"
+    assert staged["finish_reason"] == "relay_from:neko:personainst_neko_agent_1"
     assert staged["content"] == _sanitize_surrogates(request.user_message)
 
 
@@ -978,7 +984,7 @@ def test_an_operator_send_stages_nothing_and_clears_a_resident_leftover():
     agent._pending_cli_user_message = {
         "role": "user",
         "content": "From Neko: status?",
-        "finish_reason": "relay_from:neko:personainst_neko",
+        "finish_reason": "relay_from:neko:personainst_neko_agent_1",
     }
     request = AgentRunRequest(
         profile="qa",
@@ -1007,11 +1013,11 @@ def test_the_staged_row_survives_the_native_projection_and_attributes(
     store = PersonaInstanceStore()
     sender_session = _session_for_test(store, persona_id="neko")
     store.open_chat(
-        persona_id="neko", session_id=sender_session, display_name="Neko Mission Lead"
+        persona_id="neko", persona_instance_id="personainst_neko_agent_1", session_id=sender_session, display_name="Neko Mission Lead"
     )
-    sender_id = persona_instance_id_for("neko")
+    sender_id = _placed("neko")
     target_session = _session_for_test(store, persona_id="qa")
-    store.open_chat(persona_id="qa", session_id=target_session, display_name="QA")
+    store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=target_session, display_name="QA")
 
     marker = chat_history_writes._resolve_relay_sender_marker(
         f"agent:{sender_session}", instance_store=store, relay_chain_in=("neko",)

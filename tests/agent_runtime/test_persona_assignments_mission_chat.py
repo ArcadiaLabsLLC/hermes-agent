@@ -102,8 +102,8 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             title="Operator message",
@@ -137,13 +137,13 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
     assert stored_persona.provider == "openai-codex"
     assert stored_persona.model == "gpt-default"
 
-    stored_config = json.loads(db.sessions["persona_chat_personainst_dev"]["model_config"])
+    stored_config = json.loads(db.sessions["persona_chat_personainst_dev_agent_1"]["model_config"])
     override = stored_config["mission_control_chat_model_override"]
     assert override["provider"] == "openrouter"
     assert override["model"] == "anthropic/claude-sonnet-4"
     assert override["scope"] == "mission_control_chat_session"
 
-    instance = PersonaInstanceStore().get("personainst_dev")
+    instance = PersonaInstanceStore().get("personainst_dev_agent_1")
     rows = persona_chat_history_summary(persona_instances=[instance], session_db=db)
     assert rows[0]["chat_provider"] == "openrouter"
     assert rows[0]["chat_model"] == "anthropic/claude-sonnet-4"
@@ -154,8 +154,8 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             title="Operator message",
@@ -178,7 +178,7 @@ def test_mission_chat_model_override_is_chat_scoped_and_does_not_mutate_persona(
     assert payload["model_selection"]["effective_provider"] == "openai-codex"
     assert payload["model_selection"]["effective_model"] == "gpt-default"
     assert payload["model_selection"]["model_is_default"] is True
-    stored_config = json.loads(db.sessions["persona_chat_personainst_dev"]["model_config"])
+    stored_config = json.loads(db.sessions["persona_chat_personainst_dev_agent_1"]["model_config"])
     assert "mission_control_chat_model_override" not in stored_config
 
 
@@ -215,7 +215,7 @@ def test_a_draft_chats_first_send_pins_its_model_to_the_new_session_only(
                                    total_tokens=2, raw={})
 
     monkeypatch.setattr(commit_run, "GPTPersonaRuntime", _FakeRuntime)
-    instance = PersonaInstanceStore().create_operator_chat(persona_id="dev", display_name="Dev")
+    instance = PersonaInstanceStore().create_operator_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", display_name="Dev")
     first_thread = instance.session_id
     assert chat_open._cmd_persona_instance_open_chat(Namespace(
         persona_id="dev", persona_instance_id=instance.id, session_id=None, new_session=True,
@@ -260,8 +260,8 @@ def test_mission_chat_model_override_rejects_bad_values_before_turn_is_written(
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             title="Operator message",
@@ -284,7 +284,7 @@ def test_mission_chat_model_override_rejects_bad_values_before_turn_is_written(
     assert payload["ok"] is False
     assert payload["error_kind"] == "invalid_chat_model_override"
     assert "Hermes profile defaults were not changed" in payload["next_expected"]
-    assert db.messages["persona_chat_personainst_dev"] == []
+    assert db.messages["persona_chat_personainst_dev_agent_1"] == []
 
 
 def test_mission_chat_queues_skill_for_next_turn_once(
@@ -309,8 +309,8 @@ def test_mission_chat_queues_skill_for_next_turn_once(
     code = chat_coordinator._cmd_mission_chat_queue_skill(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             skill="deep-audit",
             json=True,
         )
@@ -321,7 +321,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
     assert payload["queued_skills"] == ["deep-audit"]
     assert pending_skills_for_next_turn(
         persona_id="dev",
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
     ) == ["deep-audit"]
 
     from agent import skill_commands
@@ -358,8 +358,8 @@ def test_mission_chat_queues_skill_for_next_turn_once(
     def _message_args(client_id: str):
         return SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             title="Operator message",
@@ -397,7 +397,7 @@ def test_mission_chat_queues_skill_for_next_turn_once(
     assert used[0]["content_hash"]
     assert pending_skills_for_next_turn(
         persona_id="dev",
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
     ) == []
 
     assert chat_turn_message._cmd_mission_chat_message(_message_args("client_skill_2")) == 0
@@ -417,8 +417,8 @@ def test_queue_skill_rejects_missing_skill_without_pending_state(
     code = chat_coordinator._cmd_mission_chat_queue_skill(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             skill="missing-skill",
             json=True,
         )
@@ -429,7 +429,7 @@ def test_queue_skill_rejects_missing_skill_without_pending_state(
     assert payload["ok"] is False
     assert pending_skills_for_next_turn(
         persona_id="dev",
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
     ) == []
 
 
@@ -453,7 +453,7 @@ def test_prompt_observability_reports_redaction_safe_available_skill_catalog(
     )
     context = prompt_observability.mission_chat_prompt_observability(
         persona=_persona("dev"),
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
     )
 
     skill = context["available_skills"][0]
@@ -557,8 +557,8 @@ def test_mission_chat_non_stream_persists_completed_turn_and_prints_one_json(
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             message="please run it",
@@ -582,7 +582,7 @@ def test_mission_chat_non_stream_persists_completed_turn_and_prints_one_json(
     assert payload["ok"] is True
     assert payload["protocol_version"] is None
     record = mission_chat_turn_record(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id="client_durable_1",
     )
     assert record["state"] == "projected"
@@ -613,8 +613,8 @@ def test_mission_chat_post_boundary_failure_marks_outcome_unknown(monkeypatch, c
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             message="please run it",
@@ -632,11 +632,11 @@ def test_mission_chat_post_boundary_failure_marks_outcome_unknown(monkeypatch, c
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False
     assert payload["error_kind"] == "chat_turn_outcome_unknown"
-    assert payload["root_chat_session_id"] == "persona_chat_personainst_dev"
+    assert payload["root_chat_session_id"] == "persona_chat_personainst_dev_agent_1"
     assert payload["client_message_id"] == "client_failed_1"
     assert payload["turn_id"] == "client_failed_1"
     record = mission_chat_turn_record(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id="client_failed_1",
     )
     assert record["state"] == "outcome_unknown"
@@ -651,7 +651,7 @@ def test_mission_chat_retry_recovers_native_reply_before_outcome_unknown(
     monkeypatch.setattr(chat_turn_message, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     instance = PersonaInstanceStore().open_chat(
-        persona_id="dev", session_id="persona_chat_personainst_dev"
+        persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="persona_chat_personainst_dev_agent_1"
     )
     db.create_session(instance.session_id, "agent_runtime_persona_chat")
     db.append_message(
@@ -730,7 +730,7 @@ def test_mission_chat_turn_resolve_requires_exact_owner_and_records_abandon(
 
     monkeypatch.setattr(turn_resolve_verb, "_default_persona_session_db", lambda: db)
     owner = PersonaInstanceStore().open_chat(
-        persona_id="dev", session_id="persona_chat_personainst_dev"
+        persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="persona_chat_personainst_dev_agent_1"
     )
     foreign = PersonaInstanceStore().add_instance(
         persona_id="qa", placement_id="foreign-placement_agent_2"
@@ -805,7 +805,7 @@ def test_mission_chat_new_turn_interrupts_prior_running_turn(
     monkeypatch.setattr(chat_turn_message, "_default_persona_session_db", lambda: db)
     monkeypatch.setattr(commit_settle, "_maybe_auto_title_persona_chat", lambda **_kwargs: None)
     persist_mission_chat_turn(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id="client_stale",
         turn_id="turn_stale",
         elements=[],
@@ -832,8 +832,8 @@ def test_mission_chat_new_turn_interrupts_prior_running_turn(
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             message="new one",
@@ -850,11 +850,11 @@ def test_mission_chat_new_turn_interrupts_prior_running_turn(
     assert code == 0
     json.loads(capsys.readouterr().out)
     assert mission_chat_turn_record(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id="client_stale",
     )["state"] == "interrupted"
     assert mission_chat_turn_record(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id="client_fresh",
     )["state"] == "projected"
 
@@ -899,8 +899,8 @@ def test_mission_chat_post_native_projection_crash_stays_repairable(
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             message="please answer",
@@ -921,7 +921,7 @@ def test_mission_chat_post_native_projection_crash_stays_repairable(
     assert payload["reply"] == "The reply that must not vanish."
     assert "injected persona chat fault at after_native_commit" in payload["blocker"]
     record = mission_chat_turn_record(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id="client_post_crash",
     )
     assert record["state"] == "native_committed"
@@ -976,8 +976,8 @@ def test_mission_chat_success_persist_sequence_has_single_terminal_write(
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             message="run it",
@@ -995,7 +995,7 @@ def test_mission_chat_success_persist_sequence_has_single_terminal_write(
     json.loads(capsys.readouterr().out)
     assert recorded == [(None, False), (None, False)]
     assert mission_chat_turn_record(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id="client_sequence",
     )["state"] == "projected"
 
@@ -1040,8 +1040,8 @@ def test_mission_chat_message_replays_duplicate_client_message_id(
     def _args():
         return SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             message="hi",
@@ -1062,12 +1062,12 @@ def test_mission_chat_message_replays_duplicate_client_message_id(
     replay = json.loads(capsys.readouterr().out)
 
     assert calls["count"] == 1
-    assert db.messages["persona_chat_personainst_dev"] == []
+    assert db.messages["persona_chat_personainst_dev_agent_1"] == []
     assert replay["idempotent_replay"] is True
     assert replay["client_message_id"] == "client_dup_1"
     assert replay["reply"] == "Recovered canonical reply."
     record = mission_chat_turn_record(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id="client_dup_1",
     )
     assert record["projection_event_emitted"] is True
@@ -1084,7 +1084,7 @@ def test_mission_chat_message_replays_duplicate_client_message_id(
         for _, event in EventLog().iter_from_offset(0)
         if event.type == "persona_chat.metadata_updated"
         and event.payload.get("root_chat_session_id")
-        == "persona_chat_personainst_dev"
+        == "persona_chat_personainst_dev_agent_1"
     ]
     assert len(metadata_events) == 1
     assert metadata_events[0].payload["change_kind"] == "auto_title_updated"
@@ -1127,8 +1127,8 @@ def test_mission_chat_message_generates_client_message_id_when_missing(
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             message="hi",
@@ -1149,7 +1149,7 @@ def test_mission_chat_message_generates_client_message_id_when_missing(
     assert payload["turn_id"] == client_message_id
     assert captured["turn_id"] == client_message_id
     assert mission_chat_turn_record(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id=client_message_id,
     )["state"] == "projected"
     # C3: the terminal frame's `prompt_observability` is the slim subset — the
@@ -1209,8 +1209,8 @@ def test_mission_chat_message_stream_terminal_frame_is_slim(
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             message="hi",
@@ -1309,8 +1309,8 @@ def test_mission_chat_pre_trace_ack_is_presentation_only(
     code = chat_turn_message._cmd_mission_chat_message(
         SimpleNamespace(
             persona_id="dev",
-            persona_instance_id="personainst_dev",
-            session_id="persona_chat_personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
+            session_id="persona_chat_personainst_dev_agent_1",
             task_id=None,
             goal_id=None,
             message="is that a good place to do it",
@@ -1343,11 +1343,11 @@ def test_mission_chat_pre_trace_ack_is_presentation_only(
     )
     # Native persistence is owned by the runtime actor. This fake runtime writes
     # no SessionDB rows, proving the CLI did not restore the retired append lane.
-    messages = db.messages["persona_chat_personainst_dev"]
+    messages = db.messages["persona_chat_personainst_dev_agent_1"]
     assert messages == []
     # …and the turn store's elements hold only real content (replay shows no ack).
     persisted = mission_chat_turn_elements(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id="client_pre_trace_1",
     )
     assert persisted, "turn store must hold the streamed segment"
@@ -1358,7 +1358,7 @@ def test_mission_chat_pre_trace_ack_is_presentation_only(
 def test_persona_chat_auto_title_waits_for_session_title_write(monkeypatch, isolate_agent_runtime_root):
 
     db = _TranscriptDB()
-    session_id = "persona_chat_personainst_dev"
+    session_id = "persona_chat_personainst_dev_agent_1"
     db.create_session(session_id, "agent_runtime_persona_chat")
     called = []
     # One title attempt per session per process: start from a process that has
@@ -1385,7 +1385,7 @@ def test_persona_chat_auto_title_waits_for_session_title_write(monkeypatch, isol
 def test_persona_chat_context_uses_native_structured_prior_turns(isolate_agent_runtime_root):
 
     db = _TranscriptDB()
-    session_id = "persona_chat_personainst_dev"
+    session_id = "persona_chat_personainst_dev_agent_1"
     db.create_session(session_id, "agent_runtime_persona_chat")
     db.append_message(session_id, "user", "remember the blue button")
     db.append_message(session_id, "assistant", "I will remember the blue button.")

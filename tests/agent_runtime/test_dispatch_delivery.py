@@ -67,7 +67,7 @@ def resolvable_sender():
     ``DrainPolicy.sender_persona``: tests inject it, never patch it by name.
     """
 
-    return lambda root: ("neko_supervisor", "personainst_neko") if root == SENDER_ROOT else None
+    return lambda root: ("neko_supervisor", "personainst_neko_agent_1") if root == SENDER_ROOT else None
 
 
 @pytest.fixture
@@ -172,7 +172,7 @@ def test_the_forge_stamps_the_target_thread_on_the_turns_provenance(monkeypatch)
 
     monkeypatch.setattr(forge_module, "run_mission_chat_turn", _turn)
     forge_module.forge_delivery_turn(
-        root_session_id=SENDER_ROOT, persona_id="neko_supervisor", persona_instance_id="personainst_neko",
+        root_session_id=SENDER_ROOT, persona_id="neko_supervisor", persona_instance_id="personainst_neko_agent_1",
         message="done", client_message_id="cm-1", dispatch_id="dispatch-abc", state="completed",
         target_session_id="persona_chat_personainst_dev_b", target_name="Dev",
     )
@@ -661,9 +661,9 @@ def test_forge_delivery_turn_lands_a_real_turn_and_dedupes_a_retry(
     )
 
     ok, payload = dispatch_delivery.forge_delivery_turn(
-        root_session_id="persona_chat_personainst_dev",
+        root_session_id="persona_chat_personainst_dev_agent_1",
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         message=message,
         client_message_id=delivery_client_message_id(dispatch_id),
     )
@@ -678,9 +678,9 @@ def test_forge_delivery_turn_lands_a_real_turn_and_dedupes_a_retry(
     # The retry. Same derived id ⇒ the chat lane's own replay dedup absorbs it,
     # so the sender never sees the same result twice.
     ok_again, replay = dispatch_delivery.forge_delivery_turn(
-        root_session_id="persona_chat_personainst_dev",
+        root_session_id="persona_chat_personainst_dev_agent_1",
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         message=message,
         client_message_id=delivery_client_message_id(dispatch_id),
     )

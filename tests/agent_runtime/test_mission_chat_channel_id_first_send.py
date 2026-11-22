@@ -43,7 +43,7 @@ def test_a_first_send_to_an_instance_channel_opens_its_root(monkeypatch, capsys,
         _send_args(
             persona_id="dev",
             persona_instance_id=None,
-            session_id="dev::personainst_dev",
+            session_id="dev::personainst_dev_agent_1",
             client_message_id="cm-channel-1",
         )
     )
@@ -51,8 +51,8 @@ def test_a_first_send_to_an_instance_channel_opens_its_root(monkeypatch, capsys,
 
     assert code == 0, reply
     assert reply["ok"] is True
-    assert reply["persona_instance_id"] == "personainst_dev"
-    root = PersonaInstanceStore().get("personainst_dev").default_chat_session_id
+    assert reply["persona_instance_id"] == "personainst_dev_agent_1"
+    root = PersonaInstanceStore().get("personainst_dev_agent_1").default_chat_session_id
     assert root and reply["session_id"] == root
     assert _refused_rows() == []
 
@@ -65,7 +65,7 @@ def test_a_channel_of_another_persona_is_still_refused(monkeypatch, capsys, isol
         _send_args(
             persona_id="dev",
             persona_instance_id=None,
-            session_id="qa::personainst_qa",
+            session_id="qa::personainst_qa_agent_1",
             client_message_id="cm-channel-2",
         )
     )

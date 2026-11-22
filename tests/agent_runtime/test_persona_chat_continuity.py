@@ -36,7 +36,7 @@ from hermes_cli.harness_parts.persona import chat_history_writes
 
 def _instance(**overrides) -> PersonaInstance:
     values = {
-        "id": "personainst_dev",
+        "id": "personainst_dev_agent_1",
         "persona_id": "dev",
         "role": "dev",
         "display_name": "Dev",
@@ -58,7 +58,7 @@ def test_02_non_chat_session_write_never_overwrites_default_chat(isolate_agent_r
     # session store; the surviving guard is that a non-``persona_chat_*``
     # session_id write must not clobber the default chat pointer.
     store = PersonaInstanceStore()
-    row = store.open_chat(persona_id="dev", session_id="persona_chat_root")
+    row = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="persona_chat_root")
     row.session_id = "worker_session"
     store.update(row)
     assert store.get(row.id).default_chat_session_id == "persona_chat_root"
@@ -66,8 +66,8 @@ def test_02_non_chat_session_write_never_overwrites_default_chat(isolate_agent_r
 
 def test_03_multiple_roots_repoint_only_the_default(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
-    first = store.open_chat(persona_id="dev", session_id="persona_chat_first")
-    second = store.open_chat(persona_id="dev", session_id="persona_chat_second")
+    first = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="persona_chat_first")
+    second = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="persona_chat_second")
     assert first.id == second.id
     assert second.default_chat_session_id == "persona_chat_second"
 
@@ -75,16 +75,16 @@ def test_03_multiple_roots_repoint_only_the_default(isolate_agent_runtime_root):
 def test_04_mint_same_key_replays_same_root(isolate_agent_runtime_root, tmp_path):
     db = SessionDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
-    one = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="same")
-    two = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="same")
+    one = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev_agent_1", idempotency_key="same")
+    two = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev_agent_1", idempotency_key="same")
     assert one.session_id == two.session_id
 
 
 def test_05_mint_different_keys_create_different_roots(isolate_agent_runtime_root, tmp_path):
     db = SessionDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
-    one = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="one", title="Dev chat")
-    two = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="two", title="Dev chat")
+    one = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev_agent_1", idempotency_key="one", title="Dev chat")
+    two = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev_agent_1", idempotency_key="two", title="Dev chat")
     assert one.session_id != two.session_id
     assert db.get_session_title(one.session_id) != db.get_session_title(two.session_id)
 
@@ -103,10 +103,10 @@ def test_06_a_legacy_reserved_receipt_seeds_the_retry(isolate_agent_runtime_root
 
     db = SessionDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
-    path = legacy_mint_receipt_path("personainst_dev", "reserved")
+    path = legacy_mint_receipt_path("personainst_dev_agent_1", "reserved")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"root_chat_session_id": "persona_chat_reserved", "state": "reserved"}), encoding="utf-8")
-    replay = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="reserved")
+    replay = mint_chat_root(instance_store=store, session_db=db, persona_id="dev", persona_instance_id="personainst_dev_agent_1", idempotency_key="reserved")
     assert replay.session_id == "persona_chat_reserved"
     assert replay.state == "bound"
 
@@ -123,19 +123,19 @@ def test_06b_send_and_open_chat_mints_share_one_receipt_store(isolate_agent_runt
     db = SessionDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
     sent = mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
-                          persona_instance_id="personainst_dev", idempotency_key="shared",
+                          persona_instance_id="personainst_dev_agent_1", idempotency_key="shared",
                           dispatched_from={"requested_by_session": "persona_chat_sender"})
     receipt = json.loads(_mint_receipt_path("shared").read_text(encoding="utf-8"))
     assert receipt["session_id"] == sent.session_id
     assert receipt["state"] == "bound"
     replay = mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
-                            persona_instance_id="personainst_dev", idempotency_key="shared")
+                            persona_instance_id="personainst_dev_agent_1", idempotency_key="shared")
     assert replay.session_id == sent.session_id
     assert replay.idempotent_replay is True
     assert replay.dispatched_from == {"requested_by_session": "persona_chat_sender"}
     with pytest.raises(PersonaChatMintError) as excinfo:
         mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
-                       persona_instance_id="personainst_dev", idempotency_key="shared",
+                       persona_instance_id="personainst_dev_agent_1", idempotency_key="shared",
                        select=False)
     assert excinfo.value.code == "idempotency_conflict"
 
@@ -144,20 +144,20 @@ def test_06c_a_bound_replay_never_moves_the_pointer_back(isolate_agent_runtime_r
     db = SessionDB(tmp_path / "state.db")
     store = PersonaInstanceStore()
     first = mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
-                           persona_instance_id="personainst_dev", idempotency_key="first")
+                           persona_instance_id="personainst_dev_agent_1", idempotency_key="first")
     second = mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
-                            persona_instance_id="personainst_dev", idempotency_key="second")
+                            persona_instance_id="personainst_dev_agent_1", idempotency_key="second")
     replay = mint_chat_root(instance_store=store, session_db=db, persona_id="dev",
-                            persona_instance_id="personainst_dev", idempotency_key="first")
+                            persona_instance_id="personainst_dev_agent_1", idempotency_key="first")
     assert replay.session_id == first.session_id
-    assert store.get("personainst_dev").default_chat_session_id == second.session_id
+    assert store.get("personainst_dev_agent_1").default_chat_session_id == second.session_id
 
 
 def test_07_mint_stamps_exact_owner_metadata(isolate_agent_runtime_root, tmp_path):
     db = SessionDB(tmp_path / "state.db")
-    receipt = mint_chat_root(instance_store=PersonaInstanceStore(), session_db=db, persona_id="dev", persona_instance_id="personainst_dev", idempotency_key="owner")
+    receipt = mint_chat_root(instance_store=PersonaInstanceStore(), session_db=db, persona_id="dev", persona_instance_id="personainst_dev_agent_1", idempotency_key="owner")
     meta = json.loads(db.get_session(receipt.session_id)["model_config"])
-    assert meta["persona_instance_id"] == "personainst_dev"
+    assert meta["persona_instance_id"] == "personainst_dev_agent_1"
 
 
 def test_08_same_root_lease_is_exclusive(isolate_agent_runtime_root):
@@ -524,7 +524,7 @@ _CLARIFY_ROOT = "persona_chat_personainst_dev_abcdef123456"
 def _clarify_ticket(store: PersonaChatClarifyTicketStore, **overrides) -> str:
     values = {
         "chat_session_id": _CLARIFY_ROOT,
-        "persona_instance_id": "personainst_dev",
+        "persona_instance_id": "personainst_dev_agent_1",
         "persona_id": "dev",
         "asked_by_client_message_id": "agent-relay-aaaaaaaaaaaa",
     }
@@ -541,7 +541,7 @@ def test_clarify_ticket_round_trips_a_token_to_its_session(isolate_agent_runtime
     assert token.startswith("clarify-")
     record = store.resolve(token)
     assert record["chat_session_id"] == _CLARIFY_ROOT
-    assert record["persona_instance_id"] == "personainst_dev"
+    assert record["persona_instance_id"] == "personainst_dev_agent_1"
     assert record["state"] == "open"
 
 
@@ -1260,7 +1260,7 @@ def test_mint_for_a_live_target_is_untouched_by_the_retirement_precondition(
         instance_store=store,
         session_db=db,
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         idempotency_key="first-ever",
         title="Dev chat",
     )
@@ -1268,7 +1268,7 @@ def test_mint_for_a_live_target_is_untouched_by_the_retirement_precondition(
     root = receipt.session_id
     assert receipt.state == "bound"
     assert db.get_session(root) is not None
-    assert store.get("personainst_dev").default_chat_session_id == root
+    assert store.get("personainst_dev_agent_1").default_chat_session_id == root
 
 
 def test_a_flaky_tombstone_probe_cannot_escape_the_mint_lane_untyped(
@@ -1304,7 +1304,7 @@ def test_a_flaky_tombstone_probe_cannot_escape_the_mint_lane_untyped(
     )
 
     with caplog.at_level(logging.WARNING, logger=persona_assignments.__name__):
-        assert store.retired_instance_archive_path("personainst_dev") is None
+        assert store.retired_instance_archive_path("personainst_dev_agent_1") is None
     assert any(
         "retirement tombstone probe failed" in record.getMessage()
         for record in caplog.records
@@ -1315,7 +1315,7 @@ def test_a_flaky_tombstone_probe_cannot_escape_the_mint_lane_untyped(
         instance_store=store,
         session_db=db,
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         idempotency_key="flaky-probe",
         title="Dev chat",
     )
@@ -1402,7 +1402,7 @@ def test_the_mint_binds_before_it_creates_the_session_row(
         instance_store=_OrderedStore(),
         session_db=_OrderedDB(tmp_path / "state.db"),
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         idempotency_key="ordering",
         title="Dev chat",
     )
@@ -1497,7 +1497,7 @@ def test_a_transcript_write_that_fails_retracts_the_bind_it_was_ordered_behind(
             instance_store=store,
             session_db=db,
             persona_id="dev",
-            persona_instance_id="personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
             idempotency_key="doomed",
             title="Dev chat",
         )
@@ -1512,7 +1512,7 @@ def test_a_transcript_write_that_fails_retracts_the_bind_it_was_ordered_behind(
     assert len(bound) == 1
     assert attempted == bound
 
-    live = PersonaInstanceStore().get("personainst_dev")
+    live = PersonaInstanceStore().get("personainst_dev_agent_1")
     pointer = live.default_chat_session_id
     assert pointer is None, f"the failed mint left a phantom pointer: {pointer!r}"
     # The legacy mirror moves WITH the authority:
@@ -1556,12 +1556,12 @@ def test_a_retraction_restores_the_pointer_the_instance_already_had(
         instance_store=store,
         session_db=db,
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         idempotency_key="first",
         title="Dev chat",
     )
     good_root = first.session_id
-    assert store.get("personainst_dev").default_chat_session_id == good_root
+    assert store.get("personainst_dev_agent_1").default_chat_session_id == good_root
 
     db.fail = True
     with pytest.raises(PersonaChatPersistenceError):
@@ -1569,12 +1569,12 @@ def test_a_retraction_restores_the_pointer_the_instance_already_had(
             instance_store=store,
             session_db=db,
             persona_id="dev",
-            persona_instance_id="personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
             idempotency_key="second",
             title="Dev chat",
         )
 
-    pointer = PersonaInstanceStore().get("personainst_dev").default_chat_session_id
+    pointer = PersonaInstanceStore().get("personainst_dev_agent_1").default_chat_session_id
     assert pointer == good_root
     assert db.get_session(pointer) is not None, "the restored pointer must resolve"
 
@@ -1609,7 +1609,7 @@ def test_a_same_key_retry_after_a_failed_mint_still_resolves_the_same_root(
             instance_store=store,
             session_db=db,
             persona_id="dev",
-            persona_instance_id="personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
             idempotency_key="retried",
             title="Dev chat",
         )
@@ -1621,7 +1621,7 @@ def test_a_same_key_retry_after_a_failed_mint_still_resolves_the_same_root(
         instance_store=store,
         session_db=db,
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         idempotency_key="retried",
         title="Dev chat",
     )
@@ -1630,7 +1630,7 @@ def test_a_same_key_retry_after_a_failed_mint_still_resolves_the_same_root(
     assert replay.state == "bound"
     assert db.get_session(replay.session_id) is not None
     assert (
-        PersonaInstanceStore().get("personainst_dev").default_chat_session_id
+        PersonaInstanceStore().get("personainst_dev_agent_1").default_chat_session_id
         == replay.session_id
     )
 
@@ -1650,7 +1650,7 @@ def test_a_retraction_never_reverts_a_pointer_another_lane_moved(
     from agent_runtime.persona_chat_durability import PersonaChatPersistenceError
     from agent_runtime.persona_chat_history import PERSONA_CHAT_SESSION_SOURCE
 
-    other_root = persona_chat_session_id_for("personainst_dev")
+    other_root = persona_chat_session_id_for("personainst_dev_agent_1")
 
     class _HijackingDB(SessionDB):
         hijack = False
@@ -1660,7 +1660,7 @@ def test_a_retraction_never_reverts_a_pointer_another_lane_moved(
                 return super().create_session(*args, **kwargs)
             # The concurrent lane lands INSIDE our window and rebinds the
             # instance to a root of its own — durable, written just below.
-            PersonaInstanceStore().open_chat(persona_id="dev", session_id=other_root)
+            PersonaInstanceStore().open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id=other_root)
             raise RuntimeError("transcript store went away")
 
     db = _HijackingDB(tmp_path / "state.db")
@@ -1670,7 +1670,7 @@ def test_a_retraction_never_reverts_a_pointer_another_lane_moved(
         instance_store=store,
         session_db=db,
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         idempotency_key="first",
         title="Dev chat",
     )
@@ -1687,12 +1687,12 @@ def test_a_retraction_never_reverts_a_pointer_another_lane_moved(
             instance_store=store,
             session_db=db,
             persona_id="dev",
-            persona_instance_id="personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
             idempotency_key="second",
             title="Dev chat",
         )
 
-    pointer = PersonaInstanceStore().get("personainst_dev").default_chat_session_id
+    pointer = PersonaInstanceStore().get("personainst_dev_agent_1").default_chat_session_id
     assert pointer == other_root, (
         "the retraction reverted a binding it did not make — it must key on the "
         "root it bound, not on whatever pointer happens to be there"
@@ -1745,12 +1745,12 @@ def test_a_retracted_fresh_mint_does_not_leave_a_chat_mode_with_no_chat(
             instance_store=store,
             session_db=db,
             persona_id="dev",
-            persona_instance_id="personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
             idempotency_key="doomed",
             title="Dev chat",
         )
 
-    live = PersonaInstanceStore().get("personainst_dev")
+    live = PersonaInstanceStore().get("personainst_dev_agent_1")
     assert live.default_chat_session_id is None
     assert live.session_id is None
     assert live.mode == "configured", (
@@ -1790,12 +1790,12 @@ def test_a_retracted_rebind_restores_the_mode_it_found_not_a_flat_demotion(
         instance_store=store,
         session_db=db,
         persona_id="dev",
-        persona_instance_id="personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
         idempotency_key="first",
         title="Dev chat",
     )
     good_root = first.session_id
-    assert PersonaInstanceStore().get("personainst_dev").mode == "chat"
+    assert PersonaInstanceStore().get("personainst_dev_agent_1").mode == "chat"
 
     db.fail = True
     with pytest.raises(PersonaChatPersistenceError):
@@ -1803,12 +1803,12 @@ def test_a_retracted_rebind_restores_the_mode_it_found_not_a_flat_demotion(
             instance_store=store,
             session_db=db,
             persona_id="dev",
-            persona_instance_id="personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
             idempotency_key="second",
             title="Dev chat",
         )
 
-    live = PersonaInstanceStore().get("personainst_dev")
+    live = PersonaInstanceStore().get("personainst_dev_agent_1")
     assert live.default_chat_session_id == good_root
     assert live.mode == "chat", (
         "the retraction demoted a row that still owns a live thread; it "
@@ -1845,7 +1845,7 @@ def test_the_retraction_tells_connected_clients_the_mode_moved_too(
             instance_store=store,
             session_db=db,
             persona_id="dev",
-            persona_instance_id="personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
             idempotency_key="doomed",
             title="Dev chat",
         )

@@ -19,7 +19,7 @@ from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE, CHAT_HEAD_KIND_PROC
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.profile_home import record_hermes_head_home_if_unset, reset_hermes_head_home
 
-TARGET_ROOT = "persona_chat_personainst_qa_0123456789ab"
+TARGET_ROOT = "persona_chat_personainst_qa_agent_1_0123456789ab"
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def relayed(tmp_path, monkeypatch):
 
 def _target(kind: str, home):
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="qa", session_id=TARGET_ROOT)
+    instance = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=TARGET_ROOT)
     instance.chat_head_home = str(home)
     instance.chat_head_kind = kind
     return store.update(instance)

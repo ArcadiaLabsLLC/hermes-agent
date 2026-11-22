@@ -28,7 +28,7 @@ SENDER_ROOT = "persona_chat_personainst_base_806e36791ba2"
 def _relay_mint(db, *, args: Namespace, requested_by_session: str | None):
     minted, refused = chat_turn_message._mint_send_root(
         args, instance_store=PersonaInstanceStore(), session_db=db, normalized_persona="qa",
-        persona_instance_id="personainst_qa", client_message_id="agent-relay-1", session_id=None,
+        persona_instance_id="personainst_qa_agent_1", client_message_id="agent-relay-1", session_id=None,
         mint_title="QA chat", existing_root=None, requested_by_session=requested_by_session,
     )
     assert refused is None
@@ -84,16 +84,16 @@ def test_a_relayed_thread_names_who_sent_it(db, monkeypatch):
     from agent_runtime.persona_chat_history import history_rows
 
     meta = json.loads(db.get_session(SENDER_ROOT)["model_config"] or "{}")
-    meta["persona_instance_id"] = "personainst_base"
+    meta["persona_instance_id"] = "personainst_base_agent_1"
     db.update_session_meta(SENDER_ROOT, json.dumps(meta, sort_keys=True))
     monkeypatch.setattr(history_rows, "persona_instance_display_name",
-                        lambda instance: {"personainst_base": "Base"}.get(instance, ""))
+                        lambda instance: {"personainst_base_agent_1": "Base"}.get(instance, ""))
 
     relayed = _relay_mint(db, args=Namespace(), requested_by_session=SENDER_ROOT)
-    row = history_rows._history_row(relayed, persona_id="qa", instance_id="personainst_qa",
+    row = history_rows._history_row(relayed, persona_id="qa", instance_id="personainst_qa_agent_1",
                                     session_id=relayed["id"], session_db=db)
-    assert row["dispatched_from"] == {"session_id": SENDER_ROOT, "persona_instance_id": "personainst_base",
+    assert row["dispatched_from"] == {"session_id": SENDER_ROOT, "persona_instance_id": "personainst_base_agent_1",
                                       "display_name": "Base"}
     sender = history_rows._history_row(db.get_session(SENDER_ROOT), persona_id="base",
-                                       instance_id="personainst_base", session_id=SENDER_ROOT, session_db=db)
+                                       instance_id="personainst_base_agent_1", session_id=SENDER_ROOT, session_db=db)
     assert "dispatched_from" not in sender, "a thread nobody dispatched names no sender"

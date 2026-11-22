@@ -21,7 +21,7 @@ from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE, CHAT_HEAD_KIND_PROC
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from hermes_state import SessionDB
 
-FIRST_ROOT = "persona_chat_personainst_qa_0123456789ab"
+FIRST_ROOT = "persona_chat_personainst_qa_agent_1_0123456789ab"
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def homes(tmp_path, monkeypatch):
 
 def _member(kind: str, home) -> dict:
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="qa", session_id=FIRST_ROOT)
+    instance = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=FIRST_ROOT)
     instance.chat_head_home = str(home)
     instance.chat_head_kind = kind
     store.update(instance)

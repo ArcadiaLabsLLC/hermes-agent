@@ -14,6 +14,7 @@ from agent_runtime.chat_heads import resolve_conversation_chat_scope
 # Patched by the open-chat tests' config seam; the open itself no longer reads the roster.
 from agent_runtime.config import load_agent_runtime_config  # noqa: F401
 from agent_runtime.persona_assignments import (
+    AgentNotPlacedError,
     PersonaInstanceStore,
     RetiredPersonaInstanceError,
     canonical_persona_instance_id,
@@ -204,6 +205,13 @@ def _cmd_persona_instance_open_chat(args) -> int:
             if isinstance(bound, int):
                 return bound
             instance, moved_from = bound
+        except AgentNotPlacedError as exc:
+            # A bind on an agent's bare id: say so, not "foreign chat"
+            # (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW).
+            # MUTATION: drop this arm and test_a_cli_open_on_an_agents_bare_name_says_it_is_not_placed reddens.
+            return _emit_persona_open_chat_error(
+                args, error_kind=exc.code, error=f"{persona_id} is not placed in a workspace", persona_id=persona_id,
+                persona_instance_id=exc.persona_instance_id, next_expected="place the agent, then open its chat")
         except ValueError as exc:
             data = {
                 "ok": False,

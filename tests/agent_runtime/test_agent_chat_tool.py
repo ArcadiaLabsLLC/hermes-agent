@@ -69,9 +69,10 @@ def test_instance_shaped_ids_are_relayed_for_canonical_resolution(monkeypatch):
         return 0
 
     monkeypatch.setattr(chat_turn_message, "_cmd_mission_chat_message", fake_handler)
-    data = json.loads(agent_chat_send(persona_id="personainst_dev", message="hi"))
+    # The autouse fixture's placement: admission refuses an instance no row backs.
+    data = json.loads(agent_chat_send(persona_id="personainst_dev_agent_2", message="hi"))
     assert data["ok"] is True
-    assert seen["persona_id"] == "personainst_dev"
+    assert seen["persona_id"] == "personainst_dev_agent_2"
 
 
 def test_omitted_session_is_forwarded_as_none_so_the_handler_threads(monkeypatch):
@@ -202,8 +203,8 @@ def test_happy_path_returns_compact_reply_without_observability(monkeypatch):
             {
                 "ok": True,
                 "reply": "On it — briefing received.",
-                "session_id": "persona_chat_personainst_neko_supervisor",
-                "chat_session_id": "persona_chat_personainst_neko_supervisor",
+                "session_id": "persona_chat_personainst_neko_supervisor_agent_1",
+                "chat_session_id": "persona_chat_personainst_neko_supervisor_agent_1",
                 "persona_instance_id": "personainst_operator_abc",
                 "total_tokens": 12345,
                 "prompt_observability": {"huge": "x" * 1000},
@@ -222,7 +223,7 @@ def test_happy_path_returns_compact_reply_without_observability(monkeypatch):
     assert data["ok"] is True
     assert data["reply"] == "On it — briefing received."
     assert data["target_persona"] == "neko_supervisor"
-    assert data["session_id"] == "persona_chat_personainst_neko_supervisor"
+    assert data["session_id"] == "persona_chat_personainst_neko_supervisor_agent_1"
     assert "prompt_observability" not in data
 
 
@@ -673,10 +674,15 @@ def test_open_returns_the_bounded_tail_and_canonicalizes_handle_input(
     # guessed state.db — the production agent-tool lane always runs under the
     # serve/CLI environment (explicit head, or the anchored machine's pointer).
     monkeypatch.setenv("HERMES_HEAD_HOME", os.environ["HERMES_HOME"])
-    session_id = _seed_persona_chat("qa", [("From Neko: hi", "QA here — hi."), ("more", "ack")])
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    placed = mint_placed_instance("qa", placement="agent_1")  # a bind on the bare name is refused
+    session_id = _seed_persona_chat(
+        "qa", [("From Neko: hi", "QA here — hi."), ("more", "ack")], persona_instance_id=placed.id
+    )
 
     # Handle input canonicalizes to the persona (the resolution send already does).
-    data = json.loads(agent_chat_open(persona_id="personainst_qa", limit=1))
+    data = json.loads(agent_chat_open(persona_id="personainst_qa_agent_1", limit=1))
     assert data["ok"] is True
     assert data["target_persona"] == "qa"
     assert data["session_id"] == session_id
@@ -719,7 +725,10 @@ def test_open_propagates_an_unreadable_transcript_instead_of_count_zero(
 
 
 def test_open_refuses_a_foreign_session(isolate_agent_runtime_root):
-    _seed_persona_chat("qa", [("hi", "ack")])
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    placed = mint_placed_instance("qa", placement="agent_1")  # a bind on the bare name is refused
+    _seed_persona_chat("qa", [("hi", "ack")], persona_instance_id=placed.id)
     # A session belonging to a different teammate's chat lane is refused — this is
     # "review OUR thread", not a transcript browser.
     data = json.loads(
@@ -766,7 +775,10 @@ def test_threads_lists_each_placement_distinctly_and_shadows_canonical(isolate_a
     store = PersonaInstanceStore()
     sib2 = store.add_instance(persona_id="qa", placement_id="qa_agent_2", display_name="QA Agent 2")
     sib3 = store.add_instance(persona_id="qa", placement_id="qa_agent_3", display_name="QA Agent 3")
-    # The canonical row even has its own thread — but it is still shadowed.
+    # The canonical row even has its own thread — but it is still not advertised. Nothing mints it any
+    # more (a bind on the bare name is refused), so the legacy row is seeded first, held as every
+    # surviving hidden copy is after a serve boot.
+    _legacy_canonical("qa")
     _seed_persona_chat("qa", [("primary hi", "primary ack")])
     s2 = _seed_persona_chat("qa", [("s2 hi", "s2 ack")], persona_instance_id=sib2.id)
     s3 = _seed_persona_chat("qa", [("s3 hi", "s3 ack")], persona_instance_id=sib3.id)
@@ -787,8 +799,18 @@ def test_threads_lists_each_placement_distinctly_and_shadows_canonical(isolate_a
 
 def test_threads_never_lists_a_held_hidden_copy(isolate_agent_runtime_root):
     # The canonical fallback went with the hidden copies (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT):
-    # a chat bound on the bare ``personainst_qa`` id makes a row born held machine-local, which no
-    # roster advertises; a persona with no placement is a template, not a teammate to address.
+    # a chat bound on the bare ``personainst_qa`` id is refused (no row is made,
+    # RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW), and a legacy held copy that
+    # survives with a chat is machine-local, which no roster advertises; a persona with no placement is a
+    # template, not a teammate to address.
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+    from agent_runtime.persona_assignments.errors import AgentNotPlacedError
+
+    with pytest.raises(AgentNotPlacedError):
+        _seed_persona_chat("qa", [("primary hi", "primary ack")])
+    assert [row.id for row in PersonaInstanceStore().list_all() if row.persona_id == "qa"] == []
+
+    _legacy_canonical("qa")
     _seed_persona_chat("qa", [("primary hi", "primary ack")])
 
     data = json.loads(agent_chat_threads(persona_id="qa"))
@@ -807,6 +829,7 @@ def test_open_bare_persona_routes_to_the_in_scope_placement(
     sibling = PersonaInstanceStore().add_instance(
         persona_id="qa", placement_id="qa_agent_2", display_name="QA Agent 2"
     )
+    _legacy_canonical("qa")  # nothing mints the canonical row any more; a bare-name bind is refused
     primary_session = _seed_persona_chat("qa", [("primary hi", "primary ack")])
     sibling_session = _seed_persona_chat(
         "qa", [("sibling hi", "sibling ack")], persona_instance_id=sibling.id
@@ -833,6 +856,18 @@ def test_open_bare_persona_routes_to_the_in_scope_placement(
     # guard: personainst_qa must not swallow personainst_qa_agent_2's session).
     refused = json.loads(agent_chat_open(persona_id="personainst_qa", session_id=sibling_session))
     assert refused["ok"] is False and refused["error_kind"] == "foreign_session"
+
+
+def _legacy_canonical(persona_id: str):
+    """The legacy canonical row ``personainst_<persona>``, seeded: nothing mints it any more (a chat bind
+    on the bare name is refused, ``agent_not_placed``), but suites about how it is shadowed or guarded
+    still need one to bind a chat onto. Seeded HELD, the state every surviving hidden copy is in after
+    a serve boot (machine-local, never advertised)."""
+    from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
+    from tests.agent_runtime.persona_samples import sample_personas
+
+    persona = next(p for p in sample_personas() if p.id == persona_id)
+    return mint_hidden_copy(persona)
 
 
 def _seed_persona_chat(persona_id: str, turns, *, persona_instance_id=None):
@@ -980,7 +1015,7 @@ def test_agent_chat_open_on_a_far_thread_reads_through_peer_thread_read(
             "result": {
                 "ok": True,
                 "target_persona": "dev",
-                "handle": "personainst_dev",
+                "handle": "personainst_dev_agent_1",
                 "session_id": "persona_chat_personainst_dev_0123456789ab",
                 "has_thread": True,
                 "count": 1,
@@ -1185,7 +1220,7 @@ def test_agent_chat_installs_with_an_install_fetches_and_caches_that_roster(
             "result": {
                 "workspace_id": "ws-1",
                 "truncated": False,
-                "rows": [{"handle": "personainst_dev", "persona_id": "dev"}],
+                "rows": [{"handle": "personainst_dev_agent_1", "persona_id": "dev"}],
             }
         },
     )
@@ -1195,7 +1230,7 @@ def test_agent_chat_installs_with_an_install_fetches_and_caches_that_roster(
     assert calls == [("inst_mac", "peer.roster.list", {})]
     assert answer["install"]["install_id"] == "inst_mac"
     # Each row spelled as the FULL address: a roster line should be actionable.
-    assert answer["roster"][0]["address"] == "@mac/personainst_dev"
+    assert answer["roster"][0]["address"] == "@mac/personainst_dev_agent_1"
     assert read_peer_cache(tmp_path)["inst_mac"].roster["workspace_id"] == "ws-1"
 
 

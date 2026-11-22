@@ -63,7 +63,7 @@ class _FakeSessionDB:
 
 def test_persona_chat_history_summary_projects_bound_sessions_redaction_safe(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="dev", session_id="chat_old_123")
+    instance = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="chat_old_123")
 
     rows = persona_chat_history_summary(
         persona_instances=[instance],
@@ -91,7 +91,7 @@ def test_persona_chat_history_summary_projects_bound_sessions_redaction_safe(iso
         {
             "session_id": "chat_old_123",
             "persona_id": "dev",
-            "persona_instance_id": "personainst_dev",
+            "persona_instance_id": "personainst_dev_agent_1",
             "title": "Untitled persona chat",
             "last_message_preview": "Please inspect the proof packet.",
             "message_count": 7,
@@ -134,9 +134,9 @@ def test_persona_chat_history_parity_separates_the_bound_limit_from_lost_session
     from agent_runtime.projection_accountant import ProjectionAccountant
 
     store = PersonaInstanceStore()
-    newer = store.open_chat(persona_id="dev", session_id="chat_new")
-    older = store.open_chat(persona_id="backend_dev", session_id="chat_old")
-    ghost = store.open_chat(persona_id="qa", session_id="chat_ghost")
+    newer = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="chat_new")
+    older = store.open_chat(persona_id="backend_dev", persona_instance_id="personainst_backend_dev_agent_1", session_id="chat_old")
+    ghost = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id="chat_ghost")
     accountant = ProjectionAccountant("persona_chat_history")
 
     rows = persona_chat_history_summary(
@@ -165,7 +165,7 @@ def test_persona_chat_history_emits_cache_policy_for_known_provider(isolate_agen
     # the estimated warm-window policy so the Launcher can render an honest
     # (non-contractual) freshness indicator.
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="dev", session_id="chat_codex_1")
+    instance = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="chat_codex_1")
 
     rows = persona_chat_history_summary(
         persona_instances=[instance],
@@ -194,7 +194,7 @@ def test_persona_chat_history_accounting_ignores_unrelated_session_sources(isola
     from agent_runtime.projection_accountant import ProjectionAccountant
 
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="dev", session_id="chat_bound_1")
+    instance = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="chat_bound_1")
 
     accountant = ProjectionAccountant("persona_chat_history")
     rows = persona_chat_history_summary(
@@ -229,7 +229,7 @@ def _retired_and_lost_sessions(store):
     """(live, retiring, the retired holder's session rows): one live chat, one whose holder the
     operator retired through the first-class verb, one bound to an id that exists NOWHERE."""
 
-    live = store.open_chat(persona_id="dev", session_id="chat_live_1")
+    live = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="chat_live_1")
     retiring = store.add_instance(
         persona_id="qa",
         placement_id="scene_child_9_agent_2",
@@ -340,7 +340,7 @@ def test_retired_persona_instance_ids_lists_only_retirement_tombstones(
 
 def test_persona_chat_history_summary_empty_bound_chat_is_safe_placeholder(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="dev", session_id="chat_empty_123")
+    instance = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="chat_empty_123")
 
     rows = persona_chat_history_summary(
         persona_instances=[instance],
@@ -369,7 +369,7 @@ def test_persona_chat_history_summary_empty_bound_chat_is_safe_placeholder(isola
 
 def test_persona_chat_history_hides_bound_session_deleted_from_session_db(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="dev", session_id="deleted_chat_123")
+    instance = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="deleted_chat_123")
 
     rows = persona_chat_history_summary(
         persona_instances=[instance],
@@ -417,7 +417,7 @@ def test_persona_chat_history_summary_ignores_task_bound_worker_sessions(isolate
     from agent_runtime.states import WorkerSessionState
 
     task_bound = PersonaInstance(
-        id="personainst_dev",
+        id="personainst_dev_agent_1",
         persona_id="dev",
         role="dev",
         display_name="Launcher Dev Agent",
@@ -454,7 +454,7 @@ def test_persona_chat_history_summary_projects_builtin_chat_source_when_worker_o
     from agent_runtime.states import WorkerSessionState
 
     task_bound = PersonaInstance(
-        id="personainst_qa",
+        id="personainst_qa_agent_1",
         persona_id="qa",
         role="qa",
         display_name="QA Agent",
@@ -495,7 +495,7 @@ def test_persona_chat_history_summary_projects_builtin_chat_source_when_worker_o
 
     assert rows[0]["session_id"] == "chat_qa_123"
     assert rows[0]["persona_id"] == "qa"
-    assert rows[0]["persona_instance_id"] == "personainst_qa"
+    assert rows[0]["persona_instance_id"] == "personainst_qa_agent_1"
     assert rows[0]["title"] == "hi, what's your take on shipping fast?"
     assert rows[0]["messages"][0]["text"] == "hi, what's your take on shipping fast?"
 
@@ -538,13 +538,13 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
     )
     monkeypatch.setattr(chat_session_scope, "open_chat_session_db", lambda scope=None, **_access: db)
     monkeypatch.setattr(snapshot_module.details, "_default_persona_session_db", lambda: db)
-    PersonaInstanceStore().open_chat(persona_id="dev", session_id="chat_old_123")
+    PersonaInstanceStore().open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="chat_old_123")
 
     snapshot = build_snapshot()
     by_instance = {item["persona_instance_id"]: item for item in list(snapshot["persona_instances"].values())}
 
-    assert by_instance["personainst_dev"]["mode"] == "chat"
-    assert by_instance["personainst_dev"]["session_id"] == "chat_old_123"
+    assert by_instance["personainst_dev_agent_1"]["mode"] == "chat"
+    assert by_instance["personainst_dev_agent_1"]["session_id"] == "chat_old_123"
     # S2/S7-B: the frame emits the open chat's history as a recency POINTER — the
     # anchors (session/persona/instance ids, title, preview, count, timestamps,
     # state) survive; the heavy message tail is evicted and fetched on demand via
@@ -556,7 +556,7 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
     pointer = history[0]
     assert pointer["session_id"] == "chat_old_123"
     assert pointer["persona_id"] == "dev"
-    assert pointer["persona_instance_id"] == "personainst_dev"
+    assert pointer["persona_instance_id"] == "personainst_dev_agent_1"
     assert "kind" not in pointer and "live_mission" not in pointer  # RT-TASK-BOUND-WIRE-PRUNE
     assert pointer["title"] == "Launcher Dev operator channel"
     assert pointer["last_message_preview"] == "Continue the old chat safely."
@@ -575,8 +575,8 @@ def test_snapshot_preserves_open_chat_and_emits_history(monkeypatch, isolate_age
 def _mission_chat_test_args(client_message_id: str, *, stream: bool = False):
     return SimpleNamespace(
         persona_id="dev",
-        persona_instance_id="personainst_dev",
-        session_id="persona_chat_personainst_dev",
+        persona_instance_id="personainst_dev_agent_1",
+        session_id="persona_chat_personainst_dev_agent_1",
         task_id=None,
         goal_id=None,
         message="please answer",
@@ -736,7 +736,7 @@ def test_mission_chat_fake_runtime_does_not_use_legacy_assistant_append(
     assert terminal_frames
     assert {frame.get("state") for frame in terminal_frames} == {"completed"}
     record = mission_chat_turn_record(
-        session_id="persona_chat_personainst_dev",
+        session_id="persona_chat_personainst_dev_agent_1",
         client_message_id="client_assistant_db_failure",
     )
     assert record["state"] == "projected"
@@ -850,7 +850,7 @@ def test_persona_chat_delete_clears_stale_binding_when_session_already_missing(
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     store = PersonaInstanceStore()
-    instance = store.open_chat(persona_id="dev", session_id="deleted_chat_123")
+    instance = store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id="deleted_chat_123")
 
     code = chat_delete._cmd_persona_chat_delete(
         SimpleNamespace(
@@ -891,7 +891,7 @@ def test_persona_chat_delete_unbinds_every_row_pointing_at_the_deleted_session(
     owner = store.create_operator_chat(persona_id="profile_reviewer", display_name="Reviewer")
     db.create_session(owner.session_id, "agent_runtime_persona_chat")
 
-    sibling = store.open_chat(persona_id="qa", session_id="persona_chat_sibling_seed")
+    sibling = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id="persona_chat_sibling_seed")
     sibling.default_chat_session_id = owner.session_id
     sibling.session_id = owner.session_id
     store.update(sibling)
@@ -984,7 +984,7 @@ def test_persona_chat_delete_reports_missing_without_silent_success(
         SimpleNamespace(
             session_id="missing_chat_123",
             persona_id="dev",
-            persona_instance_id="personainst_dev",
+            persona_instance_id="personainst_dev_agent_1",
             requested_by="test",
             json=True,
         )
@@ -1010,7 +1010,7 @@ def test_persona_chat_delete_rejects_foreign_instance_before_mutation(
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: db)
 
     store = PersonaInstanceStore()
-    owner = store.create_operator_chat(persona_id="dev", display_name="Owner")
+    owner = store.create_operator_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", display_name="Owner")
     foreign = store.add_instance(
         persona_id="qa", placement_id="foreign-delete_agent_2", display_name="Foreign"
     )
@@ -1037,7 +1037,7 @@ def test_persona_chat_delete_rejects_foreign_instance_before_mutation(
 def test_persona_chat_transcript_records_operator_and_assistant_turn(isolate_agent_runtime_root):
 
     db = _TranscriptDB()
-    session_id = "persona_chat_personainst_dev"
+    session_id = "persona_chat_personainst_dev_agent_1"
     db.create_session(session_id, "agent_runtime_persona_chat")
     chat_history_writes._append_persona_operator_turn(
         session_db=db,

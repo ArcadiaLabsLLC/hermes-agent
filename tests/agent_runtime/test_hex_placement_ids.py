@@ -25,7 +25,7 @@ from agent_runtime.persona_assignments import (
 HEX = "a1b2c3d4"
 PLACEMENT_TOKEN = f"qa_agent_{HEX}"
 PLACEMENT_ID = f"personainst_qa_agent_{HEX}"
-PRIMARY_ID = "personainst_qa"
+PRIMARY_ID = "personainst_qa_agent_1"
 
 
 def test_placement_id_for_hex_token_is_preserved_verbatim():
@@ -95,7 +95,7 @@ def test_add_instance_mints_distinct_hex_placement_row(isolate_agent_runtime_roo
     # placement_id materializes a distinct `personainst_qa_agent_<hex8>` row with
     # its OWN session, leaving the canonical primary untouched.
     store = PersonaInstanceStore()
-    primary = store.create_operator_chat(persona_id="qa", display_name="QA Agent")
+    primary = store.create_operator_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", display_name="QA Agent")
     placement = store.add_instance(
         persona_id="qa",
         placement_id=PLACEMENT_TOKEN,

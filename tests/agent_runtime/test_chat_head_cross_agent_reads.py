@@ -21,10 +21,10 @@ from agent_runtime.persona_chat_durability import ensure_persona_chat_session
 from agent_runtime.persona_chat_history.summary import persona_chat_history_summary
 from agent_runtime.projection_accountant import ProjectionAccountant
 
-BASE_ROOT = "persona_chat_personainst_dev_00000000000a"
-ALICE_ROOTS = ("persona_chat_personainst_qa_00000000000b", "persona_chat_personainst_ops_00000000000c")
+BASE_ROOT = "persona_chat_personainst_dev_agent_1_00000000000a"
+ALICE_ROOTS = ("persona_chat_personainst_qa_agent_1_00000000000b", "persona_chat_personainst_ops_agent_1_00000000000c")
 #: An older, UNBOUND chat of ``qa`` in alice: only the head's own pool can find it.
-ALICE_OLDER = "persona_chat_personainst_qa_00000000000d"
+ALICE_OLDER = "persona_chat_personainst_qa_agent_1_00000000000d"
 
 
 @pytest.fixture
@@ -53,10 +53,12 @@ def _agents(heads, alice_kind: str):
 
     store = PersonaInstanceStore()
     _chat(heads["alice"], "qa", ALICE_OLDER, "older qa")
-    store.open_chat(persona_id="dev", session_id=BASE_ROOT)
+    store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id=BASE_ROOT)
     _chat(heads["base"], "dev", BASE_ROOT, "from base")
     for persona_id, root in zip(("qa", "ops"), ALICE_ROOTS):
-        instance = store.open_chat(persona_id=persona_id, session_id=root)
+        instance = store.open_chat(
+            persona_id=persona_id, persona_instance_id=f"personainst_{persona_id}_agent_1", session_id=root
+        )
         instance.chat_head_home, instance.chat_head_kind = str(heads["alice"]), alice_kind
         store.update(instance)
         _chat(heads["alice"], persona_id, root, f"from alice {persona_id}")

@@ -247,7 +247,7 @@ def test_a_new_chats_open_rides_the_overlay_and_names_the_evicted_root(
     db = _seed_full_history()
     new_root = _session_root(0xABC)
     start = _log_end()
-    PersonaInstanceStore().open_chat(persona_id=PERSONA, session_id=new_root)
+    PersonaInstanceStore().open_chat(persona_id=PERSONA, persona_instance_id=INSTANCE, session_id=new_root)
     assert ensure_persona_chat_session(
         session_db=db, session_id=new_root, persona_id=PERSONA, title="new", required=True
     )
