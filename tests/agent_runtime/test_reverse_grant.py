@@ -176,7 +176,7 @@ def test_only_a_paired_device_offers(computer):
 
     offer = {"computer_id": "cmp-x", "token": "a" * 64, "level": "chat", "phone_install_id": "phone-x"}
     frame = computer.owner("runtime.gateway.reverse.offer", offer)
-    assert frame["error"]["data"]["reason"] == ca.REASON_SCOPE_DENIED
+    assert frame["error"]["data"]["reason"] == "not_a_device"
     assert computer.lanes.offers.pending() == []
 
 

@@ -42,7 +42,6 @@ from typing import Any
 from agent_runtime.call_authorization import (
     CALLER_DEVICE,
     DEVICE_KIND_CHANNEL,
-    REASON_SCOPE_DENIED,
     TIER_CONSOLE,
     TIER_READ,
 )
@@ -66,6 +65,8 @@ __all__ = [
 ]
 
 _TEXT_LIMIT = 256
+#: ``offer``'s refusal for any caller but a plain paired device.
+REASON_NOT_A_DEVICE = "not_a_device"
 
 
 def _refuse(key: str, sentence: str) -> ParamRefused:
@@ -209,8 +210,10 @@ def _runtime_gateway_reverse_offer(rid: Any, params: dict, context: RpcContext |
     device_id = _offering_device(context)
     # MUTATION: accept any caller here and the owner-offers test holds an offer from the stdio owner.
     if device_id is None:
+        # Its own word, not the gate's ``scope_denied``: the gate admitted the call (a read), and
+        # this handler is what knows an offer needs a device behind it.
         return err(rid, ERR_CONFLICT, "Only a paired device offers its agents to this computer.",
-                   {"reason": REASON_SCOPE_DENIED})
+                   {"reason": REASON_NOT_A_DEVICE})
     lanes = _lanes(context)
     if lanes is None:
         return _unbound(rid)
