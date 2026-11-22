@@ -54,7 +54,8 @@ def test_terminal_native_result_carries_its_own_provider_evidence(agent, status,
     assert block["model"] == "test-model"
 
 
-def test_organization_refusal_reports_the_providers_code(agent):
+def organization_refusal():
+    """The recorded Anthropic 403 an organization that forbids OAuth sign-in answers."""
     error = Exception("provider refusal")
     error.status_code = 403
     error.body = {
@@ -66,7 +67,11 @@ def test_organization_refusal_reports_the_providers_code(agent):
         },
         "request_id": "req_011ChEwxi3kH4muCfmQadXWv",
     }
-    agent.client.chat.completions.create.side_effect = error
+    return error
+
+
+def test_organization_refusal_reports_the_providers_code(agent):
+    agent.client.chat.completions.create.side_effect = organization_refusal()
     block = agent.run_conversation("test")["provider_error"]
     assert block["reason"] == "oauth_not_allowed_for_organization"
     assert block["failure_reason"] == "auth"
@@ -98,3 +103,30 @@ def test_an_html_error_page_reaches_the_block_as_its_typed_summary_not_the_body(
     block = result["provider_error"]
     assert block["status_code"] == 404
     assert block["message"] == "HTTP 404 — Not Found"
+
+
+def test_a_saved_failed_turns_error_card_names_the_providers_own_refusal_code(agent):
+    # The live refusal card said "does not allow this kind of sign-in", but the failed turn's saved
+    # row read "Sign in to that provider again": its error_surface carried only `code: auth`.
+    # MUTATION: drop the `surface.update(provider_code_fields(result))` call in
+    # agent/error_surface.py::build_error_surface_from_result and this test reddens.
+    from agent.conversation_loop import _failed_turn_display_metadata
+
+    agent.client.chat.completions.create.side_effect = organization_refusal()
+    result = agent.run_conversation("test")
+    surface = _failed_turn_display_metadata(agent, result)["error_surface"]
+    assert surface["provider_code"] == "oauth_not_allowed_for_organization"
+    assert surface["code"] == "auth"  # other clients branch on `code`; it stays the classifier's
+
+
+def test_a_refusal_without_a_detail_code_names_no_provider_code(agent):
+    # The block's `reason` is the classifier's evidence (`error.type` here), not the provider's
+    # `details.error_code`, so the card must not read it as one.
+    # MUTATION: make provider_code_fields skip the DETAIL_CODE_MARKER test and this test reddens.
+    from agent.error_surface import build_error_surface_from_result
+
+    agent.client.chat.completions.create.side_effect = sdk_error(401, "invalid_api_key")
+    with patch.object(agent, "_summarize_api_error", side_effect=lambda _: "Changed wording"):
+        result = agent.run_conversation("test")
+    assert result["provider_error"]["reason"] == "invalid_api_key"
+    assert "provider_code" not in build_error_surface_from_result(result, provider="openai")

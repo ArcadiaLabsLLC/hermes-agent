@@ -209,6 +209,10 @@ def build_error_surface_from_result(result: Any, provider: str = "", model: str 
         # next to Retry instead of leaving the user to guess (#98852). Epoch seconds.
         if isinstance(resets_at := result.get("failure_resets_at"), (int, float)) and not isinstance(resets_at, bool):
             surface["resets_at"] = float(resets_at)
+        # Fork: the provider's own refusal code (``provider_code``) beside the unchanged ``code``.
+        from agent.provider_failure import provider_code_fields
+
+        surface.update(provider_code_fields(result))
         return surface
     except Exception:  # pragma: no cover — never break the error path
         logger.debug("error_surface: result classification failed", exc_info=True)

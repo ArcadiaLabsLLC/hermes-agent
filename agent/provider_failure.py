@@ -5,6 +5,9 @@ from typing import Any
 
 from agent.error_classifier import ClassifiedError
 
+#: The ``provider_error`` key saying its ``reason`` is the provider's ``details.error_code``.
+DETAIL_CODE_MARKER = "reason_is_detail_code"
+
 _HTML_TITLE = re.compile(r"<title[^>]*>([^<]+)</title>", re.IGNORECASE)
 
 
@@ -52,7 +55,22 @@ def provider_failure_block(
             block[key] = _block_message(value, classified.status_code) if key == "message" and isinstance(value, str) else value
     if detail_code := evidence.get("provider_detail_code"):
         block["reason"] = detail_code
+        # ``reason`` can also be the classifier's evidence reason (``error.code`` / ``error.type``);
+        # this marks it as the provider's own ``details.error_code``, the one fact a surface carries.
+        block[DETAIL_CODE_MARKER] = True
     return block
+
+
+def provider_code_fields(result: Any) -> dict[str, str]:
+    """``{"provider_code": …}`` for a failed result whose ``provider_error`` block holds the provider's
+    own refusal code (``details.error_code``), else ``{}``: what ``agent.error_surface`` adds to a
+    turn's ``error_surface`` beside its unchanged ``code``, so a saved failed turn still names why
+    the provider refused (an organization that forbids this sign-in is not told to sign in again)."""
+    block = result.get("provider_error") if isinstance(result, dict) else None
+    if not isinstance(block, dict) or block.get(DETAIL_CODE_MARKER) is not True:
+        return {}
+    code = block.get("reason")
+    return {"provider_code": code} if isinstance(code, str) and code else {}
 
 
 def attach_provider_failure(
