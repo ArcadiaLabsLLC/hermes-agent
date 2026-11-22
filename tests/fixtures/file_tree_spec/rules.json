@@ -40,6 +40,16 @@
       "max_matches": 200,
       "line_code_points": 240,
       "reply": "{pattern, path, matches, total, offset, next?}: every text file under path in tree order, its lines split on '\\n' with one trailing '\\r' dropped; a match is {path, line (1-based), text (the line's first line_code_points code points)}; at most max_matches from offset."
+    },
+    "status": {
+      "arguments": {"offset": "default 0"},
+      "only_on": "a git root (a root holding .git); any other root refuses 'not_a_git_root'",
+      "reply": "{path: '', entries, total, offset, next?}: every path the working tree or index holds differently from HEAD, sorted by path, each {path, state}: state 'new' for an untracked file (each listed by itself, never folded into its folder) or 'changed'; paged like tree (max_entries). Answered by the device's git: the engine's on a phone (dulwich), the git program on a desktop."
+    },
+    "diff": {
+      "arguments": {"path": "a file, present in HEAD or the working tree", "offset": "in code points, default 0"},
+      "only_on": "a git root; any other root refuses 'not_a_git_root'",
+      "reply": "{path, change, body, chars?, offset?, content?, next?}: the HEAD blob against the file, read for this one path only (never the whole tree). change is 'added', 'deleted', 'modified' or 'unchanged'; body is 'text', 'binary', 'too_large' (a side over max_read_bytes) or 'not_text'; only a text body carries the unified diff (3 lines of context, a/ and b/ prefixes, /dev/null for an absent side), paged like read. A symlink's side is its link text, never followed; a path through a symlinked folder out of the root refuses 'outside_root'."
     }
   },
   "refusals": {
@@ -54,7 +64,8 @@
     "not_text": "the file is not UTF-8",
     "bad_argument": "depth, offset or pattern is out of bounds",
     "grant_revoked": "a granted folder's grant or bookmark no longer holds",
-    "virtual_root_read_only": "a write sent to a reader of a virtual root"
+    "virtual_root_read_only": "a write sent to a reader of a virtual root",
+    "not_a_git_root": "status or diff named a root that is not a git repository"
   },
   "write_ops": ["write", "patch", "move", "delete"]
 }

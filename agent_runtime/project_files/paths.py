@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__layer__ = "models"
+
 import re
 
 from agent_runtime.project_files.rules import MAX_PATH_LENGTH, NEVER_LISTED, ProjectFileRefusal

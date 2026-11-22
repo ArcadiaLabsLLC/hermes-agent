@@ -3,12 +3,15 @@
 ``agent_runtime/realm_sync/git_dulwich.py`` and ``agent_runtime/realm_sync/merge_theirs.py`` (once it exists)
 are walked as source, a NEGATIVE proof, where over-approximating is the safe direction: they never name
 ``subprocess``, a process spawner, dulwich's URL-guessing ``get_transport_and_path`` (it may build a
-``SubprocessGitClient`` or ``SSHGitClient``), a ``porcelain`` network verb, ``do_commit`` (which runs the
+``SubprocessGitClient`` or ``SSHGitClient``), a ``porcelain`` network verb, ``porcelain.diff`` (the
+whole-tree diff; the phone's is path-scoped, built from objects), ``do_commit`` (which runs the
 repository's hooks), or the GPL-2.0-or-later-only ``merge3`` package dulwich's own merger needs.
 The phone gate (``scripts/bundle_profile_gate.py``) scans only first-party modules, so dulwich's own
 spawners are invisible to it: this test is where the backend's half is pinned.
 
 Killing mutation (recorded in the S3 commit): call ``porcelain.clone`` in ``git_dulwich.py`` -> red.
+Killing mutation (2026-11-21, w1118a-pfiles): answer ``DulwichSyncGit.diff`` with ``porcelain.diff`` -> red
+naming ``porcelain.diff``.
 """
 
 from __future__ import annotations
@@ -36,6 +39,8 @@ _REFUSED = (
     r"\bSSHGitClient\b",
     r"\bporcelain\.(?:clone|pull|push|fetch)\b",
     r"\bdo_commit\b",
+    # The whole-tree diff (twenty seconds on a 32k-file clone): the phone's diff is path-scoped, from objects.
+    r"\bporcelain\.diff\b",
     r"\bmerge3\b",
     r"\bmake_merge3\b",
 )

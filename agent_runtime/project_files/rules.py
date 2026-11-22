@@ -7,6 +7,8 @@ vendored mirror's copy is pinned to these constants by
 
 from __future__ import annotations
 
+__layer__ = "models"
+
 MAX_PATH_LENGTH = 2048
 NEVER_LISTED = (".git",)
 SKIP_DIRECTORIES = (".dart_tool", ".gradle", ".pytest_cache", ".venv", "__pycache__", "build",
@@ -26,6 +28,7 @@ WRITE_OPS = ("write", "patch", "move", "delete")
 REFUSAL_CODES = (
     "invalid_path", "outside_root", "not_found", "ignored", "not_a_file", "not_a_directory",
     "too_large", "binary", "not_text", "bad_argument", "grant_revoked", "virtual_root_read_only",
+    "not_a_git_root",
 )
 
 

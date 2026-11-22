@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from ..realm_membership import RealmSyncCredential
+    from .path_diff import PathDiff
 
 __layer__ = "stores"
 __all__ = [
@@ -139,6 +140,12 @@ class SyncGit(Protocol):
     def is_tracked(self, path: str) -> bool: ...
     def state(self) -> RepoState: ...
     def changed(self, paths: Sequence[str] = (), *, untracked_all: bool = False) -> tuple[ChangedPath, ...]: ...
+    def diff(self, paths: Sequence[str]) -> tuple[PathDiff, ...]:
+        """Each of ``paths`` (repository-relative files) as its ``HEAD`` blob against the working tree's file.
+
+        PATH-SCOPED: only the named paths are read, never the whole tree (``path_diff``). A path neither
+        ``HEAD`` nor the working tree holds as a file is left out. Both backends render through
+        ``path_diff.path_diff``, so they answer byte for byte the same."""
     def add(self, paths: Sequence[str], *, all_under: bool = False) -> None:
         """Stage ``paths``; ``all_under`` also stages the deletions under them (git's ``add -A``)."""
     def move(self, old: str, new: str) -> None: ...
