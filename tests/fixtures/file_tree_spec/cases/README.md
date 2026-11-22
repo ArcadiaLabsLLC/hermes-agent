@@ -22,8 +22,10 @@ Any string in a fixture, request or expectation may be written
 `{"$join": [part, ...]}` (strings and `$repeat` objects, joined).
 
 A **case** is `{name, about, fixture, request, expect}`. `request` is
-`{verb, path?, depth?, offset?, pattern?}`. `expect` is one of
-`{"refusal": code}`, `{"reply": exact}` or `{"reply_keys": subset}`.
+`{verb, path?, depth?, offset?, pattern?, glob?, wildcard?}`. `expect` is one of
+`{"refusal": code}`, `{"reply": exact}` or `{"reply_keys": subset}`, and may
+add `"within_ms": n`: the runner times the request alone (not the fixture) and
+fails the case when it took longer than `n` milliseconds.
 
 A runner that cannot create a symlink on its platform skips a case whose
 fixture has `links` and names it as skipped; it never passes it.

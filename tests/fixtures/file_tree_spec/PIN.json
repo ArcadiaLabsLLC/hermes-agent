@@ -1,13 +1,14 @@
 {
-  "source_commit": "d7aef3535588b3ac47bc51c14413f59dd556b497",
-  "sha256": "de6d4277757348cec0ab543011c46e43038027845fbafbfa531d538e459470f0",
+  "source_commit": "9ab1971c396090270c0825e0fefd37c235bfea3d",
+  "sha256": "6f1eacc0975ccc2b619e80c49e39b8aa818e23990bee991e60393b8d052a0c6d",
   "files": {
-    "cases/README.md": "396ce900bb270042a035b88617fef788cdc40c5be7f0ae4d66c8b76e5f1f9fa0",
+    "cases/README.md": "663a27014bd66c52463902faad3dbb9251f0b21c993aac84f3179fbb4b740a99",
     "cases/confinement.json": "ffca2dd44eb55540721812d79b383393e9d34e33f00ff340bda11de2d97062ad",
     "cases/grammar.json": "304e78e270ca6241ce220cf8eeb390bc59d744f984b3e296ce63e6b48a984b34",
     "cases/ignore.json": "6c7b1aa6dce9c7bec0f0273e9992a7920d71c96339a1348317b20ab07b2d40bf",
     "cases/paging.json": "c8ea2372b7129dedd4b93da4b329f0b49e8e4f8cd8e5f2a4475245b69ceedc19",
+    "cases/patterns.json": "ba6dc8967ed8d9d73d9659516fa57037c99319ff24371d395847c4390c590790",
     "cases/size_and_type.json": "42bf1100a94df302f7464597c23a57f1d6cabff34ef35953c035987b961092a5",
-    "rules.json": "ae54474269fbb752a31613f3ee2fefc15656d50f453e11439e0deca47600b3f2"
+    "rules.json": "e716456fd1fcd1666e30ff957ab669ba18566e1d5a71b6e233e4ddbfa965d86b"
   }
 }

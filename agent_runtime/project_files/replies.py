@@ -4,10 +4,13 @@ from __future__ import annotations
 
 __layer__ = "models"
 
+from agent_runtime.project_files.patterns import Deadline, LinePattern, check_pattern
 from agent_runtime.project_files.rules import (
-    BINARY_PROBE_BYTES, LINE_CODE_POINTS, MAX_PATTERN, MIN_PATTERN, READ_PAGE_CODE_POINTS,
-    ProjectFileRefusal,
+    BINARY_PROBE_BYTES, LINE_CODE_POINTS, READ_PAGE_CODE_POINTS, ProjectFileRefusal,
 )
+
+__all__ = ["check_offset", "check_pattern", "decode_text", "grep_lines", "looks_binary", "page",
+           "read_reply"]
 
 
 def looks_binary(head: bytes) -> bool:
@@ -30,12 +33,6 @@ def check_offset(offset: int, length: int) -> None:
         raise ProjectFileRefusal("bad_argument", f"offset must be 0-{length}, not {offset!r}")
 
 
-def check_pattern(pattern: str) -> None:
-    if not isinstance(pattern, str) or not MIN_PATTERN <= len(pattern) <= MAX_PATTERN:
-        raise ProjectFileRefusal("bad_argument",
-                                 f"pattern must be {MIN_PATTERN}-{MAX_PATTERN} characters")
-
-
 def read_reply(path: str, size: int, text: str, offset: int) -> dict:
     """The ``read`` reply: one page of ``text`` from ``offset`` code points."""
 
@@ -48,13 +45,15 @@ def read_reply(path: str, size: int, text: str, offset: int) -> dict:
     return reply
 
 
-def grep_lines(path: str, text: str, pattern: str) -> list[dict]:
-    """Every line of ``text`` holding the literal ``pattern``, as matches of ``path``."""
+def grep_lines(path: str, text: str, pattern: LinePattern, deadline: Deadline | None = None) -> list[dict]:
+    """Every line of ``text`` that ``pattern`` matches, as matches of ``path``, asking ``deadline`` per line."""
 
     matches = []
     for index, line in enumerate(text.split("\n")):
+        if deadline is not None:
+            deadline.check()
         line = line.removesuffix("\r")
-        if pattern in line:
+        if pattern.matches(line):
             matches.append({"path": path, "line": index + 1, "text": line[:LINE_CODE_POINTS]})
     return matches
 

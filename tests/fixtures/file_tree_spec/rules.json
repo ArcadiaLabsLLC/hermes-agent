@@ -20,13 +20,22 @@
     "binary_probe_bytes": 8192,
     "rule": "A file whose first binary_probe_bytes hold a NUL byte is binary: listed with its size, refused 'binary' as text and skipped by grep. Text is UTF-8, decoded strictly: undecodable bytes are refused 'not_text', never replaced. A file over max_read_bytes is refused 'too_large' and skipped by grep."
   },
+  "patterns": {
+    "rule": "Neither pattern dialect is a regular expression: each is matched without backtracking over the text (row MC-FU-PROJECT-FOLDER-SEARCH-NARROWS-BY-FILE-NAME-AND-TAKES-A-PATTERN, review w1118a.84: a pattern from a remote caller runs on hermes, where a regular expression's match cannot be stopped by a deadline). Every character not named special below is itself, regular-expression characters included.",
+    "name_glob": "Matched whole against an entry's name (never its folders): '*' any run of characters, none included; '?' exactly one character (code point). Holds no '/' and no '\\'. 1 to max_glob code points, at most max_wildcards '*'.",
+    "line_wildcard": "Matched anywhere in a line: '*' any run of characters within the line, none included; '?' is itself. Holds at least one character that is not '*', at most max_wildcards '*'; its length is the pattern's (grep.min_pattern to grep.max_pattern).",
+    "max_glob": 256,
+    "max_wildcards": 16,
+    "search_deadline_ms": 2000,
+    "deadline": "A tree with a glob or a grep that has not finished search_deadline_ms after it began is refused 'search_timeout', never answered in part: matches in the files it never reached would read as no match. The deadline is asked between entries and between lines, so no single uninterruptible step is longer than one line of one file within max_read_bytes."
+  },
   "verbs": {
     "tree": {
-      "arguments": {"path": "a directory, absent for the root", "depth": "1 to max_depth, default default_depth", "offset": "default 0"},
+      "arguments": {"path": "a directory, absent for the root", "depth": "1 to max_depth, default default_depth", "glob": "a file-name pattern (patterns.name_glob), absent for none: with it the entries are every file beneath path at any depth whose name matches, files only, in tree order (depth is checked but not used), and the reply carries glob", "offset": "default 0"},
       "default_depth": 2,
       "max_depth": 6,
       "max_entries": 200,
-      "reply": "{path, entries, total, offset, next?}: path is the listed directory ('' for the root); entries are pre-order, each directory's children sorted by name, a file as {path, kind: 'file', size}, a directory as {path, kind: 'dir'} followed by its own entries while within depth, a symlink as {path, kind: 'link'}; at most max_entries from offset; next is present while entries remain."
+      "reply": "{path, glob?, entries, total, offset, next?}: path is the listed directory ('' for the root); entries are pre-order, each directory's children sorted by name, a file as {path, kind: 'file', size}, a directory as {path, kind: 'dir'} followed by its own entries while within depth, a symlink as {path, kind: 'link'}; at most max_entries from offset; next is present while entries remain."
     },
     "read": {
       "arguments": {"path": "a file", "offset": "in code points, default 0"},
@@ -34,12 +43,12 @@
       "reply": "{path, size, chars, offset, content, next?}: size in bytes, chars the text's length in Unicode code points, content at most page_code_points code points from offset; next is present while text remains."
     },
     "grep": {
-      "arguments": {"pattern": "a literal string, case-sensitive", "path": "a directory, absent for the root", "offset": "default 0"},
+      "arguments": {"pattern": "a literal string, case-sensitive; with wildcard true, a line wildcard (patterns.line_wildcard)", "path": "a directory, absent for the root", "glob": "a file-name pattern (patterns.name_glob), absent for none: only files whose name matches are searched, and the reply carries glob", "wildcard": "true or false, default false; when true the reply carries wildcard: true", "offset": "default 0"},
       "min_pattern": 1,
       "max_pattern": 256,
       "max_matches": 200,
       "line_code_points": 240,
-      "reply": "{pattern, path, matches, total, offset, next?}: every text file under path in tree order, its lines split on '\\n' with one trailing '\\r' dropped; a match is {path, line (1-based), text (the line's first line_code_points code points)}; at most max_matches from offset."
+      "reply": "{pattern, path, glob?, wildcard?, matches, total, offset, next?}: every text file under path in tree order, its lines split on '\\n' with one trailing '\\r' dropped; a match is {path, line (1-based), text (the line's first line_code_points code points)}; at most max_matches from offset."
     },
     "status": {
       "arguments": {"offset": "default 0"},
@@ -62,10 +71,11 @@
     "too_large": "the file is over max_read_bytes",
     "binary": "the file is binary",
     "not_text": "the file is not UTF-8",
-    "bad_argument": "depth, offset or pattern is out of bounds",
+    "bad_argument": "depth, offset, pattern, glob or wildcard is out of bounds",
     "grant_revoked": "a granted folder's grant or bookmark no longer holds",
     "virtual_root_read_only": "a write sent to a reader of a virtual root",
-    "not_a_git_root": "status or diff named a root that is not a git repository"
+    "not_a_git_root": "status or diff named a root that is not a git repository",
+    "search_timeout": "a tree with a glob or a grep did not finish within patterns.search_deadline_ms"
   },
   "write_ops": ["write", "patch", "move", "delete"]
 }

@@ -38,6 +38,9 @@ def test_reader_constants_match_the_spec():
         "grep.max_pattern": (verbs["grep"]["max_pattern"], rules.MAX_PATTERN),
         "grep.max_matches": (verbs["grep"]["max_matches"], rules.MAX_MATCHES),
         "grep.line_code_points": (verbs["grep"]["line_code_points"], rules.LINE_CODE_POINTS),
+        "patterns.max_glob": (spec["patterns"]["max_glob"], rules.MAX_GLOB),
+        "patterns.max_wildcards": (spec["patterns"]["max_wildcards"], rules.MAX_WILDCARDS),
+        "patterns.search_deadline_ms": (spec["patterns"]["search_deadline_ms"], rules.SEARCH_DEADLINE_MS),
         "refusals": (list(spec["refusals"]), list(rules.REFUSAL_CODES)),
         "write_ops": (spec["write_ops"], list(rules.WRITE_OPS)),
     }
