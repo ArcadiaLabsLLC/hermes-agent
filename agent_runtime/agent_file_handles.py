@@ -19,8 +19,8 @@ What is enumerated, and nothing else:
   is in :data:`SERVED_CONTEXT_FILE_NAMES` (SOUL, the instruction file, the skills snapshot). The
   name is read off the path, never off the row's own label, so a row cannot relabel a file into
   scope. ``config.yaml`` gets no handle at all (it is not in that set): it can hold
-  inline secrets, and whether it is ever served, whole or redacted, is the owner's open question
-  (review w1122b.3). The memory files (``MEMORY.md``, ``USER.md``) are not offered either: the
+  inline secrets, and it is never served, whole or redacted (owner 2026-11-22); its safe fields
+  reach a device as the agent detail's ``settings`` block (``agent_settings_summary``). The memory files (``MEMORY.md``, ``USER.md``) are not offered either: the
   row names SOUL, instruction files and the skills snapshot only.
 
 The caller never sends a path: what it names is a handle, looked up in this derived set.
@@ -47,7 +47,7 @@ AGENT_FILE_KIND_DIFF = "diff"
 AGENT_FILE_KIND_CONTEXT_FILE = "context_file"
 
 #: The context files a driving device may open (by file name), each with the media type served.
-#: ``config.yaml`` is deliberately absent: the owner has not ruled on serving it (review w1122b.3).
+#: ``config.yaml`` is deliberately absent: it is never served (owner 2026-11-22).
 SERVED_CONTEXT_FILE_NAMES: dict[str, str] = {
     "SOUL.md": "text/markdown",
     "AGENTS.md": "text/markdown",

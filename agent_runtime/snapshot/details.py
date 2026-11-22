@@ -139,11 +139,15 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
     set the frame keys), then falls back to a persona (agent) id — both wire rows
     carry a ``visibility_ref`` pointing here. Read-only (lists stores, mutates
     nothing). Returns ``None`` on a genuine miss (an honest ``not_found`` the
-    launcher surfaces as 'unavailable', never a fabricated empty payload)."""
+    launcher surfaces as 'unavailable', never a fabricated empty payload).
+
+    A persona-backed answer carries ``settings``, the agent's safe settings
+    (``agent_settings_summary``): never its ``config.yaml``, which no verb serves."""
 
     token = str(entity_id or "").strip()
     if not token:
         return None
+    from ..agent_settings_summary import agent_settings_summary
     from ..config import ensure_persisted_personas
     from ..persona_assignments import persona_instance_tool_detail
 
@@ -154,8 +158,12 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
         if str(getattr(instance, "id", "") or "") == token:
             persona = personas_by_id.get(str(getattr(instance, "persona_id", "") or ""))
             detail = persona_instance_tool_detail(instance, persona, roster=ensure_persisted_personas)
-            return None if detail is None else {**detail, **directory_fields(persona, instance)}
+            if detail is None:
+                return None
+            settings = {} if persona is None else {"settings": agent_settings_summary(persona, instance)}
+            return {**detail, **directory_fields(persona, instance), **settings}
     persona = personas_by_id.get(token)
     if persona is not None:
-        return {**_agent_tool_detail(persona), **directory_fields(persona)}
+        return {**_agent_tool_detail(persona), **directory_fields(persona),
+                "settings": agent_settings_summary(persona)}
     return None

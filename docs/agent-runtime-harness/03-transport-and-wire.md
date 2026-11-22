@@ -1161,7 +1161,11 @@ media_type, size_bytes, encoding: "base64", data}`.
 `.skills_prompt_snapshot.json`, as the newest prompt-context frames list them loaded), enumerated by
 `agent_runtime/agent_file_handles.py`, so a device driving this engine from elsewhere opens what the
 trace and the Context Inspector show by path. `config.yaml` is never a row (it can hold inline
-secrets; serving it is an open owner question), nor are the memory files. All three kinds are served
+secrets; never served, owner 2026-11-22), nor are the memory files. An agent's safe settings reach a
+device instead as the `settings` block of `runtime.persona.instance.detail` (read tier, Look
+included, owner 2026-11-22): exactly `{model, provider, toolsets}`, the one tuple
+`agent_runtime/agent_settings_summary.py` `SAFE_SETTINGS_FIELDS`, each read from its own resolver
+(the turn's model precedence, the bound profile's toolset declaration), never a filtered config. All three kinds are served
 at the verbs' `console` tier, the tier a chat's own history is read at. `peer.media.get` resolves
 images only.
 
