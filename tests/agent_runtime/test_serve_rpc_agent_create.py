@@ -463,10 +463,16 @@ def test_explicit_profile_creation_gets_its_own_identity_over_rpc(qa_persona):
     # Its own name: a second agent never takes the first's
     # (RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION).
     second = create("second-profile-copy", display_name="Another new agent")
-    chat = serve_rpc.handle_request({
+    # The operator chat opens on a placed instance (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT),
+    # so the Default workspace the serve boot makes has to exist.
+    from agent_runtime.default_scope import ensure_default_scope
+
+    ensure_default_scope(seed_active_pointers=False)
+    chat_reply = serve_rpc.handle_request({
         "jsonrpc": "2.0", "id": "chat", "method": "runtime.persona.instance.create",
         "params": {"persona_id": "qa", "display_name": "A new agent", "client_message_id": "existing-persona-chat"},
-    })["result"]
+    })
+    chat = chat_reply["result"]
     keys = ("persona_id", "profile_id", "persona_instance_id", "session_id")
     assert [first[key] for key in keys] == [retry[key] for key in keys]
     assert all(first[key] != second[key] for key in keys)

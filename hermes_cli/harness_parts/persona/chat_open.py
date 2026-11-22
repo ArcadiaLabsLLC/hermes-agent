@@ -358,6 +358,24 @@ def _persona_instance_updated_at(instance) -> str | None:
     return safe_assignment_text(value, limit=80) or None
 
 
+def _unplaced_hidden_copy_persona(instance_id: str, persona_id: str) -> str | None:
+    """The agent whose hidden-copy id ``instance_id`` is, when no row is under it; else ``None``.
+
+    The agent is the one the caller named, or the one the id names (``personainst_<persona>``): a
+    client may send its own spelling of the agent beside the id (``persona:base``). A profile's own
+    channel keeps its id; a row that exists under the id (adopted, or held) is opened as itself."""
+
+    from agent_runtime import paths
+
+    named = {persona_id}
+    if instance_id.startswith("personainst_"):
+        named.add(instance_id[len("personainst_"):])
+    for candidate in sorted(p for p in named if p and not p.startswith("profile_")):
+        if instance_id == persona_instance_id_for(candidate):
+            return None if paths.persona_instance_path(instance_id).exists() else candidate
+    return None
+
+
 def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_scope) -> int:
     """Mint one exact-instance chat root with durable retry semantics."""
     # Function-local: the convention from before lane H1, when this file was
@@ -382,6 +400,16 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
     requested_instance_id = safe_assignment_token(
         getattr(args, "persona_instance_id", None)
     )
+    hidden_copy_of = _unplaced_hidden_copy_persona(
+        canonical_persona_instance_id(requested_instance_id, persona_id=persona_id), persona_id,
+    ) if requested_instance_id else None
+    if hidden_copy_of is not None:
+        # A client that still names the agent's hidden copy ``personainst_<persona>`` (Eternia's template
+        # console, seen live 2026-11-21 w1118a-mint: "persona instance not found: personainst_base") means
+        # the agent: nothing mints that row any more (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT),
+        # so its open runs the bare-agent rule below. A row that exists under that id is still opened.
+        # MUTATION: drop this test and test_an_open_naming_a_missing_hidden_copy_places_the_agent reddens.
+        requested_instance_id, persona_id = None, hidden_copy_of
     if requested_instance_id:
         target_instance_id = canonical_persona_instance_id(requested_instance_id, persona_id=persona_id)
     elif persona_id.startswith("profile_"):

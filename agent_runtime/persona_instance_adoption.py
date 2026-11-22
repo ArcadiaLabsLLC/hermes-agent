@@ -102,9 +102,10 @@ HOLD_WORK_UNREADABLE = "work_unreadable"
 HOLD_ARCHIVE_REFUSED = "archive_refused"
 KEEP_IN_USE = "in_use"
 KEEP_RECENTLY_USED = "recently_used"
-#: How far back a chat turn still counts as live use (decision 2026-11-21, w1118a-mint: a copy someone
-#: chatted with in the last two weeks is in use even when its adoption stamp is today's, so the boot that
-#: adopts the owner's daily copy does not retire it in the same run).
+KEEP_CHATS_UNREADABLE = "chats_unreadable"
+#: How far back a chat turn, or a chat's start, still counts as live use (decision 2026-11-21,
+#: w1118a-mint: a copy someone chatted with, or opened a chat on, in the last two weeks is in use even
+#: when its adoption stamp is today's, so the boot that adopts the owner's daily copy does not retire it).
 RECENT_TURN_DAYS = 14
 
 #: The words retire records on an archived hidden copy (``persona_instance.retired``).
@@ -289,6 +290,30 @@ def _transcript_chats(candidates: set[str]) -> dict[str, int]:
         offset += len(page)
 
 
+def _chat_start_dates(session_ids: set[str]) -> dict[str, str] | None:
+    """``{session id: the ISO date it started}`` off the process chat store; ``None`` when it will not read."""
+
+    from datetime import datetime, timezone
+
+    from . import chat_session_scope
+
+    try:
+        db = chat_session_scope.open_chat_session_db(access=chat_session_scope.SessionDbAccess.READ)
+    except Exception:
+        return None
+    if db is None:
+        return None
+    dates: dict[str, str] = {}
+    try:
+        for session_id in sorted(session_ids):
+            row = db.get_session(session_id)
+            if row and row.get("started_at"):
+                dates[session_id] = datetime.fromtimestamp(float(row["started_at"]), timezone.utc).date().isoformat()
+    except Exception:
+        return None
+    return dates
+
+
 def _running_goal_roots() -> frozenset[str]:
     from .chat_goal import bindings
 
@@ -457,9 +482,10 @@ def clean_up_chat_only_copies(
 
     A copy is IN LIVE USE, and ``kept``, when it holds anything but chats (a goal, Work, folder slots, a
     gateway binding: :func:`canonical_row_holdings`), has a live run, a running goal on one of its chats,
-    belongs to an agent's own profile, or saw a turn on or after the day it was adopted or in the last
-    :data:`RECENT_TURN_DAYS` days (a copy someone chats with is that person's agent;
-    ``last_turn_started_by_instance``). A copy the Work boards could not be read for is kept too. Every other one holds only saved chats from
+    belongs to an agent's own profile, saw a turn on or after the day it was adopted or in the last
+    :data:`RECENT_TURN_DAYS` days, or holds a chat started in that window (a copy someone chats with is
+    that person's agent; ``last_turn_started_by_instance``). A copy the Work boards or the chat store
+    could not be read for is kept too. Every other one holds only saved chats from
     before its adoption: it is retired through retire's archive, never deleted. Its chats stay in the
     agent's Chat history (``holder_retired``) and open onto an instance through the move path; the
     persona's profile and memory are the agent's and untouched. A second run finds nothing to retire."""
@@ -484,6 +510,7 @@ def clean_up_chat_only_copies(
     work_assignees = _work_assignee_tokens()
     last_turn = last_turn_started_by_instance()
     recent = ((today or now().date()) - timedelta(days=RECENT_TURN_DAYS)).isoformat()
+    started = _chat_start_dates({chat for i in rows for chat in _row_chats(i, moves)})
     report: list[dict[str, Any]] = []
     for instance in rows:
         stamp = getattr(instance, "adopted_from_global", None) or pending[instance.id]
@@ -505,6 +532,11 @@ def clean_up_chat_only_copies(
             reason = HOLD_WORK_UNREADABLE
         # MUTATION: drop this test and test_a_copy_chatted_with_recently_is_kept reddens.
         elif str(last_turn.get(instance.id) or "")[:10] >= min(str(stamp), recent):
+            reason = KEEP_RECENTLY_USED
+        elif started is None:
+            reason = KEEP_CHATS_UNREADABLE
+        # MUTATION: drop this test and test_a_copy_whose_chat_was_opened_today_is_kept reddens.
+        elif any(started.get(chat, "") >= recent for chat in _row_chats(instance, moves)):
             reason = KEEP_RECENTLY_USED
         if reason is not None:
             report.append({**entry, "fate": KEPT, "reason": reason})
