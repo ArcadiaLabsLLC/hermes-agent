@@ -56,7 +56,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
-from datetime import timedelta
 from typing import Any
 
 from hermes_time import now
@@ -101,12 +100,10 @@ HOLD_PROFILE_CHANNEL = "profile_channel"
 HOLD_WORK_UNREADABLE = "work_unreadable"
 HOLD_ARCHIVE_REFUSED = "archive_refused"
 KEEP_IN_USE = "in_use"
-KEEP_RECENTLY_USED = "recently_used"
-KEEP_CHATS_UNREADABLE = "chats_unreadable"
-#: How far back a chat turn, or a chat's start, still counts as live use (decision 2026-11-21,
-#: w1118a-mint: a copy someone chatted with, or opened a chat on, in the last two weeks is in use even
-#: when its adoption stamp is today's, so the boot that adopts the owner's daily copy does not retire it).
-RECENT_TURN_DAYS = 14
+#: The copy holds a live chat: its chat pointer names one (owner RULED 2026-11-21, "live like in the chat
+#: menu just means its an instance that is alive"; row
+#: ``RT-FU-A-HIDDEN-COPY-IS-IN-LIVE-USE-WHEN-IT-HOLDS-A-LIVE-CHAT-NOT-BY-A-14-DAY-WINDOW``).
+KEEP_LIVE_CHAT = "live_chat"
 
 #: The words retire records on an archived hidden copy (``persona_instance.retired``).
 ARCHIVE_REASON = "hidden copy holds nothing (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT)"
@@ -182,11 +179,21 @@ def adopted_local_instance_ids() -> frozenset[str]:
     return frozenset(instance.id for instance in instances if is_adopted_local_instance(instance))
 
 
-def _row_chats(instance: Any, moves: dict[str, str]) -> list[str]:
+def _live_chats(instance: Any) -> list[str]:
+    """The row's live chat: its chat pointer (``default_chat_session_id``, or the legacy ``session_id``).
+
+    The chat the instance has loaded, the one Eternia's chat panel binds it to (``summary.py`` writes the
+    wire ``sessionId`` from this pointer). The move ledger's saved chats are not live chats."""
+
     chats = []
     for value in (getattr(instance, "default_chat_session_id", None), getattr(instance, "session_id", None)):
         if isinstance(value, str) and value.startswith("persona_chat_") and value not in chats:
             chats.append(value)
+    return chats
+
+
+def _row_chats(instance: Any, moves: dict[str, str]) -> list[str]:
+    chats = _live_chats(instance)
     chats.extend(sorted(session for session, holder in moves.items() if holder == instance.id and session not in chats))
     return chats
 
@@ -288,30 +295,6 @@ def _transcript_chats(candidates: set[str]) -> dict[str, int]:
         if len(page) < page_size:
             return counts
         offset += len(page)
-
-
-def _chat_start_dates(session_ids: set[str]) -> dict[str, str] | None:
-    """``{session id: the ISO date it started}`` off the process chat store; ``None`` when it will not read."""
-
-    from datetime import datetime, timezone
-
-    from . import chat_session_scope
-
-    try:
-        db = chat_session_scope.open_chat_session_db(access=chat_session_scope.SessionDbAccess.READ)
-    except Exception:
-        return None
-    if db is None:
-        return None
-    dates: dict[str, str] = {}
-    try:
-        for session_id in sorted(session_ids):
-            row = db.get_session(session_id)
-            if row and row.get("started_at"):
-                dates[session_id] = datetime.fromtimestamp(float(row["started_at"]), timezone.utc).date().isoformat()
-    except Exception:
-        return None
-    return dates
 
 
 def _running_goal_roots() -> frozenset[str]:
@@ -471,7 +454,7 @@ def _archive_or_hold(store, instance, entry, *, apply: bool, stamp: str, saved_c
 
 
 def clean_up_chat_only_copies(
-    *, apply: bool = True, store: Any = None, adopting: dict[str, str] | None = None, today: Any = None,
+    *, apply: bool = True, store: Any = None, adopting: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Retire every adopted hidden copy whose only content is saved chats; one fate per adopted row, by id.
 
@@ -481,16 +464,15 @@ def clean_up_chat_only_copies(
     would stamp (``{id: stamp}``), so the preview names the fate an applied run reaches.
 
     A copy is IN LIVE USE, and ``kept``, when it holds anything but chats (a goal, Work, folder slots, a
-    gateway binding: :func:`canonical_row_holdings`), has a live run, a running goal on one of its chats,
-    belongs to an agent's own profile, saw a turn on or after the day it was adopted or in the last
-    :data:`RECENT_TURN_DAYS` days, or holds a chat started in that window (a copy someone chats with is
-    that person's agent; ``last_turn_started_by_instance``). A copy the Work boards or the chat store
-    could not be read for is kept too. Every other one holds only saved chats from
-    before its adoption: it is retired through retire's archive, never deleted. Its chats stay in the
+    gateway binding: :func:`canonical_row_holdings`), holds a live chat (its chat pointer names one:
+    ``live_chat``, row ``RT-FU-A-HIDDEN-COPY-IS-IN-LIVE-USE-WHEN-IT-HOLDS-A-LIVE-CHAT-NOT-BY-A-14-DAY-WINDOW``,
+    owner RULED 2026-11-21 that live is the chat menu's live — no date is tested), has a live run, a running
+    goal on one of its chats, or belongs to an agent's own profile. A copy the Work boards could not be read
+    for is kept too. Every other one has no chat pointer and holds only saved chats in the move ledger: it
+    is retired through retire's archive, never deleted. Its chats stay in the
     agent's Chat history (``holder_retired``) and open onto an instance through the move path; the
     persona's profile and memory are the agent's and untouched. A second run finds nothing to retire."""
 
-    from .mission_chat_turns.reads import last_turn_started_by_instance
     from .persona_assignments import PersonaInstanceStore
     from .persona_assignments.chat_moves import load_chat_moves
     from .persona_assignments.errors import PersonaInstanceRetireError
@@ -508,9 +490,6 @@ def clean_up_chat_only_copies(
     gateway_bound = _gateway_bound_instance_ids()
     goal_roots = _running_goal_roots()
     work_assignees = _work_assignee_tokens()
-    last_turn = last_turn_started_by_instance()
-    recent = ((today or now().date()) - timedelta(days=RECENT_TURN_DAYS)).isoformat()
-    started = _chat_start_dates({chat for i in rows for chat in _row_chats(i, moves)})
     report: list[dict[str, Any]] = []
     for instance in rows:
         stamp = getattr(instance, "adopted_from_global", None) or pending[instance.id]
@@ -522,6 +501,9 @@ def clean_up_chat_only_copies(
         # MUTATION: drop this test and test_the_dry_run_names_each_adopted_copy_and_its_fate_and_writes_nothing reddens.
         if [word for word in held if word != "chat"]:
             reason = KEEP_IN_USE
+        # MUTATION: drop this test and test_a_copy_with_a_live_chat_is_kept reddens.
+        elif _live_chats(instance):
+            reason = KEEP_LIVE_CHAT
         elif getattr(instance, "active_run_id", None):
             reason = SKIP_MID_TURN
         elif goal_roots.intersection(_row_chats(instance, moves)):
@@ -530,14 +512,6 @@ def clean_up_chat_only_copies(
             reason = HOLD_PROFILE_CHANNEL
         elif work_assignees is None:
             reason = HOLD_WORK_UNREADABLE
-        # MUTATION: drop this test and test_a_copy_chatted_with_recently_is_kept reddens.
-        elif str(last_turn.get(instance.id) or "")[:10] >= min(str(stamp), recent):
-            reason = KEEP_RECENTLY_USED
-        elif started is None:
-            reason = KEEP_CHATS_UNREADABLE
-        # MUTATION: drop this test and test_a_copy_whose_chat_was_opened_today_is_kept reddens.
-        elif any(started.get(chat, "") >= recent for chat in _row_chats(instance, moves)):
-            reason = KEEP_RECENTLY_USED
         if reason is not None:
             report.append({**entry, "fate": KEPT, "reason": reason})
             continue
@@ -563,7 +537,7 @@ def settle_hidden_copies(*, apply: bool, store: Any, leaving: frozenset[str] = f
     """The reconciler's phases 7 and 8, with their report keys; ``gone`` names the rows the run archived.
 
     Phase 7 adopts, archives or holds every hidden copy (:func:`adopt_global_rows`); phase 8 retires an
-    adopted copy holding only old saved chats (:func:`clean_up_chat_only_copies`). A dry run hands phase 8
+    adopted copy with no live chat holding only saved chats (:func:`clean_up_chat_only_copies`). A dry run hands phase 8
     the rows phase 7 would adopt, so the preview names the fate an applied run reaches."""
 
     adoption = adopt_global_rows(apply=apply, store=store, leaving=leaving)

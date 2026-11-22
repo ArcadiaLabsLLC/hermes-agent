@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -86,11 +87,12 @@ def _run(root: Path, request: dict):
     try:
         if request["verb"] == "tree":
             return reader.tree(str(root), path, depth=request.get("depth", DEFAULT_DEPTH),
-                               offset=offset)
+                               glob=request.get("glob"), offset=offset)
         if request["verb"] == "read":
             return reader.read(str(root), path, offset=offset)
         if request["verb"] == "grep":
-            return reader.grep(str(root), request["pattern"], path, offset=offset)
+            return reader.grep(str(root), request["pattern"], path, glob=request.get("glob"),
+                               wildcard=request.get("wildcard", False), offset=offset)
     except ProjectFileRefusal as refusal:
         return refusal.code
     raise AssertionError(f"unknown verb {request['verb']!r}")
@@ -108,8 +110,12 @@ def test_every_case_name_is_unique():
 @pytest.mark.parametrize(("fixture", "case"), _cases())
 def test_spec_case(tmp_path, fixture, case):
     root = _build(fixture, tmp_path)
+    started = time.monotonic()
     got = _run(root, _expand(case["request"]))
+    took_ms = (time.monotonic() - started) * 1000
     expected = _expand(case["expect"])
+    if "within_ms" in expected:
+        assert took_ms <= expected["within_ms"], f"took {took_ms:.0f} ms: {case['about']}"
     if "refusal" in expected:
         assert got == expected["refusal"], case["about"]
     elif "reply" in expected:

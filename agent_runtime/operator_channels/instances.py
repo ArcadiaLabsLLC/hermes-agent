@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Iterable
 
 from ..clock import parse_iso
 from ..models import PersonaInstance
-from ..persona_assignments.identity import persona_instance_id_for
 from ..persona_chat_history.vocabulary import canonical_chat_persona_id
 from ..serde import safe_assignment_text, safe_assignment_token
 
@@ -203,7 +202,10 @@ def _channel_key_for_instance(instance: PersonaInstance) -> str:
     persona_id = canonical_chat_persona_id(getattr(instance, "persona_id", None)) or "unknown"
     if session_id and mode in _CHAT_INSTANCE_MODES:
         return f"session:{session_id}"
-    return f"instance:{_safe_instance_id(instance) or persona_instance_id_for(persona_id)}"
+    # An instance with no readable id is keyed by its profile's own channel, else its agent's template id:
+    # never the hidden copy ``personainst_<persona>`` nothing mints any more.
+    fallback = f"personainst_{persona_id}" if persona_id.startswith("profile_") else f"persona:{persona_id}"
+    return f"instance:{_safe_instance_id(instance) or fallback}"
 
 
 def _canonical_instance(

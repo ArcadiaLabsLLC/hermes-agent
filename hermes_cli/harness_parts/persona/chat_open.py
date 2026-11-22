@@ -21,6 +21,7 @@ from agent_runtime.persona_assignments import (
     normalize_persona_or_template_id as _normalize_cli_persona_or_template_id,
     persona_instance_id_for,
     personas_equal,
+    placed_instance_for,
     safe_assignment_text,
     safe_assignment_token,
 )
@@ -188,8 +189,13 @@ def _cmd_persona_instance_open_chat(args) -> int:
                 return 2
             target_instance_id = move_to or session_owner
         try:
-            previous_instance = PersonaInstanceStore().get(
-                target_instance_id or persona_instance_id_for(persona_id)
+            # The instance the chat opens on, else the agent's placed instance: never the hidden copy
+            # ``personainst_<persona>`` nothing mints any more
+            # (RT-FU-THE-LAST-READERS-THAT-GUESS-AN-AGENTS-HIDDEN-COPY-NAME-ASK-FOR-ITS-PLACED-INSTANCE).
+            previous_instance = (
+                PersonaInstanceStore().get(target_instance_id)
+                if target_instance_id
+                else placed_instance_for(persona_id)
             )
         except Exception:
             previous_instance = None

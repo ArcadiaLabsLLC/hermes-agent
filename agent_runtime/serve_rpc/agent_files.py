@@ -10,14 +10,21 @@ here and a caller names a file only by a path relative to one of them.
 Params (every verb takes ``persona_instance_id``):
 
 * ``tree`` — ``path`` (absent: the agent's roots as top-level folders), ``depth`` (1-6, default 2),
-  ``offset``;
+  ``glob`` (a file-name glob: every matching file beneath ``path``, files only), ``offset``;
 * ``read`` — ``path`` (``<root>/<relative>``), ``offset`` (code points);
-* ``grep`` — ``pattern`` (literal, 1-256 characters), ``path`` (absent: every root), ``offset``.
+* ``grep`` — ``pattern`` (1-256 characters: literal, or with ``wildcard: true`` a ``*`` spans any run
+  within a line), ``path`` (absent: every root), ``glob`` (only files whose name matches), ``offset``.
+
+``glob`` and a wildcard ``pattern`` are the rule spec's ``patterns`` dialects, never a regular
+expression: a remote caller's pattern is matched without backtracking (``project_files/patterns.py``),
+holds at most 16 ``*``, and a ``tree`` with a glob or a ``grep`` that has not finished within
+2,000 ms is refused ``search_timeout`` (row
+``MC-FU-PROJECT-FOLDER-SEARCH-NARROWS-BY-FILE-NAME-AND-TAKES-A-PATTERN``).
 
 Replies are the rule spec's shapes (``packages/eternia_file_tree_spec/`` in Eternia), each ``path``
 prefixed by its root's name. A refusal carries the spec's code as ``data.reason``
 (``invalid_path``, ``outside_root``, ``not_found``, ``ignored``, ``not_a_file``, ``too_large``,
-``binary``, ``not_text``, ``bad_argument``) or ``instance_not_found``.
+``binary``, ``not_text``, ``bad_argument``, ``search_timeout``) or ``instance_not_found``.
 
 **Security.** All three are ``console`` tier (row ``RT-FU-A-VIEW-ONLY-DEVICE-CANNOT-READ-AN-AGENTS-PROJECT-FILES``,
 review w1118a.84, correcting w1118a.78's ``read``): a device paired view-only is refused the agent's
@@ -55,9 +62,9 @@ GREP_METHOD = "runtime.agent.files.grep"
 
 #: The honoured keys of each verb (the manifest's ``params``).
 AGENT_FILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
-    TREE_METHOD: ("persona_instance_id", "path", "depth", "offset"),
+    TREE_METHOD: ("persona_instance_id", "path", "depth", "glob", "offset"),
     READ_METHOD: ("persona_instance_id", "path", "offset"),
-    GREP_METHOD: ("persona_instance_id", "pattern", "path", "offset"),
+    GREP_METHOD: ("persona_instance_id", "pattern", "path", "glob", "wildcard", "offset"),
 }
 
 _CODES = {"not_found": ERR_NOT_FOUND, "invalid_path": ERR_INVALID_PARAMS, "bad_argument": ERR_INVALID_PARAMS}
@@ -95,6 +102,13 @@ def _number(params: dict, key: str, default: int) -> int:
     return value
 
 
+def _glob(params: dict) -> str | None:
+    value = params.get("glob")
+    if value is not None and not isinstance(value, str):
+        raise _Refused(ERR_INVALID_PARAMS, "bad_argument", "glob must be text")
+    return value
+
+
 def _answer(rid: Any, params: Any, verb) -> dict:
     from agent_runtime.project_files.agent_tree import AgentNotFound
     from agent_runtime.project_files.rules import ProjectFileRefusal
@@ -120,7 +134,8 @@ def _runtime_agent_files_tree(rid: Any, params: dict, context: RpcContext | None
     from agent_runtime.project_files.rules import DEFAULT_DEPTH
 
     return _answer(rid, params, lambda p: agent_tree.tree(
-        _instance(p), _path(p), depth=_number(p, "depth", DEFAULT_DEPTH), offset=_number(p, "offset", 0)))
+        _instance(p), _path(p), depth=_number(p, "depth", DEFAULT_DEPTH), glob=_glob(p),
+        offset=_number(p, "offset", 0)))
 
 
 @method(READ_METHOD, tier=TIER_CONSOLE)
@@ -139,6 +154,12 @@ def _runtime_agent_files_grep(rid: Any, params: dict, context: RpcContext | None
         pattern = p.get("pattern")
         if not isinstance(pattern, str):
             raise _Refused(ERR_INVALID_PARAMS, "bad_argument", "pattern must be text")
-        return agent_tree.grep(_instance(p), pattern, _path(p), offset=_number(p, "offset", 0))
+        wildcard = p.get("wildcard", False)
+        if wildcard is None:
+            wildcard = False
+        if not isinstance(wildcard, bool):
+            raise _Refused(ERR_INVALID_PARAMS, "bad_argument", "wildcard must be true or false")
+        return agent_tree.grep(_instance(p), pattern, _path(p), glob=_glob(p), wildcard=wildcard,
+                               offset=_number(p, "offset", 0))
 
     return _answer(rid, params, run)

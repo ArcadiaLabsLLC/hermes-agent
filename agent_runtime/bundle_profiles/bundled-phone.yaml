@@ -24,7 +24,9 @@ toolsets:
     # Shell family — not packaged (matrix: "—").
     - terminal          # terminal + process_manage: no shell, no background processes
     - code_execution    # execute_code
-    - file              # read_file/write_file/patch/search_files run through the terminal backend
+    # `file` is ON: upstream's file tools are not packaged (below), and the fork's process-free ones
+    # take their names over the phone's project folders (agent_runtime/phone_file_tools.py, Eternia
+    # MC-PHONE-FILES-A-PHONE-AGENT-READS-AND-WRITES-ITS-PROJECT-FILES).
     - browser
     - browser-cdp
     - browser-use

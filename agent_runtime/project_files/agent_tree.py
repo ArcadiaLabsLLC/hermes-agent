@@ -32,8 +32,9 @@ from dataclasses import dataclass
 
 from agent_runtime.project_files.paths import parse_path
 from agent_runtime.project_files.reader import read as _read_root
-from agent_runtime.project_files.reader import grep_matches, tree_entries
-from agent_runtime.project_files.replies import check_pattern, page
+from agent_runtime.project_files.patterns import Deadline, LinePattern, NameGlob
+from agent_runtime.project_files.reader import grep_matches, search_header, tree_entries
+from agent_runtime.project_files.replies import page
 from agent_runtime.project_files.rules import DEFAULT_DEPTH, MAX_DEPTH, MAX_ENTRIES, MAX_MATCHES, ProjectFileRefusal
 
 class AgentNotFound(LookupError):
@@ -120,23 +121,35 @@ def _joined(root: AgentRoot, relative: str) -> str:
     return f"{root.name}/{relative}" if relative else root.name
 
 
-def tree(instance_id: str, path: str | None = None, *, depth: int = DEFAULT_DEPTH, offset: int = 0) -> dict:
-    """The agent's tree under ``path`` to ``depth``; at the top, its roots as folders."""
+def tree(instance_id: str, path: str | None = None, *, depth: int = DEFAULT_DEPTH,
+         glob: str | None = None, offset: int = 0) -> dict:
+    """The agent's tree under ``path`` to ``depth``; at the top, its roots as folders.
 
+    With ``glob``, every file beneath ``path`` (every root when absent) whose name matches, under
+    one deadline for the whole call.
+    """
+
+    if not isinstance(depth, int) or isinstance(depth, bool) or not 1 <= depth <= MAX_DEPTH:
+        raise ProjectFileRefusal("bad_argument", f"depth must be 1-{MAX_DEPTH}, not {depth!r}")
+    if glob is not None:
+        NameGlob.parse(glob)
+    deadline = Deadline()
     roots = agent_roots(instance_id)
     if path is not None:
         root, rest = _split(roots, path)
-        relative, entries = tree_entries(root.folder, rest, depth=depth)
-        return page({"path": _joined(root, relative)}, "entries", _prefixed(root, entries), offset, MAX_ENTRIES)
-    if not isinstance(depth, int) or isinstance(depth, bool) or not 1 <= depth <= MAX_DEPTH:
-        raise ProjectFileRefusal("bad_argument", f"depth must be 1-{MAX_DEPTH}, not {depth!r}")
+        relative, entries = tree_entries(root.folder, rest, depth=depth, glob=glob, deadline=deadline)
+        return page(search_header({"path": _joined(root, relative)}, glob), "entries",
+                    _prefixed(root, entries), offset, MAX_ENTRIES)
     entries: list[dict] = []
     for name in sorted(roots):
         root = roots[name]
+        if glob is not None:
+            entries.extend(_prefixed(root, tree_entries(root.folder, None, glob=glob, deadline=deadline)[1]))
+            continue
         entries.append({"path": name, "kind": "dir"})
         if depth > 1:
             entries.extend(_prefixed(root, tree_entries(root.folder, None, depth=depth - 1)[1]))
-    return page({"path": ""}, "entries", entries, offset, MAX_ENTRIES)
+    return page(search_header({"path": ""}, glob), "entries", entries, offset, MAX_ENTRIES)
 
 
 def read(instance_id: str, path: str, *, offset: int = 0) -> dict:
@@ -151,17 +164,28 @@ def read(instance_id: str, path: str, *, offset: int = 0) -> dict:
     return {**reply, "path": _joined(root, reply["path"])}
 
 
-def grep(instance_id: str, pattern: str, path: str | None = None, *, offset: int = 0) -> dict:
-    """Every line holding the literal ``pattern`` under ``path``; across every root when absent."""
+def grep(instance_id: str, pattern: str, path: str | None = None, *, glob: str | None = None,
+         wildcard: bool = False, offset: int = 0) -> dict:
+    """Every line ``pattern`` matches under ``path``; across every root when absent.
 
-    check_pattern(pattern)
+    The pattern is literal, or a line wildcard with ``wildcard``; ``glob`` keeps the files whose
+    name matches. One deadline covers the whole call, every root included.
+    """
+
+    LinePattern.parse(pattern, wildcard=wildcard)
+    if glob is not None:
+        NameGlob.parse(glob)
+    deadline = Deadline()
     roots = agent_roots(instance_id)
+    header = search_header({"pattern": pattern}, glob, wildcard)
     if path is not None:
         root, rest = _split(roots, path)
-        relative, matches = grep_matches(root.folder, pattern, rest)
-        return page({"pattern": pattern, "path": _joined(root, relative)}, "matches",
+        relative, matches = grep_matches(root.folder, pattern, rest, glob=glob, wildcard=wildcard,
+                                         deadline=deadline)
+        return page({**header, "path": _joined(root, relative)}, "matches",
                     _prefixed(root, matches), offset, MAX_MATCHES)
     matches: list[dict] = []
     for name in sorted(roots):
-        matches.extend(_prefixed(roots[name], grep_matches(roots[name].folder, pattern)[1]))
-    return page({"pattern": pattern, "path": ""}, "matches", matches, offset, MAX_MATCHES)
+        matches.extend(_prefixed(roots[name], grep_matches(
+            roots[name].folder, pattern, glob=glob, wildcard=wildcard, deadline=deadline)[1]))
+    return page({**header, "path": ""}, "matches", matches, offset, MAX_MATCHES)

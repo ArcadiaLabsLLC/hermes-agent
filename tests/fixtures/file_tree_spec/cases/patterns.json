@@ -1,0 +1,121 @@
+{
+  "fixtures": {
+    "code": {
+      "files": {
+        "a.dart": "x",
+        "ab.dart": "x",
+        "README.md": "hello\n",
+        "src/b.dart": "def foo(bar):\nhello\n",
+        "src/c.py": "def baz():\nhello\nclass foo\n",
+        "src/d.py": "a*b and (a+)+$\nab\n",
+        "src/deep/x/y/z/w/v/u/d.dart": "x",
+        "node_modules/e.dart": "x",
+        "src/a+b.txt": "x",
+        "src/[ab].txt": "x",
+        "src/a.txt": "x"
+      }
+    },
+    "long_line": {
+      "files": {
+        "long.txt": {"$join": [{"$repeat": "a", "count": 200000}, "\n"]},
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt": "x"
+      }
+    }
+  },
+  "cases": [
+    {"name": "tree_glob_lists_matching_files_at_any_depth",
+     "about": "a glob lists every file beneath the path whose name matches, past max_depth, files only, skipping what a walk skips, and echoes the glob",
+     "fixture": "code", "request": {"verb": "tree", "glob": "*.dart"},
+     "expect": {"reply": {"path": "", "glob": "*.dart", "entries": [
+       {"path": "a.dart", "kind": "file", "size": 1},
+       {"path": "ab.dart", "kind": "file", "size": 1},
+       {"path": "src/b.dart", "kind": "file", "size": 20},
+       {"path": "src/deep/x/y/z/w/v/u/d.dart", "kind": "file", "size": 1}
+     ], "total": 4, "offset": 0}}},
+    {"name": "tree_glob_question_mark_is_one_character",
+     "about": "'?' is exactly one character, so ?.dart finds a.dart and b.dart, never ab.dart",
+     "fixture": "code", "request": {"verb": "tree", "glob": "?.dart"},
+     "expect": {"reply_keys": {"total": 3}}},
+    {"name": "tree_glob_matches_the_whole_name",
+     "about": "a glob is matched whole: dar finds nothing in a.dart, and a folder's name is never a match",
+     "fixture": "code", "request": {"verb": "tree", "glob": "src"},
+     "expect": {"reply": {"path": "", "glob": "src", "entries": [], "total": 0, "offset": 0}}},
+    {"name": "tree_glob_regex_characters_are_themselves",
+     "about": "'+', '[' and ']' are themselves in a glob, never a regular expression",
+     "fixture": "code", "request": {"verb": "tree", "path": "src", "glob": "[ab].txt"},
+     "expect": {"reply": {"path": "src", "glob": "[ab].txt", "entries": [
+       {"path": "src/[ab].txt", "kind": "file", "size": 1}
+     ], "total": 1, "offset": 0}}},
+    {"name": "tree_glob_plus_is_itself",
+     "about": "a+b.txt names one file, not aab.txt nor ab.txt",
+     "fixture": "code", "request": {"verb": "tree", "path": "src", "glob": "a+b.txt"},
+     "expect": {"reply_keys": {"total": 1}}},
+    {"name": "glob_with_a_slash_is_refused",
+     "about": "a glob matches a name, so a '/' in it is refused",
+     "fixture": "code", "request": {"verb": "tree", "glob": "src/*.dart"},
+     "expect": {"refusal": "bad_argument"}},
+    {"name": "glob_empty_is_refused",
+     "about": "an empty glob is refused",
+     "fixture": "code", "request": {"verb": "tree", "glob": ""},
+     "expect": {"refusal": "bad_argument"}},
+    {"name": "glob_over_max_glob_is_refused",
+     "about": "a glob longer than max_glob is refused before any walk",
+     "fixture": "code", "request": {"verb": "tree", "glob": {"$repeat": "a", "count": 257}},
+     "expect": {"refusal": "bad_argument"}},
+    {"name": "glob_at_max_glob_is_taken",
+     "about": "a glob of exactly max_glob characters is taken",
+     "fixture": "code", "request": {"verb": "tree", "glob": {"$repeat": "a", "count": 256}},
+     "expect": {"reply_keys": {"total": 0}}},
+    {"name": "glob_over_max_wildcards_is_refused",
+     "about": "a glob with more than max_wildcards '*' is refused before any walk",
+     "fixture": "code", "request": {"verb": "tree", "glob": {"$join": [{"$repeat": "*a", "count": 17}]}},
+     "expect": {"refusal": "bad_argument"}},
+    {"name": "grep_glob_narrows_the_files_searched",
+     "about": "with a glob, only files whose name matches are searched, and the reply echoes it",
+     "fixture": "code", "request": {"verb": "grep", "pattern": "hello", "glob": "*.py"},
+     "expect": {"reply": {"pattern": "hello", "path": "", "glob": "*.py", "matches": [
+       {"path": "src/c.py", "line": 2, "text": "hello"}
+     ], "total": 1, "offset": 0}}},
+    {"name": "grep_wildcard_star_spans_any_run",
+     "about": "with wildcard, '*' spans any run within a line, and the reply carries wildcard: true",
+     "fixture": "code", "request": {"verb": "grep", "pattern": "def *(", "path": "src", "wildcard": true},
+     "expect": {"reply": {"pattern": "def *(", "path": "src", "wildcard": true, "matches": [
+       {"path": "src/b.dart", "line": 1, "text": "def foo(bar):"},
+       {"path": "src/c.py", "line": 1, "text": "def baz():"}
+     ], "total": 2, "offset": 0}}},
+    {"name": "grep_wildcard_star_never_spans_lines",
+     "about": "a wildcard is matched within one line: baz on one line and foo on a later one is no match",
+     "fixture": "code", "request": {"verb": "grep", "pattern": "baz*foo", "wildcard": true},
+     "expect": {"reply_keys": {"total": 0}}},
+    {"name": "grep_without_wildcard_star_is_itself",
+     "about": "without wildcard a '*' is itself: a*b finds the line holding a*b, never ab",
+     "fixture": "code", "request": {"verb": "grep", "pattern": "a*b", "path": "src"},
+     "expect": {"reply": {"pattern": "a*b", "path": "src", "matches": [
+       {"path": "src/d.py", "line": 1, "text": "a*b and (a+)+$"}
+     ], "total": 1, "offset": 0}}},
+    {"name": "grep_wildcard_regex_characters_are_themselves",
+     "about": "a wildcard pattern is not a regular expression: (a+)+$ finds itself, never aaa",
+     "fixture": "code", "request": {"verb": "grep", "pattern": "(a+)+$", "path": "src", "wildcard": true},
+     "expect": {"reply_keys": {"total": 1}}},
+    {"name": "grep_wildcard_of_only_stars_is_refused",
+     "about": "a wildcard pattern needs a character other than '*'",
+     "fixture": "code", "request": {"verb": "grep", "pattern": "***", "wildcard": true},
+     "expect": {"refusal": "bad_argument"}},
+    {"name": "grep_wildcard_over_max_wildcards_is_refused",
+     "about": "a wildcard pattern with more than max_wildcards '*' is refused before any file is read",
+     "fixture": "code", "request": {"verb": "grep", "pattern": {"$join": [{"$repeat": "a*", "count": 17}, "b"]}, "wildcard": true},
+     "expect": {"refusal": "bad_argument"}},
+    {"name": "grep_literal_may_hold_many_stars",
+     "about": "max_wildcards bounds a wildcard pattern only: a literal pattern of 17 '*' is searched",
+     "fixture": "code", "request": {"verb": "grep", "pattern": {"$repeat": "*", "count": 17}},
+     "expect": {"reply_keys": {"total": 0}}},
+    {"name": "grep_wildcard_pathological_pattern_finishes_within_the_deadline",
+     "about": "the worst admitted wildcard (max_wildcards '*' between 'a's, no 'b' anywhere) over a 200,000-character line of 'a' answers no match, within search_deadline_ms",
+     "fixture": "long_line", "request": {"verb": "grep", "pattern": {"$join": [{"$repeat": "a*", "count": 16}, "b"]}, "wildcard": true},
+     "expect": {"reply_keys": {"total": 0}, "within_ms": 2000}},
+    {"name": "tree_glob_pathological_glob_finishes_within_the_deadline",
+     "about": "a glob of max_wildcards '*' between 'a's, ending 'b', over a 204-character name of 'a's answers no match, within search_deadline_ms",
+     "fixture": "long_line", "request": {"verb": "tree", "glob": {"$join": [{"$repeat": "*a", "count": 16}, "b"]}},
+     "expect": {"reply_keys": {"total": 0}, "within_ms": 2000}}
+  ]
+}

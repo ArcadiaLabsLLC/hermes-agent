@@ -135,16 +135,19 @@ def _operator_client_scope(persona_id: str) -> str | None:
 
     An Episode's chat is minted by no client, so it carried no ``client_scope`` and a scoped operator
     client's conversation directory never listed it: Eternia's Lens receipt "Open chat" could not open
-    it. The operator who reads this persona's Episodes is the client that owns the persona's canonical
-    instance's current chat (its ``default_chat_session_id``); the Episode chat is stamped with that
-    owner. No current chat, an unscoped one, or any read failure: ``None``, minted unscoped as before.
+    it. The operator who reads this persona's Episodes is the client that owns the current chat of the
+    persona's placed instance (``placed_instance_for``; its ``default_chat_session_id``), never a hidden
+    copy nothing mints any more; the Episode chat is stamped with that owner. No placed instance, no
+    current chat, an unscoped one, or any read failure: ``None``, minted unscoped as before.
     """
 
-    from ..persona_assignments import PersonaInstanceStore, persona_instance_id_for
+    from ..persona_assignments import placed_instance_for
     from ..persona_chat_history.messages import existing_chat_session
 
     try:
-        instance = PersonaInstanceStore().get(persona_instance_id_for(persona_id))
+        # MUTATION: read persona_instance_id_for(persona_id) here and
+        # test_a_lens_episode_takes_the_owner_of_the_placed_instances_chat reddens.
+        instance = placed_instance_for(persona_id)
         session_id = str(getattr(instance, "default_chat_session_id", None) or "")
         if not session_id:
             return None

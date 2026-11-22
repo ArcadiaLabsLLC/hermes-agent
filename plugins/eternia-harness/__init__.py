@@ -449,6 +449,12 @@ def register(ctx) -> None:
 
     ctx.register_tool("schedule_manage", toolset=SCHEDULE_TOOLSET, schema=SCHEDULE_MANAGE_SCHEMA,
                       handler=handle_schedule_manage, emoji="⏰")
+    # A phone ships no upstream file tools (they run on the terminal backend): its agents read, search
+    # and edit the phone's project folders through the fork's process-free ones, under upstream's names
+    # (Eternia MC-PHONE-FILES-A-PHONE-AGENT-READS-AND-WRITES-ITS-PROJECT-FILES). A desktop registers none.
+    from agent_runtime.phone_file_tools import register_phone_file_tools
+
+    register_phone_file_tools(ctx.register_tool)
     # handler_fn=None: every harness subparser sets its own func= (behind _harness_entry).
     ctx.register_cli_command("harness", help=_HARNESS_HELP, setup_fn=_setup_harness_parser, handler_fn=None)
     ctx.register_cli_command(

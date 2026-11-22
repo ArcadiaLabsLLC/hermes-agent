@@ -456,6 +456,8 @@
       "persona_instance_id",
       "pattern",
       "path",
+      "glob",
+      "wildcard",
       "offset"
     ],
     "runtime.agent.files.read": [
@@ -467,6 +469,7 @@
       "persona_instance_id",
       "path",
       "depth",
+      "glob",
       "offset"
     ],
     "runtime.agent.place": [

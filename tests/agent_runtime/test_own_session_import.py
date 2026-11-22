@@ -112,7 +112,9 @@ def test_the_reseed_import_rebinds_each_chat_and_the_console_lists_it_under_that
     assert report["namespace"] == ACCT and report["target_store"] == str(item.head_home / "state.db")
     how = {row["session_id"]: row["bound_by"] for row in report["imported"]}
     assert how == {"chat_alice": "same_instance", "chat_alice_cont": "same_instance",
-                   "chat_neko": "persona_channel", "cli_scratch": "not_a_persona_chat"}
+                   # Neko's only instance, never through the hidden-copy name
+                   # (RT-FU-THE-LAST-READERS-THAT-GUESS-AN-AGENTS-HIDDEN-COPY-NAME-ASK-FOR-ITS-PLACED-INSTANCE).
+                   "chat_neko": "persona_only_instance", "cli_scratch": "not_a_persona_chat"}
     skipped = {row.get("session_id") or f"line {row['line']}": row["reason"] for row in report["skipped"]}
     assert skipped == {"chat_ghost": "no_target_instance", "chat_qa": "ambiguous_target", "line 7": "unparseable_line"}
     assert report["counts"] == {"sessions": 6, "imported": 4, "skipped": 3}

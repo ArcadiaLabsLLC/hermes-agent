@@ -77,6 +77,7 @@ from __future__ import annotations
 
 import ast
 import functools
+import gc
 import os
 from pathlib import Path
 from unittest import mock
@@ -313,7 +314,28 @@ def _scanned_modules() -> dict[str, ast.Module]:
 
 
 def _scanned_modules_uncached() -> dict[str, ast.Module]:
-    root = _repo_root()
+    """Every scanned module's tree, parsed with the cyclic collector paused, then frozen.
+
+    The trees are kept for the session (about 3,200 modules, 43 MB of source), and every full
+    collection re-traverses them: the parse's own collections, and pytest's two
+    ``gc_collect_harder`` passes at unconfigure. Profiled 2026-11-21: of a 27 s collect-only run,
+    11.4 s was the scan and 15.3 s those two final ``gc.collect`` calls; standalone, the walk took
+    21 s with the collector on and 7.4 s paused (row
+    FH-PREPUSH-TOUCHED-RAN-60-S-ON-SIXTEEN-CONFIG-AND-PROVIDER-TEST-FILES). An AST holds no cycle,
+    so ``gc.freeze`` (the permanent generation) skips nothing that was garbage."""
+
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        trees = _parse_scanned_roots(_repo_root())
+        gc.freeze()
+        return trees
+    finally:
+        if was_enabled:
+            gc.enable()
+
+
+def _parse_scanned_roots(root: Path) -> dict[str, ast.Module]:
     trees: dict[str, ast.Module] = {}
     for scoped in SCANNED_ROOTS:
         directory = root / scoped
@@ -374,6 +396,18 @@ def test_the_shared_scan_is_paid_at_import_and_not_by_whichever_test_runs_first(
         "the scanned-module walk ran more than once; a caller is going around "
         f"the cache ({_scanned_modules_cached.cache_info()})"
     )
+
+
+def test_the_scanned_trees_sit_outside_every_collection():
+    """The kept trees are frozen, so no later collection, pytest's final two included, walks them.
+
+    MUTATION (``_scanned_modules_uncached``: drop ``gc.freeze()``): the trees stay in the collected
+    generations and this reds; the file's wall went 71 s -> 20 s at load 10 with the freeze
+    (row FH-PREPUSH-TOUCHED-RAN-60-S-ON-SIXTEEN-CONFIG-AND-PROVIDER-TEST-FILES)."""
+
+    tree = next(iter(_scanned_modules_cached()))[1]
+    assert gc.is_tracked(tree)
+    assert all(obj is not tree for obj in gc.get_objects())
 
 
 # --------------------------------------------------------------------------- #

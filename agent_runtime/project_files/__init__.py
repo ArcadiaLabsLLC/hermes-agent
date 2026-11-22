@@ -26,6 +26,7 @@ module      owns
 rules       the spec's values and refusal codes (pinned to the mirror's rules.json)
 paths       the root-relative path grammar
 ignore      the walk's skip rules: .git, the skip list, the root .gitignore subset
+patterns    the glob and line-wildcard dialects (no regular expression) and the search deadline
 replies     the pure halves of the verbs: binary probe, strict text, pages, grep lines
 reader      the I/O: confinement, the walk, the three verbs
 changes     status and diff on a git root, through realm_sync's git port

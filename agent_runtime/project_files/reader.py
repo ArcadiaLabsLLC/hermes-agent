@@ -22,8 +22,9 @@ from dataclasses import dataclass
 
 from agent_runtime.project_files.ignore import SkipRules
 from agent_runtime.project_files.paths import is_never_listed, parse_path
+from agent_runtime.project_files.patterns import Deadline, LinePattern, NameGlob
 from agent_runtime.project_files.replies import (
-    check_pattern, decode_text, grep_lines, looks_binary, page, read_reply,
+    decode_text, grep_lines, looks_binary, page, read_reply,
 )
 from agent_runtime.project_files.rules import (
     DEFAULT_DEPTH, MAX_DEPTH, MAX_ENTRIES, MAX_MATCHES, MAX_READ_BYTES, NEVER_LISTED,
@@ -105,10 +106,12 @@ def _listed_folder(root: str, path: str | None) -> _Folder:
 
 
 def _walk_project_folder(folder: _Folder, actual: str, relative: str, depth: int,
-          add: Callable[[dict], None]) -> None:
+          add: Callable[[dict], None], deadline: Deadline | None = None) -> None:
     with os.scandir(actual) as scan:
         children = sorted(scan, key=lambda entry: entry.name)
     for child in children:
+        if deadline is not None:
+            deadline.check()
         path = f"{relative}/{child.name}" if relative else child.name
         if child.is_symlink():
             if not folder.skip.skips(path, is_directory=False):
@@ -118,28 +121,55 @@ def _walk_project_folder(folder: _Folder, actual: str, relative: str, depth: int
                 continue
             add({"path": path, "kind": "dir"})
             if depth > 1:
-                _walk_project_folder(folder, child.path, path, depth - 1, add)
+                _walk_project_folder(folder, child.path, path, depth - 1, add, deadline)
         elif child.is_file(follow_symlinks=False):
             if not folder.skip.skips(path, is_directory=False):
                 add({"path": path, "kind": "file", "size": child.stat(follow_symlinks=False).st_size})
 
 
-def tree_entries(root: str, path: str | None = None, *, depth: int = DEFAULT_DEPTH) -> tuple[str, list[dict]]:
-    """``(the listed folder's relative path, every entry under it to depth)``, pre-order, unpaged."""
+def _name(entry: dict) -> str:
+    return entry["path"].rsplit("/", 1)[-1]
+
+
+def tree_entries(root: str, path: str | None = None, *, depth: int = DEFAULT_DEPTH,
+                 glob: str | None = None, deadline: Deadline | None = None) -> tuple[str, list[dict]]:
+    """``(the listed folder's relative path, every entry under it to depth)``, pre-order, unpaged.
+
+    With ``glob``, every file beneath the folder at any depth whose name matches it, files only,
+    under ``deadline`` (a fresh one when None).
+    """
 
     if not isinstance(depth, int) or isinstance(depth, bool) or not 1 <= depth <= MAX_DEPTH:
         raise ProjectFileRefusal("bad_argument", f"depth must be 1-{MAX_DEPTH}, not {depth!r}")
+    names = None if glob is None else NameGlob.parse(glob)
     folder = _listed_folder(root, path)
     entries: list[dict] = []
-    _walk_project_folder(folder, folder.actual, folder.relative, depth, entries.append)
+    if names is None:
+        _walk_project_folder(folder, folder.actual, folder.relative, depth, entries.append)
+        return folder.relative, entries
+
+    def add(entry: dict) -> None:
+        if entry["kind"] == "file" and names.matches(_name(entry)):
+            entries.append(entry)
+
+    _walk_project_folder(folder, folder.actual, folder.relative, _UNBOUNDED, add,
+                         deadline or Deadline())
     return folder.relative, entries
 
 
-def tree(root: str, path: str | None = None, *, depth: int = DEFAULT_DEPTH, offset: int = 0) -> dict:
-    """The entries under ``path`` (the root when None) to ``depth``, pre-order."""
+def search_header(header: dict, glob: str | None, wildcard: bool = False) -> dict:
+    """``header`` with the reply's echo of a ``glob`` and of ``wildcard: true``, when given."""
 
-    relative, entries = tree_entries(root, path, depth=depth)
-    return page({"path": relative}, "entries", entries, offset, MAX_ENTRIES)
+    return {**header, **({"glob": glob} if glob is not None else {}),
+            **({"wildcard": True} if wildcard else {})}
+
+
+def tree(root: str, path: str | None = None, *, depth: int = DEFAULT_DEPTH, glob: str | None = None,
+         offset: int = 0) -> dict:
+    """The entries under ``path`` (the root when None) to ``depth``, pre-order; with ``glob``, matching files."""
+
+    relative, entries = tree_entries(root, path, depth=depth, glob=glob)
+    return page(search_header({"path": relative}, glob), "entries", entries, offset, MAX_ENTRIES)
 
 
 def read(root: str, path: str, *, offset: int = 0) -> dict:
@@ -161,17 +191,29 @@ def read(root: str, path: str, *, offset: int = 0) -> dict:
     return read_reply(shown, len(data), decode_text(data, shown), offset)
 
 
-def grep_matches(root: str, pattern: str, path: str | None = None) -> tuple[str, list[dict]]:
-    """``(the searched folder's relative path, every line holding the literal pattern)``, unpaged."""
+def grep_matches(root: str, pattern: str, path: str | None = None, *, glob: str | None = None,
+                 wildcard: bool = False, deadline: Deadline | None = None) -> tuple[str, list[dict]]:
+    """``(the searched folder's relative path, every line the pattern matches)``, unpaged.
 
-    check_pattern(pattern)
+    The pattern is literal, or a line wildcard with ``wildcard``; ``glob`` keeps the files whose
+    name matches. The walk and every line ask ``deadline`` (a fresh one when None).
+    """
+
+    matcher = LinePattern.parse(pattern, wildcard=wildcard)
+    names = None if glob is None else NameGlob.parse(glob)
+    deadline = deadline or Deadline()
     folder = _listed_folder(root, path)
     files: list[dict] = []
-    _walk_project_folder(folder, folder.actual, folder.relative, _UNBOUNDED,
-          lambda entry: files.append(entry) if entry["kind"] == "file" else None)
+
+    def add(entry: dict) -> None:
+        if entry["kind"] == "file" and (names is None or names.matches(_name(entry))):
+            files.append(entry)
+
+    _walk_project_folder(folder, folder.actual, folder.relative, _UNBOUNDED, add, deadline)
     prefix = len(folder.relative) + 1 if folder.relative else 0
     matches: list[dict] = []
     for entry in files:
+        deadline.check()
         if entry["size"] > MAX_READ_BYTES:
             continue
         local = os.path.join(folder.actual, *entry["path"][prefix:].split("/"))
@@ -183,12 +225,14 @@ def grep_matches(root: str, pattern: str, path: str | None = None) -> tuple[str,
             text = decode_text(data, entry["path"])
         except ProjectFileRefusal:
             continue
-        matches.extend(grep_lines(entry["path"], text, pattern))
+        matches.extend(grep_lines(entry["path"], text, matcher, deadline))
     return folder.relative, matches
 
 
-def grep(root: str, pattern: str, path: str | None = None, *, offset: int = 0) -> dict:
-    """Every line holding the literal ``pattern`` in the text files under ``path``."""
+def grep(root: str, pattern: str, path: str | None = None, *, glob: str | None = None,
+         wildcard: bool = False, offset: int = 0) -> dict:
+    """Every line ``pattern`` matches in the text files under ``path`` whose name ``glob`` matches."""
 
-    relative, matches = grep_matches(root, pattern, path)
-    return page({"pattern": pattern, "path": relative}, "matches", matches, offset, MAX_MATCHES)
+    relative, matches = grep_matches(root, pattern, path, glob=glob, wildcard=wildcard)
+    return page(search_header({"pattern": pattern, "path": relative}, glob, wildcard), "matches",
+                matches, offset, MAX_MATCHES)

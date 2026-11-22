@@ -19,6 +19,7 @@ Killing mutations (each recorded red, named at its test):
 from __future__ import annotations
 
 import os
+import time
 
 import pytest
 from hermes_time import now
@@ -171,6 +172,47 @@ def test_a_root_over_the_engines_home_is_never_served(tmp_path):
     _agent(tmp_path, {"over": over, "mine": mine})
     assert [e["path"] for e in _call("runtime.agent.files.tree", {"depth": 1})["result"]["entries"]] == ["mine"]
     assert _reason(_call("runtime.agent.files.tree", {"path": "over"})) == "not_found"
+
+
+def test_a_glob_and_a_wildcard_reach_the_reader_across_every_root(two_roots):
+    """MUTATION (``agent_files``): drop ``glob=_glob(p)`` from the grep handler, and docs is searched."""
+
+    found = _call("runtime.agent.files.grep", {"pattern": "hello *", "wildcard": True, "glob": "*.md"})["result"]
+    assert found["glob"] == "*.md" and found["wildcard"] is True
+    assert [(m["path"], m["line"]) for m in found["matches"]] == [("app/README.md", 1), ("docs/guide.md", 2)]
+    listed = _call("runtime.agent.files.tree", {"glob": "*.dart"})["result"]
+    assert [e["path"] for e in listed["entries"]] == ["app/src/main.dart"]
+
+
+@pytest.mark.parametrize("params", [
+    {"pattern": "hello", "wildcard": "yes"},
+    {"pattern": "hello", "glob": 7},
+    {"pattern": "a*" * 17 + "b", "wildcard": True},
+    {"pattern": "hello", "glob": "src/*.dart"},
+])
+def test_a_bad_glob_or_wildcard_is_refused_before_any_file_is_read(two_roots, params):
+    assert _reason(_call("runtime.agent.files.grep", params)) == "bad_argument"
+
+
+def test_a_search_past_its_deadline_is_refused_never_answered_in_part(two_roots, monkeypatch):
+    """One deadline covers the whole call, every root included, and is asked between entries and
+    lines: a search past it is refused ``search_timeout`` at once, never left running or answered
+    with the files it reached. (The worst admitted wildcard finishing well inside the real
+    deadline is the spec case ``grep_wildcard_pathological_pattern_finishes_within_the_deadline``;
+    one past ``max_wildcards`` is refused above.)
+
+    MUTATION (``patterns.Deadline.check``): never raise, and the grep is answered."""
+
+    from agent_runtime.project_files import agent_tree, patterns
+
+    monkeypatch.setattr(agent_tree, "Deadline", lambda: patterns.Deadline(0.0))
+    started = time.monotonic()
+    grep = _call("runtime.agent.files.grep", {"pattern": "a*" * 16 + "b", "wildcard": True})
+    tree = _call("runtime.agent.files.tree", {"glob": "*.md"})
+    took = time.monotonic() - started
+    assert _reason(grep) == "search_timeout", grep
+    assert _reason(tree) == "search_timeout", tree
+    assert took < 2.0, f"refused after {took:.2f} s"
 
 
 def test_an_unknown_agent_is_refused(two_roots):

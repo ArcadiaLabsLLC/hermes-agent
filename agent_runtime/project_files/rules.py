@@ -23,12 +23,15 @@ MIN_PATTERN = 1
 MAX_PATTERN = 256
 MAX_MATCHES = 200
 LINE_CODE_POINTS = 240
+MAX_GLOB = 256
+MAX_WILDCARDS = 16
+SEARCH_DEADLINE_MS = 2000
 WRITE_OPS = ("write", "patch", "move", "delete")
 
 REFUSAL_CODES = (
     "invalid_path", "outside_root", "not_found", "ignored", "not_a_file", "not_a_directory",
     "too_large", "binary", "not_text", "bad_argument", "grant_revoked", "virtual_root_read_only",
-    "not_a_git_root",
+    "not_a_git_root", "search_timeout",
 )
 
 

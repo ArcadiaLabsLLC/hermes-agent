@@ -10,7 +10,6 @@ from typing import Any, Iterable
 from ..models import PersonaInstance
 from ..projection_accountant import ProjectionAccountant
 from ..persona_assignments import (
-    persona_instance_id_for,
     safe_assignment_text,
     safe_assignment_token,
 )
@@ -65,8 +64,11 @@ def persona_chat_trace_summary(
     order: list[str] = []
 
     def _accumulator(instance: Any, persona_id: str) -> _TraceAccumulator:
+        # Keyed on the instance's own id; one with none is keyed by its profile's own channel, else its
+        # agent's template id ``persona:<id>``: never the hidden copy ``personainst_<persona>`` nothing
+        # mints any more.
         instance_id = safe_assignment_text(
-            getattr(instance, "id", None) or persona_instance_id_for(persona_id),
+            getattr(instance, "id", None) or _channel_of(persona_id),
             limit=160,
         )
         acc = accumulators.get(instance_id)
@@ -277,3 +279,13 @@ def _trace_event_sort_key(event: Any) -> tuple[int, float, str]:
         return (1, ts.timestamp(), "")
     except Exception:
         return (0, 0.0, str(ts or ""))
+
+
+def _channel_of(persona_id: str) -> str:
+    """The key of an instance with no id: a profile's own channel keeps its id, any other agent its
+    template id ``persona:<id>`` (RT-FU-THE-LAST-READERS-THAT-GUESS-AN-AGENTS-HIDDEN-COPY-NAME-ASK-FOR-ITS-
+    PLACED-INSTANCE)."""
+
+    from ..persona_assignments import persona_instance_id_for
+
+    return persona_instance_id_for(persona_id) if persona_id.startswith("profile_") else f"persona:{persona_id}"

@@ -31,7 +31,12 @@ CAPABILITIES: tuple[tuple[tuple[str, ...], str], ...] = (
     (("terminal",), "no shell or terminal"),
     (("terminal", "cronjob"), "no background processes or scheduled jobs"),
     (("code_execution",), "no code execution"),
-    (("file",), "no file system beyond this app's own sandbox"),
+    # Always true on a phone, with the `file` toolset on: its file tools reach only the project folders
+    # inside the app's own storage (agent_runtime/phone_file_tools.py, Eternia
+    # MC-PHONE-FILES-A-PHONE-AGENT-READS-AND-WRITES-ITS-PROJECT-FILES), so no toolset turns it off.
+    # MUTATION: tie it to `file` again and the phone's hint drops it now that `file` is on
+    # (test_phone_platform_hint: test_the_phone_hint_upstream_serves_is_the_one_derived_from_the_phone_profile).
+    ((), "no file system beyond this app's own sandbox"),
     (("browser", "browser-cdp", "browser-use", "computer_use"), "no browser or desktop automation"),
 )
 

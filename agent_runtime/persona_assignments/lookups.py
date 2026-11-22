@@ -33,6 +33,7 @@ __all__ = [
     "persona_id_from_instance_id",
     "persona_instance_display_name",
     "personas_equal",
+    "placed_instance_for",
     "resolve_default_chat_session_id_for_instance",
     "sender_scope_workspace_id",
 ]
@@ -262,3 +263,47 @@ def personas_equal(left: Any, right: Any) -> bool:
     if not left_key:
         return False
     return left_key == _persona_comparison_key(right)
+
+
+def placed_instance_for(persona_id: str | None, instances: Any = None) -> Any:
+    """The instance that answers for an agent named by its bare id, or ``None`` when it is placed nowhere.
+
+    RT-FU-THE-LAST-READERS-THAT-GUESS-AN-AGENTS-HIDDEN-COPY-NAME-ASK-FOR-ITS-PLACED-INSTANCE: nothing
+    mints the hidden copy ``personainst_<persona>`` any more (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-
+    EVERY-AGENT), so a reader that derived that id answered "not found" for every agent. The ONE read-only
+    answer instead: the agent's placed instances (a ``workspace_id`` set), the Default workspace's first,
+    then the store's order. A profile's own channel ``personainst_profile_<name>`` keeps its id (it is the
+    profile's, not a hidden copy) and is answered as itself. Never writes, never places: the operator's
+    "reuse idle, else place" is ``agent_create.staff.reuse_or_place``.
+
+    *instances* is the roster already read (any iterable of rows); ``None`` reads the store.
+    """
+
+    from agent_runtime.default_scope import DEFAULT_WORKSPACE_ID
+    from agent_runtime.persona_assignments.identity import persona_instance_id_for
+
+    persona = normalize_persona_id(str(persona_id or ""))
+    if not persona:
+        return None
+    if persona.startswith("profile_"):
+        own = persona_instance_id_for(persona)
+        if instances is not None:
+            return next((row for row in instances if getattr(row, "id", None) == own), None)
+        try:
+            return PersonaInstanceStore().get(own)
+        except Exception:  # a miss is an answer
+            return None
+    if instances is None:
+        try:
+            instances = PersonaInstanceStore().list_all()
+        except Exception:
+            return None
+    rows = list(instances)
+    placed = [
+        row
+        for row in rows
+        if getattr(row, "persona_id", None) == persona and getattr(row, "workspace_id", None)
+    ]
+    # MUTATION: drop the Default-first order and test_the_default_workspaces_instance_answers_first reddens.
+    placed.sort(key=lambda row: getattr(row, "workspace_id", None) != DEFAULT_WORKSPACE_ID)
+    return placed[0] if placed else None
