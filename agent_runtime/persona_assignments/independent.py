@@ -266,6 +266,63 @@ def archive_failed_placement_identity(
             _archive_unbound_identity(store, persona_id, profile)
 
 
+def _create_digest(placement_id: str | None, workspace_id: str | None, creation_key: str | None) -> str:
+    anchor = f"placement:{placement_id}" if placement_id else f"create:{workspace_id}:{creation_key or uuid.uuid4().hex}"
+    return hashlib.sha256(anchor.encode()).hexdigest()[:24]
+
+
+def _source_instance(store: PersonaInstanceStore, source_persona_id: str, source_instance_id: str | None):
+    try:
+        source_instance = store.get(source_instance_id) if source_instance_id else None
+    except (NotFound, FileNotFoundError) as exc:
+        raise ValueError("The source agent no longer exists.") from exc
+    if source_instance and source_instance.persona_id != source_persona_id:
+        raise ValueError("The source agent does not belong to the requested persona.")
+    return source_instance
+
+
+def create_agent_template(
+    store: PersonaInstanceStore,
+    *,
+    source_persona_id: str,
+    display_name: str,
+    creation_key: str,
+    source_instance_id: str | None = None,
+    refuse_taken_name: bool = False,
+) -> AgentPersona:
+    """A NEW agent made with no workspace: its persona and profile only, a template.
+
+    No instance and no chat: an instance stands in a workspace, and this create
+    names none (rows ``RT-FU-A-NEW-AGENT-MADE-WITH-NO-WORKSPACE-HAS-NO-INSTANCE-UNTIL-IT-IS-PLACED``,
+    ``RT-FU-CREATE-INDEPENDENT-COPY-LEAVES-AN-INSTANCE-PLACED-NOWHERE``; owner
+    2026-11-21: every live agent is a placed instance). Its first New chat places
+    one, as for any template (``agent_create.staff.reuse_or_place``).
+
+    One identity per ``creation_key``: a retry of the same key returns the agent
+    it already made before the name is asked, so it never meets its own name.
+    """
+
+    digest = _create_digest(None, None, creation_key)
+    persona_id, profile = f"agent_{digest}", f"agent-{digest}"
+    source_instance = _source_instance(store, source_persona_id, source_instance_id)
+    with agent_create_lock(f"identity-{digest}"):
+        try:
+            made = AgentStore().get(persona_id)
+        except NotFound:
+            made = None
+        # MUTATION: ask the name before this lookup and
+        # test_a_retry_after_a_crash_before_the_receipt_answers_its_own_agent reddens
+        # (the retry meets its own agent's name).
+        if made is None and refuse_taken_name:
+            from ..agent_create.outcome import AgentCreateNameTaken
+            from ..agent_duplicate import name_is_taken
+
+            if name_is_taken(display_name):
+                raise AgentCreateNameTaken(display_name)
+        _provision(source_persona_id, persona_id, profile, display_name, source_instance)
+        return AgentStore().get(persona_id)
+
+
 def create_independent_agent(
     store: PersonaInstanceStore,
     *,
@@ -289,7 +346,12 @@ def create_independent_agent(
     does (row ``RT-INDEPENDENT-AGENT-COPY-HAS-ONE-ACTION``, seen 2026-11-19: two
     copies of Base both named "Base Agent copy")."""
 
-    if placement_id is None and workspace_id is not None:
+    if not workspace_id:
+        # An instance stands in a workspace; with none, the agent is its template only
+        # (:func:`create_agent_template`). MUTATION: drop this refusal and
+        # test_an_independent_agent_instance_is_never_made_in_no_workspace reddens.
+        raise ValueError("An agent's instance needs a workspace; with none, make its template only.")
+    if placement_id is None:
         try:
             workspace = WorkspaceStore().get(workspace_id)
         except NotFound as exc:
@@ -297,17 +359,11 @@ def create_independent_agent(
         if realm_id is not None and realm_id != workspace.realm_id:
             raise ValueError("The destination workspace belongs to a different realm.")
         realm_id = workspace.realm_id
-    anchor = f"placement:{placement_id}" if placement_id else f"create:{workspace_id}:{creation_key or uuid.uuid4().hex}"
-    digest = hashlib.sha256(anchor.encode()).hexdigest()[:24]
+    digest = _create_digest(placement_id, workspace_id, creation_key)
     persona_id = f"agent_{digest}"
     profile = f"agent-{digest}"
     placement = placement_id or f"independent_{digest[:16]}_agent_{digest[16:]}"
-    try:
-        source_instance = store.get(source_instance_id) if source_instance_id else None
-    except (NotFound, FileNotFoundError) as exc:
-        raise ValueError("The source agent no longer exists.") from exc
-    if source_instance and source_instance.persona_id != source_persona_id:
-        raise ValueError("The source agent does not belong to the requested persona.")
+    source_instance = _source_instance(store, source_persona_id, source_instance_id)
     with agent_create_lock(f"identity-{digest}"):
         try:
             existing = store.get(persona_instance_id_for_placement(placement))

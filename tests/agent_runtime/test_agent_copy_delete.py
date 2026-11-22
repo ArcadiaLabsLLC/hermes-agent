@@ -44,13 +44,20 @@ def _delete(persona_id: str) -> dict:
 
 
 def _copy(name: str = "QA Agent copy") -> dict:
-    """Eternia's "Create independent copy" (``runtime.agent.create`` with no workspace)."""
+    """Eternia's "Create independent copy" (``runtime.agent.create`` with no workspace), then
+    its first New chat, which places its first instance in the Default workspace (the unseated
+    create makes the template only, RT-FU-CREATE-INDEPENDENT-COPY-LEAVES-AN-INSTANCE-PLACED-NOWHERE)."""
+
+    from agent_runtime.agent_create.staff import reuse_or_place
+    from agent_runtime.default_scope import ensure_default_scope
 
     reply = _rpc("runtime.agent.create", rid=name, persona_id="qa", display_name=name,
                  idempotency_key=f"key-{name}")
-    instance = reply["result"]
-    persona = AgentStore().get(instance["persona_id"])
-    return {"persona": persona, "instance_id": instance["persona_instance_id"], "home": Path(get_profile_dir(persona.hermes_profile))}
+    persona = AgentStore().get(reply["result"]["persona_id"])
+    ensure_default_scope(seed_active_pointers=False)
+    instance_id, refusal = reuse_or_place(persona.id)
+    assert refusal is None, refusal
+    return {"persona": persona, "instance_id": instance_id, "home": Path(get_profile_dir(persona.hermes_profile))}
 
 
 def _listed(persona_id: str) -> dict:

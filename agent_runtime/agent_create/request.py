@@ -638,8 +638,9 @@ def normalize_agent_create(
 
     raw_placement = params.get("placement_id")
     if not workspace_id:
-        # No seat, so no placement: ``create_independent_agent`` names the
-        # unseated agent's first instance from the idempotency key.
+        # No seat, so no placement and no instance: the unseated create makes
+        # the agent's template only (``create_agent_template``), named from the
+        # idempotency key, and its first New chat places it.
         placement_id = ""
     elif raw_placement is None:
         placement_id = mint_placement_id(persona_id, key=f"{workspace_id}\0{idempotency_key}")

@@ -549,6 +549,8 @@ class AgentCreate:
         from ..persona_assignments import PersonaInstanceStore
 
         request = self.request
+        if not request.seated:
+            return self.mint_template()
         mint_started = time.monotonic()
         # W3-H1: ``instance_ms`` below is ONE number for everything in this
         # phase, and W3 arrived unable to say which of its half-dozen cost blocks
@@ -586,21 +588,45 @@ class AgentCreate:
         )
         return None
 
-    def new_instance(self, store: Any, request: Any) -> Any:
-        """A NEW agent: its own persona and profile, then its first instance
-        (``TASK-INDEPENDENT-AGENT-CREATION``, 2026-11-18)."""
+    def mint_template(self) -> AgentCreateOutcome | None:
+        """The unseated create's one write: the new agent's persona and profile, a
+        template with no instance (it stands in no workspace) and so no chat.
 
-        # Only a fresh key mints, so a same-key retry never meets its own
-        # agent's name here. An unseated create has no placement: its first
-        # instance is named from the idempotency key instead.
+        No ``instance_minted`` mark either: there is no instance for a resume to
+        read, and the ``done`` receipt is written by :meth:`finish_unseated`. A
+        crash before it leaves no receipt, and the same key's retry finds its own
+        agent (``create_agent_template``)."""
+
+        from ..persona_assignments import PersonaInstanceStore
+
+        request = self.request
+        started = time.monotonic()
+        try:
+            self.agent = mint_new_agent(
+                PersonaInstanceStore(),
+                source_persona_id=request.persona_id,
+                source_instance_id=request.source_instance_id,
+                creation_key=request.idempotency_key,
+                display_name=request.display_name,
+            )
+        except (AgentCreateNameTaken, ValueError) as exc:
+            return refuse_mint(exc, placement_id="")
+        self.agent_ms = self.elapsed_ms(started)
+        return None
+
+    def new_instance(self, store: Any, request: Any) -> Any:
+        """A NEW agent: its own persona and profile, then its first instance,
+        seated in the create's workspace (``TASK-INDEPENDENT-AGENT-CREATION``,
+        2026-11-18). Only a fresh key mints, so a same-key retry never meets its
+        own agent's name here."""
+
         return mint_new_agent(
             store,
             source_persona_id=request.persona_id,
             source_instance_id=request.source_instance_id,
-            placement_id=request.placement_id or None,
-            creation_key=None if request.seated else request.idempotency_key,
+            placement_id=request.placement_id,
             display_name=request.display_name,
-            workspace_id=request.workspace_id or None,
+            workspace_id=request.workspace_id,
             realm_id=request.realm_id,
             client_scope=request.client_scope,
         )
@@ -720,21 +746,25 @@ class AgentCreate:
 
 
     def finish_unseated(self) -> AgentCreateOutcome:
-        """The unseated create's answer: the agent, and no placement or skills phase.
+        """The unseated create's answer: the agent, a template, and nothing seated.
 
-        No ``placement_id``, ``actor_key``, ``workspace_id``, ``position``,
-        ``actor``, ``revision``, ``actor_fresh`` or ``skills``: nothing was
-        seated, and the agent inherits its persona's skills.
+        No ``persona_instance_id`` or ``default_chat_session_id``: no instance was
+        made, so there is no chat yet; the agent's first New chat places one in
+        the Default workspace (``staff.reuse_or_place``). No ``placement_id``,
+        ``actor_key``, ``workspace_id``, ``position``, ``actor``, ``revision``,
+        ``actor_fresh`` or ``skills`` either: nothing was seated, and the agent
+        inherits its persona's skills. ``client_scope`` is echoed as asked, so a
+        client that sent one reads that its create was heard by a runtime that
+        takes it.
         """
 
+        agent = self.agent
         result: dict[str, Any] = {
-            "persona_instance_id": self.instance.id,
-            "persona_id": self.instance.persona_id,
-            "profile_id": self.instance.profile_id,
-            "display_name": self.instance.display_name,
-            "default_chat_session_id": self.instance.default_chat_session_id,
+            "persona_id": agent.id,
+            "profile_id": agent.hermes_profile,
+            "display_name": agent.display_name,
             **({"client_scope": self.request.client_scope} if self.request.client_scope is not None else {}),
-            "phases": {"instance_ms": self.instance_ms, "total_ms": self.elapsed_ms(self.started)},
+            "phases": {"agent_ms": self.agent_ms, "total_ms": self.elapsed_ms(self.started)},
         }
         if self.request.correlation_id:
             result["correlation_id"] = self.request.correlation_id
@@ -746,8 +776,11 @@ class AgentCreate:
 
 
 def mint_new_agent(store: Any, **identity: Any) -> Any:
-    """THE making of a new agent: its own persona and profile, then its first
-    instance (``TASK-INDEPENDENT-AGENT-CREATION``), under the name rule.
+    """THE making of a new agent: its own persona and profile, then, when the
+    create names a workspace, its first instance seated there
+    (``TASK-INDEPENDENT-AGENT-CREATION``), under the name rule. With no
+    workspace it is the template only (``create_agent_template``): an instance
+    never stands in no workspace.
 
     Checked and taken under the lock ``runtime.agent.duplicate`` names under, so
     two makers cannot both take one free name; a retry of the same placement or
@@ -759,9 +792,13 @@ def mint_new_agent(store: Any, **identity: Any) -> Any:
 
     from ..agent_duplicate import AGENT_NAME_LOCK
     from ..locks import agent_create_lock
-    from ..persona_assignments.independent import create_independent_agent
+    from ..persona_assignments.independent import create_agent_template, create_independent_agent
 
     with agent_create_lock(AGENT_NAME_LOCK):
+        if not identity.get("workspace_id"):
+            # MUTATION: send this create to ``create_independent_agent`` and
+            # test_an_unseated_create_makes_a_template_with_no_instance reddens.
+            return create_agent_template(store, refuse_taken_name=True, **identity)
         return create_independent_agent(store, refuse_taken_name=True, **identity)
 
 

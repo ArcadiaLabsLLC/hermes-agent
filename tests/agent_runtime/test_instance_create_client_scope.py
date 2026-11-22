@@ -51,10 +51,14 @@ def _create(**params) -> dict:
 
 
 def _make(**params) -> dict:
-    """Eternia's Create independent copy: the one create, with no workspace."""
+    """Eternia's Create independent copy: the one create, seated in a workspace (an unseated
+    create makes a template with no chat to own, ``test_serve_rpc_agent_create_unseated``)."""
+    from tests.agent_runtime.test_serve_rpc_agent_create import WORKSPACE, _seed_workspace
+
+    _seed_workspace()
     return serve_rpc.handle_request({
         "jsonrpc": "2.0", "id": "make", "method": "runtime.agent.create",
-        "params": {"persona_id": "qa", **params},
+        "params": {"persona_id": "qa", "workspace_id": WORKSPACE, **params},
     })
 
 

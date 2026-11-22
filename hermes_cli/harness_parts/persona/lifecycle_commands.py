@@ -407,9 +407,12 @@ def _place_or_make_through_agent_create(args, *, persona_id: str, persona, indep
         "independent_agent": independent,
         **({"client_scope": owner} if owner is not None else {}),
         "coordinator_permission_scope": asdict(coordinator_scope) if coordinator_scope is not None else None,
-        "next_expected": "send on session_id with `harness mission-chat message`",
+        "next_expected": "send on session_id with `harness mission-chat message`" if session_id else
+                         "the agent has no instance until it is placed: its first chat places it",
     }
-    _emit_persona_verb_payload(args, data, plain=f"created {data['agent_profile_id']} on chat {session_id}")
+    plain = (f"created {data['agent_profile_id']} on chat {session_id}" if session_id else
+             f"created agent {result.get('persona_id')} (a template: no instance until it is placed)")
+    _emit_persona_verb_payload(args, data, plain=plain)
     return 0
 
 

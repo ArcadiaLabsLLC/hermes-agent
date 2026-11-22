@@ -6,9 +6,15 @@ same maker (``agent_create.mint_new_agent`` -> ``create_independent_agent``), th
 same name rule and the same idempotency receipt, with the placement and skills
 phases skipped. A place is a seat and still needs a workspace.
 
-The witnesses are the stores, never the reply alone: the instance row read off
-disk (its ``workspace_id`` is ``None``), the office (no surface was opened) and
-the receipt file (``done``, written once).
+Rows ``RT-FU-A-NEW-AGENT-MADE-WITH-NO-WORKSPACE-HAS-NO-INSTANCE-UNTIL-IT-IS-PLACED`` and
+``RT-FU-CREATE-INDEPENDENT-COPY-LEAVES-AN-INSTANCE-PLACED-NOWHERE`` (w1122b-hmcreate,
+owner 2026-11-21: every live agent is a placed instance): the unseated create makes
+the agent's TEMPLATE only, its persona and profile, and no instance; its first New
+chat places one in the Default workspace.
+
+The witnesses are the stores, never the reply alone: the instance rows read off
+disk (none was added), the persona store (the new agent is there), the office (no
+surface was opened) and the receipt file (``done``, written once, naming no instance).
 """
 
 from __future__ import annotations
@@ -24,13 +30,11 @@ from tests.agent_runtime.test_serve_rpc_agent_create import (  # noqa: F401  (fi
     qa_persona,
 )
 
-#: The unseated reply, exactly: no placement field and no skills block.
+#: The unseated reply, exactly: the agent, and no instance, chat, placement or skills block.
 UNSEATED_REPLY_KEYS = {
-    "persona_instance_id",
     "persona_id",
     "profile_id",
     "display_name",
-    "default_chat_session_id",
     "phases",
     "idempotent_replay",
 }
@@ -64,6 +68,12 @@ def _office_workspaces() -> list:
     return sorted(str(p.relative_to(root)) for p in root.rglob("*") if p.is_file()) if root.exists() else []
 
 
+def _agent(persona_id: str):
+    from agent_runtime.store import AgentStore
+
+    return AgentStore().get(persona_id)
+
+
 def test_a_create_with_no_workspace_makes_an_unseated_agent(qa_persona):
     """KILLING MUTATION: restore the unconditional ``workspace_id_required`` raise in
     ``normalize_agent_create`` and this reds on the refusal; drop the
@@ -75,24 +85,72 @@ def test_a_create_with_no_workspace_makes_an_unseated_agent(qa_persona):
     assert "result" in reply, reply
     result = reply["result"]
     assert set(result) == UNSEATED_REPLY_KEYS
-    assert set(result["phases"]) == {"instance_ms", "total_ms"}
+    assert set(result["phases"]) == {"agent_ms", "total_ms"}
     assert result["idempotent_replay"] is False
     assert result["display_name"] == "Unseated Orchid"
     # A NEW agent: its own persona and profile, never the source's.
     assert result["persona_id"] != qa_persona.id
     assert result["profile_id"] and result["profile_id"] != qa_persona.hermes_profile
-
-    instance = _instances()[result["persona_instance_id"]]
-    assert instance.workspace_id is None
-    assert instance.persona_id == result["persona_id"]
-    assert instance.default_chat_session_id == result["default_chat_session_id"]
+    made = _agent(result["persona_id"])
+    assert (made.hermes_profile, made.display_name) == (result["profile_id"], "Unseated Orchid")
     # Nothing seated: no office surface was opened for it.
     assert _office_workspaces() == office_before
 
     receipt = _receipt("unseated-1")
     assert receipt["state"] == "done"
     assert receipt["workspace_id"] == ""
-    assert receipt["persona_instance_id"] == result["persona_instance_id"]
+    assert receipt["persona_instance_id"] is None
+
+
+def test_an_unseated_create_makes_a_template_with_no_instance(qa_persona):
+    """Rows RT-FU-A-NEW-AGENT-MADE-WITH-NO-WORKSPACE-HAS-NO-INSTANCE-UNTIL-IT-IS-PLACED and
+    RT-FU-CREATE-INDEPENDENT-COPY-LEAVES-AN-INSTANCE-PLACED-NOWHERE: no instance row is written,
+    so none stands in no workspace.
+
+    KILLING MUTATION (run 2026-11-22): send ``mint_new_agent``'s no-workspace arm to
+    ``create_independent_agent`` -> red (the create is refused by its fence, or, with the
+    fence dropped too, an instance with ``workspace_id`` None is written)."""
+
+    before = set(_instances())
+    result = _create()["result"]
+
+    assert set(_instances()) == before
+    assert not any(i.persona_id == result["persona_id"] for i in _instances().values())
+
+
+def test_the_first_new_chat_with_an_unseated_agent_places_it_in_the_default_workspace(qa_persona):
+    """The template's first chat places its first instance, through the one reuse-or-place rule."""
+
+    from agent_runtime.agent_create.staff import reuse_or_place
+    from agent_runtime.default_scope import DEFAULT_WORKSPACE_ID, ensure_default_scope
+
+    ensure_default_scope(seed_active_pointers=False)
+    result = _create()["result"]
+
+    instance_id, refusal = reuse_or_place(result["persona_id"])
+
+    assert refusal is None, refusal
+    placed = _instances()[instance_id]
+    assert (placed.persona_id, placed.workspace_id) == (result["persona_id"], DEFAULT_WORKSPACE_ID)
+    assert placed.profile_id == result["profile_id"]
+
+
+def test_an_independent_agent_instance_is_never_made_in_no_workspace(qa_persona):
+    """The maker's own fence: ``create_independent_agent`` seats, so it refuses a create with no
+    workspace before it writes anything.
+
+    KILLING MUTATION (run 2026-11-22): drop the ``not workspace_id`` refusal in
+    ``create_independent_agent`` -> red (an instance with no workspace is written)."""
+
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+    from agent_runtime.persona_assignments.independent import create_independent_agent
+
+    before = set(_instances())
+    with pytest.raises(ValueError, match="needs a workspace"):
+        create_independent_agent(
+            PersonaInstanceStore(), source_persona_id="qa", display_name="Nowhere", creation_key="k-nowhere",
+        )
+    assert set(_instances()) == before
 
 
 def test_an_unseated_create_replays_its_answer_and_mints_once(qa_persona):
@@ -102,6 +160,7 @@ def test_an_unseated_create_replays_its_answer_and_mints_once(qa_persona):
 
     first = _create()["result"]
     count = len(_instances())
+    personas = len(_personas())
     replay = _create()
     assert "result" in replay, replay
     again = replay["result"]
@@ -110,6 +169,34 @@ def test_an_unseated_create_replays_its_answer_and_mints_once(qa_persona):
         k: v for k, v in first.items() if k != "idempotent_replay"
     }
     assert len(_instances()) == count
+    assert len(_personas()) == personas
+
+
+def test_a_retry_after_a_crash_before_the_receipt_answers_its_own_agent(qa_persona):
+    """A crash after the template was written and before the ``done`` receipt: the same key's
+    retry finds its own agent and never meets its own name.
+
+    KILLING MUTATION (run 2026-11-22): ask ``name_is_taken`` before the ``made`` lookup in
+    ``create_agent_template`` -> red (``agent_name_taken`` on the retry)."""
+
+    import hashlib
+
+    from agent_runtime import paths
+
+    first = _create()["result"]
+    paths.agent_create_reservation_path(hashlib.sha256(b"unseated-1").hexdigest()).unlink()
+    personas = len(_personas())
+
+    again = _create()
+    assert "result" in again, again
+    assert again["result"]["persona_id"] == first["persona_id"]
+    assert len(_personas()) == personas
+
+
+def _personas() -> set[str]:
+    from agent_runtime.store import AgentStore
+
+    return {p.id for p in AgentStore().list_all()}
 
 
 def test_an_unseated_create_keeps_the_name_rule(qa_persona):

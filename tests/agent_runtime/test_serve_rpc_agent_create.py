@@ -450,10 +450,15 @@ def test_a_refused_placement_retires_the_instance_and_says_so(qa_persona, monkey
 
 
 def test_explicit_profile_creation_gets_its_own_identity_over_rpc(qa_persona):
+    # Seated: an unseated create makes a template with no instance or chat
+    # (test_serve_rpc_agent_create_unseated), and this reads the new agent's chat.
+    _seed_workspace()
+
     def create(key, method="runtime.agent.create", **overrides):
         reply = serve_rpc.handle_request({
             "jsonrpc": "2.0", "id": key, "method": method,
-            "params": {"persona_id": "qa", "display_name": "A new agent", "idempotency_key": key, **overrides},
+            "params": {"persona_id": "qa", "display_name": "A new agent", "idempotency_key": key,
+                       "workspace_id": WORKSPACE, **overrides},
         })
         assert "result" in reply, reply
         return {**reply["result"], "session_id": reply["result"]["default_chat_session_id"]}
