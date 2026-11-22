@@ -315,6 +315,7 @@ class ArgvLanes:
     def _dispatch_guarded(self, request: _ArgvRequest, state: _RunState) -> None:
         from agent_runtime.profile_context import process_home_scope
         from agent_runtime.request_control import request_cancel_scope, RequestCancelled
+        from gateway.session_context import scoped_current_session_id
         from hermes_cli.harness_parts.serve.operator_interrupt import operator_interrupt_scope
 
         try:
@@ -345,7 +346,22 @@ class ArgvLanes:
             # still gets its profile home. What changes is only the turn's
             # STARTING home, which is now this serve's rather than whatever
             # another lane last left in the environment.
-            with process_home_scope(
+            #
+            # NO CHAT SESSION for a press. A request the serve runs that is not
+            # a chat turn is Eternia's, the operator's: its session is bound
+            # empty, which wins over the environment in ``get_session_env``.
+            # A turn's agent build publishes its session process-wide
+            # (``agent_init._publish_session_id`` writes ``os.environ``), so
+            # without this a press made after a chat turn read that turn's
+            # session and was judged as its agent (``terminal_request_actor``;
+            # row RT-FU-AN-ETERNIA-PRESS-AFTER-A-CHAT-TURN-IS-JUDGED-AS-THAT-
+            # CHATS-AGENT). A chat turn binds nothing here (``None``): its own
+            # build or the environment names its session, as before. Either way
+            # the scope restores the worker's prior value on exit, so a pooled
+            # worker never carries one request's session into the next.
+            # MUTATION: bind None for every request and
+            # test_a_press_after_a_chat_turn_acts_as_you reddens.
+            with scoped_current_session_id(None if request.is_chat_turn else ""), process_home_scope(
                 self.serve_request_home, head_home=getattr(self, "serve_head_home", None)
             ), request_cancel_scope(
                 request.cancel_event
