@@ -213,7 +213,7 @@ def _lead_policy(lead_root: str) -> TurnApprovalPolicy | None:
     from .profile_context import process_home_scope, resolve_persona_profile
     from .profile_home import get_hermes_head_home
     from .store import AgentStore
-    from tools.approval_context import _get_approval_config
+    from hermes_cli.config import load_config_readonly
 
     try:
         persona = AgentStore().get(owner[0])
@@ -225,7 +225,7 @@ def _lead_policy(lead_root: str) -> TurnApprovalPolicy | None:
     # A lead bound to no profile runs on the head home, not on the helper's profile home this turn holds.
     with process_home_scope(binding.profile_home or get_hermes_head_home()):
         profile_mode = approval_policy_mode()
-        deny = _get_approval_config().get("deny") or []
+        deny = (load_config_readonly().get("approvals") or {}).get("deny") or []
     mode = SessionControlStore().read(lead_root).get("approval_mode", profile_mode)
     return TurnApprovalPolicy(mode=mode, dispatched=True, lead_root=lead_root,
                               lead_deny=tuple(glob for glob in deny if isinstance(glob, str) and glob.strip()))
