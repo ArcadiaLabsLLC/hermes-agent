@@ -26,7 +26,7 @@ import secrets
 from pathlib import Path
 
 from agent_runtime.project_files.paths import is_never_listed, parse_path
-from agent_runtime.project_files.reader import resolve_within_root
+from agent_runtime.project_files.reader import _canonical_root, resolve_within_root
 from agent_runtime.project_files.replies import decode_text, looks_binary
 from agent_runtime.project_files.rules import MAX_READ_BYTES, ProjectFileRefusal
 
@@ -39,18 +39,6 @@ class WriteDenied(Exception):
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.message = message
-
-
-def _canonical_root(root: str) -> str:
-    if not isinstance(root, str) or not os.path.isabs(root):
-        raise ProjectFileRefusal("invalid_path", "the root must be an absolute folder")
-    try:
-        actual = os.path.realpath(root, strict=True)
-    except OSError:
-        raise ProjectFileRefusal("not_found", "the root folder is not there") from None
-    if not os.path.isdir(actual):
-        raise ProjectFileRefusal("not_found", "the root is not a folder")
-    return actual
 
 
 def _target(root: str, path: str) -> tuple[str, str]:
