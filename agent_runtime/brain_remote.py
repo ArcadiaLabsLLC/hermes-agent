@@ -453,8 +453,19 @@ class RemoteCheck:
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def due(self) -> list[tuple[str, str]]:
-        """``(path, kind)`` of every checkout holding a brain, once each (the most-owned kind wins)."""
+        """``(path, kind)`` of every checkout holding a brain, once each (the most-owned kind wins); none where
+        the installed profile switches the git program's runner off.
 
+        The phone ships ``agent_runtime.git_cmd`` (pinned: kept code imports it) but switches it off and has
+        no git program: its projects clone through dulwich (``realm_sync.git_backend``), so every check would
+        fail (RT-FU-A-PHONE-NEVER-ASKS-THE-GIT-PROGRAM-TO-CHECK-A-PROJECT-BRAINS-REMOTE). The Work tick asks
+        the same profile (``work_store/engine.py::_default_workspaces``)."""
+
+        from .bundled_toolsets import installed_switched_off
+
+        # MUTATION: drop this check and test_brain_remote's phone case reddens (a git process per brain).
+        if installed_switched_off("agent_runtime.git_cmd"):
+            return []
         seen: dict[str, str] = {}
         for kind, entry in brains(read_brain_paths()):
             path = entry.get("path")
