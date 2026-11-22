@@ -12,6 +12,7 @@ from agent_runtime.profile_home import (
     available_profile_template_summaries as available_profile_templates,
 )
 from agent_runtime import paths
+from agent_runtime.bundled_agents import directory_fields
 from agent_runtime.persona_assignments import persona_instance_visibility_ref
 from agent_runtime.persona_chat_history.vocabulary import _SECRET_RE
 from agent_runtime.persona_lifecycle import is_agent_copy
@@ -179,6 +180,11 @@ def _agent_summary(agent, *, include_tool_details: bool = False, readiness=None)
         "autonomy": agent.autonomy,
         "core_context_files": "enabled" if getattr(agent, "include_core_context_files", False) else "isolated",
         "repo_scope_label": _safe_text(getattr(agent, "repo_scope_label", None)) or _safe_repo_scope_label(getattr(agent, "repo_scope", None)),
+        # ``origin`` / ``based_on`` / ``agent_name`` / persona-level ``locally_changed``: the same additive keys
+        # the directory rows carry, from their one owner. The directory lists placed instances only, so an
+        # agent placed nowhere reaches Eternia with its Eternia mark or Based on line only through this row
+        # (RT-FU-AN-AGENT-PLACED-NOWHERE-TELLS-ETERNIA-IT-SHIPS-WITH-ETERNIA-OR-WHAT-IT-IS-BASED-ON).
+        **directory_fields(agent),
     }
     if include_tool_details:
         # Deferred: ``tool_permissions`` imports ``tool_visibility``, which this
