@@ -79,23 +79,25 @@ def _instance_row(instance: Any) -> dict[str, Any]:
 def resolve_instance(token: str | None) -> Any | None:
     """The stored instance a token names: an instance id, or a persona id.
 
-    The same rule ``persona show`` applies: a ``personainst_`` token is read
-    verbatim (the store resolves legacy spellings), anything else is a persona
-    id mapped to its canonical instance id. ``None`` on a miss — never a write.
+    A ``personainst_`` token is read verbatim (the store resolves legacy
+    spellings); anything else is an agent's id, answered by its placed instance
+    (``placed_instance_for``), never the hidden copy ``personainst_<persona>``
+    nothing mints any more (RT-FU-THE-LAST-READERS-THAT-GUESS-AN-AGENTS-HIDDEN-
+    COPY-NAME-ASK-FOR-ITS-PLACED-INSTANCE). ``None`` on a miss or an agent
+    placed nowhere — never a write.
     """
 
-    from ..persona_assignments import (
-        PersonaInstanceStore,
-        normalize_persona_id,
-        persona_instance_id_for,
-    )
+    from ..persona_assignments import PersonaInstanceStore, placed_instance_for
 
     value = str(token or "").strip()
     if not value:
         return None
-    instance_id = value if value.startswith("personainst_") else persona_instance_id_for(normalize_persona_id(value))
+    if not value.startswith("personainst_"):
+        # MUTATION: read persona_instance_id_for(value) here and
+        # test_a_harness_query_on_an_agents_id_answers_its_placed_instance reddens.
+        return placed_instance_for(value)
     try:
-        return PersonaInstanceStore().get(instance_id)
+        return PersonaInstanceStore().get(value)
     except Exception:  # a miss is an answer, not a crash
         return None
 

@@ -29,9 +29,10 @@ from agent_runtime.harness_query import core
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_chat_continuity import runtime_registry
 from tools.registry import discover_builtin_tools, registry
+from tests.agent_runtime.persona_instance_mint import mint_placed_instance
 
-QA_ROOT = "persona_chat_personainst_qa_root01"
-DEV_ROOT = "persona_chat_personainst_dev_root01"
+QA_ROOT = "persona_chat_personainst_qa_agent_1_root01"
+DEV_ROOT = "persona_chat_personainst_dev_agent_1_root01"
 
 
 @pytest.fixture(autouse=True)
@@ -64,9 +65,13 @@ def _session(session_id: str, text: str = "hello") -> None:
 
 
 def _qa_and_dev():
+    # Placed instances: nothing makes an agent's hidden copy ``personainst_<persona>`` any more
+    # (RT-FU-THE-LAST-READERS-THAT-GUESS-AN-AGENTS-HIDDEN-COPY-NAME-ASK-FOR-ITS-PLACED-INSTANCE).
     store = PersonaInstanceStore()
-    qa = store.open_chat(persona_id="qa", session_id=QA_ROOT)
-    dev = store.open_chat(persona_id="dev", session_id=DEV_ROOT)
+    qa = mint_placed_instance("qa", placement="agent_1", workspace_id="ws_default", store=store)
+    dev = mint_placed_instance("dev", placement="agent_1", workspace_id="ws_default", store=store)
+    qa = store.open_chat(persona_id="qa", persona_instance_id=qa.id, session_id=QA_ROOT)
+    dev = store.open_chat(persona_id="dev", persona_instance_id=dev.id, session_id=DEV_ROOT)
     _session(QA_ROOT)
     _session(DEV_ROOT)
     return qa, dev

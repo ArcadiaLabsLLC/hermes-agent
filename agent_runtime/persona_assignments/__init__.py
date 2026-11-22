@@ -129,6 +129,7 @@ from agent_runtime.persona_assignments.lookups import (
     persona_id_from_instance_id,
     persona_instance_display_name,
     personas_equal,
+    placed_instance_for,
     resolve_default_chat_session_id_for_instance,
     sender_scope_workspace_id,
 )
@@ -177,6 +178,7 @@ __all__ = [
     "persona_instance_tool_detail",
     "persona_instance_visibility_ref",
     "personas_equal",
+    "placed_instance_for",
     "resolve_default_chat_session_id_for_instance",
     "resolve_tool_visibility",
     "retire_persona_assignment_store",

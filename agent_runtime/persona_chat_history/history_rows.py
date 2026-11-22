@@ -13,7 +13,6 @@ from ..clock import iso_timestamp
 from ..models import PersonaInstance
 from ..persona_assignments import (
     persona_instance_display_name,
-    persona_instance_id_for,
     safe_assignment_text,
     safe_assignment_token,
 )
@@ -179,10 +178,12 @@ def _history_row(
         **_channel_origin(raw),
         **_dispatched_from(raw, session_db),
         "persona_id": persona_id,
-        "persona_instance_id": safe_assignment_text(
-            instance_id or persona_instance_id_for(persona_id),
-            limit=160,
-        ),
+        # The instance that holds the chat, or empty for none: never the agent's hidden copy
+        # ``personainst_<persona>``, which nothing mints any more and no row holds
+        # (RT-FU-THE-LAST-READERS-THAT-GUESS-AN-AGENTS-HIDDEN-COPY-NAME-ASK-FOR-ITS-PLACED-INSTANCE).
+        # MUTATION: fall back to persona_instance_id_for(persona_id) and
+        # test_a_history_row_with_no_instance_names_no_hidden_copy reddens.
+        "persona_instance_id": safe_assignment_text(instance_id, limit=160) or "",
         "title": title,
         "last_message_preview": preview,
         # Every STORED row across the lineage (user, assistant tool-call steps,

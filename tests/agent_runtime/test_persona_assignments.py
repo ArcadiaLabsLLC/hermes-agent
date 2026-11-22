@@ -41,6 +41,7 @@ from tests.agent_runtime.persona_assignments_helpers import (
 )
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
 from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
+from tests.agent_runtime.persona_instance_mint import mint_placed_instance
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -617,8 +618,12 @@ def test_persona_instance_open_chat_binds_old_chat_without_ticking(
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(chat_open, "_default_persona_session_db", lambda: session_db)
     monkeypatch.setattr(lifecycle_commands, "_default_persona_session_db", lambda: session_db)
+    # The agent's placed instance, not a hidden copy nothing mints any more
+    # (RT-FU-THE-LAST-READERS-THAT-GUESS-AN-AGENTS-HIDDEN-COPY-NAME-ASK-FOR-ITS-PLACED-INSTANCE).
+    placed = mint_placed_instance("dev", placement="agent_1", workspace_id="ws_default")
     previous = PersonaInstanceStore().create_operator_chat(
         persona_id="dev",
+        persona_instance_id=placed.id,
         display_name="dev worker",
         session_id="chat_current_123",
     )
@@ -626,13 +631,14 @@ def test_persona_instance_open_chat_binds_old_chat_without_ticking(
     code = chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id="dev",
+            persona_instance_id=placed.id,
             session_id="chat_old_123",
             json=True,
         )
     )
 
     assert code == 0
-    instance = PersonaInstanceStore().get("personainst_dev")
+    instance = PersonaInstanceStore().get(placed.id)
     assert instance.mode == "chat"
     assert instance.session_id == "chat_old_123"
     assert instance.current_task_id is None
@@ -655,6 +661,7 @@ def test_persona_instance_open_chat_binds_old_chat_without_ticking(
     assert chat_open._cmd_persona_instance_open_chat(
         Namespace(
             persona_id="dev",
+            persona_instance_id=placed.id,
             session_id="chat_old_123",
             json=True,
         )

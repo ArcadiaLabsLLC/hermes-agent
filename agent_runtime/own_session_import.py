@@ -26,8 +26,9 @@ the target's instances, first rule wins (:class:`BoundBy`):
 1. ``--bind SRC=DST`` — SRC is the chat's source instance id or its persona id; DST must be an
    instance of the target (else the whole run refuses ``import_bind_target_unknown``);
 2. ``same_instance`` — the target has an instance with the chat's own instance id;
-3. ``persona_channel`` — the target has the persona's canonical channel
-   (``persona_instance_id_for(persona_id)``);
+3. ``persona_channel`` — the chat is a profile's and the target has that profile's own channel
+   (``personainst_profile_<name>``); no other agent has one, since nothing mints an agent's hidden
+   copy ``personainst_<persona>`` any more;
 4. ``persona_only_instance`` — the target has exactly one instance of that persona.
 
 Otherwise the chat is skipped with a reason (:class:`Skip`) — ``ambiguous_target`` names the
@@ -181,7 +182,12 @@ class Targets:
             return source_instance, BoundBy.SAME_INSTANCE, source_instance
         if not persona:
             return None, Skip.NO_PERSONA, source_instance or "no persona_instance_id, no persona marker"
-        if persona_instance_id_for(persona) in self.by_id:
+        # A profile's own channel keeps its id; any other agent is bound through its instances below,
+        # never the hidden copy ``personainst_<persona>`` nothing mints any more
+        # (RT-FU-THE-LAST-READERS-THAT-GUESS-AN-AGENTS-HIDDEN-COPY-NAME-ASK-FOR-ITS-PLACED-INSTANCE).
+        # MUTATION: drop the profile test and
+        # test_an_imported_chat_never_binds_to_an_agents_hidden_copy_name reddens.
+        if persona.startswith("profile_") and persona_instance_id_for(persona) in self.by_id:
             return persona_instance_id_for(persona), BoundBy.PERSONA_CHANNEL, persona
         candidates = sorted(self.by_persona.get(persona, ()))
         if len(candidates) == 1:
