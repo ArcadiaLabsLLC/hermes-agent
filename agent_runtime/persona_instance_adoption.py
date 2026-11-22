@@ -78,6 +78,7 @@ __all__ = [
     "clean_up_chat_only_copies",
     "hold_unstamped_hidden_copies",
     "is_hidden_copy_id",
+    "settle_hidden_copies",
     "unstamped_hidden_copies",
 ]
 
@@ -524,3 +525,29 @@ def clean_up_chat_only_copies(
             item["persona_instance_id"], item["fate"], item.get("reason"), ",".join(item["holds"]) or "-",
         )
     return report
+
+
+def settle_hidden_copies(*, apply: bool, store: Any, leaving: frozenset[str] = frozenset()) -> dict[str, Any]:
+    """The reconciler's phases 7 and 8, with their report keys; ``gone`` names the rows the run archived.
+
+    Phase 7 adopts, archives or holds every hidden copy (:func:`adopt_global_rows`); phase 8 retires an
+    adopted copy holding only old saved chats (:func:`clean_up_chat_only_copies`). A dry run hands phase 8
+    the rows phase 7 would adopt, so the preview names the fate an applied run reaches."""
+
+    adoption = adopt_global_rows(apply=apply, store=store, leaving=leaving)
+    cleanup = clean_up_chat_only_copies(
+        apply=apply, store=store,
+        adopting={item["persona_instance_id"]: item["adopted_from_global"]
+                  for item in adoption if item["fate"] == WOULD_ADOPT},
+    )
+    return {
+        "gone": [item["persona_instance_id"] for item in [*adoption, *cleanup] if item["fate"] in {ARCHIVED, RETIRED}],
+        "adoption": adoption,
+        "adopted_count": sum(1 for item in adoption if item["fate"] in {ADOPTED, WOULD_ADOPT}),
+        "hidden_copies_archived_count": sum(1 for item in adoption if item["fate"] in {ARCHIVED, WOULD_ARCHIVE}),
+        "hidden_copies_held_count": sum(1 for item in adoption if item["fate"] in {HELD_LOCAL, WOULD_HOLD_LOCAL}),
+        # The security gate (review w1118a.78): zero after an applied run.
+        "unstamped_hidden_copies": unstamped_hidden_copies(store.list_all()) if apply else None,
+        "cleanup": cleanup,
+        "chat_only_copies_retired_count": sum(1 for item in cleanup if item["fate"] in {RETIRED, WOULD_RETIRE}),
+    }
