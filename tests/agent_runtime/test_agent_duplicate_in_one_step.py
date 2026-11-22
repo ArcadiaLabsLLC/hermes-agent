@@ -17,6 +17,7 @@ import pytest
 from agent_runtime import paths, serve_rpc
 from agent_runtime.bundled_agents import catalog
 from agent_runtime.config import load_agent_runtime_config
+from agent_runtime.events import EventLog
 from agent_runtime.fresh_install_seed import seed_fresh_install_persona
 from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.mission_chat_prompts import _mission_chat_soul_overlay
@@ -109,6 +110,36 @@ def test_an_instance_moves_to_the_copy_and_keeps_its_chats(shipped_neko):
     assert (after.default_chat_session_id, after.chat_head_home, after.workspace_id) == (
         before.default_chat_session_id, before.chat_head_home, before.workspace_id,
     )
+
+
+def test_a_seat_moved_to_the_copy_is_announced_under_the_copy_at_once(shipped_neko):
+    """RT-FU-A-SEAT-MOVED-TO-A-COPY-IS-ANNOUNCED-UNDER-THE-COPY-AT-ONCE: seen live, the seat's row moved
+    to the copy on disk but no ``state.patched persona_instance`` said so, and Eternia kept it under
+    Neko until a stream re-read minutes later.
+
+    MUTATION: drop the ``self._emit_state_patch(...)`` call in ``PersonaInstanceStore.patch_fields``
+    and this test reddens."""
+
+    store = PersonaInstanceStore()
+    seat = store.add_instance(
+        persona_id=NEKO, placement_id="neko_testv4_agent_1", display_name="Neko Mission Lead", workspace_id="ws_testv4",
+    )
+    start = sum(1 for _ in EventLog().iter_from_offset(0))
+
+    reply = _duplicate(persona_id=NEKO, name="Neko Mission Lead Beta", instance_id=seat.id)["result"]
+
+    copy = AgentStore().get(reply["persona_id"])
+    patches = [
+        event.payload["changed"] for offset, (_, event) in enumerate(EventLog().iter_from_offset(0))
+        if offset >= start and event.type == "state.patched"
+        and event.payload.get("entity") == "persona_instance" and event.payload.get("id") == seat.id
+    ]
+    assert patches, "the seat's move shipped no state.patched persona_instance"
+    moved = {key: value for patch in patches for key, value in patch.items()}
+    assert moved["persona_id"] == moved["source_persona_id"] == copy.id
+    assert moved["profile_id"] == copy.hermes_profile
+    assert moved["display_name"] == copy.display_name == "Neko Mission Lead Beta"
+    assert moved["role"] == copy.role
 
 
 def test_an_old_hidden_copy_moves_to_the_copy_like_any_instance(shipped_neko):

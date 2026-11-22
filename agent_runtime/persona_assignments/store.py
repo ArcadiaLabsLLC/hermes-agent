@@ -45,6 +45,7 @@ from agent_runtime.serde import (
     safe_optional_token,
     to_jsonable,
 )
+from agent_runtime.state_patches.models import PERSONA_INSTANCE_FOLDED_STORE_FIELDS
 from agent_runtime.state_patches.persona_instance import emit_persona_instance_patch
 
 __layer__ = "stores"
@@ -214,11 +215,23 @@ class PersonaInstanceStore:
         """
 
         instance = self.get(persona_instance_id)
+        moved: list[str] = []
         for name, value in fields.items():
             if not hasattr(instance, name):
                 raise AttributeError(f"PersonaInstance has no field {name!r}")
+            if getattr(instance, name) != value:
+                moved.append(name)
             setattr(instance, name, value)
-        return self.update(instance)
+        written = self.update(instance)
+        # Every folded field this write moved ships in one ``state.patched``, so a seat moved to a
+        # copy (``agent_duplicate._repoint``) or renamed by a shipped update
+        # (``bundled_agents.resolve``) reads under its new agent at once. ``update`` already
+        # announces the model tier it moved.
+        announced = [name for name in moved
+                     if name in PERSONA_INSTANCE_FOLDED_STORE_FIELDS and name not in self._MODEL_LANE_FIELDS]
+        if announced:
+            self._emit_state_patch(written, {name: getattr(written, name) for name in announced})
+        return written
 
     #: The repo-slot assignment (build plan §3.3) and its clock, ``slots_issued_at``.
     _SLOT_LANE_FIELDS: tuple[str, ...] = ("assigned_slots", "primary_slot", "slots_issued_at",

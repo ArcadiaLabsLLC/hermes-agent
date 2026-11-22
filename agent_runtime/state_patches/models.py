@@ -99,6 +99,12 @@ _PERSONA_INSTANCE_STORE_TO_WIRE: dict[str, tuple[str, ...]] = {
     # store write to it projects no wire field.
     "current_task_id": (),
     "display_name": ("display_name", "agent_profile_display_name"),
+    # A seat moved to another agent (Make my own copy, ``agent_duplicate._repoint``): the agent it
+    # belongs to, and what the row derives from that agent, ship with the move
+    # (RT-FU-A-SEAT-MOVED-TO-A-COPY-IS-ANNOUNCED-UNDER-THE-COPY-AT-ONCE).
+    "persona_id": ("persona_id", "source_persona_id", "character_assignment", "skills", "effective_model",
+                   "effective_provider", "reasoning_supported", "reasoning_capabilities"),
+    "role": ("role",),
     "current_chat_goal": ("current_chat_goal",),
     "skill_overrides": ("skill_overrides", "skills"),
     "model": ("model", "effective_model", "model_is_override", "reasoning_supported", "reasoning_capabilities"),
@@ -141,6 +147,13 @@ _PERSONA_INSTANCE_STORE_TO_WIRE: dict[str, tuple[str, ...]] = {
     # patches list omits the row that moved.
     "updated_at": ("updated_at",),
 }
+
+#: The store fields a write can move that the read model folds: every entry that projects a wire
+#: field. ``PersonaInstanceStore.patch_fields`` announces exactly these; a field outside it (the chat
+#: turn's ``skill_manifest_hash``, its return to idle) stays eventless.
+PERSONA_INSTANCE_FOLDED_STORE_FIELDS: frozenset[str] = frozenset(
+    name for name, wire in _PERSONA_INSTANCE_STORE_TO_WIRE.items() if wire
+)
 
 
 #: The end-to-end correlation key (Plan D / EG-2.3). ONE name, reused from the

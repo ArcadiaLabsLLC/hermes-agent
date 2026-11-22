@@ -101,3 +101,28 @@ def test_patch_fields_writes_only_the_named_fields_onto_a_fresh_read(isolate_age
     assert written.skill_overrides == ["technical-writing"]
     with pytest.raises(AttributeError):
         store.patch_fields(instance.id, not_a_field=1)
+
+
+def test_patch_fields_announces_the_folded_fields_it_moved_and_nothing_else(isolate_agent_runtime_root):
+    """RT-FU-A-SEAT-MOVED-TO-A-COPY-IS-ANNOUNCED-UNDER-THE-COPY-AT-ONCE: a field the read model folds,
+    written through this door, ships in a ``state.patched`` (it moved silently before); a field the
+    fold does not carry, or a value that did not move, stays eventless.
+
+    MUTATION: drop the ``self._emit_state_patch(...)`` call in ``PersonaInstanceStore.patch_fields``
+    and this test reddens.
+    MUTATION: drop the ``getattr(instance, name) != value`` test (announce every named field) and the
+    unchanged-value half reddens."""
+
+    store, event_log = PersonaInstanceStore(), EventLog()
+    instance = _chat_instance(store)
+    before = len(_patched_fields(event_log, instance.id))
+
+    store.patch_fields(instance.id, display_name="Alice Renamed", role="reviewer", skill_manifest_hash="abc123")
+    patches = _patched_fields(event_log, instance.id)[before:]
+    assert len(patches) == 1
+    assert patches[0]["display_name"] == patches[0]["agent_profile_display_name"] == "Alice Renamed"
+    assert patches[0]["role"] == "reviewer"
+    assert "skill_manifest_hash" not in patches[0]
+
+    store.patch_fields(instance.id, display_name="Alice Renamed", skill_manifest_hash="def456")
+    assert _patched_fields(event_log, instance.id)[before + 1:] == []
