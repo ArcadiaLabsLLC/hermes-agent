@@ -487,10 +487,10 @@ def test_every_overrun_and_kill_is_a_ledger_line_and_the_summary_names_its_row(r
         assert row["load"] is None or isinstance(row["load"], float | int)
         assert row["ts"].endswith("Z")
     assert "prepush: 2 overrun(s)" in proc.stdout
-    # No queue note in this partial tree: the owed line names the task's slug, never a generated ID.
+    # A step that only ran long owes no queue row (FH-A-PUSH-CHECK-THAT-RUNS-LONG-ON-A-BUSY-BOX-ASKS-FOR-NO-QUEUE-ROW).
     assert "overrun: gates slow:" in proc.stdout and "overrun: touched unfinished:" in proc.stdout
-    assert proc.stdout.count("owes a new row filed under the task: prepush task row") == 2, proc.stdout
-    assert "OVER-BUDGET" not in proc.stdout
+    assert proc.stdout.count("no queue row") == 2, proc.stdout
+    assert "owes a new row" not in proc.stdout and "OVER-BUDGET" not in proc.stdout
     # The ledger only grows: a second run appends, never rewrites.
     _run(repo, runner_body="sleep 2", env_extra={"PREPUSH_GATES_BUDGET": "1", "PREPUSH_HEARTBEAT": "1"})
     assert len(_ledger(repo)) == 3
@@ -507,6 +507,29 @@ def _queue_note(repo: Path, *rows: str) -> None:
 
 _TASK_ROW = "- **`TASK-PREPUSH-X` — Pre-push runs fast** · task: prepush · READY 2026-11-19"
 _SLOW_GATES = {"PREPUSH_GATES_BUDGET": "1", "PREPUSH_GATES_DEADLINE": "30", "PREPUSH_HEARTBEAT": "1"}
+# The gates step over its work ceiling (11 files against 10): the one overrun that still names a row.
+_OVER_WORK_GATES = {"PREPUSH_GATES_WORK_CEILING": "10"}
+
+
+# FH-A-PUSH-CHECK-THAT-RUNS-LONG-ON-A-BUSY-BOX-ASKS-FOR-NO-QUEUE-ROW (owner 2026-11-22, "yes go as reccomended"):
+# a step slow past its budget or killed at its hang guard on a busy box stays a ledger line and an OWED line,
+# and asks for no queue row, even with a live row and the task row in the note. KILLING MUTATION: drop the
+# outcome arm in ``_owed_row`` (every outcome names a row) -> both lines ask for a row.
+@pytest.mark.timeout(60)
+def test_a_step_that_only_ran_long_asks_for_no_queue_row(repo: Path):
+    _queue_note(repo, _TASK_ROW,
+                "- **`FH-PREPUSH-GATES-OVER-BUDGET` — The gates step runs in its budget** · group: prepush · READY")
+    proc, _ = _run(repo, runner_body="sleep 3", env_extra={
+        **_SLOW_GATES, "PREPUSH_TOUCHED_BUDGET": "1", "PREPUSH_TOUCHED_DEADLINE": "2"})
+    assert proc.returncode == 0, proc.stdout
+    lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("  overrun: ")]
+    assert [ln.split(":")[1].strip() for ln in lines] == ["gates slow", "touched unfinished"], lines
+    for line in lines:
+        assert line.endswith("no queue row (a row only for a step over its work ceiling or one that overruns"
+                             " on a quiet box)"), line
+    assert "owes a new row" not in proc.stdout and "owes a handoff" not in proc.stdout, proc.stdout
+    assert "file each row" not in proc.stdout, proc.stdout
+    assert proc.stdout.rstrip().splitlines()[-1].startswith("✔ prepush: no red — OWED"), proc.stdout
 
 
 # FH-PREPUSH-OVERRUN-NAMES-A-RETIRED-ROW (seen 2026-11-18, w1118-slotstatus: the line named the archived
@@ -517,9 +540,9 @@ def test_an_overrun_whose_row_is_archived_names_the_live_task_row_not_the_retire
     # The gates row is only mentioned in another row's prose, as an archived row is: not a live row.
     _queue_note(repo, _TASK_ROW,
                 "- **`FH-OTHER` — Something** · group: prepush · folded `FH-PREPUSH-GATES-OVER-BUDGET` · READY")
-    proc, _ = _run(repo, runner_body="sleep 2", env_extra=_SLOW_GATES)
-    assert proc.returncode == 0, proc.stdout
-    (line,) = [ln for ln in proc.stdout.splitlines() if "overrun: gates slow:" in ln]
+    proc, _ = _run(repo, env_extra=_OVER_WORK_GATES)
+    assert proc.returncode == 1, proc.stdout
+    (line,) = [ln for ln in proc.stdout.splitlines() if "overrun: gates over_work:" in ln]
     assert line.endswith("— owes a new row filed under TASK-PREPUSH-X (task: prepush)"), line
     assert "OVER-BUDGET" not in line
 
@@ -530,9 +553,9 @@ def test_an_overrun_whose_row_is_archived_names_the_live_task_row_not_the_retire
 def test_an_overrun_whose_row_is_live_names_that_row_to_append_to(repo: Path):
     _queue_note(repo, _TASK_ROW,
                 "- **`FH-PREPUSH-GATES-OVER-BUDGET` — The gates step runs in its budget** · group: prepush · READY")
-    proc, _ = _run(repo, runner_body="sleep 2", env_extra=_SLOW_GATES)
-    assert proc.returncode == 0, proc.stdout
-    (line,) = [ln for ln in proc.stdout.splitlines() if "overrun: gates slow:" in ln]
+    proc, _ = _run(repo, env_extra=_OVER_WORK_GATES)
+    assert proc.returncode == 1, proc.stdout
+    (line,) = [ln for ln in proc.stdout.splitlines() if "overrun: gates over_work:" in ln]
     assert line.endswith("— owes a handoff on live row FH-PREPUSH-GATES-OVER-BUDGET (append it to that row)"), line
 
 

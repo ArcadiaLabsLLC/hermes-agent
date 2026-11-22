@@ -155,9 +155,10 @@ batch at its landing, never per lane.
   (owner 2026-11-08, `FH-PREPUSH-CAP-TIGHT`, `FH-PREPUSH-OVERRUN-LEDGER`; the numbers:
   `Running the tests.md` § prepush). Any red is fixed before the push (owner
   2026-10-29, adopting the launcher's 2026-10-27 rule). It is a command, not a hook.
-- A prepush step or test lane that runs past its budget gets a row in the fork-hygiene queue the
-  moment it is seen (check, budget, measured time, box load) and the next review batch takes the row, and it runs in that batch's sub-wave;
-  raise a budget only on an idle-box measurement (owner 2026-11-01: "also make sure we are optimising the gates if they go out of buget").
+- Where a prepush step's overrun goes is stated once, in Eternia `docs/agent_context/PRE_PUSH_LANES.md`'s
+  first rule (owner 2026-11-22, `FH-A-PUSH-CHECK-THAT-RUNS-LONG-ON-A-BUSY-BOX-ASKS-FOR-NO-QUEUE-ROW`): a step
+  that only runs long on a busy box asks for no queue row — its ledger line and the landing note hold it; the
+  overrun line `scripts/prepush.sh` prints says which case it is.
 - While the operator is testing a live serve, commit from a worktree and push `HEAD:main`,
   never in the primary checkout: a commit there moves the code tree the serve is built from
   and the Launcher restarts it (three queue-only commits did, 2026-10-05; vault-only paths stop

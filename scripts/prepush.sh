@@ -603,17 +603,27 @@ _ledger() {
     "$(_json_str "$(date -u +%Y-%m-%dT%H:%M:%SZ)")" "$(_json_str "$step")" "$(_json_str "$outcome")" \
     "$budget" "$deadline" "$wall" "$rc" "$load" "$lanes" "$(_json_str "$head")" "$CAP" "$work" "$ceiling" >>"$LEDGER" ||
     echo "✘ prepush: could not append to the overrun ledger $LEDGER" >&2
-  OVERRUNS+=("$step $outcome: ${wall}s against budget ${budget}s (deadline ${deadline}s, load $load, live lanes $lanes) — $(_owed_row "$step")")
+  OVERRUNS+=("$step $outcome: ${wall}s against budget ${budget}s (deadline ${deadline}s, load $load, live lanes $lanes) — $(_owed_row "$step" "$outcome")")
 }
-# _owed_row STEP — where the overrun is filed (FH-PREPUSH-OVERRUN-NAMES-A-RETIRED-ROW): the step's own
-# FH-PREPUSH-<STEP>-OVER-BUDGET only while it is a LIVE row of the queue note (append a handoff);
-# otherwise the live `task: prepush` row read from the note, never hard-coded, to file a new row
-# under. A generated ID that is not live (archived, or never filed) is never printed: filing an
+# _owed_row STEP OUTCOME — where the overrun goes. A step that only ran long (slow past its budget, or
+# killed at its hang guard or the whole-run cap: a busy box sets that wall) owes NO queue row: its
+# reading stays in the ledger line and the landing note (owner 2026-11-22, "yes go as reccomended",
+# FH-A-PUSH-CHECK-THAT-RUNS-LONG-ON-A-BUSY-BOX-ASKS-FOR-NO-QUEUE-ROW; the one statement is Eternia
+# `docs/agent_context/PRE_PUSH_LANES.md`'s first rule). MUTATION: drop the outcome arm (every
+# outcome names a row) and test_a_step_that_only_ran_long_asks_for_no_queue_row reddens.
+# A step over its WORK ceiling (already red) still names its row (FH-PREPUSH-OVERRUN-NAMES-A-RETIRED-ROW):
+# the step's own FH-PREPUSH-<STEP>-OVER-BUDGET only while it is a LIVE row of the queue note (append a
+# handoff); otherwise the live `task: prepush` row read from the note, never hard-coded, to file a new
+# row under. A generated ID that is not live (archived, or never filed) is never printed: filing an
 # archived ID reds the queue grammar. An unreadable note (a partial checkout) names the slug only.
 # MUTATION: print "owes row $row" whether or not it is live and
 # test_an_overrun_whose_row_is_archived_names_the_live_task_row_not_the_retired_id reddens.
 _owed_row() {
   local row task=""
+  if [ "$2" != over_work ]; then
+    echo "logged and owed in the landing note, no queue row (a row only for a step over its work ceiling or one that overruns on a quiet box)"
+    return
+  fi
   row="FH-PREPUSH-$(printf '%s' "$1" | tr '[:lower:]-' '[:upper:]-')-OVER-BUDGET"
   if [ -r "$REPO_ROOT/$QUEUE_NOTE" ]; then
     if grep -q '^- \*\*`'"$row"'`' "$REPO_ROOT/$QUEUE_NOTE"; then
@@ -803,8 +813,8 @@ if [ "${#LANE[@]}" -gt 0 ]; then
 fi
 
 if [ "${#OVERRUNS[@]}" -ne 0 ]; then
-  echo "prepush: ${#OVERRUNS[@]} overrun(s), each a JSON line in ${LEDGER#"$REPO_ROOT"/} — file each row now"
-  echo "  ($QUEUE_NOTE: check, budget, measured time, load):"
+  echo "prepush: ${#OVERRUNS[@]} overrun(s), each a JSON line in ${LEDGER#"$REPO_ROOT"/} — name them in the landing note;"
+  echo "  only a step over its work ceiling owes a row ($QUEUE_NOTE: check, budget, measured time, load):"
   for line in "${OVERRUNS[@]}"; do
     echo "  overrun: $line"
   done
