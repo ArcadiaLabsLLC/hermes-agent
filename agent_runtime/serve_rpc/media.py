@@ -7,7 +7,12 @@ from __future__ import annotations
 import base64
 from typing import Any
 
-from agent_runtime.call_authorization import TIER_CONSOLE
+from agent_runtime.call_authorization import (
+    CALLER_COMPUTER,
+    COMPUTER_GRANT_ACCOUNT,
+    REASON_SCOPE_DENIED,
+    TIER_CONSOLE,
+)
 
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,
@@ -52,6 +57,30 @@ __all__ = [
 # from a message it was already allowed to read, so it discloses nothing new;
 # what goes in is `sha256:<64 hex>` and is refused by a regex before this
 # process constructs a ``Path``. See ``agent_runtime/media_handles.py``.
+
+
+def _caller_sees(artifact: Any, context: RpcContext | None) -> bool:
+    """May this caller list or fetch *artifact*? The one answer both verbs read.
+
+    A computer that drives this phone at the look or Run chats grant is handed the pictures in
+    the chats Look already reads, and nothing else the index holds: a ``diff`` (reach the owner
+    gave only a computer on the phone's own account), a ``context_file`` (SOUL, the instruction
+    file, the skills snapshot) and a remote row (which would make the phone fetch from its own
+    peers for the computer) are out (review w1122b.5,
+    RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ).
+    The account level is answered as a console device, so it keeps the whole index; every other
+    caller's reach is the tier gate's. Any computer grant that is not ``account`` narrows, so a
+    grant word added later starts narrow.
+    """
+
+    from agent_runtime import media_handles
+
+    caller = context.caller if context is not None else None
+    if caller is None or caller.kind != CALLER_COMPUTER or caller.computer_grant == COMPUTER_GRANT_ACCOUNT:
+        return True
+    # MUTATION: return True here (drop the kind filter) and test_serve_rpc_media's look-grant
+    # index lists the diff, the context file and the remote row, and its get hands them over.
+    return isinstance(artifact, media_handles.MediaArtifact) and artifact.kind == "image"
 
 
 #: The media lane's own shape number, beside ``PEER_PING_CONTRACT`` and for its
@@ -122,7 +151,7 @@ def _runtime_media_index(
         # ``remote: true`` with the peer that holds it and NO path — because
         # there is no file here to name, and a row that claimed one would send
         # a client to a `File(path)` that cannot exist.
-        "artifacts": [artifact.describe() for artifact in scope.rows()],
+        "artifacts": [artifact.describe() for artifact in scope.rows() if _caller_sees(artifact, context)],
         "scanned": {
             "logs": scope.logs_scanned,
             "declarations": scope.declarations_seen,
@@ -243,6 +272,15 @@ def _runtime_media_get(
         )
 
     scope = media_handles.build_media_scope(agent_files=True)
+    # Before resolving, so a refused row answers neither its size nor its cap.
+    in_scope = scope.get(raw.strip())
+    if in_scope is not None and not _caller_sees(in_scope, context):
+        return err(
+            rid,
+            ERR_HANDLER_FAILED,
+            "runtime.media.get refused: this phone hands a computer the pictures in its chats only",
+            {"reason": REASON_SCOPE_DENIED},
+        )
     resolved = media_handles.resolve_handle(raw, scope)
     if isinstance(resolved, media_handles.MediaRefusal):
         return err(

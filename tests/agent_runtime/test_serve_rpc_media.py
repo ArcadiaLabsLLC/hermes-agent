@@ -16,6 +16,7 @@ import pytest
 
 from agent_runtime import chat_live_log, media_handles, serve_rpc
 from agent_runtime.call_authorization import (
+    CALLER_COMPUTER,
     CALLER_DEVICE,
     CALLER_PEER,
     REASON_SCOPE_DENIED,
@@ -642,3 +643,72 @@ def test_a_peer_that_never_answers_no_longer_delays_the_next_request(
         "reason": media_proxy.REASON_PEER_UNREACHABLE,
         "peer_install_id": "install-b",
     }
+
+
+# ── a computer driving this phone (RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ)
+#
+# Review w1122b.5: at the look or Run chats grant a computer is handed the pictures in the
+# chats Look reads, and no diff, context file or remote row; the account grant keeps the whole
+# index. Killing mutations: leave the two verbs off ``COMPUTER_LOOK_METHOD_ALLOWLIST`` (every
+# call below is refused at the gate), and ``media._caller_sees`` answering ``True`` for every
+# computer (the narrow index lists the three other rows and get hands them over).
+
+
+def _computer(grant: str) -> RpcCaller:
+    return RpcCaller(
+        kind=CALLER_COMPUTER,
+        connection_key="c1",
+        transport=TRANSPORT_GATEWAY,
+        computer_id="cmp_far",
+        computer_grant=grant,
+    )
+
+
+@pytest.fixture
+def every_kind(seeded, tmp_path, monkeypatch):
+    """The seeded chat picture, a diff and a context file on disk, and one remote row."""
+
+    diff = tmp_path / "diffs" / "patch.diff"
+    diff.parent.mkdir(parents=True)
+    diff.write_text("--- a\n+++ b\n", encoding="utf-8")
+    soul = tmp_path / "SOUL.md"
+    soul.write_text("the agent's soul\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "agent_runtime.agent_file_handles.agent_written_files",
+        lambda *, limit: [
+            ("diff", str(diff), "text/x-diff"),
+            ("context_file", str(soul), "text/markdown"),
+        ][:limit],
+    )
+    far = "sha256:" + "d" * 64
+    _far_completions(monkeypatch, far, 64)
+    shot, payload = seeded
+    rows = _call(INDEX)["result"]["artifacts"]
+    by_kind = {("remote" if row["remote"] else row["kind"]): row["handle"] for row in rows}
+    assert set(by_kind) == {"image", "diff", "context_file", "remote"}, rows
+    return by_kind, payload
+
+
+@pytest.mark.parametrize("grant", ["look", "chat"])
+def test_a_look_or_run_chats_computer_is_handed_chat_pictures_and_nothing_else(every_kind, grant):
+    by_kind, payload = every_kind
+
+    index = _call(INDEX, caller=_computer(grant))
+    assert "result" in index, index
+    assert [(row["kind"], row["remote"]) for row in index["result"]["artifacts"]] == [("image", False)]
+
+    picture = _call(GET, {"handle": by_kind["image"]}, caller=_computer(grant))
+    assert base64.b64decode(picture["result"]["data"]) == payload
+
+    for kind in ("diff", "context_file", "remote"):
+        refused = _call(GET, {"handle": by_kind[kind]}, caller=_computer(grant))
+        assert refused["error"]["data"] == {"reason": REASON_SCOPE_DENIED}, (kind, refused)
+
+
+def test_an_account_computer_keeps_the_whole_index(every_kind):
+    by_kind, _payload = every_kind
+
+    rows = _call(INDEX, caller=_computer("account"))["result"]["artifacts"]
+    assert {row["handle"] for row in rows} == set(by_kind.values())
+    diff = _call(GET, {"handle": by_kind["diff"]}, caller=_computer("account"))
+    assert diff["result"]["data"], diff

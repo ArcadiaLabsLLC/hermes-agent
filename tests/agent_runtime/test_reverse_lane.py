@@ -299,6 +299,44 @@ def test_the_computer_reads_the_phone_agents_files_as_one_tree_at_look(phone, co
         assert outside["error"]["data"]["reason"] == "invalid_path", outside
 
 
+def test_a_look_computer_is_handed_a_picture_from_the_phones_chats_by_handle(phone, computer, tmp_path):
+    """Hermes row RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ:
+    over the real lane, the look grant lists the phone's chat picture and fetches it by handle.
+
+    MUTATION (``COMPUTER_LOOK_METHOD_ALLOWLIST``): leave ``runtime.media.index`` / ``.get`` out, and
+    both calls here are refused ``scope_denied``. Which rows the grant sees is pinned in
+    ``test_serve_rpc_media``.
+    """
+
+    import base64
+
+    from agent_runtime import chat_live_log, media_handles
+
+    chat_live_log.reset_chat_live_log_state()
+    media_handles.reset_digest_memo()
+    chat_live_log.capture_chat_live_log_root(head_home=tmp_path / "phone-home")
+    payload = b"\x89PNG\r\n\x1a\n" + b"phone-picture" * 20
+    shot = tmp_path / "phone-home" / "artifacts" / "chat.png"
+    shot.parent.mkdir(parents=True)
+    shot.write_bytes(payload)
+    logs = tmp_path / "phone-home" / chat_live_log.CHAT_LIVE_LOG_DIRNAME
+    logs.mkdir(parents=True, exist_ok=True)
+    (logs / "persona_chat_phone.jsonl").write_text(json.dumps(
+        {"ts": "2026-11-22T00:00:00Z", "kind": "message", "role": "agent", "text": f"here\n\nMEDIA:{shot}"}) + "\n",
+        encoding="utf-8")
+    try:
+        with _driven(phone, computer) as (client, *_):
+            index = _rpc(client, "runtime.media.index")
+            assert "result" in index, index
+            handles = [row["handle"] for row in index["result"]["artifacts"] if row["reference"] == str(shot)]
+            assert len(handles) == 1, index
+            picture = _rpc(client, "runtime.media.get", {"handle": handles[0]})
+            assert base64.b64decode(picture["result"]["data"]) == payload, picture
+    finally:
+        chat_live_log.reset_chat_live_log_state()
+        media_handles.reset_digest_memo()
+
+
 NEVER_SERVED = (
     # The review's three, by name.
     "runtime.provider.signin.begin",

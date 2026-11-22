@@ -413,6 +413,13 @@ COMPUTER_LOOK_METHOD_ALLOWLIST: frozenset[str] = frozenset(
         # RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS). Their writes are
         # the separate runtime.agent.files.virtual.write, in no computer allowlist (review w1122b.4).
         "runtime.agent.files.virtual",
+        # The pictures in the chats Look reads, by handle
+        # (RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ,
+        # review w1122b.5). For a computer at this level or Run chats, ``serve_rpc/media.py`` lists
+        # and hands over local chat images only: no diff, context file or remote row.
+        # MUTATION: leave these two out and test_reverse_lane's chat-picture test is refused scope_denied.
+        "runtime.media.index",
+        "runtime.media.get",
     }
 )
 
