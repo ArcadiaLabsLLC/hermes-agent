@@ -500,3 +500,26 @@ def test_a_chat_on_another_provider_switches_to_the_model_blocks_own_endpoint(pl
     assert inspect("models", params)["result"]["facts"]["current_model_id"] == bare
     turn = next_turn(params)
     assert (turn["effective_provider"], turn["effective_model"]) == ("custom", "qa-fixture")
+
+
+def test_the_agent_default_names_the_model_blocks_endpoint_as_its_current_model_does(placed_agent, catalog):
+    """RT-FU-A-CHATS-AGENT-DEFAULT-NAMES-ITS-CUSTOM-ENDPOINT-THE-WAY-ITS-CURRENT-MODEL-DOES: an agent whose
+    default runs on the ``model:`` block's own endpoint (the QA fixture's ``provider: custom`` + ``base_url``)
+    had ``current_model_id`` and its choice ``custom:custom`` but ``default_model_id`` the bare ``custom``,
+    so a client met one endpoint under two names. Killing mutation: ``operator_model_facts`` building
+    ``default_model_id`` from the unmapped ``agent_provider``."""
+    from hermes_constants import get_hermes_home
+
+    config = get_hermes_home() / "config.yaml"
+    config.write_text(json.dumps({**json.loads(config.read_text(encoding="utf-8")), "model": {
+        "provider": "custom", "base_url": "http://127.0.0.1:2/v1", "default": "qa-fixture",
+        "api_key": "qa-fixture-nonbillable"}}), encoding="utf-8")
+    params = target(placed_agent["persona_instance_id"])
+    bare = model_key("custom:custom", "qa-fixture")
+
+    facts = inspect("models", params)["result"]["facts"]
+
+    assert facts["model_is_default"] is True
+    assert facts["current_model_id"] == bare
+    assert facts["default_model_id"] == bare
+    assert bare in [m["id"] for m in facts["models"]]
