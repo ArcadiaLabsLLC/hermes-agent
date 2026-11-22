@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
-from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
+from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.persona_assignments import (
     PersonaInstanceStore,
     canonical_chat_instance_id,
@@ -330,8 +330,6 @@ def admit_turn_target(args) -> dict[str, Any]:
     names a session (or a clarify token) is bound on its pin when it has one; without a pin the
     session's owner decides, in the turn (a chained hop's authority stays the handler's).
     """
-    from agent_runtime.auxiliary_chat import is_auxiliary_chat
-
     from .chat_request import _mission_chat_retired_target_refusal, _resolve_mission_chat_clarify_binding
 
     probe = SimpleNamespace(**vars(args))
@@ -340,8 +338,6 @@ def admit_turn_target(args) -> dict[str, Any]:
     if refusal is not None:
         return refusal
     store = PersonaInstanceStore()
-    if not is_auxiliary_chat(getattr(probe, "persona_instance_id", None), getattr(probe, "session_id", None)):
-        store.ensure_for_personas(ensure_persisted_personas(cfg))
     pin = caller_instance_pin(probe, target.normalized_persona)
     session_id, pin = _session_target(probe, pin, target.normalized_persona)
     binding = _resolve_mission_chat_clarify_binding(probe, session_id=session_id)

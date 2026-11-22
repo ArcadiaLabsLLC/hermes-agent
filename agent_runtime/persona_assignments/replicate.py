@@ -25,7 +25,6 @@ from agent_runtime.persona_assignments.identity import (
     _MISSING_TRAVEL_FIELD,
     _profile_id_for_persona_or_template,
     _role_for_persona_or_template,
-    is_canonical_persona_channel,
     persona_chat_session_id_for,
 )
 from agent_runtime.request_actor import REALM_SYNC_ACTOR, removal_activity
@@ -208,22 +207,14 @@ def retire_replica(
       ever does. The row MOVES to the archive (archive-never-delete) and the
       projection stops listing it, exactly as :meth:`retire` does.
 
-    Refuses typed — never silently — on the two guards :meth:`retire`
-    carries: a canonical channel (which never replicates at all, so reaching
-    this door with one is a caller bug worth naming) and a LIVE run binding.
+    Refuses typed — never silently — on the guard :meth:`retire` carries: a
+    LIVE run binding.
     A working agent is never archived; the pull accounts it as held and
     re-decides next pass, the "keep the baseline, retry" repair
     ``_reconcile_actors`` already uses one lane over.
     """
 
     instance = store.get(persona_instance_id)
-    if is_canonical_persona_channel(instance):
-        raise PersonaInstanceRetireError(
-            "canonical_persona_channel",
-            f"{instance.id} is a canonical persona channel and never replicates",
-            persona_instance_id=instance.id,
-            detail={"persona_id": instance.persona_id},
-        )
     if store._has_live_binding(instance):
         raise PersonaInstanceRetireError(
             "instance_active",

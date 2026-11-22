@@ -13,6 +13,7 @@ from agent_runtime.persona_assignments import (
 )
 from agent_runtime.states import TaskState
 from agent_runtime.store import WorkspaceStore, RealmStore
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def _task(task_id: str, *, goal_id: str | None = None, workspace_id: str | None = None, stage_id: str = "scope") -> Task:
@@ -141,8 +142,8 @@ def test_goal_id_current_stage_and_assignment_grouping(
     isolate_agent_runtime_root, persisted_persona_samples
 ):
     persona = next(item for item in ensure_persisted_personas(load_agent_runtime_config()) if item.id == "neko_supervisor")
-    first = PersonaInstanceStore().ensure_for_persona(persona)
-    second = PersonaInstanceStore().ensure_for_persona(persona)
+    first = mint_hidden_copy(store=PersonaInstanceStore(), persona=persona)
+    second = mint_hidden_copy(store=PersonaInstanceStore(), persona=persona)
     assert first.id == second.id
     assert first.mode in {"chat", "configured"}
 

@@ -43,7 +43,7 @@ PERSONA_ROWS_UNREADABLE = "persona_rows_unreadable"
 # ``worker_sessions/`` directory at all), and ``build_snapshot`` had already
 # been passing a ``workers = []`` literal into the derivation for two waves — so
 # on the live tree the "carries" branch could never be taken and every persona
-# fell through to the configured/idle reset. That reset is now unconditional in
-# ``PersonaInstanceStore.ensure_for_personas``; the 2026-07-08 regression this
+# fell through to the configured/idle reset. That reset left with
+# ``PersonaInstanceStore.ensure_for_personas`` (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT); the 2026-07-08 regression this
 # predicate was written to fix (dead workers re-stamping a settled mission onto
 # the instance) cannot recur, because there are no worker rows to re-stamp from.

@@ -252,19 +252,22 @@ def test_a_realm_with_no_instance_backed_desks_publishes_no_instance_artifact():
     assert _published_instance_document(realm_id) is None
 
 
-def test_a_canonical_row_is_never_published_even_when_a_desk_names_it():
-    """Replication is scoped to placement-backed rows (plan §2). Canonical
-    channels are derived locally on every machine from a persona id that already
-    travels; publishing one would be this member asserting a row the receiver's
-    own ``ensure_for_personas`` already owns."""
+def test_a_machine_local_row_is_never_published_even_when_a_desk_names_it():
+    """Replication is scoped to placement-backed rows (plan §2). A hidden copy the
+    migration adopted (stamped ``adopted_from_global``) stays machine-local, as the
+    hidden copy it was (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT)."""
 
     realm_id, ws = _make_realm_workspace()
     OfficeStore().upsert_actor(ws, _payload("dev", instance_id="personainst_dev"))
-    _mint_instance("personainst_dev", persona_id="dev")
+    row = _mint_instance("personainst_dev", persona_id="dev", adopted_from_global="2026-11-21")
 
     resolved = _resolve_artifacts_with_projection(realm_id)
-    assert resolved.instance_projection.skipped_canonical == ["personainst_dev"]
+    # The office walk already leaves the desk's machine-local instance out (``publish_scans``) ...
     assert resolved.instance_projection.instances == {}
+    # ... and the projection refuses it on its own too, should a caller hand it the id.
+    from agent_runtime.persona_instance_sync import project_persona_instances
+
+    assert project_persona_instances(["personainst_dev"], records={row.id: row}).skipped_local == ["personainst_dev"]
     assert _published_instance_document(realm_id) is None
 
 

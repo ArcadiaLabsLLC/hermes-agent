@@ -533,17 +533,14 @@ def _census_unplaced(
 ) -> list[dict[str, Any]]:
     """Live placement-backed rows no live actor references, filed per workspace too."""
 
-    from ..persona_assignments import is_canonical_persona_channel
-
     unplaced: list[dict[str, Any]] = []
     for key, row in sorted(live_rows.items()):
         if key in referenced:
             continue
-        if is_canonical_persona_channel(row):
-            # The persona's global operator channel is not a placement and was
-            # never meant to hold one. Counting it would report one "unplaced"
-            # row per persona on every healthy runtime — a finding the operator
-            # can never clear, which is how a census stops being read.
+        if not row.workspace_id:
+            # A row standing in no workspace (a profile's own channel, a held hidden copy, an
+            # unseated agent's instance) is not a placement and was never meant to hold a desk.
+            # Counting it would report a finding the operator can never clear.
             continue
         entry = {
             "persona_instance_id": key,
@@ -643,9 +640,8 @@ def _placement_census_report(_context: _DoctorProbeContext | None = None) -> dic
 
     * ``placed`` — a LIVE instance-keyed actor whose ``persona_instance_id``
       names a LIVE roster row. Both halves present is the only whole shape.
-    * ``unplaced_rows`` — a live placement-backed row (i.e. NOT a canonical
-      persona channel, per ``is_canonical_persona_channel``) that no live actor
-      references. Reported as a ``notice`` and not repaired here: a row with no
+    * ``unplaced_rows`` — a live placement-backed row (one standing in a
+      workspace) that no live actor references. Reported as a ``notice`` and not repaired here: a row with no
       workspace is never placed, and one holding a workspace is seated by the
       operator's ``persona seat-unseated`` (every adding door seats since
       2026-11-20).

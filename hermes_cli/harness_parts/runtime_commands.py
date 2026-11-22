@@ -181,23 +181,24 @@ def _cmd_persona_instance_reconcile(args) -> int:
             f"graph_steering_settled={data.get('graph_departed_steering_count', 0)} "
             f"task_bound_normalised={data.get('task_bound_normalised_count', 0)} "
             f"task_bound_archived={data.get('task_bound_archived_count', 0)} "
-            f"canonical_scope_cleared={data.get('canonical_scope_cleared_count', 0)} "
             f"adopted={data.get('adopted_count', 0)} "
+            f"hidden_copies_archived={data.get('hidden_copies_archived_count', 0)} "
+            f"hidden_copies_held={data.get('hidden_copies_held_count', 0)} "
+            f"unstamped_hidden_copies={len(data.get('unstamped_hidden_copies') or [])} "
             f"aliases={data['alias_count']}"
         )
-        # Phase 7: every runtime-global row and its fate (adopted / would_adopt, skipped with its
-        # reason, left_empty for the mint row to archive).
+        # Phase 7, the hidden-copy census: every ``personainst_<persona>`` row and its fate (adopted,
+        # archived with its saved chats, held machine-local with its reason).
         for item in data.get("adoption") or []:
             reason = f" ({item['reason']})" if item.get("reason") else ""
+            chats = f" saved_chats={item['saved_chats']}" if "saved_chats" in item else ""
+            head = " per_profile_head" if item.get("per_profile_head") else ""
             print(f"  - {item['fate']}{reason}: {item['persona_instance_id']} "
-                  f"holds={','.join(item['holds']) or '-'}")
+                  f"holds={','.join(item['holds']) or '-'}{chats}{head}")
         for item in data["actions"]:
             print(f"  - {item['action']}: {item['from_id']} -> {item['to_id']}")
         for item in [*(data.get("task_bound_normalised") or []), *(data.get("task_bound_archived") or [])]:
             print(f"  - {item['action']}: {item['persona_instance_id']} (task={item['current_task_id']})")
-        for item in data.get("canonical_scope_cleared") or []:
-            print(f"  - canonical_scope_cleared: {item['persona_instance_id']} "
-                  f"(workspace={item['workspace_id']}, realm={item['realm_id']})")
         for item in data.get("pruned") or []:
             print(f"  - pruned ({item['reason']}): {item['persona_instance_id']}")
         for item in data.get("held") or []:

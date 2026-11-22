@@ -16,7 +16,7 @@ from agent_runtime.store import WorkspaceStore
 from agent_runtime.work import rpc, service
 from agent_runtime.work.model import Reason, WorkRefused, WorkScope
 from agent_runtime.work_store.grammar import WORK_ID
-from tests.agent_runtime.persona_instance_mint import mint_free_floating
+from tests.agent_runtime.persona_instance_mint import mint_free_floating, mint_placed_instance
 
 
 @pytest.fixture
@@ -481,7 +481,9 @@ def test_an_agents_todo_is_a_view_over_every_board_it_can_see(work):
     ``service._agent_reach`` -> the persona-assigned row leaves the view."""
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
-    alice, bob = mint_free_floating("alice"), mint_free_floating("bob")
+    # Placed in the workspace: an instance in no workspace sees the personal board only (below).
+    alice = mint_placed_instance("alice", placement="agent_1", workspace_id=work.ws)
+    bob = mint_placed_instance("bob", placement="agent_1", workspace_id=work.ws)
     personal = _personal(work)
     on_ws = start(work, "a1", title="Workspace task", assignee=f"persona:{alice.id}")["task"]["id"]
     to_persona = start(work, "a2", title="Any alice", assignee=f"persona:{alice.persona_id}")["task"]["id"]
@@ -496,8 +498,7 @@ def test_an_agents_todo_is_a_view_over_every_board_it_can_see(work):
            for row in queue["rows"]}
     assert ids == {on_ws, to_persona, mine}
     assert {owner["kind"] for owner in view["owners"]} == {"workspace", "personal"}
-    # Placed in ANOTHER workspace, an instance sees only that workspace's boards and the personal one. A
-    # placement, not the canonical channel: a canonical carries no workspace (RT-GLOBAL-SINGLETON-CANONICAL).
+    # Placed in ANOTHER workspace, an instance sees only that workspace's boards and the personal one.
     elsewhere = PersonaInstanceStore().add_instance(
         persona_id=alice.persona_id, placement_id=f"{alice.persona_id}_agent_2", workspace_id="ws_elsewhere")
     placed = service.execute("list", {**work.scope, "kind": "agent", "assignee": f"persona:{elsewhere.id}"},
@@ -644,3 +645,14 @@ def test_a_refused_claim_leaves_the_holders_mode_as_it_was(work):
     with pytest.raises(WorkRefused):
         call(work, "claim", request_id="c2", who=f"persona:{bob.id}", **where)
     assert until_done.kept(work.ws, ref, f"persona:{alice.id}") == "until_done"
+
+
+def test_an_instance_in_no_workspace_sees_only_the_personal_board(work):
+    """RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT: the runtime-global reach over every owner's
+    boards went with the hidden copies. Kill-mutation: let ``workspace is None`` see every owner again in
+    ``service._agent_reach`` -> the workspace owner joins the view, red."""
+
+    loose = mint_free_floating("alice")  # an old hidden copy, standing in no workspace
+    start(work, "l1", title="On the desk", assignee=f"persona:{loose.id}")
+    view = service.execute("list", {**work.scope, "kind": "agent", "assignee": f"persona:{loose.id}"}, STDIO_OWNER)
+    assert [owner["kind"] for owner in view["owners"]] == ["personal"]

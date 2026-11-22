@@ -180,8 +180,7 @@ def _mission_chat_target_decision(
     """
     from agent_runtime import target_policy, workspace_scope
     from agent_runtime.persona_assignments import (
-        is_canonical_persona_channel,
-        sender_scope_workspace_id,
+            sender_scope_workspace_id,
     )
 
     is_profile = normalized_persona.startswith("profile_")
@@ -206,7 +205,6 @@ def _mission_chat_target_decision(
             if getattr(instance, "persona_id", None) == normalized_persona
         ),
         scope_workspace_id=scope_workspace_id,
-        is_canonical=is_canonical_persona_channel,
     )
     candidates = sorted(
         (
@@ -248,8 +246,7 @@ def _mission_chat_bare_persona_target(
     """
     from agent_runtime import workspace_scope
     from agent_runtime.persona_assignments import (
-        is_canonical_persona_channel,
-        sender_scope_workspace_id,
+            sender_scope_workspace_id,
     )
 
     scope_workspace_id = sender_scope_workspace_id(
@@ -262,11 +259,8 @@ def _mission_chat_bare_persona_target(
             if getattr(instance, "persona_id", None) == normalized_persona
         ),
         scope_workspace_id=scope_workspace_id,
-        is_canonical=is_canonical_persona_channel,
     )
-    placements = [
-        instance for instance in addressable if not is_canonical_persona_channel(instance)
-    ]
+    placements = list(addressable)
     if len(placements) == 1:
         return placements[0].id
     return None

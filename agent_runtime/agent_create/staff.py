@@ -132,15 +132,13 @@ def idle_instances(
     from .. import paths
     from ..gateway_identity import read_install_identity
     from ..mission_chat_turns import last_turn_started_by_instance
-    from ..persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
+    from ..persona_assignments import PersonaInstanceStore
 
     store = PersonaInstanceStore()
     candidates = [
         instance
         for instance in store.list_all()
-        if instance.persona_id == persona_id
-        and instance.workspace_id == workspace_id
-        and not is_canonical_persona_channel(instance)
+        if instance.persona_id == persona_id and instance.workspace_id == workspace_id
     ]
     if not candidates:
         return []

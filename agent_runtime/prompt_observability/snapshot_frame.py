@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from ..persona_assignments import (
-    is_canonical_persona_channel,
     safe_assignment_text,
     safe_assignment_token,
 )
@@ -146,7 +145,6 @@ class SnapshotFrame:
             scoped_roster = workspace_scope.addressable_roster(
                 self.roster,
                 scope_workspace_id=scope_workspace_id,
-                is_canonical=is_canonical_persona_channel,
             )
             return resolve_situational_hud(
                 instance,

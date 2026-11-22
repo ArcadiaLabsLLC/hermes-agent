@@ -252,11 +252,12 @@ REFUSAL_INVALID_INSTANCE_ID = "invalid_instance_id"
 #: ``active_run_id``, ``current_task_id``, ``current_assignment_id``,
 #: ``goal_id``) lands here.
 REFUSAL_UNEXPECTED_KEY = "unexpected_key"
-#: A peer published a CANONICAL channel row. Canonical rows are derived locally
-#: on every machine from a persona id that already travels, so a peer writing
-#: one is either an older id scheme or an attack. Replication is scoped to
-#: placement-backed rows (plan §2), which is what keeps the queued
-#: global-singleton redesign un-blocking.
+#: A peer published a row under a persona's hidden-copy id ``personainst_<persona>``.
+#: Nothing mints one any more, and every one this machine kept is adopted or held
+#: machine-local (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT), so a peer
+#: writing one is an older id scheme or an attack, and taking it would collide with
+#: a machine-local row here. An id-shape check of a PULLED body, not the retired
+#: canonical predicate: no local row is classified by it.
 REFUSAL_CANONICAL_CHANNEL = "canonical_channel_not_replicable"
 #: A ``steered_by`` entry that is not instance-shaped — the same guard
 #: ``__post_init__`` spends to keep a principal from rendering as a parent edge.

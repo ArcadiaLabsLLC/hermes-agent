@@ -44,7 +44,7 @@ def _addressable(requested_by_session):
     from agent_runtime import workspace_scope
     from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
     from agent_runtime.persona_assignments import (
-        PersonaInstanceStore, is_canonical_persona_channel, sender_scope_workspace_id,
+        PersonaInstanceStore, sender_scope_workspace_id,
     )
 
     cfg = load_agent_runtime_config()  # the CLI lane's own read (``chat_turn_message``): one answer
@@ -52,11 +52,10 @@ def _addressable(requested_by_session):
     store = PersonaInstanceStore()
     # Reading the roster writes no row (RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED):
     # it used to mint the scope's hidden copies as a side effect.
-    # MUTATION: call store.ensure_for_personas(personas) here and test_reading_the_addressable_roster_writes_no_row reddens.
+    # MUTATION: write a row here (``store.update``) and test_reading_the_addressable_roster_writes_no_row reddens.
     roster = workspace_scope.addressable_roster(
         store.list_all(),
         scope_workspace_id=sender_scope_workspace_id(requested_by_session, instance_store=store),
-        is_canonical=is_canonical_persona_channel,
     )
     return cfg, personas, [instance for instance in roster if getattr(instance, "id", None)]
 

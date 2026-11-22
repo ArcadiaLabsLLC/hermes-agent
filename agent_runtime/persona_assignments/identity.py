@@ -31,12 +31,10 @@ __all__ = [
     "chat_session_is_foreign_to_instance",
     "chat_session_owner_instance_id",
     "is_adopted_local_instance",
-    "is_canonical_persona_channel",
     "normalize_persona_id",
     "persona_chat_session_id_for",
     "persona_instance_id_for",
     "persona_instance_id_for_placement",
-    "row_is_canonical_persona_channel",
 ]
 
 
@@ -60,55 +58,14 @@ def persona_instance_id_for_placement(placement_id: str) -> str:
     return f"{PERSONA_INSTANCE_ID_PREFIX}{safe_assignment_token(placement_id) or 'persona'}"
 
 
-def row_is_canonical_persona_channel(instance_id: Any, persona_id: Any, adopted_from_global: Any = None) -> bool:
-    """:func:`is_canonical_persona_channel`, asked of STRINGS (a raw row's fields).
-
-    ``adopted_from_global`` is the row's adoption stamp: a stamped row kept the id
-    ``personainst_<persona>`` but stands in the Default workspace as an ordinary
-    placed instance, so it is not the canonical channel
-    (RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE).
-
-    THE derivation; the typed predicate below delegates to it. A second shape
-    was needed by the reconciler's unplaced-instance classifier, which is pure
-    over ``to_jsonable`` rows and must not re-spell "is this the operator's own
-    channel" — getting that wrong in either direction reaps a chat channel or
-    spares a ghost, and two spellings of one question are free to drift into
-    disagreeing about which."""
-    token = safe_assignment_token(persona_id)
-    if not token:
-        return False
-    # MUTATION: drop this test and test_an_adopted_row_is_not_the_canonical_channel reddens.
-    if adopted_from_global:
-        return False
-    return str(instance_id or "").strip() == persona_instance_id_for(str(persona_id))
-
-
-def is_canonical_persona_channel(instance: PersonaInstance) -> bool:
-    """True when a row IS the persona/profile's canonical operator channel.
-
-    The canonical channel is the global-singleton id
-    ``persona_instance_id_for(persona_id)`` (e.g. ``personainst_qa`` for persona
-    ``qa``, ``personainst_profile_alice`` for ``profile_alice``). A
-    placement-backed or otherwise deliberate instance carries a distinct
-    placement-derived id (``personainst_qa_agent_2``) whose tail is the scene
-    itemId, so it never collapses onto the canonical id — that is exactly the
-    discriminator the retire verb uses to protect the queued global-singleton
-    redesign while ending placement-backed rows.
-
-    NOT an id-SHAPE test, and that is why it survives the class of defect the
-    launcher's archive lane hit on 2026-09-11: it asks whether THIS id is the
-    one the persona's own channel would be minted under, so an instance minted
-    by ``persona instance create`` (``personainst_chara_a2_7b31d0e4``, no
-    ``_agent_`` marker) answers False correctly rather than being mistaken for a
-    channel because its tail looks wrong."""
-    return row_is_canonical_persona_channel(
-        instance.id, instance.persona_id, getattr(instance, "adopted_from_global", None)
-    )
-
-
 def is_adopted_local_instance(instance: Any) -> bool:
-    """True for a row the Default-workspace adoption stamped: machine-local, never
-    published, drifted, rostered to a peer or read by ``peer.thread.read``."""
+    """True for a row the hidden-copy migration stamped (``persona_instance_adoption``): adopted into
+    the Default workspace, or held there with no workspace. Machine-local: never published, drifted,
+    rostered to a peer or read by ``peer.thread.read``.
+
+    RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT deleted the canonical predicate
+    (``is_canonical_persona_channel``): nothing mints a hidden copy, and every row the migration
+    found carries this stamp instead, so no special instance is left for an operation to know about."""
 
     return bool(getattr(instance, "adopted_from_global", None))
 
@@ -206,18 +163,27 @@ def chat_session_is_foreign_to_instance(session_id: str | None, instance_id: str
     return bool(target) and owner != target
 
 
-def canonical_chat_instance_id(persona_id: str, persona_instance_id: str | None = None) -> str:
-    """Canonical persona-instance id a chat lane threads onto.
+def canonical_chat_instance_id(persona_id: str, persona_instance_id: str | None = None) -> str | None:
+    """The persona-instance id a chat lane threads onto, or ``None`` for a bare agent.
 
     One derivation shared by every chat-session resolver here (default resolve,
-    non-minting resolve, mint) so an instance-shaped target and a bare persona id
-    always land on the SAME instance row — no variant rows, no parallel scheme.
+    non-minting resolve, mint), so an instance-shaped target always lands on the
+    SAME row. A bare persona id names no instance: an agent's template has no
+    hidden copy to fall back on (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT;
+    a bare open or send is placed or refused before it reaches here). The one
+    exception is a ``profile_<name>`` persona, whose own channel
+    ``personainst_profile_<name>`` it still names (a profile persona is not
+    placeable: the send row's documented edge).
     """
-    return (
-        canonical_persona_instance_id(persona_instance_id, persona_id=persona_id)
-        if persona_instance_id
-        else None
-    ) or persona_instance_id_for(persona_id)
+    if persona_instance_id:
+        resolved = canonical_persona_instance_id(persona_instance_id, persona_id=persona_id)
+        if resolved:
+            return resolved
+    # MUTATION: answer persona_instance_id_for for every persona and
+    # test_a_bare_agent_names_no_hidden_copy reddens.
+    if str(persona_id or "").startswith("profile_"):
+        return persona_instance_id_for(persona_id)
+    return None
 
 
 def _display_name_for_template(profile: str) -> str:

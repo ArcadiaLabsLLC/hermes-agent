@@ -19,6 +19,7 @@ from agent_runtime.progress import ChatProgressSink
 from agent_runtime.snapshot.boards import board_card_row
 from agent_runtime.stream.frames import delta_frame
 from tests.agent_runtime.persona_samples import sample_personas
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 FAKE_HF = "hf_" + "QaF" + "FAKE" * 4 + "0000"
 FAKE_GITLAB = "glpat-" + "FAKEfake" + "x" * 12
@@ -37,8 +38,8 @@ def _persona(persona_id: str):
 
 def _child_returns(summary: str, session_id: str) -> None:
     store = PersonaInstanceStore()
-    parent = store.ensure_for_persona(_persona("neko_supervisor"))
-    child = store.ensure_for_persona(_persona("dev"))
+    parent = mint_hidden_copy(store=store, persona=_persona("neko_supervisor"))
+    child = mint_hidden_copy(store=store, persona=_persona("dev"))
     child = store.set_parents(child.id, [parent.id], goal_id="task_bare_key")
     return_summary_to_parent_session(child.id, parent_session_id=session_id, summary=summary)
 

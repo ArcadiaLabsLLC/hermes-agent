@@ -72,8 +72,9 @@ def test_a_setting_for_an_id_no_record_holds_lists_no_agent_and_mints_no_channel
 def test_an_entry_with_a_name_and_role_and_no_record_still_lists(namespace):
     namespace({UNUSED: {"role": "custom_helper", "display_name": "Unused Helper"}})
 
-    assert UNUSED in _directory_ids()
-    assert UNUSED in _instance_persona_ids()
+    # A template, not an agent: it lists as a persona to place, and no hidden copy is minted for it
+    # (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT), so the instance directory holds nothing yet.
+    assert UNUSED not in _instance_persona_ids()
     listed = {persona.id: persona for persona in ensure_persisted_personas()}
     assert (listed[UNUSED].display_name, listed[UNUSED].role) == ("Unused Helper", "custom_helper")
 

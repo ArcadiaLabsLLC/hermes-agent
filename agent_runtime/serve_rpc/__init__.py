@@ -45,6 +45,8 @@ workspace_slots          lanes   ``runtime.workspace.slots.*`` / ``.slot.*`` (re
 work                     lanes   ``runtime.work.cancel`` / ``.restart`` (Stop and Restart a row)
 media                    lanes   ``runtime.media.index/get``
 project_files            lanes   ``runtime.files.status`` / ``.diff`` (git on this device's folder; local console)
+agent_files              lanes   ``runtime.agent.files.tree/read/grep`` (an agent's roots as one
+                                 confined tree; ``agent_runtime/project_files/agent_tree.py``)
 peer                     lanes   the ``peer.*`` verbs
 gateway_peers            lanes   ``runtime.gateway.peers.*``
 gateway_actions          lanes   ``runtime.gateway.id`` / ``.introduce`` / ``.peers.join`` /
@@ -134,6 +136,7 @@ from agent_runtime.serve_rpc import (
     work,
     media,
     project_files,
+    agent_files,
     peer,
     gateway_peers,
     gateway_actions,

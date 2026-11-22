@@ -8,6 +8,7 @@ from agent_runtime.store import AgentStore, WorkspaceStore
 from agent_runtime.states import WorkerSessionState
 from hermes_cli import profiles
 from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agent, PERSONA
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def call(method):
@@ -24,7 +25,7 @@ def test_native_directory_keeps_authored_canonical_and_placed_identity(placed_ag
     authored.hermes_profile = "alice"
     personas.save(authored)
     store = PersonaInstanceStore()
-    canonical = store.ensure_for_persona(authored)
+    canonical = mint_hidden_copy(store=store, persona=authored)
     store.update(replace(canonical, state=WorkerSessionState.RUNNING, token_budget_used=42))
     before = {row.id: row for row in store.list_all()}
     first = call("runtime.agent.directory")["result"]
@@ -34,7 +35,7 @@ def test_native_directory_keeps_authored_canonical_and_placed_identity(placed_ag
     assert {row["persona_id"] for row in first["agents"]} == {PERSONA}
     assert {row["profile"] for row in first["agents"]} == {"alice"}
     assert {row["profile_home"] for row in first["agents"]} == {str(profile)}
-    assert {row["canonical"] for row in first["agents"]} == {False, True}
+    assert {row["canonical"] for row in first["agents"]} == {False}  # no row is a hidden copy any more
     assert {row.id: row for row in store.list_all()} == before
     assert {row.id for row in personas.list_all()} == {PERSONA}
 

@@ -566,7 +566,6 @@ def _persona_instance_store_drift_items(
     from ..persona_assignments import (
         PersonaInstanceStore,
         is_adopted_local_instance,
-        is_canonical_persona_channel,
     )
     from ..persona_instance_sync import (
         instance_baseline_key,
@@ -594,8 +593,6 @@ def _persona_instance_store_drift_items(
     by_id = {instance.id: instance for instance in scan.instances}
 
     for instance in scan.instances:
-        if is_canonical_persona_channel(instance):
-            continue
         if is_adopted_local_instance(instance):  # machine-local, as the hidden copy it was
             continue
         if instance.workspace_id not in workspace_ids:

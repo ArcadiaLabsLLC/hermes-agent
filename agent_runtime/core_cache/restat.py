@@ -4,7 +4,6 @@ fingerprint on post-build reality before it is written back.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from agent_runtime.core_cache.vocabulary import _DB_SIBLINGS, logger
@@ -23,7 +22,6 @@ __layer__ = "stores"
 
 __all__ = [
     "SELF_PERTURBED_LIVE_EVENTS",
-    "SELF_PERTURBED_PERSONA_INSTANCES",
     "SELF_PERTURBED_SESSION_DB",
     "_RESTAT_CLEAN",
     "_RESTAT_REFRESHED",
@@ -47,10 +45,11 @@ __all__ = [
 #: and, on the evidence, unavoidable:
 #:
 #: **The build is not a pure reader, so "the inputs as they were before the
-#: build" is not a state any later process can ever observe.** Five writes are
-#: proven (2026-08-22 reader audit): ``ensure_for_personas`` materializing or
-#: re-minting persona-instance rows (``persona_assignments.py``), its drift
-#: rewrites and stale-binding resets, the build's OWN SessionDB close draining
+#: build" is not a state any later process can ever observe.** Five writes were
+#: proven (2026-08-22 reader audit); the three persona-instance ones
+#: (``ensure_for_personas`` minting the hidden copies, its drift rewrites and
+#: stale-binding resets) left the build with the mint
+#: (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT), leaving the build's OWN SessionDB close draining
 #: token deltas and running a TRUNCATE WAL checkpoint
 #: (``snapshot.py::_projection_chat_session_db`` -> ``hermes_state.SessionDB.close``),
 #: and the stream scope fingerprint appending ``state.reconciled`` to the live
@@ -87,16 +86,13 @@ __all__ = [
 #: the re-stat cannot tell the build's own write from a concurrent one — an
 #: operator event appended to the live slice while the build ran adopts a fresh
 #: triple exactly as the build's own ``state.reconciled`` append would. So this
-#: accepts a bounded staleness window over THREE named input classes, in exchange
+#: accepts a bounded staleness window over TWO named input classes, in exchange
 #: for a lane that can converge at all. The bound is what makes it acceptable:
 #: the set is closed and enumerated below rather than open-ended, every member is
 #: an input the build provably moves on every pass, the shadow-validation window
 #: still compares a served core against a rebuilt one, and the alternative is not
 #: a safer cache — it is no cache, plus a megabyte write per build.
 SELF_PERTURBED_SESSION_DB = "session_db"
-
-
-SELF_PERTURBED_PERSONA_INSTANCES = "persona_instances"
 
 
 SELF_PERTURBED_LIVE_EVENTS = "live_events_slice"
@@ -126,13 +122,11 @@ def _self_perturbed_inputs() -> _SelfPerturbedInputs | None:
       constant. ``processes.json`` is deliberately NOT here: a background process
       starting or exiting rewrites it, and that is a FOREIGN write the next
       consult must still demote on.
-    * :data:`SELF_PERTURBED_PERSONA_INSTANCES` — ``snapshot`` calls
-      ``PersonaInstanceStore.ensure_for_personas`` on every build, which
-      materializes a missing row, re-mints an unreadable one (IC-3 narrowed that
-      arm), rewrites a drifted display name/profile, and resets a stale execution
-      binding with a fresh ``updated_at``. Every one of those is an
-      ``atomic_json_write`` into ``paths.persona_instances_dir()``, so the class
-      is the TREE: rows appear as well as move.
+    * (retired) the persona-instances tree: ``snapshot`` called
+      ``PersonaInstanceStore.ensure_for_personas`` on every build, which minted
+      each agent's hidden copy and rewrote rows. Nothing in a build writes an
+      instance row since RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT, so a
+      row that moves during a build is a FOREIGN write and demotes like one.
     * :data:`SELF_PERTURBED_LIVE_EVENTS` — a DB opened during the build flips the
       stream's scope fingerprint and appends a synthetic ``state.reconciled``
       event (``stream.py``), which grows the live slice the build already stat'd.
@@ -146,7 +140,6 @@ def _self_perturbed_inputs() -> _SelfPerturbedInputs | None:
     trees: list[str] = []
     try:
         from .. import event_rotation as _event_rotation
-        from .. import paths as _paths
         from ..chat_session_scope import chat_session_db_path
         from ..running_work.ownership import running_work_store_paths
         from ..running_work.vocabulary import _STATE_DB_FILENAME
@@ -164,9 +157,8 @@ def _self_perturbed_inputs() -> _SelfPerturbedInputs | None:
         for db_path in db_paths:
             for suffix in _DB_SIBLINGS:
                 files.add(f"{db_path}{suffix}")
-        # NOT pinned, like closure classes 1 and 7: both resolve off the store
-        # root rather than following the profile home.
-        trees.append(f"{_paths.persona_instances_dir()}{os.sep}")
+        # NOT pinned, like closure class 7: it resolves off the store root rather
+        # than following the profile home.
         files.add(str(_event_rotation.live_path()))
     except Exception:
         logger.debug("the self-perturbation set could not be resolved", exc_info=True)

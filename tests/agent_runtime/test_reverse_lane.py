@@ -275,6 +275,30 @@ def test_the_computer_reaches_the_phones_engine_and_look_reads_but_never_sends(p
         assert status["dialing"][0]["computer_id"] == credential.computer_id
 
 
+def test_the_computer_reads_the_phone_agents_files_as_one_tree_at_look(phone, computer, tmp_path):
+    """Row ``MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE``: the look grant
+    browses, reads and searches the phone agent's roots over the lane, and nothing outside them.
+
+    MUTATION (``COMPUTER_LOOK_METHOD_ALLOWLIST``): leave ``runtime.agent.files.*`` out, and every
+    call here is refused ``scope_denied``.
+    """
+
+    from tests.agent_runtime.test_agent_files import INSTANCE, _agent, _folder
+
+    project = _folder(tmp_path, "notes", {"todo.md": "buy milk\n", "sub/plan.md": "phone plan\n"})
+    _agent(tmp_path, {"notes": project})
+    with _driven(phone, computer) as (client, *_):
+        tree = _rpc(client, "runtime.agent.files.tree", {"persona_instance_id": INSTANCE, "depth": 3})
+        assert [e["path"] for e in tree["result"]["entries"]] == [
+            "notes", "notes/sub", "notes/sub/plan.md", "notes/todo.md"], tree
+        read = _rpc(client, "runtime.agent.files.read", {"persona_instance_id": INSTANCE, "path": "notes/todo.md"})
+        assert read["result"]["content"] == "buy milk\n", read
+        grep = _rpc(client, "runtime.agent.files.grep", {"persona_instance_id": INSTANCE, "pattern": "plan"})
+        assert [m["path"] for m in grep["result"]["matches"]] == ["notes/sub/plan.md"], grep
+        outside = _rpc(client, "runtime.agent.files.read", {"persona_instance_id": INSTANCE, "path": "/etc/hostname"})
+        assert outside["error"]["data"]["reason"] == "invalid_path", outside
+
+
 NEVER_SERVED = (
     # The review's three, by name.
     "runtime.provider.signin.begin",

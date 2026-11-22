@@ -217,8 +217,8 @@ def _apply_chat_fields(
         if instance.display_name != value:
             instance.display_name = value
             changed = True
-        # The operator named it: the persona's own name no longer syncs over it
-        # (``PersonaInstanceStore.ensure_for_persona``).
+        # The operator named it. (The persona's own name synced only onto the hidden copy, whose
+        # sync left with the mint, RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT; the flag stays a record.)
         if not instance.display_name_custom:
             instance.display_name_custom = True
             changed = True

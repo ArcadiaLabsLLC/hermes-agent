@@ -390,6 +390,11 @@ COMPUTER_LOOK_METHOD_ALLOWLIST: frozenset[str] = frozenset(
         "runtime.character.portrait",
         "runtime.characters.thumb",
         "runtime.profiles.avatar",
+        # The agent's files as one tree (MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE):
+        # reads only, the agent's enumerated roots only, 5 MiB a read.
+        "runtime.agent.files.tree",
+        "runtime.agent.files.read",
+        "runtime.agent.files.grep",
     }
 )
 

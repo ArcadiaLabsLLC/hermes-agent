@@ -31,6 +31,7 @@ from hermes_state import SessionDB
 from tests.agent_runtime.legacy_conversation_seed import seed_group, seed_route, seed_transcript
 from tests.agent_runtime.office_seed import seed_workspace_record
 from tests.agent_runtime.test_discussion_runtime import room_timings, wait_until
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 pytestmark = pytest.mark.timeout(90)
 
@@ -59,7 +60,7 @@ def adoption(isolate_agent_runtime_root, tmp_path, monkeypatch):
         folder = home / "profiles" / profile
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "config.yaml").write_text("model: {}\n", encoding="utf-8")
-        agents[profile] = PersonaInstanceStore().ensure_for_persona(_persona(profile))
+        agents[profile] = mint_hidden_copy(store=PersonaInstanceStore(), persona=_persona(profile))
     conversations = LegacyRoutes(root, install, profile_home=lambda p: home / "profiles" / p)
     native_calls = []
 
@@ -255,7 +256,7 @@ def test_a_saved_group_with_no_single_agent_waits_paused_and_whole(adoption):
     with several -> red (the group is adopted onto a guessed agent)."""
     a = adoption
     saved_group(a, phase="open")
-    PersonaInstanceStore().ensure_for_persona(_persona("a", "migration_a_copy"))
+    mint_hidden_copy(store=PersonaInstanceStore(), persona=_persona("a", "migration_a_copy"))
     before = a.service.view(a.run["workspace_id"], a.run["run_id"])
     restart(a)
     waiting = a.service.runs.get(a.run["run_id"])

@@ -11,8 +11,10 @@ both read a device's project folders directly, held to ONE rule spec owned by Et
 Entry points: ``reader.tree``, ``reader.read``, ``reader.grep``, the git verbs
 ``changes.status`` and ``changes.diff`` (row
 ``MC-PHONE-FILES-GIT-STATUS-AND-DIFF-ON-A-PHONE-PROJECT-FOLDER``, over the realm-sync git
-port) and ``rules.ProjectFileRefusal``. Remote serving is added by
-``MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE``, and the phone's
+port, served to the device's own Eternia as ``runtime.files.*``) and
+``rules.ProjectFileRefusal``; remote serving is
+``agent_tree`` (row ``MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE``: an
+agent's roots as one tree, over ``runtime.agent.files.*`` in ``serve_rpc/agent_files.py``); and the phone's
 file tools bind here (``MC-PHONE-FILES-A-PHONE-AGENT-READS-AND-WRITES-ITS-PROJECT-FILES``).
 ``media_handles.py`` stays the chat-media lane.
 
@@ -27,6 +29,7 @@ ignore      the walk's skip rules: .git, the skip list, the root .gitignore subs
 replies     the pure halves of the verbs: binary probe, strict text, pages, grep lines
 reader      the I/O: confinement, the walk, the three verbs
 changes     status and diff on a git root, through realm_sync's git port
+agent_tree  an agent's roots, enumerated here, as one tree (the remote verbs' reader)
 ==========  =====================================================================
 """
 

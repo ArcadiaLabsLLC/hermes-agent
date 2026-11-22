@@ -17,7 +17,7 @@ from agent_runtime.discussions.room_definition import RoomSpec
 from agent_runtime.discussions.run_store import RunStore
 from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.mission_chat_turns import mission_chat_turn_record, persist_mission_chat_turn
-from agent_runtime.persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
+from agent_runtime.persona_assignments import PersonaInstanceStore
 from tests.agent_runtime.test_native_discussion_room import spec
 from tests.agent_runtime.test_discussion_runtime import command, engine, settled, wait_until  # noqa: F401
 from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agent, PERSONA  # noqa: F401
@@ -38,11 +38,11 @@ def turn(instance_id, key):
 
 
 def instances():
-    directory()  # the directory materializes the persona's canonical instance
-    rows = PersonaInstanceStore().list_all()
-    placed = next(row.id for row in rows if not is_canonical_persona_channel(row))
-    canonical = next(row.id for row in rows if is_canonical_persona_channel(row))
-    return placed, canonical
+    """The fixture's placement and a second instance of the same agent (the directory mints no hidden copy)."""
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    placed = next(row.id for row in PersonaInstanceStore().list_all())
+    return placed, mint_placed_instance(PERSONA, placement="second").id
 
 
 def test_last_used_is_the_newest_turn_start_on_that_instance(placed_agent):

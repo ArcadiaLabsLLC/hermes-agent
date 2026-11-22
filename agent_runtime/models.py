@@ -568,17 +568,17 @@ class PersonaInstance:
     chat_head_kind: str | None = None
     # RT-PERSONA-ENSURE-REVERTS-INSTANCE-RENAME: True once the operator named this
     # instance (``update_profile(display_name=...)``, the launcher's Edit profile).
-    # ``PersonaInstanceStore.ensure_for_persona`` syncs the persona's own name onto
-    # the canonical row only while this is False, so a rename survives every
-    # snapshot build and a persona renamed in config still renames an instance
-    # nobody named. Local-only: an older member's pull door refuses unknown keys.
+    # ``PersonaInstanceStore.ensure_for_persona`` synced the persona's own name onto
+    # the hidden copy only while this was False; the sync left with the mint
+    # (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT), and the flag stays a record
+    # of the operator's rename. Local-only: an older member's pull door refuses unknown keys.
     display_name_custom: bool = False
     # RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE: the date
     # (ISO) a runtime-global ``personainst_<persona>`` row holding something was adopted into
-    # the local Default workspace, keeping its id (``persona_instance_adoption``). A stamped
-    # row is an ordinary placed instance (``is_canonical_persona_channel`` answers False) that
-    # stays machine-local: realm publish, drift, the peer roster and ``peer.thread.read`` skip
-    # it, as they skipped the hidden copy it was. Local-only: it never travels.
+    # the local Default workspace, keeping its id (``persona_instance_adoption``), or held there
+    # with no workspace when it could not be placed (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT).
+    # A stamped row stays machine-local: realm publish, drift, the peer roster and
+    # ``peer.thread.read`` skip it, as they skipped the hidden copy it was. Local-only: it never travels.
     adopted_from_global: str | None = None
     # Repo slots (build plan §3.3, OWNER 2026-10-04): the subset of this
     # instance's workspace's declared slots it works in — the AUTHORITY the
@@ -611,8 +611,8 @@ class PersonaInstance:
     slot_context_custom: dict[str, str] = field(default_factory=dict)
     # S70 (contract 54) removed ``context_receipt_id`` / ``compression_receipt_id``
     # / ``tool_budget_used`` / ``watchdog_warning_count`` from this record. Their
-    # only writers died with the worker/goal lanes; ``ensure_for_personas`` was
-    # left resetting values nothing could set. ``token_budget_used`` and
+    # only writers died with the worker/goal lanes; ``ensure_for_personas`` (since
+    # removed) was left resetting values nothing could set. ``token_budget_used`` and
     # ``last_heartbeat_at`` are equally writer-less but STAY: both still have live
     # readers (the Launcher's token-total fallback and its roster-recency /
     # gateway-frame lanes; the orphan classifier's heartbeat hold), so retiring

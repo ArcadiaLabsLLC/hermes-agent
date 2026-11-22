@@ -97,8 +97,7 @@ def read_turn_sections(
     then narrows to the root (``only_session_ids``, plan h-turn1 §2 C0.3), and
     the channel join takes every instance so display names and relationships are
     the core's — so each row equals the row a full core built now would carry.
-    The roster is ``list_all`` (a read), never ``ensure_for_personas`` (it
-    writes). Raises when any read fails; the caller demotes.
+    The roster is ``list_all`` (a read). Raises when any read fails; the caller demotes.
 
     ``evicted_roots`` (present only when non-empty) is the first ``evict`` roots
     the bound omits, in its own rank order: a batch naming ``evict`` roots can

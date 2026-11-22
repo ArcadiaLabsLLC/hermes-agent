@@ -6,8 +6,6 @@ session-presence probe the chat-binding repair reads.
 
 from __future__ import annotations
 
-import threading
-from pathlib import Path
 from typing import Any, NamedTuple
 
 from agent_runtime.models import PersonaInstance
@@ -18,41 +16,8 @@ __layer__ = "stores"
 __all__ = [
     "PersonaInstanceScan",
     "PersonaScanRefusal",
-    "_note_unreadable_instance_row",
     "_session_presence_probe",
-    "_unreadable_instance_lock",
-    "_unreadable_instance_rows",
 ]
-
-
-#: Which persona-instance ROWS this process has already re-minted for being
-#: unreadable (IC-3). Process state, exactly like the read-model cache's own
-#: convergence history, and for the same reason: "we already tried the repair
-#: once" is a fact about this process, so a fresh process is entitled to try
-#: again (the file may since have been fixed, or the disk unstuck).
-#:
-#: Keyed on the row's PATH so two stores — two profiles, two test roots — never
-#: share an entry. It only ever grows within a process, by one entry per corrupt
-#: row, which is bounded by the roster.
-_unreadable_instance_rows: set[str] = set()
-_unreadable_instance_lock = threading.Lock()
-
-
-def _note_unreadable_instance_row(row_path: Path) -> bool:
-    """Record an unreadable row; ``True`` the FIRST time this process sees it.
-
-    The caller re-mints on ``True`` and reports on ``False``. One authority for
-    "is this the first time", because a caller that re-derived the answer would
-    be a second rule for the question the whole arm turns on.
-    """
-
-    key = str(row_path)
-    with _unreadable_instance_lock:
-        if key in _unreadable_instance_rows:
-            return False
-        _unreadable_instance_rows.add(key)
-        return True
-
 
 
 class PersonaInstanceScan(NamedTuple):

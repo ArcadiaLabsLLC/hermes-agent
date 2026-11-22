@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -79,17 +80,22 @@ def _write_lines(caplog) -> list[str]:
 def _seed_store(root):
     """A store with the two shapes the diff has to tell apart, both populated.
 
-    A persona-instance row (the self-perturbed TREE) and a workspace row (an
-    ordinary projection input) — created BEFORE the pre-build key is taken, so
-    each case moves an input the key already recorded rather than adding one.
+    The live events slice (a self-perturbed FILE: a DB opened during the build
+    appends ``state.reconciled`` to it) and a workspace row (an ordinary
+    projection input) — created BEFORE the pre-build key is taken, so each case
+    moves an input the key already recorded rather than adding one. (The
+    persona-instance tree was the example until the build stopped minting rows,
+    RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT.)
     """
+
+    from agent_runtime import event_rotation
 
     (root / "workspaces").mkdir(parents=True, exist_ok=True)
     atomic_json_write(root / "workspaces" / "ws_alpha.json", {"id": "ws_alpha"})
-    instances = paths.persona_instances_dir()
-    instances.mkdir(parents=True, exist_ok=True)
-    atomic_json_write(instances / "inst_probe.json", {"id": "inst_probe", "rev": 1})
-    return instances / "inst_probe.json", root / "workspaces" / "ws_alpha.json"
+    live = Path(event_rotation.live_path())
+    live.parent.mkdir(parents=True, exist_ok=True)
+    live.write_text('{"type": "probe"}\n', encoding="utf-8")
+    return live, root / "workspaces" / "ws_alpha.json"
 
 
 # --------------------------------------------------------------------------- #
@@ -98,12 +104,13 @@ def _seed_store(root):
 def test_an_input_the_build_itself_moved_is_re_stat_into_the_persisted_key(
     isolate_agent_runtime_root, caplog
 ):
-    """A persona-instance row rewritten between key and write-back keys FRESH.
+    """The live events slice appended between key and write-back keys FRESH.
 
-    This is the whole of IC-2's converging half. ``ensure_for_personas`` rewrites
-    rows on every build, so a key taken before it ran describes a store that no
-    longer exists by the time the core is persisted — and the next process
-    demotes, rebuilds, and writes another key that disagrees again.
+    This is the whole of IC-2's converging half. A DB opened during the build
+    appends ``state.reconciled`` to the live slice, so a key taken before it ran
+    describes a store that no longer exists by the time the core is persisted —
+    and the next process demotes, rebuilds, and writes another key that disagrees
+    again.
 
     *Kill:* persist ``fingerprint`` unchanged (the pre-IC-2 behaviour). The
     persisted triple is then the stale one and this reds.
@@ -115,7 +122,8 @@ def test_an_input_the_build_itself_moved_is_re_stat_into_the_persisted_key(
     assert key is not None
     before = {entry.path: entry for entry in key.entries}[str(row)]
 
-    atomic_json_write(row, {"id": "inst_probe", "rev": 2})
+    with open(row, "a", encoding="utf-8") as handle:
+        handle.write('{"type": "state.reconciled"}\n')
     fresh = core_cache._stat_entry(row)
     assert fresh != before, "the fixture rewrote the row without moving its triple"
 
@@ -136,19 +144,15 @@ def test_an_input_the_build_itself_moved_is_re_stat_into_the_persisted_key(
     assert "restat=refreshed" in line, line
 
 
-def test_a_row_the_build_MINTED_is_added_to_the_persisted_key(
+def test_an_instance_row_that_appears_during_a_build_is_a_foreign_write(
     isolate_agent_runtime_root
 ):
-    """The cold-store shape: a row that did not exist when the key was taken.
+    """The build mints no instance row any more (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT), so a
+    row that appears between the key and the write-back is somebody else's write: it is NOT adopted
+    into the persisted key, and the next consult demotes on it.
 
-    ``ensure_for_personas`` materializes a missing instance row, so on a virgin
-    store the pre-build key has no triple for it at all. An appearing member of a
-    self-perturbed TREE is the one addition IC-2 makes — and it is why the class
-    is a directory prefix rather than a list of names.
-
-    *Kill:* handle only paths present in BOTH stat sets. The minted row is then
-    absent from the persisted key, the next consult's walk finds it, and the
-    cold store takes a second build to converge again.
+    *Kill:* put ``paths.persona_instances_dir()`` back in the self-perturbed trees
+    (``restat._self_perturbed_inputs``) → the row is adopted, red.
     """
 
     root = isolate_agent_runtime_root
@@ -161,10 +165,9 @@ def test_a_row_the_build_MINTED_is_added_to_the_persisted_key(
     atomic_json_write(minted, {"id": "inst_minted"})
 
     assert core_cache.write_back(_core(), fingerprint=key) is True
-    assert str(minted) in _entries_file(), (
-        "a persona-instance row the build minted is missing from the persisted "
-        "stat set, so the next process's walk finds an input the key never "
-        "described and demotes"
+    assert str(minted) not in _entries_file(), (
+        "a persona-instance row nothing in the build writes was adopted into the "
+        "persisted key, so a core built without it would be served as current"
     )
 
 
@@ -312,13 +315,12 @@ def test_the_self_perturbation_set_resolves_through_the_builds_own_authorities(
         "the live events slice is not in the set, though a DB opened during the "
         "build appends state.reconciled to it"
     )
-    assert perturbed.under_tree(str(paths.persona_instances_dir() / "any_row.json")), (
-        "the persona-instances tree is not in the set, though ensure_for_personas "
-        "rewrites rows in it on every build"
+    assert not perturbed.under_tree(str(paths.persona_instances_dir() / "any_row.json")), (
+        "the persona-instances tree is in the set, though the build no longer writes "
+        "a row in it (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT)"
     )
     assert set(_seams.BUILD_SELF_PERTURBED_CLASSES) == {
         core_cache.SELF_PERTURBED_SESSION_DB,
-        core_cache.SELF_PERTURBED_PERSONA_INSTANCES,
         core_cache.SELF_PERTURBED_LIVE_EVENTS,
     }, (
         "a class was added to or removed from the enumeration without this case "

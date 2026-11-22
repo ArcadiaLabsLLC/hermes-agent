@@ -689,30 +689,22 @@ def _assert_provider_health(assert_fn: Any, persona: Any, provider: Any, model: 
 def _instance_as_the_send_path_stamps_it(persona: Any, instance: Any, root: str) -> Any:
     """*instance* after the store write the send path makes before it signs.
 
-    h-turn1-conn. The send path runs ``PersonaInstanceStore.ensure_for_personas``
-    on every non-auxiliary turn (``hermes_cli/harness_parts/persona/chat_turn_message.py``),
-    and ``ensure_for_persona`` re-stamps a persona's canonical instance with the
-    persona's ``display_name``; ``persona_assignments/chat_binding.py::open_chat``
-    mints that row with a template or operator name. Two writers: a row minted
-    "Dev" for a persona named "Dev Persona" moved ``instance_revision`` between
-    the prewarm's signature and turn 1's, and the actor was discarded
-    (``discarded_signature_mismatch``). The prewarm makes the same write first
-    -- this persona only, the row the send path would touch for it -- so both
-    sign one row. Fail-open: the instance as given.
+    h-turn1-conn. The send path used to run ``PersonaInstanceStore.ensure_for_personas``
+    on every non-auxiliary turn, re-stamping the persona's hidden copy before it signed, and
+    the prewarm made the same write first so both signed one row. The send path writes
+    nothing before it signs since RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT, so
+    the prewarm re-reads the row as it is on disk. Fail-open: the instance as given.
     """
 
     from .auxiliary_chat import is_auxiliary_chat
     from .persona_assignments import PersonaInstanceStore
-    from .persona_lifecycle import is_independent_agent_persona, is_runtime_persona
+    from .persona_lifecycle import is_runtime_persona
 
     instance_id = str(getattr(instance, "id", "") or "")
     if not instance_id or is_auxiliary_chat(instance_id, root) or not is_runtime_persona(persona):
         return instance
     try:
-        store = PersonaInstanceStore()
-        if not is_independent_agent_persona(persona):
-            store.ensure_for_persona(persona)
-        return store.get(instance_id)
+        return PersonaInstanceStore().get(instance_id)
     except Exception:
         logger.debug("prewarm could not re-read instance %s after the send path's stamp", instance_id,
                      exc_info=True)

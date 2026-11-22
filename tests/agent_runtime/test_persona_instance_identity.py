@@ -201,7 +201,9 @@ def test_reconcile_folds_the_live_four_scheme_corpus():
     reconciled_events = [
         event for event in EventLog().tail(50) if _event_type(event) == "persona_instance.reconciled"
     ]
-    assert len(reconciled_events) == 3
+    # Three folds, then the two surviving hidden copies settled once each (phase 7,
+    # RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT); the second run added none.
+    assert len(reconciled_events) == 5
 
 
 def test_reconcile_renames_when_no_canonical_row_exists():
@@ -530,14 +532,13 @@ def test_reconcile_prunes_orphans_holds_and_is_idempotent(monkeypatch):
     assert dry["held"][0]["reason"] == "recently-updated"
     assert _live_row_ids() == before_ids  # nothing moved
 
-    # Apply archives exactly the two orphans; real agents + held ghost survive.
+    # Apply prunes exactly the two orphans; the held ghost survives. The real agents' hidden copies
+    # hold nothing, so phase 7 archives them too (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT):
+    # the agents stay, as templates with no hidden copy.
     applied = reconcile_persona_instances(apply=True, event_log=EventLog())
     assert applied["pruned_count"] == 2
-    assert _live_row_ids() == {
-        "personainst_dev",
-        "personainst_base",
-        "personainst_profile_ghost",
-    }
+    assert applied["hidden_copies_archived_count"] == 2
+    assert _live_row_ids() == {"personainst_profile_ghost"}
     prune_dir = paths.persona_instances_archive_dir()
     archived = {p.name for p in prune_dir.rglob("*.json")}
     assert "personainst_profile_codex_create_probe.json" in archived

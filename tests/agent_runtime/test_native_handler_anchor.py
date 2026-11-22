@@ -13,6 +13,7 @@ from agent_runtime.mission_chat_turns import persist_mission_chat_turn
 from agent_runtime.persona_chat_durability import default_persona_session_db, ensure_persona_chat_session
 from tests.agent_runtime.operator_lane_fixture import OperatorLane
 from tests.agent_runtime.test_operator_conversation_attachment import call, fixture
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 ANCHOR = "2026-10-07T12:00:00.123456Z"
 OTHER = "2026-10-07T12:03:00.654321+00:00"
@@ -149,7 +150,7 @@ def test_real_handler_start_terminal_and_native_status_share_anchor(tmp_path, mo
     # Persisted persona projection supplies the immutable attachment identity.
     from agent_runtime.config import ensure_persisted_personas, AgentRuntimeConfig
     store = PersonaInstanceStore()
-    store.ensure_for_personas(ensure_persisted_personas(AgentRuntimeConfig()))
+    _ensure_hidden_copies(store, ensure_persisted_personas(AgentRuntimeConfig()))
     instance = store.get("personainst_dev")
     target.update(install_id=install, workspace_id=effective_workspace_id(instance, active_workspace_id=None), persona_id="dev", persona_instance_id=instance.id, session_id=args.session_id, turn_request_id="handler-anchor")
     lane.advance()
@@ -169,3 +170,12 @@ def test_real_handler_start_terminal_and_native_status_share_anchor(tmp_path, mo
     proof_path = os.environ.get("HERMES_ANCHOR_PROOF_OUTPUT")
     if proof_path:
         Path(proof_path).write_text(json.dumps({"ack": ack, "start": start, "terminal": terminal, "running_status": statuses[0], "terminal_status": status}, indent=2)+"\n", encoding="utf-8")
+
+
+def _ensure_hidden_copies(store, personas, **_):
+    from agent_runtime.persona_lifecycle import is_independent_agent_persona, is_runtime_persona
+
+    for persona in personas:
+        if is_runtime_persona(persona) and not is_independent_agent_persona(persona):
+            mint_hidden_copy(persona, store=store)
+    return store.list_all()
