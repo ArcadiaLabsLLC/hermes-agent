@@ -468,3 +468,17 @@ def test_the_look_allowlist_is_reads_and_the_chat_allowlist_adds_only_chat_verbs
     extra = ca.COMPUTER_CHAT_METHOD_ALLOWLIST - ca.COMPUTER_LOOK_METHOD_ALLOWLIST
     assert "runtime.chat.message" in extra
     assert not any(name.startswith("runtime.provider.") for name in ca.COMPUTER_CHAT_METHOD_ALLOWLIST)
+
+
+def test_a_send_under_a_look_grant_is_refused_in_words_the_composer_shows():
+    """Eternia row MC-PHONE-DRIVEN-A-COMPUTER-RUNS-A-CHAT-TURN-ON-A-PHONES-AGENT: the computer's
+    composer shows hermes' refusal as written, so a chat verb under a look grant says what the
+    phone allows and where the switch is; other refusals keep the verb's name."""
+
+    look = ca.caller_for_connection(_Conn(computer_id="cmp-1", computer_grant="look"))
+    send = ca.authorize_call(ca.TIER_CONSOLE, look, method="runtime.chat.message")
+    assert not send.ok and send.reason == ca.REASON_SCOPE_DENIED
+    assert send.detail.startswith("This phone lets this computer look at its agents but not chat")
+    assert "Run chats" in send.detail
+    other = ca.authorize_call(ca.TIER_CONSOLE, look, method="runtime.provider.key.set")
+    assert not other.ok and other.detail.startswith("runtime.provider.key.set is not open")
