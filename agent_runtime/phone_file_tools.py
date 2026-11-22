@@ -630,23 +630,15 @@ UPSTREAM_MODULE = "tools.file_tools"
 def upstream_file_tools_shipped() -> bool:
     """Whether this install runs upstream's file tools (every desktop does; the phone does not).
 
-    The INSTALLED profile answers first (``bundled_toolsets.installed_switched_off``, the one owner of what
-    a phone runs): the phone ships ``tools.file_tools`` pinned in its forced tree, mounted on
-    ``tools.__path__``, so a presence probe finds it there (row
-    RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-AGENTS-FILE-TOOLS)."""
+    The INSTALLED profile answers first (``module_presence.runs_here``, the feature gate's one question):
+    the phone ships ``tools.file_tools`` pinned in its forced tree, mounted on ``tools.__path__``, so a
+    presence probe finds it there (row RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-AGENTS-FILE-TOOLS)."""
 
-    import importlib.util
+    from agent_runtime.module_presence import runs_here
 
-    from agent_runtime.bundled_toolsets import installed_switched_off
-
-    # MUTATION: drop this and the phone, where the forced tree makes the module findable, registers
-    # nothing (test_phone_file_tools: test_the_phones_installed_profile_registers_them_though_upstreams_is_findable).
-    if installed_switched_off(UPSTREAM_MODULE):
-        return False
-    try:
-        return importlib.util.find_spec(UPSTREAM_MODULE) is not None
-    except (ImportError, ValueError):
-        return False
+    # MUTATION: back to a presence probe and the phone, where the forced tree makes the module findable,
+    # registers nothing (test_phone_file_tools: test_the_phones_installed_profile_registers_them_though_upstreams_is_findable).
+    return runs_here(UPSTREAM_MODULE)
 
 
 def register_phone_file_tools(register) -> list[str]:

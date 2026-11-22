@@ -149,11 +149,11 @@ def test_the_phones_installed_profile_registers_them_though_upstreams_is_findabl
     import importlib.util
     import sys
 
-    from agent_runtime import bundled_toolsets
+    from agent_runtime import installed_profile
 
-    monkeypatch.setattr(bundled_toolsets, "PHONE_PLATFORMS", frozenset({*bundled_toolsets.PHONE_PLATFORMS, sys.platform}))
+    monkeypatch.setattr(installed_profile, "PHONE_PLATFORMS", frozenset({*installed_profile.PHONE_PLATFORMS, sys.platform}))
     assert importlib.util.find_spec("tools.file_tools") is not None  # findable, as in phone_forced/
-    assert bundled_toolsets.installed_switched_off("tools.file_tools")
+    assert installed_profile.installed_switched_off("tools.file_tools")
     seen = []
     assert tools.register_phone_file_tools(lambda name, **kw: seen.append(name)) == [
         "read_file", "write_file", "patch", "search_files"]

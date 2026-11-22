@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
@@ -57,9 +56,9 @@ def bundled_install() -> bool:
     """A phone, or a desktop whose build stamp says ``bundled`` -- the one owner of "bundled"
     (``hermes_cli.config_switches._installed_profile_config`` asks the same two)."""
 
-    from agent_runtime import bundled_toolsets
+    from agent_runtime.installed_profile import install_is_bundled  # the one owner of the two answers
 
-    return sys.platform in bundled_toolsets.PHONE_PLATFORMS or bundled_toolsets.edition_bundled()
+    return install_is_bundled()
 
 
 def _root_of(home: Path) -> Path:

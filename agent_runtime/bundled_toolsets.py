@@ -19,23 +19,22 @@ from __future__ import annotations
 import functools
 import json
 import logging
-import sys
 import threading
 from datetime import datetime, timezone, UTC
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from . import installed_profile
+from .installed_profile import DESKTOP_PROFILE
+
 __layer__ = "stores"  # it writes the approval record
 
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
-DESKTOP_PROFILE = "bundled-desktop"
 #: The record's place under a profile home.
 RECORD_PARTS = ("approvals", "toolsets.json")
-#: ``sys.platform`` of CPython's mobile builds: the embedded entry runs the phone profile there.
-PHONE_PLATFORMS = frozenset({"android", "ios"})
 #: Messaging-platform toolsets: their tools need a platform adapter, and a profile whose config sets
 #: ``gateway.platform_adapters: false`` starts none, so an opt-in would enable tools with no platform.
 PLATFORM_TOOLSETS = frozenset({"discord", "discord_admin", "feishu_doc", "feishu_drive"})
@@ -62,16 +61,12 @@ class ToolsetApprovalRefused(ValueError):
 
 
 def edition_bundled() -> bool:
-    """The build stamp's answer (``namespace.install_stamp``), never a config value."""
-    from .namespace import install_stamp
-
-    return install_stamp().get("edition") == "bundled"
+    """The build stamp's answer (``installed_profile.edition_bundled``), never a config value."""
+    return installed_profile.edition_bundled()
 
 
 def profile_name() -> str:
-    from .bundle_profiles.phone_hint import PHONE_PROFILE
-
-    return PHONE_PROFILE if sys.platform in PHONE_PLATFORMS else DESKTOP_PROFILE
+    return installed_profile.installed_profile_name()
 
 
 @functools.lru_cache(maxsize=4)
@@ -88,13 +83,9 @@ def bundled_profile():
 def installed_switched_off(module: str) -> bool:
     """True when the INSTALLED bundle profile switches ``module`` (or a package holding it) off.
 
-    A profile fact, never a presence probe: a switched-off module kept code imports unguarded still ships
-    (pinned), so ``module_presence.shipped`` answers True for it (``agent_runtime.work`` on the phone).
-    A bundled install is a phone or a desktop whose build stamp says ``bundled``; a developer install
-    switches nothing off."""
-    if sys.platform not in PHONE_PLATFORMS and not edition_bundled():
-        return False
-    return any(module == off or module.startswith(off + ".") for off in bundled_profile().switched_off_modules)
+    The one owner is ``installed_profile.installed_switched_off`` (``models``, so host and model gates ask
+    it too); a feature gate asks ``module_presence.runs_here``."""
+    return installed_profile.installed_switched_off(module)
 
 
 def _toolset_ships(toolset: str) -> bool:

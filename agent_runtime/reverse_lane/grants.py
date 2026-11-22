@@ -2,7 +2,8 @@
 
 ``<store_root>/gateway/reverse_grants.json``, one row per granted computer. A row holds
 the grant LEVEL (``look`` | ``chat``, each an allowlist in ``call_authorization``, never a
-device tier), the computer's id on this phone, the VERIFIER of the credential the phone
+device tier; or ``account``, which the phone's own Eternia grants only to a computer it proved is
+on the phone's account, answered by ``call_authorization.paired_device_answers``), the computer's id on this phone, the VERIFIER of the credential the phone
 minted for it (``sha256(token)``; the token itself leaves once, to the computer, and is
 never stored here), and the pairing it is bound to: the computer's install id and the
 device id this phone holds on that computer. A dial under a different pairing finds no
@@ -21,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from ..call_authorization import COMPUTER_GRANT_ACCOUNT, COMPUTER_GRANT_CHAT, COMPUTER_GRANT_LOOK, COMPUTER_GRANTS
 from ..clock import now_iso
 from ..paths import gateway_dir
 from ..serve_gateway_auth.proof import device_verifier, reverse_proof_from_verifier
@@ -31,6 +33,7 @@ from ..store_file_io import write_secure_json as _write_secure
 __layer__ = "stores"
 
 __all__ = [
+    "GRANT_ACCOUNT",
     "GRANT_CHAT",
     "GRANT_LEVELS",
     "GRANT_LOOK",
@@ -47,10 +50,12 @@ __all__ = [
 ]
 
 #: Look: the phone's agents, their chats and history, read only.
-GRANT_LOOK = "look"
+GRANT_LOOK = COMPUTER_GRANT_LOOK
 #: Look, and run chat turns on the phone's agents.
-GRANT_CHAT = "chat"
-GRANT_LEVELS: tuple[str, ...] = (GRANT_LOOK, GRANT_CHAT)
+GRANT_CHAT = COMPUTER_GRANT_CHAT
+#: A computer on the phone's own account: everything a console-tier paired device is answered.
+GRANT_ACCOUNT = COMPUTER_GRANT_ACCOUNT
+GRANT_LEVELS: tuple[str, ...] = COMPUTER_GRANTS
 
 REVERSE_GRANTS_FILENAME = "reverse_grants.json"
 _CONTRACT = 1

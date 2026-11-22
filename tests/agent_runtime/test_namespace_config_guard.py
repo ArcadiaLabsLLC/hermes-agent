@@ -144,9 +144,9 @@ def hooks():
 
 
 def test_the_harness_hook_refuses_the_write_on_a_bundled_install(ns, monkeypatch, hooks):
-    from agent_runtime import bundled_toolsets
+    from agent_runtime import installed_profile
 
-    monkeypatch.setattr(bundled_toolsets, "edition_bundled", lambda: True)
+    monkeypatch.setattr(installed_profile, "edition_bundled", lambda: True)
     monkeypatch.setattr(guard, "namespace_roots", lambda: [Path(os.path.realpath(ns))])
     out = hooks.refuse_tool_call(tool_name="write_file", args=_write(ns / "profiles" / "sibling" / "config.yaml"),
                                  task_id="cfgguard-test", session_id="")

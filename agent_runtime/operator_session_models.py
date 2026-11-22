@@ -24,7 +24,7 @@ from .persona_chat_session import (
     log_model_selection, reasoning_effort_label,
 )
 from .profile_context import persona_profile_context, resolve_persona_profile
-from .session_model_catalog import choices, facts, model_key, provider_id
+from .session_model_catalog import choices, facts, inventory_provider, model_key, provider_id
 
 __layer__ = "lanes"
 
@@ -166,7 +166,12 @@ def operator_model_facts(params: dict) -> dict:
     effort = {"reasoning_effort": model["effective_reasoning_effort"],
               "reasoning_effort_source": model["reasoning_effort_source"],
               "reasoning_capabilities": model["reasoning_capabilities"]}
-    provider, name = model["agent_provider"], model["agent_model"]
+    # The default is named by the inventory's id, as ``facts`` names the current model: one endpoint,
+    # one id (RT-FU-A-CHATS-AGENT-DEFAULT-NAMES-ITS-CUSTOM-ENDPOINT-THE-WAY-ITS-CURRENT-MODEL-DOES).
+    # MUTATION: use ``model["agent_provider"]`` unmapped and
+    # test_the_agent_default_names_the_model_blocks_endpoint_as_its_current_model_does reddens.
+    name = model["agent_model"]
+    provider = inventory_provider(model["agent_provider"], name, inventory)
     projected = facts(params["session_id"], {"info": {
         "provider": model["effective_provider"], "model": model["effective_model"],
     }}, inventory)

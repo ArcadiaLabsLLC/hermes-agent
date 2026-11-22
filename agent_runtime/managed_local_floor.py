@@ -25,8 +25,8 @@ def managed_local_marker():
 
     A wheel without the adapter (the bundled phone) has no managed local turn: None, never imported.
     """
-    from agent_runtime.loop_tool_lifecycles import shipped
-    if not shipped("agent_runtime.local_llama_adapter"):
+    from agent_runtime.module_presence import runs_here
+    if not runs_here("agent_runtime.local_llama_adapter"):
         return None
     import agent_runtime.local_llama_adapter as _lla
     return _lla.FLOOR_EXEMPTION_REQUESTED_PROVIDER

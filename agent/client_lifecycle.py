@@ -105,9 +105,9 @@ class ClientLifecycleMixin:
         from run_agent import _quietly, cleanup_browser, cleanup_vm
 
         def kill_processes() -> None:
-            from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel ships no processes
+            from agent_runtime.module_presence import runs_here  # fork seam: a profile switching it off (the phone) runs none
 
-            if not shipped("tools.process_registry"):
+            if not runs_here("tools.process_registry"):
                 return
             from tools.process_registry import process_registry
             # A session can run several task IDs; delegated IDs also differ from session_id.

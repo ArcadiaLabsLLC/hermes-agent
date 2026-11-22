@@ -347,6 +347,21 @@ def test_the_chat_grant_never_reaches_sign_in_keys_pairing_settings_namespaces_o
         assert frame is not None and frame.get("error") == "op_not_available_on_gateway", frame
 
 
+def test_an_account_computer_reaches_console_verbs_over_the_lane_and_never_a_local_console_verb(phone, computer):
+    """Hermes row RT-PHONE-DRIVEN-A-COMPUTER-ON-THE-PHONES-OWN-ACCOUNT-…: the account level over the real lane.
+
+    MUTATION (``call_authorization._computer_arm``): answer the account level from the chat
+    allowlist, and Skills and the level read are refused here.
+    """
+
+    with _driven(phone, computer, grants.GRANT_ACCOUNT) as (client, *_):
+        for name in sorted(ca.LOCAL_CONSOLE_METHODS):
+            frame = _rpc(client, name)
+            assert _scope_denied(frame), (name, frame)
+        for name in ("runtime.skills.catalog", "runtime.level.get", "runtime.provider.key.set"):
+            assert not _scope_denied(_rpc(client, name, {})), name
+
+
 def test_a_proof_answered_for_another_lane_is_refused_bad_proof(phone, computer):
     """MUTATION (``lane_authenticator``): verify against the lane id the hello claims, not the
     binding, and this hello is admitted."""

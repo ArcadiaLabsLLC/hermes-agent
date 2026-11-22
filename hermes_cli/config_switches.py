@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import copy
 import logging
-import sys
 import threading
 from typing import Any, Mapping
 
@@ -63,10 +62,10 @@ def _installed_profile_config() -> Mapping[str, Any] | None:
     """The installed bundle profile's ``config`` block, or ``None`` on a developer install.
 
     A bundled install is a phone (CPython's mobile platforms run only the embedded phone profile) or a
-    desktop whose build stamp says ``bundled`` (``agent_runtime.bundled_toolsets.edition_bundled``)."""
-    from agent_runtime import bundled_toolsets
+    desktop whose build stamp says ``bundled`` (``agent_runtime.installed_profile.install_is_bundled``)."""
+    from agent_runtime import bundled_toolsets, installed_profile
 
-    if sys.platform not in bundled_toolsets.PHONE_PLATFORMS and not bundled_toolsets.edition_bundled():
+    if not installed_profile.install_is_bundled():
         return None
     return bundled_toolsets.bundled_profile().config
 

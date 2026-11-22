@@ -454,8 +454,8 @@ def _reconcile_session_cwd_from_terminal(session: dict | None) -> bool:
         return False
     if not _session_is_local_backend(session):
         return False
-    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel has no terminal.
-    if not shipped("tools.terminal_tool"):
+    from agent_runtime.module_presence import runs_here  # fork seam: a profile switching it off (the phone) runs none
+    if not runs_here("tools.terminal_tool"):
         return False
     try:
         from tools.terminal_tool import get_session_cwd
@@ -512,9 +512,9 @@ def _register_session_cwd(session: dict | None) -> None:
     hints = getattr(agent, "_subdirectory_hints", None) if session.get("cwd") else None
     if hints is not None and hasattr(hints, "rebind_working_dir"):
         hints.rebind_working_dir(str(session.get("cwd")))
-    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel ships no terminal tool
+    from agent_runtime.module_presence import runs_here  # fork seam: a profile switching it off (the phone) runs none
 
-    if not shipped("tools.terminal_tool"):
+    if not runs_here("tools.terminal_tool"):
         return
     with contextlib.suppress(Exception):
         from tools.terminal_tool import _ensure_terminal_env_bridged, register_task_env_overrides

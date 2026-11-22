@@ -187,7 +187,7 @@ def test_the_grant_and_accept_verbs_answer_only_the_machine_owner(name):
     device = ca.RpcCaller(kind=ca.CALLER_DEVICE, device_id="d", device_tier=ca.TIER_CONSOLE,
                           device_kind=ca.DEVICE_KIND_DEVICE, transport="gateway")
     assert not ca.authorize_call(ca.TIER_CONSOLE, device, method=name).ok
-    for grant in (grants.GRANT_LOOK, grants.GRANT_CHAT):
+    for grant in grants.GRANT_LEVELS:
         computer = ca.RpcCaller(kind=ca.CALLER_COMPUTER, computer_id="c", computer_grant=grant, transport="gateway")
         assert not ca.authorize_call(ca.TIER_CONSOLE, computer, method=name).ok
     assert "runtime.gateway.reverse.offer" not in ca.COMPUTER_CHAT_METHOD_ALLOWLIST
@@ -245,3 +245,96 @@ def test_the_owner_unpairing_the_computer_on_the_phone_ends_the_grant(phone, com
     assert grants.grant_for_install(_phone_root(), INSTALL) is None
     dialed = phone.rpc("runtime.gateway.reverse.dial", _way(computer, device))
     assert dialed["error"]["data"]["reason"] == "no_grant"
+
+
+# ── the account level (hermes row RT-PHONE-DRIVEN-A-COMPUTER-ON-THE-PHONES-OWN-ACCOUNT-IS-ANSWERED-LIKE-A-PAIRED-COMPUTER)
+
+
+def _computer_caller(grant: str) -> ca.RpcCaller:
+    return caller_for_connection(_LaneConn(grant))
+
+
+class _LaneConn:
+    def __init__(self, grant: str) -> None:
+        self.transport, self.key, self.authenticated = "gateway", "conn-lane", True
+        self.device_id = self.device_tier = self.peer_install_id = None
+        self.computer_id, self.computer_grant = "cmp-1", grant
+
+
+_CONSOLE_DEVICE = ca.RpcCaller(kind=ca.CALLER_DEVICE, device_id="d", device_tier=ca.TIER_CONSOLE,
+                               device_kind=ca.DEVICE_KIND_DEVICE, transport="gateway")
+
+
+def test_an_account_computer_is_answered_every_verb_a_console_device_is_and_no_local_console_verb():
+    """Done-when: one test over the whole registry against the device arm's own answer.
+
+    MUTATION (``call_authorization._computer_arm``): answer the account level from the chat
+    allowlist, and the console verbs a console device is answered (``runtime.skills.catalog``,
+    ``runtime.level.get``, ``runtime.provider.key.set`` …) come back refused here.
+    """
+
+    from agent_runtime.serve_rpc.registry import method_tiers
+
+    account = _computer_caller(grants.GRANT_ACCOUNT)
+    assert account.kind == ca.CALLER_COMPUTER and account.computer_grant == "account"
+    tiers = method_tiers()
+    assert len(tiers) > 100
+    drift = [name for name, tier in tiers.items()
+             if ca.authorize_call(tier, account, method=name).ok
+             != ca.authorize_call(tier, _CONSOLE_DEVICE, method=name).ok]
+    assert drift == []
+    for name in sorted(ca.LOCAL_CONSOLE_METHODS):
+        assert not ca.authorize_call(tiers.get(name, ca.TIER_CONSOLE), account, method=name).ok, name
+    # What the chat grant never reached, the account level does: the owner's ruling.
+    for name in ("runtime.skills.catalog", "runtime.level.get", "runtime.provider.key.set",
+                 "runtime.operator.conversation.list"):
+        if name in tiers:
+            assert ca.authorize_call(tiers[name], account, method=name).ok, name
+
+
+def test_a_computer_granted_look_or_chat_is_refused_the_console_level():
+    """A computer the phone could not place on its account keeps its allowlist.
+
+    MUTATION (``call_authorization._computer_arm``): answer every computer grant by
+    ``paired_device_answers`` (the account rule), and look and chat reach key set and Skills.
+    """
+
+    from agent_runtime.serve_rpc.registry import method_tiers
+
+    tiers = method_tiers()
+    for grant in (grants.GRANT_LOOK, grants.GRANT_CHAT):
+        caller = _computer_caller(grant)
+        for name in ("runtime.provider.key.set", "runtime.skills.catalog", "runtime.level.get"):
+            assert ca.authorize_call(tiers.get(name, ca.TIER_CONSOLE), caller, method=name).ok is False, (grant, name)
+        answered = {name for name, tier in tiers.items() if ca.authorize_call(tier, caller, method=name).ok}
+        assert answered <= (ca.COMPUTER_CHAT_METHOD_ALLOWLIST if grant == grants.GRANT_CHAT
+                            else ca.COMPUTER_LOOK_METHOD_ALLOWLIST), (grant, answered)
+
+
+def test_the_device_arm_and_the_account_level_share_one_predicate():
+    assert ca.paired_device_answers(ca.TIER_CONSOLE, "runtime.provider.key.set", ca.TIER_CONSOLE)
+    assert ca.paired_device_answers(ca.TIER_READ, "runtime.health", ca.TIER_READ)
+    assert not ca.paired_device_answers(ca.TIER_READ, "runtime.provider.key.set", ca.TIER_CONSOLE)
+    assert not ca.paired_device_answers(ca.TIER_CONSOLE, "runtime.gateway.reverse.grant", ca.TIER_CONSOLE)
+    assert not ca.paired_device_answers("admin", "runtime.health", ca.TIER_READ)
+    assert tuple(grants.GRANT_LEVELS) == ca.COMPUTER_GRANTS
+
+
+def test_a_grant_naming_an_unknown_level_is_refused_and_leaves_no_grant(phone, computer):
+    for level in ("console", "admin", "", None):
+        device = computer.pair_phone()
+        answer = phone.rpc("runtime.gateway.reverse.grant", _way(computer, device, level=level))
+        assert "result" not in answer and "level must be one of look, chat, account" in answer["error"]["message"], answer
+        assert grants.grant_for_install(_phone_root(), INSTALL) is None
+
+
+def test_the_phone_grants_account_and_the_computer_accepts_it(phone, computer):
+    device, answer = _grant(phone, computer, grants.GRANT_ACCOUNT)
+    assert answer.get("result", {}).get("level") == "account", answer
+    accepted = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"]
+    assert accepted["level"] == "account"
+    listed = phone.rpc("runtime.gateway.reverse.lanes")["result"]["grants"]
+    assert [g["level"] for g in listed] == ["account"]
+    # A revoke drops it like any grant.
+    assert phone.rpc("runtime.gateway.reverse.revoke", {"computer_install_id": INSTALL})["result"]["revoked"] == 1
+    assert phone.rpc("runtime.gateway.reverse.lanes")["result"]["grants"] == []

@@ -56,9 +56,9 @@ def _local_engine_turn_scope(request: Any):
     """The local engine's turn scope, or none where a profile leaves the local engine out (the phone)."""
     import contextlib
 
-    from ..module_presence import shipped
+    from ..module_presence import runs_here
 
-    if not shipped("agent_runtime.local_llama_adapter"):
+    if not runs_here("agent_runtime.local_llama_adapter"):
         return contextlib.nullcontext()
     from ..local_llama_adapter.provider import turn_scope
 
