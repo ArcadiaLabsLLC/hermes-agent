@@ -24,6 +24,7 @@ __layer__ = "stores"
 import os
 import secrets
 from pathlib import Path
+from typing import NamedTuple
 
 from agent_runtime.project_files.paths import is_never_listed, parse_path
 from agent_runtime.project_files.reader import _canonical_root, resolve_within_root
@@ -157,10 +158,19 @@ def write(root: str, path: str, content: str) -> dict:
     return {"path": shown, "size": len(data), "created": created}
 
 
-def patch(root: str, path: str, old: str, new: str, *, replace_all: bool = False) -> dict:
+class Patched(NamedTuple):
+    """What :func:`patch` did: its answer ``{path, replacements, size}`` and the file's text before
+    and after, so its caller can spell the edit's diff without reading the file again."""
+
+    answer: dict
+    before: str
+    after: str
+
+
+def patch(root: str, path: str, old: str, new: str, *, replace_all: bool = False) -> Patched:
     """Replace ``old`` with ``new`` in the text file at ``path``: once, or every time with ``replace_all``.
 
-    ``old`` must be found, and found once unless ``replace_all``: ``{path, replacements, size}``."""
+    ``old`` must be found, and found once unless ``replace_all``."""
 
     if not isinstance(old, str) or not old or not isinstance(new, str):
         raise ProjectFileRefusal("bad_argument", "old_string must be non-empty text and new_string text")
@@ -180,4 +190,5 @@ def patch(root: str, path: str, old: str, new: str, *, replace_all: bool = False
         raise ProjectFileRefusal("too_large", f"the patched file would be over {MAX_READ_BYTES} bytes")
     _guard(actual)
     _replace_file(actual, encoded)
-    return {"path": shown, "replacements": count if replace_all else 1, "size": len(encoded)}
+    return Patched({"path": shown, "replacements": count if replace_all else 1, "size": len(encoded)},
+                   text, updated)

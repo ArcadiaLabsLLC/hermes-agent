@@ -224,9 +224,24 @@ def patch(args: dict, **_kw: Any) -> str:
         where = _locate(args.get("path"))
         done = replace(where.root, where.relative, args.get("old_string"), args.get("new_string"),
                        replace_all=args.get("replace_all") is True)
-        return {**done, "path": where.shown}
+        # MUTATION: drop the diff and a replace edit draws no View diff in the chat (the runner's
+        # ``record_patch_diff`` finds none) (test_phone_file_tools:
+        # test_a_replace_patch_answers_the_diff_the_runner_records_as_a_v4a_patch_does).
+        return {**done.answer, "path": where.shown, "diff": _unified_diff(done.before, done.after, where.shown)}
 
     return _answer(call)
+
+
+def _unified_diff(before: str | None, after: str, shown: str) -> str:
+    """The one spelling of a phone edit's diff, for both ``patch`` arms (upstream's ``patch_tool``
+    answers one too): what the runner's ``patch_diff_artifacts.record_patch_diff`` records and
+    Eternia's View diff opens. ``before`` is None for a file the edit creates."""
+
+    import difflib
+
+    return "".join(difflib.unified_diff(
+        (before or "").splitlines(keepends=True), after.splitlines(keepends=True),
+        fromfile="/dev/null" if before is None else f"a/{shown}", tofile=f"b/{shown}"))
 
 
 def _apply_v4a(text: Any) -> dict:
@@ -236,8 +251,6 @@ def _apply_v4a(text: Any) -> dict:
     a patch holding either is refused whole. Each file's path is ``_locate``'s (confined to a project
     folder) and its write is :func:`writer.checked_text`'s then :func:`writer.write`'s. Hunks match
     exactly, as the phone's replace does (upstream matches them fuzzily)."""
-
-    import difflib
 
     from agent_runtime.project_files.rules import ProjectFileRefusal
     from agent_runtime.project_files.writer import checked_text, write
@@ -279,9 +292,7 @@ def _apply_v4a(text: Any) -> dict:
     for where, before, after in staged.values():
         write(where.root, where.relative, after)
         (created if before is None else modified).append(where.shown)
-        diffs.append("".join(difflib.unified_diff(
-            (before or "").splitlines(keepends=True), after.splitlines(keepends=True),
-            fromfile="/dev/null" if before is None else f"a/{where.shown}", tofile=f"b/{where.shown}")))
+        diffs.append(_unified_diff(before, after, where.shown))
     return {"success": True, "diff": "\n".join(diffs), "files_modified": modified, "files_created": created}
 
 

@@ -292,6 +292,29 @@ def test_a_v4a_patch_adds_and_updates_files_through_the_writer(project):
     assert missed["code"] == "bad_argument" and "exactly" in missed["error"]
 
 
+def test_a_replace_patch_answers_the_diff_the_runner_records_as_a_v4a_patch_does(project):
+    """A phone agent's find-and-replace edit draws View diff like its V4A edits (row
+    ``RT-FU-A-PHONE-AGENTS-FIND-AND-REPLACE-EDIT-SHOWS-NO-VIEW-DIFF``, seen live on the emulator: the
+    replace arm answered no ``diff``, so ``record_patch_diff`` recorded nothing). Both arms spell it
+    through one helper, so the same edit answers the same diff either way. Killing mutation: drop
+    ``"diff"`` from the replace arm's answer -> ``record_patch_diff`` records nothing, red."""
+
+    from agent_runtime.patch_diff_artifacts import record_patch_diff
+
+    replaced = tools.patch({"path": "notes/TODO.md", "old_string": "call mum", "new_string": "call dad"})
+    assert json.loads(replaced)["replacements"] == 1
+    recorded = record_patch_diff(replaced)  # the JSON string the runner hands it
+    assert recorded is not None and (recorded["patch_adds"], recorded["patch_dels"]) == (1, 1)
+    diff = json.loads(replaced)["diff"]
+    assert Path(recorded["patch_artifact"]).read_text(encoding="utf-8") == diff
+    assert diff.startswith("--- a/notes/TODO.md\n+++ b/notes/TODO.md\n") and "-- call mum\n+- call dad\n" in diff
+    back = _call(tools.patch, mode="patch",
+                 patch="*** Begin Patch\n*** Update File: notes/TODO.md\n-- call dad\n+- call mum\n*** End Patch")
+    forth = _call(tools.patch, mode="patch",
+                  patch="*** Begin Patch\n*** Update File: notes/TODO.md\n-- call mum\n+- call dad\n*** End Patch")
+    assert back["diff"] != diff and forth["diff"] == diff
+
+
 def test_a_v4a_patch_writes_nothing_when_one_file_is_refused(project, tmp_path):
     """Every file is checked before any is written. Killing mutation: drop ``_guard`` from
     ``writer.checked_text`` -> TODO.md is written before the config link's write is refused, red."""
