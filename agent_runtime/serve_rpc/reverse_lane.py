@@ -28,12 +28,15 @@ The grant (row ``MC-PHONE-DRIVEN-A-PHONE-LETS-A-PAIRED-COMPUTER-USE-ITS-AGENTS``
   ``phone_install_id``.
 * ``withdraw`` (computer) — answered to a paired DEVICE only, as that device, with no params:
   forget that device's accept and any offer it still holds here.
+* ``level`` (computer) — answered to a paired DEVICE only, as that device: the phone changed the
+  level of the credential it already gave this computer, in place; the accept (or the held offer)
+  shows the new level, with no second Accept. Params ``computer_id``, ``level``.
 * ``accept`` / ``decline`` (computer) — param ``device_id``: the owner's answer. ``accept``
   hands the token to Eternia ONCE and writes down the non-secret accept.
 
-**Security.** Every verb but ``offer`` and ``withdraw`` is in ``LOCAL_CONSOLE_METHODS``: only
+**Security.** Every verb but ``offer``, ``withdraw`` and ``level`` is in ``LOCAL_CONSOLE_METHODS``: only
 this install's owner grants, dials, accepts or reads, and no device, peer or computer reaches
-them. ``offer`` and ``withdraw`` are read-tier verbs that answer only a paired device caller, as
+them. ``offer``, ``withdraw`` and ``level`` are read-tier verbs that answer only a paired device caller, as
 itself: its device id is the transport's, never a param, and a channel, a peer or a computer is
 refused by its allowlist arm before the tier is read.
 """
@@ -66,6 +69,7 @@ __all__ = [
     "_runtime_gateway_reverse_withdraw",
     "_runtime_gateway_reverse_hangup",
     "_runtime_gateway_reverse_lanes",
+    "_runtime_gateway_reverse_level",
 ]
 
 _TEXT_LIMIT = 256
@@ -177,7 +181,10 @@ def _runtime_gateway_reverse_grant(rid: Any, params: dict, context: RpcContext |
         if not answer.get("ok"):
             reason = str(answer.get("reason") or "refused")
             return err(rid, ERR_CONFLICT, "The computer did not take this phone's offer.", {"reason": reason})
-        return ok(rid, {"computer_id": answer["computer_id"], "level": answer["level"], "state": "offered"})
+        result = {"computer_id": answer["computer_id"], "level": answer["level"], "state": answer["state"]}
+        if "told" in answer:
+            result["told"] = answer["told"]
+        return ok(rid, result)
 
     # It dials the computer: the worker lane, never the reader's thread.
     return defer_or_inline(rid, "runtime.gateway.reverse.grant", context, run)
@@ -274,6 +281,41 @@ def _runtime_gateway_reverse_withdraw(rid: Any, params: dict, context: RpcContex
     if dropped or forgot:
         lanes.emit_event({"event": "reverse_accept_withdrawn", "device_id": device_id})
     return ok(rid, {"withdrawn": forgot, "declined": dropped})
+
+
+@method("runtime.gateway.reverse.level", tier=TIER_READ)
+def _runtime_gateway_reverse_level(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """A paired phone changed this computer's level in place: the accept (or held offer) shows it.
+
+    Hermes row RT-FU-A-PHONE-CHANGING-A-COMPUTERS-LEVEL-KEEPS-ITS-CREDENTIAL-AND-ITS-ACCEPT. Keyed by
+    the device the transport authenticated, never a param, and it only rewrites that device's own row
+    for the ``computer_id`` it holds: the phone is the one owner of the level, so this is a copy it
+    sends, and a computer never raises its own. ``no_accept`` when this computer holds no accept and no
+    offer of that credential, so the phone offers afresh."""
+
+    from agent_runtime.reverse_lane.accepts import relevel_accept
+    from agent_runtime.reverse_lane.grants import GRANT_LEVELS
+
+    device_id = _offering_device(context)
+    # MUTATION: accept any caller here and the owner-level test rewrites the phone's accept.
+    if device_id is None:
+        return err(rid, ERR_CONFLICT, "Only a paired device changes its agents' level on this computer.",
+                   {"reason": REASON_NOT_A_DEVICE})
+    lanes = _lanes(context)
+    if lanes is None:
+        return _unbound(rid)
+    params = params if isinstance(params, dict) else {}
+    level = params.get("level")
+    computer_id = params.get("computer_id")
+    if level not in GRANT_LEVELS or not isinstance(computer_id, str) or not computer_id.strip():
+        return _refuse("level", "a level notice names computer_id and a level").frame(rid)
+    offered = lanes.offers.relevel(device_id, computer_id.strip(), str(level))
+    accepted = relevel_accept(lanes.store_root, device_id, computer_id.strip(), str(level))
+    if not (offered or accepted):
+        return err(rid, ERR_CONFLICT, "This computer holds no accept of that phone's credential.",
+                   {"reason": "no_accept"})
+    lanes.emit_event({"event": "reverse_accept_level_changed", "device_id": device_id, "level": level})
+    return ok(rid, {"level": level, "accepted": accepted, "offered": offered})
 
 
 def _device_param(params: Any) -> str:

@@ -25,11 +25,17 @@ from . import grants as _grants
 
 __layer__ = "lanes"
 
-__all__ = ["OFFER_METHOD", "WITHDRAW_METHOD", "grant_and_offer", "withdraw_accept"]
+__all__ = ["LEVEL_METHOD", "OFFER_METHOD", "REASON_NO_ACCEPT", "WITHDRAW_METHOD", "grant_and_offer",
+           "withdraw_accept"]
 
 OFFER_METHOD = "runtime.gateway.reverse.offer"
 #: The phone's switch off, told to the computer (``withdraw_accept``).
 WITHDRAW_METHOD = "runtime.gateway.reverse.withdraw"
+#: A level changed in place, told to the computer (``grant_and_offer``).
+LEVEL_METHOD = "runtime.gateway.reverse.level"
+#: The computer's answer to a level notice when it holds neither an accept nor an offer of that
+#: credential: it never took it, so the phone offers afresh.
+REASON_NO_ACCEPT = "no_accept"
 _TIMEOUT = 10.0
 #: How long the offer's answer may take: a computer's first call after its serve started
 #: loads its method families (seen live 2026-11-21: the first offer after a restart was
@@ -89,7 +95,34 @@ def _one_shot(*, host: str, port: int, cert_fingerprint: str, device_id: str, to
 def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, port: int,
                     cert_fingerprint: str, device_id: str, token: str, level: str,
                     phone_install_id: str) -> dict[str, Any]:
-    """Grant *computer_install_id* at *level* and offer it its credential. ``ok`` or ``reason``."""
+    """Grant *computer_install_id* at *level* and offer it its credential. ``ok`` or ``reason``.
+
+    A computer that already holds a grant on this pairing keeps it: its level changes in place (same
+    ``computer_id`` and credential, its live lane closed so the redial is stamped at the new level)
+    and the computer is told over the same pinned device connection, with no new offer and no second
+    Accept (hermes row RT-FU-A-PHONE-CHANGING-A-COMPUTERS-LEVEL-KEEPS-ITS-CREDENTIAL-AND-ITS-ACCEPT,
+    review w1122b.5). A notice that cannot land changes nothing the phone enforces and is not retried.
+    When the computer answers that it never held that credential (``no_accept``: its offer lapsed or
+    its serve restarted before an Accept), the phone grants afresh and offers, as for a first grant.
+    """
+
+    # MUTATION: skip this branch (always mint) and test_reverse_grant's level-change test finds the
+    # accepted token's proof refused after Run chats to Look.
+    held = _grants.change_level(store_root, computer_install_id=computer_install_id,
+                                pairing_device_id=device_id, level=level)
+    if held is not None:
+        told = _one_shot(host=host, port=port, cert_fingerprint=cert_fingerprint, device_id=device_id,
+                         token=token, method=LEVEL_METHOD,
+                         params={"computer_id": held.computer_id, "level": held.level})
+        if told == "unpaired":
+            _grants.revoke_install_grants(store_root, computer_install_id)
+            return {"ok": False, "reason": told}
+        if told != REASON_NO_ACCEPT:
+            answer: dict[str, Any] = {"ok": True, "computer_id": held.computer_id, "level": held.level,
+                                      "state": "level_changed", "told": told is None}
+            if told is not None:
+                answer["told_reason"] = told
+            return answer
 
     credential = _grants.grant_computer(store_root, computer_install_id=computer_install_id,
                                         pairing_device_id=device_id, level=level)
@@ -104,7 +137,7 @@ def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, por
         if reason == "unpaired":
             _grants.revoke_install_grants(store_root, computer_install_id)
         return {"ok": False, "reason": reason}
-    return {"ok": True, "computer_id": credential.computer_id, "level": credential.level}
+    return {"ok": True, "computer_id": credential.computer_id, "level": credential.level, "state": "offered"}
 
 
 def withdraw_accept(*, host: str, port: int, cert_fingerprint: str, device_id: str,

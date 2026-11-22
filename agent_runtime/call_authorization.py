@@ -361,9 +361,10 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         "runtime.gateway.reverse.hangup",
         "runtime.gateway.reverse.lanes",
         # The grant (MC-PHONE-DRIVEN-A-PHONE-LETS-…): the phone's owner grants and revokes, the
-        # computer's owner accepts and declines. ``offer`` and ``withdraw`` (the phone's switch off,
-        # RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT) are NOT here: a paired device
-        # sends them, read tier, answered only as that authenticated device.
+        # computer's owner accepts and declines. ``offer``, ``withdraw`` (the phone's switch off,
+        # RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT) and ``level`` (a level changed in
+        # place, RT-FU-A-PHONE-CHANGING-A-COMPUTERS-LEVEL-KEEPS-ITS-CREDENTIAL-AND-ITS-ACCEPT) are NOT here:
+        # a paired device sends them, read tier, answered only as that authenticated device.
         "runtime.gateway.reverse.grant",
         "runtime.gateway.reverse.revoke",
         "runtime.gateway.reverse.accept",

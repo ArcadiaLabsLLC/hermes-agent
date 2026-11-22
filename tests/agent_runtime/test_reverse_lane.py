@@ -461,6 +461,38 @@ def test_turning_the_grant_off_closes_the_open_lane_at_once(phone, computer):
         assert phone.rpc("runtime.gateway.reverse.lanes")["result"]["dialing"] == []
 
 
+def test_a_downgrade_closes_the_live_lane_and_the_redial_is_stamped_look_with_the_same_credential(phone, computer):
+    """Hermes row RT-FU-A-PHONE-CHANGING-A-COMPUTERS-LEVEL-KEEPS-ITS-CREDENTIAL-AND-ITS-ACCEPT: Run chats to
+    Look in place closes the computer's live lane at once, and its redial with the SAME credential is
+    admitted and stamped look.
+
+    MUTATION (``grants.change_level``): skip the level notice, and the lane stamped chat stays open.
+    """
+
+    with _driven(phone, computer, grants.GRANT_CHAT) as (client, _hello, device, credential):
+        assert not _scope_denied(_rpc(client, "runtime.chat.message", {}))
+        held = grants.change_level(_phone_root(), computer_install_id="computer-install",
+                                   pairing_device_id=device.device_id, level=grants.GRANT_LOOK)
+        assert held is not None and held.computer_id == credential.computer_id
+        client.set_timeout(5.0)
+        closed = False
+        while not closed:
+            try:
+                closed = client.read_frame() is None
+            except socket.timeout:  # noqa: UP041 - still open: a connection kept the chat stamp
+                pytest.fail("the computer's lane stayed open, stamped chat, after the phone set Look")
+            except OSError:
+                closed = True
+    computer.wait_parked(device.device_id)
+    with computer.attach(device.device_id) as (client, attached):
+        assert attached["event"] == "reverse_attached", attached
+        reply = client.lane_hello(computer_id=credential.computer_id, token=credential.token,
+                                  lane_id=attached["lane_id"], client="eternia-computer")
+        assert reply is not None and reply.get("event") == "hello_ok", reply
+        assert _scope_denied(_rpc(client, "runtime.chat.message", {}))
+        assert not _scope_denied(_rpc(client, "runtime.agent.directory"))
+
+
 def test_an_unpair_on_the_computer_refuses_the_next_dial_and_the_phone_drops_its_grant(phone, computer):
     device, credential = _grant_and_dial(phone, computer)
     revoke_device(computer.root, device.device_id)

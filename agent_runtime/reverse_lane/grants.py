@@ -40,7 +40,9 @@ __all__ = [
     "REVERSE_GRANTS_FILENAME",
     "ReverseGrant",
     "ReverseGrantCredential",
+    "add_level_listener",
     "add_revoke_listener",
+    "change_level",
     "grant_computer",
     "grant_for_install",
     "list_grants",
@@ -104,6 +106,40 @@ def add_revoke_listener(listener: Callable[[list[str]], None]) -> Callable[[], N
                 _listeners.remove(listener)
 
     return remove
+
+
+_level_listeners: list[Callable[[list[str]], None]] = []
+
+
+def add_level_listener(listener: Callable[[list[str]], None]) -> Callable[[], None]:
+    """Be told the computer ids whose grant LEVEL just changed in place; returns the remover.
+
+    The serve's reverse lanes listen and close those computers' live lanes, so a redial's hello
+    is stamped at the new level (the level is stamped on a connection at its hello). The dialer
+    is left running: the credential still verifies.
+    """
+
+    with _listeners_lock:
+        _level_listeners.append(listener)
+
+    def remove() -> None:
+        with _listeners_lock:
+            if listener in _level_listeners:
+                _level_listeners.remove(listener)
+
+    return remove
+
+
+def _notify_level(changed: list[str]) -> None:
+    if not changed:
+        return
+    with _listeners_lock:
+        listeners = list(_level_listeners)
+    for listener in listeners:
+        try:
+            listener(list(changed))
+        except Exception:
+            pass
 
 
 def _notify(revoked: list[str]) -> None:
@@ -179,6 +215,39 @@ def grant_computer(store_root: Path | str, *, computer_install_id: str, pairing_
         _write(store_root, rows)
     _notify(replaced)
     return ReverseGrantCredential(computer_id=computer_id, token=token, level=level)
+
+
+def change_level(store_root: Path | str, *, computer_install_id: str, pairing_device_id: str,
+                 level: str) -> ReverseGrant | None:
+    """Change the level of the grant this computer install already holds on this pairing, in place.
+
+    Hermes row RT-FU-A-PHONE-CHANGING-A-COMPUTERS-LEVEL-KEEPS-ITS-CREDENTIAL-AND-ITS-ACCEPT (review
+    w1122b.5): the same ``computer_id`` and verifier, so the credential the computer accepted keeps
+    verifying and no second Accept is asked; the level listeners close its live lane before this
+    returns, so a downgrade binds on its next call. ``None`` when there is no such grant (none, or one
+    under another pairing): the caller grants afresh and offers, a first consent.
+    """
+
+    if level not in GRANT_LEVELS:
+        raise ValueError(f"grant level must be one of {GRANT_LEVELS}, not {level!r}")
+    install = _grant_id_text(computer_install_id)
+    pairing = _grant_id_text(pairing_device_id)
+    with _lock(store_root):
+        rows = _rows(store_root)
+        held = [(cid, row) for cid, row in rows.items()
+                if row.get("computer_install_id") == install and row.get("pairing_device_id") == pairing
+                and _grant_row(cid, row) is not None]
+        if len(held) != 1:
+            return None
+        computer_id, row = held[0]
+        changed = row.get("level") != level
+        row["level"] = level
+        if changed:
+            _write(store_root, rows)
+    if changed:
+        # MUTATION: skip this notice and test_reverse_lane's downgrade test keeps a live lane stamped chat.
+        _notify_level([computer_id])
+    return _grant_row(computer_id, row)
 
 
 def revoke_grant(store_root: Path | str, computer_id: str) -> bool:

@@ -44,6 +44,7 @@ __all__ = [
     "forget_accept",
     "list_accepts",
     "record_accept",
+    "relevel_accept",
 ]
 
 REVERSE_ACCEPTS_FILENAME = "reverse_accepts.json"
@@ -134,6 +135,21 @@ class ReverseOffers:
         with self._lock:
             return self._offers.pop(str(device_id or ""), None) is not None
 
+    def relevel(self, device_id: str, computer_id: str, level: str) -> bool:
+        """The phone changed the level of the credential *device_id* still offers: the held offer shows it."""
+
+        if level not in GRANT_LEVELS:
+            return False
+        with self._lock:
+            offer = self._offers.get(str(device_id or ""))
+            if offer is None or offer.computer_id != computer_id \
+                    or self._clock() - offer.offered_at > OFFER_TTL_SECONDS:
+                return False
+            self._offers[offer.device_id] = ReverseOffer(
+                device_id=offer.device_id, computer_id=offer.computer_id, level=level,
+                phone_install_id=offer.phone_install_id, token=offer.token, offered_at=offer.offered_at)
+        return True
+
     def pending(self) -> list[ReverseOffer]:
         now = self._clock()
         with self._lock:
@@ -185,6 +201,24 @@ def record_accept(store_root: Path | str, offer: ReverseOffer) -> ReverseAccept:
                                   "accepted_at": accept.accepted_at}
         _write(store_root, rows)
     return accept
+
+
+def relevel_accept(store_root: Path | str, device_id: str, computer_id: str, level: str) -> bool:
+    """The phone changed the level of the credential this computer accepted from *device_id*.
+
+    Only that device's own row, and only while it names *computer_id*. True when it was rewritten."""
+
+    if level not in GRANT_LEVELS:
+        return False
+    with _lock(store_root):
+        rows = _rows(store_root)
+        row = rows.get(str(device_id or ""))
+        if row is None or row.get("computer_id") != computer_id:
+            return False
+        if row.get("level") != level:
+            row["level"] = level
+            _write(store_root, rows)
+    return True
 
 
 def forget_accept(store_root: Path | str, device_id: str) -> bool:
