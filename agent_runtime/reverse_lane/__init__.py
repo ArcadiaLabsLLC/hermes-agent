@@ -10,8 +10,10 @@ Modules, lowest layer first:
 module   layer   owns
 =======  ======  ==============================================================
 grants   stores  the phone's grants: level, verifier, the pairing they are bound to
+accepts  stores  the computer's held offers (memory) and accepted phones (no secret)
 lanes    lanes   ``ReverseLanes`` (park and splice; dial and admit), the hello hook
 dialer   lanes   ``ReverseDialer``: one granted computer's dial loop
+offer    lanes   the phone grants and offers the credential over its pinned connection
 =======  ======  ==============================================================
 
 What the computer's caller may do on the phone is ``call_authorization``'s computer arm:
