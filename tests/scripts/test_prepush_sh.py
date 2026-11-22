@@ -173,7 +173,7 @@ def test_the_gates_bundles_are_sized_to_fill_the_workers(repo: Path):
 def test_touched_tests_are_the_changed_and_untracked_test_files(repo: Path):
     proc, calls = _run(repo)
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    gates_argv, _cite, lane_argv = (line.split() for line in calls.splitlines())
+    gates_argv, _cite, _blob, lane_argv = (line.split() for line in calls.splitlines())
     assert "tests/tooling/test_queue_row_guard.py" in gates_argv
     assert "tests/a/test_committed.py" in lane_argv
     assert "tests/a/test_untracked.py" in lane_argv
@@ -199,7 +199,7 @@ def test_exit_code_is_red_on_any_red(repo: Path, runner_code: int, cite_code: in
     proc, calls = _run(repo, runner_code=runner_code, cite_code=cite_code)
     assert proc.returncode == expected, proc.stdout
     # Every step runs even when the first is red: one push, the whole answer.
-    assert len(calls.splitlines()) == 3
+    assert len(calls.splitlines()) == 4  # gates, doc-cite, blob-size, the touched lane
     assert ("RED" in proc.stdout) == bool(expected)
     # A red notifies once at the end; a green run inside budget notifies nothing.
     notified = repo.parent / "notified.log"
@@ -209,6 +209,22 @@ def test_exit_code_is_red_on_any_red(repo: Path, runner_code: int, cite_code: in
         time.sleep(0.5)  # the notifier is detached; give a wrong one the time to land
         assert not notified.exists(), proc.stdout
         assert "…" not in proc.stdout  # no heartbeat inside budget
+
+
+def test_the_blob_size_step_judges_the_pushed_commits_with_the_fork_guard(repo: Path):
+    """FH-THE-BLOB-SIZE-GUARD-ACCEPTS-THE-COMMITTED-MATCHER-WHEELS: the fork's guard (upstream's check with
+    the committed phone wheels exempt) runs on every push, over merge-base..HEAD, never the working tree.
+    KILLING MUTATION: drop the ``blob-size`` step -> no call names the guard and the plan line is gone, red;
+    judge the working tree (drop ``--head HEAD``) -> the argv reds. Recorded red 2026-11-22, w1118a-blob."""
+    base = subprocess.run(["git", "rev-parse", "origin/main"], cwd=repo, capture_output=True, text=True,
+                          check=True).stdout.strip()
+    proc, calls = _run(repo)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    (blob,) = [line for line in calls.splitlines() if "fork_blob_size.py" in line]
+    assert blob.endswith(f"scripts/ci/fork_blob_size.py --base {base} --head HEAD"), blob
+    assert "✔ blob-size" in proc.stdout
+    proc, _ = _run(repo, cite_body='case "$*" in *fork_blob_size*) exit 1 ;; esac')
+    assert proc.returncode == 1 and "✘ prepush: blob-size red (exit 1" in proc.stdout
 
 
 def test_a_missing_named_path_refuses_before_running(repo: Path):
@@ -234,7 +250,8 @@ def test_the_plan_declares_every_steps_budget_and_deadline(repo: Path):
     assert "step gates — budget 10s, deadline 20s" in proc.stdout
     assert "step doc-cite — budget 4s, deadline 10s" in proc.stdout
     assert "step touched (the slower lane) — budget 60s, deadline 120s" in proc.stdout
-    assert "default path: gates + doc-cite, budget 14s" in proc.stdout
+    assert "step blob-size — budget 4s, deadline 20s" in proc.stdout
+    assert "default path: gates + doc-cite + blob-size, budget 18s" in proc.stdout
     assert "whole-run cap 240s" in proc.stdout
 
 
@@ -333,7 +350,7 @@ def test_a_name_census_gate_runs_in_its_own_step_never_the_touched_lane(repo: Pa
                        env_extra={"ETERNIA_HEAVY_SLOTS": "2"})
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "step census — budget 30s, deadline 60s" in proc.stdout and "✔ census" in proc.stdout
-    _gates, _cite, census_argv, lane_argv = (line.split() for line in calls.splitlines())
+    _gates, _cite, _blob, census_argv, lane_argv = (line.split() for line in calls.splitlines())
     assert sorted(p for p in census_argv if p.startswith("tests/")) == sorted(census)
     assert not set(census) & set(lane_argv) and "tests/a/test_committed.py" in lane_argv
     by_step = {"census" if census[0] in line else "touched": line.split()[0] for line in
@@ -582,7 +599,7 @@ def test_a_touched_file_last_run_slow_runs_as_node_id_shards_unless_listed_unsha
     proc, calls = _run(repo)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "sharded: tests/a/test_committed.py into 3 (last run 26s)" in proc.stdout
-    lanes = calls.splitlines()[2:]
+    lanes = calls.splitlines()[3:]  # after gates, doc-cite and blob-size
     shards = sorted(line for line in lanes if "--hermes-shard=" in line)
     assert shards == [f"-j 1 tests/a/test_committed.py -- -p scripts._bundle_plugin.hermes_shard --hermes-shard={i}/3"
                       for i in range(3)], lanes
@@ -705,10 +722,10 @@ def test_a_runtime_or_cli_change_checks_the_two_recorded_contracts(repo: Path):
     proc, calls = _run(repo)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     ran = calls.splitlines()
-    contracts = sorted(ran[2:4])  # side by side, so either may log first
+    contracts = sorted(ran[3:5])  # side by side, so either may log first
     assert contracts[0] == "-m tests.agent_runtime._serve_rpc_manifest"
     assert contracts[1].endswith("scripts/dump_cli_contract.py --check")
-    assert len(ran) == 5, "gates, doc-cite, the two contract checks, the touched lane"
+    assert len(ran) == 6, "gates, doc-cite, blob-size, the two contract checks, the touched lane"
     stale = _stub(repo.parent / "stale.sh", 0, repo.parent / "calls.log",
                   'case "$*" in *_serve_rpc_manifest*) echo "stale: run --write"; exit 1 ;; esac')
     (repo.parent / "calls.log").unlink()
