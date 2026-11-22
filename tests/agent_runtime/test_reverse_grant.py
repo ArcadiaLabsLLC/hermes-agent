@@ -314,6 +314,11 @@ def test_a_computer_granted_look_or_chat_is_refused_the_console_level():
         answered = {name for name, tier in tiers.items() if ca.authorize_call(tier, caller, method=name).ok}
         assert answered <= (ca.COMPUTER_CHAT_METHOD_ALLOWLIST if grant == grants.GRANT_CHAT
                             else ca.COMPUTER_LOOK_METHOD_ALLOWLIST), (grant, answered)
+        # The phone's generated documents: read, never changed (review w1122b.4,
+        # RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS).
+        assert "runtime.agent.files.virtual" in answered, grant
+        assert "runtime.agent.files.virtual.write" in tiers
+        assert "runtime.agent.files.virtual.write" not in answered, grant
 
 
 def test_the_device_arm_and_the_account_level_share_one_predicate():

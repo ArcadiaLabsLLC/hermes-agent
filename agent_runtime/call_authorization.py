@@ -409,6 +409,10 @@ COMPUTER_LOOK_METHOD_ALLOWLIST: frozenset[str] = frozenset(
         "runtime.agent.files.tree",
         "runtime.agent.files.read",
         "runtime.agent.files.grep",
+        # This phone's generated documents, read through its own Eternia (tree / read / grep only;
+        # RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS). Their writes are
+        # the separate runtime.agent.files.virtual.write, in no computer allowlist (review w1122b.4).
+        "runtime.agent.files.virtual",
     }
 )
 

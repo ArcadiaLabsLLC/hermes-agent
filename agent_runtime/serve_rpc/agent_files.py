@@ -15,10 +15,14 @@ Params (every verb takes ``persona_instance_id``):
 * ``grep`` — ``pattern`` (1-256 characters: literal, or with ``wildcard: true`` a ``*`` spans any run
   within a line), ``path`` (absent: every root), ``glob`` (only files whose name matches), ``offset``.
 
-* ``virtual`` — ``verb`` (``tree`` | ``read`` | ``grep`` | ``patch`` | ``write`` | ``move``) and ``args``:
-  this device's virtual tree (Eternia's generated documents), asked of this device's own Eternia with
-  no turn bound (row ``RT-PHONE-FILES-THE-ENGINE-ASKS-THIS-DEVICES-ETERNIA-FOR-A-VIRTUAL-TREE-WITH-NO-TURN``);
-  refused ``virtual_tree_unavailable`` when Eternia is not open here.
+* ``virtual`` — ``verb`` (``tree`` | ``read`` | ``grep``) and ``args``: this device's virtual tree
+  (Eternia's generated documents), asked of this device's own Eternia with no turn bound (row
+  ``RT-PHONE-FILES-THE-ENGINE-ASKS-THIS-DEVICES-ETERNIA-FOR-A-VIRTUAL-TREE-WITH-NO-TURN``); refused
+  ``virtual_tree_unavailable`` when Eternia is not open here;
+* ``virtual.write`` — the same with ``verb`` ``patch`` | ``write`` | ``move``: Eternia's validated edit of
+  a generated document. A separate method so that reach is stated once, by method name, in
+  ``call_authorization`` (row ``RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS``,
+  review w1122b.4): the reads join a computer's look allowlist, the writes join no computer allowlist.
 
 ``glob`` and a wildcard ``pattern`` are the rule spec's ``patterns`` dialects, never a regular
 expression: a remote caller's pattern is matched without backtracking (``project_files/patterns.py``),
@@ -60,16 +64,20 @@ __all__ = [
     "_runtime_agent_files_read",
     "_runtime_agent_files_tree",
     "_runtime_agent_files_virtual",
+    "_runtime_agent_files_virtual_write",
 ]
 
 TREE_METHOD = "runtime.agent.files.tree"
 READ_METHOD = "runtime.agent.files.read"
 GREP_METHOD = "runtime.agent.files.grep"
 VIRTUAL_METHOD = "runtime.agent.files.virtual"
+VIRTUAL_WRITE_METHOD = "runtime.agent.files.virtual.write"
 #: The virtual tree's verbs a caller may name, each Eternia's ``launcher.generated.<verb>``
 #: (plan ``PHONE_PROJECT_FOLDERS_FILE_TREE_2026-11-21`` §4 V1, §7: Eternia is the only writer, so
-#: a write is its validated edit, asked through the same lane).
-VIRTUAL_TREE_VERBS = ("tree", "read", "grep", "patch", "write", "move")
+#: a write is its validated edit, asked through the same lane). Reads and writes are two methods,
+#: because a computer grant is a method-name allowlist that ignores a verb's tier.
+VIRTUAL_READ_VERBS = ("tree", "read", "grep")
+VIRTUAL_WRITE_VERBS = ("patch", "write", "move")
 
 #: The honoured keys of each verb (the manifest's ``params``).
 AGENT_FILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
@@ -77,6 +85,7 @@ AGENT_FILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     READ_METHOD: ("persona_instance_id", "path", "offset"),
     GREP_METHOD: ("persona_instance_id", "pattern", "path", "glob", "wildcard", "offset"),
     VIRTUAL_METHOD: ("verb", "args"),
+    VIRTUAL_WRITE_METHOD: ("verb", "args"),
 }
 
 _CODES = {"not_found": ERR_NOT_FOUND, "invalid_path": ERR_INVALID_PARAMS, "bad_argument": ERR_INVALID_PARAMS}
@@ -177,24 +186,17 @@ def _runtime_agent_files_grep(rid: Any, params: dict, context: RpcContext | None
     return _answer(rid, params, run)
 
 
-@method(VIRTUAL_METHOD, tier=TIER_CONSOLE)
-def _runtime_agent_files_virtual(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    """This device's virtual tree (Eternia's generated documents), asked of this device's Eternia.
+def _ask_virtual(rid: Any, params: Any, context: RpcContext | None, name: str, verbs: tuple[str, ...]) -> dict:
+    """Ask this device's Eternia ``launcher.generated.<verb>`` for one of *verbs*, on the worker lane.
 
-    Row ``RT-PHONE-FILES-THE-ENGINE-ASKS-THIS-DEVICES-ETERNIA-FOR-A-VIRTUAL-TREE-WITH-NO-TURN``. Params:
-    ``verb`` (one of :data:`VIRTUAL_TREE_VERBS`) and ``args`` (that ``launcher.generated.<verb>``'s own
-    arguments, which Eternia validates: ``document_id``, ``path``, ``read_version``…). No turn is bound
-    here, so the request goes to the device-local Eternia link
+    Row ``RT-PHONE-FILES-THE-ENGINE-ASKS-THIS-DEVICES-ETERNIA-FOR-A-VIRTUAL-TREE-WITH-NO-TURN``. ``args``
+    is that verb's own arguments, which Eternia validates (``document_id``, ``path``, ``read_version``…).
+    No turn is bound here, so the request goes to the device-local Eternia link
     (``launcher_app_functions.device_local_launcher_link``: the machine owner's own declaring connection,
     never a peer's or a paired device's Eternia), origin ``local`` for the owner and ``paired_device`` for
     anyone else. With no such connection it refuses ``virtual_tree_unavailable`` ("Eternia is not open on
-    this device").
-
-    **Security.** ``console`` tier, as the agent's real folders are (``runtime.agent.files.*``; plan §11:
-    a device paired view-only is refused an agent's files as it is refused its chats), so a view-only
-    device's read or write is refused at the dispatcher before anything is asked of Eternia. Not in any
-    computer grant's allowlist and not in the peer allowlist. Hermes writes nothing itself: a write is
-    Eternia's fenced, validated edit.
+    this device"). Who may call *name* at all was settled before this runs (the dispatcher's tier and,
+    for a computer driving this phone, its grant's allowlist); nothing here checks it a second time.
     """
 
     from agent_runtime.call_authorization import is_machine_owner
@@ -206,8 +208,8 @@ def _runtime_agent_files_virtual(rid: Any, params: dict, context: RpcContext | N
 
     params = params if isinstance(params, dict) else {}
     verb, args = params.get("verb"), params.get("args", {})
-    if verb not in VIRTUAL_TREE_VERBS:
-        return err(rid, ERR_INVALID_PARAMS, f"verb must be one of {', '.join(VIRTUAL_TREE_VERBS)}",
+    if verb not in verbs:
+        return err(rid, ERR_INVALID_PARAMS, f"verb must be one of {', '.join(verbs)}",
                    {"reason": "bad_argument", "detail": "verb"})
     if not isinstance(args, dict):
         return err(rid, ERR_INVALID_PARAMS, "args must be an object", {"reason": "bad_argument", "detail": "args"})
@@ -226,4 +228,30 @@ def _runtime_agent_files_virtual(rid: Any, params: dict, context: RpcContext | N
             return err(rid, ERR_HANDLER_FAILED, failed.message, {"reason": str(reason)})
 
     # It waits on Eternia's answer: the worker lane, never the reader's thread.
-    return defer_or_inline(rid, VIRTUAL_METHOD, context, run)
+    return defer_or_inline(rid, name, context, run)
+
+
+@method(VIRTUAL_METHOD, tier=TIER_CONSOLE)
+def _runtime_agent_files_virtual(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Read this device's virtual tree (Eternia's generated documents): ``verb`` tree, read or grep.
+
+    **Security.** ``console`` tier, as the agent's real folders are (``runtime.agent.files.*``; plan §11:
+    a device paired view-only is refused an agent's files as it is refused its chats), so a view-only
+    device's read is refused at the dispatcher before anything is asked of Eternia. Reads only, so it
+    sits in a computer's look allowlist beside ``runtime.agent.files.*``; not in the peer allowlist.
+    """
+
+    return _ask_virtual(rid, params, context, VIRTUAL_METHOD, VIRTUAL_READ_VERBS)
+
+
+@method(VIRTUAL_WRITE_METHOD, tier=TIER_CONSOLE)
+def _runtime_agent_files_virtual_write(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Change this device's virtual tree: ``verb`` patch, write or move, as Eternia's validated edit.
+
+    **Security.** ``console`` tier, and in no computer grant's allowlist and not the peer allowlist
+    (review w1122b.4: a look or Run chats computer reads a phone's generated documents and never
+    changes them; a computer on the phone's own account reaches it through ``paired_device_answers``).
+    Hermes writes nothing itself: a write is Eternia's fenced, validated edit.
+    """
+
+    return _ask_virtual(rid, params, context, VIRTUAL_WRITE_METHOD, VIRTUAL_WRITE_VERBS)

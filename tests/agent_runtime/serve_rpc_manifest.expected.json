@@ -39,6 +39,7 @@
     "runtime.agent.files.read",
     "runtime.agent.files.tree",
     "runtime.agent.files.virtual",
+    "runtime.agent.files.virtual.write",
     "runtime.agent.idle_instances",
     "runtime.agent.place",
     "runtime.agent.retire",
@@ -475,6 +476,10 @@
       "offset"
     ],
     "runtime.agent.files.virtual": [
+      "verb",
+      "args"
+    ],
+    "runtime.agent.files.virtual.write": [
       "verb",
       "args"
     ],
@@ -1092,6 +1097,7 @@
     "runtime.agent.files.read": "console",
     "runtime.agent.files.tree": "console",
     "runtime.agent.files.virtual": "console",
+    "runtime.agent.files.virtual.write": "console",
     "runtime.agent.idle_instances": "console",
     "runtime.agent.place": "console",
     "runtime.agent.retire": "console",
