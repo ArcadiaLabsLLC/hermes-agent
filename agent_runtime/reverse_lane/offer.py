@@ -28,6 +28,10 @@ __all__ = ["OFFER_METHOD", "grant_and_offer"]
 
 OFFER_METHOD = "runtime.gateway.reverse.offer"
 _TIMEOUT = 10.0
+#: How long the offer's answer may take: a computer's first call after its serve started
+#: loads its method families (seen live 2026-11-21: the first offer after a restart was
+#: answered after the 10 s dial timeout, the retry at once).
+_REPLY_TIMEOUT = 30.0
 _CLIENT_NAME = "eternia-phone-reverse-offer"
 _MAX_FRAMES = 64
 
@@ -59,6 +63,7 @@ def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, por
             refused = hello.get("reason") if isinstance(hello, dict) else None
             reason = "unpaired" if refused == "bad_proof" else "computer_refused"
         else:
+            client.set_timeout(_REPLY_TIMEOUT)
             rid = f"offer-{secrets.token_hex(4)}"
             client.send({"jsonrpc": "2.0", "id": rid, "method": OFFER_METHOD, "params": {
                 "computer_id": credential.computer_id, "token": credential.token,
