@@ -262,3 +262,54 @@ def test_a_reader_mutating_a_held_list_never_reaches_the_shipped_value(monkeypat
         assert config_switches.with_install_switches({}, cache=False)["tools"]["allow"] == ["web"]
     finally:
         config_switches.reset_install_switches()
+
+
+
+def _probe_reads() -> dict:
+    """Both readers of ``agent.environment_probe``: a real agent's init (``run_agent.AIAgent`` ->
+    ``agent_init.init_agent``'s config phase) and the gateway's early warm-up. Each reports whether it
+    starts the toolchain probe (``tools.env_probe``'s subprocess worker)."""
+    from unittest.mock import patch
+
+    import run_agent
+    from gateway import run_bootstrap
+
+    with (
+        patch("agent.process_bootstrap.OpenAI"),
+        patch("agent.model_metadata_http.get") as metadata_get,
+        patch("model_tools.get_tool_definitions", return_value=[]),
+        patch("tools.env_probe.warm_environment_probe_async") as warm,
+    ):
+        metadata_get.return_value.json.return_value = {"data": [{"id": "test-model", "context_length": 204_800}]}
+        agent = run_agent.AIAgent(
+            model="test-model", provider="openrouter", api_mode="chat_completions", api_key="test-key",
+            base_url="https://openrouter.ai/api/v1", enabled_toolsets=[], quiet_mode=True,
+            skip_context_files=True, skip_memory=True, skip_background_review=True, save_trajectories=False)
+        try:
+            reads = {"agent": agent._environment_probe, "agent_warmed": warm.called}
+        finally:
+            agent.close()
+        warm.reset_mock()
+        run_bootstrap._start_gateway_early_environment_probe()
+        reads["gateway_warmed"] = warm.called
+    return reads
+
+
+def test_a_phones_second_profile_never_starts_the_toolchain_probe(homes, install):
+    """RT-FU-A-BUNDLED-INSTALLS-SWITCHES-READ-OUTSIDE-THE-READ-SEAM-HOLD-TOO, narrowed (review w1118a.84) to its one
+    live guess: a phone's second profile saying ``agent.environment_probe: true`` would spawn the probe's
+    subprocesses. Both readers take ``load_config_readonly`` (``init_agent``'s config phase hands that dict
+    to ``_apply_agent_section``), so the shipped ``false`` holds; the row's premise (a raw ``load_config``)
+    does not hold at this reader.
+
+    MUTATION (``agent_init.init_agent``: read ``load_config`` instead of ``load_config_readonly``, the row's
+    premise): the phone's second profile starts the probe; red recorded in the commit."""
+    root, second = homes
+    _write(root, {})
+    _write(second, {"agent": {"environment_probe": True}})
+    install(None)
+    with _scoped(second):  # positive control: the profile's own "on" starts it
+        assert _probe_reads() == {"agent": True, "agent_warmed": True, "gateway_warmed": True}
+    install(PHONE)
+    with _scoped(second):
+        assert _probe_reads() == {"agent": False, "agent_warmed": False, "gateway_warmed": False}
