@@ -248,6 +248,17 @@ CASES = {
         ["apps/bootstrap-installer/src-tauri/tauri.conf.json"],
         _lanes(frontend=True, bootstrap=True, rust=True),
     ),
+    # crates/ is the fork's library crates (crates/project_files_match): its C header
+    # and toolchain file change what cargo builds and what the binding loads, so they
+    # route to rust; Python stays on (the binding's tests run there).
+    "library crate header → rust": (
+        ["crates/project_files_match/include/project_files_match.h"],
+        _lanes(python=True, rust=True),
+    ),
+    "library crate toolchain → rust": (
+        ["crates/project_files_match/rust-toolchain.toml"],
+        _lanes(python=True, rust=True),
+    ),
     "ts source alone → no rust lane": (
         ["apps/bootstrap-installer/src/main.tsx"],
         _lanes(frontend=True, bootstrap=True),

@@ -20,18 +20,20 @@ file tools bind here (``MC-PHONE-FILES-A-PHONE-AGENT-READS-AND-WRITES-ITS-PROJEC
 
 Modules, lowest layer first:
 
-==========  =====================================================================
-module      owns
-==========  =====================================================================
-rules       the spec's values and refusal codes (pinned to the mirror's rules.json)
-paths       the root-relative path grammar
-ignore      the walk's skip rules: .git, the skip list, the root .gitignore subset
-patterns    the glob and line-wildcard dialects (no regular expression) and the search deadline
-replies     the pure halves of the verbs: binary probe, strict text, pages, grep lines
-reader      the I/O: confinement, the walk, the three verbs
-changes     status and diff on a git root, through realm_sync's git port
-agent_tree  an agent's roots, enumerated here, as one tree (the remote verbs' reader)
-==========  =====================================================================
+==============  ===================================================================
+module          owns
+==============  ===================================================================
+rules           the spec's values and refusal codes (pinned to the mirror's rules.json)
+paths           the root-relative path grammar
+ignore          the walk's skip rules: .git, the skip list, the root .gitignore subset
+patterns        the glob and line-wildcard dialects (no regular expression) and the search deadline
+replies         the pure halves of the verbs: binary probe, strict text, pages, grep lines
+native_match    ripgrep's matcher in process (ctypes over crates/project_files_match): a phone's regex
+fallback_match  the regex package with timeout=: a phone's regex where ripgrep's matcher is not loaded
+reader          the I/O: confinement, the walk, the one regular-file opener, the three verbs
+changes         status and diff on a git root, through realm_sync's git port
+agent_tree      an agent's roots, enumerated here, as one tree (the remote verbs' reader)
+==============  ===================================================================
 """
 
 __layer__ = "models"

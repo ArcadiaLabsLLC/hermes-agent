@@ -40,9 +40,10 @@ Lanes:
   shared runner; running them on every Python PR made their timing noise
   everyone's problem. They still run on push (fail-open) and whenever the
   script, its siblings, or their tests change.
-* ``rust``        — ``cargo test`` for the Tauri bootstrap installer. ``.rs``
-  lives under ``apps/``, so without this lane a Rust change matched ``frontend``
-  and only the TypeScript matrix ran.
+* ``rust``        — ``cargo test`` for the Tauri bootstrap installer and the
+  ``crates/`` libraries. The installer's ``.rs`` lives under ``apps/``, so
+  without this lane a Rust change matched ``frontend`` and only the TypeScript
+  matrix ran.
 * ``catalog``     — the plugin-catalog tests (catalog-tests.yml). A diff made
   only of catalog entry data (``plugin-catalog/*.yaml``, ``contributors/emails/``)
   runs this lane INSTEAD of the Python suite: those files are data that a known
@@ -216,11 +217,13 @@ _SHARED_FIXTURE_CONSUMERS: dict[str, tuple[str, ...]] = {
 # electron/update-* starts the Desktop update E2E, which never reads the corpus).
 _FIXTURE_CONSUMER_LANES = ("python", "rust", "frontend", "desktop_updater")
 
-# Rust crates — currently just the Tauri bootstrap installer (Hermes-Setup).
-# These live under ``apps/``, so before this lane existed a ``.rs`` edit matched
+# Rust crates: the Tauri bootstrap installer (Hermes-Setup) and the fork's library
+# crates under ``crates/`` (``crates/project_files_match``: ripgrep's matcher for a
+# phone's regex search, whose header and toolchain file are not ``.rs``). The
+# installer lives under ``apps/``, so before this lane existed a ``.rs`` edit matched
 # ``frontend`` and nothing more: the TypeScript matrix built, cargo never ran,
 # and the crate's unit tests had never executed in CI at all.
-_RUST_PATHS = ("apps/bootstrap-installer/src-tauri/",)
+_RUST_PATHS = ("apps/bootstrap-installer/src-tauri/", "crates/")
 _RUST_FILENAMES = {"Cargo.toml", "Cargo.lock"}
 
 # The real SSH/Docker backend lane: the backends, the terminal tool that drives

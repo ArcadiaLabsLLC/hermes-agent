@@ -1,0 +1,35 @@
+[package]
+name = "project_files_match"
+version = "1.0.0"
+edition = "2021"
+publish = false
+description = "ripgrep's matcher (grep-regex + grep-searcher) behind a C ABI: bytes in, matching line numbers out"
+license = "MIT"
+
+# Plan docs/agent-runtime-harness/planned/phone-regex-engine-in-process-2026-11-21.md §3-§5, row
+# RT-PHONE-REGEX-SEARCH-RUNS-RIPGREPS-MATCHER-FROM-A-NATIVE-LIBRARY. Python's walk owns which files are
+# searched and opens them; this crate never sees a path, never walks (no `ignore`), never writes.
+
+[lib]
+# cdylib: the library hermes loads through ctypes (agent_runtime/project_files/native_match.py).
+# rlib: so `cargo test` links the unit tests against the same code.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+grep-matcher = "0.1.9"
+grep-regex = "0.1.14"
+grep-searcher = "0.1.17"
+
+[dev-dependencies]
+# The per-line oracle the tests hold the searcher's line numbers to: the same regex engine,
+# asked one line at a time.
+regex = { version = "1.13.2", default-features = false, features = ["std", "perf", "unicode"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+# Unwind, never abort: the library runs inside the phone's one Hermes process, and an abort on a
+# Rust panic would end it. Every `extern "C"` function catches the unwind (src/lib.rs `guard`).
+panic = "unwind"
+strip = true

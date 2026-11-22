@@ -6,3 +6,4 @@ ETERNIA_HEAVY_SLOTS  # scripts/run_tests_bundled_slot.py: the launcher's heavy-r
 ETERNIA_HEAVY_SLOT_DIR  # scripts/run_tests_bundled_slot.py: the slot directory, named before TEMP moves (_fork_test_env.sh)
 ETERNIA_HEAVY_SLOT_HELD  # scripts/run_tests_bundled_slot.py: a parent already holds a slot (re-entrancy)
 HERMES_REQUIRE_TELEGRAM_EXTRA  # tests/agent_runtime/messaging/_telegram_extra.py: 1 = the real Telegram adapter tests fail, never skip, without python-telegram-bot (fork-gates.yml)
+ETERNIA_PROJECT_FILES_MATCH_LIB  # agent_runtime/project_files/native_match.py: the host build of crates/project_files_match the native tests load (rust-tests.yml); unset, they skip
