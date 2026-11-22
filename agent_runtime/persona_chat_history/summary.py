@@ -13,11 +13,7 @@ from .. import chat_heads, chat_session_scope
 from ..clock import iso_timestamp
 from ..models import PersonaInstance
 from ..projection_accountant import ProjectionAccountant
-from ..persona_assignments import (
-    retired_persona_instance_ids,
-    safe_assignment_text,
-    safe_assignment_token,
-)
+from ..persona_assignments import safe_assignment_text, safe_assignment_token
 from ..persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 from .history_rows import (
     _get_session_row,
@@ -106,11 +102,12 @@ def persona_chat_history_summary(
         if session_db is None and not chat_session_scope.chat_session_store_exists():
             summary.account_absent_store()
         return []
-    # Cross-agent fan-out (chat-head plan §2.4): every ``per_profile`` head
-    # opened once, read-only; its instances read from it, everyone else from
-    # ``db``. Heads first, so a head's copy outranks a leftover in ``db``.
-    with chat_heads.per_profile_read_heads(
-        summary.instances_by_id.values(), process_db=db
+    # Cross-agent fan-out (chat-head plan §2.4): every ``per_profile`` head of a
+    # live instance OR a retired holder opened once, read-only; its holders read
+    # from it, everyone else from ``db``. Heads first, so a head's copy outranks a
+    # leftover in ``db``.
+    with chat_heads.holder_read_heads(
+        summary.instances_by_id.values(), retired=summary.retired, process_db=db
     ) as head_reads:
         summary.head_reads = head_reads
         for head in {id(read): read for read in head_reads.values()}.values():
@@ -149,19 +146,15 @@ class HistorySummary:
     # Root session id -> freshest activity of its compression descendants, folded
     # from the pool rows the candidate loop already skips (no extra read).
     activity_by_root: dict[str, str] = field(default_factory=dict)
-    # The retirement archive listing, read AT MOST ONCE per build and only when an
-    # unresolved binding actually appears: a healthy runtime with no orphans pays
-    # nothing, and a runtime with fifty orphans still pays one listing, never one
-    # per session.
-    retired_instance_ids: frozenset[str] | None = None
     #: Instance id -> its ``per_profile`` head (``chat_heads.HeadRead``);
     #: an instance absent here reads from the process handle.
     head_reads: dict[str, Any] = field(default_factory=dict)
-    #: Sessions listed under a RETIRED holder (their row is the holder's archive record), and the
-    #: archive rows read so far, one read per retired holder per build
+    #: Sessions listed under a RETIRED holder (their row is the holder's archive record)
     #: (RT-AN-AGENTS-SAVED-CHATS-STAY-IN-CHAT-HISTORY-AFTER-THE-COPY-THAT-HELD-THEM-IS-RETIRED).
     retired_holder_sessions: set[str] = field(default_factory=set)
-    retired_rows: dict[str, Any] = field(default_factory=dict)
+    #: The retired holders this build meets: the archive listing read AT MOST ONCE per build and
+    #: each tombstone decoded once, shared by the head fan-out and the retired-holder arm.
+    retired: chat_heads.RetiredHolders = field(default_factory=chat_heads.RetiredHolders)
 
     def _head_of(self, instance: Any) -> Any:
         return self.head_reads.get(safe_assignment_text(getattr(instance, "id", None), limit=160) or "")
@@ -249,10 +242,12 @@ class HistorySummary:
             instance = self.bound_by_session.get(session_id) or self.instances_by_id.get(
                 persisted_instance_id or ""
             )
-            if instance is None and head is None:
+            if instance is None:
                 # A saved chat whose holder was retired stays its AGENT's chat, listed under that
                 # holder and flagged, never re-attributed to another live instance of the persona
-                # nor dropped (owner RULED 2026-11-21: "chat history is still a thing").
+                # nor dropped (owner RULED 2026-11-21: "chat history is still a thing"). Asked on a
+                # head's pass too: a holder on its own ``per_profile`` head is read from that head
+                # (RT-FU-A-RETIRED-HOLDERS-CHAT-IN-ITS-OWN-PROFILE-STAYS-IN-THE-CHAT-LISTS).
                 # MUTATION: drop this arm and test_a_retired_holders_chat_lists_under_its_agent reddens.
                 instance = self._retired_holder(session_id, persisted_instance_id)
                 if instance is not None:
@@ -278,26 +273,15 @@ class HistorySummary:
         """The archive row of the retired instance holding ``session_id``, or ``None``.
 
         The holder is the transcript's persisted instance, else the move ledger's or the minted id's
-        (``chat_session_held_by``). Asked only after the live indexes missed, against the archive
-        listing read at most once per build; one archive read per retired holder."""
+        (``chat_session_held_by``). Asked only after the live indexes missed, against the build's
+        :class:`chat_heads.RetiredHolders` (one listing, one tombstone decode per holder)."""
 
-        from ..persona_assignments import PersonaInstanceStore
         from ..persona_assignments.chat_moves import chat_session_held_by
-        from ..persona_assignments.retire import retired_instance_row
 
         holder = persisted_instance_id or chat_session_held_by(session_id)
         if not holder or holder in self.instances_by_id:
             return None
-        if self.retired_instance_ids is None:
-            self.retired_instance_ids = retired_persona_instance_ids()
-        if holder not in self.retired_instance_ids:
-            return None
-        if holder not in self.retired_rows:
-            try:
-                self.retired_rows[holder] = retired_instance_row(PersonaInstanceStore(), holder)
-            except Exception:
-                self.retired_rows[holder] = None
-        return self.retired_rows[holder]
+        return self.retired.row(holder)
 
     def _drop_unmatched(self, session_id: str, persisted_instance_id: str | None) -> None:
         accountant = self.accountant
@@ -314,9 +298,7 @@ class HistorySummary:
         # The classification is declared HERE, at the emission site, per
         # ``parity.py``'s contract — a counter that special-cased the code
         # would be the stale reader-side allowlist that contract retired.
-        if self.retired_instance_ids is None:
-            self.retired_instance_ids = retired_persona_instance_ids()
-        if persisted_instance_id and persisted_instance_id in self.retired_instance_ids:
+        if persisted_instance_id and persisted_instance_id in self.retired.ids():
             # By design: still nonzero on a perfectly healthy runtime,
             # purely because retiring placements is normal lifecycle.
             accountant.drop(

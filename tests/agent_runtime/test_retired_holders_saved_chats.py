@@ -141,3 +141,121 @@ def test_a_holder_gone_without_a_retire_is_not_flagged(qa_workspace):
     (paths.persona_instances_dir() / (placed["persona_instance_id"] + ".json")).unlink()
     row = _directory_row(chat)
     assert row is not None and (row["available"], row["holder_retired"]) == (False, False)
+
+
+# --- A retired holder whose chats live in its OWN profile (a ``per_profile`` head) -------------------------
+#
+# Row RT-FU-A-RETIRED-HOLDERS-CHAT-IN-ITS-OWN-PROFILE-STAYS-IN-THE-CHAT-LISTS (seen live 2026-11-22 by
+# w1122d-mcfu: Neko's only instance retired, its chat only in ``profiles/neko/state.db``, gone from Chat
+# history). The tests above place instances on the process head, so they never reach this case. Here the
+# holder records the profile ``alice`` as its head (checked by a probe), its chat is written ONLY there, and
+# no live instance of its agent is left: both chat-list readers must still open that head.
+
+PROFILE_CHAT = "persona_chat_personainst_qa_agent_1_00000000000b"
+PROCESS_CHAT = "persona_chat_personainst_dev_agent_1_00000000000a"
+
+
+@pytest.fixture
+def profile_heads(tmp_path, monkeypatch):
+    root = tmp_path / ".hermes"
+    base, alice = root / "profiles" / "base", root / "profiles" / "alice"
+    for path in (base, alice):
+        path.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("HERMES_HOME", str(base))
+    monkeypatch.setenv("HERMES_HEAD_HOME", str(base))
+    return {"base": base, "alice": alice}
+
+
+def _write_chat(home, persona_id: str, session_id: str, text: str) -> None:
+    from contextlib import closing
+
+    from hermes_state import SessionDB
+
+    from agent_runtime.persona_chat_durability import ensure_persona_chat_session
+
+    with closing(SessionDB(db_path=home / "state.db")) as db:
+        ensure_persona_chat_session(session_db=db, session_id=session_id, persona_id=persona_id,
+                                    title=f"{persona_id} saved chat", required=True)
+        db.append_message(session_id=session_id, role="user", content=text)
+
+
+def _retired_profile_holder(profile_heads) -> str:
+    """``dev`` lives on the process head; ``qa``'s ONLY instance holds a chat in ``alice`` and is retired."""
+
+    from agent_runtime.chat_session_scope import resolve_instance_chat_scope
+    from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE
+
+    store = PersonaInstanceStore()
+    store.open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1", session_id=PROCESS_CHAT)
+    _write_chat(profile_heads["base"], "dev", PROCESS_CHAT, "from base")
+    holder = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=PROFILE_CHAT)
+    holder.chat_head_home, holder.chat_head_kind = str(profile_heads["alice"]), CHAT_HEAD_KIND_PER_PROFILE
+    store.update(holder)
+    _write_chat(profile_heads["alice"], "qa", PROFILE_CHAT, "saved in its own profile")
+    # The probe: the holder reads and writes on alice's head, and the process store never saw the chat.
+    assert resolve_instance_chat_scope(store.get(holder.id)).db_path == profile_heads["alice"] / "state.db"
+    from contextlib import closing
+
+    from hermes_state import SessionDB
+
+    with closing(SessionDB(db_path=profile_heads["base"] / "state.db")) as base_db:
+        assert base_db.get_session(PROFILE_CHAT) is None
+    store.retire(holder.id, reason="desk removed")
+    assert [i.persona_id for i in store.list_all()] == ["dev"]  # no live instance of qa is left
+    return holder.id
+
+
+@pytest.fixture
+def archive_reads(monkeypatch):
+    """How many times one read lists the retirement archive and decodes each tombstone."""
+
+    from collections import Counter
+
+    from agent_runtime.persona_assignments import retire
+
+    counts: Counter = Counter()
+    real_ids, real_row = retire.retired_persona_instance_ids, retire.retired_instance_row
+
+    def ids():
+        counts["listing"] += 1
+        return real_ids()
+
+    def row(store, instance_id):
+        counts[instance_id] += 1
+        return real_row(store, instance_id)
+
+    monkeypatch.setattr(retire, "retired_persona_instance_ids", ids)
+    monkeypatch.setattr(retire, "retired_instance_row", row)
+    return counts
+
+
+def test_a_retired_holders_chat_in_its_own_profile_stays_in_the_snapshots_chat_history(profile_heads, archive_reads):
+    """Kill-mutations: drop ``retired.rows(...)`` from ``chat_heads.holder_read_heads``; or call
+    ``per_profile_read_heads`` over the live instances in ``persona_chat_history_summary``; or ask the
+    retired-holder arm on the process pass only (``instance is None and head is None``) -> red."""
+    holder = _retired_profile_holder(profile_heads)
+    row = _history(PROFILE_CHAT)
+    assert row is not None
+    assert (row["persona_id"], row["persona_instance_id"], row["holder_retired"]) == ("qa", holder, True)
+    assert row["title"] == "qa saved chat"
+    assert row["messages"][-1]["text"] == "saved in its own profile"
+    # One build lists the archive once and decodes the tombstone once, though it both opened the
+    # holder's head and flagged its row. Kill-mutation: a fresh ``RetiredHolders`` in
+    # ``HistorySummary._retired_holder`` -> red.
+    assert (archive_reads["listing"], archive_reads[holder]) == (1, 1)
+
+
+def test_a_retired_holders_chat_in_its_own_profile_stays_in_the_chat_directory(profile_heads, archive_reads):
+    """``runtime.operator.conversation.list`` (Eternia's AI Chat history). Kill-mutations: drop
+    ``retired.rows(...)`` from ``chat_heads.holder_read_heads``; or call ``per_profile_read_heads``
+    over ``scan.instances`` in ``list_instance_conversations`` -> red."""
+    holder = _retired_profile_holder(profile_heads)
+    row = _directory_row(PROFILE_CHAT)
+    assert row is not None
+    assert (row["persona_id"], row["persona_instance_id"], row["available"], row["holder_retired"]) == (
+        "qa", holder, False, True)
+    assert row["title"] == "qa saved chat"
+    assert row["last_message_preview"] == "saved in its own profile"
+    # One page lists the archive once and decodes the tombstone once. Kill-mutation: project the rows
+    # with ``retired=None`` in ``list_instance_conversations`` -> red.
+    assert (archive_reads["listing"], archive_reads[holder]) == (1, 1)

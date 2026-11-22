@@ -5,7 +5,9 @@ instance doors); this one answers the questions a ``per_profile`` record adds
 (chat-head plan, ``docs/agent-runtime-harness/planned/chat-head-per-profile-2026-10-26.md``):
 which scope a per-conversation writer acquires (:func:`resolve_conversation_chat_scope`),
 which head a new record names (:func:`chat_head_for`, :func:`first_bind_chat_head`),
-and the cross-agent read fan-out (:func:`per_profile_read_heads`).
+and the cross-agent read fan-out (:func:`per_profile_read_heads`, and
+:func:`holder_read_heads` over the live instances AND the retired holders, the one
+answer to "which heads hold this account's chats" both chat-list readers ask).
 """
 
 from __future__ import annotations
@@ -31,8 +33,10 @@ __layer__ = "stores"
 
 __all__ = [
     "HeadRead",
+    "RetiredHolders",
     "chat_head_for",
     "first_bind_chat_head",
+    "holder_read_heads",
     "per_profile_read_heads",
     "resolve_conversation_chat_scope",
 ]
@@ -265,3 +269,71 @@ def per_profile_read_heads(
                     close()
                 except Exception:  # a read must not fail on release
                     logger.debug("closing a per-profile chat head failed", exc_info=True)
+
+
+class RetiredHolders:
+    """The retired holders one chat-list read meets: the archive listing read at most once, each
+    tombstone decoded at most once, and every decoded row handed to whoever asks next.
+
+    The one memo behind :func:`holder_read_heads` (which heads to open) and the readers' own
+    projection (``instance_history._project_instance_history``,
+    ``persona_chat_history.summary.HistorySummary._retired_holder``), so a page that opens a
+    retired holder's head and then flags its row reads that tombstone once
+    (RT-FU-A-RETIRED-HOLDERS-CHAT-IN-ITS-OWN-PROFILE-STAYS-IN-THE-CHAT-LISTS). The live half of the
+    retirement predicate is the caller's: it asks only for an id its live roster missed.
+    """
+
+    def __init__(self) -> None:
+        self._ids: frozenset[str] | None = None
+        self._rows: dict[str, Any] = {}
+
+    def ids(self) -> frozenset[str]:
+        """Every instance id the retirement archive names (``retired_persona_instance_ids``)."""
+
+        if self._ids is None:
+            from agent_runtime.persona_assignments import retire
+
+            self._ids = retire.retired_persona_instance_ids()
+        return self._ids
+
+    def row(self, instance_id: str | None) -> Any:
+        """The archived row of the retired ``instance_id``, or ``None`` (never retired, or unreadable)."""
+
+        if not instance_id or instance_id not in self.ids():
+            return None
+        if instance_id not in self._rows:
+            from agent_runtime.persona_assignments import PersonaInstanceStore, retire
+
+            try:
+                self._rows[instance_id] = retire.retired_instance_row(PersonaInstanceStore(), instance_id)
+            except Exception:
+                self._rows[instance_id] = None
+        return self._rows[instance_id]
+
+    def rows(self, *, live_ids: Iterable[str] = ()) -> list[Any]:
+        """Every retired holder's archived row, ids the live roster still holds left out (a live row wins)."""
+
+        live = set(live_ids)
+        return [row for instance_id in sorted(self.ids() - live)
+                if (row := self.row(instance_id)) is not None]
+
+
+@contextmanager
+def holder_read_heads(
+    instances: Iterable[Any], *, retired: RetiredHolders, process_db: Any = None
+) -> Iterator[dict[str, HeadRead]]:
+    """Instance id -> its ``per_profile`` head for every LIVE instance AND every RETIRED holder.
+
+    :func:`per_profile_read_heads` over the live roster plus the rows the retirement archive
+    names (``retired``, read once, each tombstone decoded once), so a chat saved in a retired
+    holder's own profile is still read after no live instance of its agent shares that head
+    (RT-FU-A-RETIRED-HOLDERS-CHAT-IN-ITS-OWN-PROFILE-STAYS-IN-THE-CHAT-LISTS). Each distinct
+    head is still opened once, read-only; a head whose home is gone answers
+    :attr:`HeadRead.unavailable` as a live one does.
+    """
+
+    live = list(instances)
+    live_ids = {str(getattr(instance, "id", "") or "") for instance in live}
+    # MUTATION: drop ``retired.rows(...)`` here and both readers' retired-profile tests redden.
+    with per_profile_read_heads([*live, *retired.rows(live_ids=live_ids)], process_db=process_db) as reads:
+        yield reads

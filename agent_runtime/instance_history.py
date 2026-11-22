@@ -10,12 +10,7 @@ from . import chat_heads, chat_session_scope
 from .conversation_owner import ConversationOwnerError, request_client_scope, require_session_owner
 from .instance_selection import verify_instance_install, InstanceSelectionError
 from .instance_sessions import instance_session_clause
-from .persona_assignments import (
-    PersonaInstanceStore,
-    chat_session_owner_instance_id,
-    retired_persona_instance_ids,
-)
-from .persona_assignments.retire import retired_instance_row
+from .persona_assignments import PersonaInstanceStore, chat_session_owner_instance_id
 from .persona_assignments.lookups import normalize_persona_or_template_id
 from .persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 from .persona_chat_history.history_rows import _history_row, _model_config
@@ -85,9 +80,10 @@ def list_instance_conversations(params: dict) -> dict:
         instances = {instance.id: instance for instance in scan.instances}
         persona = None if persona_id is None else (persona_id, sorted(
             instance.id for instance in scan.instances if instance.persona_id == persona_id))
-        # Cross-agent fan-out (chat-head plan §2.4): each per_profile head opened
-        # once, read-only, paged with the same keyset, merged by that key.
-        with chat_heads.per_profile_read_heads(scan.instances, process_db=db) as heads:
+        # Cross-agent fan-out (chat-head plan §2.4): each per_profile head of a live instance OR a
+        # retired holder opened once, read-only, paged with the same keyset, merged by that key.
+        retired = chat_heads.RetiredHolders()
+        with chat_heads.holder_read_heads(scan.instances, retired=retired, process_db=db) as heads:
             sources = [read.db for read in {id(r): r for r in heads.values()}.values()
                        if read.db is not None] + [db]
             raw = _merged_pages([(source, _history_page(
@@ -96,7 +92,6 @@ def list_instance_conversations(params: dict) -> dict:
                 include_archived=include_archived))
                 for source in sources], limit)
             visible = raw[:limit]
-            retired = _RetiredHolders()
             rows = [_project_instance_history(source, item, instances, params["install_id"], asker=owner,
                                               retired=retired)
                     for source, item in visible]
@@ -141,35 +136,6 @@ def _openable(raw, asker):
     return True
 
 
-class _RetiredHolders:
-    """Which holders of one page's rows were RETIRED, read the way the snapshot's Chat history reads it.
-
-    The archive listing (``retired_persona_instance_ids``) is read at most once per page and only
-    when a row's holder is not live; each retired holder's archived row once, for its agent
-    (``persona_chat_history/summary.py::HistorySummary._retired_holder``, the same two reads).
-    """
-
-    def __init__(self):
-        self._ids: frozenset[str] | None = None
-        self._rows: dict[str, Any] = {}
-
-    def row(self, instance_id: str | None):
-        """The archived row of the retired ``instance_id``, or ``None`` (never retired, or unreadable)."""
-
-        if not instance_id:
-            return None
-        if self._ids is None:
-            self._ids = retired_persona_instance_ids()
-        if instance_id not in self._ids:
-            return None
-        if instance_id not in self._rows:
-            try:
-                self._rows[instance_id] = retired_instance_row(PersonaInstanceStore(), instance_id)
-            except Exception:
-                self._rows[instance_id] = None
-        return self._rows[instance_id]
-
-
 def _project_instance_history(db, raw, instances, install_id, *, asker, retired=None):
     config = _model_config(raw["model_config"])
     instance_id = config.get("persona_instance_id") or chat_session_owner_instance_id(raw["id"])
@@ -178,7 +144,7 @@ def _project_instance_history(db, raw, instances, install_id, *, asker, retired=
     # chat (owner RULED 2026-11-21: "chat history is still a thing"): the row says so, so a client
     # opens it with ``open_chat``'s ``move: true`` onto an instance of that same agent (row
     # RT-FU-A-RETIRED-HOLDERS-CHAT-SAYS-SO-IN-THE-CHAT-DIRECTORY). The archive names the agent.
-    archived = None if instance is not None else (retired or _RetiredHolders()).row(instance_id)
+    archived = None if instance is not None else (retired or chat_heads.RetiredHolders()).row(instance_id)
     persona_id = config.get("persona_id") or (
         instance.persona_id if instance else archived.persona_id if archived else "unknown")
     row = _history_row(raw, persona_id=persona_id, instance_id=instance_id,
