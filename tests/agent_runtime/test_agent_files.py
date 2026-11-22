@@ -13,12 +13,15 @@ Killing mutations (each recorded red, named at its test):
 * ``agent_tree._admissible``: drop the engine-home check;
 * ``reader.read``: drop the size check;
 * ``call_authorization.COMPUTER_LOOK_METHOD_ALLOWLIST``: leave the three verbs out;
-* ``agent_files``: a verb's tier back to ``TIER_READ`` (a view-only device reads the project).
+* ``agent_files``: a verb's tier back to ``TIER_READ`` (a view-only device reads the project);
+* ``reader.read_regular_file`` / ``reader._open_flags``: each guard of the one opener (O_NOFOLLOW,
+  O_NONBLOCK, the Windows fallback's lstat refusal and inode pin), named at its test below.
 """
 
 from __future__ import annotations
 
 import os
+import threading
 import time
 
 import pytest
@@ -268,3 +271,111 @@ def test_a_console_device_driving_the_computer_still_reads_the_files(two_roots, 
     """MUTATION (``call_authorization.LOCAL_CONSOLE_METHODS``: add the verbs, owner-only): the default phone is refused."""
 
     assert "result" in _call(verb, _params(verb), caller=_device(ca.TIER_CONSOLE))
+
+
+# ---- The one regular-file opener (row RT-PHONE-REGEX-SEARCH-RUNS-RIPGREPS-MATCHER-FROM-A-NATIVE-LIBRARY) ----
+#
+# The walk saw a regular file; ``reader.read_regular_file`` opens it a moment later with O_NOFOLLOW and
+# O_NONBLOCK and keeps it only when fstat still says regular. Each case swaps the file between the walk and
+# the open (``_swap_after_walk``) and greps through the RPC, which runs on desktops, Windows included.
+
+
+def _swap_after_walk(monkeypatch, swap) -> None:
+    from agent_runtime.project_files import reader
+
+    walk = reader._walk_project_folder
+
+    def walk_then_swap(*args, **kwargs):
+        walk(*args, **kwargs)
+        swap()
+
+    monkeypatch.setattr(reader, "_walk_project_folder", walk_then_swap)
+
+
+def _replace_with_link(path, target) -> None:
+    os.remove(path)
+    os.symlink(target, path)
+
+
+@pytest.fixture
+def swap_root(tmp_path):
+    app = _folder(tmp_path, "app", {"a.txt": "nothing\n", "b.txt": "hello b\n"})
+    (tmp_path / "outside.txt").write_text("hello outside\n", encoding="utf-8")
+    _agent(tmp_path, {"app": app})
+    return tmp_path
+
+
+def _grepped(pattern: str = "hello") -> list[tuple[str, int, str]]:
+    found = _call("runtime.agent.files.grep", {"pattern": pattern})["result"]
+    return [(m["path"], m["line"], m["text"]) for m in found["matches"]]
+
+
+@pytest.mark.skipif(not hasattr(os, "O_NOFOLLOW"), reason="O_NOFOLLOW is POSIX; the Windows fallback is tested below")
+def test_a_file_swapped_for_a_link_after_the_walk_is_never_read(swap_root, monkeypatch):
+    """MUTATION (``reader._open_flags``): drop O_NOFOLLOW, and the link out of the root is read, red."""
+
+    _swap_after_walk(monkeypatch, lambda: _replace_with_link(swap_root / "app" / "a.txt", swap_root / "outside.txt"))
+    assert _grepped() == [("app/b.txt", 1, "hello b")]
+
+
+def test_without_o_nofollow_a_swapped_link_is_still_never_read(swap_root, monkeypatch):
+    """Windows has no O_NOFOLLOW: ``lstat`` refuses the link. MUTATION (``reader.read_regular_file``):
+    skip the fallback's lstat refusal and its inode pin, and the link is followed, red."""
+
+    from agent_runtime.project_files import reader
+
+    monkeypatch.setattr(reader, "_NOFOLLOW", 0)
+    _swap_after_walk(monkeypatch, lambda: _replace_with_link(swap_root / "app" / "a.txt", swap_root / "outside.txt"))
+    assert _grepped() == [("app/b.txt", 1, "hello b")]
+
+
+def test_without_o_nofollow_a_link_swapped_in_after_lstat_is_never_read(swap_root, monkeypatch):
+    """The window between ``lstat`` and the open: the opened file must be the one ``lstat`` saw.
+    MUTATION (``reader.read_regular_file``): drop the (st_dev, st_ino) pin, and the link is followed, red."""
+
+    from agent_runtime.project_files import reader
+
+    monkeypatch.setattr(reader, "_NOFOLLOW", 0)
+    real_open = os.open
+    victim = str(swap_root / "app" / "a.txt")
+
+    def open_after_a_swap(path, flags, *args, **kwargs):
+        if path == victim and not os.path.islink(path):
+            _replace_with_link(path, swap_root / "outside.txt")
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(reader.os, "open", open_after_a_swap)
+    assert _grepped() == [("app/b.txt", 1, "hello b")]
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no FIFOs on this platform")
+def test_a_file_swapped_for_a_fifo_after_the_walk_never_blocks_the_grep(swap_root, monkeypatch):
+    """MUTATION (``reader._open_flags``): drop O_NONBLOCK, and the open waits for a writer that never
+    comes, past the deadline, red."""
+
+    fifo = swap_root / "app" / "a.txt"
+
+    def to_fifo():
+        os.remove(fifo)
+        os.mkfifo(fifo)
+
+    _swap_after_walk(monkeypatch, to_fifo)
+    answer: list = []
+    grep = threading.Thread(target=lambda: answer.append(_grepped()), daemon=True)
+    grep.start()
+    grep.join(5.0)
+    if grep.is_alive():  # release the blocked open so the thread ends, then fail
+        os.close(os.open(fifo, os.O_WRONLY | os.O_NONBLOCK))
+        grep.join(5.0)
+        pytest.fail("the grep blocked on a FIFO swapped in after the walk")
+    assert answer == [[("app/b.txt", 1, "hello b")]]
+
+
+def test_the_agent_files_grep_keeps_the_spec_literal_never_a_regex(tmp_path):
+    """Regex is a phone ``search_files`` dialect only: over ``runtime.agent.files.grep`` a pattern with
+    regex characters is literal text. MUTATION (``reader.grep_matches``): default ``matcher`` to the
+    phone's regex matcher, and ``hel+o`` finds "hello", red."""
+
+    app = _folder(tmp_path, "app", {"a.txt": "hello\nliteral hel+o\n"})
+    _agent(tmp_path, {"app": app})
+    assert _grepped("hel+o") == [("app/a.txt", 2, "literal hel+o")]

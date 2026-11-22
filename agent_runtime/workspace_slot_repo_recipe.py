@@ -42,7 +42,14 @@ MAX_SCRIPT_BYTES = 256 * 1024
 PLATFORM_WINDOWS = "windows"
 PLATFORM_MACOS = "macos"
 PLATFORM_LINUX = "linux"
-PLATFORMS = (PLATFORM_WINDOWS, PLATFORM_MACOS, PLATFORM_LINUX)
+PLATFORM_ANDROID = "android"
+PLATFORM_IOS = "ios"
+PLATFORMS = (PLATFORM_WINDOWS, PLATFORM_MACOS, PLATFORM_LINUX, PLATFORM_ANDROID, PLATFORM_IOS)
+#: ``sys.platform`` -> platform word for every platform that is not Linux (a phone is never Linux:
+#: a repository's Linux recipe must not read as an Android or iPhone's own, row
+#: ``RT-PHONE-A-SLOTS-SETUP-RECIPE-IS-READ-FOR-THE-PHONES-OWN-PLATFORM``).
+_SYS_PLATFORM_WORDS = {"win32": PLATFORM_WINDOWS, "darwin": PLATFORM_MACOS,
+                       "android": PLATFORM_ANDROID, "ios": PLATFORM_IOS}
 
 BLANK_NO_RECIPE = "no_recipe"
 BLANK_NOT_CLONED = "not_cloned"
@@ -124,11 +131,9 @@ class RecipeRead:
 
 
 def this_platform() -> str:
-    """This computer's platform word: ``windows``, ``macos`` or ``linux``."""
+    """This device's platform word: ``windows``, ``macos``, ``android``, ``ios`` or ``linux``."""
 
-    if sys.platform == "win32":
-        return PLATFORM_WINDOWS
-    return PLATFORM_MACOS if sys.platform == "darwin" else PLATFORM_LINUX
+    return _SYS_PLATFORM_WORDS.get(sys.platform, PLATFORM_LINUX)
 
 
 def _closed(value: Any, fields: frozenset[str]) -> dict[str, Any]:

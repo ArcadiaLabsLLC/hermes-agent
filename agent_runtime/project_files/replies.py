@@ -4,12 +4,14 @@ from __future__ import annotations
 
 __layer__ = "models"
 
-from agent_runtime.project_files.patterns import Deadline, LinePattern, check_pattern
+from typing import Protocol
+
+from agent_runtime.project_files.patterns import Deadline, check_pattern
 from agent_runtime.project_files.rules import (
     BINARY_PROBE_BYTES, LINE_CODE_POINTS, READ_PAGE_CODE_POINTS, ProjectFileRefusal,
 )
 
-__all__ = ["check_offset", "check_pattern", "decode_text", "grep_lines", "looks_binary", "page",
+__all__ = ["LineMatcher", "check_offset", "check_pattern", "decode_text", "grep_lines", "looks_binary", "page",
            "read_reply"]
 
 
@@ -45,29 +47,42 @@ def read_reply(path: str, size: int, text: str, offset: int) -> dict:
     return reply
 
 
-def grep_lines(path: str, text: str, pattern: LinePattern, deadline: Deadline | None = None,
+class LineMatcher(Protocol):
+    """What ``grep_lines`` asks of a matcher: the indexes of the lines it matches, ascending.
+
+    :class:`patterns.LinePattern` answers line by line; the phone's regex matchers
+    (``native_match.RegexLines``, ``fallback_match.RegexPackageLines``) answer from the whole text."""
+
+    def matching_lines(self, text: str, lines: list[str], deadline: Deadline | None = None) -> list[int]: ...
+
+
+def grep_lines(path: str, text: str, pattern: LineMatcher, deadline: Deadline | None = None,
                context: int = 0) -> list[dict]:
-    """Every line of ``text`` that ``pattern`` matches, as matches of ``path``, asking ``deadline`` per line.
+    """Every line of ``text`` that ``pattern`` matches, as matches of ``path``, under ``deadline``.
 
     With ``context`` (an agent's ``search_files`` argument; the spec's ``grep`` verb gives none), each
-    match also carries up to that many lines ``before`` and ``after`` it, as ``{line, text}``."""
+    match also carries up to that many lines ``before`` and ``after`` it, as ``{line, text}``. Either
+    matcher's line numbers take the same context and the same reply shape."""
 
     lines = [line.removesuffix("\r") for line in text.split("\n")]
     # A final newline ends the last line; it starts no empty one that context could show. MUTATION: bound
     # ``after`` by len(lines) (test_phone_file_tools: test_search_takes_every_desktop_argument_over_the_reader).
     last = len(lines) - 1 if text.endswith("\n") else len(lines)
     matches = []
-    for index, line in enumerate(lines):
+    for index in pattern.matching_lines(text, lines, deadline):
+        # A whole-file matcher hands back every matching line at once: building their replies is asked
+        # too. MUTATION: drop this and a file matching on every line runs ~2 s past the deadline
+        # (test_project_files_native_match: test_building_many_matches_still_asks_the_deadline).
         if deadline is not None:
             deadline.check()
-        if pattern.matches(line):
-            match = {"path": path, "line": index + 1, "text": line[:LINE_CODE_POINTS]}
-            if context > 0:
-                # MUTATION: drop the before half and a desktop context=1 call loses the line above
-                # (test_phone_file_tools: test_search_takes_every_desktop_argument_over_the_reader).
-                match["before"] = _around(lines, max(0, index - context), index)
-                match["after"] = _around(lines, index + 1, min(last, index + 1 + context))
-            matches.append(match)
+        line = lines[index]
+        match = {"path": path, "line": index + 1, "text": line[:LINE_CODE_POINTS]}
+        if context > 0:
+            # MUTATION: drop the before half and a desktop context=1 call loses the line above
+            # (test_phone_file_tools: test_search_takes_every_desktop_argument_over_the_reader).
+            match["before"] = _around(lines, max(0, index - context), index)
+            match["after"] = _around(lines, index + 1, min(last, index + 1 + context))
+        matches.append(match)
     return matches
 
 

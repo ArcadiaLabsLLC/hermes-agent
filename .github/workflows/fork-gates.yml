@@ -157,6 +157,80 @@ jobs:
   # `ci-refs/heads/main` for days and cancelled every later push. Zero upstream
   # footprint: this job carries the validated scope, and the owner disables
   # upstream's ci.yaml for the fork in the repository's Actions settings.
+  # ripgrep's matcher for a phone's regex search_files (row
+  # RT-PHONE-REGEX-SEARCH-RUNS-RIPGREPS-MATCHER-FROM-A-NATIVE-LIBRARY): the crate's own tests,
+  # a host release build, then the ctypes binding's tests against that build. In the
+  # validated suite ETERNIA_PROJECT_FILES_MATCH_LIB is unset and the native tests skip with
+  # that reason; here they run. Fork-owned on purpose: upstream's rust-tests.yml and change
+  # classifier are upstream files (the footprint never rises), and upstream's ci.yaml that
+  # calls them is disabled on the fork. rust-toolchain.toml pins the toolchain; rustup
+  # installs it on the first cargo call. No wheel is built here.
+  project-files-match:
+    name: ripgrep matcher crate + binding tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code and base history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      # Runs when the diff reaches the crate, the binding or its readers; any other diff skips.
+      - name: Select
+        id: select
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(crates/project_files_match/|agent_runtime/project_files/|agent_runtime/phone_file_tools\.py|tests/agent_runtime/test_(project_files_native_match|agent_files|phone_file_tools)\.py|\.github/workflows/fork-gates\.yml)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore cargo cache
+        if: steps.select.outputs.run == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crates/project_files_match/target
+          key: cargo-pfm-${{ runner.os }}-${{ hashFiles('crates/project_files_match/Cargo.lock', 'crates/project_files_match/rust-toolchain.toml') }}
+
+      - name: cargo test, then the host release build
+        if: steps.select.outputs.run == 'true'
+        working-directory: crates/project_files_match
+        run: cargo test --locked && cargo build --release --locked
+
+      - name: Install uv
+        if: steps.select.outputs.run == 'true'
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
+        with:
+          version: "0.9.28"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+
+      - name: Install the test environment
+        if: steps.select.outputs.run == 'true'
+        uses: ./.github/actions/retry
+        with:
+          command: uv sync --locked --python 3.14 --group dev
+
+      - name: Binding tests against the host build
+        if: steps.select.outputs.run == 'true'
+        env:
+          ETERNIA_PROJECT_FILES_MATCH_LIB: ${{ github.workspace }}/crates/project_files_match/target/release/libproject_files_match.so
+        run: >-
+          scripts/run_tests.sh -rs
+          tests/agent_runtime/test_project_files_native_match.py
+          tests/agent_runtime/test_agent_files.py
+          tests/agent_runtime/test_phone_file_tools.py
+
   # The scope is the "validated suite" block of docs/downstream-development.md
   # plus the two tooling lanes; tests/ci/test_fork_suite_on_standard_runners.py
   # holds the paths below equal to that block.

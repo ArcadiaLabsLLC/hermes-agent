@@ -129,6 +129,23 @@ packaging seams stay.
 
 ## 5. The ABI and its safety rules
 
+> **As built (row A, 2026-11-21, lane w1118a-rgA).** The header that holds is the crate's own
+> `crates/project_files_match/include/project_files_match.h`; the sketch below is the plan's. What
+> moved: `pfm_compile` also returns the error's length (`size_t *err_len`); `pfm_search` takes
+> `start` and `first_line` and returns `resume_at` / `resume_line` in place of `total_out`, so a file
+> with more matching lines than `lines_cap` is searched again from where it stopped (review .87 (6));
+> codes `-4` bad argument, `-5` caught panic, `-6` search refused join `-1`..`-3`, and `-3` covers NULL
+> only (review .87 (4)). The matcher is built as `rg` builds it: `multi_line(true)` (so `^`/`$` are
+> line anchors), then `crlf(true)` and the `\n` line terminator. `regex` is a dev-dependency (the
+> tests' per-line oracle); the engine is `grep-regex`'s. The `regex`-package step is
+> `agent_runtime/project_files/fallback_match.py`; the opener every grep reads through is
+> `reader.read_regular_file`.
+> **CI moved:** `rust-tests.yml` and `scripts/ci/classify_changes.py` are upstream files, and the
+> fork's upstream footprint never rises (`tests/scripts/test_upstream_footprint.py` went red on both),
+> while upstream's `ci.yaml` that calls `rust-tests.yml` is disabled on the fork. The job is
+> `project-files-match` in the fork-owned `.github/workflows/fork-gates.yml`, selected by its own path
+> filter; no classifier route is needed.
+
 ```c
 /* include/project_files_match.h: version 1 */
 int32_t  pfm_abi_version(void);

@@ -17,6 +17,7 @@ from __future__ import annotations
 __layer__ = "stores"
 
 import os
+import stat
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -24,7 +25,7 @@ from agent_runtime.project_files.ignore import SkipRules
 from agent_runtime.project_files.paths import is_never_listed, parse_path
 from agent_runtime.project_files.patterns import Deadline, LinePattern, NameGlob
 from agent_runtime.project_files.replies import (
-    decode_text, grep_lines, looks_binary, page, read_reply,
+    LineMatcher, decode_text, grep_lines, looks_binary, page, read_reply,
 )
 from agent_runtime.project_files.rules import (
     DEFAULT_DEPTH, MAX_DEPTH, MAX_ENTRIES, MAX_MATCHES, MAX_READ_BYTES, NEVER_LISTED,
@@ -191,17 +192,68 @@ def read(root: str, path: str, *, offset: int = 0) -> dict:
     return read_reply(shown, len(data), decode_text(data, shown), offset)
 
 
+#: ``os.O_NOFOLLOW`` where the platform has it (every POSIX one); 0 on Windows, where
+#: :func:`read_regular_file` pins the opened file to what ``lstat`` saw instead.
+_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+
+
+def _open_flags() -> int:
+    # O_NONBLOCK: a FIFO swapped in since the walk opens at once (and fstat refuses it) instead of
+    # blocking past the deadline. O_BINARY: Windows' raw bytes. Each is 0 where the platform lacks it.
+    # MUTATION: drop O_NOFOLLOW and a file swapped for a link out of the root is read
+    # (test_agent_files: test_a_file_swapped_for_a_link_after_the_walk_is_never_read).
+    # MUTATION: drop O_NONBLOCK and a file swapped for a FIFO blocks the grep
+    # (test_agent_files: test_a_file_swapped_for_a_fifo_after_the_walk_never_blocks_the_grep).
+    return (os.O_RDONLY | _NOFOLLOW | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_BINARY", 0))
+
+
+def read_regular_file(path: str) -> bytes | None:
+    """The bytes of the regular file at ``path`` (at most ``MAX_READ_BYTES``), never through a link.
+
+    None when it is not a regular file NOW — a link, FIFO, device or folder swapped in since the walk
+    saw a file — when it is over the cap, or when it cannot be opened. The walk's own check is a
+    moment earlier than the open; this is the one that holds. Without ``O_NOFOLLOW`` (Windows) a link
+    is refused by ``lstat`` and the opened file must be the very file ``lstat`` saw.
+    """
+
+    seen = None
+    try:
+        if not _NOFOLLOW:
+            seen = os.lstat(path)
+            # MUTATION: skip this refusal (and the pin below) and, on Windows, a file swapped for a link
+            # is followed (test_agent_files: test_without_o_nofollow_a_swapped_link_is_still_never_read).
+            if not stat.S_ISREG(seen.st_mode):
+                return None
+        handle = os.open(path, _open_flags())
+    except OSError:  # ELOOP: the last part is a link; ENXIO and the rest: nothing readable here
+        return None
+    with os.fdopen(handle, "rb") as opened:
+        status = os.fstat(opened.fileno())
+        if not stat.S_ISREG(status.st_mode) or status.st_size > MAX_READ_BYTES:
+            return None
+        # MUTATION: drop the pin and a link swapped in between lstat and open is followed
+        # (test_agent_files: test_without_o_nofollow_a_link_swapped_in_after_lstat_is_never_read).
+        if seen is not None and (status.st_dev, status.st_ino) != (seen.st_dev, seen.st_ino):
+            return None
+        data = opened.read(MAX_READ_BYTES + 1)
+    return None if len(data) > MAX_READ_BYTES else data
+
+
 def grep_matches(root: str, pattern: str, path: str | None = None, *, glob: str | None = None,
-                 wildcard: bool = False, deadline: Deadline | None = None,
-                 context: int = 0) -> tuple[str, list[dict]]:
+                 wildcard: bool = False, deadline: Deadline | None = None, context: int = 0,
+                 matcher: LineMatcher | None = None) -> tuple[str, list[dict]]:
     """``(the searched folder's relative path, every line the pattern matches)``, unpaged.
 
     The pattern is literal, or a line wildcard with ``wildcard``; ``glob`` keeps the files whose
     name matches. The walk and every line ask ``deadline`` (a fresh one when None). ``context``
-    lines around each match ride on it (:func:`replies.grep_lines`).
+    lines around each match ride on it (:func:`replies.grep_lines`). ``matcher`` replaces the
+    pattern's own literal or wildcard matcher: a phone's ``search_files`` hands its regex matcher
+    here; the spec's ``grep`` verb (and so ``runtime.agent.files.grep``) never does. Every file is
+    read through :func:`read_regular_file`.
     """
 
-    matcher = LinePattern.parse(pattern, wildcard=wildcard)
+    matcher = matcher or LinePattern.parse(pattern, wildcard=wildcard)
     names = None if glob is None else NameGlob.parse(glob)
     deadline = deadline or Deadline()
     folder = _listed_folder(root, path)
@@ -219,9 +271,8 @@ def grep_matches(root: str, pattern: str, path: str | None = None, *, glob: str 
         if entry["size"] > MAX_READ_BYTES:
             continue
         local = os.path.join(folder.actual, *entry["path"][prefix:].split("/"))
-        with open(local, "rb") as handle:
-            data = handle.read(MAX_READ_BYTES + 1)
-        if len(data) > MAX_READ_BYTES or looks_binary(data):
+        data = read_regular_file(local)
+        if data is None or looks_binary(data):
             continue
         try:
             text = decode_text(data, entry["path"])

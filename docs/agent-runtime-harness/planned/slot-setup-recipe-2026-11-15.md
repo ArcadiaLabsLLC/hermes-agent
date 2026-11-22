@@ -110,7 +110,10 @@ this computer only (machine_slot_env.json)
 - **Per platform.** `platforms.<this computer's platform>` is the recipe this computer sees: its `tools`
   and its `script`. `env_keys` and `dotenv` are shared by the platforms the file lists (a key is a key on
   every OS). A platform the file does not list reads as **no recipe** — the whole section is blank, keys
-  included, so a computer never sees half of another OS's recipe.
+  included, so a computer never sees half of another OS's recipe. A phone is its own platform, never
+  Linux: Android reads `android` and an iPhone or iPad `ios` (row
+  `RT-PHONE-A-SLOTS-SETUP-RECIPE-IS-READ-FOR-THE-PHONES-OWN-PLATFORM`, 2026-11-21), so a repository's
+  Linux recipe is never offered to a phone; a file may list `android` / `ios` sections.
 - **Blank by default.** No `.eternia/setup/recipe.json` in the bound checkout, an unbound slot, or a file
   that does not parse as version 1: Set up shows the repository line and nothing else, plus one line
   saying why (`no_recipe`, `not_cloned`, `unreadable: <reason>`). Nothing is derived from the declaration

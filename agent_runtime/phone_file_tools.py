@@ -22,9 +22,13 @@ are untouched; ``tools.terminal_tool`` stays out of the phone's import closure.
 * **The desktop's arguments** (row ``RT-PHONE-FILE-TOOLS-ACCEPT-EVERY-DESKTOP-ARGUMENT``, owner: "the agent
   calls the same interface on all platform"): every schema takes upstream's parameters exactly, and
   ``patch`` gets upstream's V4A layer by upstream's rule. What a phone cannot do yet is refused in
-  words: a V4A Delete or Move (the writer has no checked delete or move) and a regex pattern (the
-  in-process engine is row ``RT-PHONE-FILE-TOOLS-TAKE-THE-SAME-ARGUMENTS-AS-ON-DESKTOP-WITH-RIPGREPS-
-  ENGINE-IN-PROCESS``); never Python ``re`` on the caller's pattern.
+  words: a V4A Delete or Move (the writer has no checked delete or move).
+* **Regex search** (row ``RT-PHONE-REGEX-SEARCH-RUNS-RIPGREPS-MATCHER-FROM-A-NATIVE-LIBRARY``, owner RULED
+  2026-11-21): a content pattern holding a regex character runs ripgrep's matcher in process
+  (``project_files.native_match``) when its library is loaded, else the ``regex`` package with
+  ``timeout=`` (``project_files.fallback_match``) when it imports, else it is refused in words; never
+  Python ``re`` on the caller's pattern. Regex stays a phone tool's: ``runtime.agent.files.grep`` keeps
+  the spec's literal and wildcard.
 """
 
 from __future__ import annotations
@@ -120,12 +124,17 @@ _MISSES = {"read_file": "File not found", "search_files": "Path not found"}
 
 
 def _answer(call, tool: str = "", path: Any = None) -> str:
+    from agent_runtime.project_files.native_match import NativeMatchError, SearchCancelled
     from agent_runtime.project_files.rules import ProjectFileRefusal
     from agent_runtime.project_files.writer import WriteDenied
     from tools.registry import tool_error
 
     try:
         return json.dumps(call(), ensure_ascii=False)
+    except SearchCancelled as stopped:
+        return tool_error(str(stopped), code="interrupted")
+    except NativeMatchError as failed:
+        return tool_error(f"the regex search failed in ripgrep's matcher: {failed}", code="search_failed")
     except ProjectFileRefusal as refused:
         miss = _MISSES.get(tool) if refused.code in ("outside_root", "not_found") else None
         # MUTATION: drop the miss wording and a /doc path read on a phone is never taught its verb
@@ -310,23 +319,37 @@ def _apply_hunks(text: str, hunks: list, shown: str) -> str:
     return text
 
 
-#: The characters that make a pattern a regular expression. Regex search runs ripgrep's engine on a
-#: desktop and is not on a phone yet (row ``RT-PHONE-FILE-TOOLS-TAKE-THE-SAME-ARGUMENTS-AS-ON-DESKTOP-
-#: WITH-RIPGREPS-ENGINE-IN-PROCESS``); a pattern holding none of them means the same as literal text.
+#: The characters that make a pattern a regular expression; a pattern holding none of them means the
+#: same as literal text, and is searched by the spec's literal matcher.
 REGEX_CHARACTERS = frozenset(".^$*+?()[]{}|\\")
 
 
-def _literal(pattern: Any) -> str:
+def _content_matcher(pattern: Any):
+    """The matcher for a content ``pattern``: None for plain text (the reader's literal matcher), else a
+    regex matcher in the ruled order — ripgrep's (native), the ``regex`` package's, or refused in words.
+
+    Never Python ``re``: nothing here or below it compiles the caller's pattern with ``re``."""
+
+    from agent_runtime.project_files import fallback_match, native_match
+    from agent_runtime.project_files.patterns import check_pattern
+
     if not isinstance(pattern, str):
         raise _refuse("pattern must be text")
     held = sorted(set(pattern) & REGEX_CHARACTERS)
-    # MUTATION: let a regex character through and "a.c" is searched as the three literal characters,
-    # never matching "abc" as a desktop's search does (test_phone_file_tools:
-    # test_a_pattern_with_a_regex_character_is_refused_in_words).
-    if held:
-        raise _refuse(f"regex search is not on this phone yet, and the pattern holds {' '.join(held)}. "
-                      "Search for plain text without those characters.")
-    return pattern
+    if not held:
+        return None
+    check_pattern(pattern)
+    # MUTATION: skip the native step and a phone with ripgrep's library searches with the fallback
+    # (test_project_files_native_match: test_a_phone_search_files_regex_runs_ripgreps_matcher).
+    if native_match.available():
+        return native_match.RegexLines.compile(pattern, cancel=native_match.turn_cancel())
+    fallback = fallback_match.RegexPackageLines.compile(pattern, cancel=native_match.turn_cancel())
+    if fallback is not None:
+        return fallback
+    # MUTATION: answer with Python ``re`` here and the caller's pattern runs unbounded
+    # (test_project_files_native_match: test_with_neither_engine_a_regex_is_refused_in_words_never_run_by_re).
+    raise _refuse(f"regex search needs ripgrep's matcher or the regex package, and this phone has neither; "
+                  f"the pattern holds {' '.join(held)}. Search for plain text without those characters.")
 
 
 def _places(path: Any) -> list[_Located]:
@@ -371,7 +394,8 @@ def _found_files(places: list[_Located], glob: Any, order: str, deadline) -> lis
     return [shown for shown, _ in found]
 
 
-def _content_hits(places: list[_Located], pattern: str, glob: Any, context: int, deadline) -> list[dict]:
+def _content_hits(places: list[_Located], pattern: str, glob: Any, context: int, deadline,
+                  matcher=None) -> list[dict]:
     from agent_runtime.project_files.patterns import LinePattern
     from agent_runtime.project_files.reader import grep_matches
     from agent_runtime.project_files.replies import grep_lines
@@ -380,10 +404,11 @@ def _content_hits(places: list[_Located], pattern: str, glob: Any, context: int,
     for where in places:
         name = where.shown.split("/", 1)[0]
         if _is_file(where):  # upstream's path may name one file
-            found = grep_lines(where.relative, _whole_text(where), LinePattern.parse(pattern), deadline, context)
+            found = grep_lines(where.relative, _whole_text(where), matcher or LinePattern.parse(pattern),
+                               deadline, context)
         else:
             _, found = grep_matches(where.root, pattern, where.relative or None, glob=glob,
-                                    deadline=deadline, context=context)
+                                    deadline=deadline, context=context, matcher=matcher)
         hits.extend({**hit, "path": f"{name}/{hit['path']}"} for hit in found)
     return hits
 
@@ -409,7 +434,12 @@ def search_files(args: dict, **_kw: Any) -> str:
             return {**reply, "files": files[offset:offset + limit], "total_count": len(files),
                     "truncated": offset + limit < len(files)}
         file_glob = args.get("file_glob")
-        hits = _content_hits(places, _literal(pattern), file_glob or None, context, deadline)
+        matcher = _content_matcher(pattern)
+        try:
+            hits = _content_hits(places, pattern, file_glob or None, context, deadline, matcher)
+        finally:
+            if matcher is not None:
+                matcher.close()
         if mode == "content":
             # MUTATION: page from 0 and offset is ignored (test_phone_file_tools:
             # test_search_takes_every_desktop_argument_over_the_reader).
@@ -432,7 +462,7 @@ def search_files(args: dict, **_kw: Any) -> str:
 # Names, types, enums, defaults, minimum and maximum and required equal upstream's
 # (test_phone_file_tools: test_the_phone_schemas_equal_upstreams_parameters reds on any drift).
 # A description differs only where upstream's words are false on a phone: no document extraction,
-# no lint or LSP, no fuzzy patch match, no ripgrep or regex, no read-before-write refusal.
+# no lint or LSP, no fuzzy patch match, no ripgrep process, no read-before-write refusal.
 
 #: Upstream's ``DEFAULT_READ_LIMIT``, which is also its schema's maximum.
 READ_LIMIT = 2000
@@ -550,15 +580,14 @@ def patch_schema_overrides() -> dict:
 SEARCH_FILES_SCHEMA = {
     "name": "search_files",
     "description": "Search file contents or find files by name in this phone's project folders.\n\n"
-                   "Content search (target='content'): plain-text search inside files. Regular expressions "
-                   "are not available on a phone yet: a pattern holding any of . ^ $ * + ? ( ) [ ] { } | \\ "
-                   "is refused. Output modes: full matches with line numbers, file paths only, or match "
-                   "counts.\n\nFile search (target='files'): Find files by name glob (e.g., '*.py', "
+                   "Content search (target='content'): regex search inside files with ripgrep's engine, run in "
+                   "process (a phone without it refuses a regex in words; plain text always works). Output "
+                   "modes: full matches with line numbers, file paths only, or match counts.\n\nFile search (target='files'): Find files by name glob (e.g., '*.py', "
                    "'*config*'). Discovery order is the default; 'modified' lists newest first.",
     "parameters": {
         "type": "object",
         "properties": {
-            "pattern": {"type": "string", "description": "Plain text for content search, or a file-name glob "
+            "pattern": {"type": "string", "description": "Regex pattern for content search, or a file-name glob "
                                                          "(e.g., '*.py') for file search"},
             "target": {"type": "string", "enum": ["content", "files"], "description": "'content' searches inside "
                        "file contents, 'files' searches for files by name", "default": "content"},

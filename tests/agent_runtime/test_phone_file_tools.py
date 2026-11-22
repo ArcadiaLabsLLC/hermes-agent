@@ -336,10 +336,6 @@ def test_search_takes_every_desktop_argument_over_the_reader(project):
     assert last["after"] == [], "the final newline starts no empty line"
 
 
-@pytest.mark.parametrize("pattern", ["a.c", "^# ", "milk$", "(buy)", r"buy\s"])
-def test_a_pattern_with_a_regex_character_is_refused_in_words(project, pattern):
-    """Never Python ``re`` on the caller's pattern. Killing mutation: let the regex characters through ->
-    the pattern is searched as literal text and answers, red."""
-
-    refused = _call(tools.search_files, pattern=pattern)
-    assert refused["code"] == "bad_argument" and "regex search is not on this phone yet" in refused["error"]
+# A pattern holding a regex character runs ripgrep's matcher, else the regex package, else is refused in
+# words (row RT-PHONE-REGEX-SEARCH-RUNS-RIPGREPS-MATCHER-FROM-A-NATIVE-LIBRARY):
+# tests/agent_runtime/test_project_files_native_match.py.
