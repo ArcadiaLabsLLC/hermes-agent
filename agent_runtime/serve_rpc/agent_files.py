@@ -41,7 +41,7 @@ chats, so it is refused the project those chats are about, as ``runtime.media.ge
 egress. Nothing here writes, each read is capped at 5 MiB (``MAX_FETCH_BYTES``, the media lane's
 number; the spec's ``MAX_READ_BYTES``), a reply page is 20,000 code points, and the tree lists only
 the agent's roots, never the machine's disk. A computer driving a phone reaches them only through
-its grant's allowlist (``call_authorization.COMPUTER_LOOK_METHOD_ALLOWLIST``), which the computer arm
+the reach its ``@method`` line states (``computer=COMPUTER_REACH_LOOK``), which the computer arm
 checks before any tier; a peer install gets nothing new (``PEER_METHOD_ALLOWLIST`` is not widened,
 plan ``PHONE_PROJECT_FOLDERS_FILE_TREE_2026-11-21`` §11).
 """
@@ -50,7 +50,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import TIER_CONSOLE
+from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_CONSOLE
 from agent_runtime.serve_rpc.protocol import (
     ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, ERR_NOT_FOUND, RpcContext, err, ok,
 )
@@ -149,7 +149,9 @@ def _answer(rid: Any, params: Any, verb) -> dict:
                    {"reason": refusal.code, "detail": refusal.message})
 
 
-@method(TREE_METHOD, tier=TIER_CONSOLE)
+# The agent's files as one tree at Look (MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE):
+# reads only, the agent's enumerated roots only, 5 MiB a read; so are the read and grep below.
+@method(TREE_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_agent_files_tree(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.project_files import agent_tree
     from agent_runtime.project_files.rules import DEFAULT_DEPTH
@@ -159,7 +161,7 @@ def _runtime_agent_files_tree(rid: Any, params: dict, context: RpcContext | None
         offset=_number(p, "offset", 0)))
 
 
-@method(READ_METHOD, tier=TIER_CONSOLE)
+@method(READ_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_agent_files_read(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.project_files import agent_tree
 
@@ -167,7 +169,7 @@ def _runtime_agent_files_read(rid: Any, params: dict, context: RpcContext | None
         _instance(p), _path(p, required=True), offset=_number(p, "offset", 0)))
 
 
-@method(GREP_METHOD, tier=TIER_CONSOLE)
+@method(GREP_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_agent_files_grep(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.project_files import agent_tree
 
@@ -231,7 +233,11 @@ def _ask_virtual(rid: Any, params: Any, context: RpcContext | None, name: str, v
     return defer_or_inline(rid, name, context, run)
 
 
-@method(VIRTUAL_METHOD, tier=TIER_CONSOLE)
+# This phone's generated documents, read through its own Eternia, at Look (tree / read / grep only;
+# RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS; kept by the owner's "3 yes",
+# RT-FU-WHETHER-A-LOOK-COMPUTER-MAY-READ-A-PHONES-GENERATED-DOCUMENTS). Their writes are the
+# separate virtual.write below, which states no computer reach (review w1122b.4).
+@method(VIRTUAL_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_agent_files_virtual(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Read this device's virtual tree (Eternia's generated documents): ``verb`` tree, read or grep.
 

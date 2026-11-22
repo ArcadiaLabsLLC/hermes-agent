@@ -384,7 +384,7 @@ def test_the_params_block_is_additive_and_the_contract_integer_does_not_move():
 
     assert serve_rpc.manifest()["contract"] == 1
     assert serve_rpc.RPC_CONTRACT_VERSION == 1
-    assert set(serve_rpc.manifest()) == {"contract", "methods", "tiers", "params", "limits"}
+    assert set(serve_rpc.manifest()) == {"contract", "methods", "tiers", "computer_reach", "params", "limits"}
 
 
 def test_the_manifest_advertises_the_operator_text_admission_its_doors_enforce():

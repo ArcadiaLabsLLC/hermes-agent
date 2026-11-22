@@ -33,6 +33,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import call_authorization as ca
+from agent_runtime.serve_rpc import registry
 from agent_runtime.gateway_tls import ensure_certificate, server_ssl_context
 from agent_runtime.reverse_lane import grants
 from agent_runtime.reverse_lane.lanes import ReverseLanes, handoff
@@ -279,7 +280,7 @@ def test_the_computer_reads_the_phone_agents_files_as_one_tree_at_look(phone, co
     """Row ``MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE``: the look grant
     browses, reads and searches the phone agent's roots over the lane, and nothing outside them.
 
-    MUTATION (``COMPUTER_LOOK_METHOD_ALLOWLIST``): leave ``runtime.agent.files.*`` out, and every
+    MUTATION (the stated ``computer=`` reach): leave ``runtime.agent.files.*`` out, and every
     call here is refused ``scope_denied``.
     """
 
@@ -303,7 +304,7 @@ def test_a_look_computer_is_handed_a_picture_from_the_phones_chats_by_handle(pho
     """Hermes row RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ:
     over the real lane, the look grant lists the phone's chat picture and fetches it by handle.
 
-    MUTATION (``COMPUTER_LOOK_METHOD_ALLOWLIST``): leave ``runtime.media.index`` / ``.get`` out, and
+    MUTATION (the stated ``computer=`` reach): leave ``runtime.media.index`` / ``.get`` out, and
     both calls here are refused ``scope_denied``. Which rows the grant sees is pinned in
     ``test_serve_rpc_media``.
     """
@@ -343,7 +344,7 @@ def test_run_chats_reaches_the_attach_read_with_its_own_scope_and_new_chat_by_ag
     which refuses it without a ``client_scope``; Look is refused both. Which chats the scope opens
     is pinned in ``test_operator_conversation_attachment``.
 
-    MUTATION (``COMPUTER_CHAT_METHOD_ALLOWLIST``): leave the two reads out, and both are refused
+    MUTATION (the stated ``computer=`` reach): leave the two reads out, and both are refused
     ``scope_denied`` here at Run chats.
     """
 
@@ -575,11 +576,11 @@ def test_a_lane_connection_is_a_computer_caller_and_two_stamps_are_nobody():
 
 
 def test_the_look_allowlist_is_reads_and_the_chat_allowlist_adds_only_chat_verbs():
-    assert not ca.COMPUTER_LOOK_METHOD_ALLOWLIST & ca.LOCAL_CONSOLE_METHODS
-    assert not ca.COMPUTER_CHAT_METHOD_ALLOWLIST & ca.LOCAL_CONSOLE_METHODS
-    extra = ca.COMPUTER_CHAT_METHOD_ALLOWLIST - ca.COMPUTER_LOOK_METHOD_ALLOWLIST
+    assert not registry.COMPUTER_LOOK_METHOD_ALLOWLIST & ca.LOCAL_CONSOLE_METHODS
+    assert not registry.COMPUTER_CHAT_METHOD_ALLOWLIST & ca.LOCAL_CONSOLE_METHODS
+    extra = registry.COMPUTER_CHAT_METHOD_ALLOWLIST - registry.COMPUTER_LOOK_METHOD_ALLOWLIST
     assert "runtime.chat.message" in extra
-    assert not any(name.startswith("runtime.provider.") for name in ca.COMPUTER_CHAT_METHOD_ALLOWLIST)
+    assert not any(name.startswith("runtime.provider.") for name in registry.COMPUTER_CHAT_METHOD_ALLOWLIST)
 
 
 def test_a_send_under_a_look_grant_is_refused_in_words_the_composer_shows():
@@ -588,7 +589,8 @@ def test_a_send_under_a_look_grant_is_refused_in_words_the_composer_shows():
     phone allows and where the switch is; other refusals keep the verb's name."""
 
     look = ca.caller_for_connection(_Conn(computer_id="cmp-1", computer_grant="look"))
-    send = ca.authorize_call(ca.TIER_CONSOLE, look, method="runtime.chat.message")
+    send = ca.authorize_call(ca.TIER_CONSOLE, look, method="runtime.chat.message",
+                             computer_reach=registry.method_computer_reach("runtime.chat.message"))
     assert not send.ok and send.reason == ca.REASON_SCOPE_DENIED
     assert send.detail.startswith("This phone lets this computer look at its agents but not chat")
     assert "Run chats" in send.detail

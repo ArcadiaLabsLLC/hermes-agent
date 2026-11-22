@@ -5,7 +5,7 @@ use their existing writer. Once activated, an old client receives an explicit
 refusal if it attempts to edit the legacy placement character.
 """
 
-from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
+from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_CONSOLE, TIER_READ
 from agent_runtime.character_assignment import CharacterAssignmentReason, CharacterAssignmentRefused
 from agent_runtime.character_assignment_service import preview_character_migration, read_character_assignment, restore_character_assignment, write_character_assignment
 from agent_runtime.errors import NotFound
@@ -38,7 +38,7 @@ def _runtime_character_appearance_set(rid, params, context=None):
         return err(rid, ERR_INVALID_PARAMS, "The agent portrait could not be saved.", {"reason": exc.reason.value})
 
 
-@method("runtime.character.portrait", tier=TIER_READ)
+@method("runtime.character.portrait", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
 def _runtime_character_portrait(rid, params, context=None):
     from agent_runtime.agent_portrait import read_agent_portrait
     return _character_response(rid, params, read_agent_portrait)

@@ -1,11 +1,13 @@
 """The operator-authorized native conversation directory."""
-from agent_runtime.call_authorization import TIER_CONSOLE, authorize_call, is_computer_below_account
+from agent_runtime.call_authorization import (
+    COMPUTER_REACH_LOOK, TIER_CONSOLE, authorize_call, is_computer_below_account,
+)
 from agent_runtime.conversation_owner import ConversationOwnerError, request_client_scope
 from agent_runtime.instance_history import (
     CONVERSATION_LIST_METHOD, InstanceHistoryRefused, list_instance_conversations,
 )
 from .protocol import RpcContext, defer_or_inline, err, ok
-from .registry import method, method_tier
+from .registry import method, method_computer_reach, method_tier
 
 __layer__ = "lanes"
 
@@ -14,7 +16,9 @@ __layer__ = "lanes"
 _ROW_READ_METHOD = "runtime.persona.chat.history"
 
 
-@method(CONVERSATION_LIST_METHOD, tier=TIER_CONSOLE)
+# The phone agent's existing chats, listed so a computer opens them read-only
+# (RT-FU-A-LOOK-COMPUTER-LISTS-THE-PHONES-EXISTING-CHATS, owner "rest as reccomended" 2026-11-22).
+@method(CONVERSATION_LIST_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def list_conversations(rid, params: dict, context: RpcContext | None = None):
     caller = context.caller if context is not None else None
     return defer_or_inline(rid, CONVERSATION_LIST_METHOD, context, lambda: _list_reply(rid, params, caller))
@@ -51,4 +55,5 @@ def row_readable_by(caller) -> bool:
     """Whether *caller* may read a listed chat's history: the gate's answer, asked of the gate."""
 
     # MUTATION: answer True here and test_readable_is_the_gates_answer_for_the_history_read reddens.
-    return authorize_call(method_tier(_ROW_READ_METHOD), caller, method=_ROW_READ_METHOD).ok
+    return authorize_call(method_tier(_ROW_READ_METHOD), caller, method=_ROW_READ_METHOD,
+                          computer_reach=method_computer_reach(_ROW_READ_METHOD)).ok

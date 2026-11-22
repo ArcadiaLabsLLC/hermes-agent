@@ -28,7 +28,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from agent_runtime.call_authorization import TIER_READ
+from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_READ
 from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, RpcContext, err, ok
 from agent_runtime.serve_rpc.registry import method
 
@@ -112,7 +112,7 @@ def _limit_param(params: dict) -> int:
     return raw
 
 
-@method("runtime.events.after", tier=TIER_READ)
+@method("runtime.events.after", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
 def _runtime_events_after(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Params: ``cursor?``, ``types?``, ``limit?`` (default 200, max 500). Result: see the module."""
 

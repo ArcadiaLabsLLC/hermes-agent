@@ -345,7 +345,7 @@ def test_the_family_joined_the_set_without_moving_the_integer():
     # R-C8 joined params to the shape, additively: a client that ignores
     # the key keeps working, which is the same rule the set and the map already
     # ride under.
-    assert set(manifest) == {"contract", "methods", "tiers", "params", "limits"}
+    assert set(manifest) == {"contract", "methods", "tiers", "computer_reach", "params", "limits"}
 
 
 # ── Stage P4: peer.media.get, and the proxy arm on runtime.media.get ─────────
@@ -649,7 +649,7 @@ def test_a_peer_that_never_answers_no_longer_delays_the_next_request(
 #
 # Review w1122b.5: at the look or Run chats grant a computer is handed the pictures in the
 # chats Look reads, and no diff, context file or remote row; the account grant keeps the whole
-# index. Killing mutations: leave the two verbs off ``COMPUTER_LOOK_METHOD_ALLOWLIST`` (every
+# index. Killing mutations: state no ``computer=`` reach on the two verbs (every
 # call below is refused at the gate), and ``media._caller_sees`` answering ``True`` for every
 # computer (the narrow index lists the three other rows and get hands them over).
 

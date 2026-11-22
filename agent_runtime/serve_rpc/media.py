@@ -10,6 +10,7 @@ from typing import Any
 from agent_runtime.call_authorization import (
     CALLER_COMPUTER,
     COMPUTER_GRANT_ACCOUNT,
+    COMPUTER_REACH_LOOK,
     REASON_SCOPE_DENIED,
     TIER_CONSOLE,
 )
@@ -90,7 +91,11 @@ def _caller_sees(artifact: Any, context: RpcContext | None) -> bool:
 MEDIA_CONTRACT = 1
 
 
-@method("runtime.media.index", tier=TIER_CONSOLE)
+# The pictures in the chats Look reads, by handle, at Look
+# (RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ, review w1122b.5):
+# for a computer below the account grant this lists and hands over local chat images only (see below).
+# MUTATION: state no reach on these two and test_reverse_lane's chat-picture test is refused scope_denied.
+@method("runtime.media.index", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_media_index(
     rid: Any, params: dict, context: RpcContext | None = None
 ) -> dict:
@@ -167,7 +172,7 @@ def _runtime_media_index(
     return ok(rid, result)
 
 
-@method("runtime.media.get", tier=TIER_CONSOLE)
+@method("runtime.media.get", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_media_get(
     rid: Any, params: dict, context: RpcContext | None = None
 ) -> dict:

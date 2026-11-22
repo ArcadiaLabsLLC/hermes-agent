@@ -422,7 +422,7 @@ def test_the_handlers_hand_the_proven_caller_to_the_service():
 
     from agent_runtime.call_authorization import CallAuthorization
 
-    def _always_allow(tier, caller, *, method=None):
+    def _always_allow(tier, caller, *, method=None, computer_reach=None):
         return CallAuthorization(
             ok=True, reason="stubbed", tier=tier, caller_kind=getattr(caller, "kind", "?")
         )

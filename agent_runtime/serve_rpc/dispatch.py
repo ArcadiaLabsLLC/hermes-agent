@@ -23,6 +23,7 @@ from agent_runtime.serve_rpc.protocol import (
 from agent_runtime.serve_rpc.registry import (
     _METHODS,
     ensure_lazy_families,
+    method_computer_reach,
     method_names,
     method_tier,
 )
@@ -147,7 +148,10 @@ def handle_request(req: Any, context: RpcContext | None = None) -> dict:
     # the method sometimes would be a gate whose answer depended on which arm
     # the caller happened to reach, which is the shape this module exists to
     # retire.
-    decision = authorize_call(method_tier(name), context.caller, method=name)
+    # The computer reach rides beside the tier: both are stated on the verb's ``@method`` line.
+    # MUTATION: pass no reach and test_computer_reach's dispatcher test sees Look refused its reads.
+    decision = authorize_call(method_tier(name), context.caller, method=name,
+                              computer_reach=method_computer_reach(name))
     if decision.ok:
         # A channel credential's instance binding and the external-access switch
         # (RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL / -SWITCH-GATE): the only rule that

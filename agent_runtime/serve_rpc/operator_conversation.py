@@ -1,5 +1,10 @@
 """Observation and continuation of an existing operator conversation."""
-from agent_runtime.call_authorization import CALLER_COMPUTER, COMPUTER_GRANT_ACCOUNT, TIER_CONSOLE
+from agent_runtime.call_authorization import (
+    CALLER_COMPUTER,
+    COMPUTER_GRANT_ACCOUNT,
+    COMPUTER_REACH_CHAT,
+    TIER_CONSOLE,
+)
 from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD, perform_chat_turn
 from agent_runtime.operator_conversation import (
     OperatorConversationRefused, read_operator_conversation,
@@ -13,7 +18,11 @@ from .registry import method
 __layer__ = "lanes"
 
 
-@method("runtime.operator.conversation.read", tier=TIER_CONSOLE)
+# The Agent Console's attach read of the chat this computer started, at Run chats, never Look: it answers
+# a turn's clarify token and execution ids, which only a chat verb can use, and it REQUIRES the
+# computer's own client_scope (below), so it opens only chats that scope owns
+# (RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT, review w1122b.5).
+@method("runtime.operator.conversation.read", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT)
 def read(rid, params: dict, context: RpcContext | None = None) -> dict:
     if _computer_without_its_scope(params, context):
         return err(rid, 4090, "This conversation could not be attached.", {"reason": "client_scope_required"})

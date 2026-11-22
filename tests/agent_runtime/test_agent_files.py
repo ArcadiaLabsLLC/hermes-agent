@@ -12,7 +12,7 @@ Killing mutations (each recorded red, named at its test):
   instead of looking it up among the enumerated roots;
 * ``agent_tree._admissible``: drop the engine-home check;
 * ``reader.read``: drop the size check;
-* ``call_authorization.COMPUTER_LOOK_METHOD_ALLOWLIST``: leave the three verbs out;
+* the stated reach (``computer=`` on the verb's ``@method``): leave the three verbs out;
 * ``agent_files``: a verb's tier back to ``TIER_READ`` (a view-only device reads the project);
 * ``reader.read_regular_file`` / ``reader._open_flags``: each guard of the one opener (O_NOFOLLOW,
   O_NONBLOCK, the Windows fallback's lstat refusal and inode pin), named at its test below.
@@ -235,7 +235,7 @@ def _computer(grant: str | None) -> ca.RpcCaller:
 
 @pytest.mark.parametrize("verb", VERBS)
 def test_a_computer_the_phone_granted_look_reaches_the_verbs(two_roots, verb):
-    """MUTATION (``COMPUTER_LOOK_METHOD_ALLOWLIST``): leave the verbs out, and look is refused."""
+    """MUTATION (the stated ``computer=`` reach): leave the verbs out, and look is refused."""
 
     for grant in (ca.COMPUTER_GRANT_LOOK, ca.COMPUTER_GRANT_CHAT):
         assert "result" in _call(verb, _params(verb), caller=_computer(grant)), grant

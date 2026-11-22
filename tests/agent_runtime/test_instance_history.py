@@ -204,7 +204,7 @@ def test_a_look_computer_lists_every_phone_chat_read_only(placed_agent):
     Look or Run chats is answered the list; with ``all_accounts`` it sees every phone chat, each one
     ``readable`` and opened only if it started it, and a row it does not own carries no ``client_scope``.
 
-    MUTATIONS: leave ``runtime.operator.conversation.list`` off ``COMPUTER_LOOK_METHOD_ALLOWLIST`` and
+    MUTATIONS: state no ``computer=`` reach on ``runtime.operator.conversation.list`` and
     the list is refused ``scope_denied``; drop the ``client_scope`` pop in
     ``serve_rpc/instance_history._for_caller`` and the phone owner's scope is handed to the computer.
     """

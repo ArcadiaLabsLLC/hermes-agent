@@ -1,7 +1,7 @@
 """Native twins of the Agent Console's local operations, behind existing owners."""
 from functools import partial
 
-from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
+from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_CONSOLE, TIER_READ
 from .protocol import err, ok, defer_or_inline, ERR_INVALID_PARAMS, ERR_NOT_FOUND, ERR_CONFLICT
 from .registry import method
 from agent_runtime.param_readers import read_text
@@ -107,7 +107,7 @@ def prompt_context(rid, params, context=None):
     return _operation(rid, params, context, "runtime.prompt_context.show", read)
 
 
-@method("runtime.persona.instance.detail", tier=TIER_READ)
+@method("runtime.persona.instance.detail", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
 def instance_detail(rid, params, context=None):
     def read(p):
         from agent_runtime.snapshot.details import persona_instance_detail_for_id

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
+from agent_runtime.call_authorization import COMPUTER_REACH_CHAT, TIER_CONSOLE, TIER_READ
 
 from agent_runtime.serve_rpc.protocol import RpcContext, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -25,7 +25,7 @@ __all__ = [
 # ── runtime.persona.instance.open_chat ───────────────────────────────────────
 
 
-@method("runtime.persona.instance.open_chat", tier=TIER_CONSOLE)
+@method("runtime.persona.instance.open_chat", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT)
 def _runtime_persona_instance_open_chat(
     rid: Any, params: dict, context: RpcContext | None = None
 ) -> dict:
@@ -80,7 +80,7 @@ def _runtime_persona_instance_open_chat(
     return _open_chat_request(rid, params, context)
 
 
-@method("runtime.agent.conversation.create", tier=TIER_CONSOLE)
+@method("runtime.agent.conversation.create", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT)
 def _runtime_agent_conversation_create(
     rid: Any, params: dict, context: RpcContext | None = None,
 ) -> dict:
@@ -203,7 +203,7 @@ def _runtime_persona_prewarm(
 # session sends a turn today.
 
 
-@method("runtime.chat.message", tier=TIER_CONSOLE)
+@method("runtime.chat.message", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT)
 def _runtime_chat_message(
     rid: Any, params: dict, context: RpcContext | None = None
 ) -> dict:
@@ -283,7 +283,7 @@ def _runtime_chat_message(
     return ok(rid, outcome.result)
 
 
-@method("runtime.chat.steer", tier=TIER_CONSOLE)
+@method("runtime.chat.steer", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT)
 def _runtime_chat_steer(
     rid: Any, params: dict, context: RpcContext | None = None
 ) -> dict:

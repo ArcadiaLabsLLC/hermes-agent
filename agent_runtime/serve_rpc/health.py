@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import TIER_READ
+from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_READ
 
 from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, RpcContext, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -32,7 +32,7 @@ __all__ = ["HEALTH_UNEXPECTED_PARAMS_REASON", "_runtime_health"]
 HEALTH_UNEXPECTED_PARAMS_REASON = "unexpected_params"
 
 
-@method("runtime.health", tier=TIER_READ)
+@method("runtime.health", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
 def _runtime_health(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Params: none. Result: ``harness health --json`` verbatim — ``ok``,
     ``interpreter``, ``runtime_root``, ``hermes_home``, ``hermes_profile``,

@@ -32,6 +32,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import call_authorization as ca
+from agent_runtime.serve_rpc import registry
 from agent_runtime.call_authorization import caller_for_connection
 from agent_runtime.gateway_tls import ensure_certificate, server_ssl_context
 from agent_runtime.reverse_lane import accepts, grants
@@ -194,8 +195,9 @@ def test_the_grant_and_accept_verbs_answer_only_the_machine_owner(name):
     assert not ca.authorize_call(ca.TIER_CONSOLE, device, method=name).ok
     for grant in grants.GRANT_LEVELS:
         computer = ca.RpcCaller(kind=ca.CALLER_COMPUTER, computer_id="c", computer_grant=grant, transport="gateway")
-        assert not ca.authorize_call(ca.TIER_CONSOLE, computer, method=name).ok
-    assert "runtime.gateway.reverse.offer" not in ca.COMPUTER_CHAT_METHOD_ALLOWLIST
+        assert not ca.authorize_call(ca.TIER_CONSOLE, computer, method=name,
+                                     computer_reach=registry.method_computer_reach(name)).ok
+    assert "runtime.gateway.reverse.offer" not in registry.COMPUTER_CHAT_METHOD_ALLOWLIST
 
 
 def test_the_computer_declines_and_the_offer_is_gone(phone, computer):
@@ -304,16 +306,18 @@ def test_a_computer_granted_look_or_chat_is_refused_the_console_level():
     ``paired_device_answers`` (the account rule), and look and chat reach key set and Skills.
     """
 
-    from agent_runtime.serve_rpc.registry import method_tiers
+    from agent_runtime.serve_rpc.registry import method_computer_reach, method_tiers
 
     tiers = method_tiers()
     for grant in (grants.GRANT_LOOK, grants.GRANT_CHAT):
         caller = _computer_caller(grant)
         for name in ("runtime.provider.key.set", "runtime.skills.catalog", "runtime.level.get"):
-            assert ca.authorize_call(tiers.get(name, ca.TIER_CONSOLE), caller, method=name).ok is False, (grant, name)
-        answered = {name for name, tier in tiers.items() if ca.authorize_call(tier, caller, method=name).ok}
-        assert answered <= (ca.COMPUTER_CHAT_METHOD_ALLOWLIST if grant == grants.GRANT_CHAT
-                            else ca.COMPUTER_LOOK_METHOD_ALLOWLIST), (grant, answered)
+            assert ca.authorize_call(tiers.get(name, ca.TIER_CONSOLE), caller, method=name,
+                                     computer_reach=method_computer_reach(name)).ok is False, (grant, name)
+        answered = {name for name, tier in tiers.items()
+                    if ca.authorize_call(tier, caller, method=name, computer_reach=method_computer_reach(name)).ok}
+        assert answered <= (registry.COMPUTER_CHAT_METHOD_ALLOWLIST if grant == grants.GRANT_CHAT
+                            else registry.COMPUTER_LOOK_METHOD_ALLOWLIST), (grant, answered)
         # The phone's generated documents: read, never changed (review w1122b.4,
         # RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS).
         assert "runtime.agent.files.virtual" in answered, grant
@@ -400,7 +404,7 @@ def test_only_the_paired_device_itself_withdraws_and_only_its_own_accept(phone, 
 
 def test_the_withdraw_is_a_device_verb_never_a_local_console_or_computer_one():
     assert "runtime.gateway.reverse.withdraw" not in ca.LOCAL_CONSOLE_METHODS
-    assert "runtime.gateway.reverse.withdraw" not in ca.COMPUTER_CHAT_METHOD_ALLOWLIST
+    assert "runtime.gateway.reverse.withdraw" not in registry.COMPUTER_CHAT_METHOD_ALLOWLIST
 
 
 # ── a level changed in place (hermes row RT-FU-A-PHONE-CHANGING-A-COMPUTERS-LEVEL-KEEPS-ITS-CREDENTIAL-AND-ITS-ACCEPT)
@@ -475,4 +479,4 @@ def test_only_the_paired_device_itself_changes_its_level_here(phone, computer):
     assert owner["error"]["data"]["reason"] == "not_a_device", owner
     assert [a.level for a in accepts.list_accepts(computer.root)] == ["look"]
     assert "runtime.gateway.reverse.level" not in ca.LOCAL_CONSOLE_METHODS
-    assert "runtime.gateway.reverse.level" not in ca.COMPUTER_CHAT_METHOD_ALLOWLIST
+    assert "runtime.gateway.reverse.level" not in registry.COMPUTER_CHAT_METHOD_ALLOWLIST

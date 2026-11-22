@@ -89,12 +89,13 @@ __all__ = [
     "CALLER_UNKNOWN",
     "CHANNEL_METHOD_ALLOWLIST",
     "CLI_CONSOLE",
-    "COMPUTER_CHAT_METHOD_ALLOWLIST",
     "COMPUTER_GRANTS",
     "COMPUTER_GRANT_ACCOUNT",
     "COMPUTER_GRANT_CHAT",
     "COMPUTER_GRANT_LOOK",
-    "COMPUTER_LOOK_METHOD_ALLOWLIST",
+    "COMPUTER_REACHES",
+    "COMPUTER_REACH_CHAT",
+    "COMPUTER_REACH_LOOK",
     "DEVICE_KINDS",
     "DEVICE_KIND_CHANNEL",
     "DEVICE_KIND_DEVICE",
@@ -114,6 +115,7 @@ __all__ = [
     "RpcCaller",
     "authorize_call",
     "caller_for_connection",
+    "computer_grant_reaches",
     "is_computer_below_account",
     "is_machine_owner",
     "paired_device_answers",
@@ -389,76 +391,35 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
 COMPUTER_GRANT_LOOK = "look"
 COMPUTER_GRANT_CHAT = "chat"
 
-#: Look: the phone's agents, their chats and history, and the office stream. Reads only.
-COMPUTER_LOOK_METHOD_ALLOWLIST: frozenset[str] = frozenset(
-    {
-        "runtime.health",
-        "runtime.office.get",
-        "runtime.office.subscribe",
-        "runtime.office.unsubscribe",
-        "runtime.events.after",
-        "runtime.agent.directory",
-        "runtime.persona.instance.detail",
-        "runtime.persona.chat.history",
-        "runtime.persona.chat.history.search",
-        "runtime.persona.chat.content",
-        # The phone agent's existing chats, listed so a computer opens them read-only
-        # (RT-FU-A-LOOK-COMPUTER-LISTS-THE-PHONES-EXISTING-CHATS, owner "rest as reccomended"
-        # 2026-11-22). Each row says whether this caller may read it (``readable``, this gate's
-        # answer for ``runtime.persona.chat.history``), and a row this computer does not own
-        # leaves out its ``client_scope`` (``serve_rpc/instance_history.py``).
-        # MUTATION: leave this out and test_instance_history's Look computer list is refused scope_denied.
-        "runtime.operator.conversation.list",
-        "runtime.workspace.conversations",
-        "runtime.character.portrait",
-        "runtime.characters.thumb",
-        "runtime.profiles.avatar",
-        # The agent's files as one tree (MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE):
-        # reads only, the agent's enumerated roots only, 5 MiB a read.
-        "runtime.agent.files.tree",
-        "runtime.agent.files.read",
-        "runtime.agent.files.grep",
-        # This phone's generated documents, read through its own Eternia (tree / read / grep only;
-        # RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS). Their writes are
-        # the separate runtime.agent.files.virtual.write, in no computer allowlist (review w1122b.4).
-        "runtime.agent.files.virtual",
-        # The pictures in the chats Look reads, by handle
-        # (RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ,
-        # review w1122b.5). For a computer at this level or Run chats, ``serve_rpc/media.py`` lists
-        # and hands over local chat images only: no diff, context file or remote row.
-        # MUTATION: leave these two out and test_reverse_lane's chat-picture test is refused scope_denied.
-        "runtime.media.index",
-        "runtime.media.get",
-    }
-)
+#: **What each grant reaches is stated once, on each verb** (hermes row
+#: ``RT-A-COMPUTERS-REACH-ON-A-PHONE-IS-STATED-ONCE-PER-VERB-AND-CHECKED-AGAINST-WHAT-ETERNIA-CALLS``,
+#: review w1122d.1). A verb's ``@method(name, tier, computer=...)`` line names the lowest grant that
+#: reaches it: :data:`COMPUTER_REACH_LOOK` (the phone's agents, their chats and history, the office
+#: stream, their files and pictures: reads only), :data:`COMPUTER_REACH_CHAT` (Look, and run chat
+#: turns: start, steer and settle one, and declare the computer's Eternia as the answerer of the app
+#: functions its turns call), or nothing (the default: refused to Look and Run chats). The dispatcher
+#: hands that word to :func:`authorize_call` beside the tier, because ``serve_rpc.registry`` imports
+#: this module and the reverse would be a cycle. Never the phone's sign-ins, keys, pairing, settings,
+#: namespaces or secure store: ``tests/agent_runtime/test_computer_reach.py`` pins the exact sets.
+#: The two allowlists the tests and docstrings cite are derived read-only views of those lines
+#: (``serve_rpc.registry.COMPUTER_LOOK_METHOD_ALLOWLIST`` / ``COMPUTER_CHAT_METHOD_ALLOWLIST``).
+COMPUTER_REACH_LOOK = COMPUTER_GRANT_LOOK
+COMPUTER_REACH_CHAT = COMPUTER_GRANT_CHAT
+#: Every reach a verb may state, least first.
+COMPUTER_REACHES: tuple[str, ...] = (COMPUTER_REACH_LOOK, COMPUTER_REACH_CHAT)
 
-#: Look, and run chat turns: start, steer and settle one, and declare the computer's Eternia
-#: as the answerer of the app functions its turns call. Never the phone's sign-ins, keys,
-#: pairing, settings, namespaces or secure store.
-COMPUTER_CHAT_METHOD_ALLOWLIST: frozenset[str] = COMPUTER_LOOK_METHOD_ALLOWLIST | frozenset(
-    {
-        "runtime.chat.message",
-        "runtime.chat.steer",
-        "runtime.chat.turn.resolve",
-        "runtime.persona.instance.open_chat",
-        "runtime.agent.conversation.create",
-        "runtime.client.capabilities",
-        # The Agent Console's attach read of the chat this computer started, and New chat's
-        # instance resolver (RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT,
-        # review w1122b.5): Run chats only, never Look — idle_instances serves only starting a chat,
-        # and the attach read answers a turn's clarify token and execution ids, which only a chat
-        # verb can use. The attach read REQUIRES the computer's own client_scope
-        # (``serve_rpc/operator_conversation.py``), so it opens only chats that scope owns.
-        # MUTATION: leave these two out and test_reverse_lane's Run chats attach test is refused scope_denied.
-        "runtime.operator.conversation.read",
-        "runtime.agent.idle_instances",
-    }
-)
-
-_COMPUTER_ALLOWLISTS: dict[str, frozenset[str]] = {
-    COMPUTER_GRANT_LOOK: COMPUTER_LOOK_METHOD_ALLOWLIST,
-    COMPUTER_GRANT_CHAT: COMPUTER_CHAT_METHOD_ALLOWLIST,
+#: Which stated reaches each grant below the account level is answered: Look within Run chats.
+_GRANT_REACHES: dict[str, frozenset[str]] = {
+    COMPUTER_GRANT_LOOK: frozenset({COMPUTER_REACH_LOOK}),
+    COMPUTER_GRANT_CHAT: frozenset({COMPUTER_REACH_LOOK, COMPUTER_REACH_CHAT}),
 }
+
+
+def computer_grant_reaches(grant: str | None, reach: str | None) -> bool:
+    """Is a computer holding *grant* (Look or Run chats) answered a verb that states *reach*?"""
+
+    return reach is not None and reach in _GRANT_REACHES.get(str(grant or ""), frozenset())
+
 
 #: **The third level: a computer on the phone's OWN account** (hermes row
 #: ``RT-PHONE-DRIVEN-A-COMPUTER-ON-THE-PHONES-OWN-ACCOUNT-IS-ANSWERED-LIKE-A-PAIRED-COMPUTER``, owner
@@ -777,13 +738,14 @@ def _channel_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization
     )
 
 
-def _computer_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization | None:
+def _computer_arm(resolved: RpcCaller, name: str, tier: str, reach: str | None) -> CallAuthorization | None:
     """The computer arm (review w1118a.79), ``None`` for any other caller.
 
     Placed like the peer arm, BEFORE the read opening: a computer answered after it would
-    inherit every read verb the phone has and every one written later. Its grant names an
-    allowlist; the verb's declared tier does not enter into it, so the chat grant never
-    reaches a console verb that is not a chat verb (the phone's sign-ins, keys, settings).
+    inherit every read verb the phone has and every one written later. Its grant is answered
+    by the reach the verb states (*reach*, off its ``@method`` line); the verb's declared tier
+    does not enter into it, so the chat grant never reaches a console verb that is not a chat
+    verb (the phone's sign-ins, keys, settings).
     """
 
     if resolved.kind != CALLER_COMPUTER:
@@ -793,16 +755,15 @@ def _computer_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorizatio
         # account-level registry test sees a console verb a console device is answered refused.
         admitted = paired_device_answers(TIER_CONSOLE, name, tier)
     else:
-        allowlist = _COMPUTER_ALLOWLISTS.get(str(resolved.computer_grant or ""), frozenset())
         # MUTATION: admit `tier == TIER_CONSOLE` for the chat grant (the grant mapped to the console
         # tier) and test_reverse_lane's never-served test sees sign-in and key set answered.
-        admitted = bool(name) and name in allowlist
+        admitted = bool(name) and computer_grant_reaches(resolved.computer_grant, reach)
     return CallAuthorization(
         ok=admitted,
         reason="computer_allowlisted" if admitted else REASON_SCOPE_DENIED,
         tier=tier,
         caller_kind=resolved.kind,
-        detail=None if admitted else _computer_refusal_words(name, resolved.computer_grant),
+        detail=None if admitted else _computer_refusal_words(name, resolved.computer_grant, reach),
     )
 
 
@@ -832,7 +793,7 @@ def paired_device_answers(held_tier: str | None, name: str, tier: str) -> bool:
     return tier == TIER_READ or held_tier == tier
 
 
-def _computer_refusal_words(name: str, grant: str | None) -> str:
+def _computer_refusal_words(name: str, grant: str | None, reach: str | None) -> str:
     """What the computer's composer shows for a refused verb.
 
     A chat verb under a look grant is the refusal a person meets (they typed into the
@@ -843,7 +804,7 @@ def _computer_refusal_words(name: str, grant: str | None) -> str:
 
     # MUTATION: drop this branch and test_reverse_lane's look-grant send test reads the
     # verb-name sentence instead of the words.
-    if grant == COMPUTER_GRANT_LOOK and name in COMPUTER_CHAT_METHOD_ALLOWLIST:
+    if grant == COMPUTER_GRANT_LOOK and reach == COMPUTER_REACH_CHAT:
         return (
             "This phone lets this computer look at its agents but not chat with them. "
             "To chat from here, choose Run chats for this computer on the phone."
@@ -852,7 +813,7 @@ def _computer_refusal_words(name: str, grant: str | None) -> str:
 
 
 def authorize_call(
-    tier: str, caller: RpcCaller | None, *, method: str | None = None
+    tier: str, caller: RpcCaller | None, *, method: str | None = None, computer_reach: str | None = None
 ) -> CallAuthorization:
     """May *caller* run a verb declared at *tier*?
 
@@ -916,6 +877,11 @@ def authorize_call(
     no method name is REFUSED rather than defaulted — absence of a name is
     absence of a decision, and the module's second rule is that absence of a
     decision is never an allow.
+
+    ``computer_reach`` is the lowest computer grant the verb states it answers (its ``@method``
+    line's ``computer=``), handed over by the dispatcher the way it hands the tier. Only the
+    computer arm reads it, and its absence is the absence of a reach: Look and Run chats are
+    refused, never defaulted through.
     """
 
     resolved = caller if caller is not None else UNKNOWN_CALLER
@@ -953,7 +919,7 @@ def authorize_call(
         )
     if (channel := _channel_arm(resolved, name, normalized)) is not None:
         return channel
-    if (computer := _computer_arm(resolved, name, normalized)) is not None:
+    if (computer := _computer_arm(resolved, name, normalized, computer_reach)) is not None:
         return computer
     if resolved.kind == CALLER_PEER:
         if name and name in PEER_METHOD_ALLOWLIST:

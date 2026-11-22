@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import TIER_CONSOLE
+from agent_runtime.call_authorization import COMPUTER_REACH_CHAT, COMPUTER_REACH_LOOK, TIER_CONSOLE
 
 from agent_runtime.serve_rpc.protocol import (
     ERR_CONFLICT,
@@ -106,7 +106,7 @@ def _caller(context: RpcContext | None):
     return context.caller if context is not None else None
 
 
-@method("runtime.persona.chat.history", tier=TIER_CONSOLE)
+@method("runtime.persona.chat.history", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_persona_chat_history(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """``harness persona chat history``. Params: ``session_id`` (required),
     ``limit`` (int, clamped 1..40), ``before`` (the previous page's cursor)."""
@@ -124,7 +124,7 @@ def _runtime_persona_chat_history(rid: Any, params: dict, context: RpcContext | 
     return row_reply(rid, persona_chat_history_page(session_id.strip(), limit=limit, before=before), "history")
 
 
-@method("runtime.persona.chat.history.search", tier=TIER_CONSOLE)
+@method("runtime.persona.chat.history.search", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_persona_chat_history_search(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Search one conversation's history; hits open through ``runtime.persona.chat.history``.
     Params: ``session_id`` and ``query`` (required), ``limit`` (int, clamped 1..20),
@@ -154,7 +154,7 @@ def _runtime_persona_instance_create(rid: Any, params: dict, context: RpcContext
     return row_reply(rid, row, "instance_create")
 
 
-@method("runtime.chat.turn.resolve", tier=TIER_CONSOLE)
+@method("runtime.chat.turn.resolve", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT)
 def _runtime_chat_turn_resolve(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """``harness mission-chat turn-resolve``. Params: ``session_id``,
     ``client_message_id``, ``turn_id``, ``action`` (``abandon`` or ``dismiss``),
@@ -220,7 +220,7 @@ def _runtime_persona_chat_unarchive(rid: Any, params: dict, context: RpcContext 
                      "unarchive")
 
 
-@method("runtime.persona.chat.content", tier=TIER_CONSOLE)
+@method("runtime.persona.chat.content", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_persona_chat_content(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Read a bounded text window through the existing transcript authority."""
     from agent_runtime.persona_chat_history.content import read_chat_content

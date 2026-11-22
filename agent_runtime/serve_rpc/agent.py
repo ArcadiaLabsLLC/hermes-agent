@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import TIER_CONSOLE
+from agent_runtime.call_authorization import COMPUTER_REACH_CHAT, COMPUTER_REACH_LOOK, TIER_CONSOLE
 
 from agent_runtime.serve_rpc.protocol import RpcContext, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -28,7 +28,7 @@ __all__ = [
 ]
 
 
-@method("runtime.agent.directory", tier=TIER_CONSOLE)
+@method("runtime.agent.directory", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_agent_directory(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.instance_catalog import prepare_instance_catalog, InstanceCatalogUnavailable
     from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, ERR_HANDLER_FAILED
@@ -41,7 +41,10 @@ def _runtime_agent_directory(rid: Any, params: dict, context: RpcContext | None 
         return err(rid, ERR_HANDLER_FAILED, "Agents could not be loaded. Try again.", {"reason": str(exc)})
 
 
-@method("runtime.agent.idle_instances", tier=TIER_CONSOLE)
+# New chat's instance resolver at Run chats, never Look: it serves only starting a chat
+# (RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT, review w1122b.5).
+# MUTATION: state no reach here and test_reverse_lane's Run chats attach test is refused scope_denied.
+@method("runtime.agent.idle_instances", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT)
 def _runtime_agent_idle_instances(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Which idle instances of an agent a new chat reuses, in the order to try them.
 

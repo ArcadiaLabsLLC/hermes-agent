@@ -23,7 +23,7 @@ review w1122b.4): the reads are ``runtime.agent.files.virtual`` and the writes t
 ``runtime.agent.files.virtual.write``, so the grant's allowlist states the reach once. Red seen
 2026-11-22 under each:
 
-* ``call_authorization.COMPUTER_LOOK_METHOD_ALLOWLIST``: drop ``runtime.agent.files.virtual``, and
+* the stated reach (``computer=`` on the verb's ``@method``): drop ``runtime.agent.files.virtual``, and
   a look-grant computer's tree / read / grep are refused;
 * the same allowlist: add ``runtime.agent.files.virtual.write``, and a look (and so Run chats)
   computer's patch / write / move reach the phone's Eternia;

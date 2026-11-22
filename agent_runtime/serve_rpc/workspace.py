@@ -1,7 +1,7 @@
 """Workspace setup and management over the existing store: the conversations home, the create door, the realm
 assign, the realm move, unarchive, and rename / archive / delete (RT-EVERY-ACTION-ETERNIA-SENDS-HAS-A-TYPED-CALL-ON-
 THE-RUNNING-HERMES: the argv verbs' typed twins, one implementation each in ``agent_runtime.workspace_manage``)."""
-from agent_runtime.call_authorization import TIER_CONSOLE
+from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_CONSOLE
 from agent_runtime.serve_rpc.protocol import ERR_CONFLICT, ERR_INVALID_PARAMS, ERR_NOT_FOUND, err, ok
 from agent_runtime.serve_rpc.registry import method
 from agent_runtime.workspace_create import create_workspace, WorkspaceCreationRefused, WorkspaceCreationReason
@@ -9,7 +9,7 @@ from agent_runtime.workspace_create import create_workspace, WorkspaceCreationRe
 __layer__ = "lanes"
 
 
-@method("runtime.workspace.conversations", tier=TIER_CONSOLE)
+@method("runtime.workspace.conversations", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def runtime_conversations_workspace(rid, params, context=None):
     from agent_runtime.workspace_create import conversations_workspace
 
