@@ -88,8 +88,11 @@ def first_party_plan(manifest, index: dict[str, Path] | None = None) -> tuple[se
 
 
 def forced_modules(walk, index: dict[str, Path]) -> set[str]:
-    """The switched-off modules a walk's kept code forces into the bundle (see :func:`first_party_plan`)."""
-    forced = set(walk.pinned) | {row["target"] for row in walk.unguarded_into_pruned}
+    """The switched-off modules a walk's kept code forces into the bundle (see :func:`first_party_plan`),
+    and those the profile ships anyway (``packaging.forced_modules``: a lazy edge inside a forced module)."""
+    # MUTATION: drop ``walk.profile_forced`` here and the custom-endpoint resume case of
+    # test_phone_bundle_turn_closure's call paths reddens (hermes_cli.local_runtime.recovery is missing).
+    forced = set(walk.pinned) | {row["target"] for row in walk.unguarded_into_pruned} | set(getattr(walk, "profile_forced", ()))
     return _eager_first_party_closure(forced, index) - walk.kept
 
 

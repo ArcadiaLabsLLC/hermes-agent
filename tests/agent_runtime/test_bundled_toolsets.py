@@ -96,3 +96,17 @@ def test_a_hand_edited_row_outside_the_family_is_not_honoured(home, monkeypatch)
         {"schema_version": 1, "approvals": [{"toolset": "discord"}, {"toolset": "browser"}]}), encoding="utf-8")
     disabled = set(bt.bundled_disabled_toolsets(_persona()))
     assert "discord" in disabled and "browser" not in disabled
+
+
+def test_a_module_is_switched_off_only_by_the_installed_bundle_profile(monkeypatch):
+    """RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS (c): the phone ships ``agent_runtime.work``
+    (pinned) yet switches it off, so the Work engine asks the profile, not a presence probe. Killing
+    mutation: drop the developer-install early return -> the first assertion reds."""
+    monkeypatch.setattr(bt, "edition_bundled", lambda: False)
+    monkeypatch.setattr(bt, "PHONE_PLATFORMS", frozenset({"android", "ios"}))
+    monkeypatch.setattr(bt, "bundled_profile", lambda: SimpleNamespace(switched_off_modules=("agent_runtime.work",)))
+    assert bt.installed_switched_off("agent_runtime.work") is False  # a developer install switches nothing off
+    monkeypatch.setattr(bt, "edition_bundled", lambda: True)
+    assert bt.installed_switched_off("agent_runtime.work") is True
+    assert bt.installed_switched_off("agent_runtime.work.store") is True
+    assert bt.installed_switched_off("agent_runtime.work_store") is False  # a sibling name is not inside it

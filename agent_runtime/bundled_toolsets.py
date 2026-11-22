@@ -85,6 +85,18 @@ def bundled_profile():
     return _profile(profile_name())
 
 
+def installed_switched_off(module: str) -> bool:
+    """True when the INSTALLED bundle profile switches ``module`` (or a package holding it) off.
+
+    A profile fact, never a presence probe: a switched-off module kept code imports unguarded still ships
+    (pinned), so ``module_presence.shipped`` answers True for it (``agent_runtime.work`` on the phone).
+    A bundled install is a phone or a desktop whose build stamp says ``bundled``; a developer install
+    switches nothing off."""
+    if sys.platform not in PHONE_PLATFORMS and not edition_bundled():
+        return False
+    return any(module == off or module.startswith(off + ".") for off in bundled_profile().switched_off_modules)
+
+
 def _toolset_ships(toolset: str) -> bool:
     """True when the live registry holds a tool of ``toolset``: an unshipped module registers none."""
     from tools.registry import discover_builtin_tools, registry

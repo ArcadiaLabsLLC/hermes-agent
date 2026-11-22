@@ -205,6 +205,11 @@ packaging:
   # entry mounts it on `tools.__path__` / `plugins.__path__` (agent_runtime/bundle_profiles/
   # forced_tree.py; owner ruling 2026-09-30, option (1)).
   forced_sibling_tree: true
+  # Switched-off modules a forced module imports lazily and unguarded on a path a phone runs, so each
+  # ships with the forced set (scripts/bundles/plan.py::forced_modules). The gate counts every lazy
+  # edge into an unshipped module left unjudged (scripts/bundle_profile_gate.py::lazy_into_unshipped).
+  forced_modules:
+    hermes_cli.local_runtime.recovery: "a chat whose model is a bare custom endpoint (no custom_providers entry) asks hermes_cli/runtime_provider_custom.py::_endpoint_identity, which asks hermes_cli/local_runtime/endpoint.py::_state_endpoint, which imports this; on a phone it finds no local-runtime state file under the profile's home and answers None (psutil answers through agent_runtime.psutil_stand_in, which reports no process); seen refusing every turn on the emulator (RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS)"
   # First-party modules ship without their `#` comments, every line kept where it was (tracebacks
   # still point at the source tree's lines; docstrings stay): about 3.3 MiB of the compressed
   # download (RT-PHONE-ENGINE-BUNDLE-FITS-THE-DOWNLOAD-LIMIT; scripts/bundles/strip_comments.py).

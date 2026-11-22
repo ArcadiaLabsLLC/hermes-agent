@@ -475,6 +475,34 @@ def forced_tree_seams(manifest, walk, index: dict[str, Path], answered=()) -> li
     return sorted(m for m in walk.pinned if m not in answered and m in sibling)
 
 
+def lazy_into_unshipped(walk, index: dict[str, Path]) -> list[dict]:
+    """Every lazy, unguarded first-party import in a module the bundle ships whose target it does not
+    ship: an ImportError when that line runs on the device. Kept code's lazy edges into switched-off
+    modules force their targets in (``scripts/bundles/plan.forced_modules``), so what is left is a lazy
+    edge INSIDE a forced module (``hermes_cli.local_runtime.endpoint`` -> ``recovery``, seen on the
+    emulator, RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS). Each is judged in the profile
+    (``packaging.forced_modules``), put behind its feature's switch or a seam, or counted here."""
+    from scripts.bundle_profile_closure import _imports, facade_exports, resolve_owner
+    from scripts.bundles.plan import _with_parents, forced_modules
+
+    shipped = _with_parents(set(walk.kept) | forced_modules(walk, index), index)
+    facades = facade_exports()
+    seen: set[tuple[str, int, str]] = set()
+    out: list[dict] = []
+    for module in sorted(shipped):
+        path = index.get(module)
+        if path is None:
+            continue
+        for dotted, eager, guarded, line in _imports(path, module, path.name == "__init__.py"):
+            owner = resolve_owner(dotted, index, facades)
+            # MUTATION: count guarded imports too and test_bundle_profile_gate's lazy-edge case reddens.
+            if eager or guarded or owner is None or owner in shipped or (module, line, owner) in seen:
+                continue
+            seen.add((module, line, owner))
+            out.append({"kind": "lazy_unshipped", "subject": f"{module}:{line} -> {owner}", "module": module})
+    return out
+
+
 def gate(profile: str) -> dict:
     """Judge ``profile``: the kept modules once, the shipped distributions per target."""
     from agent_runtime.bundle_profiles.manifest import load_profile
@@ -499,6 +527,7 @@ def gate(profile: str) -> dict:
         findings += module_findings(module, index[module])
     findings, dropped = dropped_method_seams(manifest, findings, index)
     findings, spawned = spawn_seams(manifest, findings, index)
+    findings += lazy_into_unshipped(walk, index)
     spawned = {m: sorted({*spawned.get(m, ()), *dropped.get(m, ())}, key=lambda s: int(s.partition(":")[0]))
                for m in sorted({*spawned, *dropped})}
     lock = _lock()

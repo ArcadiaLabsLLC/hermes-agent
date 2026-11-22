@@ -219,7 +219,9 @@ def profile_walk(manifest, index: dict[str, Path] | None = None, *,
     index = index if index is not None else module_index(plugins=getattr(manifest, "packaging_plugins", ()))
     first_party = {m.split(".")[0] for m in index}
     roots = (*manifest.packaging_roots, *plugin_roots(manifest))
-    return Walk(roots, manifest.switched_off_modules, index, first_party, parents=parents), index
+    walk = Walk(roots, manifest.switched_off_modules, index, first_party, parents=parents)
+    walk.profile_forced = frozenset(getattr(manifest, "packaging_forced_modules", None) or ())
+    return walk, index
 
 
 def _catches_import_error(handler_type) -> bool:
@@ -383,6 +385,9 @@ class Walk:
         self.tops: dict[str, list[str]] = {}
         self.pinned: set[str] = set()
         self.unguarded_into_pruned: list[dict] = []
+        #: switched-off modules the profile ships anyway (``packaging.forced_modules``), set by
+        #: :func:`profile_walk`: each is a judged lazy edge the walk cannot see from kept code
+        self.profile_forced: frozenset[str] = frozenset()
         self.import_sites: dict[str, list[dict]] = {}
         facades = facade_exports()
         # A root prefix (``agent_runtime``) must not seed a switched-off module under it.

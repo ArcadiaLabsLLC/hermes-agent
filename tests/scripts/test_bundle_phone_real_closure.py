@@ -36,8 +36,14 @@ pytestmark = pytest.mark.timeout(280)
 #: Shrink-only: the gate's findings per kind over every phone target, read 2026-11-16 once the
 #: phone closure built again (the 2 ``closure`` findings gone). Lower a number when a refusal is
 #: fixed; never raise one — a new refusal is fixed, or switched off in the profile.
+#: ``lazy_unshipped`` (RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS, read 2026-11-21 once the
+#: profile shipped ``hermes_cli.local_runtime.recovery``): a lazy, unguarded import in a shipped module of a
+#: module the phone does not ship — an ImportError when the line runs. Each is judged (the profile's
+#: ``packaging.forced_modules``, its feature's switch, or a seam) and the count lowered; never raised.
+#: Killing mutation: drop ``recovery`` from ``bundled-phone.yaml``'s ``forced_modules`` -> 376 > 375, red.
 CEILING = {
     "browser": 9,
+    "lazy_unshipped": 375,
     "pinned": 2,
     "subprocess_call": 22,
 }

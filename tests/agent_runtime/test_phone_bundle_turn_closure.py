@@ -108,3 +108,67 @@ def test_the_phone_work_engine_starts_without_the_batch_dispatcher_it_does_not_s
     # Positive control: an installation with every module builds the dispatcher's hooks.
     everything = phone_modules | set(BATCH_DISPATCHER_MODULES)
     assert "batch" in _start_work_engine(monkeypatch, everything)
+
+
+def _phone_file_tools_path() -> set[str]:
+    """What the phone file tools load, walked as the phone walks (its switched-off modules pruned or forced).
+
+    They reach a phone by a path the packager's walk does not model (the eternia-harness plugin is not in
+    ``bundled-phone.yaml``'s ``packaging.plugins``; row RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-
+    AGENTS-FILE-TOOLS), yet the emulator ran them; the call-path case adds them until that row makes the
+    walk keep them."""
+    from agent_runtime.bundle_profiles.manifest import load_profile
+    from scripts.bundle_profile_closure import Walk, module_index
+    from scripts.bundles.plan import _with_parents, forced_modules
+
+    manifest = load_profile("bundled-phone")
+    index = module_index(plugins=manifest.packaging_plugins)
+    walk = Walk(("agent_runtime.phone_file_tools",), manifest.switched_off_modules, index,
+                {m.split(".")[0] for m in index}, parents=True)
+    return _with_parents(set(walk.kept) | forced_modules(walk, index), index)
+
+
+def test_three_phone_call_paths_run_on_only_what_the_phone_bundle_ships(phone_modules, tmp_path):
+    """RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS (d): in a fresh interpreter where every
+    first-party module outside the packager's phone plan refuses to import and every spawn is refused
+    (``_phone_call_paths_child.py``, the installed profile made the phone's), a phone agent's ``read_file``
+    through ``model_tools.handle_function_call``, the identity a resumed chat on a bare custom endpoint asks
+    for, and one Work-engine tick each run with no ImportError, no spawn and no warning.
+
+    Killing mutations (applied, red recorded, reverted — see the commit message):
+    * drop ``"tools.connectors"`` from ``FACADE_TABLES`` -> the tool-call case reddens;
+    * drop ``walk.profile_forced`` from ``plan.forced_modules`` -> the custom-endpoint case reddens;
+    * drop the switched-off check from ``engine._default_workspaces`` -> the tick case reddens."""
+    import json
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from scripts.bundle_profile_closure import module_index
+
+    repo = Path(__file__).resolve().parents[2]
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps({"modules": sorted(phone_modules | _phone_file_tools_path()),
+                                "tops": sorted({m.split(".")[0] for m in module_index()} - {"tests"})}),
+                    encoding="utf-8")
+    out = tmp_path / "out.json"
+    home = tmp_path / "home"
+    home.mkdir()
+    env = {key: value for key, value in os.environ.items() if not key.startswith(("HERMES_", "PYTEST_"))}
+    env.update(HERMES_HOME=str(home), PYTHONPATH=str(repo), PYTHONDONTWRITEBYTECODE="1")
+    child = Path(__file__).with_name("_phone_call_paths_child.py")
+    done = subprocess.run([sys.executable, str(child), str(plan), str(out)], cwd=tmp_path, env=env,
+                          capture_output=True, text=True, timeout=240)
+    assert done.returncode == 0, done.stderr[-4000:]
+    got = json.loads(out.read_text(encoding="utf-8"))
+    cases = got["cases"]
+    failed = {name: (row.get("error"), row["spawns"]) for name, row in cases.items()
+              if "error" in row or row["spawns"]}
+    assert failed == {}, {name: cases[name].get("trace") for name in failed}
+    read = cases["tool_call"]["answer"]
+    assert read.get("content") == "1|# Notes\n2|- buy milk", read
+    assert cases["custom_endpoint_resume"]["answer"] == "custom"
+    # Only the tick's own warning is judged: the checkout's plugin directory scan reports plugins a phone
+    # bundle does not hold on disk, which no phone sees.
+    assert [w for w in got["warnings"] if "work engine" in w or w.startswith("agent_runtime.work")] == [], got["warnings"]
