@@ -83,11 +83,13 @@ history; one neither can take is held machine-local. Adopted and held rows carry
 `adopted_from_global` stamp, which keeps them off realm publish, drift, peer rosters and
 `peer.thread.read`. The one id of that shape still opened is a profile's own channel
 `personainst_profile_<name>` (a `profile_<name>` persona is not placeable), stamped machine-local
-when it is minted. Phase 8 (and the same boot step) then cleans up: an adopted copy whose only
-content is saved chats, with no turn since its adoption or in the last 14 days, is retired through
-retire's archive, its chats listed under the agent (`holder_retired`) and loadable onto an instance;
-a copy in live use (a goal, Work, folder slots, a gateway binding, a live run or running goal, a
-recent turn) stays placed (`clean_up_chat_only_copies`, owner RULED 2026-11-21).
+when it is minted. Phase 8 (and the same boot step) then cleans up: an adopted copy with no chat
+pointer whose only content is saved chats in the move ledger is retired through retire's archive,
+its chats listed under the agent (`holder_retired`) and loadable onto an instance; a copy in live
+use (a live chat — its chat pointer `default_chat_session_id` names one, kept as `live_chat` — a
+goal, Work, folder slots, a gateway binding, a live run or running goal, a profile's own channel)
+stays placed (`clean_up_chat_only_copies`, owner RULED 2026-11-21: "live" is the chat menu's live,
+no date window).
 
 **Channels.** A **live** chat belongs to an instance: the chat it has loaded and runs turns in. The
 agent's **saved chat history** stays the agent's, and an instance loads one of those chats on

@@ -1,9 +1,11 @@
 """Old hidden copies that only hold saved chats are cleaned up, and their chats stay with the agent.
 
 Row ``RT-OLD-HIDDEN-COPIES-THAT-ONLY-HOLD-SAVED-CHATS-ARE-CLEANED-UP-AND-THEIR-CHATS-STAY-WITH-THE-AGENT``
-(owner RULED 2026-11-21, "Yes, that's it"): an adopted copy whose only content is saved chats from before
-its adoption is retired through retire's archive; its chats stay in the agent's Chat history
-(``holder_retired``); a copy in live use stays an ordinary placed agent; nothing is deleted, the
+(owner RULED 2026-11-21, "Yes, that's it"): an adopted copy with no chat pointer whose only content is saved
+chats in the move ledger is retired through retire's archive, and its chats stay in the agent's Chat history
+(``holder_retired``); a copy whose chat pointer names its live chat is in live use
+(``RT-FU-A-HIDDEN-COPY-IS-IN-LIVE-USE-WHEN-IT-HOLDS-A-LIVE-CHAT-NOT-BY-A-14-DAY-WINDOW``, no date window);
+a copy in live use stays an ordinary placed agent; nothing is deleted, the
 persona's profile and memory are untouched, and a second run does nothing.
 """
 
@@ -18,6 +20,7 @@ from agent_runtime import paths
 from agent_runtime.default_scope import DEFAULT_WORKSPACE_ID, ensure_default_scope
 from agent_runtime.models import PersonaInstance
 from agent_runtime.persona_assignments import PersonaInstanceStore, persona_instance_id_for
+from agent_runtime.persona_assignments.chat_moves import record_chat_move
 from agent_runtime.persona_instance_identity import reconcile_persona_instances
 from agent_runtime.serde import to_jsonable
 from agent_runtime.states import WorkerSessionState
@@ -25,12 +28,13 @@ from hermes_time import now
 
 pytestmark = pytest.mark.usefixtures("isolate_agent_runtime_root", "persisted_persona_samples")
 
-TODAY = now().date()
-ADOPTED_ON = (TODAY - timedelta(days=30)).isoformat()
+ADOPTED_ON = (now().date() - timedelta(days=30)).isoformat()
 CHAT_ONLY = persona_instance_id_for("dev")
 IN_USE = persona_instance_id_for("qa")
-RECENT = persona_instance_id_for("backend_dev")
-SAVED = f"persona_chat_{CHAT_ONLY}_0123456789ab"
+LIVE = persona_instance_id_for("backend_dev")
+# Minted for another copy and moved onto this one: the move ledger lists it, the copy's pointer does not.
+SAVED = f"persona_chat_{persona_instance_id_for('designer')}_0123456789ab"
+LIVE_CHAT = f"persona_chat_{LIVE}_00000000000b"
 
 
 def _adopted(instance_id: str, persona_id: str, *, stamp: str = ADOPTED_ON, **fields) -> None:
@@ -60,23 +64,17 @@ def _fates(report: list[dict]) -> dict[str, tuple]:
 
 @pytest.fixture
 def adopted_copies(monkeypatch):
-    """Three adopted copies: one holding only an old saved chat, one with a goal, one chatted with lately."""
-    import agent_runtime.mission_chat_turns.reads as turn_reads
+    """Three adopted copies: one with no chat pointer holding only a saved chat in the move ledger, one with
+    a goal, one whose chat pointer names its live chat (adopted by today's boot, no turn on record)."""
     import agent_runtime.persona_instance_adoption as adoption
 
     monkeypatch.setattr(adoption, "_work_assignee_tokens", lambda: frozenset())
-    old_start = (TODAY - timedelta(days=40)).isoformat()  # every seeded chat started long ago
-    monkeypatch.setattr(adoption, "_chat_start_dates", lambda ids: dict.fromkeys(ids, old_start))
-    monkeypatch.setattr(turn_reads, "last_turn_started_by_instance",
-                        lambda: {CHAT_ONLY: f"{TODAY - timedelta(days=40)}T09:00:00.000000Z",
-                                 RECENT: f"{TODAY - timedelta(days=3)}T09:00:00.000000Z"})
     ensure_default_scope(seed_active_pointers=False)
-    _adopted(CHAT_ONLY, "dev", default_chat_session_id=SAVED)
+    _adopted(CHAT_ONLY, "dev")
     _saved_chat(SAVED)
+    record_chat_move(SAVED, CHAT_ONLY)
     _adopted(IN_USE, "qa", default_chat_session_id=f"persona_chat_{IN_USE}_00000000000a", goal_id="goal_1")
-    # Adopted by today's boot: its last turn predates the stamp, and is still recent.
-    _adopted(RECENT, "backend_dev", stamp=TODAY.isoformat(),
-             default_chat_session_id=f"persona_chat_{RECENT}_00000000000b")
+    _adopted(LIVE, "backend_dev", stamp=now().date().isoformat(), default_chat_session_id=LIVE_CHAT)
 
 
 def test_the_dry_run_names_each_adopted_copy_and_its_fate_and_writes_nothing(adopted_copies):
@@ -84,14 +82,16 @@ def test_the_dry_run_names_each_adopted_copy_and_its_fate_and_writes_nothing(ado
     assert _fates(census["cleanup"]) == {
         CHAT_ONLY: ("would_retire", None),
         IN_USE: ("kept", "in_use"),
-        RECENT: ("kept", "recently_used"),
+        LIVE: ("kept", "live_chat"),
     }
     assert census["chat_only_copies_retired_count"] == 1
     assert paths.persona_instance_path(CHAT_ONLY).exists()
 
 
 def test_a_chat_only_copy_is_retired_and_its_chats_stay_listed(adopted_copies):
-    """Kill-mutation: skip the retire in ``clean_up_chat_only_copies`` → the copy is still live, red."""
+    """No chat pointer, only a saved chat in the move ledger: retired. Kill-mutations: skip the retire in
+    ``clean_up_chat_only_copies`` → the copy is still live, red; test ``_row_chats`` (ledger chats too) in
+    place of the pointer → kept as ``live_chat``, red."""
     from agent_runtime.persona_chat_history import persona_chat_history_summary
     from hermes_cli.profiles import get_profile_dir
 
@@ -103,7 +103,7 @@ def test_a_chat_only_copy_is_retired_and_its_chats_stay_listed(adopted_copies):
 
     assert _fates(applied["cleanup"])[CHAT_ONLY] == ("retired", None)
     live = {row.id for row in PersonaInstanceStore().list_all()}
-    assert CHAT_ONLY not in live and {IN_USE, RECENT} <= live
+    assert CHAT_ONLY not in live and {IN_USE, LIVE} <= live
     assert list(paths.persona_instances_archive_dir().rglob(f"{CHAT_ONLY}.json"))  # archived, never deleted
     rows = persona_chat_history_summary(persona_instances=PersonaInstanceStore().list_all())
     row = next(item for item in rows if item["session_id"] == SAVED)
@@ -115,25 +115,35 @@ def test_a_chat_only_copy_is_retired_and_its_chats_stay_listed(adopted_copies):
     assert again["chat_only_copies_retired_count"] == 0
 
 
-def test_a_copy_chatted_with_recently_is_kept(adopted_copies):
-    """Its last turn is before the adoption stamp but within the last two weeks: in use, kept. Kill-mutation:
-    drop the recent-use test in ``clean_up_chat_only_copies`` → retired, red."""
+def test_a_copy_with_a_live_chat_is_kept(adopted_copies):
+    """Its chat pointer names its live chat; it holds nothing else and no date is read. Kill-mutation: drop
+    the pointer test in ``clean_up_chat_only_copies`` → retired, red."""
     applied = reconcile_persona_instances(apply=True)
-    assert _fates(applied["cleanup"])[RECENT] == ("kept", "recently_used")
-    assert PersonaInstanceStore().get(RECENT).workspace_id == DEFAULT_WORKSPACE_ID
+    assert _fates(applied["cleanup"])[LIVE] == ("kept", "live_chat")
+    assert PersonaInstanceStore().get(LIVE).workspace_id == DEFAULT_WORKSPACE_ID
 
 
-def test_a_copy_whose_chat_was_opened_today_is_kept(monkeypatch):
-    """An operator chat opened on the copy today, no turn yet: in use. Kill-mutation: drop the chat-start
-    test in ``clean_up_chat_only_copies`` → retired, red."""
-    import agent_runtime.mission_chat_turns.reads as turn_reads
+def test_a_hidden_copy_with_a_live_chat_survives_adoption_and_cleanup_in_one_run(monkeypatch):
+    """The owner's daily copy on the first boot: an UNSTAMPED hidden copy whose pointer names its live chat
+    is adopted and then cleaned up in one applied run, and stays placed. Kill-mutation: drop the pointer
+    test in ``clean_up_chat_only_copies`` → retired by the same run, red."""
     import agent_runtime.persona_instance_adoption as adoption
 
     monkeypatch.setattr(adoption, "_work_assignee_tokens", lambda: frozenset())
-    monkeypatch.setattr(turn_reads, "last_turn_started_by_instance", lambda: {})
     ensure_default_scope(seed_active_pointers=False)
-    _adopted(CHAT_ONLY, "dev", default_chat_session_id=SAVED)
-    _saved_chat(SAVED)  # started now, through the real chat store
-    applied = reconcile_persona_instances(apply=True)
-    assert _fates(applied["cleanup"])[CHAT_ONLY] == ("kept", "recently_used")
+    row = PersonaInstance(
+        id=LIVE, persona_id="backend_dev", role="backend_dev", display_name="backend_dev", profile_id=None,
+        runtime_root=str(paths.store_root()), state=WorkerSessionState.IDLE, mode="configured",
+        default_chat_session_id=LIVE_CHAT,
+    )
+    path = paths.persona_instance_path(LIVE)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(to_jsonable(row), indent=2, sort_keys=True), encoding="utf-8")
+    _saved_chat(LIVE_CHAT)
 
+    applied = reconcile_persona_instances(apply=True)
+
+    assert {item["persona_instance_id"]: item["fate"] for item in applied["adoption"]}[LIVE] == "adopted"
+    assert _fates(applied["cleanup"])[LIVE] == ("kept", "live_chat")
+    kept = PersonaInstanceStore().get(LIVE)
+    assert (kept.workspace_id, kept.default_chat_session_id) == (DEFAULT_WORKSPACE_ID, LIVE_CHAT)
