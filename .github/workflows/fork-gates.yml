@@ -151,6 +151,31 @@ jobs:
           tests/agent_runtime/test_tombstone_registry.py
           tests/test_docket_stage_claims.py
 
+  # The fork's blob-size guard (row FH-THE-BLOB-SIZE-GUARD-ACCEPTS-THE-COMMITTED-MATCHER-WHEELS, owner
+  # RULED 2026-11-22): upstream's check_blob_size.py with the phone wheels the fork commits exempt
+  # (agent_runtime/bundle_profiles/phone_wheels.lock.json's `path` pins). Fork-owned on purpose:
+  # upstream's repo-guards.yml step, its script and .github/blob-size-allowlist.txt keep upstream's
+  # bytes (the footprint never rises); that step runs only under upstream's ci.yaml, disabled on the
+  # fork, and judges with upstream's list alone. Standard library only: no dependency install.
+  blob-size:
+    name: Blob size (fork allowlist)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code and base history
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: No binary or new file over 500 KiB unless a list names it
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE=$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)
+          fi
+          python3 scripts/ci/fork_blob_size.py --base "$BASE" --head HEAD
+
   # The fork's suite, on GitHub's standard runners (owner, 2026-10-25,
   # FH-CI-MAIN-LARGE-RUNNER-QUEUE): upstream's tests.yml asks for runner labels
   # the fork's organisation does not have, so a run queued on it held

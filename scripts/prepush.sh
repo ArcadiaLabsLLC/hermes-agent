@@ -8,6 +8,10 @@
 #   gates    the queue gates (row grammar, row-history guard — ADR 0038) and the
 #            cheap whole-tree text gates, in one `scripts/run_tests.sh` run;
 #   doc-cite `scripts/doc_cite_adjacency.py` over the ruled scope;
+#   blob-size `scripts/ci/fork_blob_size.py` over the pushed commits (merge-base..HEAD): upstream's
+#            blob-size guard with the phone wheels the fork commits exempt, read from
+#            `phone_wheels.lock.json`'s `path` pins (FH-THE-BLOB-SIZE-GUARD-ACCEPTS-THE-COMMITTED-
+#            MATCHER-WHEELS, owner RULED 2026-11-22): a binary or new file over 500 KiB is red;
 #   contracts the two recorded contracts a runtime or CLI change must regenerate — the serve-RPC
 #            manifest expectation (`python -m tests.agent_runtime._serve_rpc_manifest`) and the CLI
 #            contract dump (`scripts/dump_cli_contract.py --check`) — only when a `.py` file under
@@ -86,9 +90,9 @@
 #   PREPUSH_NOTIFY        `off`, or a command run as `<cmd> <title> <body>`
 #                         instead of the OS adapter (notify-send, osascript,
 #                         the Windows toast).
-#   PREPUSH_<STEP>_BUDGET / PREPUSH_<STEP>_DEADLINE   (STEP = GATES, DOC_CITE, CONTRACTS,
-#                         CENSUS, TOUCHED; whole seconds) override one step's numbers.
-#   PREPUSH_<STEP>_WORK_CEILING   (STEP = GATES, DOC_CITE, CONTRACTS, CENSUS) the most work
+#   PREPUSH_<STEP>_BUDGET / PREPUSH_<STEP>_DEADLINE   (STEP = GATES, DOC_CITE, BLOB_SIZE,
+#                         CONTRACTS, CENSUS, TOUCHED; whole seconds) override one step's numbers.
+#   PREPUSH_<STEP>_WORK_CEILING   (STEP = GATES, DOC_CITE, BLOB_SIZE, CONTRACTS, CENSUS) the most work
 #                         the step may do: files it runs / checks it makes. Shrink-only.
 #   PREPUSH_HEARTBEAT     seconds between heartbeats past budget (default 5).
 #   PREPUSH_CAP           the whole-run cap, whole seconds (default 240).
@@ -101,7 +105,7 @@
 #                         `<git common dir>/hermes-test-timings.json`; `--shared-timings-path`
 #                         prints it, and `scripts/daily_full_run.sh` writes it).
 #   PREPUSH_RUNNER / PREPUSH_PYTHON   the test runner (default
-#                         scripts/run_tests.sh) and the doc-cite interpreter;
+#                         scripts/run_tests.sh) and the doc-cite and blob-size interpreter;
 #                         both exist so the script's own test can drive it
 #                         without running the suite.
 #   PREPUSH_GATES_RUNNER  the gates step's runner, called with `--small` (default
@@ -186,6 +190,10 @@ DEADLINE_TOUCHED="${PREPUSH_TOUCHED_DEADLINE:-120}"
 # imports the serve-RPC registry, the dump walks the argparse tree; neither runs a test).
 BUDGET_CONTRACTS="${PREPUSH_CONTRACTS_BUDGET:-6}"
 DEADLINE_CONTRACTS="${PREPUSH_CONTRACTS_DEADLINE:-20}"
+# blob-size: 0.24 s alone, 2026-11-22 on nekwo-ubuntu24 (one `git diff` and one `ls-tree` of the base;
+# no test runs).
+BUDGET_BLOB_SIZE="${PREPUSH_BLOB_SIZE_BUDGET:-4}"
+DEADLINE_BLOB_SIZE="${PREPUSH_BLOB_SIZE_DEADLINE:-20}"
 # The work ceilings (FH-PREPUSH-STEPS-REPORT-WORK-NOT-TIME, 2026-11-15, w1115e-dz11): each step's
 # work is the count of units it runs — gate files, the doc-cite walker, contract checks, census
 # gates — known before it starts, so the verdict is deterministic and load-free. Each ceiling is
@@ -193,6 +201,7 @@ DEADLINE_CONTRACTS="${PREPUSH_CONTRACTS_DEADLINE:-20}"
 # goes to the landing gate). The touched step is the pusher's own tests and has none.
 WORK_CEILING_GATES="${PREPUSH_GATES_WORK_CEILING:-11}"
 WORK_CEILING_DOC_CITE="${PREPUSH_DOC_CITE_WORK_CEILING:-1}"
+WORK_CEILING_BLOB_SIZE="${PREPUSH_BLOB_SIZE_WORK_CEILING:-1}"
 WORK_CEILING_CONTRACTS="${PREPUSH_CONTRACTS_WORK_CEILING:-2}"
 WORK_CEILING_CENSUS="${PREPUSH_CENSUS_WORK_CEILING:-2}"
 HEARTBEAT="${PREPUSH_HEARTBEAT:-5}"
@@ -218,7 +227,7 @@ while [ $# -gt 0 ]; do
     --list-census) printf '%s\n' "${PREPUSH_CENSUS_GATES[@]}"; exit 0 ;;
     --shared-timings-path) echo "$SHARED_TIMINGS"; exit 0 ;;
     -j|--jobs) shift; JOBS="${1:?-j needs a number}" ;;
-    -h|--help) sed -n '2,84p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,88p' "${BASH_SOURCE[0]}"; exit 0 ;;
     -*) echo "prepush: unknown option $1" >&2; exit 2 ;;
     *) EXTRA+=("$1") ;;
   esac
@@ -227,8 +236,9 @@ done
 
 for value in "$BUDGET_GATES" "$DEADLINE_GATES" "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" \
     "$BUDGET_CENSUS" "$DEADLINE_CENSUS" "$BUDGET_TOUCHED" "$DEADLINE_TOUCHED" "$HEARTBEAT" "$CAP" \
-    "$BUDGET_CONTRACTS" "$DEADLINE_CONTRACTS" \
+    "$BUDGET_CONTRACTS" "$DEADLINE_CONTRACTS" "$BUDGET_BLOB_SIZE" "$DEADLINE_BLOB_SIZE" \
     "$WORK_CEILING_GATES" "$WORK_CEILING_DOC_CITE" "$WORK_CEILING_CONTRACTS" "$WORK_CEILING_CENSUS" \
+    "$WORK_CEILING_BLOB_SIZE" \
     "$SHARD_MIN" "$SHARD_SECONDS"; do
   case "$value" in
     ''|*[!0-9]*|0) echo "prepush: a budget, deadline, cap, heartbeat, work ceiling or shard number is not a positive whole number: '$value'" >&2; exit 2 ;;
@@ -399,7 +409,7 @@ done
 
 _list() { local label="$1"; shift; echo "  $label ($#):"; for p in "$@"; do echo "    $p"; done; }
 echo "prepush — base $(git rev-parse --short "$BASE") (merge-base with origin/main)"
-echo "  default path: gates + doc-cite, budget $((BUDGET_GATES + BUDGET_DOC_CITE))s"
+echo "  default path: gates + doc-cite + blob-size, budget $((BUDGET_GATES + BUDGET_DOC_CITE + BUDGET_BLOB_SIZE))s"
 echo "  whole-run cap ${CAP}s: past it the running step is killed, the rest do not start — each UNFINISHED and owed, not a red"
 echo "  a step is judged by its work against its ceiling; its deadline is a hang guard (UNFINISHED, owed)"
 echo "  overrun ledger: ${LEDGER#"$REPO_ROOT"/}"
@@ -421,6 +431,8 @@ _list "queue gates" "${PREPUSH_QUEUE_GATES[@]}"
 _list "text gates" "${PREPUSH_TEXT_GATES[@]}"
 echo "  step doc-cite — budget ${BUDGET_DOC_CITE}s, deadline ${DEADLINE_DOC_CITE}s, work 1 of ceiling ${WORK_CEILING_DOC_CITE} walker"
 echo "    scripts/doc_cite_adjacency.py --exclude archive --exclude planned"
+echo "  step blob-size — budget ${BUDGET_BLOB_SIZE}s, deadline ${DEADLINE_BLOB_SIZE}s, work 1 of ceiling ${WORK_CEILING_BLOB_SIZE} check"
+echo "    scripts/ci/fork_blob_size.py --base $(git rev-parse --short "$BASE") --head HEAD"
 if [ "$CONTRACTS" = 1 ]; then
   echo "  step contracts — budget ${BUDGET_CONTRACTS}s, deadline ${DEADLINE_CONTRACTS}s, work 2 of ceiling ${WORK_CEILING_CONTRACTS} checks"
   echo "    python -m tests.agent_runtime._serve_rpc_manifest   (stale: add --write)"
@@ -751,6 +763,11 @@ _step gates "$BUDGET_GATES" "$DEADLINE_GATES" "${#GATES[@]}" "$WORK_CEILING_GATE
 RETRY_ONCE=doc-cite
 _step doc-cite "$BUDGET_DOC_CITE" "$DEADLINE_DOC_CITE" 1 "$WORK_CEILING_DOC_CITE" \
   "$PY" "$SCRIPT_DIR/doc_cite_adjacency.py" --exclude archive --exclude planned
+# The pushed commits only (`--head HEAD`): a push carries no untracked file, and lane scratch
+# (`_lane_logs/`, QA captures) over 500 KiB would red every run. MUTATION: drop this step and
+# test_the_blob_size_step_judges_the_pushed_commits_with_the_fork_guard reddens.
+_step blob-size "$BUDGET_BLOB_SIZE" "$DEADLINE_BLOB_SIZE" 1 "$WORK_CEILING_BLOB_SIZE" \
+  "$PY" "$SCRIPT_DIR/ci/fork_blob_size.py" --base "$BASE" --head HEAD
 # Both contract checks run even when the first is stale: one push, the whole answer.
 # Their cost is importing the runtime and CLI graphs (~980 modules), not the comparison, so
 # (FH-PREPUSH-CONTRACTS-OVER-BUDGET, measured at load 37-42 on 52 cores):
