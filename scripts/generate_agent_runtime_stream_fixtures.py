@@ -764,11 +764,14 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
     # otherwise silently regenerate a golden that no longer describes the
     # gesture the plan's D3 is about.
     # Since 03a63a0010 the create writes the new agent's own persona first, and
-    # its ``persona.updated`` rides beside a ``persona`` create patch.
+    # its ``persona.updated`` rides beside a ``persona`` create patch. Since
+    # RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW every
+    # placement announces ``persona_instance.created`` beside its create upsert.
     assert [event.type for _, event in batch] == [
         STATE_PATCHED_EVENT_TYPE,
         "persona.updated",
         STATE_PATCHED_EVENT_TYPE,
+        "persona_instance.created",
         "persona_instance.chat_opened",
         STATE_PATCHED_EVENT_TYPE,
         "office.actor.upserted",

@@ -78,9 +78,11 @@ def test_a_bind_on_an_agents_bare_name_is_refused():
 
 
 def test_a_cli_open_on_an_agents_bare_name_says_it_is_not_placed(monkeypatch, capsys):
-    """The CLI open of a saved root on an agent's bare id refuses in its own words (``agent_not_placed``,
-    naming the place step), never "foreign chat session". Kill-mutation: drop the ``AgentNotPlacedError``
-    arm in ``chat_open._cmd_persona_instance_open_chat`` → red (``foreign_chat_session``)."""
+    """The CLI open of a saved root on an agent's bare id goes through placement; with no Default workspace
+    to place in it refuses in its own words (``agent_not_placed``, naming the place step), never "foreign
+    chat session", and makes no row. Kill-mutation: answer ``foreign_chat_session`` in
+    ``chat_open._place_for_bare_open`` → red. The placed and reused arms:
+    ``test_bare_name_chat_open.py``."""
     import json
     from argparse import Namespace
 

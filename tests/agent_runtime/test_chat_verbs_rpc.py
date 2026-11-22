@@ -139,7 +139,10 @@ def test_queue_skill_refuses_unloadable_skills_and_queues_nothing(monkeypatch, i
 
 
 def _ambiguous_turn(db):
-    owner = PersonaInstanceStore().open_chat(persona_id="dev", session_id="persona_chat_personainst_dev")
+    # A named placed instance: a bind on the agent's bare id is refused
+    # (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW).
+    owner = PersonaInstanceStore().open_chat(persona_id="dev", persona_instance_id="personainst_dev_agent_1",
+                                             session_id="persona_chat_personainst_dev_agent_1")
     foreign = PersonaInstanceStore().add_instance(persona_id="qa", placement_id="foreign-placement_agent_2")
     db.create_session(owner.session_id, "agent_runtime_persona_chat",
                       model_config=json.dumps({"source": "agent_runtime_persona_chat",
@@ -201,7 +204,8 @@ def test_delete_runs_the_argv_handler_and_returns_its_row(chat_db, capsys):
 
 
 def test_delete_refuses_a_root_owned_by_another_instance(chat_db):
-    owner = PersonaInstanceStore().create_operator_chat(persona_id="dev", display_name="Dev")
+    owner = PersonaInstanceStore().create_operator_chat(persona_id="dev", display_name="Dev",
+                                                         persona_instance_id="personainst_dev_agent_1")
     chat_db.create_session(owner.session_id, "agent_runtime_persona_chat")
     other = PersonaInstanceStore().add_instance(persona_id="qa", placement_id="other-placement_agent_9")
     error = _rpc("runtime.persona.chat.delete",

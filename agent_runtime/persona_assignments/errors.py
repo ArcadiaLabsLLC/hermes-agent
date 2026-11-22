@@ -77,9 +77,10 @@ class PersonaInstanceRetireError(AgentRuntimeError):
 
 class AgentNotPlacedError(AgentRuntimeError, ValueError):
     """A chat bind named an agent by its bare id (its old hidden copy ``personainst_<persona>``) and no row
-    stands under it: nothing mints that copy any more, so the bind is refused instead of making a row
-    nobody can address (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW). The
-    operator's doors place the agent first (``agent_create.staff.reuse_or_place``); a profile's own
+    stands under it: nothing mints that copy any more, so the store refuses instead of making a row
+    nobody can address (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW). It is a
+    guard: the operator's doors place the agent first (``agent_create.staff.reuse_or_place``), and the
+    open-chat door answers ``agent_not_placed`` only when that placement is refused. A profile's own
     channel keeps its id. A ``ValueError`` so every bind caller that refuses a bad bind refuses this one.
     """
 

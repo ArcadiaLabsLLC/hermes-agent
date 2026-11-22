@@ -414,6 +414,15 @@ LIVE_COVERED_DOMAIN_EVENT_TYPES: frozenset[str] = frozenset(
         # of the four above could be added without a producer behind it.
         "persona_instance.retired",
         "persona_instance.chat_opened",
+        # ``persona_instance.created``: a placement's announce (owner RULED 2026-11-22, row
+        # RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW), appended by
+        # ``chat_binding._commit_chat_opened`` beside the complete-row create ``upsert`` it pairs with, in the
+        # same write. Its payload is empty: the row's arrival IS its fold state, which the create upsert
+        # carries (and gates on ``persona_instance_create``, so a client that cannot fold a create still
+        # demotes on the patch). Left uncovered, every placement's batch would demote to a full core — the
+        # 6.3–6.6 s add-an-agent cost D3 retired.
+        # MUTATION: drop it and test_a_placements_batch_stays_patch_coverable reddens.
+        "persona_instance.created",
         "office.actor.removed",
         "office.actor.upserted",
         "office.surface.updated",

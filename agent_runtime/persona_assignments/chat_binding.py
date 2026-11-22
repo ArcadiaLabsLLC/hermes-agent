@@ -408,11 +408,13 @@ def _load_or_mint_chat_instance(
         # Worker/run ownership is orthogonal to operator chat ownership.
         # Opening another chat root must not cancel or rebind live work.
         pass
-    # Nothing mints an agent's hidden copy (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): the
-    # operator's bare open and send are placed (reuse idle, else place) and an agent's bare send is refused
-    # before they bind. A bind that names an agent by its bare id is refused here too
-    # (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW): it made a held row nobody
-    # could address. A profile's own channel keeps its id (documented edge); that row is made as before.
+    # Nothing mints an agent's hidden copy (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): every
+    # operator door that can be handed an agent's bare name (the open of a saved chat, the new chat, the
+    # send, the CLI) places it first by the one reuse-or-place rule (``agent_create.staff.reuse_or_place``)
+    # and an agent's bare send is refused before it binds. This refusal is the store's GUARD behind those
+    # doors (RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW): the bind it replaced made
+    # a held row nobody could address, and placing from here would make ``persona_assignments`` import
+    # ``agent_create``. A profile's own channel keeps its id (documented edge); that row is made as before.
     hidden_copy = instance_id == persona_instance_id_for(normalized_persona)
     # MUTATION: drop this refusal and test_a_bind_on_an_agents_bare_name_is_refused reddens.
     if hidden_copy and not normalized_persona.startswith("profile_"):
@@ -600,6 +602,14 @@ def _commit_chat_opened(
     if created:
         with timed_create_subphase("create_patch_ms"):
             emit_persona_instance_create(store.event_log, updated, correlation_id=token)
+        if not str(updated.persona_id).startswith("profile_"):
+            # Every placement announces the instance it made (owner RULED 2026-11-22, row
+            # RT-FU-A-CHAT-OPENED-ON-AN-AGENTS-BARE-NAME-NO-LONGER-MAKES-A-HELD-ROW): "this machine authored
+            # an agent", in the placement's own batch, where it rides as a covered domain event beside the
+            # create upsert (``patch_coverage.LIVE_COVERED_DOMAIN_EVENT_TYPES``). A profile's own channel is
+            # not a placement and never announced one; a realm pull has its own ``.replicated``.
+            # MUTATION: drop this announce and test_a_bare_open_with_no_idle_instance_places_one_and_announces_it reddens.
+            store._event("persona_instance.created", updated, {})
     else:
         moved = [
             field
