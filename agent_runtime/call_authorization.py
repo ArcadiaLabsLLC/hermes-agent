@@ -737,11 +737,27 @@ def _computer_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorizatio
         reason="computer_allowlisted" if admitted else REASON_SCOPE_DENIED,
         tier=tier,
         caller_kind=resolved.kind,
-        detail=None if admitted else (
-            f"{name or 'this call'} is not open to a computer this phone granted "
-            f"{resolved.computer_grant or 'nothing'}"
-        ),
+        detail=None if admitted else _computer_refusal_words(name, resolved.computer_grant),
     )
+
+
+def _computer_refusal_words(name: str, grant: str | None) -> str:
+    """What the computer's composer shows for a refused verb.
+
+    A chat verb under a look grant is the refusal a person meets (they typed into the
+    phone's chat from the computer), so it says, in words, what the phone allows and where
+    the switch is (Eternia row MC-PHONE-DRIVEN-A-COMPUTER-RUNS-A-CHAT-TURN-ON-A-PHONES-AGENT).
+    Anything else keeps the verb's name, which only a developer reads.
+    """
+
+    # MUTATION: drop this branch and test_reverse_lane's look-grant send test reads the
+    # verb-name sentence instead of the words.
+    if grant == COMPUTER_GRANT_LOOK and name in COMPUTER_CHAT_METHOD_ALLOWLIST:
+        return (
+            "This phone lets this computer look at its agents but not chat with them. "
+            "To chat from here, choose Run chats for this computer on the phone."
+        )
+    return f"{name or 'this call'} is not open to a computer this phone granted {grant or 'nothing'}"
 
 
 def authorize_call(

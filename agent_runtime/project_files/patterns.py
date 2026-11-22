@@ -8,13 +8,15 @@ The rule spec's ``patterns`` section (row
 (review w1118a.84), so each is matched here without backtracking over the text: the glob with one
 remembered ``*`` (at most name x glob steps, both bounded), the wildcard as its literal pieces
 found left to right with ``str.find`` (one pass over the line). The deadline is asked between
-entries and between lines.
+entries and between lines. A regular expression is a phone ``search_files`` pattern only, matched by
+ripgrep's engine (``native_match``) or the ``regex`` package (``fallback_match``), never here.
 """
 
 from __future__ import annotations
 
 __layer__ = "models"
 
+import math
 import time
 from dataclasses import dataclass
 
@@ -106,6 +108,19 @@ class LinePattern:
             start = found + len(piece)
         return True
 
+    def matching_lines(self, text: str, lines: list[str], deadline: Deadline | None = None) -> list[int]:
+        """The indexes of ``lines`` (``text`` split, as :func:`replies.grep_lines` splits it) this pattern
+        matches, asking ``deadline`` per line. The whole-file matchers (``native_match.RegexLines``,
+        ``fallback_match.RegexPackageLines``) answer the same question from ``text`` at once."""
+
+        found = []
+        for index, line in enumerate(lines):
+            if deadline is not None:
+                deadline.check()
+            if self.matches(line):
+                found.append(index)
+        return found
+
 
 class Deadline:
     """The time a search may take; :meth:`check` refuses ``search_timeout`` once it has passed."""
@@ -116,7 +131,17 @@ class Deadline:
 
     def check(self) -> None:
         if time.monotonic() > self._ends:
-            raise ProjectFileRefusal(
-                "search_timeout",
-                f"the search did not finish within {round(self.seconds * 1000)} ms; "
-                "narrow path or glob")
+            raise self.refusal()
+
+    def refusal(self) -> ProjectFileRefusal:
+        """The ``search_timeout`` refusal, for a matcher that ran out of the time it was handed."""
+
+        return ProjectFileRefusal(
+            "search_timeout",
+            f"the search did not finish within {round(self.seconds * 1000)} ms; narrow path or glob")
+
+    def remaining_ms(self) -> int:
+        """Whole milliseconds left (0 once passed): the budget a native search call is handed, so no
+        clock crosses the FFI and this deadline stays the one owner of the search's time."""
+
+        return max(0, math.ceil((self._ends - time.monotonic()) * 1000))

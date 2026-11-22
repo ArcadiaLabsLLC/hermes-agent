@@ -140,6 +140,26 @@ def test_a_desktop_keeps_upstreams_file_tools():
     assert tools.register_phone_file_tools(lambda *a, **k: pytest.fail("registered on a desktop")) == []
 
 
+def test_the_phones_installed_profile_registers_them_though_upstreams_is_findable(monkeypatch):
+    """RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-AGENTS-FILE-TOOLS: the phone ships
+    ``tools.file_tools`` pinned in its forced tree, so it is findable there; the installed profile, which
+    switches it off, decides. Killing mutation: drop the ``installed_switched_off`` check from
+    ``upstream_file_tools_shipped`` -> the presence probe answers True and nothing registers, red."""
+
+    import importlib.util
+    import sys
+
+    from agent_runtime import bundled_toolsets
+
+    monkeypatch.setattr(bundled_toolsets, "PHONE_PLATFORMS", frozenset({*bundled_toolsets.PHONE_PLATFORMS, sys.platform}))
+    assert importlib.util.find_spec("tools.file_tools") is not None  # findable, as in phone_forced/
+    assert bundled_toolsets.installed_switched_off("tools.file_tools")
+    seen = []
+    assert tools.register_phone_file_tools(lambda name, **kw: seen.append(name)) == [
+        "read_file", "write_file", "patch", "search_files"]
+    assert seen == ["read_file", "write_file", "patch", "search_files"]
+
+
 def test_the_phone_profile_turns_the_file_toolset_on_and_still_ships_no_upstream_file_tool():
     from agent_runtime.bundle_profiles.manifest import load_profile
 
@@ -158,3 +178,184 @@ def test_a_miss_reads_as_upstreams_so_the_generated_tree_teach_applies(project):
 
     assert _call(tools.read_file, path="/doc/intro.md")["error"].startswith(_READ_MISS)
     assert _call(tools.search_files, pattern="x", path="/doc")["error"].startswith(_SEARCH_MISS)
+
+
+# ---- Row RT-PHONE-FILE-TOOLS-ACCEPT-EVERY-DESKTOP-ARGUMENT: the desktop's arguments on a phone ----
+
+
+def _parameters_only(value):
+    """``value`` without its descriptions: what a model may pass, never how it is told."""
+
+    if isinstance(value, dict):
+        return {key: _parameters_only(item) for key, item in value.items() if key != "description"}
+    if isinstance(value, list):
+        return [_parameters_only(item) for item in value]
+    return value
+
+
+def _same_parameters(phone: dict, upstream: dict) -> None:
+    assert _parameters_only(phone) == _parameters_only(upstream)
+    assert list(phone["parameters"]["properties"]) == list(upstream["parameters"]["properties"])
+
+
+def test_the_phone_schemas_equal_upstreams_parameters():
+    """Names, types, enums, defaults, minimum, maximum and required equal ``tools/file_tools.py``'s.
+
+    Killing mutation: ``READ_LIMIT = 500`` (the old phone default) -> read_file's limit differs, red."""
+
+    from tools import file_tools as upstream
+
+    pairs = ((tools.READ_FILE_SCHEMA, upstream.READ_FILE_SCHEMA), (tools.WRITE_FILE_SCHEMA, upstream.WRITE_FILE_SCHEMA),
+             (tools.PATCH_SCHEMA, upstream.PATCH_SCHEMA), (tools.SEARCH_FILES_SCHEMA, upstream.SEARCH_FILES_SCHEMA))
+    for phone, desktop in pairs:
+        _same_parameters(phone, desktop)
+    assert [schema["name"] for _, _, schema in tools.PHONE_FILE_TOOLS] == [d["name"] for _, d in pairs]
+
+
+@pytest.mark.parametrize("provider, model", [
+    ("openai", "anything"), ("openrouter", "openai/gpt-5"), ("nous", "gpt-4.1"), ("openrouter", "o3-mini"),
+    ("anthropic", "claude-opus"), ("openrouter", "anthropic/claude"), ("", ""), ("codex", "x"),
+])
+def test_the_v4a_layer_follows_upstreams_rule(monkeypatch, provider, model):
+    """The override's output equals ``_patch_schema_overrides``' for each main model, parameters only.
+
+    Killing mutation: drop ``"o3"`` from the fork's slug prefixes -> openrouter o3-mini gets no layer, red."""
+
+    import agent.auxiliary_client as auxiliary
+    from tools import file_tools as upstream
+
+    monkeypatch.setattr(auxiliary, "_read_main_provider", lambda: provider)
+    monkeypatch.setattr(auxiliary, "_read_main_model", lambda: model)
+    phone, desktop = tools.patch_schema_overrides(), upstream._patch_schema_overrides()
+    assert bool(phone) == bool(desktop)
+    if desktop:
+        _same_parameters(phone, desktop)
+
+
+def test_a_registered_phone_patch_advertises_v4a_by_upstreams_rule(monkeypatch):
+    """Killing mutation: skip ``_layer_v4a_on_patch`` -> the OpenAI-family schema has no ``mode``, red."""
+
+    import agent.auxiliary_client as auxiliary
+    import tools.registry as registry_module
+
+    fresh = registry_module.ToolRegistry()
+    monkeypatch.setattr(registry_module, "registry", fresh)
+    monkeypatch.setattr(tools, "upstream_file_tools_shipped", lambda: False)
+    tools.register_phone_file_tools(lambda name, **kw: fresh.register(name, **kw))
+    monkeypatch.setattr(auxiliary, "_read_main_provider", lambda: "openai")
+    monkeypatch.setattr(auxiliary, "_read_main_model", lambda: "gpt-5")
+    (definition,) = fresh.get_definitions({"patch"}, quiet=True)
+    assert definition["function"]["parameters"]["required"] == ["mode"]
+    monkeypatch.setattr(auxiliary, "_read_main_provider", lambda: "anthropic")
+    monkeypatch.setattr(auxiliary, "_read_main_model", lambda: "claude-opus")
+    (definition,) = fresh.get_definitions({"patch"}, quiet=True)
+    assert "mode" not in definition["function"]["parameters"]["properties"]
+
+
+def test_read_file_takes_upstreams_offset_and_limit(project):
+    """Killing mutation: drop ``min(..., READ_LIMIT)`` -> a limit of 5000 reads all 2100 lines, red."""
+
+    (project / "long.txt").write_text("".join(f"line {n}\n" for n in range(1, 2101)), encoding="utf-8")
+    default = _call(tools.read_file, path="notes/long.txt")
+    assert default["content"].count("\n") == 1999 and default["next_offset"] == 2001
+    wide = _call(tools.read_file, path="notes/long.txt", limit=5000)
+    assert wide["next_offset"] == 2001
+    tail = _call(tools.read_file, path="notes/long.txt", offset=0, limit=2)
+    assert tail["content"] == "1|line 1\n2|line 2"
+
+
+_V4A = """*** Begin Patch
+*** Update File: notes/TODO.md
+@@ # Notes @@
+ - buy milk
+-- call mum
++- call dad
+*** Add File: notes/ideas/new.md
++first idea
++second idea
+*** Update File: notes/TODO.md
++- water plants
+*** End Patch"""
+
+
+def test_a_v4a_patch_adds_and_updates_files_through_the_writer(project):
+    got = _call(tools.patch, mode="patch", patch=_V4A)
+    assert got["success"] is True
+    assert got["files_modified"] == ["notes/TODO.md"] and got["files_created"] == ["notes/ideas/new.md"]
+    assert (project / "TODO.md").read_text(encoding="utf-8") == "# Notes\n- buy milk\n- call dad\n- water plants\n"
+    assert (project / "ideas" / "new.md").read_text(encoding="utf-8") == "first idea\nsecond idea"
+    assert "+- call dad" in got["diff"]
+    again = _call(tools.patch, mode="patch", patch="*** Begin Patch\n*** Add File: notes/ideas/new.md\n+x\n*** End Patch")
+    assert again["code"] == "bad_argument" and "already exists" in again["error"]
+    missed = _call(tools.patch, mode="patch",
+                   patch="*** Begin Patch\n*** Update File: notes/TODO.md\n-no such line\n+x\n*** End Patch")
+    assert missed["code"] == "bad_argument" and "exactly" in missed["error"]
+
+
+def test_a_v4a_patch_writes_nothing_when_one_file_is_refused(project, tmp_path):
+    """Every file is checked before any is written. Killing mutation: drop ``_guard`` from
+    ``writer.checked_text`` -> TODO.md is written before the config link's write is refused, red."""
+
+    from hermes_constants import get_hermes_home
+
+    config = Path(get_hermes_home()) / "config.yaml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text("model: {}\n", encoding="utf-8")
+    os.link(config, project / "settings.yaml")
+    before = (project / "TODO.md").read_text(encoding="utf-8")
+    for refused_part, code in (("*** Update File: notes/settings.yaml\n-model: {}\n+mcp_servers: {evil: {}}\n",
+                                "write_denied"),
+                               (f"*** Add File: {tmp_path / 'outside.md'}\n+x\n", "outside_root"),
+                               ("*** Add File: notes/.git/hooks/post-commit\n+x\n", "ignored")):
+        text = f"*** Begin Patch\n*** Update File: notes/TODO.md\n-- call mum\n+- call dad\n{refused_part}*** End Patch"
+        refused = _call(tools.patch, mode="patch", patch=text)
+        assert refused["code"] == code, refused
+        assert (project / "TODO.md").read_text(encoding="utf-8") == before
+    assert config.read_text(encoding="utf-8") == "model: {}\n" and not (tmp_path / "outside.md").exists()
+
+
+@pytest.mark.parametrize("operation", ["*** Delete File: notes/TODO.md", "*** Move File: notes/TODO.md -> notes/done.md"])
+def test_a_v4a_delete_or_move_is_refused_in_words_and_nothing_is_written(project, operation):
+    """Killing mutation: drop the Delete/Move refusal in ``_apply_v4a`` -> the Update before it is written, red."""
+
+    text = f"*** Begin Patch\n*** Update File: notes/TODO.md\n-- call mum\n+- call dad\n{operation}\n*** End Patch"
+    refused = _call(tools.patch, mode="patch", patch=text)
+    assert refused["code"] == "bad_argument" and "not available on a phone yet" in refused["error"]
+    assert "call mum" in (project / "TODO.md").read_text(encoding="utf-8")
+    assert sorted(os.listdir(project)) == ["TODO.md", "docs"]
+    assert _call(tools.patch, mode="rewrite", path="notes/TODO.md")["code"] == "bad_argument"
+
+
+def test_search_takes_every_desktop_argument_over_the_reader(project):
+    """Killing mutations: drop the ``order='modified'`` sort -> discovery order, red; page content
+    from 0 -> ``offset=1`` repeats the first match, red; drop the ``before`` half of ``grep_lines``'
+    context -> no line above, red; bound ``after`` by ``len(lines)`` -> an empty line after the final
+    newline, red."""
+
+    (project / "docs" / "old.md").write_text("buy milk\n", encoding="utf-8")
+    os.utime(project / "docs" / "old.md", (1_000_000, 1_000_000))
+    os.utime(project / "TODO.md", (2_000_000, 2_000_000))
+    found = _call(tools.search_files, pattern="*.md", target="files")
+    assert found["files"] == ["notes/TODO.md", "notes/docs/old.md", "notes/docs/plan.md"]
+    newest = _call(tools.search_files, pattern="*.md", target="find", order="modified", limit=2)
+    assert newest["files"] == ["notes/docs/plan.md", "notes/TODO.md"] and newest["truncated"] is True
+    assert newest["total_count"] == 3
+
+    content = _call(tools.search_files, pattern="buy milk", path=".")
+    assert [m["path"] for m in content["matches"]] == ["notes/TODO.md", "notes/docs/old.md", "notes/docs/plan.md"]
+    assert [m["path"] for m in _call(tools.search_files, pattern="buy milk", offset=1, limit=1)["matches"]] == [
+        "notes/docs/old.md"]
+    assert _call(tools.search_files, pattern="buy milk", file_glob="plan*")["total_count"] == 1
+    assert _call(tools.search_files, pattern="- ", output_mode="count")["counts"] == {"notes/TODO.md": 2}
+    assert _call(tools.search_files, pattern="milk", output_mode="files_only", target="grep")["files"] == [
+        "notes/TODO.md", "notes/docs/old.md", "notes/docs/plan.md"]
+    (hit,) = _call(tools.search_files, pattern="buy milk", path="notes/TODO.md", context=1)["matches"]
+    assert hit["path"] == "notes/TODO.md" and hit["line"] == 2
+    assert hit["before"] == [{"line": 1, "text": "# Notes"}] and hit["after"] == [{"line": 3, "text": "- call mum"}]
+    (last,) = _call(tools.search_files, pattern="call mum", path="notes/TODO.md", context=2)["matches"]
+    assert last["after"] == [], "the final newline starts no empty line"
+
+
+# A pattern holding a regex character runs ripgrep's matcher, else the regex package, else is refused in
+# words (row RT-PHONE-REGEX-SEARCH-RUNS-RIPGREPS-MATCHER-FROM-A-NATIVE-LIBRARY):
+# tests/agent_runtime/test_project_files_native_match.py.

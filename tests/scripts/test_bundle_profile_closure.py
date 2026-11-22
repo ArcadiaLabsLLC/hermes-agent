@@ -15,6 +15,9 @@ Killing mutations (applied, red recorded, reverted — see the commit message):
   -> the same test red (its ``if DEBUG:`` positive control).
 * the stand-in probe's ``answers`` returns True for any name
   -> ``test_an_omitted_distributions_stand_in_answers_only_the_names_it_binds`` red.
+* ``"tools.connectors"`` dropped from ``FACADE_TABLES``
+  -> ``test_every_facade_is_read_from_its_own_table`` and
+  ``test_every_computed_import_facade_is_read_or_named_with_a_reason`` red.
 """
 
 from __future__ import annotations
@@ -218,13 +221,64 @@ def test_the_declared_dynamic_imports_are_the_registries_own_tables():
     assert set(DYNAMIC_IMPORTS) == {"hermes_cli.plugins", "agent.secret_sources.registry"}
 
 
-def test_the_pm_facade_is_read_from_its_own_table():
-    """Held at run time: the walk follows exactly the names ``pm.__getattr__`` resolves."""
+def test_every_facade_is_read_from_its_own_table():
+    """Held at run time: the walk follows exactly the names each facade's ``__getattr__`` resolves,
+    and each name to a module that exists (RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS:
+    only ``pm`` was read, and the phone left out ``tools.connectors.dispatch``)."""
     import pm
-    from scripts.bundle_profile_closure import facade_exports
+    import tools.connectors
+    from scripts.bundle_profile_closure import FACADE_TABLES, facade_exports
 
-    assert facade_exports() == {"pm": pm._HOME}
-    assert facade_exports()["pm"]["install_hint"] == "pm.extras"
+    facades = facade_exports()
+    index = module_index()
+    assert set(facades) == set(FACADE_TABLES)
+    assert facades["pm"] == pm._HOME
+    assert set(facades["tools.connectors"]) == set(tools.connectors._LAZY_EXPORTS)
+    assert facades["tools.connectors"]["dispatch_connector_call"] == "tools.connectors.dispatch"
+    assert facades["gateway"]["SessionStore"] == "gateway.session"  # a relative value
+    assert facades["hermes_cli.local_runtime"]["resolve_llamacpp_endpoint"] == "hermes_cli.local_runtime.endpoint"
+    assert facades["agent_runtime.serve_socket"]["ServeSocketClient"] == "agent_runtime.serve_socket.client"
+    assert facades["agent_runtime.plugin_doors.harness"]["WORK_SUBMIT_TOOLS"] == "agent_runtime.prompt_guidance"
+    unknown = {(f, name, m) for f, table in facades.items() for name, m in table.items() if m not in index}
+    assert unknown == set()
+
+
+def _computed_import_getattr(tree) -> bool:
+    """A module-level ``__getattr__`` that imports a module whose name is computed (a facade table),
+    or one bound from ``lazy_door``. A function body's literal import the walk already follows."""
+    import ast
+
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", "") == "__getattr__" for t in node.targets):
+            return True
+        if isinstance(node, ast.FunctionDef) and node.name == "__getattr__":
+            for call in ast.walk(node):
+                if isinstance(call, ast.Call) and call.args and not isinstance(call.args[0], ast.Constant):
+                    name = getattr(call.func, "attr", None) or getattr(call.func, "id", None)
+                    if name in {"import_module", "__import__"}:
+                        return True
+    return False
+
+
+def test_every_computed_import_facade_is_read_or_named_with_a_reason():
+    """A negative source walk (over-approximating is the safe side): a new PEP 562 facade the walk does
+    not read reds here until it is added to ``FACADE_TABLES`` (or ``FACADES_NOT_READ``, with why)."""
+    import ast
+
+    from scripts.bundle_profile_closure import FACADE_TABLES, FACADES_NOT_READ
+
+    found = set()
+    for module, path in module_index().items():
+        if module.startswith("tests."):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        if _computed_import_getattr(tree):
+            found.add(module)
+    assert found - set(FACADE_TABLES) - set(FACADES_NOT_READ) == set()
+    assert "tools.connectors" in found and "pm" in found  # positive control: the walk sees the known facades
 
 
 def test_a_name_imported_through_a_facade_reaches_its_defining_module(tmp_path, monkeypatch):

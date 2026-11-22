@@ -340,6 +340,12 @@ class EmbeddedServe:
         from agent_runtime.spawn_stand_ins import ensure_spawn_stand_ins
 
         ensure_spawn_stand_ins()  # upstream functions that start a process answer as a phone must
+        from agent_runtime.phone_file_tools import ensure_phone_file_tools
+
+        # The phone's process-free file tools under upstream's names: a phone ships no eternia-harness plugin
+        # (RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-AGENTS-FILE-TOOLS). MUTATION: drop it and its import and
+        # test_phone_bundle_turn_closure::test_the_phone_file_tools_are_in_the_bundle_the_gate_judges reddens.
+        ensure_phone_file_tools()
         from agent_runtime.phone_native_libs import load_phone_native_libs
 
         load_phone_native_libs()  # Android: Pillow's image libraries, by path, before anything imports PIL

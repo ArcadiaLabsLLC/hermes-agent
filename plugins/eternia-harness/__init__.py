@@ -449,9 +449,11 @@ def register(ctx) -> None:
 
     ctx.register_tool("schedule_manage", toolset=SCHEDULE_TOOLSET, schema=SCHEDULE_MANAGE_SCHEMA,
                       handler=handle_schedule_manage, emoji="⏰")
-    # A phone ships no upstream file tools (they run on the terminal backend): its agents read, search
+    # A phone runs no upstream file tools (they run on the terminal backend): its agents read, search
     # and edit the phone's project folders through the fork's process-free ones, under upstream's names
-    # (Eternia MC-PHONE-FILES-A-PHONE-AGENT-READS-AND-WRITES-ITS-PROJECT-FILES). A desktop registers none.
+    # (Eternia MC-PHONE-FILES-A-PHONE-AGENT-READS-AND-WRITES-ITS-PROJECT-FILES). A phone ships no copy of
+    # this plugin: its embedded entry registers them (EmbeddedServe.start). Here only an install whose
+    # profile switches upstream's off registers them; a desktop registers none.
     from agent_runtime.phone_file_tools import register_phone_file_tools
 
     register_phone_file_tools(ctx.register_tool)

@@ -96,3 +96,45 @@ def test_an_operator_channel_does_not_warn_about_a_retired_holders_chat(qa_works
     )
     codes = [w.get("code") for channel in channels for w in (channel.get("warnings") or [])]
     assert "history_without_instance" not in codes
+
+
+def _directory_row(chat: str) -> dict | None:
+    from agent_runtime import paths, serve_rpc
+    from agent_runtime.call_authorization import LOCAL_CONSOLE
+    from agent_runtime.gateway_identity import ensure_install_identity
+
+    install = ensure_install_identity(paths.store_root()).install_id
+    reply = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "dir", "method": "runtime.operator.conversation.list",
+                                      "params": {"install_id": install, "all_accounts": True}},
+                                     serve_rpc.RpcContext(caller=LOCAL_CONSOLE))
+    assert "result" in reply, reply
+    return next((row for row in reply["result"]["conversations"] if row["session_id"] == chat), None)
+
+
+def test_a_retired_holders_chat_says_so_in_the_directory(qa_workspace):
+    """Row RT-FU-A-RETIRED-HOLDERS-CHAT-SAYS-SO-IN-THE-CHAT-DIRECTORY: ``runtime.operator.conversation.list``
+    (Eternia's AI Chat history) flags the retired holder as the snapshot's Chat history does, and a live
+    holder's chat says ``False``. Kill-mutation: answer ``holder_retired=False`` in
+    ``_project_instance_history`` -> red."""
+    placed, chat = _retired_chat("dir-a")
+    live = _place("qa", "dir-b")
+    row = _directory_row(chat)
+    assert row is not None
+    assert (row["persona_id"], row["persona_instance_id"], row["available"], row["holder_retired"]) == (
+        "qa", placed["persona_instance_id"], False, True)
+    live_row = _directory_row(live["default_chat_session_id"])
+    assert live_row is not None and (live_row["available"], live_row["holder_retired"]) == (True, False)
+
+
+def test_a_holder_gone_without_a_retire_is_not_flagged(qa_workspace):
+    """A holder whose row vanished without the retire verb (no tombstone) is unavailable, never
+    ``holder_retired``: only the archive says an instance was retired. Kill-mutation: answer
+    ``holder_retired=instance is None`` -> red."""
+    from agent_runtime import paths
+
+    placed = _place("qa", "dir-c")
+    chat = placed["default_chat_session_id"]
+    _db(chat).append_message(chat, "user", "written before the row vanished")
+    (paths.persona_instances_dir() / (placed["persona_instance_id"] + ".json")).unlink()
+    row = _directory_row(chat)
+    assert row is not None and (row["available"], row["holder_retired"]) == (False, False)

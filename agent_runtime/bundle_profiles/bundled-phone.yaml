@@ -141,6 +141,11 @@ packaging:
     flet-libtiff: "Pillow's TIFF codec on Android (libtiff)"
     flet-libfreetype: "Pillow's font rendering on Android (FreeType)"
     flet-libwebp: "Pillow's WebP codec on Android (libwebp, libsharpyuv)"
+    # Android only today (iOS: RT-PHONE-REGEX-SEARCH-SHIPS-ON-IPHONE, else the `regex` package, else the
+    # refusal in words): built here by scripts/native/build_project_files_match.py, committed under
+    # crates/project_files_match/dist/ and pinned in phone_wheels.lock.json (owner RULED 2026-11-21: "yea
+    # commit them to the hermes fork which is public"); agent_runtime/project_files/native_match.py loads it.
+    eternia-project-files-match: "ripgrep's matcher for regex search_files (owner RULED 2026-11-21 on RT-PHONE-FILE-TOOLS-TAKE-THE-SAME-ARGUMENTS-AS-ON-DESKTOP-WITH-RIPGREPS-ENGINE-IN-PROCESS: ripgrep's engine through FFI first, the regex package as the fallback; architecture §6 as amended for it)"
   # Files the Android image-library wheels carry that nothing loads at run time.
   excluded_data:
     site-packages/opt/include: "C headers of the flet-lib* wheels: for compiling against them, never loaded"
@@ -205,6 +210,11 @@ packaging:
   # entry mounts it on `tools.__path__` / `plugins.__path__` (agent_runtime/bundle_profiles/
   # forced_tree.py; owner ruling 2026-09-30, option (1)).
   forced_sibling_tree: true
+  # Switched-off modules a forced module imports lazily and unguarded on a path a phone runs, so each
+  # ships with the forced set (scripts/bundles/plan.py::forced_modules). The gate counts every lazy
+  # edge into an unshipped module left unjudged (scripts/bundle_profile_gate.py::lazy_into_unshipped).
+  forced_modules:
+    hermes_cli.local_runtime.recovery: "a chat whose model is a bare custom endpoint (no custom_providers entry) asks hermes_cli/runtime_provider_custom.py::_endpoint_identity, which asks hermes_cli/local_runtime/endpoint.py::_state_endpoint, which imports this; on a phone it finds no local-runtime state file under the profile's home and answers None (psutil answers through agent_runtime.psutil_stand_in, which reports no process); seen refusing every turn on the emulator (RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS)"
   # First-party modules ship without their `#` comments, every line kept where it was (tracebacks
   # still point at the source tree's lines; docstrings stay): about 3.3 MiB of the compressed
   # download (RT-PHONE-ENGINE-BUNDLE-FITS-THE-DOWNLOAD-LIMIT; scripts/bundles/strip_comments.py).

@@ -1,0 +1,13 @@
+# The toolchain the phone library is built with (plan §3). The five targets are the host and the
+# phone ABIs: Android arm64-v8a and x86_64 (row RT-PHONE-REGEX-SEARCH-SHIPS-ON-ANDROID) and the iOS
+# device and simulator (row RT-PHONE-REGEX-SEARCH-SHIPS-ON-IPHONE, linked on a Mac).
+[toolchain]
+channel = "1.100.0"
+profile = "minimal"
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-linux-android",
+    "x86_64-linux-android",
+    "aarch64-apple-ios",
+    "aarch64-apple-ios-sim",
+]

@@ -344,3 +344,34 @@ def test_a_bound_local_folder_reports_its_real_readiness_and_offers_only_locate(
     assert row["checkout"] == "folder" and row["status"] == "ready"
     shown = _show(workspace_id)["notes"]
     assert shown["ready"] == "yes" and shown["blocking"] == [] and not (folder / ".git").exists()
+
+
+# ── a phone is its own platform, never Linux ─────────────────────────────────
+
+
+@pytest.mark.parametrize("sys_platform", ["android", "ios"])
+def test_a_phone_reads_its_own_platform_and_never_a_linux_recipe(tmp_path, monkeypatch, sys_platform):
+    """Row RT-PHONE-A-SLOTS-SETUP-RECIPE-IS-READ-FOR-THE-PHONES-OWN-PLATFORM. Killing mutation: drop the phone
+    entries from ``_SYS_PLATFORM_WORDS`` (a phone falls back to ``linux``) -> red."""
+
+    from agent_runtime import workspace_slot_repo_recipe as recipes
+
+    monkeypatch.setattr(recipes.sys, "platform", sys_platform)
+    assert recipes.this_platform() == sys_platform
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    write_recipe(repo, {**RECIPE, "platforms": {"linux": RECIPE["platforms"]["linux"]}})
+    phone = recipes.read_recipe(repo, recipes.this_platform())
+    assert (phone.platform, phone.recipe, phone.blank) == (sys_platform, None, "no_recipe")
+    # positive control: the same file, a phone section added, reads as that phone's own recipe
+    write_recipe(repo, {**RECIPE, "platforms": {"linux": RECIPE["platforms"]["linux"],
+                                                sys_platform: RECIPE["platforms"]["linux"]}})
+    assert recipes.read_recipe(repo, recipes.this_platform()).recipe.platform == sys_platform
+
+
+@pytest.mark.parametrize(("sys_platform", "word"), [("win32", "windows"), ("darwin", "macos"), ("linux", "linux")])
+def test_a_computer_keeps_its_platform_word(monkeypatch, sys_platform, word):
+    from agent_runtime import workspace_slot_repo_recipe as recipes
+
+    monkeypatch.setattr(recipes.sys, "platform", sys_platform)
+    assert recipes.this_platform() == word

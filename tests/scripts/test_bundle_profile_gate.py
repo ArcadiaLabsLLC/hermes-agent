@@ -456,3 +456,40 @@ def test_a_pure_listed_distribution_keeps_only_its_pure_hash_in_the_pool():
     _blocks, refused = pure_wheel_blocks(requirement_blocks(text), ["dulwich"],
                                          {"dulwich": {"wheels": [_hashed("cp314-cp314-android_24_arm64_v8a", "aa")]}})
     assert refused == ["pure_wheel_missing: dulwich"]
+
+
+def test_a_lazy_edge_inside_a_forced_module_is_shipped_by_the_profile_or_counted(tmp_path):
+    """RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS: kept code's lazy import forced
+    ``endpoint`` in, but ``endpoint``'s own lazy import of ``recovery`` shipped nothing, and every turn on a
+    bare custom endpoint refused on the emulator. The gate counts such an edge; the profile's
+    ``packaging.forced_modules`` ships the module (and its module-level imports) and the count drops.
+    Negative controls: a guarded lazy import, an eager import and one into a shipped module are not counted.
+
+    Killing mutations (applied, red recorded, reverted — see the commit message): drop
+    ``walk.profile_forced`` from ``scripts/bundles/plan.py::forced_modules`` -> the shipped assertion reds;
+    count guarded imports in ``lazy_into_unshipped`` -> the first count reds."""
+    from scripts.bundle_profile_closure import Walk, module_index
+    from scripts.bundle_profile_gate import lazy_into_unshipped
+    from scripts.bundles.plan import forced_modules
+
+    files = {
+        "user.py": "def resume():\n    from lr.endpoint import state\n",
+        "lr/__init__.py": "",
+        "lr/endpoint.py": ("def state():\n    from lr.recovery import read\n"
+                           "def other():\n    try:\n        from lr.detect import probe\n    except ImportError:\n        pass\n"
+                           "def again():\n    from user import resume\n"),
+        "lr/recovery.py": "from lr import util\ndef read():\n    return None\n",
+        "lr/util.py": "",
+        "lr/detect.py": "",
+    }
+    for rel, text in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    index = module_index(tmp_path)
+    walk = Walk(("user",), ("lr",), index, {"user", "lr"})
+    assert {row["target"] for row in walk.unguarded_into_pruned} == {"lr.endpoint"}
+    counted = [row["subject"] for row in lazy_into_unshipped(walk, index)]
+    assert counted == ["lr.endpoint:2 -> lr.recovery"]
+    walk.profile_forced = frozenset({"lr.recovery"})
+    assert {"lr.recovery", "lr.util"} <= forced_modules(walk, index)
+    assert lazy_into_unshipped(walk, index) == []

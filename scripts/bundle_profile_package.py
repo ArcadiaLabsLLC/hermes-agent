@@ -152,13 +152,26 @@ def install_pool(requirements: str, stage: Path, target: str, python_version: st
     install_pool_into(command, stage, cwd=ROOT)
 
 
+def pool_alignment_problems(stage: Path, target: str) -> list[str]:
+    """On an Android target, every shared library the installed pool holds that is aligned below 16 KB:
+    the pinned wheels' bytes (Flet's Pillow and its libraries by URL, ripgrep's matcher by repo path) are
+    first on disk here (row RT-PHONE-REGEX-SEARCH-SHIPS-ON-ANDROID). Another target is not read."""
+    from scripts.bundles.elf_alignment import tree_problems
+
+    # MUTATION: read every target and an iOS pool's Mach-O libraries are refused as not ELF
+    # (test_phone_wheels: test_the_pool_reads_alignment_on_android_only).
+    return tree_problems(stage) if target.startswith("android") else []
+
+
 def pool_selection(manifest, seed_sites: list[Path], target: str, python_version: str) -> tuple[set[str], list[str]]:
     """``PoolScope.CLOSURE``: the union of every selection's ``needed`` (core and each engine pack), planned
     over a SEED site whose installed metadata maps import names to distributions, and the refusals.
     Phase ``plan`` re-plans over the installed pool, so a seed that mis-maps a name is a red there."""
     needed, refused = seed_union(distribution_plans(manifest.profile, [(seed_sites, pack_selections(manifest))], target,
                                                     python_version)[0])
-    return phone_wheels.with_companions(needed, target), refused  # what ships with a pinned phone wheel
+    # what ships with a pinned phone wheel, and the pinned libraries first-party code loads (ripgrep's matcher:
+    # the plan keeps one only when the module that loads it ships, phone_wheels.loaded_by)
+    return phone_wheels.with_companions(needed | phone_wheels.loaded_by(None, target), target), refused
 
 
 # -- phase 3: copy ---------------------------------------------------------------------------
@@ -438,6 +451,10 @@ def _build(args, manifest, index, stage: Path, probe_python) -> int:
                 if problems:
                     return 1
             install_pool(requirements, stage, args.target, args.python_version, args.uv, args.offline)
+            misaligned = pool_alignment_problems(stage, args.target)
+            if misaligned:  # a library a 16 KB-page Android device cannot load (scripts/bundles/elf_alignment.py)
+                print("\n".join(misaligned), flush=True)
+                return 1
     with phase("plan"):  # the core and every engine pack: one child, one walk
         built = distribution_plans(manifest.profile, [([stage], pack_selections(manifest))], args.target,
                                    args.python_version)[0]

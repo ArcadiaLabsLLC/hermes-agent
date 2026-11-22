@@ -69,7 +69,7 @@ from scripts.bundle_profile_closure import (  # after the path insert, like the 
     refusals as closure_refusals,
     stale_against_lock,
 )
-from scripts.bundles.phone_wheels import pinned_wheel
+from scripts.bundles.phone_wheels import alignment_problems, loaded_by, pinned_wheel, with_companions
 
 #: Provider SDKs: architecture §6 — phones call every provider over raw HTTP.
 PROVIDER_SDKS = frozenset({
@@ -475,6 +475,40 @@ def forced_tree_seams(manifest, walk, index: dict[str, Path], answered=()) -> li
     return sorted(m for m in walk.pinned if m not in answered and m in sibling)
 
 
+def lazy_into_unshipped(walk, index: dict[str, Path]) -> list[dict]:
+    """Every lazy, unguarded first-party import in a module the bundle ships whose target it does not
+    ship: an ImportError when that line runs on the device. Kept code's lazy edges into switched-off
+    modules force their targets in (``scripts/bundles/plan.forced_modules``), so what is left is a lazy
+    edge INSIDE a forced module (``hermes_cli.local_runtime.endpoint`` -> ``recovery``, seen on the
+    emulator, RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS). Each is judged in the profile
+    (``packaging.forced_modules``), put behind its feature's switch or a seam, or counted here."""
+    from scripts.bundle_profile_closure import _imports, facade_exports, resolve_owner
+    from scripts.bundles.plan import _with_parents, forced_modules
+
+    shipped = _with_parents(set(walk.kept) | forced_modules(walk, index), index)
+    facades = facade_exports()
+    seen: set[tuple[str, int, str]] = set()
+    out: list[dict] = []
+    for module in sorted(shipped):
+        path = index.get(module)
+        if path is None:
+            continue
+        for dotted, eager, guarded, line in _imports(path, module, path.name == "__init__.py"):
+            owner = resolve_owner(dotted, index, facades)
+            # MUTATION: count guarded imports too and test_bundle_profile_gate's lazy-edge case reddens.
+            if eager or guarded or owner is None or owner in shipped or (module, line, owner) in seen:
+                continue
+            seen.add((module, line, owner))
+            out.append({"kind": "lazy_unshipped", "subject": f"{module}:{line} -> {owner}", "module": module})
+    return out
+
+
+def judged_distributions(shipped: set[str], kept, target: str | None) -> set[str]:
+    """What a target's bundle ships: the closure's distributions, the pinned libraries the kept modules load
+    and every pinned wheel's companions (``scripts/bundles/phone_wheels.py``)."""
+    return with_companions(set(shipped) | loaded_by(set(kept), target), target) if target else set(shipped)
+
+
 def gate(profile: str) -> dict:
     """Judge ``profile``: the kept modules once, the shipped distributions per target."""
     from agent_runtime.bundle_profiles.manifest import load_profile
@@ -499,6 +533,7 @@ def gate(profile: str) -> dict:
         findings += module_findings(module, index[module])
     findings, dropped = dropped_method_seams(manifest, findings, index)
     findings, spawned = spawn_seams(manifest, findings, index)
+    findings += lazy_into_unshipped(walk, index)
     spawned = {m: sorted({*spawned.get(m, ()), *dropped.get(m, ())}, key=lambda s: int(s.partition(":")[0]))
                for m in sorted({*spawned, *dropped})}
     lock = _lock()
@@ -507,6 +542,11 @@ def gate(profile: str) -> dict:
     for target in targets:
         facts = GraphFacts(facts_walk, TARGETS[target] if target is not None else TARGET_ENV)
         selected, classes, shipped = facts.select()
+        # A pinned phone wheel ships its companions, and a pinned library ships with the first-party module
+        # that loads it (phone_wheels.loaded_by): the gate judges them as the plan ships them.
+        # MUTATION: judge ``shipped`` alone and an unadmitted pinned library ships unjudged
+        # (test_phone_wheels: test_the_gate_judges_the_pinned_library_its_kept_module_loads).
+        shipped = judged_distributions(shipped, walk.kept, target)
         per_target[target or "win_amd64"] = {
             "shipped": sorted(shipped),
             "findings": distribution_findings(shipped, lock, manifest.admitted_native, target,
@@ -521,6 +561,7 @@ def gate(profile: str) -> dict:
     # The plan read this interpreter's metadata: a distribution there that lags uv.lock followed its OLD
     # requirements, so the per-target findings above blame the closure for the stale site
     # (RT-PHONE-BUILD-STALE-SEED-BLAMES-AN-EXTRA: croniter 6.0.0 read as needing pytz, "not in uv.lock").
+    findings += [{"kind": "page_alignment", "subject": line} for line in alignment_problems()]
     shipped_anywhere = {name for row in per_target.values() for name in row["shipped"]}
     findings += [{"kind": "stale_site", "subject": line, "detail": "sync this environment from uv.lock"}
                  for line in stale_against_lock(md.distributions(), shipped_anywhere)]
