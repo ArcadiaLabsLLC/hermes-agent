@@ -65,6 +65,8 @@ def adopted_copies(monkeypatch):
     import agent_runtime.persona_instance_adoption as adoption
 
     monkeypatch.setattr(adoption, "_work_assignee_tokens", lambda: frozenset())
+    old_start = (TODAY - timedelta(days=40)).isoformat()  # every seeded chat started long ago
+    monkeypatch.setattr(adoption, "_chat_start_dates", lambda ids: dict.fromkeys(ids, old_start))
     monkeypatch.setattr(turn_reads, "last_turn_started_by_instance",
                         lambda: {CHAT_ONLY: f"{TODAY - timedelta(days=40)}T09:00:00.000000Z",
                                  RECENT: f"{TODAY - timedelta(days=3)}T09:00:00.000000Z"})
@@ -119,3 +121,19 @@ def test_a_copy_chatted_with_recently_is_kept(adopted_copies):
     applied = reconcile_persona_instances(apply=True)
     assert _fates(applied["cleanup"])[RECENT] == ("kept", "recently_used")
     assert PersonaInstanceStore().get(RECENT).workspace_id == DEFAULT_WORKSPACE_ID
+
+
+def test_a_copy_whose_chat_was_opened_today_is_kept(monkeypatch):
+    """An operator chat opened on the copy today, no turn yet: in use. Kill-mutation: drop the chat-start
+    test in ``clean_up_chat_only_copies`` → retired, red."""
+    import agent_runtime.mission_chat_turns.reads as turn_reads
+    import agent_runtime.persona_instance_adoption as adoption
+
+    monkeypatch.setattr(adoption, "_work_assignee_tokens", lambda: frozenset())
+    monkeypatch.setattr(turn_reads, "last_turn_started_by_instance", lambda: {})
+    ensure_default_scope(seed_active_pointers=False)
+    _adopted(CHAT_ONLY, "dev", default_chat_session_id=SAVED)
+    _saved_chat(SAVED)  # started now, through the real chat store
+    applied = reconcile_persona_instances(apply=True)
+    assert _fates(applied["cleanup"])[CHAT_ONLY] == ("kept", "recently_used")
+
