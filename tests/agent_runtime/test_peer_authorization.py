@@ -254,7 +254,7 @@ def test_a_console_device_may_read_slots_but_never_write_this_machines_fill():
     environment and accounting are local-console only; the workspace-level verbs are not."""
 
     local = {"runtime.workspace.slot.bind", "runtime.workspace.slot.unbind", "runtime.workspace.slot.env.set", "runtime.workspace.slots.report",
-             "runtime.workspace.slot.clone", "runtime.workspace.recipe.run_step"}
+             "runtime.workspace.slot.clone", "runtime.workspace.slot.create", "runtime.workspace.recipe.run_step"}
     tiers = serve_rpc.manifest()["tiers"]
     family = ("runtime.workspace.slot", "runtime.workspace.recipe")
     assert {name for name in tiers if name.startswith(family)} == local | {

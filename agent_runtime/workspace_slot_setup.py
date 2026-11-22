@@ -18,6 +18,16 @@ holds the request open.
   otherwise) — nothing runs after a clone, a bind or a read on its own — in the slot's checkout
   with its environment overlay, through ``host_tools.script_shell``. On exit the slot is re-reported.
 
+**A device that starts no process** (``realm_sync.git_backend: dulwich``, the bundled phone) clones IN
+PROCESS through the realm-sync port (``realm_sync.git.sync_git``), on a thread of its own, and records the
+same run row (``in_process: true``, no ``work_id``): a phone cannot spawn ``git``, and a clone there is
+how a project gets onto it (Eternia row ``MC-PHONE-FILES-A-PHONE-KEEPS-PROJECT-FOLDERS-IN-ITS-NAMESPACE``).
+The port passes no credential either; a public repository is what a phone clones today.
+
+* **Create** (``runtime.workspace.slot.create``): a LOCAL slot (no clone URL) gets a new folder in the
+  Harness's own folder (``workspace_slot_clone_home.default_project_path``), made a git repository through
+  the same port, and is bound here. No path is taken from the caller.
+
 Endings are settled by a watcher thread per run and, idempotently, by :func:`settle_runs`
 (called before ``recipe.show`` answers), so a serve restart mid-run still settles from the
 registry's persisted completion — or reads ``lost`` when the registry no longer knows it.
@@ -32,6 +42,7 @@ import os
 import re
 import shlex
 import threading
+import uuid
 from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any, Callable
@@ -77,6 +88,10 @@ REASON_SLOT_UNBOUND_HERE = "slot_unbound_here"
 #: A ``repo.local`` slot (the Work default brain) has no remote to clone from.
 REASON_SLOT_LOCAL_ONLY = "slot_local_only"
 REASON_STEP_RUNNING = "step_running"
+#: Create makes a LOCAL slot's folder; a slot with a clone URL is cloned (Set up), never made empty.
+REASON_SLOT_HAS_REPOSITORY = "slot_has_repository"
+#: This device's git backend could not be read or is not shipped (``realm_sync.git.sync_git_backend``).
+REASON_GIT_UNAVAILABLE = "git_unavailable"
 REASON_STALE_REQUEST = "stale_request"
 #: The install script's text differs from the one the person was shown (its ``sha256``).
 REASON_SCRIPT_CHANGED = "script_changed"
@@ -180,9 +195,94 @@ def _declared(workspace_id: str | None, slot: str):
     return resolved
 
 
+#: Run ids whose in-process clone thread is alive in THIS serve; one not here is ``lost`` (the serve restarted).
+_IN_PROCESS_RUNS: set[str] = set()
+
+
+def _clones_in_process() -> bool:
+    """True where this device starts no process: its realm-sync git is the pure-Python one."""
+
+    from .realm_sync.git import SyncGitBackend, sync_git_backend
+    from .realm_sync.models import RealmSyncError
+
+    try:
+        return sync_git_backend() is SyncGitBackend.DULWICH
+    except RealmSyncError as exc:
+        raise SlotRefused(REASON_GIT_UNAVAILABLE, exc.code) from exc
+
+
+def _port(folder: Path):
+    from .realm_sync.git import sync_git
+    from .realm_sync.models import RealmSyncError
+
+    try:
+        return sync_git(folder)
+    except RealmSyncError as exc:
+        raise SlotRefused(REASON_GIT_UNAVAILABLE, exc.code) from exc
+
+
+def _finish_in_process_clone(run_id: str, url: str, dest: Path) -> dict[str, Any] | None:
+    """Clone ``url`` into ``dest`` through the port, then end the run: bound here on success."""
+
+    from .realm_sync.models import RealmSyncError
+
+    try:
+        try:
+            _port(dest).clone(url, None)
+        except (RealmSyncError, SlotRefused) as exc:
+            detail = str((getattr(exc, "safe_details", None) or {}).get("stderr") or getattr(exc, "code", "")
+                         or getattr(exc, "reason", ""))
+            ending = {"status": RUN_FAILED, "reason": classify_clone_failure(detail), "evidence": redacted_tail(detail)}
+        else:
+            with LOCK:
+                run = next((r for r in all_runs() if r.get("run_id") == run_id), None) or {}
+            # The same ending a spawned clone's exit 0 gets: bound, or why the bind was refused.
+            ending = _ending({**run, "kind": RUN_KIND_CLONE}, _Exited(0))
+    except Exception as exc:  # health: allow BLE001 -- a clone thread never takes serve down; the run says it failed
+        logger.exception("in-process clone %s failed", run_id)
+        ending = {"status": RUN_FAILED, "reason": END_CLONE_FAILED, "evidence": type(exc).__name__}
+    try:
+        return update_run(run_id, ended_at=_now(), **ending)
+    finally:  # only once the ending is written: a settle in between would read the run lost
+        _IN_PROCESS_RUNS.discard(run_id)
+
+
+class _Exited:
+    """An ended in-process run, read by :func:`_ending` like a registry session."""
+
+    output_buffer = ""
+    completion_reason = "exited"
+
+    def __init__(self, code: int) -> None:
+        self.exit_code = code
+
+
+def _clone_in_process(workspace_id: str | None, slot: str, declared: dict[str, Any], dest: Path, *,
+                      issued_at: str, watch: bool) -> dict[str, Any]:
+    argv = clone_argv(declared, dest)  # the same refusals: a credential in the URL, a bad branch name
+    url = str((declared.get("repo") or {}).get("clone_url") or "")
+    run_id = f"clone_{uuid.uuid4().hex[:16]}"
+    with LOCK:
+        _guard_replay(workspace_id, slot, CLONE_STEP_ID, issued_at)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        run = record_run({"workspace_id": workspace_id, "slot": slot, "step_id": CLONE_STEP_ID, "kind": RUN_KIND_CLONE,
+                          "dest_path": str(dest), "issued_at": issued_at, "started_at": _now(), "run_id": run_id,
+                          "session_id": None, "work_id": None, "in_process": True, "status": RUN_RUNNING,
+                          "reason": None, "evidence": None, "exit_code": None, "ended_at": None})
+        _IN_PROCESS_RUNS.add(run_id)
+    if watch:
+        threading.Thread(target=_finish_in_process_clone, args=(run_id, url, dest), daemon=True,
+                         name=f"slot-clone-{run_id}").start()
+    else:  # the CLI waits in-line, as it does for a spawned clone
+        run = _finish_in_process_clone(run_id, url, dest) or run
+    return {"slot": slot, "run": run, "argv": argv}
+
+
 def clone_slot(workspace_id: str | None, slot: str, dest_path: str, *, issued_at: str, registry: Any = None,
                watch: bool = True) -> dict[str, Any]:
-    """Spawn the clone of ``slot`` into ``dest_path`` as a background terminal row; success binds it here."""
+    """Spawn the clone of ``slot`` into ``dest_path`` as a background terminal row; success binds it here.
+
+    On a device that starts no process the clone runs in process instead (:func:`_clone_in_process`)."""
 
     resolved = _declared(workspace_id, slot)
     slot, declared = resolved.slot, resolved.declaration
@@ -196,6 +296,10 @@ def clone_slot(workspace_id: str | None, slot: str, dest_path: str, *, issued_at
         raise SlotRefused(REASON_INVALID_PATH, "a clone lands at an ABSOLUTE local path")
     if dest.exists() and (not dest.is_dir() or any(dest.iterdir())):
         raise SlotRefused(REASON_DEST_NOT_EMPTY, f"{dest} exists and is not an empty directory")
+    # MUTATION: drop this arm and a phone's Set up spawns git, which it cannot
+    # (test_workspace_slot_create: test_a_device_without_processes_clones_in_process_and_binds).
+    if registry is None and _clones_in_process():
+        return _clone_in_process(workspace_id, slot, declared, dest, issued_at=issued_at, watch=watch)
     argv = clone_argv(declared, dest)
     with LOCK:
         _guard_replay(workspace_id, slot, CLONE_STEP_ID, issued_at)
@@ -207,6 +311,31 @@ def clone_slot(workspace_id: str | None, slot: str, dest_path: str, *, issued_at
                       "step_id": CLONE_STEP_ID, "kind": RUN_KIND_CLONE,
                       "dest_path": str(dest), "issued_at": issued_at, "started_at": _now()}, session, registry, watch)
     return {"slot": slot, "run": run, "argv": argv}
+
+
+# ── Create ───────────────────────────────────────────────────────────────────
+
+
+def create_slot(workspace_id: str | None, slot: str, *, issued_at: str) -> dict[str, Any]:
+    """Make a LOCAL slot's folder in the Harness's own folder, a git repository, and bind it here.
+
+    The folder is the Harness's choice (``default_project_path``), never the caller's. Refused for a slot
+    with a clone URL (``slot_has_repository``: Set up clones it) and for one already bound here."""
+
+    from .workspace_slot_clone_home import default_project_path
+
+    resolved = _declared(workspace_id, slot)
+    slot, declared = resolved.slot, resolved.declaration
+    if (declared.get("repo") or {}).get("local") is not True:
+        raise SlotRefused(REASON_SLOT_HAS_REPOSITORY, f"{slot} names a repository; Set up clones it")
+    held = bound_path(slot, workspace_id=workspace_id)
+    if held is not None and held.is_dir():
+        raise SlotRefused(REASON_SLOT_ALREADY_BOUND, f"{slot} is bound here at {held}; Locate rebinds it")
+    with LOCK:
+        dest = default_project_path(str(workspace_id), slot)
+        dest.mkdir(parents=True, exist_ok=True)
+        _port(dest).init()
+        return bind(str(workspace_id), slot, str(dest), issued_at=issued_at)
 
 
 # ── Run step ─────────────────────────────────────────────────────────────────
@@ -292,6 +421,13 @@ def settle_run(run_id: str, registry: Any = None) -> dict[str, Any] | None:
         run = next((r for r in all_runs() if r.get("run_id") == run_id), None)
         if run is None or run.get("status") in RUN_ENDED:
             return run
+        if run.get("in_process"):
+            # Its own thread ends it; one this serve no longer runs was cut off by a restart.
+            # MUTATION: settle an in-process run through the registry and a live phone clone reads lost
+            # (test_workspace_slot_create: test_a_running_in_process_clone_is_not_settled_as_lost).
+            if run_id in _IN_PROCESS_RUNS:
+                return run
+            return update_run(run_id, ended_at=_now(), **_ending(run, None))
         session = (registry or spawning_registry()).get(str(run.get("session_id")))
         if session is not None and not getattr(session, "exited", False):
             return run
@@ -326,6 +462,7 @@ __all__ = [
     "classify_clone_failure",
     "clone_argv",
     "clone_slot",
+    "create_slot",
     "redacted_tail",
     "run_step",
     "settle_run",

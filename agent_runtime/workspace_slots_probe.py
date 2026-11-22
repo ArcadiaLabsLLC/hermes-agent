@@ -9,7 +9,8 @@ hangs on ``--version``, git that will not run) is ``unknown`` WITH the evidence 
 and never a path** — statuses and versions only; the test greps the written document for
 every value the fixture environment set.
 
-The report's one probe: the bound path exists and ``git remote get-url origin`` matches the
+The report's one probe: the bound path exists and its ``origin`` (read through the realm-sync port,
+``realm_sync.git.sync_git``: the git program on a desktop, the pure-Python git on a phone) matches the
 declared ``repo.clone_url`` (``checkout: matches | remote_mismatch | not_a_repo``; a
 ``repo.local`` slot answers ``local`` with a ``.git`` and ``folder`` without one — a bound local folder
 is set up as it stands, no repository is invented and no remote is checked,
@@ -32,7 +33,6 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
-from .host_tools import git_command
 from .builds.unknowns import UNKNOWN_SLOT_PROBE_UNKNOWN, UnknownsIndex
 from .workspace_slot_env import SlotFill, slot_fill
 from .workspace_slot_recipe import READY_UNKNOWN, READY_YES, readiness
@@ -89,6 +89,24 @@ def _normalize_remote(url: str) -> str:
     return text.lower().split("://", 1)[-1]
 
 
+def _origin_url(path: Path) -> str | None:
+    """The checkout's raw ``origin`` URL through the realm-sync port: the git program on a desktop, the
+    pure-Python git on a device that starts no process (a phone has no ``git`` to spawn; Eternia row
+    ``MC-PHONE-FILES-A-PHONE-KEEPS-PROJECT-FOLDERS-IN-ITS-NAMESPACE``). None when it names no ``origin``;
+    raises :class:`_NotARepository` when ``path`` is no repository the port can open."""
+
+    from .realm_sync.git import sync_git
+
+    port = sync_git(path)
+    if not port.is_repo():
+        raise _NotARepository(str(path))
+    return port.remote_url("origin")
+
+
+class _NotARepository(Exception):
+    """The folder holds a ``.git`` that git does not open as a repository."""
+
+
 def origin_matches(path: Path, slot: dict[str, Any], run: Runner | None = None) -> bool:
     """True when the checkout at ``path`` has an ``origin`` matching the slot's declared ``repo.clone_url``."""
 
@@ -96,10 +114,10 @@ def origin_matches(path: Path, slot: dict[str, Any], run: Runner | None = None) 
     if not wanted:
         return False
     try:
-        done = (run or _run)([git_command(), "-C", str(path), "remote", "get-url", "origin"])
-    except (OSError, subprocess.SubprocessError):
+        url = _origin_url(path)
+    except Exception:  # health: allow BLE001 -- any git failure is "not this repository", as a failed spawn was
         return False
-    return done.returncode == 0 and _normalize_remote(done.stdout) == _normalize_remote(wanted)
+    return url is not None and _normalize_remote(url) == _normalize_remote(wanted)
 
 
 class _SlotProbe:
@@ -120,15 +138,18 @@ class _SlotProbe:
         if not (path / ".git").exists():
             return CHECKOUT_NOT_A_REPO
         try:
-            done = self.run([git_command(), "-C", str(path), "remote", "get-url", "origin"])
-        except (OSError, subprocess.SubprocessError) as exc:
+            # MUTATION: spawn ``git remote get-url`` here again and a phone's bound clone probes ``unknown``
+            # (test_workspace_slot_create: test_a_phone_probes_its_clone_without_a_git_program).
+            url = _origin_url(path)
+        except _NotARepository:
+            return CHECKOUT_NOT_A_REPO
+        except Exception as exc:  # health: allow BLE001 -- the probe's contract: any failure is unknown WITH evidence
             return self.unknown("git remote get-url origin", exc)
-        if done.returncode != 0:
-            # A directory git does not recognise is not a checkout; a checkout with no
-            # ``origin`` is a repository that does not match the declaration.
-            return CHECKOUT_NOT_A_REPO if "not a git repository" in str(done.stderr).lower() else CHECKOUT_REMOTE_MISMATCH
+        if url is None:
+            # A checkout with no ``origin`` is a repository that does not match the declaration.
+            return CHECKOUT_REMOTE_MISMATCH
         wanted = _normalize_remote(str((self.slot.get("repo") or {}).get("clone_url") or ""))
-        return CHECKOUT_MATCHES if _normalize_remote(done.stdout) == wanted else CHECKOUT_REMOTE_MISMATCH
+        return CHECKOUT_MATCHES if _normalize_remote(url) == wanted else CHECKOUT_REMOTE_MISMATCH
 
     def tool(self, tool: dict[str, Any]) -> dict[str, Any]:
         from hermes_platform.resolver import locate_command

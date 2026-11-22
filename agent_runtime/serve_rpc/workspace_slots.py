@@ -2,7 +2,7 @@
 
 All ``console``. The verbs that touch THIS machine — ``slot.bind``, ``slot.env.set``,
 ``slots.report``, and Phase B's ``slot.clone`` and ``recipe.run_step`` (they spawn on this
-machine) — are on ``LOCAL_CONSOLE_METHODS``: a paired console
+machine), and ``slot.create`` (it makes a folder on this machine) — are on ``LOCAL_CONSOLE_METHODS``: a paired console
 device may read a workspace's slots, never write the operator's paths or environment.
 ``slots.declare`` is gated on the realm PUBLISH right (call 8a) and takes the same inline
 ``credential`` object the realm verbs do. Every refusal is a typed ``data.reason``.
@@ -45,6 +45,10 @@ _REFUSAL_CODES = {
     # unbound here) ride ERR_CONFLICT.
     "clone_url_carries_credential": ERR_INVALID_PARAMS,
     "step_not_runnable": ERR_INVALID_PARAMS,
+    # Create (MC-PHONE-FILES-A-PHONE-KEEPS-PROJECT-FOLDERS-IN-ITS-NAMESPACE): a slot with a clone URL is
+    # set up by Clone; a device whose git cannot be read refuses rather than guessing one.
+    "slot_has_repository": ERR_INVALID_PARAMS,
+    "git_unavailable": ERR_HANDLER_FAILED,
 }
 
 
@@ -179,6 +183,18 @@ def _slot_clone(params):
 
     return clone_slot(_workspace(params), str(params.get("slot") or ""), str(params.get("dest_path") or ""),
                       issued_at=_issued_at(params))
+
+
+@method("runtime.workspace.slot.create", tier=TIER_CONSOLE)
+@_guarded
+def _slot_create(params):
+    """Make a LOCAL slot's folder in the Harness's own folder, a git repository, and bind it here.
+
+    The Harness picks the folder; no path is taken from the caller (a phone's projects live in its own storage)."""
+
+    from agent_runtime.workspace_slot_setup import create_slot
+
+    return create_slot(_workspace(params), str(params.get("slot") or ""), issued_at=_issued_at(params))
 
 
 @method("runtime.workspace.recipe.run_step", tier=TIER_CONSOLE)
