@@ -192,11 +192,13 @@ def read(root: str, path: str, *, offset: int = 0) -> dict:
 
 
 def grep_matches(root: str, pattern: str, path: str | None = None, *, glob: str | None = None,
-                 wildcard: bool = False, deadline: Deadline | None = None) -> tuple[str, list[dict]]:
+                 wildcard: bool = False, deadline: Deadline | None = None,
+                 context: int = 0) -> tuple[str, list[dict]]:
     """``(the searched folder's relative path, every line the pattern matches)``, unpaged.
 
     The pattern is literal, or a line wildcard with ``wildcard``; ``glob`` keeps the files whose
-    name matches. The walk and every line ask ``deadline`` (a fresh one when None).
+    name matches. The walk and every line ask ``deadline`` (a fresh one when None). ``context``
+    lines around each match ride on it (:func:`replies.grep_lines`).
     """
 
     matcher = LinePattern.parse(pattern, wildcard=wildcard)
@@ -225,7 +227,7 @@ def grep_matches(root: str, pattern: str, path: str | None = None, *, glob: str 
             text = decode_text(data, entry["path"])
         except ProjectFileRefusal:
             continue
-        matches.extend(grep_lines(entry["path"], text, matcher, deadline))
+        matches.extend(grep_lines(entry["path"], text, matcher, deadline, context))
     return folder.relative, matches
 
 

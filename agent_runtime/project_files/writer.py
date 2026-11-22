@@ -30,7 +30,7 @@ from agent_runtime.project_files.reader import _canonical_root, resolve_within_r
 from agent_runtime.project_files.replies import decode_text, looks_binary
 from agent_runtime.project_files.rules import MAX_READ_BYTES, ProjectFileRefusal
 
-__all__ = ["WriteDenied", "patch", "write"]
+__all__ = ["WriteDenied", "checked_text", "patch", "write"]
 
 
 class WriteDenied(Exception):
@@ -113,6 +113,36 @@ def _replace_file(actual: str, data: bytes) -> bool:
     return created
 
 
+def _text_of(actual: str, shown: str) -> str:
+    """The text file at ``actual``: within the read cap, not binary, UTF-8."""
+
+    with open(actual, "rb") as handle:
+        data = handle.read(MAX_READ_BYTES + 1)
+    if len(data) > MAX_READ_BYTES:
+        raise ProjectFileRefusal("too_large", f"the file is over {MAX_READ_BYTES} bytes: {shown}")
+    if looks_binary(data):
+        raise ProjectFileRefusal("binary", f"the file is binary: {shown}")
+    return decode_text(data, shown)
+
+
+def checked_text(root: str, path: str) -> str | None:
+    """The text at ``path`` under ``root`` once a write there has passed every check, writing nothing.
+
+    The spec, confinement and the agent's write guards are :func:`write`'s own; None when no file is
+    there yet. A multi-file edit asks this for every file before it writes any (row
+    ``RT-PHONE-FILE-TOOLS-ACCEPT-EVERY-DESKTOP-ARGUMENT``: a V4A patch is validated whole first)."""
+
+    actual, shown = _target(root, path)
+    # MUTATION: skip the guard here and a V4A patch writes its first file before the guard refuses a
+    # later one (test_phone_file_tools: test_a_v4a_patch_writes_nothing_when_one_file_is_refused).
+    _guard(actual)
+    if not os.path.lexists(actual):
+        return None
+    if not os.path.isfile(actual):
+        raise ProjectFileRefusal("not_a_file", f"not a file: {shown}")
+    return _text_of(actual, shown)
+
+
 def write(root: str, path: str, content: str) -> dict:
     """Put ``content`` (UTF-8) at ``path`` under ``root``, making its folders: ``{path, size, created}``."""
 
@@ -137,13 +167,7 @@ def patch(root: str, path: str, old: str, new: str, *, replace_all: bool = False
     actual, shown = _target(root, path)
     if not os.path.isfile(actual):
         raise ProjectFileRefusal("not_found", f"nothing at {shown}")
-    with open(actual, "rb") as handle:
-        data = handle.read(MAX_READ_BYTES + 1)
-    if len(data) > MAX_READ_BYTES:
-        raise ProjectFileRefusal("too_large", f"the file is over {MAX_READ_BYTES} bytes: {shown}")
-    if looks_binary(data):
-        raise ProjectFileRefusal("binary", f"the file is binary: {shown}")
-    text = decode_text(data, shown)
+    text = _text_of(actual, shown)
     count = text.count(old)
     if count == 0:
         raise ProjectFileRefusal("bad_argument", f"old_string was not found in {shown}")
