@@ -145,7 +145,7 @@ def test_the_boundary_rows_kind_is_spelled_as_the_core_spells_it():
 
 #: What the core writes for a refused turn (``agent.error_surface``): an out-of-usage refusal and its reset.
 RATE_LIMIT_SURFACE = {"code": "rate_limit", "provider": "anthropic", "model": "claude-x", "resets_at": 1763337600,
-                      "detail": "never travels"}
+                      "provider_code": "rate_limit_exceeded", "detail": "never travels"}
 
 
 def test_a_failed_turn_row_carries_its_kind_and_surface(placed_agent, model):
@@ -153,7 +153,9 @@ def test_a_failed_turn_row_carries_its_kind_and_surface(placed_agent, model):
     processed" after a reload — the projection dropped the boundary row's kind and ``error_surface``. Both now
     ride the persona history row and the operator conversation message. KILLING MUTATIONS: return before the stamp
     in ``_carry_failed_turn`` -> no kind, red; drop the ``_failed_turn_shape`` rule -> the conversation reads
-    ``reply``, red. A field the surface does not list (``detail``) never travels."""
+    ``reply``, red. A field the surface does not list (``detail``) never travels. The provider's own code rides
+    too (RT-FU-A-SAVED-FAILED-TURNS-HISTORY-READ-DROPS-THE-STORED-PROVIDER-CODE; mutation: drop ``provider_code``
+    from ``FAILED_TURN_SURFACE_FIELDS`` -> red)."""
     import json
     import sqlite3
 
@@ -179,7 +181,8 @@ def test_a_failed_turn_row_carries_its_kind_and_surface(placed_agent, model):
         conversation = _conversation_contract(
             channel_id="channel-1", persona_id=PERSONA, persona_instance_id=instance, session_id=root, goal_id=None,
             title="Chat", state="idle", history=history, trace=None)
-    surface = {"code": "rate_limit", "provider": "anthropic", "model": "claude-x", "resets_at": 1763337600.0}
+    surface = {"code": "rate_limit", "provider": "anthropic", "model": "claude-x", "resets_at": 1763337600.0,
+               "provider_code": "rate_limit_exceeded"}
     [row] = [m for m in history["messages"] if str(m["role"]) == "agent"]
     assert (row["kind"], row["error_surface"], row["text"]) == (PERSONA_FAILED_TURN_KIND, surface, FAILED_TURN_NOTICE)
     [message] = [m for m in conversation["messages"] if str(m["role"]) == "agent"]

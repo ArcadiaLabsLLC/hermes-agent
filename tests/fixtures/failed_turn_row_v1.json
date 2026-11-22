@@ -1,4 +1,4 @@
 {
   "kind": "failed_turn",
-  "error_surface_fields": ["code", "provider", "model", "resets_at"]
+  "error_surface_fields": ["code", "provider", "model", "resets_at", "provider_code"]
 }

@@ -131,9 +131,11 @@ PERSONA_RUNTIME_NOTICE_KIND = "runtime_notice"
 #: imports no loop module, and ``test_cut_off_reply_one_notice`` holds the two equal). A history row of this
 #: kind carries ``error_surface``: the fields of :data:`FAILED_TURN_SURFACE_FIELDS` the core wrote, already
 #: redacted (RT-FAILED-TURN-ROW-DROPS-ITS-ERROR-SURFACE). Both reach Eternia through the generated mirror
-#: ``tests/fixtures/failed_turn_row_v1.json``.
+#: ``tests/fixtures/failed_turn_row_v1.json``. ``provider_code`` is the provider's own refusal code
+#: (``agent.provider_failure.provider_code_fields``), so a saved row keeps it on a history read
+#: (RT-FU-A-SAVED-FAILED-TURNS-HISTORY-READ-DROPS-THE-STORED-PROVIDER-CODE).
 PERSONA_FAILED_TURN_KIND = "failed_turn"
-FAILED_TURN_SURFACE_FIELDS = ("code", "provider", "model", "resets_at")
+FAILED_TURN_SURFACE_FIELDS = ("code", "provider", "model", "resets_at", "provider_code")
 
 #: The turn's wall-budget checkpoint engaged (``profile_runner/budget.py``).
 RUNTIME_NOTICE_WALL_CHECKPOINT = "wall_checkpoint"
