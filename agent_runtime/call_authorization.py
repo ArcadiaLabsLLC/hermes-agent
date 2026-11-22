@@ -114,6 +114,7 @@ __all__ = [
     "RpcCaller",
     "authorize_call",
     "caller_for_connection",
+    "is_computer_below_account",
     "is_machine_owner",
     "paired_device_answers",
     "service_backstop",
@@ -401,6 +402,13 @@ COMPUTER_LOOK_METHOD_ALLOWLIST: frozenset[str] = frozenset(
         "runtime.persona.chat.history",
         "runtime.persona.chat.history.search",
         "runtime.persona.chat.content",
+        # The phone agent's existing chats, listed so a computer opens them read-only
+        # (RT-FU-A-LOOK-COMPUTER-LISTS-THE-PHONES-EXISTING-CHATS, owner "rest as reccomended"
+        # 2026-11-22). Each row says whether this caller may read it (``readable``, this gate's
+        # answer for ``runtime.persona.chat.history``), and a row this computer does not own
+        # leaves out its ``client_scope`` (``serve_rpc/instance_history.py``).
+        # MUTATION: leave this out and test_instance_history's Look computer list is refused scope_denied.
+        "runtime.operator.conversation.list",
         "runtime.workspace.conversations",
         "runtime.character.portrait",
         "runtime.characters.thumb",
@@ -796,6 +804,17 @@ def _computer_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorizatio
         caller_kind=resolved.kind,
         detail=None if admitted else _computer_refusal_words(name, resolved.computer_grant),
     )
+
+
+def is_computer_below_account(caller: RpcCaller | None) -> bool:
+    """Is *caller* a computer driving this engine at Look or Run chats (not the account level)?
+
+    The account level is answered like a paired console device and sees what one sees; the two
+    lower grants see only what their allowlist reaches, so a handler that shapes a row by WHO asks
+    (``serve_rpc/instance_history.py``) asks this one question.
+    """
+
+    return caller is not None and caller.kind == CALLER_COMPUTER and caller.computer_grant != COMPUTER_GRANT_ACCOUNT
 
 
 def paired_device_answers(held_tier: str | None, name: str, tier: str) -> bool:
