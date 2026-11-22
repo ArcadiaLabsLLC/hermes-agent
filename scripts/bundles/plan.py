@@ -242,10 +242,11 @@ def make_plan(manifest, site: Path, target: str, python_version: str,
     first_party, loaded, _ = first_party_plan(manifest, index)
     needed, refused = distributions or distribution_plan(manifest.profile, [site], target, python_version)
     # A pinned phone wheel's companions ship wherever it does: nothing imports Pillow's image libraries,
-    # so the closure alone never reaches them (scripts/bundles/phone_wheels.py).
-    from scripts.bundles.phone_wheels import with_companions
+    # so the closure alone never reaches them (scripts/bundles/phone_wheels.py). A pinned library a
+    # first-party module loads behind a guarded import (ripgrep's matcher) ships with that module.
+    from scripts.bundles.phone_wheels import loaded_by, with_companions
 
-    needed = with_companions(needed, target)
+    needed = with_companions(needed | loaded_by(first_party, target), target)
     return Plan(profile=manifest.profile, target=target, python_version=python_version,
                 first_party=first_party, pinned=loaded, distributions=needed,
                 missing=needed - set(read_site(site)), refusals=refused,

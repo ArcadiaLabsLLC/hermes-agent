@@ -11,6 +11,7 @@ import re
 
 import pytest
 
+from agent_runtime.bundle_profiles.manifest import load_profile
 from scripts.bundle_profile_closure import _lock
 from scripts.bundle_profile_gate import distribution_findings
 from scripts.bundles import phone_wheels
@@ -18,6 +19,8 @@ from scripts.bundles.requirement_blocks import Block, requirement_blocks
 
 ANDROID = {"android_arm64": "android_24_arm64_v8a", "android_x86_64": "android_24_x86_64"}
 LIBRARIES = {"flet-libjpeg", "flet-libtiff", "flet-libfreetype", "flet-libwebp"}
+MATCHER = "eternia-project-files-match"
+NATIVE_MATCH = "agent_runtime.project_files.native_match"
 
 
 def _doc(**pillow):
@@ -32,14 +35,18 @@ def _doc(**pillow):
 
 
 def test_every_pin_names_its_own_distribution_version_and_android_target():
-    """Each pinned file is the wheel of that name and version for that target's ABI, with a sha256."""
+    """Each pinned file is the wheel of that name and version for that target's ABI, with a sha256: Flet's by
+    index URL, ripgrep's matcher by its path in this repository (owner RULED 2026-11-21)."""
     wheels = phone_wheels.load()["wheels"]
-    assert set(wheels) == {"pillow", *LIBRARIES}
+    assert set(wheels) == {"pillow", *LIBRARIES, MATCHER}
     for name, entry in wheels.items():
         assert set(entry["targets"]) == set(ANDROID), name
         for target, pin in entry["targets"].items():
-            file = pin["url"].rsplit("/", 1)[1]
-            assert pin["url"].startswith("https://pypi.flet.dev/"), file
+            file = phone_wheels.pinned_wheel(name, target)
+            if name == MATCHER:
+                assert set(pin) == {"path", "sha256"} and pin["path"].startswith("crates/project_files_match/dist/"), file
+            else:
+                assert set(pin) == {"url", "sha256"} and pin["url"].startswith("https://pypi.flet.dev/"), file
             assert file.startswith(f"{name.replace('-', '_')}-{entry['version']}-"), file
             assert file.endswith(f"-{ANDROID[target]}.whl"), file
             assert re.fullmatch(r"[0-9a-f]{64}", pin["sha256"]), file
@@ -92,3 +99,59 @@ def test_the_gate_judges_a_pinned_phone_wheel_by_its_own_file():
     assert distribution_findings(shipped, {}, admitted, "android_arm64") == []
     findings = distribution_findings(shipped, {}, admitted - {"flet-libtiff"}, "android_x86_64")
     assert findings == [{"kind": "native", "subject": "flet-libtiff"}]
+
+
+def _matcher_doc():
+    doc = _doc()
+    doc["wheels"][MATCHER] = {"version": "1.0.0", "loaded_by": NATIVE_MATCH, "targets": {"android_arm64": {
+        "path": "crates/project_files_match/dist/eternia_project_files_match-1.0.0-py3-none-android_24_arm64_v8a.whl",
+        "sha256": "e" * 64}}}
+    return doc
+
+
+def test_a_repo_path_pin_installs_from_its_file_in_this_checkout():
+    export = requirement_blocks("idna==3.11 \\\n    --hash=sha256:" + "d" * 64 + "\n")
+    block, = [b for b in phone_wheels.pinned_blocks(export, "android_arm64", _matcher_doc()) if b.name == MATCHER]
+    wheel = phone_wheels.ROOT / "crates/project_files_match/dist/eternia_project_files_match-1.0.0-py3-none-android_24_arm64_v8a.whl"
+    assert block == Block(MATCHER, f"{MATCHER} @ {wheel.as_uri()}", "", ("    --hash=sha256:" + "e" * 64,))
+    assert phone_wheels.pinned_wheel(MATCHER, "android_arm64", _matcher_doc()) == wheel.name
+
+
+def test_a_first_party_library_ships_only_with_the_module_that_loads_it():
+    """Mutation: drop the ``modules`` test in ``loaded_by`` -> red (it ships without the file tools)."""
+    doc = _matcher_doc()
+    assert phone_wheels.loaded_by({NATIVE_MATCH, "x"}, "android_arm64", doc) == {MATCHER}
+    assert phone_wheels.loaded_by({"x"}, "android_arm64", doc) == set()
+    assert phone_wheels.loaded_by(None, "android_arm64", doc) == {MATCHER}  # the pool installs it
+    assert phone_wheels.loaded_by({NATIVE_MATCH}, "ios_arm64", doc) == set()  # not pinned there
+
+
+def test_the_module_named_as_the_loader_really_loads_the_locator():
+    """The pin's ``loaded_by`` is the binding, and the binding imports the wheel's locator."""
+    entry = phone_wheels.load()["wheels"][MATCHER]
+    source = (phone_wheels.ROOT / (entry["loaded_by"].replace(".", "/") + ".py")).read_text(encoding="utf-8")
+    assert "from eternia_project_files_match import LIBRARY" in source
+
+
+def test_the_gate_judges_the_pinned_library_its_kept_module_loads(monkeypatch):
+    """Mutation: the gate judges ``shipped`` alone (no ``judged_distributions``) -> red: the unadmitted
+    library would ship unjudged."""
+    from scripts import bundle_profile_gate as gate
+
+    monkeypatch.setattr(phone_wheels, "load", lambda path=None: _matcher_doc())
+    judged = gate.judged_distributions({"pillow", "idna"}, {NATIVE_MATCH}, "android_arm64")
+    assert judged == {"pillow", "idna", "flet-libjpeg", MATCHER}
+    assert gate.judged_distributions({"idna"}, set(), "android_arm64") == {"idna"}
+    assert distribution_findings(judged, {"idna": {"wheels": [{"url": "idna-3.11-py3-none-any.whl"}]}},
+                                 {"pillow", "flet-libjpeg"}, "android_arm64") == [{"kind": "native", "subject": MATCHER}]
+    assert MATCHER in {gate._norm(n) for n in load_profile("bundled-phone").admitted_native}
+
+
+def test_the_pool_reads_alignment_on_android_only(tmp_path):
+    """Mutation: read every target -> red (an iOS pool's Mach-O library is refused as not ELF)."""
+    from scripts.bundle_profile_package import pool_alignment_problems
+
+    (tmp_path / "libx.so").write_bytes(b"\xcf\xfa\xed\xfe Mach-O")
+    assert pool_alignment_problems(tmp_path, "ios_arm64") == []
+    assert pool_alignment_problems(tmp_path, "android_arm64") == [
+        "page_alignment: libx.so cannot be read as ELF (not an ELF file)"]
