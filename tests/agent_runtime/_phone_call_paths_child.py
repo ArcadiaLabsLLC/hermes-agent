@@ -113,19 +113,22 @@ def _tool_call():
     from agent_runtime import phone_file_tools
     from agent_runtime.store import WorkspaceStore
     from agent_runtime.workspace_slots import bind, declare
-    from tools.registry import registry
 
     workspace = WorkspaceStore().create(name="Phone").id
     declare(workspace, [{"name": "notes", "repo": {"clone_url": None, "local": True}}], issued_at=T0, machine="m")
     bind(workspace, "notes", str(project), issued_at=T0)
-    # The phone plan ships upstream's file_tools in the forced tree (switched off, out of the tool scan), so
-    # the presence probe would answer True; the plugin's registration is what a phone runs (see the parent).
+    # The phone's embedded entry registers them (EmbeddedServe.start), under the installed phone profile,
+    # though the plan ships upstream's file_tools (forced tree) where a presence probe would find it.
     import model_tools
 
-    phone_file_tools.upstream_file_tools_shipped = lambda: False
-    assert phone_file_tools.register_phone_file_tools(lambda name, **kw: registry.register(name, **kw))
+    registered = phone_file_tools.ensure_phone_file_tools()
+    first = json.loads(model_tools.handle_function_call("read_file", {"path": "notes/TODO.md"}))
+    # The turn-end cleanup (agent.client_lifecycle forget_file_state) imports upstream's module lazily;
+    # its module-level registrations must not take the four names back.
+    import tools.file_tools  # noqa: F401
 
-    return json.loads(model_tools.handle_function_call("read_file", {"path": "notes/TODO.md"}))
+    again = json.loads(model_tools.handle_function_call("read_file", {"path": "notes/TODO.md"}))
+    return {"registered": registered, "first": first, "after_upstreams_import": again}
 
 
 @case("custom_endpoint_resume")

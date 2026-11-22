@@ -110,22 +110,24 @@ def test_the_phone_work_engine_starts_without_the_batch_dispatcher_it_does_not_s
     assert "batch" in _start_work_engine(monkeypatch, everything)
 
 
-def _phone_file_tools_path() -> set[str]:
-    """What the phone file tools load, walked as the phone walks (its switched-off modules pruned or forced).
+#: What a phone agent's file tools load: the embedded entry registers them (``EmbeddedServe.start``), and a
+#: regex search runs ripgrep's matcher or the ``regex`` fallback.
+PHONE_FILE_TOOLS = (
+    "agent_runtime.phone_file_tools",
+    "agent_runtime.project_files.reader",
+    "agent_runtime.project_files.writer",
+    "agent_runtime.project_files.native_match",
+    "agent_runtime.project_files.fallback_match",
+)
 
-    They reach a phone by a path the packager's walk does not model (the eternia-harness plugin is not in
-    ``bundled-phone.yaml``'s ``packaging.plugins``; row RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-
-    AGENTS-FILE-TOOLS), yet the emulator ran them; the call-path case adds them until that row makes the
-    walk keep them."""
-    from agent_runtime.bundle_profiles.manifest import load_profile
-    from scripts.bundle_profile_closure import Walk, module_index
-    from scripts.bundles.plan import _with_parents, forced_modules
 
-    manifest = load_profile("bundled-phone")
-    index = module_index(plugins=manifest.packaging_plugins)
-    walk = Walk(("agent_runtime.phone_file_tools",), manifest.switched_off_modules, index,
-                {m.split(".")[0] for m in index}, parents=True)
-    return _with_parents(set(walk.kept) | forced_modules(walk, index), index)
+def test_the_phone_file_tools_are_in_the_bundle_the_gate_judges(phone_modules):
+    """RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-AGENTS-FILE-TOOLS: they were registered only by
+    the eternia-harness plugin, which a phone does not ship, so the packager's walk (the gate's) never kept
+    them. Killing mutation: drop ``ensure_phone_file_tools`` and its import from ``EmbeddedServe.start`` -> red."""
+    assert [m for m in PHONE_FILE_TOOLS if m not in phone_modules] == []
+    # Positive control: the plugin itself is still not a phone module.
+    assert "plugins.eternia_harness" not in phone_modules
 
 
 def test_three_phone_call_paths_run_on_only_what_the_phone_bundle_ships(phone_modules, tmp_path):
@@ -138,7 +140,9 @@ def test_three_phone_call_paths_run_on_only_what_the_phone_bundle_ships(phone_mo
     Killing mutations (applied, red recorded, reverted — see the commit message):
     * drop ``"tools.connectors"`` from ``FACADE_TABLES`` -> the tool-call case reddens;
     * drop ``walk.profile_forced`` from ``plan.forced_modules`` -> the custom-endpoint case reddens;
-    * drop the switched-off check from ``engine._default_workspaces`` -> the tick case reddens."""
+    * drop the switched-off check from ``engine._default_workspaces`` -> the tick case reddens;
+    * skip ``import tools.file_tools`` in ``phone_file_tools.ensure_phone_file_tools`` -> the read after
+      upstream's module is imported (as the turn-end ``forget_file_state`` does) runs upstream's, red."""
     import json
     import os
     import subprocess
@@ -149,7 +153,7 @@ def test_three_phone_call_paths_run_on_only_what_the_phone_bundle_ships(phone_mo
 
     repo = Path(__file__).resolve().parents[2]
     plan = tmp_path / "plan.json"
-    plan.write_text(json.dumps({"modules": sorted(phone_modules | _phone_file_tools_path()),
+    plan.write_text(json.dumps({"modules": sorted(phone_modules),
                                 "tops": sorted({m.split(".")[0] for m in module_index()} - {"tests"})}),
                     encoding="utf-8")
     out = tmp_path / "out.json"
@@ -166,8 +170,10 @@ def test_three_phone_call_paths_run_on_only_what_the_phone_bundle_ships(phone_mo
     failed = {name: (row.get("error"), row["spawns"]) for name, row in cases.items()
               if "error" in row or row["spawns"]}
     assert failed == {}, {name: cases[name].get("trace") for name in failed}
-    read = cases["tool_call"]["answer"]
-    assert read.get("content") == "1|# Notes\n2|- buy milk", read
+    reads = cases["tool_call"]["answer"]
+    assert reads["registered"] == ["read_file", "write_file", "patch", "search_files"], reads
+    for read in (reads["first"], reads["after_upstreams_import"]):
+        assert read.get("content") == "1|# Notes\n2|- buy milk", read
     assert cases["custom_endpoint_resume"]["answer"] == "custom"
     # Only the tick's own warning is judged: the checkout's plugin directory scan reports plugins a phone
     # bundle does not hold on disk, which no phone sees.
