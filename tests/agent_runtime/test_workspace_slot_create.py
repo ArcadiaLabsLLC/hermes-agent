@@ -61,6 +61,8 @@ def _remote(name: str, url: str = APP_URL) -> dict:
 def phone(monkeypatch):
     """A device that starts no process: the pure-Python git, and a ``git`` program that cannot run."""
 
+    import agent_runtime.realm_sync.git  # noqa: F401 -- imported BEFORE the stand-in is placed: a module
+    import agent_runtime.realm_sync.git_binary  # noqa: F401 -- first imported under it keeps it after the test
     from tests.agent_runtime.conftest import _use_realm_sync_backend
 
     _use_realm_sync_backend(monkeypatch, "dulwich")
