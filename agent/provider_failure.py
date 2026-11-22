@@ -63,8 +63,9 @@ def provider_failure_block(
 
 def provider_code_fields(result: Any) -> dict[str, str]:
     """``{"provider_code": …}`` for a failed result whose ``provider_error`` block holds the provider's
-    own refusal code (``details.error_code``), else ``{}``: what ``agent.error_surface`` adds to a
-    turn's ``error_surface`` beside its unchanged ``code``, so a saved failed turn still names why
+    own refusal code (``details.error_code``), else ``{}``: what a failed turn's saved
+    ``error_surface`` (``agent.conversation_loop._failed_turn_display_metadata``) carries beside its
+    unchanged ``code``, so a saved failed turn still names why
     the provider refused (an organization that forbids this sign-in is not told to sign in again)."""
     block = result.get("provider_error") if isinstance(result, dict) else None
     if not isinstance(block, dict) or block.get(DETAIL_CODE_MARKER) is not True:

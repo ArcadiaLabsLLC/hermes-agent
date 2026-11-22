@@ -1927,6 +1927,11 @@ def _failed_turn_display_metadata(agent, result: dict) -> dict:
         logger.debug("failed-turn error surface unavailable", exc_info=True)
         surface = None
     error = str(result.get("error") or "").strip()[:_FAILED_TURN_ERROR_MAX_CHARS]
+    if surface:
+        # Fork: the provider's own refusal code beside the unchanged ``code`` (agent/provider_failure.py).
+        from agent.provider_failure import provider_code_fields
+
+        surface.update(provider_code_fields(result))
     metadata = {k: v for k, v in (("error", error), ("error_surface", surface)) if v}
     return _redact_display_metadata(metadata)
 

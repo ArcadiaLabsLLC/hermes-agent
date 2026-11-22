@@ -109,7 +109,7 @@ def test_a_saved_failed_turns_error_card_names_the_providers_own_refusal_code(ag
     # The live refusal card said "does not allow this kind of sign-in", but the failed turn's saved
     # row read "Sign in to that provider again": its error_surface carried only `code: auth`.
     # MUTATION: drop the `surface.update(provider_code_fields(result))` call in
-    # agent/error_surface.py::build_error_surface_from_result and this test reddens.
+    # agent/conversation_loop.py::_failed_turn_display_metadata and this test reddens.
     from agent.conversation_loop import _failed_turn_display_metadata
 
     agent.client.chat.completions.create.side_effect = organization_refusal()
@@ -123,10 +123,10 @@ def test_a_refusal_without_a_detail_code_names_no_provider_code(agent):
     # The block's `reason` is the classifier's evidence (`error.type` here), not the provider's
     # `details.error_code`, so the card must not read it as one.
     # MUTATION: make provider_code_fields skip the DETAIL_CODE_MARKER test and this test reddens.
-    from agent.error_surface import build_error_surface_from_result
+    from agent.conversation_loop import _failed_turn_display_metadata
 
     agent.client.chat.completions.create.side_effect = sdk_error(401, "invalid_api_key")
     with patch.object(agent, "_summarize_api_error", side_effect=lambda _: "Changed wording"):
         result = agent.run_conversation("test")
     assert result["provider_error"]["reason"] == "invalid_api_key"
-    assert "provider_code" not in build_error_surface_from_result(result, provider="openai")
+    assert "provider_code" not in _failed_turn_display_metadata(agent, result)["error_surface"]
