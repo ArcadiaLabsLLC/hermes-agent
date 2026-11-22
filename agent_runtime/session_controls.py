@@ -12,6 +12,7 @@ import logging
 import threading
 from collections.abc import Callable
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 from .session_control_store import SessionControlStore
 
@@ -172,26 +173,154 @@ def pending_session_approvals(session_id: str) -> list[dict]:
             for row in rows]
 
 
+#: A dispatched helper's chat root -> the ROOT lead chat it acts for, as its latest turn found it.
+#: Written by :func:`session_approval_scope` only: a dispatched turn records its root lead, any other
+#: turn of that chat drops the entry, so a helper that dispatches in turn passes its own lead up the
+#: chain (``A -> B -> C``: C answers to A) and a chat a person drives again is its own root. Bounded;
+#: an evicted entry makes the requester its own lead (its chat's mode), never a looser one by design.
+_dispatch_leads: dict[str, str] = {}
+#: A dispatched turn in flight (its ``turn_key``) -> ``(helper root, human-wait seconds at its start)``:
+#: what :func:`dispatched_person_wait_seconds` reads for the turn's budget clocks.
+_dispatched_turns: dict[str, tuple[str, float]] = {}
+_dispatch_lock = threading.Lock()
+_DISPATCH_LEADS_MAX = 1024
+
+
+@dataclass(frozen=True)
+class TurnApprovalPolicy:
+    """What governs one turn's flagged steps: its mode, whether a person-wait expires, the lead's
+    deny globs and the chat whose policy it is (the lead's root for a dispatched turn)."""
+
+    mode: str
+    dispatched: bool = False
+    lead_root: str = ""
+    lead_deny: tuple[str, ...] = ()
+
+
+def _lead_policy(lead_root: str) -> TurnApprovalPolicy | None:
+    """The lead chat's policy, read from THIS install's own records, or None when this install does
+    not hold that chat (a turn sent from another install keeps the helper's own policy).
+
+    The mode is the lead chat's saved ``approval_mode``, else the lead profile's ``approvals.mode`` read in
+    the lead's profile home; the lead profile's ``approvals.deny`` globs come with it. Nothing is read
+    from the dispatch request but the chat id it names."""
+    from .persona_assignments.lookups import chat_session_owner_persona
+
+    owner = chat_session_owner_persona(lead_root)
+    if owner is None:
+        return None
+    from .approval_surface_policy import approval_policy_mode
+    from .profile_context import process_home_scope, resolve_persona_profile
+    from .profile_home import get_hermes_head_home
+    from .store import AgentStore
+    from tools.approval_context import _get_approval_config
+
+    try:
+        persona = AgentStore().get(owner[0])
+    except Exception:
+        logger.warning("the lead of %s is not in this install's roster; the helper keeps its own policy",
+                       lead_root, exc_info=True)
+        return None
+    binding = resolve_persona_profile(persona)
+    # A lead bound to no profile runs on the head home, not on the helper's profile home this turn holds.
+    with process_home_scope(binding.profile_home or get_hermes_head_home()):
+        profile_mode = approval_policy_mode()
+        deny = _get_approval_config().get("deny") or []
+    mode = SessionControlStore().read(lead_root).get("approval_mode", profile_mode)
+    return TurnApprovalPolicy(mode=mode, dispatched=True, lead_root=lead_root,
+                              lead_deny=tuple(glob for glob in deny if isinstance(glob, str) and glob.strip()))
+
+
+def turn_approval_policy(session_id: str, *, requested_by_session: str | None = None) -> TurnApprovalPolicy:
+    """THE answer to "whose approval policy governs this turn" (row
+    ``RT-FU-A-DISPATCHED-HELPERS-APPROVAL-EXPIRES-UNSEEN-IN-60-SECONDS``, owner 2026-11-22 "1 a / 2 keep").
+
+    A managed install's policy wins for every turn. A turn another chat of this install dispatched
+    (``requested_by_session``) follows the ROOT lead of its chain: that chat's mode, its profile's deny
+    globs added to the helper's own, and a person-wait with no expiry. Any other turn: its own chat's
+    saved mode, else its profile's. Never raises for a missing lead: the helper keeps its own policy."""
+    from hermes_cli.config import is_managed
+
+    from .approval_surface_policy import approval_policy_mode
+
+    if is_managed():
+        return TurnApprovalPolicy(mode=approval_policy_mode())
+    requester = str(requested_by_session or "").strip()
+    if requester and requester != session_id:
+        with _dispatch_lock:
+            lead_root = _dispatch_leads.get(requester, requester)
+        try:
+            lead = _lead_policy(lead_root)
+        except Exception:
+            logger.warning("the lead policy of %s was not read; the helper keeps its own", lead_root, exc_info=True)
+            lead = None
+        if lead is not None:
+            return lead
+    return TurnApprovalPolicy(mode=SessionControlStore().read(session_id).get("approval_mode", approval_policy_mode()))
+
+
+def _record_turn_origin(session_id: str, policy: TurnApprovalPolicy) -> None:
+    with _dispatch_lock:
+        _dispatch_leads.pop(session_id, None)
+        if policy.dispatched and policy.lead_root and policy.lead_root != session_id:
+            while len(_dispatch_leads) >= _DISPATCH_LEADS_MAX:
+                _dispatch_leads.pop(next(iter(_dispatch_leads)))
+            _dispatch_leads[session_id] = policy.lead_root
+
+
+def dispatched_person_wait_seconds(turn_key: str | None) -> float:
+    """Seconds the dispatched turn ``turn_key`` has spent waiting on a person so far (0 for any other
+    turn). Its budget clocks add them back, so a person-wait never ends a helper as over budget.
+
+    Read under the no-expiry window the turn's own wait runs under, so upstream's per-window ceiling
+    (``approvals.timeout`` + margin) cannot cut a long wait short from a supervisor's thread."""
+    with _dispatch_lock:
+        entry = _dispatched_turns.get(str(turn_key or ""))
+    if entry is None:
+        return 0.0
+    from tools.approval_human_wait import human_wait_seconds
+
+    from .approval_surface_policy import approval_policy_mode, scoped_approval_policy
+
+    with scoped_approval_policy(approval_policy_mode(), wait_without_expiry=True):
+        return max(0.0, human_wait_seconds(entry[0]) - entry[1])
+
+
 @contextmanager
-def session_approval_scope(session_id: str | None):
-    """Use Hermes' authoritative queue/wait/timeout lifecycle on this operator root."""
+def session_approval_scope(session_id: str | None, *, requested_by_session: str | None = None,
+                           turn_key: str | None = None):
+    """Use Hermes' authoritative queue/wait/timeout lifecycle on this operator root.
+
+    The queue is always this chat's own (a dispatched helper's card shows in its lead's chat through the
+    dispatch thread binding); the POLICY is :func:`turn_approval_policy`'s. ``turn_key`` (the turn's
+    ``client_message_id``) names a dispatched turn for :func:`dispatched_person_wait_seconds`."""
     if not session_id:
         yield
         return
     from tools.approval import register_gateway_notify, unregister_gateway_notify
-    from hermes_cli.config import is_managed
     from tools.approval_context import reset_current_session_key, set_current_session_key
+    from tools.approval_human_wait import human_wait_seconds
 
-    from .approval_surface_policy import approval_policy_mode, scoped_approval_policy
+    from .approval_surface_policy import scoped_approval_policy
 
-    mode = approval_policy_mode() if is_managed() else SessionControlStore().read(session_id).get("approval_mode", approval_policy_mode())
+    policy = turn_approval_policy(session_id, requested_by_session=requested_by_session)
+    _record_turn_origin(session_id, policy)
     token = set_current_session_key(session_id)
     # The existing queue is the replay authority, read by the attached console; a registered
     # notifier (approval cards, M4) is told as well.
     register_gateway_notify(session_id, lambda data: _notify_root(session_id, data))
+    key = str(turn_key or "") if policy.dispatched else ""
     try:
-        with scoped_approval_policy(mode, gateway_session=True):
+        with scoped_approval_policy(policy.mode, gateway_session=True, wait_without_expiry=policy.dispatched,
+                                    also_deny=policy.lead_deny):
+            if key:
+                baseline = human_wait_seconds(session_id)
+                with _dispatch_lock:
+                    _dispatched_turns[key] = (session_id, baseline)
             yield
     finally:
+        if key:
+            with _dispatch_lock:
+                _dispatched_turns.pop(key, None)
         unregister_gateway_notify(session_id)
         reset_current_session_key(token)

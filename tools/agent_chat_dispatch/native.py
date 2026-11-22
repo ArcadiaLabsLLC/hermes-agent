@@ -6,7 +6,8 @@ resolution and job lifecycle — never in a second Hermes spawned for it. It the
 same door as the inline relay and the delivery forge (``agent_runtime.mission_chat_door``, bound to the
 CLI's turn handler at serve boot), on a thread of this process. What a turn gets from that door, it gets
 here unchanged: the helper's own approval queue (``tools.approval``'s per-session gateway queue, bound by
-``profile_runner``'s ``session_approval_scope`` on the helper's chat root), the helper's chat model
+``profile_runner``'s ``session_approval_scope`` on the helper's chat root, under its LEAD's approval policy
+with no expiry on a person-wait, which this supervisor's budget does not count), the helper's chat model
 resolution, its background jobs in this process's registry, and its entry in ``live_turns``.
 
 Crash and hang isolation (the row's open question; decided 2026-11-21 by this lane, recorded on the row):
@@ -194,7 +195,11 @@ def run_turn(
             return run
         now = time.monotonic()
         stopping = stop_requested()
-        if not stopping and now >= hard_stop and not run.exit_reason:
+        # A person-wait (the helper's approval card in its lead's chat, no expiry) is not budget spent
+        # (row RT-FU-A-DISPATCHED-HELPERS-APPROVAL-EXPIRES-UNSEEN-IN-60-SECONDS). A Stop still ends it.
+        # MUTATION: drop ``+ _person_wait(args)`` and
+        # test_a_manual_leads_helper_waits_past_its_budget_then_runs reddens.
+        if not stopping and not run.exit_reason and now >= hard_stop and now >= hard_stop + _person_wait(args):
             run.exit_reason = "budget_exceeded"
         if (stopping or run.exit_reason) and not run.interrupted:
             run.interrupted = bool(interrupt(str(args.client_message_id or "")))
@@ -207,6 +212,18 @@ def run_turn(
                 args.client_message_id, abandon_seconds,
             )
             return run
+
+
+def _person_wait(args: SimpleNamespace) -> float:
+    """Seconds this dispatched turn has waited on a person (``session_controls``); 0 when unread."""
+
+    try:
+        from agent_runtime.session_controls import dispatched_person_wait_seconds
+
+        return dispatched_person_wait_seconds(str(args.client_message_id or ""))
+    except Exception:
+        logger.debug("dispatched turn %s: its person-wait was not read", args.client_message_id, exc_info=True)
+        return 0.0
 
 
 def jobs_left_running(payload: dict[str, Any] | None, started_at: float) -> list[dict[str, Any]]:

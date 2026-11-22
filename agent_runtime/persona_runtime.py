@@ -143,6 +143,8 @@ class GPTPersonaRuntime:
         attended: bool | None = None,
         root_chat_session_id: str | None = None,
         client_message_id: str | None = None,
+        # The dispatching agent's chat root (``agent_chat_send``); None for a person's own send.
+        requested_by_session: str | None = None,
         runtime_registry=None,
         runtime_signature: str | None = None,
         # Receipt-only companion to ``runtime_signature``: the per-component
@@ -287,6 +289,7 @@ class GPTPersonaRuntime:
                     reuse_current_user_message=reuse_current_user_message, user_image_paths=tuple(user_image_paths or ()),
                     persona_chat_user_finish_reason=relay_sender_marker,
                     root_chat_session_id=root_chat_session_id or perm_session_id,
+                    requested_by_session=requested_by_session or None,
                     client_message_id=client_message_id,
                     turn_id=turn_id,
                     persona_instance_id=persona_instance_id,

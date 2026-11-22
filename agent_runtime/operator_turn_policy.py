@@ -313,6 +313,8 @@ class OperatorTurn:
         #: Set once the runtime is resolved: the turn's converse reuses the acquisition's answer
         #: (one resolve per turn).
         self._resolved = False
+        #: Set when the conversation's wall timers are torn down (``converse_under_wall``).
+        self._wall_closed = False
 
     # ── the turn ────────────────────────────────────────────────────────────
 
@@ -464,7 +466,9 @@ class OperatorTurn:
             # delegations from this run carry a session_key the completion
             # drain can resolve to a chat root (see chat_root_session_key_scope).
             chat_root_session_key_scope(request.tool_execution_scope_id),
-            session_approval_scope(None if request.prewarm_only else request.root_chat_session_id),
+            session_approval_scope(None if request.prewarm_only else request.root_chat_session_id,
+                                   requested_by_session=request.requested_by_session,
+                                   turn_key=request.client_message_id),
             # Bound for the whole run so the terminal tool can resolve which
             # lane/role it is executing under. Deliberately INSIDE
             # persona_profile_context but independent of it: the envelope's
@@ -807,7 +811,8 @@ class OperatorTurn:
                 raise self.wall_exceeded(max_wall_seconds)
             raise
         finally:
-            for timer in timers:
+            self._wall_closed = True  # a re-armed wall (``wall_timer_fired``) arms nothing after this
+            for timer in list(timers):
                 timer.cancel()
             _cleanup_agent_ready(agent_ready_cleanup, request)
         if expired.is_set():
@@ -839,11 +844,33 @@ class OperatorTurn:
             checkpoint_timer.daemon = True
             checkpoint_timer.start()
             timers.append(checkpoint_timer)
-        timer = Timer(max_wall_seconds, lambda: self.interrupt_for_budget(max_wall_seconds, expired))
+        timer = Timer(max_wall_seconds, lambda: self.wall_timer_fired(max_wall_seconds, expired, timers, 0.0))
         timer.daemon = True
         timer.start()
         timers.append(timer)
         return timers
+
+    def wall_timer_fired(self, max_wall_seconds: float, expired: Event, timers: list[Timer], credited: float) -> None:
+        """The hard wall, less a dispatched turn's person-wait: a helper waiting on its lead's person
+        (an approval card with no expiry) is not over budget for it (row
+        ``RT-FU-A-DISPATCHED-HELPERS-APPROVAL-EXPIRES-UNSEEN-IN-60-SECONDS``). The timer re-arms for the
+        wait not yet credited; any other turn's wait reads 0 and the wall fires as before."""
+
+        from agent_runtime.session_controls import dispatched_person_wait_seconds
+
+        if self._wall_closed:
+            return
+        waited = dispatched_person_wait_seconds(self.request.client_message_id)
+        # MUTATION: fire the wall here regardless of ``waited`` and
+        # test_the_turns_hard_wall_waits_out_a_person_wait reddens.
+        if waited > credited + 0.05 and not expired.is_set():
+            timer = Timer(waited - credited,
+                          lambda: self.wall_timer_fired(max_wall_seconds, expired, timers, waited))
+            timer.daemon = True
+            timers.append(timer)
+            timer.start()
+            return
+        self.interrupt_for_budget(max_wall_seconds, expired)
 
     def interrupt_for_budget(self, max_wall_seconds: float, expired: Event) -> None:
         expired.set()

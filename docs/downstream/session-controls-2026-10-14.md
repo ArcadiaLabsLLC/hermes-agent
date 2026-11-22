@@ -32,6 +32,27 @@ action. Timeout, withdrawal and turn interruption fail closed; scope cleanup wak
 waiters. Hosted policy and YOLO bypass are reported; governed/bypassed settings are
 read-only. Managed profiles do not consume saved chat overrides.
 
+**A dispatched helper's turn follows its lead (2026-11-22, row
+`RT-FU-A-DISPATCHED-HELPERS-APPROVAL-EXPIRES-UNSEEN-IN-60-SECONDS`, owner "1 a / 2 keep").**
+`session_controls.turn_approval_policy` is the one answer to "whose policy governs this
+turn". A turn another chat of this install dispatched (`requested_by_session` on the
+request, threaded from the mission-chat handler) runs under the ROOT lead of its chain:
+the lead chat's saved mode, else the lead profile's, read in the lead's profile home (the
+head home for a lead bound to no profile). The queue stays the helper's own chat root (the
+card shows in the lead's chat through the dispatch thread binding). The lead's Smart
+reviewer or the person in the lead's chat answers; the lead's agent is never woken to
+judge. A person-wait has no expiry, and the lead profile's `approvals.deny` globs are
+added to the helper's own. Both ride the fork's read projection
+(`hermes_cli/config_read_scope.readonly_section_scope`, bound by
+`approval_surface_policy.scoped_approval_policy`), so no upstream file changed. The hard
+floors (hardline, `sudo -S` piping, both deny lists) hold under every mode, an Off lead's
+helper included. A chat this install does not hold (a cross-install turn names none) leaves
+the helper's own policy. The supervisor (`native.run_turn`) and the turn's own hard wall
+(`OperatorTurn.wall_timer_fired`) add the person-wait back
+(`dispatched_person_wait_seconds`), so a wait never ends as `budget_exceeded`. A Stop
+still ends the wait, fail-closed. Pinned by
+`tests/agent_runtime/test_dispatched_helper_approvals.py`.
+
 The two additive upstream doors are recorded in the footprint ledger. No upstream
 PR was submitted. Launcher consumption and UI evidence live in
 `EterniaLauncher/docs/mission_control/evidence/session-controls-2026-10-14.md`.

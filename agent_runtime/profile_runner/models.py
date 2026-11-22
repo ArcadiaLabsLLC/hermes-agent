@@ -68,6 +68,10 @@ class AgentRunRequest:
     turn_id: str | None = None
     persona_instance_id: str | None = None
     root_chat_session_id: str | None = None
+    #: The chat root of the agent that dispatched this turn (``agent_chat_send``), None for a person's
+    #: own send. Names the lead whose approval policy governs the turn
+    #: (``session_controls.turn_approval_policy``); never a mode, only a chat this install resolves.
+    requested_by_session: str | None = None
     persona_chat_runtime_registry: Any | None = None
     persona_chat_runtime_signature: str | None = None
     #: The per-component digest map the signature above was folded from

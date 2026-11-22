@@ -681,6 +681,8 @@ class _RunPhases:
                 attended=attended_for_requester(self.turn_record.requested_by),
                 root_chat_session_id=self.session_id,
                 client_message_id=self.client_message_id,
+                # Whose approval policy governs this turn (a dispatched helper follows its lead's).
+                requested_by_session=self.requested_by_session,
                 runtime_registry=self.runtime_registry,
                 runtime_signature=turn_context.runtime_signature,
                 # Receipt-only: lets a refused reuse name the component that
