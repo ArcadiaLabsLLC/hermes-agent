@@ -12,7 +12,8 @@ Killing mutations (each recorded red, named at its test):
   instead of looking it up among the enumerated roots;
 * ``agent_tree._admissible``: drop the engine-home check;
 * ``reader.read``: drop the size check;
-* ``call_authorization.COMPUTER_LOOK_METHOD_ALLOWLIST``: leave the three verbs out.
+* ``call_authorization.COMPUTER_LOOK_METHOD_ALLOWLIST``: leave the three verbs out;
+* ``agent_files``: a verb's tier back to ``TIER_READ`` (a view-only device reads the project).
 """
 
 from __future__ import annotations
@@ -203,9 +204,25 @@ def test_a_computer_with_no_grant_and_a_peer_are_refused(two_roots, verb):
         assert _reason(_call(verb, _params(verb), caller=caller)) == ca.REASON_SCOPE_DENIED, caller.kind
 
 
+def _device(tier: str) -> ca.RpcCaller:
+    return ca.RpcCaller(kind=ca.CALLER_DEVICE, connection_key="d", transport="gateway",
+                        device_id="phone-1", device_tier=tier, device_kind=ca.DEVICE_KIND_DEVICE)
+
+
 @pytest.mark.parametrize("verb", VERBS)
-def test_the_verbs_are_read_tier_so_a_viewer_device_driving_the_computer_reaches_them(two_roots, verb):
-    assert serve_rpc.registry.method_tier(verb) == ca.TIER_READ
-    viewer = ca.RpcCaller(kind=ca.CALLER_DEVICE, connection_key="d", transport="gateway",
-                          device_id="phone-1", device_tier=ca.TIER_READ, device_kind=ca.DEVICE_KIND_DEVICE)
-    assert "result" in _call(verb, _params(verb), caller=viewer)
+def test_a_view_only_device_is_refused_the_files_as_it_is_the_chats(two_roots, verb):
+    """MUTATION (``agent_files``: a verb's tier back to ``TIER_READ``): the viewer reads the project.
+
+    Row ``RT-FU-A-VIEW-ONLY-DEVICE-CANNOT-READ-AN-AGENTS-PROJECT-FILES``: a device paired ``read`` is
+    refused ``runtime.persona.chat.history``, so it is refused the files the chats are about.
+    """
+
+    assert serve_rpc.registry.method_tier(verb) == ca.TIER_CONSOLE
+    assert _reason(_call(verb, _params(verb), caller=_device(ca.TIER_READ))) == ca.REASON_SCOPE_DENIED
+
+
+@pytest.mark.parametrize("verb", VERBS)
+def test_a_console_device_driving_the_computer_still_reads_the_files(two_roots, verb):
+    """MUTATION (``call_authorization.LOCAL_CONSOLE_METHODS``: add the verbs, owner-only): the default phone is refused."""
+
+    assert "result" in _call(verb, _params(verb), caller=_device(ca.TIER_CONSOLE))
