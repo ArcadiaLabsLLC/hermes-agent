@@ -140,6 +140,26 @@ def test_a_desktop_keeps_upstreams_file_tools():
     assert tools.register_phone_file_tools(lambda *a, **k: pytest.fail("registered on a desktop")) == []
 
 
+def test_the_phones_installed_profile_registers_them_though_upstreams_is_findable(monkeypatch):
+    """RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-AGENTS-FILE-TOOLS: the phone ships
+    ``tools.file_tools`` pinned in its forced tree, so it is findable there; the installed profile, which
+    switches it off, decides. Killing mutation: drop the ``installed_switched_off`` check from
+    ``upstream_file_tools_shipped`` -> the presence probe answers True and nothing registers, red."""
+
+    import importlib.util
+    import sys
+
+    from agent_runtime import bundled_toolsets
+
+    monkeypatch.setattr(bundled_toolsets, "PHONE_PLATFORMS", frozenset({*bundled_toolsets.PHONE_PLATFORMS, sys.platform}))
+    assert importlib.util.find_spec("tools.file_tools") is not None  # findable, as in phone_forced/
+    assert bundled_toolsets.installed_switched_off("tools.file_tools")
+    seen = []
+    assert tools.register_phone_file_tools(lambda name, **kw: seen.append(name)) == [
+        "read_file", "write_file", "patch", "search_files"]
+    assert seen == ["read_file", "write_file", "patch", "search_files"]
+
+
 def test_the_phone_profile_turns_the_file_toolset_on_and_still_ships_no_upstream_file_tool():
     from agent_runtime.bundle_profiles.manifest import load_profile
 

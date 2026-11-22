@@ -548,14 +548,20 @@ w1118a.79). `agent_runtime/reverse_lane/`:
   (`serve_gateway_auth/proof.py::reverse_lane_proof`), verified against the phone's grant
   (`reverse_lane/grants.py`). The caller is `computer` with the grant level `look` or `chat`,
   answered from an allowlist per level by `call_authorization`'s computer arm, placed like the
-  peer arm before the read opening; `LOCAL_CONSOLE_METHODS` stay refused.
+  peer arm before the read opening; `LOCAL_CONSOLE_METHODS` stay refused. The third level,
+  `account`, is a computer the phone's own signed-in Eternia proved is on the phone's account
+  (hermes never sees accounts; only that Eternia calls the local-console grant verb): it is
+  answered by the paired-device rule for a `console`-tier device
+  (`call_authorization.paired_device_answers`, the device arm's own predicate), so it reaches
+  what one paired computer reaches on another, the phone's provider sign-ins and keys included
+  (owner 2026-11-22), and `LOCAL_CONSOLE_METHODS` stay refused to it.
 - **The grant is bound to the pairing.** A dial whose device id is not the grant's pairing finds
   no grant (a re-pair starts with none); a dial refused `bad_proof` (the computer unpaired the
   phone) deletes the phone's grant for that computer; turning a grant off closes its lane.
 - **The grant, offer and accept (two consents)** (Eternia row
   `MC-PHONE-DRIVEN-A-PHONE-LETS-A-PAIRED-COMPUTER-USE-ITS-AGENTS`, plan §15). The phone's owner
   asks its engine to grant (`runtime.gateway.reverse.grant`: the computer's address, pin and the
-  phone's credential on it, plus `look` | `chat`). The engine mints the grant and offers the
+  phone's credential on it, plus `look` | `chat` | `account`). The engine mints the grant and offers the
   computer its credential ONCE over its own pinned device connection
   (`runtime.gateway.reverse.offer`, read tier, answered only to a plain paired device, as
   itself); the minted token never reaches the phone's Eternia. An offer that does not land

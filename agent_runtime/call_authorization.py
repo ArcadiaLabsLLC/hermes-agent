@@ -90,6 +90,8 @@ __all__ = [
     "CHANNEL_METHOD_ALLOWLIST",
     "CLI_CONSOLE",
     "COMPUTER_CHAT_METHOD_ALLOWLIST",
+    "COMPUTER_GRANTS",
+    "COMPUTER_GRANT_ACCOUNT",
     "COMPUTER_GRANT_CHAT",
     "COMPUTER_GRANT_LOOK",
     "COMPUTER_LOOK_METHOD_ALLOWLIST",
@@ -112,6 +114,7 @@ __all__ = [
     "RpcCaller",
     "authorize_call",
     "caller_for_connection",
+    "paired_device_answers",
     "service_backstop",
 ]
 
@@ -425,6 +428,21 @@ _COMPUTER_ALLOWLISTS: dict[str, frozenset[str]] = {
     COMPUTER_GRANT_CHAT: COMPUTER_CHAT_METHOD_ALLOWLIST,
 }
 
+#: **The third level: a computer on the phone's OWN account** (hermes row
+#: ``RT-PHONE-DRIVEN-A-COMPUTER-ON-THE-PHONES-OWN-ACCOUNT-IS-ANSWERED-LIKE-A-PAIRED-COMPUTER``, owner
+#: 2026-11-22: "it should share everything like computer to computer its your account"). It has no
+#: allowlist: it is answered by the paired-device rule for a ``console``-tier device
+#: (:func:`paired_device_answers`), the one place that rule lives, so the two can never drift.
+#: ``LOCAL_CONSOLE_METHODS`` stay refused to it like every remote caller (the machine-owner arm runs
+#: first). hermes never sees an account: only ``runtime.gateway.reverse.grant`` sets a level, a
+#: local-console verb the phone's own signed-in Eternia alone calls, and that Eternia proves the
+#: account match (Eternia row ``MC-PHONE-DRIVEN-A-COMPUTER-ON-YOUR-ACCOUNT-USES-YOUR-PHONES-AGENTS-LIKE-ANOTHER-COMPUTER``).
+#: With it the computer reaches the phone's provider sign-ins and keys (plain console tier) exactly
+#: as one paired computer reaches another's: the owner's ruling, said here so it is seen.
+COMPUTER_GRANT_ACCOUNT = "account"
+#: Every level a grant row may hold, least first. ``reverse_lane.grants`` reads its words from here.
+COMPUTER_GRANTS: tuple[str, ...] = (COMPUTER_GRANT_LOOK, COMPUTER_GRANT_CHAT, COMPUTER_GRANT_ACCOUNT)
+
 DEVICE_KIND_DEVICE = "device"
 DEVICE_KIND_CHANNEL = "channel"
 DEVICE_KINDS: tuple[str, ...] = (DEVICE_KIND_DEVICE, DEVICE_KIND_CHANNEL)
@@ -604,7 +622,7 @@ def caller_for_connection(connection: Any) -> RpcCaller:
     computer_id = getattr(connection, "computer_id", None)
     computer_id = computer_id if isinstance(computer_id, str) and computer_id else None
     computer_grant = getattr(connection, "computer_grant", None)
-    computer_grant = computer_grant if computer_grant in _COMPUTER_ALLOWLISTS else None
+    computer_grant = computer_grant if computer_grant in COMPUTER_GRANTS else None
     stamps = sum(value is not None for value in (peer_install_id, device_id, computer_id))
     if stamps > 1 or (computer_id is not None and computer_grant is None):
         # Two identities, or a computer without a grant it may hold: the transport does
@@ -728,10 +746,15 @@ def _computer_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorizatio
 
     if resolved.kind != CALLER_COMPUTER:
         return None
-    allowlist = _COMPUTER_ALLOWLISTS.get(str(resolved.computer_grant or ""), frozenset())
-    # MUTATION: admit `tier == TIER_CONSOLE` for the chat grant (the grant mapped to the console
-    # tier) and test_reverse_lane's never-served test sees sign-in and key set answered.
-    admitted = bool(name) and name in allowlist
+    if resolved.computer_grant == COMPUTER_GRANT_ACCOUNT:
+        # MUTATION: answer this level from the chat allowlist and test_reverse_lane's
+        # account-level registry test sees a console verb a console device is answered refused.
+        admitted = paired_device_answers(TIER_CONSOLE, name, tier)
+    else:
+        allowlist = _COMPUTER_ALLOWLISTS.get(str(resolved.computer_grant or ""), frozenset())
+        # MUTATION: admit `tier == TIER_CONSOLE` for the chat grant (the grant mapped to the console
+        # tier) and test_reverse_lane's never-served test sees sign-in and key set answered.
+        admitted = bool(name) and name in allowlist
     return CallAuthorization(
         ok=admitted,
         reason="computer_allowlisted" if admitted else REASON_SCOPE_DENIED,
@@ -739,6 +762,21 @@ def _computer_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorizatio
         caller_kind=resolved.kind,
         detail=None if admitted else _computer_refusal_words(name, resolved.computer_grant),
     )
+
+
+def paired_device_answers(held_tier: str | None, name: str, tier: str) -> bool:
+    """THE paired-device rule: is a device holding *held_tier* answered verb *name* at *tier*?
+
+    Read verbs are open; a console verb wants a held ``console``; a ``LOCAL_CONSOLE_METHODS`` verb
+    is refused however strong the credential, and an unknown tier is refused. The device arm and
+    the computer arm's account level both answer by this one function (never a copied list).
+    """
+
+    if name and name in LOCAL_CONSOLE_METHODS:
+        return False
+    if tier not in TIERS or held_tier not in TIERS:
+        return False
+    return tier == TIER_READ or held_tier == tier
 
 
 def _computer_refusal_words(name: str, grant: str | None) -> str:
@@ -887,8 +925,7 @@ def authorize_call(
         # not know must refuse rather than compare-unequal-and-fall-through to
         # some later arm. There is no later arm today; there is no reason to
         # depend on that staying true.
-        held = resolved.device_tier
-        if held in TIERS and held == normalized:
+        if paired_device_answers(resolved.device_tier, name, normalized):
             return CallAuthorization(
                 ok=True,
                 reason="device_tier",

@@ -166,6 +166,11 @@ class ProfileManifest:
     packaging_strip_class_and_module_docstrings: bool = False
     #: what the packager's pool phase installs (:class:`PoolScope`); absent = the whole export
     packaging_pool: PoolScope = PoolScope.EXPORT
+    #: switched-off module -> why it ships anyway: a shipped module imports it lazily and unguarded on a
+    #: path a device runs, so it joins the forced set (with its module-level imports) as a pinned module
+    #: does. The judgement for a lazy edge the walk cannot see from kept code (it runs inside a forced
+    #: module); ``scripts/bundle_profile_gate.py`` counts the lazy edges into unshipped modules left unjudged.
+    packaging_forced_modules: Mapping[str, str] = dataclasses.field(default_factory=dict)
 
 
 def manifest_path(profile: str) -> Path:
@@ -299,6 +304,7 @@ def parse_manifest(data: Any, *, validate: bool = True) -> ProfileManifest:
         packaging_strip_class_and_module_docstrings=_manifest_flag(
             packaging.get("strip_class_and_module_docstrings"), "packaging.strip_class_and_module_docstrings"),
         packaging_pool=_pool_scope(packaging.get("pool")),
+        packaging_forced_modules=_reasons(packaging.get("forced_modules"), "packaging.forced_modules"),
     )
     if validate:
         validate_manifest(manifest)

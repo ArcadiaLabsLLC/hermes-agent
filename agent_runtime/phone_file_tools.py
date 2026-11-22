@@ -6,7 +6,8 @@ Eternia row ``MC-PHONE-FILES-A-PHONE-AGENT-READS-AND-WRITES-ITS-PROJECT-FILES`` 
 (``cat``, ``rg``, ``python3 -c``; ``_get_file_ops`` builds a terminal environment), and its lint and
 search halves spawn too. A phone starts no process, so the phone wheel ships none of them
 (``bundled-phone.yaml``). This module is the FORK-SIDE replacement, registered only where upstream's
-module is not shipped (:func:`register_phone_file_tools`), under upstream's own names and toolset
+does not run (:func:`upstream_file_tools_shipped`: the installed profile switches it off), by the phone's
+embedded entry (:func:`ensure_phone_file_tools`), under upstream's own names and toolset
 (``file``: ``read_file``, ``write_file``, ``patch``, ``search_files``) so a model's habits, the skills
 that name them and the eternia-harness ``pre_tool_call`` guard all apply unchanged. Upstream's bytes
 are untouched; ``tools.terminal_tool`` stays out of the phone's import closure.
@@ -40,7 +41,7 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["PHONE_FILE_TOOLS", "register_phone_file_tools", "upstream_file_tools_shipped"]
+__all__ = ["PHONE_FILE_TOOLS", "ensure_phone_file_tools", "register_phone_file_tools", "upstream_file_tools_shipped"]
 
 #: Upstream's toolset and tool names: ``toolsets.TOOLSETS["file"]``.
 TOOLSET = "file"
@@ -621,20 +622,37 @@ PHONE_FILE_TOOLS: tuple[tuple[str, Any, dict], ...] = (
 )
 
 
+#: Upstream's file tools: switched off on a phone, yet shipped there pinned in ``phone_forced/`` (kept code
+#: imports it lazily and unguarded: ``agent.client_lifecycle``'s turn-end ``forget_file_state``).
+UPSTREAM_MODULE = "tools.file_tools"
+
+
 def upstream_file_tools_shipped() -> bool:
-    """Whether this install ships upstream's file tools (every desktop does; the phone wheel does not)."""
+    """Whether this install runs upstream's file tools (every desktop does; the phone does not).
+
+    The INSTALLED profile answers first (``bundled_toolsets.installed_switched_off``, the one owner of what
+    a phone runs): the phone ships ``tools.file_tools`` pinned in its forced tree, mounted on
+    ``tools.__path__``, so a presence probe finds it there (row
+    RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-AGENTS-FILE-TOOLS)."""
 
     import importlib.util
 
+    from agent_runtime.bundled_toolsets import installed_switched_off
+
+    # MUTATION: drop this and the phone, where the forced tree makes the module findable, registers
+    # nothing (test_phone_file_tools: test_the_phones_installed_profile_registers_them_though_upstreams_is_findable).
+    if installed_switched_off(UPSTREAM_MODULE):
+        return False
     try:
-        return importlib.util.find_spec("tools.file_tools") is not None
+        return importlib.util.find_spec(UPSTREAM_MODULE) is not None
     except (ImportError, ValueError):
         return False
 
 
 def register_phone_file_tools(register) -> list[str]:
     """Register the four tools through ``register(name, toolset=, schema=, handler=, emoji=)`` (a plugin
-    context's ``register_tool``), only where upstream's are not shipped; the names registered."""
+    context's ``register_tool``, or the registry's own ``register``), only where upstream's are not
+    shipped; the names registered."""
 
     # MUTATION: register them on a desktop too and they shadow upstream's file tools
     # (test_phone_file_tools: test_a_desktop_keeps_upstreams_file_tools).
@@ -644,6 +662,27 @@ def register_phone_file_tools(register) -> list[str]:
         register(name, toolset=TOOLSET, schema=schema, handler=handler, emoji="📄")
     _layer_v4a_on_patch()
     return [name for name, _, _ in PHONE_FILE_TOOLS]
+
+
+def ensure_phone_file_tools() -> list[str]:
+    """The embedded entry's registration (``EmbeddedServe.start``): a phone ships no eternia-harness plugin,
+    so nothing else registers them there, and the packager's walk keeps this module through that call.
+
+    Upstream's module, where it ships pinned, is imported FIRST: its module-level ``registry.register``
+    calls take the same names in the same toolset, so the first lazy import of it (the turn-end
+    ``forget_file_state``) would otherwise put upstream's shell-backed tools back under the four names."""
+
+    if upstream_file_tools_shipped():
+        return []
+    try:
+        # MUTATION: skip this import and the phone's second turn runs upstream's read_file
+        # (test_phone_bundle_turn_closure: test_three_phone_call_paths_run_on_only_what_the_phone_bundle_ships).
+        import tools.file_tools  # noqa: F401 -- for its registrations, before the phone's take the names
+    except Exception:  # noqa: BLE001 -- not shipped, or failing at import: then no later import registers it
+        pass
+    from tools.registry import registry
+
+    return register_phone_file_tools(registry.register)
 
 
 def _layer_v4a_on_patch() -> None:

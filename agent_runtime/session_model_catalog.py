@@ -33,7 +33,7 @@ def choices(inventory: dict) -> dict[str, tuple[str, str]]:
     return result
 
 
-def _inventory_provider(provider, model, inventory: dict):
+def inventory_provider(provider, model, inventory: dict):
     """The inventory's id for a session's ``info.provider`` (RT-MODEL-SELECT-CUSTOM-PROVIDER-UNCONFIRMED).
 
     A Custom-endpoint choice is keyed ``custom:<slug>`` (:func:`provider_id`), but the session's
@@ -51,7 +51,7 @@ def _inventory_provider(provider, model, inventory: dict):
 def facts(conversation_id: str, snapshot: dict, inventory: dict) -> dict:
     info = snapshot.get("info") or {}
     model = info.get("model")
-    provider = _inventory_provider(info.get("provider"), model, inventory)
+    provider = inventory_provider(info.get("provider"), model, inventory)
     current = model_key(provider, model) if provider and model else None
     offered = choices(inventory)
     labels = {provider_id(row): row.get("name") or row["slug"]

@@ -50,6 +50,8 @@ import argparse
 import ast
 import importlib.metadata as md
 import functools
+import importlib
+import importlib.util
 import json
 import sys
 import warnings
@@ -102,16 +104,60 @@ DYNAMIC_IMPORTS: dict[str, tuple[str, ...]] = {
 }
 
 
+#: Every first-party PEP 562 facade whose ``__getattr__`` imports a module named in a table -> the
+#: attribute holding that table (``name -> module``). Each facade module is light and lazy by design,
+#: so importing it to read its table costs nothing. A table value is an absolute module, a relative
+#: one (``.config``), a bare submodule of the facade (``binaries``) or ``<module>:<attr>`` (a plugin
+#: door's rename). ``tests/scripts/test_bundle_profile_closure.py`` holds that every module defining
+#: such a ``__getattr__`` is named here or in :data:`FACADES_NOT_READ`. Only ``pm`` was read before
+#: RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS, so ``tools.connectors.dispatch``, which
+#: every tool call imports through its facade (upstream ``model_tools._execute_tool``), never shipped
+#: on the phone and every tool call there failed.
+FACADE_TABLES = {
+    "pm": "_HOME",
+    "tools.connectors": "_LAZY_EXPORTS",
+    "gateway": "_EXPORTS",
+    "hermes_cli.local_runtime": "_SOURCE",
+    "agent_runtime.serve_socket": "_EXPORTS",
+    "agent_runtime.plugin_doors.harness": "DOOR",
+}
+
+#: Facades the walk does not read, and why.
+FACADES_NOT_READ = {
+    "hermes_cli.main": "the old updaters' frozen surface: only an installed updater reads it, from outside "
+                       "the bundle, and importing hermes_cli.main to read the table loads the whole CLI",
+}
+
+
+def _facade_target(facade: str, value: str) -> str:
+    module = value.partition(":")[0]
+    if module.startswith("."):
+        return importlib.util.resolve_name(module, facade)
+    return module if "." in module else f"{facade}.{module}"
+
+
 def facade_exports() -> dict[str, dict[str, str]]:
-    """PEP 562 facades: package -> {exported name: the module that defines it}.
+    """PEP 562 facades: facade -> {exported name: the module that defines it}.
 
     ``from pm import install_hint`` reads to the AST as an import of ``pm`` alone; the name
     resolves through ``pm.__getattr__`` to ``pm.extras``, so the walk must follow the facade's
-    own table. Read from that table at run time (``pm`` is a light, lazy package), never copied.
+    own table. Read from each table at run time (:data:`FACADE_TABLES`), never copied.
     """
-    import pm
+    out: dict[str, dict[str, str]] = {}
+    for facade, attr in FACADE_TABLES.items():
+        table = getattr(importlib.import_module(facade), attr)
+        out[facade] = {name: _facade_target(facade, value) for name, value in table.items()}
+    return out
 
-    return {"pm": dict(pm._HOME)}
+
+def resolve_owner(dotted: str, index: dict[str, Path], facades: dict[str, dict[str, str]]) -> str | None:
+    """The first-party module an import of ``dotted`` loads: its longest indexed prefix, or, for a
+    name imported from a facade, the module the facade's table says defines it."""
+    owner = _owner(dotted, index)
+    if owner in facades and dotted != owner:
+        target = facades[owner].get(dotted[len(owner) + 1:].partition(".")[0])
+        owner = target if target in index else owner
+    return owner
 
 
 #: Every target a profile may name in ``packaging.targets`` -> its marker environment. A profile
@@ -173,7 +219,9 @@ def profile_walk(manifest, index: dict[str, Path] | None = None, *,
     index = index if index is not None else module_index(plugins=getattr(manifest, "packaging_plugins", ()))
     first_party = {m.split(".")[0] for m in index}
     roots = (*manifest.packaging_roots, *plugin_roots(manifest))
-    return Walk(roots, manifest.switched_off_modules, index, first_party, parents=parents), index
+    walk = Walk(roots, manifest.switched_off_modules, index, first_party, parents=parents)
+    walk.profile_forced = frozenset(getattr(manifest, "packaging_forced_modules", None) or ())
+    return walk, index
 
 
 def _catches_import_error(handler_type) -> bool:
@@ -337,6 +385,9 @@ class Walk:
         self.tops: dict[str, list[str]] = {}
         self.pinned: set[str] = set()
         self.unguarded_into_pruned: list[dict] = []
+        #: switched-off modules the profile ships anyway (``packaging.forced_modules``), set by
+        #: :func:`profile_walk`: each is a judged lazy edge the walk cannot see from kept code
+        self.profile_forced: frozenset[str] = frozenset()
         self.import_sites: dict[str, list[dict]] = {}
         facades = facade_exports()
         # A root prefix (``agent_runtime``) must not seed a switched-off module under it.
@@ -359,10 +410,7 @@ class Walk:
                     package = package.rpartition(".")[0]
             dynamic = ((target, False, False, 0) for target in DYNAMIC_IMPORTS.get(module, ()))
             for dotted, eager, guarded, line in (*_imports(path, module, path.name == "__init__.py"), *dynamic):
-                owner = _owner(dotted, index)
-                if owner in facades and dotted != owner:
-                    target = facades[owner].get(dotted[len(owner) + 1:].partition(".")[0])
-                    owner = target if target in index else owner
+                owner = resolve_owner(dotted, index, facades)
                 if owner is None:
                     top = dotted.split(".")[0]
                     if top and top not in first_party_tops and top not in sys.stdlib_module_names:

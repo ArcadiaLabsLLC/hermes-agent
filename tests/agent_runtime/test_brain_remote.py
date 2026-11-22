@@ -141,6 +141,30 @@ def test_the_measured_count_reaches_the_written_list(tmp_path):
     assert listed["workspaces"]["ws-r"]["slots"][0]["behind"] == 2
 
 
+def test_a_phone_never_asks_the_git_program_for_a_project_brain(tmp_path, monkeypatch):
+    """RT-FU-A-PHONE-NEVER-ASKS-THE-GIT-PROGRAM-TO-CHECK-A-PROJECT-BRAINS-REMOTE: under the phone's installed
+    profile (``agent_runtime.git_cmd`` switched off, though shipped pinned), a bound project holding a brain
+    is checked by no git process and the tick fails nothing. Killing mutation: drop the
+    ``installed_switched_off`` check from ``RemoteCheck.due`` -> a ``run_git`` call per brain, red."""
+    import sys
+
+    from agent_runtime import bundled_toolsets, git_cmd
+    from agent_runtime.store import WorkspaceStore
+    from agent_runtime.workspace_slots import bind, declare
+
+    brain = _behind_by_two(tmp_path, "app")
+    WorkspaceStore().create(name="R", workspace_id="ws-r")
+    declare("ws-r", [{"name": "app", "repo": {"clone_url": "https://example.com/a.git"}}],
+            issued_at="2026-11-02T22:00:00+00:00", machine="m")
+    bind("ws-r", "app", str(brain), issued_at="2026-11-02T22:00:00+00:00")
+    assert RemoteCheck().due() == [(str(brain), "slot")]  # positive control: a desktop checks it
+    calls: list = []
+    monkeypatch.setattr(git_cmd, "run_git", lambda args, **_: calls.append(args))
+    monkeypatch.setattr(bundled_toolsets, "PHONE_PLATFORMS", frozenset({*bundled_toolsets.PHONE_PLATFORMS, sys.platform}))
+    assert RemoteCheck().tick() == {"checked": [], "written": False}
+    assert calls == []
+
+
 def test_the_ticker_ticks_until_stopped(monkeypatch):
     ticks: list[int] = []
     stop = threading.Event()

@@ -357,6 +357,24 @@ def test_the_binding_says_why_it_is_unavailable(monkeypatch):
         native_match.RegexLines.compile("a")
 
 
+def test_the_installed_wheels_locator_is_the_second_source(monkeypatch, tmp_path):
+    """With the variable unset, the binding loads the library the phone wheel's locator names
+    (row RT-PHONE-REGEX-SEARCH-SHIPS-ON-ANDROID); with neither, it says both are missing.
+    Mutation: ``_library_path`` returns "" after the locator import -> red (the wheel is never loaded)."""
+    monkeypatch.delenv(native_match.LIBRARY_ENV, raising=False)
+    monkeypatch.setitem(sys.modules, "eternia_project_files_match", None)  # not installed: import fails
+    assert native_match._library_path() == ""
+    assert native_match.unavailable_reason() == (
+        f"{native_match.LIBRARY_ENV} is not set and the eternia-project-files-match wheel is not installed")
+    located = str(tmp_path / "libproject_files_match.so")
+    monkeypatch.setitem(sys.modules, "eternia_project_files_match",
+                        types.SimpleNamespace(LIBRARY=located, __name__="eternia_project_files_match"))
+    assert native_match._library_path() == located
+    assert "did not load" in native_match.unavailable_reason() and located in native_match.unavailable_reason()
+    monkeypatch.setenv(native_match.LIBRARY_ENV, str(tmp_path / "from-env.so"))
+    assert native_match._library_path() == str(tmp_path / "from-env.so")
+
+
 def test_building_many_matches_still_asks_the_deadline():
     """A whole-file matcher answers every matching line at once; turning them into replies asks the
     deadline per match, so a file matching on every line cannot run past it (the live read saw a 2000 ms
