@@ -354,6 +354,12 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         "runtime.gateway.reverse.dial",
         "runtime.gateway.reverse.hangup",
         "runtime.gateway.reverse.lanes",
+        # The grant (MC-PHONE-DRIVEN-A-PHONE-LETS-…): the phone's owner grants and revokes, the
+        # computer's owner accepts and declines. ``offer`` is NOT here: a paired device sends it.
+        "runtime.gateway.reverse.grant",
+        "runtime.gateway.reverse.revoke",
+        "runtime.gateway.reverse.accept",
+        "runtime.gateway.reverse.decline",
     }
 )
 
