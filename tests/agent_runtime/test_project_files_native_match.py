@@ -6,7 +6,7 @@ The order is the owner's ruling: ripgrep's matcher (``native_match``), else the 
 ``timeout=`` (``fallback_match``), else a refusal in words; never Python ``re`` on the caller's pattern.
 
 * The native tests load the host build named by ``ETERNIA_PROJECT_FILES_MATCH_LIB``
-  (``rust-tests.yml`` builds it and runs this file); unset, they skip with that reason.
+  (``fork-gates.yml`` job ``project-files-match`` builds it and runs this file); unset, they skip with that reason.
 * The real ``regex`` package tests skip where it does not import (no test venv here has it: uv.lock
   carries it only through the opt-in ``kittentts`` extra). The fallback's wiring runs always, over a
   stand-in package.
@@ -40,7 +40,7 @@ T0 = "2026-11-21T12:00:00+00:00"
 native = pytest.mark.skipif(
     not native_match.available(),
     reason=f"no host build of crates/project_files_match is loaded ({native_match.unavailable_reason()}); "
-           "rust-tests.yml builds one and runs this file with ETERNIA_PROJECT_FILES_MATCH_LIB set")
+           "fork-gates.yml (project-files-match) builds one and runs this file with ETERNIA_PROJECT_FILES_MATCH_LIB set")
 regex_package = pytest.mark.skipif(
     not fallback_match.available(),
     reason="the regex package does not import here (uv.lock carries it only through the opt-in kittentts extra)")

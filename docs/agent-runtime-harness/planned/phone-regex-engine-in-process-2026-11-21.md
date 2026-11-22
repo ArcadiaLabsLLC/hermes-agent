@@ -140,6 +140,11 @@ packaging seams stay.
 > tests' per-line oracle); the engine is `grep-regex`'s. The `regex`-package step is
 > `agent_runtime/project_files/fallback_match.py`; the opener every grep reads through is
 > `reader.read_regular_file`.
+> **CI moved:** `rust-tests.yml` and `scripts/ci/classify_changes.py` are upstream files, and the
+> fork's upstream footprint never rises (`tests/scripts/test_upstream_footprint.py` went red on both),
+> while upstream's `ci.yaml` that calls `rust-tests.yml` is disabled on the fork. The job is
+> `project-files-match` in the fork-owned `.github/workflows/fork-gates.yml`, selected by its own path
+> filter; no classifier route is needed.
 
 ```c
 /* include/project_files_match.h: version 1 */
