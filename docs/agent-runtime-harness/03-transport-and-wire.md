@@ -1149,10 +1149,21 @@ The argument is in the module's own docstring; the staged plan is
 ### 2.1 The `fetch` family — media by content handle (gateway Stage 8)
 
 `runtime.media.index` answers `{contract, cap_bytes, truncated, artifacts:
-[{handle, reference, media_type, size_bytes, fetchable}], scanned: {logs,
+[{handle, reference, kind, media_type, size_bytes, fetchable}], scanned: {logs,
 declarations}}` and takes no argument but `correlation_id`.
 `runtime.media.get` takes `{handle}` and answers `{contract, handle,
 media_type, size_bytes, encoding: "base64", data}`.
+
+**Three kinds, one handle table** (row
+`RT-FU-A-DEVICE-DRIVING-THIS-ENGINE-OPENS-THE-DIFFS-AND-CONTEXT-FILES-ITS-AGENT-WROTE`). `kind` is
+`image` (a chat's declared picture), `diff` (a patch call's diff artifact in the live
+`patch_diffs` directory, the path its trace row names) or `context_file` (SOUL.md, AGENTS.md or
+`.skills_prompt_snapshot.json`, as the newest prompt-context frames list them loaded), enumerated by
+`agent_runtime/agent_file_handles.py`, so a device driving this engine from elsewhere opens what the
+trace and the Context Inspector show by path. `config.yaml` is never a row (it can hold inline
+secrets; serving it is an open owner question), nor are the memory files. All three kinds are served
+at the verbs' `console` tier, the tier a chat's own history is read at. `peer.media.get` resolves
+images only.
 
 **Why two verbs.** A chat image reaches a client as a `MEDIA:<absolute path>`
 line inside the message TEXT — there is no media field on any chat record and no

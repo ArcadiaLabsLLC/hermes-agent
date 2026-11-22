@@ -261,6 +261,7 @@ def test_a_device_on_A_opens_a_picture_that_exists_only_on_B(two_installs):
             "media_type": "image/png",
             "size_bytes": len(PROOF_BYTES),
             "fetchable": True,
+            "kind": "image",
             "remote": True,
             "peer_install_id": b_id,
         }
@@ -290,6 +291,7 @@ def test_a_device_on_A_opens_a_picture_that_exists_only_on_B(two_installs):
             "media_type": "image/png",
             "size_bytes": len(PROOF_BYTES),
             "fetchable": True,
+            "kind": "image",
             "remote": True,
             "peer_install_id": b_id,
         }

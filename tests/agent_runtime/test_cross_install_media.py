@@ -427,6 +427,7 @@ def test_a_stored_map_becomes_a_remote_row_with_no_path():
         "media_type": "image/png",
         "size_bytes": len(PROOF_BYTES),
         "fetchable": True,
+        "kind": "image",
         "remote": True,
         "peer_install_id": "install-b",
     }

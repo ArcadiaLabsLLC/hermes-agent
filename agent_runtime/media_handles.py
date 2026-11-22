@@ -309,6 +309,9 @@ class MediaArtifact:
     path: Path
     media_type: str
     size_bytes: int
+    #: ``image`` (a ``MEDIA:``/``FILE:`` declaration), or a file an agent wrote
+    #: (``agent_file_handles``: a diff or a context file), set by the enumerator, never a caller.
+    kind: str = "image"
 
     @property
     def fetchable(self) -> bool:
@@ -320,6 +323,7 @@ class MediaArtifact:
         return {
             "handle": self.handle,
             "reference": self.reference,
+            "kind": self.kind,
             "media_type": self.media_type,
             "size_bytes": self.size_bytes,
             "fetchable": self.fetchable,
@@ -364,6 +368,7 @@ class RemoteMediaArtifact:
             "media_type": self.media_type,
             "size_bytes": self.size_bytes,
             "fetchable": self.fetchable,
+            "kind": "image",
             "remote": True,
             # Which install to ask, disclosed because the client already knows
             # it: the dispatch it read the reply from names the same id, and a
@@ -621,6 +626,7 @@ def build_media_scope(
     tail_bytes: int = SCOPE_LOG_TAIL_BYTES,
     remote_completions: Iterable[Any] | None = None,
     max_remote_artifacts: int = MAX_REMOTE_ARTIFACTS,
+    agent_files: bool = False,
 ) -> MediaScope:
     """Derive, right now, the set of artifacts a chat-reading caller may fetch.
 
@@ -643,6 +649,11 @@ def build_media_scope(
     iterable is the injection seam a test uses. It never raises either — a
     store that will not open contributes no remote rows, which degrades this
     install to exactly the scope it had before Stage P4.
+
+    ``agent_files`` (RT-FU-A-DEVICE-DRIVING-THIS-ENGINE-OPENS-THE-DIFFS-AND-CONTEXT-FILES-ITS-AGENT-WROTE)
+    folds in the diffs and context files ``agent_file_handles`` enumerates, under their own kind
+    and the same cap. Opt-in: only ``runtime.media.*`` asks for it, so the peer keyhole's scope
+    (``peer.media.get``) stays the declared images it always was.
     """
 
     remote_source = (
@@ -654,13 +665,10 @@ def build_media_scope(
     completions_scanned = len(list(remote_source)) if isinstance(remote_source, list) else 0
 
     directory = root if root is not None else _live_log_root()
-    if directory is None:
-        return MediaScope({}, 0, 0, remote_truncated, remote_rows, completions_scanned)
-
     try:
-        logs = [p for p in directory.glob("*.jsonl") if p.is_file()]
+        logs = [] if directory is None else [p for p in directory.glob("*.jsonl") if p.is_file()]
     except OSError:
-        return MediaScope({}, 0, 0, remote_truncated, remote_rows, completions_scanned)
+        logs = []
     logs.sort(key=paths.safe_mtime, reverse=True)
     truncated = remote_truncated or len(logs) > max_logs
     logs = logs[:max_logs]
@@ -687,6 +695,8 @@ def build_media_scope(
                 continue
             by_reference[reference] = artifact.handle
             artifacts[artifact.handle] = artifact
+    if agent_files:
+        truncated = _fold_agent_files(artifacts, max_artifacts) or truncated
     return MediaScope(
         artifacts, scanned, declarations, truncated, remote_rows, completions_scanned
     )
@@ -864,7 +874,21 @@ def _declarations_in_log(log: Path, *, tail_bytes: int) -> Iterable[str]:
     return found
 
 
-def _artifact_for(reference: str) -> MediaArtifact | None:
+def _fold_agent_files(artifacts: dict[str, MediaArtifact], max_artifacts: int) -> bool:
+    """Add each enumerated agent-written file under its kind; ``True`` when the cap cut the list."""
+
+    from .agent_file_handles import agent_written_files
+
+    room = max(0, max_artifacts - len(artifacts))
+    rows = agent_written_files(limit=room + 1)
+    for kind, reference, media_type in rows[:room]:
+        artifact = _artifact_for(reference, kind=kind, media_type=media_type)
+        if artifact is not None:
+            artifacts.setdefault(artifact.handle, artifact)
+    return len(rows) > room
+
+
+def _artifact_for(reference: str, *, kind: str = "image", media_type: str | None = None) -> MediaArtifact | None:
     """One declared path → an artifact, or ``None`` when this disk cannot back it.
 
     ``resolve()`` is called for the STAT and for the memo key only. It is not a
@@ -881,7 +905,8 @@ def _artifact_for(reference: str) -> MediaArtifact | None:
         stat = resolved.stat()
     except (OSError, ValueError):
         return None
-    media_type = MEDIA_TYPES.get(_extension(reference)) or _OPERATOR_FILE_TYPES.get(_extension(reference))
+    media_type = (media_type or MEDIA_TYPES.get(_extension(reference))
+                  or _OPERATOR_FILE_TYPES.get(_extension(reference)))
     if media_type is None:  # pragma: no cover - the parser already gated this
         return None
     handle = _digest_for(resolved, stat.st_size, stat.st_mtime_ns)
@@ -893,6 +918,7 @@ def _artifact_for(reference: str) -> MediaArtifact | None:
         path=resolved,
         media_type=media_type,
         size_bytes=stat.st_size,
+        kind=kind,
     )
 
 

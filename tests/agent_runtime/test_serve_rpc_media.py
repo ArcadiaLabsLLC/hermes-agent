@@ -118,6 +118,7 @@ def test_the_index_names_the_artifact_the_cap_and_what_the_scan_cost(seeded):
             "media_type": "image/png",
             "size_bytes": len(payload),
             "fetchable": True,
+            "kind": "image",
             # Stage P4, and present on EVERY row for ``peer.ping``'s reason: a
             # client must never read a fact out of a key's absence.
             "remote": False,
@@ -457,6 +458,7 @@ def test_the_index_names_a_remote_row_without_claiming_a_local_path(
             "media_type": "image/png",
             "size_bytes": 64,
             "fetchable": True,
+            "kind": "image",
             "remote": True,
             "peer_install_id": "install-b",
         }

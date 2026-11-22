@@ -76,8 +76,15 @@ def _runtime_media_index(
     Result::
 
         {contract: 1, cap_bytes, truncated, artifacts: [
-            {handle, reference, media_type, size_bytes, fetchable}, …],
+            {handle, reference, kind, media_type, size_bytes, fetchable}, …],
          scanned: {logs, declarations}, correlation_id?}
+
+    ``kind`` is ``image`` (a chat's declared picture), ``diff`` (a patch call's diff artifact) or
+    ``context_file`` (SOUL, the instruction file or the skills snapshot a turn loaded) —
+    RT-FU-A-DEVICE-DRIVING-THIS-ENGINE-OPENS-THE-DIFFS-AND-CONTEXT-FILES-ITS-AGENT-WROTE, enumerated
+    by ``agent_file_handles``; ``reference`` is the path the chat's trace or prompt-context frame
+    already shows, the join key, and ``config.yaml`` is never a row. All three kinds are served at
+    this verb's ``console`` tier, the tier a chat's own history is read at.
 
     ``fetchable`` is stated per artifact so a client never spends a round trip
     to be told the cap; :func:`_runtime_media_get` refuses the same artifact
@@ -106,7 +113,7 @@ def _runtime_media_index(
     except ParamRefused as refused:
         return refused.frame(rid)
 
-    scope = media_handles.build_media_scope()
+    scope = media_handles.build_media_scope(agent_files=True)
     result: dict[str, Any] = {
         "contract": MEDIA_CONTRACT,
         "cap_bytes": media_handles.MAX_FETCH_BYTES,
@@ -235,7 +242,7 @@ def _runtime_media_get(
             {"reason": media_handles.REASON_HANDLE_INVALID},
         )
 
-    scope = media_handles.build_media_scope()
+    scope = media_handles.build_media_scope(agent_files=True)
     resolved = media_handles.resolve_handle(raw, scope)
     if isinstance(resolved, media_handles.MediaRefusal):
         return err(
