@@ -74,6 +74,7 @@
     "bad_argument": "depth, offset, pattern, glob or wildcard is out of bounds",
     "grant_revoked": "a granted folder's grant or bookmark no longer holds",
     "virtual_root_read_only": "a write sent to a reader of a virtual root",
+    "virtual_tree_unavailable": "a virtual root was asked for and no Eternia answers on this device",
     "not_a_git_root": "status or diff named a root that is not a git repository",
     "search_timeout": "a tree with a glob or a grep did not finish within patterns.search_deadline_ms"
   },

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import TIER_CONSOLE
+from agent_runtime.call_authorization import TIER_CONSOLE, is_machine_owner
 from agent_runtime.launcher_app_functions import METHOD_PREFIX, declare_answerer
 from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, RpcContext, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -38,5 +38,11 @@ def _runtime_client_capabilities(rid: Any, params: dict, context: RpcContext | N
         return err(rid, ERR_INVALID_PARAMS, "answers must be a list of request namespaces",
                    {"reason": "answers_invalid"})
     owner = "stdio" if context.connection_key is None else str(context.connection_key)
-    declare_answerer(owner, METHOD_PREFIX in answers)
+    # The machine owner's own connection may be this device's Eternia for a request with no turn
+    # (``device_local_launcher_link``); a paired device, a peer or a computer never is. The sink
+    # is the one this connection's replies go out on (``emit`` is its bound method).
+    # MUTATION: pass every caller's sink and test_agent_files_virtual_tree's paired-device test
+    # asks the phone's own Eternia for this device's tree.
+    owner_sink = getattr(context.emit, "__self__", None) if is_machine_owner(context.caller) else None
+    declare_answerer(owner, METHOD_PREFIX in answers, owner_sink=owner_sink)
     return ok(rid, {"contract": 1, "answers": [ns for ns in KNOWN_NAMESPACES if ns in answers]})

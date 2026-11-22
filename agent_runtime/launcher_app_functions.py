@@ -71,6 +71,7 @@ __all__ = [
     "call_app_function",
     "current_launcher_link",
     "declare_answerer",
+    "device_local_launcher_link",
     "forget_launcher_connection",
     "latest_answerer",
     "mutating_app_function_tools",
@@ -250,6 +251,9 @@ class _ToolsetState:
         self.registered: dict[str, AppFunctionEntry] = {}
         #: Declaring owners in declaration order (a re-declaration moves to the end).
         self.answerers: dict[str, None] = {}
+        #: The machine owner's own declaring connections (``stdio_owner`` / ``local_console``), by
+        #: owner, with the sink to ask them on: the device-local Eternia link's only candidates.
+        self.owner_sinks: dict[str, Any] = {}
         self.unanswered: dict[int, Any] = {}
         #: Sink, entries and an opaque memo token for this catalog's lifetime.
         self.catalog: dict[int, tuple[Any, list[AppFunctionEntry], object]] = {}
@@ -258,14 +262,19 @@ class _ToolsetState:
 _state = _ToolsetState()
 
 
-def declare_answerer(owner: str, answers: bool) -> None:
+def declare_answerer(owner: str, answers: bool, *, owner_sink: Any = None) -> None:
     """Record whether the serve owner *owner* (``stdio`` or a connection key) answers
-    ``launcher.`` requests (``runtime.client.capabilities``)."""
+    ``launcher.`` requests (``runtime.client.capabilities``). *owner_sink* is the sink of a
+    connection whose caller is the machine owner itself, ``None`` for any other caller: only
+    such a connection can be :func:`device_local_launcher_link`'s Eternia."""
 
     with _state.lock:
         _state.answerers.pop(owner, None)
+        _state.owner_sinks.pop(owner, None)
         if answers:
             _state.answerers[owner] = None
+            if owner_sink is not None:
+                _state.owner_sinks[owner] = owner_sink
         # A declaration is a client announcing itself: the catalogs and the
         # silence latches describe connections as they were before it, and a
         # Launcher that restarted behind the same pipe lists afresh.
@@ -286,6 +295,21 @@ def latest_answerer(owners: Iterable[str]) -> str | None:
     with _state.lock:
         declared = [owner for owner in _state.answerers if owner in candidates]
     return declared[-1] if declared else None
+
+
+def device_local_launcher_link(origin: str) -> LauncherLink | None:
+    """This device's own Eternia, for a request no turn is bound to (row
+    ``RT-PHONE-FILES-THE-ENGINE-ASKS-THIS-DEVICES-ETERNIA-FOR-A-VIRTUAL-TREE-WITH-NO-TURN``).
+
+    Chosen from the machine owner's own declaring connections only, by :func:`latest_answerer`'s
+    most-recent-declarer rule: never a peer link and never a paired device's own Eternia, which
+    would answer for ITS device's files under this one's name. ``None`` when no owner connection
+    declared it answers (Eternia is not open on this device). *origin* says who asked."""
+
+    with _state.lock:
+        sinks = dict(_state.owner_sinks)
+    owner = latest_answerer(sinks)
+    return None if owner is None else LauncherLink(sinks[owner], origin)
 
 
 def app_function_tools_registered() -> bool:
@@ -366,6 +390,8 @@ def forget_launcher_connection(sink: Any) -> None:
     with _state.lock:
         _state.catalog.pop(id(sink), None)
         _state.unanswered.pop(id(sink), None)
+        for owner in [owner for owner, held in _state.owner_sinks.items() if held is sink]:
+            _state.owner_sinks.pop(owner, None)
         # Only names no surviving catalog holds go; none left empties the toolset.
         _sync_registry_union()
     abandoned = CLIENT_REQUESTS.abandon(sink)
@@ -518,5 +544,6 @@ def _reset_for_tests() -> None:
             registry.deregister(name)
         _state.registered = {}
         _state.answerers.clear()
+        _state.owner_sinks.clear()
         _state.unanswered.clear()
         _state.catalog.clear()

@@ -15,6 +15,11 @@ Params (every verb takes ``persona_instance_id``):
 * ``grep`` — ``pattern`` (1-256 characters: literal, or with ``wildcard: true`` a ``*`` spans any run
   within a line), ``path`` (absent: every root), ``glob`` (only files whose name matches), ``offset``.
 
+* ``virtual`` — ``verb`` (``tree`` | ``read`` | ``grep`` | ``patch`` | ``write`` | ``move``) and ``args``:
+  this device's virtual tree (Eternia's generated documents), asked of this device's own Eternia with
+  no turn bound (row ``RT-PHONE-FILES-THE-ENGINE-ASKS-THIS-DEVICES-ETERNIA-FOR-A-VIRTUAL-TREE-WITH-NO-TURN``);
+  refused ``virtual_tree_unavailable`` when Eternia is not open here.
+
 ``glob`` and a wildcard ``pattern`` are the rule spec's ``patterns`` dialects, never a regular
 expression: a remote caller's pattern is matched without backtracking (``project_files/patterns.py``),
 holds at most 16 ``*``, and a ``tree`` with a glob or a ``grep`` that has not finished within
@@ -54,17 +59,24 @@ __all__ = [
     "_runtime_agent_files_grep",
     "_runtime_agent_files_read",
     "_runtime_agent_files_tree",
+    "_runtime_agent_files_virtual",
 ]
 
 TREE_METHOD = "runtime.agent.files.tree"
 READ_METHOD = "runtime.agent.files.read"
 GREP_METHOD = "runtime.agent.files.grep"
+VIRTUAL_METHOD = "runtime.agent.files.virtual"
+#: The virtual tree's verbs a caller may name, each Eternia's ``launcher.generated.<verb>``
+#: (plan ``PHONE_PROJECT_FOLDERS_FILE_TREE_2026-11-21`` §4 V1, §7: Eternia is the only writer, so
+#: a write is its validated edit, asked through the same lane).
+VIRTUAL_TREE_VERBS = ("tree", "read", "grep", "patch", "write", "move")
 
 #: The honoured keys of each verb (the manifest's ``params``).
 AGENT_FILES_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     TREE_METHOD: ("persona_instance_id", "path", "depth", "glob", "offset"),
     READ_METHOD: ("persona_instance_id", "path", "offset"),
     GREP_METHOD: ("persona_instance_id", "pattern", "path", "glob", "wildcard", "offset"),
+    VIRTUAL_METHOD: ("verb", "args"),
 }
 
 _CODES = {"not_found": ERR_NOT_FOUND, "invalid_path": ERR_INVALID_PARAMS, "bad_argument": ERR_INVALID_PARAMS}
@@ -163,3 +175,55 @@ def _runtime_agent_files_grep(rid: Any, params: dict, context: RpcContext | None
                                offset=_number(p, "offset", 0))
 
     return _answer(rid, params, run)
+
+
+@method(VIRTUAL_METHOD, tier=TIER_CONSOLE)
+def _runtime_agent_files_virtual(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """This device's virtual tree (Eternia's generated documents), asked of this device's Eternia.
+
+    Row ``RT-PHONE-FILES-THE-ENGINE-ASKS-THIS-DEVICES-ETERNIA-FOR-A-VIRTUAL-TREE-WITH-NO-TURN``. Params:
+    ``verb`` (one of :data:`VIRTUAL_TREE_VERBS`) and ``args`` (that ``launcher.generated.<verb>``'s own
+    arguments, which Eternia validates: ``document_id``, ``path``, ``read_version``…). No turn is bound
+    here, so the request goes to the device-local Eternia link
+    (``launcher_app_functions.device_local_launcher_link``: the machine owner's own declaring connection,
+    never a peer's or a paired device's Eternia), origin ``local`` for the owner and ``paired_device`` for
+    anyone else. With no such connection it refuses ``virtual_tree_unavailable`` ("Eternia is not open on
+    this device").
+
+    **Security.** ``console`` tier, as the agent's real folders are (``runtime.agent.files.*``; plan §11:
+    a device paired view-only is refused an agent's files as it is refused its chats), so a view-only
+    device's read or write is refused at the dispatcher before anything is asked of Eternia. Not in any
+    computer grant's allowlist and not in the peer allowlist. Hermes writes nothing itself: a write is
+    Eternia's fenced, validated edit.
+    """
+
+    from agent_runtime.call_authorization import is_machine_owner
+    from agent_runtime.launcher_app_functions import (
+        ORIGIN_LOCAL, ORIGIN_PAIRED_DEVICE, device_local_launcher_link,
+    )
+    from agent_runtime.launcher_client_requests import ClientRequestFailed
+    from agent_runtime.serve_rpc.protocol import defer_or_inline
+
+    params = params if isinstance(params, dict) else {}
+    verb, args = params.get("verb"), params.get("args", {})
+    if verb not in VIRTUAL_TREE_VERBS:
+        return err(rid, ERR_INVALID_PARAMS, f"verb must be one of {', '.join(VIRTUAL_TREE_VERBS)}",
+                   {"reason": "bad_argument", "detail": "verb"})
+    if not isinstance(args, dict):
+        return err(rid, ERR_INVALID_PARAMS, "args must be an object", {"reason": "bad_argument", "detail": "args"})
+    caller = context.caller if context is not None else None
+    link = device_local_launcher_link(ORIGIN_LOCAL if is_machine_owner(caller) else ORIGIN_PAIRED_DEVICE)
+    if link is None:
+        return err(rid, ERR_HANDLER_FAILED, "Eternia is not open on this device.",
+                   {"reason": "virtual_tree_unavailable"})
+
+    def run() -> dict:
+        try:
+            return ok(rid, link.request(f"launcher.generated.{verb}", args))
+        except ClientRequestFailed as failed:
+            data = failed.data if isinstance(failed.data, dict) else {}
+            reason = data.get("refusal") or ("no_reply" if failed.timed_out else "refused")
+            return err(rid, ERR_HANDLER_FAILED, failed.message, {"reason": str(reason)})
+
+    # It waits on Eternia's answer: the worker lane, never the reader's thread.
+    return defer_or_inline(rid, VIRTUAL_METHOD, context, run)

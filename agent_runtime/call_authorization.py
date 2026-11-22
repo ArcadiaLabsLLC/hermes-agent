@@ -114,6 +114,7 @@ __all__ = [
     "RpcCaller",
     "authorize_call",
     "caller_for_connection",
+    "is_machine_owner",
     "paired_device_answers",
     "service_backstop",
 ]
@@ -684,6 +685,16 @@ REASON_UNKNOWN_TIER = "unknown_tier"
 #: grandfathered as they were — it adds a kind BESIDE it whose authority is a
 #: stored tier rather than a membership.
 _CONSOLE_KINDS = frozenset({CALLER_STDIO_OWNER, CALLER_LOCAL_CONSOLE})
+
+
+def is_machine_owner(caller: RpcCaller | None) -> bool:
+    """Is *caller* the machine owner itself, at its own pipe or loopback socket?
+
+    The one answer to "may this connection stand for this device's own Eternia"
+    (``launcher_app_functions.device_local_launcher_link``): a paired device, a peer, a
+    computer on the reverse lane and an unplaced caller are not."""
+
+    return caller is not None and caller.kind in _CONSOLE_KINDS
 
 
 @dataclass(frozen=True, slots=True)

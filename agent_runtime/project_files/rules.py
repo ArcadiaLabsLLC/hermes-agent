@@ -31,7 +31,7 @@ WRITE_OPS = ("write", "patch", "move", "delete")
 REFUSAL_CODES = (
     "invalid_path", "outside_root", "not_found", "ignored", "not_a_file", "not_a_directory",
     "too_large", "binary", "not_text", "bad_argument", "grant_revoked", "virtual_root_read_only",
-    "not_a_git_root", "search_timeout",
+    "virtual_tree_unavailable", "not_a_git_root", "search_timeout",
 )
 
 

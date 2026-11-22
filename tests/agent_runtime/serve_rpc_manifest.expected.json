@@ -38,6 +38,7 @@
     "runtime.agent.files.grep",
     "runtime.agent.files.read",
     "runtime.agent.files.tree",
+    "runtime.agent.files.virtual",
     "runtime.agent.idle_instances",
     "runtime.agent.place",
     "runtime.agent.retire",
@@ -472,6 +473,10 @@
       "depth",
       "glob",
       "offset"
+    ],
+    "runtime.agent.files.virtual": [
+      "verb",
+      "args"
     ],
     "runtime.agent.place": [
       "persona_id",
@@ -1086,6 +1091,7 @@
     "runtime.agent.files.grep": "console",
     "runtime.agent.files.read": "console",
     "runtime.agent.files.tree": "console",
+    "runtime.agent.files.virtual": "console",
     "runtime.agent.idle_instances": "console",
     "runtime.agent.place": "console",
     "runtime.agent.retire": "console",
