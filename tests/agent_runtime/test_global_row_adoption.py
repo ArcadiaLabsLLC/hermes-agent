@@ -56,13 +56,23 @@ def _fates(report: list[dict]) -> dict[str, tuple]:
     return {item["persona_instance_id"]: (item["fate"], item.get("reason")) for item in report}
 
 
+@pytest.fixture
+def chatted_today(monkeypatch):
+    """The copy's chat saw a turn today: in live use, so the reconciler's chat-only cleanup keeps it
+    (RT-OLD-HIDDEN-COPIES-THAT-ONLY-HOLD-SAVED-CHATS-ARE-CLEANED-UP-AND-THEIR-CHATS-STAY-WITH-THE-AGENT)."""
+    import agent_runtime.mission_chat_turns.reads as turn_reads
+    from hermes_time import now
+
+    monkeypatch.setattr(turn_reads, "last_turn_started_by_instance", lambda: {CANONICAL: now().isoformat()})
+
+
 def test_an_adopted_row_keeps_its_workspace_on_decode():
     _seed(adopted_from_global="2026-11-21", workspace_id=DEFAULT_WORKSPACE_ID, realm_id=DEFAULT_REALM_ID)
     instance = PersonaInstanceStore().get(CANONICAL)
     assert instance.workspace_id == DEFAULT_WORKSPACE_ID  # the decode keeps an adopted row's workspace
 
 
-def test_a_row_holding_a_chat_becomes_an_ordinary_seated_agent_keeping_its_id():
+def test_a_row_holding_a_chat_becomes_an_ordinary_seated_agent_keeping_its_id(chatted_today):
     ensure_default_scope(seed_active_pointers=False)
     _seed(default_chat_session_id=CHAT)
     data = reconcile_persona_instances(apply=True)
@@ -79,7 +89,7 @@ def test_a_row_holding_a_chat_becomes_an_ordinary_seated_agent_keeping_its_id():
         paths.persona_instances_archive_dir().rglob("*.json"))
 
 
-def test_a_reconcile_keeps_an_adopted_rows_workspace():
+def test_a_reconcile_keeps_an_adopted_rows_workspace(chatted_today):
     """A second run does nothing, and does not clear the adopted row's pointers."""
     ensure_default_scope(seed_active_pointers=False)
     _seed(default_chat_session_id=CHAT)

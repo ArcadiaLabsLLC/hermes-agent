@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
+from datetime import timedelta
 from typing import Any
 
 from hermes_time import now
@@ -65,12 +66,16 @@ __all__ = [
     "ADOPTED",
     "ARCHIVED",
     "HELD_LOCAL",
+    "KEPT",
+    "RETIRED",
     "WOULD_ADOPT",
     "WOULD_ARCHIVE",
     "WOULD_HOLD_LOCAL",
+    "WOULD_RETIRE",
     "adopt_global_rows",
     "adopted_local_instance_ids",
     "canonical_row_holdings",
+    "clean_up_chat_only_copies",
     "hold_unstamped_hidden_copies",
     "is_hidden_copy_id",
     "unstamped_hidden_copies",
@@ -82,6 +87,9 @@ ARCHIVED = "archived"
 WOULD_ARCHIVE = "would_archive"
 HELD_LOCAL = "held_local"
 WOULD_HOLD_LOCAL = "would_hold_local"
+RETIRED = "retired"
+WOULD_RETIRE = "would_retire"
+KEPT = "kept"
 
 SKIP_MID_TURN = "mid_turn"
 SKIP_RUNNING_GOAL = "running_goal"
@@ -91,9 +99,18 @@ SKIP_SEAT_REFUSED = "seat_refused"
 HOLD_PROFILE_CHANNEL = "profile_channel"
 HOLD_WORK_UNREADABLE = "work_unreadable"
 HOLD_ARCHIVE_REFUSED = "archive_refused"
+KEEP_IN_USE = "in_use"
+KEEP_RECENTLY_USED = "recently_used"
+#: How far back a chat turn still counts as live use (decision 2026-11-21, w1118a-mint: a copy someone
+#: chatted with in the last two weeks is in use even when its adoption stamp is today's, so the boot that
+#: adopts the owner's daily copy does not retire it in the same run).
+RECENT_TURN_DAYS = 14
 
 #: The words retire records on an archived hidden copy (``persona_instance.retired``).
 ARCHIVE_REASON = "hidden copy holds nothing (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT)"
+#: The words retire records on an adopted copy that held only saved chats.
+CLEANUP_REASON = ("old hidden copy holding only saved chats "
+                  "(RT-OLD-HIDDEN-COPIES-THAT-ONLY-HOLD-SAVED-CHATS-ARE-CLEANED-UP-AND-THEIR-CHATS-STAY-WITH-THE-AGENT)")
 
 _logger = logging.getLogger(__name__)
 
@@ -425,3 +442,85 @@ def _archive_or_hold(store, instance, entry, *, apply: bool, stamp: str, saved_c
         return _hold_local(store, instance, {**entry, "refusal": exc.code}, HOLD_ARCHIVE_REFUSED,
                            apply=apply, stamp=stamp)
     return {**item, "archive_path": receipt.get("archive_path")}
+
+
+def clean_up_chat_only_copies(
+    *, apply: bool = True, store: Any = None, adopting: dict[str, str] | None = None, today: Any = None,
+) -> list[dict[str, Any]]:
+    """Retire every adopted hidden copy whose only content is saved chats; one fate per adopted row, by id.
+
+    Row ``RT-OLD-HIDDEN-COPIES-THAT-ONLY-HOLD-SAVED-CHATS-ARE-CLEANED-UP-AND-THEIR-CHATS-STAY-WITH-THE-AGENT``
+    (owner RULED 2026-11-21, "Yes, that's it"). The rows are the ones the adoption stamped and placed: the
+    stamp names them, no second list. ``adopting`` adds, for a dry run only, the rows that run's adoption
+    would stamp (``{id: stamp}``), so the preview names the fate an applied run reaches.
+
+    A copy is IN LIVE USE, and ``kept``, when it holds anything but chats (a goal, Work, folder slots, a
+    gateway binding: :func:`canonical_row_holdings`), has a live run, a running goal on one of its chats,
+    belongs to an agent's own profile, or saw a turn on or after the day it was adopted or in the last
+    :data:`RECENT_TURN_DAYS` days (a copy someone chats with is that person's agent;
+    ``last_turn_started_by_instance``). A copy the Work boards could not be read for is kept too. Every other one holds only saved chats from
+    before its adoption: it is retired through retire's archive, never deleted. Its chats stay in the
+    agent's Chat history (``holder_retired``) and open onto an instance through the move path; the
+    persona's profile and memory are the agent's and untouched. A second run finds nothing to retire."""
+
+    from .mission_chat_turns.reads import last_turn_started_by_instance
+    from .persona_assignments import PersonaInstanceStore
+    from .persona_assignments.chat_moves import load_chat_moves
+    from .persona_assignments.errors import PersonaInstanceRetireError
+
+    store = store or PersonaInstanceStore()
+    pending = dict(adopting or {}) if not apply else {}
+    rows = sorted(
+        (i for i in store.list_all()
+         if (getattr(i, "adopted_from_global", None) and getattr(i, "workspace_id", None)) or i.id in pending),
+        key=lambda i: i.id,
+    )
+    if not rows:
+        return []
+    moves = load_chat_moves()
+    gateway_bound = _gateway_bound_instance_ids()
+    goal_roots = _running_goal_roots()
+    work_assignees = _work_assignee_tokens()
+    last_turn = last_turn_started_by_instance()
+    recent = ((today or now().date()) - timedelta(days=RECENT_TURN_DAYS)).isoformat()
+    report: list[dict[str, Any]] = []
+    for instance in rows:
+        stamp = getattr(instance, "adopted_from_global", None) or pending[instance.id]
+        held = canonical_row_holdings(instance, moves=moves, gateway_bound=gateway_bound,
+                                      work_assignees=work_assignees or frozenset())
+        entry: dict[str, Any] = {"persona_instance_id": instance.id, "persona_id": instance.persona_id,
+                                 "holds": held, "adopted_from_global": stamp}
+        reason = None
+        # MUTATION: drop this test and test_the_dry_run_names_each_adopted_copy_and_its_fate_and_writes_nothing reddens.
+        if [word for word in held if word != "chat"]:
+            reason = KEEP_IN_USE
+        elif getattr(instance, "active_run_id", None):
+            reason = SKIP_MID_TURN
+        elif goal_roots.intersection(_row_chats(instance, moves)):
+            reason = SKIP_RUNNING_GOAL
+        elif str(instance.persona_id).startswith("profile_"):
+            reason = HOLD_PROFILE_CHANNEL
+        elif work_assignees is None:
+            reason = HOLD_WORK_UNREADABLE
+        # MUTATION: drop this test and test_a_copy_chatted_with_recently_is_kept reddens.
+        elif str(last_turn.get(instance.id) or "")[:10] >= min(str(stamp), recent):
+            reason = KEEP_RECENTLY_USED
+        if reason is not None:
+            report.append({**entry, "fate": KEPT, "reason": reason})
+            continue
+        item = {**entry, "fate": RETIRED if apply else WOULD_RETIRE, "chats": _row_chats(instance, moves)}
+        if apply:
+            try:
+                # MUTATION: skip this retire and test_a_chat_only_copy_is_retired_and_its_chats_stay_listed reddens.
+                receipt = store.retire(instance.id, reason=CLEANUP_REASON, requested_by="harness")
+            except PersonaInstanceRetireError as exc:
+                report.append({**entry, "fate": KEPT, "reason": HOLD_ARCHIVE_REFUSED, "refusal": exc.code})
+                continue
+            item["archive_path"] = receipt.get("archive_path")
+        report.append(item)
+    for item in report:
+        _logger.info(
+            "persona_instance_cleanup instance=%s fate=%s reason=%s holds=%s",
+            item["persona_instance_id"], item["fate"], item.get("reason"), ",".join(item["holds"]) or "-",
+        )
+    return report

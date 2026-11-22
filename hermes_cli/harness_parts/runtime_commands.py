@@ -184,6 +184,7 @@ def _cmd_persona_instance_reconcile(args) -> int:
             f"adopted={data.get('adopted_count', 0)} "
             f"hidden_copies_archived={data.get('hidden_copies_archived_count', 0)} "
             f"hidden_copies_held={data.get('hidden_copies_held_count', 0)} "
+            f"chat_only_copies_retired={data.get('chat_only_copies_retired_count', 0)} "
             f"unstamped_hidden_copies={len(data.get('unstamped_hidden_copies') or [])} "
             f"aliases={data['alias_count']}"
         )
@@ -195,6 +196,10 @@ def _cmd_persona_instance_reconcile(args) -> int:
             head = " per_profile_head" if item.get("per_profile_head") else ""
             print(f"  - {item['fate']}{reason}: {item['persona_instance_id']} "
                   f"holds={','.join(item['holds']) or '-'}{chats}{head}")
+        # Phase 8, the chat-only cleanup: every adopted copy and its fate (retired, or kept with why).
+        for item in data.get("cleanup") or []:
+            reason = f" ({item['reason']})" if item.get("reason") else ""
+            print(f"  - {item['fate']}{reason}: {item['persona_instance_id']} holds={','.join(item['holds']) or '-'}")
         for item in data["actions"]:
             print(f"  - {item['action']}: {item['from_id']} -> {item['to_id']}")
         for item in [*(data.get("task_bound_normalised") or []), *(data.get("task_bound_archived") or [])]:

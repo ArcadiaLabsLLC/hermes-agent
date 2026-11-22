@@ -809,6 +809,19 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     for item in adoption:
         if item["fate"] == ARCHIVED:
             by_id.pop(item["persona_instance_id"], None)
+    # Phase 8 — an adopted copy that holds only saved chats from before its adoption is retired through
+    # retire's archive, its chats staying in the agent's Chat history; one in live use stays placed
+    # (RT-OLD-HIDDEN-COPIES-THAT-ONLY-HOLD-SAVED-CHATS-ARE-CLEANED-UP-AND-THEIR-CHATS-STAY-WITH-THE-AGENT).
+    from .persona_instance_adoption import RETIRED, WOULD_RETIRE, clean_up_chat_only_copies
+
+    cleanup = clean_up_chat_only_copies(
+        apply=apply, store=store,
+        adopting={item["persona_instance_id"]: item["adopted_from_global"]
+                  for item in adoption if item["fate"] == WOULD_ADOPT},
+    )
+    for item in cleanup:
+        if item["fate"] == RETIRED:
+            by_id.pop(item["persona_instance_id"], None)
 
     return {
         "applied": bool(apply),
@@ -855,6 +868,8 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         "adopted_count": sum(1 for item in adoption if item["fate"] in {ADOPTED, WOULD_ADOPT}),
         "hidden_copies_archived_count": sum(1 for item in adoption if item["fate"] in {ARCHIVED, WOULD_ARCHIVE}),
         "hidden_copies_held_count": sum(1 for item in adoption if item["fate"] in {HELD_LOCAL, WOULD_HOLD_LOCAL}),
+        "cleanup": cleanup,
+        "chat_only_copies_retired_count": sum(1 for item in cleanup if item["fate"] in {RETIRED, WOULD_RETIRE}),
         # The security gate (review w1118a.78): zero after an applied run.
         "unstamped_hidden_copies": unstamped_hidden_copies(store.list_all()) if apply else None,
         "alias_count": len(aliases),
