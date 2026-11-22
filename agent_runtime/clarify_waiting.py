@@ -22,7 +22,7 @@ from datetime import datetime
 from typing import Any
 
 __layer__ = "stores"
-__all__ = ["clarify_question_moved_past", "waiting_clarify_ticket"]
+__all__ = ["clarify_question_moved_past", "waiting_clarify_question", "waiting_clarify_ticket"]
 
 #: Turn ids the runtime mints for what it delivers into a chat by itself:
 #: ``dispatch_delivery.vocabulary.delivery_client_message_id`` and the background-completion
@@ -39,6 +39,38 @@ def waiting_clarify_ticket(chat_session_id: str | None) -> dict[str, Any] | None
     if ticket is None or clarify_question_moved_past(ticket):
         return None
     return ticket
+
+
+def waiting_clarify_question(ticket: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The waiting question a chat read names: ``{clarify_token, question, choices}``, else None.
+
+    The ticket holds the question since RT-FU-A-QUESTION-ASKED-IN-A-BACKGROUND-TURN-IS-NAMED-BY-THE-CHAT-READ;
+    a ticket minted before holds only its asking turn, whose journal record keeps the question in
+    ``auxiliary_result.clarify``. A question asked in a turn no client waited on (a helper's reply the
+    runtime delivered) reaches its chat only through this read. No question text, nothing named: a
+    bare token stays the read's ``clarify_token`` alone."""
+
+    if not ticket or not ticket.get("clarify_token"):
+        return None
+    question, choices = ticket.get("question"), ticket.get("choices")
+    if not isinstance(question, str) or not question.strip():
+        question, choices = _asking_turn_question(ticket)
+    if not question:
+        return None
+    return {"clarify_token": ticket["clarify_token"], "question": question,
+            "choices": [choice for choice in (choices or []) if isinstance(choice, str)]}
+
+
+def _asking_turn_question(ticket: dict[str, Any]) -> tuple[str | None, list[str]]:
+    from .mission_chat_turns.reads import mission_chat_turn_record
+
+    session = str(ticket.get("chat_session_id") or "")
+    for key in dict.fromkeys((ticket.get("asked_by_client_message_id"), ticket.get("asked_turn_id"))):
+        record = mission_chat_turn_record(session_id=session, client_message_id=key) if key else None
+        clarify = ((record or {}).get("auxiliary_result") or {}).get("clarify")
+        if isinstance(clarify, dict) and clarify.get("question"):
+            return clarify["question"], list(clarify.get("choices") or [])
+    return None, []
 
 
 def clarify_question_moved_past(ticket: dict[str, Any]) -> bool:

@@ -13,7 +13,7 @@ from agent_runtime.mission_chat_turns.reads import mission_chat_turn_records
 from agent_runtime.mission_chat_turns.states import (
     INFLIGHT_TURN_STATES, SETTLING_TURN_STATES,
 )
-from agent_runtime.clarify_waiting import waiting_clarify_ticket
+from agent_runtime.clarify_waiting import waiting_clarify_question, waiting_clarify_ticket
 from agent_runtime.workspace_scope import effective_workspace_id
 from agent_runtime.chat_turn_reservations import unsettled_chat_receipts
 from agent_runtime.operator_execution import execution_status, operator_execution_reservation
@@ -91,6 +91,9 @@ def read_operator_conversation(params: dict[str, Any], *, can_interrupt: bool = 
         "display_name": instance.display_name,
         "active_turns": active,
         "clarify_token": ticket.get("clarify_token") if ticket else None,
+        # The waiting question itself, so a chat opened after a turn no client waited on asked it
+        # shows its answer card (RT-FU-A-QUESTION-ASKED-IN-A-BACKGROUND-TURN-IS-NAMED-BY-THE-CHAT-READ).
+        "clarify": waiting_clarify_question(ticket),
         "delivery_observed": recorded or receipt == "settled",
         "delivery_pending": receipt == "accepted" and not recorded,
         "executions": [execution_status(session, key) for key in execution_ids],

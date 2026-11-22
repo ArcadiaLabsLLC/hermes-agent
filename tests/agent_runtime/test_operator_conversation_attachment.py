@@ -128,3 +128,52 @@ def test_a_run_chats_computer_opens_only_the_chat_its_own_scope_started(tmp_path
     assert as_computer("look", {**owners, "client_scope": mine})["error"]["data"]["reason"] == "scope_denied"
     assert as_computer("account", owners)["result"]["messages"][0]["text"].startswith("Owner")
     assert call("read", owners)["result"]["messages"][0]["text"].startswith("Owner")
+
+
+def test_read_names_a_question_asked_in_a_turn_no_client_waited_on(tmp_path, monkeypatch):
+    """RT-FU-A-QUESTION-ASKED-IN-A-BACKGROUND-TURN-IS-NAMED-BY-THE-CHAT-READ: a helper's reply the
+    runtime delivered asked the operator something; opening the chat must name the question.
+
+    MUTATION: drop the read's ``"clarify": waiting_clarify_question(ticket)`` and both reads redden
+    (KeyError); drop the mint's ``**_ticket_question(...)`` and the new ticket's read is None (the
+    asking turn below it holds no question); drop ``_asking_turn_question``'s fallback and the
+    old ticket's read is None."""
+    a = fixture(tmp_path / "a", monkeypatch, "Amelia")
+    store = PersonaChatClarifyTicketStore()
+    question = "How should I unblock the sixth pass?"
+    choices = ["Switch to smart approvals", "Keep manual approvals"]
+    turn = "dispatch-delivery-dispatch-f979c7c6c48f"
+    # A ticket minted before the question was stored on it: only its asking turn holds the text.
+    old = store.mint(chat_session_id=a["session_id"], persona_instance_id=a["persona_instance_id"],
+        persona_id="builder", asked_by_client_message_id=turn, asked_turn_id=turn)
+    persist_mission_chat_turn(session_id=a["session_id"], client_message_id=turn, turn_id=turn,
+        state="completed", elements=[{"kind": "segment", "text": "Pass 5 stalled."}],
+        metadata={"auxiliary_result": {"clarify": {"question": question, "choices": choices}}})
+    read = call("read", a)["result"]
+    assert read["clarify_token"] == old
+    assert read["clarify"] == {"clarify_token": old, "question": question, "choices": choices}
+    store.settle(old, client_message_id="answered")
+    # A ticket minted now carries its own question; its asking turn recorded none.
+    new = store.mint(chat_session_id=a["session_id"], persona_instance_id=a["persona_instance_id"],
+        persona_id="builder", asked_by_client_message_id="later", asked_turn_id="later",
+        question="Which branch?", choices=["main", " ", "release"])
+    read = call("read", a)["result"]
+    assert read["clarify_token"] == new
+    assert read["clarify"] == {"clarify_token": new, "question": "Which branch?", "choices": ["main", "release"]}
+
+
+def test_the_turn_that_asks_mints_a_ticket_holding_its_question(tmp_path, monkeypatch):
+    """The mint the settle path calls stores the turn's question on the ticket, so the read above
+    needs no asking-turn record. MUTATION: drop ``question=raw.get("question")`` from
+    ``_mission_chat_clarify_request_payload``'s mint and this reddens."""
+    from types import SimpleNamespace
+
+    from hermes_cli.harness_parts.persona.chat_request import _mission_chat_clarify_request_payload
+
+    a = fixture(tmp_path / "a", monkeypatch, "Amelia")
+    raw = {"clarify_request": {"question": "Which branch?", "choices": ["main", "release"]}}
+    payload = _mission_chat_clarify_request_payload(SimpleNamespace(raw=raw), session_id=a["session_id"],
+        persona_id="builder", persona_instance_id=a["persona_instance_id"],
+        client_message_id="dispatch-delivery-x", turn_id="dispatch-delivery-x", requested_by_session=None)
+    ticket = PersonaChatClarifyTicketStore().resolve(payload["clarify_token"])
+    assert (ticket["question"], ticket["choices"]) == ("Which branch?", ["main", "release"])

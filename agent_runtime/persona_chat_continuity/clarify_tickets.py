@@ -89,8 +89,15 @@ class PersonaChatClarifyTicketStore:
         asked_by_client_message_id: str | None = None,
         asked_turn_id: str | None = None,
         requested_by_session: str | None = None,
+        question: str | None = None,
+        choices: list[str] | None = None,
     ) -> str | None:
         """Record a clarify ticket for the question this turn is asking.
+
+        The ticket keeps the question and its choices (bounded as the turn
+        journal bounds them), so the chat read can name a question asked in a
+        turn no client was waiting on (a helper's reply delivered by the
+        runtime): RT-FU-A-QUESTION-ASKED-IN-A-BACKGROUND-TURN-IS-NAMED-BY-THE-CHAT-READ.
 
         Returns the token to ship down inside ``clarify_request``, or ``None``
         when there is no session to bind to or the write failed. Best-effort by
@@ -116,6 +123,7 @@ class PersonaChatClarifyTicketStore:
             "requested_by_session": safe_assignment_text(requested_by_session, limit=240)
             or None,
             "state": CLARIFY_TICKET_OPEN,
+            **_ticket_question(question, choices),
             "created_at": time.time(),
             "answered_at": None,
             "answered_by_client_message_id": None,
@@ -340,3 +348,13 @@ class PersonaChatClarifyTicketStore:
 
     def _iter_records(self) -> Iterator[dict[str, Any]]:
         yield from self.scan_records()[0]
+
+
+def _ticket_question(question: Any, choices: Any) -> dict[str, Any]:
+    """``question`` and ``choices`` as the turn journal bounds them, or nothing for no question."""
+
+    from ..auxiliary_chat import safe_auxiliary_result
+
+    bounded = safe_auxiliary_result({"clarify": {"question": question, "choices": choices or []}})
+    clarify = (bounded or {}).get("clarify")
+    return dict(clarify) if clarify else {}

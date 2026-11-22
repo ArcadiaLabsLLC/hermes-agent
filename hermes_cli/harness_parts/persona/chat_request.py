@@ -357,6 +357,8 @@ def _mission_chat_clarify_request_payload(
         asked_by_client_message_id=client_message_id,
         asked_turn_id=turn_id,
         requested_by_session=requested_by_session,
+        question=raw.get("question"),
+        choices=raw.get("choices"),
     )
     payload = dict(raw)
     if token:
