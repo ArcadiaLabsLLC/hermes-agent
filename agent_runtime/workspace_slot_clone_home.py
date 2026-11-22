@@ -15,6 +15,11 @@ here to that repository under ``repos/<realm folder>/`` gives its path as the de
 rather than clones). A ``<slot>`` folder already used by a different repository — bound to it, or on disk
 and not a checkout of this one — is suffixed ``<slot>-2``, ``-3`` …
 
+A LOCAL slot (no clone URL) made on this machine lands beside the realm's clones too
+(:func:`default_project_path`, Eternia row ``MC-PHONE-FILES-A-PHONE-KEEPS-PROJECT-FOLDERS-IN-ITS-NAMESPACE``): on a
+phone that is the one place a project can be, a real folder in the app's own storage that the agents, git
+and Eternia all open directly (plan ``PHONE_PROJECT_FOLDERS_FILE_TREE_2026-11-21.md`` §3, owner 2026-11-21).
+
 This is only the default answer: nothing here clones, and the mapping file is the one thing written.
 """
 
@@ -166,6 +171,24 @@ def _free_on_disk(candidate: Path, slot: dict[str, Any]) -> bool:
     if not candidate.exists():
         return True
     return candidate.is_dir() and (not any(candidate.iterdir()) or origin_matches(candidate, slot))
+
+
+def default_project_path(workspace_id: str, slot: str) -> Path:
+    """Where a LOCAL slot's folder is made here: ``repos/<realm folder>/<slot>``, never one in use.
+
+    A folder is skipped while it holds anything or another slot binds it here, as ``-2``, ``-3`` …"""
+
+    realm_id, realm_name = _realm_of(workspace_id)
+    realm_dir = repos_root() / realm_folder(realm_id, realm_name)
+    bound = {str(path.resolve()).lower() for _, path, _ in _Bindings().rows}
+    base = safe_folder_name(slot, fallback="project")
+    candidate, n = realm_dir / base, 2
+    # MUTATION: drop the "holds anything" arm and a new project lands in another's files
+    # (test_workspace_slot_create: test_a_second_project_of_one_name_gets_its_own_folder).
+    while str(candidate.resolve()).lower() in bound or (candidate.exists() and (
+            not candidate.is_dir() or any(candidate.iterdir()))):
+        candidate, n = realm_dir / f"{base}-{n}", n + 1
+    return candidate
 
 
 def default_clone_paths(workspace_id: str, document: dict[str, Any], here: dict[str, dict[str, Any]]) -> dict[str, str | None]:

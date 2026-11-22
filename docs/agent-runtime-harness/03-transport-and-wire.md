@@ -2276,6 +2276,22 @@ Sample (`<namespace>` stands for the absolute namespace folder on the machine):
 `runtime.workspace.slot.clone {workspace_id, slot, dest_path, issued_at}` (local console) clones into `dest_path`
 (absolute; absent or an empty directory) and creates its missing parent folders first, so the default above can be
 passed as it is; any other absolute path the client chooses behaves as before.
+On a device that starts no process (`realm_sync.git_backend: dulwich`, the bundled phone) the clone runs IN
+PROCESS through the realm-sync port on a thread of its own (`workspace_slot_setup._clone_in_process`); its run row
+is the same one, with `in_process: true` and `work_id: null` (there is no terminal row to open), it binds on
+success, and a run whose serve restarted mid-clone settles `lost`. It clones the remote's default branch.
+
+`runtime.workspace.slot.create {workspace_id, slot, issued_at}` (local console; Eternia row
+`MC-PHONE-FILES-A-PHONE-KEEPS-PROJECT-FOLDERS-IN-ITS-NAMESPACE`) makes a LOCAL slot's (`repo.local`) folder at
+`<namespace>/repos/<realm folder>/<slot>` (suffixed `-2`, `-3` … past a folder that holds anything or that another
+slot binds here), makes it a git repository through the realm-sync port and binds it; it answers what
+`slot.bind` answers. The Harness picks the folder: no path is read from the caller. Refused `slot_has_repository`
+for a slot with a clone URL (Clone sets that up), `slot_already_bound` when bound here, `git_unavailable` when this
+device's git backend cannot be read. On a phone this is how a project is made: a real folder in the app's own
+storage that the agents, git and Eternia all open directly (owner ruling 2026-11-21).
+
+The checkout probe behind `slots.report` and every bind reads `origin` through the same port
+(`workspace_slots_probe._origin_url`), so a phone reports its clones `matches` with no `git` program.
 
 ### Schedule methods — the serve's scheduler
 
