@@ -27,6 +27,7 @@ from agent_runtime.call_authorization import (
     UNKNOWN_CALLER,
     RpcCaller,
 )
+from tests.agent_runtime._serve_rpc_manifest import expected_manifest
 
 INDEX = "runtime.media.index"
 GET = "runtime.media.get"
@@ -345,7 +346,10 @@ def test_the_family_joined_the_set_without_moving_the_integer():
     # R-C8 joined params to the shape, additively: a client that ignores
     # the key keeps working, which is the same rule the set and the map already
     # ride under.
-    assert set(manifest) == {"contract", "methods", "tiers", "computer_reach", "params", "limits"}
+    # The top-level key set is the expectation file's, written by its producer
+    # (`python -m tests.agent_runtime._serve_rpc_manifest --write`): a new additive
+    # key edits that one file, never this line.
+    assert set(manifest) == set(expected_manifest())
 
 
 # ── Stage P4: peer.media.get, and the proxy arm on runtime.media.get ─────────

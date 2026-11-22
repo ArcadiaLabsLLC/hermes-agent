@@ -52,6 +52,7 @@ from agent_runtime.chat_turn_reservations import (
     reserve_chat_turn,
     turn_request_digest,
 )
+from tests.agent_runtime._serve_rpc_manifest import expected_manifest
 from tests.agent_runtime.test_serve_socket_lane import (
     WAIT,
     client,
@@ -74,7 +75,10 @@ def test_the_manifest_grew_by_two_names_and_the_integer_did_not_move():
     # The ops still ride BESIDE this and do not join it. ``params`` (R-C8) DID
     # join it, additively: a client that ignores the key keeps working, and the
     # keys it lists are exactly the ones these two verbs already honour.
-    assert set(manifest) == {"contract", "methods", "tiers", "computer_reach", "params", "limits"}
+    # The top-level key set is the expectation file's, written by its producer
+    # (`python -m tests.agent_runtime._serve_rpc_manifest --write`): a new additive
+    # key edits that one file, never this line.
+    assert set(manifest) == set(expected_manifest())
     assert {CHAT_MESSAGE_METHOD, CHAT_STEER_METHOD} <= set(manifest["params"])
 
 

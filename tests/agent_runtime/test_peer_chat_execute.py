@@ -38,6 +38,7 @@ from agent_runtime.chat_turn import (
     perform_chat_turn,
 )
 from agent_runtime.serve_rpc.protocol import PEER_REQUESTED_BY_PREFIX
+from tests.agent_runtime._serve_rpc_manifest import expected_manifest
 
 PEER_A = RpcCaller(
     kind=CALLER_PEER, transport="gateway", peer_install_id="install-a", connection_key="k1"
@@ -75,7 +76,10 @@ def test_the_verb_is_registered_allowlisted_and_declares_console():
     # R-C8 joined params to the shape, additively: a client that ignores
     # the key keeps working, which is the same rule the set and the map already
     # ride under.
-    assert set(manifest) == {"contract", "methods", "tiers", "computer_reach", "params", "limits"}
+    # The top-level key set is the expectation file's, written by its producer
+    # (`python -m tests.agent_runtime._serve_rpc_manifest --write`): a new additive
+    # key edits that one file, never this line.
+    assert set(manifest) == set(expected_manifest())
     assert PEER_CHAT_EXECUTE_METHOD in PEER_METHOD_ALLOWLIST
 
 

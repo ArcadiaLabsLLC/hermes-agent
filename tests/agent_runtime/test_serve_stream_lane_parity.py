@@ -79,6 +79,7 @@ from agent_runtime.stream import (
 )
 from hermes_cli.harness_parts import serve as serve_module
 from hermes_cli.harness_parts.serve import serve_loop
+from tests.agent_runtime._serve_rpc_manifest import expected_manifest
 from tests.agent_runtime.test_serve_socket_lane import (
     WAIT,
     _Sink,
@@ -547,7 +548,10 @@ def test_the_advertisement_grew_and_no_contract_integer_moved():
     # ``methods``, which is exactly the additive growth this test's docstring
     # permits; this pin was red from that landing until it learned the key,
     # because A1 updated the shape and missed the pin.
-    assert set(serve_rpc.manifest()) == {"contract", "methods", "tiers", "computer_reach", "params", "limits"}
+    # The top-level key set is the expectation file's, written by its producer
+    # (`python -m tests.agent_runtime._serve_rpc_manifest --write`): a new additive
+    # key edits that one file, never this line.
+    assert set(serve_rpc.manifest()) == set(expected_manifest())
 
 
 # ── byte parity against argv ``harness stream`` ──────────────────────────────

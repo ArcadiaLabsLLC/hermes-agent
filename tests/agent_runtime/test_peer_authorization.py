@@ -42,6 +42,7 @@ from agent_runtime.call_authorization import (
     authorize_call,
     caller_for_connection,
 )
+from tests.agent_runtime._serve_rpc_manifest import expected_manifest
 
 PEER = RpcCaller(
     kind=CALLER_PEER, transport=TRANSPORT_GATEWAY, peer_install_id="inst_far_away"
@@ -424,7 +425,10 @@ def test_the_method_joined_the_manifest_without_moving_the_contract_integer():
     # R-C8 joined params to the shape, additively: a client that ignores
     # the key keeps working, which is the same rule the set and the map already
     # ride under.
-    assert set(manifest) == {"contract", "methods", "tiers", "computer_reach", "params", "limits"}
+    # The top-level key set is the expectation file's, written by its producer
+    # (`python -m tests.agent_runtime._serve_rpc_manifest --write`): a new additive
+    # key edits that one file, never this line.
+    assert set(manifest) == set(expected_manifest())
 
 
 def test_the_peer_prefix_is_the_declaration_that_it_touches_no_level():

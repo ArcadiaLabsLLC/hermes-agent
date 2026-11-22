@@ -41,6 +41,7 @@ from agent_runtime.chat_turn import (
     normalize_chat_steer,
     perform_chat_turn,
 )
+from tests.agent_runtime._serve_rpc_manifest import expected_manifest
 
 
 def _message(**extra) -> list[str]:
@@ -384,7 +385,10 @@ def test_the_params_block_is_additive_and_the_contract_integer_does_not_move():
 
     assert serve_rpc.manifest()["contract"] == 1
     assert serve_rpc.RPC_CONTRACT_VERSION == 1
-    assert set(serve_rpc.manifest()) == {"contract", "methods", "tiers", "computer_reach", "params", "limits"}
+    # The top-level key set is the expectation file's, written by its producer
+    # (`python -m tests.agent_runtime._serve_rpc_manifest --write`): a new additive
+    # key edits that one file, never this line.
+    assert set(serve_rpc.manifest()) == set(expected_manifest())
 
 
 def test_the_manifest_advertises_the_operator_text_admission_its_doors_enforce():
