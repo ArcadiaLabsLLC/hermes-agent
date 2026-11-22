@@ -21,7 +21,6 @@ tags: [queue, program/fork-hygiene]
 
 ## Filed on arrival — 2026-11-21 (lane w1118a-bundle)
 
-- **`FH-PREPUSH-TOUCHED-OVER-BUDGET-WHEN-A-PUSH-NAMES-THE-PHONE-BUNDLE-WALK-TESTS` — A push that changes the phone bundle's closure walk can run its push check inside the budget** · group: prepush · from: `RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS` (lane w1118a-bundle) · seen 2026-11-21 (`scripts/prepush.sh`, head 5c30fdb8e4, Linux box): step `touched` 77.2 s against budget 60 s (deadline 120 s, load 11.00, work 8 files, -j 8, exit 0, all green); the eight named files each run a real phone walk or packager plan: test_bundle_phone_real_closure.py 76.5 s, test_bundle_namespace_closure.py 44.7 s, test_bundle_profile_package.py 42.9 s, test_bundle_shared_config_closure.py 42.6 s, test_phone_bundle_turn_closure.py 40.5 s (measured, the runner's per-file table) · guessed: each file walks the tree on its own (no shared walk across files), so the wall is the slowest file's walk; not re-timed on an idle box · done when: a push naming the bundle walk's test files finishes `touched` under its budget at ordinary load, or the budget is raised on an idle-box measurement · READY 2026-11-21 · handoff 2026-11-21 (w1118a-bundle): seen again 2026-11-21 (head c64b6e5b9a~, 11 files): touched 73.4 s against budget 60 s at load 4.31
 
 ## Owner request — 2026-11-08 (hermes prepush: a tight cap, an overrun report, fast)
 
