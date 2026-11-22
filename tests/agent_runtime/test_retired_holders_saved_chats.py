@@ -122,6 +122,9 @@ def test_a_retired_holders_chat_says_so_in_the_directory(qa_workspace):
     assert row is not None
     assert (row["persona_id"], row["persona_instance_id"], row["available"], row["holder_retired"]) == (
         "qa", placed["persona_instance_id"], False, True)
+    # the workspace and name the retired instance had, so a client lists it where the chat lived
+    assert (row["workspace_id"], row["display_name"]) == (placed["workspace_id"], placed["display_name"])
+    assert row["workspace_id"] is not None
     live_row = _directory_row(live["default_chat_session_id"])
     assert live_row is not None and (live_row["available"], live_row["holder_retired"]) == (True, False)
 

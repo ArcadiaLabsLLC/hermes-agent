@@ -183,9 +183,15 @@ def _project_instance_history(db, raw, instances, install_id, *, asker, retired=
         instance.persona_id if instance else archived.persona_id if archived else "unknown")
     row = _history_row(raw, persona_id=persona_id, instance_id=instance_id,
                        session_id=raw["id"], session_db=db, message_tail=1)
+    # A retired holder's row keeps the workspace and name its instance had, from the archive: a
+    # client then lists it where the chat lived and under its name (read live 2026-11-22: with no
+    # workspace a "This workspace" list hid it and showed a stale copy that could not open).
+    # MUTATION: answer None for a retired holder here and
+    # test_a_retired_holders_chat_says_so_in_the_directory reddens.
+    holder = instance or archived
     row.update(install_id=install_id, persona_instance_id=instance_id,
-               workspace_id=effective_workspace_id(instance, active_workspace_id=None) if instance else None,
-               display_name=instance.display_name if instance else None,
+               workspace_id=effective_workspace_id(holder, active_workspace_id=None) if holder else None,
+               display_name=holder.display_name if holder else None,
                available=instance is not None and instance.persona_id == persona_id,
                # MUTATION: answer False here and test_a_retired_holders_chat_says_so_in_the_directory reddens.
                holder_retired=archived is not None and archived.persona_id == persona_id,
