@@ -30,6 +30,7 @@ from agent_runtime.persona_chat_durability import ensure_persona_chat_session
 from agent_runtime.store import AgentStore
 from hermes_cli.profiles import get_profile_dir
 from tests.agent_runtime.office_seed import seed_workspace_record
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 NEKO = "neko_supervisor"
 BETA = "neko_mission_lead_beta"
@@ -72,7 +73,7 @@ def owner_shaped_root():
                             "codex_responses", hermes_profile="neko", skills=["systematic-debugging"],
                             soul_overlay_path="SOUL.md"))
     instances = PersonaInstanceStore()
-    personal = instances.ensure_for_persona(store.get(NEKO))
+    personal = mint_hidden_copy(store=instances, persona=store.get(NEKO))
     seats = {ws: instances.add_instance(persona_id=NEKO, placement_id=f"neko_{ws}_agent_1", workspace_id=ws)
              for ws in ("ws_testv4", "ws_default")}
     chats = {"personal": f"persona_chat_{personal.id}_00000000000a"}

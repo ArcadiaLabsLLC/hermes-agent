@@ -182,7 +182,6 @@ from agent_runtime.core_cache.generations import (
 )
 from agent_runtime.core_cache.restat import (
     SELF_PERTURBED_LIVE_EVENTS,
-    SELF_PERTURBED_PERSONA_INSTANCES,
     SELF_PERTURBED_SESSION_DB,
     _restat_on_post_build_reality,
     _self_perturbed_inputs,
@@ -262,7 +261,6 @@ __all__ = [
     "REFUSAL_SCOPE_SKILL_ROOT",
     "REFUSAL_SCOPE_STORE_ROOT",
     "SELF_PERTURBED_LIVE_EVENTS",
-    "SELF_PERTURBED_PERSONA_INSTANCES",
     "SELF_PERTURBED_SESSION_DB",
     "SIDECAR_FILENAME",
     "_CONFIG_CONTENT_MAX_BYTES",

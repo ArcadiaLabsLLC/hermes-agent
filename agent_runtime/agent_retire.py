@@ -55,8 +55,8 @@ ever be told which one" stops being a reachable state.
 The refusal vocabulary is the store's, one-to-one
 -------------------------------------------------
 ``PersonaInstanceRetireError.code`` is not re-spelled here. ``not_found`` maps to
-``ERR_NOT_FOUND``, every code in ``CONFLICT_REASONS`` — ``canonical_persona_channel``,
-``instance_active`` — to ``ERR_CONFLICT`` (any other code to ``ERR_HANDLER_FAILED``),
+``ERR_NOT_FOUND``, every code in ``CONFLICT_REASONS`` — ``instance_active`` —
+to ``ERR_CONFLICT`` (any other code to ``ERR_HANDLER_FAILED``),
 with ``data.reason`` carrying the code verbatim, because the
 launcher decodes ``data.reason`` first and the numeric code second. A refusal
 this lane invented would be a second vocabulary for one set of guards.
@@ -105,7 +105,8 @@ REASON_INSTANCE_ID_REQUIRED = "persona_instance_id_required"
 #: ``test_the_conflict_vocabulary_is_the_stores_own_raise_sites`` holds the
 #: tuple equal to the store's raise sites.
 CONFLICT_REASONS = (
-    "canonical_persona_channel",
+    # ``canonical_persona_channel`` left with the canonical predicate
+    # (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): any instance retires.
     "instance_active",
 )
 

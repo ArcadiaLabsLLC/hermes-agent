@@ -26,6 +26,7 @@ import pytest
 from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE
 from hermes_cli.harness_parts.persona import chat_open, chat_turn_message
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 class _ProviderReached(RuntimeError):
@@ -122,7 +123,7 @@ def test_a_new_chat_of_a_never_bound_agent_on_its_own_profile_takes_its_first_me
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
     store = PersonaInstanceStore()
-    instance = store.ensure_for_persona(_neko())
+    instance = mint_hidden_copy(store=store, persona=_neko())
     assert not instance.default_chat_session_id and not instance.chat_head_home  # a fresh namespace's Neko
 
     root = _open_new_chat(capsys, instance.id)["session_id"]
@@ -147,7 +148,7 @@ def test_positive_control_a_new_chat_of_a_bound_agent_stays_on_its_recorded_head
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
     store = PersonaInstanceStore()
-    first = _open_new_chat(capsys, store.ensure_for_persona(_neko()).id)
+    first = _open_new_chat(capsys, mint_hidden_copy(store=store, persona=_neko()).id)
     bound = store.get(first["persona_instance_id"])
     second = chat_open._cmd_persona_instance_open_new_chat(SimpleNamespace(
         persona_instance_id=bound.id, session_id=None, add_instance=False,

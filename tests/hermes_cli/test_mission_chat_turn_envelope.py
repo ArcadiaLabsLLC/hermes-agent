@@ -175,7 +175,6 @@ def lease_witness(monkeypatch, isolate_agent_runtime_root):
 
         monkeypatch.setattr(target, attr, _wrapped)
 
-    _witness("ensure_for_personas", PersonaInstanceStore, "ensure_for_personas")
     _witness("open_chat", PersonaInstanceStore, "open_chat")
     _witness("ensure_chat_session", commit_admit, "_ensure_persona_chat_session")
     _witness("model_override", commit_admit, "_resolve_turn_model_selection")
@@ -210,11 +209,15 @@ def test_the_two_writes_that_cannot_be_leased_are_named_not_hidden(
     changes in either direction.
     """
 
-    _harness, seen = lease_witness
+    _harness, _seen = lease_witness
     assert chat_turn_message._cmd_mission_chat_message(_args("lease_turn")) == 0
     capsys.readouterr()
 
-    assert seen.get("ensure_for_personas") is False
+    # The instance derive-from-workers write is gone with the hidden copies
+    # (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): a turn writes no roster before the lease.
+    from agent_runtime.persona_assignments import PersonaInstanceStore
+
+    assert not hasattr(PersonaInstanceStore, "ensure_for_personas")
 
 
 def test_each_leasable_write_happens_exactly_once_per_turn(

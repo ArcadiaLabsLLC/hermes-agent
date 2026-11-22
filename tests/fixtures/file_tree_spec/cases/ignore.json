@@ -1,0 +1,83 @@
+{
+  "fixtures": {
+    "ignored": {
+      "files": {
+        ".gitignore": "# comment\n*.log\n/out/\nnotes/*.tmp\n!keep.log\n**/gen/**\nsecret?.txt  \n",
+        ".git/HEAD": "hit\n",
+        "a.log": "hit\n",
+        "keep.log": "hit\n",
+        "out/x.txt": "hit\n",
+        "sub/out/y.txt": "hit\n",
+        "notes/n.tmp": "hit\n",
+        "notes/n.md": "hit\n",
+        "sub/notes/m.tmp": "hit\n",
+        "deep/gen/z.txt": "hit\n",
+        "node_modules/p/i.js": "hit\n",
+        "build/o.txt": "hit\n",
+        "src/build": "hit\n",
+        "src/build.txt": "hit\n",
+        "src/main.dart": "hit\n",
+        "secret1.txt": "hit\n",
+        "secret10.txt": "hit\n"
+      }
+    }
+  },
+  "cases": [
+    {"name": "tree_skips_git_the_skip_list_and_gitignore", "about": ".git, skip-list folders and the root .gitignore's subset are skipped while walking: *.log by name anywhere, /out/ only at the root, notes/*.tmp anchored, ! not honoured, **/gen/** everything inside, trailing spaces trimmed, ? one character, and a skip-list name is a folder rule only",
+     "fixture": "ignored", "request": {"verb": "tree", "depth": 6},
+     "expect": {"reply": {"path": "", "entries": [
+       {"path": ".gitignore", "kind": "file", "size": 68},
+       {"path": "deep", "kind": "dir"},
+       {"path": "deep/gen", "kind": "dir"},
+       {"path": "notes", "kind": "dir"},
+       {"path": "notes/n.md", "kind": "file", "size": 4},
+       {"path": "secret10.txt", "kind": "file", "size": 4},
+       {"path": "src", "kind": "dir"},
+       {"path": "src/build", "kind": "file", "size": 4},
+       {"path": "src/build.txt", "kind": "file", "size": 4},
+       {"path": "src/main.dart", "kind": "file", "size": 4},
+       {"path": "sub", "kind": "dir"},
+       {"path": "sub/notes", "kind": "dir"},
+       {"path": "sub/notes/m.tmp", "kind": "file", "size": 4},
+       {"path": "sub/out", "kind": "dir"},
+       {"path": "sub/out/y.txt", "kind": "file", "size": 4}
+     ], "total": 15, "offset": 0}}},
+    {"name": "tree_depth_one", "about": "depth 1 lists the folder's own entries only",
+     "fixture": "ignored", "request": {"verb": "tree", "depth": 1},
+     "expect": {"reply": {"path": "", "entries": [
+       {"path": ".gitignore", "kind": "file", "size": 68},
+       {"path": "deep", "kind": "dir"},
+       {"path": "notes", "kind": "dir"},
+       {"path": "secret10.txt", "kind": "file", "size": 4},
+       {"path": "src", "kind": "dir"},
+       {"path": "sub", "kind": "dir"}
+     ], "total": 6, "offset": 0}}},
+    {"name": "grep_skips_what_tree_skips", "about": "grep searches exactly the files tree lists, in tree order",
+     "fixture": "ignored", "request": {"verb": "grep", "pattern": "hit"},
+     "expect": {"reply": {"pattern": "hit", "path": "", "matches": [
+       {"path": "notes/n.md", "line": 1, "text": "hit"},
+       {"path": "secret10.txt", "line": 1, "text": "hit"},
+       {"path": "src/build", "line": 1, "text": "hit"},
+       {"path": "src/build.txt", "line": 1, "text": "hit"},
+       {"path": "src/main.dart", "line": 1, "text": "hit"},
+       {"path": "sub/notes/m.tmp", "line": 1, "text": "hit"},
+       {"path": "sub/out/y.txt", "line": 1, "text": "hit"}
+     ], "total": 7, "offset": 0}}},
+    {"name": "read_an_ignored_file_by_its_path", "about": ".gitignore and the skip list shape a walk; a read by explicit path is not refused for them",
+     "fixture": "ignored", "request": {"verb": "read", "path": "a.log"},
+     "expect": {"reply": {"path": "a.log", "size": 4, "chars": 4, "offset": 0, "content": "hit\n"}}},
+    {"name": "read_inside_a_skipped_folder", "about": "a read inside a skip-list folder by explicit path",
+     "fixture": "ignored", "request": {"verb": "read", "path": "node_modules/p/i.js"},
+     "expect": {"reply": {"path": "node_modules/p/i.js", "size": 4, "chars": 4, "offset": 0, "content": "hit\n"}}},
+    {"name": "tree_of_a_skipped_folder_by_its_path", "about": "tree of a skip-list folder asked by name lists it",
+     "fixture": "ignored", "request": {"verb": "tree", "path": "node_modules"},
+     "expect": {"reply": {"path": "node_modules", "entries": [
+       {"path": "node_modules/p", "kind": "dir"},
+       {"path": "node_modules/p/i.js", "kind": "file", "size": 4}
+     ], "total": 2, "offset": 0}}},
+    {"name": "tree_depth_zero", "about": "depth below 1 is refused",
+     "fixture": "ignored", "request": {"verb": "tree", "depth": 0}, "expect": {"refusal": "bad_argument"}},
+    {"name": "tree_depth_seven", "about": "depth above 6 is refused",
+     "fixture": "ignored", "request": {"verb": "tree", "depth": 7}, "expect": {"refusal": "bad_argument"}}
+  ]
+}

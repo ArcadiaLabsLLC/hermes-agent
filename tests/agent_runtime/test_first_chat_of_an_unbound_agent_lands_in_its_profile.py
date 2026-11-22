@@ -28,6 +28,7 @@ from agent_runtime.chat_session_scope import (
 from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_assignments.identity import persona_chat_session_id_for
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 @pytest.fixture
@@ -88,7 +89,7 @@ def test_an_existing_never_bound_agents_first_chat_is_in_its_own_profile(heads):
     ``profiles/base`` while the record says ``profiles/neko``, red."""
 
     store = PersonaInstanceStore()
-    instance = store.ensure_for_persona(heads.persona)
+    instance = mint_hidden_copy(store=store, persona=heads.persona)
     assert not instance.default_chat_session_id and not instance.chat_head_home
 
     root = _first_turn(store, instance.id)
@@ -108,7 +109,7 @@ def test_positive_control_a_never_bound_agent_with_a_legacy_chat_in_base_stays_o
     from hermes_state import SessionDB
 
     store = PersonaInstanceStore()
-    instance = store.ensure_for_persona(heads.persona)
+    instance = mint_hidden_copy(store=store, persona=heads.persona)
     db = SessionDB(db_path=heads.base / "state.db")
     try:
         db.create_session(session_id="legacy_opaque_chat", source="mission_control", model=None,
@@ -128,7 +129,7 @@ def test_a_bound_agents_scope_is_still_its_record(heads):
     """An instance already bound answers its record, never a fresh first-bind guess."""
 
     store = PersonaInstanceStore()
-    instance = store.ensure_for_persona(heads.persona)
+    instance = mint_hidden_copy(store=store, persona=heads.persona)
     root = _first_turn(store, instance.id)
 
     scope = resolve_conversation_chat_scope(session_id=root, instance_store=store)

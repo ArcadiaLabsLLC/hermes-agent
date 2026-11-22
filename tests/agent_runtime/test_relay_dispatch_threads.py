@@ -36,6 +36,7 @@ from hermes_cli.harness_parts.persona import (
 from hermes_cli.harness_parts.persona.chat_turn_commit import run as commit_run, settle as commit_settle
 # The same autouse persona seed the lifecycle half runs under.
 from tests.agent_runtime.test_relay_session_lifecycle import _persist_explicit_chat_persona_data
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 # --------------------------------------------------------------------------- #
@@ -280,7 +281,7 @@ def test_fresh_dispatch_thread_is_canonical_pointed_and_visible(
 
     assert session_id.startswith(f"persona_chat_{handle}_")
     store = PersonaInstanceStore()
-    assert resolve_default_chat_session_id_for_instance(store, persona_id="dev") == session_id
+    assert resolve_default_chat_session_id_for_instance(store, persona_id="dev", persona_instance_id=persona_instance_id_for("dev")) == session_id
     rows = persona_chat_history_summary(persona_instances=store.list_all(), session_db=db)
     visible = [row for row in rows if row["session_id"] == session_id]
     assert len(visible) == 1
@@ -419,7 +420,7 @@ def test_a_dispatch_refused_on_its_own_arguments_mints_nothing(
 
     assert _dev_chat_sessions(db) == [], "a refused dispatch must not create a thread"
     assert (
-        resolve_default_chat_session_id_for_instance(PersonaInstanceStore(), persona_id="dev")
+        resolve_default_chat_session_id_for_instance(PersonaInstanceStore(), persona_id="dev", persona_instance_id=persona_instance_id_for("dev"))
         is None
     ), "a refused dispatch must not establish a default-thread pointer"
 
@@ -444,7 +445,7 @@ def test_a_refused_dispatch_leaves_an_established_thread_pointed_where_it_was(
 
     assert _dev_chat_sessions(db) == [established["session_id"]]
     assert resolve_default_chat_session_id_for_instance(
-        PersonaInstanceStore(), persona_id="dev"
+        PersonaInstanceStore(), persona_id="dev", persona_instance_id=persona_instance_id_for("dev")
     ) == established["session_id"]
 
 
@@ -616,7 +617,7 @@ def test_clarify_round_trip_stays_in_one_session_under_the_new_default(
     assert answer["session_established"]["fresh"] is False
     assert answer["session_established"]["predecessor_session_id"] is None
     assert resolve_default_chat_session_id_for_instance(
-        PersonaInstanceStore(), persona_id="dev"
+        PersonaInstanceStore(), persona_id="dev", persona_instance_id=persona_instance_id_for("dev")
     ) == dispatched["session_id"]
 
 
@@ -958,7 +959,7 @@ def test_a_dispatch_whose_transcript_write_fails_refuses_instead_of_binding_a_ph
     # …and no phantom pointer survives to poison every later send.
     assert (
         resolve_default_chat_session_id_for_instance(
-            PersonaInstanceStore(), persona_id="dev"
+            PersonaInstanceStore(), persona_id="dev", persona_instance_id=persona_instance_id_for("dev")
         )
         is None
     )
@@ -987,7 +988,7 @@ def test_a_dispatch_to_a_retired_placement_leaves_live_threads_alone(
     assert list(db.sessions) == [established["session_id"]]
     assert _mint_receipt_files() == receipts_before
     assert resolve_default_chat_session_id_for_instance(
-        PersonaInstanceStore(), persona_id="dev"
+        PersonaInstanceStore(), persona_id="dev", persona_instance_id=persona_instance_id_for("dev")
     ) == established["session_id"]
 
 
@@ -1110,7 +1111,7 @@ def _task_bound_goal_instance(goal_id: str = "goal_alpha", persona_id: str = "de
         hermes_profile=None,
     )
     store = PersonaInstanceStore()
-    instance = store.ensure_for_persona(persona)
+    instance = mint_hidden_copy(store=store, persona=persona)
     instance.mode = "task_bound"
     instance.goal_id = goal_id
     instance.current_task_id = goal_id

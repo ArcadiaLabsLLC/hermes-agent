@@ -23,7 +23,7 @@ one-liner, which left three defects behind every time (live incident,
    the binding index makes the disagreement visible.
 2. **``persona_instance.profile_id`` drifts.** It is a PROJECTION of the
    persona's ``hermes_profile``, but only the canonical
-   ``personainst_<persona_id>`` row self-heals (``ensure_for_persona``); the
+   ``personainst_<persona_id>`` row self-healed (``ensure_for_persona``, removed since); the
    ``personainst_<persona>_agent_<hex>`` placement rows drift forever, and
    ``_profile_visibility_persona`` will happily mint a synthetic persona off a
    stale ``profile_id``. :func:`rebind_persona_profile` cascades every row in
@@ -264,7 +264,7 @@ def _instance_rows_for_persona(persona_id: str, *, event_log: EventLog | None = 
     Covers the canonical ``personainst_<persona>`` channel, the
     ``personainst_<persona>_agent_<hex>`` placement/Agent-Profile rows, and any
     other row whose ``persona_id`` matches — the whole projection, not just the
-    one row ``ensure_for_persona`` heals.
+    one row ``ensure_for_persona`` used to heal.
     """
 
     from .persona_assignments import PersonaInstanceStore
@@ -644,12 +644,11 @@ def rebind_persona_profile(
         return envelope
 
     # Authority first, projections second. Note what this ordering does and does
-    # NOT buy: if a projection write fails, ``ensure_for_persona`` will later
-    # re-heal the canonical ``personainst_<persona_id>`` row toward the new
-    # binding, but the ``personainst_<persona>_agent_<hex>`` placement rows have
-    # NO self-heal at all (live evidence 2026-07-25 — that permanent drift is the
-    # whole reason this verb exists). So the rows that most need the cascade are
-    # exactly the ones no later pass repairs. A failed row is therefore recorded
+    # NOT buy: if a projection write fails, no later pass re-heals the row (the hidden
+    # copy's ``ensure_for_persona`` self-heal left with the mint,
+    # RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT; placement rows never had one —
+    # live evidence 2026-07-25, the whole reason this verb exists). So every row's
+    # cascade is the only repair it gets. A failed row is therefore recorded
     # and reported, never swallowed and never allowed to abort the rest.
     if persona_changes:
         persona.hermes_profile = target_profile

@@ -254,8 +254,10 @@ def _agent_reach(install, token):
 
     A persona INSTANCE sees its own workspace's boards and the personal board, and a row is its when
     the row is assigned to the instance or to its persona (``assignee: persona:<persona_id>`` means any
-    of that persona's instances). A runtime-global instance (no workspace) and a bare persona id (no
-    instance of that id) see every owner here.
+    of that persona's instances). An instance standing in no workspace sees the personal board only:
+    every live agent is placed, and the runtime-global reach over every owner's boards went with the
+    hidden copies (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT). A bare persona id (no instance
+    of that id) still sees every owner here: it names the persona's instances wherever they stand.
     """
     from agent_runtime.persona_assignments.store import PersonaInstanceStore
     from agent_runtime.workspace_scope import effective_workspace_id
@@ -268,8 +270,10 @@ def _agent_reach(install, token):
         return frozenset({store.resolve_assignee(token).token}), scopes(install)
     tokens = frozenset({instance.id, *([instance.persona_id] if instance.persona_id else [])})
     workspace = effective_workspace_id(instance, active_workspace_id=None)
+    # MUTATION: let ``workspace is None`` see every owner again and
+    # test_an_instance_in_no_workspace_sees_only_the_personal_board reddens.
     visible = [scope for scope in scopes(install)
-               if workspace is None or scope.kind == KIND_PERSONAL or scope.workspace_id == workspace]
+               if scope.kind == KIND_PERSONAL or (workspace is not None and scope.workspace_id == workspace)]
     return tokens, visible
 
 

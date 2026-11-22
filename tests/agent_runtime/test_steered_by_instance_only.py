@@ -29,6 +29,7 @@ from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.runtime_hud import resolve_situational_hud
 from agent_runtime.states import WorkerSessionState
 from hermes_cli.harness_parts.persona import instance_commands, lifecycle_commands
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def _persona(persona_id: str = "dev") -> AgentPersona:
@@ -90,7 +91,7 @@ def test_predicate_accepts_instance_ids_rejects_principals():
 
 def test_set_parents_rejects_a_non_instance_principal_with_the_reason():
     store = PersonaInstanceStore()
-    child = store.ensure_for_persona(_persona("qa"))
+    child = mint_hidden_copy(store=store, persona=_persona("qa"))
     with pytest.raises(ValueError, match="persona-instance id"):
         store.set_parents(child.id, ["operator"])
     # A bare persona id is also not a resolved steer parent.
@@ -102,8 +103,8 @@ def test_set_parents_rejects_a_non_instance_principal_with_the_reason():
 
 def test_set_parents_still_accepts_a_real_instance_parent():
     store = PersonaInstanceStore()
-    child = store.ensure_for_persona(_persona("qa"))
-    parent = store.ensure_for_persona(_persona("dev"))
+    child = mint_hidden_copy(store=store, persona=_persona("qa"))
+    parent = mint_hidden_copy(store=store, persona=_persona("dev"))
     result = store.set_parents(child.id, [parent.id])
     assert result.steered_by == [parent.id]
     assert result.spawned_by == parent.id  # mirror restored to a real instance
@@ -156,7 +157,7 @@ def test_repair_real_strips_principal_and_emits_event():
 
 def test_repair_keeps_instance_parents_and_repoints_mirror():
     store = PersonaInstanceStore()
-    parent = store.ensure_for_persona(_persona("dev"))
+    parent = mint_hidden_copy(store=store, persona=_persona("dev"))
     iid = "personainst_neko_supervisor_agent_2"
     _write_corrupt_row(store, iid, steered_by=[parent.id, "operator"], spawned_by="operator")
 
@@ -170,7 +171,7 @@ def test_repair_keeps_instance_parents_and_repoints_mirror():
 
 def test_repair_scan_all_finds_and_skips_clean_rows():
     store = PersonaInstanceStore()
-    store.ensure_for_persona(_persona("qa"))  # clean
+    mint_hidden_copy(store=store, persona=_persona("qa"))  # clean
     _write_corrupt_row(store, "personainst_neko_supervisor_agent_2", steered_by=["operator"], spawned_by="operator")
 
     dry = store.repair_non_instance_steering(None, apply=False)

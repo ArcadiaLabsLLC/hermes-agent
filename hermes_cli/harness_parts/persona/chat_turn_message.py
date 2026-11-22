@@ -17,7 +17,7 @@ from agent_runtime.chat_session_writer import (
     current_chat_session_writer_owner,
     with_chat_session_writer_owner,
 )
-from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
+from agent_runtime.config import load_agent_runtime_config
 from agent_runtime.dispatch_session_policy import (
     derive_dispatch_title,
     resolve_dispatch_session_decision,
@@ -143,12 +143,6 @@ def _cmd_mission_chat_message(args) -> int:
     from agent_runtime.preparation_reads import InstanceReadEpoch
     instance_read_epoch = InstanceReadEpoch()
     instance_store = PersonaInstanceStore(preparation_epoch=instance_read_epoch)
-    from agent_runtime.auxiliary_chat import is_auxiliary_chat
-    if not is_auxiliary_chat(getattr(args, "persona_instance_id", None), getattr(args, "session_id", None)):
-        instance_store.ensure_for_personas(ensure_persisted_personas(cfg), read_epoch=instance_read_epoch)
-    # Auxiliary sessions were admitted against an existing exact instance.
-    # They must not run the catalog's repairing projection writer (including
-    # display/profile fields) while another operator may be editing that row.
     persona_instance_id = caller_instance_pin(args, normalized_persona)
     session_id, persona_instance_id = _session_target(args, persona_instance_id, normalized_persona)
     # What the CALLER named, before anything on this turn overwrites it. Kept so

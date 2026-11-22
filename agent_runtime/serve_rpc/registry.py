@@ -256,6 +256,7 @@ def manifest() -> dict[str, Any]:
     if shipped("agent_runtime.work"):
         from ..work.model import READ_METHOD_PARAMS as WORK_READ_METHOD_PARAMS
     from .workspace_slots import WORKSPACE_CONTENT_METHOD_PARAMS
+    from .agent_files import AGENT_FILES_METHOD_PARAMS
 
     return {
         "contract": RPC_CONTRACT_VERSION,
@@ -278,6 +279,7 @@ def manifest() -> dict[str, Any]:
                 **SUBAGENT_METHOD_PARAMS,
                 **WORK_READ_METHOD_PARAMS,
                 **WORKSPACE_CONTENT_METHOD_PARAMS,
+                **AGENT_FILES_METHOD_PARAMS,
                 # Listed with the workspace content contract the launcher mirrors.
                 "runtime.persona.instance.recall.set": ("persona_instance_id", "enabled", "issued_at"),
             }.items())

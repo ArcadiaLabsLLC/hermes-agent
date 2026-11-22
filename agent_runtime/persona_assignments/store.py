@@ -18,7 +18,7 @@ from agent_runtime.agent_create_phases import timed_create_subphase
 from agent_runtime.config.roster import ensure_persisted_personas
 from agent_runtime.errors import PersonaInstancesUnreadable
 from agent_runtime.events import EventLog
-from agent_runtime.models import AgentPersona, Event, PersonaInstance
+from agent_runtime.models import Event, PersonaInstance
 from agent_runtime.persona_assignments import (
     chat_binding as chat_binding_lane,
     profile_writes as profile_writes_lane,
@@ -32,16 +32,12 @@ from agent_runtime.persona_assignments.identity import (
     _normalize_instance_source_persona,
     _profile_id_for_persona_or_template,
     canonical_persona_instance_id,
-    is_canonical_persona_channel,
     persona_chat_session_id_for,
-    persona_instance_id_for,
     persona_instance_id_for_placement,
 )
 from agent_runtime.persona_assignments.scan import (
-    _note_unreadable_instance_row,
     PersonaInstanceScan,
 )
-from agent_runtime.persona_lifecycle import is_independent_agent_persona, is_runtime_persona
 from agent_runtime.serde import (
     from_jsonable,
     safe_assignment_text,
@@ -50,7 +46,6 @@ from agent_runtime.serde import (
     to_jsonable,
 )
 from agent_runtime.state_patches.persona_instance import emit_persona_instance_patch
-from agent_runtime.states import WorkerSessionState
 
 __layer__ = "stores"
 
@@ -68,13 +63,13 @@ __all__ = [
 def _decode_stored_instance(raw: dict[str, Any]) -> PersonaInstance:
     """THE decode of one stored row; ``get`` and ``scan_all`` both go through it.
 
-    Two retired meanings are dropped here, once, so no reader carries a branch for them.
+    A retired meaning is dropped here, once, so no reader carries a branch for it.
 
-    A canonical operator channel carries no scene claim (the 2026-07-18 ruling,
-    "instance = in-level placement"): its ``workspace_id`` / ``realm_id`` decode as
-    ``None`` whatever the row on disk still holds, so no reader can put the persona
-    on a level by following a pointer an old bind stamped
-    (RT-GLOBAL-SINGLETON-CANONICAL; plan ``canonical-channel-global-storage-2026-10-27``).
+    A hidden copy ``personainst_<persona>`` used to decode with no workspace whatever
+    its row held (RT-GLOBAL-SINGLETON-CANONICAL). Nothing mints one any more, and the
+    hidden-copy migration (``persona_instance_adoption``) adopts, archives or holds
+    every one it finds, clearing a stale pointer as it goes, so a row decodes as it
+    is stored (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT).
     """
     from agent_runtime.persona_instance_sync.contract import stored_instance_body
 
@@ -89,9 +84,6 @@ def _decode_stored_instance(raw: dict[str, Any]) -> PersonaInstance:
         if (instance.current_task_id or None) == (instance.goal_id or None):
             instance.current_task_id = None
         instance.mode = "configured"
-    if is_canonical_persona_channel(instance):
-        instance.workspace_id = None
-        instance.realm_id = None
     return instance
 
 
@@ -111,115 +103,14 @@ class PersonaInstanceStore:
     # (``_CHAT_MODES``), in ``operator_channels``, ``persona_chat_history`` and
     # ``persona_instance_identity``, and rows carrying it exist on disk.
 
-    def ensure_for_persona(self, persona: AgentPersona) -> PersonaInstance:
-        """Materialize the canonical row for ``persona``, minting a missing one.
-
-        TWO FAILURE SHAPES BEHIND ONE ``except``, SPLIT BY IC-3 (2026-08-22).
-
-        This used to catch bare ``Exception`` and mint, which is right for a row
-        that is not there and wrong for a row that is there and will not decode.
-        Every build calls this for every persona
-        (``snapshot.build_snapshot`` -> :meth:`ensure_for_personas`), so an
-        unreadable row produced a file write AND a ``persona_instance.created``
-        event on EVERY PASS, silently, forever. Measured consequence: that write
-        moves an input the read-model cache's pre-build key already recorded, so
-        the persisted key could never describe the store the next process stat'd
-        — one of the named triggers behind the ``snapshot_core_cache
-        never_converged`` receipt.
-
-        * **COLD (the row is not there)** — ``FileNotFoundError``, after
-          :meth:`get`'s id-drift resolution has failed to find one either. Mint,
-          write, emit. UNCHANGED, deliberately: this is the ordinary cold-store
-          and new-persona path and every suite pins it.
-        * **UNREADABLE (the row is there and will not decode)** — anything else:
-          malformed JSON, a payload :func:`from_jsonable` refuses, a permission
-          error, a flaky share. Re-mint ONCE per process per row, with a WARNING
-          naming the file and the error, because a corrupt row that repairs
-          itself on the next build is the behaviour every caller already depends
-          on. The SECOND time the same row will not decode in this process, the
-          re-mint provably did not take — the store is rejecting the write, or
-          something is corrupting the row behind us — and a third, fourth and
-          thousandth mint would only keep hiding it. So that arm logs at ERROR
-          and returns the row it WOULD have written, without touching the disk
-          and without emitting a create event. The projection still sees a row;
-          the store is left alone; the defect is on the log instead of in the
-          fingerprint.
-
-        The once-per-process memo is keyed on the row's PATH, not on the instance
-        id: the id is stable across stores, and a memo keyed on it would let one
-        test's or one profile's corrupt row silence another store's first
-        legitimate repair.
-        """
-
-        instance_id = persona_instance_id_for(persona.id)
-        try:
-            existing = self.get(instance_id)
-        except FileNotFoundError:
-            return self._mint_instance(persona, instance_id)
-        except Exception as exc:
-            row_path = paths.persona_instance_path(instance_id)
-            if _note_unreadable_instance_row(row_path):
-                logging.getLogger(__name__).warning(
-                    "persona_instance_row_unreadable path=%s instance=%s error=%s — "
-                    "re-minting it once; a row that will not decode again after "
-                    "this is a real defect and will be reported instead of "
-                    "re-minted",
-                    row_path,
-                    instance_id,
-                    exc,
-                )
-                return self._mint_instance(persona, instance_id)
-            logging.getLogger(__name__).error(
-                "persona_instance_row_unreadable path=%s instance=%s error=%s "
-                "repeat=true — the re-mint did not take, so this build is NOT "
-                "writing another row or emitting another persona_instance.created. "
-                "Repair or remove the file; every build until then serves an "
-                "in-memory row for this persona.",
-                row_path,
-                instance_id,
-                exc,
-            )
-            return self._instance_row(persona, instance_id)
-        changed = False
-        # An operator rename (``display_name_custom``) outranks the persona's own name;
-        # only an instance nobody named follows it (RT-PERSONA-ENSURE-REVERTS-INSTANCE-RENAME).
-        if not existing.display_name_custom and existing.display_name != persona.display_name:
-            existing.display_name = persona.display_name
-            changed = True
-        if existing.profile_id != persona.hermes_profile:
-            existing.profile_id = persona.hermes_profile
-            changed = True
-        if changed:
-            existing.updated_at = now()
-            self._write(existing)
-        return self.get(instance_id)
-
-    def _instance_row(self, persona: AgentPersona, instance_id: str) -> PersonaInstance:
-        """The canonical row for a persona, as a VALUE — nothing is written here.
-
-        Split out of the mint so the repeat-unreadable arm can answer with a row
-        without also producing the durable write and the create event that arm
-        exists to stop.
-        """
-
-        return PersonaInstance(
-            id=instance_id,
-            persona_id=persona.id,
-            role=str(persona.role),
-            display_name=persona.display_name,
-            profile_id=persona.hermes_profile,
-            runtime_root=str(paths.store_root()),
-            state=WorkerSessionState.IDLE,
-            updated_at=now(),
-        )
-
-    def _mint_instance(self, persona: AgentPersona, instance_id: str) -> PersonaInstance:
-        """Write the canonical row and announce it — the cold path, unchanged."""
-
-        instance = self._instance_row(persona, instance_id)
-        self._write(instance, repair_unreadable=True)
-        self._event("persona_instance.created", instance, {})
-        return instance
+    # RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT removed ``ensure_for_persona`` /
+    # ``ensure_for_personas``: they minted a hidden copy ``personainst_<persona>`` of every agent on
+    # discovery, prewarm, every snapshot build, status, the peer roster, every send and the CLI, so a
+    # read wrote the rows it read (a named ``never_converged`` trigger of the snapshot cache). An
+    # agent's template is its persona; every live agent is a placed instance (plan
+    # ``agent-template-vs-canonical-instance-2026-11-21``). Readers list the store; a profile rebind
+    # cascades through ``persona_profile_binding``; a persona's name was synced only onto the hidden
+    # copy, never onto a placement, so nothing replaces that half.
 
     def get(self, persona_instance_id: str) -> PersonaInstance:
         path = paths.persona_instance_path(persona_instance_id)
@@ -612,56 +503,6 @@ class PersonaInstanceStore:
     def list_all(self) -> list[PersonaInstance]:
         return self.scan_all().instances
 
-    def ensure_for_personas(self, personas: list[AgentPersona], *, read_epoch=None) -> list[PersonaInstance]:
-        """Materialize an instance for every configured persona and settle any
-        instance still carrying a stale execution binding.
-
-        S56 renamed this from ``derive_from_workers(personas, workers)``. The
-        ``workers`` half is gone: ``build_snapshot`` had been passing a
-        ``workers = []`` literal for two waves, so the "a live worker carries
-        this persona's binding" branch could not be taken on the live tree, and
-        the worker session store it read has since been deleted. What remains —
-        the ensure pass plus the configured/idle reset — is exactly what ran
-        before, now unconditionally rather than for "every persona with no live
-        worker" (which was every persona).
-
-        ``chat`` / ``free_floating`` instances are still skipped: an operator
-        chat binding is not stale execution state.
-        """
-        personas = [
-            persona for persona in personas
-            if is_runtime_persona(persona) and not is_independent_agent_persona(persona)
-        ]
-        # One ensure per persona: ensure_for_persona already re-reads its final row.
-        if read_epoch is not None:
-            read_epoch.invalidate()
-        for persona in personas:
-            instance = self.ensure_for_persona(persona)
-            if instance.mode in {"chat", "free_floating"}:
-                continue
-            # S70 (contract 54): the two receipt-id disjuncts that used to widen
-            # this predicate are gone with the fields. They were always falsy —
-            # nothing had written either since the worker/goal lanes died — so
-            # the set of instances this resets is unchanged.
-            if (
-                instance.state != WorkerSessionState.IDLE
-                or instance.current_assignment_id
-                or instance.current_task_id
-                or instance.active_run_id
-            ):
-                instance.state = WorkerSessionState.IDLE
-                instance.mode = "configured"
-                instance.current_assignment_id = None
-                instance.current_task_id = None
-                instance.goal_id = None
-                instance.spawned_by = None
-                instance.steered_by = []
-                instance.active_run_id = None
-                instance.token_budget_used = 0
-                instance.last_heartbeat_at = None
-                self.update(instance)
-        return read_epoch.scan(self).instances if read_epoch is not None else self.list_all()
-
     def _has_live_binding(self, instance: PersonaInstance) -> bool:
         # S56 removed the worker arm: the store it read is gone and no instance
         # can carry ``active_worker_session_id`` any more. The run arm is the
@@ -791,7 +632,6 @@ class PersonaInstanceStore:
     repair_non_instance_steering = repair_lane.repair_non_instance_steering
     repair_missing_steering_references = repair_lane.repair_missing_steering_references
     repair_missing_chat_session_bindings = repair_lane.repair_missing_chat_session_bindings
-    clear_canonical_scope_pointers = repair_lane.clear_canonical_scope_pointers
     retire_task_bound_rows = repair_lane.retire_task_bound_rows
 
     # chat_binding

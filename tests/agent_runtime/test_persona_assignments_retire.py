@@ -30,6 +30,7 @@ from tests.agent_runtime.persona_assignments_helpers import (
     _seed_run,
     _TranscriptDB,
 )
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -368,20 +369,18 @@ def test_open_chat_cli_still_rejects_a_genuinely_unknown_root(
     assert payload["error_kind"] == "unknown_chat_session"
 
 
-def test_retire_refuses_canonical_persona_channel(isolate_agent_runtime_root):
+def test_an_old_hidden_copy_retires_and_stays_retired(isolate_agent_runtime_root):
+    """The canonical guard left with the mint (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): an old
+    hidden copy retires like any instance, and the archive refuses a later bind onto its id."""
     from agent_runtime import paths
-    from agent_runtime.persona_assignments import PersonaInstanceRetireError
+    from agent_runtime.persona_assignments import RetiredPersonaInstanceError
 
     store = PersonaInstanceStore()
-    canonical = store.ensure_for_persona(_persona("dev"))
-    assert canonical.id == "personainst_dev"
-
-    with pytest.raises(PersonaInstanceRetireError) as excinfo:
-        store.retire(canonical.id)
-    assert excinfo.value.code == "canonical_persona_channel"
-    # Refusal is a no-op: the canonical channel stays live on disk.
-    assert paths.persona_instance_path(canonical.id).exists()
-    assert canonical.id in {row.id for row in store.list_all()}
+    canonical = mint_hidden_copy(store=store, persona=_persona("dev"))
+    store.retire(canonical.id)
+    assert not paths.persona_instance_path(canonical.id).exists()
+    with pytest.raises(RetiredPersonaInstanceError):
+        store.open_chat(persona_id="dev", session_id=f"persona_chat_{canonical.id}_0123456789ab")
 
 
 def test_retire_refuses_active_run_binding(isolate_agent_runtime_root):
@@ -453,30 +452,6 @@ def test_retire_cli_happy_path_archives_row(monkeypatch, isolate_agent_runtime_r
     assert code == 0
     assert not paths.persona_instance_path(instance.id).exists()
     assert instance.id not in {row.id for row in PersonaInstanceStore().list_all()}
-
-
-def test_retire_cli_canonical_refusal_returns_typed_error(monkeypatch, capsys, isolate_agent_runtime_root):
-    from argparse import Namespace
-
-    cfg = _assignment_config()
-    monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
-    monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
-    canonical = PersonaInstanceStore().ensure_for_persona(_persona("dev"))
-
-    code = instance_commands._cmd_persona_instance_retire(
-        Namespace(
-            persona_instance_id=canonical.id,
-            reason="placement deleted",
-            requested_by="operator",
-            coordinator_id=None,
-            json=True,
-        )
-    )
-
-    assert code == 2
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["error"] == "canonical_persona_channel"
-    assert payload["persona_instance_id"] == canonical.id
 
 
 def test_retire_cli_coordinator_operator_placed_needs_confirm(monkeypatch, capsys, isolate_agent_runtime_root):

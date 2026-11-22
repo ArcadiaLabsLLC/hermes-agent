@@ -27,6 +27,7 @@ import pytest
 
 from agent_runtime import serve_rpc
 from tests.agent_runtime.office_seed import seed_workspace_record
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 WORKSPACE = "ws_agent_retire_rpc"
 
@@ -253,16 +254,16 @@ def test_an_unknown_id_is_a_typed_not_found_frame(qa_persona):
     assert reply["error"]["data"]["reason"] == "not_found"
 
 
-def test_the_canonical_channel_is_a_conflict_frame_naming_its_reason(qa_persona):
+def test_an_old_hidden_copy_retires_over_the_wire(qa_persona):
+    """No canonical guard (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): it retires like any instance."""
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
-    canonical = PersonaInstanceStore().ensure_for_persona(qa_persona)
+    canonical = mint_hidden_copy(store=PersonaInstanceStore(), persona=qa_persona)
 
     reply = _call({"persona_instance_id": canonical.id})
 
-    assert reply["error"]["code"] == 4090
-    assert reply["error"]["data"]["reason"] == "canonical_persona_channel"
-    assert reply["error"]["data"]["persona_instance_id"] == canonical.id
+    assert "error" not in reply, reply
+    assert reply["result"]["persona_instance_id"] == canonical.id
 
 
 def test_a_missing_target_is_invalid_params_not_a_handler_crash():

@@ -28,6 +28,7 @@ from agent_runtime.realm_rekey import PlaceClass, RekeyState, leftover_ids, owe_
 from agent_runtime.realm_sync import publish_realm_sync, pull_realm_sync
 from agent_runtime.realm_sync.revocation import read_realm_shared_from
 from agent_runtime.store import AgentStore, RealmStore, WorkspaceStore
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 #: Only the top-level ``sceneId`` is the level's address; the same text deeper in the document is the author's.
 LEVEL = '{"version": 7,  "sceneId": "ws-%s", "props": [{"sceneId": "prop-ws-%s"}]}'
@@ -304,7 +305,7 @@ def test_the_local_copy_gets_new_agents_at_the_same_desks_and_the_teams_agents_w
     ``agents_of`` -> ``personainst_qa`` parks, red."""
     realm, first, second, extra, _ = _left_realm(tmp_path)
     store = PersonaInstanceStore()
-    channel = store.ensure_for_persona(AgentStore().get("qa"))
+    channel = mint_hidden_copy(store=store, persona=AgentStore().get("qa"))
     team = {agent: store.get(agent) for agent in (LEAD, HELPER)}
     team_chats = {item.default_chat_session_id for item in team.values()}
     assert team_chats <= _session_ids() and None not in team_chats

@@ -32,7 +32,7 @@ from .bundled_agents import SHIPPED_AGENTS, shipped_soul_for_turn
 from .config import ensure_persisted_personas
 from .locks import agent_create_lock
 from .models import AgentPersona
-from .persona_assignments import PersonaInstanceStore, is_canonical_persona_channel
+from .persona_assignments import PersonaInstanceStore
 from .persona_assignments.independent import _carried_model_config
 from .seat_follow import follow_seat
 from .store import AgentStore
@@ -149,12 +149,6 @@ def _check_instance(instance_id: str, source: AgentPersona) -> None:
     if instance.persona_id != source.id:
         raise AgentDuplicateRefused(
             "instance_not_of_agent", "That instance belongs to another agent.", instance_id=instance_id,
-        )
-    if is_canonical_persona_channel(instance):
-        raise AgentDuplicateRefused(
-            "canonical_instance_stays",
-            "An agent's own channel stays with it; the copy has its own.",
-            instance_id=instance_id,
         )
 
 

@@ -38,6 +38,7 @@ from agent_runtime.persona_profile_binding import (
 from agent_runtime.states import WorkerSessionState
 from agent_runtime.store import AgentStore, RealmStore, WorkspaceStore
 from hermes_time import now
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 # --------------------------------------------------------------------------- #
@@ -80,7 +81,7 @@ def _seed(persona: AgentPersona, *, placements: tuple[str, ...] = ("agent_aaa", 
 
     saved = AgentStore().save(persona)
     store = PersonaInstanceStore()
-    store.ensure_for_persona(saved)
+    mint_hidden_copy(store=store, persona=saved)
     for suffix in placements:
         store._write(  # seeding a drifted projection row on purpose
             PersonaInstance(
@@ -228,7 +229,7 @@ def test_rebind_cascades_every_instance_projection(profiles):
 def test_rebind_leaves_other_personas_instances_alone(profiles):
     _seed(_persona())
     other = AgentStore().save(_persona(id="gadget", display_name="Gadget Agent"))
-    PersonaInstanceStore().ensure_for_persona(other)
+    mint_hidden_copy(store=PersonaInstanceStore(), persona=other)
 
     rebind_persona_profile("widget", profile="beta")
 

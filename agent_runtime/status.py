@@ -118,7 +118,7 @@ def _build_status_in_runtime_scope(run_store: RunStore | None = None, incident_s
     # stays (the Launcher bridge reads it) and now reports the truth
     # unconditionally.
     instance_store = PersonaInstanceStore(event_log=event_log)
-    instances = instance_store.ensure_for_personas(agents)
+    instances = instance_store.list_all()
     personas_by_id = {str(getattr(agent, "id", "") or ""): agent for agent in agents}
     data["agents"] = [
         *data["agents"],

@@ -53,6 +53,7 @@ from hermes_cli.harness_parts import runtime_commands
 from hermes_cli.harness_parts import agent_commands
 from hermes_cli.harness_parts import init_commands
 from hermes_cli.harness_parts import workspace_commands
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 @pytest.fixture(autouse=True)
@@ -639,7 +640,7 @@ def test_a_bound_spawn_becomes_a_delivered_turn_in_the_senders_own_thread(
 
     # A REAL owner: no `resolvable_sender` stub anywhere in this test.
     persona = next(item for item in AgentStore().list_all() if item.id == "dev")
-    instance = PersonaInstanceStore().ensure_for_persona(persona)
+    instance = mint_hidden_copy(store=PersonaInstanceStore(), persona=persona)
     root = persona_chat_session_id_for(instance.id)
     assert dispatch_delivery._sender_persona(root) == (persona.id, instance.id)
 

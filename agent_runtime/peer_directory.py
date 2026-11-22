@@ -148,11 +148,9 @@ def peer_roster_projection(*, scope_workspace_id: str | None) -> dict[str, Any]:
     and "there are six agents over there" does not say it.
     """
 
-    from .config import ensure_persisted_personas, load_agent_runtime_config
     from .persona_assignments import (
         PersonaInstanceStore,
         is_adopted_local_instance,
-        is_canonical_persona_channel,
         resolve_default_chat_session_id_for_instance,
         safe_assignment_text,
     )
@@ -161,13 +159,11 @@ def peer_roster_projection(*, scope_workspace_id: str | None) -> dict[str, Any]:
     from .mission_chat_persona import resolve_mission_chat_persona_id
 
     store = PersonaInstanceStore()
-    store.ensure_for_personas(list(ensure_persisted_personas(load_agent_runtime_config())))
     instances = [
         instance
         for instance in addressable_roster(
             store.list_all(),
             scope_workspace_id=scope_workspace_id,
-            is_canonical=is_canonical_persona_channel,
         )
         # An adopted row stays off every far install's roster, as the hidden copy it was
         # (plan agent-template-vs-canonical-instance-2026-11-21 §6 rule 2).
@@ -213,7 +209,9 @@ def peer_roster_projection(*, scope_workspace_id: str | None) -> dict[str, Any]:
                     getattr(instance, "display_name", None), limit=120
                 )
                 or handle,
-                "is_canonical_primary": bool(is_canonical_persona_channel(instance)),
+                # Retired with the canonical predicate (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT):
+                # no row is a hidden copy any more. Kept False so an older reader's decode holds.
+                "is_canonical_primary": False,
                 "last_turn_at": (summary or {}).get("updated_at"),
                 "workspace_id": getattr(instance, "workspace_id", None),
             }

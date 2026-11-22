@@ -27,6 +27,7 @@ import pytest
 
 from agent_runtime.agent_retire import perform_agent_retire
 from tests.agent_runtime.office_seed import seed_workspace_record
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 WORKSPACE = "ws_agent_retire_test"
 
@@ -304,29 +305,21 @@ def test_an_id_that_was_never_placed_is_still_not_found(qa_persona):
 # ── the refusal vocabulary is the store's ────────────────────────────────────
 
 
-def test_the_canonical_operator_channel_refuses_as_a_conflict(qa_persona):
-    """The 1:1 map, measured on the guard that is easiest to reach.
-
-    ``canonical_persona_channel`` is a CONFLICT (4090) and the code rides
-    ``data.reason`` verbatim, because the launcher decodes ``data.reason`` first
-    and the numeric code second.
-    """
+def test_an_old_hidden_copy_retires_like_any_instance(qa_persona):
+    """``canonical_persona_channel`` left with the canonical predicate
+    (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): nothing mints a hidden copy, so
+    an old one retires like any instance, and the archive keeps it retired."""
 
     from agent_runtime import paths
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
-    canonical = PersonaInstanceStore().ensure_for_persona(qa_persona)
+    canonical = mint_hidden_copy(store=PersonaInstanceStore(), persona=qa_persona)
 
     outcome = perform_agent_retire({"persona_instance_id": canonical.id})
 
-    assert outcome.result is None
-    assert outcome.refusal.code == 4090
-    assert outcome.refusal.data["reason"] == "canonical_persona_channel"
-    assert outcome.refusal.data["persona_instance_id"] == canonical.id
-    # The store's own detail rides through rather than being re-derived here.
-    assert outcome.refusal.data["persona_id"] == "qa"
-    # A refusal wrote nothing.
-    assert paths.persona_instance_path(canonical.id).exists()
+    assert outcome.refusal is None
+    assert outcome.result["persona_instance_id"] == canonical.id
+    assert not paths.persona_instance_path(canonical.id).exists()
 
 
 def test_a_request_with_no_target_refuses_before_the_store():
@@ -932,7 +925,7 @@ def test_the_conflict_vocabulary_is_the_stores_own_raise_sites():
     assert raised - {"not_found"} == set(CONFLICT_REASONS)
 
 
-@pytest.mark.parametrize("reason", ["canonical_persona_channel", "instance_active"])
+@pytest.mark.parametrize("reason", ["instance_active"])
 def test_every_conflict_reason_reaches_the_caller_as_4090_and_its_own_word(
     qa_persona, seeded_workspace, monkeypatch, reason
 ):

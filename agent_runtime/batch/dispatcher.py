@@ -586,10 +586,11 @@ class BatchDispatcher:
 def _workspace_roster(workspace_id: str) -> list[Member]:
     from ..persona_assignments.store import PersonaInstanceStore
 
-    # The workspace's own instances first, then the runtime-global ones (workspace_id None) the
-    # operator's free-floating chats run on; an instance of another workspace is never borrowed.
-    found = [i for i in PersonaInstanceStore().list_all() if i.workspace_id in (workspace_id, None)]
-    found.sort(key=lambda i: (i.workspace_id is None, i.id))
+    # The workspace's own instances only: an instance of another workspace is never borrowed, and one
+    # standing in no workspace is no member of any (the runtime-global hidden copies the operator's
+    # free-floating chats ran on are gone: RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT).
+    # MUTATION: admit ``workspace_id is None`` again and test_a_batch_roster_borrows_no_unplaced_instance reddens.
+    found = sorted((i for i in PersonaInstanceStore().list_all() if i.workspace_id == workspace_id), key=lambda i: i.id)
     return [Member(i.id, i.persona_id, i.role) for i in found]
 
 

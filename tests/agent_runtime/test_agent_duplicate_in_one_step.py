@@ -23,6 +23,7 @@ from agent_runtime.mission_chat_prompts import _mission_chat_soul_overlay
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.store import AgentStore
 from hermes_cli.profiles import get_profile_dir
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 NEKO = "neko_supervisor"
 
@@ -67,6 +68,8 @@ def test_one_call_makes_a_full_named_copy_with_memory_and_no_sign_in(shipped_nek
     assert not (home / "auth.json").exists()
     assert _mission_chat_soul_overlay(copy) == catalog.shipped_agent(NEKO).soul_text().strip()
     ensure_install_identity(paths.store_root())
+    # The directory lists placed agents (no hidden copy is minted: RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT).
+    PersonaInstanceStore().add_instance(persona_id=copy.id, placement_id=f"{copy.id}_agent_1", workspace_id="ws_default")
     rows = _rpc("runtime.agent.directory")["result"]["agents"]
     row = next(r for r in rows if r["persona_id"] == copy.id)
     assert row["based_on"] == {"id": NEKO, "name": "Neko Mission Lead"} and "origin" not in row
@@ -108,15 +111,16 @@ def test_an_instance_moves_to_the_copy_and_keeps_its_chats(shipped_neko):
     )
 
 
-def test_the_agents_own_channel_stays_with_it(shipped_neko):
-    canonical = PersonaInstanceStore().ensure_for_persona(AgentStore().get(NEKO))
-    before = _snapshot()
+def test_an_old_hidden_copy_moves_to_the_copy_like_any_instance(shipped_neko):
+    """The ``canonical_instance_stays`` refusal went with the hidden copies
+    (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): an adopted copy is an ordinary instance."""
 
-    reply = _duplicate(persona_id=NEKO, name="Neko Mission Lead Beta", instance_id=canonical.id)
+    old = mint_hidden_copy(store=PersonaInstanceStore(), persona=AgentStore().get(NEKO))
 
-    assert reply["error"]["data"]["reason"] == "canonical_instance_stays"
-    assert _snapshot() == before
-    assert PersonaInstanceStore().get(canonical.id).persona_id == NEKO
+    reply = _duplicate(persona_id=NEKO, name="Neko Mission Lead Beta", instance_id=old.id)["result"]
+
+    assert reply["instance_id"] == old.id
+    assert PersonaInstanceStore().get(old.id).persona_id == reply["persona_id"]
 
 
 def test_a_definition_write_to_a_shipped_agent_succeeds_and_is_flagged(shipped_neko, capsys):
@@ -130,5 +134,6 @@ def test_a_definition_write_to_a_shipped_agent_succeeds_and_is_flagged(shipped_n
 
     assert AgentStore().get(NEKO).skills == ["my-skill"]
     ensure_install_identity(paths.store_root())
+    PersonaInstanceStore().add_instance(persona_id=NEKO, placement_id="neko_agent_1", workspace_id="ws_default")
     rows = _rpc("runtime.agent.directory")["result"]["agents"]
-    assert next(r for r in rows if r["persona_id"] == NEKO and r["canonical"])["locally_changed"] is True
+    assert next(r for r in rows if r["persona_id"] == NEKO)["locally_changed"] is True

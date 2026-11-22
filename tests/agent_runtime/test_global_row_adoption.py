@@ -18,10 +18,6 @@ from agent_runtime.default_scope import DEFAULT_REALM_ID, DEFAULT_WORKSPACE_ID, 
 from agent_runtime.models import PersonaInstance
 from agent_runtime.office_store import OfficeStore
 from agent_runtime.persona_assignments import PersonaInstanceStore, persona_instance_id_for
-from agent_runtime.persona_assignments.identity import (
-    is_canonical_persona_channel,
-    row_is_canonical_persona_channel,
-)
 from agent_runtime.persona_instance_adoption import adopt_global_rows
 from agent_runtime.persona_instance_identity import reconcile_persona_instances
 from agent_runtime.serde import to_jsonable
@@ -60,13 +56,9 @@ def _fates(report: list[dict]) -> dict[str, tuple]:
     return {item["persona_instance_id"]: (item["fate"], item.get("reason")) for item in report}
 
 
-def test_an_adopted_row_is_not_the_canonical_channel():
-    """Kill-mutation: drop the stamp test in ``row_is_canonical_persona_channel`` → red."""
-    assert row_is_canonical_persona_channel(CANONICAL, PERSONA)
-    assert not row_is_canonical_persona_channel(CANONICAL, PERSONA, "2026-11-21")
+def test_an_adopted_row_keeps_its_workspace_on_decode():
     _seed(adopted_from_global="2026-11-21", workspace_id=DEFAULT_WORKSPACE_ID, realm_id=DEFAULT_REALM_ID)
     instance = PersonaInstanceStore().get(CANONICAL)
-    assert not is_canonical_persona_channel(instance)
     assert instance.workspace_id == DEFAULT_WORKSPACE_ID  # the decode keeps an adopted row's workspace
 
 
@@ -81,21 +73,20 @@ def test_a_row_holding_a_chat_becomes_an_ordinary_seated_agent_keeping_its_id():
     assert raw["adopted_from_global"]
     assert CANONICAL in _desk_ids()
     decoded = PersonaInstanceStore().get(CANONICAL)
-    assert decoded.workspace_id == DEFAULT_WORKSPACE_ID and not is_canonical_persona_channel(decoded)
+    assert decoded.workspace_id == DEFAULT_WORKSPACE_ID
     # Nothing was retired or archived by this row.
     assert not paths.persona_instances_archive_dir().exists() or not any(
         paths.persona_instances_archive_dir().rglob("*.json"))
 
 
 def test_a_reconcile_keeps_an_adopted_rows_workspace():
-    """A second run does nothing, and phase 6 does not clear the adopted row's pointers.
-    Kill-mutation: drop the stamp argument in ``clear_canonical_scope_pointers`` → red."""
+    """A second run does nothing, and does not clear the adopted row's pointers."""
     ensure_default_scope(seed_active_pointers=False)
     _seed(default_chat_session_id=CHAT)
     reconcile_persona_instances(apply=True)
     first = _raw()
     second = reconcile_persona_instances(apply=True)
-    assert second["adoption"] == [] and second["canonical_scope_cleared"] == []
+    assert second["adoption"] == [] and second["unstamped_hidden_copies"] == []
     assert _raw() == first
 
 
@@ -108,19 +99,23 @@ def test_the_dry_run_names_each_rows_fate_and_writes_nothing():
     data = reconcile_persona_instances(apply=False)
     assert _fates(data["adoption"]) == {
         CANONICAL: ("would_adopt", None),
-        persona_instance_id_for("qa"): ("left_empty", None),
-        persona_instance_id_for("dev"): ("skipped", "mid_turn"),
+        persona_instance_id_for("qa"): ("would_archive", None),
+        persona_instance_id_for("dev"): ("would_hold_local", "mid_turn"),
     }
     assert {i: _raw(i) for i in before} == before
     assert CANONICAL not in _desk_ids()
 
 
-def test_an_empty_row_is_left_as_it_is():
+def test_an_empty_row_is_archived_through_retires_archive():
+    """RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT: an empty hidden copy is retired, never deleted."""
+    from agent_runtime.persona_assignments.retire import retired_persona_instance_ids
+
     ensure_default_scope(seed_active_pointers=False)
     _seed()
-    before = _raw()
-    assert _fates(adopt_global_rows(apply=True)) == {CANONICAL: ("left_empty", None)}
-    assert _raw() == before and CANONICAL not in _desk_ids()
+    assert _fates(adopt_global_rows(apply=True)) == {CANONICAL: ("archived", None)}
+    assert not paths.persona_instance_path(CANONICAL).exists() and CANONICAL not in _desk_ids()
+    assert CANONICAL in retired_persona_instance_ids()
+    assert adopt_global_rows(apply=True) == []
 
 
 @pytest.mark.parametrize(
@@ -165,8 +160,8 @@ def test_a_row_whose_chat_runs_a_goal_is_skipped_until_the_next_run(monkeypatch)
     ensure_default_scope(seed_active_pointers=False)
     _seed(default_chat_session_id=CHAT)
     monkeypatch.setattr(chat_goal, "bindings", lambda: [SimpleNamespace(root_session_id=CHAT)])
-    assert _fates(adopt_global_rows(apply=True)) == {CANONICAL: ("skipped", "running_goal")}
-    assert "adopted_from_global" not in _raw() or not _raw()["adopted_from_global"]
+    assert _fates(adopt_global_rows(apply=True)) == {CANONICAL: ("held_local", "running_goal")}
+    assert _raw()["adopted_from_global"] and not _raw().get("workspace_id")
 
 
 def test_a_default_realm_with_a_backup_remote_adopts_nothing():
@@ -176,13 +171,13 @@ def test_a_default_realm_with_a_backup_remote_adopts_nothing():
     realm.sync_manifest_ref = "https://example.invalid/backup.git"
     RealmStore().save(realm, emit_event=False)
     _seed(default_chat_session_id=CHAT)
-    assert _fates(adopt_global_rows(apply=True)) == {CANONICAL: ("skipped", "default_realm_syncs")}
-    assert not _raw().get("adopted_from_global") and CANONICAL not in _desk_ids()
+    assert _fates(adopt_global_rows(apply=True)) == {CANONICAL: ("held_local", "default_realm_syncs")}
+    assert not _raw().get("workspace_id") and CANONICAL not in _desk_ids()
 
 
 def test_no_default_workspace_is_skipped_and_reported():
     _seed(default_chat_session_id=CHAT)
-    assert _fates(adopt_global_rows(apply=True)) == {CANONICAL: ("skipped", "no_default_workspace")}
+    assert _fates(adopt_global_rows(apply=True)) == {CANONICAL: ("held_local", "no_default_workspace")}
 
 
 def _adopted_beside_a_placed_desk() -> str:
@@ -213,7 +208,7 @@ def test_an_adopted_agents_desk_is_not_published():
     assert paths.office_actor_path(DEFAULT_WORKSPACE_ID, key_of[CANONICAL]).name not in shipped
     # The projection's own guard, asked directly of the adopted record.
     projection = project_persona_instances({CANONICAL}, records={CANONICAL: PersonaInstanceStore().get(CANONICAL)})
-    assert CANONICAL in projection.skipped_canonical
+    assert CANONICAL in projection.skipped_local
 
 
 def test_an_adopted_agents_desk_is_no_drift():

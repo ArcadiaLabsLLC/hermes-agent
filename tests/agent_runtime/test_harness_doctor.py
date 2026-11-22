@@ -7,6 +7,7 @@ import pytest
 from agent_runtime import harness_doctor
 from agent_runtime.harness_doctor import run_harness_doctor
 from agent_runtime.models import AgentPersona
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def _persona() -> AgentPersona:
@@ -714,25 +715,25 @@ def test_the_census_repairs_nothing(isolate_agent_runtime_root):
     assert actor_path.read_bytes() == before
 
 
-def test_the_canonical_operator_channel_is_never_an_unplaced_row(
+def test_a_row_in_no_workspace_is_never_an_unplaced_row(
     isolate_agent_runtime_root,
 ):
-    """``is_canonical_persona_channel`` is the discriminator, and it is load-bearing.
+    """A row standing in no workspace (here an old hidden copy) holds no placement.
 
-    A persona's global operator channel holds no placement and never did.
-    Counting it would put one permanent "unplaced" row per persona on every
-    healthy runtime — a finding no operator can clear, which is how a census
-    stops being read at all.
+    Counting it would put a permanent "unplaced" row on every healthy runtime —
+    a finding no operator can clear, which is how a census stops being read at
+    all. The discriminator is the workspace pointer since
+    RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT deleted the canonical predicate.
 
-    KILLING MUTATION: drop the ``is_canonical_persona_channel`` guard and this
-    reds with the canonical row listed.
+    KILLING MUTATION: drop the ``workspace_id`` guard in ``_census_unplaced`` and this
+    reds with the row listed.
     """
 
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
     persona = _qa_persona_saved()
     _seed_office("ws_census_canonical")
-    canonical = PersonaInstanceStore().ensure_for_persona(persona)
+    canonical = mint_hidden_copy(store=PersonaInstanceStore(), persona=persona)
 
     _report, census = _census()
 

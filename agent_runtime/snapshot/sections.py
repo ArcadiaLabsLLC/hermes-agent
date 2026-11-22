@@ -119,7 +119,7 @@ class SnapshotFrameBuild:
         # (``derive_from_workers``) — but an always-empty list can only make a
         # projection emit a constant, which is exactly why ``tasks`` and
         # ``workspaces[].goals`` went at S47 (ledger item 5). The projection is now
-        # ``PersonaInstanceStore.ensure_for_personas(personas)`` and takes no worker
+        # ``PersonaInstanceStore.list_all()`` (a read: RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT) and takes no worker
         # argument; the worker session store it read is deleted. The eight earlier
         # look-alikes (``runs``, ``incidents``, ``proofs``,
         # ``role_envelopes``, ``role_checklists``, ``repo_bundles``,
@@ -231,7 +231,7 @@ class SnapshotFrameBuild:
         # The orphan warnings still classify every stored record, hidden ones too
         # (RT-SNAPSHOT-ORPHAN-WARNING-TEST-RED-ON-MAIN): a hidden orphan stays flagged
         # for `harness persona-instance reconcile`; only the roster offer goes.
-        self.stored_persona_instances = list(self.instance_store.ensure_for_personas(self.agents))
+        self.stored_persona_instances = list(self.instance_store.list_all())
         self.persona_instances = offered(self.stored_persona_instances)
         self.topology_persona_instances = self.persona_instances
         self.agent_summaries = [

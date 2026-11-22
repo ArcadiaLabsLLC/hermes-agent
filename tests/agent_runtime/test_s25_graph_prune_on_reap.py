@@ -136,8 +136,8 @@ def test_owner_liveness_is_the_only_prune_signal():
 
 def test_the_launcher_auto_created_empty_graph_is_never_pruned(monkeypatch):
     _templates(monkeypatch)
-    _seed_row("personainst_dev", persona_id="dev")
-    graph_id = _seed_graph("personainst_dev")  # self node only, zero edges
+    _seed_row("personainst_dev_agent_1", persona_id="dev")
+    graph_id = _seed_graph("personainst_dev_agent_1")  # self node only, zero edges
 
     report = reconcile_persona_instances(apply=True, event_log=EventLog())
 
@@ -166,8 +166,8 @@ def test_a_graph_addressed_by_a_drifted_spelling_of_a_live_owner_is_held(monkeyp
 
 def test_dry_run_reports_the_stale_graph_and_writes_nothing(monkeypatch):
     _templates(monkeypatch)
-    _seed_row("personainst_dev", persona_id="dev")
-    live_graph = _seed_graph("personainst_dev")
+    _seed_row("personainst_dev_agent_1", persona_id="dev")
+    live_graph = _seed_graph("personainst_dev_agent_1")
     stale_graph = _seed_graph("personainst_reaped_last_week")
 
     report = reconcile_persona_instances(apply=False, event_log=EventLog())
@@ -185,8 +185,8 @@ def test_dry_run_reports_the_stale_graph_and_writes_nothing(monkeypatch):
 
 def test_apply_archives_the_stale_graph_emits_the_typed_event_and_is_idempotent(monkeypatch):
     _templates(monkeypatch)
-    _seed_row("personainst_dev", persona_id="dev")
-    live_graph = _seed_graph("personainst_dev")
+    _seed_row("personainst_dev_agent_1", persona_id="dev")
+    live_graph = _seed_graph("personainst_dev_agent_1")
     stale_graph = _seed_graph("personainst_reaped_last_week")
 
     report = reconcile_persona_instances(apply=True, event_log=EventLog())
@@ -216,11 +216,11 @@ def test_the_graph_of_an_instance_this_reconciler_prunes_goes_with_it(monkeypatc
     the children it drew keep every OTHER parent."""
 
     _templates(monkeypatch)
-    _seed_row("personainst_base", persona_id="base", profile_id="base")
+    _seed_row("personainst_base_agent_1", persona_id="base", profile_id="base")
     _seed_row(
-        "personainst_dev",
+        "personainst_dev_agent_1",
         persona_id="dev",
-        steered_by=["personainst_profile_ghost_owner", "personainst_base"],
+        steered_by=["personainst_profile_ghost_owner", "personainst_base_agent_1"],
     )
     _seed_row(
         "personainst_profile_ghost_owner",
@@ -229,8 +229,8 @@ def test_the_graph_of_an_instance_this_reconciler_prunes_goes_with_it(monkeypatc
         profile_id="ghost_owner",
         updated_at=_STALE,
     )
-    ghost_graph = _seed_graph("personainst_profile_ghost_owner", children=("personainst_dev",))
-    dev_graph = _seed_graph("personainst_dev")
+    ghost_graph = _seed_graph("personainst_profile_ghost_owner", children=("personainst_dev_agent_1",))
+    dev_graph = _seed_graph("personainst_dev_agent_1")
 
     report = reconcile_persona_instances(apply=True, event_log=EventLog())
 
@@ -239,10 +239,10 @@ def test_the_graph_of_an_instance_this_reconciler_prunes_goes_with_it(monkeypatc
     assert report["graphs_pruned"][0]["graph_id"] == ghost_graph
     assert FlowGraphStore().list_ids() == [dev_graph]
     # The drawn child survives and keeps the parent the reaped map never owned.
-    assert PersonaInstanceStore().get("personainst_dev").steered_by == ["personainst_base"]
+    assert PersonaInstanceStore().get("personainst_dev_agent_1").steered_by == ["personainst_base_agent_1"]
     # Departure settlement is accounted per drawn child, never silent.
     assert [item["persona_instance_id"] for item in report["graph_departed_steering"]] == [
-        "personainst_dev"
+        "personainst_dev_agent_1"
     ]
     assert report["graph_departed_steering"][0]["graph_id"] == ghost_graph
 

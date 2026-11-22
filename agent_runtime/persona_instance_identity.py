@@ -50,7 +50,6 @@ from .persona_assignments import (
     PersonaInstanceStore,
     canonical_persona_instance_id,
     persona_instance_id_for,
-    row_is_canonical_persona_channel,
     safe_assignment_token,
 )
 from .serde import from_jsonable, to_jsonable
@@ -343,14 +342,12 @@ def classify_unplaced_persona_instances(
 
     A row is an *unplaced candidate* when ALL of the following hold:
 
-    1. it names a ``workspace_id`` — a runtime-global row (a canonical seeded
-       row, a pre-pointer record) was never a placement in anybody's level;
-    2. it is NOT the persona/profile's canonical operator channel
-       (:func:`row_is_canonical_persona_channel`). The base-profile foundation
-       gives every agent a free PROFILE row, and those are operator chat
-       channels that are not placement-backed and must never be reaped here.
-       This is the same discriminator ``agent retire`` refuses on
-       (``canonical_persona_channel``), asked through the one derivation;
+    1. it names a ``workspace_id`` — a runtime-global row (a held hidden copy,
+       a profile's own channel, a pre-pointer record) was never a placement in
+       anybody's level;
+    2. (retired with the canonical predicate, RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT: an
+       adopted hidden copy is an ordinary placed instance with a desk, and is
+       judged like one);
     3. an ARCHIVED office actor in that row's OWN workspace is bound to it —
        positive evidence that this instance WAS placed there. There is no
        id-shape question anywhere in this classifier, and that is deliberate:
@@ -406,8 +403,6 @@ def classify_unplaced_persona_instances(
         if not workspace_id:
             continue
         persona_id = str(_row_get(row, "persona_id") or "").strip()
-        if row_is_canonical_persona_channel(instance_id, persona_id, _row_get(row, "adopted_from_global")):
-            continue
         canonical = canonical_persona_instance_id(instance_id, persona_id=persona_id) or instance_id
         if canonical in live_ids:
             continue
@@ -614,10 +609,10 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     durable registry regardless, so the ``identity_map`` keeps resolving old
     ids in archived history. Running twice is a no-op the second time.
 
-    Nine phases run in order: (0) stored ``task_bound`` retirement, (1) legacy-id fold, (2) orphan / legacy-role
+    The phases run in order: (0) stored ``task_bound`` retirement, (1) legacy-id fold, (2) orphan / legacy-role
     prune, (2b) unplaced-instance prune, (3) missing steering-parent repair,
-    (4) missing chat-session-binding repair, (5) owner-less flow-graph prune, (6) canonical
-    scope-pointer clear, (7) the Default-workspace adoption of runtime-global rows that hold anything.
+    (4) missing chat-session-binding repair, (5) owner-less flow-graph prune, (6) retired (the canonical
+    scope-pointer clear), (7) the hidden copies settled: adopted into the Default workspace, archived, or held.
     ``apply=False`` (the CLI's ``--dry-run``) reports every phase and writes
     nothing — no store rows, no graph docs, no events.
 
@@ -625,8 +620,8 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
     ordinals are cited by name across this repo's docs and tests; it is a second
     ARCHIVE phase and belongs beside the first.
 
-    Phase 5 is the last row-reading phase by referential ordering (phase 6 only
-    rewrites pointers inside canonical rows). Phases 0-2 are
+    Phase 5 is the last row-reading phase by referential ordering before phase 7,
+    which settles the hidden copies over the rows that survived. Phases 0-2 are
     the only phases that add or remove rows and phases 3-4 only repair pointers
     inside surviving rows, so by phase 5 the live-instance set is final and the
     "does this graph's owner still exist?" question is asked exactly once
@@ -793,14 +788,16 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         live_instance_ids=live_instance_ids,
         apply=apply,
     )
-    # Phase 6 — canonical scope hygiene: a canonical channel stores no workspace/realm pointer
-    # (RT-GLOBAL-SINGLETON-CANONICAL). The decode already hides them; this clears what is stored.
-    canonical_scope_cleared = store.clear_canonical_scope_pointers(apply=apply)
-    # Phase 7 — a runtime-global row that holds anything becomes an ordinary agent in the Default
-    # workspace, keeping its id; an empty one is left as it is (``persona_instance_adoption``,
-    # RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE). After phase 6, so a
-    # stale pointer on a canonical row is cleared before the adoption writes the real one.
-    from .persona_instance_adoption import ADOPTED, WOULD_ADOPT, adopt_global_rows
+    # Phase 7 — every hidden copy ``personainst_<persona>`` is settled (``persona_instance_adoption``):
+    # one that holds anything becomes an ordinary agent in the Default workspace, keeping its id
+    # (RT-AGENTS-THAT-LIVED-NOWHERE-BECOME-ORDINARY-AGENTS-IN-THE-DEFAULT-WORKSPACE); an empty one is archived
+    # through retire's archive; one neither can take is held machine-local
+    # (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT), its stale pointers cleared. The dry run is the census.
+    # Phase 6 (the canonical scope-pointer clear) went with the canonical predicate: phase 7 clears them.
+    from .persona_instance_adoption import (
+        ADOPTED, ARCHIVED, HELD_LOCAL, WOULD_ADOPT, WOULD_ARCHIVE, WOULD_HOLD_LOCAL, adopt_global_rows,
+        unstamped_hidden_copies,
+    )
 
     leaving = frozenset(
         {item["from_id"] for item in actions if item["action"] in {"merged", "renamed"}}
@@ -809,6 +806,9 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         | {item["persona_instance_id"] for item in task_bound["archived"]}
     )
     adoption = adopt_global_rows(apply=apply, store=store, leaving=leaving)
+    for item in adoption:
+        if item["fate"] == ARCHIVED:
+            by_id.pop(item["persona_instance_id"], None)
 
     return {
         "applied": bool(apply),
@@ -851,10 +851,12 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
         "task_bound_archived": task_bound["archived"],
         "task_bound_normalised_count": len(task_bound["normalised"]),
         "task_bound_archived_count": len(task_bound["archived"]),
-        "canonical_scope_cleared": canonical_scope_cleared,
-        "canonical_scope_cleared_count": len(canonical_scope_cleared),
         "adoption": adoption,
         "adopted_count": sum(1 for item in adoption if item["fate"] in {ADOPTED, WOULD_ADOPT}),
+        "hidden_copies_archived_count": sum(1 for item in adoption if item["fate"] in {ARCHIVED, WOULD_ARCHIVE}),
+        "hidden_copies_held_count": sum(1 for item in adoption if item["fate"] in {HELD_LOCAL, WOULD_HOLD_LOCAL}),
+        # The security gate (review w1118a.78): zero after an applied run.
+        "unstamped_hidden_copies": unstamped_hidden_copies(store.list_all()) if apply else None,
         "alias_count": len(aliases),
         "archive_dir": str(archive_dir) if apply and actions else None,
         "prune_archive_dir": str(prune_archive_dir) if apply and pruned_actions else None,

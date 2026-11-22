@@ -30,12 +30,10 @@ def agent_chat_threads(*, persona_id=None, requested_by_session=None):
         return remote
 
     from agent_runtime import workspace_scope
-    from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
     from agent_runtime.persona_assignments import (
         PersonaInstanceStore,
         canonical_persona_instance_id,
-        is_canonical_persona_channel,
-        resolve_default_chat_session_id_for_instance,
+            resolve_default_chat_session_id_for_instance,
         safe_assignment_text,
         sender_scope_workspace_id,
     )
@@ -57,9 +55,7 @@ def agent_chat_threads(*, persona_id=None, requested_by_session=None):
         if filter_handle is not None:
             wanted_instance_id = canonical_persona_instance_id(filter_handle, persona_id=wanted_persona)
 
-    cfg = load_agent_runtime_config(get_hermes_head_home() / "config.yaml")
     store = PersonaInstanceStore()
-    store.ensure_for_personas(list(ensure_persisted_personas(cfg)))
     instances = store.list_all()
 
     # The DEFAULT / bare-persona listing is the sender-scoped ADDRESSABLE roster:
@@ -78,7 +74,6 @@ def agent_chat_threads(*, persona_id=None, requested_by_session=None):
         instances = workspace_scope.addressable_roster(
             instances,
             scope_workspace_id=scope_workspace_id,
-            is_canonical=is_canonical_persona_channel,
         )
 
     # Title / last-activity / message-count come from the SAME projection the
@@ -154,12 +149,10 @@ def resolve_chat_lane_target(persona_id, *, requested_by_session=None, verb="age
     """
 
     from agent_runtime import workspace_scope
-    from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
     from agent_runtime.persona_assignments import (
         PersonaInstanceStore,
         canonical_chat_instance_id,
-        is_canonical_persona_channel,
-        resolve_default_chat_session_id_for_instance,
+            resolve_default_chat_session_id_for_instance,
         safe_assignment_text,
         sender_scope_workspace_id,
     )
@@ -185,17 +178,14 @@ def resolve_chat_lane_target(persona_id, *, requested_by_session=None, verb="age
     # test_an_at_handle_opens_that_agents_thread reddens.
     target_instance_id = _instance_handle(target)
 
-    cfg = load_agent_runtime_config(get_hermes_head_home() / "config.yaml")
     store = PersonaInstanceStore()
-    store.ensure_for_personas(list(ensure_persisted_personas(cfg)))
 
     # A BARE persona resolves through the sender-scoped ADDRESSABLE roster: a
-    # single in-scope placement is the target (placements shadow canonical), so
-    # "open your thread with qa" reviews the deliberate placement's lane, not the
-    # plumbing canonical channel. With no in-scope placement (or two — which the
-    # send guard would refuse) the canonical channel is the fallback. An explicit
-    # personainst_* handle is deliberate targeting and is used as-is, never
-    # shadowed.
+    # single in-scope instance is the target, so "open your thread with qa"
+    # reviews that instance's lane. With none (or two — which the send guard would
+    # refuse) there is no thread: an agent's template has no hidden copy to fall
+    # back on (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT). An explicit
+    # personainst_* handle is deliberate targeting and is used as-is.
     if target_instance_id is None:
         scope_workspace_id = sender_scope_workspace_id(
             requested_by_session, instance_store=store
@@ -207,13 +197,8 @@ def resolve_chat_lane_target(persona_id, *, requested_by_session=None, verb="age
                 if getattr(instance, "persona_id", None) == resolved_persona
             ),
             scope_workspace_id=scope_workspace_id,
-            is_canonical=is_canonical_persona_channel,
         )
-        placements = [
-            instance
-            for instance in addressable
-            if not is_canonical_persona_channel(instance)
-        ]
+        placements = list(addressable)
         if len(placements) == 1:
             target_instance_id = placements[0].id
 

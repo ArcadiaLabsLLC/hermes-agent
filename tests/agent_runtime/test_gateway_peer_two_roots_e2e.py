@@ -474,17 +474,13 @@ def _seed_persona(install: _Install) -> None:
 #: fact 1 is that a transcript read INSIDE the serve process has no precedent.
 _SEED_THREAD_SOURCE = """
 import json, secrets
-from agent_runtime.persona_assignments import (
-    PersonaInstanceStore, canonical_chat_instance_id,
-)
+from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_chat_durability import (
     default_persona_session_db, ensure_persona_chat_session,
 )
-from agent_runtime.config import ensure_persisted_personas, load_agent_runtime_config
 
 store = PersonaInstanceStore()
-store.ensure_for_personas(list(ensure_persisted_personas(load_agent_runtime_config())))
-handle = canonical_chat_instance_id("dev", None)
+handle = next(i.id for i in store.list_all() if i.persona_id == "dev")  # placed by _PLACE_SOURCE
 session_id = "persona_chat_" + handle + "_" + secrets.token_hex(6)
 
 db = default_persona_session_db()
@@ -494,6 +490,15 @@ assert ensure_persona_chat_session(
 db.append_message(session_id, "user", "how did the build go?")
 db.append_message(session_id, "assistant", "green on both lanes")
 print(json.dumps({"handle": handle, "session_id": session_id}))
+"""
+
+#: Place the agent on THIS install: nothing mints a hidden copy of every agent any more
+#: (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT), so the roster lists what is placed:
+#: a runtime-global placement, in reach from every scope.
+_PLACE_SOURCE = """
+from agent_runtime.persona_assignments import PersonaInstanceStore
+
+PersonaInstanceStore().add_instance(persona_id="dev", placement_id="dev_agent_1")
 """
 
 #: Dialled from A with A's own peer row: one JSON-RPC call, one reply printed.
@@ -712,6 +717,8 @@ def test_the_roster_and_one_far_thread_cross_the_wire_on_real_serves(tmp_path):
     _seed_persona(b)
     boot_together([a, b])
     try:
+        code, output = b.python(_PLACE_SOURCE)
+        assert code == 0, output
         _c, minted, output = b.cli("gateway", "peers", "pair")
         code, _joined, output = a.cli(
             "gateway", "peers", "join", _payload_of(minted), "--timeout", "60"

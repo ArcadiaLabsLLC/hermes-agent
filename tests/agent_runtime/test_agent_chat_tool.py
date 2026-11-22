@@ -633,19 +633,27 @@ def test_threads_lists_default_thread_without_minting_for_never_chatted(isolate_
         resolve_default_chat_session_id_for_instance,
     )
 
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    placed = mint_placed_instance("qa", placement="agent_1")  # no hidden copy lists an agent any more
     data = json.loads(agent_chat_threads())
     assert data["ok"] is True
     by_persona = {row["persona_id"]: row for row in data["threads"]}
     assert "qa" in by_persona, "reachable teammates must be listed"
     qa = by_persona["qa"]
-    assert qa["handle"] == "personainst_qa"
+    assert qa["handle"] == placed.id
     assert qa["has_thread"] is False and qa["session_id"] is None
     # Listing must not have created a session for qa.
-    assert resolve_default_chat_session_id_for_instance(PersonaInstanceStore(), persona_id="qa") is None
+    assert resolve_default_chat_session_id_for_instance(
+        PersonaInstanceStore(), persona_id="qa", persona_instance_id=placed.id) is None
 
 
 def test_threads_shows_the_thread_with_a_count_after_a_send(isolate_agent_runtime_root):
-    session_id = _seed_persona_chat("qa", [("From Neko: hi", "QA here — hi."), ("again", "ack")])
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    placed = mint_placed_instance("qa", placement="agent_1")
+    session_id = _seed_persona_chat("qa", [("From Neko: hi", "QA here — hi."), ("again", "ack")],
+                                    persona_instance_id=placed.id)
 
     data = json.loads(agent_chat_threads(persona_id="qa"))
     rows = [row for row in data["threads"] if row["persona_id"] == "qa"]
@@ -687,7 +695,10 @@ def test_open_propagates_an_unreadable_transcript_instead_of_count_zero(
     checking whether a teammate had replied would conclude they had not.
     """
 
-    _seed_persona_chat("qa", [("hi", "ack")])
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    placed = mint_placed_instance("qa", placement="agent_1")  # the bare open routes to the one in reach
+    _seed_persona_chat("qa", [("hi", "ack")], persona_instance_id=placed.id)
     monkeypatch.setattr(
         "agent_runtime.persona_chat_history.persona_chat_session_messages",
         lambda **_kwargs: {
@@ -774,15 +785,15 @@ def test_threads_lists_each_placement_distinctly_and_shadows_canonical(isolate_a
     assert handles == ["personainst_qa_agent_2"]
 
 
-def test_threads_shows_canonical_when_no_placement_shadows_it(isolate_agent_runtime_root):
-    # Reachability fallback: a persona with only its canonical row (no placement)
-    # is still listed — the canonical channel stays addressable.
-    primary_session = _seed_persona_chat("qa", [("primary hi", "primary ack")])
+def test_threads_never_lists_a_held_hidden_copy(isolate_agent_runtime_root):
+    # The canonical fallback went with the hidden copies (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT):
+    # a chat bound on the bare ``personainst_qa`` id makes a row born held machine-local, which no
+    # roster advertises; a persona with no placement is a template, not a teammate to address.
+    _seed_persona_chat("qa", [("primary hi", "primary ack")])
 
     data = json.loads(agent_chat_threads(persona_id="qa"))
     by_handle = {row["handle"]: row for row in data["threads"] if row["persona_id"] == "qa"}
-    assert "personainst_qa" in by_handle
-    assert by_handle["personainst_qa"]["session_id"] == primary_session
+    assert "personainst_qa" not in by_handle
 
 
 def test_open_bare_persona_routes_to_the_in_scope_placement(

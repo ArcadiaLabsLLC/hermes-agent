@@ -25,7 +25,6 @@ from agent_runtime.persona_assignments.identity import (
     _profile_id_for_persona_or_template,
     canonical_persona_instance_id,
     chat_session_owner_instance_id,
-    is_canonical_persona_channel,
     persona_chat_session_id_for,
     persona_instance_id_for,
 )
@@ -409,6 +408,18 @@ def _load_or_mint_chat_instance(
         # Worker/run ownership is orthogonal to operator chat ownership.
         # Opening another chat root must not cancel or rebind live work.
         pass
+    # Nothing that reads mints an agent's hidden copy (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT):
+    # the operator's bare open and send are placed (reuse idle, else place) and an agent's bare send is
+    # refused before they bind. An explicit bind that names no instance is the one door left (a
+    # profile's own channel is its documented use): the row it makes is HELD machine-local from birth,
+    # stamped like a held hidden copy, so it is never an ordinary unscoped row (the security gate) and
+    # never advertised; the migration adopts it into the Default workspace at its next run.
+    hidden_copy = instance_id == persona_instance_id_for(normalized_persona)
+    if hidden_copy and not normalized_persona.startswith("profile_"):
+        logging.getLogger(__name__).warning(
+            "persona_instance_bind_named_no_instance persona=%s instance=%s — held machine-local",
+            normalized_persona, instance_id,
+        )
     ts = now()
     role = "profile" if normalized_persona.startswith("profile_") else normalized_persona
     instance = PersonaInstance(
@@ -420,6 +431,10 @@ def _load_or_mint_chat_instance(
         runtime_root=str(paths.store_root()),
         state=WorkerSessionState.IDLE,
         updated_at=ts,
+        # Machine-local from birth, as the hidden copy it replaces was: the stamp keeps it off realm
+        # publish, drift, the peer roster and ``peer.thread.read``.
+        # MUTATION: drop the stamp and test_an_open_naming_no_instance_makes_a_held_row reddens.
+        adopted_from_global=ts.date().isoformat() if hidden_copy else None,
     )
     return instance, True
 
@@ -460,10 +475,7 @@ def _apply_open_fields(
     # authoritative placement-scope claim (the launcher stamps its active
     # scope when minting a placement) and applies on create AND re-open; an
     # omitted one never clears an existing pointer (plain chat re-opens
-    # don't know scope and must not erase it). A canonical operator channel takes
-    # no pointer at all: it is plumbing, never a placement (RT-GLOBAL-SINGLETON-CANONICAL).
-    if is_canonical_persona_channel(instance):
-        return
+    # don't know scope and must not erase it).
     safe_workspace_id = safe_assignment_token(workspace_id) if workspace_id is not None else None
     safe_realm_id = safe_assignment_token(realm_id) if realm_id is not None else None
     if safe_workspace_id:
@@ -591,6 +603,10 @@ def _commit_chat_opened(
     if created:
         with timed_create_subphase("create_patch_ms"):
             emit_persona_instance_create(store.event_log, updated, correlation_id=token)
+        if updated.id == persona_instance_id_for(updated.persona_id):
+            # The row a bind that named no instance made (``_load_or_mint_chat_instance``), announced as the
+            # retired store mint announced it.
+            store._event("persona_instance.created", updated, {})
     else:
         moved = [
             field
@@ -730,9 +746,15 @@ def create_operator_chat(
     display_name: str,
     session_id: str | None = None,
     client_scope: str | None = None,
+    persona_instance_id: str | None = None,
 ) -> PersonaInstance:
+    """A titled operator chat on ``persona_instance_id`` (a ``profile_<name>`` persona: its own channel).
+
+    An agent's template has no hidden copy to open it on (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT):
+    the caller names the instance, placed by the one "reuse idle, else place" rule."""
     normalized_persona = _normalize_instance_source_persona(persona_id)
-    instance_id = persona_instance_id_for(normalized_persona)
+    instance_id = canonical_persona_instance_id(persona_instance_id, persona_id=normalized_persona) if (
+        persona_instance_id) else persona_instance_id_for(normalized_persona)
     root = session_id or persona_chat_session_id_for(instance_id)
     # Refusals FIRST, durable writes second — the ordering
     # ``mint_chat_root`` already learned. Persisting the

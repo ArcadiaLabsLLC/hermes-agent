@@ -24,6 +24,7 @@ import pytest
 from agent_runtime import paths
 from tests.agent_runtime.office_seed import seed_workspace_record
 from hermes_cli.harness_parts.persona import lifecycle_commands
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 WORKSPACE = "ws_persona_instance_retire_verb"
 
@@ -160,16 +161,16 @@ def test_a_second_retire_is_answered_not_refused(qa_persona, seeded_workspace, c
     assert data["archived_actor_keys"] == [placed["actor_key"]]
 
 
-def test_a_guard_refusal_is_refused_with_its_reason(qa_persona, capsys):
+def test_an_old_hidden_copy_retires_through_the_verb(qa_persona, capsys):
+    """No canonical guard (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): it retires like any instance."""
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
-    canonical = PersonaInstanceStore().ensure_for_persona(qa_persona)
+    canonical = mint_hidden_copy(store=PersonaInstanceStore(), persona=qa_persona)
 
-    code, data = _retire(capsys, canonical.id)
+    code, _data = _retire(capsys, canonical.id)
 
-    assert code == 2
-    assert data["code"] == "canonical_persona_channel"
-    assert paths.persona_instance_path(canonical.id).exists()
+    assert code == 0
+    assert not paths.persona_instance_path(canonical.id).exists()
 
 
 # ── the two doors are one function ───────────────────────────────────────────

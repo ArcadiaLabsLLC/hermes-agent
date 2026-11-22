@@ -40,9 +40,6 @@ class PersonaInstanceRetireError(AgentRuntimeError):
     launcher bridge) keys on — never a bare string:
 
     - ``not_found`` — no such live row.
-    - ``canonical_persona_channel`` — the row IS the persona/profile's canonical
-      operator channel (the global singleton ``persona_instance_id_for(persona)``).
-      Its retirement is the queued workspace-scoping redesign, not this verb.
     - ``instance_active`` — a live run/worker still resolves for the instance;
       never archive a working agent.
 
@@ -56,6 +53,10 @@ class PersonaInstanceRetireError(AgentRuntimeError):
     protect once the first went, and the pair leaves as one decision rather than
     two. Both are rowed in the tombstone registry; the launcher's decodes for
     them leave with this landing.
+
+    ``canonical_persona_channel`` left with the canonical predicate
+    (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT): nothing mints a hidden
+    copy, so any instance retires, and the retire is what keeps one archived.
     """
 
     def __init__(

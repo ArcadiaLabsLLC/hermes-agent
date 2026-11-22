@@ -17,7 +17,6 @@ from agent_runtime.persona_assignments import (
     canonical_persona_instance_id,
     chat_session_is_foreign_to_instance,
     chat_session_owner_instance_id,
-    is_canonical_persona_channel,
     persona_chat_session_id_for,
     persona_instance_id_for,
     persona_instance_id_for_placement,
@@ -110,22 +109,6 @@ def test_add_instance_mints_distinct_hex_placement_row(isolate_agent_runtime_roo
     assert placement.session_id.startswith(f"persona_chat_{PLACEMENT_ID}_")
     # The canonical primary keeps its own pointer (no sibling-steal).
     assert store.get(PRIMARY_ID).session_id == primary.session_id
-
-
-def test_hex_placement_is_not_the_canonical_channel_so_retire_is_allowed(
-    isolate_agent_runtime_root,
-):
-    # `is_canonical_persona_channel` gates the retire verb: a hex placement is NOT
-    # the persona's global-singleton canonical channel, so retiring it is allowed
-    # (same as the counter form); the bare `personainst_qa` stays protected.
-    store = PersonaInstanceStore()
-    primary = store.create_operator_chat(persona_id="qa", display_name="QA Agent")
-    placement = store.add_instance(
-        persona_id="qa", placement_id=PLACEMENT_TOKEN, display_name="QA Agent (2)"
-    )
-
-    assert is_canonical_persona_channel(primary) is True
-    assert is_canonical_persona_channel(placement) is False
 
 
 def test_ambiguous_target_counts_hex_placements_as_live_instances():

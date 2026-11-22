@@ -85,9 +85,9 @@ __all__ = [
 #:
 #: THREE, and it is the measured virgin-root convergence rather than a round
 #: number. A cold store legitimately fails to settle for a build or two — the
-#: build is not a pure reader (``PersonaInstanceStore.ensure_for_personas``
-#: materializes instance rows; the chat SessionDB is CREATED by the first process
-#: that opens it), and the key is taken pre-build on purpose, so the first
+#: build is not a pure reader (the chat SessionDB is CREATED by the first process
+#: that opens it; the instance rows it used to mint left with
+#: RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT), and the key is taken pre-build on purpose, so the first
 #: write-back describes inputs the build then moved. ``write_back``'s own
 #: docstring names that consequence, and the test helper
 #: ``converge_persisted_core`` measures it. A bound at the measured convergence

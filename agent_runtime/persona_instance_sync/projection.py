@@ -45,9 +45,9 @@ class PersonaInstanceProjection:
       ``runtime_root`` appears here on every publish, and that is the point: the
       most portability-hostile field on the record is reported as withheld
       rather than silently absent.
-    - ``skipped_canonical`` — ids excluded because they ARE the persona's
-      canonical operator channel. Not a refusal: every machine derives its own,
-      so withholding them is the scoping ruling working (plan §2).
+    - ``skipped_local`` — ids excluded because they are machine-local (a hidden
+      copy the migration adopted or held, stamped ``adopted_from_global``). Not a
+      refusal: withholding them is the scoping ruling working (plan §2).
     - ``refused`` — records this machine would not project: a travelling field
       holding a machine-shaped value, or an id that is not instance-shaped. Rows
       are ``{key, code, message}``, the shared ``Refusal`` shape.
@@ -56,7 +56,7 @@ class PersonaInstanceProjection:
 
     instances: dict[str, dict[str, Any]] = field(default_factory=dict)
     dropped_keys: list[str] = field(default_factory=list)
-    skipped_canonical: list[str] = field(default_factory=list)
+    skipped_local: list[str] = field(default_factory=list)
     refused: list[dict[str, str]] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
 
@@ -91,7 +91,7 @@ class PersonaInstanceProjection:
         return {
             "instances": sorted(self.instances),
             "dropped_keys": sorted(set(self.dropped_keys)),
-            "skipped_canonical": sorted(set(self.skipped_canonical)),
+            "skipped_local": sorted(set(self.skipped_local)),
             "refused": list(self.refused),
             "missing": sorted(set(self.missing)),
         }
@@ -217,22 +217,24 @@ def project_persona_instances(
 
     Two exclusions, and they are different facts:
 
-    * a CANONICAL channel row is skipped (``skipped_canonical``). Every member
-      derives its own; publishing one would be a peer asserting a row the
-      receiver's own ``ensure_for_personas`` already owns.
+    * a MACHINE-LOCAL row is skipped (``skipped_local``): a hidden copy the
+      migration adopted or held (stamped ``adopted_from_global``) stays on this
+      machine, as the hidden copy it was (plan agent-template-vs-canonical-instance
+      §6 rule 2). The canonical predicate that used to skip the hidden copy itself
+      went with RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT.
     * a record whose projected body still carries a machine-shaped value is
       REFUSED (``nonportable_path``). Withholding ``runtime_root`` is the
       allowlist's job; catching an absolute path that reached the wire through
       an authored ``display_name`` is this one's.
     """
 
-    from ..persona_assignments.identity import is_adopted_local_instance, is_canonical_persona_channel
+    from ..persona_assignments.identity import is_adopted_local_instance
     from ..sync_admission import find_nonportable_values
 
     records = records or {}
     instances: dict[str, dict[str, Any]] = {}
     dropped: list[str] = []
-    skipped_canonical: list[str] = []
+    skipped_local: list[str] = []
     refused: list[dict[str, str]] = []
     missing: list[str] = []
     for instance_id in sorted({str(item) for item in instance_ids}):
@@ -250,17 +252,17 @@ def project_persona_instances(
             )
             continue
         try:
-            # An adopted row (stamped ``adopted_from_global``) was the hidden copy and stays as
+            # An adopted or held row (stamped ``adopted_from_global``) was the hidden copy and stays as
             # machine-local as it was (plan agent-template-vs-canonical-instance-2026-11-21 §6).
-            if is_canonical_persona_channel(record) or is_adopted_local_instance(record):
-                skipped_canonical.append(instance_id)
+            if is_adopted_local_instance(record):
+                skipped_local.append(instance_id)
                 continue
         except Exception:  # a record that cannot answer is not projectable
             refused.append(
                 {
                     "key": instance_id,
                     "code": REFUSAL_INCOMPLETE,
-                    "message": "record could not be classified against the canonical channel",
+                    "message": "record could not be classified as machine-local",
                 }
             )
             continue
@@ -289,7 +291,7 @@ def project_persona_instances(
     return PersonaInstanceProjection(
         instances=instances,
         dropped_keys=sorted(set(dropped)),
-        skipped_canonical=sorted(set(skipped_canonical)),
+        skipped_local=sorted(set(skipped_local)),
         refused=refused,
         missing=sorted(set(missing)),
     )
@@ -421,8 +423,8 @@ def refuse_persona_instance(instance_id: str, body: Any):
             instance_id,
             REFUSAL_CANONICAL_CHANNEL,
             (
-                f"{instance_id} is the canonical operator channel for {persona_id!r}; "
-                "canonical rows are derived locally on every machine and never replicate"
+                f"{instance_id} is {persona_id!r}'s hidden-copy id; such a row is machine-local "
+                "on every machine and never replicates"
             ),
         )
 

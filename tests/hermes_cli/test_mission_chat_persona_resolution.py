@@ -21,6 +21,7 @@ import pytest
 
 from hermes_cli.harness import build_parser
 from hermes_cli.harness_parts.persona import chat_delete, chat_target
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 
 def parser():
@@ -127,7 +128,7 @@ def _seed_qa_placement(monkeypatch, tmp_path, placement_id="qa_agent_f24601ba"):
     cfg = load_agent_runtime_config()
     AgentStore().save(sample_persona("qa"))
     store = PersonaInstanceStore()
-    store.ensure_for_personas(list(ensure_persisted_personas(cfg)))
+    _ensure_hidden_copies(store, list(ensure_persisted_personas(cfg)))
     placement = store.add_instance(
         persona_id="qa", placement_id=placement_id, display_name="QA Agent (2)"
     )
@@ -239,3 +240,12 @@ def test_explicit_sibling_owned_session_is_still_refused(tmp_path, monkeypatch, 
     data = json.loads(captured["out"])
     assert data["ok"] is False
     assert data["execution_state"] == "rejected"
+
+
+def _ensure_hidden_copies(store, personas, **_):
+    from agent_runtime.persona_lifecycle import is_independent_agent_persona, is_runtime_persona
+
+    for persona in personas:
+        if is_runtime_persona(persona) and not is_independent_agent_persona(persona):
+            mint_hidden_copy(persona, store=store)
+    return store.list_all()

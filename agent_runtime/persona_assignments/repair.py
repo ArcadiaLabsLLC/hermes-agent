@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 __layer__ = "stores"
 
 __all__ = [
-    "clear_canonical_scope_pointers",
     "repair_missing_chat_session_bindings",
     "repair_missing_steering_references",
     "repair_non_instance_steering",
@@ -298,44 +297,6 @@ def repair_missing_chat_session_bindings(
     }
 
 
-def clear_canonical_scope_pointers(store: PersonaInstanceStore, *, apply: bool = True) -> list[dict[str, Any]]:
-    """Clear ``workspace_id`` / ``realm_id`` STORED on canonical operator channels.
-
-    The store's decode already reads them as ``None`` (RT-GLOBAL-SINGLETON-CANONICAL), so
-    this is hygiene: it reads the RAW rows (the decode would hide what is stored),
-    rewrites each pointer-bearing canonical through the decode, and emits one
-    ``persona_instance.reconciled`` with ``action: "canonical_scope_cleared"``. ``apply=False``
-    reports and writes nothing; a second apply finds nothing.
-    """
-    import json
-
-    from agent_runtime import paths
-    from agent_runtime.persona_assignments.identity import row_is_canonical_persona_channel
-
-    directory = paths.persona_instances_dir()
-    cleared: list[dict[str, Any]] = []
-    for path in sorted(directory.glob("*.json")) if directory.exists() else []:
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            continue  # an unreadable row is scan_all's to account, not this phase's
-        if not isinstance(raw, dict) or not row_is_canonical_persona_channel(
-            raw.get("id"), raw.get("persona_id"), raw.get("adopted_from_global")
-        ):
-            continue  # an adopted row's pointers are its placement (MUTATION: drop the stamp arg ->
-            # test_a_reconcile_keeps_an_adopted_rows_workspace reddens)
-        if not (raw.get("workspace_id") or raw.get("realm_id")):
-            continue
-        item = {"persona_instance_id": raw["id"], "workspace_id": raw.get("workspace_id"),
-                "realm_id": raw.get("realm_id"), "action": "canonical_scope_cleared"}
-        cleared.append(item)
-        if apply:
-            instance = store.get(raw["id"])  # decoded: the pointers already read None
-            store._write(instance)
-            store._event("persona_instance.reconciled", instance, dict(item))
-    return cleared
-
-
 def retire_task_bound_rows(store: PersonaInstanceStore, *, apply: bool = True) -> dict[str, list[dict[str, Any]]]:
     """Retire every STORED ``mode == "task_bound"`` row (RT-TASK-BOUND-VOCABULARY).
 
@@ -352,7 +313,7 @@ def retire_task_bound_rows(store: PersonaInstanceStore, *, apply: bool = True) -
     from hermes_time import now
 
     from agent_runtime import paths
-    from agent_runtime.persona_assignments.identity import row_is_canonical_persona_channel
+    from agent_runtime.persona_assignments.identity import persona_instance_id_for
 
     directory = paths.persona_instances_dir()
     report: dict[str, list[dict[str, Any]]] = {"normalised": [], "archived": []}
@@ -365,9 +326,10 @@ def retire_task_bound_rows(store: PersonaInstanceStore, *, apply: bool = True) -
         if not isinstance(raw, dict) or raw.get("mode") != "task_bound":
             continue
         task_id, goal_id = raw.get("current_task_id") or None, raw.get("goal_id") or None
-        mission = task_id != goal_id and not row_is_canonical_persona_channel(
-            raw.get("id"), raw.get("persona_id"), raw.get("adopted_from_global")
-        )
+        # A hidden copy ``personainst_<persona>`` is normalised, never archived here: phase 7's migration
+        # (``persona_instance_adoption``) decides its fate from everything it holds.
+        hidden_copy = bool(raw.get("persona_id")) and raw.get("id") == persona_instance_id_for(str(raw["persona_id"]))
+        mission = task_id != goal_id and not hidden_copy
         action = "task_bound_archived" if mission else "task_bound_normalised"
         item = {"persona_instance_id": raw.get("id"), "current_task_id": task_id, "goal_id": goal_id, "action": action}
         report["archived" if mission else "normalised"].append(item)

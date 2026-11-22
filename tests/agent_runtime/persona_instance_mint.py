@@ -144,3 +144,39 @@ def mint_placed_instance(
     )
     store._write(instance)
     return store.get(instance.id)
+
+
+def mint_hidden_copy(
+    persona: AgentPersona, *, store: PersonaInstanceStore | None = None, held: bool = True, **fields
+) -> PersonaInstance:
+    """An agent's OLD hidden copy ``personainst_<persona>``, as ``ensure_for_persona`` minted it.
+
+    RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT deleted that mint: nothing in production makes this
+    row any more. Tests that need "an existing instance of this persona" (or the legacy row a namespace
+    made before the change) seed it here. By default it is HELD as the migration leaves such a row
+    (stamped ``adopted_from_global``, in no workspace: machine-local, never advertised), the state every
+    surviving hidden copy is in after a serve boot; ``held=False`` seeds the unstamped pre-migration row
+    the migration (``persona_instance_adoption``) settles.
+    """
+
+    store = store or PersonaInstanceStore()
+    instance_id = persona_instance_id_for(persona.id)
+    try:
+        return store.get(instance_id)
+    except Exception:
+        pass
+    instance = PersonaInstance(
+        id=instance_id,
+        persona_id=persona.id,
+        role=str(persona.role),
+        display_name=persona.display_name,
+        profile_id=persona.hermes_profile,
+        runtime_root=str(paths.store_root()),
+        state=WorkerSessionState.IDLE,
+        updated_at=now(),
+        **({"adopted_from_global": "2026-11-21"} if held else {}),
+        **fields,
+    )
+    store._write(instance)
+    store._event("persona_instance.created", instance, {})
+    return store.get(instance_id)

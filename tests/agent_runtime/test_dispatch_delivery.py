@@ -44,6 +44,7 @@ from hermes_cli.harness_parts import runtime_commands
 from hermes_cli.harness_parts import agent_commands
 from hermes_cli.harness_parts import init_commands
 from hermes_cli.harness_parts import workspace_commands
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 SENDER_ROOT = "persona_chat_personainst_neko_aaaaaaaaaaaa"
 
@@ -324,7 +325,7 @@ def named_target(store_home):
     from agent_runtime.models import AgentPersona
     from agent_runtime.persona_assignments import PersonaInstanceStore
 
-    return PersonaInstanceStore().ensure_for_persona(
+    return mint_hidden_copy(store=PersonaInstanceStore(), persona=
         AgentPersona(
             id="neko_supervisor_agent",
             display_name="Neko Mission Lead",

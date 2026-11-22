@@ -63,14 +63,14 @@ def fresh_agent_id(old: str, persona_id: str) -> str:
 
 
 def agents_of(realm_id: str, workspace_ids: set[str]) -> dict[str, str]:
-    """``{agent id: persona id}`` for every agent the realm holds. A persona's own channel
-    (``personainst_<persona>``) is this install's and belongs to no realm: it never parks."""
-    from .persona_assignments import PersonaInstanceStore
-    from .persona_assignments.identity import is_canonical_persona_channel
+    """``{agent id: persona id}`` for every agent the realm holds. A machine-local row (an adopted or held
+    hidden copy, stamped ``adopted_from_global``) is this install's and belongs to no realm: it never parks
+    and keeps its id, which its chats, gateway bindings and Work assignees name."""
+    from .persona_assignments import PersonaInstanceStore, is_adopted_local_instance
 
     return {
         item.id: item.persona_id for item in PersonaInstanceStore().list_all()
-        if not is_canonical_persona_channel(item) and (item.workspace_id in workspace_ids or item.realm_id == realm_id)
+        if not is_adopted_local_instance(item) and (item.workspace_id in workspace_ids or item.realm_id == realm_id)
     }
 
 

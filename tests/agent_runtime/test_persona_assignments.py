@@ -40,6 +40,7 @@ from tests.agent_runtime.persona_assignments_helpers import (
     _TranscriptDB,
 )
 from tests.agent_runtime.persona_instance_mint import mint_free_floating
+from tests.agent_runtime.persona_instance_mint import mint_hidden_copy
 
 pytestmark = pytest.mark.usefixtures("persisted_persona_samples")
 
@@ -50,7 +51,7 @@ def test_persona_instance_store_ensures_a_singleton_per_persona(isolate_agent_ru
     # per configured persona.
     store = PersonaInstanceStore()
 
-    instances = store.ensure_for_personas([_persona("dev"), _persona("qa")])
+    instances = _ensure_hidden_copies(store, [_persona("dev"), _persona("qa")])
 
     by_id = {item.persona_id: item for item in instances}
     assert by_id["dev"].id == "personainst_dev"
@@ -62,7 +63,7 @@ def test_disabled_and_mothballed_definitions_never_materialize_runtime_instances
 ):
     store = PersonaInstanceStore()
 
-    instances = store.ensure_for_personas(
+    instances = _ensure_hidden_copies(store, 
         [
             _persona("dev"),
             _persona("custom_reviewer", role="reviewer"),
@@ -79,7 +80,7 @@ def test_reconciled_disabled_pm_is_not_recreated_by_read_builds(
 ):
     store = PersonaInstanceStore()
     pm = _persona("pm", role="disabled")
-    store.ensure_for_persona(pm)
+    mint_hidden_copy(store=store, persona=pm)
 
     report = reconcile_persona_instances(event_log=EventLog())
     assert report["pruned_count"] == 1
@@ -87,36 +88,13 @@ def test_reconciled_disabled_pm_is_not_recreated_by_read_builds(
 
     # These are the central paths used by snapshot/status/persona-list/chat
     # initialization. Repeating them after reconciliation must remain a no-op.
-    assert store.ensure_for_personas([pm]) == []
+    assert _ensure_hidden_copies(store, [pm]) == []
     build_snapshot()
     build_status()
     assert not [item for item in store.list_all() if item.persona_id == "pm"]
 
     again = reconcile_persona_instances(event_log=EventLog())
     assert again["pruned_count"] == 0
-
-
-def test_persona_instance_ensure_clears_a_stale_execution_binding(isolate_agent_runtime_root):
-    # S56: with the worker lane gone the reset pass is unconditional — an
-    # instance still carrying a dead task/assignment binding settles back to idle.
-    store = PersonaInstanceStore()
-    stale = store.ensure_for_persona(_persona("dev"))
-    stale.mode = "task_bound"
-    stale.state = WorkerSessionState.RUNNING
-    stale.current_task_id = "task_stale"
-    stale.current_assignment_id = "assign_stale"
-    stale.goal_id = "task_stale"
-    store.update(stale)
-
-    instances = store.ensure_for_personas([_persona("dev")])
-
-    instance = instances[0]
-    assert instance.id == "personainst_dev"
-    assert instance.state == WorkerSessionState.IDLE
-    assert instance.current_assignment_id is None
-    assert instance.current_task_id is None
-    assert instance.active_run_id is None
-    assert instance.session_id is None
 
 
 def test_free_floating_instance_mint_reuses_canonical_idle_placement(isolate_agent_runtime_root):
@@ -134,7 +112,7 @@ def test_free_floating_instance_mint_reuses_canonical_idle_placement(isolate_age
     # S56 removed PersonaInstance.active_worker_session_id outright.
     assert not hasattr(first, "active_worker_session_id")
 
-    instances = store.ensure_for_personas([_persona("dev")])
+    instances = _ensure_hidden_copies(store, [_persona("dev")])
     by_id = {item.id: item for item in instances}
 
     assert by_id[first.id].persona_id == "profile_reviewer"
@@ -320,7 +298,9 @@ def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatc
     # RT-WRITERLESS-GOAL-STATUS-KEYS: the writer-less goal-lane projections went too.
     assert "runtime_instances" not in status
     assert "foreground_runtime" not in status
-    assert {item["persona_id"] for item in status["persona_instances"]} >= {"dev", "qa", "neko_supervisor", "backend_dev"}
+    # Only the rows that exist: building status mints no hidden copy of every agent any more
+    # (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT).
+    assert {item["persona_id"] for item in status["persona_instances"]} == {"dev"}
     status_lane_agents = {item["persona_id"]: item for item in status["agents"]}
     assert "personainst_dev" in status_lane_agents
     assert status_lane_agents["personainst_dev"]["source_persona_id"] == "dev"
@@ -334,7 +314,7 @@ def test_status_and_snapshot_expose_persona_instances_unconditionally(monkeypatc
     assert status_lane_agents["personainst_dev"]["visibility_ref"]["evicted"] is True
     assert isinstance(status_lane_agents["personainst_dev"]["mutation_boundary"], dict)
     assert snapshot["persona_instance_runtime"]["enabled"] is True
-    assert {item["persona_id"] for item in list(snapshot["persona_instances"].values())} >= {"dev", "qa", "neko_supervisor", "backend_dev"}
+    assert {item["persona_id"] for item in list(snapshot["persona_instances"].values())} == {"dev"}
     snapshot_lane_agents = {item["persona_id"]: item for item in snapshot["agents"]}
     # S56 INVERSION: this used to pin "personainst_dev not in the snapshot agent
     # catalog", but that only held because build_snapshot seeded ``workers = []``
@@ -455,7 +435,7 @@ def test_coordinator_create_beyond_spawn_scope_returns_confirm_without_creating(
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
     # The coordinator's scope is its own instance's, read from the store (review w1118a.62 D1): a
     # propose-only agent's budget is zero, and no argv grants it more.
-    coordinator = PersonaInstanceStore().ensure_for_persona(_persona("neko_supervisor"))
+    coordinator = mint_hidden_copy(store=PersonaInstanceStore(), persona=_persona("neko_supervisor"))
 
     code = lifecycle_commands._cmd_persona_instance_create(
         Namespace(
@@ -488,8 +468,8 @@ def test_persona_instance_steer_cli_attaches_parent_and_goal(monkeypatch, isolat
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
     store = PersonaInstanceStore()
-    store.ensure_for_persona(_persona("neko_supervisor"))
-    store.ensure_for_persona(_persona("dev"))
+    mint_hidden_copy(store=store, persona=_persona("neko_supervisor"))
+    mint_hidden_copy(store=store, persona=_persona("dev"))
 
     code = instance_commands._cmd_persona_instance_steer(
         Namespace(
@@ -519,8 +499,8 @@ def test_persona_instance_steer_cli_detaches_to_standalone(monkeypatch, isolate_
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
 
     store = PersonaInstanceStore()
-    store.ensure_for_persona(_persona("neko_supervisor"))
-    store.ensure_for_persona(_persona("dev"))
+    mint_hidden_copy(store=store, persona=_persona("neko_supervisor"))
+    mint_hidden_copy(store=store, persona=_persona("dev"))
     store.steer("personainst_dev", parent_instance_id="personainst_neko_supervisor", goal_id="task_77")
 
     code = instance_commands._cmd_persona_instance_steer(
@@ -549,7 +529,7 @@ def test_persona_instance_steer_cli_rejects_self_steer(monkeypatch, capsys, isol
     cfg = _assignment_config()
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
-    PersonaInstanceStore().ensure_for_persona(_persona("dev"))
+    mint_hidden_copy(store=PersonaInstanceStore(), persona=_persona("dev"))
 
     code = instance_commands._cmd_persona_instance_steer(
         Namespace(
@@ -575,7 +555,7 @@ def test_persona_instance_steer_cli_rejects_missing_parent(monkeypatch, capsys, 
     cfg = _assignment_config()
     monkeypatch.setattr(instance_commands, "load_agent_runtime_config", lambda: cfg)
     monkeypatch.setattr(lifecycle_commands, "load_agent_runtime_config", lambda: cfg)
-    PersonaInstanceStore().ensure_for_persona(_persona("dev"))
+    mint_hidden_copy(store=PersonaInstanceStore(), persona=_persona("dev"))
 
     code = instance_commands._cmd_persona_instance_steer(
         Namespace(
@@ -597,9 +577,9 @@ def test_persona_instance_steer_cli_rejects_missing_parent(monkeypatch, capsys, 
 
 def test_persona_instance_steer_store_reroutes_without_minting_instances(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
-    store.ensure_for_persona(_persona("neko_supervisor"))
-    store.ensure_for_persona(_persona("pm"))
-    store.ensure_for_persona(_persona("dev"))
+    mint_hidden_copy(store=store, persona=_persona("neko_supervisor"))
+    mint_hidden_copy(store=store, persona=_persona("pm"))
+    mint_hidden_copy(store=store, persona=_persona("dev"))
     before = {item.id for item in store.list_all()}
 
     store.steer("personainst_dev", parent_instance_id="personainst_neko_supervisor", goal_id="task_77")
@@ -612,9 +592,9 @@ def test_persona_instance_steer_store_reroutes_without_minting_instances(isolate
 
 def test_persona_instance_steer_store_rejects_cycles(isolate_agent_runtime_root):
     store = PersonaInstanceStore()
-    store.ensure_for_persona(_persona("neko_supervisor"))
-    store.ensure_for_persona(_persona("dev"))
-    store.ensure_for_persona(_persona("qa"))
+    mint_hidden_copy(store=store, persona=_persona("neko_supervisor"))
+    mint_hidden_copy(store=store, persona=_persona("dev"))
+    mint_hidden_copy(store=store, persona=_persona("qa"))
     store.steer("personainst_dev", parent_instance_id="personainst_neko_supervisor", goal_id="task_77")
     store.steer("personainst_qa", parent_instance_id="personainst_dev", goal_id="task_77")
 
@@ -1061,7 +1041,7 @@ def _seed_live_run_binding(instance_store) -> AgentRun:
     """
 
     run = _seed_run("dev", "task_live", "stage_1", session_id="persona_chat_personainst_dev_live")
-    live = instance_store.ensure_for_persona(_persona("dev"))
+    live = mint_hidden_copy(store=instance_store, persona=_persona("dev"))
     live.mode = "task_bound"
     live.state = WorkerSessionState.RUNNING
     live.current_task_id = "task_live"
@@ -1103,3 +1083,12 @@ def test_add_instance_mints_distinct_placement_backed_instance(isolate_agent_run
     assert additional.profile_id == "reviewer"
     assert additional.session_id.startswith("persona_chat_personainst_reviewer_agent_2_")
     assert store.get(primary.id).session_id == primary.session_id
+
+
+def _ensure_hidden_copies(store, personas, **_):
+    from agent_runtime.persona_lifecycle import is_independent_agent_persona, is_runtime_persona
+
+    for persona in personas:
+        if is_runtime_persona(persona) and not is_independent_agent_persona(persona):
+            mint_hidden_copy(persona, store=store)
+    return store.list_all()
