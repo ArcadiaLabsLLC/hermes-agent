@@ -1020,9 +1020,9 @@ def _local_runtime_row(ctx: ConfigContext) -> dict | None:
     before the server runs (selection starts it via the runtime_provider seam). The row's id comes from
     the provider registry's own definition, never a local literal: a row the resolver can't resolve is
     the bug this row's offline-first contract depends on not having."""
-    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel ships no local runtime
+    from agent_runtime.module_presence import runs_here  # fork seam: the phone's profile switches the local runtime off
 
-    if not shipped("hermes_cli.local_runtime"):
+    if not runs_here("hermes_cli.local_runtime"):
         return None
     try:
         from hermes_cli.local_runtime.bootstrap import staged_model_ids

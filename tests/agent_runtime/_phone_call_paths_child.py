@@ -4,7 +4,7 @@ first-party module outside the phone bundle's plan refuses to import and every p
 Not a test module (no ``test_`` prefix): the parent runs it as ``python <this file> <plan.json> <out.json>``
 in a fresh interpreter, so no module the test process already imported can stand in for one the phone
 lacks. ``plan.json`` holds ``modules`` (the packager's phone plan) and ``tops`` (the first-party top-level
-names). The install is made the phone's: ``agent_runtime.bundled_toolsets.PHONE_PLATFORMS`` names this
+names). The install is made the phone's: ``agent_runtime.installed_profile.PHONE_PLATFORMS`` names this
 platform, so the installed profile is ``bundled-phone`` (its switches, its switched-off modules).
 ``out.json`` gets, per case, its answer or its error, plus every refused spawn and every warning logged.
 """
@@ -64,9 +64,9 @@ class Collect(logging.Handler):
 logging.getLogger().addHandler(Collect())
 logging.getLogger().setLevel(logging.WARNING)
 
-from agent_runtime import bundled_toolsets  # noqa: E402
+from agent_runtime import bundled_toolsets, installed_profile  # noqa: E402
 
-bundled_toolsets.PHONE_PLATFORMS = frozenset({*bundled_toolsets.PHONE_PLATFORMS, sys.platform})
+installed_profile.PHONE_PLATFORMS = frozenset({*installed_profile.PHONE_PLATFORMS, sys.platform})
 
 # The phone ships a switched-off module of a scanned package in the sibling tree (``phone_forced/``,
 # agent_runtime/bundle_profiles/forced_tree.py), where the tool scan never looks: here, in one checkout,

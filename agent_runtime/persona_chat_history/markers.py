@@ -11,7 +11,7 @@ from typing import Any
 from ..api_key_check import API_KEY_CONTROL_CHARACTER
 from ..clock import iso_timestamp
 from ..mission_chat_outcome import LOCAL_MODEL_NOT_READY_REASON, refusal_never_left_hermes
-from ..module_presence import shipped
+from ..module_presence import runs_here
 from ..provider_login_expiry import CHOSEN_CREDENTIAL_UNUSABLE
 from ..mission_chat_turns.reads import mission_chat_turn_records
 from ..serde import safe_assignment_text, safe_assignment_token
@@ -54,7 +54,7 @@ def _is_local_llama_provider(provider: Any) -> bool:
     """``provider`` is the local llama provider's id. The phone wheel ships no
     ``local_llama_adapter`` (it cannot produce that refusal), so it answers False without the import."""
 
-    if not shipped("agent_runtime.local_llama_adapter"):
+    if not runs_here("agent_runtime.local_llama_adapter"):
         return False
     from ..local_llama_adapter import PROVIDER_ID
 

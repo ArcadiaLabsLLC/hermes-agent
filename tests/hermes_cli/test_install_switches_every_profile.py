@@ -141,15 +141,15 @@ def test_a_bundled_desktop_reads_the_shipped_off_over_a_root_config_that_says_on
 
 def test_the_build_stamp_is_what_makes_a_desktop_bundled(homes, monkeypatch):
     """The real gate, not a patched profile: the build stamp's ``bundled`` installs the desktop profile."""
-    from agent_runtime import bundled_toolsets
+    from agent_runtime import installed_profile
 
     root, _second = homes
     _write(root, ALL_ON)
-    monkeypatch.setattr(bundled_toolsets, "edition_bundled", lambda: False)
+    monkeypatch.setattr(installed_profile, "edition_bundled", lambda: False)
     config_switches.reset_install_switches()
     try:
         assert _desktop_reads() == DESKTOP_ON
-        monkeypatch.setattr(bundled_toolsets, "edition_bundled", lambda: True)
+        monkeypatch.setattr(installed_profile, "edition_bundled", lambda: True)
         config_switches.reset_install_switches()
         assert _desktop_reads() == DESKTOP_HELD
     finally:

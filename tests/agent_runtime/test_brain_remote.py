@@ -148,7 +148,7 @@ def test_a_phone_never_asks_the_git_program_for_a_project_brain(tmp_path, monkey
     ``installed_switched_off`` check from ``RemoteCheck.due`` -> a ``run_git`` call per brain, red."""
     import sys
 
-    from agent_runtime import bundled_toolsets, git_cmd
+    from agent_runtime import git_cmd, installed_profile
     from agent_runtime.store import WorkspaceStore
     from agent_runtime.workspace_slots import bind, declare
 
@@ -160,7 +160,7 @@ def test_a_phone_never_asks_the_git_program_for_a_project_brain(tmp_path, monkey
     assert RemoteCheck().due() == [(str(brain), "slot")]  # positive control: a desktop checks it
     calls: list = []
     monkeypatch.setattr(git_cmd, "run_git", lambda args, **_: calls.append(args))
-    monkeypatch.setattr(bundled_toolsets, "PHONE_PLATFORMS", frozenset({*bundled_toolsets.PHONE_PLATFORMS, sys.platform}))
+    monkeypatch.setattr(installed_profile, "PHONE_PLATFORMS", frozenset({*installed_profile.PHONE_PLATFORMS, sys.platform}))
     assert RemoteCheck().tick() == {"checked": [], "written": False}
     assert calls == []
 

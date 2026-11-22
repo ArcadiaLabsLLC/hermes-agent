@@ -37,7 +37,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from .module_presence import shipped
+from .module_presence import runs_here
 
 __layer__ = "models"
 __all__ = [
@@ -102,7 +102,7 @@ def git_command() -> str:
 
 def git_resolution(path: str | None = None) -> ToolResolution:
     """Which git this host runs and where it was found; *path* is the PATH the child will get."""
-    if not shipped(GIT_DOOR):
+    if not runs_here(GIT_DOOR):
         return ToolResolution(_GIT, _GIT, _NOT_SHIPPED)
     pm_git = _pm_git_here()
     if pm_git:
@@ -117,7 +117,7 @@ def git_resolution(path: str | None = None) -> ToolResolution:
 def git_runs() -> bool:
     """Whether git runs on this host (``git --version`` exits 0). Never raises: a wheel without the git
     door (the phone) answers False, as does a host with no git."""
-    if not shipped(GIT_DOOR):
+    if not runs_here(GIT_DOOR):
         return False
     try:
         done = subprocess.run([git_command(), "--version"], capture_output=True, text=True, timeout=10,

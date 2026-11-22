@@ -466,9 +466,9 @@ def _run_post_turn_followups(
     # Safety net for completion events that arrived mid-turn.  Ownership is positive-proof
     # and compression-chain aware (same fail-closed gate as the poller): session B must
     # not consume session A's event.  Unclaimable events are requeued for the poller.
-    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel ships no process registry
+    from agent_runtime.module_presence import runs_here  # fork seam: a profile switching it off (the phone) runs none
 
-    if not shipped("tools.process_registry"):
+    if not runs_here("tools.process_registry"):
         return
     try:
         from tools.process_registry import process_registry

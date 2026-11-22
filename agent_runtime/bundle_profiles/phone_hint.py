@@ -19,12 +19,11 @@ upstream's bytes (lane h11-fp, 2026-09-29).
 from __future__ import annotations
 
 from agent_runtime.bundle_profiles.manifest import ProfileManifest, load_profile
+from agent_runtime.installed_profile import PHONE_PROFILE
 
 __layer__ = "policy"
 
 __all__ = ["CAPABILITIES", "PHONE_PROFILE", "absent_capabilities", "install_phone_platform_hint", "phone_platform_hint"]
-
-PHONE_PROFILE = "bundled-phone"
 
 #: (the toolsets that provide a capability, the phrase naming its absence).
 CAPABILITIES: tuple[tuple[tuple[str, ...], str], ...] = (

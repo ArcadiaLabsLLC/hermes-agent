@@ -461,10 +461,10 @@ class RemoteCheck:
         fail (RT-FU-A-PHONE-NEVER-ASKS-THE-GIT-PROGRAM-TO-CHECK-A-PROJECT-BRAINS-REMOTE). The Work tick asks
         the same profile (``work_store/engine.py::_default_workspaces``)."""
 
-        from .bundled_toolsets import installed_switched_off
+        from .module_presence import runs_here
 
         # MUTATION: drop this check and test_brain_remote's phone case reddens (a git process per brain).
-        if installed_switched_off("agent_runtime.git_cmd"):
+        if not runs_here("agent_runtime.git_cmd"):
             return []
         seen: dict[str, str] = {}
         for kind, entry in brains(read_brain_paths()):

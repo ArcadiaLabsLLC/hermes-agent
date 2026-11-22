@@ -34,10 +34,10 @@ def _is_local_llama(provider: str) -> bool:
 def _provider_profile(provider: str | None):
     if not provider:
         return None
-    from agent_runtime.module_presence import shipped
+    from agent_runtime.module_presence import runs_here
 
     # A profile that leaves the local engine out (the phone) has no local llama provider to match.
-    if shipped("agent_runtime.local_llama_adapter") and _is_local_llama(provider):
+    if runs_here("agent_runtime.local_llama_adapter") and _is_local_llama(provider):
         from agent_runtime.local_llama_adapter.provider import provider_profile
 
         return provider_profile()

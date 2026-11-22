@@ -208,9 +208,9 @@ def _run_transport(request: AgentRunRequest, runtime: dict) -> dict:
 def _local_engine_shipped() -> bool:
     """Whether the local engine ships: a profile that leaves it out (the phone) has no local provider,
     so its scopes and construction arguments are neutral there."""
-    from .module_presence import shipped
+    from .module_presence import runs_here
 
-    return shipped("agent_runtime.local_llama_adapter")
+    return runs_here("agent_runtime.local_llama_adapter")
 
 
 def _local_engine_prewarm_scope(*args: Any, **kwargs: Any):

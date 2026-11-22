@@ -20,9 +20,9 @@ def _clean_cwd(value: Any) -> str:
 def _recorded_cwd(key: str) -> str:
     if not key:
         return ""
-    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel ships no terminal tool
+    from agent_runtime.module_presence import runs_here  # fork seam: a profile switching it off (the phone) runs none
 
-    if not shipped("tools.terminal_tool"):
+    if not runs_here("tools.terminal_tool"):
         return ""  # no terminal session, so no recorded cwd
     from tools.terminal_tool import get_session_cwd
 

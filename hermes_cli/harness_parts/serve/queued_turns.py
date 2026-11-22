@@ -133,35 +133,40 @@ def start_serve_work_engine(session: Any) -> Any:
 
     Called BEFORE the queued-send runner starts, so the engine's boot read of its run records sees
     every run that ended while the serve was down before the runner can settle a resumed one. The
-    messaging lane (``messaging.serve_lane``) starts last, on the same executor, where the package ships.
-    A bundle that does not ship Work or git (the phone) builds nothing. Returns the engine or None.
+    messaging lane (``messaging.serve_lane``) starts last, on the same executor, where it runs.
+
+    The executor and engine start on every install: they carry chat goals too (a direct turn's goal
+    settle, a judge ``wait``'s wake on the engine tick) and a phone keeps those. Each step over a module a
+    bundle profile switches off asks ``module_presence.runs_here`` (the profile, not a presence probe: the
+    phone ships Work, git, the batch dispatcher and messaging pinned yet switches them off): the engine's
+    Work tick lists no workspace (``work_store/engine.py::_default_workspaces``), and the batch hooks, the
+    brains' remote check and the messaging bridge are not built
+    (RT-FU-A-PHONE-RUNS-A-FEATURE-ONLY-WHEN-ITS-PROFILE-SWITCHES-IT-ON). Returns the engine.
     """
 
     from agent_runtime.loop_tool_lifecycles import shipped
-
-    if not (shipped("agent_runtime.work") and shipped("agent_runtime.git_cmd")):
-        return None
+    from agent_runtime.module_presence import batch_dispatcher_runs_here, runs_here
     from agent_runtime.work_store.engine import WorkEngine, home_scope, start_work_engine
     from agent_runtime.work_store.persona_turn import PersonaTurnExecutor
 
     home = getattr(session, "serve_request_home", None)
     with home_scope(home):
         session.work_executor = PersonaTurnExecutor(draining=lambda: session.drain_state is not None)
-        from agent_runtime.module_presence import batch_dispatcher_shipped
-
         # MUTATION: back to shipped("agent_runtime.batch") and the phone closure check in
-        # test_phone_bundle_turn_closure's work-engine case reddens.
-        hooks = _batch_hooks(session) if batch_dispatcher_shipped() else {}
+        # test_phone_bundle_turn_closure's work-engine case reddens; to a presence probe of the dispatcher's
+        # modules and test_feature_gates_ask_the_profile's serve-start case reddens.
+        hooks = _batch_hooks(session) if batch_dispatcher_runs_here() else {}
         session.work_engine = WorkEngine(executor=session.work_executor, **hooks)
     start_work_engine(stop_event=session.liveness_stop, engine=session.work_engine, home=home,
                       on_tick=session.work_executor.wake_parked)
     start_serve_scheduler(session)
-    # The brains' remote check (RT-BRAIN-PATHS-PLAIN-LIST): fetch, fast-forward hermes's own, count the rest.
-    start_brain_remote_ticker(stop_event=session.liveness_stop, home=home)
+    if runs_here("agent_runtime.git_cmd"):
+        # The brains' remote check (RT-BRAIN-PATHS-PLAIN-LIST): fetch, fast-forward hermes's own, count the rest.
+        start_brain_remote_ticker(stop_event=session.liveness_stop, home=home)
     if shipped("agent_runtime.workspace_chat_fold"):
         # A realm-less workspace's shared chats ride no realm pull (RT-PROJECT-CHAT-FOLD-REALMLESS).
         start_realmless_fold_ticker(stop_event=session.liveness_stop, home=home)
-    if shipped("agent_runtime.messaging"):  # both bundle manifests switch it off (p10-messaging §2.6)
+    if runs_here("agent_runtime.messaging"):  # both bundle manifests switch it off (p10-messaging §2.6)
         from agent_runtime.messaging.serve_lane import start_messaging_bridge
 
         start_messaging_bridge(session)

@@ -101,39 +101,39 @@ def _ensure_discussion_methods():
 
 
 def _ensure_local_llama_methods():
-    from ..loop_tool_lifecycles import shipped
+    from ..module_presence import runs_here
 
-    # The phone wheel ships no local LLM adapter (bundled-phone.yaml), so it has no such methods.
-    if "runtime.local_llama.status" not in _METHODS and shipped("agent_runtime.local_llama_adapter"):
+    # The phone's profile switches the local LLM adapter off (bundled-phone.yaml; it ships pinned), so it has
+    # no such methods.
+    if "runtime.local_llama.status" not in _METHODS and runs_here("agent_runtime.local_llama_adapter"):
         from ..local_llama_adapter.rpc import register
         register(method, ok, err)
 
 
 def _ensure_work_methods():
-    from ..loop_tool_lifecycles import shipped
+    from ..module_presence import runs_here
 
-    if "runtime.work.capabilities" not in _METHODS and shipped("agent_runtime.work"):
+    # MUTATION: back to a presence probe and test_feature_gates_ask_the_profile's verb case reddens (the
+    # phone ships Work pinned).
+    if "runtime.work.capabilities" not in _METHODS and runs_here("agent_runtime.work"):
         from ..work.rpc import register
         register(method)
 
 
 def _ensure_batch_methods():
-    from ..loop_tool_lifecycles import shipped
+    # The batch dispatcher rides Work (dispatcher plan §3); the phone's profile switches both off.
+    from ..module_presence import batch_dispatcher_runs_here, runs_here
 
-    # The batch dispatcher rides Work (dispatcher plan §3). The phone wheel ships the batch package but not
-    # the dispatcher's own modules, so the package's presence is not asked.
-    from ..module_presence import batch_dispatcher_shipped
-
-    if "runtime.batch.plan" not in _METHODS and batch_dispatcher_shipped() and shipped("agent_runtime.work"):
+    if "runtime.batch.plan" not in _METHODS and batch_dispatcher_runs_here() and runs_here("agent_runtime.work"):
         from ..batch.rpc import register
         register(method)
 
 
 def _ensure_messaging_methods():
-    from ..loop_tool_lifecycles import shipped
+    from ..module_presence import runs_here
 
     # p10-messaging: both bundle manifests switch the package off, so a bundled build has no such methods.
-    if "runtime.messaging.status" not in _METHODS and shipped("agent_runtime.messaging"):
+    if "runtime.messaging.status" not in _METHODS and runs_here("agent_runtime.messaging"):
         from ..messaging.rpc import register
         register(method)
 
@@ -248,12 +248,12 @@ def manifest() -> dict[str, Any]:
     from .twin_params import (COURSE_METHOD_PARAMS, PERSONA_TOOLSET_METHOD_PARAMS, SKILL_CHANGES_METHOD_PARAMS,
                               TWIN_METHOD_PARAMS)
     from ..subagents.params import METHOD_PARAMS as SUBAGENT_METHOD_PARAMS
-    from ..loop_tool_lifecycles import shipped
+    from ..module_presence import runs_here
 
-    # The Work read params ride beside the Work methods: a wheel without the package (the
-    # phone's, bundled-phone.yaml) has neither, as ``_ensure_work_methods`` registers none.
+    # The Work read params ride beside the Work methods: where the profile switches Work off (the
+    # phone's, bundled-phone.yaml) there are neither, as ``_ensure_work_methods`` registers none.
     WORK_READ_METHOD_PARAMS: dict[str, tuple[str, ...]] = {}
-    if shipped("agent_runtime.work"):
+    if runs_here("agent_runtime.work"):
         from ..work.model import READ_METHOD_PARAMS as WORK_READ_METHOD_PARAMS
     from .workspace_slots import WORKSPACE_CONTENT_METHOD_PARAMS
     from .agent_files import AGENT_FILES_METHOD_PARAMS

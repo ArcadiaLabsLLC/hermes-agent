@@ -184,11 +184,11 @@ def _default_workspaces() -> list[str]:
     sync asks the git program (``work_store/writer.py::checkout_token``), which a phone does not have, and
     the tick failed every 15 s on the emulator (RT-PHONE-A-PHONE-CALL-REACHES-ONLY-MODULES-ITS-BUNDLE-SHIPS).
     With no workspace the tick still settles and reaps its run records."""
-    from ..bundled_toolsets import installed_switched_off
+    from ..module_presence import runs_here
 
     # MUTATION: drop this check and test_phone_bundle_turn_closure's work-engine tick case reddens
     # (a git spawn and "work engine could not read workspace").
-    if installed_switched_off("agent_runtime.work"):
+    if not runs_here("agent_runtime.work"):
         return []
     from ..work.service import workspace_ids
 

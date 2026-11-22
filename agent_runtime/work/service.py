@@ -61,9 +61,11 @@ def execute(operation, params, caller):
 
 
 def git_shipped():
-    from agent_runtime.loop_tool_lifecycles import shipped
+    """Whether the git program's runner runs here: the phone ships ``agent_runtime.git_cmd`` pinned but its
+    profile switches it off (``module_presence.runs_here``)."""
+    from agent_runtime.module_presence import runs_here
 
-    return shipped("agent_runtime.git_cmd")
+    return runs_here("agent_runtime.git_cmd")
 
 
 def _require_git():

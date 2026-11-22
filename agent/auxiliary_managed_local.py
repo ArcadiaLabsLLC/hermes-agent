@@ -19,9 +19,9 @@ def _managed_local_netloc() -> str:
     ts, cached = _managed_local_cache
     if now - ts < _MANAGED_LOCAL_STATE_TTL_S:
         return cached
-    from agent_runtime.loop_tool_lifecycles import shipped  # fork seam: phone wheel ships no local runtime
+    from agent_runtime.module_presence import runs_here  # fork seam: a profile switching it off (the phone) runs none
 
-    if not shipped("hermes_cli.local_runtime"):
+    if not runs_here("hermes_cli.local_runtime"):
         return ""
     try:
         from hermes_cli.local_runtime.supervisor import state_path
