@@ -292,16 +292,17 @@ def _full_core_batch_frames(
     _defer_for_active_turns(batch, reason=reason, caller=caller)
     if request_cancelled():
         return
+
+    job = _SnapshotBuildJob(caller=caller, reason=reason)
     if reason == BATCH_REASON_DEMOTE:
         # A demote kind the section table names, with the resident core held at
-        # this batch's base: re-read just those sections (``resident_core.sections``).
+        # this batch's base: re-read just those sections (``resident_core.sections``);
+        # the job above is then never started.
         # MUTATION: drop this arm and test_a_task_activity_batch_re_reads_the_workspace_rows_only reddens.
         sectioned = _section_rebuilt_frame(batch, base_offset=base_offset, caller=caller)
         if sectioned is not None:
             yield sectioned
             return
-
-    job = _SnapshotBuildJob(caller=caller, reason=reason)
     # Keep the watermark at the last APPLIED core — see ``_build_with_liveness``
     # for why this caller answers ``heartbeat_offset`` differently from the boot.
     yield from _build_with_liveness(

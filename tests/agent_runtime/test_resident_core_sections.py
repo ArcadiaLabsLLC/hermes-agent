@@ -40,11 +40,10 @@ def no_full_build(patches_on, isolate_agent_runtime_root, monkeypatch):  # noqa:
     frames = _stream()
     assert _next_content(frames)["type"] == "hydrate"
 
-    class _Refused:
-        def __init__(self, *args, **kwargs):
-            raise AssertionError("a demote-kind batch paid for a full core")
+    def _refused(*args, **kwargs):
+        raise AssertionError("a demote-kind batch paid for a full core")
 
-    monkeypatch.setattr(stream_build, "_SnapshotBuildJob", _Refused)
+    monkeypatch.setattr(stream_build, "_build_with_liveness", _refused)
     yield frames
     resident_core.drop("test_teardown")
 
