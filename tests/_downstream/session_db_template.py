@@ -159,7 +159,7 @@ def _build_template(tmp_path_factory, init) -> tuple[bytes, tuple[str, ...]]:
     return path.read_bytes(), sidecars
 
 
-def _seed(target: Path, tmp_path_factory, init) -> None:
+def _seed_from_template(target: Path, tmp_path_factory, init) -> None:
     import hermes_state
 
     key = template_key(os.path.normcase(str(tmp_path_factory.getbasetemp())))
@@ -207,7 +207,7 @@ def session_db_from_template(request, tmp_path_factory, monkeypatch):
             target = Path(self.db_path)
             if not target.exists():
                 try:
-                    _seed(target, tmp_path_factory, init)
+                    _seed_from_template(target, tmp_path_factory, init)
                 except Exception:  # the seed never decides an open: the fresh path runs instead
                     pass
         return original(self, *args, **kwargs)

@@ -42,7 +42,7 @@ class WriteDenied(Exception):
         self.message = message
 
 
-def _target(root: str, path: str) -> tuple[str, str]:
+def _write_target(root: str, path: str) -> tuple[str, str]:
     """``(the file's real path, its shown path)``: confined to ``root``, its folder may not exist yet."""
 
     segments = parse_path(path)
@@ -94,7 +94,7 @@ def _guard(actual: str) -> None:
         raise WriteDenied(f"Refusing to write it: it is {reason}. Nothing was written.")
 
 
-def _replace_file(actual: str, data: bytes) -> bool:
+def _put_file_whole(actual: str, data: bytes) -> bool:
     """Atomically put ``data`` at ``actual``; True when the file is new."""
 
     created = not os.path.exists(actual)
@@ -133,7 +133,7 @@ def checked_text(root: str, path: str) -> str | None:
     there yet. A multi-file edit asks this for every file before it writes any (row
     ``RT-PHONE-FILE-TOOLS-ACCEPT-EVERY-DESKTOP-ARGUMENT``: a V4A patch is validated whole first)."""
 
-    actual, shown = _target(root, path)
+    actual, shown = _write_target(root, path)
     # MUTATION: skip the guard here and a V4A patch writes its first file before the guard refuses a
     # later one (test_phone_file_tools: test_a_v4a_patch_writes_nothing_when_one_file_is_refused).
     _guard(actual)
@@ -152,9 +152,9 @@ def write(root: str, path: str, content: str) -> dict:
     data = content.encode("utf-8")
     if len(data) > MAX_READ_BYTES:
         raise ProjectFileRefusal("too_large", f"the content is over {MAX_READ_BYTES} bytes")
-    actual, shown = _target(root, path)
+    actual, shown = _write_target(root, path)
     _guard(actual)
-    created = _replace_file(actual, data)
+    created = _put_file_whole(actual, data)
     return {"path": shown, "size": len(data), "created": created}
 
 
@@ -174,7 +174,7 @@ def patch(root: str, path: str, old: str, new: str, *, replace_all: bool = False
 
     if not isinstance(old, str) or not old or not isinstance(new, str):
         raise ProjectFileRefusal("bad_argument", "old_string must be non-empty text and new_string text")
-    actual, shown = _target(root, path)
+    actual, shown = _write_target(root, path)
     if not os.path.isfile(actual):
         raise ProjectFileRefusal("not_found", f"nothing at {shown}")
     text = _text_of(actual, shown)
@@ -189,6 +189,6 @@ def patch(root: str, path: str, old: str, new: str, *, replace_all: bool = False
     if len(encoded) > MAX_READ_BYTES:
         raise ProjectFileRefusal("too_large", f"the patched file would be over {MAX_READ_BYTES} bytes")
     _guard(actual)
-    _replace_file(actual, encoded)
+    _put_file_whole(actual, encoded)
     return Patched({"path": shown, "replacements": count if replace_all else 1, "size": len(encoded)},
                    text, updated)

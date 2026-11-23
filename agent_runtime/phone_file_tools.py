@@ -54,7 +54,7 @@ class _Located:
     shown: str  # the path the reply names: ``<slot>/<relative>``
 
 
-def _roots() -> dict[str, str]:
+def _bound_roots() -> dict[str, str]:
     """``{slot name: folder}`` for every project folder bound on this device that may be served."""
 
     from agent_runtime.project_files.agent_tree import _admissible
@@ -78,7 +78,7 @@ def _turn_folder() -> str | None:
     return folder if os.path.isabs(folder) else None
 
 
-def _under(folder: str, roots: dict[str, str]) -> tuple[str, str] | None:
+def _deepest_root_holding(folder: str, roots: dict[str, str]) -> tuple[str, str] | None:
     """The deepest root holding ``folder`` (lexically; the reader resolves links) and the rest."""
 
     best: tuple[str, str] | None = None
@@ -96,16 +96,16 @@ def _locate(path: Any) -> _Located:
     if not isinstance(path, str) or not path.strip():
         raise ProjectFileRefusal("invalid_path", "the path is required")
     text = os.path.expanduser(path.strip())
-    roots = _roots()
+    roots = _bound_roots()
     if not roots:
         raise ProjectFileRefusal("outside_root", "this device has no project folder yet")
     found = None
     if os.path.isabs(text):
-        found = _under(text, roots)
+        found = _deepest_root_holding(text, roots)
     else:
         turn = _turn_folder()
-        if turn is not None and _under(turn, roots) is not None:
-            found = _under(os.path.join(turn, text), roots)
+        if turn is not None and _deepest_root_holding(turn, roots) is not None:
+            found = _deepest_root_holding(os.path.join(turn, text), roots)
         if found is None:  # a tree path: ``<slot>/<path>``
             head, _, rest = text.replace("\\", "/").partition("/")
             if head in roots:
@@ -124,7 +124,7 @@ def _locate(path: Any) -> _Located:
 _MISSES = {"read_file": "File not found", "search_files": "Path not found"}
 
 
-def _answer(call, tool: str = "", path: Any = None) -> str:
+def _phone_tool_answer(call, tool: str = "", path: Any = None) -> str:
     from agent_runtime.project_files.native_match import NativeMatchError, SearchCancelled
     from agent_runtime.project_files.rules import ProjectFileRefusal
     from agent_runtime.project_files.writer import WriteDenied
@@ -146,7 +146,7 @@ def _answer(call, tool: str = "", path: Any = None) -> str:
         return tool_error(denied.message, code="write_denied")
 
 
-def _int(value: Any, default: int, low: int) -> int:
+def _int_at_least(value: Any, default: int, low: int) -> int:
     try:
         number = int(value)
     except (TypeError, ValueError):
@@ -176,10 +176,10 @@ def read_file(args: dict, **_kw: Any) -> str:
         where = _locate(args.get("path"))
         lines = _whole_text(where).splitlines()
         # Upstream's defaults and bounds (``normalize_read_pagination``): offset from 1, limit 2000 at most.
-        start = _int(args.get("offset"), 1, 1)
+        start = _int_at_least(args.get("offset"), 1, 1)
         # MUTATION: drop the ceiling and a limit past 2000 reads past upstream's maximum
         # (test_phone_file_tools: test_read_file_takes_upstreams_offset_and_limit).
-        limit = min(_int(args.get("limit"), READ_LIMIT, 1), READ_LIMIT)
+        limit = min(_int_at_least(args.get("limit"), READ_LIMIT, 1), READ_LIMIT)
         window = lines[start - 1:start - 1 + limit]
         numbered = "\n".join(f"{start + index}|{line}" for index, line in enumerate(window))
         reply = {"path": where.shown, "content": numbered, "total_lines": len(lines)}
@@ -187,7 +187,7 @@ def read_file(args: dict, **_kw: Any) -> str:
             reply["next_offset"] = start + limit
         return reply
 
-    return _answer(call, "read_file", args.get("path"))
+    return _phone_tool_answer(call, "read_file", args.get("path"))
 
 
 def write_file(args: dict, **_kw: Any) -> str:
@@ -197,7 +197,7 @@ def write_file(args: dict, **_kw: Any) -> str:
         where = _locate(args.get("path"))
         return {**write(where.root, where.relative, args.get("content")), "path": where.shown}
 
-    return _answer(call)
+    return _phone_tool_answer(call)
 
 
 def _refuse(message: str):
@@ -229,7 +229,7 @@ def patch(args: dict, **_kw: Any) -> str:
         # test_a_replace_patch_answers_the_diff_the_runner_records_as_a_v4a_patch_does).
         return {**done.answer, "path": where.shown, "diff": _unified_diff(done.before, done.after, where.shown)}
 
-    return _answer(call)
+    return _phone_tool_answer(call)
 
 
 def _unified_diff(before: str | None, after: str, shown: str) -> str:
@@ -369,9 +369,9 @@ def _places(path: Any) -> list[_Located]:
     folder, else every project folder."""
 
     if path is None or (isinstance(path, str) and path.strip() in ("", ".")):
-        roots = _roots()
+        roots = _bound_roots()
         turn = _turn_folder()
-        if turn is not None and _under(turn, roots) is not None:
+        if turn is not None and _deepest_root_holding(turn, roots) is not None:
             return [_locate(turn)]
         return [_Located(root, "", name) for name, root in sorted(roots.items())]
     return [_locate(path)]
@@ -434,9 +434,9 @@ def search_files(args: dict, **_kw: Any) -> str:
         target = _choice({"target": target}, "target", "content", ("content", "files"))
         order = _choice(args, "order", "discovery", ("discovery", "modified"))
         mode = _choice(args, "output_mode", "content", ("content", "files_only", "count"))
-        limit = _int(args.get("limit"), SEARCH_LIMIT, 1)
-        offset = _int(args.get("offset"), 0, 0)
-        context = _int(args.get("context"), 0, 0)
+        limit = _int_at_least(args.get("limit"), SEARCH_LIMIT, 1)
+        offset = _int_at_least(args.get("offset"), 0, 0)
+        context = _int_at_least(args.get("context"), 0, 0)
         pattern = args.get("pattern")
         places = _places(args.get("path"))
         deadline = Deadline()  # one deadline over every folder searched
@@ -466,7 +466,7 @@ def search_files(args: dict, **_kw: Any) -> str:
             reply.update({"files": page} if mode == "files_only" else {"counts": {p: counts[p] for p in page}})
         return {**reply, "total_count": len(hits), "truncated": offset + limit < len(items)}
 
-    return _answer(call, "search_files", args.get("path"))
+    return _phone_tool_answer(call, "search_files", args.get("path"))
 
 
 # ---- Schemas: upstream's parameters exactly (``tools/file_tools.py``), phone-true descriptions ----
@@ -563,10 +563,9 @@ def _is_openai_family_main() -> bool:
     test_phone_file_tools: test_the_v4a_layer_follows_upstreams_rule reds when the two disagree."""
 
     try:
-        from agent.auxiliary_client import _read_main_model, _read_main_provider
+        from agent_runtime._upstream_doors import main_model_and_provider
 
-        provider = (_read_main_provider() or "").strip().lower()
-        model = (_read_main_model() or "").strip().lower()
+        model, provider = (value.strip().lower() for value in main_model_and_provider())
     except Exception:  # health: allow BLE001 -- upstream's own fail-closed probe
         return False
     if provider in {"openai", "openai-chat", "openai-codex", "azure-openai", "codex"}:
@@ -680,8 +679,8 @@ def ensure_phone_file_tools() -> list[str]:
     try:
         # MUTATION: skip this import and the phone's second turn runs upstream's read_file
         # (test_phone_bundle_turn_closure: test_three_phone_call_paths_run_on_only_what_the_phone_bundle_ships).
-        import tools.file_tools  # noqa: F401 -- for its registrations, before the phone's take the names
-    except Exception:  # noqa: BLE001 -- not shipped, or failing at import: then no later import registers it
+        import tools.file_tools
+    except Exception:
         pass
     from tools.registry import registry
 

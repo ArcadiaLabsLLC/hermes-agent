@@ -47,7 +47,13 @@ def test_status_projects_operator_channels_for_persona_instances(isolate_agent_r
     # S56 made the persona-instance roster unconditional; the
     # `enterprise_worker_sessions` config this case used to monkeypatch in is
     # gone, and the wire block now reports the truth for every config.
+    # A status build mints no instance (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT), so the
+    # roster it projects is the one an agent was placed into.
+    from tests.agent_runtime.persona_instance_mint import mint_placed_instance
+
+    placed = mint_placed_instance("dev", placement="agent_1")
     s = build_status()
+    assert placed.id in {instance["persona_instance_id"] for instance in s["persona_instances"]}
 
     assert s["persona_instance_runtime"]["enabled"] is True
     assert s["persona_instances"]

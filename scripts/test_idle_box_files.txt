@@ -16,3 +16,4 @@ tests/agent_runtime/test_stream_gap_receipt.py  # starved-reader lag floor (D3.0
 tests/agent_runtime/test_turn_cost_guard_downstream.py  # absolute span budgets (owner ruling 2026-10-10)
 tests/agent_runtime/test_idle_turn_guard_downstream.py  # after-idle anchor->request_sent absolute budget (owner ruling 2026-10-10, L5.07)
 tests/agent_runtime/test_serve_gateway_chat_reply_lanes_timing.py  # running-turn start/end publish ceilings (FH-CHAT-REPLY-LANES-START-FRAME-WAIT-RED-UNDER-LOAD)
+tests/agent_runtime/test_read_model_slo.py  # absolute full-build wall budget, 2,000 ms (RT-FU-FOUR-MORE-AGENT-RUNTIME-TESTS-RED-ON-MAIN-ON-WINDOWS: 2,329-3,282 ms on a loaded box)

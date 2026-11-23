@@ -30,6 +30,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from agent_runtime.serde import read_json_dict
+
 REPO = Path(__file__).resolve().parents[2]
 MEMO_NAME = "hermes-closure-import-rows.json"
 _PARSER_SOURCES = ("scripts/bundle_profile_closure.py", "scripts/bundles/closure_platform.py")
@@ -49,15 +51,7 @@ def _parser_fingerprint() -> str:
     return digest.hexdigest()[:16]
 
 
-def _read(memo: Path) -> dict:
-    try:
-        data = json.loads(memo.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _write(memo: Path, data: dict) -> None:
+def _write_memo(memo: Path, data: dict) -> None:
     staged = memo.with_name(f"{memo.name}.{os.getpid()}.tmp")
     try:
         staged.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
@@ -80,7 +74,7 @@ def memoized_import_rows(memo: Path | None = None):
         yield counts
         return
     fingerprint = _parser_fingerprint()
-    stored = _read(memo)
+    stored = read_json_dict(memo) or {}  # the one lenient reader (rule 15): a bad memo is an empty one
     rows_by_key = stored.get("rows", {}) if stored.get("parser") == fingerprint else {}
     used: dict[str, list] = {}
     added = False
@@ -113,4 +107,4 @@ def memoized_import_rows(memo: Path | None = None):
     finally:
         closure._parse_imports = real
         if added:  # only the rows this staging read: an edited file's old rows leave with it
-            _write(memo, {"parser": fingerprint, "rows": used})
+            _write_memo(memo, {"parser": fingerprint, "rows": used})

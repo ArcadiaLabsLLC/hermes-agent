@@ -33,6 +33,13 @@ class _RecordingParams(dict):
         self.asked.add(key)
         return super().get(key, default)
 
+    # A handler that reads a key's value only when it is named (``params["client_scope"]`` behind an
+    # ``in``, as ``runtime.chat.turn.resolve`` does since 9c21ff1c6184) asks for it too. A bare ``in``
+    # is not a read: ``runtime.persona.instance.create`` probes keys it refuses, and those are unpublished.
+    def __getitem__(self, key):
+        self.asked.add(key)
+        return super().__getitem__(key)
+
 
 _EVERY_VALUE: dict[str, Any] = {
     "action": "dismiss", "add_instance": False, "agents": None, "all": False, "before": None,

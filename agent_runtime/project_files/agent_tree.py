@@ -102,7 +102,7 @@ def agent_roots(instance_id: str) -> dict[str, AgentRoot]:
     return roots
 
 
-def _split(roots: dict[str, AgentRoot], path: str) -> tuple[AgentRoot, str | None]:
+def _root_and_rest(roots: dict[str, AgentRoot], path: str) -> tuple[AgentRoot, str | None]:
     """The enumerated root a tree path names by its first segment, and the rest (None at the root)."""
 
     segments = parse_path(path)
@@ -136,7 +136,7 @@ def tree(instance_id: str, path: str | None = None, *, depth: int = DEFAULT_DEPT
     deadline = Deadline()
     roots = agent_roots(instance_id)
     if path is not None:
-        root, rest = _split(roots, path)
+        root, rest = _root_and_rest(roots, path)
         relative, entries = tree_entries(root.folder, rest, depth=depth, glob=glob, deadline=deadline)
         return page(search_header({"path": _joined(root, relative)}, glob), "entries",
                     _prefixed(root, entries), offset, MAX_ENTRIES)
@@ -157,7 +157,7 @@ def read(instance_id: str, path: str, *, offset: int = 0) -> dict:
 
     if not isinstance(path, str):
         raise ProjectFileRefusal("invalid_path", "the path is required")
-    root, rest = _split(agent_roots(instance_id), path)
+    root, rest = _root_and_rest(agent_roots(instance_id), path)
     if rest is None:
         raise ProjectFileRefusal("not_a_file", f"not a file: {root.name}")
     reply = _read_root(root.folder, rest, offset=offset)
@@ -179,7 +179,7 @@ def grep(instance_id: str, pattern: str, path: str | None = None, *, glob: str |
     roots = agent_roots(instance_id)
     header = search_header({"pattern": pattern}, glob, wildcard)
     if path is not None:
-        root, rest = _split(roots, path)
+        root, rest = _root_and_rest(roots, path)
         relative, matches = grep_matches(root.folder, pattern, rest, glob=glob, wildcard=wildcard,
                                          deadline=deadline)
         return page({**header, "path": _joined(root, relative)}, "matches",

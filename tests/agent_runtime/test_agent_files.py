@@ -8,7 +8,7 @@ reading a phone agent's tree over the lane the phone dialled) is in ``test_rever
 Killing mutations (each recorded red, named at its test):
 
 * ``agent_tree.agent_roots``: enumerate every slot of the workspace, not the assigned ones;
-* ``agent_tree._split``: take the first segment as a folder (``os.path.join(root_parent, first)``)
+* ``agent_tree._root_and_rest``: take the first segment as a folder (``os.path.join(root_parent, first)``)
   instead of looking it up among the enumerated roots;
 * ``agent_tree._admissible``: drop the engine-home check;
 * ``reader.read``: drop the size check;
@@ -69,7 +69,7 @@ def _folder(tmp_path, name: str, files: dict[str, bytes | str]) -> str:
         if isinstance(body, bytes):
             target.write_bytes(body)
         else:
-            target.write_text(body, encoding="utf-8")
+            target.write_bytes(body.encode("utf-8"))  # the exact bytes: write_text writes CRLF on Windows
     return str(root)
 
 
@@ -135,7 +135,7 @@ def test_a_caller_never_names_a_folder_of_its_own(two_roots, path, reason):
 
 
 def test_a_first_segment_that_is_no_enumerated_root_is_not_found(two_roots):
-    """MUTATION (``agent_tree._split``): resolve the first segment as a folder beside the roots
+    """MUTATION (``agent_tree._root_and_rest``): resolve the first segment as a folder beside the roots
     (``os.path.join(os.path.dirname(any_root), first)``) and ``elsewhere/secret.txt`` is read."""
 
     (two_roots / "elsewhere").mkdir()

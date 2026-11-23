@@ -106,7 +106,7 @@ def _computer_params(params: Any) -> dict:
     return texts
 
 
-def _store_root(context: RpcContext | None, lanes: Any) -> Any:
+def _lane_store_root(context: RpcContext | None, lanes: Any) -> Any:
     if lanes is not None:
         return lanes.store_root
     from agent_runtime import paths
@@ -168,7 +168,7 @@ def _runtime_gateway_reverse_grant(rid: Any, params: dict, context: RpcContext |
     except ParamRefused as refused:
         return refused.frame(rid)
     lanes = _lanes(context)
-    root = _store_root(context, lanes)
+    root = _lane_store_root(context, lanes)
     phone_install_id = read_install_identity(root).install_id
     if not phone_install_id:
         return err(rid, ERR_CONFLICT, "This phone has no install identity yet.", {"reason": "no_install_id"})
@@ -204,7 +204,7 @@ def _runtime_gateway_reverse_revoke(rid: Any, params: dict, context: RpcContext 
     except ParamRefused as refused:
         return refused.frame(rid)
     lanes = _lanes(context)
-    revoked = revoke_install_grants(_store_root(context, lanes), install)
+    revoked = revoke_install_grants(_lane_store_root(context, lanes), install)
     way = None
     if lanes is not None:
         lanes.hangup(install)

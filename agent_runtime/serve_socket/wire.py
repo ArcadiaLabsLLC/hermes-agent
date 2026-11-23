@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import errno
 import json
+import select
 import socket
 import time
 from typing import Any
@@ -65,6 +66,21 @@ class _LineReader:
                 if deadline is None:
                     raise
                 continue
+            except BlockingIOError:
+                # Windows: a TLS socket in timeout mode can answer a read that found nothing with
+                # WSAEWOULDBLOCK (OpenSSL's SSL_ERROR_SYSCALL, which CPython raises as BlockingIOError)
+                # instead of waiting, as a plain socket would. Nothing was consumed, so wait for the
+                # socket the way its timeout says and read again (hermes row
+                # RT-FU-FOUR-AGENT-RUNTIME-TESTS-RED-ON-MAIN-ON-WINDOWS: it closed a reverse lane with
+                # ``read_error:BlockingIOError`` mid-conversation, about one run in three).
+                # MUTATION: drop this arm and tests/agent_runtime/test_serve_socket_wire_reader.py's
+                # test_a_read_that_would_block_waits_and_reads_again reddens on the BlockingIOError.
+                try:
+                    self._wait_readable()
+                except socket.timeout:  # noqa: UP041
+                    if deadline is None:
+                        raise
+                continue
             except ConnectionResetError:
                 # A peer that closed rudely (RST) is a peer that is gone. The
                 # distinction between FIN and RST is not one any caller of this
@@ -77,6 +93,17 @@ class _LineReader:
                     return line.decode("utf-8", errors="replace")
                 return None
             self._buffer += chunk
+
+    def _wait_readable(self) -> None:
+        """Block until the socket has bytes, for as long as its own timeout allows (then ``socket.timeout``)."""
+
+        pending = getattr(self._sock, "pending", None)
+        if callable(pending) and pending():
+            return
+        timeout = self._sock.gettimeout()
+        ready, _, _ = select.select([self._sock], [], [], timeout)
+        if not ready:
+            raise socket.timeout("timed out")  # noqa: UP041 - the caller's idle-lap signal
 
     def take_buffered(self) -> bytes:
         """Hand over the bytes read past the last line, when the socket changes hands."""

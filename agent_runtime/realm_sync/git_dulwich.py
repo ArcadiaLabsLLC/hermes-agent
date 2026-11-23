@@ -120,6 +120,23 @@ def _fold_untracked_folders(untracked: set[str], index: Any) -> set[str]:
     return folded
 
 
+def _status_path(raw: bytes | str) -> str:
+    r"""A path ``porcelain.status`` listed, in git's ``/`` spelling.
+
+    dulwich answers status in the file system's spelling, so on Windows every changed path came back as
+    ``realms\<id>\store\…``, :func:`_within_paths` matched none of them against the ``realms/<id>`` a publish
+    asks about, and a publish committed nothing (hermes row
+    RT-FU-FOUR-MORE-AGENT-RUNTIME-TESTS-RED-ON-MAIN-ON-WINDOWS: the eleven ``[dulwich]`` cases of ``tests/agent_runtime/test_realm_sync_publish_keeps_team_copies.py``, the
+    member's own card edit never reaching the team). A ``\`` is never a file-name character there, so only Windows
+    folds it.
+
+    MUTATION: return ``_s(raw)`` and test_a_publish_carries_the_members_own_edit[dulwich] reddens on Windows.
+    """
+
+    path = _s(raw) if isinstance(raw, bytes) else raw
+    return path.replace(os.sep, "/") if os.sep != "/" else path
+
+
 def _within_paths(path: str, prefixes: Sequence[str]) -> bool:
     if not prefixes:
         return True
@@ -358,10 +375,10 @@ class DulwichSyncGit:
         # test_a_tracked_symlink_to_a_folder_is_no_new_folder reddens on this backend.
         with self._open() as repo:
             status = porcelain.status(repo, untracked_files="all")
-            tracked = {_s(p) for group in status.staged.values() for p in group}
-            tracked |= {_s(p) for p in status.unstaged}
+            tracked = {_status_path(p) for group in status.staged.values() for p in group}
+            tracked |= {_status_path(p) for p in status.unstaged}
             tracked |= set(self._conflicts(repo))
-            untracked = {_s(p) for p in status.untracked}
+            untracked = {_status_path(p) for p in status.untracked}
             if not untracked_all and untracked:
                 untracked = _fold_untracked_folders(untracked, repo.open_index())
         rows = [ChangedPath(path=p, untracked=False) for p in tracked if _within_paths(p, paths)]

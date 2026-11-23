@@ -98,7 +98,7 @@ def test_nothing_outside_a_project_folder_is_read_or_written(project, tmp_path):
 
 
 def test_a_write_through_a_symlinked_folder_out_of_the_root_is_refused(project, tmp_path):
-    """Killing mutation: skip the deepest-folder check in ``writer._target`` -> the file lands outside, red."""
+    """Killing mutation: skip the deepest-folder check in ``writer._write_target`` -> the file lands outside, red."""
 
     away = tmp_path / "away"
     away.mkdir()

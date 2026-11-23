@@ -98,7 +98,7 @@ class _Refused(Exception):
         self.code, self.reason, self.detail = code, reason, detail
 
 
-def _instance(params: dict) -> str:
+def _instance_id_param(params: dict) -> str:
     value = params.get("persona_instance_id")
     if not isinstance(value, str) or not value.strip() or len(value) > _ID_LIMIT:
         raise _Refused(ERR_INVALID_PARAMS, "bad_argument", "persona_instance_id is required")
@@ -114,7 +114,7 @@ def _path(params: dict, *, required: bool = False) -> str | None:
     return value
 
 
-def _number(params: dict, key: str, default: int) -> int:
+def _whole_number_param(params: dict, key: str, default: int) -> int:
     value = params.get(key, default)
     if value is None:
         return default
@@ -130,7 +130,7 @@ def _glob(params: dict) -> str | None:
     return value
 
 
-def _answer(rid: Any, params: Any, verb) -> dict:
+def _file_rpc_answer(rid: Any, params: Any, verb) -> dict:
     from agent_runtime.project_files.agent_tree import AgentNotFound
     from agent_runtime.project_files.rules import ProjectFileRefusal
 
@@ -156,17 +156,17 @@ def _runtime_agent_files_tree(rid: Any, params: dict, context: RpcContext | None
     from agent_runtime.project_files import agent_tree
     from agent_runtime.project_files.rules import DEFAULT_DEPTH
 
-    return _answer(rid, params, lambda p: agent_tree.tree(
-        _instance(p), _path(p), depth=_number(p, "depth", DEFAULT_DEPTH), glob=_glob(p),
-        offset=_number(p, "offset", 0)))
+    return _file_rpc_answer(rid, params, lambda p: agent_tree.tree(
+        _instance_id_param(p), _path(p), depth=_whole_number_param(p, "depth", DEFAULT_DEPTH), glob=_glob(p),
+        offset=_whole_number_param(p, "offset", 0)))
 
 
 @method(READ_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_agent_files_read(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.project_files import agent_tree
 
-    return _answer(rid, params, lambda p: agent_tree.read(
-        _instance(p), _path(p, required=True), offset=_number(p, "offset", 0)))
+    return _file_rpc_answer(rid, params, lambda p: agent_tree.read(
+        _instance_id_param(p), _path(p, required=True), offset=_whole_number_param(p, "offset", 0)))
 
 
 @method(GREP_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
@@ -182,10 +182,10 @@ def _runtime_agent_files_grep(rid: Any, params: dict, context: RpcContext | None
             wildcard = False
         if not isinstance(wildcard, bool):
             raise _Refused(ERR_INVALID_PARAMS, "bad_argument", "wildcard must be true or false")
-        return agent_tree.grep(_instance(p), pattern, _path(p), glob=_glob(p), wildcard=wildcard,
-                               offset=_number(p, "offset", 0))
+        return agent_tree.grep(_instance_id_param(p), pattern, _path(p), glob=_glob(p), wildcard=wildcard,
+                               offset=_whole_number_param(p, "offset", 0))
 
-    return _answer(rid, params, run)
+    return _file_rpc_answer(rid, params, run)
 
 
 def _ask_virtual(rid: Any, params: Any, context: RpcContext | None, name: str, verbs: tuple[str, ...]) -> dict:
