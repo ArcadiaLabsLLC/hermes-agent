@@ -35,8 +35,8 @@ def project(tmp_path, monkeypatch) -> Path:
     machine_roots_cache_clear()
     root = tmp_path / "repos" / "local" / "notes"
     (root / "docs").mkdir(parents=True)
-    (root / "TODO.md").write_text("# Notes\n- buy milk\n- call mum\n", encoding="utf-8")
-    (root / "docs" / "plan.md").write_text("the plan: buy milk first\n", encoding="utf-8")
+    (root / "TODO.md").write_text("# Notes\n- buy milk\n- call mum\n", encoding="utf-8", newline="")  # LF bytes: write_text writes CRLF on Windows
+    (root / "docs" / "plan.md").write_text("the plan: buy milk first\n", encoding="utf-8", newline="")
     workspace = WorkspaceStore().create(name="Phone").id
     declare(workspace, [{"name": "notes", "repo": {"clone_url": None, "local": True}}], issued_at=T0, machine="m")
     bind(workspace, "notes", str(root), issued_at=T0)
