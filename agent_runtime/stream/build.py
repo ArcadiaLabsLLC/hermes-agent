@@ -15,6 +15,7 @@ from ..models import Event
 from ..parity import core_event_offset
 from ..patch_coverage import PERSONA_CHAT_OPEN_CAPABILITY, PERSONA_CHAT_TURN_CAPABILITY, RUNNING_WORK_SECTION_CAPABILITY, batch_required_fold_tokens, normalize_fold_entities
 from ..request_control import request_cancelled
+from ..resident_core.read import answer_hydrate
 from ..snapshot.build import build_snapshot
 from ..snapshot.receipts import BUILD_ROLE_REUSED
 
@@ -101,7 +102,16 @@ class _SnapshotBuildJob:
     def run(self) -> None:
         started = time.monotonic()
         try:
-            self.snapshot = build_snapshot(
+            # A hydrate (the only ``accept_inflight`` job) is answered from the
+            # serve's resident core when it is applied through the log's end:
+            # no build, and no ride on one (``resident_core.read``).
+            # MUTATION: drop this consult and test_a_one_shot_at_the_log_end_is_the_resident_core_and_no_build reddens.
+            resident = (
+                answer_hydrate(caller=str(self.build_info.get("caller")), build_info=self.build_info)
+                if self.accept_inflight
+                else None
+            )
+            self.snapshot = resident if resident is not None else build_snapshot(
                 accept_inflight=self.accept_inflight, build_info=self.build_info
             )
         except BaseException as exc:  # re-raised on the stream worker
