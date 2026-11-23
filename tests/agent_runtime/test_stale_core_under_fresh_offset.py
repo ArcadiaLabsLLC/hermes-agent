@@ -60,6 +60,7 @@ from datetime import datetime, timezone, UTC
 import pytest
 
 from agent_runtime import core_cache, paths
+from agent_runtime.core_cache.write_queue import drain_write_backs
 from tests._downstream import _seams
 from agent_runtime.events import EventLog
 from agent_runtime.models import Event
@@ -179,6 +180,7 @@ def converge_persisted_core(*, limit: int = 4) -> None:
         core_cache.sidecar_path().unlink(missing_ok=True)
         _seams.reset_core_cache_process_state()
         build_snapshot()
+        drain_write_backs()  # the landing is on the writer thread
         if core_cache.read_persisted_core().matched:
             _seams.reset_core_cache_process_state()
             return

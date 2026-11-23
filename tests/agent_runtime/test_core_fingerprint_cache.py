@@ -161,6 +161,7 @@ def converge_persisted_core(*, limit: int = 4) -> int:
         core_cache.sidecar_path().unlink(missing_ok=True)
         _new_context()
         build_snapshot()
+        drain_write_backs()
         if core_cache.read_persisted_core().matched:
             _new_context()
             return attempt

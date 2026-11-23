@@ -31,6 +31,7 @@ import logging
 import pytest
 
 from agent_runtime import core_cache
+from agent_runtime.core_cache.write_queue import drain_write_backs
 from tests._downstream import _seams
 # One of the four names the channel table lists verbatim as runtime-authored.
 # Taken from the module that OWNS it, never spelled, for the reason
@@ -382,6 +383,7 @@ def test_the_census_reads_a_receipt_the_real_cache_lane_wrote(
             core_cache.sidecar_path().unlink(missing_ok=True)
             _seams.reset_core_cache_process_state()
             build_snapshot()
+            drain_write_backs()  # the landing is on the writer thread
             if core_cache.read_persisted_core().matched:
                 break
         else:

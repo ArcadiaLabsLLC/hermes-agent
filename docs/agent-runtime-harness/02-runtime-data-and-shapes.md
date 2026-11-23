@@ -360,7 +360,7 @@ in-flight build began earlier and may miss writes the caller already observed.
 boot-hydrate lane — `hydrate_frame` (`agent_runtime/stream/frames.py::hydrate_frame`) and the `stream_frames`
 boot job that drives it (`agent_runtime/stream/session.py::stream_frames`) — because the hydrate's payload carries its own
 watermark and the stream tails from exactly that offset
-(`snapshot/build.py:48-62`). Roles:
+(`agent_runtime/snapshot/build.py::build_snapshot`). Roles:
 `BUILD_ROLE_LED` / `RODE` / `SHARED_NEXT` / `CACHE` / `REUSED`
 (`snapshot/receipts.py:176-205`).
 

@@ -79,6 +79,7 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import core_cache
+from agent_runtime.core_cache.write_queue import drain_write_backs
 from agent_runtime.core_cache import lane as core_cache_lane
 from tests._downstream import _seams
 from agent_runtime.snapshot import BUILD_ROLE_CACHE, BUILD_ROLE_LED, build_snapshot
@@ -187,6 +188,7 @@ def _seed_workspace(name: str) -> None:
 
 
 def _persisted_core() -> dict:
+    drain_write_backs()
     return json.loads(core_cache.core_path().read_text(encoding="utf-8"))
 
 
@@ -205,6 +207,7 @@ def _converge_persisted_core(*, limit: int = 4) -> int:
         core_cache.sidecar_path().unlink(missing_ok=True)
         _seams.reset_core_cache_process_state()
         build_snapshot()
+        drain_write_backs()  # the landing is on the writer thread
         if core_cache.read_persisted_core().matched:
             _seams.reset_core_cache_process_state()
             return attempt
