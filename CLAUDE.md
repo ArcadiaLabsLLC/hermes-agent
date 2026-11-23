@@ -181,6 +181,7 @@ batch at its landing, never per lane.
   check any conflict rerere resolves for you by hand.
 - Never `git checkout`/`switch` in the primary; never amend; never force-push; a lane never
   pushes `main`. Push after every commit. Never remove a worktree a lane could resume in.
+- Never develop for legacy stuff (owner 2026-11-23): a retired way of doing something just stops working and the user redoes it; no store migrations, compatibility paths or legacy wording — decode an old value as none (fail closed). Reviews count planned legacy handling as churn.
 - MOVE and CHANGE never share a commit. One MOVE and one CHANGE per lane. Commit messages
   end with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 - Upstream files (present in `upstream/main`) are edited additively or not at all; refactor
