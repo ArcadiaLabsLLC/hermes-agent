@@ -655,7 +655,7 @@
     {
       "id": "r1-create-stops-fencing-the-supplied-placement",
       "path": "agent_runtime/agent_create/request.py",
-      "symbol": "normalize_agent_create",
+      "symbol": "_placement_id",
       "operator": "remove-guard",
       "find": "        if not looks_like_deliberate_placement(placement_id):\n            raise AgentCreateInvalid(\n                PLACEMENT_ID_NOT_DISCRIMINABLE_REASON,\n                placement_id_not_discriminable_message(placement_id),\n            )",
       "replace": "        pass",
@@ -4081,7 +4081,7 @@
     {
       "id": "w5-media-get-dials-on-the-reader-again",
       "path": "agent_runtime/serve_rpc/media.py",
-      "symbol": "_runtime_media_get",
+      "symbol": "_proxied_media_get",
       "operator": "drop-deferral",
       "find": "        if spawn is not None and spawn(\n",
       "replace": "        if False and spawn(\n",
