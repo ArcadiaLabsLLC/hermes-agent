@@ -135,7 +135,7 @@ def prompt_observability_agent(rid, params, context=None):
         result = prompt_observability_for_instance(p["instance_id"])
         if result is None:
             return {"found": False, "instance_id": p["instance_id"]}
-        return result
+        return _prompt_details_for_caller(result, context.caller if context is not None else None)
     return _operation(rid, params, context, "runtime.prompt_observability.agent", read)
 
 
@@ -144,11 +144,15 @@ def prompt_observability_agent(rid, params, context=None):
 # copy) names absolute local paths: the profile's config file, the turn's working directory, the runtime
 # root, a bound repository. Only a caller at console reach keeps them; everyone else reads every label and
 # source with the paths taken out. The stores, ``ToolsetDeclaration.row()`` and the local CLI keep theirs.
+# The prompt details (RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-ITS-AGENTS-CONTEXT-FILES, review w1122d.12)
+# name each context file (``path``) and each layer's file (``source_path``) the same way.
 
-#: The keys of the detail that hold an absolute local path, read off ``tool_visibility.resolve_tool_visibility``
-#: (``workdir``, ``runtime_root``, ``repo_scope``), ``ToolsetDeclaration.row()`` and ``DeclarationIssue.row()``
-#: (``config_path``). ``repo_scope`` may instead hold a portable label, which is kept.
-_LOCAL_PATH_FIELDS = frozenset({"config_path", "root_config_path", "workdir", "runtime_root", "repo_scope"})
+#: The keys that hold an absolute local path, read off ``tool_visibility.resolve_tool_visibility`` (``workdir``,
+#: ``runtime_root``, ``repo_scope``), ``ToolsetDeclaration.row()`` and ``DeclarationIssue.row()`` (``config_path``),
+#: the prompt details' context-file rows and workspace receipt (``path``) and their layers (``source_path``).
+#: ``repo_scope`` may instead hold a portable label, which is kept.
+_LOCAL_PATH_FIELDS = frozenset({"config_path", "root_config_path", "workdir", "runtime_root", "repo_scope",
+                                "path", "source_path"})
 #: An absolute path as a value: POSIX, home-relative, a Windows drive or a UNC share.
 _ABSOLUTE_PATH = re.compile(r"^(?:/|~[/\\]|[A-Za-z]:[/\\]|\\\\)")
 #: An absolute path inside prose (an issue's summary names its file): not after a word, a dot or a colon,
@@ -177,22 +181,44 @@ def _detail_for_caller(result: dict, caller) -> dict:
     # reddens, while test_the_console_keeps_the_paths stays green.
     if _sees_local_paths(caller):
         return result
-    return _without_local_paths(result)
+    return _without_local_paths(result, _text_without_paths)
 
 
-def _without_local_paths(node):
-    """*node* (a JSON value) with every absolute local path taken out, routed by its JSON type."""
+def _prompt_details_for_caller(result: dict, caller) -> dict:
+    """One agent's prompt details as *caller* may see it: below console reach, no absolute path in a path field.
 
-    return _PROJECTION_BY_TYPE.get(type(node), _unchanged)(node)
+    Its text is left whole: a context file's ``preview`` and a layer's ``content`` are the file's and the rules'
+    own words, which Look shares; only the detail's hermes-written sentences are rewritten (``_detail_for_caller``)."""
+
+    # MUTATION: return ``result`` here for every caller and test_a_look_computer_reads_no_context_file_path
+    # reddens, while test_the_console_keeps_the_context_file_paths stays green.
+    if _sees_local_paths(caller):
+        return result
+    return _without_local_paths(result, _unchanged)
 
 
-def _object_without_paths(node: dict) -> dict:
-    return {key: None if key in _LOCAL_PATH_FIELDS and _is_absolute_path(value) else _without_local_paths(value)
-            for key, value in node.items()}
+def _without_local_paths(node, text):
+    """*node* (a JSON value) with every absolute local path field nulled and each string passed to *text*,
+    routed by its JSON type."""
+
+    return _PROJECTION_BY_TYPE.get(type(node), _leaf)(node, text)
 
 
-def _array_without_paths(node: list) -> list:
-    return [_without_local_paths(item) for item in node]
+def _object_without_paths(node: dict, text) -> dict:
+    return {key: None if key in _LOCAL_PATH_FIELDS and _is_absolute_path(value)
+            else _without_local_paths(value, text) for key, value in node.items()}
+
+
+def _array_without_paths(node: list, text) -> list:
+    return [_without_local_paths(item, text) for item in node]
+
+
+def _string(node: str, text) -> str:
+    return text(node)
+
+
+def _leaf(node, text):
+    return node
 
 
 def _text_without_paths(node: str) -> str:
@@ -200,11 +226,11 @@ def _text_without_paths(node: str) -> str:
     return _PATH_IN_PROSE.sub(_PATH_WORDS, node)
 
 
-def _unchanged(node):
+def _unchanged(node: str) -> str:
     return node
 
 
-_PROJECTION_BY_TYPE = {dict: _object_without_paths, list: _array_without_paths, str: _text_without_paths}
+_PROJECTION_BY_TYPE = {dict: _object_without_paths, list: _array_without_paths, str: _string}
 
 
 def _is_absolute_path(value) -> bool:
