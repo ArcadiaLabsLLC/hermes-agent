@@ -15,24 +15,38 @@ from __future__ import annotations
 
 import contextvars
 import threading
-from concurrent.futures import Future, ThreadPoolExecutor
+import time
+from collections import deque
+from collections.abc import Callable
 
 from agent_runtime.core_cache.models import CoreFingerprint
+from agent_runtime.core_cache.vocabulary import logger
 
 __layer__ = "stores"
 
 __all__ = ["drain_write_backs", "write_back_off_path"]
 
-_LOCK = threading.Lock()
-_EXECUTOR: ThreadPoolExecutor | None = None
-_PENDING: list[Future] = []
+#: Guards the queue and the worker handle; notified whenever the queue empties.
+_IDLE = threading.Condition(threading.Lock())
+_QUEUE: deque[Callable[[], object]] = deque()
+#: The writer thread while it has landings to make; it exits when the queue is empty,
+#: so an idle serve (and a test that built once) holds no thread for it.
+_WORKER: threading.Thread | None = None
 
 
-def _executor() -> ThreadPoolExecutor:
-    global _EXECUTOR
-    if _EXECUTOR is None:
-        _EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="harness-core-cache-write")
-    return _EXECUTOR
+def _drain_queue() -> None:
+    global _WORKER
+    while True:
+        with _IDLE:
+            if not _QUEUE:
+                _WORKER = None
+                _IDLE.notify_all()
+                return
+            landing = _QUEUE.popleft()
+        try:
+            landing()
+        except Exception:  # health: allow BLE001 -- best effort by contract, like write_back
+            logger.warning("snapshot_core_cache_write ok=false reason=io", exc_info=True)
 
 
 def write_back_off_path(core: dict, *, fingerprint: CoreFingerprint | None) -> bool:
@@ -44,26 +58,29 @@ def write_back_off_path(core: dict, *, fingerprint: CoreFingerprint | None) -> b
 
     from agent_runtime.core_cache.persist import land_write_back, prepare_write_back
 
+    global _WORKER
     prepared = prepare_write_back(core, fingerprint=fingerprint)
     if prepared is None:
         return False
     # The profile scope rides the hop: the landing resolves the store's home
     # exactly as the build that keyed it did.
     context = contextvars.copy_context()
-    with _LOCK:
-        future = _executor().submit(context.run, land_write_back, prepared)
-        _PENDING[:] = [item for item in _PENDING if not item.done()] + [future]
+    with _IDLE:
+        _QUEUE.append(lambda: context.run(land_write_back, prepared))
+        if _WORKER is None:
+            _WORKER = threading.Thread(target=_drain_queue, name="harness-core-cache-write")
+            _WORKER.start()
     return True
 
 
 def drain_write_backs(timeout_s: float = 30.0) -> bool:
-    """Wait for every queued landing; ``True`` when none is left running."""
+    """Wait for every queued landing; ``True`` when none is left to make."""
 
-    with _LOCK:
-        pending = list(_PENDING)
-    for future in pending:
-        try:
-            future.result(timeout=timeout_s)
-        except Exception:  # health: allow BLE001 -- a landing logs its own failure
-            return False
+    deadline = time.monotonic() + timeout_s
+    with _IDLE:
+        while _WORKER is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            _IDLE.wait(remaining)
     return True
