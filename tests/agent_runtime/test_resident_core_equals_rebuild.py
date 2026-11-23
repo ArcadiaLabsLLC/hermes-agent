@@ -165,6 +165,32 @@ def test_a_scope_switch_re_derives_every_active_flag_a_rebuild_carries(seeded):
     assert _differing_sections(held.core, fresh) == []
 
 
+def test_a_steer_re_derives_every_channel_thread_a_rebuild_carries(seeded, monkeypatch):
+    """A steer's patch carries the child's row only; its channel's thread ids are
+    derived (row RT-FU-A-STEER-OR-SCOPE-PATCH-LEAVES-CHANNEL-THREADS-AND-PROMPT-VIEW-
+    STALE-UNTIL-THE-NEXT-FULL-CORE). The hub ships the steer as a delta over the
+    resident core with the threads re-derived, and that equals the rebuild."""
+
+    from agent_runtime.persona_assignments.steering import set_parents
+    from agent_runtime.resident_core import threads
+
+    monkeypatch.setattr(threads, "resident_core_enabled", lambda: True)
+    instances, reviewer, child, _offices = seeded
+    frames = _stream()
+    _next_content(frames)
+    assert _run_batches(frames, [lambda: set_parents(instances, child.id, [reviewer.id])]) == ["delta"]
+    held = resident_core.held()
+    fresh = _build_snapshot_uncoalesced()
+    assert held is not None and core_event_offset(fresh) == held.offset
+    parents = [
+        row["conversation"]["parent_thread_id"]
+        for row in held.core["operator_channels"].values()
+        if row.get("persona_instance_id") == child.id
+    ]
+    assert parents and parents[0] is not None, "the control: the child's thread now names its parent's"
+    assert _differing_sections(held.core, fresh) == []
+
+
 def test_a_frame_that_does_not_chain_from_the_held_offset_drops_the_core(seeded):
     frames = _stream()
     _next_content(frames)

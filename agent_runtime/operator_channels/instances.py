@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Iterable
 
 from ..clock import parse_iso
@@ -142,12 +143,15 @@ def _operator_conversation_relationships(
 
     instances_by_id: dict[str, PersonaInstance] = {}
     channel_by_instance_id: dict[str, str] = {}
-    canonical_instances: dict[str, PersonaInstance] = {}
+    #: The wire's canonical id -> the instance id the walk starts from.
+    canonical_ids: dict[str, str] = {}
     for builder in builders:
         identity = channel_identity(builder)
         if identity.canonical is None:
             continue
-        canonical_instances[identity.canonical_id] = identity.canonical
+        canonical_id = _safe_instance_id(identity.canonical)
+        if canonical_id:
+            canonical_ids[identity.canonical_id] = canonical_id
         for instance in builder.instances:
             instance_id = _safe_instance_id(instance)
             if not instance_id:
@@ -155,18 +159,41 @@ def _operator_conversation_relationships(
             instances_by_id[instance_id] = instance
             channel_by_instance_id[instance_id] = identity.channel_id
 
+    def _parents_of(instance_id: str) -> list[Any] | None:
+        instance = instances_by_id.get(instance_id)
+        return None if instance is None else list(getattr(instance, "steered_by", None) or [])
+
+    walked = thread_relationships(canonical_ids.values(), channel_by_instance_id, _parents_of)
+    return {key: walked[instance_id] for key, instance_id in canonical_ids.items() if instance_id in walked}
+
+
+def thread_relationships(
+    canonical_ids: Iterable[str],
+    channel_by_instance_id: dict[str, str],
+    parents_of: Callable[[str], list[Any] | None],
+) -> dict[str, tuple[str, str | None]]:
+    """``canonical instance id -> (root_thread_id, parent_thread_id)``: the ONE ancestry walk.
+
+    Read by the channel build (over its builders) and by the serve's resident
+    core after a steer (over a core's own channels and instance rows,
+    :func:`core_thread_relationships`), so a steer folded in place and a full
+    build name the same threads. ``parents_of`` answers an instance's
+    ``steered_by`` list, or ``None`` for an instance outside the roster.
+    """
+
+    def _primary(instance_id: str) -> tuple[bool, str | None]:
+        parents = parents_of(instance_id)
+        if parents is None:
+            return False, None
+        ids = [parent_id for raw in parents if (parent_id := safe_assignment_text(raw, limit=160))]
+        return True, (ids[0] if ids else None)
+
     relationships: dict[str, tuple[str, str | None]] = {}
-    for canonical_id, instance in canonical_instances.items():
-        instance_id = _safe_instance_id(instance)
-        if not instance_id:
+    for instance_id in canonical_ids:
+        own_channel_id = channel_by_instance_id.get(instance_id)
+        if own_channel_id is None:
             continue
-        own_channel_id = channel_by_instance_id[instance_id]
-        parent_ids = [
-            parent_id
-            for raw in list(getattr(instance, "steered_by", None) or [])
-            if (parent_id := safe_assignment_text(raw, limit=160))
-        ]
-        primary_parent_id = parent_ids[0] if parent_ids else None
+        _known, primary_parent_id = _primary(instance_id)
         parent_thread_id = channel_by_instance_id.get(primary_parent_id or "")
         root_thread_id = own_channel_id
         cursor = primary_parent_id
@@ -178,22 +205,48 @@ def _operator_conversation_relationships(
                 break
             seen.add(cursor)
             parent_channel_id = channel_by_instance_id.get(cursor)
-            parent = instances_by_id.get(cursor)
-            if parent_channel_id is None or parent is None:
+            known, next_parent = _primary(cursor)
+            if parent_channel_id is None or not known:
                 ancestry_valid = False
                 break
             root_thread_id = parent_channel_id
-            next_parents = [
-                parent_id
-                for raw in list(getattr(parent, "steered_by", None) or [])
-                if (parent_id := safe_assignment_text(raw, limit=160))
-            ]
-            cursor = next_parents[0] if next_parents else None
+            cursor = next_parent
         if not ancestry_valid:
             root_thread_id = own_channel_id
             parent_thread_id = None
-        relationships[canonical_id] = (root_thread_id, parent_thread_id)
+        relationships[instance_id] = (root_thread_id, parent_thread_id)
     return relationships
+
+
+def core_thread_relationships(core: dict[str, Any]) -> dict[str, tuple[str, str | None]]:
+    """``channel_id -> (root_thread_id, parent_thread_id)`` re-derived from a core's
+    own ``operator_channels`` (each channel's ``source_instance_ids``) and
+    ``persona_instances`` rows (their ``steered_by``), by :func:`thread_relationships`."""
+
+    channels = core.get("operator_channels") if isinstance(core.get("operator_channels"), dict) else {}
+    instances = core.get("persona_instances") if isinstance(core.get("persona_instances"), dict) else {}
+    channel_by_instance_id: dict[str, str] = {}
+    canonical_by_channel: dict[str, str] = {}
+    for channel_id, row in channels.items():
+        if not isinstance(row, dict):
+            continue
+        canonical_id = row.get("persona_instance_id")
+        if isinstance(canonical_id, str) and canonical_id in instances:
+            canonical_by_channel[channel_id] = canonical_id
+        for instance_id in row.get("source_instance_ids") or ():
+            if isinstance(instance_id, str) and instance_id in instances:
+                channel_by_instance_id[instance_id] = channel_id
+
+    def _parents_of(instance_id: str) -> list[Any] | None:
+        row = instances.get(instance_id)
+        return list(row.get("steered_by") or []) if isinstance(row, dict) else None
+
+    by_instance = thread_relationships(canonical_by_channel.values(), channel_by_instance_id, _parents_of)
+    return {
+        channel_id: by_instance[instance_id]
+        for channel_id, instance_id in canonical_by_channel.items()
+        if instance_id in by_instance
+    }
 
 
 def _channel_key_for_instance(instance: PersonaInstance) -> str:

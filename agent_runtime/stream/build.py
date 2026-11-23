@@ -17,6 +17,7 @@ from ..patch_coverage import PERSONA_CHAT_OPEN_CAPABILITY, PERSONA_CHAT_TURN_CAP
 from ..request_control import request_cancelled
 from ..resident_core.read import answer_hydrate
 from ..resident_core.sections import BUILD_ROLE_SECTIONS, section_core_for
+from ..resident_core.threads import batch_moves_thread_ancestry, steered_core
 from ..snapshot.build import build_snapshot
 from ..snapshot.receipts import BUILD_ROLE_REUSED
 
@@ -408,6 +409,19 @@ def _section_rebuilt_frame(batch: list[tuple[int, Event]], *, base_offset: int, 
     return frame
 
 
+def _steered_delta_frame(batch: list[tuple[int, Event]], patch: dict[str, Any]) -> dict[str, Any] | None:
+    """A steer's ``delta`` over the resident core with its channel threads re-derived
+    (``resident_core.threads``), or ``None`` and the patch ships as it is."""
+
+    if not batch_moves_thread_ancestry(batch):
+        return None
+    core = steered_core(patch)
+    if core is None:
+        return None
+    logger.info("resident_core threads offset=%s", (patch.get("watermark") or {}).get("event_offset"))
+    return delta_batch_frame(batch, snapshot=core)
+
+
 def batch_event_kinds(batch: list[tuple[int, Event]]) -> str:
     """``type[:detail]`` per distinct event of a demoted batch, sorted, comma-joined.
 
@@ -543,7 +557,10 @@ def _batch_frames_with_liveness(
         # and the equivalence is pinned by test rather than restated here.
         required = batch_required_fold_tokens(event for _, event in batch)
         if required is not None and required <= accepted:
-            yield patch_batch_frame(batch, base_offset=base_offset)
+            patch = patch_batch_frame(batch, base_offset=base_offset)
+            # MUTATION: yield ``patch`` alone and
+            # test_a_steer_re_derives_every_channel_thread_a_rebuild_carries reddens.
+            yield _steered_delta_frame(batch, patch) or patch
             return
         if required is not None and required <= promote:
             # The room DISAGREES about this batch: somebody can fold it and
