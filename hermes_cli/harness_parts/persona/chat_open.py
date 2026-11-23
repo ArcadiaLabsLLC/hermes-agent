@@ -458,46 +458,9 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
             persona_id=persona_id,
         )
 
-    requested_instance_id = safe_assignment_token(
-        getattr(args, "persona_instance_id", None)
-    )
-    hidden_copy_of = _unplaced_hidden_copy_persona(
-        canonical_persona_instance_id(requested_instance_id, persona_id=persona_id), persona_id,
-    ) if requested_instance_id else None
-    if hidden_copy_of is not None:
-        # A client that still names the agent's hidden copy ``personainst_<persona>`` (Eternia's template
-        # console, seen live 2026-11-21 w1118a-mint: "persona instance not found: personainst_base") means
-        # the agent: nothing mints that row any more (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT),
-        # so its open runs the bare-agent rule below. A row that exists under that id is still opened.
-        # MUTATION: drop this test and test_an_open_naming_a_missing_hidden_copy_places_the_agent reddens.
-        requested_instance_id, persona_id = None, hidden_copy_of
-    if requested_instance_id:
-        target_instance_id = canonical_persona_instance_id(requested_instance_id, persona_id=persona_id)
-    elif persona_id.startswith("profile_"):
-        target_instance_id = persona_instance_id_for(persona_id)  # a profile's channel (documented edge)
-    else:
-        # RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED: an operator's open that
-        # names only the agent runs the one "reuse idle, else place in the Default workspace" rule,
-        # never the hidden copy ``personainst_<persona>``.
-        # MUTATION: answer persona_instance_id_for here and test_an_operator_open_of_an_unplaced_agent_places_it reddens.
-        from agent_runtime.agent_create.staff import reuse_or_place
-        from agent_runtime.persona_chat_mints import _validated_key
-
-        # The mint's own key check, asked BEFORE anything is placed, so a refused open leaves no
-        # instance behind (seen in the lane's CLI read: an open with no key placed one, then refused).
-        # MUTATION: drop this check and test_a_refused_open_places_nothing reddens.
-        try:
-            _validated_key(getattr(args, "idempotency_key", None))
-        except PersonaChatMintError as exc:
-            return _emit_persona_open_chat_error(args, error_kind=exc.code, error=str(exc), persona_id=persona_id)
-        target_instance_id, refusal = reuse_or_place(persona_id)
-        if refusal is not None:
-            return _emit_persona_open_chat_error(
-                args, error_kind=ChatErrorKind.PERSONA_INSTANCE_NOT_FOUND,
-                error=f"no instance of {persona_id!r} could be placed: {refusal['message']}",
-                persona_id=persona_id,
-                next_expected="place the agent in a workspace (runtime.agent.place), then open its chat",
-            )
+    target_instance_id, persona_id, refused = _new_chat_target(args, persona_id)
+    if refused is not None:
+        return refused
     store = PersonaInstanceStore()
     try:
         current = store.get(target_instance_id)
@@ -577,6 +540,68 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
     # construction on the operator's opening message. The mint is bound and the
     # transcript row is durable by this line.
     _prewarm_chat_actor_for_open(receipt.session_id)
+    data = _new_chat_opened_payload(receipt, coordinator_scope)
+    _emit_persona_verb_payload(
+        args,
+        data,
+        plain=f"opened {instance.id} on new chat {receipt.session_id}",
+    )
+    return 0
+
+
+def _new_chat_target(args, persona_id: str) -> tuple[str | None, str, int | None]:
+    """``(target instance id, persona id, None)`` for a new chat's open, or ``(None, persona id,
+    exit code)`` when the open was refused and its error emitted."""
+    from agent_runtime.mission_chat_outcome import ChatErrorKind
+
+    requested_instance_id = safe_assignment_token(
+        getattr(args, "persona_instance_id", None)
+    )
+    hidden_copy_of = _unplaced_hidden_copy_persona(
+        canonical_persona_instance_id(requested_instance_id, persona_id=persona_id), persona_id,
+    ) if requested_instance_id else None
+    if hidden_copy_of is not None:
+        # A client that still names the agent's hidden copy ``personainst_<persona>`` (Eternia's template
+        # console, seen live 2026-11-21 w1118a-mint: "persona instance not found: personainst_base") means
+        # the agent: nothing mints that row any more (RT-HERMES-STOPS-MAKING-A-HIDDEN-COPY-OF-EVERY-AGENT),
+        # so its open runs the bare-agent rule below. A row that exists under that id is still opened.
+        # MUTATION: drop this test and test_an_open_naming_a_missing_hidden_copy_places_the_agent reddens.
+        requested_instance_id, persona_id = None, hidden_copy_of
+    if requested_instance_id:
+        target_instance_id = canonical_persona_instance_id(requested_instance_id, persona_id=persona_id)
+    elif persona_id.startswith("profile_"):
+        target_instance_id = persona_instance_id_for(persona_id)  # a profile's channel (documented edge)
+    else:
+        # RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED: an operator's open that
+        # names only the agent runs the one "reuse idle, else place in the Default workspace" rule,
+        # never the hidden copy ``personainst_<persona>``.
+        # MUTATION: answer persona_instance_id_for here and test_an_operator_open_of_an_unplaced_agent_places_it reddens.
+        from agent_runtime.agent_create.staff import reuse_or_place
+        from agent_runtime.persona_chat_mints import _validated_key
+
+        # The mint's own key check, asked BEFORE anything is placed, so a refused open leaves no
+        # instance behind (seen in the lane's CLI read: an open with no key placed one, then refused).
+        # MUTATION: drop this check and test_a_refused_open_places_nothing reddens.
+        try:
+            _validated_key(getattr(args, "idempotency_key", None))
+        except PersonaChatMintError as exc:
+            return None, persona_id, _emit_persona_open_chat_error(
+                args, error_kind=exc.code, error=str(exc), persona_id=persona_id
+            )
+        target_instance_id, refusal = reuse_or_place(persona_id)
+        if refusal is not None:
+            return None, persona_id, _emit_persona_open_chat_error(
+                args, error_kind=ChatErrorKind.PERSONA_INSTANCE_NOT_FOUND,
+                error=f"no instance of {persona_id!r} could be placed: {refusal['message']}",
+                persona_id=persona_id,
+                next_expected="place the agent in a workspace (runtime.agent.place), then open its chat",
+            )
+    return target_instance_id, persona_id, None
+
+
+def _new_chat_opened_payload(receipt, coordinator_scope) -> dict:
+    """The open's success payload: the minted root, its selection and the coordinator scope."""
+    instance = receipt.instance
     selected = receipt.selected
     data = {
         "ok": True,
@@ -599,12 +624,7 @@ def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_sc
         else None,
         "next_expected": "resume or send on this server-minted chat root",
     }
-    _emit_persona_verb_payload(
-        args,
-        data,
-        plain=f"opened {instance.id} on new chat {receipt.session_id}",
-    )
-    return 0
+    return data
 
 
 def _mint_receipt_fields(exc) -> dict:

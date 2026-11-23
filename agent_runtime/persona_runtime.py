@@ -234,18 +234,9 @@ class GPTPersonaRuntime:
         # envelope gate load-bearing rather than theoretical (G6).
         envelope_scope = mission_chat_envelope_scope(persona, perm_session_id, lane_bundle)
         from .workspace_slot_overlay import slot_env_scope
-        trace_sink = _chat_trace_sink(
-            session_id=perm_session_id,
-            persona=persona,
-            turn_id=turn_id,
-            before_first_trace=pre_trace_callback,
-            on_trace=trace_callback,
-        )
-        system_message = _mission_chat_surface_message(
-            persona,
-            surface_prompt,
-            workspace_agents_content=workspace_agents_content,
-        )
+        trace_sink = _chat_trace_sink(session_id=perm_session_id, persona=persona, turn_id=turn_id,
+                                      before_first_trace=pre_trace_callback, on_trace=trace_callback)
+        system_message = _mission_chat_surface_message(persona, surface_prompt, workspace_agents_content=workspace_agents_content)
         with attended_turn(attended), slot_env_scope(slot_bindings, workdir.path if workdir.grounded else None), launcher_invocation(
                 "operator", root_chat_session_id or perm_session_id, turn_id,
                 persona_instance_id=persona_instance_id, profile=binding.hermes_profile):
