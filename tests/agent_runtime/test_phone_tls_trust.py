@@ -68,12 +68,17 @@ _PHONE = """
 import os, ssl, sys, urllib.error, urllib.request
 
 import certifi, certifi.core, httpx
+import truststore._api as truststore_api
 import truststore._openssl as openssl_arm
 
 url, ca, untrusted, workdir = sys.argv[1:]
 
-# A phone, on this host: OpenSSL's compiled-in paths name nothing (only SSL_CERT_FILE answers),
-# none of truststore's Linux bundle files exists, and certifi is the private CA's bundle.
+# A phone, on this host: truststore verifies through its OpenSSL arm (the arm Android and iOS take; on a
+# Windows or macOS host truststore would pick the OS store's arm, which never reads SSL_CERT_FILE),
+# OpenSSL's compiled-in paths name nothing (only SSL_CERT_FILE answers), none of truststore's Linux
+# bundle files exists, and certifi is the private CA's bundle.
+truststore_api._configure_context = openssl_arm._configure_context
+truststore_api._verify_peercerts_impl = openssl_arm._verify_peercerts_impl
 openssl_arm._CA_FILE_CANDIDATES[:] = []
 def phone_default_paths():
     cafile = os.environ.get("SSL_CERT_FILE")

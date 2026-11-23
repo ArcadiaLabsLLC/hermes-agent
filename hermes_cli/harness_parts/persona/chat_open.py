@@ -433,8 +433,31 @@ def _unplaced_hidden_copy_persona(instance_id: str, persona_id: str) -> str | No
         named.add(instance_id[len("personainst_"):])
     for candidate in sorted(p for p in named if p and not p.startswith("profile_")):
         if instance_id == persona_instance_id_for(candidate):
-            return None if paths.persona_instance_path(instance_id).exists() else candidate
+            if paths.persona_instance_path(instance_id).exists():
+                return None
+            # An id only the id names is a hidden copy only of an agent this runtime has: an unknown instance
+            # ``personainst_qa_deadbeef`` of ``qa`` is not agent ``qa_deadbeef``'s hidden copy, and opening it
+            # is ``persona_instance_not_found`` naming that id, never a placement of an agent that does not exist
+            # (hermes row RT-FU-SEVEN-MORE-AGENT-RUNTIME-TEST-FILES-RED-ON-MAIN-ON-WINDOWS).
+            # MUTATION: drop this check and test_serve_rpc_open_chat's
+            # test_an_unknown_instance_is_not_found_rather_than_invented reddens (no persona_instance_id).
+            if candidate != persona_id and not _an_agent_this_runtime_has(candidate):
+                return None
+            return candidate
     return None
+
+
+def _an_agent_this_runtime_has(persona_id: str) -> bool:
+    """Whether the persisted roster holds ``persona_id``; an unreadable roster answers yes (the open decides)."""
+
+    from agent_runtime.agent_create.outcome import PersonaRosterUnavailable
+    from agent_runtime.agent_create.request import persona_roster
+
+    try:
+        roster = persona_roster()
+    except PersonaRosterUnavailable:
+        return True
+    return any(getattr(persona, "id", None) == persona_id for persona in roster)
 
 
 def _cmd_persona_instance_open_new_chat(args, *, persona_id: str, coordinator_scope) -> int:

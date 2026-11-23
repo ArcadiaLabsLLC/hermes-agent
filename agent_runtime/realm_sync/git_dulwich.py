@@ -22,12 +22,14 @@ import heapq
 import itertools
 import os
 import shutil
+import stat
 import time
 from collections.abc import Callable, Iterator, Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from dulwich import porcelain
 from dulwich.client import GitClient, HTTPUnauthorized, LocalGitClient, Urllib3HttpGitClient
@@ -135,6 +137,33 @@ def _status_path(raw: bytes | str) -> str:
 
     path = _s(raw) if isinstance(raw, bytes) else raw
     return path.replace(os.sep, "/") if os.sep != "/" else path
+
+
+def _a_link_git_wrote_as_it_is(repo: Repo, index: Any, path: str) -> bool:
+    r"""Whether ``path``, listed unstaged, is a tracked symlink whose target differs from its blob only by ``\``.
+
+    git for Windows checks a symlink out with the OS's separator (the blob ``../r`` becomes the link ``..\r``) and
+    git's own status calls it clean; dulwich compares the raw link text with the blob, so on Windows every tracked
+    symlink read as an edit and ``changed()`` / ``state().dirty`` never came back clean (hermes row
+    RT-FU-SEVEN-MORE-AGENT-RUNTIME-TEST-FILES-RED-ON-MAIN-ON-WINDOWS). Only the separator is folded: a link
+    retargeted anywhere else is still an edit.
+
+    MUTATION: answer ``False`` and test_a_tracked_symlink_to_a_folder_is_no_new_folder[dulwich] reddens on Windows.
+    """
+
+    try:
+        entry = index[_b(path)]
+    except KeyError:
+        return False
+    mode = getattr(entry, "mode", None)  # a conflicted entry has none
+    if mode is None or not stat.S_ISLNK(mode):
+        return False
+    full = os.path.join(repo.path, *path.split("/"))
+    try:
+        target = os.readlink(full)
+    except OSError:
+        return False
+    return target.replace(os.sep, "/") == _s(repo[entry.sha].data)
 
 
 def _within_paths(path: str, prefixes: Sequence[str]) -> bool:
@@ -376,7 +405,11 @@ class DulwichSyncGit:
         with self._open() as repo:
             status = porcelain.status(repo, untracked_files="all")
             tracked = {_status_path(p) for group in status.staged.values() for p in group}
-            tracked |= {_status_path(p) for p in status.unstaged}
+            unstaged = {_status_path(p) for p in status.unstaged}
+            if os.sep != "/" and unstaged:
+                index = repo.open_index()
+                unstaged = {p for p in unstaged if not _a_link_git_wrote_as_it_is(repo, index, p)}
+            tracked |= unstaged
             tracked |= set(self._conflicts(repo))
             untracked = {_status_path(p) for p in status.untracked}
             if not untracked_all and untracked:
@@ -497,7 +530,12 @@ class DulwichSyncGit:
         if url.startswith(("http://", "https://")):
             return _BrokeredHttpClient(url, None), urlparse(url).path
         if url.startswith("file://"):
-            return LocalGitClient(), unquote(urlparse(url).path)
+            # The URL's path in the file system's spelling: on Windows ``file:///X:/a.git`` is ``X:\a.git``, where
+            # the bare ``/X:/a.git`` named no repository and every local clone, fetch and push of a realm failed
+            # (hermes row RT-FU-SEVEN-MORE-AGENT-RUNTIME-TEST-FILES-RED-ON-MAIN-ON-WINDOWS). Elsewhere this is unquote.
+            # MUTATION: ``unquote(urlparse(url).path)`` and the ``[dulwich]`` cases of
+            # tests/agent_runtime/test_realm_sync_clone_per_realm.py redden on Windows (NotGitRepository).
+            return LocalGitClient(), url2pathname(urlparse(url).path)
         if "://" in url or url.startswith("git@") or (":" in url.split("/", 1)[0] and len(url.split(":", 1)[0]) > 1):
             raise RealmSyncError(
                 "sync_remote_unreachable",

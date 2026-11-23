@@ -13,6 +13,7 @@ Killing mutation (recorded in the S1 commit): swap ``ahead`` and ``behind`` in
 from __future__ import annotations
 
 import os
+import stat
 import subprocess
 from pathlib import Path
 
@@ -39,7 +40,7 @@ def _sh(cwd: Path, *args: str) -> str:
 def _commit_file(cwd: Path, rel: str, text: str, message: str) -> str:
     path = cwd / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding="utf-8", newline="")  # the bytes it names: no CRLF on Windows
     _sh(cwd, "add", "--", rel)
     _sh(cwd, "commit", "-q", "-m", message)
     return _sh(cwd, "rev-parse", "HEAD")
@@ -384,7 +385,9 @@ def test_log_reads_no_further_back_than_its_limit(tmp_path):
     _commit_file(repo, "realms/r/b.txt", "b\n", "second")
     _commit_file(repo, "realms/r/c.txt", "c\n", "third")
     newest = _commit_file(repo, "realms/r/d.txt", "d\n", "fourth")
-    (repo / ".git/objects" / root[:2] / root[2:]).unlink()
+    loose = repo / ".git/objects" / root[:2] / root[2:]
+    loose.chmod(stat.S_IWRITE)  # git writes its objects read-only, and Windows refuses to unlink one
+    loose.unlink()
     git = sync_git(repo)
     assert [e.paths for e in git.log(["HEAD"], "realms/r", 1)] == [("realms/r/d.txt",)]
     assert git.newest("HEAD", "realms/r") == newest
@@ -536,8 +539,8 @@ def test_diff_shows_an_edit_and_a_new_file_the_same_on_both_backends(tmp_path, r
 
     repo = _clone(tmp_path, remote)
     git = sync_git(repo)
-    (repo / "realms/r/a.txt").write_text("one\ntwo", encoding="utf-8")
-    (repo / "new.txt").write_text("fresh\n", encoding="utf-8")
+    (repo / "realms/r/a.txt").write_text("one\ntwo", encoding="utf-8", newline="")
+    (repo / "new.txt").write_text("fresh\n", encoding="utf-8", newline="")
     (repo / "blob.bin").write_bytes(b"\x00\x01")
     edit, new, binary = git.diff(["realms/r/a.txt", "new.txt", "blob.bin"])
     assert (edit.change, edit.body) == ("modified", "text")

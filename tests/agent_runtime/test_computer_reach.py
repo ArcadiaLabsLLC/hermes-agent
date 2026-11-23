@@ -46,6 +46,10 @@ LOOK = frozenset({
     "runtime.agent.files.virtual",
     "runtime.media.index",
     "runtime.media.get",
+    # One agent's prompt details, read when its panel opens: the exposure the agent-list frame's section had
+    # (hermes a0982c37d578, RT-FU-AN-AGENTS-PROMPT-DETAILS-ARE-BUILT-WHEN-ITS-PANEL-OPENS-NOT-ON-EVERY-AGENT-LIST),
+    # its local paths withheld below console reach (754baf98922f).
+    "runtime.prompt_observability.agent",
 })
 
 #: What Run chats adds, exactly.

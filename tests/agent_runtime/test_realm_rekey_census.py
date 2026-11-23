@@ -35,7 +35,10 @@ LEVEL = '{"version": 7,  "sceneId": "ws-%s", "props": [{"sceneId": "prop-ws-%s"}
 
 
 def _git(repo: Path, *args: str) -> str:
-    return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout.strip()
+    # ``core.longpaths`` as the runtime's own realm-sync git carries it: a card under the realm clone in pytest's
+    # temp tree passes Windows' 260-character limit, and a git without it reads that card as gone.
+    return subprocess.run(["git", "-c", "core.longpaths=true", "-C", str(repo), *args], check=True, capture_output=True,
+                          text=True).stdout.strip()
 
 
 def _left_realm(tmp_path):
@@ -427,7 +430,7 @@ def test_the_brain_and_its_worktrees_follow_the_new_ids_and_the_past_is_not_rewr
     moved_lane = runtime_paths.work_workspace_dir(new_first) / ".worktrees" / "brain-BATCH-1-l1"
     assert "in-flight.txt" in _git(moved_lane, "status", "--porcelain")
     listed = _git(moved, "worktree", "list", "--porcelain")
-    assert str(moved_lane) in listed and f"/{first.id}/" not in listed and listed.count("worktree ") == 2
+    assert moved_lane.as_posix() in listed and f"/{first.id}/" not in listed and listed.count("worktree ") == 2
     assert not runtime_paths.work_worktrees_dir(new_first).exists() or not any(
         runtime_paths.work_worktrees_dir(new_first).iterdir())
     assert _git(clone, "worktree", "list", "--porcelain").count("worktree ") == 1

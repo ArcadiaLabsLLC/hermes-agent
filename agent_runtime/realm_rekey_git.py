@@ -41,6 +41,23 @@ def _git(repo: Path, *args: str, config: list[str] | None = None) -> subprocess.
     return run_git(list(args), repo=repo, config=config, timeout=60, stdin=subprocess.DEVNULL, encoding="utf-8")
 
 
+def _rewrite_in_place(marker: Path, text: str) -> None:
+    """Write ``text`` over a worktree's ``.git`` file without re-creating it.
+
+    git for Windows marks every ``.git`` hidden (``core.hideDotFiles``), and Windows refuses to open a hidden file
+    for a create-or-replace write, so ``write_text`` raised ``PermissionError`` and every re-key of a workspace with
+    a lane worktree stopped there (hermes row RT-FU-SEVEN-MORE-AGENT-RUNTIME-TEST-FILES-RED-ON-MAIN-ON-WINDOWS).
+    Opened for update and truncated, the file keeps its attributes; ``newline=""`` keeps git's LF.
+
+    MUTATION: ``marker.write_text(text, encoding="utf-8")`` and
+    test_the_brain_and_its_worktrees_follow_the_new_ids_and_the_past_is_not_rewritten reddens on Windows.
+    """
+
+    with marker.open("r+", encoding="utf-8", newline="") as handle:
+        handle.write(text)
+        handle.truncate()
+
+
 def _linked_worktrees(base: Path, forms: dict[str, str]) -> dict[Path, list[Path]]:
     """``{repository: [worktree, ...]}`` for every linked worktree under ``base``, its ``.git`` file re-pointed."""
     from .realm_rekey import rewrite_text
@@ -55,7 +72,7 @@ def _linked_worktrees(base: Path, forms: dict[str, str]) -> dict[Path, list[Path
         admin = text[len(_GITDIR):].strip()
         moved = rewrite_text(admin, forms)
         if moved != admin:
-            marker.write_text(f"{_GITDIR} {moved}\n", encoding="utf-8")
+            _rewrite_in_place(marker, f"{_GITDIR} {moved}\n")
         by_repo.setdefault(Path(moved).parent.parent.parent, []).append(marker.parent)
     return by_repo
 

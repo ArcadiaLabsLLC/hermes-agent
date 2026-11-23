@@ -40,13 +40,13 @@ def project(tmp_path) -> Path:
     root = tmp_path / "projects" / "notes"
     root.mkdir(parents=True)
     _sh(root, "init", "-q")
-    (root / "readme.md").write_text("hello\n", encoding="utf-8")
+    (root / "readme.md").write_text("hello\n", encoding="utf-8", newline="")
     (root / "docs").mkdir()
-    (root / "docs" / "plan.md").write_text("one\n", encoding="utf-8")
+    (root / "docs" / "plan.md").write_text("one\n", encoding="utf-8", newline="")
     _sh(root, "add", "-A")
     _sh(root, "commit", "-q", "-m", "seed")
-    (root / "docs" / "plan.md").write_text("one\ntwo\n", encoding="utf-8")
-    (root / "docs" / "idea.md").write_text("new\n", encoding="utf-8")
+    (root / "docs" / "plan.md").write_text("one\ntwo\n", encoding="utf-8", newline="")
+    (root / "docs" / "idea.md").write_text("new\n", encoding="utf-8", newline="")
     return root
 
 
