@@ -46,6 +46,7 @@ __all__ = [
     "SERVED_CONTEXT_FILE_NAMES",
     "WRITABLE_CONTEXT_FILE_NAMES",
     "agent_written_files",
+    "context_file_writable",
 ]
 
 AGENT_FILE_KIND_DIFF = "diff"
@@ -65,6 +66,23 @@ SERVED_CONTEXT_FILE_NAMES: dict[str, str] = {
 #: map: ``.skills_prompt_snapshot.json`` is a generated file no person edits, and ``config.yaml`` is
 #: never served at all.
 WRITABLE_CONTEXT_FILE_NAMES: tuple[str, ...] = ("SOUL.md", "AGENTS.md")
+
+
+
+def context_file_writable(kind: str, reference: str) -> bool:
+    """May a person save this served row back from another device? ONE owner of the answer.
+
+    A local ``context_file`` row whose FILE NAME (read off the path, never a label) is in
+    :data:`WRITABLE_CONTEXT_FILE_NAMES`. Read by ``runtime.media.context_file.write``'s refusal and by
+    ``runtime.media.index``'s per-row ``writable`` (row
+    RT-FU-THE-FILE-LIST-SAYS-WHICH-CONTEXT-FILES-THE-CALLER-CAN-SAVE-BACK), so the list never offers
+    a save the write refuses. Says nothing about the CALLER: that is the dispatcher's gate.
+    """
+
+    # MUTATION: drop the file-name leg and test_serve_rpc_media's console index marks the skills
+    # snapshot writable, and test_serve_rpc_context_file_write's skills-snapshot test saves it.
+    return kind == AGENT_FILE_KIND_CONTEXT_FILE and Path(reference).name in WRITABLE_CONTEXT_FILE_NAMES
+
 
 #: The handle names a served file outside :data:`WRITABLE_CONTEXT_FILE_NAMES` (a diff, a picture,
 #: the skills snapshot).

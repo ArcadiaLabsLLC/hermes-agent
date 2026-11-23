@@ -11,7 +11,8 @@ Killing mutations (each red seen 2026-11-22):
 * ``serve_rpc.media._runtime_media_context_file_write``: resolve against a scope built once and
   cached, and the stale-handle test saves over the newer file (the save test's second save is
   refused too);
-* the same verb: drop the file-name check, and the skills-snapshot test saves the snapshot;
+* the same verb: drop its ``agent_file_handles.context_file_writable`` check (the predicate the
+  index's ``writable`` reads too), and the skills-snapshot test saves the snapshot;
 * ``agent_file_handles.SERVED_CONTEXT_FILE_NAMES``: add ``config.yaml``, and the config test's
   handle resolves (refused ``context_file_not_writable``, not ``unknown_handle``);
 * the same verb: drop the symlink check, and the symlink test writes through the link;

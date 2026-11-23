@@ -1149,8 +1149,12 @@ The argument is in the module's own docstring; the staged plan is
 ### 2.1 The `fetch` family — media by content handle (gateway Stage 8)
 
 `runtime.media.index` answers `{contract, cap_bytes, truncated, artifacts:
-[{handle, reference, kind, media_type, size_bytes, fetchable}], scanned: {logs,
-declarations}}` and takes no argument but `correlation_id`.
+[{handle, reference, kind, media_type, size_bytes, fetchable, remote, writable}], scanned: {logs,
+declarations}}` and takes no argument but `correlation_id`. `writable` is stated on every row and
+per caller (row `RT-FU-THE-FILE-LIST-SAYS-WHICH-CONTEXT-FILES-THE-CALLER-CAN-SAVE-BACK`): true only on
+a local SOUL.md or AGENTS.md row (`agent_file_handles.context_file_writable`, the one predicate
+`runtime.media.context_file.write` refuses by) for a caller the dispatcher's own gate would let run
+that write; a display fact the write never reads.
 `runtime.media.get` takes `{handle}` and answers `{contract, handle,
 media_type, size_bytes, encoding: "base64", data}`.
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -124,6 +125,8 @@ def test_the_index_names_the_artifact_the_cap_and_what_the_scan_cost(seeded):
             # Stage P4, and present on EVERY row for ``peer.ping``'s reason: a
             # client must never read a fact out of a key's absence.
             "remote": False,
+            # Stated on every row for the same reason; a picture is never saved back.
+            "writable": False,
         }
     ]
 
@@ -466,6 +469,8 @@ def test_the_index_names_a_remote_row_without_claiming_a_local_path(
             "kind": "image",
             "remote": True,
             "peer_install_id": "install-b",
+            # No file here to save to: a remote row is never writable, and says so.
+            "writable": False,
         }
     ]
     # The local artifact is still there and still says it is local.
@@ -716,3 +721,73 @@ def test_an_account_computer_keeps_the_whole_index(every_kind):
     assert {row["handle"] for row in rows} == set(by_kind.values())
     diff = _call(GET, {"handle": by_kind["diff"]}, caller=_computer("account"))
     assert diff["result"]["data"], diff
+
+
+# ── writable: which rows THIS caller may save back ─────────────────────────────
+#
+# RT-FU-THE-FILE-LIST-SAYS-WHICH-CONTEXT-FILES-THE-CALLER-CAN-SAVE-BACK. ``writable`` is the write
+# verb's own two answers joined: the file rule (``agent_file_handles.context_file_writable``, which
+# the write refuses by) and the dispatcher's gate asked for the write verb. Killing mutations (each
+# red seen 2026-11-22): drop the file-name leg of ``context_file_writable`` (the console index marks
+# the skills snapshot writable); answer ``True`` from ``media._caller_may_write_context_files`` (the
+# read-tier index marks SOUL.md and AGENTS.md writable, and the helper answers a Look computer true).
+
+
+@pytest.fixture
+def context_files(seeded, tmp_path, monkeypatch):
+    """The chat picture, a diff, SOUL.md, AGENTS.md, the skills snapshot and one remote row."""
+
+    rows = []
+    for name, kind, media_type in (
+        ("patch.diff", "diff", "text/x-diff"),
+        ("SOUL.md", "context_file", "text/markdown"),
+        ("AGENTS.md", "context_file", "text/markdown"),
+        (".skills_prompt_snapshot.json", "context_file", "application/json"),
+    ):
+        path = tmp_path / "agent" / name
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(f"{name} body\n", encoding="utf-8")
+        rows.append((kind, str(path), media_type))
+    monkeypatch.setattr("agent_runtime.agent_file_handles.agent_written_files", lambda *, limit: rows[:limit])
+    _far_completions(monkeypatch, "sha256:" + "e" * 64, 64)
+    return seeded
+
+
+def _writable_by_name(artifacts: list[dict]) -> dict[str, bool]:
+    return {("remote" if row["remote"] else Path(row["reference"]).name): row["writable"] for row in artifacts}
+
+
+def test_a_console_callers_index_marks_soul_and_agents_writable_and_nothing_else(context_files):
+    rows = _call(INDEX, caller=_device(TIER_CONSOLE))["result"]["artifacts"]
+
+    assert _writable_by_name(rows) == {
+        "SOUL.md": True,
+        "AGENTS.md": True,
+        ".skills_prompt_snapshot.json": False,
+        "patch.diff": False,
+        "stagec_proof.png": False,
+        "remote": False,
+    }
+
+
+def test_a_read_tier_caller_is_told_writable_false_on_every_row(context_files):
+    from agent_runtime.serve_rpc import media
+
+    # The dispatcher refuses a read-tier device the index itself, so the handler is asked directly:
+    # the guard against the index ever reaching a caller the write refuses.
+    reply = media._runtime_media_index("r1", {}, serve_rpc.RpcContext(caller=_device(TIER_READ)))
+    by_name = _writable_by_name(reply["result"]["artifacts"])
+    assert {"SOUL.md", "AGENTS.md"} <= set(by_name), by_name
+    assert not any(by_name.values()), by_name
+
+
+def test_the_per_caller_answer_is_the_write_verbs_gate():
+    from agent_runtime.serve_rpc import media
+
+    def may(caller) -> bool:
+        return media._caller_may_write_context_files(serve_rpc.RpcContext(caller=caller))
+
+    assert may(_device(TIER_CONSOLE)) and may(STDIO_OWNER) and may(_computer("account"))
+    assert not may(_device(TIER_READ))
+    assert not may(_computer("look")) and not may(_computer("chat"))
+    assert not may(UNKNOWN_CALLER) and not media._caller_may_write_context_files(None)

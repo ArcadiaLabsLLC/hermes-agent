@@ -294,6 +294,7 @@ def test_a_device_on_A_opens_a_picture_that_exists_only_on_B(two_installs):
             "kind": "image",
             "remote": True,
             "peer_install_id": b_id,
+            "writable": False,
         }
     ]
     assert answers["index"]["result"]["scanned"]["completions"] == 1

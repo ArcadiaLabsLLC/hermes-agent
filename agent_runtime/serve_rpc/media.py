@@ -14,6 +14,7 @@ from agent_runtime.call_authorization import (
     COMPUTER_REACH_LOOK,
     REASON_SCOPE_DENIED,
     TIER_CONSOLE,
+    authorize_call,
 )
 
 from agent_runtime.serve_rpc.protocol import (
@@ -25,7 +26,7 @@ from agent_runtime.serve_rpc.protocol import (
     err,
     ok,
 )
-from agent_runtime.serve_rpc.registry import method
+from agent_runtime.serve_rpc.registry import method, method_computer_reach, method_tier
 from agent_runtime.serve_rpc.params import (
     ParamRefused,
     _correlation_id_param,
@@ -87,6 +88,31 @@ def _caller_sees(artifact: Any, context: RpcContext | None) -> bool:
     return isinstance(artifact, media_handles.MediaArtifact) and artifact.kind == "image"
 
 
+def _caller_may_write_context_files(context: RpcContext | None) -> bool:
+    """Would the dispatcher let this caller run ``runtime.media.context_file.write``? Its own gate, asked.
+
+    The verb's declared tier and computer reach, read off its ``@method`` line through the registry,
+    handed to :func:`authorize_call` exactly as ``dispatch`` hands them — no tier or grant table here,
+    so a later change to the write verb's declaration moves the index's ``writable`` with it.
+    """
+
+    caller = context.caller if context is not None else None
+    # MUTATION: answer True here and test_serve_rpc_media's read-tier index marks SOUL.md writable.
+    return authorize_call(method_tier(CONTEXT_FILE_WRITE_METHOD), caller, method=CONTEXT_FILE_WRITE_METHOD,
+                          computer_reach=method_computer_reach(CONTEXT_FILE_WRITE_METHOD)).ok
+
+
+def _index_row(artifact: Any, may_write: bool) -> dict[str, Any]:
+    """One index row with ``writable`` STATED (false on images, diffs, the skills snapshot, remote rows)."""
+
+    from agent_runtime import agent_file_handles, media_handles
+
+    row = artifact.describe()
+    row["writable"] = (may_write and isinstance(artifact, media_handles.MediaArtifact)
+                       and agent_file_handles.context_file_writable(artifact.kind, artifact.reference))
+    return row
+
+
 #: The media lane's own shape number, beside ``PEER_PING_CONTRACT`` and for its
 #: reason: it describes these two RESULTS and nothing else, so a later stage
 #: that grows the family can move it without telling every ``runtime.office.*``
@@ -113,7 +139,7 @@ def _runtime_media_index(
     Result::
 
         {contract: 1, cap_bytes, truncated, artifacts: [
-            {handle, reference, kind, media_type, size_bytes, fetchable}, …],
+            {handle, reference, kind, media_type, size_bytes, fetchable, remote, writable}, …],
          scanned: {logs, declarations}, correlation_id?}
 
     ``kind`` is ``image`` (a chat's declared picture), ``diff`` (a patch call's diff artifact) or
@@ -122,6 +148,11 @@ def _runtime_media_index(
     by ``agent_file_handles``; ``reference`` is the path the chat's trace or prompt-context frame
     already shows, the join key, and ``config.yaml`` is never a row. All three kinds are served at
     this verb's ``console`` tier, the tier a chat's own history is read at.
+
+    ``writable`` is stated per artifact and per CALLER: true only on a local SOUL.md or AGENTS.md row
+    (``agent_file_handles.context_file_writable``, the predicate the write verb refuses by) for a caller
+    the dispatcher would let run ``runtime.media.context_file.write``, so a client offers Save only
+    where a save can land.
 
     ``fetchable`` is stated per artifact so a client never spends a round trip
     to be told the cap; :func:`_runtime_media_get` refuses the same artifact
@@ -151,6 +182,7 @@ def _runtime_media_index(
         return refused.frame(rid)
 
     scope = media_handles.build_media_scope(agent_files=True)
+    may_write = _caller_may_write_context_files(context)
     result: dict[str, Any] = {
         "contract": MEDIA_CONTRACT,
         "cap_bytes": media_handles.MAX_FETCH_BYTES,
@@ -159,7 +191,10 @@ def _runtime_media_index(
         # ``remote: true`` with the peer that holds it and NO path — because
         # there is no file here to name, and a row that claimed one would send
         # a client to a `File(path)` that cannot exist.
-        "artifacts": [artifact.describe() for artifact in scope.rows() if _caller_sees(artifact, context)],
+        # ``writable``: may THIS caller save the row back through ``runtime.media.context_file.write``
+        # (RT-FU-THE-FILE-LIST-SAYS-WHICH-CONTEXT-FILES-THE-CALLER-CAN-SAVE-BACK). A display fact: the
+        # write keeps every refusal it has and never reads it.
+        "artifacts": [_index_row(artifact, may_write) for artifact in scope.rows() if _caller_sees(artifact, context)],
         "scanned": {
             "logs": scope.logs_scanned,
             "declarations": scope.declarations_seen,
@@ -403,9 +438,9 @@ def _runtime_media_context_file_write(
         return _write_refused(rid, media_handles.REASON_UNKNOWN_HANDLE,
                               "no file this engine serves is at that handle (it changed since it was read)")
     reference = Path(artifact.reference)
-    # MUTATION: drop the file-name check and the skills-snapshot test saves the snapshot.
-    if (artifact.kind != agent_file_handles.AGENT_FILE_KIND_CONTEXT_FILE
-            or reference.name not in agent_file_handles.WRITABLE_CONTEXT_FILE_NAMES):
+    # The one predicate the index's ``writable`` reads too.
+    # MUTATION: drop this check and the skills-snapshot test saves the snapshot.
+    if not agent_file_handles.context_file_writable(artifact.kind, artifact.reference):
         return _write_refused(rid, agent_file_handles.REASON_CONTEXT_FILE_NOT_WRITABLE,
                               "only SOUL.md and AGENTS.md are saved from another device")
     # MUTATION: drop the symlink check and the symlink test writes through the link.
