@@ -71,7 +71,9 @@ from typing import Any
 from agent_runtime.build_identity import (
     CodeTree,
     UvLockDigest,
+    CODE_TREE_TIMEOUT_SECONDS,
     code_tree_for,
+    code_tree_from_index,
     code_tree_rule,
     uv_lock_digest_for,
 )
@@ -119,6 +121,8 @@ _BOOT_MONOTONIC = time.monotonic()
 
 _cache_lock = threading.Lock()
 _cached_stamp: BuildStamp | None = None
+#: The one prefetch thread this process started, so a second ask starts nothing.
+_prefetch_thread: threading.Thread | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,10 +237,13 @@ def prefetch_build_stamp() -> threading.Thread | None:
     at the serve verb's entry, the git work runs beside the serve's own imports instead. The
     stamp is the same value either way: ``build_stamp`` resolves under ``_cache_lock``, so the
     boot's reader waits for this thread's answer (or, if the thread failed, resolves it itself)
-    and never sees a second resolution. Never raises.
+    and never sees a second resolution. A second call while one is in flight starts nothing (the
+    harness entry starts it, and the serve trampoline asks again for a caller that skipped the
+    entry). Never raises.
     """
 
-    if _cached_stamp is not None:
+    global _prefetch_thread
+    if _cached_stamp is not None or _prefetch_thread is not None:
         return None
     try:
         import contextvars
@@ -248,6 +255,7 @@ def prefetch_build_stamp() -> threading.Thread | None:
         thread.start()
     except Exception:  # pragma: no cover - a thread that cannot start leaves the lazy path as it was
         return None
+    _prefetch_thread = thread
     return thread
 
 
@@ -261,9 +269,10 @@ def _prefetch_quietly() -> None:
 def reset_build_stamp_cache() -> None:
     """Drop the memo. Tests only — a live process's stamp does not change."""
 
-    global _cached_stamp
+    global _cached_stamp, _prefetch_thread
     with _cache_lock:
         _cached_stamp = None
+        _prefetch_thread = None
 
 
 def repo_root_for(start: Path | None = None) -> Path | None:
@@ -398,30 +407,45 @@ def _resolve() -> BuildStamp:
             uv_lock_reason=lock.reason,
         )
 
-    # **RS-6.** One more subprocess, once per process, on the same cached
-    # resolution as the commit: WHICH CODE, as opposed to which commit. Run
-    # here rather than lazily on first read because the ``ready`` frame and the
-    # register row are both written before any client can ask, and a digest
-    # resolved later would put two different answers on one boot.
-    # The two probes are independent reads, so the code tree runs beside the
-    # status probe instead of before it: the boot pays the slower of the two
-    # (``ls-tree`` 180-205 ms, ``status`` 90-270 ms, lane h5-boot 2026-10-18)
-    # rather than their sum. ``code_tree_for`` never raises.
-    tree_box: list[CodeTree] = []
-    tree_thread = threading.Thread(
-        target=lambda: tree_box.append(code_tree_for(root)), name="build-stamp-code-tree", daemon=True
-    )
-    tree_thread.start()
-
+    # **RS-6.** WHICH CODE, as opposed to which commit, on the same cached
+    # resolution: resolved here rather than lazily because the ``ready`` frame
+    # and the register row are both written before any client can ask, and a
+    # digest resolved later would put two different answers on one boot.
+    #
+    # ONE object-reading git, not two (RT-FU-A-COLD-HARNESS-SERVE-REGISTERS-SECONDS-SOONER).
+    # ``status`` and ``ls-tree`` both read HEAD's tree, and on a clone with
+    # thousands of packs each object-reading git pays ~2 s just to open them
+    # (8,624 packs, 2026-11-23: ``status`` 2.0 s, ``ls-tree`` 2.1-2.5 s,
+    # ``ls-files`` 0.2 s). So the code tree is read from the INDEX beside the
+    # status probe, and used only when the status proves the index IS HEAD (no
+    # path with an index-side change, no intent-to-add entry); otherwise HEAD
+    # is read as before. The status probe takes the code tree's bound: it is
+    # now the boot's one HEAD read, and the 2 s bound fired on that clone and
+    # published ``dirty: None`` on every boot.
+    #
     # ``--no-optional-locks`` + ``-uno``: a status probe on the boot path must
     # not take the index lock (it would race a human's git in the same
     # checkout), and untracked files are not "this runtime is running edited
     # code" — tracked modifications are.
-    status, status_reason = _git(
-        root, ["--no-optional-locks", "status", "--porcelain", "-uno"], allow_empty=True
+    index_box: list[CodeTree | None] = []
+    index_thread = threading.Thread(
+        target=lambda: index_box.append(code_tree_from_index(root)), name="build-stamp-code-tree", daemon=True
     )
-    tree_thread.join()
-    tree: CodeTree = tree_box[0] if tree_box else CodeTree(code_tree=None, reason="git_error", entry_count=None)
+    index_thread.start()
+    status, status_reason = _git(
+        root,
+        ["--no-optional-locks", "status", "--porcelain", "-uno"],
+        allow_empty=True,
+        timeout=CODE_TREE_TIMEOUT_SECONDS,
+        strip=False,
+    )
+    index_thread.join()
+    from_index = index_box[0] if index_box else None
+    tree: CodeTree = (
+        from_index
+        if from_index is not None and status is not None and _index_is_head(status)
+        else code_tree_for(root)
+    )
     if status is None:
         return BuildStamp(
             commit=commit,
@@ -449,14 +473,38 @@ def _resolve() -> BuildStamp:
     )
 
 
-def _git(root: Path, args: list[str], *, allow_empty: bool = False) -> tuple[str | None, str]:
+def _index_is_head(porcelain: str) -> bool:
+    """True when a ``status --porcelain -uno`` proves the index lists exactly HEAD's entries.
+
+    Column X is the index against HEAD: any letter there (staged, renamed, unmerged) means
+    they differ. An intent-to-add entry (`` A``) is in the index but not in HEAD.
+    """
+
+    for line in porcelain.splitlines():
+        if not line:
+            continue
+        if line[0] != " " or line[1:2] == "A":
+            return False
+    return True
+
+
+def _git(
+    root: Path,
+    args: list[str],
+    *,
+    allow_empty: bool = False,
+    timeout: float = GIT_TIMEOUT_SECONDS,
+    strip: bool = True,
+) -> tuple[str | None, str]:
     """Run one git command in *root*. Returns ``(stdout, reason)``.
 
     ``stdout`` is None on every failure; ``reason`` is a typed token, never a
     raw error string (which would put machine-local paths on a boot frame).
     ``allow_empty`` distinguishes "git answered nothing" (a clean ``status``)
     from "git did not answer" — without it a clean checkout is indistinguishable
-    from a failed probe, and would be reported as ``dirty: None``.
+    from a failed probe, and would be reported as ``dirty: None``. ``strip=False``
+    keeps the output's columns (a porcelain status's first line starts with a
+    space when only the worktree differs).
     """
 
     try:
@@ -465,7 +513,7 @@ def _git(root: Path, args: list[str], *, allow_empty: bool = False) -> tuple[str
             cwd=str(root),
             encoding="utf-8",
             errors="replace",
-            timeout=GIT_TIMEOUT_SECONDS,
+            timeout=timeout,
             # stdin pinned to the null device: serve's handlers already learned
             # this the hard way — a child inheriting serve's stdin pipe blocks
             # forever against the Launcher's open pipe (see
@@ -481,10 +529,10 @@ def _git(root: Path, args: list[str], *, allow_empty: bool = False) -> tuple[str
         return None, "git_error"
     if completed.returncode != 0:
         return None, "git_failed"
-    out = (completed.stdout or "").strip()
-    if not out and not allow_empty:
+    out = completed.stdout or ""
+    if not out.strip() and not allow_empty:
         return None, "git_empty"
-    return out, ""
+    return (out.strip() if strip else out), ""
 
 
 def _fallback_repo_root() -> Path | None:

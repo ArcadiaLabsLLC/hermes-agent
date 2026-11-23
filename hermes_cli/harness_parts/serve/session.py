@@ -593,13 +593,27 @@ class ServeSession(
                 )
         self.timeline.mark("skill_install_ms")
 
+    @property
+    def read_build_context(self) -> Any:
+        """The serve's one ``SnapshotBuildContext``, made on first use."""
+
+        with self._read_build_context_lock:
+            if self._read_build_context is None:
+                from agent_runtime.snapshot.context import SnapshotBuildContext
+
+                self._read_build_context = SnapshotBuildContext()
+            return self._read_build_context
+
     def _init_request_state(self) -> None:
         self.stdout_proxy = _LineFrameProxy(self.frames, "line")
         self.stderr_proxy = _LineFrameProxy(self.frames, "stderr")
         self.read_cache = _PollResponseCache(self.read_cache_max_age)
-        from agent_runtime.snapshot.context import SnapshotBuildContext
-
-        self.read_build_context = SnapshotBuildContext()
+        # Built on the first cached read, not here: importing the snapshot package
+        # costs ~0.3 s that the boot paid before registering
+        # (RT-FU-A-COLD-HARNESS-SERVE-REGISTERS-SECONDS-SOONER), and no read can
+        # arrive before ``ready``.
+        self._read_build_context: Any = None
+        self._read_build_context_lock = threading.Lock()
 
         self.inflight: dict[str, _ArgvRequest] = {}
         # Futures by request id so ``{"op":"cancel"}`` can drop work that is

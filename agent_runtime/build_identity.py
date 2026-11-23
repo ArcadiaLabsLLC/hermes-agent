@@ -109,10 +109,12 @@ __all__ = [
     "UvLockDigest",
     "code_tree_digest",
     "code_tree_for",
+    "code_tree_from_index",
     "code_tree_rule",
     "code_tree_unchanged",
     "is_commit_id",
     "is_runtime_path",
+    "parse_ls_files_stage_z",
     "parse_ls_tree_z",
     "parse_tree_list",
     "uv_lock_digest_for",
@@ -279,6 +281,60 @@ def parse_tree_list(text: str) -> list[tuple[str, str]]:
             continue
         entries.append((path, blob.strip()))
     return entries
+
+
+def parse_ls_files_stage_z(raw: str) -> list[tuple[str, str]] | None:
+    """Read ``git ls-files -s -z`` output into ``(path, blob)`` pairs, or None when it cannot stand for HEAD.
+
+    A record is ``<mode> <blob> <stage>\\t<path>``. None — the caller reads ``HEAD`` instead — for an
+    index entry no ``ls-tree`` would print: a conflict stage, or a sparse-index directory (mode 040000).
+    """
+
+    entries: list[tuple[str, str]] = []
+    for record in raw.split("\0"):
+        if not record:
+            continue
+        head, tab, path = record.partition("\t")
+        fields = head.split()
+        if not tab or not path or len(fields) < 3:
+            return None
+        if fields[2] != "0" or fields[0] == "040000":
+            return None
+        entries.append((path, fields[1]))
+    return entries
+
+
+def code_tree_from_index(root: Path | str) -> CodeTree | None:
+    """HEAD's code tree read from the INDEX, for a checkout whose index is proven to match HEAD. Never raises.
+
+    RT-FU-A-COLD-HARNESS-SERVE-REGISTERS-SECONDS-SOONER: ``ls-tree`` reads HEAD's tree objects, and
+    on a clone with thousands of packs every object-reading git pays ~2 s just to open them
+    (``ls-files`` reads only ``.git/index``: ~0.2 s on the same clone). When ``git status`` says no
+    path differs between the index and HEAD, the index lists exactly HEAD's ``(path, blob)`` pairs,
+    so the digest is the one :func:`code_tree_for` computes. The CALLER owns that proof; this only
+    reads the index. None when the index cannot answer (git failed, a conflict stage, a sparse
+    directory) — the caller then asks HEAD.
+    """
+
+    try:
+        completed = run_git(
+            ["ls-files", "-s", "-z"],
+            cwd=str(root),
+            encoding="utf-8",
+            errors="replace",
+            timeout=CODE_TREE_TIMEOUT_SECONDS,
+            stdin=subprocess.DEVNULL,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"},
+        )
+    except Exception:
+        return None
+    if completed.returncode != 0:
+        return None
+    entries = parse_ls_files_stage_z(completed.stdout or "")
+    if entries is None:
+        return None
+    kept = [pair for pair in entries if is_runtime_path(pair[0])]
+    return CodeTree(code_tree=code_tree_digest(entries), reason="", entry_count=len(kept))
 
 
 def code_tree_for(root: Path | str, head: str = "HEAD") -> CodeTree:

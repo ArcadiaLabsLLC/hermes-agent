@@ -55,6 +55,11 @@ def _harness_entry(fn):
 
     @functools.wraps(fn)
     def entry(args, *rest, **kwargs):
+        # A verb's work that must not wait behind the start-time setup below starts first
+        # (``serve``'s build-stamp git probes, RT-FU-A-COLD-HARNESS-SERVE-REGISTERS-SECONDS-SOONER).
+        early_start = getattr(fn, "__harness_early_start__", None)
+        if early_start is not None:
+            early_start(args)
         # The start-time migrations and process globals the plugin's ``register(ctx)`` also runs: the
         # command line is built with no plugin load (``plugin.yaml`` ``setup:``), so the verb asks here.
         from hermes_cli.harness_parts.start_time_setup import run_start_time_setup

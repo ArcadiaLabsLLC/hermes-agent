@@ -676,13 +676,25 @@ def add_work(subs) -> None:
     work_cancel.set_defaults(func=work_commands._cmd_work_cancel)
 
 
-def _cmd_serve_trampoline(args) -> int:
+def _serve_early_start(args) -> None:
+    """Start the ready frame's build stamp (git work) before the harness entry's start-time setup.
+
+    RT-HARNESS-SERVE-COLD-BOOT moved it off the boot's critical path onto a thread started here in
+    the trampoline; RT-FU-A-COLD-HARNESS-SERVE-REGISTERS-SECONDS-SOONER starts that thread from the
+    harness entry instead (``__harness_early_start__``), ahead of the start-time setup and the serve
+    package's imports — ~0.4 s sooner on a cold Windows boot, where the stamp's git was what the
+    boot waited on.
+    """
+
     if getattr(args, "ndjson", False):
-        # The ready frame's build stamp is git work; it runs beside the serve's imports below
-        # (RT-HARNESS-SERVE-COLD-BOOT) instead of serially inside the boot.
         from agent_runtime.build_stamp import prefetch_build_stamp
 
         prefetch_build_stamp()
+
+
+def _cmd_serve_trampoline(args) -> int:
+    # Already started by the harness entry; a caller that skipped the entry starts it here.
+    _serve_early_start(args)
     # Lazy: serve is the process's main loop, owns the sys.stdout/sys.stderr
     # swaps, and every other verb would pay its import weight.
     from hermes_cli.harness_parts.serve.commands import _cmd_serve as _run_serve
@@ -692,6 +704,9 @@ def _cmd_serve_trampoline(args) -> int:
     from hermes_cli.harness_parts.parser import build_parser
 
     return _run_serve(args, harness_parser=build_parser)
+
+
+_cmd_serve_trampoline.__harness_early_start__ = _serve_early_start
 
 
 def _cmd_serve_connect(args) -> int:

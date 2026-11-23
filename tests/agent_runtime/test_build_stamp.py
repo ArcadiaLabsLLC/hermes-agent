@@ -340,6 +340,8 @@ def test_a_commit_whose_tree_could_not_be_read_keeps_the_commit_and_says_so(
             code_tree=None, reason="git_timeout", entry_count=None
         ),
     )
+    # The index could not answer either, so HEAD was asked (and timed out).
+    monkeypatch.setattr(build_stamp_module, "code_tree_from_index", lambda root: None)
 
     block = build_stamp(refresh=True).frame_payload()
 
@@ -361,7 +363,8 @@ def test_the_code_tree_is_measured_once_per_process_like_the_commit(
         calls.append(root)
         return CodeTree(code_tree="c" * 40, reason="", entry_count=1)
 
-    monkeypatch.setattr(build_stamp_module, "code_tree_for", counted)
+    # A clean checkout reads its code tree from the index (RT-FU-A-COLD-HARNESS-SERVE-REGISTERS-SECONDS-SOONER).
+    monkeypatch.setattr(build_stamp_module, "code_tree_from_index", counted)
 
     build_stamp(refresh=True)
     for _ in range(4):
@@ -371,10 +374,10 @@ def test_the_code_tree_is_measured_once_per_process_like_the_commit(
 
 
 def test_the_code_tree_probe_runs_beside_the_status_probe(real_repo, monkeypatch):
-    """Lane h5-boot: the boot pays the slower of ``ls-tree`` and ``status``, not their sum.
+    """Lane h5-boot: the boot pays the slower of the code-tree read and ``status``, not their sum.
 
     The code-tree stand-in waits for the status probe to START; run serially (tree first), it
-    times out with the flag unset. Killing mutation: call ``code_tree_for(root)`` inline before
+    times out with the flag unset. Killing mutation: call ``code_tree_from_index(root)`` inline before
     the status ``_git`` again.
     """
 
@@ -394,7 +397,8 @@ def test_the_code_tree_probe_runs_beside_the_status_probe(real_repo, monkeypatch
             status_started.set()
         return real_git(root, args, **kwargs)
 
-    monkeypatch.setattr(build_stamp_module, "code_tree_for", tree)
+    # A clean checkout's code tree is the index read (RT-FU-A-COLD-HARNESS-SERVE-REGISTERS-SECONDS-SOONER).
+    monkeypatch.setattr(build_stamp_module, "code_tree_from_index", tree)
     monkeypatch.setattr(build_stamp_module, "_git", git)
 
     stamp = build_stamp(refresh=True)
