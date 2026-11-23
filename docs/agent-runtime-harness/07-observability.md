@@ -59,7 +59,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    passes `first_chunk_at=None` rather than a zero when no first chunk was seen
    (the fork's `ttfb=` log token that said the same was retired 2026-09-24 as a
    duplicate of it); `_log_agents_readiness_split`
-   (`snapshot/build_log.py:183-200`) prints nothing when the section never ran, and two
+   (`snapshot/build_log.py:208-227`) prints nothing when the section never ran, and two
    honest zeros when it ran and cost nothing. **Absent-as-zero is the canonical
    lie of this codebase** — it is how a census once MEASURED A FALSE ZERO
    (`core_cache/__init__.py:59-62`).

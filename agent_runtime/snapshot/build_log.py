@@ -20,6 +20,7 @@ __layer__ = "policy"
 
 __all__ = [
     "AGENTS_READINESS_SPLIT_RECEIPT",
+    "PERSONA_CHAT_SPLIT_RECEIPT",
     "BUILD_REASON_UNKNOWN",
     "EXECUTOR_IN_PROCESS",
     "EXECUTOR_WORKER",
@@ -27,6 +28,7 @@ __all__ = [
     "_build_caller",
     "_build_reason",
     "_log_agents_readiness_split",
+    "_log_persona_chat_split",
     "_log_snapshot_build_core",
     "_log_snapshot_build_shadow",
     "_record_build_info",
@@ -180,6 +182,29 @@ def _log_snapshot_build_shadow(
 AGENTS_READINESS_SPLIT_RECEIPT = (
     "snapshot_agents_readiness walk_ms=%d tool_visibility_ms=%d pid=%d"
 )
+
+
+#: ``persona_chat`` times three projections, and after the history curation cuts of
+#: w1122f-agentlist (2026-11-22) the owner's steady section still read 1,090 ms with
+#: nothing saying which of the three paid it. Same contract as the readiness split
+#: above: a LOG line beside ``snapshot_build_core``, never parity keys.
+PERSONA_CHAT_SPLIT_RECEIPT = (
+    "snapshot_persona_chat history_ms=%d trace_ms=%d channels_ms=%d pid=%d"
+)
+
+
+def _log_persona_chat_split(split: dict[str, int]) -> None:
+    """Emit ``persona_chat``'s three parts, or nothing if the section never ran."""
+
+    if not split:
+        return
+    logger.info(
+        PERSONA_CHAT_SPLIT_RECEIPT,
+        int(split.get("history_ms", 0)),
+        int(split.get("trace_ms", 0)),
+        int(split.get("channels_ms", 0)),
+        receipt_pid(),
+    )
 
 
 def _log_agents_readiness_split(split: dict[str, int]) -> None:

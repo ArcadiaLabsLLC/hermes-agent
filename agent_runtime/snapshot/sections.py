@@ -48,7 +48,7 @@ from agent_runtime.snapshot.receipts import (
     _persona_chat_history_frame,
     _runtime_paths_diagnostic,
 )
-from agent_runtime.snapshot.build_log import _log_agents_readiness_split, _timed_section
+from agent_runtime.snapshot.build_log import _log_agents_readiness_split, _log_persona_chat_split, _timed_section
 from agent_runtime.snapshot.envelope import parity_envelope
 from agent_runtime.snapshot.boards import _boards_summary
 from agent_runtime.snapshot.offices import _offices_summary
@@ -439,31 +439,39 @@ class SnapshotFrameBuild:
         # anchors stay.
         self.persona_chat_started = time.perf_counter()
         self.omitted_history_session_ids: set[str] = set()
-        self.persona_chat_history_full = persona_chat_history_summary(
-            persona_instances=self.persona_instances,
-            session_db=self.session_db,
-            message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
-            accountant=self.history_accountant,
-            omitted_session_ids=self.omitted_history_session_ids,
-        )
-        self.data["persona_chat_history"] = _persona_chat_history_frame(self.persona_chat_history_full)
-        self.data["persona_chat_trace"] = persona_chat_trace_summary(
-            persona_instances=self.persona_instances,
-            event_log=self.event_log,
-            message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
-            accountant=self.trace_accountant,
-        )
+        # The three parts' split is a log receipt (``snapshot_persona_chat``), never parity keys.
+        split: dict[str, int] = {}
+        # MUTATION: time the trace below under "history_ms" and
+        # test_a_slow_trace_lands_on_the_trace_number reddens.
+        with _timed_section(split, "history_ms"):
+            self.persona_chat_history_full = persona_chat_history_summary(
+                persona_instances=self.persona_instances,
+                session_db=self.session_db,
+                message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
+                accountant=self.history_accountant,
+                omitted_session_ids=self.omitted_history_session_ids,
+            )
+            self.data["persona_chat_history"] = _persona_chat_history_frame(self.persona_chat_history_full)
+        with _timed_section(split, "trace_ms"):
+            self.data["persona_chat_trace"] = persona_chat_trace_summary(
+                persona_instances=self.persona_instances,
+                event_log=self.event_log,
+                message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
+                accountant=self.trace_accountant,
+            )
         self.conversation_accountant = ProjectionAccountant("operator_conversation")
-        self.live_operator_channels = operator_channel_summary(
-            persona_instances=self.persona_instances,
-            persona_chat_history=self.persona_chat_history_full,
-            persona_chat_trace=self.data["persona_chat_trace"],
-            accountant=self.conversation_accountant,
-            intentionally_omitted_history_session_ids=self.omitted_history_session_ids,
-        )
+        with _timed_section(split, "channels_ms"):
+            self.live_operator_channels = operator_channel_summary(
+                persona_instances=self.persona_instances,
+                persona_chat_history=self.persona_chat_history_full,
+                persona_chat_trace=self.data["persona_chat_trace"],
+                accountant=self.conversation_accountant,
+                intentionally_omitted_history_session_ids=self.omitted_history_session_ids,
+            )
         self.sections_ms["persona_chat"] = int(
             max(0.0, (time.perf_counter() - self.persona_chat_started)) * 1000
         )
+        _log_persona_chat_split(split)
         # S4: operator_channels ships as an id-keyed map (channel_id). S18
         # removed the archived-task channels this used to be merged with, so the
         # live channels are the whole input; ``_keyed`` still keeps the first
