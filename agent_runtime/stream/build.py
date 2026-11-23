@@ -16,13 +16,14 @@ from ..parity import core_event_offset
 from ..patch_coverage import PERSONA_CHAT_OPEN_CAPABILITY, PERSONA_CHAT_TURN_CAPABILITY, RUNNING_WORK_SECTION_CAPABILITY, batch_required_fold_tokens, normalize_fold_entities
 from ..request_control import request_cancelled
 from ..resident_core.read import answer_hydrate
+from ..resident_core.sections import BUILD_ROLE_SECTIONS, section_core_for
 from ..snapshot.build import build_snapshot
 from ..snapshot.receipts import BUILD_ROLE_REUSED
 
 from .build_policy import _defer_demote_build_for_active_turns, _log_snapshot_build
 from .frames import batch_carries_patch_rows, batch_changes_running_work_presence, batch_is_running_work_only, batch_opens_a_chat, batch_turn_roots, delta_batch_frame, heartbeat_frame, patch_batch_frame, persona_chat_turn_frames, running_work_section_frame
 from .fold_variants import fold_variants_frame
-from .vocabulary import BATCH_REASON_DEMOTE, DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _SNAPSHOT_CANCEL_POLL_SECONDS
+from .vocabulary import BATCH_REASON_DEMOTE, DEFAULT_STREAM_CALLER, FRAME_HEARTBEAT, _SNAPSHOT_CANCEL_POLL_SECONDS, logger
 
 __layer__ = "lanes"
 
@@ -291,6 +292,14 @@ def _full_core_batch_frames(
     _defer_for_active_turns(batch, reason=reason, caller=caller)
     if request_cancelled():
         return
+    if reason == BATCH_REASON_DEMOTE:
+        # A demote kind the section table names, with the resident core held at
+        # this batch's base: re-read just those sections (``resident_core.sections``).
+        # MUTATION: drop this arm and test_a_task_activity_batch_re_reads_the_workspace_rows_only reddens.
+        sectioned = _section_rebuilt_frame(batch, base_offset=base_offset, caller=caller)
+        if sectioned is not None:
+            yield sectioned
+            return
 
     job = _SnapshotBuildJob(caller=caller, reason=reason)
     # Keep the watermark at the last APPLIED core — see ``_build_with_liveness``
@@ -349,6 +358,33 @@ def _full_core_batch_frames(
             kinds=batch_event_kinds(batch) if reason == BATCH_REASON_DEMOTE else None,
         )
     yield frame
+
+
+def _section_rebuilt_frame(batch: list[tuple[int, Event]], *, base_offset: int, caller: str) -> dict[str, Any] | None:
+    """The demoted batch's ``delta`` frame over a section-rebuilt core, or ``None``."""
+
+    started = time.monotonic()
+    answer = section_core_for(batch, base_offset=base_offset)
+    if answer is None:
+        return None
+    core, sections, timings = answer
+    frame = delta_batch_frame(batch, snapshot=core)
+    _log_snapshot_build(
+        reason=BATCH_REASON_DEMOTE,
+        waited_ms=int((time.monotonic() - started) * 1000),
+        offset=(frame.get("watermark") or {}).get("event_offset"),
+        events=len(batch),
+        snapshot=core,
+        build_info={"caller": caller, "role": BUILD_ROLE_SECTIONS, "generation": None},
+        kinds=batch_event_kinds(batch),
+    )
+    logger.info(
+        "resident_core sections=%s ms=%s offset=%s",
+        "+".join(sorted(sections)),
+        ",".join(f"{name}:{ms}" for name, ms in sorted(timings.items())) or "-",
+        (frame.get("watermark") or {}).get("event_offset"),
+    )
+    return frame
 
 
 def batch_event_kinds(batch: list[tuple[int, Event]]) -> str:

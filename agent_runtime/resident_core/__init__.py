@@ -6,7 +6,8 @@ CHANGES-IT-COULD-APPLY-IN-PLACE). Module map:
 
 * :mod:`.fold` — one frame's rows applied to a copy of a core (Eternia's fold, ported);
 * :mod:`.holder` — the held core per profile root, its offset, the switch, ``observe``;
-* :mod:`.read` — a one-shot hydrate answered from the held core.
+* :mod:`.read` — a one-shot hydrate answered from the held core;
+* :mod:`.sections` — a demoted batch answered by re-reading only the sections it moves.
 """
 
 from __future__ import annotations
