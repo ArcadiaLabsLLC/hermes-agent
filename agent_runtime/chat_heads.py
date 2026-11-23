@@ -118,6 +118,18 @@ def _derived_owner(session_id: str | None) -> str:
 
 
 def _load_instance(instance_id: str, instance_store: Any) -> Any:
+    """The named owner's live row, else the row it had when it retired, else ``None``.
+
+    A live row always wins. With none, the retirement tombstone
+    (``persona_assignments.retire.retired_instance_row``, the one read-only tombstone read
+    ``chat_open`` and ``persona_chat_move`` already use) still names the head the retired
+    holder's chats live in, so a ``per_profile`` holder's saved chat resolves to its own head
+    and not the process scope (RT-FU-A-REMOVED-INSTANCES-SAVED-CHAT-MOVES-ONTO-A-LIVE-INSTANCE-
+    OF-ITS-AGENT: the move onto a new instance was refused ``unknown_chat_session`` before
+    ``move_chat`` ran). Resolution only: every writer still runs its own owner and retirement
+    checks (a turn on a retired holder stays refused by ``assert_bindable``).
+    """
+
     if not instance_id:
         return None
     try:
@@ -125,7 +137,17 @@ def _load_instance(instance_id: str, instance_store: Any) -> Any:
             from .persona_assignments import PersonaInstanceStore
 
             instance_store = PersonaInstanceStore()
-        return instance_store.get(instance_id)
+        live = instance_store.get(instance_id)
+    except Exception:
+        live = None
+    if live is not None:
+        return live
+    # MUTATION: return None here and the retired per_profile holder's chat move reddens
+    # (``unknown_chat_session``, the store answered is the process scope).
+    try:
+        from .persona_assignments.retire import retired_instance_row
+
+        return retired_instance_row(instance_store, instance_id)
     except Exception:
         return None
 

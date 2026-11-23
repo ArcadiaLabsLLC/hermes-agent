@@ -166,7 +166,7 @@ def profile_heads(tmp_path, monkeypatch):
     return {"base": base, "alice": alice}
 
 
-def _write_chat(home, persona_id: str, session_id: str, text: str) -> None:
+def _write_chat(home, persona_id: str, session_id: str, text: str, *, client_scope: str | None = None) -> None:
     from contextlib import closing
 
     from hermes_state import SessionDB
@@ -175,11 +175,11 @@ def _write_chat(home, persona_id: str, session_id: str, text: str) -> None:
 
     with closing(SessionDB(db_path=home / "state.db")) as db:
         ensure_persona_chat_session(session_db=db, session_id=session_id, persona_id=persona_id,
-                                    title=f"{persona_id} saved chat", required=True)
+                                    title=f"{persona_id} saved chat", required=True, client_scope=client_scope)
         db.append_message(session_id=session_id, role="user", content=text)
 
 
-def _retired_profile_holder(profile_heads) -> str:
+def _retired_profile_holder(profile_heads, *, client_scope: str | None = None) -> str:
     """``dev`` lives on the process head; ``qa``'s ONLY instance holds a chat in ``alice`` and is retired."""
 
     from agent_runtime.chat_session_scope import resolve_instance_chat_scope
@@ -191,7 +191,7 @@ def _retired_profile_holder(profile_heads) -> str:
     holder = store.open_chat(persona_id="qa", persona_instance_id="personainst_qa_agent_1", session_id=PROFILE_CHAT)
     holder.chat_head_home, holder.chat_head_kind = str(profile_heads["alice"]), CHAT_HEAD_KIND_PER_PROFILE
     store.update(holder)
-    _write_chat(profile_heads["alice"], "qa", PROFILE_CHAT, "saved in its own profile")
+    _write_chat(profile_heads["alice"], "qa", PROFILE_CHAT, "saved in its own profile", client_scope=client_scope)
     # The probe: the holder reads and writes on alice's head, and the process store never saw the chat.
     assert resolve_instance_chat_scope(store.get(holder.id)).db_path == profile_heads["alice"] / "state.db"
     from contextlib import closing
@@ -259,3 +259,112 @@ def test_a_retired_holders_chat_in_its_own_profile_stays_in_the_chat_directory(p
     # One page lists the archive once and decodes the tombstone once. Kill-mutation: project the rows
     # with ``retired=None`` in ``list_instance_conversations`` -> red.
     assert (archive_reads["listing"], archive_reads[holder]) == (1, 1)
+
+
+# --- Opening that retired holder's chat moves it onto a live instance of its agent --------------------------
+#
+# Row RT-FU-A-REMOVED-INSTANCES-SAVED-CHAT-MOVES-ONTO-A-LIVE-INSTANCE-OF-ITS-AGENT (seen live 2026-11-22 by
+# w1122d-gonechat: Neko's instance removed by its x, a new Neko placed by a send, the old chat's
+# ``open_chat`` with ``move: true`` answered ``unknown_chat_session``). ``resolve_conversation_chat_scope``
+# named the retired holder from the session id, found no live row and answered the PROCESS scope, where a
+# ``per_profile`` holder's chat is not. Driven through Eternia's entry point, ``runtime.persona.instance.open_chat``.
+
+OWNER_SCOPE, OTHER_SCOPE = "a" * 64, "b" * 64
+TARGET_CHAT = "persona_chat_personainst_qa_agent_2_00000000000c"
+
+
+def _live_profile_instance(profile_heads, persona_id: str, instance_id: str, session_id: str) -> str:
+    """A live instance of ``persona_id`` on the same ``alice`` head, holding a chat of its own."""
+
+    from agent_runtime.models import CHAT_HEAD_KIND_PER_PROFILE
+
+    store = PersonaInstanceStore()
+    placed = store.open_chat(persona_id=persona_id, persona_instance_id=instance_id, session_id=session_id)
+    placed.chat_head_home, placed.chat_head_kind = str(profile_heads["alice"]), CHAT_HEAD_KIND_PER_PROFILE
+    store.update(placed)
+    _write_chat(profile_heads["alice"], persona_id, session_id, "the new instance's own chat")
+    return placed.id
+
+
+def _alice_db(profile_heads):
+    from hermes_state import SessionDB
+
+    return SessionDB(db_path=profile_heads["alice"] / "state.db")
+
+
+def _moved_events() -> list[dict]:
+    import json
+
+    from agent_runtime import paths
+    from agent_runtime.persona_chat_move import CHAT_MOVED_EVENT
+
+    log = paths.store_root() / "events.jsonl"
+    lines = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+    return [e for e in map(json.loads, lines) if e.get("type") == CHAT_MOVED_EVENT]
+
+
+def test_a_retired_holders_chat_in_its_own_profile_moves_onto_a_live_instance_of_its_agent(profile_heads):
+    """Kill-mutation: ``chat_heads._load_instance`` returns ``None`` where it now falls back to
+    ``retired_instance_row`` -> ``unknown_chat_session`` (the process store answered), red."""
+    from contextlib import closing
+
+    from agent_runtime.persona_chat_session import _persona_chat_session_owner
+
+    holder = _retired_profile_holder(profile_heads)
+    target = _live_profile_instance(profile_heads, "qa", "personainst_qa_agent_2", TARGET_CHAT)
+
+    reply = _rpc(OPEN_CHAT_METHOD, {"persona_id": "qa", "persona_instance_id": target,
+                                    "session_id": PROFILE_CHAT, "move": True})
+
+    assert "result" in reply, reply
+    assert (reply["result"]["persona_instance_id"], reply["result"]["moved_from_persona_instance_id"]) == (
+        target, holder)
+    assert PersonaInstanceStore().get(target).default_chat_session_id == PROFILE_CHAT
+    with closing(_alice_db(profile_heads)) as db:
+        assert [m["content"] for m in db.get_messages(PROFILE_CHAT)] == ["saved in its own profile"]
+        assert _persona_chat_session_owner(db, PROFILE_CHAT) == target
+    moved = _moved_events()
+    assert [(e["payload"]["session_id"], e["payload"]["from_persona_instance_id"],
+             e["payload"]["to_persona_instance_id"]) for e in moved] == [(PROFILE_CHAT, holder, target)]
+
+
+def test_a_retired_holders_chat_in_its_own_profile_never_moves_to_a_different_agent(profile_heads):
+    """With the holder's own store now found, the same-agent check runs on it. Kill-mutation:
+    ``personas_equal(owner_persona, persona_id)`` in ``chat_open`` answered ``True`` -> the move goes through, red."""
+    from contextlib import closing
+
+    from agent_runtime.persona_chat_session import _persona_chat_session_owner
+
+    holder = _retired_profile_holder(profile_heads)
+    other = _live_profile_instance(profile_heads, "qb", "personainst_qb_agent_1",
+                                   "persona_chat_personainst_qb_agent_1_00000000000d")
+
+    for persona in ("qa", "qb"):
+        reply = _rpc(OPEN_CHAT_METHOD, {"persona_id": persona, "persona_instance_id": other,
+                                        "session_id": PROFILE_CHAT, "move": True})
+        assert reply["error"]["data"]["reason"] == "foreign_chat_session", reply
+    assert _moved_events() == []
+    with closing(_alice_db(profile_heads)) as db:
+        assert _persona_chat_session_owner(db, PROFILE_CHAT) == holder
+
+
+def test_a_retired_holders_chat_in_its_own_profile_never_moves_for_another_account(profile_heads):
+    """With the holder's own store now found, the account check runs on it. Kill-mutation: drop
+    ``require_session_owner`` in ``chat_open`` -> the other account's move goes through, red."""
+    from contextlib import closing
+
+    from agent_runtime.persona_chat_session import _persona_chat_session_owner
+
+    holder = _retired_profile_holder(profile_heads, client_scope=OWNER_SCOPE)
+    target = _live_profile_instance(profile_heads, "qa", "personainst_qa_agent_2", TARGET_CHAT)
+
+    reply = _rpc(OPEN_CHAT_METHOD, {"persona_id": "qa", "persona_instance_id": target, "session_id": PROFILE_CHAT,
+                                    "move": True, "client_scope": OTHER_SCOPE})
+
+    assert reply["error"]["data"]["reason"] == "conversation_owner_changed", reply
+    assert _moved_events() == []
+    with closing(_alice_db(profile_heads)) as db:
+        assert _persona_chat_session_owner(db, PROFILE_CHAT) == holder
+    owned = _rpc(OPEN_CHAT_METHOD, {"persona_id": "qa", "persona_instance_id": target, "session_id": PROFILE_CHAT,
+                                    "move": True, "client_scope": OWNER_SCOPE})
+    assert "result" in owned, owned
