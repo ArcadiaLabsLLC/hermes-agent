@@ -68,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         indent=2, sort_keys=True,
     ) + "\n"
     if args.write:
-        PLUGIN_USES_PATH.write_text(body, encoding="utf-8")
+        PLUGIN_USES_PATH.write_text(body, encoding="utf-8", newline="\n")
         print(f"wrote {PLUGIN_USES_PATH.relative_to(REPO_ROOT)} ({len(live)} live)", file=sys.stderr)
     else:
         sys.stdout.write(body)
