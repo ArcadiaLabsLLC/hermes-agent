@@ -754,3 +754,7 @@ Process-dock product-half recurrence, 2026-10-08 GenUI qualification: `tests/gat
 ## Filed on arrival — 2026-11-21 (lane w1118a-switch: a prepush overrun)
 
 ## Filed on arrival — 2026-11-22 (wave-start sweep w1122b-sweep: the archive design sweep)
+
+## Filed on arrival — 2026-11-22 (lane w1122g-promptobs: a duplicate-body red on main seen at prepush)
+
+- **`FH-THE-DUPLICATE-HELPER-GATE-IS-RED-ON-MAIN-OVER-THE-PHONE-WHEEL-IMPORT-MEMO` — Every lane's push check passes its duplicate-code gate again, instead of failing on a copy it did not write** · group: prepush · from: lane w1122g-promptobs prepush 2026-11-22 · seen 2026-11-22 (hermes `bash scripts/prepush.sh`, census step, branch on 5f5e8ad78323): `tests/agent_runtime/test_duplicate_helper_bodies.py::test_no_new_duplicate_anywhere_in_the_fork` red, NEW `agent_runtime/workspace_slots.py::load_document_from == tests/_downstream/import_rows_memo.py::_read`; the lane touched neither file, and `tests/_downstream/import_rows_memo.py` arrived in c0efe1803262 (FH-PREPUSH-TOUCHED-OVER-BUDGET-ON-THE-EMBEDDED-PHONE-SESSION-FILE) · guess: fold the memo's `_read` onto the one reader, or ledger the pair if a test helper may not import the runtime · done when: the gate is green on main · READY 2026-11-22
