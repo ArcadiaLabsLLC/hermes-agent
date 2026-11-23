@@ -49,6 +49,7 @@ __layer__ = "stores"
 
 __all__ = [
     "DIFFERENT_QUESTION_CHECKS",
+    "STALE_PAINTABLE_REASONS",
     "_judge_persisted_pair",
     "_persisted_entries",
     "_read_pair",
@@ -281,6 +282,19 @@ DIFFERENT_QUESTION_CHECKS: tuple[tuple[str, Callable[[dict, str | None], bool]],
     (DEMOTE_RUNTIME_ROOT_MISMATCH, _root_differs),
     (DEMOTE_HOME_MISMATCH, _home_differs),
 )
+
+
+#: The refusals whose saved core may still be PAINTED, labeled stale, while the
+#: rebuild runs: the same store and the same schema, read by other code or after
+#: the store moved. A contract (schema) change, another root or home, or bytes
+#: the sidecar does not describe are never painted (row
+#: RT-FU-ETERNIA-SHOWS-THE-SAVED-AGENT-LIST-AT-LAUNCH-EVEN-AFTER-AN-UPDATE).
+STALE_PAINTABLE_REASONS = frozenset({
+    DEMOTE_BUILD_STAMP_UNKNOWN,
+    DEMOTE_BUILD_STAMP_MISMATCH,
+    DEMOTE_FINGERPRINT_UNAVAILABLE,
+    DEMOTE_FINGERPRINT_MISMATCH,
+})
 
 
 # --------------------------------------------------------------------------- #

@@ -289,7 +289,10 @@ class StreamSession:
         # 2026-08-18) scans that stdout for a ``type == "hydrate"`` line and applies
         # whatever it finds through ``applyForcedSnapshot``, i.e. PAST its own
         # sequence gate. Refusing here is what keeps "force a refresh" from meaning
-        # "re-paint the projection you were already unhappy with".
+        # "re-paint the projection you were already unhappy with". The one
+        # exception is the launch window with the resident core on: a one-shot
+        # whose rebuild is in flight is answered from the saved core by
+        # ``resident_core.read.answer_hydrate`` (the boot job's ``one_shot``).
         stale_core = (
             cache_lane.take_stale_first_core(caller=self.caller)
             if self.wants_stale_first and not _is_one_shot(self.max_frames)
@@ -326,7 +329,9 @@ class StreamSession:
         # it because its watermark comes from the snapshot itself and the tail below
         # resumes from exactly that offset). A job without it would make every boot
         # wait for the prewarm and THEN pay a second full build.
-        boot_job = _SnapshotBuildJob(caller=self.caller, accept_inflight=True, reason="hydrate")
+        boot_job = _SnapshotBuildJob(
+            caller=self.caller, accept_inflight=True, reason="hydrate", one_shot=_is_one_shot(self.max_frames)
+        )
         # These liveness frames are NOT counted toward ``emitted``, and this is the
         # deliberate half of the ``max_frames`` decision. They are emitted while the
         # FIRST content frame is still being built, so counting them would let a

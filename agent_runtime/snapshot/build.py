@@ -46,6 +46,7 @@ __all__ = [
     "_release_coalescer",
     "_serve_cached",
     "_shadow_build",
+    "build_in_flight",
     "build_snapshot",
 ]
 
@@ -179,6 +180,14 @@ def _shadow_build(caller: str) -> dict:
         worker_pid=execution.worker_pid,
     )
     return execution.core
+
+
+def build_in_flight() -> bool:
+    """Whether a default-store build is running now: the rebuild a saved core
+    painted at launch stands in front of (``resident_core.read``)."""
+
+    with _BUILD_COALESCE:
+        return bool(_build_coalesce_state["running"])
 
 
 def _join_or_lead(accept_inflight: bool, caller: str, build_info: dict | None) -> tuple[dict | None, int]:

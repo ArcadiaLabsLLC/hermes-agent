@@ -31,6 +31,7 @@ __all__ = [
     "producer_live",
     "resident_core_enabled",
     "root_held",
+    "seed_saved",
     "wait_through",
 ]
 
@@ -74,6 +75,9 @@ class ResidentCore:
     offset: int
     source: str
     seeded_at: float
+    #: The saved core a launch paints while its rebuild runs (:func:`seed_saved`):
+    #: answered to a one-shot only, never folded, never waited for.
+    stale: bool = False
 
 
 class _Holder:
@@ -84,6 +88,14 @@ class _Holder:
     def held(self, root: str) -> ResidentCore | None:
         with self._changed:
             return self._by_root.get(root)
+
+    def put_if_absent(self, root: str, resident: ResidentCore) -> bool:
+        with self._changed:
+            if root in self._by_root:
+                return False
+            self._by_root[root] = resident
+            self._changed.notify_all()
+            return True
 
     def put(self, root: str, resident: ResidentCore | None) -> None:
         with self._changed:
@@ -100,7 +112,9 @@ class _Holder:
         with self._changed:
             while True:
                 resident = self._by_root.get(root)
-                if resident is not None and resident.offset >= floor:
+                # MUTATION: drop ``not resident.stale`` and
+                # test_a_saved_seed_never_answers_a_wait_for_the_log_end_and_a_full_core_replaces_it reddens.
+                if resident is not None and not resident.stale and resident.offset >= floor:
                     return resident
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -144,6 +158,26 @@ def drop(reason: str) -> None:
     _HOLDER.put(root, None)
     if had is not None:
         logger.info("resident_core drop reason=%s offset=%d", reason, had.offset)
+
+
+def seed_saved(core: dict[str, Any]) -> bool:
+    """Hold the launch's saved core, stale, unless a core is already held.
+
+    Only into an EMPTY slot: a full core the hub fanned out meanwhile is
+    authority, and a saved core must never overwrite it.
+    """
+
+    parity = core.get("parity") if isinstance(core.get("parity"), dict) else {}
+    watermark = parity.get("watermark") if isinstance(parity.get("watermark"), dict) else {}
+    offset = watermark.get("event_offset")
+    resident = ResidentCore(
+        core=core,
+        offset=int(offset) if isinstance(offset, int) and not isinstance(offset, bool) else -1,
+        source="saved",
+        seeded_at=time.monotonic(),
+        stale=True,
+    )
+    return _HOLDER.put_if_absent(_root_key(), resident)
 
 
 def _frame_offset(frame: dict[str, Any]) -> int | None:
@@ -263,7 +297,8 @@ def _observe_sequenced(frame: dict[str, Any]) -> None:
         return  # a heartbeat, or a frame that moves no position
     root = _root_key()
     held_core = _HOLDER.held(root)
-    if held_core is None:
+    if held_core is None or held_core.stale:
+        # A saved seed is replaced by the next full core, never chained from.
         return
     offset = _frame_offset(frame)
     base = frame.get("base_offset")

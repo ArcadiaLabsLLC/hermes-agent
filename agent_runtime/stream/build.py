@@ -69,6 +69,7 @@ class _SnapshotBuildJob:
         caller: str = DEFAULT_STREAM_CALLER,
         accept_inflight: bool = False,
         reason: str | None = None,
+        one_shot: bool = False,
     ) -> None:
         #: Whether this job may RIDE a build that is already running rather than
         #: waiting for the next one. Load-bearing for exactly one caller and
@@ -82,6 +83,10 @@ class _SnapshotBuildJob:
         #: ``reason=hydrate`` and only a second ``role=led`` line per boot would
         #: have shown it.
         self.accept_inflight = bool(accept_inflight)
+        #: A ``--max-frames 1`` hydrate: answered with the launch's saved core
+        #: while its rebuild runs (``resident_core.read``), since it has no
+        #: second frame to replace a stale one with but the hub stream does.
+        self.one_shot = bool(one_shot)
         self.done = threading.Event()
         self.snapshot: dict[str, Any] | None = None
         self.error: BaseException | None = None
@@ -108,7 +113,9 @@ class _SnapshotBuildJob:
             # no build, and no ride on one (``resident_core.read``).
             # MUTATION: drop this consult and test_a_one_shot_at_the_log_end_is_the_resident_core_and_no_build reddens.
             resident = (
-                answer_hydrate(caller=str(self.build_info.get("caller")), build_info=self.build_info)
+                answer_hydrate(
+                    caller=str(self.build_info.get("caller")), build_info=self.build_info, one_shot=self.one_shot
+                )
                 if self.accept_inflight
                 else None
             )

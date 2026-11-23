@@ -29,7 +29,7 @@ from agent_runtime.core_cache.models import (
 from agent_runtime.core_cache.walk import _stat_entry
 from agent_runtime.core_cache.fingerprint import build_input_fingerprint
 from agent_runtime.core_cache.generations import _live_generation_dir, pointer_path
-from agent_runtime.core_cache.read import _judge_persisted_pair, _read_pair, label_core
+from agent_runtime.core_cache.read import STALE_PAINTABLE_REASONS, _judge_persisted_pair, _read_pair, label_core
 
 __layer__ = "lanes"
 
@@ -392,10 +392,13 @@ def take_stale_first_core(*, caller: str) -> dict | None:
     # boot, so on the ordinary shape it is the one that pays for the walk and
     # every consult behind it is answered for free.
     read = _armed_window_read()
-    if read.core is None or read.matched:
-        # Nothing to paint, or the core MATCHES — in which case the ordinary
+    # MUTATION: drop the ``STALE_PAINTABLE_REASONS`` clause and
+    # test_a_schema_change_paints_no_saved_core reddens.
+    if read.core is None or read.matched or read.reason not in STALE_PAINTABLE_REASONS:
+        # Nothing to paint; or the core MATCHES — in which case the ordinary
         # cache-hit path above will serve it authoritative and painting a stale
-        # copy first would be a lie in the pessimistic direction.
+        # copy first would be a lie in the pessimistic direction; or it answers
+        # another schema, root or home, which no label makes a projection of this one.
         return None
     logger.info(
         "snapshot_core_cache core_source=%s stale=true caller=%s reason=%s",
