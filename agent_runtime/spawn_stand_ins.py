@@ -144,14 +144,22 @@ def _unknown_version(mod, *_a, **_k):
 
 #: The table: every function in a phone-kept module that starts a process (the profile gate's
 #: ``subprocess_call`` rows), grouped by module.
+def _current_claude_code_release(mod, *_a, **_k) -> str:
+    from agent_runtime.claude_code_release import current_claude_code_version
+
+    return current_claude_code_version(mod._CLAUDE_CODE_VERSION_FALLBACK)
+
+
 def _extraction_failed(_mod, *_a, **_k) -> dict:
     return {"error": "profile extraction failed: the phone cannot start a process"}
 
 
 SPAWN_STAND_INS: tuple[StandIn, ...] = (
     StandIn("agent_runtime.workspace_slots_probe", "_run"),
-    StandIn("agent.anthropic_adapter", "_detect_claude_code_version",
-            answer=lambda mod, *_a, **_k: mod._CLAUDE_CODE_VERSION_FALLBACK),
+    # No ``claude --version`` to ask: the current published release (agent_runtime/claude_code_release.py),
+    # not upstream's static fallback, which Anthropic refuses for newer models
+    # (RT-FU-A-CLAUDE-SUBSCRIPTION-TURN-ON-A-PHONE-REPORTS-A-CURRENT-CLAUDE-CODE-VERSION).
+    StandIn("agent.anthropic_adapter", "_detect_claude_code_version", answer=_current_claude_code_release),
     *_stand("agent.anthropic_credentials", "_find_claude_code_keychain_item", "_read_claude_code_keychain_payload",
             "_mirror_claude_code_credentials_to_keychain", returns=None),
     StandIn("agent.anthropic_credentials", "run_oauth_setup_token", error=FileNotFoundError),
