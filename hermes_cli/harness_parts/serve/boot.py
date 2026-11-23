@@ -422,6 +422,12 @@ def _provider_warm_steps() -> None:
     except Exception:
         pass
     try:
+        from agent_runtime.plugin_uses import admit_for_toolsets
+
+        home_toolsets = _home_agent_toolsets()
+        # Admitted before ``model_tools``' import discovers, so the one sweep
+        # loads Home's agent's plugins rather than a second sweep adding them.
+        admit_for_toolsets(home_toolsets)
         from model_tools import get_tool_definitions
 
         # Warms the shared parts (tool module imports, registry build, config
@@ -431,7 +437,7 @@ def _provider_warm_steps() -> None:
         # RT-FU-THE-ENGINE-LOADS-EVERY-PLUGIN-AT-BOOT-FOR-ITS-FIRST-TURN-WARM-UP).
         # MUTATION: warm with every toolset again and test_plugin_uses'
         # "the serve's warm-up loads only Home's agent's plugins" reddens.
-        get_tool_definitions(enabled_toolsets=_home_agent_toolsets(), quiet_mode=True)
+        get_tool_definitions(enabled_toolsets=home_toolsets, quiet_mode=True)
     except Exception:
         pass
     try:
