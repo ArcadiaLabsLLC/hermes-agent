@@ -142,6 +142,8 @@ def _trace_registrations(
     ``on_load(manager, manifest, grown state names)`` after each load.
     """
 
+    from contextlib import contextmanager
+
     from hermes_cli import plugins as plugin_mod
     from hermes_cli.plugins_context import PluginContext
 
@@ -157,18 +159,17 @@ def _trace_registrations(
             return _method(self, *args, **kwargs)
 
         setattr(PluginContext, name, traced)
-    load = plugin_mod.PluginManager._load_plugin
+    @contextmanager
+    def observe(manager, manifest):
+        before = _manager_state_sizes(manager)
+        yield
+        after = _manager_state_sizes(manager)
+        on_load(manager, manifest, {name for name in after if after[name] != before.get(name)} - BOOKKEEPING_STATE)
 
-    def traced_load(self, manifest):
-        before = _manager_state_sizes(self)
-        load(self, manifest)
-        after = _manager_state_sizes(self)
-        on_load(self, manifest, {name for name in after if after[name] != before.get(name)} - BOOKKEEPING_STATE)
-
-    plugin_mod.PluginManager._load_plugin = traced_load
+    plugin_mod.set_plugin_load_observer(observe)
 
     def untrace() -> None:
-        plugin_mod.PluginManager._load_plugin = load
+        plugin_mod.set_plugin_load_observer(None)
         for name, method in originals.items():
             setattr(PluginContext, name, method)
 

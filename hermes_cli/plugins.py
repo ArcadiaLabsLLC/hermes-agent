@@ -532,6 +532,14 @@ class PluginManager(PluginLoaderMixin, PluginDispatchMixin, PluginLedgerMixin):
             self._refresh_secret_sources_after_discovery()
         self._notify_plugin_loaded(loaded_before)
 
+    def _load_plugin(self, manifest: PluginManifest) -> None:
+        """Fork seam (agent_runtime.plugin_uses): one load inside the process's load observer, if any."""
+        if _plugin_load_observer is None:
+            super()._load_plugin(manifest)
+            return
+        with _plugin_load_observer(self, manifest):
+            super()._load_plugin(manifest)
+
     def _discover_and_load_inner(self) -> None:
         """The actual discovery sweep — see :meth:`discover_and_load`."""
         _started = time.monotonic()
@@ -744,6 +752,16 @@ _plugin_managers_by_home: dict[Path, PluginManager] = {}
 _plugin_load_filter: Optional[Callable[[PluginManifest], bool]] = None
 # The keys a ``load_admitted`` sweep leaves as they are (its manager already holds them).
 _ADMIT_SKIP: contextvars.ContextVar[frozenset] = contextvars.ContextVar("plugin_admit_skip", default=frozenset())
+
+
+# Fork seam (agent_runtime.plugin_uses): a context manager factory ``(manager, manifest)`` every plugin
+# load runs inside, so a process can record what each load registers.
+_plugin_load_observer: Optional[Callable[[Any, PluginManifest], Any]] = None
+
+
+def set_plugin_load_observer(observe: Optional[Callable[[Any, PluginManifest], Any]]) -> None:
+    global _plugin_load_observer
+    _plugin_load_observer = observe
 
 
 def set_plugin_load_filter(admit: Optional[Callable[[PluginManifest], bool]]) -> None:

@@ -30,7 +30,9 @@ Lane w1123a-plugins (2026-11-23), red recorded, each alone, restored:
 * the serve's warm-up back on ``get_tool_definitions(quiet_mode=True)`` ->
   "the serve's warm-up loads only Home's agent's plugins" red;
 * ``PluginManager._gate_manifest`` without the ``_ADMIT_SKIP`` check -> "a
-  newly needed plugin is loaded once, beside the ones already loaded" red.
+  newly needed plugin is loaded once, beside the ones already loaded" red;
+* ``PluginManager._load_plugin`` never entering the load observer -> "a plugin
+  outside the committed record is recorded on first load, then held" red.
 """
 
 from __future__ import annotations
