@@ -172,6 +172,16 @@ logger = logging.getLogger(__name__)
 #: anything the warm read — the receipt says how long, about which id, and stops.
 PREWARM_DONE_RECEIPT = "persona_prewarm done persona=%s elapsed_ms=%d"
 
+#: A warm stood aside for a live chat turn before it started, and for how long
+#: (w1122e-homeslow-rt). One line per warm that waited; a warm that found no turn
+#: logs nothing here. Timings only, like the done line.
+PREWARM_DEFERRED_RECEIPT = "persona_prewarm deferred persona=%s waited_ms=%d"
+
+#: How often a deferred warm re-reads the turn counters even if no idle signal
+#: came: the signal is delivered outside the counter lock, so a turn that ended
+#: between the read and the wait is caught within this bound, never missed.
+TURN_IDLE_RECHECK_SECONDS = 0.5
+
 #: A warm was queued for this persona by THIS call.
 PREWARM_STATE_STARTED = "started"
 
@@ -284,6 +294,40 @@ _queue: queue.Queue[Any] = queue.Queue()
 _lock = threading.Lock()
 _pending: set[str] = set()
 _worker: threading.Thread | None = None
+#: Set by the turn authority's idle boundary (``turn_activity.notify_turn_idle``).
+_turns_idle = threading.Event()
+
+
+def _live_turn() -> bool:
+    """Is a chat turn accepted or admitted in this process right now?
+
+    The same authority the chat-actor prewarm and the snapshot demote read
+    (``turn_activity``). A warm is pure CPU on the serve's interpreter: measured
+    2026-11-22 on the owner's box, a pass started a second after a send ran
+    23.9 -> 37.3 s beside the turn (3.6-3.8 s per persona), and the turn's
+    ``write_ahead -> agent_ready`` took 8,071 ms against 0.7-1.5 s for a cold
+    construction with nothing beside it. A warm serves a FUTURE drop; the turn
+    is the operator waiting now.
+    """
+
+    from .turn_activity import chat_turns_accepted, chat_turns_admitted
+
+    return bool(chat_turns_accepted() or chat_turns_admitted())
+
+
+def _wait_out_live_turns() -> int:
+    """Block until no chat turn is accepted or admitted; return the ms waited (0 if none was)."""
+
+    if not _live_turn():
+        return 0
+    started = time.monotonic()
+    while True:
+        _turns_idle.clear()
+        # Re-read AFTER the clear: an idle signal that landed before it is not lost.
+        if not _live_turn():
+            break
+        _turns_idle.wait(TURN_IDLE_RECHECK_SECONDS)
+    return int(max(0.0, time.monotonic() - started) * 1000)
 
 
 def _drain() -> None:
@@ -298,9 +342,19 @@ def _drain() -> None:
 
     while True:
         persona_id, persona = _queue.get()
-        # Started AFTER the get, so the receipt measures the warm and not the
-        # idle wait for work — a queue that sat empty for a minute must not
-        # report a minute-long warm.
+        # A live chat turn goes first: the warm waits until no turn is accepted
+        # or admitted, then runs. Inside the try below would be wrong -- the
+        # wait is not the warm, and a raise from it must not kill the worker.
+        try:
+            waited_ms = _wait_out_live_turns()
+        except Exception:
+            waited_ms = 0
+            logger.debug("persona prewarm could not read the turn counters", exc_info=True)
+        if waited_ms:
+            logger.info(PREWARM_DEFERRED_RECEIPT, persona_id, waited_ms)
+        # Started AFTER the get and the turn wait, so the receipt measures the
+        # warm and not the idle wait for work — a queue that sat empty for a
+        # minute must not report a minute-long warm.
         started = time.monotonic()
         try:
             warm_persona_memos(persona)
@@ -340,6 +394,11 @@ def _ensure_worker() -> None:
         target=_drain, name="persona-prewarm", daemon=True
     )
     _worker.start()
+
+
+from .turn_activity import register_turn_idle_listener  # noqa: E402 -- after the event it sets
+
+register_turn_idle_listener(_turns_idle.set)
 
 
 # ── the service entry point ──────────────────────────────────────────────────

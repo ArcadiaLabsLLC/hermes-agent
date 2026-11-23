@@ -599,3 +599,99 @@ def test_the_warm_fills_the_exact_toolset_key_the_create_reads(
         "the create-shaped resolve never consulted the toolset-name cache — "
         "this gate would be vacuous; find where the resolve reads names"
     )
+
+
+# -- a live chat turn goes first (w1122e-homeslow-rt) -------------------------
+#
+# Covers ``persona_prewarm._drain`` / ``_wait_out_live_turns`` / ``_live_turn`` and the
+# idle-listener registration. Owner's box 2026-11-22: a warm pass started a second after
+# a send ran beside the turn and its ``write_ahead -> agent_ready`` took 8,071 ms.
+
+
+def _record_warms(patch, started: list):
+    def _warm(persona):
+        started.append(time.monotonic())
+
+    patch.setattr(persona_prewarm, "warm_persona_memos", _warm)
+
+
+def _queue_warm(persona_id: str) -> None:
+    with persona_prewarm._lock:
+        persona_prewarm._pending.add(persona_id)
+        persona_prewarm._ensure_worker()
+        persona_prewarm._queue.put((persona_id, object()))
+
+
+def test_a_warm_queued_during_an_admitted_turn_waits_for_the_turn_to_end(caplog):
+    """MUTATION: ``waited_ms = 0`` in place of ``_wait_out_live_turns()`` in ``_drain`` -> red
+    (the warm runs while the turn is admitted). Recorded red 2026-11-22."""
+
+    import logging
+
+    from agent_runtime import turn_activity
+
+    started: list[float] = []
+    with pytest.MonkeyPatch.context() as patch:
+        _record_warms(patch, started)
+        with caplog.at_level(logging.INFO, logger=persona_prewarm.__name__):
+            with turn_activity.admitted_turn("t-live"):
+                _queue_warm("yield_admitted")
+                time.sleep(0.4)
+                assert started == [], "the warm ran beside an admitted turn"
+                ended = time.monotonic()
+            _drained()
+    assert len(started) == 1 and started[0] >= ended
+    deferred = [r.getMessage() for r in caplog.records if r.getMessage().startswith("persona_prewarm deferred ")]
+    assert len(deferred) == 1 and deferred[0].startswith("persona_prewarm deferred persona=yield_admitted waited_ms=")
+
+
+def test_a_warm_waits_for_an_accepted_turn_that_has_not_anchored_yet():
+    """MUTATION: ``_live_turn`` reads only ``chat_turns_admitted()`` -> red (the accept-to-anchor
+    window, where the serve has the turn but no handler yet, is unguarded). Recorded red 2026-11-22."""
+
+    from agent_runtime import turn_activity
+
+    started: list[float] = []
+    with pytest.MonkeyPatch.context() as patch:
+        _record_warms(patch, started)
+        accepted = turn_activity.AcceptedTurn("req-accepted")
+        try:
+            _queue_warm("yield_accepted")
+            time.sleep(0.4)
+            assert started == [], "the warm ran beside an accepted turn"
+        finally:
+            accepted.release()
+        _drained()
+    assert len(started) == 1
+
+
+def test_the_turn_s_idle_boundary_wakes_a_deferred_warm_without_the_recheck():
+    """MUTATION: drop ``register_turn_idle_listener(_turns_idle.set)`` -> red (the warm sleeps the
+    whole 30 s recheck and ``_drained`` gives up at 5 s). Recorded red 2026-11-22."""
+
+    from agent_runtime import turn_activity
+
+    started: list[float] = []
+    with pytest.MonkeyPatch.context() as patch:
+        _record_warms(patch, started)
+        patch.setattr(persona_prewarm, "TURN_IDLE_RECHECK_SECONDS", 30.0)
+        with turn_activity.admitted_turn("t-idle"):
+            _queue_warm("yield_idle_signal")
+            time.sleep(0.3)  # the worker is inside its wait now
+        _drained(timeout=5.0)
+    assert len(started) == 1
+
+
+def test_a_warm_with_no_turn_in_flight_starts_at_once_and_logs_no_deferral(caplog):
+    """Positive control for the three above: the same queue with no turn runs straight through."""
+
+    import logging
+
+    started: list[float] = []
+    with pytest.MonkeyPatch.context() as patch:
+        _record_warms(patch, started)
+        with caplog.at_level(logging.INFO, logger=persona_prewarm.__name__):
+            _queue_warm("no_turn")
+            _drained()
+    assert len(started) == 1
+    assert not [r for r in caplog.records if r.getMessage().startswith("persona_prewarm deferred ")]
