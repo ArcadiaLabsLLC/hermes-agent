@@ -208,8 +208,9 @@ def test_the_bundled_desktop_profile_stands_no_placeholder_in_since_faster_whisp
 
 
 def test_the_declared_dynamic_imports_are_the_registries_own_tables():
-    """``DYNAMIC_IMPORTS`` is a copy of two tables the AST walk cannot read; it is held to the
+    """``DYNAMIC_IMPORTS`` is a copy of three tables the AST walk cannot read; it is held to the
     tables themselves, asked at run time, in both directions."""
+    import agent.transports as transports
     from agent.secret_sources import registry as secret_registry
     from hermes_cli import plugins as plugin_context
     from scripts.bundle_profile_closure import DYNAMIC_IMPORTS
@@ -218,7 +219,9 @@ def test_the_declared_dynamic_imports_are_the_registries_own_tables():
     assert set(DYNAMIC_IMPORTS["hermes_cli.plugins"]) == (
         {row[2] for row in registrars} | {row[3].partition(":")[0] for row in registrars})
     assert set(DYNAMIC_IMPORTS["agent.secret_sources.registry"]) == {row[0] for row in secret_registry._BUILTIN_SOURCES}
-    assert set(DYNAMIC_IMPORTS) == {"hermes_cli.plugins", "agent.secret_sources.registry"}
+    assert set(DYNAMIC_IMPORTS["agent.transports"]) == {
+        f"agent.transports.{name}" for name in transports._TRANSPORT_MODULES}
+    assert set(DYNAMIC_IMPORTS) == {"hermes_cli.plugins", "agent.secret_sources.registry", "agent.transports"}
 
 
 def test_every_facade_is_read_from_its_own_table():

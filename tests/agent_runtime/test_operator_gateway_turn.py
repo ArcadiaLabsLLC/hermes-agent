@@ -459,3 +459,32 @@ def test_a_second_profiles_helper_turn_and_a_queued_follow_up_run_under_their_ow
     assert (None, "launch-value") in reads, reads
     assert not [value for _profile, value in reads if value == "UnscopedSecretError"], reads
     assert ("sw75helper", "launch-value") not in reads, reads
+
+
+# ── an agent whose transport this build lacks (RT-FU-A-PHONE-BUNDLE-SHIPS-EVERY-PROVIDER-TRANSPORT) ──
+
+
+def test_an_agent_whose_transport_this_build_lacks_is_refused_before_a_token(monkeypatch):
+    # On the owner's phone the bundle had no anthropic transport: every Claude turn died later on
+    # ``None.build_kwargs``, retried three times as an unknown failure. Refused here, typed, the console
+    # reads ``runtime_dependency_missing``. Positive controls: a shipped transport and a mode no in-tree
+    # transport builds both pass.
+    from types import SimpleNamespace
+
+    import agent.transports as transports
+    import pytest
+
+    from agent_runtime.operator_gateway_turn import refuse_an_unshipped_transport
+    from agent_runtime.provider_dependency_error import ProviderDependencyError
+
+    claude = SimpleNamespace(api_mode="anthropic_messages", provider="anthropic", model="claude-opus-5-5")
+    monkeypatch.setattr(transports, "get_transport", lambda mode: None)
+    with pytest.raises(ProviderDependencyError) as refused:
+        refuse_an_unshipped_transport(claude)
+    assert refused.value.reason == "runtime_dependency_missing"
+    assert refused.value.provider == "anthropic" and refused.value.model == "claude-opus-5-5"
+    assert "anthropic_messages" in refused.value.repair_hint
+
+    refuse_an_unshipped_transport(SimpleNamespace(api_mode="codex_app_server", provider="openai-codex"))
+    monkeypatch.setattr(transports, "get_transport", lambda mode: object())
+    refuse_an_unshipped_transport(claude)

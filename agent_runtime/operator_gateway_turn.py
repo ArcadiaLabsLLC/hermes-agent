@@ -145,12 +145,56 @@ def construct(sid: str) -> Any:
     try:
         with persona_profile_context(execution.binding, runtime_root=execution.request.runtime_root):
             agent = execution.construct_agent()
+        try:
+            refuse_an_unshipped_transport(agent)
+        except BaseException:
+            with contextlib.suppress(Exception):
+                agent.close()  # built, never handed to the gateway: nothing else will close it
+            raise
     except BaseException as exc:
         build.error = exc
         raise
     _install_door(agent, sid)
     build.agent = agent
     return agent
+
+
+#: The api_modes whose requests an in-tree transport builds (``agent.transports._TRANSPORT_MODULES``).
+_TRANSPORT_BACKED_MODES = frozenset({"anthropic_messages", "codex_responses", "chat_completions", "bedrock_converse"})
+
+
+def refuse_an_unshipped_transport(agent: Any) -> None:
+    """Refuse, typed and before any token, an agent whose api_mode has no transport in this build.
+
+    The registry answers None for a mode whose module did not import (``agent.transports.get_transport``),
+    and agent construction accepts the mode unchecked, so the turn died later on ``None.build_kwargs`` and
+    was retried three times as an unknown failure (RT-FU-A-PHONE-BUNDLE-SHIPS-EVERY-PROVIDER-TRANSPORT,
+    every Claude turn on the owner's phone). The bundle now ships every transport a phone serves; this is
+    the guard for a build that does not, read by the console as ``runtime_dependency_missing``.
+    MUTATION: return at the top and test_operator_gateway_turn's "an agent whose transport this build
+    lacks is refused before a token" reddens.
+    """
+
+    mode = str(getattr(agent, "api_mode", "") or "")
+    if mode not in _TRANSPORT_BACKED_MODES:
+        return
+    from agent.transports import get_transport
+
+    if get_transport(mode) is not None:
+        return
+    from types import SimpleNamespace
+
+    from agent_runtime.provider_dependency_error import ProviderDependencyError
+
+    provider = str(getattr(agent, "provider", "") or "")
+    summary = (f"This build of the agent engine cannot send {mode} requests (no transport for it is "
+               f"installed), so {provider or 'this provider'}'s models cannot run here. Choose a model from "
+               f"another provider, or update Eternia.")
+    raise ProviderDependencyError(
+        f"Harness provider dependency preflight failed before token spend: no transport for {mode}",
+        persona=SimpleNamespace(provider=provider or None, model=getattr(agent, "model", None)),
+        issues=[{"kind": "runtime_dependency_missing", "package": f"agent.transports ({mode})", "summary": summary}],
+    )
 
 
 def pin_session(session: dict | None) -> None:

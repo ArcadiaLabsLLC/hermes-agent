@@ -79,7 +79,10 @@ _SKIP_TOP_DIRS = {"web", "website", "apps", "ui-tui"}
 #: Imports a registry makes BY NAME, from a table the AST walk cannot read: importer -> targets.
 #: The plugin context's ``register_<kind>_provider`` methods import their registry and base class
 #: (``hermes_cli.plugins._SCOPED_PROVIDER_REGISTRARS``); the secret-source registry imports its
-#: bundled sources (``agent.secret_sources.registry._BUILTIN_SOURCES``). A kept importer keeps its
+#: bundled sources (``agent.secret_sources.registry._BUILTIN_SOURCES``); the transport registry imports
+#: each provider dialect's transport by name (``agent.transports._TRANSPORT_MODULES``) — left out, a
+#: phone shipped no ``agent.transports.anthropic`` and every Claude turn died on ``None.build_kwargs``
+#: (RT-FU-A-PHONE-BUNDLE-SHIPS-EVERY-PROVIDER-TRANSPORT). A kept importer keeps its
 #: targets — lazy edges, so a switched-off target is recorded like any lazy import into one.
 #: ``tests/scripts/test_bundle_profile_closure.py`` holds this to the tables themselves, read at
 #: run time.
@@ -100,6 +103,10 @@ DYNAMIC_IMPORTS: dict[str, tuple[str, ...]] = {
     ),
     "agent.secret_sources.registry": (
         "agent.secret_sources.bitwarden", "agent.secret_sources.onepassword", "agent.secret_sources.command",
+    ),
+    "agent.transports": (
+        "agent.transports.anthropic", "agent.transports.codex", "agent.transports.chat_completions",
+        "agent.transports.bedrock",
     ),
 }
 

@@ -75,6 +75,21 @@ def test_a_phone_tool_calls_facade_import_is_in_the_bundle(phone_modules):
     assert [m for m in TOOL_CALL if m not in phone_modules] == []
 
 
+#: The transport each provider dialect a phone serves builds its requests with: the registry imports them
+#: BY NAME (``agent.transports._TRANSPORT_MODULES``), so only the closure's by-name table brings them in.
+#: ``bundled-phone.yaml`` serves Anthropic, Codex and OpenAI-compatible routes SDK-free (its "degrades:"
+#: line on the omitted ``openai`` distribution); Bedrock needs ``boto3``, which a phone does not ship.
+PHONE_TRANSPORTS = ("agent.transports.anthropic", "agent.transports.codex", "agent.transports.chat_completions")
+
+
+def test_every_provider_transport_a_phone_serves_is_in_the_bundle(phone_modules):
+    """RT-FU-A-PHONE-BUNDLE-SHIPS-EVERY-PROVIDER-TRANSPORT: on the owner's phone every Claude turn failed
+    ``'NoneType' object has no attribute 'build_kwargs'`` — the bundle had no ``agent.transports.anthropic``,
+    so ``get_transport("anthropic_messages")`` answered None. Killing mutation: drop ``"agent.transports"``
+    from ``scripts/bundle_profile_closure.py::DYNAMIC_IMPORTS`` and the anthropic transport leaves the set."""
+    assert [m for m in PHONE_TRANSPORTS if m not in phone_modules] == []
+
+
 def _start_work_engine(monkeypatch, present) -> list[str]:
     """``start_serve_work_engine`` with presence answered from *present*; the steps it starts recorded."""
     from agent_runtime import loop_tool_lifecycles, module_presence
