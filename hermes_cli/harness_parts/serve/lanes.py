@@ -46,6 +46,7 @@ from hermes_cli.harness_parts.serve.request_pool import (
     DUPLICATE_REFUSED_RECEIPT,
     turn_claim_key,
 )
+from agent_runtime.serve_rpc.protocol import READ_LANE
 from agent_runtime.turn_activity import accepted_turn_scope
 
 __layer__ = "lanes"
@@ -87,6 +88,15 @@ def _run_with_turn_secrets(run: Any, turn_request_id: str, request: _ArgvRequest
             turn_secrets.drop(turn_request_id)
 
 
+def _argv_label(argv: Any) -> str:
+    """Up to three argv words after ``harness`` (``persona.instance.open-chat``), flags left out, for a receipt."""
+
+    tail = [str(item) for item in argv or ()]
+    if tail and tail[0] == "harness":
+        tail = tail[1:]
+    return "argv:" + (".".join(word for word in tail[:3] if not word.startswith("-")) or "-")
+
+
 def submit_accepted(pool: Any, run: Any, request: _ArgvRequest) -> Any:
     """``run(request)`` on the pool -- a chat turn on its own lane (``RequestPool.submit_turn``,
     lane h-pool-starve), a standing ``harness stream`` on its own (``submit_stream``, lane
@@ -99,7 +109,7 @@ def submit_accepted(pool: Any, run: Any, request: _ArgvRequest) -> Any:
             return pool.submit_turn(run, request)
         if request.is_runtime_stream:
             return pool.submit_stream(run, request)
-        return pool.submit(run, request)
+        return pool.submit(run, request, label=_argv_label(request.argv))
     except BaseException:
         if request.accepted is not None:
             request.accepted.release()
@@ -600,7 +610,13 @@ class ArgvLanes:
         if self.drain_state is not None:
             return False
         try:
-            self.pool.submit(_emit_deferred_reply, build, sink)
+            label = getattr(build, "method_name", "-")
+            if getattr(build, "lane", None) == READ_LANE:
+                # MUTATION: send reads to ``self.pool.submit`` and
+                # test_a_hung_shared_lane_never_starves_the_chat_list reddens.
+                self.pool.submit_read(_emit_deferred_reply, build, sink, label=label)
+            else:
+                self.pool.submit(_emit_deferred_reply, build, sink, label=label)
         except RuntimeError:
             # The pool is already shutting down. False, so the handler
             # answers on this thread rather than a client waiting for a

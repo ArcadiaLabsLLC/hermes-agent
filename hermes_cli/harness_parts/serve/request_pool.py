@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, Callable
 
@@ -60,6 +61,11 @@ _CLIENT_MESSAGE_ID_FLAG = "--client-message-id"
 #: Threads the standing-stream lane may grow to. Streams are infinite, so this
 #: bounds how many may run at once; a closed connection's are reclaimed.
 STREAM_LANE_WORKERS = 32
+#: Workers of the read lane (:meth:`RequestPool.submit_read`): reads only, so a few are enough.
+READ_LANE_WORKERS = 4
+#: A shared-lane wait or run at least this long is logged (:data:`SHARED_LANE_SLOW_RECEIPT`).
+SHARED_LANE_SLOW_MS = 1000
+SHARED_LANE_SLOW_RECEIPT = "shared_lane_slow lane=%s label=%s queue_ms=%d run_ms=%d busy_at_submit=%d"
 #: The typed refusal a 33rd standing stream gets (never a silent queue behind 32 infinite ones).
 STREAM_LANE_FULL = "stream_lane_full"
 
@@ -71,8 +77,9 @@ class StreamLaneFull(RuntimeError):
 
 
 class RequestPool:
-    """The shared request lane and the chat-turn lane, each ``size`` workers, and
-    the standing-stream lane (:data:`STREAM_LANE_WORKERS`)."""
+    """The shared request lane and the chat-turn lane, each ``size`` workers, the
+    standing-stream lane (:data:`STREAM_LANE_WORKERS`) and the read lane
+    (:data:`READ_LANE_WORKERS`)."""
 
     def __init__(self, size: int) -> None:
         workers = max(1, int(size))
@@ -82,9 +89,50 @@ class RequestPool:
             max_workers=STREAM_LANE_WORKERS, thread_name_prefix="harness-serve-stream")
         self._stream_lock = threading.Lock()
         self._streams_running = 0
+        self.reads = ThreadPoolExecutor(max_workers=READ_LANE_WORKERS, thread_name_prefix="harness-serve-read")
+        self._shared_lock = threading.Lock()
+        self._running = {"shared": 0, "read": 0}
 
-    def submit(self, fn: Callable[..., Any], *args: Any) -> Future:
-        return self.shared.submit(fn, *args)
+    def submit(self, fn: Callable[..., Any], *args: Any, label: str = "-") -> Future:
+        """Work on the shared lane, timed: a wait or a run past :data:`SHARED_LANE_SLOW_MS` logs
+        ``shared_lane_slow`` (its label, queue_ms, run_ms and the workers busy when it was
+        submitted), so a deferred reply the client gave up on (``rpc_timeout``) names what held
+        the lane (lane w1123k-chatissues)."""
+
+        return self._timed_submit(self.shared, "shared", fn, args, label)
+
+    def submit_read(self, fn: Callable[..., Any], *args: Any, label: str = "-") -> Future:
+        """A bounded read a person waits on (``serve_rpc.protocol.defer_read``: the chat list, a
+        console inspection, history recovery) on the read lane (:data:`READ_LANE_WORKERS`), which no
+        argv request or turn ever takes, so work parked on a busy chat cannot starve it. Timed like
+        :meth:`submit` (``lane=read``)."""
+
+        return self._timed_submit(self.reads, "read", fn, args, label)
+
+    def _timed_submit(self, lane: ThreadPoolExecutor, name: str, fn: Callable[..., Any],
+                      args: tuple[Any, ...], label: str) -> Future:
+        submitted = time.monotonic()
+        with self._shared_lock:
+            busy = self._running[name]
+
+        def _timed() -> Any:
+            started = time.monotonic()
+            with self._shared_lock:
+                self._running[name] += 1
+            try:
+                return fn(*args)
+            finally:
+                ended = time.monotonic()
+                with self._shared_lock:
+                    self._running[name] -= 1
+                queue_ms = int((started - submitted) * 1000)
+                run_ms = int((ended - started) * 1000)
+                # MUTATION: drop this receipt and
+                # test_a_reply_queued_behind_busy_workers_names_its_wait reddens.
+                if queue_ms >= SHARED_LANE_SLOW_MS or run_ms >= SHARED_LANE_SLOW_MS:
+                    logger.info(SHARED_LANE_SLOW_RECEIPT, name, label, queue_ms, run_ms, busy)
+
+        return lane.submit(_timed)
 
     def submit_turn(self, fn: Callable[..., Any], *args: Any) -> Future:
         return self.turns.submit(fn, *args)
@@ -119,7 +167,7 @@ class RequestPool:
     def shutdown(self, wait: bool = True) -> None:
         """Stop every lane taking work, then (``wait``) join them all."""
 
-        lanes = (self.shared, self.turns, self.streams)
+        lanes = (self.shared, self.turns, self.streams, self.reads)
         for lane in lanes:
             lane.shutdown(wait=False)
         if wait:

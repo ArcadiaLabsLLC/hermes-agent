@@ -149,10 +149,12 @@ __all__ = [
     "JSONRPC_VERSION",
     "PEER_REQUESTED_BY_PREFIX",
     "RPC_CONTRACT_VERSION",
+    "READ_LANE",
     "RUNTIME_STOPPING",
     "RpcContext",
     "defer_or_inline",
     "defer_or_refuse",
+    "defer_read",
     "deferred_reply",
     "err",
     "is_deferred",
@@ -291,6 +293,8 @@ def deferred_reply(
                 {"reason": "handler_failed", "method": method_name},
             )
 
+    #: Read by the shared lane's ``shared_lane_slow`` receipt (lane w1123k-chatissues).
+    _run.method_name = method_name
     return _run
 
 
@@ -327,6 +331,28 @@ def defer_or_inline(rid: Any, method_name: str, context: RpcContext | None, buil
     """
 
     reply = deferred_reply(rid, method_name, build)
+    if context is not None and context.spawn_reply is not None and context.spawn_reply(reply):
+        return DEFERRED
+    return reply()
+
+
+#: The ``lane`` a :func:`defer_read` reply carries: the serve runs it on its own small read lane, never
+#: on the shared lane where argv work parked on a busy chat can hold every worker (lane w1123k-chatissues).
+READ_LANE = "read"
+
+
+def defer_read(rid: Any, method_name: str, context: RpcContext | None, build: Callable[[], dict]) -> dict:
+    """:func:`defer_or_inline` for a bounded READ a person waits on (the chat list, a console inspection,
+    history recovery): the deferral is marked :data:`READ_LANE`, so the transport runs it on the read lane.
+
+    Live 2026-11-23 (owner box): with a chat's notice turns looping, ``runtime.operator.conversation.list``
+    and ``...history.pending`` both timed out in Eternia (``rpc_timeout``) and the serve logged neither —
+    they waited for one of the shared lane's four workers. A read that cannot queue there cannot starve.
+    """
+
+    reply = deferred_reply(rid, method_name, build)
+    # MUTATION: drop this mark and test_a_hung_shared_lane_never_starves_the_chat_list reddens.
+    reply.lane = READ_LANE
     if context is not None and context.spawn_reply is not None and context.spawn_reply(reply):
         return DEFERRED
     return reply()

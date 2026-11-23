@@ -13,7 +13,7 @@ from agent_runtime.operator_session_controls import (
 from agent_runtime.conversations.worker_skills import LendRejected
 from agent_runtime.skill_inspection import SkillInspectionError
 from agent_runtime.subagents.model import SubagentError
-from .protocol import RpcContext, defer_or_inline, err, ok
+from .protocol import RpcContext, defer_read, err, ok
 from .registry import method
 
 __layer__ = "lanes"
@@ -38,7 +38,7 @@ def _inspect_reply(rid, params, inspect):
 
 
 def _inspect_off_reader(rid, params, context, operation, inspect):
-    return defer_or_inline(rid, operation, context, lambda: _inspect_reply(rid, params, inspect))
+    return defer_read(rid, operation, context, lambda: _inspect_reply(rid, params, inspect))
 
 
 @method("runtime.operator.conversation.settings", tier=TIER_CONSOLE)

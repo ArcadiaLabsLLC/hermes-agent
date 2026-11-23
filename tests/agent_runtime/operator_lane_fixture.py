@@ -32,7 +32,7 @@ class OperatorLane(MessageHandling, ArgvLanes, SettlePush):
         self.boot_id, self.service_log = "operator-lane-fixture", []
         self._service_log = self.service_log.append
 
-    def submit(self, function, *args):
+    def submit(self, function, *args, **_label):
         future = Future()
         self.jobs.append((function, args, future))
         return future

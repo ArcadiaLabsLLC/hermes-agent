@@ -7,7 +7,7 @@ from agent_runtime.operator_conversation import (
 )
 from agent_runtime.operator_execution import execution_status, stop_operator_execution
 from agent_runtime.chat_turn_reservations import ChatTurnReservationError
-from .protocol import RpcContext, defer_or_inline, err, ok
+from .protocol import RpcContext, defer_read, err, ok
 from .registry import method
 
 __layer__ = "lanes"
@@ -20,7 +20,7 @@ __layer__ = "lanes"
 # RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE retired the per-handler "names a scope" check).
 @method("runtime.operator.conversation.read", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT, computer_scoped=True)
 def read(rid, params: dict, context: RpcContext | None = None) -> dict:
-    return defer_or_inline(rid, "runtime.operator.conversation.read", context, lambda: _read_operator_reply(rid, params, context))
+    return defer_read(rid, "runtime.operator.conversation.read", context, lambda: _read_operator_reply(rid, params, context))
 
 
 def _read_operator_reply(rid, params: dict, context: RpcContext | None) -> dict:

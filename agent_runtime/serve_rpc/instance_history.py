@@ -6,7 +6,7 @@ from agent_runtime.conversation_owner import ConversationOwnerError, request_cli
 from agent_runtime.instance_history import (
     CONVERSATION_LIST_METHOD, InstanceHistoryRefused, list_instance_conversations,
 )
-from .protocol import RpcContext, defer_or_inline, err, ok
+from .protocol import RpcContext, defer_read, err, ok
 from .registry import method, method_computer_reach, method_tier
 
 __layer__ = "lanes"
@@ -21,7 +21,7 @@ _ROW_READ_METHOD = "runtime.persona.chat.history"
 @method(CONVERSATION_LIST_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def list_conversations(rid, params: dict, context: RpcContext | None = None):
     caller = context.caller if context is not None else None
-    return defer_or_inline(rid, CONVERSATION_LIST_METHOD, context, lambda: _list_reply(rid, params, caller))
+    return defer_read(rid, CONVERSATION_LIST_METHOD, context, lambda: _list_reply(rid, params, caller))
 
 
 def _list_reply(rid, params, caller=None):
