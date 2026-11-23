@@ -199,6 +199,46 @@ def _defer_for_active_turns(batch: list[tuple[int, Event]], *, reason: str, call
     )
 
 
+def _reused_core_frames(
+    batch: list[tuple[int, Event]], *, last_offset: int, reason: str, caller: str,
+) -> list[dict[str, Any]] | None:
+    """W3-H2's reuse (see :func:`_full_core_batch_frames`): the frames a demote answers off the
+    core an earlier demote built at this offset — ``[]`` for a cancelled consumer — or ``None``
+    when there is none to reuse and the batch builds."""
+
+    reused = (
+        demote_core_reuse.consult(floor=last_offset)
+        if reason == BATCH_REASON_DEMOTE
+        else None
+    )
+    if reused is None:
+        return None
+    if request_cancelled():
+        # The same probe the build arm makes on the way out. A reuse has no
+        # wait to interrupt, but a consumer that cancelled before this batch
+        # was reached must not be handed a frame just because answering it
+        # became cheap.
+        return []
+    # No build, no worker, no liveness: there is nothing to be live DURING.
+    # ``build_ms`` rides from the reused core's own envelope so the receipt
+    # still names what the frame's core cost to make.
+    frame = delta_batch_frame(batch, snapshot=reused)
+    _log_snapshot_build(
+        reason=reason,
+        waited_ms=0,
+        offset=(frame.get("watermark") or {}).get("event_offset"),
+        events=len(batch),
+        snapshot=reused,
+        build_info={
+            "caller": caller,
+            "role": BUILD_ROLE_REUSED,
+            "generation": None,
+        },
+        core_source=demote_core_reuse.CORE_SOURCE_REUSED_SAME_OFFSET,
+    )
+    return [frame]
+
+
 def _full_core_batch_frames(
     batch: list[tuple[int, Event]],
     *,
@@ -252,36 +292,9 @@ def _full_core_batch_frames(
     """
 
     last_offset = int(batch[-1][0] or 0)
-    reused = (
-        demote_core_reuse.consult(floor=last_offset)
-        if reason == BATCH_REASON_DEMOTE
-        else None
-    )
-    if reused is not None:
-        if request_cancelled():
-            # The same probe the build arm makes on the way out. A reuse has no
-            # wait to interrupt, but a consumer that cancelled before this batch
-            # was reached must not be handed a frame just because answering it
-            # became cheap.
-            return
-        # No build, no worker, no liveness: there is nothing to be live DURING.
-        # ``build_ms`` rides from the reused core's own envelope so the receipt
-        # still names what the frame's core cost to make.
-        frame = delta_batch_frame(batch, snapshot=reused)
-        _log_snapshot_build(
-            reason=reason,
-            waited_ms=0,
-            offset=(frame.get("watermark") or {}).get("event_offset"),
-            events=len(batch),
-            snapshot=reused,
-            build_info={
-                "caller": caller,
-                "role": BUILD_ROLE_REUSED,
-                "generation": None,
-            },
-            core_source=demote_core_reuse.CORE_SOURCE_REUSED_SAME_OFFSET,
-        )
-        yield frame
+    reuse = _reused_core_frames(batch, last_offset=last_offset, reason=reason, caller=caller)
+    if reuse is not None:
+        yield from reuse
         return
 
     # Stage 5: stand aside for a live agent run before paying for a full core.
