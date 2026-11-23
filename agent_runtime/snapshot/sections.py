@@ -42,6 +42,7 @@ from agent_runtime.store import AgentStore, RealmStore, WorkspaceStore
 from agent_runtime.snapshot.context import SnapshotSummary, _SNAPSHOT_BUILD_CONTEXT
 from agent_runtime.snapshot.receipts import (
     _keyed,
+    _operator_channels_frame,
     _persona_chat_history_frame,
     _runtime_paths_diagnostic,
 )
@@ -476,7 +477,7 @@ class SnapshotFrameBuild:
         # removed the archived-task channels this used to be merged with, so the
         # live channels are the whole input; ``_keyed`` still keeps the first
         # occurrence on a duplicate id rather than silently overwriting.
-        self.data["operator_channels"] = _keyed(self.live_operator_channels, "channel_id")
+        self.data["operator_channels"] = _keyed(_operator_channels_frame(self.live_operator_channels), "channel_id")
 
     def parity(self) -> None:
         """Completeness, drops, the stable section-key set, and the parity envelope."""

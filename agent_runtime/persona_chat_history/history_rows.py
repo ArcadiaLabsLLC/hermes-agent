@@ -140,7 +140,14 @@ def _history_row(
     session_id: str,
     session_db: Any | None = None,
     message_tail: int = DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
+    transcript: bool = True,
 ) -> dict[str, Any]:
+    """One chat's row. ``transcript=False`` is the agent-list frame's row: the session row only
+    (title, recency, counts, state, model, usage) and the chat's dispatch deliveries off their
+    markers, with no transcript read and ``messages`` empty (owner ruling 2026-11-23, "Yes, titles
+    only"; RT-FU-EVERY-NEKO-REPLY-RE-READS-THE-WHOLE-LIVE-CHAT-BEFORE-ETERNIA-SHOWS-IT). The
+    transcript loads when the chat is opened (``runtime.persona.chat.history``)."""
+
     persona_id = canonical_chat_persona_id(persona_id) or "unknown"
     raw_title = safe_assignment_text(raw.get("title"), limit=120)
     title_fallback = "Untitled persona chat" if raw_title else _fallback_title(raw, persona_id=persona_id)
@@ -155,8 +162,18 @@ def _history_row(
     # ``messages`` and its length is ``visible_message_count`` — the rows the
     # chat actually shows (``persona chat history``'s ``total_count``), beside
     # SessionDB's stored-row ``message_count`` (RT-CHAT-VISIBLE-MESSAGE-COUNT).
-    curated, messages_status, messages_unread = _safe_curated_messages(session_db, session_id=session_id)
-    messages = curated[-_bounded_message_tail(message_tail):]
+    # MUTATION: read the transcript whatever ``transcript`` says and
+    # test_a_frame_chat_row_reads_no_transcript reddens.
+    if transcript:
+        curated, messages_status, messages_unread = _safe_curated_messages(session_db, session_id=session_id)
+        messages = curated[-_bounded_message_tail(message_tail):]
+        deliveries = None
+    else:
+        # The verdict then covers the title and preview this row carries, and nothing unread.
+        curated, messages_status, messages_unread, messages = [], "safe", None, []
+        from .deliveries import chat_dispatch_deliveries
+
+        deliveries = chat_dispatch_deliveries(session_db, session_id)
     active_session_id = session_id
     try:
         active_session_id = session_db.resolve_resume_session_id(session_id)
@@ -231,7 +248,9 @@ def _history_row(
             "message_count", positive_int(raw.get("message_count"), default=0)
         ),
         # The operator/agent rows the transcript shows; absent when it was not read.
-        **({"visible_message_count": len(curated)} if messages_unread is None else {}),
+        **({"visible_message_count": len(curated)} if transcript and messages_unread is None else {}),
+        # The frame row's banner source: present only on a transcript-free row whose markers read.
+        **({"dispatch_deliveries": deliveries} if deliveries is not None else {}),
         "created_at": iso_timestamp(raw.get("started_at")),
         "updated_at": iso_timestamp(
             lineage_aggregate.get("last_active")

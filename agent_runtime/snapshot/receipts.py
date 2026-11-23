@@ -23,6 +23,7 @@ __all__ = [
     "_BUILD_COALESCE",
     "_build_coalesce_state",
     "_keyed",
+    "_operator_channels_frame",
     "_persona_chat_history_frame",
     "_runtime_paths_diagnostic",
     "_sections_top",
@@ -68,6 +69,36 @@ def _persona_chat_history_frame(rows: list) -> list:
         pointer["messages_evicted"] = True
         pointers.append(pointer)
     return pointers
+
+
+def _operator_channels_frame(channels: list) -> list:
+    """The ``operator_channels`` frame rows: each conversation without its messages.
+
+    Titles only (owner ruling 2026-11-23, "Yes, titles only";
+    RT-FU-EVERY-NEKO-REPLY-RE-READS-THE-WHOLE-LIVE-CHAT-BEFORE-ETERNIA-SHOWS-IT): a channel's
+    conversation was the frame's last transcript, and a reply's overlay re-read the whole chat
+    to fill it. The conversation keeps its title, state and counts, flagged
+    ``messages_evicted`` like the history pointer rows, so a reader takes the chat's own read
+    (``runtime.persona.chat.history``) when it is opened. The live turn still rides the
+    channel's ``trace``. The chat's dispatch deliveries ride the channel as
+    ``dispatch_deliveries`` (off their stored markers), the banners' source."""
+
+    rows: list = []
+    for row in channels:
+        if not isinstance(row, dict):
+            rows.append(row)
+            continue
+        framed = dict(row)
+        conversation = row.get("conversation")
+        if isinstance(conversation, dict):
+            # MUTATION: keep the conversation's messages and test_a_frame_channel_carries_no_transcript reddens.
+            framed["conversation"] = {**conversation, "messages": [], "messages_evicted": True}
+        history = row.get("history")
+        deliveries = history.get("dispatch_deliveries") if isinstance(history, dict) else None
+        if isinstance(deliveries, list):
+            framed["dispatch_deliveries"] = deliveries
+        rows.append(framed)
+    return rows
 
 
 # S4 read-model — normalize (operator moves 4 + 5). The on-disk stores are

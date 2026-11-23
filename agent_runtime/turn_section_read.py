@@ -114,7 +114,7 @@ def read_turn_sections(
     from .persona_lifecycle import is_runtime_persona
     from .resolution import runtime_resolution_scope
     from .snapshot.details import persona_session_db_scope
-    from .snapshot.receipts import _persona_chat_history_frame
+    from .snapshot.receipts import _operator_channels_frame, _persona_chat_history_frame
     from .snapshot_turn_yield import snapshot_yield_point
     from .store import AgentStore
 
@@ -169,7 +169,7 @@ def read_turn_sections(
     sections: dict[str, Any] = {
         "persona_instance_id": str(instance.id),
         "persona_chat_history": to_jsonable(history_rows[0]) if history_rows else None,
-        "operator_channel": to_jsonable(channel),
+        "operator_channel": to_jsonable(_operator_channels_frame([channel])[0]),
         "persona_instance": to_jsonable(
             persona_instance_summary(
                 instance,

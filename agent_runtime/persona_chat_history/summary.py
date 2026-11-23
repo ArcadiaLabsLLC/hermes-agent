@@ -51,8 +51,10 @@ def persona_chat_frame_history(*, timings: dict[str, int] | None = None, **kwarg
     if timings is not None:
         # The split receipt's ``pins_ms``: the live-chat reads, apart from the store read.
         timings["pins_ms"] = int((time.perf_counter() - started) * 1000)
+    # Titles only (owner ruling 2026-11-23): the frame's rows carry no transcript, so neither the
+    # core nor a turn's overlay reads one (RT-FU-EVERY-NEKO-REPLY-RE-READS-THE-WHOLE-LIVE-CHAT-BEFORE-ETERNIA-SHOWS-IT).
     return persona_chat_history_summary(
-        limit=FRAME_RECENT_CHATS, pinned_session_ids=pinned, keep_every_pin=True, **kwargs)
+        limit=FRAME_RECENT_CHATS, pinned_session_ids=pinned, keep_every_pin=True, transcript=False, **kwargs)
 
 
 def live_chat_roots() -> frozenset[str]:
@@ -100,6 +102,7 @@ def persona_chat_history_summary(
     omitted_ranked: list[str] | None = None,
     pinned_session_ids: frozenset[str] = frozenset(),
     keep_every_pin: bool = False,
+    transcript: bool = True,
 ) -> list[dict[str, Any]]:
     """Return redaction-safe persona chat-history rows for Harness snapshots.
 
@@ -154,6 +157,7 @@ def persona_chat_history_summary(
         omitted_ranked=omitted_ranked,
         pinned_session_ids=frozenset(pinned_session_ids or ()),
         keep_every_pin=keep_every_pin,
+        transcript=transcript,
     )
     summary.index_instances()
     # A summary is a read: the fallback attaches an existing store read-only
@@ -199,6 +203,8 @@ class HistorySummary:
     #: Chats ranked with the bound ones, above recency (a live turn, a waiting question).
     pinned_session_ids: frozenset[str] = frozenset()
     keep_every_pin: bool = False
+    #: ``False``: the frame's titles-only rows (:func:`history_rows._history_row`).
+    transcript: bool = True
     bound_by_session: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_id: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_persona: dict[str, PersonaInstance] = field(default_factory=dict)
@@ -580,6 +586,7 @@ class HistorySummary:
                 session_id=session_id,
                 session_db=self._db_for(instance, db),
                 message_tail=self.message_tail,
+                transcript=self.transcript,
             )
             if session_id in self.retired_holder_sessions:
                 # The holder is retired: the row is its agent's saved chat. Opening it is

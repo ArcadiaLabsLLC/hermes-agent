@@ -57,7 +57,8 @@ def test_a_built_hydrate_frame_carries_every_integer_as_a_json_integer():
     may refuse anything else, so the producer must never send it."""
 
     seen, bad = _not_integers(json.loads(json.dumps(hydrate_frame(), default=str)))
-    assert seen > 10, "the walk found almost no integer fields; the key pattern drifted"
+    # 9 since the titles-only frame (2026-11-23): its channels carry no conversation rows (`seq`).
+    assert seen > 5, "the walk found almost no integer fields; the key pattern drifted"
     assert bad == []
 
 

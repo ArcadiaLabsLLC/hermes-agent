@@ -182,7 +182,7 @@ def test_the_frame_reads_one_recent_page_and_its_pins_by_id(isolate_agent_runtim
     assert sorted(row["session_id"] for row in kept) == sorted([roots[0], *roots[-FRAME_RECENT_CHATS:]])
     full = {
         row["session_id"]: row
-        for row in persona_chat_history_summary(persona_instances=instances, session_db=db, limit=100)
+        for row in persona_chat_history_summary(persona_instances=instances, session_db=db, limit=100, transcript=False)
     }
     for row in kept:
         assert row == full[row["session_id"]], row["session_id"]

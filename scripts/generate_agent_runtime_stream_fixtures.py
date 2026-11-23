@@ -420,6 +420,7 @@ def _build_stale_first_convergence_pair() -> tuple[dict, dict]:
     """
 
     from agent_runtime import core_cache
+    from agent_runtime.core_cache.write_queue import drain_write_backs
     from tests._downstream import _seams
     from agent_runtime.parity import events_position
     from agent_runtime.persona_assignments import PersonaInstanceStore
@@ -433,6 +434,8 @@ def _build_stale_first_convergence_pair() -> tuple[dict, dict]:
         core_cache.sidecar_path().unlink(missing_ok=True)
         _seams.reset_core_cache_process_state()
         build_snapshot()
+        # The cache copy is written behind the build (``core_cache.write_queue``): wait for it.
+        drain_write_backs(timeout_s=30.0)
         if core_cache.read_persisted_core().matched:
             break
     else:
