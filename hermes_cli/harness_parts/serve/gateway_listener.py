@@ -38,6 +38,21 @@ __all__ = [
 GATEWAY_OUTCOME_SOCKET_UNAVAILABLE = "socket_unavailable"
 
 
+def _disabled_block(port: int) -> dict[str, Any]:
+    """The ``disabled`` block: the listener is off, and the STORED port rides it.
+
+    ``port`` is present only when one is stored (> 0), so a fresh install's
+    block stays ``{"outcome": "disabled"}`` and Eternia's enable still falls
+    back to its default; a stored port is what Eternia's enable writes back, so
+    an off/on toggle keeps it (``RT-FU-TURNING-REACHABLE-BACK-ON-KEEPS-THE-PORT-THE-COMPUTER-LISTENS-ON``).
+    The port is read by ``gateway_listen_config``, the one reader of the key.
+    """
+
+    if port > 0:
+        return {"outcome": "disabled", "port": port}
+    return {"outcome": "disabled"}
+
+
 def gateway_block_when_no_listener(
     socket_block: dict[str, Any] | None, *, root_resolved: bool
 ) -> dict[str, Any]:
@@ -77,7 +92,7 @@ def gateway_block_when_no_listener(
         return {"outcome": "error:root_unresolved"}
     host, port = gateway_listen_config()
     if host is None:
-        return {"outcome": "disabled"}
+        return _disabled_block(port)
     block = socket_block if isinstance(socket_block, dict) else {}
     pid = block.get("pid")
     started_at = block.get("owner_started_at")
@@ -124,7 +139,7 @@ def start_gateway_listener(
 
     host, port = gateway_listen_config()
     if host is None:
-        return None, {"outcome": "disabled"}
+        return None, _disabled_block(port)
 
     from agent_runtime.gateway_tls import ensure_certificate, server_ssl_context
     from agent_runtime.serve_socket.server import ServeSocketServer

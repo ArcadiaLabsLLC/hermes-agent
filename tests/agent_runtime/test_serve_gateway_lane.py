@@ -401,6 +401,25 @@ def test_config_off_wins_over_a_socket_lane_that_is_also_down():
     }
 
 
+def test_a_disabled_listener_names_the_port_it_will_listen_on_when_one_is_stored(
+    monkeypatch,
+):
+    """RT-FU-TURNING-REACHABLE-BACK-ON-KEEPS-THE-PORT-THE-COMPUTER-LISTENS-ON.
+
+    With the listener off and ``remote_gateway_port`` stored, the greeting
+    names that port, so Eternia's enable writes it back rather than its 8765
+    default. With none stored the block is unchanged (the test above)."""
+
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(_home, "gateway_listen_config", lambda: (None, 31734))
+    ready = _stdio_only_ready()
+    assert ready["gateway"] == {
+        "outcome": "disabled",
+        "port": 31734,
+        "capabilities": list(GATEWAY_CAPABILITIES),
+    }
+
+
 def test_the_greeting_a_socket_client_reads_carries_the_same_gateway_block():
     """R-L1 covers `hello_ok` as well as `ready`, and the launcher's LAN
     connector and the peer dial both read it there rather than on `ready`."""
@@ -462,6 +481,15 @@ def test_the_no_listener_block_is_pure_and_answers_without_a_runtime(monkeypatch
         monkeypatch.setattr(_home, "gateway_listen_config", lambda: (None, 0))
     assert build({"outcome": "lock_held_by"}, root_resolved=True) == {
         "outcome": "disabled"
+    }
+
+    # Off with a stored port: the port rides the `disabled` block so an off/on
+    # toggle keeps it (RT-FU-TURNING-REACHABLE-BACK-ON-KEEPS-THE-PORT-…).
+    for _home in (serve_gateway_listener, endpoint_candidates):
+        monkeypatch.setattr(_home, "gateway_listen_config", lambda: (None, 31734))
+    assert build({"outcome": "lock_held_by"}, root_resolved=True) == {
+        "outcome": "disabled",
+        "port": 31734,
     }
 
 

@@ -45,6 +45,13 @@ def gateway_listen_config() -> tuple[str | None, int]:
     ``remote_gateway.*`` block is migrated by ``harness_settings_legacy``, never
     read here); ``(None, …)`` means off.
 
+    Off still names the STORED port (``(None, <port or 0>)``): this is the one
+    reader of ``remote_gateway_port``, and the ``disabled`` greeting carries it
+    so turning the listener back on keeps the port the operator (or a QA lane)
+    moved it to instead of falling back to the launcher's default 8765
+    (``RT-FU-TURNING-REACHABLE-BACK-ON-KEEPS-THE-PORT-THE-COMPUTER-LISTENS-ON``).
+    ``0`` means none stored, or unreadable.
+
     The FIRST reader of the keys Stage 0a declared — and the read that found
     they had never existed: Stage 0a put them under ``"gateway"``, which is
     already a top-level key in ``config_defaults``' one big dict literal, so
@@ -70,16 +77,16 @@ def gateway_listen_config() -> tuple[str | None, int]:
         raw_port = harness_setting("remote_gateway_port", 0, config=config)
     except Exception:
         return None, 0
-    if not isinstance(listen, str):
-        return None, 0
-    host = listen.strip()
-    if not host or host.lower() in {"false", "off", "no", "true"}:
-        return None, 0
     try:
-        port = int(raw_port or 0)
+        port = max(0, min(65535, int(raw_port or 0)))
     except (TypeError, ValueError):
         port = 0
-    return host, max(0, min(65535, port))
+    if not isinstance(listen, str):
+        return None, port
+    host = listen.strip()
+    if not host or host.lower() in {"false", "off", "no", "true"}:
+        return None, port
+    return host, port
 
 
 def listener_endpoint(store_root) -> dict[str, Any]:

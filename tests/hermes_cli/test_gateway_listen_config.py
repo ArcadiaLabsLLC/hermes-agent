@@ -95,6 +95,27 @@ def test_everything_that_is_not_a_host_is_off(config, block):
     assert gateway_listen_config()[0] is None
 
 
+@pytest.mark.parametrize(
+    "block",
+    [{"listen": False, "port": 31734}, {"port": 31734}, {"listen": "off", "port": "31734"}],
+)
+def test_off_still_names_the_stored_port(config, block):
+    """RT-FU-TURNING-REACHABLE-BACK-ON-KEEPS-THE-PORT-THE-COMPUTER-LISTENS-ON:
+    the listener being off does not forget the port it was moved to. The
+    ``disabled`` greeting carries this, and Eternia's enable writes it back, so
+    an off/on toggle keeps 31734 instead of falling back to 8765."""
+
+    config(block)
+
+    assert gateway_listen_config() == (None, 31734)
+
+
+def test_off_with_no_stored_port_names_none(config):
+    config({"listen": False})
+
+    assert gateway_listen_config() == (None, 0)
+
+
 def test_an_unparseable_port_falls_back_to_ephemeral_rather_than_refusing(config):
     """A port is a preference; a host is a decision. Refusing to bind because a
     port was mistyped would turn a typo into an outage on a lane the operator
