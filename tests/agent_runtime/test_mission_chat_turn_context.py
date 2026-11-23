@@ -183,7 +183,7 @@ def test_the_tail_carries_the_four_registered_facts_in_roster_order():
         TAIL_CLARIFY_DISMISSED,
     ]
     assert context.volatile_tail.complete
-    assert all(entry.status == STATUS_EMITTED for entry in context.volatile_tail.entries)
+    assert [entry.status for entry in context.volatile_tail.entries] == [STATUS_EMITTED] * 3 + [STATUS_EMPTY]
 
 
 def test_the_composed_tail_is_byte_identical_to_the_hand_joined_lines():
