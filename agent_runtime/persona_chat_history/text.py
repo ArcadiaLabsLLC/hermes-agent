@@ -42,10 +42,16 @@ def _curate_chat_message_text(role: str, content: Any) -> str | None:
     Returns ``None`` for rows that should not appear in the operator transcript.
     """
 
+    # Every text this returns has passed the key-shape mask exactly once, so the
+    # display verdict after it (``_safe_display_body_text(..., masked=True)``) need
+    # not run the scrubber a second time (w1122f-agentlist: the second pass was
+    # 593 of 1,647 ``mask_known_key_shapes`` calls in a profiled roster build).
     if role == "agent":
         summary = _decision_summary_text(content)
         if summary:
-            return summary
+            # MUTATION: return ``summary`` unmasked and
+            # test_a_decision_summarys_bare_key_is_masked_in_the_curated_transcript reddens.
+            return _safe_chat_body_text(summary, limit=None)
         text = _safe_chat_body_text(content, limit=None)
         if not text or text.startswith("{"):
             # Empty assistant turn or an unparseable raw dict — not presentable.
@@ -110,8 +116,13 @@ def _safe_display_body_text(
     fallback: str,
     limit: int | None,
     redacted_fallback: str | None = None,
+    masked: bool = False,
 ) -> tuple[str, str]:
-    text = _safe_chat_body_text(value, limit=limit)
+    # ``masked``: ``value`` already came out of ``_safe_chat_body_text`` (the
+    # curated transcript's ``_curate_chat_message_text``); the mask is idempotent
+    # (``mask_known_key_shapes``), so only the bound is applied again.
+    text = (str(value or "") if limit is None else str(value or "")[:limit]) if masked else _safe_chat_body_text(
+        value, limit=limit)
     if not text:
         return fallback, "safe"
     if has_text_secret_assignment(text):

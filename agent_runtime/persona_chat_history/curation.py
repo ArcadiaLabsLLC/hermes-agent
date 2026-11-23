@@ -573,6 +573,9 @@ class CurationState:
             curated,
             fallback="Message hidden by redaction boundary",
             limit=None,
+            # MUTATION: pass ``masked=False`` and the redaction verdicts stay green while
+            # test_curation_masks_each_row_once counts a second scrub per row.
+            masked=True,
         )
         if not text:
             return
@@ -625,15 +628,29 @@ class CurationState:
         return "" if untyped_failed_turn_display_kind("assistant", reply) else reply
 
     def turn_elements_for(self, logical_client_message_id: str | None) -> list[dict[str, Any]]:
-        """The turn's element list, read from the journal once per logical turn."""
+        """The turn's element list, off the journal record this curation already read.
+
+        ``turn_records`` is the chat's ONE journal read (``for_session``), and each
+        record already carries ``_safe_elements`` of its own ``elements``: the very
+        list ``mission_chat_turn_elements`` returns for the same session file and key.
+        Reading the journal file again per turn re-parsed the whole file once per
+        turn (w1122f-agentlist: 280 re-reads, 0.52 s of a 2.1 s profiled roster at the
+        owner's scale). A turn with no record keeps the per-turn read.
+        """
 
         key = str(logical_client_message_id or "")
         if key not in self.turn_elements_by_logical_id:
-            record = self.turn_records_by_message.get(key, {})
-            self.turn_elements_by_logical_id[key] = mission_chat_turn_elements(
-                session_id=record.get("_history_source_session") or self.session_id,
-                client_message_id=logical_client_message_id,
-            )
+            record = self.turn_records_by_message.get(key)
+            # MUTATION: always take the per-turn read (``record = None`` here) and
+            # test_curation_reads_each_chats_turn_journal_once reddens.
+            if record is not None:
+                elements = [dict(item) for item in record.get("elements") or [] if isinstance(item, dict)]
+            else:
+                elements = mission_chat_turn_elements(
+                    session_id=self.session_id,
+                    client_message_id=logical_client_message_id,
+                )
+            self.turn_elements_by_logical_id[key] = elements
         return self.turn_elements_by_logical_id[key]
 
     def _silent_candidate(self, ctx: RowContext, raw_content: Any) -> None:

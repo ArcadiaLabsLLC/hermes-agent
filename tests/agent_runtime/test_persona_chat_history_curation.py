@@ -2175,3 +2175,109 @@ def test_the_persona_chat_pool_is_picked_by_activity():
     )
     assert [row["session_id"] for row in rows] == ["old_busy"]
     assert omitted == {"newer_still", "newest_bound", "new_idle", "mid"}
+
+
+# ── w1122f-agentlist: one journal read and one scrub per chat build ────────────
+# RT-FU-THE-AGENT-LIST-REBUILD-RE-READS-EVERY-CHAT-WORD-BY-WORD-EACH-TIME: the roster
+# build curates every stored row of every listed chat, so each per-row cost is paid
+# about a thousand times a build at the owner's scale.
+
+_BARE_KEY = "ghp_" + "Ab3" * 12
+
+
+def _three_turn_chat():
+    for turn in (1, 2, 3):
+        persist_mission_chat_turn(
+            session_id="s1",
+            client_message_id=f"client_{turn}",
+            turn_id=f"turn_{turn}",
+            elements=[
+                {"kind": "segment", "id": f"seg_{turn}", "turn_id": f"turn_{turn}", "seq": 1,
+                 "seg_type": "answer", "text": f"Answer {turn}."},
+                {"kind": "tool", "id": f"tool_{turn}", "turn_id": f"turn_{turn}", "seq": 2,
+                 "name": "shell_command", "args": "rg plan", "status": "ok"},
+            ],
+        )
+    rows = []
+    for turn in (1, 2, 3):
+        rows.append({"id": f"op_{turn}", "role": "user", "content": f"Go {turn}",
+                     "platform_message_id": f"client_{turn}"})
+        rows.append({"id": f"a_{turn}", "role": "assistant", "content": f"Answer {turn}.",
+                     "platform_message_id": f"client_{turn}:assistant:1"})
+    return FakeSessionDB(rows)
+
+
+def test_curation_reads_each_chats_turn_journal_once(isolate_agent_runtime_root, monkeypatch):
+    """The turn elements come off the records the curation already read, never a re-read per turn.
+
+    MUTATION (red recorded 2026-11-22): ``record = None`` in ``CurationState.turn_elements_for``
+    (the per-turn read back) -> 4 journal reads, not 1.
+    """
+
+    from agent_runtime.mission_chat_turns import reads
+
+    db = _three_turn_chat()
+    expected = {
+        f"client_{turn}": mission_chat_turn_elements(session_id="s1", client_message_id=f"client_{turn}")
+        for turn in (1, 2, 3)
+    }
+    real = reads._read_session
+    calls = []
+
+    def counting(session_key):
+        calls.append(session_key)
+        return real(session_key)
+
+    monkeypatch.setattr(reads, "_read_session", counting)
+
+    rows, _status, _unread = _safe_recent_messages(db, session_id="s1")
+
+    agent_rows = [row for row in rows if row["role"] == "agent"]
+    # The same lists the per-turn read returns, on each turn's reply row.
+    assert {row["client_message_id"].split(":")[0]: row["turn_elements"] for row in agent_rows} == expected
+    assert calls == ["s1"]
+
+
+def test_curation_masks_each_row_once(isolate_agent_runtime_root, monkeypatch):
+    """Each shown row passes the key-shape scrubber once; the display verdict does not scrub again.
+
+    MUTATION (red recorded 2026-11-22): ``masked=False`` in ``CurationState.curate`` -> 12 scrubs for
+    the 6 rows, not 6.
+    """
+
+    from agent_runtime.persona_chat_history import text
+
+    db = _three_turn_chat()
+    real = text.mask_known_key_shapes
+    scrubbed = []
+
+    def counting(value):
+        scrubbed.append(value)
+        return real(value)
+
+    monkeypatch.setattr(text, "mask_known_key_shapes", counting)
+
+    rows, status, _unread = _safe_recent_messages(db, session_id="s1")
+
+    assert status == "safe"
+    assert [row["text"] for row in rows] == ["Go 1", "Answer 1.", "Go 2", "Answer 2.", "Go 3", "Answer 3."]
+    assert len(scrubbed) == len(rows)
+
+
+def test_a_decision_summarys_bare_key_is_masked_in_the_curated_transcript():
+    """A decision dict's summary is scrubbed in ``_curate_chat_message_text`` now that the
+    display verdict after it no longer scrubs a second time.
+
+    MUTATION (red recorded 2026-11-22): return ``summary`` unmasked from
+    ``_curate_chat_message_text`` -> the bare key reaches the transcript row.
+    """
+
+    decision = json.dumps({"type": "propose_acceptance", "summary": f"Use {_BARE_KEY} for the push.",
+                           "rationale": "It is the deploy token."})
+    db = FakeSessionDB([{"id": "a_1", "role": "assistant", "content": decision}])
+
+    rows, _status, _unread = _safe_recent_messages(db, session_id="s1")
+
+    assert len(rows) == 1
+    assert _BARE_KEY not in rows[0]["text"]
+    assert "«redacted:ghp_…»" in rows[0]["text"]
