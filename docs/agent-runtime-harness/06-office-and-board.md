@@ -1256,7 +1256,7 @@ third was an observability artifact over a real 24 s window.
   leaked surface without hand surgery.
 - **`snapshot build Nms`** was ONE build wearing three log lines: the line is
   emitted per *hydrate caller* and measures that caller's WAIT. The vocabulary
-  now says so — `led` / `rode` / `shared_next` (`snapshot/receipts.py:183-185`) plus a
+  now says so — `led` / `rode` / `shared_next` (`snapshot/receipts.py:207-213`) plus a
   fourth, `cache`, added when the persisted-core fingerprint hit — printed on
   `snapshot_build_core role=… caller=… generation=… build_ms=… offset=…`
   (`snapshot/build_log.py:125-127`). **A boot's build count is the count of `led` lines, never

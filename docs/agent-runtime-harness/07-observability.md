@@ -104,7 +104,7 @@ the create receipt (`agent_create_phases.py:23-24`) then inherited verbatim.
    request_assembled` is hermes, `request_assembled → provider_first_byte` is
    the client plus the wire.
 8. **One authority per span.** A second measurement is a second authority, and
-   the two will drift. `build_receipt_facts` (`snapshot/receipts.py:227-239`) READS
+   the two will drift. `build_receipt_facts` (`snapshot/receipts.py:253-265`) READS
    `build_ms` off the envelope the build stamped rather than re-timing it;
    `snapshot_build`'s deprecated `elapsed_ms=` carries the identical value as
    `waited_ms=` (`agent_runtime/stream/vocabulary.py`); `agent_create_phases` repeats
