@@ -21,6 +21,7 @@ __all__ = [
     "_default_persona_session_db",
     "persona_instance_detail_for_id",
     "persona_session_db_scope",
+    "prompt_observability_for_instance",
 ]
 
 
@@ -167,3 +168,48 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
         return {**_agent_tool_detail(persona), **directory_fields(persona),
                 "settings": agent_settings_summary(persona)}
     return None
+
+
+def prompt_observability_for_instance(instance_id: str, *, event_log=None) -> dict | None:
+    """The frame's ``prompt_observability`` section, built for ONE live instance.
+
+    Served on demand by ``runtime.prompt_observability.agent`` when one of the
+    agent's inspection panels opens (owner ruling 2026-11-22: the section leaves
+    the agent-list frame and is built for one agent, on open). The inputs are the
+    frame's own: the runtime personas, the offered roster, the active realm and
+    workspace names and the projection's chat store, so the one row is the row
+    the frame would have carried. Read-only. ``None`` when no offered instance
+    has that id (an honest ``not_found``, never an empty section)."""
+
+    from agent_runtime.persona_lifecycle import is_runtime_persona
+    from agent_runtime.prompt_observability import snapshot_prompt_observability
+    from agent_runtime.roster_reach import offered
+    from agent_runtime.store import RealmStore, WorkspaceStore
+
+    token = str(instance_id or "").strip()
+    if not token:
+        return None
+    event_log = event_log or CachedEventLog()
+    roster = offered(PersonaInstanceStore(event_log=event_log).list_all())
+    # MUTATION: drop this miss and test_the_read_verb_builds_a_placed_agent_and_misses_honestly
+    # reddens (an unknown id answers ``found: true`` with an empty section).
+    if not any(str(getattr(instance, "id", "") or "") == token for instance in roster):
+        return None
+    agents = [agent for agent in AgentStore().list_all() if is_runtime_persona(agent)]
+    workspace_store, realm_store = WorkspaceStore(), RealmStore()
+    active_workspace_id, active_realm_id = workspace_store.active_id(), realm_store.active_id()
+    workspace = next((getattr(w, "name", None) for w in workspace_store.list_all(include_archived=True)
+                      if getattr(w, "id", None) == active_workspace_id), None)
+    realm = next((getattr(r, "name", None) for r in realm_store.list_all(include_archived=True)
+                  if getattr(r, "id", None) == active_realm_id), None)
+    with persona_session_db_scope() as session_db:
+        section = snapshot_prompt_observability(
+            personas=agents,
+            persona_instances=roster,
+            session_db=session_db,
+            realm=realm,
+            workspace=workspace,
+            active_workspace_id=active_workspace_id,
+            only_instance_id=token,
+        )
+    return {"found": True, "instance_id": token, **section}

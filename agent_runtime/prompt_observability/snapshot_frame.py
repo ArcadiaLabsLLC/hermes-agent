@@ -53,6 +53,7 @@ def snapshot_prompt_observability(
     active_workspace_id: str | None = None,
     catalog_sink: dict[str, list[dict[str, Any]]] | None = None,
     skill_resolver: _SkillObservabilityResolver | None = None,
+    only_instance_id: str | None = None,
 ) -> dict[str, Any]:
     return SnapshotFrame(
         personas=personas,
@@ -63,6 +64,7 @@ def snapshot_prompt_observability(
         active_workspace_id=active_workspace_id,
         catalog_sink=catalog_sink,
         skill_resolver=skill_resolver,
+        only_instance_id=only_instance_id,
     ).build()
 
 
@@ -78,7 +80,15 @@ class SnapshotFrame:
     active_workspace_id: str | None = None
     catalog_sink: dict[str, list[dict[str, Any]]] | None = None
     skill_resolver: _SkillObservabilityResolver | None = None
+    #: Build the section for this ONE instance (``runtime.prompt_observability.agent``,
+    #: owner ruling 2026-11-22: the section is built for one agent, on open). The
+    #: whole roster is still read, because every lane's situational HUD scopes its
+    #: On-level list and resolves identity against it; only the built, merged and
+    #: hoisted rows are narrowed. ``None`` builds every instance.
+    only_instance_id: str | None = None
     roster: list[Any] = field(init=False)
+    #: The instances whose rows this build produces: the roster, or the one asked for.
+    targets: list[Any] = field(init=False)
     installs: Any = field(init=False)
     #: Instance id -> its ``per_profile`` head (chat-head plan §2.4), open for the build.
     head_reads: dict[str, Any] = field(init=False, default_factory=dict)
@@ -89,7 +99,7 @@ class SnapshotFrame:
         self.roster_and_installs()
         # A ``per_profile`` instance's lineage is in its own head, opened once per
         # head, read-only; every other instance reads ``session_db`` as before.
-        with chat_heads.per_profile_read_heads(self.roster, process_db=self.session_db) as heads:
+        with chat_heads.per_profile_read_heads(self.targets, process_db=self.session_db) as heads:
             self.head_reads = heads
             contexts = self.built_contexts()
             chat_contexts, chat_contexts_evicted, ctx_read = self.live_rows(contexts)
@@ -114,6 +124,14 @@ class SnapshotFrame:
         # Materialize once: the roster is reused for every lane's situational HUD
         # (thread count + on-level list) and the input may be a one-shot iterable.
         self.roster = list(self.persona_instances)
+        wanted = safe_assignment_token(self.only_instance_id) if self.only_instance_id is not None else None
+        # MUTATION: keep ``self.roster`` here and test_one_agent_builds_only_that_agents_row
+        # reddens (the other instance's row is built too).
+        self.targets = (
+            self.roster
+            if self.only_instance_id is None
+            else [inst for inst in self.roster if wanted and safe_assignment_token(_persona_instance_id(inst)) == wanted]
+        )
         self.installs = installs_block()
 
     def session_db_for(self, instance_id: Any) -> Any | None:
@@ -182,7 +200,7 @@ class SnapshotFrame:
         }
         from ..snapshot_turn_yield import snapshot_yield_point
 
-        for instance in self.roster:
+        for instance in self.targets:
             # h-chatperf: one yield point per projected instance -- this loop is
             # most of a build's 3-4 s ``prompt_observability`` section.
             snapshot_yield_point()
@@ -214,7 +232,10 @@ class SnapshotFrame:
         return contexts
 
     def live_rows(self, contexts: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int, dict[str, Any]]:
-        roster = self.roster
+        # The live set is the build's targets: one agent's read must not load
+        # every other lane's persisted row. MUTATION: ``roster = self.roster`` and
+        # test_one_agents_read_loads_no_other_lanes_persisted_row reddens.
+        roster = self.targets
         # S8: the frame keeps only LIVE persona instances' current-session context
         # rows; historical/stale rows (departed instances, closed sessions) leave the
         # frame (operator ruling 2026-07-17: "old residue and runs need to be

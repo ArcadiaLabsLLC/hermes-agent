@@ -123,6 +123,22 @@ def instance_detail(rid, params, context=None):
     return _operation(rid, params, context, "runtime.persona.instance.detail", read)
 
 
+@method("runtime.prompt_observability.agent", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
+def prompt_observability_agent(rid, params, context=None):
+    """One agent's ``prompt_observability`` section, built when its panel opens.
+
+    Owner ruling 2026-11-22: the section leaves the agent-list frame and is built for one agent, on open. TIER_READ: the same
+    exposure the frame section had. A miss is ``{"found": false, "instance_id": …}``."""
+    def read(p):
+        from agent_runtime.snapshot.details import prompt_observability_for_instance
+        _console_text(p, "instance_id", required=True)
+        result = prompt_observability_for_instance(p["instance_id"])
+        if result is None:
+            return {"found": False, "instance_id": p["instance_id"]}
+        return result
+    return _operation(rid, params, context, "runtime.prompt_observability.agent", read)
+
+
 # ── who may see where things live on this computer (RT-FU-A-LOOK-DEVICE-IS-SENT-THE-PATH-OF-AN-AGENTS-
 # SETTINGS-FILE, review w1122d.6). The detail's ``tool_resolution`` (and its ``turn_tool_context.preview``
 # copy) names absolute local paths: the profile's config file, the turn's working directory, the runtime

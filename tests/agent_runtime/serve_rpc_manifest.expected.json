@@ -28,6 +28,7 @@
     "runtime.persona.instance.detail": "look",
     "runtime.persona.instance.open_chat": "chat",
     "runtime.profiles.avatar": "look",
+    "runtime.prompt_observability.agent": "look",
     "runtime.workspace.conversations": "look"
   },
   "contract": 1,
@@ -361,6 +362,7 @@
     "runtime.profiles.avatar",
     "runtime.profiles.avatar.set",
     "runtime.prompt_context.show",
+    "runtime.prompt_observability.agent",
     "runtime.provider.configure",
     "runtime.provider.dependency.install",
     "runtime.provider.env_token.remove",
@@ -1423,6 +1425,7 @@
     "runtime.profiles.avatar": "read",
     "runtime.profiles.avatar.set": "console",
     "runtime.prompt_context.show": "console",
+    "runtime.prompt_observability.agent": "read",
     "runtime.provider.configure": "console",
     "runtime.provider.dependency.install": "console",
     "runtime.provider.env_token.remove": "console",
