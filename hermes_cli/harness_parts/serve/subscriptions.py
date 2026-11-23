@@ -319,6 +319,8 @@ class SubscriptionLanes:
                 else self.stream_source_factory()
             )
         from agent_runtime.request_control import request_cancel_scope
+        from agent_runtime.resident_core import observe as observe_resident
+        from agent_runtime.resident_core import resident_core_enabled
         from agent_runtime.serde import to_jsonable
         from agent_runtime.stream import stream_frames
 
@@ -360,7 +362,14 @@ class SubscriptionLanes:
                     # subscriber folds the same hydrate/delta/patch/heartbeat
                     # shapes it already folds, so the socket lane introduces
                     # no second stream contract to keep in sync.
-                    yield to_jsonable(frame)
+                    wire = to_jsonable(frame)
+                    # The serve's resident core moves by the same frames, in
+                    # the same order, BEFORE they reach a subscriber — so a
+                    # one-shot read that arrives after a subscriber saw a frame
+                    # finds the core already through it.
+                    if resident_core_enabled():
+                        observe_resident(wire)
+                    yield wire
 
         return _generate()
 

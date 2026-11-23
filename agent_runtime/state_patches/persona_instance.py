@@ -162,6 +162,11 @@ def emit_persona_instance_patch(
     changed = project_persona_instance_wire_fields(instance, fields)
     if not changed:
         return False
+    # Every store write stamps ``updated_at``, and a full core carries it, so the
+    # row a fold leaves equals the rebuilt one only when the stamp rides too (seen:
+    # the serve's resident core diverged from a rebuild on exactly this field).
+    # MUTATION: drop this line and test_the_resident_core_equals_a_full_rebuild_after_mixed_patch_batches reddens.
+    changed.update(project_persona_instance_wire_fields(instance, ["updated_at"]))
     return emit_state_patch(
         event_log,
         entity=PERSONA_INSTANCE_ENTITY,

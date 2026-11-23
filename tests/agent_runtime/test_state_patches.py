@@ -301,7 +301,10 @@ def test_flag_on_steer_emits_upsert_with_projected_steer_fields(set_delta_patche
     assert payload["entity"] == "persona_instance"
     assert payload["id"] == child.id
     assert payload["op"] == "upsert"
-    assert payload["changed"] == {"steered_by": [parent.id], "spawned_by": parent.id}
+    # ``updated_at`` rides every subset upsert: the store write stamped it and a rebuild carries it.
+    changed = dict(payload["changed"])
+    assert changed.pop("updated_at")
+    assert changed == {"steered_by": [parent.id], "spawned_by": parent.id}
     assert "persona_instance.steered" in _event_types()
 
 
@@ -326,7 +329,9 @@ def test_flag_on_profile_display_name_emits_upsert_with_mirror(set_delta_patches
     payload = _patches()[0].payload
     assert payload["op"] == "upsert"
     # The display-name mirror rides so the launcher's row stays consistent.
-    assert payload["changed"] == {
+    changed = dict(payload["changed"])
+    assert changed.pop("updated_at"), "the write's own stamp rides beside the mirror"
+    assert changed == {
         "display_name": "Renamed Reviewer",
         "agent_profile_display_name": "Renamed Reviewer",
     }

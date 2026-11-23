@@ -209,7 +209,7 @@ def test_stream_flag_on_steer_emits_patch_frame(set_delta_patches, isolate_agent
     assert steer_patches, "the steer patch rides the patch frame"
     assert child.id in {p["id"] for p in steer_patches}
     assert steer_patches[0]["op"] == "upsert"
-    assert set(steer_patches[0]["changed"]) <= {"steered_by", "spawned_by"}
+    assert set(steer_patches[0]["changed"]) <= {"steered_by", "spawned_by", "updated_at"}
 
 
 def test_stream_flag_on_profile_update_emits_patch_frame(set_delta_patches, isolate_agent_runtime_root):
