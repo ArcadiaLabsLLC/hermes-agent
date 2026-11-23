@@ -739,7 +739,8 @@
       "limit",
       "persona_id",
       "persona_instance_id",
-      "legacy_route_id"
+      "legacy_route_id",
+      "query"
     ],
     "runtime.operator.conversation.skills": [
       "install_id",

@@ -251,3 +251,40 @@ def test_readable_is_the_gates_answer_for_the_history_read():
     assert row_readable_by(LOCAL_CONSOLE) and row_readable_by(_computer("look")) and row_readable_by(_computer("chat"))
     assert not row_readable_by(_device("read"))
     assert not row_readable_by(UNKNOWN_CALLER)
+
+
+def test_a_search_finds_a_chat_on_a_page_never_loaded(placed_agent):
+    """``query`` is upstream's stored ``session.list`` rule (title or id across the compression chain,
+    punctuation-stripped), applied before the page bound and held by the cursor (Eternia
+    MC-FU-A-CHAT-HISTORY-SEARCH-FINDS-A-CHAT-ON-A-PAGE-NOT-YET-LOADED)."""
+    target = create(placed_agent, "target")
+    rest = [create(placed_agent, str(i)) for i in range(4)]
+    with closing(default_persona_session_db()) as db:
+        # The chat was compressed: its title lives on the session the compression rotated it into.
+        db.end_session(target, "compression")
+        db.create_session("w1122h-tip", source="tool_compression_tip", parent_session_id=target)
+        db.set_session_title("w1122h-tip", "Quarterly AN-94 review")
+        db.set_session_title(rest[0], "Grocery list")
+    # Unsearched, the target is the oldest: a one-row first page never shows it.
+    assert read_history(limit=1)["result"]["conversations"][0]["session_id"] != target
+    found, cursor, params = [], None, {"limit": 1, "query": "an94"}
+    while True:
+        page = read_history(**params, **({"before": cursor} if cursor else {}))["result"]
+        found.extend(row["session_id"] for row in page["conversations"])
+        cursor = page["next_cursor"]
+        if not cursor:
+            break
+    assert found == [target]
+    by_id = read_history(query=target[-8:].upper())["result"]["conversations"]
+    assert [row["session_id"] for row in by_id] == [target]
+    assert read_history(query="no such chat")["result"]["conversations"] == []
+    # A search's cursor pages only that search, and an unsearched cursor is not a search's.
+    first = read_history(limit=1, query="r")["result"]
+    assert first["next_cursor"]
+    assert read_history(limit=1, query="grocery", before=first["next_cursor"])["error"]["data"][
+        "reason"] == "invalid_history_cursor"
+    plain = read_history(limit=1)["result"]["next_cursor"]
+    assert read_history(limit=1, query="r", before=plain)["error"]["data"][
+        "reason"] == "invalid_history_cursor"
+    for bad in ("", "   ", "x" * 201, 7):
+        assert read_history(query=bad)["error"]["data"]["reason"] == "invalid_history_query"

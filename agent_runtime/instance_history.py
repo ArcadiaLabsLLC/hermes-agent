@@ -6,6 +6,8 @@ import math
 from contextlib import closing
 from typing import Any
 
+from hermes_state_sessions import SessionSessionsMixin
+
 from . import chat_heads, chat_session_scope
 from .conversation_owner import ConversationOwnerError, request_client_scope, require_session_owner
 from .instance_selection import verify_instance_install, InstanceSelectionError
@@ -28,14 +30,18 @@ class InstanceHistoryRefused(ValueError):
 #: an honoured ``persona_instance_id`` / ``persona_id`` filter from a runtime that
 #: would ignore it.
 #: Pinned by ``tests/agent_runtime/serve_rpc_manifest.expected.json`` and
-#: ``tests/agent_runtime/test_instance_history.py``.
+#: ``tests/agent_runtime/test_instance_history.py``. MUTATION: drop ``"query"`` and
+#: ``test_serve_rpc_office.py``'s whole-manifest pins redden (a client would send a search an older
+#: runtime ignores).
 CONVERSATION_LIST_METHOD = "runtime.operator.conversation.list"
 CONVERSATION_LIST_METHOD_PARAMS = (
     "all_accounts", "before", "client_scope", "include_archived", "install_id", "limit", "persona_id",
-    "persona_instance_id", "legacy_route_id",
+    "persona_instance_id", "legacy_route_id", "query",
 )
 
 _INSTANCE_ID_LIMIT = 200
+#: Upstream's stored ``session.list`` bound on ``query`` (``gateway/session_listing._QUERY_MAX_CHARS``).
+_QUERY_MAX_CHARS = 200
 
 
 def list_instance_conversations(params: dict) -> dict:
@@ -63,10 +69,12 @@ def list_instance_conversations(params: dict) -> dict:
     if legacy_route is not None and (not isinstance(legacy_route, str) or not legacy_route
                                      or len(legacy_route) > 512):
         raise InstanceHistoryRefused("invalid_history_query")
-    # ``include_archived`` joins the cursor's scope only when asked, so a default page's cursor
-    # keeps the width every client already holds.
+    search = _requested_search(params.get("query"))
+    # ``include_archived`` and ``query`` join the cursor's scope only when asked, so a default page's
+    # cursor keeps the width every client already holds, and a search's cursor pages only that search.
+    # MUTATION: leave ``query`` out of the scope and test_a_search_finds_a_chat_on_a_page_never_loaded reddens.
     scope = (params["install_id"], owner, all_accounts, instance_id, persona_id, legacy_route,
-             *((True,) if include_archived else ()))
+             *((True,) if include_archived else ()), *(("query", search) if search else ()))
     before = _history_position(params.get("before"), scope)
     db = chat_session_scope.open_chat_session_db(access=chat_session_scope.SessionDbAccess.READ)
     if db is None:
@@ -89,7 +97,7 @@ def list_instance_conversations(params: dict) -> dict:
             raw = _merged_pages([(source, _history_page(
                 source, owner=None if all_accounts else owner, instance_id=instance_id,
                 persona=persona, legacy_route=legacy_route, before=before, limit=limit,
-                include_archived=include_archived))
+                include_archived=include_archived, search=search))
                 for source in sources], limit)
             visible = raw[:limit]
             rows = [_project_instance_history(source, item, instances, params["install_id"], asker=owner,
@@ -171,6 +179,16 @@ def _project_instance_history(db, raw, instances, install_id, *, asker, retired=
     return row
 
 
+def _requested_search(value):
+    """The ``query`` text, lowered the way ``list_sessions_rich(search_query=)`` lowers it; None unasked."""
+
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip() or len(value) > _QUERY_MAX_CHARS:
+        raise InstanceHistoryRefused("invalid_history_query")
+    return value.strip().lower()
+
+
 def _requested_persona(value):
     """The persona filter, canonical the way ``ensure_persona_chat_session`` stamps it."""
 
@@ -205,7 +223,7 @@ def _history_position(value, scope):
 
 
 def _history_page(db, *, owner, instance_id=None, persona=None, legacy_route=None, before, limit,
-                  include_archived=False):
+                  include_archived=False, search=None):
     # SessionDB has no metadata predicate on list_sessions_rich. Use its pooled
     # read boundary; owner, instance AND persona filtering must precede the page
     # bound, not follow it. Both predicates mirror _project_instance_history: the
@@ -243,6 +261,19 @@ def _history_page(db, *, owner, instance_id=None, persona=None, legacy_route=Non
     if before is not None:
         clauses.append("(started_at,id)<(?,?)")
         args.extend(before)
+    where, cte = "WHERE " + " AND ".join(clauses), ""
+    if search:
+        # Upstream's stored ``session.list`` ``query`` rule, its own predicate: a chat matches when its
+        # title or id, or those of any session its compressions rotated it into, contain the text (also
+        # punctuation-stripped). The chain is upstream's (a child of a session that ended for
+        # compression), seeded from persona chats only so the walk stays this list's size.
+        # MUTATION: drop this filter and test_a_search_finds_a_chat_on_a_page_never_loaded reddens.
+        where, found = SessionSessionsMixin._chain_search_where(where, "", search)
+        cte = ("WITH RECURSIVE chain(root_id, cur_id) AS (SELECT id, id FROM sessions WHERE source=? "
+               "UNION ALL SELECT c.root_id, child.id FROM chain c JOIN sessions parent ON parent.id=c.cur_id "
+               "JOIN sessions child ON child.parent_session_id=c.cur_id "
+               "WHERE parent.end_reason='compression') ")
+        args = [PERSONA_CHAT_SESSION_SOURCE, *args, *found]
     return [dict(row) for row in db._read_all(
-        "SELECT * FROM sessions WHERE " + " AND ".join(clauses)
+        cte + "SELECT * FROM sessions s " + where
         + " ORDER BY started_at DESC,id DESC LIMIT ?", [*args, limit + 1])]
