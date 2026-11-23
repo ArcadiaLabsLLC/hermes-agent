@@ -91,6 +91,7 @@ _EXCUSED = {
     "runtime.client.capabilities": "declares which namespaces this connection answers; its receipt is their names",
     "runtime.chat.steer": "steers a running turn",
     "runtime.chat.turn.resolve": "resolves a running turn",
+    "runtime.chat.clarify.dismiss": "needs a waiting question's token; its receipt is ids and a state",
     "runtime.media.get": "a binary media fetch by a minted handle",
     "runtime.media.index": "needs a chat's media handles",
     "runtime.office.subscribe": "opens a live subscription; office.get reads the same frame",

@@ -40,6 +40,7 @@ __layer__ = "lanes"
 
 __all__ = [
     "REFUSAL_CODES",
+    "_runtime_chat_clarify_dismiss",
     "_runtime_chat_queue_skill",
     "_runtime_chat_turn_audit",
     "_runtime_chat_turn_resolve",
@@ -81,6 +82,7 @@ REFUSAL_CODES: dict[str, int] = {
     "invalid_history_cursor": ERR_INVALID_PARAMS,
     "mission_chat_door_unbound": ERR_HANDLER_FAILED,
     "chat_verb_payload_missing": ERR_HANDLER_FAILED,
+    "clarify_store_unavailable": ERR_HANDLER_FAILED,
 }
 
 
@@ -174,6 +176,23 @@ def _runtime_chat_turn_resolve(rid: Any, params: dict, context: RpcContext | Non
         **({"client_scope": params["client_scope"]} if "client_scope" in params else {}),
     )
     return row_reply(rid, row, "turn_resolve")
+
+
+@method("runtime.chat.clarify.dismiss", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT, computer_scoped=True)
+def _runtime_chat_clarify_dismiss(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Close an agent's waiting question without answering it — see
+    :mod:`agent_runtime.chat_verbs.clarify_dismiss`. Params: ``session_id`` and ``clarify_token``
+    (the chat read's ``clarify.clarify_token``), both required; ``client_scope`` (a scoped caller
+    dismisses only in a chat its scope owns; a computer's is stamped at dispatch). Method-lane only."""
+    from agent_runtime.chat_verbs.clarify_dismiss import dismiss_clarify_question
+
+    params = _params(params)
+    row = dismiss_clarify_question(
+        session_id=params.get("session_id"),
+        clarify_token=params.get("clarify_token"),
+        **({"client_scope": params["client_scope"]} if "client_scope" in params else {}),
+    )
+    return row_reply(rid, row, "clarify_dismiss")
 
 
 @method("runtime.chat.queue_skill", tier=TIER_CONSOLE)

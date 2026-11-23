@@ -57,6 +57,8 @@ CHAT_ONLY = frozenset({
     "runtime.chat.message",
     "runtime.chat.steer",
     "runtime.chat.turn.resolve",
+    # Beside the answer it replaces (RT-FU-THE-OPERATOR-CAN-DISMISS-AN-AGENTS-QUESTION-WITHOUT-ANSWERING-IT).
+    "runtime.chat.clarify.dismiss",
     "runtime.persona.instance.open_chat",
     "runtime.agent.conversation.create",
     "runtime.client.capabilities",

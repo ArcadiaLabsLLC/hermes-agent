@@ -65,6 +65,8 @@ HEALTH_METHOD_PARAMS: dict[str, tuple[str, ...]] = {"runtime.health": ()}
 #: The eight chat-family twins (``serve_rpc/chat_verbs.py``); ``requested_by`` is
 #: read by ``chat_verbs.door.caller_requester`` before the transport's device.
 CHAT_VERB_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
+    # Method-lane only (no argv twin); listed here so the manifest publishes the keys it reads.
+    "runtime.chat.clarify.dismiss": ("clarify_token", "client_scope", "session_id"),
     "runtime.chat.queue_skill": ("persona_id", "persona_instance_id", "session_id", "skill", "skills"),
     "runtime.chat.turn_audit": ("limit", "persona_instance_id", "session_id", "turn_id"),
     "runtime.chat.turn.resolve": (

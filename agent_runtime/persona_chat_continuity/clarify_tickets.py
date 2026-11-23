@@ -37,6 +37,21 @@ CLARIFY_TOKEN_PREFIX = "clarify-"
 #: points only at open tickets, and imports nothing from this module).
 CLARIFY_TICKET_ANSWERED = "answered"
 CLARIFY_TICKET_REBOUND = "rebound"
+#: ``dismissed`` → the operator closed the question without answering it
+#: (``runtime.chat.clarify.dismiss``). Recorded where ``answered`` is, and like it
+#: the ticket leaves the open index; its token still binds a later answer.
+CLARIFY_TICKET_DISMISSED = "dismissed"
+
+#: What :meth:`PersonaChatClarifyTicketStore.dismiss` reports. Only ``dismissed``
+#: changed anything; the rest say why nothing did.
+DISMISS_DISMISSED = "dismissed"
+DISMISS_ALREADY_DISMISSED = "already_dismissed"
+DISMISS_ALREADY_ANSWERED = "already_answered"
+DISMISS_UNKNOWN_TICKET = "unknown_ticket"
+DISMISS_FOREIGN_CHAT = "foreign_chat_session"
+
+#: The note the agent's next turn in the chat reads, bounded for the volatile tail.
+_DISMISSAL_NOTE_QUESTION_LIMIT = 200
 
 
 class PersonaChatClarifyTicketStore:
@@ -237,6 +252,81 @@ class PersonaChatClarifyTicketStore:
                 pass
         return record
 
+    def dismiss(self, token: str | None, *, chat_session_id: str | None) -> tuple[str, dict[str, Any] | None]:
+        """Settle an OPEN ticket as ``dismissed``: the operator closed its question unanswered.
+
+        Idempotent and typed: a ticket already dismissed, already answered, unknown (never
+        minted, or swept) or asked in another chat changes nothing and says which. A
+        dismissal also leaves one note for the agent's next turn in that chat
+        (:meth:`take_dismissal_note`). Returns ``(outcome, record as it now stands)``."""
+
+        record = self.resolve(token)
+        if record is None:
+            return DISMISS_UNKNOWN_TICKET, None
+        root = str(record.get("chat_session_id") or "")
+        if root != (safe_assignment_text(chat_session_id, limit=240) or ""):
+            return DISMISS_FOREIGN_CHAT, None
+        state = record.get("state")
+        if state == CLARIFY_TICKET_DISMISSED:
+            return DISMISS_ALREADY_DISMISSED, record
+        # MUTATION: drop this arm and test_an_answered_question_is_not_dismissed reddens.
+        if state != CLARIFY_TICKET_OPEN:
+            return DISMISS_ALREADY_ANSWERED, record
+        record["state"] = CLARIFY_TICKET_DISMISSED
+        record["dismissed_at"] = time.time()
+        record["bound_via"] = CLARIFY_TICKET_DISMISSED
+        _atomic_json(self._path(str(record.get("clarify_token"))), record)
+        try:
+            self.index.drop(root, str(record.get("clarify_token") or ""))
+        except OSError:  # pragma: no cover - a stale pointer is dropped by the next lookup
+            pass
+        note_path = self._dismissal_note_path(root)
+        try:
+            note_path.parent.mkdir(parents=True, exist_ok=True)
+            _atomic_json(note_path, {
+                "schema_version": 1,
+                "chat_session_id": root,
+                "clarify_token": record.get("clarify_token"),
+                "question": record.get("question"),
+                "dismissed_at": record["dismissed_at"],
+            })
+        except OSError:  # pragma: no cover - the agent misses one line; the ticket is what matters
+            pass
+        return DISMISS_DISMISSED, record
+
+    def _dismissal_note_path(self, chat_session_id: str) -> Path:
+        digest = hashlib.sha256(str(chat_session_id or "").encode("utf-8")).hexdigest()
+        return self._root_dir() / "dismissed_notes" / f"{digest}.json"
+
+    def take_dismissal_note(self, chat_session_id: str | None) -> str:
+        """The one line the chat's next turn reads about a dismissed question, consumed by reading.
+
+        One file read per turn, and only a miss on nearly every one: the note lives at a
+        path named by the chat, never found by scanning tickets. ``""`` for none."""
+
+        root = safe_assignment_text(chat_session_id, limit=240)
+        if not root:
+            return ""
+        path = self._dismissal_note_path(root)
+        try:
+            note = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return ""
+        except Exception:
+            note = None
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:  # pragma: no cover - a note read twice is one repeated line
+            pass
+        if not isinstance(note, dict) or str(note.get("chat_session_id") or "") != root:
+            return ""
+        question = " ".join(str(note.get("question") or "").split())
+        if len(question) > _DISMISSAL_NOTE_QUESTION_LIMIT:
+            question = question[: _DISMISSAL_NOTE_QUESTION_LIMIT - 1].rstrip() + "…"
+        asked = f' ("{question}")' if question else ""
+        return (f"The operator dismissed your earlier question{asked} without answering it; "
+                "do not wait for that answer.")
+
     def open_ticket_for_session(self, chat_session_id: str | None) -> dict[str, Any] | None:
         """The newest OPEN ticket bound to *chat_session_id*, if any.
 
@@ -308,6 +398,13 @@ class PersonaChatClarifyTicketStore:
                 continue
             pruned += 1
         self.index.sweep(cutoff)
+        # A dismissal note whose chat never took another turn goes by the same TTL.
+        for note in (self._root_dir() / "dismissed_notes").glob("*.json"):
+            try:
+                if expired(note.stat().st_mtime, cutoff):
+                    note.unlink(missing_ok=True)
+            except OSError:
+                continue
         return pruned
 
     def scan_records(self) -> tuple[list[dict[str, Any]], int]:

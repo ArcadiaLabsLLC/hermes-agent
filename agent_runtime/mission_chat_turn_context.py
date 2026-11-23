@@ -180,11 +180,14 @@ def _elapsed_ms(started: float) -> int:
 TAIL_TURN_BUDGET = "turn_budget"
 TAIL_CAPABILITY = "capability"
 TAIL_MCP_ADMISSION = "mcp_admission"
+TAIL_CLARIFY_DISMISSED = "clarify_dismissed"
 
 TAIL_BUDGET_BYTES: dict[str, int] = {
     TAIL_TURN_BUDGET: 1024,
     TAIL_CAPABILITY: 4096,
     TAIL_MCP_ADMISSION: 2048,
+    # One sentence naming a question of at most 200 characters.
+    TAIL_CLARIFY_DISMISSED: 512,
 }
 
 
@@ -645,7 +648,20 @@ def _compose_volatile_tail(
         _safe_admission_line(persona, session_id=session_id, resolvers=resolvers),
         budget_bytes=TAIL_BUDGET_BYTES[TAIL_MCP_ADMISSION],
     )
+    builder.add(
+        TAIL_CLARIFY_DISMISSED,
+        _safe_clarify_dismissal_line(session_id=session_id, resolvers=resolvers),
+        budget_bytes=TAIL_BUDGET_BYTES[TAIL_CLARIFY_DISMISSED],
+    )
     return builder.build()
+
+
+def _safe_clarify_dismissal_line(*, session_id: str, resolvers: MissionChatTurnResolvers) -> str:
+    try:
+        return str(resolvers.clarify_dismissal_line(session_id) or "")
+    except Exception:  # pragma: no cover - a context line must never fail a turn
+        logger.debug("clarify dismissal note unavailable for this turn", exc_info=True)
+        return ""
 
 
 def _safe_admission_line(

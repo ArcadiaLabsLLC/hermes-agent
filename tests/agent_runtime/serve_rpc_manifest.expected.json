@@ -9,6 +9,7 @@
     "runtime.agent.idle_instances": "chat",
     "runtime.character.portrait": "look",
     "runtime.characters.thumb": "look",
+    "runtime.chat.clarify.dismiss": "chat",
     "runtime.chat.message": "chat",
     "runtime.chat.steer": "chat",
     "runtime.chat.turn.resolve": "chat",
@@ -112,6 +113,7 @@
     "runtime.characters.status",
     "runtime.characters.thumb",
     "runtime.characters.turnaround",
+    "runtime.chat.clarify.dismiss",
     "runtime.chat.goal.clear",
     "runtime.chat.goal.pause",
     "runtime.chat.goal.resume",
@@ -633,6 +635,11 @@
       "row",
       "scale",
       "square"
+    ],
+    "runtime.chat.clarify.dismiss": [
+      "clarify_token",
+      "client_scope",
+      "session_id"
     ],
     "runtime.chat.message": [
       "clarify_token",
@@ -1176,6 +1183,7 @@
     "runtime.characters.status": "read",
     "runtime.characters.thumb": "read",
     "runtime.characters.turnaround": "console",
+    "runtime.chat.clarify.dismiss": "console",
     "runtime.chat.goal.clear": "console",
     "runtime.chat.goal.pause": "console",
     "runtime.chat.goal.resume": "console",

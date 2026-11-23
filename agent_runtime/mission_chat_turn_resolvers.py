@@ -129,6 +129,13 @@ def _default_admission_line(persona: Any, *, session_id: str | None) -> str:
     return chat_lane_bundle(persona, session_id=session_id).admission_line
 
 
+def _default_clarify_dismissal_line(session_id: str | None) -> str:
+    # The ticket store owns the note: written by ``runtime.chat.clarify.dismiss``, consumed here.
+    from .persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
+
+    return PersonaChatClarifyTicketStore().take_dismissal_note(session_id)
+
+
 def _default_tool_contract(persona: Any, *, session_id: str | None) -> dict[str, Any]:
     # Through the bundle, which composes the two tool lists from the SAME
     # resolve the request the actor is built from uses, so the reuse key and
@@ -197,6 +204,9 @@ class MissionChatTurnResolvers:
     #: line is named from, so the record and the agent's picture agree.
     lane_workspace: Callable[[Any], LaneWorkspace] = _default_lane_workspace
     admission_line: Callable[..., str] = _default_admission_line
+    #: One line when the operator dismissed this chat's question since its last turn, else "".
+    #: Consumed by the read: the next turn is told once.
+    clarify_dismissal_line: Callable[[str | None], str] = _default_clarify_dismissal_line
     tool_contract: Callable[..., dict[str, Any]] = _default_tool_contract
     permission_state: Callable[..., dict[str, Any]] = _default_permission_state
     store_root: Callable[[], str] = _default_store_root

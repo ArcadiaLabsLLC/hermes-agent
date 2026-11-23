@@ -68,6 +68,16 @@ marker text does not promise one. Controls are in
 `tests/agent_runtime/test_transcript_recovery.py` and
 `tests/agent_runtime/test_steer_provenance_downstream.py`.
 
+An agent's waiting question (an open clarify ticket) is settled by the next turn
+in its chat, or dismissed by the operator through `runtime.chat.clarify.dismiss`
+(`session_id`, `clarify_token`, optional `client_scope`;
+`agent_runtime/chat_verbs/clarify_dismiss.py`). The ticket store records the
+ticket `dismissed` where it records `answered`, so `clarify_waiting` stops naming
+it, and leaves one note the chat's next turn reads on its volatile tail
+(`clarify_dismissed`, consumed by that read). An already-settled or unknown ticket
+answers `ok` with its `outcome`; a ticket of another chat is `foreign_chat_session`.
+Controls are in `tests/agent_runtime/test_clarify_dismiss.py`.
+
 `agent_runtime/operator_message.py::normalize_operator_message` is the admission
 policy for RPC, CLI and steering: nonempty text up to 64,000 Unicode characters,
 preserving whitespace. Oversize input receives a typed refusal before dispatch.
