@@ -24,7 +24,7 @@ Killing mutations (each red seen 2026-11-22):
 
 * ``console_operations._detail_for_caller``: return ``result`` for every caller, and the no-path test finds
   the config file's path in the Look reply (the console test stays green);
-* ``console_operations._without_local_paths``: return a string unchanged, and the issue-sentence test finds
+* ``console_operations._text_without_paths``: return the string unchanged, and the issue-sentence test finds
   the path in the unknown toolset's fix hint;
 * ``console_operations._sees_local_paths``: answer ``True`` for a device whatever its tier, and the no-path
   test finds the path in the view-only device's reply;

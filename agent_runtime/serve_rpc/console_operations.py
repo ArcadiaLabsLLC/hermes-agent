@@ -165,15 +165,30 @@ def _detail_for_caller(result: dict, caller) -> dict:
 
 
 def _without_local_paths(node):
-    if isinstance(node, dict):
-        return {key: None if key in _LOCAL_PATH_FIELDS and _is_absolute_path(value) else _without_local_paths(value)
-                for key, value in node.items()}
-    if isinstance(node, list):
-        return [_without_local_paths(item) for item in node]
-    if isinstance(node, str):
-        # MUTATION: return ``node`` unchanged and test_an_issue_sentence_names_no_local_path reddens.
-        return _PATH_IN_PROSE.sub(_PATH_WORDS, node)
+    """*node* (a JSON value) with every absolute local path taken out, routed by its JSON type."""
+
+    return _PROJECTION_BY_TYPE.get(type(node), _unchanged)(node)
+
+
+def _object_without_paths(node: dict) -> dict:
+    return {key: None if key in _LOCAL_PATH_FIELDS and _is_absolute_path(value) else _without_local_paths(value)
+            for key, value in node.items()}
+
+
+def _array_without_paths(node: list) -> list:
+    return [_without_local_paths(item) for item in node]
+
+
+def _text_without_paths(node: str) -> str:
+    # MUTATION: return ``node`` unchanged and test_an_issue_sentence_names_no_local_path reddens.
+    return _PATH_IN_PROSE.sub(_PATH_WORDS, node)
+
+
+def _unchanged(node):
     return node
+
+
+_PROJECTION_BY_TYPE = {dict: _object_without_paths, list: _array_without_paths, str: _text_without_paths}
 
 
 def _is_absolute_path(value) -> bool:
