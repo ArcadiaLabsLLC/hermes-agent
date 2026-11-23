@@ -24,14 +24,60 @@ from .history_rows import (
     _persisted_persona_instance_id,
     _persona_chat_candidate_sort_key,
 )
-from .vocabulary import DEFAULT_PERSONA_CHAT_MESSAGE_TAIL, canonical_chat_persona_id
+from .vocabulary import DEFAULT_PERSONA_CHAT_MESSAGE_TAIL, FRAME_RECENT_CHATS, canonical_chat_persona_id
 
 __layer__ = "lanes"
 __all__ = [
     "Candidate",
     "HistorySummary",
+    "live_chat_roots",
+    "persona_chat_frame_history",
     "persona_chat_history_summary",
 ]
+
+
+def persona_chat_frame_history(**kwargs: Any) -> list[dict[str, Any]]:
+    """The snapshot frame's chat history: :data:`FRAME_RECENT_CHATS` recent chats, live ones pinned.
+
+    The ONE call the core (``snapshot.sections``) and the ``persona_chat_turn`` overlay
+    (``turn_section_read``) make, so the overlay's ``omitted`` / ``evicted_roots`` are the
+    core's bound by construction (owner ruling 2026-11-22, lane w1122f-agentlist).
+    """
+
+    return persona_chat_history_summary(
+        limit=FRAME_RECENT_CHATS, pinned_session_ids=live_chat_roots(), keep_every_pin=True, **kwargs)
+
+
+def live_chat_roots() -> frozenset[str]:
+    """Chats that must stay in the frame however old: a turn in flight, or a question waiting.
+
+    A turn in flight: any journal record in an in-flight state (``inflight_chat_session_roots``).
+    A waiting question: an open clarify ticket whose question the agent has not moved past
+    (``clarify_waiting``). Each read fails open to "none" — a pin is a promotion, never a gate.
+    """
+
+    roots: set[str] = set()
+    try:
+        from ..mission_chat_turns.reads import inflight_chat_session_roots
+
+        # MUTATION: drop this update and test_an_old_chat_with_a_turn_in_flight_stays_in_the_frame reddens.
+        roots.update(inflight_chat_session_roots())
+    except Exception:
+        pass
+    try:
+        from ..clarify_waiting import clarify_question_moved_past
+        from ..persona_chat_continuity.clarify_tickets import CLARIFY_TICKET_OPEN, PersonaChatClarifyTicketStore
+
+        records, _unreadable = PersonaChatClarifyTicketStore().scan_records()
+        for record in records:
+            session_id = safe_assignment_text(record.get("chat_session_id"), limit=240)
+            # MUTATION: drop the open-ticket arm (``if False``) and
+            # test_an_old_chat_with_a_waiting_question_stays_in_the_frame reddens.
+            if session_id and record.get("state") == CLARIFY_TICKET_OPEN and not clarify_question_moved_past(record):
+                roots.add(session_id)
+    except Exception:
+        pass
+    return frozenset(roots)
 
 
 def persona_chat_history_summary(
@@ -45,6 +91,8 @@ def persona_chat_history_summary(
     only_instance_ids: frozenset[str] | None = None,
     only_session_ids: frozenset[str] | None = None,
     omitted_ranked: list[str] | None = None,
+    pinned_session_ids: frozenset[str] = frozenset(),
+    keep_every_pin: bool = False,
 ) -> list[dict[str, Any]]:
     """Return redaction-safe persona chat-history rows for Harness snapshots.
 
@@ -81,6 +129,11 @@ def persona_chat_history_summary(
     ``omitted_ranked``, when given, is filled with the same omitted ids in the
     bound's own rank order, highest first: the rows nearest the bound, which a
     newly active root pushes out (the overlay's ``evicted_roots``).
+
+    ``pinned_session_ids`` rank beside every instance's bound chat, above recency: the frame
+    pins a chat with a turn in flight or a waiting question (:func:`persona_chat_frame_history`).
+    ``keep_every_pin`` keeps every pinned chat and ``limit`` chats beside them, rather than
+    ``limit`` chats in all, so no pin is ever cut.
     """
 
     summary = HistorySummary(
@@ -92,6 +145,8 @@ def persona_chat_history_summary(
         only_instance_ids=only_instance_ids,
         only_session_ids=only_session_ids,
         omitted_ranked=omitted_ranked,
+        pinned_session_ids=frozenset(pinned_session_ids or ()),
+        keep_every_pin=keep_every_pin,
     )
     summary.index_instances()
     # A summary is a read: the fallback attaches an existing store read-only
@@ -134,6 +189,9 @@ class HistorySummary:
     only_instance_ids: frozenset[str] | None = None
     only_session_ids: frozenset[str] | None = None
     omitted_ranked: list[str] | None = None
+    #: Chats ranked with the bound ones, above recency (a live turn, a waiting question).
+    pinned_session_ids: frozenset[str] = frozenset()
+    keep_every_pin: bool = False
     bound_by_session: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_id: dict[str, PersonaInstance] = field(default_factory=dict)
     instances_by_persona: dict[str, PersonaInstance] = field(default_factory=dict)
@@ -370,7 +428,9 @@ class HistorySummary:
         """
 
         raw, _instance, session_id = candidate
-        pinned = session_id in self.bound_by_session
+        # MUTATION: drop ``or session_id in self.pinned_session_ids`` and the two live-chat pin
+        # tests redden (the bound-chat pin is test_every_instances_bound_chat_stays_in_the_frame).
+        pinned = session_id in self.bound_by_session or session_id in self.pinned_session_ids
         activity = max(_raw_activity(raw) or "", self.activity_by_root.get(session_id, ""))
         return (pinned, activity, _persona_chat_candidate_sort_key(candidate))
 
@@ -392,8 +452,13 @@ class HistorySummary:
         # fields are the same fields ``_history_row`` projects, so hydration is
         # bounded to the visible slice.
         candidates.sort(key=self.activity_key, reverse=True)
+        kept = max(0, self.limit)
+        if self.keep_every_pin:
+            # Pins rank first, so the kept prefix is every pin and ``limit`` chats after them.
+            # MUTATION: drop this widening and test_every_instances_bound_chat_stays_in_the_frame reddens.
+            kept += sum(1 for candidate in candidates if self.activity_key(candidate)[0])
         visible_candidates = sorted(
-            candidates[: max(0, self.limit)],
+            candidates[:kept],
             key=_persona_chat_candidate_sort_key,
             reverse=True,
         )

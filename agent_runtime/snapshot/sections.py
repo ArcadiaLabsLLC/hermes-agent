@@ -28,7 +28,7 @@ from agent_runtime.persona_assignments import (
 )
 from agent_runtime.persona_chat_history import (
     DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
-    persona_chat_history_summary,
+    persona_chat_frame_history,
     persona_chat_trace_summary,
 )
 from agent_runtime.persona_instance_identity import identity_aliases_for_rows
@@ -444,7 +444,8 @@ class SnapshotFrameBuild:
         # MUTATION: time the trace below under "history_ms" and
         # test_a_slow_trace_lands_on_the_trace_number reddens.
         with _timed_section(split, "history_ms"):
-            self.persona_chat_history_full = persona_chat_history_summary(
+            # The frame's bound: 10 recent chats, every live one pinned (owner ruling 2026-11-22).
+            self.persona_chat_history_full = persona_chat_frame_history(
                 persona_instances=self.persona_instances,
                 session_db=self.session_db,
                 message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,

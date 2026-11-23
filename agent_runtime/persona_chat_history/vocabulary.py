@@ -389,6 +389,13 @@ WIRE_ROLES: Mapping[str, MessageRole] = MappingProxyType({
 
 DEFAULT_PERSONA_CHAT_MESSAGE_TAIL = 40
 
+#: How many chats the snapshot frame and its ``persona_chat_turn`` overlay carry, beyond the
+#: pinned ones (owner ruling 2026-11-22: "it should just get the recent 10 chat names"). The
+#: chat lists page ``runtime.operator.conversation.list``; an older chat's transcript is read
+#: when it is opened. ONE value for both, because the overlay's ``omitted`` / ``evicted_roots``
+#: must answer exactly as the core's bound does (``persona_chat_frame_history``).
+FRAME_RECENT_CHATS = 10
+
 
 MAX_PERSONA_CHAT_MESSAGE_TAIL = 40
 

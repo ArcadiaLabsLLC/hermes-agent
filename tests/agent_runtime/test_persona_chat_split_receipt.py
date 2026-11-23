@@ -82,7 +82,7 @@ def test_a_slow_trace_lands_on_the_trace_number(isolate_agent_runtime_root):
 def test_a_slow_history_lands_on_the_history_number(isolate_agent_runtime_root):
     """MUTATION (red recorded 2026-11-22): drop the ``history_ms`` span -> history reads 0."""
 
-    real = snapshot_module.sections.persona_chat_history_summary
+    real = snapshot_module.sections.persona_chat_frame_history
     with pytest.MonkeyPatch.context() as mp:
         clock = _controlled_clock(mp)
 
@@ -90,7 +90,7 @@ def test_a_slow_history_lands_on_the_history_number(isolate_agent_runtime_root):
             clock[0] += _INJECTED_DELAY_SECONDS
             return real(**kwargs)
 
-        mp.setattr(snapshot_module.sections, "persona_chat_history_summary", slow)
+        mp.setattr(snapshot_module.sections, "persona_chat_frame_history", slow)
         history, trace, channels = _build_and_split(mp)
 
     assert history >= _INJECTED_DELAY_MS * 0.8, (history, trace, channels)

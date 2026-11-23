@@ -40,7 +40,7 @@ from __future__ import annotations
 #: dodge here.
 from ..persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
 from .messages import persona_chat_session_messages
-from .summary import persona_chat_history_summary
+from .summary import persona_chat_frame_history, persona_chat_history_summary
 from .trace import persona_chat_trace_summary
 from .vocabulary import (
     DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
@@ -72,6 +72,7 @@ __all__ = [
     "canonical_chat_persona_id",
     "canonical_persona_chat_turn_id",
     "logical_persona_chat_client_message_id",
+    "persona_chat_frame_history",
     "persona_chat_history_summary",
     "persona_chat_session_messages",
     "persona_chat_trace_summary",

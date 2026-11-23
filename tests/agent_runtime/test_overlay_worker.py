@@ -269,10 +269,13 @@ def test_a_new_chats_open_rides_the_overlay_and_names_the_evicted_root(
 
     core = to_jsonable(build_snapshot())
     kept = {row["session_id"] for row in core["persona_chat_history"]}
-    assert new_root in kept and len(kept) == 50
+    # The frame's bound (owner ruling 2026-11-22): 10 recent chats beside the pinned bound one.
+    from agent_runtime.persona_chat_history.vocabulary import FRAME_RECENT_CHATS
+
+    assert new_root in kept and len(kept) == FRAME_RECENT_CHATS + 1
     assert frame["evicted_roots"] and not set(frame["evicted_roots"]) & kept
     seeded = {ROOT, new_root, *(_session_root(index) for index in range(1, 50))}
-    assert seeded - kept == set(frame["evicted_roots"])
+    assert set(frame["evicted_roots"]) <= seeded - kept
 
     # A room that declared only the turn token keeps today's core for the open.
     from agent_runtime import turn_section_reuse

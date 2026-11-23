@@ -109,7 +109,7 @@ def read_turn_sections(
     from .config import ensure_persisted_personas
     from .operator_channels import operator_channel_summary
     from .persona_assignments import PersonaInstanceStore, persona_instance_summary
-    from .persona_chat_history import persona_chat_history_summary, persona_chat_trace_summary
+    from .persona_chat_history import persona_chat_frame_history, persona_chat_trace_summary
     from .persona_chat_history.vocabulary import DEFAULT_PERSONA_CHAT_MESSAGE_TAIL
     from .persona_lifecycle import is_runtime_persona
     from .resolution import runtime_resolution_scope
@@ -129,7 +129,10 @@ def read_turn_sections(
         started = time.perf_counter()
         omitted: set[str] = set()
         omitted_ranked: list[str] = []
-        history = persona_chat_history_summary(
+        # The core's own bound (``persona_chat_frame_history``), so ``omitted`` is the core's answer.
+        # MUTATION: call persona_chat_history_summary here (its default bound of 50) and
+        # test_the_core_and_the_overlay_keep_the_same_chats reddens.
+        history = persona_chat_frame_history(
             persona_instances=instances,
             session_db=session_db,
             message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
