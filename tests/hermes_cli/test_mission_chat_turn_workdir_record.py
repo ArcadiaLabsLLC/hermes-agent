@@ -8,18 +8,21 @@ DISK record only: never the terminal frame, never a history row a Look or Run-ch
 Driven through the real handler (``_cmd_mission_chat_message``) with a fake provider; the record is read off
 disk. Killing mutations (reds seen 2026-11-22, lane w1122d-hmworkdir):
 
-* drop ``**self._workdir_block()`` from ``_commit_native``'s metadata
-  -> test_the_turns_record_keeps_where_it_ran
-* drop the ``safe_turn_workdir`` arm from ``_safe_journal_metadata``
-  -> test_the_turns_record_keeps_where_it_ran
-* ``safe_turn_workdir`` admits any ``source``
+* M1 drop ``**self._workdir_block()`` from ``_commit_native``'s metadata
+  -> test_the_turns_record_keeps_where_it_ran, test_the_read_projection_keeps_it_for_the_console
+* M2 drop the ``safe_turn_workdir`` arm from ``_safe_journal_metadata``
+  -> test_the_turns_record_keeps_where_it_ran, test_the_read_projection_keeps_it_for_the_console
+* M3 ``safe_turn_workdir`` admits any ``source``
   -> test_a_receipt_naming_no_known_rung_is_not_kept
-* ``_safe_workdir_issue`` returns ``dict(row)``
+* M4 ``_safe_workdir_issue`` returns ``dict(row)``
   -> test_an_issue_keeps_its_typed_fields_and_drops_its_prose
-* ``_success_payload`` spreads ``**self._workdir_block()`` into the terminal frame
+* M5 ``_success_payload`` spreads ``**self._workdir_block()`` into the terminal frame
   -> test_the_terminal_frame_never_names_the_workdir
-* ``_workdir_block`` answers the receipt even when the runner reported none (``{KEY: receipt or {}}``)
+* M6 ``_workdir_block`` answers a block when the runner reported none
+  (``{KEY: receipt or {"source": "process_cwd"}}``)
   -> test_a_turn_whose_runner_reported_no_receipt_records_no_block
+* M7 ``curation`` copies the record's ``mission_chat_workdir`` onto the history row
+  -> test_no_history_row_names_the_workdir
 """
 
 from __future__ import annotations
