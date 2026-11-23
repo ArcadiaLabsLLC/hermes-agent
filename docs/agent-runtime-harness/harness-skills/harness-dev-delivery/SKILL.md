@@ -167,8 +167,10 @@ No-edit investigation work is exempt: do not invent commits for work that change
 When a brief sends you to an EterniaLauncher queue row:
 
 1. Claim it under the lane name your brief gives you. If it gives none, pick a `wNNNNx-<slug>`
-   name yourself (date, wave letter, slug: `w1120a-qaclaimwin`) and go on — never ask, and
-   never invent one from your persona id (`dev`), which every instance of your persona shares.
+   name yourself and go on — never ask, and never invent one from your persona id (`dev`),
+   which every instance of your persona shares. The wave `wNNNNx` is the brief's wave when it
+   names one; else today's date plus this box's own letter, once `git ls-remote origin` shows
+   no `land/<wave>` or lane branch using it — never another box's letter.
 2. Run `dart tool/queue/task.dart --claim <ID> --as <lane> --tree <your worktree> --push`
    from the repo's primary checkout with a timeout of at least 300 s — it fetches every brain's
    origin first, and a shorter timeout gives up while the claim keeps running and commits.
@@ -177,8 +179,12 @@ When a brief sends you to an EterniaLauncher queue row:
    <lane>" naming any other claimant is another lane's: stop and report it.
 4. Then cut your own worktree from `origin/main`, OUTSIDE every primary checkout —
    EterniaLauncher's sibling `EterniaLauncher-worktrees/<lane>`, hermes's `.worktrees/<lane>` beside
-   the clone, never a `worktrees/` inside one — and do every edit, build and commit there,
-   never in the primary checkout.
+   the clone — and do every edit, build and commit there, never in the primary checkout. From
+   the checkout root: `git worktree add --lock --reason "lane <lane>" ../EterniaLauncher-worktrees/<lane> -b <lane> origin/main`
+   (hermes: `../.worktrees/<lane>`). Never `git -C <checkout> worktree add <relative path>`: git
+   resolves it against the `-C` folder. Then `git worktree list`: a new path under
+   `git rev-parse --show-toplevel` is wrong — `git worktree remove` it and add again, never
+   `git worktree move`.
 5. When the work lands, CLOSE the row — `dart tool/queue/close_row.dart <ID> --done <sha> --commit`
    moves it to the archive and discharges your claim. Never delete a row, even when a brief says
    to: close it and tell your lead the brief was wrong (the repo's `CLAUDE.md`, in your context

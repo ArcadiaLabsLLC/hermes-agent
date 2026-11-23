@@ -73,7 +73,15 @@ def test_a_helper_cuts_its_worktree_outside_the_checkout_and_names_its_own_lane(
     ``<lane>``. The lead's brief names the folder and the lane (or says pick one); the helper picks a
     ``wNNNNx-<slug>`` lane itself and cuts outside every primary checkout. KILLING MUTATIONS: drop the
     lead's "OUTSIDE every primary checkout" clause, or restore the helper's "ask your lead" step 1 —
-    each reddens an assert here."""
+    each reddens an assert here.
+
+    QA-FU-A-HELPERS-FIRST-WORKTREE-ADD-RESOLVES-ITS-SIBLING-PATH-INSIDE-THE-CHECKOUT (EterniaLauncher,
+    seen live 2026-11-22): a helper ran ``git -C checkout worktree add … EterniaLauncher-worktrees/<lane>``
+    from the clone's parent; git resolved the path against ``checkout``, so the tree landed inside it and
+    was ``git worktree move``d out after; it also named itself ``w1122a-…``, another box's wave. Step 4
+    gives the command run from the checkout root, bans the ``-C`` form, checks ``git worktree list`` and
+    re-adds instead of moving; step 1 gives the wave rule. KILLING MUTATIONS: drop the command line from
+    step 4; drop the ``git worktree list`` check; drop step 1's wave sentence — each reddens an assert."""
 
     lead = " ".join(_section((_SKILLS / "harness-runtime-model" / "SKILL.md").read_text(encoding="utf-8"),
                              "## Delegation").split())
@@ -86,6 +94,20 @@ def test_a_helper_cuts_its_worktree_outside_the_checkout_and_names_its_own_lane(
     assert "`EterniaLauncher-worktrees/<lane>`" in helper and "`.worktrees/<lane>` beside" in helper
     assert "pick a `wNNNNx-<slug>`" in helper and "never ask" in helper
     assert "ask your lead" not in helper
+    # The first add lands right: the exact command from the checkout root, never the `-C` form.
+    assert ('From the checkout root: `git worktree add --lock --reason "lane <lane>" '
+            '../EterniaLauncher-worktrees/<lane> -b <lane> origin/main`') in helper
+    assert "(hermes: `../.worktrees/<lane>`)" in helper
+    assert "Never `git -C <checkout> worktree add <relative path>`" in helper
+    # A check right after the add; a wrong path is removed and re-added, never moved.
+    assert ("Then `git worktree list`: a new path under `git rev-parse --show-toplevel` is wrong — "
+            "`git worktree remove` it and add again, never `git worktree move`") in helper
+    # The wave: the brief's, else today's date plus this box's own letter, checked free first.
+    assert ("The wave `wNNNNx` is the brief's wave when it names one; else today's date plus this box's "
+            "own letter, once `git ls-remote origin` shows no `land/<wave>` or lane branch using it — "
+            "never another box's letter") in helper
+    assert "w1120a" not in helper
+    assert "never another box's" in lead
 
 
 def test_one_unanswered_approval_neither_stops_a_helper_nor_releases_its_claim():

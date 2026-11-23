@@ -206,8 +206,8 @@ Recipe and flags: `references/operations.md`, "Delegation"; why: `references/mod
   return with `persona instance return-summary` (bounded, records `returned_to`).
 - Intervene only on a stall, a block, or scope drift, on the SAME chat root.
 - **A helper sent to a queue row gets a lane name of its own, in the brief**: a
-  `wNNNNx-<slug>` (date, wave letter, slug: `w1120a-qaclaimwin`) or the helper's instance handle
-  without the `@` — never its bare persona id (`dev`), shared by every instance, and never
+  `wNNNNx-<slug>` (your wave, else today's date plus this box's own letter, never another box's)
+  or the helper's instance handle without the `@` — never its bare persona id (`dev`), shared by every instance, and never
   `persona:<id>` (that hands the row to the Work engine). With none to give, the brief says
   "pick a `wNNNNx-<slug>` lane yourself, without asking". Give it the claim line,
   `dart tool/queue/task.dart --claim <ID> --as <lane> --tree <its own worktree> --push`, run
