@@ -385,7 +385,7 @@ sections as `name:ms`, sorted cost-descending then by name, so consecutive boots
 of the same shape print the same string and a diff means the shape moved
 (`snapshot/receipts.py:254`). A sibling receipt splits the misleading `agents_readiness`
 number into its two halves: `snapshot_agents_readiness walk_ms=%d
-tool_visibility_ms=%d pid=%d` (`snapshot/build_log.py:88`). The often-quoted numbers for
+tool_visibility_ms=%d walked=%d pid=%d` (`snapshot/build_log.py:88`). The often-quoted numbers for
 that split — 4,001 ms first build (3,054 tool visibility / 947 walk) against
 183 ms steady state (36 / 146) — are the **bench from `25cd488d33`'s commit
 body**, 5 personas against the operator's profiles root, and appear in no live
