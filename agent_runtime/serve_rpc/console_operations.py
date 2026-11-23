@@ -1,7 +1,11 @@
 """Native twins of the Agent Console's local operations, behind existing owners."""
+import re
 from functools import partial
 
-from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_CONSOLE, TIER_READ
+from agent_runtime.call_authorization import (
+    CALLER_COMPUTER, CALLER_DEVICE, CALLER_LOCAL_CONSOLE, CALLER_STDIO_OWNER, COMPUTER_REACH_LOOK,
+    TIER_CONSOLE, TIER_READ, is_computer_below_account,
+)
 from .protocol import err, ok, defer_or_inline, ERR_INVALID_PARAMS, ERR_NOT_FOUND, ERR_CONFLICT
 from .registry import method
 from agent_runtime.param_readers import read_text
@@ -113,8 +117,67 @@ def instance_detail(rid, params, context=None):
         from agent_runtime.snapshot.details import persona_instance_detail_for_id
         _console_text(p, "instance_id", required=True)
         result = persona_instance_detail_for_id(p["instance_id"])
-        return result if result is not None else {"found": False, "instance_id": p["instance_id"]}
+        if result is None:
+            return {"found": False, "instance_id": p["instance_id"]}
+        return _detail_for_caller(result, context.caller if context is not None else None)
     return _operation(rid, params, context, "runtime.persona.instance.detail", read)
+
+
+# ── who may see where things live on this computer (RT-FU-A-LOOK-DEVICE-IS-SENT-THE-PATH-OF-AN-AGENTS-
+# SETTINGS-FILE, review w1122d.6). The detail's ``tool_resolution`` (and its ``turn_tool_context.preview``
+# copy) names absolute local paths: the profile's config file, the turn's working directory, the runtime
+# root, a bound repository. Only a caller at console reach keeps them; everyone else reads every label and
+# source with the paths taken out. The stores, ``ToolsetDeclaration.row()`` and the local CLI keep theirs.
+
+#: The keys of the detail that hold an absolute local path, read off ``tool_visibility.resolve_tool_visibility``
+#: (``workdir``, ``runtime_root``, ``repo_scope``), ``ToolsetDeclaration.row()`` and ``DeclarationIssue.row()``
+#: (``config_path``). ``repo_scope`` may instead hold a portable label, which is kept.
+_LOCAL_PATH_FIELDS = frozenset({"config_path", "root_config_path", "workdir", "runtime_root", "repo_scope"})
+#: An absolute path as a value: POSIX, home-relative, a Windows drive or a UNC share.
+_ABSOLUTE_PATH = re.compile(r"^(?:/|~[/\\]|[A-Za-z]:[/\\]|\\\\)")
+#: An absolute path inside prose (an issue's summary names its file): not after a word, a dot or a colon,
+#: so ``chat/acp``, ``./x`` and a URL's ``//`` are left alone.
+_PATH_IN_PROSE = re.compile(r"(?<![\w.:/\\])(?:~[/\\]|[A-Za-z]:[/\\]|/(?=[\w.~-]))[^\s'\"`,;()<>]*")
+_PATH_WORDS = "a file on the agent's computer"
+
+
+def _sees_local_paths(caller) -> bool:
+    """Is *caller* at console reach: the owner's own console, a console device, a computer at the account level?
+
+    ``None`` is an in-process call with no wire behind it. Every other caller (a view-only device, a computer at
+    Look or Run chats, a caller the transport could not place) is projected."""
+
+    if caller is None or caller.kind in (CALLER_STDIO_OWNER, CALLER_LOCAL_CONSOLE):
+        return True
+    if caller.kind == CALLER_DEVICE:
+        return caller.device_tier == TIER_CONSOLE
+    return caller.kind == CALLER_COMPUTER and not is_computer_below_account(caller)
+
+
+def _detail_for_caller(result: dict, caller) -> dict:
+    """The detail as *caller* may see it: below console reach, no absolute local path in any field or sentence."""
+
+    # MUTATION: return ``result`` here for every caller and test_no_absolute_local_path_reaches_look_or_view_only
+    # reddens, while test_the_console_keeps_the_paths stays green.
+    if _sees_local_paths(caller):
+        return result
+    return _without_local_paths(result)
+
+
+def _without_local_paths(node):
+    if isinstance(node, dict):
+        return {key: None if key in _LOCAL_PATH_FIELDS and _is_absolute_path(value) else _without_local_paths(value)
+                for key, value in node.items()}
+    if isinstance(node, list):
+        return [_without_local_paths(item) for item in node]
+    if isinstance(node, str):
+        # MUTATION: return ``node`` unchanged and test_an_issue_sentence_names_no_local_path reddens.
+        return _PATH_IN_PROSE.sub(_PATH_WORDS, node)
+    return node
+
+
+def _is_absolute_path(value) -> bool:
+    return isinstance(value, str) and _ABSOLUTE_PATH.match(value) is not None
 
 
 @method("runtime.skills.catalog", tier=TIER_READ)
