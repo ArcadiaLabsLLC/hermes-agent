@@ -812,6 +812,14 @@ def _computer_refusal_words(name: str, grant: str | None, reach: str | None) -> 
     return f"{name or 'this call'} is not open to a computer this phone granted {grant or 'nothing'}"
 
 
+def _peer_arm(resolved: RpcCaller, name: str, normalized: str) -> CallAuthorization:
+    """A peer is answered from :data:`PEER_METHOD_ALLOWLIST` and nothing else; the verb's tier does not enter."""
+
+    if name and name in PEER_METHOD_ALLOWLIST:
+        return CallAuthorization(ok=True, reason="peer_allowlisted", tier=normalized, caller_kind=resolved.kind)
+    return CallAuthorization(ok=False, reason=REASON_SCOPE_DENIED, tier=normalized, caller_kind=resolved.kind)
+
+
 def authorize_call(
     tier: str, caller: RpcCaller | None, *, method: str | None = None, computer_reach: str | None = None
 ) -> CallAuthorization:
@@ -922,19 +930,7 @@ def authorize_call(
     if (computer := _computer_arm(resolved, name, normalized, computer_reach)) is not None:
         return computer
     if resolved.kind == CALLER_PEER:
-        if name and name in PEER_METHOD_ALLOWLIST:
-            return CallAuthorization(
-                ok=True,
-                reason="peer_allowlisted",
-                tier=normalized,
-                caller_kind=resolved.kind,
-            )
-        return CallAuthorization(
-            ok=False,
-            reason=REASON_SCOPE_DENIED,
-            tier=normalized,
-            caller_kind=resolved.kind,
-        )
+        return _peer_arm(resolved, name, normalized)
     if normalized == TIER_READ:
         return CallAuthorization(
             ok=True, reason="read_tier", tier=normalized, caller_kind=resolved.kind

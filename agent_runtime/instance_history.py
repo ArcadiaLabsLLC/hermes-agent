@@ -6,9 +6,8 @@ import math
 from contextlib import closing
 from typing import Any
 
-from hermes_state_sessions import SessionSessionsMixin
-
 from . import chat_heads, chat_session_scope
+from ._upstream_doors import session_chain_search_where
 from .conversation_owner import ConversationOwnerError, request_client_scope, require_session_owner
 from .instance_selection import verify_instance_install, InstanceSelectionError
 from .instance_sessions import instance_session_clause
@@ -268,7 +267,7 @@ def _history_page(db, *, owner, instance_id=None, persona=None, legacy_route=Non
         # punctuation-stripped). The chain is upstream's (a child of a session that ended for
         # compression), seeded from persona chats only so the walk stays this list's size.
         # MUTATION: drop this filter and test_a_search_finds_a_chat_on_a_page_never_loaded reddens.
-        where, found = SessionSessionsMixin._chain_search_where(where, "", search)
+        where, found = session_chain_search_where(where, "", search)
         cte = ("WITH RECURSIVE chain(root_id, cur_id) AS (SELECT id, id FROM sessions WHERE source=? "
                "UNION ALL SELECT c.root_id, child.id FROM chain c JOIN sessions parent ON parent.id=c.cur_id "
                "JOIN sessions child ON child.parent_session_id=c.cur_id "

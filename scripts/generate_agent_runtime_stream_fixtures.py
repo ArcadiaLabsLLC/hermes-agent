@@ -619,6 +619,33 @@ def _seed_fixture_qa_channel() -> None:
     ))
 
 
+def _seed_agent_create_fixture() -> None:
+    """S0's arrangement 2: the persona, the QA channel and the workspace with its office, seeded first."""
+
+    from agent_runtime.models import AgentPersona
+    from agent_runtime.office_store import OfficeStore
+    from agent_runtime.store import AgentStore, WorkspaceStore
+
+    AgentStore().save(
+        AgentPersona(
+            id=FIXTURE_CREATE_PERSONA_ID,
+            display_name=FIXTURE_CREATE_PERSONA_DISPLAY_NAME,
+            role="qa",
+            model=None,
+            provider=None,
+            api_mode=None,
+            system_prompt_path="",
+        )
+    )
+    _seed_fixture_qa_channel()
+    WorkspaceStore().create(
+        name="Office Pilot", workspace_id=FIXTURE_CREATE_WORKSPACE_ID
+    )
+    OfficeStore().ensure_surface(
+        FIXTURE_CREATE_WORKSPACE_ID, created_by="fixture-seed"
+    )
+
+
 def _build_agent_create_frames() -> tuple[dict, dict]:
     """S0: ONE ``perform_agent_create``, rendered for two different subscribers.
 
@@ -691,13 +718,10 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
     from agent_runtime import paths, persona_assignments
     from agent_runtime.agent_create import perform_agent_create
     from agent_runtime.events import EventLog
-    from agent_runtime.models import AgentPersona
-    from agent_runtime.office_store import OfficeStore
     from agent_runtime.parity import events_position
     from agent_runtime.patch_coverage import HISTORICAL_FOLD_ENTITIES
     from agent_runtime.persona_assignments import persona_instance_id_for_placement
     from agent_runtime.state_patches import STATE_PATCHED_EVENT_TYPE
-    from agent_runtime.store import AgentStore, WorkspaceStore
 
     assert FIXTURE_NARROW_FOLD_ENTITIES == HISTORICAL_FOLD_ENTITIES, (
         "the narrow arm is supposed to BE the historical default set; it has "
@@ -708,24 +732,7 @@ def _build_agent_create_frames() -> tuple[dict, dict]:
         == FIXTURE_CREATE_INSTANCE_ID
     )
 
-    AgentStore().save(
-        AgentPersona(
-            id=FIXTURE_CREATE_PERSONA_ID,
-            display_name=FIXTURE_CREATE_PERSONA_DISPLAY_NAME,
-            role="qa",
-            model=None,
-            provider=None,
-            api_mode=None,
-            system_prompt_path="",
-        )
-    )
-    _seed_fixture_qa_channel()
-    WorkspaceStore().create(
-        name="Office Pilot", workspace_id=FIXTURE_CREATE_WORKSPACE_ID
-    )
-    OfficeStore().ensure_surface(
-        FIXTURE_CREATE_WORKSPACE_ID, created_by="fixture-seed"
-    )
+    _seed_agent_create_fixture()
 
     base_offset = events_position()["event_offset"]
 

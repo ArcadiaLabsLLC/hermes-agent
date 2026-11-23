@@ -119,7 +119,6 @@ def realm_sync_status(
     repo, remote_check = _status_repo(realm, membership, credential)
     git = _git_state(repo)
     artifacts = resolve_realm_sync_artifacts(realm_id)
-    agent_state = realm_agent_selection_state(realm_id)
     workspaces = _workspaces_for_realm(realm)
     workspace_statuses = _workspace_sync_statuses(realm, repo)
     # Installs that predate the skill baseline sidecar (2026-09-12): record the
@@ -178,18 +177,7 @@ def realm_sync_status(
         # ``_status_repo`` for why a denial answers here rather than raising.
         "remote_checked": remote_check["checked"],
         "remote_check_error": remote_check["error"],
-        "skills_drift": skills_drift,
-        "skill_publish_mode": realm.skill_publish_mode,
-        "skill_selection": sorted(realm.skill_selection or []),
-        # Additive: the realm's skill-delete ledger as receipt rows. The
-        # launcher's realm-sync sheet reads this envelope absent-tolerantly, so
-        # a "deleted from realm" row with a restore affordance needs nothing
-        # else from the backend.
-        "skill_tombstones": _skill_tombstone_rows(realm),
-        "skills_published": _distinct_skill_package_count(artifacts),
-        "agent_publish_mode": agent_state["mode"],
-        "agent_selection": agent_state["selection"],
-        "agents_published": len(agent_state["published"]),
+        **_skill_and_agent_rows(realm, artifacts, skills_drift),
         "conflicts": git["conflicts"],
         "last_pull": _timestamp_file(repo, "last_pull.txt"),
         "last_publish": _timestamp_file(repo, "last_publish.txt"),
@@ -260,6 +248,26 @@ def realm_sync_status(
         "maps": map_row,
         # USER PREFABS: the same row, the same absent-tolerant contract.
         "prefabs": prefab_row,
+    }
+
+
+def _skill_and_agent_rows(realm: Any, artifacts: list, skills_drift: Any) -> dict[str, Any]:
+    """The status envelope's skill and agent selection rows (``realm_sync_status``)."""
+
+    agent_state = realm_agent_selection_state(realm.id)
+    return {
+        "skills_drift": skills_drift,
+        "skill_publish_mode": realm.skill_publish_mode,
+        "skill_selection": sorted(realm.skill_selection or []),
+        # Additive: the realm's skill-delete ledger as receipt rows. The
+        # launcher's realm-sync sheet reads this envelope absent-tolerantly, so
+        # a "deleted from realm" row with a restore affordance needs nothing
+        # else from the backend.
+        "skill_tombstones": _skill_tombstone_rows(realm),
+        "skills_published": _distinct_skill_package_count(artifacts),
+        "agent_publish_mode": agent_state["mode"],
+        "agent_selection": agent_state["selection"],
+        "agents_published": len(agent_state["published"]),
     }
 
 

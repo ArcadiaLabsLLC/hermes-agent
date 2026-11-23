@@ -48,6 +48,7 @@ __all__ = [
     "gguf_file_header",
     "iter_named_profile_dirs",
     "looks_like_help_or_version_command",
+    "main_model_and_provider",
     "mcp_key_name",
     "mcp_register_server_tools",
     "mcp_resolve_server_key",
@@ -70,6 +71,7 @@ __all__ = [
     "session_db_resume_lineage_ids",
     "session_list_columns_sql",
     "session_async_delivery_var",
+    "session_chain_search_where",
     "skill_manage_target",
     "skills_sync_primitives",
     "skills_tool_inspection_doors",
@@ -95,6 +97,27 @@ def approval_verdict_reasoning() -> dict | None:
     from tools.approval_smart import _verdict_reasoning
 
     return _verdict_reasoning()
+
+
+def main_model_and_provider() -> tuple[str, str]:
+    """``agent.auxiliary_client._read_main_model`` / ``_read_main_provider`` — the active main model and
+    provider (the runtime override first, then config.yaml), as upstream's V4A rule
+    (``tools.file_tools._is_openai_family_main``) reads them; the phone's file tools
+    (``agent_runtime/phone_file_tools.py``) apply the same rule where ``tools.file_tools`` is not shipped."""
+
+    from agent.auxiliary_client import _read_main_model, _read_main_provider
+
+    return _read_main_model() or "", _read_main_provider() or ""
+
+
+def session_chain_search_where(where_sql: str, id_needle: str, search_needle: str) -> tuple[str, list]:
+    """``hermes_state_sessions.SessionSessionsMixin._chain_search_where`` — upstream's stored session.list
+    search rule (own id, forward compression chain, titles, punctuation-stripped), so the persona chat list
+    (``agent_runtime/instance_history.py``) finds a chat exactly as upstream's list does."""
+
+    from hermes_state_sessions import SessionSessionsMixin
+
+    return SessionSessionsMixin._chain_search_where(where_sql, id_needle, search_needle)
 
 
 def file_tool_path_for_task(filepath: str, task_id: str = "default"):

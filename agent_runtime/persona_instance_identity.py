@@ -597,51 +597,18 @@ def office_placement_evidence(office_store) -> tuple[set[str] | None, dict[str, 
     return live, archived_by_ws
 
 
-def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | None = None) -> dict[str, Any]:
-    """Collapse legacy-id persona-instance rows onto their canonical channel.
+def _fold_legacy_ids(
+    store: PersonaInstanceStore,
+    instances: list[PersonaInstance],
+    by_id: dict[str, PersonaInstance],
+    aliases: dict[str, str],
+    archive_dir: Path,
+    apply: bool,
+) -> list[dict[str, Any]]:
+    """Phase 1 of :func:`reconcile_persona_instances`: each legacy-id row merged onto, or renamed to, its
+    canonical id (``by_id`` and ``aliases`` updated in place); the actions, applied or not."""
 
-    For every live row whose id is not canonical: when the canonical row also
-    exists, the newer conversational surface (session/display/profile) is
-    kept on the canonical row and the legacy row is archived; when it does
-    not, the row is rewritten under its canonical id. Legacy files are moved
-    to ``persona_instances_archive/<ts>/`` — never deleted — and every
-    action emits ``persona_instance.reconciled``. Aliases are recorded in the
-    durable registry regardless, so the ``identity_map`` keeps resolving old
-    ids in archived history. Running twice is a no-op the second time.
-
-    The phases run in order: (0) stored ``task_bound`` retirement, (1) legacy-id fold, (2) orphan / legacy-role
-    prune, (2b) unplaced-instance prune, (3) missing steering-parent repair,
-    (4) missing chat-session-binding repair, (5) owner-less flow-graph prune, (6) retired (the canonical
-    scope-pointer clear), (7) the hidden copies settled: adopted into the Default workspace, archived, or held.
-    ``apply=False`` (the CLI's ``--dry-run``) reports every phase and writes
-    nothing — no store rows, no graph docs, no events.
-
-    Phase 2b is numbered rather than renumbering its successors because the
-    ordinals are cited by name across this repo's docs and tests; it is a second
-    ARCHIVE phase and belongs beside the first.
-
-    Phase 5 is the last row-reading phase by referential ordering before phase 7,
-    which settles the hidden copies over the rows that survived. Phases 0-2 are
-    the only phases that add or remove rows and phases 3-4 only repair pointers
-    inside surviving rows, so by phase 5 the live-instance set is final and the
-    "does this graph's owner still exist?" question is asked exactly once
-    against it. Running after phase 3 also makes phase 5's departure settlement
-    idempotent instead of competing with it: phase 3's liveness repair has
-    already dropped a departed owner from every child's ``steered_by``, so the
-    graph-scoped pass reports ``changed: False`` rather than racing the same
-    write from a second authority.
-    """
-    store = PersonaInstanceStore(event_log=event_log)
-    # Phase 0 — retire stored ``task_bound`` rows (RT-TASK-BOUND-VOCABULARY): steer-shaped
-    # rows are normalised, mission-shaped rows archived. First, so every later phase reads
-    # the surviving set; a dry run's later phases still see the rows it would archive.
-    task_bound = store.retire_task_bound_rows(apply=apply)
-    instances = store.list_all()
-    by_id = {instance.id: instance for instance in instances}
-    aliases = load_persona_instance_aliases()
     actions: list[dict[str, Any]] = []
-    archive_dir = paths.persona_instances_archive_dir() / now().strftime("%Y%m%dT%H%M%SZ_reconcile")
-
     for instance in instances:
         canonical = _canonical_for_row(instance.id, instance.persona_id, instance.mode)
         if canonical == instance.id:
@@ -685,6 +652,53 @@ def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | Non
             instance,
             {"from_id": instance.id, "to_id": canonical, "action": action},
         )
+    return actions
+
+
+def reconcile_persona_instances(*, apply: bool = True, event_log: EventLog | None = None) -> dict[str, Any]:
+    """Collapse legacy-id persona-instance rows onto their canonical channel.
+
+    For every live row whose id is not canonical: when the canonical row also
+    exists, the newer conversational surface (session/display/profile) is
+    kept on the canonical row and the legacy row is archived; when it does
+    not, the row is rewritten under its canonical id. Legacy files are moved
+    to ``persona_instances_archive/<ts>/`` — never deleted — and every
+    action emits ``persona_instance.reconciled``. Aliases are recorded in the
+    durable registry regardless, so the ``identity_map`` keeps resolving old
+    ids in archived history. Running twice is a no-op the second time.
+
+    The phases run in order: (0) stored ``task_bound`` retirement, (1) legacy-id fold, (2) orphan / legacy-role
+    prune, (2b) unplaced-instance prune, (3) missing steering-parent repair,
+    (4) missing chat-session-binding repair, (5) owner-less flow-graph prune, (6) retired (the canonical
+    scope-pointer clear), (7) the hidden copies settled: adopted into the Default workspace, archived, or held.
+    ``apply=False`` (the CLI's ``--dry-run``) reports every phase and writes
+    nothing — no store rows, no graph docs, no events.
+
+    Phase 2b is numbered rather than renumbering its successors because the
+    ordinals are cited by name across this repo's docs and tests; it is a second
+    ARCHIVE phase and belongs beside the first.
+
+    Phase 5 is the last row-reading phase by referential ordering before phase 7,
+    which settles the hidden copies over the rows that survived. Phases 0-2 are
+    the only phases that add or remove rows and phases 3-4 only repair pointers
+    inside surviving rows, so by phase 5 the live-instance set is final and the
+    "does this graph's owner still exist?" question is asked exactly once
+    against it. Running after phase 3 also makes phase 5's departure settlement
+    idempotent instead of competing with it: phase 3's liveness repair has
+    already dropped a departed owner from every child's ``steered_by``, so the
+    graph-scoped pass reports ``changed: False`` rather than racing the same
+    write from a second authority.
+    """
+    store = PersonaInstanceStore(event_log=event_log)
+    # Phase 0 — retire stored ``task_bound`` rows (RT-TASK-BOUND-VOCABULARY): steer-shaped
+    # rows are normalised, mission-shaped rows archived. First, so every later phase reads
+    # the surviving set; a dry run's later phases still see the rows it would archive.
+    task_bound = store.retire_task_bound_rows(apply=apply)
+    instances = store.list_all()
+    by_id = {instance.id: instance for instance in instances}
+    aliases = load_persona_instance_aliases()
+    archive_dir = paths.persona_instances_archive_dir() / now().strftime("%Y%m%dT%H%M%SZ_reconcile")
+    actions = _fold_legacy_ids(store, instances, by_id, aliases, archive_dir, apply)
 
     if apply and any(item["action"] in {"merged", "renamed"} for item in actions):
         _save_persona_instance_aliases(aliases)

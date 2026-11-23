@@ -34,7 +34,9 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
-__layer__ = "lanes"
+# ``policy``: a refusal rule over paths, reading only ``models`` (installed_profile, the doors) and upstream, so
+# the phone file writer (``project_files.writer``, ``stores``) may ask it without an upward import (W0-G6).
+__layer__ = "policy"
 
 __all__ = [
     "FORK_PLUGIN_PREFIX",

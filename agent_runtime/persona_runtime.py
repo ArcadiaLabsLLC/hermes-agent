@@ -326,19 +326,26 @@ class GPTPersonaRuntime:
                     workdir=Path(workdir.path) if workdir.grounded else None,
                 )
             )
-        if trace_sink is not None:
-            trace_sink.record_reasoning_usage(getattr(result, "reasoning_window", None))
-        ChatToolPermissionStore().consume_turn(persona_id=persona.id, session_id=perm_session_id)
-        if clarify_capture.requested and isinstance(result.raw, dict):
-            result.raw["clarify_request"] = clarify_capture.request
-        if isinstance(result.raw, dict):
-            # Per-turn receipt of where the turn actually ran (and of any
-            # configured-but-unusable path it degraded past). The caller records
-            # it beside the turn's other receipts (the settle persist, under the same key, on the
-            # turn's durable record only); the persona-level preview
-            # carries the same typed rows in ``requirement_failures``.
-            result.raw[TURN_WORKDIR_KEY] = workdir.receipt()
-        return result
+        return _settle_mission_chat_turn(result, trace_sink, persona, perm_session_id, clarify_capture, workdir)
+
+
+def _settle_mission_chat_turn(result, trace_sink, persona: AgentPersona, perm_session_id, clarify_capture, workdir) -> AgentRunResult:
+    """A finished mission-chat turn's settlement: its reasoning usage traced, its one-turn permission consumed,
+    and its clarify request and workdir receipt on ``result.raw``."""
+
+    if trace_sink is not None:
+        trace_sink.record_reasoning_usage(getattr(result, "reasoning_window", None))
+    ChatToolPermissionStore().consume_turn(persona_id=persona.id, session_id=perm_session_id)
+    if clarify_capture.requested and isinstance(result.raw, dict):
+        result.raw["clarify_request"] = clarify_capture.request
+    if isinstance(result.raw, dict):
+        # Per-turn receipt of where the turn actually ran (and of any
+        # configured-but-unusable path it degraded past). The caller records
+        # it beside the turn's other receipts (the settle persist, under the same key, on the
+        # turn's durable record only); the persona-level preview
+        # carries the same typed rows in ``requirement_failures``.
+        result.raw[TURN_WORKDIR_KEY] = workdir.receipt()
+    return result
 
 
 # Source label for the agent's own scratch turns during an operator chat reply.

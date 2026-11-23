@@ -539,25 +539,9 @@ def _skills(value: Any) -> tuple[str, ...] | None:
     return tuple(ids)
 
 
-def normalize_agent_create(
-    params: dict[str, Any], *, persona: Any | None = None, seat_optional: bool = False
-) -> AgentCreateRequest:
-    """Validate + normalise one create request. Raises :class:`AgentCreateInvalid`.
+def _known_persona_id(persona_raw: Any, persona: Any | None) -> str:
+    """The create's persona id: a usable token naming a persona the roster holds (UC-H2), or a refusal."""
 
-    Runs BEFORE any store is touched, so a refusal here provably wrote nothing.
-    That property is why the roster check (UC-H2) belongs here and not in the
-    store: until this returns, the create has left no roster row, no chat root,
-    no placement and no reservation receipt to clean up.
-
-    ``seat_optional`` is the create's (not the place's): with no ``workspace_id``
-    the request makes an UNSEATED agent (``workspace_id`` and ``placement_id``
-    are ``""``), and the seat's own params — ``position``, ``placement_id``,
-    ``skills`` — are refused ``workspace_id_required``, the reason a client
-    already reads for "this needs a workspace" (row
-    ``RT-ONE-CREATE-VERB-MAKES-AN-AGENT-WITH-OR-WITHOUT-A-WORKSPACE``).
-    """
-
-    persona_raw = params.get("persona_id")
     if not isinstance(persona_raw, str) or not persona_raw.strip():
         raise AgentCreateInvalid(
             "persona_id_required",
@@ -599,6 +583,60 @@ def normalize_agent_create(
         raise AgentCreateInvalid(
             PERSONA_NOT_FOUND_REASON, persona_not_found_message(persona_id)
         )
+    return persona_id
+
+
+def _placement_id(raw_placement: Any, persona_id: str, workspace_id: str, idempotency_key: str) -> str:
+    """The seat's placement id: none unseated, minted when not sent, else the sent one if it is deliberate."""
+
+    if not workspace_id:
+        # No seat, so no placement and no instance: the unseated create makes
+        # the agent's template only (``create_agent_template``), named from the
+        # idempotency key, and its first New chat places it.
+        return ""
+    if raw_placement is None:
+        placement_id = mint_placement_id(persona_id, key=f"{workspace_id}\0{idempotency_key}")
+    else:
+        placement_id = safe_assignment_token(raw_placement)
+        if not placement_id:
+            # The CLI's own refusal, kept rather than softened to a mint: a
+            # client that SENT a placement id is predicting an actor key from
+            # it, and quietly substituting another one strands that prediction.
+            raise AgentCreateInvalid(
+                "placement_id_invalid",
+                "invalid params: placement_id must be a non-empty token when sent",
+            )
+        # Asked of the SENT id only. A minted id clears this by construction,
+        # and an id that reaches the store from anywhere else is a row that
+        # already exists — this fence validates operator input, it does not
+        # police the id space.
+        if not looks_like_deliberate_placement(placement_id):
+            raise AgentCreateInvalid(
+                PLACEMENT_ID_NOT_DISCRIMINABLE_REASON,
+                placement_id_not_discriminable_message(placement_id),
+            )
+    return placement_id
+
+
+def normalize_agent_create(
+    params: dict[str, Any], *, persona: Any | None = None, seat_optional: bool = False
+) -> AgentCreateRequest:
+    """Validate + normalise one create request. Raises :class:`AgentCreateInvalid`.
+
+    Runs BEFORE any store is touched, so a refusal here provably wrote nothing.
+    That property is why the roster check (UC-H2) belongs here and not in the
+    store: until this returns, the create has left no roster row, no chat root,
+    no placement and no reservation receipt to clean up.
+
+    ``seat_optional`` is the create's (not the place's): with no ``workspace_id``
+    the request makes an UNSEATED agent (``workspace_id`` and ``placement_id``
+    are ``""``), and the seat's own params — ``position``, ``placement_id``,
+    ``skills`` — are refused ``workspace_id_required``, the reason a client
+    already reads for "this needs a workspace" (row
+    ``RT-ONE-CREATE-VERB-MAKES-AN-AGENT-WITH-OR-WITHOUT-A-WORKSPACE``).
+    """
+
+    persona_id = _known_persona_id(params.get("persona_id"), persona)
 
     workspace_raw = params.get("workspace_id")
     workspace_id = (
@@ -636,33 +674,7 @@ def normalize_agent_create(
             f"{MAX_IDEMPOTENCY_KEY_LENGTH} characters or fewer",
         )
 
-    raw_placement = params.get("placement_id")
-    if not workspace_id:
-        # No seat, so no placement and no instance: the unseated create makes
-        # the agent's template only (``create_agent_template``), named from the
-        # idempotency key, and its first New chat places it.
-        placement_id = ""
-    elif raw_placement is None:
-        placement_id = mint_placement_id(persona_id, key=f"{workspace_id}\0{idempotency_key}")
-    else:
-        placement_id = safe_assignment_token(raw_placement)
-        if not placement_id:
-            # The CLI's own refusal, kept rather than softened to a mint: a
-            # client that SENT a placement id is predicting an actor key from
-            # it, and quietly substituting another one strands that prediction.
-            raise AgentCreateInvalid(
-                "placement_id_invalid",
-                "invalid params: placement_id must be a non-empty token when sent",
-            )
-        # Asked of the SENT id only. A minted id clears this by construction,
-        # and an id that reaches the store from anywhere else is a row that
-        # already exists — this fence validates operator input, it does not
-        # police the id space.
-        if not looks_like_deliberate_placement(placement_id):
-            raise AgentCreateInvalid(
-                PLACEMENT_ID_NOT_DISCRIMINABLE_REASON,
-                placement_id_not_discriminable_message(placement_id),
-            )
+    placement_id = _placement_id(params.get("placement_id"), persona_id, workspace_id, idempotency_key)
 
     display_name = safe_assignment_text(params.get("display_name"), limit=120) or None
 

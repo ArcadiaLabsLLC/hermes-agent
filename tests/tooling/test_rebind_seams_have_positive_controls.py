@@ -47,6 +47,12 @@ CONTROLS = {
     "tools/environments/local.py::_find_bash": (
         "tests/tools/test_bash_resolution_memo.py::test_upstreams_own_caller_reaches_the_memo"
     ),
+    # Upstream's own caller is ``dispatch_tool_search``, which looks ``search_catalog`` up by module
+    # name at call time; a rarity tie answered by upstream alone drops the editor's echo.
+    "tools/tool_search.py::search_catalog": (
+        "tests/tools/test_tool_search_downstream.py"
+        "::TestRarityTieKeepsEveryTiedWord::test_the_bridge_search_finds_the_tool_a_tie_used_to_drop"
+    ),
 }
 
 _UPSTREAM_REBIND = re.compile(r"^([A-Za-z_]\w*) = [A-Za-z_][\w.]*\(\1\)\s*#\s*fork seam")
@@ -129,6 +135,11 @@ def test_every_rebind_seam_has_a_registered_positive_control():
 
 @pytest.mark.parametrize("site", sorted(CONTROLS))
 def test_each_registered_control_exists(site):
-    file, name = CONTROLS[site].split("::")
+    file, *classes, name = CONTROLS[site].split("::")
     source = (ROOT / file).read_text(encoding="utf-8")
-    assert re.search(rf"^def {re.escape(name)}\(", source, re.MULTILINE), CONTROLS[site]
+    # A control may be a method of a test class (``file::Class::test``): the class at module scope, the
+    # test indented under it.
+    for cls in classes:
+        assert re.search(rf"^class {re.escape(cls)}[(:]", source, re.MULTILINE), CONTROLS[site]
+    indent = r"\s+" if classes else ""
+    assert re.search(rf"^{indent}def {re.escape(name)}\(", source, re.MULTILINE), CONTROLS[site]

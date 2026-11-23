@@ -19,3 +19,5 @@ offer    lanes   the phone grants and offers the credential over its pinned conn
 What the computer's caller may do on the phone is ``call_authorization``'s computer arm:
 an allowlist per grant level, never a device tier.
 """
+
+__layer__ = "models"

@@ -210,6 +210,36 @@ def _runtime_media_index(
     return ok(rid, result)
 
 
+def _proxied_media_get(rid: Any, resolved: Any, correlation_id: Any, context: RpcContext | None) -> dict:
+    """``runtime.media.get``'s proxy arm (Stage P4): a paired install's artifact, fetched off the reader."""
+
+    # The client asked THIS install and this install
+    # answers — it simply has to spend a peer edge to do it. Nothing about
+    # the reply's shape changes, which is the point: a device cannot tell a
+    # proxied artifact from a local one and has nothing to do differently
+    # if it could.
+    from agent_runtime import media_proxy
+
+    def _proxied() -> dict:
+        return _media_get_frame(
+            rid,
+            resolved,
+            media_proxy.fetch_remote_artifact(resolved),
+            correlation_id,
+        )
+
+    # …and the DIAL is the transport's to wait on, not the reader's. The
+    # frame built above is the one built below; only the thread that builds
+    # it moves. A transport with no worker lane falls through and answers
+    # here, which is what every direct-call test does.
+    spawn = None if context is None else context.spawn_reply
+    if spawn is not None and spawn(
+        deferred_reply(rid, "runtime.media.get", _proxied)
+    ):
+        return DEFERRED
+    return _proxied()
+
+
 @method("runtime.media.get", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
 def _runtime_media_get(
     rid: Any, params: dict, context: RpcContext | None = None
@@ -334,36 +364,8 @@ def _runtime_media_get(
         )
 
     if isinstance(resolved, media_handles.RemoteMediaArtifact):
-        # Stage P4's proxy arm. The client asked THIS install and this install
-        # answers — it simply has to spend a peer edge to do it. Nothing about
-        # the reply's shape changes, which is the point: a device cannot tell a
-        # proxied artifact from a local one and has nothing to do differently
-        # if it could.
-        from agent_runtime import media_proxy
-
-        def _proxied() -> dict:
-            return _media_get_frame(
-                rid,
-                resolved,
-                media_proxy.fetch_remote_artifact(resolved),
-                correlation_id,
-            )
-
-        # …and the DIAL is the transport's to wait on, not the reader's. The
-        # frame built above is the one built below; only the thread that builds
-        # it moves. A transport with no worker lane falls through and answers
-        # here, which is what every direct-call test does.
-        spawn = None if context is None else context.spawn_reply
-        if spawn is not None and spawn(
-            deferred_reply(rid, "runtime.media.get", _proxied)
-        ):
-            return DEFERRED
-        data: bytes | media_handles.MediaRefusal = media_proxy.fetch_remote_artifact(
-            resolved
-        )
-    else:
-        data = media_handles.read_artifact_bytes(resolved)
-    return _media_get_frame(rid, resolved, data, correlation_id)
+        return _proxied_media_get(rid, resolved, correlation_id, context)
+    return _media_get_frame(rid, resolved, media_handles.read_artifact_bytes(resolved), correlation_id)
 
 
 CONTEXT_FILE_WRITE_METHOD = "runtime.media.context_file.write"
