@@ -2619,24 +2619,25 @@ def _count_lane_work(monkeypatch) -> tuple[list[str], list[str]]:
 
 
 def _count_post_build_restats(monkeypatch) -> list[str]:
-    """Count IC-2's POST-build re-stat, so it can be told from a PRE-build walk.
+    """Count the write-back's one POST-build whole walk, so it can be told from a PRE-build walk.
 
-    ``_restat_on_post_build_reality`` takes one ``build_input_fingerprint`` of
-    its own, which lands in :func:`_count_lane_work`'s tally like any other walk.
-    The two answer different questions — one keys the build, the other re-keys
-    what the build left behind — so a case about the pre-build half subtracts
-    this rather than widening its bound and losing the mutant.
+    Since RT-FU-EVERY-AGENT-LIST-BUILD-WAITS-FOR-ITS-CACHE-COPY-TO-REACH-THE-DISK the
+    build thread re-keys from the audited classes alone (``restat_self_perturbed``, no
+    whole walk) and the landing takes ONE ``build_input_fingerprint`` to count
+    ``foreign_moved=`` (``count_foreign_moves``), which lands in
+    :func:`_count_lane_work`'s tally like any other walk. The two answer different
+    questions, so a case about the pre-build half subtracts this rather than widening
+    its bound and losing the mutant. The landing is on the writer thread: drain first.
     """
 
     restats: list[str] = []
-    real_restat = core_cache._restat_on_post_build_reality
+    real_count = core_cache.persist.count_foreign_moves
 
     def counted_restat(key):
         restats.append("restat")
-        return real_restat(key)
+        return real_count(key)
 
-    monkeypatch.setattr(core_cache.restat, "_restat_on_post_build_reality", counted_restat)
-    monkeypatch.setattr(core_cache.persist, "_restat_on_post_build_reality", counted_restat)
+    monkeypatch.setattr(core_cache.persist, "count_foreign_moves", counted_restat)
     return restats
 
 
@@ -2783,6 +2784,9 @@ def test_the_build_leader_reuses_the_consults_key_instead_of_rewalking(
     _new_context()
 
     core = build_snapshot(build_info={"caller": "prewarm"})
+    from agent_runtime.core_cache.write_queue import drain_write_backs
+
+    assert drain_write_backs(timeout_s=60)
     assert core["parity"]["core_source"] == core_cache.CORE_SOURCE_REBUILT, (
         "this case needs the MISS path, where a leader actually builds"
     )

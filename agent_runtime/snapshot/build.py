@@ -209,9 +209,17 @@ def _join_or_lead(accept_inflight: bool, caller: str, build_info: dict | None) -
             from agent_runtime.request_control import raise_if_request_cancelled
             raise_if_request_cancelled()
             if state["done"] >= target and state["result"] is not None:
-                payload = copy.deepcopy(state["result"])
                 if state["waiters"] == 0:
+                    # The last rider takes the release's own copy: nobody else
+                    # will read it, so a second deep copy of a ~1 MB core only
+                    # delayed this answer (row RT-FU-EVERY-AGENT-LIST-BUILD-
+                    # WAITS-FOR-ITS-CACHE-COPY-TO-REACH-THE-DISK).
+                    # MUTATION: deep-copy here too and
+                    # test_the_last_rider_takes_the_release_copy_without_a_second reddens.
+                    payload = state["result"]
                     state["result"] = None
+                else:
+                    payload = copy.deepcopy(state["result"])
                 # Two different things end here and they are NOT the same
                 # attribution: a caller that opted into the build already
                 # running (``rode``) and a caller that waited for a build

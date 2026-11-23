@@ -29,6 +29,8 @@ __all__ = [
     "_RESTAT_UNAVAILABLE",
     "_restat_on_post_build_reality",
     "_self_perturbed_inputs",
+    "count_foreign_moves",
+    "restat_self_perturbed",
 ]
 
 
@@ -225,7 +227,17 @@ def _restat_on_post_build_reality(key: CoreFingerprint) -> _RestatOutcome:
       construction and safe by refusal.
     """
 
-    fresh = build_input_fingerprint()
+    return _re_key(key, build_input_fingerprint())
+
+
+def _re_key(key: CoreFingerprint, fresh: CoreFingerprint | None, *, scope: frozenset[str] | None = None) -> _RestatOutcome:
+    """The re-key rule of :func:`_restat_on_post_build_reality` over a ``fresh`` stat set.
+
+    ``scope`` (``None``: every path either set names) limits the paths compared:
+    :func:`restat_self_perturbed` hands the audited set's own classes only, and
+    every path outside them keeps its pre-build triple, as it would anyway.
+    """
+
     if fresh is None:
         return _RestatOutcome(key, 0, 0, _RESTAT_UNAVAILABLE)
     perturbed = _self_perturbed_inputs()
@@ -239,7 +251,7 @@ def _restat_on_post_build_reality(key: CoreFingerprint) -> _RestatOutcome:
     adopted = dict(before)
     refreshed = 0
     foreign = 0
-    for path in before.keys() | after.keys():
+    for path in (before.keys() | after.keys()) if scope is None else scope:
         was = before.get(path)
         now_entry = after.get(path)
         if was == now_entry:
@@ -273,3 +285,61 @@ def _restat_on_post_build_reality(key: CoreFingerprint) -> _RestatOutcome:
     return _RestatOutcome(
         _fingerprint_over(adopted.values(), racy), refreshed, foreign, _RESTAT_REFRESHED
     )
+
+
+def _self_perturbed_classes_fingerprint() -> CoreFingerprint | None:
+    """A stat set over ONLY the input classes the audited set lives in (2, 3, 7).
+
+    Every audited path is a running_work database, the chat SessionDB or the live
+    event slice (:func:`_self_perturbed_inputs`), so these three collectors —
+    the same ones :func:`build_input_fingerprint` runs, in its order — name every
+    path the re-key could adopt, at a few stats instead of the whole closure.
+    """
+
+    import time
+
+    from agent_runtime.core_cache.fingerprint import (
+        _collect_event_rotation,
+        _collect_running_work,
+        _collect_session_db,
+        racy_contents,
+    )
+
+    started_ns = time.time_ns()
+    entries: list = []
+    for collect in (_collect_running_work, _collect_session_db, _collect_event_rotation):
+        if not collect(entries):
+            return None
+    return _fingerprint_over(entries, racy_contents(entries, started_ns))
+
+
+def restat_self_perturbed(key: CoreFingerprint) -> _RestatOutcome:
+    """:func:`_restat_on_post_build_reality`'s key, from the audited classes alone.
+
+    Row RT-FU-EVERY-AGENT-LIST-BUILD-WAITS-FOR-ITS-CACHE-COPY-TO-REACH-THE-DISK: the
+    re-key ran a WHOLE second closure walk on the build thread after every led build,
+    ahead of the waiters, to adopt the fresh triples of a handful of audited files.
+    The key it produces is the same (only an audited path is ever adopted); its
+    ``foreign`` is left 0 here and counted by :func:`count_foreign_moves` on the
+    writer thread, off the response path.
+    """
+
+    fresh = _self_perturbed_classes_fingerprint()
+    if fresh is None:
+        return _RestatOutcome(key, 0, 0, _RESTAT_UNAVAILABLE)
+    perturbed = _self_perturbed_inputs()
+    if perturbed is None:
+        return _RestatOutcome(key, 0, 0, _RESTAT_UNAVAILABLE)
+    scope = frozenset(entry.path for entry in fresh.entries) | frozenset(
+        entry.path for entry in key.entries if perturbed.covers(entry.path)
+    )
+    outcome = _re_key(key, fresh, scope=scope)
+    return outcome._replace(foreign=0)
+
+
+def count_foreign_moves(key: CoreFingerprint) -> int:
+    """How many inputs outside the audited set moved since ``key`` (the pre-build
+    key) was taken: the write receipt's ``foreign_moved=``, counted by a whole walk
+    on the writer thread rather than ahead of the build's waiters."""
+
+    return _re_key(key, build_input_fingerprint()).foreign

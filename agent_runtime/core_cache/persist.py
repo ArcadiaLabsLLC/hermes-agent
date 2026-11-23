@@ -34,7 +34,9 @@ from agent_runtime.core_cache.generations import (
 )
 from agent_runtime.core_cache.restat import (
     _RESTAT_SKIPPED,
-    _restat_on_post_build_reality,
+    _RESTAT_UNAVAILABLE,
+    count_foreign_moves,
+    restat_self_perturbed,
 )
 from agent_runtime.core_cache.convergence import (
     _capture_boot_streak_seed,
@@ -146,6 +148,9 @@ class PreparedWriteBack:
     key: CoreFingerprint
     stamp: str
     restat: _RestatOutcome
+    #: The pre-build key, when the re-key ran: the landing counts ``foreign_moved=``
+    #: against it with a whole walk, off the build's response path.
+    pre_build_key: CoreFingerprint | None = None
 
 
 def prepare_write_back(core: dict, *, fingerprint: CoreFingerprint | None = None) -> PreparedWriteBack | None:
@@ -167,12 +172,19 @@ def prepare_write_back(core: dict, *, fingerprint: CoreFingerprint | None = None
     # handed us NOTHING already has a post-build key (the walk two lines up ran
     # after the build), so there is nothing to refresh and a second walk would be
     # pure cost.
+    # Only the audited classes are re-stat'd here (``restat_self_perturbed``); the
+    # whole walk that counts foreign moves runs at the landing, on the writer thread.
+    # MUTATION: call _restat_on_post_build_reality here and
+    # test_the_build_thread_re_keys_from_the_audited_classes_alone reddens.
     restat = (
-        _restat_on_post_build_reality(key)
+        restat_self_perturbed(key)
         if fingerprint is not None
         else _RestatOutcome(key, 0, 0, _RESTAT_SKIPPED)
     )
-    return PreparedWriteBack(core=core, key=restat.key, stamp=stamp, restat=restat)
+    return PreparedWriteBack(
+        core=core, key=restat.key, stamp=stamp, restat=restat,
+        pre_build_key=key if fingerprint is not None else None,
+    )
 
 
 def land_write_back(prepared: PreparedWriteBack) -> bool:
@@ -186,6 +198,8 @@ def land_write_back(prepared: PreparedWriteBack) -> bool:
         logger.warning("snapshot_core_cache_write ok=false reason=serialize", exc_info=True)
         return False
     key, restat = prepared.key, prepared.restat
+    if prepared.pre_build_key is not None and restat.state != _RESTAT_UNAVAILABLE:
+        restat = restat._replace(foreign=count_foreign_moves(prepared.pre_build_key))
     sidecar = _sidecar_for(payload, key, prepared.stamp)
     # BEFORE the writes, because the pair on disk is about to become this
     # process's own and the previous boot's answer would be unrecoverable after.
