@@ -597,14 +597,8 @@ def office_placement_evidence(office_store) -> tuple[set[str] | None, dict[str, 
     return live, archived_by_ws
 
 
-def _fold_legacy_ids(
-    store: PersonaInstanceStore,
-    instances: list[PersonaInstance],
-    by_id: dict[str, PersonaInstance],
-    aliases: dict[str, str],
-    archive_dir: Path,
-    apply: bool,
-) -> list[dict[str, Any]]:
+def _fold_legacy_ids(store: PersonaInstanceStore, instances: list[PersonaInstance], by_id: dict[str, PersonaInstance],
+                     aliases: dict[str, str], archive_dir: Path, apply: bool) -> list[dict[str, Any]]:
     """Phase 1 of :func:`reconcile_persona_instances`: each legacy-id row merged onto, or renamed to, its
     canonical id (``by_id`` and ``aliases`` updated in place); the actions, applied or not."""
 
