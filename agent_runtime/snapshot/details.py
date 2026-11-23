@@ -19,6 +19,7 @@ __layer__ = "lanes"
 __all__ = [
     "_agent_tool_detail",
     "_default_persona_session_db",
+    "materialize_prompt_skills_catalogs",
     "persona_instance_detail_for_id",
     "persona_session_db_scope",
     "prompt_observability_for_instance",
@@ -170,31 +171,18 @@ def persona_instance_detail_for_id(entity_id: str, *, event_log=None) -> dict | 
     return None
 
 
-def prompt_observability_for_instance(instance_id: str, *, event_log=None) -> dict | None:
-    """The frame's ``prompt_observability`` section, built for ONE live instance.
+def _prompt_observability_section(*, roster, only_instance_id=None, catalog_sink=None) -> dict:
+    """The ``prompt_observability`` section over *roster*, from the frame's own inputs.
 
-    Served on demand by ``runtime.prompt_observability.agent`` when one of the
-    agent's inspection panels opens (owner ruling 2026-11-22: the section leaves
-    the agent-list frame and is built for one agent, on open). The inputs are the
-    frame's own: the runtime personas, the offered roster, the active realm and
-    workspace names and the projection's chat store, so the one row is the row
-    the frame would have carried. Read-only. ``None`` when no offered instance
-    has that id (an honest ``not_found``, never an empty section)."""
+    The runtime personas, the active realm and workspace names and the projection's
+    chat store, under one runtime resolution, so a row is the row the frame built
+    before the section left it (owner ruling 2026-11-22)."""
 
     from agent_runtime.persona_lifecycle import is_runtime_persona
     from agent_runtime.prompt_observability import snapshot_prompt_observability
-    from agent_runtime.roster_reach import offered
+    from agent_runtime.resolution import runtime_resolution_scope
     from agent_runtime.store import RealmStore, WorkspaceStore
 
-    token = str(instance_id or "").strip()
-    if not token:
-        return None
-    event_log = event_log or CachedEventLog()
-    roster = offered(PersonaInstanceStore(event_log=event_log).list_all())
-    # MUTATION: drop this miss and test_the_read_verb_builds_a_placed_agent_and_misses_honestly
-    # reddens (an unknown id answers ``found: true`` with an empty section).
-    if not any(str(getattr(instance, "id", "") or "") == token for instance in roster):
-        return None
     agents = [agent for agent in AgentStore().list_all() if is_runtime_persona(agent)]
     workspace_store, realm_store = WorkspaceStore(), RealmStore()
     active_workspace_id, active_realm_id = workspace_store.active_id(), realm_store.active_id()
@@ -202,14 +190,54 @@ def prompt_observability_for_instance(instance_id: str, *, event_log=None) -> di
                       if getattr(w, "id", None) == active_workspace_id), None)
     realm = next((getattr(r, "name", None) for r in realm_store.list_all(include_archived=True)
                   if getattr(r, "id", None) == active_realm_id), None)
-    with persona_session_db_scope() as session_db:
-        section = snapshot_prompt_observability(
+    with runtime_resolution_scope(), persona_session_db_scope() as session_db:
+        return snapshot_prompt_observability(
             personas=agents,
             persona_instances=roster,
             session_db=session_db,
             realm=realm,
             workspace=workspace,
             active_workspace_id=active_workspace_id,
-            only_instance_id=token,
+            catalog_sink=catalog_sink,
+            only_instance_id=only_instance_id,
         )
+
+
+def _offered_roster(event_log=None) -> list:
+    from agent_runtime.roster_reach import offered
+
+    return offered(PersonaInstanceStore(event_log=event_log or CachedEventLog()).list_all())
+
+
+def prompt_observability_for_instance(instance_id: str, *, event_log=None) -> dict | None:
+    """The ``prompt_observability`` section, built for ONE live instance.
+
+    Served on demand by ``runtime.prompt_observability.agent`` when one of the
+    agent's inspection panels opens (owner ruling 2026-11-22: the section left
+    the agent-list frame and is built for one agent, on open). Read-only.
+    ``None`` when no offered instance has that id (an honest ``not_found``,
+    never an empty section)."""
+
+    token = str(instance_id or "").strip()
+    if not token:
+        return None
+    roster = _offered_roster(event_log)
+    # MUTATION: drop this miss and test_the_read_verb_builds_a_placed_agent_and_misses_honestly
+    # reddens (an unknown id answers ``found: true`` with an empty section).
+    if not any(str(getattr(instance, "id", "") or "") == token for instance in roster):
+        return None
+    section = _prompt_observability_section(roster=roster, only_instance_id=token)
     return {"found": True, "instance_id": token, **section}
+
+
+def materialize_prompt_skills_catalogs(*, prompt_skills_catalogs: dict) -> None:
+    """Fill *prompt_skills_catalogs* with every live agent's skills-catalog bodies, by hash.
+
+    ``runtime.skills.catalog``'s last-chance fallback (``catalog_store.skills_catalog_by_hash``'s
+    ``materialize``): a hash an agent's read on open advertised before its first persisted chat
+    row. It used to run a whole ``build_snapshot`` for this; the section left the frame, so it
+    builds only the section, with the sink. Explicit and on demand: ordinary reads stay write-free."""
+
+    # MUTATION: drop ``catalog_sink`` and test_the_catalog_fallback_builds_the_hash_an_agents_read_advertised
+    # reddens (the advertised hash resolves to nothing).
+    _prompt_observability_section(roster=_offered_roster(), catalog_sink=prompt_skills_catalogs)

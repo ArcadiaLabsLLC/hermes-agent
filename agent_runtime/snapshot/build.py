@@ -53,7 +53,6 @@ __all__ = [
 def build_snapshot(
     agent_store=None,
     event_log=None,
-    prompt_skills_catalogs=None,
     *,
     accept_inflight: bool = False,
     build_info: dict | None = None,
@@ -95,8 +94,8 @@ def build_snapshot(
 
     caller = _build_caller(build_info)
     custom_stores = any(value is not None for value in (agent_store, event_log))
-    if custom_stores or prompt_skills_catalogs is not None:
-        return _build_injected(agent_store, event_log, prompt_skills_catalogs, caller, build_info)
+    if custom_stores:
+        return _build_injected(agent_store, event_log, caller, build_info)
     # Profile discovery is a bounded write-side admission step, not a projection
     # guessed by Launcher. Run it before the persisted-core fingerprint so a
     # newly promoted Persona invalidates that cache in this very request.
@@ -115,18 +114,14 @@ def build_snapshot(
     return _lead_build(decision, caller, generation, build_info, accept_inflight=accept_inflight)
 
 
-def _build_injected(agent_store, event_log, prompt_skills_catalogs, caller: str, build_info: dict | None) -> dict:
+def _build_injected(agent_store, event_log, caller: str, build_info: dict | None) -> dict:
     """An injected-store build: its own fixtures, never the coalescer, no receipt line."""
 
     # Injected stores (tests, doctors) must observe exactly their own
     # fixtures — never a coalesced result built from the default stores.
-    # A detail-fetch catalog capture likewise needs the exact build's
-    # transient bodies; the shared result intentionally contains hashes
-    # only, so it cannot satisfy that internal projection request.
     injected = _build_snapshot_uncoalesced(
         agent_store=agent_store,
         event_log=event_log,
-        prompt_skills_catalogs=prompt_skills_catalogs,
     )
     # An injected-store build leads its own by definition (it never touched
     # the coalescer), so the role is honest — but it has no generation in
@@ -359,7 +354,6 @@ def _release_coalescer(state: dict, result: dict | None, generation: int) -> Non
 def _build_snapshot_uncoalesced(
     agent_store=None,
     event_log=None,
-    prompt_skills_catalogs=None,
 ) -> dict:
     # The chat SessionDB is acquired HERE, by the build's outermost frame, so
     # that one owner opens it and the same owner closes it (MCF-27). It sits
@@ -374,6 +368,5 @@ def _build_snapshot_uncoalesced(
         return _build_snapshot_in_runtime_scope(
             agent_store=agent_store,
             event_log=event_log,
-            prompt_skills_catalogs=prompt_skills_catalogs,
             session_db=session_db,
         )

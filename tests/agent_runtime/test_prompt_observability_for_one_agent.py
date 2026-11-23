@@ -74,3 +74,29 @@ def test_the_read_verb_builds_a_placed_agent_and_misses_honestly(placed_agent):
     assert rpc.prompt_observability_agent("gone", {"instance_id": "personainst_gone"})["result"] == {
         "found": False, "instance_id": "personainst_gone"}
     assert method_tier("runtime.prompt_observability.agent") == "read"
+
+
+def test_the_agent_list_frame_carries_no_prompt_details(isolate_agent_runtime_root):
+    from agent_runtime.snapshot import build_snapshot
+
+    frame = build_snapshot()
+
+    assert "prompt_observability" not in frame
+    assert "prompt_observability" not in frame["parity"]["sections_ms"]
+
+
+def test_the_catalog_fallback_builds_the_hash_an_agents_read_advertised(placed_agent):
+    from agent_runtime.prompt_observability import catalog_store
+
+    identifier = placed_agent["persona_instance_id"]
+    section = rpc.prompt_observability_agent("one", {"instance_id": identifier})["result"]
+    refs = {ref for row in section["chat_contexts"]
+            for ref in (row.get("available_skills_ref"), row.get("accessible_skills_ref")) if ref}
+    assert refs, section
+    ref = sorted(refs)[0]
+    assert catalog_store.load_skills_catalog_from_store(ref) is None
+
+    reply = rpc.skills_catalog("catalog", {"content_hash": ref})["result"]
+
+    assert reply["found"] is True, reply
+    assert catalog_store.load_skills_catalog_from_store(ref) is not None

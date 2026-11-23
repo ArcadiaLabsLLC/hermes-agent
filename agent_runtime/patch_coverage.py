@@ -439,39 +439,27 @@ LIVE_COVERED_DOMAIN_EVENT_TYPES: frozenset[str] = frozenset(
         # carrying BOTH pointers every time — a realm activate can re-park the
         # workspace, and two half-patches would be two chances to disagree.
         #
-        # THE DERIVABILITY AUDIT (this module's honesty rule). ``snapshot.py``
-        # reads ``active_id()`` in exactly SEVEN places, pinned by
-        # ``test_scope_patch_coverage.py``'s reader census so an eighth reader
-        # demotes honestly instead of lying:
+        # THE DERIVABILITY AUDIT (this module's honesty rule). The snapshot package
+        # reads ``active_id()`` on exactly FIVE lines, pinned by
+        # ``test_scope_patch_coverage.py``'s reader census so a sixth reader
+        # demotes honestly instead of lying. Four reach the core:
         #   * the two top-level pointers — the patch IS them;
         #   * the per-row ``active`` flags in the workspace/realm summaries —
         #     pure functions of a pointer and a row id, and the launcher derives
         #     them at PARSE time from the same two scalars rather than reading
-        #     them off the wire, so one derivation serves patch and core alike;
-        #   * the active workspace/realm NAME resolutions — a lookup into the full
-        #     workspace/realm lists the client already holds;
-        #   * the ``active_workspace_id`` kwarg into
-        #     ``snapshot_prompt_observability``.
+        #     them off the wire, so one derivation serves patch and core alike.
+        # The fifth builds one agent's prompt details on open
+        # (``runtime.prompt_observability.agent``), outside the core.
         #
-        # The last three are INDIRECT, and the residue they leave is named here
-        # rather than waved through: those names and that kwarg feed the
-        # ``prompt_observability`` section — the per-lane ``situational_hud``
-        # realm/workspace strings, and the addressable-roster scoping for
-        # RUNTIME-GLOBAL instances only (``workspace_scope.effective_workspace_id``
-        # takes an instance's OWN pointer first, so every placed instance is
-        # unaffected). A ``scope`` patch does not carry that section, so a client
-        # folding one holds a ``prompt_observability`` whose recorded scope
-        # strings are one switch stale until any core arrives.
-        #
-        # Accounted, not hidden, and accepted for three reasons: the section is
-        # per-turn TELEMETRY regenerated on every chat turn (it RECORDS what a
-        # prompt contained; it is not the value the next turn resolves — that one
-        # re-resolves live through the HUD wrapper); its only launcher reader is
-        # the injected-context JSON diagnostic dialog; and the next uncovered
-        # event in any batch restores it. The plan's §1.1 claim that "nothing
-        # else in the core varies with the pointer" is FALSE as written and true
-        # of everything the switch surfaces render — the correction is filed in
-        # ``archive/iws-ws12-field-notes-2026-09-01.md``.
+        # There used to be an INDIRECT residue: the situational HUD's workspace and
+        # realm names and the roster-scoping kwarg fed the frame's
+        # ``prompt_observability`` section, which a ``scope`` patch left one switch
+        # stale. That section left the frame
+        # (RT-FU-AN-AGENTS-PROMPT-DETAILS-ARE-BUILT-WHEN-ITS-PANEL-OPENS-NOT-ON-EVERY-AGENT-LIST),
+        # and Eternia reads an agent's details again when its workspace moves, so
+        # the residue is gone. The plan's §1.1 claim that "nothing else in the core
+        # varies with the pointer" was FALSE when written; the correction is filed
+        # in ``archive/iws-ws12-field-notes-2026-09-01.md``.
         "workspace.activated",
         "realm.activated",
         # The CONFLICT-LEDGER half (w12/l3, 2026-09-04). Pairs with the

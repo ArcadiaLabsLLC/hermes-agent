@@ -240,7 +240,6 @@ def test_build_snapshot_parity_carries_sections_ms(isolate_agent_runtime_root):
     # skipped lane records 0), and every value is a non-negative int ms.
     for key in (
         "agents_readiness",
-        "prompt_observability",
         "events",
         "persona_chat",
         "boards_offices",
@@ -248,6 +247,8 @@ def test_build_snapshot_parity_carries_sections_ms(isolate_agent_runtime_root):
     ):
         assert key in sections, key
         assert isinstance(sections[key], int) and sections[key] >= 0
+    # Prompt details are built per agent, on open (runtime.prompt_observability.agent): no frame phase.
+    assert "prompt_observability" not in sections
     # Additive: build_ms still present and section timings never exceed it wildly.
     assert isinstance(snapshot["parity"]["build_ms"], int)
 

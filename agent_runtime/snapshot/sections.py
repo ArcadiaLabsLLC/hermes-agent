@@ -35,10 +35,7 @@ from agent_runtime.persona_instance_identity import identity_aliases_for_rows
 from agent_runtime.persona_lifecycle import is_runtime_persona
 from agent_runtime.parity import events_position
 from agent_runtime.projection_accountant import ProjectionAccountant
-from agent_runtime.prompt_observability import (
-    _SkillObservabilityResolver,
-    snapshot_prompt_observability,
-)
+from agent_runtime.prompt_observability import _SkillObservabilityResolver
 from agent_runtime.running_work import build_running_work
 from agent_runtime.store import AgentStore, RealmStore, WorkspaceStore
 
@@ -81,8 +78,7 @@ class SnapshotFrameBuild:
     is a method. Every comment is the old body's, moved with its code.
     """
 
-    def __init__(self, agent_store=None, event_log=None, prompt_skills_catalogs=None, *, session_db) -> None:
-        self.prompt_skills_catalogs = prompt_skills_catalogs
+    def __init__(self, agent_store=None, event_log=None, *, session_db) -> None:
         self.session_db = session_db
         self.build_started = time.perf_counter()
         # THE SOURCE POSITION IS CAPTURED HERE, BEFORE THE FIRST SECTION IS READ —
@@ -136,16 +132,6 @@ class SnapshotFrameBuild:
         self.realm_store = RealmStore()
         self.workspaces = self.workspace_store.list_all(include_archived=True)
         self.realms = self.realm_store.list_all(include_archived=True)
-        # Active scope names for the runtime situational HUD (the same realm/ws the
-        # launcher scope line renders); resolved once and fed to every lane's HUD.
-        self.active_workspace_name = next(
-            (getattr(w, "name", None) for w in self.workspaces if getattr(w, "id", None) == self.workspace_store.active_id()),
-            None,
-        )
-        self.active_realm_name = next(
-            (getattr(r, "name", None) for r in self.realms if getattr(r, "id", None) == self.realm_store.active_id()),
-            None,
-        )
         self.build_context = _SNAPSHOT_BUILD_CONTEXT.get()
         self.skill_resolver = _SkillObservabilityResolver(
             root_registries=(
@@ -275,24 +261,6 @@ class SnapshotFrameBuild:
         ]
         self.migration = migration_status()
 
-    def prompt_observability(self) -> None:
-        """The prompt-observability section, timed."""
-
-        # Hoisted out of the ``data`` literal so their cost is attributable in
-        # ``sections_ms`` (both were profiled hot: prompt_observability ~5s, the
-        # skills-catalog walks inside it; boards/offices are local-only reads).
-        with _timed_section(self.sections_ms, "prompt_observability"):
-            self.prompt_observability_section = snapshot_prompt_observability(
-                personas=self.agents,
-                persona_instances=self.persona_instances,
-                session_db=self.session_db,
-                realm=self.active_realm_name,
-                workspace=self.active_workspace_name,
-                active_workspace_id=self.workspace_store.active_id(),
-                catalog_sink=self.prompt_skills_catalogs,
-                skill_resolver=self.skill_resolver,
-            )
-
     def boards_offices(self) -> None:
         """The board and office projections, timed together as ``boards_offices``."""
 
@@ -368,7 +336,6 @@ class SnapshotFrameBuild:
             },
             "runtime_config": effective_config_summary(self.cfg),
             "migration": self.migration,
-            "prompt_observability": self.prompt_observability_section,
             "repo_scopes": _repo_scopes_summary(),
             "workspaces": [
                 workspace_summary(
@@ -620,6 +587,10 @@ def precomputed_running_work(recorded: dict | None):
         _PRECOMPUTED_RUNNING_WORK.reset(token)
 
 
+#: ``prompt_observability`` is no phase: it left the frame (owner ruling 2026-11-22) and is
+#: built for ONE agent when one of its panels opens (``runtime.prompt_observability.agent``,
+#: ``snapshot.details.prompt_observability_for_instance``).
+#:
 #: The frame's phases, IN ORDER (each reads what the ones before it set). The
 #: ``sections_ms`` keys a consumer can rely on are :data:`REPORTED_SECTIONS` —
 #: the timed phases — and ``parity`` records its own span after the envelope.
@@ -628,7 +599,6 @@ SECTIONS: tuple[tuple[str, Callable[[SnapshotFrameBuild], None]], ...] = (
     ("resolve_scope", SnapshotFrameBuild.resolve_scope),
     ("agents_readiness", SnapshotFrameBuild.agents_readiness),
     ("persona_roster", SnapshotFrameBuild.persona_roster),
-    ("prompt_observability", SnapshotFrameBuild.prompt_observability),
     ("boards_offices", SnapshotFrameBuild.boards_offices),
     ("running_work", SnapshotFrameBuild.running_work),
     ("lens", SnapshotFrameBuild.lens),
@@ -638,12 +608,13 @@ SECTIONS: tuple[tuple[str, Callable[[SnapshotFrameBuild], None]], ...] = (
     ("parity", SnapshotFrameBuild.parity),
 )
 
+#: MUTATION: add ``"prompt_observability"`` back here and
+#: test_the_agent_list_frame_carries_no_prompt_details reddens.
 #: The ``sections_ms`` keys guaranteed on every frame (set to 0 when a lane is
 #: skipped), in the order they are timed.
 REPORTED_SECTIONS: tuple[str, ...] = (
     "events",
     "agents_readiness",
-    "prompt_observability",
     "boards_offices",
     "running_work",
     "persona_chat",
@@ -653,10 +624,9 @@ REPORTED_SECTIONS: tuple[str, ...] = (
 def _build_snapshot_in_runtime_scope(
     agent_store=None,
     event_log=None,
-    prompt_skills_catalogs=None,
     *,
     session_db,
 ) -> dict:
     return SnapshotFrameBuild(
-        agent_store, event_log, prompt_skills_catalogs, session_db=session_db
+        agent_store, event_log, session_db=session_db
     ).run()

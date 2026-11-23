@@ -215,9 +215,9 @@ def _is_absolute_path(value) -> bool:
 def skills_catalog(rid, params, context=None):
     def read(p):
         from agent_runtime.prompt_observability import skills_catalog_by_hash
-        from agent_runtime.snapshot.build import build_snapshot
+        from agent_runtime.snapshot.details import materialize_prompt_skills_catalogs
         _console_text(p, "content_hash", required=True)
-        result = skills_catalog_by_hash(p["content_hash"], materialize=build_snapshot)
+        result = skills_catalog_by_hash(p["content_hash"], materialize=materialize_prompt_skills_catalogs)
         return {"hash": p["content_hash"], "found": result is not None, "skills": result or []}
     return _operation(rid, params, context, "runtime.skills.catalog", read)
 

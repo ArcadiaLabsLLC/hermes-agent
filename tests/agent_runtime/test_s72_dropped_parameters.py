@@ -88,7 +88,9 @@ def test_the_stores_a_snapshot_builder_does_read_are_still_accepted():
     """
 
     params = inspect.signature(snapshot_mod.build_snapshot).parameters
-    for kept in ("agent_store", "event_log", "prompt_skills_catalogs"):
+    # ``prompt_skills_catalogs`` went with the frame's prompt_observability section
+    # (owner ruling 2026-11-22); its one caller builds the section directly.
+    for kept in ("agent_store", "event_log"):
         assert kept in params, (
             f"`{kept}` is READ by _build_snapshot_in_runtime_scope — dropping "
             "it is a behaviour change, not a dead-parameter cleanup"

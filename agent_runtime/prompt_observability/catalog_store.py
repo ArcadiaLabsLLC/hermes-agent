@@ -97,8 +97,10 @@ def skills_catalog_by_hash(
     launcher renders a pending state and retries next frame), never a fake empty
     catalog.
 
-    ``materialize`` is that live-projection builder (``snapshot.build_snapshot``,
-    passed by the detail verb). It is a PARAMETER, not an import: this store
+    ``materialize`` is that live-projection builder
+    (``snapshot.details.materialize_prompt_skills_catalogs``, passed by the detail
+    verb; ``build_snapshot`` until the section left the frame, owner ruling
+    2026-11-22). It is a PARAMETER, not an import: this store
     module sits below the snapshot lane that imports it, and a lookup with no
     builder simply has no final rebuild step."""
 
@@ -122,11 +124,11 @@ def skills_catalog_by_hash(
     return value if isinstance(value, list) else None
 
 
-def _materialize_live_skills_catalogs(build_snapshot: Callable[..., Any]) -> dict[str, list[dict[str, Any]]]:
+def _materialize_live_skills_catalogs(materialize: Callable[..., Any]) -> dict[str, list[dict[str, Any]]]:
     """Capture and cache the current live projection's immutable catalogs.
 
     This runs only behind the explicit on-demand detail verb after the O(1)
-    store and legacy-row reads miss.  Capturing through ``build_snapshot``
+    store and legacy-row reads miss.  Capturing through the section builder
     guarantees that every body is byte-identical to the hash the live frame
     advertised; caching all captured bodies makes a second hash from the same
     dialog an immediate store hit.
@@ -134,7 +136,7 @@ def _materialize_live_skills_catalogs(build_snapshot: Callable[..., Any]) -> dic
 
     catalogs: dict[str, list[dict[str, Any]]] = {}
     try:
-        build_snapshot(prompt_skills_catalogs=catalogs)
+        materialize(prompt_skills_catalogs=catalogs)
     except Exception:
         return {}
     verified: dict[str, list[dict[str, Any]]] = {}

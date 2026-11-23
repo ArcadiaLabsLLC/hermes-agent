@@ -229,10 +229,11 @@ def test_the_boot_sections_stay_inside_their_warm_budget(seeded_store):
     started = time.monotonic()
     first = _sections()
     assert time.monotonic() - started < 60
-    # Anti-vacuity: both sections ran over the seeded roster.
-    assert "agents_readiness" in first and "prompt_observability" in first
+    # Anti-vacuity: the section ran over the seeded roster. ``prompt_observability``
+    # left the frame (owner ruling 2026-11-22): it is built per agent on open.
+    assert "agents_readiness" in first
     warm = _sections()
-    for section in ("agents_readiness", "prompt_observability"):
+    for section in ("agents_readiness",):
         assert warm[section] <= _WARM_SECTION_BUDGET_MS, (section, warm[section], first[section])
 
 
@@ -246,7 +247,7 @@ def test_the_boot_sections_stay_inside_their_warm_budget(seeded_store):
 #: own manifest reads (``skill_resolution.py``) must all hit the primed
 #: cross-process tier (CF-2) through the one parser (CF-1). The upstream
 #: catalog walk's own parses (``skills_tool.py``) are the named residue.
-_COLD_SECTION_BUDGET_MS = {"agents_readiness": 3500, "prompt_observability": 200}
+_COLD_SECTION_BUDGET_MS = {"agents_readiness": 3500}
 
 _COLD_CHILD = """
 import json
@@ -278,7 +279,10 @@ def test_a_new_process_pays_the_boot_sections_inside_their_cold_budget(seeded_st
     from agent_runtime.snapshot import build_snapshot
 
     build_snapshot()
-    assert skill_resolution.flush_skill_frontmatter_disk_cache() is True, "nothing primed the derived cache"
+    # The agent-list frame reads no SKILL.md since prompt details are built per agent, on open
+    # (RT-FU-AN-AGENTS-PROMPT-DETAILS-ARE-BUILT-WHEN-ITS-PANEL-OPENS-NOT-ON-EVERY-AGENT-LIST): nothing to prime.
+    # MUTATION: build prompt_observability in the frame again and this reddens (the build parses manifests).
+    assert skill_resolution.flush_skill_frontmatter_disk_cache() is False, "the agent-list frame parsed skill manifests"
     repo = Path(__file__).resolve().parents[2]
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(repo), env.get("PYTHONPATH")]))

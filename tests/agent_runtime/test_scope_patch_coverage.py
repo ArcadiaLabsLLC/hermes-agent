@@ -128,19 +128,15 @@ def _plain(offset: int, event_type: str, **payload):
 #: failure message below prints the live line numbers so the plan's spelling
 #: stays checkable by hand.
 #: (Lane R3 turned the snapshot's section builder into ``SnapshotFrameBuild``: the
-#: seven readers are the same seven, spelled on ``self`` — the derivability answer
-#: is unchanged.)
+#: seven readers were the same seven, spelled on ``self``.) The three that fed the
+#: ``prompt_observability`` section — the situational HUD's workspace and realm NAMES
+#: and the roster-scoping kwarg — left the frame with it
+#: (RT-FU-AN-AGENTS-PROMPT-DETAILS-ARE-BUILT-WHEN-ITS-PANEL-OPENS-NOT-ON-EVERY-AGENT-LIST):
+#: one agent's prompt details are built on open, reading both pointers once, outside
+#: the core. Five readers remain; four reach the core, all as pointers or per-row flags.
 _ACTIVE_ID_READERS: dict[str, str] = {
-    "active workspace NAME for the situational HUD": (
-        '(getattr(w, "name", None) for w in self.workspaces '
-        'if getattr(w, "id", None) == self.workspace_store.active_id()),'
-    ),
-    "active realm NAME for the situational HUD": (
-        '(getattr(r, "name", None) for r in self.realms '
-        'if getattr(r, "id", None) == self.realm_store.active_id()),'
-    ),
-    "prompt_observability roster scoping kwarg": (
-        "active_workspace_id=self.workspace_store.active_id(),"
+    "one agent's prompt details, built on open outside the core": (
+        "active_workspace_id, active_realm_id = workspace_store.active_id(), realm_store.active_id()"
     ),
     "per-row active flag on the workspace summaries": (
         "active_id=self.workspace_store.active_id(),"
@@ -154,28 +150,17 @@ _ACTIVE_ID_READERS: dict[str, str] = {
     "top-level active_realm_id pointer": ('"active_realm_id": self.realm_store.active_id(),'),
 }
 
-#: The three readers above whose value does NOT reach the client as a pointer or
-#: as a per-row flag — the accounted residue of covering the activate events.
-#:
-#: They feed ``prompt_observability``: the per-lane ``situational_hud``
-#: realm/workspace strings, and the addressable-roster scoping for
-#: runtime-global instances only. A ``scope`` patch does not carry that section,
-#: so a client folding one holds those strings one switch stale until any core
-#: arrives. Named here so the residue is a listed fact with a size rather than
-#: an omission — the argument for accepting it is in ``patch_coverage``'s entry
-#: comment, and the plan's "nothing else in the core varies with the pointer" is
-#: corrected in ``archive/iws-ws12-field-notes-2026-09-01.md``.
-_INDIRECT_READERS = frozenset(
-    {
-        "active workspace NAME for the situational HUD",
-        "active realm NAME for the situational HUD",
-        "prompt_observability roster scoping kwarg",
-    }
-)
+#: The core readers above whose value does NOT reach the client as a pointer or as
+#: a per-row flag — the accounted residue of covering the activate events. None
+#: since the ``prompt_observability`` section left the frame: its three readers
+#: (the situational HUD's realm/workspace strings and the roster scoping) were the
+#: whole residue. The on-open reader is outside the core, so no ``scope`` patch
+#: can leave it stale.
+_INDIRECT_READERS: frozenset[str] = frozenset()
 
 
-def test_the_snapshot_reads_the_pointers_in_exactly_seven_places():
-    """The derivability pin. An eighth reader fails HERE, with instructions.
+def test_the_snapshot_reads_the_pointers_in_exactly_five_places():
+    """The derivability pin. A sixth reader fails HERE, with instructions.
 
     Covering ``workspace.activated`` means claiming the ``scope`` patch says
     everything a demoted core would have. That claim is only as good as the list
@@ -221,10 +206,11 @@ def test_the_snapshot_reads_the_pointers_in_exactly_seven_places():
         "An expected reader of the active-scope pointers is gone from "
         f"snapshot.py: {sorted(missing)}\nlive census: {where}"
     )
-    assert len(found) == 7, where
-    # Non-vacuity: the plan's seven are seven DISTINCT lines, not one line the
+    # MUTATION: build prompt_observability in the frame again and this reddens (its readers return).
+    assert len(found) == 5, where
+    # Non-vacuity: the five are five DISTINCT lines, not one line the
     # normalizer collapsed a family onto.
-    assert sum(len(numbers) for numbers in found.values()) == 7, where
+    assert sum(len(numbers) for numbers in found.values()) == 5, where
     assert _INDIRECT_READERS < set(_ACTIVE_ID_READERS)
 
 
@@ -665,7 +651,7 @@ def test_the_module_docstring_grep_is_not_the_only_census():
 
     # The package lane R3 split snapshot.py into, read as one text.
     source = package_source(snapshot_module)
-    assert len(re.findall(r"active_id\(\)", source)) == 7
+    assert len(re.findall(r"active_id\(\)", source)) == 6  # five lines, one of them reads both pointers
     # The file really is the module the snapshot builder lives in.
     tree = ast.parse(source)
     names = {node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}

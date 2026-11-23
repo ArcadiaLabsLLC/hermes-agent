@@ -149,10 +149,10 @@ def test_the_resident_core_equals_a_full_rebuild_after_mixed_patch_batches(seede
 
 
 def test_a_scope_switch_re_derives_every_active_flag_a_rebuild_carries(seeded):
-    """The scope fold's own sections equal the rebuild. ``prompt_observability``
-    (each instance's active workspace NAME) is the one section the patch lane leaves
-    behind, in Eternia and here alike: UNCOVERED SEAM, row
-    RT-FU-A-STEER-OR-SCOPE-PATCH-LEAVES-CHANNEL-THREADS-AND-PROMPT-VIEW-STALE-UNTIL-THE-NEXT-FULL-CORE."""
+    """The scope fold's sections equal the rebuild, every one of them. ``prompt_observability`` (each
+    instance's active workspace NAME) was the one section the patch lane left behind; it left the frame
+    (RT-FU-AN-AGENTS-PROMPT-DETAILS-ARE-BUILT-WHEN-ITS-PANEL-OPENS-NOT-ON-EVERY-AGENT-LIST), and Eternia
+    reads an agent's prompt details again when its workspace moves."""
 
     frames = _stream()
     _next_content(frames)
@@ -162,7 +162,7 @@ def test_a_scope_switch_re_derives_every_active_flag_a_rebuild_carries(seeded):
     assert held is not None and core_event_offset(fresh) == held.offset
     assert [row["active"] for row in held.core["workspaces"]] == [row["active"] for row in fresh["workspaces"]]
     assert any(row["active"] for row in held.core["workspaces"]), "the control: some row IS active"
-    assert _differing_sections(held.core, fresh) == ["prompt_observability"]
+    assert _differing_sections(held.core, fresh) == []
 
 
 def test_a_frame_that_does_not_chain_from_the_held_offset_drops_the_core(seeded):

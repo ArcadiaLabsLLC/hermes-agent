@@ -516,7 +516,8 @@ def test_every_frame_bearing_golden_carries_the_generated_core(
 
     live_core = hydrate_frame()["core"]
     hydrate_golden_core = _fixture("hydrate.json")["core"]
-    assert "default_flow" not in live_core["prompt_observability"]
+    # The section left the frame (owner ruling 2026-11-22): built per agent on open.
+    assert "prompt_observability" not in live_core
     for name in ("hydrate.json", "delta.json", "delta_batch.json"):
         golden_core = _fixture(name)["core"]
         assert golden_core == hydrate_golden_core, (
