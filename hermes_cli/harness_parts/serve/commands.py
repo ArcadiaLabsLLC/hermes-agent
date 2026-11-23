@@ -138,6 +138,12 @@ def _cmd_serve(args, *, harness_parser: Callable[[Any], None] | None = None) -> 
     from agent_runtime.host_store.desktop_binding import bind_desktop_host_store_or_exit
 
     bind_desktop_host_store_or_exit()
+    # This process loads only the plugins its readied agents use, each once
+    # (owner 2026-11-23): installed before anything discovers, widened by every
+    # tool list and persona prewarm. Production wiring only, like the warmups.
+    from agent_runtime.plugin_uses import enable_selective_load
+
+    enable_selective_load(serve=True)
     if harness_parser is not None:
         bind_harness_parser(harness_parser)
     protocol_in, protocol_out = _claim_protocol_pipes()

@@ -11,6 +11,7 @@ and an ``__init__.py`` exposing ``register(ctx)``. Plugins register callbacks fo
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import importlib.metadata
 import json
 import logging
@@ -511,6 +512,26 @@ class PluginManager(PluginLoaderMixin, PluginDispatchMixin, PluginLedgerMixin):
         except Exception as exc:
             logger.debug("secret source re-apply after discovery failed: %s", exc)
 
+    def load_admitted(self) -> None:
+        """Fork seam (agent_runtime.plugin_uses): load what a widened load filter admits now, leaving every
+        plugin this manager already holds as it is, so each plugin loads once."""
+        from agent.safe_worker_policy import safe_worker_enabled
+
+        if not self._discovered:
+            self.discover_and_load()
+            return
+        if safe_worker_enabled() or plugin_discovery_suppressed():
+            return
+        with self._discovery_lock, _plugin_home_scope(self.home_path):
+            loaded_before = frozenset(k for k, p in self._plugins.items() if not p.error and not p.deferred)
+            token = _ADMIT_SKIP.set(frozenset(self._plugins))
+            try:
+                self._discover_and_load_inner()
+            finally:
+                _ADMIT_SKIP.reset(token)
+            self._refresh_secret_sources_after_discovery()
+        self._notify_plugin_loaded(loaded_before)
+
     def _discover_and_load_inner(self) -> None:
         """The actual discovery sweep — see :meth:`discover_and_load`."""
         _started = time.monotonic()
@@ -553,8 +574,9 @@ class PluginManager(PluginLoaderMixin, PluginDispatchMixin, PluginLedgerMixin):
         """Route one winning manifest per :func:`gate_manifest`: load now, defer, or record as
         skipped (introspection-only placeholder). Returns True only for plugins that go through the
         dependency-ordered load pass."""
-        if _plugin_load_filter is not None and not _plugin_load_filter(manifest):
-            return False  # fork seam: held by the process's load filter (set_plugin_load_filter)
+        if manifest_key(manifest) in _ADMIT_SKIP.get() or (
+                _plugin_load_filter is not None and not _plugin_load_filter(manifest)):
+            return False  # fork seam: already held by load_admitted's manager, or held by the load filter
         verdict = gate_manifest(manifest, disabled, enabled)
         if verdict.action == "load":
             return True
@@ -718,8 +740,10 @@ _plugin_manager: Optional[PluginManager] = None
 _plugin_managers_by_home: dict[Path, PluginManager] = {}
 
 # Fork seam (agent_runtime.plugin_uses): a process that needs only some plugins admits those; a held
-# plugin is not loaded or recorded, and a widened filter takes effect on the next forced discovery.
+# plugin is not loaded or recorded, and a widened filter takes effect on the next discovery or load_admitted.
 _plugin_load_filter: Optional[Callable[[PluginManifest], bool]] = None
+# The keys a ``load_admitted`` sweep leaves as they are (its manager already holds them).
+_ADMIT_SKIP: contextvars.ContextVar[frozenset] = contextvars.ContextVar("plugin_admit_skip", default=frozenset())
 
 
 def set_plugin_load_filter(admit: Optional[Callable[[PluginManifest], bool]]) -> None:

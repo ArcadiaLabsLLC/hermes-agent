@@ -424,9 +424,14 @@ def _provider_warm_steps() -> None:
     try:
         from model_tools import get_tool_definitions
 
-        # The exact cache key varies per persona toolset; this call warms the
-        # shared parts (tool module imports, registry build, config parse).
-        get_tool_definitions(quiet_mode=True)
+        # Warms the shared parts (tool module imports, registry build, config
+        # parse) through Home's agent's own toolsets: the serve loads only the
+        # plugins its readied agents use, and an every-toolset list here loaded
+        # all of them (1,568 ms, 64 found; row
+        # RT-FU-THE-ENGINE-LOADS-EVERY-PLUGIN-AT-BOOT-FOR-ITS-FIRST-TURN-WARM-UP).
+        # MUTATION: warm with every toolset again and test_plugin_uses'
+        # "the serve's warm-up loads only Home's agent's plugins" reddens.
+        get_tool_definitions(enabled_toolsets=_home_agent_toolsets(), quiet_mode=True)
     except Exception:
         pass
     try:
@@ -438,6 +443,20 @@ def _provider_warm_steps() -> None:
         warm_process_once_costs()
     except Exception:
         pass
+
+
+def _home_agent_toolsets() -> list[str]:
+    """The toolsets Home's agent declares (``readiness_demand``'s one ordering); none without one."""
+
+    from agent_runtime.persona_lifecycle import is_runtime_persona
+    from agent_runtime.persona_profiles import effective_toolsets
+    from agent_runtime.readiness_demand import home_agent_persona_id
+    from agent_runtime.store import AgentStore
+
+    agents = [agent for agent in AgentStore().list_all() if is_runtime_persona(agent)]
+    home = home_agent_persona_id(agents)
+    return [name for agent in agents if str(getattr(agent, "id", "") or "") == home
+            for name in effective_toolsets(agent)]
 
 
 def _prewarm_persona_chat_actors() -> None:

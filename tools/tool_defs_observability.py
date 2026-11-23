@@ -22,7 +22,7 @@ def bump_tool_defs_counter(name: str) -> None:
     setattr(_tool_defs_counters, name, getattr(_tool_defs_counters, name, 0) + 1)
 
 
-def ensure_plugin_tools_discovered() -> bool:
+def ensure_plugin_tools_discovered(enabled_toolsets=None) -> bool:
     """Discover plugins for the ACTIVE home before a schema recomputation walks the registry.
 
     ``model_tools`` discovers once at import, but plugin managers are per resolved home: a
@@ -34,12 +34,20 @@ def ensure_plugin_tools_discovered() -> bool:
     Returns True when this call changed the registry generation — a first discovery registers
     the plugin's tools — so the caller re-keys its memo AFTER it; keyed before, the first list
     of a home was stored under a generation that no longer exists and built a second time.
+
+    In a process that loads only the plugins its agents use (``agent_runtime.plugin_uses``:
+    the serve and the snapshot worker), ``enabled_toolsets`` are admitted first (``None`` =
+    every toolset), so the list never misses a plugin it asks for; elsewhere a no-op.
     """
     try:
+        from agent_runtime.plugin_uses import admit_for_toolsets
         from hermes_cli.plugins import discover_plugins
         from tools.registry import registry
 
         before = registry._generation
+        # MUTATION: drop this admission and test_plugin_uses' "a tool list
+        # admits the plugins of the toolsets it asks for" reddens.
+        admit_for_toolsets(enabled_toolsets)
         discover_plugins()
         return registry._generation != before
     except Exception as exc:  # pragma: no cover — never break tool loading

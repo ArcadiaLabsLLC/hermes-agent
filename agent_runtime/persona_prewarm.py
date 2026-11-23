@@ -368,6 +368,11 @@ def _drain() -> None:
         # minute must not report a minute-long warm.
         started = time.monotonic()
         try:
+            # The serve loads only the plugins its readied agents use: this
+            # agent's, before its warm reads the registry (``plugin_uses``).
+            from .plugin_uses import admit_for_agents
+
+            admit_for_agents([persona])
             warm_persona_memos(persona)
         except Exception:
             # Swallowed on purpose: the caller was answered long ago, and a

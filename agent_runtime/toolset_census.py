@@ -54,6 +54,8 @@ def _plugin_registered_toolsets() -> set[str]:
     from tools.toolset_manifest import builtin_toolset_names
     from toolsets import TOOLSETS
 
+    from .plugin_uses import held_toolsets
+
     discover_plugins()
     builtin = set(builtin_toolset_names())
     composites = {
@@ -63,7 +65,8 @@ def _plugin_registered_toolsets() -> set[str]:
     }
     return {
         str(name)
-        for name in registry.get_registered_toolset_names()
+        # A plugin this process held back (``plugin_uses``) registers its toolsets when loaded.
+        for name in {*registry.get_registered_toolset_names(), *held_toolsets()}
         if str(name) not in builtin
         and str(name) not in composites
         and not str(name).startswith(MCP_TOOLSET_PREFIX)
