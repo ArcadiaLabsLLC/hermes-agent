@@ -6,6 +6,7 @@ directory, the agent-chat tool) and composes the row stores below it.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
@@ -23,8 +24,9 @@ from .history_rows import (
     _model_config,
     _persisted_persona_instance_id,
     _persona_chat_candidate_sort_key,
+    _session_rows_by_id,
 )
-from .vocabulary import DEFAULT_PERSONA_CHAT_MESSAGE_TAIL, FRAME_RECENT_CHATS, canonical_chat_persona_id
+from .vocabulary import DEFAULT_PERSONA_CHAT_MESSAGE_TAIL, FRAME_POOL_MARGIN, FRAME_RECENT_CHATS, canonical_chat_persona_id
 
 __layer__ = "lanes"
 __all__ = [
@@ -36,7 +38,7 @@ __all__ = [
 ]
 
 
-def persona_chat_frame_history(**kwargs: Any) -> list[dict[str, Any]]:
+def persona_chat_frame_history(*, timings: dict[str, int] | None = None, **kwargs: Any) -> list[dict[str, Any]]:
     """The snapshot frame's chat history: :data:`FRAME_RECENT_CHATS` recent chats, live ones pinned.
 
     The ONE call the core (``snapshot.sections``) and the ``persona_chat_turn`` overlay
@@ -44,8 +46,13 @@ def persona_chat_frame_history(**kwargs: Any) -> list[dict[str, Any]]:
     core's bound by construction (owner ruling 2026-11-22, lane w1122f-agentlist).
     """
 
+    started = time.perf_counter()
+    pinned = live_chat_roots()
+    if timings is not None:
+        # The split receipt's ``pins_ms``: the live-chat reads, apart from the store read.
+        timings["pins_ms"] = int((time.perf_counter() - started) * 1000)
     return persona_chat_history_summary(
-        limit=FRAME_RECENT_CHATS, pinned_session_ids=live_chat_roots(), keep_every_pin=True, **kwargs)
+        limit=FRAME_RECENT_CHATS, pinned_session_ids=pinned, keep_every_pin=True, **kwargs)
 
 
 def live_chat_roots() -> frozenset[str]:
@@ -213,6 +220,9 @@ class HistorySummary:
     #: The retired holders this build meets: the archive listing read AT MOST ONCE per build and
     #: each tombstone decoded once, shared by the head fan-out and the retired-holder arm.
     retired: chat_heads.RetiredHolders = field(default_factory=chat_heads.RetiredHolders)
+    #: Persona-chat roots the frame pool did not read (counted, not listed): the frame keeps
+    #: the recent chats and the pins, so the rest of the store is a ``COUNT(*)``, not a walk.
+    unread_roots: int = 0
 
     def _head_of(self, instance: Any) -> Any:
         return self.head_reads.get(safe_assignment_text(getattr(instance, "id", None), limit=160) or "")
@@ -236,6 +246,10 @@ class HistorySummary:
                 self.bound_by_session[session_id] = instance
 
     def _session_pool(self, db: Any) -> list[Any]:
+        if self.keep_every_pin:
+            # MUTATION: drop this arm and test_the_frame_reads_one_recent_page_and_its_pins_by_id
+            # reddens (every page of the store is read again).
+            return self._frame_pool(db)
         pool_size = max(self.limit * 4, len(self.bound_by_session), 1)
         broad_sessions = _list_sessions(
             db,
@@ -260,6 +274,81 @@ class HistorySummary:
             return list(source_sessions) + list(broad_sessions)
         except Exception:
             return list(broad_sessions)
+
+    def _frame_pool(self, db: Any) -> list[Any]:
+        """The snapshot frame's pool: the recent chats as ONE activity-ordered page, then its pins by id.
+
+        Owner ruling 2026-11-22: "it should just get the recent 10 chat names". The page is read
+        until it holds ``limit`` + :data:`FRAME_POOL_MARGIN` roots that are not pins (one page,
+        but for a store whose recent rows are mostly compression children); the margin keeps the
+        overlay's ``evicted_roots`` (the best-ranked omitted roots) the full walk's answer. Every
+        pin (a bound chat, a live turn, a waiting question, the overlay's own root) and every root
+        a read child names that the page missed is then read BY ID, in the same projection. The
+        store's other persona-chat roots are counted once for the ``limit`` drop, never read.
+        """
+
+        page_size = max(self.limit * 4, 1)
+        pinned = set(self.bound_by_session) | set(self.pinned_session_ids) | set(self.only_session_ids or ())
+        rows: list[Any] = []
+        seen: set[str] = set()
+        named_roots: set[str] = set()
+        recent_roots: set[str] = set()
+        offset = 0
+        while True:
+            page = _list_sessions(
+                db, source=PERSONA_CHAT_SESSION_SOURCE, limit=page_size,
+                include_children=True, order_by_last_active=True, offset=offset,
+            )
+            for raw in page:
+                if not isinstance(raw, dict):
+                    continue
+                rows.append(raw)
+                session_id = safe_assignment_text(raw.get("id"), limit=200)
+                if not session_id:
+                    continue
+                seen.add(session_id)
+                root_meta = _model_config(raw.get("model_config")).get("mission_chat_root_id")
+                root_id = (safe_assignment_text(root_meta, limit=200) if root_meta else None) or session_id
+                named_roots.add(root_id)
+                if root_id not in pinned:
+                    recent_roots.add(root_id)
+            if len(page) < page_size or len(recent_roots) >= self.limit + FRAME_POOL_MARGIN:
+                break
+            offset += len(page)
+        missing = (pinned | named_roots) - seen
+        if missing:
+            found = _sessions_by_id(db, missing, persona_chat=True)
+            if found is None:
+                # A store that cannot read rows by id walks the rest of its pages, as before.
+                return rows + self._remaining_pool(db, offset + page_size, page_size, seen)
+            rows.extend(found)
+            # A bound chat of another source: the projection the broad pool gave it (no children).
+            rest = missing - {safe_assignment_text(raw.get("id"), limit=200) for raw in found}
+            if rest:
+                rows.extend(_sessions_by_id(db, rest, persona_chat=False) or [])
+        read_roots = {
+            safe_assignment_text(raw.get("id"), limit=200)
+            for raw in rows
+            if safe_assignment_token(raw.get("source")) == PERSONA_CHAT_SESSION_SOURCE
+            and not _model_config(raw.get("model_config")).get("mission_chat_root_id")
+        }
+        self.unread_roots += max(0, _persona_chat_root_count(db) - len(read_roots))
+        return rows
+
+    def _remaining_pool(self, db: Any, offset: int, page_size: int, seen: set[str]) -> list[Any]:
+        rows: list[Any] = []
+        while True:
+            page = _list_sessions(
+                db, source=PERSONA_CHAT_SESSION_SOURCE, limit=page_size,
+                include_children=True, order_by_last_active=True, offset=offset,
+            )
+            rows.extend(raw for raw in page if isinstance(raw, dict) and raw.get("id") not in seen)
+            if len(page) < page_size:
+                break
+            offset += len(page)
+        rows.extend(_list_sessions(db, exclude_sources=["tool"], limit=max(page_size, len(self.bound_by_session), 1),
+                                   include_children=False))
+        return rows
 
     def session_candidates(self, db: Any, *, head: Any = None) -> None:
         """Candidates from one store: the process one (``head=None``) or a ``per_profile`` head.
@@ -499,7 +588,7 @@ class HistorySummary:
             visible.append(row)
         if self.accountant is not None:
             self.accountant.include(len(visible))
-            omitted = len(candidates) - len(visible)
+            omitted = len(candidates) - len(visible) + self.unread_roots
             if omitted > 0:
                 # Deliberate bound: the directory keeps the ``limit`` most active rows
                 # (bound chats pinned) and every omitted row stays fetchable per-session.
@@ -515,3 +604,29 @@ def _raw_activity(raw: dict[str, Any]) -> str | None:
     """A pool row's freshest activity as ISO ``Z``: ``last_active``, else ``ended_at``, else ``started_at``."""
 
     return iso_timestamp(raw.get("last_active") or raw.get("ended_at") or raw.get("started_at"))
+
+
+def _sessions_by_id(db: Any, session_ids: Iterable[str], *, persona_chat: bool) -> list[dict[str, Any]] | None:
+    """``session_ids``' rows as the two pools gave them: persona chats with their children's projection,
+    any other source (a bound chat) projected to its compression tip; ``None`` when ``db`` cannot say."""
+
+    wanted = sorted(item for item in session_ids if item)
+    if not wanted:
+        return []
+    rows = _session_rows_by_id(db, wanted, project_tips=not persona_chat)
+    if rows is None:
+        return None
+    if persona_chat:
+        return [row for row in rows if safe_assignment_token(row.get("source")) == PERSONA_CHAT_SESSION_SOURCE]
+    return [row for row in rows if safe_assignment_token(row.get("source")) != "tool"]
+
+
+def _persona_chat_root_count(db: Any) -> int:
+    """How many persona-chat roots the store holds: one ``COUNT(*)``, 0 when it cannot say."""
+
+    try:
+        return int(db.session_count(
+            source=PERSONA_CHAT_SESSION_SOURCE, include_archived=True, exclude_children=True,
+        ) or 0)
+    except Exception:
+        return 0

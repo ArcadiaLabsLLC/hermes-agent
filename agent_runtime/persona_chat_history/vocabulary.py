@@ -395,6 +395,9 @@ DEFAULT_PERSONA_CHAT_MESSAGE_TAIL = 40
 #: when it is opened. ONE value for both, because the overlay's ``omitted`` / ``evicted_roots``
 #: must answer exactly as the core's bound does (``persona_chat_frame_history``).
 FRAME_RECENT_CHATS = 10
+#: Roots past the ten that the frame's one recent page still reads, so the best-ranked omitted
+#: roots (the turn overlay's ``evicted_roots``, one per root a batch names) are the full walk's.
+FRAME_POOL_MARGIN = 10
 
 
 MAX_PERSONA_CHAT_MESSAGE_TAIL = 40

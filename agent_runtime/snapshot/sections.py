@@ -451,6 +451,7 @@ class SnapshotFrameBuild:
                 message_tail=DEFAULT_PERSONA_CHAT_MESSAGE_TAIL,
                 accountant=self.history_accountant,
                 omitted_session_ids=self.omitted_history_session_ids,
+                timings=split,
             )
             self.data["persona_chat_history"] = _persona_chat_history_frame(self.persona_chat_history_full)
         with _timed_section(split, "trace_ms"):

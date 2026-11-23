@@ -134,3 +134,56 @@ def test_the_core_and_the_overlay_keep_the_same_chats(isolate_agent_runtime_root
     for root in roots:
         sections, _timings = read_turn_sections(root, named=(INSTANCE,))
         assert sections["omitted"] is (root not in in_core), root
+
+
+class _CountingStore:
+    """The real SessionDB, counting the rows each ``list_sessions_rich`` read hands back."""
+
+    def __init__(self, db) -> None:
+        self._db = db
+        self.rows_read = 0
+
+    def list_sessions_rich(self, **kwargs):
+        rows = self._db.list_sessions_rich(**kwargs)
+        self.rows_read += len(rows)
+        return rows
+
+    def __getattr__(self, name):
+        return getattr(self._db, name)
+
+
+def test_the_frame_reads_one_recent_page_and_its_pins_by_id(isolate_agent_runtime_root, home):  # noqa: F811
+    """60 chats, the instance bound to the OLDEST: one page of 40 and the pin, not every page.
+
+    The kept rows are the full walk's rows field for field (preview, activity, title), and the
+    store's other roots are still counted as the ``limit`` drop.
+
+    MUTATION (red recorded 2026-11-22): drop the ``keep_every_pin`` arm in
+    ``HistorySummary._session_pool`` -> every page of the store is read (``rows_read`` 60+).
+    """
+
+    from agent_runtime.persona_chat_durability import default_persona_session_db, ensure_persona_chat_session
+    from agent_runtime.persona_chat_history import persona_chat_history_summary
+    from agent_runtime.projection_accountant import ProjectionAccountant
+
+    db = default_persona_session_db()
+    roots = [f"persona_chat_{INSTANCE}_{index:012d}" for index in range(60)]
+    for root in roots:
+        assert ensure_persona_chat_session(session_db=db, session_id=root, persona_id="dev", title=root,
+                                           required=True)
+        db.append_message(root, "user", f"hello {root}")
+    instances = [_instance(INSTANCE, roots[0])]
+    store = _CountingStore(db)
+    accountant = ProjectionAccountant("persona_chat_history")
+
+    kept = persona_chat_frame_history(persona_instances=instances, session_db=store, accountant=accountant)
+
+    assert store.rows_read <= FRAME_RECENT_CHATS * 4 + 1
+    assert sorted(row["session_id"] for row in kept) == sorted([roots[0], *roots[-FRAME_RECENT_CHATS:]])
+    full = {
+        row["session_id"]: row
+        for row in persona_chat_history_summary(persona_instances=instances, session_db=db, limit=100)
+    }
+    for row in kept:
+        assert row == full[row["session_id"]], row["session_id"]
+    assert accountant.summary()["reasons"].get("limit") == 60 - len(kept)

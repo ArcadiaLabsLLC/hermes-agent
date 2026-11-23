@@ -189,7 +189,7 @@ AGENTS_READINESS_SPLIT_RECEIPT = (
 #: nothing saying which of the three paid it. Same contract as the readiness split
 #: above: a LOG line beside ``snapshot_build_core``, never parity keys.
 PERSONA_CHAT_SPLIT_RECEIPT = (
-    "snapshot_persona_chat history_ms=%d trace_ms=%d channels_ms=%d pid=%d"
+    "snapshot_persona_chat history_ms=%d trace_ms=%d channels_ms=%d pins_ms=%d pid=%d"
 )
 
 
@@ -203,6 +203,8 @@ def _log_persona_chat_split(split: dict[str, int]) -> None:
         int(split.get("history_ms", 0)),
         int(split.get("trace_ms", 0)),
         int(split.get("channels_ms", 0)),
+        # Inside history_ms: the live-chat pin reads (turn journal, clarify tickets).
+        int(split.get("pins_ms", 0)),
         receipt_pid(),
     )
 

@@ -22,7 +22,7 @@ from agent_runtime.snapshot import build_snapshot
 
 _INJECTED_DELAY_SECONDS = 0.25
 _INJECTED_DELAY_MS = _INJECTED_DELAY_SECONDS * 1000
-_RECEIPT = re.compile(r"snapshot_persona_chat history_ms=(\d+) trace_ms=(\d+) channels_ms=(\d+) pid=(\d+)")
+_RECEIPT = re.compile(r"snapshot_persona_chat history_ms=(\d+) trace_ms=(\d+) channels_ms=(\d+) pins_ms=(\d+) pid=(\d+)")
 
 
 class _ListHandler(logging.Handler):
@@ -34,7 +34,7 @@ class _ListHandler(logging.Handler):
         self.records.append(record)
 
 
-def _build_and_split(mp) -> tuple[int, int, int]:
+def _build_and_split(mp, *, pins: bool = False) -> tuple[int, ...]:
     handler = _ListHandler()
     logger = logging.getLogger(snapshot_module.__name__)
     previous = logger.level
@@ -48,14 +48,17 @@ def _build_and_split(mp) -> tuple[int, int, int]:
     matches = [_RECEIPT.fullmatch(r.getMessage()) for r in handler.records
                if r.getMessage().startswith("snapshot_persona_chat ")]
     assert len(matches) == 1 and matches[0] is not None, [r.getMessage() for r in handler.records]
-    return int(matches[0].group(1)), int(matches[0].group(2)), int(matches[0].group(3))
+    split = (int(matches[0].group(1)), int(matches[0].group(2)), int(matches[0].group(3)))
+    return (*split, int(matches[0].group(4))) if pins else split
 
 
 def _controlled_clock(mp) -> list[float]:
     clock = [0.0]
     fake = SimpleNamespace(**{**vars(time), "perf_counter": lambda: clock[0]})
+    from agent_runtime.persona_chat_history import summary as history_summary
+
     for module in (snapshot_module.build_log, snapshot_module.envelope, snapshot_module.sections,
-                   snapshot_module.summaries):
+                   snapshot_module.summaries, history_summary):
         mp.setattr(module, "time", fake)
     return clock
 
@@ -102,3 +105,27 @@ def test_the_split_stays_off_the_wire(isolate_agent_runtime_root):
 
     assert isinstance(sections["persona_chat"], int)
     assert [key for key in sections if key.startswith("persona_chat_")] == []
+
+
+def test_slow_pin_reads_land_on_the_pins_number(isolate_agent_runtime_root):
+    """``pins_ms`` is the live-chat reads alone, inside ``history_ms``.
+
+    MUTATION (red recorded 2026-11-22): drop the ``timings`` argument in
+    ``SnapshotFrameBuild.persona_chat`` -> pins reads 0.
+    """
+
+    from agent_runtime.persona_chat_history import summary as history_summary
+
+    real = history_summary.live_chat_roots
+    with pytest.MonkeyPatch.context() as mp:
+        clock = _controlled_clock(mp)
+
+        def slow():
+            clock[0] += _INJECTED_DELAY_SECONDS
+            return real()
+
+        mp.setattr(history_summary, "live_chat_roots", slow)
+        history, trace, channels, pins = _build_and_split(mp, pins=True)
+
+    assert pins >= _INJECTED_DELAY_MS * 0.8, (history, trace, channels, pins)
+    assert history >= pins, (history, pins)

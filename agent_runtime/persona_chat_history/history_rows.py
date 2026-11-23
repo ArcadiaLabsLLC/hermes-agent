@@ -85,6 +85,45 @@ def _list_sessions(
         return []
 
 
+def _session_rows_by_id(db: Any, session_ids: list[str], *, project_tips: bool) -> list[dict[str, Any]] | None:
+    """Exactly ``session_ids``' rows in ``list_sessions_rich``'s projection, or ``None`` when ``db`` is not a
+    SessionDB this can read that way (the caller then walks pages as before).
+
+    Fork-side, beside the upstream store rather than in it (rule: leave upstream alone): the same
+    columns the list query projects (``s.*``, the resolved system prompt, the preview, ``last_active``),
+    through the store's own row shaper, compression-tip projection and unread stamp, for the snapshot
+    frame's pins (RT-FU-THE-AGENT-LIST-REBUILD-RE-READS-EVERY-CHAT-WORD-BY-WORD-EACH-TIME). Hidden rows
+    stay out, as every list leaves them out. The frame test pins these rows equal to the full walk's.
+    """
+
+    read_all = getattr(db, "_read_all", None)
+    list_row = getattr(db, "_list_row", None)
+    if not callable(read_all) or not callable(list_row):
+        return None
+    try:
+        from hermes_state_common import _sql_preview_raw, _sql_session_last_active
+
+        db.flush_for_read()
+        marks = ", ".join("?" for _ in session_ids)
+        rows = read_all(
+            "SELECT s.*, COALESCE(sp.prompt, s.system_prompt) AS _system_prompt_resolved, "
+            f"{_sql_preview_raw()}, {_sql_session_last_active('s')} AS last_active "
+            "FROM sessions s LEFT JOIN system_prompts sp ON sp.hash = s.system_prompt_hash "
+            f"WHERE s.id IN ({marks}) AND s.hidden = 0",
+            list(session_ids),
+        )
+        sessions = [list_row(row) for row in rows]
+        if project_tips:
+            from hermes_state_session_list import project_compression_tips
+
+            sessions = project_compression_tips(db, sessions, False)
+        for session in sessions:
+            session["unread"] = db.session_unread(session)
+        return sessions
+    except Exception:
+        return None
+
+
 def _get_session_row(db: Any, session_id: str) -> dict[str, Any] | None:
     try:
         raw = db.get_session(session_id)
