@@ -330,7 +330,9 @@ def test_a_retired_holders_chat_in_its_own_profile_moves_onto_a_live_instance_of
 
 def test_a_retired_holders_chat_in_its_own_profile_never_moves_to_a_different_agent(profile_heads):
     """With the holder's own store now found, the same-agent check runs on it. Kill-mutation:
-    ``personas_equal(owner_persona, persona_id)`` in ``chat_open`` answered ``True`` -> the move goes through, red."""
+    ``move_chat``'s ``if not personas_equal(holder_persona, target.persona_id)`` made ``if False`` -> the ``qa``
+    open moves the chat onto ``qb``'s instance, red. (``chat_open``'s ``persona_ok`` alone made ``True`` stays
+    green: the move lane's check still refuses, the two are defence in depth.)"""
     from contextlib import closing
 
     from agent_runtime.persona_chat_session import _persona_chat_session_owner
