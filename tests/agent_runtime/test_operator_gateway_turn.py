@@ -47,7 +47,7 @@ def test_an_operator_turn_runs_inside_the_gateways_prompt_turn():
 
     assert result.final_response == "ok"
     assert len(_StackAgent.stacks) == 1
-    assert "tui_gateway/prompt_turn.py" in _StackAgent.stacks[0]
+    assert "tui_gateway/prompt_turn.py" in _StackAgent.stacks[0].replace("\\", "/")  # a Windows stack spells paths with backslashes
     assert "in _invoke_agent" in _StackAgent.stacks[0]
 
 
@@ -68,7 +68,7 @@ def test_an_operator_chats_agent_is_built_once_by_the_engines_agent_build(monkey
 
     assert result.final_response == "ok"
     assert len(stacks) == 1
-    assert "tui_gateway/agent_factory.py" in stacks[0] and "in _make_agent" in stacks[0]
+    assert "tui_gateway/agent_factory.py" in stacks[0].replace("\\", "/") and "in _make_agent" in stacks[0]
     assert "operator_turn_policy.py" in stacks[0] and "in build_agent" in stacks[0]
 
 
@@ -488,3 +488,140 @@ def test_an_agent_whose_transport_this_build_lacks_is_refused_before_a_token(mon
     refuse_an_unshipped_transport(SimpleNamespace(api_mode="codex_app_server", provider="openai-codex"))
     monkeypatch.setattr(transports, "get_transport", lambda mode: object())
     refuse_an_unshipped_transport(claude)
+
+
+# ── a harness notice ends with its turn (RT-FU-A-TOOL-AVAILABILITY-NOTICE-RE-SENDS-ITSELF-AS-A-NEW-CHAT-TURN-EVERY-FEW-SECONDS) ──
+#
+# On 2026-11-23 the owner's serve ran 85 turns of one "launcher_qa unavailable" notice into Neko's chat:
+# the turn steered the notice, called no tool, the finalizer handed it back as ``pending_steer``, the
+# gateway requeued it as the chat's next prompt, and the door delivered that prompt as a new turn,
+# which steered the notice again.
+
+_NOTICE = ("[harness] MCP tools: launcher_qa (mcp_not_registered_on_lane) — declared for this persona but NOT "
+           "available on this turn, so no mcp__<server>__* tools for it are in your tool list.")
+
+
+def _notice_steer(*extra_user_steer):
+    from agent.steering import PendingSteer, join_pending_steer
+    from agent_runtime.persona_chat_history.vocabulary import RUNTIME_NOTICE_TOOL_AVAILABILITY, runtime_notice
+
+    steer = PendingSteer.from_text(runtime_notice(_NOTICE, title="Tool availability update",
+                                                  code=RUNTIME_NOTICE_TOOL_AVAILABILITY))
+    for text in extra_user_steer:
+        steer = join_pending_steer(steer, text)
+    return steer
+
+
+@pytest.fixture
+def _fresh_repeats():
+    operator_gateway_turn._recent_deliveries.clear()
+    yield
+    operator_gateway_turn._recent_deliveries.clear()
+
+
+def _operator_door(monkeypatch, sid, root, result_of_turn):
+    """An agent with the door installed whose delivered turns each end with ``result_of_turn()``."""
+
+    class Agent:
+        session_id = f"s-{sid}"
+
+        def run_conversation(self, *args, **kwargs):
+            raise AssertionError("a gateway turn's own text never reaches the agent directly")
+
+    agent = Agent()
+    operator_gateway_turn._install_door(agent, sid)
+    agent._operator_gateway_actor = operator_gateway_turn._SessionActor(sid, agent.session_id, None, root)
+    monkeypatch.setattr(operator_gateway_turn, "_is_goal_continuation", lambda actor, a, text: False)
+    from agent_runtime.dispatch_delivery import forge
+
+    delivered = []
+
+    def forge_delivery_turn(**kwargs):
+        delivered.append(kwargs["message"])
+        operator_gateway_turn._inline_turn.get().outcome = (result_of_turn(), agent, {})
+        return True, {"ok": True}
+
+    monkeypatch.setattr(forge, "_sender_persona", lambda root_id: ("neko", "inst-1"))
+    monkeypatch.setattr(forge, "forge_delivery_turn", forge_delivery_turn)
+    return agent, delivered
+
+
+def test_a_notice_left_over_at_a_turns_end_is_never_requeued_as_the_chats_next_prompt(monkeypatch):
+    # Red when ``drop_harness_steer`` returns ``result`` untouched (the operator turn then hands the
+    # gateway its notice as ``pending_steer``, which the gateway requeues as the chat's next prompt).
+    # What a person steered in the same turn is kept.
+    class Agent:
+        session_id = "s-n1"
+
+        def run_conversation(self, *args, **kwargs):
+            raise AssertionError("unused")
+
+    agent = Agent()
+    operator_gateway_turn._install_door(agent, "sid-n1")
+
+    class _Execution:
+        request = type("R", (), {"root_chat_session_id": None})()
+
+        def __init__(self, steer):
+            self.steer = steer
+
+        def converse(self, agent):
+            return ({"final_response": "ok", "pending_steer": self.steer}, agent, {})
+
+    for steer, expected in ((_notice_steer(), None), (_notice_steer("also check the build"), "also check the build"),
+                            (str(_NOTICE), None)):
+        turn = operator_gateway_turn._Turn(_Execution(steer), "")
+        operator_gateway_turn._pending["sid-n1"] = __import__("collections").deque([turn])
+        turn.released.set()
+        result = agent.run_conversation("")
+        operator_gateway_turn._settling.pop("sid-n1", None)
+        assert result.get("pending_steer") == expected, (steer, result)
+
+
+def test_a_gateway_turn_carrying_a_harness_notice_is_never_delivered(monkeypatch, _fresh_repeats):
+    # Red when ``_gateway_turn`` stops asking ``is_harness_notice`` (a requeued notice is then forged as
+    # a new delivery turn of the chat). A completion the gateway claimed is still delivered.
+    agent, delivered = _operator_door(monkeypatch, "sid-n2", "root-n2", lambda: {"final_response": "ok"})
+
+    for text in (_NOTICE, "- " + _NOTICE,
+                 "[Runtime note: background event, not a user instruction]\n" + _NOTICE):
+        result = agent.run_conversation(text)
+        assert result["interrupted"] is True and result["final_response"] == ""
+    assert delivered == []
+    assert agent.run_conversation("[background process finished]") == {"final_response": "ok"}
+    assert delivered == ["[background process finished]"]
+
+
+def test_the_same_delivery_to_a_chat_stops_at_the_repeat_limit(monkeypatch, _fresh_repeats):
+    # Red when ``_repeat_refused`` answers False (one message re-sent to a chat then bills a model each
+    # time, without end). Another chat, and another message, are counted apart.
+    agent, delivered = _operator_door(monkeypatch, "sid-n3", "root-n3", lambda: {"final_response": "ok"})
+
+    results = [agent.run_conversation("[background process finished]") for _ in range(6)]
+
+    assert len(delivered) == operator_gateway_turn._REPEAT_LIMIT
+    assert results[-1]["interrupted"] is True and results[-1]["final_response"] == ""
+    assert agent.run_conversation("[another process finished]") == {"final_response": "ok"}
+    other, _ = _operator_door(monkeypatch, "sid-n4", "root-n4", lambda: {"final_response": "ok"})
+    assert other.run_conversation("[background process finished]") == {"final_response": "ok"}
+
+
+def test_a_turn_whose_admission_notice_is_raised_produces_at_most_one_delivery(monkeypatch, _fresh_repeats):
+    # The 2026-11-23 loop, end to end on the door: every delivered turn raises the notice and calls no
+    # tool, and the gateway submits whatever ``pending_steer`` a turn hands back (as
+    # ``tui_gateway.prompt_turn._run_post_turn_followups`` does). One completion makes one delivery.
+    # Red when ``drop_harness_steer`` returns ``result`` untouched (the notice is submitted again, 2
+    # submits); with the ``is_harness_notice`` guard in ``_gateway_turn`` also removed, the loop runs
+    # until the repeat limit stops it (3 deliveries, not 1).
+    agent, delivered = _operator_door(
+        monkeypatch, "sid-n5", "root-n5", lambda: {"final_response": "tools unavailable", "pending_steer": _notice_steer()})
+
+    prompt, submits = "[background process finished]", 0
+    while prompt and submits < 10:
+        submits += 1
+        result = agent.run_conversation(prompt)
+        steer = result.get("pending_steer") if isinstance(result, dict) else None
+        prompt = str(steer) if steer else None
+
+    assert delivered == ["[background process finished]"]
+    assert submits == 1

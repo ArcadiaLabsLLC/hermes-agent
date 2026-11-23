@@ -236,6 +236,7 @@ def _install_door(agent: Any, sid: str) -> None:
                     _settling[sid] = turn
                 turn.done.set()
                 raise
+            drop_harness_steer(turn.outcome[0], sid)
             _mark_checking(turn)
             with _lock:
                 _settling[sid] = turn
@@ -275,10 +276,94 @@ def _gateway_turn(agent: Any, sid: str, args: tuple, kwargs: dict) -> Any:
 
     text = args[0] if args else kwargs.get("user_message")
     actor = getattr(agent, "_operator_gateway_actor", None)
+    if isinstance(text, str) and is_harness_notice(text):
+        # A harness notice is never a message to the chat: it belongs to the turn that raised it.
+        logger.warning("operator_gateway_notice_dropped sid=%s: a harness notice is never delivered as a turn", sid)
+        return _empty_turn(kwargs)
     if actor is None or not isinstance(text, str) or _is_goal_continuation(actor, agent, text):
         logger.info("operator_gateway_followup sid=%s: continued by the operator lane", sid)
         return _empty_turn(kwargs)
     return _deliver(agent, actor, text, kwargs)
+
+
+#: What a harness notice's text opens with: the steer line (``profile_runner/mcp_lane.py``,
+#: ``turn_budget``) and the envelope a timeline notification rides in (``agent.steering``).
+_HARNESS_NOTICE_PREFIXES = ("[harness]", "- [harness]", "[Runtime note: background event, not a user instruction]")
+
+
+def is_harness_notice(text: str) -> bool:
+    """Whether ``text`` is a notice the harness steered into a turn, not something anyone sent the chat."""
+
+    return str(text or "").lstrip().startswith(_HARNESS_NOTICE_PREFIXES)
+
+
+def drop_harness_steer(result: Any, sid: str = "") -> Any:
+    """Drop the harness notices left in an operator turn's ``pending_steer``; keep what a person steered.
+
+    A notice the harness steers into a turn (MCP tools unavailable, the wall-budget checkpoint) is
+    delivered on the turn's next tool result. A turn that calls no tool never needed it, and the
+    finalizer hands it back as ``pending_steer``, which the gateway requeues as the chat's next user
+    prompt (``tui_gateway.prompt_turn._run_post_turn_followups``). On an operator chat that prompt is
+    then delivered as a new turn, which raises the same notice: on 2026-11-23 the owner's serve ran 85
+    turns of it in six minutes (RT-FU-A-TOOL-AVAILABILITY-NOTICE-RE-SENDS-ITSELF-AS-A-NEW-CHAT-TURN-EVERY-
+    FEW-SECONDS). The notice ends with the turn that raised it.
+    MUTATION: return ``result`` at the top and test_operator_gateway_turn's "a notice left over at a
+    turn's end is never requeued as the chat's next prompt" reddens.
+    """
+
+    steer = result.get("pending_steer") if isinstance(result, dict) else None
+    if not steer:
+        return result
+    inputs = getattr(steer, "inputs", None)
+    if inputs is None:  # a plain string: provenance lost, so read the text
+        if is_harness_notice(str(steer)):
+            result.pop("pending_steer", None)
+            logger.warning("operator_gateway_notice_steer_dropped sid=%s inputs=1", sid)
+        return result
+    kept = tuple(item for item in inputs if item.kind == "steer" and not is_harness_notice(item.text))
+    if len(kept) == len(inputs):
+        return result
+    if kept:
+        from agent.steering import PendingSteer
+
+        result["pending_steer"] = PendingSteer(kept)
+    else:
+        result.pop("pending_steer", None)
+    logger.warning("operator_gateway_notice_steer_dropped sid=%s inputs=%d", sid, len(inputs) - len(kept))
+    return result
+
+
+#: The loop breaker on a chat's deliveries: the same text delivered this many times inside the window
+#: stops there, and says so in the log.
+_REPEAT_LIMIT = 3
+_REPEAT_WINDOW_SECONDS = 120.0
+_recent_deliveries: dict[tuple[str, str], deque[float]] = {}
+
+
+def _repeat_refused(root: str, text: str) -> bool:
+    """Record a delivery of ``text`` to ``root``; True when it is a repeat past the limit.
+
+    The backstop under :func:`drop_harness_steer`: whatever else re-sends one message to a chat, it can
+    not bill a model more than :data:`_REPEAT_LIMIT` times in :data:`_REPEAT_WINDOW_SECONDS`.
+    MUTATION: return False at the top and test_operator_gateway_turn's "the same delivery to a chat
+    stops at the repeat limit" reddens.
+    """
+
+    import hashlib
+    import time
+
+    now = time.monotonic()
+    key = (root, hashlib.sha256(text.strip().encode("utf-8", "replace")).hexdigest())
+    with _lock:
+        stamps = _recent_deliveries.setdefault(key, deque())
+        while stamps and now - stamps[0] > _REPEAT_WINDOW_SECONDS:
+            stamps.popleft()
+        if len(stamps) >= _REPEAT_LIMIT:
+            return True
+        stamps.append(now)
+        for stale in [k for k, v in _recent_deliveries.items() if v and now - v[-1] > _REPEAT_WINDOW_SECONDS]:
+            _recent_deliveries.pop(stale, None)
+    return False
 
 
 def _empty_turn(kwargs: dict) -> dict:
@@ -306,6 +391,10 @@ def _deliver(agent: Any, actor: Any, text: str, kwargs: dict) -> Any:
     if owner is None:
         logger.warning("operator_gateway_notice_unowned root=%s: no persona instance owns the chat", actor.root)
         return _empty_turn(kwargs)
+    if _repeat_refused(actor.root, text):
+        logger.warning("operator_gateway_notice_loop_broken root=%s chars=%d: the same delivery reached the chat "
+                       "%d times in %.0fs; not run again", actor.root, len(text), _REPEAT_LIMIT, _REPEAT_WINDOW_SECONDS)
+        return _empty_turn(kwargs)
     inline = _Inline(agent, actor.key)
     token = _inline_turn.set(inline)
     try:
@@ -317,7 +406,7 @@ def _deliver(agent: Any, actor: Any, text: str, kwargs: dict) -> Any:
     if inline.outcome is None:
         logger.warning("operator_gateway_notice_not_run root=%s ok=%s", actor.root, ok)
         return _empty_turn(kwargs)
-    return inline.outcome[0]
+    return drop_harness_steer(inline.outcome[0], actor.key)
 
 
 def inline_turn(request: Any) -> _Inline | None:
