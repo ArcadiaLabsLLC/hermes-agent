@@ -53,6 +53,8 @@ def register(server) -> None:
     session_retirement.register(server)
     from agent_runtime.gateway import ssh_remote_cwd
     ssh_remote_cwd.register(server)
+    from agent_runtime.gateway import session_info_scope
+    session_info_scope.register(server)
     from agent_runtime.conversations import worker_subagents
     worker_subagents.register(server)
     from agent_runtime.conversations import worker_permissions
