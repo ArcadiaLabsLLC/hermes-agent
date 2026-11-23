@@ -68,29 +68,25 @@ from typing import Any
 
 __layer__ = "stores"
 
-#: ``requirement_failures[].code`` for a configured workdir this machine cannot
-#: use. Subject key: ``workdir``.
-MISSION_CHAT_WORKDIR_UNRESOLVED = "mission_chat_workdir_unresolved"
-
-#: Where a resolved workdir came from (or why there is none).
-WORKDIR_SOURCE_PERSONA_CONFIG = "persona_config"
-WORKDIR_SOURCE_PRIMARY_SLOT = "primary_slot"
-WORKDIR_SOURCE_WORKSPACE_AGENTS = "workspace_agents_file"
-WORKDIR_SOURCE_PERSONA_REPO_SCOPE = "persona_repo_scope"
-WORKDIR_SOURCE_CHAT_FOLDER = "chat_folder"
-WORKDIR_SOURCE_USER_HOME = "user_home"
-WORKDIR_SOURCE_PROCESS_CWD = "process_cwd"
-#: A batch lane's worktree (dispatcher plan §2.2, B5): the run names it, it outranks the ladder.
-WORKDIR_SOURCE_RUN_OVERRIDE = "run_override"
+# The receipt's words (rungs, refusal reasons, the issue code) live one layer down, where the turn
+# record's sanitizer can read them too; re-exported here, where every caller already imports them.
+from .mission_chat_workdir_words import (  # noqa: F401 - re-exported
+    MISSION_CHAT_WORKDIR_UNRESOLVED,
+    WORKDIR_REASON_MISSING,
+    WORKDIR_REASON_NOT_A_DIRECTORY,
+    WORKDIR_REASON_NOT_ABSOLUTE,
+    WORKDIR_SOURCE_CHAT_FOLDER,
+    WORKDIR_SOURCE_PERSONA_CONFIG,
+    WORKDIR_SOURCE_PERSONA_REPO_SCOPE,
+    WORKDIR_SOURCE_PRIMARY_SLOT,
+    WORKDIR_SOURCE_PROCESS_CWD,
+    WORKDIR_SOURCE_RUN_OVERRIDE,
+    WORKDIR_SOURCE_USER_HOME,
+    WORKDIR_SOURCE_WORKSPACE_AGENTS,
+)
 
 #: The turn argument a queued send carries its per-run workdir in (``work_store.persona_turn``).
 RUN_WORKDIR_ARG = "run_workdir"
-
-#: Why a requested path was refused. Typed rather than free text so the
-#: transition table is assertable.
-WORKDIR_REASON_NOT_ABSOLUTE = "not_absolute"
-WORKDIR_REASON_MISSING = "missing"
-WORKDIR_REASON_NOT_A_DIRECTORY = "not_a_directory"
 
 
 def persona_workdir_config_key(persona_id: str | None) -> str:
