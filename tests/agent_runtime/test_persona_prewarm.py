@@ -392,6 +392,11 @@ def test_the_prewarm_writes_no_store_state_and_emits_no_event(
     A prewarm that could half-write anything would need a completion channel and
     a compensation path; this one needs neither, and the witness is the store and
     the event log read on both sides of the warm.
+
+    One append is the point since 2026-11-22 (owner: agents are readied on first
+    selection): the FIRST ask publishes the agent's readied row, a lone
+    ``state.patched`` merge any client can drop and re-fetch. A second ask
+    appends nothing.
     """
 
     from agent_runtime.events import EventLog
@@ -407,7 +412,13 @@ def test_the_prewarm_writes_no_store_state_and_emits_no_event(
     _prewarm({"persona_id": "prewarm_no_writes"})
     _drained()
 
-    assert len(EventLog().tail(400)) == events_before
+    appended = EventLog().tail(400)[events_before:]
+    assert [(e.type, e.payload.get("entity"), e.payload.get("op")) for e in appended] == [
+        ("state.patched", "persona", "upsert")
+    ]
+    _prewarm({"persona_id": "prewarm_no_writes"})
+    _drained()
+    assert len(EventLog().tail(400)) == events_before + 1, "a second ask publishes nothing"
     assert {i.id for i in PersonaInstanceStore().list_all()} == instances_before
     assert {
         a.actor_key for a in OfficeStore().scan_actors(WORKSPACE).actors

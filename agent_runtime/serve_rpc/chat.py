@@ -4,12 +4,15 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from agent_runtime.call_authorization import COMPUTER_REACH_CHAT, TIER_CONSOLE, TIER_READ
 
 from agent_runtime.serve_rpc.protocol import RpcContext, err, ok
 from agent_runtime.serve_rpc.registry import method
+
+logger = logging.getLogger(__name__)
 
 __layer__ = "lanes"
 
@@ -280,7 +283,26 @@ def _runtime_chat_message(
     if outcome.refusal is not None:
         refusal = outcome.refusal
         return err(rid, refusal.code, refusal.message, refusal.data)
+    _ready_on_first_message(params)
     return ok(rid, outcome.result)
+
+
+def _ready_on_first_message(params: dict) -> None:
+    """An agent's first accepted message readies it (owner 2026-11-22).
+
+    The same demand as a selection's prewarm, queued behind the turn (the warm
+    waits out a live turn), so the send pays nothing. A refusal (an id that
+    names no roster persona) leaves the readiness where it was.
+    MUTATION: drop the call above and test_readiness_demand's "an agent's first
+    message readies it" reddens.
+    """
+
+    from agent_runtime.persona_prewarm import request_persona_prewarm
+
+    try:
+        request_persona_prewarm({"persona_id": params.get("persona_id")})
+    except Exception:
+        logger.debug("ready-on-first-message skipped", exc_info=True)
 
 
 @method("runtime.chat.steer", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT, computer_scoped=True)

@@ -49,7 +49,7 @@ _INJECTED_DELAY_SECONDS = 0.25
 _INJECTED_DELAY_MS = _INJECTED_DELAY_SECONDS * 1000
 
 _RECEIPT = re.compile(
-    r"snapshot_agents_readiness walk_ms=(\d+) tool_visibility_ms=(\d+) pid=(\d+)"
+    r"snapshot_agents_readiness walk_ms=(\d+) tool_visibility_ms=(\d+) walked=\d+ pid=(\d+)"
 )
 
 

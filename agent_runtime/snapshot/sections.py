@@ -194,11 +194,41 @@ class SnapshotFrameBuild:
 
             from hermes_cli.runtime_environment import runtime_environment_status_scope
 
+            from agent_runtime.readiness_demand import (
+                home_agent_persona_id,
+                not_checked_readiness,
+                readied_persona_ids,
+            )
+
+            # Owner 2026-11-22: ready Home's agent and the agents someone asked
+            # for (selected, opened, sent to); every other row is not checked.
+            # MUTATION: walk every agent again and test_readiness_demand's
+            # "a build walks only Home's agent and the readied ones" reddens.
+            self.home_agent_persona_id = home_agent_persona_id(self.agents)
+            wanted = {self.home_agent_persona_id, *readied_persona_ids()}
+            # The snapshot worker loads only the plugins these agents use
+            # (``plugin_uses``; a no-op in any other process).
+            from agent_runtime.persona_profiles import effective_toolsets
+            from agent_runtime.plugin_uses import admit_for_toolsets
+
+            admit_for_toolsets(
+                name
+                for agent in self.agents
+                if str(getattr(agent, "id", "") or "") in wanted
+                for name in effective_toolsets(agent)
+            )
             with _timed_section(self.readiness_split, "walk_ms"), runtime_environment_status_scope():
                 self.readiness_by_persona_id = {
-                    str(getattr(agent, "id", "") or ""): _readiness(agent)
+                    str(getattr(agent, "id", "") or ""): (
+                        _readiness(agent)
+                        if str(getattr(agent, "id", "") or "") in wanted
+                        else not_checked_readiness()
+                    )
                     for agent in self.agents
                 }
+            self.readiness_split["walked"] = sum(
+                1 for row in self.readiness_by_persona_id.values() if row["readiness"] != "not_checked"
+            )
             with _timed_section(self.readiness_split, "tool_visibility_ms"):
                 self.agent_summaries = [
                     _agent_summary(
@@ -207,6 +237,7 @@ class SnapshotFrameBuild:
                         readiness=self.readiness_by_persona_id.get(
                             str(getattr(agent, "id", "") or "")
                         ),
+                        home_agent=str(getattr(agent, "id", "") or "") == self.home_agent_persona_id,
                     )
                     for agent in self.agents
                 ]

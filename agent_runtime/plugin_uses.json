@@ -1,0 +1,238 @@
+{
+  "plugins": {
+    "browser/browser_use": {
+      "registers": [
+        "register_browser_provider"
+      ],
+      "toolsets": []
+    },
+    "browser/browserbase": {
+      "registers": [
+        "register_browser_provider"
+      ],
+      "toolsets": []
+    },
+    "browser/firecrawl": {
+      "registers": [
+        "register_browser_provider"
+      ],
+      "toolsets": []
+    },
+    "dashboard_auth/basic": {
+      "registers": [],
+      "toolsets": []
+    },
+    "dashboard_auth/drain": {
+      "registers": [],
+      "toolsets": []
+    },
+    "dashboard_auth/nous": {
+      "registers": [],
+      "toolsets": []
+    },
+    "dashboard_auth/self_hosted": {
+      "registers": [],
+      "toolsets": []
+    },
+    "dashboard_auth/session_token": {
+      "registers": [],
+      "toolsets": []
+    },
+    "delegation/default": {
+      "registers": [
+        "register_delegation_provider"
+      ],
+      "toolsets": []
+    },
+    "disk-cleanup": {
+      "registers": [
+        "register_command",
+        "register_hook",
+        "state:_hooks",
+        "state:_plugin_commands"
+      ],
+      "toolsets": []
+    },
+    "eternia-harness": {
+      "registers": [
+        "register_auxiliary_task",
+        "register_cli_command",
+        "register_hook",
+        "register_middleware",
+        "register_provider_access",
+        "register_system_prompt_section",
+        "state:_aux_tasks",
+        "state:_cli_commands",
+        "state:_hooks",
+        "state:_middleware",
+        "state:_system_prompt_sections"
+      ],
+      "toolsets": [
+        "schedule",
+        "skills"
+      ]
+    },
+    "eternia-lens": {
+      "registers": [],
+      "toolsets": [
+        "lens"
+      ]
+    },
+    "google_meet": {
+      "registers": [],
+      "toolsets": []
+    },
+    "image_gen/deepinfra": {
+      "registers": [
+        "register_image_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "image_gen/fal": {
+      "registers": [
+        "register_image_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "image_gen/krea": {
+      "registers": [
+        "register_image_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "image_gen/meta-ai": {
+      "registers": [
+        "register_image_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "image_gen/openai": {
+      "registers": [
+        "register_image_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "image_gen/openai-codex": {
+      "registers": [
+        "register_image_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "image_gen/openrouter": {
+      "registers": [
+        "register_image_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "image_gen/xai": {
+      "registers": [
+        "register_image_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "security-guidance": {
+      "registers": [
+        "register_hook"
+      ],
+      "toolsets": []
+    },
+    "teams_pipeline": {
+      "registers": [
+        "register_cli_command",
+        "state:_cli_commands"
+      ],
+      "toolsets": []
+    },
+    "video_gen/deepinfra": {
+      "registers": [
+        "register_video_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "video_gen/fal": {
+      "registers": [
+        "register_video_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "video_gen/openrouter": {
+      "registers": [
+        "register_video_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "video_gen/xai": {
+      "registers": [
+        "register_video_gen_provider"
+      ],
+      "toolsets": []
+    },
+    "web/brave_free": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    },
+    "web/ddgs": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    },
+    "web/exa": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    },
+    "web/firecrawl": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    },
+    "web/keenable": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    },
+    "web/openai_native": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    },
+    "web/parallel": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    },
+    "web/perplexity": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    },
+    "web/searxng": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    },
+    "web/tavily": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    },
+    "web/xai": {
+      "registers": [
+        "register_web_search_provider"
+      ],
+      "toolsets": []
+    }
+  },
+  "schema_version": 1
+}

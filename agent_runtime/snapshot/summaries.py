@@ -18,6 +18,7 @@ from agent_runtime.persona_chat_history.vocabulary import _SECRET_RE
 from agent_runtime.persona_lifecycle import is_agent_copy
 from agent_runtime.persona_profiles import effective_toolsets
 from agent_runtime.process_state import register_process_state
+from agent_runtime.readiness_demand import READINESS_NOT_CHECKED
 from agent_runtime.realm_sync.sidecar import read_realm_sync_sidecar
 from agent_runtime.realm_rekey_journal import rekeyed_from
 from agent_runtime.realm_sync.revocation import read_realm_shared_from
@@ -140,7 +141,7 @@ def realm_summary(realm, *, workspaces, active_id: str | None = None) -> dict:
     }
 
 
-def _agent_summary(agent, *, include_tool_details: bool = False, readiness=None):
+def _agent_summary(agent, *, include_tool_details: bool = False, readiness=None, home_agent: bool = False):
     # Route through the same TTL-memoized readiness resolve_tool_visibility uses
     # (below) instead of a direct profile_readiness_for_persona call, so one build
     # computes readiness at most once per agent instead of twice. Identical result
@@ -148,7 +149,12 @@ def _agent_summary(agent, *, include_tool_details: bool = False, readiness=None)
     # the exact inputs (id/profile/skills/mcp/provider/model/api_mode).
     if readiness is None:
         readiness = _profile_readiness_for_visibility(agent)
-    tool_resolution = resolve_tool_visibility(agent, profile_readiness=readiness)
+    # An agent nobody asked for yet (``readiness_demand``) resolves no tools: the
+    # row's tool scalars are null until it is readied (owner 2026-11-22).
+    # MUTATION: resolve visibility for a not-checked row too and
+    # test_readiness_demand's "a not-checked agent resolves no tools" reddens.
+    checked = readiness["readiness"] != READINESS_NOT_CHECKED
+    tool_resolution = resolve_tool_visibility(agent, profile_readiness=readiness) if checked else None
     summary = {
         "persona_id": agent.id,
         "display_name": agent.display_name,
@@ -185,8 +191,15 @@ def _agent_summary(agent, *, include_tool_details: bool = False, readiness=None)
         # agent placed nowhere reaches Eternia with its Eternia mark or Based on line only through this row
         # (RT-FU-AN-AGENT-PLACED-NOWHERE-TELLS-ETERNIA-IT-SHIPS-WITH-ETERNIA-OR-WHAT-IT-IS-BASED-ON).
         **directory_fields(agent),
+        # The agent Home starts on: hermes' one ordering
+        # (``readiness_demand.home_agent_persona_id``), never Eternia's.
+        "home_agent": bool(home_agent),
     }
-    if include_tool_details:
+    if include_tool_details and tool_resolution is None:
+        summary.update({"permission_mode": None, "mutation_boundary": None, "tool_count": None,
+                        "blocked_tools_count": None, "effective_toolsets": None,
+                        "visibility_ref": persona_instance_visibility_ref(agent.id)})
+    elif include_tool_details:
         # Deferred: ``tool_permissions`` imports ``tool_visibility``, which this
         # module already imports at load time; keeping the reader local avoids
         # widening the module-load graph for one scalar fallback.

@@ -140,6 +140,14 @@ is not to be re-proposed on that number. Ruled out alongside it: ANY per-persona
 warm beyond the first. The ``runtime.persona.prewarm`` verb and its launcher
 caller stay exactly as they are.
 
+RULED 2026-11-22 (owner): "only ready the first one in the drop down and then
+the rest on first message". The verb is now the readiness DEMAND
+(``readiness_demand.mark_readied``): Eternia sends it for the agent a person
+selects or opens, never for every agent of a frame, and a chat turn's first
+accepted message sends it for its agent. The first ask also publishes the
+agent's readied row (``state_patches.persona.emit_persona_readied``) once the
+warm is done. Row RT-FU-PERSONA-PREWARM-PAYS-SECONDS-FOR-EVERY-AGENT-TYPE.
+
 The worker is a daemon: a serve process shutting down must not wait on a cache
 fill, and there is nothing to flush.
 """
@@ -293,6 +301,9 @@ def warm_persona_memos(persona: Any) -> None:
 _queue: queue.Queue[Any] = queue.Queue()
 _lock = threading.Lock()
 _pending: set[str] = set()
+#: Agents whose warm is also their FIRST readying (``readiness_demand``): once the
+#: warm is done, their readied row is published to every subscriber.
+_publish: set[str] = set()
 _worker: threading.Thread | None = None
 #: Set by the turn authority's idle boundary (``turn_activity.notify_turn_idle``).
 _turns_idle = threading.Event()
@@ -378,10 +389,32 @@ def _drain() -> None:
                 persona_id,
                 int(max(0.0, time.monotonic() - started) * 1000),
             )
+            with _lock:
+                publish = persona_id in _publish
+                _publish.discard(persona_id)
+            if publish:
+                _publish_readied(persona)
         finally:
             with _lock:
                 _pending.discard(persona_id)
             _queue.task_done()
+
+
+def _publish_readied(persona: Any) -> None:
+    """Send the agent's first readied row to every subscriber (``state_patches.persona``).
+
+    Best effort, like the warm: a row that did not go out leaves the agent "not
+    checked yet" until the next full core, which walks it (it is in the readied
+    set from now on).
+    """
+
+    try:
+        from .events import EventLog
+        from .state_patches.persona import emit_persona_readied
+
+        emit_persona_readied(EventLog(), persona)
+    except Exception:
+        logger.warning("persona readied patch failed for %s", getattr(persona, "id", "?"), exc_info=True)
 
 
 def _ensure_worker() -> None:
@@ -395,6 +428,15 @@ def _ensure_worker() -> None:
     )
     _worker.start()
 
+
+def _reset_publish() -> None:
+    with _lock:
+        _publish.clear()
+
+
+from .process_state import register_process_state  # noqa: E402 -- beside the global it resets
+
+register_process_state(__name__, _reset_publish, holds=("_publish",))
 
 from .turn_activity import register_turn_idle_listener  # noqa: E402 -- after the event it sets
 
@@ -480,7 +522,17 @@ def request_persona_prewarm(params: dict[str, Any]) -> PersonaPrewarmOutcome:
             {"reason": PERSONA_NOT_FOUND_REASON, "persona_id": persona_id},
         )
 
+    # The demand (owner 2026-11-22): a prewarm is Eternia selecting or opening
+    # this agent, so from now on every build walks it. The first ask also
+    # publishes its readied row once the warm has filled the memos.
+    # MUTATION: drop the ``mark_readied`` call and test_readiness_demand's
+    # "a prewarm readies the agent for every later build" reddens.
+    from .readiness_demand import mark_readied
+
+    first_ask = mark_readied(persona_id)
     with _lock:
+        if first_ask:
+            _publish.add(persona_id)
         already = persona_id in _pending
         if not already:
             _pending.add(persona_id)

@@ -180,7 +180,7 @@ def _log_snapshot_build_shadow(
 #: Timings only, and it rides beside ``snapshot_build_core`` in ``agent.log`` so
 #: the two join on ``pid`` without a wall-clock match.
 AGENTS_READINESS_SPLIT_RECEIPT = (
-    "snapshot_agents_readiness walk_ms=%d tool_visibility_ms=%d pid=%d"
+    "snapshot_agents_readiness walk_ms=%d tool_visibility_ms=%d walked=%d pid=%d"
 )
 
 
@@ -225,6 +225,7 @@ def _log_agents_readiness_split(split: dict[str, int]) -> None:
         AGENTS_READINESS_SPLIT_RECEIPT,
         int(split.get("walk_ms", 0)),
         int(split.get("tool_visibility_ms", 0)),
+        int(split.get("walked", 0)),
         receipt_pid(),
     )
 

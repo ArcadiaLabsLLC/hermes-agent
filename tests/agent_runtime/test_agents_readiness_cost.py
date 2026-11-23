@@ -256,11 +256,16 @@ def test_the_snapshot_walk_asks_once_per_package_list_not_per_persona(
     from agent_runtime.snapshot import build_snapshot
     from agent_runtime.store import AgentStore
 
+    from agent_runtime.readiness_demand import mark_readied
+
     for i in range(3):
         AgentStore().save(AgentPersona(
             id=f"readiness_cost_{i}", display_name=f"Cost {i}", role="qa",
             model=None, provider=None, api_mode=None, system_prompt_path="",
         ))
+        # A build walks Home's agent and the agents asked for (owner 2026-11-22):
+        # ask for all three, so the walk this counts covers each of them.
+        mark_readied(f"readiness_cost_{i}")
     monkeypatch.setattr(renv, "required_packages_for", lambda **_: ["openai"])
     walks, statuses = [], []
     real_walk = pr.profile_readiness_for_persona

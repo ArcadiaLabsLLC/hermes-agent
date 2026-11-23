@@ -553,6 +553,8 @@ class PluginManager(PluginLoaderMixin, PluginDispatchMixin, PluginLedgerMixin):
         """Route one winning manifest per :func:`gate_manifest`: load now, defer, or record as
         skipped (introspection-only placeholder). Returns True only for plugins that go through the
         dependency-ordered load pass."""
+        if _plugin_load_filter is not None and not _plugin_load_filter(manifest):
+            return False  # fork seam: held by the process's load filter (set_plugin_load_filter)
         verdict = gate_manifest(manifest, disabled, enabled)
         if verdict.action == "load":
             return True
@@ -714,6 +716,15 @@ _plugin_manager: Optional[PluginManager] = None
 # ``set_hermes_home_override()``; a single slot would leak one profile's plugin/context-engine state
 # into another, and keying by resolved home lets a re-entered profile reuse its imported modules.
 _plugin_managers_by_home: dict[Path, PluginManager] = {}
+
+# Fork seam (agent_runtime.plugin_uses): a process that needs only some plugins admits those; a held
+# plugin is not loaded or recorded, and a widened filter takes effect on the next forced discovery.
+_plugin_load_filter: Optional[Callable[[PluginManifest], bool]] = None
+
+
+def set_plugin_load_filter(admit: Optional[Callable[[PluginManifest], bool]]) -> None:
+    global _plugin_load_filter
+    _plugin_load_filter = admit
 _plugin_managers_lock = threading.RLock()
 
 # Process-wide messaging-gateway host. A multiplexed gateway owns one scheduler while plugins are

@@ -407,12 +407,33 @@ def _resolve_skill_walker():
 
 
 def _walk_skill_catalog(walker) -> list:
+    """Walk the installed-skill catalog under THIS PROCESS's home, never a persona's.
+
+    The catalog is one memo for the whole process (``_skill_catalog_memo``), but
+    its walker (``tools.skills_tool.find_all_skills``) lists plugin skills, so
+    it runs a whole plugin discovery under whichever home is bound at the cold
+    miss. A snapshot build hits it inside a persona's readiness walk, so a cold
+    build loaded every plugin twice: once under that persona's profile home and
+    once under the process home for tool visibility (seen 2026-11-22 on a copy
+    of the owner's namespace: 10.3 s and 14.5 s first-run discoveries, row
+    RT-FU-THE-SNAPSHOT-WORKER-LOADS-EVERY-PLUGIN-TWICE-IN-ITS-FIRST-BUILD).
+    Bound to the process home, the catalog the memo serves no longer depends on
+    which persona happened to come first, and the two share one discovery.
+    MUTATION: drop the binding and test_readiness_demand's "a cold build loads
+    the plugins once" reddens.
+    """
+
     if walker is None:
         return []
+    from hermes_constants import get_process_hermes_home, reset_hermes_home_override, set_hermes_home_override
+
+    token = set_hermes_home_override(get_process_hermes_home())
     try:
         installed = walker()
     except Exception:
         return []
+    finally:
+        reset_hermes_home_override(token)
     return installed if isinstance(installed, list) else []
 
 

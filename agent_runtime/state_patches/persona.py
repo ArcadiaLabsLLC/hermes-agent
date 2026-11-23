@@ -70,7 +70,45 @@ def project_persona_wire_row(persona: Any) -> dict[str, Any]:
 
     with runtime_environment_status_scope():
         readiness = profile_readiness_for_persona(persona)
-    return _agent_summary(persona, include_tool_details=True, readiness=readiness)
+    return _agent_summary(
+        persona, include_tool_details=True, readiness=readiness, home_agent=_is_home_agent(persona)
+    )
+
+
+def _is_home_agent(persona: Any) -> bool:
+    """Whether ``persona`` is Home's agent, by the one ordering the core's build uses."""
+
+    from ..persona_lifecycle import is_runtime_persona
+    from ..readiness_demand import home_agent_persona_id
+    from ..store import AgentStore
+
+    persona_id = str(getattr(persona, "id", "") or "")
+    agents = [agent for agent in AgentStore().list_all() if is_runtime_persona(agent)]
+    # A create projects its row BEFORE its record is written: count it as listed.
+    if is_runtime_persona(persona) and all(str(getattr(a, "id", "")) != persona_id for a in agents):
+        agents.append(persona)
+    return home_agent_persona_id(agents) == persona_id
+
+
+def emit_persona_readied(event_log: EventLog, persona: Any, config: AgentRuntimeConfig | None = None) -> bool:
+    """Append the readied agent's walked row as a merge onto the row every client holds.
+
+    Owner 2026-11-22: an agent is readied when it is first selected, opened or
+    sent to. Its core row said ``not_checked``; this ``upsert`` (no ``created``
+    stamp, so Eternia merges it onto the held row) carries the walked readiness
+    and the tool scalars. Returns whether a patch was appended.
+    """
+
+    row = project_persona_wire_row(persona)
+    return emit_state_patch(
+        event_log,
+        entity=PERSONA_ENTITY,
+        entity_id=persona.id,
+        op=PATCH_OP_UPSERT,
+        changed=row,
+        persona_id=persona.id,
+        config=config,
+    )
 
 
 def persona_create_is_foldable(persona: Any) -> bool:
@@ -89,6 +127,11 @@ def persona_create_is_foldable(persona: Any) -> bool:
 def _create_row(persona: Any) -> dict[str, Any] | None:
     """The create's lossless ``upsert`` row, or ``None`` when it must degrade to a refresh."""
 
+    from ..readiness_demand import mark_readied
+
+    # Making an agent is opening it: every later core walks it too, so the
+    # walked row this patch carries is the row the next core lists.
+    mark_readied(persona.id)
     row = project_persona_wire_row(persona)
     payload = build_state_patch(PERSONA_ENTITY, persona.id, PATCH_OP_UPSERT, row, True)
     lossless = payload.get("op") == PATCH_OP_UPSERT and not any(
