@@ -65,6 +65,10 @@ __all__ = [
     "reasoning_caps_disk_ttl",
     "sanitize_surrogates",
     "session_async_delivery_unset",
+    "session_db_list_row",
+    "session_db_read_all",
+    "session_db_resume_lineage_ids",
+    "session_list_columns_sql",
     "session_async_delivery_var",
     "skill_manage_target",
     "skills_sync_primitives",
@@ -385,6 +389,44 @@ def strip_quotes(text: str) -> str:
     from tools.terminal_tool_guards import _strip_quotes
 
     return _strip_quotes(text)
+
+
+def session_db_read_all(session_db: object, sql: str, params: object = ()) -> list:
+    """``hermes_state.SessionDB._read_all`` — upstream's pooled read connection, for
+    a fork read upstream has no public door for. Called through the class so W0-G6
+    sees the reach (owner ruling 2026-11-23: never ``getattr`` round a gate). Read by
+    ``persona_chat_history/history_rows.py::_session_rows_by_id`` and
+    ``persona_chat_history/deliveries.py::chat_dispatch_deliveries``."""
+    from hermes_state import SessionDB
+
+    return SessionDB._read_all(session_db, sql, params)
+
+
+def session_db_list_row(row: object) -> dict:
+    """``hermes_state.SessionDB._list_row`` (a classmethod on ``SessionSessionsMixin``
+    that reads the composed class's row shaper) — the shaping ``list_sessions_rich``
+    applies; read by ``history_rows.py::_session_rows_by_id``."""
+    from hermes_state import SessionDB
+
+    return SessionDB._list_row(row)
+
+
+def session_db_resume_lineage_ids(session_db: object, session_id: str) -> list[str]:
+    """``hermes_state_messages.SessionMessagesMixin._resume_lineage_ids`` — the
+    verified compression lineage a display resume loads; read by
+    ``deliveries.py::chat_dispatch_deliveries``."""
+    from hermes_state_messages import SessionMessagesMixin
+
+    return SessionMessagesMixin._resume_lineage_ids(session_db, session_id)
+
+
+def session_list_columns_sql(alias: str = "s") -> str:
+    """``list_sessions_rich``'s preview and ``last_active`` columns for a
+    ``sessions {alias}`` row (``hermes_state_common._sql_preview_raw`` /
+    ``_sql_session_last_active``); read by ``history_rows.py::_session_rows_by_id``."""
+    from hermes_state_common import _sql_preview_raw, _sql_session_last_active
+
+    return f"{_sql_preview_raw(f'{alias}.id')}, {_sql_session_last_active(alias)} AS last_active"
 
 
 def non_continuation_child_filter(alias: str = "") -> str:

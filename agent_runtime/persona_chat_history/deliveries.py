@@ -32,17 +32,19 @@ def chat_dispatch_deliveries(session_db: Any, session_id: str) -> list[dict[str,
     the store cannot be asked, so a reader falls back rather than reading "no deliveries".
     """
 
-    read_all = getattr(session_db, "_read_all", None)
-    if not callable(read_all) or not session_id:
+    if session_db is None or not session_id:
         return None
+    # A store the doors cannot read raises inside them; the ``except`` below answers ``None``.
     try:
+        from .._upstream_doors import session_db_read_all, session_db_resume_lineage_ids
+
         tip = session_db.resolve_resume_session_id(session_id)
-        lineage = getattr(session_db, "_resume_lineage_ids", None)
-        session_ids = [value for value in (lineage(tip) if callable(lineage) else [tip]) if value]
+        session_ids = [value for value in session_db_resume_lineage_ids(session_db, tip) if value]
         if not session_ids:
             return None
         marks = ",".join("?" for _ in session_ids)
-        rows = read_all(
+        rows = session_db_read_all(
+            session_db,
             f"SELECT finish_reason FROM messages WHERE session_id IN ({marks})"
             " AND finish_reason LIKE ? AND (active = 1 OR compacted = 1)"
             " ORDER BY id DESC LIMIT ?",

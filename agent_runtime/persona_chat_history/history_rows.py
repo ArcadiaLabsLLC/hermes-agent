@@ -96,23 +96,21 @@ def _session_rows_by_id(db: Any, session_ids: list[str], *, project_tips: bool) 
     stay out, as every list leaves them out. The frame test pins these rows equal to the full walk's.
     """
 
-    read_all = getattr(db, "_read_all", None)
-    list_row = getattr(db, "_list_row", None)
-    if not callable(read_all) or not callable(list_row):
-        return None
+    # A store the doors cannot read raises inside them; the ``except`` below answers ``None``.
     try:
-        from hermes_state_common import _sql_preview_raw, _sql_session_last_active
+        from .._upstream_doors import session_db_list_row, session_db_read_all, session_list_columns_sql
 
         db.flush_for_read()
         marks = ", ".join("?" for _ in session_ids)
-        rows = read_all(
+        rows = session_db_read_all(
+            db,
             "SELECT s.*, COALESCE(sp.prompt, s.system_prompt) AS _system_prompt_resolved, "
-            f"{_sql_preview_raw()}, {_sql_session_last_active('s')} AS last_active "
+            f"{session_list_columns_sql('s')} "
             "FROM sessions s LEFT JOIN system_prompts sp ON sp.hash = s.system_prompt_hash "
             f"WHERE s.id IN ({marks}) AND s.hidden = 0",
             list(session_ids),
         )
-        sessions = [list_row(row) for row in rows]
+        sessions = [session_db_list_row(row) for row in rows]
         if project_tips:
             from hermes_state_session_list import project_compression_tips
 
