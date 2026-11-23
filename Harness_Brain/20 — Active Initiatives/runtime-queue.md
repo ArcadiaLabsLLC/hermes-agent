@@ -48,6 +48,10 @@ Rows below were moved verbatim from the launcher queue on 2026-09-22 (their prov
 
 ## Fork-owned
 
+### Filed on arrival — 2026-11-22 (Eternia lane w1122g-serveboot: `MC-AGENT-RUNTIME-IS-READY-SOONER-AFTER-LAUNCH`, the serve's own share of a cold start)
+
+- **`RT-FU-A-COLD-HARNESS-SERVE-REGISTERS-SECONDS-SOONER` — Your agents are ready a few seconds sooner after a cold start, because the agent runtime's own boot (interpreter, imports, dispatch) takes less of it** · group: runtime-followups · from: Eternia `MC-AGENT-RUNTIME-IS-READY-SOONER-AFTER-LAUNCH` (coordinator 2026-11-22: file it, don't work it) · related: archived `RT-HARNESS-SERVE-COLD-BOOT` (RULED 2026-10-25) · measured live 2026-11-22 on Windows (Eternia QA cold boot, Eternia 0a1638c25f, hermes 1eb0ca81, Debug build, `[MissionBoot]` marks): from the detached `harness serve --ndjson --service` start to its `serve_instances/` registration took 5,640 ms (`serve_registration`), then greet 648 ms; that is now the largest share of "agents ready" once Eternia starts the serve at launch; the owner's box measured greet 3.0-3.7 s and attach totals of 16-18 s on cold restarts the same day · not measured: the hermes-side split (no `boot` block reached the launcher line: `serve_booting` unresolved), so the first step is the serve's own `boot_timeline` on a cold start · done when: a cold Windows start's `serve_registration` is measured before and after, the largest phase is named, and it is cut · READY 2026-11-22
+
 ### Filed on arrival — 2026-11-18 (lane w1118-slotgitinit: Eternia's slot menu "Create repository…" on a folder with no git)
 
 
