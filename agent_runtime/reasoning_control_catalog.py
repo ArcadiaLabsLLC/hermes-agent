@@ -29,20 +29,34 @@ def _control_catalog_key(provider: str) -> str:
 
     Contains no credential bytes and never resolves or refreshes a credential.
     Model/effort preference changes do not invalidate a provider's catalog.
+
+    The env half reads the secrets of the home this call runs under. Upstream's
+    ``tui_gateway/server.py::_session_info`` reaches here (``route_supported_efforts`` for an
+    openai-codex session with an effort set) from contexts that bind no secret scope: the
+    end-of-turn ``session.info`` emit after the turn released its scope, and every RPC
+    ``session.info`` read. Once the serve multiplexes, a bare ``get_secret`` raises
+    ``UnscopedSecretError`` there; it crashed the turn thread after every finished turn
+    (``tui_gateway_crash.log``, 2026-11-22). So the reads fall back to
+    that home's own secrets (``profile_secret_fallback``: consulted only while multiplexing with
+    no scope bound, so a bound scope still wins and single-profile reads are unchanged) — the
+    mapping the scoped turn that wrote the catalog bound for the same home.
     """
     from agent.secret_scope import get_secret
     from agent.provider_access import authentication_owner_stamps
+    from agent_runtime.profile_context import profile_secret_fallback
     from hermes_constants import get_hermes_home
     from providers import get_provider_profile
     from hermes_cli.config import load_config_readonly
 
     profile = get_provider_profile(provider)
     env_names = (*getattr(profile, "env_vars", ()), "NOUS_INFERENCE_BASE_URL", "HERMES_CODEX_BASE_URL")
-    env = {name: hashlib.sha256((get_secret(name) or "").encode()).hexdigest() for name in env_names}
+    home = get_hermes_home()
+    with profile_secret_fallback(home):
+        env = {name: hashlib.sha256((get_secret(name) or "").encode()).hexdigest() for name in env_names}
     cfg = load_config_readonly() or {}
     model = cfg.get("model") or {}
     endpoint = model.get("base_url") if isinstance(model, dict) else None
-    scope = [str(get_hermes_home()), authentication_owner_stamps(), env, endpoint]
+    scope = [str(home), authentication_owner_stamps(), env, endpoint]
     digest = hashlib.sha256(json.dumps(scope, default=str, sort_keys=True).encode()).hexdigest()
     return f"reasoning-control:{provider}:{digest}"
 
