@@ -550,10 +550,22 @@ class StreamSession:
 
         if self.emitted_delta or not self.heartbeat_due():
             return None
-        if candidate.fingerprint != self.known_fingerprint and _append_state_reconciled(
+        attribution = (
+            scope_move_attribution(self.known_scope, candidate)
+            if candidate.fingerprint != self.known_fingerprint
+            else None
+        )
+        if attribution is not None and attribution.get("chat_rows_unchanged") and not attribution.get("families"):
+            # Only the chat database's file moved, and no chat row in it: nothing a reader
+            # renders changed, so there is nothing to reconcile and no core to rebuild.
+            # MUTATION: drop this adopt-and-beat arm and
+            # test_a_chat_db_move_that_changed_no_chat_row_appends_no_reconcile reddens.
+            self._adopt_scope(candidate)
+            attribution = None
+        if attribution is not None and _append_state_reconciled(
             self.log,
             candidate.fingerprint,
-            scope_move_attribution(self.known_scope, candidate),
+            attribution,
         ):
             self._adopt_scope(candidate)
             # Skip the sleep: the next iteration reads the appended event

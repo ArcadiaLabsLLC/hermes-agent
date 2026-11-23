@@ -777,3 +777,94 @@ def test_a_lane_below_an_inflight_claim_claims_its_own_read(isolate_agent_runtim
     assert turn_section_reuse.await_inflight(ROOT, floor=200, timeout_s=0.1) == {"persona_instance_id": INSTANCE}
     turn_section_reuse.finish(low)
     turn_section_reuse.clear()
+
+
+# ── a chat database move that changed no chat row is not a chat move (w1122f-agentlist) ──
+# RT-FU-ONE-EVENT-AFTER-BOOT-REBUILDS-THE-WHOLE-AGENT-LIST: after every boot on the owner's box two
+# watchdog reconciles naming ``['chat_db', 'running_work']`` and no chat demoted a 3-5 s full core.
+# The background-work store shares the chat database's file there, so its writes (and leases,
+# heartbeats) moved the file with no session or message row moving.
+
+
+def _write_state_meta(key: str) -> None:
+    import sqlite3
+
+    from agent_runtime.chat_session_scope import chat_session_db_path
+
+    connection = sqlite3.connect(chat_session_db_path())
+    try:
+        connection.execute("INSERT OR REPLACE INTO state_meta (key, value) VALUES (?, ?)", (key, "x"))
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_a_chat_db_move_that_changed_no_chat_row_is_not_a_chat_move(isolate_agent_runtime_root, home):
+    """MUTATION (red recorded 2026-11-22): drop the ``known.chat_sessions == candidate.chat_sessions``
+    comparison in ``scope_move_attribution`` -> ``{"families": ["chat_db"]}``, which demotes."""
+
+    from agent_runtime.stream.fingerprint import scope_move_attribution, scope_reading
+
+    _seed_chat()
+    known = scope_reading()
+    _write_state_meta("w1122f_probe")
+    moved = scope_reading(previous=known)
+
+    assert moved.families["chat_db"] != known.families["chat_db"]  # the file did move
+    assert scope_move_attribution(known, moved) == {"families": [], "chat_rows_unchanged": True}
+
+
+def test_a_message_only_write_still_names_its_chat(isolate_agent_runtime_root, home):
+    """A message flip that moves no ``sessions`` column (``active``) still moves its chat.
+
+    MUTATION (red recorded 2026-11-22): drop the message digest from ``_chat_session_digests``'
+    content -> the flip reads as "no chat row moved"."""
+
+    import sqlite3
+
+    from agent_runtime.chat_session_scope import chat_session_db_path
+    from agent_runtime.stream.fingerprint import scope_move_attribution, scope_reading
+
+    _seed_chat()
+    known = scope_reading()
+    connection = sqlite3.connect(chat_session_db_path())
+    try:
+        connection.execute("UPDATE messages SET active = 0 WHERE id = (SELECT MAX(id) FROM messages)")
+        connection.commit()
+    finally:
+        connection.close()
+    moved = scope_reading(previous=known)
+
+    assert scope_move_attribution(known, moved) == {"families": ["chat_db"], "chat_roots": [ROOT]}
+
+
+def test_a_chat_db_move_that_changed_no_chat_row_appends_no_reconcile(isolate_agent_runtime_root, home):
+    """End to end: the stream beats through it, and a real chat write still reconciles (control).
+
+    MUTATION (red recorded 2026-11-22): drop the adopt-and-beat arm in ``StreamSession.beat`` -> a
+    ``state.reconciled`` with ``families: []`` is appended, and a full core is built for it.
+    """
+
+    from agent_runtime.persona_chat_durability import default_persona_session_db
+
+    _seed_chat()
+    frames = stream_frames(poll_interval_seconds=0.01, heartbeat_interval_seconds=0.05)
+    frame = next(frames)
+    while frame.get("type") != "hydrate":
+        frame = next(frames)
+
+    def reconciles(count: int) -> list[dict]:
+        seen = []
+        for _ in range(count):
+            frame = next(frames)
+            event = (frame.get("entity") or {}).get("event") or {}
+            if frame.get("type") == "delta" and event.get("type") == "state.reconciled":
+                seen.append(event)
+        return seen
+
+    _write_state_meta("w1122f_probe")
+    assert reconciles(12) == []
+
+    default_persona_session_db().append_message(ROOT, "user", "a real chat write")
+    assert reconciles(60), "the positive control: a chat row moved and nothing reconciled"
+    frames.close()

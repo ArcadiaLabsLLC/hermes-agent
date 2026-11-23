@@ -188,6 +188,20 @@ def scope_move_attribution(known: ScopeReading | None, candidate: ScopeReading) 
     if known is None:
         return {}
     moved = sorted(name for name, key in candidate.families.items() if known.families.get(name) != key)
+    if (
+        FAMILY_CHAT_DB in moved
+        and known.chat_sessions is not None
+        and candidate.chat_sessions is not None
+        # MUTATION: drop this comparison and test_a_chat_db_move_that_changed_no_chat_row_is_not_a_chat_move reddens.
+        and known.chat_sessions == candidate.chat_sessions
+    ):
+        # The chat database's FILE moved and not one chat row did: no session row, no message
+        # digest. On the owner's box this is the background-work store sharing the file
+        # (``running_work`` moves with it) and leases / heartbeats; the chat directory derived
+        # from it is unchanged, so the move is not a chat move (w1122f-agentlist: two such
+        # reconciles after every boot demoted a 3-5 s full core).
+        moved.remove(FAMILY_CHAT_DB)
+        return {"families": moved, "chat_rows_unchanged": True}
     out: dict[str, object] = {"families": moved}
     if FAMILY_CHAT_DB in moved:
         roots = _content_moved_roots(known.chat_sessions, candidate.chat_sessions)
@@ -229,7 +243,18 @@ def _chat_session_digests() -> dict[str, tuple[tuple, tuple, bool]] | None:
             selected = ", ".join(
                 "length(system_prompt)" if name == "system_prompt" else f'"{name}"' for name in columns
             )
+            # One read transaction: the session rows and the message digests are one snapshot.
+            connection.execute("BEGIN")
             rows = connection.execute(f"SELECT {selected} FROM sessions").fetchall()
+            # A message write that moves no ``sessions`` column (an ``active`` / ``compacted``
+            # flip) still moves its chat: each session's message digest rides its content.
+            messages = {
+                str(row[0]): tuple(row[1:])
+                for row in connection.execute(
+                    "SELECT session_id, COUNT(*), MAX(id), SUM(active), SUM(compacted), MAX(timestamp) "
+                    "FROM messages GROUP BY session_id"
+                )
+            }
         finally:
             connection.close()
     except Exception:  # unknown is the safe answer: nothing is attributed
@@ -243,7 +268,9 @@ def _chat_session_digests() -> dict[str, tuple[tuple, tuple, bool]] | None:
     return {
         str(row[id_at]): (
             tuple(row[position] for position in membership_at),
-            tuple(row[position] for position in content_at),
+            # MUTATION: drop the message digest here and
+            # test_a_message_only_write_still_names_its_chat reddens.
+            (*(row[position] for position in content_at), messages.get(str(row[id_at]))),
             _is_chat_root(str(row[id_at]), row, index),
         )
         for row in rows

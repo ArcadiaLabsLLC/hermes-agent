@@ -334,3 +334,38 @@ def test_a_held_core_is_never_handed_back_to_two_callers_as_one_dict(
     assert one == two
     assert one is not two
     assert one["workspaces"] is not two["workspaces"]
+
+
+def test_a_demote_line_names_the_event_kinds_that_paid(isolate_agent_runtime_root, build_bodies, caplog):
+    """The led demote line says WHICH events the delta lanes could not express (w1122f-agentlist).
+
+    On 2026-11-22 the owner's demotes had to be read out of ``events.jsonl`` by offset
+    (``workspace.updated`` task_activity; watchdog reconciles naming chat_db + running_work).
+
+    MUTATION (red recorded 2026-11-22): drop the ``kinds=`` argument at the demote receipt in
+    ``stream.build`` -> the line carries no ``kinds``.
+    """
+
+    from agent_runtime.stream.build import batch_event_kinds
+
+    WorkspaceStore().create(name="kinds", workspace_id=WS)
+    consumer = _consumer()
+    _append_uncoverable_event(0)
+    with caplog.at_level(logging.INFO, logger="agent_runtime.stream"):
+        assert next(consumer)["type"] == "delta"
+
+    lines = _demote_lines(caplog)
+    assert len(lines) == 1, lines
+    assert _field(lines[0], "kinds") == "state.reconciled", lines[0]
+    assert lines[0].split(" ")[-1].startswith("pid=")
+
+    def event(event_type, payload):
+        return 0, Event(ts=datetime(2026, 11, 22, tzinfo=UTC), type=event_type, task_id=None, run_id=None,
+                        persona_id=None, payload=payload)
+
+    assert batch_event_kinds([
+        event("workspace.updated", {"workspace_id": "w", "change": "task_activity"}),
+        event("state.reconciled", {"source": "stream_watchdog", "families": ["chat_db", "running_work"]}),
+        event("state.reconciled", {"source": "stream_watchdog", "families": ["chat_db"], "chat_roots": ["r"]}),
+        event("state.reconciled", {"source": "stream_watchdog", "families": []}),
+    ]) == "state.reconciled:chat_db+roots,state.reconciled:chat_db+running_work,state.reconciled:none,workspace.updated:task_activity"

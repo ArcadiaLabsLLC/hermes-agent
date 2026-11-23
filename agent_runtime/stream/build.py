@@ -335,8 +335,33 @@ def _full_core_batch_frames(
             events=len(batch),
             snapshot=job.snapshot,
             build_info=job.build_info,
+            # MUTATION: drop this argument and test_a_demote_line_names_the_event_kinds_that_paid reddens.
+            kinds=batch_event_kinds(batch) if reason == BATCH_REASON_DEMOTE else None,
         )
     yield frame
+
+
+def batch_event_kinds(batch: list[tuple[int, Event]]) -> str:
+    """``type[:detail]`` per distinct event of a demoted batch, sorted, comma-joined.
+
+    The demote receipt's ``kinds=``: what the patch, turn and running-work lanes
+    could not express, so the next cut is read off the log rather than out of
+    ``events.jsonl``. The detail is the watchdog reconcile's ``families`` (``+``-joined,
+    ``none`` for an empty list) or ``workspace.updated``'s ``change``.
+    """
+
+    kinds: set[str] = set()
+    for _offset, event in batch:
+        kind = str(getattr(event, "type", None) or "unknown")
+        payload = event.payload if isinstance(getattr(event, "payload", None), dict) else {}
+        if kind == "state.reconciled" and isinstance(payload.get("families"), list):
+            kind += ":" + ("+".join(str(item) for item in payload["families"]) or "none")
+            if payload.get("chat_roots"):
+                kind += "+roots"
+        elif isinstance(payload.get("change"), str):
+            kind += ":" + payload["change"]
+        kinds.add(kind.replace(" ", "_").replace(",", "_"))
+    return ",".join(sorted(kinds)) or "-"
 
 
 def _turn_batch_frames(

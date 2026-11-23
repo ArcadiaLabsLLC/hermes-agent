@@ -222,6 +222,7 @@ def _log_snapshot_build(
     snapshot: dict[str, Any] | None = None,
     build_info: dict[str, Any] | None = None,
     core_source: str | None = None,
+    kinds: str | None = None,
 ) -> None:
     """Record one caller's WAIT for a ``build_snapshot()`` and what it cost.
 
@@ -314,6 +315,11 @@ def _log_snapshot_build(
     if core_source is not None:
         line += " core_source=%s"
         values.append(str(core_source))
+    # A demote's event kinds (``build.batch_event_kinds``): which events the delta lanes could not
+    # express, present only on a led demote line (w1122f-agentlist).
+    if kinds is not None:
+        line += " kinds=%s"
+        values.append(str(kinds))
     # LAST, after the conditional split, so "pid is the last field" holds on
     # both shapes of this line — see the docstring for why it is additive here
     # rather than a formatter change.
