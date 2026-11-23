@@ -7,15 +7,16 @@ profile holds a ``SOUL.md`` that itself names paths. Below console reach every c
 console, a console device and an account-level computer keep the paths. Every test runs in the
 ``tests/agent_runtime`` conftest's isolated store root.
 
-Killing mutations (each red seen 2026-11-23):
+Killing mutations (each red seen 2026-11-23, in a scratch tree):
 
-* ``console_operations.prompt_observability_agent``: return the result unprojected, and the Look test
-  finds the SOUL.md path in the Look computer's reply (the console test stays green);
+* ``console_operations.prompt_observability_agent``: return the result unprojected, and the Look test finds
+  the SOUL.md path in the Look computer's reply (the console test stays green; the census reddens too);
 * ``console_operations._sees_local_paths``: answer ``False`` for every caller, and the console test finds
-  no ``path``;
+  no ``path`` (the Look test's owner control and the field test's owner arm red with it);
 * ``console_operations._prompt_details_for_caller``: project with ``_text_without_paths`` instead of
-  ``_unchanged``, and the file-words test finds the SOUL.md preview rewritten;
-* ``console_operations._LOCAL_PATH_FIELDS``: drop ``"source_path"``, and the field test finds the layer's path.
+  ``_unchanged``, and the file-words test finds the SOUL.md preview rewritten (the field test too);
+* ``console_operations._LOCAL_PATH_FIELDS``: drop ``"source_path"``, and the field test finds the layer's
+  path (the census finds the SOUL layer's ``source_path`` too).
 """
 
 from __future__ import annotations

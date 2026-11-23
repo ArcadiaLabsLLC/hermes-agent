@@ -9,13 +9,14 @@ gains a computer reach and is in neither table reddens the census until it is cl
 answer a ``result``, so the census reads a real reply, not a refusal. A leak the census found that is not this
 row's one-line pass-through is filed, and its verb sits in ``_FILED`` (exact) until that row lands.
 
-Killing mutations (each red seen 2026-11-23):
+Killing mutations (each red seen 2026-11-23, in a scratch tree):
 
 * ``console_operations.prompt_observability_agent``: return the result unprojected, and the census finds the
   SOUL.md path under ``context_files[].path`` in ``runtime.prompt_observability.agent``'s reply;
 * ``console_operations.instance_detail``: return the result unprojected, and the census finds the profile's
   config path under ``config_path`` in ``runtime.persona.instance.detail``'s reply;
-* drop ``runtime.health`` from ``_CALLED``, and the coverage test names it.
+* drop ``runtime.health`` from ``_CALLED``, and the coverage test names it (the ``_FILED`` check reddens too);
+* drop ``"source_path"`` from ``console_operations._LOCAL_PATH_FIELDS``, and the census finds the SOUL layer's path.
 """
 
 from __future__ import annotations
