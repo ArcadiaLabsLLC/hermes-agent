@@ -901,6 +901,7 @@
       "session_id"
     ],
     "runtime.persona.chat.delete": [
+      "client_scope",
       "persona_id",
       "persona_instance_id",
       "requested_by",

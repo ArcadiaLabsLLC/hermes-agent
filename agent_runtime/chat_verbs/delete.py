@@ -16,18 +16,26 @@ __all__ = ["delete_persona_chat"]
 
 def delete_persona_chat(params: dict, *, caller: Any | None = None) -> dict:
     """Params: ``session_id`` (required); ``persona_id``, ``persona_instance_id``,
-    ``requested_by``. Row: ``session_id``, ``deleted_session``,
+    ``client_scope``, ``requested_by``. Row: ``session_id``, ``deleted_session``,
     ``cleared_bindings``, ``cleared_binding_count``.
-    Refusals: ``foreign_chat_session``, ``chat_busy``,
-    ``chat_session_db_unavailable``, ``status: not_found``."""
+    Refusals: ``invalid_client_scope``, ``status: not_found``,
+    ``conversation_owner_changed`` (another account's chat; archive's check),
+    ``foreign_chat_session``, ``chat_busy``, ``chat_session_db_unavailable``.
+    A call that sends no ``client_scope`` keeps its authority, as archive's does."""
+    from ..conversation_owner import ConversationOwnerError, request_client_scope
     from ..mission_chat_door import CHAT_DELETE_VERB
     from ..persona_open_chat import _first_text
     from .door import caller_requester, run_cli_chat_verb
 
+    try:
+        asker_scope = request_client_scope(params)
+    except ConversationOwnerError as exc:
+        return {"ok": False, "error_kind": exc.reason, "error": "Invalid conversation owner."}
     return run_cli_chat_verb(
         CHAT_DELETE_VERB,
         session_id=_first_text(params, "session_id"),
         persona_id=_first_text(params, "persona_id"),
         persona_instance_id=_first_text(params, "persona_instance_id"),
+        client_scope=asker_scope,
         requested_by=caller_requester(params, caller),
     )

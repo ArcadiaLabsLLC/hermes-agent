@@ -214,6 +214,54 @@ def test_delete_refuses_a_root_owned_by_another_instance(chat_db):
     assert owner.session_id in chat_db.sessions
 
 
+OWNER_SCOPE, OTHER_SCOPE = "a" * 64, "b" * 64
+
+
+def _scoped_chat(db, scope: str = OWNER_SCOPE):
+    """A saved chat whose session row names ``scope`` as its account, as a scoped open writes it."""
+    instance = PersonaInstanceStore().create_operator_chat(persona_id="profile:reviewer", display_name="Reviewer")
+    db.create_session(instance.session_id, "agent_runtime_persona_chat",
+                      model_config=json.dumps({"client_scope": scope}))
+    db.append_message(instance.session_id, "user", "keep this")
+    return instance
+
+
+def _delete(instance, **params):
+    return _rpc("runtime.persona.chat.delete", {"session_id": instance.session_id,
+                                                 "persona_instance_id": instance.id, **params})
+
+
+def test_delete_refuses_another_accounts_chat(chat_db):
+    """Row RT-FU-DELETING-A-SAVED-CHAT-CHECKS-WHICH-ACCOUNT-IT-BELONGS-TO-AS-ARCHIVING-DOES. Kill-mutation:
+    drop ``require_session_owner`` in ``chat_delete._cmd_persona_chat_delete`` -> the delete goes through, red."""
+    instance = _scoped_chat(chat_db)
+    error = _delete(instance, client_scope=OTHER_SCOPE)["error"]
+    assert error["code"] == ERR_CONFLICT and error["data"]["reason"] == "conversation_owner_changed"
+    assert instance.session_id in chat_db.sessions
+    assert chat_db.messages[instance.session_id] == [{"role": "user", "content": "keep this"}]
+    assert PersonaInstanceStore().get(instance.id).default_chat_session_id == instance.session_id
+
+
+def test_delete_by_the_owning_account_or_an_unscoped_call_goes_through(chat_db):
+    """Kill-mutation: read the owner from an empty row (``require_session_owner({}, ...)`` in
+    ``chat_delete``) -> the owner's own delete is refused, red. An unscoped call keeps today's authority."""
+    owned = _scoped_chat(chat_db)
+    result = _delete(owned, client_scope=OWNER_SCOPE)["result"]
+    assert result["deleted_session"] is True and owned.session_id not in chat_db.sessions
+    unscoped = _scoped_chat(chat_db)
+    assert _delete(unscoped)["result"]["deleted_session"] is True
+    assert unscoped.session_id not in chat_db.sessions
+
+
+def test_delete_refuses_a_malformed_scope_before_reading_the_chat(chat_db):
+    """Kill-mutation: read a malformed scope as no scope (``asker_scope = None`` in ``chat_verbs.delete``'s
+    except branch) -> the call deletes with unscoped authority, red."""
+    instance = _scoped_chat(chat_db)
+    error = _delete(instance, client_scope="not-a-digest")["error"]
+    assert error["data"]["reason"] == "invalid_client_scope"
+    assert instance.session_id in chat_db.sessions
+
+
 def test_create_mints_an_agent_profile_with_its_chat_root(chat_db, capsys):
     # ``profile:`` ids skip the roster check by decision D-U1; a bare id must be on it.
     reply = _rpc("runtime.persona.instance.create",

@@ -370,3 +370,30 @@ def test_a_retired_holders_chat_in_its_own_profile_never_moves_for_another_accou
     owned = _rpc(OPEN_CHAT_METHOD, {"persona_id": "qa", "persona_instance_id": target, "session_id": PROFILE_CHAT,
                                     "move": True, "client_scope": OWNER_SCOPE})
     assert "result" in owned, owned
+
+
+# --- Deleting that retired holder's chat checks the account, as archiving and opening do --------------------
+#
+# Row RT-FU-DELETING-A-SAVED-CHAT-CHECKS-WHICH-ACCOUNT-IT-BELONGS-TO-AS-ARCHIVING-DOES: since the resolver change
+# above, ``runtime.persona.chat.delete`` finds a retired ``per_profile`` holder's chat (before, the process store
+# answered ``not_found``), so the account fence must hold there too. Driven through Eternia's delete method.
+
+DELETE_METHOD = "runtime.persona.chat.delete"
+
+
+def test_a_retired_holders_chat_in_its_own_profile_is_deleted_only_by_its_account(profile_heads):
+    """Kill-mutation: drop ``require_session_owner`` in ``chat_delete._cmd_persona_chat_delete`` -> the other
+    account's delete removes the chat from ``alice``, red."""
+    from contextlib import closing
+
+    _retired_profile_holder(profile_heads, client_scope=OWNER_SCOPE)
+
+    refused = _rpc(DELETE_METHOD, {"persona_id": "qa", "session_id": PROFILE_CHAT, "client_scope": OTHER_SCOPE})
+
+    assert refused["error"]["data"]["reason"] == "conversation_owner_changed", refused
+    with closing(_alice_db(profile_heads)) as db:
+        assert [m["content"] for m in db.get_messages(PROFILE_CHAT)] == ["saved in its own profile"]
+    owned = _rpc(DELETE_METHOD, {"persona_id": "qa", "session_id": PROFILE_CHAT, "client_scope": OWNER_SCOPE})
+    assert "result" in owned and owned["result"]["deleted_session"] is True, owned
+    with closing(_alice_db(profile_heads)) as db:
+        assert db.get_session(PROFILE_CHAT) is None

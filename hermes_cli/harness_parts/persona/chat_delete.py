@@ -29,6 +29,7 @@ from agent_runtime.persona_chat_durability import (
     persona_session_db_for,
 )
 from agent_runtime.chat_heads import resolve_conversation_chat_scope
+from agent_runtime.conversation_owner import ConversationOwnerError, require_session_owner
 from hermes_constants import get_hermes_home
 from hermes_time import now
 from .chat_request import _emit_persona_verb_payload
@@ -126,12 +127,11 @@ def _cmd_persona_chat_delete(args) -> int:
     if not owner_instance_id:
         owner_instance_id = _persona_chat_bound_owner(session_id)
     owner_instance, owner_retired = _resolve_delete_owner(owner_instance_id)
-    session_exists = False
     try:
-        session_exists = session_db.get_session(session_id) is not None
+        session_row = session_db.get_session(session_id)
     except Exception:
-        session_exists = False
-    if owner_instance is None and not session_exists:
+        session_row = None
+    if owner_instance is None and session_row is None:
         data = {
             "ok": False,
             "status": "not_found",
@@ -142,6 +142,24 @@ def _cmd_persona_chat_delete(args) -> int:
         }
         _emit_persona_verb_payload(args, data)
         return 2
+    # Archive's order: not found, then the account, then the persona fence. A
+    # scoped caller never deletes another account's chat; an unscoped call (the
+    # argv twin, a native operator) keeps its authority. A bound owner with no
+    # session row has no scope to read and only its bindings are cleared.
+    if session_row is not None:
+        try:
+            # MUTATION: drop this call and test_delete_refuses_another_accounts_chat reddens.
+            require_session_owner(session_row, getattr(args, "client_scope", None))
+        except ConversationOwnerError as exc:
+            data = {
+                "ok": False,
+                "capability_id": "persona.chat.delete",
+                "error_kind": exc.reason,
+                "error": "This conversation belongs to another account.",
+                "session_id": session_id,
+            }
+            _emit_persona_verb_payload(args, data)
+            return 2
     # Third site of the same shape: the STORED ``owner_instance.persona_id``
     # compared raw against ``requested_persona``, which is
     # ``_normalize_cli_persona_or_template_id`` output — or, on that call's
