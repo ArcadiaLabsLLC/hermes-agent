@@ -8,6 +8,7 @@ first-party modules the plan ships, and which locked requirements a target keeps
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -126,6 +127,15 @@ def test_a_package_init_s_relative_siblings_ship_with_the_module_that_enters_it(
     assert shipped == {"root", "pkg", "pkg.a", "pkg.b"}
 
 
+#: The desktop profile's entry first (``bundled-desktop.yaml`` packaging.roots): a command line.
+DESKTOP_ROOTS = ("hermes_cli.main", "run_agent")
+#: The phone profile's (``bundled-phone.yaml``): the embedded serve, a module its host imports.
+PHONE_ROOTS = ("hermes_cli.harness_parts.serve.in_memory", "run_agent")
+#: A phone bundle as this host verifies it: its platform is not this interpreter's.
+PHONE_ON_THIS_HOST = {"roots": PHONE_ROOTS, "phone": True,
+                      "target_platform": "ios" if sys.platform == "android" else "android"}
+
+
 def _serve_tree(root: Path, *, with_sibling: bool) -> None:
     """A miniature bundle: the parser door, a serve handler importing lazily into a package
     whose ``__init__`` imports a sibling with ``from . import``, and a ``-m`` worker."""
@@ -169,8 +179,8 @@ def test_the_serve_import_probe_names_a_module_the_bundle_cannot_import(tmp_path
     table = serve_import_table(shipped, index)
     assert table["spawned"] == ["worker_entry"]
     assert table["lazy"]["hermes_cli.harness_parts.serve.loop"] == ["rpc.registry"]
-    assert serve_import_problems(good, shipped, index, version) == []  # positive control
-    problems = serve_import_problems(bad, shipped, index, version)
+    assert serve_import_problems(good, shipped, index, version, roots=DESKTOP_ROOTS) == []  # positive control
+    problems = serve_import_problems(bad, shipped, index, version, roots=DESKTOP_ROOTS)
     assert len(problems) == 1 and problems[0].startswith(
         "serve entrypoint does not import inside the bundle: rpc.registry: ImportError"), problems
 
@@ -189,13 +199,121 @@ def test_the_serve_import_probe_reports_past_a_module_that_swaps_stdout(tmp_path
         _serve_tree(root, with_sibling=sibling)
         _write(root, "app/hermes_cli/harness_parts/serve/commands.py", swap)
     index = module_index(good / "app")
-    assert serve_import_problems(good, set(index), index, version) == []
-    problems = serve_import_problems(bad, set(index), index, version)
+    assert serve_import_problems(good, set(index), index, version, roots=DESKTOP_ROOTS) == []
+    problems = serve_import_problems(bad, set(index), index, version, roots=DESKTOP_ROOTS)
     assert len(problems) == 1 and "rpc.registry: ImportError" in problems[0], problems
 
 
+def _phone_serve_tree(root: Path, *, with_bound_module: bool) -> None:
+    """A miniature phone bundle: the embedded entry and NO CLI parser (the phone ships none,
+    82d80229be); what it runs before serving binds the chat-turn tree, which reaches a sibling package."""
+    _write(root, "app/hermes_cli/__init__.py", "")
+    _write(root, "app/hermes_cli/harness_parts/__init__.py", "")
+    _write(root, "app/hermes_cli/harness_parts/serve/__init__.py", "")
+    _write(root, "app/hermes_cli/harness_parts/serve/in_memory.py",
+           "def prepare_embedded_process():\n"
+           "    import sys, types\n"
+           "    from agent_runtime import installed_profile\n"
+           "    if sys.platform in installed_profile.PHONE_PLATFORMS:  # the phone's stand-in, on a phone only\n"
+           "        sys.modules.setdefault('psutil', types.ModuleType('psutil'))\n"
+           "    from hermes_cli.harness_parts.chat_turn_argv import build_turn_parser\n")
+    _write(root, "app/hermes_cli/harness_parts/chat_turn_argv.py",
+           "def build_turn_parser():\n    import turn.verbs\n")
+    _write(root, "app/turn/__init__.py", "")
+    _write(root, "app/agent_runtime/__init__.py", "")
+    _write(root, "app/agent_runtime/installed_profile.py", "PHONE_PLATFORMS = frozenset({'android', 'ios'})\n")
+    if with_bound_module:
+        _write(root, "app/turn/verbs.py", "import psutil\n")  # resolves only through the stand-in
+    (root / "site-packages").mkdir(parents=True, exist_ok=True)
+
+
+def test_a_phone_bundle_with_no_cli_parser_passes_the_serve_import_probe(tmp_path: Path):
+    """The phone's entry is its embedded serve (packaging.roots[0]), imported as the host app does;
+    the desktop's ``harness serve`` argv and its parser are not the phone's.
+    Killing mutations: resolve ``SERVE_ARGV`` through the CLI parser for every profile again
+    (``COMMAND_LINE_ENTRIES.get(entry, ())`` -> ``SERVE_ARGV``) -> red, ``No module named
+    'hermes_cli.harness_parts.parser'``; skip the entry's ``prepare_embedded_process()`` call -> red,
+    ``turn.verbs: ModuleNotFoundError: No module named 'psutil'`` (the stand-in was never installed); skip
+    making the install the phone's (``installed_profile.PHONE_PLATFORMS``) -> red, the same line."""
+    import sys
+
+    from scripts.bundle_profile_closure import module_index
+
+    version = f"{sys.version_info.major}.{sys.version_info.minor}.0"
+    _phone_serve_tree(tmp_path, with_bound_module=True)
+    index = module_index(tmp_path / "app")
+    assert serve_import_problems(tmp_path, set(index), index, version, **PHONE_ON_THIS_HOST) == []
+
+
+def test_a_phone_bundle_missing_a_module_its_entry_binds_at_start_fails_naming_it(tmp_path: Path):
+    """The embedded entry's lazy imports (what ``start`` binds) and theirs are walked like the
+    desktop handler's. Killing mutation: import only the root, skipping the lazy walk (drop the
+    ``for name in first: load(name)`` loop and the package walk) -> red, no problem reported."""
+    import sys
+
+    from scripts.bundle_profile_closure import module_index
+
+    version = f"{sys.version_info.major}.{sys.version_info.minor}.0"
+    good, bad = tmp_path / "good", tmp_path / "bad"
+    _phone_serve_tree(good, with_bound_module=True)
+    _phone_serve_tree(bad, with_bound_module=False)
+    index = module_index(good / "app")
+    problems = serve_import_problems(bad, set(index), index, version, **PHONE_ON_THIS_HOST)
+    assert len(problems) == 1 and problems[0].startswith(
+        "serve entrypoint does not import inside the bundle: turn.verbs: ModuleNotFoundError"), problems
+
+
+def test_a_phone_bundle_probed_on_another_platform_skips_only_its_admitted_compiled_wheel(tmp_path: Path, capsys):
+    """A phone bundle's admitted compiled wheel (Pillow) is built for the phone and cannot load on this
+    host: the module that needs it is printed as skipped, by name; any other import still fails.
+    Killing mutation: drop the ``cross and ... in native_tops`` skip branch (report it as a failure)
+    -> red, ``turn.verbs: ImportError: cannot import name '_core' from 'nativepkg'``."""
+    import sys
+
+    from scripts.bundle_profile_closure import module_index
+
+    version = f"{sys.version_info.major}.{sys.version_info.minor}.0"
+    _phone_serve_tree(tmp_path, with_bound_module=True)
+    _write(tmp_path, "app/turn/verbs.py", "import nativepkg\n")
+    _write(tmp_path, "site-packages/nativepkg/__init__.py", "from . import _core\n")  # the .so is the phone's
+    index = module_index(tmp_path / "app")
+    other = PHONE_ON_THIS_HOST["target_platform"]
+    assert serve_import_problems(tmp_path, set(index), index, version, **PHONE_ON_THIS_HOST,
+                                 native_tops=("nativepkg",)) == []
+    assert f"serve import probe: skipped, compiled for {other}, not this host: turn.verbs: ImportError" in (
+        capsys.readouterr().out)
+    # Negative controls: not an admitted wheel, or a bundle for this very platform -> a failure.
+    for platform, tops in ((other, ()), (sys.platform, ("nativepkg",))):
+        problems = serve_import_problems(tmp_path, set(index), index, version, roots=PHONE_ROOTS,
+                                         target_platform=platform, phone=True, native_tops=tops)
+        assert len(problems) == 1 and "turn.verbs: ImportError" in problems[0], (platform, problems)
+
+
+def test_a_phone_bundle_probe_passes_by_a_module_its_profile_switches_off(tmp_path: Path, capsys):
+    """A switched-off module a phone ships only because kept code names it (``tui_gateway.contracts``, which
+    needs the omitted pydantic, behind ``tui_gateway.pydantic_contracts: false``) is not imported, and one
+    line names it. Killing mutation: drop the ``switched_off`` check in the probe's ``load`` -> red,
+    ``off.contracts: ModuleNotFoundError: No module named 'pydantic'``."""
+    import sys
+
+    from scripts.bundle_profile_closure import module_index
+
+    version = f"{sys.version_info.major}.{sys.version_info.minor}.0"
+    _phone_serve_tree(tmp_path, with_bound_module=True)
+    _write(tmp_path, "app/hermes_cli/harness_parts/chat_turn_argv.py",
+           "def build_turn_parser():\n    import turn.verbs\ndef contracts():\n    import off.contracts\n")
+    _write(tmp_path, "app/off/__init__.py", "")
+    _write(tmp_path, "app/off/contracts.py", "import pydantic\n")
+    index = module_index(tmp_path / "app")
+    assert serve_import_problems(tmp_path, set(index), index, version, **PHONE_ON_THIS_HOST,
+                                 switched_off=("off",)) == []
+    assert "serve import probe: not imported, switched off by the profile: off.contracts" in capsys.readouterr().out
+    problems = serve_import_problems(tmp_path, set(index), index, version, **PHONE_ON_THIS_HOST)  # negative control
+    assert len(problems) == 1 and "off.contracts: ModuleNotFoundError: No module named 'pydantic'" in problems[0]
+
+
 def test_the_serve_import_probe_refuses_an_interpreter_of_another_version(tmp_path: Path):
-    problems = serve_import_problems(tmp_path, set(), {}, "2.7.18")
+    problems = serve_import_problems(tmp_path, set(), {}, "2.7.18", roots=DESKTOP_ROOTS)
     assert len(problems) == 1 and "needs a CPython 2.7 interpreter" in problems[0]
 
 
@@ -648,9 +766,9 @@ def test_the_serve_import_probe_mounts_the_forced_tree(tmp_path: Path):
     shipped = set(index)
     assert serve_import_table(shipped, index)["lazy"]["hermes_cli.harness_parts.serve.loop"] == [
         "rpc.registry", "tools.forced"]
-    assert serve_import_problems(tmp_path, shipped, index, version) == []
+    assert serve_import_problems(tmp_path, shipped, index, version, roots=DESKTOP_ROOTS) == []
     shutil.rmtree(tmp_path / "phone_forced")
-    problems = serve_import_problems(tmp_path, shipped, index, version)
+    problems = serve_import_problems(tmp_path, shipped, index, version, roots=DESKTOP_ROOTS)
     assert len(problems) == 1 and "tools.forced" in problems[0], problems
 
 

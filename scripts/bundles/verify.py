@@ -13,13 +13,15 @@ from pathlib import Path
 
 from agent.skill_utils import parse_frontmatter
 from agent_runtime.bundle_profiles.forced_tree import FORCED_TREE_DIR
+from agent_runtime.bundle_profiles.manifest import PHONE_TARGETS
 from scripts.bundle_licenses import licence_problems
-from scripts.bundle_profile_closure import module_index
+from scripts.bundle_profile_closure import _norm, module_index
 from scripts.bundles.bundle_files import (
     BAKED_MARKER, BUNDLE_MANIFEST, PACK_MANIFEST, PACKAGER_FILES, Dist, _excluded, _in_resource, _is_noise,
     _is_test, _platforms, _resource_file, read_site, skill_ships, tracked_files)
 from scripts.bundles.plan import CORE, Plan, make_plan, pack_distributions, pack_from_plans, pack_selections
 from scripts.bundles.serve_probe import named_timezone_problems, serve_import_problems
+from scripts.bundles.targets import marker_env
 
 
 def resource_problems(app_files: set[str], tracked: list[str], resources: tuple[str, ...],
@@ -122,6 +124,19 @@ def app_module_names(app: Path, plugins=(), resources: tuple[str, ...] = ()) -> 
             if not _in_resource(path.relative_to(app).as_posix(), resources)}
 
 
+def native_import_names(site_dists: dict, admitted_native) -> tuple[str, ...]:
+    """The top-level names the profile's admitted compiled wheels install (Pillow: ``PIL``)."""
+    admitted = {_norm(name) for name in admitted_native}
+    names = set()
+    for dist in site_dists.values():
+        if dist.name in admitted:
+            for rel in dist.files:
+                top = rel.split("/")[0]
+                if not top.endswith((".dist-info", ".data")):
+                    names.add(top.split(".")[0])
+    return tuple(sorted(names))
+
+
 def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
                   python: Path | str | None = sys.executable,
                   distributions: tuple[set[str], list[str]] | None = None) -> list[str]:
@@ -139,7 +154,8 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
     tree = out / FORCED_TREE_DIR
     tree_modules = set(module_index(tree, plugins=manifest.packaging_plugins)) if tree.is_dir() else set()
     tree_files = {p.relative_to(tree).as_posix() for p in tree.rglob("*") if p.is_file()} if tree.is_dir() else set()
-    problems = compare(plan, app_modules, read_site(site), site_files, manifest.excluded_data,
+    site_dists = read_site(site)
+    problems = compare(plan, app_modules, site_dists, site_files, manifest.excluded_data,
                        baked=(out / BAKED_MARKER).is_file(), app_files=app_files | tree_files,
                        tree_modules=tree_modules)
     problems += licence_problems(out, plan.distributions)
@@ -153,5 +169,12 @@ def verify_bundle(out: Path, manifest, index: dict[str, Path] | None = None,
         problems += named_timezone_problems(site)
     index = index if index is not None else module_index(plugins=manifest.packaging_plugins)
     if python is not None:
-        problems += serve_import_problems(out, plan.first_party, index, record["python_version"], python)
+        problems += serve_import_problems(
+            out, plan.first_party, index, record["python_version"], python, roots=manifest.packaging_roots,
+            target_platform=marker_env(record["target"], record["python_version"])["sys_platform"],
+            phone=record["target"] in PHONE_TARGETS,
+            native_tops=native_import_names(site_dists, manifest.admitted_native),
+            # A phone ships switched-off code kept code names unguarded (the gate's work list); the desktop
+            # probe imports everything it ships, as before.
+            switched_off=manifest.switched_off_modules if record["target"] in PHONE_TARGETS else ())
     return problems

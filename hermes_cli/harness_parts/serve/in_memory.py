@@ -80,6 +80,7 @@ __all__ = [
     "app_folder_environment",
     "configure_app_folder",
     "delete_namespace",
+    "prepare_embedded_process",
     "protect_history_folder",
     "require_bound_host_store",
 ]
@@ -299,6 +300,54 @@ def _reconcile_default_model() -> Any:
     return reconcile_default_model_at_start()
 
 
+def prepare_embedded_process() -> None:
+    """What the embedded serve runs in its process before it serves, once the store is bound: the
+    contract catalog, the stand-ins, the phone's native libraries and TLS anchors, the chat-turn parser.
+
+    :meth:`EmbeddedServe.start` calls it; the bundle's serve import probe
+    (``scripts/bundles/serve_probe.py``, ``EMBEDDED_PREPARE``) calls it too, so the probe walks the
+    process the phone serves from (RT-FU-THE-PHONE-ENGINE-BUILD-CHECKS-THAT-THE-PHONES-OWN-ENTRY-STARTS-
+    INSTEAD-OF-THE-DESKTOP-COMMAND-LINE). Idempotent: every step is.
+    """
+    pin_contract_registry()  # before any request can import tui_gateway
+    from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders
+
+    ensure_lifecycle_placeholders()  # before any request can import the agent loop
+    from agent_runtime.provider_sdk_shim import ensure_provider_sdk_shim
+
+    ensure_provider_sdk_shim()  # the phone's `openai`: upstream's SDK import sites get the SDK-free client
+    from agent_runtime.psutil_stand_in import ensure_psutil_stand_in
+
+    ensure_psutil_stand_in()  # the phone's `psutil`: upstream's process reads see an empty table
+    from agent_runtime.terminal_ui_stand_in import ensure_terminal_ui_stand_in
+
+    ensure_terminal_ui_stand_in()  # the phone's `rich`/`prompt_toolkit`: terminal-UI names, none drawable
+    from agent_runtime.spawn_stand_ins import ensure_spawn_stand_ins
+
+    ensure_spawn_stand_ins()  # upstream functions that start a process answer as a phone must
+    from agent_runtime.phone_file_tools import ensure_phone_file_tools
+
+    # The phone's process-free file tools under upstream's names: a phone ships no eternia-harness plugin
+    # (RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-AGENTS-FILE-TOOLS). MUTATION: drop it and its import and
+    # test_phone_bundle_turn_closure::test_the_phone_file_tools_are_in_the_bundle_the_gate_judges reddens.
+    ensure_phone_file_tools()
+    from agent_runtime.phone_native_libs import load_phone_native_libs
+
+    load_phone_native_libs()  # Android: Pillow's image libraries, by path, before anything imports PIL
+    from agent_runtime.phone_tls_trust import ensure_phone_tls_trust
+
+    ensure_phone_tls_trust()  # Android/iOS: certifi's anchors, before any HTTPS client is built
+    from hermes_cli.harness_parts.chat_turn_argv import build_turn_parser
+    from hermes_cli.harness_parts.serve.argv_lane import bind_harness_parser, harness_parser_bound
+
+    # A chat turn runs as `harness mission-chat message` argv through the argv lane; the desktop's
+    # serve trampoline binds the whole tree, the phone binds the two turn verbs it ships
+    # (RT-PHONE-TURN-NEEDS-THE-HARNESS-PARSER). MUTATION: drop this bind and
+    # test_embedded_phone_session's reserved chat turn ends `dispatch_failed HarnessParserUnbound`.
+    if not harness_parser_bound():
+        bind_harness_parser(build_turn_parser)
+
+
 class EmbeddedServe:
     """One embedded runtime: ``serve_loop`` on its own thread over an :class:`InMemoryPipe`.
 
@@ -324,43 +373,7 @@ class EmbeddedServe:
         mount_forced_tree()  # the wheel's forced set resolves by import; the directory scans never see it
         require_bound_host_store()
         protect_history_folder()  # before anything writes history: the OS protection + no cloud backup
-        pin_contract_registry()  # before any request can import tui_gateway
-        from agent_runtime.loop_tool_lifecycles import ensure_lifecycle_placeholders
-
-        ensure_lifecycle_placeholders()  # before any request can import the agent loop
-        from agent_runtime.provider_sdk_shim import ensure_provider_sdk_shim
-
-        ensure_provider_sdk_shim()  # the phone's `openai`: upstream's SDK import sites get the SDK-free client
-        from agent_runtime.psutil_stand_in import ensure_psutil_stand_in
-
-        ensure_psutil_stand_in()  # the phone's `psutil`: upstream's process reads see an empty table
-        from agent_runtime.terminal_ui_stand_in import ensure_terminal_ui_stand_in
-
-        ensure_terminal_ui_stand_in()  # the phone's `rich`/`prompt_toolkit`: terminal-UI names, none drawable
-        from agent_runtime.spawn_stand_ins import ensure_spawn_stand_ins
-
-        ensure_spawn_stand_ins()  # upstream functions that start a process answer as a phone must
-        from agent_runtime.phone_file_tools import ensure_phone_file_tools
-
-        # The phone's process-free file tools under upstream's names: a phone ships no eternia-harness plugin
-        # (RT-FU-THE-PHONE-GATE-JUDGES-THE-CODE-BEHIND-A-PHONE-AGENTS-FILE-TOOLS). MUTATION: drop it and its import and
-        # test_phone_bundle_turn_closure::test_the_phone_file_tools_are_in_the_bundle_the_gate_judges reddens.
-        ensure_phone_file_tools()
-        from agent_runtime.phone_native_libs import load_phone_native_libs
-
-        load_phone_native_libs()  # Android: Pillow's image libraries, by path, before anything imports PIL
-        from agent_runtime.phone_tls_trust import ensure_phone_tls_trust
-
-        ensure_phone_tls_trust()  # Android/iOS: certifi's anchors, before any HTTPS client is built
-        from hermes_cli.harness_parts.chat_turn_argv import build_turn_parser
-        from hermes_cli.harness_parts.serve.argv_lane import bind_harness_parser, harness_parser_bound
-
-        # A chat turn runs as `harness mission-chat message` argv through the argv lane; the desktop's
-        # serve trampoline binds the whole tree, the phone binds the two turn verbs it ships
-        # (RT-PHONE-TURN-NEEDS-THE-HARNESS-PARSER). MUTATION: drop this bind and
-        # test_embedded_phone_session's reserved chat turn ends `dispatch_failed HarnessParserUnbound`.
-        if not harness_parser_bound():
-            bind_harness_parser(build_turn_parser)
+        prepare_embedded_process()
         from hermes_cli._namespace_bootstrap import namespace_stamp
 
         _SERVING_NAMESPACE[:] = [namespace_stamp()] if namespace_stamp() else []
