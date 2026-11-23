@@ -178,24 +178,31 @@ def _stamped(core: dict[str, Any], frame: dict[str, Any], offset: int) -> dict[s
     return {**core, "parity": {**parity, "watermark": dict(watermark), "event_log_bytes": offset}}
 
 
+def _fold_patch(working: dict[str, Any], frame: dict[str, Any]) -> str | None:
+    for row in frame.get("patches") or ():
+        hazard = apply_patch_row(working, row) if isinstance(row, dict) else "patch_malformed:row"
+        if hazard is not None:
+            return hazard
+    return None
+
+
+#: The sequenced frames a fold client consumes, and how each moves the core.
+_FOLDS = {
+    _FRAME_PATCH: _fold_patch,
+    _FRAME_TURN: apply_persona_chat_turn,
+    _FRAME_RUNNING_WORK: apply_running_work_section,
+}
+
+
 def _fold(held_core: ResidentCore, frame: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
     """The core after ``frame``, or the hazard that stops it."""
 
-    frame_type = frame.get("type")
+    fold = _FOLDS.get(frame.get("type"))
+    if fold is None:
+        return None, f"unknown_frame:{frame.get('type')}"
     working = dict(held_core.core)
-    if frame_type == _FRAME_PATCH:
-        for row in frame.get("patches") or ():
-            hazard = apply_patch_row(working, row) if isinstance(row, dict) else "patch_malformed:row"
-            if hazard is not None:
-                return None, hazard
-        return working, None
-    if frame_type == _FRAME_TURN:
-        hazard = apply_persona_chat_turn(working, frame)
-        return (None, hazard) if hazard is not None else (working, None)
-    if frame_type == _FRAME_RUNNING_WORK:
-        hazard = apply_running_work_section(working, frame)
-        return (None, hazard) if hazard is not None else (working, None)
-    return None, f"unknown_frame:{frame_type}"
+    hazard = fold(working, frame)
+    return (None, hazard) if hazard is not None else (working, None)
 
 
 def observe(frame: dict[str, Any]) -> None:
@@ -214,33 +221,47 @@ def observe(frame: dict[str, Any]) -> None:
 
 
 def _observe(frame: dict[str, Any]) -> None:
-    if not isinstance(frame, dict):
-        return
-    frame_type = frame.get("type")
-    if frame_type == _FRAME_FOLD_VARIANTS:
-        # The core half is exact when it IS a core; a heartbeat there (a two-root
-        # turn batch's first envelope) leaves the patch half as the batch's carrier.
-        core_half = frame.get("core")
-        if isinstance(core_half, dict) and isinstance(core_half.get("core"), dict):
-            _observe(core_half)
-        elif isinstance(frame.get("patch"), dict):
-            _observe(frame["patch"])
+    if isinstance(frame, dict):
+        _OBSERVERS.get(frame.get("type"), _observe_sequenced)(frame)
+
+
+def _observe_variants(frame: dict[str, Any]) -> None:
+    """The core half is exact when it IS a core; a heartbeat there (a two-root
+    turn batch's first envelope) leaves the patch half as the batch's carrier."""
+
+    core_half = frame.get("core")
+    if isinstance(core_half, dict) and isinstance(core_half.get("core"), dict):
+        _observe(core_half)
+    elif isinstance(frame.get("patch"), dict):
+        _observe(frame["patch"])
+
+
+def _observe_core(frame: dict[str, Any]) -> None:
+    _seed(_root_key(), frame)
+
+
+def _observe_running_work(frame: dict[str, Any]) -> None:
+    """The sequenced section folds like a patch; the ``as_of_offset`` overlay is a
+    section read now that moves no position, so it replaces the section in place."""
+
+    if "base_offset" in frame:
+        _observe_sequenced(frame)
         return
     root = _root_key()
-    if frame_type in (_FRAME_HYDRATE, _FRAME_DELTA):
-        _seed(root, frame)
-        return
-    if frame_type == _FRAME_RUNNING_WORK and "base_offset" not in frame:
-        # The unsequenced overlay: a section read now, moving no position.
-        held_core = _HOLDER.held(root)
-        if held_core is not None and isinstance(frame.get("running_work"), dict):
-            _HOLDER.put(root, ResidentCore(
-                core={**held_core.core, "running_work": frame["running_work"]},
-                offset=held_core.offset, source=held_core.source, seeded_at=held_core.seeded_at,
-            ))
-        return
+    held_core = _HOLDER.held(root)
+    if held_core is not None and isinstance(frame.get("running_work"), dict):
+        _HOLDER.put(root, ResidentCore(
+            core={**held_core.core, "running_work": frame["running_work"]},
+            offset=held_core.offset, source=held_core.source, seeded_at=held_core.seeded_at,
+        ))
+
+
+def _observe_sequenced(frame: dict[str, Any]) -> None:
+    """A frame carrying ``base_offset``: folded when it chains from the held offset."""
+
     if "base_offset" not in frame:
         return  # a heartbeat, or a frame that moves no position
+    root = _root_key()
     held_core = _HOLDER.held(root)
     if held_core is None:
         return
@@ -259,8 +280,16 @@ def _observe(frame: dict[str, Any]) -> None:
     ))
     logger.debug(
         "resident_core fold type=%s offset=%d rows=%d ms=%.1f",
-        frame_type,
+        frame.get("type"),
         offset,
         len(frame.get("patches") or ()),
         (time.perf_counter() - started) * 1000,
     )
+
+
+_OBSERVERS = {
+    _FRAME_FOLD_VARIANTS: _observe_variants,
+    _FRAME_HYDRATE: _observe_core,
+    _FRAME_DELTA: _observe_core,
+    _FRAME_RUNNING_WORK: _observe_running_work,
+}

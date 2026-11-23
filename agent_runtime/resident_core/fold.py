@@ -85,15 +85,28 @@ def apply_patch_row(working: dict[str, Any], patch: dict[str, Any]) -> str | Non
     section = _ENTITY_SECTION.get(entity)
     if section is None:
         return f"patch_unknown_entity:{entity}"
-    if op == PATCH_OP_REMOVE:
-        table = working.get(section)
-        if isinstance(table, dict):
-            working[section] = {key: row for key, row in table.items() if key != row_id}
-        return None
-    if op == PATCH_OP_REFRESH:
-        return f"patch_refresh:{entity}/{row_id}"
-    if op != PATCH_OP_UPSERT:
+    apply_op = _KEYED_TABLE_OPS.get(op)
+    if apply_op is None:
         return f"patch_unknown_op:{op}"
+    return apply_op(working, section, entity, row_id, patch)
+
+
+def _keyed_remove(working: dict[str, Any], section: str, entity: str, row_id: str, patch: dict[str, Any]) -> str | None:
+    """Idempotent: an absent table or row already satisfies the removal."""
+
+    table = working.get(section)
+    if isinstance(table, dict):
+        working[section] = {key: row for key, row in table.items() if key != row_id}
+    return None
+
+
+def _keyed_refresh(working: dict[str, Any], section: str, entity: str, row_id: str, patch: dict[str, Any]) -> str | None:
+    return f"patch_refresh:{entity}/{row_id}"
+
+
+def _keyed_upsert(working: dict[str, Any], section: str, entity: str, row_id: str, patch: dict[str, Any]) -> str | None:
+    """Merge a subset onto the held row; a ``created`` row (the complete row) replaces or inserts."""
+
     changed = patch.get("changed")
     if not isinstance(changed, dict) or not changed:
         return f"patch_malformed:{entity}/{row_id}"
@@ -112,6 +125,9 @@ def apply_patch_row(working: dict[str, Any], patch: dict[str, Any]) -> str | Non
     next_table[row_id] = next_row
     working[section] = next_table
     return None
+
+
+_KEYED_TABLE_OPS = {PATCH_OP_REMOVE: _keyed_remove, PATCH_OP_REFRESH: _keyed_refresh, PATCH_OP_UPSERT: _keyed_upsert}
 
 
 def _apply_scope(working: dict[str, Any], row_id: str, op: str, patch: dict[str, Any]) -> str | None:
@@ -179,35 +195,29 @@ def _apply_office_actor(working: dict[str, Any], row_id: str, op: str, patch: di
     if address is None:
         return f"patch_malformed:{OFFICE_ACTOR_ENTITY}/{row_id}"
     workspace_id, actor_key = address
-    replacement: dict[str, Any] | None = None
     if op == PATCH_OP_REFRESH:
         return f"patch_refresh:{OFFICE_ACTOR_ENTITY}/{row_id}"
-    if op == PATCH_OP_UPSERT:
-        changed = patch.get("changed")
-        if not isinstance(changed, dict) or not changed:
-            return f"patch_malformed:{OFFICE_ACTOR_ENTITY}/{row_id}"
-        if any(_is_oversize(value) for value in changed.values()):
-            return f"patch_oversize:{OFFICE_ACTOR_ENTITY}/{row_id}"
-        replacement = {str(key): value for key, value in changed.items()}
-    elif op != PATCH_OP_REMOVE:
-        return f"patch_unknown_op:{op}"
+    removing = op == PATCH_OP_REMOVE
+    replacement, hazard = (None, None) if removing else _actor_replacement(op, patch, row_id)
+    if hazard is not None:
+        return hazard
     offices = working.get("offices")
     office = offices.get(workspace_id) if isinstance(offices, dict) else None
     actors = office.get("actors") if isinstance(office, dict) else None
     if not isinstance(offices, dict) or not isinstance(office, dict) or not isinstance(actors, list):
-        return None if op == PATCH_OP_REMOVE else f"patch_without_target:{OFFICE_ACTOR_ENTITY}/{row_id}"
+        return None if removing else f"patch_without_target:{OFFICE_ACTOR_ENTITY}/{row_id}"
     next_actors = list(actors)
     index = next(
         (at for at, row in enumerate(next_actors) if isinstance(row, dict) and _text(row.get("actor_key")) == actor_key),
         -1,
     )
-    derives = op == PATCH_OP_REMOVE or index < 0
+    derives = removing or index < 0
     if derives:
         held_count = _int_or_none(office.get("actor_count"))
         held_truncated = _int_or_none(office.get("actors_truncated")) or 0
         if held_truncated > 0 or (held_count is not None and held_count != len(actors)):
             return f"patch_truncated_base:{OFFICE_ACTOR_ENTITY}/{row_id}"
-    if op == PATCH_OP_REMOVE:
+    if removing:
         if index >= 0:
             del next_actors[index]
     elif index >= 0:
@@ -224,11 +234,24 @@ def _apply_office_actor(working: dict[str, Any], row_id: str, op: str, patch: di
     next_office = {**office, "actors": next_actors}
     if derives:
         next_office["actor_count"] = len(next_actors)
-    ledger = _folded_archive_ledger(office.get("archived_actor_keys"), actor_key, archived=op == PATCH_OP_REMOVE)
+    ledger = _folded_archive_ledger(office.get("archived_actor_keys"), actor_key, archived=removing)
     if ledger is not None:
         next_office["archived_actor_keys"] = ledger
     working["offices"] = {**offices, workspace_id: next_office}
     return None
+
+
+def _actor_replacement(op: str, patch: dict[str, Any], row_id: str) -> tuple[dict[str, Any] | None, str | None]:
+    """An actor upsert's complete row, or the hazard refusing it."""
+
+    if op != PATCH_OP_UPSERT:
+        return None, f"patch_unknown_op:{op}"
+    changed = patch.get("changed")
+    if not isinstance(changed, dict) or not changed:
+        return None, f"patch_malformed:{OFFICE_ACTOR_ENTITY}/{row_id}"
+    if any(_is_oversize(value) for value in changed.values()):
+        return None, f"patch_oversize:{OFFICE_ACTOR_ENTITY}/{row_id}"
+    return {str(key): value for key, value in changed.items()}, None
 
 
 def _folded_archive_ledger(held: Any, actor_key: str, *, archived: bool) -> list[Any] | None:
