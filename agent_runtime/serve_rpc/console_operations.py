@@ -145,14 +145,18 @@ def prompt_observability_agent(rid, params, context=None):
 # root, a bound repository. Only a caller at console reach keeps them; everyone else reads every label and
 # source with the paths taken out. The stores, ``ToolsetDeclaration.row()`` and the local CLI keep theirs.
 # The prompt details (RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-ITS-AGENTS-CONTEXT-FILES, review w1122d.12)
-# name each context file (``path``) and each layer's file (``source_path``) the same way.
+# name each context file (``path``) and each layer's file (``source_path``) the same way. The health check
+# (``runtime_root``, ``hermes_home``, ``interpreter``, and the interpreter's path inside an ``issues`` sentence) and
+# the agent list (each agent's ``profile_home``) return through ``_detail_for_caller`` too
+# (RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-HERMES-BY-ITS-HEALTH-CHECK-AND-AGENT-LIST, review w1122d.13).
 
 #: The keys that hold an absolute local path, read off ``tool_visibility.resolve_tool_visibility`` (``workdir``,
 #: ``runtime_root``, ``repo_scope``), ``ToolsetDeclaration.row()`` and ``DeclarationIssue.row()`` (``config_path``),
-#: the prompt details' context-file rows and workspace receipt (``path``) and their layers (``source_path``).
-#: ``repo_scope`` may instead hold a portable label, which is kept.
+#: the prompt details' context-file rows and workspace receipt (``path``) and their layers (``source_path``),
+#: ``provider_health.provider_health_for_personas`` (``interpreter``, ``runtime_root``, ``hermes_home``) and
+#: ``instance_catalog._project`` (``profile_home``). ``repo_scope`` may instead hold a portable label, which is kept.
 _LOCAL_PATH_FIELDS = frozenset({"config_path", "root_config_path", "workdir", "runtime_root", "repo_scope",
-                                "path", "source_path"})
+                                "path", "source_path", "interpreter", "hermes_home", "profile_home"})
 #: An absolute path as a value: POSIX, home-relative, a Windows drive or a UNC share.
 _ABSOLUTE_PATH = re.compile(r"^(?:/|~[/\\]|[A-Za-z]:[/\\]|\\\\)")
 #: An absolute path inside prose (an issue's summary names its file): not after a word, a dot or a colon,

@@ -17,6 +17,20 @@ Killing mutations (each red seen 2026-11-23, in a scratch tree):
   config path under ``config_path`` in ``runtime.persona.instance.detail``'s reply;
 * drop ``runtime.health`` from ``_CALLED``, and the coverage test names it (the ``_FILED`` check reddens too);
 * drop ``"source_path"`` from ``console_operations._LOCAL_PATH_FIELDS``, and the census finds the SOUL layer's path.
+
+Row ``RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-HERMES-BY-ITS-HEALTH-CHECK-AND-AGENT-LIST`` (review w1122d.13)
+emptied ``_FILED``: ``runtime.health`` and ``runtime.agent.directory`` now return through
+``console_operations._detail_for_caller``, and ``interpreter`` (a path key with no path suffix) joins ``_PATH_KEYS``.
+Its killing mutations (each red seen 2026-11-23, in a scratch tree):
+
+* ``health._runtime_health``: return ``runtime_health()`` unprojected, and the census finds ``interpreter``,
+  ``runtime_root`` and ``hermes_home`` in ``runtime.health``'s reply;
+* ``agent._runtime_agent_directory``: return the catalog unprojected, and the census finds ``agents[0].profile_home``;
+* the projection keeps ``interpreter`` whole (drop it from ``console_operations._LOCAL_PATH_FIELDS`` and pass its
+  value through ``_object_without_paths`` untouched), and the census finds ``.interpreter`` in ``runtime.health``'s
+  reply; drop ``"interpreter"`` from ``_PATH_KEYS`` as well and the census goes green, blind to it: that is why it
+  is named there. (Dropping it from ``_LOCAL_PATH_FIELDS`` alone does not leak: the prose arm then rewrites the
+  whole value, which ``test_health_and_agent_list_name_no_local_path`` reds on, wanting null.)
 """
 
 from __future__ import annotations
@@ -33,7 +47,7 @@ from tests.agent_runtime.test_serve_rpc_open_chat import placed_agent, qa_person
 #: An absolute path as a whole value: POSIX, home-relative, a Windows drive or a UNC share.
 _ABSOLUTE = re.compile(r"^(?:/|~[/\\]|[A-Za-z]:[/\\]|\\\\)")
 #: A key that names where something lives on disk.
-_PATH_KEYS = frozenset({"path", "workdir", "cwd", "runtime_root", "repo_scope", "hermes_home", "home"})
+_PATH_KEYS = frozenset({"path", "workdir", "cwd", "runtime_root", "repo_scope", "hermes_home", "home", "interpreter"})
 _PATH_SUFFIXES = ("_path", "_dir", "_root", "_home")
 
 
@@ -92,10 +106,7 @@ _EXCUSED = {
 
 #: Each called verb the census found handing a Look or Run chats computer a local path, with the row that fixes it.
 #: Exact, not a ceiling: a verb fixed (or a new leak) reddens the census until this table says so.
-_FILED = {
-    "runtime.agent.directory": "RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-HERMES-BY-ITS-HEALTH-CHECK-AND-AGENT-LIST",
-    "runtime.health": "RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-HERMES-BY-ITS-HEALTH-CHECK-AND-AGENT-LIST",
-}
+_FILED: dict[str, str] = {}
 
 
 @pytest.fixture

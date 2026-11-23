@@ -35,10 +35,17 @@ def _runtime_agent_directory(rid: Any, params: dict, context: RpcContext | None 
 
     if params:
         return err(rid, ERR_INVALID_PARAMS, "No parameters expected.")
+    from agent_runtime.serve_rpc.console_operations import _detail_for_caller
+
     try:
-        return ok(rid, prepare_instance_catalog(seated=_running_group_chat_seats))
+        catalog = prepare_instance_catalog(seated=_running_group_chat_seats)
     except InstanceCatalogUnavailable as exc:
         return err(rid, ERR_HANDLER_FAILED, "Agents could not be loaded. Try again.", {"reason": str(exc)})
+    # Below console reach each agent's ``profile_home`` is null
+    # (RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-HERMES-BY-ITS-HEALTH-CHECK-AND-AGENT-LIST).
+    # MUTATION: return ``catalog`` unprojected and test_a_look_computer_reads_no_settings_folder_in_the_agent_list
+    # reddens, while test_the_console_keeps_each_agents_settings_folder stays green.
+    return ok(rid, _detail_for_caller(catalog, context.caller if context is not None else None))
 
 
 # New chat's instance resolver at Run chats, never Look: it serves only starting a chat
