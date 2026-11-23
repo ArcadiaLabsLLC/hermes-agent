@@ -130,6 +130,20 @@ def _compute_worker() -> bool:
     return is_worker_process()
 
 
+def _snapshot_reader_worker() -> bool:
+    """The resident snapshot worker (``agent_runtime.snapshot_worker``) reads the stores its serve resolved;
+    the serve, which spawned it and loaded its own plugins first, owns the start-time migrations. Without this
+    the worker ran every one of them again inside a build, once per profile home its plugin loads met: on the
+    owner's box the first build after an update carried two plugin loads with a 12-profile skill walk each
+    (``persona_seed.line5`` x 24 in its receipts, 2026-11-22 18:47:51), and a second process wrote the same
+    profile ``config.yaml`` files the serve writes (w1122f-agentlist)."""
+    try:
+        from agent_runtime.snapshot_worker import is_reader_process
+    except ImportError:  # a tree without the resident worker has no reader process
+        return False
+    return is_reader_process()
+
+
 _MIGRATED: set[tuple] = set()
 _MIGRATED_LOCK = threading.Lock()
 
@@ -150,6 +164,9 @@ def _stores_key(config_frozen: bool, compute_worker: bool) -> tuple | None:
 
 
 def _run_start_time_migrations() -> None:
+    # MUTATION: drop this return and test_the_snapshot_worker_runs_no_start_time_migration reddens.
+    if _snapshot_reader_worker():
+        return
     config_frozen, compute_worker = _worker_config_frozen(), _compute_worker()
     key = _stores_key(config_frozen, compute_worker)
     with _MIGRATED_LOCK:  # held across the run: a second caller waits for the first one's migrations

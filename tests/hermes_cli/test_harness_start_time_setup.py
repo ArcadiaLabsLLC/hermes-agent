@@ -131,3 +131,44 @@ def test_a_frozen_config_worker_runs_only_the_store_migrations(counted_migration
     start_time.run_start_time_setup()
 
     assert [n for n in counted_migrations if n in MIGRATIONS] == list(MIGRATIONS[4:])
+
+
+def test_the_snapshot_worker_runs_no_start_time_migration(counted_migrations, monkeypatch):
+    """The resident snapshot worker reads the stores its serve resolved; the serve owns their migrations.
+
+    Its builds load plugins once per profile home they meet, and each load ran every migration again inside
+    the build (w1122f-agentlist: 24 ``persona_seed.line5`` profile walks in the first build after an update).
+    The process globals still install.
+
+    MUTATION (red recorded 2026-11-22): drop the ``_snapshot_reader_worker()`` return in
+    ``_run_start_time_migrations`` -> all seven migrations run.
+    """
+
+    import agent_runtime.snapshot_worker as snapshot_worker
+
+    monkeypatch.setattr(snapshot_worker, "_READER_PROCESS", True)
+
+    start_time.run_start_time_setup()
+
+    assert [n for n in counted_migrations if n in MIGRATIONS] == []
+    assert counted_migrations.count("door") == 1 and counted_migrations.count("harness_core") == 1
+
+
+def test_the_worker_main_marks_its_process_a_reader(monkeypatch):
+    """``python -m agent_runtime.snapshot_worker.entry`` marks the interpreter before its first request.
+
+    MUTATION (red recorded 2026-11-22): drop ``mark_reader_process()`` in ``entry.main`` -> the worker
+    serves its first build unmarked.
+    """
+
+    import agent_runtime.snapshot_worker as snapshot_worker
+    from agent_runtime.snapshot_worker import child, entry
+
+    monkeypatch.setattr(snapshot_worker, "_READER_PROCESS", False)
+    monkeypatch.setattr(entry, "own_protocol_pipes", lambda: ("requests", "replies"))
+    seen = []
+    monkeypatch.setattr(child, "serve", lambda requests, replies: seen.append(snapshot_worker.is_reader_process()))
+
+    entry.main()
+
+    assert seen == [True]

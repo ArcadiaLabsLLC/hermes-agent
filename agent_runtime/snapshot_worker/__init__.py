@@ -13,3 +13,23 @@ hung worker falls back to building in process for that request.
 """
 
 __layer__ = "models"
+__all__ = ["is_reader_process", "mark_reader_process"]
+
+#: True in the resident snapshot worker's own interpreter (set by ``entry.main``). The worker READS the
+#: stores its serve resolved; the serve that spawned it owns their start-time migrations, so a plugin load
+#: here (its builds load plugins per profile home) runs none of them
+#: (``hermes_cli.harness_parts.start_time_setup``, w1122f-agentlist).
+_READER_PROCESS = False
+
+
+def mark_reader_process() -> None:
+    """Mark this interpreter as the snapshot worker (process-wide, set once by ``entry.main``)."""
+
+    global _READER_PROCESS
+    _READER_PROCESS = True
+
+
+def is_reader_process() -> bool:
+    """Whether this interpreter is the resident snapshot worker."""
+
+    return _READER_PROCESS

@@ -34,7 +34,13 @@ def own_protocol_pipes():
 
 def main() -> None:
     requests, replies = own_protocol_pipes()
+    from agent_runtime.snapshot_worker import mark_reader_process
     from agent_runtime.snapshot_worker.child import serve
+
+    # Before the first request: every plugin load this process makes runs inside a build, and none of
+    # them may run the serve's start-time migrations again (``start_time_setup._snapshot_reader_worker``).
+    # MUTATION: drop this call and test_the_worker_main_marks_its_process_a_reader reddens.
+    mark_reader_process()
 
     serve(requests, replies)
 
