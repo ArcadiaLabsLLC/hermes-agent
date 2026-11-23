@@ -31,3 +31,22 @@ WORKDIR_SOURCE_RUN_OVERRIDE = "run_override"
 WORKDIR_REASON_NOT_ABSOLUTE = "not_absolute"
 WORKDIR_REASON_MISSING = "missing"
 WORKDIR_REASON_NOT_A_DIRECTORY = "not_a_directory"
+
+#: Every rung a receipt's ``source`` (or an issue row's) may name; the turn record keeps no other word.
+WORKDIR_SOURCES = frozenset({
+    WORKDIR_SOURCE_PERSONA_CONFIG,
+    WORKDIR_SOURCE_PRIMARY_SLOT,
+    WORKDIR_SOURCE_WORKSPACE_AGENTS,
+    WORKDIR_SOURCE_PERSONA_REPO_SCOPE,
+    WORKDIR_SOURCE_CHAT_FOLDER,
+    WORKDIR_SOURCE_USER_HOME,
+    WORKDIR_SOURCE_PROCESS_CWD,
+    WORKDIR_SOURCE_RUN_OVERRIDE,
+})
+#: Every refusal an issue row's ``reason`` may name.
+WORKDIR_REASONS = frozenset({WORKDIR_REASON_NOT_ABSOLUTE, WORKDIR_REASON_MISSING, WORKDIR_REASON_NOT_A_DIRECTORY})
+
+#: The key the turn's receipt (``MissionChatWorkdir.receipt()``) rides under: on the runner's
+#: ``result.raw`` (``persona_runtime``) and on the turn's durable record (``chat_turn_commit/settle``,
+#: kept by ``mission_chat_turns.records.safe_turn_workdir``). One spelling for both.
+TURN_WORKDIR_KEY = "mission_chat_workdir"

@@ -12,6 +12,12 @@ from __future__ import annotations
 from typing import Any, Callable, Mapping
 
 from agent_runtime.mission_chat_phases import TURN_PHASES_KEY, safe_turn_phases
+from agent_runtime.mission_chat_workdir_words import (
+    MISSION_CHAT_WORKDIR_UNRESOLVED,
+    TURN_WORKDIR_KEY,
+    WORKDIR_REASONS,
+    WORKDIR_SOURCES,
+)
 from agent_runtime.run_budget import (
     ACCOUNTING_KEY as RUN_BUDGET_ACCOUNTING_KEY,
     safe_accounting_block as safe_run_budget_accounting,
@@ -268,6 +274,52 @@ def safe_turn_profile_timing(value: Any) -> dict[str, Any] | None:
     return block or None
 
 
+#: Where the turn ran (``MissionChatWorkdir.receipt()``, RT-FU-A-CHAT-TURNS-RECORD-KEEPS-WHERE-THE-TURN-RAN):
+#: ``workdir`` (an absolute local path, or ``None`` when no rung resolved), ``source`` (the rung that
+#: chose it), ``grounded`` and the typed ``issues`` it degraded past. The DURABLE record keeps it; no
+#: projection a remote device reads carries it (history rows and the terminal frame pick their keys,
+#: and neither picks this one): the path names a directory on the agent's computer.
+#:
+#: Bounded here, not trusted from the caller: ``source`` and each issue's ``source`` / ``reason`` must
+#: be a word the resolver speaks (``mission_chat_workdir_words``), the path text is capped, and an
+#: issue keeps only its typed fields — its ``summary`` / ``fix_hint`` prose is dropped.
+_WORKDIR_PATH_LIMIT = 1024
+_WORKDIR_MAX_ISSUES = 8
+_WORKDIR_ISSUE_TEXT_FIELDS = {"workdir": _WORKDIR_PATH_LIMIT, "configured_via": 240, "entry_point_lane": 80}
+
+
+def safe_turn_workdir(value: Any) -> dict[str, Any] | None:
+    """The workdir receipt with only its typed shape kept; ``None`` when ``source`` is not a known rung."""
+
+    if not isinstance(value, dict) or value.get("source") not in WORKDIR_SOURCES:
+        return None
+    path = value.get("workdir")
+    block: dict[str, Any] = {
+        "workdir": (safe_assignment_text(path, limit=_WORKDIR_PATH_LIMIT) or None) if isinstance(path, str) else None,
+        "source": value["source"],
+        "issues": [row for row in map(_safe_workdir_issue, _list_head(value.get("issues"), _WORKDIR_MAX_ISSUES))
+                   if row is not None],
+    }
+    if isinstance(value.get("grounded"), bool):
+        block["grounded"] = value["grounded"]
+    return block
+
+
+def _list_head(value: Any, cap: int) -> list[Any]:
+    return list(value[:cap]) if isinstance(value, list) else []
+
+
+def _safe_workdir_issue(row: Any) -> dict[str, Any] | None:
+    """One ``mission_chat_workdir_unresolved`` row, typed fields only; ``None`` for any other row."""
+
+    if (not isinstance(row, dict) or row.get("code") != MISSION_CHAT_WORKDIR_UNRESOLVED
+            or row.get("source") not in WORKDIR_SOURCES or row.get("reason") not in WORKDIR_REASONS):
+        return None
+    texts = {key: text for key, limit in _WORKDIR_ISSUE_TEXT_FIELDS.items()
+             if (text := safe_assignment_text(row.get(key), limit=limit))}
+    return {"code": row["code"], "source": row["source"], "reason": row["reason"], **texts}
+
+
 #: The provider's own verdict on a turn it refused to run
 #: (``mission_chat_outcome.ProviderRefusal.as_dict``), carried onto the record
 #: as ONE structured entry — the same treatment the run-budget accounting gets,
@@ -441,6 +493,10 @@ def _safe_journal_metadata(value: Any) -> dict[str, Any]:
     profile_timing = safe_turn_profile_timing(value.get(TURN_PROFILE_TIMING_KEY))
     if profile_timing is not None:
         result[TURN_PROFILE_TIMING_KEY] = profile_timing
+    # Where the turn ran (see TURN_WORKDIR_KEY); absent when the runner reported no receipt.
+    workdir = safe_turn_workdir(value.get(TURN_WORKDIR_KEY))
+    if workdir is not None:
+        result[TURN_WORKDIR_KEY] = workdir
     ran_by = safe_ran_by(value.get(TURN_RAN_BY_KEY))
     if ran_by is not None:
         result[TURN_RAN_BY_KEY] = ran_by

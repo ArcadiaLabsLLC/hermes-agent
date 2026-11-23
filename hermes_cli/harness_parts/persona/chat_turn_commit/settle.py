@@ -31,6 +31,7 @@ from agent_runtime.mission_chat_turns.records import (
     TURN_OUTCOME_KEY as MISSION_CHAT_TURN_OUTCOME_KEY,
     TURN_PROFILE_TIMING_KEY as MISSION_CHAT_TURN_PROFILE_TIMING_KEY,
 )
+from agent_runtime.mission_chat_workdir_words import TURN_WORKDIR_KEY as MISSION_CHAT_TURN_WORKDIR_KEY
 from agent_runtime.mission_chat_turns.states import (
     MissionChatTurnPersistOutcome,
     TURN_STATE_BUDGET_EXHAUSTED,
@@ -400,6 +401,10 @@ class _SettlePhases:
                     if self.profile_timing
                     else {}
                 ),
+                # Where the turn ran: the runner's workdir receipt, on the DISK record only
+                # (`mission_chat_turns.safe_turn_workdir` bounds it; the terminal frame and the
+                # history rows a Look device reads never carry it — it is an absolute local path).
+                **self._workdir_block(),
             },
         )
         self._route_turn_write(_settled, step="native_commit")
@@ -415,6 +420,12 @@ class _SettlePhases:
             client_message_id=self.client_message_id,
             turn_id=stream_emitter.turn_id,
         )
+
+    def _workdir_block(self) -> dict[str, Any]:
+        """``{mission_chat_workdir: <receipt>}`` when the runner reported one (``persona_runtime``), else {}."""
+
+        receipt = (getattr(self.chat_result, "raw", None) or {}).get(MISSION_CHAT_TURN_WORKDIR_KEY)
+        return {MISSION_CHAT_TURN_WORKDIR_KEY: receipt} if receipt else {}
 
     def _cut_off_block(self) -> dict[str, str]:
         """``{cut_off: <cause>}`` when the run stopped its reply short (``agent_runtime.reply_cut_off``), else {}."""

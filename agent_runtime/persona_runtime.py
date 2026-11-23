@@ -21,6 +21,7 @@ from .mission_chat_prompts import (
     _mission_chat_soul_overlay,
 )
 from .mission_chat_workdir import MissionChatWorkdir, chat_folder_path_for, mission_chat_workdir_for_persona
+from .mission_chat_workdir_words import TURN_WORKDIR_KEY
 from .profile_context import resolve_persona_profile
 from .provider_health import assert_provider_health_for_persona
 from .terminal_envelope import TerminalEnvelopeScope, scope_for_persona as terminal_envelope_scope_for_persona
@@ -342,9 +343,10 @@ class GPTPersonaRuntime:
         if isinstance(result.raw, dict):
             # Per-turn receipt of where the turn actually ran (and of any
             # configured-but-unusable path it degraded past). The caller records
-            # it beside the turn's other receipts; the persona-level preview
+            # it beside the turn's other receipts (the settle persist, under the same key, on the
+            # turn's durable record only); the persona-level preview
             # carries the same typed rows in ``requirement_failures``.
-            result.raw["mission_chat_workdir"] = workdir.receipt()
+            result.raw[TURN_WORKDIR_KEY] = workdir.receipt()
         return result
 
 
