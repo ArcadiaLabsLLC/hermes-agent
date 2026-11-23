@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_CONSOLE, TIER_READ
+from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from agent_runtime.param_readers import read_flag, read_text
 from agent_runtime.serve_rpc.protocol import (
     ERR_HANDLER_FAILED,
@@ -165,7 +165,7 @@ def _runtime_characters_status(rid: Any, params: dict, context=None) -> dict:
     return _draft_verb(rid, draft_id, lambda draft: {"status": draft.status_payload()})
 
 
-@method("runtime.characters.thumb", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
+@method("runtime.characters.thumb", tier=TIER_READ)
 def _runtime_characters_thumb(rid: Any, params: dict, context=None) -> dict:
     """``harness characters thumb --json`` plus ``media``.
 

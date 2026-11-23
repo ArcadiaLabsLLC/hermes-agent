@@ -656,11 +656,9 @@ def test_a_peer_that_never_answers_no_longer_delays_the_next_request(
 
 # ── a computer driving this phone (RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ)
 #
-# Review w1122b.5: at the look or Run chats grant a computer is handed the pictures in the
-# chats Look reads, and no diff, context file or remote row; the account grant keeps the whole
-# index. Killing mutations: state no ``computer=`` reach on the two verbs (every
-# call below is refused at the gate), and ``media._caller_sees`` answering ``True`` for every
-# computer (the narrow index lists the three other rows and get hands them over).
+# The account grant keeps the whole index. The Look and Run chats grants (review w1122b.5's narrow
+# index of chat pictures) left in RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN:
+# a computer stamped with a retired level is refused both verbs at the gate.
 
 
 def _computer(grant: str) -> RpcCaller:
@@ -698,20 +696,15 @@ def every_kind(seeded, tmp_path, monkeypatch):
     return by_kind, payload
 
 
-@pytest.mark.parametrize("grant", ["look", "chat"])
-def test_a_look_or_run_chats_computer_is_handed_chat_pictures_and_nothing_else(every_kind, grant):
-    by_kind, payload = every_kind
+@pytest.mark.parametrize("retired", ["look", "chat"])
+def test_a_retired_level_computer_is_refused_the_index_and_every_fetch(every_kind, retired):
+    by_kind, _payload = every_kind
 
-    index = _call(INDEX, caller=_computer(grant))
-    assert "result" in index, index
-    assert [(row["kind"], row["remote"]) for row in index["result"]["artifacts"]] == [("image", False)]
-
-    picture = _call(GET, {"handle": by_kind["image"]}, caller=_computer(grant))
-    assert base64.b64decode(picture["result"]["data"]) == payload
-
-    for kind in ("diff", "context_file", "remote"):
-        refused = _call(GET, {"handle": by_kind[kind]}, caller=_computer(grant))
-        assert refused["error"]["data"] == {"reason": REASON_SCOPE_DENIED}, (kind, refused)
+    index = _call(INDEX, caller=_computer(retired))
+    assert index["error"]["data"]["reason"] == REASON_SCOPE_DENIED, index
+    for kind in ("image", "diff", "context_file", "remote"):
+        refused = _call(GET, {"handle": by_kind[kind]}, caller=_computer(retired))
+        assert refused["error"]["data"]["reason"] == REASON_SCOPE_DENIED, (kind, refused)
 
 
 def test_an_account_computer_keeps_the_whole_index(every_kind):
@@ -730,7 +723,7 @@ def test_an_account_computer_keeps_the_whole_index(every_kind):
 # the write refuses by) and the dispatcher's gate asked for the write verb. Killing mutations (each
 # red seen 2026-11-22): drop the file-name leg of ``context_file_writable`` (the console index marks
 # the skills snapshot writable); answer ``True`` from ``media._caller_may_write_context_files`` (the
-# read-tier index marks SOUL.md and AGENTS.md writable, and the helper answers a Look computer true).
+# read-tier index marks SOUL.md and AGENTS.md writable, and the helper answers a retired-level computer true).
 
 
 @pytest.fixture

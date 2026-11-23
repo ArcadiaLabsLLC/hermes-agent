@@ -12,8 +12,8 @@ Tier ``read``: it writes nothing, emits nothing and mints nothing — the
 paths (interpreter, runtime root, hermes home) and package availability, never
 credentials, env or provider config bodies; the block was written
 redaction-safe for ``harness status``, which already ships it. Only a caller at
-console reach reads those paths: below it (a computer at Look or Run chats, a
-view-only device) each is null and an ``issues`` sentence names no path
+console tier reads those paths: below it (a view-only device, paired
+``--tier read``) each is null and an ``issues`` sentence names no path
 (``console_operations._detail_for_caller``,
 RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-HERMES-BY-ITS-HEALTH-CHECK-AND-AGENT-LIST).
 """
@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_READ
+from agent_runtime.call_authorization import TIER_READ
 
 from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, RpcContext, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -36,7 +36,7 @@ __all__ = ["HEALTH_UNEXPECTED_PARAMS_REASON", "_runtime_health"]
 HEALTH_UNEXPECTED_PARAMS_REASON = "unexpected_params"
 
 
-@method("runtime.health", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
+@method("runtime.health", tier=TIER_READ)
 def _runtime_health(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Params: none. Result: ``harness health --json`` verbatim — ``ok``,
     ``interpreter``, ``runtime_root``, ``hermes_home``, ``hermes_profile``,
@@ -47,6 +47,6 @@ def _runtime_health(rid: Any, params: dict, context: RpcContext | None = None) -
     from agent_runtime.provider_health import runtime_health
     from agent_runtime.serve_rpc.console_operations import _detail_for_caller
 
-    # MUTATION: return ``runtime_health()`` unprojected and test_a_look_computer_reads_no_path_in_the_health_check
+    # MUTATION: return ``runtime_health()`` unprojected and test_a_view_only_device_reads_no_path_in_the_health_check
     # reddens, while test_the_console_keeps_the_health_check_paths stays green.
     return ok(rid, _detail_for_caller(runtime_health(), context.caller if context is not None else None))

@@ -131,7 +131,6 @@ class ReverseLanes:
         #: When each phone's lane was last here, parked or attached (the Away line's time).
         self._seen: dict[str, float] = {}
         self._remove_listener = _grants.add_revoke_listener(self._grants_revoked)
-        self._remove_level_listener = _grants.add_level_listener(self._grant_levels_changed)
 
     @property
     def store_root(self) -> Path:
@@ -306,15 +305,6 @@ class ReverseLanes:
         # MUTATION: drop this line and test_reverse_lane's grant-off test keeps the computer connected.
         self._drop_lanes(gone, reason="grant_revoked")
 
-    def _grant_levels_changed(self, computer_ids: list[str]) -> None:
-        """A grant's level changed in place: close its live lane, keep its dialer.
-
-        The dialer redials at once (a served lane ends in ``served``), and the computer's next
-        hello is stamped at the new level; no connection keeps the old one.
-        """
-
-        self._drop_lanes(set(computer_ids), reason="grant_level_changed")
-
     # ── both ────────────────────────────────────────────────────────────────
 
     def status(self) -> dict[str, Any]:
@@ -373,7 +363,6 @@ class ReverseLanes:
 
     def close(self, reason: str = "shutdown") -> None:
         self._remove_listener()
-        self._remove_level_listener()
         with self._lock:
             dialers = list(self._dialers.values())
         self.hangup()

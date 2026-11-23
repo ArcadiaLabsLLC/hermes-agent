@@ -1,17 +1,22 @@
 """The computer's side of a phone's grant: the offers it holds and the ones its owner accepted.
 
 Row ``MC-PHONE-DRIVEN-A-PHONE-LETS-A-PAIRED-COMPUTER-USE-ITS-AGENTS`` (Eternia), plan
-``PHONE_DRIVEN_BY_A_COMPUTER_2026-11-21`` §4 "the reverse grant" and §15. Two consents:
+``PHONE_DRIVEN_BY_A_COMPUTER_2026-11-21`` §4 "the reverse grant" and §15. One consent, the
+phone's; a computer on the phone's own account needs no Accept press (owner 2026-11-23: "No, drop
+Accept"):
 
-1. The phone's operator grants this computer on the phone. The phone's engine mints the
+1. The phone's operator turns this computer on, on the phone. The phone's engine mints the
    computer's credential and OFFERS it here once, over its own pinned TLS connection, as a
    paired device (``runtime.gateway.reverse.offer``). An offer is held in MEMORY only, keyed
    by the device that sent it — a token at rest on this disk would be a second copy of the
    phone's secret — and it ends with this serve. The phone offers again when it must.
-2. This computer's operator ACCEPTS in Eternia (``runtime.gateway.reverse.accept``, local
-   console only). The token leaves here once, to Eternia, which keeps it in its install
-   credential store; this module writes down only the non-secret fact that the phone's
-   device on this computer granted it: ``<store_root>/gateway/reverse_accepts.json``.
+2. This computer's Eternia takes the offer by itself, with no press, because the phone is on
+   its own account (``runtime.gateway.reverse.accept``, still local console only; Eternia row
+   ``MC-ACCOUNT-ONLY-YOUR-COMPUTER-USES-YOUR-PHONES-AGENTS-WITHOUT-PRESSING-ACCEPT``). The token
+   leaves here once, to Eternia, which keeps it in its install credential store; this module
+   writes down only the non-secret fact that the phone's device on this computer granted it:
+   ``<store_root>/gateway/reverse_accepts.json``. A stored accept still holding the retired
+   ``look`` or ``chat`` level is dropped on the next read, with no store migration.
 
 The accept is bound to the pairing like the grant: a row whose device is no longer paired
 here (revoked, expired, gone) is not answered and is dropped on the next read, so a re-pair
@@ -31,7 +36,7 @@ from ..paths import gateway_dir
 from ..store_file_io import read_json_object as _read_json
 from ..store_file_io import store_lock as _file_lock
 from ..store_file_io import write_secure_json as _write_secure
-from .grants import GRANT_ACCOUNT, GRANT_LEVELS, computer_client_scope
+from .grants import GRANT_LEVELS
 
 __layer__ = "stores"
 
@@ -44,7 +49,6 @@ __all__ = [
     "forget_accept",
     "list_accepts",
     "record_accept",
-    "relevel_accept",
 ]
 
 REVERSE_ACCEPTS_FILENAME = "reverse_accepts.json"
@@ -86,23 +90,10 @@ class ReverseAccept:
     accepted_at: str
 
     def describe(self) -> dict[str, Any]:
-        """The accept as a surface shows it, with the chat scope this computer acts under there.
+        """The accept as a surface shows it."""
 
-        Hermes row RT-FU-A-COMPUTER-IS-NOT-TOLD-THE-CHAT-SCOPE-ITS-PHONE-CHATS-ARE-STAMPED-WITH:
-        at Look and Run chats the phone stamps ``computer_client_scope(computer_id)`` over every
-        scoped request this computer sends (``serve_rpc.dispatch.bind_computer_scope``), so the
-        computer names that scope and its own wrong-owner check keeps meaning. Derived here from
-        the one owner function on every read: no store field, kept across an in-place level
-        change (``computer_id`` is), new with a new grant. Absent at the account grant, where
-        nothing is stamped. A namespace, not a secret.
-        """
-
-        row = {"device_id": self.device_id, "computer_id": self.computer_id, "level": self.level,
-               "phone_install_id": self.phone_install_id, "accepted_at": self.accepted_at}
-        # MUTATION: drop this branch and test_accept_describe_names_the_grant_scope reddens.
-        if self.level != GRANT_ACCOUNT:
-            row["client_scope"] = computer_client_scope(self.computer_id)
-        return row
+        return {"device_id": self.device_id, "computer_id": self.computer_id, "level": self.level,
+                "phone_install_id": self.phone_install_id, "accepted_at": self.accepted_at}
 
 
 def _id_text(value: Any) -> str | None:
@@ -149,21 +140,6 @@ class ReverseOffers:
     def drop(self, device_id: str) -> bool:
         with self._lock:
             return self._offers.pop(str(device_id or ""), None) is not None
-
-    def relevel(self, device_id: str, computer_id: str, level: str) -> bool:
-        """The phone changed the level of the credential *device_id* still offers: the held offer shows it."""
-
-        if level not in GRANT_LEVELS:
-            return False
-        with self._lock:
-            offer = self._offers.get(str(device_id or ""))
-            if offer is None or offer.computer_id != computer_id \
-                    or self._clock() - offer.offered_at > OFFER_TTL_SECONDS:
-                return False
-            self._offers[offer.device_id] = ReverseOffer(
-                device_id=offer.device_id, computer_id=offer.computer_id, level=level,
-                phone_install_id=offer.phone_install_id, token=offer.token, offered_at=offer.offered_at)
-        return True
 
     def pending(self) -> list[ReverseOffer]:
         now = self._clock()
@@ -218,24 +194,6 @@ def record_accept(store_root: Path | str, offer: ReverseOffer) -> ReverseAccept:
     return accept
 
 
-def relevel_accept(store_root: Path | str, device_id: str, computer_id: str, level: str) -> bool:
-    """The phone changed the level of the credential this computer accepted from *device_id*.
-
-    Only that device's own row, and only while it names *computer_id*. True when it was rewritten."""
-
-    if level not in GRANT_LEVELS:
-        return False
-    with _lock(store_root):
-        rows = _rows(store_root)
-        row = rows.get(str(device_id or ""))
-        if row is None or row.get("computer_id") != computer_id:
-            return False
-        if row.get("level") != level:
-            row["level"] = level
-            _write(store_root, rows)
-    return True
-
-
 def forget_accept(store_root: Path | str, device_id: str) -> bool:
     with _lock(store_root):
         rows = _rows(store_root)
@@ -254,7 +212,8 @@ def list_accepts(store_root: Path | str) -> list[ReverseAccept]:
         gone: list[str] = []
         for device_id, row in rows.items():
             # MUTATION: answer a row whose device was unpaired here and the unpair test
-            # still lists the phone as accepted.
+            # still lists the phone as accepted. MUTATION: drop the level check and
+            # test_reverse_grant's retired-level test still lists a stored ``look`` accept.
             if row.get("level") not in GRANT_LEVELS or not _paired_here(store_root, device_id):
                 gone.append(device_id)
                 continue

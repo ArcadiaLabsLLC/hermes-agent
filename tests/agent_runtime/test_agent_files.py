@@ -234,16 +234,13 @@ def _computer(grant: str | None) -> ca.RpcCaller:
 
 
 @pytest.mark.parametrize("verb", VERBS)
-def test_a_computer_the_phone_granted_look_reaches_the_verbs(two_roots, verb):
-    """MUTATION (the stated ``computer=`` reach): leave the verbs out, and look is refused."""
-
-    for grant in (ca.COMPUTER_GRANT_LOOK, ca.COMPUTER_GRANT_CHAT):
-        assert "result" in _call(verb, _params(verb), caller=_computer(grant)), grant
+def test_a_computer_on_the_phones_account_reaches_the_verbs(two_roots, verb):
+    assert "result" in _call(verb, _params(verb), caller=_computer(ca.COMPUTER_GRANT_ACCOUNT))
 
 
 @pytest.mark.parametrize("verb", VERBS)
-def test_a_computer_with_no_grant_and_a_peer_are_refused(two_roots, verb):
-    for caller in (_computer(None), _computer("console"),
+def test_a_computer_with_no_grant_or_a_retired_level_and_a_peer_are_refused(two_roots, verb):
+    for caller in (_computer(None), _computer("console"), _computer("look"), _computer("chat"),
                    ca.RpcCaller(kind=ca.CALLER_PEER, connection_key="p", transport="gateway",
                                 peer_install_id="install-2")):
         assert _reason(_call(verb, _params(verb), caller=caller)) == ca.REASON_SCOPE_DENIED, caller.kind

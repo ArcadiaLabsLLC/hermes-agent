@@ -1,5 +1,5 @@
 """Observation and continuation of an existing operator conversation."""
-from agent_runtime.call_authorization import COMPUTER_REACH_CHAT, TIER_CONSOLE
+from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.chat_turn import CHAT_MESSAGE_METHOD, perform_chat_turn
 from agent_runtime.operator_conversation import (
     OperatorConversationRefused, read_operator_conversation,
@@ -13,12 +13,9 @@ from .registry import method
 __layer__ = "lanes"
 
 
-# The Agent Console's attach read of the chat this computer started, at Run chats, never Look: it answers
-# a turn's clarify token and execution ids, which only a chat verb can use. A computer reads it under its
-# grant's own client_scope, stamped at dispatch (``computer_scoped``), so it opens only chats that scope
-# owns (RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT, review w1122b.5;
-# RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE retired the per-handler "names a scope" check).
-@method("runtime.operator.conversation.read", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT, computer_scoped=True)
+# The Agent Console's attach read of an operator conversation: it answers a turn's clarify token and
+# execution ids, which only a chat verb can use, so it is console tier like them.
+@method("runtime.operator.conversation.read", tier=TIER_CONSOLE)
 def read(rid, params: dict, context: RpcContext | None = None) -> dict:
     return defer_read(rid, "runtime.operator.conversation.read", context, lambda: _read_operator_reply(rid, params, context))
 

@@ -1,18 +1,20 @@
-"""A computer at Look or Run chats reads an agent's prompt details without where its files live.
+"""A caller below console tier reads an agent's prompt details without where its files live.
 
-Row ``RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-ITS-AGENTS-CONTEXT-FILES`` (review w1122d.12).
+Row ``RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-ITS-AGENTS-CONTEXT-FILES`` (review w1122d.12), kept by
+``RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN`` (review w1122d.15) for the view-only
+device (paired ``--tier read``) when the Look and Run chats computers it was written for left.
 ``runtime.prompt_observability.agent`` is called through the real dispatcher for a placed agent whose
-profile holds a ``SOUL.md`` that itself names paths. Below console reach every context file's ``path``
+profile holds a ``SOUL.md`` that itself names paths. Below console tier every context file's ``path``
 (and a layer's ``source_path``) is null; the file's name, hash, size and its own words stay. The owner's
 console, a console device and an account-level computer keep the paths. Every test runs in the
 ``tests/agent_runtime`` conftest's isolated store root.
 
 Killing mutations (each red seen 2026-11-23, in a scratch tree):
 
-* ``console_operations.prompt_observability_agent``: return the result unprojected, and the Look test finds
-  the SOUL.md path in the Look computer's reply (the console test stays green; the census reddens too);
+* ``console_operations.prompt_observability_agent``: return the result unprojected, and the view-only test
+  finds the SOUL.md path in the view-only device's reply (the console test stays green; the census reddens too);
 * ``console_operations._sees_local_paths``: answer ``False`` for every caller, and the console test finds
-  no ``path`` (the Look test's owner control and the field test's owner arm red with it);
+  no ``path`` (the view-only test's owner control and the field test's owner arm red with it);
 * ``console_operations._prompt_details_for_caller``: project with ``_text_without_paths`` instead of
   ``_unchanged``, and the file-words test finds the SOUL.md preview rewritten (the field test too);
 * ``console_operations._LOCAL_PATH_FIELDS``: drop ``"source_path"``, and the field test finds the layer's
@@ -31,7 +33,7 @@ from tests.agent_runtime.test_serve_rpc_open_chat import placed_agent, qa_person
 
 PROMPT_DETAILS = "runtime.prompt_observability.agent"
 
-#: A SOUL.md's own words that name paths: Look shares a file's words, so these are never rewritten.
+#: A SOUL.md's own words that name paths: a view-only device reads a file's words, so these are never rewritten.
 _SOUL_WORDS = "I keep notes in /srv/notes and C:\\Users\\me\\notes."
 
 
@@ -39,11 +41,6 @@ def _ask(caller, agent_id: str) -> dict:
     return serve_rpc.handle_request({"jsonrpc": "2.0", "id": "p", "method": PROMPT_DETAILS,
                                      "params": {"instance_id": agent_id}},
                                     serve_rpc.RpcContext(caller=caller, transport=ca.TRANSPORT_GATEWAY))
-
-
-def _computer(grant: str) -> ca.RpcCaller:
-    return ca.RpcCaller(kind=ca.CALLER_COMPUTER, transport=ca.TRANSPORT_GATEWAY, connection_key="lane-r",
-                        computer_id="cmp-r", computer_grant=grant)
 
 
 def _device(tier: str) -> ca.RpcCaller:
@@ -71,12 +68,12 @@ def _soul_row(reply: dict) -> dict:
     return rows[0]
 
 
-def test_a_look_computer_reads_no_context_file_path(souled_agent):
+def test_a_view_only_device_reads_no_context_file_path(souled_agent):
     agent_id, soul_path = souled_agent
     owner = _ask(ca.STDIO_OWNER, agent_id)
     assert _soul_row(owner)["path"] == soul_path  # the positive control
     profile_root = soul_path.rsplit("/", 2)[0]
-    for caller in (_computer(ca.COMPUTER_GRANT_LOOK), _computer(ca.COMPUTER_GRANT_CHAT), _device(ca.TIER_READ)):
+    for caller in (_device(ca.TIER_READ),):
         reply = _ask(caller, agent_id)
         assert "result" in reply, (caller, reply)
         assert profile_root not in json.dumps(reply), caller
@@ -90,12 +87,14 @@ def test_the_file_keeps_its_own_words(souled_agent):
     agent_id, _ = souled_agent
     owner_preview = _soul_row(_ask(ca.STDIO_OWNER, agent_id))["preview"]
     assert "/srv/notes" in owner_preview  # the positive control
-    assert _soul_row(_ask(_computer(ca.COMPUTER_GRANT_LOOK), agent_id))["preview"] == owner_preview
+    assert _soul_row(_ask(_device(ca.TIER_READ), agent_id))["preview"] == owner_preview
 
 
 def test_the_console_keeps_the_context_file_paths(souled_agent):
     agent_id, soul_path = souled_agent
-    for caller in (ca.STDIO_OWNER, _device(ca.TIER_CONSOLE), _computer(ca.COMPUTER_GRANT_ACCOUNT)):
+    account = ca.RpcCaller(kind=ca.CALLER_COMPUTER, transport=ca.TRANSPORT_GATEWAY, connection_key="lane-r",
+                           computer_id="cmp-r", computer_grant=ca.COMPUTER_GRANT_ACCOUNT)
+    for caller in (ca.STDIO_OWNER, _device(ca.TIER_CONSOLE), account):
         reply = _ask(caller, agent_id)
         assert "result" in reply, (caller, reply)
         assert _soul_row(reply)["path"] == soul_path, caller
@@ -108,7 +107,7 @@ def test_a_layers_source_path_is_dropped_and_its_file_name_kept():
              "source_path": "/data/user/0/app/files/profiles/base/SOUL.md", "content": "Rules name /etc/x."}
     receipt = {"name": "AGENTS.md", "path": "D:\\work\\AGENTS.md", "preview": "see /srv/y"}
     section = {"chat_contexts": [{"prompt_layers": [layer], "workspace_agents": receipt}]}
-    seen = _prompt_details_for_caller(json.loads(json.dumps(section)), _computer(ca.COMPUTER_GRANT_LOOK))
+    seen = _prompt_details_for_caller(json.loads(json.dumps(section)), _device(ca.TIER_READ))
     context = seen["chat_contexts"][0]
     assert context["prompt_layers"][0] == {**layer, "source_path": None}
     assert context["workspace_agents"] == {**receipt, "path": None}

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import COMPUTER_REACH_CHAT, COMPUTER_REACH_LOOK, TIER_CONSOLE
+from agent_runtime.call_authorization import TIER_CONSOLE
 
 from agent_runtime.serve_rpc.protocol import RpcContext, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -28,7 +28,7 @@ __all__ = [
 ]
 
 
-@method("runtime.agent.directory", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
+@method("runtime.agent.directory", tier=TIER_CONSOLE)
 def _runtime_agent_directory(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.instance_catalog import prepare_instance_catalog, InstanceCatalogUnavailable
     from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, ERR_HANDLER_FAILED
@@ -41,17 +41,16 @@ def _runtime_agent_directory(rid: Any, params: dict, context: RpcContext | None 
         catalog = prepare_instance_catalog(seated=_running_group_chat_seats)
     except InstanceCatalogUnavailable as exc:
         return err(rid, ERR_HANDLER_FAILED, "Agents could not be loaded. Try again.", {"reason": str(exc)})
-    # Below console reach each agent's ``profile_home`` is null
+    # Below console tier each agent's ``profile_home`` is null
     # (RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-HERMES-BY-ITS-HEALTH-CHECK-AND-AGENT-LIST).
-    # MUTATION: return ``catalog`` unprojected and test_a_look_computer_reads_no_settings_folder_in_the_agent_list
+    # MUTATION: return ``catalog`` unprojected and test_a_view_only_device_reads_no_settings_folder_in_the_agent_list
     # reddens, while test_the_console_keeps_each_agents_settings_folder stays green.
     return ok(rid, _detail_for_caller(catalog, context.caller if context is not None else None))
 
 
-# New chat's instance resolver at Run chats, never Look: it serves only starting a chat
+# New chat's instance resolver: it serves only starting a chat
 # (RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT, review w1122b.5).
-# MUTATION: state no reach here and test_reverse_lane's Run chats attach test is refused scope_denied.
-@method("runtime.agent.idle_instances", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT)
+@method("runtime.agent.idle_instances", tier=TIER_CONSOLE)
 def _runtime_agent_idle_instances(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Which idle instances of an agent a new chat reuses, in the order to try them.
 

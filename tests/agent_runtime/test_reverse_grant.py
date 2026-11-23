@@ -1,10 +1,11 @@
-"""The phone's grant to a paired computer: the switch, the offer, the accept (two consents).
+"""The phone's grant to a paired computer: the switch, the offer, the accept.
 
 Row ``MC-PHONE-DRIVEN-A-PHONE-LETS-A-PAIRED-COMPUTER-USE-ITS-AGENTS`` (Eternia), plan
 ``PHONE_DRIVEN_BY_A_COMPUTER_2026-11-21`` §4 and §15, review w1118a.79. The PHONE is the real
 ``serve_loop`` over its pipe (as in ``test_reverse_lane``); the COMPUTER is its two real listeners
 with a dispatcher that runs the real ``handle_request`` with each connection's own caller, so the
-offer arrives as the paired device that sent it, over real TLS under a real pin.
+offer arrives as the paired device that sent it, over real TLS under a real pin. The one level is
+``account`` (hermes row ``RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN``).
 
 Killing mutations (each named at its line):
 
@@ -21,8 +22,10 @@ Killing mutations (each named at its line):
 * ``serve_rpc.reverse_lane._runtime_gateway_reverse_withdraw``: take the device id from the params
   when the caller is not a device, and the owner's withdraw forgets the phone's accept (red seen
   2026-11-22);
-* ``reverse_lane.accepts.ReverseAccept.describe``: drop the ``client_scope`` branch, and the
-  accept-describe test reads no chat scope on the accept or the lanes listing (red seen 2026-11-22).
+* ``call_authorization._computer_arm``: admit any grant word, and the retired-level test sees a
+  computer stamped ``look`` answered a console verb;
+* ``reverse_lane.accepts.list_accepts``: drop the level check, and the retired-level test still lists a
+  stored ``look`` accept.
 """
 
 from __future__ import annotations
@@ -34,7 +37,6 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import call_authorization as ca
-from agent_runtime.serve_rpc import registry
 from agent_runtime.call_authorization import caller_for_connection
 from agent_runtime.gateway_tls import ensure_certificate, server_ssl_context
 from agent_runtime.reverse_lane import accepts, grants
@@ -115,13 +117,13 @@ def _way(computer: _Computer, device: DeviceCredential, **extra) -> dict:
             **extra}
 
 
-def _grant(phone, computer: _Computer, level: str = grants.GRANT_LOOK):
+def _grant(phone, computer: _Computer, level: str = grants.GRANT_ACCOUNT):
     device = computer.pair_phone()
     answer = phone.rpc("runtime.gateway.reverse.grant", _way(computer, device, level=level))
     return device, answer
 
 
-def test_the_phone_grants_look_the_computer_accepts_and_the_phone_lists_the_record(phone, computer):
+def test_the_phone_grants_the_computer_accepts_and_the_phone_lists_the_record(phone, computer):
     device, answer = _grant(phone, computer)
     assert answer.get("result", {}).get("state") == "offered", answer
     # The minted token is never in the phone's own answer.
@@ -131,12 +133,13 @@ def test_the_phone_grants_look_the_computer_accepts_and_the_phone_lists_the_reco
     # The computer holds the offer as the device that sent it; its listing carries no token.
     offers = computer.owner("runtime.gateway.reverse.lanes")["result"]["offers"]
     assert [(o["device_id"], o["computer_id"], o["level"]) for o in offers] == \
-        [(device.device_id, computer_id, "look")]
+        [(device.device_id, computer_id, "account")]
     assert "token" not in offers[0]
 
-    # Second consent: the computer's owner accepts and gets the token once.
+    # The computer's Eternia accepts (by itself: no press for a phone on its own account) and gets the token once.
     accepted = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"]
-    assert accepted["computer_id"] == computer_id and accepted["level"] == "look"
+    assert accepted["computer_id"] == computer_id and accepted["level"] == "account"
+    assert "client_scope" not in accepted
     token = accepted["token"]
     assert "error" in computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})
     status = computer.owner("runtime.gateway.reverse.lanes")["result"]
@@ -144,9 +147,9 @@ def test_the_phone_grants_look_the_computer_accepts_and_the_phone_lists_the_reco
     assert [a["computer_id"] for a in status["accepted"]] == [computer_id]
     assert "token" not in status["accepted"][0]
 
-    # The phone's engine lists the computer's record at read (look), bound to the pairing.
+    # The phone's engine lists the computer's record, bound to the pairing.
     listed = phone.rpc("runtime.gateway.reverse.lanes")["result"]["grants"]
-    assert listed == [{"computer_install_id": INSTALL, "computer_id": computer_id, "level": "look",
+    assert listed == [{"computer_install_id": INSTALL, "computer_id": computer_id, "level": "account",
                        "pairing_device_id": device.device_id}]
     # The token the computer holds is the one the phone verifies (and the phone stores no token).
     from agent_runtime.serve_gateway_auth.proof import reverse_lane_proof
@@ -165,7 +168,7 @@ def test_an_offer_that_does_not_land_leaves_no_grant_on_the_phone(phone, compute
 
     device = computer.pair_phone()
     computer.gateway.close()
-    answer = phone.rpc("runtime.gateway.reverse.grant", _way(computer, device, level="chat"))
+    answer = phone.rpc("runtime.gateway.reverse.grant", _way(computer, device, level="account"))
     assert answer["error"]["data"]["reason"] == "computer_unreachable", answer
     assert grants.grant_for_install(_phone_root(), INSTALL) is None
 
@@ -173,7 +176,7 @@ def test_an_offer_that_does_not_land_leaves_no_grant_on_the_phone(phone, compute
 def test_a_wrong_pin_refuses_the_offer_and_leaves_no_grant(phone, computer):
     device = computer.pair_phone()
     answer = phone.rpc("runtime.gateway.reverse.grant",
-                       {**_way(computer, device, level="look"), "cert_fingerprint": "0" * 64})
+                       {**_way(computer, device, level="account"), "cert_fingerprint": "0" * 64})
     assert answer["error"]["data"]["reason"] == "certificate_rejected", answer
     assert grants.grant_for_install(_phone_root(), INSTALL) is None
     assert computer.owner("runtime.gateway.reverse.lanes")["result"]["offers"] == []
@@ -182,7 +185,7 @@ def test_a_wrong_pin_refuses_the_offer_and_leaves_no_grant(phone, computer):
 def test_only_a_paired_device_offers(computer):
     """MUTATION (``_runtime_gateway_reverse_offer``): accept any caller and the owner's offer is held."""
 
-    offer = {"computer_id": "cmp-x", "token": "a" * 64, "level": "chat", "phone_install_id": "phone-x"}
+    offer = {"computer_id": "cmp-x", "token": "a" * 64, "level": "account", "phone_install_id": "phone-x"}
     frame = computer.owner("runtime.gateway.reverse.offer", offer)
     assert frame["error"]["data"]["reason"] == "not_a_device"
     assert computer.lanes.offers.pending() == []
@@ -197,13 +200,11 @@ def test_the_grant_and_accept_verbs_answer_only_the_machine_owner(name):
     assert not ca.authorize_call(ca.TIER_CONSOLE, device, method=name).ok
     for grant in grants.GRANT_LEVELS:
         computer = ca.RpcCaller(kind=ca.CALLER_COMPUTER, computer_id="c", computer_grant=grant, transport="gateway")
-        assert not ca.authorize_call(ca.TIER_CONSOLE, computer, method=name,
-                                     computer_reach=registry.method_computer_reach(name)).ok
-    assert "runtime.gateway.reverse.offer" not in registry.COMPUTER_CHAT_METHOD_ALLOWLIST
+        assert not ca.authorize_call(ca.TIER_CONSOLE, computer, method=name).ok
 
 
 def test_the_computer_declines_and_the_offer_is_gone(phone, computer):
-    device, answer = _grant(phone, computer, grants.GRANT_CHAT)
+    device, answer = _grant(phone, computer)
     assert "result" in answer, answer
     assert computer.owner("runtime.gateway.reverse.decline", {"device_id": device.device_id})["result"]["declined"]
     assert "error" in computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})
@@ -301,30 +302,62 @@ def test_an_account_computer_is_answered_every_verb_a_console_device_is_and_no_l
             assert ca.authorize_call(tiers[name], account, method=name).ok, name
 
 
-def test_a_computer_granted_look_or_chat_is_refused_the_console_level():
-    """A computer the phone could not place on its account keeps its allowlist.
+@pytest.mark.parametrize("retired", ["look", "chat", "console"])
+def test_a_computer_stamped_with_any_word_but_account_is_refused_every_verb(retired):
+    """Hermes row RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN: no level below
+    account remains, so a computer caller carrying the retired ``look`` or ``chat`` (or any other word) is
+    answered nothing, read verbs included: the arm fails closed.
 
-    MUTATION (``call_authorization._computer_arm``): answer every computer grant by
-    ``paired_device_answers`` (the account rule), and look and chat reach key set and Skills.
+    MUTATION (``call_authorization._computer_arm``): admit any grant word, and key set, Skills and the
+    health read are answered here.
     """
 
-    from agent_runtime.serve_rpc.registry import method_computer_reach, method_tiers
+    from agent_runtime.serve_rpc.registry import method_tiers
 
+    caller = ca.RpcCaller(kind=ca.CALLER_COMPUTER, computer_id="cmp-1", computer_grant=retired, transport="gateway")
     tiers = method_tiers()
-    for grant in (grants.GRANT_LOOK, grants.GRANT_CHAT):
-        caller = _computer_caller(grant)
-        for name in ("runtime.provider.key.set", "runtime.skills.catalog", "runtime.level.get"):
-            assert ca.authorize_call(tiers.get(name, ca.TIER_CONSOLE), caller, method=name,
-                                     computer_reach=method_computer_reach(name)).ok is False, (grant, name)
-        answered = {name for name, tier in tiers.items()
-                    if ca.authorize_call(tier, caller, method=name, computer_reach=method_computer_reach(name)).ok}
-        assert answered <= (registry.COMPUTER_CHAT_METHOD_ALLOWLIST if grant == grants.GRANT_CHAT
-                            else registry.COMPUTER_LOOK_METHOD_ALLOWLIST), (grant, answered)
-        # The phone's generated documents: read, never changed (review w1122b.4,
-        # RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS).
-        assert "runtime.agent.files.virtual" in answered, grant
-        assert "runtime.agent.files.virtual.write" in tiers
-        assert "runtime.agent.files.virtual.write" not in answered, grant
+    answered = {name for name, tier in tiers.items() if ca.authorize_call(tier, caller, method=name).ok}
+    assert answered == set(), (retired, sorted(answered)[:10])
+    refusal = ca.authorize_call(ca.TIER_READ, caller, method="runtime.health")
+    assert refusal.reason == ca.REASON_SCOPE_DENIED and retired in refusal.detail
+
+
+def test_a_stored_look_or_chat_accept_is_dropped_on_read(computer):
+    """A computer's accept row an older build stored at Look or Run chats is dropped on the next read, with
+    no store migration; an account accept beside it stays.
+
+    MUTATION (``accepts.list_accepts``): drop the level check, and the look and chat rows are listed.
+    """
+
+    from agent_runtime.store_file_io import write_secure_json
+
+    phones = [computer.pair_phone() for _ in range(3)]
+    rows = {device.device_id: {"computer_id": f"cmp-{level}", "level": level, "phone_install_id": "phone-x",
+                               "accepted_at": "2026-11-22T00:00:00Z"}
+            for device, level in zip(phones, ("look", "chat", "account"))}
+    path = computer.root / "gateway" / accepts.REVERSE_ACCEPTS_FILENAME
+    write_secure_json(path, {"contract": 1, "accepts": rows})
+    assert [(a.device_id, a.level) for a in accepts.list_accepts(computer.root)] == [(phones[2].device_id, "account")]
+    assert list(json.loads(path.read_text(encoding="utf-8"))["accepts"]) == [phones[2].device_id]
+    assert [a["level"] for a in computer.owner("runtime.gateway.reverse.lanes")["result"]["accepted"]] == ["account"]
+
+
+def test_a_regrant_replaces_the_grant_and_offers_afresh(phone, computer):
+    """One level, so nothing changes in place: the phone's switch on again mints a new credential (the old
+    one stops verifying at once) and offers it, and the computer's Eternia takes the new offer."""
+
+    from agent_runtime.serve_gateway_auth.proof import reverse_lane_proof
+
+    device, first = _grant(phone, computer)
+    old_id = first["result"]["computer_id"]
+    old_token = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"]["token"]
+    again = phone.rpc("runtime.gateway.reverse.grant", _way(computer, device, level="account"))["result"]
+    assert again["state"] == "offered" and again["computer_id"] != old_id, again
+    proof = reverse_lane_proof(old_token, "n" * 32, lane_id="a" * 32, device_id=old_id)
+    assert grants.verify_lane_proof(_phone_root(), old_id, proof, "n" * 32, lane_id="a" * 32) is None
+    accepted = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"]
+    assert accepted["computer_id"] == again["computer_id"]
+    assert [a.computer_id for a in accepts.list_accepts(computer.root)] == [again["computer_id"]]
 
 
 def test_the_device_arm_and_the_account_level_share_one_predicate():
@@ -337,10 +370,10 @@ def test_the_device_arm_and_the_account_level_share_one_predicate():
 
 
 def test_a_grant_naming_an_unknown_level_is_refused_and_leaves_no_grant(phone, computer):
-    for level in ("console", "admin", "", None):
+    for level in ("look", "chat", "console", "admin", "", None):
         device = computer.pair_phone()
         answer = phone.rpc("runtime.gateway.reverse.grant", _way(computer, device, level=level))
-        assert "result" not in answer and "level must be one of look, chat, account" in answer["error"]["message"], answer
+        assert "result" not in answer and "level must be one of account" in answer["error"]["message"], answer
         assert grants.grant_for_install(_phone_root(), INSTALL) is None
 
 
@@ -359,7 +392,7 @@ def test_the_phone_grants_account_and_the_computer_accepts_it(phone, computer):
 # ── the switch off, told to the computer (hermes row RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT)
 
 
-def _accepted(phone, computer: _Computer, level: str = grants.GRANT_CHAT) -> DeviceCredential:
+def _accepted(phone, computer: _Computer, level: str = grants.GRANT_ACCOUNT) -> DeviceCredential:
     device, answer = _grant(phone, computer, level)
     assert "result" in answer, answer
     assert "result" in computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})
@@ -406,128 +439,8 @@ def test_only_the_paired_device_itself_withdraws_and_only_its_own_accept(phone, 
 
 def test_the_withdraw_is_a_device_verb_never_a_local_console_or_computer_one():
     assert "runtime.gateway.reverse.withdraw" not in ca.LOCAL_CONSOLE_METHODS
-    assert "runtime.gateway.reverse.withdraw" not in registry.COMPUTER_CHAT_METHOD_ALLOWLIST
-
-
-# ── a level changed in place (hermes row RT-FU-A-PHONE-CHANGING-A-COMPUTERS-LEVEL-KEEPS-ITS-CREDENTIAL-AND-ITS-ACCEPT)
-
-
-def _regrant(phone, computer: _Computer, device: DeviceCredential, level: str) -> dict:
-    return phone.rpc("runtime.gateway.reverse.grant", _way(computer, device, level=level))
-
-
-def test_a_level_change_keeps_the_credential_and_the_accept_and_tells_the_computer(phone, computer):
-    """Seen live 2026-11-22 (w1122b-emu3): after Run chats to Look every redial was refused bad_proof
-    until the computer pressed Accept again. MUTATION (``offer.grant_and_offer``): always mint, and the
-    accepted token's proof is refused here after the change."""
-
-    from agent_runtime.serve_gateway_auth.proof import reverse_lane_proof
-
-    device, first = _grant(phone, computer, grants.GRANT_CHAT)
-    computer_id = first["result"]["computer_id"]
-    token = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"]["token"]
-
-    changed = _regrant(phone, computer, device, grants.GRANT_LOOK)
-    assert changed["result"] == {"computer_id": computer_id, "level": "look", "state": "level_changed",
-                                 "told": True}, changed
-    proof = reverse_lane_proof(token, "n" * 32, lane_id="a" * 32, device_id=computer_id)
-    held = grants.verify_lane_proof(_phone_root(), computer_id, proof, "n" * 32, lane_id="a" * 32)
-    assert held is not None and held.level == "look"
-    status = computer.owner("runtime.gateway.reverse.lanes")["result"]
-    assert status["offers"] == []
-    assert [(a["computer_id"], a["level"]) for a in status["accepted"]] == [(computer_id, "look")]
-    # And back up: no Accept either way.
-    up = _regrant(phone, computer, device, grants.GRANT_CHAT)["result"]
-    assert (up["computer_id"], up["state"]) == (computer_id, "level_changed")
-    assert [a.level for a in accepts.list_accepts(computer.root)] == ["chat"]
-
-
-# ── the computer is told its chat scope (hermes row RT-FU-A-COMPUTER-IS-NOT-TOLD-THE-CHAT-SCOPE-ITS-PHONE-CHATS-ARE-STAMPED-WITH)
-
-
-def test_accept_describe_names_the_grant_scope_the_phone_stamps_at_look_and_run_chats(phone, computer):
-    """Seen live 2026-11-22 (w1122d-phonechat): a Run chats computer's new chat was rolled back
-    because the phone answered under a scope the computer never named. The computer's accept row
-    names the scope the phone's dispatcher stamps (``bind_computer_scope``), on the accept answer
-    and the lanes listing, and keeps it across a level change. MUTATION
-    (``accepts.ReverseAccept.describe``): drop the ``client_scope`` branch and this reddens (red
-    seen 2026-11-22)."""
-
-    from agent_runtime.serve_rpc.dispatch import bind_computer_scope
-
-    device, first = _grant(phone, computer, grants.GRANT_CHAT)
-    computer_id = first["result"]["computer_id"]
-    scope = grants.computer_client_scope(computer_id)
-    accepted = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"]
-    assert accepted["client_scope"] == scope
-    listed = computer.owner("runtime.gateway.reverse.lanes")["result"]["accepted"]
-    assert [(a["computer_id"], a["level"], a["client_scope"]) for a in listed] == [(computer_id, "chat", scope)]
-
-    # The scope named is the one the phone stamps over a Run chats request from this computer.
-    class _Caller:
-        kind = ca.CALLER_COMPUTER
-        computer_grant = grants.GRANT_CHAT
-
-    _Caller.computer_id = computer_id
-    stamped = bind_computer_scope(_Caller(), "runtime.agent.conversation.create", {"client_scope": "x" * 64})
-    assert stamped["client_scope"] == listed[0]["client_scope"]
-
-    # Look keeps it: the id is kept across an in-place level change.
-    _regrant(phone, computer, device, grants.GRANT_LOOK)
-    listed = computer.owner("runtime.gateway.reverse.lanes")["result"]["accepted"]
-    assert [(a["level"], a["client_scope"]) for a in listed] == [("look", scope)]
-
-
-def test_an_account_grant_accept_names_no_chat_scope(phone, computer):
-    """At the account grant nothing is stamped, so the accept names no scope and the computer keeps
-    its own account key. Positive control beside the test above: same flow, one level changed.
-    MUTATION (``accepts.ReverseAccept.describe``): name the scope at every level and this reddens
-    (red seen 2026-11-22)."""
-
-    device, _ = _grant(phone, computer, grants.GRANT_ACCOUNT)
-    accepted = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"]
-    assert accepted["level"] == "account" and "client_scope" not in accepted
-    listed = computer.owner("runtime.gateway.reverse.lanes")["result"]["accepted"]
-    assert [a["level"] for a in listed] == ["account"] and "client_scope" not in listed[0]
-
-
-def test_a_level_change_before_the_accept_rewrites_the_held_offer(phone, computer):
-    device, first = _grant(phone, computer, grants.GRANT_LOOK)
-    changed = _regrant(phone, computer, device, grants.GRANT_CHAT)["result"]
-    assert (changed["computer_id"], changed["state"]) == (first["result"]["computer_id"], "level_changed")
-    accepted = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"]
-    assert accepted["level"] == "chat"
-
-
-def test_a_computer_that_never_took_the_credential_is_offered_afresh(phone, computer):
-    """Its offer lapsed (or its serve restarted) before an Accept: the level notice answers no_accept and
-    the phone grants and offers as for a first grant."""
-
-    device, first = _grant(phone, computer, grants.GRANT_LOOK)
-    computer.lanes.offers.clear()
-    again = _regrant(phone, computer, device, grants.GRANT_CHAT)["result"]
-    assert again["state"] == "offered" and again["computer_id"] != first["result"]["computer_id"]
-    assert [o["level"] for o in computer.owner("runtime.gateway.reverse.lanes")["result"]["offers"]] == ["chat"]
-
-
-def test_a_level_change_the_computer_cannot_hear_still_binds_on_the_phone(phone, computer):
-    device, first = _grant(phone, computer, grants.GRANT_CHAT)
-    computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})
-    computer.gateway.close()
-    quiet = _regrant(phone, computer, device, grants.GRANT_LOOK)["result"]
-    assert (quiet["computer_id"], quiet["level"], quiet["told"]) == (first["result"]["computer_id"], "look", False)
-    assert grants.grant_for_install(_phone_root(), INSTALL).level == "look"
-
-
-def test_only_the_paired_device_itself_changes_its_level_here(phone, computer):
-    """MUTATION (``_runtime_gateway_reverse_level``): accept any caller and the owner's own call raises the
-    phone's accept. A computer never raises its own level; the phone is the one owner of it."""
-
-    device = _accepted(phone, computer, grants.GRANT_LOOK)
-    computer_id = accepts.list_accepts(computer.root)[0].computer_id
-    owner = computer.owner("runtime.gateway.reverse.level", {"device_id": device.device_id,
-                                                             "computer_id": computer_id, "level": "chat"})
-    assert owner["error"]["data"]["reason"] == "not_a_device", owner
-    assert [a.level for a in accepts.list_accepts(computer.root)] == ["look"]
-    assert "runtime.gateway.reverse.level" not in ca.LOCAL_CONSOLE_METHODS
-    assert "runtime.gateway.reverse.level" not in registry.COMPUTER_CHAT_METHOD_ALLOWLIST
+    computer = ca.RpcCaller(kind=ca.CALLER_COMPUTER, computer_id="c", computer_grant=grants.GRANT_ACCOUNT,
+                            transport="gateway")
+    frame = handle_request({"jsonrpc": "2.0", "id": "w", "method": "runtime.gateway.reverse.withdraw", "params": {}},
+                           RpcContext(caller=computer))
+    assert frame["error"]["data"]["reason"] == "not_a_device", frame

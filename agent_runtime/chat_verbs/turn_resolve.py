@@ -78,9 +78,9 @@ def _resolve_exact_turn(session_id: str, client_message_id: str, turn_id: str, a
 def _scope_refusal(session: str, client_scope: Any) -> dict | None:
     """A scoped caller resolves a turn only in a chat its scope owns: the send path's own access rule.
 
-    Hermes row RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE (review w1122d.2): a computer at
-    Run chats is stamped its grant's scope at dispatch, so it cannot abandon or dismiss a turn in the
-    phone owner's chat; an unscoped operator (this install's own Eternia, the CLI) is unchanged.
+    Hermes row RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE (review w1122d.2): a caller that
+    names a scope cannot abandon or dismiss a turn in a chat another scope owns, as it cannot send
+    there; an unscoped operator (this install's own Eternia, the CLI) is unchanged.
     """
     from ..conversation_access import validate_conversation_access
     from ..conversation_owner import ConversationOwnerError
@@ -89,7 +89,7 @@ def _scope_refusal(session: str, client_scope: Any) -> dict | None:
     if client_scope is None:
         return None
     try:
-        # MUTATION: skip this check and test_computer_scope's turn-resolve refusal is answered.
+        # MUTATION: skip this check and test_chat_turn_resolve's foreign-scope refusal is answered.
         validate_conversation_access({"session_id": session, "client_scope": client_scope})
     except ConversationOwnerError as exc:
         return _refusal(ChatErrorKind.FOREIGN_CHAT_SESSION, "chat root is not owned by this client scope",

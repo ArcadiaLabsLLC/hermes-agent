@@ -19,7 +19,6 @@ from agent_runtime.mission_chat_turn_context import _compose_volatile_tail
 from agent_runtime.mission_chat_turn_resolvers import DEFAULT_RESOLVERS
 from agent_runtime.operator_session_models import _require_idle
 from agent_runtime.persona_chat_continuity.clarify_tickets import PersonaChatClarifyTicketStore
-from tests.agent_runtime.test_computer_scope import _ask, _chats
 from tests.agent_runtime.test_operator_conversation_attachment import call, fixture
 
 QUESTION = "Which branch should I merge into?"
@@ -97,12 +96,23 @@ def test_a_question_asked_in_another_chat_is_refused(tmp_path, monkeypatch):
 
 
 def test_a_scoped_caller_cannot_dismiss_in_another_scopes_chat(tmp_path, monkeypatch):
-    target, owners, _ = _chats(tmp_path, monkeypatch)
+    from contextlib import closing
+
+    from agent_runtime.persona_chat_continuity import PERSONA_CHAT_SESSION_SOURCE
+    from hermes_state import SessionDB
+
+    target = fixture(tmp_path / "phone", monkeypatch, "Owner")
+    owners = f"persona_chat_{target['persona_instance_id']}_0a0a0a000001"
+    with closing(SessionDB(db_path=tmp_path / "phone" / "state.db")) as db:
+        db.create_session(owners, source=PERSONA_CHAT_SESSION_SOURCE, model_config={"client_scope": "a" * 64})
+        db.append_message(owners, "user", "hello")
     token = PersonaChatClarifyTicketStore().mint(
         chat_session_id=owners, persona_instance_id=target["persona_instance_id"],
         persona_id=target["persona_id"], question=QUESTION)
 
-    frame = _ask("runtime.chat.clarify.dismiss", {"session_id": owners, "clarify_token": token})
+    request = {"jsonrpc": "2.0", "id": "d", "method": "runtime.chat.clarify.dismiss",
+               "params": {"session_id": owners, "clarify_token": token, "client_scope": "c" * 64}}
+    frame = serve_rpc.handle_request(request, serve_rpc.RpcContext(caller=LOCAL_CONSOLE))
 
     assert "chat root is not owned by this client scope" in str(frame), frame
     assert PersonaChatClarifyTicketStore().resolve(token)["state"] == "open"

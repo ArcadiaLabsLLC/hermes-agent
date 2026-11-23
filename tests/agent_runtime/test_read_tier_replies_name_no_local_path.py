@@ -1,36 +1,27 @@
-"""Every verb a computer below the account grant may call answers it with no absolute local path in a path field.
+"""Every verb a view-only device may call answers it with no absolute local path in a path field.
 
-Row ``RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-ITS-AGENTS-CONTEXT-FILES`` (review w1122d.12): the third
-per-verb path fix (``instance_history._for_caller``, ``console_operations._detail_for_caller``, then
-``_prompt_details_for_caller``) lands this ONE census over ``registry.computer_reach()``. Each verb is either
-CALLED through the real dispatcher as a computer at Run chats (which reaches every Look and Run chats verb) on a
-placed agent whose profile holds a ``SOUL.md``, or EXCUSED with the reason it is not read here. A verb that
-gains a computer reach and is in neither table reddens the census until it is classified. A called verb must
-answer a ``result``, so the census reads a real reply, not a refusal. A leak the census found that is not this
-row's one-line pass-through is filed, and its verb sits in ``_FILED`` (exact) until that row lands.
+Row ``RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-ITS-AGENTS-CONTEXT-FILES`` (review w1122d.12) landed this
+census over ``registry.computer_reach()``, the verbs a computer at Look or Run chats reached. Row
+``RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN`` (review w1122d.15) retired those levels
+and KEPT the path projection ("below console tier"), because it also protects a view-only device (``gateway pair
+--tier read``, the QA mint's default): the census now walks the verbs such a device reaches, every ``read``-tier
+verb outside ``LOCAL_CONSOLE_METHODS``. Each is either CALLED through the real dispatcher as a read-tier device
+on a placed agent whose profile holds a ``SOUL.md``, or EXCUSED with the reason it is not read here. A verb that
+becomes reachable and is in neither table reddens the census until it is classified. A called verb must answer a
+``result``, so the census reads a real reply, not a refusal. A leak the census found that is not this row's
+one-line pass-through is filed, and its verb sits in ``_FILED`` (exact) until that row lands.
 
-Killing mutations (each red seen 2026-11-23, in a scratch tree):
+Killing mutations (each red seen 2026-11-23, in a scratch tree, on the read-tier census):
 
 * ``console_operations.prompt_observability_agent``: return the result unprojected, and the census finds the
   SOUL.md path under ``context_files[].path`` in ``runtime.prompt_observability.agent``'s reply;
-* ``console_operations.instance_detail``: return the result unprojected, and the census finds the profile's
-  config path under ``config_path`` in ``runtime.persona.instance.detail``'s reply;
-* drop ``runtime.health`` from ``_CALLED``, and the coverage test names it (the ``_FILED`` check reddens too);
-* drop ``"source_path"`` from ``console_operations._LOCAL_PATH_FIELDS``, and the census finds the SOUL layer's path.
-
-Row ``RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-HERMES-BY-ITS-HEALTH-CHECK-AND-AGENT-LIST`` (review w1122d.13)
-emptied ``_FILED``: ``runtime.health`` and ``runtime.agent.directory`` now return through
-``console_operations._detail_for_caller``, and ``interpreter`` (a path key with no path suffix) joins ``_PATH_KEYS``.
-Its killing mutations (each red seen 2026-11-23, in a scratch tree):
-
 * ``health._runtime_health``: return ``runtime_health()`` unprojected, and the census finds ``interpreter``,
   ``runtime_root`` and ``hermes_home`` in ``runtime.health``'s reply;
-* ``agent._runtime_agent_directory``: return the catalog unprojected, and the census finds ``agents[0].profile_home``;
-* the projection keeps ``interpreter`` whole (drop it from ``console_operations._LOCAL_PATH_FIELDS`` and pass its
-  value through ``_object_without_paths`` untouched), and the census finds ``.interpreter`` in ``runtime.health``'s
-  reply; drop ``"interpreter"`` from ``_PATH_KEYS`` as well and the census goes green, blind to it: that is why it
-  is named there. (Dropping it from ``_LOCAL_PATH_FIELDS`` alone does not leak: the prose arm then rewrites the
-  whole value, which ``test_health_and_agent_list_name_no_local_path`` reds on, wanting null.)
+* drop ``runtime.health`` from ``_CALLED``, and the coverage test names it;
+* drop ``runtime.characters.list`` from ``_FILED``, and the census names its ``home`` paths.
+
+Earlier reds on the computer census (2026-11-23, rows w1122d.12 and .13) are in those rows' commits; the
+``interpreter`` key in ``_PATH_KEYS`` is load-bearing (a path key with no path suffix).
 """
 
 from __future__ import annotations
@@ -63,51 +54,68 @@ def _no_params(agent):
     return {}
 
 
+def _persona(agent):
+    return {"persona_id": agent["persona_id"]}
+
+
 #: Each verb read here, with the params it is called with on the placed agent.
 _CALLED = {
-    "runtime.agent.directory": _no_params,
-    "runtime.agent.files.tree": _persona_instance,
+    "peer.ping": _no_params,
+    "runtime.admission.status": _no_params,
+    "runtime.character.assignment.get": lambda agent: {"kind": "persona", "id": agent["persona_id"], **_persona(agent)},
+    "runtime.characters.list": _no_params,
     "runtime.events.after": _no_params,
     "runtime.health": _no_params,
+    "runtime.messaging.status": _no_params,
     "runtime.office.get": lambda agent: {"workspace_id": agent["workspace_id"]},
-    "runtime.operator.conversation.list": lambda agent: {"install_id": agent["install_id"]},
     "runtime.persona.instance.detail": _instance,
+    "runtime.pets.gallery": _no_params,
     "runtime.prompt_observability.agent": _instance,
-    "runtime.workspace.conversations": _no_params,
+    "runtime.provider.list": _no_params,
+    "runtime.speech.status": _no_params,
 }
 
-#: Each verb not read here, and why. A write or a turn is not a read of where files live; a binary reply
-#: carries bytes and a media type, no path field; a read that needs a minted handle, a draft, a chat or a
-#: live subscription has its own verb test.
+#: Each verb not read here, and why. A binary reply carries bytes and a media type, no path field; a read that
+#: needs a minted handle, a draft, a live subscription or a service a test does not run has its own verb test.
 _EXCUSED = {
-    "runtime.agent.conversation.create": "starts a chat: a write whose receipt is ids",
-    "runtime.agent.files.grep": "the files verbs' paths are root-name-prefixed by agent_tree; tree reads them here",
-    "runtime.agent.files.read": "the files verbs' paths are root-name-prefixed by agent_tree; tree reads them here",
-    "runtime.agent.files.virtual": "asks this device's Eternia, absent in a test",
-    "runtime.agent.idle_instances": "ids and display names only (agent_create.staff.idle_instances)",
+    "peer.roster.list": "answers a paired INSTALL only; a device is refused in the handler",
+    "runtime.character.assignment.preview_migration": "takes the legacy-assignment lock; get reads the same record",
     "runtime.character.portrait": "a binary portrait",
+    "runtime.characters.cells": "needs a sprite draft",
+    "runtime.characters.sprite": "needs an installed character's sheet",
+    "runtime.characters.status": "needs a sprite draft",
     "runtime.characters.thumb": "a binary thumbnail of a sprite draft",
-    "runtime.chat.message": "runs a turn",
-    "runtime.client.capabilities": "declares which namespaces this connection answers; its receipt is their names",
-    "runtime.chat.steer": "steers a running turn",
-    "runtime.chat.turn.resolve": "resolves a running turn",
-    "runtime.chat.clarify.dismiss": "needs a waiting question's token; its receipt is ids and a state",
-    "runtime.media.get": "a binary media fetch by a minted handle",
-    "runtime.media.index": "needs a chat's media handles",
+    "runtime.discussion.capabilities": "needs the discussion service, absent in a test",
+    "runtime.discussion.preset.get": "needs the discussion service, absent in a test",
+    "runtime.discussion.preset.list": "needs the discussion service, absent in a test",
+    "runtime.discussion.roster": "needs the discussion service, absent in a test",
+    "runtime.discussion.run.active": "needs the discussion service, absent in a test",
+    "runtime.discussion.run.get": "needs the discussion service, absent in a test",
+    "runtime.discussion.run.list": "needs the discussion service, absent in a test",
+    "runtime.discussion.table.get": "needs the discussion service, absent in a test",
+    "runtime.discussion.table.list": "needs the discussion service, absent in a test",
+    "runtime.discussion.workspaces": "needs the discussion service, absent in a test",
+    "runtime.gateway.reverse.offer": "a device's one-shot offer; its receipt is held: true",
+    "runtime.gateway.reverse.withdraw": "a device's one-shot withdraw; its receipt is two booleans",
+    "runtime.local_llama.setup.capabilities": "needs the owning local-llama manager, absent in a test",
+    "runtime.local_llama.status": "needs the owning local-llama manager, absent in a test",
     "runtime.office.subscribe": "opens a live subscription; office.get reads the same frame",
     "runtime.office.unsubscribe": "closes a live subscription",
-    "runtime.operator.conversation.read": "needs a chat opened under the computer's own scope",
-    "runtime.persona.chat.content": "needs a chat transcript",
-    "runtime.persona.chat.history": "needs a chat transcript",
-    "runtime.persona.chat.history.search": "needs a chat transcript",
-    "runtime.persona.instance.open_chat": "starts a chat: a write whose receipt is ids",
+    "runtime.persona.prewarm": "fills visibility memos; its receipt is counts",
+    "runtime.pets.sprite": "needs an installed pet's sheet",
+    "runtime.pets.thumb": "a binary thumbnail",
     "runtime.profiles.avatar": "a binary avatar",
+    "runtime.provider.models": "the models.dev entries of named catalogs: model facts, no file",
+    "runtime.provider.usage": "asks a provider for its rate windows over the network",
+    "runtime.skills.catalog": "needs a prompt-context frame's skills hash",
 }
 
 
-#: Each called verb the census found handing a Look or Run chats computer a local path, with the row that fixes it.
+#: Each called verb the census found handing a view-only device a local path, with the row that fixes it.
 #: Exact, not a ceiling: a verb fixed (or a new leak) reddens the census until this table says so.
-_FILED: dict[str, str] = {}
+_FILED: dict[str, str] = {
+    "runtime.characters.list": "RT-FU-A-VIEW-ONLY-DEVICE-IS-SENT-WHERE-THIS-COMPUTER-KEEPS-ITS-CHARACTERS",
+}
 
 
 @pytest.fixture
@@ -133,9 +141,17 @@ def census_agent(placed_agent):
             "install_id": ensure_install_identity(paths.store_root()).install_id}
 
 
-def _run_chats_computer() -> ca.RpcCaller:
-    return ca.RpcCaller(kind=ca.CALLER_COMPUTER, transport=ca.TRANSPORT_GATEWAY, connection_key="lane-census",
-                        computer_id="cmp-census", computer_grant=ca.COMPUTER_GRANT_CHAT)
+def _view_only_device() -> ca.RpcCaller:
+    return ca.RpcCaller(kind=ca.CALLER_DEVICE, transport=ca.TRANSPORT_GATEWAY, connection_key="dev-census",
+                        device_id="dev_census", device_tier=ca.TIER_READ, device_kind=ca.DEVICE_KIND_DEVICE)
+
+
+def _read_tier_verbs() -> set[str]:
+    """Every verb a view-only device passes the gate to: ``read`` tier, outside ``LOCAL_CONSOLE_METHODS``."""
+
+    registry.ensure_lazy_families()
+    return {name for name, tier in registry.method_tiers().items()
+            if tier == ca.TIER_READ and name not in ca.LOCAL_CONSOLE_METHODS}
 
 
 def _path_fields(node, where=""):
@@ -152,19 +168,19 @@ def _path_fields(node, where=""):
             yield from _path_fields(value, f"{where}[{index}]")
 
 
-def test_every_verb_a_computer_reaches_is_read_or_excused():
-    reach = set(registry.computer_reach())
+def test_every_verb_a_view_only_device_reaches_is_read_or_excused():
+    reach = _read_tier_verbs()
     assert not set(_CALLED) & set(_EXCUSED)
     assert set(_CALLED) | set(_EXCUSED) == reach, {
         "unclassified": sorted(reach - set(_CALLED) - set(_EXCUSED)),
         "no longer reached": sorted((set(_CALLED) | set(_EXCUSED)) - reach)}
 
 
-def test_no_called_verb_hands_a_run_chats_computer_a_local_path(census_agent):
+def test_no_called_verb_hands_a_view_only_device_a_local_path(census_agent):
     refused, found = {}, {}
     for name, params in sorted(_CALLED.items()):
         reply = serve_rpc.handle_request({"jsonrpc": "2.0", "id": name, "method": name, "params": params(census_agent)},
-                                         serve_rpc.RpcContext(caller=_run_chats_computer(),
+                                         serve_rpc.RpcContext(caller=_view_only_device(),
                                                               transport=ca.TRANSPORT_GATEWAY))
         if "result" not in reply:
             refused[name] = reply.get("error")

@@ -20,15 +20,12 @@ Killing mutations (each red seen 2026-11-22):
 
 A computer driving this phone (row ``RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS``,
 review w1122b.4): the reads are ``runtime.agent.files.virtual`` and the writes the separate
-``runtime.agent.files.virtual.write``, so the grant's allowlist states the reach once. Red seen
-2026-11-22 under each:
+``runtime.agent.files.virtual.write``. Since the account-only row
+(``RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN``) a computer is answered only at
+the account level, which reads and writes like a console device. Red seen 2026-11-22:
 
-* the stated reach (``computer=`` on the verb's ``@method``): drop ``runtime.agent.files.virtual``, and
-  a look-grant computer's tree / read / grep are refused;
-* the same allowlist: add ``runtime.agent.files.virtual.write``, and a look (and so Run chats)
-  computer's patch / write / move reach the phone's Eternia;
 * ``serve_rpc.agent_files.VIRTUAL_READ_VERBS``: name the write verbs too (the one-method shape this
-  row split), and a look computer's patch through the read method reaches the phone's Eternia;
+  row split), and a computer's patch through the read method reaches the phone's Eternia;
 * ``serve_rpc.agent_files._runtime_agent_files_virtual_write``: ask it with the read verbs, and the
   owner's own patch is refused ``bad_argument``.
 """
@@ -174,30 +171,40 @@ def test_a_verb_outside_the_virtual_trees_is_refused_and_nothing_is_asked():
 # ── a computer driving this phone (RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS)
 
 
-def test_a_look_grant_computer_reads_the_phones_generated_documents():
+def test_a_same_account_computer_reads_the_phones_generated_documents():
     owner = _Eternia()
     _declare(STDIO_OWNER, owner, None, ["launcher."])
-    look = _computer(grants.GRANT_LOOK)
+    account = _computer(grants.GRANT_ACCOUNT)
 
     for verb in ("tree", "read", "grep"):
-        reply = _call(VIRTUAL, {"verb": verb, "args": {"document_id": "doc-1"}}, caller=look)
+        reply = _call(VIRTUAL, {"verb": verb, "args": {"document_id": "doc-1"}}, caller=account)
         assert reply.get("result") == TREE, (verb, reply)
     assert [(f["method"], f["params"]["_meta"]["origin"]) for f in owner.asked] == [
         ("launcher.generated.tree", "paired_device"), ("launcher.generated.read", "paired_device"),
         ("launcher.generated.grep", "paired_device")]
 
 
-@pytest.mark.parametrize("grant", [grants.GRANT_LOOK, grants.GRANT_CHAT])
+@pytest.mark.parametrize("retired", ["look", "chat"])
 @pytest.mark.parametrize("verb", ["patch", "write", "move"])
-def test_a_look_or_run_chats_computers_write_is_refused_before_any_request_leaves_hermes(grant, verb):
+def test_a_retired_level_computer_is_refused_before_any_request_leaves_hermes(retired, verb):
     owner = _Eternia()
     _declare(STDIO_OWNER, owner, None, ["launcher."])
-    computer = _computer(grant)
+    computer = _computer(retired)
 
     write = _call(VIRTUAL_WRITE, {"verb": verb, "args": _WRITE_ARGS}, caller=computer)
     assert write["error"]["data"]["reason"] == REASON_SCOPE_DENIED, write
-    # The read method does not carry a write either: no verb smuggles one past the grant.
-    smuggled = _call(VIRTUAL, {"verb": verb, "args": _WRITE_ARGS}, caller=computer)
+    read = _call(VIRTUAL, {"verb": "tree", "args": {"document_id": "doc-1"}}, caller=computer)
+    assert read["error"]["data"]["reason"] == REASON_SCOPE_DENIED, read
+    assert owner.asked == []
+
+
+@pytest.mark.parametrize("verb", ["patch", "write", "move"])
+def test_the_read_method_carries_no_write_for_a_computer(verb):
+    owner = _Eternia()
+    _declare(STDIO_OWNER, owner, None, ["launcher."])
+
+    # No verb smuggles a write through the read method.
+    smuggled = _call(VIRTUAL, {"verb": verb, "args": _WRITE_ARGS}, caller=_computer(grants.GRANT_ACCOUNT))
     assert smuggled["error"]["data"]["reason"] == "bad_argument", smuggled
     assert owner.asked == []
 

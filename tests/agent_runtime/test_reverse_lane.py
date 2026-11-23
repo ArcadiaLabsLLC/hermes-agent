@@ -8,12 +8,16 @@ TLS and the device store) on their own store root, with the reverse lanes' hello
 Eternia is a ``ServeSocketClient`` on the loopback lane. Real sockets, real TLS, a real pin, real
 HMAC proofs throughout.
 
+The computer is answered only at the account level (hermes row
+``RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN``): the Look and Run chats
+levels left with their per-verb reach.
+
 Killing mutations (each named at its line):
 
-* ``call_authorization._computer_arm``: admit the chat grant by the console tier, and the
-  never-served test sees sign-in and key set answered;
-* ``authorize_call``: ask the computer arm after the read opening, and the look test sees a read
-  verb outside the allowlist answered;
+* ``call_authorization._computer_arm``: answer the account level refused, and the account test sees
+  Skills and the level read refused;
+* ``call_authorization.COMPUTER_GRANTS``: add ``look`` back, and the retired-level test sees a lane
+  stamped from a stored look grant admitted;
 * ``reverse_lane.lanes.lane_authenticator``: verify against the lane id the hello claims instead of
   the binding, and the wrong-lane test is admitted;
 * ``ReverseLanes._grants_revoked``: drop the lane close, and the grant-off test stays connected.
@@ -33,7 +37,6 @@ from pathlib import Path
 import pytest
 
 from agent_runtime import call_authorization as ca
-from agent_runtime.serve_rpc import registry
 from agent_runtime.gateway_tls import ensure_certificate, server_ssl_context
 from agent_runtime.reverse_lane import grants
 from agent_runtime.reverse_lane.lanes import ReverseLanes, handoff
@@ -224,7 +227,7 @@ def _rpc(client: ServeSocketClient, method: str, params: dict | None = None) -> 
     raise AssertionError(f"no reply to {method}")
 
 
-def _grant_and_dial(phone: _Phone, computer: _Computer, level: str = grants.GRANT_LOOK):
+def _grant_and_dial(phone: _Phone, computer: _Computer, level: str = grants.GRANT_ACCOUNT):
     device = computer.pair_phone()
     credential = grants.grant_computer(_phone_root(), computer_install_id="computer-install",
                                        pairing_device_id=device.device_id, level=level)
@@ -238,7 +241,7 @@ def _grant_and_dial(phone: _Phone, computer: _Computer, level: str = grants.GRAN
 
 
 @contextmanager
-def _driven(phone: _Phone, computer: _Computer, level: str = grants.GRANT_LOOK):
+def _driven(phone: _Phone, computer: _Computer, level: str = grants.GRANT_ACCOUNT):
     """Grant, dial, attach and say the lane hello; yields the computer's client on the phone."""
 
     device, credential = _grant_and_dial(phone, computer, level)
@@ -258,7 +261,7 @@ def _scope_denied(frame: dict) -> bool:
 # ── the route ────────────────────────────────────────────────────────────────
 
 
-def test_the_computer_reaches_the_phones_engine_and_look_reads_but_never_sends(phone, computer):
+def test_the_computer_reaches_the_phones_engine_as_one_of_your_own_computers(phone, computer):
     with _driven(phone, computer) as (client, hello_ok, _device, credential):
         # The phone's own greeting, on the remote door's transport.
         assert hello_ok["transport"] == "gateway"
@@ -266,23 +269,17 @@ def test_the_computer_reaches_the_phones_engine_and_look_reads_but_never_sends(p
         assert "result" in _rpc(client, "runtime.health")
         directory = _rpc(client, "runtime.agent.directory")
         assert not _scope_denied(directory), directory
-        # A console verb outside the look allowlist: the phone's own refusal.
-        assert _scope_denied(_rpc(client, "runtime.chat.message", {"persona_instance_id": "x", "message": "hi"}))
-        # A READ verb outside the allowlist is refused too: the arm runs before the read opening.
-        # MUTATION: ask the computer arm after the read opening and this read is answered.
-        assert _scope_denied(_rpc(client, "runtime.characters.list"))
+        # A chat verb and any read verb: answered as a console-tier paired device is.
+        assert not _scope_denied(_rpc(client, "runtime.chat.message", {"persona_instance_id": "x", "message": "hi"}))
+        assert not _scope_denied(_rpc(client, "runtime.characters.list"))
         status = phone.rpc("runtime.gateway.reverse.lanes")["result"]
         assert [d["state"] for d in status["dialing"]] == ["connected"]
         assert status["dialing"][0]["computer_id"] == credential.computer_id
 
 
-def test_the_computer_reads_the_phone_agents_files_as_one_tree_at_look(phone, computer, tmp_path):
-    """Row ``MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE``: the look grant
-    browses, reads and searches the phone agent's roots over the lane, and nothing outside them.
-
-    MUTATION (the stated ``computer=`` reach): leave ``runtime.agent.files.*`` out, and every
-    call here is refused ``scope_denied``.
-    """
+def test_the_computer_reads_the_phone_agents_files_as_one_tree(phone, computer, tmp_path):
+    """Row ``MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE``: the account level
+    browses, reads and searches the phone agent's roots over the lane, and nothing outside them."""
 
     from tests.agent_runtime.test_agent_files import INSTANCE, _agent, _folder
 
@@ -300,14 +297,9 @@ def test_the_computer_reads_the_phone_agents_files_as_one_tree_at_look(phone, co
         assert outside["error"]["data"]["reason"] == "invalid_path", outside
 
 
-def test_a_look_computer_is_handed_a_picture_from_the_phones_chats_by_handle(phone, computer, tmp_path):
+def test_the_computer_is_handed_a_picture_from_the_phones_chats_by_handle(phone, computer, tmp_path):
     """Hermes row RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ:
-    over the real lane, the look grant lists the phone's chat picture and fetches it by handle.
-
-    MUTATION (the stated ``computer=`` reach): leave ``runtime.media.index`` / ``.get`` out, and
-    both calls here are refused ``scope_denied``. Which rows the grant sees is pinned in
-    ``test_serve_rpc_media``.
-    """
+    over the real lane, the account level lists the phone's chat picture and fetches it by handle."""
 
     import base64
 
@@ -338,51 +330,18 @@ def test_a_look_computer_is_handed_a_picture_from_the_phones_chats_by_handle(pho
         media_handles.reset_digest_memo()
 
 
-def test_run_chats_reaches_the_attach_read_with_its_own_scope_and_new_chat_by_agent_and_look_neither(phone, computer):
-    """Hermes row RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT:
-    over the real lane, Run chats is answered ``runtime.agent.idle_instances`` and the attach read,
-    under its grant's own scope whether it names one or not (RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-
-    OWN-CHAT-SCOPE); Look is refused both. Which chats the scope opens is pinned in
-    ``test_operator_conversation_attachment``.
-
-    MUTATION (the stated ``computer=`` reach): leave the two reads out, and both are refused
-    ``scope_denied`` here at Run chats.
-    """
+def test_the_computer_reaches_the_attach_read_and_new_chat_by_agent(phone, computer):
+    """Hermes row RT-FU-A-COMPUTER-GIVEN-RUN-CHATS-OPENS-THE-CHAT-IT-STARTED-AND-STARTS-ONE-BY-AGENT, at the
+    account level: ``runtime.agent.idle_instances`` and the attach read are answered over the real lane."""
 
     attach = {"install_id": "i", "persona_id": "p", "persona_instance_id": "personainst_p", "session_id": "s"}
-    with _driven(phone, computer, grants.GRANT_CHAT) as (client, *_):
+    with _driven(phone, computer) as (client, *_):
         idle = _rpc(client, "runtime.agent.idle_instances", {})
         assert not _scope_denied(idle), idle
         for named in ({}, {"client_scope": "c" * 64}):
             read = _rpc(client, "runtime.operator.conversation.read", {**attach, **named})
             assert not _scope_denied(read), read
-            assert read.get("error", {}).get("data", {}).get("reason") != "client_scope_required", read
 
-
-def test_look_is_refused_the_attach_read_and_new_chat_by_agent(phone, computer):
-    with _driven(phone, computer) as (client, *_):
-        assert _scope_denied(_rpc(client, "runtime.agent.idle_instances", {}))
-        assert _scope_denied(_rpc(client, "runtime.operator.conversation.read", {"client_scope": "c" * 64}))
-
-
-NEVER_SERVED = (
-    # The review's three, by name.
-    "runtime.provider.signin.begin",
-    "runtime.provider.key.set",
-    "runtime.gateway.devices.list",
-    # The rest of sign-in, keys and provider settings.
-    "runtime.provider.signin.complete",
-    "runtime.provider.signin.poll",
-    "runtime.provider.signout",
-    "runtime.provider.configure",
-    "runtime.provider.env_token.remove",
-    "runtime.provider.source.set",
-    "runtime.default_model.set",
-    # This lane's own verbs: the phone's credential on the computer.
-    "runtime.gateway.reverse.dial",
-    "runtime.gateway.reverse.hangup",
-    "runtime.gateway.reverse.lanes",
-)
 
 #: No verb on this wire reaches the secure store or a namespace switch or delete: the secure
 #: store's callbacks run in-process (host calls, never frames) and a namespace is the host's
@@ -391,41 +350,29 @@ NOT_ON_THE_WIRE = ("vault.get", "vault.set", "runtime.secure_store.read", "runti
                    "runtime.namespace.delete")
 
 
-def test_the_chat_grant_never_reaches_sign_in_keys_pairing_settings_namespaces_or_the_secure_store(phone, computer):
-    """Review w1118a.79's done-when: at the chat grant each is refused over the lane.
-
-    MUTATION (``call_authorization._computer_arm``): admit the chat grant by the console tier, and
-    sign-in and key set are answered here.
-    """
-
-    with _driven(phone, computer, grants.GRANT_CHAT) as (client, *_):
-        for name in sorted(ca.LOCAL_CONSOLE_METHODS) + list(NEVER_SERVED):
-            frame = _rpc(client, name)
-            assert _scope_denied(frame), (name, frame)
-        for name in NOT_ON_THE_WIRE:
-            frame = _rpc(client, name)
-            assert "result" not in frame and "error" in frame, (name, frame)
-        # The chat grant does reach a chat verb: refused for its params, not its caller.
-        assert not _scope_denied(_rpc(client, "runtime.chat.message", {}))
-        # The remote door's ops refusals hold on the lane: no drain, no shutdown.
-        client.send({"op": "drain", "id": "op-drain"})
-        frame = client.read_frame()
-        assert frame is not None and frame.get("error") == "op_not_available_on_gateway", frame
-
-
 def test_an_account_computer_reaches_console_verbs_over_the_lane_and_never_a_local_console_verb(phone, computer):
     """Hermes row RT-PHONE-DRIVEN-A-COMPUTER-ON-THE-PHONES-OWN-ACCOUNT-…: the account level over the real lane.
 
-    MUTATION (``call_authorization._computer_arm``): answer the account level from the chat
-    allowlist, and Skills and the level read are refused here.
+    Its own pairing, dials and lanes on the phone (``LOCAL_CONSOLE_METHODS``) are refused, the secure store
+    and a namespace switch are on no wire, and the remote door's ops refusals hold.
+
+    MUTATION (``call_authorization._computer_arm``): answer the account level refused, and Skills and the
+    level read are refused here.
     """
 
-    with _driven(phone, computer, grants.GRANT_ACCOUNT) as (client, *_):
+    with _driven(phone, computer) as (client, *_):
         for name in sorted(ca.LOCAL_CONSOLE_METHODS):
             frame = _rpc(client, name)
             assert _scope_denied(frame), (name, frame)
         for name in ("runtime.skills.catalog", "runtime.level.get", "runtime.provider.key.set"):
             assert not _scope_denied(_rpc(client, name, {})), name
+        for name in NOT_ON_THE_WIRE:
+            frame = _rpc(client, name)
+            assert "result" not in frame and "error" in frame, (name, frame)
+        # The remote door's ops refusals hold on the lane: no drain, no shutdown.
+        client.send({"op": "drain", "id": "op-drain"})
+        frame = client.read_frame()
+        assert frame is not None and frame.get("error") == "op_not_available_on_gateway", frame
 
 
 def test_a_proof_answered_for_another_lane_is_refused_bad_proof(phone, computer):
@@ -462,36 +409,40 @@ def test_turning_the_grant_off_closes_the_open_lane_at_once(phone, computer):
         assert phone.rpc("runtime.gateway.reverse.lanes")["result"]["dialing"] == []
 
 
-def test_a_downgrade_closes_the_live_lane_and_the_redial_is_stamped_look_with_the_same_credential(phone, computer):
-    """Hermes row RT-FU-A-PHONE-CHANGING-A-COMPUTERS-LEVEL-KEEPS-ITS-CREDENTIAL-AND-ITS-ACCEPT: Run chats to
-    Look in place closes the computer's live lane at once, and its redial with the SAME credential is
-    admitted and stamped look.
+def _store_retired_level(computer_id: str, level: str) -> None:
+    """Write a retired level onto the phone's stored grant row, as a build before account-only left it."""
 
-    MUTATION (``grants.change_level``): skip the level notice, and the lane stamped chat stays open.
+    from agent_runtime.store_file_io import read_json_object, write_secure_json
+
+    path = _phone_root() / "gateway" / grants.REVERSE_GRANTS_FILENAME
+    payload = read_json_object(path)
+    payload["grants"][computer_id]["level"] = level
+    write_secure_json(path, payload)
+
+
+@pytest.mark.parametrize("retired", ["look", "chat"])
+def test_a_stored_look_or_chat_grant_reads_as_none_and_its_computers_hello_is_refused(phone, computer, retired):
+    """Hermes row RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN: a grant row an older
+    build stored at Look or Run chats is no grant, with no store migration: the phone lists none, its
+    computer's lane hello is refused ``bad_proof`` with the credential it was given, and a dial finds none.
+
+    MUTATION (``call_authorization.COMPUTER_GRANTS``): add ``look`` back, and the look case's hello is
+    admitted and the phone lists the grant.
     """
 
-    with _driven(phone, computer, grants.GRANT_CHAT) as (client, _hello, device, credential):
-        assert not _scope_denied(_rpc(client, "runtime.chat.message", {}))
-        held = grants.change_level(_phone_root(), computer_install_id="computer-install",
-                                   pairing_device_id=device.device_id, level=grants.GRANT_LOOK)
-        assert held is not None and held.computer_id == credential.computer_id
-        client.set_timeout(5.0)
-        closed = False
-        while not closed:
-            try:
-                closed = client.read_frame() is None
-            except socket.timeout:  # noqa: UP041 - still open: a connection kept the chat stamp
-                pytest.fail("the computer's lane stayed open, stamped chat, after the phone set Look")
-            except OSError:
-                closed = True
-    computer.wait_parked(device.device_id)
+    device, credential = _grant_and_dial(phone, computer)
+    _store_retired_level(credential.computer_id, retired)
+    assert grants.list_grants(_phone_root()) == []
     with computer.attach(device.device_id) as (client, attached):
         assert attached["event"] == "reverse_attached", attached
         reply = client.lane_hello(computer_id=credential.computer_id, token=credential.token,
                                   lane_id=attached["lane_id"], client="eternia-computer")
-        assert reply is not None and reply.get("event") == "hello_ok", reply
-        assert _scope_denied(_rpc(client, "runtime.chat.message", {}))
-        assert not _scope_denied(_rpc(client, "runtime.agent.directory"))
+        assert reply == {"event": "hello_rejected", "reason": "bad_proof"}, reply
+    phone.rpc("runtime.gateway.reverse.hangup", {"computer_install_id": "computer-install"})
+    answer = phone.rpc("runtime.gateway.reverse.dial", {
+        "computer_install_id": "computer-install", "host": "127.0.0.1", "port": computer.gateway_port,
+        "cert_fingerprint": computer.fingerprint, "device_id": device.device_id, "token": device.token})
+    assert answer["error"]["data"]["reason"] == "no_grant", answer
 
 
 def test_an_unpair_on_the_computer_refuses_the_next_dial_and_the_phone_drops_its_grant(phone, computer):
@@ -510,7 +461,7 @@ def test_an_unpair_on_the_computer_refuses_the_next_dial_and_the_phone_drops_its
 def test_a_re_pair_starts_with_no_grant(phone, computer):
     old = computer.pair_phone()
     grants.grant_computer(_phone_root(), computer_install_id="computer-install",
-                          pairing_device_id=old.device_id, level=grants.GRANT_CHAT)
+                          pairing_device_id=old.device_id, level=grants.GRANT_ACCOUNT)
     new = computer.pair_phone()
     answer = phone.rpc("runtime.gateway.reverse.dial", {
         "computer_install_id": "computer-install", "host": "127.0.0.1", "port": computer.gateway_port,
@@ -567,32 +518,11 @@ class _Conn:
 
 
 def test_a_lane_connection_is_a_computer_caller_and_two_stamps_are_nobody():
-    caller = ca.caller_for_connection(_Conn(computer_id="cmp-1", computer_grant="look"))
-    assert caller.kind == ca.CALLER_COMPUTER and caller.computer_grant == "look"
-    both = _Conn(computer_id="cmp-1", computer_grant="chat", device_id="dev-1", device_tier="console")
+    caller = ca.caller_for_connection(_Conn(computer_id="cmp-1", computer_grant="account"))
+    assert caller.kind == ca.CALLER_COMPUTER and caller.computer_grant == "account"
+    both = _Conn(computer_id="cmp-1", computer_grant="account", device_id="dev-1", device_tier="console")
     assert ca.caller_for_connection(both).kind == ca.CALLER_UNKNOWN
-    assert ca.caller_for_connection(_Conn(computer_id="cmp-1", computer_grant="console")).kind == ca.CALLER_UNKNOWN
+    # A grant word this build does not hold, the retired levels included, is nobody.
+    for word in ("console", "look", "chat"):
+        assert ca.caller_for_connection(_Conn(computer_id="cmp-1", computer_grant=word)).kind == ca.CALLER_UNKNOWN, word
     assert ca.caller_for_connection(_Conn()).kind == ca.CALLER_UNKNOWN  # gateway with no stamp
-
-
-def test_the_look_allowlist_is_reads_and_the_chat_allowlist_adds_only_chat_verbs():
-    assert not registry.COMPUTER_LOOK_METHOD_ALLOWLIST & ca.LOCAL_CONSOLE_METHODS
-    assert not registry.COMPUTER_CHAT_METHOD_ALLOWLIST & ca.LOCAL_CONSOLE_METHODS
-    extra = registry.COMPUTER_CHAT_METHOD_ALLOWLIST - registry.COMPUTER_LOOK_METHOD_ALLOWLIST
-    assert "runtime.chat.message" in extra
-    assert not any(name.startswith("runtime.provider.") for name in registry.COMPUTER_CHAT_METHOD_ALLOWLIST)
-
-
-def test_a_send_under_a_look_grant_is_refused_in_words_the_composer_shows():
-    """Eternia row MC-PHONE-DRIVEN-A-COMPUTER-RUNS-A-CHAT-TURN-ON-A-PHONES-AGENT: the computer's
-    composer shows hermes' refusal as written, so a chat verb under a look grant says what the
-    phone allows and where the switch is; other refusals keep the verb's name."""
-
-    look = ca.caller_for_connection(_Conn(computer_id="cmp-1", computer_grant="look"))
-    send = ca.authorize_call(ca.TIER_CONSOLE, look, method="runtime.chat.message",
-                             computer_reach=registry.method_computer_reach("runtime.chat.message"))
-    assert not send.ok and send.reason == ca.REASON_SCOPE_DENIED
-    assert send.detail.startswith("This phone lets this computer look at its agents but not chat")
-    assert "Run chats" in send.detail
-    other = ca.authorize_call(ca.TIER_CONSOLE, look, method="runtime.provider.key.set")
-    assert not other.ok and other.detail.startswith("runtime.provider.key.set is not open")

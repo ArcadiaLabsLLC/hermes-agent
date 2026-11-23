@@ -91,11 +91,6 @@ __all__ = [
     "CLI_CONSOLE",
     "COMPUTER_GRANTS",
     "COMPUTER_GRANT_ACCOUNT",
-    "COMPUTER_GRANT_CHAT",
-    "COMPUTER_GRANT_LOOK",
-    "COMPUTER_REACHES",
-    "COMPUTER_REACH_CHAT",
-    "COMPUTER_REACH_LOOK",
     "DEVICE_KINDS",
     "DEVICE_KIND_CHANNEL",
     "DEVICE_KIND_DEVICE",
@@ -115,8 +110,6 @@ __all__ = [
     "RpcCaller",
     "authorize_call",
     "caller_for_connection",
-    "computer_grant_reaches",
-    "is_computer_below_account",
     "is_machine_owner",
     "paired_device_answers",
     "service_backstop",
@@ -164,8 +157,8 @@ CALLER_DEVICE = "device"
 #: :func:`authorize_call`.
 CALLER_PEER = "peer"
 #: A paired COMPUTER driving this phone over a lane the phone dialled
-#: (``agent_runtime.reverse_lane``). Its authority is the phone's grant, answered from an
-#: allowlist per grant level by :func:`_computer_arm` — never a device tier.
+#: (``agent_runtime.reverse_lane``). Its authority is the phone's account-level grant, answered
+#: by :func:`_computer_arm` as a ``console``-tier paired device; it carries no tier of its own.
 CALLER_COMPUTER = "computer"
 #: A caller the transport could not place. Minted by tests, by the defensive arm
 #: of :func:`caller_for_connection`, and — the arm Stage A5 adds — by a gateway
@@ -364,10 +357,9 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         "runtime.gateway.reverse.hangup",
         "runtime.gateway.reverse.lanes",
         # The grant (MC-PHONE-DRIVEN-A-PHONE-LETS-…): the phone's owner grants and revokes, the
-        # computer's owner accepts and declines. ``offer``, ``withdraw`` (the phone's switch off,
-        # RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT) and ``level`` (a level changed in
-        # place, RT-FU-A-PHONE-CHANGING-A-COMPUTERS-LEVEL-KEEPS-ITS-CREDENTIAL-AND-ITS-ACCEPT) are NOT here:
-        # a paired device sends them, read tier, answered only as that authenticated device.
+        # computer's Eternia accepts and declines. ``offer`` and ``withdraw`` (the phone's switch off,
+        # RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT) are NOT here: a paired device
+        # sends them, read tier, answered only as that authenticated device.
         "runtime.gateway.reverse.grant",
         "runtime.gateway.reverse.revoke",
         "runtime.gateway.reverse.accept",
@@ -375,55 +367,11 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
     }
 )
 
-#: **What a paired device row IS** (``RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL``, plan
-#: ``planned/external-gateway-namespace-access-2026-11-05.md`` §2 D1, owner ruling C 2026-11-05).
-#: ``device`` is a person's screen (every row written before the rule reads as one); ``channel``
-#: is the owner's own external gateway — a bot process that relays a platform's messages to the
-#: persona instances it was bound to at pairing. A channel holds ``console`` (a chat turn runs
-#: tools; ``serve_rpc/chat.py`` says why nothing lower is honest), and its KIND narrows it twice:
-#: to :data:`CHANNEL_METHOD_ALLOWLIST`, and (``agent_runtime.gateway_channel``) to its bound
-#: instances. Scope narrows WHICH agent, never what the agent may do.
-#: The phone's two grant levels for a computer that drives it (review w1118a.79): what each
-#: may call is the allowlist below, and the tier a verb declares does not enter into it.
-#: A grant mapped to a tier would be wrong both ways: ``console`` admits the phone's
-#: provider sign-in and keys (``serve_rpc/provider.py`` is plain console tier), and
-#: ``read`` admits every read verb written later.
-COMPUTER_GRANT_LOOK = "look"
-COMPUTER_GRANT_CHAT = "chat"
-
-#: **What each grant reaches is stated once, on each verb** (hermes row
-#: ``RT-A-COMPUTERS-REACH-ON-A-PHONE-IS-STATED-ONCE-PER-VERB-AND-CHECKED-AGAINST-WHAT-ETERNIA-CALLS``,
-#: review w1122d.1). A verb's ``@method(name, tier, computer=...)`` line names the lowest grant that
-#: reaches it: :data:`COMPUTER_REACH_LOOK` (the phone's agents, their chats and history, the office
-#: stream, their files and pictures: reads only), :data:`COMPUTER_REACH_CHAT` (Look, and run chat
-#: turns: start, steer and settle one, and declare the computer's Eternia as the answerer of the app
-#: functions its turns call), or nothing (the default: refused to Look and Run chats). The dispatcher
-#: hands that word to :func:`authorize_call` beside the tier, because ``serve_rpc.registry`` imports
-#: this module and the reverse would be a cycle. Never the phone's sign-ins, keys, pairing, settings,
-#: namespaces or secure store: ``tests/agent_runtime/test_computer_reach.py`` pins the exact sets.
-#: The two allowlists the tests and docstrings cite are derived read-only views of those lines
-#: (``serve_rpc.registry.COMPUTER_LOOK_METHOD_ALLOWLIST`` / ``COMPUTER_CHAT_METHOD_ALLOWLIST``).
-COMPUTER_REACH_LOOK = COMPUTER_GRANT_LOOK
-COMPUTER_REACH_CHAT = COMPUTER_GRANT_CHAT
-#: Every reach a verb may state, least first.
-COMPUTER_REACHES: tuple[str, ...] = (COMPUTER_REACH_LOOK, COMPUTER_REACH_CHAT)
-
-#: Which stated reaches each grant below the account level is answered: Look within Run chats.
-_GRANT_REACHES: dict[str, frozenset[str]] = {
-    COMPUTER_GRANT_LOOK: frozenset({COMPUTER_REACH_LOOK}),
-    COMPUTER_GRANT_CHAT: frozenset({COMPUTER_REACH_LOOK, COMPUTER_REACH_CHAT}),
-}
-
-
-def computer_grant_reaches(grant: str | None, reach: str | None) -> bool:
-    """Is a computer holding *grant* (Look or Run chats) answered a verb that states *reach*?"""
-
-    return reach is not None and reach in _GRANT_REACHES.get(str(grant or ""), frozenset())
-
-
-#: **The third level: a computer on the phone's OWN account** (hermes row
+#: **The one level: a computer on the phone's OWN account** (hermes row
 #: ``RT-PHONE-DRIVEN-A-COMPUTER-ON-THE-PHONES-OWN-ACCOUNT-IS-ANSWERED-LIKE-A-PAIRED-COMPUTER``, owner
-#: 2026-11-22: "it should share everything like computer to computer its your account"). It has no
+#: 2026-11-22: "it should share everything like computer to computer its your account"; owner 2026-11-23
+#: "wait to be honest we should just have account pairing only" retired the Look and Run chats levels,
+#: hermes row ``RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN``). It has no
 #: allowlist: it is answered by the paired-device rule for a ``console``-tier device
 #: (:func:`paired_device_answers`), the one place that rule lives, so the two can never drift.
 #: ``LOCAL_CONSOLE_METHODS`` stay refused to it like every remote caller (the machine-owner arm runs
@@ -433,9 +381,18 @@ def computer_grant_reaches(grant: str | None, reach: str | None) -> bool:
 #: With it the computer reaches the phone's provider sign-ins and keys (plain console tier) exactly
 #: as one paired computer reaches another's: the owner's ruling, said here so it is seen.
 COMPUTER_GRANT_ACCOUNT = "account"
-#: Every level a grant row may hold, least first. ``reverse_lane.grants`` reads its words from here.
-COMPUTER_GRANTS: tuple[str, ...] = (COMPUTER_GRANT_LOOK, COMPUTER_GRANT_CHAT, COMPUTER_GRANT_ACCOUNT)
+#: Every level a grant row may hold: the account level alone. A row still holding a retired ``look`` or
+#: ``chat`` word reads as no grant (its computer's hello is refused). ``reverse_lane.grants`` reads it here.
+COMPUTER_GRANTS: tuple[str, ...] = (COMPUTER_GRANT_ACCOUNT,)
 
+#: **What a paired device row IS** (``RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL``, plan
+#: ``planned/external-gateway-namespace-access-2026-11-05.md`` §2 D1, owner ruling C 2026-11-05).
+#: ``device`` is a person's screen (every row written before the rule reads as one); ``channel``
+#: is the owner's own external gateway — a bot process that relays a platform's messages to the
+#: persona instances it was bound to at pairing. A channel holds ``console`` (a chat turn runs
+#: tools; ``serve_rpc/chat.py`` says why nothing lower is honest), and its KIND narrows it twice:
+#: to :data:`CHANNEL_METHOD_ALLOWLIST`, and (``agent_runtime.gateway_channel``) to its bound
+#: instances. Scope narrows WHICH agent, never what the agent may do.
 DEVICE_KIND_DEVICE = "device"
 DEVICE_KIND_CHANNEL = "channel"
 DEVICE_KINDS: tuple[str, ...] = (DEVICE_KIND_DEVICE, DEVICE_KIND_CHANNEL)
@@ -738,44 +695,30 @@ def _channel_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization
     )
 
 
-def _computer_arm(resolved: RpcCaller, name: str, tier: str, reach: str | None) -> CallAuthorization | None:
+def _computer_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization | None:
     """The computer arm (review w1118a.79), ``None`` for any other caller.
 
-    Placed like the peer arm, BEFORE the read opening: a computer answered after it would
-    inherit every read verb the phone has and every one written later. Its grant is answered
-    by the reach the verb states (*reach*, off its ``@method`` line); the verb's declared tier
-    does not enter into it, so the chat grant never reaches a console verb that is not a chat
-    verb (the phone's sign-ins, keys, settings).
+    Placed like the peer arm, BEFORE the read opening: a computer is answered only as one of the
+    phone's own account's computers (the paired-device rule for a ``console``-tier device), and any
+    other grant word is refused, fail closed (hermes row
+    ``RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN``).
     """
 
     if resolved.kind != CALLER_COMPUTER:
         return None
-    if resolved.computer_grant == COMPUTER_GRANT_ACCOUNT:
-        # MUTATION: answer this level from the chat allowlist and test_reverse_lane's
-        # account-level registry test sees a console verb a console device is answered refused.
-        admitted = paired_device_answers(TIER_CONSOLE, name, tier)
-    else:
-        # MUTATION: admit `tier == TIER_CONSOLE` for the chat grant (the grant mapped to the console
-        # tier) and test_reverse_lane's never-served test sees sign-in and key set answered.
-        admitted = bool(name) and computer_grant_reaches(resolved.computer_grant, reach)
+    # MUTATION: admit any grant word here and test_reverse_grant's retired-level test sees a computer
+    # stamped ``look`` answered a console verb.
+    admitted = resolved.computer_grant == COMPUTER_GRANT_ACCOUNT and paired_device_answers(TIER_CONSOLE, name, tier)
     return CallAuthorization(
         ok=admitted,
-        reason="computer_allowlisted" if admitted else REASON_SCOPE_DENIED,
+        reason="computer_account" if admitted else REASON_SCOPE_DENIED,
         tier=tier,
         caller_kind=resolved.kind,
-        detail=None if admitted else _computer_refusal_words(name, resolved.computer_grant, reach),
+        detail=None if admitted else (
+            f"{name or 'this call'} is not open to a computer this phone granted "
+            f"{resolved.computer_grant or 'nothing'}"
+        ),
     )
-
-
-def is_computer_below_account(caller: RpcCaller | None) -> bool:
-    """Is *caller* a computer driving this engine at Look or Run chats (not the account level)?
-
-    The account level is answered like a paired console device and sees what one sees; the two
-    lower grants see only what their allowlist reaches, so a handler that shapes a row by WHO asks
-    (``serve_rpc/instance_history.py``) asks this one question.
-    """
-
-    return caller is not None and caller.kind == CALLER_COMPUTER and caller.computer_grant != COMPUTER_GRANT_ACCOUNT
 
 
 def paired_device_answers(held_tier: str | None, name: str, tier: str) -> bool:
@@ -793,25 +736,6 @@ def paired_device_answers(held_tier: str | None, name: str, tier: str) -> bool:
     return tier == TIER_READ or held_tier == tier
 
 
-def _computer_refusal_words(name: str, grant: str | None, reach: str | None) -> str:
-    """What the computer's composer shows for a refused verb.
-
-    A chat verb under a look grant is the refusal a person meets (they typed into the
-    phone's chat from the computer), so it says, in words, what the phone allows and where
-    the switch is (Eternia row MC-PHONE-DRIVEN-A-COMPUTER-RUNS-A-CHAT-TURN-ON-A-PHONES-AGENT).
-    Anything else keeps the verb's name, which only a developer reads.
-    """
-
-    # MUTATION: drop this branch and test_reverse_lane's look-grant send test reads the
-    # verb-name sentence instead of the words.
-    if grant == COMPUTER_GRANT_LOOK and reach == COMPUTER_REACH_CHAT:
-        return (
-            "This phone lets this computer look at its agents but not chat with them. "
-            "To chat from here, choose Run chats for this computer on the phone."
-        )
-    return f"{name or 'this call'} is not open to a computer this phone granted {grant or 'nothing'}"
-
-
 def _peer_arm(resolved: RpcCaller, name: str, normalized: str) -> CallAuthorization:
     """A peer is answered from :data:`PEER_METHOD_ALLOWLIST` and nothing else; the verb's tier does not enter."""
 
@@ -820,9 +744,7 @@ def _peer_arm(resolved: RpcCaller, name: str, normalized: str) -> CallAuthorizat
     return CallAuthorization(ok=False, reason=REASON_SCOPE_DENIED, tier=normalized, caller_kind=resolved.kind)
 
 
-def authorize_call(
-    tier: str, caller: RpcCaller | None, *, method: str | None = None, computer_reach: str | None = None
-) -> CallAuthorization:
+def authorize_call(tier: str, caller: RpcCaller | None, *, method: str | None = None) -> CallAuthorization:
     """May *caller* run a verb declared at *tier*?
 
     ``caller is None`` is :data:`UNKNOWN_CALLER`, NOT the owner. Every production
@@ -885,11 +807,6 @@ def authorize_call(
     no method name is REFUSED rather than defaulted — absence of a name is
     absence of a decision, and the module's second rule is that absence of a
     decision is never an allow.
-
-    ``computer_reach`` is the lowest computer grant the verb states it answers (its ``@method``
-    line's ``computer=``), handed over by the dispatcher the way it hands the tier. Only the
-    computer arm reads it, and its absence is the absence of a reach: Look and Run chats are
-    refused, never defaulted through.
     """
 
     resolved = caller if caller is not None else UNKNOWN_CALLER
@@ -927,7 +844,7 @@ def authorize_call(
         )
     if (channel := _channel_arm(resolved, name, normalized)) is not None:
         return channel
-    if (computer := _computer_arm(resolved, name, normalized, computer_reach)) is not None:
+    if (computer := _computer_arm(resolved, name, normalized)) is not None:
         return computer
     if resolved.kind == CALLER_PEER:
         return _peer_arm(resolved, name, normalized)

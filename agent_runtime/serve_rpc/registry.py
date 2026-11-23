@@ -11,15 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from agent_runtime.call_authorization import (
-    COMPUTER_GRANT_CHAT,
-    COMPUTER_GRANT_LOOK,
-    COMPUTER_REACHES,
-    LOCAL_CONSOLE_METHODS,
-    TIER_CONSOLE,
-    TIERS,
-    computer_grant_reaches,
-)
+from agent_runtime.call_authorization import TIER_CONSOLE, TIERS
 
 from agent_runtime.serve_rpc.protocol import RPC_CONTRACT_VERSION, RpcContext, err, ok
 
@@ -27,20 +19,15 @@ __layer__ = "lanes"
 
 __all__ = [
     "_METHODS",
-    "_METHOD_COMPUTER_REACH",
     "_METHOD_TIERS",
     "_ensure_batch_methods",
     "_ensure_discussion_methods",
     "_ensure_local_llama_methods",
     "_ensure_messaging_methods",
     "_ensure_work_methods",
-    "computer_allowlist",
-    "computer_reach",
     "ensure_lazy_families",
     "manifest",
     "method",
-    "method_computer_reach",
-    "method_computer_scoped",
     "method_names",
     "method_tier",
     "method_tiers",
@@ -77,20 +64,8 @@ _METHODS: dict[str, Callable[[Any, dict, RpcContext], dict]] = {}
 #: already-paired console device, is on ``_runtime_chat_message``.
 _METHOD_TIERS: dict[str, str] = {}
 
-#: name → the lowest computer grant that reaches it (``call_authorization.COMPUTER_REACHES``), for the
-#: verbs that state one; every other verb is refused to a computer at Look or Run chats. Parallel to
-#: ``_METHOD_TIERS`` for that map's reason (the gate and the manifest want the whole mapping), written
-#: only by :func:`method` (hermes row
-#: RT-A-COMPUTERS-REACH-ON-A-PHONE-IS-STATED-ONCE-PER-VERB-AND-CHECKED-AGAINST-WHAT-ETERNIA-CALLS).
-_METHOD_COMPUTER_REACH: dict[str, str] = {}
 
-#: The verbs a computer below the account grant calls under ITS OWN ``client_scope``: the
-#: dispatcher stamps the grant's scope over whatever the request names (row
-#: RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE). Written only by :func:`method`.
-_METHOD_COMPUTER_SCOPED: set[str] = set()
-
-
-def method(name: str, tier: str, computer: str | None = None, computer_scoped: bool = False):
+def method(name: str, tier: str):
     """Register a handler AND declare the tier a caller must hold to run it.
 
     ``tier`` is REQUIRED and has no default. A default is what turns a
@@ -104,42 +79,16 @@ def method(name: str, tier: str, computer: str | None = None, computer_scoped: b
     An unknown tier raises HERE, at import, rather than at the first call: the
     registry is built when the module loads, so a typo is a boot failure with a
     name in it instead of a verb that mysteriously refuses in the field.
-
-    ``computer`` states what a computer driving this engine at a grant below the account level
-    reaches: ``"look"`` (Look and Run chats), ``"chat"`` (Run chats only), or ``None``, the default
-    and today's meaning of a verb nobody listed — refused to both. It is the ONE place a verb's reach
-    is said; the gate reads it through the dispatcher, the manifest publishes it as
-    ``computer_reach``. A verb only this install's console may call cannot state one.
-
-    ``computer_scoped`` says the verb takes a ``client_scope`` that a computer below the account
-    grant may only fill with its own (the grant's, ``reverse_lane.grants.computer_client_scope``):
-    the dispatcher stamps it over the request's. Only a verb with a reach can say it.
     """
 
     if tier not in TIERS:
         raise ValueError(
             f"unknown tier {tier!r} for method {name!r}; expected one of {TIERS}"
         )
-    if computer is not None and computer not in COMPUTER_REACHES:
-        raise ValueError(
-            f"unknown computer reach {computer!r} for method {name!r}; expected one of {COMPUTER_REACHES} or None"
-        )
-    if computer is not None and name in LOCAL_CONSOLE_METHODS:
-        raise ValueError(f"{name} answers only this install's console; it cannot state a computer reach")
-    if computer_scoped and computer is None:
-        raise ValueError(f"{name} states no computer reach, so no computer calls it under a scope")
 
     def dec(fn):
         _METHODS[name] = fn
         _METHOD_TIERS[name] = tier
-        if computer is None:
-            _METHOD_COMPUTER_REACH.pop(name, None)
-        else:
-            _METHOD_COMPUTER_REACH[name] = computer
-        if computer_scoped:
-            _METHOD_COMPUTER_SCOPED.add(name)
-        else:
-            _METHOD_COMPUTER_SCOPED.discard(name)
         return fn
 
     return dec
@@ -234,41 +183,6 @@ def method_tiers() -> dict[str, str]:
     return {name: method_tier(name) for name in method_names()}
 
 
-def method_computer_reach(name: str) -> str | None:
-    """The computer reach *name* states, or ``None`` (refused to Look and Run chats)."""
-
-    return _METHOD_COMPUTER_REACH.get(name)
-
-
-def method_computer_scoped(name: str) -> bool:
-    """Does a computer below the account grant call *name* under its own ``client_scope``?"""
-
-    return name in _METHOD_COMPUTER_SCOPED
-
-
-def computer_reach() -> dict[str, str]:
-    """Every verb that states a computer reach, sorted: the manifest's ``computer_reach`` block."""
-
-    names = set(method_names())
-    return {name: reach for name, reach in sorted(_METHOD_COMPUTER_REACH.items()) if name in names}
-
-
-def computer_allowlist(grant: str) -> frozenset[str]:
-    """What a computer holding *grant* (Look or Run chats) is answered, derived from the stated reaches."""
-
-    return frozenset(name for name, reach in computer_reach().items() if computer_grant_reaches(grant, reach))
-
-
-def __getattr__(name: str) -> frozenset[str]:
-    """The two allowlists the tests and docstrings cite, as read-only views of the stated reaches."""
-
-    if name == "COMPUTER_LOOK_METHOD_ALLOWLIST":
-        return computer_allowlist(COMPUTER_GRANT_LOOK)
-    if name == "COMPUTER_CHAT_METHOD_ALLOWLIST":
-        return computer_allowlist(COMPUTER_GRANT_CHAT)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
 def manifest() -> dict[str, Any]:
     """What this runtime's method lane offers, for the greeting frames.
 
@@ -348,9 +262,6 @@ def manifest() -> dict[str, Any]:
         "contract": RPC_CONTRACT_VERSION,
         "methods": method_names(),
         "tiers": method_tiers(),
-        # What a computer driving this engine at Look or Run chats reaches, verb by verb, under the
-        # additive rule above (``RPC_CONTRACT_VERSION`` unchanged): absent means refused to both.
-        "computer_reach": computer_reach(),
         "params": {
             name: list(keys) for name, keys in sorted({
                 **CHAT_TURN_METHOD_PARAMS,

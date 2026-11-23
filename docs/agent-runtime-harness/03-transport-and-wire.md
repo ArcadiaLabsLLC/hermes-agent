@@ -526,6 +526,13 @@ children, two isolated roots, both CLI verbs, `peer.ping` A→B.
 
 ### 1.2a The reverse lane — a computer drives a phone over the lane the PHONE dialled
 
+Product pairing is account pairing (owner 2026-11-23: "wait to be honest we should just have account
+pairing only"): Eternia pairs a person's devices through their account, and the reverse lane answers a
+computer only at the account level, as one of your own computers (hermes row
+`RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN`). `harness gateway pair` and its
+unlabelled device codes stay for the operator's own CLI, messaging channels (`--kind channel`) and
+Eternia's QA lane; hermes never sees an account, so it cannot be the account gate.
+
 A phone runs no listener (D3 2026-09-30), so a computer reaches a phone's engine over a
 connection the phone opens (Eternia row `MC-PHONE-DRIVEN-THE-PHONE-DIALS-OUT-SO-A-COMPUTER-CAN-REACH-ITS-ENGINE`,
 plan `EterniaLauncher/docs/embedded_hermes/planned/PHONE_DRIVEN_BY_A_COMPUTER_2026-11-21.md`, review
@@ -546,26 +553,30 @@ w1118a.79). `agent_runtime/reverse_lane/`:
   which runs this section's hello with the proof bound to the lane id instead of a port:
   `HMAC(sha256(token) hex, "gwvr<contract>|<lane id>|<computer id>|<nonce>")`
   (`serve_gateway_auth/proof.py::reverse_lane_proof`), verified against the phone's grant
-  (`reverse_lane/grants.py`). The caller is `computer` with the grant level `look` or `chat`,
-  answered from an allowlist per level by `call_authorization`'s computer arm, placed like the
-  peer arm before the read opening; `LOCAL_CONSOLE_METHODS` stay refused. The third level,
-  `account`, is a computer the phone's own signed-in Eternia proved is on the phone's account
-  (hermes never sees accounts; only that Eternia calls the local-console grant verb): it is
-  answered by the paired-device rule for a `console`-tier device
+  (`reverse_lane/grants.py`). The caller is `computer` with the grant level `account`, the one
+  level: a computer the phone's own signed-in Eternia proved is on the phone's account (hermes
+  never sees accounts; only that Eternia calls the local-console grant verb). `call_authorization`'s
+  computer arm, placed like the peer arm before the read opening, answers it by the paired-device
+  rule for a `console`-tier device
   (`call_authorization.paired_device_answers`, the device arm's own predicate), so it reaches
   what one paired computer reaches on another, the phone's provider sign-ins and keys included
-  (owner 2026-11-22), and `LOCAL_CONSOLE_METHODS` stay refused to it.
+  (owner 2026-11-22), and `LOCAL_CONSOLE_METHODS` stay refused to it. Any other grant word is
+  refused, fail closed: a stored grant row still holding the retired `look` or `chat` reads as no
+  grant (its computer's next hello is refused) and a stored accept holding one is dropped on read,
+  with no store migration. No verb states a per-level reach and the manifest carries no
+  `computer_reach` block.
 - **The grant is bound to the pairing.** A dial whose device id is not the grant's pairing finds
   no grant (a re-pair starts with none); a dial refused `bad_proof` (the computer unpaired the
   phone) deletes the phone's grant for that computer; turning a grant off closes its lane.
-- **The grant, offer and accept (two consents; for a computer on the phone's own account the computer's Eternia accepts by itself since owner 2026-11-23 "No, drop Accept", Eternia row `MC-ACCOUNT-ONLY-YOUR-COMPUTER-USES-YOUR-PHONES-AGENTS-WITHOUT-PRESSING-ACCEPT`)** (Eternia row
+- **The grant, offer and accept (one consent, the phone's: the computer's Eternia accepts an offer from a phone on its own account by itself, owner 2026-11-23 "No, drop Accept", Eternia row `MC-ACCOUNT-ONLY-YOUR-COMPUTER-USES-YOUR-PHONES-AGENTS-WITHOUT-PRESSING-ACCEPT`)** (Eternia row
   `MC-PHONE-DRIVEN-A-PHONE-LETS-A-PAIRED-COMPUTER-USE-ITS-AGENTS`, plan §15). The phone's owner
   asks its engine to grant (`runtime.gateway.reverse.grant`: the computer's address, pin and the
-  phone's credential on it, plus `look` | `chat` | `account`). The engine mints the grant and offers the
+  phone's credential on it, plus `level: account`). The engine mints the grant (a new grant replaces
+  any the computer held; with one level nothing changes in place) and offers the
   computer its credential ONCE over its own pinned device connection
   (`runtime.gateway.reverse.offer`, read tier, answered only to a plain paired device, as
   itself); the minted token never reaches the phone's Eternia. An offer that does not land
-  deletes the grant. The computer holds offers in memory (`reverse_lane/accepts.py`); its owner
+  deletes the grant. The computer holds offers in memory (`reverse_lane/accepts.py`); its Eternia
   answers with `runtime.gateway.reverse.accept` (the token once, for Eternia's credential store,
   and a non-secret accept row in `gateway/reverse_accepts.json`) or `.decline`. An accept whose
   device is no longer paired is dropped on read. `runtime.gateway.reverse.revoke` is the phone's
@@ -1166,8 +1177,8 @@ media_type, size_bytes, encoding: "base64", data}`.
 `agent_runtime/agent_file_handles.py`, so a device driving this engine from elsewhere opens what the
 trace and the Context Inspector show by path. `config.yaml` is never a row (it can hold inline
 secrets; never served, owner 2026-11-22), nor are the memory files. An agent's safe settings reach a
-device instead as the `settings` block of `runtime.persona.instance.detail` (read tier, Look
-included, owner 2026-11-22): exactly `{model, provider, toolsets}`, the one tuple
+device instead as the `settings` block of `runtime.persona.instance.detail` (read tier, a view-only
+device included, owner 2026-11-22): exactly `{model, provider, toolsets}`, the one tuple
 `agent_runtime/agent_settings_summary.py` `SAFE_SETTINGS_FIELDS`, each read from its own resolver
 (the turn's model precedence, the bound profile's toolset declaration), never a filtered config. All three kinds are served
 at the verbs' `console` tier, the tier a chat's own history is read at. `peer.media.get` resolves

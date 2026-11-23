@@ -27,7 +27,7 @@ import base64
 from pathlib import Path
 from typing import Any
 
-from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_CONSOLE, TIER_READ
+from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from agent_runtime.profile_avatar import (
     AVATAR_EXTENSIONS, AVATAR_MAX_BYTES, AvatarRefusal, ProfileAvatarRefused,
     read_profile_avatar, replace_profile_avatar,
@@ -60,7 +60,7 @@ def _param_refused(key: str, sentence: str) -> ParamRefused:
     return ParamRefused(f"invalid params: {sentence}", RpcRefusal.PARAM_TYPE_INVALID)
 
 
-@method("runtime.profiles.avatar", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
+@method("runtime.profiles.avatar", tier=TIER_READ)
 def _runtime_profiles_avatar(rid: Any, params: dict, context=None) -> dict:
     """Params: ``profile`` (required) — the profile token, e.g. ``base`` or ``alice``."""
 

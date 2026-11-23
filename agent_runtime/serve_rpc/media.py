@@ -8,14 +8,7 @@ import base64
 from pathlib import Path
 from typing import Any
 
-from agent_runtime.call_authorization import (
-    CALLER_COMPUTER,
-    COMPUTER_GRANT_ACCOUNT,
-    COMPUTER_REACH_LOOK,
-    REASON_SCOPE_DENIED,
-    TIER_CONSOLE,
-    authorize_call,
-)
+from agent_runtime.call_authorization import TIER_CONSOLE, authorize_call
 
 from agent_runtime.serve_rpc.protocol import (
     DEFERRED,
@@ -26,7 +19,7 @@ from agent_runtime.serve_rpc.protocol import (
     err,
     ok,
 )
-from agent_runtime.serve_rpc.registry import method, method_computer_reach, method_tier
+from agent_runtime.serve_rpc.registry import method, method_tier
 from agent_runtime.serve_rpc.params import (
     ParamRefused,
     _correlation_id_param,
@@ -64,42 +57,17 @@ __all__ = [
 # process constructs a ``Path``. See ``agent_runtime/media_handles.py``.
 
 
-def _caller_sees(artifact: Any, context: RpcContext | None) -> bool:
-    """May this caller list or fetch *artifact*? The one answer both verbs read.
-
-    A computer that drives this phone at the look or Run chats grant is handed the pictures in
-    the chats Look already reads, and nothing else the index holds: a ``diff`` (reach the owner
-    gave only a computer on the phone's own account), a ``context_file`` (SOUL, the instruction
-    file, the skills snapshot) and a remote row (which would make the phone fetch from its own
-    peers for the computer) are out (review w1122b.5,
-    RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ).
-    The account level is answered as a console device, so it keeps the whole index; every other
-    caller's reach is the tier gate's. Any computer grant that is not ``account`` narrows, so a
-    grant word added later starts narrow.
-    """
-
-    from agent_runtime import media_handles
-
-    caller = context.caller if context is not None else None
-    if caller is None or caller.kind != CALLER_COMPUTER or caller.computer_grant == COMPUTER_GRANT_ACCOUNT:
-        return True
-    # MUTATION: return True here (drop the kind filter) and test_serve_rpc_media's look-grant
-    # index lists the diff, the context file and the remote row, and its get hands them over.
-    return isinstance(artifact, media_handles.MediaArtifact) and artifact.kind == "image"
-
-
 def _caller_may_write_context_files(context: RpcContext | None) -> bool:
     """Would the dispatcher let this caller run ``runtime.media.context_file.write``? Its own gate, asked.
 
-    The verb's declared tier and computer reach, read off its ``@method`` line through the registry,
-    handed to :func:`authorize_call` exactly as ``dispatch`` hands them — no tier or grant table here,
+    The verb's declared tier, read off its ``@method`` line through the registry, handed to
+    :func:`authorize_call` exactly as ``dispatch`` hands it — no tier or grant table here,
     so a later change to the write verb's declaration moves the index's ``writable`` with it.
     """
 
     caller = context.caller if context is not None else None
     # MUTATION: answer True here and test_serve_rpc_media's read-tier index marks SOUL.md writable.
-    return authorize_call(method_tier(CONTEXT_FILE_WRITE_METHOD), caller, method=CONTEXT_FILE_WRITE_METHOD,
-                          computer_reach=method_computer_reach(CONTEXT_FILE_WRITE_METHOD)).ok
+    return authorize_call(method_tier(CONTEXT_FILE_WRITE_METHOD), caller, method=CONTEXT_FILE_WRITE_METHOD).ok
 
 
 def _index_row(artifact: Any, may_write: bool) -> dict[str, Any]:
@@ -120,11 +88,7 @@ def _index_row(artifact: Any, may_write: bool) -> dict[str, Any]:
 MEDIA_CONTRACT = 1
 
 
-# The pictures in the chats Look reads, by handle, at Look
-# (RT-FU-A-COMPUTER-USING-A-PHONES-AGENTS-IS-HANDED-THE-PICTURES-IN-THE-CHATS-IT-MAY-READ, review w1122b.5):
-# for a computer below the account grant this lists and hands over local chat images only (see below).
-# MUTATION: state no reach on these two and test_reverse_lane's chat-picture test is refused scope_denied.
-@method("runtime.media.index", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
+@method("runtime.media.index", tier=TIER_CONSOLE)
 def _runtime_media_index(
     rid: Any, params: dict, context: RpcContext | None = None
 ) -> dict:
@@ -194,7 +158,7 @@ def _runtime_media_index(
         # ``writable``: may THIS caller save the row back through ``runtime.media.context_file.write``
         # (RT-FU-THE-FILE-LIST-SAYS-WHICH-CONTEXT-FILES-THE-CALLER-CAN-SAVE-BACK). A display fact: the
         # write keeps every refusal it has and never reads it.
-        "artifacts": [_index_row(artifact, may_write) for artifact in scope.rows() if _caller_sees(artifact, context)],
+        "artifacts": [_index_row(artifact, may_write) for artifact in scope.rows()],
         "scanned": {
             "logs": scope.logs_scanned,
             "declarations": scope.declarations_seen,
@@ -240,7 +204,7 @@ def _proxied_media_get(rid: Any, resolved: Any, correlation_id: Any, context: Rp
     return _proxied()
 
 
-@method("runtime.media.get", tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
+@method("runtime.media.get", tier=TIER_CONSOLE)
 def _runtime_media_get(
     rid: Any, params: dict, context: RpcContext | None = None
 ) -> dict:
@@ -345,15 +309,6 @@ def _runtime_media_get(
         )
 
     scope = media_handles.build_media_scope(agent_files=True)
-    # Before resolving, so a refused row answers neither its size nor its cap.
-    in_scope = scope.get(raw.strip())
-    if in_scope is not None and not _caller_sees(in_scope, context):
-        return err(
-            rid,
-            ERR_HANDLER_FAILED,
-            "runtime.media.get refused: this phone hands a computer the pictures in its chats only",
-            {"reason": REASON_SCOPE_DENIED},
-        )
     resolved = media_handles.resolve_handle(raw, scope)
     if isinstance(resolved, media_handles.MediaRefusal):
         return err(
@@ -376,8 +331,6 @@ def _write_refused(rid: Any, reason: str, message: str, data: dict | None = None
                {"reason": reason, **(data or {})})
 
 
-# MUTATION: state computer=COMPUTER_REACH_LOOK (or "chat") here and test_serve_rpc_context_file_write's
-# Look (or Run chats) computer saves SOUL.md.
 @method(CONTEXT_FILE_WRITE_METHOD, tier=TIER_CONSOLE)
 def _runtime_media_context_file_write(
     rid: Any, params: dict, context: RpcContext | None = None
@@ -404,10 +357,9 @@ def _runtime_media_context_file_write(
     the fresh scope resolved, never one from the wire; a symlink is refused; the write is upstream's
     ``utils.atomic_write_text`` with ``preserve_mode``, as its own SOUL editor writes.
 
-    **Security.** ``console`` tier and NO computer reach (owner 2026-11-22: editable from a
-    same-account device or a console-tier device only): a read-tier device and a Look or Run chats
-    computer are refused at the dispatcher; a computer on the phone's own account is answered as a
-    console device. Not in the peer allowlist. ``protected_instruction_files`` guards an AGENT's tool
+    **Security.** ``console`` tier (owner 2026-11-22: editable from a same-account device or a
+    console-tier device only): a read-tier device is refused at the dispatcher; a computer on the
+    phone's own account is answered as a console device. Not in the peer allowlist. ``protected_instruction_files`` guards an AGENT's tool
     writes, not a person's save at console tier.
     """
 

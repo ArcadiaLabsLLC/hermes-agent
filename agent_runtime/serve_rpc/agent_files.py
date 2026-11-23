@@ -20,9 +20,8 @@ Params (every verb takes ``persona_instance_id``):
   ``RT-PHONE-FILES-THE-ENGINE-ASKS-THIS-DEVICES-ETERNIA-FOR-A-VIRTUAL-TREE-WITH-NO-TURN``); refused
   ``virtual_tree_unavailable`` when Eternia is not open here;
 * ``virtual.write`` — the same with ``verb`` ``patch`` | ``write`` | ``move``: Eternia's validated edit of
-  a generated document. A separate method so that reach is stated once, by method name, in
-  ``call_authorization`` (row ``RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS``,
-  review w1122b.4): the reads join a computer's look allowlist, the writes join no computer allowlist.
+  a generated document. A separate method so that a write is its own verb (row
+  ``RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS``, review w1122b.4).
 
 ``glob`` and a wildcard ``pattern`` are the rule spec's ``patterns`` dialects, never a regular
 expression: a remote caller's pattern is matched without backtracking (``project_files/patterns.py``),
@@ -40,9 +39,8 @@ review w1118a.84, correcting w1118a.78's ``read``): a device paired view-only is
 chats, so it is refused the project those chats are about, as ``runtime.media.get`` refuses it file
 egress. Nothing here writes, each read is capped at 5 MiB (``MAX_FETCH_BYTES``, the media lane's
 number; the spec's ``MAX_READ_BYTES``), a reply page is 20,000 code points, and the tree lists only
-the agent's roots, never the machine's disk. A computer driving a phone reaches them only through
-the reach its ``@method`` line states (``computer=COMPUTER_REACH_LOOK``), which the computer arm
-checks before any tier; a peer install gets nothing new (``PEER_METHOD_ALLOWLIST`` is not widened,
+the agent's roots, never the machine's disk. A computer driving a phone reaches them only at the
+account level, answered as a console-tier paired device; a peer install gets nothing new (``PEER_METHOD_ALLOWLIST`` is not widened,
 plan ``PHONE_PROJECT_FOLDERS_FILE_TREE_2026-11-21`` §11).
 """
 
@@ -50,7 +48,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_CONSOLE
+from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.serve_rpc.protocol import (
     ERR_HANDLER_FAILED, ERR_INVALID_PARAMS, ERR_NOT_FOUND, RpcContext, err, ok,
 )
@@ -149,9 +147,9 @@ def _file_rpc_answer(rid: Any, params: Any, verb) -> dict:
                    {"reason": refusal.code, "detail": refusal.message})
 
 
-# The agent's files as one tree at Look (MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE):
+# The agent's files as one tree (MC-PHONE-FILES-AN-AGENTS-FILES-ARE-SERVED-BY-ITS-ENGINE-AS-ONE-TREE):
 # reads only, the agent's enumerated roots only, 5 MiB a read; so are the read and grep below.
-@method(TREE_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
+@method(TREE_METHOD, tier=TIER_CONSOLE)
 def _runtime_agent_files_tree(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.project_files import agent_tree
     from agent_runtime.project_files.rules import DEFAULT_DEPTH
@@ -161,7 +159,7 @@ def _runtime_agent_files_tree(rid: Any, params: dict, context: RpcContext | None
         offset=_whole_number_param(p, "offset", 0)))
 
 
-@method(READ_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
+@method(READ_METHOD, tier=TIER_CONSOLE)
 def _runtime_agent_files_read(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.project_files import agent_tree
 
@@ -169,7 +167,7 @@ def _runtime_agent_files_read(rid: Any, params: dict, context: RpcContext | None
         _instance_id_param(p), _path(p, required=True), offset=_whole_number_param(p, "offset", 0)))
 
 
-@method(GREP_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
+@method(GREP_METHOD, tier=TIER_CONSOLE)
 def _runtime_agent_files_grep(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     from agent_runtime.project_files import agent_tree
 
@@ -233,18 +231,17 @@ def _ask_virtual(rid: Any, params: Any, context: RpcContext | None, name: str, v
     return defer_or_inline(rid, name, context, run)
 
 
-# This phone's generated documents, read through its own Eternia, at Look (tree / read / grep only;
-# RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS; kept by the owner's "3 yes",
-# RT-FU-WHETHER-A-LOOK-COMPUTER-MAY-READ-A-PHONES-GENERATED-DOCUMENTS). Their writes are the
-# separate virtual.write below, which states no computer reach (review w1122b.4).
-@method(VIRTUAL_METHOD, tier=TIER_CONSOLE, computer=COMPUTER_REACH_LOOK)
+# This phone's generated documents, read through its own Eternia (tree / read / grep only;
+# RT-FU-A-COMPUTER-DRIVING-A-PHONE-READS-THE-PHONES-GENERATED-DOCUMENTS). Their writes are the
+# separate virtual.write below (review w1122b.4).
+@method(VIRTUAL_METHOD, tier=TIER_CONSOLE)
 def _runtime_agent_files_virtual(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Read this device's virtual tree (Eternia's generated documents): ``verb`` tree, read or grep.
 
     **Security.** ``console`` tier, as the agent's real folders are (``runtime.agent.files.*``; plan §11:
     a device paired view-only is refused an agent's files as it is refused its chats), so a view-only
-    device's read is refused at the dispatcher before anything is asked of Eternia. Reads only, so it
-    sits in a computer's look allowlist beside ``runtime.agent.files.*``; not in the peer allowlist.
+    device's read is refused at the dispatcher before anything is asked of Eternia. Reads only; not in
+    the peer allowlist.
     """
 
     return _ask_virtual(rid, params, context, VIRTUAL_METHOD, VIRTUAL_READ_VERBS)
@@ -254,9 +251,8 @@ def _runtime_agent_files_virtual(rid: Any, params: dict, context: RpcContext | N
 def _runtime_agent_files_virtual_write(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Change this device's virtual tree: ``verb`` patch, write or move, as Eternia's validated edit.
 
-    **Security.** ``console`` tier, and in no computer grant's allowlist and not the peer allowlist
-    (review w1122b.4: a look or Run chats computer reads a phone's generated documents and never
-    changes them; a computer on the phone's own account reaches it through ``paired_device_answers``).
+    **Security.** ``console`` tier, and not in the peer allowlist (review w1122b.4); a computer on the
+    phone's own account reaches it through ``paired_device_answers``.
     Hermes writes nothing itself: a write is Eternia's fenced, validated edit.
     """
 

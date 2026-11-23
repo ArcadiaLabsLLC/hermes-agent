@@ -199,44 +199,20 @@ def _computer(grant):
                      computer_id="cmp-1", computer_grant=grant)
 
 
-def test_a_look_computer_lists_every_phone_chat_read_only(placed_agent):
-    """Hermes row RT-FU-A-LOOK-COMPUTER-LISTS-THE-PHONES-EXISTING-CHATS (review w1122d.1): a computer at
-    Look or Run chats is answered the list; with ``all_accounts`` it sees every phone chat, each one
-    ``readable`` and opened only if it started it, and a row it does not own carries no ``client_scope``.
-
-    MUTATIONS: state no ``computer=`` reach on ``runtime.operator.conversation.list`` and
-    the list is refused ``scope_denied``; drop the ``client_scope`` pop in
-    ``serve_rpc/instance_history._for_caller`` and the phone owner's scope is handed to the computer;
-    list with the request's scope instead of the grant's (``_list_reply``) and the computer's own chat
-    leaves its own page.
+def test_an_account_computer_lists_like_the_phones_own_eternia_and_a_retired_level_lists_nothing(placed_agent):
+    """Hermes row RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN: the Look and Run chats
+    levels (RT-FU-A-LOOK-COMPUTER-LISTS-THE-PHONES-EXISTING-CHATS, review w1122d.1) left with their scope
+    stamping. A computer on the phone's account lists like the phone's own Eternia, every scope kept; a
+    computer stamped with a retired level is refused the list.
     """
 
-    mine = OTHER  # the scope the computer's Eternia names (its account key); hermes stamps the grant's
     phone_chat = create(placed_agent, "phone")
-    computer_chat = _call(dict(persona_id=PERSONA, persona_instance_id=placed_agent["persona_instance_id"],
-                               new_session=True, idempotency_key="computer", client_scope=mine),
-                          caller=_computer("chat"))["result"]["session_id"]
-    for grant in ("look", "chat"):
-        page = read_history(caller=_computer(grant), client_scope=mine, all_accounts=True)
-        assert "result" in page, (grant, page)
-        rows = {row["session_id"]: row for row in page["result"]["conversations"]}
-        assert {phone_chat, computer_chat} <= set(rows), (grant, rows)
-        assert all(row["readable"] for row in rows.values()), (grant, rows)
-        assert (rows[phone_chat]["openable"], rows[computer_chat]["openable"]) == (False, True)
-        assert "client_scope" not in rows[phone_chat], (grant, rows[phone_chat])
-        assert rows[computer_chat]["client_scope"] == mine
-        # Its own page (no all_accounts) is the chats it started, scope kept: Eternia's owner check.
-        own = read_history(caller=_computer(grant), client_scope=mine)["result"]["conversations"]
-        assert [row["session_id"] for row in own] == [computer_chat]
-        assert own[0]["client_scope"] == mine
-        # Naming the phone owner's scope lists the computer's own chats all the same (RT-FU-A-COMPUTER-SENDS-
-        # ONLY-UNDER-ITS-OWN-CHAT-SCOPE): the list answers a computer as its grant's scope.
-        named = read_history(caller=_computer(grant), client_scope=OWNER)["result"]["conversations"]
-        assert [row["session_id"] for row in named] == [computer_chat]
-    # The phone's own Eternia (and an account-level computer) keep every scope, as before.
     for caller in (LOCAL_CONSOLE, _computer("account")):
         rows = {row["session_id"]: row for row in read_history(caller=caller, all_accounts=True)["result"]["conversations"]}
         assert rows[phone_chat]["client_scope"] == OWNER and rows[phone_chat]["readable"], caller
+    for retired in ("look", "chat"):
+        page = read_history(caller=_computer(retired), all_accounts=True)
+        assert page["error"]["data"]["reason"] == "scope_denied", (retired, page)
 
 
 def test_readable_is_the_gates_answer_for_the_history_read():
@@ -248,8 +224,9 @@ def test_readable_is_the_gates_answer_for_the_history_read():
     from agent_runtime.call_authorization import UNKNOWN_CALLER
     from agent_runtime.serve_rpc.instance_history import row_readable_by
 
-    assert row_readable_by(LOCAL_CONSOLE) and row_readable_by(_computer("look")) and row_readable_by(_computer("chat"))
+    assert row_readable_by(LOCAL_CONSOLE) and row_readable_by(_computer("account"))
     assert not row_readable_by(_device("read"))
+    assert not row_readable_by(_computer("look")) and not row_readable_by(_computer("chat"))
     assert not row_readable_by(UNKNOWN_CALLER)
 
 

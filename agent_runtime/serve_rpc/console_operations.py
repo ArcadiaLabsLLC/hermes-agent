@@ -3,8 +3,8 @@ import re
 from functools import partial
 
 from agent_runtime.call_authorization import (
-    CALLER_COMPUTER, CALLER_DEVICE, CALLER_LOCAL_CONSOLE, CALLER_STDIO_OWNER, COMPUTER_REACH_LOOK,
-    TIER_CONSOLE, TIER_READ, is_computer_below_account,
+    CALLER_COMPUTER, CALLER_DEVICE, CALLER_LOCAL_CONSOLE, CALLER_STDIO_OWNER, COMPUTER_GRANT_ACCOUNT,
+    TIER_CONSOLE, TIER_READ,
 )
 from .protocol import err, ok, defer_or_inline, ERR_INVALID_PARAMS, ERR_NOT_FOUND, ERR_CONFLICT
 from .registry import method
@@ -111,7 +111,7 @@ def prompt_context(rid, params, context=None):
     return _operation(rid, params, context, "runtime.prompt_context.show", read)
 
 
-@method("runtime.persona.instance.detail", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
+@method("runtime.persona.instance.detail", tier=TIER_READ)
 def instance_detail(rid, params, context=None):
     def read(p):
         from agent_runtime.snapshot.details import persona_instance_detail_for_id
@@ -123,7 +123,7 @@ def instance_detail(rid, params, context=None):
     return _operation(rid, params, context, "runtime.persona.instance.detail", read)
 
 
-@method("runtime.prompt_observability.agent", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
+@method("runtime.prompt_observability.agent", tier=TIER_READ)
 def prompt_observability_agent(rid, params, context=None):
     """One agent's ``prompt_observability`` section, built when its panel opens.
 
@@ -142,8 +142,11 @@ def prompt_observability_agent(rid, params, context=None):
 # ── who may see where things live on this computer (RT-FU-A-LOOK-DEVICE-IS-SENT-THE-PATH-OF-AN-AGENTS-
 # SETTINGS-FILE, review w1122d.6). The detail's ``tool_resolution`` (and its ``turn_tool_context.preview``
 # copy) names absolute local paths: the profile's config file, the turn's working directory, the runtime
-# root, a bound repository. Only a caller at console reach keeps them; everyone else reads every label and
-# source with the paths taken out. The stores, ``ToolsetDeclaration.row()`` and the local CLI keep theirs.
+# root, a bound repository. Only a caller at console tier keeps them; a caller below console tier (a
+# view-only device, paired ``--tier read``; a caller the transport could not place) reads every label and
+# source with the paths taken out (kept by RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-
+# YOUR-OWN, review w1122d.15, when the Look and Run chats computer levels it was first written for left).
+# The stores, ``ToolsetDeclaration.row()`` and the local CLI keep theirs.
 # The prompt details (RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-ITS-AGENTS-CONTEXT-FILES, review w1122d.12)
 # name each context file (``path``) and each layer's file (``source_path``) the same way. The health check
 # (``runtime_root``, ``hermes_home``, ``interpreter``, and the interpreter's path inside an ``issues`` sentence) and
@@ -166,22 +169,22 @@ _PATH_WORDS = "a file on the agent's computer"
 
 
 def _sees_local_paths(caller) -> bool:
-    """Is *caller* at console reach: the owner's own console, a console device, a computer at the account level?
+    """Is *caller* at console tier: the owner's own console, a console device, a computer on the phone's account?
 
-    ``None`` is an in-process call with no wire behind it. Every other caller (a view-only device, a computer at
-    Look or Run chats, a caller the transport could not place) is projected."""
+    ``None`` is an in-process call with no wire behind it. Every caller below console tier (a view-only device,
+    a caller the transport could not place) is projected."""
 
     if caller is None or caller.kind in (CALLER_STDIO_OWNER, CALLER_LOCAL_CONSOLE):
         return True
     if caller.kind == CALLER_DEVICE:
         return caller.device_tier == TIER_CONSOLE
-    return caller.kind == CALLER_COMPUTER and not is_computer_below_account(caller)
+    return caller.kind == CALLER_COMPUTER and caller.computer_grant == COMPUTER_GRANT_ACCOUNT
 
 
 def _detail_for_caller(result: dict, caller) -> dict:
-    """The detail as *caller* may see it: below console reach, no absolute local path in any field or sentence."""
+    """The detail as *caller* may see it: below console tier, no absolute local path in any field or sentence."""
 
-    # MUTATION: return ``result`` here for every caller and test_no_absolute_local_path_reaches_look_or_view_only
+    # MUTATION: return ``result`` here for every caller and test_no_absolute_local_path_reaches_a_view_only_device
     # reddens, while test_the_console_keeps_the_paths stays green.
     if _sees_local_paths(caller):
         return result
@@ -189,12 +192,12 @@ def _detail_for_caller(result: dict, caller) -> dict:
 
 
 def _prompt_details_for_caller(result: dict, caller) -> dict:
-    """One agent's prompt details as *caller* may see it: below console reach, no absolute path in a path field.
+    """One agent's prompt details as *caller* may see it: below console tier, no absolute path in a path field.
 
     Its text is left whole: a context file's ``preview`` and a layer's ``content`` are the file's and the rules'
-    own words, which Look shares; only the detail's hermes-written sentences are rewritten (``_detail_for_caller``)."""
+    own words, which a view-only device may read; only the detail's hermes-written sentences are rewritten (``_detail_for_caller``)."""
 
-    # MUTATION: return ``result`` here for every caller and test_a_look_computer_reads_no_context_file_path
+    # MUTATION: return ``result`` here for every caller and test_a_view_only_device_reads_no_context_file_path
     # reddens, while test_the_console_keeps_the_context_file_paths stays green.
     if _sees_local_paths(caller):
         return result

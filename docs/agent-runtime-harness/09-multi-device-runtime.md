@@ -162,9 +162,14 @@ its own bot token; hermes never holds one. `harness gateway pair --kind channel 
 
 ### Pairing without a code: introduce, and the account's grant
 
-The manual ceremonies (`harness gateway pair` for a device, `harness gateway
-peers pair | join` for an install) still exist and are the not-signed-in
-fallback. The primary path since 2026-09-03 is same-account instant pairing:
+Product pairing is account pairing (owner 2026-11-23: "wait to be honest we should just have
+account pairing only"): a person's devices pair through their account, and a phone's engine answers a
+paired computer over the reverse lane only at the account level, as one of your own computers (03
+§1.2a; hermes row `RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN`). The manual
+ceremonies (`harness gateway pair` for a device, `harness gateway peers pair | join` for an install)
+still exist for the operator's own CLI, messaging channels (`--kind channel`) and Eternia's QA lane;
+hermes never sees an account, so it cannot be the account gate. The primary path since 2026-09-03 is
+same-account instant pairing:
 
 1. Each launcher publishes its install's `install_id`, dialable endpoints and
    certificate fingerprint to its own device row on the account (backend

@@ -486,7 +486,8 @@ positional arguments:
     rename              Set the operator-facing display name for this root's install (the install_id
                         never changes)
     pair                Mint a short-TTL pairing code plus the QR payload a device scans to reach
-                        this install
+                        this install (the operator's own pairing, channels and QA; Eternia pairs a
+                        person's devices through their account)
     introduce           Mint one envelope a launcher posts as a backend pair-grant: a peer code, a
                         device code, and where to dial this install
     devices             Devices paired with this install's gateway — list them, or revoke one

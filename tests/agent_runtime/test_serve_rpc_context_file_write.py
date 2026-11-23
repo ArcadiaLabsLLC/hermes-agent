@@ -16,8 +16,8 @@ Killing mutations (each red seen 2026-11-22):
 * ``agent_file_handles.SERVED_CONTEXT_FILE_NAMES``: add ``config.yaml``, and the config test's
   handle resolves (refused ``context_file_not_writable``, not ``unknown_handle``);
 * the same verb: drop the symlink check, and the symlink test writes through the link;
-* its ``@method`` line: state ``computer=COMPUTER_REACH_LOOK``, and the Look computer saves;
-  state ``computer=COMPUTER_REACH_CHAT``, and the Run chats computer saves;
+* ``call_authorization._computer_arm``: admit any grant word, and a computer stamped with a retired
+  level (``look``, ``chat``) saves (RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN);
 * its ``@method`` line: ``tier=TIER_READ``, and the read-tier device saves;
 * the same verb: answer ``previous_handle`` as ``handle``, and the save test's next save is stale;
 * the same verb: drop the handle grammar check, and the path test is answered ``unknown_handle``.
@@ -160,7 +160,7 @@ def test_a_symlinked_context_file_is_refused_and_its_target_unchanged(loaded):
 
 
 @pytest.mark.parametrize("grant", ["look", "chat"])
-def test_a_look_or_run_chats_computer_is_refused(loaded, grant):
+def test_a_computer_stamped_with_a_retired_level_is_refused(loaded, grant):
     files, _, _ = loaded
     path, data = files["soul"]
     reply = _save(_handle(data), "# from a computer\n", caller=_computer(grant))

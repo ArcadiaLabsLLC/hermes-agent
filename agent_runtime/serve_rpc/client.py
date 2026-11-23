@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import COMPUTER_REACH_CHAT, TIER_CONSOLE, is_machine_owner
+from agent_runtime.call_authorization import TIER_CONSOLE, is_machine_owner
 from agent_runtime.launcher_app_functions import METHOD_PREFIX, declare_answerer
 from agent_runtime.serve_rpc.protocol import ERR_INVALID_PARAMS, RpcContext, err, ok
 from agent_runtime.serve_rpc.registry import method
@@ -29,7 +29,7 @@ __all__ = ["KNOWN_NAMESPACES", "_runtime_client_capabilities"]
 KNOWN_NAMESPACES = (METHOD_PREFIX,)
 
 
-@method("runtime.client.capabilities", tier=TIER_CONSOLE, computer=COMPUTER_REACH_CHAT)
+@method("runtime.client.capabilities", tier=TIER_CONSOLE)
 def _runtime_client_capabilities(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
     """Record which request namespaces the calling connection answers."""
     context = context or RpcContext()

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.call_authorization import COMPUTER_REACH_LOOK, TIER_READ
+from agent_runtime.call_authorization import TIER_READ
 
 from agent_runtime.serve_rpc.protocol import (
     ERR_INVALID_PARAMS,
@@ -74,7 +74,7 @@ def log_office_write(
         pass
 
 
-@method("runtime.office.get", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
+@method("runtime.office.get", tier=TIER_READ)
 def _runtime_office_get(
     rid: Any, params: dict, context: RpcContext | None = None
 ) -> dict:
@@ -187,7 +187,7 @@ def _office_projection(workspace_id: str) -> dict | None:
     }
 
 
-@method("runtime.office.subscribe", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
+@method("runtime.office.subscribe", tier=TIER_READ)
 def _runtime_office_subscribe(
     rid: Any, params: dict, context: RpcContext | None = None
 ) -> dict:
@@ -405,7 +405,7 @@ def _subscribe_reply(
     )
 
 
-@method("runtime.office.unsubscribe", tier=TIER_READ, computer=COMPUTER_REACH_LOOK)
+@method("runtime.office.unsubscribe", tier=TIER_READ)
 def _runtime_office_unsubscribe(
     rid: Any, params: dict, context: RpcContext | None = None
 ) -> dict:

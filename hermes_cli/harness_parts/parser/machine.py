@@ -147,7 +147,8 @@ def _add_gateway_pairing_verbs(gateway_subs) -> None:
     # row an operator can recognise before they cut a device off.
     gateway_pair = gateway_subs.add_parser(
         "pair",
-        help="Mint a short-TTL pairing code plus the QR payload a device scans to reach this install",
+        help=("Mint a short-TTL pairing code plus the QR payload a device scans to reach this install "
+              "(the operator's own pairing, channels and QA; Eternia pairs a person's devices through their account)"),
     )
     gateway_pair.add_argument("--name", help="What to call the device that redeems this code, e.g. \"the phone\"")
     gateway_pair.add_argument(

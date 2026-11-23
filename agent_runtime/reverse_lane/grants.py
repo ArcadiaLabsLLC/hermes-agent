@@ -1,9 +1,10 @@
 """The phone's grants: which paired computer may drive this phone's engine, and how much.
 
 ``<store_root>/gateway/reverse_grants.json``, one row per granted computer. A row holds
-the grant LEVEL (``look`` | ``chat``, each an allowlist in ``call_authorization``, never a
-device tier; or ``account``, which the phone's own Eternia grants only to a computer it proved is
-on the phone's account, answered by ``call_authorization.paired_device_answers``), the computer's id on this phone, the VERIFIER of the credential the phone
+the grant LEVEL (one value, ``account``: the phone's own Eternia grants only a computer it proved is
+on the phone's account, answered by ``call_authorization.paired_device_answers``; a row still holding
+the retired ``look`` or ``chat`` reads as no grant, so its computer's next hello is refused, with no
+store migration), the computer's id on this phone, the VERIFIER of the credential the phone
 minted for it (``sha256(token)``; the token itself leaves once, to the computer, and is
 never stored here), and the pairing it is bound to: the computer's install id and the
 device id this phone holds on that computer. A dial under a different pairing finds no
@@ -15,7 +16,6 @@ offer, the accept and the switch on top of :func:`grant_computer` and :func:`rev
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 import secrets
 import threading
@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from ..call_authorization import COMPUTER_GRANT_ACCOUNT, COMPUTER_GRANT_CHAT, COMPUTER_GRANT_LOOK, COMPUTER_GRANTS
+from ..call_authorization import COMPUTER_GRANT_ACCOUNT, COMPUTER_GRANTS
 from ..clock import now_iso
 from ..paths import gateway_dir
 from ..serve_gateway_auth.proof import device_verifier, reverse_proof_from_verifier
@@ -35,16 +35,11 @@ __layer__ = "stores"
 
 __all__ = [
     "GRANT_ACCOUNT",
-    "GRANT_CHAT",
     "GRANT_LEVELS",
-    "GRANT_LOOK",
     "REVERSE_GRANTS_FILENAME",
     "ReverseGrant",
     "ReverseGrantCredential",
-    "add_level_listener",
     "add_revoke_listener",
-    "change_level",
-    "computer_client_scope",
     "grant_computer",
     "grant_for_install",
     "list_grants",
@@ -53,10 +48,6 @@ __all__ = [
     "verify_lane_proof",
 ]
 
-#: Look: the phone's agents, their chats and history, read only.
-GRANT_LOOK = COMPUTER_GRANT_LOOK
-#: Look, and run chat turns on the phone's agents.
-GRANT_CHAT = COMPUTER_GRANT_CHAT
 #: A computer on the phone's own account: everything a console-tier paired device is answered.
 GRANT_ACCOUNT = COMPUTER_GRANT_ACCOUNT
 GRANT_LEVELS: tuple[str, ...] = COMPUTER_GRANTS
@@ -110,40 +101,6 @@ def add_revoke_listener(listener: Callable[[list[str]], None]) -> Callable[[], N
     return remove
 
 
-_level_listeners: list[Callable[[list[str]], None]] = []
-
-
-def add_level_listener(listener: Callable[[list[str]], None]) -> Callable[[], None]:
-    """Be told the computer ids whose grant LEVEL just changed in place; returns the remover.
-
-    The serve's reverse lanes listen and close those computers' live lanes, so a redial's hello
-    is stamped at the new level (the level is stamped on a connection at its hello). The dialer
-    is left running: the credential still verifies.
-    """
-
-    with _listeners_lock:
-        _level_listeners.append(listener)
-
-    def remove() -> None:
-        with _listeners_lock:
-            if listener in _level_listeners:
-                _level_listeners.remove(listener)
-
-    return remove
-
-
-def _notify_level(changed: list[str]) -> None:
-    if not changed:
-        return
-    with _listeners_lock:
-        listeners = list(_level_listeners)
-    for listener in listeners:
-        try:
-            listener(list(changed))
-        except Exception:
-            pass
-
-
 def _notify(revoked: list[str]) -> None:
     if not revoked:
         return
@@ -193,27 +150,12 @@ def _grant_id_text(value: Any) -> str:
     return text
 
 
-def computer_client_scope(computer_id: str) -> str:
-    """The ``client_scope`` a granted computer acts under on this phone: ONE owner, this grant.
-
-    Hermes row RT-FU-A-COMPUTER-SENDS-ONLY-UNDER-ITS-OWN-CHAT-SCOPE (review w1122d.2): the chats a
-    computer at Look or Run chats starts are owned by this scope, never by one its requests name
-    (a request's scope is self-declared). It is derived from the grant's ``computer_id``, which
-    :func:`grant_computer` mints: so it holds across a level change (the id is kept,
-    :func:`change_level`) and a new grant (a new id) starts a new one, with no store migration for
-    rows written before it. It is a namespace, not a secret: the dispatcher stamps it over whatever
-    the request names, so knowing it opens nothing. 64 hex, the ``client_scope`` shape.
-    """
-
-    return hashlib.sha256(f"hermes-reverse-grant-client-scope|{computer_id}".encode("utf-8")).hexdigest()
-
-
 def grant_computer(store_root: Path | str, *, computer_install_id: str, pairing_device_id: str,
-                   level: str = GRANT_LOOK) -> ReverseGrantCredential:
+                   level: str = GRANT_ACCOUNT) -> ReverseGrantCredential:
     """Grant the computer this phone is paired with as ``pairing_device_id``; mint its credential.
 
     One grant per computer install: a new grant replaces the old one, whose credential stops
-    verifying at once. Read by default.
+    verifying at once.
     """
 
     if level not in GRANT_LEVELS:
@@ -232,39 +174,6 @@ def grant_computer(store_root: Path | str, *, computer_install_id: str, pairing_
         _write(store_root, rows)
     _notify(replaced)
     return ReverseGrantCredential(computer_id=computer_id, token=token, level=level)
-
-
-def change_level(store_root: Path | str, *, computer_install_id: str, pairing_device_id: str,
-                 level: str) -> ReverseGrant | None:
-    """Change the level of the grant this computer install already holds on this pairing, in place.
-
-    Hermes row RT-FU-A-PHONE-CHANGING-A-COMPUTERS-LEVEL-KEEPS-ITS-CREDENTIAL-AND-ITS-ACCEPT (review
-    w1122b.5): the same ``computer_id`` and verifier, so the credential the computer accepted keeps
-    verifying and no second Accept is asked; the level listeners close its live lane before this
-    returns, so a downgrade binds on its next call. ``None`` when there is no such grant (none, or one
-    under another pairing): the caller grants afresh and offers, a first consent.
-    """
-
-    if level not in GRANT_LEVELS:
-        raise ValueError(f"grant level must be one of {GRANT_LEVELS}, not {level!r}")
-    install = _grant_id_text(computer_install_id)
-    pairing = _grant_id_text(pairing_device_id)
-    with _lock(store_root):
-        rows = _rows(store_root)
-        held = [(cid, row) for cid, row in rows.items()
-                if row.get("computer_install_id") == install and row.get("pairing_device_id") == pairing
-                and _grant_row(cid, row) is not None]
-        if len(held) != 1:
-            return None
-        computer_id, row = held[0]
-        changed = row.get("level") != level
-        row["level"] = level
-        if changed:
-            _write(store_root, rows)
-    if changed:
-        # MUTATION: skip this notice and test_reverse_lane's downgrade test keeps a live lane stamped chat.
-        _notify_level([computer_id])
-    return _grant_row(computer_id, row)
 
 
 def revoke_grant(store_root: Path | str, computer_id: str) -> bool:
