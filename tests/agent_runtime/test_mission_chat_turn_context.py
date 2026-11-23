@@ -30,6 +30,7 @@ from agent_runtime.mission_chat_turn_context import (
     DEFAULT_RESOLVERS,
     TAIL_BUDGET_BYTES,
     TAIL_CAPABILITY,
+    TAIL_CLARIFY_DISMISSED,
     TAIL_MCP_ADMISSION,
     TAIL_TURN_BUDGET,
     MissionChatTurnResolvers,
@@ -169,7 +170,7 @@ def _build(**overrides):
 # ── (1) the volatile tail: roster, order, budgets ───────────────────────────
 
 
-def test_the_tail_carries_the_three_registered_facts_in_roster_order():
+def test_the_tail_carries_the_four_registered_facts_in_roster_order():
     """The roster IS the contract. Each of these must be true for THIS turn, so
     each rides the always-emitted tail rather than the hashed body."""
 
@@ -178,6 +179,8 @@ def test_the_tail_carries_the_three_registered_facts_in_roster_order():
         TAIL_TURN_BUDGET,
         TAIL_CAPABILITY,
         TAIL_MCP_ADMISSION,
+        # Empty unless the operator dismissed this chat's question (test_clarify_dismiss).
+        TAIL_CLARIFY_DISMISSED,
     ]
     assert context.volatile_tail.complete
     assert all(entry.status == STATUS_EMITTED for entry in context.volatile_tail.entries)
@@ -209,7 +212,7 @@ def test_each_contributor_owns_its_own_budget_so_none_can_crowd_out_another():
     """Per-contributor rather than one global cap, on purpose: a widened
     capability policy must not be able to silence the countdown."""
 
-    assert set(TAIL_BUDGET_BYTES) == {TAIL_TURN_BUDGET, TAIL_CAPABILITY, TAIL_MCP_ADMISSION}
+    assert set(TAIL_BUDGET_BYTES) == {TAIL_TURN_BUDGET, TAIL_CAPABILITY, TAIL_MCP_ADMISSION, TAIL_CLARIFY_DISMISSED}
     assert all(value > 0 for value in TAIL_BUDGET_BYTES.values())
 
     context = _build(
