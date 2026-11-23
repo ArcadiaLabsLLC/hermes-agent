@@ -653,6 +653,45 @@ def test_a_client_that_pins_the_wrong_fingerprint_refuses_before_it_speaks(gatew
         assert credential.token  # never sent
 
 
+def test_a_boot_whose_gateway_bind_fails_publishes_the_outcome_so_pairing_refuses(
+    monkeypatch,
+):
+    """RT-FU-A-PAIRING-CODE-IS-REFUSED-WHEN-THE-RUNNING-SERVES-PAIRING-DOOR-FAILED-TO-OPEN.
+
+    Another program holds the port: the boot's ``gateway`` block is ``error:*``,
+    and the ownership sidecar mirrors it as ``{outcome, port}`` (no host, no
+    fingerprint), so ``listener_endpoint`` in another process answers
+    ``not_listening`` instead of falling to ``config`` and minting."""
+
+    import socket as _socket
+
+    from agent_runtime.gateway_endpoints import SOURCE_NOT_LISTENING, listener_endpoint
+    from agent_runtime.serve_socket import read_socket_owner
+
+    holder = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    holder.bind(("127.0.0.1", 0))
+    holder.listen(1)
+    held = holder.getsockname()[1]
+    try:
+        for _home in (serve_gateway_listener, endpoint_candidates):
+            monkeypatch.setattr(
+                _home, "gateway_listen_config", lambda: ("127.0.0.1", held)
+            )
+        with running_serve() as handle:
+            block = handle.ready["gateway"]
+            assert block["outcome"].startswith("error:")
+            assert read_socket_owner(_store_root())["gateway"] == {
+                "outcome": block["outcome"],
+                "port": held,
+            }
+            endpoint = listener_endpoint(_store_root())
+            assert endpoint["source"] == SOURCE_NOT_LISTENING
+            assert endpoint["port"] == held
+            assert endpoint["outcome"] == block["outcome"]
+    finally:
+        holder.close()
+
+
 def test_a_plaintext_peer_gets_no_challenge_and_no_information(gateway_on):
     """A port scanner, or a client that has not been told this lane is
     encrypted, learns nothing at all — not even a rejection, because there is no

@@ -44,6 +44,7 @@ from .addresses import (
 from .candidates import (
     SOURCE_CONFIG,
     SOURCE_LIVE,
+    SOURCE_NOT_LISTENING,
     SOURCE_UNKNOWN,
     candidate_endpoints,
     classify_dial_error,
@@ -72,6 +73,7 @@ __all__ = [
     "ROUTE_PROBES",
     "SOURCE_CONFIG",
     "SOURCE_LIVE",
+    "SOURCE_NOT_LISTENING",
     "SOURCE_UNKNOWN",
     "candidate_endpoints",
     "classify_dial_error",

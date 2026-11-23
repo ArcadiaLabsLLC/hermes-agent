@@ -25,6 +25,7 @@ from hermes_cli.harness_parts.serve.end_reason import (
 )
 from hermes_cli.harness_parts.serve.gateway_listener import (
     gateway_block_when_no_listener,
+    owner_gateway_entry,
     start_gateway_listener,
 )
 from hermes_cli.harness_parts.serve.manifest import ops_manifest
@@ -378,7 +379,9 @@ class BootPhases:
                 handoff=reverse_handoff(self),
             )
             self.gateway_block = with_capabilities(self.gateway_block)
-            if self.gateway_server is not None and self.socket_lock is not None:
+            # A FAILED bind is published too (``owner_gateway_entry``), so a pairing verb refuses.
+            gateway_entry = owner_gateway_entry(self.gateway_block)
+            if gateway_entry is not None and self.socket_lock is not None:
                 # Imported here: only a serve that owns the socket lane gets this far, and the
                 # embedded (phone) serve ships no socket lane.
                 from agent_runtime.serve_socket.vocabulary import SOCKET_HOST
@@ -405,11 +408,7 @@ class BootPhases:
                         "store_root": self.runtime_root,
                         # Additive: a reader that predates this lane finds the
                         # keys it knows, unchanged and in the same places.
-                        "gateway": {
-                            "host": self.gateway_block.get("host"),
-                            "port": self.gateway_block.get("port"),
-                            "cert_fingerprint": self.gateway_block.get("cert_fingerprint"),
-                        },
+                        "gateway": gateway_entry,
                     }
                 )
         else:

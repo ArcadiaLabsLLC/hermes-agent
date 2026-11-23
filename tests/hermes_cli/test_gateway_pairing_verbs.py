@@ -352,6 +352,71 @@ def test_a_live_listener_is_preferred_over_the_config(capsys):
     assert payload["cert_fingerprint"] != "unused"
 
 
+# ── a running serve whose pairing door failed to open ───────────────────────
+# RT-FU-A-PAIRING-CODE-IS-REFUSED-WHEN-THE-RUNNING-SERVES-PAIRING-DOOR-FAILED-TO-OPEN
+
+
+def _failed_bind_sidecar(pid: int) -> None:
+    """The sidecar a serve whose gateway bind failed publishes (``boot_phases``)."""
+
+    from agent_runtime.serve_socket import socket_owner_path
+    from agent_runtime.serde import write_json_atomic
+
+    write_json_atomic(
+        socket_owner_path(paths.store_root()),
+        {"pid": pid, "port": 111, "gateway": {"outcome": "error:OSError", "port": 8765}},
+    )
+
+
+def _dead_pid() -> int:
+    import subprocess
+    import sys
+
+    child = subprocess.Popen([sys.executable, "-c", "pass"])
+    child.wait()
+    return child.pid
+
+
+@pytest.mark.parametrize(
+    "argv", [("pair",), ("peers", "pair")], ids=["pair", "peers_pair"]
+)
+def test_a_running_serve_whose_pairing_door_failed_refuses_before_minting(
+    capsys, argv
+):
+    """The serve is alive (this process) and its bind failed: the verb refuses
+    with ``gateway_not_listening``, names the port, and writes no pending code."""
+
+    import os
+
+    from agent_runtime.serve_gateway_auth import pairing_store_path
+    from hermes_cli.harness_support import ERROR_EXIT_CODES
+
+    _failed_bind_sidecar(os.getpid())
+
+    code = _dispatch(["harness", "gateway", *argv, "--json"])
+    out = capsys.readouterr()
+    text = out.out + out.err
+
+    assert code == ERROR_EXIT_CODES["runtime_unavailable"]
+    assert "gateway_not_listening" in text
+    assert "port 8765 did not open this boot (error:OSError)" in text
+    assert not pairing_store_path(paths.store_root()).exists()
+
+
+def test_a_dead_serves_failed_bind_sidecar_still_mints_with_the_config_note(capsys):
+    """A stale sidecar from a serve that is gone says nothing about the next
+    boot: pairing before that boot is legitimate, so the mint keeps today's note."""
+
+    _failed_bind_sidecar(_dead_pid())
+
+    code, payload = _run(capsys, "pair")
+
+    assert code == 0
+    assert payload["endpoint"]["source"] == "config"
+    assert "NEXT boot" in payload["note"]
+    assert payload["code"]
+
+
 # ── devices: list, and revoke ───────────────────────────────────────────────
 
 

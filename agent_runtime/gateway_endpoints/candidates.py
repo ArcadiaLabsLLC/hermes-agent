@@ -37,6 +37,12 @@ __layer__ = "stores"
 SOURCE_LIVE = "live"
 SOURCE_CONFIG = "config"
 SOURCE_UNKNOWN = "unknown"
+#: The fourth answer: a serve that is RUNNING for this root tried to open its
+#: pairing door this boot and the bind failed (its sidecar's ``gateway`` entry
+#: carries ``outcome``). Distinct from ``config`` ("not booted yet"), because a
+#: code minted now would dial whatever else holds that port
+#: (``RT-FU-A-PAIRING-CODE-IS-REFUSED-WHEN-THE-RUNNING-SERVES-PAIRING-DOOR-FAILED-TO-OPEN``).
+SOURCE_NOT_LISTENING = "not_listening"
 
 
 def gateway_listen_config() -> tuple[str | None, int]:
@@ -102,6 +108,10 @@ def listener_endpoint(store_root) -> dict[str, Any]:
       whenever the port is pinned, and silent about whether anything is
       listening.
     * ``unknown`` — the lane is off, or configured and not yet started.
+    * ``not_listening`` — the running serve's sidecar says its bind FAILED this
+      boot (``outcome`` and ``port`` ride the answer). Answered only while that
+      serve is alive, by the registry's one liveness probe, so a stale sidecar
+      from a dead serve still falls through to ``config``.
 
     Deliberately not an error. Pairing before the first boot is a legitimate
     thing to do (``gateway rename`` already supports it), and refusing to mint a
@@ -109,14 +119,25 @@ def listener_endpoint(store_root) -> dict[str, Any]:
     nobody chose.
     """
 
-    from agent_runtime.serve_socket.owner_lock import read_socket_owner
+    from agent_runtime.serve_socket.owner_lock import _owner_pid_alive, read_socket_owner
 
     try:
         owner = read_socket_owner(store_root) or {}
     except Exception:
         owner = {}
     live = owner.get("gateway") if isinstance(owner, dict) else None
-    if isinstance(live, dict) and live.get("port"):
+    if isinstance(live, dict) and live.get("outcome"):
+        # A bind that failed. Only a LIVE boot's failure is news; an unanswerable
+        # probe is not "alive" (the mint keeps today's config note).
+        if _owner_pid_alive(owner.get("pid") or 0) is True:
+            port = live.get("port")
+            return {
+                "host": None,
+                "port": port if isinstance(port, int) and port > 0 else None,
+                "source": SOURCE_NOT_LISTENING,
+                "outcome": str(live["outcome"]),
+            }
+    elif isinstance(live, dict) and live.get("port"):
         return {
             "host": live.get("host"),
             "port": int(live["port"]),

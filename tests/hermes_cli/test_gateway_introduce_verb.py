@@ -315,6 +315,39 @@ def test_introduce_refuses_when_the_listener_is_off_with_peers_pairs_sentence(
     assert not pairing_store_path(paths.store_root()).exists()
 
 
+def test_introduce_refuses_before_minting_when_the_running_serves_pairing_door_failed(
+    capsys,
+):
+    """RT-FU-A-PAIRING-CODE-IS-REFUSED-WHEN-THE-RUNNING-SERVES-PAIRING-DOOR-FAILED-TO-OPEN:
+    a live serve whose bind failed publishes the outcome; introduce refuses with
+    ``gateway_not_listening`` naming the port, and mints neither half."""
+
+    import os
+
+    from agent_runtime.serde import write_json_atomic
+    from agent_runtime.serve_gateway_auth import pairing_store_path
+    from agent_runtime.serve_socket import socket_owner_path
+    from hermes_cli.harness_support import ERROR_EXIT_CODES
+
+    write_json_atomic(
+        socket_owner_path(paths.store_root()),
+        {"pid": os.getpid(), "port": 111,
+         "gateway": {"outcome": "error:OSError", "port": 8765}},
+    )
+
+    code = _dispatch(
+        ["harness", "gateway", "introduce", "--for-install", "install-a",
+         "--for-device", "dev-a", "--json"]
+    )
+    out = capsys.readouterr()
+    text = out.out + out.err
+
+    assert code == ERROR_EXIT_CODES["runtime_unavailable"]
+    assert "gateway_not_listening" in text
+    assert "port 8765 did not open this boot" in text
+    assert not pairing_store_path(paths.store_root()).exists()
+
+
 def test_a_config_only_endpoint_is_allowed_with_a_note_because_the_serve_may_simply_not_have_booted(
     capsys,
 ):

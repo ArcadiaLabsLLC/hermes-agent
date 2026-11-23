@@ -13,6 +13,7 @@ from typing import Any, Final
 from agent_runtime.gateway_endpoints import (
     SOURCE_CONFIG,
     SOURCE_LIVE,
+    SOURCE_NOT_LISTENING,
     candidate_endpoints,
     dial_host,
 )
@@ -187,6 +188,19 @@ LISTENER_OFF_SENTENCE = (
     "until an interface is configured and the runtime restarts."
 )
 
+#: The running serve's pairing door did NOT open this boot (its bind failed),
+#: as opposed to :data:`LISTENER_OFF_SENTENCE`'s "nobody asked for one". Filled
+#: with the port and the boot's outcome word; the reason word on the wire is
+#: :data:`GATEWAY_NOT_LISTENING_REASON` under family ``runtime_unavailable``
+#: (review decision note w1122d.8, awaiting owner confirmation).
+GATEWAY_NOT_LISTENING_REASON = "gateway_not_listening"
+GATEWAY_NOT_LISTENING_SENTENCE = (
+    "the pairing door on port {port} did not open this boot ({outcome}): no code "
+    "was made, because it would dial whatever else holds that port. If another "
+    "program holds the port, move it in Eternia or free the port; the runtime then "
+    "restarts."
+)
+
 #: The OTHER "nowhere to dial", and it is a different condition from the one
 #: above rather than a rewording of it: the lane is ON, a listener is up or
 #: configured, and the bind names every interface — but interface enumeration
@@ -226,7 +240,10 @@ def _dial_target(store_root, endpoint: dict, *, args):
     Returns ``(dial, endpoints, 0)`` or ``(None, [], exit_code)`` — the error
     branch is already rendered when it returns, so callers propagate the int.
 
-    The refusal fires on exactly one condition: the listener is ``live`` or
+    A ``not_listening`` endpoint (the running serve's bind failed) is refused
+    first, for all three verbs, with :data:`GATEWAY_NOT_LISTENING_SENTENCE`.
+
+    The other refusal fires on exactly one condition: the listener is ``live`` or
     ``config`` — so this root IS reachable in principle — and enumeration
     produced nothing. ``unknown`` is deliberately NOT refused here, because each
     verb already answers that its own way and they disagree on purpose:
@@ -236,6 +253,19 @@ def _dial_target(store_root, endpoint: dict, *, args):
     a code minted before the first boot is a legitimate thing to have).
     """
 
+    if endpoint.get("source") == SOURCE_NOT_LISTENING:
+        # Before any enumeration or mint: a running serve whose bind failed has
+        # no door, and a code would dial whatever else holds the port.
+        return None, [], emit_harness_error(
+            RuntimeError(GATEWAY_NOT_LISTENING_REASON),
+            reason=GATEWAY_NOT_LISTENING_REASON,
+            args=args,
+            code="runtime_unavailable",
+            message=GATEWAY_NOT_LISTENING_SENTENCE.format(
+                port=endpoint.get("port") or "(unknown)",
+                outcome=endpoint.get("outcome") or "unknown",
+            ),
+        )
     endpoints = candidate_endpoints(store_root)
     dial = dial_host(endpoints)
     if dial is None and endpoint.get("source") in {SOURCE_LIVE, SOURCE_CONFIG}:

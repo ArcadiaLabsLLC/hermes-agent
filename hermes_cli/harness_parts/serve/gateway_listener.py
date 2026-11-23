@@ -23,6 +23,7 @@ __all__ = [
     "_gateway_authenticator",
     "gateway_block_when_no_listener",
     "gateway_listen_config",
+    "owner_gateway_entry",
     "start_gateway_listener",
 ]
 
@@ -213,6 +214,31 @@ def start_gateway_listener(
         # makes about code.
         "cert_fingerprint": certificate.fingerprint,
     }
+
+
+def owner_gateway_entry(block: dict[str, Any]) -> dict[str, Any] | None:
+    """The ownership sidecar's ``gateway`` entry for this boot's listener block.
+
+    ``listening`` names the door (host, port, fingerprint); a bind that FAILED
+    (``error:*``) names its ``outcome`` and the ``port`` it asked for, so the
+    pairing verbs in another process can tell "booted and the door did not
+    open" from "not booted yet" and refuse rather than mint a code that dials
+    whatever holds the port. ``disabled`` and every other outcome publish
+    nothing: turning the listener on after boot is a respawn pending, and the
+    mint keeps its config note
+    (``RT-FU-A-PAIRING-CODE-IS-REFUSED-WHEN-THE-RUNNING-SERVES-PAIRING-DOOR-FAILED-TO-OPEN``).
+    """
+
+    outcome = str(block.get("outcome") or "")
+    if outcome == "listening":
+        return {
+            "host": block.get("host"),
+            "port": block.get("port"),
+            "cert_fingerprint": block.get("cert_fingerprint"),
+        }
+    if outcome.startswith("error:"):
+        return {"outcome": outcome, "port": block.get("port")}
+    return None
 
 
 def _gateway_authenticator(store_root: Any):
