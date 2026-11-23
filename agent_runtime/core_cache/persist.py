@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from dataclasses import dataclass
 
 from utils import atomic_json_write
 
@@ -51,6 +52,9 @@ __all__ = [
     "_receipt_generation_residue",
     "_sidecar_for",
     "_stage_and_land",
+    "PreparedWriteBack",
+    "land_write_back",
+    "prepare_write_back",
     "write_back",
 ]
 
@@ -130,21 +134,33 @@ def write_back(core: dict, *, fingerprint: CoreFingerprint | None = None) -> boo
     § ``write_back`` (rule 7).
     """
 
-    from ..serde import to_jsonable
+    prepared = prepare_write_back(core, fingerprint=fingerprint)
+    return prepared is not None and land_write_back(prepared)
 
-    try:
-        payload = to_jsonable(core)
-    except Exception:
-        logger.warning("snapshot_core_cache_write ok=false reason=serialize", exc_info=True)
-        return False
+
+@dataclass(frozen=True)
+class PreparedWriteBack:
+    """A write-back keyed on the build thread, waiting to land (see ``write_queue``)."""
+
+    core: dict
+    key: CoreFingerprint
+    stamp: str
+    restat: _RestatOutcome
+
+
+def prepare_write_back(core: dict, *, fingerprint: CoreFingerprint | None = None) -> PreparedWriteBack | None:
+    """The half of :func:`write_back` whose timing is load-bearing: the build stamp,
+    the key, and the IC-2 restat taken NOW, right after the build. ``None`` (and
+    its receipt) when no key can be formed."""
+
     stamp = build_stamp_token()
     if stamp is None:
         logger.info("snapshot_core_cache_write ok=false reason=build_stamp_unknown")
-        return False
+        return None
     key = fingerprint if fingerprint is not None else build_input_fingerprint()
     if key is None:
         logger.info("snapshot_core_cache_write ok=false reason=fingerprint_unavailable")
-        return False
+        return None
     # IC-2. A caller that handed us a PRE-build key gets it re-keyed on what the
     # build left behind, for the audited self-perturbation set and nothing else —
     # the design note is at :data:`SELF_PERTURBED_SESSION_DB`. A caller that
@@ -156,8 +172,21 @@ def write_back(core: dict, *, fingerprint: CoreFingerprint | None = None) -> boo
         if fingerprint is not None
         else _RestatOutcome(key, 0, 0, _RESTAT_SKIPPED)
     )
-    key = restat.key
-    sidecar = _sidecar_for(payload, key, stamp)
+    return PreparedWriteBack(core=core, key=restat.key, stamp=stamp, restat=restat)
+
+
+def land_write_back(prepared: PreparedWriteBack) -> bool:
+    """The other half: serialize, sidecar, stage and land the generation, reap."""
+
+    from ..serde import to_jsonable
+
+    try:
+        payload = to_jsonable(prepared.core)
+    except Exception:
+        logger.warning("snapshot_core_cache_write ok=false reason=serialize", exc_info=True)
+        return False
+    key, restat = prepared.key, prepared.restat
+    sidecar = _sidecar_for(payload, key, prepared.stamp)
     # BEFORE the writes, because the pair on disk is about to become this
     # process's own and the previous boot's answer would be unrecoverable after.
     # A process boundary is not a convergence event — see

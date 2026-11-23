@@ -37,6 +37,7 @@ from typing import NamedTuple
 import pytest
 
 from agent_runtime import core_cache, paths
+from agent_runtime.core_cache.write_queue import drain_write_backs
 from tests._downstream import _seams
 from agent_runtime.models import OfficeActor, OfficeItem, OfficeSurface
 from agent_runtime.serde import to_jsonable
@@ -131,6 +132,8 @@ def _served_workspace_name(core: dict) -> str | None:
 
 
 def _persisted_core() -> dict:
+    # A led build's write-back lands on the writer thread (``core_cache.write_queue``).
+    drain_write_backs()
     return json.loads(core_cache.core_path().read_text(encoding="utf-8"))
 
 
@@ -2309,6 +2312,7 @@ def test_a_real_build_that_settles_emits_no_never_converged_receipt(
     with caplog.at_level(logging.INFO, logger="agent_runtime.core_cache"):
         for _ in range(core_cache.NEVER_CONVERGED_BUILDS + 1):
             build_snapshot(build_info={"caller": "probe"})
+        drain_write_backs()
 
     # The silence is only evidence if the drive REACHED the counter: every one of
     # those builds has to have persisted a key for the streak to have had

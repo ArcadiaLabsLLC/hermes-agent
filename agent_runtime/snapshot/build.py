@@ -13,6 +13,7 @@ from agent_runtime.core_cache import lane as cache_lane
 from agent_runtime.core_cache import persist as cache_persist
 from agent_runtime.core_cache import read as cache_read
 from agent_runtime.core_cache import shadow as cache_shadow
+from agent_runtime.core_cache import write_queue as cache_write_queue
 from agent_runtime.core_cache.vocabulary import CORE_SOURCE_REBUILT
 from agent_runtime.resolution import runtime_resolution_scope
 
@@ -318,8 +319,13 @@ def _lead_build_now(decision, caller: str, generation: int, build_info: dict | N
         #
         # Best effort by contract (a failed write logs and changes nothing here),
         # and it happens AFTER the receipt so the build's own line is never
-        # delayed behind an I/O stall.
-        cache_persist.write_back(result, fingerprint=pre_build_fingerprint)
+        # delayed behind an I/O stall. Its landing is OFF this path: the key and
+        # the IC-2 restat are taken here, now, and the writer thread serializes
+        # and lands the generation while the waiters are already released (row
+        # RT-FU-EVERY-AGENT-LIST-BUILD-WAITS-FOR-ITS-CACHE-COPY-TO-REACH-THE-DISK).
+        # MUTATION: call cache_persist.write_back here and
+        # test_a_led_build_answers_before_its_cache_copy_lands reddens.
+        cache_write_queue.write_back_off_path(result, fingerprint=pre_build_fingerprint)
         # The process now owns its own truth: the cache lane closes, and every
         # later build in this process is an ordinary build.
         cache_lane.note_full_build_completed()
