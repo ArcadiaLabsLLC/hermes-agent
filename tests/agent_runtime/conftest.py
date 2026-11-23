@@ -167,6 +167,21 @@ def reset_chat_lane_tool_form_memo():
 
 
 @pytest.fixture(autouse=True)
+def reset_chat_curation_memo():
+    """Keep the per-chat curation memo from crossing test boundaries.
+
+    It keys on everything the curation READS, none of which distinguishes one test's
+    monkeypatched curation step from the next test's over the same rows and journal.
+    """
+
+    from agent_runtime.persona_chat_history.curation import _CURATION_MEMO
+
+    _CURATION_MEMO.clear()
+    yield
+    _CURATION_MEMO.clear()
+
+
+@pytest.fixture(autouse=True)
 def in_process_gateway_methods_follow_the_method_table():
     """Re-arm the in-process peer's once-per-process method install after every test.
 

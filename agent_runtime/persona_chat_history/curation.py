@@ -106,6 +106,12 @@ def _safe_curated_messages(
         )
     try:
         raw_messages = _read_raw_messages(session_db, session_id)
+        try:
+            memo_key = _curation_memo_key(session_db, session_id, raw_messages, preview=preview)
+        except Exception:  # a key that cannot be read is no memo, never a failed transcript read
+            memo_key = None
+        if memo_key is not None and (hit := _CURATION_MEMO.get(session_id, memo_key)) is not None:
+            return hit
         state = CurationState.for_session(session_id, session_db=session_db, raw_messages=raw_messages)
     except Exception as exc:
         return (
@@ -136,7 +142,104 @@ def _safe_curated_messages(
             state.curate(index, raw, curator)
     # Third element ``None``: the transcript WAS read, so "safe" here is an
     # observation about content that actually passed through the redactor.
-    return state.finish(), "redacted" if state.redacted else "safe", None
+    result = (state.finish(), "redacted" if state.redacted else "safe", None)
+    if memo_key is not None:
+        _CURATION_MEMO.put(session_id, memo_key, result)
+    return result
+
+
+# ── the per-chat curation memo (RT-FU-THE-AGENT-LIST-REBUILD-RE-READS-EVERY-CHAT-WORD-BY-WORD-EACH-TIME) ──
+#
+# Every roster build curates every stored row of every listed chat, though the frame keeps
+# recency pointers and a 40-row tail: an unchanged chat paid the whole curation again on each
+# build. The memo keeps one chat's curated answer under a digest of EVERYTHING the curation
+# reads, so a chat whose rows, journal or settings moved by one byte is curated afresh:
+#
+# * the stored rows exactly as ``_read_raw_messages`` returned them (read on every call — the
+#   key is never a counter or a timestamp that could miss an in-place rewrite);
+# * the turn journal's file bytes for the chat AND for every ``history_source_session`` it
+#   inherits records from, which hold each turn's state and its live ``elements`` (a turn in
+#   flight rewrites its journal file as it streams, so a mid-turn change moves the key);
+# * the native tip and the archived message ids ``history_turn_records`` filters by;
+# * ``preview``, the redaction mode and the local-llama gate ``markers._is_local_llama_provider`` asks.
+#
+# A hit hands back a deep copy, so no reader can edit the memo through its answer.
+
+#: Chats kept; above it the least recently used chat is dropped (the roster lists 50).
+_CURATION_MEMO_CHATS = 256
+
+
+class _CurationMemo:
+    def __init__(self, capacity: int) -> None:
+        import threading
+        from collections import OrderedDict
+
+        self._lock = threading.Lock()
+        self._entries: OrderedDict[tuple[str, bool], tuple[bytes, Any]] = OrderedDict()
+        self._capacity = capacity
+
+    def get(self, session_id: str, key: tuple[bytes, bool]) -> Any:
+        import copy
+
+        with self._lock:
+            entry = self._entries.get((session_id, key[1]))
+            if entry is None or entry[0] != key[0]:
+                return None
+            self._entries.move_to_end((session_id, key[1]))
+            value = entry[1]
+        return copy.deepcopy(value)
+
+    def put(self, session_id: str, key: tuple[bytes, bool], value: Any) -> None:
+        import copy
+
+        stored = copy.deepcopy(value)
+        with self._lock:
+            self._entries[(session_id, key[1])] = (key[0], stored)
+            self._entries.move_to_end((session_id, key[1]))
+            while len(self._entries) > self._capacity:
+                self._entries.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+
+
+_CURATION_MEMO = _CurationMemo(_CURATION_MEMO_CHATS)
+
+
+def _curation_memo_key(session_db: Any, session_id: str, raw_messages: Any, *, preview: bool) -> tuple[bytes, bool] | None:
+    """``(digest, preview)`` over everything :func:`_safe_curated_messages` reads, or ``None`` (no memo)."""
+
+    from ..mission_chat_turns.storage import _session_journal_bytes
+    from ..redaction_mode import redaction_observe_enabled
+    from .history_evidence import history_source_sessions
+    from ..module_presence import runs_here
+
+    session_key = safe_assignment_text(session_id, limit=240)
+    if not session_key or not isinstance(raw_messages, list):
+        return None
+    digest = hashlib.blake2b(digest_size=32)
+
+    def feed(label: str, value: Any) -> None:
+        data = value if isinstance(value, bytes) else repr(value).encode("utf-8", "surrogatepass")
+        digest.update(label.encode() + len(data).to_bytes(8, "little") + data)
+
+    # MUTATION: drop this feed and test_a_chats_new_row_shows_through_the_curation_memo reddens.
+    feed("rows", raw_messages)
+    feed("preview", bool(preview))
+    feed("redaction", redaction_observe_enabled())
+    feed("llama", runs_here("agent_runtime.local_llama_adapter"))
+    sources: list[str] = []
+    if callable(getattr(session_db, "archived_history_message_ids", None)) and callable(
+            getattr(session_db, "get_session", None)):
+        tip = session_db.resolve_resume_session_id(session_id)
+        feed("tip", tip)
+        feed("archived", sorted(str(value) for value in session_db.archived_history_message_ids(tip)))
+        sources = history_source_sessions(session_db, session_id)
+    for source in [session_key, *sources]:
+        # MUTATION: drop this feed and test_a_turns_new_element_shows_through_the_curation_memo_mid_turn reddens.
+        feed("journal:" + str(source), _session_journal_bytes(safe_assignment_text(source, limit=240) or ""))
+    return digest.digest(), bool(preview)
 
 
 #: How the tool-iteration limit's summary request reads in the transcript: a harness notice, not

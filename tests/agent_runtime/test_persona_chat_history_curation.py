@@ -2281,3 +2281,113 @@ def test_a_decision_summarys_bare_key_is_masked_in_the_curated_transcript():
     assert len(rows) == 1
     assert _BARE_KEY not in rows[0]["text"]
     assert "«redacted:ghp_…»" in rows[0]["text"]
+
+
+# ── the per-chat curation memo: an unchanged chat is curated once, a changed one at once ──
+
+
+def _streaming_chat(elements):
+    persist_mission_chat_turn(
+        session_id="s1", client_message_id="client_1", turn_id="turn_1", state="running", elements=elements)
+    return [
+        {"id": "op_1", "role": "user", "content": "Go", "platform_message_id": "client_1"},
+        {"id": "a_1", "role": "assistant", "content": "Looking.", "platform_message_id": "client_1:assistant:1"},
+    ]
+
+
+def _segment(seq):
+    return {"kind": "segment", "id": f"seg_{seq}", "turn_id": "turn_1", "seq": seq,
+            "seg_type": "answer", "text": f"Step {seq}."}
+
+
+def _count_curations(monkeypatch):
+    from agent_runtime.persona_chat_history import curation
+
+    curation._CURATION_MEMO.clear()
+    real = curation.CurationState.curate
+    calls = []
+
+    def counting(self, index, raw, curator):
+        calls.append(index)
+        return real(self, index, raw, curator)
+
+    monkeypatch.setattr(curation.CurationState, "curate", counting)
+    return calls
+
+
+def test_an_unchanged_chat_is_curated_once_across_builds(isolate_agent_runtime_root, monkeypatch):
+    """A second build over the same rows and journal answers from the memo, equal to the first.
+
+    MUTATION (red recorded 2026-11-22): skip the ``_CURATION_MEMO.get`` hit in ``_safe_curated_messages``
+    -> the second build curates both rows again.
+    """
+
+    db = FakeSessionDB(_streaming_chat([_segment(1)]))
+    calls = _count_curations(monkeypatch)
+
+    first = _safe_recent_messages(db, session_id="s1")
+    assert len(calls) == 2
+    second = _safe_recent_messages(db, session_id="s1")
+
+    assert len(calls) == 2
+    assert second == first
+
+
+def test_a_turns_new_element_shows_through_the_curation_memo_mid_turn(isolate_agent_runtime_root, monkeypatch):
+    """A turn in flight adds an element with no new stored row: the next build shows it.
+
+    MUTATION (red recorded 2026-11-22): drop the journal ``feed`` in ``_curation_memo_key`` -> the
+    second build answers the memo's one-element turn.
+    """
+
+    db = FakeSessionDB(_streaming_chat([_segment(1)]))
+    _count_curations(monkeypatch)
+    rows, _status, _unread = _safe_recent_messages(db, session_id="s1")
+    assert [item["id"] for item in rows[-1]["turn_elements"]] == ["seg_1"]
+
+    _streaming_chat([_segment(1), _segment(2)])
+    rows, _status, _unread = _safe_recent_messages(db, session_id="s1")
+
+    assert [item["id"] for item in rows[-1]["turn_elements"]] == ["seg_1", "seg_2"]
+
+
+def test_a_chats_new_row_shows_through_the_curation_memo(isolate_agent_runtime_root, monkeypatch):
+    """A stored row added or rewritten in place moves the key: the next build shows it.
+
+    MUTATION (red recorded 2026-11-22): drop the rows ``feed`` in ``_curation_memo_key`` -> the second
+    and third builds answer the first build's rows.
+    """
+
+    stored = _streaming_chat([_segment(1)])
+    db = FakeSessionDB(stored)
+    _count_curations(monkeypatch)
+    _safe_recent_messages(db, session_id="s1")
+
+    stored.append({"id": "a_2", "role": "assistant", "content": "Found it.",
+                   "platform_message_id": "client_1:assistant:2"})
+    rows, _status, _unread = _safe_recent_messages(db, session_id="s1")
+    assert [row["text"] for row in rows] == ["Go", "Looking.", "Found it."]
+
+    stored[-1] = {**stored[-1], "content": "Found it, fixed."}  # same row, same count, rewritten
+    rows, _status, _unread = _safe_recent_messages(db, session_id="s1")
+    assert [row["text"] for row in rows] == ["Go", "Looking.", "Found it, fixed."]
+
+
+def test_an_answer_from_the_curation_memo_is_the_readers_own_copy(isolate_agent_runtime_root, monkeypatch):
+    """Editing a returned row never edits what the memo answers next.
+
+    MUTATION (red recorded 2026-11-22): return ``value`` without ``copy.deepcopy`` in
+    ``_CurationMemo.get`` -> the second read carries the first reader's edit.
+    """
+
+    db = FakeSessionDB(_streaming_chat([_segment(1)]))
+    _count_curations(monkeypatch)
+    _safe_recent_messages(db, session_id="s1")
+    rows, _status, _unread = _safe_recent_messages(db, session_id="s1")
+    rows[0]["text"] = "edited by a reader"
+    rows[-1]["turn_elements"].clear()
+
+    again, _status, _unread = _safe_recent_messages(db, session_id="s1")
+
+    assert again[0]["text"] == "Go"
+    assert [item["id"] for item in again[-1]["turn_elements"]] == ["seg_1"]

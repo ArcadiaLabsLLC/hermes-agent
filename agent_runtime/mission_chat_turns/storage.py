@@ -334,6 +334,19 @@ def _read_session(session_key: str) -> dict[str, Any]:
     return _read_session_map(_session_file_path(session_key))
 
 
+def _session_journal_bytes(session_key: str) -> bytes:
+    """One session's journal file as stored (migrate first), ``b""`` when absent or unreadable.
+
+    What :func:`_read_session` parses, for a reader that keys a memo on the journal's
+    exact content (``persona_chat_history.curation``'s per-chat memo, w1122f-agentlist).
+    """
+    _migrate_legacy_if_present()
+    try:
+        return _session_file_path(session_key).read_bytes()
+    except OSError:
+        return b""
+
+
 def _read_session_map(path: Path) -> dict[str, Any]:
     """Pure single-file read — never triggers migration (used by GC/migration)."""
     try:
