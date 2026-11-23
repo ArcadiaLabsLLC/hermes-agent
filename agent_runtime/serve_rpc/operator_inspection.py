@@ -13,7 +13,7 @@ from agent_runtime.operator_session_controls import (
 from agent_runtime.conversations.worker_skills import LendRejected
 from agent_runtime.skill_inspection import SkillInspectionError
 from agent_runtime.subagents.model import SubagentError
-from .protocol import RpcContext, defer_read, err, ok
+from .protocol import RpcContext, defer_or_inline, defer_read, err, ok
 from .registry import method
 
 __layer__ = "lanes"
@@ -37,8 +37,13 @@ def _inspect_reply(rid, params, inspect):
                    {"reason": "inspection_failed", "error_class": type(exc).__name__})
 
 
-def _inspect_off_reader(rid, params, context, operation, inspect):
-    return defer_read(rid, operation, context, lambda: _inspect_reply(rid, params, inspect))
+def _inspect_off_reader(rid, params, context, operation, inspect, *, read_lane=False):
+    """An inspection off the reader thread: on the shared lane, or (``read_lane``) on the read lane —
+    only a local, bounded read a person waits on goes there (history recovery); a model list that dials
+    a provider, or a write, stays on the shared lane (live 2026-11-23: ``conversation.models`` ran 16 s)."""
+
+    build = lambda: _inspect_reply(rid, params, inspect)  # noqa: E731
+    return (defer_read if read_lane else defer_or_inline)(rid, operation, context, build)
 
 
 @method("runtime.operator.conversation.settings", tier=TIER_CONSOLE)

@@ -59,18 +59,14 @@ class _Sink:
         self.arrived.set()
 
 
-def test_a_hung_shared_lane_never_starves_the_chat_list(monkeypatch):
-    """Every shared worker parked (argv work waiting on a chat whose turns never end): the chat
-    list, a deferred read, still answers at once, on the read lane."""
+def _answer_with_the_shared_lane_hung(call):
+    """``call(context)`` with both shared workers parked; the frame it answered, or None after 5 s."""
 
     from functools import partial
 
-    from agent_runtime.serve_rpc import instance_history as list_rpc
     from agent_runtime.serve_rpc.protocol import DEFERRED, RpcContext
     from hermes_cli.harness_parts.serve.lanes import ArgvLanes
 
-    monkeypatch.setattr(list_rpc, "list_instance_conversations",
-                        lambda params: {"conversations": [], "next_cursor": None, "legacy_route_id": None})
     pool = RequestPool(2)
     hung = threading.Event()
     lanes = type("Lanes", (), {"pool": pool, "drain_state": None})()
@@ -78,13 +74,37 @@ def test_a_hung_shared_lane_never_starves_the_chat_list(monkeypatch):
     try:
         for _ in range(2):
             pool.submit(hung.wait, 30, label="argv:persona.instance.open-chat")
-        context = RpcContext(spawn_reply=partial(ArgvLanes._spawn_reply, lanes, sink))
-        answer = list_rpc.list_conversations(
-            "req-list", {"install_id": "install-1", "client_scope": "a" * 64}, context)
+        answer = call(RpcContext(spawn_reply=partial(ArgvLanes._spawn_reply, lanes, sink)))
         assert answer is DEFERRED
-        assert sink.arrived.wait(5), "the chat list waited behind the hung shared lane"
-        assert sink.frames[0]["id"] == "req-list"
-        assert "result" in sink.frames[0], sink.frames[0]
+        return sink.frames[0] if sink.arrived.wait(5) else None
     finally:
         hung.set()
         pool.shutdown()
+
+
+def test_a_hung_shared_lane_never_starves_the_chat_list(monkeypatch):
+    """Every shared worker parked (argv work waiting on a chat whose turns never end): the chat
+    list, a deferred read, still answers at once, on the read lane."""
+
+    from agent_runtime.serve_rpc import instance_history as list_rpc
+
+    monkeypatch.setattr(list_rpc, "list_instance_conversations",
+                        lambda params: {"conversations": [], "next_cursor": None, "legacy_route_id": None})
+    frame = _answer_with_the_shared_lane_hung(lambda context: list_rpc.list_conversations(
+        "req-list", {"install_id": "install-1", "client_scope": "a" * 64}, context))
+    assert frame is not None, "the chat list waited behind the hung shared lane"
+    assert frame["id"] == "req-list" and "result" in frame, frame
+
+
+def test_a_hung_shared_lane_never_starves_history_recovery(monkeypatch):
+    """The console's recovery read (``history.pending``, Eternia's "Recovery information could not be
+    loaded" when it times out) answers with the shared lane hung too."""
+
+    from agent_runtime.serve_rpc import operator_history
+
+    monkeypatch.setattr(operator_history, "operator_history_pending", lambda params: {"pending": None})
+    frame = _answer_with_the_shared_lane_hung(
+        lambda context: operator_history.history_pending("req-pending", {}, context))
+    # MUTATION: drop ``read_lane=True`` from history_pending and this reddens (None: it waited).
+    assert frame is not None and frame["id"] == "req-pending", frame
+    assert frame["result"] == {"pending": None}, frame

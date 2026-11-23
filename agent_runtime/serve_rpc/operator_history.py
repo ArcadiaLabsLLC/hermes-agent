@@ -56,12 +56,14 @@ def history_status(rid, params, context=None):
 
 @method("runtime.operator.conversation.history.origin", tier=TIER_CONSOLE)
 def history_origin(rid, params, context=None):
-    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.history.origin", operator_history_origin)
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.history.origin", operator_history_origin,
+                              read_lane=True)
 
 
 @method("runtime.operator.conversation.history.pending", tier=TIER_CONSOLE)
 def history_pending(rid, params, context=None):
-    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.history.pending", operator_history_pending)
+    return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.history.pending", operator_history_pending,
+                              read_lane=True)
 
 
 @method("runtime.operator.conversation.history.cancel_unapplied", tier=TIER_CONSOLE)
