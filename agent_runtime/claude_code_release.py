@@ -57,7 +57,7 @@ def _valid(version: Any) -> str | None:
     return text if _VERSION.match(text) else None
 
 
-def _read(path: Path) -> tuple[str, float] | None:
+def _kept_release(path: Path) -> tuple[str, float] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         version, at = _valid(data.get("version")), float(data.get("read_at"))
@@ -66,7 +66,7 @@ def _read(path: Path) -> tuple[str, float] | None:
     return (version, at) if version else None
 
 
-def _write(path: Path, version: str, at: float) -> None:
+def _keep_release(path: Path, version: str, at: float) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(path.name + ".tmp")
@@ -91,11 +91,11 @@ def current_claude_code_version(fallback: str, *, now: Callable[[], float] = tim
     """The Claude Code version a subscription request names where no ``claude`` command exists."""
 
     path = store or _store()
-    kept = _read(path)
+    kept = _kept_release(path)
     if kept is not None and 0 <= now() - kept[1] < MAX_AGE:
         return kept[0]
     published = _published()
     if published is not None:
-        _write(path, published, now())
+        _keep_release(path, published, now())
         return published
     return kept[0] if kept is not None else fallback
