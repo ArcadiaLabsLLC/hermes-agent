@@ -39,7 +39,12 @@ __layer__ = "stores"
 __all__ = [
     "AGENT_FILE_KIND_CONTEXT_FILE",
     "AGENT_FILE_KIND_DIFF",
+    "REASON_CONTEXT_FILE_IS_SYMLINK",
+    "REASON_CONTEXT_FILE_NOT_WRITABLE",
+    "REASON_CONTEXT_FILE_TEXT_INVALID",
+    "REASON_CONTEXT_FILE_WRITE_FAILED",
     "SERVED_CONTEXT_FILE_NAMES",
+    "WRITABLE_CONTEXT_FILE_NAMES",
     "agent_written_files",
 ]
 
@@ -53,6 +58,23 @@ SERVED_CONTEXT_FILE_NAMES: dict[str, str] = {
     "AGENTS.md": "text/markdown",
     ".skills_prompt_snapshot.json": "application/json",
 }
+
+#: The served context files a PERSON may save back from another device, by file name — ONE owner of
+#: that set (RT-FU-A-CONTEXT-FILE-OPENED-FROM-ANOTHER-DEVICE-IS-SAVED-BACK-THROUGH-THIS-ENGINE-BY-HANDLE,
+#: review w1122d.2): SOUL.md and AGENTS.md, as the owner RULED 2026-11-22. Narrower than the served
+#: map: ``.skills_prompt_snapshot.json`` is a generated file no person edits, and ``config.yaml`` is
+#: never served at all.
+WRITABLE_CONTEXT_FILE_NAMES: tuple[str, ...] = ("SOUL.md", "AGENTS.md")
+
+#: The handle names a served file outside :data:`WRITABLE_CONTEXT_FILE_NAMES` (a diff, a picture,
+#: the skills snapshot).
+REASON_CONTEXT_FILE_NOT_WRITABLE = "context_file_not_writable"
+#: The served path is a symlink; a save would land on whatever it points at, so it is refused.
+REASON_CONTEXT_FILE_IS_SYMLINK = "context_file_symlink"
+#: The new text was not a string.
+REASON_CONTEXT_FILE_TEXT_INVALID = "text_invalid"
+#: The atomic write itself failed (permissions, a full disk); the file is unchanged.
+REASON_CONTEXT_FILE_WRITE_FAILED = "context_file_write_failed"
 
 DIFF_MEDIA_TYPE = "text/x-diff"
 #: ``patch_diff_artifacts._artifact_name``: a UTC stamp, a content hash, ``.diff``.

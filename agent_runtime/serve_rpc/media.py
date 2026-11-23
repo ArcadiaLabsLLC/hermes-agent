@@ -5,6 +5,7 @@ chunk frame they share with the peer lane.
 from __future__ import annotations
 
 import base64
+from pathlib import Path
 from typing import Any
 
 from agent_runtime.call_authorization import (
@@ -33,8 +34,10 @@ from agent_runtime.serve_rpc.params import (
 __layer__ = "lanes"
 
 __all__ = [
+    "CONTEXT_FILE_WRITE_METHOD",
     "MEDIA_CONTRACT",
     "_media_get_frame",
+    "_runtime_media_context_file_write",
     "_runtime_media_get",
     "_runtime_media_index",
     "media_block",
@@ -326,6 +329,108 @@ def _runtime_media_get(
     else:
         data = media_handles.read_artifact_bytes(resolved)
     return _media_get_frame(rid, resolved, data, correlation_id)
+
+
+CONTEXT_FILE_WRITE_METHOD = "runtime.media.context_file.write"
+
+
+def _write_refused(rid: Any, reason: str, message: str, data: dict | None = None) -> dict:
+    return err(rid, ERR_HANDLER_FAILED, f"{CONTEXT_FILE_WRITE_METHOD} refused: {message}",
+               {"reason": reason, **(data or {})})
+
+
+# MUTATION: state computer=COMPUTER_REACH_LOOK (or "chat") here and test_serve_rpc_context_file_write's
+# Look (or Run chats) computer saves SOUL.md.
+@method(CONTEXT_FILE_WRITE_METHOD, tier=TIER_CONSOLE)
+def _runtime_media_context_file_write(
+    rid: Any, params: dict, context: RpcContext | None = None
+) -> dict:
+    """Save a person's edit to a context file a device opened by handle: SOUL.md or AGENTS.md only.
+
+    Row RT-FU-A-CONTEXT-FILE-OPENED-FROM-ANOTHER-DEVICE-IS-SAVED-BACK-THROUGH-THIS-ENGINE-BY-HANDLE
+    (Eternia MC-FU-A-CONTEXT-FILE-OPENED-FROM-ANOTHER-DEVICES-ENGINE-CAN-BE-EDITED-AND-SAVED-BACK-THROUGH-IT).
+
+    Params: ``handle`` (required, ``sha256:<64 hex>``, the handle the file was READ at);
+    ``text`` (required, the whole new file); ``correlation_id`` (optional, echoed).
+
+    Result: ``{contract, handle, previous_handle, size_bytes, correlation_id?}`` — ``handle`` is the
+    saved file's new handle, so the device's next save is not stale.
+
+    **The stale check is the resolve.** A handle is the digest of the bytes the device read, and a
+    FRESH ``build_media_scope(agent_files=True)`` no longer resolves it once the file changed, so a
+    stale copy is refused ``unknown_handle`` — one owner of the read digest, ``media_handles``. (A
+    write landing between this resolve and the rename is not caught; edge case, documented.)
+
+    **What is written.** Only a ``context_file`` row whose file name is in
+    ``agent_file_handles.WRITABLE_CONTEXT_FILE_NAMES``: the skills snapshot, a diff and a picture are
+    refused ``context_file_not_writable``, and ``config.yaml`` never has a handle. The path is the one
+    the fresh scope resolved, never one from the wire; a symlink is refused; the write is upstream's
+    ``utils.atomic_write_text`` with ``preserve_mode``, as its own SOUL editor writes.
+
+    **Security.** ``console`` tier and NO computer reach (owner 2026-11-22: editable from a
+    same-account device or a console-tier device only): a read-tier device and a Look or Run chats
+    computer are refused at the dispatcher; a computer on the phone's own account is answered as a
+    console device. Not in the peer allowlist. ``protected_instruction_files`` guards an AGENT's tool
+    writes, not a person's save at console tier.
+    """
+
+    from agent_runtime import agent_file_handles, media_handles
+
+    try:
+        correlation_id = _correlation_id_param(params)
+    except ParamRefused as refused:
+        return refused.frame(rid)
+
+    raw = params.get("handle")
+    if not isinstance(raw, str) or not media_handles.HANDLE_RE.match(raw.strip()):
+        return err(rid, ERR_INVALID_PARAMS,
+                   f"invalid params: {CONTEXT_FILE_WRITE_METHOD} names a file by handle (sha256:<64 hex>); "
+                   "it does not accept a path",
+                   {"reason": media_handles.REASON_HANDLE_INVALID})
+    text = params.get("text")
+    if not isinstance(text, str):
+        return err(rid, ERR_INVALID_PARAMS, "invalid params: text is required and is the whole file",
+                   {"reason": agent_file_handles.REASON_CONTEXT_FILE_TEXT_INVALID})
+    size = len(text.encode("utf-8", "surrogatepass"))
+    if size > media_handles.MAX_FETCH_BYTES:
+        return _write_refused(rid, media_handles.REASON_ARTIFACT_TOO_LARGE, "the text is over the cap",
+                              {"cap_bytes": media_handles.MAX_FETCH_BYTES, "size_bytes": size})
+
+    # MUTATION: resolve against a scope built once and cached, and the stale-handle test saves.
+    scope = media_handles.build_media_scope(agent_files=True)
+    artifact = scope.artifacts.get(raw.strip())
+    if artifact is None:
+        return _write_refused(rid, media_handles.REASON_UNKNOWN_HANDLE,
+                              "no file this engine serves is at that handle (it changed since it was read)")
+    reference = Path(artifact.reference)
+    # MUTATION: drop the file-name check and the skills-snapshot test saves the snapshot.
+    if (artifact.kind != agent_file_handles.AGENT_FILE_KIND_CONTEXT_FILE
+            or reference.name not in agent_file_handles.WRITABLE_CONTEXT_FILE_NAMES):
+        return _write_refused(rid, agent_file_handles.REASON_CONTEXT_FILE_NOT_WRITABLE,
+                              "only SOUL.md and AGENTS.md are saved from another device")
+    # MUTATION: drop the symlink check and the symlink test writes through the link.
+    if reference.is_symlink() or artifact.path.is_symlink():
+        return _write_refused(rid, agent_file_handles.REASON_CONTEXT_FILE_IS_SYMLINK,
+                              "the context file is a symlink")
+
+    from utils import atomic_write_text
+
+    try:
+        atomic_write_text(artifact.path, text, preserve_mode=True)
+        # Read back, not re-hashed from ``text``: a text-mode write may translate newlines.
+        saved = artifact.path.read_bytes()
+    except (OSError, ValueError) as exc:
+        return _write_refused(rid, agent_file_handles.REASON_CONTEXT_FILE_WRITE_FAILED,
+                              f"the save failed ({type(exc).__name__})")
+    result: dict[str, Any] = {
+        "contract": MEDIA_CONTRACT,
+        "handle": media_handles.handle_for_bytes(saved),
+        "previous_handle": artifact.handle,
+        "size_bytes": len(saved),
+    }
+    if correlation_id is not None:
+        result["correlation_id"] = correlation_id
+    return ok(rid, result)
 
 
 def _media_get_frame(
