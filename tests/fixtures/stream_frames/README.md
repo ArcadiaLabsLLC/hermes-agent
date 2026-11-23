@@ -12,11 +12,11 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
-> **CROSS-STACK COPY STATUS (w1122g-readiness, 2026-11-22) — launcher copy owed by the same lane, bytes only.**
+> **CROSS-STACK COPY STATUS (w1122g-readiness, 2026-11-22) — launcher copy landed (Eternia `e6f655cd18`), bytes only.**
 > Agents are readied on demand (owner 2026-11-22): every `agents` row carries `home_agent` (hermes' pick of Home's
 > agent), and an agent no one asked for reads `profile_readiness: "not_checked"` with null tool scalars. So
 > `patch_agent_create.json` and `delta_agent_create_narrow_profile.json` move; Eternia parses `not_checked` and
-> `home_agent` from its tolerant landing on. Copy those two and `MANIFEST.sha256` into `test/fixtures/harness_stream/`.
+> `home_agent` from its tolerant landing on. Those two and `MANIFEST.sha256` are mirrored in `test/fixtures/harness_stream/`.
 
 > **CROSS-STACK COPY STATUS (w1118a-pick, 2026-11-22) — launcher copy OWED, bytes only (Eternia row `MC-FU-ETERNIAS-STREAM-GOLDENS-CARRY-THE-PLACEMENTS-NEW-ANNOUNCE`).**
 > Every placement now announces `persona_instance.created` beside its create upsert (row
