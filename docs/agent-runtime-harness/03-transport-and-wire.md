@@ -558,7 +558,7 @@ w1118a.79). `agent_runtime/reverse_lane/`:
 - **The grant is bound to the pairing.** A dial whose device id is not the grant's pairing finds
   no grant (a re-pair starts with none); a dial refused `bad_proof` (the computer unpaired the
   phone) deletes the phone's grant for that computer; turning a grant off closes its lane.
-- **The grant, offer and accept (two consents)** (Eternia row
+- **The grant, offer and accept (two consents; for a computer on the phone's own account the computer's Eternia accepts by itself since owner 2026-11-23 "No, drop Accept", Eternia row `MC-ACCOUNT-ONLY-YOUR-COMPUTER-USES-YOUR-PHONES-AGENTS-WITHOUT-PRESSING-ACCEPT`)** (Eternia row
   `MC-PHONE-DRIVEN-A-PHONE-LETS-A-PAIRED-COMPUTER-USE-ITS-AGENTS`, plan §15). The phone's owner
   asks its engine to grant (`runtime.gateway.reverse.grant`: the computer's address, pin and the
   phone's credential on it, plus `look` | `chat` | `account`). The engine mints the grant and offers the
