@@ -214,6 +214,11 @@ def test_delete_refuses_a_root_owned_by_another_instance(chat_db):
     assert owner.session_id in chat_db.sessions
 
 
+# The delete's account fence (row RT-FU-DELETING-A-SAVED-CHAT-CHECKS-WHICH-ACCOUNT-IT-BELONGS-TO-AS-ARCHIVING-DOES).
+# Mutation reds, run 2026-11-22 (hermes 9981dbd360) over these three and the retired-holder test in
+# ``test_retired_holders_saved_chats.py``: drop ``require_session_owner`` -> other-account + retired red; read the
+# owner from ``{}`` -> owner/unscoped + retired red; a malformed scope read as none -> malformed red; the verb
+# passes ``client_scope=None`` -> other-account + retired red.
 OWNER_SCOPE, OTHER_SCOPE = "a" * 64, "b" * 64
 
 
