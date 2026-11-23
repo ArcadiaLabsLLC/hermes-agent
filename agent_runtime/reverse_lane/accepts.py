@@ -31,7 +31,7 @@ from ..paths import gateway_dir
 from ..store_file_io import read_json_object as _read_json
 from ..store_file_io import store_lock as _file_lock
 from ..store_file_io import write_secure_json as _write_secure
-from .grants import GRANT_LEVELS
+from .grants import GRANT_ACCOUNT, GRANT_LEVELS, computer_client_scope
 
 __layer__ = "stores"
 
@@ -86,8 +86,23 @@ class ReverseAccept:
     accepted_at: str
 
     def describe(self) -> dict[str, Any]:
-        return {"device_id": self.device_id, "computer_id": self.computer_id, "level": self.level,
-                "phone_install_id": self.phone_install_id, "accepted_at": self.accepted_at}
+        """The accept as a surface shows it, with the chat scope this computer acts under there.
+
+        Hermes row RT-FU-A-COMPUTER-IS-NOT-TOLD-THE-CHAT-SCOPE-ITS-PHONE-CHATS-ARE-STAMPED-WITH:
+        at Look and Run chats the phone stamps ``computer_client_scope(computer_id)`` over every
+        scoped request this computer sends (``serve_rpc.dispatch.bind_computer_scope``), so the
+        computer names that scope and its own wrong-owner check keeps meaning. Derived here from
+        the one owner function on every read: no store field, kept across an in-place level
+        change (``computer_id`` is), new with a new grant. Absent at the account grant, where
+        nothing is stamped. A namespace, not a secret.
+        """
+
+        row = {"device_id": self.device_id, "computer_id": self.computer_id, "level": self.level,
+               "phone_install_id": self.phone_install_id, "accepted_at": self.accepted_at}
+        # MUTATION: drop this branch and test_accept_describe_names_the_grant_scope reddens.
+        if self.level != GRANT_ACCOUNT:
+            row["client_scope"] = computer_client_scope(self.computer_id)
+        return row
 
 
 def _id_text(value: Any) -> str | None:

@@ -20,7 +20,9 @@ Killing mutations (each named at its line):
   the switch-off test reads the computer's accept still there (red seen 2026-11-22);
 * ``serve_rpc.reverse_lane._runtime_gateway_reverse_withdraw``: take the device id from the params
   when the caller is not a device, and the owner's withdraw forgets the phone's accept (red seen
-  2026-11-22).
+  2026-11-22);
+* ``reverse_lane.accepts.ReverseAccept.describe``: drop the ``client_scope`` branch, and the
+  accept-describe test reads no chat scope on the accept or the lanes listing (red seen 2026-11-22).
 """
 
 from __future__ import annotations
@@ -438,6 +440,55 @@ def test_a_level_change_keeps_the_credential_and_the_accept_and_tells_the_comput
     up = _regrant(phone, computer, device, grants.GRANT_CHAT)["result"]
     assert (up["computer_id"], up["state"]) == (computer_id, "level_changed")
     assert [a.level for a in accepts.list_accepts(computer.root)] == ["chat"]
+
+
+# ── the computer is told its chat scope (hermes row RT-FU-A-COMPUTER-IS-NOT-TOLD-THE-CHAT-SCOPE-ITS-PHONE-CHATS-ARE-STAMPED-WITH)
+
+
+def test_accept_describe_names_the_grant_scope_the_phone_stamps_at_look_and_run_chats(phone, computer):
+    """Seen live 2026-11-22 (w1122d-phonechat): a Run chats computer's new chat was rolled back
+    because the phone answered under a scope the computer never named. The computer's accept row
+    names the scope the phone's dispatcher stamps (``bind_computer_scope``), on the accept answer
+    and the lanes listing, and keeps it across a level change. MUTATION
+    (``accepts.ReverseAccept.describe``): drop the ``client_scope`` branch and this reddens (red
+    seen 2026-11-22)."""
+
+    from agent_runtime.serve_rpc.dispatch import bind_computer_scope
+
+    device, first = _grant(phone, computer, grants.GRANT_CHAT)
+    computer_id = first["result"]["computer_id"]
+    scope = grants.computer_client_scope(computer_id)
+    accepted = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"]
+    assert accepted["client_scope"] == scope
+    listed = computer.owner("runtime.gateway.reverse.lanes")["result"]["accepted"]
+    assert [(a["computer_id"], a["level"], a["client_scope"]) for a in listed] == [(computer_id, "chat", scope)]
+
+    # The scope named is the one the phone stamps over a Run chats request from this computer.
+    class _Caller:
+        kind = ca.CALLER_COMPUTER
+        computer_grant = grants.GRANT_CHAT
+
+    _Caller.computer_id = computer_id
+    stamped = bind_computer_scope(_Caller(), "runtime.agent.conversation.create", {"client_scope": "x" * 64})
+    assert stamped["client_scope"] == listed[0]["client_scope"]
+
+    # Look keeps it: the id is kept across an in-place level change.
+    _regrant(phone, computer, device, grants.GRANT_LOOK)
+    listed = computer.owner("runtime.gateway.reverse.lanes")["result"]["accepted"]
+    assert [(a["level"], a["client_scope"]) for a in listed] == [("look", scope)]
+
+
+def test_an_account_grant_accept_names_no_chat_scope(phone, computer):
+    """At the account grant nothing is stamped, so the accept names no scope and the computer keeps
+    its own account key. Positive control beside the test above: same flow, one level changed.
+    MUTATION (``accepts.ReverseAccept.describe``): name the scope at every level and this reddens
+    (red seen 2026-11-22)."""
+
+    device, _ = _grant(phone, computer, grants.GRANT_ACCOUNT)
+    accepted = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"]
+    assert accepted["level"] == "account" and "client_scope" not in accepted
+    listed = computer.owner("runtime.gateway.reverse.lanes")["result"]["accepted"]
+    assert [a["level"] for a in listed] == ["account"] and "client_scope" not in listed[0]
 
 
 def test_a_level_change_before_the_accept_rewrites_the_held_offer(phone, computer):
