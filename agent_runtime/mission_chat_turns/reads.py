@@ -6,7 +6,7 @@ caller sees the bounded projection, never raw journal contents.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from agent_runtime.serde import safe_assignment_text, safe_assignment_token
 
@@ -27,14 +27,28 @@ def mission_chat_turn_elements(
     session_id: str | None,
     client_message_id: str | None,
 ) -> list[dict[str, Any]]:
+    return session_turn_elements(session_id=session_id)(client_message_id)
+
+
+def session_turn_elements(*, session_id: str | None) -> Callable[[str | None], list[dict[str, Any]]]:
+    """One read of the session's journal, answering :func:`mission_chat_turn_elements` per turn.
+
+    For a reader that asks about many turns of one chat (the curated transcript): it
+    parsed the whole journal file once PER TURN, 318 times for the owner's Neko chat on
+    2026-11-23 (1.8 s of a 4.8 s read,
+    RT-FU-EVERY-NEKO-REPLY-RE-READS-THE-WHOLE-LIVE-CHAT-BEFORE-ETERNIA-SHOWS-IT)."""
+
     session_key = safe_assignment_text(session_id, limit=240)
-    message_key = safe_assignment_text(client_message_id, limit=240)
-    if not session_key or not message_key:
-        return []
-    record = _read_session(session_key).get(message_key)
-    if not isinstance(record, dict):
-        return []
-    return _safe_elements(record.get("elements"))
+    session = _read_session(session_key) if session_key else {}
+
+    def elements(client_message_id: str | None) -> list[dict[str, Any]]:
+        message_key = safe_assignment_text(client_message_id, limit=240)
+        record = session.get(message_key) if message_key else None
+        if not isinstance(record, dict):
+            return []
+        return _safe_elements(record.get("elements"))
+
+    return elements
 
 
 def mission_chat_turn_record(

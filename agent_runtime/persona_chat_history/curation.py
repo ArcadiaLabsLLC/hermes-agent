@@ -19,8 +19,8 @@ from typing import Any, Mapping, Protocol
 from ..clock import iso_timestamp
 from ..turn_budget import CHECKPOINT_TRIGGER_TIMER, CHECKPOINT_TRIGGER_TOOL_GATE
 from ..mission_chat_turns.reads import (
-    mission_chat_turn_elements,
     mission_chat_turn_records,
+    session_turn_elements,
 )
 from ..mission_chat_turns.records import STEER_OF_FIELD, safe_steer_of
 from ..mission_chat_turns.states import TERMINAL_TURN_STATES
@@ -622,6 +622,8 @@ class CurationState:
     # row of that turn; the earlier step rows keep their text only.
     turn_elements_by_logical_id: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     turn_element_rows: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # A turn with no record reads its elements here: the chat's journal, read once on the first such turn.
+    journal_elements: Any = None
 
     @classmethod
     def for_session(cls, session_id: str, *, session_db=None, raw_messages=()) -> CurationState:
@@ -749,10 +751,11 @@ class CurationState:
             if record is not None:
                 elements = [dict(item) for item in record.get("elements") or [] if isinstance(item, dict)]
             else:
-                elements = mission_chat_turn_elements(
-                    session_id=self.session_id,
-                    client_message_id=logical_client_message_id,
-                )
+                # MUTATION: call ``mission_chat_turn_elements`` per turn here and
+                # test_curation_reads_each_chats_turn_journal_once reddens on a turn with no record.
+                if self.journal_elements is None:
+                    self.journal_elements = session_turn_elements(session_id=self.session_id)
+                elements = self.journal_elements(logical_client_message_id)
             self.turn_elements_by_logical_id[key] = elements
         return self.turn_elements_by_logical_id[key]
 

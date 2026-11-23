@@ -8,7 +8,7 @@ from typing import Any, Callable
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from agent.redact import is_secret_field_name as _upstream_is_secret_field_name
-from agent.redact import redact_sensitive_text
+from agent.redact import redact_registered_vault_values, redact_sensitive_text
 
 __layer__ = "models"
 
@@ -213,9 +213,63 @@ def mask_known_key_shapes(text: str) -> str:
     seen 2026-11-21 through a child's returned summary into the live chat log and
     the chat history, and a board card into the snapshot). No fork pattern list:
     upstream decides (:func:`_redact_upstream`), so a shape it learns is hidden
-    here with no fork edit. Idempotent."""
+    here with no fork edit. Idempotent.
 
-    return _redact_upstream(str(text))
+    Memoized by text (:class:`_MaskMemo`): a chat's stored rows are scrubbed once,
+    not again on every read of the chat
+    (RT-FU-EVERY-NEKO-REPLY-RE-READS-THE-WHOLE-LIVE-CHAT-BEFORE-ETERNIA-SHOWS-IT)."""
+
+    text = str(text)
+    # MUTATION: return ``_redact_upstream(text)`` here and
+    # test_a_stored_rows_text_is_scrubbed_once_across_reads reddens.
+    return _MASK_MEMO.mask(text)
+
+
+class _MaskMemo:
+    """``text -> _redact_upstream(text)``, least recently used dropped past ``capacity``.
+
+    The scrubber is a pure function of the text and upstream's static patterns, but for
+    one input: the vault values registered at the moment (``redact_registered_vault_values``,
+    which the scrubber applies first). A hit is passed through that vault pass again, so a
+    value registered after the text was first scrubbed is hidden on the next read; a value
+    registered earlier stays hidden (its marker is in the kept answer). Texts longer than
+    ``max_chars`` are scrubbed every time and never kept."""
+
+    def __init__(self, capacity: int, max_chars: int) -> None:
+        import threading
+        from collections import OrderedDict
+
+        self._lock = threading.Lock()
+        self._entries: OrderedDict[str, str] = OrderedDict()
+        self._capacity = capacity
+        self._max_chars = max_chars
+
+    def mask(self, text: str) -> str:
+        if len(text) > self._max_chars:
+            return _redact_upstream(text)
+        with self._lock:
+            kept = self._entries.get(text)
+            if kept is not None:
+                self._entries.move_to_end(text)
+        if kept is not None:
+            # MUTATION: return ``kept`` unpassed and
+            # test_a_vault_value_registered_after_the_first_scrub_is_hidden_on_the_next reddens.
+            return redact_registered_vault_values(kept)
+        masked = _redact_upstream(text)
+        with self._lock:
+            self._entries[text] = masked
+            self._entries.move_to_end(text)
+            while len(self._entries) > self._capacity:
+                self._entries.popitem(last=False)
+        return masked
+
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+
+
+#: Texts kept: a few large live chats' stored rows (the owner's Neko chat held 878 on 2026-11-23).
+_MASK_MEMO = _MaskMemo(capacity=8192, max_chars=65536)
 
 
 def scrub_tree(
