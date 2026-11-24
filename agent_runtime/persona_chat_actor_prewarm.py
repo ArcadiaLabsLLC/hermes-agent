@@ -724,9 +724,15 @@ def _instance_as_the_send_path_stamps_it(persona: Any, instance: Any, root: str)
 
 
 def _instance_for_root(root: str) -> Any:
-    """The persona instance whose bound chat root is *root*."""
+    """The persona instance whose bound chat root is *root*, else the one its id names.
+
+    The second rung is Home's ready chat (``home_next_chat``): minted UNSELECTED, so no instance
+    has it bound, and its prewarm answered ``skipped_no_chat_root`` (read live on the QA serve
+    2026-11-23: every first message rebuilt its agent, ``resident_actor_reused=0``). A minted
+    chat id names its owner (``persona_chat_<instance>_<12 hex>``)."""
 
     from .persona_assignments import PersonaInstanceStore
+    from .persona_assignments.identity import chat_session_owner_instance_id
 
     try:
         instances = PersonaInstanceStore().list_all()
@@ -740,7 +746,9 @@ def _instance_for_root(root: str) -> Any:
         ).strip()
         if bound == root:
             return instance
-    return None
+    owner = chat_session_owner_instance_id(root)
+    # MUTATION: return None here and test_an_unselected_ready_chat_is_prewarmed_for_its_owner reddens.
+    return next((instance for instance in instances if instance.id == owner), None) if owner else None
 
 
 # ── the background worker ────────────────────────────────────────────────────
