@@ -363,3 +363,5 @@ only, never the suite; re-take `docs/downstream/bundled-phone-gate-2026-09-28.md
   the in-process slash runner is later work. Lane G5 is unblocked.
 - RULED, not open: the packager forced set / lazy-site register ships as the sibling tree (owner
   2026-09-30, `ff9cbca51f`) — lane G6. Every G1 switch-off lengthens the forced set G6 stages.
+
+**2026-11-24 note (review w1122d.28).** M5's premise "phone never mints a gateway cert: service mode absent" (the `cryptography` row above) is superseded by the owner on 2026-11-23: "shouldn't they both try to call". A phone listens too whenever its OS lets it, so it needs a gateway certificate. Row `RT-ACCOUNT-ONLY-ANY-TWO-OF-YOUR-DEVICES-SHARE-ONE-CONNECTION-WHICHEVER-OPENS-IT-FIRST` measures `cryptography` for the phone profile. Later plans cited the premise as "D3 2026-09-30". D3 here is the secrets vault, and it stands.

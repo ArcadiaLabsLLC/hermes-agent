@@ -547,10 +547,12 @@ computer only at the account level, as one of your own computers (hermes row
 unlabelled device codes stay for the operator's own CLI, messaging channels (`--kind channel`) and
 Eternia's QA lane; hermes never sees an account, so it cannot be the account gate.
 
-A phone runs no listener (D3 2026-09-30), so a computer reaches a phone's engine over a
+A phone runs no listener (D3 2026-09-30; superseded 2026-11-23, see the note below), so a computer reaches a phone's engine over a
 connection the phone opens (Eternia row `MC-PHONE-DRIVEN-THE-PHONE-DIALS-OUT-SO-A-COMPUTER-CAN-REACH-ITS-ENGINE`,
 plan `EterniaLauncher/docs/embedded_hermes/planned/PHONE_DRIVEN_BY_A_COMPUTER_2026-11-21.md`, review
 w1118a.79). `agent_runtime/reverse_lane/`:
+
+**2026-11-24 note (review w1122d.28).** The owner superseded "a phone runs no listener" on 2026-11-23: "when i heard the phone never listens is that right? why? shouldn't they both try to call". A phone now listens too whenever its OS lets it. Any two of your devices keep one call between them, and that call carries both directions. The reverse lane above becomes one lane of that call. Rows `RT-ACCOUNT-ONLY-ANY-TWO-OF-YOUR-DEVICES-SHARE-ONE-CONNECTION-WHICHEVER-OPENS-IT-FIRST` and `RT-ACCOUNT-ONLY-A-CONNECTION-FROM-ANOTHER-MACHINE-THAN-THE-ONE-YOUR-DEVICE-PAIRED-WITH-IS-DROPPED-FIRST`. The ruling is in `EterniaLauncher/docs/embedded_hermes/subsystems/PHONE_DRIVEN_BY_A_COMPUTER_2026-11-21.md` §18. The decision recorded as D3 2026-09-30, the phone's secrets vault (`docs/downstream/phone-gate-to-zero-plan-2026-09-30.md`), is unchanged. The no-listener rule was that plan's M5 premise.
 
 - **Park.** The phone's engine (`runtime.gateway.reverse.dial`, asked by its owner) dials the
   computer's gateway, pinned, with its own device hello plus `reverse_lane: <lane id>` (32 hex,
