@@ -26,7 +26,10 @@ from .harness_settings import harness_setting
 
 __layer__ = "models"
 
-__all__ = ["ACCESS_KEY", "REASON_ACCESS_OFF", "drop_remote_callers", "gateway_access_allowed", "is_remote_user"]
+__all__ = [
+    "ACCESS_KEY", "REASON_ACCESS_OFF", "drop_remote_callers", "drop_session_remote_callers", "gateway_access_allowed",
+    "is_remote_user",
+]
 
 ACCESS_KEY = "remote_gateway_access"
 #: The typed refusal. CONTRACT, not prose: Eternia branches on ``data.reason``.
@@ -68,3 +71,11 @@ def drop_remote_callers(servers: tuple[Any, ...], *, reason: str) -> int:
 
     remote: Callable[[Any], bool] = lambda connection: is_remote_user(caller_for_connection(connection))
     return sum(server.drop_where(remote, reason=reason) for server in servers if server is not None)
+
+
+def drop_session_remote_callers(session: Any, reason: str) -> int:
+    """:func:`drop_remote_callers` over a serve session's two listeners (``RpcContext.close_remote_callers``)."""
+
+    with session.lane_lock:
+        servers = (getattr(session, "socket_server", None), getattr(session, "gateway_server", None))
+    return drop_remote_callers(servers, reason=reason)
