@@ -358,7 +358,7 @@ def _runtime_media_context_file_write(
     ``utils.atomic_write_text`` with ``preserve_mode``, as its own SOUL editor writes.
 
     **Security.** ``console`` tier (owner 2026-11-22: editable from a same-account device or a
-    console-tier device only): a read-tier device is refused at the dispatcher; a computer on the
+    console-tier device only; every paired device is console tier): a computer on the
     phone's own account is answered as a console device. Not in the peer allowlist. ``protected_instruction_files`` guards an AGENT's tool
     writes, not a person's save at console tier.
     """

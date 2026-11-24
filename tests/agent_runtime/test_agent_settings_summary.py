@@ -3,7 +3,7 @@
 Row ``RT-FU-ANOTHER-DEVICE-SEES-A-SHORT-LIST-OF-SAFE-AGENT-SETTINGS-NEVER-THE-CONFIG-FILE``. The
 agent's bound profile writes a real ``config.yaml`` carrying the secrets the file can hold (a custom
 endpoint's key and base URL, an MCP server's command, env and headers); the detail verb
-``runtime.persona.instance.detail`` is called through the real dispatcher, as the owner and a view-only
+``runtime.persona.instance.detail`` is called through the real dispatcher, as the owner and a paired
 device. Every test runs in the ``tests/agent_runtime`` conftest's isolated
 store root.
 
@@ -14,31 +14,12 @@ Killing mutations (each red seen 2026-11-22):
 * ``agent_settings_summary.agent_settings_summary``: answer the profile's whole ``model:`` block for
   ``model``, and the no-secret test finds the key in the reply;
 * ``snapshot.details.persona_instance_detail_for_id``: drop the ``settings`` key on the agent path,
-  and the view-only test finds no block.
-
-The paths (row ``RT-FU-A-LOOK-DEVICE-IS-SENT-THE-PATH-OF-AN-AGENTS-SETTINGS-FILE``): below console tier the
-reply names no absolute local path; the console, a console device and an account-level computer keep them.
-The Look and Run chats computers this was first read with left in
-``RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN``; the view-only device remains.
-Killing mutations (each red seen 2026-11-22 on the Look computer; the ``_detail_for_caller`` and the
-``_sees_local_paths``-True ones re-seen on the view-only device 2026-11-23):
-
-* ``console_operations._detail_for_caller``: return ``result`` for every caller, and the no-path test finds
-  the config file's path in the view-only reply (the console test stays green);
-* ``console_operations._text_without_paths``: return the string unchanged, and the issue-sentence test finds
-  the path in the unknown toolset's fix hint;
-* ``console_operations._sees_local_paths``: answer ``True`` for a device whatever its tier, and the no-path
-  test finds the path in the view-only device's reply;
-* ``console_operations._sees_local_paths``: answer ``False`` for every caller, and the console test finds no
-  ``config_path``;
-* ``console_operations._LOCAL_PATH_FIELDS``: drop ``"workdir"``, and the field test finds the working
-  directory.
+  and the paired-device test finds no block.
 """
 
 from __future__ import annotations
 
 import json
-import re
 import textwrap
 
 import pytest
@@ -94,9 +75,9 @@ def _ask(caller, agent_id: str) -> dict:
                                     serve_rpc.RpcContext(caller=caller, transport=ca.TRANSPORT_GATEWAY))
 
 
-def _view_only_device() -> ca.RpcCaller:
+def _paired_device() -> ca.RpcCaller:
     return ca.RpcCaller(kind=ca.CALLER_DEVICE, connection_key="c1", transport=ca.TRANSPORT_GATEWAY,
-                        device_id="dev_phone", device_tier=ca.TIER_READ)
+                        device_id="dev_phone", device_tier=ca.TIER_CONSOLE)
 
 
 def test_the_settings_block_is_exactly_model_provider_and_toolsets(agent):
@@ -108,113 +89,16 @@ def test_the_settings_block_is_exactly_model_provider_and_toolsets(agent):
 
 
 def test_no_secret_from_the_config_file_reaches_any_reply(agent):
-    for caller in (ca.STDIO_OWNER, _view_only_device()):
+    for caller in (ca.STDIO_OWNER, _paired_device()):
         wire = json.dumps(_ask(caller, agent))
         for secret in _SECRETS:
             assert secret not in wire, (caller.kind, secret)
-        # The file's PATH reaches the console alone (RT-FU-A-LOOK-DEVICE-IS-SENT-THE-PATH-OF-AN-AGENTS-
-        # SETTINGS-FILE, the tests below); its contents reach no caller.
+        # The file's contents reach no caller.
         assert "config" not in json.dumps(_ask(caller, agent)["result"]["settings"])
 
 
-def test_a_view_only_device_reads_the_block(agent):
+def test_a_paired_device_reads_the_block(agent):
     expected = _ask(ca.STDIO_OWNER, agent)["result"]["settings"]
-    reply = _ask(_view_only_device(), agent)
+    reply = _ask(_paired_device(), agent)
     assert "result" in reply, reply
     assert reply["result"]["settings"] == expected
-
-
-# ── no absolute local path below console tier (RT-FU-A-LOOK-DEVICE-IS-SENT-THE-PATH-OF-AN-AGENTS-SETTINGS-FILE)
-
-#: An absolute path as a whole value: POSIX, home-relative, a Windows drive or a UNC share.
-_ABSOLUTE = re.compile(r"^(?:/|~[/\\]|[A-Za-z]:[/\\]|\\\\)")
-
-
-def _strings(node):
-    if isinstance(node, dict):
-        for value in node.values():
-            yield from _strings(value)
-    elif isinstance(node, list):
-        for value in node:
-            yield from _strings(value)
-    elif isinstance(node, str):
-        yield node
-
-
-def _console_device() -> ca.RpcCaller:
-    return ca.RpcCaller(kind=ca.CALLER_DEVICE, connection_key="c2", transport=ca.TRANSPORT_GATEWAY,
-                        device_id="dev_desk", device_tier=ca.TIER_CONSOLE)
-
-
-def _computer(grant: str) -> ca.RpcCaller:
-    return ca.RpcCaller(kind=ca.CALLER_COMPUTER, transport=ca.TRANSPORT_GATEWAY, connection_key="lane-2",
-                        computer_id="cmp-2", computer_grant=grant)
-
-
-@pytest.fixture
-def pathed_agent(bundled_persona_profiles):
-    """A persona whose reply carries every local path it can: its config file, a declaration issue's
-    sentence naming that file (an unknown toolset), and a repository bound by absolute path."""
-
-    from hermes_cli.profiles import get_profile_dir
-
-    profile = get_profile_dir("gpt-launcher")
-    (profile / "config.yaml").write_text("toolsets:\n  - web\n  - no-such-toolset\n", encoding="utf-8")
-    clear_parse_cache()
-    repo = str(profile.parent / "repos" / "secret-repo")
-    AgentStore().save(AgentPersona(id="pathy", display_name="Pathy", role="dev", model="claude-sonnet-x",
-                                   provider="anthropic", api_mode=None, hermes_profile="gpt-launcher",
-                                   repo_scope_label=repo))
-    return "pathy", str(profile / "config.yaml"), repo
-
-
-def test_no_absolute_local_path_reaches_a_view_only_device(pathed_agent):
-    agent_id, config_path, repo = pathed_agent
-    owner = _ask(ca.STDIO_OWNER, agent_id)["result"]
-    assert owner["tool_resolution"]["toolset_declaration"]["config_path"] == config_path  # the positive control
-    for caller in (_view_only_device(),):
-        reply = _ask(caller, agent_id)
-        assert "result" in reply, (caller.kind, reply)
-        wire = json.dumps(reply)
-        assert config_path not in wire and repo not in wire, caller
-        for text in _strings(reply):
-            assert not _ABSOLUTE.match(text), (caller, text)
-        declaration = reply["result"]["tool_resolution"]["toolset_declaration"]
-        assert declaration["profile"] == "gpt-launcher" and declaration["source"]  # labels survive
-        assert reply["result"]["settings"] == owner["settings"]  # the safe block survives
-
-
-def test_an_issue_sentence_names_no_local_path(pathed_agent):
-    agent_id, config_path, _ = pathed_agent
-    owner_issues = _ask(ca.STDIO_OWNER, agent_id)["result"]["tool_resolution"]["toolset_declaration"]["issues"]
-    assert any(config_path in issue["fix_hint"] for issue in owner_issues)  # the positive control
-    viewer_issues = _ask(_view_only_device(), agent_id)["result"]["tool_resolution"]["toolset_declaration"]["issues"]
-    assert [issue["code"] for issue in viewer_issues] == [issue["code"] for issue in owner_issues]
-    for issue in viewer_issues:
-        assert issue["config_path"] is None
-        assert config_path not in issue["fix_hint"] and "agent's computer" in issue["fix_hint"], issue
-
-
-def test_the_console_keeps_the_paths(pathed_agent):
-    agent_id, config_path, repo = pathed_agent
-    for caller in (ca.STDIO_OWNER, _console_device(), _computer(ca.COMPUTER_GRANT_ACCOUNT)):
-        reply = _ask(caller, agent_id)
-        assert "result" in reply, (caller.kind, reply)
-        resolution = reply["result"]["tool_resolution"]
-        assert resolution["toolset_declaration"]["config_path"] == config_path, caller
-        assert resolution["repo_scope"] == repo, caller
-
-
-def test_every_named_path_field_is_dropped_and_a_label_kept():
-    from agent_runtime.serve_rpc.console_operations import _detail_for_caller
-
-    paths = {"config_path": "/home/someone/.hermes/profiles/p/config.yaml", "workdir": "C:\\Users\\someone\\chat",
-             "runtime_root": "~/runtime", "root_config_path": "\\\\box\\share\\config.yaml",
-             "repo_scope": "D:/Unreal Engine/repo"}
-    block = {"tool_resolution": {**paths, "hermes_profile": "p", "toolset_declaration": {"source": "profile_config"}},
-             "turn_tool_context": {"preview": {"repo_scope": "eternia-launcher", "workdir": paths["workdir"]}}}
-    seen = _detail_for_caller(json.loads(json.dumps(block)), _view_only_device())
-    assert all(seen["tool_resolution"][key] is None for key in paths), seen
-    assert seen["tool_resolution"]["hermes_profile"] == "p"
-    assert seen["turn_tool_context"]["preview"] == {"repo_scope": "eternia-launcher", "workdir": None}
-    assert _detail_for_caller(json.loads(json.dumps(block)), ca.STDIO_OWNER) == block

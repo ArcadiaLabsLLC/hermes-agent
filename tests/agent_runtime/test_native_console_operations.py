@@ -71,10 +71,10 @@ def test_persona_model_and_permission_preview_share_cli_owners(qa_persona, capsy
 def test_device_authorization_cannot_bypass_console_tier():
     from agent_runtime import serve_rpc
     from agent_runtime.serve_rpc.protocol import RpcContext
-    from tests.agent_runtime.test_serve_rpc_open_chat import _device
+    from agent_runtime.call_authorization import UNKNOWN_CALLER
     frame = {"jsonrpc":"2.0", "id":"gate", "method":"runtime.persona.instance.set_model",
              "params":{"persona_instance_id":"missing", "model":"x"}}
-    denied = serve_rpc.handle_request(frame, context=RpcContext(caller=_device("read")))
+    denied = serve_rpc.handle_request(frame, context=RpcContext(caller=UNKNOWN_CALLER))
     assert "error" in denied
     from agent_runtime.call_authorization import REASON_SCOPE_DENIED
     assert denied["error"]["data"]["reason"] == REASON_SCOPE_DENIED

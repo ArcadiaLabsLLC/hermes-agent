@@ -31,10 +31,8 @@ from agent_runtime import chat_live_log, media_handles, paths, serve_rpc
 from agent_runtime.call_authorization import (
     CALLER_DEVICE,
     CALLER_PEER,
-    REASON_SCOPE_DENIED,
     STDIO_OWNER,
     TIER_CONSOLE,
-    TIER_READ,
     TRANSPORT_GATEWAY,
     RpcCaller,
 )
@@ -136,15 +134,6 @@ def test_a_path_or_a_guessed_handle_is_refused(written):
         assert refused["error"]["data"]["reason"] == media_handles.REASON_HANDLE_INVALID, refused
     guessed = _call(GET, {"handle": "sha256:" + "0" * 64})
     assert guessed["error"]["data"]["reason"] == media_handles.REASON_UNKNOWN_HANDLE
-
-
-def test_a_view_only_device_is_refused_as_it_is_for_the_chat_itself(written):
-    diff_path, _ = written
-    handle = _rows()[diff_path]["handle"]
-    for method, params in ((INDEX, {}), (GET, {"handle": handle})):
-        reply = _call(method, params, caller=_device(TIER_READ))
-        assert reply["error"]["data"] == {"reason": REASON_SCOPE_DENIED, "tier": TIER_CONSOLE,
-                                          "caller": CALLER_DEVICE}
 
 
 def test_the_peer_keyhole_never_serves_an_agent_written_file(written):

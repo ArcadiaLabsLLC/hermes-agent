@@ -196,9 +196,9 @@ def pair_peer(*, peer_install_id: str = FAR_INSTALL, **kwargs) -> PeerCredential
     return credential
 
 
-def pair_device(*, tier: str = TIER_CONSOLE) -> DeviceCredential:
+def pair_device() -> DeviceCredential:
     root = _store_root()
-    code = mint_pairing_code(root, tier=tier, name="a phone")
+    code = mint_pairing_code(root, name="a phone")
     assert isinstance(code, PairingCode)
     credential = redeem_pairing_code(root, code.code)
     assert isinstance(credential, DeviceCredential)
@@ -339,7 +339,7 @@ def test_a_peer_is_refused_a_read_verb_a_device_may_call():
     same verb, two remote callers, two answers."""
 
     peer = pair_peer()
-    device = pair_device(tier=TIER_READ)
+    device = pair_device()
 
     with running_serve() as handle:
         with peer_client(handle, peer) as (connection, _reply):

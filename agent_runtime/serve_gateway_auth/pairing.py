@@ -14,8 +14,6 @@ from ..call_authorization import (
     DEVICE_KIND_CHANNEL,
     DEVICE_KIND_DEVICE,
     DEVICE_KINDS,
-    TIER_CONSOLE,
-    TIERS,
 )
 from ..clock import iso_stamp as _iso
 from ..gateway_pairing_codes import (
@@ -50,7 +48,6 @@ def mint_pairing_code(
     store_root: Path | str,
     *,
     name: str | None = None,
-    tier: str = DEFAULT_DEVICE_TIER,
     credential_ttl_seconds: int | None = None,
     for_device_id: str | None = None,
     correlation: str | None = None,
@@ -66,16 +63,14 @@ def mint_pairing_code(
     Both refusals are typed so the CLI verb can tell the operator which it was —
     "wait out the lockout" and "redeem or expire the codes you already made" are
     different next moves.
+
+    Every code pairs at ``console``, the one level a device holds: there is no tier to choose
+    (hermes row RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL).
     """
 
-    tier = str(tier or "").strip() or DEFAULT_DEVICE_TIER
-    if tier not in TIERS:
-        return StoreRefusal(
-            "invalid_tier",
-            f"tier must be one of {', '.join(TIERS)}; got {tier!r}",
-        )
+    tier = DEFAULT_DEVICE_TIER
     bound = clean_bound_instances(list(bound_instances or ()))
-    refusal = _channel_mint_refusal(kind, tier, bound) or _client_scope_refusal(kind, client_scope)
+    refusal = _channel_mint_refusal(kind, bound) or _client_scope_refusal(kind, client_scope)
     if refusal is not None:
         return refusal
     stamp = now if now is not None else time.time()
@@ -206,8 +201,9 @@ def redeem_pairing_code(
                 or clean_name(matched.get("name"))
                 or device_id
             )
-            tier = str(matched.get("tier") or DEFAULT_DEVICE_TIER)
-            tier = tier if tier in TIERS else DEFAULT_DEVICE_TIER
+            # ``console`` whatever the pending entry says: a device holds one level, and the
+            # entry's ``tier`` is not read.
+            tier = DEFAULT_DEVICE_TIER
             ttl = matched.get("credential_ttl_seconds")
             try:
                 ttl_seconds = int(ttl) if ttl else 0
@@ -276,16 +272,14 @@ def redeem_pairing_code(
 # ── internals ────────────────────────────────────────────────────────────────
 
 
-def _channel_mint_refusal(kind: str, tier: str, bound: tuple[str, ...]) -> StoreRefusal | None:
-    """A channel code needs ``console`` (a bot that cannot chat is nothing) and one bound instance."""
+def _channel_mint_refusal(kind: str, bound: tuple[str, ...]) -> StoreRefusal | None:
+    """A channel code needs one bound instance (it holds ``console``, as every code does)."""
 
     if kind not in DEVICE_KINDS:
         return StoreRefusal("invalid_kind", f"kind must be one of {', '.join(DEVICE_KINDS)}; got {kind!r}")
     if kind != DEVICE_KIND_CHANNEL:
         return None if not bound else StoreRefusal(
             "invalid_bound_instances", "only a channel credential is bound to persona instances")
-    if tier != TIER_CONSOLE:
-        return StoreRefusal("invalid_tier", "a channel credential holds console: it relays chat turns")
     if not bound:
         return StoreRefusal("bound_instances_required", "a channel credential must be bound to a persona instance")
     return None

@@ -6,8 +6,7 @@ The serve PUSHES every chat-turn settle and re-sends it until the launcher acks 
 it. These two methods are that operator surface; ``harness serve settles`` is the
 argv fallback over the SAME store functions.
 
-Tier ``console`` for both: a settle names a chat session and a turn, and
-``read`` is a paired viewer device (plan
+Tier ``console`` for both: a settle names a chat session and a turn (plan
 ``docs/agent-runtime-harness/planned/design-sweep-d2-2026-10-10.md`` § D2.05).
 The list's ``counts`` is the "connections-adjacent" number the row asked for; it
 rides this result, never ``runtime.health`` (whose contract is ``harness health

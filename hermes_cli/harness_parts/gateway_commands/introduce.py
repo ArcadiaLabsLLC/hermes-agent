@@ -334,12 +334,6 @@ class Introduce:
         minted = mint_pairing_code(
             self.root,
             name=self.note,
-            # ``console`` and not the operator's choice: an introduction is the
-            # account saying "this is my own device on my own machine", which is
-            # the exact provenance ``DEFAULT_DEVICE_TIER``'s ruling names. A
-            # ``--tier`` flag here would be a knob whose only safe setting is
-            # the default.
-            tier="console",
             credential_ttl_seconds=CREDENTIAL_TTL_SECONDS_INTRODUCED,
             for_device_id=self.for_device_id,
             correlation=self.correlation,

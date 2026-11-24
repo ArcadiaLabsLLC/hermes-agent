@@ -53,8 +53,7 @@ _METHODS: dict[str, Callable[[Any, dict, RpcContext], dict]] = {}
 #: its contract is that it "writes no store state, emits no event and mints no
 #: id", which is the same sentence that makes ``runtime.office.get`` a read. It
 #: spends CPU, but spending CPU is a rate-limiting question and rate limiting is
-#: not a tier — a viewer device that may not place an agent may certainly warm
-#: the cache that makes its own reads fast.
+#: not a tier — a verb that writes nothing is ``read`` whoever calls it.
 #:
 #: The gateway's two chat verbs (Stage 3) are the row that stretches the one-line
 #: rule, and they are ``console``: a chat turn is not itself a level mutation,

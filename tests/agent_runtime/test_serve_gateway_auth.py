@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
+from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.serve_gateway_auth import (
     AUTH_BAD_PROOF,
     AUTH_MALFORMED,
@@ -48,10 +48,10 @@ from agent_runtime.serve_gateway_auth import (
 from datetime import UTC
 
 
-def pair(root: Path, *, tier: str = TIER_CONSOLE, name: str | None = None, now: float = 1000.0):
+def pair(root: Path, *, name: str | None = None, now: float = 1000.0):
     """Mint and redeem in one step — the ceremony, for tests about what follows."""
 
-    code = mint_pairing_code(root, tier=tier, name=name, now=now)
+    code = mint_pairing_code(root, name=name, now=now)
     assert isinstance(code, PairingCode)
     credential = redeem_pairing_code(root, code.code, now=now + 1)
     assert isinstance(credential, DeviceCredential)
@@ -280,36 +280,49 @@ def test_a_device_record_shown_to_an_operator_carries_no_verifier(tmp_path: Path
     assert not hasattr(record, "verifier")
 
 
-def test_the_tier_asked_for_at_mint_is_the_tier_the_device_gets(tmp_path: Path):
-    """R11: the field exists day one with both spellings representable. A field
-    that exists but has one value is a field nobody has tested."""
+def test_every_code_pairs_a_device_at_full_control_whatever_its_pending_entry_says(tmp_path: Path):
+    """A device holds one level, ``console`` (RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL):
+    the mint takes no tier, and a pending entry naming another word still redeems at ``console``.
 
-    read_only = pair(tmp_path, tier=TIER_READ, now=1000.0)
-    console = pair(tmp_path, tier=TIER_CONSOLE, now=2000.0)
+    Killing mutation (red seen 2026-11-23): in ``pairing.redeem_pairing_code`` read the tier back off the
+    pending entry (``matched.get("tier")``), and the edited entry redeems ``read``."""
 
-    assert lookup_device(tmp_path, read_only.device_id).tier == TIER_READ
-    assert lookup_device(tmp_path, console.device_id).tier == TIER_CONSOLE
+    from agent_runtime.gateway_pairing_codes import pending_codes
+
+    code = mint_pairing_code(tmp_path, now=1000.0)
+    assert isinstance(code, PairingCode) and code.tier == TIER_CONSOLE
+    state = json.loads(pairing_store_path(tmp_path).read_bytes().decode("utf-8"))
+    entries = list(pending_codes(state).values())
+    assert entries
+    for entry in entries:
+        entry["tier"] = "read"
+    pairing_store_path(tmp_path).write_bytes(json.dumps(state).encode("utf-8"))
+
+    credential = redeem_pairing_code(tmp_path, code.code, now=1001.0)
+
+    assert isinstance(credential, DeviceCredential) and credential.tier == TIER_CONSOLE
+    assert lookup_device(tmp_path, credential.device_id).tier == TIER_CONSOLE
 
 
-def test_an_unknown_tier_is_refused_at_mint_rather_than_defaulted(tmp_path: Path):
-    refused = mint_pairing_code(tmp_path, tier="admin", now=1000.0)
+@pytest.mark.parametrize("stored", ["read", "superuser", ""])
+def test_a_stored_device_that_is_not_full_control_is_no_device(tmp_path: Path, stored: str):
+    """A row holding the retired view-only ``read``, a typo or nothing is no device: it is not listed,
+    not looked up and its proof does not verify, so its holder pairs again (owner 2026-11-23: no
+    migration, no legacy wording). Never read as ``console``: that is how a typo widens a door.
 
-    assert isinstance(refused, StoreRefusal)
-    assert refused.reason == "invalid_tier"
-
-
-def test_a_row_whose_tier_this_build_does_not_know_reads_as_the_least_privileged(
-    tmp_path: Path,
-):
-    """A typo, or a row written by a future build with a wider vocabulary, must
-    narrow a door rather than widen one."""
+    Killing mutation (red seen 2026-11-23): in ``store.decode_device`` decode a non-console row as
+    ``read`` (the old least-privilege rule), and every case finds a device."""
 
     credential = pair(tmp_path)
     payload = json.loads(device_store_path(tmp_path).read_bytes().decode("utf-8"))
-    payload["devices"][credential.device_id]["tier"] = "superuser"
+    payload["devices"][credential.device_id]["tier"] = stored
     device_store_path(tmp_path).write_bytes(json.dumps(payload).encode("utf-8"))
+    nonce = "n" * 32
+    proof = device_proof(credential.token, nonce, port=8765, device_id=credential.device_id)
 
-    assert lookup_device(tmp_path, credential.device_id).tier == TIER_READ
+    assert lookup_device(tmp_path, credential.device_id) is None
+    assert list_devices(tmp_path) == []
+    assert verify_device_proof(tmp_path, credential.device_id, proof, nonce, port=8765).outcome == AUTH_UNKNOWN_DEVICE
 
 
 # ── the proof ───────────────────────────────────────────────────────────────

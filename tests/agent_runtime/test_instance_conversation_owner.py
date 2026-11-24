@@ -10,7 +10,7 @@ from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_chat_durability import default_persona_session_db
 from agent_runtime.persona_chat_history import persona_chat_history_summary
 from tests.agent_runtime.test_serve_rpc_open_chat import (
-    PERSONA, WORKSPACE, _call, _device, qa_persona, placed_agent,
+    PERSONA, WORKSPACE, _call, qa_persona, placed_agent,
 )
 
 OWNER = "a" * 64
@@ -86,10 +86,6 @@ def test_scoped_read_send_and_stop_refuse_before_side_effects(placed_agent):
     assert read["result"]["client_scope"] == OWNER
     sent = call("runtime.operator.conversation.message", owned)
     assert sent["result"]["accepted"] and len(effects) == 1
-    # Account namespaces do not grant console authority to a monitoring device.
-    denied = call("runtime.operator.conversation.read", owned,
-                  serve_rpc.RpcContext(caller=_device("read")))
-    assert "error" in denied
 
 
 @pytest.mark.parametrize("owner", [None, "", "account-email@example.test", "A" * 64, 123])

@@ -8,6 +8,7 @@ from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_chat_durability import default_persona_session_db
 from agent_runtime.persona_open_chat import CREATE_CONVERSATION_METHOD
+from agent_runtime.call_authorization import UNKNOWN_CALLER
 from tests.agent_runtime.test_instance_conversation_owner import OWNER, chat_head
 from tests.agent_runtime.test_serve_rpc_open_chat import (
     PERSONA, WORKSPACE, _call, _device, qa_persona, placed_agent,
@@ -93,7 +94,7 @@ def test_creation_is_console_authorized_and_rejects_selection_flags(placed_agent
     for extra in ({"new_session": True}, {"kill_active": True}, {"select_session": True}):
         assert "error" in request(CREATE_CONVERSATION_METHOD, {**params, **extra})
     assert "error" in request(CREATE_CONVERSATION_METHOD, params,
-                               serve_rpc.RpcContext(caller=_device("read")))
+                               serve_rpc.RpcContext(caller=UNKNOWN_CALLER))
     assert pointers(placed_agent) == before
     assert "result" in request(CREATE_CONVERSATION_METHOD, params,
                                 serve_rpc.RpcContext(caller=_device("console")))

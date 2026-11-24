@@ -1,11 +1,7 @@
 """Native twins of the Agent Console's local operations, behind existing owners."""
-import re
 from functools import partial
 
-from agent_runtime.call_authorization import (
-    CALLER_COMPUTER, CALLER_DEVICE, CALLER_LOCAL_CONSOLE, CALLER_STDIO_OWNER, COMPUTER_GRANT_ACCOUNT,
-    TIER_CONSOLE, TIER_READ,
-)
+from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from .protocol import err, ok, defer_or_inline, ERR_INVALID_PARAMS, ERR_NOT_FOUND, ERR_CONFLICT
 from .registry import method
 from agent_runtime.param_readers import read_text
@@ -119,7 +115,7 @@ def instance_detail(rid, params, context=None):
         result = persona_instance_detail_for_id(p["instance_id"])
         if result is None:
             return {"found": False, "instance_id": p["instance_id"]}
-        return _detail_for_caller(result, context.caller if context is not None else None)
+        return result
     return _operation(rid, params, context, "runtime.persona.instance.detail", read)
 
 
@@ -135,113 +131,8 @@ def prompt_observability_agent(rid, params, context=None):
         result = prompt_observability_for_instance(p["instance_id"])
         if result is None:
             return {"found": False, "instance_id": p["instance_id"]}
-        return _prompt_details_for_caller(result, context.caller if context is not None else None)
+        return result
     return _operation(rid, params, context, "runtime.prompt_observability.agent", read)
-
-
-# ── who may see where things live on this computer (RT-FU-A-LOOK-DEVICE-IS-SENT-THE-PATH-OF-AN-AGENTS-
-# SETTINGS-FILE, review w1122d.6). The detail's ``tool_resolution`` (and its ``turn_tool_context.preview``
-# copy) names absolute local paths: the profile's config file, the turn's working directory, the runtime
-# root, a bound repository. Only a caller at console tier keeps them; a caller below console tier (a
-# view-only device, paired ``--tier read``; a caller the transport could not place) reads every label and
-# source with the paths taken out (kept by RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-
-# YOUR-OWN, review w1122d.15, when the Look and Run chats computer levels it was first written for left).
-# The stores, ``ToolsetDeclaration.row()`` and the local CLI keep theirs.
-# The prompt details (RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-ITS-AGENTS-CONTEXT-FILES, review w1122d.12)
-# name each context file (``path``) and each layer's file (``source_path``) the same way. The health check
-# (``runtime_root``, ``hermes_home``, ``interpreter``, and the interpreter's path inside an ``issues`` sentence) and
-# the agent list (each agent's ``profile_home``) return through ``_detail_for_caller`` too
-# (RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-HERMES-BY-ITS-HEALTH-CHECK-AND-AGENT-LIST, review w1122d.13).
-
-#: The keys that hold an absolute local path, read off ``tool_visibility.resolve_tool_visibility`` (``workdir``,
-#: ``runtime_root``, ``repo_scope``), ``ToolsetDeclaration.row()`` and ``DeclarationIssue.row()`` (``config_path``),
-#: the prompt details' context-file rows and workspace receipt (``path``) and their layers (``source_path``),
-#: ``provider_health.provider_health_for_personas`` (``interpreter``, ``runtime_root``, ``hermes_home``) and
-#: ``instance_catalog._project`` (``profile_home``). ``repo_scope`` may instead hold a portable label, which is kept.
-_LOCAL_PATH_FIELDS = frozenset({"config_path", "root_config_path", "workdir", "runtime_root", "repo_scope",
-                                "path", "source_path", "interpreter", "hermes_home", "profile_home"})
-#: An absolute path as a value: POSIX, home-relative, a Windows drive or a UNC share.
-_ABSOLUTE_PATH = re.compile(r"^(?:/|~[/\\]|[A-Za-z]:[/\\]|\\\\)")
-#: An absolute path inside prose (an issue's summary names its file): not after a word, a dot or a colon,
-#: so ``chat/acp``, ``./x`` and a URL's ``//`` are left alone.
-_PATH_IN_PROSE = re.compile(r"(?<![\w.:/\\])(?:~[/\\]|[A-Za-z]:[/\\]|/(?=[\w.~-]))[^\s'\"`,;()<>]*")
-_PATH_WORDS = "a file on the agent's computer"
-
-
-def _sees_local_paths(caller) -> bool:
-    """Is *caller* at console tier: the owner's own console, a console device, a computer on the phone's account?
-
-    ``None`` is an in-process call with no wire behind it. Every caller below console tier (a view-only device,
-    a caller the transport could not place) is projected."""
-
-    if caller is None or caller.kind in (CALLER_STDIO_OWNER, CALLER_LOCAL_CONSOLE):
-        return True
-    if caller.kind == CALLER_DEVICE:
-        return caller.device_tier == TIER_CONSOLE
-    return caller.kind == CALLER_COMPUTER and caller.computer_grant == COMPUTER_GRANT_ACCOUNT
-
-
-def _detail_for_caller(result: dict, caller) -> dict:
-    """The detail as *caller* may see it: below console tier, no absolute local path in any field or sentence."""
-
-    # MUTATION: return ``result`` here for every caller and test_no_absolute_local_path_reaches_a_view_only_device
-    # reddens, while test_the_console_keeps_the_paths stays green.
-    if _sees_local_paths(caller):
-        return result
-    return _without_local_paths(result, _text_without_paths)
-
-
-def _prompt_details_for_caller(result: dict, caller) -> dict:
-    """One agent's prompt details as *caller* may see it: below console tier, no absolute path in a path field.
-
-    Its text is left whole: a context file's ``preview`` and a layer's ``content`` are the file's and the rules'
-    own words, which a view-only device may read; only the detail's hermes-written sentences are rewritten (``_detail_for_caller``)."""
-
-    # MUTATION: return ``result`` here for every caller and test_a_view_only_device_reads_no_context_file_path
-    # reddens, while test_the_console_keeps_the_context_file_paths stays green.
-    if _sees_local_paths(caller):
-        return result
-    return _without_local_paths(result, _unchanged)
-
-
-def _without_local_paths(node, text):
-    """*node* (a JSON value) with every absolute local path field nulled and each string passed to *text*,
-    routed by its JSON type."""
-
-    return _PROJECTION_BY_TYPE.get(type(node), _leaf)(node, text)
-
-
-def _object_without_paths(node: dict, text) -> dict:
-    return {key: None if key in _LOCAL_PATH_FIELDS and _is_absolute_path(value)
-            else _without_local_paths(value, text) for key, value in node.items()}
-
-
-def _array_without_paths(node: list, text) -> list:
-    return [_without_local_paths(item, text) for item in node]
-
-
-def _string(node: str, text) -> str:
-    return text(node)
-
-
-def _leaf(node, text):
-    return node
-
-
-def _text_without_paths(node: str) -> str:
-    # MUTATION: return ``node`` unchanged and test_an_issue_sentence_names_no_local_path reddens.
-    return _PATH_IN_PROSE.sub(_PATH_WORDS, node)
-
-
-def _unchanged(node: str) -> str:
-    return node
-
-
-_PROJECTION_BY_TYPE = {dict: _object_without_paths, list: _array_without_paths, str: _string}
-
-
-def _is_absolute_path(value) -> bool:
-    return isinstance(value, str) and _ABSOLUTE_PATH.match(value) is not None
 
 
 @method("runtime.skills.catalog", tier=TIER_READ)

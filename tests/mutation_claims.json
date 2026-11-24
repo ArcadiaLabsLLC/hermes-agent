@@ -1354,7 +1354,7 @@
         "-m",
         "pytest",
         "-q",
-        "tests/agent_runtime/test_serve_rpc_authorization.py::test_the_service_refuses_a_read_tier_caller_with_no_dispatcher_involved"
+        "tests/agent_runtime/test_serve_rpc_authorization.py::test_the_service_refuses_a_caller_below_console_with_no_dispatcher_involved"
       ]
     },
     {
@@ -1369,7 +1369,7 @@
         "-m",
         "pytest",
         "-q",
-        "tests/agent_runtime/test_serve_rpc_authorization.py::test_the_service_refuses_a_read_tier_caller_with_no_dispatcher_involved"
+        "tests/agent_runtime/test_serve_rpc_authorization.py::test_the_service_refuses_a_caller_below_console_with_no_dispatcher_involved"
       ]
     },
     {

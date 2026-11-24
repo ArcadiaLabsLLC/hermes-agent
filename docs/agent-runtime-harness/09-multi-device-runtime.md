@@ -80,7 +80,9 @@ profile matrix and its stages are
 - **Paired device** — `gateway/devices.json`, one row per credential a
   LAUNCHER holds: `{device_id, name, tier, verifier, …, account_device_id}`
   (`agent_runtime/serve_gateway_auth/`). A launcher on another machine is a
-  DEVICE to this runtime, at `console` tier, and that is the credential the
+  DEVICE to this runtime, at `console` tier — every paired device has full
+  control; there is no view-only level (removed 2026-11-23, a stored row with
+  any other tier is no device and re-pairs) — and that is the credential the
   cockpit's remote aim rides. One live row per account device (RL-23): a
   redeem scoped to an `account_device_id` supersedes every earlier live row
   carrying that label.
@@ -108,8 +110,8 @@ naming two of them. A DEVICE proves `HMAC-SHA256(key=sha256(token),
 msg="gwv1|<port>|<device_id>|<nonce>")`; a PEER proves the `pwv1` shape keyed
 on the shared secret verifier (03 §1.2). Each credential is refused on the
 other's field, on the other lane, and in the other ceremony's verb. The tier a
-device holds is fixed at pairing and compared by `call_authorization.authorize_call`
-against the tier each method declares; a peer is answered from
+device holds is fixed at pairing, always `console` (full control), and compared by
+`call_authorization.authorize_call` against the tier each method declares; a peer is answered from
 `PEER_METHOD_ALLOWLIST` before the read-tier arm runs, so it inherits nothing.
 
 `PEER_METHOD_ALLOWLIST` at HEAD is seven methods: `peer.ping`,

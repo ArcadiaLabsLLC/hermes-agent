@@ -1049,18 +1049,22 @@ user row gain one guidance sentence and one `FILE:<path>` line per file, before 
 (`media_handles._DECLARATION_ADMITS`). `RPC_CONTRACT_VERSION` does not move. Module:
 `agent_runtime/operator_files.py`.
 
-**The tier is now a refusal, and what it refuses is a paired device** (Stage A5,
-landed with the gateway's Stage 1). `authorize_call` compares the tier a
-device's record HOLDS — read off `gateway/devices.json` by the transport, fixed
-at a pairing ceremony only an operator at this install's own machine can run —
-against the tier the verb DECLARES, and answers a `read`-tier device asking for
-a `console` verb with the typed `data.reason: "scope_denied"` the launcher's
-decoders already branch on. Nothing local moved: `local_console` and
-`stdio_owner` are grandfathered exactly as A3 left them, because a device's
-authority was added BESIDE that set rather than folded into it — two callers
-whose authority comes from different kinds of fact should not share one
-membership test. Reads stay open to `unknown`, deliberately and not by
-omission: nothing on the read side mutates a level.
+**A paired device has full control** (Stage A5, landed with the gateway's
+Stage 1; the view-only level was removed 2026-11-23, owner "No, remove it",
+row `RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL`).
+Every pairing writes `console` into the device's record in
+`gateway/devices.json` (`harness gateway pair` takes no `--tier`), and a stored
+row holding any other word is no device: the handshake refuses it and its
+holder pairs again — no migration. `authorize_call` still compares the tier the
+record holds against the tier the verb DECLARES (a `console` device runs read
+and console verbs alike); the METHOD tier `read` stays, and means a verb that
+writes nothing. Nothing local moved: `local_console` and `stdio_owner` are
+grandfathered exactly as A3 left them, because a device's authority was added
+BESIDE that set rather than folded into it — two callers whose authority comes
+from different kinds of fact should not share one membership test. A caller
+the transport could not place (`unknown`) is refused every verb, reads
+included; no transport produces one today
+(`tests/agent_runtime/test_no_transport_hands_the_dispatcher_an_unplaced_caller.py`).
 
 **A PEER is refused by an allowlist rather than by a tier** (Stage 6, §1.2).
 `PEER_METHOD_ALLOWLIST` was `{peer.ping, peer.agent_chat.execute}` (Stage 7
@@ -1068,7 +1072,7 @@ widened it by one, §1.3, with the reason in a comment beside the set; the
 same-account pairing lane and P4 took it to six — §1.2 names them — and D1.07's
 `peer.agent_chat.cancel` to seven) and the
 arm runs before the read-tier
-arm — which is open to every caller, so a peer evaluated after it would hold
+arm — which is open to every placed caller, so a peer evaluated after it would hold
 this runtime's entire read surface including verbs nobody has written yet. The
 choice of an allowlist over a third tier word is about what happens as the
 registry GROWS: a tier comparison admits every future verb declaring that word,
@@ -1081,7 +1085,7 @@ moment a third verb arrives.
 `peer.ping` itself declares `read`, and that is not a lie to device or console
 readers. The map answers what a call WANTS, never what a connection HOLDS, so a
 verb that reads no store, writes nothing and mints no id belongs with
-`runtime.office.get`; a read-tier device may indeed call it. The allowlist
+`runtime.office.get`; any paired device may indeed call it. The allowlist
 NARROWS the peer lane and does not widen this row. A third tier word only one
 caller kind could hold would put a value in the map every existing reader must
 be taught to ignore.
@@ -1097,13 +1101,10 @@ admit a console caller, and it is the VERB that has no provenance to run under.
 one-line rule does NOT decide it** (gateway Stage 8). Neither mutates anything,
 so the rule as stated would put them with the reads. They are `console` for two
 reasons the rule does not cover. Handing a caller the raw BYTES of a file on
-this machine is an EGRESS, not a read of the level. And the read tier is
-deliberately open to `unknown` — a caller the transport authenticated and could
-not place — which is exactly the caller who must not be able to pull files off
-the disk; A5 kept that arm open on purpose, so a `read` declaration here would
-have been a hole shaped like a classification. It also settles what a
-`read`-tier device gets: a viewer is a viewer of the LEVEL, not a subscriber to
-every proof screenshot on the machine.
+this machine is an EGRESS, not a read of the level, and a `read` declaration
+would hand the bytes to every caller a read verb answers — a peer's allowlist
+aside, the gate would no longer be the place that says who may pull files off
+the disk.
 
 This table used to be a list of ten LINE NUMBERS. Two of them (`2055`, `2115`)
 had already rotted by 2026-08-27 — a slice landing above them moved both — while
@@ -1177,8 +1178,8 @@ media_type, size_bytes, encoding: "base64", data}`.
 `agent_runtime/agent_file_handles.py`, so a device driving this engine from elsewhere opens what the
 trace and the Context Inspector show by path. `config.yaml` is never a row (it can hold inline
 secrets; never served, owner 2026-11-22), nor are the memory files. An agent's safe settings reach a
-device instead as the `settings` block of `runtime.persona.instance.detail` (read tier, a view-only
-device included, owner 2026-11-22): exactly `{model, provider, toolsets}`, the one tuple
+device instead as the `settings` block of `runtime.persona.instance.detail` (read tier, owner
+2026-11-22): exactly `{model, provider, toolsets}`, the one tuple
 `agent_runtime/agent_settings_summary.py` `SAFE_SETTINGS_FIELDS`, each read from its own resolver
 (the turn's model precedence, the bound profile's toolset declaration), never a filtered config. All three kinds are served
 at the verbs' `console` tier, the tier a chat's own history is read at. `peer.media.get` resolves

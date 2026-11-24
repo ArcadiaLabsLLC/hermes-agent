@@ -13,9 +13,9 @@ Two claims are load-bearing and the rest support them.
    up.** That is Stage 1's hardest invariant and the one the local launcher and
    the CLI are owed. It is asserted directly — the same frames, compared — and
    not inferred from ``test_serve_socket_lane.py`` staying green.
-2. **A device gets the tier it was paired at and nothing more**, on BOTH doors a
-   device can reach: the method lane (where ``authorize_call`` refuses) and the
-   argv lane (which is refused outright, because a tier gate on one lane and an
+2. **A device gets the full control it was paired at and nothing more**, on BOTH
+   doors a device can reach: the method lane (where ``authorize_call`` answers)
+   and the argv lane (which is refused outright, because a gate on one lane and an
    ungated shell on the other is not a gate).
 
 The bind address is loopback here, and that is not a shortcut: the LAN bind is a
@@ -209,9 +209,9 @@ def _serving_row(root, pid: int) -> None:
     )
 
 
-def pair_device(*, tier: str = TIER_CONSOLE, name: str = "phone") -> DeviceCredential:
+def pair_device(*, name: str = "phone") -> DeviceCredential:
     root = _store_root()
-    code = mint_pairing_code(root, tier=tier, name=name)
+    code = mint_pairing_code(root, name=name)
     assert isinstance(code, PairingCode)
     credential = redeem_pairing_code(root, code.code)
     assert isinstance(credential, DeviceCredential)
@@ -613,7 +613,7 @@ def test_the_ready_frame_publishes_the_gateway_port_and_the_fingerprint(gateway_
 def test_a_paired_device_completes_the_handshake_over_tls_with_a_pinned_cert(
     gateway_on,
 ):
-    credential = pair_device(tier=TIER_CONSOLE, name="the phone")
+    credential = pair_device(name="the phone")
 
     with running_serve() as handle:
         with device_client(handle, credential) as (_connection, reply):
@@ -841,7 +841,7 @@ def test_a_proof_stolen_from_the_loopback_lane_does_not_verify_here(gateway_on):
 
 
 def test_a_console_device_passes_the_gate_on_a_console_verb(gateway_on):
-    credential = pair_device(tier=TIER_CONSOLE)
+    credential = pair_device()
 
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, _reply):
@@ -853,49 +853,49 @@ def test_a_console_device_passes_the_gate_on_a_console_verb(gateway_on):
     assert answer.get("error", {}).get("data", {}).get("reason") != "scope_denied"
 
 
-def test_a_read_device_is_refused_a_console_verb_with_the_typed_reason(gateway_on):
-    credential = pair_device(tier=TIER_READ)
+@pytest.mark.parametrize("stored", ["read", "superuser"])
+def test_a_stored_device_that_is_not_full_control_is_refused_at_the_hello(gateway_on, stored):
+    """A row holding the retired view-only ``read`` (or any word but ``console``) is no device: the
+    hello is refused like any other credential failure, and its holder pairs again
+    (RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL; no migration).
+
+    Killing mutation (red seen 2026-11-23): in ``store.decode_device`` decode a non-console row as
+    ``read`` (the old least-privilege rule), and the hello is answered ``hello_ok``."""
+
+    from agent_runtime.serve_gateway_auth import device_store_path
+
+    credential = pair_device()
+    path = device_store_path(_store_root())
+    payload = json.loads(path.read_bytes().decode("utf-8"))
+    payload["devices"][credential.device_id]["tier"] = stored
+    path.write_bytes(json.dumps(payload).encode("utf-8"))
 
     with running_serve() as handle:
-        with device_client(handle, credential) as (connection, _reply):
-            answer = _rpc(connection, "runtime.agent.retire", {})
+        with device_client(handle, credential) as (_connection, reply):
+            pass
 
-    data = answer["error"]["data"]
-    assert data["reason"] == "scope_denied"
-    assert data["tier"] == TIER_CONSOLE
-    assert data["caller"] == "device"
-
-
-def test_a_read_device_may_still_call_a_read_verb(gateway_on):
-    credential = pair_device(tier=TIER_READ)
-
-    with running_serve() as handle:
-        with device_client(handle, credential) as (connection, _reply):
-            answer = _rpc(connection, "runtime.office.get", {"workspace_id": "default"})
-
-    assert answer.get("error", {}).get("data", {}).get("reason") != "scope_denied"
+    assert reply["event"] == "hello_rejected"
+    assert reply["reason"] == "bad_proof"
 
 
 def test_the_argv_lane_is_unreachable_from_a_device_at_every_tier(gateway_on):
-    """The refusal that makes the tier gate real. Without it a `read` device
-    refused `runtime.agent.retire` on the method lane sends the same verb as
-    argv and is obeyed — the gate would exist and be bypassable in one frame."""
+    """The argv lane is the machine owner's shell: a device, even at full control, is refused it
+    outright rather than handed an ungated door beside the method lane's gate."""
 
-    for tier in (TIER_READ, TIER_CONSOLE):
-        credential = pair_device(tier=tier, name=f"phone-{tier}")
-        with running_serve() as handle:
-            with device_client(handle, credential) as (connection, _reply):
-                connection.send(
-                    {"id": "a-1", "argv": ["harness", "agent", "retire", "--id", "x"]}
-                )
-                frame = connection.read_frame()
+    credential = pair_device()
+    with running_serve() as handle:
+        with device_client(handle, credential) as (connection, _reply):
+            connection.send(
+                {"id": "a-1", "argv": ["harness", "agent", "retire", "--id", "x"]}
+            )
+            frame = connection.read_frame()
 
-        assert frame["event"] == "error", tier
-        assert frame["error"] == "argv_lane_unavailable", tier
+    assert frame["event"] == "error"
+    assert frame["error"] == "argv_lane_unavailable"
 
 
 def test_a_device_may_not_drain_the_runtime_other_clients_are_using(gateway_on):
-    credential = pair_device(tier=TIER_CONSOLE)
+    credential = pair_device()
 
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, _reply):
@@ -938,7 +938,7 @@ def test_an_attached_device_is_named_on_the_connections_block(gateway_on):
     block exists to answer once there is more than one client, and a device id
     is not a secret — the device names it in its own hello."""
 
-    credential = pair_device(tier=TIER_READ, name="the phone")
+    credential = pair_device(name="the phone")
 
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, _reply):
@@ -952,7 +952,7 @@ def test_an_attached_device_is_named_on_the_connections_block(gateway_on):
     rows = frame["gateway"]["connections"]
     assert len(rows) == 1
     assert rows[0]["device_id"] == credential.device_id
-    assert rows[0]["device_tier"] == TIER_READ
+    assert rows[0]["device_tier"] == TIER_CONSOLE
     # …and the loopback lane's own rows are unchanged in shape: no device keys
     # where there is no device.
     assert all("device_id" not in row for row in frame["connections"])
@@ -965,7 +965,7 @@ def test_a_pairing_code_becomes_a_credential_in_one_round_trip(gateway_on):
     """Without this the device tier is a tier no device can ever enter: the
     operator prints eight characters and there is nowhere to spend them."""
 
-    code = mint_pairing_code(_store_root(), tier=TIER_READ, name="the phone")
+    code = mint_pairing_code(_store_root(), name="the phone")
     assert isinstance(code, PairingCode)
 
     with running_serve() as handle:
@@ -983,7 +983,7 @@ def test_a_pairing_code_becomes_a_credential_in_one_round_trip(gateway_on):
 
         assert reply["event"] == "hello_ok"
         paired = reply["paired"]
-        assert paired["tier"] == TIER_READ
+        assert paired["tier"] == TIER_CONSOLE
         assert len(paired["device_token"]) == 64
         credential = DeviceCredential(
             device_id=paired["device_id"],
@@ -1002,7 +1002,7 @@ def test_a_pairing_code_becomes_a_credential_in_one_round_trip(gateway_on):
 
 
 def test_a_code_is_one_shot_and_the_second_attempt_is_refused(gateway_on):
-    code = mint_pairing_code(_store_root(), tier=TIER_CONSOLE)
+    code = mint_pairing_code(_store_root())
     assert isinstance(code, PairingCode)
 
     with running_serve() as handle:
@@ -1051,8 +1051,8 @@ def test_a_hello_carrying_both_a_code_and_a_device_id_is_refused(gateway_on):
     """A handshake with two credentials in it is where a downgrade lives: the
     server must not get to pick which one it liked."""
 
-    credential = pair_device(tier=TIER_READ)
-    code = mint_pairing_code(_store_root(), tier=TIER_CONSOLE)
+    credential = pair_device()
+    code = mint_pairing_code(_store_root())
     assert isinstance(code, PairingCode)
 
     with running_serve() as handle:
@@ -1085,7 +1085,7 @@ def test_the_pairing_code_is_not_a_credential_on_the_loopback_lane(gateway_on):
     """The doors do not trade credentials in either direction: the root token is
     refused on the gateway lane (above) and a pairing code is refused here."""
 
-    code = mint_pairing_code(_store_root(), tier=TIER_CONSOLE)
+    code = mint_pairing_code(_store_root())
     assert isinstance(code, PairingCode)
 
     with running_serve() as handle:
@@ -1108,7 +1108,7 @@ def test_a_paired_device_never_shows_its_credential_on_the_connections_block(
     """The one-shot slot must not survive into anything an operator, a log, or
     another attached client can read."""
 
-    code = mint_pairing_code(_store_root(), tier=TIER_CONSOLE)
+    code = mint_pairing_code(_store_root())
     assert isinstance(code, PairingCode)
 
     with running_serve() as handle:

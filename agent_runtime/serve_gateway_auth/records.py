@@ -96,11 +96,13 @@ REVOKED_SUPERSEDED = "superseded"
 #: whose ``revoked_at`` will not parse is kept (:func:`prune_revoked_devices`).
 REVOKED_ROW_RETENTION_SECONDS = 30 * 86400
 
-#: The tier a pairing run on the install's own machine confers, per R11 as
-#: ruled: the operator standing at the console IS the account-auth trace, so the
-#: default is the full one and ``read`` is what an operator asks for explicitly.
-#: Both spellings are representable from day one — a field that exists but has
-#: one value is a field nobody has tested.
+#: The one tier a paired device holds: full control. R11 ruled that the operator
+#: standing at the console IS the account-auth trace, and the view-only ``read``
+#: pairing level was removed (owner 2026-11-23, "No, remove it"; hermes row
+#: RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL). Every
+#: mint writes it, and a stored row holding any other word is no device
+#: (``store.decode_device``). The row's ``tier`` field stays on the wire with this
+#: one value.
 DEFAULT_DEVICE_TIER = TIER_CONSOLE
 
 

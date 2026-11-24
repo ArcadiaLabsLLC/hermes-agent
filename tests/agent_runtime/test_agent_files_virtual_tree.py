@@ -40,7 +40,6 @@ from agent_runtime.call_authorization import (
     REASON_SCOPE_DENIED,
     STDIO_OWNER,
     TIER_CONSOLE,
-    TIER_READ,
     TRANSPORT_GATEWAY,
     RpcCaller,
     caller_for_connection,
@@ -143,19 +142,6 @@ def test_with_eternia_closed_the_read_refuses_virtual_tree_unavailable():
                  caller=_device(TIER_CONSOLE))["error"]["data"] == {"reason": "virtual_tree_unavailable"}
     assert owner.asked == []
     assert "virtual_tree_unavailable" in REFUSAL_CODES
-
-
-@pytest.mark.parametrize(("method", "verb"), [(VIRTUAL_WRITE, "patch"), (VIRTUAL_WRITE, "write"),
-                                             (VIRTUAL_WRITE, "move"), (VIRTUAL, "read")])
-def test_a_view_only_devices_call_is_refused_before_any_request_leaves_hermes(method, verb):
-    owner = _Eternia()
-    _declare(STDIO_OWNER, owner, None, ["launcher."])
-
-    reply = _call(method, {"verb": verb, "args": {"path": "/doc/a.luau", "read_version": "r1"}},
-                  caller=_device(TIER_READ))
-    assert reply["error"]["data"] == {"reason": REASON_SCOPE_DENIED, "tier": TIER_CONSOLE,
-                                      "caller": CALLER_DEVICE}, reply
-    assert owner.asked == []
 
 
 def test_a_verb_outside_the_virtual_trees_is_refused_and_nothing_is_asked():

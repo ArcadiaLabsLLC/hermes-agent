@@ -14,7 +14,8 @@ from tests.waiting import wait_until
 from agent_runtime.subagents.model import Refusal, SubagentError
 from agent_runtime.subagents.history import inspect_history
 from tests.agent_runtime.test_operator_session_inspection import target, inspect
-from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agent, _device
+from agent_runtime.call_authorization import UNKNOWN_CALLER
+from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agent
 from tests.agent_runtime.test_instance_conversation_owner import chat_head, OTHER
 
 
@@ -172,7 +173,7 @@ def test_operator_history_uses_the_existing_console_owner(request, tmp_path):
                        ("persona_instance_id", "other"), ("session_id", "other"), ("client_scope", OTHER)):
         assert "error" in inspect("subagents.history", {**params, key: value})
         assert "error" in inspect("subagents.result", {**selected, key: value})
-    assert "error" in inspect("subagents.history", params, _device("read"))
+    assert "error" in inspect("subagents.history", params, UNKNOWN_CALLER)
     capture_history(tmp_path / "operator-history.json", lambda op, args: inspect(f"subagents.{op}", {**params, **args})["result"])
 
 

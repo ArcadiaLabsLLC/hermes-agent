@@ -12,8 +12,7 @@ from ..call_authorization import (
     DEVICE_KIND_CHANNEL,
     DEVICE_KIND_DEVICE,
     DEVICE_KINDS,
-    TIER_READ,
-    TIERS,
+    TIER_CONSOLE,
 )
 from ..gateway_channel import clean_bound_instances
 from ..paths import gateway_dir
@@ -67,11 +66,14 @@ def decode_device(row: Any) -> DeviceRecord | None:
     if not device_id:
         return None
     tier = str(row.get("tier") or "").strip()
-    # A row whose tier this build does not know is read as the LEAST privileged
-    # tier, never as the default. The alternative — treating an unrecognised
-    # word as ``console`` because that is the common case — is how a typo or a
-    # downgrade widens a door silently.
-    tier = tier if tier in TIERS else TIER_READ
+    # Every pairing writes ``console``, the one level a device holds (hermes row
+    # RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL). A row holding any other
+    # word — the retired view-only ``read``, a typo, a downgrade — is no device: it is refused at the
+    # handshake and its holder pairs again. Never read as ``console``: that is how a typo widens a door.
+    # MUTATION: decode a non-console row as ``read`` (the old least-privilege rule) and
+    # test_a_stored_device_that_is_not_full_control_is_no_device reddens.
+    if tier != TIER_CONSOLE:
+        return None
     return DeviceRecord(
         device_id=device_id,
         name=str(row.get("name") or device_id),

@@ -34,11 +34,12 @@ import pytest
 from agent_runtime import serve_rpc
 from agent_runtime.call_authorization import (
     CALLER_DEVICE,
+    CALLER_UNKNOWN,
     LOCAL_CONSOLE,
     LOCAL_CONSOLE_METHODS,
     PEER_METHOD_ALLOWLIST,
     TIER_CONSOLE,
-    TIER_READ,
+    UNKNOWN_CALLER,
     RpcCaller,
     authorize_call,
     caller_for_connection,
@@ -192,21 +193,17 @@ def test_the_name_is_not_in_the_local_console_set_or_the_peer_allowlist():
 # ── the gate ─────────────────────────────────────────────────────────────────
 
 
-def test_a_console_device_is_admitted_and_a_read_device_is_refused():
-    """The stage's own sentence, as a predicate. The ``read`` half is the tier
-    equality; the ``console`` half is the one that would have failed had the
+def test_a_console_device_is_admitted():
+    """The stage's own sentence, as a predicate: the one that would have failed had the
     name joined ``LOCAL_CONSOLE_METHODS`` by reflex."""
 
     admitted = authorize_call(TIER_CONSOLE, _device(TIER_CONSOLE), method=OPEN_CHAT_METHOD)
-    refused = authorize_call(TIER_CONSOLE, _device(TIER_READ), method=OPEN_CHAT_METHOD)
 
     assert admitted.ok
     assert admitted.caller_kind == CALLER_DEVICE
-    assert not refused.ok
-    assert refused.caller_kind == CALLER_DEVICE
 
 
-def test_the_dispatcher_refuses_a_read_device_before_the_handler_runs(placed_agent):
+def test_the_dispatcher_refuses_an_unplaced_caller_before_the_handler_runs(placed_agent):
     """End to end through ``handle_request``, with the half that matters: the
     instance's chat binding does NOT move."""
 
@@ -215,11 +212,11 @@ def test_the_dispatcher_refuses_a_read_device_before_the_handler_runs(placed_age
 
     reply = _call(
         {"persona_id": PERSONA, "new_session": True, "idempotency_key": "refused-1"},
-        caller=_device(TIER_READ),
+        caller=UNKNOWN_CALLER,
     )
 
     assert "result" not in reply
-    assert reply["error"]["data"]["caller"] == CALLER_DEVICE
+    assert reply["error"]["data"]["caller"] == CALLER_UNKNOWN
     assert PersonaInstanceStore().get(instance_id).default_chat_session_id == before
 
 

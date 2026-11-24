@@ -64,17 +64,17 @@ def device(tier: str = TIER_CONSOLE, *, device_id: str = "dev_abc") -> RpcCaller
 
 def test_a_stamped_gateway_connection_becomes_a_device_caller_carrying_its_tier(
 ):
-    caller = device(TIER_READ, device_id="dev_phone")
+    caller = device(TIER_CONSOLE, device_id="dev_phone")
 
     assert caller.kind == CALLER_DEVICE
     assert caller.device_id == "dev_phone"
-    assert caller.device_tier == TIER_READ
+    assert caller.device_tier == TIER_CONSOLE
     assert caller.transport == TRANSPORT_GATEWAY
     # The refusal and the log line can name WHICH device was turned away — the
     # fact a per-connection key cannot supply, because it means nothing across
     # two connections.
     assert caller.describe()["device_id"] == "dev_phone"
-    assert caller.describe()["device_tier"] == TIER_READ
+    assert caller.describe()["device_tier"] == TIER_CONSOLE
 
 
 def test_a_gateway_connection_with_no_device_stamp_is_unknown_never_local_console():
@@ -155,26 +155,7 @@ def test_a_console_tier_device_may_run_a_console_verb():
     assert decision.caller_kind == CALLER_DEVICE
 
 
-def test_a_read_tier_device_is_refused_a_console_verb_with_the_typed_reason():
-    """``data.reason`` is what the launcher's decoders branch on first and the
-    numeric code second, so this string is as much a shape as the frame."""
-
-    decision = authorize_call(TIER_CONSOLE, device(TIER_READ))
-
-    assert decision.ok is False
-    assert decision.reason == REASON_SCOPE_DENIED
-    assert decision.refusal_data() == {
-        "reason": REASON_SCOPE_DENIED,
-        "tier": TIER_CONSOLE,
-        "caller": CALLER_DEVICE,
-    }
-
-
-def test_a_read_tier_device_may_still_run_read_verbs():
-    """The whole point of shipping ``read`` as a representable tier rather than
-    as a field with one value: a viewer device is useful."""
-
-    assert authorize_call(TIER_READ, device(TIER_READ)).ok is True
+def test_a_device_may_run_read_verbs():
     assert authorize_call(TIER_READ, device(TIER_CONSOLE)).ok is True
 
 
@@ -197,11 +178,11 @@ def test_a_device_whose_tier_field_was_lost_is_refused_rather_than_defaulted():
 @pytest.mark.parametrize("caller", [STDIO_OWNER, LOCAL_CONSOLE, CLI_CONSOLE, None])
 def test_every_caller_a3_grandfathered_is_still_allowed_every_tier(caller):
     """A5's no-behaviour-change half. ``None`` is in the list because
-    ``authorize_call`` resolves it to UNKNOWN, and read stays open to unknown —
-    which is A3's deliberate line, kept rather than inherited by omission."""
+    ``authorize_call`` resolves it to UNKNOWN, which is refused every verb
+    (RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL)."""
 
     if caller is None:
-        assert authorize_call(TIER_READ, None).ok is True
+        assert authorize_call(TIER_READ, None).ok is False
         assert authorize_call(TIER_CONSOLE, None).ok is False
         return
     assert authorize_call(TIER_READ, caller).ok is True
@@ -209,10 +190,10 @@ def test_every_caller_a3_grandfathered_is_still_allowed_every_tier(caller):
     assert authorize_call(TIER_CONSOLE, caller).reason == "console_grandfathered"
 
 
-def test_the_unknown_caller_is_refused_console_and_allowed_read_exactly_as_before():
-    assert authorize_call(TIER_CONSOLE, UNKNOWN_CALLER).ok is False
-    assert authorize_call(TIER_CONSOLE, UNKNOWN_CALLER).reason == REASON_SCOPE_DENIED
-    assert authorize_call(TIER_READ, UNKNOWN_CALLER).ok is True
+def test_the_unknown_caller_is_refused_every_verb():
+    for tier in (TIER_CONSOLE, TIER_READ):
+        assert authorize_call(tier, UNKNOWN_CALLER).ok is False
+        assert authorize_call(tier, UNKNOWN_CALLER).reason == REASON_SCOPE_DENIED
 
 
 def test_an_unknown_tier_still_refuses_every_caller_including_a_device():

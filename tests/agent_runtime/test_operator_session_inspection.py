@@ -4,7 +4,7 @@ from dataclasses import replace
 import json
 
 from agent_runtime import paths, serve_rpc
-from agent_runtime.call_authorization import LOCAL_CONSOLE
+from agent_runtime.call_authorization import LOCAL_CONSOLE, UNKNOWN_CALLER
 from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.mission_chat_turns import persist_mission_chat_turn
 from agent_runtime.persona_assignments import PersonaInstanceStore
@@ -15,7 +15,7 @@ from agent_runtime.store import AgentStore
 from hermes_cli import profiles
 from hermes_constants import get_hermes_home
 from tests.agent_runtime.test_serve_rpc_open_chat import (
-    PERSONA, WORKSPACE, _call, _device, qa_persona, placed_agent,
+    PERSONA, WORKSPACE, _call, qa_persona, placed_agent,
 )
 from tests.agent_runtime.test_instance_conversation_owner import chat_head, OWNER, OTHER
 from tests.agent_runtime.test_skill_inspection import put_skill
@@ -65,7 +65,7 @@ def test_settings_read_the_existing_override_without_mutation_or_cross_owner_acc
         assert refused["error"]["data"]["reason"] == "conversation_owner_changed"
         refused = inspect(operation, {**params, **extra, "install_id": "other"})
         assert refused["error"]["data"]["reason"] == "installation_changed"
-        assert "error" in inspect(operation, {**params, **extra}, _device("read"))
+        assert "error" in inspect(operation, {**params, **extra}, UNKNOWN_CALLER)
     with closing(default_persona_session_db()) as db:
         assert db.get_session(params["session_id"]) == before
     assert instances.get(instance.id) == expected_instance
@@ -186,4 +186,4 @@ def test_memory_reads_the_named_profile_store_and_pending_writes_without_mutatio
     assert get_hermes_home() == native_home
     refused = inspect("memory", {**targets["alpha"], "client_scope": OTHER})
     assert refused["error"]["data"]["reason"] == "conversation_owner_changed"
-    assert "error" in inspect("memory", targets["alpha"], _device("read"))
+    assert "error" in inspect("memory", targets["alpha"], UNKNOWN_CALLER)

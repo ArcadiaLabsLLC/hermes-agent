@@ -11,11 +11,9 @@ Tier ``read``: it writes nothing, emits nothing and mints nothing — the
 ``runtime.admission.status`` / ``runtime.speech.status`` row. It names local
 paths (interpreter, runtime root, hermes home) and package availability, never
 credentials, env or provider config bodies; the block was written
-redaction-safe for ``harness status``, which already ships it. Only a caller at
-console tier reads those paths: below it (a view-only device, paired
-``--tier read``) each is null and an ``issues`` sentence names no path
-(``console_operations._detail_for_caller``,
-RT-FU-A-LOOK-COMPUTER-IS-SENT-WHERE-A-PHONE-KEEPS-HERMES-BY-ITS-HEALTH-CHECK-AND-AGENT-LIST).
+redaction-safe for ``harness status``, which already ships it. Every caller
+that reaches it holds full control (a paired device has no lower level), so it
+is answered whole.
 """
 
 from __future__ import annotations
@@ -45,8 +43,5 @@ def _runtime_health(rid: Any, params: dict, context: RpcContext | None = None) -
         return err(rid, ERR_INVALID_PARAMS, "runtime.health takes no parameters.",
                    {"reason": HEALTH_UNEXPECTED_PARAMS_REASON})
     from agent_runtime.provider_health import runtime_health
-    from agent_runtime.serve_rpc.console_operations import _detail_for_caller
 
-    # MUTATION: return ``runtime_health()`` unprojected and test_a_view_only_device_reads_no_path_in_the_health_check
-    # reddens, while test_the_console_keeps_the_health_check_paths stays green.
-    return ok(rid, _detail_for_caller(runtime_health(), context.caller if context is not None else None))
+    return ok(rid, runtime_health())

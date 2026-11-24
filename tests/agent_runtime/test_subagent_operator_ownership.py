@@ -12,7 +12,7 @@ from tools.delegate_tool_child_run import _register_child
 from tools.delegate_tool_registry import _unregister_subagent
 from tools.delegation_live_log import LiveTranscriptWriter
 from tests.agent_runtime.test_operator_session_inspection import target, inspect
-from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agent, _device
+from tests.agent_runtime.test_serve_rpc_open_chat import qa_persona, placed_agent
 from tests.agent_runtime.test_instance_conversation_owner import chat_head, OTHER
 from tests.agent_runtime.test_subagent_worker_ownership import Child
 from tests.agent_runtime.test_native_conversation import runtime
@@ -49,7 +49,7 @@ def test_operator_children_remain_private_to_exact_conversation(placed_agent, tm
                                ("session_id", "other"), ("client_scope", OTHER)):
                 assert "error" in inspect("subagents.list", {**params, key: value})
                 assert "error" in inspect("subagents.tail", {**selected, key: value})
-            for caller in (_device("read"), UNKNOWN_CALLER):
+            for caller in (UNKNOWN_CALLER,):
                 assert "error" in inspect("subagents.list", params, caller)
             child.logs_dir = tmp_path / "other-profile" / "sessions"
             assert inspect("subagents.list", params)["result"]["children"] == []

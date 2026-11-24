@@ -62,7 +62,6 @@ import time
 
 import pytest
 
-from agent_runtime.call_authorization import TIER_CONSOLE
 from agent_runtime.mission_chat_phases import TURN_TIMING_ORDER
 from agent_runtime.serve_rpc import RPC_CONTRACT_VERSION
 from hermes_cli.harness_parts.serve import dispatch_argv
@@ -451,7 +450,7 @@ def test_a_device_tier_turn_reports_which_lane_carries_its_start_and_reply(
     """
 
     instance_id = placed_agent["persona_instance_id"]
-    credential = pair_device(tier=TIER_CONSOLE, name="the mac")
+    credential = pair_device(name="the mac")
 
     with running_serve(dispatch=dispatch_argv) as handle:
         with device_client(handle, credential) as (connection, hello):
@@ -820,7 +819,7 @@ def _run_a_slow_turn(
     """
 
     instance_id = placed_agent["persona_instance_id"]
-    credential = pair_device(tier=TIER_CONSOLE, name="the mac")
+    credential = pair_device(name="the mac")
 
     with running_serve(dispatch=dispatch_argv) as handle:
         with device_client(handle, credential) as (connection, _hello):

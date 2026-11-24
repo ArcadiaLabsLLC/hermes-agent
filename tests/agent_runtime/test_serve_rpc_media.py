@@ -23,7 +23,6 @@ from agent_runtime.call_authorization import (
     REASON_SCOPE_DENIED,
     STDIO_OWNER,
     TIER_CONSOLE,
-    TIER_READ,
     TRANSPORT_GATEWAY,
     UNKNOWN_CALLER,
     RpcCaller,
@@ -293,17 +292,6 @@ def test_an_unknown_caller_is_refused_at_the_CHOKEPOINT_before_any_scan(
         "reason": REASON_SCOPE_DENIED,
         "tier": TIER_CONSOLE,
         "caller": UNKNOWN_CALLER.kind,
-    }
-
-
-@pytest.mark.parametrize("method", [INDEX, GET])
-def test_a_read_tier_device_is_a_viewer_of_the_level_not_of_the_disk(method):
-    reply = _call(method, {"handle": "sha256:" + "0" * 64}, caller=_device(TIER_READ))
-
-    assert reply["error"]["data"] == {
-        "reason": REASON_SCOPE_DENIED,
-        "tier": TIER_CONSOLE,
-        "caller": CALLER_DEVICE,
     }
 
 
@@ -763,12 +751,12 @@ def test_a_console_callers_index_marks_soul_and_agents_writable_and_nothing_else
     }
 
 
-def test_a_read_tier_caller_is_told_writable_false_on_every_row(context_files):
+def test_a_caller_the_write_refuses_is_told_writable_false_on_every_row(context_files):
     from agent_runtime.serve_rpc import media
 
-    # The dispatcher refuses a read-tier device the index itself, so the handler is asked directly:
+    # The dispatcher refuses an unplaced caller the index itself, so the handler is asked directly:
     # the guard against the index ever reaching a caller the write refuses.
-    reply = media._runtime_media_index("r1", {}, serve_rpc.RpcContext(caller=_device(TIER_READ)))
+    reply = media._runtime_media_index("r1", {}, serve_rpc.RpcContext(caller=UNKNOWN_CALLER))
     by_name = _writable_by_name(reply["result"]["artifacts"])
     assert {"SOUL.md", "AGENTS.md"} <= set(by_name), by_name
     assert not any(by_name.values()), by_name
@@ -781,6 +769,5 @@ def test_the_per_caller_answer_is_the_write_verbs_gate():
         return media._caller_may_write_context_files(serve_rpc.RpcContext(caller=caller))
 
     assert may(_device(TIER_CONSOLE)) and may(STDIO_OWNER) and may(_computer("account"))
-    assert not may(_device(TIER_READ))
     assert not may(_computer("look")) and not may(_computer("chat"))
     assert not may(UNKNOWN_CALLER) and not media._caller_may_write_context_files(None)

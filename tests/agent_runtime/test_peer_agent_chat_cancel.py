@@ -10,11 +10,9 @@ from __future__ import annotations
 
 from agent_runtime import serve_rpc
 from agent_runtime.call_authorization import (
-    CALLER_DEVICE,
     CALLER_PEER,
     PEER_METHOD_ALLOWLIST,
     TIER_CONSOLE,
-    TIER_READ,
     RpcCaller,
     STDIO_OWNER,
 )
@@ -120,17 +118,6 @@ def test_another_install_cannot_stop_the_turn_install_a_asked_for():
     assert reply["result"]["outcome"] == "not_running"
     assert seen == []
     assert read_chat_turn_receipt(WIRE_TURN_REQUEST_ID).stop_requested is False
-
-
-def test_a_read_tier_device_is_refused_by_the_chokepoint():
-    device = RpcCaller(
-        kind=CALLER_DEVICE, transport="gateway", device_id="phone", device_tier=TIER_READ
-    )
-
-    reply, seen = _cancel(device)
-
-    assert reply["error"]["data"]["reason"] == "scope_denied"
-    assert seen == []
 
 
 def test_a_non_peer_caller_is_refused_with_its_own_reason():

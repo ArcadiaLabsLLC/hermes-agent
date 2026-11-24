@@ -16,7 +16,8 @@ from agent_runtime.session_controls import apply_session_speed, resolved_session
 from agent_runtime.store import AgentStore
 from agent_runtime.persona_chat_continuity.lease import persona_chat_root_lease
 from tests.agent_runtime.test_operator_session_inspection import inspect, target
-from tests.agent_runtime.test_serve_rpc_open_chat import PERSONA, qa_persona, placed_agent, _device
+from agent_runtime.call_authorization import UNKNOWN_CALLER
+from tests.agent_runtime.test_serve_rpc_open_chat import PERSONA, qa_persona, placed_agent
 from tests.agent_runtime.test_instance_conversation_owner import chat_head, OWNER, OTHER
 from tests.agent_runtime.test_profile_runner import FakeAgent
 from tests.waiting import wait_until
@@ -76,7 +77,7 @@ def test_busy_and_read_only_callers_cannot_change_execution_policy(chat):
     with persona_chat_root_lease(chat["session_id"], observer_kind="test"):
         reply = set_control(chat, "approval_mode", "off")
     assert reply["error"]["data"]["reason"] == "conversation_busy"
-    reply = inspect("control.set", {**chat, "setting": "approval_mode", "value": "off"}, caller=_device("read"))
+    reply = inspect("control.set", {**chat, "setting": "approval_mode", "value": "off"}, caller=UNKNOWN_CALLER)
     assert "error" in reply
     assert SessionControlStore().read(chat["session_id"]) == {}
 

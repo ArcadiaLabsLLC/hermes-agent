@@ -21,7 +21,6 @@ from agent_runtime.call_authorization import (
     DEVICE_KIND_CHANNEL,
     DEVICE_KIND_DEVICE,
     TIER_CONSOLE,
-    TIER_READ,
     TRANSPORT_GATEWAY,
     RpcCaller,
     caller_for_connection,
@@ -98,12 +97,11 @@ def test_an_unknown_kind_word_reads_as_the_narrower_channel(tmp_path: Path):
     ("kwargs", "reason"),
     [
         ({"kind": "channel"}, "bound_instances_required"),
-        ({"kind": "channel", "bound_instances": [BOUND], "tier": TIER_READ}, "invalid_tier"),
         ({"kind": "device", "bound_instances": [BOUND]}, "invalid_bound_instances"),
         ({"kind": "bot"}, "invalid_kind"),
     ],
 )
-def test_a_channel_code_needs_console_and_a_bound_instance(tmp_path: Path, kwargs, reason):
+def test_a_channel_code_needs_a_bound_instance(tmp_path: Path, kwargs, reason):
     refusal = mint_pairing_code(tmp_path, **kwargs)
     assert isinstance(refusal, StoreRefusal) and refusal.reason == reason
 

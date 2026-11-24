@@ -81,7 +81,7 @@ def _peer_ping(rid: Any, params: dict, context: RpcContext | None = None) -> dic
     ``runtime.office.get`` gets. A ``console`` declaration would say a level
     mutation's credential is needed, which is false, and would make the map
     lie to exactly the readers it is for: a launcher rendering "what can this
-    connection do" would grey out a ping any read-tier device may in fact call.
+    connection do" would grey out a ping any paired device may in fact call.
 
     What the tier map deliberately does NOT say is who may call this BESIDES
     a credential of that strength — and that asymmetry is already in the
@@ -603,7 +603,7 @@ def _peer_roster_list(rid: Any, params: dict, context: RpcContext | None = None)
     message could not reach.
 
     **The tier is ``read``** and it is the honest answer: these are the same
-    facts ``runtime.office.get`` hands a read-tier device — names and handles of
+    facts ``runtime.office.get`` hands a paired device — names and handles of
     agents on a level, no transcript, no credential, no path. What ADMITS a peer
     is the allowlist, as always.
     """

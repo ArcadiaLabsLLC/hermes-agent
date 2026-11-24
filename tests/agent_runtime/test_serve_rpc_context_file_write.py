@@ -37,7 +37,6 @@ from agent_runtime.call_authorization import (
     REASON_SCOPE_DENIED,
     STDIO_OWNER,
     TIER_CONSOLE,
-    TIER_READ,
     TRANSPORT_GATEWAY,
     RpcCaller,
 )
@@ -174,14 +173,6 @@ def test_a_computer_on_the_phones_own_account_saves_as_a_console_device(loaded):
     reply = _save(_handle(data), "# from my own computer\n", caller=_computer("account"))
     assert "result" in reply, reply
     assert path.read_bytes() == b"# from my own computer\n"
-
-
-def test_a_read_tier_device_is_refused(loaded):
-    files, _, _ = loaded
-    path, data = files["soul"]
-    reply = _save(_handle(data), "# from a viewer\n", caller=_device(TIER_READ))
-    assert reply["error"]["data"] == {"reason": REASON_SCOPE_DENIED, "tier": TIER_CONSOLE, "caller": CALLER_DEVICE}
-    assert path.read_bytes() == data
 
 
 def test_a_path_is_never_a_handle(loaded):

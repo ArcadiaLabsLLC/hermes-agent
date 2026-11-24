@@ -33,7 +33,6 @@ from agent_runtime import serve_rpc
 from agent_runtime.call_authorization import (
     CALLER_DEVICE,
     TIER_CONSOLE,
-    TIER_READ,
     RpcCaller,
     authorize_call,
 )
@@ -136,21 +135,12 @@ def test_both_chat_verbs_declare_console_and_a_read_device_is_refused():
     assert serve_rpc.method_tier(CHAT_MESSAGE_METHOD) == TIER_CONSOLE
     assert serve_rpc.method_tier(CHAT_STEER_METHOD) == TIER_CONSOLE
 
-    reader = RpcCaller(
-        kind=CALLER_DEVICE,
-        transport="gateway",
-        device_id="phone-1",
-        device_tier=TIER_READ,
-    )
     console = RpcCaller(
         kind=CALLER_DEVICE,
         transport="gateway",
         device_id="phone-2",
         device_tier=TIER_CONSOLE,
     )
-    refused = authorize_call(TIER_CONSOLE, reader)
-    assert refused.ok is False
-    assert refused.reason == "scope_denied"
     assert authorize_call(TIER_CONSOLE, console).ok is True
 
 

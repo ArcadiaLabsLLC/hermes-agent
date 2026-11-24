@@ -22,7 +22,6 @@ import json
 import pytest
 
 from agent_runtime import chat_live_log, media_handles, paths
-from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ, REASON_SCOPE_DENIED
 from agent_runtime.serve_socket import ServeSocketClient
 from tests.agent_runtime.test_serve_gateway_lane import (  # fixtures
     WAIT,
@@ -102,7 +101,7 @@ def test_a_paired_device_fetches_a_real_artifact_and_the_bytes_are_the_file(
     """
 
     shot, _oversize = seeded_media
-    credential = pair_device(tier=TIER_CONSOLE, name="the phone")
+    credential = pair_device(name="the phone")
 
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, hello_ok):
@@ -137,7 +136,7 @@ def test_the_oversize_artifact_is_indexed_unfetchable_and_refused_with_the_cap(
     gateway_on, seeded_media
 ):
     _shot, oversize = seeded_media
-    credential = pair_device(tier=TIER_CONSOLE)
+    credential = pair_device()
 
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, _):
@@ -163,7 +162,7 @@ def test_a_path_and_an_unknown_handle_are_refused_over_the_real_wire(
     would reach for if the handle namespace did not exist."""
 
     shot, _ = seeded_media
-    credential = pair_device(tier=TIER_CONSOLE)
+    credential = pair_device()
 
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, _):
@@ -183,28 +182,6 @@ def test_a_path_and_an_unknown_handle_are_refused_over_the_real_wire(
     assert guessed["error"]["data"]["reason"] == media_handles.REASON_UNKNOWN_HANDLE
 
 
-def test_a_device_paired_at_read_is_refused_the_whole_family_on_the_real_lane(
-    gateway_on, seeded_media
-):
-    """A viewer is a viewer of the LEVEL. The refusal is the typed
-    ``scope_denied`` the launcher's decoders already branch on, so no new client
-    vocabulary was minted for this family."""
-
-    credential = pair_device(tier=TIER_READ, name="the viewer")
-
-    with running_serve() as handle:
-        with device_client(handle, credential) as (connection, _hello_ok):
-            index = _rpc(connection, "runtime.media.index")
-            fetch = _rpc(
-                connection, "runtime.media.get", {"handle": "sha256:" + "0" * 64}
-            )
-
-    for reply in (index, fetch):
-        assert reply["error"]["data"]["reason"] == REASON_SCOPE_DENIED
-        assert reply["error"]["data"]["tier"] == "console"
-        assert reply["error"]["data"]["caller"] == "device"
-
-
 def test_an_unpaired_caller_never_reaches_the_verb_because_it_never_reaches_the_lane(
     gateway_on, seeded_media
 ):
@@ -215,7 +192,7 @@ def test_an_unpaired_caller_never_reaches_the_verb_because_it_never_reaches_the_
     ``test_serve_rpc_media.py``'s, where a monkeypatched derivation explodes if
     it is ever reached."""
 
-    credential = pair_device(tier=TIER_CONSOLE)
+    credential = pair_device()
 
     with running_serve() as handle:
         connection = ServeSocketClient(

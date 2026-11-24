@@ -13,7 +13,6 @@ Killing mutations (each recorded red, named at its test):
 * ``agent_tree._admissible``: drop the engine-home check;
 * ``reader.read``: drop the size check;
 * the stated reach (``computer=`` on the verb's ``@method``): leave the three verbs out;
-* ``agent_files``: a verb's tier back to ``TIER_READ`` (a view-only device reads the project);
 * ``reader.read_regular_file`` / ``reader._open_flags``: each guard of the one opener (O_NOFOLLOW,
   O_NONBLOCK, the Windows fallback's lstat refusal and inode pin), named at its test below.
 """
@@ -249,18 +248,6 @@ def test_a_computer_with_no_grant_or_a_retired_level_and_a_peer_are_refused(two_
 def _device(tier: str) -> ca.RpcCaller:
     return ca.RpcCaller(kind=ca.CALLER_DEVICE, connection_key="d", transport="gateway",
                         device_id="phone-1", device_tier=tier, device_kind=ca.DEVICE_KIND_DEVICE)
-
-
-@pytest.mark.parametrize("verb", VERBS)
-def test_a_view_only_device_is_refused_the_files_as_it_is_the_chats(two_roots, verb):
-    """MUTATION (``agent_files``: a verb's tier back to ``TIER_READ``): the viewer reads the project.
-
-    Row ``RT-FU-A-VIEW-ONLY-DEVICE-CANNOT-READ-AN-AGENTS-PROJECT-FILES``: a device paired ``read`` is
-    refused ``runtime.persona.chat.history``, so it is refused the files the chats are about.
-    """
-
-    assert serve_rpc.registry.method_tier(verb) == ca.TIER_CONSOLE
-    assert _reason(_call(verb, _params(verb), caller=_device(ca.TIER_READ))) == ca.REASON_SCOPE_DENIED
 
 
 @pytest.mark.parametrize("verb", VERBS)

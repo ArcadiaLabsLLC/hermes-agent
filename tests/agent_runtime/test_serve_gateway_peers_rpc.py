@@ -462,7 +462,6 @@ def test_a_non_console_caller_is_refused_at_every_surface(method):
     tier = serve_rpc.method_tier(method)
     for caller in (
         RpcCaller(kind="device", device_id="dev_1", device_tier=TIER_CONSOLE),
-        RpcCaller(kind="device", device_id="dev_2", device_tier=TIER_READ),
         RpcCaller(kind="peer", peer_install_id=PEER_A),
         RpcCaller(kind="unknown"),
     ):

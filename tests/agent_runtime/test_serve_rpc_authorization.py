@@ -33,6 +33,7 @@ from agent_runtime.agent_retire import perform_agent_retire
 from agent_runtime.call_authorization import (
     CALLER_DEVICE,
     CALLER_LOCAL_CONSOLE,
+    CALLER_PEER,
     CALLER_STDIO_OWNER,
     CALLER_UNKNOWN,
     LOCAL_CONSOLE,
@@ -91,13 +92,23 @@ def test_a_missing_caller_is_unknown_and_never_the_owner():
     assert authorize_call(TIER_CONSOLE, None).caller_kind == CALLER_UNKNOWN
 
 
-def test_reads_stay_open_to_a_caller_that_has_proved_nothing():
-    """A read tier is what a caller who proved nothing may still do, and nothing
-    on the read side mutates a level. Stage A5 gates reads — if it gates them at
-    all — on a device record, not on the absence of one."""
+def test_an_unplaced_caller_is_refused_a_read_verb():
+    """A caller the transport could not place gets nothing, read verbs included: no transport
+    produces one (``test_no_transport_hands_the_dispatcher_an_unplaced_caller``), so the read
+    opening answers only a placed caller
+    (RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL). A placed caller keeps
+    every read verb.
 
-    assert authorize_call(TIER_READ, UNKNOWN_CALLER).ok is True
-    assert authorize_call(TIER_READ, None).ok is True
+    Killing mutation (red seen 2026-11-23): drop the ``CALLER_UNKNOWN`` arm before the read opening in
+    ``authorize_call``, and both unplaced reads are answered ``read_tier``."""
+
+    for caller in (UNKNOWN_CALLER, None):
+        decision = authorize_call(TIER_READ, caller, method="runtime.health")
+        assert decision.ok is False, caller
+        assert decision.refusal_data() == {
+            "reason": REASON_SCOPE_DENIED, "tier": TIER_READ, "caller": CALLER_UNKNOWN}
+    for caller in (STDIO_OWNER, LOCAL_CONSOLE, _device(TIER_CONSOLE)):
+        assert authorize_call(TIER_READ, caller, method="runtime.health").ok is True, caller
 
 
 def test_an_unrecognised_tier_refuses_rather_than_waving_through():
@@ -128,20 +139,14 @@ def test_every_registered_method_dispatches_through_the_gate():
     Iterates the real registry, so a verb added tomorrow is covered today. The
     assertion is that a caller nothing mints is refused BEFORE the handler runs
     — proven by the frame shape, since a handler that ran would answer with its
-    own result or its own typed refusal, never with ``scope_denied``.
+    own result or its own typed refusal, never with ``scope_denied``. Read verbs
+    included: an unplaced caller is refused every verb, at the tier the verb declares.
     """
 
     refused = serve_rpc.RpcContext(caller=UNKNOWN_CALLER)
 
     for name, tier in serve_rpc.method_tiers().items():
         frame = serve_rpc.handle_request(_request(name), refused)
-        if tier == TIER_READ and name not in LOCAL_CONSOLE_METHODS:
-            # A read is not refused; it is answered (or it refuses on its own
-            # terms, e.g. a missing workspace_id). What matters is that the
-            # answer is never the GATE's.
-            data = frame.get("error", {}).get("data", {})
-            assert data.get("reason") != REASON_SCOPE_DENIED, name
-            continue
         if name in LOCAL_CONSOLE_METHODS:
             # A KIND restriction, and the gate answers it at whatever tier the
             # verb declares (WS4 / R-B, and S2d's peer-directory door). So the
@@ -156,7 +161,7 @@ def test_every_registered_method_dispatches_through_the_gate():
         assert frame["error"]["code"] == serve_rpc.ERR_HANDLER_FAILED, name
         assert frame["error"]["data"] == {
             "reason": REASON_SCOPE_DENIED,
-            "tier": TIER_CONSOLE,
+            "tier": tier,
             "caller": CALLER_UNKNOWN,
         }, name
 
@@ -297,6 +302,11 @@ def _device(tier: str) -> RpcCaller:
     )
 
 
+#: A caller below console on these verbs: a paired install (a peer), answered only from its
+#: allowlist. A paired device holds full control, so no device stands below console any more.
+_PEER = RpcCaller(kind=CALLER_PEER, transport=TRANSPORT_GATEWAY, peer_install_id="inst-a6")
+
+
 @pytest.mark.parametrize(
     "call",
     [
@@ -319,7 +329,7 @@ def _device(tier: str) -> RpcCaller:
         ),
     ],
 )
-def test_the_service_refuses_a_read_tier_caller_with_no_dispatcher_involved(
+def test_the_service_refuses_a_caller_below_console_with_no_dispatcher_involved(
     call, isolate_agent_runtime_root
 ):
     """Stage A6. The console tier is a property of the VERB, not of the gate.
@@ -342,12 +352,12 @@ def test_the_service_refuses_a_read_tier_caller_with_no_dispatcher_involved(
     and its parameter reds on the reason.
     """
 
-    outcome = call(_device(TIER_READ))
+    outcome = call(_PEER)
 
     assert outcome.refusal is not None
     assert outcome.refusal.data["reason"] == REASON_SCOPE_DENIED
     assert outcome.refusal.data["tier"] == TIER_CONSOLE
-    assert outcome.refusal.data["caller"] == CALLER_DEVICE
+    assert outcome.refusal.data["caller"] == CALLER_PEER
 
 
 def test_the_backstop_grandfathers_a_call_that_named_no_caller():
@@ -397,12 +407,12 @@ def test_the_backstop_reads_the_caller_and_never_the_request(
             "device_tier": TIER_CONSOLE,
             "requested_by": "local_console",
         },
-        caller=_device(TIER_READ),
+        caller=_PEER,
     )
 
     assert outcome.refusal is not None
     assert outcome.refusal.data["reason"] == REASON_SCOPE_DENIED
-    assert outcome.refusal.data["caller"] == CALLER_DEVICE
+    assert outcome.refusal.data["caller"] == CALLER_PEER
 
 
 def test_the_handlers_hand_the_proven_caller_to_the_service():
@@ -433,9 +443,9 @@ def test_the_handlers_hand_the_proven_caller_to_the_service():
         for name in ("runtime.agent.create", "runtime.agent.retire"):
             frame = serve_rpc.handle_request(
                 _request(name),
-                serve_rpc.RpcContext(caller=_device(TIER_READ)),
+                serve_rpc.RpcContext(caller=_PEER),
             )
             assert frame["error"]["data"]["reason"] == REASON_SCOPE_DENIED, name
-            assert frame["error"]["data"]["caller"] == CALLER_DEVICE, name
+            assert frame["error"]["data"]["caller"] == CALLER_PEER, name
     finally:
         serve_rpc.dispatch.authorize_call = original

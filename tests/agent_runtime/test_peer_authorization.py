@@ -106,8 +106,7 @@ def test_a_peer_is_refused_read_verbs_too_which_is_the_arm_ordering(
 ):
     """The ordering test, and it is the one a reader should be most suspicious of.
 
-    ``authorize_call``'s read arm returns ok for EVERY caller including
-    ``unknown``. If the peer arm ran after it, a peer would silently hold this
+    ``authorize_call``'s read arm returns ok for every placed caller. If the peer arm ran after it, a peer would silently hold this
     runtime's whole read surface — every office read, the subscribe lane, and
     each read verb added from now on — and no console-verb test would ever
     notice. So the claim is asserted directly against a real read-tier method.
@@ -124,16 +123,16 @@ def test_a_peer_is_refused_read_verbs_too_which_is_the_arm_ordering(
     for name in reads:
         assert authorize_call(TIER_READ, PEER, method=name).ok is False, name
 
-    # …while the same verbs stay open to the callers A3 and A5 left open. The
-    # sample EXCLUDES ``LOCAL_CONSOLE_METHODS``, and that exclusion is the
-    # correction rather than a convenience: those verbs are restricted by KIND
-    # and not by strength (WS4 / R-B, and S2d's peer-directory door), so "a read
-    # verb is open to ``unknown``" was never a claim about them. Picking one
-    # blindly made this assertion depend on which name sorted first.
+    # …while the same verbs stay open to the owner. The sample EXCLUDES
+    # ``LOCAL_CONSOLE_METHODS``, and that exclusion is the correction rather than
+    # a convenience: those verbs are restricted by KIND and not by strength (WS4 /
+    # R-B, and S2d's peer-directory door). Picking one blindly made this assertion
+    # depend on which name sorted first. An unplaced caller (``None``) is refused
+    # every verb (RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL).
     open_reads = [name for name in reads if name not in LOCAL_CONSOLE_METHODS]
     assert open_reads, "every read verb is kind-restricted; this proves nothing"
     assert authorize_call(TIER_READ, STDIO_OWNER, method=open_reads[0]).ok is True
-    assert authorize_call(TIER_READ, None, method=open_reads[0]).ok is True
+    assert authorize_call(TIER_READ, None, method=open_reads[0]).ok is False
 
 
 def test_a_peer_naming_no_method_is_refused_rather_than_defaulted():
@@ -233,21 +232,11 @@ def test_stage_six_moved_nothing_for_the_console_the_cli_or_a_device():
         device_id="dev_1",
         device_tier=TIER_CONSOLE,
     )
-    read_device = RpcCaller(
-        kind=CALLER_DEVICE,
-        transport=TRANSPORT_GATEWAY,
-        device_id="dev_2",
-        device_tier=TIER_READ,
-    )
     assert authorize_call(TIER_CONSOLE, console_device, method="runtime.agent.retire").ok
-    assert (
-        authorize_call(TIER_CONSOLE, read_device, method="runtime.agent.retire").ok
-        is False
-    )
     # A device keeps the whole read surface — it is a client of THIS install,
-    # whose operator chose its tier. That is the asymmetry with a peer, and it
+    # paired at full control. That is the asymmetry with a peer, and it
     # is deliberate rather than an oversight in one of the two arms.
-    assert authorize_call(TIER_READ, read_device, method="runtime.office.get").ok
+    assert authorize_call(TIER_READ, console_device, method="runtime.office.get").ok
 
 
 def test_a_console_device_may_read_slots_but_never_write_this_machines_fill():
@@ -274,14 +263,14 @@ def test_a_console_device_may_read_slots_but_never_write_this_machines_fill():
 
 def test_a_device_may_also_ping_because_the_row_says_read_and_means_it():
     """The tier map is not narrowed by the allowlist; the PEER lane is. A row
-    saying ``read`` that a read-tier device could not call would be the map
+    saying ``read`` that a paired device could not call would be the map
     lying to the reader it exists for."""
 
     device = RpcCaller(
         kind=CALLER_DEVICE,
         transport=TRANSPORT_GATEWAY,
         device_id="dev_1",
-        device_tier=TIER_READ,
+        device_tier=TIER_CONSOLE,
     )
 
     assert serve_rpc.manifest()["tiers"]["peer.ping"] == TIER_READ

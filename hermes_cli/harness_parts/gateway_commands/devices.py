@@ -39,7 +39,6 @@ def cmd_gateway_pair(args) -> int:
     )
 
     root = paths.store_root()
-    tier = str(getattr(args, "tier", None) or "console")
     name = getattr(args, "name", None)
     kind = str(getattr(args, "kind", None) or "device")
     # Iterated into the pairing entry: absent and empty both bind nothing.
@@ -84,7 +83,7 @@ def cmd_gateway_pair(args) -> int:
     if failure:
         return failure
 
-    code = mint_pairing_code(root, tier=tier, name=name, kind=kind, bound_instances=instances,
+    code = mint_pairing_code(root, name=name, kind=kind, bound_instances=instances,
                              client_scope=client_scope)
     if isinstance(code, StoreRefusal):
         # R-D14: a pairing.json this machine cannot write is not the network's

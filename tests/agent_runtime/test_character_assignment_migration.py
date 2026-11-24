@@ -148,7 +148,7 @@ def test_rpc_authorizes_writes_and_returns_the_saved_subject(character_migration
         invalid = {**request, "params": {**subject, "kind": invalid_kind}}
         refused = handle_request(invalid)["error"]
         assert refused["data"]["reason"] == "invalid_character_assignment"
-    preview = handle_request(request, RpcContext(caller=UNKNOWN_CALLER))["result"]
+    preview = handle_request(request)["result"]
     request.update(id="migrate", method="runtime.character.assignment.migrate", params={
         **subject, "expected_revision": 0, "operation_id": "rpc-migrate", "source_fingerprint": preview["source_fingerprint"],
     })

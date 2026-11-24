@@ -226,6 +226,6 @@ def test_install_is_this_consoles_alone():
     device = RpcCaller(kind="device", device_id="dev_1", device_tier=TIER_CONSOLE)
     assert authorize_call(tier, device, method="runtime.pets.install").ok is False
     assert authorize_call(tier, LOCAL_CONSOLE, method="runtime.pets.install").ok is True
-    reader = RpcCaller(kind="device", device_id="dev_2", device_tier="read")
+    reader = RpcCaller(kind="device", device_id="dev_2", device_tier=TIER_CONSOLE)
     for read in ("runtime.pets.gallery", "runtime.pets.sprite"):
         assert authorize_call(method_tier(read), reader, method=read).ok is True

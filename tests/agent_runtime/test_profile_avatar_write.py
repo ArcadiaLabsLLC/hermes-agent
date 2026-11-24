@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from PIL import Image
 
-from agent_runtime.call_authorization import CALLER_DEVICE, RpcCaller, STDIO_OWNER, UNKNOWN_CALLER
+from agent_runtime.call_authorization import STDIO_OWNER, UNKNOWN_CALLER
 from agent_runtime.media_handles import handle_for_bytes
 from agent_runtime.serve_rpc import handle_request, manifest
 from agent_runtime.serve_rpc.protocol import RpcContext
@@ -108,8 +108,6 @@ def test_atomic_failure_preserves_previous_bytes(home, monkeypatch):
 
 def test_write_is_console_only_and_discovery_is_explicit(home):
     assert "error" in call(portrait(), caller=UNKNOWN_CALLER)
-    viewer = RpcCaller(kind=CALLER_DEVICE, device_id="viewer", device_tier="read")
-    assert "error" in call(portrait(), caller=viewer)
     assert not (home / "assets/avatar.png").exists()
     published = manifest()
     assert published["tiers"]["runtime.profiles.avatar.set"] == "console"

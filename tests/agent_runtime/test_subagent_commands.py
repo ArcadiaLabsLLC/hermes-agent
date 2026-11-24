@@ -179,13 +179,12 @@ def test_an_async_operator_child_stays_addressable_after_its_spawning_turn(place
                 selected = {**params, "child_ref": during["child_ref"],
                             "expected_generation": roster["generation"], "request_id": "operator"}
                 from agent_runtime.call_authorization import UNKNOWN_CALLER
-                from tests.agent_runtime.test_serve_rpc_open_chat import _device
                 from tests.agent_runtime.test_instance_conversation_owner import OTHER
                 for key, value in (("install_id", "other"), ("workspace_id", "other"),
                                    ("persona_id", "other"), ("persona_instance_id", "other"),
                                    ("session_id", "other"), ("client_scope", OTHER)):
                     assert "error" in inspect("subagents.stop", {**selected, key: value})
-                for caller in (_device("read"), UNKNOWN_CALLER):
+                for caller in (UNKNOWN_CALLER,):
                     assert "error" in inspect("subagents.stop", selected, caller)
                 assert not child._interrupt_requested
                 assert inspect("subagents.stop", selected)["result"]["status"] == "interrupt_requested"

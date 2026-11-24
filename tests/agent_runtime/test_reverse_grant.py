@@ -91,7 +91,7 @@ class _Computer:
                               RpcContext(reverse_lanes=lambda: self.lanes))
 
     def pair_phone(self) -> DeviceCredential:
-        code = mint_pairing_code(self.root, tier=ca.TIER_READ, name="phone")
+        code = mint_pairing_code(self.root, name="phone")
         assert isinstance(code, PairingCode)
         credential = redeem_pairing_code(self.root, code.code)
         assert isinstance(credential, DeviceCredential)
@@ -362,8 +362,7 @@ def test_a_regrant_replaces_the_grant_and_offers_afresh(phone, computer):
 
 def test_the_device_arm_and_the_account_level_share_one_predicate():
     assert ca.paired_device_answers(ca.TIER_CONSOLE, "runtime.provider.key.set", ca.TIER_CONSOLE)
-    assert ca.paired_device_answers(ca.TIER_READ, "runtime.health", ca.TIER_READ)
-    assert not ca.paired_device_answers(ca.TIER_READ, "runtime.provider.key.set", ca.TIER_CONSOLE)
+    assert ca.paired_device_answers(ca.TIER_CONSOLE, "runtime.health", ca.TIER_READ)
     assert not ca.paired_device_answers(ca.TIER_CONSOLE, "runtime.gateway.reverse.grant", ca.TIER_CONSOLE)
     assert not ca.paired_device_answers("admin", "runtime.health", ca.TIER_READ)
     assert tuple(grants.GRANT_LEVELS) == ca.COMPUTER_GRANTS

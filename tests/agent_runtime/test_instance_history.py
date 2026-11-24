@@ -2,12 +2,12 @@
 from contextlib import closing
 
 from agent_runtime import paths, serve_rpc
-from agent_runtime.call_authorization import LOCAL_CONSOLE
+from agent_runtime.call_authorization import LOCAL_CONSOLE, UNKNOWN_CALLER
 from agent_runtime.gateway_identity import ensure_install_identity
 from agent_runtime.persona_chat_durability import default_persona_session_db
 from tests.agent_runtime.test_instance_conversation_owner import chat_head
 from tests.agent_runtime.test_serve_rpc_open_chat import (
-    PERSONA, _call, _device, qa_persona, placed_agent,
+    PERSONA, _call, qa_persona, placed_agent,
 )
 
 OWNER, OTHER = "a" * 64, "b" * 64
@@ -67,7 +67,7 @@ def test_history_requires_console_and_cursors_cannot_cross_account_or_install(pl
     create(placed_agent, "one")
     create(placed_agent, "two")
     for params in ({}, {"all_accounts": True}):
-        assert "error" in read_history(caller=_device("read"), **params)
+        assert "error" in read_history(caller=UNKNOWN_CALLER, **params)
     cursor = read_history(limit=1)["result"]["next_cursor"]
     for changed in ({"client_scope": OTHER}, {"all_accounts": True}):
         result = read_history(before=cursor, **changed)
@@ -218,14 +218,12 @@ def test_an_account_computer_lists_like_the_phones_own_eternia_and_a_retired_lev
 def test_readable_is_the_gates_answer_for_the_history_read():
     """``readable`` is asked of the front-door gate for ``runtime.persona.chat.history``, never a constant.
 
-    MUTATION: answer ``True`` in ``row_readable_by`` and the read-tier device and the unknown caller read.
+    MUTATION: answer ``True`` in ``row_readable_by`` and the unknown caller reads.
     """
 
-    from agent_runtime.call_authorization import UNKNOWN_CALLER
     from agent_runtime.serve_rpc.instance_history import row_readable_by
 
     assert row_readable_by(LOCAL_CONSOLE) and row_readable_by(_computer("account"))
-    assert not row_readable_by(_device("read"))
     assert not row_readable_by(_computer("look")) and not row_readable_by(_computer("chat"))
     assert not row_readable_by(UNKNOWN_CALLER)
 

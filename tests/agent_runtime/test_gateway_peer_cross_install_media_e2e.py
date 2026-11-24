@@ -143,11 +143,11 @@ from agent_runtime import paths
 from agent_runtime.serve_gateway_auth import mint_pairing_code, redeem_pairing_code
 from agent_runtime.serve_socket import ServeSocketClient
 
-port, fingerprint, tier = int(sys.argv[1]), sys.argv[2], sys.argv[3]
-handles = sys.argv[4:]
+port, fingerprint = int(sys.argv[1]), sys.argv[2]
+handles = sys.argv[3:]
 
 root = paths.store_root()
-code = mint_pairing_code(root, tier=tier, name="the phone")
+code = mint_pairing_code(root, name="the phone")
 credential = redeem_pairing_code(root, code.code)
 
 connection = ServeSocketClient(
@@ -272,7 +272,6 @@ def test_a_device_on_A_opens_a_picture_that_exists_only_on_B(two_installs):
         _DEVICE_ON_A,
         str(a.gateway_port),
         a.ready["gateway"]["cert_fingerprint"],
-        "console",
         PROOF_HANDLE,
         GUESSED_HANDLE,
         reference,
@@ -324,7 +323,6 @@ def test_a_device_on_A_opens_a_picture_that_exists_only_on_B(two_installs):
         _DEVICE_ON_A,
         str(a.gateway_port),
         a.ready["gateway"]["cert_fingerprint"],
-        "console",
         PROOF_HANDLE,
     )
     assert code == 0, output
@@ -345,51 +343,8 @@ def test_a_device_on_A_opens_a_picture_that_exists_only_on_B(two_installs):
         _DEVICE_ON_A,
         str(a.gateway_port),
         a.ready["gateway"]["cert_fingerprint"],
-        "console",
         other,
     )
     assert code == 0, output
     unreachable = _last_json(output)["answers"]["get_0"]["error"]["data"]
     assert unreachable == {"reason": "peer_unreachable", "peer_install_id": b_id}
-
-
-@_REAL_CHILD_SPAWN
-@pytest.mark.timeout(E2E_TEST_TIMEOUT_SECONDS)
-def test_a_read_tier_device_is_refused_the_whole_family_remote_rows_included(
-    two_installs,
-):
-    """The remote half did not open a door for a viewer.
-
-    A ``read`` device was refused this family on one root at Stage 8; the row
-    being on another machine changes nothing about who may ask, which is worth
-    asserting rather than assuming, because the scope grew and the gate did not.
-    """
-
-    a, b = two_installs
-    b_id = b.ready["install"]["install_id"]
-
-    code, minted, output = a.cli("gateway", "peers", "pair")
-    assert code == 0, output
-    code, _joined, output = b.cli(
-        "gateway", "peers", "join", _payload_of(minted), "--timeout", "60"
-    )
-    assert code == 0, output
-
-    code, output = a.python(
-        _RECORD_ON_A, b_id, "X:\\Eternia\\artifacts\\on-b.png", PROOF_HANDLE, "512"
-    )
-    assert code == 0, output
-
-    code, output = a.python(
-        _DEVICE_ON_A,
-        str(a.gateway_port),
-        a.ready["gateway"]["cert_fingerprint"],
-        "read",
-        PROOF_HANDLE,
-    )
-    assert code == 0, output
-    answers = _last_json(output)["answers"]
-
-    for key in ("index", "get_0"):
-        assert answers[key]["error"]["data"]["reason"] == "scope_denied", answers[key]
-        assert answers[key]["error"]["data"]["caller"] == "device"

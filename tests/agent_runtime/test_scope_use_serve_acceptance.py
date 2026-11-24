@@ -26,7 +26,6 @@ from agent_runtime.call_authorization import (
     CALLER_DEVICE,
     REASON_SCOPE_DENIED,
     TIER_CONSOLE,
-    TIER_READ,
 )
 from agent_runtime.scope_activation import REALM_USE_METHOD, WORKSPACE_USE_METHOD
 from agent_runtime.store import RealmStore, WorkspaceStore
@@ -106,18 +105,17 @@ def test_the_machine_owner_parks_the_pointer_over_the_loopback_socket(scope):
     assert WorkspaceStore().active_id() == scope["ws_a"].id
 
 
-@pytest.mark.parametrize("tier", [TIER_READ, TIER_CONSOLE])
 @pytest.mark.parametrize("method,key", [(WORKSPACE_USE_METHOD, "workspace_id")])
 def test_a_paired_device_is_refused_and_the_pointer_does_not_move(
-    gateway_on, scope, tier, method, key
+    gateway_on, scope, method, key
 ):
     """**R-B, over the wire.** The device authenticated: it redeemed a real
     pairing code, pinned the real certificate and answered the real HMAC
-    challenge. It is refused anyway, and the ``console`` case is the one that
-    matters — a tier comparison alone would have let it through."""
+    challenge. It is refused anyway, at full control — a tier comparison alone would have let it
+    through."""
 
     WorkspaceStore().set_active(scope["ws_b"].id)
-    credential = pair_device(tier=tier, name=f"phone-{tier}")
+    credential = pair_device(name="phone")
 
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, hello):
@@ -140,7 +138,7 @@ def test_a_console_device_keeps_the_console_verbs_it_already_had(gateway_on, sco
     surface. Proven with the verb R11's sentence is actually about — a chat
     turn — reaching its own guards rather than the authorization gate."""
 
-    credential = pair_device(tier=TIER_CONSOLE, name="phone-console")
+    credential = pair_device(name="phone-console")
 
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, _):

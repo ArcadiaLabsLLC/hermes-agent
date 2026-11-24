@@ -182,7 +182,7 @@ def test_invalid_inheritance_reset_moves_nothing(placed_agent, catalog, change):
 
 
 def test_reset_preserves_owner_install_and_console_authorization(placed_agent, catalog):
-    from tests.agent_runtime.test_serve_rpc_open_chat import _device
+    from agent_runtime.call_authorization import UNKNOWN_CALLER
     from agent_runtime.call_authorization import REASON_SCOPE_DENIED
 
     params = target(placed_agent["persona_instance_id"])
@@ -193,7 +193,7 @@ def test_reset_preserves_owner_install_and_console_authorization(placed_agent, c
         reply = inherit({**params, **change})
         assert reply["error"]["data"]["reason"] == reason
         assert stored(params) == before
-    reply = inspect("model.select", {**params, "scope": "conversation", "use_agent_default": True}, caller=_device("read"))
+    reply = inspect("model.select", {**params, "scope": "conversation", "use_agent_default": True}, caller=UNKNOWN_CALLER)
     assert reply["error"]["data"]["reason"] == REASON_SCOPE_DENIED
     assert stored(params) == before
 

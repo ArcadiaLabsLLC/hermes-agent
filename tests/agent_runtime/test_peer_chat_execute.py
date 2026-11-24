@@ -22,11 +22,9 @@ import pytest
 
 from agent_runtime import serve_rpc
 from agent_runtime.call_authorization import (
-    CALLER_DEVICE,
     CALLER_PEER,
     PEER_METHOD_ALLOWLIST,
     TIER_CONSOLE,
-    TIER_READ,
     RpcCaller,
     STDIO_OWNER,
     authorize_call,
@@ -148,23 +146,6 @@ def test_a_non_peer_caller_is_refused_with_its_own_reason():
 
     assert "result" not in reply
     assert reply["error"]["data"]["reason"] == serve_rpc.PEER_CHAT_NOT_A_PEER_REASON
-
-
-def test_a_read_tier_device_is_refused_by_the_chokepoint_before_the_verb_sees_it():
-    device = RpcCaller(
-        kind=CALLER_DEVICE, transport="gateway", device_id="phone", device_tier=TIER_READ
-    )
-    reply = serve_rpc.handle_request(
-        {
-            "jsonrpc": "2.0",
-            "id": "r1",
-            "method": PEER_CHAT_EXECUTE_METHOD,
-            "params": dict(BASE),
-        },
-        serve_rpc.RpcContext(caller=device, spawn_chat_turn=lambda *_: None),
-    )
-
-    assert reply["error"]["data"]["reason"] == "scope_denied"
 
 
 def test_a_peer_cannot_name_an_install_it_is_not():

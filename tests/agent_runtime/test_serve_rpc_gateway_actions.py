@@ -160,7 +160,7 @@ def test_revoking_an_install_nobody_paired_is_not_found(root, monkeypatch):
 def test_devices_list_answers_the_verbs_own_envelope(root, capsys):
     from agent_runtime.serve_gateway_auth import mint_pairing_code, redeem_pairing_code
 
-    redeem_pairing_code(root, mint_pairing_code(root, name="phone", tier="console").code, device_name="phone")
+    redeem_pairing_code(root, mint_pairing_code(root, name="phone").code, device_name="phone")
     result = _rpc("runtime.gateway.devices.list")["result"]
     assert result["kind"] == "list" and result["item_kind"] == "gateway_device" and result["count"] == 1
     assert "token" not in json.dumps(result) and "verifier" not in json.dumps(result)
@@ -220,7 +220,6 @@ def test_only_this_installs_console_may_call_them(method):
     assert method in LOCAL_CONSOLE_METHODS
     tier = serve_rpc.method_tier(method)
     for caller in (RpcCaller(kind="device", device_id="dev_1", device_tier=TIER_CONSOLE),
-                   RpcCaller(kind="device", device_id="dev_2", device_tier=TIER_READ),
                    RpcCaller(kind="peer", peer_install_id=PEER)):
         verdict = authorize_call(tier, caller, method=method)
         assert verdict.ok is False and verdict.reason == "scope_denied", (method, caller.kind)

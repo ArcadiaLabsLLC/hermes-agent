@@ -486,8 +486,9 @@ positional arguments:
     rename              Set the operator-facing display name for this root's install (the install_id
                         never changes)
     pair                Mint a short-TTL pairing code plus the QR payload a device scans to reach
-                        this install (the operator's own pairing, channels and QA; Eternia pairs a
-                        person's devices through their account)
+                        this install; the paired device has full control (the operator's own
+                        pairing, channels and QA; Eternia pairs a person's devices through their
+                        account)
     introduce           Mint one envelope a launcher posts as a backend pair-grant: a peer code, a
                         device code, and where to dial this install
     devices             Devices paired with this install's gateway — list them, or revoke one
@@ -536,17 +537,14 @@ options:
 ## hermes harness gateway pair
 
 ```text
-usage: hermes harness gateway pair [-h] [--name NAME] [--tier {console,read}]
-                                   [--kind {device,channel}] [--instance INSTANCES]
-                                   [--client-scope CLIENT_SCOPE] [-o {json,table,yaml,wide}]
-                                   [--json] [-q] [--no-color] [--fields FIELDS]
+usage: hermes harness gateway pair [-h] [--name NAME] [--kind {device,channel}]
+                                   [--instance INSTANCES] [--client-scope CLIENT_SCOPE]
+                                   [-o {json,table,yaml,wide}] [--json] [-q] [--no-color]
+                                   [--fields FIELDS]
 
 options:
   -h, --help            show this help message and exit
   --name NAME           What to call the device that redeems this code, e.g. "the phone"
-  --tier {console,read}
-                        What the paired device may do. console: run console verbs (create/retire
-                        agents). read: view only.
   --kind {device,channel}
                         device: a person's screen. channel: your own external gateway (a bot), which
                         may only relay chat turns to the --instance agents

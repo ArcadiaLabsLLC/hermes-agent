@@ -172,8 +172,8 @@ class _Computer:
         self.gateway.start_accepting()
         self.loopback.start_accepting()
 
-    def pair_phone(self, tier: str = ca.TIER_READ) -> DeviceCredential:
-        code = mint_pairing_code(self.root, tier=tier, name="phone")
+    def pair_phone(self) -> DeviceCredential:
+        code = mint_pairing_code(self.root, name="phone")
         assert isinstance(code, PairingCode)
         credential = redeem_pairing_code(self.root, code.code)
         assert isinstance(credential, DeviceCredential)

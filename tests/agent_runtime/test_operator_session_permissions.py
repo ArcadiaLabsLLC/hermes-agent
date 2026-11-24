@@ -5,7 +5,8 @@ from agent_runtime.persona_assignments import PersonaInstanceStore
 from agent_runtime.persona_chat_durability import default_persona_session_db
 from agent_runtime.tool_permissions import ChatToolPermissionStore
 from tests.agent_runtime.test_operator_session_inspection import target, inspect
-from tests.agent_runtime.test_serve_rpc_open_chat import PERSONA, _call, _device, qa_persona, placed_agent
+from agent_runtime.call_authorization import UNKNOWN_CALLER
+from tests.agent_runtime.test_serve_rpc_open_chat import PERSONA, _call, qa_persona, placed_agent
 from tests.agent_runtime.test_instance_conversation_owner import chat_head, OTHER
 
 
@@ -34,7 +35,7 @@ def test_permissions_read_exact_chat_and_preserve_grant_and_default(placed_agent
     for extra, reason in (({"client_scope": OTHER}, "conversation_owner_changed"),
                           ({"install_id": "other-install"}, "installation_changed")):
         assert inspect("permissions", {**other, **extra})["error"]["data"]["reason"] == reason
-    assert "error" in inspect("permissions", other, _device("read"))
+    assert "error" in inspect("permissions", other, UNKNOWN_CALLER)
     assert store.path.read_bytes() == before
     assert PersonaInstanceStore().get(first["persona_instance_id"]) == instance
     with closing(default_persona_session_db()) as db:

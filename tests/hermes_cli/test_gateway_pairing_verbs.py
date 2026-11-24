@@ -221,14 +221,27 @@ def test_the_code_appears_on_stdout_and_nowhere_else(capsys):
     assert payload["code"] not in stored
 
 
-def test_a_read_tier_pairing_is_representable_from_the_command_line(capsys):
-    """R11 shipped both spellings; a tier only reachable by editing a file is a
-    tier nobody will use."""
+@pytest.mark.parametrize("tier", ["read", "console"])
+def test_pair_takes_no_tier_and_the_code_it_mints_redeems_at_full_control(capsys, tier):
+    """A paired device has full control: the view-only level is gone (owner 2026-11-23, "No, remove
+    it"; RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL). ``--tier`` is a
+    parse error at every value, and the code a plain ``pair`` prints redeems at ``console``.
 
-    _code, payload = _run(capsys, "pair", "--tier", "read")
+    Killing mutation (red seen 2026-11-23): restore the ``--tier`` argument with ``choices=["console",
+    "read"]`` in ``parser/machine.py`` and ``tier=`` on the mint, and both parametrised cases mint
+    instead of refusing."""
 
-    assert payload["tier"] == "read"
-    assert json.loads(payload["qr_payload"])["code"] == payload["code"]
+    from agent_runtime.serve_gateway_auth import DeviceCredential, redeem_pairing_code
+
+    with pytest.raises(SystemExit):
+        _dispatch(["harness", "gateway", "pair", "--tier", tier, "--json"])
+    capsys.readouterr()
+
+    _code, payload = _run(capsys, "pair")
+    credential = redeem_pairing_code(paths.store_root(), payload["code"])
+
+    assert payload["tier"] == "console"
+    assert isinstance(credential, DeviceCredential) and credential.tier == "console"
 
 
 def test_a_channel_pairing_is_bound_and_refused_while_the_external_switch_is_off(capsys, monkeypatch):
@@ -289,17 +302,6 @@ def test_the_fourth_outstanding_code_is_refused_as_a_precondition(capsys):
     capsys.readouterr()
 
     assert code == 6
-
-
-def test_an_unknown_tier_is_refused_by_argparse_rather_than_reaching_the_store(
-    capsys,
-):
-    """The choices list is the first gate. It matters that this is a parse error:
-    an operator who types `--tier admin` should be told at the door, not have a
-    code minted at some other tier."""
-
-    with pytest.raises(SystemExit):
-        _dispatch(["harness", "gateway", "pair", "--tier", "admin", "--json"])
 
 
 def test_pair_says_so_when_nothing_is_listening_for_the_code(capsys, monkeypatch):
@@ -435,7 +437,7 @@ def test_devices_list_shows_a_paired_device_and_never_its_credential(capsys):
         redeem_pairing_code,
     )
 
-    _code, minted = _run(capsys, "pair", "--name", "the phone", "--tier", "read")
+    _code, minted = _run(capsys, "pair", "--name", "the phone")
     credential = redeem_pairing_code(paths.store_root(), minted["code"])
     assert isinstance(credential, DeviceCredential)
 
@@ -445,7 +447,7 @@ def test_devices_list_shows_a_paired_device_and_never_its_credential(capsys):
     (row,) = payload["items"]
     assert row["device_id"] == credential.device_id
     assert row["name"] == "the phone"
-    assert row["tier"] == "read"
+    assert row["tier"] == "console"
     assert row["revoked"] is False
     assert credential.token not in json.dumps(payload)
     assert "verifier" not in json.dumps(payload)

@@ -35,9 +35,8 @@ prefixed by its root's name. A refusal carries the spec's code as ``data.reason`
 ``binary``, ``not_text``, ``bad_argument``, ``search_timeout``) or ``instance_not_found``.
 
 **Security.** All three are ``console`` tier (row ``RT-FU-A-VIEW-ONLY-DEVICE-CANNOT-READ-AN-AGENTS-PROJECT-FILES``,
-review w1118a.84, correcting w1118a.78's ``read``): a device paired view-only is refused the agent's
-chats, so it is refused the project those chats are about, as ``runtime.media.get`` refuses it file
-egress. Nothing here writes, each read is capped at 5 MiB (``MAX_FETCH_BYTES``, the media lane's
+review w1118a.84, correcting w1118a.78's ``read``): the project is read at the tier the agent's
+chats are, as ``runtime.media.get``'s file egress is. Nothing here writes, each read is capped at 5 MiB (``MAX_FETCH_BYTES``, the media lane's
 number; the spec's ``MAX_READ_BYTES``), a reply page is 20,000 code points, and the tree lists only
 the agent's roots, never the machine's disk. A computer driving a phone reaches them only at the
 account level, answered as a console-tier paired device; a peer install gets nothing new (``PEER_METHOD_ALLOWLIST`` is not widened,
@@ -239,9 +238,8 @@ def _runtime_agent_files_virtual(rid: Any, params: dict, context: RpcContext | N
     """Read this device's virtual tree (Eternia's generated documents): ``verb`` tree, read or grep.
 
     **Security.** ``console`` tier, as the agent's real folders are (``runtime.agent.files.*``; plan §11:
-    a device paired view-only is refused an agent's files as it is refused its chats), so a view-only
-    device's read is refused at the dispatcher before anything is asked of Eternia. Reads only; not in
-    the peer allowlist.
+    an agent's files are read at the tier its chats are), so a caller below it is refused at the
+    dispatcher before anything is asked of Eternia. Reads only; not in the peer allowlist.
     """
 
     return _ask_virtual(rid, params, context, VIRTUAL_METHOD, VIRTUAL_READ_VERBS)

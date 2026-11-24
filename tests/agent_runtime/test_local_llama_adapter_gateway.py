@@ -2,7 +2,6 @@
 import time
 import uuid
 
-from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from agent_runtime.local_llama_adapter import binding as service
 from tests.agent_runtime.test_serve_gateway_lane import (
     gateway_on, device_client, pair_device, running_serve, _rpc,
@@ -10,7 +9,7 @@ from tests.agent_runtime.test_serve_gateway_lane import (
 
 
 def test_console_device_can_configure_only_the_served_host(gateway_on):
-    credential = pair_device(tier=TIER_CONSOLE)
+    credential = pair_device()
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, hello):
             assert "runtime.local_llama.config.set" in hello["rpc"]["methods"]
@@ -38,15 +37,3 @@ def test_console_device_can_configure_only_the_served_host(gateway_on):
             assert result["operation"]["state"] == "succeeded"
             assert _rpc(connection, "runtime.local_llama.config.get")["result"]["config"]["port"] == 8189
     assert not service._bindings
-
-
-def test_read_device_cannot_view_paths_or_mutate(gateway_on):
-    credential = pair_device(tier=TIER_READ)
-    with running_serve() as handle:
-        with device_client(handle, credential) as (connection, _):
-            assert _rpc(connection, "runtime.local_llama.status")["result"]["server"]["state"] == "off"
-            assert _rpc(connection, "runtime.local_llama.setup.capabilities")["result"]["schema"] == "hermes.local_llama.setup/v1"
-            for method in ("config.get", "config.set", "start", "stop", "load", "unload", "catalog.scan", "logs.get",
-                           "setup.status", "installations.detect", "installations.validate", "host_paths.validate",
-                           "installation.plan", "installation.apply", "installations.activate", "operations.cancel", "releases.list", "hardware.get"):
-                assert "error" in _rpc(connection, "runtime.local_llama." + method)

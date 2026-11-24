@@ -162,7 +162,8 @@ CALLER_PEER = "peer"
 CALLER_COMPUTER = "computer"
 #: A caller the transport could not place. Minted by tests, by the defensive arm
 #: of :func:`caller_for_connection`, and — the arm Stage A5 adds — by a gateway
-#: connection that somehow reached the dispatcher without a device stamp.
+#: connection that somehow reached the dispatcher without a device stamp. It is
+#: refused every verb, read verbs included (:func:`authorize_call`).
 CALLER_UNKNOWN = "unknown"
 
 #: **Exactly what a paired install may call on this one.** Six names, and the
@@ -595,7 +596,7 @@ def caller_for_connection(connection: Any) -> RpcCaller:
         )
     if device_id is not None and device_tier is not None:
         # An unrecognised kind word reads as ``channel`` — the NARROWER one — never as a plain
-        # device: least privilege, ``_decode_device``'s rule for an unknown tier.
+        # device: least privilege, ``store.decode_device``'s rule for an unknown kind.
         kind = getattr(connection, "device_kind", None) or DEVICE_KIND_DEVICE
         kind = kind if kind in DEVICE_KINDS else DEVICE_KIND_CHANNEL
         bound = getattr(connection, "bound_instances", None) or ()
@@ -757,32 +758,29 @@ def authorize_call(tier: str, caller: RpcCaller | None, *, method: str | None = 
     and nobody meant it to be, and this arm is unreachable anyway because
     :func:`serve_rpc.method` rejects an unknown tier at import.
 
-    Read verbs are open to everyone including ``unknown``, and Stage A5 KEPT
-    that line rather than inheriting it by omission. The temptation once real
-    devices exist is to gate reads on the device record too, and the reason not
-    to is that a read tier is precisely what a caller who has proved nothing may
-    still do: nothing on the read side mutates a level, and a caller that got as
-    far as this function on the gateway lane has already passed an HMAC proof
-    against a paired credential — the ``unknown`` arm there means "authenticated
-    but unplaceable", which is a state the transport does not currently produce.
-    An ``admin`` tier, if the skills install sub-phase ever needs one, is still
-    R11's question and still not answered by adding a constant here on the way
-    past.
+    Read verbs are open to every caller the transport PLACED, and to nobody
+    else: an ``unknown`` caller is refused every verb, read verbs included
+    (hermes row ``RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL``,
+    owner 2026-11-23). No transport hands the dispatcher one today
+    (``test_no_transport_hands_the_dispatcher_an_unplaced_caller``), so the arm
+    costs nothing and closes the one door a future transport could open by
+    forgetting a stamp. An ``admin`` tier, if the skills install sub-phase ever
+    needs one, is still R11's question and still not answered by adding a
+    constant here on the way past.
 
     **The device arm is A5.** A device's authority is not its KIND but the
     ``device_tier`` the transport read off ``gateway/devices.json``, which was
     fixed at a pairing ceremony only an operator at this install's own machine
-    can run. So the check is an equality against a stored word, and a device
-    holding ``read`` is refused a console verb with the same typed
-    ``scope_denied`` the launcher's decoders already branch on. A revoked or
-    unpaired device never reaches this function as a device at all — the
-    handshake refuses it — and if one ever did it would arrive as ``unknown``
-    and be refused by the fall-through, which is the ruling's own words for "I
-    do not know who this is".
+    can run, and every pairing writes ``console``: a stored row holding any
+    other word is no device at all (``serve_gateway_auth.store.decode_device``)
+    and is refused at the handshake. A revoked or unpaired device never reaches
+    this function as a device at all, and if one ever did it would arrive as
+    ``unknown`` and be refused, which is the ruling's own words for "I do not
+    know who this is".
 
     **The peer arm is Stage 6, and its POSITION is the load-bearing part.** It
-    runs before the read-tier arm, because the read arm is open to everyone —
-    that is its whole point, and A5 kept it deliberately — so a peer evaluated
+    runs before the read-tier arm, because the read arm is open to every placed
+    caller — that is its whole point, and A5 kept it deliberately — so a peer evaluated
     after it would inherit the entire read surface of this runtime: the office
     core, the subscribe lane, every read verb that has not been written yet.
     That is not what an operator approves when they approve an edge between two
@@ -848,6 +846,12 @@ def authorize_call(tier: str, caller: RpcCaller | None, *, method: str | None = 
         return computer
     if resolved.kind == CALLER_PEER:
         return _peer_arm(resolved, name, normalized)
+    if resolved.kind == CALLER_UNKNOWN:
+        # MUTATION: drop this arm and test_an_unplaced_caller_is_refused_a_read_verb sees the read
+        # opening answer a caller the transport could not place.
+        return CallAuthorization(
+            ok=False, reason=REASON_SCOPE_DENIED, tier=normalized, caller_kind=resolved.kind
+        )
     if normalized == TIER_READ:
         return CallAuthorization(
             ok=True, reason="read_tier", tier=normalized, caller_kind=resolved.kind

@@ -10,7 +10,6 @@ from agent_runtime.call_authorization import LOCAL_CONSOLE
 from hermes_state import SessionDB
 from tests.agent_runtime.test_discussion_runtime import engine, wait_until
 from tests.agent_runtime.test_native_discussion_room import spec
-from tests.agent_runtime.test_serve_rpc_open_chat import _device
 
 OWNER, OTHER = "a" * 64, "b" * 64
 pytestmark = pytest.mark.timeout(90)
@@ -67,18 +66,6 @@ def test_pagination_filters_before_limiting_and_console_can_inspect_all(room_rpc
     assert {row["run_id"] for row in all_rows} == mine | others
     assert {row["initial"]["client_scope"] for row in all_rows} == {OWNER, OTHER}
     assert {row["run"]["run_id"] for row in call("active", client_scope=OWNER)["result"]["rooms"]} == mine
-
-
-def test_read_only_device_cannot_use_digest_as_a_credential(room_rpc):
-    _, _, call = room_rpc
-    owned = create(call, OWNER)["result"]["run"]
-    legacy = create(call, None)["result"]["run"]
-    for scope in ({}, {"client_scope": OWNER}):
-        reply = call("get", run_id=owned["run_id"], caller=_device("read"), **scope)
-        assert reply["error"]["data"]["reason"] == "console_required"
-    rows = call("list", caller=_device("read"))["result"]["runs"]
-    assert [row["run_id"] for row in rows] == [legacy["run_id"]]
-    assert call("get", run_id=legacy["run_id"], caller=_device("read"))["result"]["run"]["run_id"] == legacy["run_id"]
 
 
 @pytest.mark.parametrize("operation,body", [("send", {"message": "hello"}), ("stop", {}), ("end", {})])
