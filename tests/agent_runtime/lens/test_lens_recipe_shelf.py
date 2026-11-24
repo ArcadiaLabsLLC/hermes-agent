@@ -422,7 +422,7 @@ _KIND_SOURCES = {
     "http_json": {"url": URL, "selector": "$.cpu"},
     "prometheus": {"base_url": "https://prom.example.invalid", "query": "up"},
     "push": {},
-    "sql_readonly": {"database": "/srv/data/app.sqlite3", "query": "SELECT 1"},
+    "sql_readonly": {"database": str(Path("app.sqlite3").resolve()), "query": "SELECT 1"},
     "command_allowlisted": {"argv": ["uptime"], "allow": [["uptime"]], "extract": "$.load"},
 }
 
