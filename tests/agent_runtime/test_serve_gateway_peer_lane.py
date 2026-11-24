@@ -244,6 +244,29 @@ def _rpc(connection: ServeSocketClient, method: str, params: dict | None = None)
     raise AssertionError(f"no reply to {method}")
 
 
+@contextmanager
+def loopback_client(handle: _RunningServe):
+    """The local console's door: the loopback lane, greeted with the root's token."""
+
+    from agent_runtime.serve_auth import read_token
+
+    with ServeSocketClient("127.0.0.1", int(handle.ready["socket"]["port"]), timeout_seconds=WAIT) as client:
+        client.hello(token=read_token(_store_root()) or "", client="launcher")
+        yield client
+
+
+def _frames_until(connection: ServeSocketClient, event: str, *, limit: int = 2000) -> list[dict]:
+    frames = []
+    for _ in range(limit):
+        frame = connection.read_frame()
+        if frame is None:
+            raise AssertionError(f"connection closed before {event!r}: {frames[-3:]}")
+        frames.append(frame)
+        if frame.get("event") == event:
+            return frames
+    raise AssertionError(f"no {event!r} within {limit} frames")
+
+
 # ── the peer gets in ─────────────────────────────────────────────────────────
 
 
@@ -388,6 +411,27 @@ def test_a_peer_may_not_drain_the_runtime_other_clients_are_using():
         assert handle.thread.is_alive()
 
     assert frame["error"] == "op_not_available_on_gateway"
+
+
+def test_a_peer_is_refused_the_thread_stacks_and_the_connection_list():
+    """MUTATION: delete the ``OPS_GATEWAY_DENIED`` door in ``_handle_message`` -> the peer
+    gets stack lines and ``socket_connections`` (neither op has a per-op check), red.
+    Hermes row RT-FU-A-PAIRED-DEVICE-CAN-READ-THIS-COMPUTERS-THREAD-STACKS-AND-ITS-CONNECTION-LIST."""
+
+    credential = pair_peer()
+
+    with running_serve() as handle:
+        with peer_client(handle, credential) as (connection, reply):
+            assert "stacks" not in reply["ops"]["ops"]
+            assert "connections" not in reply["ops"]["ops"]
+            connection.send({"op": "stacks"})
+            connection.send({"op": "connections"})
+            connection.send({"op": "ping"})
+            frames = _frames_until(connection, "busy")
+
+    events = [frame.get("event") for frame in frames]
+    assert events == ["error", "error", "busy"], events
+    assert [frame["error"] for frame in frames[:2]] == ["op_not_available_on_gateway"] * 2
 
 
 # ── the two credentials do not trade doors ───────────────────────────────────
@@ -753,9 +797,12 @@ def test_an_attached_peer_is_named_on_the_connections_block_without_a_tier():
     credential = pair_peer()
 
     with running_serve() as handle:
-        with peer_client(handle, credential) as (connection, _reply):
-            connection.send({"op": "connections"})
-            frame = connection.read_frame()
+        with peer_client(handle, credential):
+            # Read by the local console while the peer is attached: the table is
+            # the console's, never the peer's own to ask for.
+            with loopback_client(handle) as console:
+                console.send({"op": "connections"})
+                frame = _frames_until(console, "socket_connections")[-1]
 
     rows = frame["gateway"]["connections"]
     assert len(rows) == 1
@@ -780,8 +827,9 @@ def test_a_joined_peer_never_shows_its_secret_on_the_connections_block():
                 peer_code=code.code, peer_install_id=FAR_INSTALL
             )
             secret = reply["peered"]["peer_secret"]
-            connection.send({"op": "connections"})
-            frame = connection.read_frame()
+            with loopback_client(handle) as console:
+                console.send({"op": "connections"})
+                frame = _frames_until(console, "socket_connections")[-1]
         finally:
             connection.close()
 

@@ -458,8 +458,11 @@ READER_STOP = "shutdown"
 #: question about an object it was handed) and pinned equal by a test.
 GATEWAY_TRANSPORT = "gateway"
 
-#: Ops a paired DEVICE is refused, on top of the stdio-only set. One entry, and
-#: it is the one that ends the process.
+#: Ops a gateway caller — a paired DEVICE or a peer INSTALL — is refused, on top of
+#: the stdio-only set. The ONE authority for that refusal: ``_handle_message``
+#: (``serve/handle_message.py``) refuses every op here ``op_not_available_on_gateway``
+#: before its handler runs, and ``ops_manifest(transport="gateway")`` leaves the same
+#: ops out, so the two read one tuple and cannot drift.
 #:
 #: ``drain`` is not a read and it is not a level mutation — it is the multi-client
 #: lifecycle verb, and its whole effect is that this runtime stops and every
@@ -471,8 +474,13 @@ GATEWAY_TRANSPORT = "gateway"
 #: (W1 of launcher supervision) is denied for a stronger reason: a beat steers which
 #: pid this runtime watches, and later what it relaunches — never a device's call. The
 #: play-session ops (P1) hand back and delete the local launcher's game records.
+#: ``connections`` and ``stacks`` are the local console's diagnostics: the table of
+#: every attached client (other devices and peers included) and every thread's live
+#: stack. Local-only whatever Allow access says; no device or peer code sends either
+#: (``RT-FU-A-PAIRED-DEVICE-CAN-READ-THIS-COMPUTERS-THREAD-STACKS-AND-ITS-CONNECTION-LIST``).
 OPS_GATEWAY_DENIED: tuple[str, ...] = (
-    "drain", "drain_if_idle", "launcher_beat", "play_sessions_ack", "play_sessions_pending", "settle_ack")
+    "connections", "drain", "drain_if_idle", "launcher_beat", "play_sessions_ack", "play_sessions_pending",
+    "settle_ack", "stacks")
 
 #: The push lanes ``{"op":"subscribe","lane":…}`` accepts. ONE today, and the
 #: value EG-4.2's launcher gate reads: the argv stream stays the backstop until

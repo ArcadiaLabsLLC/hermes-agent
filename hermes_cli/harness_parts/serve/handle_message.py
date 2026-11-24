@@ -29,6 +29,7 @@ from hermes_cli.harness_parts.serve.constants import (
     DRAINING_EXIT_CODE,
     HELLO_OP,
     OPS,
+    OPS_GATEWAY_DENIED,
     READER_STOP,
     SERVE_SCHEMA_VERSION,
 )
@@ -141,6 +142,18 @@ class MessageHandling:
         handler = OP_HANDLERS.get(op) if isinstance(op, str) else None
         if handler is None:
             return self._handle_request(message, sink, connection)
+        if op in OPS_GATEWAY_DENIED and _is_gateway(connection):
+            # The door check the gateway manifest promises: one tuple, read
+            # here and by `ops_manifest`, refuses a device and a peer alike
+            # before any handler runs.
+            sink.emit(
+                {
+                    "event": "error",
+                    "error": "op_not_available_on_gateway",
+                    "detail": f"{op} is the local console's; a paired device or install never sends it",
+                }
+            )
+            return None
         return handler(self, message, sink, connection)
 
     def _op_ping(
@@ -229,7 +242,9 @@ class MessageHandling:
                 # (or after it failed to come up) must be able to learn
                 # that without a restart it cannot cause.
                 "gateway": self.gateway_block,
-                "connections": self._connections_frame(),
+                # The local console's table of every attached client; a
+                # device or peer gets no `connections` op, so none here.
+                **({} if _is_gateway(connection) else {"connections": self._connections_frame()}),
                 # Re-askable, like the build stamp beside it and for the
                 # same reason: a durable service outlives the install it
                 # was started from, so "which methods does the thing I

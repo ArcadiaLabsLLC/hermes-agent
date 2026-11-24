@@ -250,6 +250,42 @@ def _rpc(connection: ServeSocketClient, method: str, params: dict | None = None)
     raise AssertionError(f"no reply to {method}")
 
 
+@contextmanager
+def loopback_client(handle: _RunningServe):
+    """The local console's door: the loopback lane, greeted with the root's token."""
+
+    from agent_runtime.serve_auth import read_token
+
+    with ServeSocketClient("127.0.0.1", handle.port, timeout_seconds=WAIT) as client:
+        client.hello(token=read_token(_store_root()) or "", client="launcher")
+        yield client
+
+
+def _frames_until(connection: ServeSocketClient, event: str, *, limit: int = 2000) -> list[dict]:
+    """Every frame up to and including the first ``event`` one."""
+
+    frames = []
+    for _ in range(limit):
+        frame = connection.read_frame()
+        if frame is None:
+            raise AssertionError(f"connection closed before {event!r}: {frames[-3:]}")
+        frames.append(frame)
+        if frame.get("event") == event:
+            return frames
+    raise AssertionError(f"no {event!r} within {limit} frames")
+
+
+def _set_access(allow: bool) -> None:
+    from agent_runtime import serve_rpc
+    from agent_runtime.call_authorization import STDIO_OWNER
+
+    reply = serve_rpc.handle_request(
+        {"jsonrpc": "2.0", "id": "acc", "method": "runtime.gateway.access.set", "params": {"allow": allow}},
+        serve_rpc.RpcContext(caller=STDIO_OWNER),
+    )
+    assert reply["result"]["access"] is allow, reply
+
+
 # ── off by default ──────────────────────────────────────────────────────────
 
 
@@ -941,9 +977,12 @@ def test_an_attached_device_is_named_on_the_connections_block(gateway_on):
     credential = pair_device(name="the phone")
 
     with running_serve() as handle:
-        with device_client(handle, credential) as (connection, _reply):
-            connection.send({"op": "connections"})
-            frame = connection.read_frame()
+        with device_client(handle, credential) as (_connection, _reply):
+            # Read by the local console while the device is attached: the table
+            # is the console's, never the device's own to ask for.
+            with loopback_client(handle) as console:
+                console.send({"op": "connections"})
+                frame = _frames_until(console, "socket_connections")[-1]
 
     # The gateway lane has its OWN sub-block rather than merged rows: `port`,
     # `count` and `max_connections` are per-listener facts, and merged they
@@ -956,6 +995,88 @@ def test_an_attached_device_is_named_on_the_connections_block(gateway_on):
     # …and the loopback lane's own rows are unchanged in shape: no device keys
     # where there is no device.
     assert all("device_id" not in row for row in frame["connections"])
+
+
+# ── the local console's diagnostics stay the console's ──────────────────────
+#
+# Hermes row RT-FU-A-PAIRED-DEVICE-CAN-READ-THIS-COMPUTERS-THREAD-STACKS-AND-ITS-CONNECTION-LIST:
+# `stacks` and `connections` are in OPS_GATEWAY_DENIED, and `_handle_message` refuses
+# every op in that tuple to a gateway caller before its handler runs.
+
+
+def test_a_device_is_refused_the_thread_stacks_and_reads_no_stack_line(gateway_on):
+    """MUTATION: drop ``"stacks"`` from ``OPS_GATEWAY_DENIED`` -> the device gets ``stderr``
+    stack lines and ``stacks_dumped``, red."""
+
+    credential = pair_device()
+    with running_serve() as handle:
+        with device_client(handle, credential) as (connection, reply):
+            assert "stacks" not in reply["ops"]["ops"]
+            connection.send({"op": "stacks"})
+            connection.send({"op": "ping"})
+            frames = _frames_until(connection, "busy")
+
+    events = [frame.get("event") for frame in frames]
+    assert "stderr" not in events and "stacks_dumped" not in events, events
+    assert frames[0]["event"] == "error"
+    assert frames[0]["error"] == "op_not_available_on_gateway"
+
+
+def test_a_device_is_refused_the_connection_list_with_allow_access_off(gateway_on):
+    """MUTATION: drop ``"connections"`` from ``OPS_GATEWAY_DENIED`` -> the device reads
+    ``socket_connections``, red. Allow access off: the refusal does not hang on it."""
+
+    credential = pair_device()
+    _set_access(False)
+    with running_serve() as handle:
+        with device_client(handle, credential) as (connection, reply):
+            assert reply["event"] == "hello_ok" and reply["access"] is False, reply
+            assert "connections" not in reply["ops"]["ops"]
+            connection.send({"op": "connections"})
+            frame = connection.read_frame()
+
+    assert frame["event"] == "error", frame
+    assert frame["error"] == "op_not_available_on_gateway"
+
+
+def test_a_device_version_carries_no_connections_block_and_a_loopback_version_does(gateway_on):
+    """MUTATION: put ``connections`` back on ``_op_version`` for every caller -> the device's
+    ``version`` carries the attached-client table, red.
+
+    The console asks on the loopback's SECOND connection, the first staying silent: the two
+    listeners number their connections alike and share one sink map, so the device's
+    ``conn-1`` must not meet a loopback ``conn-1`` that spoke
+    (RT-FU-A-PHONE-AND-THE-LOCAL-APP-ON-THE-SAME-CONNECTION-NUMBER-GET-EACH-OTHERS-ANSWERS)."""
+
+    credential = pair_device()
+    with running_serve() as handle:
+        with device_client(handle, credential) as (connection, _reply):
+            with loopback_client(handle), loopback_client(handle) as console:
+                console.send({"op": "version"})
+                local = _frames_until(console, "version")[-1]
+                connection.send({"op": "version"})
+                remote = _frames_until(connection, "version")[-1]
+
+    assert remote["transport"] == "gateway"
+    assert "connections" not in remote, sorted(remote)
+    assert local["connections"]["gateway"]["connections"][0]["device_id"] == credential.device_id
+
+
+def test_the_local_console_still_reads_stacks_and_connections_with_a_device_attached(gateway_on):
+    """MUTATION: key the dispatcher's door on ``connection is not None`` instead of
+    ``_is_gateway`` -> the loopback console is refused both, red."""
+
+    credential = pair_device()
+    with running_serve() as handle:
+        with device_client(handle, credential):
+            with loopback_client(handle) as console:
+                console.send({"op": "stacks"})
+                stacks = _frames_until(console, "stacks_dumped")
+                console.send({"op": "connections"})
+                table = _frames_until(console, "socket_connections")[-1]
+
+    assert any(frame.get("event") == "stderr" for frame in stacks)
+    assert table["gateway"]["connections"][0]["device_id"] == credential.device_id
 
 
 # ── the ceremony's second half: a code becomes a device, over the wire ──────
@@ -1122,8 +1243,9 @@ def test_a_paired_device_never_shows_its_credential_on_the_connections_block(
         try:
             reply = connection.pair_hello(pairing_code=code.code, client="phone")
             token = reply["paired"]["device_token"]
-            connection.send({"op": "connections"})
-            frame = connection.read_frame()
+            with loopback_client(handle) as console:
+                console.send({"op": "connections"})
+                frame = _frames_until(console, "socket_connections")[-1]
         finally:
             connection.close()
 
