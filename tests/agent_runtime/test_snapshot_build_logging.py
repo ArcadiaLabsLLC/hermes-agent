@@ -686,7 +686,7 @@ def test_a_serve_side_argv_reader_names_its_request_and_logs_its_end(monkeypatch
     loopback = SimpleNamespace(key="conn-3", transport="socket", authenticated=True)
     sink_token = serve_frames._request_sink.set(SimpleNamespace(_target=loopback))
     # The line names the connection by its routing key (``RpcCaller.route_owner``).
-    owner = "machine:unproven/local_console/conn-3"
+    owner = "machine:unproven/namespace:unproven/local_console/conn-3"
     event = threading.Event()
     if cancel:
         event.set()

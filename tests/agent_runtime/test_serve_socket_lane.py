@@ -368,8 +368,12 @@ def _local_owner(key: str) -> str:
     from types import SimpleNamespace
 
     from agent_runtime.call_authorization import caller_for_connection
+    from agent_runtime.hello_address import install_address
 
-    return caller_for_connection(SimpleNamespace(key=key, transport="socket", authenticated=True)).route_owner()
+    # The token's holder routes under this machine's own id and the serve's namespace (hermes
+    # RT-ACCOUNT-ONLY-A-CONNECTION-FROM-ANOTHER-MACHINE-…; owner 2026-11-24 "Yes, use it").
+    stamped = SimpleNamespace(key=key, transport="socket", authenticated=True, **install_address())
+    return caller_for_connection(stamped).route_owner()
 
 
 def _read_until(connection: ServeSocketClient, event: str, *, limit: int = 200) -> dict:
