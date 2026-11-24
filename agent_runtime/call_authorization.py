@@ -540,19 +540,21 @@ class RpcCaller:
 
         if self.kind == CALLER_STDIO_OWNER:
             return ROUTE_OWNER_STDIO
-        if self.kind == CALLER_DEVICE:
-            who = f"{self.kind}:{self.device_id}"
-        elif self.kind == CALLER_PEER:
-            who = f"{self.kind}:{self.peer_install_id}"
-        elif self.kind == CALLER_COMPUTER:
-            who = f"{self.kind}:{self.computer_id}"
-        elif self.kind == CALLER_LOCAL_CONSOLE:
+        if self.kind == CALLER_LOCAL_CONSOLE:
             who = self.kind
+        elif self.kind in _ROUTE_PROVEN_ID:
+            who = f"{self.kind}:{getattr(self, _ROUTE_PROVEN_ID[self.kind])}"
         else:
             who = f"{CALLER_UNKNOWN}:{self.transport}"
         return f"{ROUTE_MACHINE_UNPROVEN}/{who}/{self.connection_key}"
 
 
+#: The field holding the id each stamped caller kind's transport PROVED (:func:`caller_for_connection`).
+_ROUTE_PROVEN_ID: dict[str, str] = {
+    CALLER_DEVICE: "device_id",
+    CALLER_PEER: "peer_install_id",
+    CALLER_COMPUTER: "computer_id",
+}
 #: The route owner of the in-process stdio pipe, which has no connection to key.
 ROUTE_OWNER_STDIO = "stdio"
 #: The caller-machine segment of :meth:`RpcCaller.route_owner` while no hello proves a caller's
