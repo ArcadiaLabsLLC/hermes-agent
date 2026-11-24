@@ -439,6 +439,10 @@ class RpcContext:
     #: The serve's reverse lanes (``hermes_cli.harness_parts.serve.reverse_lanes``), read
     #: when called: ``runtime.gateway.reverse.*``'s door. ``None`` with no serve behind it.
     reverse_lanes: Callable[[], Any] | None = None
+    #: Close every open device, peer and channel connection on this serve's listeners, with a reason; the
+    #: count closed (``gateway_access.drop_remote_callers``). ``runtime.gateway.access.set``'s door, called
+    #: on a change of "Allow access". ``None`` with no serve behind it: nothing is open to close.
+    close_remote_callers: Callable[[str], int] | None = None
 
     def push(self, method_name: str, params: dict) -> bool:
         """Send one notification to THIS caller. False when there is no channel.

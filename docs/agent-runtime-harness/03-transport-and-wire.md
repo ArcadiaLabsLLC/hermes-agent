@@ -368,6 +368,20 @@ so it charges nothing.
 **Neither door accepts the other's credential**, in both directions: the root
 token is refused on the gateway lane, a pairing code is refused on loopback.
 
+**"Allow access" off refuses use, never reach** (row
+`RT-ACCOUNT-ONLY-A-COMPUTER-WITH-ALLOW-ACCESS-OFF-STAYS-REACHABLE-BUT-LETS-NONE-OF-YOUR-DEVICES-USE-IT`).
+One flag, `plugins.entries.eternia-harness.settings.remote_gateway_access` (absent = allowed; `false`
+or any other value = off), written only by the local-console verb `runtime.gateway.access.set`
+(`allow`: bool → `{access, changed, closed}`) and read on every call (`agent_runtime/gateway_access.py`),
+so it needs no respawn. While off, `authorize_call` refuses a `device` (either kind) or `peer` caller
+`access_off` for every verb outside `ACCESS_OFF_ANSWERS` (`runtime.gateway.reverse.offer` / `.withdraw`,
+`peer.ping`, `peer.announce`), and the `stream` subscribe op refuses it `access_off`; console kinds and a
+`computer` caller are untouched. The hello is unchanged — admission, code redemption and the reverse-lane
+park still run — and a device's or peer's `hello_ok` carries `access` (bool). A change closes every open
+device, peer and channel connection on both listeners (a parked or attached reverse lane is not in a
+listener's table and stays), so each says hello again and reads the new answer.
+Acceptance: `tests/agent_runtime/test_serve_rpc_gateway_access_set.py`.
+
 **One live row per account device** (RL-23, 2026-09-06). A redeem used to write
 a row and revoke nothing, so a launcher re-pairing on a backoff left a live
 credential per attempt — five rows on this machine for one Mac, fourteen on the

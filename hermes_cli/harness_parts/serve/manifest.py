@@ -18,6 +18,7 @@ from hermes_cli.harness_parts.serve.constants import (
 __layer__ = "policy"
 
 __all__ = [
+    "_access_block",
     "_is_gateway",
     "_pairing_block",
     "ops_manifest",
@@ -67,6 +68,21 @@ def ops_manifest(*, transport: str, service: bool = False) -> dict[str, Any]:
         "subscribe_lanes": sorted(SUBSCRIBE_LANES),
         "service": bool(service),
     }
+
+
+def _access_block(connection: Any) -> dict[str, Any]:
+    """``{"access": bool}`` on a device's or peer's greeting, nothing on any other.
+
+    "Allow access" (hermes row ``RT-ACCOUNT-ONLY-A-COMPUTER-WITH-ALLOW-ACCESS-OFF-…``): the hello is
+    admitted either way, and this tells your device whether its calls will be answered. Read at the
+    hello; a change closes the connection (``gateway_access.drop_remote_callers``), so the next hello
+    reads the new value."""
+    from agent_runtime.call_authorization import caller_for_connection
+    from agent_runtime.gateway_access import gateway_access_allowed, is_remote_user
+
+    if not is_remote_user(caller_for_connection(connection)):
+        return {}
+    return {"access": gateway_access_allowed()}
 
 
 def _pairing_block(connection: Any) -> dict[str, Any]:
