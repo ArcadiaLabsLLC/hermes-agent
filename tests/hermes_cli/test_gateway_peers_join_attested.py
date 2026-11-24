@@ -16,6 +16,8 @@ ordering rather than trusting a comment.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import install_address
+
 import argparse
 import json
 from datetime import datetime, timedelta, timezone, UTC
@@ -254,6 +256,8 @@ def _stub_successful_join(monkeypatch, *, expires_at: str | None = None):
                 "install": {
                     "install_id": "install-far",
                     "display_name": "the far one",
+                    # One process: the far install answers from this machine and namespace.
+                    **install_address(),
                 },
                 "peered": peered,
             }

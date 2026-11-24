@@ -136,6 +136,7 @@ def test_turning_access_off_closes_an_open_device_subscription(tmp_path):
     connection (and every subscription riding it) stays open after the off, red."""
     from tests.agent_runtime.test_reverse_lane import WAIT, _Computer
 
+    from agent_runtime.hello_address import hello_fields
     from agent_runtime.serve_gateway_auth import device_proof
     from agent_runtime.serve_socket import ServeSocketClient
 
@@ -146,7 +147,7 @@ def test_turning_access_off_closes_an_open_device_subscription(tmp_path):
                                    cert_fingerprint=computer.fingerprint)
         client.connect()
         nonce = client._challenge_nonce(3)
-        client.send({"op": "hello", "client": "phone", "device_id": device.device_id,
+        client.send({"op": "hello", "client": "phone", "device_id": device.device_id, **hello_fields(),
                      "proof": device_proof(device.token, nonce, port=computer.gateway_port, device_id=device.device_id)})
         assert (client.read_frame() or {}).get("event") == "hello_ok"
         assert len(computer.gateway.connections()) == 1
