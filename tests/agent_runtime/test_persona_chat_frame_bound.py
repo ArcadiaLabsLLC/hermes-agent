@@ -128,12 +128,23 @@ def test_the_core_and_the_overlay_keep_the_same_chats(isolate_agent_runtime_root
         db.append_message(root, "user", f"hello {root}")
     PersonaInstanceStore().open_chat(persona_id="dev", persona_instance_id=INSTANCE, session_id=roots[-1])
 
-    in_core = {row["session_id"] for row in build_snapshot()["persona_chat_history"]}
+    core = build_snapshot()
+    in_core = {row["session_id"] for row in core["persona_chat_history"]}
+    bound_root = roots[-1]
+    bound_channel = next(channel for channel in core["operator_channels"].values()
+                         if channel["session_id"] == bound_root)
+    core_pointer = next(row for row in core["persona_chat_history"] if row["session_id"] == bound_root)
+    # Both entry points must tell the existing history reader to fetch this same saved chat.
+    assert core_pointer["messages_evicted"] is True
+    assert bound_channel["history"] == core_pointer
 
     assert len(in_core) == FRAME_RECENT_CHATS + 1  # the bound chat is a pin beside ten
     for root in roots:
         sections, _timings = read_turn_sections(root, named=(INSTANCE,))
         assert sections["omitted"] is (root not in in_core), root
+        if root == bound_root:
+            assert sections["operator_channel"]["history"] == sections["persona_chat_history"]
+            assert sections["operator_channel"]["history"]["messages_evicted"] is True
 
 
 class _CountingStore:

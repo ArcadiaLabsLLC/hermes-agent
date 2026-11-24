@@ -50,6 +50,11 @@ __all__ = [
 # caller. See tests/agent_runtime/test_s29_snapshot_dead_local_removal.py (deleted 2026-09-24).
 
 
+def _without_inline_messages(row: dict) -> dict:
+    """Mark the omitted transcript on a copy, retaining the session's own metadata."""
+    return {**row, "messages": [], "messages_evicted": True}
+
+
 def _persona_chat_history_frame(rows: list) -> list:
     """The ``persona_chat_history`` frame rows: recency pointers only.
 
@@ -59,16 +64,7 @@ def _persona_chat_history_frame(rows: list) -> list:
     is fetched per session via
     ``harness persona chat history --session-id <id> --json``."""
 
-    pointers: list = []
-    for row in rows:
-        if not isinstance(row, dict):
-            pointers.append(row)
-            continue
-        pointer = {key: value for key, value in row.items() if key != "messages"}
-        pointer["messages"] = []
-        pointer["messages_evicted"] = True
-        pointers.append(pointer)
-    return pointers
+    return [_without_inline_messages(row) if isinstance(row, dict) else row for row in rows]
 
 
 def _operator_channels_frame(channels: list) -> list:
@@ -92,11 +88,14 @@ def _operator_channels_frame(channels: list) -> list:
         conversation = row.get("conversation")
         if isinstance(conversation, dict):
             # MUTATION: keep the conversation's messages and test_a_frame_channel_carries_no_transcript reddens.
-            framed["conversation"] = {**conversation, "messages": [], "messages_evicted": True}
+            framed["conversation"] = _without_inline_messages(conversation)
         history = row.get("history")
-        deliveries = history.get("dispatch_deliveries") if isinstance(history, dict) else None
-        if isinstance(deliveries, list):
-            framed["dispatch_deliveries"] = deliveries
+        if isinstance(history, dict):
+            # The selected channel is opened through its bound history row.
+            framed["history"] = _without_inline_messages(history)
+            deliveries = history.get("dispatch_deliveries")
+            if isinstance(deliveries, list):
+                framed["dispatch_deliveries"] = deliveries
         rows.append(framed)
     return rows
 
