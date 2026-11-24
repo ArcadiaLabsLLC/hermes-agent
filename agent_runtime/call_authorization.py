@@ -737,6 +737,21 @@ def paired_device_answers(held_tier: str | None, name: str, tier: str) -> bool:
     return tier == TIER_READ or held_tier == tier
 
 
+def _unplaced_arm(resolved: RpcCaller, tier: str) -> CallAuthorization | None:
+    """A caller the transport could not place is refused every verb, ``None`` for any other caller.
+
+    Asked BEFORE the read opening, so ``unknown`` never inherits the read surface (hermes row
+    ``RT-FU-HERMES-PAIRS-A-DEVICE-ONLY-AT-FULL-CONTROL-WITH-NO-VIEW-ONLY-LEVEL``); no transport produces
+    one today (``test_no_transport_hands_the_dispatcher_an_unplaced_caller``).
+    """
+
+    # MUTATION: answer ``None`` here and test_an_unplaced_caller_is_refused_a_read_verb sees the read
+    # opening answer a caller the transport could not place.
+    if resolved.kind != CALLER_UNKNOWN:
+        return None
+    return CallAuthorization(ok=False, reason=REASON_SCOPE_DENIED, tier=tier, caller_kind=resolved.kind)
+
+
 def _peer_arm(resolved: RpcCaller, name: str, normalized: str) -> CallAuthorization:
     """A peer is answered from :data:`PEER_METHOD_ALLOWLIST` and nothing else; the verb's tier does not enter."""
 
@@ -846,12 +861,8 @@ def authorize_call(tier: str, caller: RpcCaller | None, *, method: str | None = 
         return computer
     if resolved.kind == CALLER_PEER:
         return _peer_arm(resolved, name, normalized)
-    if resolved.kind == CALLER_UNKNOWN:
-        # MUTATION: drop this arm and test_an_unplaced_caller_is_refused_a_read_verb sees the read
-        # opening answer a caller the transport could not place.
-        return CallAuthorization(
-            ok=False, reason=REASON_SCOPE_DENIED, tier=normalized, caller_kind=resolved.kind
-        )
+    if (unplaced := _unplaced_arm(resolved, normalized)) is not None:
+        return unplaced
     if normalized == TIER_READ:
         return CallAuthorization(
             ok=True, reason="read_tier", tier=normalized, caller_kind=resolved.kind
