@@ -1033,45 +1033,77 @@ def _instances(*rows):
     return [_Instance(id=f"i{n}", updated_at=stamp) for n, stamp in enumerate(rows)]
 
 
-def test_the_boot_pass_takes_the_most_recently_active_chats_up_to_the_cap(monkeypatch):
-    """Warming more chats than the registry holds would evict the earliest warms
-    before anyone used them, so the cap IS ``max_hot_sessions``; the order is the
-    one eviction would preserve."""
+def _home_store(monkeypatch, rows, *, home="neko_supervisor", ready=()):
+    """Instances as ``(persona_id, updated_at, root)``; Home's agent and ready chats faked."""
 
     class _Store:
         def list_all(self):
-            rows = []
-            for stamp, root in (
-                ("2026-08-23T09:00:00Z", "root_old"),
-                ("2026-08-23T12:00:00Z", "root_new"),
-                ("2026-08-23T11:00:00Z", "root_mid"),
-            ):
-                instance = _Instance(id=f"i_{root}", updated_at=stamp)
+            out = []
+            for persona_id, stamp, root in rows:
+                instance = _Instance(id=f"i_{root}", persona_id=persona_id, updated_at=stamp)
                 instance.default_chat_session_id = root
-                rows.append(instance)
-            return rows
+                out.append(instance)
+            return out
+
+    import agent_runtime.home_next_chat as home_next_chat
 
     patch_where_bound(monkeypatch, persona_assignments, "PersonaInstanceStore", _Store)
+    monkeypatch.setattr(prewarm_module, "_home_agent_id", lambda: home)
+    monkeypatch.setattr(
+        home_next_chat, "ready_session_ids_for", lambda pid: list(ready) if pid == home else []
+    )
 
-    assert _boot_candidates(limit=2) == ["root_new", "root_mid"]
-    assert _boot_candidates(limit=9) == ["root_new", "root_mid", "root_old"]
+
+def test_the_boot_pass_warms_only_homes_agent(monkeypatch):
+    """Owner 2026-11-24: boot readies ONLY Home's agent; every other chat loads on demand.
+    With no ready chat, Home's agent's most recent chat is the one candidate."""
+
+    _home_store(monkeypatch, [
+        ("dev", "2026-08-23T13:00:00Z", "root_dev_newest"),
+        ("neko_supervisor", "2026-08-23T09:00:00Z", "root_neko_old"),
+        ("neko_supervisor", "2026-08-23T12:00:00Z", "root_neko_new"),
+        ("qa", "2026-08-23T14:00:00Z", "root_qa"),
+    ])
+
+    assert _boot_candidates() == ["root_neko_new"]
 
 
-def test_an_instance_with_no_bound_chat_root_is_not_a_candidate(monkeypatch):
-    """A placement with no ``default_chat_session_id`` has no root to key a
-    resident actor on, and this module never mints one."""
+def test_the_boot_pass_warms_homes_ready_chat_first(monkeypatch):
+    """Home's ready chat is where the next first message lands, so it beats any recent chat."""
 
-    class _Store:
-        def list_all(self):
-            bound = _Instance(id="i_bound", updated_at="2026-08-23T09:00:00Z")
-            bound.default_chat_session_id = "root_bound"
-            unbound = _Instance(id="i_unbound", updated_at="2026-08-23T12:00:00Z")
-            unbound.default_chat_session_id = None
-            return [unbound, bound]
+    _home_store(
+        monkeypatch,
+        [("neko_supervisor", "2026-08-23T12:00:00Z", "root_neko_new")],
+        ready=("root_ready",),
+    )
 
-    patch_where_bound(monkeypatch, persona_assignments, "PersonaInstanceStore", _Store)
+    assert _boot_candidates() == ["root_ready"]
 
-    assert _boot_candidates(limit=8) == ["root_bound"]
+
+def test_no_home_agent_or_no_bound_chat_warms_nothing(monkeypatch):
+    """No Home agent, or a Home agent with no bound chat root: nothing is minted or warmed."""
+
+    _home_store(monkeypatch, [("dev", "2026-08-23T12:00:00Z", "root_dev")], home=None)
+    assert _boot_candidates() == []
+    _home_store(monkeypatch, [("dev", "2026-08-23T12:00:00Z", "root_dev")])
+    assert _boot_candidates() == []
+
+
+def test_the_boot_pass_queues_its_one_candidate_at_boot_priority(monkeypatch):
+    registry = PersonaChatRuntimeRegistry()
+    patch_where_bound(
+        monkeypatch, persona_chat_continuity, "persona_chat_runtime_registry", lambda: registry
+    )
+    monkeypatch.setattr(prewarm_module, "_boot_candidates", lambda: ["root_home"])
+    queued: list[tuple[str, int]] = []
+    monkeypatch.setattr(
+        prewarm_module,
+        "request_chat_actor_prewarm",
+        lambda root, *, priority: queued.append((root, priority)) or "started",
+    )
+
+    assert prewarm_chat_actors_on_boot() == {"candidates": 1, "queued": 1, "skipped": 0}
+    assert queued == [("root_home", prewarm_module.PRIORITY_BOOT)]
 
 
 def test_the_boot_pass_walks_no_roster_without_a_registry(monkeypatch):
@@ -1091,7 +1123,7 @@ def test_the_boot_pass_walks_no_roster_without_a_registry(monkeypatch):
     monkeypatch.setattr(
         prewarm_module,
         "_boot_candidates",
-        lambda **_kw: pytest.fail("the roster was walked with hot sessions off"),
+        lambda: pytest.fail("the roster was walked with hot sessions off"),
     )
 
     assert prewarm_chat_actors_on_boot()["queued"] == 0
@@ -1114,39 +1146,6 @@ def test_the_persona_chat_config_carries_no_prewarm_knob():
         "max_hot_sessions",
         "idle_ttl_seconds",
     }
-
-
-def test_the_boot_pass_honours_max_hot_sessions_as_the_cap(monkeypatch):
-    """The cap the pass asks for is the registry's own, read from the same
-    config stanza that sized the registry."""
-
-    from agent_runtime.runtime_config import PersonaChatConfig, RuntimeConfig
-
-    registry = PersonaChatRuntimeRegistry()
-    seen: list[int] = []
-    patch_where_bound(
-        monkeypatch, persona_chat_continuity, "persona_chat_runtime_registry", lambda: registry
-    )
-    patch_where_bound(
-        monkeypatch,
-        runtime_config,
-        "load_root_runtime_config",
-        lambda: RuntimeConfig(
-            persona_chat=PersonaChatConfig(
-                hot_sessions_enabled=True, max_hot_sessions=3
-            )
-        ),
-    )
-
-    def _candidates(*, limit):
-        seen.append(limit)
-        return []
-
-    monkeypatch.setattr(prewarm_module, "_boot_candidates", _candidates)
-
-    prewarm_chat_actors_on_boot()
-
-    assert seen == [3]
 
 
 # ── (7) the receipts ────────────────────────────────────────────────────────

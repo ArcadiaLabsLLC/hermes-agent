@@ -239,6 +239,18 @@ def _scope_of(session_id: str) -> str | None:
     return None
 
 
+def ready_session_ids_for(persona_id: str) -> list[str]:
+    """Every account's live ready chat for ``persona_id`` (the boot prewarm's first pick)."""
+
+    folder = _record_path("0" * 64).parent
+    if not persona_id or not folder.is_dir():
+        return []
+    with _LOCK:
+        records = [_live_record(path.stem) for path in sorted(folder.glob("*.json")) if _SCOPE.match(path.stem)]
+    # MUTATION: drop the persona match and test_the_boot_pass_reads_the_ready_chat_of_the_agent_it_names reddens.
+    return [record["session_id"] for record in records if record is not None and record.get("persona_id") == persona_id]
+
+
 def promote_on_send(session_id: str | None) -> bool:
     """The send's first message makes Home's ready chat a visible chat; Home forgets it. Never raises."""
 

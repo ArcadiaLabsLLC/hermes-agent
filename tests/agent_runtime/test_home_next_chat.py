@@ -172,3 +172,14 @@ def test_an_unselected_ready_chat_is_prewarmed_for_its_owner(placed_agent, prewa
     assert PersonaInstanceStore().get(instance_id).session_id != session_id, "the ready chat was selected"
     owner = _instance_for_root(session_id)
     assert owner is not None and owner.id == instance_id
+
+
+def test_the_boot_pass_reads_the_ready_chat_of_the_agent_it_names(placed_agent, prewarms):
+    """The boot prewarm's first pick: the live ready chat of Home's agent, and none once it has a message."""
+
+    ready = _ensure(PERSONA, placed_agent["persona_instance_id"])["session_id"]
+
+    assert home_next_chat.ready_session_ids_for(PERSONA) == [ready]
+    assert home_next_chat.ready_session_ids_for("some_other_agent") == []
+    home_next_chat.promote_on_send(ready)
+    assert home_next_chat.ready_session_ids_for(PERSONA) == []

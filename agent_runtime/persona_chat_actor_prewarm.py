@@ -127,8 +127,8 @@ Triggers
 --------
 * **serve boot** — one pass after the ready frame, behind the read-model build
   and the provider warmup on the same thread (see ``serve.py``'s ordering
-  doctrine), warming at most ``persona_chat.max_hot_sessions`` chats,
-  most-recently-active first.
+  doctrine), warming ONE chat: Home's agent's ready chat, else that agent's most
+  recent chat (owner 2026-11-24). Every other chat warms on demand.
 * **chat open** — ``persona instance open-chat``, the capability the launcher
   fires when an operator opens or creates a chat. Deliberately NOT
   ``PersonaInstanceStore.open_chat``, which the SEND path re-enters on every
@@ -931,38 +931,31 @@ def request_chat_actor_prewarm(
 
 
 def prewarm_chat_actors_on_boot() -> dict[str, int]:
-    """Queue the operator's most recently active chats, up to the registry cap.
+    """Queue ONE chat at boot: Home's agent's ready chat, else that agent's most recent chat.
 
-    Runs on ``serve``'s existing prewarm thread, AFTER the read-model build and
-    the provider warmup (ordering doctrine: ``serve.py``). Third rather than
-    first for two reasons — the launcher's canvas is waiting on the build, and
-    an agent construction that runs after ``_load_openai_cls`` is far cheaper
-    than one that pays the SDK import itself.
+    Owner ruling 2026-11-24 (lane w1124e-hotagents, Eternia row
+    ``MC-FU-HOMES-READY-CHAT-IS-WARM-ONLY-WHERE-HERMES-KEEPS-CHAT-AGENTS-RESIDENT``):
+    "at boot, ready ONLY Home's default agent; load on demand; no preloading beyond that".
+    Every other chat warms when it is asked for (chat open, Home's ready-chat ensure, a
+    model pick), never at boot. Home's agent is ``readiness_demand.home_agent_persona_id``,
+    the one ordering readiness already uses; nothing here names an agent.
 
-    ``max_hot_sessions`` is the cap and it is the registry's own: warming more
-    chats than the registry can hold would evict the earliest warms before
-    anyone used them. Most-recently-active first, because that is the order an
-    operator is likely to reopen them in and the order eviction would preserve.
+    Runs on ``serve``'s existing prewarm thread, AFTER the read-model build and the
+    provider warmup (ordering doctrine: ``serve.py``). Gated on ``hot_sessions_enabled``
+    and nothing else (see :class:`agent_runtime.runtime_config.PersonaChatConfig`).
 
-    Gated on ``hot_sessions_enabled`` and nothing else — see the note in
-    :class:`agent_runtime.runtime_config.PersonaChatConfig` for why this pass
-    does not get its own key.
-
-    Returns the pass's counts (also emitted as
-    :data:`CHAT_ACTOR_PREWARM_PASS_RECEIPT`); it never raises, because a warm
-    that did not happen costs latency and never correctness.
+    Returns the pass's counts (also emitted as :data:`CHAT_ACTOR_PREWARM_PASS_RECEIPT`);
+    it never raises, because a warm that did not happen costs latency and never correctness.
     """
 
     started = time.monotonic()
     counts = {"candidates": 0, "queued": 0, "skipped": 0}
     try:
-        from .config import load_root_runtime_config
         from .persona_chat_continuity import persona_chat_runtime_registry
 
         if persona_chat_runtime_registry() is None:
             return counts
-        persona_chat_cfg = load_root_runtime_config().persona_chat
-        roots = _boot_candidates(limit=max(1, int(persona_chat_cfg.max_hot_sessions)))
+        roots = _boot_candidates()
         counts["candidates"] = len(roots)
         for root in roots:
             if request_chat_actor_prewarm(root, priority=PRIORITY_BOOT) == "started":
@@ -982,19 +975,41 @@ def prewarm_chat_actors_on_boot() -> dict[str, int]:
     return counts
 
 
-def _boot_candidates(*, limit: int) -> list[str]:
-    """Bound chat roots, most-recently-active first, capped at *limit*.
+def _home_agent_id() -> str | None:
+    """Home's agent: ``readiness_demand.home_agent_persona_id`` over the runtime personas."""
 
-    Only an instance that HAS a bound chat root is a candidate: a placement with
-    no ``default_chat_session_id`` has no root to key a resident actor on, and
-    minting one here would be this module writing store state — which it does
-    not do.
+    from .persona_lifecycle import is_runtime_persona
+    from .readiness_demand import home_agent_persona_id
+    from .store import AgentStore
 
-    Recency is ``updated_at``, the field every instance write stamps. Rows that
-    carry none sort last rather than being dropped: an unsorted candidate is
-    still a real chat, and a missing timestamp must not read as "never used".
+    return home_agent_persona_id([agent for agent in AgentStore().list_all() if is_runtime_persona(agent)])
+
+
+def _boot_candidates() -> list[str]:
+    """At most ONE root: Home's agent's ready chat, else its most recently active bound chat.
+
+    The ready chat (``home_next_chat``) is the chat Home's next first message lands in, so
+    it is the one worth a construction; an install whose Home has not minted one yet warms
+    the agent's most recent chat instead (recency is ``updated_at``, the field every
+    instance write stamps). No Home agent, or none of its instances bound to a chat, is no
+    candidate: this module never mints a chat root.
     """
 
+    try:
+        home = _home_agent_id()
+    except Exception:
+        return []
+    if not home:
+        return []
+    from .home_next_chat import ready_session_ids_for
+
+    try:
+        ready = ready_session_ids_for(home)
+    except Exception:
+        ready = []
+    # MUTATION: drop this return and test_the_boot_pass_warms_homes_ready_chat_first reddens.
+    if ready:
+        return ready[:1]
     from .persona_assignments import PersonaInstanceStore
 
     try:
@@ -1002,22 +1017,16 @@ def _boot_candidates(*, limit: int) -> list[str]:
     except Exception:
         return []
     dated: list[tuple[str, str]] = []
-    undated: list[str] = []
-    seen: set[str] = set()
     for instance in instances:
-        root = str(getattr(instance, "default_chat_session_id", None) or "").strip()
-        if not root or root in seen:
+        # MUTATION: drop this filter and test_the_boot_pass_warms_only_homes_agent reddens.
+        if str(getattr(instance, "persona_id", "") or "") != home:
             continue
-        seen.add(root)
-        stamp = str(getattr(instance, "updated_at", "") or "").strip()
-        if stamp:
-            dated.append((stamp, root))
-        else:
-            undated.append(root)
-    # ISO-8601 stamps sort lexicographically, newest last — hence the reverse.
-    # ``sorted`` is stable, so equal stamps keep store order.
-    ordered = [root for _, root in sorted(dated, key=lambda row: row[0], reverse=True)]
-    return (ordered + undated)[:limit]
+        root = str(getattr(instance, "default_chat_session_id", None) or "").strip()
+        if root:
+            dated.append((str(getattr(instance, "updated_at", "") or "").strip(), root))
+    # ISO-8601 stamps sort lexicographically; an undated row sorts last, never dropped.
+    dated.sort(key=lambda row: row[0], reverse=True)
+    return [dated[0][1]] if dated else []
 
 
 __all__ = [
