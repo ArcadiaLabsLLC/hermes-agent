@@ -78,8 +78,19 @@ def model_facts(rid, params: dict, context: RpcContext | None = None):
 
 @method("runtime.operator.conversation.model.select", tier=TIER_CONSOLE)
 def select_model(rid, params: dict, context: RpcContext | None = None):
+    from agent_runtime.home_next_chat import rewarm_if_ready
+    from agent_runtime.launcher_app_functions import launcher_link_of
+
+    link = launcher_link_of(context.launcher_request if context is not None else None)
+
+    def select_and_rewarm(request: dict) -> dict:
+        facts = select_operator_model(request)
+        # Home's ready chat: the pick changes the agent its first message runs, so rebuild it now.
+        rewarm_if_ready(request.get("session_id"), launcher_link=link)
+        return facts
+
     return _inspect_off_reader(rid, params, context, "runtime.operator.conversation.model.select",
-                               select_operator_model)
+                               select_and_rewarm)
 
 
 @method("runtime.operator.conversation.controls", tier=TIER_CONSOLE)

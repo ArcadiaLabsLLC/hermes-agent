@@ -160,6 +160,8 @@
     "runtime.gateway.reverse.withdraw",
     "runtime.harness.skills.sync",
     "runtime.health",
+    "runtime.home.next_chat.ensure",
+    "runtime.home.next_chat.get",
     "runtime.lens.actions",
     "runtime.lens.artifact",
     "runtime.lens.budget.get",
@@ -703,6 +705,17 @@
       "peer_install_id"
     ],
     "runtime.health": [],
+    "runtime.home.next_chat.ensure": [
+      "persona_id",
+      "persona_instance_id",
+      "client_scope",
+      "install_id",
+      "requested_by"
+    ],
+    "runtime.home.next_chat.get": [
+      "client_scope",
+      "install_id"
+    ],
     "runtime.operator.conversation.list": [
       "all_accounts",
       "before",
@@ -1229,6 +1242,8 @@
     "runtime.gateway.reverse.withdraw": "read",
     "runtime.harness.skills.sync": "console",
     "runtime.health": "read",
+    "runtime.home.next_chat.ensure": "console",
+    "runtime.home.next_chat.get": "console",
     "runtime.lens.actions": "console",
     "runtime.lens.artifact": "console",
     "runtime.lens.budget.get": "console",

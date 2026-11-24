@@ -122,6 +122,7 @@ from agent_runtime.serve_rpc import (
     prefab,
     agent,
     chat,
+    home,
     channel,
     operator_conversation,
     operator_history,
