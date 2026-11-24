@@ -1011,7 +1011,6 @@ def test_a_device_is_refused_the_thread_stacks_and_reads_no_stack_line(gateway_o
     credential = pair_device()
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, reply):
-            assert "stacks" not in reply["ops"]["ops"]
             connection.send({"op": "stacks"})
             connection.send({"op": "ping"})
             frames = _frames_until(connection, "busy")
@@ -1020,6 +1019,7 @@ def test_a_device_is_refused_the_thread_stacks_and_reads_no_stack_line(gateway_o
     assert "stderr" not in events and "stacks_dumped" not in events, events
     assert frames[0]["event"] == "error"
     assert frames[0]["error"] == "op_not_available_on_gateway"
+    assert "stacks" not in reply["ops"]["ops"]
 
 
 def test_a_device_is_refused_the_connection_list_with_allow_access_off(gateway_on):
@@ -1031,12 +1031,12 @@ def test_a_device_is_refused_the_connection_list_with_allow_access_off(gateway_o
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, reply):
             assert reply["event"] == "hello_ok" and reply["access"] is False, reply
-            assert "connections" not in reply["ops"]["ops"]
             connection.send({"op": "connections"})
             frame = connection.read_frame()
 
     assert frame["event"] == "error", frame
     assert frame["error"] == "op_not_available_on_gateway"
+    assert "connections" not in reply["ops"]["ops"]
 
 
 def test_a_device_version_carries_no_connections_block_and_a_loopback_version_does(gateway_on):
