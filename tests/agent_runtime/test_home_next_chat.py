@@ -10,7 +10,7 @@ send's own ``promote_on_send`` hook; the prewarm request is recorded, not run.
 Killing mutations (recorded in the CHANGE commit): ``_chat_db`` opening the process store
 (``open_chat_session_db(access=...)`` without the conversation scope) -> the per-profile test
 reddens; drop ``db.set_session_hidden(session_id, True)``
-in ``_mint`` -> ``test_a_ready_chat_is_in_no_list_until_its_first_message`` reddens; replace
+in ``_mint_ready_chat`` -> ``test_a_ready_chat_is_in_no_list_until_its_first_message`` reddens; replace
 ``_retire``'s ``delete_session_if_empty`` with a no-op -> ``test_switching_agent_deletes_the_empty_old_chat``
 reddens; drop the ``rewarm_if_ready`` call in ``select_model`` -> ``test_a_model_pick_on_the_ready_chat_rewarms_it``
 reddens.
