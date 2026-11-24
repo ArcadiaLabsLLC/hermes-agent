@@ -516,6 +516,51 @@ class RpcCaller:
             payload["computer_grant"] = self.computer_grant
         return payload
 
+    def route_owner(self) -> str:
+        """The ONE routing key a serve files this caller's per-connection state under.
+
+        ``machine:<caller machine>/<kind>[:<proven id>]/<conn key>``. Every map the serve keeps per
+        connection (reply sinks, the stream hub, office / peer-directory / suggestion subscriptions,
+        the inflight table, the Launcher answerer) is keyed on this string, because a bare ``conn-N``
+        is not a caller: a paired phone and the local app on two listeners both held ``conn-1`` and
+        got each other's answers
+        (``RT-FU-A-PHONE-AND-THE-LOCAL-APP-ON-THE-SAME-CONNECTION-NUMBER-GET-EACH-OTHERS-ANSWERS``).
+        Nothing else writes this format; a reader is handed the string and never rebuilds it.
+
+        The segments follow the address order of ``agent_runtime.address`` (``machine:…`` first)
+        because the owner ruled that routing checks both the machine id and the namespace
+        (2026-11-23: "right it should be both"), machine first (2026-11-23: "starting with machine
+        id"). No hello proves a CALLER's machine id today, so that segment is the explicit
+        :data:`ROUTE_MACHINE_UNPROVEN` marker: never a guess, never a value the request carries.
+        When a hello proves one, it is written HERE and nowhere else. The kind and the id the
+        transport proved (``device_id``, ``peer_install_id``, ``computer_id``) follow it; no new
+        address kind is added for them (owner 2026-11-23: "No, keep it out"). The stdio owner has no
+        connection and keeps ``stdio``.
+        """
+
+        if self.kind == CALLER_STDIO_OWNER:
+            return ROUTE_OWNER_STDIO
+        if self.kind == CALLER_DEVICE:
+            who = f"{self.kind}:{self.device_id}"
+        elif self.kind == CALLER_PEER:
+            who = f"{self.kind}:{self.peer_install_id}"
+        elif self.kind == CALLER_COMPUTER:
+            who = f"{self.kind}:{self.computer_id}"
+        elif self.kind == CALLER_LOCAL_CONSOLE:
+            who = self.kind
+        else:
+            who = f"{CALLER_UNKNOWN}:{self.transport}"
+        return f"{ROUTE_MACHINE_UNPROVEN}/{who}/{self.connection_key}"
+
+
+#: The route owner of the in-process stdio pipe, which has no connection to key.
+ROUTE_OWNER_STDIO = "stdio"
+#: The caller-machine segment of :meth:`RpcCaller.route_owner` while no hello proves a caller's
+#: machine id. ``machine`` is ``agent_runtime.address.Kind.MACHINE``, spelled here because this
+#: models-layer module may not import a store (a test pins the two equal); ``unproven`` is never a
+#: minted machine id, which always opens with ``machine_identity.MACHINE_ID_PREFIX``.
+ROUTE_MACHINE_UNPROVEN = "machine:unproven"
+
 
 #: The machine owner at its own console, over the socket. Spelled as a value so
 #: the grandfather clause is greppable rather than implicit in an absent check.

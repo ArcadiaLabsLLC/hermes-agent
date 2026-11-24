@@ -272,9 +272,14 @@ def test_the_serve_disconnect_path_forgets_the_connections_sink():
     going, staying = _Launcher(), _Launcher(_TOOLS[:1])
     laf.refresh_app_function_tools(laf.LauncherLink(going, laf.ORIGIN_LOCAL))
     laf.refresh_app_function_tools(laf.LauncherLink(staying, laf.ORIGIN_LOCAL))
-    lanes = Lanes({"sock-1": going, "sock-2": staying})
+    from agent_runtime.call_authorization import caller_for_connection
 
-    lanes._on_connection_closed(SimpleNamespace(key="sock-1"))
+    leaving = SimpleNamespace(key="sock-1", transport="socket", authenticated=True)
+    remaining = SimpleNamespace(key="sock-2", transport="socket", authenticated=True)
+    # Filed under each connection's routing key, as ``_sink_for`` files them.
+    lanes = Lanes({caller_for_connection(c).route_owner(): sink for c, sink in ((leaving, going), (remaining, staying))})
+
+    lanes._on_connection_closed(leaving)
 
     assert lanes.released == ["sock-1"]
     laf.refresh_app_function_tools(laf.LauncherLink(going, laf.ORIGIN_LOCAL))

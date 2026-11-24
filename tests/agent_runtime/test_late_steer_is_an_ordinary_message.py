@@ -53,8 +53,15 @@ FIRST = "cm-first"
 STEER_ID = "steer-a"
 LATE_TURN = "steer-next-" + STEER_ID
 STEER_TEXT = "also water the roses"
-DESK = {"owner": "desk-1", "gateway": False}
-PHONE = {"owner": "phone-1", "gateway": True}
+#: Each sender's origin carries its ROUTING key (``RpcCaller.route_owner``), the one the serve files
+#: its connection's sink under; ``_SENDERS`` holds the connection that proves it.
+DESK = {"owner": "machine:unproven/local_console/desk-1", "gateway": False}
+PHONE = {"owner": "machine:unproven/device:dev-phone/phone-1", "gateway": True}
+_SENDERS = {
+    DESK["owner"]: {"key": "desk-1", "transport": "local"},
+    PHONE["owner"]: {"key": "phone-1", "transport": GATEWAY_TRANSPORT, "device_id": "dev-phone",
+                     "device_tier": "console"},
+}
 
 
 @contextlib.contextmanager
@@ -66,7 +73,7 @@ def _screen(_entry):
 def _serve_request(sender: dict):
     """The serve request a steer arrives on (``ArgvLanes._run``): its sink targets the sender's connection."""
 
-    connection = SimpleNamespace(key=sender["owner"], transport=GATEWAY_TRANSPORT if sender["gateway"] else "local")
+    connection = SimpleNamespace(authenticated=True, **_SENDERS[sender["owner"]])
     rid, sink = _request_id.set("rid-steer"), _request_sink.set(SimpleNamespace(_target=connection))
     try:
         yield
@@ -152,7 +159,7 @@ def test_a_late_steer_typed_on_a_paired_device_is_answered_there(monkeypatch, ch
     assert late.args[send_queue.ORIGIN_ARG] == PHONE
     # The serve's queued-turn stream: the phone's live connection gets the late turn's frames and settle.
     phone_sink = object()
-    session = SimpleNamespace(connection_sinks_lock=threading.Lock(), connection_sinks={"phone-1": phone_sink})
+    session = SimpleNamespace(connection_sinks_lock=threading.Lock(), connection_sinks={PHONE["owner"]: phone_sink})
     assert queued_turn_origin.queued_turn_peer(session, late, "rid-late") is phone_sink
 
 
@@ -161,7 +168,7 @@ def test_a_late_steer_typed_on_the_desktop_at_the_phones_message_is_not_sent_to_
     late = _late_steer(monkeypatch, model, instance, root, first_from=PHONE, steer_from=DESK, attached=False)
 
     assert late.args[send_queue.ORIGIN_ARG] == DESK
-    session = SimpleNamespace(connection_sinks_lock=threading.Lock(), connection_sinks={"phone-1": object()})
+    session = SimpleNamespace(connection_sinks_lock=threading.Lock(), connection_sinks={PHONE["owner"]: object()})
     assert queued_turn_origin.queued_turn_peer(session, late, "rid-late") is None
 
 

@@ -13,7 +13,7 @@ own, yet must get what a direct run of the same send gets:
   that connection is still attached.
 
 The origin is persisted on the queued entry (``chat_root_send_queue.ORIGIN_ARG``) as
-``{"owner": <connection key> | "stdio" | None, "gateway": bool}``; ``owner`` is ``None`` for
+``{"owner": <route owner> | "stdio" | None, "gateway": bool}``; ``owner`` is ``None`` for
 a send that reached the door with no serve request (a one-shot CLI).
 """
 
@@ -72,8 +72,14 @@ def send_origin() -> dict[str, Any]:
     if sink is None:
         return {"owner": "stdio", "gateway": False}
     connection = getattr(sink, "_target", None)
-    key = getattr(connection, "key", None)
-    return {"owner": None if key is None else str(key), "gateway": bool(_is_gateway(connection))}
+    if getattr(connection, "key", None) is None:
+        return {"owner": None, "gateway": bool(_is_gateway(connection))}
+    from agent_runtime.call_authorization import caller_for_connection
+
+    # The routing key ``connection_sinks`` is filed under (``RpcCaller.route_owner``), so
+    # ``_live_sink`` finds this sender's own sink and never another caller's ``conn-N``.
+    owner = caller_for_connection(connection).route_owner()
+    return {"owner": owner, "gateway": bool(_is_gateway(connection))}
 
 
 def _origin(entry: Any) -> dict[str, Any]:

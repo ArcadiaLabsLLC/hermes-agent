@@ -880,7 +880,9 @@ class MessageHandling:
         rpc_frame = handle_request(
             message,
             RpcContext(
-                connection_key=getattr(connection, "key", None),
+                # The ROUTING key, not the bare ``conn-N``: the speech, office, peer-directory,
+                # suggestion and Launcher-answerer registries key on it (route_owner's docstring).
+                connection_key=None if connection is None else self._owner_of(connection),
                 transport=getattr(connection, "transport", "stdio"),
                 emit=sink.emit,
                 caller=caller_for_connection(connection),

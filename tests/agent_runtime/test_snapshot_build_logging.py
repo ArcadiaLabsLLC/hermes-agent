@@ -683,7 +683,10 @@ def test_a_serve_side_argv_reader_names_its_request_and_logs_its_end(monkeypatch
 
     monkeypatch.setattr(stream_mod, "stream_frames", lambda **kwargs: iter(({"a": 1}, {"b": 2})))
     rid_token = serve_frames._request_id.set("req-6")
-    sink_token = serve_frames._request_sink.set(SimpleNamespace(_target=SimpleNamespace(key="conn-3")))
+    loopback = SimpleNamespace(key="conn-3", transport="socket", authenticated=True)
+    sink_token = serve_frames._request_sink.set(SimpleNamespace(_target=loopback))
+    # The line names the connection by its routing key (``RpcCaller.route_owner``).
+    owner = "machine:unproven/local_console/conn-3"
     event = threading.Event()
     if cancel:
         event.set()
@@ -701,8 +704,8 @@ def test_a_serve_side_argv_reader_names_its_request_and_logs_its_end(monkeypatch
     attach = _lines(build_log, _ATTACH_PREFIX)
     detach = _lines(build_log, "stream_detach ")
     assert len(attach) == 1 and len(detach) == 1, [r.getMessage() for r in build_log.records]
-    assert (attach[0]["request"], attach[0]["connection"], attach[0]["max_frames"]) == ("req-6", "conn-3", "-")
-    assert (detach[0]["request"], detach[0]["connection"]) == ("req-6", "conn-3")
+    assert (attach[0]["request"], attach[0]["connection"], attach[0]["max_frames"]) == ("req-6", owner, "-")
+    assert (detach[0]["request"], detach[0]["connection"]) == ("req-6", owner)
     assert detach[0]["frames"] == "2"
     assert detach[0]["end"] == ("cancelled" if cancel else "returned")
 

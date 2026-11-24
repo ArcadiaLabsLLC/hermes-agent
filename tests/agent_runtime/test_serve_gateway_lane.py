@@ -1252,3 +1252,120 @@ def test_a_paired_device_never_shows_its_credential_on_the_connections_block(
     assert token not in json.dumps(frame)
     assert code.code not in json.dumps(frame)
     assert frame["gateway"]["connections"][0]["device_id"] == reply["paired"]["device_id"]
+
+
+# ── a device and the local app on the same connection number ────────────────
+#
+# Hermes row RT-FU-A-PHONE-AND-THE-LOCAL-APP-ON-THE-SAME-CONNECTION-NUMBER-GET-EACH-OTHERS-ANSWERS:
+# every per-connection map is keyed on ``RpcCaller.route_owner()``, never the bare ``conn-N``.
+# The admitters now share one count, so the collision is REPLAYED: the mint is scripted to hand
+# the device and the loopback client the same ``conn-1`` each listener used to mint first.
+
+
+def _replay_connection_keys(monkeypatch, *keys: str) -> None:
+    from agent_runtime.serve_socket import admit
+
+    script = list(keys)
+    spare = iter(range(100, 10_000))
+    monkeypatch.setattr(
+        admit, "_mint_connection_key", lambda: script.pop(0) if script else f"conn-{next(spare)}"
+    )
+
+
+def _stream_frames_until(connection: ServeSocketClient, kind: str, *, limit: int = 4000) -> list[dict]:
+    frames = []
+    for _ in range(limit):
+        frame = connection.read_frame()
+        if frame is None:
+            raise AssertionError(f"connection closed before a {kind!r} stream frame: {frames[-3:]}")
+        frames.append(frame)
+        if frame.get("type") == kind:
+            return frames
+    raise AssertionError(f"no {kind!r} stream frame within {limit} frames")
+
+
+def _gated_stream(gate: threading.Event):
+    def _factory():
+        def _generate():
+            index = 0
+            yield {"type": "hydrate", "index": index}
+            while not gate.is_set():
+                index += 1
+                time.sleep(0.005)
+                yield {"type": "delta", "index": index}
+
+        return _generate()
+
+    return _factory
+
+
+def test_a_device_and_the_local_app_on_one_connection_number_each_read_only_their_own_answers(
+    gateway_on, monkeypatch
+):
+    """MUTATION: ``_owner_of`` returns ``str(connection.key)`` again -> red (recorded in the
+    landing commit)."""
+
+    _replay_connection_keys(monkeypatch, "conn-1", "conn-1")
+    credential = pair_device()
+    with running_serve() as handle:
+        with device_client(handle, credential) as (device, reply):
+            assert reply["connection"] == "conn-1", reply
+            device.send({"op": "version"})
+            _frames_until(device, "version")
+            with loopback_client(handle) as console:
+                console.send({"op": "ping"})
+                console.send({"op": "connections"})
+                console_frames = _frames_until(console, "socket_connections")
+                device.send({"op": "ping"})
+                device.send({"op": "connections"})
+                device_frames = _frames_until(device, "error")
+                device.send({"op": "ping"})
+                device_frames += _frames_until(device, "busy")
+
+    console_events = [frame.get("event") for frame in console_frames]
+    assert "busy" in console_events and console_events[-1] == "socket_connections", console_events
+    assert console_frames[-1]["gateway"]["connections"][0]["device_id"] == credential.device_id
+    device_events = [frame.get("event") for frame in device_frames]
+    assert "socket_connections" not in device_events, device_events
+    assert device_events.count("busy") == 2, device_events
+    assert device_frames[device_events.index("error")]["error"] == "op_not_available_on_gateway"
+
+
+def test_the_local_app_leaving_its_connection_number_keeps_the_devices_stream(gateway_on, monkeypatch):
+    """MUTATION: ``_owner_of`` returns ``str(connection.key)`` again -> the leaver's teardown
+    unsubscribes the device, red. MUTATION: ``RpcContext.connection_key`` back to
+    ``getattr(connection, "key", None)`` -> the leaver's peer-directory subscription is filed
+    under the bare key and outlives it, red (both recorded in the landing commit)."""
+
+    from agent_runtime.serve_gateway_peers_rpc import PEER_DIRECTORY_SUBSCRIPTIONS
+
+    _replay_connection_keys(monkeypatch, "conn-1", "conn-1", "conn-2")
+    credential = pair_device()
+    gate = threading.Event()
+    try:
+        with running_serve(stream_source_factory=_gated_stream(gate)) as handle:
+            with device_client(handle, credential) as (device, _reply):
+                device.send({"op": "subscribe", "lane": "stream"})
+                _frames_until(device, "subscribed")
+                baseline = PEER_DIRECTORY_SUBSCRIPTIONS.subscriber_count()
+                with loopback_client(handle) as leaver:
+                    subscribed = _rpc(leaver, "runtime.gateway.peers.subscribe")
+                    assert subscribed["result"]["subscribed"] is True, subscribed
+                    assert PEER_DIRECTORY_SUBSCRIPTIONS.subscriber_count() == baseline + 1
+                with loopback_client(handle) as probe:
+                    deadline = time.monotonic() + WAIT
+                    while True:
+                        probe.send({"op": "connections"})
+                        table = _frames_until(probe, "socket_connections")[-1]
+                        if table["count"] == 1 or time.monotonic() > deadline:
+                            break
+                        time.sleep(0.05)
+                    assert table["count"] == 1, table
+                    assert table["subscriptions"]["subscribers"] == 1, table["subscriptions"]
+                # The leaver's RPC subscription was filed and released under ONE routing key.
+                assert PEER_DIRECTORY_SUBSCRIPTIONS.subscriber_count() == baseline
+                before = _stream_frames_until(device, "delta")[-1]["index"]
+                later = _stream_frames_until(device, "delta")
+                assert later[-1]["index"] > before, (before, later[-3:])
+    finally:
+        gate.set()

@@ -55,6 +55,21 @@ __all__ = [
     "HandoffHook",
 ]
 
+#: ONE ``conn-N`` count per process, shared by every admitter (the loopback and gateway
+#: listeners and each reverse lane, which is rebuilt after it closes). A per-instance count
+#: minted ``conn-1`` on two doors at once, and a rebuilt reverse lane for the same computer
+#: restarted at ``conn-1`` (RT-FU-A-PHONE-AND-THE-LOCAL-APP-ON-THE-SAME-CONNECTION-NUMBER-GET-EACH-OTHERS-ANSWERS).
+_CONNECTION_COUNT_LOCK = threading.Lock()
+_connection_count = 0
+
+
+def _mint_connection_key() -> str:
+    global _connection_count
+    with _CONNECTION_COUNT_LOCK:
+        _connection_count += 1
+        return f"conn-{_connection_count}"
+
+
 #: After a hello authenticated, before the connection joins the table: a hook that may
 #: TAKE the socket for another use (the reverse lane's park and attach) and answers True
 #: when it did. Called on the connection's own thread, which is the one point nothing
@@ -147,7 +162,6 @@ class ConnectionAdmitter:
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._draining = False
-        self._next_connection = 0
         self._accepted = 0
         self._rejected = 0
         #: Accepted, not yet authenticated. Bounded separately (see
@@ -302,8 +316,7 @@ class ConnectionAdmitter:
         if binding is None:
             binding = self._port or 0
         with self._lock:
-            self._next_connection += 1
-            key = f"conn-{self._next_connection}"
+            key = _mint_connection_key()
             at_capacity = len(self._connections) >= self._max_connections
             pending_full = self._pending >= self._max_pending
             admitted = not (at_capacity or pending_full)

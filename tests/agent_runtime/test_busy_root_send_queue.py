@@ -287,9 +287,22 @@ def test_a_queued_turn_streams_the_same_frames_a_sent_turn_does_to_a_subscriber(
 
 class _Connection:
     def __init__(self, key: str, transport: str = "socket") -> None:
+        from hermes_cli.harness_parts.serve.constants import GATEWAY_TRANSPORT
+
         self.key = key
         self.transport = transport
+        self.authenticated = True
+        if transport == GATEWAY_TRANSPORT:  # a gateway connection is a proven paired device
+            self.device_id, self.device_tier = f"dev-{key}", "console"
         self.frames: list[dict] = []
+
+    @property
+    def owner(self) -> str:
+        """The routing key the serve files this connection under (``RpcCaller.route_owner``)."""
+
+        from agent_runtime.call_authorization import caller_for_connection
+
+        return caller_for_connection(self).route_owner()
 
     def emit(self, frame: dict) -> None:
         self.frames.append(frame)
@@ -317,7 +330,7 @@ def _origin_session(monkeypatch, *, answerers: set[str], connections: list[_Conn
     import threading
 
     session.connection_sinks_lock = threading.Lock()
-    session.connection_sinks = {c.key: _SafeSink(c) for c in connections}
+    session.connection_sinks = {c.owner: _SafeSink(c) for c in connections}
     return session
 
 
@@ -359,18 +372,18 @@ def test_a_queued_send_gets_the_same_app_function_tools_as_a_direct_send(
     from hermes_cli.harness_parts.serve.constants import GATEWAY_TRANSPORT
 
     sender = _Connection("sock-7", GATEWAY_TRANSPORT if gateway else "socket")
-    answerers = {"stdio", *(["sock-7"] if sender_answers else [])}
+    answerers = {"stdio", *([sender.owner] if sender_answers else [])}
     session = _origin_session(monkeypatch, answerers=answerers, connections=[sender])
     refreshed: list = []
     monkeypatch.setattr(queued_turn_origin, "refresh_app_function_tools", refreshed.append)
 
     _queue_from(handler, capsys, sender, "cm-link")
     origin = chat_root_send_queue.find(ROOT, "cm-link").args[chat_root_send_queue.ORIGIN_ARG]
-    assert origin == {"owner": "sock-7", "gateway": gateway}
+    assert origin == {"owner": sender.owner, "gateway": gateway}
 
     # The reference: the link the argv lanes bind for the same send run directly.
-    direct = session._launcher_link("sock-7", gateway, session.connection_sinks["sock-7"])
-    sender_sink = session.connection_sinks["sock-7"]
+    direct = session._launcher_link(sender.owner, gateway, session.connection_sinks[sender.owner])
+    sender_sink = session.connection_sinks[sender.owner]
     if sender_gone:
         session.connection_sinks.clear()
     seen: list = []

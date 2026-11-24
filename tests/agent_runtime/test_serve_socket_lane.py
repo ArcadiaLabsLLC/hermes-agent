@@ -362,6 +362,16 @@ def _serving_row(root, pid: int) -> None:
     )
 
 
+def _local_owner(key: str) -> str:
+    """The routing key a loopback connection's requests are filed under (``RpcCaller.route_owner``)."""
+
+    from types import SimpleNamespace
+
+    from agent_runtime.call_authorization import caller_for_connection
+
+    return caller_for_connection(SimpleNamespace(key=key, transport="socket", authenticated=True)).route_owner()
+
+
 def _read_until(connection: ServeSocketClient, event: str, *, limit: int = 200) -> dict:
     for _ in range(limit):
         frame = connection.read_frame()
@@ -1911,7 +1921,7 @@ def test_a_dead_subscriber_socket_is_dropped_by_the_fan_out_with_a_typed_reason(
                 assert drops, "the fan-out never dropped the dead subscriber"
                 assert drops[0]["reason"].startswith("sink_error:"), drops[0]
                 assert drops[0]["client"] == "leaver", drops[0]
-                assert drops[0]["connection"] == leaver_key, drops[0]
+                assert drops[0]["connection"] == _local_owner(leaver_key), drops[0]
 
                 stayer.send({"op": "connections"})
                 summary = _read_until(stayer, "socket_connections")
@@ -2727,6 +2737,7 @@ def test_a_live_chat_turn_survives_a_socket_drain_and_the_hold_is_reported():
         hard_exit=exits.append,
     ) as handle:
         with client(handle, name="turn-holder") as (connection, _reply):
+            owner = _local_owner(_reply["connection"])
             # The argv shape serve recognises as a chat turn.
             connection.send(
                 {"id": "turn-1", "argv": ["harness", "mission-chat", "message", "hi"]}
@@ -2740,7 +2751,7 @@ def test_a_live_chat_turn_survives_a_socket_drain_and_the_hold_is_reported():
             held = _read_until(connection, "drain_timeout")
             assert held["terminal"] is False
             assert held["held_by_chat_turns"] == 1
-            assert held["chat_turn_request_ids"] == ["conn-1:turn-1"]
+            assert held["chat_turn_request_ids"] == [f"{owner}:turn-1"]
             assert held["deadline_seconds"] == 0.2
 
             # Nothing was killed while it was held — the whole point.
@@ -2799,6 +2810,7 @@ def test_a_live_character_generation_survives_a_drain_the_way_a_chat_turn_does()
         hard_exit=exits.append,
     ) as handle:
         with client(handle, name="generation-holder") as (connection, _reply):
+            owner = _local_owner(_reply["connection"])
             connection.send(
                 {"id": "gen-1", "argv": ["harness", "characters", "rows", "--draft", "d1"]}
             )
@@ -2810,7 +2822,7 @@ def test_a_live_character_generation_survives_a_drain_the_way_a_chat_turn_does()
             held = _read_until(connection, "drain_timeout")
             assert held["terminal"] is False
             assert held["held_by_long_runs"] == 1
-            assert held["long_run_request_ids"] == ["conn-1:gen-1"]
+            assert held["long_run_request_ids"] == [f"{owner}:gen-1"]
             # ADDITIVE: the chat-turn keys keep their names and their meaning,
             # and they are honestly zero here.
             assert held["held_by_chat_turns"] == 0
@@ -3402,6 +3414,7 @@ def test_drain_progress_reaches_the_SOCKET_client_and_not_only_stdio(monkeypatch
         drain_poll_interval_seconds=0.01,
     ) as handle:
         with client(handle, name="watchdog") as (connection, _reply):
+            owner = _local_owner(_reply["connection"])
             connection.send({"id": "slow-1", "argv": ["harness", "status", "--json"]})
             assert started.wait(WAIT)
 
@@ -3413,7 +3426,7 @@ def test_drain_progress_reaches_the_SOCKET_client_and_not_only_stdio(monkeypatch
             # the terminal one — up to two minutes away.
             progress = _read_until(connection, "drain_progress")
             assert progress["pending"] == 1
-            assert progress["request_ids"] == ["conn-1:slow-1"]
+            assert progress["request_ids"] == [f"{owner}:slow-1"]
             assert progress["drain_ms"] >= 0
 
             # ...and it keeps arriving, so a watchdog watching a long drain

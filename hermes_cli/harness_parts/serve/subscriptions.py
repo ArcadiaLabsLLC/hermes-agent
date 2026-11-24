@@ -38,15 +38,45 @@ class SubscriptionLanes:
 
         if connection is None:
             return self.frames
+        owner = self._owner_of(connection)
         with self.connection_sinks_lock:
-            sink = self.connection_sinks.get(connection.key)
+            sink = self.connection_sinks.get(owner)
+            if sink is not None and not self._sink_routes_to(sink, connection, owner):
+                # The check before a reply leaves: the cached sink wraps ANOTHER connection, or
+                # one whose route owner is not this one's. Never hand it out; this one gets its own.
+                self._log_route_mismatch(connection, sink)
+                sink = None
             if sink is None:
                 sink = _SafeSink(connection)
-                self.connection_sinks[connection.key] = sink
+                self.connection_sinks[owner] = sink
             return sink
 
+    def _sink_routes_to(self, sink: Any, connection: Any, owner: str) -> bool:
+        held = getattr(sink, "_target", None)
+        return held is connection and self._owner_of(held) == owner
+
+    def _log_route_mismatch(self, connection: Any, sink: Any) -> None:
+        from agent_runtime.call_authorization import caller_for_connection
+
+        held = getattr(sink, "_target", None)
+        asking, holding = caller_for_connection(connection), caller_for_connection(held)
+        self._service_log(
+            {
+                "event": "serve_reply_route_mismatch",
+                "boot_id": getattr(self, "boot_id", None),
+                "asking_owner": asking.route_owner(),
+                "asking": asking.describe(),
+                "cached_owner": None if held is None else holding.route_owner(),
+                "cached": None if held is None else holding.describe(),
+            }
+        )
+
     def _owner_of(self, connection: Any) -> str:
-        return "stdio" if connection is None else str(connection.key)
+        """The connection's routing key: :meth:`RpcCaller.route_owner`, the ONE writer of its format."""
+
+        from agent_runtime.call_authorization import caller_for_connection
+
+        return caller_for_connection(connection).route_owner()
 
     def _deny_subscribe(
         self,
@@ -421,7 +451,7 @@ class SubscriptionLanes:
 
         _office_subs.release(key)
         if getattr(self, "_suggestions", None) is not None:
-            self._suggestions.release(None if connection is None else connection.key)
+            self._suggestions.release(None if connection is None else key)
         # S2d's lane is namespaced away from both of the above for the same
         # reason the office lane is, so a departing connection would
         # otherwise leave a sink the fan-out keeps writing to — which is how
@@ -434,7 +464,7 @@ class SubscriptionLanes:
         if connection is not None:
             connection.subscribed = False
             with self.connection_sinks_lock:
-                self.connection_sinks.pop(connection.key, None)
+                self.connection_sinks.pop(key, None)
 
     def _reclaim_abandoned_streams(self, connection: Any) -> int:
         """Cancel the departed connection's infinite ``harness stream``.
@@ -535,7 +565,7 @@ class SubscriptionLanes:
         """
 
         with self.connection_sinks_lock:
-            launcher_sink = self.connection_sinks.get(connection.key) if connection is not None else None
+            launcher_sink = self.connection_sinks.get(self._owner_of(connection)) if connection is not None else None
         self._release_subscription(connection)
         self._cancel_owner_queued_requests(self._owner_of(connection))
         self._reclaim_abandoned_streams(connection)
