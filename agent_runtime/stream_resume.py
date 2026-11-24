@@ -75,6 +75,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from . import event_rotation
+from .event_record import UnreadableEvent
 from .events import EventLog
 from .models import Event
 from .parity import events_watermark
@@ -180,10 +181,13 @@ def resolve_stream_resume(
 
     log = event_log or EventLog()
     pending: list[tuple[int, Event]] = []
-    for offset, event in log.iter_from_offset(requested):
-        pending.append((int(offset), event))
-        if len(pending) > max_events:
-            return _refuse("backlog_exceeds_cap", requested)
+    try:
+        for offset, event in log.iter_from_offset(requested):
+            pending.append((int(offset), event))
+            if len(pending) > max_events:
+                return _refuse("backlog_exceeds_cap", requested)
+    except UnreadableEvent:
+        return _refuse("journal_unreadable", requested)
 
     if not pending:
         # Already current. The whole feature, in the case it exists for.

@@ -14,11 +14,12 @@ from typing import Any
 
 from . import event_rotation, paths
 from .decision_contract_registry import allowed_event_types, validate_event_payload
+from .event_record import decode_event_record, history_event, recent_history
 from .errors import EventPayloadTooLarge
 from .locks import events_lock
 from .models import EVENT_PAYLOAD_LIMIT_BYTES, Event, payload_bytes
 from .redaction import has_secret_value, mask_local_paths, scrub_display_text
-from .serde import from_jsonable, to_jsonable
+from .serde import to_jsonable
 
 __layer__ = "stores"
 
@@ -168,24 +169,21 @@ class EventLog:
             # concurrent reader holding the sealed file open is never disturbed.
             path = event_rotation.prepare_live_for_append(_rotation_cap_bytes())
             path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "a", encoding="utf-8", newline="\n") as handle:
-                handle.write(line + "\n")
+            with open(path, "a+b") as handle:
+                # After a torn final write, the next event still starts on its own line.
+                if handle.tell():
+                    handle.seek(-1, os.SEEK_END)
+                    if handle.read(1) != b"\n":
+                        handle.write(b"\n")
+                handle.write((line + "\n").encode("utf-8"))
                 handle.flush()
 
     def tail(self, n: int) -> list[Event]:
         if n <= 0:
             return []
-        selected: list[str] = []
-        for sl in event_rotation.reversed_slices():
-            if not sl.path.exists():
-                continue
-            for line in _reversed_slice_lines(sl.path):
-                if not line.strip():
-                    continue
-                selected.append(line)
-                if len(selected) >= n:
-                    return [from_jsonable(Event, json.loads(row)) for row in reversed(selected)]
-        return [from_jsonable(Event, json.loads(row)) for row in reversed(selected)]
+        lines = (line for sl in event_rotation.reversed_slices() if sl.path.exists()
+                 for line in _reversed_slice_lines(sl.path))
+        return recent_history(lines, n)
 
     def iter_from_offset(self, offset: int) -> Iterator[tuple[int, Event]]:
         # Logical-offset tailing across slices: resolve which slice(s) a logical
@@ -198,10 +196,12 @@ class EventLog:
             with open(slice_path, "rb") as handle:
                 handle.seek(seek_within)
                 for raw in handle:
+                    if not raw.endswith(b"\n"):
+                        break  # an append in progress has no committed boundary yet
                     if not raw.strip():
                         continue
                     logical_offset = slice_start + handle.tell()
-                    yield logical_offset, from_jsonable(Event, json.loads(raw.decode("utf-8")))
+                    yield logical_offset, decode_event_record(raw.decode("utf-8", "surrogateescape"))
 
     def _for_matching(
         self,
@@ -228,8 +228,8 @@ class EventLog:
                     continue
                 if type_tokens is not None and not any(t in line for t in type_tokens):
                     continue
-                evt = from_jsonable(Event, json.loads(line))
-                if not match(evt):
+                evt = history_event(line)
+                if evt is None or not match(evt):
                     continue
                 if types is not None and evt.type not in types:
                     continue
@@ -385,8 +385,8 @@ class CachedEventLog(EventLog):
                 continue
             if type_tokens is not None and not any(type_token in line for type_token in type_tokens):
                 continue
-            evt = from_jsonable(Event, json.loads(line))
-            if not match(evt):
+            evt = history_event(line)
+            if evt is None or not match(evt):
                 continue
             if types is not None and evt.type not in types:
                 continue
@@ -434,7 +434,7 @@ class CachedEventLog(EventLog):
             return []
         lines = self._cached_lines()
         count = self._line_count
-        return [from_jsonable(Event, json.loads(line)) for line in lines[max(0, count - n):count] if line.strip()]
+        return recent_history((lines[i] for i in range(count - 1, -1, -1)), n)
 
     def iter_from_offset(self, offset: int) -> Iterator[tuple[int, Event]]:
         # Whole-view semantics kept: the logical offset is the cumulative byte
@@ -443,11 +443,11 @@ class CachedEventLog(EventLog):
         start = max(0, int(offset or 0))
         lines = self._cached_lines()
         for line in itertools.islice(lines, self._line_count):
-            raw = (line + "\n").encode("utf-8")
+            raw = (line + "\n").encode("utf-8", "surrogateescape")
             current += len(raw)
             if current <= start or not line.strip():
                 continue
-            yield current, from_jsonable(Event, json.loads(line))
+            yield current, decode_event_record(line)
 
 
 class _EventView:
@@ -493,7 +493,7 @@ def _whole_lines(data: bytes) -> tuple[list[str], int]:
     """Split ``data`` up to its last ``\\n``; return the lines and the bytes used."""
 
     used = data.rfind(b"\n") + 1
-    return data[:used].decode("utf-8").splitlines(), used
+    return data[:used].decode("utf-8", "surrogateescape").splitlines(), used
 
 
 def _index_lines(lines: list[str], positions: dict[str, list[int]], start: int) -> None:
@@ -509,7 +509,7 @@ def _build_event_view(sources, sealed, sealed_stamps, live, live_stamp) -> _Even
     lines: list[str] = []
     for source in sealed:
         if source.exists():
-            lines.extend(source.read_text(encoding="utf-8").splitlines())
+            lines.extend(source.read_text(encoding="utf-8", errors="surrogateescape").splitlines())
     appended, consumed = _whole_lines(_read_live_from(live, 0))
     lines.extend(appended)
     positions: dict[str, list[int]] = {}
@@ -581,8 +581,8 @@ def _reversed_slice_lines(path) -> Iterator[str]:
     are decoded; the head carries into the next (earlier) chunk. ``\n`` never
     occurs inside a UTF-8 multi-byte sequence, and every block but the file's
     last ends in ``\n``, so ``splitlines`` of the blocks concatenates to
-    ``splitlines`` of the file. One divergence: undecodable bytes raise only if
-    the scan reaches them, not because they exist anywhere in the slice.
+    ``splitlines`` of the file. Undecodable bytes survive chunk decoding so only their own record
+    is reported as unreadable.
     """
 
     chunk_bytes = max(1, int(_REVERSE_READ_CHUNK_BYTES))
@@ -602,7 +602,7 @@ def _reversed_slice_lines(path) -> Iterator[str]:
                 carry, block = block[: cut + 1], block[cut + 1 :]
             else:
                 carry = b""
-            yield from reversed(block.decode("utf-8").splitlines())
+            yield from reversed(block.decode("utf-8", "surrogateescape").splitlines())
 
 
 def _task_id_json_token(task_id: str) -> str:

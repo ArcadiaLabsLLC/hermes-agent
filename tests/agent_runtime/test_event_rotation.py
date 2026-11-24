@@ -317,3 +317,47 @@ def test_cached_event_view_rebuilds_on_rotation_and_on_a_sealed_slice_rewrite(is
     assert _run_ids(rewritten.tail(9)) == ["r0", "rX", "r2", "r3"]
     assert reads == [0]
     assert rewritten._cached_lines()[: rewritten._line_count] == fresh_lines()
+
+@pytest.mark.parametrize("reader", [EventLog, CachedEventLog])
+def test_nul_prefix_recovers_the_original_event_and_replay_offset(isolate_agent_runtime_root, reader):
+    log = EventLog()
+    log.append(_evt(1, session_id="s"))
+    path = paths.events_path()
+    path.write_bytes(b"\0" * 1350 + path.read_bytes())
+    log.append(_evt(2, session_id="s"))
+    journal = reader()
+    assert _run_ids(journal.tail(2)) == ["r1", "r2"]
+    assert _run_ids(journal.for_session("s")) == ["r1", "r2"]
+    replay = list(journal.iter_from_offset(0))
+    assert _run_ids(event for _, event in replay) == ["r1", "r2"]
+    assert replay[-1][0] == path.stat().st_size
+
+
+def test_damaged_event_rebaselines_live_mission_control(isolate_agent_runtime_root, caplog):
+    from agent_runtime.stream import stream_frames
+    from agent_runtime.stream_resume import resolve_stream_resume
+
+    log = EventLog()
+    log.append(_evt(1))
+    stream = stream_frames(poll_interval_seconds=0.01, delta_debounce_seconds=0)
+    try:
+        first = next(stream)
+        assert first["type"] == "hydrate"
+        start = paths.events_path().stat().st_size
+        with paths.events_path().open("ab") as handle:
+            handle.write(b'{"payload":"\xff')
+        log.append(_evt(2))
+        end = paths.events_path().stat().st_size
+        assert _run_ids(CachedEventLog().tail(2)) == ["r1", "r2"]
+        assert _run_ids(EventLog().tail(2)) == ["r1", "r2"]
+        assert resolve_stream_resume(start).reason == "journal_unreadable"
+        recovered = next(stream)
+        assert recovered["type"] == "hydrate"
+        assert recovered["watermark"]["event_offset"] == end
+        assert "workspaces" in recovered["core"]
+        log.append(_evt(3))
+        following = next(stream)
+        assert following["watermark"]["event_offset"] == paths.events_path().stat().st_size
+        assert "disposition=unreadable" in caplog.text
+    finally:
+        stream.close()

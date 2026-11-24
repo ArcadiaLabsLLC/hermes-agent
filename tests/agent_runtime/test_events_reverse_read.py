@@ -135,13 +135,12 @@ def test_for_session_torn_final_line_on_live_slice(isolate_agent_runtime_root, m
     assert _dump(log.for_session("chat_t", limit=2)) == _dump(_legacy_for_session("chat_t", limit=2))
     assert [e.run_id for e in log.for_session("chat_t", limit=2)] == ["r4", "r5"]
 
-    # A torn write that DOES carry the token: both readers decode it and raise.
+    # A matching torn entry cannot hide the two last intact session events.
     with open(live, "ab") as handle:
         handle.write(b'\n{"session_id":"chat_t","type":"run.tool.sta')
     with pytest.raises(json.JSONDecodeError):
         _legacy_for_session("chat_t", limit=2)
-    with pytest.raises(json.JSONDecodeError):
-        log.for_session("chat_t", limit=2)
+    assert [e.run_id for e in log.for_session("chat_t", limit=2)] == ["r4", "r5"]
 
 
 def test_for_session_does_not_read_past_the_limit(isolate_agent_runtime_root, monkeypatch):

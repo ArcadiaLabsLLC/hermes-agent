@@ -8,6 +8,7 @@ from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 
 from ..core_cache import lane as cache_lane
+from ..event_record import UnreadableEvent
 from ..events import EventLog
 from ..lens.revision import lens_revision
 from ..models import Event
@@ -439,8 +440,14 @@ class StreamSession:
         # before the batch's first entry. Advanced to the flushed offset after
         # every emit so contiguous batches chain base→watermark→base with no gap.
         self.batch_base = self.offset
-        if (yield from self.drain()) or (yield from self.settle()):
-            return _STOP
+        try:
+            if (yield from self.drain()) or (yield from self.settle()):
+                return _STOP
+        except UnreadableEvent:
+            # The missing event may carry a patch. Reuse the measured hydrate
+            # path so the next delta starts at the new snapshot's own offset.
+            self.offset = None
+            return _AGAIN
         if self.pending and (yield from self.flush()):
             return _STOP
         if self.emitted_delta:
