@@ -399,13 +399,15 @@ def _delivery_reader(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
     choices = value.get("choices")
+    from tools.clarify_tool import MAX_CHOICE_CHARS  # a choice the tool accepted reads whole
+
     return {
         # Multi-line prose, so bounded rather than flattened: it was cut from the row's own display text,
         # which curation already passed through the secret check.
         "reply": _bounded_prose(value.get("reply"), REPLY_LIMIT),
         "question": safe_assignment_text(value.get("question"), limit=2000) or "",
         "choices": [text for choice in (choices if isinstance(choices, list) else [])[:20]
-                    if (text := safe_assignment_text(choice, limit=300))],
+                    if (text := safe_assignment_text(choice, limit=MAX_CHOICE_CHARS))],
         "error": _bounded_prose(value.get("error"), 600),
     }
 

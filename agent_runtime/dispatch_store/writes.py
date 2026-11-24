@@ -261,7 +261,6 @@ def _completion_result(
 #: Bounds on a stored clarify question: the row is read back into a delivery
 #: turn's prompt, so nothing on it may grow without limit.
 CLARIFY_QUESTION_LIMIT = 2000
-CLARIFY_CHOICE_LIMIT = 200
 CLARIFY_MAX_CHOICES = 12
 CLARIFY_TOKEN_LIMIT = 128
 
@@ -282,7 +281,9 @@ def _bounded_clarify_request(raw: Any) -> dict[str, Any] | None:
     out: dict[str, Any] = {"question": question}
     choices = raw.get("choices")
     if isinstance(choices, list):
-        kept = [bounded_text(str(c), CLARIFY_CHOICE_LIMIT) for c in choices[:CLARIFY_MAX_CHOICES] if str(c).strip()]
+        from tools.clarify_tool import MAX_CHOICE_CHARS  # a choice the tool accepted is kept whole
+
+        kept = [bounded_text(str(c), MAX_CHOICE_CHARS) for c in choices[:CLARIFY_MAX_CHOICES] if str(c).strip()]
         if kept:
             out["choices"] = kept
     token = str(raw.get("clarify_token") or "").strip()

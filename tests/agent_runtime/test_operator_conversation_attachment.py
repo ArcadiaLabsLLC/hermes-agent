@@ -164,3 +164,37 @@ def test_the_turn_that_asks_mints_a_ticket_holding_its_question(tmp_path, monkey
         client_message_id="dispatch-delivery-x", turn_id="dispatch-delivery-x", requested_by_session=None)
     ticket = PersonaChatClarifyTicketStore().resolve(payload["clarify_token"])
     assert (ticket["question"], ticket["choices"]) == ("Which branch?", ["main", "release"])
+
+
+def test_a_long_choice_reads_whole_and_the_tools_own_limit_bounds_it(tmp_path, monkeypatch):
+    """RT-FU-A-QUESTIONS-CHOICE-TEXT-IS-CUT-AT-300-CHARACTERS-WHEN-ITS-TURN-IS-RECORDED: a 400-character
+    choice the clarify tool accepted reads whole in the chat read, whether the ticket or its asking
+    turn's record holds it; the bound is the tool's own ``MAX_CHOICE_CHARS``.
+
+    MUTATION: restore ``choice[:300]`` in ``safe_auxiliary_result`` and both reads redden (the
+    owner's ticket ``clarify-9a0145fdd7e5`` ended "Then I'd s")."""
+    import tools.clarify_tool as clarify_tool
+    from agent_runtime.auxiliary_chat import safe_auxiliary_result
+
+    a = fixture(tmp_path / "a", monkeypatch, "Amelia")
+    store = PersonaChatClarifyTicketStore()
+    long_choice = ("Keep manual approvals and raise the timeout to ten minutes. " * 7)[:400].strip() + " Then I'd stop."
+    assert len(long_choice) > 400
+    ticket = store.mint(chat_session_id=a["session_id"], persona_instance_id=a["persona_instance_id"],
+        persona_id="builder", asked_by_client_message_id="later", asked_turn_id="later",
+        question="How should I unblock the sixth pass?", choices=[long_choice, "Skip it"])
+    read = call("read", a)["result"]
+    assert read["clarify"]["choices"] == [long_choice, "Skip it"]
+    store.settle(ticket, client_message_id="answered")
+    turn = "dispatch-delivery-long"
+    store.mint(chat_session_id=a["session_id"], persona_instance_id=a["persona_instance_id"],
+        persona_id="builder", asked_by_client_message_id=turn, asked_turn_id=turn)
+    recorded = safe_auxiliary_result({"clarify": {"question": "Which?", "choices": [long_choice]}})
+    persist_mission_chat_turn(session_id=a["session_id"], client_message_id=turn, turn_id=turn,
+        state="completed", elements=[{"kind": "segment", "text": "Pass 5 stalled."}],
+        metadata={"auxiliary_result": recorded})
+    assert call("read", a)["result"]["clarify"]["choices"] == [long_choice]
+    # The bound is read from the tool, not a second literal.
+    monkeypatch.setattr(clarify_tool, "MAX_CHOICE_CHARS", 50)
+    bounded = safe_auxiliary_result({"clarify": {"question": "Which?", "choices": [long_choice]}})
+    assert bounded["clarify"]["choices"] == [long_choice[:50]]

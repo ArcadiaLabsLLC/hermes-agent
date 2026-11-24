@@ -66,8 +66,12 @@ def safe_auxiliary_result(value: Any) -> dict[str, Any] | None:
     choices = raw.get("choices") or []
     if not isinstance(choices, list):
         return None
+    # A choice the clarify tool accepted is recorded whole, at the tool's own limits (read when a
+    # question is recorded: the tool's module loads its registry).
+    from tools.clarify_tool import MAX_CHOICE_CHARS, MAX_CHOICES
+
     return {"clarify": {"question": question, "choices": [
-        choice[:300] for choice in choices[:4] if isinstance(choice, str) and choice.strip()]}}
+        choice[:MAX_CHOICE_CHARS] for choice in choices[:MAX_CHOICES] if isinstance(choice, str) and choice.strip()]}}
 
 
 def auxiliary_result_metadata(instance_id: str, session_id: str, raw: Any) -> dict[str, Any]:

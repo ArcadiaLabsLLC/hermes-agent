@@ -454,6 +454,17 @@ def test_the_history_read_carries_the_reader_parts_to_the_console():
                                                  delivery_dispatch_id="dispatch-abc123"))["delivery"]
 
 
+def test_the_console_reads_a_delivered_questions_long_choice_whole():
+    """RT-FU-A-QUESTIONS-CHOICE-TEXT-IS-CUT-AT-300-CHARACTERS-WHEN-ITS-TURN-IS-RECORDED: a choice the
+    clarify tool accepted reaches the console whole. MUTATION: bound the reader's choices at 300 again
+    in ``_delivery_reader`` and this reddens."""
+
+    long_choice = ("Keep manual approvals and raise the timeout to ten minutes. " * 7)[:420].strip()
+    message = _project(_history_row(kind=PERSONA_HARNESS_DELIVERY_KIND, delivery_dispatch_id="dispatch-abc123",
+                                    delivery_reader={"reply": "", "question": "Which?", "choices": [long_choice]}))
+    assert message["delivery"]["reader"]["choices"] == [long_choice]
+
+
 # ---------------------------------------------------------------------------
 # RT-FU-A-STOPPED-REQUESTS-RESULT-NAMES-NO-AGENT (review w1118a.58 D5)
 # ---------------------------------------------------------------------------

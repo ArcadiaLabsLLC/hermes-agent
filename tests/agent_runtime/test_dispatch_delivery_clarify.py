@@ -105,3 +105,16 @@ def test_the_stored_question_is_bounded(store_home):
     assert len(stored["choices"]) == 12
     assert len(stored["clarify_token"]) == 128
     assert stored["question_count"] == 2
+
+
+def test_a_long_choice_is_stored_and_delivered_whole(store_home):
+    """RT-FU-A-QUESTIONS-CHOICE-TEXT-IS-CUT-AT-300-CHARACTERS-WHEN-ITS-TURN-IS-RECORDED: a choice the
+    clarify tool accepted (up to its ``MAX_CHOICE_CHARS``) is kept whole on the dispatch row.
+    MUTATION: bound it at 200 again in ``_bounded_clarify_request`` and this reddens."""
+
+    long_choice = ("Raise the helper's approval timeout to ten minutes and ping me. " * 8)[:450]
+    dispatch_id = _dispatch()
+    _settle(dispatch_id, {"question": "Which?", "choices": [long_choice], "clarify_token": TOKEN})
+    row = get_dispatch(dispatch_id)
+    assert row["result"]["clarify_request"]["choices"] == [long_choice.strip()]
+    assert f"  - {long_choice.strip()}" in format_dispatch_delivery(row)
