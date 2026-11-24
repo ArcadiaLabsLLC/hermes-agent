@@ -9,6 +9,7 @@ from contextlib import contextmanager
 import os
 from pathlib import Path
 from threading import Condition, Lock, RLock, get_ident, local
+from time import monotonic
 
 from agent_runtime.profile_runner.errors import ProfileRunnerError
 
@@ -25,6 +26,7 @@ __all__ = [
     "_validate_workdir",
     "_workspace_turnstile",
     "agent_runs_in_flight",
+    "last_root_lock_wait",
     "root_run_lock",
 ]
 
@@ -113,27 +115,47 @@ def _workspace_turnstile():
 UNROOTED_RUN_KEY = "<unrooted>"
 
 _ROOT_LOCKS_GUARD = Lock()
-#: ``root key -> [RLock, holders]``; an entry lives while anyone holds or waits on it.
+#: ``root key -> [RLock, holders, holder kind]``; an entry lives while anyone holds or waits on it.
 _ROOT_LOCKS: dict[str, list] = {}
+#: This thread's last :func:`root_run_lock` entry: ``(waited_ms, held_by)``, ``held_by`` the kind
+#: that held the lock when this thread arrived (``prewarm`` / ``turn`` / ``run``), or ``None`` when
+#: it was free. Read by the turn's ``turn_root_lock_wait`` receipt (lane w1123q-replytimings).
+_LAST_ROOT_LOCK_WAIT = local()
+
+
+def last_root_lock_wait() -> tuple[int, str | None]:
+    """``(waited_ms, held_by)`` of this thread's most recent :func:`root_run_lock` entry."""
+
+    return getattr(_LAST_ROOT_LOCK_WAIT, "value", (0, None))
 
 
 @contextmanager
-def root_run_lock(root_key: str | None):
+def root_run_lock(root_key: str | None, *, holder: str = "run"):
     """One run at a time per chat root (run-serialization S5). Other roots run alongside.
 
     The conversation model needs this regardless of process state: two turns of one
     root would interleave one transcript. Reentrant, so a nested run of the same root
     on the same thread (a relay hop back into its own root) does not deadlock itself.
+    ``holder`` names what holds it (a turn waiting on a chat's prewarm says so in its receipt).
     """
 
     key = str(root_key or "").strip() or UNROOTED_RUN_KEY
     with _ROOT_LOCKS_GUARD:
-        entry = _ROOT_LOCKS.setdefault(key, [RLock(), 0])
+        entry = _ROOT_LOCKS.setdefault(key, [RLock(), 0, None])
         entry[1] += 1
+    lock = entry[0]
+    held_by = None
+    started = monotonic()
+    if not lock.acquire(blocking=False):
+        held_by = entry[2] or "run"
+        lock.acquire()
+    _LAST_ROOT_LOCK_WAIT.value = (int((monotonic() - started) * 1000), held_by)
+    outer, entry[2] = entry[2], holder
     try:
-        with entry[0]:
-            yield
+        yield
     finally:
+        entry[2] = outer
+        lock.release()
         with _ROOT_LOCKS_GUARD:
             entry[1] -= 1
             if entry[1] == 0 and _ROOT_LOCKS.get(key) is entry:

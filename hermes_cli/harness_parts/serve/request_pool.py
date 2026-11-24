@@ -66,6 +66,18 @@ READ_LANE_WORKERS = 4
 #: A shared-lane wait or run at least this long is logged (:data:`SHARED_LANE_SLOW_RECEIPT`).
 SHARED_LANE_SLOW_MS = 1000
 SHARED_LANE_SLOW_RECEIPT = "shared_lane_slow lane=%s label=%s queue_ms=%d run_ms=%d busy_at_submit=%d"
+#: Turn first (owner 2026-11-23, lane w1123q-replytimings): a shared- or read-lane job that would
+#: START while a chat turn is between its accept and its ``request_sent`` waits for that turn's
+#: request to leave, at most this long. Read live on the owner's serve: a Home turn's own work was
+#: 453-625 ms of CPU, yet its accept -> ``request_sent`` took 8.1-11.2 s, because the reads the new
+#: chat set off (``conversation.read`` x15, ``.list``, ``.models``, ``provider.list``; 0.2-12 s each)
+#: held the GIL beside it (``send_prep_receipt own_cpu_ms`` / ``top_threads``). Bounded, so a read
+#: is late by at most this, never starved; a job a turn submits itself is never held.
+TURN_PREP_HOLD_MAX_S = 2.0
+_TURN_PREP_POLL_S = 0.025
+#: One line per held job (``held_ms`` >= :data:`TURN_PREP_HOLD_RECEIPT_MS`).
+TURN_PREP_HOLD_RECEIPT = "lane_held_for_turn lane=%s label=%s held_ms=%d"
+TURN_PREP_HOLD_RECEIPT_MS = 50
 #: The typed refusal a 33rd standing stream gets (never a silent queue behind 32 infinite ones).
 STREAM_LANE_FULL = "stream_lane_full"
 
@@ -114,8 +126,13 @@ class RequestPool:
         submitted = time.monotonic()
         with self._shared_lock:
             busy = self._running[name]
+        from agent_runtime.turn_activity import inside_admitted_turn
+
+        own_turn = inside_admitted_turn()
 
         def _timed() -> Any:
+            if not own_turn:
+                _hold_for_turn_prep(name, label)
             started = time.monotonic()
             with self._shared_lock:
                 self._running[name] += 1
@@ -173,6 +190,28 @@ class RequestPool:
         if wait:
             for lane in lanes:
                 lane.shutdown(wait=True)
+
+
+def _hold_for_turn_prep(lane: str, label: str) -> int:
+    """Wait while any chat turn is before its ``request_sent`` (:data:`TURN_PREP_HOLD_MAX_S` at most).
+
+    "Before its request_sent" is the two existing authorities: a turn ACCEPTED and not yet anchored
+    (``turn_activity.chat_turns_accepted``) or anchored and not yet sent
+    (``idle_turn_keeper.turn_window_open``). Returns the milliseconds held.
+    """
+
+    from agent_runtime.idle_turn_keeper import turn_window_open
+    from agent_runtime.turn_activity import chat_turns_accepted
+
+    started = time.monotonic()
+    deadline = started + TURN_PREP_HOLD_MAX_S
+    # MUTATION: return 0 here and test_a_read_waits_for_a_preparing_turn_to_send reddens.
+    while (chat_turns_accepted() > 0 or turn_window_open()) and time.monotonic() < deadline:
+        time.sleep(_TURN_PREP_POLL_S)
+    held_ms = int((time.monotonic() - started) * 1000)
+    if held_ms >= TURN_PREP_HOLD_RECEIPT_MS:
+        logger.info(TURN_PREP_HOLD_RECEIPT, lane, label, held_ms)
+    return held_ms
 
 
 def turn_claim_key(argv: Any) -> tuple[str, str] | None:

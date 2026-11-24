@@ -39,13 +39,15 @@ class PrewarmYielded(ProfileRunnerError):
 
     Raised by ``OperatorTurn`` when the request's ``prewarm_yield`` answers a
     reason; unwinding the scope stack releases ``_WORKDIR_LOCK`` to the turn that
-    is waiting for it. ``phase`` is where it stood down, ``reason`` what it yielded to.
+    is waiting for it. ``phase`` is where it stood down, ``reason`` what it yielded to, ``timing``
+    the run's ``profile_timing`` so far (what the prewarm spent before it stood down).
     """
 
-    def __init__(self, phase: str, reason: Any):
+    def __init__(self, phase: str, reason: Any, timing: dict[str, Any] | None = None):
         super().__init__(f"prewarm yielded at {phase}: {reason}")
         self.phase = phase
         self.reason = reason
+        self.timing = dict(timing or {})
 
 
 # Unbounded runs keep the same checkpoint shape without arming a timer.

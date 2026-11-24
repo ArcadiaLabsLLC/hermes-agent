@@ -311,9 +311,13 @@ CHAT_ACTOR_PREWARM_PASS_RECEIPT = (
 
 #: h-turn-wait: a prewarm stood down INSIDE the run lock for a turn; ``phase`` names
 #: the boundary (``lock_acquired`` .. ``system_prompt_stashed``), ``reason`` the outcome
-#: the worker reports for the item.
+#: the worker reports for the item. w1123q-replytimings: and what it spent before it stood
+#: down -- ``held_ms`` from the item's start to the stand-down, ``prepare_ms`` the request's
+#: assembly (``_prepare``: config, model, lane bundle, workspace), then the run's own phases
+#: (``absent`` = not reached), so a turn that waited on this prewarm can say for what.
 CHAT_ACTOR_PREWARM_YIELDED_RECEIPT = (
-    "persona_chat_actor_prewarm_yielded root=%s phase=%s reason=%s"
+    "persona_chat_actor_prewarm_yielded root=%s phase=%s reason=%s held_ms=%d prepare_ms=%d"
+    " runtime_resolve_ms=%s mcp_admission_ms=%s construct_ms=%s"
 )
 
 #: An actor was constructed and is now resident for this chat root.
@@ -411,6 +415,7 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
     # SessionDB, resolves the lane bundle and composes the runtime signature.
     # A stand-down above this point recorded nothing, which is the truth about
     # a refusal that constructed nothing.
+    started = time.monotonic()
     with _ConstructionSpan():
         try:
             prepared = _prepare(root, instance)
@@ -425,6 +430,7 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
             return OUTCOME_SKIPPED_CONSTRUCT_FAILED
 
         request, runner = prepared
+        prepare_ms = int((time.monotonic() - started) * 1000)
         # Re-read the gauges: assembling the request above reads SessionDB and
         # resolves the lane bundle, which is where a turn that arrived meanwhile
         # would now be. Cheap insurance against the widest part of the window —
@@ -449,7 +455,13 @@ def prewarm_chat_actor(root_session_id: str, *, instance: Any = None) -> str:
         try:
             timing = runner.prewarm(request)
         except PrewarmYielded as yielded:
-            logger.info(CHAT_ACTOR_PREWARM_YIELDED_RECEIPT, root, yielded.phase, yielded.reason)
+            spent = yielded.timing
+            logger.info(
+                CHAT_ACTOR_PREWARM_YIELDED_RECEIPT, root, yielded.phase, yielded.reason,
+                int((time.monotonic() - started) * 1000), prepare_ms,
+                spent.get("runtime_resolve_ms", "absent"), spent.get("mcp_admission_ms", "absent"),
+                spent.get("agent_construct_ms", "absent"),
+            )
             return str(yielded.reason)
         except Exception:
             logger.debug(

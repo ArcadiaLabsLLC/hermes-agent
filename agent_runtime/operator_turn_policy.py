@@ -46,6 +46,7 @@ from agent_runtime.operator_turn_runtime import (
     _run_transport,
 )
 from agent_runtime.prewarmed_system_prompt import stash_prewarmed_system_prompt
+from agent_runtime.turn_lock_wait import log_root_lock_wait
 from agent_runtime.profile_context import PersonaProfileBinding, persona_profile_context
 from agent_runtime.provider_credential_source import refuse_an_unusable_chosen_credential
 from agent_runtime.run_budget import (
@@ -323,7 +324,7 @@ class OperatorTurn:
         without conversing: the caller then submits the turn to that session. The acquisition's
         bounds are its own (a scratch ledger); the turn declares its bounds once, in :meth:`converse`."""
 
-        with self.scopes() as mcp_scope:
+        with self.scopes("acquire") as mcp_scope:
             self.mcp_scope = mcp_scope
             refuse_an_unusable_chosen_credential(self.request)
             self.prepare(RunBudgetLedger())
@@ -334,7 +335,7 @@ class OperatorTurn:
     def prewarm(self) -> tuple[Any, Any, dict[str, Any]]:
         """Open the chat's gateway session before its first message (no turn runs)."""
 
-        with self.scopes() as mcp_scope:
+        with self.scopes("prewarm") as mcp_scope:
             self.mcp_scope = mcp_scope
             self.yield_point("lock_acquired")
             refuse_an_unusable_chosen_credential(self.request)  # review w1118a.69 D1, before any token
@@ -347,7 +348,7 @@ class OperatorTurn:
         """The turn on the chat's actor ``agent``: on the engine's turn thread, inside the door
         (``operator_gateway_turn``), or inline on a turn the engine already runs for this chat."""
 
-        with self.scopes() as mcp_scope:
+        with self.scopes("converse") as mcp_scope:
             self.mcp_scope = mcp_scope
             refuse_an_unusable_chosen_credential(self.request)  # review w1118a.69 D1, before any token
             self.prepare(self.ledger)
@@ -432,11 +433,12 @@ class OperatorTurn:
 
         reason = self._prewarm_should_yield()
         if reason:
-            raise PrewarmYielded(phase, reason)
+            raise PrewarmYielded(phase, reason, self.timing)
 
     @contextmanager
-    def scopes(self):
-        """The whole-run scope stack; yields the run's MCP ``ExitStack``."""
+    def scopes(self, stage: str = "run"):
+        """The whole-run scope stack; yields the run's MCP ``ExitStack``. ``stage`` names the step for
+        the ``turn_root_lock_wait`` receipt."""
 
         request = self.request
         from agent_runtime.persona_chat_continuity import (
@@ -454,7 +456,8 @@ class OperatorTurn:
             # context-locally (the profile binding; the cwd in a terminal scope); the one
             # process write left is POSIX ``HOME``, serialized by its own lock.
             _workspace_turnstile(),
-            root_run_lock(request.root_chat_session_id or request.tool_execution_scope_id),
+            root_run_lock(request.root_chat_session_id or request.tool_execution_scope_id,
+                          holder="prewarm" if request.prewarm_only else "turn"),
             _posix_process_home(self.binding),
             persona_profile_context(self.binding, runtime_root=request.runtime_root),
             _local_engine_prewarm_scope(request),
@@ -487,6 +490,7 @@ class OperatorTurn:
             # rather than a try/finally keeps the (large) run body unindented.
             ExitStack() as mcp_scope,
         ):
+            log_root_lock_wait(request, stage=stage)
             yield mcp_scope
 
     # ── phases before the agent exists ──────────────────────────────────────
