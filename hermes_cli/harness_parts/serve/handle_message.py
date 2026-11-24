@@ -868,6 +868,7 @@ class MessageHandling:
         # pool (``lanes.ArgvLanes``); each is bound to THIS frame's sink and
         # connection, which is what the closures they replaced captured.
         from agent_runtime.call_authorization import caller_for_connection
+        from agent_runtime.gateway_access import drop_session_remote_callers
         from agent_runtime.serve_rpc.dispatch import handle_request
         from agent_runtime.serve_rpc.protocol import RpcContext, is_deferred
         from hermes_cli.harness_parts.serve.operator_interrupt import interrupt_operator_turn
@@ -886,7 +887,7 @@ class MessageHandling:
                 batch_dispatcher=partial(getattr, self, "batch_dispatcher", None),
                 console_suggestions=self._console_suggestions_service,
                 reverse_lanes=partial(getattr, self, "reverse_lanes", None),
-                close_remote_callers=self._close_remote_callers,
+                close_remote_callers=partial(drop_session_remote_callers, self),
             ),
         )
         # The ONE frame this lane does not write: the handler took the
@@ -1036,14 +1037,6 @@ class MessageHandling:
         return not (
             actual.startswith(claimed) or claimed.startswith(actual)
         )
-
-    def _close_remote_callers(self, reason: str) -> int:
-        """Close every device, peer and channel connection on both listeners ("Allow access" changed)."""
-        from agent_runtime.gateway_access import drop_remote_callers
-
-        with self.lane_lock:
-            servers = (self.socket_server, self.gateway_server)
-        return drop_remote_callers(servers, reason=reason)
 
     def _hello_ok_frame(self, message: dict[str, Any], connection: Any) -> dict[str, Any]:
         """The version handshake, enforced end to end at the door."""

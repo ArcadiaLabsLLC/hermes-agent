@@ -208,3 +208,29 @@ def test_access_off_refuses_a_device_the_office_stream():
     _access(True)
     MessageHandling._op_subscribe(session, {"op": "subscribe", "lane": "stream"}, None, _Conn(**_PHONE_CONN))
     assert session.denied == [REASON_ACCESS_OFF, "draining"]
+
+
+def test_the_serve_sessions_door_closes_remote_callers_on_both_listeners():
+    """Mutation: leave ``gateway_server`` out of ``drop_session_remote_callers``'s pair -> the gateway's
+    device stays open, red."""
+    import threading
+
+    from agent_runtime.gateway_access import drop_session_remote_callers
+
+    class _Server:
+        def __init__(self, *connections) -> None:
+            self.open = list(connections)
+
+        def drop_where(self, predicate, *, reason):
+            gone = [c for c in self.open if predicate(c)]
+            self.open = [c for c in self.open if c not in gone]
+            return len(gone)
+
+    class _Session:
+        lane_lock = threading.Lock()
+        socket_server = _Server(_Conn(transport="socket"))
+        gateway_server = _Server(_Conn(**_PHONE_CONN), _Conn(peer_install_id="inst-far"))
+
+    session = _Session()
+    assert drop_session_remote_callers(session, "access_changed") == 2
+    assert session.gateway_server.open == [] and len(session.socket_server.open) == 1
