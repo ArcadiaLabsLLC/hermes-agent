@@ -139,9 +139,6 @@ def redeem_peer_code(
 ) -> PeerCredential | StoreRefusal:
     """Turn a peer code into an edge. The secret is returned ONCE, here.
 
-    ``machine_id`` is the one the join hello named: the row is bound to it, and a code scoped
-    ``--for-machine`` refuses any other, machine first (``hello_address``).
-
     Run on install A — the side that minted the code — when install B dials in
     with it. A writes B's row and hands the secret back on the one ``hello_ok``
     that carries it; B writes A's row from that frame with :func:`record_peer`.
@@ -204,19 +201,12 @@ def redeem_peer_code(
             # the window rather than having to re-run the ceremony because
             # somebody else guessed at it.
             wanted_install = str(matched.get("for_install_id") or "").strip()
-            named_machine = clean_machine_id(machine_id)
-            wanted_machine = clean_machine_id(matched.get("for_machine_id"))
-            if named_machine is None or (wanted_machine is not None and wanted_machine != named_machine):
-                # Machine first, before the install: the same answer and cost as a wrong install.
+            named_machine = _joiner_machine(matched, machine_id)
+            if named_machine is None or (wanted_install and wanted_install != peer_install_id):
                 note_failed_redeem(state, now=stamp)
                 write_pairing(store_root, state)
-                return StoreRefusal(HELLO_MACHINE_MISMATCH, "no pending peer code matches (or it expired)")
-            if wanted_install and wanted_install != peer_install_id:
-                note_failed_redeem(state, now=stamp)
-                write_pairing(store_root, state)
-                return StoreRefusal(
-                    "invalid_code", "no pending peer code matches (or it expired)"
-                )
+                reason = HELLO_MACHINE_MISMATCH if named_machine is None else "invalid_code"
+                return StoreRefusal(reason, "no pending peer code matches (or it expired)")
 
             del pending_codes(state)[matched_id]
             state["failed_redeems"] = 0
@@ -283,3 +273,16 @@ def redeem_peer_code(
     # here; both credential writers now do.
     _clear_revoked_you(store_root, peer_install_id, now=stamp)
     return credential
+
+
+def _joiner_machine(matched: dict[str, Any], machine_id: Any) -> str | None:
+    """The machine id the join hello named, when it may redeem *matched*; ``None`` refuses.
+
+    ``machine_id`` is the joiner's own (``hello_address``): the row is bound to it, and a code scoped
+    ``--for-machine`` refuses any other — machine first, before the install, with the same answer and
+    cost as a wrong install.
+    """
+
+    named = clean_machine_id(machine_id)
+    wanted = clean_machine_id(matched.get("for_machine_id"))
+    return None if named is None or (wanted is not None and wanted != named) else named

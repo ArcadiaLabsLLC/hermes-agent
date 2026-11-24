@@ -155,9 +155,7 @@ def redeem_pairing_code(
     code: str,
     *,
     device_name: str | None = None,
-    machine_id: str | None = None,
-    namespace: str | None = None,
-    now: float | None = None,
+    machine_id: str | None = None, namespace: str | None = None, now: float | None = None,
 ) -> DeviceCredential | StoreRefusal:
     """Turn a code into a paired device. The token is returned ONCE, here.
 
@@ -197,18 +195,8 @@ def redeem_pairing_code(
             matched_id, matched = found
             bound_machine, address = _bound_machine(matched, machine_id, namespace)
             if address is not None:
-                # Machine first, then the namespace: a code redeemed from another machine than the
-                # one it was minted for, from a device that names none, or from another namespace
-                # mints nothing (the code stays pending for the device it was meant for, and the
-                # attempt charges the lockout).
-                note_failed_redeem(state, now=stamp)
-                write_pairing(store_root, state)
-                return StoreRefusal(address, "the redeeming device is not the one this code was minted for")
-
-            del pending_codes(state)[matched_id]
-            state["failed_redeems"] = 0
-            state["locked_until"] = 0.0
-            write_pairing(store_root, state)
+                return _address_refused(store_root, state, address, stamp)
+            _spend(store_root, state, matched_id)
 
             token = secrets.token_hex(DEVICE_TOKEN_BYTES)
             device_id = f"dev_{secrets.token_hex(8)}"
@@ -277,10 +265,7 @@ def redeem_pairing_code(
                 # entry. A label — see :class:`DeviceRecord` — and the join key
                 # the launcher's sheet and S3's Unpair relate this row by.
                 "account_device_id": clean_name(matched.get("for_device_id")) or None,
-                # MUTATION: drop this key and test_introduce_for_machine_binds_the_redeemed_row
-                # finds a row with no machine id.
-                **({"machine_id": bound_machine} if bound_machine else {}),
-                **_kind_fields(matched),
+                **_kind_fields(matched, bound_machine),
             }
             write_devices(store_root, rows)
             return _issued(device_id, token, tier, name, rows[device_id])
@@ -290,9 +275,30 @@ def redeem_pairing_code(
 
 # ── internals ────────────────────────────────────────────────────────────────
 
+def _address_refused(store_root: Path | str, state: dict[str, Any], address: str, stamp: float) -> StoreRefusal:
+    """Machine first, then the namespace: a code redeemed from another machine than the one it was
+    minted for, from a device that names none, or from another namespace mints nothing. The code stays
+    pending for the device it was meant for, and the attempt charges the lockout."""
+
+    note_failed_redeem(state, now=stamp)
+    write_pairing(store_root, state)
+    return StoreRefusal(address, "the redeeming device is not the one this code was minted for")
+
+
+def _spend(store_root: Path | str, state: dict[str, Any], matched_id: str) -> None:
+    """The code is spent: deleted before the token is minted, and the failure streak cleared."""
+
+    del pending_codes(state)[matched_id]
+    state["failed_redeems"] = 0
+    state["locked_until"] = 0.0
+    write_pairing(store_root, state)
+
+
 def _bound_machine(matched: dict[str, Any], machine_id: Any, namespace: Any) -> tuple[str | None, str | None]:
     """``(machine id the minted row is bound to, refusal word)``, in address order.
 
+    The minted row carries the value (MUTATION: drop it in ``_kind_fields`` and
+    test_introduce_for_machine_binds_the_redeemed_row finds a row with no machine id).
     A code scoped ``--for-machine`` binds to that machine and refuses a hello naming another; an
     unscoped code (``harness gateway pair``, minted by the operator at this machine) binds to the
     machine its redeeming hello names. Then the hello's namespace must be this serve's own. A channel
@@ -349,11 +355,12 @@ def _issued(device_id: str, token: str, tier: str, name: str, row: dict[str, Any
     )
 
 
-def _kind_fields(matched: dict[str, Any]) -> dict[str, Any]:
-    # A channel's kind and binding, copied through from the pending entry; absent → ``device``.
+def _kind_fields(matched: dict[str, Any], machine_id: str | None) -> dict[str, Any]:
+    # A device's machine (``_bound_machine``), or a channel's kind and binding copied through from the
+    # pending entry; absent → ``device``.
 
     if matched.get("device_kind") != DEVICE_KIND_CHANNEL:
-        return {}
+        return {"machine_id": machine_id} if machine_id else {}
     scope = decode_client_scope(matched.get("client_scope"))
     return {"kind": DEVICE_KIND_CHANNEL, "bound_instances": list(clean_bound_instances(matched.get("bound_instances"))),
             **({"client_scope": scope} if scope else {})}
