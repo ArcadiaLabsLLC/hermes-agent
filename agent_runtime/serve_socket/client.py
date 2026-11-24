@@ -123,8 +123,13 @@ class ServeSocketClient:
         client_build: str | None = None,
         expect_hello_contract: int | None = HELLO_CONTRACT_VERSION,
         reverse_attach: str | None = None,
+        call_attach: str | None = None,
     ) -> dict[str, Any] | None:
         """Answer the server's challenge and return the single reply frame.
+
+        ``call_attach`` names one of your other devices' install ids: the machine owner attaches to a
+        new lane of the call to it (``agent_runtime.pair_call``); the reply is then ``call_attached``
+        with the lane id, and every byte after it is that lane's.
 
         ``reverse_attach`` names a paired device whose parked reverse lane the
         machine owner attaches to (``agent_runtime.reverse_lane``): the reply is then
@@ -157,6 +162,7 @@ class ServeSocketClient:
                 # use it.
                 "proof": hello_proof(token, nonce, port=self._port),
                 **({"reverse_attach": reverse_attach} if reverse_attach else {}),
+                **({"call_attach": call_attach} if call_attach else {}),
             }
         )
         return self.read_frame()
@@ -170,12 +176,16 @@ class ServeSocketClient:
         client_build: str | None = None,
         expect_hello_contract: int | None = HELLO_CONTRACT_VERSION,
         reverse_lane: str | None = None,
+        pair_call: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         """The GATEWAY lane's hello: same frames, a per-device credential.
 
         ``reverse_lane`` offers this connection back as a reverse lane, under the
         lane id this device minted (``agent_runtime.reverse_lane``): the reply is then
         ``reverse_lane_parked``, and the install holds the connection for its owner.
+        ``pair_call`` (``{"call", "install"}``) offers it as the call between this device's
+        engine and the install's (``agent_runtime.pair_call``): the reply is then
+        ``pair_call_accepted``, and every byte after it is the call's.
 
         Structurally identical to :meth:`hello` — server speaks first, one
         ``server_hello`` carrying a fresh nonce, one answer carrying a proof —
@@ -208,6 +218,7 @@ class ServeSocketClient:
                     token, nonce, port=self._port, device_id=device_id
                 ),
                 **({"reverse_lane": reverse_lane} if reverse_lane else {}),
+                **({"pair_call": dict(pair_call)} if pair_call else {}),
             }
         )
         return self.read_frame()

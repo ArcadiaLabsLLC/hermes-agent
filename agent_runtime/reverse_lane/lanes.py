@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..hello_address import hello_address_refusal, install_address
+from ..pair_call.calls import PairCalls
 from ..serve_socket.hello import HelloAuthOutcome
 from ..serve_socket.vocabulary import (
     REJECT_BAD_PROOF,
@@ -124,8 +125,12 @@ class ReverseLanes:
     """One serve's reverse lanes: parked and spliced (computer), dialled and admitted (phone)."""
 
     def __init__(self, store_root: Path | str, *, admitter_factory: Callable[[], Any] | None = None,
+                 call_admitter_factory: Callable[[], Any] | None = None,
                  log: Callable[[dict[str, Any]], None] | None = None) -> None:
         self._store_root = Path(store_root)
+        #: The calls between this engine and your other devices' (``agent_runtime.pair_call``): their
+        #: hello arms ride this hook, and they close with these lanes.
+        self.calls = PairCalls(store_root, admitter_factory=call_admitter_factory, log=log)
         self._admitter_factory = admitter_factory
         self._log = log
         self._lock = threading.Lock()
@@ -375,6 +380,7 @@ class ReverseLanes:
 
     def close(self, reason: str = "shutdown") -> None:
         self._remove_listener()
+        self.calls.close(reason)
         with self._lock:
             dialers = list(self._dialers.values())
         self.hangup()
@@ -423,6 +429,9 @@ def handoff(lanes: ReverseLanes | None, admitter: Any, connection: Any, reader: 
 
     lane_id = message.get("reverse_lane")
     attach = message.get("reverse_attach")
+    offer, call_attach = message.get("pair_call"), message.get("call_attach")
+    if offer is not None or call_attach is not None:
+        return _call_handoff(lanes, admitter, connection, reader, message)
     if lane_id is None and attach is None:
         return False
     refusal = REJECT_REVERSE_LANE_REFUSED
@@ -431,6 +440,25 @@ def handoff(lanes: ReverseLanes | None, admitter: Any, connection: Any, reader: 
             refusal = lanes.park(connection, reader, lane_id)
         elif attach is not None and lane_id is None and _is_machine_owner(connection):
             refusal = lanes.attach(connection, reader, str(attach))
+    if refusal is not None:
+        from ..serve_socket.handshake import reject
+
+        reject(admitter, connection, refusal)
+    return True
+
+
+def _call_handoff(lanes: ReverseLanes | None, admitter: Any, connection: Any, reader: Any,
+                  message: dict[str, Any]) -> bool:
+    """The call's two hello arms: a device's ``pair_call`` (accept) and the owner's ``call_attach``."""
+
+    offer, call_attach = message.get("pair_call"), message.get("call_attach")
+    refusal = REJECT_REVERSE_LANE_REFUSED
+    alone = message.get("reverse_lane") is None and message.get("reverse_attach") is None
+    if lanes is not None and alone and Path(admitter._store_root) == lanes.store_root:
+        if offer is not None and call_attach is None and _is_plain_device(connection):
+            refusal = lanes.calls.accept(connection, reader, offer)
+        elif call_attach is not None and offer is None and _is_machine_owner(connection):
+            refusal = lanes.calls.attach(connection, reader, call_attach)
     if refusal is not None:
         from ..serve_socket.handshake import reject
 

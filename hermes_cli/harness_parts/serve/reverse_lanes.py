@@ -49,7 +49,27 @@ def open_reverse_lanes(session: Any) -> Any:
             log=session._service_log,
         )
 
-    return ReverseLanes(store_root, admitter_factory=admitter, log=session._service_log)
+    def call_admitter() -> Any:
+        from agent_runtime.pair_call.calls import call_lane_authenticator
+        from agent_runtime.serve_socket.admit import ConnectionAdmitter
+
+        # A lane of a call (``agent_runtime.pair_call``): its caller proves its own credential, bound to
+        # the call and lane ids; served like the gateway lane, every remote-door refusal included.
+        return ConnectionAdmitter(
+            store_root,
+            boot_id=session.boot_id,
+            dispatch_line=session._handle_socket_line,
+            hello_payload=session._hello_ok_frame,
+            token_provider=lambda: None,
+            authenticator=call_lane_authenticator(store_root),
+            transport_name=GATEWAY_TRANSPORT,
+            frame_contract=SERVE_SCHEMA_VERSION,
+            on_disconnect=session._on_connection_closed,
+            log=session._service_log,
+        )
+
+    return ReverseLanes(store_root, admitter_factory=admitter, call_admitter_factory=call_admitter,
+                        log=session._service_log)
 
 
 def close_reverse_lanes(lanes: Any, reason: str) -> None:

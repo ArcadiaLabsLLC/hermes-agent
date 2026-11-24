@@ -71,6 +71,9 @@ __all__ = [
     "_runtime_gateway_reverse_withdraw",
     "_runtime_gateway_reverse_hangup",
     "_runtime_gateway_reverse_lanes",
+    "_runtime_gateway_call_calls",
+    "_runtime_gateway_call_dial",
+    "_runtime_gateway_call_hangup",
 ]
 
 _TEXT_LIMIT = 256
@@ -334,3 +337,65 @@ def _runtime_gateway_reverse_decline(rid: Any, params: dict, context: RpcContext
     dropped = lanes.offers.drop(device_id)
     forgot = forget_accept(lanes.store_root, device_id)
     return ok(rid, {"declined": dropped, "forgot": forgot})
+
+
+# ── the call (RT-ACCOUNT-ONLY-ANY-TWO-OF-YOUR-DEVICES-SHARE-ONE-CONNECTION-WHICHEVER-OPENS-IT-FIRST) ──
+
+_CALL_KEYS = ("install_id", "host", "cert_fingerprint", "device_id", "token")
+
+
+@method("runtime.gateway.call.dial", tier=TIER_CONSOLE)
+def _runtime_gateway_call_dial(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Keep trying to call one of your other devices (``agent_runtime.pair_call``), from this side.
+
+    Params: the far device's ``install_id``, ``host``, ``port``, ``cert_fingerprint`` (its pin) and
+    ``machine_id`` (from the account record), and ``device_id`` / ``token`` (this device's credential on
+    it, held in memory only). The far device dials too; the first call to connect is the call.
+    """
+
+    from agent_runtime.hello_address import clean_machine_id
+    from agent_runtime.pair_call.calls import CallWay
+
+    params = params if isinstance(params, dict) else {}
+    try:
+        texts = {key: read_text(params, key, refuse=_refuse, required=True, limit=_TEXT_LIMIT, empty_ok=False)
+                 for key in _CALL_KEYS}
+        port = params.get("port")
+        if type(port) is not int or not 0 < port < 65536:
+            raise _refuse("port", "port must be an integer from 1 to 65535")
+        machine_id = clean_machine_id(params.get("machine_id"))
+        if machine_id is None:
+            raise _refuse("machine_id", "machine_id must name the far device's machine (mach_…)")
+    except ParamRefused as refused:
+        return refused.frame(rid)
+    lanes = _lanes(context)
+    if lanes is None:
+        return _unbound(rid)
+    answer = lanes.calls.dial(CallWay(port=port, machine_id=machine_id, **texts))
+    if not answer.get("ok"):
+        return err(rid, ERR_CONFLICT, "This engine is shutting down.", {"reason": str(answer.get("reason"))})
+    return ok(rid, {"far_install": answer["far_install"]})
+
+
+@method("runtime.gateway.call.hangup", tier=TIER_CONSOLE)
+def _runtime_gateway_call_hangup(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    params = params if isinstance(params, dict) else {}
+    try:
+        install = read_text(params, "install_id", refuse=_refuse, limit=_TEXT_LIMIT)
+    except ParamRefused as refused:
+        return refused.frame(rid)
+    lanes = _lanes(context)
+    if lanes is None:
+        return ok(rid, {"stopped": 0})
+    return ok(rid, {"stopped": lanes.calls.hangup(install or None)})
+
+
+@method("runtime.gateway.call.calls", tier=TIER_READ)
+def _runtime_gateway_call_calls(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """The calls up (one per far install, with its ``generation``: a new number means re-read its state)
+    and the dialers trying. No token in any of it."""
+
+    lanes = _lanes(context)
+    if lanes is None:
+        return ok(rid, {"calls": [], "dialing": []})
+    return ok(rid, lanes.calls.status())

@@ -608,6 +608,45 @@ w1118a.79). `agent_runtime/reverse_lane/`:
 Acceptance: `tests/agent_runtime/test_reverse_lane.py` (the real phone `serve_loop`, the
 computer's real listeners) and `tests/agent_runtime/test_reverse_grant.py`.
 
+### 1.2b The call — one connection between two of your devices, both directions on it
+
+Row `RT-ACCOUNT-ONLY-ANY-TWO-OF-YOUR-DEVICES-SHARE-ONE-CONNECTION-WHICHEVER-OPENS-IT-FIRST` (owner 2026-11-23:
+"whatever can open it should open it" / "both devices should try" / "in regards to using ones connection i meant
+the call" / "they should both be able to confirm that requests are applied"; 2026-11-24: "1 yes not confirmed").
+`agent_runtime/pair_call/`:
+
+- **Dial.** `runtime.gateway.call.dial` (local console only) hands the engine the far device's install id,
+  endpoint, pin, machine id and this device's credential on it (held in memory only). A `CallDialer` per far
+  install keeps trying, on both sides of a pair: a pinned TLS dial, this device's own hello plus
+  `pair_call: {"call": <32 hex>, "install": <dialer install id>}`. The far gateway's hello hook answers
+  `pair_call_accepted` with its `install` block (`machine_id`, `namespace`, `install_id`), which the dialer checks
+  in that order before the socket becomes the call. `runtime.gateway.call.hangup` stops it;
+  `runtime.gateway.call.calls` lists the calls (with a `generation` per far install: a new number means a new
+  call, so re-read that device's state) and the dialers.
+- **One call per pair.** When a second call to the same far install passes its hello, both sides keep the call
+  whose dialer has the lower install id (plain string order) and close the other `duplicate_call`
+  (`registry.kept_call`). While a call is up the dialers wait; after a drop both redial at once with jitter, and the
+  first to connect is the call. A failed dial backs off 1 s doubling to 30 s.
+- **Lanes.** Every frame after the hello is `{"lane", "to": "machine:<id>/namespace:<id>", "install", ...}`,
+  checked by its receiver machine first, then namespace, then install id; a mismatch drops the frame and logs
+  `pair_call_address_mismatch` (ids only). Either side opens a lane (`{"ctl": "lane_open"}`); the far side admits
+  it through a socket pair into a listener-less admitter on the `gateway` transport whose check
+  (`calls.call_lane_authenticator`) wants the lane caller's OWN credential: a computer holding this phone's grant
+  (the reverse lane's proof, bound to the lane id), or a device paired here on the call's far machine
+  (`serve_gateway_auth/proof.py::call_lane_proof`, bound to the call and lane ids). The machine owner's Eternia
+  attaches over loopback with `call_attach: <far install id>` and is answered `call_attached` with the lane id;
+  its bytes are bridged, unread.
+- **Confirmations.** An answer settles only the request that went out on its lane, by id. On a drop every
+  waiting request fails `{"ok": false, "reason": "link_closed", "dispatched": true, "confirmed": false}`: not
+  confirmed, never reported done; nothing is re-sent here.
+- **Not yet:** a phone does not listen (the certificate needs `cryptography`, whose only phone wheels are under
+  the fork's security floor: `RT-ACCOUNT-ONLY-YOUR-COMPUTER-CAN-OPEN-THE-CALL-TO-YOUR-PHONE-WHILE-ETERNIA-IS-IN-FRONT`,
+  DECISION); the reverse lane's own socket, the offer and withdraw one-shots and the peer methods move onto the
+  call once Eternia uses it (`RT-ACCOUNT-ONLY-YOUR-DEVICES-HOLD-ONLY-THE-CALL-ONCE-ETERNIA-USES-IT`).
+
+Acceptance: `tests/agent_runtime/test_pair_call.py` (two engines' real gateway listeners, TLS, pins and proofs;
+and the real phone `serve_loop` dialling a computer whose Eternia drives it on a lane).
+
 ### 1.3 What an edge CARRIES — cross-install chat (gateway Stage 7)
 
 An agent on install A addresses an agent on install B by qualifying the target

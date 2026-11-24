@@ -91,3 +91,27 @@ def reverse_proof_from_verifier(verifier: str, nonce: str, *, lane_id: str, devi
     return hmac.new(
         str(verifier).encode("ascii"), message.encode("utf-8"), hashlib.sha256
     ).hexdigest()
+
+
+# ── a lane of a call between two of your devices ─────────────────────────────
+
+
+def call_lane_proof(token: str, nonce: str, *, call_id: str, lane_id: str, device_id: str) -> str:
+    """A paired device's answer to the far engine's challenge over one lane of a call.
+
+    ``HMAC-SHA256(key=sha256(token), msg="gwvc<contract>|<call id>|<lane id>|<device_id>|<nonce>")``
+    (``agent_runtime.pair_call``): the device proof's shape with the CALL and LANE ids in place of the
+    port, which a lane does not have. Both ends know both ids from their own side of the call. The
+    ``gwvc`` prefix keeps it from verifying as a device or a reverse-lane proof.
+    """
+
+    return call_lane_proof_from_verifier(device_verifier(token), nonce, call_id=call_id, lane_id=lane_id,
+                                         device_id=device_id)
+
+
+def call_lane_proof_from_verifier(verifier: str, nonce: str, *, call_id: str, lane_id: str,
+                                  device_id: str) -> str:
+    message = f"gwvc{GATEWAY_PROOF_CONTRACT}|{call_id!s}|{lane_id!s}|{device_id!s}|{nonce}"
+    return hmac.new(
+        str(verifier).encode("ascii"), message.encode("utf-8"), hashlib.sha256
+    ).hexdigest()

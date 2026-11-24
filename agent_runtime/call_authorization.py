@@ -369,6 +369,12 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         "runtime.gateway.reverse.revoke",
         "runtime.gateway.reverse.accept",
         "runtime.gateway.reverse.decline",
+        # The call between this engine and one of your other devices' (hermes row
+        # RT-ACCOUNT-ONLY-ANY-TWO-OF-YOUR-DEVICES-SHARE-ONE-CONNECTION-WHICHEVER-OPENS-IT-FIRST): only this
+        # install's owner dials, hangs up or reads it; the dial carries its own credential on the far device.
+        "runtime.gateway.call.dial",
+        "runtime.gateway.call.hangup",
+        "runtime.gateway.call.calls",
     }
 )
 
