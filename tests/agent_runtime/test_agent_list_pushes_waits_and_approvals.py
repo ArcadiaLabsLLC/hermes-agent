@@ -149,11 +149,11 @@ def test_a_turns_approval_reaches_the_running_work_section(isolate_agent_runtime
 
 
 def test_an_approval_only_batch_ships_the_running_work_section_and_rides_a_turn_batch(isolate_agent_runtime_root):
-    from agent_runtime.running_work.approval_presence import _append
+    from agent_runtime.running_work.approval_presence import _append_approval_event
 
     start = _log_end()
-    assert _append(EVENT_APPROVAL_RAISED, "chat-a", "req-1", None)
-    assert _append(EVENT_APPROVAL_SETTLED, "chat-a", "req-1", "resolved")
+    assert _append_approval_event(EVENT_APPROVAL_RAISED, "chat-a", "req-1", None)
+    assert _append_approval_event(EVENT_APPROVAL_SETTLED, "chat-a", "req-1", "resolved")
     alone = _events_since(start)
 
     assert batch_is_running_work_only(alone)

@@ -73,9 +73,9 @@ def approval_raised(session_id: str, data: dict[str, Any]) -> bool:
             from tools.approval import observe_gateway_settle
 
             observe_gateway_settle(root, request_id,
-                                   lambda reason: _append(EVENT_APPROVAL_SETTLED, root, request_id, reason))
-        # MUTATION: drop this append and test_a_raised_approval_appends_a_running_work_event reddens.
-        return _append(EVENT_APPROVAL_RAISED, root, request_id, None)
+                                   lambda reason: _append_approval_event(EVENT_APPROVAL_SETTLED, root, request_id, reason))
+        # MUTATION: drop this append and test_a_turns_approval_reaches_the_running_work_section reddens.
+        return _append_approval_event(EVENT_APPROVAL_RAISED, root, request_id, None)
     except Exception:
         logger.debug("approval_presence: the raise notice failed", exc_info=True)
         return False
@@ -105,7 +105,7 @@ def pending_approvals() -> list[dict[str, Any]]:
     return rows
 
 
-def _append(event_type: str, root: str, request_id: str | None, reason: Any) -> bool:
+def _append_approval_event(event_type: str, root: str, request_id: str | None, reason: Any) -> bool:
     try:
         from hermes_time import now
 
