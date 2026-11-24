@@ -15,6 +15,7 @@ every handler here catches instead of letting the dispatcher's
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable
 
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
@@ -33,6 +34,8 @@ from agent_runtime.serve_rpc.params import _text_param
 from agent_runtime.serve_rpc.registry import method
 
 __layer__ = "lanes"
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "PROVIDER_CONTRACT",
@@ -84,6 +87,16 @@ def _refused(rid: Any, method_name: str, reason: str, code: int, message: str = 
 
 
 def _failed(rid: Any, method_name: str, exc: BaseException) -> dict:
+    # The frame carries the class name only; the serve's own log keeps the traceback, so a
+    # handler_failed is never again a failure nobody can read (RT-FU-A-MULTIPLEXED-SERVE-ANSWERS-YOUR-PROVIDER-LIST:
+    # the owner's Connections read handler_failed for a day and errors.log held nothing).
+    # MUTATION: drop this log line and test_provider_handler_failed_logs_its_traceback reddens.
+    # Frames only, never the exception's message or locals: a provider write's message can carry the
+    # key it was writing (test_the_key_is_in_no_reply_refusal_failure_or_log_line).
+    import traceback
+
+    frames = "".join(traceback.format_list(traceback.extract_tb(exc.__traceback__)))
+    logger.error("provider_handler_failed method=%s error_class=%s\n%s", method_name, type(exc).__name__, frames)
     return err(rid, ERR_HANDLER_FAILED, f"{method_name} failed",
                {"reason": "handler_failed", "method": method_name, "error_class": type(exc).__name__})
 
@@ -98,11 +111,23 @@ def _answer(rid: Any, method_name: str, work: Callable[[], dict]) -> dict:
     from agent_runtime.provider_account import ProviderRefused
     from agent_runtime.provider_signin import SignInRefused
 
+    from agent_runtime.profile_context import profile_secret_fallback
+
     try:
         # A key ``auth set-key`` / ``auth remove`` wrote from another process is seen before the read
         # (RT-SERVE-STALE-ENV-AFTER-SET-KEY).
         refresh_home_env()
-        return ok(rid, _stamp(work()))
+        # The serve's own home owns these credentials. Once the serve multiplexes (it hosts a turn on
+        # another profile's store) an unscoped ``get_secret`` raises ``UnscopedSecretError``, and every
+        # provider read and write here failed ``handler_failed`` (RT-FU-A-MULTIPLEXED-SERVE-ANSWERS-YOUR-PROVIDER-LIST,
+        # the owner's Connections: "provider status refused: handler_failed"). The fallback is consulted only
+        # while multiplexing with no scope bound, so a single-profile serve reads what it read before and a
+        # named agent's own binding (``answer_for_agent``) still wins.
+        # MUTATION: call ``work()`` outside this block and
+        # test_provider_list_answers_on_a_multiplexed_serve reddens.
+        with profile_secret_fallback(None):
+            result = work()
+        return ok(rid, _stamp(result))
     except SignInRefused as refusal:
         return _refused(rid, method_name, refusal.reason, _FAMILY_CODES[refusal.code], **refusal.data)
     except ProviderRefused as refusal:
