@@ -18,6 +18,9 @@ from scripts.bundles import phone_wheels
 from scripts.bundles.requirement_blocks import Block, requirement_blocks
 
 ANDROID = {"android_arm64": "android_24_arm64_v8a", "android_x86_64": "android_24_x86_64"}
+PHONES = {**ANDROID, "ios_arm64": "ios_13_0_arm64_iphoneos", "ios_arm64_simulator": "ios_13_0_arm64_iphonesimulator"}
+#: The phone listener's certificate (owner RULED 2026-11-24): Flet's wheels on all four phone targets.
+LISTENER_TLS = {"cryptography", "cffi"}
 LIBRARIES = {"flet-libjpeg", "flet-libtiff", "flet-libfreetype", "flet-libwebp"}
 MATCHER = "eternia-project-files-match"
 NATIVE_MATCH = "agent_runtime.project_files.native_match"
@@ -38,9 +41,9 @@ def test_every_pin_names_its_own_distribution_version_and_android_target():
     """Each pinned file is the wheel of that name and version for that target's ABI, with a sha256: Flet's by
     index URL, ripgrep's matcher by its path in this repository (owner RULED 2026-11-21)."""
     wheels = phone_wheels.load()["wheels"]
-    assert set(wheels) == {"pillow", *LIBRARIES, MATCHER}
+    assert set(wheels) == {"pillow", *LIBRARIES, MATCHER, *LISTENER_TLS}
     for name, entry in wheels.items():
-        assert set(entry["targets"]) == set(ANDROID), name
+        assert set(entry["targets"]) == set(PHONES if name in LISTENER_TLS else ANDROID), name
         for target, pin in entry["targets"].items():
             file = phone_wheels.pinned_wheel(name, target)
             if name == MATCHER:
@@ -48,7 +51,7 @@ def test_every_pin_names_its_own_distribution_version_and_android_target():
             else:
                 assert set(pin) == {"url", "sha256"} and pin["url"].startswith("https://pypi.flet.dev/"), file
             assert file.startswith(f"{name.replace('-', '_')}-{entry['version']}-"), file
-            assert file.endswith(f"-{ANDROID[target]}.whl"), file
+            assert file.endswith(f"-{PHONES[target]}.whl"), file
             assert re.fullmatch(r"[0-9a-f]{64}", pin["sha256"]), file
     assert set(wheels["pillow"]["companions"]) == LIBRARIES
 
@@ -61,6 +64,55 @@ def test_pinned_pillow_is_the_version_uv_lock_pins():
 def test_a_pin_off_the_lock_version_is_named():
     assert phone_wheels.version_problems({"pillow": {"version": "12.3.0"}}, _doc()) == [
         "phone_wheel_version: pillow 13.0.0 is pinned for the phones, uv.lock pins 12.3.0: bump both together"]
+
+
+# ── the one phone-only exception: cryptography 48.0.0 (owner RULED 2026-11-24) ─────────────────────────────
+
+
+def _crypto(version: str = "48.0.0", *targets: str) -> dict:
+    return {"wheels": {"cryptography": {"version": version, "targets": {
+        target: {"url": f"https://x/-/v/cryptography-{version}-10-cp314-cp314-{target}.whl", "sha256": "c" * 64}
+        for target in (targets or ("android_arm64", "ios_arm64"))}}}}
+
+
+def test_cryptography_48_is_pinned_for_the_phones_by_the_one_named_exception():
+    """The lock's 50.0.2 stays the desktop's; the phones' 48.0.0 passes only under its named entry, which cites the
+    ruling and the release row that removes it. Positive control: the same pin with the entry gone is named."""
+    exception = phone_wheels.PHONE_ONLY_VERSION_EXCEPTIONS
+    assert set(exception) == {"cryptography"}
+    assert exception["cryptography"]["version"] == phone_wheels.load()["wheels"]["cryptography"]["version"] == "48.0.0"
+    assert exception["cryptography"]["row"] == "RT-FU-BEFORE-RELEASE-PHONES-SHIP-A-CRYPTOGRAPHY-AT-OR-ABOVE-THE-SECURITY-FLOOR"
+    assert _lock()["cryptography"]["version"] == "50.0.2"
+    assert phone_wheels.version_problems({"cryptography": {"version": "50.0.2"}}, _crypto()) == []
+    saved = exception.pop("cryptography")
+    try:
+        assert phone_wheels.version_problems({"cryptography": {"version": "50.0.2"}}, _crypto()) == [
+            "phone_wheel_version: cryptography 48.0.0 is pinned for the phones, uv.lock pins 50.0.2: bump both together"]
+    finally:
+        exception["cryptography"] = saved
+
+
+def test_the_desktop_floor_still_refuses_cryptography_48():
+    """The exception never lowers the desktop: a lock at 48.0.0 (or anything under 50.0.0) is refused even though
+    it then equals the phone pin. Killing mutation: drop the floor test in ``_excepted`` (seen red 2026-11-24)."""
+    assert phone_wheels.version_problems({"cryptography": {"version": "48.0.0"}}, _crypto()) == [
+        "phone_wheel_version: cryptography 48.0.0 in uv.lock is under the desktop floor 50.0.0; the phone-only "
+        "exception (RT-FU-BEFORE-RELEASE-PHONES-SHIP-A-CRYPTOGRAPHY-AT-OR-ABOVE-THE-SECURITY-FLOOR) never lowers it"]
+    assert phone_wheels.version_problems({"cryptography": {"version": "49.0.0"}}, _crypto())
+
+
+def test_the_exception_covers_phone_targets_only():
+    """48.0.0 pinned for a desktop target is refused. Killing mutation: drop the desktop-target test (seen red)."""
+    assert phone_wheels.version_problems({"cryptography": {"version": "50.0.2"}}, _crypto("48.0.0", "android_arm64",
+                                                                                         "linux-x64")) == [
+        "phone_wheel_version: cryptography 48.0.0 is excepted on phones only, not on linux-x64 "
+        "(RT-FU-BEFORE-RELEASE-PHONES-SHIP-A-CRYPTOGRAPHY-AT-OR-ABOVE-THE-SECURITY-FLOOR)"]
+
+
+def test_another_cryptography_version_is_not_excepted():
+    """One version, not a range: 47.0.0 on the phones is the ordinary mismatch."""
+    assert phone_wheels.version_problems({"cryptography": {"version": "50.0.2"}}, _crypto("47.0.0")) == [
+        "phone_wheel_version: cryptography 47.0.0 is pinned for the phones, uv.lock pins 50.0.2: bump both together"]
 
 
 def test_the_pool_takes_the_pin_in_place_of_the_lock_block_and_adds_its_companions():

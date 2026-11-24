@@ -27,7 +27,7 @@ from ..call_authorization import COMPUTER_GRANT_ACCOUNT, COMPUTER_GRANTS
 from ..clock import now_iso
 from ..hello_address import clean_machine_id
 from ..paths import gateway_dir
-from ..serve_gateway_auth.proof import device_verifier, reverse_proof_from_verifier
+from ..serve_gateway_auth.proof import device_verifier, grant_dial_proof_from_verifier, reverse_proof_from_verifier
 from ..store_file_io import read_json_object as _read_json
 from ..store_file_io import store_lock as _file_lock
 from ..store_file_io import write_secure_json as _write_secure
@@ -47,6 +47,7 @@ __all__ = [
     "lookup_grant",
     "revoke_grant",
     "revoke_install_grants",
+    "verify_dial_proof",
     "verify_lane_proof",
 ]
 
@@ -251,6 +252,29 @@ def verify_lane_proof(store_root: Path | str, computer_id: Any, presented: Any, 
     if grant is None:
         return None
     expected = reverse_proof_from_verifier(str(row["verifier"]), nonce, lane_id=lane_id, device_id=computer_id)
+    if not hmac.compare_digest(presented.strip().lower().encode("utf-8", "replace"), expected.encode("ascii")):
+        return None
+    return grant
+
+
+def verify_dial_proof(store_root: Path | str, computer_id: Any, presented: Any, nonce: str, *,
+                      port: Any) -> ReverseGrant | None:
+    """Constant-time check of a granted computer's hello on this phone's listener. ``None`` refuses.
+
+    The port is the listener's own (``agent_runtime.pair_call.listener``). Fails closed on every missing
+    input, like :func:`verify_lane_proof`.
+    """
+
+    computer_id = str(computer_id or "").strip()
+    if not computer_id or len(computer_id) > _ID_LIMIT or not nonce or type(port) is not int:
+        return None
+    if not isinstance(presented, str) or not presented.strip():
+        return None
+    row = _rows(store_root).get(computer_id)
+    grant = _grant_row(computer_id, row) if isinstance(row, dict) else None
+    if grant is None:
+        return None
+    expected = grant_dial_proof_from_verifier(str(row["verifier"]), nonce, port=port, computer_id=computer_id)
     if not hmac.compare_digest(presented.strip().lower().encode("utf-8", "replace"), expected.encode("ascii")):
         return None
     return grant

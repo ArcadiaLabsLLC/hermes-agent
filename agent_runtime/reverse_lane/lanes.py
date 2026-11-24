@@ -321,6 +321,9 @@ class ReverseLanes:
             dialer.stop("grant_revoked")
         # MUTATION: drop this line and test_reverse_lane's grant-off test keeps the computer connected.
         self._drop_lanes(gone, reason="grant_revoked")
+        # A call the computer opened on this phone's listener under the grant ends with it.
+        # MUTATION: drop this line and test_phone_listener's grant-off test keeps the call up.
+        self.calls.drop_granted(gone)
 
     # ── both ────────────────────────────────────────────────────────────────
 

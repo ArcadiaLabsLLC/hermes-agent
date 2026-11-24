@@ -14,6 +14,9 @@ Row ``RT-ACCOUNT-ONLY-ANY-TWO-OF-YOUR-DEVICES-SHARE-ONE-CONNECTION-WHICHEVER-OPE
 * **Attach** (:meth:`PairCalls.attach`): this machine owner's Eternia on loopback says hello with
   ``call_attach: <far install id>``; a lane opens on the call to that install and Eternia's socket is
   bridged onto it, unread. Eternia then runs its own hello over the lane, answered by the far engine.
+* **Listen** (:meth:`PairCalls.listen`, a phone): while its Eternia is in front and signed in, the phone
+  listens too (:mod:`.listener`), and a computer holding this phone's grant dials it with ``computer_id``
+  in its :class:`CallWay` (:meth:`PairCalls.accept_granted`: the grant names the computer's install).
 * **Admit** (:meth:`PairCalls._on_lane_open`): a lane the far side opened is admitted here as one more
   connection, through a socket pair, by a listener-less admitter whose check is
   :func:`call_lane_authenticator`: the lane's caller proves its OWN credential, bound to the call and
@@ -63,6 +66,9 @@ class CallWay:
     install_id: str
     device_id: str
     token: str
+    #: ``device``: ``device_id`` / ``token`` are this device's pairing on the far side. ``grant``: they are the
+    #: computer id and token a PHONE granted this computer, and the far side is that phone's listener.
+    credential: str = "device"
 
     def __repr__(self) -> str:
         return f"CallWay(host={self.host!r}, port={self.port!r}, install_id={self.install_id!r})"
@@ -171,11 +177,14 @@ class PairCalls:
 
     def __init__(self, store_root: Path | str, *, admitter_factory: Callable[[], Any] | None = None,
                  log: Callable[[dict[str, Any]], None] | None = None,
-                 dialer_options: dict[str, Any] | None = None) -> None:
+                 dialer_options: dict[str, Any] | None = None,
+                 listener_options: dict[str, Any] | None = None) -> None:
         self._store_root = Path(store_root)
         self._admitter_factory = admitter_factory
         self._log = log
         self._dialer_options = dict(dialer_options or {})
+        self._listener_options = dict(listener_options or {})
+        self._listener: Any = None
         self._lock = threading.Lock()
         self._admitter: Any = None
         self._dialers: dict[str, CallDialer] = {}
@@ -231,10 +240,15 @@ class PairCalls:
         own = self.own
         client = ServeSocketClient(way.host, int(way.port), timeout_seconds=_DIAL_TIMEOUT, tls=True,
                                    cert_fingerprint=way.cert_fingerprint)
+        offer = {"call": call_id, "install": own.install_id}
         try:
             client.connect()
-            reply = client.device_hello(device_id=way.device_id, token=way.token, client=_CLIENT_NAME,
-                                        pair_call={"call": call_id, "install": own.install_id})
+            if way.credential == "grant":
+                reply = client.grant_hello(computer_id=way.device_id, token=way.token, client=_CLIENT_NAME,
+                                           pair_call=offer)
+            else:
+                reply = client.device_hello(device_id=way.device_id, token=way.token, client=_CLIENT_NAME,
+                                            pair_call=offer)
         except ServeCertificatePinMismatch:
             client.close()
             return "stop:certificate_rejected"
@@ -269,6 +283,50 @@ class PairCalls:
     def accept(self, connection: Any, reader: Any, offer: Any) -> str | None:
         """A paired device's hello that names ``pair_call``: its socket becomes a call. A refusal, or None."""
 
+        return self._accept(connection, reader, offer)
+
+    def accept_granted(self, connection: Any, reader: Any, offer: Any) -> str | None:
+        """A granted computer on this phone's listener (:mod:`.listener`): the call, if the offer names the
+        install the grant was made for. A refusal, or None."""
+
+        from ..reverse_lane import grants as _grants
+
+        grant = _grants.lookup_grant(self._store_root, connection.computer_id)
+        # MUTATION: drop the install test and test_phone_listener's other-install test is accepted.
+        if grant is None or not isinstance(offer, dict) or offer.get("install") != grant.computer_install_id:
+            return REJECT_REVERSE_LANE_REFUSED
+        return self._accept(connection, reader, offer, far_computer_id=grant.computer_id)
+
+    def drop_granted(self, computer_ids: set[str], reason: str = "grant_revoked") -> int:
+        """Close every call a computer in *computer_ids* opened under a grant (the grant is gone)."""
+
+        dropped = [call for call in self.registry.calls() if call.far_computer_id in computer_ids]
+        for call in dropped:
+            call.close(reason)
+        return len(dropped)
+
+    # ── listen (a phone) ────────────────────────────────────────────────────
+
+    def listen(self, *, host: str | None = None, port: int = 0) -> dict[str, Any]:
+        """Open this phone's listener (:class:`~.listener.GrantListener`), or say why it did not open."""
+
+        from .listener import DEFAULT_HOST, GrantListener
+
+        with self._lock:
+            if self._closed:
+                return {"outcome": "error:draining"}
+            if self._listener is None:
+                self._listener = GrantListener(self._store_root, accept=self.accept_granted, log=self._log,
+                                               **self._listener_options)
+            listener = self._listener
+        return listener.open(host=host or DEFAULT_HOST, port=port)
+
+    def unlisten(self, reason: str = "unlisten") -> bool:
+        with self._lock:
+            listener = self._listener
+        return listener.close(reason) if listener is not None else False
+
+    def _accept(self, connection: Any, reader: Any, offer: Any, *, far_computer_id: str | None = None) -> str | None:
         if not isinstance(offer, dict):
             return REJECT_REVERSE_LANE_REFUSED
         call_id, install = offer.get("call"), offer.get("install")
@@ -292,7 +350,8 @@ class PairCalls:
         call = PairCall(connection.sock, call_id=call_id, dialer_install=install, own=own, far=far,
                         outbound=False, initial=reader.take_buffered(), on_lane_open=self._on_lane_open,
                         log=self._log)
-        call.far_device_id = connection.device_id
+        call.far_device_id = connection.device_id if far_computer_id is None else None
+        call.far_computer_id = far_computer_id
         call.start()
         self.registry.add(call)
         return None
@@ -342,7 +401,9 @@ class PairCalls:
     def status(self) -> dict[str, Any]:
         with self._lock:
             dialers = [dialer.status() for dialer in self._dialers.values()]
-        return {"calls": self.registry.describe(), "dialing": dialers}
+            listener = self._listener
+        listening = listener.status() if listener is not None else None
+        return {"calls": self.registry.describe(), "dialing": dialers, "listening": listening}
 
     def close(self, reason: str = "shutdown") -> None:
         with self._lock:
@@ -350,6 +411,9 @@ class PairCalls:
             dialers = list(self._dialers.values())
             self._dialers.clear()
             admitter, self._admitter = self._admitter, None
+            listener, self._listener = self._listener, None
+        if listener is not None:
+            listener.close(reason)
         for dialer in dialers:
             dialer.stop(reason)
         for dialer in dialers:

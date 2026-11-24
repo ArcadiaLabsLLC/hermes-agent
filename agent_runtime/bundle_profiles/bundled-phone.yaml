@@ -146,6 +146,16 @@ packaging:
     # crates/project_files_match/dist/ and pinned in phone_wheels.lock.json (owner RULED 2026-11-21: "yea
     # commit them to the hermes fork which is public"); agent_runtime/project_files/native_match.py loads it.
     eternia-project-files-match: "ripgrep's matcher for regex search_files (owner RULED 2026-11-21 on RT-PHONE-FILE-TOOLS-TAKE-THE-SAME-ARGUMENTS-AS-ON-DESKTOP-WITH-RIPGREPS-ENGINE-IN-PROCESS: ripgrep's engine through FFI first, the regex package as the fallback; architecture §6 as amended for it)"
+    # The phone listener's certificate only (agent_runtime/gateway_tls.py: the mint and the PEM read), so a
+    # computer of yours can open the call to this phone (hermes row
+    # RT-ACCOUNT-ONLY-YOUR-COMPUTER-CAN-OPEN-THE-CALL-TO-YOUR-PHONE-WHILE-ETERNIA-IS-IN-FRONT). Flet's prebuilt wheels,
+    # pinned in phone_wheels.lock.json: PyPI has none for a phone. 48.0.0 is under the desktop's 50.0.0 floor and ships
+    # here by the one phone-only exception (scripts/bundles/phone_wheels.py PHONE_ONLY_VERSION_EXCEPTIONS; owner RULED
+    # 2026-11-24: "for now use 48 but before release we need to update it file it as a deffered release row";
+    # release row RT-FU-BEFORE-RELEASE-PHONES-SHIP-A-CRYPTOGRAPHY-AT-OR-ABOVE-THE-SECURITY-FLOOR). The local secrets
+    # vault (agent.vault_store, owner D3 2026-09-30) and the external password managers stay unpackaged.
+    cryptography: "the phone listener's self-signed TLS certificate (agent_runtime/gateway_tls.py), owner RULED 2026-11-24 (48.0.0 on phones only)"
+    cffi: "cryptography's C bindings: only cryptography needs it"
   # Files the Android image-library wheels carry that nothing loads at run time.
   excluded_data:
     site-packages/opt/include: "C headers of the flet-lib* wheels: for compiling against them, never loaded"
@@ -169,16 +179,6 @@ packaging:
       # names), so upstream's unguarded import sites resolve; the closure proves each at run time.
       stand_in: agent_runtime.provider_sdk_shim
       degrades: nothing on the provider wires — agent.provider_sdks false builds the SDK-free clients (agent/transports/httpx_client.py, httpx_responses.py, httpx_anthropic.py); OpenAI cloud STT (openai package check) and OpenAI streaming TTS are unavailable (the shim's client has no audio surface); mem0 OSS uses the SDK-free client
-    - distribution: cryptography
-      imports: [cryptography]
-      # PyJWT ships without its requested `crypto` extra (pyproject: pyjwt[crypto]); its algorithms
-      # module imports cryptography guarded, so HS256 and the phone's unverified claim reads remain
-      # (tools/skills_sync_client.py). The closure proves `jwt` imports with cryptography absent.
-      dropped_extras: ["pyjwt[crypto]"]
-      degrades: RS/ES/EdDSA JSON Web Token verification (dashboard sign-in, desktop only); the local secrets vault (agent.vault_store, owner D3 2026-09-30) and the external password managers (agent.vault_backends) are not packaged — the host's secure store binding is the phone's vault and the vault.* RPCs answer unavailable; the gateway's self-signed TLS mint (agent_runtime/gateway_tls.py) refuses, as a phone serves no remote gateway; every other kept import site is ImportError-guarded
-    - distribution: cffi
-      imports: [cffi, _cffi_backend]
-      degrades: nothing beyond cryptography's row — only cryptography needs it
     - distribution: pillow-heif
       imports: [pillow_heif]
       degrades: nothing — the phone host transcodes HEIC/AVIF photos to JPEG before handing them to Hermes (owner D2 2026-09-30); agent.image_routing's HEIF opener registration is ImportError-guarded
@@ -261,12 +261,13 @@ packaging:
     - video_gen
   switched_off_modules:
     # The desktop serve's daemon shell: pid registry (psutil), sidecars, git stamp, socket lane.
-    # The socket lane's LISTENER families only: a phone runs no listener (D3), while its
-    # admit, handshake, connection and client families serve the lane it dials out to a
-    # computer it granted (agent_runtime.reverse_lane, review w1118a.79).
+    # The socket lane's loopback families only. ``agent_runtime.serve_socket.server`` ships: the phone
+    # listens for the call while its Eternia is in front and signed in, admitting only a computer holding
+    # a grant this phone minted (agent_runtime/pair_call/listener.py; the no-listener premise cited as D3
+    # is superseded by the owner's 2026-11-23 ruling, hermes row
+    # RT-ACCOUNT-ONLY-YOUR-COMPUTER-CAN-OPEN-THE-CALL-TO-YOUR-PHONE-WHILE-ETERNIA-IS-IN-FRONT).
     - hermes_cli.harness_parts.serve.daemon_shell
     - agent_runtime.serve_registry
-    - agent_runtime.serve_socket.server
     - agent_runtime.serve_socket.owner_lock
     - agent_runtime.serve_socket.target
     - agent_runtime.serve_socket.cli_route

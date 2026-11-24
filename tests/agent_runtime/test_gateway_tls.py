@@ -111,8 +111,9 @@ def test_a_certificate_that_will_not_parse_is_typed_and_is_never_overwritten(
 
 
 def test_a_build_without_cryptography_mints_nothing_and_says_why(tmp_path: Path, monkeypatch):
-    """The phone wheel omits ``cryptography`` (``bundled-phone.yaml``, owner D3 2026-09-30): a phone
-    runs no remote gateway listener. Both halves answer ``cryptography_unavailable`` — never a
+    """A build that omits ``cryptography`` (phones shipped none until hermes row
+    RT-ACCOUNT-ONLY-YOUR-COMPUTER-CAN-OPEN-THE-CALL-TO-YOUR-PHONE-WHILE-ETERNIA-IS-IN-FRONT added Flet's 48.0.0
+    for the phone listener). Both halves answer ``cryptography_unavailable`` — never a
     certificate in the clear, never the ``malformed_certificate`` a missing library would otherwise
     be read as. Positive control: the same roots mint and load with the library present."""
 

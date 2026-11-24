@@ -255,6 +255,39 @@ class ServeSocketClient:
         )
         return self.read_frame()
 
+    def grant_hello(
+        self,
+        *,
+        computer_id: str,
+        token: str,
+        client: str,
+        pair_call: dict[str, str],
+        client_build: str | None = None,
+        expect_hello_contract: int | None = HELLO_CONTRACT_VERSION,
+    ) -> dict[str, Any] | None:
+        """A granted computer's hello to a PHONE's listener: the call, under the grant the phone minted.
+
+        The device hello's shape, naming the computer's id on the phone and ``pair_call``
+        (``agent_runtime.pair_call.listener``), with the proof bound to the port this client dialled
+        (``serve_gateway_auth.proof.grant_dial_proof``). The reply is ``pair_call_accepted``.
+        """
+
+        from ..serve_gateway_auth.proof import grant_dial_proof
+
+        nonce = self._challenge_nonce(expect_hello_contract)
+        self.send(
+            {
+                "op": "hello",
+                "client": client,
+                "client_build": client_build,
+                "device_id": computer_id,
+                **hello_fields(),
+                "proof": grant_dial_proof(token, nonce, port=self._port, computer_id=computer_id),
+                "pair_call": dict(pair_call),
+            }
+        )
+        return self.read_frame()
+
     def peer_hello(
         self,
         *,

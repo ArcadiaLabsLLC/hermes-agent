@@ -71,6 +71,8 @@ class PairCall:
         self.outbound = outbound
         #: The far device's id on this install, when the far side dialled as a device paired here.
         self.far_device_id: str | None = None
+        #: The far computer's id on this phone, when it dialled this phone's listener under a grant.
+        self.far_computer_id: str | None = None
         self._sock = sock
         self._reader = _LineReader(sock, max_line_bytes=_MAX_CALL_FRAME, initial=initial)
         self._on_lane_open = on_lane_open

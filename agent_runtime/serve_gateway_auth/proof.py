@@ -115,3 +115,28 @@ def call_lane_proof_from_verifier(verifier: str, nonce: str, *, call_id: str, la
     return hmac.new(
         str(verifier).encode("ascii"), message.encode("utf-8"), hashlib.sha256
     ).hexdigest()
+
+
+# ── a granted computer dialling a phone's listener ───────────────────────────
+
+
+def grant_dial_proof(token: str, nonce: str, *, port: int, computer_id: str) -> str:
+    """A granted computer's answer to the challenge of the phone listener it dialled.
+
+    ``HMAC-SHA256(key=sha256(token), msg="gwvg<contract>|<port>|<computer id>|<nonce>")``
+    (``agent_runtime.pair_call.listener``): the device proof's shape (:func:`device_proof`), the port
+    bound for the same reason, under the grant the phone minted for that computer. The ``gwvg`` prefix
+    keeps it from verifying as a device, reverse-lane or call-lane proof, so a grant's token proves
+    nothing on a desktop gateway and a device token proves nothing on a phone listener.
+    """
+
+    return grant_dial_proof_from_verifier(device_verifier(token), nonce, port=port, computer_id=computer_id)
+
+
+def grant_dial_proof_from_verifier(verifier: str, nonce: str, *, port: int, computer_id: str) -> str:
+    """The phone's half: it holds the grant's verifier, never the token."""
+
+    message = f"gwvg{GATEWAY_PROOF_CONTRACT}|{int(port)}|{computer_id!s}|{nonce}"
+    return hmac.new(
+        str(verifier).encode("ascii"), message.encode("utf-8"), hashlib.sha256
+    ).hexdigest()

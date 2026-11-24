@@ -90,6 +90,10 @@ class CallRegistry:
             if call is not None and call.is_open:
                 self._changed.wait(timeout)
 
+    def calls(self) -> list[PairCall]:
+        with self._lock:
+            return [call for call in self._calls.values() if call.is_open]
+
     def describe(self) -> list[dict[str, Any]]:
         with self._lock:
             calls = [(far, call) for far, call in self._calls.items() if call.is_open]

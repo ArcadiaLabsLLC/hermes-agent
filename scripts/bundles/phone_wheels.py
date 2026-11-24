@@ -20,7 +20,9 @@ it is pinned and that module ships (:func:`loaded_by`). Three readers, one file:
   (:func:`alignment_problems`).
 
 :func:`version_problems` keeps a pinned distribution's version equal to ``uv.lock``'s where the lock
-has it (one version, the desktop's).
+has it (one version, the desktop's), save the ONE named phone-only exception in
+:data:`PHONE_ONLY_VERSION_EXCEPTIONS` (``cryptography`` 48.0.0, owner RULED 2026-11-24), which still holds
+the desktop's lock to its security floor.
 """
 
 from __future__ import annotations
@@ -119,12 +121,62 @@ def pinned_blocks(blocks: list[Block], target: str, doc: dict | None = None) -> 
     return out + [pin_block(name) for name in sorted(pinned) if name not in present]
 
 
+#: The ONE phone-only exception to "a pinned wheel pins ``uv.lock``'s version": ``cryptography`` 48.0.0, the
+#: newest Flet builds for Android and iOS (``pypi.flet.dev``), on phones only, for the phone listener's
+#: certificate (``agent_runtime/gateway_tls.py``). Owner RULED 2026-11-24 on hermes row
+#: ``RT-ACCOUNT-ONLY-YOUR-COMPUTER-CAN-OPEN-THE-CALL-TO-YOUR-PHONE-WHILE-ETERNIA-IS-IN-FRONT``: "for now use 48 but
+#: before release we need to update it file it as a deffered release row". The release row is
+#: ``RT-FU-BEFORE-RELEASE-PHONES-SHIP-A-CRYPTOGRAPHY-AT-OR-ABOVE-THE-SECURITY-FLOOR``: it removes this entry once
+#: every phone wheel is at or above the floor. ``desktop_floor`` is ``pyproject.toml``'s (CVE-2026-69247,
+#: GHSA-m2h6-j472-rp4c, GHSA-jwv3-5hgf-82ww), and the exception never lowers it: ``uv.lock`` below it, or the
+#: excepted version pinned on a desktop target, is still a problem. Not a general loosening: one name, one
+#: version, phone targets only.
+PHONE_ONLY_VERSION_EXCEPTIONS: dict[str, dict[str, str]] = {
+    "cryptography": {
+        "version": "48.0.0",
+        "desktop_floor": "50.0.0",
+        "ruling": "owner RULED 2026-11-24 on RT-ACCOUNT-ONLY-YOUR-COMPUTER-CAN-OPEN-THE-CALL-TO-YOUR-PHONE-WHILE-"
+                  "ETERNIA-IS-IN-FRONT",
+        "row": "RT-FU-BEFORE-RELEASE-PHONES-SHIP-A-CRYPTOGRAPHY-AT-OR-ABOVE-THE-SECURITY-FLOOR",
+    },
+}
+
+#: The phone targets (``scripts/bundles/targets.py``): the only ones an exception covers.
+_PHONE_PREFIXES = ("android_", "ios_")
+
+
+def _excepted(name: str, entry: dict, locked: str) -> list[str] | None:
+    """The problems of a pin under its phone-only exception; None when ``name`` has none at this version."""
+    from packaging.version import Version
+
+    exception = PHONE_ONLY_VERSION_EXCEPTIONS.get(name)
+    if exception is None or entry["version"] != exception["version"]:
+        return None
+    problems = []
+    # MUTATION: drop this test and test_phone_wheels' desktop-floor test sees a lock at 48.0.0 pass.
+    if Version(locked) < Version(exception["desktop_floor"]):
+        problems.append(f"phone_wheel_version: {name} {locked} in uv.lock is under the desktop floor "
+                        f"{exception['desktop_floor']}; the phone-only exception ({exception['row']}) never lowers it")
+    desktop = sorted(t for t in entry.get("targets", {}) if not t.startswith(_PHONE_PREFIXES))
+    # MUTATION: drop this test and test_phone_wheels' desktop-target test sees 48.0.0 pinned for linux-x64 pass.
+    if desktop:
+        problems.append(f"phone_wheel_version: {name} {entry['version']} is excepted on phones only, "
+                        f"not on {', '.join(desktop)} ({exception['row']})")
+    return problems
+
+
 def version_problems(lock: dict[str, dict], doc: dict | None = None) -> list[str]:
-    """A pinned distribution ``uv.lock`` also holds must pin the lock's version."""
+    """A pinned distribution ``uv.lock`` also holds must pin the lock's version, save the one phone-only
+    exception (:data:`PHONE_ONLY_VERSION_EXCEPTIONS`), which keeps the lock at its desktop floor."""
     problems = []
     for name, entry in sorted(_wheels(doc).items()):
         locked = (lock.get(name) or {}).get("version")
-        if locked and locked != entry["version"]:
+        if not locked:
+            continue
+        excepted = _excepted(name, entry, locked)
+        if excepted is not None:
+            problems += excepted
+        elif locked != entry["version"]:
             problems.append(f"phone_wheel_version: {name} {entry['version']} is pinned for the phones, "
                             f"uv.lock pins {locked}: bump both together")
     return problems

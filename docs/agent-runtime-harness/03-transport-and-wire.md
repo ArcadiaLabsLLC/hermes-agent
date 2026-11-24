@@ -639,13 +639,25 @@ the call" / "they should both be able to confirm that requests are applied"; 202
 - **Confirmations.** An answer settles only the request that went out on its lane, by id. On a drop every
   waiting request fails `{"ok": false, "reason": "link_closed", "dispatched": true, "confirmed": false}`: not
   confirmed, never reported done; nothing is re-sent here.
-- **Not yet:** a phone does not listen (the certificate needs `cryptography`, whose only phone wheels are under
-  the fork's security floor: `RT-ACCOUNT-ONLY-YOUR-COMPUTER-CAN-OPEN-THE-CALL-TO-YOUR-PHONE-WHILE-ETERNIA-IS-IN-FRONT`,
-  DECISION); the reverse lane's own socket, the offer and withdraw one-shots and the peer methods move onto the
+- **A phone listens too** (`agent_runtime/pair_call/listener.py`,
+  `RT-ACCOUNT-ONLY-YOUR-COMPUTER-CAN-OPEN-THE-CALL-TO-YOUR-PHONE-WHILE-ETERNIA-IS-IN-FRONT`): while its Eternia is in
+  front and signed in it calls `runtime.gateway.call.listen` (`host`, `port`, both optional; answered `host`, `port`,
+  `cert_fingerprint`), and `runtime.gateway.call.unlisten` when it leaves the front, on sign-out and on an account
+  change; `runtime.gateway.call.calls` carries the `listening` block. The listener admits ONE hello: a computer
+  holding a grant this phone minted, naming `pair_call`, checked machine first (the grant's), then namespace, then
+  the grant's proof bound to the listener's port (`serve_gateway_auth/proof.py::grant_dial_proof`, `gwvg`), and an
+  offer whose install is the grant's; every other hello (a pairing or peer code, a device or peer credential, a lane,
+  none) is the one `bad_proof`. The computer dials with `runtime.gateway.call.dial`'s `computer_id` in place of
+  `device_id`. A revoked grant ends its call. The certificate needs `cryptography`: on phones Flet's 48.0.0, under
+  the desktop's 50.0.0 floor, by the one phone-only exception in `scripts/bundles/phone_wheels.py`
+  (`PHONE_ONLY_VERSION_EXCEPTIONS`, owner RULED 2026-11-24) until
+  `RT-FU-BEFORE-RELEASE-PHONES-SHIP-A-CRYPTOGRAPHY-AT-OR-ABOVE-THE-SECURITY-FLOOR`.
+- **Not yet:** the reverse lane's own socket, the offer and withdraw one-shots and the peer methods move onto the
   call once Eternia uses it (`RT-ACCOUNT-ONLY-YOUR-DEVICES-HOLD-ONLY-THE-CALL-ONCE-ETERNIA-USES-IT`).
 
 Acceptance: `tests/agent_runtime/test_pair_call.py` (two engines' real gateway listeners, TLS, pins and proofs;
-and the real phone `serve_loop` dialling a computer whose Eternia drives it on a lane).
+and the real phone `serve_loop` dialling a computer whose Eternia drives it on a lane) and
+`tests/agent_runtime/test_phone_listener.py` (the computer dialling the real phone `serve_loop`'s listener).
 
 ### 1.3 What an edge CARRIES — cross-install chat (gateway Stage 7)
 

@@ -74,6 +74,8 @@ __all__ = [
     "_runtime_gateway_call_calls",
     "_runtime_gateway_call_dial",
     "_runtime_gateway_call_hangup",
+    "_runtime_gateway_call_listen",
+    "_runtime_gateway_call_unlisten",
 ]
 
 _TEXT_LIMIT = 256
@@ -341,7 +343,10 @@ def _runtime_gateway_reverse_decline(rid: Any, params: dict, context: RpcContext
 
 # ── the call (RT-ACCOUNT-ONLY-ANY-TWO-OF-YOUR-DEVICES-SHARE-ONE-CONNECTION-WHICHEVER-OPENS-IT-FIRST) ──
 
-_CALL_KEYS = ("install_id", "host", "cert_fingerprint", "device_id", "token")
+_CALL_KEYS = ("install_id", "host", "cert_fingerprint", "token")
+#: This device's credential on the far one: its pairing there (``device_id``), or the grant a phone made it
+#: (``computer_id``, the far side being that phone's listener). Exactly one.
+_CALL_CREDENTIALS = {"device_id": "device", "computer_id": "grant"}
 
 
 @method("runtime.gateway.call.dial", tier=TIER_CONSOLE)
@@ -350,7 +355,9 @@ def _runtime_gateway_call_dial(rid: Any, params: dict, context: RpcContext | Non
 
     Params: the far device's ``install_id``, ``host``, ``port``, ``cert_fingerprint`` (its pin) and
     ``machine_id`` (from the account record), and ``device_id`` / ``token`` (this device's credential on
-    it, held in memory only). The far device dials too; the first call to connect is the call.
+    it, held in memory only) — or, a computer calling a phone's listener, ``computer_id`` / ``token`` (the
+    grant that phone made this computer) in place of ``device_id``. The far device dials too; the first
+    call to connect is the call.
     """
 
     from agent_runtime.hello_address import clean_machine_id
@@ -366,12 +373,18 @@ def _runtime_gateway_call_dial(rid: Any, params: dict, context: RpcContext | Non
         machine_id = clean_machine_id(params.get("machine_id"))
         if machine_id is None:
             raise _refuse("machine_id", "machine_id must name the far device's machine (mach_…)")
+        named = [key for key in _CALL_CREDENTIALS if params.get(key) is not None]
+        if len(named) != 1:
+            raise _refuse("device_id", "name exactly one of device_id or computer_id")
+        credential_id = read_text(params, named[0], refuse=_refuse, required=True, limit=_TEXT_LIMIT,
+                                  empty_ok=False)
     except ParamRefused as refused:
         return refused.frame(rid)
     lanes = _lanes(context)
     if lanes is None:
         return _unbound(rid)
-    answer = lanes.calls.dial(CallWay(port=port, machine_id=machine_id, **texts))
+    answer = lanes.calls.dial(CallWay(port=port, machine_id=machine_id, device_id=credential_id,
+                                      credential=_CALL_CREDENTIALS[named[0]], **texts))
     if not answer.get("ok"):
         return err(rid, ERR_CONFLICT, "This engine is shutting down.", {"reason": str(answer.get("reason"))})
     return ok(rid, {"far_install": answer["far_install"]})
@@ -397,5 +410,43 @@ def _runtime_gateway_call_calls(rid: Any, params: dict, context: RpcContext | No
 
     lanes = _lanes(context)
     if lanes is None:
-        return ok(rid, {"calls": [], "dialing": []})
+        return ok(rid, {"calls": [], "dialing": [], "listening": None})
     return ok(rid, lanes.calls.status())
+
+
+@method("runtime.gateway.call.listen", tier=TIER_CONSOLE)
+def _runtime_gateway_call_listen(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """A phone listens for the call while its Eternia is in front and signed in (``agent_runtime.pair_call.listener``).
+
+    Params (both optional): ``host`` (default every interface) and ``port`` (0, the default: any free port).
+    Answers the ``listening`` block — ``host``, ``port``, ``cert_fingerprint`` (the pin a computer dials with) —
+    or ``error:<why>``. Only a computer holding a grant this phone minted gets in; Eternia calls ``unlisten``
+    when it leaves the front, on sign-out and on an account change.
+    """
+
+    params = params if isinstance(params, dict) else {}
+    try:
+        host = read_text(params, "host", refuse=_refuse, limit=_TEXT_LIMIT)
+        port = params.get("port", 0)
+        if type(port) is not int or not 0 <= port < 65536:
+            raise _refuse("port", "port must be an integer from 0 to 65535")
+    except ParamRefused as refused:
+        return refused.frame(rid)
+    lanes = _lanes(context)
+    if lanes is None:
+        return _unbound(rid)
+    block = lanes.calls.listen(host=host or None, port=port)
+    if block.get("outcome") != "listening":
+        return err(rid, ERR_CONFLICT, "This engine could not open its listener.",
+                   {"reason": "listener_unavailable", "outcome": str(block.get("outcome"))})
+    return ok(rid, block)
+
+
+@method("runtime.gateway.call.unlisten", tier=TIER_CONSOLE)
+def _runtime_gateway_call_unlisten(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """Close this phone's listener; a call already up stays up (hang it up with ``hangup``)."""
+
+    lanes = _lanes(context)
+    if lanes is None:
+        return ok(rid, {"closed": False})
+    return ok(rid, {"closed": lanes.calls.unlisten()})

@@ -375,6 +375,10 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         "runtime.gateway.call.dial",
         "runtime.gateway.call.hangup",
         "runtime.gateway.call.calls",
+        # The phone's listener for the call (RT-ACCOUNT-ONLY-YOUR-COMPUTER-CAN-OPEN-THE-CALL-TO-YOUR-PHONE-WHILE-
+        # ETERNIA-IS-IN-FRONT): only the phone's own Eternia opens or closes it, never a device it admits.
+        "runtime.gateway.call.listen",
+        "runtime.gateway.call.unlisten",
     }
 )
 
