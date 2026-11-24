@@ -152,7 +152,7 @@ def _open_chat(params: dict, *, caller: Any) -> dict:
     return dict(outcome.result or {})
 
 
-def _mint(params: dict, persona_id: str, scope: str, *, caller: Any) -> dict:
+def _mint_ready_chat(params: dict, persona_id: str, scope: str, *, caller: Any) -> dict:
     opened = _open_chat({
         "persona_id": persona_id,
         "persona_instance_id": _text(params, "persona_instance_id"),
@@ -220,7 +220,7 @@ def ensure_ready_chat(params: dict, *, caller: Any = None, launcher_link: Any = 
             if record is not None:
                 _receipt("retire", scope, record, _retire(record))
                 repointed = True
-            record = _mint(params, persona_id, scope, caller=caller)
+            record = _mint_ready_chat(params, persona_id, scope, caller=caller)
             created = True
             _receipt("ensure", scope, record, "minted")
         _write_record(scope, record)
