@@ -31,7 +31,7 @@ from .envelope import ID_PATTERN, Endpoint, address_refusal, mint_id, wrap
 
 __layer__ = "lanes"
 
-__all__ = ["LINK_CLOSED", "LaneClient", "PairCall", "not_confirmed"]
+__all__ = ["LINK_CLOSED", "LaneClient", "PairCall", "emit_quietly", "not_confirmed"]
 
 LINK_CLOSED = "link_closed"
 #: A frame carries one line of the lane (a serve frame), so it may be a little longer than one.
@@ -46,7 +46,7 @@ def not_confirmed(reason: str = LINK_CLOSED) -> dict[str, Any]:
 
 
 class _Lane:
-    __slots__ = ("lane_id", "purpose", "opened_here", "sock", "client")
+    __slots__ = ("client", "lane_id", "opened_here", "purpose", "sock")
 
     def __init__(self, lane_id: str, purpose: str, opened_here: bool) -> None:
         self.lane_id = lane_id
@@ -127,7 +127,7 @@ class PairCall:
                 lane.client.wake()
         for waiter in waiting:
             waiter.fail(not_confirmed())
-        self._emit({"event": "pair_call_closed", "call": self.call_id, "far_install": self.far.install_id,
+        emit_quietly(self._log, {"event": "pair_call_closed", "call": self.call_id, "far_install": self.far.install_id,
                     "reason": reason})
         for listener in listeners:
             try:
@@ -236,7 +236,7 @@ class PairCall:
             return
         refusal = address_refusal(frame, self.own)
         if refusal is not None:
-            self._emit({"event": "pair_call_address_mismatch", "call": self.call_id, "reason": refusal})
+            emit_quietly(self._log, {"event": "pair_call_address_mismatch", "call": self.call_id, "reason": refusal})
             return
         lane_id = frame.get("lane")
         if not isinstance(lane_id, str) or not ID_PATTERN.match(lane_id):
@@ -315,14 +315,6 @@ class PairCall:
             pass
         finally:
             self.close_lane(lane_id)
-
-    def _emit(self, payload: dict[str, Any]) -> None:
-        if self._log is not None:
-            try:
-                self._log(payload)
-            except Exception:
-                pass
-
 
 class _Waiter:
     __slots__ = ("_event", "value")
@@ -405,6 +397,16 @@ class LaneClient:
         with self._frame_ready:
             self._frames.append(frame)
             self._frame_ready.notify_all()
+
+
+def emit_quietly(log: Callable[[dict[str, Any]], None] | None, payload: dict[str, Any]) -> None:
+    """One line on the serve's service log (ids only, never a secret); a failing log never fails the call."""
+
+    if log is not None:
+        try:
+            log(payload)
+        except Exception:
+            pass
 
 
 def _close_quietly(sock: Any) -> None:

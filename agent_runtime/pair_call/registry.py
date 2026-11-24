@@ -16,7 +16,7 @@ from __future__ import annotations
 import threading
 from typing import Any, Callable
 
-from .call import PairCall
+from .call import PairCall, emit_quietly
 
 __layer__ = "stores"
 
@@ -65,11 +65,11 @@ class CallRegistry:
             self._changed.notify_all()
         call.on_close(self._forget)
         if loser is not None:
-            self._emit({"event": "pair_call_duplicate", "far_install": far, "kept": keep.call_id,
+            emit_quietly(self._log, {"event": "pair_call_duplicate", "far_install": far, "kept": keep.call_id,
                         "closed": loser.call_id})
             loser.close(DUPLICATE_CALL)
         if keep is call:
-            self._emit({"event": "pair_call_up", "far_install": far, "call": call.call_id,
+            emit_quietly(self._log, {"event": "pair_call_up", "far_install": far, "call": call.call_id,
                         "dialer_install": call.dialer_install, "generation": self._generation[far]})
         return keep is call
 
@@ -109,10 +109,3 @@ class CallRegistry:
             if self._calls.get(call.far.install_id) is call:
                 self._calls.pop(call.far.install_id, None)
             self._changed.notify_all()
-
-    def _emit(self, payload: dict[str, Any]) -> None:
-        if self._log is not None:
-            try:
-                self._log(payload)
-            except Exception:
-                pass

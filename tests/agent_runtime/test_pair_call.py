@@ -43,7 +43,7 @@ from agent_runtime.serve_socket.admit import ConnectionAdmitter
 from agent_runtime.serve_socket.server import ServeSocketServer
 from hermes_cli.harness_parts.serve import gateway_listener
 
-from tests.agent_runtime.test_reverse_lane import _phone_root, _rpc, phone  # noqa: F401  (a fixture)
+from tests.agent_runtime.test_reverse_lane import _phone_root, _rpc, phone
 
 WAIT = 20.0
 ROOT_TOKEN = "computer-root-token-" + "b" * 40
@@ -93,7 +93,7 @@ class _Engine:
 
         self.lanes = ReverseLanes(root, call_admitter_factory=lane_admitter, log=self.events.append)
         self.calls = self.lanes.calls
-        hook = lambda admitter, connection, reader, message: handoff(  # noqa: E731
+        hook = lambda admitter, connection, reader, message: handoff(
             self.lanes, admitter, connection, reader, message)
         self.gateway = ServeSocketServer(
             root, boot_id=f"{name}-boot", dispatch_line=lambda line, c: None,
@@ -225,7 +225,7 @@ def test_a_frame_for_another_machine_is_dropped_before_its_namespace_is_read(pai
     low.calls.dial_once(low.way_to(high))
     _one_shared_call(low, high)
     call, client = low.lane_client(high)
-    request = lambda rid: json.dumps({"jsonrpc": "2.0", "id": rid, "method": "test.who"})  # noqa: E731
+    request = lambda rid: json.dumps({"jsonrpc": "2.0", "id": rid, "method": "test.who"})
     far = call.far
     _raw(call, {"lane": client.lane_id, "to": "machine:machine_someone_else/namespace:elsewhere",
                 "install": far.install_id, "line": request("wrong-machine")})

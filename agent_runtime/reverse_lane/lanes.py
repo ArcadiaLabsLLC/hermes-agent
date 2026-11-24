@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import re
 import select
-import socket
 import threading
 import time
 from dataclasses import dataclass, field
@@ -30,6 +29,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..hello_address import hello_address_refusal, install_address
+from ..pair_call.call import _close_quietly
 from ..pair_call.calls import PairCalls
 from ..serve_socket.hello import HelloAuthOutcome
 from ..serve_socket.vocabulary import (
@@ -494,17 +494,6 @@ def _still_open(sock: Any) -> bool:
     except (OSError, ValueError):
         return False
     return not readable
-
-
-def _close_quietly(sock: Any) -> None:
-    try:
-        sock.shutdown(socket.SHUT_RDWR)
-    except Exception:
-        pass
-    try:
-        sock.close()
-    except Exception:
-        pass
 
 
 def _splice(phone: Any, phone_ahead: bytes, owner: Any, owner_ahead: bytes) -> None:
