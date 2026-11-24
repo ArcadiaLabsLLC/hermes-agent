@@ -19,6 +19,8 @@ import pytest
 
 from agent_runtime.address import Kind
 from agent_runtime.call_authorization import (
+    ROUTE_MACHINE_NOT_PROVEN,
+    ROUTE_MACHINE_OUTSIDE_SPEC,
     ROUTE_MACHINE_UNPROVEN,
     RpcCaller,
     caller_for_connection,
@@ -38,17 +40,17 @@ def _connection(key: str = "conn-1", transport: str = "socket", **stamps) -> Sim
 @pytest.mark.parametrize(
     ("connection", "expected"),
     [
-        (_connection(), "machine:unproven/namespace:unproven/local_console/conn-1"),
+        (_connection(), "machine:unproven:not_proven/namespace:unproven/local_console/conn-1"),
         (
             _connection(transport="gateway", device_id="dev_a", device_tier="console"),
-            "machine:unproven/namespace:unproven/device:dev_a/conn-1",
+            "machine:unproven:not_proven/namespace:unproven/device:dev_a/conn-1",
         ),
-        (_connection(transport="gateway", peer_install_id="inst_b"), "machine:unproven/namespace:unproven/peer:inst_b/conn-1"),
+        (_connection(transport="gateway", peer_install_id="inst_b"), "machine:unproven:not_proven/namespace:unproven/peer:inst_b/conn-1"),
         (
             _connection(transport="gateway", computer_id="cmp_c", computer_grant="account"),
-            "machine:unproven/namespace:unproven/computer:cmp_c/conn-1",
+            "machine:unproven:not_proven/namespace:unproven/computer:cmp_c/conn-1",
         ),
-        (_connection(transport="gateway"), "machine:unproven/namespace:unproven/unknown:gateway/conn-1"),
+        (_connection(transport="gateway"), "machine:unproven:not_proven/namespace:unproven/unknown:gateway/conn-1"),
     ],
     ids=["local_console", "device", "peer", "computer", "unknown"],
 )
@@ -83,13 +85,47 @@ def test_route_owner_writes_the_whole_address(stamps, who):
     assert caller_for_connection(None).route_owner() == "stdio"
 
 
-def test_a_caller_that_proves_no_machine_keeps_the_marker():
-    """A channel (the owner's external gateway, no device of yours) is stamped no machine."""
+def test_a_channel_that_proves_no_machine_routes_outside_spec():
+    """A channel (the owner's external gateway, no device of yours) is stamped no machine, and its key
+    says why: outside the spec, not a proof that failed (owner 2026-11-24: "1 maybe they should be
+    unproven reason: outside of spec but still function as usual?").
+
+    MUTATION: drop the channel arm in ``RpcCaller._route_machine`` -> red."""
 
     channel = _connection(transport="gateway", device_id="dev_ch", device_tier="console",
                           device_kind="channel", namespace="base")
     assert caller_for_connection(channel).route_owner() == (
-        f"{ROUTE_MACHINE_UNPROVEN}/namespace:base/device:dev_ch/conn-1")
+        "machine:unproven:outside_spec/namespace:base/device:dev_ch/conn-1")
+    assert ROUTE_MACHINE_OUTSIDE_SPEC.startswith(ROUTE_MACHINE_UNPROVEN + ":")
+    assert ROUTE_MACHINE_NOT_PROVEN.startswith(ROUTE_MACHINE_UNPROVEN + ":")
+
+
+@pytest.mark.parametrize(
+    "stamps",
+    [
+        {"transport": "gateway", "device_id": "dev_d", "device_tier": "console", "device_kind": "device"},
+        {},
+    ],
+    ids=["gateway_device", "local_console"],
+)
+def test_a_caller_that_should_prove_a_machine_and_did_not_routes_not_proven(stamps):
+    """MUTATION: answer ``ROUTE_MACHINE_OUTSIDE_SPEC`` for every machine-less caller -> red."""
+
+    owner = caller_for_connection(_connection(namespace="base", **stamps)).route_owner()
+    assert owner.startswith("machine:unproven:not_proven/namespace:base/"), owner
+
+
+def test_a_gateway_device_that_is_not_a_channel_is_never_outside_spec():
+    """The channel is read off the row's kind, never the transport.
+
+    MUTATION: read the channel off ``transport == "gateway"`` in ``_route_machine`` -> red."""
+
+    for kind in ("device", None):
+        device = _connection(transport="gateway", device_id="dev_e", device_tier="console", device_kind=kind)
+        assert caller_for_connection(device).route_owner().startswith(ROUTE_MACHINE_NOT_PROVEN + "/"), kind
+    stamped = _connection(transport="gateway", device_id="dev_ch", device_tier="console",
+                          device_kind="channel", machine_id="mach_row", namespace="base")
+    assert caller_for_connection(stamped).route_owner() == "machine:mach_row/namespace:base/device:dev_ch/conn-1"
 
 
 def test_a_device_and_the_local_app_on_one_number_get_two_route_owners():
@@ -131,7 +167,7 @@ def test_a_cached_sink_for_another_connection_is_never_handed_out_and_the_mismat
     assert lanes.connection_sinks[owner] is sink
     [record] = [item for item in lanes.logged if item["event"] == "serve_reply_route_mismatch"]
     assert record["asking_owner"] == owner
-    assert record["cached_owner"] == "machine:unproven/namespace:unproven/device:dev_a/conn-1"
+    assert record["cached_owner"] == "machine:unproven:not_proven/namespace:unproven/device:dev_a/conn-1"
     assert record["cached"]["device_id"] == "dev_a"
     assert "token" not in repr(record)
     # The connection's own sink is stable and logs nothing more.
@@ -145,8 +181,8 @@ def test_the_sink_cache_is_filed_under_the_route_owner():
     local = _connection()
     assert lanes._sink_for(phone) is not lanes._sink_for(local)
     assert set(lanes.connection_sinks) == {
-        "machine:unproven/namespace:unproven/device:dev_a/conn-1",
-        "machine:unproven/namespace:unproven/local_console/conn-1",
+        "machine:unproven:not_proven/namespace:unproven/device:dev_a/conn-1",
+        "machine:unproven:not_proven/namespace:unproven/local_console/conn-1",
     }
 
 

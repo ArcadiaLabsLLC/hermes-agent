@@ -549,7 +549,12 @@ class RpcCaller:
         ``RT-ACCOUNT-ONLY-A-CONNECTION-FROM-ANOTHER-MACHINE-THAN-THE-ONE-YOUR-DEVICE-PAIRED-WITH-IS-DROPPED-FIRST``):
         the hello was refused unless it named that machine, so the row's value is the proven one. A
         caller that proves none keeps the explicit :data:`ROUTE_MACHINE_UNPROVEN` marker: never a
-        guess, never a value the request carries. The kind and the id the
+        guess, never a value the request carries. The marker carries the REASON as a third word
+        (owner 2026-11-24: "1 maybe they should be unproven reason: outside of spec but still function
+        as usual?"): a ``channel`` row, the owner's external messaging gateway that the machine check
+        exempts, routes :data:`ROUTE_MACHINE_OUTSIDE_SPEC`; any other caller no handshake stamped a
+        machine on routes :data:`ROUTE_MACHINE_NOT_PROVEN` (:meth:`_route_machine`). The channel's
+        calls are untouched: only the key names why. The kind and the id the
         transport proved (``device_id``, ``peer_install_id``, ``computer_id``) follow it; no new
         address kind is added for them (owner 2026-11-23: "No, keep it out"). The stdio owner has no
         connection and keeps ``stdio``.
@@ -563,10 +568,22 @@ class RpcCaller:
             who = f"{self.kind}:{getattr(self, _ROUTE_PROVEN_ID[self.kind])}"
         else:
             who = f"{CALLER_UNKNOWN}:{self.transport}"
-        machine = f"{ROUTE_MACHINE_KIND}:{self.machine_id}" if self.machine_id else ROUTE_MACHINE_UNPROVEN
         # MUTATION: drop the namespace segment and test_route_owner_writes_the_whole_address reddens.
         namespace = f"{ROUTE_NAMESPACE_KIND}:{self.namespace}" if self.namespace else ROUTE_NAMESPACE_UNPROVEN
-        return f"{machine}/{namespace}/{who}/{self.connection_key}"
+        return f"{self._route_machine()}/{namespace}/{who}/{self.connection_key}"
+
+    def _route_machine(self) -> str:
+        """The machine segment of :meth:`route_owner`: the proven machine, else why there is none.
+
+        The channel is read off the row's kind (trust), never off the transport or a frame.
+        """
+
+        if self.machine_id:
+            return f"{ROUTE_MACHINE_KIND}:{self.machine_id}"
+        # MUTATION: drop this arm and test_a_channel_that_proves_no_machine_routes_outside_spec reddens.
+        if self.device_kind == DEVICE_KIND_CHANNEL:
+            return ROUTE_MACHINE_OUTSIDE_SPEC
+        return ROUTE_MACHINE_NOT_PROVEN
 
 
 #: The field holding the id each stamped caller kind's transport PROVED (:func:`caller_for_connection`).
@@ -583,6 +600,11 @@ ROUTE_OWNER_STDIO = "stdio"
 #: minted machine id, which always opens with ``machine_identity.MACHINE_ID_PREFIX``.
 ROUTE_MACHINE_KIND = "machine"
 ROUTE_MACHINE_UNPROVEN = f"{ROUTE_MACHINE_KIND}:unproven"
+#: The two reasons :meth:`RpcCaller.route_owner` writes after the shared :data:`ROUTE_MACHINE_UNPROVEN`
+#: prefix: a ``channel`` sits outside the machine spec by design and works as usual; anything else
+#: that proves no machine simply did not prove one.
+ROUTE_MACHINE_OUTSIDE_SPEC = f"{ROUTE_MACHINE_UNPROVEN}:outside_spec"
+ROUTE_MACHINE_NOT_PROVEN = f"{ROUTE_MACHINE_UNPROVEN}:not_proven"
 #: ``agent_runtime.address.Kind.NAMESPACE``, spelled here for the same reason. The marker is for a
 #: caller no handshake stamped; ``unproven`` is neither an ``acct-`` stamp nor ``base``.
 ROUTE_NAMESPACE_KIND = "namespace"

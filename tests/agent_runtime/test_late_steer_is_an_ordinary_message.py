@@ -55,8 +55,8 @@ LATE_TURN = "steer-next-" + STEER_ID
 STEER_TEXT = "also water the roses"
 #: Each sender's origin carries its ROUTING key (``RpcCaller.route_owner``), the one the serve files
 #: its connection's sink under; ``_SENDERS`` holds the connection that proves it.
-DESK = {"owner": "machine:unproven/namespace:unproven/local_console/desk-1", "gateway": False}
-PHONE = {"owner": "machine:unproven/namespace:unproven/device:dev-phone/phone-1", "gateway": True}
+DESK = {"owner": "machine:unproven:not_proven/namespace:unproven/local_console/desk-1", "gateway": False}
+PHONE = {"owner": "machine:unproven:not_proven/namespace:unproven/device:dev-phone/phone-1", "gateway": True}
 _SENDERS = {
     DESK["owner"]: {"key": "desk-1", "transport": "local"},
     PHONE["owner"]: {"key": "phone-1", "transport": GATEWAY_TRANSPORT, "device_id": "dev-phone",
