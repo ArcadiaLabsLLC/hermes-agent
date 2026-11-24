@@ -19,6 +19,7 @@ from ..models import Event
 from ..patch_coverage import COVERED_DOMAIN_EVENT_TYPES, normalize_fold_entities
 from ..builds.vocabulary import BUILD_RUNNING_WORK_EVENT_TYPES, EVENT_BUILD_LIVENESS_CHANGED
 from ..running_work import build_running_work
+from ..running_work.approval_presence import APPROVAL_PRESENCE_EVENT_TYPES
 from ..running_work.process_presence import PROCESS_PRESENCE_EVENT_TYPES
 from ..serde import optional_text, section_rows, to_jsonable
 from ..snapshot.build import build_snapshot
@@ -169,9 +170,11 @@ def heartbeat_frame(
 
 #: The events that move a ``running_work`` row's presence: a chat turn's pair
 #: (``chat_turn_presence``), a terminal process's pair (``running_work.process_presence``,
-#: plan p10-turn §2 S3) and the build sweep's ending and liveness change (``builds.sweep``).
+#: plan p10-turn §2 S3), the build sweep's ending and liveness change (``builds.sweep``)
+#: and a chat's approval raised or settled (``running_work.approval_presence``).
 _RUNNING_WORK_PRESENCE_EVENT_TYPES = frozenset(
-    {EVENT_TURN_STARTED, EVENT_TURN_ENDED, *PROCESS_PRESENCE_EVENT_TYPES, *BUILD_RUNNING_WORK_EVENT_TYPES}
+    {EVENT_TURN_STARTED, EVENT_TURN_ENDED, *PROCESS_PRESENCE_EVENT_TYPES, *BUILD_RUNNING_WORK_EVENT_TYPES,
+     *APPROVAL_PRESENCE_EVENT_TYPES}
 )
 
 
@@ -192,6 +195,9 @@ def _is_running_work_event(event: Event) -> bool:
     event_type = getattr(event, "type", None)
     if event_type in PROCESS_PRESENCE_EVENT_TYPES or event_type == EVENT_BUILD_LIVENESS_CHANGED:
         return True  # ``build.ended`` is not here: the core carries it as a notice too
+    # MUTATION: drop this arm and test_an_approval_only_batch_ships_the_running_work_section reddens.
+    if event_type in APPROVAL_PRESENCE_EVENT_TYPES:
+        return True
     payload = event.payload if isinstance(event.payload, dict) else {}
     return (
         event_type == EVENT_STATE_RECONCILED
@@ -306,10 +312,13 @@ _TURN_TRACE_EVENT_TYPES = frozenset(
     {EVENT_RUN_PROGRESS, "run.tool.started", "run.tool.finished"}
 )
 #: The turn's auto-title (``chat_events._publish_persona_chat_metadata_event``):
-#: it moves the root's title, which the root's history row and channel carry.
-#: Only this ``change_kind``: a future kind is not known to stay inside the row.
+#: it moves the root's title, which the root's history row and channel carry; and
+#: a dismissed question (``chat_verbs.clarify_dismiss``): it clears the root's
+#: history row's ``clarify_token`` and its waiting pin. Only these ``change_kind``s:
+#: a future kind is not known to stay inside the row.
 _TURN_METADATA_EVENT_TYPE = "persona_chat.metadata_updated"
-_TURN_METADATA_CHANGE_KINDS = frozenset({"auto_title_updated"})
+# MUTATION: drop "clarify_dismissed" and test_a_dismissed_question_rides_its_chats_overlay reddens.
+_TURN_METADATA_CHANGE_KINDS = frozenset({"auto_title_updated", "clarify_dismissed"})
 
 #: The watchdog's ``state.reconciled`` ``source`` (``session.StreamSession.beat``).
 WATCHDOG_SOURCE = "stream_watchdog"
@@ -333,6 +342,9 @@ def _turn_event_roots(event: Event) -> tuple[str, ...] | None:
 
     event_type = getattr(event, "type", None)
     payload = event.payload if isinstance(event.payload, dict) else {}
+    if event_type in APPROVAL_PRESENCE_EVENT_TYPES:
+        # It moves only ``running_work``, which the overlay ships whole: carried by the batch's roots.
+        return ()
     if event_type in _TURN_PUBLISH_EVENT_TYPES:
         root = optional_text(payload.get("root_chat_session_id"))
         return (root,) if root else None

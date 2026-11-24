@@ -38,6 +38,35 @@ def _refusal(error_kind: str, error: str, **fields: Any) -> dict:
             "error": error, **fields}
 
 
+#: The ``persona_chat.metadata_updated`` change a dismissal appends. It moves only the chat's own
+#: history row (its ``clarify_token`` clears, and its waiting-question pin with it), so the stream
+#: ships it as that root's ``persona_chat_turn`` overlay (``stream.frames._TURN_METADATA_CHANGE_KINDS``).
+CHANGE_KIND_CLARIFY_DISMISSED = "clarify_dismissed"
+
+
+def _publish_question_dismissed(session: str, record: dict) -> bool:
+    """Tell the stream the chat stopped waiting, so the agent list's row clears in place
+    (RT-FU-THE-AGENT-LIST-SAYS-WHICH-CHATS-WAIT-FOR-YOUR-ANSWER). Fail-safe: the dismissal is
+    already durable; a lost notice leaves the flag until the next turn or core."""
+    from hermes_time import now
+
+    from ..events import EventLog
+    from ..models import Event
+
+    try:
+        EventLog().append(Event(
+            type="persona_chat.metadata_updated", task_id=None, run_id=None,
+            persona_id=record.get("persona_id") or None, ts=now(),
+            payload={"persona_instance_id": record.get("persona_instance_id"), "root_chat_session_id": session,
+                     "change_kind": CHANGE_KIND_CLARIFY_DISMISSED},
+            session_id=session,
+        ))
+    except Exception:
+        logger.warning("clarify_dismiss: the stream notice for %s was not appended", session, exc_info=True)
+        return False
+    return True
+
+
 def dismiss_clarify_question(*, session_id: Any, clarify_token: Any, client_scope: Any = None) -> dict:
     """The verb's row. Refusals (``error_kind``): ``invalid_request``, ``foreign_chat_session``
     (the ticket belongs to another chat, or the chat to another ``client_scope``),
@@ -69,6 +98,8 @@ def dismiss_clarify_question(*, session_id: Any, clarify_token: Any, client_scop
         return _refusal(ChatErrorKind.FOREIGN_CHAT_SESSION, "this question was asked in another chat",
                         session_id=session, clarify_token=token)
     logger.info("clarify_dismiss session=%s token=%s outcome=%s", session, token, outcome)
+    if outcome == "dismissed":
+        _publish_question_dismissed(session, record or {})
     return {
         "ok": True,
         "capability_id": CLARIFY_DISMISS_CAPABILITY,

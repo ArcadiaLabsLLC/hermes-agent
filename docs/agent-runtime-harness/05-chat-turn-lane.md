@@ -76,7 +76,10 @@ ticket `dismissed` where it records `answered`, so `clarify_waiting` stops namin
 it, and leaves one note the chat's next turn reads on its volatile tail
 (`clarify_dismissed`, consumed by that read). An already-settled or unknown ticket
 answers `ok` with its `outcome`; a ticket of another chat is `foreign_chat_session`.
-Controls are in `tests/agent_runtime/test_clarify_dismiss.py`.
+A dismissal appends `persona_chat.metadata_updated` (`change_kind: clarify_dismissed`), so the
+chat's row in the agent list clears its `clarify_token` in place (doc 03, `persona_chat_turn`).
+Controls are in `tests/agent_runtime/test_clarify_dismiss.py` and
+`tests/agent_runtime/test_agent_list_pushes_waits_and_approvals.py`.
 
 `agent_runtime/operator_message.py::normalize_operator_message` is the admission
 policy for RPC, CLI and steering: nonempty text up to 64,000 Unicode characters,

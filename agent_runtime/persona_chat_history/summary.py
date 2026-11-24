@@ -32,7 +32,9 @@ __layer__ = "lanes"
 __all__ = [
     "Candidate",
     "HistorySummary",
+    "LiveChats",
     "live_chat_roots",
+    "live_chats",
     "persona_chat_frame_history",
     "persona_chat_history_summary",
 ]
@@ -44,28 +46,56 @@ def persona_chat_frame_history(*, timings: dict[str, int] | None = None, **kwarg
     The ONE call the core (``snapshot.sections``) and the ``persona_chat_turn`` overlay
     (``turn_section_read``) make, so the overlay's ``omitted`` / ``evicted_roots`` are the
     core's bound by construction (owner ruling 2026-11-22, lane w1122f-agentlist).
+
+    Every row carries ``clarify_token``: the chat's waiting question's token, or ``None``
+    (RT-FU-THE-AGENT-LIST-SAYS-WHICH-CHATS-WAIT-FOR-YOUR-ANSWER). A chat with a waiting question
+    is always pinned, so a chat absent from the frame waits for nothing, and Eternia's chat list
+    reads the flag here instead of one ``conversation.read`` per chat. Titles only still holds:
+    the token, never the question.
     """
 
     started = time.perf_counter()
-    pinned = live_chat_roots()
+    live = live_chats()
     if timings is not None:
         # The split receipt's ``pins_ms``: the live-chat reads, apart from the store read.
         timings["pins_ms"] = int((time.perf_counter() - started) * 1000)
     # Titles only (owner ruling 2026-11-23): the frame's rows carry no transcript, so neither the
     # core nor a turn's overlay reads one (RT-FU-EVERY-NEKO-REPLY-RE-READS-THE-WHOLE-LIVE-CHAT-BEFORE-ETERNIA-SHOWS-IT).
-    return persona_chat_history_summary(
-        limit=FRAME_RECENT_CHATS, pinned_session_ids=pinned, keep_every_pin=True, transcript=False, **kwargs)
+    rows = persona_chat_history_summary(
+        limit=FRAME_RECENT_CHATS, pinned_session_ids=live.roots, keep_every_pin=True, transcript=False, **kwargs)
+    for row in rows:
+        if isinstance(row, dict):
+            # MUTATION: stamp ``None`` here and test_a_waiting_question_puts_its_token_on_its_chats_row reddens.
+            row["clarify_token"] = live.waiting.get(str(row.get("session_id") or ""))
+    return rows
+
+
+@dataclass(frozen=True)
+class LiveChats:
+    """What :func:`live_chats` read: the pinned roots and each waiting question's token by chat."""
+
+    roots: frozenset[str]
+    waiting: dict[str, str]
 
 
 def live_chat_roots() -> frozenset[str]:
+    """The chats that must stay in the frame however old (:func:`live_chats`)."""
+
+    return live_chats().roots
+
+
+def live_chats() -> LiveChats:
     """Chats that must stay in the frame however old: a turn in flight, or a question waiting.
 
     A turn in flight: any journal record in an in-flight state (``inflight_chat_session_roots``).
     A waiting question: an open clarify ticket whose question the agent has not moved past
-    (``clarify_waiting``). Each read fails open to "none" — a pin is a promotion, never a gate.
+    (``clarify_waiting``); its token is kept by chat (the newest ticket's when a chat holds two,
+    as ``open_ticket_for_session`` picks). Each read fails open to "none" — a pin is a promotion,
+    never a gate.
     """
 
     roots: set[str] = set()
+    waiting: dict[str, tuple[float, str]] = {}
     try:
         from ..mission_chat_turns.reads import inflight_chat_session_roots
 
@@ -84,9 +114,13 @@ def live_chat_roots() -> frozenset[str]:
             # test_an_old_chat_with_a_waiting_question_stays_in_the_frame reddens.
             if session_id and record.get("state") == CLARIFY_TICKET_OPEN and not clarify_question_moved_past(record):
                 roots.add(session_id)
+                token = str(record.get("clarify_token") or "")
+                created = float(record.get("created_at") or 0.0)
+                if token and (session_id not in waiting or created > waiting[session_id][0]):
+                    waiting[session_id] = (created, token)
     except Exception:
         pass
-    return frozenset(roots)
+    return LiveChats(frozenset(roots), {session: token for session, (_at, token) in waiting.items()})
 
 
 def persona_chat_history_summary(

@@ -227,6 +227,11 @@ _EVENT_CONTRACTS: dict[str, EventContract] = {
     # batch of only these rides the ``running_work`` section frame.
     "running_work.process_started": EventContract("running_work.process_started", "Background process started", ("process_session_id", "work_id", "pid", "command", "owner_task_id", "started_at"), ()),
     "running_work.process_ended": EventContract("running_work.process_ended", "Background process left the running set", ("process_session_id", "work_id", "pid", "command", "owner_task_id", "started_at", "exit_code", "completion_reason"), ()),
+    # RT-FU-A-PENDING-APPROVAL-ARRIVES-AS-AN-UPDATE: a chat's approval was raised / left the
+    # gateway queue. Emitter: ``agent_runtime.running_work.approval_presence``. A batch of only
+    # these rides the ``running_work`` section frame (``pending_approvals``).
+    "running_work.approval_raised": EventContract("running_work.approval_raised", "Chat approval raised", ("root_chat_session_id", "approval_id"), ()),
+    "running_work.approval_settled": EventContract("running_work.approval_settled", "Chat approval left the pending set", ("root_chat_session_id", "approval_id", "reason"), ()),
     # The refusal counter-record (2026-08-09). Every durable write a mission-chat
     # turn performs lives inside the chat-root lease, so a send REFUSED on the
     # way to that lease wrote nothing at all — the investigation went looking for

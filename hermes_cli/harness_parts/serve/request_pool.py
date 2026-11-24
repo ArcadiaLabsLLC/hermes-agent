@@ -65,7 +65,7 @@ STREAM_LANE_WORKERS = 32
 READ_LANE_WORKERS = 4
 #: A shared-lane wait or run at least this long is logged (:data:`SHARED_LANE_SLOW_RECEIPT`).
 SHARED_LANE_SLOW_MS = 1000
-SHARED_LANE_SLOW_RECEIPT = "shared_lane_slow lane=%s label=%s queue_ms=%d run_ms=%d busy_at_submit=%d"
+SHARED_LANE_SLOW_RECEIPT = "shared_lane_slow lane=%s label=%s queue_ms=%d run_ms=%d busy_at_submit=%d origin=%s"
 #: Turn first (owner 2026-11-23, lane w1123q-replytimings): a shared- or read-lane job that would
 #: START while a chat turn is between its accept and its ``request_sent`` waits for that turn's
 #: request to leave, at most this long. Read live on the owner's serve: a Home turn's own work was
@@ -76,7 +76,7 @@ SHARED_LANE_SLOW_RECEIPT = "shared_lane_slow lane=%s label=%s queue_ms=%d run_ms
 TURN_PREP_HOLD_MAX_S = 2.0
 _TURN_PREP_POLL_S = 0.025
 #: One line per held job (``held_ms`` >= :data:`TURN_PREP_HOLD_RECEIPT_MS`).
-TURN_PREP_HOLD_RECEIPT = "lane_held_for_turn lane=%s label=%s held_ms=%d"
+TURN_PREP_HOLD_RECEIPT = "lane_held_for_turn lane=%s label=%s held_ms=%d origin=%s"
 TURN_PREP_HOLD_RECEIPT_MS = 50
 #: The typed refusal a 33rd standing stream gets (never a silent queue behind 32 infinite ones).
 STREAM_LANE_FULL = "stream_lane_full"
@@ -86,6 +86,59 @@ class StreamLaneFull(RuntimeError):
     """The standing-stream lane already runs :data:`STREAM_LANE_WORKERS` streams."""
 
     code = STREAM_LANE_FULL
+
+
+#: The rollup's window: one ``lane_rollup`` line per lane per this many seconds of traffic.
+LANE_ROLLUP_WINDOW_S = 60.0
+#: How many methods and origins a rollup line names (the busiest; the rest are counted in the totals).
+LANE_ROLLUP_TOP = 8
+LANE_ROLLUP_RECEIPT = (
+    "lane_rollup lane=%s window_s=%d requests=%d queue_ms=%d run_ms=%d max_queue_ms=%d methods=%s origins=%s"
+)
+
+
+class LaneRollup:
+    """Every shared- and read-lane job, counted (RT-FU-EVERY-REQUEST-SAYS-WHO-IN-ETERNIA-ASKED-AND-HOW-LONG-IT-WAITED).
+
+    ``shared_lane_slow`` names only the jobs that waited or ran a second; this counts all of them:
+    per lane, requests by method and by origin, and the queued and run totals. A lane's window
+    closes at the first job that ends :data:`LANE_ROLLUP_WINDOW_S` after the window opened, which
+    logs ONE :data:`LANE_ROLLUP_RECEIPT` line for it — no timer thread, no line for an idle lane,
+    no line per request. A record is two dict increments under one lock."""
+
+    def __init__(self, window_s: float = LANE_ROLLUP_WINDOW_S) -> None:
+        self.window_s = float(window_s)
+        self._lock = threading.Lock()
+        self._windows: dict[str, dict[str, Any]] = {}
+
+    def record(self, lane: str, label: str, origin: str, queue_ms: int, run_ms: int, *, now: float) -> None:
+        with self._lock:
+            window = self._windows.get(lane)
+            if window is None:
+                window = self._windows[lane] = _open_window(now)
+            window["requests"] += 1
+            window["queue_ms"] += queue_ms
+            window["run_ms"] += run_ms
+            window["max_queue_ms"] = max(window["max_queue_ms"], queue_ms)
+            window["methods"][label] = window["methods"].get(label, 0) + 1
+            window["origins"][origin] = window["origins"].get(origin, 0) + 1
+            if now - window["opened"] < self.window_s:
+                return
+            self._windows[lane] = _open_window(now)
+        logger.info(LANE_ROLLUP_RECEIPT, lane, int(round(now - window["opened"])), window["requests"],
+                    window["queue_ms"], window["run_ms"], window["max_queue_ms"],
+                    _top(window["methods"]), _top(window["origins"]))
+
+
+def _open_window(now: float) -> dict[str, Any]:
+    return {"opened": now, "requests": 0, "queue_ms": 0, "run_ms": 0, "max_queue_ms": 0, "methods": {}, "origins": {}}
+
+
+def _top(counts: dict[str, int]) -> str:
+    """``name:count`` of the busiest :data:`LANE_ROLLUP_TOP`, comma-joined (``-`` when none)."""
+
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:LANE_ROLLUP_TOP]
+    return ",".join(f"{name}:{count}" for name, count in ranked) or "-"
 
 
 class RequestPool:
@@ -104,25 +157,27 @@ class RequestPool:
         self.reads = ThreadPoolExecutor(max_workers=READ_LANE_WORKERS, thread_name_prefix="harness-serve-read")
         self._shared_lock = threading.Lock()
         self._running = {"shared": 0, "read": 0}
+        #: Every shared- and read-lane job counted, one line per lane per minute (``lane_rollup``).
+        self.rollup = LaneRollup()
 
-    def submit(self, fn: Callable[..., Any], *args: Any, label: str = "-") -> Future:
+    def submit(self, fn: Callable[..., Any], *args: Any, label: str = "-", origin: str = "-") -> Future:
         """Work on the shared lane, timed: a wait or a run past :data:`SHARED_LANE_SLOW_MS` logs
         ``shared_lane_slow`` (its label, queue_ms, run_ms and the workers busy when it was
         submitted), so a deferred reply the client gave up on (``rpc_timeout``) names what held
         the lane (lane w1123k-chatissues)."""
 
-        return self._timed_submit(self.shared, "shared", fn, args, label)
+        return self._timed_submit(self.shared, "shared", fn, args, label, origin)
 
-    def submit_read(self, fn: Callable[..., Any], *args: Any, label: str = "-") -> Future:
+    def submit_read(self, fn: Callable[..., Any], *args: Any, label: str = "-", origin: str = "-") -> Future:
         """A bounded read a person waits on (``serve_rpc.protocol.defer_read``: the chat list, a
         console inspection, history recovery) on the read lane (:data:`READ_LANE_WORKERS`), which no
         argv request or turn ever takes, so work parked on a busy chat cannot starve it. Timed like
         :meth:`submit` (``lane=read``)."""
 
-        return self._timed_submit(self.reads, "read", fn, args, label)
+        return self._timed_submit(self.reads, "read", fn, args, label, origin)
 
     def _timed_submit(self, lane: ThreadPoolExecutor, name: str, fn: Callable[..., Any],
-                      args: tuple[Any, ...], label: str) -> Future:
+                      args: tuple[Any, ...], label: str, origin: str = "-") -> Future:
         submitted = time.monotonic()
         with self._shared_lock:
             busy = self._running[name]
@@ -132,7 +187,7 @@ class RequestPool:
 
         def _timed() -> Any:
             if not own_turn:
-                _hold_for_turn_prep(name, label)
+                _hold_for_turn_prep(name, label, origin)
             started = time.monotonic()
             with self._shared_lock:
                 self._running[name] += 1
@@ -147,7 +202,9 @@ class RequestPool:
                 # MUTATION: drop this receipt and
                 # test_a_reply_queued_behind_busy_workers_names_its_wait reddens.
                 if queue_ms >= SHARED_LANE_SLOW_MS or run_ms >= SHARED_LANE_SLOW_MS:
-                    logger.info(SHARED_LANE_SLOW_RECEIPT, name, label, queue_ms, run_ms, busy)
+                    logger.info(SHARED_LANE_SLOW_RECEIPT, name, label, queue_ms, run_ms, busy, origin)
+                # MUTATION: drop this record and test_the_rollup_counts_every_request reddens.
+                self.rollup.record(name, label, origin, queue_ms, run_ms, now=ended)
 
         return lane.submit(_timed)
 
@@ -192,7 +249,7 @@ class RequestPool:
                 lane.shutdown(wait=True)
 
 
-def _hold_for_turn_prep(lane: str, label: str) -> int:
+def _hold_for_turn_prep(lane: str, label: str, origin: str = "-") -> int:
     """Wait while any chat turn is before its ``request_sent`` (:data:`TURN_PREP_HOLD_MAX_S` at most).
 
     "Before its request_sent" is the two existing authorities: a turn ACCEPTED and not yet anchored
@@ -210,7 +267,7 @@ def _hold_for_turn_prep(lane: str, label: str) -> int:
         time.sleep(_TURN_PREP_POLL_S)
     held_ms = int((time.monotonic() - started) * 1000)
     if held_ms >= TURN_PREP_HOLD_RECEIPT_MS:
-        logger.info(TURN_PREP_HOLD_RECEIPT, lane, label, held_ms)
+        logger.info(TURN_PREP_HOLD_RECEIPT, lane, label, held_ms, origin)
     return held_ms
 
 

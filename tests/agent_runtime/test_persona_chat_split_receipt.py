@@ -116,7 +116,7 @@ def test_slow_pin_reads_land_on_the_pins_number(isolate_agent_runtime_root):
 
     from agent_runtime.persona_chat_history import summary as history_summary
 
-    real = history_summary.live_chat_roots
+    real = history_summary.live_chats
     with pytest.MonkeyPatch.context() as mp:
         clock = _controlled_clock(mp)
 
@@ -124,7 +124,7 @@ def test_slow_pin_reads_land_on_the_pins_number(isolate_agent_runtime_root):
             clock[0] += _INJECTED_DELAY_SECONDS
             return real()
 
-        mp.setattr(history_summary, "live_chat_roots", slow)
+        mp.setattr(history_summary, "live_chats", slow)
         history, trace, channels, pins = _build_and_split(mp, pins=True)
 
     assert pins >= _INJECTED_DELAY_MS * 0.8, (history, trace, channels, pins)

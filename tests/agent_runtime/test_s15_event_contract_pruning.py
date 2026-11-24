@@ -284,7 +284,11 @@ REMOVED_EVENT_TYPES = frozenset(
 # 78 (lane rt-chat-rebind, 2026-11-20, RT-A-SAVED-CHAT-CAN-MOVE-TO-ANOTHER-INSTANCE-OF-ITS-AGENT):
 # ``persona_instance.chat_moved``, a saved chat moved to another instance of its agent
 # (``agent_runtime.persona_chat_move.move_chat``). Red at 77 on that commit and moved deliberately.
-SURVIVING_EVENT_COUNT = 78
+# 80 (lane w1124b-hermespush, 2026-11-24, RT-FU-A-PENDING-APPROVAL-ARRIVES-AS-AN-UPDATE):
+# ``running_work.approval_raised`` / ``running_work.approval_settled``, a chat's approval entering /
+# leaving the gateway queue (``agent_runtime.running_work.approval_presence``). Red at 78 on that
+# commit and moved deliberately.
+SURVIVING_EVENT_COUNT = 80
 
 
 def test_the_unemittable_event_types_are_no_longer_registered():

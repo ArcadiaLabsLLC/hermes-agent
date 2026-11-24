@@ -93,7 +93,10 @@ def test_snapshot_carries_the_running_work_section(isolate_agent_runtime_root) -
     # machine-local context, given its own block so it can never again be
     # concatenated into a lane's ``detail`` — which is how the producer came to
     # emit different bytes for identical work depending on import order.
-    assert set(section) == {"rows", "sources", "counts", "ambient"}
+    # ``pending_approvals`` (RT-FU-A-PENDING-APPROVAL-ARRIVES-AS-AN-UPDATE) is each chat's waiting
+    # approval, pushed so Eternia stops polling ``conversation.approvals``.
+    assert set(section) == {"rows", "sources", "counts", "ambient", "pending_approvals"}
+    assert section["pending_approvals"] == []
     assert set(section["ambient"]) == {"home_provenance", "home_name"}
     assert isinstance(section["rows"], list)
     assert set(section["sources"]) == {

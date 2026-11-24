@@ -295,6 +295,12 @@ def deferred_reply(
 
     #: Read by the shared lane's ``shared_lane_slow`` receipt (lane w1123k-chatissues).
     _run.method_name = method_name
+    #: The request's origin token, for the same receipts and the lane rollup
+    #: (RT-FU-EVERY-REQUEST-SAYS-WHO-IN-ETERNIA-ASKED-AND-HOW-LONG-IT-WAITED).
+    from .request_origin import current_origin
+
+    # MUTATION: stamp NO_ORIGIN here and test_a_deferred_reply_names_its_origin_on_its_slow_line reddens.
+    _run.origin = current_origin()
     return _run
 
 

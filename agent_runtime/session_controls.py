@@ -2,7 +2,8 @@
 
 Approvals off-desktop (p10-messaging §2.5, M4): :data:`approval_notifiers` maps a chat root to the
 callable a surface renders a pending approval with (the messaging bridge's approval cards). The
-launcher keeps POLLING the queue; a notifier only adds a second place the same approval shows, and
+launcher reads the queue off the agent list's ``running_work`` section (``running_work.approval_presence``);
+a notifier only adds a second place the same approval shows, and
 both answer through ``operator_session_controls.respond_operator_approval``. Pinned by
 ``tests/agent_runtime/messaging/test_approval_cards.py``.
 """
@@ -49,7 +50,15 @@ def _notify_root(session_id: str, data: dict) -> None:
     Every turn of a chat root runs in the serve — a dispatched helper's too, since 2026-11-21 (row
     ``RT-AGENT-DISPATCH-RUNS-AS-A-NATIVE-TURN-IN-THE-SAME-HERMES``) — so the serve's own queue holds
     every request; the file relay that carried a dispatch child's requests (``approval_relay``)
-    retired with the child."""
+    retired with the child.
+
+    First, the stream is told (``running_work.approval_presence``): the approval rides the agent
+    list's ``running_work`` section, so Eternia shows it without polling
+    (RT-FU-A-PENDING-APPROVAL-ARRIVES-AS-AN-UPDATE)."""
+    from .running_work.approval_presence import approval_raised
+
+    # MUTATION: drop this call and test_a_turns_approval_reaches_the_running_work_section reddens.
+    approval_raised(session_id, data)
     with _notifiers_lock:
         cb = approval_notifiers.get(session_id)
     if cb is None:

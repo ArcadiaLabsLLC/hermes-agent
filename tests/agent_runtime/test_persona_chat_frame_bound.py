@@ -185,5 +185,6 @@ def test_the_frame_reads_one_recent_page_and_its_pins_by_id(isolate_agent_runtim
         for row in persona_chat_history_summary(persona_instances=instances, session_db=db, limit=100, transcript=False)
     }
     for row in kept:
-        assert row == full[row["session_id"]], row["session_id"]
+        # The frame's own field beside the summary's (``clarify_token``, the waiting question's token).
+        assert {key: value for key, value in row.items() if key != "clarify_token"} == full[row["session_id"]], row["session_id"]
     assert accountant.summary()["reasons"].get("limit") == 60 - len(kept)

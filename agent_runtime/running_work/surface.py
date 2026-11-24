@@ -16,6 +16,7 @@ from .lanes_messaging import _collect_messaging_turns
 from .lanes_schedule import _collect_scheduled_turns
 from ..builds.registry import BuildLogRefused, build_log_tail
 from ..builds.vocabulary import SOURCE_AGENT, SOURCE_ANNOUNCED, TAIL_SOURCE_TERMINAL
+from .approval_presence import pending_approvals
 from .ended import is_ended
 from .ownership import _ambient_context
 from .rows import _module, bounded_operator_text, _source, _strip_ansi
@@ -88,6 +89,8 @@ def build_running_work(
         "sources": sources,
         "counts": counts,
         "ambient": _ambient_context(),
+        # Each pending approval of this process's chats (RT-FU-A-PENDING-APPROVAL-ARRIVES-AS-AN-UPDATE).
+        "pending_approvals": pending_approvals(),
     }
 
 

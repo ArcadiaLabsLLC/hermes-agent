@@ -12,6 +12,15 @@ and parses them through its real decode + read-model pipeline
 split is structural, not an oversight, and the script names both halves
 (`GENERATED_FRAME_FILES` / `PINNED_ONLY_FILES`).
 
+> **CROSS-STACK COPY STATUS (w1124b-hermespush, 2026-11-24) — launcher copy landed with this change, bytes and a parse.**
+> The `running_work` section carries `pending_approvals` (row `RT-FU-A-PENDING-APPROVAL-ARRIVES-AS-AN-UPDATE`), empty
+> in every golden, and the decision-contract hash moved for the two `running_work.approval_*` events. Regenerated
+> `delta.json`, `delta_agent_create_narrow_profile.json`, `delta_batch.json`, `hydrate.json`,
+> `hydrate_authoritative_same_offset.json`, `hydrate_running_work_owner.json`, `hydrate_stale_first.json`,
+> `persona_chat_turn.json`, `running_work.json` and `MANIFEST.sha256`, mirrored in Eternia's
+> `test/fixtures/harness_stream/` in the same change; Eternia parses the key (`HarnessRunningWork.pendingApprovals`).
+> The frame's chat rows also carry `clarify_token`; no golden holds a chat row, so no byte shows it.
+
 > **CROSS-STACK COPY STATUS (w1122g-readiness, 2026-11-22) — launcher copy landed (Eternia `e6f655cd18`), bytes only.**
 > Agents are readied on demand (owner 2026-11-22): every `agents` row carries `home_agent` (hermes' pick of Home's
 > agent), and an agent no one asked for reads `profile_readiness: "not_checked"` with null tool scalars. So

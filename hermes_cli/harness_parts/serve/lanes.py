@@ -611,12 +611,13 @@ class ArgvLanes:
             return False
         try:
             label = getattr(build, "method_name", "-")
+            origin = getattr(build, "origin", "-")
             if getattr(build, "lane", None) == READ_LANE:
                 # MUTATION: send reads to ``self.pool.submit`` and
                 # test_a_hung_shared_lane_never_starves_the_chat_list reddens.
-                self.pool.submit_read(_emit_deferred_reply, build, sink, label=label)
+                self.pool.submit_read(_emit_deferred_reply, build, sink, label=label, origin=origin)
             else:
-                self.pool.submit(_emit_deferred_reply, build, sink, label=label)
+                self.pool.submit(_emit_deferred_reply, build, sink, label=label, origin=origin)
         except RuntimeError:
             # The pool is already shutting down. False, so the handler
             # answers on this thread rather than a client waiting for a

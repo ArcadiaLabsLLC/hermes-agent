@@ -337,6 +337,20 @@ the reason alone. The census that executes those rules is code, not prose:
 or log unreadable (a failure, not a pass)**, `2` a demote named a path the
 runtime itself writes, the self-perturbation finding it exists for (`:10-25`).
 
+### Serve request lanes: who asked, and every request counted
+
+`hermes_cli/harness_parts/serve/request_pool.py` times every shared- and read-lane job. A job that
+waited or ran at least `SHARED_LANE_SLOW_MS` (1 s) logs `shared_lane_slow lane= label= queue_ms=
+run_ms= busy_at_submit= origin=`; a job held for a preparing turn logs `lane_held_for_turn … origin=`.
+Every job, slow or not, is counted in `LaneRollup`: one `lane_rollup lane= window_s= requests=
+queue_ms= run_ms= max_queue_ms= methods=<name:count,…> origins=<token:count,…>` line per lane per
+`LANE_ROLLUP_WINDOW_S` (60 s) of traffic, the busiest 8 of each named, closed by the first job that
+ends past the window (no timer, nothing for an idle lane; a record measured under 20 µs). `origin`
+is the request's optional envelope member `{action, caller, trigger}` (ids only, never `params`),
+reduced to `<action>/<caller>/<trigger>` by `serve_rpc/request_origin.py`, `-` when absent; an older
+client sends none and an older serve ignores it (row
+`RT-FU-EVERY-REQUEST-SAYS-WHO-IN-ETERNIA-ASKED-AND-HOW-LONG-IT-WAITED`).
+
 ### Create, prewarm, boot
 
 `agent_create_phases` bills ten named spans of one mint — `bindable_ms`,

@@ -1466,6 +1466,14 @@ subscribers of one launcher share one read through `turn_section_reuse`
 (position-keyed, as `demote_core_reuse`). A read that fails demotes the batch
 as before. Receipt: `turn_section reason=<start|end|trace> root=… source=<built|reused> … executor=<worker|in_process|-> worker_pid=…`.
 
+Every frame chat-history row (core and overlay, `persona_chat_frame_history`) carries `clarify_token`:
+the chat's waiting question's token, or `null` (row `RT-FU-THE-AGENT-LIST-SAYS-WHICH-CHATS-WAIT-FOR-YOUR-ANSWER`).
+A chat with a waiting question is always pinned into the frame, so a chat the frame lacks waits for
+nothing; the question itself stays in `conversation.read` (titles only). A turn that asks or answers
+moves it on its own overlay; a dismissal (`runtime.chat.clarify.dismiss`) appends
+`persona_chat.metadata_updated` with `change_kind: clarify_dismissed`, a turn-batch metadata kind
+beside `auto_title_updated`, so that root's overlay clears it.
+
 With the resident snapshot worker bound, the sections are read IN the worker
 (`snapshot.turn_section`, `turn_section_read.read_turn_sections`) on their own
 thread beside any build; the serve keeps `running_work` and sends its chat-runtime
@@ -1543,6 +1551,17 @@ whole by the section, so a room where EVERY subscriber declared the sixth token
 on it. Some or none declared, or the read failed → today's demote core; there is no split. The
 un-sequenced overlay still ships first from `StreamSession.flush` either way. Announced builds stay on
 the full-core lane (RULED 2026-10-16: their writer is not hermes).
+
+The section carries `pending_approvals`: each approval a chat turn of this process is waiting on, as
+`runtime.operator.conversation.approvals` answers it (`id`, `command`, `description`, `choices`,
+redacted) plus its `session_id` (`running_work/approval_presence.py`, row
+`RT-FU-A-PENDING-APPROVAL-ARRIVES-AS-AN-UPDATE`). Raising one (the root's gateway notify,
+`session_controls._notify_root`) appends `running_work.approval_raised`; its settle by any path (the
+additive `tools.approval.observe_gateway_settle`) appends `running_work.approval_settled`. Both are
+running-work events: alone they ride the section frame above; inside a turn batch they name no root
+(`_turn_event_roots` answers `()`), so the turn's overlay, which ships the whole section, carries them.
+Process-local like `live_turns`: a section read outside the serve lists none. The one-shot
+`conversation.approvals` read stays.
 
 `_delta_op` (`:1375`) is a four-arm table — `run.tool.*` / `run.progress` →
 `chat.trace.appended`, `incident.*` → the source type verbatim,

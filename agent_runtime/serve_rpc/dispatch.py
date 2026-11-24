@@ -20,6 +20,7 @@ from agent_runtime.serve_rpc.protocol import (
     RpcContext,
     err,
 )
+from agent_runtime.serve_rpc.request_origin import origin_scope, origin_token
 from agent_runtime.serve_rpc.registry import (
     _METHODS,
     ensure_lazy_families,
@@ -170,7 +171,9 @@ def handle_request(req: Any, context: RpcContext | None = None) -> dict:
         if "execution_id" in req and req["execution_id"] != execution_identity()["execution_id"]:
             return err(rid, 4090, "The connected service belongs to another Hermes installation.",
                        {"reason": "execution_identity_mismatch"})
-        return fn(rid, params, context)
+        # The request's ``origin`` (ids only, on the envelope) for this handler and any reply it defers.
+        with origin_scope(origin_token(req)):
+            return fn(rid, params, context)
     except Exception as exc:  # the boundary is the point
         return err(
             rid,
