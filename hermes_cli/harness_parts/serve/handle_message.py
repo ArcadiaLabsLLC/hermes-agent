@@ -33,7 +33,7 @@ from hermes_cli.harness_parts.serve.constants import (
     SERVE_SCHEMA_VERSION,
 )
 from hermes_cli.harness_parts.serve.drain import _drain_deadline_seconds, _DrainState
-from hermes_cli.harness_parts.serve.manifest import _is_gateway, _pairing_block, ops_manifest
+from hermes_cli.harness_parts.serve.manifest import _access_block, _is_gateway, _pairing_block, ops_manifest
 from hermes_cli.harness_parts.serve.launcher_supervision import LauncherSupervision
 from hermes_cli.harness_parts.serve.settle_push import SettlePush
 
@@ -265,6 +265,9 @@ class MessageHandling:
             return None
         if getattr(connection, "device_kind", None) == "channel":  # a bot relays chat; it never watches the office
             self._deny_subscribe(sink, connection, "stream", "channel_credential")
+            return None
+        if _access_block(connection).get("access") is False:  # "Allow access" off: the office is not yours to watch
+            self._deny_subscribe(sink, connection, "stream", "access_off")
             return None
         if self.drain_state is not None:
             self._deny_subscribe(sink, connection, "stream", "draining")
@@ -883,6 +886,7 @@ class MessageHandling:
                 batch_dispatcher=partial(getattr, self, "batch_dispatcher", None),
                 console_suggestions=self._console_suggestions_service,
                 reverse_lanes=partial(getattr, self, "reverse_lanes", None),
+                close_remote_callers=self._close_remote_callers,
             ),
         )
         # The ONE frame this lane does not write: the handler took the
@@ -1033,6 +1037,14 @@ class MessageHandling:
             actual.startswith(claimed) or claimed.startswith(actual)
         )
 
+    def _close_remote_callers(self, reason: str) -> int:
+        """Close every device, peer and channel connection on both listeners ("Allow access" changed)."""
+        from agent_runtime.gateway_access import drop_remote_callers
+
+        with self.lane_lock:
+            servers = (self.socket_server, self.gateway_server)
+        return drop_remote_callers(servers, reason=reason)
+
     def _hello_ok_frame(self, message: dict[str, Any], connection: Any) -> dict[str, Any]:
         """The version handshake, enforced end to end at the door."""
         from agent_runtime.serve_rpc import registry as serve_rpc
@@ -1116,6 +1128,9 @@ class MessageHandling:
             # `payload()`, a log line, or a second reply. Absent on every
             # other handshake, which is every handshake after the first.
             **_pairing_block(connection),
+            # "Allow access" (RT-ACCOUNT-ONLY-A-COMPUTER-WITH-ALLOW-ACCESS-OFF-…), for a device or peer only:
+            # the hello is admitted either way, and this says whether its calls will be answered.
+            **_access_block(connection),
         }
 
     def _connections_frame(self) -> dict[str, Any]:

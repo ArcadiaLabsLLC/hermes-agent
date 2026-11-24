@@ -81,6 +81,7 @@ from typing import Any
 __layer__ = "models"
 
 __all__ = [
+    "ACCESS_OFF_ANSWERS",
     "CALLER_COMPUTER",
     "CALLER_DEVICE",
     "CALLER_LOCAL_CONSOLE",
@@ -337,6 +338,9 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         # This machine's own LAN listen address and port: the desktop operator's network, never a
         # paired device's (the peer-directory verbs above are refused for the same reason).
         "runtime.gateway.listen.set",
+        # "Allow access" (RT-ACCOUNT-ONLY-A-COMPUTER-WITH-ALLOW-ACCESS-OFF-…): whether your devices may use
+        # this machine is this machine's own Eternia's decision; a device that could set it could let itself in.
+        "runtime.gateway.access.set",
         # RT-PETS-PAIRING-GATEWAY-ID-AND-UNPAIR-HAVE-THEIR-OWN-CALLS-ON-THE-RUNNING-HERMES (review w1118a.77): pairing
         # and unpairing write the operator's network map (its paired devices included), and ``gateway id``'s answer
         # carries the store root path.
@@ -365,6 +369,21 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         "runtime.gateway.reverse.revoke",
         "runtime.gateway.reverse.accept",
         "runtime.gateway.reverse.decline",
+    }
+)
+
+#: **What a device or peer is still answered while "Allow access" is off** (hermes row
+#: ``RT-ACCOUNT-ONLY-A-COMPUTER-WITH-ALLOW-ACCESS-OFF-STAYS-REACHABLE-BUT-LETS-NONE-OF-YOUR-DEVICES-USE-IT``,
+#: owner 2026-11-23 "discovery and allowing pairing are different things though"). Off refuses USE, never
+#: reach: a phone still offers and withdraws its own agents to this computer (they are the phone's, and
+#: read nothing here), and a peer still learns this install is there and what it is called. Every other
+#: verb is refused ``access_off`` by :func:`_access_arm`. A membership test: a verb joins only by an edit.
+ACCESS_OFF_ANSWERS: frozenset[str] = frozenset(
+    {
+        "runtime.gateway.reverse.offer",
+        "runtime.gateway.reverse.withdraw",
+        "peer.ping",
+        "peer.announce",
     }
 )
 
@@ -672,6 +691,33 @@ class CallAuthorization:
         return {"reason": self.reason, "tier": self.tier, "caller": self.caller_kind}
 
 
+def _access_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization | None:
+    """The "Allow access" arm, ``None`` to go on to the next arm.
+
+    While this install's access is off (``gateway_access.gateway_access_allowed``), a ``device`` caller of
+    either kind and a ``peer`` caller are refused ``access_off`` for every verb outside
+    :data:`ACCESS_OFF_ANSWERS`; an exempt verb goes on to the arms below like any call. Console kinds and a
+    ``computer`` caller (on a phone, whose access is its grants) never reach the read. Asked after the
+    machine-owner arm and before the channel, peer and read arms, so nothing they admit escapes it.
+    """
+
+    from .gateway_access import REASON_ACCESS_OFF, gateway_access_allowed, is_remote_user
+
+    # MUTATION: answer every kind here (drop ``is_remote_user``) and
+    # test_access_off_leaves_the_console_and_a_computer_answered reddens.
+    if not is_remote_user(resolved) or (name and name in ACCESS_OFF_ANSWERS):
+        return None
+    if gateway_access_allowed():
+        return None
+    return CallAuthorization(
+        ok=False,
+        reason=REASON_ACCESS_OFF,
+        tier=tier,
+        caller_kind=resolved.kind,
+        detail=f"{name or 'this call'} is refused: this computer's Allow access is off",
+    )
+
+
 def _channel_arm(resolved: RpcCaller, name: str, tier: str) -> CallAuthorization | None:
     """The channel arm (RT-EXTERNAL-GATEWAY-CHANNEL-CREDENTIAL), ``None`` for any other caller.
 
@@ -812,6 +858,10 @@ def authorize_call(tier: str, caller: RpcCaller | None, *, method: str | None = 
     ``scope_denied`` the launcher's decoders already branch on. See that set's
     comment for why a tier could not have said this.
 
+    **The access arm is "Allow access" off** (:func:`_access_arm`), right after the machine-owner arm:
+    a second RESTRICTION, refusing your devices and installs ``access_off`` outside
+    :data:`ACCESS_OFF_ANSWERS` while this computer's own Eternia says they may not use it.
+
     ``method`` is therefore REQUIRED in practice for a peer and optional in the
     signature, and the asymmetry is intentional: every other caller kind is
     decided by tier alone, so forcing the argument on all of them would rewrite
@@ -855,6 +905,8 @@ def authorize_call(tier: str, caller: RpcCaller | None, *, method: str | None = 
                 f"a {resolved.kind} caller is refused however it is paired"
             ),
         )
+    if (access := _access_arm(resolved, name, normalized)) is not None:
+        return access
     if (channel := _channel_arm(resolved, name, normalized)) is not None:
         return channel
     if (computer := _computer_arm(resolved, name, normalized)) is not None:

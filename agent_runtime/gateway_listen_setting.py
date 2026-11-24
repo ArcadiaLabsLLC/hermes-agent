@@ -1,4 +1,4 @@
-"""The LAN gateway's listen pair — the ONE narrow write of the two harness keys Eternia sets.
+"""The LAN gateway's listen pair and its "Allow access" flag — the narrow writes of the harness keys Eternia sets.
 
 ``plugins.entries.eternia-harness.settings.remote_gateway_listen`` (an IP address
 literal to listen on, or ``false`` for off) and ``.remote_gateway_port`` (1-65535),
@@ -13,6 +13,10 @@ dumped back), under its own lock, refusing a managed install. A new listen value
 takes effect when the serve respawns — the caller's reconcile does that, as it
 did after the argv write.
 
+``remote_gateway_access`` (``gateway_access.ACCESS_KEY``: ``true`` / ``false``, absent = allowed) is the
+third key, written by :func:`set_gateway_access` for ``runtime.gateway.access.set``. Unlike the listen
+pair it needs no respawn: ``call_authorization`` reads it on every call from a device or peer.
+
 Layer ``lanes``: it reads and writes ``hermes_cli.config`` at call time.
 """
 
@@ -22,10 +26,14 @@ import ipaddress
 from enum import StrEnum
 from typing import Any
 
+from .gateway_access import ACCESS_KEY, gateway_access_allowed
 from .harness_settings import SETTINGS_PATH
 
 __layer__ = "lanes"
-__all__ = ["GatewayListenRefused", "GatewayListenReason", "LISTEN_KEY", "PORT_KEY", "set_gateway_listen"]
+__all__ = [
+    "ACCESS_KEY", "GatewayListenRefused", "GatewayListenReason", "LISTEN_KEY", "PORT_KEY", "set_gateway_access",
+    "set_gateway_listen",
+]
 
 LISTEN_KEY = "remote_gateway_listen"
 PORT_KEY = "remote_gateway_port"
@@ -68,16 +76,12 @@ def _port_value(port: Any) -> int:
     return port
 
 
-def set_gateway_listen(*, listen: Any, port: Any = None) -> dict:
-    """Write the listen pair; ``port`` ``None`` leaves the stored port alone.
+def _write_settings(values: dict[str, Any], keys: tuple[str, ...]) -> tuple[dict, dict]:
+    """Write *values* into the harness settings of the RAW user config; ``(before, after)`` of *keys*.
 
-    Returns ``{listen, port, changed}``: what the two keys hold after the call
-    (``port`` ``None`` when it was never set) and whether this call wrote.
-    """
+    Saved only when a value changed. A managed install, an unreadable file and a failed save are refused."""
     from hermes_cli.config import is_managed, read_user_config_raw, save_config
 
-    value = _listen_value(listen)
-    port_value = None if port is None else _port_value(port)
     if is_managed():
         raise GatewayListenRefused(GatewayListenReason.MANAGED)
     try:
@@ -93,16 +97,38 @@ def set_gateway_listen(*, listen: Any, port: Any = None) -> dict:
             child = {}
             node[segment] = child
         node = child
-    before = (node.get(LISTEN_KEY), node.get(PORT_KEY))
-    node[LISTEN_KEY] = value
-    if port_value is not None:
-        node[PORT_KEY] = port_value
-    after = (node.get(LISTEN_KEY), node.get(PORT_KEY))
-    changed = before != after
-    if changed:
+    before = {key: node.get(key) for key in keys}
+    node.update(values)
+    after = {key: node.get(key) for key in keys}
+    if before != after:
         try:
             # The plugin keys are not in DEFAULT_CONFIG, so ``strip_defaults`` never drops them.
             save_config(config)
         except Exception:
             raise GatewayListenRefused(GatewayListenReason.WRITE_FAILED) from None
-    return {"listen": after[0], "port": after[1], "changed": changed}
+    return before, after
+
+
+def set_gateway_listen(*, listen: Any, port: Any = None) -> dict:
+    """Write the listen pair; ``port`` ``None`` leaves the stored port alone.
+
+    Returns ``{listen, port, changed}``: what the two keys hold after the call
+    (``port`` ``None`` when it was never set) and whether this call wrote.
+    """
+    values: dict[str, Any] = {LISTEN_KEY: _listen_value(listen)}
+    if port is not None:
+        values[PORT_KEY] = _port_value(port)
+    before, after = _write_settings(values, (LISTEN_KEY, PORT_KEY))
+    return {"listen": after[LISTEN_KEY], "port": after[PORT_KEY], "changed": before != after}
+
+
+def set_gateway_access(*, allow: Any) -> dict:
+    """Write "Allow access": ``allow`` must be a bool. Returns ``{access, changed}``.
+
+    ``changed`` is against what the running serve ANSWERED before (an absent key answered allowed),
+    so writing ``true`` over an absent key saves the decision but changes no one's answer."""
+    if type(allow) is not bool:
+        raise GatewayListenRefused(GatewayListenReason.INVALID, "allow")
+    was = gateway_access_allowed()
+    _write_settings({ACCESS_KEY: allow}, (ACCESS_KEY,))
+    return {"access": allow, "changed": was != allow}

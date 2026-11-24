@@ -290,3 +290,30 @@ def _runtime_gateway_listen_set(rid: Any, params: dict, context: RpcContext | No
     except GatewayListenRefused as exc:
         data = {"reason": exc.reason.value, **({"field": exc.field} if exc.field else {})}
         return err(rid, _LISTEN_CODES.get(exc.reason.value, ERR_CONFLICT), "The gateway listen setting was not changed.", data)
+
+
+@method("runtime.gateway.access.set", tier=TIER_CONSOLE)
+def _runtime_gateway_access_set(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
+    """"Allow access" — whether your paired devices and installs may USE this computer, and NOTHING else
+    (hermes row ``RT-ACCOUNT-ONLY-A-COMPUTER-WITH-ALLOW-ACCESS-OFF-STAYS-REACHABLE-BUT-LETS-NONE-OF-YOUR-DEVICES-USE-IT``).
+
+    Params: ``allow`` (required bool). Result: ``{access, changed, closed}``. Takes effect at once, no respawn:
+    every later call from a device or peer reads it (``call_authorization``'s access arm), and on a change the
+    serve closes every open device, peer and channel connection (parked reverse lanes stay), so each says hello
+    again, reads the new ``access`` answer, and no subscription opened while on outlives an off; ``closed`` is
+    how many. Refusals: ``invalid_request`` (+ ``field``) -32602, ``config_managed`` / ``config_unreadable`` /
+    ``config_write_failed`` 4090. Local console only.
+    """
+    from agent_runtime.gateway_listen_setting import GatewayListenRefused, set_gateway_access
+
+    if not isinstance(params, dict) or set(params) != {"allow"}:
+        return err(rid, ERR_INVALID_PARAMS, "allow is required, and nothing else.", {"reason": "invalid_request"})
+    try:
+        answer = set_gateway_access(allow=params["allow"])
+    except GatewayListenRefused as exc:
+        data = {"reason": exc.reason.value, **({"field": exc.field} if exc.field else {})}
+        return err(rid, _LISTEN_CODES.get(exc.reason.value, ERR_CONFLICT), "Allow access was not changed.", data)
+    door = getattr(context, "close_remote_callers", None)
+    # MUTATION: drop this close and test_turning_access_off_closes_an_open_device_subscription reddens.
+    closed = door("access_changed") if answer["changed"] and door is not None else 0
+    return ok(rid, {**answer, "closed": int(closed)})

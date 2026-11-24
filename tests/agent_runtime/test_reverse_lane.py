@@ -409,6 +409,23 @@ def test_turning_the_grant_off_closes_the_open_lane_at_once(phone, computer):
         assert phone.rpc("runtime.gateway.reverse.lanes")["result"]["dialing"] == []
 
 
+def test_a_phones_reverse_lane_hello_is_parked_while_access_is_off(phone, computer):
+    """"Allow access" off refuses USE, never reach (hermes row
+    ``RT-ACCOUNT-ONLY-A-COMPUTER-WITH-ALLOW-ACCESS-OFF-STAYS-REACHABLE-BUT-LETS-NONE-OF-YOUR-DEVICES-USE-IT``).
+
+    MUTATION (``lanes.handoff``): refuse a park while ``gateway_access_allowed()`` is False and no lane parks."""
+
+    from agent_runtime import serve_rpc
+
+    off = serve_rpc.handle_request({"jsonrpc": "2.0", "id": "off", "method": "runtime.gateway.access.set",
+                                    "params": {"allow": False}})
+    assert off["result"]["access"] is False, off
+    # The phone parks its lane (``_grant_and_dial`` waits for it), the owner attaches, and the
+    # computer drives the phone: a computer caller is the phone's grant, never this flag.
+    with _driven(phone, computer) as (client, _hello, _device, _credential):
+        assert "result" in _rpc(client, "runtime.health")
+
+
 def _store_retired_level(computer_id: str, level: str) -> None:
     """Write a retired level onto the phone's stored grant row, as a build before account-only left it."""
 
