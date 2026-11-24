@@ -29,12 +29,11 @@ from hermes_cli.harness_parts.serve.constants import (
     DRAINING_EXIT_CODE,
     HELLO_OP,
     OPS,
-    OPS_GATEWAY_DENIED,
     READER_STOP,
     SERVE_SCHEMA_VERSION,
 )
 from hermes_cli.harness_parts.serve.drain import _drain_deadline_seconds, _DrainState
-from hermes_cli.harness_parts.serve.manifest import _access_block, _is_gateway, _pairing_block, ops_manifest
+from hermes_cli.harness_parts.serve.manifest import _access_block, _is_gateway, _pairing_block, ops_manifest, refuse_gateway_denied_op
 from hermes_cli.harness_parts.serve.launcher_supervision import LauncherSupervision
 from hermes_cli.harness_parts.serve.settle_push import SettlePush
 
@@ -142,17 +141,7 @@ class MessageHandling:
         handler = OP_HANDLERS.get(op) if isinstance(op, str) else None
         if handler is None:
             return self._handle_request(message, sink, connection)
-        if op in OPS_GATEWAY_DENIED and _is_gateway(connection):
-            # The door check the gateway manifest promises: one tuple, read
-            # here and by `ops_manifest`, refuses a device and a peer alike
-            # before any handler runs.
-            sink.emit(
-                {
-                    "event": "error",
-                    "error": "op_not_available_on_gateway",
-                    "detail": f"{op} is the local console's; a paired device or install never sends it",
-                }
-            )
+        if refuse_gateway_denied_op(op, sink, connection):  # the gateway manifest's tuple, enforced at the door
             return None
         return handler(self, message, sink, connection)
 

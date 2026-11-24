@@ -22,6 +22,7 @@ __all__ = [
     "_is_gateway",
     "_pairing_block",
     "ops_manifest",
+    "refuse_gateway_denied_op",
 ]
 
 
@@ -174,3 +175,17 @@ def _is_gateway(connection: Any) -> bool:
         and str(getattr(connection, "transport", "") or "") == GATEWAY_TRANSPORT
     )
 
+
+def refuse_gateway_denied_op(op: str, sink: Any, connection: Any) -> bool:
+    """Refuse a gateway caller an op in ``OPS_GATEWAY_DENIED``; True when it did.
+
+    The dispatcher's door (``MessageHandling._handle_message``), beside the manifest
+    that reads the same tuple, so what a device is told it may ask and what it is
+    answered cannot drift. A device and a peer alike: keyed on :func:`_is_gateway`.
+    """
+
+    if op not in OPS_GATEWAY_DENIED or not _is_gateway(connection):
+        return False
+    sink.emit({"event": "error", "error": "op_not_available_on_gateway",
+               "detail": f"{op} is the local console's; a paired device or install never sends it"})
+    return True
