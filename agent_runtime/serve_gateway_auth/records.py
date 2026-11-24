@@ -154,6 +154,8 @@ class DeviceCredential:
     name: str
     kind: str = DEVICE_KIND_DEVICE
     bound_instances: tuple[str, ...] = ()
+    #: The machine the minted row is bound to (``DeviceRecord.machine_id``); ``None`` for a channel.
+    machine_id: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -210,6 +212,12 @@ class DeviceRecord:
     #: ``runtime.operator.conversation.list`` lists it. ``None`` — every row before the rule, or
     #: an unreadable value — mints unscoped conversations (they list under ``all_accounts``).
     client_scope: str | None = None
+    #: TRUST, written by the redeem: the machine id of the device that holds this credential —
+    #: the ``introduce --for-machine`` the code was scoped to, else the one its redeeming hello
+    #: named (``hello_address``). Every hello under this row must name it, before its proof is
+    #: read; ``None`` — every row minted before the binding — is refused, and the device
+    #: re-pairs (owner 2026-11-23, no legacy). A ``channel`` proves no machine and keeps none.
+    machine_id: str | None = None
 
     @property
     def expired(self) -> bool:

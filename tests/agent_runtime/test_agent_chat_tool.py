@@ -1,5 +1,7 @@
 """Agent-to-agent chat relay tool (tools/agent_chat_tool.py)."""
 
+
+from agent_runtime.hello_address import install_address
 import json
 import os
 
@@ -921,7 +923,7 @@ def _paired(tmp_path, monkeypatch, install_id="inst_mac", name="mac"):
         secret="a" * 64,
         display_name=name,
         endpoints=[{"host": "10.0.0.4", "port": 9000}],
-        cert_fingerprint="ab" * 32,
+        cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"]
     )
     monkeypatch.setattr(
         "agent_runtime.gateway_targets.peer_store_root", lambda: tmp_path
@@ -1190,7 +1192,7 @@ def test_agent_chat_installs_lists_paired_installs_without_dialling_any(
     from tools.agent_chat_tool import agent_chat_installs
 
     _paired(tmp_path, monkeypatch)
-    record_peer(tmp_path, peer_install_id="inst_gone", secret="b" * 64, display_name="gone")
+    record_peer(tmp_path, peer_install_id="inst_gone", secret="b" * 64, display_name="gone", machine_id=install_address()["machine_id"])
     revoke_peer(tmp_path, "inst_gone")
     calls = _answered(monkeypatch, {"result": {}})
 
@@ -1256,8 +1258,8 @@ def test_the_directory_and_the_resolver_agree_on_which_installs_exist(
     from tools.agent_chat_tool import agent_chat_installs
 
     _paired(tmp_path, monkeypatch)
-    record_peer(tmp_path, peer_install_id="inst_gone", secret="b" * 64, display_name="gone")
-    record_peer(tmp_path, peer_install_id="inst_cut", secret="c" * 64, display_name="cut")
+    record_peer(tmp_path, peer_install_id="inst_gone", secret="b" * 64, display_name="gone", machine_id=install_address()["machine_id"])
+    record_peer(tmp_path, peer_install_id="inst_cut", secret="c" * 64, display_name="cut", machine_id=install_address()["machine_id"])
     revoke_peer(tmp_path, "inst_gone")
     apply_peer_announce(tmp_path, "inst_cut", {"revoked_you": True})
 

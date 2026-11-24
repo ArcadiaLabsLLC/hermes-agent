@@ -10,6 +10,8 @@ decision is made; a test that called a handler directly would prove nothing abou
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import hello_fields
+
 import json
 from pathlib import Path
 
@@ -64,7 +66,7 @@ def test_a_channel_code_redeems_to_a_channel_row_bound_to_its_instances(tmp_path
     code = mint_pairing_code(tmp_path, name="telegram bot", kind=DEVICE_KIND_CHANNEL,
                              bound_instances=[BOUND, BOUND, " "])
     assert isinstance(code, PairingCode)
-    credential = redeem_pairing_code(tmp_path, code.code)
+    credential = redeem_pairing_code(tmp_path, code.code, **hello_fields())
     assert isinstance(credential, DeviceCredential)
     assert (credential.kind, credential.bound_instances) == (DEVICE_KIND_CHANNEL, (BOUND,))
     row = json.loads(device_store_path(tmp_path).read_text(encoding="utf-8"))["devices"][credential.device_id]
@@ -75,7 +77,7 @@ def test_a_channel_code_redeems_to_a_channel_row_bound_to_its_instances(tmp_path
 
 def test_a_row_written_before_the_rule_reads_as_a_plain_device(tmp_path: Path):
     code = mint_pairing_code(tmp_path, name="phone")
-    credential = redeem_pairing_code(tmp_path, code.code)
+    credential = redeem_pairing_code(tmp_path, code.code, **hello_fields())
     path = device_store_path(tmp_path)
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert "kind" not in payload["devices"][credential.device_id], "a plain device row grew a key"
@@ -85,7 +87,7 @@ def test_a_row_written_before_the_rule_reads_as_a_plain_device(tmp_path: Path):
 
 def test_an_unknown_kind_word_reads_as_the_narrower_channel(tmp_path: Path):
     code = mint_pairing_code(tmp_path)
-    credential = redeem_pairing_code(tmp_path, code.code)
+    credential = redeem_pairing_code(tmp_path, code.code, **hello_fields())
     path = device_store_path(tmp_path)
     payload = json.loads(path.read_text(encoding="utf-8"))
     payload["devices"][credential.device_id]["kind"] = "admin"

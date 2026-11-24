@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..gateway_identity import clean_display_name
+from ..hello_address import clean_machine_id
 from ..serve_gateway_auth import StoreRefusal, store_lock
 from ..store_file_io import HarnessLockUnavailable
 from ..clock import iso_stamp as _iso
@@ -320,10 +321,15 @@ def record_peer(
     endpoints: Any = None,
     cert_fingerprint: Any = None,
     expires_at: Any = None,
+    machine_id: Any = None,
     correlation: Any = None,
     now: float | None = None,
 ) -> PeerRecord | StoreRefusal:
     """Write the OTHER half of the edge, on the joining install.
+
+    ``machine_id`` is the minting install's, as its ``hello_ok`` named it AFTER the join checked
+    it against the payload's (``hello_address.answer_address_refusal``); a row without one is
+    refused, because every later dial of this edge checks it.
 
     Called by ``harness gateway peers join`` with what came back on the
     ``hello_ok``: the remote install's id and display name, the secret it just
@@ -350,11 +356,15 @@ def record_peer(
         return StoreRefusal(
             "invalid_secret", "the remote install returned no peer secret"
         )
+    machine = clean_machine_id(machine_id)
+    if machine is None:
+        return StoreRefusal("invalid_machine_id", "the remote install named no usable machine id")
     stamp = now if now is not None else time.time()
     try:
         with store_lock(store_root):
             rows = _read_peers(store_root)
             rows[peer_install_id] = peer_row(
+                machine_id=machine,
                 peer_install_id=peer_install_id,
                 display_name=clean_display_name(display_name) or peer_install_id,
                 endpoints=clean_endpoints(endpoints),
@@ -395,6 +405,7 @@ def peer_row(
     secret: str,
     stamp: float,
     expires_at: str | None = None,
+    machine_id: str | None = None,
 ) -> dict[str, Any]:
     """One stored row. The ONE place a peer row's shape is written.
 
@@ -422,6 +433,7 @@ def peer_row(
         "revoked": False,
         "revoked_at": None,
         "expires_at": expires_at,
+        "machine_id": machine_id,
     }
 
 
@@ -450,6 +462,7 @@ def _decode_peer(row: Any) -> PeerRecord | None:
         # keeps working untouched. There is no migration pass because the only
         # new fact has a legal absent value.
         expires_at=(str(row["expires_at"]) if row.get("expires_at") else None),
+        machine_id=clean_machine_id(row.get("machine_id")),
     )
 
 

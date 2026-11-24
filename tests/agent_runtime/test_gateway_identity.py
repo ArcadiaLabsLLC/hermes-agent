@@ -160,7 +160,7 @@ def test_a_long_name_is_bounded_because_it_rides_every_greeting(tmp_path: Path):
 def test_the_frame_block_names_and_never_carries_the_creation_stamp(tmp_path: Path):
     payload = ensure_install_identity(tmp_path).frame_payload()
 
-    assert set(payload) == {"install_id", "display_name", "state"}
+    assert set(payload) == {"install_id", "display_name", "state", "machine_id", "namespace"}
     # Deliberately NOT `build`: the greeting frames already carry a top-level
     # build block, and a nested copy is a second authority that can disagree.
     assert "build" not in payload

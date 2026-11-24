@@ -28,6 +28,7 @@ from ..gateway_pairing_codes import (
     supersede_pending,
 )
 from ..gateway_channel import clean_bound_instances
+from ..hello_address import HELLO_MACHINE_MISMATCH, HELLO_NAMESPACE_MISMATCH, clean_machine_id, own_namespace
 from ..store_file_io import HarnessLockUnavailable
 from ..store_file_io import os_error_reason as _os_reason
 from .proof import device_verifier
@@ -50,6 +51,7 @@ def mint_pairing_code(
     name: str | None = None,
     credential_ttl_seconds: int | None = None,
     for_device_id: str | None = None,
+    for_machine_id: str | None = None,
     correlation: str | None = None,
     kind: str = DEVICE_KIND_DEVICE,
     bound_instances: Any = (),
@@ -124,6 +126,9 @@ def mint_pairing_code(
                         else None
                     ),
                     "for_device_id": requester,
+                    # The machine the requester's account record names (``introduce --for-machine``):
+                    # the redeeming hello must name it, and the row it mints is bound to it.
+                    **({"for_machine_id": clean_machine_id(for_machine_id)} if clean_machine_id(for_machine_id) else {}),
                     "correlation": clean_name(correlation) or None,
                     # Absent on a plain device code, so its pending entry is byte-identical.
                     # ``device_kind``, never ``kind``: the pending entry's ``kind`` is the
@@ -150,6 +155,8 @@ def redeem_pairing_code(
     code: str,
     *,
     device_name: str | None = None,
+    machine_id: str | None = None,
+    namespace: str | None = None,
     now: float | None = None,
 ) -> DeviceCredential | StoreRefusal:
     """Turn a code into a paired device. The token is returned ONCE, here.
@@ -188,6 +195,15 @@ def redeem_pairing_code(
                     "invalid_code", "no pending pairing code matches (or it expired)"
                 )
             matched_id, matched = found
+            bound_machine, address = _bound_machine(matched, machine_id, namespace)
+            if address is not None:
+                # Machine first, then the namespace: a code redeemed from another machine than the
+                # one it was minted for, from a device that names none, or from another namespace
+                # mints nothing (the code stays pending for the device it was meant for, and the
+                # attempt charges the lockout).
+                note_failed_redeem(state, now=stamp)
+                write_pairing(store_root, state)
+                return StoreRefusal(address, "the redeeming device is not the one this code was minted for")
 
             del pending_codes(state)[matched_id]
             state["failed_redeems"] = 0
@@ -261,6 +277,9 @@ def redeem_pairing_code(
                 # entry. A label — see :class:`DeviceRecord` — and the join key
                 # the launcher's sheet and S3's Unpair relate this row by.
                 "account_device_id": clean_name(matched.get("for_device_id")) or None,
+                # MUTATION: drop this key and test_introduce_for_machine_binds_the_redeemed_row
+                # finds a row with no machine id.
+                **({"machine_id": bound_machine} if bound_machine else {}),
                 **_kind_fields(matched),
             }
             write_devices(store_root, rows)
@@ -270,6 +289,25 @@ def redeem_pairing_code(
 
 
 # ── internals ────────────────────────────────────────────────────────────────
+
+def _bound_machine(matched: dict[str, Any], machine_id: Any, namespace: Any) -> tuple[str | None, str | None]:
+    """``(machine id the minted row is bound to, refusal word)``, in address order.
+
+    A code scoped ``--for-machine`` binds to that machine and refuses a hello naming another; an
+    unscoped code (``harness gateway pair``, minted by the operator at this machine) binds to the
+    machine its redeeming hello names. Then the hello's namespace must be this serve's own. A channel
+    is the owner's external gateway, no device of yours: it proves no machine and is not checked.
+    """
+
+    if matched.get("device_kind") == DEVICE_KIND_CHANNEL:
+        return None, None
+    named = clean_machine_id(machine_id)
+    scoped = clean_machine_id(matched.get("for_machine_id"))
+    if named is None or (scoped is not None and scoped != named):
+        return None, HELLO_MACHINE_MISMATCH
+    if namespace != own_namespace():
+        return None, HELLO_NAMESPACE_MISMATCH
+    return named, None
 
 
 def _channel_mint_refusal(kind: str, bound: tuple[str, ...]) -> StoreRefusal | None:
@@ -307,6 +345,7 @@ def _issued(device_id: str, token: str, tier: str, name: str, row: dict[str, Any
         device_id=device_id, token=token, tier=tier, name=name,
         kind=record.kind if record else DEVICE_KIND_DEVICE,
         bound_instances=record.bound_instances if record else (),
+        machine_id=record.machine_id if record else None,
     )
 
 

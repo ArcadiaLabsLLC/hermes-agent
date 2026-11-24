@@ -148,7 +148,8 @@ handles = sys.argv[3:]
 
 root = paths.store_root()
 code = mint_pairing_code(root, name="the phone")
-credential = redeem_pairing_code(root, code.code)
+from agent_runtime.hello_address import hello_fields
+credential = redeem_pairing_code(root, code.code, **hello_fields())
 
 connection = ServeSocketClient(
     "127.0.0.1", port, timeout_seconds=90.0, tls=True, cert_fingerprint=fingerprint

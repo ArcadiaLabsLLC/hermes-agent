@@ -15,6 +15,7 @@ from ..call_authorization import (
     TIER_CONSOLE,
 )
 from ..gateway_channel import clean_bound_instances
+from ..hello_address import clean_machine_id
 from ..paths import gateway_dir
 from ..store_file_io import read_json_object as _read_json
 from ..store_file_io import store_lock as _file_lock
@@ -103,6 +104,7 @@ def decode_device(row: Any) -> DeviceRecord | None:
         kind=_decode_kind(row.get("kind")),
         bound_instances=clean_bound_instances(row.get("bound_instances")),
         client_scope=decode_client_scope(row.get("client_scope")),
+        machine_id=clean_machine_id(row.get("machine_id")),
     )
 
 

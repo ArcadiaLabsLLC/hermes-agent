@@ -246,3 +246,10 @@ class HelloAuthOutcome:
     #: (``look`` | ``chat``). Never set beside a device or a peer stamp.
     computer_id: str | None = None
     computer_grant: str | None = None
+    #: The machine id the CREDENTIAL ROW binds this caller to, set only when ``ok`` (row
+    #: ``RT-ACCOUNT-ONLY-A-CONNECTION-FROM-ANOTHER-MACHINE-THAN-THE-ONE-YOUR-DEVICE-PAIRED-WITH-IS-DROPPED-FIRST``):
+    #: the row's, never the frame's, and ``None`` for a caller that proves none (a channel).
+    machine_id: str | None = None
+    #: The typed LOCAL reason a refusal carries for the serve's own log
+    #: (``hello_address.HELLO_MACHINE_MISMATCH`` …). Never on the wire: ``reject_reason`` is.
+    refusal_detail: str | None = None

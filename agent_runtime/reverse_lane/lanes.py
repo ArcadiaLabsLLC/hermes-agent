@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from ..hello_address import hello_address_refusal, install_address
 from ..serve_socket.hello import HelloAuthOutcome
 from ..serve_socket.vocabulary import (
     REJECT_BAD_PROOF,
@@ -71,13 +72,15 @@ class ComputerWay:
     cert_fingerprint: str
     device_id: str
     token: str
+    #: The computer's machine id (the grant's): its answer must name it before a request is sent.
+    machine_id: str = ""
 
     def __repr__(self) -> str:  # the token never reaches a log through a repr
         return f"ComputerWay(host={self.host!r}, port={self.port!r}, device_id={self.device_id!r})"
 
     def params(self) -> dict[str, Any]:
         return {"host": self.host, "port": self.port, "cert_fingerprint": self.cert_fingerprint,
-                "device_id": self.device_id, "token": self.token}
+                "device_id": self.device_id, "token": self.token, "machine_id": self.machine_id}
 
 
 @dataclass
@@ -98,6 +101,12 @@ def lane_authenticator(store_root: Path | str) -> Callable[[dict[str, Any], str,
             return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
         if any(message.get(name) for name in _FOREIGN_CREDENTIALS):
             return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
+        bound = _grants.lookup_grant(store_root, message.get("device_id"))
+        if bound is not None:
+            # Address order: the grant's machine, then this namespace, and only then the proof.
+            address = hello_address_refusal(message, row_machine_id=bound.machine_id)
+            if address is not None:
+                return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF, refusal_detail=address)
         # MUTATION: verify against the lane id the hello frame claims (`message.get("lane_id")`)
         # instead of `binding` and test_reverse_lane's wrong-lane test admits a proof answered
         # for another lane.
@@ -105,7 +114,8 @@ def lane_authenticator(store_root: Path | str) -> Callable[[dict[str, Any], str,
                                           nonce, lane_id=binding)
         if grant is None:
             return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
-        return HelloAuthOutcome(ok=True, computer_id=grant.computer_id, computer_grant=grant.level)
+        return HelloAuthOutcome(ok=True, computer_id=grant.computer_id, computer_grant=grant.level,
+                                machine_id=grant.machine_id)
 
     return authenticate
 
@@ -158,7 +168,9 @@ class ReverseLanes:
             connection.sock.settimeout(None)
         except OSError:
             pass
-        connection.emit({"event": "reverse_lane_parked", "lane_id": lane_id})
+        # The install's address rides the parked frame, as it rides ``hello_ok``: the phone's dialer
+        # checks this computer's machine id against its grant's before it waits on the lane.
+        connection.emit({"event": "reverse_lane_parked", "lane_id": lane_id, "install": install_address()})
         self._emit({"event": "reverse_lane_parked", "device_id": device_id})
         return None
 
@@ -228,11 +240,11 @@ class ReverseLanes:
             return self._admitter
 
     def remember_way(self, computer_install_id: str, *, host: str, port: int, cert_fingerprint: str,
-                     device_id: str, token: str) -> None:
+                     device_id: str, token: str, machine_id: str) -> None:
         """Keep, in memory, how to reach this computer (a grant or a dial named it)."""
 
         way = ComputerWay(host=str(host), port=int(port), cert_fingerprint=str(cert_fingerprint),
-                          device_id=str(device_id), token=str(token))
+                          device_id=str(device_id), token=str(token), machine_id=str(machine_id))
         with self._lock:
             self._ways[str(computer_install_id)] = way
 
@@ -256,7 +268,7 @@ class ReverseLanes:
         if grant is None:
             return {"ok": False, "reason": "no_grant"}
         self.remember_way(computer_install_id, host=host, port=port, cert_fingerprint=cert_fingerprint,
-                          device_id=device_id, token=token)
+                          device_id=device_id, token=token, machine_id=grant.machine_id)
         with self._lock:
             if self._draining:
                 return {"ok": False, "reason": "draining"}

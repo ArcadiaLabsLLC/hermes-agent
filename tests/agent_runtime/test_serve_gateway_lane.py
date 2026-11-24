@@ -40,6 +40,7 @@ from agent_runtime.gateway_endpoints import candidates as endpoint_candidates
 from agent_runtime.call_authorization import TIER_CONSOLE, TIER_READ
 from agent_runtime.gateway_capabilities import GATEWAY_CAPABILITIES
 from agent_runtime.gateway_tls import certificate_path, read_certificate
+from agent_runtime.hello_address import hello_fields
 from agent_runtime.serve_gateway_auth import (
     DeviceCredential,
     PairingCode,
@@ -213,7 +214,8 @@ def pair_device(*, name: str = "phone") -> DeviceCredential:
     root = _store_root()
     code = mint_pairing_code(root, name=name)
     assert isinstance(code, PairingCode)
-    credential = redeem_pairing_code(root, code.code)
+    # Redeemed as from THIS process's machine and namespace, as its hello would name them.
+    credential = redeem_pairing_code(root, code.code, **hello_fields())
     assert isinstance(credential, DeviceCredential)
     return credential
 

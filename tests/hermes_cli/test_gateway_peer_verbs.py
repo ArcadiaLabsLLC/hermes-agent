@@ -22,6 +22,8 @@ happen. That proof belongs to the two-roots acceptance and is left there.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import install_address
+
 import argparse
 import json
 
@@ -103,6 +105,8 @@ def test_pair_prints_a_typed_code_and_a_join_payload_that_agree(capsys):
         # exactly that bind.
         "endpoints": [{"host": "10.0.0.4", "port": 8765}],
         "install_id": payload["install_id"],
+        # This install's machine: the joiner checks the far hello_ok names it.
+        "machine_id": install_address()["machine_id"],
         "cert_fingerprint": payload["cert_fingerprint"],
         "peer_code": payload["peer_code"],
     }
@@ -406,7 +410,8 @@ class _FakeClient:
     def peer_join_hello(self, **kwargs):
         return {
             "event": "hello_ok",
-            "install": {"install_id": "inst_far", "display_name": "far"},
+            # The far install answers from this process's machine and namespace (one process here).
+            "install": {"install_id": "inst_far", "display_name": "far", **install_address()},
             "peered": {"peer_secret": "s" * 32, "expires_at": None},
         }
 
@@ -718,6 +723,7 @@ def _successful_payload() -> str:
             "port": 8765,
             "endpoints": [{"host": "10.0.0.9", "port": 8765}],
             "install_id": "inst_far",
+            "machine_id": install_address()["machine_id"],
             "cert_fingerprint": "ab" * 32,
             "peer_code": "ABCD2345",
         }
@@ -1382,7 +1388,7 @@ def test_list_shows_revoked_rows_and_never_a_credential(capsys):
         secret="f" * 64,
         display_name="workstation",
         endpoints=[{"host": "10.0.0.9", "port": 8765}],
-        cert_fingerprint="ab" * 32,
+        cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"]
     )
     revoke_peer(paths.store_root(), "inst_far")
 
@@ -1409,7 +1415,7 @@ def _seed_peer(install_id: str = "inst_far") -> None:
         paths.store_root(),
         peer_install_id=install_id,
         secret="f" * 64,
-        display_name="workstation",
+        display_name="workstation", machine_id=install_address()["machine_id"]
     )
 
 
@@ -1540,6 +1546,13 @@ _HELLO_ANSWERS = {
         "event": "hello_ok",
         "install": {"install_id": "inst_other", "display_name": "other"},
         "peered": {"peer_secret": "s" * 32, "expires_at": None},
+    },    # RT-ACCOUNT-ONLY-A-CONNECTION-FROM-ANOTHER-MACHINE-…: the right install id from another machine.
+    # MUTATION: drop ``self.check_address()`` from ``Join.build`` -> the row is written, red.
+    "hello_machine_mismatch": {
+        "event": "hello_ok",
+        "install": {"install_id": "inst_far", "display_name": "far", "machine_id": "mach_" + "0" * 32,
+                    "namespace": "base"},
+        "peered": {"peer_secret": "s" * 32, "expires_at": None},
     },
 }
 
@@ -1550,6 +1563,7 @@ _HELLO_ANSWERS = {
         ("refused", "refused the join (no hello_ok)"),
         ("no_peer_secret", '"reason": "no_peer_secret"'),
         ("install_id_mismatch", '"reason": "install_id_mismatch"'),
+        ("hello_machine_mismatch", '"reason": "hello_machine_mismatch"'),
     ],
 )
 def test_each_hello_validation_refuses_with_its_own_word_and_writes_no_row(

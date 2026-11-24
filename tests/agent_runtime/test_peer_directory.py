@@ -12,6 +12,8 @@ given? The answers are no, and each no has its own word.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import install_address
+
 import json
 
 import pytest
@@ -411,7 +413,7 @@ def test_installs_hud_block_reads_two_files_and_dials_nothing(tmp_path, monkeypa
         peer_install_id="inst_mac",
         secret="a" * 64,
         display_name="mac",
-        endpoints=[{"host": "10.0.0.4", "port": 9000}],
+        endpoints=[{"host": "10.0.0.4", "port": 9000}], machine_id=install_address()["machine_id"]
     )
     cache_peer_roster(
         tmp_path,
@@ -448,7 +450,7 @@ def test_the_block_is_empty_when_no_peer_is_usable(tmp_path):
 
     assert installs_hud_block(tmp_path) == []
 
-    record_peer(tmp_path, peer_install_id="inst_gone", secret="a" * 64, display_name="x")
+    record_peer(tmp_path, peer_install_id="inst_gone", secret="a" * 64, display_name="x", machine_id=install_address()["machine_id"])
     revoke_peer(tmp_path, "inst_gone")
 
     assert installs_hud_block(tmp_path) == []

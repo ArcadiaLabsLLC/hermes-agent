@@ -693,6 +693,7 @@
       "correlation",
       "for_device",
       "for_install",
+      "for_machine",
       "note"
     ],
     "runtime.gateway.peers.join": [

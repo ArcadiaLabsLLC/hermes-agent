@@ -82,11 +82,38 @@ def credential_kind(message: dict[str, Any]) -> CredentialKind | None:
     return named[0] if len(named) == 1 else None
 
 
-def _bad_proof() -> Any:
+def _bad_proof(detail: str | None = None) -> Any:
     from agent_runtime.serve_socket.vocabulary import REJECT_BAD_PROOF
     from agent_runtime.serve_socket.hello import HelloAuthOutcome
 
-    return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
+    return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF, refusal_detail=detail)
+
+
+def _redeem_address_refusal(message: dict[str, Any]) -> str | None:
+    """A redeeming hello's address, before the code is spent: a machine id of hermes' shape, then
+    this serve's namespace. Which machine the code was minted FOR is the redeem's own check."""
+
+    from agent_runtime.hello_address import (
+        HELLO_MACHINE_ID,
+        HELLO_MACHINE_MISMATCH,
+        HELLO_NAMESPACE,
+        HELLO_NAMESPACE_MISMATCH,
+        clean_machine_id,
+        own_namespace,
+    )
+
+    if clean_machine_id(message.get(HELLO_MACHINE_ID)) is None:
+        return HELLO_MACHINE_MISMATCH
+    if message.get(HELLO_NAMESPACE) != own_namespace():
+        return HELLO_NAMESPACE_MISMATCH
+    return None
+
+
+def _store_refusal_detail(outcome: Any) -> str | None:
+    from agent_runtime.hello_address import HELLO_MACHINE_MISMATCH, HELLO_NAMESPACE_MISMATCH
+
+    reason = getattr(outcome, "reason", None)
+    return reason if reason in (HELLO_MACHINE_MISMATCH, HELLO_NAMESPACE_MISMATCH) else None
 
 
 def _channel_switch_off(kind: str) -> bool:
@@ -119,15 +146,19 @@ def _redeem_device_pairing_code(store_root: Any, message: dict[str, Any], nonce:
     from agent_runtime.serve_gateway_auth import DeviceCredential, redeem_pairing_code
     from agent_runtime.serve_socket.hello import HelloAuthOutcome
 
+    # The machine and namespace are checked INSIDE the redeem, after the code matched and before
+    # anything is minted: only the pending entry says whether it is a channel's, which proves none.
     outcome = redeem_pairing_code(
         store_root,
         message.get("pairing_code"),
         device_name=message.get("client")
         if isinstance(message.get("client"), str)
         else None,
+        machine_id=message.get("machine_id"),
+        namespace=message.get("namespace"),
     )
     if not isinstance(outcome, DeviceCredential):
-        return _bad_proof()
+        return _bad_proof(_store_refusal_detail(outcome))
     if _channel_switch_off(outcome.kind):
         # The code is spent and the switch is off: the row is revoked in the same breath, so no
         # live credential exists that nobody holds — the owner re-pairs once the switch is on.
@@ -142,6 +173,7 @@ def _redeem_device_pairing_code(store_root: Any, message: dict[str, Any], nonce:
         device_kind=outcome.kind,
         bound_instances=outcome.bound_instances,
         issued_token=outcome.token,
+        machine_id=outcome.machine_id,
     )
 
 
@@ -157,6 +189,10 @@ def _redeem_peer_join_code(store_root: Any, message: dict[str, Any], nonce: str,
     from agent_runtime.gateway_peers import PeerCredential, note_dial_result, redeem_peer_code
     from agent_runtime.serve_socket.hello import HelloAuthOutcome
 
+    address = _redeem_address_refusal(message)
+    if address is not None:
+        # Before the code is read: a peer of yours is in your namespace, on a machine it names.
+        return _bad_proof(address)
     # The joining install must NAME itself in the same frame: the edge
     # is symmetric, so a row keyed by nothing would be a peer this
     # install could never dial back and could never recognise again.
@@ -168,9 +204,10 @@ def _redeem_peer_join_code(store_root: Any, message: dict[str, Any], nonce: str,
         or message.get("client"),
         endpoints=message.get("peer_endpoints"),
         cert_fingerprint=message.get("peer_cert_fingerprint"),
+        machine_id=message.get("machine_id"),
     )
     if not isinstance(outcome, PeerCredential):
-        return _bad_proof()
+        return _bad_proof(_store_refusal_detail(outcome))
     # R-D16, this side of the ceremony. The joining install just
     # completed a TLS handshake against this listener and proved a code
     # a human minted here seconds ago — the same evidence the
@@ -193,6 +230,7 @@ def _redeem_peer_join_code(store_root: Any, message: dict[str, Any], nonce: str,
         # store computed it at redemption; this function neither derives
         # nor defaults one, so the two ends of the edge hold one value.
         issued_peer_secret_expires_at=outcome.expires_at,
+        machine_id=outcome.machine_id,
     )
 
 
@@ -201,10 +239,12 @@ def _verify_peer_proof(store_root: Any, message: dict[str, Any], nonce: str, por
 
     from agent_runtime.gateway_peers import (
         cache_peer_hello,
+        lookup_peer,
         note_peer_seen,
         note_peer_store_read,
         verify_peer_proof,
     )
+    from agent_runtime.hello_address import hello_address_refusal
     from agent_runtime.serve_socket.hello import HelloAuthOutcome
 
     # S2c (R-S2-8). The revision read that makes an EXTERNAL write
@@ -213,6 +253,12 @@ def _verify_peer_proof(store_root: Any, message: dict[str, Any], nonce: str, por
     # repeatedly; a fresh CLI process seeds on its first read and emits
     # nothing, having no baseline to claim a change against.
     note_peer_store_read(store_root)
+    row = lookup_peer(store_root, message.get("peer_install_id"))
+    if row is not None:
+        # Address order: the row's machine, then this namespace, and only then the proof.
+        address = hello_address_refusal(message, row_machine_id=row.machine_id)
+        if address is not None:
+            return _bad_proof(address)
     peer = verify_peer_proof(
         store_root,
         message.get("peer_install_id"),
@@ -235,16 +281,27 @@ def _verify_peer_proof(store_root: Any, message: dict[str, Any], nonce: str, por
         cert_fingerprint=message.get("peer_cert_fingerprint"),
     )
     return HelloAuthOutcome(
-        ok=True, peer_install_id=peer.record.peer_install_id
+        ok=True, peer_install_id=peer.record.peer_install_id, machine_id=peer.record.machine_id
     )
 
 
 def _verify_device_proof(store_root: Any, message: dict[str, Any], nonce: str, port: int) -> Any:
     """A paired device: an HMAC keyed by its own token's digest, bound to the port."""
 
-    from agent_runtime.serve_gateway_auth import note_device_seen, verify_device_proof
+    from agent_runtime.call_authorization import DEVICE_KIND_CHANNEL
+    from agent_runtime.hello_address import hello_address_refusal
+    from agent_runtime.serve_gateway_auth import lookup_device, note_device_seen, verify_device_proof
     from agent_runtime.serve_socket.hello import HelloAuthOutcome
 
+    row = lookup_device(store_root, message.get("device_id"))
+    # MUTATION: run this check after `verify_device_proof` and
+    # test_a_device_hello_from_another_machine_is_refused_before_its_proof sees the proof spy called.
+    if row is not None and row.kind != DEVICE_KIND_CHANNEL:
+        # Address order (machine, namespace, then the proof), before anything else is read. A
+        # channel is the owner's external gateway, no device of yours: it proves no machine.
+        address = hello_address_refusal(message, row_machine_id=row.machine_id)
+        if address is not None:
+            return _bad_proof(address)
     auth = verify_device_proof(
         store_root,
         message.get("device_id"),
@@ -265,6 +322,8 @@ def _verify_device_proof(store_root: Any, message: dict[str, Any], nonce: str, p
         device_tier=auth.record.tier,
         device_kind=auth.record.kind,
         bound_instances=auth.record.bound_instances,
+        # The ROW's machine, never the frame's (it equals the frame's only because it was checked).
+        machine_id=auth.record.machine_id,
     )
 
 

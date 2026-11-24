@@ -261,6 +261,16 @@ class Dial:
             self.failures.append(f"{address} {(reply or {}).get('reason') or 'no hello_ok'}")
             connection.close()
             return None
+        from ..hello_address import answer_address_refusal
+
+        # After the pin, before any request: the far install answers from the machine its row was
+        # bound to at pairing, in this namespace (machine first). Another machine holding the pin
+        # is sent nothing.
+        refusal = answer_address_refusal(reply, expect_machine_id=self.record.machine_id)
+        if refusal is not None:
+            self.failures.append(f"{address} {refusal}")
+            connection.close()
+            return None
         return connection, reply
 
     def outcome(self, answered: tuple[Any, dict[str, Any]] | None) -> tuple[Any, dict[str, Any]]:

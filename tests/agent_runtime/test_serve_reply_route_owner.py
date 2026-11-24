@@ -38,17 +38,17 @@ def _connection(key: str = "conn-1", transport: str = "socket", **stamps) -> Sim
 @pytest.mark.parametrize(
     ("connection", "expected"),
     [
-        (_connection(), "machine:unproven/local_console/conn-1"),
+        (_connection(), "machine:unproven/namespace:unproven/local_console/conn-1"),
         (
             _connection(transport="gateway", device_id="dev_a", device_tier="console"),
-            "machine:unproven/device:dev_a/conn-1",
+            "machine:unproven/namespace:unproven/device:dev_a/conn-1",
         ),
-        (_connection(transport="gateway", peer_install_id="inst_b"), "machine:unproven/peer:inst_b/conn-1"),
+        (_connection(transport="gateway", peer_install_id="inst_b"), "machine:unproven/namespace:unproven/peer:inst_b/conn-1"),
         (
             _connection(transport="gateway", computer_id="cmp_c", computer_grant="account"),
-            "machine:unproven/computer:cmp_c/conn-1",
+            "machine:unproven/namespace:unproven/computer:cmp_c/conn-1",
         ),
-        (_connection(transport="gateway"), "machine:unproven/unknown:gateway/conn-1"),
+        (_connection(transport="gateway"), "machine:unproven/namespace:unproven/unknown:gateway/conn-1"),
     ],
     ids=["local_console", "device", "peer", "computer", "unknown"],
 )
@@ -58,27 +58,38 @@ def test_the_route_owner_names_each_callers_proven_id_after_an_unproven_machine(
     assert caller_for_connection(connection).route_owner() == expected
 
 
-def test_the_route_owner_takes_no_machine_or_namespace_from_what_the_caller_says(monkeypatch):
-    """A hello field naming a machine or a namespace is an assertion, not a proof: the machine
-    segment stays the unproven marker, and nothing reads ``here()`` for it.
+@pytest.mark.parametrize(
+    ("stamps", "who"),
+    [
+        ({}, "local_console"),
+        ({"transport": "gateway", "device_id": "dev_a", "device_tier": "console"}, "device:dev_a"),
+        ({"transport": "gateway", "peer_install_id": "inst_b"}, "peer:inst_b"),
+        ({"transport": "gateway", "computer_id": "cmp_c", "computer_grant": "account"}, "computer:cmp_c"),
+    ],
+    ids=["local_console", "device", "peer", "computer"],
+)
+def test_route_owner_writes_the_whole_address(stamps, who):
+    """The machine the handshake stamped off the credential row, then the serve's namespace, every
+    time (owner 2026-11-24: "2 keep it all , its a consistent standard like how ip addresses and
+    ports work"; hermes ``RT-ACCOUNT-ONLY-A-CONNECTION-FROM-ANOTHER-MACHINE-…``).
 
-    MUTATION: write ``getattr(connection, "machine_id")`` into the machine segment -> red."""
+    MUTATION: drop the namespace segment in ``route_owner`` -> red.
+    MUTATION: keep writing ``ROUTE_MACHINE_UNPROVEN`` for a stamped machine -> red."""
 
-    from agent_runtime import address
-
-    monkeypatch.setattr(address, "here", lambda: pytest.fail("route_owner read here()"))
-    claimed = _connection(
-        transport="gateway",
-        device_id="dev_a",
-        device_tier="console",
-        machine_id="mach_claimed",
-        namespace="ns_claimed",
-    )
-    owner = caller_for_connection(claimed).route_owner()
-    assert owner.startswith(f"{ROUTE_MACHINE_UNPROVEN}/"), owner
-    assert "claimed" not in owner, owner
+    connection = _connection(machine_id="mach_row", namespace="acct-0123456789abcdef", **stamps)
+    owner = caller_for_connection(connection).route_owner()
+    assert owner == f"machine:mach_row/namespace:acct-0123456789abcdef/{who}/conn-1"
     assert ROUTE_MACHINE_UNPROVEN == f"{Kind.MACHINE.value}:unproven"
     assert caller_for_connection(None).route_owner() == "stdio"
+
+
+def test_a_caller_that_proves_no_machine_keeps_the_marker():
+    """A channel (the owner's external gateway, no device of yours) is stamped no machine."""
+
+    channel = _connection(transport="gateway", device_id="dev_ch", device_tier="console",
+                          device_kind="channel", namespace="base")
+    assert caller_for_connection(channel).route_owner() == (
+        f"{ROUTE_MACHINE_UNPROVEN}/namespace:base/device:dev_ch/conn-1")
 
 
 def test_a_device_and_the_local_app_on_one_number_get_two_route_owners():
@@ -120,7 +131,7 @@ def test_a_cached_sink_for_another_connection_is_never_handed_out_and_the_mismat
     assert lanes.connection_sinks[owner] is sink
     [record] = [item for item in lanes.logged if item["event"] == "serve_reply_route_mismatch"]
     assert record["asking_owner"] == owner
-    assert record["cached_owner"] == "machine:unproven/device:dev_a/conn-1"
+    assert record["cached_owner"] == "machine:unproven/namespace:unproven/device:dev_a/conn-1"
     assert record["cached"]["device_id"] == "dev_a"
     assert "token" not in repr(record)
     # The connection's own sink is stable and logs nothing more.
@@ -134,8 +145,8 @@ def test_the_sink_cache_is_filed_under_the_route_owner():
     local = _connection()
     assert lanes._sink_for(phone) is not lanes._sink_for(local)
     assert set(lanes.connection_sinks) == {
-        "machine:unproven/device:dev_a/conn-1",
-        "machine:unproven/local_console/conn-1",
+        "machine:unproven/namespace:unproven/device:dev_a/conn-1",
+        "machine:unproven/namespace:unproven/local_console/conn-1",
     }
 
 

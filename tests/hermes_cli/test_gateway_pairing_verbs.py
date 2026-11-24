@@ -15,6 +15,8 @@ traceback.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import hello_fields
+
 import argparse
 import json
 
@@ -238,7 +240,7 @@ def test_pair_takes_no_tier_and_the_code_it_mints_redeems_at_full_control(capsys
     capsys.readouterr()
 
     _code, payload = _run(capsys, "pair")
-    credential = redeem_pairing_code(paths.store_root(), payload["code"])
+    credential = redeem_pairing_code(paths.store_root(), payload["code"], **hello_fields())
 
     assert payload["tier"] == "console"
     assert isinstance(credential, DeviceCredential) and credential.tier == "console"
@@ -285,7 +287,7 @@ def test_a_channel_pairing_carries_its_account_client_scope_to_the_device_row(ca
     _code, payload = _run(capsys, "pair", "--kind", "channel", "--instance", "personainst_qa",
                           "--client-scope", scope)
     assert payload["client_scope"] == scope
-    credential = redeem_pairing_code(paths.store_root(), payload["code"])
+    credential = redeem_pairing_code(paths.store_root(), payload["code"], **hello_fields())
     record = lookup_device(paths.store_root(), credential.device_id)
     assert record.client_scope == scope and record.payload()["client_scope"] == scope
 
@@ -438,7 +440,7 @@ def test_devices_list_shows_a_paired_device_and_never_its_credential(capsys):
     )
 
     _code, minted = _run(capsys, "pair", "--name", "the phone")
-    credential = redeem_pairing_code(paths.store_root(), minted["code"])
+    credential = redeem_pairing_code(paths.store_root(), minted["code"], **hello_fields())
     assert isinstance(credential, DeviceCredential)
 
     code, payload = _run(capsys, "devices", "list")
@@ -461,7 +463,7 @@ def test_revoke_refuses_the_device_and_keeps_the_row(capsys):
     )
 
     _c, minted = _run(capsys, "pair")
-    credential = redeem_pairing_code(paths.store_root(), minted["code"])
+    credential = redeem_pairing_code(paths.store_root(), minted["code"], **hello_fields())
     assert isinstance(credential, DeviceCredential)
 
     code, payload = _run(capsys, "devices", "revoke", credential.device_id)
@@ -530,7 +532,7 @@ def test_a_dry_run_revoke_shows_the_row_it_would_cut_and_cuts_nothing(capsys):
     )
 
     _c, minted = _run(capsys, "pair", "--name", "the phone")
-    credential = redeem_pairing_code(paths.store_root(), minted["code"])
+    credential = redeem_pairing_code(paths.store_root(), minted["code"], **hello_fields())
     assert isinstance(credential, DeviceCredential)
 
     code, payload = _run(

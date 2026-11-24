@@ -62,6 +62,13 @@ class SocketConnection:
     #: proof verified.
     computer_id: str | None = None
     computer_grant: str | None = None
+    #: The machine id the credential row bound this caller to (``HelloAuthOutcome.machine_id``),
+    #: or this machine's own for the loopback token; ``None`` when nothing proved one. Set once,
+    #: in ``_handshake``; ``RpcCaller.route_owner`` renders it as the route's first segment.
+    machine_id: str | None = None
+    #: This serve's own namespace, stamped on every connection the handshake admits: a proven caller
+    #: named the same one in its hello, and the route key writes the whole address every time.
+    namespace: str | None = None
     #: ONE-SHOT, and the only secrets this dataclass ever holds. Set by
     #: ``_handshake`` when a pairing code was redeemed, read and CLEARED by the
     #: ``hello_payload`` builder on the very next statement. Both are

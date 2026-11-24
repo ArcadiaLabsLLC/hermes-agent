@@ -487,6 +487,12 @@ class RpcCaller:
     peer_install_id: str | None = None
     computer_id: str | None = None
     computer_grant: str | None = None
+    #: The machine id the transport PROVED, off the credential ROW the hello was checked against
+    #: (``SocketConnection.machine_id``), never off a frame; this machine's own for the loopback
+    #: token. ``None`` for a caller that proves none (a channel), which routes under the marker.
+    machine_id: str | None = None
+    #: The serve's own namespace the handshake stamped on the connection (``SocketConnection.namespace``).
+    namespace: str | None = None
 
     def describe(self) -> dict[str, Any]:
         """The caller as it appears on a log line or a refusal's ``data``.
@@ -519,7 +525,10 @@ class RpcCaller:
     def route_owner(self) -> str:
         """The ONE routing key a serve files this caller's per-connection state under.
 
-        ``machine:<caller machine>/<kind>[:<proven id>]/<conn key>``. Every map the serve keeps per
+        ``machine:<caller machine>/namespace:<namespace>/<kind>[:<proven id>]/<conn key>``: the WHOLE
+        address every time, this serve's own namespace included although every connection shares it
+        (owner 2026-11-24: "2 keep it all , its a consistent standard like how ip addresses and ports
+        work"). Every map the serve keeps per
         connection (reply sinks, the stream hub, office / peer-directory / suggestion subscriptions,
         the inflight table, the Launcher answerer) is keyed on this string, because a bare ``conn-N``
         is not a caller: a paired phone and the local app on two listeners both held ``conn-1`` and
@@ -530,9 +539,11 @@ class RpcCaller:
         The segments follow the address order of ``agent_runtime.address`` (``machine:…`` first)
         because the owner ruled that routing checks both the machine id and the namespace
         (2026-11-23: "right it should be both"), machine first (2026-11-23: "starting with machine
-        id"). No hello proves a CALLER's machine id today, so that segment is the explicit
-        :data:`ROUTE_MACHINE_UNPROVEN` marker: never a guess, never a value the request carries.
-        When a hello proves one, it is written HERE and nowhere else. The kind and the id the
+        id"). The machine segment is the one the credential row bound the caller to (hermes
+        ``RT-ACCOUNT-ONLY-A-CONNECTION-FROM-ANOTHER-MACHINE-THAN-THE-ONE-YOUR-DEVICE-PAIRED-WITH-IS-DROPPED-FIRST``):
+        the hello was refused unless it named that machine, so the row's value is the proven one. A
+        caller that proves none keeps the explicit :data:`ROUTE_MACHINE_UNPROVEN` marker: never a
+        guess, never a value the request carries. The kind and the id the
         transport proved (``device_id``, ``peer_install_id``, ``computer_id``) follow it; no new
         address kind is added for them (owner 2026-11-23: "No, keep it out"). The stdio owner has no
         connection and keeps ``stdio``.
@@ -546,7 +557,10 @@ class RpcCaller:
             who = f"{self.kind}:{getattr(self, _ROUTE_PROVEN_ID[self.kind])}"
         else:
             who = f"{CALLER_UNKNOWN}:{self.transport}"
-        return f"{ROUTE_MACHINE_UNPROVEN}/{who}/{self.connection_key}"
+        machine = f"{ROUTE_MACHINE_KIND}:{self.machine_id}" if self.machine_id else ROUTE_MACHINE_UNPROVEN
+        # MUTATION: drop the namespace segment and test_route_owner_writes_the_whole_address reddens.
+        namespace = f"{ROUTE_NAMESPACE_KIND}:{self.namespace}" if self.namespace else ROUTE_NAMESPACE_UNPROVEN
+        return f"{machine}/{namespace}/{who}/{self.connection_key}"
 
 
 #: The field holding the id each stamped caller kind's transport PROVED (:func:`caller_for_connection`).
@@ -557,11 +571,16 @@ _ROUTE_PROVEN_ID: dict[str, str] = {
 }
 #: The route owner of the in-process stdio pipe, which has no connection to key.
 ROUTE_OWNER_STDIO = "stdio"
-#: The caller-machine segment of :meth:`RpcCaller.route_owner` while no hello proves a caller's
-#: machine id. ``machine`` is ``agent_runtime.address.Kind.MACHINE``, spelled here because this
+#: The caller-machine segment of :meth:`RpcCaller.route_owner` for a caller whose hello proves no
+#: machine id (a channel; an unauthenticated connection). ``machine`` is ``agent_runtime.address.Kind.MACHINE``, spelled here because this
 #: models-layer module may not import a store (a test pins the two equal); ``unproven`` is never a
 #: minted machine id, which always opens with ``machine_identity.MACHINE_ID_PREFIX``.
-ROUTE_MACHINE_UNPROVEN = "machine:unproven"
+ROUTE_MACHINE_KIND = "machine"
+ROUTE_MACHINE_UNPROVEN = f"{ROUTE_MACHINE_KIND}:unproven"
+#: ``agent_runtime.address.Kind.NAMESPACE``, spelled here for the same reason. The marker is for a
+#: caller no handshake stamped; ``unproven`` is neither an ``acct-`` stamp nor ``base``.
+ROUTE_NAMESPACE_KIND = "namespace"
+ROUTE_NAMESPACE_UNPROVEN = f"{ROUTE_NAMESPACE_KIND}:unproven"
 
 
 #: The machine owner at its own console, over the socket. Spelled as a value so
@@ -640,6 +659,11 @@ def caller_for_connection(connection: Any) -> RpcCaller:
     computer_id = computer_id if isinstance(computer_id, str) and computer_id else None
     computer_grant = getattr(connection, "computer_grant", None)
     computer_grant = computer_grant if computer_grant in COMPUTER_GRANTS else None
+    # The ROW's machine id the handshake stamped after the address check, never a frame's.
+    machine_id = getattr(connection, "machine_id", None)
+    machine_id = machine_id if isinstance(machine_id, str) and machine_id else None
+    namespace = getattr(connection, "namespace", None)
+    namespace = namespace if isinstance(namespace, str) and namespace else None
     stamps = sum(value is not None for value in (peer_install_id, device_id, computer_id))
     if stamps > 1 or (computer_id is not None and computer_grant is None):
         # Two identities, or a computer without a grant it may hold: the transport does
@@ -652,6 +676,8 @@ def caller_for_connection(connection: Any) -> RpcCaller:
             transport=transport,
             computer_id=computer_id,
             computer_grant=computer_grant,
+            machine_id=machine_id,
+            namespace=namespace,
         )
     if peer_install_id is not None:
         return RpcCaller(
@@ -659,6 +685,8 @@ def caller_for_connection(connection: Any) -> RpcCaller:
             connection_key=key,
             transport=transport,
             peer_install_id=peer_install_id,
+            machine_id=machine_id,
+            namespace=namespace,
         )
     if device_id is not None and device_tier is not None:
         # An unrecognised kind word reads as ``channel`` — the NARROWER one — never as a plain
@@ -674,11 +702,14 @@ def caller_for_connection(connection: Any) -> RpcCaller:
             device_tier=device_tier,
             device_kind=kind,
             bound_instances=tuple(str(item) for item in bound if isinstance(item, str) and item),
+            machine_id=machine_id,
+            namespace=namespace,
         )
     if transport == TRANSPORT_GATEWAY:
         return RpcCaller(kind=CALLER_UNKNOWN, connection_key=key, transport=transport)
     return RpcCaller(
-        kind=CALLER_LOCAL_CONSOLE, connection_key=key, transport=transport
+        kind=CALLER_LOCAL_CONSOLE, connection_key=key, transport=transport, machine_id=machine_id,
+        namespace=namespace,
     )
 
 

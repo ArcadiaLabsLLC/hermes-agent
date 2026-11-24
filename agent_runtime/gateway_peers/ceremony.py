@@ -27,6 +27,7 @@ from ..serve_gateway_auth import StoreRefusal, read_pairing, store_lock, write_p
 from ..store_file_io import HarnessLockUnavailable
 from ..clock import iso_stamp as _iso
 from ..store_file_io import os_error_reason as _os_reason
+from ..hello_address import HELLO_MACHINE_MISMATCH, clean_machine_id
 from .cache import _clear_revoked_you
 from .models import (
     PEER_EVENT_RECORDED,
@@ -47,6 +48,7 @@ def mint_peer_code(
     note: str | None = None,
     credential_ttl_seconds: int | None = None,
     for_install_id: str | None = None,
+    for_machine_id: str | None = None,
     correlation: str | None = None,
     now: float | None = None,
 ) -> PeerPairingCode | StoreRefusal:
@@ -110,6 +112,8 @@ def mint_peer_code(
                         int(credential_ttl_seconds) if credential_ttl_seconds else None
                     ),
                     "for_install_id": requester,
+                    # The joiner's machine, from its account record (``introduce --for-machine``).
+                    **({"for_machine_id": clean_machine_id(for_machine_id)} if clean_machine_id(for_machine_id) else {}),
                     "correlation": str(correlation or "").strip()[:64] or None,
                 },
                 now=stamp,
@@ -130,9 +134,13 @@ def redeem_peer_code(
     display_name: Any = None,
     endpoints: Any = None,
     cert_fingerprint: Any = None,
+    machine_id: Any = None,
     now: float | None = None,
 ) -> PeerCredential | StoreRefusal:
     """Turn a peer code into an edge. The secret is returned ONCE, here.
+
+    ``machine_id`` is the one the join hello named: the row is bound to it, and a code scoped
+    ``--for-machine`` refuses any other, machine first (``hello_address``).
 
     Run on install A — the side that minted the code — when install B dials in
     with it. A writes B's row and hands the secret back on the one ``hello_ok``
@@ -196,6 +204,13 @@ def redeem_peer_code(
             # the window rather than having to re-run the ceremony because
             # somebody else guessed at it.
             wanted_install = str(matched.get("for_install_id") or "").strip()
+            named_machine = clean_machine_id(machine_id)
+            wanted_machine = clean_machine_id(matched.get("for_machine_id"))
+            if named_machine is None or (wanted_machine is not None and wanted_machine != named_machine):
+                # Machine first, before the install: the same answer and cost as a wrong install.
+                note_failed_redeem(state, now=stamp)
+                write_pairing(store_root, state)
+                return StoreRefusal(HELLO_MACHINE_MISMATCH, "no pending peer code matches (or it expired)")
             if wanted_install and wanted_install != peer_install_id:
                 note_failed_redeem(state, now=stamp)
                 write_pairing(store_root, state)
@@ -228,6 +243,7 @@ def redeem_peer_code(
                 secret=secret,
                 stamp=stamp,
                 expires_at=expires_at,
+                machine_id=named_machine,
             )
             _write_peers(store_root, rows)
             _note_write(store_root)
@@ -253,6 +269,7 @@ def redeem_peer_code(
                 secret=secret,
                 display_name=name,
                 expires_at=expires_at,
+                machine_id=named_machine,
             )
     except (OSError, HarnessLockUnavailable) as exc:
         return StoreRefusal(_os_reason(exc), str(exc))

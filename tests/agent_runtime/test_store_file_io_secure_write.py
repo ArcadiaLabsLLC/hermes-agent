@@ -28,6 +28,8 @@ have satisfied.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import install_address
+
 import contextlib
 import json
 import os
@@ -550,7 +552,7 @@ def test_record_peer_refuses_the_unwritable_family_rather_than_writing_unlocked(
             tmp_path,
             peer_install_id="inst_a1b2c3d4",
             secret="f" * 64,
-            display_name="workstation",
+            display_name="workstation", machine_id=install_address()["machine_id"]
         )
 
     assert not isinstance(refusal, PeerRecord), (

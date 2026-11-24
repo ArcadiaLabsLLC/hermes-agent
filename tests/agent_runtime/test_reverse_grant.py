@@ -39,6 +39,7 @@ import pytest
 from agent_runtime import call_authorization as ca
 from agent_runtime.call_authorization import caller_for_connection
 from agent_runtime.gateway_tls import ensure_certificate, server_ssl_context
+from agent_runtime.hello_address import hello_fields, install_address
 from agent_runtime.reverse_lane import accepts, grants
 from agent_runtime.reverse_lane.lanes import ReverseLanes, handoff
 from agent_runtime.serve_gateway_auth import (
@@ -70,7 +71,8 @@ class _Computer:
         hook = lambda admitter, connection, reader, message: handoff(  # noqa: E731
             self.lanes, admitter, connection, reader, message)
         common = dict(boot_id="computer-boot", dispatch_line=self._dispatch,
-                      hello_payload=lambda message, c: {"event": "hello_ok", "transport": c.transport},
+                      hello_payload=lambda message, c: {"event": "hello_ok", "transport": c.transport,
+                                                        "install": install_address()},
                       handoff=hook, reject_penalty_seconds=0.0)
         self.gateway = ServeSocketServer(
             root, token_provider=lambda: None, authenticator=gateway_listener._gateway_authenticator(root),
@@ -93,7 +95,7 @@ class _Computer:
     def pair_phone(self) -> DeviceCredential:
         code = mint_pairing_code(self.root, name="phone")
         assert isinstance(code, PairingCode)
-        credential = redeem_pairing_code(self.root, code.code)
+        credential = redeem_pairing_code(self.root, code.code, **hello_fields())
         assert isinstance(credential, DeviceCredential)
         return credential
 
@@ -114,7 +116,7 @@ def computer(tmp_path):
 def _way(computer: _Computer, device: DeviceCredential, **extra) -> dict:
     return {"computer_install_id": INSTALL, "host": "127.0.0.1", "port": computer.gateway_port,
             "cert_fingerprint": computer.fingerprint, "device_id": device.device_id, "token": device.token,
-            **extra}
+            "machine_id": install_address()["machine_id"], **extra}
 
 
 def _grant(phone, computer: _Computer, level: str = grants.GRANT_ACCOUNT):
@@ -333,7 +335,8 @@ def test_a_stored_look_or_chat_accept_is_dropped_on_read(computer):
 
     phones = [computer.pair_phone() for _ in range(3)]
     rows = {device.device_id: {"computer_id": f"cmp-{level}", "level": level, "phone_install_id": "phone-x",
-                               "accepted_at": "2026-11-22T00:00:00Z"}
+                               "accepted_at": "2026-11-22T00:00:00Z",
+                               "machine_id": install_address()["machine_id"]}
             for device, level in zip(phones, ("look", "chat", "account"))}
     path = computer.root / "gateway" / accepts.REVERSE_ACCEPTS_FILENAME
     write_secure_json(path, {"contract": 1, "accepts": rows})
@@ -426,12 +429,14 @@ def test_only_the_paired_device_itself_withdraws_and_only_its_own_accept(phone, 
     assert owner["error"]["data"]["reason"] == "not_a_device", owner
     other = computer.pair_phone()
     sent = withdraw_accept(host="127.0.0.1", port=computer.gateway_port, cert_fingerprint=computer.fingerprint,
-                           device_id=other.device_id, token=other.token)
+                           device_id=other.device_id, token=other.token,
+                           machine_id=install_address()["machine_id"])
     assert sent == {"ok": True}, sent
     assert [a.device_id for a in accepts.list_accepts(computer.root)] == [device.device_id]
     # A wrong credential never reaches the verb at all.
     refused = withdraw_accept(host="127.0.0.1", port=computer.gateway_port, cert_fingerprint=computer.fingerprint,
-                              device_id=device.device_id, token="0" * 64)
+                              device_id=device.device_id, token="0" * 64,
+                              machine_id=install_address()["machine_id"])
     assert refused == {"ok": False, "reason": "unpaired"}, refused
     assert [a.device_id for a in accepts.list_accepts(computer.root)] == [device.device_id]
 

@@ -12,6 +12,8 @@ isolation — they hand it a ``tmp_path`` and read what landed on disk.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import hello_fields
+
 import json
 from pathlib import Path
 
@@ -53,7 +55,7 @@ def pair(root: Path, *, name: str | None = None, now: float = 1000.0):
 
     code = mint_pairing_code(root, name=name, now=now)
     assert isinstance(code, PairingCode)
-    credential = redeem_pairing_code(root, code.code, now=now + 1)
+    credential = redeem_pairing_code(root, code.code, now=now + 1, **hello_fields())
     assert isinstance(credential, DeviceCredential)
     return credential
 
@@ -96,7 +98,7 @@ def test_a_code_expires_and_a_late_redeem_is_refused(tmp_path: Path):
     code = mint_pairing_code(tmp_path, now=1000.0)
     assert isinstance(code, PairingCode)
 
-    late = redeem_pairing_code(tmp_path, code.code, now=1000.0 + CODE_TTL_SECONDS + 1)
+    late = redeem_pairing_code(tmp_path, code.code, now=1000.0 + CODE_TTL_SECONDS + 1, **hello_fields())
 
     assert isinstance(late, StoreRefusal)
     assert late.reason == "invalid_code"
@@ -179,7 +181,7 @@ def test_an_unscoped_pair_supersedes_nothing_because_no_requester_asked_for_it(
     assert isinstance(first, PairingCode) and isinstance(second, PairingCode)
 
     assert len(pending_codes(read_pairing(tmp_path))) == 2
-    assert isinstance(redeem_pairing_code(tmp_path, first.code, now=1000.0), DeviceCredential)
+    assert isinstance(redeem_pairing_code(tmp_path, first.code, now=1000.0, **hello_fields()), DeviceCredential)
 
 
 # ── the lockout, and the two bugs ``pairing.py`` had to fix ─────────────────
@@ -194,9 +196,9 @@ def test_five_wrong_codes_arm_a_lockout_that_blocks_an_already_issued_code(tmp_p
     good = mint_pairing_code(tmp_path, now=1000.0)
     assert isinstance(good, PairingCode)
     for _ in range(MAX_FAILED_REDEEMS):
-        assert isinstance(redeem_pairing_code(tmp_path, "ZZZZZZZZ", now=1000.0), StoreRefusal)
+        assert isinstance(redeem_pairing_code(tmp_path, "ZZZZZZZZ", now=1000.0, **hello_fields()), StoreRefusal)
 
-    blocked = redeem_pairing_code(tmp_path, good.code, now=1000.0)
+    blocked = redeem_pairing_code(tmp_path, good.code, now=1000.0, **hello_fields())
 
     assert isinstance(blocked, StoreRefusal)
     assert blocked.reason == "locked_out"
@@ -210,14 +212,14 @@ def test_the_lockout_lapses_and_the_store_recovers(tmp_path: Path):
     good = mint_pairing_code(tmp_path, now=1000.0)
     assert isinstance(good, PairingCode)
     for _ in range(MAX_FAILED_REDEEMS):
-        redeem_pairing_code(tmp_path, "ZZZZZZZZ", now=1000.0)
+        redeem_pairing_code(tmp_path, "ZZZZZZZZ", now=1000.0, **hello_fields())
 
     # Far enough for the lockout, but the code has expired by then too — so mint
     # a fresh one and prove the store recovered rather than wedged.
     after = 1000.0 + LOCKOUT_SECONDS + 1
     fresh = mint_pairing_code(tmp_path, now=after)
     assert isinstance(fresh, PairingCode)
-    assert isinstance(redeem_pairing_code(tmp_path, fresh.code, now=after), DeviceCredential)
+    assert isinstance(redeem_pairing_code(tmp_path, fresh.code, now=after, **hello_fields()), DeviceCredential)
 
 
 def test_a_successful_redeem_clears_the_failure_streak(tmp_path: Path):
@@ -226,14 +228,14 @@ def test_a_successful_redeem_clears_the_failure_streak(tmp_path: Path):
     correction, and the reason its ``_finish_approval`` resets the counter."""
 
     for _ in range(MAX_FAILED_REDEEMS - 1):
-        redeem_pairing_code(tmp_path, "ZZZZZZZZ", now=1000.0)
+        redeem_pairing_code(tmp_path, "ZZZZZZZZ", now=1000.0, **hello_fields())
     pair(tmp_path, now=1000.0)
 
     # A full fresh budget of failures is available again: if the streak had
     # carried over, the FIRST of these would arm the lockout.
     for _ in range(MAX_FAILED_REDEEMS - 1):
         assert (
-            getattr(redeem_pairing_code(tmp_path, "ZZZZZZZZ", now=1000.0), "reason", None)
+            getattr(redeem_pairing_code(tmp_path, "ZZZZZZZZ", now=1000.0, **hello_fields()), "reason", None)
             == "invalid_code"
         )
 
@@ -243,7 +245,7 @@ def test_a_lowercase_code_redeems_because_a_phone_will_send_one(tmp_path: Path):
     assert isinstance(code, PairingCode)
 
     assert isinstance(
-        redeem_pairing_code(tmp_path, code.code.lower(), now=1000.0), DeviceCredential
+        redeem_pairing_code(tmp_path, code.code.lower(), now=1000.0, **hello_fields()), DeviceCredential
     )
 
 
@@ -298,7 +300,7 @@ def test_every_code_pairs_a_device_at_full_control_whatever_its_pending_entry_sa
         entry["tier"] = "read"
     pairing_store_path(tmp_path).write_bytes(json.dumps(state).encode("utf-8"))
 
-    credential = redeem_pairing_code(tmp_path, code.code, now=1001.0)
+    credential = redeem_pairing_code(tmp_path, code.code, now=1001.0, **hello_fields())
 
     assert isinstance(credential, DeviceCredential) and credential.tier == TIER_CONSOLE
     assert lookup_device(tmp_path, credential.device_id).tier == TIER_CONSOLE
@@ -523,7 +525,7 @@ def test_a_pairing_code_minted_with_a_ttl_redeems_into_a_row_that_expires(tmp_pa
     import time
 
     at = time.time()
-    credential = redeem_pairing_code(tmp_path, minted.code, now=at)
+    credential = redeem_pairing_code(tmp_path, minted.code, now=at, **hello_fields())
     assert isinstance(credential, DeviceCredential)
 
     record = lookup_device(tmp_path, credential.device_id)
@@ -551,7 +553,7 @@ def test_a_pairing_code_minted_without_a_ttl_redeems_into_a_row_that_never_expir
     )
 
     minted = mint_pairing_code(tmp_path)
-    credential = redeem_pairing_code(tmp_path, minted.code)
+    credential = redeem_pairing_code(tmp_path, minted.code, **hello_fields())
     assert isinstance(credential, DeviceCredential)
 
     record = lookup_device(tmp_path, credential.device_id)
@@ -575,7 +577,7 @@ def test_an_expired_device_is_refused_with_its_own_reason_after_the_proof(tmp_pa
     )
 
     minted = mint_pairing_code(tmp_path, credential_ttl_seconds=60)
-    credential = redeem_pairing_code(tmp_path, minted.code, now=1_000.0)
+    credential = redeem_pairing_code(tmp_path, minted.code, now=1_000.0, **hello_fields())
 
     good = device_proof(credential.token, "n", port=9000, device_id=credential.device_id)
 
@@ -602,7 +604,7 @@ def test_the_account_device_id_label_lands_on_the_row_and_is_not_a_check(tmp_pat
     )
 
     minted = mint_pairing_code(tmp_path, for_device_id="dev-acct-1")
-    credential = redeem_pairing_code(tmp_path, minted.code)
+    credential = redeem_pairing_code(tmp_path, minted.code, **hello_fields())
 
     record = lookup_device(tmp_path, credential.device_id)
     assert record.account_device_id == "dev-acct-1"
@@ -628,7 +630,7 @@ def redeem_for(root: Path, account_device_id: str | None, *, now: float):
 
     minted = mint_pairing_code(root, for_device_id=account_device_id, now=now)
     assert isinstance(minted, PairingCode)
-    credential = redeem_pairing_code(root, minted.code, now=now + 1)
+    credential = redeem_pairing_code(root, minted.code, now=now + 1, **hello_fields())
     assert isinstance(credential, DeviceCredential)
     return credential
 

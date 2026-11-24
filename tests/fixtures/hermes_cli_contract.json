@@ -4289,6 +4289,14 @@
           "required": false,
           "type": null
         },
+        "--for-machine": {
+          "action": "store",
+          "canonical": "--for-machine",
+          "choices": null,
+          "nargs": 1,
+          "required": false,
+          "type": null
+        },
         "--help": {
           "action": "help",
           "canonical": "--help",

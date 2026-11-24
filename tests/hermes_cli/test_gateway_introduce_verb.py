@@ -1232,3 +1232,40 @@ def test_a_grant_payload_over_the_ceiling_is_refused_rather_than_posted(
 
     assert code == ERROR_EXIT_CODES["invalid_payload"]
     assert envelope["error"]["reason"] == "grant_payload_too_large"
+
+
+# ── RT-ACCOUNT-ONLY-A-CONNECTION-FROM-ANOTHER-MACHINE-…: the code is bound to the asker's machine ──
+
+
+def test_introduce_for_machine_binds_the_redeemed_row(capsys, hermetic_runtime_root):
+    """``--for-machine`` rides the pending code, and the redeem copies it onto the device row it mints.
+
+    MUTATION: drop the ``machine_id`` key from the row ``redeem_pairing_code`` writes -> the row has
+    no machine id, red. MUTATION: drop the scoped compare in ``pairing._bound_machine`` -> the other
+    machine's redeem mints a row, red."""
+
+    from agent_runtime.hello_address import HELLO_MACHINE_MISMATCH, hello_fields
+    from agent_runtime.serve_gateway_auth import DeviceCredential, StoreRefusal, list_devices, redeem_pairing_code
+
+    mine = hello_fields()
+    code, payload = _introduce(capsys, "--for-device", "dev-acct-1", "--for-machine", mine["machine_id"])
+    assert code == 0, payload
+    assert payload["for_machine_id"] == mine["machine_id"]
+    device_code = payload["device"]["code"]
+
+    other = redeem_pairing_code(hermetic_runtime_root, device_code, machine_id="mach_" + "0" * 32,
+                                namespace=mine["namespace"])
+    assert isinstance(other, StoreRefusal) and other.reason == HELLO_MACHINE_MISMATCH, other
+    assert list_devices(hermetic_runtime_root) == []
+
+    credential = redeem_pairing_code(hermetic_runtime_root, device_code, **mine)
+    assert isinstance(credential, DeviceCredential), credential
+    [row] = list_devices(hermetic_runtime_root)
+    assert row.machine_id == mine["machine_id"]
+    assert json.loads(payload["device"]["qr_payload"])["machine_id"] == mine["machine_id"]
+
+
+def test_introduce_refuses_a_machine_id_hermes_never_minted(capsys):
+    code, payload = _introduce(capsys, "--for-device", "dev-acct-1", "--for-machine", "laptop")
+    assert code != 0
+    assert "invalid_machine_id" in json.dumps(payload)

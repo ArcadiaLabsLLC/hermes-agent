@@ -10,6 +10,8 @@ isolation assertion refuses), so the switch reads a crafted env through the real
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import hello_fields
+
 import json
 from pathlib import Path
 
@@ -69,7 +71,7 @@ def switch(tmp_path, monkeypatch):
 def _channel_credential() -> DeviceCredential:
     code = mint_pairing_code(_store_root(), name="bot", kind=DEVICE_KIND_CHANNEL, bound_instances=[BOUND])
     assert isinstance(code, PairingCode)
-    credential = redeem_pairing_code(_store_root(), code.code)
+    credential = redeem_pairing_code(_store_root(), code.code, **hello_fields())
     assert isinstance(credential, DeviceCredential)
     return credential
 
@@ -110,7 +112,7 @@ def test_a_channel_hello_is_refused_while_the_record_names_another_namespace(gat
 
 def test_a_plain_device_ignores_the_switch(gateway_on, switch):
     code = mint_pairing_code(_store_root(), name="phone")
-    credential = redeem_pairing_code(_store_root(), code.code)
+    credential = redeem_pairing_code(_store_root(), code.code, **hello_fields())
     _record(switch, None)
     with running_serve() as handle:
         with device_client(handle, credential) as (_connection, reply):

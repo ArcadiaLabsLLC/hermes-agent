@@ -25,6 +25,8 @@ which runs two serve children.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import install_address
+
 import json
 
 import pytest
@@ -113,7 +115,7 @@ def _pair(root, *, install_id: str, name: str) -> None:
         peer_install_id=install_id,
         secret="a" * 64,
         display_name=name,
-        endpoints=[{"host": "127.0.0.1", "port": 9000}],
+        endpoints=[{"host": "127.0.0.1", "port": 9000}], machine_id=install_address()["machine_id"]
     )
 
 

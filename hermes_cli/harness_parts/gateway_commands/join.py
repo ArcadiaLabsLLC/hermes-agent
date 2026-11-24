@@ -137,6 +137,7 @@ class Join:
         self.identity()
         self.dial()
         self.validate_hello()
+        self.check_address()
         return self.ack(self.record())
 
     def attest(self) -> None:
@@ -418,6 +419,32 @@ class Join:
                 )
             )
 
+    def check_address(self) -> None:
+        """After the pin and the install id: the far ``hello_ok`` answers from your namespace, on the
+        machine the payload names (``hello_address``, machine first). A bare code names no machine; the
+        row is then bound to the one the far install answered from."""
+
+        from agent_runtime.hello_address import answer_address_refusal
+
+        expected = self.parsed.get("machine_id") or self.remote.get("machine_id")
+        refusal = answer_address_refusal(self.reply, expect_machine_id=expected)
+        if refusal is None:
+            self.remote_machine_id = str(expected)
+            return
+        raise PhaseStop(
+            emit_harness_error(
+                RuntimeError(refusal),
+                reason=refusal,
+                args=self.args,
+                code="invalid_payload",
+                message=(
+                    f"{self.dialled['host']}:{self.dialled['port']} did not answer from the machine and "
+                    "namespace the payload names, so it is not the install this code was minted on. "
+                    "The row was NOT written."
+                ),
+            )
+        )
+
     def record(self):
         """Recording it: the half that failed on hardware (R-D14).
 
@@ -458,6 +485,7 @@ class Join:
                 # one edge lapse at two different moments. ``None`` on every edge
                 # the manual ceremony mints, and on every far install predating S2.
                 expires_at=self.peered.get("expires_at"),
+                machine_id=self.remote_machine_id,
             )
         except OSError as exc:
             raise PhaseStop(_store_write_refusal(exc, args=self.args, store_path=peers)) from exc

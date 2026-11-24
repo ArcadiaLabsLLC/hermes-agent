@@ -38,6 +38,7 @@ import pytest
 
 from agent_runtime import call_authorization as ca
 from agent_runtime.gateway_tls import ensure_certificate, server_ssl_context
+from agent_runtime.hello_address import hello_fields, install_address
 from agent_runtime.reverse_lane import grants
 from agent_runtime.reverse_lane.lanes import ReverseLanes, handoff
 from agent_runtime.serve_gateway_auth import (
@@ -161,7 +162,8 @@ class _Computer:
         hook = lambda admitter, connection, reader, message: handoff(  # noqa: E731
             self.lanes, admitter, connection, reader, message)
         common = dict(boot_id="computer-boot", dispatch_line=lambda line, c: None,
-                      hello_payload=lambda message, c: {"event": "hello_ok", "transport": c.transport},
+                      hello_payload=lambda message, c: {"event": "hello_ok", "transport": c.transport,
+                                                        "install": install_address()},
                       handoff=hook, reject_penalty_seconds=0.0)
         self.gateway = ServeSocketServer(
             root, token_provider=lambda: None, authenticator=gateway_listener._gateway_authenticator(root),
@@ -175,7 +177,7 @@ class _Computer:
     def pair_phone(self) -> DeviceCredential:
         code = mint_pairing_code(self.root, name="phone")
         assert isinstance(code, PairingCode)
-        credential = redeem_pairing_code(self.root, code.code)
+        credential = redeem_pairing_code(self.root, code.code, **hello_fields())
         assert isinstance(credential, DeviceCredential)
         return credential
 
@@ -230,7 +232,8 @@ def _rpc(client: ServeSocketClient, method: str, params: dict | None = None) -> 
 def _grant_and_dial(phone: _Phone, computer: _Computer, level: str = grants.GRANT_ACCOUNT):
     device = computer.pair_phone()
     credential = grants.grant_computer(_phone_root(), computer_install_id="computer-install",
-                                       pairing_device_id=device.device_id, level=level)
+                                       pairing_device_id=device.device_id, level=level,
+                                       computer_machine_id=install_address()["machine_id"])
     answer = phone.rpc("runtime.gateway.reverse.dial", {
         "computer_install_id": "computer-install", "host": "127.0.0.1", "port": computer.gateway_port,
         "cert_fingerprint": computer.fingerprint, "device_id": device.device_id, "token": device.token})
@@ -478,7 +481,8 @@ def test_an_unpair_on_the_computer_refuses_the_next_dial_and_the_phone_drops_its
 def test_a_re_pair_starts_with_no_grant(phone, computer):
     old = computer.pair_phone()
     grants.grant_computer(_phone_root(), computer_install_id="computer-install",
-                          pairing_device_id=old.device_id, level=grants.GRANT_ACCOUNT)
+                          pairing_device_id=old.device_id, level=grants.GRANT_ACCOUNT,
+                          computer_machine_id=install_address()["machine_id"])
     new = computer.pair_phone()
     answer = phone.rpc("runtime.gateway.reverse.dial", {
         "computer_install_id": "computer-install", "host": "127.0.0.1", "port": computer.gateway_port,
@@ -514,7 +518,7 @@ def test_only_a_paired_device_parks_and_only_the_owner_attaches(computer):
 
         client.send({"op": "hello", "client": "x", "device_id": device.device_id,
                      "proof": device_proof(device.token, nonce, port=computer.gateway_port, device_id=device.device_id),
-                     "reverse_attach": device.device_id})
+                     "reverse_attach": device.device_id, **hello_fields()})
         assert client.read_frame() == {"event": "hello_rejected", "reason": "reverse_lane_refused"}
     finally:
         client.close()

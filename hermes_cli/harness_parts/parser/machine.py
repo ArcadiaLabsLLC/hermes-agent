@@ -193,6 +193,11 @@ def _add_gateway_pairing_verbs(gateway_subs) -> None:
         help="The ACCOUNT device id this introduction is for — copied onto the device row as a join key (a label, not a check)",
     )
     gateway_introduce.add_argument(
+        "--for-machine",
+        dest="for_machine",
+        help="The requester's hermes machine id (mach_…) from its account record: the redeemed row is bound to it, and a hello from any other machine is refused",
+    )
+    gateway_introduce.add_argument(
         "--correlation",
         help="The backend grant id, stamped through both mints and every event so all three parties name one errand",
     )

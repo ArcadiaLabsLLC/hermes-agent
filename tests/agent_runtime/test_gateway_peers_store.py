@@ -22,6 +22,8 @@ peer against one install and answer for another.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import hello_fields, install_address
+
 import json
 import time
 
@@ -78,6 +80,8 @@ def _pair(root, *, peer_install_id: str = PEER_B, **kwargs) -> PeerCredential:
 
     code = mint_peer_code(root, note="a laptop")
     assert isinstance(code, PeerPairingCode)
+    # Redeemed as from this process's machine, as its join hello would name it.
+    kwargs.setdefault("machine_id", install_address()["machine_id"])
     credential = redeem_peer_code(
         root, code.code, peer_install_id=peer_install_id, **kwargs
     )
@@ -172,7 +176,7 @@ def test_record_and_redeem_write_the_same_key_set(tmp_path):
         secret="f" * 64,
         display_name="workstation",
         endpoints=[{"host": "10.0.0.4", "port": 9000}],
-        cert_fingerprint="cd" * 32,
+        cert_fingerprint="cd" * 32, machine_id=install_address()["machine_id"]
     )
 
     def keys(root, peer_install_id):
@@ -208,7 +212,7 @@ def test_the_field_name_differs_from_the_device_rows_so_a_copied_row_is_inert(
     proof prefix."""
 
     code = mint_pairing_code(tmp_path)
-    device = redeem_pairing_code(tmp_path, code.code)
+    device = redeem_pairing_code(tmp_path, code.code, **hello_fields())
     assert isinstance(device, DeviceCredential)
     device_row = json.loads(
         (tmp_path / "gateway" / "devices.json").read_bytes().decode()
@@ -237,7 +241,7 @@ def test_record_peer_writes_the_other_half_from_the_secret_it_was_given(tmp_path
         secret="f" * 64,
         display_name="workstation",
         endpoints=[{"host": "10.0.0.4", "port": 9000}],
-        cert_fingerprint="cd" * 32,
+        cert_fingerprint="cd" * 32, machine_id=install_address()["machine_id"]
     )
 
     assert isinstance(record, PeerRecord)
@@ -251,7 +255,7 @@ def test_both_halves_of_one_edge_hold_the_same_verifier(tmp_path):
 
     a_root, b_root = tmp_path / "a", tmp_path / "b"
     credential = _pair(a_root, peer_install_id=PEER_B, display_name="laptop")
-    record_peer(b_root, peer_install_id=PEER_A, secret=credential.secret)
+    record_peer(b_root, peer_install_id=PEER_A, secret=credential.secret, machine_id=install_address()["machine_id"])
 
     a_side = json.loads(peer_store_path(a_root).read_bytes().decode())["peers"][PEER_B]
     b_side = json.loads(peer_store_path(b_root).read_bytes().decode())["peers"][PEER_A]
@@ -280,25 +284,25 @@ def test_a_repair_replaces_the_row_rather_than_adding_a_second_edge(tmp_path):
 def test_a_device_code_does_not_redeem_as_a_peer(tmp_path):
     code = mint_pairing_code(tmp_path)
 
-    outcome = redeem_peer_code(tmp_path, code.code, peer_install_id=PEER_B)
+    outcome = redeem_peer_code(tmp_path, code.code, peer_install_id=PEER_B, machine_id=install_address()["machine_id"])
 
     assert isinstance(outcome, StoreRefusal)
     assert outcome.reason == "invalid_code"
     assert list_peers(tmp_path) == []
     # The device code is untouched and still redeems as what it is.
-    assert isinstance(redeem_pairing_code(tmp_path, code.code), DeviceCredential)
+    assert isinstance(redeem_pairing_code(tmp_path, code.code, **hello_fields()), DeviceCredential)
 
 
 def test_a_peer_code_does_not_redeem_as_a_device(tmp_path):
     code = mint_peer_code(tmp_path)
 
-    outcome = redeem_pairing_code(tmp_path, code.code)
+    outcome = redeem_pairing_code(tmp_path, code.code, **hello_fields())
 
     assert isinstance(outcome, StoreRefusal)
     assert outcome.reason == "invalid_code"
     # And it still redeems as what it is.
     assert isinstance(
-        redeem_peer_code(tmp_path, code.code, peer_install_id=PEER_B), PeerCredential
+        redeem_peer_code(tmp_path, code.code, peer_install_id=PEER_B, machine_id=install_address()["machine_id"]), PeerCredential
     )
 
 
@@ -331,7 +335,7 @@ def test_failed_peer_redeems_lock_out_the_device_ceremony_too(tmp_path):
 
     for _ in range(MAX_FAILED_REDEEMS):
         assert isinstance(
-            redeem_peer_code(tmp_path, "ZZZZZZZZ", peer_install_id=PEER_B),
+            redeem_peer_code(tmp_path, "ZZZZZZZZ", peer_install_id=PEER_B, machine_id=install_address()["machine_id"]),
             StoreRefusal,
         )
 
@@ -348,7 +352,7 @@ def test_a_successful_peer_redeem_clears_the_shared_failure_streak(tmp_path):
     lockout on one fresh mistake — ``pairing.py``'s own correction."""
 
     for _ in range(MAX_FAILED_REDEEMS - 1):
-        redeem_peer_code(tmp_path, "ZZZZZZZZ", peer_install_id=PEER_B)
+        redeem_peer_code(tmp_path, "ZZZZZZZZ", peer_install_id=PEER_B, machine_id=install_address()["machine_id"])
     _pair(tmp_path)
 
     state = json.loads((tmp_path / "gateway" / "pairing.json").read_bytes().decode())
@@ -358,9 +362,9 @@ def test_a_successful_peer_redeem_clears_the_shared_failure_streak(tmp_path):
 
 def test_a_peer_code_is_one_shot(tmp_path):
     code = mint_peer_code(tmp_path)
-    assert isinstance(redeem_peer_code(tmp_path, code.code, peer_install_id=PEER_B), PeerCredential)
+    assert isinstance(redeem_peer_code(tmp_path, code.code, peer_install_id=PEER_B, machine_id=install_address()["machine_id"]), PeerCredential)
 
-    again = redeem_peer_code(tmp_path, code.code, peer_install_id="inst_other")
+    again = redeem_peer_code(tmp_path, code.code, peer_install_id="inst_other", machine_id=install_address()["machine_id"])
     assert isinstance(again, StoreRefusal)
     assert again.reason == "invalid_code"
     assert lookup_peer(tmp_path, "inst_other") is None
@@ -373,12 +377,12 @@ def test_a_redeem_that_names_no_install_is_refused_before_the_code_is_spent(tmp_
 
     code = mint_peer_code(tmp_path)
 
-    outcome = redeem_peer_code(tmp_path, code.code, peer_install_id="   ")
+    outcome = redeem_peer_code(tmp_path, code.code, peer_install_id="   ", machine_id=install_address()["machine_id"])
 
     assert isinstance(outcome, StoreRefusal)
     assert outcome.reason == "invalid_peer_id"
     assert isinstance(
-        redeem_peer_code(tmp_path, code.code, peer_install_id=PEER_B), PeerCredential
+        redeem_peer_code(tmp_path, code.code, peer_install_id=PEER_B, machine_id=install_address()["machine_id"]), PeerCredential
     )
 
 
@@ -416,7 +420,7 @@ def test_the_proof_binds_the_port_the_nonce_and_the_install_id(tmp_path):
         )
     # And under another install's name, with that install genuinely paired: the
     # proof was minted naming B and does not verify as A.
-    record_peer(tmp_path, peer_install_id=PEER_A, secret=credential.secret)
+    record_peer(tmp_path, peer_install_id=PEER_A, secret=credential.secret, machine_id=install_address()["machine_id"])
     assert (
         verify_peer_proof(tmp_path, PEER_A, good, "n0nce", port=9000).outcome
         == PEER_AUTH_BAD_PROOF
@@ -686,14 +690,14 @@ def test_a_fingerprint_that_is_not_one_reads_as_absent_not_as_a_pin(tmp_path):
     "pin this"."""
 
     record = record_peer(
-        tmp_path, peer_install_id=PEER_A, secret="f" * 64, cert_fingerprint="not-a-hash"
+        tmp_path, peer_install_id=PEER_A, secret="f" * 64, cert_fingerprint="not-a-hash", machine_id=install_address()["machine_id"]
     )
 
     assert isinstance(record, PeerRecord)
     assert record.cert_fingerprint is None
     assert (
         record_peer(
-            tmp_path, peer_install_id=PEER_A, secret="f" * 64, cert_fingerprint="AB" * 32
+            tmp_path, peer_install_id=PEER_A, secret="f" * 64, cert_fingerprint="AB" * 32, machine_id=install_address()["machine_id"]
         ).cert_fingerprint
         == "ab" * 32
     )
@@ -722,7 +726,7 @@ def test_a_peer_code_scoped_to_an_install_refuses_any_other_install_and_charges_
     minted = mint_peer_code(tmp_path, for_install_id=PEER_B)
     assert isinstance(minted, PeerPairingCode)
 
-    wrong = redeem_peer_code(tmp_path, minted.code, peer_install_id=PEER_A)
+    wrong = redeem_peer_code(tmp_path, minted.code, peer_install_id=PEER_A, machine_id=install_address()["machine_id"])
     assert isinstance(wrong, StoreRefusal)
     assert wrong.reason == "invalid_code"
     assert "no pending peer code matches" in wrong.detail
@@ -733,7 +737,7 @@ def test_a_peer_code_scoped_to_an_install_refuses_any_other_install_and_charges_
     assert list_peers(tmp_path) == []
 
     # …and the install it WAS for still gets its edge.
-    right = redeem_peer_code(tmp_path, minted.code, peer_install_id=PEER_B)
+    right = redeem_peer_code(tmp_path, minted.code, peer_install_id=PEER_B, machine_id=install_address()["machine_id"])
     assert isinstance(right, PeerCredential)
     assert [row.peer_install_id for row in list_peers(tmp_path)] == [PEER_B]
 
@@ -748,7 +752,7 @@ def test_an_unscoped_code_is_still_spendable_by_anybody_which_is_the_manual_cere
     minted = mint_peer_code(tmp_path)
     assert isinstance(minted, PeerPairingCode)
 
-    credential = redeem_peer_code(tmp_path, minted.code, peer_install_id=PEER_A)
+    credential = redeem_peer_code(tmp_path, minted.code, peer_install_id=PEER_A, machine_id=install_address()["machine_id"])
     assert isinstance(credential, PeerCredential)
     assert credential.expires_at is None
 
@@ -787,10 +791,10 @@ def test_a_requester_supersedes_its_own_earlier_peer_code_so_a_retry_is_free(
     # Only the newest redeems — the earlier two are gone, not merely shadowed,
     # so a code an operator copied out of a stale envelope buys nothing.
     assert isinstance(
-        redeem_peer_code(tmp_path, first.code, peer_install_id=PEER_B), StoreRefusal
+        redeem_peer_code(tmp_path, first.code, peer_install_id=PEER_B, machine_id=install_address()["machine_id"]), StoreRefusal
     )
     assert isinstance(
-        redeem_peer_code(tmp_path, third.code, peer_install_id=PEER_B), PeerCredential
+        redeem_peer_code(tmp_path, third.code, peer_install_id=PEER_B, machine_id=install_address()["machine_id"]), PeerCredential
     )
 
 
@@ -841,7 +845,7 @@ def test_a_peer_code_minted_with_a_ttl_redeems_into_a_row_that_expires(tmp_path)
 
     at = time.time()
     credential = redeem_peer_code(
-        tmp_path, minted.code, peer_install_id=PEER_B, now=at
+        tmp_path, minted.code, peer_install_id=PEER_B, now=at, machine_id=install_address()["machine_id"]
     )
     assert isinstance(credential, PeerCredential)
     assert credential.expires_at is not None
@@ -870,7 +874,7 @@ def test_an_expired_peer_is_refused_after_the_proof_with_its_own_reason(tmp_path
 
     minted = mint_peer_code(tmp_path, credential_ttl_seconds=60)
     credential = redeem_peer_code(
-        tmp_path, minted.code, peer_install_id=PEER_B, now=1_000.0
+        tmp_path, minted.code, peer_install_id=PEER_B, now=1_000.0, machine_id=install_address()["machine_id"]
     )
     assert isinstance(credential, PeerCredential)
 
@@ -899,7 +903,7 @@ def test_a_revoked_and_expired_row_reports_revoked_because_a_decision_outranks_a
 ):
     minted = mint_peer_code(tmp_path, credential_ttl_seconds=60)
     credential = redeem_peer_code(
-        tmp_path, minted.code, peer_install_id=PEER_B, now=1_000.0
+        tmp_path, minted.code, peer_install_id=PEER_B, now=1_000.0, machine_id=install_address()["machine_id"]
     )
     revoke_peer(tmp_path, PEER_B)
 
@@ -922,7 +926,7 @@ def test_record_peer_stores_the_expiry_the_far_side_minted(tmp_path):
         secret="f" * 64,
         display_name="workstation",
         endpoints=[{"host": "10.0.0.4", "port": 9000}],
-        expires_at="2099-01-01T00:00:00+00:00",
+        expires_at="2099-01-01T00:00:00+00:00", machine_id=install_address()["machine_id"]
     )
     assert isinstance(outcome, PeerRecord)
     assert outcome.expires_at == "2099-01-01T00:00:00+00:00"
@@ -932,7 +936,7 @@ def test_record_peer_stores_the_expiry_the_far_side_minted(tmp_path):
         tmp_path,
         peer_install_id=PEER_B,
         secret="e" * 64,
-        expires_at="2000-01-01T00:00:00+00:00",
+        expires_at="2000-01-01T00:00:00+00:00", machine_id=install_address()["machine_id"]
     )
     assert lapsed.expired is True
 
@@ -965,7 +969,7 @@ def test_dial_peer_refuses_an_expired_row_before_it_opens_a_socket(tmp_path, mon
         display_name="workstation",
         endpoints=[{"host": "10.0.0.4", "port": 9000}],
         cert_fingerprint="ab" * 32,
-        expires_at="2000-01-01T00:00:00+00:00",
+        expires_at="2000-01-01T00:00:00+00:00", machine_id=install_address()["machine_id"]
     )
     gateway_peers.record_peer  # the module is the one under test
 
@@ -1102,7 +1106,7 @@ def test_dial_order_is_cache_endpoints_then_trust_and_the_pin_is_always_trust(
         secret="f" * 64,
         display_name="workstation",
         endpoints=[{"host": "10.0.0.4", "port": 9000}],
-        cert_fingerprint="ab" * 32,
+        cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"]
     )
     gateway_peers.apply_peer_announce(
         tmp_path,
@@ -1168,7 +1172,7 @@ def test_the_chat_dial_names_a_local_network_permission_rather_than_an_oserror(
         secret="f" * 64,
         display_name="the mac",
         endpoints=[{"host": "192.168.1.203", "port": 8765}],
-        cert_fingerprint="ab" * 32,
+        cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"]
     )
     monkeypatch.setattr(
         "agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: ["192.168.1.39"]
@@ -1214,7 +1218,7 @@ def test_a_chat_dial_that_is_merely_refused_keeps_the_word_it_had(
         secret="f" * 64,
         display_name="the mac",
         endpoints=[{"host": "192.168.1.203", "port": 8765}],
-        cert_fingerprint="ab" * 32,
+        cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"]
     )
     monkeypatch.setattr(
         "agent_runtime.gateway_endpoints.candidates.machine_addresses", lambda: ["192.168.1.39"]
@@ -1246,18 +1250,18 @@ def test_usable_peers_excludes_revoked_expired_and_revoked_you(tmp_path):
 
     from agent_runtime.gateway_peers import apply_peer_announce, usable_peers
 
-    record_peer(tmp_path, peer_install_id="inst_live", secret="a" * 64, display_name="live")
+    record_peer(tmp_path, peer_install_id="inst_live", secret="a" * 64, display_name="live", machine_id=install_address()["machine_id"])
     record_peer(
-        tmp_path, peer_install_id="inst_revoked", secret="b" * 64, display_name="revoked"
+        tmp_path, peer_install_id="inst_revoked", secret="b" * 64, display_name="revoked", machine_id=install_address()["machine_id"]
     )
     record_peer(
         tmp_path,
         peer_install_id="inst_expired",
         secret="c" * 64,
         display_name="expired",
-        expires_at="2000-01-01T00:00:00+00:00",
+        expires_at="2000-01-01T00:00:00+00:00", machine_id=install_address()["machine_id"]
     )
-    record_peer(tmp_path, peer_install_id="inst_cut", secret="d" * 64, display_name="cut")
+    record_peer(tmp_path, peer_install_id="inst_cut", secret="d" * 64, display_name="cut", machine_id=install_address()["machine_id"])
     revoke_peer(tmp_path, "inst_revoked")
     apply_peer_announce(tmp_path, "inst_cut", {"revoked_you": True})
 
@@ -1315,10 +1319,10 @@ def test_ref_is_the_name_when_unique_else_the_id(tmp_path):
 
     from agent_runtime.gateway_peers import usable_peers
 
-    record_peer(tmp_path, peer_install_id="inst_one", secret="a" * 64, display_name="mac")
-    record_peer(tmp_path, peer_install_id="inst_two", secret="b" * 64, display_name="mac")
+    record_peer(tmp_path, peer_install_id="inst_one", secret="a" * 64, display_name="mac", machine_id=install_address()["machine_id"])
+    record_peer(tmp_path, peer_install_id="inst_two", secret="b" * 64, display_name="mac", machine_id=install_address()["machine_id"])
     record_peer(
-        tmp_path, peer_install_id="inst_solo", secret="c" * 64, display_name="studio"
+        tmp_path, peer_install_id="inst_solo", secret="c" * 64, display_name="studio", machine_id=install_address()["machine_id"]
     )
 
     refs = {peer.record.peer_install_id: peer.ref for peer in usable_peers(tmp_path)}
@@ -1486,7 +1490,7 @@ def test_a_write_the_disk_refuses_comes_back_as_a_typed_reason(tmp_path, monkeyp
 
     monkeypatch.setattr(gateway_peers.trust_store, "_write_peers", _denied)
 
-    outcome = record_peer(tmp_path, peer_install_id=PEER_B, secret="s" * 32)
+    outcome = record_peer(tmp_path, peer_install_id=PEER_B, secret="s" * 32, machine_id=install_address()["machine_id"])
 
     assert isinstance(outcome, StoreRefusal)
     assert outcome.reason == "permission_denied"

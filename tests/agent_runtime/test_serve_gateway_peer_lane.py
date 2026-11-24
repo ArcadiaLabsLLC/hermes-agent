@@ -28,6 +28,8 @@ coverage that would be slow and hard to read through two subprocesses.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import hello_fields, install_address
+
 import json
 import queue
 import threading
@@ -189,6 +191,8 @@ def pair_peer(*, peer_install_id: str = FAR_INSTALL, **kwargs) -> PeerCredential
     root = _store_root()
     code = mint_peer_code(root, note="the other machine")
     assert isinstance(code, PeerPairingCode)
+    # Redeemed as from this process's machine, as its join hello would name it.
+    kwargs.setdefault("machine_id", install_address()["machine_id"])
     credential = redeem_peer_code(
         root, code.code, peer_install_id=peer_install_id, **kwargs
     )
@@ -200,7 +204,7 @@ def pair_device() -> DeviceCredential:
     root = _store_root()
     code = mint_pairing_code(root, name="a phone")
     assert isinstance(code, PairingCode)
-    credential = redeem_pairing_code(root, code.code)
+    credential = redeem_pairing_code(root, code.code, **hello_fields())
     assert isinstance(credential, DeviceCredential)
     return credential
 
@@ -882,7 +886,7 @@ def test_dial_peer_uses_the_endpoint_on_the_row_and_pins_its_fingerprint():
             secret=credential.secret,
             display_name="loopback stand-in",
             endpoints=[{"host": "127.0.0.1", "port": handle.gateway_port}],
-            cert_fingerprint=handle.fingerprint,
+            cert_fingerprint=handle.fingerprint, machine_id=install_address()["machine_id"]
         )
 
         connection, reply = dial_peer(_store_root(), identity.install_id)
@@ -921,7 +925,7 @@ def test_dial_peer_reports_an_unreachable_endpoint_as_a_transport_failure():
         peer_install_id=FAR_INSTALL,
         secret=credential.secret,
         endpoints=[{"host": "127.0.0.1", "port": 9}],
-        cert_fingerprint="ab" * 32,
+        cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"]
     )
 
     with pytest.raises(ConnectionError, match="answered"):
@@ -944,7 +948,7 @@ def test_dial_peer_refuses_a_root_that_cannot_name_itself_rather_than_minting_on
         _store_root(),
         peer_install_id=FAR_INSTALL,
         secret=credential.secret,
-        endpoints=[{"host": "127.0.0.1", "port": 9}],
+        endpoints=[{"host": "127.0.0.1", "port": 9}], machine_id=install_address()["machine_id"]
     )
 
     with pytest.raises(ConnectionError, match="no install identity"):

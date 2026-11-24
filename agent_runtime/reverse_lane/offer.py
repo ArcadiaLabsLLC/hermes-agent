@@ -19,6 +19,7 @@ from __future__ import annotations
 import secrets
 from typing import Any
 
+from ..hello_address import answer_address_refusal
 from ..serve_socket.client import ServeSocketClient
 from ..serve_socket.hello import ServeCertificatePinMismatch, ServeHelloProtocolError
 from . import grants as _grants
@@ -49,11 +50,13 @@ def _offer_reply(client: ServeSocketClient, rid: str) -> dict[str, Any] | None:
     return None
 
 
-def _one_shot(*, host: str, port: int, cert_fingerprint: str, device_id: str, token: str, method: str,
-              params: dict[str, Any]) -> str | None:
+def _one_shot(*, host: str, port: int, cert_fingerprint: str, device_id: str, token: str, machine_id: str,
+              method: str, params: dict[str, Any]) -> str | None:
     """Open the phone's pinned device connection to the computer, call *method* once, close.
 
-    ``None`` when the computer answered a result; else the refusal's ``reason``."""
+    ``None`` when the computer answered a result; else the refusal's ``reason``. After the pin and
+    before the request, the computer's ``hello_ok`` must name *machine_id* and this namespace
+    (``hello_address``, machine first): another machine holding the pin is sent nothing."""
 
     client = ServeSocketClient(host, int(port), timeout_seconds=_TIMEOUT, tls=True,
                                cert_fingerprint=str(cert_fingerprint or "").strip().lower())
@@ -64,6 +67,8 @@ def _one_shot(*, host: str, port: int, cert_fingerprint: str, device_id: str, to
         if not isinstance(hello, dict) or hello.get("event") == "hello_rejected":
             refused = hello.get("reason") if isinstance(hello, dict) else None
             reason = "unpaired" if refused == "bad_proof" else "computer_refused"
+        elif (address := answer_address_refusal(hello, expect_machine_id=machine_id)) is not None:
+            reason = address
         else:
             client.set_timeout(_REPLY_TIMEOUT)
             rid = f"{method.rsplit('.', 1)[-1]}-{secrets.token_hex(4)}"
@@ -86,8 +91,8 @@ def _one_shot(*, host: str, port: int, cert_fingerprint: str, device_id: str, to
     return reason
 
 
-def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, port: int,
-                    cert_fingerprint: str, device_id: str, token: str, level: str,
+def grant_and_offer(store_root: Any, *, computer_install_id: str, computer_machine_id: str, host: str,
+                    port: int, cert_fingerprint: str, device_id: str, token: str, level: str,
                     phone_install_id: str) -> dict[str, Any]:
     """Grant *computer_install_id* at *level* and offer it its credential. ``ok`` or ``reason``.
 
@@ -96,9 +101,10 @@ def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, por
     """
 
     credential = _grants.grant_computer(store_root, computer_install_id=computer_install_id,
-                                        pairing_device_id=device_id, level=level)
+                                        pairing_device_id=device_id, computer_machine_id=computer_machine_id,
+                                        level=level)
     reason = _one_shot(host=host, port=port, cert_fingerprint=cert_fingerprint, device_id=device_id,
-                       token=token, method=OFFER_METHOD, params={
+                       token=token, machine_id=computer_machine_id, method=OFFER_METHOD, params={
                            "computer_id": credential.computer_id, "token": credential.token,
                            "level": credential.level, "phone_install_id": phone_install_id})
     if reason is not None:
@@ -112,7 +118,7 @@ def grant_and_offer(store_root: Any, *, computer_install_id: str, host: str, por
 
 
 def withdraw_accept(*, host: str, port: int, cert_fingerprint: str, device_id: str,
-                    token: str) -> dict[str, Any]:
+                    token: str, machine_id: str) -> dict[str, Any]:
     """The phone's switch, off: tell the computer to forget its accept of this phone. ``ok`` or ``reason``.
 
     Row ``RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT``: the same one-shot as the
@@ -120,5 +126,5 @@ def withdraw_accept(*, host: str, port: int, cert_fingerprint: str, device_id: s
     transport authenticated, so the call names nothing; a withdraw that cannot land is not retried."""
 
     reason = _one_shot(host=host, port=port, cert_fingerprint=cert_fingerprint, device_id=device_id,
-                       token=token, method=WITHDRAW_METHOD, params={})
+                       token=token, machine_id=machine_id, method=WITHDRAW_METHOD, params={})
     return {"ok": True} if reason is None else {"ok": False, "reason": reason}

@@ -158,10 +158,15 @@ class InstallIdentity:
         reading the file, and no client behaviour keys off it.
         """
 
+        from .hello_address import install_address
+
         return {
             "install_id": self.install_id,
             "display_name": self.display_name,
             "state": self.state,
+            # The address this install answers from, machine first (``hello_address``): every
+            # hermes dialer checks both against what its caller handed it before it sends a request.
+            **install_address(),
         }
 
 

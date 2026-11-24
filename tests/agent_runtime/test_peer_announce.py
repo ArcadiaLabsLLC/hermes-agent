@@ -22,6 +22,8 @@ un-revoke — and asserts ``peers.json`` is byte-identical afterwards.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import install_address
+
 import json
 
 import pytest
@@ -49,7 +51,7 @@ def paired(tmp_path):
         secret="f" * 64,
         display_name="workstation",
         endpoints=[{"host": "10.0.0.4", "port": 9000}],
-        cert_fingerprint="ab" * 32,
+        cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"]
     )
     return tmp_path
 
@@ -113,7 +115,7 @@ def test_an_announce_may_write_only_the_callers_own_row(paired):
     in the body is data the function never reads — the handler refuses it out
     loud (below), and even if it did not, it could not land anywhere."""
 
-    record_peer(paired, peer_install_id=PEER_B, secret="e" * 64, display_name="other")
+    record_peer(paired, peer_install_id=PEER_B, secret="e" * 64, display_name="other", machine_id=install_address()["machine_id"])
 
     apply_peer_announce(
         paired,
@@ -148,7 +150,7 @@ def test_revoked_you_is_one_way_until_a_trust_write(paired):
         secret="f" * 64,
         display_name="workstation",
         endpoints=[{"host": "10.0.0.4", "port": 9000}],
-        cert_fingerprint="ab" * 32,
+        cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"]
     )
     assert read_peer_cache(paired)[PEER_A].revoked_you is False
     assert read_peer_cache(paired)[PEER_A].revoked_you_at is None

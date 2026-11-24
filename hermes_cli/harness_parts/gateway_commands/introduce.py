@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from agent_runtime.hello_address import install_address
 from agent_runtime.gateway_endpoints import SOURCE_CONFIG, SOURCE_LIVE, SOURCE_UNKNOWN, listener_endpoint
 from agent_runtime.root_observability import attach_root_observability
 from hermes_cli.harness_support import (
@@ -72,6 +73,7 @@ def cmd_gateway_peers_pair(args) -> int:
         "port": dial[1] if dial else None,
         "endpoints": endpoints,
         "install_id": identity.install_id,
+        "machine_id": install_address().get("machine_id"),
         "cert_fingerprint": certificate.fingerprint,
         "peer_code": minted.code,
     }
@@ -160,6 +162,7 @@ def cmd_gateway_introduce(args) -> int:
         args,
         for_install_id=str(getattr(args, "for_install", "") or "").strip(),
         for_device_id=str(getattr(args, "for_device", "") or "").strip(),
+        for_machine_id=str(getattr(args, "for_machine", "") or "").strip(),
         note=getattr(args, "note", None),
     )
     try:
@@ -182,13 +185,14 @@ class Introduce:
     that turns it back into the return value, and the one place that prints.
     """
 
-    def __init__(self, args, *, for_install_id: str, for_device_id: str, note: Any) -> None:
+    def __init__(self, args, *, for_install_id: str, for_device_id: str, for_machine_id: str, note: Any) -> None:
         from agent_runtime import paths
 
         self.args = args
         self.root = paths.store_root()
         self.for_install_id = for_install_id
         self.for_device_id = for_device_id
+        self.for_machine_id = for_machine_id
         self.note = note
         self.correlation: str | None = None
         self.peer_block: dict[str, Any] | None = None
@@ -206,6 +210,18 @@ class Introduce:
         return self.row()
 
     def flags(self) -> None:
+        from agent_runtime.hello_address import clean_machine_id
+
+        if self.for_machine_id and clean_machine_id(self.for_machine_id) is None:
+            raise PhaseStop(
+                emit_harness_error(
+                    RuntimeError("invalid_machine_id"),
+                    reason="invalid_machine_id",
+                    args=self.args,
+                    code="invalid_payload",
+                    message="--for-machine must be a hermes machine id (mach_…), as the requester's account record names it.",
+                )
+            )
         if self.for_install_id or self.for_device_id:
             return
         # At least one, never both required: a PHONE has no install id (the
@@ -266,6 +282,8 @@ class Introduce:
                 "port": self.dial_port,
                 "endpoints": self.endpoints,
                 "install_id": self.install.install_id,
+                # This install's machine: the redeemer checks the far ``hello_ok`` names it.
+                "machine_id": install_address().get("machine_id"),
                 "cert_fingerprint": self.certificate.fingerprint,
                 code_key: code,
             },
@@ -313,6 +331,7 @@ class Introduce:
             note=self.note,
             credential_ttl_seconds=CREDENTIAL_TTL_SECONDS_INTRODUCED,
             for_install_id=self.for_install_id,
+            for_machine_id=self.for_machine_id or None,
             correlation=self.correlation,
         )
         if isinstance(minted, StoreRefusal):
@@ -336,6 +355,7 @@ class Introduce:
             name=self.note,
             credential_ttl_seconds=CREDENTIAL_TTL_SECONDS_INTRODUCED,
             for_device_id=self.for_device_id,
+            for_machine_id=self.for_machine_id or None,
             correlation=self.correlation,
         )
         if isinstance(minted, StoreRefusal):
@@ -396,6 +416,7 @@ class Introduce:
             "correlation": self.correlation,
             "for_install_id": self.for_install_id or None,
             "for_device_id": self.for_device_id or None,
+            "for_machine_id": self.for_machine_id or None,
             "credential_ttl_seconds": CREDENTIAL_TTL_SECONDS_INTRODUCED,
             "peer": self.peer_block,
             "device": self.device_block,

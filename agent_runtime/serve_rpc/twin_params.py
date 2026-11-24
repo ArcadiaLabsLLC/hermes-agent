@@ -46,7 +46,7 @@ PETS_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
 GATEWAY_ACTION_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.gateway.devices.list": (),
     "runtime.gateway.id": (),
-    "runtime.gateway.introduce": ("correlation", "for_device", "for_install", "note"),
+    "runtime.gateway.introduce": ("correlation", "for_device", "for_install", "for_machine", "note"),
     "runtime.gateway.peers.join": ("correlation", "expect_fingerprint", "host", "payload", "port"),
     "runtime.gateway.peers.revoke": ("peer_install_id",),
 }

@@ -135,7 +135,7 @@ def test_the_ready_frame_names_which_install_it_is(isolate_agent_runtime_root):
     frames, _ = _run([SHUTDOWN])
 
     install = _one(frames, "ready")["install"]
-    assert set(install) == {"install_id", "display_name", "state"}
+    assert set(install) == {"install_id", "display_name", "state", "machine_id", "namespace"}
     assert install["state"] == "minted"
     assert install["install_id"] and install["display_name"]
     # Minted into THIS root, not a home and not a telemetry db.

@@ -25,6 +25,7 @@ from typing import Any, Callable
 
 from ..call_authorization import COMPUTER_GRANT_ACCOUNT, COMPUTER_GRANTS
 from ..clock import now_iso
+from ..hello_address import clean_machine_id
 from ..paths import gateway_dir
 from ..serve_gateway_auth.proof import device_verifier, reverse_proof_from_verifier
 from ..store_file_io import read_json_object as _read_json
@@ -43,6 +44,7 @@ __all__ = [
     "grant_computer",
     "grant_for_install",
     "list_grants",
+    "lookup_grant",
     "revoke_grant",
     "revoke_install_grants",
     "verify_lane_proof",
@@ -66,6 +68,10 @@ class ReverseGrant:
     computer_install_id: str
     pairing_device_id: str
     created_at: str
+    #: The computer's machine id, from the phone's account record at the grant: the computer's lane
+    #: hello must name it before its proof is read, and the phone's dials check the computer's answer
+    #: names it. A row without one (granted before the binding) is no grant (no legacy).
+    machine_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,10 +143,12 @@ def _grant_row(computer_id: str, row: dict[str, Any]) -> ReverseGrant | None:
     level = row.get("level")
     install = str(row.get("computer_install_id") or "").strip()
     pairing = str(row.get("pairing_device_id") or "").strip()
-    if level not in GRANT_LEVELS or not install or not pairing or not row.get("verifier"):
+    machine = clean_machine_id(row.get("machine_id"))
+    if level not in GRANT_LEVELS or not install or not pairing or not row.get("verifier") or machine is None:
         return None
     return ReverseGrant(computer_id=computer_id, level=str(level), computer_install_id=install,
-                        pairing_device_id=pairing, created_at=str(row.get("created_at") or ""))
+                        pairing_device_id=pairing, created_at=str(row.get("created_at") or ""),
+                        machine_id=machine)
 
 
 def _grant_id_text(value: Any) -> str:
@@ -151,7 +159,7 @@ def _grant_id_text(value: Any) -> str:
 
 
 def grant_computer(store_root: Path | str, *, computer_install_id: str, pairing_device_id: str,
-                   level: str = GRANT_ACCOUNT) -> ReverseGrantCredential:
+                   computer_machine_id: str, level: str = GRANT_ACCOUNT) -> ReverseGrantCredential:
     """Grant the computer this phone is paired with as ``pairing_device_id``; mint its credential.
 
     One grant per computer install: a new grant replaces the old one, whose credential stops
@@ -162,6 +170,9 @@ def grant_computer(store_root: Path | str, *, computer_install_id: str, pairing_
         raise ValueError(f"grant level must be one of {GRANT_LEVELS}, not {level!r}")
     install = _grant_id_text(computer_install_id)
     pairing = _grant_id_text(pairing_device_id)
+    machine = clean_machine_id(computer_machine_id)
+    if machine is None:
+        raise ValueError(f"not a machine id: {computer_machine_id!r}")
     computer_id = f"cmp-{secrets.token_hex(8)}"
     token = secrets.token_hex(32)
     with _lock(store_root):
@@ -170,7 +181,7 @@ def grant_computer(store_root: Path | str, *, computer_install_id: str, pairing_
         for cid in replaced:
             rows.pop(cid, None)
         rows[computer_id] = {"level": level, "computer_install_id": install, "pairing_device_id": pairing,
-                             "verifier": device_verifier(token), "created_at": now_iso()}
+                             "machine_id": machine, "verifier": device_verifier(token), "created_at": now_iso()}
         _write(store_root, rows)
     _notify(replaced)
     return ReverseGrantCredential(computer_id=computer_id, token=token, level=level)
@@ -213,6 +224,14 @@ def list_grants(store_root: Path | str) -> list[ReverseGrant]:
 def grant_for_install(store_root: Path | str, computer_install_id: str) -> ReverseGrant | None:
     install = str(computer_install_id or "").strip()
     return next((g for g in list_grants(store_root) if g.computer_install_id == install), None)
+
+
+def lookup_grant(store_root: Path | str, computer_id: Any) -> ReverseGrant | None:
+    """One grant by computer id, WITHOUT its proof: the lane hello's address check reads it first."""
+
+    computer_id = str(computer_id or "").strip()
+    row = _rows(store_root).get(computer_id) if computer_id and len(computer_id) <= _ID_LIMIT else None
+    return _grant_row(computer_id, row) if isinstance(row, dict) else None
 
 
 def verify_lane_proof(store_root: Path | str, computer_id: Any, presented: Any, nonce: str, *,

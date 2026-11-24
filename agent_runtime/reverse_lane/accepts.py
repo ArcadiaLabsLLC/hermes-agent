@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 from ..clock import now_iso
+from ..hello_address import clean_machine_id
 from ..paths import gateway_dir
 from ..store_file_io import read_json_object as _read_json
 from ..store_file_io import store_lock as _file_lock
@@ -88,12 +89,16 @@ class ReverseAccept:
     level: str
     phone_install_id: str
     accepted_at: str
+    #: The phone's machine id, copied off the phone's device row here (bound at its pairing), so
+    #: this computer's Eternia checks the phone's engine answers from it before it sends a request.
+    machine_id: str = ""
 
     def describe(self) -> dict[str, Any]:
         """The accept as a surface shows it."""
 
         return {"device_id": self.device_id, "computer_id": self.computer_id, "level": self.level,
-                "phone_install_id": self.phone_install_id, "accepted_at": self.accepted_at}
+                "phone_install_id": self.phone_install_id, "accepted_at": self.accepted_at,
+                "machine_id": self.machine_id}
 
 
 def _id_text(value: Any) -> str | None:
@@ -180,16 +185,21 @@ def _paired_here(store_root: Path | str, device_id: str) -> bool:
     return record is not None and not record.revoked and not record.expired
 
 
-def record_accept(store_root: Path | str, offer: ReverseOffer) -> ReverseAccept:
-    """Write down that this computer's owner accepted *offer*. One row per phone device."""
+def record_accept(store_root: Path | str, offer: ReverseOffer, *, machine_id: str) -> ReverseAccept:
+    """Write down that this computer's owner accepted *offer*. One row per phone device.
 
+    *machine_id* is the phone's, read off its device row (never off the offer the phone sent)."""
+
+    machine = clean_machine_id(machine_id)
+    if machine is None:
+        raise ValueError(f"not a machine id: {machine_id!r}")
     accept = ReverseAccept(device_id=offer.device_id, computer_id=offer.computer_id, level=offer.level,
-                           phone_install_id=offer.phone_install_id, accepted_at=now_iso())
+                           phone_install_id=offer.phone_install_id, accepted_at=now_iso(), machine_id=machine)
     with _lock(store_root):
         rows = _rows(store_root)
         rows[accept.device_id] = {"computer_id": accept.computer_id, "level": accept.level,
                                   "phone_install_id": accept.phone_install_id,
-                                  "accepted_at": accept.accepted_at}
+                                  "accepted_at": accept.accepted_at, "machine_id": machine}
         _write(store_root, rows)
     return accept
 
@@ -214,13 +224,15 @@ def list_accepts(store_root: Path | str) -> list[ReverseAccept]:
             # MUTATION: answer a row whose device was unpaired here and the unpair test
             # still lists the phone as accepted. MUTATION: drop the level check and
             # test_reverse_grant's retired-level test still lists a stored ``look`` accept.
-            if row.get("level") not in GRANT_LEVELS or not _paired_here(store_root, device_id):
+            machine = clean_machine_id(row.get("machine_id"))
+            # An accept with no machine id was written before the binding: dropped, no legacy.
+            if row.get("level") not in GRANT_LEVELS or machine is None or not _paired_here(store_root, device_id):
                 gone.append(device_id)
                 continue
             live.append(ReverseAccept(device_id=device_id, computer_id=str(row.get("computer_id") or ""),
                                       level=str(row["level"]),
                                       phone_install_id=str(row.get("phone_install_id") or ""),
-                                      accepted_at=str(row.get("accepted_at") or "")))
+                                      accepted_at=str(row.get("accepted_at") or ""), machine_id=machine))
         if gone:
             for device_id in gone:
                 rows.pop(device_id, None)

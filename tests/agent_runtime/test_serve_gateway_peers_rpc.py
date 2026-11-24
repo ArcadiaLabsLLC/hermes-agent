@@ -23,6 +23,8 @@ Three claims are load-bearing here:
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import install_address
+
 import json
 
 import pytest
@@ -69,7 +71,7 @@ def store(tmp_path, monkeypatch):
         secret="f" * 64,
         display_name="mac",
         endpoints=[{"host": "10.0.0.4", "port": 9000}],
-        cert_fingerprint="ab" * 32,
+        cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"]
     )
     monkeypatch.setattr(
         "agent_runtime.gateway_targets.peer_store_root", lambda: tmp_path
@@ -151,7 +153,7 @@ def test_unusable_rows_are_kept_and_say_why(store):
     decommissioned machine needs. The words are the RESOLVER's, so one condition
     has one spelling everywhere."""
 
-    record_peer(store, peer_install_id=PEER_B, secret="e" * 64, display_name="cut")
+    record_peer(store, peer_install_id=PEER_B, secret="e" * 64, display_name="cut", machine_id=install_address()["machine_id"])
     apply_peer_announce(store, PEER_B, {"revoked_you": True})
     revoke_peer(store, PEER_A)
 
@@ -216,7 +218,7 @@ def test_subscribe_then_a_write_produces_exactly_one_changed_frame(store):
     _call("runtime.gateway.peers.subscribe", sink=sink)
     assert sink.notifications == []
 
-    record_peer(store, peer_install_id=PEER_B, secret="e" * 64, display_name="studio")
+    record_peer(store, peer_install_id=PEER_B, secret="e" * 64, display_name="studio", machine_id=install_address()["machine_id"])
 
     assert len(sink.notifications) == 1
     params = sink.notifications[0]["params"]
@@ -258,7 +260,7 @@ def test_no_notification_payload_carries_a_secret(store):
     sink = _Sink()
     _call("runtime.gateway.peers.subscribe", sink=sink)
 
-    record_peer(store, peer_install_id=PEER_B, secret="e" * 64, display_name="studio")
+    record_peer(store, peer_install_id=PEER_B, secret="e" * 64, display_name="studio", machine_id=install_address()["machine_id"])
     apply_peer_announce(store, PEER_B, {"cert_fingerprint": "cd" * 32})
     revoke_peer(store, PEER_B)
 
@@ -277,7 +279,7 @@ def test_a_released_subscriber_stops_receiving(store):
     _call("runtime.gateway.peers.subscribe", sink=sink)
     PEER_DIRECTORY_SUBSCRIPTIONS.release("conn-1")
 
-    record_peer(store, peer_install_id=PEER_B, secret="e" * 64, display_name="studio")
+    record_peer(store, peer_install_id=PEER_B, secret="e" * 64, display_name="studio", machine_id=install_address()["machine_id"])
 
     assert sink.notifications == []
 
@@ -320,7 +322,7 @@ def test_the_notification_describes_the_store_that_was_WRITTEN(store, monkeypatc
             AssertionError("the notification re-derived its own root")
         ),
     )
-    record_peer(store, peer_install_id=PEER_B, secret="e" * 64, display_name="studio")
+    record_peer(store, peer_install_id=PEER_B, secret="e" * 64, display_name="studio", machine_id=install_address()["machine_id"])
 
     assert len(sink.notifications) == 1
     assert sink.notifications[0]["params"]["peer"]["display_name"] == "studio"

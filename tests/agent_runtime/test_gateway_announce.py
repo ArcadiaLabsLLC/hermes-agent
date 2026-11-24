@@ -15,6 +15,8 @@ revoked would be refused at our own door on the way back.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import install_address
+
 import argparse
 import json
 
@@ -46,7 +48,7 @@ def _pair(root, peer_install_id=PEER_A, name="workstation"):
         secret="f" * 64,
         display_name=name,
         endpoints=[{"host": "10.0.0.4", "port": 9000}],
-        cert_fingerprint="ab" * 32,
+        cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"]
     )
 
 

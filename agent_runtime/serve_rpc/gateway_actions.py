@@ -102,11 +102,12 @@ def _runtime_gateway_id(rid: Any, params: dict, context: RpcContext | None = Non
 
 @method("runtime.gateway.introduce", tier=TIER_CONSOLE)
 def _runtime_gateway_introduce(rid: Any, params: dict, context: RpcContext | None = None) -> dict:
-    """``harness gateway introduce``. Params: ``for_install`` / ``for_device`` (at least one), ``note``,
+    """``harness gateway introduce``. Params: ``for_install`` / ``for_device`` (at least one), ``for_machine``
+    (the requester's machine id: the redeemed row is bound to it), ``note``,
     ``correlation`` (the backend grant id). The answer carries the minted codes, once."""
 
     try:
-        flags = _texts(params, "for_install", "for_device", "note", "correlation")
+        flags = _texts(params, "for_install", "for_device", "for_machine", "note", "correlation")
     except ParamRefused as refused:
         return refused.frame(rid)
 

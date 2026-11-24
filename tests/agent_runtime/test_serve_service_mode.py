@@ -20,6 +20,8 @@ milliseconds. Neither replaces the other, and the e2e file says so too.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import hello_fields
+
 import json
 import os
 import queue
@@ -554,10 +556,10 @@ def test_a_boot_prunes_revoked_device_rows_past_their_retention(tmp_path):
     )
 
     root = paths.store_root()
-    ancient = redeem_pairing_code(root, mint_pairing_code(root, now=0.0).code, now=1.0)
+    ancient = redeem_pairing_code(root, mint_pairing_code(root, now=0.0).code, now=1.0, **hello_fields())
     revoke_device(root, ancient.device_id, now=2.0)
     now = _time.time()
-    live = redeem_pairing_code(root, mint_pairing_code(root, now=now).code, now=now)
+    live = redeem_pairing_code(root, mint_pairing_code(root, now=now).code, now=now, **hello_fields())
     assert {record.device_id for record in list_devices(root)} == {
         ancient.device_id,
         live.device_id,

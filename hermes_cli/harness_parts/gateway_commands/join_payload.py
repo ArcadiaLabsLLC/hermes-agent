@@ -117,6 +117,8 @@ def _parse_join_payload(raw: Any, args) -> dict[str, Any] | None:
         "port": port,
         "endpoints": candidates,
         "install_id": str(fields.get("install_id") or "").strip() or None,
+        # The minting install's machine (``hello_address``): its ``hello_ok`` must name it.
+        "machine_id": str(fields.get("machine_id") or "").strip() or None,
         "cert_fingerprint": str(fields.get("cert_fingerprint") or "").strip() or None,
     }
 

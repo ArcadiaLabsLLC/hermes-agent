@@ -121,8 +121,10 @@ def handshake(
         # gateway lane every credential failure — no device named, unknown
         # id, revoked row, wrong proof — collapses into this single reason,
         # so a peer cannot map which device ids exist by watching it change.
-        reject(server, connection, outcome.reject_reason)
+        reject(server, connection, outcome.reject_reason, detail=outcome.refusal_detail)
         return None
+    connection.machine_id = outcome.machine_id
+    connection.namespace = _own_namespace()
     connection.device_id = outcome.device_id
     connection.device_tier = outcome.device_tier
     connection.device_kind = outcome.device_kind
@@ -229,7 +231,23 @@ def authenticate_hello(
         return HelloAuthOutcome(ok=False, reject_reason=REJECT_BAD_PROOF)
     ok = verify_hello_proof(message.get("proof"), nonce, token, port=port)
     del token
-    return HelloAuthOutcome(ok=ok, reject_reason=REJECT_BAD_PROOF)
+    # The per-root token lives on THIS machine, so its holder (the local console: this computer's own
+    # Eternia) routes under this serve's own machine id (owner 2026-11-24: "Yes, use it").
+    # MUTATION: stamp `None` here and test_the_local_console_routes_under_this_machines_own_id reads
+    # the unproven marker.
+    return HelloAuthOutcome(ok=ok, reject_reason=REJECT_BAD_PROOF, machine_id=_own_machine_id() if ok else None)
+
+
+def _own_namespace() -> str:
+    from agent_runtime.hello_address import own_namespace
+
+    return own_namespace()
+
+
+def _own_machine_id() -> str | None:
+    from agent_runtime.hello_address import install_address
+
+    return install_address().get("machine_id")
 
 
 def wrap_tls(
@@ -286,7 +304,7 @@ server: ServeSocketServer, connection: SocketConnection, reader: _LineReader) ->
 
 
 def reject(
-server: ServeSocketServer, connection: SocketConnection, reason: str) -> None:
+server: ServeSocketServer, connection: SocketConnection, reason: str, *, detail: str | None = None) -> None:
     """Refuse one connection, typed, and charge the RIGHT counter.
 
     Whether this counts as an authentication failure is derived from the
@@ -314,6 +332,9 @@ server: ServeSocketServer, connection: SocketConnection, reason: str) -> None:
             "client": connection.client,
             "peer": connection.peer,
             "reason": reason,
+            # The typed local word behind a collapsed wire reason (``hello_machine_mismatch`` …):
+            # the serve's own log keeps the distinction, the peer never sees it.
+            **({"detail": detail} if detail else {}),
         }
     )
     if server._reject_penalty > 0:

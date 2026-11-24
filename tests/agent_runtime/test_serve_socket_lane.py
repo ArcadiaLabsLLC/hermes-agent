@@ -764,7 +764,7 @@ def test_the_socket_greeting_names_which_install_the_client_reached():
 
     with running_serve() as handle:
         with client(handle, name="probe") as (_conn, reply):
-            assert set(reply["install"]) == {"install_id", "display_name", "state"}
+            assert set(reply["install"]) == {"install_id", "display_name", "state", "machine_id", "namespace"}
             assert reply["install"] == handle.ready["install"]
             assert reply["install"]["install_id"]
             # Still additive: the handshake integers did not move.

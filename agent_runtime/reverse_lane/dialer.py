@@ -22,6 +22,7 @@ import socket
 import threading
 from typing import Any
 
+from ..hello_address import answer_address_refusal
 from ..serve_socket.client import ServeSocketClient
 from ..serve_socket.hello import ServeCertificatePinMismatch, ServeHelloProtocolError
 from ..serve_socket.vocabulary import REJECT_BAD_PROOF
@@ -53,6 +54,8 @@ class ReverseDialer:
         self._lanes = lanes
         self.computer_id = grant.computer_id
         self.computer_install_id = grant.computer_install_id
+        #: The computer's machine id, the grant's: each round's parked answer must name it.
+        self.computer_machine_id = grant.machine_id
         self._host = str(host)
         self._port = int(port)
         self._pin = str(cert_fingerprint or "").strip().lower()
@@ -137,6 +140,13 @@ class ReverseDialer:
         if not isinstance(reply, dict) or reply.get("event") != "reverse_lane_parked":
             client.close()
             return self._refused(reply)
+        # MUTATION: drop this check and test_hello_machine_binding's
+        # test_the_dialer_stops_when_the_computer_answers_from_another_machine waits on the lane.
+        address = answer_address_refusal(reply, expect_machine_id=self.computer_machine_id)
+        if address is not None:
+            # After the pin, before the lane is used: another machine holds this computer's pin.
+            client.close()
+            return f"stop:{address}"
         self.state = STATE_PARKED
         if not self._wait_attached(client):
             client.close()

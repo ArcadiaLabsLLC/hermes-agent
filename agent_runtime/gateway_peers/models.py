@@ -144,6 +144,8 @@ class PeerCredential:
     #: way to learn it, and two ends of one edge that expire on different days
     #: is precisely the divergence :func:`~agent_runtime.gateway_peers.trust_store.peer_row` exists to prevent.
     expires_at: str | None = None
+    #: The joiner's machine the minted row is bound to (``PeerRecord.machine_id``).
+    machine_id: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -187,6 +189,9 @@ class PeerRecord:
     #: an edge lapse together rather than one refusing while the other keeps
     #: dialling.
     expires_at: str | None = None
+    #: TRUST: the far install's machine id (``PEER_ROW_TRUST_FIELDS``). ``None`` on a row minted
+    #: before the binding, which is refused at hello and on dial: the edge re-pairs (no legacy).
+    machine_id: str | None = None
 
     @property
     def expired(self) -> bool:
@@ -315,6 +320,10 @@ PEER_ROW_TRUST_FIELDS = frozenset(
         # it. A peer that could push its own expiry out would hold a credential
         # with no end — which is the same authority ``revoked`` denies it.
         "expires_at",
+        # The far install's machine id, bound at pairing (row RT-ACCOUNT-ONLY-A-CONNECTION-FROM-
+        # ANOTHER-MACHINE-…): every hello under this row must name it before its proof is read, and
+        # every dial checks the far ``hello_ok`` names it. TRUST: no later hello moves it.
+        "machine_id",
     }
 )
 

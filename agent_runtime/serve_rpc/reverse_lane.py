@@ -17,7 +17,8 @@ pairing, so a re-pair starts with none).
 
 The grant (row ``MC-PHONE-DRIVEN-A-PHONE-LETS-A-PAIRED-COMPUTER-USE-ITS-AGENTS``, plan §15):
 
-* ``grant`` (phone) — params as ``dial`` plus ``level`` (``account``, the one level: hermes row
+* ``grant`` (phone) — params as ``dial`` plus ``machine_id`` (the computer's, from the account record:
+  the grant is bound to it) and ``level`` (``account``, the one level: hermes row
   ``RT-ACCOUNT-ONLY-A-PHONE-ANSWERS-A-PAIRED-COMPUTER-ONLY-AS-ONE-OF-YOUR-OWN``): mint the
   computer's credential and offer it over the phone's own pinned connection
   (``agent_runtime.reverse_lane.offer``). The minted token is never in the answer.
@@ -160,11 +161,17 @@ def _runtime_gateway_reverse_grant(rid: Any, params: dict, context: RpcContext |
     from agent_runtime.reverse_lane.grants import GRANT_LEVELS
     from agent_runtime.reverse_lane.offer import grant_and_offer
 
+    from agent_runtime.hello_address import clean_machine_id
+
     try:
         texts = _computer_params(params)
         level = (params or {}).get("level")
         if level not in GRANT_LEVELS:
             raise _refuse("level", f"level must be one of {', '.join(GRANT_LEVELS)}")
+        # The computer's machine id, from this phone's account record: the grant is bound to it.
+        machine_id = clean_machine_id((params or {}).get("machine_id"))
+        if machine_id is None:
+            raise _refuse("machine_id", "machine_id must name the computer's machine (mach_…)")
     except ParamRefused as refused:
         return refused.frame(rid)
     lanes = _lanes(context)
@@ -174,10 +181,11 @@ def _runtime_gateway_reverse_grant(rid: Any, params: dict, context: RpcContext |
         return err(rid, ERR_CONFLICT, "This phone has no install identity yet.", {"reason": "no_install_id"})
 
     def run() -> dict:
-        answer = grant_and_offer(root, level=level, phone_install_id=phone_install_id, **texts)
+        answer = grant_and_offer(root, level=level, phone_install_id=phone_install_id,
+                                 computer_machine_id=machine_id, **texts)
         if answer.get("ok") and lanes is not None:
             way = dict(texts)
-            lanes.remember_way(way.pop("computer_install_id"), **way)
+            lanes.remember_way(way.pop("computer_install_id"), machine_id=machine_id, **way)
         if not answer.get("ok"):
             reason = str(answer.get("reason") or "refused")
             return err(rid, ERR_CONFLICT, "The computer did not take this phone's offer.", {"reason": reason})
@@ -304,7 +312,9 @@ def _runtime_gateway_reverse_accept(rid: Any, params: dict, context: RpcContext 
     record = lookup_device(lanes.store_root, device_id) if offer is not None else None
     if offer is None or record is None or record.revoked or record.expired:
         return err(rid, ERR_CONFLICT, "That phone has no offer waiting here.", {"reason": "no_offer"})
-    accept = record_accept(lanes.store_root, offer)
+    if not record.machine_id:
+        return err(rid, ERR_CONFLICT, "That phone has no offer waiting here.", {"reason": "no_offer"})
+    accept = record_accept(lanes.store_root, offer, machine_id=record.machine_id)
     return ok(rid, {**accept.describe(), "token": offer.token})
 
 

@@ -6,6 +6,8 @@ one: an unqualified target is LOCAL, and the parser is where that is true.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import install_address
+
 import pytest
 
 from agent_runtime import gateway_targets as gt
@@ -93,7 +95,7 @@ def _pair(root, *, install_id: str, name: str) -> None:
         peer_install_id=install_id,
         secret="a" * 64,
         display_name=name,
-        endpoints=[{"host": "127.0.0.1", "port": 9000}],
+        endpoints=[{"host": "127.0.0.1", "port": 9000}], machine_id=install_address()["machine_id"]
     )
     assert getattr(outcome, "peer_install_id", None) == install_id
 
@@ -203,15 +205,15 @@ def test_an_expired_row_refuses_with_peer_expired_and_a_revoked_you_row_with_its
         resolve_install_target,
     )
 
-    record_peer(tmp_path, peer_install_id="inst_gone", secret="a" * 64, display_name="gone")
+    record_peer(tmp_path, peer_install_id="inst_gone", secret="a" * 64, display_name="gone", machine_id=install_address()["machine_id"])
     record_peer(
         tmp_path,
         peer_install_id="inst_old",
         secret="b" * 64,
         display_name="old",
-        expires_at="2000-01-01T00:00:00+00:00",
+        expires_at="2000-01-01T00:00:00+00:00", machine_id=install_address()["machine_id"]
     )
-    record_peer(tmp_path, peer_install_id="inst_cut", secret="c" * 64, display_name="cut")
+    record_peer(tmp_path, peer_install_id="inst_cut", secret="c" * 64, display_name="cut", machine_id=install_address()["machine_id"])
     revoke_peer(tmp_path, "inst_gone")
     apply_peer_announce(tmp_path, "inst_cut", {"revoked_you": True})
 
@@ -235,10 +237,10 @@ def test_the_hint_lists_usable_refs_only(tmp_path):
     from agent_runtime.gateway_peers import record_peer, revoke_peer
     from agent_runtime.gateway_targets import parse_install_target, resolve_install_target
 
-    record_peer(tmp_path, peer_install_id="inst_live", secret="a" * 64, display_name="mac")
-    record_peer(tmp_path, peer_install_id="inst_dead", secret="b" * 64, display_name="old")
-    record_peer(tmp_path, peer_install_id="inst_dup1", secret="c" * 64, display_name="twin")
-    record_peer(tmp_path, peer_install_id="inst_dup2", secret="d" * 64, display_name="twin")
+    record_peer(tmp_path, peer_install_id="inst_live", secret="a" * 64, display_name="mac", machine_id=install_address()["machine_id"])
+    record_peer(tmp_path, peer_install_id="inst_dead", secret="b" * 64, display_name="old", machine_id=install_address()["machine_id"])
+    record_peer(tmp_path, peer_install_id="inst_dup1", secret="c" * 64, display_name="twin", machine_id=install_address()["machine_id"])
+    record_peer(tmp_path, peer_install_id="inst_dup2", secret="d" * 64, display_name="twin", machine_id=install_address()["machine_id"])
     revoke_peer(tmp_path, "inst_dead")
 
     refusal = resolve_install_target(tmp_path, parse_install_target("@nobody/dev"))
@@ -276,16 +278,16 @@ def test_the_predicate_is_byte_identical_between_the_resolver_and_the_directory(
         resolve_install_target,
     )
 
-    record_peer(tmp_path, peer_install_id="inst_live", secret="a" * 64, display_name="mac")
-    record_peer(tmp_path, peer_install_id="inst_dead", secret="b" * 64, display_name="old")
+    record_peer(tmp_path, peer_install_id="inst_live", secret="a" * 64, display_name="mac", machine_id=install_address()["machine_id"])
+    record_peer(tmp_path, peer_install_id="inst_dead", secret="b" * 64, display_name="old", machine_id=install_address()["machine_id"])
     record_peer(
         tmp_path,
         peer_install_id="inst_old",
         secret="c" * 64,
         display_name="lapsed",
-        expires_at="2000-01-01T00:00:00+00:00",
+        expires_at="2000-01-01T00:00:00+00:00", machine_id=install_address()["machine_id"]
     )
-    record_peer(tmp_path, peer_install_id="inst_cut", secret="d" * 64, display_name="cut")
+    record_peer(tmp_path, peer_install_id="inst_cut", secret="d" * 64, display_name="cut", machine_id=install_address()["machine_id"])
     revoke_peer(tmp_path, "inst_dead")
     apply_peer_announce(tmp_path, "inst_cut", {"revoked_you": True})
 
@@ -314,7 +316,7 @@ def test_resolve_install_ref_is_the_matcher_both_doors_share(tmp_path):
         resolve_install_target,
     )
 
-    record_peer(tmp_path, peer_install_id="inst_live", secret="a" * 64, display_name="mac")
+    record_peer(tmp_path, peer_install_id="inst_live", secret="a" * 64, display_name="mac", machine_id=install_address()["machine_id"])
 
     by_ref = resolve_install_ref(tmp_path, "mac")
     by_target = resolve_install_target(tmp_path, parse_install_target("@mac/dev"))

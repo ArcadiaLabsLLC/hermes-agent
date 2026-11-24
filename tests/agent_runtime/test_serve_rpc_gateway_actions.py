@@ -20,6 +20,8 @@ Killing mutations, each seen red:
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import hello_fields, install_address
+
 import argparse
 import json
 
@@ -129,7 +131,7 @@ def _paired(root):
     from agent_runtime.gateway_peers import record_peer
 
     record_peer(root, peer_install_id=PEER, secret="f" * 64, display_name="mac",
-                endpoints=[{"host": "10.0.0.9", "port": 9000}], cert_fingerprint="ab" * 32)
+                endpoints=[{"host": "10.0.0.9", "port": 9000}], cert_fingerprint="ab" * 32, machine_id=install_address()["machine_id"])
 
 
 def test_revoke_revokes_this_installs_edge_through_the_verb(root, monkeypatch):
@@ -160,7 +162,7 @@ def test_revoking_an_install_nobody_paired_is_not_found(root, monkeypatch):
 def test_devices_list_answers_the_verbs_own_envelope(root, capsys):
     from agent_runtime.serve_gateway_auth import mint_pairing_code, redeem_pairing_code
 
-    redeem_pairing_code(root, mint_pairing_code(root, name="phone").code, device_name="phone")
+    redeem_pairing_code(root, mint_pairing_code(root, name="phone").code, device_name="phone", **hello_fields())
     result = _rpc("runtime.gateway.devices.list")["result"]
     assert result["kind"] == "list" and result["item_kind"] == "gateway_device" and result["count"] == 1
     assert "token" not in json.dumps(result) and "verifier" not in json.dumps(result)

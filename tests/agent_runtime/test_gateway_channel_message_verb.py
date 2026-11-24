@@ -10,6 +10,8 @@ through the real ceremony.
 
 from __future__ import annotations
 
+from agent_runtime.hello_address import hello_fields
+
 from contextlib import closing
 
 import pytest
@@ -127,7 +129,7 @@ def test_a_channel_message_over_the_real_gateway_lane(gateway_on, placed_agent):
     instance = placed_agent["persona_instance_id"]
     root = paths.store_root()
     code = mint_pairing_code(root, name="tg-bot", kind=DEVICE_KIND_CHANNEL, bound_instances=[instance])
-    credential = redeem_pairing_code(root, code.code)
+    credential = redeem_pairing_code(root, code.code, **hello_fields())
     with running_serve() as handle:
         with device_client(handle, credential) as (connection, reply):
             assert reply["event"] == "hello_ok", reply
@@ -169,9 +171,9 @@ def test_a_scoped_channel_conversation_lists_under_its_account(placed_agent):
     instance = placed_agent["persona_instance_id"]
     root = paths.store_root()
     scoped = redeem_pairing_code(root, mint_pairing_code(
-        root, name="tg-bot", kind=DEVICE_KIND_CHANNEL, bound_instances=[instance], client_scope=_ACCOUNT).code)
+        root, name="tg-bot", kind=DEVICE_KIND_CHANNEL, bound_instances=[instance], client_scope=_ACCOUNT).code, **hello_fields())
     plain = redeem_pairing_code(root, mint_pairing_code(
-        root, name="tg-old", kind=DEVICE_KIND_CHANNEL, bound_instances=[instance]).code)
+        root, name="tg-old", kind=DEVICE_KIND_CHANNEL, bound_instances=[instance]).code, **hello_fields())
     first = _send(_channel(instance, scoped.device_id), channel_key="telegram:42", turn="s-1")
     assert "result" in first, first
     sent = first["result"]

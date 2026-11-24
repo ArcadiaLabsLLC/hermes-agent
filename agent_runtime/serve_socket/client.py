@@ -18,6 +18,7 @@ from agent_runtime.serve_socket.hello import (
     hello_proof,
 )
 from agent_runtime.serve_socket.wire import _LineReader, _parse_object
+from agent_runtime.hello_address import hello_fields
 
 __layer__ = "lanes"
 
@@ -199,6 +200,8 @@ class ServeSocketClient:
                 "client": client,
                 "client_build": client_build,
                 "device_id": device_id,
+                # Where this hello comes from, checked first at the far end (``hello_address``).
+                **hello_fields(),
                 # `self._port` again — the port THIS client dialled, from its own
                 # socket rather than from anything the greeting claims.
                 "proof": device_proof(
@@ -235,6 +238,7 @@ class ServeSocketClient:
                 "client": client,
                 "client_build": client_build,
                 "device_id": computer_id,
+                **hello_fields(),
                 "proof": reverse_lane_proof(token, nonce, lane_id=lane_id, device_id=computer_id),
             }
         )
@@ -291,6 +295,7 @@ class ServeSocketClient:
             "client": client,
             "client_build": client_build,
             "peer_install_id": peer_install_id,
+            **hello_fields(),
             # `self._port` again — the port THIS client dialled, from its own
             # socket rather than from anything the greeting claims.
             "proof": peer_proof(
@@ -356,6 +361,7 @@ class ServeSocketClient:
             # branch pick the wrong one.
             "peer_code": str(peer_code).strip().upper(),
             "peer_install_id": peer_install_id,
+            **hello_fields(),
         }
         _add_peer_assertions(frame, display_name, endpoints, cert_fingerprint)
         self.send(frame)
@@ -434,6 +440,7 @@ class ServeSocketClient:
                 "client": client,
                 "client_build": client_build,
                 "pairing_code": str(pairing_code).strip().upper(),
+                **hello_fields(),
             }
         )
         return self.read_frame()
