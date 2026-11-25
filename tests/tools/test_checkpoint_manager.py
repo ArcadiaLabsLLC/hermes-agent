@@ -89,6 +89,23 @@ class TestStorePath:
 # =========================================================================
 
 class TestStoreInit:
+    @pytest.mark.skipif(os.name != "nt", reason="Git for Windows path handling")
+    def test_existing_store_captures_long_workspace_paths(self, mgr, work_dir, checkpoint_base):
+        store = _store_path(checkpoint_base)
+        assert _init_store(store, str(work_dir)) is None
+        subprocess.run(["git", f"--git-dir={store}", "config", "core.longpaths", "false"], check=True)
+        deep_file = work_dir.joinpath(*(["saved-evidence-directory"] * 12), "capture.txt")
+        deep_file.parent.mkdir(parents=True)
+        deep_file.write_text("saved evidence")
+
+        assert mgr.ensure_checkpoint(str(work_dir))
+        relative = deep_file.relative_to(work_dir).as_posix()
+        ok, content, err = _run_git(
+            ["show", f"{_ref_name(_project_hash(str(work_dir)))}:{relative}"], store, str(work_dir),
+        )
+        assert ok, err
+        assert content == "saved evidence"
+
     def test_creates_git_store(self, work_dir, checkpoint_base, monkeypatch):
         monkeypatch.setattr("tools.checkpoint_manager.CHECKPOINT_BASE", checkpoint_base)
         store = _store_path(checkpoint_base)

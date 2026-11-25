@@ -470,6 +470,10 @@ def _run_git(
     git = shutil.which("git", path=env.get("PATH", ""))
     if git is None:
         return False, "", "git is not installed or not on PATH"
+    # The checkpoint store is isolated from the workspace's Git configuration.
+    # Existing stores also need long paths when staging or reviewing Windows files.
+    if os.name == "nt":
+        args = ["-c", "core.longpaths=true", *args]
     cmd = [git, *args]
     allowed_returncodes = allowed_returncodes or set()
 
