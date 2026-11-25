@@ -727,10 +727,9 @@ def classify_turn_failure(
     absent ``request_sent``. It settles :data:`REQUEST_UNSENT_OUTCOME`.
     """
 
-    from .persona_chat_continuity.lease import PersonaChatBusyError
     from .provider_dependency_error import ChatModelUnsetError, ProviderDependencyError
 
-    if isinstance(exc, PersonaChatBusyError) and request_dispatched is not True:
+    if getattr(exc, "error_kind", None) == ChatErrorKind.CHAT_BUSY and request_dispatched is not True:
         return TurnOutcome(ExecutionState.REJECTED, ChatErrorKind.CHAT_BUSY)
     if isinstance(exc, ChatModelUnsetError):
         return replace(
