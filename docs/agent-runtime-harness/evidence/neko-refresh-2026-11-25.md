@@ -47,7 +47,7 @@ The owner-style check used the running Windows debug app, Neko Mission Lead Beta
 | 19:35:37.002 | Neko's marked post-refresh message entered execution. The client showed “Replying” and Hermes produced output; the missing-provider banner did not recur on this send. |
 | 19:37:59.710 | The tester stopped Neko after its output started investigating the earlier screenshot. Hermes recorded an interrupted turn with exit 0 and no provider refusal. |
 
-Neko's history pane still failed at `message_motion_inputs.dart:520` with a duplicate persisted-message row key when the saved transcript loaded. The composer remained usable. This live read verifies admission across the refresh and Amelia's completion. Neko's natural completion and a readable Neko transcript remain unverified. The client filing is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`, row `MC-FU-REFRESHED-CHAT-HISTORY-KEEPS-EACH-SENT-MESSAGE-ONCE`.
+Neko's history pane still failed at Eternia’s `MessageMotionProjection._buildIndex` assertion with a duplicate persisted-message row key when the saved transcript loaded. The composer remained usable. This live read verifies admission across the refresh and Amelia's completion. Neko's natural completion and a readable Neko transcript remain unverified. The client filing is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`, row `MC-FU-REFRESHED-CHAT-HISTORY-KEEPS-EACH-SENT-MESSAGE-ONCE`.
 
 ### Upstream comparison
 
