@@ -259,12 +259,13 @@ the existing permission writer remains the sole mutation path.
 `test_operator_session_permissions` covers two chats on one instance, foreign
 owner/install refusals, and unchanged grants, transcript and default pointer.
 
-Restored image turns may carry native image-hint and screenshot markers after
+Restored image turns can carry native image hints and screenshot markers after
 their injected envelopes. `persona_chat_history.operator_envelopes` separates
-only that media suffix before applying the existing strict envelope readers,
-then retains the media markers in the display text. Ordinary trailing prose is
-not stripped and persisted messages are unchanged. The regression is covered by
-`test_operator_attachment_history`, including multiple images and legacy MEDIA lines.
+the suffix before applying the strict envelope readers. It uses Hermes's native
+image-note reader and the operator upload store's reference shape to project
+uploads as the same `MEDIA:` declarations written by the live mirror. The saved
+model history keeps its native representation. `test_operator_attachment_history`
+covers multiple uploads, canonical media lines and ordinary prose.
 
 ## 1. Send admission — the turn's identity and its thread
 

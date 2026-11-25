@@ -20,8 +20,8 @@ Row ``RT-OPERATOR-CHAT-SEND-PERSONA`` (hermes ``runtime-queue.md``; the launcher
    token is spent.
 4. **The provider.** ``AgentRunRequest.user_image_paths`` -> :func:`native_user_message`: upstream's
    ``build_native_content_parts`` turns the composed user text plus the paths into OpenAI-style
-   content parts; the persisted row is the text with one ``MEDIA:<path>`` line per image
-   (:func:`media_lines`), which is what the bubble renders and what puts the file in
+   content parts. The live mirror and saved transcript projection both display one
+   ``MEDIA:<path>`` line per image (:func:`media_lines`). The mirror also puts the file in
    ``runtime.media.get``'s derived scope (``agent_runtime/media_handles.py``).
 """
 
@@ -169,6 +169,16 @@ def vision_supported(provider: str, model: str, *, requested_provider: str = "")
     ) == "native"
 
 
+def is_stored_operator_image_path(reference: str) -> bool:
+    """Whether a native hint names a content-addressed operator upload."""
+    path = Path(reference)
+    return (
+        path.is_absolute()
+        and path.parent.name == IMAGES_DIRNAME
+        and _REF_RE.fullmatch(f"sha256:{path.name}") is not None
+    )
+
+
 def media_lines(paths: Iterable[Path | str]) -> str:
     """One ``MEDIA:<path>`` line per image: the bubble's rendering and ``runtime.media.get``'s scope."""
     return "\n".join(f"MEDIA:{path}" for path in paths)
@@ -182,9 +192,9 @@ def with_media_lines(text: str, paths: Iterable[Path | str]) -> str:
 def native_user_message(text: str, paths: Iterable[Path | str]) -> tuple[Any, str]:
     """``(user_message, persist_user_message)`` for a turn carrying images.
 
-    The provider sees upstream's content parts (text + ``image_url`` data URLs); the transcript
-    keeps the text with the ``MEDIA:`` lines, never a data URL. With no readable image the turn
-    is the plain text (upstream reports the skip; the reference was already proven stored)."""
+    The provider sees upstream's content parts (text + ``image_url`` data URLs). Upstream
+    keeps native image-slot markers in durable history. If no image can be read, the provider
+    receives plain text and the transcript override retains the declared attachments."""
     from agent.image_routing import build_native_content_parts
 
     path_list = [str(path) for path in paths]

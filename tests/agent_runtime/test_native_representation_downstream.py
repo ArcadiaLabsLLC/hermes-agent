@@ -6,6 +6,8 @@ import pytest
 
 from agent.context_compressor import _DB_PERSISTED_MARKER
 from agent.session_persistence import SessionPersistenceMixin
+from agent_runtime.operator_images import OperatorImage, native_user_message, resolve_refs, store_images, with_media_lines
+from agent_runtime.persona_chat_history.history_rows import _safe_recent_messages
 from agent_runtime.persona_chat_continuity import native_wire_row, safe_native_history
 from agent_runtime.persona_chat_session import _persona_chat_native_history
 from hermes_state import SessionDB
@@ -48,6 +50,28 @@ def _tool_turn(count=1):
 
 def _replay(agent):
     return safe_native_history(_persona_chat_native_history(agent._session_db, agent.session_id))
+
+
+@pytest.mark.parametrize("image_count", [1, 2])
+def test_saved_operator_images_use_the_live_mirror_media_format(db, tmp_path, image_count):
+    images = [OperatorImage("image/png", b"\x89PNG\r\n\x1a\n" + bytes([i])) for i in range(image_count)]
+    paths = resolve_refs(store_images(images, store_root=tmp_path), store_root=tmp_path)
+    caption = "Can you read this screenshot?"
+    parts, persist_override = native_user_message(caption, paths)
+    assert [part["type"] for part in parts] == ["text", *["image_url"] * image_count]
+
+    agent = _Agent(db)
+    agent._persist_user_message_override = persist_override
+    agent._persist_user_message_idx = 0
+    messages = [{"role": "user", "content": parts}]
+    assert agent._flush_messages_to_session_db(messages)
+    raw = db.get_messages(agent.session_id)[0]["content"]
+    assert raw.count("[screenshot]") == image_count
+
+    rows, status, unread = _safe_recent_messages(db, session_id=agent.session_id)
+    assert status == "safe" and unread is None
+    assert rows[0]["text"] == with_media_lines(caption, paths)
+    assert db.get_messages(agent.session_id)[0]["content"] == raw
 
 
 def test_every_valid_call_and_result_survives_live_flush_and_cold_replay(db):
