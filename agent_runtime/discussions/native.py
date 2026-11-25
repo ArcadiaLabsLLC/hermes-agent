@@ -32,7 +32,11 @@ class NativeTurns:
         self.pid = os.getpid()
         self.started = get_process_start_time(self.pid)
         if self.started is None:
-            raise DiscussionError("process_identity_unavailable")
+            # Embedded hosts without a kernel fingerprint still have the process-local
+            # birth stamp used by chat reservations. Negative values distinguish its
+            # domain from persisted gateway fingerprints on every platform.
+            from agent_runtime.process_start import process_started
+            self.started = -round(process_started(self.pid) * 100)
 
     def _key(self, row: Mapping[str, Any]) -> tuple[str, str, int]:
         return row["run_id"], row["task_id"], row["generation"]
@@ -171,7 +175,7 @@ class NativeTurns:
         from gateway.status import get_process_start_time
         observed = get_process_start_time(pid)
         if observed is not None:
-            return observed != stamp  # PID reused, not the old turn.
+            return stamp >= 0 and observed != stamp  # PID reused, not the old turn.
         try:
             import psutil
         except ImportError:  # no psutil (the phone profile omits it): no stamp to compare, liveness unproven

@@ -64,6 +64,11 @@ The protocol itself is documented once, in ``constants``' module docstring.
 
 from __future__ import annotations
 
+from agent_runtime.loop_tool_lifecycles import EARLY, ensure_lifecycle_placeholders
+
+# RPC registration imports turn history and course authoring before a transport starts.
+ensure_lifecycle_placeholders(EARLY)
+
 from hermes_cli.harness_parts.serve.constants import (
     HELLO_OP,
     OPS,

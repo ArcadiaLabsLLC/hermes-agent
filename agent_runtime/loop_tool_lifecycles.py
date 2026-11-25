@@ -189,7 +189,8 @@ _PRESENCE: dict[str, str] = {
 #: The placeholders an importer outside ``tools`` / ``plugins`` needs before the embedded entry's
 #: ``start()`` mounts the forced tree: upstream v0.22.4's ``hermes_state_common`` reaches
 #: ``agent.turn_context`` (and its ``agent.lsp.deferred`` import) at module import.
-EARLY = (LSP, LSP_DEFERRED)
+# Course registration also binds the git door before the first request.
+EARLY = (LSP, LSP_DEFERRED, GIT_COMMAND)
 
 
 def ensure_lifecycle_placeholders(modules: tuple[str, ...] | None = None) -> tuple[str, ...]:
