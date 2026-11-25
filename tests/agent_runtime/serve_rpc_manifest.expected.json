@@ -310,6 +310,7 @@
     "runtime.persona.chat.delete",
     "runtime.persona.chat.history",
     "runtime.persona.chat.history.search",
+    "runtime.persona.chat.rename",
     "runtime.persona.chat.unarchive",
     "runtime.persona.instance.create",
     "runtime.persona.instance.detail",
@@ -908,6 +909,13 @@
       "limit",
       "session_id"
     ],
+    "runtime.persona.chat.rename": [
+      "client_scope",
+      "persona_id",
+      "persona_instance_id",
+      "session_id",
+      "title"
+    ],
     "runtime.persona.chat.unarchive": [
       "client_scope",
       "persona_id",
@@ -1399,6 +1407,7 @@
     "runtime.persona.chat.delete": "console",
     "runtime.persona.chat.history": "console",
     "runtime.persona.chat.history.search": "console",
+    "runtime.persona.chat.rename": "console",
     "runtime.persona.chat.unarchive": "console",
     "runtime.persona.instance.create": "console",
     "runtime.persona.instance.detail": "read",
