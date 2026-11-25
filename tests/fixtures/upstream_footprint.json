@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-11-21",
+  "measured_at": "2026-11-25",
   "base": "3b42157858",
-  "files": 228,
-  "deleted_lines": 878,
+  "files": 230,
+  "deleted_lines": 888,
   "heavy": 1,
   "reasons": [
     {
@@ -1540,6 +1540,21 @@
       },
       "reason": "A swap, no raise: plugins/model-providers/openai-codex/__init__.py is back at upstream bytes (-1 file, -1 deleted line; its catalog read moved into fork-owned agent_runtime/reasoning_capabilities.py, which both callers already reach), and hermes_cli/plugin_validate_private_imports.py gains an additive seam (+1 file, 0 deleted) reading the fork-owned hermes_cli/data/plugin_api_fork.json, so upstream's boundary lint sees agent_runtime/plugin_doors/ as published. What was tried first is in the plan docs/agent-runtime-harness/planned/fork-plugins-public-doors-2026-11-21.md.",
       "owner_ruling": "2026-11-19 \u00b7 owner standing call for this session ('when there is a decision for this session, do an analysis on it and go with reccomended', LANE_RULES_W1118A); the analysis is the plan's 'The publication seam' section; the row's own RULED 2026-11-21 segment (runtime-queue.md)"
+    },
+    {
+      "change": "Operator refresh and shared gateway session release",
+      "before": {
+        "files": 228,
+        "deleted_lines": 878,
+        "heavy": 1
+      },
+      "after": {
+        "files": 230,
+        "deleted_lines": 888,
+        "heavy": 1
+      },
+      "reason": "The native resume decision can refuse an existing writer before attaching, including the eager double-check. The transport disconnect operation can release one session for a multi-chat peer and still revalidate membership under the gateway lock. Two race-test contexts specify ordinary resume semantics.",
+      "owner_ruling": "2026-11-25: fix both Hermes paths using the existing gateway ownership logic and exercise other scenarios."
     }
   ]
 }
