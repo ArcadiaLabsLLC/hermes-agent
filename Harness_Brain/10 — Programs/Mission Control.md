@@ -2,7 +2,7 @@
 type: program
 program: mission-control
 status: active
-cursor: "2026-11-13 — Cold workspace agent creation uses canonical workspace authority; live Add agent succeeds before Mission Control opens. Evidence: docs/agent-runtime-harness/evidence/cold-workspace-agent-create-2026-11-13/README.md."
+cursor: "2026-11-24 — Saved operator image turns use the live mirror’s media declarations. Windows Stage C verified a portrait and full caption after reopening Base. See docs/agent-runtime-harness/05-chat-turn-lane.md."
 tags: [program/mission-control, program]
 ---
 
