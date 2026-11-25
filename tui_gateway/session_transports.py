@@ -142,11 +142,14 @@ def _detach_session_transport(session: dict | None, transport) -> bool:
         return _session_has_live_transport(session, excluding=transport)
 
 
-def _detach_transport_from_sessions(transport) -> list[tuple[str, dict]]:
+def _detach_transport_from_sessions(transport, *, session_id: str | None = None) -> list[tuple[str, dict]]:
     """Remove even closed/pruned peers' viewer entries; return clientless slots."""
     with _sessions_lock:
         attached = []
-        for sid, session in _sessions.items():
+        candidates = _sessions.items() if session_id is None else ((session_id, _sessions.get(session_id)),)
+        for sid, session in candidates:
+            if session is None:
+                continue
             existing = session.get("transport")
             if (existing is transport
                     or isinstance(existing, FanoutTransport) and existing.contains(transport)

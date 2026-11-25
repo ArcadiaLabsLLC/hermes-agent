@@ -46,7 +46,7 @@ def refresh_neko(instance, root):
     assert any("neko-seed-691" in str(row.get("text")) for row in response["result"]["messages"])
 
 
-@pytest.mark.parametrize("mode", ["cold", "warm", "owner_released", "attached_idle", "native_busy", "observer_exit"])
+@pytest.mark.parametrize("mode", ["cold", "warm", "owner_released", "attached_idle", "native_busy", "observer_exit", "owner_exit"])
 def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_agent):
     from tui_gateway import server
 
@@ -66,6 +66,17 @@ def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_ag
                                               placement_id="neko_agent_07c76f93")
     other = placed_agent["persona_instance_id"]
     with ExitStack() as cleanup:
+        prior_homes = set(operator_gateway_turn._peers)
+
+        @cleanup.callback
+        def release_test_sessions():
+            for actor in list(operator_gateway_turn._actors.values()):
+                if actor.home not in prior_homes:
+                    actor.close()
+            for store, peer in list(operator_gateway_turn._peers.items()):
+                if store not in prior_homes:
+                    peer.close()
+
         model = HeldModel()
         cleanup.callback(model.close)
         model.configure(home)
@@ -100,31 +111,38 @@ def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_ag
             # durable chat. Never engineer the mismatch by editing either registry's map.
             actor = operator_gateway_turn._actors.get(root)
             if actor is not None:
-                operator_gateway_turn.close_actor(actor)
+                actor.close()
             store = chat_session_scope.resolve_process_chat_scope().db_path.parent
 
-            def native_client():
-                peer = start_in_process_worker(store, receive=lambda _: None, lost=lambda: None)
+            terminal = Event()
+
+            def receive(frame):
+                event = frame.get("params", {})
+                if event.get("type") == "message.complete" and event.get("session_id") == sid:
+                    terminal.set()
+
+            def native_client(on_frame=lambda _: None):
+                peer = start_in_process_worker(store, receive=on_frame, lost=lambda: None)
                 cleanup.callback(peer.close)
                 return peer
 
-            native = native_client()
+            native = native_client(receive if mode != "owner_exit" else lambda _: None)
             sid = native.call("session.resume", {"session_id": root, "lazy": True})["session_id"]
             if mode == "owner_released":
                 native.close()
                 assert sid not in server._sessions
-            if mode in {"native_busy", "observer_exit"}:
+            if mode in {"native_busy", "observer_exit", "owner_exit"}:
                 native.call("prompt.submit", {"session_id": sid, "text": NATIVE_MESSAGE})
                 assert at_model[NATIVE_MESSAGE].wait(25)
-            if mode == "observer_exit":
-                observer = native_client()
+            if mode in {"observer_exit", "owner_exit"}:
+                observer = native_client(receive if mode == "owner_exit" else lambda _: None)
                 seen = observer.call("session.resume", {"session_id": root, "observe_only": True})
                 assert seen["session_id"] == sid and seen["running"] is True
-                observer.close()
+                (native if mode == "owner_exit" else observer).close()
             refresh_neko(neko.id, root)
 
         before = builds[root]
-        if mode == "observer_exit":
+        if mode in {"observer_exit", "owner_exit"}:
             code, result = None, {}
         else:
             code, result = operator_turn(neko.id, root, "new-send", OPERATOR_MESSAGE).join(55)
@@ -144,8 +162,19 @@ def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_ag
             assert builds[root] - before == (0 if mode == "warm" else 1)
         else:
             assert session_live, "a second client's attachment closed the native owner's session"
-            if mode != "observer_exit":
-                assert error != "chat_turn_provider_unavailable"
-                assert dispatches(OPERATOR_MESSAGE) == (1 if code == 0 else 0)
-                if mode == "native_busy":
-                    assert dispatches(OPERATOR_MESSAGE) == 0, "a busy native chat cannot run a second turn"
+            if mode in {"native_busy", "observer_exit", "owner_exit"}:
+                assert terminal.wait(30), "the remaining client never received its terminal frame"
+                assert dispatches(NATIVE_MESSAGE) == 1
+            if mode in {"attached_idle", "native_busy"}:
+                assert code != 0 and error == "chat_busy"
+                assert not refusal and dispatches(OPERATOR_MESSAGE) == 0
+                native.close()
+                assert sid not in server._sessions
+                assert operator_turn(neko.id, root, "after-release", OPERATOR_MESSAGE).join(55)[0] == 0
+                assert dispatches(OPERATOR_MESSAGE) == 1
+        for chat, expected, foreign in ((root, "neko-seed-691", OTHER_MESSAGE),
+                                        (second, OTHER_MESSAGE, "neko-seed-691")):
+            history = serve_rpc.handle_request(dict(jsonrpc="2.0", id="history", method="runtime.persona.chat.history",
+                                                    params={"session_id": chat}))["result"]["messages"]
+            assert any(expected in str(row.get("text")) for row in history)
+            assert all(foreign not in str(row.get("text")) for row in history)

@@ -115,12 +115,14 @@ def test_a_b_a_turns_sessions_and_recovery_with_no_child_process(tmp_path, share
         peers = [engine.peer for engine in engines.values()]
         assert all(isinstance(peer, InProcessPeer) for peer in peers)
         assert all(execution_possible(*peer.process_identity) for peer in peers)  # live: evidence says so
-        assert all(peer._sessions for peer in peers)  # control: each worker holds sessions it must close
+        from tui_gateway import server
+        assert all(engine.sid in server._sessions for engine in engines.values())
         assert {c.pid for c in psutil.Process().children(recursive=True)} <= children_before
 
         stored = engines["a"].stored
         for engine in engines.values():
             engine.close()
+        assert all(engine.sid not in server._sessions for engine in engines.values())
         assert all(not peer.execution_possible for peer in peers)
         assert not any(execution_possible(*peer.process_identity) for peer in peers)
         before = len(Provider.requests)
@@ -145,3 +147,23 @@ def test_a_home_that_is_not_its_profiles_home_is_refused(tmp_path):
     with pytest.raises(ConversationError) as refused:
         InProcessPeer(tmp_path, receive=lambda _f: None, lost=lambda: None, dispatch=lambda *_a: None)
     assert refused.value.reason is Refusal.WRONG_OWNER
+
+def test_new_attachment_between_detach_and_reap_survives(monkeypatch):
+    from tui_gateway import server
+
+    first, second = object(), object()
+    sid = "reconnect-during-release"
+    record = dict(transport=first, close_on_disconnect=True)
+    monkeypatch.setitem(server._sessions, sid, record)
+    detach = server._detach_transport_from_sessions
+
+    def reconnect_after_detach(transport, *, session_id=None):
+        clientless = detach(transport, session_id=session_id)
+        assert clientless == [(sid, record)]
+        with server._session_resume_lock:
+            server._rebind_live_transport(sid, record, second)
+        return clientless
+
+    monkeypatch.setattr(server, "_detach_transport_from_sessions", reconnect_after_detach)
+    assert server._close_sessions_for_transport(first, session_id=sid) == (0, 0)
+    assert server._sessions[sid] is record and server._session_transport_contains(record, second)

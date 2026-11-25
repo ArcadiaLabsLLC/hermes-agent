@@ -265,8 +265,8 @@ def _absent_features(wheel: str) -> dict:
            "ddgs_loaded": sorted(m for m in sys.modules if m.startswith("plugins.web.ddgs"))}
     if wheel != "phone":  # the full wheel's vault is real: listing it would open an OS keyring
         return out
-    peer = next(iter(operator_gateway_turn._peers.values()))  # the engine the reserved turn ran on
-    session_id = next(iter(peer._sessions))
+    actor = next(iter(operator_gateway_turn._actors.values()))
+    peer, session_id = operator_gateway_turn._peers[actor.home], actor.sid
     out["vault"] = {m: _gateway_answer(peer, m, {}) for m in ("vault.list", "vault.sources", "vault.lock")}
     out["slash"] = _gateway_answer(peer, "slash.exec", {"session_id": session_id, "command": "/help"})
     return out

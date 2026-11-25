@@ -618,6 +618,7 @@ class _Resume:
         # ``profile`` (app-global remote mode): resume from another local profile's state.db.
         self.profile = (params.get("profile") or "").strip() or None
         self.profile_home = _profile_home(self.profile)
+        self.require_new = _flag(params, "require_new")
         self.lazy, self.defer_history = _flag(params, "lazy") or _flag(params, "observe_only"), _flag(params, "defer_history")
         # Desktop hydrates over REST; suppress the duplicate WS copy only when asked.
         self.omit_messages, self.eager_build = _flag(params, "omit_messages"), _flag(params, "eager_build")
@@ -714,7 +715,7 @@ def _resume_live_unpersisted(ctx: _Resume, live_sid: str, live: dict) -> dict:
     if ctx.owns_db:
         _release_db(ctx.db)
     with _session_resume_lock:
-        if (refusal := _reattach_refusal(ctx.rid, live_sid, live)) is not None:
+        if (refusal := _reattach_refusal(ctx.rid, live_sid, live, require_new=ctx.require_new)) is not None:
             return refusal
         live["last_active"] = time.time()
         if (transport := current_transport()) is not None:
@@ -872,7 +873,7 @@ def _resume_reuse_live(ctx: _Resume, sid: str, session: dict) -> dict:
 
 def _resume_reuse_live_locked(ctx: _Resume, sid: str, session: dict) -> dict:
     """Reuse with _session_resume_lock already held (including the eager double-check)."""
-    if (refusal := _reattach_refusal(ctx.rid, sid, session)) is not None:
+    if (refusal := _reattach_refusal(ctx.rid, sid, session, require_new=ctx.require_new)) is not None:
         return refusal
     _cancel_ws_orphan_reap(sid)  # unconditionally: the fast path must never race the reap Timer
     payload = _live_session_payload(sid, session, cols=ctx.cols, touch=True, omit_messages=ctx.omit_messages,
@@ -1030,7 +1031,8 @@ def _resume_eager(ctx: _Resume) -> dict:
                 # Each turn re-binds HERMES_HOME (mid-turn memory/skills reads); lease claimed lazily on turn 1.
                 if ctx.profile_home is not None:
                     session["profile_home"] = str(ctx.profile_home)
-                session.update(display_history_prefix=display_history_prefix, active_session_lease=None)
+                session.update(display_history_prefix=display_history_prefix, active_session_lease=None,
+                               close_on_disconnect=_flag(ctx.params, "close_on_disconnect"))
         except Exception as e:
             # _init_session registers _sessions[sid] BEFORE its first db read; left in place the fast path
             # would serve that dead session forever.

@@ -188,6 +188,7 @@ class SessionResumeParams(SessionParams):
     defer_history: bool = False
     omit_messages: bool = False
     eager_build: bool = False
+    require_new: bool = False
     close_on_disconnect: bool = False
     observe_only: bool = False
     # False: render image parts as "[image]" instead of their data URIs — a remote client reads a

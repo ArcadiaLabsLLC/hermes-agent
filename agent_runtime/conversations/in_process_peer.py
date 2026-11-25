@@ -143,10 +143,12 @@ class _Transport:
 
     def __init__(self, deliver: Callable[[dict], None]) -> None:
         self._deliver = deliver
-        self.closed = False
+        self._closed = False
 
     def write(self, obj: dict) -> bool:
-        if self.closed:
+        if self._closed:
+            if "id" in obj and "method" not in obj:
+                self._deliver(obj)  # an admitted open can finish after disconnect
             return False
         from tui_gateway.transport import serialize_frame
 
@@ -159,7 +161,7 @@ class _Transport:
         return True
 
     def close(self) -> None:
-        self.closed = True
+        self._closed = True
 
 
 def _log():
@@ -178,9 +180,8 @@ class InProcessPeer(PeerCore):
         self.profile = _profile_for(self.home)
         self._dispatch = dispatch
         self._transport = _Transport(self._route)
-        self._sessions: set[str] = set()
         self._openers: set[str] = set()
-        self._unclosed: set[str] = set()
+        self._release_uncertain = False
         self._close_lock = threading.Lock()
         self._disposed = False
         self.process_identity = in_process_identity(self)
@@ -194,9 +195,9 @@ class InProcessPeer(PeerCore):
 
     @property
     def execution_possible(self) -> bool:
-        """Alive, or a session it opened was not provably closed (the subprocess's exit, here)."""
+        """An open request or an uncertain transport release can outlive the peer."""
         with self._lock:
-            return not self._closed or bool(self._unclosed)
+            return not self._closed or bool(self._openers) or self._release_uncertain
 
     def write(self, frame: dict) -> None:
         # No write lock: the gateway admits concurrent requests (the WebSocket door does), and a
@@ -215,7 +216,10 @@ class InProcessPeer(PeerCore):
             params["profile"] = self.profile
         if method in _SESSION_OPENERS and isinstance(request.get("id"), str):
             with self._lock:
+                if self._closed:
+                    raise ConversationError(Refusal.WORKER_LOST)
                 self._openers.add(request["id"])
+            params.setdefault("close_on_disconnect", True)
         try:
             response = self._dispatch_scoped(request)
         except Exception as exc:
@@ -243,35 +247,45 @@ class InProcessPeer(PeerCore):
             reset_hermes_auth_home_override(token)
 
     def _route(self, frame: dict) -> None:
-        result = frame.get("result")
         with self._lock:
-            opened = "method" not in frame and frame.get("id") in self._openers
-            if opened:
-                self._openers.discard(frame["id"])
-                if isinstance(result, dict) and isinstance(result.get("session_id"), str):
-                    self._sessions.add(result["session_id"])
-        super()._route(frame)
+            opener = "method" not in frame and frame.get("id") in self._openers
+            closed = self._closed
+        try:
+            if closed:
+                result = frame.get("result")
+                if opener and isinstance(result, dict) and result.get("session_id"):
+                    self.release_session(result["session_id"])
+            else:
+                super()._route(frame)
+        finally:
+            if opener:
+                with self._lock:
+                    self._openers.discard(frame["id"])
+
+    def release_session(self, session_id: str | None = None) -> None:
+        """Release this transport's attachments through the gateway's disconnect decision."""
+        from tui_gateway import server
+
+        try:
+            server._close_sessions_for_transport(self._transport, session_id=session_id, end_reason="tui_close")
+        except Exception:
+            with self._lock:
+                self._release_uncertain = True
+            raise
 
     def close(self) -> None:
-        """Explicit service shutdown only: close what this worker opened, then end it."""
+        """Detach this worker; sessions still serving another client stay live."""
         with self._close_lock:
             if self._disposed:
                 return
             self._disposed = True
         with self._lock:
             self._closed = True
-            self._unclosed = set(self._sessions)
-        for session_id in sorted(self._unclosed):
-            try:
-                reply = self._dispatch_scoped({"jsonrpc": "2.0", "id": "close-" + session_id,
-                    "method": "session.close", "params": {"session_id": session_id}})
-            except Exception:
-                _log().warning("in-process worker could not close session %s", session_id, exc_info=True)
-                continue
-            if isinstance(reply, dict) and "result" in reply:
-                with self._lock:
-                    self._unclosed.discard(session_id)
         self._transport.close()
+        try:
+            self.release_session()
+        except Exception:
+            _log().exception("in-process worker could not release its gateway attachments")
         with _open_lock:
             _open_peers.discard(id(self))
             last = not _open_peers

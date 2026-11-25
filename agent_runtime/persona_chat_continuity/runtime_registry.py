@@ -422,7 +422,8 @@ class PersonaChatRuntimeRegistry:
     @staticmethod
     def _close_actor(agent, writer_lease) -> None:
         try:
-            close = getattr(agent, "close", None)
+            actor = getattr(agent, "_operator_gateway_actor", agent)
+            close = getattr(actor, "close", None)
             if callable(close):
                 try:
                     close()

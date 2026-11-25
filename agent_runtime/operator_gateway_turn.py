@@ -452,6 +452,10 @@ def _gateway_call(home: Path, method: str, params: dict, *, timeout: float = 60)
     try:
         return _gateway_peer(home).call(method, params, timeout=timeout)
     except ConversationError as exc:
+        if method == "session.resume" and exc.native_code == 4009:
+            from agent_runtime.persona_chat_continuity.lease import PersonaChatBusyError
+
+            raise PersonaChatBusyError(params["session_id"]) from exc
         detail = (f"{method} refused: {exc} native_code={getattr(exc, 'native_code', None)} "
                   f"native_message={getattr(exc, 'native_message', None)}")
         logger.warning("operator_gateway_refused %s", detail)
@@ -527,11 +531,23 @@ def _on_lost(home: Path) -> None:
 
 
 class _SessionActor:
-    """Closing the actor closes its gateway session (the registry closes actors it retires)."""
+    """The operator attachment owned by this actor in its store gateway."""
 
     def __init__(self, sid: str, key: str, home: Path, root: str | None) -> None:
         self.sid, self.key, self.home, self.root = sid, key, home, root
         self.closed = False
+
+    def close(self) -> None:
+        """Retire the operator attachment; gateway teardown owns agent resources."""
+        with _lock:
+            if self.closed:
+                return
+            self.closed = True
+            if _actors.get(self.key) is self:
+                _actors.pop(self.key)
+            peer = _peers.get(self.home)
+        if peer is not None and peer.alive:
+            peer.release_session(self.sid)
 
 
 def open_actor(execution: Any) -> Any:
@@ -554,12 +570,12 @@ def open_actor(execution: Any) -> Any:
     if previous is not None:
         # One session per key: the gateway would hand the old one back (a fresh-actor turn, or a
         # rebuild whose old actor the registry retires after its factory returns).
-        close_actor(previous)
+        previous.close()
     build = _Build(execution)
     token = _building.set(build)
     try:
         result = _gateway_call(home, "session.resume", {"session_id": tip, "source": OPERATOR_SOURCE,
-                                                "eager_build": True, "omit_messages": True}, timeout=600)
+                                                "eager_build": True, "omit_messages": True, "require_new": True}, timeout=600)
     except ProfileRunnerError:
         if build.error is not None:
             # The construction's own failure, not the gateway's 5000 around it.
@@ -570,20 +586,10 @@ def open_actor(execution: Any) -> Any:
     agent = build.agent
     sid = str(result.get("session_id") or "")
     if agent is None or getattr(agent, "_operator_gateway_sid", None) != sid:
-        with contextlib.suppress(Exception):
-            _gateway_call(home, "session.close", {"session_id": sid})
-        raise ProfileRunnerError("the gateway reused a session this turn did not build")
+        raise ProfileRunnerError("the gateway opened an operator session without its requested agent")
     actor = _SessionActor(sid, tip, home, request.root_chat_session_id)
     with _lock:
         _actors[tip] = actor
-    original_close = getattr(agent, "close", None)
-
-    def close() -> None:
-        close_actor(actor)
-        if callable(original_close):
-            original_close()
-
-    agent.close = close
     agent._operator_gateway_actor = actor
     return agent
 
@@ -622,23 +628,6 @@ def has_open_session(root: str) -> bool:
 
     with _lock:
         return any(actor.root == root and not actor.closed for actor in _actors.values())
-
-
-def close_actor(actor: _SessionActor) -> None:
-    if actor.closed:
-        return
-    actor.closed = True
-    with _lock:
-        if _actors.get(actor.key) is actor:
-            _actors.pop(actor.key)
-    with _lock:
-        peer = _peers.get(actor.home)
-    if peer is None or not peer.alive:
-        return
-    try:
-        peer.call("session.close", {"session_id": actor.sid}, timeout=60)
-    except Exception:
-        logger.warning("operator gateway session %s did not close", actor.sid, exc_info=True)
 
 
 # ── the caller ──────────────────────────────────────────────────────────────

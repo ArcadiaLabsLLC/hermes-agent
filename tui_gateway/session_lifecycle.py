@@ -899,12 +899,14 @@ def _cancel_ws_orphan_reap(sid: str) -> None:
             timer.cancel()
 
 
-def _reattach_refusal(rid, sid: str, session: dict) -> dict | None:
+def _reattach_refusal(rid, sid: str, session: dict, *, require_new: bool = False) -> dict | None:
     """Under ``_session_resume_lock``: why a reattaching RPC (resume/activate/prompt.submit) must NOT rebind
     ``session`` — it is stale, or a client-gone interrupt is still settling and the reap Timer must keep
     polling. None when the reattach may proceed."""
     if _sessions.get(sid) is not session:
         return _err(rid, 4007, "session no longer live; retry resume")
+    if require_new:
+        return _err(rid, 4009, "chat already has a live session")
     if session.get("_client_gone_interrupt_requested"):
         return _err(rid, 4009, "session disconnect interrupt settling")
     return None
@@ -1082,7 +1084,7 @@ def _schedule_ws_orphan_reap(
     timer.start()
 
 
-def _close_sessions_for_transport(transport, *, end_reason: str = "ws_disconnect") -> tuple[int, int]:
+def _close_sessions_for_transport(transport, *, end_reason: str = "ws_disconnect", session_id: str | None = None) -> tuple[int, int]:
     """Single WS-disconnect teardown entry point: reap close_on_disconnect sessions (sidecar/dashboard) immediately;
     re-point the rest at the detached transport (later emits miss the dead socket) for the grace-windowed WS-orphan
     reaper. Returns ``(reaped, detached)`` counts.
@@ -1091,7 +1093,7 @@ def _close_sessions_for_transport(transport, *, end_reason: str = "ws_disconnect
     another client attached keeps streaming and is neither parked nor reaped — a watcher leaving must not end the
     turn the remaining client is reading. Only the sessions left clientless take the historical
     close_on_disconnect / park-sentinel path, so a single-client disconnect behaves exactly as it always has."""
-    clientless = _detach_transport_from_sessions(transport)
+    clientless = _detach_transport_from_sessions(transport, session_id=session_id)
     reaped = detached = 0
     for sid, session in clientless:
         claimed_for_teardown = None
