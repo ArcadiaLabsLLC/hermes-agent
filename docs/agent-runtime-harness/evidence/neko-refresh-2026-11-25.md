@@ -52,3 +52,7 @@ Neko's history pane still failed at Eternia’s `MessageMotionProjection._buildI
 ### Upstream comparison
 
 Upstream main `33522e6dee` was fetched on November 25. The fork already includes upstream `b3014688f9`, which preserves multi-client transport membership and prunes departed viewers. The newer upstream `972a6982b0` protects idle transcript-writer leases. Neither fork caller exists in upstream main, and its resume contract still attaches to an existing live session. The fix uses upstream's disconnect and locked reattach decisions. Provider selection and persona routing continue to use their existing owners.
+
+### Landing status
+
+The runtime patch is in the owner's local checkout and on the remote `codex/session-release` branch. The queue, duplicate-helper and upstream-footprint checks passed after review. The final pre-push check still failed the embedded phone startup test, which also failed on untouched `817a54b86f` before reaching the first chat. Separate filing `RT-FU-THE-PHONE-ENGINE-STARTS-WITH-ITS-SHIPPED-MODULES` tracks the startup imports. The client evidence is on Eternia main in `2ca2eec146`.
