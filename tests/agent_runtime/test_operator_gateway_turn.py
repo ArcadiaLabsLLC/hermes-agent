@@ -298,21 +298,26 @@ def _empty_queue():
 def test_a_completion_for_a_chat_with_an_open_engine_session_is_left_to_the_engine(store_home, resolvable_sender, monkeypatch):
     # Red when ``_chat_root_of_completion`` stops asking ``_engine_session_open`` (the lane would then
     # forge a second delivery of a completion the open session's own poller delivers).
-    from agent_runtime import dispatch_delivery
-    from agent_runtime.dispatch_delivery import DrainPolicy
+    from copy import copy
+    from queue import Queue
 
-    registry = _empty_queue()
+    from agent_runtime.dispatch_delivery import DrainPolicy
+    from agent_runtime.dispatch_delivery.completions import BackgroundDrain
+    from tools.process_registry import process_registry
+
+    # Other sessions in this suite have live notification pollers on the global queue.
+    registry = copy(process_registry)
+    registry.completion_queue = Queue()
     actor = operator_gateway_turn._SessionActor("sid-open", SENDER_ROOT, None, SENDER_ROOT)
     monkeypatch.setitem(operator_gateway_turn._actors, SENDER_ROOT, actor)
     registry.completion_queue.put(_completion())
     forge = _Forge()
 
-    tally = dispatch_delivery.drain_background_completions(
-        policy=DrainPolicy(sender_persona=resolvable_sender, sender_is_idle=lambda root: True), forge=forge)
+    tally = BackgroundDrain(registry, forge, DrainPolicy(
+        sender_persona=resolvable_sender, sender_is_idle=lambda root: True)).run()
 
     assert forge.calls == [] and tally["delivered"] == 0
-    assert not registry.completion_queue.empty()
-    _empty_queue()
+    assert registry.completion_queue.get_nowait() == _completion()
 
 
 def test_a_completion_parked_for_a_closed_chat_wakes_it_through_this_lane(store_home, resolvable_sender):
