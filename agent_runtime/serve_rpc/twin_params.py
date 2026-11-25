@@ -74,6 +74,7 @@ CHAT_VERB_METHOD_PARAMS: dict[str, tuple[str, ...]] = {
     "runtime.persona.chat.archive": ("client_scope", "persona_id", "persona_instance_id", "requested_by", "session_id"),
     "runtime.persona.chat.delete": ("client_scope", "persona_id", "persona_instance_id", "requested_by", "session_id"),
     "runtime.persona.chat.history": ("before", "limit", "session_id"),
+    "runtime.persona.chat.rename": ("client_scope", "persona_id", "persona_instance_id", "session_id", "title"),
     "runtime.persona.chat.unarchive": ("client_scope", "persona_id", "persona_instance_id", "requested_by", "session_id"),
     # ``add_instance`` / ``independent_agent`` are refused ``placing_door_moved``, not honoured
     # (RT-THE-OLD-CREATE-NO-LONGER-PLACES-OR-COPIES-AN-AGENT); their seat params went with them.

@@ -50,6 +50,7 @@ __all__ = [
     "_runtime_persona_chat_history_search",
     "_runtime_persona_chat_unarchive",
     "_runtime_persona_instance_create",
+    "rename_saved_chat",
     "row_reply",
 ]
 
@@ -69,6 +70,7 @@ REFUSAL_CODES: dict[str, int] = {
     "persona_instance_not_found": ERR_NOT_FOUND,
     "foreign_chat_session": ERR_CONFLICT,
     "chat_busy": ERR_CONFLICT,
+    "chat_title_unavailable": ERR_CONFLICT,
     "chat_turn_resolution_mismatch": ERR_CONFLICT,
     "retired_persona_instance": ERR_CONFLICT,
     "needs_operator_confirm": ERR_CONFLICT,
@@ -240,6 +242,14 @@ def _runtime_persona_chat_unarchive(rid: Any, params: dict, context: RpcContext 
 
     return row_reply(rid, archive.set_persona_chat_archived(_params(params), archived=False, caller=_caller(context)),
                      "unarchive")
+
+
+@method("runtime.persona.chat.rename", tier=TIER_CONSOLE)
+def rename_saved_chat(rid: Any, params: dict, _context: RpcContext | None = None) -> dict:
+    """Set the title of the exact saved agent chat for the requesting account."""
+    from agent_runtime.chat_verbs.rename import rename_persona_chat
+
+    return row_reply(rid, rename_persona_chat(_params(params)), "rename")
 
 
 @method("runtime.persona.chat.content", tier=TIER_CONSOLE)

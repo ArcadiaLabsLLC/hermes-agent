@@ -25,6 +25,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .saved_chat import SavedChat, SavedChatRefused, saved_chat
+
 __layer__ = "lanes"
 __all__ = ["CHAT_IS_LOADED", "apply_persona_chat_archived", "set_persona_chat_archived"]
 
@@ -62,50 +64,26 @@ def apply_persona_chat_archived(session_id: str, *, archived: bool, asker_scope:
                                 requester: str | None) -> dict:
     """The archive itself, on validated values: the fences, then ``set_session_archived``."""
 
-    from ..chat_heads import resolve_conversation_chat_scope
-    from ..conversation_owner import ConversationOwnerError, require_session_owner
+    try:
+        with saved_chat(session_id, asker_scope=asker_scope, pinned_instance=pinned_instance,
+                        pinned_persona=pinned_persona) as chat:
+            return _write_archive(chat, session_id, archived=archived, requester=requester)
+    except SavedChatRefused as exc:
+        return exc.row
+
+
+def _write_archive(chat: SavedChat, session_id: str, *, archived: bool, requester: str | None) -> dict:
     from ..mission_chat_outcome import ChatErrorKind
-    from ..persona_assignments import PersonaInstanceStore, normalize_persona_or_template_id, personas_equal
     from ..persona_chat_continuity import PersonaChatBusyError, persona_chat_root_lease
-    from ..persona_chat_durability import (
-        PersonaChatPersistenceError,
-        default_persona_session_db,
-        persona_session_db_for,
-    )
-    from ..persona_chat_session import _persona_chat_bound_owner, _persona_chat_session_owner
 
-    try:
-        session_db = persona_session_db_for(
-            resolve_conversation_chat_scope(session_id=session_id), process=default_persona_session_db)
-        row = session_db.get_session(session_id)
-    except PersonaChatPersistenceError as exc:
-        return {"ok": False, "session_id": session_id, "error_kind": ChatErrorKind.CHAT_SESSION_DB_UNAVAILABLE,
-                "persistence_operation": exc.operation, "error": str(exc)}
-    if row is None:
-        return {"ok": False, "status": "not_found", "session_id": session_id,
-                "error": f"persona chat session not found: {session_id}"}
-    try:
-        require_session_owner(row, asker_scope)
-    except ConversationOwnerError as exc:
-        return {"ok": False, "session_id": session_id, "error_kind": exc.reason,
-                "error": "This conversation belongs to another account."}
-
-    owner_id = _persona_chat_session_owner(session_db, session_id) or _persona_chat_bound_owner(session_id)
-    try:
-        owner = PersonaInstanceStore().get(owner_id) if owner_id else None
-    except Exception:
-        owner = None  # a retired holder: its saved chats stay archivable from the history
-    pinned_persona = normalize_persona_or_template_id(pinned_persona) if pinned_persona else None
-    if (not owner_id or (pinned_instance and pinned_instance != owner_id)
-            or (pinned_persona and owner is not None and not personas_equal(owner.persona_id, pinned_persona))):
-        return {"ok": False, "session_id": session_id, "error_kind": ChatErrorKind.FOREIGN_CHAT_SESSION,
-                "error": "chat root is not owned by the requested persona instance",
-                "persona_instance_id": pinned_instance or None}
+    owner = chat.instance
 
     def write() -> dict:
-        was = bool(row.get("archived"))
-        session_db.set_session_archived(session_id, archived)
-        return {"ok": True, "session_id": session_id, "persona_instance_id": owner_id, "archived": archived,
+        current = chat.db.get_session(session_id)
+        if current is None or not chat.db.set_session_archived(session_id, archived):
+            raise SavedChatRefused(session_id, "not_found", "This chat is no longer saved.", status="not_found")
+        was = bool(current.get("archived") and not current.get("auto_archived"))
+        return {"ok": True, "session_id": session_id, "persona_instance_id": chat.instance_id, "archived": archived,
                 "changed": was != archived}
 
     if not archived:
@@ -113,7 +91,7 @@ def apply_persona_chat_archived(session_id: str, *, archived: bool, asker_scope:
     # MUTATION: drop this refusal and test_an_instances_loaded_chat_is_not_archived reddens.
     if owner is not None and owner.default_chat_session_id == session_id:
         return {"ok": False, "session_id": session_id, "error_kind": CHAT_IS_LOADED,
-                "persona_instance_id": owner_id,
+                "persona_instance_id": chat.instance_id,
                 "error": f"{owner.display_name}'s open chat is not archived; open another chat on it first."}
     try:
         # MUTATION: write without the lease and test_a_chat_a_turn_is_running_on_is_not_archived reddens.
