@@ -599,6 +599,7 @@ class CurationState:
     redacted: bool = False
     preview: bool = True
     assistant_client_message_ids: set[str] = field(default_factory=set)
+    displayed_uids: set[str] = field(default_factory=set)
     seen_logical_rows: set[tuple[str, str, str]] = field(default_factory=set)
     # Silent-turn bookkeeping, deliberately two collections rather than one.
     #
@@ -639,7 +640,10 @@ class CurationState:
         )
 
     def curate(self, index: int, raw: dict[str, Any], curator: RoleCurator) -> None:
-        if raw.get("display_kind") == "hidden":
+        # A compression child may carry the same durable message with extra model
+        # context. Keep the first visible body at its original transcript position.
+        uid = raw.get("message_uid")
+        if uid in self.displayed_uids or raw.get("display_kind") == "hidden":
             return
         client_message_id = safe_assignment_text(
             raw.get("platform_message_id")
@@ -701,6 +705,8 @@ class CurationState:
             from .text import message_preview
             row = message_preview(row, PERSONA_CHAT_MESSAGE_TEXT_LIMIT)
         self.rows.append(row)
+        if uid:
+            self.displayed_uids.add(uid)
         if "turn_elements" in row and ctx.logical_client_message_id:
             earlier = self.turn_element_rows.get(ctx.logical_client_message_id)
             if earlier is not None:

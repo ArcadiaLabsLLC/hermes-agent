@@ -95,6 +95,16 @@ def test_decision_dict_collapses_to_summary_and_rationale():
     assert "payload" not in rows[0]["text"]
 
 
+def test_rewritten_lineage_copy_keeps_one_display_row_and_a_distinct_retry():
+    prompt = {"role": "user", "content": "same words", "message_uid": "original",
+              "platform_message_id": "send-1"}
+    db = FakeSessionDB([prompt, {**prompt, "content": "same words with model context"},
+                        {**prompt, "message_uid": "retry", "platform_message_id": "send-2"}])
+    rows, _, _ = _safe_recent_messages(db, session_id="s1")
+    assert [(r["id"], r["text"], r["client_message_id"]) for r in rows] == [
+        ("original", "same words", "send-1"), ("retry", "same words", "send-2")]
+
+
 def test_compression_lineage_projection_hides_summary_and_deduplicates_turn():
     db = FakeSessionDB(
         [
