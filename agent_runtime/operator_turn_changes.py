@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from .operator_checkpoints import _checkpoint_session
 from .operator_conversation import OperatorConversationRefused
-from .operator_history import _target, _plan, _digest, require_history_idle
+from .operator_history import displayed_reply_boundary, _plan, _digest, require_history_idle
 from .operator_session_inspection import operator_session_read
 from .turn_checkpoints import read_turn_checkpoint, checkpoint_for_tree
 from .persona_chat_history.history_evidence import history_source_sessions
@@ -33,7 +33,7 @@ def operator_turn_changes(params):
     if not isinstance(turn, str) or not turn:
         raise OperatorConversationRefused("invalid_history_target")
     with operator_session_read(params) as (_, session):
-        _target(session.db, params["session_id"], client_message_id=turn, after_reply=True)
+        displayed_reply_boundary(session.db, session.db.resolve_resume_session_id(params["session_id"]), client_message_id=turn)
         sources = _sources(session, params)
     try:
         with _checkpoint_session(params) as (identity, manager, workdir, _):

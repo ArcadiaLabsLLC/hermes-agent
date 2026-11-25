@@ -98,6 +98,46 @@ def test_branch_here_includes_selected_reply_and_links_origin(tmp_path, monkeypa
     assert call("turn.changes", {**target, "session_id": child, "client_message_id": "first"})["result"]["files"] == inherited["result"]["files"]
 
 
+def test_rotated_reply_keeps_its_turn_file_attribution(tmp_path, monkeypatch):
+    target, _, _, _, _ = setup_turn(tmp_path, monkeypatch)
+    root = target["session_id"]
+    with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
+        original = db.get_messages(root)
+        db.end_session(root, "compression")
+        db.create_session("rotated", source="mission_chat", parent_session_id=root)
+        db.update_session_cwd("rotated", str(tmp_path / "work"))
+        # The carried rows have the originals' bodies and timestamps but
+        # the user copies have lost their platform ids, as in Neko's DB.
+        for row in original:
+            turn = row["platform_message_id"]
+            reply_id = turn + ":assistant:7" if row["role"] == "assistant" else None
+            db.append_message("rotated", row["role"], row["content"], timestamp=row["timestamp"],
+                              platform_message_id=reply_id)
+
+    def changes(turn):
+        return call("turn.changes", {**target, "client_message_id": turn})
+    assert {row["path"] for row in changes("first")["result"]["files"]} == {"one.txt", "two.txt"}
+    assert changes("second")["result"]["files"] == []
+    assert changes("unknown")["error"]["data"]["reason"] == "target_unavailable"
+
+
+@pytest.mark.parametrize("prompts, ending, reason", [
+    (["foreign"], {}, "target_unavailable"),
+    ([None, None], {}, "target_unavailable"),
+    ([None], {"display_metadata": {"interrupted": True}}, "reply_not_complete"),
+    ([None], {"finish_reason": "tool_calls"}, "reply_not_complete"),
+])
+def test_reply_boundary_refusals(tmp_path, monkeypatch, prompts, ending, reason):
+    target = fixture(tmp_path / "home", monkeypatch, "Amelia")
+    with closing(SessionDB(db_path=tmp_path / "home" / "state.db")) as db:
+        for number, prompt in enumerate(prompts):
+            db.append_message(target["session_id"], "user", "same words", platform_message_id=prompt)
+            db.append_message(target["session_id"], "assistant", "part",
+                              platform_message_id=f"requested:assistant:{number}", **ending)
+    result = call("turn.changes", {**target, "client_message_id": "requested"})
+    assert result["error"]["data"]["reason"] == reason
+
+
 def test_partial_restore_survives_status_and_can_rollback(tmp_path, monkeypatch):
     import tools.checkpoint_manager as checkpoints
     target, work, _manager, _, request = setup_turn(tmp_path, monkeypatch)

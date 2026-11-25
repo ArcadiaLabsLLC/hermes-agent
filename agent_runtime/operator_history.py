@@ -77,6 +77,40 @@ def history_write_scope(params):
         yield
 
 
+def displayed_reply_boundary(db, tip, row_id=None, client_message_id=None):
+    """Locate one completed turn in the same visible history that branch copies."""
+    from agent.context_compressor import user_originated_turn_view
+    from .persona_chat_history.vocabulary import logical_persona_chat_client_message_id
+    from .turn_visibility import persisted_row_is_reply
+
+    rows = db.get_messages_as_conversation(tip, include_ancestors=True, include_compacted=True, include_row_ids=True)
+    starts = [i for i, row in enumerate(rows) if user_originated_turn_view(row) is not None]
+    matches = []
+    for ordinal, (start, end) in enumerate(zip(starts, [*starts[1:], len(rows)])):
+        prompt, last = rows[start], rows[end - 1]
+        prompt_id = logical_persona_chat_client_message_id(prompt.get("message_id"))
+        reply_id = last.get("message_id") if last.get("role") == "assistant" else None
+        reply_turn = logical_persona_chat_client_message_id(reply_id)
+        # A rotated prompt copy can lose its platform id. A typed reply still
+        # identifies its turn exactly. Never borrow a different prompt's id.
+        typed_reply_turn = reply_turn if reply_turn != reply_id else None
+        if row_id is not None:
+            matched = prompt["_row_id"] == row_id
+        else:
+            matched = (prompt_id or typed_reply_turn) == client_message_id
+        if matched:
+            if prompt_id and typed_reply_turn and prompt_id != typed_reply_turn:
+                raise OperatorConversationRefused("target_unavailable")
+            matches.append((ordinal, prompt, last))
+    if len(matches) != 1:
+        raise OperatorConversationRefused("target_unavailable")
+    ordinal, prompt, last = matches[0]
+    if last.get("role") != "assistant" or not last.get("content") or not persisted_row_is_reply(last):
+        raise OperatorConversationRefused("reply_not_complete")
+    return dict(row_id=prompt["_row_id"], boundary_row_id=last["_row_id"], ordinal=ordinal,
+                draft="", earlier_turns=ordinal + 1, affected_turns=0)
+
+
 def _target(db, session_id, row_id=None, client_message_id=None, *, after_reply=False, branch=False):
     from agent.context_compressor import user_originated_turn_view, retryable_user_text
     from .runtime_hud.envelopes import extract_runtime_context_envelope, extract_skill_preload_envelope
@@ -93,6 +127,8 @@ def _target(db, session_id, row_id=None, client_message_id=None, *, after_reply=
         return db.branch_history_revision(session_id) if branch else db.history_control_revision(tip)
 
     revision = revision_of()
+    if after_reply:
+        return dict(tip=tip, revision=revision, **displayed_reply_boundary(db, tip, row_id, client_message_id))
     stored = db.get_messages_as_conversation(tip, include_row_ids=True, **lineage)
     users = [row for row in stored if user_originated_turn_view(row) is not None]
     matched = [row for row in users if (
@@ -101,19 +137,6 @@ def _target(db, session_id, row_id=None, client_message_id=None, *, after_reply=
     if len(matched) != 1:
         raise OperatorConversationRefused("target_unavailable")
     target = matched[0]
-    if after_reply:
-        start = stored.index(target)
-        end = next((index for index in range(start + 1, len(stored))
-                    if user_originated_turn_view(stored[index]) is not None), len(stored))
-        prefix = stored[start:end]
-        closing_reply = prefix[-1]
-        if (closing_reply.get("role") != "assistant" or closing_reply.get("tool_calls")
-                or not closing_reply.get("content")):
-            raise OperatorConversationRefused("reply_not_complete")
-        ordinal = users.index(target)
-        return dict(tip=tip, revision=revision, row_id=target["_row_id"],
-                    boundary_row_id=closing_reply["_row_id"], ordinal=ordinal,
-                    draft="", earlier_turns=ordinal + 1, affected_turns=0)
     # A repaired user/user pair or a compaction carrier is not the prompt the
     # Console selected. Refuse rather than silently combine/remove another ask.
     repaired = [row for row in db.get_messages_as_conversation(

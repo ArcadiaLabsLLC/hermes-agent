@@ -1125,7 +1125,7 @@ carry none: their reply already says so. Owner: `agent_runtime/reply_cut_off.py`
 sweep (`persona_chat_continuity.repair_orphaned_chat_turns`) flips a dead executor's in-flight records
 to `interrupted` before the first hydrate; the history projection then shows the `turn_interrupted`
 marker unless the turn has a REPLY row — a tool-request row, or a half reply upstream marked
-`display_metadata.interrupted`, no longer stands in for it (`curation._is_reply_row`; before, any stored
+`display_metadata.interrupted`, no longer stands in for it (`turn_visibility.persisted_row_is_reply`; before, any stored
 assistant row hid the marker, so a turn cut off after one tool call reloaded as nothing). The steer
 watcher writes each accepted steer to `<steer dir>/<root>/accepted/<id>.json` before its ack; the turn's
 settle (`leftover_steer.requeue_undelivered_steers`, under the root lease) queues as the root's next

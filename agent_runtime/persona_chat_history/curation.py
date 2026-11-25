@@ -29,7 +29,7 @@ from ..relay_policy import parse_harness_delivery_marker, parse_lens_episode_mar
 from ..dispatch_delivery.vocabulary import delivery_reader_parts
 from .operator_envelopes import strip_operator_envelopes
 from ..transcript_order import TURN_SEQ_OPERATOR, TURN_SEQ_TERMINAL
-from ..turn_visibility import persisted_row_is_tool_step, printable_reply_text
+from ..turn_visibility import persisted_row_is_reply, printable_reply_text
 from .markers import (
     _carry_run_budget,
     _carry_turn_outcome,
@@ -467,15 +467,6 @@ class _OperatorCurator:
             row[STEER_OF_FIELD] = steer_of
 
 
-def _is_reply_row(raw: Mapping[str, Any]) -> bool:
-    """A stored assistant row that closes its turn: no tool request, no interrupted mark."""
-
-    if persisted_row_is_tool_step(tool_calls=raw.get("tool_calls"), finish_reason=raw.get("finish_reason")):
-        return False
-    metadata = raw.get("display_metadata")
-    return not (isinstance(metadata, Mapping) and metadata.get("interrupted") is True)
-
-
 class _AgentCurator:
     role = MessageRole.AGENT
 
@@ -484,7 +475,7 @@ class _AgentCurator:
         # crash left behind (upstream marks it ``interrupted``), is not one: counting those
         # hid the terminal marker of every cut-off turn that had got as far as one tool call,
         # so a crashed or stopped turn reloaded as nothing (RT-CRASHED-TURN-WAITS-FOR-NEXT-SEND).
-        if ctx.logical_client_message_id and _is_reply_row(ctx.raw):
+        if ctx.logical_client_message_id and persisted_row_is_reply(ctx.raw):
             state.assistant_client_message_ids.add(ctx.logical_client_message_id)
 
     def strip_envelopes(self, raw_content: Any) -> tuple[Any, Any, Any]:
@@ -543,7 +534,7 @@ class _AgentCurator:
         _carry_run_budget(row, turn_record)
         # What the turn left behind, copied off the same record (agent_runtime.turn_outcome).
         _carry_turn_outcome(row, turn_record)
-        if _is_reply_row(ctx.raw):
+        if persisted_row_is_reply(ctx.raw):
             _carry_redo(state, row, turn_record, str(ctx.logical_client_message_id or ""))
             _carry_cut_off(row, turn_record)
 

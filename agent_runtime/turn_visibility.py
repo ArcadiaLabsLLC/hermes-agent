@@ -48,7 +48,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Mapping
 
 __layer__ = "policy"
 
@@ -367,6 +367,15 @@ def classify_persisted_turn_row(
         return None
 
 
+def persisted_row_is_reply(raw: Mapping[str, Any]) -> bool:
+    """A stored assistant row that closes its turn: no tool request, no interrupted mark."""
+
+    if persisted_row_is_tool_step(tool_calls=raw.get("tool_calls"), finish_reason=raw.get("finish_reason")):
+        return False
+    metadata = raw.get("display_metadata")
+    return not (isinstance(metadata, Mapping) and metadata.get("interrupted") is True)
+
+
 def persisted_row_is_tool_step(*, tool_calls: Any, finish_reason: Any = None) -> bool:
     """Is this stored assistant row a STEP of its turn (it asks for tools), not the turn's reply?"""
 
@@ -447,6 +456,7 @@ __all__ = [
     "VisibilityState",
     "classify_persisted_turn_row",
     "classify_turn_visibility",
+    "persisted_row_is_reply",
     "persisted_row_is_tool_step",
     "printable_reply_text",
 ]
