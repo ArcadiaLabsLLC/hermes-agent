@@ -1,4 +1,4 @@
-"""Opt-in reproduction for the Neko refresh filing. Run this file explicitly with pytest.
+"""Regression coverage for a persona refresh with a concurrent turn.
 
 The normal controls use the production chat and history RPCs. The contention cases also open
 the saved chat from a second native gateway client, an explicit setup for the ownership race.
@@ -138,7 +138,9 @@ def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_ag
                 observer = native_client(receive if mode == "owner_exit" else lambda _: None)
                 seen = observer.call("session.resume", {"session_id": root, "observe_only": True})
                 assert seen["session_id"] == sid and seen["running"] is True
-                (native if mode == "owner_exit" else observer).close()
+                departing = native if mode == "owner_exit" else observer
+                departing.close()
+                assert departing.execution_possible, "a surviving busy session can still write"
             refresh_neko(neko.id, root)
 
         before = builds[root]
@@ -165,6 +167,9 @@ def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_ag
             if mode in {"native_busy", "observer_exit", "owner_exit"}:
                 assert terminal.wait(30), "the remaining client never received its terminal frame"
                 assert dispatches(NATIVE_MESSAGE) == 1
+                if mode in {"observer_exit", "owner_exit"}:
+                    (observer if mode == "owner_exit" else native).close()
+                    assert not departing.execution_possible
             if mode in {"attached_idle", "native_busy"}:
                 assert code != 0 and error == "chat_busy"
                 assert not refusal and dispatches(OPERATOR_MESSAGE) == 0

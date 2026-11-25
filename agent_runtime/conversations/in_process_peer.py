@@ -180,7 +180,10 @@ class InProcessPeer(PeerCore):
         self.profile = _profile_for(self.home)
         self._dispatch = dispatch
         self._transport = _Transport(self._route)
+        # Receipts for process-liveness evidence. Only the gateway decides which attachments to release.
+        self._sessions: set[str] = set()
         self._openers: set[str] = set()
+        self._release_finished = False
         self._release_uncertain = False
         self._close_lock = threading.Lock()
         self._disposed = False
@@ -195,9 +198,17 @@ class InProcessPeer(PeerCore):
 
     @property
     def execution_possible(self) -> bool:
-        """An open request or an uncertain transport release can outlive the peer."""
+        """A turn can outlive its departing peer while another client remains attached."""
         with self._lock:
-            return not self._closed or bool(self._openers) or self._release_uncertain
+            if not self._release_finished or self._openers or self._release_uncertain:
+                return True
+            observed = tuple(self._sessions)
+        if not observed:
+            return False
+        from tui_gateway import server
+
+        with server._sessions_lock:
+            return any(sid in server._sessions for sid in observed)
 
     def write(self, frame: dict) -> None:
         # No write lock: the gateway admits concurrent requests (the WebSocket door does), and a
@@ -250,11 +261,14 @@ class InProcessPeer(PeerCore):
         with self._lock:
             opener = "method" not in frame and frame.get("id") in self._openers
             closed = self._closed
+            result = frame.get("result")
+            sid = result.get("session_id") if opener and isinstance(result, dict) else None
+            if isinstance(sid, str):
+                self._sessions.add(sid)
         try:
             if closed:
-                result = frame.get("result")
-                if opener and isinstance(result, dict) and result.get("session_id"):
-                    self.release_session(result["session_id"])
+                if isinstance(sid, str):
+                    self.release_session(sid)
             else:
                 super()._route(frame)
         finally:
@@ -284,6 +298,8 @@ class InProcessPeer(PeerCore):
         self._transport.close()
         try:
             self.release_session()
+            with self._lock:
+                self._release_finished = True
         except Exception:
             _log().exception("in-process worker could not release its gateway attachments")
         with _open_lock:
