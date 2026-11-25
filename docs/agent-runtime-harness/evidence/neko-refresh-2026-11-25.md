@@ -30,3 +30,25 @@ For an incompatible live owner, preserve its session and surface a typed session
 ## Closure
 
 Keep all three successful controls and turn the three failing cases green. Also cover a concurrent attach during retirement, a changed runtime signature, and repeated delivery of the same request ID after release. Verify a still-attached native client receives its terminal response, both chats reopen with their own history, and a genuine missing provider still reports setup. Finally repeat the owner-style Flutter hard refresh on a known build with two active persona chats. If it fails, record the acquisition result, attachment ownership and dispatch phase for the colliding session without logging message bodies.
+
+## Windows verification on November 25
+
+The ownership change is on `codex/session-release` (implementation `28e17f158f`, typed refusal `4dbe0fab76`). The fork asks for a fresh operator agent at the gateway's locked resume decision. A collision returns the existing `chat_busy` outcome before attachment or model dispatch. Peer shutdown and individual operator retirement use the gateway's transport disconnect operation. The gateway rechecks for remaining clients before teardown and owns the final agent close. The resident registry still checks persona, writer and runtime identity.
+
+The seven cases now live in `tests/agent_runtime/test_neko_refresh.py` on the implementation branch. Cold, warm and released-owner sends reached the model once each. Both collision cases made zero requests, kept the native session, and admitted one new send after its owner released it. The observer leaving first and the original owner leaving first each preserved terminal delivery to the remaining client. The second persona completed once per case and both saved histories retained their own markers. The scoped-disconnect concurrency test also reattached a client between detach and the teardown claim and verified that the gateway preserved it.
+
+The owner-style check used the running Windows debug app, Neko Mission Lead Beta's existing chat in testv4, and Amelia. The account Hermes service had restarted from the patched checkout. The Dart VM and Hermes turn journals give the following UTC times.
+
+| Time | Observation |
+| --- | --- |
+| 19:34:46.526 | Amelia's marked turn started. Eternia showed “Amelia is working.” |
+| 19:34:53.935 | Flutter's new main isolate started after its full restart. The test had switched back to Neko. |
+| 19:35:01.513 | Amelia settled with exit 0 and a reply in her own history. |
+| 19:35:37.002 | Neko's marked post-refresh message entered execution. The client showed “Replying” and Hermes produced output; the missing-provider banner did not recur on this send. |
+| 19:37:59.710 | The tester stopped Neko after its output started investigating the earlier screenshot. Hermes recorded an interrupted turn with exit 0 and no provider refusal. |
+
+Neko's history pane still failed at Eternia’s `MessageMotionProjection._buildIndex` assertion with a duplicate persisted-message row key when the saved transcript loaded. The composer remained usable. This live read verifies admission across the refresh and Amelia's completion. Neko's natural completion and a readable Neko transcript remain unverified. The client filing is `EterniaLauncher/Launcher_Brain/20 — Active Initiatives/mission-control-queue.md`, row `MC-FU-REFRESHED-CHAT-HISTORY-KEEPS-EACH-SENT-MESSAGE-ONCE`.
+
+### Upstream comparison
+
+Upstream main `33522e6dee` was fetched on November 25. The fork already includes upstream `b3014688f9`, which preserves multi-client transport membership and prunes departed viewers. The newer upstream `972a6982b0` protects idle transcript-writer leases. Neither fork caller exists in upstream main, and its resume contract still attaches to an existing live session. The fix uses upstream's disconnect and locked reattach decisions. Provider selection and persona routing continue to use their existing owners.
