@@ -1,0 +1,32 @@
+# Neko refresh while another persona is answering
+
+The Windows incident settlement reported an internal gateway session mismatch as a missing provider. On November 25, the same refusal and a second session-lifetime defect reproduced on Hermes `0aec4e1f3a`. They share the runtime filing `RT-FU-A-SEND-AFTER-A-REFRESH-RUNS-INSTEAD-OF-SAYING-NO-PROVIDER-IS-CONFIGURED`.
+
+## What ran
+
+`tests/agent_runtime/neko_refresh_probe.py` is an opt-in regression probe. From the Hermes test environment run `python -m pytest -q -s tests/agent_runtime/neko_refresh_probe.py`. The probe exercises the real chat-open and history RPCs, mission-chat send, agent factory, in-process gateway and HTTP transport. Its isolated Neko Mission Lead Beta and QA persona use separate placements and chat roots. A loopback model holds the QA persona's request open during Neko's refresh. Counts come from calls to the existing operator agent constructor and requests received at that model.
+
+Refresh here means a fresh RPC open and history read of the same saved chat, followed by a send. The incident involved a Flutter hard refresh on the owner's installation. The probe uses an isolated profile and explicitly establishes the competing native attachment in the last three cases. Which client first held the gateway session in the original incident remains unknown.
+
+| Case | Neko operator builds | Neko model sends | Result |
+| --- | ---: | ---: | --- |
+| Ordinary refresh, resident reuse off | 1 | 1 | Answered |
+| Ordinary refresh, resident reuse on | 0 | 1 | Answered |
+| Native owner closed its session before refresh | 1 | 1 | Answered |
+| Another native client held Neko's idle session open | 0 | 0 | Exit 2, provider unavailable, original native session removed |
+| Another native client had a Neko prompt at the model | 0 | 0 | Same refusal, original busy session removed |
+| A read-only observer attached to that busy session and exited | 0 | 0 | No operator send attempted. Observer shutdown removed the original session. |
+
+In all six cases the QA persona was still at the model at the observation point, then finished from its single request. The model requests kept the two personas' prompt markers separate. The idle and busy refusals carried status 0 and the message “the gateway reused a session this turn did not build.” The removed object was the live gateway session. The probe did not establish loss of saved history or cancellation at the provider.
+
+## Where to fix it
+
+Upstream resume can return a session already held by another client. Two fork-owned paths currently treat that return as permission to close it. In `agent_runtime/operator_gateway_turn.py`, `open_actor` closes the returned ID when its own build did not supply that agent. In `agent_runtime/conversations/in_process_peer.py`, `InProcessPeer._route` records a successful resume like a newly owned session and `close` later sends a global close for it. The observer case reaches the latter path without an operator send.
+
+Use the gateway's existing serialized create-or-reuse decision and transport attachments as the authority. Carry the actual acquisition result to the fork's operator and peer cleanup paths. Releasing a borrowed attachment should detach only that client. Closing or replacing an actor requires ownership at the point of release. A separate lookup followed by unconditional close leaves a race. If the gateway needs to expose its acquisition result, extend that existing operation. Keep the resident registry's chat, runtime signature, native revision and writer checks as the authority for reusing an operator actor.
+
+For an incompatible live owner, preserve its session and surface a typed session contention outcome through Hermes' existing turn failure classifier. Retire an idle owner only after a verified handoff, or let its owner release it normally. Admit the pending send once through the existing request identity after release. Keep genuine provider and credential failures on their existing paths. An automatic retry needs positive evidence the original request never ran.
+
+## Closure
+
+Keep all three successful controls and turn the three failing cases green. Also cover a concurrent attach during retirement, a changed runtime signature, and repeated delivery of the same request ID after release. Verify a still-attached native client receives its terminal response, both chats reopen with their own history, and a genuine missing provider still reports setup. Finally repeat the owner-style Flutter hard refresh on a known build with two active persona chats. If it fails, record the acquisition result, attachment ownership and dispatch phase for the colliding session without logging message bodies.
