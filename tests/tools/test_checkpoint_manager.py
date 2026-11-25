@@ -19,7 +19,6 @@ from tools.checkpoint_manager import (
     _ref_name,
     _project_meta_path,
     _touch_project,
-    _dir_file_count,
 )
 from tools.checkpoint_maintenance import (
     clear_all, clear_legacy, maybe_auto_prune_checkpoints, prune_checkpoints, store_status,
@@ -806,6 +805,26 @@ class TestDirFileCount:
 
         assert mgr.ensure_checkpoint(work_dir, "before_edit") is True
 
+    def test_capture_and_review_share_git_ignored_candidates(self, mgr, work_dir, monkeypatch):
+        root = Path(work_dir)
+        (root / ".gitignore").write_text("local-cache/\n")
+        cache = root / "local-cache"
+        cache.mkdir()
+        for i in range(12):
+            (cache / str(i)).write_text("ignored")
+        monkeypatch.setattr("tools.checkpoint_manager._MAX_FILES", 8)
+        assert mgr.ensure_checkpoint(work_dir)
+        checkpoint = mgr.list_checkpoints(work_dir)[0]["hash"]
+        changed = root / "one-new-file.txt"
+        changed.write_text("recorded")
+        mgr.record_agent_write(str(changed))
+        preview = mgr.preview_restore(work_dir, checkpoint)
+        assert preview["success"]
+        assert [row["path"] for row in preview["files"]] == [changed.name]
+        for i in range(9):
+            (root / f"eligible-{i}").touch()
+        assert mgr.preview_restore(work_dir, checkpoint)["reason"] == "workspace_too_large"
+
     def test_checkpoint_guard_counts_retained_files_and_stops_at_limit(
         self, mgr, work_dir, monkeypatch
     ):
@@ -815,7 +834,6 @@ class TestDirFileCount:
         for idx in range(10):
             (source_dir / f"module-{idx}.py").write_text("pass\n")
 
-        assert _dir_file_count(work_dir) == 6
         assert mgr.ensure_checkpoint(work_dir, "before_edit") is False
 
 

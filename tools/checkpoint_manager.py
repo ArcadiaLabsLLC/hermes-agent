@@ -48,7 +48,6 @@ reclaim object storage.  A size-cap pass drops the oldest checkpoints per
 project until total store size is under ``max_total_size_mb``.
 """
 
-import fnmatch
 import hashlib
 import json
 import logging
@@ -827,54 +826,11 @@ def _pre_v2_shadow_repos(base: Path) -> list[dict]:
     return out
 
 
-def _dir_file_count(path: str) -> int:
-    """Count checkpoint candidates, pruning the default excludes."""
-    count = 0
-    try:
-        root = _normalize_path(path)
-        if not root.is_dir():
-            return 0
-
-        directory_patterns = tuple(
-            pattern[:-1] for pattern in DEFAULT_EXCLUDES if pattern.endswith("/")
-        )
-        file_patterns = tuple(
-            pattern for pattern in DEFAULT_EXCLUDES if not pattern.endswith("/")
-        )
-
-        for current_dir, directory_names, file_names in os.walk(
-            root, followlinks=False
-        ):
-            retained_directories = []
-            for name in directory_names:
-                candidate = Path(current_dir) / name
-                if candidate.is_symlink():
-                    if not any(fnmatch.fnmatchcase(name, p) for p in file_patterns):
-                        count += 1
-                elif not any(
-                    # git applies slash-less patterns (``*.log``) to directories too
-                    fnmatch.fnmatchcase(name, p) for p in directory_patterns + file_patterns
-                ):
-                    retained_directories.append(name)
-                if count > _MAX_FILES:
-                    return count
-            directory_names[:] = retained_directories
-
-            for name in file_names:
-                if any(fnmatch.fnmatchcase(name, p) for p in file_patterns):
-                    continue
-                count += 1
-                if count > _MAX_FILES:
-                    return count
-    except OSError:
-        pass
-    return count
-
-
 def _too_broad(abs_dir: str) -> bool:
     """``/``, the user's home and every ancestor of it: never a project, always huge."""
     home = Path.home().resolve()
-    return Path(abs_dir) in {Path("/"), home, *home.parents}
+    path = Path(abs_dir)
+    return path == path.parent or path == home or path in home.parents
 
 
 def _dir_size_bytes(path: Path) -> int:
@@ -1561,11 +1517,6 @@ class CheckpointManager(ReviewedRestoreMixin):
 
         _touch_project(store, working_dir)
 
-        # Quick size guard — don't try to snapshot enormous directories
-        if _dir_file_count(working_dir) > _MAX_FILES:
-            logger.debug("Checkpoint skipped: >%d files in %s", _MAX_FILES, working_dir)
-            return False
-
         dir_hash = _project_hash(working_dir)
         index_file = _index_path(store, dir_hash)
         ref = _ref_name(dir_hash)
@@ -1724,11 +1675,13 @@ class CheckpointManager(ReviewedRestoreMixin):
     ) -> tuple[bool, str]:
         """Stage the worktree without opening files already over the size cap."""
         add_args = _stage_all_args(store.parent, working_dir)
+        paths, reason = self._checkpoint_candidates(store, working_dir, index_file)
+        if reason:
+            return False, reason
         oversize_pathspec: Optional[Path] = None
         if self.max_file_size_mb > 0:
-            oversize = self._oversize_paths_for_staging(store, working_dir, index_file)
-            if oversize is None:
-                return False, "oversize preflight failed"
+            root = _normalize_path(working_dir)
+            oversize = [rel for rel in paths if self._exceeds_size_cap(root / rel)]
             if oversize:
                 # git refuses command-line pathspecs beside --pathspec-from-file, so the
                 # store self-exclusion rides in the same file.
@@ -1749,21 +1702,19 @@ class CheckpointManager(ReviewedRestoreMixin):
             if oversize_pathspec is not None:
                 _unlink_quiet(oversize_pathspec)
 
-    def _oversize_paths_for_staging(
-        self, store: Path, working_dir: str, index_file: Path,
-    ) -> Optional[list[str]]:
-        """Return tracked or untracked paths that Git must not open for staging."""
-        ok, stdout, _ = _run_git(
-            ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+    @staticmethod
+    def _checkpoint_candidates(store: Path, working_dir: str, index_file: Path) -> tuple[list[str], str]:
+        """Use the staging index and its exclusions for both capture and reviewed restore."""
+        ok, names, _ = _run_git(
+            ["ls-files", "--cached", "--others", "--exclude-standard", "-z",
+             *_exclude_store_args(store.parent, working_dir)],
             store, working_dir, index_file=index_file,
         )
         if not ok:
-            return None
-        abs_workdir = _normalize_path(working_dir)
-        return [
-            rel for rel in stdout.split("\x00")
-            if rel and self._exceeds_size_cap(abs_workdir / rel)
-        ]
+            return [], "checkpoint_read_failed"
+        if names.count("\0") > _MAX_FILES:
+            return [], "workspace_too_large"
+        return names.split("\0")[:-1], ""
 
     @staticmethod
     def _write_oversize_pathspec(paths: list[str]) -> Path:

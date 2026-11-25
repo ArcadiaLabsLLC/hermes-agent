@@ -234,10 +234,11 @@ class ReviewedRestoreMixin:
                 return {"success": False, "reason": "redo_unavailable"}
         if reversal is None and commit_hash not in self.checkpoint_hashes(working_dir):
             return {"success": False, "reason": "checkpoint_unavailable"}
-        if _cm._dir_file_count(working_dir) > _cm._MAX_FILES:
-            return {"success": False, "reason": "workspace_too_large"}
         store = _cm._store_path()
         index = _cm._index_path(store, _cm._project_hash(working_dir))
+        _, reason = self._checkpoint_candidates(store, working_dir, index)
+        if reason:
+            return {"success": False, "reason": reason}
         try:
             ok, _, _ = _cm._run_git(["add", "-A"], store, working_dir, index_file=index)
             if not ok:

@@ -31,8 +31,6 @@
   "agent_runtime/auth_extensions.py|hermes_cli.auth|_auth_store_lock",
   "agent_runtime/auth_extensions.py|hermes_cli.auth|_read_codex_tokens",
   "agent_runtime/checkpoint_reviewed_restore.py|tools.checkpoint_manager|_GIT_TIMEOUT",
-  "agent_runtime/checkpoint_reviewed_restore.py|tools.checkpoint_manager|_MAX_FILES",
-  "agent_runtime/checkpoint_reviewed_restore.py|tools.checkpoint_manager|_dir_file_count",
   "agent_runtime/checkpoint_reviewed_restore.py|tools.checkpoint_manager|_hash_file",
   "agent_runtime/checkpoint_reviewed_restore.py|tools.checkpoint_manager|_index_path",
   "agent_runtime/checkpoint_reviewed_restore.py|tools.checkpoint_manager|_load_ledger",

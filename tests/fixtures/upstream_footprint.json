@@ -1,8 +1,8 @@
 {
   "measured_at": "2026-11-25",
   "base": "3b42157858",
-  "files": 230,
-  "deleted_lines": 888,
+  "files": 231,
+  "deleted_lines": 956,
   "heavy": 1,
   "reasons": [
     {
@@ -1555,6 +1555,21 @@
       },
       "reason": "The native resume decision can refuse an existing writer before attaching, including the eager double-check. The transport disconnect operation can release one session for a multi-chat peer and still revalidate membership under the gateway lock. Two race-test contexts specify ordinary resume semantics.",
       "owner_ruling": "2026-11-25: fix both Hermes paths using the existing gateway ownership logic and exercise other scenarios."
+    },
+    {
+      "change": "Checkpoint breadth follows its Git staging index",
+      "before": {
+        "files": 230,
+        "deleted_lines": 888,
+        "heavy": 1
+      },
+      "after": {
+        "files": 231,
+        "deleted_lines": 956,
+        "heavy": 1
+      },
+      "reason": "Remove the competing directory walk. Both snapshot capture and reviewed restore count paths through the native checkpoint index; its stock regression now exercises that interface.",
+      "owner_ruling": "2026-11-25: Fix the guard and retest here (Neko file review, RT-FU-CHECKPOINT-GUARD-COUNTS-THE-FILES-GIT-WOULD-STAGE)."
     }
   ]
 }
