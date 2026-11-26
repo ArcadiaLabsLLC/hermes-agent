@@ -40,21 +40,31 @@ class TurnCheckpointRecorder:
     def _save(self, record: dict) -> None:
         atomic_json_write(_record_path(self.session_id, self.turn_id), record)
 
+    def _record(self) -> dict:
+        return read_turn_checkpoint(self.session_id, self.turn_id) or {
+            "session_id": self.session_id, "turn_id": self.turn_id, "workspaces": {}}
+
     def checkpoint(self, workdir: str, commit: str) -> None:
         tree = self.checkpoints.checkpoint_tree(workdir, commit)
         if tree is None:
             return
-        record = read_turn_checkpoint(self.session_id, self.turn_id) or {
-            "session_id": self.session_id, "turn_id": self.turn_id, "workspaces": {}}
+        record = self._record()
         # An agent iteration is not an operator turn. Keep the FIRST baseline
         # across every tool/iteration/reused resident agent of this exact turn.
         record["workspaces"].setdefault(workdir, {"before_tree": tree.strip(), "files": {}})
         self._save(record)
 
     def write(self, workdir: str, path: Path, evidence: dict) -> None:
-        record = read_turn_checkpoint(self.session_id, self.turn_id)
-        workspace = (record or {}).get("workspaces", {}).get(workdir)
-        if workspace is None or not path.is_relative_to(Path(workdir)):
+        if not path.is_relative_to(Path(workdir)):
+            return
+        record = self._record()
+        workspace = record["workspaces"].get(workdir)
+        if workspace is None:
+            # A later iteration's snapshot is already after this successful write.
+            record["workspaces"][workdir] = {"before_tree": None, "files": {}}
+            self._save(record)
+            return
+        if workspace["before_tree"] is None:
             return
         rel = path.relative_to(workdir).as_posix()
         diff = self.checkpoints.recorded_file_diff(workdir, workspace["before_tree"], path, evidence)

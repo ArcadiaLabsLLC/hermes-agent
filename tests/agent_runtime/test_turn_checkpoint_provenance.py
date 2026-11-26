@@ -52,6 +52,34 @@ def test_oversize_or_unproven_write_does_not_enter_turn(tmp_path, monkeypatch):
     assert files["one.txt"]["sha256"] != "wrong"
 
 
+def test_write_without_baseline_survives_retry_and_blocks_incomplete_restore(tmp_path, monkeypatch):
+    target, work, manager, _, _ = setup_turn(tmp_path, monkeypatch)
+    second = {**target, "client_message_id": "second"}
+    manager.history_observer = TurnCheckpointRecorder(target["session_id"], "second", manager)
+    manager.new_turn()
+    with monkeypatch.context() as capture:
+        capture.setattr(manager, "_take", lambda *args: False)
+        assert not manager.ensure_checkpoint(str(work))
+    # A failed attempt alone is not evidence that a tool wrote a file.
+    assert not call("turn.changes", second)["result"].get("unavailable_reason")
+    path = work / "one.txt"
+    path.write_text("uncaptured edit")
+    manager.record_agent_write(str(path))
+    manager.new_turn()
+    assert manager.ensure_checkpoint(str(work))
+    path.write_text("later edit")
+    manager.record_agent_write(str(path))
+
+    changes = call("turn.changes", second)["result"]
+    assert changes["unavailable_reason"] == "checkpoint_baseline_missing"
+    assert changes["files"] == [] and not changes["tracked"] and changes["checkpoint"] is None
+    # Undo from the earlier, tracked turn would include the later, untracked write.
+    undo = call("undo.preview", {**target, "client_message_id": "first"})["result"]
+    assert undo["files_reason"] == changes["unavailable_reason"]
+    assert undo["restore"] is None
+    assert path.read_text() == "later edit"
+
+
 def test_partial_recovery_refuses_stale_choice_and_preserves_later_edit(tmp_path, monkeypatch):
     import tools.checkpoint_manager as checkpoints
     target, work, _, _, request = setup_turn(tmp_path, monkeypatch)

@@ -11,6 +11,8 @@ from .conversation_owner import require_session_owner
 
 __layer__ = "lanes"
 
+_MISSING_BASELINE = "checkpoint_baseline_missing"
+
 
 def _sources(session, params):
     sources = [params["session_id"], *history_source_sessions(session.db, params["session_id"])]
@@ -39,10 +41,12 @@ def operator_turn_changes(params):
         with _checkpoint_session(params) as (identity, manager, workdir, _):
             record = _turn_record(sources, turn)
             workspace = (record or {}).get("workspaces", {}).get(workdir)
-            checkpoint = checkpoint_for_tree(manager, workdir, workspace["before_tree"]) if workspace else None
+            tree = workspace["before_tree"] if workspace else None
+            checkpoint = checkpoint_for_tree(manager, workdir, tree) if tree else None
             return {**identity, "client_message_id": turn, "workspace_path": workdir,
                     "files": list(workspace["files"].values()) if workspace else [],
-                    "checkpoint": checkpoint, "tracked": workspace is not None,
+                    "checkpoint": checkpoint, "tracked": tree is not None,
+                    **({"unavailable_reason": _MISSING_BASELINE} if workspace and tree is None else {}),
                     "other_workspaces": bool(record and set(record["workspaces"]) - {workdir})}
     except OperatorConversationRefused as exc:
         if exc.reason not in {"workspace_unavailable", "checkpoint_backend_unsupported"}:
@@ -62,6 +66,8 @@ def _collect_attribution(sources, turns, workdir):
             reason = "multiple_workspaces"
         workspace = (record or {}).get("workspaces", {}).get(workdir)
         if workspace:
+            if workspace["before_tree"] is None:
+                return None, {}, _MISSING_BASELINE
             baseline = baseline or workspace["before_tree"]
             attributed.update(workspace["files"])
     return baseline, attributed, reason
