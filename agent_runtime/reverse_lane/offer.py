@@ -62,7 +62,7 @@ def _offer_reply(client: ServeSocketClient, rid: str) -> dict[str, Any] | None:
     return None
 
 
-def _ask(*, host: str, port: int, cert_fingerprint: str, device_id: str, token: str, machine_id: str,
+def _device_call(*, host: str, port: int, cert_fingerprint: str, device_id: str, token: str, machine_id: str,
          method: str, params: dict[str, Any]) -> tuple[str | None, dict[str, Any]]:
     """Open the phone's pinned device connection to the computer, call *method* once, close.
 
@@ -107,9 +107,9 @@ def _ask(*, host: str, port: int, cert_fingerprint: str, device_id: str, token: 
 
 
 def _one_shot(**way: Any) -> str | None:
-    """:func:`_ask` for a verb whose result says nothing: ``None`` when answered, else the refusal's reason."""
+    """:func:`_device_call` for a verb whose result says nothing: ``None`` when answered, else the refusal's reason."""
 
-    return _ask(**way)[0]
+    return _device_call(**way)[0]
 
 
 def grant_and_offer(store_root: Any, *, computer_install_id: str, computer_machine_id: str, host: str,
@@ -158,8 +158,8 @@ def ask_held(*, host: str, port: int, cert_fingerprint: str, device_id: str, tok
              machine_id: str) -> dict[str, Any]:
     """What the computer holds from this phone: ``{ok, accepted, offered}`` (grant ids or ``None``), or ``reason``."""
 
-    reason, result = _ask(host=host, port=port, cert_fingerprint=cert_fingerprint, device_id=device_id,
-                          token=token, machine_id=machine_id, method=HELD_METHOD, params={})
+    reason, result = _device_call(host=host, port=port, cert_fingerprint=cert_fingerprint, device_id=device_id,
+                                  token=token, machine_id=machine_id, method=HELD_METHOD, params={})
     if reason is not None:
         return {"ok": False, "reason": reason}
     named = {key: (str(result[key]) if isinstance(result.get(key), str) and result[key] else None)
