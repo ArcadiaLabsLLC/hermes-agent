@@ -188,3 +188,70 @@ def test_a_refused_open_places_nothing():
     assert _cmd_persona_instance_open_chat(args) == 2
     assert payloads[-1]["error_kind"] == "idempotency_key_required"
     assert _stored_ids() == before
+
+
+def _discovered_profile_agent(name: str) -> str:
+    """Profile discovery's record for hermes profile ``name`` (``reconcile_profile_personas``)."""
+    from agent_runtime.models import AgentPersona
+    from agent_runtime.personas import PROFILE_ROLE_SENTINEL, AutonomyLevel
+    from agent_runtime.store import AgentStore
+
+    persona_id = f"profile_{name}"
+    AgentStore().save(AgentPersona(
+        id=persona_id, display_name=name.title(), role=PROFILE_ROLE_SENTINEL, model=None, provider=None,
+        api_mode=None, autonomy=AutonomyLevel.PROPOSE_ONLY.value, hermes_profile=name,
+        include_profile_memory=True, readiness={"auto_discovered_profile": True},
+    ))
+    return persona_id
+
+
+def _open_new_chat(persona_id: str, instance_id: str, key: str) -> tuple[int, dict]:
+    from hermes_cli.harness_parts.persona.chat_open import _cmd_persona_instance_open_chat
+
+    payloads = []
+    args = SimpleNamespace(
+        persona_id=persona_id, persona_instance_id=instance_id, session_id=None, new_session=True,
+        add_instance=False, idempotency_key=key, title=None, select_session=True, client_scope=None, json=True,
+        payload_sink=payloads.append,
+    )
+    return _cmd_persona_instance_open_chat(args), payloads[-1]
+
+
+def test_a_new_chat_on_a_profile_agent_with_no_channel_places_it():
+    """Eternia row MC-FU-A-CHAT-CAN-BE-STARTED-ON-YOUR-PHONES-AGENT-FROM-THE-PHONE-AND-FROM-YOUR-COMPUTER, seen
+    live 2026-11-26: on a fresh account namespace Base is profile discovery's ``profile_base``, a template
+    only, and Eternia's first send names ``personainst_profile_base``; the open answered "persona instance
+    not found: personainst_profile_base". With no row under the channel id the open means the agent and
+    places it. Kill-mutations: answer None for every ``profile_`` candidate in
+    ``_unplaced_hidden_copy_persona``, or drop ``and hidden_copy_of is None`` in ``_new_chat_target`` → red."""
+    ensure_default_scope(seed_active_pointers=False)
+    persona_id = _discovered_profile_agent("base")
+    channel = persona_instance_id_for(persona_id)
+    opened = set()
+    for n, persona in enumerate((persona_id, f"persona:{persona_id}")):
+        code, payload = _open_new_chat(persona, channel, f"open-profile-{n}")
+        assert code == 0, payload
+        opened.add(payload["persona_instance_id"])
+    (placed,) = opened  # the second open reuses the idle instance the first placed
+    assert placed.startswith(f"{channel}_agent_")
+    assert PersonaInstanceStore().get(placed).workspace_id == DEFAULT_WORKSPACE_ID
+    assert channel not in _stored_ids()
+
+
+def test_a_profile_agents_standing_channel_still_opens_as_itself():
+    """A row under ``personainst_profile_<name>`` (a profile's own held channel) is opened as itself; a profile
+    the roster does not hold is not placed and stays not found."""
+    from tests.agent_runtime.test_global_row_adoption import _seed
+
+    ensure_default_scope(seed_active_pointers=False)
+    persona_id = _discovered_profile_agent("alice")
+    channel = persona_instance_id_for(persona_id)
+    _seed(channel, persona_id=persona_id)
+    code, payload = _open_new_chat(persona_id, channel, "open-channel")
+    assert code == 0, payload
+    assert payload["persona_instance_id"] == channel
+
+    before = _stored_ids()
+    code, payload = _open_new_chat("profile_nobody", persona_instance_id_for("profile_nobody"), "open-nobody")
+    assert code == 2 and payload["error_kind"] == "persona_instance_not_found", payload
+    assert _stored_ids() == before

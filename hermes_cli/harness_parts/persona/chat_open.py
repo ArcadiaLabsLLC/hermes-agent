@@ -423,18 +423,30 @@ def _unplaced_hidden_copy_persona(instance_id: str, persona_id: str) -> str | No
     """The agent whose hidden-copy id ``instance_id`` is, when no row is under it; else ``None``.
 
     The agent is the one the caller named, or the one the id names (``personainst_<persona>``): a
-    client may send its own spelling of the agent beside the id (``persona:base``). A profile's own
-    channel keeps its id; a row that exists under the id (adopted, or held) is opened as itself."""
+    client may send its own spelling of the agent beside the id (``persona:base``). A row that exists
+    under the id (adopted, or a profile's own held channel) is opened as itself.
+
+    A profile agent's channel ``personainst_profile_<name>`` with no row under it is that agent's too,
+    when the roster holds the agent (profile discovery's ``profile_base`` on a fresh account namespace,
+    where Base is a template only): nothing mints that channel for a new chat, so its open places the
+    agent like any other (Eternia row
+    MC-FU-A-CHAT-CAN-BE-STARTED-ON-YOUR-PHONES-AGENT-FROM-THE-PHONE-AND-FROM-YOUR-COMPUTER, seen live
+    2026-11-26: "persona instance not found: personainst_profile_base"). A profile the roster does not
+    hold (a synthesised one) is not placeable and stays not found."""
 
     from agent_runtime import paths
 
     named = {persona_id}
     if instance_id.startswith("personainst_"):
         named.add(instance_id[len("personainst_"):])
-    for candidate in sorted(p for p in named if p and not p.startswith("profile_")):
+    for candidate in sorted(p for p in named if p):
         if instance_id == persona_instance_id_for(candidate):
             if paths.persona_instance_path(instance_id).exists():
                 return None
+            # MUTATION: return None here for every profile_ candidate and
+            # test_a_new_chat_on_a_profile_agent_with_no_channel_places_it reddens (persona_instance_not_found).
+            if candidate.startswith("profile_"):
+                return candidate if _an_agent_this_runtime_has(candidate) else None
             # An id only the id names is a hidden copy only of an agent this runtime has: an unknown instance
             # ``personainst_qa_deadbeef`` of ``qa`` is not agent ``qa_deadbeef``'s hidden copy, and opening it
             # is ``persona_instance_not_found`` naming that id, never a placement of an agent that does not exist
@@ -592,8 +604,11 @@ def _new_chat_target(args, persona_id: str) -> tuple[str | None, str, int | None
         requested_instance_id, persona_id = None, hidden_copy_of
     if requested_instance_id:
         target_instance_id = canonical_persona_instance_id(requested_instance_id, persona_id=persona_id)
-    elif persona_id.startswith("profile_"):
-        target_instance_id = persona_instance_id_for(persona_id)  # a profile's channel (documented edge)
+    elif persona_id.startswith("profile_") and hidden_copy_of is None:
+        # A profile's channel (documented edge); one with no row under it was answered above as the agent.
+        # MUTATION: drop ``and hidden_copy_of is None`` and
+        # test_a_new_chat_on_a_profile_agent_with_no_channel_places_it reddens (the channel id again).
+        target_instance_id = persona_instance_id_for(persona_id)
     else:
         # RT-A-SEND-TO-AN-AGENT-WITH-NO-INSTANCE-IN-REACH-IS-PLACED-OR-REFUSED: an operator's open that
         # names only the agent runs the one "reuse idle, else place in the Default workspace" rule,
