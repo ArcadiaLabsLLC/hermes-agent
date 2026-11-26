@@ -373,7 +373,29 @@ class _DoorClient(ServeSocketClient):
 
 
 @pytest.fixture
-def embedded_phone():
+def short_door(monkeypatch):
+    """The door in a short folder: a bundled run's temp root alone passes AF_UNIX's 108-byte path limit.
+
+    Only the folder moves; the file name and the join are production's (``call_door_path``'s own
+    test pins that the door sits in the store root).
+    """
+
+    import shutil
+    import tempfile
+
+    from agent_runtime.serve_socket import server as server_module
+
+    folder = Path(tempfile.mkdtemp(prefix="hd-", dir="/tmp"))
+    real = server_module.call_door_path
+    monkeypatch.setattr(server_module, "call_door_path", lambda store_root: real(folder))
+    try:
+        yield folder
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+@pytest.fixture
+def embedded_phone(short_door):
     """The phone: the real serve loop under the embedded shell, as ``EmbeddedServe`` runs it."""
 
     from hermes_cli.harness_parts.serve import serve_loop
@@ -395,9 +417,9 @@ def embedded_phone():
 
 
 def _door() -> Path:
-    from agent_runtime.serve_socket.server import call_door_path
+    from agent_runtime.serve_socket import server as server_module
 
-    return call_door_path(_phone_root())
+    return server_module.call_door_path(_phone_root())
 
 
 def _root_token() -> str:

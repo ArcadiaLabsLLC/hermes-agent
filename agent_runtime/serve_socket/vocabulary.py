@@ -92,7 +92,9 @@ SOCKET_HOST = "127.0.0.1"
 #: is joined to the root in ONE place (``server.call_door_path``); Eternia reads the path off the
 #: greeting's ``socket`` block and never builds it. The hello proof on this door binds port ``0``:
 #: there is no port, and a file only the app's own user can open has no relay to bind against.
-CALL_DOOR_FILENAME = "serve_call_door.sock"
+#: Kept short on purpose: an AF_UNIX path has a 108-byte limit on Linux and Android, and the
+#: store root on a phone sits several folders deep.
+CALL_DOOR_FILENAME = "call.sock"
 
 #: What an ordinary method line on the call door is answered with: the door has one job (the
 #: owner's ``call_attach``), and the phone's method lane stays the embedded link.

@@ -3508,23 +3508,42 @@ def test_a_transport_that_refuses_nodelay_is_tolerated():
 # is in test_pair_call.py, on a real embedded serve.
 
 
+@pytest.fixture
+def short_door():
+    """A door path in a short folder, removed afterwards."""
+
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    from agent_runtime.serve_socket.vocabulary import CALL_DOOR_FILENAME
+
+    folder = Path(tempfile.mkdtemp(prefix="hd-", dir="/tmp"))
+    try:
+        yield folder / CALL_DOOR_FILENAME
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
 @pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="the call door is a unix socket file")
-def test_the_call_door_is_a_file_only_the_apps_own_user_can_open_inside_the_store_root():
+def test_the_call_door_is_a_file_only_the_apps_own_user_can_open_inside_the_store_root(short_door):
     # MUTATION: drop the ``os.chmod`` in ``ServeSocketServer._bind_file``, and the file carries the
     # umask's mode (0o755 under 0o022): red.
     import stat
 
     from agent_runtime.serve_socket.server import call_door_path
+    from agent_runtime.serve_socket.vocabulary import CALL_DOOR_FILENAME
 
-    door = call_door_path(_store_root())
-    door.parent.mkdir(parents=True, exist_ok=True)
+    # The door is a file in the store root. Bound below in a short folder: a bundled run's temp
+    # root alone passes AF_UNIX's 108-byte path limit (the same limit is an owed phone read).
+    assert call_door_path(_store_root()) == _store_root() / CALL_DOOR_FILENAME
+    door = short_door
     previous = os.umask(0o022)
     try:
         with bare_server(path=door) as (server, port, _logs):
             mode = os.stat(door).st_mode
             assert stat.S_ISSOCK(mode)
             assert stat.S_IMODE(mode) == 0o600
-            assert door.parent == _store_root()
             assert port == 0 and server.connections_payload()["path"] == str(door)
             # It answers: the hello's challenge arrives over the file.
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer:
@@ -3536,13 +3555,10 @@ def test_the_call_door_is_a_file_only_the_apps_own_user_can_open_inside_the_stor
 
 
 @pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="the call door is a unix socket file")
-def test_the_call_door_replaces_a_dead_engines_file_refuses_a_live_one_and_is_gone_after_close():
+def test_the_call_door_replaces_a_dead_engines_file_refuses_a_live_one_and_is_gone_after_close(short_door):
     # MUTATION: skip the unlink in ``ServeSocketServer._remove_door_file``, and the file outlives
     # the close: red.
-    from agent_runtime.serve_socket.server import call_door_path
-
-    door = call_door_path(_store_root())
-    door.parent.mkdir(parents=True, exist_ok=True)
+    door = short_door
     dead = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     dead.bind(str(door))
     dead.close()  # a dead engine's leftover: the file stays, nothing answers on it
