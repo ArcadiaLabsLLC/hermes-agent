@@ -825,6 +825,7 @@ The launcher's realm History sheet landed at `EterniaLauncher` `4f77ddfc8`; its 
 
 
 ## Seams
+- **`RT-FU-FAILED-STAGING-REPORTS-AN-EMPTY-CHECKPOINT-DIFF-AND-SAFE-RESTORE-PLAN` — A failed staging operation reports an empty checkpoint diff and safe-restore plan** · group: runtime-followups · from: `RT-FU-COLD-CHECKPOINT-STAGING-EXPIRES-BEFORE-A-TURN-HAS-A-BASELINE` · observed 2026-11-25 on Windows: checkpoint one file, hold the project index lock, change the file and record the write. The legacy diff returned success with an empty patch and safe restore planned zero files. The recorded turn diff contained the edit, reviewed restore returned checkpoint_read_failed and the existing lock stayed intact · confirmed cause: `tools/checkpoint_manager.py::CheckpointManager._diff` and `_safe_restore_plan` ignore the staging result and compare the previous index · done when: validate the existing upstream fix against the current manager, surface a failed staging result through both legacy callers, preserve the workspace and lock, and verify the real edit appears after the lock is released · Upstream tracking: [issue #109992](https://github.com/NousResearch/hermes-agent/issues/109992) and [Liuzikaii's open PR #109993](https://github.com/NousResearch/hermes-agent/pull/109993), which needs a rebase · READY 2026-11-25
 
 ### Filed on arrival — 2026-11-15 (lane codex-win-hermes)
 
