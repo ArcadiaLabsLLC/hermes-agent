@@ -34,11 +34,13 @@ class InstanceHistoryRefused(ValueError):
 #: runtime ignores).
 CONVERSATION_LIST_METHOD = "runtime.operator.conversation.list"
 CONVERSATION_LIST_METHOD_PARAMS = (
-    "all_accounts", "before", "client_scope", "include_archived", "install_id", "limit", "persona_id",
+    "all_accounts", "archived_only", "before", "client_scope", "include_archived", "install_id", "limit", "persona_id",
     "persona_instance_id", "legacy_route_id", "query",
 )
 
 _INSTANCE_ID_LIMIT = 200
+# The same deliberate archive state as the saved-chat writer's receipt.
+_USER_ARCHIVED_SQL = "(COALESCE(archived,0)<>0 AND COALESCE(auto_archived,0)=0)"
 #: Upstream's stored ``session.list`` bound on ``query`` (``gateway/session_listing._QUERY_MAX_CHARS``).
 _QUERY_MAX_CHARS = 200
 
@@ -53,8 +55,10 @@ def list_instance_conversations(params: dict) -> dict:
         raise InstanceHistoryRefused(str(exc)) from exc
     all_accounts = params.get("all_accounts", False)
     include_archived = params.get("include_archived", False)
+    archived_only = params.get("archived_only", False)
     limit = params.get("limit", 50)
     if (type(all_accounts) is not bool or type(include_archived) is not bool
+            or type(archived_only) is not bool or (include_archived and archived_only)
             or type(limit) is not int or not 1 <= limit <= 100):
         raise InstanceHistoryRefused("invalid_history_query")
     if owner is None and not all_accounts:
@@ -69,11 +73,12 @@ def list_instance_conversations(params: dict) -> dict:
                                      or len(legacy_route) > 512):
         raise InstanceHistoryRefused("invalid_history_query")
     search = _requested_search(params.get("query"))
-    # ``include_archived`` and ``query`` join the cursor's scope only when asked, so a default page's
-    # cursor keeps the width every client already holds, and a search's cursor pages only that search.
+    # Optional filters join the cursor's scope only when asked. Each archive
+    # mode and search pages only its own results.
     # MUTATION: leave ``query`` out of the scope and test_a_search_finds_a_chat_on_a_page_never_loaded reddens.
     scope = (params["install_id"], owner, all_accounts, instance_id, persona_id, legacy_route,
-             *((True,) if include_archived else ()), *(("query", search) if search else ()))
+             *((True,) if include_archived else ()), *(("archived_only",) if archived_only else ()),
+             *(("query", search) if search else ()))
     before = _history_position(params.get("before"), scope)
     db = chat_session_scope.open_chat_session_db(access=chat_session_scope.SessionDbAccess.READ)
     if db is None:
@@ -96,7 +101,7 @@ def list_instance_conversations(params: dict) -> dict:
             raw = _merged_pages([(source, _history_page(
                 source, owner=None if all_accounts else owner, instance_id=instance_id,
                 persona=persona, legacy_route=legacy_route, before=before, limit=limit,
-                include_archived=include_archived, search=search))
+                include_archived=include_archived, archived_only=archived_only, search=search))
                 for source in sources], limit)
             visible = raw[:limit]
             rows = [_project_instance_history(source, item, instances, params["install_id"], asker=owner,
@@ -222,7 +227,7 @@ def _history_position(value, scope):
 
 
 def _history_page(db, *, owner, instance_id=None, persona=None, legacy_route=None, before, limit,
-                  include_archived=False, search=None):
+                  include_archived=False, archived_only=False, search=None):
     # SessionDB has no metadata predicate on list_sessions_rich. Use its pooled
     # read boundary; owner, instance AND persona filtering must precede the page
     # bound, not follow it. Both predicates mirror _project_instance_history: the
@@ -232,11 +237,13 @@ def _history_page(db, *, owner, instance_id=None, persona=None, legacy_route=Non
     clauses = ["source=?", "hidden=0", "(model_config IS NULL OR json_valid(model_config))",
                "COALESCE(json_extract(model_config,'$.mission_chat_root_id'),id)=id"]
     args = [PERSONA_CHAT_SESSION_SOURCE]
-    if not include_archived:
+    if archived_only:
+        clauses.append(_USER_ARCHIVED_SQL)
+    elif not include_archived:
         # A chat a person archived (``runtime.persona.chat.archive``, RT-A-PERSONA-CHAT-CAN-BE-ARCHIVED-
         # FROM-ETERNIA) leaves the default page; the idle sweep's own archive (``auto_archived``) does not.
         # MUTATION: drop this clause and test_an_archived_chat_leaves_the_history_and_unarchive_brings_it_back reddens.
-        clauses.append("NOT (COALESCE(archived,0)<>0 AND COALESCE(auto_archived,0)=0)")
+        clauses.append("NOT " + _USER_ARCHIVED_SQL)
     if owner is not None:
         clauses.append("json_extract(model_config,'$.client_scope')=?")
         args.append(owner)
