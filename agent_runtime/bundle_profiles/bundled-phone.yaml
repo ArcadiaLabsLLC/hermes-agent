@@ -155,7 +155,9 @@ packaging:
     # release row RT-FU-BEFORE-RELEASE-PHONES-SHIP-A-CRYPTOGRAPHY-AT-OR-ABOVE-THE-SECURITY-FLOOR). The local secrets
     # vault (agent.vault_store, owner D3 2026-09-30) and the external password managers stay unpackaged.
     cryptography: "the phone listener's self-signed TLS certificate (agent_runtime/gateway_tls.py), owner RULED 2026-11-24 (48.0.0 on phones only)"
-    cffi: "cryptography's C bindings: only cryptography needs it"
+    # Only its compiled `_cffi_backend` loads on a phone: cryptography's `_rust` init (cffi-generated C) imports it;
+    # cffi's Python half is left out below (excluded_data) and pycparser is a placeholder (placeholder_distributions).
+    cffi: "cryptography's C bindings: `_cffi_backend`, which cryptography's `_rust` imports when it loads"
   # Files the Android image-library wheels carry that nothing loads at run time.
   excluded_data:
     site-packages/opt/include: "C headers of the flet-lib* wheels: for compiling against them, never loaded"
@@ -164,6 +166,11 @@ packaging:
     app/locales/*.tui.yaml: "the TUI surface's catalogs (agent/i18n_layers.py SURFACES): served only over i18n.catalog to the Ink TUI, which a phone does not run; Eternia reads no catalog"
     app/tools/neutts_samples: "NeuTTS's reference voice: tools/tts_tool_local.py hands it to a neutts_synth.py child process, which a phone cannot start, and neutts is not packaged"
     app/tools/wakewords: "hey_hermes.tflite: tools.wake_word reads it, and the phone switches that module off (switched_off_modules)"
+    site-packages/cffi: "cffi's Python half (cdef, compile, the out-of-line builder): build-time only; cryptography's `_rust` loads `_cffi_backend` alone (seen 2026-11-26: after the real mint and PEM read in agent_runtime/gateway_tls.py, sys.modules holds `_cffi_backend` and no `cffi` or `pycparser`; nothing shipped imports cffi)"
+  # Requirements of a shipped distribution that nothing on a phone imports: the closure does not follow them
+  # and the pool does not install them.
+  placeholder_distributions:
+    pycparser: "cffi's C parser, imported only by cffi's Python half (cffi.cparser), which the phone leaves out (excluded_data site-packages/cffi)"
   # Base dependencies the phone omits. Refused by the closure script unless every import site
   # in the kept modules is guarded (try/suppress ImportError).
   omitted_distributions:

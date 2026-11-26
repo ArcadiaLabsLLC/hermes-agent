@@ -39,7 +39,7 @@ def _doc(**pillow):
 
 def test_every_pin_names_its_own_distribution_version_and_android_target():
     """Each pinned file is the wheel of that name and version for that target's ABI, with a sha256: Flet's by
-    index URL, ripgrep's matcher by its path in this repository (owner RULED 2026-11-21)."""
+    index URL, ripgrep's matcher and Android cryptography by their path in this repository (owner RULED 2026-11-21)."""
     wheels = phone_wheels.load()["wheels"]
     assert set(wheels) == {"pillow", *LIBRARIES, MATCHER, *LISTENER_TLS}
     for name, entry in wheels.items():
@@ -48,6 +48,10 @@ def test_every_pin_names_its_own_distribution_version_and_android_target():
             file = phone_wheels.pinned_wheel(name, target)
             if name == MATCHER:
                 assert set(pin) == {"path", "sha256"} and pin["path"].startswith("crates/project_files_match/dist/"), file
+            elif name == "cryptography" and target in ANDROID:
+                # Built here against the interpreter's OpenSSL (scripts/native/build_cryptography_phone.py).
+                assert set(pin) == {"path", "sha256"} and pin["path"].startswith(
+                    "third_party/phone_wheels/cryptography/"), file
             else:
                 assert set(pin) == {"url", "sha256"} and pin["url"].startswith("https://pypi.flet.dev/"), file
             assert file.startswith(f"{name.replace('-', '_')}-{entry['version']}-"), file
