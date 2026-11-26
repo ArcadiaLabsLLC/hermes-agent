@@ -709,7 +709,7 @@ class OperatorTurn:
         from agent_runtime.turn_checkpoints import TurnCheckpointRecorder
         manager = getattr(agent, "_checkpoint_mgr", None)
         if manager is not None:
-            manager.lock_wait_budget = self.wall_checkpoint.budget.remaining_seconds
+            manager.lock_wait_budget = self.wall_checkpoint.budget.seconds_until_checkpoint
             manager.history_observer = (
                 TurnCheckpointRecorder(request.root_chat_session_id, request.client_message_id, manager)
                 if request.root_chat_session_id and request.client_message_id else None)

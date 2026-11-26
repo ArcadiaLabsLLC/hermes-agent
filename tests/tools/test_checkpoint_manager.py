@@ -3,14 +3,17 @@
 import argparse
 import json
 import os
+import shlex
 import shutil
 import subprocess
+import sys
 import time
 import pytest
 from pathlib import Path
 
 from tools.checkpoint_manager import (
     CheckpointManager,
+    _index_path,
     _init_store,
     _run_git,
     _git_env,
@@ -160,6 +163,154 @@ class TestDisabledManager:
 # =========================================================================
 
 class TestTakeCheckpoint:
+    def test_first_capture_packs_blobs_and_preserves_native_tree(self, mgr, work_dir, checkpoint_base):
+        (work_dir / ".gitattributes").write_bytes(b"*.txt text eol=lf\n*.bin -text\n")
+        (work_dir / "lines.txt").write_bytes(b"first\r\nsecond\r\n")
+        (work_dir / "empty.bin").touch()
+        (work_dir / "bytes.bin").write_bytes(b"binary\x00payload\r\n")
+        (work_dir / ".gitignore").write_text("ignored.bin\n")
+        (work_dir / "ignored.bin").write_bytes(b"ignored")
+        assert mgr.ensure_checkpoint(str(work_dir))
+        store = _store_path(checkpoint_base)
+        ref = _ref_name(_project_hash(str(work_dir)))
+        baseline = _run_git(["rev-parse", ref + "^{tree}"], store, str(work_dir))[1]
+
+        # Stage independently with Git's default storage settings and compare
+        # the actual tree, including normalized bytes, modes and ignored files.
+        native_index = store / "expected-index"
+        assert _run_git(["add", "-A"], store, str(work_dir), index_file=native_index)[0]
+        assert _run_git(["write-tree"], store, str(work_dir), index_file=native_index)[:2] == (True, baseline)
+        packs = set((store / "objects" / "pack").glob("*.pack"))
+        assert packs
+
+        mgr.new_turn()
+        (work_dir / "bytes.bin").write_bytes(b"changed\x00payload")
+        assert mgr.ensure_checkpoint(str(work_dir))
+        assert set((store / "objects" / "pack").glob("*.pack")) == packs
+        assert _run_git(["rev-parse", ref + "^1^{tree}"], store, str(work_dir))[:2] == (True, baseline)
+
+    def test_failed_first_stage_leaves_no_ref_and_retry_keeps_foreign_lock(
+        self, mgr, work_dir, checkpoint_base, monkeypatch,
+    ):
+        store = _store_path(checkpoint_base)
+        assert _init_store(store, str(work_dir)) is None
+        dir_hash = _project_hash(str(work_dir))
+        canonical = _index_path(store, dir_hash)
+        canonical.parent.mkdir(exist_ok=True)
+        foreign_lock = canonical.with_suffix(".lock")
+        foreign_lock.write_bytes(b"another writer")
+
+        # A timeout can strand Git's lock. Emulate that result from the
+        # process-tree runner and check the next turn in the same store.
+        stage_indexes = []
+
+        def timeout(argv, *, env, **kwargs):
+            index = Path(env["GIT_INDEX_FILE"])
+            stage_indexes.append(index)
+            Path(str(index) + ".lock").write_bytes(b"interrupted stage")
+            return None
+
+        with monkeypatch.context() as m:
+            m.setattr("tools.checkpoint_manager.bounded_probe_run", timeout)
+            assert not mgr.ensure_checkpoint(str(work_dir))
+        assert len(stage_indexes) == 1
+        assert not stage_indexes[0].parent.exists()
+        assert foreign_lock.read_bytes() == b"another writer"
+        assert mgr.list_checkpoints(str(work_dir)) == []
+
+        mgr.new_turn()
+        assert mgr.ensure_checkpoint(str(work_dir))
+        assert foreign_lock.read_bytes() == b"another writer"
+        assert not canonical.exists()
+        foreign_lock.unlink()
+        (work_dir / "main.py").write_text("warm change")
+        mgr.new_turn()
+        assert mgr.ensure_checkpoint(str(work_dir))
+
+    @pytest.mark.parametrize(("count", "cold", "remaining", "expected_timeout"), [
+        (100, True, None, 60),
+        (12_000, True, None, 240),
+        (32_000, True, None, 640),
+        (32_000, False, None, 60),
+        (32_000, True, 9.5, 9.5),
+        (32_000, True, 0, None),
+    ])
+    def test_stage_budget_uses_candidate_count_and_turn_clock(
+        self, mgr, work_dir, checkpoint_base, monkeypatch, count, cold, remaining, expected_timeout,
+    ):
+        from tools import checkpoint_manager as cm
+
+        monkeypatch.setattr(cm, "_GIT_TIMEOUT", 30)
+        mgr.max_file_size_mb = 0
+        if remaining is not None:
+            mgr.lock_wait_budget = lambda: remaining
+        monkeypatch.setattr(mgr, "_checkpoint_candidates", lambda *_: (["file"] * count, ""))
+        timeouts = []
+
+        def git(*args, timeout, **kwargs):
+            timeouts.append(timeout)
+            return True, "", ""
+
+        monkeypatch.setattr(cm, "_run_git", git)
+        ok, _ = mgr._stage_with_oversize_preflight(
+            _store_path(checkpoint_base), str(work_dir), checkpoint_base / "index", cold=cold,
+        )
+        assert ok == (expected_timeout is not None)
+        assert timeouts == ([expected_timeout] if ok else [])
+
+    def test_cold_tree_respects_work_time_spent_staging(self, mgr, work_dir, checkpoint_base, monkeypatch):
+        from hermes_cli._subprocess_compat import bounded_probe_run
+
+        remaining = 10
+
+        def run(argv, **kwargs):
+            nonlocal remaining
+            assert "add" in argv
+            result = bounded_probe_run(argv, **kwargs)
+            remaining = 0
+            return result
+
+        mgr.lock_wait_budget = lambda: remaining
+        monkeypatch.setattr("tools.checkpoint_manager.bounded_probe_run", run)
+        assert not mgr.ensure_checkpoint(str(work_dir))
+        assert mgr.list_checkpoints(str(work_dir)) == []
+        assert not list((_store_path(checkpoint_base) / "indexes").iterdir())
+
+    def test_cold_timeout_reaps_orphaned_clean_filter_and_recovers(self, mgr, work_dir, checkpoint_base):
+        import psutil
+
+        store = _store_path(checkpoint_base)
+        assert _init_store(store, str(work_dir)) is None
+        script = work_dir.parent / "spawn_filter.py"
+        marker = work_dir.parent / "filter.pid"
+        # The filter exits first. Its child keeps the filter's stdout open so
+        # Git cannot finish; on Windows only job containment reaches an orphan.
+        script.write_text(
+            "import pathlib, subprocess, sys\n"
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)', sys.argv[1]])\n"
+            "pathlib.Path(sys.argv[1]).write_text(str(child.pid))\n"
+        )
+        clean = " ".join(shlex.quote(path.as_posix()) for path in (Path(sys.executable), script, marker))
+        assert _run_git(["config", "filter.delayed.clean", clean], store, str(work_dir))[0]
+        (work_dir / ".gitattributes").write_text("main.py filter=delayed\n")
+        mgr.lock_wait_budget = lambda: 3
+        started = time.monotonic()
+        assert not mgr.ensure_checkpoint(str(work_dir))
+        assert time.monotonic() - started < 30
+        pid = int(marker.read_text())
+        try:
+            process = psutil.Process(pid)
+            if process.status() != psutil.STATUS_ZOMBIE and marker.as_posix() in process.cmdline():
+                process.kill()
+                pytest.fail("the filter descendant was still running after its stage timed out")
+        except psutil.NoSuchProcess:
+            pass
+
+        assert mgr.list_checkpoints(str(work_dir)) == []
+        (work_dir / ".gitattributes").unlink()
+        mgr.new_turn()
+        assert mgr.ensure_checkpoint(str(work_dir))
+
     def test_first_checkpoint_dedups_and_skips_unsafe_dirs(self, mgr, work_dir):
         assert mgr.ensure_checkpoint(str(work_dir), "first") is True
         assert mgr.ensure_checkpoint(str(work_dir), "second") is False  # dedup'd

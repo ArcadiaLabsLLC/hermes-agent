@@ -2,8 +2,8 @@
   "measured_at": "2026-11-25",
   "base": "3b42157858",
   "files": 231,
-  "deleted_lines": 956,
-  "heavy": 1,
+  "deleted_lines": 1019,
+  "heavy": 2,
   "reasons": [
     {
       "change": "RT-REMOVE-H-TURN1-A5 (lane w1025b-h-misc): the h-turn1 A5 request-build stamps removed (live read 2026-10-25: first-turn laps 9 ms, equal to warm turns)",
@@ -1570,6 +1570,21 @@
       },
       "reason": "Remove the competing directory walk. Both snapshot capture and reviewed restore count paths through the native checkpoint index; its stock regression now exercises that interface.",
       "owner_ruling": "2026-11-25: Fix the guard and retest here (Neko file review, RT-FU-CHECKPOINT-GUARD-COUNTS-THE-FILES-GIT-WOULD-STAGE)."
+    },
+    {
+      "change": "First workspace checkpoint and bounded cancellation",
+      "before": {
+        "files": 231,
+        "deleted_lines": 956,
+        "heavy": 1
+      },
+      "after": {
+        "files": 231,
+        "deleted_lines": 1019,
+        "heavy": 2
+      },
+      "reason": "Use the existing shadow Git store for the first import, including process-tree cancellation, a private staging index and the caller's remaining work window. The native manager tests cover retries, canonical tree equality, deadlines and filter descendants.",
+      "owner_ruling": "2026-11-25: fix the cold checkpoint, test the real workspace and offer the shared improvement upstream."
     }
   ]
 }

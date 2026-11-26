@@ -60,7 +60,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from hermes_constants import get_hermes_home
-from hermes_cli._subprocess_compat import selected_git_env, windows_hide_flags
+from hermes_cli._subprocess_compat import bounded_probe_run, selected_git_env, windows_hide_flags
 from hermes_cli.gitlock import clear_stale_tmp_packs
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -443,10 +443,11 @@ def _run_git(
     args: list[str],
     store: Path,
     working_dir: str,
-    timeout: int = _GIT_TIMEOUT,
+    timeout: float = _GIT_TIMEOUT,
     allowed_returncodes: Optional[set[int]] = None,
     index_file: Optional[Path] = None,
     extra_env: Optional[dict[str, str]] = None,
+    contain_process_tree: bool = False,
 ) -> tuple[bool, str, str]:
     """Run a git command against the shared store.  Returns (ok, stdout, stderr).
 
@@ -478,22 +479,30 @@ def _run_git(
     allowed_returncodes = allowed_returncodes or set()
 
     try:
-        # NUL-delimited git output contains literal filenames, not text lines.
-        text_options = {} if "-z" in args else {"text": True, "encoding": "utf-8", "errors": "replace"}
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            **text_options,
-            timeout=timeout,
-            env=env,
-            cwd=str(normalized_working_dir),
-            stdin=subprocess.DEVNULL,
-            # Checkpoints fire several bare git calls per turn from the
-            # console-less desktop/gateway backend; suppress the per-call
-            # conhost flash on Windows (no-op on POSIX).
-            creationflags=windows_hide_flags(),
-            check=False,
-        )
+        if contain_process_tree:
+            # A clean filter or Git for Windows shim can outlive the direct
+            # child and hold the index lock and captured pipes on timeout.
+            result = bounded_probe_run(cmd, timeout=timeout, env=env, cwd=normalized_working_dir,
+                                       raise_on_spawn_failure=True)
+            if result is None:
+                raise subprocess.TimeoutExpired(cmd, timeout)
+        else:
+            # NUL-delimited git output contains literal filenames, not text lines.
+            text_options = {} if "-z" in args else {"text": True, "encoding": "utf-8", "errors": "replace"}
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                **text_options,
+                timeout=timeout,
+                env=env,
+                cwd=str(normalized_working_dir),
+                stdin=subprocess.DEVNULL,
+                # Checkpoints fire several bare git calls per turn from the
+                # console-less desktop/gateway backend; suppress the per-call
+                # conhost flash on Windows (no-op on POSIX).
+                creationflags=windows_hide_flags(),
+                check=False,
+            )
         ok = result.returncode == 0
         stdout = os.fsdecode(result.stdout) if "-z" in args else result.stdout.strip()
         stderr = result.stderr.decode("utf-8", errors="replace").strip() if "-z" in args else result.stderr.strip()
@@ -1525,39 +1534,53 @@ class CheckpointManager(ReviewedRestoreMixin):
         index_file = _index_path(store, dir_hash)
         ref = _ref_name(dir_hash)
 
-        # Seed the per-project index from the last checkpoint, if any, so the
-        # diff/commit machinery sees only changes since then.  On first call,
-        # clear the index so ``git add -A`` produces a clean tree.
-        if index_file.exists():
-            # Reset index to current ref tip to avoid accumulating stale paths.
-            ok_ref, ref_commit, _ = _run_git(
-                ["rev-parse", "--verify", ref + "^{commit}"],
-                store, working_dir,
-                allowed_returncodes={128},
-            )
-            if ok_ref and ref_commit:
-                _run_git(
-                    ["read-tree", ref_commit],
-                    store, working_dir,
-                    index_file=index_file,
-                    allowed_returncodes={128},
-                )
-            else:
-                try:
-                    index_file.unlink()
-                except OSError:
-                    pass
-        else:
-            # First snapshot for this project.
-            index_file.parent.mkdir(parents=True, exist_ok=True)
+        # The ref is the checkpoint authority. Resolve it once under the store
+        # lock and use the same parent for staging, comparison and publication.
+        has_ref, ref_commit, ref_error = _run_git(
+            ["rev-parse", "--verify", "--quiet", ref + "^{commit}"],
+            store, working_dir, allowed_returncodes={1},
+        )
+        if not has_ref and ref_error:
+            return False
+        index_file.parent.mkdir(parents=True, exist_ok=True)
+        if not has_ref:
+            # An interrupted first add may strand Git's index.lock. Keep both
+            # in an operation-owned directory so a retry starts clean without
+            # inspecting or unlinking another writer's lock.
+            with tempfile.TemporaryDirectory(dir=index_file.parent) as temp:
+                index = Path(temp) / "index"
+                taken = self._take_with_index(store, working_dir, reason, ref, ref_commit, index, prune)
+                if taken:
+                    # Publish the optional stat cache through Git's lockfile
+                    # convention. A competing writer or lack of hard links
+                    # merely leaves the next read-tree to rebuild the cache.
+                    lock = Path(f"{index_file}.lock")
+                    try:
+                        os.link(index, lock)
+                    except OSError:
+                        pass
+                    else:
+                        try:
+                            os.replace(lock, index_file)
+                        except OSError:
+                            _unlink_quiet(lock)
+                return taken
+        ok, _, _ = _run_git(["read-tree", ref_commit], store, working_dir, index_file=index_file)
+        if not ok:
+            return False
+        return self._take_with_index(store, working_dir, reason, ref, ref_commit, index_file, prune)
 
+    def _take_with_index(
+        self, store: Path, working_dir: str, reason: str, ref: str,
+        ref_commit: str, index_file: Path, prune: bool,
+    ) -> bool:
         # Drop entries the old tree carries but this build excludes BEFORE staging: ``add -A``
         # re-reads every tracked path, and a locked browser-profile file would fail it each time.
         _unstage_store(store, working_dir, index_file)
         if not _unstage_excluded(store, working_dir, index_file):
             logger.debug("Checkpoint could not drop newly excluded paths from the index")
             return False
-        ok, err = self._stage_with_oversize_preflight(store, working_dir, index_file)
+        ok, err = self._stage_with_oversize_preflight(store, working_dir, index_file, cold=not ref_commit)
         if not ok:
             logger.debug("Checkpoint git-add failed: %s", err)
             return False
@@ -1570,14 +1593,7 @@ class CheckpointManager(ReviewedRestoreMixin):
         # Compare against the current ref tip (not HEAD — HEAD points to a
         # branch that doesn't exist on a bare store, so ``diff --cached``
         # against HEAD would always show "new file" for every staged path).
-        ok_ref, ref_commit, _ = _run_git(
-            ["rev-parse", "--verify", ref + "^{commit}"],
-            store, working_dir,
-            allowed_returncodes={128},
-        )
-        has_ref = ok_ref and bool(ref_commit)
-
-        if has_ref:
+        if ref_commit:
             ok_diff, _, _ = _run_git(
                 ["diff-index", "--cached", "--quiet", ref_commit],
                 store, working_dir,
@@ -1601,9 +1617,8 @@ class CheckpointManager(ReviewedRestoreMixin):
                 return False
 
         # Write tree from per-project index.
-        ok_tree, tree_sha, err = _run_git(
-            ["write-tree"], store, working_dir,
-            index_file=index_file,
+        ok_tree, tree_sha, err = self._run_capture_git(
+            ["write-tree"], store, working_dir, index_file, cold=not ref_commit, timeout=_GIT_TIMEOUT,
         )
         if not ok_tree or not tree_sha:
             logger.debug("Checkpoint write-tree failed: %s", err)
@@ -1627,7 +1642,7 @@ class CheckpointManager(ReviewedRestoreMixin):
         # /rollback tell a turn after the snapshot from one before it in the same git second.
         message = f"{reason}\n\n{TAKEN_AT_TRAILER}: {time.time():.6f}"
         commit_args = ["commit-tree", tree_sha, "-m", message, "--no-gpg-sign"]
-        if has_ref:
+        if ref_commit:
             commit_args = ["commit-tree", tree_sha, "-p", ref_commit, "-m", message, "--no-gpg-sign"]
         ok_commit, new_sha, err = _run_git(
             commit_args, store, working_dir,
@@ -1638,9 +1653,7 @@ class CheckpointManager(ReviewedRestoreMixin):
             return False
 
         # Update the per-project ref.
-        update_args = ["update-ref", ref, new_sha]
-        if has_ref:
-            update_args = ["update-ref", ref, new_sha, ref_commit]
+        update_args = ["update-ref", ref, new_sha, ref_commit]
         ok_update, _, err = _run_git(
             update_args, store, working_dir,
         )
@@ -1674,8 +1687,20 @@ class CheckpointManager(ReviewedRestoreMixin):
         except OSError:
             return False
 
+    def _run_capture_git(
+        self, args: list[str], store: Path, working_dir: str, index_file: Path,
+        *, cold: bool, timeout: float,
+    ) -> tuple[bool, str, str]:
+        """Bound the initial index and tree writes to the caller's remaining work time."""
+        if cold and self.lock_wait_budget is not None:
+            timeout = min(timeout, self.lock_wait_budget())
+            if timeout <= 0:
+                return False, "", "turn budget exhausted during checkpoint capture"
+        return _run_git(args, store, working_dir, timeout=timeout, index_file=index_file,
+                        contain_process_tree=cold)
+
     def _stage_with_oversize_preflight(
-        self, store: Path, working_dir: str, index_file: Path,
+        self, store: Path, working_dir: str, index_file: Path, *, cold: bool,
     ) -> tuple[bool, str]:
         """Stage the worktree without opening files already over the size cap."""
         add_args = _stage_all_args(store.parent, working_dir)
@@ -1696,10 +1721,19 @@ class CheckpointManager(ReviewedRestoreMixin):
                     f"--pathspec-from-file={oversize_pathspec}",
                     "--pathspec-file-nul",
                 ])
+        timeout = _GIT_TIMEOUT * 2
+        if cold:
+            # Normalized text can still require one loose object per file.
+            # First captures measured 13-19 ms per file on slower disks
+            # (NousResearch/hermes-agent#127857). Candidate count is capped.
+            timeout = max(timeout, len(paths) * 0.020)
+            # Git bulk-checks eligible blobs directly into a pack. This avoids
+            # one loose-object write per file on the first snapshot. Git still
+            # applies attributes and clean filters through its normal add path.
+            add_args = ["-c", "core.bigFileThreshold=1", *add_args]
         try:
-            ok, _, err = _run_git(
-                add_args, store, working_dir,
-                timeout=_GIT_TIMEOUT * 2, index_file=index_file,
+            ok, _, err = self._run_capture_git(
+                add_args, store, working_dir, index_file, cold=cold, timeout=timeout,
             )
             return ok, err
         finally:
