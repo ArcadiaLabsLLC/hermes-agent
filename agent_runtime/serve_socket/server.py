@@ -6,10 +6,17 @@ ceiling for exactly one commit); the CHANGE lifted the handshake methods into
 (``ConnectionAdmitter``, review w1118a.79), so a phone, which runs no listener,
 admits the lane it dialled out through the same code; this file keeps what only a
 listener has: the bind, the accept loop, its wakeup and its counters.
+
+A listener binds either the loopback lane's host and port (AF_INET) or a socket FILE
+(AF_UNIX, the phone's call door: ``call_door_path``), which differs only in the bind,
+the file's mode and its removal on close; the admission is the same code.
 """
 
 from __future__ import annotations
 
+import errno
+import json
+import os
 import select
 import socket
 import threading
@@ -18,7 +25,11 @@ from pathlib import Path
 from typing import Any
 
 from agent_runtime.clock import now_iso
-from agent_runtime.serve_socket.vocabulary import SOCKET_HOST
+from agent_runtime.serve_socket.vocabulary import (
+    CALL_DOOR_CALLS_ONLY,
+    CALL_DOOR_FILENAME,
+    SOCKET_HOST,
+)
 from agent_runtime.serve_socket.admit import ConnectionAdmitter, _disable_nagle
 from agent_runtime.serve_socket.wire import _is_fatal_accept_error
 
@@ -27,7 +38,54 @@ __layer__ = "lanes"
 __all__ = [
     "ServeSocketServer",
     "_disable_nagle",
+    "call_door_path",
+    "refuse_door_line",
 ]
+
+
+def call_door_path(store_root: Path | str) -> Path:
+    """The ONE place the call door's file name is joined to a store root."""
+
+    return Path(store_root) / CALL_DOOR_FILENAME
+
+
+def _door_answers(path: Path) -> bool:
+    """Does a live listener answer on the socket file at *path*?"""
+
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        probe.settimeout(1.0)
+        probe.connect(str(path))
+        return True
+    except OSError:
+        return False
+    finally:
+        probe.close()
+
+
+def refuse_door_line(line: str, connection: Any) -> None:
+    """The call door's dispatcher: every ordinary method line is refused, typed.
+
+    The door has one job, the owner's ``call_attach`` (taken by the hello hook before any
+    line is read); the phone's method lane stays the embedded link, so nothing on this
+    door ever reaches the serve's dispatcher.
+    """
+
+    request_id = None
+    try:
+        message = json.loads(line)
+        if isinstance(message, dict):
+            request_id = message.get("id")
+    except ValueError:
+        pass
+    connection.emit(
+        {
+            "id": request_id,
+            "event": "error",
+            "error": CALL_DOOR_CALLS_ONLY,
+            "detail": "this door takes the owner's call_attach only",
+        }
+    )
 
 
 # ── the server ───────────────────────────────────────────────────────────────
@@ -50,10 +108,16 @@ class ServeSocketServer(ConnectionAdmitter):
         *,
         host: str = SOCKET_HOST,
         port: int = 0,
+        path: Path | str | None = None,
         **admitter: Any,
     ) -> None:
         super().__init__(store_root, **admitter)
         self._host = host
+        #: A socket FILE to bind instead of host and port (the phone's call door). A
+        #: leftover file is replaced only when no live engine answers on it (``_bind_file``).
+        self._path = None if path is None else Path(path)
+        #: The bound file's inode, so close removes only the file THIS listener made.
+        self._path_inode: int | None = None
         #: 0 = ephemeral, which is what the loopback lane has always done and
         #: what every existing caller gets by omission. A FIXED port exists for
         #: the gateway lane, where an operator has to write a firewall rule and
@@ -90,6 +154,12 @@ class ServeSocketServer(ConnectionAdmitter):
     def started_at(self) -> str | None:
         return self._started_at
 
+    @property
+    def path(self) -> Path | None:
+        """The socket file this listener binds, or None on a host-and-port lane."""
+
+        return self._path
+
     def bind(self) -> int:
         """Bind this listener's host/port and listen. Returns the port.
 
@@ -103,9 +173,12 @@ class ServeSocketServer(ConnectionAdmitter):
         typed outcome rather than serving from somewhere else.
         """
 
-        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # No SO_REUSEADDR — see the module docstring.
-        listener.bind((self._host, self._bind_port))
+        if self._path is not None:
+            listener = self._bind_file(self._path)
+        else:
+            listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # No SO_REUSEADDR — see the module docstring.
+            listener.bind((self._host, self._bind_port))
         listener.listen(max(8, self._max_connections))
         # Non-blocking, because the accept loop now decides readiness with
         # ``select`` and must never park in ``accept()`` — that is the one
@@ -116,9 +189,34 @@ class ServeSocketServer(ConnectionAdmitter):
         self._wake_read, self._wake_write = socket.socketpair()
         self._wake_read.setblocking(False)
         self._listener = listener
-        self._port = int(listener.getsockname()[1])
+        if self._path is None:
+            self._port = int(listener.getsockname()[1])
         self._started_at = now_iso()
-        return self._port
+        return self._port or 0
+
+    def _bind_file(self, path: Path) -> socket.socket:
+        """Bind an AF_UNIX listener at *path*, mode 0600, replacing a dead engine's file.
+
+        A file already at the path is replaced only when nothing answers a connect on it
+        (a dead engine's leftover); a live engine's door raises ``EADDRINUSE`` like a taken
+        port, and the caller reports a typed outcome. The mode is set BEFORE ``listen``:
+        until then a connect is refused, so no peer ever reaches the file while it carries
+        the umask's looser mode.
+        """
+
+        if os.path.lexists(path):
+            if _door_answers(path):
+                raise OSError(errno.EADDRINUSE, "a live engine holds this call door", str(path))
+            path.unlink()
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            listener.bind(str(path))
+            os.chmod(path, 0o600)
+            self._path_inode = os.stat(path).st_ino
+        except BaseException:
+            listener.close()
+            raise
+        return listener
 
     def start_accepting(self) -> None:
         if self._listener is None:
@@ -162,9 +260,11 @@ class ServeSocketServer(ConnectionAdmitter):
         with self._lock:
             accept_errors = self._accept_errors
             accept_loop_exited = self._accept_loop_exited
+        door = {"path": str(self._path)} if self._path is not None else {}
         return {
             "port": self._port,
-            "host": self._host,
+            "host": None if self._path is not None else self._host,
+            **door,
             **payload,
             # An accept loop that stopped while the port stayed advertised is
             # the one failure a client cannot detect by connecting; both the
@@ -325,6 +425,19 @@ class ServeSocketServer(ConnectionAdmitter):
         self._signal_wakeup()
         try:
             listener.close()
+        except OSError:
+            pass
+        self._remove_door_file()
+
+    def _remove_door_file(self) -> None:
+        """Remove the socket file this listener bound, and only that one."""
+
+        path, inode, self._path_inode = self._path, self._path_inode, None
+        if path is None or inode is None:
+            return
+        try:
+            if os.stat(path).st_ino == inode:
+                path.unlink()
         except OSError:
             pass
 

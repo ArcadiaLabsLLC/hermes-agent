@@ -16,6 +16,20 @@ Killing mutations (each named at its line):
 * ``CallDialer._run``: the side that accepted a dropped call does not redial;
 * ``call_lane_authenticator``: drop the grant arm, and the computer's Eternia is refused on the
   phone's lane.
+
+The phone's call door (hermes row
+``RT-ACCOUNT-ONLY-YOUR-PHONES-ENGINE-OPENS-A-PRIVATE-DOOR-IN-THE-APP-SO-ETERNIA-JOINS-ITS-CALLS``, owner
+2026-11-26 "Option 2, private door"): the phone is the REAL embedded serve (``EmbeddedShell``), and its
+Eternia is a client on the socket FILE that serve opens, over real AF_UNIX sockets:
+
+* ``BootPhases._boot_socket_lane``: skip ``_boot_call_door`` (the embedded serve's door unopened, its
+  ``socket`` block ``disabled``), and the phone's Eternia cannot reach its computer;
+* ``BootPhases._open_call_door``: drop ``path`` from the ``socket`` block, and the greeting no longer
+  names the door;
+* ``BootPhases._open_call_door``: pass an authenticator that admits any hello, and a hello without the
+  root's proof is admitted;
+* ``BootPhases._open_call_door``: dispatch through ``_handle_socket_line``, and an ordinary method line
+  on the door is answered.
 """
 
 from __future__ import annotations
@@ -43,7 +57,7 @@ from agent_runtime.serve_socket.admit import ConnectionAdmitter
 from agent_runtime.serve_socket.server import ServeSocketServer
 from hermes_cli.harness_parts.serve import gateway_listener
 
-from tests.agent_runtime.test_reverse_lane import _phone_root, _rpc, phone
+from tests.agent_runtime.test_reverse_lane import _Phone, _Pipe, _Sink, _phone_root, _rpc, phone
 
 WAIT = 20.0
 ROOT_TOKEN = "computer-root-token-" + "b" * 40
@@ -332,3 +346,149 @@ def test_a_computers_eternia_uses_the_phones_engine_on_a_lane_of_the_call_the_ph
     finally:
         phone.rpc("runtime.gateway.call.hangup")
         computer.close()
+
+
+# ── the phone's call door ────────────────────────────────────────────────────
+
+
+class _DoorClient(ServeSocketClient):
+    """The phone's Eternia on its engine's call door: the reference client over a socket FILE.
+
+    The hello's proof binds port ``0`` (``CALL_DOOR_FILENAME``'s note): there is no port.
+    """
+
+    def __init__(self, path: Path) -> None:
+        super().__init__("call-door", 0, timeout_seconds=WAIT)
+        self._door = path
+
+    def connect(self) -> None:
+        from agent_runtime.serve_socket.vocabulary import MAX_SERVE_FRAME_BYTES
+        from agent_runtime.serve_socket.wire import _LineReader
+
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(WAIT)
+        sock.connect(str(self._door))
+        self._sock = sock
+        self._reader = _LineReader(sock, max_line_bytes=MAX_SERVE_FRAME_BYTES)
+
+
+@pytest.fixture
+def embedded_phone():
+    """The phone: the real serve loop under the embedded shell, as ``EmbeddedServe`` runs it."""
+
+    from hermes_cli.harness_parts.serve import serve_loop
+    from hermes_cli.harness_parts.serve.shell import EmbeddedShell
+
+    pipe, sink = _Pipe(), _Sink()
+    thread = threading.Thread(
+        target=serve_loop, args=(pipe, sink),
+        kwargs={"dispatch": lambda argv: 0, "liveness_pump_interval_seconds": 60.0, "shell": EmbeddedShell()},
+        name="embedded-phone-serve-under-test", daemon=True,
+    )
+    thread.start()
+    ready = sink.wait_for(lambda f: f.get("event") == "ready")
+    try:
+        yield _Phone(pipe, sink), ready
+    finally:
+        pipe.close()
+        thread.join(WAIT)
+
+
+def _door() -> Path:
+    from agent_runtime.serve_socket.server import call_door_path
+
+    return call_door_path(_phone_root())
+
+
+def _root_token() -> str:
+    from agent_runtime.serve_auth import read_token
+
+    token = read_token(_phone_root())
+    assert token, "the embedded serve minted no root token"
+    return token
+
+
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="the call door is a unix socket file")
+def test_the_phones_eternia_reaches_its_computer_through_the_call_door_on_the_call_the_phone_opened(
+        embedded_phone, tmp_path):
+    phone, _ready = embedded_phone
+    computer = _Engine(tmp_path / "computer-root", "computer")
+    try:
+        code = mint_pairing_code(computer.root, name="phone")
+        device = redeem_pairing_code(computer.root, code.code, **hello_fields())
+        answer = phone.rpc("runtime.gateway.call.dial", {
+            "install_id": computer.install, "host": "127.0.0.1", "port": computer.port,
+            "cert_fingerprint": computer.fingerprint, "machine_id": install_address()["machine_id"],
+            "device_id": device.device_id, "token": device.token})
+        assert answer.get("result") == {"far_install": computer.install}, answer
+        _until(lambda: phone.rpc("runtime.gateway.call.calls")["result"]["calls"], what="the phone's call up")
+        eternia = _DoorClient(_door())
+        eternia.connect()
+        try:
+            attached = eternia.hello(token=_root_token(), client="eternia-phone", call_attach=computer.install)
+            assert attached is not None and attached["event"] == "call_attached", attached
+            # Every byte from here is the computer's: its lane admitter's challenge, over the call.
+            challenge = eternia.read_frame()
+            assert challenge is not None and challenge["event"] == "server_hello", challenge
+            from agent_runtime.serve_gateway_auth.proof import call_lane_proof
+
+            eternia.send({"op": "hello", "client": "eternia-phone", "device_id": device.device_id,
+                          **hello_fields(),
+                          "proof": call_lane_proof(device.token, challenge["nonce"], call_id=attached["call"],
+                                                   lane_id=attached["lane_id"], device_id=device.device_id)})
+            hello_ok = eternia.read_frame()
+            assert hello_ok is not None and hello_ok.get("event") == "hello_ok", hello_ok
+            assert _rpc(eternia, "test.where")["result"] == {"served_by": "computer",
+                                                             "caller_device": device.device_id}
+        finally:
+            eternia.close()
+        # One call between them, the one the phone opened: the door added no second connection.
+        calls = phone.rpc("runtime.gateway.call.calls")["result"]["calls"]
+        assert [(c["far"]["install_id"], c["outbound"]) for c in calls] == [(computer.install, True)]
+    finally:
+        phone.rpc("runtime.gateway.call.hangup")
+        computer.close()
+
+
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="the call door is a unix socket file")
+def test_the_phones_greeting_names_its_call_door(embedded_phone):
+    _phone, ready = embedded_phone
+    assert ready["socket"]["outcome"] == "listening", ready["socket"]
+    assert ready["socket"]["path"] == str(_door())
+    assert _door().exists()
+
+
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="the call door is a unix socket file")
+def test_a_hello_without_the_roots_proof_is_refused_on_the_call_door(embedded_phone):
+    eternia = _DoorClient(_door())
+    eternia.connect()
+    try:
+        refused = eternia.hello(token="not-" + _root_token(), client="another-app")
+        assert refused is not None and refused["event"] == "hello_rejected", refused
+        assert refused["reason"] == "bad_proof"
+    finally:
+        eternia.close()
+    # Positive control: the root's proof is admitted on the same door.
+    eternia = _DoorClient(_door())
+    eternia.connect()
+    try:
+        admitted = eternia.hello(token=_root_token(), client="eternia-phone")
+        assert admitted is not None and admitted["event"] == "hello_ok", admitted
+    finally:
+        eternia.close()
+
+
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="the call door is a unix socket file")
+def test_an_ordinary_method_line_on_the_call_door_is_refused(embedded_phone):
+    eternia = _DoorClient(_door())
+    eternia.connect()
+    try:
+        admitted = eternia.hello(token=_root_token(), client="eternia-phone")
+        assert admitted is not None and admitted["event"] == "hello_ok", admitted
+        refused = _rpc(eternia, "runtime.health")
+        assert "result" not in refused and refused["error"] == "call_door_calls_only", refused
+    finally:
+        eternia.close()
+    # Positive control: the same method on the phone's own lane (the embedded link) is answered.
+    phone, _ready = embedded_phone
+    assert "result" in phone.rpc("runtime.health")

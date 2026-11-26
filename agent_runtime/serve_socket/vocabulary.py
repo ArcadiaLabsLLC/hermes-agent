@@ -19,6 +19,8 @@ __layer__ = "models"
 __all__ = [
     "AUTH_FAILURE_REJECT_REASONS",
     "BROADCAST_BUDGET_SECONDS",
+    "CALL_DOOR_CALLS_ONLY",
+    "CALL_DOOR_FILENAME",
     "DEFAULT_MAX_CONNECTIONS",
     "DEFAULT_MAX_PENDING_CONNECTIONS",
     "HELLO_DEADLINE_SECONDS",
@@ -81,6 +83,20 @@ __all__ = [
 #: that reads ``SOCKET_HOST`` is asking about the local lane and still gets the
 #: local answer.
 SOCKET_HOST = "127.0.0.1"
+
+#: The phone's CALL DOOR: a socket FILE in the store root, which on a phone sits inside the
+#: app's own private folder (owner 2026-11-26 "Option 2, private door",
+#: RT-ACCOUNT-ONLY-YOUR-PHONES-ENGINE-OPENS-A-PRIVATE-DOOR-IN-THE-APP-SO-ETERNIA-JOINS-ITS-CALLS).
+#: The embedded serve opens it in place of the loopback lane, so the phone's Eternia joins a call
+#: the way a computer's does: the root token's hello, then ``call_attach``. The name lives HERE and
+#: is joined to the root in ONE place (``server.call_door_path``); Eternia reads the path off the
+#: greeting's ``socket`` block and never builds it. The hello proof on this door binds port ``0``:
+#: there is no port, and a file only the app's own user can open has no relay to bind against.
+CALL_DOOR_FILENAME = "serve_call_door.sock"
+
+#: What an ordinary method line on the call door is answered with: the door has one job (the
+#: owner's ``call_attach``), and the phone's method lane stays the embedded link.
+CALL_DOOR_CALLS_ONLY = "call_door_calls_only"
 
 
 #: Connections a single serve will hold. A durable service is meant to be

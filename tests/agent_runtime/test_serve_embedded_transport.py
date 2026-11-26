@@ -72,7 +72,8 @@ def test_the_embedded_shell_spawns_nothing_and_advertises_nothing(tmp_path, monk
     ready = next(f for f in embedded if f.get("event") == "ready")
     assert embedded_spawns == []
     assert ready["instance"]["outcome"] == EMBEDDED_NOT_APPLICABLE
-    assert ready["auth"]["token_file"] == EMBEDDED_NOT_APPLICABLE
+    # The root token guards the phone's call door (the one socket an embedded serve opens).
+    assert ready["auth"]["token_file"] == "minted"
     assert ready["build"]["source"] != "git"
     assert not (embedded_root / "serve_instances").exists()
     # Positive control: the desktop serve, same requests, same process, spawns git for its build

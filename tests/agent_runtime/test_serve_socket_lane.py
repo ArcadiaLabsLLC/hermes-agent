@@ -3498,3 +3498,60 @@ def test_a_transport_that_refuses_nodelay_is_tolerated():
             raise OSError("not a TCP socket")
 
     _disable_nagle(_NotTcp())
+
+
+# ── the phone's call door: a socket FILE ─────────────────────────────────────
+#
+# Hermes row RT-ACCOUNT-ONLY-YOUR-PHONES-ENGINE-OPENS-A-PRIVATE-DOOR-IN-THE-APP-SO-ETERNIA-JOINS-ITS-CALLS
+# (owner 2026-11-26 "Option 2, private door"). The listener half: the file's mode, where it lives,
+# and its removal. The embedded serve's half (the owner's call_attach, the refusals, the greeting)
+# is in test_pair_call.py, on a real embedded serve.
+
+
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="the call door is a unix socket file")
+def test_the_call_door_is_a_file_only_the_apps_own_user_can_open_inside_the_store_root():
+    # MUTATION: drop the ``os.chmod`` in ``ServeSocketServer._bind_file``, and the file carries the
+    # umask's mode (0o755 under 0o022): red.
+    import stat
+
+    from agent_runtime.serve_socket.server import call_door_path
+
+    door = call_door_path(_store_root())
+    door.parent.mkdir(parents=True, exist_ok=True)
+    previous = os.umask(0o022)
+    try:
+        with bare_server(path=door) as (server, port, _logs):
+            mode = os.stat(door).st_mode
+            assert stat.S_ISSOCK(mode)
+            assert stat.S_IMODE(mode) == 0o600
+            assert door.parent == _store_root()
+            assert port == 0 and server.connections_payload()["path"] == str(door)
+            # It answers: the hello's challenge arrives over the file.
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer:
+                peer.settimeout(WAIT)
+                peer.connect(str(door))
+                assert json.loads(peer.makefile("r").readline())["event"] == "server_hello"
+    finally:
+        os.umask(previous)
+
+
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="the call door is a unix socket file")
+def test_the_call_door_replaces_a_dead_engines_file_refuses_a_live_one_and_is_gone_after_close():
+    # MUTATION: skip the unlink in ``ServeSocketServer._remove_door_file``, and the file outlives
+    # the close: red.
+    from agent_runtime.serve_socket.server import call_door_path
+
+    door = call_door_path(_store_root())
+    door.parent.mkdir(parents=True, exist_ok=True)
+    dead = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    dead.bind(str(door))
+    dead.close()  # a dead engine's leftover: the file stays, nothing answers on it
+    assert door.exists()
+    with bare_server(path=door) as (server, _port, _logs):
+        # A live engine's door is never taken over: a second bind is refused like a taken port.
+        with pytest.raises(OSError):
+            with bare_server(path=door):
+                pass
+        assert door.exists()
+        server.close()
+        assert not door.exists()

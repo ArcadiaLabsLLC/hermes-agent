@@ -84,7 +84,8 @@ class EmbeddedShell:
 
     Nothing here touches a process table, a subprocess or a registry directory:
     the app IS the only client, so there is nothing to discover and nothing to
-    reap, and the build is the wheel's baked stamp.
+    reap, and the build is the wheel's baked stamp. Its one socket is the call
+    door in the app's private folder, guarded by the root token minted here.
     """
 
     kind = "embedded"
@@ -108,7 +109,11 @@ class EmbeddedShell:
         return baked_build_stamp().payload()
 
     def auth_block(self, store_root: Path) -> dict[str, Any]:
-        return {"token_file": EMBEDDED_NOT_APPLICABLE}
+        # The root token guards the call door (``boot_phases._open_call_door``): the phone's
+        # Eternia proves it in the hello like a computer's does on its loopback lane.
+        from agent_runtime.serve_auth import ensure_token
+
+        return ensure_token(store_root).payload()
 
     def register_instance(self, store_root: Path, **row: Any) -> dict[str, Any]:
         return {"outcome": EMBEDDED_NOT_APPLICABLE}

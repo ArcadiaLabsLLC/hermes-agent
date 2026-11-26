@@ -152,6 +152,9 @@ class BootPhases:
         #    for.
         self.socket_block: dict[str, Any] = {"outcome": "disabled"}
         self.socket_transport = "stdio"
+        if self.shell.kind == "embedded" and self.store_root_path is not None:
+            self._boot_call_door()
+            return None
         if not (self.socket_lane and self.store_root_path is not None):
             return None
         try:
@@ -185,8 +188,9 @@ class BootPhases:
         return None
 
     def _boot_embedded_discussions(self) -> None:
-        """An embedded serve's host app is its only client and it has no socket lane: bind
-        the discussion service here, where a daemon binds it with its socket."""
+        """An embedded serve's host app is its only method client and it has no loopback lane
+        (its one socket is the call door): bind the discussion service here, where a daemon
+        binds it with its loopback lane."""
 
         if (self.shell.kind != "embedded" or self.store_root_path is None
                 or not self.install_block.get("install_id")):
@@ -277,6 +281,65 @@ class BootPhases:
             self.socket_block["took_over_from"] = lock_result.took_over_from
             self.socket_block["owner_started_at"] = lock_result.owner_started_at
 
+    def _boot_call_door(self) -> None:
+        """Open the embedded serve's call door; a door that fails says so and takes nothing down."""
+
+        try:
+            self._open_call_door()
+        except Exception as exc:
+            server, self.socket_server = self.socket_server, None
+            if server is not None:
+                try:
+                    server.close(reason="call_door_failed")
+                except Exception:
+                    pass
+            self.socket_block = {"outcome": f"error:{type(exc).__name__}"}
+
+    def _open_call_door(self) -> None:
+        """The embedded (phone) serve's one socket: the CALL DOOR, a file in its store root.
+
+        Owner 2026-11-26 "Option 2, private door". On a phone the store root is inside the
+        app's own private folder, so only the app's user can open the file (mode 0600), and
+        the root token's hello still guards it. The hello hook is the loopback lane's own
+        (``reverse_handoff``), so ``_is_machine_owner`` and ``call.bridge`` take the owner's
+        ``call_attach`` here unchanged; every other line is refused (``refuse_door_line``):
+        the phone's method lane stays the embedded link. No per-root owner lock: the phone
+        wheel switches ``serve_socket.owner_lock`` off and an app runs one embedded serve per
+        process (``EmbeddedServe.start``); the bind itself replaces only a leftover file no
+        live engine answers on (``ServeSocketServer._bind_file``). Nothing is published: a
+        phone's Eternia reads the path off the ready frame's ``socket`` block.
+        """
+
+        from agent_runtime.serve_auth import read_token as _read_serve_token
+        from agent_runtime.serve_socket.server import (
+            ServeSocketServer,
+            call_door_path,
+            refuse_door_line,
+        )
+
+        from hermes_cli.harness_parts.serve.reverse_lanes import reverse_handoff
+
+        store_root_path = self.store_root_path
+        door = call_door_path(store_root_path)
+        self.socket_server = ServeSocketServer(
+            store_root_path,
+            path=door,
+            boot_id=self.boot_id,
+            dispatch_line=refuse_door_line,
+            hello_payload=self._hello_ok_frame,
+            token_provider=lambda: _read_serve_token(store_root_path),
+            frame_contract=SERVE_SCHEMA_VERSION,
+            on_disconnect=self._on_connection_closed,
+            log=self._service_log,
+            handoff=reverse_handoff(self),
+        )
+        self.socket_server.bind()
+        self.socket_block = {
+            "outcome": "listening",
+            "path": str(door),
+            "started_at": self.socket_server.started_at,
+        }
+
     def _leave_as_losing_service(self, lock_result: Any) -> int:
         """Name the winner and exit 0: a ``--service`` that lost the race serves NOTHING.
 
@@ -362,7 +425,10 @@ class BootPhases:
         from hermes_cli.harness_parts.serve.reverse_lanes import reverse_handoff
 
         self.gateway_block: dict[str, Any]
-        if self.socket_server is not None and self.store_root_path is not None:
+        # Never beside the phone's call door (a socket FILE, ``_open_call_door``): the second
+        # door is the loopback lane's, and a phone opens no network listener of its own here.
+        if (self.socket_server is not None and self.socket_server.path is None
+                and self.store_root_path is not None):
             self.gateway_server, self.gateway_block = start_gateway_listener(
                 self.store_root_path,
                 boot_id=self.boot_id,
@@ -382,8 +448,8 @@ class BootPhases:
             # A FAILED bind is published too (``owner_gateway_entry``), so a pairing verb refuses.
             gateway_entry = owner_gateway_entry(self.gateway_block)
             if gateway_entry is not None and self.socket_lock is not None:
-                # Imported here: only a serve that owns the socket lane gets this far, and the
-                # embedded (phone) serve ships no socket lane.
+                # Imported here: only a serve that owns the loopback lane gets this far; the
+                # embedded (phone) serve's one socket is its call door, which opens no gateway.
                 from agent_runtime.serve_socket.vocabulary import SOCKET_HOST
 
                 # RE-PUBLISH the ownership sidecar, now that the second door has
