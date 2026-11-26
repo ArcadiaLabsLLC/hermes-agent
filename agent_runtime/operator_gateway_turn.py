@@ -104,8 +104,8 @@ _pending: dict[str, deque[_Turn]] = {}
 #: One in-process gateway peer per store home: the operator transcript of a persona with its own
 #: profile is that profile's store, the head's otherwise (the runner's ``session_db``).
 _peers: dict[Path, Any] = {}
-#: The open actor on each chat session key: a key has one gateway session at a time.
-_actors: dict[str, _SessionActor] = {}
+#: Operator attachments are owned per store and durable chat, across native tip rotations.
+_actors: dict[tuple[Path, str], _SessionActor] = {}
 #: Turns whose door returned, waiting for the gateway to settle them, by gateway session id.
 _settling: dict[str, _Turn] = {}
 #: The latest turn on each chat root: the goal loop's decision about it is read from here.
@@ -530,6 +530,10 @@ def _on_lost(home: Path) -> None:
         turn.done.set()
 
 
+def _actor_key(home: Path, root: str | None, tip: str) -> tuple[Path, str]:
+    return home, root or tip
+
+
 class _SessionActor:
     """The operator attachment owned by this actor in its store gateway."""
 
@@ -543,8 +547,9 @@ class _SessionActor:
             if self.closed:
                 return
             self.closed = True
-            if _actors.get(self.key) is self:
-                _actors.pop(self.key)
+            key = _actor_key(self.home, self.root, self.key)
+            if _actors.get(key) is self:
+                _actors.pop(key)
             peer = _peers.get(self.home)
         if peer is not None and peer.alive:
             peer.release_session(self.sid)
@@ -565,8 +570,9 @@ def open_actor(execution: Any) -> Any:
         raise ProfileRunnerError("only a chat's turn runs on a gateway session")
     home = _store_home(execution)
     _ensure_session_row(execution, home, tip)
+    key = _actor_key(home, request.root_chat_session_id, tip)
     with _lock:
-        previous = _actors.pop(tip, None)
+        previous = _actors.get(key)
     if previous is not None:
         # One session per key: the gateway would hand the old one back (a fresh-actor turn, or a
         # rebuild whose old actor the registry retires after its factory returns).
@@ -589,7 +595,7 @@ def open_actor(execution: Any) -> Any:
         raise ProfileRunnerError("the gateway opened an operator session without its requested agent")
     actor = _SessionActor(sid, tip, home, request.root_chat_session_id)
     with _lock:
-        _actors[tip] = actor
+        _actors[key] = actor
     agent._operator_gateway_actor = actor
     return agent
 

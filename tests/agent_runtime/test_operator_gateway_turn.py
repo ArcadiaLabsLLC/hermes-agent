@@ -309,7 +309,7 @@ def test_a_completion_for_a_chat_with_an_open_engine_session_is_left_to_the_engi
     registry = copy(process_registry)
     registry.completion_queue = Queue()
     actor = operator_gateway_turn._SessionActor("sid-open", SENDER_ROOT, None, SENDER_ROOT)
-    monkeypatch.setitem(operator_gateway_turn._actors, SENDER_ROOT, actor)
+    monkeypatch.setitem(operator_gateway_turn._actors, (actor.home, SENDER_ROOT), actor)
     registry.completion_queue.put(_completion())
     forge = _Forge()
 

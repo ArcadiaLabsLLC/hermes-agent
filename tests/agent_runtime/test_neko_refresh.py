@@ -46,7 +46,8 @@ def refresh_neko(instance, root):
     assert any("neko-seed-691" in str(row.get("text")) for row in response["result"]["messages"])
 
 
-@pytest.mark.parametrize("mode", ["cold", "warm", "owner_released", "attached_idle", "native_busy", "observer_exit", "owner_exit"])
+@pytest.mark.parametrize("mode", ["cold", "warm", "rotated", "rotated_viewer", "owner_released",
+                                  "attached_idle", "native_busy", "observer_exit", "owner_exit"])
 def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_agent):
     from tui_gateway import server
 
@@ -100,19 +101,44 @@ def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_ag
         second = open_chat("qa", other, new_session=True, idempotency_key="mint-second")
         assert root != second
         assert operator_turn(neko.id, root, "seed", "neko-seed-691").join(55)[0] == 0
+        rotated = mode in {"rotated", "rotated_viewer"}
+        if rotated:
+            assert operator_turn(neko.id, root, "seed-2", "second seed for compression").join(55)[0] == 0
         run = operator_turn(other, second, "held", OTHER_MESSAGE)
         cleanup.callback(run.join, 65)
         cleanup.callback(model.release.set)
         assert at_model[OTHER_MESSAGE].wait(40)
         refresh_neko(neko.id, root)
         sid = None
-        if mode not in {"cold", "warm"}:
+        store = chat_session_scope.resolve_process_chat_scope().db_path.parent
+
+        def native_client(on_frame=lambda _: None):
+            peer = start_in_process_worker(store, receive=on_frame, lost=lambda: None)
+            cleanup.callback(peer.close)
+            return peer
+
+        if rotated:
+            actor = operator_gateway_turn._actors[store, root]
+            agent = server._sessions[actor.sid]["agent"]
+            # Only the summarizer is scripted. The gateway rotates the session and its lease
+            # and persists the real child in the persona's database.
+            monkeypatch.setattr(agent, "compression_in_place", False)
+            monkeypatch.setattr(agent.context_compressor, "compress", lambda messages, *a, **kw: messages[-2:])
+            peer = operator_gateway_turn._peers[actor.home]
+            peer.call("session.compress", {"session_id": actor.sid})
+            tip = agent.session_id
+            assert tip != root and agent._session_db.resolve_resume_session_id(root) == tip
+            if mode == "rotated_viewer":
+                native = native_client()
+                sid = native.call("session.resume", {"session_id": tip, "observe_only": True})["session_id"]
+                assert sid == actor.sid
+            refresh_neko(neko.id, root)
+        elif mode not in {"cold", "warm"}:
             # End only the test's idle Neko actor so a separate gateway client can open the same
             # durable chat. Never engineer the mismatch by editing either registry's map.
-            actor = operator_gateway_turn._actors.get(root)
+            actor = operator_gateway_turn._actors.get((store, root))
             if actor is not None:
                 actor.close()
-            store = chat_session_scope.resolve_process_chat_scope().db_path.parent
 
             terminal = Event()
 
@@ -120,11 +146,6 @@ def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_ag
                 event = frame.get("params", {})
                 if event.get("type") == "message.complete" and event.get("session_id") == sid:
                     terminal.set()
-
-            def native_client(on_frame=lambda _: None):
-                peer = start_in_process_worker(store, receive=on_frame, lost=lambda: None)
-                cleanup.callback(peer.close)
-                return peer
 
             native = native_client(receive if mode != "owner_exit" else lambda _: None)
             sid = native.call("session.resume", {"session_id": root, "lazy": True})["session_id"]
@@ -159,7 +180,7 @@ def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_ag
         print(f"{mode}: exit={code} builds={builds[root]-before} sends={dispatches(OPERATOR_MESSAGE)} "
               f"native_session_live={session_live} other_turn=completed_once error={error} "
               f"detail={refusal.get('message')}")
-        if mode in {"cold", "warm", "owner_released"}:
+        if mode in {"cold", "warm", "rotated", "owner_released"}:
             assert code == 0 and dispatches(OPERATOR_MESSAGE) == 1
             assert builds[root] - before == (0 if mode == "warm" else 1)
         else:
@@ -170,7 +191,7 @@ def test_refresh_with_a_second_persona_at_the_model(mode, monkeypatch, placed_ag
                 if mode in {"observer_exit", "owner_exit"}:
                     (observer if mode == "owner_exit" else native).close()
                     assert not departing.execution_possible
-            if mode in {"attached_idle", "native_busy"}:
+            if mode in {"attached_idle", "native_busy", "rotated_viewer"}:
                 assert code != 0 and error == "chat_busy"
                 assert not refusal and dispatches(OPERATOR_MESSAGE) == 0
                 native.close()
