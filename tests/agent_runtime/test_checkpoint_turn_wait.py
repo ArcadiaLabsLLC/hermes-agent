@@ -9,7 +9,7 @@ from tools.checkpoint_manager import CheckpointManager
 
 def test_checkpoint_and_write_waits_share_remaining_turn_budget(tmp_path, monkeypatch):
     from agent_runtime import turn_budget
-    from tools import checkpoint_pruning
+    from tools import checkpoint_manager, checkpoint_pruning
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "home"))
     work = tmp_path / "work"
@@ -17,7 +17,7 @@ def test_checkpoint_and_write_waits_share_remaining_turn_budget(tmp_path, monkey
     (work / "package.json").write_text("{}")
     file = work / "one.txt"
     file.write_text("authored")
-    clock = [100.0]
+    clock = [120.0]
     monkeypatch.setattr(turn_budget, "time", SimpleNamespace(time=lambda: clock[0]))
     waits = []
 
@@ -28,7 +28,14 @@ def test_checkpoint_and_write_waits_share_remaining_turn_budget(tmp_path, monkey
 
     monkeypatch.setattr(checkpoint_pruning, "store_lock", lock)
     manager = CheckpointManager(enabled=True)
-    monkeypatch.setattr(manager, "_take", lambda *_: True)
+    deadlines = []
+    run = checkpoint_manager.bounded_probe_run
+
+    def observe(argv, **kwargs):
+        deadlines.append((argv[-1], kwargs["timeout"]))
+        return run(argv, **kwargs)
+
+    monkeypatch.setattr(checkpoint_manager, "bounded_probe_run", observe)
     # The same agent/manager is retained by the resident runtime across turns.
     execution = SimpleNamespace(
         agent=SimpleNamespace(_checkpoint_mgr=manager),
@@ -37,14 +44,20 @@ def test_checkpoint_and_write_waits_share_remaining_turn_budget(tmp_path, monkey
     )
     OperatorTurn.bind_chat_root(execution)
     assert manager.ensure_checkpoint(str(work))
+    # Of the 40 wall seconds left at second 120, ten remain for new work.
+    assert [timeout for _, timeout in deadlines] == [10, 10]
+    assert deadlines[-1][0] == "write-tree"
     clock[0] = 159.75
+    manager.new_turn()
+    assert not manager.ensure_checkpoint(str(work))
     manager.record_agent_write(str(file))
     clock[0] = 161
     manager.record_agent_write(str(file))
     execution.wall_checkpoint = SimpleNamespace(budget=TurnWallBudget(2, 163))
     OperatorTurn.bind_chat_root(execution)
     manager.record_agent_write(str(file))
-    assert waits == [30, .25, 0, 2]
+    assert waits == [10, .25, 0, 2]
+    assert manager.capture_work_budget() == 2
 
 
 def test_native_unbudgeted_checkpoint_remains_fail_fast(tmp_path, monkeypatch):

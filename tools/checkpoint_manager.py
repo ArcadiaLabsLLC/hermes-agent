@@ -902,14 +902,14 @@ class CheckpointManager(ReviewedRestoreMixin):
         # Optional runtime observer. Called under the store lock, at the same
         # boundary as the native snapshot/write evidence; never inferred later.
         self.history_observer = None
-        # Optional caller-owned remaining turn time. Native callers fail fast;
-        # resident agents rebind this callback for every turn.
+        # A new capture stops at the work deadline. Recording a completed
+        # write can use the rest of the same turn, including its reply reserve.
+        self.capture_work_budget: Callable[[], float] | None = None
         self.lock_wait_budget: Callable[[], float] | None = None
 
-    def _tool_lock_wait_seconds(self) -> float:
-        if self.lock_wait_budget is None:
-            return 0
-        return min(30.0, max(0.0, self.lock_wait_budget()))
+    @staticmethod
+    def _tool_lock_wait_seconds(budget: Callable[[], float] | None) -> float:
+        return 0.0 if budget is None else min(30.0, max(0.0, budget()))
 
     # ------------------------------------------------------------------
     # Turn lifecycle
@@ -956,7 +956,7 @@ class CheckpointManager(ReviewedRestoreMixin):
             digest = _hash_file(path)
             if digest is None and path.exists():
                 return
-            with store_lock(_resolve_checkpoint_base(), wait_seconds=self._tool_lock_wait_seconds()):
+            with store_lock(_resolve_checkpoint_base(), wait_seconds=self._tool_lock_wait_seconds(self.lock_wait_budget)):
                 store = _store_path()
                 dir_hash = self._ledger_key(str(path))
                 ledger = _load_ledger(store, dir_hash)
@@ -1061,7 +1061,11 @@ class CheckpointManager(ReviewedRestoreMixin):
         try:
             from tools.checkpoint_pruning import store_lock
 
-            with store_lock(_resolve_checkpoint_base(), wait_seconds=self._tool_lock_wait_seconds()):
+            budget = self.capture_work_budget
+            if budget is not None and budget() <= 0:
+                return False
+            wait = self._tool_lock_wait_seconds(budget or self.lock_wait_budget)
+            with store_lock(_resolve_checkpoint_base(), wait_seconds=wait):
                 return self._take(abs_dir, reason)
         except Exception as e:
             logger.debug("Checkpoint failed (non-fatal): %s", e)
@@ -1693,13 +1697,13 @@ class CheckpointManager(ReviewedRestoreMixin):
         self, args: list[str], store: Path, working_dir: str, index_file: Path,
         *, cold: bool, timeout: float,
     ) -> tuple[bool, str, str]:
-        """Bound the initial index and tree writes to the caller's remaining work time."""
-        if cold and self.lock_wait_budget is not None:
-            timeout = min(timeout, self.lock_wait_budget())
+        """Bound index and tree writes to the caller's remaining work time."""
+        if self.capture_work_budget is not None:
+            timeout = min(timeout, self.capture_work_budget())
             if timeout <= 0:
                 return False, "", "turn budget exhausted during checkpoint capture"
         return _run_git(args, store, working_dir, timeout=timeout, index_file=index_file,
-                        contain_process_tree=cold)
+                        contain_process_tree=cold or self.capture_work_budget is not None)
 
     def _stage_with_oversize_preflight(
         self, store: Path, working_dir: str, index_file: Path, *, cold: bool,

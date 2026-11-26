@@ -238,6 +238,7 @@ class TestTakeCheckpoint:
         (32_000, True, None, 640),
         (32_000, False, None, 60),
         (32_000, True, 9.5, 9.5),
+        (32_000, False, 9.5, 9.5),
         (32_000, True, 0, None),
     ])
     def test_stage_budget_uses_candidate_count_and_turn_clock(
@@ -248,7 +249,7 @@ class TestTakeCheckpoint:
         monkeypatch.setattr(cm, "_GIT_TIMEOUT", 30)
         mgr.max_file_size_mb = 0
         if remaining is not None:
-            mgr.lock_wait_budget = lambda: remaining
+            mgr.capture_work_budget = lambda: remaining
         monkeypatch.setattr(mgr, "_checkpoint_candidates", lambda *_: (["file"] * count, ""))
         timeouts = []
 
@@ -275,7 +276,7 @@ class TestTakeCheckpoint:
             remaining = 0
             return result
 
-        mgr.lock_wait_budget = lambda: remaining
+        mgr.capture_work_budget = lambda: remaining
         monkeypatch.setattr("tools.checkpoint_manager.bounded_probe_run", run)
         assert not mgr.ensure_checkpoint(str(work_dir))
         assert mgr.list_checkpoints(str(work_dir)) == []
@@ -298,7 +299,7 @@ class TestTakeCheckpoint:
         clean = " ".join(shlex.quote(path.as_posix()) for path in (Path(sys.executable), script, marker))
         assert _run_git(["config", "filter.delayed.clean", clean], store, str(work_dir))[0]
         (work_dir / ".gitattributes").write_text("main.py filter=delayed\n")
-        mgr.lock_wait_budget = lambda: 3
+        mgr.capture_work_budget = lambda: 3
         started = time.monotonic()
         assert not mgr.ensure_checkpoint(str(work_dir))
         assert time.monotonic() - started < 30
