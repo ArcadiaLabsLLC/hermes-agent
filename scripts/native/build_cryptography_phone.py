@@ -39,7 +39,6 @@ packager builds nothing from source: this script is run by hand, its wheels are 
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import io
 import json
@@ -56,6 +55,7 @@ sys.path.insert(0, str(ROOT))
 
 from scripts.bundles import elf_alignment
 from scripts.bundles import phone_wheels
+from scripts.native.build_project_files_match import _record_hash, ndk_version
 
 DIST = ROOT / "third_party" / "phone_wheels" / "cryptography"
 DISTRIBUTION = "cryptography"
@@ -104,10 +104,6 @@ def check_input(path: Path, expected: str, label: str) -> None:
 
 def wheel_name(target: str) -> str:
     return f"{DISTRIBUTION}-{VERSION}-cp314-cp314-{TARGETS[target][2]}.whl"
-
-
-def _record_hash(data: bytes) -> str:
-    return "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode("ascii")
 
 
 def wheel_bytes(package: dict[str, bytes], library: bytes, metadata: bytes, licenses: dict[str, bytes],
@@ -180,19 +176,6 @@ def check_toolchain(env: dict[str, str], cwd: Path) -> str:
         raise BuildRefused(f"this build needs rustc {RUST_TOOLCHAIN}; the toolchain answers "
                            f"{(found.stdout or found.stderr).strip()!r}")
     return found.stdout.strip()
-
-
-def ndk_version() -> str:
-    ndk = os.environ.get("ANDROID_NDK_HOME") or os.environ.get("ANDROID_NDK_ROOT")
-    if not ndk and os.environ.get("ANDROID_HOME"):
-        versions = sorted((Path(os.environ["ANDROID_HOME"]) / "ndk").glob("*"))
-        ndk = str(versions[-1]) if versions else ""
-    props = Path(ndk) / "source.properties" if ndk else None
-    if props and props.is_file():
-        for line in props.read_text(encoding="utf-8").splitlines():
-            if line.startswith("Pkg.Revision"):
-                return line.split("=", 1)[1].strip()
-    return "unknown"
 
 
 def needed_libraries(library: bytes) -> list[str]:
