@@ -425,18 +425,20 @@ def test_only_the_paired_device_itself_withdraws_and_only_its_own_accept(phone, 
     from agent_runtime.reverse_lane.offer import withdraw_accept
 
     device = _accepted(phone, computer)
-    owner = computer.owner("runtime.gateway.reverse.withdraw", {"device_id": device.device_id})
+    accepted_id = accepts.list_accepts(computer.root)[0].computer_id
+    owner = computer.owner("runtime.gateway.reverse.withdraw", {"device_id": device.device_id,
+                                                                "computer_ids": [accepted_id]})
     assert owner["error"]["data"]["reason"] == "not_a_device", owner
     other = computer.pair_phone()
     sent = withdraw_accept(host="127.0.0.1", port=computer.gateway_port, cert_fingerprint=computer.fingerprint,
                            device_id=other.device_id, token=other.token,
-                           machine_id=install_address()["machine_id"])
+                           machine_id=install_address()["machine_id"], computer_ids=[accepted_id])
     assert sent == {"ok": True}, sent
     assert [a.device_id for a in accepts.list_accepts(computer.root)] == [device.device_id]
     # A wrong credential never reaches the verb at all.
     refused = withdraw_accept(host="127.0.0.1", port=computer.gateway_port, cert_fingerprint=computer.fingerprint,
                               device_id=device.device_id, token="0" * 64,
-                              machine_id=install_address()["machine_id"])
+                              machine_id=install_address()["machine_id"], computer_ids=[accepted_id])
     assert refused == {"ok": False, "reason": "unpaired"}, refused
     assert [a.device_id for a in accepts.list_accepts(computer.root)] == [device.device_id]
 
@@ -448,3 +450,186 @@ def test_the_withdraw_is_a_device_verb_never_a_local_console_or_computer_one():
     frame = handle_request({"jsonrpc": "2.0", "id": "w", "method": "runtime.gateway.reverse.withdraw", "params": {}},
                            RpcContext(caller=computer))
     assert frame["error"]["data"]["reason"] == "not_a_device", frame
+
+
+# ── the phone offers again when the computer lost its side (hermes row
+# RT-FU-YOUR-PHONE-OFFERS-AGAIN-TO-A-COMPUTER-THAT-NO-LONGER-HOLDS-ITS-GRANT)
+
+
+def _ask_held(computer: _Computer, device: DeviceCredential) -> dict:
+    from agent_runtime.reverse_lane.offer import ask_held
+
+    return ask_held(host="127.0.0.1", port=computer.gateway_port, cert_fingerprint=computer.fingerprint,
+                    device_id=device.device_id, token=device.token, machine_id=install_address()["machine_id"])
+
+
+def _withdraw(computer: _Computer, device: DeviceCredential, computer_ids: list[str]) -> dict:
+    from agent_runtime.reverse_lane.offer import withdraw_accept
+
+    return withdraw_accept(host="127.0.0.1", port=computer.gateway_port, cert_fingerprint=computer.fingerprint,
+                           device_id=device.device_id, token=device.token,
+                           machine_id=install_address()["machine_id"], computer_ids=computer_ids)
+
+
+def _reoffer(phone, computer: _Computer, device: DeviceCredential) -> dict:
+    return phone.rpc("runtime.gateway.reverse.reoffer", _way(computer, device, level=grants.GRANT_ACCOUNT))
+
+
+@pytest.fixture
+def replaced_grants():
+    """Every grant id the phone's store reports deleted: a replaced grant closes the computer's granted call."""
+
+    seen: list[str] = []
+    remove = grants.add_revoke_listener(seen.extend)
+    try:
+        yield seen
+    finally:
+        remove()
+
+
+def test_a_computer_holding_the_current_grant_is_answered_held_and_nothing_is_minted(phone, computer,
+                                                                                     replaced_grants):
+    """(a) MUTATION (``offer.reoffer``): mint whatever ``held`` answers, and the grant row changes and the
+    old id is reported replaced (the computer's granted call would close)."""
+
+    device = _accepted(phone, computer)
+    current = grants.grant_for_install(_phone_root(), INSTALL)
+    assert _ask_held(computer, device) == {"ok": True, "accepted": current.computer_id, "offered": None}
+    answer = _reoffer(phone, computer, device)
+    assert answer.get("result") == {"computer_id": current.computer_id, "level": "account", "state": "held"}, answer
+    assert grants.grant_for_install(_phone_root(), INSTALL) == current
+    assert replaced_grants == []
+    assert [a.computer_id for a in accepts.list_accepts(computer.root)] == [current.computer_id]
+    assert computer.lanes.offers.pending() == []
+
+
+@pytest.mark.parametrize("loss", ["serve_restart", "declined"])
+def test_a_computer_with_no_accept_and_no_offer_gets_one_new_offer_its_eternia_then_takes(phone, computer, loss):
+    """(b) MUTATION (``offer.reoffer``): skip the mint (answer ``held`` always), and no offer is held, so
+    the computer's Eternia's accept is refused ``no_offer``."""
+
+    device, first = _grant(phone, computer)
+    old_id = first["result"]["computer_id"]
+    if loss == "serve_restart":
+        computer.lanes.offers.clear()  # the offer lives in serve memory only
+    else:
+        computer.owner("runtime.gateway.reverse.decline", {"device_id": device.device_id})
+    assert _ask_held(computer, device) == {"ok": True, "accepted": None, "offered": None}
+    answer = _reoffer(phone, computer, device)["result"]
+    assert answer["state"] == "offered" and answer["computer_id"] != old_id, answer
+    assert [o.computer_id for o in computer.lanes.offers.pending()] == [answer["computer_id"]]
+    accepted = computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})
+    assert accepted.get("result", {}).get("computer_id") == answer["computer_id"], accepted
+    # Now held: a second reoffer mints nothing.
+    assert _reoffer(phone, computer, device)["result"]["state"] == "held"
+
+
+def test_an_accept_naming_an_older_grant_gets_one_new_offer(phone, computer):
+    """(c) MUTATION (``offer.reoffer``): test that an accept exists, not its id, and the phone answers
+    ``held`` for a computer whose credential stopped verifying."""
+
+    device = _accepted(phone, computer)
+    old_id = accepts.list_accepts(computer.root)[0].computer_id
+    # The phone granted again and that offer never landed (e.g. the computer's serve restarted before its take).
+    grants.grant_computer(_phone_root(), computer_install_id=INSTALL, pairing_device_id=device.device_id,
+                          computer_machine_id=install_address()["machine_id"])
+    current = grants.grant_for_install(_phone_root(), INSTALL).computer_id
+    assert current != old_id
+    answer = _reoffer(phone, computer, device)["result"]
+    assert answer["state"] == "offered" and answer["computer_id"] not in (old_id, current), answer
+    assert computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})["result"][
+        "computer_id"] == answer["computer_id"]
+
+
+def test_an_offer_older_than_its_ttl_is_not_named_by_held(phone, computer):
+    """(d) MUTATION (``ReverseOffers.peek``): read the offer without the TTL, and ``held`` names a lapsed
+    offer the computer's Eternia can no longer take, so the phone never offers again."""
+
+    device, first = _grant(phone, computer)
+    assert _ask_held(computer, device)["offered"] == first["result"]["computer_id"]
+    computer.lanes.offers._clock = lambda: time.time() + accepts.OFFER_TTL_SECONDS + 1
+    assert _ask_held(computer, device) == {"ok": True, "accepted": None, "offered": None}
+    assert _reoffer(phone, computer, device)["result"]["state"] == "offered"
+
+
+def test_held_answers_only_a_paired_device_and_only_its_own_rows(phone, computer):
+    """(e) MUTATION (``_runtime_gateway_reverse_held``): answer any caller, and the stdio owner is answered;
+    MUTATION: read the first accept rather than this device's, and device B is told A's grant id."""
+
+    device_a = _accepted(phone, computer)
+    a_id = accepts.list_accepts(computer.root)[0].computer_id
+    lane = lambda: computer.lanes  # noqa: E731
+    callers = {
+        "stdio owner": ca.STDIO_OWNER,
+        "peer": ca.RpcCaller(kind=ca.CALLER_PEER, transport="gateway", peer_install_id="inst-far"),
+        "computer lane": ca.RpcCaller(kind=ca.CALLER_COMPUTER, computer_id=a_id,
+                                      computer_grant=grants.GRANT_ACCOUNT, transport="reverse_lane"),
+        "channel": ca.RpcCaller(kind=ca.CALLER_DEVICE, transport="gateway", device_id=device_a.device_id,
+                                device_tier=ca.TIER_CONSOLE, device_kind=ca.DEVICE_KIND_CHANNEL,
+                                bound_instances=("inst-1",)),
+    }
+    for name, caller in callers.items():
+        frame = handle_request({"jsonrpc": "2.0", "id": "h", "method": "runtime.gateway.reverse.held", "params": {}},
+                               RpcContext(caller=caller, reverse_lanes=lane))
+        assert "result" not in frame, (name, frame)
+        assert frame["error"]["data"]["reason"] in ("not_a_device", "scope_denied"), (name, frame)
+    assert handle_request({"jsonrpc": "2.0", "id": "h", "method": "runtime.gateway.reverse.held", "params": {}},
+                          RpcContext(caller=ca.STDIO_OWNER, reverse_lanes=lane))["error"]["data"]["reason"] \
+        == "not_a_device"
+    device_b = computer.pair_phone()
+    assert _ask_held(computer, device_b) == {"ok": True, "accepted": None, "offered": None}
+    assert _ask_held(computer, device_a) == {"ok": True, "accepted": a_id, "offered": None}
+
+
+def test_a_withdraw_drops_only_the_offer_and_accept_naming_a_grant_it_names(phone, computer):
+    """(g) MUTATION (``_runtime_gateway_reverse_withdraw``): drop by device alone, and a withdraw naming an
+    older grant id erases the newer offer and the current accept."""
+
+    device = _accepted(phone, computer)
+    first_id = accepts.list_accepts(computer.root)[0].computer_id
+    newer = phone.rpc("runtime.gateway.reverse.grant", _way(computer, device, level="account"))["result"]
+    newer_id = newer["computer_id"]
+    # A withdraw naming neither (an older grant) drops nothing.
+    assert _withdraw(computer, device, ["cmp-older"]) == {"ok": True}
+    assert [a.computer_id for a in accepts.list_accepts(computer.root)] == [first_id]
+    assert [o.computer_id for o in computer.lanes.offers.pending()] == [newer_id]
+    # Naming the accept's grant forgets it and leaves the newer offer.
+    assert _withdraw(computer, device, [first_id]) == {"ok": True}
+    assert accepts.list_accepts(computer.root) == []
+    assert [o.computer_id for o in computer.lanes.offers.pending()] == [newer_id]
+    # The newer offer taken: a late withdraw of the first grant leaves the current accept.
+    computer.owner("runtime.gateway.reverse.accept", {"device_id": device.device_id})
+    assert _withdraw(computer, device, [first_id]) == {"ok": True}
+    assert [a.computer_id for a in accepts.list_accepts(computer.root)] == [newer_id]
+    # One naming the current grant drops both its accept and an offer naming it.
+    computer.lanes.offers.hold(device_id=device.device_id, computer_id=newer_id, level="account",
+                               phone_install_id="phone-x", token="b" * 64)
+    assert _withdraw(computer, device, [newer_id]) == {"ok": True}
+    assert accepts.list_accepts(computer.root) == [] and computer.lanes.offers.pending() == []
+
+
+def test_a_held_refused_bad_proof_revokes_the_grant_and_the_next_reoffer_opens_no_connection(phone, computer):
+    """(h) MUTATION (``offer.reoffer``): keep the grant on ``unpaired``, and the next reoffer dials the
+    computer again (here: closed, so ``computer_unreachable``) with a credential it refuses."""
+
+    device = _accepted(phone, computer)
+    revoke_device(computer.root, device.device_id)
+    answer = _reoffer(phone, computer, device)
+    assert answer["error"]["data"]["reason"] == "unpaired", answer
+    assert grants.grant_for_install(_phone_root(), INSTALL) is None
+    computer.gateway.close()
+    again = _reoffer(phone, computer, device)
+    assert again["error"]["data"]["reason"] == "no_grant", again
+
+
+def test_a_paired_device_calling_reoffer_is_refused():
+    """(i) MUTATION: leave ``runtime.gateway.reverse.reoffer`` out of ``LOCAL_CONSOLE_METHODS``, and a
+    console-tier paired device is admitted to make this phone offer its agents."""
+
+    assert "runtime.gateway.reverse.reoffer" in ca.LOCAL_CONSOLE_METHODS
+    assert "runtime.gateway.reverse.held" not in ca.LOCAL_CONSOLE_METHODS
+    device = ca.RpcCaller(kind=ca.CALLER_DEVICE, device_id="d", device_tier=ca.TIER_CONSOLE,
+                          device_kind=ca.DEVICE_KIND_DEVICE, transport="gateway")
+    frame = handle_request({"jsonrpc": "2.0", "id": "r", "method": "runtime.gateway.reverse.reoffer",
+                            "params": {}}, RpcContext(caller=device))
+    assert frame["error"]["data"]["reason"] == "scope_denied", frame

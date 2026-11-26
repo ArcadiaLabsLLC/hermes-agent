@@ -69,8 +69,9 @@ def test_access_off_refuses_a_device_a_read_verb_and_a_console_verb(access_off):
 
 
 def test_access_off_still_answers_a_device_its_reverse_offer(access_off):
-    """Mutation: empty ``ACCESS_OFF_ANSWERS`` -> the phone's offer is refused ``access_off``, red."""
-    for name in ("runtime.gateway.reverse.offer", "runtime.gateway.reverse.withdraw"):
+    """Mutation: empty ``ACCESS_OFF_ANSWERS`` -> the phone's offer is refused ``access_off``, red; (f) leave
+    ``held`` out of it -> the phone's held read is refused ``access_off``, red."""
+    for name in ("runtime.gateway.reverse.offer", "runtime.gateway.reverse.withdraw", "runtime.gateway.reverse.held"):
         reply = _call(name, caller=DEVICE)
         assert _reason(reply) != REASON_ACCESS_OFF, reply
         assert _reason(reply) != "scope_denied", reply

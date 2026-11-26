@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -142,9 +143,30 @@ class ReverseOffers:
             return None
         return offer
 
+    def peek(self, device_id: str) -> ReverseOffer | None:
+        """*device_id*'s live offer, left held (``runtime.gateway.reverse.held``), or ``None``."""
+
+        with self._lock:
+            offer = self._offers.get(str(device_id or ""))
+        # MUTATION: drop the TTL test and test_reverse_grant's lapsed-offer test reads the old offer named.
+        if offer is None or self._clock() - offer.offered_at > OFFER_TTL_SECONDS:
+            return None
+        return offer
+
     def drop(self, device_id: str) -> bool:
         with self._lock:
             return self._offers.pop(str(device_id or ""), None) is not None
+
+    def drop_naming(self, device_id: str, computer_ids: Collection[str]) -> bool:
+        """Drop *device_id*'s offer only when it names one of *computer_ids* (a phone's withdraw)."""
+
+        key = str(device_id or "")
+        with self._lock:
+            offer = self._offers.get(key)
+            if offer is None or offer.computer_id not in computer_ids:
+                return False
+            del self._offers[key]
+            return True
 
     def pending(self) -> list[ReverseOffer]:
         now = self._clock()
@@ -204,13 +226,18 @@ def record_accept(store_root: Path | str, offer: ReverseOffer, *, machine_id: st
     return accept
 
 
-def forget_accept(store_root: Path | str, device_id: str) -> bool:
+def forget_accept(store_root: Path | str, device_id: str, *, naming: Collection[str] | None = None) -> bool:
+    """Forget *device_id*'s accept. With *naming* (a phone's withdraw), only an accept of one of those grant ids."""
+
     with _lock(store_root):
         rows = _rows(store_root)
-        existed = rows.pop(str(device_id or ""), None) is not None
-        if existed:
-            _write(store_root, rows)
-    return existed
+        key = str(device_id or "")
+        row = rows.get(key)
+        if row is None or (naming is not None and str(row.get("computer_id") or "") not in naming):
+            return False
+        rows.pop(key, None)
+        _write(store_root, rows)
+    return True
 
 
 def list_accepts(store_root: Path | str) -> list[ReverseAccept]:

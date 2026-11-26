@@ -362,10 +362,13 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
         "runtime.gateway.reverse.hangup",
         "runtime.gateway.reverse.lanes",
         # The grant (MC-PHONE-DRIVEN-A-PHONE-LETS-…): the phone's owner grants and revokes, the
-        # computer's Eternia accepts and declines. ``offer`` and ``withdraw`` (the phone's switch off,
-        # RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT) are NOT here: a paired device
-        # sends them, read tier, answered only as that authenticated device.
+        # computer's Eternia accepts and declines. ``offer``, ``withdraw`` (the phone's switch off,
+        # RT-FU-A-PHONES-REVOKE-TELLS-THE-COMPUTER-SO-IT-DROPS-ITS-ACCEPT) and ``held`` (what the computer
+        # holds from that phone, RT-FU-YOUR-PHONE-OFFERS-AGAIN-TO-A-COMPUTER-THAT-NO-LONGER-HOLDS-ITS-GRANT)
+        # are NOT here: a paired device sends them, read tier, answered only as that authenticated device.
+        # ``reoffer`` (the phone re-sends its grant when the computer lost it) is the phone owner's, like ``grant``.
         "runtime.gateway.reverse.grant",
+        "runtime.gateway.reverse.reoffer",
         "runtime.gateway.reverse.revoke",
         "runtime.gateway.reverse.accept",
         "runtime.gateway.reverse.decline",
@@ -385,13 +388,14 @@ LOCAL_CONSOLE_METHODS: frozenset[str] = frozenset(
 #: **What a device or peer is still answered while "Allow access" is off** (hermes row
 #: ``RT-ACCOUNT-ONLY-A-COMPUTER-WITH-ALLOW-ACCESS-OFF-STAYS-REACHABLE-BUT-LETS-NONE-OF-YOUR-DEVICES-USE-IT``,
 #: owner 2026-11-23 "discovery and allowing pairing are different things though"). Off refuses USE, never
-#: reach: a phone still offers and withdraws its own agents to this computer (they are the phone's, and
-#: read nothing here), and a peer still learns this install is there and what it is called. Every other
+#: reach: a phone still offers and withdraws its own agents to this computer and asks what it holds of
+#: them (``held``: only that phone's own grant ids; they are the phone's, and read nothing else here), and a peer still learns this install is there and what it is called. Every other
 #: verb is refused ``access_off`` by :func:`_access_arm`. A membership test: a verb joins only by an edit.
 ACCESS_OFF_ANSWERS: frozenset[str] = frozenset(
     {
         "runtime.gateway.reverse.offer",
         "runtime.gateway.reverse.withdraw",
+        "runtime.gateway.reverse.held",
         "peer.ping",
         "peer.announce",
     }
