@@ -240,6 +240,57 @@ def test_a_successful_redeem_clears_the_failure_streak(tmp_path: Path):
         )
 
 
+# ── address refusals and the lockout (RT-FU-REFUSED-HELLOS-…-FOR-AN-HOUR) ──────────────────
+
+
+def _account_code(root: Path, *, for_machine_id: str | None, for_device_id: str | None = "acct-phone"):
+    code = mint_pairing_code(root, for_device_id=for_device_id, for_machine_id=for_machine_id, now=1000.0)
+    assert isinstance(code, PairingCode)
+    return code
+
+
+def test_namespace_refusals_from_the_machine_the_account_names_do_not_lock_the_store(tmp_path: Path):
+    """Owner 2026-11-26: a failed hello from a device the account record names does not count
+    toward the lockout. Six namespace refusals from the code's own machine, then the right hello
+    redeems. MUTATION: charge every address refusal again → the last redeem is ``locked_out``."""
+
+    hello = hello_fields()
+    code = _account_code(tmp_path, for_machine_id=hello["machine_id"])
+    for _ in range(MAX_FAILED_REDEEMS + 1):
+        refused = redeem_pairing_code(
+            tmp_path, code.code, now=1000.0, machine_id=hello["machine_id"], namespace="another-namespace")
+        assert getattr(refused, "reason", None) == "hello_namespace_mismatch"
+
+    assert isinstance(redeem_pairing_code(tmp_path, code.code, now=1000.0, **hello), DeviceCredential)
+
+
+def test_machine_refusals_on_an_account_code_still_lock_the_store(tmp_path: Path):
+    """A hello from another machine than the one the account named is not that device: five lock.
+    MUTATION: spare every address refusal → the right hello redeems instead of ``locked_out``."""
+
+    hello = hello_fields()
+    code = _account_code(tmp_path, for_machine_id=hello["machine_id"])
+    for _ in range(MAX_FAILED_REDEEMS):
+        refused = redeem_pairing_code(tmp_path, code.code, now=1000.0, machine_id="mach_someoneelse", namespace=hello["namespace"])
+        assert getattr(refused, "reason", None) == "hello_machine_mismatch"
+
+    assert getattr(redeem_pairing_code(tmp_path, code.code, now=1000.0, **hello), "reason", None) == "locked_out"
+
+
+def test_namespace_refusals_on_a_code_with_no_machine_named_still_lock_the_store(tmp_path: Path):
+    """A code naming a device but no machine is not an account-named device and machine: five
+    namespace refusals lock. MUTATION: spare on ``for_device_id`` alone → the right hello redeems."""
+
+    hello = hello_fields()
+    code = _account_code(tmp_path, for_machine_id=None)
+    for _ in range(MAX_FAILED_REDEEMS):
+        refused = redeem_pairing_code(
+            tmp_path, code.code, now=1000.0, machine_id=hello["machine_id"], namespace="another-namespace")
+        assert getattr(refused, "reason", None) == "hello_namespace_mismatch"
+
+    assert getattr(redeem_pairing_code(tmp_path, code.code, now=1000.0, **hello), "reason", None) == "locked_out"
+
+
 def test_a_lowercase_code_redeems_because_a_phone_will_send_one(tmp_path: Path):
     code = mint_pairing_code(tmp_path, now=1000.0)
     assert isinstance(code, PairingCode)

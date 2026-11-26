@@ -195,7 +195,7 @@ def redeem_pairing_code(
             matched_id, matched = found
             bound_machine, address = _bound_machine(matched, machine_id, namespace)
             if address is not None:
-                return _address_refused(store_root, state, address, stamp)
+                return _address_refused(store_root, state, address, stamp, matched=matched, machine_id=machine_id)
             _spend(store_root, state, matched_id)
 
             token = secrets.token_hex(DEVICE_TOKEN_BYTES)
@@ -275,14 +275,33 @@ def redeem_pairing_code(
 
 # ── internals ────────────────────────────────────────────────────────────────
 
-def _address_refused(store_root: Path | str, state: dict[str, Any], address: str, stamp: float) -> StoreRefusal:
+def _address_refused(
+    store_root: Path | str, state: dict[str, Any], address: str, stamp: float,
+    *, matched: dict[str, Any], machine_id: Any,
+) -> StoreRefusal:
     """Machine first, then the namespace: a code redeemed from another machine than the one it was
     minted for, from a device that names none, or from another namespace mints nothing. The code stays
-    pending for the device it was meant for, and the attempt charges the lockout."""
+    pending for the device it was meant for.
 
-    note_failed_redeem(state, now=stamp)
+    The attempt charges the lockout unless it comes from a device the account record names: a code
+    minted with both ``for_device_id`` and ``for_machine_id`` (``introduce`` writes them from the
+    requester's account record) and a hello from that very machine. Only a namespace refusal can
+    reach that path, and it is spared (owner 2026-11-26: failed hellos from a device your account
+    already confirmed do not count toward the five-failure lockout). A machine refusal, a code with
+    no device or no machine named (every manual ``harness gateway pair``) still charge."""
+
+    if not _from_account_named_device(matched, machine_id):
+        note_failed_redeem(state, now=stamp)
     write_pairing(store_root, state)
     return StoreRefusal(address, "the redeeming device is not the one this code was minted for")
+
+
+def _from_account_named_device(matched: dict[str, Any], machine_id: Any) -> bool:
+    """True when the code was minted for a device and machine the account record names, and the
+    hello comes from that machine."""
+
+    scoped = clean_machine_id(matched.get("for_machine_id"))
+    return bool(clean_name(matched.get("for_device_id")) and scoped and clean_machine_id(machine_id) == scoped)
 
 
 def _spend(store_root: Path | str, state: dict[str, Any], matched_id: str) -> None:
