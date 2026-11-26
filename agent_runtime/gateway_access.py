@@ -19,7 +19,7 @@ Layer ``models``: every layer may read it (``harness_settings`` is ``models``).
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 from .harness_settings import harness_setting
@@ -67,15 +67,29 @@ def drop_remote_callers(servers: tuple[Any, ...], *, reason: str) -> int:
     socket, ``serve_socket.handshake``), so it stays: a phone's line survives every change. Each closed
     caller says hello again and reads the new ``access`` answer, and its subscriptions die with it."""
 
+    return sum(server.drop_where(_remote_connection, reason=reason) for server in servers if server is not None)
+
+
+def _remote_connection(connection: Any) -> bool:
     from .call_authorization import caller_for_connection
 
-    remote: Callable[[Any], bool] = lambda connection: is_remote_user(caller_for_connection(connection))
-    return sum(server.drop_where(remote, reason=reason) for server in servers if server is not None)
+    return is_remote_user(caller_for_connection(connection))
 
 
 def drop_session_remote_callers(session: Any, reason: str) -> int:
-    """:func:`drop_remote_callers` over a serve session's two listeners (``RpcContext.close_remote_callers``)."""
+    """:func:`drop_remote_callers` over a serve session's two listeners and its calls' lanes
+    (``RpcContext.close_remote_callers``).
+
+    A device using this computer over a call (``agent_runtime.pair_call``) was admitted by the call's own
+    lane admitter, not a listener: its lane closes too, the call itself stays up, and the device's
+    Eternia opens a new lane and says hello again (row
+    ``RT-FU-TURNING-ALLOW-ACCESS-OFF-OR-ON-REACHES-YOUR-DEVICES-ON-THE-CALL-AT-ONCE``)."""
 
     with session.lane_lock:
         servers = (getattr(session, "socket_server", None), getattr(session, "gateway_server", None))
-    return drop_remote_callers(servers, reason=reason)
+    dropped = drop_remote_callers(servers, reason=reason)
+    calls = getattr(getattr(session, "reverse_lanes", None), "calls", None)
+    # MUTATION: skip the calls' lanes and test_an_access_change_closes_a_devices_lane_on_a_call keeps it open.
+    if calls is not None:
+        dropped += calls.drop_lane_callers(_remote_connection, reason=reason)
+    return dropped

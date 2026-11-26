@@ -306,6 +306,71 @@ def test_a_killed_call_fails_its_requests_and_both_sides_redial(pair, redialer):
     assert back.dialer_install == must_redial.install
 
 
+# ── Allow access: a change closes your devices' lanes on a call, never the call ──
+# Hermes row ``RT-FU-TURNING-ALLOW-ACCESS-OFF-OR-ON-REACHES-YOUR-DEVICES-ON-THE-CALL-AT-ONCE``.
+
+
+class _ServeSession:
+    """The slice of a serve session ``drop_session_remote_callers`` reads: its listeners and its lanes."""
+
+    def __init__(self, engine: _Engine) -> None:
+        self.lane_lock = threading.Lock()
+        self.socket_server = engine.loopback
+        self.gateway_server = engine.gateway
+        self.reverse_lanes = engine.lanes
+
+
+def _lane_ids(call: PairCall) -> set[str]:
+    return {lane["lane"] for lane in call.describe()["lanes"]}
+
+
+def _access_change_on(engine: _Engine) -> int:
+    from agent_runtime.gateway_access import drop_session_remote_callers
+
+    return drop_session_remote_callers(_ServeSession(engine), "access_changed")
+
+
+def test_an_access_change_closes_a_devices_lane_on_a_call(pair):
+    """Mutation: skip ``calls.drop_lane_callers`` in ``drop_session_remote_callers`` (walk only the two
+    listeners again) -> the device's lane on the call stays open and keeps being answered, red."""
+
+    low, high = pair
+    low.calls.dial(low.way_to(high))
+    _one_shared_call(low, high)
+    call, client = low.lane_client(high)
+    assert client.request("test.who", timeout=WAIT)["result"]["served_by"] == high.name
+    assert _access_change_on(high) == 1
+    _until(lambda: client.lane_id not in _lane_ids(call), what="the device's lane closed on its side")
+    assert client.request("test.who", timeout=2.0)["ok"] is False
+
+
+def test_the_call_stays_up_after_an_access_change(pair):
+    """Mutation: close each call in ``PairCalls.drop_lane_callers`` instead of its lanes -> the call closes
+    and the device's next lane is never answered on it, red."""
+
+    low, high = pair
+    low.calls.dial(low.way_to(high))
+    shared = _one_shared_call(low, high)
+    call, client = low.lane_client(high)
+    assert _access_change_on(high) == 1
+    _until(lambda: client.lane_id not in _lane_ids(call), what="the device's lane closed")
+    time.sleep(0.3)
+    assert shared.is_open and high.call_to(low).is_open
+    # The device says hello again on a new lane of the same call, and is answered.
+    again_call, again = low.lane_client(high)
+    assert again_call.call_id == shared.call_id
+    assert again.request("test.who", timeout=WAIT)["result"]["served_by"] == high.name
+
+
+def test_an_access_change_before_any_lane_builds_no_admitter(pair):
+    """Mutation: build the admitter through ``PairCalls.admitter()`` in ``drop_lane_callers`` -> one is
+    built though no lane ever opened, red."""
+
+    low, high = pair
+    assert _access_change_on(high) == 0
+    assert high.calls._admitter is None
+
+
 # ── through a real serve: the phone dials, the computer's Eternia rides a lane ──
 
 

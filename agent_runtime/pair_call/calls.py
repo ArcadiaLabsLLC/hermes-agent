@@ -382,6 +382,17 @@ class PairCalls:
                 self._admitter = self._admitter_factory()
             return self._admitter
 
+    def drop_lane_callers(self, predicate: Callable[[Any], bool], *, reason: str) -> int:
+        """Close every lane connection *predicate* names on this serve's call lane admitter; the count.
+
+        Only the lanes close: each call stays up, so the far device opens a new lane and says hello
+        again. An admitter is never built here — no lane opened means none to close."""
+
+        with self._lock:
+            admitter = self._admitter
+        # MUTATION: close the calls instead and test_the_call_stays_up_after_an_access_change sees it closed.
+        return admitter.drop_where(predicate, reason=reason) if admitter is not None else 0
+
     def _on_lane_open(self, call: PairCall, lane_id: str, purpose: str) -> None:
         admitter = self.admitter()
         near, far = socket.socketpair()
